@@ -350,18 +350,11 @@ def author_actuator_prims(
 
             act_prim_path = f"{articulation_prim_path}/{group_name}_{jname}_actuator"
             act_prim = stage.DefinePrim(act_prim_path, "NewtonActuator")
-
-            if is_bam:
-                _prepare_bam_prim(act_prim, attrs)
-
-            if is_bam:
-                # A weaker PD/clamping schema can hide the unregistered BAM token from
-                # Newton's discovery. Replace the composed list, not just its prepends.
-                act_prim.SetMetadata("apiSchemas", Sdf.TokenListOp.CreateExplicit(schemas))
-            else:
-                existing = act_prim.GetMetadata("apiSchemas") or Sdf.TokenListOp()
-                existing.prependedItems = list(schemas)
-                act_prim.SetMetadata("apiSchemas", existing)
+            # Replacement may reuse the path of an actuator deactivated above.
+            act_prim.SetActive(True)
+            existing = act_prim.GetMetadata("apiSchemas") or Sdf.TokenListOp()
+            existing.prependedItems = list(schemas)
+            act_prim.SetMetadata("apiSchemas", existing)
 
             rel = act_prim.CreateRelationship("newton:targets")
             rel.SetTargets([Sdf.Path(joint_prim_path)])
@@ -409,15 +402,6 @@ def _resolve_bam_groups(
         for name, cfg, joints in groups
         for jname in joints
     }
-
-
-def _prepare_bam_prim(prim: Usd.Prim, values: dict[str, float | int]) -> None:
-    """Reactivate the replacement and suppress stale coefficients from weaker layers."""
-    prim.SetActive(True)
-    names = {f"newton:{to_camel_case(name)}" for name in values}
-    for attr in prim.GetAttributes():
-        if attr.GetName().startswith("newton:") and attr.GetName() not in names:
-            attr.Block()
 
 
 def _read_bam_attributes(art_prim: Usd.Prim, joint_paths: set[str]) -> dict[str, dict[str, float | int]]:
