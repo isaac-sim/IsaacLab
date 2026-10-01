@@ -981,6 +981,7 @@ jobs:
     - uses: actions/checkout@v6
       with:
         fetch-depth: 1
+        lfs: true
     - name: Pull pull-request image
       uses: ./.github/actions/ecr-build-push-pull
       with:
@@ -1049,6 +1050,12 @@ jobs:
         (output / "build-context.json").write_text(json.dumps(record, indent=2) + "\n")
         PY
 
+    - name: Prepare benchmark source revision evidence
+      run: >-
+        python3 tools/perf_smoke/source_revision.py prepare
+        --checkout-root "$GITHUB_WORKSPACE"
+        --output benchmark-output/source-manifest.json
+
     # Kit-free combinations only: name|task|num_envs|bench_timeout_s|args
     - name: Define benchmark matrix
       run: |
@@ -1101,14 +1108,25 @@ jobs:
           local attempt="$1"
           container="performance-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${leg}-${sample}-${attempt}"
           cleanup_container
+          # Dependency-cache hits can reuse an image with older source. Overlay this
+          # checkout at its editable-install paths, then verify the measured process.
           timeout "${bench_timeout_s}" docker run --name "$container" --gpus all --network=host --ipc=host \
             -e WARP_CACHE_PATH=/tmp/jit-cache/warp \
             -e CUDA_CACHE_PATH=/tmp/jit-cache/nv \
             -v "${GITHUB_WORKSPACE}/jit-cache:/tmp/jit-cache" \
+            -v "${GITHUB_WORKSPACE}/source:/workspace/isaaclab/source:ro" \
+            -v "${GITHUB_WORKSPACE}/scripts:/workspace/isaaclab/scripts:ro" \
+            -v "${GITHUB_WORKSPACE}/apps:/workspace/isaaclab/apps:ro" \
+            -v "${GITHUB_WORKSPACE}/tools/perf_smoke/source_revision.py:/tmp/source_revision.py:ro" \
+            -v "${GITHUB_WORKSPACE}/benchmark-output/source-manifest.json:/tmp/source-manifest.json:ro" \
             --entrypoint bash "$CI_IMAGE_TAG" -lc \
             "set -euo pipefail
             mkdir -p /tmp/benchmark-output
-            uv run --no-sync isaaclab benchmark runtime \
+            uv run --no-sync python /tmp/source_revision.py run \
+              --manifest /tmp/source-manifest.json \
+              --checkout-root /workspace/isaaclab \
+              --output-dir /tmp/benchmark-output \
+              -- benchmark runtime \
               --task '$task' \
               --num_envs '$num_envs' \
               --num_steps 200 \
