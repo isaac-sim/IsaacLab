@@ -21,11 +21,7 @@ class FrankaCabinetDirectSceneCfg(CabinetDirectSceneCfg):
     """Direct-workflow cabinet scene configured for the Franka robot."""
 
     robot = replace(FRANKA_PANDA_CFG, prim_path="{ENV_REGEX_NS}/Robot")
-    # Drawer interaction only requires hand and fingertip contacts.
-    robot.spawn.variants = {
-        "Physics": preset(default="mujoco", isaacsim_physx="physx", physx="physx", ovphysx="physx"),
-        "Colliders": preset(default="gripper_only", arm_collisions="primitives"),
-    }
+    robot.spawn.variants["Physics"] = preset(default="mujoco", isaacsim_physx="physx", physx="physx", ovphysx="physx")
 
 
 @configclass

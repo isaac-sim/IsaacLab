@@ -11,11 +11,11 @@ import pytest
 import torch
 import warp as wp
 
-from pxr import Usd
+from pxr import Usd, UsdGeom, UsdPhysics
 
 from isaaclab.assets import Asset
 from isaaclab.managers import CommandTerm, ObservationTermCfg, SceneEntityCfg
-from isaaclab.sim import select_usd_variants
+from isaaclab.sim import select_usd_variants, use_stage
 from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_tasks.core.lift import mdp
@@ -27,6 +27,7 @@ from isaaclab_tasks.core.lift.mdp.commands.pose_commands import (
     DeformableUniformPoseCommand,
     ObjectUniformPoseCommand,
 )
+from isaaclab_tasks.core.lift.mdp.utils import collect_collision_meshes
 from isaaclab_tasks.utils.hydra import resolve_presets
 
 
@@ -63,11 +64,11 @@ def test_franka_soft_robot_physics_variant_matches_backend(
     """The Franka USD physics payload must match the selected simulation backend."""
     cfg = resolve_presets(FrankaSoftEnvCfg(), selected=selected_presets)
 
-    assert cfg.scene.robot.spawn.variants == {"Physics": expected_physics}
+    assert cfg.scene.robot.spawn.variants == {"Physics": expected_physics, "Colliders": "primitives"}
 
 
 def test_franka_rigid_task_selects_collision_meshes_for_reset_clearance() -> None:
-    """Reset validation keeps the original arm meshes when the asset defaults to capsules."""
+    """Rigid Lift inherits the canonical asset's full primitive colliders."""
     cfg = FrankaLiftEnvCfg()
     stage = Usd.Stage.CreateInMemory()
     robot = stage.DefinePrim("/Robot", "Xform")
@@ -82,10 +83,27 @@ def test_franka_rigid_task_selects_collision_meshes_for_reset_clearance() -> Non
             stage.DefinePrim(prim_path, prim_type)
     colliders.SetVariantSelection("primitives")
 
-    select_usd_variants("/Robot", cfg.scene.robot.spawn.variants or {}, stage=stage)
+    select_usd_variants("/Robot", {"Colliders": cfg.scene.robot.spawn.variants["Colliders"]}, stage=stage)
 
-    assert stage.GetPrimAtPath("/Robot/link1_c/link1_c").IsValid()
-    assert not stage.GetPrimAtPath("/Robot/link1_capsule").IsValid()
+    assert not stage.GetPrimAtPath("/Robot/link1_c/link1_c").IsValid()
+    assert stage.GetPrimAtPath("/Robot/link1_capsule").IsValid()
+
+
+def test_reset_clearance_ignores_disabled_collision_geometry() -> None:
+    """Disabled colliders and visual-only geometry must not reject reset candidates."""
+    stage = Usd.Stage.CreateInMemory()
+    root = stage.DefinePrim("/Object", "Xform")
+    for name, enabled in (("default_enabled", None), ("explicit_enabled", True), ("disabled", False)):
+        prim = UsdGeom.Cube.Define(stage, f"/Object/{name}").GetPrim()
+        collision = UsdPhysics.CollisionAPI.Apply(prim)
+        if enabled is not None:
+            collision.CreateCollisionEnabledAttr(enabled)
+    UsdGeom.Cube.Define(stage, "/Object/visual_only")
+
+    with use_stage(stage):
+        meshes = collect_collision_meshes(root, lambda prim: (prim.GetName(), root))
+
+    assert set(meshes) == {"default_enabled", "explicit_enabled"}
 
 
 def _make_vision_camera(data_type: str, images: torch.Tensor) -> tuple[mdp.vision_camera, SimpleNamespace]:

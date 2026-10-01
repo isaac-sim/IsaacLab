@@ -24,9 +24,6 @@ from isaaclab.devices.gamepad import Se3GamepadCfg
 from isaaclab.devices.keyboard import Se3KeyboardCfg
 from isaaclab.devices.spacemouse import Se3SpaceMouseCfg
 from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
-from isaaclab.managers import RewardTermCfg as RewTerm
-from isaaclab.managers import SceneEntityCfg
-from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.utils import configclass, replace
 
 from isaaclab_tasks.utils import PresetCfg, preset
@@ -34,9 +31,9 @@ from isaaclab_tasks.utils import PresetCfg, preset
 ##
 # Pre-defined configs
 ##
-from isaaclab_assets import FRANKA_PANDA_CFG  # isort: skip
+from isaaclab_assets import FRANKA_MINIMAL_CFG, FRANKA_PANDA_CFG  # isort: skip
 
-from ...reach_env_cfg import ReachEnvCfg, RewardsCfg, TerminationsCfg
+from ...reach_env_cfg import ReachEnvCfg
 
 ##
 # Environment configuration
@@ -91,30 +88,8 @@ class FrankaArmActionCfg(PresetCfg):
 
 
 @configclass
-class FrankaReachRewardsCfg(RewardsCfg):
-    """Keep continuous pose-tracking rewards specific to Franka Reach."""
-
-    end_effector_position_tracking_fine_grained = RewTerm(
-        func=mdp.position_command_error_tanh,
-        weight=0.1,
-        params={"asset_cfg": SceneEntityCfg("robot", body_names="panda_hand"), "std": 0.1, "command_name": "ee_pose"},
-    )
-    success: RewTerm | None = None
-
-
-@configclass
-class FrankaReachTerminationsCfg(TerminationsCfg):
-    """Track Franka Reach success without ending the episode early."""
-
-    success: DoneTerm | None = None
-
-
-@configclass
 class FrankaReachEnvCfg(ReachEnvCfg):
     """Franka Reach configuration with selectable arm and physics presets."""
-
-    rewards: FrankaReachRewardsCfg = FrankaReachRewardsCfg()
-    terminations: FrankaReachTerminationsCfg = FrankaReachTerminationsCfg()
 
     def validate_config(self) -> None:
         """Validate the selected controller and physics backend."""
@@ -126,12 +101,10 @@ class FrankaReachEnvCfg(ReachEnvCfg):
     def __post_init__(self):
         super().__post_init__()
 
-        # Reach has no robot-scene contact objective, so use the fast gripper collider preset.
         self.scene.robot = replace(FRANKA_PANDA_CFG, prim_path="{ENV_REGEX_NS}/Robot")
-        self.scene.robot.spawn.variants = {
-            "Physics": preset(default="mujoco", isaacsim_physx="physx", physx="physx", ovphysx="physx"),
-            "Colliders": preset(default="gripper_only", arm_collisions="primitives"),
-        }
+        self.scene.robot.spawn.variants["Physics"] = preset(
+            default="mujoco", isaacsim_physx="physx", physx="physx", ovphysx="physx"
+        )
         # IK targets need backend-native gravity control to hold steady between commands.
         self.scene.robot.spawn.rigid_props = [
             PhysxRigidBodyCfg(
@@ -168,3 +141,12 @@ class FrankaReachEnvCfg(ReachEnvCfg):
         # end-effector is along z-direction
         self.commands.ee_pose.body_name = "panda_hand"
         self.commands.ee_pose.ranges.pitch = (math.pi, math.pi)
+
+
+@configclass
+class FrankaReachMinimalEnvCfg(FrankaReachEnvCfg):
+    """Franka Reach with gripper-only collisions for collision-scope performance comparisons."""
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.scene.robot.spawn.variants["Colliders"] = FRANKA_MINIMAL_CFG.spawn.variants["Colliders"]

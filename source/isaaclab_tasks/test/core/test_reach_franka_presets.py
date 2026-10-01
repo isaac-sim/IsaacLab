@@ -3,8 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from types import SimpleNamespace
-
 import pytest
 import torch
 from gymnasium.envs.registration import registry
@@ -14,7 +12,7 @@ from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.envs.mdp as mdp
 from isaaclab.actuators import IdealPDActuatorCfg
-from isaaclab.utils import replace, to_dict, validate
+from isaaclab.utils import to_dict, validate
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.hydra import PresetCfg, resolve_presets
@@ -22,9 +20,10 @@ from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 from isaaclab_tasks.utils.preset_cli import enumerate_task_presets
 from isaaclab_tasks.utils.preset_target import PresetTarget
 
-from isaaclab_assets import FRANKA_PANDA_CFG
+from isaaclab_assets import FRANKA_MINIMAL_CFG, FRANKA_PANDA_CFG
 
 _TASK = "Isaac-Reach-Franka"
+_MINIMAL_TASK = "Isaac-Reach-Franka-Minimal"
 _OSC_TASK = "Isaac-Reach-Franka-OSC"
 _CONTRIB_DIFFIK_ABS_TASK = "IsaacContrib-Reach-Franka-IK-Abs"
 _RIGID_FRANKA_TASKS = (
@@ -71,17 +70,21 @@ def test_franka_tasks_select_the_canonical_asset_and_backend_payload(task, physi
         assert cfg.scene.robot.spawn.usd_path == FRANKA_PANDA_CFG.spawn.usd_path
         assert cfg.scene.robot.spawn.variants == {
             "Physics": physics_variant,
-            "Colliders": "gripper_only",
+            "Colliders": "primitives",
         }
 
 
-@pytest.mark.parametrize("task", _RIGID_FRANKA_TASKS)
-def test_rigid_franka_arm_collisions_are_an_independent_domain_preset(task):
-    newton_cfg = _load_reach_env_cfg(task, "arm_collisions")
-    physx_cfg = _load_reach_env_cfg(task, "arm_collisions", "isaacsim_physx")
+@pytest.mark.parametrize("physics", ("newton_mjwarp", "isaacsim_physx", "ovphysx"))
+def test_minimal_reach_changes_only_collision_scope(physics):
+    full = to_dict(_load_reach_env_cfg(_TASK, physics))
+    minimal = to_dict(_load_reach_env_cfg(_MINIMAL_TASK, physics))
 
-    assert newton_cfg.scene.robot.spawn.variants == {"Physics": "mujoco", "Colliders": "primitives"}
-    assert physx_cfg.scene.robot.spawn.variants == {"Physics": "physx", "Colliders": "primitives"}
+    assert FRANKA_MINIMAL_CFG.spawn.usd_path == FRANKA_PANDA_CFG.spawn.usd_path
+    assert full["scene"]["robot"]["spawn"]["variants"]["Colliders"] == "primitives"
+    assert minimal["scene"]["robot"]["spawn"]["variants"]["Colliders"] == "gripper_only"
+    minimal["scene"]["robot"]["spawn"]["variants"]["Colliders"] = "primitives"
+    assert minimal == full
+    assert "arm_collisions" not in enumerate_task_presets(_TASK)[PresetTarget.DOMAIN]
 
 
 def test_reach_diffik_abs_legacy_task_is_a_deprecated_alias():
@@ -176,7 +179,7 @@ def test_reach_diffik_physx_configures_teleop_physics():
     assert not cfg.scene.robot.spawn.make_uninstanceable
     assert cfg.scene.robot.spawn.collision_props is None
     assert cfg.scene.robot.spawn.usd_path.endswith("/FrankaEmika/franka_panda.usda")
-    assert cfg.scene.robot.spawn.variants == {"Physics": "physx", "Colliders": "gripper_only"}
+    assert cfg.scene.robot.spawn.variants == {"Physics": "physx", "Colliders": "primitives"}
 
 
 def test_reach_diffik_abs_normalizes_position_actions_to_command_workspace():
@@ -202,7 +205,7 @@ def test_reach_newton_ik_configures_gravity_compensation():
     mujoco_props = next(props for props in rigid_props if isinstance(props, MujocoRigidBodyCfg))
     assert mujoco_props.gravcomp == pytest.approx(1.0)
     assert cfg.scene.robot.spawn.usd_path.endswith("/FrankaEmika/franka_panda.usda")
-    assert cfg.scene.robot.spawn.variants == {"Physics": "mujoco", "Colliders": "gripper_only"}
+    assert cfg.scene.robot.spawn.variants == {"Physics": "mujoco", "Colliders": "primitives"}
 
     # Native SE(3) command convention: one relative 6-DoF pose objective.
     pose_objectives = [
@@ -218,52 +221,6 @@ def test_reach_default_preset_does_not_configure_se3_teleop_devices():
     cfg = _load_env_cfg()
 
     assert cfg.teleop_devices.devices == {}
-
-
-def test_reach_tracks_success_without_terminating():
-    cfg = _load_env_cfg()
-
-    assert cfg.commands.ee_pose.position_success_threshold == pytest.approx(0.05)
-    assert cfg.commands.ee_pose.orientation_success_threshold == pytest.approx(0.2)
-    assert cfg.terminations.success is None
-    assert cfg.terminations.time_out.func is mdp.time_out
-    assert cfg.rewards.success is None
-    assert cfg.rewards.end_effector_position_tracking_fine_grained.func is mdp.position_command_error_tanh
-    assert cfg.rewards.end_effector_position_tracking_fine_grained.weight == pytest.approx(0.1)
-    assert cfg.rewards.end_effector_position_tracking_fine_grained.params["std"] == pytest.approx(0.1)
-
-    angles = torch.tensor([0.19, 0.19, 0.21])
-    body_quaternions = torch.zeros(3, 1, 4)
-    body_quaternions[:, 0, 2] = torch.sin(angles / 2)
-    body_quaternions[:, 0, 3] = torch.cos(angles / 2)
-    command_values = torch.zeros(3, 7)
-    command_values[:, 6] = 1.0
-    robot_data = SimpleNamespace(
-        root_pos_w=SimpleNamespace(torch=torch.zeros(3, 3)),
-        root_quat_w=SimpleNamespace(torch=torch.tensor([[0.0, 0.0, 0.0, 1.0]]).repeat(3, 1)),
-        body_pos_w=SimpleNamespace(torch=torch.tensor([[[0.04, 0.0, 0.0]], [[0.06, 0.0, 0.0]], [[0.04, 0.0, 0.0]]])),
-        body_quat_w=SimpleNamespace(torch=body_quaternions),
-    )
-    command = object.__new__(mdp.UniformPoseCommand)
-    command.robot = SimpleNamespace(data=robot_data)
-    command.body_idx = 0
-    command.pose_command_b = command_values
-    command.pose_command_w = torch.zeros_like(command_values)
-    command.cfg = cfg.commands.ee_pose
-    command._env = SimpleNamespace(num_envs=3, device=torch.device("cpu"))
-    command._track_success = True
-    command._succeeded = torch.zeros(3, dtype=torch.bool)
-
-    succeeded = command.compute_success()
-
-    assert torch.equal(succeeded, torch.tensor([True, False, False]))
-    assert torch.equal(command._succeeded, succeeded)
-
-    command.cfg = replace(command.cfg, orientation_success_threshold=None)
-    command._succeeded.zero_()
-    position_only_succeeded = command.compute_success()
-
-    assert torch.equal(position_only_succeeded, torch.tensor([True, False, True]))
 
 
 def test_reach_osc_effort_actuator_keeps_canonical_solver_properties():
@@ -297,7 +254,7 @@ def test_reach_osc_resolves_controller_preset_values_to_defaults():
     assert physx_props.disable_gravity is True
     assert mujoco_props.gravcomp == pytest.approx(1.0)
     assert cfg.teleop_devices.devices == {}
-    assert domain_presets == {"arm_collisions", "diffik_abs"}
+    assert domain_presets == {"diffik_abs"}
 
 
 def test_reach_osc_diffik_abs_is_a_deprecated_no_op_alias():
