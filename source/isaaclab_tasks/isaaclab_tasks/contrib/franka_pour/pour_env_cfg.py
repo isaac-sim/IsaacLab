@@ -326,16 +326,8 @@ class PourSceneCfg(InteractiveSceneCfg):
     next(
         frag for frag in robot.spawn.articulation_props if isinstance(frag, NewtonArticulationCfg)
     ).self_collision_enabled = True
-    robot.actuators = {
-        name: replace(
-            actuator_cfg, effort_limit_sim=None, velocity_limit_sim=None, stiffness=None, damping=None, armature=None
-        )
-        for name, actuator_cfg in robot.actuators.items()
-    }
     robot.actuators["panda_arm"].stiffness = dict(FRANKA_POUR_ARM_DRIVE_STIFFNESS)
     robot.actuators["panda_arm"].damping = dict(FRANKA_POUR_ARM_DRIVE_DAMPING)
-    robot.actuators["panda_finger2_passive"].stiffness = 0.0
-    robot.actuators["panda_finger2_passive"].damping = 0.0
     robot.spawn.joint_drive_props = MujocoJointCfg(actuatorgravcomp=True)
     robot.init_state.joint_pos.update(dict(zip(_ARM_JOINT_NAMES, _ARM_HOME, strict=True)))
     robot.init_state.joint_pos["panda_finger_joint.*"] = _GRIPPER_OPEN_POSITION
