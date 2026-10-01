@@ -1,4 +1,2 @@
-* Disabled per-step table success colors by default in rigid lift and reorientation tasks to avoid
-  material-update overhead during training. The table retained its initial color, and normal play mode
-  restored success colors. Setting ``env.commands.object_pose.success_vis_material_name=table_material``
-  explicitly restored training-time colors; setting it to ``null`` kept the table color fixed in play.
+* Kept table colors static during training for rigid lift and reorientation tasks, with success coloring
+  in play mode. Set ``env.commands.object_pose.success_vis_material_name=table_material`` to enable it in training.
