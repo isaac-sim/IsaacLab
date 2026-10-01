@@ -86,6 +86,32 @@ def test_native_fabric_geometry_needs_no_separate_publication(monkeypatch):
     provider.get_geometry_points.assert_not_called()
 
 
+@pytest.mark.parametrize(
+    ("render_mode", "simple_shading_mode", "error"),
+    [
+        (None, None, None),
+        ("PathTracing", None, None),
+        ("RealTimePathTracing", 3, None),
+        ("Minimal", 3, None),
+        ("Minimal", None, "requires a simple-shading output"),
+        ("Bogus", 3, "Unsupported Isaac RTX render mode"),
+    ],
+)
+def test_render_mode_validation(render_mode, simple_shading_mode, error):
+    """An explicit render mode follows the same rules as the OVRTX renderer."""
+    import isaaclab_physx.renderers.isaac_rtx_renderer as rtx_renderer
+    from isaaclab_physx.renderers.isaac_rtx_renderer_cfg import IsaacRtxRendererCfg
+
+    renderer = rtx_renderer.IsaacRtxRenderer.__new__(rtx_renderer.IsaacRtxRenderer)
+    renderer.cfg = IsaacRtxRendererCfg(render_mode=render_mode)
+
+    if error is None:
+        renderer._validate_render_mode(simple_shading_mode)
+    else:
+        with pytest.raises(ValueError, match=error):
+            renderer._validate_render_mode(simple_shading_mode)
+
+
 def test_create_render_data_uses_unique_sdf_safe_render_product_name(monkeypatch):
     """Each tiled render product gets a fresh ``rp_<uuid4.hex>`` name.
 

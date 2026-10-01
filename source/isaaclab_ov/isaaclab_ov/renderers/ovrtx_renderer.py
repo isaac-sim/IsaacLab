@@ -587,6 +587,7 @@ class OVRTXRenderer(BaseRenderer):
             render_data,
             device_id=self._warp_device.ordinal,
             enable_shadows=self.cfg.enable_shadows,
+            render_mode=self.cfg.render_mode,
         )
         self._render_product_paths.append(render_product_path)
 
@@ -845,6 +846,7 @@ class OVRTXRenderer(BaseRenderer):
             render_data,
             device_id=self._warp_device.ordinal,
             enable_shadows=self.cfg.enable_shadows,
+            render_mode=self.cfg.render_mode,
         )
         if self._use_ovstage:
             reference = ovstage.population.add_usd_reference_from_string(self.backend.stage, usd, f"/{scope}")
@@ -1712,6 +1714,7 @@ class OVRTXRenderer(BaseRenderer):
             render_data,
             device_id=self._warp_device.ordinal,
             enable_shadows=self.cfg.enable_shadows,
+            render_mode=self.cfg.render_mode,
         )
         self._render_product_paths.append(render_product_path)
 

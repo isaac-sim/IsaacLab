@@ -117,6 +117,19 @@ def test_render_product_default_background_is_dome_light(camera_spec, render_dat
     assert "omni:rtx:minimal:" not in render_scope
 
 
+def test_build_render_scope_usd_authors_render_mode_override(camera_spec, render_data):
+    """An explicit render mode replaces the data-type-derived default."""
+    render_scope = build_render_scope_usd(camera_spec, render_data, render_mode="PathTracing")
+
+    assert 'token omni:rtx:rendermode = "PathTracing"' in render_scope
+
+
+def test_build_render_scope_usd_rejects_minimal_without_simple_shading(camera_spec, render_data):
+    """Minimal mode needs the simple-shading mode that selects its output."""
+    with pytest.raises(ValueError, match="requires a simple-shading output"):
+        build_render_scope_usd(camera_spec, render_data, render_mode="Minimal")
+
+
 def test_render_product_solid_background_color(camera_spec, render_data):
     """Providing background_color emits color source type and the color attribute."""
     camera_spec.cfg.background_color = (1.0, 0.0, 0.5)

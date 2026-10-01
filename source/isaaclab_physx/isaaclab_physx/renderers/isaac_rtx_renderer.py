@@ -85,6 +85,7 @@ SIMPLE_SHADING_AOV = "SimpleShadingSD"
 RTX_RENDER_MODE_ATTR = "omni:rtx:rendermode"
 RTX_MINIMAL_MODE_ATTR = "omni:rtx:minimal:mode"
 RTX_MINIMAL_RENDER_MODE = "Minimal"
+RTX_PATH_TRACING_RENDER_MODES = ("RealTimePathTracing", "PathTracing")
 
 _CAMERA_INTRINSIC_ATTRIBUTES = (
     "focalLength",
@@ -335,6 +336,7 @@ class IsaacRtxRenderer(BaseRenderer):
                     " Isaac Sim versions before 6.0:"
                     f" {unsupported}."
                 )
+        self._validate_render_mode(simple_shading_mode)
 
         # HACK: Isaac Sim 4.5 has a bug in Camera that breaks segmentation
         # outputs for instanceable assets. Disable instancing as a workaround.
@@ -475,12 +477,15 @@ class IsaacRtxRenderer(BaseRenderer):
             annotator.attach([rp.path])
 
         # Annotator attachment may resynchronize process-wide RTX settings onto the product.
-        if simple_shading_mode is not None:
+        render_mode = self.cfg.render_mode
+        if render_mode in RTX_PATH_TRACING_RENDER_MODES:
+            self._apply_render_mode_override(stage, rp.path, render_mode)
+        elif simple_shading_mode is not None:
             self._apply_simple_shading_settings(
                 stage,
                 rp.path,
                 simple_shading_mode,
-                enable_minimal_render_mode=not needs_color_render,
+                enable_minimal_render_mode=render_mode == RTX_MINIMAL_RENDER_MODE or not needs_color_render,
             )
 
         ppisp_pipeline = None
@@ -498,6 +503,34 @@ class IsaacRtxRenderer(BaseRenderer):
             spec=spec,
             ppisp_pipeline=ppisp_pipeline,
         )
+
+    def _validate_render_mode(self, simple_shading_mode: int | None) -> None:
+        """Validate :attr:`~isaaclab_physx.renderers.IsaacRtxRendererCfg.render_mode` for one camera.
+
+        Raises:
+            ValueError: If the mode is unsupported, or is ``"Minimal"`` without a simple-shading output.
+        """
+        render_mode = self.cfg.render_mode
+        if render_mode is None or render_mode in RTX_PATH_TRACING_RENDER_MODES:
+            return
+        if render_mode != RTX_MINIMAL_RENDER_MODE:
+            raise ValueError(f"Unsupported Isaac RTX render mode {render_mode!r}.")
+        if simple_shading_mode is None:
+            raise ValueError("Isaac RTX render mode 'Minimal' requires a simple-shading output.")
+
+    def _apply_render_mode_override(self, stage: Usd.Stage, render_product_path: str, render_mode: str) -> None:
+        """Author an explicit path-tracing render mode on one render product."""
+        rp_prim = stage.GetPrimAtPath(render_product_path)
+        if rp_prim is None or not rp_prim.IsValid():
+            logger.warning(
+                "create_render_data: render product prim at '%s' not found; render mode '%s' will not be applied.",
+                render_product_path,
+                render_mode,
+            )
+            return
+        with Usd.EditContext(stage, stage.GetSessionLayer()):
+            with Sdf.ChangeBlock():
+                rp_prim.CreateAttribute(RTX_RENDER_MODE_ATTR, Sdf.ValueTypeNames.Token).Set(render_mode)
 
     def _apply_simple_shading_settings(
         self,
