@@ -124,12 +124,6 @@ run_tests() {
     -e "TEST_RESULT_FILE=$result_file"
   )
 
-  # On aarch64, isaacsim exits at import unless the system libgomp path is listed in
-  # LD_PRELOAD itself; /etc/ld.so.preload does not satisfy its check.
-  if [ "$(uname -m)" = "aarch64" ]; then
-    docker_env_args+=(-e "LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1")
-  fi
-
   if [ "$curobo_only" = "true" ]; then
     docker_env_args+=(-e "TEST_CUROBO_ONLY=true")
     echo "Setting TEST_CUROBO_ONLY=true"
