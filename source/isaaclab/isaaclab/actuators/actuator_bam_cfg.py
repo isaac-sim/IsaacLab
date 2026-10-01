@@ -121,8 +121,13 @@ class BamActuatorCfg(ActuatorBaseCfg):
         damping is the physical back-EMF of the motor.
 
     This model requires ``use_newton_actuators=True`` with Newton's MJWarp solver.
-    The drive publishes its friction budget and viscous damping into the solver and reads
+    The drive publishes its friction budget each step, initializes viscous damping once, and reads
     the external load from its generalized forces. Other backends and solvers raise an error.
+
+    If :attr:`~isaaclab.actuators.ActuatorBaseCfg.actuator_effort_limit` is None, the motor
+    torque limit [N.m] is ``max(vin_range) * motor.kt / motor.resistance``, using :attr:`vin`
+    when :attr:`vin_range` is unset. An explicit actuator limit overrides this default.
+    The separate joint effort limit remains unchanged.
     """
 
     class_type: type | None = None
@@ -191,7 +196,8 @@ class BamActuatorCfg(ActuatorBaseCfg):
     """Number of physics steps between lag resamples. Defaults to 0, which resamples every step.
 
     When positive, a phase offset in ``[0, delay_update_period)`` staggers the resamples rather
-    than synchronizing them. The Newton drive draws the phase and lag per driven joint.
+    than synchronizing them. The Newton drive draws the phase and lag per environment,
+    shared by every joint in the group.
     """
 
     stiff_frictionloss: bool = True

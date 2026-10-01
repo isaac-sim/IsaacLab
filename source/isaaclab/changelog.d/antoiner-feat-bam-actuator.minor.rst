@@ -12,6 +12,10 @@ Added
   the Isaac Lab actuator loop rejected this configuration. Rotor inertia remained owned by the joint or
   :attr:`~isaaclab.actuators.ActuatorBaseCfg.armature`.
   Core validation used the backend-neutral dispatcher without importing the optional Newton backend package.
+  Motor effort defaulted to the maximum configured supply voltage times ``kt / resistance``;
+  an explicit ``actuator_effort_limit`` overrode this default without changing the joint effort limit.
+  Load-dependent friction used the previous clamped drive output, while supply sag retained the
+  previous unclamped motor torque.
 * Added :class:`~isaaclab.actuators.BamMotorCfg` for explicit motor fits, including m1/m2/m5/m6
   model selection and a local Rhoban JSON loader. BAM authoring replaced existing USD actuators
   using the configured fit and required firmware gain and nominal voltage. It authored a positive
@@ -23,8 +27,9 @@ Added
   Exposed ``vin``, ``sag_gain``, ``friction_scale``, ``kp_scale`` and ``kd_scale`` through
   :func:`~isaaclab.actuators.newton.read_group_parameter` and
   :func:`~isaaclab.actuators.newton.write_group_parameter` for event-driven randomization.
-  Controller resets preserved the sampled parameters. Delay resets advanced the selected joints'
-  lag and phase random streams, including during CUDA graph replay, without changing untouched joints.
+  Controller resets preserved the sampled parameters. Command lag and phase were shared by the group's
+  joints within each environment. Delay resets advanced the selected environments' random streams,
+  including during CUDA graph replay, without changing untouched environments.
 * Added :attr:`~isaaclab.actuators.BamActuatorCfg.stiff_frictionloss` to reduce static-friction
   creep on MJWarp with a stiff solver reference. Documented that, on this solver,
   :attr:`~isaaclab.actuators.ActuatorCollection.applied_effort` reported motor torque only and
