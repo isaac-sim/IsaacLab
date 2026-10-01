@@ -324,9 +324,11 @@ def main(argv: list[str] | None = None) -> int:
         if candidate is not None
         else {"candidate": None, "baseline": None, "rows": [], "notes": ["Candidate evidence is unavailable."]}
     )
-    is_pr = (candidate is not None and candidate.identity.get("event") == "pull_request") or os.environ.get(
-        "GITHUB_EVENT_NAME"
-    ) == "pull_request"
+    is_pr = (
+        candidate.identity.get("event") == "pull_request"
+        if candidate is not None
+        else os.environ.get("GITHUB_EVENT_NAME") == "pull_request"
+    )
     payload.update(
         schema_version=1,
         selector_version=1,
