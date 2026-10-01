@@ -286,16 +286,13 @@ def test_resolve_matching_prims_from_source(sim, with_clone_plan):
         "/World/envs/env_[^/]+/Robot/other/bar",
     ]
 
-    # A direct match must not hide another matched root's predicate-matching descendants.
+    # Path matching does not expand the matched prims into their subtrees.
     matches = queries.resolve_matching_prims_from_source(
-        r"/World/envs/env_[^/]+/Robot/(foo|other)",
-        predicate=lambda prim: prim.GetName() in {"foo", "bar"},
-        expected_num_matches=2,
-        prefer_direct_matches=True,
+        r"/World/envs/env_[^/]+/Robot/(foo|other)", expected_num_matches=2
     )
     assert [(prim.GetPath().pathString, path) for prim, path in matches] == [
         ("/World/envs/env_0/Robot/foo", "/World/envs/env_[^/]+/Robot/foo"),
-        ("/World/envs/env_0/Robot/other/bar", "/World/envs/env_[^/]+/Robot/other/bar"),
+        ("/World/envs/env_0/Robot/other", "/World/envs/env_[^/]+/Robot/other"),
     ]
 
     if with_clone_plan:
@@ -305,12 +302,7 @@ def test_resolve_matching_prims_from_source(sim, with_clone_plan):
         )
         sim.set_clone_plan(make_clone_plan((asset,), ((0,),), 2))
 
-        matches = queries.resolve_matching_prims_from_source(
-            r"/World/envs/env_[^/]+/Robot/foo",
-            predicate=lambda prim: prim.GetName() in {"foo", "bar"},
-            expected_num_matches=1,
-            prefer_direct_matches=True,
-        )
+        matches = queries.resolve_matching_prims_from_source(r"/World/envs/env_[^/]+/Robot/foo", expected_num_matches=1)
         assert [(prim.GetPath().pathString, path) for prim, path in matches] == [
             ("/World/template/Robot/foo", "/World/envs/env_[^/]+/Robot/foo")
         ]

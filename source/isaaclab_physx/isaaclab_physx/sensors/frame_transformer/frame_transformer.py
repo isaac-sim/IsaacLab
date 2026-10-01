@@ -185,18 +185,11 @@ class FrameTransformer(BaseFrameTransformer):
         frame_offsets = [None] + [target_frame.offset for target_frame in self.cfg.target_frames]
         frame_types = ["source"] + ["target"] * len(self.cfg.target_frames)
         for frame, prim_path, offset, frame_type in zip(frames, frame_prim_paths, frame_offsets, frame_types):
-            # Resolve the source-side env prims (filtered to rigid bodies) and their destination
-            # expressions. Plan-aware: with an active ``ClonePlan``, only env-0 representatives
-            # are walked and dest expressions are rebuilt against the plan's destination glob.
-            def has_rigid_body_api(prim) -> bool:
-                return bool(prim.HasAPI(UsdPhysics.RigidBodyAPI))
-
-            matches = resolve_matching_prims_from_source(
-                prim_path,
-                has_rigid_body_api,
-                raise_if_no_matches=False,
-                prefer_direct_matches=True,
-            )
+            matches = [
+                (prim, destination)
+                for prim, destination in resolve_matching_prims_from_source(prim_path, raise_if_no_matches=False)
+                if prim.HasAPI(UsdPhysics.RigidBodyAPI)
+            ]
             if not matches:
                 raise ValueError(
                     f"Failed to create frame transformer for frame '{frame}' with path '{prim_path}'."
