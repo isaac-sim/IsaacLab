@@ -11,8 +11,7 @@ Added
   the Isaac Lab actuator loop rejected this configuration. Rotor inertia remained owned by the joint or
   :attr:`~isaaclab.actuators.ActuatorBaseCfg.armature`.
 * Stored BAM motor and friction coefficients directly in USD actuator prims, with explicit
-  configuration overrides. Added an optional ``scripts/tools/import_bam_parameters.py`` utility
-  to bake a JSON fit into an asset. Simulation did not require a parameter sidecar. Recorded
+  configuration overrides. Simulation did not require a parameter sidecar. Recorded
   upstream motor and friction samples checked controller behavior without an upstream BAM installation.
 * Added per-environment start-up sampling for supply voltage, supply sag and friction scale.
   Exposed ``vin``, ``sag_gain``, ``friction_scale``, ``kp_scale`` and ``kd_scale`` through
