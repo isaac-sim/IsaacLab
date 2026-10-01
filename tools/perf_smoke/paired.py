@@ -155,8 +155,13 @@ def restore_baseline(
     }
     prefix = f"performance-pr-baseline-{pr_number}-{base_commit}-"
     try:
+        current_run = client.run_attempt(run_id, run_attempt)
+        workflow_id = current_run.get("workflow_id")
+        if not isinstance(workflow_id, int) or workflow_id <= 0:
+            raise store.EvidenceError("identity_mismatch", "The producing workflow identity is unavailable.")
+        selection["workflow_id"] = workflow_id
         runs = client.paginate(
-            f"/repos/{client.repository}/actions/workflows/build.yaml/runs",
+            f"/repos/{client.repository}/actions/workflows/{workflow_id}/runs",
             "workflow_runs",
             event="pull_request",
             branch=pr["head"]["ref"],
@@ -172,6 +177,8 @@ def restore_baseline(
                 continue
             try:
                 evidence = _read_baseline(client, artifact, pr_number, base_commit)
+                if evidence.identity.get("workflow_id") != workflow_id:
+                    raise store.EvidenceError("identity_mismatch", "Baseline belongs to another workflow.")
                 saved_manifest = _json(_files(evidence.zip_bytes), "source-manifest.json")
                 expected = evidence.context["execution"].get("expected_samples")
                 planned = evidence.context["execution"].get("expected_legs")
@@ -281,7 +288,13 @@ def capture_context(root: Path, output_dir: Path, image_ref: str, role: str, eve
     return context
 
 
-def bind_baseline(selection_path: Path, artifact_id: str | None, output_dir: Path, repository: str) -> None:
+def bind_baseline(
+    selection_path: Path,
+    artifact_id: str | None,
+    output_dir: Path,
+    repository: str,
+    baseline_issue: str = "",
+) -> None:
     """Pin the uploaded baseline before the current PR is measured."""
     selection = json.loads(selection_path.read_text())
     if not selection["baseline_reused"]:
@@ -298,9 +311,15 @@ def bind_baseline(selection_path: Path, artifact_id: str | None, output_dir: Pat
                 "run_attempt": int(os.environ["GITHUB_RUN_ATTEMPT"]),
                 "source_commit": selection["reference_commit"],
             }
-            selection["reason"] = "Measured the PR's exact base commit before its tested revision on the same runner."
+            selection["reason"] = baseline_issue or (
+                "Measured the PR's exact base commit before its tested revision on the same runner."
+            )
         else:
-            selection["reason"] = "The base benchmark artifact was not produced; baseline FPS is unavailable."
+            selection["reason"] = baseline_issue or (
+                "The base benchmark artifact was not produced; baseline FPS is unavailable."
+            )
+        if baseline_issue:
+            selection.setdefault("issues", []).append(baseline_issue)
     selection["tested_commit"] = os.environ["GITHUB_SHA"]
     _write(output_dir / "pr-comparison.json", selection)
 
@@ -376,6 +395,7 @@ def main(argv: list[str] | None = None) -> int:
     bind.add_argument("--selection", type=Path, required=True)
     bind.add_argument("--output-dir", type=Path, required=True)
     bind.add_argument("--artifact-id")
+    bind.add_argument("--baseline-issue", default="")
     args = parser.parse_args(argv)
     if args.command == "restore":
         event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text())
@@ -407,7 +427,28 @@ def main(argv: list[str] | None = None) -> int:
             args.legs,
         )
     else:
-        bind_baseline(args.selection, args.artifact_id, args.output_dir, os.environ["GITHUB_REPOSITORY"])
+        if not args.selection.exists():
+            event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text())
+            pr = event["pull_request"]
+            _write(
+                args.selection,
+                {
+                    "schema_version": 1,
+                    "comparison_mode": "paired_pr",
+                    "pull_request_number": pr["number"],
+                    "reference_branch": pr["base"]["ref"],
+                    "reference_commit": pr["base"]["sha"],
+                    "requested_head_commit": pr["head"]["sha"],
+                    "baseline_reused": False,
+                    "baseline_origin": None,
+                    "issues": [],
+                },
+            )
+            if not args.baseline_issue:
+                args.baseline_issue = "Baseline selection metadata was not produced; baseline FPS is unavailable."
+        bind_baseline(
+            args.selection, args.artifact_id, args.output_dir, os.environ["GITHUB_REPOSITORY"], args.baseline_issue
+        )
     return 0
 
 

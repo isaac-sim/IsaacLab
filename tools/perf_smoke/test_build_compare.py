@@ -186,6 +186,20 @@ class ReportRenderingTests(unittest.TestCase):
         self.assertIn("Baseline measurements: reused.", details)
         self.assertEqual(report, snapshot)
 
+    def test_paired_baseline_measurement_status_reflects_available_evidence(self):
+        for baseline, reused, expected in (
+            (None, False, "unavailable."),
+            (None, True, "unavailable."),
+            (evidence(), False, "run for this PR."),
+            (evidence(), True, "reused."),
+        ):
+            with self.subTest(baseline_available=baseline is not None, reused=reused):
+                report = compare_evidence(baseline, evidence())
+                report.update(comparison_mode="paired_pr", candidate_kind="merge")
+                report["selection"] = {"baseline_reused": reused}
+                markdown = render_build_comparison(report)
+                self.assertIn(f"Baseline measurements: {expected}", markdown)
+
     def test_historical_dispatch_is_not_labeled_as_a_pull_request(self):
         report = compare_evidence(evidence(), evidence())
         report["candidate"]["event"] = "workflow_dispatch"

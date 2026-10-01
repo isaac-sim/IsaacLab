@@ -8,11 +8,13 @@
 import hashlib
 import json
 import marshal
+import os
 import subprocess
 import tempfile
 import types
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from . import baseline, paired, source_revision
 from .test_baseline import HEAD, REPO, FixtureClient, bundle, stamp
@@ -28,6 +30,11 @@ class PairedFixtureClient(FixtureClient):
     def __init__(self):
         super().__init__()
         self.pages_requested = []
+        self.attempts_requested = []
+
+    def run_attempt(self, run_id, attempt):
+        self.attempts_requested.append((run_id, attempt))
+        return super().run_attempt(run_id, attempt)
 
     def paginate(self, path, key, **params):
         self.pages_requested.append((path, key, params))
@@ -204,6 +211,8 @@ class PairedTests(unittest.TestCase):
         )
 
     def _restore(self, *, run_id=20, attempt=1):
+        if (run_id, attempt) not in self.client.attempts:
+            self.client.add(run_id, HEAD, event="pull_request", branch="feature", attempt=attempt, artifact=False)
         return paired.restore_baseline(
             self.client, self.checkout, self.output, self.selection_path, self.event, run_id, attempt
         )
@@ -220,6 +229,28 @@ class PairedTests(unittest.TestCase):
         self.assertEqual(json.loads(self.selection_path.read_text()), selection)
         for name, data in files.items():
             self.assertEqual((self.output / name).read_bytes(), data)
+
+    def test_restore_uses_current_numeric_workflow_registration_and_excludes_others(self):
+        workflow_id = 812345
+        self.client.add(20, HEAD, event="pull_request", branch="feature", artifact=False)["workflow_id"] = workflow_id
+        expected = self._add_baseline(run_id=10)
+        self.client.attempts[10, 1]["workflow_id"] = workflow_id
+        obsolete = self._add_baseline(run_id=11)
+        self.client.attempts[11, 1]["workflow_id"] = 700000
+        selected = self._restore()
+        self.assertTrue(selected["baseline_reused"])
+        self.assertEqual(selected["baseline_origin"]["artifact_id"], expected["id"])
+        self.assertEqual(self.client.attempts_requested[0], (20, 1))
+        self.assertIn(
+            (
+                f"/repos/{REPO}/actions/workflows/{workflow_id}/runs",
+                "workflow_runs",
+                {"event": "pull_request", "branch": "feature"},
+            ),
+            self.client.pages_requested,
+        )
+        self.assertFalse(any("build.yaml" in path for path, _, _ in self.client.pages_requested))
+        self.assertTrue(any(f"Artifact {obsolete['id']}" in issue for issue in selected["issues"]))
 
     def test_changed_base_commit_requests_fresh_measurement(self):
         self._add_baseline()
@@ -401,6 +432,87 @@ class PairedTests(unittest.TestCase):
         selected = paired.select_pr_baseline(self.client, self._candidate(None))
         self.assertIsNone(selected.evidence)
         self.assertEqual(self.client.queried, [])
+
+    def test_bind_retains_default_absence_message(self):
+        self._restore()
+        with patch.dict(os.environ, {"GITHUB_SHA": HEAD}):
+            paired.bind_baseline(self.selection_path, None, self.output, REPO)
+        selection = json.loads((self.output / "pr-comparison.json").read_text())
+        self.assertEqual(
+            selection["reason"], "The base benchmark artifact was not produced; baseline FPS is unavailable."
+        )
+        self.assertIsNone(selection["baseline_origin"])
+
+    def test_bind_preserves_failure_stage_when_partial_artifact_exists(self):
+        self._restore()
+        issue = "The baseline benchmark step failed after producing partial evidence."
+        with patch.dict(os.environ, {"GITHUB_SHA": HEAD, "GITHUB_RUN_ID": "20", "GITHUB_RUN_ATTEMPT": "1"}):
+            paired.bind_baseline(self.selection_path, "123", self.output, REPO, issue)
+        selection = json.loads((self.output / "pr-comparison.json").read_text())
+        self.assertEqual(selection["reason"], issue)
+        self.assertIn(issue, selection["issues"])
+        self.assertEqual(selection["baseline_origin"]["artifact_id"], 123)
+
+    def test_bind_keeps_valid_reused_baseline_despite_unneeded_setup_issue(self):
+        self._add_baseline()
+        restored = self._restore()
+        with patch.dict(os.environ, {"GITHUB_SHA": HEAD}):
+            paired.bind_baseline(self.selection_path, None, self.output, REPO, "Base image config failed.")
+        selection = json.loads((self.output / "pr-comparison.json").read_text())
+        self.assertEqual(selection["baseline_origin"], restored["baseline_origin"])
+        self.assertEqual(selection["reason"], restored["reason"])
+        self.assertEqual(selection["issues"], restored["issues"])
+
+    def test_bind_cli_recovers_missing_selection_and_reports_failed_stage(self):
+        event_path = self.root / "event.json"
+        event_path.write_bytes(encoded(self.event))
+        issue = "The PR base checkout failed; no baseline was measured."
+        tested_merge = "e" * 40
+        with patch.dict(
+            os.environ,
+            {
+                "GITHUB_SHA": tested_merge,
+                "GITHUB_REPOSITORY": REPO,
+                "GITHUB_EVENT_PATH": str(event_path),
+            },
+        ):
+            result = paired.main(
+                [
+                    "bind",
+                    "--selection",
+                    str(self.selection_path),
+                    "--output-dir",
+                    str(self.output),
+                    "--baseline-issue",
+                    issue,
+                ]
+            )
+        self.assertEqual(result, 0)
+        selection = json.loads((self.output / "pr-comparison.json").read_text())
+        self.assertEqual(selection["reason"], issue)
+        self.assertIn(issue, selection["issues"])
+        self.assertEqual(selection["pull_request_number"], 42)
+        self.assertEqual(selection["reference_commit"], self.commit)
+        self.assertEqual(selection["requested_head_commit"], HEAD)
+        self.assertEqual(selection["tested_commit"], tested_merge)
+        self.assertFalse(selection["baseline_reused"])
+        self.assertIsNone(selection["baseline_origin"])
+
+    def test_bind_cli_names_missing_selection_when_stage_detail_is_unavailable(self):
+        event_path = self.root / "event.json"
+        event_path.write_bytes(encoded(self.event))
+        with patch.dict(
+            os.environ,
+            {
+                "GITHUB_SHA": HEAD,
+                "GITHUB_REPOSITORY": REPO,
+                "GITHUB_EVENT_PATH": str(event_path),
+            },
+        ):
+            paired.main(["bind", "--selection", str(self.selection_path), "--output-dir", str(self.output)])
+        selection = json.loads((self.output / "pr-comparison.json").read_text())
+        self.assertIn("Baseline selection metadata was not produced", selection["reason"])
+        self.assertIsNone(selection["baseline_origin"])
 
 
 if __name__ == "__main__":
