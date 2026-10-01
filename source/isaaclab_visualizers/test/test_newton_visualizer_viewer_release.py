@@ -89,6 +89,8 @@ def _make_visualizer(viewer: _SpyRTXViewer | _SpyGLViewer | None) -> NewtonVisua
     visualizer._camera_sensor = None
     visualizer._camera_is_owned = False
     visualizer._pending_mesh_submissions = {}
+    visualizer._key_event_source = None
+    visualizer._key_input_closed = False
     if viewer is not None:
         viewer.owner = visualizer
     return visualizer
@@ -112,6 +114,7 @@ def test_gl_close_request_closes_after_frame(monkeypatch: pytest.MonkeyPatch, re
     monkeypatch.setattr(newton_visualizer.ViewerGL, "end_frame", lambda self: events.append("frame"))
     viewer = object.__new__(newton_visualizer.NewtonViewerGL)
     viewer._close_requested = False
+    viewer.keyboard_frame_hook = None
     if requested:
         viewer.request_close()
     viewer.renderer = type("Renderer", (), {"close": lambda self: events.append("close")})()
@@ -175,6 +178,29 @@ def test_close_completes_cleanup_when_viewer_teardown_fails(monkeypatch: pytest.
     assert visualizer._is_closed is True
     assert evicted == ["camera-key"]
     assert removed == [["/World/generated"]]
+
+
+def test_release_viewer_survives_a_failing_key_source() -> None:
+    """A keyboard input failure must not leave the viewer, its picking binding or its window open."""
+
+    class _FailingKeySource:
+        def close(self) -> None:
+            raise RuntimeError("keyboard cleanup failed")
+
+    viewer = _SpyRTXViewer()
+    visualizer = _make_visualizer(viewer)
+    visualizer._picking_enabled = True
+    visualizer._viewer_picking_binding.bind(viewer)  # type: ignore[arg-type]
+    visualizer._key_event_source = _FailingKeySource()
+
+    with pytest.raises(RuntimeError, match="keyboard cleanup failed"):
+        visualizer.close()
+
+    assert viewer.close_calls == 1
+    assert viewer.referenced_by_picking_at_close == [False]
+    assert visualizer._viewer is None
+    assert visualizer._key_event_source is None
+    assert visualizer._is_closed is True
 
 
 def _arm_for_step_failure(visualizer: NewtonVisualizer, viewer: _SpyRTXViewer) -> None:
