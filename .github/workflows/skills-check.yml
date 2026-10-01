@@ -14,19 +14,31 @@ on:
       - ".claude/skills"
       - "tools/skills/**"
       - ".github/workflows/skills-check.yml"
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+    paths:
+      - "skills/**"
+      - ".agents/skills/**"
+      - ".claude/skills"
+      - "tools/skills/**"
+      - ".github/workflows/skills-check.yml"
   workflow_dispatch:
 
 concurrency:
-  group: skills-check-${{ github.ref }}
+  group: skills-check-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 permissions:
   contents: read
+  pull-requests: read
 
 jobs:
   check-skills:
     name: Check skills
     runs-on: ubuntu-latest
+    # Only run on pull_request and workflow_dispatch; pull_request_target runs validate-skills
+    # (which evaluates the PR head) and must not also run check-skills against base-branch code.
+    if: github.event_name != 'pull_request_target'
 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
@@ -35,11 +47,6 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-          # Keyed on this workflow file, not pyproject.toml: the pip cache key is
-          # otherwise identical across every 3.12 ubuntu job here, so they collide
-          # and all but the first fail to save. Hashing the workflow also ties
-          # invalidation to the install list below rather than to unrelated
-          # dependency churn.
           cache-dependency-path: .github/workflows/skills-check.yml
 
       - name: Verify skills
@@ -50,3 +57,155 @@ jobs:
 
       - name: Test skills validator
         run: python3 -m pytest tools/skills/
+
+  # SkillEvaluator Tier 1 / Tier 2A / Tier 2B / Tier 3 for skills/user/* touched by this PR.
+  # (skills/_internal/ is excluded — not part of the NVCARPS-facing catalog.)
+  #
+  # Security gate: the 'skillevaluator-review' GitHub environment requires maintainer approval
+  # before secrets (SKILLEVALUATOR_API_KEY) are injected and the job runs on the self-hosted
+  # GPU runner. A maintainer reviews the PR diff and clicks "Approve and deploy" in the Actions
+  # UI. This replaces the earlier label-gate pattern and runs the workflow from the PR HEAD.
+  validate-skills:
+    name: Validate skills (SkillEvaluator)
+    runs-on: [self-hosted, gpu]
+    environment: skillevaluator-review
+    timeout-minutes: 90
+    if: github.event_name == 'pull_request_target' || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+        with:
+          # For pull_request_target: head.sha is the PR's untrusted commit — safe here because
+          # the environment gate (skillevaluator-review) requires maintainer approval before
+          # secrets are injected. For workflow_dispatch: fall back to github.sha (default branch).
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
+        with:
+          python-version: "3.12"
+
+      - name: Install skillevaluator and gitleaks
+        id: install_skillevaluator
+        env:
+          SKILLEVALUATOR_REF: "v0.3.0"
+          GITLEAKS_VERSION: "8.27.2"
+        run: |
+          set -euo pipefail
+          python3 -m pip install --upgrade pip
+          python3 -m pip install \
+            "skillevaluator[tier2,security,tier3] @ git+https://github.com/NVIDIA/SkillEvaluator.git@${SKILLEVALUATOR_REF}"
+          mkdir -p "${RUNNER_TEMP}/bin"
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            | tar xz -C "${RUNNER_TEMP}/bin" gitleaks
+          echo "${RUNNER_TEMP}/bin" >> "$GITHUB_PATH"
+          "${RUNNER_TEMP}/bin/gitleaks" version
+          skillevaluator --version
+
+      - name: Determine touched skills
+        id: touched
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+          GITHUB_API_URL: ${{ github.api_url }}
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${PR_NUMBER:-}" ]]; then
+            # workflow_dispatch: validate all skills/user/ dirs present in the checkout.
+            skill_dirs=()
+            for d in skills/user/*/; do
+              [[ -d "$d" ]] && skill_dirs+=("${d%/}")
+            done
+          else
+            changed_files="$(python3 tools/skills/get_pr_files.py)"
+            declare -A seen=()
+            skill_dirs=()
+            while IFS= read -r f; do
+              [[ "$f" == skills/user/*/* ]] || continue
+              name="${f#skills/user/}"
+              name="${name%%/*}"
+              root="skills/user/${name}"
+              if [[ -d "$root" && -z "${seen[$root]:-}" ]]; then
+                seen[$root]=1
+                skill_dirs+=("$root")
+              fi
+            done <<< "$changed_files"
+          fi
+
+          if [ ${#skill_dirs[@]} -eq 0 ]; then
+            echo "No skills/user/ directories were changed by this PR; nothing to validate."
+            echo "any=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Skills touched by this PR (validating only these):"
+            printf '  - %s\n' "${skill_dirs[@]}"
+            echo "any=true" >> "$GITHUB_OUTPUT"
+            { printf 'dirs<<SKILL_DIRS_EOF\n'; printf '%s\n' "${skill_dirs[@]}"; printf 'SKILL_DIRS_EOF\n'; } >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run SkillEvaluator Tier 1 / Tier 2A / Tier 2B
+        if: steps.install_skillevaluator.outcome == 'success' && steps.touched.outputs.any == 'true'
+        env:
+          NVIDIA_API_KEY: ${{ secrets.SKILLEVALUATOR_API_KEY }}
+          NVIDIA_INFERENCE_KEY: ${{ secrets.SKILLEVALUATOR_API_KEY }}
+          SKILL_EVAL_EMBEDDING_MODEL: "nvidia/nemotron-3-embed-1b"
+          SKILL_EVAL_LLM_MODEL: "nvidia/nemotron-3.5-lightning-30b-a3b"
+          SKILL_DIRS: ${{ steps.touched.outputs.dirs }}
+        run: |
+          set -euo pipefail
+          failed=0
+
+          while IFS= read -r skill_dir; do
+            [[ -n "$skill_dir" ]] || continue
+            echo ""
+            echo "===== Per-skill validation (Tier 1): ${skill_dir} ====="
+            if ! skillevaluator validate "${skill_dir}" \
+                  -c \
+                  --external \
+                  --no-dedup \
+                  --checks schema,version,pii,license,code-integrity,unicode,quality,lint; then
+              failed=1
+            fi
+
+            echo ""
+            echo "===== Tier 2A intra-skill context dedup: ${skill_dir} ====="
+            skillevaluator context-optimization-check "${skill_dir}" \
+              || echo "::warning::Tier 2A context-optimization-check failed for ${skill_dir} (advisory)"
+          done <<< "${SKILL_DIRS}"
+
+          echo ""
+          echo "===== Tier 2B intra-repo similarity scan: skills/user/ ====="
+          skillevaluator similarity-check skills/user/ --type skill \
+            || echo "::warning::Tier 2B similarity-check failed (advisory)"
+
+          exit "${failed}"
+
+      - name: Run SkillEvaluator Tier 3 (advisory)
+        if: steps.install_skillevaluator.outcome == 'success' && steps.touched.outputs.any == 'true'
+        env:
+          NVIDIA_API_KEY: ${{ secrets.SKILLEVALUATOR_API_KEY }}
+          NVIDIA_INFERENCE_KEY: ${{ secrets.SKILLEVALUATOR_API_KEY }}
+          SKILL_EVAL_EMBEDDING_MODEL: "nvidia/nemotron-3-embed-1b"
+          SKILL_EVAL_LLM_MODEL: "nvidia/nemotron-3.5-lightning-30b-a3b"
+          SKILL_DIRS: ${{ steps.touched.outputs.dirs }}
+        run: |
+          set -euo pipefail
+          while IFS= read -r skill_dir; do
+            [[ -n "$skill_dir" ]] || continue
+            echo ""
+            echo "===== Tier 3 live evaluation (advisory): ${skill_dir} ====="
+            skillevaluator tier3 evaluate "${skill_dir}" \
+              --agents codex \
+              --env-mode docker \
+              --skill-workspace-mode group \
+              || echo "::warning::Tier 3 eval failed for ${skill_dir} (advisory)"
+          done <<< "${SKILL_DIRS}"
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
+        if: always() && steps.install_skillevaluator.outcome == 'success' && steps.touched.outputs.any == 'true'
+        with:
+          name: skillevaluator-reports
+          path: reports/
+          retention-days: 7
