@@ -325,7 +325,8 @@ def render_build_comparison(report: dict) -> str:
         "",
     ]
     if paired and isinstance(selection.get("baseline_reused"), bool):
-        lines += ["Baseline measurements: " + ("reused." if selection["baseline_reused"] else "run for this PR."), ""]
+        measurement_status = "reused." if selection["baseline_reused"] else "run for this PR."
+        lines += ["Baseline measurements: " + (measurement_status if report.get("baseline") else "unavailable."), ""]
     if paired and selection.get("baseline_origin"):
         lines += [_build_identity("Baseline measurement origin", selection["baseline_origin"]), ""]
     if selection.get("reference_branch"):

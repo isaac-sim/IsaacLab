@@ -132,6 +132,9 @@ jobs:
       isaaclab_image_name: ${{ steps.load.outputs.isaaclab_image_name }}
       ovphysx_wheelhouse_image: ${{ steps.load.outputs.ovphysx_wheelhouse_image }}
       ci_image_tag: ${{ steps.image_tag.outputs.ci_image_tag }}
+      base_isaacsim_image_name: ${{ steps.base_load.outputs.name }}
+      base_isaacsim_image_tag: ${{ steps.base_load.outputs.version }}
+      base_image_config_outcome: ${{ steps.base_load.outcome }}
     steps:
     - uses: actions/checkout@v6
       with:
@@ -169,6 +172,27 @@ jobs:
         sanitized_ref=$(echo "$ref_component" | sed 's/[^a-zA-Z0-9._-]/-/g')
         echo "ci_image_tag=isaac-lab-ci:${sanitized_ref}-${SHA}" >> "$GITHUB_OUTPUT"
         echo "CI image tag: isaac-lab-ci:${sanitized_ref}-${SHA}"
+
+    - name: Check out the PR base image configuration
+      id: base_config_checkout
+      if: github.event_name == 'pull_request'
+      continue-on-error: true
+      uses: actions/checkout@v6
+      with:
+        ref: ${{ github.event.pull_request.base.sha }}
+        fetch-depth: 1
+        sparse-checkout: .github/workflows/config.yaml
+        sparse-checkout-cone-mode: false
+    - name: Read the PR base image configuration
+      id: base_load
+      if: github.event_name == 'pull_request' && steps.base_config_checkout.outcome == 'success'
+      continue-on-error: true
+      run: |
+        set -euo pipefail
+        name=$(yq -er .isaacsim_image_name .github/workflows/config.yaml)
+        version=$(yq -er .isaacsim_image_tag .github/workflows/config.yaml)
+        echo "name=$name" >> "$GITHUB_OUTPUT"
+        echo "version=$version" >> "$GITHUB_OUTPUT"
 
   test-dockerfile-contract:
     name: dockerfile-contract
@@ -1050,25 +1074,15 @@ jobs:
           --checkout-root "$GITHUB_WORKSPACE" --output-dir "$PERF_BASELINE_OUTPUT" \
           --selection "$PERF_CONTROLLER/selection.json"
 
-    - name: Read the base revision's image inputs
-      id: base_image
-      continue-on-error: true
-      if: github.event_name == 'pull_request' && steps.pr_baseline.outputs.reused == 'false'
-      run: |
-        set -euo pipefail
-        echo "name=$(yq -r .isaacsim_image_name .github/workflows/config.yaml)" >> "$GITHUB_OUTPUT"
-        echo "version=$(yq -r .isaacsim_image_tag .github/workflows/config.yaml)" >> "$GITHUB_OUTPUT"
-        echo "tag=isaac-lab-perf-base:$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-
     - name: Resolve the base revision's dependency image
       id: base_dependencies
       continue-on-error: true
-      if: github.event_name == 'pull_request' && steps.pr_baseline.outputs.reused == 'false' && steps.base_image.outcome == 'success'
+      if: github.event_name == 'pull_request' && steps.pr_baseline.outputs.reused == 'false' && needs.config.outputs.base_image_config_outcome == 'success'
       uses: ./.github/actions/ecr-build-push-pull
       with:
-        image-tag: ${{ steps.base_image.outputs.tag }}
-        isaacsim-base-image: ${{ steps.base_image.outputs.name }}
-        isaacsim-version: ${{ steps.base_image.outputs.version }}
+        image-tag: isaac-lab-perf-base:${{ github.event.pull_request.base.sha }}
+        isaacsim-base-image: ${{ needs.config.outputs.base_isaacsim_image_name }}
+        isaacsim-version: ${{ needs.config.outputs.base_isaacsim_image_tag }}
         dockerfile-path: docker/Dockerfile.base
         cache-tag: cache-base
         pull-on-deps-hit: 'true'
@@ -1078,7 +1092,7 @@ jobs:
       if: github.event_name == 'pull_request' && steps.pr_baseline.outputs.reused == 'false' && steps.base_dependencies.outcome == 'success'
       continue-on-error: true
       env:
-        CI_IMAGE_TAG: ${{ steps.base_image.outputs.tag }}
+        CI_IMAGE_TAG: isaac-lab-perf-base:${{ github.event.pull_request.base.sha }}
       run: |
         set -euo pipefail
         cd "$PERF_CONTROLLER"
@@ -1125,10 +1139,30 @@ jobs:
       continue-on-error: true
       env:
         BASE_ARTIFACT_ID: ${{ steps.base_artifact.outputs.artifact-id }}
+        BASE_CHECKOUT: ${{ steps.base_checkout.outcome }}
+        BASE_RESTORE: ${{ steps.pr_baseline.outcome }}
+        BASE_CONFIG: ${{ needs.config.outputs.base_image_config_outcome }}
+        BASE_IMAGE: ${{ steps.base_dependencies.outcome }}
+        BASE_MEASUREMENT: ${{ steps.measure_base.outcome }}
+        BASE_ARCHIVE: ${{ steps.base_artifact.outcome }}
       run: |
+        baseline_issue=""
+        if [ "$BASE_CHECKOUT" != success ]; then
+          baseline_issue="The base source checkout failed; baseline FPS is unavailable."
+        elif [ "$BASE_RESTORE" != success ]; then
+          baseline_issue="The base measurement setup failed; baseline FPS is unavailable."
+        elif [ "$BASE_CONFIG" != success ]; then
+          baseline_issue="The base image configuration could not be read; the base benchmark did not run."
+        elif [ "$BASE_IMAGE" = failure ]; then
+          baseline_issue="The base dependency image could not be prepared; the base benchmark did not run."
+        elif [ "$BASE_MEASUREMENT" = failure ]; then
+          baseline_issue="The base benchmark failed; baseline results are incomplete or unavailable."
+        elif [ "$BASE_ARCHIVE" = failure ]; then
+          baseline_issue="The base results could not be uploaded; baseline FPS is unavailable."
+        fi
         python3 -m tools.perf_smoke.paired bind \
           --selection "$PERF_CONTROLLER/selection.json" --output-dir benchmark-output \
-          --artifact-id "$BASE_ARTIFACT_ID"
+          --artifact-id "$BASE_ARTIFACT_ID" --baseline-issue "$baseline_issue"
 
     - name: Restore the benchmark matrix
       if: always()
