@@ -29,7 +29,10 @@ The following classes are part of the public :mod:`isaaclab_ov.renderers` API.
 Simulation-owned stages
 -----------------------
 
-The simulation owns these detached stages and releases them after their renderer and visualizer consumers close.
+The simulation owns these detached stages and releases them after their consumers close. Each stage's
+configuration selects the populated USD domains, and :class:`~isaaclab_ov.cloner.OvstageReplicateContext`
+prepares its copies. Current renderer and visualizer consumers use the rendering domain; OVPhysX still
+owns its separate physics stage and native replication path.
 
 .. autoclass:: isaaclab_ov.stage.OvstageBackendCfg
    :show-inheritance:

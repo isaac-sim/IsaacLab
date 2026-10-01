@@ -127,23 +127,26 @@ def points_tensor_from_warp(points: wp.array) -> ovstage.DLTensor:
 
 @configclass
 class OvstageBackendCfg(BackendCfg):
-    """Configuration of a simulation-owned rendering stage."""
+    """Configuration of a simulation-owned stage and its populated domains."""
 
     class_type: type[OvstageBackend] | str = "{DIR}.stage:OvstageBackend"
     consumer_cfg: BackendCfg | VisualizerCfg = MISSING
     """Consumer settings; independent render products and write ordinals require separate stages."""
+    population_domains: ovstage.PopulationDomain = ovstage.PopulationDomain.RENDERING
+    """USD domains to populate. Physics consumers require PHYSICS or ALL."""
 
 
 class OvstageBackend:
     """Own a detached stage and its paths until the simulation has closed its consumers."""
 
     def __init__(self, cfg: OvstageBackendCfg):
-        """Create the rendering stage identified by the consumer configuration."""
+        """Create the stage identified by its consumer configuration and population domains."""
+        self.cfg = cfg
         self.clone_copies: list[tuple[str, list[str]]] = []
         self.clone_env_paths: list[str] = []
         self.clone_positions: np.ndarray | None = None
         with contextlib.ExitStack() as resources:
-            self.stage = resources.enter_context(create_ovstage("isaaclab.render"))
+            self.stage = resources.enter_context(create_ovstage("isaaclab.scene"))
             self.paths = resources.enter_context(ovstage.PathDictionary(self.stage))
             self._resources = resources.pop_all()
 
@@ -159,7 +162,7 @@ class OvstageBackend:
         from isaaclab_ov.cloner import ovstage_replicate  # noqa: PLC0415
 
         # Ordinal 0 is the empty state; population and cloning form the first committed write.
-        ovstage.population.open_usd_from_string(self.stage, usda, ordinal=1, domains=ovstage.PopulationDomain.RENDERING)
+        ovstage.population.open_usd_from_string(self.stage, usda, ordinal=1, domains=self.cfg.population_domains)
         ovstage.population.apply_usd_changes(self.stage, ordinal=1)
         ovstage_replicate(
             self.stage, self.paths, self.clone_copies, self.clone_env_paths, self.clone_positions, ordinal=1

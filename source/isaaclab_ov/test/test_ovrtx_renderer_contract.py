@@ -270,13 +270,12 @@ def test_ovrtx_render_batch_empty_sequence_does_not_require_initialized_backend(
 )
 def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, use_ovstage, asynchronous, geometry):
     """Cameras preserve independent captures, GPU input lifetimes, and reset/cleanup boundaries."""
-    from isaaclab_ov.cloner import OvRenderReplicateContext
-
     from pxr import Gf, Usd, UsdGeom, UsdLux
 
     from isaaclab.cloner import make_clone_plan
     from isaaclab.renderers.camera_render_spec import CameraRenderSpec
     from isaaclab.scene_data import SceneDataFormat, SceneDataProvider
+    from isaaclab.utils import string_to_callable
     from isaaclab.utils.math import convert_camera_frame_orientation_convention
     from isaaclab.utils.warp import ProxyArray
 
@@ -336,7 +335,8 @@ def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, use_ovstag
     plan = make_clone_plan(
         (AssetBaseCfg(prim_path="/World/envs/env_[^/]+"),), ((0,),), 2, positions=np.zeros((2, 3), dtype=np.float32)
     )
-    OvRenderReplicateContext(SimulationContext.instance()).replicate(plan, (0,))
+    for context in renderer.cfg.cloning_contexts:
+        string_to_callable(context)(SimulationContext.instance()).replicate(plan, (0,))
     cameras = []
 
     def camera_scope_exists(rd):
