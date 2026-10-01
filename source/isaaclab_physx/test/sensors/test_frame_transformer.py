@@ -730,18 +730,7 @@ def test_frame_transformer_nested_rigid_bodies(sim):
     scene_cfg.frame_transformer = FrameTransformerCfg(
         prim_path="{ENV_REGEX_NS}/Robot/(Geometry/)?panda_link0",
         target_frames=[
-            FrameTransformerCfg.FrameCfg(
-                name="hand",
-                prim_path="{ENV_REGEX_NS}/Robot/(Geometry/.*/)?panda_hand",
-            ),
-            FrameTransformerCfg.FrameCfg(
-                name="left_finger",
-                prim_path="{ENV_REGEX_NS}/Robot/(Geometry/.*/)?panda_leftfinger",
-            ),
-            FrameTransformerCfg.FrameCfg(
-                name="right_finger",
-                prim_path="{ENV_REGEX_NS}/Robot/(Geometry/.*/)?panda_rightfinger",
-            ),
+            FrameTransformerCfg.FrameCfg(prim_path="{ENV_REGEX_NS}/Robot/(Geometry/.*/)?panda_(hand|.*finger)"),
         ],
     )
     scene = InteractiveScene(scene_cfg)
@@ -754,7 +743,7 @@ def test_frame_transformer_nested_rigid_bodies(sim):
     target_ids = robot.find_bodies(["panda_hand", "panda_leftfinger", "panda_rightfinger"])[0]
     frame_data = scene.sensors["frame_transformer"].data
 
-    assert frame_data.target_frame_names == ["hand", "left_finger", "right_finger"]
+    assert frame_data.target_frame_names == ["panda_hand", "panda_leftfinger", "panda_rightfinger"]
     torch.testing.assert_close(frame_data.source_pos_w.torch, robot.data.body_pos_w.torch[:, source_id])
     torch.testing.assert_close(frame_data.source_quat_w.torch, robot.data.body_quat_w.torch[:, source_id])
     torch.testing.assert_close(frame_data.target_pos_w.torch, robot.data.body_pos_w.torch[:, target_ids])

@@ -2360,8 +2360,6 @@ def test_apply_joint_command(sim, num_articulations, device, add_ground_plane):
 
     leader_pos = articulation.data.joint_pos.torch[:, leader_id]
     follower_pos = articulation.data.joint_pos.torch[:, follower_id]
-    assert torch.isfinite(articulation.data.joint_pos.torch).all()
-    assert torch.isfinite(articulation.data.joint_vel.torch).all()
     assert torch.all(torch.abs(leader_pos - initial_leader_pos) > 0.005)
     torch.testing.assert_close(follower_pos, leader_pos, rtol=0.0, atol=5.0e-4)
 

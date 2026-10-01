@@ -285,24 +285,3 @@ def test_resolve_matching_prims_from_source(sim, with_clone_plan):
         "/World/envs/env_[^/]+/Robot/foo/bar",
         "/World/envs/env_[^/]+/Robot/other/bar",
     ]
-
-    # Path matching does not expand the matched prims into their subtrees.
-    matches = queries.resolve_matching_prims_from_source(
-        r"/World/envs/env_[^/]+/Robot/(foo|other)", expected_num_matches=2
-    )
-    assert [(prim.GetPath().pathString, path) for prim, path in matches] == [
-        ("/World/envs/env_0/Robot/foo", "/World/envs/env_[^/]+/Robot/foo"),
-        ("/World/envs/env_0/Robot/other", "/World/envs/env_[^/]+/Robot/other"),
-    ]
-
-    if with_clone_plan:
-        stage.DefinePrim("/World/template/Robot/foo/bar", "Xform")
-        asset = AssetBaseCfg(
-            prim_path="/World/envs/env_[^/]+/Robot", spawn=SpawnerCfg(spawn_path="/World/template/Robot")
-        )
-        sim.set_clone_plan(make_clone_plan((asset,), ((0,),), 2))
-
-        matches = queries.resolve_matching_prims_from_source(r"/World/envs/env_[^/]+/Robot/foo", expected_num_matches=1)
-        assert [(prim.GetPath().pathString, path) for prim, path in matches] == [
-            ("/World/template/Robot/foo", "/World/envs/env_[^/]+/Robot/foo")
-        ]

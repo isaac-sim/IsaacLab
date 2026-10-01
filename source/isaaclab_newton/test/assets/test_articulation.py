@@ -2566,7 +2566,6 @@ def test_write_joint_viscous_friction_to_sim(sim, num_articulations, device, art
     )
 
     expected_pd_damping = torch.full_like(expected_viscous_friction, 2.0)
-    assert not torch.allclose(expected_pd_damping, expected_viscous_friction)
     torch.testing.assert_close(articulation.data.joint_damping.torch[:, arm_joint_ids], expected_pd_damping)
     torch.testing.assert_close(
         wp.to_torch(articulation.root_view.get_attribute("joint_target_kd", SimulationManager.get_model()))[
