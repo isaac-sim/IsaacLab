@@ -664,6 +664,45 @@ Rerun cannot.
 
 See :doc:`/source/features/record_video` for the full guide and tutorial.
 
+Keyboard Input
+~~~~~~~~~~~~~~
+
+A visualizer with a local window reports the keys typed into it through
+:attr:`~isaaclab.visualizers.BaseVisualizer.key_event_source`, for example to drive a robot from
+the keyboard. Each key press and release arrives as a W3C ``KeyboardEvent.code`` string such as
+``"KeyW"``. :attr:`~isaaclab.visualizers.KeyEventSource.capabilities` says how a backend reports
+keys:
+
+- :class:`~isaaclab_visualizers.kit.KitVisualizer` reports physical key positions, independent of
+  the keyboard layout. Keys typed into Kit's own UI, such as a text field, are reported too.
+- :class:`~isaaclab_visualizers.newton.NewtonGLVisualizer` reports layout-mapped keys: a code names
+  the key that types the same character on a US layout. Keys typed into its UI are withheld.
+  Presses and releases pair up reliably on a US layout; on other layouts, changing Shift while
+  holding a digit or punctuation key can leave it held until the window loses focus.
+
+The Newton RTX, Viser and Rerun visualizers, and any visualizer running headless, have no
+keyboard source and return ``None``. A headless Viser server still takes input from connected
+browsers, but not through ``key_event_source``.
+
+Close the subscription and any capture when you are done with them:
+
+.. code-block:: python
+
+   source = sim.visualizers[0].key_event_source
+   if source is not None:
+       held = set()
+
+       def on_key(code: str, pressed: bool) -> None:
+           (held.add if pressed else held.discard)(code)
+
+       with source.add_key_listener(on_key, held.clear), source.capture_keyboard():
+           ...  # while captured, NewtonGLVisualizer stops moving its camera with WASD/QE and the arrow keys
+
+Callbacks run on the thread that steps the visualizer, in event order. A listener sees each press
+once and a release only after a press it saw. ``on_focus_lost`` runs when the window stops
+delivering keys, because it lost focus, its UI took the keyboard, or the visualizer closed; treat
+every held key as released.
+
 
 .. _visualization-configuration:
 
@@ -883,6 +922,12 @@ Limitations
      - ✓
      - ✓
      - ✓
+     - ✓
+   * - Keyboard input, ``key_event_source``
+     - ✓
+     - ✗
+     - ✗
+     - ✗
      - ✓
 
 **Lighting differences across visualizers**

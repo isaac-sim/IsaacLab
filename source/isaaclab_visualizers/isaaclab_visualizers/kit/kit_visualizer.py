@@ -25,6 +25,7 @@ from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg
 
 from isaaclab_visualizers.desktop_entry import write_desktop_entry
 
+from .kit_key_event_source import KitKeyEventSource
 from .kit_visualizer_cfg import KitVisualizerCfg
 
 logger = logging.getLogger(__name__)
@@ -80,8 +81,16 @@ class KitVisualizer(BaseVisualizer):
         # Camera tracking state (replaces ViewportCameraController)
         self._interactive_scene = None  # set from SimulationContext._interactive_scene in initialize()
         self._viewer_origin: torch.Tensor | None = None  # world-space origin offset for eye/lookat
+        self._key_event_source: KitKeyEventSource | None = None
 
     # ---- Lifecycle ------------------------------------------------------------------------
+
+    @property
+    def key_event_source(self) -> KitKeyEventSource | None:
+        """Keys typed into the Kit window; ``None`` before initialization, after close, or when Kit runs headless."""
+        if self._key_event_source is None and self._is_initialized and not self._runtime_headless:
+            self._key_event_source = KitKeyEventSource()
+        return self._key_event_source
 
     @property
     def visual_material_writer(self):
@@ -192,6 +201,15 @@ class KitVisualizer(BaseVisualizer):
         """Close viewport resources and restore temporary state."""
         if not self._is_initialized:
             return
+        # Keep the reference until close finishes: a focus-loss callback reading key_event_source
+        # during shutdown gets the closing source back instead of creating one that is never closed.
+        key_event_source = self._key_event_source
+        if key_event_source is not None:
+            try:
+                key_event_source.close()
+            except Exception:
+                # keyboard input must not keep the viewport resources below from being released
+                logger.exception("[KitVisualizer] Keyboard input cleanup failed")
         self._teardown_backend_menubar_label()
         self._restore_env_visibility()
         self._viewport_camera_xform_ops.clear()
@@ -212,6 +230,7 @@ class KitVisualizer(BaseVisualizer):
         self._rgb_annotator = None
         self._rgb_render_product = None
         self._is_initialized = False
+        self._key_event_source = None
         super().close()
 
     def render_rgb_array(self) -> np.ndarray:
