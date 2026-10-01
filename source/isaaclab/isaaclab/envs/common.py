@@ -5,13 +5,14 @@
 
 from __future__ import annotations
 
+import warnings
 from dataclasses import MISSING, fields
 from typing import Dict, Literal, TypeVar  # noqa: UP035
 
 import gymnasium as gym
 import torch
 
-from ..utils import configclass, warn_from_post_init
+from ..utils import configclass
 
 ##
 # Deprecated: ViewerCfg
@@ -83,10 +84,11 @@ class ViewerCfg:
             if not _viewer_cfg_field_matches_default(getattr(self, f.name), default):
                 differing.append(f.name)
         if differing:
-            warn_from_post_init(
+            warnings.warn(
                 "ViewerCfg is deprecated and will be removed in a future release. "
                 "Use KitVisualizerCfg added to SimulationCfg.visualizer_cfgs instead.",
                 DeprecationWarning,
+                stacklevel=2,
             )
 
 

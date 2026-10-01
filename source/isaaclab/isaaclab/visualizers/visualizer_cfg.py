@@ -11,7 +11,7 @@ import argparse
 import warnings
 from typing import TYPE_CHECKING
 
-from ..utils import configclass, warn_from_post_init
+from ..utils import configclass
 from ..utils.string import string_to_callable
 
 if TYPE_CHECKING:
@@ -285,6 +285,8 @@ class VisualizerCfg:
     """Deprecated. Use :attr:`streaming_cam_target_prim_path` instead."""
 
     def __post_init__(self) -> None:
+        import warnings
+
         if self.background_color is not None:
             if len(self.background_color) != 3 or any(not 0.0 <= value <= 1.0 for value in self.background_color):
                 raise ValueError("background_color must contain three normalized RGB values in [0, 1].")
@@ -299,18 +301,16 @@ class VisualizerCfg:
         for old, new in _simple:
             val = getattr(self, old)
             if val is not None:
-                warn_from_post_init(
-                    f"{old!r} is deprecated; use {new!r} instead.",
-                    DeprecationWarning,
-                )
+                warnings.warn(f"{old!r} is deprecated; use {new!r} instead.", DeprecationWarning, stacklevel=3)
                 setattr(self, new, val)
                 setattr(self, old, None)
         # tiled_cam_env_indices takes priority over tiled_cam_num
         env_indices = getattr(self, "tiled_cam_env_indices")
         if env_indices is not None:
-            warn_from_post_init(
+            warnings.warn(
                 "'tiled_cam_env_indices' is deprecated; use 'streaming_envs' instead.",
                 DeprecationWarning,
+                stacklevel=3,
             )
             self.streaming_envs = env_indices
             self.tiled_cam_env_indices = None
@@ -318,9 +318,10 @@ class VisualizerCfg:
         else:
             num = getattr(self, "tiled_cam_num")
             if num is not None:
-                warn_from_post_init(
+                warnings.warn(
                     "'tiled_cam_num' is deprecated; use 'streaming_envs' instead.",
                     DeprecationWarning,
+                    stacklevel=3,
                 )
                 self.streaming_envs = num
                 self.tiled_cam_num = None

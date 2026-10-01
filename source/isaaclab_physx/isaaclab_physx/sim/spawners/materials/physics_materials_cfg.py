@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import warnings
 from collections.abc import Callable
 from typing import ClassVar, Literal
 
@@ -15,7 +16,7 @@ from isaaclab.sim.spawners.materials.physics_materials_cfg import (
     RigidBodyMaterialFragment,
     SurfaceDeformableBodyMaterialBaseCfg,
 )
-from isaaclab.utils import configclass, warn_from_post_init
+from isaaclab.utils import configclass
 
 
 @configclass
@@ -142,10 +143,11 @@ class DeformableBodyMaterialCfg(PhysxDeformableBodyMaterialCfg):
     """
 
     def __post_init__(self):
-        warn_from_post_init(
+        warnings.warn(
             "'DeformableBodyMaterialCfg' is deprecated and will be removed in 3.2. Use"
             " 'isaaclab_physx.sim.spawners.materials.PhysxDeformableBodyMaterialCfg' instead.",
             DeprecationWarning,
+            stacklevel=2,
         )
         super().__post_init__()
 
@@ -161,10 +163,11 @@ class SurfaceDeformableBodyMaterialCfg(PhysxSurfaceDeformableBodyMaterialCfg):
     """
 
     def __post_init__(self):
-        warn_from_post_init(
+        warnings.warn(
             "'SurfaceDeformableBodyMaterialCfg' is deprecated and will be removed in 3.2. Use"
             " 'isaaclab_physx.sim.spawners.materials.PhysxSurfaceDeformableBodyMaterialCfg' instead.",
             DeprecationWarning,
+            stacklevel=2,
         )
         super().__post_init__()
 
@@ -315,11 +318,12 @@ class RigidBodyMaterialCfg(PhysxRigidBodyMaterialCfg):
     """
 
     def __post_init__(self):
-        warn_from_post_init(
+        warnings.warn(
             "'RigidBodyMaterialCfg' is deprecated and will be removed in 3.2. Use"
             " 'isaaclab_physx.sim.spawners.materials.PhysxRigidBodyMaterialCfg' for PhysX"
             " properties, or 'isaaclab.sim.spawners.materials.RigidBodyMaterialBaseCfg' for"
             " solver-common properties only.",
             DeprecationWarning,
+            stacklevel=2,
         )
         super().__post_init__()

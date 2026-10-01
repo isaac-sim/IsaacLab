@@ -7,9 +7,10 @@
 
 from __future__ import annotations
 
+import warnings
 from typing import TYPE_CHECKING
 
-from isaaclab.utils import configclass, warn_from_post_init
+from isaaclab.utils import configclass
 
 from .newton_manager_cfg import NewtonSolverCfg
 
@@ -144,11 +145,12 @@ class MJWarpSolverCfg(NewtonSolverCfg):
 
     def __post_init__(self):
         if self.ls_parallel:
-            warn_from_post_init(
+            warnings.warn(
                 "MJWarpSolverCfg.ls_parallel is deprecated and ignored. "
                 "Isaac Lab uses iterative line search for performance because "
                 "MuJoCo Warp is dropping parallel line search support. Tune "
                 "MJWarpSolverCfg.ls_iterations instead.",
                 DeprecationWarning,
+                stacklevel=5,
             )
             self.ls_parallel = False

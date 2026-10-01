@@ -5,12 +5,13 @@
 
 from __future__ import annotations
 
+import warnings
 from dataclasses import MISSING, field
 from typing import TYPE_CHECKING, Any, Literal
 
 from ...renderers import RendererCfg
 from ...sim import FisheyeCameraCfg, PinholeCameraCfg
-from ...utils import configclass, warn_from_post_init
+from ...utils import configclass
 from ..sensor_base_cfg import SensorBaseCfg
 from .camera_isp import CameraISPMode
 
@@ -238,10 +239,11 @@ class CameraCfg(SensorBaseCfg):
             value = getattr(self, field_name)
             if value == default:
                 continue
-            warn_from_post_init(
+            warnings.warn(
                 f"CameraCfg.{field_name} is deprecated and will be removed in a future release."
                 f" Set this field on CameraCfg.renderer_cfg instead.",
                 DeprecationWarning,
+                stacklevel=2,
             )
             if hasattr(self.renderer_cfg, field_name):
                 setattr(self.renderer_cfg, field_name, value)

@@ -62,7 +62,6 @@ __all__ = [
     "replace",
     "validate",
     "checked_apply",
-    "warn_from_post_init",
 ]
 
 from .timer import Timer
@@ -115,4 +114,4 @@ from .string import (
 )
 from .types import ArticulationActions
 from .version import has_kit, get_isaac_sim_version, compare_versions
-from .configclass import checked_apply, clone, configclass, instantiate, replace, validate, warn_from_post_init
+from .configclass import checked_apply, clone, configclass, instantiate, replace, validate

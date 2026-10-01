@@ -5,4 +5,4 @@
   by default.
 * Changed the deprecation notice for legacy ``<workflow>-multigpu`` benchmark workflow names to a ``FutureWarning``.
 * Changed the deprecated ``max_height_noise`` warning of
-  :class:`~isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedObjectsTerrainCfg` to a ``DeprecationWarning``.
+  :class:`~isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedObjectsTerrainCfg` to a ``FutureWarning``.

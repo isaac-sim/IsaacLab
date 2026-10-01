@@ -3,10 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import warnings
 from typing import TYPE_CHECKING
 
 from isaaclab.sensors.contact_sensor.contact_sensor_cfg import ContactSensorCfg as BaseContactSensorCfg
-from isaaclab.utils import configclass, warn_from_post_init
+from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
     from .contact_sensor import ContactSensor
@@ -32,17 +33,19 @@ class ContactSensorCfg(BaseContactSensorCfg):
 
     def __post_init__(self):
         if self.track_contact_points and not (self.filter_prim_paths_expr or self.filter_shape_prim_expr):
-            warn_from_post_init(
+            warnings.warn(
                 "ContactSensorCfg: 'track_contact_points' requires filter objects on the Newton backend. Please set"
                 " 'filter_prim_paths_expr' or 'filter_shape_prim_expr'. Ignoring.",
                 UserWarning,
+                stacklevel=2,
             )
             self.track_contact_points = False
 
         if self.max_contact_data_count_per_prim is not None:
-            warn_from_post_init(
+            warnings.warn(
                 "ContactSensorCfg: 'max_contact_data_count_per_prim' is not supported by the Newton backend. Ignoring.",
                 UserWarning,
+                stacklevel=2,
             )
             self.max_contact_data_count_per_prim = None
 

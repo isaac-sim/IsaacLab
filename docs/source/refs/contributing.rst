@@ -691,10 +691,6 @@ Choose the mechanism by who has to act on the message, following the Python
   * ``UserWarning`` for misuse or for settings that are ignored.
 
 * Set ``stacklevel`` so that the warning points at the caller's line, not at Isaac Lab internals.
-  Inside a :func:`~isaaclab.utils.configclass` ``__post_init__``, call
-  :func:`~isaaclab.utils.warn_from_post_init` instead of ``warnings.warn``. The number of frames
-  between ``__post_init__`` and the caller depends on the class hierarchy, so no fixed ``stacklevel``
-  is correct for every config.
 * Do not use ``print`` for warnings or status messages, and do not add ``[WARNING]``, ``[WARN]``,
   ``[INFO]``, or ``[ERROR]`` prefixes. Printed messages ignore ``--verbose`` / ``--info`` and log handlers,
   and tests cannot capture them reliably. The logging record already carries the level. ``print`` remains

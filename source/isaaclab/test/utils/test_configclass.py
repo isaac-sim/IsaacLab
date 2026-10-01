@@ -16,16 +16,7 @@ from typing import Any, ClassVar
 import pytest
 import torch
 
-from isaaclab.utils import (
-    clone,
-    configclass,
-    instantiate,
-    replace,
-    to_dict,
-    update_from_dict,
-    validate,
-    warn_from_post_init,
-)
+from isaaclab.utils import clone, configclass, instantiate, replace, to_dict, update_from_dict, validate
 from isaaclab.utils.io import dump_yaml, load_yaml
 from isaaclab.utils.string import ResolvableString
 
@@ -1120,45 +1111,6 @@ def test_missing_fields_precede_nested_custom_validation():
 
     with pytest.raises(TypeError, match="required"):
         validate(ParentCfg())
-
-
-# =============================================================================
-# Tests: warn_from_post_init
-# =============================================================================
-
-
-@configclass
-class _DeprecatedCfg:
-    old: int | None = None
-
-    def __post_init__(self):
-        if self.old is not None:
-            warn_from_post_init("'old' is deprecated.", DeprecationWarning)
-
-
-@configclass
-class _DeprecatedChildCfg(_DeprecatedCfg):
-    extra: int = 0
-
-    def __post_init__(self):
-        super().__post_init__()
-
-
-@pytest.mark.parametrize(
-    "build",
-    [
-        lambda: _DeprecatedCfg(old=1),
-        lambda: _DeprecatedChildCfg(old=1),
-        lambda: replace(_DeprecatedCfg(), old=1),
-    ],
-    ids=["direct", "subclass_super", "replace"],
-)
-def test_warn_from_post_init_points_at_construction(build):
-    """The warning is attributed to the line that constructs the config, whatever the class depth."""
-    with pytest.warns(DeprecationWarning, match="'old' is deprecated") as record:
-        build()
-    assert len(record) == 1
-    assert (record[0].filename, record[0].lineno) == (__file__, build.__code__.co_firstlineno)
 
 
 # =============================================================================
