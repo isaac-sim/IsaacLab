@@ -34,12 +34,16 @@ def parse_cli_args():
     return args_cli
 
 
-def run_blender_convert2obj(in_file: str, out_file: str):
-    """Calls the python script using `subprocess` to perform processing of mesh file.
+def run_blender_convert2obj(in_file: str, out_file: str) -> None:
+    """Call the Blender script to convert a mesh file to OBJ.
 
     Args:
         in_file: Input mesh file.
         out_file: Output obj file.
+
+    Raises:
+        FileNotFoundError: If the Blender executable cannot be found on ``PATH``.
+        subprocess.CalledProcessError: If Blender exits with a non-zero status.
     """
     if BLENDER_EXE_PATH is None:
         raise FileNotFoundError("Unable to find the Blender executable on PATH.")
