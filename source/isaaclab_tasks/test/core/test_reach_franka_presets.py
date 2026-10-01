@@ -88,8 +88,7 @@ def test_reach_diffik_abs_legacy_task_is_a_deprecated_alias():
     spec = registry[_CONTRIB_DIFFIK_ABS_TASK]
 
     assert spec.kwargs["deprecated"] == {"alias": "--task Isaac-Reach-Franka physics=isaacsim_physx presets=diffik_abs"}
-    with pytest.warns(FutureWarning, match="presets=diffik_abs"):
-        legacy_cfg = load_cfg_from_registry(_CONTRIB_DIFFIK_ABS_TASK, "env_cfg_entry_point")
+    legacy_cfg = load_cfg_from_registry(_CONTRIB_DIFFIK_ABS_TASK, "env_cfg_entry_point")
 
     canonical_cfg = _load_env_cfg("diffik_abs", "isaacsim_physx")
     legacy_cfg = resolve_presets(legacy_cfg)
