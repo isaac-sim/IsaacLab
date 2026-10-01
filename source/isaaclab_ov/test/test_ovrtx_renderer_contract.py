@@ -80,8 +80,7 @@ def _make_ovrtx_camera_render_data() -> OVRTXCameraRenderData:
 
 
 def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
-    renderer = OVRTXRenderer.__new__(OVRTXRenderer)
-    renderer.cfg = OVRTXRendererCfg()
+    renderer = OVRTXRenderer(OVRTXRendererCfg())
     renderer.backend = OVRTXBackend.__new__(OVRTXBackend)
     renderer.scene = renderer.backend
     from isaaclab_ov.stage import OvstageBackend
@@ -92,11 +91,6 @@ def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
     cfg = OVRTXBackendCfg(scene_key=renderer.cfg, use_ovstage=False, read_gpu_transforms=True)
     renderer.scene.stage = renderer.scene.paths = None
     SimulationContext.instance()._backend_registry.append((cfg, renderer.backend))
-    renderer._camera_render_data = []
-    renderer._transform_writes = _AsyncWriteBuffers()
-    renderer._geometry_writes = _AsyncWriteBuffers()
-    renderer._geometry_offsets = {}
-    renderer._use_ovstage = False
     return renderer
 
 
@@ -686,22 +680,44 @@ def test_ovrtx_set_outputs_routes_ppisp_buffers_through_warp_buffers():
     assert render_data.warp_buffers["rgb_hdr"].dtype is wp.float32
 
 
-def test_ovrtx_process_frame_skips_ldr_rgba_when_ppisp_is_active():
-    """PPISP owns RGBA output, so OVRTX LdrColor should not pre-fill it."""
-
-    class FailingRenderVar:
-        def map(self, *args, **kwargs):
-            raise AssertionError("PPISP RGBA output must not read OVRTX LdrColor")
-
+@pytest.mark.parametrize("source_device", ["cpu", "cuda:1"])
+def test_ovrtx_process_frame_routes_ppisp_hdr_to_output_device(monkeypatch, source_device):
+    """PPISP reads HDR on the output device and leaves RGBA for its own pipeline."""
     renderer = _make_ovrtx_renderer_without_backend()
+    renderer._device = "cpu"
     render_data = _make_ovrtx_camera_render_data()
     render_data.ppisp_pipeline = object()
-    key = "LdrColor"
-    if ovrtx_renderer_module.uses_prim_path_render_vars(ovrtx_renderer_module.OVRTX_VERSION):
-        key = f"/{render_data.render_scope_name}/Vars/{key}"
-    frame = types.SimpleNamespace(render_vars={key: FailingRenderVar()})
+    hdr = wp.full((8, 32, 4), 0.5, dtype=wp.float32, device="cpu")
+    source = hdr if source_device == "cpu" else types.SimpleNamespace(device=source_device, dtype=wp.float32)
+    clone = MagicMock(return_value=hdr)
+    monkeypatch.setattr(wp, "clone", clone)
+    extract = renderer._launch_extract_all_tiles
 
-    renderer._process_render_frame(render_data, frame, {"rgba": object()})
+    def extract_hdr(data, tiled, output):
+        assert str(tiled.device) == str(output.device)
+        extract(data, tiled, output)
+
+    monkeypatch.setattr(renderer, "_launch_extract_all_tiles", extract_hdr)
+
+    @contextlib.contextmanager
+    def map_hdr(render_var):
+        assert render_var is source, "PPISP RGBA output must not read OVRTX LdrColor"
+        yield source
+
+    monkeypatch.setattr(renderer, "_map_render_var_to_dlpack", map_hdr)
+    frame = types.SimpleNamespace(
+        render_vars={
+            render_data.render_var_keys["LdrColor"]: object(),
+            render_data.render_var_keys["HdrColor"]: source,
+        }
+    )
+    output = wp.zeros((2, 8, 16, 3), dtype=wp.float32, device="cpu")
+    renderer._process_render_frame(render_data, frame, {"rgba": object(), "rgb_hdr": output})
+    np.testing.assert_array_equal(output.numpy(), 0.5)
+    if source_device == "cpu":
+        clone.assert_not_called()
+    else:
+        clone.assert_called_once_with(source, device="cpu")
 
 
 # Render-var keys depend only on the OVRTX version; ``use_ovstage`` only selects the registration path.
@@ -781,33 +797,6 @@ def test_ovrtx_process_frame_reads_authored_camera_render_vars(monkeypatch, use_
         for index, output in enumerate(outputs, start=1):
             np.testing.assert_array_equal(buffers[output].numpy(), 10 * camera_id + index)
         render_data.cleanup()
-
-
-def test_ovrtx_ppisp_hdr_source_is_cloned_to_output_device(monkeypatch):
-    """PPISP HdrColor source is moved to the HDR output buffer device."""
-
-    class FakeArray:
-        device = "cuda:1"
-
-    class OutputArray:
-        device = "cuda:0"
-
-    cloned = object()
-    clone_calls = []
-
-    def fake_clone(src, *, device):
-        clone_calls.append((src, device))
-        return cloned
-
-    monkeypatch.setattr(wp, "clone", fake_clone)
-
-    renderer = _make_ovrtx_renderer_without_backend()
-    render_data = _make_ovrtx_camera_render_data()
-    render_data.ppisp_pipeline = object()
-    source = FakeArray()
-
-    assert renderer._prepare_ppisp_hdr_source(render_data, source, {"rgb_hdr": OutputArray()}) is cloned
-    assert clone_calls == [(source, "cuda:0")]
 
 
 def test_launch_extract_all_tiles_rejects_wider_output_channels():
@@ -958,9 +947,7 @@ def test_ovrtx_map_render_var_orders_the_read_against_render_completion(monkeypa
 def test_ovrtx_cleanup_releases_only_the_given_render_data(monkeypatch, cleanup_directly, use_ovstage, failure):
     """Release only the given camera, even if its pending native operations fail."""
     events = []
-    renderer = (
-        _make_ovstage_renderer_with_backend(events) if use_ovstage else _make_legacy_renderer_with_backend(events)
-    )
+    renderer = _make_renderer_with_backend(events, use_ovstage)
     other_camera = renderer._camera_render_data[0]
     render_data = _make_ovrtx_camera_render_data()
     render_data.render_product_path = "/RenderCamera_0/RenderProduct_to_remove"
@@ -971,7 +958,7 @@ def test_ovrtx_cleanup_releases_only_the_given_render_data(monkeypatch, cleanup_
     if use_ovstage:
         render_data.camera_xform_query = "to_remove"
         render_data.resources.callback(renderer.scene.paths.destroy_path_list, "to_remove")
-        render_data.resources.callback(lambda: renderer.scene.stage.release_query("to_remove").wait())
+        render_data.resources.enter_context(renderer.scene.stage.query_from_path_list("to_remove"))
     else:
         render_data.camera_xform_binding = _RecordingBinding(events, "pose")
         render_data.resources.callback(render_data.camera_xform_binding.unbind)
@@ -1110,121 +1097,83 @@ class _RecordingBinding:
         self._events.append(f"unbind:{self._name}")
 
 
-def _make_legacy_renderer_with_backend(events: list[str]) -> OVRTXRenderer:
-    """Build a legacy-path renderer whose backend calls are recorded into ``events``."""
-
-    class Backend:
-        def destroy(self) -> None:
-            events.append("destroy_renderer")
-
-    renderer = _make_ovrtx_renderer_without_backend()
-    renderer._use_ovstage = False
-    render_data = _make_ovrtx_camera_render_data()
-    render_data.render_product_path = "/RenderCamera_0/RenderProduct_camera"
-    render_data.camera_xform_binding = _RecordingBinding(events, "camera")
-    render_data.resources.callback(render_data.camera_xform_binding.unbind)
-    render_data.renderer_info = {"rgb": object()}
-    renderer._camera_render_data.append(render_data)
-    renderer._object_xform_binding = _RecordingBinding(events, "object")
-    renderer._geometry_points_binding = _RecordingBinding(events, "geometry")
-    renderer.backend.renderer = Backend()
-    renderer._output_id_color_buffers = {"semantic_segmentation": object()}
-    renderer._initialized_scene = True
-    return renderer
-
-
-def _make_ovstage_renderer_with_backend(events: list[str]) -> OVRTXRenderer:
-    """Build an ovstage-path renderer whose backend calls are recorded into ``events``."""
-
-    class Completion:
-        def wait(self) -> None:
-            return
-
-    class Stage:
-        def release_query(self, query):
-            events.append(f"release_query:{query}")
-            return Completion()
-
-    class StagePaths:
-        def destroy_path_list(self, path_list) -> None:
-            events.append(f"destroy_path_list:{path_list}")
-
-    class Backend:
-        def destroy(self) -> None:
-            events.append("detach_ovstage")
-            events.append("destroy_renderer")
-
-    class ExitStack:
-        def close(self) -> None:
-            events.append("exit_stack_close")
-
-    renderer = _make_ovrtx_renderer_without_backend()
-    renderer._use_ovstage = True
+def _make_renderer_with_backend(events: list[str], use_ovstage: bool) -> OVRTXRenderer:
+    """Exercise real binding setup with recorded native resource lifetimes."""
     from isaaclab_ov.stage import OvstageBackend, OvstageBackendCfg
 
-    renderer.scene = OvstageBackend.__new__(OvstageBackend)
-    SimulationContext.instance()._backend_registry.insert(
-        0, (OvstageBackendCfg(scene_key=renderer.cfg), renderer.scene)
+    renderer = _make_ovrtx_renderer_without_backend()
+    renderer._device = "cpu"
+    renderer._use_ovstage = use_ovstage
+    renderer._sdp = types.SimpleNamespace(
+        backend=types.SimpleNamespace(transform_paths=["object"]),
+        get_geometry_points=lambda: {"geometry": wp.zeros(1, dtype=wp.vec3f, device="cpu")},
     )
-    renderer.scene.stage = Stage()
-    renderer.scene.paths = StagePaths()
+    renderer.backend.renderer = types.SimpleNamespace(
+        bind_attribute=lambda **kwargs: _RecordingBinding(events, "object"),
+        bind_array_attribute=lambda **kwargs: _RecordingBinding(events, "geometry"),
+        write_attribute=lambda **kwargs: None,
+        destroy=lambda: events.append("destroy_renderer"),
+    )
     render_data = _make_ovrtx_camera_render_data()
     render_data.render_product_path = "/RenderCamera_0/RenderProduct_camera"
-    render_data.camera_xform_query = "camera"
-    render_data.resources.callback(renderer.scene.paths.destroy_path_list, "camera")
-    render_data.resources.callback(lambda: renderer.scene.stage.release_query("camera").wait())
+    if use_ovstage:
+
+        @contextlib.contextmanager
+        def query(paths):
+            try:
+                yield paths
+            finally:
+                events.append(f"release_query:{paths}")
+
+        renderer.scene = OvstageBackend.__new__(OvstageBackend)
+        SimulationContext.instance()._backend_registry.insert(
+            0, (OvstageBackendCfg(scene_key=renderer.cfg), renderer.scene)
+        )
+        renderer.scene.stage = types.SimpleNamespace(
+            query_from_path_list=query,
+            write_attribute=lambda *args, **kwargs: types.SimpleNamespace(wait=lambda: None),
+        )
+        renderer.scene.paths = types.SimpleNamespace(
+            create_path_list_from_strings=lambda paths: paths[0],
+            destroy_path_list=lambda paths: events.append(f"destroy_path_list:{paths}"),
+        )
+        renderer.scene._resources = contextlib.ExitStack()
+        renderer.scene._resources.callback(events.append, "close_stage")
+        renderer.scene.ordinal = 7
+        render_data.resources.callback(renderer.scene.paths.destroy_path_list, "camera")
+        render_data.camera_xform_query = render_data.resources.enter_context(query("camera"))
+    else:
+        render_data.camera_xform_binding = _RecordingBinding(events, "camera")
+        render_data.resources.callback(render_data.camera_xform_binding.unbind)
+    renderer._setup_xform_bindings()
+    renderer._setup_geometry_bindings()
     render_data.renderer_info = {"rgb": object()}
     renderer._camera_render_data.append(render_data)
-    renderer._object_xform_query = "object"
-    renderer._object_paths_list = "object"
-    renderer._geometry_points_query = "geometry"
-    renderer._geometry_paths_list = "geometry"
-    renderer.backend.renderer = Backend()
-    renderer.scene._resources = ExitStack()
     renderer._output_id_color_buffers = {"semantic_segmentation": object()}
     renderer._initialized_scene = True
-    renderer.scene.ordinal = 7
     return renderer
 
 
-def test_ovrtx_close_releases_legacy_renderer_state():
-    """Borrowers unbind their tensor bindings before the registry closes the native engine."""
+@pytest.mark.parametrize("use_ovstage", [False, True])
+def test_ovrtx_close_releases_bindings_before_registry_resources(use_ovstage):
+    """Bindings release once, before engines and stages owned by the simulation registry."""
     events: list[str] = []
-    renderer = _make_legacy_renderer_with_backend(events)
+    renderer = _make_renderer_with_backend(events, use_ovstage)
     renderer.close()
     renderer.close()
-    assert "destroy_renderer" not in events
+    if use_ovstage:
+        assert len(events) == 6
+        for name in ("camera", "object", "geometry"):
+            assert events.index(f"release_query:{name}") < events.index(f"destroy_path_list:{name}")
+    else:
+        assert sorted(events) == ["unbind:camera", "unbind:geometry", "unbind:object"]
+    assert renderer._object_xform_binding is renderer._geometry_points_binding is None
     SimulationContext.instance().close_backend(renderer.backend)
-
-    assert events == [
-        "unbind:camera",
-        "unbind:object",
-        "unbind:geometry",
-        "destroy_renderer",
-    ]
-
-
-def test_ovrtx_close_releases_ovstage_renderer_state():
-    """Queries release before the native engine, which must detach before stage resources close."""
-    events: list[str] = []
-    renderer = _make_ovstage_renderer_with_backend(events)
-    renderer.close()
-    assert "destroy_renderer" not in events
-    SimulationContext.instance().close_backend(renderer.backend)
-    assert "exit_stack_close" not in events
-    SimulationContext.instance().close_backend(renderer.scene)
-
-    assert events == [
-        "release_query:camera",
-        "destroy_path_list:camera",
-        "release_query:object",
-        "destroy_path_list:object",
-        "release_query:geometry",
-        "destroy_path_list:geometry",
-        "detach_ovstage",
-        "destroy_renderer",
-        "exit_stack_close",
-    ]
+    assert events[-1] == "destroy_renderer"
+    if use_ovstage:
+        assert "close_stage" not in events
+        SimulationContext.instance().close_backend(renderer.scene)
+        assert events[-1] == "close_stage"
     events.clear()
     renderer.close()
     assert events == []

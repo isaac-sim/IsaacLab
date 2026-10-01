@@ -21,7 +21,7 @@ from isaaclab.assets import AssetBaseCfg
 from isaaclab.cloner import ClonePlan, PrototypeWorldTopology, make_clone_plan
 from isaaclab.renderers.camera_render_spec import CameraRenderSpec
 from isaaclab.sensors.camera import CameraCfg
-from isaaclab.sim import PinholeCameraCfg, SpawnerCfg
+from isaaclab.sim import PinholeCameraCfg, SimulationContext, SpawnerCfg
 
 _REQUIRED_MODULES = ("isaaclab_ov", "ovrtx")
 _MISSING_MODULES = [module for module in _REQUIRED_MODULES if importlib.util.find_spec(module) is None]
@@ -76,9 +76,14 @@ def _make_multi_env_stage(num_envs: int) -> Usd.Stage:
     return stage
 
 
+@pytest.fixture(autouse=True)
+def _simulation(monkeypatch):
+    sdp = SimpleNamespace(backend=SimpleNamespace(transform_paths=[]), get_geometry_points=lambda: {})
+    monkeypatch.setattr(SimulationContext, "_instance", SimpleNamespace(get_scene_data_provider=lambda: sdp))
+
+
 def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
-    renderer = OVRTXRenderer.__new__(OVRTXRenderer)
-    renderer.cfg = OVRTXRendererCfg()
+    renderer = OVRTXRenderer(OVRTXRendererCfg())
     renderer.backend = SimpleNamespace(
         clone_copies=[], clone_env_paths=[], population_env_paths=[], clone_positions=None
     )
@@ -90,17 +95,9 @@ def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
         write_array_attribute=lambda *args, **kwargs: None,
         write_attribute=lambda *args, **kwargs: None,
     )
-    renderer._device = "cuda:0"  # __init__'s default, replaced by create_render_data(spec)
     # create_render_data resolves this from the spec; tests that bypass it get the default.
     renderer._warp_device = SimpleNamespace(ordinal=0)
-    renderer._camera_render_data = []
     renderer.scene.next_camera_id = 0
-    renderer._exported_usd_string = None
-    renderer._initialized_scene = False
-    renderer._use_ovstage = False
-    renderer._sdp = SimpleNamespace(backend=SimpleNamespace(transform_paths=[]), get_geometry_points=lambda: {})
-    renderer._object_scales = None
-    renderer._object_scales_by_path = {}
     return renderer
 
 
@@ -401,6 +398,8 @@ def test_native_cloners_keep_plan_interpretation_in_the_context():
         "_update_camera_ovstage",
         "_render_legacy",
         "_render_ovstage",
+        "_close_legacy",
+        "_close_ovstage",
     ):
         assert not hasattr(OVRTXRenderer, name)
     renderer_tree = ast.parse(Path(ovrtx_renderer_module.__file__).read_text())
