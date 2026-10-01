@@ -175,14 +175,13 @@ jobs:
       uses: ./.github/actions/resolve-ov-pins
       id: ov_pins
 
-    # Same action and settings as x86's rendering-correctness-kitless (legacy) job,
-    # with the image built above instead of an ECR pull. Pushes to protected
-    # branches publish the arm64 Warp and OVRTX caches that pull requests restore,
-    # the role x86's cache-warm jobs play.
+    # Same action and settings as x86's rendering-correctness-kitless (legacy) job.
+    # With no ECR on the Spark, it picks up the image built above from the local
+    # store. Pushes to protected branches publish the arm64 Warp and OVRTX caches
+    # that pull requests restore, the role x86's cache-warm jobs play.
     - name: Run arm_ci marker tests
       uses: ./.github/actions/run-package-tests
       with:
-        image-source: local
         image-tag: ${{ needs.config.outputs.ci_image_tag }}-arm64
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
