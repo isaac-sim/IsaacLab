@@ -27,7 +27,7 @@ inputs:
   platform:
     description: >-
       Target platform for `docker buildx build --platform`. Empty builds for the
-      runner's own architecture (X64 -> linux/amd64, ARM64 -> linux/arm64).
+      Docker daemon's own platform, as `docker version` reports it.
     default: ''
     required: false
   cache-from:
@@ -76,14 +76,8 @@ runs:
       env:
         PLATFORM_INPUT: ${{ inputs.platform }}
       run: |
-        platform="$PLATFORM_INPUT"
-        if [ -z "$platform" ]; then
-          case "$RUNNER_ARCH" in
-            X64) platform=linux/amd64 ;;
-            ARM64) platform=linux/arm64 ;;
-            *) echo "::error::No default platform for runner architecture '$RUNNER_ARCH'; pass platform"; exit 1 ;;
-          esac
-        fi
+        platform="${PLATFORM_INPUT:-$(docker version --format '{{.Server.Os}}/{{.Server.Arch}}')}"
+        echo "Target platform: $platform"
         echo "platform=$platform" >> "$GITHUB_OUTPUT"
 
     ##### 2: Host disk snapshot (pre) #####
