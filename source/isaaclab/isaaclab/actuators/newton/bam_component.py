@@ -68,7 +68,6 @@ class DriveBam(DriveBase):
     """Previous MJWarp solve's external gearbox load [N.m], shape ``(N,)``.
 
     The MJWarp bridge must bind this array before the first step and CUDA graph capture.
-    Stepping an unbound drive raises an error.
     """
 
     env_dof_stride: int
@@ -409,8 +408,6 @@ class DriveBam(DriveBase):
         device: wp.Device | None = None,
     ) -> None:
         del target_vel, feedforward, target_vel_indices, dt  # the modelled firmware has no torque input
-        if self.external_torque is None:
-            raise RuntimeError("BAM requires an MJWarp bridge with external torque bound before stepping")
         num_actuators = len(forces)
         scratch = self._next_state_arrays
         wp.launch(
