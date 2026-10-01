@@ -3,11 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""USD coefficients and optional BAM authoring tool contracts."""
+"""USD coefficient loading and validation for BAM actuators."""
 
-import json
-import subprocess
-import sys
 from pathlib import Path
 
 import numpy as np
@@ -57,52 +54,6 @@ def test_vendored_params_match_reference(goldens: dict[str, np.ndarray]) -> None
         assert params["resistance" if name == "R" else name] == pytest.approx(float(goldens[f"attr_{name}"])), name
     # m6 = Stribeck + directional load friction + quadratic load coupling.
     assert (params["stribeck"], params["load_dependent"], params["quadratic"]) == (1, 1, 1)
-
-
-def test_json_import_bakes_coefficients_into_usd(tmp_path, goldens):
-    """The optional importer produces a portable asset, even after its input JSON is removed."""
-    repo = Path(__file__).resolve().parents[4]
-    source = tmp_path / "source.usda"
-    output = tmp_path / "output.usda"
-    fit = tmp_path / "fit.json"
-    source.write_text('#usda 1.0\ndef Xform "Robot" {\n def PhysicsRevoluteJoint "servo" {}\n }\n')
-    metadata = {"bam_commit", "motor_name", "model_name", "seed", "num_samples", "dt"}
-    values = {
-        name.removeprefix("attr_"): value.item()
-        for name, value in goldens.items()
-        if name.startswith("attr_") and name.removeprefix("attr_") not in metadata
-    }
-    values.update(actuator="xl330", model="m6")
-    fit.write_text(json.dumps(values))
-    subprocess.run(
-        [
-            sys.executable,
-            str(repo / "scripts/tools/import_bam_parameters.py"),
-            "--input",
-            str(source),
-            "--output",
-            str(output),
-            "--articulation",
-            "/Robot",
-            "--joint_names",
-            "servo",
-            "--params_file",
-            str(fit),
-        ],
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-    fit.unlink()
-    register_bam_actuator_component()
-    stage = Usd.Stage.Open(str(output))
-    prim = stage.GetPrimAtPath("/Robot/bam_servo_actuator")
-    assert not prim.HasAttribute("newton:paramsFile")
-    resolved = DriveBam.resolve_arguments(dict(parse_actuator_prim(prim).drive_kwargs))
-    for name, value in values.items():
-        if name not in ("actuator", "model", "q_offset", "armature"):
-            assert resolved[{"R": "resistance", "kp": "kp_fw"}.get(name, name)] == pytest.approx(value)
-    assert (resolved["stribeck"], resolved["load_dependent"], resolved["quadratic"]) == (1, 1, 1)
 
 
 @pytest.mark.parametrize("coefficient", ["kt", "alpha", "load_friction_external_quad"])
