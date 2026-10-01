@@ -72,7 +72,10 @@ logger = logging.getLogger(__name__)
 
 @functools.cache
 def _ovrtx_keys_render_vars_by_prim_path() -> bool:
-    """Whether the installed ovrtx (0.5 or newer) keys ``frame.render_vars`` by RenderVar prim path."""
+    """Whether the installed ovrtx (0.5 or newer) keys ``frame.render_vars`` by RenderVar prim path.
+
+    Mirrors ``isaaclab_ov.renderers.ovrtx_compat.uses_prim_path_render_vars``, which this package cannot import.
+    """
     from packaging.version import InvalidVersion, Version
 
     try:
