@@ -1,3 +1,3 @@
-* Migrated Franka rigid and deformable Lift tasks to the shared flat asset, with backend-specific physics
-  and gripper-only collisions by default. Select ``arm_collisions`` to enable primitive arm contacts.
-  Default reset clearance checks now cover the hand and fingers only; ``arm_collisions`` also checks the arm.
+* **Breaking:** Changed Franka Reach and Reach-OSC to continuous pose tracking: success remained a
+  reported metric but no longer ended the episode or awarded the terminal success bonus. Episodes
+  ran until timeout. Requalify existing checkpoints because reward totals and episode lengths changed.
