@@ -278,7 +278,7 @@ def ovstage_replicate(
 
 
 class _OvRenderReplicateContext:
-    """Publish the assets routed to OVRTX to the shared routing of one OVRTX scene path."""
+    """Route the assets of a clone plan to the native OVRTX backends of one scene path."""
 
     # Scenes clone after native physics has consumed the authored prims.
     replicate_priority = 100
@@ -288,11 +288,12 @@ class _OvRenderReplicateContext:
         self._sim = sim_context
 
     def replicate(self, plan: ClonePlan, asset_prototype_ids: tuple[int, ...]) -> None:
-        """Publish the asset definitions routed to this context for the renderer of its scene path."""
-        from isaaclab_ov.renderers.ovrtx_renderer_cfg import OVRTXCloneCfg  # noqa: PLC0415
+        """Hand the asset definitions routed to this context to the OVRTX backends of its scene path."""
+        from isaaclab_ov.renderers.ovrtx_renderer_cfg import OVRTXBackendCfg  # noqa: PLC0415
 
-        routing = self._sim.get_or_create_backend(OVRTXCloneCfg(use_ovstage=self.use_ovstage))
-        routing.asset_prototype_ids = asset_prototype_ids
+        for cfg, backend in self._sim._backend_registry:
+            if isinstance(cfg, OVRTXBackendCfg) and cfg.use_ovstage is self.use_ovstage:
+                backend.asset_prototype_ids = asset_prototype_ids
 
 
 class OvrtxReplicateContext(_OvRenderReplicateContext):

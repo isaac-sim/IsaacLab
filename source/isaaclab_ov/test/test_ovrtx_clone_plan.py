@@ -81,8 +81,7 @@ def _patch_simulation_context(monkeypatch: pytest.MonkeyPatch, plan: ClonePlan) 
 def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
     renderer = OVRTXRenderer.__new__(OVRTXRenderer)
     renderer.cfg = OVRTXRendererCfg()
-    renderer.backend = SimpleNamespace()
-    renderer._clone_routing = SimpleNamespace(asset_prototype_ids=None)
+    renderer.backend = SimpleNamespace(asset_prototype_ids=None)
     renderer.backend.renderer = SimpleNamespace(
         add_usd_reference_from_string=lambda *args, **kwargs: 1,
         remove_usd=lambda reference: None,
@@ -419,7 +418,7 @@ def test_prepare_stage_exports_only_the_sources_routed_to_its_scene_path(monkeyp
     plan = make_clone_plan(assets, ((0, 1),), 3, positions=np.zeros((3, 3), dtype=np.float32))
     _patch_simulation_context(monkeypatch, plan)
     renderer = _make_ovrtx_renderer_without_backend()
-    renderer._clone_routing.asset_prototype_ids = (0,)
+    renderer.backend.asset_prototype_ids = (0,)
 
     renderer.prepare_stage(stage, 3)
 
@@ -430,18 +429,23 @@ def test_prepare_stage_exports_only_the_sources_routed_to_its_scene_path(monkeyp
 
 
 @pytest.mark.parametrize("use_ovstage", [False, True])
-def test_clone_context_publishes_its_routing_only_for_its_scene_path(use_ovstage):
-    """Each context fills the shared routing of its own scene path and leaves the other path alone."""
-    routing = {}
+def test_clone_context_routes_assets_only_to_backends_of_its_scene_path(use_ovstage):
+    """Each context hands its routing to the OVRTX backends that use its scene path and to no others."""
+    from isaaclab_ov.renderers.ovrtx_renderer_cfg import OVRTXBackendCfg
 
-    def get_or_create_backend(cfg):
-        return routing.setdefault(cfg.use_ovstage, SimpleNamespace(asset_prototype_ids=None))
-
+    backends = {path: SimpleNamespace(asset_prototype_ids=None) for path in (False, True)}
+    registry = [
+        (OVRTXBackendCfg(renderer_cfg=None, use_ovstage=path, read_gpu_transforms=True), backend)
+        for path, backend in backends.items()
+    ]
     context_type = OvstageReplicateContext if use_ovstage else OvrtxReplicateContext
 
-    context_type(SimpleNamespace(get_or_create_backend=get_or_create_backend)).replicate(None, (1, 2))
+    context_type(SimpleNamespace(_backend_registry=registry)).replicate(None, (1, 2))
 
-    assert {path: shared.asset_prototype_ids for path, shared in routing.items()} == {use_ovstage: (1, 2)}
+    assert {path: backend.asset_prototype_ids for path, backend in backends.items()} == {
+        use_ovstage: (1, 2),
+        (not use_ovstage): None,
+    }
 
 
 def test_renderer_cfg_declares_the_clone_contexts_of_both_scene_paths():

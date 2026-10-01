@@ -88,7 +88,7 @@ from isaaclab_ov.renderers.ovrtx_annotator_utils import (
     decode_stable_id_semantic_id_map,
 )
 from isaaclab_ov.renderers.ovrtx_compat import OVRTX_VERSION, uses_prim_path_render_vars
-from isaaclab_ov.renderers.ovrtx_renderer_cfg import OVRTXBackendCfg, OVRTXCloneCfg, OVRTXRendererCfg
+from isaaclab_ov.renderers.ovrtx_renderer_cfg import OVRTXBackendCfg, OVRTXRendererCfg
 from isaaclab_ov.renderers.ovrtx_renderer_kernels import (
     create_camera_transforms_kernel,
     extract_all_tiles_kernel,
@@ -273,14 +273,6 @@ def _write_combined_stage(output_dir: Path, scene_usd: str, render_product_usd: 
     _write_file(output_dir, "ovrtx_renderer_stage.usda", scene_layer.ExportToString())
 
 
-class OVRTXCloneRouting:
-    """Hold the asset definitions that clone routing sends to one OVRTX scene path."""
-
-    def __init__(self, cfg: OVRTXCloneCfg):
-        self.asset_prototype_ids: Collection[int] | None = None
-        """The routed asset definitions, or ``None`` to select every asset of the clone plan."""
-
-
 class OVRTXBackend:
     """Own one native renderer and its optional detached stage, without camera or transport policy."""
 
@@ -302,6 +294,8 @@ class OVRTXBackend:
         redirect_shader_cache(native_cfg)
         self.stage = None
         self.paths = None
+        # Set by the scene's clone context; ``None`` selects every asset of the clone plan.
+        self.asset_prototype_ids: Collection[int] | None = None
         with contextlib.ExitStack() as resources:
             if cfg.use_ovstage:
                 self.stage = resources.enter_context(create_ovstage("isaaclab.ovrtx"))
@@ -432,9 +426,6 @@ class OVRTXRenderer(BaseRenderer):
         self._use_ovstage = ovrtx_use_ovstage_enabled()
         if cfg.async_rendering and self._use_ovstage:
             logger.warning("Asynchronous OVRTX rendering is unsupported with ovstage; rendering synchronously.")
-        self._clone_routing = SimulationContext.instance().get_or_create_backend(
-            OVRTXCloneCfg(use_ovstage=self._use_ovstage)
-        )
         self.backend: OVRTXBackend = SimulationContext.instance().get_or_create_backend(
             OVRTXBackendCfg(
                 renderer_cfg=cfg, use_ovstage=self._use_ovstage, read_gpu_transforms=_read_gpu_transforms_enabled()
@@ -504,7 +495,7 @@ class OVRTXRenderer(BaseRenderer):
 
         # OVRTX cannot clone onto existing prims. Keep environment roots unless explicitly cloned;
         # asset-level clones need their parents' authored environment transforms.
-        routed = self._clone_routing.asset_prototype_ids
+        routed = self.backend.asset_prototype_ids
         sources = tuple(
             source
             for index, source in enumerate(cloner_path.get_asset_prototype_paths(self._clone_plan))
@@ -659,11 +650,11 @@ class OVRTXRenderer(BaseRenderer):
                 self.backend.paths,
                 self._clone_plan,
                 self._current_ordinal,
-                self._clone_routing.asset_prototype_ids,
+                self.backend.asset_prototype_ids,
             )
         else:
             num_cloned_sources = ovrtx_replicate(
-                self.backend.renderer, self._clone_plan, self._clone_routing.asset_prototype_ids
+                self.backend.renderer, self._clone_plan, self.backend.asset_prototype_ids
             )
         logger.info("Cloned %d sources successfully in OVRTX", num_cloned_sources)
 

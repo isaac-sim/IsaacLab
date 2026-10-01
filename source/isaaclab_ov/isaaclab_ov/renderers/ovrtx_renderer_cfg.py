@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import os
 import tempfile
-from collections.abc import Callable
 from dataclasses import MISSING
 from typing import TYPE_CHECKING, ClassVar
 
@@ -21,7 +20,7 @@ from isaaclab.sim import BackendCfg
 from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
-    from .ovrtx_renderer import OVRTXBackend, OVRTXCloneRouting, OVRTXRenderer
+    from .ovrtx_renderer import OVRTXBackend, OVRTXRenderer
 
 
 @configclass
@@ -35,15 +34,6 @@ class OVRTXBackendCfg(BackendCfg):
     """Whether the native resource owns a detached OVStage instead of the legacy internal stage."""
     read_gpu_transforms: bool = MISSING
     """Whether OVRTX reads its GPU transform cache, resolved before native construction."""
-
-
-@configclass
-class OVRTXCloneCfg:
-    """Share the assets that clone routing sends to one OVRTX scene path, populated before the scene is built."""
-
-    class_type: Callable[[OVRTXCloneCfg], OVRTXCloneRouting] | str = "{DIR}.ovrtx_renderer:OVRTXCloneRouting"
-    use_ovstage: bool = MISSING
-    """Whether the scene path is the OVStage path instead of the native OVRTX path."""
 
 
 @configclass
