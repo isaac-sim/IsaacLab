@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Collection
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -122,7 +123,13 @@ def points_tensor_from_warp(points: wp.array) -> ovstage.DLTensor:
     return ovstage.make_dltensor(points, dtype=OVSTAGE_POINT_DTYPE)
 
 
-def clone_plan_into_ovstage(stage: ovstage.Stage, paths: ovstage.PathDictionary, plan: ClonePlan, ordinal: int) -> int:
+def clone_plan_into_ovstage(
+    stage: ovstage.Stage,
+    paths: ovstage.PathDictionary,
+    plan: ClonePlan,
+    ordinal: int,
+    asset_prototype_ids: Collection[int] | None = None,
+) -> int:
     """Clone every planned prototype onto its environments, then place the environment roots.
 
     Cloning recreates the environment roots, so their poses are written after the copies.
@@ -132,6 +139,7 @@ def clone_plan_into_ovstage(stage: ovstage.Stage, paths: ovstage.PathDictionary,
         paths: Path dictionary of ``stage``.
         plan: The scene's completed clone plan.
         ordinal: Write ordinal for the clones and the environment-root write.
+        asset_prototype_ids: Asset definitions routed to the caller. ``None`` selects every asset.
 
     Returns:
         The number of prototype copies made.
@@ -139,7 +147,7 @@ def clone_plan_into_ovstage(stage: ovstage.Stage, paths: ovstage.PathDictionary,
     from isaaclab_ov.renderers.ovrtx_usd import env_root_transforms, iter_clone_copies  # noqa: PLC0415
 
     num_copies = 0
-    for source, target_paths in iter_clone_copies(plan):
+    for source, target_paths in iter_clone_copies(plan, asset_prototype_ids):
         logger.debug("Cloning %s -> %d target(s)", source, len(target_paths))
         stage.clone(source, target_paths, ordinal=ordinal)
         num_copies += 1
@@ -159,7 +167,9 @@ def clone_plan_into_ovstage(stage: ovstage.Stage, paths: ovstage.PathDictionary,
     return num_copies
 
 
-def create_render_ovstage(stage: Usd.Stage, plan: ClonePlan) -> ovstage.Stage:
+def create_render_ovstage(
+    stage: Usd.Stage, plan: ClonePlan, asset_prototype_ids: Collection[int] | None = None
+) -> ovstage.Stage:
     """Build a populated ovstage of the scene for a consumer that draws it, such as Newton's ``ViewerRTX``.
 
     The USD stage is trimmed to the clone plan's prototypes, exported into a new ovstage stage, and
@@ -169,6 +179,7 @@ def create_render_ovstage(stage: Usd.Stage, plan: ClonePlan) -> ovstage.Stage:
     Args:
         stage: The live USD stage the clone plan was published for.
         plan: The scene's completed clone plan.
+        asset_prototype_ids: Asset definitions routed to the caller. ``None`` selects every asset.
 
     Returns:
         The populated stage, with all writes committed.
@@ -188,7 +199,11 @@ def create_render_ovstage(stage: Usd.Stage, plan: ClonePlan) -> ovstage.Stage:
     from isaaclab_ov.renderers.ovrtx_usd import export_stage_to_string  # noqa: PLC0415
 
     num_envs = len(plan.topology.world_prototype_layout)
-    sources = tuple(source for source in cloner_path.get_asset_prototype_paths(plan) if source is not None)
+    sources = tuple(
+        source
+        for index, source in enumerate(cloner_path.get_asset_prototype_paths(plan))
+        if source is not None and (asset_prototype_ids is None or index in asset_prototype_ids)
+    )
     usda = export_stage_to_string(stage, num_envs, source_paths=sources, keep_env_roots=False)
 
     render_stage = create_ovstage("isaaclab.render")
@@ -199,6 +214,6 @@ def create_render_ovstage(stage: Usd.Stage, plan: ClonePlan) -> ovstage.Stage:
     )
     ovstage.population.apply_usd_changes(render_stage, ordinal=ordinal)
     with ovstage.PathDictionary(render_stage) as paths:
-        clone_plan_into_ovstage(render_stage, paths, plan, ordinal)
+        clone_plan_into_ovstage(render_stage, paths, plan, ordinal, asset_prototype_ids)
     render_stage.advance_write_floor(ordinal=ordinal).wait()
     return render_stage

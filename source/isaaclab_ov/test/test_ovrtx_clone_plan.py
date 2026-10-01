@@ -401,3 +401,38 @@ def test_prepare_stage_exports_only_clone_sources_and_their_materials(monkeypatc
         assert bool(exported.GetPrimAtPath(root)) is bool(suffix)
         assert not exported.GetPrimAtPath(f"{root}/Robot")
         assert not exported.GetPrimAtPath(f"{root}/Object_env{env_id}_only")
+
+
+def test_iter_clone_copies_honors_routed_assets():
+    """A clone context only copies the asset definitions routed to it."""
+    from isaaclab_ov.renderers.ovrtx_usd import iter_clone_copies
+
+    names = "/Robot", "/Object"
+    positions = np.zeros((3, 3), dtype=np.float32)
+    assets = tuple(AssetBaseCfg(prim_path="/World/envs/env_[^/]+" + name) for name in names)
+    plan = make_clone_plan(assets, ((0, 1), (0, 1)), 3, weights=(1, 2), positions=positions)
+
+    everything = {source: targets for source, targets in iter_clone_copies(plan)}
+    robot_only = {source: targets for source, targets in iter_clone_copies(plan, {plan.topology.world_prototypes[0]})}
+
+    assert set(robot_only) < set(everything)
+    assert all(source.endswith("/Robot") for source in robot_only)
+    assert any(source.endswith("/Object") for source in everything)
+    assert not list(iter_clone_copies(plan, ()))
+
+
+def test_ovstage_replicate_context_builds_the_stage_from_its_routed_assets(monkeypatch: pytest.MonkeyPatch):
+    """The context forwards its routing to the builder and exposes the result only after replication."""
+    from isaaclab_ov.cloner import OvstageReplicateContext
+
+    stage, plan = object(), object()
+    built = []
+    monkeypatch.setattr("isaaclab_ov.stage.create_render_ovstage", lambda *args: built.append(args) or "render-stage")
+    context = OvstageReplicateContext(SimpleNamespace(stage=stage))
+
+    with pytest.raises(RuntimeError, match="before clone replication"):
+        context.render_stage
+    context.replicate(plan, (3, 5))
+
+    assert built == [(stage, plan, (3, 5))]
+    assert context.render_stage == "render-stage"

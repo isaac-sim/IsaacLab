@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 import math
-from collections.abc import Iterator, Mapping
+from collections.abc import Collection, Iterator, Mapping
 from types import MappingProxyType
 from typing import TYPE_CHECKING
 
@@ -400,7 +400,9 @@ def _collect_prims_to_deactivate(parent_prim: Usd.Prim, source_paths: frozenset[
     return prim_paths
 
 
-def iter_clone_copies(plan: ClonePlan) -> Iterator[tuple[str, list[str]]]:
+def iter_clone_copies(
+    plan: ClonePlan, asset_prototype_ids: Collection[int] | None = None
+) -> Iterator[tuple[str, list[str]]]:
     """Yield each ``(source, target paths)`` copy the clone plan needs, parents before their descendants.
 
     Copies already covered by an identical copy of an ancestor are omitted, and so are copies onto the
@@ -408,6 +410,7 @@ def iter_clone_copies(plan: ClonePlan) -> Iterator[tuple[str, list[str]]]:
 
     Args:
         plan: The scene's completed clone plan.
+        asset_prototype_ids: Asset definitions routed to the caller. ``None`` selects every asset.
 
     Yields:
         The prototype prim path and the destination paths it is copied to.
@@ -416,17 +419,21 @@ def iter_clone_copies(plan: ClonePlan) -> Iterator[tuple[str, list[str]]]:
     templates, starts, world_ids, world_starts = cloner_path.get_world_prototype_asset_templates(
         plan, include_world_indices=True
     )
+    assets = plan.topology.world_prototypes
     # Group copies by source/template, omitting descendants already covered by an identical parent copy.
     copies = {}
     for group in np.flatnonzero(np.diff(world_starts)):
         start, end = starts[group : group + 2]
         targets = world_ids[world_starts[group] : world_starts[group + 1]]
-        for index, parent in enumerate(cloner_path.get_parent_indices(templates[start:end]), start):
-            source, template = sources[plan.topology.world_prototypes[index]], templates[index]
+        members = [
+            index for index in range(start, end) if asset_prototype_ids is None or assets[index] in asset_prototype_ids
+        ]
+        for index, parent in zip(members, cloner_path.get_parent_indices([templates[i] for i in members]), strict=True):
+            source, template = sources[assets[index]], templates[index]
             if parent != -1:
-                ancestor = start + parent
+                ancestor = members[parent]
                 suffix = cloner_path.relative_to(template, templates[ancestor])
-                if source == sources[plan.topology.world_prototypes[ancestor]] + suffix:
+                if source == sources[assets[ancestor]] + suffix:
                     continue
             copies.setdefault((source, template), []).append(targets)
     for source, destination in sorted(copies, key=lambda copy: copy[1].count("/")):

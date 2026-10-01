@@ -20,6 +20,10 @@ if TYPE_CHECKING:
     from .newton_visualizer import NewtonGLVisualizer, NewtonRTXVisualizer
 
 
+_OVSTAGE_CLONE_CONTEXT = "isaaclab_ov.cloner:OvstageReplicateContext"
+"""Clone context that builds the OVStage stage a ``render_usd_stage`` visualizer draws."""
+
+
 @configclass
 class NewtonVisualizerCfg(VisualizerCfg):
     """Shared configuration base for Newton visualizer backends.
@@ -183,6 +187,13 @@ class NewtonRTXVisualizerCfg(NewtonVisualizerCfg):
     """Draw the simulation's own USD stage instead of a scene rebuilt from the Newton model.
 
     Newton's USD import drops visual properties it cannot represent, such as MDL materials, so the
-    rebuilt scene loses them. With this enabled, Isaac Lab clones the stage into an OVStage stage that
-    ``ViewerRTX`` renders as authored, and Newton only drives the body poses. It needs a Newton release
-    whose ``ViewerRTX`` accepts ``ovstage=``, and OVRTX 0.5 with OVStage 0.2 or newer."""
+    rebuilt scene loses them. With this enabled, Isaac Lab clones the scene into an OVStage stage through
+    :class:`~isaaclab_ov.cloner.OvstageReplicateContext`, which this config adds to :attr:`cloning_contexts`,
+    and ``ViewerRTX`` renders that stage as authored while Newton only drives the body poses. Set it when
+    constructing the config. It needs a Newton release whose ``ViewerRTX`` accepts ``ovstage=``, and OVRTX 0.5
+    with OVStage 0.2 or newer."""
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        if self.render_usd_stage and _OVSTAGE_CLONE_CONTEXT not in self.cloning_contexts:
+            self.cloning_contexts = (*self.cloning_contexts, _OVSTAGE_CLONE_CONTEXT)
