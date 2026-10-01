@@ -86,7 +86,7 @@ from isaaclab_ov.renderers.ovrtx_annotator_utils import (
     decode_stable_id_map,
     decode_stable_id_semantic_id_map,
 )
-from isaaclab_ov.renderers.ovrtx_compat import OVRTX_VERSION, uses_prim_path_render_vars
+from isaaclab_ov.renderers.ovrtx_compat import OVRTX_VERSION, ovrtx_stream_handle, uses_prim_path_render_vars
 from isaaclab_ov.renderers.ovrtx_renderer_cfg import OVRTXBackendCfg, OVRTXRendererCfg
 from isaaclab_ov.renderers.ovrtx_renderer_kernels import (
     create_camera_transforms_kernel,
@@ -1044,7 +1044,9 @@ class OVRTXRenderer(BaseRenderer):
         entirely means ``1``, not ``0``.
 
         The yielded array is a zero-copy view of the mapped memory and is only valid inside the
-        ``with`` block. Release is ordered after consuming kernels on the current Warp stream.
+        ``with`` block. Release is ordered after consuming kernels on the current Warp stream:
+        ``unmap()`` only records that stream. OVRTX runs the native unmap, and with it this fence,
+        when the last Warp view of the mapping is garbage collected, not at context exit.
 
         Args:
             render_var: OVRTX ``RenderVarOutput`` to map (looked up from ``frame.render_vars``).
@@ -1053,8 +1055,7 @@ class OVRTXRenderer(BaseRenderer):
             The render var's contents as a Warp array, valid for the duration of the context.
         """
         gpu_side_sync = _gpu_side_render_var_sync_enabled()
-        # Warp/Torch use 0 for the default CUDA stream; OVRTX uses 1 (0 disables ordering).
-        consumer_stream = self._warp_device.stream.cuda_stream or 1
+        consumer_stream = ovrtx_stream_handle(self._warp_device.stream)
         sync_stream = consumer_stream if gpu_side_sync else 0
         with render_var.map(device=Device.CUDA, sync_stream=sync_stream) as mapping:
             try:
@@ -1064,6 +1065,9 @@ class OVRTXRenderer(BaseRenderer):
             finally:
                 # Extraction is asynchronous. Keep the native buffer alive until those reads finish,
                 # including when a consumer raises after queuing work. The first unmap call wins.
+                # Since OVRTX 0.4 the native free is a cudaFreeAsync on OVRTX's copy stream, so only
+                # this stream hint orders it after our reads. From OVRTX 0.5.0.377615 the call is
+                # non-blocking; on 0.4.x it host-syncs the Warp stream once per render var.
                 mapping.unmap(stream=consumer_stream)
 
     def _process_id_segmentation_render_var(
@@ -1524,12 +1528,12 @@ class OVRTXRenderer(BaseRenderer):
                 tensors=xform_tensor_from_warp(matrices),
                 is_array=False,
                 semantic=ovstage.AttributeSemantic.MATRIX,
-                cuda_stream=self._warp_device.stream.cuda_stream,
+                cuda_stream=ovrtx_stream_handle(self._warp_device.stream),
             ).wait()
         elif asynchronous:
             self._transform_writes.submit(binding, matrices, stream)
         else:
-            binding.write(matrices, data_access=DataAccess.ASYNC, cuda_stream=stream.cuda_stream)
+            binding.write(matrices, data_access=DataAccess.ASYNC, cuda_stream=ovrtx_stream_handle(stream))
         self._transforms_timestamp = timestamp
 
     def update_geometries(self) -> None:
@@ -1558,12 +1562,12 @@ class OVRTXRenderer(BaseRenderer):
                 tensors=[points_tensor_from_warp(array) for array in points],
                 is_array=True,
                 semantic=ovstage.AttributeSemantic.POINT,
-                cuda_stream=self._warp_device.stream.cuda_stream,
+                cuda_stream=ovrtx_stream_handle(self._warp_device.stream),
             ).wait()
         elif asynchronous:
             self._geometry_writes.submit(binding, points, stream)
         else:
-            binding.write(cast(Any, points), data_access=DataAccess.ASYNC, cuda_stream=stream.cuda_stream)
+            binding.write(cast(Any, points), data_access=DataAccess.ASYNC, cuda_stream=ovrtx_stream_handle(stream))
         self._geometry_timestamp = timestamp
 
     def update_camera(
@@ -1586,7 +1590,7 @@ class OVRTXRenderer(BaseRenderer):
         errors = self.drain_pending_renders((render_data,))
         if errors:
             raise ExceptionGroup("OVRTX renders failed before calibration update", errors)
-        stream = wp.get_stream(parameters.device).cuda_stream
+        stream = ovrtx_stream_handle(wp.get_stream(parameters.device))
         if self._use_ovstage:
             self.backend.stage.write_attributes(
                 render_data.camera_xform_query,
@@ -1877,7 +1881,7 @@ class OVRTXRenderer(BaseRenderer):
                 tensors=xform_tensor_from_warp(camera_transforms),
                 is_array=False,
                 semantic=ovstage.AttributeSemantic.MATRIX,
-                cuda_stream=self._warp_device.stream.cuda_stream,
+                cuda_stream=ovrtx_stream_handle(self._warp_device.stream),
             ).wait()
 
     def _render_ovstage(self, render_data: Sequence[OVRTXCameraRenderData]) -> None:
@@ -1969,7 +1973,7 @@ class _AsyncWriteBuffers:
 
     def submit(self, binding: AttributeBinding, values: Any, stream: wp.Stream) -> Operation:
         """Submit a write and retain its inputs; a failed submission does not advance the buffers."""
-        operation = binding.write_async(values, data_access=DataAccess.ASYNC, cuda_stream=stream.cuda_stream)
+        operation = binding.write_async(values, data_access=DataAccess.ASYNC, cuda_stream=ovrtx_stream_handle(stream))
         self._writes[0] = (self._writes[0][0], operation, stream)
         self._writes.rotate(-1)
         return operation

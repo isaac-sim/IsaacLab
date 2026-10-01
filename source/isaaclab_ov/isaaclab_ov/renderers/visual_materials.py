@@ -16,6 +16,8 @@ import torch
 import warp as wp
 from ovrtx import BindingFlag, DataAccess, PrimMode
 
+from isaaclab_ov.renderers.ovrtx_compat import ovrtx_stream_handle
+
 if TYPE_CHECKING:
     from isaaclab.renderers.base_renderer import VisualMaterialBatch
 
@@ -121,7 +123,7 @@ class OVRTXVisualMaterialWriter:
                         self._buffers[channel][rows],
                         data_access=DataAccess.ASYNC,
                         cuda_event=self._event.cuda_event,
-                        cuda_stream=wp.get_stream(self._device).cuda_stream,
+                        cuda_stream=ovrtx_stream_handle(wp.get_stream(self._device)),
                     )
                 operations.append(operation)
         finally:

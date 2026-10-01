@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import importlib.metadata
 import importlib.util
+import types
 
 import pytest
 from packaging.version import Version
@@ -27,10 +28,12 @@ pytestmark = [
 if not _MISSING_MODULES:
     from isaaclab_ov.renderers.ovrtx_compat import (  # noqa: E402
         detect_ovrtx_version,
+        ovrtx_stream_handle,
         uses_prim_path_render_vars,
     )
 else:
     detect_ovrtx_version = None
+    ovrtx_stream_handle = None
     uses_prim_path_render_vars = None
 
 
@@ -65,3 +68,14 @@ def test_detect_ovrtx_version_returns_none_for_unparseable_version(monkeypatch: 
 )
 def test_uses_prim_path_render_vars_switches_at_ovrtx_05(version: Version | None, expected: bool):
     assert uses_prim_path_render_vars(version) is expected
+
+
+@pytest.mark.parametrize(("cuda_stream", "expected"), [(0, 1), (99, 99)])
+def test_ovrtx_stream_handle_remaps_only_the_no_sync_sentinel(cuda_stream: int, expected: int):
+    """Torch's legacy default stream reports 0, which OVRTX reads as "no synchronization"."""
+    assert ovrtx_stream_handle(types.SimpleNamespace(cuda_stream=cuda_stream, device="cuda:0")) == expected
+
+
+def test_ovrtx_stream_handle_rejects_streams_without_cuda():
+    with pytest.raises(RuntimeError, match="has no CUDA stream"):
+        ovrtx_stream_handle(types.SimpleNamespace(cuda_stream=None, device="cpu"))
