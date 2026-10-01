@@ -52,6 +52,7 @@ _WARP_SUPPORTED_TASKS = frozenset(
         "Isaac-Cartpole",
         "Isaac-Humanoid",
         "Isaac-Reach-Franka",
+        "Isaac-Reach-Franka-Minimal",
         "Isaac-Reach-UR10",
         "Isaac-Velocity-Flat-AnymalD",
         "Isaac-Velocity-Flat-Cassie",
