@@ -3,6 +3,119 @@ Changelog
 
 .. towncrier release notes start
 
+33.0.0 (2026-10-01)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :func:`~isaaclab.visualizers.visualizer_cfg.parse_visualizer_csv` and
+  :func:`~isaaclab.visualizers.visualizer_cfg.resolve_visualizer_cfgs`, which parse a ``--visualizer`` selection
+  and apply it to a list of visualizer configs, and
+  :data:`~isaaclab.visualizers.visualizer_cfg.VISUALIZER_TYPES`, which maps each visualizer type to its default
+  config class.
+* Added a cross-platform CLI command for building multi-version documentation with uv using ``isaaclab --docs_multi``.
+* Added :func:`~isaaclab.utils.math.sample_uniform_from_ranges` to sample named components with
+  shared, bounded caching of device bounds. Core and Lift event terms now use this sampler instead
+  of maintaining separate tensor-cache helpers.
+
+Changed
+^^^^^^^
+
+* :func:`~isaaclab.app.launch_simulation` decides the run's visualizers and device once and writes them to the
+  :class:`~isaaclab.sim.SimulationCfg` of the launched config: ``visualizer_cfgs`` holds exactly the visualizers
+  that run (``--visualizer`` and ``--max_visible_envs`` applied) and ``device`` holds the resolved device
+  (``--device``, the per-rank GPU when distributed, the runtime's refinement, with ``cuda`` pinned to an index).
+  A launch without ``--device`` starts the runtime on the config's device.
+* :class:`~isaaclab.sim.SimulationContext` creates the visualizers of
+  :attr:`~isaaclab.sim.SimulationCfg.visualizer_cfgs` as given, and
+  :meth:`~isaaclab.sim.SimulationContext.has_active_visualizers` counts configured non-headless visualizers.
+* :class:`~isaaclab.sim.SimulationContext` normalizes :attr:`~isaaclab.sim.SimulationCfg.visualizer_cfgs` to a
+  list, so a single config becomes a one-element list and None becomes ``[]``.
+* **Breaking:** Height-field sub-terrains now retain non-None ``horizontal_scale``, ``vertical_scale``,
+  and ``slope_threshold`` values instead of being overwritten by ``TerrainGeneratorCfg``.
+  Set child fields to None to inherit the corresponding generator value. Child scale defaults
+  remained 0.1 m horizontally and 0.005 m vertically. To disable slope correction for inheriting
+  children, set the generator's ``slope_threshold`` to None.
+* **Breaking:** Required noise functions and models configured through
+  :class:`~isaaclab.utils.noise.NoiseCfg` and :class:`~isaaclab.utils.noise.NoiseModelCfg`
+  to leave their input unchanged. :class:`~isaaclab.managers.ObservationManager` now calls
+  them without a defensive input copy. Custom callbacks using in-place operations must
+  clone their input first (for example, ``data.clone().add_(bias)``) or use out-of-place
+  operations (``data + bias``). Returning the unchanged input or a view remains supported;
+  the manager still protects borrowed outputs during subsequent processing.
+
+* Changed episode logging in :class:`~isaaclab.managers.CommandTerm`,
+  :class:`~isaaclab.managers.TerminationManager`, :class:`~isaaclab.managers.CurriculumManager`,
+  :class:`~isaaclab.envs.mdp.UniformPoseCommand`, :class:`~isaaclab.envs.mdp.UniformPose2dCommand` and
+  :class:`~isaaclab.envs.mdp.survival_success_rate` to report 0-d device tensors instead of Python floats,
+  matching :class:`~isaaclab.managers.RewardManager`, so resets no longer synchronize the stream. Code that
+  reads these ``extras["log"]`` entries as floats should call ``float()`` or ``.item()`` on them.
+* Removed per-step host synchronizations from the heading control of
+  :class:`~isaaclab.envs.mdp.UniformVelocityCommand` and from
+  :class:`~isaaclab.envs.mdp.actions.task_space_actions.DifferentialInverseKinematicsAction`.
+* Cached the device range tensors of the root-state, nodal-state, push and center-of-mass event terms by
+  value instead of uploading them on every call.
+* Batched the per-term updates of :class:`~isaaclab.managers.RewardManager`, and skipped the defensive copy
+  before noise callbacks and after delay buffers in :class:`~isaaclab.managers.ObservationManager`.
+* Shifted :class:`~isaaclab.utils.buffers.CircularBuffer` histories of small frames in two kernels
+  regardless of the history length.
+* Changed :meth:`~isaaclab.utils.wrench_composer.WrenchComposer.reset` to return without launching work
+  when the composer is inactive, removing the per-step buffer clears for rigid objects and collections
+  that apply no external wrench.
+* Changed sensors with ``debug_vis=True`` to refresh their buffers lazily from the debug
+  visualization callback instead of on every :meth:`~isaaclab.sensors.SensorBase.update`.
+  Custom sensors must refresh outdated buffers (for example through ``data``) in their
+  ``_debug_vis_callback`` before reading internal data.
+* Skipped ray-caster drift sampling on reset when ``drift_range`` and ``ray_cast_drift_range``
+  are zero, and uploaded the ray-cast drift ranges to the device only when they change.
+* Changed :meth:`~isaaclab.markers.VisualizationMarkers.visualize` to return without validating
+  or processing inputs when no visualizer backend is active, such as in headless runs.
+* Changed the Newton dependency from the ``1.6.0`` PyPI release to the ``release-1.6`` Git branch.
+  Existing uv installations update automatically.
+
+Removed
+^^^^^^^
+
+* **Breaking:** Removed the ``/isaaclab/visualizer/explicit`` and ``/isaaclab/visualizer/disable_all`` settings,
+  and ``/isaaclab/visualizer/types`` and ``/isaaclab/visualizer/max_visible_envs`` are only set when the launched
+  config holds no :class:`~isaaclab.sim.SimulationCfg` (``types`` is then a comma-separated selection, ``none``
+  for ``--visualizer none``). Read :attr:`~isaaclab.sim.SimulationCfg.visualizer_cfgs` or
+  :meth:`~isaaclab.sim.SimulationContext.resolve_visualizer_types` instead.
+* **Breaking:** Removed the ``visualizers`` argument of :func:`~isaaclab.sim.build_simulation_context`, which only
+  set a setting and never created the visualizers. Set :attr:`~isaaclab.sim.SimulationCfg.visualizer_cfgs` on
+  the ``sim_cfg`` you pass instead.
+* **Breaking:** Removed the ``has_kit_streaming_view`` key of the ``visualizer_intent`` launcher argument of
+  :func:`~isaaclab.app.launch_simulation`; only ``has_kit_visualizer`` is read.
+
+Fixed
+^^^^^
+
+* Fixed :func:`~isaaclab.app.launch_simulation` rejecting ``--visualizer kit`` for a config that lists a
+  ``newton_rtx`` visualizer: an explicit ``--visualizer`` selection drops it, so it no longer starts OVRTX.
+* Fixed a Kit visualizer that an explicit ``--visualizer`` selection drops still auto-enabling cameras for its
+  ``streaming_view``.
+* Removed stray debug output from action IO descriptor export.
+* Fixed ``dump_yaml()`` to preserve existing ``.yml`` and case-insensitive YAML file extensions instead of appending
+  ``.yaml``.
+* Populated omitted manager term parameters from callable defaults before construction and scene resolution,
+  copying mutable defaults per term and preserving explicit values.
+* Fixed Gaussian randomization parameters being interpreted as ordered bounds, and rejected non-finite
+  parameters and non-positive log-uniform bounds for mass, inertia, actuator, joint and tendon randomization.
+* Fixed the Windows documentation instructions to use the uv-backed CLI instead of the batch build script.
+* Reused the repository environment for documentation dependencies to avoid a second full installation.
+* Cleared current documentation output and its Sphinx cache before building to avoid stale pages and warnings.
+* Reported a missing multi-version redirect target as a CLI error with recovery guidance.
+* Fixed installation of the source checkout's ``mimic`` extra with CMake 4 by applying the
+  compatibility policy required to build ``egl-probe`` from source.
+* Fixed :attr:`~isaaclab.sim.converters.UrdfConverterCfg.merge_mesh` leaving meshes unmerged in
+  kit-less installs. The ``importers`` extra now resolves ``usd-optimize`` 1.3.0, its first build
+  for OpenUSD 26.08.
+* Fixed :class:`~isaaclab.envs.mdp.reset_root_state_uniform` ignoring the ``pose_range`` and ``velocity_range``
+  passed at call time, including curriculum updates, in favor of the ranges present at construction.
+* Cleared previously sampled ray-caster drift on reset when its configured range was changed to zero.
+
+
 32.1.0 (2026-09-30)
 ~~~~~~~~~~~~~~~~~~~
 
