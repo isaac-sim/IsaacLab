@@ -5,11 +5,8 @@
 
 """Tests for the Newton-native BAM actuator component.
 
-The suite drives the real construction path -- author ``NewtonActuator`` prims from a
-:class:`~isaaclab.actuators.BamActuatorCfg`, parse them back with
-:meth:`~isaaclab.actuators.newton.NewtonActuatorAdapter.from_usd`, and step the resulting
-:class:`~newton.actuators.Actuator` -- so a break anywhere between the config and the Warp
-kernels shows up here. No simulator is involved: the joint state is supplied by the test.
+Behavior tests load an authored USD fixture and step its Newton actuator with supplied joint
+state. Authoring tests explicitly replace its actuator prims from a BamActuatorCfg.
 
 Motor and friction outputs are checked against upstream BAM golden data. The harness
 supplies the solver's external load and reads the motor torque and published friction budget.
@@ -25,7 +22,7 @@ import torch
 import warp as wp
 from newton.actuators import parse_actuator_prim
 
-from pxr import Usd, UsdGeom, UsdPhysics
+from pxr import Sdf, Usd
 
 from isaaclab.actuators import BamActuatorCfg, BamMotorCfg
 from isaaclab.actuators.newton import (
@@ -41,6 +38,7 @@ from isaaclab.sim.schemas.schemas_actuators import (
     validate_newton_native_actuator_cfgs,
 )
 from isaaclab.test.utils import test_devices
+from isaaclab.utils.string import to_camel_case
 
 pytestmark = [pytest.mark.unit, pytest.mark.filterwarnings("error::DeprecationWarning")]
 
@@ -74,36 +72,13 @@ def _make_cfg(**overrides) -> BamActuatorCfg:
     return BamActuatorCfg(**kwargs)
 
 
-def _make_stage(cfg: BamActuatorCfg | dict[str, BamActuatorCfg], joint_names: list[str] = JOINT_NAMES) -> Usd.Stage:
-    """Author an articulation over *joint_names*, driven by the given BAM actuator group(s).
-
-    A group covers whichever of the joints its ``joint_names_expr`` selects, so a fixture can
-    carry joints no actuator drives -- which is what a play hinge is. A mapping authors several
-    groups at once, under the names it is keyed by.
-    """
-    stage = Usd.Stage.CreateInMemory()
-    UsdGeom.Xform.Define(stage, "/World/Robot")
-    for index, name in enumerate(joint_names):
-        body = UsdGeom.Xform.Define(stage, f"/World/Robot/body_{index}")
-        UsdPhysics.RigidBodyAPI.Apply(body.GetPrim())
-        joint = UsdPhysics.RevoluteJoint.Define(stage, f"/World/Robot/{name}")
-        joint.CreateBody1Rel().SetTargets([body.GetPath()])
-    author_actuator_prims(stage, "/World/Robot", cfg if isinstance(cfg, dict) else {"servo": cfg})
+def _make_stage(cfg: BamActuatorCfg | None = None) -> Usd.Stage:
+    """Load a fresh fixture layer, optionally exercising configuration-to-USD authoring."""
+    path = Path(__file__).parent / "data" / "bam_two_servo.usda"
+    stage = Usd.Stage.Open(Sdf.Layer.OpenAsAnonymous(str(path)))
+    if cfg is not None:
+        author_actuator_prims(stage, "/Robot", {"servo": cfg})
     return stage
-
-
-def _make_adapter(
-    cfg: BamActuatorCfg, num_envs: int, device: str, joint_names: list[str] = JOINT_NAMES
-) -> NewtonActuatorAdapter:
-    """Author, parse and build the Newton actuator adapter for the fixture."""
-    return NewtonActuatorAdapter.from_usd(
-        stage=_make_stage(cfg, joint_names),
-        joint_names=joint_names,
-        num_envs=num_envs,
-        num_joints=len(joint_names),
-        device=device,
-        articulation_prim_path="/World/Robot",
-    )
 
 
 class _Harness:
@@ -114,16 +89,27 @@ class _Harness:
     arbitrary trajectory and read back the effort it asks the solver to apply.
     """
 
-    def __init__(self, cfg: BamActuatorCfg, num_envs: int, device: str, joint_names: list[str] = JOINT_NAMES):
-        self.adapter = _make_adapter(cfg, num_envs, device, joint_names)
+    def __init__(self, num_envs: int, device: str, **drive_overrides: float | int):
+        stage = _make_stage()
+        for joint_name in JOINT_NAMES:
+            prim = stage.GetPrimAtPath(f"/Robot/servo_{joint_name}_actuator")
+            for name, value in drive_overrides.items():
+                prim.GetAttribute(f"newton:{to_camel_case(name)}").Set(value)
+        self.adapter = NewtonActuatorAdapter.from_usd(
+            stage=stage,
+            joint_names=JOINT_NAMES,
+            num_envs=num_envs,
+            num_joints=len(JOINT_NAMES),
+            device=device,
+            articulation_prim_path="/Robot",
+        )
         assert len(self.adapter.actuators) == 1, "the fixture's joints must merge into one actuator"
         self.actuator = self.adapter.actuators[0]
         self.drive: DriveBam = self.actuator.drive
         self.drive.external_torque = wp.zeros(len(self.drive.motor_torque), dtype=wp.float32, device=device)
         self.num_envs = num_envs
         self.device = device
-        self.joint_names = joint_names
-        shape = (num_envs, len(joint_names))
+        shape = (num_envs, len(JOINT_NAMES))
         self.state = PhysxActuatorWrapper.create(*shape, device)
         self.control = PhysxActuatorWrapper.create(*shape, device)
         self.joint_pos = wp.zeros(shape, dtype=wp.float32, device=device)
@@ -132,7 +118,7 @@ class _Harness:
         self.state.joint_q = self.joint_pos.reshape(-1)
         self.state.joint_qd = self.joint_vel.reshape(-1)
         self.control.joint_target_pos = self.target_pos.reshape(-1)
-        self.control.joint_target_vel = wp.zeros(num_envs * len(joint_names), dtype=wp.float32, device=device)
+        self.control.joint_target_vel = wp.zeros(num_envs * len(JOINT_NAMES), dtype=wp.float32, device=device)
         self.control.joint_act = None
         self.adapter.finalize(self.control)
 
@@ -178,7 +164,7 @@ def test_bam_cfg_is_rejected_on_a_host_adapter_backend(monkeypatch, backend):
     sim_cfg = SimulationCfg(physics=physics_cfg, use_newton_actuators=True)
     monkeypatch.setattr(SimulationContext, "instance", lambda: SimpleNamespace(cfg=sim_cfg))
     with pytest.raises(ValueError, match="BAM requires.*Newton backend"):
-        define_actuator_properties("/World/Robot", {"servo": _make_cfg()})
+        define_actuator_properties("/Robot", {"servo": _make_cfg()})
 
 
 @pytest.mark.parametrize("model, flags", [("m1", (0, 0, 0)), ("m2", (1, 0, 0)), ("m5", (1, 1, 0)), ("m6", (1, 1, 1))])
@@ -188,7 +174,7 @@ def test_authored_prim_resolves_to_the_bam_drive(model, flags):
     cfg.motor.model = model
     stage = _make_stage(cfg)
 
-    parsed = [p for prim in Usd.PrimRange(stage.GetPrimAtPath("/World/Robot")) if (p := parse_actuator_prim(prim))]
+    parsed = [p for prim in Usd.PrimRange(stage.GetPrimAtPath("/Robot")) if (p := parse_actuator_prim(prim))]
     assert len(parsed) == len(JOINT_NAMES)
     for entry in parsed:
         assert entry.drive_class is DriveBam
@@ -209,7 +195,7 @@ def test_authored_prim_resolves_to_the_bam_drive(model, flags):
     # The drive schema token is applied on the prim, not just implied by the parse.
     # ``NewtonBamDriveAPI`` has no registered USD schema definition, so the composed
     # ``GetAppliedSchemas`` filters it out; read the authored opinion instead.
-    spec = stage.GetRootLayer().GetPrimAtPath(f"/World/Robot/servo_{JOINT_NAMES[0]}_actuator")
+    spec = stage.GetRootLayer().GetPrimAtPath(f"/Robot/servo_{JOINT_NAMES[0]}_actuator")
     assert BAM_DRIVE_API in spec.GetInfo("apiSchemas").GetAppliedItems()
 
 
@@ -218,7 +204,7 @@ def test_configuration_replaces_existing_usd_coefficients(tmp_path):
     cfg = _make_cfg()
     stage = _make_stage(cfg)
     for index, name in enumerate(JOINT_NAMES):
-        prim = stage.GetPrimAtPath(f"/World/Robot/servo_{name}_actuator")
+        prim = stage.GetPrimAtPath(f"/Robot/servo_{name}_actuator")
         prim.GetAttribute("newton:kt").Set(0.3 + index * 0.1)
         prim.GetAttribute("newton:frictionScale").Set(2.0)
     path = tmp_path / "robot.usda"
@@ -227,10 +213,8 @@ def test_configuration_replaces_existing_usd_coefficients(tmp_path):
     stage.GetRootLayer().subLayerPaths.append(str(path))
     cfg.kp_fw = 123.0
     cfg.motor.friction_base = 0.012
-    author_actuator_prims(stage, "/World/Robot", {"servo": cfg})
-    parsed = [
-        entry for prim in Usd.PrimRange(stage.GetPrimAtPath("/World/Robot")) if (entry := parse_actuator_prim(prim))
-    ]
+    author_actuator_prims(stage, "/Robot", {"servo": cfg})
+    parsed = [entry for prim in Usd.PrimRange(stage.GetPrimAtPath("/Robot")) if (entry := parse_actuator_prim(prim))]
     assert len(parsed) == len(JOINT_NAMES)
     for entry in parsed:
         resolved = DriveBam.resolve_arguments(dict(entry.drive_kwargs))
@@ -247,7 +231,7 @@ def test_authoring_requires_motor_and_deployment_settings(field):
     stage = _make_stage(cfg)
     setattr(cfg, field, MISSING)
     with pytest.raises(TypeError, match=field):
-        author_actuator_prims(stage, "/World/Robot", {"servo": cfg})
+        author_actuator_prims(stage, "/Robot", {"servo": cfg})
 
 
 def test_effort_limit_is_authored_on_the_drive_not_as_a_clamping_component():
@@ -263,7 +247,7 @@ def test_effort_limit_is_authored_on_the_drive_not_as_a_clamping_component():
     cfg = _make_cfg(actuator_effort_limit=0.05)
     stage = _make_stage(cfg)
 
-    prim = stage.GetPrimAtPath(f"/World/Robot/servo_{JOINT_NAMES[0]}_actuator")
+    prim = stage.GetPrimAtPath(f"/Robot/servo_{JOINT_NAMES[0]}_actuator")
     parsed = parse_actuator_prim(prim)
     assert parsed is not None and parsed.drive_class is DriveBam
     assert parsed.component_specs == [], "a BAM prim must compose no clamping or delay component"
@@ -280,14 +264,14 @@ def test_driven_joints_are_seeded_with_a_positive_friction():
     stage = _make_stage(cfg)
     seeds = []
     for name in JOINT_NAMES:
-        friction = stage.GetPrimAtPath(f"/World/Robot/{name}").GetAttribute("newton:friction")
+        friction = stage.GetPrimAtPath(f"/Robot/{name}").GetAttribute("newton:friction")
         assert friction.IsValid() and friction.Get() > 0.0
         seeds.append(friction.Get())
         friction.Set(2.0 * friction.Get())
     # Existing joint friction must not change the initialization value.
-    author_actuator_prims(stage, "/World/Robot", {"servo": cfg})
+    author_actuator_prims(stage, "/Robot", {"servo": cfg})
     for name, seed in zip(JOINT_NAMES, seeds, strict=True):
-        friction = stage.GetPrimAtPath(f"/World/Robot/{name}").GetAttribute("newton:friction")
+        friction = stage.GetPrimAtPath(f"/Robot/{name}").GetAttribute("newton:friction")
         assert friction.Get() == seed
 
 
@@ -302,7 +286,7 @@ def test_drive_matches_upstream_motor_and_friction_goldens(device):
     with np.load(Path(__file__).parent / "data" / "bam_xl330_m6_goldens.npz") as data:
         goldens = {key: data[key] for key in data.files}
     samples = len(goldens["q"])
-    harness = _Harness(_make_cfg(), num_envs=samples // 2, device=device)
+    harness = _Harness(num_envs=samples // 2, device=device)
     # The budget's prior motor load is an independent golden input, not recomputed by the port.
     state_in, state_out = harness.actuator.state(), harness.actuator.state()
     state_in.drive_state.prev_motor_torque.assign(goldens["prev_tau"].astype(np.float32))
@@ -322,7 +306,7 @@ def test_drive_matches_upstream_motor_and_friction_goldens(device):
 @pytest.mark.parametrize("device", test_devices())
 def test_solver_mode_emits_the_motor_torque_and_publishes_the_budget(device):
     """With the solver owning the friction, BAM applies the motor torque and exports the budget."""
-    harness = _Harness(_make_cfg(actuator_effort_limit=0.05), num_envs=1, device=device)
+    harness = _Harness(num_envs=1, device=device, max_effort=0.05)
     params = _reference_params()
 
     effort = harness.step(np.array([[0.3, -0.1]]), np.array([[0.5, -0.4]]), np.zeros((1, 2)))
@@ -343,10 +327,10 @@ def test_friction_scale_changes_the_published_budget(device):
     """
     pos, vel, target = np.array([[0.05, 0.05]]), np.array([[0.02, 0.02]]), np.zeros((1, 2))
 
-    baseline = _Harness(_make_cfg(), num_envs=1, device=device)
+    baseline = _Harness(num_envs=1, device=device)
     baseline_effort = baseline.step(pos, vel, target)
 
-    scaled = _Harness(_make_cfg(), num_envs=1, device=device)
+    scaled = _Harness(num_envs=1, device=device)
     scaled.drive.friction_scale.fill_(4.0)
     scaled_effort = scaled.step(pos, vel, target)
 
@@ -366,7 +350,7 @@ def test_shared_supply_sags_with_the_group_load(device):
     ``env_dof_stride`` is what tells the drive which flat DOFs belong to one supply; the
     adapter declares it because it is the first object that knows the environment count.
     """
-    harness = _Harness(_make_cfg(vin_drop_gain_range=None), num_envs=2, device=device)
+    harness = _Harness(num_envs=2, device=device)
     assert harness.drive.env_dof_stride == len(JOINT_NAMES)
     harness.drive.sag_gain.fill_(5.0)
 
@@ -392,7 +376,7 @@ def test_startup_sampling_draws_one_value_per_environment(device):
     They are drawn afterwards, with one value covering all of an environment's joints.
     """
     cfg = _make_cfg(vin_range=(6.0, 8.0), friction_scale_range=(0.5, 1.5))
-    harness = _Harness(cfg, num_envs=8, device=device)
+    harness = _Harness(num_envs=8, device=device)
 
     apply_bam_startup_sampling(harness.drive, cfg)
 
@@ -417,11 +401,14 @@ def test_constant_delay_replays_an_older_command(device, hold_probability, perio
     """A fixed lag of ``k`` steps must reproduce an undelayed actuator fed the ``k``-step-old command."""
     lag = 3
     delayed = _Harness(
-        _make_cfg(min_delay=lag, max_delay=lag, delay_hold_prob=hold_probability, delay_update_period=period),
         num_envs=2,
         device=device,
+        min_delay=lag,
+        max_delay=lag,
+        delay_hold_prob=hold_probability,
+        delay_update_period=period,
     )
-    undelayed = _Harness(_make_cfg(), num_envs=2, device=device)
+    undelayed = _Harness(num_envs=2, device=device)
 
     commands = [np.full((2, 2), 0.01 * step) for step in range(8)]
     pos, vel = np.zeros((2, 2)), np.zeros((2, 2))
@@ -451,9 +438,11 @@ def test_constant_delay_replays_an_older_command(device, hold_probability, perio
 def test_delay_hold_and_update_period_reach_the_motor_output(hold_probability, period):
     """Hold freezes the lag; periodic refreshes remain staggered per driven joint."""
     harness = _Harness(
-        _make_cfg(min_delay=0, max_delay=3, delay_hold_prob=hold_probability, delay_update_period=period),
         num_envs=16,
         device="cpu",
+        max_delay=3,
+        delay_hold_prob=hold_probability,
+        delay_update_period=period,
     )
     params = _reference_params()
     # Small position commands remain in the linear firmware regime at rest, so motor
@@ -483,7 +472,7 @@ def test_delay_hold_and_update_period_reach_the_motor_output(hold_probability, p
 @pytest.mark.parametrize("device", test_devices())
 def test_delay_rng_changes_on_reset_and_preserves_untouched_environments(device):
     """Lag draws vary across episodes, remain reproducible, and survive CUDA graph replay."""
-    harnesses = [_Harness(_make_cfg(max_delay=3), num_envs=2, device=device) for _ in range(3)]
+    harnesses = [_Harness(num_envs=2, device=device, max_delay=3) for _ in range(3)]
     zeros = np.zeros((2, 2), dtype=np.float32)
     graphs = []
     for harness in harnesses:
@@ -528,7 +517,7 @@ def test_delay_rng_changes_on_reset_and_preserves_untouched_environments(device)
 @pytest.mark.parametrize("device", test_devices())
 def test_reset_restores_the_first_step_behaviour(device):
     """Resetting an environment must clear its caches without touching the others."""
-    harness = _Harness(_make_cfg(), num_envs=2, device=device)
+    harness = _Harness(num_envs=2, device=device)
     harness.drive.sag_gain.fill_(0.5)
     pos, vel, target = np.array([[0.2, 0.2], [0.2, 0.2]]), np.array([[1.0, 1.0], [1.0, 1.0]]), np.zeros((2, 2))
 
