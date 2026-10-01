@@ -157,8 +157,7 @@ env:
             slice: [36, 58]
 
       action_mapping:
-        prefix_pad: 17
-        suffix_pad: 0
+        keys: [left_arm, right_arm, left_hand, right_hand]
 
       # IsaacLab resets a done sub-environment inside env.step(). Hold the
       # freshly reset arm/hand pose for the remainder of the current action
@@ -166,8 +165,6 @@ env:
       hold_pose_on_midchunk_reset: true
 
       obs_converter_type: "h2_sharpa"
-      # N1.7 takes no data_config_class; this module registers the H2 modalities instead.
-      modality_config_module: "isaaclab_tasks.contrib.pick_and_place_apple.config.gr00t_config"
       embodiment_tag: "new_embodiment"
       embodiment_tag_id: 31
       # NB: data_config_class intentionally NOT set for N1.7 (see header).

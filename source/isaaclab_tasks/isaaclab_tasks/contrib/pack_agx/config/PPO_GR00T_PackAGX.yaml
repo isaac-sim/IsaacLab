@@ -138,12 +138,9 @@ env:
           - gr00t_key: "state.right_hand"
             slice: [36, 58]
       action_mapping:
-        prefix_pad: 17
-        suffix_pad: 0
+        keys: [left_arm, right_arm, left_hand, right_hand]
       hold_pose_on_midchunk_reset: true
       obs_converter_type: "h2_sharpa"
-      # N1.7 takes no data_config_class; this module registers the H2 modalities instead.
-      modality_config_module: "isaaclab_tasks.contrib.pack_agx.config.gr00t_config"
       embodiment_tag: "new_embodiment"
       embodiment_tag_id: 31
 

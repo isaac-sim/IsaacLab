@@ -1,49 +1,19 @@
 Added
 ^^^^^
 
-* Added the ``IsaacContrib-Pick-And-Place-Apple-H2-Sharpa`` and
-  ``IsaacContrib-Pick-And-Place-Apple-H2-Sharpa-Eval`` environments, an RLinf GR00T pick-and-place
-  task on the Unitree H2 + Sharpa Wave embodiment.
-* Added the ``IsaacContrib-Pack-AGX-Orin-H2-Sharpa`` and ``IsaacContrib-Pack-AGX-Orin-H2-Sharpa-Eval``
-  environments, an RLinf GR00T N1.7 task packing an AGX Orin into its protective box with the
-  Unitree H2 + Sharpa Wave embodiment.
-* Added GR00T N1.7 configurations ``PPO_GR00T_PnPApple`` and
-  ``PPO_GR00T_PackAGX``, each task's ``gr00t_config`` module registering the
-  H2 + Sharpa modality layout for N1.7 checkpoints.
-* Changed the N1.7 configurations to plain PPO (``enable_sft_co_train: False``): RLinf has no SFT
-  dataloader for ``gr00t_n1d7``, so co-training fails at actor start. Re-enable it only with an N1.7
-  SFT dataloader registered in RLinf.
-* Added ``POLICY_STATE_TO_ACTION_INDICES`` to each H2 + Sharpa task's ``gr00t_config``, publishing where the policy's 58-D joint state lands in H2's 75-D action vector. The RLinf extension reads it to build a hold-the-current-pose action; H2 interleaves the two hands, so the state is not a contiguous slice of the action.
-* Added the joint-order metadata, articulation presets, camera presets and GR00T modality layout each
-  H2 + Sharpa task needs, under its own ``config/`` package. The articulation itself is
-  ``isaaclab_assets.robots.unitree.H2_SHARPA_CFG`` and the head camera
-  ``isaaclab_assets.sensors.unitree.H2_HEAD_CAMERA_CFG``.
-* Added ``isaaclab_tasks.contrib.rlinf_assets``, the scene-asset roots the three RLinf post-training
-  tasks share, and ``ISAACLAB_RLINF_DEMO_ASSET_ROOT`` to point them at a local mirror.
-* Added the Lightwheel attribution for the tasks' SimReady scene assets, alongside their Creative
-  Commons Attribution-NonCommercial 4.0 International terms in
-  ``docs/licenses/assets/lightwheel-license.txt``.
+* Added the H2 + Sharpa tasks ``IsaacContrib-Pick-And-Place-Apple-H2-Sharpa`` and
+  ``IsaacContrib-Pack-AGX-Orin-H2-Sharpa``, their ``-Eval`` registrations, and GR00T N1.7 PPO configurations.
+* Added shared H2 joint ordering and calibrated wrist cameras in ``isaaclab_tasks.contrib.h2_sharpa``.
+  Actions controlled the 58 policy joints directly; reset targets held the remaining body joints.
+* Added task-owned phase tracking through stateful termination terms, with sparse rewards reading
+  phase transitions independently of reward weights.
+* Added ``ISAACLAB_RLINF_DEMO_ASSET_ROOT`` for a local mirror of the shared RLinf scene assets and
+  documented their Lightwheel CC BY-NC 4.0 license.
 
 Changed
 ^^^^^^^
 
-* Changed the pick-and-place apple and AGX Orin packing environments to set ``num_rerenders_on_reset = 2``.
-  Without a re-render the observation returned by ``reset`` carried the previous episode's camera
-  image, which the policy then acted on for its first action chunk.
-* Changed ``assemble_trocar`` to draw its scene from the same asset bundle as the H2 + Sharpa tasks
-  instead of its own pinned Isaac Healthcare release, so props the tasks have in common are fetched
-  and cached once. The files are byte-identical to the ones it used before.
-* Changed ``PPO_GR00T_PackAGX`` to evaluate over 448-step episodes, matching the evaluation the task's reference checkpoints were scored with. ``env.train`` keeps its 416-step rollout, which ``global_batch_size`` is sized for.
-* Changed the default ``model_path`` in ``isaaclab_ppo_gr00t_assemble_trocar.yaml`` from an absolute
-  container-specific path to ``.pretrained_checkpoints/rlinf/Assemble_Trocar``, the location that
-  ``scripts/reinforcement_learning/rlinf/setup_rlinf.py`` downloads the checkpoint to. Pass
-  ``--model_path`` to use a checkpoint stored elsewhere.
-* Changed the H2 + Sharpa robot USD to carry its own material bindings. The wrist camera brackets and
-  spacers are black plastic on the real robot but shipped without a material, so they fell back to the
-  renderer's default white surface; twelve further meshes had no material either. The bindings are now
-  authored in the asset, which removes ``align_robot_arm_material`` from the AGX Orin packing task and
-  gives every task the same robot appearance. Re-download the asset bundle to pick it up.
-* Changed the NuRec backdrop capture to carry its dimmed colour-correction matrix. The AGX Orin
-  packing task scaled it at startup so the back panel sat below the tabletop the way the real
-  recording shows; the scale is now baked into the capture, which removes
-  ``align_backdrop_radiance`` and gives the pick-and-place apple task the same backdrop.
+* Changed the H2 tasks to refresh camera observations after resets with ``num_rerenders_on_reset = 2``.
+* Changed AGX material overrides to run on prototypes before cloning rather than on every reset.
+* Changed ``assemble_trocar`` to use the shared RLinf asset bundle and a relative default checkpoint
+  path, ``.pretrained_checkpoints/rlinf/Assemble_Trocar``. Use ``--model_path`` for another checkpoint.

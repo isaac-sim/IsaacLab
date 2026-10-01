@@ -45,15 +45,11 @@ import logging
 import os
 from enum import Enum
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 import numpy as np
 import torch
 import yaml
 from rlinf.models.embodiment.gr00t import embodiment_tags
-
-if TYPE_CHECKING:
-    import torch
 
 logger = logging.getLogger(__name__)
 
@@ -269,46 +265,6 @@ def _patch_gr00t_get_model(cfg: dict) -> None:
     logger.info(f"Patched get_model for data_config_class='{data_config_class}'")
 
 
-def _resolve_action_converter(cfg: dict):
-    """Return the GR00T -> IsaacLab action converter for this task.
-
-    GR00T N1.7 checkpoints take no ``data_config_class``; a task instead names a
-    ``modality_config_module`` whose import registers the embodiment's modality layout with GR00T.
-    When that module also defines ``convert_gr00t_to_isaaclab_action``, it replaces the generic
-    prefix/suffix-padding converter. The module is only imported for ``gr00t_n1d7`` because it
-    depends on the N1.7 release of ``gr00t``.
-
-    Args:
-        cfg: The IsaacLab-specific configuration dictionary (``env.train.isaaclab``).
-    """
-    module_name = cfg.get("modality_config_module", "")
-    if not module_name or _gr00t_model_type() != "gr00t_n1d7":
-        return _convert_gr00t_to_isaaclab_action
-    module = importlib.import_module(module_name)
-    logger.info(f"Imported GR00T N1.7 modality config module: {module_name}")
-    return getattr(module, "convert_gr00t_to_isaaclab_action", _convert_gr00t_to_isaaclab_action)
-
-
-def _resolve_state_to_action_indices(cfg: dict) -> list[int] | None:
-    """Return where the policy's joint-state vector lands in the action vector, if the task says so.
-
-    Needed to command "hold the current pose". A task whose action order differs from its policy
-    order — H2 interleaves the two hands, so the state is not a contiguous slice of the action —
-    publishes the mapping as ``POLICY_STATE_TO_ACTION_INDICES`` in its ``modality_config_module``.
-
-    Args:
-        cfg: The IsaacLab-specific configuration dictionary (``env.train.isaaclab``).
-
-    Returns:
-        Action-vector index for each state entry, or ``None`` when the task publishes no mapping.
-    """
-    module_name = cfg.get("modality_config_module", "")
-    if not module_name or _gr00t_model_type() != "gr00t_n1d7":
-        return None
-    indices = getattr(importlib.import_module(module_name), "POLICY_STATE_TO_ACTION_INDICES", None)
-    return None if indices is None else list(indices)
-
-
 def _extract_states(policy_obs: dict, cfg: dict) -> torch.Tensor | None:
     """Concatenate the state terms a task lists under ``states`` into one vector.
 
@@ -519,18 +475,9 @@ def _create_generic_env_wrapper(task_id: str) -> type:
             """
             super().__init__(cfg, num_envs, seed_offset, total_num_processes, worker_info)
 
-            # TODO: This is a hack to hold the pose of sub-environments that reset mid-chunk. Remove this once the issue is fixed.
-            isaaclab_cfg = _get_isaaclab_cfg()
-            self._hold_pose_on_midchunk_reset = bool(isaaclab_cfg.get("hold_pose_on_midchunk_reset", False))
-            indices = _resolve_state_to_action_indices(isaaclab_cfg)
-            if self._hold_pose_on_midchunk_reset and indices is None:
-                raise ValueError(
-                    "hold_pose_on_midchunk_reset requires the task's modality_config_module to publish"
-                    " POLICY_STATE_TO_ACTION_INDICES"
-                )
-            self._hold_action_indices = (
-                None if indices is None else torch.as_tensor(indices, dtype=torch.long, device=self.device)
-            )
+            self._hold_pose_on_midchunk_reset = _get_isaaclab_cfg().get("hold_pose_on_midchunk_reset", False)
+            self._chunk_done = None
+            self._hold_actions = None
 
         def _record_metrics(self, step_reward, terminations, infos):
             """Override to use terminations (task completion) for success_once."""
@@ -545,71 +492,23 @@ def _create_generic_env_wrapper(task_id: str) -> type:
             infos["episode"] = episode_info
             return infos
 
-        # TODO: This is a hack to hold the pose of sub-environments that reset mid-chunk.
-        # Remove this once the issue is fixed.
         def chunk_step(self, chunk_actions):
-            """Execute an action chunk, holding the pose of sub-environments that reset mid-chunk.
+            """Retire actions predicted for an episode once that episode has reset."""
+            if self._hold_pose_on_midchunk_reset:
+                self._chunk_done = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
+            result = super().chunk_step(chunk_actions)
+            self._chunk_done = self._hold_actions = None
+            return result
 
-            ``ManagerBasedRLEnv.step`` resets a terminated sub-environment before returning, so the
-            remainder of the chunk — predicted from the episode that just ended — would otherwise be
-            applied to the fresh one, yanking the robot toward the previous episode's final pose.
-            When the task sets ``hold_pose_on_midchunk_reset``, this method runs the chunk loop itself
-            (a copy of ``IsaaclabBaseEnv.chunk_step`` from RLinf 0.3.0) and, for every sub-environment
-            that has already finished in this chunk, replaces the remaining actions with its post-reset
-            joint positions so it stays still until the next chunk boundary produces policy output for
-            the new episode. Tasks without the flag use the parent implementation unchanged.
-
-            Args:
-                chunk_actions: Actions of shape ``(num_envs, chunk_size, action_dim)``.
-
-            Returns:
-                ``(obs_list, chunk_rewards, chunk_terminations, chunk_truncations, infos_list)`` with the
-                same layout as ``IsaaclabBaseEnv.chunk_step``.
-            """
-            if not self._hold_pose_on_midchunk_reset:
-                return super().chunk_step(chunk_actions)
-
-            done_so_far = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
-            last_states = None
-            obs_list, infos_list = [], []
-            chunk_rewards, raw_chunk_terminations, raw_chunk_truncations = [], [], []
-            for i in range(chunk_actions.shape[1]):
-                actions = chunk_actions[:, i]
-                if last_states is not None and bool(done_so_far.any()):
-                    rows = done_so_far.nonzero(as_tuple=False).squeeze(-1)
-                    hold = last_states[rows].to(device=actions.device, dtype=actions.dtype)
-                    actions = actions.clone()
-                    actions[rows[:, None], self._hold_action_indices[None, :]] = hold
-                obs, step_reward, terminations, truncations, infos = self.step(actions, auto_reset=False)
-                last_states = obs.get("states")
-                done_so_far |= (terminations | truncations).bool()
-                obs_list.append(obs)
-                infos_list.append(infos)
-                chunk_rewards.append(step_reward)
-                raw_chunk_terminations.append(terminations)
-                raw_chunk_truncations.append(truncations)
-
-            # Bookkeeping below mirrors RLinf 0.3.0; re-sync when upgrading RLinf.
-            chunk_rewards = torch.stack(chunk_rewards, dim=1)
-            raw_chunk_terminations = torch.stack(raw_chunk_terminations, dim=1)
-            raw_chunk_truncations = torch.stack(raw_chunk_truncations, dim=1)
-
-            past_terminations = raw_chunk_terminations.any(dim=1)
-            past_truncations = raw_chunk_truncations.any(dim=1)
-            past_dones = torch.logical_or(past_terminations, past_truncations)
-
-            if past_dones.any() and self.auto_reset:
-                obs_list[-1], infos_list[-1] = self._handle_auto_reset(past_dones, obs_list[-1], infos_list[-1])
-
-            if self.auto_reset or self.ignore_terminations:
-                chunk_terminations = torch.zeros_like(raw_chunk_terminations)
-                chunk_terminations[:, -1] = past_terminations
-                chunk_truncations = torch.zeros_like(raw_chunk_truncations)
-                chunk_truncations[:, -1] = past_truncations
-            else:
-                chunk_terminations = raw_chunk_terminations.clone()
-                chunk_truncations = raw_chunk_truncations.clone()
-            return obs_list, chunk_rewards, chunk_terminations, chunk_truncations, infos_list
+        def step(self, actions=None, auto_reset=True):
+            """Hold reset joints until the next chunk supplies actions for the new episode."""
+            if self._chunk_done is not None and self._hold_actions is not None:
+                actions = torch.where(self._chunk_done[:, None], self._hold_actions.to(actions), actions)
+            obs, reward, terminated, truncated, info = super().step(actions, auto_reset)
+            if self._chunk_done is not None:
+                self._chunk_done |= terminated | truncated
+                self._hold_actions = obs["states"]
+            return obs, reward, terminated, truncated, info
 
         def _make_env_function(self) -> collections.abc.Callable:
             """Create the environment factory function.
