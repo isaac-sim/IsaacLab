@@ -90,12 +90,12 @@ def test_geometry_bindings_follow_mixed_sdp_points_and_pointer_swaps(mode):
         renderer.scene.stage = MagicMock()
         renderer.scene.stage.query_from_path_list.side_effect = lambda paths: paths
         publication.points = {}
-        renderer._setup_geometry_bindings_ovstage()
+        renderer._setup_geometry_bindings()
         renderer.update_geometries()
         renderer.scene.stage.write_attribute.assert_not_called()
         publication.points = points
         renderer._sdp = SceneDataProvider(publication)
-        renderer._setup_geometry_bindings_ovstage()
+        renderer._setup_geometry_bindings()
         assert renderer._geometry_points_query == list(points)
         write = renderer.scene.stage.write_attribute
         assert [call.args[1] for call in write.call_args_list] == ["omni:resetXformStack", "omni:xform"]
@@ -103,12 +103,12 @@ def test_geometry_bindings_follow_mixed_sdp_points_and_pointer_swaps(mode):
         write.reset_mock()
     else:
         publication.points = {}
-        renderer._setup_geometry_bindings_legacy()
+        renderer._setup_geometry_bindings()
         renderer.update_geometries()
         native.bind_array_attribute.assert_not_called()
         publication.points = points
         renderer._sdp = SceneDataProvider(publication)
-        renderer._setup_geometry_bindings_legacy()
+        renderer._setup_geometry_bindings()
         assert native.bind_array_attribute.call_args.kwargs["prim_paths"] == list(points)
         np.testing.assert_array_equal(
             native.write_attribute.call_args_list[0].kwargs["tensor"], np.ones(len(points), dtype=np.bool_)
@@ -198,11 +198,11 @@ def test_update_transforms_consumes_sdp_matrices_once_per_publication(monkeypatc
             ),
         )
         monkeypatch.setattr(ovrtx_renderer_module, "xform_tensor_from_warp", lambda matrices: matrices)
-        renderer._setup_xform_bindings_ovstage()
+        renderer._setup_xform_bindings()
         assert renderer._object_xform_query == paths
         writes.clear()
     else:
-        renderer._setup_xform_bindings_legacy()
+        renderer._setup_xform_bindings()
         assert renderer.backend.renderer.bind_attribute.call_args.kwargs["prim_paths"] == paths
         renderer._object_xform_binding.write = lambda matrices, **kwargs: writes.append((None, matrices, kwargs))
         operation = MagicMock()
