@@ -130,3 +130,8 @@ def test_compute_symmetric_states_follows_joint_names():
 
     assert torch.equal(newton_obs["policy"], physx_obs["policy"][:, obs_cols])
     assert torch.equal(newton_actions, physx_actions[:, joint_cols])
+
+
+def test_compute_symmetric_states_without_inputs():
+    """Return ``(None, None)`` without reading the scene when there is nothing to augment."""
+    assert anymal.compute_symmetric_states(SimpleNamespace()) == (None, None)
