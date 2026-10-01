@@ -113,8 +113,8 @@ def _simulation_registry(monkeypatch):
     monkeypatch.setattr(SimulationContext, "_instance", sim)
 
 
-@pytest.mark.parametrize("use_ovstage, shared_physics", [(False, False), (True, False), (False, True)])
-def test_ovrtx_renderer_config_enables_supported_runtime_options(monkeypatch, tmp_path, use_ovstage, shared_physics):
+@pytest.mark.parametrize("use_ovstage, with_physics", [(False, False), (True, False), (False, True), (True, True)])
+def test_ovrtx_renderer_config_enables_supported_runtime_options(monkeypatch, tmp_path, use_ovstage, with_physics):
     """Equal cfgs share one native resource; closing borrowers leaves it owned by the registry."""
     config_kwargs: dict[str, object] = {}
     destroyed, redirected, stage_releases = [], [], []
@@ -147,12 +147,12 @@ def test_ovrtx_renderer_config_enables_supported_runtime_options(monkeypatch, tm
     monkeypatch.setattr("isaaclab_ov.stage.create_ovstage", lambda _: stage_resource("stage"))
     monkeypatch.setattr(ovrtx_renderer_module.ovstage, "PathDictionary", lambda _: stage_resource("paths"))
 
-    if shared_physics:
+    if with_physics:
         from isaaclab_ov.cloner import OvPhysxReplicateContext
 
         SimulationContext.instance().physics_manager.clone_context_type = OvPhysxReplicateContext
     renderer = OVRTXRenderer(OVRTXRendererCfg())
-    use_ovstage = use_ovstage or shared_physics
+    shared_physics = use_ovstage and with_physics
     shared = OVRTXRenderer(renderer.cfg)
 
     assert shared.backend is renderer.backend

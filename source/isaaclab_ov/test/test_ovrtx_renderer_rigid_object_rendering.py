@@ -43,12 +43,12 @@ else:
 
 
 def test_kinematic_rigid_object_scale_and_pose_are_rendered(monkeypatch: pytest.MonkeyPatch) -> None:
-    """One automatic OVStage clone supplies physics and rendered poses, scale and calibration."""
+    """One opted-in OVStage clone supplies physics and rendered poses, scale and calibration."""
     import ovphysx
     import ovrtx
     import ovstage
 
-    monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", "0")
+    monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", "1")
     copies, attached = [], []
     clone = ovstage.Stage.clone
     attach_physics = ovphysx.PhysX.attach_ovstage
@@ -106,7 +106,7 @@ def test_shared_stage_isolates_contacts_and_interleaves_rendering_with_gravity(m
     from isaaclab.sensors import CameraCfg
     from isaaclab.utils import configclass, replace
 
-    monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", "0")
+    monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", "1")
 
     @configclass
     class SceneCfg(InteractiveSceneCfg):
