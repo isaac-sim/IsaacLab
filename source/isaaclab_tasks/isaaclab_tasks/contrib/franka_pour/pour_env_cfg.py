@@ -40,7 +40,7 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 
 from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
 
-from isaaclab_assets.robots.franka import FRANKA_PANDA_FLAT_CFG
+from isaaclab_assets.robots.franka import FRANKA_PANDA_CFG
 
 from . import mdp
 from .geometry import (
@@ -314,7 +314,7 @@ class PourSceneCfg(InteractiveSceneCfg):
         prim_path="/World/light",
         spawn=sim_utils.DomeLightCfg(color=(0.75, 0.75, 0.75), intensity=3000.0),
     )
-    robot = replace(FRANKA_PANDA_FLAT_CFG, prim_path="{ENV_REGEX_NS}/Robot")
+    robot = replace(FRANKA_PANDA_CFG, prim_path="{ENV_REGEX_NS}/Robot")
     robot.spawn.usd_path = FRANKA_POUR_ROBOT_USD_PATH
     robot.spawn.variants = {"Physics": "mujoco", "Colliders": "convex_hulls"}
     robot.spawn.func = spawn_franka_with_arm_collisions

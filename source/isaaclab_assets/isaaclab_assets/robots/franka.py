@@ -7,22 +7,20 @@
 
 The following configurations are available:
 
-* :obj:`FRANKA_PANDA_FLAT_CFG`: Shared flat asset for maintained Franka tasks
-* :obj:`FRANKA_PANDA_FLAT_HIGH_PD_CFG`: Flat asset with stiffer PD control
-* :obj:`FRANKA_PANDA_CFG`: Deprecated alias retaining the legacy asset and actuators
-* :obj:`FRANKA_PANDA_HIGH_PD_CFG`: Deprecated legacy high-PD configuration
-* :obj:`FRANKA_PANDA_MENAGERIE_CFG`: Deprecated Menagerie actuator configuration
+* :obj:`FRANKA_PANDA_CFG`: Shared flat asset for maintained Franka tasks
+* :obj:`FRANKA_PANDA_HIGH_PD_CFG`: Flat asset with stiffer PD control
+* :obj:`FRANKA_PANDA_LEGACY_CFG`: Legacy asset and actuators
+* :obj:`FRANKA_PANDA_LEGACY_HIGH_PD_CFG`: Legacy high-PD configuration
+* :obj:`FRANKA_PANDA_MENAGERIE_CFG`: Menagerie actuator configuration
 * :obj:`FRANKA_ROBOTIQ_GRIPPER_CFG`: Franka robot with Robotiq_2f_85 gripper
 
-The old public names remain available during deprecation. Use ``FRANKA_PANDA_FLAT_CFG`` for new code
-and select its ``Physics`` variant for the chosen backend. The published ``franka_panda.usda`` is now
-the flat asset; the former nested-instance file remains available as an explicit USD-path override.
+Use ``FRANKA_PANDA_CFG`` for new code and select its ``Physics`` variant for the chosen backend.
+Use the explicit ``LEGACY`` configurations to retain the original USD path and actuator groups.
+The published ``franka_panda.usda`` is now the flat asset; the former nested-instance file remains
+available as an explicit USD-path override.
 
 Reference: https://github.com/frankaemika/franka_ros
 """
-
-import warnings
-from typing import TYPE_CHECKING
 
 from isaaclab_newton.sim.schemas import NewtonArticulationCfg
 from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxRigidBodyCfg
@@ -89,7 +87,7 @@ FRANKA_PANDA_LEGACY_CFG = ArticulationCfg(
 """Configuration of the legacy Franka Emika Panda robot asset."""
 
 
-FRANKA_PANDA_FLAT_CFG = ArticulationCfg(
+FRANKA_PANDA_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/franka_panda.usda",
         variants={"Physics": "physx", "Colliders": "gripper_only"},
@@ -139,10 +137,10 @@ payload by default; direct Newton consumers must select the ``mujoco`` physics v
 """
 
 
-FRANKA_PANDA_FLAT_HIGH_PD_CFG = clone(FRANKA_PANDA_FLAT_CFG)
-FRANKA_PANDA_FLAT_HIGH_PD_CFG.spawn.rigid_props.disable_gravity = True
-FRANKA_PANDA_FLAT_HIGH_PD_CFG.actuators["panda_arm"].stiffness = 400.0
-FRANKA_PANDA_FLAT_HIGH_PD_CFG.actuators["panda_arm"].damping = 80.0
+FRANKA_PANDA_HIGH_PD_CFG = clone(FRANKA_PANDA_CFG)
+FRANKA_PANDA_HIGH_PD_CFG.spawn.rigid_props.disable_gravity = True
+FRANKA_PANDA_HIGH_PD_CFG.actuators["panda_arm"].stiffness = 400.0
+FRANKA_PANDA_HIGH_PD_CFG.actuators["panda_arm"].damping = 80.0
 """Configuration of Franka Emika Panda robot with stiffer PD control.
 
 This configuration is useful for task-space control using differential IK.
@@ -216,11 +214,12 @@ FRANKA_PANDA_LEGACY_HIGH_PD_CFG.spawn.rigid_props.disable_gravity = True
 for actuator in ("panda_shoulder", "panda_forearm"):
     FRANKA_PANDA_LEGACY_HIGH_PD_CFG.actuators[actuator].stiffness = 400.0
     FRANKA_PANDA_LEGACY_HIGH_PD_CFG.actuators[actuator].damping = 80.0
+"""Configuration of the legacy Franka Emika Panda robot with stiffer PD control."""
 
 
-FRANKA_PANDA_LEGACY_MENAGERIE_CFG = clone(FRANKA_PANDA_LEGACY_CFG)
-FRANKA_PANDA_LEGACY_MENAGERIE_CFG.spawn.usd_path = f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/franka_panda.usda"
-FRANKA_PANDA_LEGACY_MENAGERIE_CFG.actuators = {
+FRANKA_PANDA_MENAGERIE_CFG = clone(FRANKA_PANDA_LEGACY_CFG)
+FRANKA_PANDA_MENAGERIE_CFG.spawn.usd_path = f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/franka_panda.usda"
+FRANKA_PANDA_MENAGERIE_CFG.actuators = {
     "panda_arm": ImplicitActuatorCfg(
         joint_names_expr=["panda_joint[1-7]"],
         joint_velocity_limit={"panda_joint[1-4]": 20.0, "panda_joint[5-7]": 25.0},
@@ -233,28 +232,4 @@ FRANKA_PANDA_LEGACY_MENAGERIE_CFG.actuators = {
         damping=None,
     ),
 }
-
-
-DEPRECATED_FRANKA_CFGS = {
-    "FRANKA_PANDA_CFG": (FRANKA_PANDA_LEGACY_CFG, "FRANKA_PANDA_FLAT_CFG"),
-    "FRANKA_PANDA_HIGH_PD_CFG": (FRANKA_PANDA_LEGACY_HIGH_PD_CFG, "FRANKA_PANDA_FLAT_HIGH_PD_CFG"),
-    "FRANKA_PANDA_MENAGERIE_CFG": (FRANKA_PANDA_LEGACY_MENAGERIE_CFG, "FRANKA_PANDA_FLAT_CFG"),
-}
-
-if TYPE_CHECKING:
-    FRANKA_PANDA_CFG: ArticulationCfg
-    FRANKA_PANDA_HIGH_PD_CFG: ArticulationCfg
-    FRANKA_PANDA_MENAGERIE_CFG: ArticulationCfg
-
-
-def __getattr__(name: str) -> ArticulationCfg:
-    if name not in DEPRECATED_FRANKA_CFGS:
-        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
-    cfg, replacement = DEPRECATED_FRANKA_CFGS[name]
-    message = f"{name} is deprecated and will be removed in Isaac Lab 4.0. Use {replacement}."
-    warnings.warn(message, FutureWarning, stacklevel=2)
-    return cfg
-
-
-def __dir__() -> list[str]:
-    return sorted(set(globals()) | DEPRECATED_FRANKA_CFGS.keys())
+"""Configuration of the Franka Emika Panda robot with Menagerie actuator settings."""

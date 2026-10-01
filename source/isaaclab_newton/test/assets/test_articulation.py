@@ -68,12 +68,12 @@ from isaaclab.utils.math import compute_pose_error, matrix_from_quat, quat_inv, 
 ##
 # Pre-defined configs
 ##
-from isaaclab_assets import ANYMAL_C_CFG, FRANKA_PANDA_FLAT_CFG, FRANKA_PANDA_FLAT_HIGH_PD_CFG  # isort:skip
+from isaaclab_assets import ANYMAL_C_CFG, FRANKA_PANDA_CFG, FRANKA_PANDA_HIGH_PD_CFG  # isort:skip
 from isaaclab_assets.robots.shadow_hand import SHADOW_HAND_NEWTON_CFG
 
-_FRANKA_PANDA_NEWTON_CFG = clone(FRANKA_PANDA_FLAT_CFG)
+_FRANKA_PANDA_NEWTON_CFG = clone(FRANKA_PANDA_CFG)
 _FRANKA_PANDA_NEWTON_CFG.spawn.variants = {"Physics": "mujoco", "Colliders": "gripper_only"}
-_FRANKA_PANDA_HIGH_PD_NEWTON_CFG = clone(FRANKA_PANDA_FLAT_HIGH_PD_CFG)
+_FRANKA_PANDA_HIGH_PD_NEWTON_CFG = clone(FRANKA_PANDA_HIGH_PD_CFG)
 _FRANKA_PANDA_HIGH_PD_NEWTON_CFG.spawn.variants = {"Physics": "mujoco", "Colliders": "gripper_only"}
 
 SIM_CFGs = {
@@ -3178,7 +3178,7 @@ def test_get_gravity_compensation_forces_static_equilibrium(sim, num_articulatio
     # gravity-comp signal. Default Franka cfg has stiffness=80 / damping=4
     # which would absorb gravity through PD bias and hide accessor bugs.
     cfg = replace(base_cfg, actuators={"all": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=0.0, damping=0.0)})
-    # FRANKA_PANDA_FLAT_CFG has rigid_props.disable_gravity=False already, but be
+    # FRANKA_PANDA_CFG has rigid_props.disable_gravity=False already, but be
     # defensive — gravity must be ON for τ_gc to have anything to cancel.
     cfg = replace(cfg, spawn=replace(cfg.spawn, rigid_props=replace(cfg.spawn.rigid_props, disable_gravity=False)))
 
@@ -3196,7 +3196,7 @@ def test_get_gravity_compensation_forces_static_equilibrium(sim, num_articulatio
     articulation.write_joint_velocity_to_sim_index(velocity=default_qd)
     articulation.update(sim.cfg.dt)
 
-    # Default joint pose from FRANKA_PANDA_FLAT_CFG bends the elbow
+    # Default joint pose from FRANKA_PANDA_CFG bends the elbow
     # (joint2=-0.569, joint4=-2.81, joint6=3.04) so several links carry a
     # gravity load — τ_gc is non-trivial in this configuration. A natural-
     # hang pose (all zeros) would produce near-zero τ_gc and make this

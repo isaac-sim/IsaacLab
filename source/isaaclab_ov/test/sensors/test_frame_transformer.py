@@ -51,7 +51,7 @@ from isaaclab.test.utils import DeviceScope, test_devices  # noqa: E402
 from isaaclab.utils import configclass, replace  # noqa: E402
 
 from isaaclab_assets.robots.anymal import ANYMAL_C_CFG  # noqa: E402
-from isaaclab_assets.robots.franka import FRANKA_PANDA_FLAT_CFG  # noqa: E402
+from isaaclab_assets.robots.franka import FRANKA_PANDA_CFG  # noqa: E402
 
 wp.init()
 
@@ -678,7 +678,7 @@ def test_frame_transformer_nested_rigid_bodies(device):
     with _ovphysx_sim_context(device=device) as sim:
         sim._app_control_on_stop_handle = None
         scene_cfg = _SceneCfg(num_envs=2, env_spacing=5.0, lazy_sensor_update=False)
-        scene_cfg.robot = replace(FRANKA_PANDA_FLAT_CFG, prim_path="{ENV_REGEX_NS}/Robot")
+        scene_cfg.robot = replace(FRANKA_PANDA_CFG, prim_path="{ENV_REGEX_NS}/Robot")
         scene_cfg.frame_transformer = FrameTransformerCfg(
             prim_path="{ENV_REGEX_NS}/Robot/(Geometry/)?panda_link0",
             target_frames=[

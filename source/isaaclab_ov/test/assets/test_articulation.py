@@ -99,7 +99,7 @@ from isaaclab.utils.warp.launch_cache import _WarpLaunchCache  # noqa: E402
 ##
 # Pre-defined configs
 ##
-from isaaclab_assets import ANYMAL_C_CFG, CARTPOLE_CFG, FRANKA_PANDA_FLAT_CFG, SHADOW_HAND_PHYSX_CFG  # isort:skip
+from isaaclab_assets import ANYMAL_C_CFG, CARTPOLE_CFG, FRANKA_PANDA_CFG, SHADOW_HAND_PHYSX_CFG  # isort:skip
 
 wp.init()
 
@@ -438,7 +438,7 @@ def generate_articulation_cfg(
             actuators={"body": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=stiffness, damping=damping)},
         )
     elif articulation_type == "panda":
-        articulation_cfg = FRANKA_PANDA_FLAT_CFG
+        articulation_cfg = FRANKA_PANDA_CFG
     elif articulation_type == "anymal":
         articulation_cfg = ANYMAL_C_CFG
     elif articulation_type == "shadow_hand":
@@ -1746,7 +1746,7 @@ def test_out_of_range_default_joint_vel(sim, device):
     1. The articulation fails to initialize when joint velocities are out of range
     2. The error is properly handled
     """
-    articulation_cfg = replace(FRANKA_PANDA_FLAT_CFG, prim_path="/World/Robot")
+    articulation_cfg = replace(FRANKA_PANDA_CFG, prim_path="/World/Robot")
     articulation_cfg.init_state.joint_vel = {
         "panda_joint1": 100.0,
         "panda_joint[2, 4]": -60.0,
@@ -2583,7 +2583,7 @@ def test_com_orientation_write_invalidates_static_inertia_cache_with_body_orderi
     below forbids cross-device staging, so this test is CPU-only.
     """
     sim._app_control_on_stop_handle = None
-    articulation_cfg = replace(FRANKA_PANDA_FLAT_CFG, body_ordering=PANDA_ROOT_PRESERVING_REVERSED_BODY_NAMES)
+    articulation_cfg = replace(FRANKA_PANDA_CFG, body_ordering=PANDA_ROOT_PRESERVING_REVERSED_BODY_NAMES)
     articulation, _ = generate_articulation(articulation_cfg, 1, device=device)
 
     sim.reset()
