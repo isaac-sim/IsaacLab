@@ -166,8 +166,8 @@ _DISABLE_LINUX_CUDA_CPU_SYNC_ENV = "ISAAC_LAB_OVRTX_DISABLE_LINUX_CUDA_CPU_SYNC"
 def ovrtx_use_ovstage_enabled() -> bool:
     """Return whether the ovstage scene-ownership path should be used.
 
-    Enabled by ``ISAAC_LAB_OVRTX_USE_OVSTAGE=1`` for independent rendering. OVPhysX + OVRTX
-    selects a shared OVStage automatically, regardless of this optional override.
+    Enabled by ``ISAAC_LAB_OVRTX_USE_OVSTAGE=1``. With OVPhysX, this selects one shared
+    physics and rendering stage. Native cloning remains the default.
 
     Raises:
         ValueError: If the environment variable is set to anything other than ``0`` or ``1``.
@@ -379,10 +379,13 @@ class OVRTXRenderer(BaseRenderer):
         # Selected once at construction so every operation below sees a stable path for the
         # lifetime of the renderer, even if the environment variable changes mid-process.
         sim = SimulationContext.instance()
-        shared_physics = sim.physics_manager.clone_context_type is OvPhysxReplicateContext
+        self._use_ovstage = ovrtx_use_ovstage_enabled()
+        # TODO: Uncomment after requiring an OVPhysX release with batched cold binding and direct
+        # path lookups, and verifying startup parity (release version TBD; 0.6.3 is affected).
+        # self._use_ovstage |= sim.physics_manager.clone_context_type is OvPhysxReplicateContext
+        shared_physics = self._use_ovstage and sim.physics_manager.clone_context_type is OvPhysxReplicateContext
         if shared_physics and sim.physics_manager.backend is not None and sim.physics_manager.backend.scene is None:
             raise RuntimeError("Configure OVRTX cameras before the first OVPhysX reset to share its OVStage.")
-        self._use_ovstage = shared_physics or ovrtx_use_ovstage_enabled()
         if cfg.async_rendering and self._use_ovstage:
             logger.warning("Asynchronous OVRTX rendering is unsupported with ovstage; rendering synchronously.")
         backend_cfg = OVRTXBackendCfg(
