@@ -103,29 +103,30 @@ class TestJointActions:
     """Test JointAction subclasses: process, apply, reset."""
 
     def test_joint_effort_process_apply(self, env, asset, actions_wp):
-        cfg = JointEffortActionCfg(asset_name="robot", joint_names=[".*"])
+        cfg = JointEffortActionCfg(asset_name="robot", joint_names=[".*"], scale=2.5)
         term = JointEffortAction(cfg, env)
 
         term.process_actions(actions_wp, action_offset=0)
         term.apply_actions()
 
-        # Processed = raw * scale(1.0) + offset(0.0) = raw
-        assert_close(term.processed_actions, actions_wp)
-        assert asset.last_effort_target is not None
+        # Processed = raw * scale(2.5) + offset(0.0), and that buffer is what reaches the asset
+        assert_close(term.processed_actions, wp.to_torch(actions_wp) * 2.5)
+        assert asset.last_effort_target is term.processed_actions
 
-    def test_joint_position_default_offset(self, env, asset, art_data, actions_wp):
-        cfg = JointPositionActionCfg(asset_name="robot", joint_names=[".*"], use_default_offset=True)
+    def test_position_scale_and_offset(self, env, asset, art_data, actions_wp):
+        """scale=2, use_default_offset=True -> processed == raw * 2 + defaults[0], applied as the target.
+
+        Same affine formula as the stable ``JointAction.process_actions``."""
+        cfg = JointPositionActionCfg(asset_name="robot", joint_names=[".*"], scale=2.0, use_default_offset=True)
         term = JointPositionAction(cfg, env)
-
         term.process_actions(actions_wp, action_offset=0)
         term.apply_actions()
 
-        # Processed = raw * 1.0 + default_joint_pos[0]
-        defaults = art_data.default_joint_pos.torch[0]
         raw = wp.to_torch(actions_wp)
-        expected = raw + defaults.unsqueeze(0)
+        defaults = art_data.default_joint_pos.torch[0]
+        expected = raw * 2.0 + defaults.unsqueeze(0)
         assert_close(term.processed_actions, expected)
-        assert asset.last_pos_target is not None
+        assert asset.last_pos_target is term.processed_actions
 
     def test_joint_action_reset(self, env, asset, actions_wp):
         cfg = JointEffortActionCfg(asset_name="robot", joint_names=[".*"])
@@ -156,72 +157,3 @@ class TestJointActions:
         assert_close(raw_after[: NUM_ENVS // 2], torch.zeros(NUM_ENVS // 2, NUM_JOINTS, device=DEVICE))
         # Second half unchanged
         assert_close(raw_after[NUM_ENVS // 2 :], raw_before[NUM_ENVS // 2 :])
-
-    def test_joint_action_with_scale(self, env, asset, actions_wp):
-        cfg = JointEffortActionCfg(asset_name="robot", joint_names=[".*"], scale=2.5)
-        term = JointEffortAction(cfg, env)
-
-        term.process_actions(actions_wp, action_offset=0)
-
-        raw = wp.to_torch(actions_wp)
-        expected = raw * 2.5
-        assert_close(term.processed_actions, expected)
-
-
-# ============================================================================
-# Mathematical parity tests: warp processed_actions == raw * scale + offset
-# (This is the same formula used by the stable JointAction.process_actions.)
-# ============================================================================
-
-
-class TestJointActionMathParity:
-    """Verify warp processed_actions match the affine formula raw * scale + offset.
-
-    The stable ``JointAction.process_actions`` computes
-    ``processed = raw * scale + offset``. These tests verify the warp
-    implementation produces identical results for various scale/offset
-    configurations, confirming mathematical parity without needing to
-    instantiate the stable classes (which require a full env).
-    """
-
-    def test_effort_identity(self, env, actions_wp):
-        """scale=1, offset=0 -> processed == raw."""
-        cfg = JointEffortActionCfg(asset_name="robot", joint_names=[".*"])
-        term = JointEffortAction(cfg, env)
-        term.process_actions(actions_wp, action_offset=0)
-
-        raw = wp.to_torch(actions_wp)
-        expected = raw * 1.0 + 0.0
-        assert_close(term.processed_actions, expected)
-
-    def test_effort_with_scale(self, env, actions_wp):
-        """scale=3.0, offset=0 -> processed == raw * 3."""
-        cfg = JointEffortActionCfg(asset_name="robot", joint_names=[".*"], scale=3.0)
-        term = JointEffortAction(cfg, env)
-        term.process_actions(actions_wp, action_offset=0)
-
-        raw = wp.to_torch(actions_wp)
-        expected = raw * 3.0
-        assert_close(term.processed_actions, expected)
-
-    def test_position_with_default_offset(self, env, art_data, actions_wp):
-        """use_default_offset=True -> processed == raw + defaults[0]."""
-        cfg = JointPositionActionCfg(asset_name="robot", joint_names=[".*"], use_default_offset=True)
-        term = JointPositionAction(cfg, env)
-        term.process_actions(actions_wp, action_offset=0)
-
-        raw = wp.to_torch(actions_wp)
-        defaults = art_data.default_joint_pos.torch[0]
-        expected = raw * 1.0 + defaults.unsqueeze(0)
-        assert_close(term.processed_actions, expected)
-
-    def test_position_scale_and_offset(self, env, art_data, actions_wp):
-        """scale=2, use_default_offset=True -> processed == raw * 2 + defaults[0]."""
-        cfg = JointPositionActionCfg(asset_name="robot", joint_names=[".*"], scale=2.0, use_default_offset=True)
-        term = JointPositionAction(cfg, env)
-        term.process_actions(actions_wp, action_offset=0)
-
-        raw = wp.to_torch(actions_wp)
-        defaults = art_data.default_joint_pos.torch[0]
-        expected = raw * 2.0 + defaults.unsqueeze(0)
-        assert_close(term.processed_actions, expected)

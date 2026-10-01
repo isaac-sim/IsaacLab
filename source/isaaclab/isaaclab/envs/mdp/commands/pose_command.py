@@ -15,12 +15,12 @@ import torch
 from isaaclab.assets import Articulation
 from isaaclab.managers import CommandTerm
 from isaaclab.markers import VisualizationMarkers
+from isaaclab.utils import index_fill_
 from isaaclab.utils.leapp import POSE7_ELEMENT_NAMES
 from isaaclab.utils.math import combine_frame_transforms, compute_pose_error, quat_from_euler_xyz, quat_unique
 
 if TYPE_CHECKING:
-    from isaaclab.envs import ManagerBasedEnv
-
+    from ... import ManagerBasedEnv
     from .commands_cfg import UniformPoseCommandCfg
 
 
@@ -151,23 +151,22 @@ class UniformPoseCommand(CommandTerm):
             success[:] = False
         return success
 
-    def reset(self, env_ids: Sequence[int] | None = None) -> dict[str, float]:
+    def reset(self, env_ids: Sequence[int] | None = None) -> dict[str, torch.Tensor]:
         extras = super().reset(env_ids)
         if self._track_success:
             if env_ids is None:
                 env_ids = slice(None)
             # Write the unified ``Metrics/success_rate`` directly to env extras so it shares
             # a TensorBoard card with the same metric from other tasks.
-            self._env.extras.setdefault("log", {})["Metrics/success_rate"] = (
-                self._succeeded[env_ids].float().mean().item()
-            )
-            self._succeeded[env_ids] = False
+            self._env.extras.setdefault("log", {})["Metrics/success_rate"] = self._succeeded[env_ids].float().mean()
+            index_fill_(self._succeeded, env_ids, False)
         return extras
 
     def _resample_command(self, env_ids: Sequence[int]):
         # sample new pose targets
         # -- position
-        r = torch.empty(len(env_ids), device=self.device)
+        num_envs = len(range(self.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
+        r = torch.empty(num_envs, device=self.device)
         self.pose_command_b[env_ids, 0] = r.uniform_(*self.cfg.ranges.pos_x)
         self.pose_command_b[env_ids, 1] = r.uniform_(*self.cfg.ranges.pos_y)
         self.pose_command_b[env_ids, 2] = r.uniform_(*self.cfg.ranges.pos_z)
@@ -205,8 +204,17 @@ class UniformPoseCommand(CommandTerm):
         if not self.robot.is_initialized:
             return
         # update the markers
+        environment_ids = self._env.scene._ALL_INDICES
         # -- goal pose
-        self.goal_pose_visualizer.visualize(self.pose_command_w[:, :3], self.pose_command_w[:, 3:])
+        self.goal_pose_visualizer.visualize(
+            self.pose_command_w[:, :3],
+            self.pose_command_w[:, 3:],
+            environment_ids=environment_ids,
+        )
         # -- current body pose
         body_link_pose_w = self.robot.data.body_link_pose_w.torch[:, self.body_idx]
-        self.current_pose_visualizer.visualize(body_link_pose_w[:, :3], body_link_pose_w[:, 3:7])
+        self.current_pose_visualizer.visualize(
+            body_link_pose_w[:, :3],
+            body_link_pose_w[:, 3:7],
+            environment_ids=environment_ids,
+        )

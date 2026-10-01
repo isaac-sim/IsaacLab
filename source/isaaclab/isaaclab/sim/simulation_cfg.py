@@ -11,12 +11,25 @@ configuring the environment instances, viewer settings, and simulation parameter
 
 from __future__ import annotations
 
-from typing import Literal
+from collections.abc import Callable
+from dataclasses import MISSING
+from typing import Any, Literal
 
-from isaaclab.physics import PhysicsCfg
-from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialBaseCfg
-from isaaclab.utils.configclass import configclass
-from isaaclab.visualizers import VisualizerCfg
+from ..physics import PhysicsCfg
+from ..utils import configclass
+from ..visualizers import VisualizerCfg
+from .spawners.materials.physics_materials_cfg import RigidBodyMaterialBaseCfg
+
+
+@configclass
+class BackendCfg:
+    """Declarative settings and value identity for a simulation-owned resource.
+
+    Finalize all fields before registration and treat them as read-only afterward.
+    """
+
+    class_type: Callable[[BackendCfg], Any] = MISSING
+    """Constructor called through ``instantiate(cfg)``; the returned resource must implement ``close()``."""
 
 
 @configclass
@@ -33,7 +46,7 @@ class SimulationCfg:
     Valid options are:
 
     - ``"cpu"``: Use CPU.
-    - ``"cuda"``: Use GPU, where the device ID is inferred from :class:`~isaaclab.app.AppLauncher`'s config.
+    - ``"cuda"``: Use GPU, where the device ID is inferred from :class:`~isaaclab_physx.app.KitLauncher`'s config.
     - ``"cuda:N"``: Use GPU, where N is the device ID. For example, "cuda:0".
     """
 
@@ -84,20 +97,18 @@ class SimulationCfg:
         with the GUI enabled. This is to allow certain GUI features to work properly.
     """
 
-    use_newton_actuators: bool = False
-    """Use Newton-native actuators instead of IsaacLab explicit actuator models.
+    use_newton_actuators: bool = True
+    """Use native actuators for supported explicit actuator configurations. Default is True.
 
-    When ``True``, explicit actuator configs (e.g. :class:`IdealPDActuatorCfg`,
-    :class:`DCMotorCfg`) are translated into ``NewtonActuator`` USD prims and
-    stepped by the physics engine.  The Lab config values (stiffness, damping,
-    effort_limit, etc.) take precedence: for every joint covered by a Lab
-    actuator config, any existing ``NewtonActuator`` prim targeting that joint
-    is replaced by one synthesised from the config.  Joints that are *not*
-    covered by a Lab config keep their USD-authored actuators (if any).
+    When ``True``, supported explicit configs, such as :class:`IdealPDActuatorCfg`
+    and :class:`DCMotorCfg`, author ``NewtonActuator`` USD prims. Newton executes
+    them in its solver. PhysX and OVPhysX execute them through a shared host
+    adapter during :meth:`~isaaclab.assets.Articulation.write_data_to_sim`.
 
-    :class:`ImplicitActuatorCfg` entries are still instantiated normally and
-    their gains are written to the simulation, so joints that use implicit
-    actuation continue to work as expected.
+    Config values take precedence over existing USD actuators for covered joints.
+    Joints without a config keep their USD-authored actuators. Implicit actuators
+    are unchanged: the solver applies their drive gains. Set this flag to ``False``
+    to use the deprecated Isaac Lab actuator execution path.
     """
 
     physics: PhysicsCfg | None = None
@@ -130,10 +141,10 @@ class SimulationCfg:
     """The visualizer configuration(s). Default is an empty list."""
 
     default_visualizer_cfg: VisualizerCfg | None = None
-    """Default visualizer camera hint applied to any visualizer that is selected at runtime.
+    """Default visualizer settings applied to any visualizer that is selected at runtime.
 
     This is a hint only — it does **not** add a visualizer to :attr:`visualizer_cfgs`.
     Fields such as :attr:`~isaaclab.visualizers.VisualizerCfg.eye` and
-    :attr:`~isaaclab.visualizers.VisualizerCfg.lookat` are forwarded to each resolved
+    :attr:`~isaaclab.visualizers.VisualizerCfg.background_color` are forwarded to each resolved
     visualizer unless that visualizer already has an explicitly customised value.
     """

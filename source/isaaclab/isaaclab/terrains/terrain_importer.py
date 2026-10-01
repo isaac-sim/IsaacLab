@@ -12,17 +12,16 @@ import numpy as np
 import torch
 import trimesh
 
-import isaaclab.sim as sim_utils
-from isaaclab.markers import VisualizationMarkers
-from isaaclab.markers.config import FRAME_MARKER_CFG
-
+from .. import sim as sim_utils
+from ..markers import VisualizationMarkers
+from ..markers.config import FRAME_MARKER_CFG
+from ..utils import instantiate, replace, to_dict, validate
 from .utils import create_prim_from_mesh
 
 if TYPE_CHECKING:
     from .terrain_generator_cfg import TerrainGeneratorCfg
     from .terrain_importer_cfg import TerrainImporterCfg
 
-# import logger
 logger = logging.getLogger(__name__)
 
 
@@ -69,17 +68,17 @@ class TerrainImporter:
             ValueError: If terrain type is 'usd' or 'plane' and no configuration provided for ``env_spacing``.
         """
         # check that the config is valid
-        cfg.validate()
+        validate(cfg)
         # store inputs
         self.cfg = cfg
         self.device = sim_utils.SimulationContext.instance().device  # type: ignore
 
         # create buffers for the terrains
-        self.terrain_prim_paths = list()
+        self.terrain_prim_paths = []
         self.terrain_origins = None
         self.env_origins = None  # assigned later when `configure_env_origins` is called
         # private variables
-        self._terrain_flat_patches = dict()
+        self._terrain_flat_patches = {}
 
         # auto-import the terrain based on the config
         if self.cfg.terrain_type == "generator":
@@ -87,9 +86,7 @@ class TerrainImporter:
             if self.cfg.terrain_generator is None:
                 raise ValueError("Input terrain type is 'generator' but no value provided for 'terrain_generator'.")
             # generate the terrain
-            terrain_generator = self.cfg.terrain_generator.class_type(
-                cfg=self.cfg.terrain_generator, device=self.device
-            )
+            terrain_generator = instantiate(self.cfg.terrain_generator, device=self.device)
             self.import_mesh("terrain", terrain_generator.terrain_mesh)
             # Tag the terrain collider with its height-field resolution. Backends that
             # collide against heightfields (e.g. Newton) can swap the large collision
@@ -113,7 +110,6 @@ class TerrainImporter:
             # configure the origins in a grid
             self.configure_env_origins()
         elif self.cfg.terrain_type == "plane":
-            # load the plane
             self.import_ground_plane("terrain")
             # configure the origins in a grid
             self.configure_env_origins()
@@ -168,11 +164,10 @@ class TerrainImporter:
         Raises:
             RuntimeError: If terrain origins are not configured.
         """
-        # create a marker if necessary
         if debug_vis:
             if not hasattr(self, "origin_visualizer"):
                 self.origin_visualizer = VisualizationMarkers(
-                    cfg=FRAME_MARKER_CFG.replace(prim_path="/Visuals/TerrainOrigin")
+                    cfg=replace(FRAME_MARKER_CFG, prim_path="/Visuals/TerrainOrigin")
                 )
                 if self.terrain_origins is not None:
                     self.origin_visualizer.visualize(self.terrain_origins.reshape(-1, 3))
@@ -180,7 +175,6 @@ class TerrainImporter:
                     self.origin_visualizer.visualize(self.env_origins.reshape(-1, 3))
                 else:
                     raise RuntimeError("Terrain origins are not configured.")
-            # set visibility
             self.origin_visualizer.set_visibility(True)
         else:
             if hasattr(self, "origin_visualizer"):
@@ -192,13 +186,14 @@ class TerrainImporter:
     Operations - Import.
     """
 
-    def import_ground_plane(self, name: str, size: tuple[float, float] = (2.0e6, 2.0e6)):
+    def import_ground_plane(self, name: str, size: tuple[float, float] | None = None):
         """Add a plane to the terrain importer.
 
         Args:
             name: The name of the imported terrain. This name is used to create the USD prim
                 corresponding to the terrain.
-            size: The size of the plane. Defaults to (2.0e6, 2.0e6).
+            size: The visual size of the plane [m]. If None, the visual mesh extends 50 m beyond
+                each side of the configured environment grid. The collision plane remains infinite.
 
         Raises:
             ValueError: If a terrain with the same name already exists.
@@ -213,20 +208,21 @@ class TerrainImporter:
         # store the mesh name
         self.terrain_prim_paths.append(prim_path)
 
+        if size is None:
+            size = self._compute_ground_plane_size()
+
         # obtain ground plane color from the configured visual material
-        color = (0.0, 0.0, 0.0)
+        color = None
         if self.cfg.visual_material is not None:
-            material = self.cfg.visual_material.to_dict()
-            # defaults to the `GroundPlaneCfg` color if diffuse color attribute is not found
+            material = to_dict(self.cfg.visual_material)
             if "diffuse_color" in material:
                 color = material["diffuse_color"]
             else:
                 logger.warning(
                     "Visual material specified for ground plane but no diffuse color found."
-                    " Using default color: (0.0, 0.0, 0.0)"
+                    " Preserving the ground plane's authored material."
                 )
 
-        # get the mesh
         ground_plane_cfg = sim_utils.GroundPlaneCfg(physics_material=self.cfg.physics_material, size=size, color=color)
         ground_plane_cfg.func(prim_path, ground_plane_cfg)
 
@@ -251,13 +247,19 @@ class TerrainImporter:
             raise ValueError(
                 f"A terrain with the name '{name}' already exists. Existing terrains: {', '.join(self.terrain_names)}."
             )
-        # store the mesh name
         self.terrain_prim_paths.append(prim_path)
 
         # import the mesh
         create_prim_from_mesh(
             prim_path, mesh, visual_material=self.cfg.visual_material, physics_material=self.cfg.physics_material
         )
+
+    def _compute_ground_plane_size(self) -> tuple[float, float]:
+        """Cover the environment grid with 50 m of visual walking room on each side [m]."""
+        num_rows = int(np.ceil(self.cfg.num_envs / np.sqrt(self.cfg.num_envs)))
+        num_cols = int(np.ceil(self.cfg.num_envs / num_rows))
+        spacing = self.cfg.env_spacing or 0.0
+        return ((num_rows - 1) * spacing + 100.0, (num_cols - 1) * spacing + 100.0)
 
     def _is_heightfield_collider_requested(self, cfg: TerrainGeneratorCfg) -> bool:
         """Check whether the generated terrain should be collided against as a heightfield.
@@ -289,7 +291,7 @@ class TerrainImporter:
         """
         from pxr import Sdf
 
-        from isaaclab.sim.utils.stage import get_current_stage
+        from ..sim.utils.stage import get_current_stage
 
         prim = get_current_stage().GetPrimAtPath(prim_path)
         if not prim.IsValid():
@@ -325,7 +327,6 @@ class TerrainImporter:
         # store the mesh name
         self.terrain_prim_paths.append(prim_path)
 
-        # add the prim path
         cfg = sim_utils.UsdFileCfg(usd_path=usd_path)
         cfg.func(prim_path, cfg)
 
@@ -400,10 +401,10 @@ class TerrainImporter:
 
     def _compute_env_origins_grid(self, num_envs: int, env_spacing: float) -> torch.Tensor:
         """Compute the origins of the environments in a grid based on configured spacing."""
-        from isaaclab.cloner import grid_transforms
+        from ..cloner import grid_transforms
 
-        env_origins, _ = grid_transforms(num_envs, env_spacing, device=self.device)
-        return env_origins
+        env_origins, _ = grid_transforms(num_envs, env_spacing)
+        return torch.as_tensor(env_origins, device=self.device)
 
     """
     Deprecated.

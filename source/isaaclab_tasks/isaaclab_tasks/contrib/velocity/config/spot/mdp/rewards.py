@@ -245,7 +245,7 @@ def foot_slip_penalty(
     contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
 
     # check if contact force is above threshold
-    net_contact_forces = contact_sensor.data.net_forces_w_history.torch
+    net_contact_forces = contact_sensor.data.net_normal_forces_w_history.torch
     is_contact = (
         torch.max(torch.linalg.norm(net_contact_forces[:, :, sensor_cfg.body_ids], dim=-1), dim=1)[0] > threshold
     )
@@ -278,7 +278,7 @@ def joint_torques_penalty(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg) -> 
     """Penalize joint torques on the articulation."""
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
-    return torch.linalg.norm((asset.data.applied_torque.torch), dim=1)
+    return torch.linalg.norm(asset.actuators.applied_effort.torch, dim=1)
 
 
 def joint_velocity_penalty(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:

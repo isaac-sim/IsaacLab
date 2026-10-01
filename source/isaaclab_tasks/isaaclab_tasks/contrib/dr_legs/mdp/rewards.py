@@ -21,6 +21,7 @@ import torch
 
 import isaaclab.utils.math as math_utils
 from isaaclab.managers import ManagerTermBase, RewardTermCfg, SceneEntityCfg
+from isaaclab.utils import index_fill_
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
@@ -37,7 +38,6 @@ __all__ = [
     "feet_flat",
     "feet_touchdown_vel",
     "root_orientation_exp",
-    "survival_success_rate",
     "walk_success_rate",
 ]
 
@@ -107,7 +107,7 @@ def joint_pd_command_l2(
     joint_ids = asset_cfg.joint_ids
     joint_pos = asset.data.joint_pos[:, joint_ids]
     joint_vel = asset.data.joint_vel[:, joint_ids]
-    joint_pos_target = asset.data.joint_pos_target[:, joint_ids]
+    joint_pos_target = asset.actuators.target_command.position.torch[:, joint_ids]
     pd_command = stiffness * (joint_pos_target - joint_pos) - damping * joint_vel
     return torch.sum(torch.square(pd_command), dim=1)
 
@@ -120,10 +120,8 @@ class ActionRate2L2(ManagerTermBase):
         self._prev_prev_action = torch.zeros((env.num_envs, dim), device=env.device)
 
     def reset(self, env_ids: torch.Tensor | None = None):
-        if env_ids is None:
-            env_ids = slice(None)
-        self._prev_action[env_ids] = 0.0
-        self._prev_prev_action[env_ids] = 0.0
+        index_fill_(self._prev_action, env_ids, 0.0)
+        index_fill_(self._prev_prev_action, env_ids, 0.0)
 
     def __call__(self, env: ManagerBasedRLEnv) -> torch.Tensor:
         current_action = env.action_manager.action
@@ -146,7 +144,7 @@ def contact_matching(
     gait_period: float = 1.0,
 ) -> torch.Tensor:
     contact_sensor = env.scene.sensors[sensor_cfg.name]
-    net_forces = contact_sensor.data.net_forces_w.torch[:, sensor_cfg.body_ids]
+    net_forces = contact_sensor.data.net_normal_forces_w.torch[:, sensor_cfg.body_ids]
     observed = torch.linalg.norm(net_forces, dim=-1) > threshold
     reference = _reference_contacts(_gait_phase(env, gait_period)).bool()
     return torch.sum(observed == reference, dim=1).float() - 1.0
@@ -209,7 +207,7 @@ def feet_touchdown_vel(
     asset = env.scene[asset_cfg.name]
     contact_sensor = env.scene.sensors[sensor_cfg.name]
     foot_z_vel = asset.data.body_com_lin_vel_w.torch[:, asset_cfg.body_ids, 2]
-    net_forces = contact_sensor.data.net_forces_w.torch[:, sensor_cfg.body_ids]
+    net_forces = contact_sensor.data.net_normal_forces_w.torch[:, sensor_cfg.body_ids]
     contact = (torch.linalg.norm(net_forces, dim=-1) > threshold).float()
     downward_vel = torch.clamp(-foot_z_vel, min=0.0)
     return torch.sum(contact * downward_vel, dim=-1)
@@ -226,24 +224,10 @@ def root_orientation_exp(
     return _exp_se(torch.sum(torch.square(tilt[:, :3]), dim=1), sigma)
 
 
-class survival_success_rate(ManagerTermBase):
-    """Logs ``Metrics/success_rate`` = fraction of environments that survived the full episode."""
-
-    def __init__(self, env: ManagerBasedRLEnv, cfg: RewardTermCfg):
-        super().__init__(cfg, env)
-
-    def reset(self, env_ids: torch.Tensor):
-        survived = self._env.termination_manager.time_outs[env_ids]
-        self._env.extras.setdefault("log", {})["Metrics/success_rate"] = survived.float().mean().item()
-
-    def __call__(self, env: ManagerBasedRLEnv) -> torch.Tensor:
-        return torch.zeros(env.num_envs, device=env.device)
-
-
 class walk_success_rate(ManagerTermBase):
     """Episode-mean velocity-tracking + gait-contact success metric for the walk task."""
 
-    def __init__(self, env: ManagerBasedRLEnv, cfg: RewardTermCfg):
+    def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
         super().__init__(cfg, env)
         self._err_xy_sum = torch.zeros(env.num_envs, device=env.device)
         self._err_yaw_sum = torch.zeros(env.num_envs, device=env.device)
@@ -270,10 +254,10 @@ class walk_success_rate(ManagerTermBase):
         log["Metrics/error_vel_xy"] = err_xy.mean().item()
         log["Metrics/error_vel_yaw"] = err_yaw.mean().item()
         log["Metrics/contact_match_rate"] = contact.mean().item()
-        self._err_xy_sum[env_ids] = 0.0
-        self._err_yaw_sum[env_ids] = 0.0
-        self._contact_sum[env_ids] = 0.0
-        self._steps[env_ids] = 0.0
+        index_fill_(self._err_xy_sum, env_ids, 0.0)
+        index_fill_(self._err_yaw_sum, env_ids, 0.0)
+        index_fill_(self._contact_sum, env_ids, 0.0)
+        index_fill_(self._steps, env_ids, 0.0)
 
     def __call__(
         self,
@@ -295,7 +279,7 @@ class walk_success_rate(ManagerTermBase):
         self._err_xy_sum += torch.linalg.norm(command[:, :2] - asset.data.root_lin_vel_b.torch[:, :2], dim=1)
         self._err_yaw_sum += torch.abs(command[:, 2] - asset.data.root_ang_vel_b.torch[:, 2])
         contact_sensor = env.scene.sensors[sensor_cfg.name]
-        net_forces = contact_sensor.data.net_forces_w.torch[:, sensor_cfg.body_ids]
+        net_forces = contact_sensor.data.net_normal_forces_w.torch[:, sensor_cfg.body_ids]
         observed = torch.linalg.norm(net_forces, dim=-1) > contact_threshold
         reference = _reference_contacts(_gait_phase(env, gait_period)).bool()
         self._contact_sum += (observed == reference).float().mean(dim=1)
