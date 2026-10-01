@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Collection, Iterable, Sequence
+from collections.abc import Collection, Iterable, Iterator, Sequence
 from typing import TYPE_CHECKING, ClassVar
 
 import numpy as np
@@ -158,6 +158,49 @@ class OvPhysxReplicateContext:
         self._sim.physics_manager._clone_recipes.extend(recipes)
 
 
+def _iter_clone_copies(
+    plan: ClonePlan, asset_prototype_ids: Collection[int] | None = None
+) -> Iterator[tuple[str, list[str]]]:
+    """Yield each ``(source, target paths)`` subtree copy OVRTX makes for the routed assets, parents first.
+
+    OVRTX cannot clone onto existing prims, so a copy that an identical copy of its ancestor already carries is
+    omitted, and so are copies onto the source itself. This copy policy belongs to the OVRTX backend, which is
+    why it lives here and not in the clone plan.
+
+    Args:
+        plan: Replication layout shared by every clone backend.
+        asset_prototype_ids: Asset definitions routed to the scene. ``None`` selects every asset.
+
+    Yields:
+        The prototype prim path and the destination paths it is copied to.
+    """
+    sources = cloner.path.get_asset_prototype_paths(plan)
+    templates, starts, world_ids, world_starts = cloner.path.get_world_prototype_asset_templates(
+        plan, include_world_indices=True
+    )
+    assets = plan.topology.world_prototypes
+    # Group copies by source/template, omitting descendants already covered by an identical parent copy.
+    copies = {}
+    for group in np.flatnonzero(np.diff(world_starts)):
+        start, end = starts[group : group + 2]
+        targets = world_ids[world_starts[group] : world_starts[group + 1]]
+        members = [
+            index for index in range(start, end) if asset_prototype_ids is None or assets[index] in asset_prototype_ids
+        ]
+        for index, parent in zip(members, cloner.path.get_parent_indices([templates[i] for i in members]), strict=True):
+            source, template = sources[assets[index]], templates[index]
+            if parent != -1:
+                ancestor = members[parent]
+                suffix = cloner.path.relative_to(template, templates[ancestor])
+                if source == sources[assets[ancestor]] + suffix:
+                    continue
+            copies.setdefault((source, template), []).append(targets)
+    for source, template in sorted(copies, key=lambda copy: copy[1].count("/")):
+        worlds = np.concatenate(copies[source, template])
+        if targets := [target for target in map(template.format, worlds) if target != source]:
+            yield source, targets
+
+
 def _env_roots(plan: ClonePlan) -> tuple[list[str], np.ndarray]:
     """Return the environment-root paths and their ``(num_envs, 4, 4)`` world transforms authored by the plan."""
     num_envs = len(plan.topology.world_prototype_layout)
@@ -182,10 +225,9 @@ def ovrtx_replicate(
     from ovrtx import PrimMode, Semantic  # noqa: PLC0415
 
     copies = 0
-    for source, template, worlds in cloner.path.get_asset_copies(plan, asset_prototype_ids):
-        if targets := [target for target in map(template.format, worlds) if target != source]:
-            renderer.clone_usd(source, targets)
-            copies += 1
+    for source, targets in _iter_clone_copies(plan, asset_prototype_ids):
+        renderer.clone_usd(source, targets)
+        copies += 1
     env_paths, xforms = _env_roots(plan)
     renderer.write_attribute(
         env_paths, "omni:xform", xforms, semantic=Semantic.XFORM_MAT4x4, prim_mode=PrimMode.MUST_EXIST
@@ -217,10 +259,9 @@ def ovstage_replicate(
     from isaaclab_ov.stage import xform_tensor_from_numpy  # noqa: PLC0415
 
     copies = 0
-    for source, template, worlds in cloner.path.get_asset_copies(plan, asset_prototype_ids):
-        if targets := [target for target in map(template.format, worlds) if target != source]:
-            stage.clone(source, targets, ordinal=ordinal)
-            copies += 1
+    for source, targets in _iter_clone_copies(plan, asset_prototype_ids):
+        stage.clone(source, targets, ordinal=ordinal)
+        copies += 1
     env_paths, xforms = _env_roots(plan)
     path_list = paths.create_path_list_from_strings(env_paths)
     with stage.query_from_path_list(path_list) as query:

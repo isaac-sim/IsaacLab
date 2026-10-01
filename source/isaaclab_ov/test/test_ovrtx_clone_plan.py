@@ -449,3 +449,44 @@ def test_renderer_cfg_declares_the_clone_contexts_of_both_scene_paths():
         "isaaclab_ov.cloner:OvrtxReplicateContext",
         "isaaclab_ov.cloner:OvstageReplicateContext",
     )
+
+
+_ROBOT_WITH_COVERED_CAMERA = [
+    ("/Sources/Robot", ["/World/envs/env_0/Robot"]),
+    ("/Sources/Robot/Camera", ["/World/envs/env_1/Robot/Camera"]),
+]
+
+
+@pytest.mark.parametrize(
+    ("child_source", "routed", "expected"),
+    [
+        ("/Sources/Robot/Camera", (0, 1), _ROBOT_WITH_COVERED_CAMERA),
+        ("/Sources/Robot/Camera", None, _ROBOT_WITH_COVERED_CAMERA),
+        (
+            "/Sources/Camera",
+            (0, 1),
+            [
+                ("/Sources/Robot", ["/World/envs/env_0/Robot"]),
+                ("/Sources/Camera", ["/World/envs/env_0/Robot/Camera", "/World/envs/env_1/Robot/Camera"]),
+            ],
+        ),
+        (
+            "/Sources/Robot/Camera",
+            (0,),
+            [("/Sources/Robot/Camera", ["/World/envs/env_0/Robot/Camera", "/World/envs/env_1/Robot/Camera"])],
+        ),
+        ("/Sources/Robot/Camera", (), []),
+    ],
+    ids=["child covered by its parent", "every asset", "independent child", "parent not routed", "nothing routed"],
+)
+def test_clone_copies_omit_covered_children_and_honor_routing(child_source, routed, expected):
+    """A copy that its routed ancestor already carries is omitted, and unrouted assets are never copied."""
+    from isaaclab_ov.cloner.replicate import _iter_clone_copies
+
+    cfgs = (
+        AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Robot/Camera", spawn=SpawnerCfg(spawn_path=child_source)),
+        AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Robot", spawn=SpawnerCfg(spawn_path="/Sources/Robot")),
+    )
+    plan = make_clone_plan(cfgs, ((0, 1), (0,)), 2, positions=np.zeros((2, 3), dtype=np.float32))
+
+    assert list(_iter_clone_copies(plan, routed)) == expected
