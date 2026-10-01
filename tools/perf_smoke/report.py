@@ -83,7 +83,7 @@ def render_aggregate(reports: list[tuple[str, Report]]) -> str:
         Markdown for the aggregate job summary.
     """
     if not reports:
-        return "## Performance smoke: no results\n\nNo comparison artifacts were produced.\n"
+        return "### Rolling-history CI gate: no results\n\nNo comparison artifacts were produced.\n"
 
     # SKIP ranks below PASS so that a run where nothing was compared does not headline as a green
     # pass. A mix still headlines PASS since at least once comparison was made.
@@ -91,7 +91,7 @@ def render_aggregate(reports: list[tuple[str, Report]]) -> str:
     worst = max((report.verdict for _, report in reports), key=lambda verdict: order.get(verdict, 0))
 
     lines = [
-        f"## Performance smoke: {_icon(worst)}",
+        f"### Rolling-history CI gate: {_icon(worst)}",
         "",
         "| Combination | Total FPS | Baseline | Change | Startup [s] | GPU mem [GB] | RSS [GB] | Verdict |",
         "| --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |",
@@ -102,13 +102,24 @@ def render_aggregate(reports: list[tuple[str, Report]]) -> str:
         by_name = {metric.name: metric for metric in report.metrics}
         fps = by_name.get("total_fps")
         lines.append(
-            f"| {name} | {_num(fps.measured) if fps else '-'} | {_num(fps.reference) if fps else '-'} | "
+            f"| {_build_text(name)} | {_num(fps.measured) if fps else '-'} | {_num(fps.reference) if fps else '-'} | "
             f"{_pct(fps.regression_pct) if fps else '-'} | "
             f"{_num(by_name['startup_time_s'].measured, 4) if 'startup_time_s' in by_name else '-'} | "
             f"{_num(by_name['gpu_mem_peak_gb'].measured, 4) if 'gpu_mem_peak_gb' in by_name else '-'} | "
             f"{_num(by_name['ram_peak_gb'].measured, 4) if 'ram_peak_gb' in by_name else '-'} | "
             f"{_icon(report.verdict)} |"
         )
+    lines.append("")
+    for name, report in sorted(reports, key=lambda item: item[0]):
+        reasons = [report.message] if report.message else []
+        reasons.extend(f"{metric.label}: {metric.note}" for metric in report.metrics if metric.note)
+        if not reasons and report.verdict in (SKIP, ERROR):
+            reasons.append("No reason was recorded in this comparison artifact.")
+        if reasons:
+            lines.append(
+                f"- **{_build_text(name)} — {_build_text(report.verdict)}:** "
+                + " ".join(_build_text(reason) for reason in dict.fromkeys(reasons))
+            )
     lines += [
         "",
         f"{len(reports)} combination(s) reported. A 🚫 ERROR row is a fault in the gate, not a performance "
@@ -158,6 +169,24 @@ def _build_identity(label: str, identity: dict | None) -> str:
     return f"**{label}:** {source} · {execution}{evidence}{note}."
 
 
+def _build_result(row: dict) -> str:
+    if row["status"] == "compared":
+        delta = row.get("absolute_change")
+        if delta is None:
+            return "Observed change unavailable"
+        if delta > 0:
+            return "Higher observed FPS"
+        if delta < 0:
+            return "Lower observed FPS"
+        return "No observed change"
+    return {
+        "missing": "Not compared: missing data",
+        "partial": "Not compared: partial data",
+        "unknown": "Not compared: comparability unknown",
+        "incompatible": "Not compared: incompatible measurements",
+    }.get(row["status"], f"Not compared: {row['status']}")
+
+
 def render_build_comparison(report: dict) -> str:
     """Render exact-build FPS observations within the existing Performance smoke summary."""
     selection = report.get("selection", {})
@@ -195,38 +224,45 @@ def render_build_comparison(report: dict) -> str:
     rows = report.get("rows", [])
     if rows:
         lines += [
-            "| Workload | A FPS | B FPS | Δ FPS (B − A) | Δ % | Samples A / B | Result |",
+            "| Workload | Baseline A FPS | Current B FPS | Δ FPS (B − A) | Δ % | Samples A / B | Result |",
             "| --- | ---: | ---: | ---: | ---: | --- | --- |",
         ]
+    detail_workloads: dict[str, list[str]] = {}
     for row in rows:
         counts = []
         for side in ("baseline", "candidate"):
             item = row[side]
             expected = item.get("expected_count")
             counts.append(f"{item['count']}/{expected if expected is not None else '?'}")
-        details = [row["status"], *row.get("reasons", []), *row.get("notes", [])]
+        details = [*row.get("reasons", []), *row.get("notes", [])]
         for difference in row.get("protocol_differences", []) + row.get("context_differences", []):
             details.append(
                 f"{difference['field']}: "
                 f"{json.dumps(difference['baseline'], sort_keys=True)} → "
                 f"{json.dumps(difference['candidate'], sort_keys=True)}"
             )
+        for detail in dict.fromkeys(details):
+            detail_workloads.setdefault(detail, []).append(row["label"])
         delta = row.get("absolute_change")
         absolute = "—" if delta is None else f"{delta:+.6g}"
         lines.append(
             f"| {_build_text(row['label'])} | {_num(row['baseline']['median'])} | "
             f"{_num(row['candidate']['median'])} | {absolute} | {_pct(row.get('change_pct'))} | "
-            f"{' / '.join(counts)} | {'<br>'.join(_build_text(item) for item in details)} |"
+            f"{' / '.join(counts)} | {_build_text(_build_result(row))} |"
         )
     if not rows:
         lines.append("No readable workload rows are available for this comparison.")
+    if detail_workloads:
+        lines += ["", "**Comparison details:**", ""]
+        for detail, labels in detail_workloads.items():
+            applies_to = "All workloads" if len(labels) == len(rows) and len(rows) > 1 else "; ".join(labels)
+            lines.append(f"- **{_build_text(applies_to)}:** {_build_text(detail)}")
     lines += [
         "",
         "FPS values are medians of the available samples. Positive Δ means higher observed FPS; "
         "negative Δ means lower observed FPS. Sample counts are valid/expected for A and B.",
         "",
-        "The existing rolling-history CI gate above is unchanged. "
-        "These exact-build deltas do not determine its verdict.",
+        "The rolling-history CI gate below is unchanged. These exact-build deltas do not determine its verdict.",
         "",
     ]
     for note in dict.fromkeys(report.get("notes", [])):
