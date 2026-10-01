@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import functools
-import re
 from typing import TYPE_CHECKING
 
 import torch
@@ -19,8 +18,6 @@ if TYPE_CHECKING:
 
 # specify the functions that are available for import
 __all__ = ["compute_symmetric_states"]
-
-_ANYMAL_JOINT_NAME = re.compile(r"(?P<side>[LR])(?P<end>[FH])_(?P<joint>HAA|HFE|KFE)")
 
 
 @torch.no_grad()
@@ -210,7 +207,7 @@ _BASE_SIGNS = {
     "front_back": (-1, 1, 1, 1, -1, -1, -1, 1, 1, -1, 1, -1),
 }
 # side and end letters swapped, and joint types negated, per transform
-_JOINT_SWAPS = {"left_right": {"L": "R", "R": "L"}, "front_back": {"F": "H", "H": "F"}}
+_JOINT_SWAPS = {"left_right": str.maketrans("LR", "RL"), "front_back": str.maketrans("FH", "HF")}
 _NEGATED_JOINTS = {"left_right": ("HAA",), "front_back": ("HFE", "KFE")}
 # height-scan grid dimension flipped per transform, for the (11, 17) grid
 _HEIGHT_SCAN_FLIP_DIM = {"left_right": 0, "front_back": 1}
@@ -222,26 +219,9 @@ def _has_height_scan(env: ManagerBasedRLEnv) -> bool:
 
 
 def _joint_permutation(kind: str, joint_names: tuple[str, ...]) -> tuple[list[int], list[float]]:
-    """Source joint index and sign of each joint for a transform, resolved from the joint names.
-
-    Raises:
-        ValueError: If a joint name does not follow the ANYmal naming convention or has no mirrored counterpart.
-    """
-    name_to_index = {name: i for i, name in enumerate(joint_names)}
-    swap = _JOINT_SWAPS[kind]
-    perm, sign = [], []
-    for name in joint_names:
-        match = _ANYMAL_JOINT_NAME.fullmatch(name)
-        if match is None:
-            raise ValueError(
-                f"Joint '{name}' does not follow the ANYmal naming convention: {_ANYMAL_JOINT_NAME.pattern}."
-            )
-        side, end, joint = match.group("side", "end", "joint")
-        counterpart = f"{swap.get(side, side)}{swap.get(end, end)}_{joint}"
-        if counterpart not in name_to_index:
-            raise ValueError(f"Mirrored joint '{counterpart}' is missing from the joint names: {joint_names}.")
-        perm.append(name_to_index[counterpart])
-        sign.append(-1.0 if joint in _NEGATED_JOINTS[kind] else 1.0)
+    """Source joint index and sign of each joint for a transform, resolved from the joint names."""
+    perm = [joint_names.index(name[:2].translate(_JOINT_SWAPS[kind]) + name[2:]) for name in joint_names]
+    sign = [-1.0 if name[3:] in _NEGATED_JOINTS[kind] else 1.0 for name in joint_names]
     return perm, sign
 
 

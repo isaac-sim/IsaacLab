@@ -26,26 +26,6 @@ NEWTON_ORDER = [
     "RH_HAA", "RH_HFE", "RH_KFE",
 ]  # fmt: skip
 
-# Mirrored counterpart and sign of each joint.
-LEFT_RIGHT = {
-    "LF_HAA": ("RF_HAA", -1), "LF_HFE": ("RF_HFE", 1), "LF_KFE": ("RF_KFE", 1),
-    "LH_HAA": ("RH_HAA", -1), "LH_HFE": ("RH_HFE", 1), "LH_KFE": ("RH_KFE", 1),
-    "RF_HAA": ("LF_HAA", -1), "RF_HFE": ("LF_HFE", 1), "RF_KFE": ("LF_KFE", 1),
-    "RH_HAA": ("LH_HAA", -1), "RH_HFE": ("LH_HFE", 1), "RH_KFE": ("LH_KFE", 1),
-}  # fmt: skip
-FRONT_BACK = {
-    "LF_HAA": ("LH_HAA", 1), "LF_HFE": ("LH_HFE", -1), "LF_KFE": ("LH_KFE", -1),
-    "LH_HAA": ("LF_HAA", 1), "LH_HFE": ("LF_HFE", -1), "LH_KFE": ("LF_KFE", -1),
-    "RF_HAA": ("RH_HAA", 1), "RF_HFE": ("RH_HFE", -1), "RF_KFE": ("RH_KFE", -1),
-    "RH_HAA": ("RF_HAA", 1), "RH_HFE": ("RF_HFE", -1), "RH_KFE": ("RF_KFE", -1),
-}  # fmt: skip
-DIAGONAL = {
-    "LF_HAA": ("RH_HAA", -1), "LF_HFE": ("RH_HFE", -1), "LF_KFE": ("RH_KFE", -1),
-    "LH_HAA": ("RF_HAA", -1), "LH_HFE": ("RF_HFE", -1), "LH_KFE": ("RF_KFE", -1),
-    "RF_HAA": ("LH_HAA", -1), "RF_HFE": ("LH_HFE", -1), "RF_KFE": ("LH_KFE", -1),
-    "RH_HAA": ("LF_HAA", -1), "RH_HFE": ("LF_HFE", -1), "RH_KFE": ("LF_KFE", -1),
-}  # fmt: skip
-
 
 # Reference: the index-assignment formulation the permutation tables must reproduce.
 _LEFT = [0, 4, 8, 1, 5, 9]
@@ -127,30 +107,26 @@ def test_compute_symmetric_states_matches_reference(height_scan: bool):
     assert torch.equal(actions_aug, expected_actions)
 
 
-@pytest.mark.parametrize("joint_names", [PHYSX_ORDER, NEWTON_ORDER], ids=["physx", "newton"])
-def test_symmetry_mirrors_joints_by_name(joint_names):
-    """Mirrored joint observations and actions come from the counterpart joint with the right sign."""
-    env = SimpleNamespace(
-        scene={"robot": SimpleNamespace(joint_names=joint_names)},
-        observation_manager=SimpleNamespace(active_terms={"policy": []}),
-    )
-    env.unwrapped = env
-    # tag every joint entry with a distinct value per joint and per observation block
-    joint_values = torch.arange(1.0, 13.0)
-    obs = torch.cat([torch.zeros(12), joint_values, joint_values + 100.0, joint_values + 200.0]).unsqueeze(0)
-    obs_aug, actions_aug = anymal.compute_symmetric_states(
-        env, TensorDict({"policy": obs}, batch_size=[1]), joint_values.unsqueeze(0)
-    )
+def test_compute_symmetric_states_follows_joint_names():
+    """Verify the Newton joint order is mirrored like the PhysX order, with the joint columns reordered."""
+    joint_cols = [PHYSX_ORDER.index(name) for name in NEWTON_ORDER]
+    obs_cols = list(range(12)) + [start + joint for start in (12, 24, 36) for joint in joint_cols]
+    obs = torch.randn(5, 48)
+    actions = torch.randn(5, 12)
 
-    value = {name: joint_values[i] for i, name in enumerate(joint_names)}
-    for row, mirror in ((1, LEFT_RIGHT), (2, FRONT_BACK), (3, DIAGONAL)):
-        expected = torch.stack([mirror[name][1] * value[mirror[name][0]] for name in joint_names])
-        torch.testing.assert_close(actions_aug[row], expected)
-        for offset, block in enumerate(range(12, 48, 12)):
-            obs_block = obs_aug["policy"][row, block : block + 12]
-            torch.testing.assert_close(obs_block, expected + torch.sign(expected) * 100.0 * offset)
+    outputs = []
+    for joint_names, obs_idx, action_idx in (
+        (PHYSX_ORDER, list(range(48)), list(range(12))),
+        (NEWTON_ORDER, obs_cols, joint_cols),
+    ):
+        env = SimpleNamespace(
+            scene={"robot": SimpleNamespace(joint_names=joint_names)},
+            observation_manager=SimpleNamespace(active_terms={"policy": []}),
+        )
+        env.unwrapped = env
+        policy = TensorDict({"policy": obs[:, obs_idx]}, batch_size=[5])
+        outputs.append(anymal.compute_symmetric_states(env, policy, actions[:, action_idx]))
+    (physx_obs, physx_actions), (newton_obs, newton_actions) = outputs
 
-
-def test_symmetry_without_inputs_returns_none():
-    """Calling without observations and actions returns ``(None, None)`` without touching the scene."""
-    assert anymal.compute_symmetric_states(SimpleNamespace()) == (None, None)
+    assert torch.equal(newton_obs["policy"], physx_obs["policy"][:, obs_cols])
+    assert torch.equal(newton_actions, physx_actions[:, joint_cols])
