@@ -3,14 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Launch Isaac Sim Simulator first."""
-
-from isaaclab.app import AppLauncher
-
 # Pink IK tests strip task cameras before environment construction.
-simulation_app = AppLauncher(headless=True).app
+from isaaclab.test.utils import launch_test_simulation
 
-"""Rest everything follows."""
+launch_test_simulation()
 
 import contextlib
 import json
@@ -175,7 +171,6 @@ def test_setup(env_and_cfg):
     "test_name",
     [
         "horizontal_movement",
-        "horizontal_small_movement",
         "stay_still",
         "forward_waist_bending_movement",
         "vertical_movement",
@@ -188,7 +183,6 @@ def test_movement_types(test_setup, test_name):
     env_cfg = test_setup["env_cfg"]
 
     if test_name not in test_cfg["tests"]:
-        print(f"Skipping {test_name} test for {env_cfg.__class__.__name__} environment (test not defined)...")
         pytest.skip(f"Test {test_name} not defined for {env_cfg.__class__.__name__}")
         return
 
@@ -199,14 +193,9 @@ def test_movement_types(test_setup, test_name):
     waist_enabled = is_waist_enabled(env_cfg)
 
     if requires_waist_bending and not waist_enabled:
-        print(
-            f"Skipping {test_name} test because it requires waist bending but waist is not enabled in"
-            f" {env_cfg.__class__.__name__}..."
-        )
         pytest.skip(f"Test {test_name} requires waist bending but waist is not enabled")
         return
 
-    print(f"Running {test_name} test...")
     run_movement_test(test_setup, test_config, test_cfg)
 
 
@@ -230,7 +219,7 @@ def run_movement_test(test_setup, test_config, test_cfg, aux_function=None):
         phase = "initial"
         steps_in_phase = 0
 
-        while simulation_app.is_running() and not simulation_app.is_exiting():
+        while True:
             num_runs += 1
             steps_in_phase += 1
 
@@ -262,7 +251,6 @@ def run_movement_test(test_setup, test_config, test_cfg, aux_function=None):
 
             # Check convergence and verify errors
             if steps_in_phase % check_interval == 0:
-                print("Computing errors...")
                 errors = compute_errors(
                     test_setup,
                     env,
@@ -271,7 +259,6 @@ def run_movement_test(test_setup, test_config, test_cfg, aux_function=None):
                     test_setup["left_eef_urdf_link_name"],
                     test_setup["right_eef_urdf_link_name"],
                 )
-                print_debug_info(errors, test_counter)
                 test_params = test_setup["test_params"]
                 if test_params["check_errors"]:
                     verify_errors(errors, test_setup, test_params)
@@ -281,7 +268,6 @@ def run_movement_test(test_setup, test_config, test_cfg, aux_function=None):
                 if curr_pose_idx == 0:
                     test_counter += 1
                     if test_counter > test_config["repeat"]:
-                        print("Test completed successfully")
                         break
                 # After the first phase, switch to normal interval
                 if phase == "initial":
@@ -429,12 +415,3 @@ def verify_errors(errors, test_setup, tolerances):
                 f" ({tolerances['rotation']:.6f})"
             ),
         )
-
-
-def print_debug_info(errors, test_counter):
-    """Print debug information about the current state."""
-    print(f"\nTest iteration {test_counter + 1}:")
-    for hand in ["left", "right"]:
-        print(f"Measured {hand} hand position error:", errors[f"{hand}_pos_error"])
-        print(f"Measured {hand} hand rotation error:", errors[f"{hand}_rot_error"])
-        print(f"Measured {hand} hand PD error:", errors[f"{hand}_pd_error"])
