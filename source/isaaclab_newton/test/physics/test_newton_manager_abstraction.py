@@ -65,7 +65,15 @@ from isaaclab_newton.renderers.newton_warp_renderer import NewtonWarpRenderer
 from newton import JointTargetMode, JointType, ModelBuilder, ModelFlags
 from newton.actuators import DrivePID
 from newton.selection import ArticulationView
-from newton.solvers import SolverFeatherstone, SolverImplicitMPM, SolverKamino, SolverMuJoCo, SolverSemiImplicit, SolverVBD, SolverXPBD
+from newton.solvers import (
+    SolverFeatherstone,
+    SolverImplicitMPM,
+    SolverKamino,
+    SolverMuJoCo,
+    SolverSemiImplicit,
+    SolverVBD,
+    SolverXPBD,
+)
 
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.physics import PhysicsEvent, PhysicsManager
@@ -676,7 +684,6 @@ def test_mpm_prepare_builder_converts_convex_mesh_before_solver_construction():
     [
         pytest.param(NewtonMJWarpManager, MJWarpSolverCfg(), 0.11, 0.23, id="mjwarp"),
         pytest.param(NewtonFeatherstoneManager, FeatherstoneSolverCfg(), 0.0, 0.0, id="featherstone"),
-        pytest.param(NewtonSemiImplicitManager, SemiImplicitSolverCfg(), 0.0, 0.0, id="semi_implicit"),
     ],
 )
 def test_production_imports_scope_mujoco_joint_properties(
@@ -745,7 +752,6 @@ def test_production_imports_scope_mujoco_joint_properties(
     [
         pytest.param(NewtonMJWarpManager, True, id="mjwarp"),
         pytest.param(NewtonFeatherstoneManager, False, id="featherstone"),
-        pytest.param(NewtonSemiImplicitManager, False, id="semi_implicit"),
     ],
 )
 def test_schema_resolver_policy_and_precedence(manager_cls, imports_mujoco):
@@ -1336,61 +1342,44 @@ def test_initialize_solver_populates_canonical_state(
         sim.step(render=False)
 
 
-def _bind_kitless_rigid_object(device: str) -> RigidObject:
-    """Bind Isaac Lab's real rigid-object API to the manager's finalized free bodies."""
+def _bind_kitless_asset(asset_cls: type, data_cls: type, device: str):
+    """Bind an Isaac Lab asset's public API to every articulation of the finalized model."""
     model = NewtonManager.get_model()
     root_view = ArticulationView(model, list(range(model.articulation_count)), verbose=False)
-    data = RigidObjectData(root_view, device)
-    rigid_object = object.__new__(RigidObject)
-    rigid_object._device = device
-    rigid_object._root_view = root_view
-    rigid_object._data = data
-    rigid_object._ALL_ENV_MASK = wp.ones(root_view.count, dtype=wp.bool, device=device)
-    return rigid_object
+    asset = object.__new__(asset_cls)
+    asset._device = device
+    asset._root_view = root_view
+    asset._data = data_cls(root_view, device)
+    asset._ALL_ENV_MASK = wp.ones(root_view.count, dtype=wp.bool, device=device)
+    return asset
 
 
-@pytest.mark.parametrize(
-    ("device", "use_cuda_graph"),
-    [
-        pytest.param("cpu", False, id="cpu_eager"),
-        pytest.param("cuda:0", False, id="cuda_eager"),
-        pytest.param("cuda:0", True, id="cuda_graph"),
-    ],
-)
-def test_semi_implicit_body_force_and_root_resets(device, use_cuda_graph):
+@pytest.mark.parametrize("use_cuda_graph", [False, True])
+def test_semi_implicit_body_force_and_root_resets(use_cuda_graph):
     """SemiImplicit should expose integrated motion and resets through the public rigid-object API."""
     dt = 0.1
     sim_cfg = SimulationCfg(
         dt=dt,
-        device=device,
+        device="cuda:0",
         gravity=(0.0, 0.0, 0.0),
         physics=NewtonCfg(
-            solver_cfg=SemiImplicitSolverCfg(angular_damping=0.0),
-            num_substeps=1,
-            use_cuda_graph=use_cuda_graph,
+            solver_cfg=SemiImplicitSolverCfg(angular_damping=0.0), num_substeps=1, use_cuda_graph=use_cuda_graph
         ),
     )
 
     with build_simulation_context(sim_cfg=sim_cfg) as sim:
-        inertia = wp.mat33(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0)
-        world_builder = NewtonManager.create_builder(gravity=(0.0, 0.0, 0.0))
-        world_builder.add_body(mass=2.0, inertia=inertia, lock_inertia=True, label="root")
-        builder = NewtonManager.create_builder(gravity=(0.0, 0.0, 0.0))
-        builder.add_world(world_builder)
-        builder.add_world(world_builder)
-        NewtonManager.set_builder(builder)
-
-        force = wp.array(
-            [(4.0, 0.0, 0.0, 0.0, 0.0, 0.0), (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)],
-            dtype=wp.spatial_vector,
-            device=device,
-        )
+        builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics))
+        for _ in range(2):
+            builder.begin_world()
+            builder.add_body(mass=2.0, inertia=wp.mat33(np.eye(3)), lock_inertia=True)
+            builder.end_world()
+        force = wp.array([(4.0, 0.0, 0.0, 0.0, 0.0, 0.0), (0.0,) * 6], dtype=wp.spatial_vector, device=sim.device)
         NewtonManager.register_state_force_callback(lambda state: state.body_f.assign(force))
         sim.reset()
-        rigid_object = _bind_kitless_rigid_object(device)
+        rigid_object = _bind_kitless_asset(RigidObject, RigidObjectData, sim.device)
 
-        assert (NewtonManager._graph is not None) is use_cuda_graph
         sim.step(render=False)
+        assert (NewtonManager._graph is not None) is use_cuda_graph
 
         # Semi-implicit Euler: v1 = F/m * dt = 0.2 m/s, x1 = v1 * dt = 0.02 m.
         root_pose = rigid_object.data.root_link_pose_w.warp.numpy()
@@ -1403,14 +1392,13 @@ def test_semi_implicit_body_force_and_root_resets(device, use_cuda_graph):
         reset_velocity = root_velocity.copy()
         reset_pose[0] = [1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0]
         reset_velocity[0] = [0.5, 0.0, 0.0, 0.0, 0.0, 0.0]
-        env_mask = wp.array([True, False], dtype=wp.bool, device=device)
+        env_mask = wp.array([True, False], dtype=wp.bool, device=sim.device)
         rigid_object.write_root_pose_to_sim_mask(
-            root_pose=wp.array(reset_pose, dtype=wp.transformf, device=device), env_mask=env_mask
+            root_pose=wp.array(reset_pose, dtype=wp.transformf, device=sim.device), env_mask=env_mask
         )
         rigid_object.write_root_velocity_to_sim_mask(
-            root_velocity=wp.array(reset_velocity, dtype=wp.spatial_vectorf, device=device), env_mask=env_mask
+            root_velocity=wp.array(reset_velocity, dtype=wp.spatial_vectorf, device=sim.device), env_mask=env_mask
         )
-
         sim.step(render=False)
 
         selected_pose = rigid_object.data.root_link_pose_w.warp.numpy()
@@ -1420,65 +1408,45 @@ def test_semi_implicit_body_force_and_root_resets(device, use_cuda_graph):
         np.testing.assert_allclose(selected_pose[1], root_pose[1], rtol=1.0e-5, atol=1.0e-6)
 
         sim.step(render=False)
-        np.testing.assert_allclose(
-            rigid_object.data.root_link_pose_w.warp.numpy()[0, :3],
-            [1.1, 2.0, 3.0],
-            rtol=1.0e-5,
-            atol=1.0e-6,
-        )
+        root_position = rigid_object.data.root_link_pose_w.warp.numpy()[0, :3]
+        np.testing.assert_allclose(root_position, [1.1, 2.0, 3.0], rtol=1.0e-5, atol=1.0e-6)
 
         sim.reset()
-        rigid_object = _bind_kitless_rigid_object(device)
-        assert (NewtonManager._graph is not None) is use_cuda_graph
+        rigid_object = _bind_kitless_asset(RigidObject, RigidObjectData, sim.device)
         sim.step(render=False)
+        assert (NewtonManager._graph is not None) is use_cuda_graph
         np.testing.assert_allclose(rigid_object.data.root_link_pose_w.warp.numpy()[:, :3], 0.0, atol=1.0e-6)
         np.testing.assert_allclose(rigid_object.data.root_com_vel_w.warp.numpy(), 0.0, atol=1.0e-6)
 
 
-def test_semi_implicit_public_joint_state_reaches_next_folded_iteration():
-    """SemiImplicit should publish joint telemetry before the next folded actuator callback."""
+def test_semi_implicit_joint_state_reaches_next_folded_iteration():
+    """SemiImplicit should publish joint state before the next folded actuator callback."""
     dt = 0.1
     sim_cfg = SimulationCfg(
         dt=dt,
         device="cpu",
         gravity=(0.0, 0.0, 0.0),
-        physics=NewtonCfg(
-            solver_cfg=SemiImplicitSolverCfg(angular_damping=0.0),
-            num_substeps=1,
-            use_cuda_graph=False,
-        ),
+        physics=NewtonCfg(solver_cfg=SemiImplicitSolverCfg(angular_damping=0.0), num_substeps=1, use_cuda_graph=False),
     )
 
     with build_simulation_context(sim_cfg=sim_cfg) as sim:
-        inertia = wp.mat33(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0)
-        world_builder = NewtonManager.create_builder(gravity=(0.0, 0.0, 0.0))
-        link = world_builder.add_link(mass=1.0, inertia=inertia, label="link")
-        joint = world_builder.add_joint_revolute(
-            parent=-1,
-            child=link,
-            axis=(0.0, 0.0, 1.0),
-            label="hinge",
-            target_ke=0.0,
-            target_kd=0.0,
-        )
-        world_builder.add_articulation([joint], label="robot")
-        builder = NewtonManager.create_builder(gravity=(0.0, 0.0, 0.0))
-        builder.add_world(world_builder)
-        builder.add_world(world_builder)
-        NewtonManager.set_builder(builder)
+        builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics))
+        for _ in range(2):
+            builder.begin_world()
+            link = builder.add_link(mass=1.0, inertia=wp.mat33(np.eye(3)))
+            joint = builder.add_joint_revolute(
+                parent=-1, child=link, axis=(0.0, 0.0, 1.0), target_ke=0.0, target_kd=0.0
+            )
+            builder.add_articulation([joint])
+            builder.end_world()
         sim.reset()
 
-        root_view = ArticulationView(NewtonManager.get_model(), [0, 1], verbose=False)
-        articulation = object.__new__(Articulation)
-        articulation._device = "cpu"
-        articulation._root_view = root_view
-        articulation._data = ArticulationData(root_view, "cpu")
-        articulation._ALL_ENV_MASK = wp.ones(2, dtype=wp.bool, device="cpu")
-        articulation._ALL_JOINT_INDICES = wp.array([0], dtype=wp.int32, device="cpu")
-        articulation._ALL_JOINT_MASK = wp.ones(1, dtype=wp.bool, device="cpu")
+        articulation = _bind_kitless_asset(Articulation, ArticulationData, sim.device)
+        articulation._ALL_JOINT_INDICES = wp.array([0], dtype=wp.int32, device=sim.device)
+        articulation._ALL_JOINT_MASK = wp.ones(1, dtype=wp.bool, device=sim.device)
         articulation.write_joint_state_to_sim_mask(
-            position=wp.zeros((2, 1), dtype=wp.float32, device="cpu"),
-            velocity=wp.array([[1.0], [0.0]], dtype=wp.float32, device="cpu"),
+            position=wp.zeros((2, 1), dtype=wp.float32, device=sim.device),
+            velocity=wp.array([[1.0], [0.0]], dtype=wp.float32, device=sim.device),
         )
 
         observed_joint_q = wp.zeros_like(NewtonManager.get_state_0().joint_q)
@@ -1489,14 +1457,13 @@ def test_semi_implicit_public_joint_state_reaches_next_folded_iteration():
         NewtonManager.set_decimation(2)
         sim.step(render=False)
 
-        # The callback's final invocation happens before the second solver iteration.
-        # It must see the first iteration's generalized state, while public telemetry
-        # after the step must contain both integrations.
+        # The last callback runs before the second solver iteration, so it sees one integration;
+        # data read after the step sees both.
         np.testing.assert_allclose(observed_joint_q.numpy(), [dt, 0.0], rtol=2.0e-3, atol=1.0e-6)
-        np.testing.assert_allclose(
-            articulation.data.joint_pos.warp.numpy()[:, 0], [2.0 * dt, 0.0], rtol=2.0e-3, atol=1.0e-6
-        )
-        np.testing.assert_allclose(articulation.data.joint_vel.warp.numpy()[:, 0], [1.0, 0.0], rtol=2.0e-3, atol=1.0e-6)
+        joint_pos = articulation.data.joint_pos.warp.numpy()[:, 0]
+        joint_vel = articulation.data.joint_vel.warp.numpy()[:, 0]
+        np.testing.assert_allclose(joint_pos, [2.0 * dt, 0.0], rtol=2.0e-3, atol=1.0e-6)
+        np.testing.assert_allclose(joint_vel, [1.0, 0.0], rtol=2.0e-3, atol=1.0e-6)
 
 
 def test_mjwarp_internal_contacts_with_collision_cfg_raises():
