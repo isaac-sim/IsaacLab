@@ -12,6 +12,8 @@ import pytest
 import torch
 import warp as wp
 
+from isaaclab.utils.seed import WarpRng
+
 # Skip entire module if no CUDA device available
 wp.init()
 pytestmark = pytest.mark.skipif(not wp.is_cuda_available(), reason="CUDA device required")
@@ -44,6 +46,7 @@ def _clear_function_caches():
     between tests to avoid stale references from prior fixtures.
     """
     yield
+    WarpRng.state = None
     for fn in (
         warp_evt.push_by_setting_velocity,
         warp_evt.apply_external_force_torque,
@@ -102,7 +105,7 @@ def warp_env(scene, action_wp, episode_length_buf):
     env.step_dt = 0.02
     env.max_episode_length_s = 10.0
     # RNG state for events (seeded deterministically)
-    env.rng_state_wp = wp.array(np.arange(NUM_ENVS, dtype=np.uint32) + 42, device=DEVICE)
+    WarpRng.state = wp.array(np.arange(NUM_ENVS, dtype=np.uint32) + 42, device=DEVICE)
     return env
 
 

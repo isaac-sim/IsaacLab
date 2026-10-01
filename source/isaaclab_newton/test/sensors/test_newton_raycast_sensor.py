@@ -40,6 +40,7 @@ from isaaclab.sensors.ray_caster.patterns import GridPatternCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass
+from isaaclab.utils.seed import WarpRng
 
 SENSOR_HEIGHT = 2.0
 RAY_OFFSET = 0.2
@@ -207,6 +208,9 @@ def test_partial_reset_resamples_drift_of_selected_envs_only(sim):
     sim.reset()
     sensor: NewtonRaycastSensor = scene["raycast"]
     sensor.reset()
+
+    # A masked reset draws from the process-wide Warp RNG state, which an environment initializes.
+    WarpRng.initialize(scene.num_envs, sensor.device)
 
     drift = sensor.drift.torch.clone()
     ray_cast_drift = sensor.ray_cast_drift.torch.clone()
