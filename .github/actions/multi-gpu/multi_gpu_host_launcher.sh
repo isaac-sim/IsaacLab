@@ -91,6 +91,7 @@ docker run --rm --gpus all --network=host \
   --user "${host_uid}:${host_gid}" \
   --name "isaac-lab-mgpu-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
   -v "$PWD:/workspace/isaaclab:rw" \
+  --env-file "$PWD/.github/actions/_lib/disable-git-lfs-filter.env" \
   -v "$queue_root:/mgpu:rw" \
   -v "$logs_dir:/shard-logs:rw" \
   -e USER="${host_user}" \

@@ -359,6 +359,7 @@ run_tests() {
     --init --stop-timeout 5 \
     --entrypoint bash --gpus all --network=host \
     -v "$PWD/.github/actions/_lib/with-python-package-retries.sh:/with-python-package-retries.sh:ro" \
+    --env-file "$PWD/.github/actions/_lib/disable-git-lfs-filter.env" \
     --security-opt=no-new-privileges:true \
     --memory="$(echo "$(free -m | awk '/^Mem:/{print $2}') * 0.9 / 1" | bc)m" \
     --cpus="$(echo "$(nproc) * 0.9" | bc)" \

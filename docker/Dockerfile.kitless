@@ -124,10 +124,9 @@ ENV PYTHONUNBUFFERED=1
 ENV NVIDIA_VISIBLE_DEVICES=all
 ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility,graphics
 
-# Neither git nor Git LFS ships in the runtime image: nothing here invokes git, and CI's
-# ``lfs: true`` checkout is materialised on the runner before the tree is bind-mounted in.
-# Leaving only one of the pair installed is what breaks -- ``git-lfs install --system`` sets
-# ``filter.lfs.required=true``, so a git without the filter binary fails every call on that tree.
+# Neither image ships Git LFS: scanners flag the Go modules embedded in its upstream binary. CI
+# bind-mounts an ``lfs: true`` checkout whose .git/config requires the LFS filter, so its launchers
+# pass ``.github/actions/_lib/disable-git-lfs-filter.env`` to keep in-container git working.
 #
 # Libraries ovrtx loads at init. GLVND splits these: libgl1 gives libGL.so.1,
 # but libOpenGL.so.0 and libEGL.so.1 need libopengl0 and libegl1. libxrender1 is
@@ -136,6 +135,7 @@ ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility,graphics
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
       ca-certificates \
+      git \
       curl \
       wget \
       libegl1 \
