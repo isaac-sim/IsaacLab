@@ -90,7 +90,7 @@ import isaaclab.utils.math as math_utils  # noqa: E402
 import isaaclab.utils.string as string_utils  # noqa: E402
 from isaaclab.actuators import DelayedPDActuatorCfg, IdealPDActuatorCfg, ImplicitActuatorCfg  # noqa: E402
 from isaaclab.assets import ArticulationCfg, get_articulation_name_ordering  # noqa: E402
-from isaaclab.managers import SceneEntityCfg  # noqa: E402
+from isaaclab.managers import EventTermCfg, SceneEntityCfg  # noqa: E402
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg  # noqa: E402
 from isaaclab.sim import SimulationCfg, build_simulation_context  # noqa: E402
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR  # noqa: E402
@@ -99,7 +99,7 @@ from isaaclab.utils.warp.launch_cache import _WarpLaunchCache  # noqa: E402
 ##
 # Pre-defined configs
 ##
-from isaaclab_assets import ANYMAL_C_CFG, CARTPOLE_CFG, FRANKA_PANDA_FLAT_CFG, SHADOW_HAND_PHYSX_CFG  # isort:skip
+from isaaclab_assets import ANYMAL_C_CFG, CARTPOLE_CFG, FRANKA_PANDA_CFG, SHADOW_HAND_PHYSX_CFG  # isort:skip
 
 wp.init()
 
@@ -438,7 +438,7 @@ def generate_articulation_cfg(
             actuators={"body": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=stiffness, damping=damping)},
         )
     elif articulation_type == "panda":
-        articulation_cfg = FRANKA_PANDA_FLAT_CFG
+        articulation_cfg = FRANKA_PANDA_CFG
     elif articulation_type == "anymal":
         articulation_cfg = ANYMAL_C_CFG
     elif articulation_type == "shadow_hand":
@@ -527,32 +527,6 @@ def generate_articulation(
     articulation = Articulation(replace(articulation_cfg, prim_path="/World/Env_[^/]*/Robot"))
 
     return articulation, translations
-
-
-@pytest.mark.parametrize("device", ["cuda:0"])
-@pytest.mark.parametrize("gravity_enabled", [False])
-def test_franka_ovphysx_mimic_constraint_tracks_passive_finger(sim, device, gravity_enabled):
-    """Drive only the Franka leader finger and preserve mimic tracking in every clone."""
-    articulation, _ = generate_articulation(FRANKA_PANDA_FLAT_CFG, 2, device)
-    sim.reset()
-
-    leader_id = articulation.find_joints("panda_finger_joint1")[0][0]
-    follower_id = articulation.find_joints("panda_finger_joint2")[0][0]
-    initial_leader_pos = articulation.data.joint_pos.torch[:, leader_id].clone()
-    leader_target = torch.full((articulation.num_instances, 1), 0.01, device=device)
-    articulation.actuators.target_command.set_position_index(value=leader_target, joint_ids=[leader_id])
-
-    for _ in range(120):
-        articulation.write_data_to_sim()
-        sim.step()
-        articulation.update(sim.cfg.dt)
-        assert torch.isfinite(articulation.data.joint_pos.torch).all()
-        assert torch.isfinite(articulation.data.joint_vel.torch).all()
-
-    leader_pos = articulation.data.joint_pos.torch[:, leader_id]
-    follower_pos = articulation.data.joint_pos.torch[:, follower_id]
-    assert torch.all(torch.abs(leader_pos - initial_leader_pos) > 0.005)
-    torch.testing.assert_close(follower_pos, leader_pos, rtol=0.0, atol=5.0e-4)
 
 
 @pytest.mark.parametrize("device", ["cuda:0"])
@@ -1772,7 +1746,7 @@ def test_out_of_range_default_joint_vel(sim, device):
     1. The articulation fails to initialize when joint velocities are out of range
     2. The error is properly handled
     """
-    articulation_cfg = replace(FRANKA_PANDA_FLAT_CFG, prim_path="/World/Robot")
+    articulation_cfg = replace(FRANKA_PANDA_CFG, prim_path="/World/Robot")
     articulation_cfg.init_state.joint_vel = {
         "panda_joint1": 100.0,
         "panda_joint[2, 4]": -60.0,
@@ -2346,7 +2320,7 @@ def test_reset(sim, num_articulations, device):
 @pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("add_ground_plane", [True])
 def test_apply_joint_command(sim, num_articulations, device, add_ground_plane):
-    """Test applying of joint position target functions correctly for a robotic arm."""
+    """Arm targets track commands while the passive finger follows the driven finger."""
     articulation_cfg = generate_articulation_cfg(articulation_type="panda")
     articulation, _ = generate_articulation(
         articulation_cfg=articulation_cfg, num_articulations=num_articulations, device=device
@@ -2364,6 +2338,10 @@ def test_apply_joint_command(sim, num_articulations, device, add_ground_plane):
     # reset dof state
     joint_pos = articulation.data.default_joint_pos.torch.clone()
     joint_pos[:, 3] = 0.0
+    leader_id = articulation.find_joints("panda_finger_joint1")[0][0]
+    follower_id = articulation.find_joints("panda_finger_joint2")[0][0]
+    initial_leader_pos = articulation.data.joint_pos.torch[:, leader_id].clone()
+    joint_pos[:, [leader_id, follower_id]] = 0.01
 
     # apply action to the articulation
     articulation.set_joint_position_target_index(target=joint_pos)
@@ -2379,6 +2357,11 @@ def test_apply_joint_command(sim, num_articulations, device, add_ground_plane):
     # gravity with these gains, so they are not checked. Without the target write, the drives pull
     # every joint toward zero instead (the wrist ends near 0.3 rad instead of 3.0 rad).
     torch.testing.assert_close(articulation.data.joint_pos.torch[:, 3:], joint_pos[:, 3:], atol=0.1, rtol=0.0)
+
+    leader_pos = articulation.data.joint_pos.torch[:, leader_id]
+    follower_pos = articulation.data.joint_pos.torch[:, follower_id]
+    assert torch.all(torch.abs(leader_pos - initial_leader_pos) > 0.005)
+    torch.testing.assert_close(follower_pos, leader_pos, rtol=0.0, atol=5.0e-4)
 
 
 @pytest.mark.parametrize("num_articulations", [2])
@@ -2598,7 +2581,7 @@ def test_com_orientation_write_invalidates_static_inertia_cache_with_body_orderi
     below forbids cross-device staging, so this test is CPU-only.
     """
     sim._app_control_on_stop_handle = None
-    articulation_cfg = replace(FRANKA_PANDA_FLAT_CFG, body_ordering=PANDA_ROOT_PRESERVING_REVERSED_BODY_NAMES)
+    articulation_cfg = replace(FRANKA_PANDA_CFG, body_ordering=PANDA_ROOT_PRESERVING_REVERSED_BODY_NAMES)
     articulation, _ = generate_articulation(articulation_cfg, 1, device=device)
 
     sim.reset()
@@ -2985,13 +2968,14 @@ def test_set_material_properties(sim, num_articulations, device, add_ground_plan
         "dynamic_friction_range": dynamic_range,
         "restitution_range": restitution_range,
         "num_buckets": 16,
+        "asset_cfg": SceneEntityCfg("robot"),
     }
-    asset_cfg = SimpleNamespace(name="robot", body_ids=slice(None))
     env = SimpleNamespace(scene={"robot": articulation}, sim=sim)
-    randomize = randomize_rigid_body_material(SimpleNamespace(params={**params, "asset_cfg": asset_cfg}), env)
+    cfg = EventTermCfg(func=randomize_rigid_body_material, mode="reset", params=params)
+    randomize = randomize_rigid_body_material(cfg, env)
 
     # Randomize only the last environment; the others keep their materials.
-    randomize(env, torch.tensor([num_articulations - 1], device=device), *params.values(), asset_cfg)
+    randomize(env, torch.tensor([num_articulations - 1], device=device), **cfg.params)
     sim.step()
     articulation.update(sim.cfg.dt)
 

@@ -50,7 +50,7 @@ from isaaclab.utils.math import (
     subtract_frame_transforms,
 )
 
-from isaaclab_assets import FRANKA_PANDA_CFG, G1_29DOF_CFG  # isort:skip
+from isaaclab_assets import FRANKA_PANDA_LEGACY_CFG, G1_29DOF_CFG  # isort:skip
 
 pytestmark = pytest.mark.integration
 
@@ -96,7 +96,7 @@ def sim():
     cloner.usd_replicate(stage, [env_fmt.format(0)], [env_fmt], env_ids, positions=env_origins)
 
     # Keep controller regressions on their original plant; canonical asset parity is tested by each backend.
-    robot_cfg = replace(FRANKA_PANDA_CFG, prim_path="{ENV_REGEX_NS}/Robot")
+    robot_cfg = replace(FRANKA_PANDA_LEGACY_CFG, prim_path="{ENV_REGEX_NS}/Robot")
     # Explicit torque actuators enforce effort limits on the commands sent to the simulator.
     for actuator_name in ("panda_shoulder", "panda_forearm"):
         actuator_cfg = robot_cfg.actuators[actuator_name]

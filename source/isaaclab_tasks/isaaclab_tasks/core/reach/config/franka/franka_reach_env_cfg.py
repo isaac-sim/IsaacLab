@@ -34,7 +34,7 @@ from isaaclab_tasks.utils import PresetCfg, preset
 ##
 # Pre-defined configs
 ##
-from isaaclab_assets import FRANKA_PANDA_FLAT_CFG  # isort: skip
+from isaaclab_assets import FRANKA_PANDA_CFG  # isort: skip
 
 from ...reach_env_cfg import ReachEnvCfg, RewardsCfg, TerminationsCfg
 
@@ -127,7 +127,7 @@ class FrankaReachEnvCfg(ReachEnvCfg):
         super().__post_init__()
 
         # Reach has no robot-scene contact objective, so use the fast gripper collider preset.
-        self.scene.robot = replace(FRANKA_PANDA_FLAT_CFG, prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot = replace(FRANKA_PANDA_CFG, prim_path="{ENV_REGEX_NS}/Robot")
         self.scene.robot.spawn.variants = {
             "Physics": preset(default="mujoco", isaacsim_physx="physx", physx="physx", ovphysx="physx"),
             "Colliders": preset(default="gripper_only", arm_collisions="primitives"),

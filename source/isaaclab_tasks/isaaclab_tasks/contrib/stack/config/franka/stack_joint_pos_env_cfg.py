@@ -18,7 +18,7 @@ from isaaclab_tasks.utils import preset
 ##
 # Pre-defined configs
 ##
-from isaaclab_assets.robots.franka import FRANKA_PANDA_FLAT_CFG  # isort: skip
+from isaaclab_assets.robots.franka import FRANKA_PANDA_CFG  # isort: skip
 
 # Default arm + gripper joint pose
 _FRANKA_STACK_IK_REL_INIT_JOINT_POS: dict[str, float] = {
@@ -52,7 +52,7 @@ class FrankaCubeStackEnvCfg(StackEnvCfg):
 
         # Set Franka as robot
         self.scene.robot = replace(
-            FRANKA_PANDA_FLAT_CFG,
+            FRANKA_PANDA_CFG,
             prim_path="{ENV_REGEX_NS}/Robot",
             init_state=ArticulationCfg.InitialStateCfg(joint_pos=_FRANKA_STACK_IK_REL_INIT_JOINT_POS),
         )

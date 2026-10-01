@@ -33,7 +33,7 @@ from isaaclab.sim.spawners.materials import UsdPhysicsRigidBodyMaterialCfg
 from isaaclab.utils import configclass, instantiate, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
-from isaaclab_assets import FRANKA_PANDA_FLAT_HIGH_PD_CFG
+from isaaclab_assets import FRANKA_PANDA_HIGH_PD_CFG
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation, RigidObject
@@ -127,7 +127,7 @@ class FrankaHaplySceneCfg(InteractiveSceneCfg):
         init_state=AssetBaseCfg.InitialStateCfg(pos=(0.50, 0.0, 1.05), rot=(0.707, 0, 0, 0.707)),
     )
 
-    robot_cfg: ArticulationCfg = replace(FRANKA_PANDA_FLAT_HIGH_PD_CFG, prim_path="{ENV_REGEX_NS}/Robot")
+    robot_cfg: ArticulationCfg = replace(FRANKA_PANDA_HIGH_PD_CFG, prim_path="{ENV_REGEX_NS}/Robot")
     robot = instantiate(robot_cfg)
     robot.init_state.pos = (-0.02, 0.0, 1.05)
     robot.spawn.activate_contact_sensors = True

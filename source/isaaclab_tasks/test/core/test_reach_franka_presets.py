@@ -22,7 +22,7 @@ from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 from isaaclab_tasks.utils.preset_cli import enumerate_task_presets
 from isaaclab_tasks.utils.preset_target import PresetTarget
 
-from isaaclab_assets import FRANKA_PANDA_FLAT_CFG
+from isaaclab_assets import FRANKA_PANDA_CFG
 
 _TASK = "Isaac-Reach-Franka"
 _OSC_TASK = "Isaac-Reach-Franka-OSC"
@@ -68,7 +68,7 @@ def test_franka_tasks_select_the_canonical_asset_and_backend_payload(task, physi
     physx_cfg = _load_reach_env_cfg(task, "isaacsim_physx")
 
     for cfg, physics_variant in ((newton_cfg, "mujoco"), (physx_cfg, "physx")):
-        assert cfg.scene.robot.spawn.usd_path == FRANKA_PANDA_FLAT_CFG.spawn.usd_path
+        assert cfg.scene.robot.spawn.usd_path == FRANKA_PANDA_CFG.spawn.usd_path
         assert cfg.scene.robot.spawn.variants == {
             "Physics": physics_variant,
             "Colliders": "gripper_only",
@@ -271,7 +271,7 @@ def test_reach_osc_effort_actuator_keeps_canonical_solver_properties():
     """Replacing the arm actuator with a zero-gain effort model must preserve its solver properties."""
     cfg = _load_reach_env_cfg(_OSC_TASK)
     arm_actuator = cfg.scene.robot.actuators["panda_arm"]
-    source_actuator = FRANKA_PANDA_FLAT_CFG.actuators["panda_arm"]
+    source_actuator = FRANKA_PANDA_CFG.actuators["panda_arm"]
 
     assert isinstance(arm_actuator, IdealPDActuatorCfg)
     assert arm_actuator.stiffness == 0.0 and arm_actuator.damping == 0.0

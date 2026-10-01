@@ -31,6 +31,7 @@ from isaaclab_rl.entrypoints.simple_agents import create_zero_action_policy
     [
         ("import isaaclab_rl", ["isaaclab_rl.entrypoints", "torch"]),
         ("import isaaclab_rl.entrypoints.backends", ["torch"]),
+        ("import isaaclab_rl.entrypoints.common", ["isaaclab.envs.direct_marl_env", "moviepy"]),
         # the LEAPP runtime must only load once the simulation has launched
         ("import isaaclab_rl.entrypoints.backends.export_rsl_rl", ["leapp", "isaaclab.utils.leapp"]),
         ("import isaaclab_rl.rl_games", ["isaaclab_rl.rl_games.rl_games", "rl_games", "torch"]),
