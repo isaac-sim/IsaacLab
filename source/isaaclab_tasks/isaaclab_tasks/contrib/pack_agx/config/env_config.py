@@ -7,12 +7,13 @@
 
 import math
 import os
+from dataclasses import MISSING
 
 from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.envs.mdp as base_mdp
 import isaaclab.sim as sim_utils
-from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
+from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg, ViewerCfg
 from isaaclab.managers import EventTermCfg, SceneEntityCfg
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
@@ -22,16 +23,21 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils.configclass import configclass
 
+from isaaclab_tasks.contrib.h2_sharpa import (
+    LEFT_WRIST_CAMERA_CFG,
+    POLICY_JOINT_NAMES,
+    RIGHT_WRIST_CAMERA_CFG,
+    H2GravityCompensatedJointPositionAction,
+    phase_reward,
+    warm_rgb_image,
+)
 from isaaclab_tasks.contrib.rlinf_assets import NUREC_ASSET_ROOT, PROP_ASSET_ROOT
 
+from isaaclab_assets.robots.unitree import H2_SHARPA_CFG
+from isaaclab_assets.sensors.unitree import H2_HEAD_CAMERA_CFG
+
 from .. import mdp
-from .camera_config import FRONT_CAMERA_CFG, LEFT_WRIST_CAMERA_CFG, RIGHT_WRIST_CAMERA_CFG
-from .metadata import (
-    ACTION_DIM,
-    H2_ACTION_JOINT_ORDER,
-    POLICY_58_ORDER,
-)
-from .robot_config import H2RobotPresets, h2_body_joint_offsets
+from ..spawners import spawn_prop
 
 # Reuse the proven bimanual, camera-facing H2 teleop pose until a pack-task
 # recording supplies a task-specific frame-zero pose.
@@ -95,14 +101,10 @@ _FRAME0_POLICY_58_POS: tuple[float, ...] = (
     0.0611,
     0.0884,
 )
-assert len(_FRAME0_POLICY_58_POS) == ACTION_DIM
 
 # Arm + Sharpa-hand start pose for the pack_agx task, keyed by joint name.
-CUSTOM_JOINT_POS: dict[str, float] = dict(zip(POLICY_58_ORDER, _FRAME0_POLICY_58_POS, strict=True))
+CUSTOM_JOINT_POS: dict[str, float] = dict(zip(POLICY_JOINT_NAMES, _FRAME0_POLICY_58_POS, strict=True))
 CUSTOM_JOINT_POS["head_pitch_joint"] = 0.6
-assert "head_pitch_joint" not in POLICY_58_ORDER, (
-    "head must stay outside POLICY_58_ORDER so policy cannot lift the head"
-)
 
 
 # Task-specific start pose.
@@ -143,13 +145,26 @@ def _randomize_asset_pose(
 
 
 @configclass
+class TexturedPropCfg(sim_utils.UsdFileCfg):
+    """Preserve authored textures while setting constant OmniPBR material channels."""
+
+    func = spawn_prop
+    metallic: float = MISSING
+    roughness: float = MISSING
+    brightness: float = MISSING
+
+
+@configclass
 class PackAgxOrinSceneCfg(InteractiveSceneCfg):
     """Independent H2 scene for packing an AGX Orin."""
 
-    robot = H2RobotPresets.h2_sharpa_base_fix(
-        init_pos=INIT_POS,
-        init_rot=INIT_ROT,
-        custom_joint_pos=CUSTOM_JOINT_POS,
+    robot = H2_SHARPA_CFG.replace(
+        prim_path="{ENV_REGEX_NS}/Robot",
+        init_state=ArticulationCfg.InitialStateCfg(
+            pos=INIT_POS,
+            rot=INIT_ROT,
+            joint_pos={**H2_SHARPA_CFG.init_state.joint_pos, **CUSTOM_JOINT_POS},
+        ),
     )
 
     background = AssetBaseCfg(
@@ -224,8 +239,8 @@ class PackAgxOrinSceneCfg(InteractiveSceneCfg):
             scale=(1.07, 0.92, 1.12),
             rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
             visual_material=sim_utils.PreviewSurfaceCfg(
-                diffuse_color=(1.0, 1.0, 1.0),
-                roughness=0.65,
+                diffuse_color=(0.75, 0.75, 0.75),
+                roughness=0.8,
                 metallic=0.0,
             ),
         ),
@@ -237,9 +252,7 @@ class PackAgxOrinSceneCfg(InteractiveSceneCfg):
 
     agx_orin = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/AgxOrin",
-        spawn=sim_utils.UsdFileCfg(
-            usd_path=AGX_ORIN_USD,
-        ),
+        spawn=TexturedPropCfg(usd_path=AGX_ORIN_USD, metallic=0.15, roughness=0.55, brightness=3.4),
         init_state=RigidObjectCfg.InitialStateCfg(
             pos=(-0.58, -0.24, 0.97),
             rot=(0, 0, 0.017099942, 0.99985379),
@@ -248,8 +261,11 @@ class PackAgxOrinSceneCfg(InteractiveSceneCfg):
 
     protective_box = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/ProtectiveBox",
-        spawn=sim_utils.UsdFileCfg(
+        spawn=TexturedPropCfg(
             usd_path=PROTECTIVE_BOX_USD,
+            metallic=0.05,
+            roughness=0.85,
+            brightness=2.6,
             rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
         ),
         init_state=RigidObjectCfg.InitialStateCfg(
@@ -286,7 +302,7 @@ class PackAgxOrinSceneCfg(InteractiveSceneCfg):
         ),
     )
 
-    front_camera = FRONT_CAMERA_CFG.replace(height=240, width=320)
+    front_camera = H2_HEAD_CAMERA_CFG.replace(height=240, width=320)
     left_wrist_camera = LEFT_WRIST_CAMERA_CFG.replace(height=240, width=320)
     right_wrist_camera = RIGHT_WRIST_CAMERA_CFG.replace(height=240, width=320)
 
@@ -296,12 +312,11 @@ class ActionsCfg:
     """RL joint control with PhysX gravity feed-forward on both arms."""
 
     joint_pos = mdp.JointPositionActionCfg(
-        class_type=mdp.H2GravityCompensatedJointPositionAction,
+        class_type=H2GravityCompensatedJointPositionAction,
         asset_name="robot",
-        joint_names=H2_ACTION_JOINT_ORDER,
+        joint_names=POLICY_JOINT_NAMES,
         scale=1.0,
         use_default_offset=False,
-        offset=h2_body_joint_offsets(CUSTOM_JOINT_POS),
         preserve_order=True,
     )
 
@@ -312,11 +327,10 @@ class ObservationsCfg:
 
     @configclass
     class PolicyCfg(ObsGroup):
-        robot_joint_state = ObsTerm(func=mdp.get_robot_joint_states)
         robot_policy_joint_pos = ObsTerm(
             func=mdp.joint_pos,
             params={
-                "asset_cfg": SceneEntityCfg("robot", joint_names=POLICY_58_ORDER, preserve_order=True),
+                "asset_cfg": SceneEntityCfg("robot", joint_names=POLICY_JOINT_NAMES, preserve_order=True),
             },
         )
 
@@ -327,7 +341,7 @@ class ObservationsCfg:
     @configclass
     class CameraImagesCfg(ObsGroup):
         front_camera = ObsTerm(
-            func=mdp.warm_rgb_image,
+            func=warm_rgb_image,
             params={
                 "sensor_cfg": SceneEntityCfg("front_camera"),
                 "data_type": "rgb",
@@ -337,7 +351,7 @@ class ObservationsCfg:
             },
         )
         left_wrist_camera = ObsTerm(
-            func=mdp.warm_rgb_image,
+            func=warm_rgb_image,
             params={
                 "sensor_cfg": SceneEntityCfg("left_wrist_camera"),
                 "data_type": "rgb",
@@ -347,7 +361,7 @@ class ObservationsCfg:
             },
         )
         right_wrist_camera = ObsTerm(
-            func=mdp.warm_rgb_image,
+            func=warm_rgb_image,
             params={
                 "sensor_cfg": SceneEntityCfg("right_wrist_camera"),
                 "data_type": "rgb",
@@ -368,58 +382,13 @@ class ObservationsCfg:
 class EventCfg:
     """Reset the scene, then randomize the AGX Orin on the tabletop."""
 
-    # Patches on materials
-    align_table_material = EventTermCfg(
-        func=mdp.align_table_material,
-        mode="startup",
-        params={"diffuse": 0.75, "emissive": 0.0},
-    )
-    align_agx_material = EventTermCfg(
-        func=mdp.align_prop_material,
-        mode="reset",
-        params={
-            "asset": "AgxOrin",
-            "metallic": 0.15,
-            "roughness": 0.55,
-            "albedo_brightness": 3.4,
-        },
-    )
-    align_box_material = EventTermCfg(
-        func=mdp.align_prop_material,
-        mode="reset",
-        params={
-            "asset": "ProtectiveBox",
-            "metallic": 0.05,
-            "roughness": 0.85,
-            "albedo_brightness": 2.6,
-        },
-    )
-
     reset_scene = EventTermCfg(
         func=base_mdp.reset_scene_to_default,
         mode="reset",
         params={"reset_joint_targets": True},
     )
-    randomize_agx_orin_xy = _randomize_asset_pose(
-        "agx_orin",
-        y_range=(-XY_RANGE, 0.0),
-    )
-    randomize_box_xy = _randomize_asset_pose(
-        "protective_box",
-        y_range=(0.0, XY_RANGE),
-    )
-
-    # Must run before any reset or step so the phase buffers exist.
-    init_task_phase = EventTermCfg(func=mdp.init_task_phase_state, mode="startup")
-
-    reset_task_phase = EventTermCfg(
-        func=mdp.reset_task_phase,
-        mode="reset",
-        params={
-            "agx_orin_cfg": SceneEntityCfg("agx_orin"),
-            "print_log": False,
-        },
-    )
+    randomize_agx_orin_xy = _randomize_asset_pose("agx_orin", y_range=(-XY_RANGE, 0.0))
+    randomize_box_xy = _randomize_asset_pose("protective_box", y_range=(0.0, XY_RANGE))
 
 
 @configclass
@@ -428,19 +397,8 @@ class TerminationsCfg:
 
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
     task_success = DoneTerm(
-        func=mdp.task_success_termination,
+        func=mdp.task_success,
         time_out=False,
-        params={"success_phase": 4, "print_log": False},
-    )
-
-
-@configclass
-class RewardsCfg:
-    """Sparse phase rewards: lift, align, seat, then release."""
-
-    lift_agx = RewTerm(
-        func=mdp.lift_agx_reward,
-        weight=1.0,
         params={
             "agx_orin_cfg": SceneEntityCfg("agx_orin"),
             "protective_box_cfg": SceneEntityCfg("protective_box"),
@@ -451,23 +409,18 @@ class RewardsCfg:
             "lift_hold_steps": 5,
             "align_hold_steps": 5,
             "seat_hold_steps": 5,
-            "print_log": False,
         },
     )
-    align_agx = RewTerm(
-        func=mdp.align_agx_reward,
-        weight=1.0,
-        # Dense shaping disabled: params={"distance_offset": 0.25},
-    )
-    seat_agx = RewTerm(
-        func=mdp.seat_agx_reward,
-        weight=1.0,
-        # Dense shaping disabled: params={"target_offset": 0.25},
-    )
-    release_agx = RewTerm(
-        func=mdp.release_agx_reward,
-        weight=1.0,
-    )
+
+
+@configclass
+class RewardsCfg:
+    """Sparse phase rewards: lift, align, seat, then release."""
+
+    lift_agx = RewTerm(func=phase_reward, weight=1.0, params={"from_phase": 0})
+    align_agx = RewTerm(func=phase_reward, weight=1.0, params={"from_phase": 1})
+    seat_agx = RewTerm(func=phase_reward, weight=1.0, params={"from_phase": 2})
+    release_agx = RewTerm(func=phase_reward, weight=1.0, params={"from_phase": 3})
 
 
 @configclass
@@ -492,19 +445,8 @@ class PackAgxOrinEnvCfg(ManagerBasedRLEnvCfg):
     commands = None
     curriculum = None
 
-    def __post_init__(self):
-        self.decimation = 4
-        self.episode_length_s = 15.0
-        self.sim.dt = 1 / 120
-        if self.sim.physics is None:
-            self.sim.physics = PhysxCfg()
-        self.sim.physics.gpu_max_num_partitions = 32
-        # One render per environment step; the policy reads a camera only once per step.
-        self.sim.render_interval = 4
-        # Without a re-render the observation returned by reset() carries the previous episode's image.
-        self.num_rerenders_on_reset = 2
-        # SimulationCfg.render only exists on IsaacLab builds that ship RenderCfg;
-        # it is absent from the pinned checkout here, where the bare attribute
-        # access raised AttributeError before the environment was ever built.
-        if hasattr(self.sim, "render"):
-            self.sim.render.antialiasing_mode = "DLAA"
+    sim = sim_utils.SimulationCfg(dt=1 / 120, render_interval=4, physics=PhysxCfg(gpu_max_num_partitions=32))
+    decimation = 4
+    episode_length_s = 15.0
+    # Return camera observations from the reset episode, not the previous one.
+    num_rerenders_on_reset = 2
