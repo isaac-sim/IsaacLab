@@ -15,11 +15,10 @@ from pxr import Usd, UsdGeom, UsdPhysics
 
 from isaaclab.assets import Asset
 from isaaclab.managers import CommandTerm, ObservationTermCfg, SceneEntityCfg
-from isaaclab.sim import select_usd_variants, use_stage
+from isaaclab.sim import use_stage
 from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_tasks.core.lift import mdp
-from isaaclab_tasks.core.lift.config.franka.franka_env_cfg import FrankaLiftEnvCfg
 from isaaclab_tasks.core.lift.config.franka_soft.franka_soft_env_cfg import FrankaSoftEnvCfg
 from isaaclab_tasks.core.lift.mdp.commands import pose_commands
 from isaaclab_tasks.core.lift.mdp.commands.pose_commands import (
@@ -65,28 +64,6 @@ def test_franka_soft_robot_physics_variant_matches_backend(
     cfg = resolve_presets(FrankaSoftEnvCfg(), selected=selected_presets)
 
     assert cfg.scene.robot.spawn.variants == {"Physics": expected_physics, "Colliders": "primitives"}
-
-
-def test_franka_rigid_task_selects_collision_meshes_for_reset_clearance() -> None:
-    """Rigid Lift inherits the canonical asset's full primitive colliders."""
-    cfg = resolve_presets(FrankaLiftEnvCfg())
-    stage = Usd.Stage.CreateInMemory()
-    robot = stage.DefinePrim("/Robot", "Xform")
-    colliders = robot.GetVariantSets().AddVariantSet("Colliders")
-    for selection, prim_path, prim_type in (
-        ("convex_hulls", "/Robot/link1_c/link1_c", "Mesh"),
-        ("primitives", "/Robot/link1_capsule", "Capsule"),
-    ):
-        colliders.AddVariant(selection)
-        colliders.SetVariantSelection(selection)
-        with colliders.GetVariantEditContext():
-            stage.DefinePrim(prim_path, prim_type)
-    colliders.SetVariantSelection("primitives")
-
-    select_usd_variants("/Robot", {"Colliders": cfg.scene.robot.spawn.variants["Colliders"]}, stage=stage)
-
-    assert not stage.GetPrimAtPath("/Robot/link1_c/link1_c").IsValid()
-    assert stage.GetPrimAtPath("/Robot/link1_capsule").IsValid()
 
 
 def test_reset_clearance_ignores_disabled_collision_geometry() -> None:

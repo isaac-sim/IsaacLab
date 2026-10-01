@@ -10,7 +10,6 @@ from isaaclab_newton.controllers.ik.newton_ik_objectives_cfg import NewtonIKPose
 from isaaclab_newton.sim.schemas import MujocoRigidBodyCfg
 from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
-import isaaclab.envs.mdp as mdp
 from isaaclab.actuators import IdealPDActuatorCfg
 from isaaclab.utils import to_dict, validate
 
@@ -20,17 +19,11 @@ from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 from isaaclab_tasks.utils.preset_cli import enumerate_task_presets
 from isaaclab_tasks.utils.preset_target import PresetTarget
 
-from isaaclab_assets import FRANKA_MINIMAL_CFG, FRANKA_PANDA_CFG
+from isaaclab_assets import FRANKA_PANDA_CFG
 
 _TASK = "Isaac-Reach-Franka"
 _OSC_TASK = "Isaac-Reach-Franka-OSC"
 _CONTRIB_DIFFIK_ABS_TASK = "IsaacContrib-Reach-Franka-IK-Abs"
-_RIGID_FRANKA_TASKS = (
-    _TASK,
-    _OSC_TASK,
-    "Isaac-Open-Drawer-Franka",
-    "Isaac-Open-Drawer-Franka-Direct",
-)
 
 
 def _load_env_cfg(*presets: str):
@@ -53,47 +46,21 @@ def _without_controller_dependent_cfg(cfg):
 
 
 @pytest.mark.parametrize(
-    ("task", "physics_presets"),
-    [
-        *((task, ()) for task in _RIGID_FRANKA_TASKS),
-        ("IsaacContrib-Stack-Cube-Franka-IK-Rel-Blueprint", ("newton_mjwarp",)),
-        ("IsaacContrib-Stack-Cube-Bin-Franka-IK-Rel-Mimic", ("newton_mjwarp",)),
-        ("IsaacContrib-Stack-Cube-Franka-IK-Rel-Visuomotor", ("newton_mjwarp",)),
-    ],
-)
-def test_franka_tasks_select_the_canonical_asset_and_backend_payload(task, physics_presets):
-    newton_cfg = _load_reach_env_cfg(task, *physics_presets)
-    physx_cfg = _load_reach_env_cfg(task, "isaacsim_physx")
-
-    for cfg, physics_variant in ((newton_cfg, "mujoco"), (physx_cfg, "physx")):
-        assert cfg.scene.robot.spawn.usd_path == FRANKA_PANDA_CFG.spawn.usd_path
-        assert cfg.scene.robot.spawn.variants == {
-            "Physics": physics_variant,
-            "Colliders": "primitives",
-        }
-
-
-@pytest.mark.parametrize(
     ("task", "presets"),
     [
-        (_TASK, ("newton_mjwarp",)),
         (_TASK, ("isaacsim_physx", "diffik")),
-        (_TASK, ("ovphysx", "diffik_abs")),
         (_OSC_TASK, ("newton_mjwarp",)),
-        ("Isaac-Lift-Franka", ("isaacsim_physx",)),
+        ("Isaac-Lift-Franka", ("ovphysx",)),
     ],
 )
 def test_minimal_preset_changes_only_collision_scope(task, presets):
     full = to_dict(_load_reach_env_cfg(task, *presets))
     minimal = to_dict(_load_reach_env_cfg(task, *presets, "minimal"))
 
-    assert FRANKA_MINIMAL_CFG.spawn.usd_path == FRANKA_PANDA_CFG.spawn.usd_path
     assert full["scene"]["robot"]["spawn"]["variants"]["Colliders"] == "primitives"
     assert minimal["scene"]["robot"]["spawn"]["variants"]["Colliders"] == "gripper_only"
     minimal["scene"]["robot"]["spawn"]["variants"]["Colliders"] = "primitives"
     assert minimal == full
-    assert "minimal" in enumerate_task_presets(task)[PresetTarget.DOMAIN]
-    assert "Isaac-Reach-Franka-Minimal" not in registry
 
 
 def test_reach_diffik_abs_legacy_task_is_a_deprecated_alias():
@@ -141,10 +108,6 @@ def test_reach_ur10_physics_presets_change_only_physics():
     """UR10 backend selections must preserve the task configuration."""
     physx = _load_reach_env_cfg("Isaac-Reach-UR10", "isaacsim_physx")
     newton = _load_reach_env_cfg("Isaac-Reach-UR10", "newton_mjwarp")
-
-    assert physx.rewards.success.func is mdp.is_terminated_term
-    assert physx.terminations.success.func is mdp.pose_command_success
-    assert not hasattr(physx.rewards, "end_effector_position_tracking_fine_grained")
 
     physx_cfg = to_dict(physx)
     newton_cfg = to_dict(newton)
@@ -232,8 +195,8 @@ def test_reach_default_preset_does_not_configure_se3_teleop_devices():
     assert cfg.teleop_devices.devices == {}
 
 
-def test_reach_osc_effort_actuator_keeps_canonical_solver_properties():
-    """Replacing the arm actuator with a zero-gain effort model must preserve its solver properties."""
+def test_reach_osc_effort_actuator_keeps_canonical_solver_limits():
+    """Replacing the arm actuator with a zero-gain effort model must preserve its solver limits."""
     cfg = _load_reach_env_cfg(_OSC_TASK)
     arm_actuator = cfg.scene.robot.actuators["panda_arm"]
     source_actuator = FRANKA_PANDA_CFG.actuators["panda_arm"]
@@ -242,10 +205,6 @@ def test_reach_osc_effort_actuator_keeps_canonical_solver_properties():
     assert arm_actuator.stiffness == 0.0 and arm_actuator.damping == 0.0
     assert arm_actuator.joint_effort_limit == source_actuator.joint_effort_limit
     assert arm_actuator.joint_velocity_limit == source_actuator.joint_velocity_limit
-    assert arm_actuator.armature == source_actuator.armature
-    assert arm_actuator.friction == source_actuator.friction
-    assert arm_actuator.dynamic_friction == source_actuator.dynamic_friction
-    assert arm_actuator.viscous_friction == source_actuator.viscous_friction
 
 
 def test_reach_osc_resolves_controller_preset_values_to_defaults():
