@@ -23,9 +23,9 @@ Public API surface:
   group-scoped, user-ordered access to Newton actuator parameters through
   the selection API; the raw alternative is the Newton actuator object
   returned by the actuator collection mapping.
-* :class:`~isaaclab.actuators.newton.bam_component.ControllerBam` — the
+* :class:`~isaaclab.actuators.newton.bam_component.DriveBam` — the
   Newton-native BAM servo model. Importing this package registers it under
-  the ``NewtonBamControlAPI`` USD schema token.
+  the ``NewtonBamDriveAPI`` USD schema token.
 
 USD authoring lives on the schema side as
 :func:`~isaaclab.sim.schemas.define_actuator_properties`; each backend calls
@@ -34,8 +34,8 @@ it through :meth:`ArticulationCfg._post_spawn`.
 
 from .adapter import NewtonActuatorAdapter, read_group_parameter, write_group_parameter
 from .bam_component import (
-    BAM_CONTROL_API,
-    ControllerBam,
+    BAM_DRIVE_API,
+    DriveBam,
     apply_bam_startup_sampling,
     register_bam_actuator_component,
 )
@@ -43,8 +43,8 @@ from .kernels import build_implicit_dof_mask
 from .physx_wrapper import PhysxActuatorWrapper
 
 __all__ = [
-    "BAM_CONTROL_API",
-    "ControllerBam",
+    "BAM_DRIVE_API",
+    "DriveBam",
     "NewtonActuatorAdapter",
     "PhysxActuatorWrapper",
     "apply_bam_startup_sampling",

@@ -315,7 +315,7 @@ def author_actuator_prims(
 
     # Capture coefficients before replacing referenced actuator prims. Resolve every BAM
     # group first so a missing coefficient does not partially deactivate the asset.
-    bam_control_api, bam_values = _resolve_bam_groups(art_prim, cfg_entries, joint_inventory)
+    bam_drive_api, bam_values = _resolve_bam_groups(art_prim, cfg_entries, joint_inventory)
 
     _remove_actuator_prims_for_joints(art_prim, covered_joint_paths)
 
@@ -372,7 +372,7 @@ def author_actuator_prims(
             if is_neural:
                 schemas.append("NewtonNeuralControlAPI")
             elif is_bam:
-                schemas.append(bam_control_api)
+                schemas.append(bam_drive_api)
                 attrs.update(bam_values[group_name, jname])
                 # MuJoCo only assembles a DOF-friction constraint row for joints whose
                 # frictionloss is positive, and the initial constraint budget (``njmax``) is
@@ -386,7 +386,7 @@ def author_actuator_prims(
 
             if is_bam:
                 # No clamping component: BAM applies its own effort limit. Authoring a
-                # USD-registered token beside the unregistered ``NewtonBamControlAPI`` would
+                # USD-registered token beside the unregistered ``NewtonBamDriveAPI`` would
                 # hide the controller from Newton's schema discovery entirely.
                 if jname in effort_map:
                     attrs["max_effort"] = effort_map[jname]
@@ -464,12 +464,12 @@ def _resolve_bam_groups(
     groups = [(name, cfg, joints) for name, cfg, joints in cfg_entries if isinstance(cfg, BamActuatorCfg)]
     if not groups:
         return "", {}
-    from ...actuators.newton.bam_component import BAM_CONTROL_API, register_bam_actuator_component  # noqa: PLC0415
+    from ...actuators.newton.bam_component import BAM_DRIVE_API, register_bam_actuator_component  # noqa: PLC0415
 
     register_bam_actuator_component()
     joint_paths = {joint_inventory[jname] for _, _, joints in groups for jname in joints}
     authored = _read_bam_attributes(art_prim, joint_paths)
-    return BAM_CONTROL_API, {
+    return BAM_DRIVE_API, {
         (name, jname): _resolve_bam_attributes(cfg, authored.get(joint_inventory[jname], {}))
         for name, cfg, joints in groups
         for jname in joints
@@ -487,15 +487,15 @@ def _prepare_bam_prim(prim: Usd.Prim, values: dict[str, float | int]) -> None:
 
 def _read_bam_attributes(art_prim: Usd.Prim, joint_paths: set[str]) -> dict[str, dict[str, float | int]]:
     """Snapshot authored BAM coefficients by target joint before replacing actuator prims."""
-    from ...actuators.newton.bam_component import BAM_CONTROL_API, ControllerBam  # noqa: PLC0415
+    from ...actuators.newton.bam_component import BAM_DRIVE_API, DriveBam  # noqa: PLC0415
 
     authored = {}
     for prim in Usd.PrimRange(art_prim):
         schemas = prim.GetMetadata("apiSchemas")
-        if prim.GetTypeName() != "NewtonActuator" or not schemas or BAM_CONTROL_API not in schemas.GetAppliedItems():
+        if prim.GetTypeName() != "NewtonActuator" or not schemas or BAM_DRIVE_API not in schemas.GetAppliedItems():
             continue
         values = {}
-        for name in ControllerBam.SHARED_PARAMS | set(ControllerBam._PER_DOF_PARAMS):
+        for name in DriveBam.SHARED_PARAMS | set(DriveBam._PER_DOF_PARAMS):
             attr = prim.GetAttribute(f"newton:{to_camel_case(name)}")
             if attr and attr.HasAuthoredValue():
                 values[name] = attr.Get()
@@ -510,7 +510,7 @@ def _read_bam_attributes(art_prim: Usd.Prim, joint_paths: set[str]) -> dict[str,
 
 def _resolve_bam_attributes(cfg: Any, authored: dict[str, float | int]) -> dict[str, float | int]:
     """Preserve asset coefficients and apply explicit configuration overrides."""
-    from ...actuators.newton.bam_component import ControllerBam  # noqa: PLC0415
+    from ...actuators.newton.bam_component import DriveBam  # noqa: PLC0415
 
     attrs = dict(authored)
     attrs.update(cfg.parameter_overrides or {})
@@ -520,7 +520,7 @@ def _resolve_bam_attributes(cfg: Any, authored: dict[str, float | int]) -> dict[
             attrs[name] = value
     for name in ("min_delay", "max_delay", "delay_hold_prob", "delay_update_period"):
         attrs[name] = getattr(cfg, name)
-    return ControllerBam.resolve_arguments(attrs)
+    return DriveBam.resolve_arguments(attrs)
 
 
 def _seed_joint_friction(stage: Usd.Stage, joint_prim_path: str, friction: float | None) -> None:

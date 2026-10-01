@@ -185,7 +185,7 @@ Newton Actuator Access
 
   .. autosummary::
 
-    ControllerBam
+    DriveBam
 
   .. rubric:: Functions
 
@@ -195,7 +195,7 @@ Newton Actuator Access
     write_group_parameter
     apply_bam_startup_sampling
 
-.. autoclass:: isaaclab.actuators.newton.ControllerBam
+.. autoclass:: isaaclab.actuators.newton.DriveBam
     :members:
     :show-inheritance:
 

@@ -13,7 +13,7 @@ class BamActuatorCfg(ActuatorBaseCfg):
     """Configuration for the BAM voltage-domain servo actuator.
 
     Identified motor and friction coefficients are read from the asset's
-    ``NewtonBamControlAPI`` actuator prims. Configuration values explicitly override
+    ``NewtonBamDriveAPI`` actuator prims. Configuration values explicitly override
     the USD values; no parameter file is loaded during simulation.
 
     Note:
@@ -23,12 +23,12 @@ class BamActuatorCfg(ActuatorBaseCfg):
         damping is the physical back-EMF of the motor.
 
     This model requires ``use_newton_actuators=True`` with Newton's MJWarp solver.
-    The controller publishes its friction budget and viscous damping into the solver and reads
+    The drive publishes its friction budget and viscous damping into the solver and reads
     the external load from its generalized forces. Other backends and solvers raise an error.
     """
 
     class_type: type | None = None
-    """No Isaac Lab-executed model; Newton constructs the controller from its USD schema."""
+    """No Isaac Lab-executed model; Newton constructs the drive from its USD schema."""
 
     stiffness: dict[str, float] | float | None = None
     """Unused by this model. Defaults to None so that a configuration validates unset.
@@ -53,7 +53,7 @@ class BamActuatorCfg(ActuatorBaseCfg):
     Unknown names and missing required coefficients raise an error at authoring time.
     Prefer :attr:`kp_fw` and :attr:`vin` for deployment settings; these take precedence
     over entries in this mapping. Solver inertia remains owned by the joint USD or
-    :attr:`~isaaclab.actuators.ActuatorBaseCfg.armature`. The controller has no separate
+    :attr:`~isaaclab.actuators.ActuatorBaseCfg.armature`. The drive has no separate
     rotor-inertia parameter.
     """
 
@@ -89,7 +89,7 @@ class BamActuatorCfg(ActuatorBaseCfg):
 
     The scale multiplies the whole velocity-independent friction budget (Coulomb, Stribeck
     and load-dependent terms). Sampled once at construction. Per-episode friction randomization
-    writes the controller's ``friction_scale`` through
+    writes the drive's ``friction_scale`` through
     :func:`~isaaclab.actuators.newton.write_group_parameter`. If None, the scale is 1.
     """
 
@@ -106,7 +106,7 @@ class BamActuatorCfg(ActuatorBaseCfg):
     """Number of physics steps between lag resamples. Defaults to 0, which resamples every step.
 
     When positive, a phase offset in ``[0, delay_update_period)`` staggers the resamples rather
-    than synchronizing them. The Newton controller draws the phase and lag per driven joint.
+    than synchronizing them. The Newton drive draws the phase and lag per driven joint.
     """
 
     stiff_frictionloss: bool = True

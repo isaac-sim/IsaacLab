@@ -3,18 +3,18 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Newton-native BAM servo controller.
+"""Newton-native BAM servo drive.
 
-The Warp controller runs inside Newton's actuator pipeline. MuJoCo Warp supplies the external
+The Warp drive runs inside Newton's actuator pipeline. MuJoCo Warp supplies the external
 load and resolves the load-dependent friction budget alongside its other constraints through
 :mod:`isaaclab_newton.physics.mjwarp_actuator_bridge`.
 
-The controller owns the stochastic command delay, battery sag, firmware PWM controller, DC-motor
+The drive owns the stochastic command delay, battery sag, firmware PWM control, DC-motor
 equation and gearbox friction. State is
 double-buffered and CUDA-graph-safe. Identified coefficients are carried by the USD actuator prim.
 
-The effort clamp is part of the controller: mixing a registered clamping schema with the
-unregistered ``NewtonBamControlAPI`` token can hide BAM from Newton's actuator schema discovery.
+The effort clamp is part of the drive: mixing a registered clamping schema with the
+unregistered ``NewtonBamDriveAPI`` token can hide BAM from Newton's actuator schema discovery.
 """
 
 from __future__ import annotations
@@ -24,22 +24,22 @@ from dataclasses import dataclass, fields
 from typing import Any
 
 import warp as wp
-from newton.actuators import ComponentKind, Controller, register_actuator_component
+from newton.actuators import ComponentKind, DriveBase, register_actuator_component
 
 from .bam_kernels import _bam_friction_kernel, _bam_motor_kernel, _bam_state_reset_kernel
 
-BAM_CONTROL_API: str = "NewtonBamControlAPI"
-"""USD API schema token that maps an actuator prim onto :class:`ControllerBam`."""
+BAM_DRIVE_API: str = "NewtonBamDriveAPI"
+"""USD API schema token that maps an actuator prim onto :class:`DriveBam`."""
 
 _is_registered: bool = False
 """Whether :func:`register_bam_actuator_component` has already run in this process."""
 
 
-class ControllerBam(Controller):
-    """Newton-native BAM voltage-domain servo controller.
+class DriveBam(DriveBase):
+    """Newton-native BAM voltage-domain servo drive implemented as a :class:`~newton.actuators.DriveBase`.
 
     One step runs: delay the position command, sag the supply with the previous step's
-    load, run the firmware proportional controller to a PWM duty cycle, convert that to a
+    load, run the firmware proportional control loop to a PWM duty cycle, convert that to a
     motor torque through the DC-motor equation, size the gearbox friction budget from the
     previous motor torque and the external load, and publish the budget to MJWarp.
     MJWarp applies friction alongside its other constraints; other solvers are unsupported.
@@ -68,7 +68,7 @@ class ControllerBam(Controller):
     """Previous MJWarp solve's external gearbox load [N.m], shape ``(N,)``.
 
     The MJWarp bridge must bind this array before the first step and CUDA graph capture.
-    Stepping an unbound controller raises an error.
+    Stepping an unbound drive raises an error.
     """
 
     env_dof_stride: int
@@ -119,8 +119,8 @@ class ControllerBam(Controller):
     """Per-DOF parameter arrays, in the order :meth:`resolve_arguments` fills them."""
 
     @dataclass
-    class State(Controller.State):
-        """Double-buffered per-DOF state of the BAM controller."""
+    class State(DriveBase.State):
+        """Double-buffered per-DOF state of the BAM drive."""
 
         prev_motor_torque: wp.array[float] | None = None
         """Motor-side torque of the previous step [N.m], shape ``(N,)``."""
@@ -149,8 +149,8 @@ class ControllerBam(Controller):
         reset_count: int = 0
         """Number of resets applied, which decorrelates successive phase draws."""
 
-        def assign(self, other: ControllerBam.State) -> None:
-            """Copy controller history and reset metadata while preserving array storage.
+        def assign(self, other: DriveBam.State) -> None:
+            """Copy drive history and reset metadata while preserving array storage.
 
             Args:
                 other: State to copy from, with matching array shapes and devices.
@@ -231,7 +231,7 @@ class ControllerBam(Controller):
             required.update(("load_friction_motor_quad", "load_friction_external_quad"))
         missing = required - args.keys()
         if missing:
-            raise ValueError(f"{BAM_CONTROL_API} is missing coefficient(s): {', '.join(sorted(missing))}")
+            raise ValueError(f"{BAM_DRIVE_API} is missing coefficient(s): {', '.join(sorted(missing))}")
 
         min_delay = int(args.get("min_delay", 0))
         max_delay = int(args.get("max_delay", 0))
@@ -278,7 +278,7 @@ class ControllerBam(Controller):
         delay_seed: int = 0,
         **per_dof: wp.array,
     ):
-        """Initialize the controller from pre-built per-DOF parameter arrays.
+        """Initialize the drive from pre-built per-DOF parameter arrays.
 
         Args:
             stribeck: Whether the Stribeck friction terms are active.
@@ -307,10 +307,10 @@ class ControllerBam(Controller):
 
         missing = [name for name in self._PER_DOF_PARAMS if name not in per_dof]
         if missing:
-            raise ValueError(f"ControllerBam is missing per-DOF parameter array(s): {', '.join(missing)}")
+            raise ValueError(f"DriveBam is missing per-DOF parameter array(s): {', '.join(missing)}")
         unexpected = set(per_dof) - set(self._PER_DOF_PARAMS)
         if unexpected:
-            raise ValueError(f"ControllerBam got unexpected parameter(s): {', '.join(sorted(unexpected))}")
+            raise ValueError(f"DriveBam got unexpected parameter(s): {', '.join(sorted(unexpected))}")
         reference_shape = per_dof[self._PER_DOF_PARAMS[0]].shape
         for name in self._PER_DOF_PARAMS:
             array = per_dof[name]
@@ -353,15 +353,15 @@ class ControllerBam(Controller):
         """Declare how many consecutive DOFs share one supply.
 
         Args:
-            stride: DOFs per environment handled by this controller. The battery sag sums
+            stride: DOFs per environment handled by this drive. The battery sag sums
                 the previous motor torques over each such block.
         """
         if stride < 1:
             raise ValueError(f"env_dof_stride must be at least 1, got {stride}")
         self.env_dof_stride = int(stride)
 
-    def state(self, num_actuators: int, device: wp.Device) -> ControllerBam.State:
-        state = ControllerBam.State(
+    def state(self, num_actuators: int, device: wp.Device) -> DriveBam.State:
+        state = DriveBam.State(
             prev_motor_torque=wp.zeros(num_actuators, dtype=wp.float32, device=device),
             delay_ring=wp.zeros((num_actuators, max(self.max_delay, 1)), dtype=wp.float32, device=device),
             delay_lag=wp.zeros(num_actuators, dtype=wp.int32, device=device),
@@ -404,7 +404,7 @@ class ControllerBam(Controller):
         target_pos_indices: wp.array[wp.uint32],
         target_vel_indices: wp.array[wp.uint32],
         forces: wp.array[float],
-        state: ControllerBam.State,
+        state: DriveBam.State,
         dt: float,
         device: wp.Device | None = None,
     ) -> None:
@@ -492,15 +492,15 @@ class ControllerBam(Controller):
             device=device,
         )
 
-    def update_state(self, current_state: ControllerBam.State, next_state: ControllerBam.State) -> None:
+    def update_state(self, current_state: DriveBam.State, next_state: DriveBam.State) -> None:
         for name, scratch in self._next_state_arrays.items():
             wp.copy(getattr(next_state, name), scratch)
         # The phase only changes on reset, so it is carried across rather than recomputed.
         wp.copy(next_state.delay_phase, current_state.delay_phase)
 
 
-def apply_bam_startup_sampling(controller: ControllerBam, cfg: Any) -> None:
-    """Draw the start-up per-environment quantities of one BAM controller.
+def apply_bam_startup_sampling(drive: DriveBam, cfg: Any) -> None:
+    """Draw the start-up per-environment quantities of one BAM drive.
 
     A USD prim is shared by every clone, so the ranges
     :class:`~isaaclab.actuators.BamActuatorCfg` exposes (``vin_range``,
@@ -509,7 +509,7 @@ def apply_bam_startup_sampling(controller: ControllerBam, cfg: Any) -> None:
     shared by that environment's joints and held constant across resets.
 
     Args:
-        controller: The BAM controller to write, already bound to its environment stride.
+        drive: The BAM drive to write, already bound to its environment stride.
         cfg: The group's :class:`~isaaclab.actuators.BamActuatorCfg`.
     """
     import torch  # noqa: PLC0415
@@ -522,14 +522,14 @@ def apply_bam_startup_sampling(controller: ControllerBam, cfg: Any) -> None:
     for attr, value_range in ranges:
         if value_range is None:
             continue
-        per_env = wp.to_torch(getattr(controller, attr)).view(-1, controller.env_dof_stride)
+        per_env = wp.to_torch(getattr(drive, attr)).view(-1, drive.env_dof_stride)
         samples = torch.empty(per_env.shape[0], 1, device=per_env.device, dtype=per_env.dtype)
         samples.uniform_(*value_range)
         per_env.copy_(samples.expand_as(per_env))
 
 
 def register_bam_actuator_component() -> None:
-    """Register :class:`ControllerBam` under the ``NewtonBamControlAPI`` USD schema token.
+    """Register :class:`DriveBam` under the ``NewtonBamDriveAPI`` USD schema token.
 
     Idempotent: Newton warns when a token is re-registered, so repeated calls are ignored.
     Both actuator construction paths -- Newton's ``ModelBuilder.add_usd`` and the PhysX-family
@@ -539,7 +539,7 @@ def register_bam_actuator_component() -> None:
     global _is_registered  # noqa: PLW0603
     if _is_registered:
         return
-    register_actuator_component(BAM_CONTROL_API, ControllerBam, ComponentKind.CONTROLLER)
+    register_actuator_component(BAM_DRIVE_API, DriveBam, ComponentKind.DRIVE)
     _is_registered = True
 
 
