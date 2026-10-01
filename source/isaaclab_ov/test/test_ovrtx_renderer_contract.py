@@ -143,7 +143,7 @@ def test_ovrtx_renderer_config_enables_supported_runtime_options(monkeypatch, tm
     assert renderer.backend.renderer is not None
     assert config_kwargs["suppress_deprecation_warnings"] is True
     assert config_kwargs["texture_streaming_mode"] is ovrtx_renderer_module.TextureStreamingMode.SYNCHRONOUS
-    assert len(SimulationContext.instance()._backend_registry) == 1
+    assert len(SimulationContext.instance()._backend_registry) == 2  # the native backend and the clone routing
     other = OVRTXRenderer(replace(renderer.cfg, enable_shadows=True))
     assert other.backend is not renderer.backend
     renderer.close()
@@ -157,6 +157,7 @@ def test_ovrtx_renderer_config_enables_supported_runtime_options(monkeypatch, tm
     SimulationContext.instance().close_backend(other.backend)
     assert len(destroyed) == 2
     assert redirected == destroyed
+    SimulationContext.instance().close_backend(renderer._clone_routing)
     assert not SimulationContext.instance()._backend_registry
 
 

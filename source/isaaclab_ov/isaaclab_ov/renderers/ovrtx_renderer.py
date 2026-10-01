@@ -30,7 +30,7 @@ import sys
 import weakref
 from builtins import ExceptionGroup
 from collections import deque
-from collections.abc import Iterable, Iterator, Sequence
+from collections.abc import Collection, Iterable, Iterator, Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, NoReturn, cast
 
@@ -79,6 +79,7 @@ from isaaclab.sim import SimulationContext
 from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.warp.warp_math import convert_camera_frame_orientation_convention_wp
 
+from isaaclab_ov.cloner import ovrtx_replicate, ovstage_replicate
 from isaaclab_ov.renderers.ovrtx_annotator_utils import (
     build_instance_id_to_labels_and_semantics,
     build_semantic_id_to_labels,
@@ -87,7 +88,7 @@ from isaaclab_ov.renderers.ovrtx_annotator_utils import (
     decode_stable_id_semantic_id_map,
 )
 from isaaclab_ov.renderers.ovrtx_compat import OVRTX_VERSION, uses_prim_path_render_vars
-from isaaclab_ov.renderers.ovrtx_renderer_cfg import OVRTXBackendCfg, OVRTXRendererCfg
+from isaaclab_ov.renderers.ovrtx_renderer_cfg import OVRTXBackendCfg, OVRTXCloneCfg, OVRTXRendererCfg
 from isaaclab_ov.renderers.ovrtx_renderer_kernels import (
     create_camera_transforms_kernel,
     extract_all_tiles_kernel,
@@ -272,6 +273,14 @@ def _write_combined_stage(output_dir: Path, scene_usd: str, render_product_usd: 
     _write_file(output_dir, "ovrtx_renderer_stage.usda", scene_layer.ExportToString())
 
 
+class OVRTXCloneRouting:
+    """Hold the asset definitions that clone routing sends to one OVRTX scene path."""
+
+    def __init__(self, cfg: OVRTXCloneCfg):
+        self.asset_prototype_ids: Collection[int] | None = None
+        """The routed asset definitions, or ``None`` to select every asset of the clone plan."""
+
+
 class OVRTXBackend:
     """Own one native renderer and its optional detached stage, without camera or transport policy."""
 
@@ -423,6 +432,9 @@ class OVRTXRenderer(BaseRenderer):
         self._use_ovstage = ovrtx_use_ovstage_enabled()
         if cfg.async_rendering and self._use_ovstage:
             logger.warning("Asynchronous OVRTX rendering is unsupported with ovstage; rendering synchronously.")
+        self._clone_routing = SimulationContext.instance().get_or_create_backend(
+            OVRTXCloneCfg(use_ovstage=self._use_ovstage)
+        )
         self.backend: OVRTXBackend = SimulationContext.instance().get_or_create_backend(
             OVRTXBackendCfg(
                 renderer_cfg=cfg, use_ovstage=self._use_ovstage, read_gpu_transforms=_read_gpu_transforms_enabled()
@@ -492,8 +504,11 @@ class OVRTXRenderer(BaseRenderer):
 
         # OVRTX cannot clone onto existing prims. Keep environment roots unless explicitly cloned;
         # asset-level clones need their parents' authored environment transforms.
+        routed = self._clone_routing.asset_prototype_ids
         sources = tuple(
-            source for source in cloner_path.get_asset_prototype_paths(self._clone_plan) if source is not None
+            source
+            for index, source in enumerate(cloner_path.get_asset_prototype_paths(self._clone_plan))
+            if source is not None and (routed is None or index in routed)
         )
         templates, _ = cloner_path.get_world_prototype_asset_templates(self._clone_plan)
         keep_env_roots = not self._use_ovstage and self._clone_plan.env_template not in templates
@@ -637,59 +652,20 @@ class OVRTXRenderer(BaseRenderer):
 
     def _clone_sources(self):
         """Clone sources in OVRTX using the scene :class:`~isaaclab.cloner.ClonePlan`."""
-        plan = self._clone_plan
-        num_envs = len(plan.topology.world_prototype_layout)
-        env_paths = [plan.env_template.format(world) for world in range(num_envs)]
         logger.info("Cloning sources in OVRTX...")
-
-        sources = cloner_path.get_asset_prototype_paths(plan)
-        templates, starts, world_ids, world_starts = cloner_path.get_world_prototype_asset_templates(
-            plan, include_world_indices=True
-        )
-        # Group copies by source/template, omitting descendants already covered by an identical parent copy.
-        copies = {}
-        for group in np.flatnonzero(np.diff(world_starts)):
-            start, end = starts[group : group + 2]
-            targets = world_ids[world_starts[group] : world_starts[group + 1]]
-            for index, parent in enumerate(cloner_path.get_parent_indices(templates[start:end]), start):
-                source, template = sources[plan.topology.world_prototypes[index]], templates[index]
-                if parent != -1:
-                    ancestor = start + parent
-                    suffix = cloner_path.relative_to(template, templates[ancestor])
-                    if source == sources[plan.topology.world_prototypes[ancestor]] + suffix:
-                        continue
-                copies.setdefault((source, template), []).append(targets)
-        num_cloned_sources = 0
-        for source, destination in sorted(copies, key=lambda copy: copy[1].count("/")):
-            worlds = np.concatenate(copies[source, destination])
-            target_paths = [target for target in map(destination.format, worlds) if target != source]
-            if target_paths:
-                logger.debug("Cloning %s -> %d target(s)", source, len(target_paths))
-                if self._use_ovstage:
-                    self.backend.stage.clone(source, target_paths, ordinal=self._current_ordinal)
-                else:
-                    self.backend.renderer.clone_usd(source, target_paths)
-                num_cloned_sources += 1
-
-        logger.info("Cloned %d sources successfully in OVRTX", num_cloned_sources)
-        xforms = np.tile(np.eye(4, dtype=np.float64), (num_envs, 1, 1))
-        xforms[:, 3, :3] = plan.positions
         if self._use_ovstage:
-            path_list = self.backend.paths.create_path_list_from_strings(env_paths)
-            with self.backend.stage.query_from_path_list(path_list) as query:
-                self.backend.stage.write_attribute(
-                    query,
-                    "omni:xform",
-                    ordinal=self._current_ordinal,
-                    tensors=xform_tensor_from_numpy(xforms),
-                    is_array=False,
-                    semantic=ovstage.AttributeSemantic.MATRIX,
-                ).wait()
-            self.backend.paths.destroy_path_list(path_list)
-        else:
-            self.backend.renderer.write_attribute(
-                env_paths, "omni:xform", xforms, semantic=Semantic.XFORM_MAT4x4, prim_mode=PrimMode.MUST_EXIST
+            num_cloned_sources = ovstage_replicate(
+                self.backend.stage,
+                self.backend.paths,
+                self._clone_plan,
+                self._current_ordinal,
+                self._clone_routing.asset_prototype_ids,
             )
+        else:
+            num_cloned_sources = ovrtx_replicate(
+                self.backend.renderer, self._clone_plan, self._clone_routing.asset_prototype_ids
+            )
+        logger.info("Cloned %d sources successfully in OVRTX", num_cloned_sources)
 
     def _update_scene_partitions_after_clone(self, camera_paths: Sequence[str]) -> None:
         """Assign environment partitions to cloned roots and the declared camera batch."""

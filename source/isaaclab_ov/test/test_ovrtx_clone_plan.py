@@ -33,6 +33,7 @@ pytestmark = [
 ]
 
 if not _MISSING_MODULES:
+    from isaaclab_ov.cloner import OvrtxReplicateContext, OvstageReplicateContext  # noqa: E402
     from isaaclab_ov.renderers import OVRTXRendererCfg  # noqa: E402
     from isaaclab_ov.renderers import ovrtx_renderer as ovrtx_renderer_module  # noqa: E402
     from isaaclab_ov.renderers.ovrtx_renderer import OVRTXCameraRenderData, OVRTXRenderer  # noqa: E402
@@ -81,6 +82,7 @@ def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
     renderer = OVRTXRenderer.__new__(OVRTXRenderer)
     renderer.cfg = OVRTXRendererCfg()
     renderer.backend = SimpleNamespace()
+    renderer._clone_routing = SimpleNamespace(asset_prototype_ids=None)
     renderer.backend.renderer = SimpleNamespace(
         add_usd_reference_from_string=lambda *args, **kwargs: 1,
         remove_usd=lambda reference: None,
@@ -198,7 +200,7 @@ def test_clone_sources_ovstage_writes_plan_positions_after_cloning(monkeypatch: 
         xforms.append(value.copy())
         return "root_xforms"
 
-    monkeypatch.setattr("isaaclab_ov.renderers.ovrtx_renderer.xform_tensor_from_numpy", _record_xforms)
+    monkeypatch.setattr("isaaclab_ov.stage.xform_tensor_from_numpy", _record_xforms)
 
     renderer._clone_sources()
 
@@ -401,3 +403,49 @@ def test_prepare_stage_exports_only_clone_sources_and_their_materials(monkeypatc
         assert bool(exported.GetPrimAtPath(root)) is bool(suffix)
         assert not exported.GetPrimAtPath(f"{root}/Robot")
         assert not exported.GetPrimAtPath(f"{root}/Object_env{env_id}_only")
+
+
+def test_prepare_stage_exports_only_the_sources_routed_to_its_scene_path(monkeypatch):
+    """Assets that clone routing did not send to OVRTX are trimmed from the exported stage."""
+    stage = _make_multi_env_stage(3)
+    UsdGeom.Xform.Define(stage, "/World/envs/env_0/Robot")
+    UsdGeom.Xform.Define(stage, "/World/envs/env_0/Object")
+    assets = tuple(
+        AssetBaseCfg(
+            prim_path=f"/World/envs/env_[^/]+/{name}", spawn=SpawnerCfg(spawn_path=f"/World/envs/env_0/{name}")
+        )
+        for name in ("Robot", "Object")
+    )
+    plan = make_clone_plan(assets, ((0, 1),), 3, positions=np.zeros((3, 3), dtype=np.float32))
+    _patch_simulation_context(monkeypatch, plan)
+    renderer = _make_ovrtx_renderer_without_backend()
+    renderer._clone_routing.asset_prototype_ids = (0,)
+
+    renderer.prepare_stage(stage, 3)
+
+    exported = Usd.Stage.CreateInMemory()
+    assert exported.GetRootLayer().ImportFromString(renderer._exported_usd_string)
+    assert exported.GetPrimAtPath("/World/envs/env_0/Robot")
+    assert not exported.GetPrimAtPath("/World/envs/env_0/Object")
+
+
+@pytest.mark.parametrize("use_ovstage", [False, True])
+def test_clone_context_publishes_its_routing_only_for_its_scene_path(use_ovstage):
+    """Each context fills the shared routing of its own scene path and leaves the other path alone."""
+    routing = {}
+
+    def get_or_create_backend(cfg):
+        return routing.setdefault(cfg.use_ovstage, SimpleNamespace(asset_prototype_ids=None))
+
+    context_type = OvstageReplicateContext if use_ovstage else OvrtxReplicateContext
+
+    context_type(SimpleNamespace(get_or_create_backend=get_or_create_backend)).replicate(None, (1, 2))
+
+    assert {path: shared.asset_prototype_ids for path, shared in routing.items()} == {use_ovstage: (1, 2)}
+
+
+def test_renderer_cfg_declares_the_clone_contexts_of_both_scene_paths():
+    assert OVRTXRendererCfg().cloning_contexts == (
+        "isaaclab_ov.cloner:OvrtxReplicateContext",
+        "isaaclab_ov.cloner:OvstageReplicateContext",
+    )

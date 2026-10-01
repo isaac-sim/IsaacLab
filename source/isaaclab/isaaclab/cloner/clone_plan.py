@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import math
 import re
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Collection, Sequence
 from dataclasses import dataclass
 from typing import Any, NamedTuple
 
@@ -293,6 +293,46 @@ class path:
         indices = np.r_[-1, np.argsort(topology.world_prototype_layout, kind="stable")].astype(np.int32)
         counts = np.bincount(topology.world_prototype_layout, minlength=len(starts) - 2)
         return tuple(templates), starts, indices, np.cumsum(np.r_[0, 1, counts], dtype=np.int64)
+
+    @staticmethod
+    def get_asset_copies(
+        plan: ClonePlan, asset_prototype_ids: Collection[int] | None = None
+    ) -> list[tuple[str, str, np.ndarray]]:
+        """Return the prototype subtrees a clone backend copies for the assets routed to it.
+
+        Args:
+            plan: Host declarations, topology, and naming template.
+            asset_prototype_ids: Asset definitions routed to the caller. ``None`` selects every asset.
+
+        Returns:
+            ``(source, template, world_ids)`` rows with parents before their descendants. ``template`` is the
+            destination path with a ``"{}"`` slot for the world ID. A copy that an identical copy of its
+            ancestor already covers is omitted.
+        """
+        sources = path.get_asset_prototype_paths(plan)
+        templates, starts, world_ids, world_starts = path.get_world_prototype_asset_templates(
+            plan, include_world_indices=True
+        )
+        assets = plan.topology.world_prototypes
+        copies = {}
+        for group in np.flatnonzero(np.diff(world_starts)):
+            start, end = starts[group : group + 2]
+            targets = world_ids[world_starts[group] : world_starts[group + 1]]
+            members = [
+                index
+                for index in range(start, end)
+                if asset_prototype_ids is None or assets[index] in asset_prototype_ids
+            ]
+            for index, parent in zip(members, path.get_parent_indices([templates[i] for i in members]), strict=True):
+                source, template = sources[assets[index]], templates[index]
+                if parent != -1:
+                    ancestor = members[parent]
+                    suffix = path.relative_to(template, templates[ancestor])
+                    if source == sources[assets[ancestor]] + suffix:
+                        continue
+                copies.setdefault((source, template), []).append(targets)
+        ordered = sorted(copies, key=lambda copy: copy[1].count("/"))
+        return [(source, template, np.concatenate(copies[source, template])) for source, template in ordered]
 
     @staticmethod
     def get_parent_indices(paths: Sequence[str]) -> np.ndarray:

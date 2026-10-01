@@ -22,7 +22,7 @@ import warp as wp
 from isaaclab import cloner
 from isaaclab.assets import AssetBaseCfg
 from isaaclab.cloner import make_clone_plan
-from isaaclab.sim import CuboidCfg
+from isaaclab.sim import CuboidCfg, SpawnerCfg
 
 ##
 # Path primitives.
@@ -309,3 +309,40 @@ def test_batched_world_queries(device, worlds, num_worlds, shared, selectors):
             starts = short[1] if device == "numpy" else short[1].numpy()
             np.testing.assert_array_equal(values, [-99])
             assert starts[-1, -1] == len(expected)
+
+
+_ROBOT_WITH_COVERED_CAMERA = [
+    ("/Sources/Robot", "/World/envs/env_{}/Robot", [0]),
+    ("/Sources/Robot/Camera", "/World/envs/env_{}/Robot/Camera", [1]),
+]
+
+
+@pytest.mark.parametrize(
+    ("child_source", "routed", "expected"),
+    [
+        ("/Sources/Robot/Camera", (0, 1), _ROBOT_WITH_COVERED_CAMERA),
+        ("/Sources/Robot/Camera", None, _ROBOT_WITH_COVERED_CAMERA),
+        (
+            "/Sources/Camera",
+            (0, 1),
+            [
+                ("/Sources/Robot", "/World/envs/env_{}/Robot", [0]),
+                ("/Sources/Camera", "/World/envs/env_{}/Robot/Camera", [0, 1]),
+            ],
+        ),
+        ("/Sources/Robot/Camera", (0,), [("/Sources/Robot/Camera", "/World/envs/env_{}/Robot/Camera", [0, 1])]),
+        ("/Sources/Robot/Camera", (), []),
+    ],
+    ids=["child covered by its parent", "every asset", "independent child", "parent not routed", "nothing routed"],
+)
+def test_asset_copies_omit_covered_children_and_honor_routing(child_source, routed, expected):
+    """A copy that its routed ancestor already carries is omitted, and unrouted assets are never copied."""
+    cfgs = (
+        AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Robot/Camera", spawn=SpawnerCfg(spawn_path=child_source)),
+        AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Robot", spawn=SpawnerCfg(spawn_path="/Sources/Robot")),
+    )
+    plan = make_clone_plan(cfgs, ((0, 1), (0,)), 2, positions=np.zeros((2, 3), dtype=np.float32))
+
+    copies = cloner.path.get_asset_copies(plan, routed)
+
+    assert [(source, template, worlds.tolist()) for source, template, worlds in copies] == expected

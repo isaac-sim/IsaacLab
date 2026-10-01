@@ -101,30 +101,10 @@ class UsdReplicateContext:
         """Replicate this context's declared sources with the same low-level USD operation."""
         from pxr import Gf, Sdf, Vt  # noqa: PLC0415
 
-        sources = cloner_path.get_asset_prototype_paths(plan)
-        templates, starts, world_ids, world_starts = cloner_path.get_world_prototype_asset_templates(
-            plan, include_world_indices=True
-        )
-        assets = plan.topology.world_prototypes
-        # Group copies by source/template, omitting descendants already covered by an identical parent copy.
-        copies = {}
-        for group in np.flatnonzero(np.diff(world_starts)):
-            start, end = starts[group : group + 2]
-            targets = world_ids[world_starts[group] : world_starts[group + 1]]
-            members = [index for index in range(start, end) if assets[index] in asset_prototype_ids]
-            destinations = [templates[index] for index in members]
-            for index, parent in zip(members, cloner_path.get_parent_indices(destinations), strict=True):
-                source, template = sources[assets[index]], templates[index]
-                if parent != -1:
-                    ancestor = members[parent]
-                    suffix = cloner_path.relative_to(template, templates[ancestor])
-                    if source == sources[assets[ancestor]] + suffix:
-                        continue
-                copies.setdefault((source, template), []).append(targets)
         env_ids = range(len(plan.topology.world_prototype_layout))
         with disabled_fabric_change_notifies(self.stage), Sdf.ChangeBlock():
-            for source, template in sorted(copies, key=lambda copy: copy[1].count("/")):
-                usd_replicate(self.stage, (source,), (template,), np.concatenate(copies[source, template]))
+            for source, template, worlds in cloner_path.get_asset_copies(plan, asset_prototype_ids):
+                usd_replicate(self.stage, (source,), (template,), worlds)
             if plan.positions is not None:
                 # Environment frames come from the plan, not copies of an undeclared USD subtree.
                 layer = self.stage.GetRootLayer()

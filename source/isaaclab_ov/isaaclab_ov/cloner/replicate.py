@@ -7,8 +7,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Sequence
-from typing import TYPE_CHECKING
+from collections.abc import Collection, Iterable, Sequence
+from typing import TYPE_CHECKING, ClassVar
 
 import numpy as np
 
@@ -20,6 +20,9 @@ from isaaclab.physics import PhysicsManager
 from isaaclab_ov._clone import CloneRecipe
 
 if TYPE_CHECKING:
+    import ovrtx
+    import ovstage
+
     from isaaclab.cloner import ClonePlan
     from isaaclab.sim import SimulationContext
 
@@ -153,6 +156,114 @@ class OvPhysxReplicateContext:
         env_ids = np.arange(len(plan.topology.world_prototype_layout))
         recipes = _clone_recipes(self.stage, copies, env_ids, plan.positions, None)
         self._sim.physics_manager._clone_recipes.extend(recipes)
+
+
+def _env_roots(plan: ClonePlan) -> tuple[list[str], np.ndarray]:
+    """Return the environment-root paths and their ``(num_envs, 4, 4)`` world transforms authored by the plan."""
+    num_envs = len(plan.topology.world_prototype_layout)
+    xforms = np.tile(np.eye(4, dtype=np.float64), (num_envs, 1, 1))
+    xforms[:, 3, :3] = plan.positions
+    return [plan.env_template.format(world) for world in range(num_envs)], xforms
+
+
+def ovrtx_replicate(
+    renderer: ovrtx.Renderer, plan: ClonePlan, asset_prototype_ids: Collection[int] | None = None
+) -> int:
+    """Clone the planned prototypes in a native OVRTX scene, then place the environment roots.
+
+    Args:
+        renderer: Native OVRTX renderer whose scene holds the exported prototypes.
+        plan: Replication layout shared by every clone backend.
+        asset_prototype_ids: Asset definitions routed to the scene. ``None`` selects every asset.
+
+    Returns:
+        The number of prototype copies made.
+    """
+    from ovrtx import PrimMode, Semantic  # noqa: PLC0415
+
+    copies = 0
+    for source, template, worlds in cloner.path.get_asset_copies(plan, asset_prototype_ids):
+        if targets := [target for target in map(template.format, worlds) if target != source]:
+            renderer.clone_usd(source, targets)
+            copies += 1
+    env_paths, xforms = _env_roots(plan)
+    renderer.write_attribute(
+        env_paths, "omni:xform", xforms, semantic=Semantic.XFORM_MAT4x4, prim_mode=PrimMode.MUST_EXIST
+    )
+    return copies
+
+
+def ovstage_replicate(
+    stage: ovstage.Stage,
+    paths: ovstage.PathDictionary,
+    plan: ClonePlan,
+    ordinal: int,
+    asset_prototype_ids: Collection[int] | None = None,
+) -> int:
+    """Clone the planned prototypes in an OVStage stage, then place the environment roots.
+
+    Args:
+        stage: The ovstage stage holding the exported prototypes.
+        paths: Path dictionary of ``stage``.
+        plan: Replication layout shared by every clone backend.
+        ordinal: Write ordinal for the clones and the environment-root write.
+        asset_prototype_ids: Asset definitions routed to the stage. ``None`` selects every asset.
+
+    Returns:
+        The number of prototype copies made.
+    """
+    import ovstage  # noqa: PLC0415
+
+    from isaaclab_ov.stage import xform_tensor_from_numpy  # noqa: PLC0415
+
+    copies = 0
+    for source, template, worlds in cloner.path.get_asset_copies(plan, asset_prototype_ids):
+        if targets := [target for target in map(template.format, worlds) if target != source]:
+            stage.clone(source, targets, ordinal=ordinal)
+            copies += 1
+    env_paths, xforms = _env_roots(plan)
+    path_list = paths.create_path_list_from_strings(env_paths)
+    with stage.query_from_path_list(path_list) as query:
+        stage.write_attribute(
+            query,
+            "omni:xform",
+            ordinal=ordinal,
+            tensors=xform_tensor_from_numpy(xforms),
+            is_array=False,
+            semantic=ovstage.AttributeSemantic.MATRIX,
+        ).wait()
+    paths.destroy_path_list(path_list)
+    return copies
+
+
+class _OvRenderReplicateContext:
+    """Publish the assets routed to OVRTX to the shared routing of one OVRTX scene path."""
+
+    # Scenes clone after native physics has consumed the authored prims.
+    replicate_priority = 100
+    use_ovstage: ClassVar[bool]
+
+    def __init__(self, sim_context: SimulationContext):
+        self._sim = sim_context
+
+    def replicate(self, plan: ClonePlan, asset_prototype_ids: tuple[int, ...]) -> None:
+        """Publish the asset definitions routed to this context for the renderer of its scene path."""
+        from isaaclab_ov.renderers.ovrtx_renderer_cfg import OVRTXCloneCfg  # noqa: PLC0415
+
+        routing = self._sim.get_or_create_backend(OVRTXCloneCfg(use_ovstage=self.use_ovstage))
+        routing.asset_prototype_ids = asset_prototype_ids
+
+
+class OvrtxReplicateContext(_OvRenderReplicateContext):
+    """Clone context of the native OVRTX scene, which the renderer clones with :func:`ovrtx_replicate`."""
+
+    use_ovstage = False
+
+
+class OvstageReplicateContext(_OvRenderReplicateContext):
+    """Clone context of the OVStage scene, which the renderer clones with :func:`ovstage_replicate`."""
+
+    use_ovstage = True
 
 
 def ovphysx_replicate(
