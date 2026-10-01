@@ -93,7 +93,7 @@ def render_aggregate(reports: list[tuple[str, Report]]) -> str:
     lines = [
         f"### Rolling-history CI gate: {_icon(worst)}",
         "",
-        "| Combination | Total FPS | Baseline | Change | Startup [s] | GPU mem [GB] | RSS [GB] | Verdict |",
+        "| Combination | Total FPS | Baseline | FPS regression % | Startup [s] | GPU mem [GB] | RSS [GB] | Verdict |",
         "| --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |",
     ]
     # Sort on the label only: a duplicate label would otherwise fall through to
@@ -109,7 +109,7 @@ def render_aggregate(reports: list[tuple[str, Report]]) -> str:
             f"{_num(by_name['ram_peak_gb'].measured, 4) if 'ram_peak_gb' in by_name else '-'} | "
             f"{_icon(report.verdict)} |"
         )
-    lines.append("")
+    lines += ["", "For the rolling-history gate, positive FPS regression % means lower FPS.", ""]
     for name, report in sorted(reports, key=lambda item: item[0]):
         reasons = [report.message] if report.message else []
         reasons.extend(f"{metric.label}: {metric.note}" for metric in report.metrics if metric.note)
