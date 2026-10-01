@@ -16,12 +16,13 @@ import argparse
 import logging
 import os
 import sys
-import warnings
+import traceback
 from collections.abc import Generator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Any
 
+import torch
 from isaaclab_newton.physics import NewtonCfg, VBDSolverCfg
 from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_ov.renderers import OVRTXRendererCfg
@@ -31,9 +32,11 @@ from isaaclab_physx.renderers import IsaacRtxRendererCfg
 from ..physics.physics_manager_cfg import PhysicsCfg, PhysxAutoCfg, _resolve_physx_auto_cfg
 from ..renderers.renderer_cfg import RendererCfg
 from ..sensors.camera.camera_cfg import CameraCfg
+from ..sim.simulation_cfg import SimulationCfg
+from ..utils.assets import configure_storage_profile
 from ..utils.device import set_cuda_device
 from ..utils.string import string_to_callable
-from ..visualizers.visualizer_cfg import _VISUALIZER_ALIASES, _VISUALIZER_TYPES, VisualizerCfg
+from ..visualizers.visualizer_cfg import VisualizerCfg, parse_visualizer_csv, resolve_visualizer_cfgs
 from .logging_utils import apply_python_logging_level
 from .settings_manager import get_settings_manager
 
@@ -164,59 +167,13 @@ Launcher Argument Helpers.
 """
 
 
-def _parse_visualizer_csv(value: str | list[str]) -> list[str]:
-    """Parse a ``--visualizer`` comma-separated list, or a list of names, into canonical names.
-
-    ``none`` yields an empty list. Parsing canonical names again returns them unchanged.
-    """
-    if isinstance(value, str):
-        token = value.strip()
-        if not token:
-            raise argparse.ArgumentTypeError(
-                "Invalid --visualizer value: empty string. Use a comma-separated list, e.g. --viz kit,newton_gl."
-            )
-        if " " in token:
-            raise argparse.ArgumentTypeError(
-                "Invalid --visualizer value: spaces are not allowed. "
-                "Use a comma-separated list without spaces, e.g. --viz kit,newton_gl,rerun,viser."
-            )
-        value = token.split(",")
-    names = [str(item).strip().lower() for item in value]
-    if any(not name for name in names):
-        raise argparse.ArgumentTypeError(
-            "Invalid --visualizer value: empty visualizer entry detected. "
-            "Use a comma-separated list without empty items."
-        )
-    invalid = [name for name in names if name not in (*_VISUALIZER_TYPES, *_VISUALIZER_ALIASES, "none")]
-    if invalid:
-        raise argparse.ArgumentTypeError(
-            f"Invalid --visualizer value(s): {', '.join(invalid)}. "
-            f"Valid options: {', '.join(sorted((*_VISUALIZER_TYPES, 'none')))}."
-        )
-    for name in names:
-        if name in _VISUALIZER_ALIASES:
-            warnings.warn(
-                f"--viz '{name}' is deprecated. Use '--viz {_VISUALIZER_ALIASES[name]}' instead.",
-                DeprecationWarning,
-                stacklevel=3,
-            )
-    names = [_VISUALIZER_ALIASES.get(name, name) for name in names]
-    if "none" in names:
-        if len(names) > 1:
-            raise argparse.ArgumentTypeError(
-                "Invalid --visualizer value: 'none' cannot be combined with other visualizer types."
-            )
-        return []
-    return list(dict.fromkeys(names))
-
-
-def _normalize_launcher_args(args: dict) -> None:
+def _resolve_launcher_args(args: dict) -> None:
     """Resolve the livestream mode and the visualizer selection in place, once for every consumer.
 
     Writes ``livestream`` (the effective mode: ``--livestream`` when set (>= 0), else the ``LIVESTREAM``
     environment variable) and ``visualizer``: canonical names, an empty list when ``--viz none`` disabled
     all visualizers, or None when no visualizer was requested. Livestreaming adds the Kit visualizer, whose
-    viewport produces the stream. Normalizing twice gives the same result.
+    viewport produces the stream. Resolving twice gives the same result.
     """
     livestream = args.get("livestream", -1)
     if livestream is None or int(livestream) < 0:
@@ -224,10 +181,13 @@ def _normalize_launcher_args(args: dict) -> None:
     livestream = int(livestream)
     if livestream not in (0, 1, 2):
         raise ValueError(f"Invalid livestream mode: {livestream}. Expected 0 (disabled), 1, or 2.")
+    max_visible_envs = args.get("max_visible_envs")
+    if max_visible_envs is not None and int(max_visible_envs) < 0:
+        raise ValueError(f"Invalid value for --max_visible_envs: {max_visible_envs}. Expected non-negative int.")
     visualizers = args.get("visualizer")
     if visualizers:
         try:
-            visualizers = _parse_visualizer_csv(visualizers)
+            visualizers = parse_visualizer_csv(visualizers)
         except argparse.ArgumentTypeError as error:
             raise ValueError(str(error)) from error
     if livestream > 0:
@@ -237,20 +197,6 @@ def _normalize_launcher_args(args: dict) -> None:
             visualizers = [*(visualizers or []), "kit"]
     args["livestream"] = livestream
     args["visualizer"] = visualizers
-
-
-def _sync_visualizer_cli_settings(args: dict) -> None:
-    """Write the normalized visualizer selection and ``--max_visible_envs`` to the settings."""
-    max_visible_envs = args.get("max_visible_envs")
-    if max_visible_envs is not None and int(max_visible_envs) < 0:
-        raise ValueError(f"Invalid value for --max_visible_envs: {max_visible_envs}. Expected non-negative int.")
-    visualizers = args.get("visualizer")
-    settings = get_settings_manager()
-    settings.set("/isaaclab/visualizer/types", " ".join(visualizers or ()))
-    settings.set("/isaaclab/visualizer/explicit", visualizers is not None)
-    settings.set("/isaaclab/visualizer/disable_all", visualizers == [])
-    # Sentinel: ``-1`` means ``--max_visible_envs`` was not passed (see ``SimulationContext``).
-    settings.set("/isaaclab/visualizer/max_visible_envs", -1 if max_visible_envs is None else int(max_visible_envs))
 
 
 def _resolve_python_logging_level(args: dict) -> int:
@@ -266,18 +212,20 @@ def _resolve_python_logging_level(args: dict) -> int:
 def _get_visualizer_intent(visualizer_cfgs: list[VisualizerCfg], args: dict) -> dict[str, bool]:
     """Compute the intent of the config's visualizers, OR-ed with a caller's ``visualizer_intent``.
 
-    An explicit ``--visualizer`` selection overrides whether the config's Kit visualizer is used.
+    An explicit ``--visualizer`` selection overrides whether the config's Kit visualizer, and its streaming
+    view, is used.
     """
     kit_cfgs = [cfg for cfg in visualizer_cfgs if cfg.visualizer_type == "kit"]
-    caller_intent = args.get("visualizer_intent") or {}
     if args["visualizer"] is not None:
         has_kit_visualizer = "kit" in args["visualizer"]
+        # the selection drops a configured Kit visualizer it does not name
+        kit_cfgs = kit_cfgs if has_kit_visualizer else []
     else:
+        caller_intent = args.get("visualizer_intent") or {}
         has_kit_visualizer = bool(kit_cfgs) or bool(caller_intent.get("has_kit_visualizer"))
-    has_kit_streaming_view = any(cfg.streaming_view for cfg in kit_cfgs)
     return {
         "has_kit_visualizer": has_kit_visualizer,
-        "has_kit_streaming_view": has_kit_streaming_view or bool(caller_intent.get("has_kit_streaming_view")),
+        "has_kit_streaming_view": any(cfg.streaming_view for cfg in kit_cfgs),
     }
 
 
@@ -301,6 +249,7 @@ class Scan:
 
     resolved_physics_cfg: PhysicsCfg | None  # first physics config in walk order (post --physics override)
     effective_cfg: Any  # the input config, or its replacement when the config itself was an overridden physics config
+    sim_cfg: SimulationCfg | None  # first simulation config in walk order, e.g. an env config's ``sim``
     visualizer_intent: dict[str, bool]
     has_ovrtx: bool
     has_kit_camera: bool
@@ -335,12 +284,13 @@ def scan(cfg, launcher_args: argparse.Namespace | dict | None = None) -> Scan:
     args = vars(launcher_args) if isinstance(launcher_args, argparse.Namespace) else launcher_args
     args = {} if args is None else args
     # Livestreaming implies a Kit visualizer; make that visible to auto RTX resolution.
-    _normalize_launcher_args(args)
+    _resolve_launcher_args(args)
 
     physics_str = args.get("physics")
     physics_cfgs: list[PhysicsCfg] = []
     concrete_physics_cfgs: list[PhysicsCfg] = []
     effective_cfg: Any = cfg
+    sim_cfg: SimulationCfg | None = None
     has_ovrtx = "newton_rtx" in (args["visualizer"] or ())
     has_auto_rtx = False
     has_auto_physx = False
@@ -356,7 +306,7 @@ def scan(cfg, launcher_args: argparse.Namespace | dict | None = None) -> Scan:
             launcher_types.append(node.launcher_type)
 
     def visit(node, parent, key):
-        nonlocal effective_cfg, has_ovrtx, has_auto_rtx, has_auto_physx, has_kit_camera
+        nonlocal effective_cfg, sim_cfg, has_ovrtx, has_auto_rtx, has_auto_physx, has_kit_camera
         if isinstance(node, RendererCfg) and node.renderer_type == "auto_rtx":
             has_auto_rtx = True
             auto_rtx_locations.append((parent, key, isinstance(parent, CameraCfg) and key == "renderer_cfg"))
@@ -381,6 +331,8 @@ def scan(cfg, launcher_args: argparse.Namespace | dict | None = None) -> Scan:
                 concrete_physics_cfgs.append(node)
         elif isinstance(node, VisualizerCfg):
             visualizer_cfgs.append(node)
+        elif isinstance(node, SimulationCfg):
+            sim_cfg = sim_cfg or node
         elif isinstance(node, RendererCfg) and node.renderer_type == "ovrtx":
             has_ovrtx = True
         elif _is_kit_camera(node):
@@ -402,12 +354,15 @@ def scan(cfg, launcher_args: argparse.Namespace | dict | None = None) -> Scan:
             visit(child, node, name)
 
     visit(cfg, None, None)
-    has_ovrtx = has_ovrtx or any(visualizer_cfg.visualizer_type == "newton_rtx" for visualizer_cfg in visualizer_cfgs)
+    if args["visualizer"] is None:
+        # an explicit --visualizer selection drops configured visualizers it does not name, as for Kit
+        has_ovrtx = has_ovrtx or any(cfg.visualizer_type == "newton_rtx" for cfg in visualizer_cfgs)
 
     has_physics = bool(physics_cfgs)
     config_scan = Scan(
         resolved_physics_cfg=physics_cfgs[0] if physics_cfgs else None,
         effective_cfg=effective_cfg,
+        sim_cfg=sim_cfg,
         visualizer_intent=_get_visualizer_intent(visualizer_cfgs, args),
         has_ovrtx=has_ovrtx,
         has_kit_camera=has_kit_camera,
@@ -468,7 +423,7 @@ Launch Decisions (derived purely from a scan).
 
 
 def _get_kit_runtime_sources(config_scan: Scan, args: dict) -> tuple[str, ...]:
-    """Return the config and launcher components that require Isaac Sim / Kit; *args* are normalized by :func:`scan`."""
+    """Return the config and launcher components that require Isaac Sim / Kit; *args* are resolved by :func:`scan`."""
     kit_sources = []
     if config_scan.has_kit_physics:
         kit_sources.append("Isaac Sim PhysX physics (`PhysxCfg`)")
@@ -525,8 +480,8 @@ def _validate_runtime(scan: Scan, kit_sources: tuple[str, ...]) -> None:
     )
 
 
-def _resolve_distributed_device(cfg, args: dict) -> None:
-    """Set ``cfg.sim.device`` and the launcher ``device`` for distributed training.
+def _resolve_distributed_device(args: dict) -> None:
+    """Set the launcher ``device`` to this rank's GPU for distributed training.
 
     When ``--distributed`` restricts each process to one GPU, ``local_rank`` may exceed
     the visible device count, so the process falls back to the one GPU it can see.
@@ -534,16 +489,11 @@ def _resolve_distributed_device(cfg, args: dict) -> None:
     if not args.get("distributed", False):
         return
 
-    import torch
-
     local_rank = int(os.getenv("LOCAL_RANK", "0")) + int(os.getenv("JAX_LOCAL_RANK", "0"))
     num_visible_gpus = torch.cuda.device_count()
     # Compare against the local device count (not WORLD_SIZE) so multi-node runs work.
     device_str = f"cuda:{local_rank}" if local_rank < num_visible_gpus else "cuda:0"
 
-    sim_cfg = getattr(cfg, "sim", None)
-    if sim_cfg is not None:
-        sim_cfg.device = device_str
     args["device"] = device_str
     set_cuda_device(device_str)
     logger.info(
@@ -552,6 +502,25 @@ def _resolve_distributed_device(cfg, args: dict) -> None:
         local_rank,
         num_visible_gpus,
     )
+
+
+def _resolve_device(sim_cfg, args: dict, launchers: list[SimulationLauncher]) -> None:
+    """Write the run's device to ``sim_cfg.device`` and the ``device`` launcher argument, once.
+
+    Starts from the ``device`` launcher argument resolved before launch; a started runtime may refine it
+    (e.g. XR selects the CPU), and a bare ``"cuda"`` is pinned to the physics GPU index.
+    """
+    device = args.get("device")
+    for launcher in launchers:
+        device = launcher.device or device
+    if device == "cuda":
+        cuda_device = get_settings_manager().get("/physics/cudaDevice")
+        device = f"cuda:{max(0, int(cuda_device) if cuda_device is not None else 0)}"
+    if device is None:
+        return
+    args["device"] = device
+    if sim_cfg is not None:
+        sim_cfg.device = device
 
 
 @contextmanager
@@ -565,6 +534,10 @@ def launch_simulation(
     physics/renderer/visualizer combination, and deciding whether Isaac Sim Kit is
     needed), then starts the launcher each required runtime's config names (closed on exit) or
     does nothing for kitless ones. Cameras are auto-enabled for Kit-renderer sensors.
+
+    The run's visualizers and device are decided here, once: they are written to the
+    :class:`~isaaclab.sim.SimulationCfg` in *cfg* (``visualizer_cfgs`` and ``device``), which
+    every later consumer reads.
 
     Yields the resolved physics config, so a script can pass a bare placeholder and
     pick the backend from the command line::
@@ -587,8 +560,8 @@ def launch_simulation(
               a tool that reaches a Kit-only extension API. This is additive -- it can only turn a
               kitless launch into a Kit one, never the reverse, so a config that already needs Kit
               still launches it when the key is absent or ``False``.
-            * ``visualizer_intent``: Visualizer intent the config cannot express, e.g.
-              ``{"has_kit_visualizer": True}``; it is combined with the intent of *cfg*.
+            * ``visualizer_intent``: ``{"has_kit_visualizer": True}`` requests the Kit visualizer when *cfg*
+              configures none and no ``visualizer`` selection is given.
     """
     # writes to ``args`` reach the caller's namespace or dict
     args = vars(launcher_args) if isinstance(launcher_args, argparse.Namespace) else launcher_args
@@ -597,7 +570,6 @@ def launch_simulation(
     # The single walk: collect every signal, apply the --physics override, and
     # resolve the automatic PhysX and RTX placeholders.
     config_scan = scan(cfg, args)
-    effective_cfg = config_scan.effective_cfg
     physics_cfg = config_scan.resolved_physics_cfg
 
     kit_sources = _get_kit_runtime_sources(config_scan, args)
@@ -616,8 +588,18 @@ def launch_simulation(
             )
             args["enable_cameras"] = True
 
-    # Resolve distributed device early, before any launcher or physics init.
-    _resolve_distributed_device(effective_cfg, args)
+    # The SimulationCfg the simulation is built from, e.g. an env config's ``sim``; a physics config or None
+    # holds none.
+    sim_cfg = config_scan.sim_cfg
+
+    # Resolve the device before any launcher or physics init: --device, else this rank's GPU, else the config's.
+    _resolve_distributed_device(args)
+    if sim_cfg is not None:
+        args["device"] = args.get("device") or sim_cfg.device
+        # Decide the visualizers once, into the SimulationCfg.
+        sim_cfg.visualizer_cfgs = resolve_visualizer_cfgs(
+            sim_cfg.visualizer_cfgs, args["visualizer"], args.get("max_visible_envs")
+        )
 
     # Start the launchers the resolved config names, plus Kit and OVRTX for needs that no config names
     # (e.g. a default-renderer camera, ``--viz kit`` or ``--viz newton_rtx``); Kit starts first.
@@ -627,20 +609,21 @@ def launch_simulation(
         # validated above: OVRTX never shares the process with Kit
         launcher_types.append(OVRTXRendererCfg.launcher_type)
     launchers = [string_to_callable(launcher_type)(args) for launcher_type in dict.fromkeys(launcher_types)]
-    for launcher in launchers:
-        # the runtime may refine the device choice made by _resolve_distributed_device
-        sim_cfg = getattr(effective_cfg, "sim", None)
-        if sim_cfg is not None and launcher.device is not None:
-            sim_cfg.device = launcher.device
     # after the launchers, so a started Kit already backs the settings
-    _sync_visualizer_cli_settings(args)
+    _resolve_device(sim_cfg, args, launchers)
+    # A config without a SimulationCfg (e.g. a bare physics config) leaves the selection for the
+    # SimulationContext built after launch; otherwise clear one left by an earlier launch. ``none``
+    # round-trips through ``parse_visualizer_csv`` as ``--viz none``; empty means no selection.
+    visualizers = None if sim_cfg is not None else args.get("visualizer")
+    max_visible_envs = None if sim_cfg is not None else args.get("max_visible_envs")
+    settings = get_settings_manager()
+    settings.set("/isaaclab/visualizer/types", "" if visualizers is None else ",".join(visualizers) or "none")
+    settings.set("/isaaclab/visualizer/max_visible_envs", -1 if max_visible_envs is None else int(max_visible_envs))
 
     exit_code = 0
     try:
-        # The import stays after the Kit launch decision. With no selected profile this is a
-        # no-op; with one, it installs process-wide OmniClient routing before user code runs.
-        from ..utils.assets import configure_storage_profile
-
+        # With no selected profile this is a no-op; with one, it installs process-wide OmniClient
+        # routing before user code runs.
         configure_storage_profile()
         yield physics_cfg
     except KeyboardInterrupt:
@@ -652,8 +635,6 @@ def launch_simulation(
         raise
     except Exception:
         exit_code = 1
-        import traceback
-
         traceback.print_exc()
         raise
     finally:

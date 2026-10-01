@@ -159,9 +159,10 @@ class VisualizationMarkers:
         """Update markers in all initialized visualizer backends.
 
         .. note::
-            If the markers are hidden, the function returns without updating
-            backend marker state. This avoids unnecessary work while debug
-            visualization is disabled.
+            If the markers are hidden or no visualizer backend is active (e.g. when
+            running headless), the function returns without validating inputs or
+            updating marker state. This avoids unnecessary work while nothing
+            displays the markers.
 
         Whenever updating the markers, the input arrays must have the same
         number of elements in the first dimension. Backends generally require
@@ -206,9 +207,9 @@ class VisualizationMarkers:
             ValueError: When the function is called with all None arguments.
         """
         self._ensure_backends_initialized()
-        # If markers are hidden, do not spend time normalizing or dispatching
-        # marker state to the active backends.
-        if not self.is_visible():
+        # If no backend consumes markers (e.g. headless) or markers are hidden, do not spend
+        # time normalizing or dispatching marker state.
+        if not self._backends or not self.is_visible():
             return
 
         norm_translations = self._to_tensor(translations, expected_width=3, name="translations")
