@@ -39,5 +39,3 @@ include = ["isaaclab", "isaaclab.*"]
 
 [tool.setuptools.package-data]
 "*" = ["*.pyi"]
-# Identified actuator parameters shipped with the BAM actuator model.
-"isaaclab.actuators" = ["data/*.json", "data/*.md", "data/LICENSE-BAM"]
