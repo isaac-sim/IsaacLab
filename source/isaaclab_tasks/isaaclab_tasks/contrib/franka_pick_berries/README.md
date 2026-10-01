@@ -259,9 +259,10 @@ The glass bowl remains 12 cm across and 4.5 cm tall. The metal reject dish is
 Smooth visual meshes are
 authored by task code; no extra asset files or uploads are required.
 EBC uses softer task lighting and eight total/specular-transmission bounces for
-the solid glass. The bowl still reads dark against the table in this real-time
-renderer; its appearance needs another art-direction pass before a final GTC
-capture. These changes do not affect studio lighting or fruit physics.
+the solid glass. The bowl stands just above the table's visible top, so no glass
+face is buried in or coincident with it, and casts no shadow: RTX shadow rays do
+not refract, so solid glass would otherwise leave the table under it black.
+These changes do not affect studio lighting or fruit physics.
 
 The table, punnet, bowl and reject dish are static colliders for both the robot and the
 tissue; decorative ribs and the punnet flange are visual only, and there is no lid across
