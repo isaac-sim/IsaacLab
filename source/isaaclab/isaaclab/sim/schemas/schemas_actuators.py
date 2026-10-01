@@ -264,6 +264,8 @@ def author_actuator_prims(
 
             validate(cfg)
             bam_attrs = to_dict(cfg.motor)
+            # Passive damping is initialized through the articulation's joint properties.
+            bam_attrs.pop("friction_viscous")
             model = bam_attrs.pop("model")
             bam_attrs.update(
                 stribeck=int(model != "m1"),

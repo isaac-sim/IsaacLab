@@ -9,7 +9,7 @@ Some actuator models need more of the solver than
 :class:`~newton.actuators.DriveBase` is handed: the BAM servo model publishes a
 load-dependent dry-friction budget every control step and reads a generalized load estimate on
 the gearbox. Newton exposes neither -- there is no supported per-step override of
-``dof_frictionloss`` / ``dof_damping``, and ``State``'s extended-attribute whitelist carries
+``dof_frictionloss``, and ``State``'s extended-attribute whitelist carries
 only ``mujoco:qfrc_actuator``. Both quantities *are* reachable through
 :attr:`~newton.solvers.SolverMuJoCo.mjw_model` / ``mjw_data``, which are public attributes
 without a stability contract.
@@ -53,11 +53,9 @@ def _publish_dof_friction_kernel(
     mjc_dof_to_newton_dof: wp.array2d[wp.int32],
     newton_dof_to_slot: wp.array[wp.int32],
     friction_budget: wp.array[float],
-    viscous_damping: wp.array[float],
     dof_frictionloss: wp.array2d[float],
-    dof_damping: wp.array2d[float],
 ):
-    """Scatter an actuator's per-DOF friction budget and damping into the MuJoCo model."""
+    """Scatter an actuator's per-DOF dry-friction budget into the MuJoCo model."""
     world, mjc_dof = wp.tid()
     newton_dof = mjc_dof_to_newton_dof[world, mjc_dof]
     if newton_dof < 0:
@@ -66,7 +64,6 @@ def _publish_dof_friction_kernel(
     if slot < 0:
         return
     dof_frictionloss[world, mjc_dof] = friction_budget[slot]
-    dof_damping[world, mjc_dof] = viscous_damping[slot]
 
 
 @wp.kernel(enable_backward=False)
@@ -215,22 +212,20 @@ class MjWarpActuatorBridge:
 
         self._friction_constraint_type = int(mujoco.mjtConstraint.mjCNSTR_FRICTION_DOF)
 
-    def publish_dof_friction(self, friction_budget: wp.array, viscous_damping: wp.array) -> None:
-        """Write the actuator's dry-friction budget and viscous damping into the solver.
+    def publish_dof_friction(self, friction_budget: wp.array) -> None:
+        """Write the actuator's dry-friction budget into the solver.
 
-        Both are consumed by MuJoCo Warp's per-step kernels -- the friction-loss constraint
-        reads ``dof_frictionloss``, passive damping reads ``dof_damping`` -- so an in-place
+        MuJoCo Warp's friction-loss constraint reads ``dof_frictionloss``, so an in-place
         write takes effect on the next solver launch, including a replayed CUDA graph.
 
         Args:
             friction_budget: Velocity-independent friction budget per slot [N.m], shape ``(N,)``.
-            viscous_damping: Viscous friction coefficient per slot [N.m.s/rad], shape ``(N,)``.
         """
         wp.launch(
             _publish_dof_friction_kernel,
             dim=self._launch_dim,
-            inputs=[self._dof_map, self._newton_dof_to_slot, friction_budget, viscous_damping],
-            outputs=[self._mjw_model.dof_frictionloss, self._mjw_model.dof_damping],
+            inputs=[self._dof_map, self._newton_dof_to_slot, friction_budget],
+            outputs=[self._mjw_model.dof_frictionloss],
             device=self._device,
         )
 
