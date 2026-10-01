@@ -87,6 +87,14 @@ FRANKA_PANDA_LEGACY_CFG = ArticulationCfg(
 """Configuration of the legacy Franka Emika Panda robot asset."""
 
 
+FRANKA_PANDA_LEGACY_HIGH_PD_CFG = clone(FRANKA_PANDA_LEGACY_CFG)
+FRANKA_PANDA_LEGACY_HIGH_PD_CFG.spawn.rigid_props.disable_gravity = True
+for actuator in ("panda_shoulder", "panda_forearm"):
+    FRANKA_PANDA_LEGACY_HIGH_PD_CFG.actuators[actuator].stiffness = 400.0
+    FRANKA_PANDA_LEGACY_HIGH_PD_CFG.actuators[actuator].damping = 80.0
+"""Configuration of the legacy Franka Emika Panda robot with stiffer PD control."""
+
+
 FRANKA_PANDA_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/franka_panda.usda",
@@ -147,6 +155,24 @@ This configuration is useful for task-space control using differential IK.
 """
 
 
+FRANKA_PANDA_MENAGERIE_CFG = clone(FRANKA_PANDA_LEGACY_CFG)
+FRANKA_PANDA_MENAGERIE_CFG.spawn.usd_path = f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/franka_panda.usda"
+FRANKA_PANDA_MENAGERIE_CFG.actuators = {
+    "panda_arm": ImplicitActuatorCfg(
+        joint_names_expr=["panda_joint[1-7]"],
+        joint_velocity_limit={"panda_joint[1-4]": 20.0, "panda_joint[5-7]": 25.0},
+        stiffness=None,
+        damping=None,
+    ),
+    "panda_hand": ImplicitActuatorCfg(
+        joint_names_expr=["panda_finger_joint.*"],
+        stiffness=None,
+        damping=None,
+    ),
+}
+"""Configuration of the Franka Emika Panda robot with Menagerie actuator settings."""
+
+
 FRANKA_ROBOTIQ_GRIPPER_CFG = clone(FRANKA_PANDA_LEGACY_CFG)
 FRANKA_ROBOTIQ_GRIPPER_CFG.spawn.usd_path = f"{ISAAC_NUCLEUS_DIR}/Robots/FrankaRobotics/FrankaPanda/franka.usd"
 FRANKA_ROBOTIQ_GRIPPER_CFG.spawn.variants = {"Gripper": "Robotiq_2F_85"}
@@ -204,32 +230,4 @@ FRANKA_ROBOTIQ_GRIPPER_CFG.actuators = {
         damping=0.0,
     ),
 }
-
-
 """Configuration of Franka Emika Panda robot with Robotiq_2f_85 gripper."""
-
-
-FRANKA_PANDA_LEGACY_HIGH_PD_CFG = clone(FRANKA_PANDA_LEGACY_CFG)
-FRANKA_PANDA_LEGACY_HIGH_PD_CFG.spawn.rigid_props.disable_gravity = True
-for actuator in ("panda_shoulder", "panda_forearm"):
-    FRANKA_PANDA_LEGACY_HIGH_PD_CFG.actuators[actuator].stiffness = 400.0
-    FRANKA_PANDA_LEGACY_HIGH_PD_CFG.actuators[actuator].damping = 80.0
-"""Configuration of the legacy Franka Emika Panda robot with stiffer PD control."""
-
-
-FRANKA_PANDA_MENAGERIE_CFG = clone(FRANKA_PANDA_LEGACY_CFG)
-FRANKA_PANDA_MENAGERIE_CFG.spawn.usd_path = f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/franka_panda.usda"
-FRANKA_PANDA_MENAGERIE_CFG.actuators = {
-    "panda_arm": ImplicitActuatorCfg(
-        joint_names_expr=["panda_joint[1-7]"],
-        joint_velocity_limit={"panda_joint[1-4]": 20.0, "panda_joint[5-7]": 25.0},
-        stiffness=None,
-        damping=None,
-    ),
-    "panda_hand": ImplicitActuatorCfg(
-        joint_names_expr=["panda_finger_joint.*"],
-        stiffness=None,
-        damping=None,
-    ),
-}
-"""Configuration of the Franka Emika Panda robot with Menagerie actuator settings."""
