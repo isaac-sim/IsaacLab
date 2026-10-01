@@ -5,5 +5,5 @@
 
 interface:
   display_name: "Update Environment Docs"
-  short_description: "Keep environment catalog entries and presets current"
-  default_prompt: "Use $isaaclab-updating-environment-docs to update the environment catalog for a new or modified task."
+  short_description: "Keep environment browser tasks and presets current"
+  default_prompt: "Use $isaaclab-updating-environment-docs to update the environment browser for a new or modified task."

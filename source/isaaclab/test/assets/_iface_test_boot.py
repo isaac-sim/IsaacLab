@@ -14,11 +14,10 @@ _kitless = "ovphysx" in os.environ.get("LD_PRELOAD", "") or (
 )
 
 if not _kitless:
-    from isaaclab.app import AppLauncher
+    from isaaclab.test.utils import launch_test_simulation
 
-    simulation_app = AppLauncher(headless=True).app
+    launch_test_simulation()
 else:
-    simulation_app = None
     # ``omni`` is a real namespace package in OvPhysX kitless runs. Install
     # missing submodules in both ``sys.modules`` and the namespace attributes.
     import omni as _omni

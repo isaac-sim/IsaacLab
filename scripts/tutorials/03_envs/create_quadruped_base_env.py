@@ -17,25 +17,22 @@ the terrain.
 
 """
 
-"""Launch Isaac Sim Simulator first."""
+"""Parse the command-line arguments first."""
 
 
 import argparse
+from typing import TYPE_CHECKING
 
-from isaaclab.app import AppLauncher
+from isaaclab.app import add_launcher_args, launch_simulation
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Tutorial on creating a quadruped base environment.")
 parser.add_argument("--num_envs", type=int, default=64, help="Number of environments to spawn.")
 
-# append AppLauncher cli args
-AppLauncher.add_app_launcher_args(parser)
+# append simulation launcher cli args
+add_launcher_args(parser)
 # parse the arguments
 args_cli = parser.parse_args()
-
-# launch omniverse app
-app_launcher = AppLauncher(args_cli)
-simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
@@ -44,7 +41,7 @@ import torch
 import isaaclab.envs.mdp as mdp
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
-from isaaclab.envs import ManagerBasedEnv, ManagerBasedEnvCfg
+from isaaclab.envs import ManagerBasedEnvCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
@@ -52,9 +49,12 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import RayCasterCfg, patterns
 from isaaclab.terrains import TerrainImporterCfg
+from isaaclab.utils import configclass, instantiate, replace
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, check_file_path, read_file
-from isaaclab.utils.configclass import configclass
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
+
+if TYPE_CHECKING:
+    from isaaclab.envs import ManagerBasedEnv
 
 ##
 # Pre-defined configs
@@ -68,7 +68,7 @@ from isaaclab_assets.robots.anymal import ANYMAL_C_CFG  # isort: skip
 ##
 
 
-def constant_commands(env: ManagerBasedEnv) -> torch.Tensor:
+def constant_commands(env: "ManagerBasedEnv") -> torch.Tensor:
     """The generated command from the command generator."""
     return torch.tensor([[1, 0, 0]], device=env.device).repeat(env.num_envs, 1)
 
@@ -99,7 +99,7 @@ class MySceneCfg(InteractiveSceneCfg):
     )
 
     # add robot
-    robot: ArticulationCfg = ANYMAL_C_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    robot: ArticulationCfg = replace(ANYMAL_C_CFG, prim_path="{ENV_REGEX_NS}/Robot")
 
     # sensors
     height_scanner = RayCasterCfg(
@@ -205,41 +205,41 @@ def main():
     """Main function."""
     # setup base environment
     env_cfg = QuadrupedEnvCfg()
-    env = ManagerBasedEnv(cfg=env_cfg)
+    # Launch the simulator runtime that the configuration needs
+    with launch_simulation(env_cfg, args_cli):
+        env = instantiate(env_cfg)
 
-    # load level policy
-    policy_path = ISAACLAB_NUCLEUS_DIR + "/Policies/ANYmal-C/HeightScan/policy.pt"
-    # check if policy file exists
-    if not check_file_path(policy_path):
-        raise FileNotFoundError(f"Policy file '{policy_path}' does not exist.")
-    file_bytes = read_file(policy_path)
-    # jit load the policy
-    policy = torch.jit.load(file_bytes).to(env.device).eval()
+        # load level policy
+        policy_path = ISAACLAB_NUCLEUS_DIR + "/Policies/ANYmal-C/HeightScan/policy.pt"
+        # check if policy file exists
+        if not check_file_path(policy_path):
+            raise FileNotFoundError(f"Policy file '{policy_path}' does not exist.")
+        file_bytes = read_file(policy_path)
+        # jit load the policy
+        policy = torch.jit.load(file_bytes).to(env.device).eval()
 
-    # simulate physics
-    count = 0
-    obs, _ = env.reset()
-    while simulation_app.is_running():
-        with torch.inference_mode():
-            # reset
-            if count % 1000 == 0:
-                obs, _ = env.reset()
-                count = 0
-                print("-" * 80)
-                print("[INFO]: Resetting environment...")
-            # infer action
-            action = policy(obs["policy"])
-            # step env
-            obs, _ = env.step(action)
-            # update counter
-            count += 1
+        # simulate physics
+        count = 0
+        obs, _ = env.reset()
+        while env.sim.is_running():
+            with torch.inference_mode():
+                # reset
+                if count % 1000 == 0:
+                    obs, _ = env.reset()
+                    count = 0
+                    print("-" * 80)
+                    print("[INFO]: Resetting environment...")
+                # infer action
+                action = policy(obs["policy"])
+                # step env
+                obs, _ = env.step(action)
+                # update counter
+                count += 1
 
-    # close the environment
-    env.close()
+        # close the environment
+        env.close()
 
 
 if __name__ == "__main__":
     # run the main function
     main()
-    # close sim app
-    simulation_app.close()

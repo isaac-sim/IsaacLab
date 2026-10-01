@@ -8,7 +8,7 @@ Below, you'll find detailed examples of various policies for training and deploy
 .. toctree::
     :maxdepth: 1
 
-    01_io_descriptors/io_descriptors_101
+    ../how-to/policy_inference_in_usd
     02_gear_assembly/gear_assembly_policy
     03_compass_with_NuRec/compass_navigation_policy_with_NuRec
     04_reach/reach_policy

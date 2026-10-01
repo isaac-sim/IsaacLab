@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 
 import warp as wp
 
-from isaaclab.utils.warp import ProxyArray
+from ...utils.warp import ProxyArray
 
 if TYPE_CHECKING:
     from .xform_space_writer import FrameViewLocalSpaceWriter, FrameViewSpaceWriterBase, FrameViewWorldSpaceWriter
