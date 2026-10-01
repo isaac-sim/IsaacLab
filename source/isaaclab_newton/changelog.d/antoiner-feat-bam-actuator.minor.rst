@@ -22,3 +22,4 @@ Added
 * Added a recorded deterministic native BAM pendulum trajectory with source-commit and dependency
   provenance. The regression fixture preserved the existing Newton / MJWarp behavior without a
   second servo implementation or a live upstream dependency; it did not measure upstream fidelity.
+  The pendulum was provided as a standalone, authored USD fixture instead of embedded Python data.

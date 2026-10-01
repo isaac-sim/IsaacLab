@@ -36,68 +36,6 @@ pytestmark = [
     pytest.mark.filterwarnings("error:.*deprecated in Newton 1[.]6:DeprecationWarning"),
 ]
 
-PENDULUM_USDA = """\
-#usda 1.0
-(
-    defaultPrim = "Robot"
-    metersPerUnit = 1
-    upAxis = "Z"
-)
-
-def Xform "Robot" (
-    prepend apiSchemas = ["PhysicsArticulationRootAPI"]
-)
-{
-    def Xform "Pivot" (
-        prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
-    )
-    {
-        float physics:mass = 0.1
-        float3 physics:diagonalInertia = (0.001, 0.001, 0.001)
-    }
-
-    def Xform "Arm" (
-        prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
-    )
-    {
-        float physics:mass = 0.02
-        point3f physics:centerOfMass = (0.05, 0, 0)
-        float3 physics:diagonalInertia = (0.002, 0.002, 0.002)
-    }
-
-    def PhysicsFixedJoint "anchor"
-    {
-        rel physics:body1 = </Robot/Pivot>
-    }
-
-    def PhysicsRevoluteJoint "joint"
-    {
-        uniform token physics:axis = "Y"
-        rel physics:body0 = </Robot/Pivot>
-        rel physics:body1 = </Robot/Arm>
-    }
-}
-"""
-"""Fixed-base single-degree-of-freedom pendulum.
-
-``Pivot`` is welded to the world by ``anchor``, a fixed joint whose ``physics:body0`` is left
-unset. That weld is what makes the USD physics parser report an articulation at all: a lone
-body hanging off a world-anchored revolute joint is imported as an orphan joint and no
-articulation is created, so :class:`~isaaclab.assets.Articulation` finds nothing to bind to.
-``Arm`` is the only degree of freedom.
-
-``Arm``'s centre of mass is offset along +X and the joint spins about +Y, so rotating the
-joint by ``theta`` swings the centre of mass down and gravity applies a pure
-``m * g * L * cos(theta)`` load about the joint axis.
-
-``Arm``'s inertia is authored independently of its mass distribution and is deliberately much
-larger than ``m * L^2``: it stands in for the rotor inertia a geared servo reflects to its
-output shaft (0.0018 kg m^2 for the Dynamixel XL330 the BAM parameters were fitted on).
-Without it the joint inertia would sit far below the actuator's electrical damping times the
-timestep, and a back-EMF torque applied explicitly by the actuator could not be integrated
-stably.
-"""
-
 DT = 1.0 / 120.0
 """Physics timestep [s]."""
 
@@ -132,11 +70,9 @@ def _make_sim_cfg(device: str, use_newton_actuators: bool = False) -> Simulation
 
 
 @pytest.fixture(scope="module")
-def pendulum_usd(tmp_path_factory) -> str:
-    """Write :data:`PENDULUM_USDA` to a temporary file and return its path."""
-    path = tmp_path_factory.mktemp("bam_pendulum") / "single_joint_pendulum.usda"
-    path.write_text(PENDULUM_USDA)
-    return str(path)
+def pendulum_usd() -> str:
+    """Path of the authored fixed-base BAM pendulum fixture."""
+    return str(Path(__file__).parent / "data" / "bam_pendulum.usda")
 
 
 @pytest.fixture

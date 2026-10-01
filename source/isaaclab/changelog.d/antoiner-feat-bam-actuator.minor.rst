@@ -16,6 +16,8 @@ Added
   using the configured fit and required firmware gain and nominal voltage. It authored a positive
   joint-friction seed to allocate the solver constraint even with zero Coulomb friction. Recorded upstream
   motor and friction samples checked drive behavior without an upstream BAM installation.
+  Component tests loaded a standalone, authored two-servo USD fixture; configuration authoring
+  remained covered by dedicated tests.
 * Added per-environment start-up sampling for supply voltage, supply sag and friction scale.
   Exposed ``vin``, ``sag_gain``, ``friction_scale``, ``kp_scale`` and ``kd_scale`` through
   :func:`~isaaclab.actuators.newton.read_group_parameter` and
