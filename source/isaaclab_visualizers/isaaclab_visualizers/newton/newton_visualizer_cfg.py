@@ -153,8 +153,8 @@ class NewtonRTXVisualizerCfg(NewtonVisualizerCfg):
     Selects Newton's OVRTX backend — photorealistic rendering using the same
     ``begin_frame / log_state / end_frame`` step interface as the GL backend.
 
-    .. note::
-        Lighting environment and denoiser settings use ``ViewerRTX`` defaults.
+    The shared OV clone context prepares the simulation-owned stage that ``ViewerRTX`` renders,
+    preserving authored materials and lighting while Newton drives the body poses.
 
     ``render_rgb_array()`` captures the path-traced LDR framebuffer at
     :attr:`window_width` by :attr:`window_height`. The tiled camera panel remains
@@ -171,11 +171,10 @@ class NewtonRTXVisualizerCfg(NewtonVisualizerCfg):
         "isaaclab_newton.cloner:NewtonReplicateContext",
         "isaaclab_ov.cloner:OvrtxReplicateContext",
     )
-    """Prepare the Newton model and any simulation-owned stage requested for RTX rendering."""
+    """Prepare the Newton model and the simulation-owned stage for RTX rendering."""
 
     rtx_environment: str = "default"
-    """OVRTX lighting environment.  One of ``"default"`` (dome + distant light),
-    ``"studio"`` (three-point rig for cleaner highlights), or ``"none"``."""
+    """Deprecated. Lighting comes from the simulation scene; author lights there instead."""
 
     render_settings: dict[str, Any] = dict()
     """RTX attributes to author on the OVRTX render product, as ``{name: (usd_type_name, value)}``.
@@ -185,10 +184,11 @@ class NewtonRTXVisualizerCfg(NewtonVisualizerCfg):
     quality convergence loop, which ``ViewerRTX`` otherwise disables to keep interactive latency
     down."""
 
-    render_usd_stage: bool = False
-    """Draw the simulation's own USD stage instead of a scene rebuilt from the Newton model.
-
-    Newton's USD import drops visual properties it cannot represent, such as MDL materials, so the
-    rebuilt scene loses them. With this enabled, the OV clone context populates a simulation-owned OVStage,
-    and ``ViewerRTX`` borrows that stage while Newton drives the body poses. It needs a
-    Newton release whose ``ViewerRTX`` accepts ``ovstage=``, and OVRTX 0.5 with OVStage 0.2 or newer."""
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        if self.rtx_environment != "default":
+            warnings.warn(
+                "rtx_environment is deprecated and ignored; configure lights in the simulation scene instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )

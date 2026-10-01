@@ -39,6 +39,14 @@ from isaaclab.sim import SimulationContext
 from isaaclab.utils import instantiate
 
 
+@pytest.fixture
+def simulation(monkeypatch):
+    """Provide the simulation registry that owns the RTX visualizer's native stage."""
+    sim = SimpleNamespace(get_or_create_backend=Mock(return_value=SimpleNamespace(stage=object())))
+    monkeypatch.setattr(SimulationContext, "instance", staticmethod(lambda: sim))
+    return sim
+
+
 @pytest.mark.parametrize(
     ("scale", "expected"),
     [
@@ -248,7 +256,7 @@ def test_visualizer_uses_declared_streaming_renderer(monkeypatch, cfg_type):
         streaming_cam_renderer_cfg=RendererCfg(class_type="my_renderers:CustomRenderer", renderer_type="custom"),
     )
     visualizer = instantiate(cfg)
-    sim.get_or_create_backend.assert_called_once_with(cfg.streaming_cam_renderer_cfg)
+    sim.get_or_create_backend.assert_any_call(cfg.streaming_cam_renderer_cfg)
     visualizer._viewer = SimpleNamespace()
     visualizer._scene_data_provider = SimpleNamespace(
         get_camera_sensors=lambda: {"task_camera": existing_camera},
@@ -463,7 +471,7 @@ def test_newton_rtx_viewer_particle_color_override(monkeypatch):
     assert colors == (0.1, 0.2, 0.3)
 
 
-def test_newton_rtx_visualizer_applies_particle_color():
+def test_newton_rtx_visualizer_applies_particle_color(simulation):
     visualizer = NewtonRTXVisualizer(NewtonRTXVisualizerCfg(particle_color=(0.1, 0.2, 0.3)))
     visualizer._viewer = SimpleNamespace(particle_color=None)
 
@@ -786,7 +794,7 @@ def test_newton_gl_visualizer_logs_staged_mesh_while_paused(monkeypatch):
 
 
 @pytest.mark.parametrize("cfg_type", [NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg])
-def test_newton_visualizer_headless_renders_frame_on_demand(monkeypatch, cfg_type):
+def test_newton_visualizer_headless_renders_frame_on_demand(monkeypatch, simulation, cfg_type):
     """Headless viewers share on-demand binding, preserve pause, and close frames even on errors."""
 
     class RTXViewer(_Viewer, NewtonViewerRTX):
@@ -954,6 +962,7 @@ def test_ensure_mesh_registered_handles_none_normals_and_uvs(monkeypatch):
 def test_newton_visualizer_cfg_distinct_types():
     assert NewtonGLVisualizerCfg().visualizer_type == "newton_gl"
     assert NewtonRTXVisualizerCfg().visualizer_type == "newton_rtx"
+    assert not hasattr(NewtonRTXVisualizerCfg(), "render_usd_stage")
     # Public viewer options are accepted as cfg fields.
     NewtonGLVisualizerCfg(enable_picking=False, show_particles=True, particle_color=(0.1, 0.2, 0.3))
 
@@ -976,44 +985,24 @@ def test_newton_gl_background_color(color: tuple[float, float, float] | None) ->
     assert visualizer._viewer.renderer.sky_lower == expected_lower
 
 
-@pytest.mark.parametrize(
-    "color, render_usd_stage, accepts_ovstage",
-    [((0.1, 0.2, 0.3), False, False), (None, True, True), (None, True, False)],
-    ids=["model-stage", "borrowed-stage", "unsupported-viewer"],
-)
-def test_newton_rtx_receives_background_color_and_prepared_stage(
-    monkeypatch: pytest.MonkeyPatch, color, render_usd_stage, accepts_ovstage
-) -> None:
+@pytest.mark.parametrize("color, environment", [((0.1, 0.2, 0.3), "default"), (None, "studio")])
+def test_newton_rtx_receives_background_color_and_prepared_stage(monkeypatch, simulation, color, environment):
+    from isaaclab_ov.stage import OvstageBackendCfg
+
     kwargs = {}
     monkeypatch.setattr(
         newton_visualizer_module, "NewtonViewerRTX", lambda **viewer_kwargs: kwargs.update(viewer_kwargs) or object()
     )
-    base_init = (lambda self, *, ovstage=None: None) if accepts_ovstage else (lambda self: None)
-    monkeypatch.setattr(newton_visualizer_module, "ViewerRTX", type("FakeViewerRTX", (), {"__init__": base_init}))
-    backend = SimpleNamespace(stage=object())
-    register = Mock(return_value=backend)
-    monkeypatch.setattr(
-        SimulationContext, "instance", staticmethod(lambda: SimpleNamespace(get_or_create_backend=register))
-    )
-    cfg = NewtonRTXVisualizerCfg(background_color=color, render_usd_stage=render_usd_stage)
-    if render_usd_stage and not accepts_ovstage:
-        with pytest.raises(RuntimeError, match="ovstage="):
-            NewtonRTXVisualizer(cfg)
-        register.assert_not_called()
-        return
-    if render_usd_stage:
-        pytest.importorskip("isaaclab_ov.stage")
-    NewtonRTXVisualizer(cfg)._create_viewer(True, {})
-    assert kwargs["background_color"] == color
-    if render_usd_stage:
-        from isaaclab_ov.stage import OvstageBackendCfg
-
-        register.assert_called_once_with(OvstageBackendCfg(visualizer_cfg=cfg))
-        assert "isaaclab_ov.cloner:OvrtxReplicateContext" in cfg.cloning_contexts
-        assert kwargs["ovstage"] is backend.stage
+    if environment == "default":
+        cfg = NewtonRTXVisualizerCfg(background_color=color)
     else:
-        register.assert_not_called()
-        assert "ovstage" not in kwargs
+        with pytest.warns(DeprecationWarning, match="rtx_environment"):
+            cfg = NewtonRTXVisualizerCfg(background_color=color, rtx_environment=environment)
+    NewtonRTXVisualizer(cfg)._create_viewer(True, {})
+    simulation.get_or_create_backend.assert_called_once_with(OvstageBackendCfg(visualizer_cfg=cfg))
+    assert kwargs["background_color"] == color
+    assert kwargs["ovstage"] is simulation.get_or_create_backend.return_value.stage
+    assert "environment" not in kwargs
 
 
 def test_eye_lookat_to_pitch_yaw_looking_up():
@@ -1037,7 +1026,7 @@ def test_eye_lookat_to_pitch_yaw_degenerate_returns_zero():
     assert yaw == 0.0
 
 
-def test_newton_rtx_visualizer_render_rgb_array_returns_frame():
+def test_newton_rtx_visualizer_render_rgb_array_returns_frame(simulation):
     frame = np.zeros((4, 6, 3), dtype=np.uint8)
     viewer = SimpleNamespace(get_frame=lambda: frame)
     visualizer = NewtonRTXVisualizer(NewtonRTXVisualizerCfg())
@@ -1046,13 +1035,13 @@ def test_newton_rtx_visualizer_render_rgb_array_returns_frame():
     assert visualizer.render_rgb_array() is frame
 
 
-def test_newton_rtx_visualizer_render_rgb_array_returns_none_when_viewer_unavailable():
+def test_newton_rtx_visualizer_render_rgb_array_returns_none_when_viewer_unavailable(simulation):
     visualizer = NewtonRTXVisualizer(NewtonRTXVisualizerCfg())
 
     assert visualizer.render_rgb_array() is None
 
 
-def test_newton_rtx_visualizer_set_camera_view_uses_set_camera():
+def test_newton_rtx_visualizer_set_camera_view_uses_set_camera(simulation):
     """RTX camera pose must route through set_camera(pos, pitch, yaw), not camera.look_at."""
     set_camera_calls = []
 
@@ -1076,7 +1065,7 @@ def test_newton_rtx_visualizer_set_camera_view_uses_set_camera():
     assert abs(abs(yaw) - 180.0) < 1e-5
 
 
-def test_newton_rtx_visualizer_fov_deferred_on_initialize():
+def test_newton_rtx_visualizer_fov_deferred_on_initialize(simulation):
     """_apply_camera_focal_length should set _rtx_fov_pending, not raise."""
     visualizer = NewtonRTXVisualizer(NewtonRTXVisualizerCfg())
     visualizer._viewer = SimpleNamespace()  # no .camera attribute
@@ -1086,7 +1075,7 @@ def test_newton_rtx_visualizer_fov_deferred_on_initialize():
     assert visualizer._rtx_fov_pending is True
 
 
-def test_newton_rtx_visualizer_fov_applied_once_camera_available():
+def test_newton_rtx_visualizer_fov_applied_once_camera_available(simulation):
     """_apply_rtx_fov_if_pending should set camera.fov and clear the flag."""
     fov_values = []
 
@@ -1110,7 +1099,7 @@ def test_newton_rtx_visualizer_fov_applied_once_camera_available():
     assert fov_values[0] > 0.0
 
 
-def test_newton_rtx_visualizer_fov_retries_when_camera_absent():
+def test_newton_rtx_visualizer_fov_retries_when_camera_absent(simulation):
     """_apply_rtx_fov_if_pending must not raise and keep flag set if camera is absent."""
     visualizer = NewtonRTXVisualizer(NewtonRTXVisualizerCfg())
     visualizer._viewer = SimpleNamespace()  # no .camera
@@ -1122,7 +1111,7 @@ def test_newton_rtx_visualizer_fov_retries_when_camera_absent():
 
 
 @pytest.mark.parametrize("backend", ["physx", "isaacsim_physx"])
-def test_newton_rtx_visualizer_rejects_kit_physics_backend(monkeypatch, backend):
+def test_newton_rtx_visualizer_rejects_kit_physics_backend(monkeypatch, simulation, backend):
     """OVRTX is kitless and must fail fast instead of crashing the render thread on first step().
 
     "physx" is what FactoryBase._get_backend() reports at runtime (covers both an explicit
@@ -1139,7 +1128,7 @@ def test_newton_rtx_visualizer_rejects_kit_physics_backend(monkeypatch, backend)
         visualizer.initialize(Mock())
 
 
-def test_newton_rtx_visualizer_allows_ovphysx_backend(monkeypatch):
+def test_newton_rtx_visualizer_allows_ovphysx_backend(monkeypatch, simulation):
     """ovphysx is itself kitless, so it must not trip the Kit-only guard (unlike physx)."""
     from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
