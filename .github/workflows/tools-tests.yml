@@ -79,4 +79,5 @@ jobs:
         run: uv run --no-project --with-requirements tools/perf_smoke/requirements.txt python -m unittest
           tools.perf_smoke.test_compare
           tools.perf_smoke.test_baseline tools.perf_smoke.test_build_compare
-          tools.perf_smoke.test_source_revision
+          tools.perf_smoke.test_source_revision tools.perf_smoke.test_paired
+          tools.perf_smoke.test_metric_identity

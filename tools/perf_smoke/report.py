@@ -175,10 +175,23 @@ def _build_identity(label: str, identity: dict | None) -> str:
     note = ""
     if identity.get("source_provenance") == "github_run_metadata":
         note = " · source SHA recovered from GitHub; tested checkout not independently recorded"
+    head = str(identity.get("requested_head_commit") or "")
+    if origin and head != identity.get("source_commit") and re.fullmatch(r"[0-9a-fA-F]{40}", str(head)):
+        note += f" · requested PR head [{head[:12]}]({origin}/commit/{head})"
     return f"**{label}:** {source} · {execution}{evidence}{note}."
 
 
 def _build_result(row: dict) -> str:
+    if row["status"] != "compared" or row.get("absolute_change") is None:
+        return "⚪ Not comparable"
+    if row["absolute_change"] > 0:
+        return "🟢 Improved"
+    if row["absolute_change"] < 0:
+        return "🔴 Regressed"
+    return "⚪ Unchanged"
+
+
+def _build_reason(row: dict) -> str:
     if row["status"] == "compared":
         delta = row.get("absolute_change")
         if delta is None:
@@ -216,11 +229,24 @@ def _build_fps(value: float | None) -> str:
 def _build_labels(rows: list[dict]) -> list[str]:
     """Use unambiguous CI configuration names, retaining full identities below."""
     labels = []
-    for row in rows:
+    for index, row in enumerate(rows, 1):
         legs = row.get("legs", {})
         names = set(legs.get("baseline", [])) | set(legs.get("candidate", []))
-        labels.append(next(iter(names)) if len(names) == 1 else row["label"])
-    return [label if labels.count(label) == 1 else row["label"] for label, row in zip(labels, rows)]
+        current = legs.get("candidate", [])
+        previous = legs.get("baseline", [])
+        label = next(iter(names)) if len(names) == 1 else None
+        if label is None:
+            label = current[0] if len(current) == 1 else previous[0] if len(previous) == 1 else f"Workload {index}"
+        labels.append(label)
+    result, used = [], set(labels)
+    for index, label in enumerate(labels, 1):
+        if labels.count(label) > 1:
+            while f"{label} ({index})" in used:
+                index += 1
+            label = f"{label} ({index})"
+        used.add(label)
+        result.append(label)
+    return result
 
 
 def render_build_comparison(report: dict) -> str:
@@ -230,8 +256,16 @@ def render_build_comparison(report: dict) -> str:
     unavailable_side = selection.get("unavailable_side")
     if unavailable_side in identities and not identities[unavailable_side]:
         identities[unavailable_side] = selection.get("unavailable_evidence")
-    a_label = "A — historical baseline" + (" (evidence unavailable)" if unavailable_side == "baseline" else "")
-    b_label = "B — current benchmark" + (" (evidence unavailable)" if unavailable_side == "candidate" else "")
+    paired = report.get("comparison_mode") == "paired_pr"
+    pr = paired or (report.get("candidate") or {}).get("event") == "pull_request"
+    a_label = "A — PR base" if paired else "A — historical baseline"
+    b_label = "B — current benchmark"
+    if pr:
+        b_label = "B — PR merge result" if report.get("candidate_kind") == "merge" else "B — PR benchmark"
+        if report.get("candidate_kind") == "head":
+            b_label = "B — PR head"
+    a_label += " (evidence unavailable)" if unavailable_side == "baseline" else ""
+    b_label += " (evidence unavailable)" if unavailable_side == "candidate" else ""
     rows = report.get("rows", [])
     labels = _build_labels(rows)
     higher = lower = unchanged = cannot_compare = 0
@@ -245,14 +279,13 @@ def render_build_comparison(report: dict) -> str:
             lower += 1
         else:
             unchanged += 1
-    counts = [f"{higher} higher FPS", f"{lower} lower FPS"]
+    counts = [f"🟢 Improved {higher}", f"🔴 Regressed {lower}", f"⚪ Not comparable {cannot_compare}"]
     if unchanged:
-        counts.append(f"{unchanged} unchanged")
-    counts.append(f"{cannot_compare} cannot compare")
+        counts.append(f"⚪ Unchanged {unchanged}")
     lines = [
-        "### Automatic build comparison",
+        "### PR performance comparison" if paired else "### Automatic build comparison",
         "",
-        "**" + (" · ".join(counts) if rows else "Cannot compare: no workload results available") + "**",
+        "**" + (" · ".join(counts) if rows else "⚪ Not comparable: no workload results available") + "**",
         "",
     ]
     if selection.get("reason_code") or not report.get("baseline") or not rows:
@@ -265,21 +298,21 @@ def render_build_comparison(report: dict) -> str:
         ]
     if rows:
         lines += [
-            "| Workload | Baseline FPS | Current FPS | Change % | Result |",
-            "| --- | ---: | ---: | ---: | --- |",
+            f"| Status | Workload | Baseline FPS | {'PR' if pr else 'Current'} FPS | Change % |",
+            "| --- | --- | ---: | ---: | ---: |",
         ]
     for label, row in zip(labels, rows):
         percent = _pct(row["change_pct"]) if row.get("change_pct") is not None else "—"
         if row["status"] == "compared" and row.get("change_pct") is None and row["baseline"]["median"] == 0:
             percent = "N/A (baseline is zero)"
         lines.append(
-            f"| {_build_text(label)} | {_build_fps(row['baseline']['median'])} | "
-            f"{_build_fps(row['candidate']['median'])} | {percent} | {_build_text(_build_result(row))} |"
+            f"| {_build_result(row)} | {_build_text(label)} | {_build_fps(row['baseline']['median'])} | "
+            f"{_build_fps(row['candidate']['median'])} | {percent} |"
         )
     lines += [
         "",
-        "FPS is the median of recorded samples. Positive change means higher FPS. "
-        "These observations do not change the rolling-history CI gate below.",
+        "FPS is the median of recorded samples. Improved and regressed describe observed FPS changes; "
+        "positive change means higher FPS. These observations do not change the rolling-history CI gate below.",
         "",
         "<details>",
         "<summary>Builds and source results</summary>",
@@ -291,6 +324,10 @@ def render_build_comparison(report: dict) -> str:
         "**Baseline selection:** " + _build_text(selection.get("reason", "Selection information is unavailable.")),
         "",
     ]
+    if paired and isinstance(selection.get("baseline_reused"), bool):
+        lines += ["Baseline measurements: " + ("reused." if selection["baseline_reused"] else "run for this PR."), ""]
+    if paired and selection.get("baseline_origin"):
+        lines += [_build_identity("Baseline measurement origin", selection["baseline_origin"]), ""]
     if selection.get("reference_branch"):
         anchor = _build_text(str(selection.get("reference_commit") or "unknown")[:12])
         lines += [f"Reference: {_build_text(selection['reference_branch'])} at `{anchor}`.", ""]
@@ -330,7 +367,7 @@ def render_build_comparison(report: dict) -> str:
             item = row[side]
             expected = item.get("expected_count")
             counts.append(f"{item['count']}/{expected if expected is not None else '?'}")
-        details = [*row.get("reasons", []), *row.get("notes", [])]
+        details = [_build_reason(row), *row.get("reasons", []), *row.get("notes", [])]
         for difference in row.get("protocol_differences", []) + row.get("context_differences", []):
             details.append(
                 f"{difference['field']}: "
@@ -345,6 +382,11 @@ def render_build_comparison(report: dict) -> str:
     if rows:
         lines += ["", "**Workload identities:**", ""]
         lines.extend(f"- **{_build_text(label)}:** {_build_text(row['label'])}" for label, row in zip(labels, rows))
+        lines += ["", "**FPS samples:**", ""]
+        for label, row in zip(labels, rows):
+            a = json.dumps(row["baseline"].get("samples", []))
+            b = json.dumps(row["candidate"].get("samples", []))
+            lines.append(f"- **{_build_text(label)}:** A {_build_text(a)}; B {_build_text(b)}")
     if detail_workloads:
         lines += ["", "**Comparison details:**", ""]
         for detail, labels in detail_workloads.items():

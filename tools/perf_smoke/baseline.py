@@ -280,14 +280,22 @@ def _saved_baseline_identity(value: Any) -> dict:
     return identity
 
 
-def read_evidence(client: GitHubClient, run: dict, artifact: dict, attempt: int) -> Evidence:
+def read_evidence(
+    client: GitHubClient,
+    run: dict,
+    artifact: dict,
+    attempt: int,
+    *,
+    artifact_name: str | None = None,
+    contents: tuple[bytes, dict[str, bytes]] | None = None,
+) -> Evidence:
     """Download one exact producing attempt; do not discard failed or missing legs."""
     run_id = run["id"]
-    name = f"performance-smoke-{run_id}-{attempt}"
+    name = artifact_name or f"performance-smoke-{run_id}-{attempt}"
     if artifact.get("name") != name or (artifact.get("workflow_run") or {}).get("id", run_id) != run_id:
         raise EvidenceError("identity_mismatch", "Artifact does not belong to the requested producing attempt")
     try:
-        data, files = _zip_files(client, artifact)
+        data, files = contents if contents is not None else _zip_files(client, artifact)
     except EvidenceError as exc:
         known = {
             "repository": client.repository,
