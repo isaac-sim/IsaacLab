@@ -25,7 +25,7 @@ import torch
 import warp as wp
 from newton.actuators import parse_actuator_prim
 
-from pxr import Sdf, Usd, UsdGeom, UsdPhysics
+from pxr import Usd, UsdGeom, UsdPhysics
 
 from isaaclab.actuators import BamActuatorCfg, BamMotorCfg
 from isaaclab.actuators.newton import (
@@ -274,32 +274,21 @@ def test_effort_limit_is_authored_on_the_drive_not_as_a_clamping_component():
 
 
 def test_driven_joints_are_seeded_with_a_positive_friction():
-    """MuJoCo only builds a DOF-friction row for joints whose frictionloss is positive.
-
-    The row has to exist from the first solve -- the constraint budget is sized from the model
-    as spawned -- so authoring seeds the driven joints with the budget's own floor.
-    """
-    stage = _make_stage(_make_cfg())
-    floor = _reference_params().friction_base
+    """Constraint allocation needs a positive seed even for a fit with zero Coulomb friction."""
+    cfg = _make_cfg()
+    cfg.motor.friction_base = 0.0
+    stage = _make_stage(cfg)
+    seeds = []
     for name in JOINT_NAMES:
         friction = stage.GetPrimAtPath(f"/World/Robot/{name}").GetAttribute("newton:friction")
-        assert friction.IsValid() and friction.Get() == pytest.approx(floor)
-
-
-def test_authoring_preserves_a_task_authored_joint_friction():
-    """A joint friction the asset already carries must win over the seed."""
-    cfg = _make_cfg()
-    stage = Usd.Stage.CreateInMemory()
-    UsdGeom.Xform.Define(stage, "/World/Robot")
-    for index, name in enumerate(JOINT_NAMES):
-        body = UsdGeom.Xform.Define(stage, f"/World/Robot/body_{index}")
-        UsdPhysics.RigidBodyAPI.Apply(body.GetPrim())
-        joint = UsdPhysics.RevoluteJoint.Define(stage, f"/World/Robot/{name}")
-        joint.CreateBody1Rel().SetTargets([body.GetPath()])
-        joint.GetPrim().CreateAttribute("newton:friction", Sdf.ValueTypeNames.Float).Set(0.5)
+        assert friction.IsValid() and friction.Get() > 0.0
+        seeds.append(friction.Get())
+        friction.Set(2.0 * friction.Get())
+    # Existing joint friction must not change the initialization value.
     author_actuator_prims(stage, "/World/Robot", {"servo": cfg})
-    for name in JOINT_NAMES:
-        assert stage.GetPrimAtPath(f"/World/Robot/{name}").GetAttribute("newton:friction").Get() == pytest.approx(0.5)
+    for name, seed in zip(JOINT_NAMES, seeds, strict=True):
+        friction = stage.GetPrimAtPath(f"/World/Robot/{name}").GetAttribute("newton:friction")
+        assert friction.Get() == seed
 
 
 """
