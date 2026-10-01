@@ -135,11 +135,15 @@ jobs:
       base_isaacsim_image_name: ${{ steps.base_load.outputs.name }}
       base_isaacsim_image_tag: ${{ steps.base_load.outputs.version }}
       base_image_config_outcome: ${{ steps.base_load.outcome }}
+      paired_base_commit: ${{ steps.perf_pair.outputs.base_commit }}
+      paired_base_error: ${{ steps.perf_pair.outputs.reason }}
     steps:
     - uses: actions/checkout@v6
       with:
         fetch-depth: 1
-        sparse-checkout: .github/workflows/config.yaml
+        sparse-checkout: |
+          .github/workflows/config.yaml
+          tools/perf_smoke/
         sparse-checkout-cone-mode: false
     - id: load
       run: |
@@ -173,13 +177,19 @@ jobs:
         echo "ci_image_tag=isaac-lab-ci:${sanitized_ref}-${SHA}" >> "$GITHUB_OUTPUT"
         echo "CI image tag: isaac-lab-ci:${sanitized_ref}-${SHA}"
 
+    - name: Resolve the base parent of the tested PR merge
+      id: perf_pair
+      if: github.event_name == 'pull_request'
+      continue-on-error: true
+      run: python3 -m tools.perf_smoke.paired resolve --checkout-root "$GITHUB_WORKSPACE"
+
     - name: Check out the PR base image configuration
       id: base_config_checkout
-      if: github.event_name == 'pull_request'
+      if: github.event_name == 'pull_request' && steps.perf_pair.outcome == 'success'
       continue-on-error: true
       uses: actions/checkout@v6
       with:
-        ref: ${{ github.event.pull_request.base.sha }}
+        ref: ${{ steps.perf_pair.outputs.base_commit }}
         fetch-depth: 1
         sparse-checkout: .github/workflows/config.yaml
         sparse-checkout-cone-mode: false
@@ -997,6 +1007,9 @@ jobs:
     # The existing job budget covers base and current measurements together.
     timeout-minutes: 450
     needs: [build, config]
+    env:
+      PERF_BASE_COMMIT: ${{ needs.config.outputs.paired_base_commit }}
+      PERF_PAIR_ERROR: ${{ needs.config.outputs.paired_base_error }}
     # Pull requests and manual dispatches run in gate mode. A push runs only on develop,
     # where it also records a baseline; pushes to main and release/** skip this job.
     if: >-
@@ -1055,10 +1068,10 @@ jobs:
     - name: Check out the PR base revision
       id: base_checkout
       continue-on-error: true
-      if: github.event_name == 'pull_request'
+      if: github.event_name == 'pull_request' && needs.config.outputs.paired_base_commit != ''
       uses: actions/checkout@v6
       with:
-        ref: ${{ github.event.pull_request.base.sha }}
+        ref: ${{ needs.config.outputs.paired_base_commit }}
         fetch-depth: 1
         lfs: true
 
@@ -1080,7 +1093,7 @@ jobs:
       if: github.event_name == 'pull_request' && steps.pr_baseline.outputs.reused == 'false' && needs.config.outputs.base_image_config_outcome == 'success'
       uses: ./.github/actions/ecr-build-push-pull
       with:
-        image-tag: isaac-lab-perf-base:${{ github.event.pull_request.base.sha }}
+        image-tag: isaac-lab-perf-base:${{ needs.config.outputs.paired_base_commit }}
         isaacsim-base-image: ${{ needs.config.outputs.base_isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.base_isaacsim_image_tag }}
         dockerfile-path: docker/Dockerfile.base
@@ -1092,7 +1105,7 @@ jobs:
       if: github.event_name == 'pull_request' && steps.pr_baseline.outputs.reused == 'false' && steps.base_dependencies.outcome == 'success'
       continue-on-error: true
       env:
-        CI_IMAGE_TAG: isaac-lab-perf-base:${{ github.event.pull_request.base.sha }}
+        CI_IMAGE_TAG: isaac-lab-perf-base:${{ needs.config.outputs.paired_base_commit }}
       run: |
         set -euo pipefail
         cd "$PERF_CONTROLLER"
@@ -1111,7 +1124,7 @@ jobs:
       continue-on-error: true
       uses: actions/upload-artifact@v7
       with:
-        name: performance-pr-baseline-${{ github.event.pull_request.number }}-${{ github.event.pull_request.base.sha }}-${{ github.run_attempt }}
+        name: performance-pr-baseline-${{ github.event.pull_request.number }}-${{ needs.config.outputs.paired_base_commit }}-${{ github.run_attempt }}
         path: ${{ env.PERF_BASELINE_OUTPUT }}/
         if-no-files-found: warn
 
@@ -1147,6 +1160,11 @@ jobs:
         BASE_ARCHIVE: ${{ steps.base_artifact.outcome }}
       run: |
         baseline_issue=""
+        if { [ "$BASE_RESTORE" = failure ] || [ "$BASE_MEASUREMENT" = failure ]; } && \
+           [ -f "$PERF_BASELINE_OUTPUT/paired-failure.json" ]; then
+          mkdir -p "$GITHUB_WORKSPACE/benchmark-output"
+          cp "$PERF_BASELINE_OUTPUT/paired-failure.json" "$GITHUB_WORKSPACE/benchmark-output/"
+        fi
         if [ "$BASE_CHECKOUT" != success ]; then
           baseline_issue="The base source checkout failed; baseline FPS is unavailable."
         elif [ "$BASE_RESTORE" != success ]; then
@@ -1170,6 +1188,7 @@ jobs:
       run: cp "$PERF_CONTROLLER/benchmark-legs.tsv" benchmark-legs.tsv
 
     - name: Capture performance build provenance and source evidence
+      id: source_capture
       if: always()
       env:
         CI_IMAGE_TAG: ${{ needs.config.outputs.ci_image_tag }}
@@ -1180,7 +1199,7 @@ jobs:
           --image "$CI_IMAGE_TAG" --role current --legs "$PERF_CONTROLLER/benchmark-legs.tsv"
 
     - name: Run runtime benchmarks
-      if: ${{ !cancelled() }}
+      if: ${{ !cancelled() && steps.source_capture.outcome == 'success' }}
       env:
         CI_IMAGE_TAG: ${{ needs.config.outputs.ci_image_tag }}
       run: |
@@ -1240,6 +1259,12 @@ jobs:
       run: |
         set -uo pipefail
         while IFS='|' read -r leg task num_envs bench_timeout_s args; do
+          gate_report="$GITHUB_STEP_SUMMARY"
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+            # The paired Summary owns the PR presentation. Keep per-leg gate reports as evidence.
+            mkdir -p "benchmark-output/${leg}"
+            gate_report="benchmark-output/${leg}/rolling-history.md"
+          fi
           mapfile -t results < <(find "benchmark-output/${leg}" -type f -name 'benchmark_runtime_*.json' | sort)
           if [ "$(cat "benchmark-output/${leg}/status" 2>/dev/null)" != "ok" ] || [ "${#results[@]}" -ne 3 ]; then
             echo "::warning::${leg}: expected three runtime benchmark JSONs, found ${#results[@]}"
@@ -1250,7 +1275,7 @@ jobs:
             --benchmark_result "${results[@]}" \
             --label "$leg" \
             --output_json "benchmark-output/${leg}/comparison.json" \
-            | tee -a "$GITHUB_STEP_SUMMARY"
+            | tee -a "$gate_report"
         done < benchmark-legs.tsv
 
     # Only develop records baselines, so the gate always compares a pull request

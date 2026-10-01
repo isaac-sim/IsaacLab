@@ -21,15 +21,20 @@ exit behavior are unchanged.
 The existing CI label starts the initial PR run. Subsequent pushes trigger the
 workflow through the PR's `synchronize` event.
 
-For a PR without a reusable baseline, the performance job checks out the exact
-base SHA from the PR event and benchmarks it first. It then checks out and
+The pair is resolved from GitHub's exact tested merge revision. Its first parent
+is the comparison base, and its second parent must match the requested PR head.
+Later changes to the target branch cannot change that pair. The originally
+reported PR-event base is retained separately in the provenance.
+
+For a PR without a reusable baseline, the performance job checks out that resolved
+base commit and benchmarks it first. It then checks out and
 benchmarks GitHub's tested merge revision on the same runner. The PR head SHA and
 the tested merge SHA are both recorded, so the source actually tested is explicit.
 Each revision resolves its dependency image from its own checked-out build inputs
 and overlays its own source through the verified benchmark launcher.
 
-When the PR's base SHA is unchanged, the job can reuse that PR's previously
-verified baseline artifact. It still benchmarks the current tested revision.
+When the tested merge's base parent is unchanged, the job can reuse that PR's
+previously verified baseline artifact. It still benchmarks the current tested revision.
 When the base changes, or the previous baseline is expired, incomplete or fails
 verification, the job measures a fresh baseline. Artifact names include the
 producing attempt, so reruns preserve earlier evidence.
@@ -58,3 +63,7 @@ The **Existing rolling-history CI gate** is a separate collapsed section. Its
 comparison, recording behavior and exit status remain independent of the paired
 build report. Baseline-only failures are reported as unavailable comparison
 evidence; failures of the current benchmark retain the existing job behavior.
+If source setup prevents a paired benchmark from running, the main Summary shows
+the recorded cause once, with source diagnostics in collapsed details. Per-workload
+rolling-history reports remain in the result artifact rather than appearing as
+repeated missing-result tables on the PR's run Summary.
