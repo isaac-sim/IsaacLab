@@ -224,7 +224,7 @@ simplest model that meets your requirements.
       - Identified voltage-domain servo: firmware P law, PWM duty, DC motor, load-dependent
         gearbox friction.
       - Duty clipped by the current limiter, torque by ``actuator_effort_limit``.
-      - ``parameter_overrides``, ``kp_fw``, ``vin``
+      - ``motor``, ``kp_fw``, ``vin``
 
 **ImplicitActuator.** The default model. The solver applies the gains and limits. Isaac Lab
 estimates effort telemetry from the current state when the backend does not expose it.
@@ -286,20 +286,29 @@ One step of the model has six stages:
    back-EMF; no PD ``damping`` gain is used. The friction stage also includes identified viscous friction.
 #. **Friction budget** -- a Coulomb floor, a Stribeck term that decays with speed, and
    load-dependent terms that grow with the torque flowing through the gearbox. The BAM ``m1``--``m6``
-   family selects which of these are active; the vendored fit is ``m6``, the full one.
+   variants ``m1``, ``m2``, ``m5``, and ``m6`` select which terms are active.
 #. **Static friction** -- the budget arrests the joint whenever the net torque fits inside it, which
    is what makes the servo hang short of its target instead of converging on it.
 
 .. code-block:: python
 
-    from isaaclab.actuators import BamActuatorCfg
+    import math
+
+    from isaaclab.actuators import BamActuatorCfg, BamMotorCfg
+
+    motor = BamMotorCfg.from_json("fits/xl330_m6.json")
+    # Upstream fits omit these servo firmware constants.
+    motor.error_gain = (4096 / (2 * math.pi)) / (256 * 885)
+    motor.max_current = 1.75                         # XL330 current limit [A]
 
     robot_cfg = ArticulationCfg(
         spawn=...,
         actuators={
             "servos": BamActuatorCfg(
                 joint_names_expr=[".*"],
+                motor=motor,
                 kp_fw=200.0,                        # firmware proportional gain
+                vin=7.4,                           # nominal voltage [V]
                 vin_range=(7.0, 8.0),               # per-robot battery voltage [V]
                 vin_drop_gain_range=(0.0, 3.0),     # per-robot supply sag [V/(N*m)]
                 friction_scale_range=(0.8, 1.2),    # per-robot gearbox friction [-]
@@ -314,60 +323,54 @@ One step of the model has six stages:
     :attr:`~isaaclab.actuators.ActuatorBaseCfg.damping` are unused and default to ``None``.
     Leave them unset and configure the firmware gain with ``kp_fw``.
 
-USD coefficients
-^^^^^^^^^^^^^^^^
+Motor fit and deployment settings
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The asset carries its motor and friction coefficients on each ``NewtonActuator`` prim with
-``NewtonBamDriveAPI``. Attributes use the ``newton:`` prefix and camel case, for example
-``newton:resistance`` and ``newton:frictionBase``. The prim's ``newton:targets`` relationship
-identifies its driven joint. Isaac Lab preserves these values per joint when authoring the
-configured actuator groups. Newton consumes the resolved coefficients without opening JSON files.
-Missing required coefficients raise an error; there is no implicit XL330 motor default.
+:class:`~isaaclab.actuators.BamMotorCfg` holds the motor and gearbox coefficients. Construct it
+in Python or load a local Rhoban fit with :meth:`~isaaclab.actuators.BamMotorCfg.from_json`.
+The loader renames ``R`` to ``resistance`` and drops ``actuator``, ``kp``, ``vin``, ``armature``,
+and ``q_offset``. It does not import upstream BAM or select implicit servo defaults. If the file
+omits firmware constants, fill in ``error_gain`` and any non-default PWM/current limits before use.
 
-Use only ``NewtonBamDriveAPI`` on BAM actuator prims.
-The drive handles its own delay and effort limit, so no additional actuator schemas are needed.
+``BamActuatorCfg`` requires ``motor``, ``kp_fw``, and ``vin``. The fit applies to every joint in
+the group; use separate groups for different fits. Like other explicit actuator configurations,
+BAM replaces existing actuator prims on the selected joints. Values on those prims do not serve
+as defaults. Isaac Lab writes the configured coefficients to ``NewtonBamDriveAPI`` prims, and
+Newton consumes them without opening JSON files during simulation.
 
-:attr:`~isaaclab.actuators.BamActuatorCfg.parameter_overrides` accepts explicit overrides using
-snake-case names from the table below. For example, ``parameter_overrides={"friction_base": 0.005}``
-changes Coulomb friction for a group while retaining its other asset coefficients. ``kp_fw`` and
-``vin`` default to ``None`` (preserve USD) and take precedence over the corresponding mapping entries
-when set. Delay configuration and start-up randomization retain their documented config defaults.
-
-.. list-table:: BAM coefficients (rotational servo)
+.. list-table:: BAM motor coefficients (rotational servo)
    :header-rows: 1
    :widths: 38 62
 
    * - Name
      - Meaning and units
+   * - ``model``
+     - Required variant: ``m1`` (Coulomb), ``m2`` (adds Stribeck), ``m5`` (adds directional
+       load dependence), or ``m6`` (adds quadratic load coupling). ``m3`` and ``m4`` are unsupported.
    * - ``kt``, ``resistance``
      - Motor torque/back-EMF constant [N.m/A or V.s/rad] and winding resistance [Ohm]. Required.
-   * - ``error_gain``, ``max_pwm``
-     - Position-error-to-duty-cycle factor [1/rad] and maximum duty-cycle magnitude [-]. Required.
-   * - ``kp_fw``, ``vin``
-     - Firmware proportional gain [-] and nominal supply voltage [V]. Required.
-   * - ``max_current``
-     - Current limit [A]. Defaults to 0 (disabled).
+   * - ``error_gain``
+     - Position-error-to-duty-cycle factor per unit of firmware gain [1/rad]. Required.
+   * - ``max_pwm``, ``max_current``
+     - Maximum duty-cycle magnitude [-], default 1, and current limit [A], default 0 (disabled).
    * - ``friction_base``, ``friction_viscous``
      - Coulomb friction [N.m] and viscous coefficient [N.m.s/rad]. Required.
-   * - ``stribeck``, ``load_dependent``, ``quadratic``
-     - Integer flags selecting friction terms; default 0. Quadratic requires both other flags.
-       Load-dependent friction uses separate motor-side and external-side coefficients.
    * - ``friction_stribeck``, ``dtheta_stribeck``, ``alpha``
-     - Near-rest friction [N.m], decay velocity [rad/s], and exponent [-]. Required with Stribeck.
+     - Near-rest friction [N.m], decay velocity [rad/s], and exponent [-]. Defaults: 0, 1, and 1.
    * - ``load_friction_motor``, ``load_friction_external``
-     - Friction per transmitted motor/external torque [-]. Required with load-dependent friction.
+     - Friction per transmitted motor/external torque [-]. Defaults: 0.
    * - ``load_friction_motor_stribeck``, ``load_friction_external_stribeck``
-     - Near-rest load-dependent coefficients [-]. Required when both terms are enabled.
+     - Near-rest load-dependent coefficients [-]. Defaults: 0.
    * - ``load_friction_motor_quad``, ``load_friction_external_quad``
-     - Quadratic load-coupling coefficients [1/(N.m)]. Required with quadratic friction.
+     - Quadratic load-coupling coefficients [1/(N.m)]. Defaults: 0.
 
 Author rotor inertia on the joint or set :attr:`~isaaclab.actuators.ActuatorBaseCfg.armature`.
 The BAM drive has no separate ``armature`` coefficient.
 
-The test USD fixture ``source/isaaclab/test/actuators/data/bam_xl330_m6.usda`` contains the
-Dynamixel XL330 ``m6`` fit from ``Rhoban/bam`` at commit ``62bd8ce`` of ``mjlab_frictionloss``.
-``ATTRIBUTION.md`` and ``LICENSE-BAM`` beside it document its provenance and Apache-2.0 license.
-No parameter JSON is shipped with the actuator package.
+The recorded test fixture ``source/isaaclab/test/actuators/data/bam_xl330_m6_goldens.npz`` contains
+reference outputs and the Dynamixel XL330 ``m6`` coefficients used to generate them.
+``ATTRIBUTION.md`` and ``LICENSE-BAM`` beside it document their upstream provenance and license.
+No motor-fit file is shipped with the actuator package.
 
 .. _actuators-bam-paths:
 

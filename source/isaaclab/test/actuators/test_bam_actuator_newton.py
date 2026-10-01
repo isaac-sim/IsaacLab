@@ -15,6 +15,7 @@ Motor and friction outputs are checked against upstream BAM golden data. The har
 supplies the solver's external load and reads the motor torque and published friction budget.
 """
 
+from dataclasses import MISSING, fields
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -26,7 +27,7 @@ from newton.actuators import parse_actuator_prim
 
 from pxr import Sdf, Usd, UsdGeom, UsdPhysics
 
-from isaaclab.actuators import BamActuatorCfg
+from isaaclab.actuators import BamActuatorCfg, BamMotorCfg
 from isaaclab.actuators.newton import (
     BAM_DRIVE_API,
     DriveBam,
@@ -65,7 +66,10 @@ def _reference_params():
 
 def _make_cfg(**overrides) -> BamActuatorCfg:
     """Build the BAM config the fixture articulation is authored from."""
-    kwargs = {"joint_names_expr": [".*"], "vin": VIN, "kp_fw": KP_FW}
+    params = vars(_reference_params()).copy()
+    params["resistance"] = params.pop("R")
+    motor = BamMotorCfg(model="m6", **{f.name: params[f.name] for f in fields(BamMotorCfg) if f.name in params})
+    kwargs = {"joint_names_expr": [".*"], "motor": motor, "vin": VIN, "kp_fw": KP_FW}
     kwargs.update(overrides)
     return BamActuatorCfg(**kwargs)
 
@@ -84,9 +88,6 @@ def _make_stage(cfg: BamActuatorCfg | dict[str, BamActuatorCfg], joint_names: li
         UsdPhysics.RigidBodyAPI.Apply(body.GetPrim())
         joint = UsdPhysics.RevoluteJoint.Define(stage, f"/World/Robot/{name}")
         joint.CreateBody1Rel().SetTargets([body.GetPath()])
-        prim = stage.DefinePrim(f"/World/Robot/asset_{name}_actuator", "NewtonActuator")
-        prim.GetReferences().AddReference(str(Path(__file__).parent / "data" / "bam_xl330_m6.usda"), "/BamActuator")
-        prim.CreateRelationship("newton:targets").SetTargets([joint.GetPath()])
     author_actuator_prims(stage, "/World/Robot", cfg if isinstance(cfg, dict) else {"servo": cfg})
     return stage
 
@@ -180,9 +181,11 @@ def test_bam_cfg_is_rejected_on_a_host_adapter_backend(monkeypatch, backend):
         define_actuator_properties("/World/Robot", {"servo": _make_cfg()})
 
 
-def test_authored_prim_resolves_to_the_bam_drive():
+@pytest.mark.parametrize("model, flags", [("m1", (0, 0, 0)), ("m2", (1, 0, 0)), ("m5", (1, 1, 0)), ("m6", (1, 1, 1))])
+def test_authored_prim_resolves_to_the_bam_drive(model, flags):
     """Authoring a BAM group must produce a parseable ``NewtonBamDriveAPI`` actuator prim."""
     cfg = _make_cfg(vin_min=6.0, min_delay=1, max_delay=3, delay_hold_prob=0.25, delay_update_period=4)
+    cfg.motor.model = model
     stage = _make_stage(cfg)
 
     parsed = [p for prim in Usd.PrimRange(stage.GetPrimAtPath("/World/Robot")) if (p := parse_actuator_prim(prim))]
@@ -192,7 +195,7 @@ def test_authored_prim_resolves_to_the_bam_drive():
         assert entry.component_specs == [], "the BAM delay is drive-internal, not a Delay component"
         resolved = DriveBam.resolve_arguments(dict(entry.drive_kwargs))
         params = _reference_params()
-        # Deployment settings come from the config, identified constants from the USD.
+        # Both deployment settings and identified constants come from the config.
         assert resolved["kp_fw"] == pytest.approx(KP_FW)
         assert resolved["vin"] == pytest.approx(VIN)
         assert resolved["vin_min"] == pytest.approx(6.0)
@@ -201,7 +204,7 @@ def test_authored_prim_resolves_to_the_bam_drive():
         assert (resolved["min_delay"], resolved["max_delay"]) == (1, 3)
         assert resolved["delay_hold_prob"] == pytest.approx(0.25)
         assert resolved["delay_update_period"] == 4
-        assert (resolved["stribeck"], resolved["load_dependent"], resolved["quadratic"]) == (1, 1, 1)
+        assert (resolved["stribeck"], resolved["load_dependent"], resolved["quadratic"]) == flags
 
     # The drive schema token is applied on the prim, not just implied by the parse.
     # ``NewtonBamDriveAPI`` has no registered USD schema definition, so the composed
@@ -210,33 +213,41 @@ def test_authored_prim_resolves_to_the_bam_drive():
     assert BAM_DRIVE_API in spec.GetInfo("apiSchemas").GetAppliedItems()
 
 
-@pytest.mark.parametrize("reauthor", [False, True])
-def test_usd_coefficients_are_self_contained_and_preserved(reauthor, tmp_path):
-    """USD coefficients survive serialization and config authoring without a JSON sidecar."""
-    stage = _make_stage(_make_cfg(kp_fw=None, vin=None))
+def test_configuration_replaces_existing_usd_coefficients(tmp_path):
+    """A serialized asset's fit is replaced entirely, including runtime parameter values."""
+    cfg = _make_cfg()
+    stage = _make_stage(cfg)
     for index, name in enumerate(JOINT_NAMES):
         prim = stage.GetPrimAtPath(f"/World/Robot/servo_{name}_actuator")
         prim.GetAttribute("newton:kt").Set(0.3 + index * 0.1)
+        prim.GetAttribute("newton:frictionScale").Set(2.0)
     path = tmp_path / "robot.usda"
     stage.Export(str(path))
-    stage = Usd.Stage.Open(str(path))
-    if reauthor:
-        # Apply task overrides over a clean asset layer while preserving each joint's fit.
-        stage = Usd.Stage.CreateInMemory()
-        stage.GetRootLayer().subLayerPaths.append(str(path))
-        author_actuator_prims(
-            stage, "/World/Robot", {"servo": _make_cfg(kp_fw=123.0, parameter_overrides={"friction_base": 0.012})}
-        )
+    stage = Usd.Stage.CreateInMemory()
+    stage.GetRootLayer().subLayerPaths.append(str(path))
+    cfg.kp_fw = 123.0
+    cfg.motor.friction_base = 0.012
+    author_actuator_prims(stage, "/World/Robot", {"servo": cfg})
     parsed = [
         entry for prim in Usd.PrimRange(stage.GetPrimAtPath("/World/Robot")) if (entry := parse_actuator_prim(prim))
     ]
-    assert len(parsed) == 2
-    for index, entry in enumerate(parsed):
-        assert entry.drive_class is DriveBam
+    assert len(parsed) == len(JOINT_NAMES)
+    for entry in parsed:
         resolved = DriveBam.resolve_arguments(dict(entry.drive_kwargs))
-        assert resolved["kt"] == pytest.approx(0.3 + index * 0.1)
-        assert resolved["kp_fw"] == pytest.approx(123.0 if reauthor else 400.0)
-        assert resolved["friction_base"] == pytest.approx(0.012 if reauthor else _reference_params().friction_base)
+        assert resolved["kt"] == pytest.approx(_reference_params().kt)
+        assert resolved["kp_fw"] == pytest.approx(123.0)
+        assert resolved["friction_base"] == pytest.approx(0.012)
+        assert resolved["friction_scale"] == 1.0
+
+
+@pytest.mark.parametrize("field", ["motor", "kp_fw", "vin"])
+def test_authoring_requires_motor_and_deployment_settings(field):
+    """Existing USD values cannot fill missing configuration fields."""
+    cfg = _make_cfg()
+    stage = _make_stage(cfg)
+    setattr(cfg, field, MISSING)
+    with pytest.raises(TypeError, match=field):
+        author_actuator_prims(stage, "/World/Robot", {"servo": cfg})
 
 
 def test_effort_limit_is_authored_on_the_drive_not_as_a_clamping_component():
@@ -285,9 +296,6 @@ def test_authoring_preserves_a_task_authored_joint_friction():
         UsdPhysics.RigidBodyAPI.Apply(body.GetPrim())
         joint = UsdPhysics.RevoluteJoint.Define(stage, f"/World/Robot/{name}")
         joint.CreateBody1Rel().SetTargets([body.GetPath()])
-        prim = stage.DefinePrim(f"/World/Robot/asset_{name}_actuator", "NewtonActuator")
-        prim.GetReferences().AddReference(str(Path(__file__).parent / "data" / "bam_xl330_m6.usda"), "/BamActuator")
-        prim.CreateRelationship("newton:targets").SetTargets([joint.GetPath()])
         joint.GetPrim().CreateAttribute("newton:friction", Sdf.ValueTypeNames.Float).Set(0.5)
     author_actuator_prims(stage, "/World/Robot", {"servo": cfg})
     for name in JOINT_NAMES:

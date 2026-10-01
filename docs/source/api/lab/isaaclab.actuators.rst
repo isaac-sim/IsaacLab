@@ -28,6 +28,7 @@
     ActuatorNetLSTM
     ActuatorNetLSTMCfg
     BamActuatorCfg
+    BamMotorCfg
 
   .. rubric:: Functions
 
@@ -169,6 +170,10 @@ LSTM Network Actuator
 
 BAM Servo Model
 ---------------
+
+.. autoclass:: BamMotorCfg
+  :members:
+  :exclude-members: __init__
 
 .. autoclass:: BamActuatorCfg
   :members:
