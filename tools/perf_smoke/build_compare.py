@@ -269,6 +269,9 @@ def compare_evidence(baseline: Evidence | None, candidate: Evidence) -> dict:
     for side, evidence in (("Baseline", baseline), ("Candidate", candidate)):
         if evidence:
             notes.extend(f"{side}: {issue}" for issue in evidence.issues)
+            definition = _object(evidence.context.get("metric_definition"))
+            if definition.get("reason"):
+                notes.append(f"{side} FPS definition: {definition['reason']}")
     if not left and not right:
         notes.append("No runtime workloads or leg statuses were present in the selected evidence.")
     return {
@@ -299,8 +302,13 @@ def main(argv: list[str] | None = None) -> int:
     try:
         client = baseline_mod.GitHubClient(args.repository)
         candidate = baseline_mod.resolve_candidate(client, args.run_id, args.run_attempt)
-        pinned = baseline_mod.load_previous_selection(client, candidate)
-        result = baseline_mod.select_baseline(client, candidate, pinned)
+        if candidate.identity.get("event") == "pull_request":
+            from .paired import select_pr_baseline
+
+            result = select_pr_baseline(client, candidate)
+        else:
+            pinned = baseline_mod.load_previous_selection(client, candidate)
+            result = baseline_mod.select_baseline(client, candidate, pinned)
         selected, selection = result.evidence, result.metadata
     except baseline_mod.EvidenceError as exc:
         selection = {
@@ -316,6 +324,9 @@ def main(argv: list[str] | None = None) -> int:
         if candidate is not None
         else {"candidate": None, "baseline": None, "rows": [], "notes": ["Candidate evidence is unavailable."]}
     )
+    is_pr = (candidate is not None and candidate.identity.get("event") == "pull_request") or os.environ.get(
+        "GITHUB_EVENT_NAME"
+    ) == "pull_request"
     payload.update(
         schema_version=1,
         selector_version=1,
@@ -323,6 +334,8 @@ def main(argv: list[str] | None = None) -> int:
         run_id=args.run_id,
         report_attempt=args.run_attempt,
         selection=selection,
+        comparison_mode="paired_pr" if is_pr else "historical",
+        candidate_kind="merge" if is_pr else None,
     )
     args.output_dir.mkdir(parents=True, exist_ok=True)
     (args.output_dir / "build-comparison.json").write_text(

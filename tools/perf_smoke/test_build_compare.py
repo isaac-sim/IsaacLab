@@ -68,13 +68,13 @@ def evidence(samples=None, *, expected=3, formula="aggregate_frames_over_measure
 
 class ReportRenderingTests(unittest.TestCase):
     def test_observed_direction_is_explicit_without_a_gate_verdict(self):
-        for fps, expected in ((110, "↑ Higher FPS"), (90, "↓ Lower FPS"), (100, "Unchanged")):
+        for fps, expected in ((110, "🟢 Improved"), (90, "🔴 Regressed"), (100, "⚪ Unchanged")):
             with self.subTest(fps=fps):
                 report = compare_evidence(evidence(), evidence({"leg": [bundle(fps)] * 3}))
                 snapshot = copy.deepcopy(report)
                 markdown = render_build_comparison(report)
                 self.assertIn(expected, markdown)
-                self.assertIn("Baseline FPS | Current FPS | Change % | Result", markdown)
+                self.assertIn("Status | Workload | Baseline FPS | Current FPS | Change %", markdown)
                 self.assertNotIn("PASS", markdown)
                 self.assertNotIn("FAIL", markdown)
                 self.assertEqual(report, snapshot)
@@ -95,6 +95,7 @@ class ReportRenderingTests(unittest.TestCase):
                 self.assertIn(expected, markdown)
                 self.assertIn(reason, markdown)
                 self.assertIn("**Comparison details:**", markdown)
+                self.assertIn("⚪ Not comparable", markdown.split("<details>", 1)[0])
 
     def test_headline_counts_every_workload_without_reclassifying_rounded_or_missing_deltas(self):
         a = evidence({name: [bundle(100, name)] * 3 for name in ("Higher", "Lower", "Same", "Tiny")})
@@ -107,42 +108,107 @@ class ReportRenderingTests(unittest.TestCase):
         report = compare_evidence(a, b)
         before = copy.deepcopy(report)
         primary, diagnostics = render_build_comparison(report).split("<details>", 1)
-        self.assertIn("**2 higher FPS · 1 lower FPS · 1 unchanged · 1 cannot compare**", primary)
+        self.assertIn("**🟢 Improved 2 · 🔴 Regressed 1 · ⚪ Not comparable 1 · ⚪ Unchanged 1**", primary)
         rows = [line for line in primary.splitlines() if line.startswith("|")]
         self.assertEqual(len(rows), 7)  # Header, separator and all five workloads.
         self.assertTrue(all(len(line.split("|")) == 7 for line in rows))
-        self.assertIn("No baseline samples", primary)
+        self.assertIn("⚪ Not comparable", primary)
+        self.assertIn("No baseline samples", diagnostics)
         self.assertNotIn("sample_paths", primary)
         self.assertNotIn("source.image_digest", primary)
         self.assertIn("Samples A / B", diagnostics)
+        self.assertIn("**FPS samples:**", diagnostics)
         self.assertIn("Workload identities", diagnostics)
         self.assertEqual(report, before)
 
     def test_zero_baseline_and_no_rows_are_not_misreported(self):
         report = compare_evidence(evidence({"leg": [bundle(0)] * 3}), evidence({"leg": [bundle(10)] * 3}))
         primary = render_build_comparison(report).split("<details>", 1)[0]
-        self.assertIn("1 higher FPS · 0 lower FPS · 0 cannot compare", primary)
+        self.assertIn("🟢 Improved 1 · 🔴 Regressed 0 · ⚪ Not comparable 0", primary)
         self.assertIn("N/A (baseline is zero)", primary)
         empty = render_build_comparison({"rows": [], "selection": {"reason": "Current result artifact is missing."}})
-        self.assertIn("Cannot compare: no workload results available", empty)
+        self.assertIn("⚪ Not comparable: no workload results available", empty)
         self.assertIn("Current result artifact is missing", empty.split("<details>", 1)[0])
-        self.assertNotIn("0 cannot compare", empty)
+        self.assertNotIn("Not comparable 0", empty)
 
     def test_selection_reason_is_visible_when_no_baseline_was_found_without_an_error_code(self):
         report = compare_evidence(None, evidence())
         report["selection"] = {"reason": "No earlier measured ancestor was found."}
         primary = render_build_comparison(report).split("<details>", 1)[0]
         self.assertIn("No earlier measured ancestor was found", primary)
-        self.assertIn("No baseline samples", primary)
-        self.assertIn("| leg | — | 100 | — |", primary)
+        self.assertIn("| ⚪ Not comparable | leg | — | 100 | — |", primary)
 
     def test_configuration_labels_fall_back_when_the_same_name_covers_different_workloads(self):
         report = compare_evidence(evidence({"leg": [bundle(100, "Before")] * 3}), evidence())
-        primary = render_build_comparison(report).split("<details>", 1)[0]
-        self.assertIn("Before · newton_mjwarp", primary)
-        self.assertIn("Task · newton_mjwarp", primary)
-        self.assertIn("No baseline samples", primary)
-        self.assertIn("No current samples", primary)
+        primary, diagnostics = render_build_comparison(report).split("<details>", 1)
+        self.assertIn("leg (1)", primary)
+        self.assertIn("leg (2)", primary)
+        self.assertNotIn("newton_mjwarp", primary)
+        self.assertIn("Before · newton_mjwarp", diagnostics)
+        self.assertIn("Task · newton_mjwarp", diagnostics)
+        self.assertIn("No baseline samples", diagnostics)
+        self.assertIn("No current samples", diagnostics)
+
+    def test_duplicate_short_labels_do_not_collide_with_existing_numbered_label(self):
+        a = evidence({"leg": [bundle(100, "Before")] * 3, "leg (1)": [bundle(100, "Other")] * 3})
+        b = evidence({"leg": [bundle(100, "After")] * 3, "leg (1)": [bundle(100, "Other")] * 3})
+        primary = render_build_comparison(compare_evidence(a, b)).split("<details>", 1)[0]
+        labels = [line.split("|")[2].strip() for line in primary.splitlines() if line.startswith("| ⚪")]
+        self.assertEqual(len(labels), 3)
+        self.assertEqual(len(set(labels)), 3)
+        self.assertIn("leg (1)", labels)
+
+    def test_paired_pr_labels_exact_sources_and_reused_baseline_inside_details(self):
+        report = compare_evidence(evidence(), evidence({"leg": [bundle(110)] * 3}))
+        for side, commit, run in (("baseline", PARENT, 12), ("candidate", HEAD, 15)):
+            report[side].update(
+                repository="isaac-sim/IsaacLab", source_commit=commit, run_id=run, artifact_id=run + 100
+            )
+        report["candidate"].update(requested_head_commit="c" * 40, event="pull_request")
+        report.update(comparison_mode="paired_pr", candidate_kind="merge", report_attempt=1)
+        report["selection"] = {
+            "reason": "Exact PR base and merge result.",
+            "baseline_reused": True,
+            "baseline_origin": {**report["baseline"], "run_id": 11},
+        }
+        snapshot = copy.deepcopy(report)
+        primary, details = render_build_comparison(report).split("<details>", 1)
+        self.assertIn("### PR performance comparison", primary)
+        self.assertIn("| Status | Workload | Baseline FPS | PR FPS | Change % |", primary)
+        self.assertIn("| 🟢 Improved | leg | 100 | 110 | +10.00% |", primary)
+        self.assertNotIn("historical", details)
+        self.assertIn("A — PR base", details)
+        self.assertIn("B — PR merge result", details)
+        self.assertIn(f"https://github.com/isaac-sim/IsaacLab/commit/{HEAD}", details)
+        self.assertIn(f"https://github.com/isaac-sim/IsaacLab/commit/{'c' * 40}", details)
+        self.assertIn("https://github.com/isaac-sim/IsaacLab/actions/runs/15/attempts/1", details)
+        self.assertIn("https://github.com/isaac-sim/IsaacLab/actions/runs/11/attempts/1", details)
+        self.assertIn("Baseline measurements: reused.", details)
+        self.assertEqual(report, snapshot)
+
+    def test_historical_dispatch_is_not_labeled_as_a_pull_request(self):
+        report = compare_evidence(evidence(), evidence())
+        report["candidate"]["event"] = "workflow_dispatch"
+        primary, details = render_build_comparison(report).split("<details>", 1)
+        self.assertIn("### Automatic build comparison", primary)
+        self.assertNotIn("### PR performance comparison", primary)
+        self.assertIn("| Current FPS |", primary)
+        self.assertNotIn("PR FPS", primary)
+        self.assertIn("A — historical baseline", details)
+        self.assertIn("B — current benchmark", details)
+
+    def test_artifact_text_cannot_break_detail_blocks_or_table_columns(self):
+        report = compare_evidence(evidence(), evidence())
+        label = "leg | </details><script>"
+        report["rows"][0]["legs"] = {"baseline": [label], "candidate": [label]}
+        report["rows"][0]["notes"].append(label)
+        markdown = render_build_comparison(report)
+        self.assertNotIn("<script>", markdown)
+        self.assertIn("&lt;/details&gt;&lt;script&gt;", markdown)
+        self.assertEqual(markdown.count("<details>"), 2)
+        self.assertEqual(markdown.count("</details>"), 2)
+        primary = markdown.split("<details>", 1)[0]
+        self.assertTrue(all(len(line.split("|")) == 7 for line in primary.splitlines() if line.startswith("|")))
 
     def test_context_details_are_outside_the_numeric_table_and_shared_notes_are_collapsed(self):
         a = evidence({"one": [bundle(100, "One")] * 3, "two": [bundle(200, "Two")] * 3})
