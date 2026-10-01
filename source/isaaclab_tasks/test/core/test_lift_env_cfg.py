@@ -16,11 +16,14 @@ from pxr import Usd
 from isaaclab.assets import Asset
 from isaaclab.managers import CommandTerm, ObservationTermCfg, SceneEntityCfg
 from isaaclab.sim import select_usd_variants
+from isaaclab.utils import instantiate
 from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_tasks.core.lift import mdp
 from isaaclab_tasks.core.lift.config.franka.franka_env_cfg import FrankaLiftEnvCfg
+from isaaclab_tasks.core.lift.config.franka_soft.franka_cable_env_cfg import FrankaCableEnvCfg
 from isaaclab_tasks.core.lift.config.franka_soft.franka_soft_env_cfg import FrankaSoftEnvCfg
+from isaaclab_tasks.core.lift.config.kuka_allegro.kuka_allegro_camera_env_cfg import KukaAllegroLiftCameraEnvCfg
 from isaaclab_tasks.core.lift.mdp.commands import pose_commands
 from isaaclab_tasks.core.lift.mdp.commands.pose_commands import (
     CableUniformPoseCommand,
@@ -179,6 +182,7 @@ def _make_pose_command(
     scene = _FakeScene(environment_ids, robot=robot, object=object_asset, table=success_asset, table_material=material)
     env = SimpleNamespace(num_envs=num_envs, device="cpu", scene=scene)
     cfg = command_cfg or SimpleNamespace(
+        class_type=ObjectUniformPoseCommand,
         asset_name="robot",
         object_name="object",
         success_vis_asset_name="table",
@@ -191,6 +195,12 @@ def _make_pose_command(
         cmd_kind=None,
         element_names=None,
     )
+    scene[cfg.object_name] = object_asset
+    if isinstance(cfg, mdp.CableUniformPoseCommandCfg):
+        object_asset.num_segments = cfg.segment_index + 1
+        object_asset.data.segment_pose_w = SimpleNamespace(
+            torch=root_pose_w[:, None, :].expand(-1, object_asset.num_segments, -1)
+        )
 
     def _initialize_command_term(command, command_cfg, command_env) -> None:
         command.cfg = command_cfg
@@ -203,25 +213,33 @@ def _make_pose_command(
     monkeypatch.setattr(
         pose_commands.VisualMaterial, "write_channels", lambda _, channels: colors.append(channels["color"])
     )
-    return ObjectUniformPoseCommand(cfg, env), root_pos_w, colors
+    return instantiate(cfg, env), root_pos_w, colors
 
 
-def test_lift_table_colors_update_only_in_play(monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.parametrize(
+    ("env_cfg_type", "command_name"),
+    [
+        (KukaAllegroLiftCameraEnvCfg, "object_pose"),
+        (FrankaSoftEnvCfg, "deformable_pose"),
+        (FrankaCableEnvCfg, "cable_pose"),
+    ],
+)
+def test_lift_table_colors_update_only_in_play(
+    monkeypatch: pytest.MonkeyPatch, env_cfg_type: type, command_name: str
+) -> None:
     """Training updates metrics without color writes; play updates success colors."""
-    from isaaclab_tasks.core.lift.config.kuka_allegro.kuka_allegro_camera_env_cfg import KukaAllegroLiftCameraEnvCfg
-
-    cfg = resolve_presets(KukaAllegroLiftCameraEnvCfg())
-    command, _, colors = _make_pose_command(monkeypatch, 2, None, command_cfg=cfg.commands.object_pose)
+    cfg = resolve_presets(env_cfg_type())
+    command, _, colors = _make_pose_command(monkeypatch, 2, None, command_cfg=getattr(cfg.commands, command_name))
     command.pose_command_b[:, 0] = torch.tensor([1.0, 0.0])
     command._update_metrics()
     torch.testing.assert_close(command.metrics["position_error"], torch.tensor([1.0, 0.0]))
     assert colors == []
 
     cfg.play_mode()
-    command, _, colors = _make_pose_command(monkeypatch, 2, None, command_cfg=cfg.commands.object_pose)
+    command, _, colors = _make_pose_command(monkeypatch, 2, None, command_cfg=getattr(cfg.commands, command_name))
     command.pose_command_b[:, 0] = torch.tensor([1.0, 0.0])
     command._update_metrics()
-    failure, success = cfg.commands.object_pose.success_vis_colors
+    failure, success = command.cfg.success_vis_colors
     torch.testing.assert_close(colors[-1], torch.tensor([[failure, success]]))
 
 
