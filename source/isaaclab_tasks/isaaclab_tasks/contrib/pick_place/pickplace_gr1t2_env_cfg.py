@@ -34,7 +34,7 @@ from isaaclab_tasks.contrib.robot_pov_camera_cfg import robot_pov_camera_cfg  # 
 
 
 def build_gr1t2_pickplace_pipeline():
-    """Build an IsaacTeleop retargeting pipeline for GR1T2 pick-place teleoperation.
+    """Build an Isaac Capture retargeting pipeline for GR1T2 pick-place teleoperation.
 
     Creates two Se3AbsRetargeters for left and right wrist pose tracking and
     two DexHandRetargeters for left and right dexterous hand finger control

@@ -11,7 +11,7 @@ controllers).
 
 This script supports two teleoperation stacks:
 1. Native Isaac Lab teleop stack (via teleop_devices in env_cfg)
-2. IsaacTeleop-based stack (via isaac_teleop in env_cfg)
+2. Isaac Capture-based stack (via isaac_teleop in env_cfg)
 
 The script automatically detects which stack to use based on the environment config.
 """
@@ -42,7 +42,7 @@ parser.add_argument(
     type=str,
     default=None,
     help=(
-        "Legacy teleop device name. When omitted, the IsaacTeleop pipeline is used if configured in the env,"
+        "Legacy teleop device name. When omitted, the Isaac Capture pipeline is used if configured in the env,"
         " otherwise keyboard is used as fallback. When explicitly provided, the script uses the legacy"
         " teleop_devices path and looks up this name in env_cfg.teleop_devices.devices."
     ),
@@ -69,7 +69,7 @@ parser.add_argument(
     "--enable_debug_visualization",
     action="store_true",
     default=False,
-    help="Enable hand joint and controller aim debug visualization at session start (IsaacTeleop only).",
+    help="Enable hand joint and controller aim debug visualization at session start (Isaac Capture only).",
 )
 parser.add_argument(
     "--external_callback",
@@ -189,7 +189,7 @@ def _make_haptic_io(env, teleop_interface, env_cfg, use_isaac_teleop: bool):
     """Return ``(update, stop)`` callables driving controller haptics, or no-ops.
 
     Keeps haptics opt-in without branching in the main loop: both callables are
-    no-ops unless the active device is an IsaacTeleop device and the env declares
+    no-ops unless the active device is an Isaac Capture device and the env declares
     a ``haptic_feedback`` config. ``update`` renders the current contact force;
     ``stop`` zeroes it so a stale pulse does not persist while teleop is paused.
     """
@@ -205,11 +205,11 @@ def _make_haptic_io(env, teleop_interface, env_cfg, use_isaac_teleop: bool):
 
 
 def _make_control_keyboard(teleop_interface, use_isaac_teleop: bool, has_window: bool):
-    """Create an optional keyboard for headset-free IsaacTeleop control.
+    """Create an optional keyboard for headset-free Isaac Capture control.
 
     Binds ``B`` / ``P`` / ``R`` to start-resume / pause / reset so a user can drive
     the teleop state machine without an XR headset. Keys are captured through the app
-    window, so this returns ``None`` when there is no window or when IsaacTeleop is
+    window, so this returns ``None`` when there is no window or when Isaac Capture is
     not the active stack (a windowless run still auto-starts teleop). ``R`` is an operator
     reset: :meth:`~isaaclab_teleop.IsaacTeleopDevice.reset` with ``pause=True`` injects a
     single RESET pulse (the loop's control-event handler turns it into one environment

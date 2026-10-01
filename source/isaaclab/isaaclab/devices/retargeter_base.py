@@ -9,7 +9,7 @@ from __future__ import annotations
 
 .. deprecated::
     :class:`RetargeterBase` and :class:`RetargeterCfg` are deprecated.
-    Please use the IsaacTeleop retargeting engine via :mod:`isaaclab_teleop`
+    Please use the Isaac Capture retargeting engine via :mod:`isaaclab_teleop`
     instead. See :class:`isaaclab_teleop.IsaacTeleopCfg` for pipeline-based
     retargeting configuration.
 """
@@ -27,7 +27,7 @@ class RetargeterCfg:
     """Base configuration for hand tracking retargeters.
 
     .. deprecated::
-        Use the IsaacTeleop retargeting engine via :mod:`isaaclab_teleop` instead.
+        Use the Isaac Capture retargeting engine via :mod:`isaaclab_teleop` instead.
     """
 
     sim_device: str = "cpu"
@@ -39,7 +39,7 @@ class RetargeterBase(ABC):
     """Base interface for input data retargeting.
 
     .. deprecated::
-        Use the IsaacTeleop retargeting engine via :mod:`isaaclab_teleop` instead.
+        Use the Isaac Capture retargeting engine via :mod:`isaaclab_teleop` instead.
 
     This abstract class defines the interface for components that transform
     raw device data into robot control commands. Implementations can handle
@@ -56,7 +56,8 @@ class RetargeterBase(ABC):
             cfg: Configuration for the retargeter
         """
         warnings.warn(
-            "RetargeterBase is deprecated. Please use the IsaacTeleop retargeting engine via isaaclab_teleop instead.",
+            "RetargeterBase is deprecated. Please use the Isaac Capture retargeting engine via isaaclab_teleop"
+            " instead.",
             DeprecationWarning,
             stacklevel=2,
         )

@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""IsaacTeleop session lifecycle management."""
+"""Isaac Capture session lifecycle management."""
 
 from __future__ import annotations
 
@@ -177,7 +177,7 @@ def _execution_events_to_control(ee: ExecutionEvents) -> ControlEvents:
 
 
 class TeleopSessionLifecycle:
-    """Manages the IsaacTeleop session lifecycle.
+    """Manages the Isaac Capture session lifecycle.
 
     This class is responsible for:
 
@@ -240,7 +240,7 @@ class TeleopSessionLifecycle:
         """Initialize the session lifecycle manager.
 
         Args:
-            cfg: Configuration for IsaacTeleop settings.
+            cfg: Configuration for Isaac Capture settings.
             cloudxr_env_file: Optional path to a CloudXR ``.env`` file.
                 When provided, the CloudXR runtime is launched automatically
                 during :meth:`start` (unless *auto_launch_cloudxr* is
@@ -983,7 +983,7 @@ class TeleopSessionLifecycle:
         return self._try_start_session()
 
     def _resolved_retargeting_execution(self):
-        """Return the retargeting execution settings for the IsaacTeleop session.
+        """Return the retargeting execution settings for the Isaac Capture session.
 
         :attr:`~isaaclab_teleop.IsaacTeleopCfg.retargeting_execution` defaults to
         ``None`` so that constructing the config never requires the optional
@@ -998,7 +998,7 @@ class TeleopSessionLifecycle:
         return RetargetingExecutionConfig(mode="pipelined", pacing=DeadlinePacingConfig(safety_margin_s=0.025))
 
     def _try_start_session(self) -> bool:
-        """Attempt to create and start the IsaacTeleop session.
+        """Attempt to create and start the Isaac Capture session.
 
         In live mode with :attr:`_use_kit_xr_bridge` set, tries to acquire
         OpenXR handles from Kit's XR bridge.  If the handles are available,

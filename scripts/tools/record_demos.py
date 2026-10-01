@@ -11,7 +11,7 @@ device, dataset directory, and environment stepping rate through command-line ar
 
 This script supports two teleoperation stacks:
 1. Native Isaac Lab teleop stack (via teleop_devices in env_cfg)
-2. IsaacTeleop-based stack (via isaac_teleop in env_cfg)
+2. Isaac Capture-based stack (via isaac_teleop in env_cfg)
 
 The script automatically detects which stack to use based on the environment config.
 
@@ -20,7 +20,7 @@ required arguments:
 
 optional arguments:
     -h, --help                Show this help message and exit
-    --teleop_device           Legacy teleop device name. When omitted, IsaacTeleop is used if
+    --teleop_device           Legacy teleop device name. When omitted, Isaac Capture is used if
                               configured, otherwise keyboard. When set, forces the legacy path.
     --dataset_file            File path to export recorded demos. (default: "./datasets/dataset.hdf5")
     --step_hz                 Environment stepping rate in Hz. (default: 30)
@@ -63,7 +63,7 @@ parser.add_argument(
     type=str,
     default=None,
     help=(
-        "Legacy teleop device name. When omitted, the IsaacTeleop pipeline is used if configured in the env,"
+        "Legacy teleop device name. When omitted, the Isaac Capture pipeline is used if configured in the env,"
         " otherwise keyboard is used as fallback. When explicitly provided, the script uses the legacy"
         " teleop_devices path and looks up this name in env_cfg.teleop_devices.devices."
     ),
@@ -111,10 +111,10 @@ parser.add_argument(
     type=str,
     default=None,
     help=(
-        "Debug-only: write the live IsaacTeleop session to this MCAP file (one continuous file for the whole run)."
+        "Debug-only: write the live Isaac Capture session to this MCAP file (one continuous file for the whole run)."
         " Intended for pairing with teleop_replay_agent.py in CI -- NOT a data-generation format. MCAPs produced"
         " here lack per-episode segmentation, world-frame anchor state, env reset state, and have no public Python"
-        " decoder. For data-gen workflows use the HDF5 dataset path (default). Ignored when the IsaacTeleop stack"
+        " decoder. For data-gen workflows use the HDF5 dataset path (default). Ignored when the Isaac Capture stack"
         " is not in use."
     ),
 )
@@ -123,7 +123,7 @@ parser.add_argument(
     "--enable_debug_visualization",
     action="store_true",
     default=False,
-    help="Enable hand joint and controller aim debug visualization at session start (IsaacTeleop only).",
+    help="Enable hand joint and controller aim debug visualization at session start (Isaac Capture only).",
 )
 parser.add_argument("--external_callback", default=None, help="Fully qualified path to an externally defined callback.")
 parser.add_argument(
@@ -308,7 +308,7 @@ def create_environment_config(
         tuple[isaaclab_tasks.utils.parse_cfg.EnvCfg, Optional[object], bool]: A tuple containing:
             - env_cfg: The configured environment configuration
             - success_term: The success termination object or None if not available
-            - use_isaac_teleop: Whether IsaacTeleop stack should be used
+            - use_isaac_teleop: Whether the Isaac Capture stack should be used
 
     Raises:
         Exception: If parsing the environment configuration fails
@@ -409,7 +409,7 @@ def setup_teleop_device(callbacks: dict[str, Callable], use_isaac_teleop: bool =
     Args:
         callbacks: Dictionary mapping callback keys to functions that will be
                    attached to the teleop device
-        use_isaac_teleop: Whether to use IsaacTeleop stack instead of native stack
+        use_isaac_teleop: Whether to use the Isaac Capture stack instead of the native stack
 
     Returns:
         object: The configured teleoperation device interface
@@ -592,7 +592,7 @@ def run_simulation_loop(  # noqa: C901
         success_term: The success termination object or None if not available
         rate_limiter: Optional rate limiter to control simulation speed
         camera_feed_session: Shared XR camera-feed lifecycle
-        use_isaac_teleop: Whether to use IsaacTeleop stack
+        use_isaac_teleop: Whether to use the Isaac Capture stack
 
     Returns:
         int: Number of successful demonstrations recorded

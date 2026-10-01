@@ -65,7 +65,7 @@ _SO101_ORIENTATION_OFFSET_XYZW: tuple[float, float, float, float] | None = (
 
 
 def _build_so101_stack_pipeline():
-    """Build an IsaacTeleop retargeting pipeline for SO-101 cube stacking.
+    """Build an Isaac Capture retargeting pipeline for SO-101 cube stacking.
 
     Creates a SO101ClutchRetargeter for right-hand clutch-rebased full-pose tracking and a
     SO101GripperRetargeter for right-hand analog gripper control, flattened into a single action

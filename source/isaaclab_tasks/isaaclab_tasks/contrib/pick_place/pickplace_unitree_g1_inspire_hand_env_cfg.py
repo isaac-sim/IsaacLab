@@ -32,7 +32,7 @@ from isaaclab_assets.robots.unitree import G1_INSPIRE_FTP_CFG  # isort: skip
 
 
 def _build_g1_inspire_pickplace_pipeline():
-    """Build an IsaacTeleop retargeting pipeline for Unitree G1 Inspire Hand pick-place teleoperation.
+    """Build an Isaac Capture retargeting pipeline for Unitree G1 Inspire Hand pick-place teleoperation.
 
     Creates two Se3AbsRetargeters for left and right wrist pose tracking and
     two DexHandRetargeters for left and right dexterous hand finger control

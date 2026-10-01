@@ -22,7 +22,7 @@ from isaaclab_assets.robots.franka import FRANKA_PANDA_LEGACY_HIGH_PD_CFG  # iso
 
 
 def _build_franka_stack_pipeline():
-    """Build a IsaacTeleop retargeting pipeline for Franka cube stacking.
+    """Build an Isaac Capture retargeting pipeline for Franka cube stacking.
 
     Creates an Se3AbsRetargeter for right-hand pose tracking and a GripperRetargeter
     for right-hand gripper control, flattened into a single action tensor via

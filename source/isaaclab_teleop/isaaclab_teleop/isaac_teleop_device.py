@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""IsaacTeleop-based teleoperation device for Isaac Lab."""
+"""Isaac Capture-based teleoperation device for Isaac Lab."""
 
 from __future__ import annotations
 
@@ -30,9 +30,9 @@ logger = logging.getLogger(__name__)
 
 
 class IsaacTeleopDevice:
-    """A IsaacTeleop-based teleoperation device for Isaac Lab.
+    """An Isaac Capture-based teleoperation device for Isaac Lab.
 
-    This device provides an interface between IsaacTeleop's retargeting pipeline
+    This device provides an interface between Isaac Capture's retargeting pipeline
     and Isaac Lab environments.  It composes three focused collaborators:
 
     * :class:`XrAnchorManager` -- XR anchor prim setup, synchronization,
@@ -45,10 +45,10 @@ class IsaacTeleopDevice:
     Together they manage:
 
     1. XR anchor configuration and synchronization
-    2. IsaacTeleop session lifecycle
+    2. Isaac Capture session lifecycle
     3. Action tensor generation from the retargeting pipeline
 
-    The device uses IsaacTeleop's TensorReorderer to flatten pipeline outputs
+    The device uses Isaac Capture's TensorReorderer to flatten pipeline outputs
     into a single action tensor matching the environment's action space.
 
     Frame rebasing:
@@ -114,10 +114,10 @@ class IsaacTeleopDevice:
         enable_debug_visualization: bool = False,
         haptic_cfg: HapticFeedbackCfg | None = None,
     ):
-        """Initialize the IsaacTeleop device.
+        """Initialize the Isaac Capture device.
 
         Args:
-            cfg: Configuration object for IsaacTeleop settings.
+            cfg: Configuration object for Isaac Capture settings.
             cloudxr_env_file: Optional path to a CloudXR ``.env`` file.
                 When provided and *auto_launch_cloudxr* is ``True``, the
                 CloudXR runtime is launched automatically during session
@@ -185,7 +185,7 @@ class IsaacTeleopDevice:
             self._anchor_manager.cleanup()
 
     def __str__(self) -> str:
-        """Returns a string containing information about the IsaacTeleop device."""
+        """Returns a string containing information about the Isaac Capture device."""
         xr_cfg = self._cfg.xr_cfg
         msg = f"IsaacTeleop Device: {self.__class__.__name__}\n"
         msg += f"\tAnchor Position: {xr_cfg.anchor_pos}\n"
@@ -210,7 +210,7 @@ class IsaacTeleopDevice:
         return msg
 
     def __enter__(self) -> IsaacTeleopDevice:
-        """Enter the context manager and prepare the IsaacTeleop session.
+        """Enter the context manager and prepare the Isaac Capture session.
 
         Builds the retargeting pipeline and attempts to acquire OpenXR handles
         from Kit's XR bridge extension.  If the handles are not yet available
@@ -224,7 +224,7 @@ class IsaacTeleopDevice:
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        """Exit the context manager and clean up the IsaacTeleop session."""
+        """Exit the context manager and clean up the Isaac Capture session."""
         self._anchor_manager.cleanup()
         self._session_lifecycle.stop(exc_type, exc_val, exc_tb)
         return False
@@ -290,7 +290,7 @@ class IsaacTeleopDevice:
     def advance(self, target_T_world: np.ndarray | torch.Tensor | SupportsDLPack | None = None) -> torch.Tensor | None:
         """Process current device state and return control commands.
 
-        If the IsaacTeleop session has not been started yet (because the OpenXR
+        If the Isaac Capture session has not been started yet (because the OpenXR
         handles were not available at ``__enter__`` time), this method will
         attempt to start it on each call.  Once the user clicks "Start AR" and
         the handles become available, the session is created transparently.
@@ -577,7 +577,7 @@ def create_isaac_teleop_device(
         before the device is constructed.
 
     Args:
-        cfg: IsaacTeleop configuration.
+        cfg: Isaac Capture configuration.
         sim_device: If provided, overrides ``cfg.sim_device`` so action tensors
             are placed on the requested torch device (e.g. ``"cuda:0"``).
         callbacks: Optional mapping of command keys (e.g. ``"START"``, ``"STOP"``,

@@ -31,7 +31,7 @@ from isaaclab_tasks.contrib.locomanip_pick_place.configs.pink_controller_cfg imp
 
 
 def _build_g1_upper_body_pipeline():
-    """Build an IsaacTeleop retargeting pipeline for G1 upper body teleoperation.
+    """Build an Isaac Capture retargeting pipeline for G1 upper body teleoperation.
 
     Creates two Se3AbsRetargeters for left and right wrist pose tracking
     and two TriHandMotionControllerRetargeters for left and right hand joint
