@@ -249,6 +249,57 @@ def _build_labels(rows: list[dict]) -> list[str]:
     return result
 
 
+def _build_source_diagnostics(report: dict) -> list[str]:
+    """Keep actual, intended and event revisions below the primary comparison."""
+    selection = report.get("selection", {})
+    lines = []
+    source_context = report.get("source_context") or {}
+    reference_commit = source_context.get("reference_commit") or selection.get("reference_commit")
+    event_base_commit = source_context.get("event_base_commit") or selection.get("event_base_commit")
+    if reference_commit and event_base_commit and reference_commit != event_base_commit:
+        lines += [
+            f"Resolved PR base: `{_build_text(reference_commit)}`. "
+            f"The PR event reported `{_build_text(event_base_commit)}`; "
+            "the resolved base identifies the tested merge's actual first parent.",
+            "",
+        ]
+    failure = selection.get("paired_failure") or {}
+    if failure:
+        lines += ["**Source setup diagnostics:**", "", f"Stage: `{_build_text(failure.get('stage'))}`.", ""]
+        failure_source = failure.get("source") or {}
+        for field, label in (
+            ("commit", "Actual checkout"),
+            ("intended_commit", "Intended checkout"),
+            ("reference_commit", "Resolved PR base"),
+            ("event_base_commit", "PR event base"),
+            ("requested_head_commit", "Requested PR head"),
+        ):
+            if failure_source.get(field):
+                lines.append(f"- {label}: `{_build_text(failure_source[field])}`")
+        if failure_source.get("commit_parents"):
+            parents = ", ".join(f"`{_build_text(parent)}`" for parent in failure_source["commit_parents"])
+            lines.append(f"- Checkout parents: {parents}")
+        lines.append("")
+    return lines
+
+
+def _build_candidate_label(report: dict, pr: bool, identity: dict | None) -> str:
+    if not pr:
+        return "B — current benchmark"
+    if (identity or {}).get("source_provenance") == "github_run_metadata":
+        return "B — PR revision (not verified)"
+    return {
+        "merge": "B — PR merge result",
+        "head": "B — PR head",
+    }.get(report.get("candidate_kind"), "B — PR benchmark")
+
+
+def _build_primary_rows(rows: list[dict], failure: dict | None) -> list[dict]:
+    if failure and not any(row[side]["median"] is not None for row in rows for side in ("baseline", "candidate")):
+        return []
+    return rows
+
+
 def render_build_comparison(report: dict) -> str:
     """Render exact-build FPS observations within the existing Performance smoke summary."""
     selection = report.get("selection", {})
@@ -259,11 +310,7 @@ def render_build_comparison(report: dict) -> str:
     paired = report.get("comparison_mode") == "paired_pr"
     pr = paired or (report.get("candidate") or {}).get("event") == "pull_request"
     a_label = "A — PR base" if paired else "A — historical baseline"
-    b_label = "B — current benchmark"
-    if pr:
-        b_label = "B — PR merge result" if report.get("candidate_kind") == "merge" else "B — PR benchmark"
-        if report.get("candidate_kind") == "head":
-            b_label = "B — PR head"
+    b_label = _build_candidate_label(report, pr, identities["candidate"])
     a_label += " (evidence unavailable)" if unavailable_side == "baseline" else ""
     b_label += " (evidence unavailable)" if unavailable_side == "candidate" else ""
     rows = report.get("rows", [])
@@ -296,12 +343,13 @@ def render_build_comparison(report: dict) -> str:
             "Comparison unavailable: " + _build_text(selection.get("reason", missing_reason)),
             "",
         ]
-    if rows:
+    primary_rows = _build_primary_rows(rows, selection.get("paired_failure"))
+    if primary_rows:
         lines += [
             f"| Status | Workload | Baseline FPS | {'PR' if pr else 'Current'} FPS | Change % |",
             "| --- | --- | ---: | ---: | ---: |",
         ]
-    for label, row in zip(labels, rows):
+    for label, row in zip(labels, primary_rows):
         percent = _pct(row["change_pct"]) if row.get("change_pct") is not None else "—"
         if row["status"] == "compared" and row.get("change_pct") is None and row["baseline"]["median"] == 0:
             percent = "N/A (baseline is zero)"
@@ -309,11 +357,14 @@ def render_build_comparison(report: dict) -> str:
             f"| {_build_result(row)} | {_build_text(label)} | {_build_fps(row['baseline']['median'])} | "
             f"{_build_fps(row['candidate']['median'])} | {percent} |"
         )
+    if primary_rows:
+        lines += [
+            "",
+            "FPS is the median of recorded samples. Improved and regressed describe observed FPS changes; "
+            "positive change means higher FPS. These observations do not change the rolling-history CI gate below.",
+            "",
+        ]
     lines += [
-        "",
-        "FPS is the median of recorded samples. Improved and regressed describe observed FPS changes; "
-        "positive change means higher FPS. These observations do not change the rolling-history CI gate below.",
-        "",
         "<details>",
         "<summary>Builds and source results</summary>",
         "",
@@ -332,6 +383,8 @@ def render_build_comparison(report: dict) -> str:
     if selection.get("reference_branch"):
         anchor = _build_text(str(selection.get("reference_commit") or "unknown")[:12])
         lines += [f"Reference: {_build_text(selection['reference_branch'])} at `{anchor}`.", ""]
+    if paired:
+        lines += _build_source_diagnostics(report)
     visited = selection.get("visited_commits", [])
     if report.get("baseline") and len(visited) > 1:
         lines += [f"The selected reference is {len(visited) - 1} first-parent commit(s) older than the anchor.", ""]

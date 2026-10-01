@@ -10,6 +10,7 @@ import json
 import marshal
 import os
 import subprocess
+import sys
 import tempfile
 import types
 import unittest
@@ -73,6 +74,9 @@ class PairedTests(unittest.TestCase):
             "-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "commit", "--quiet", "-m", "Base"
         )
         self.commit = self._git("rev-parse", "HEAD")
+        environment = patch.dict(os.environ, {"PERF_BASE_COMMIT": self.commit})
+        environment.start()
+        self.addCleanup(environment.stop)
         self.manifest = source_revision.prepare_manifest(self.checkout)
         self.client = PairedFixtureClient()
         self.output = self.root / "baseline output"
@@ -88,6 +92,219 @@ class PairedTests(unittest.TestCase):
 
     def _git(self, *args):
         return subprocess.check_output(["git", "-C", str(self.checkout), *args], text=True).strip()
+
+    def _commit_file(self, name, content):
+        (self.checkout / name).write_text(content)
+        self._git("add", ".")
+        self._git(
+            "-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "commit", "--quiet", "-m", name
+        )
+        return self._git("rev-parse", "HEAD")
+
+    def _moving_merge(self):
+        self._git("checkout", "--quiet", "-b", "fixture-pr")
+        head = self._commit_file("source/isaaclab/isaaclab/pr.py", "VALUE = 'PR'\n")
+        self._git("checkout", "--quiet", "-b", "fixture-target", self.commit)
+        base = self._commit_file("source/isaaclab/isaaclab/base.py", "VALUE = 'Advanced base'\n")
+        self._git(
+            "-c",
+            "user.name=Fixture",
+            "-c",
+            "user.email=fixture@example.invalid",
+            "merge",
+            "--quiet",
+            "--no-ff",
+            "-m",
+            "Tested merge",
+            head,
+        )
+        merge = self._git("rev-parse", "HEAD")
+        latest = self._commit_file("source/isaaclab/isaaclab/later.py", "VALUE = 'Later target'\n")
+        self._git("checkout", "--quiet", "--detach", merge)
+        self.event["pull_request"]["head"]["sha"] = head
+        return base, head, merge, latest
+
+    def _cli(self, args, **environment):
+        event_path = self.root / "event.json"
+        event_path.write_bytes(encoded(self.event))
+        env = {
+            **os.environ,
+            "GITHUB_EVENT_PATH": str(event_path),
+            "GITHUB_OUTPUT": str(self.root / "github-output"),
+            "GITHUB_RUN_ID": "20",
+            "GITHUB_RUN_ATTEMPT": "1",
+            "GITHUB_REPOSITORY": REPO,
+            **environment,
+        }
+        return subprocess.run(
+            [sys.executable, "-m", "tools.perf_smoke.paired", *args],
+            cwd=Path(__file__).resolve().parents[2],
+            env=env,
+            text=True,
+            capture_output=True,
+        )
+
+    def test_resolve_immutable_merge_first_parent_despite_stale_event_and_moving_target(self):
+        base, head, merge, latest = self._moving_merge()
+        self.assertNotEqual(base, self.event["pull_request"]["base"]["sha"])
+        self.assertNotEqual(base, latest)
+        result = self._cli(["resolve", "--checkout-root", str(self.checkout)], GITHUB_SHA=merge)
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        outputs = dict(line.split("=", 1) for line in (self.root / "github-output").read_text().splitlines())
+        self.assertEqual(outputs, {"base_commit": base, "tested_commit": merge, "requested_head_commit": head})
+
+    def test_resolve_rejects_wrong_checkout_head_or_nonmerge_and_emits_reason(self):
+        base, _, merge, _ = self._moving_merge()
+        for mismatch in ("checkout", "head", "nonmerge"):
+            with self.subTest(mismatch=mismatch):
+                self._git("checkout", "--quiet", "--detach", base if mismatch == "nonmerge" else merge)
+                event = json.loads(encoded(self.event))
+                if mismatch == "head":
+                    self.event["pull_request"]["head"]["sha"] = HEAD
+                result = self._cli(
+                    ["resolve", "--checkout-root", str(self.checkout)],
+                    GITHUB_SHA=base if mismatch in ("checkout", "nonmerge") else merge,
+                )
+                self.event = event
+                self.assertNotEqual(result.returncode, 0)
+                outputs = (self.root / "github-output").read_text()
+                self.assertIn("reason=", outputs)
+                self.assertNotIn("base_commit=", outputs)
+
+    def test_capture_uses_resolved_parent_and_preserves_original_event_base_for_both_sides(self):
+        base, head, merge, _ = self._moving_merge()
+        legs = self.root / "legs.tsv"
+        legs.write_text("first|fixture\nsecond|fixture\n")
+        original_run = subprocess.run
+
+        def inspect_or_run(command, **kwargs):
+            if command[:3] == ["docker", "image", "inspect"]:
+                return subprocess.CompletedProcess(command, 0, '[{"Id":"same-image","RepoDigests":[]}]', "")
+            return original_run(command, **kwargs)
+
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "PERF_BASE_COMMIT": base,
+                    "GITHUB_SHA": merge,
+                    "GITHUB_EVENT_NAME": "pull_request",
+                    "GITHUB_RUN_ID": "20",
+                    "GITHUB_RUN_ATTEMPT": "1",
+                    "GITHUB_JOB": "performance-smoke-benchmarks",
+                },
+            ),
+            patch.object(paired.subprocess, "run", side_effect=inspect_or_run),
+        ):
+            for role, commit in (("baseline", base), ("current", merge)):
+                self._git("checkout", "--quiet", "--detach", commit)
+                output = self.root / role
+                context = paired.capture_context(self.checkout, output, "same-image", role, self.event, legs)
+                source = context["source"]
+                self.assertEqual(source["commit"], commit)
+                self.assertEqual(source["reference_commit"], base)
+                self.assertEqual(source["event_base_commit"], self.commit)
+                self.assertEqual(source["requested_head_commit"], head)
+                self.assertEqual(json.loads((output / "source-manifest.json").read_text())["commit"], commit)
+                if role == "current":
+                    self.assertEqual(source["commit_parents"], [base, head])
+
+    def test_capture_failure_preserves_actual_identity_and_does_not_fall_back_to_event_base(self):
+        base, head, merge, _ = self._moving_merge()
+        for resolved in ("", self.commit):
+            with self.subTest(resolved=resolved):
+                output = self.root / (resolved or "unresolved")
+                result = self._cli(
+                    [
+                        "capture",
+                        "--checkout-root",
+                        str(self.checkout),
+                        "--output-dir",
+                        str(output),
+                        "--image",
+                        "unused",
+                        "--role",
+                        "current",
+                        "--legs",
+                        str(self.root / "unused.tsv"),
+                    ],
+                    GITHUB_SHA=merge,
+                    PERF_BASE_COMMIT=resolved,
+                )
+                self.assertNotEqual(result.returncode, 0)
+                failure_path = output / "paired-failure.json"
+                failure = json.loads(failure_path.read_text())
+                self.assertEqual(failure["stage"], "capture_current")
+                self.assertEqual(failure["source"]["commit"], merge)
+                self.assertEqual(failure["source"]["intended_commit"], merge)
+                self.assertEqual(failure["source"]["tested_commit"], merge)
+                self.assertEqual(failure["source"]["commit_parents"], [base, head])
+                self.assertEqual(failure["source"]["event_base_commit"], self.commit)
+                self.assertEqual(failure["execution"], {"run_id": 20, "run_attempt": 1})
+                self.assertFalse((output / "source-manifest.json").exists())
+                previous = failure_path.read_bytes()
+                self._cli(
+                    ["bind", "--selection", str(self.selection_path), "--output-dir", str(output)],
+                    GITHUB_SHA=merge,
+                    PERF_BASE_COMMIT="",
+                )
+                self.assertEqual(failure_path.read_bytes(), previous)
+
+    def test_capture_forwards_cpu_resolution_failure(self):
+        _, _, merge, _ = self._moving_merge()
+        reason = "Tested PR merge does not have the event's head commit as its second parent."
+        result = self._cli(
+            [
+                "capture",
+                "--checkout-root",
+                str(self.checkout),
+                "--output-dir",
+                str(self.output),
+                "--image",
+                "unused",
+                "--role",
+                "current",
+                "--legs",
+                str(self.root / "unused.tsv"),
+            ],
+            GITHUB_SHA=merge,
+            PERF_BASE_COMMIT="",
+            PERF_PAIR_ERROR=reason,
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(json.loads((self.output / "paired-failure.json").read_text())["reason"], reason)
+
+    def test_bind_failure_is_enriched_by_later_capture_without_replacing_primary_reason(self):
+        base, head, merge, _ = self._moving_merge()
+        reason = "CPU could not resolve the tested PR merge."
+        env = {"GITHUB_SHA": merge, "PERF_BASE_COMMIT": "", "PERF_PAIR_ERROR": reason}
+        bound = self._cli(["bind", "--selection", str(self.selection_path), "--output-dir", str(self.output)], **env)
+        self.assertNotEqual(bound.returncode, 0)
+        path = self.output / "paired-failure.json"
+        original = json.loads(path.read_text())
+        self.assertEqual(original["stage"], "bind")
+        self.assertEqual(original["reason"], reason)
+        self.assertIsNone(original["source"]["commit"])
+        captured = self._cli(
+            [
+                "capture",
+                "--checkout-root",
+                str(self.checkout),
+                "--output-dir",
+                str(self.output),
+                "--image",
+                "unused",
+                "--role",
+                "current",
+                "--legs",
+                str(self.root / "unused.tsv"),
+            ],
+            **env,
+        )
+        self.assertNotEqual(captured.returncode, 0)
+        expected = json.loads(encoded(original))
+        expected["source"].update(commit=merge, commit_parents=[base, head])
+        self.assertEqual(json.loads(path.read_text()), expected)
 
     def _files(self, run_id=10, attempt=1):
         files = {
@@ -214,7 +431,14 @@ class PairedTests(unittest.TestCase):
         if (run_id, attempt) not in self.client.attempts:
             self.client.add(run_id, HEAD, event="pull_request", branch="feature", attempt=attempt, artifact=False)
         return paired.restore_baseline(
-            self.client, self.checkout, self.output, self.selection_path, self.event, run_id, attempt
+            self.client,
+            self.checkout,
+            self.output,
+            self.selection_path,
+            self.event,
+            run_id,
+            attempt,
+            base_commit=self._git("rev-parse", "HEAD"),
         )
 
     def test_restore_unchanged_base_for_new_pr_head_copies_exact_results(self):
@@ -229,6 +453,30 @@ class PairedTests(unittest.TestCase):
         self.assertEqual(json.loads(self.selection_path.read_text()), selection)
         for name, data in files.items():
             self.assertEqual((self.output / name).read_bytes(), data)
+
+    def test_restore_and_selection_use_resolved_reference_not_recorded_event_base(self):
+        event_base = "f" * 40
+        files = self._files()
+        context = json.loads(files["build-context.json"])
+        context["source"]["event_base_commit"] = event_base
+        files["build-context.json"] = encoded(context)
+        artifact = self._add_baseline(files)
+        self.event["pull_request"]["base"]["sha"] = event_base
+        restored = self._restore()
+        self.assertTrue(restored["baseline_reused"])
+        self.assertEqual(restored["reference_commit"], self.commit)
+        self.assertEqual(restored["event_base_commit"], event_base)
+        candidate = self._candidate(self._origin(artifact, run_id=10), reused=True)
+        candidate.context["source"]["event_base_commit"] = event_base
+        selected = paired.select_pr_baseline(self.client, candidate)
+        self.assertEqual(selected.evidence.identity["source_commit"], self.commit)
+
+    def test_restore_requires_resolved_commit_even_when_event_base_matches_checkout(self):
+        with patch.dict(os.environ, {"PERF_BASE_COMMIT": ""}):
+            with self.assertRaisesRegex(ValueError, "first parent was not resolved"):
+                paired.restore_baseline(self.client, self.checkout, self.output, self.selection_path, self.event, 20, 1)
+        self.assertFalse(self.selection_path.exists())
+        self.assertEqual(self.client.pages_requested, [])
 
     def test_restore_uses_current_numeric_workflow_registration_and_excludes_others(self):
         workflow_id = 812345
@@ -352,7 +600,7 @@ class PairedTests(unittest.TestCase):
         manifest["commit"] = HEAD
         files["source-manifest.json"] = encoded(manifest)
         context = json.loads(files["build-context.json"])
-        context["source"].update(commit=HEAD, benchmark_role="current")
+        context["source"].update(commit=HEAD, benchmark_role="current", commit_parents=[self.commit, HEAD])
         context["execution"].update(hostname=hostname, measurement_not_before=start)
         files["build-context.json"] = encoded(context)
         for name in list(files):
@@ -398,6 +646,14 @@ class PairedTests(unittest.TestCase):
         self.assertEqual(self.client.queried, [])
         self.assertEqual(self.client.pages_requested, [])
 
+    def test_selection_rejects_parent_mismatch_before_retrieving_baseline(self):
+        candidate = self._candidate({"artifact_id": 123})
+        downloaded = list(self.client.downloaded)
+        candidate.context["source"]["commit_parents"] = ["f" * 40, HEAD]
+        with self.assertRaisesRegex(baseline.EvidenceError, "does not identify this tested PR revision"):
+            paired.select_pr_baseline(self.client, candidate)
+        self.assertEqual(self.client.downloaded, downloaded)
+
     def test_reused_base_remains_pinned_across_runner_change(self):
         artifact = self._add_baseline()
         candidate = self._candidate(self._origin(artifact, run_id=10), reused=True, hostname="different-gpu-host")
@@ -442,6 +698,13 @@ class PairedTests(unittest.TestCase):
             selection["reason"], "The base benchmark artifact was not produced; baseline FPS is unavailable."
         )
         self.assertIsNone(selection["baseline_origin"])
+
+    def test_bind_rejects_selection_for_another_resolved_base(self):
+        self._restore()
+        with patch.dict(os.environ, {"PERF_BASE_COMMIT": "f" * 40, "GITHUB_SHA": HEAD}):
+            with self.assertRaisesRegex(ValueError, "selection does not match"):
+                paired.bind_baseline(self.selection_path, None, self.output, REPO)
+        self.assertFalse((self.output / "pr-comparison.json").exists())
 
     def test_bind_preserves_failure_stage_when_partial_artifact_exists(self):
         self._restore()
