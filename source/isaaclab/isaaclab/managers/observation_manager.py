@@ -499,11 +499,12 @@ class ObservationManager(ManagerBase):
                         obs = modifier.func(obs)
                     else:
                         obs = modifier.func(obs, **modifier.params)
+            # Noise callbacks must not modify their input, but may return borrowed storage.
             if isinstance(term_cfg.noise, noise.NoiseCfg):
-                obs = term_cfg.noise.func(obs.clone(), term_cfg.noise)
+                obs = term_cfg.noise.func(obs, term_cfg.noise)
                 owned = False
             elif isinstance(term_cfg.noise, noise.NoiseModelCfg) and term_cfg.noise.func is not None:
-                obs = term_cfg.noise.func(obs.clone())
+                obs = term_cfg.noise.func(obs)
                 owned = False
             if term_cfg.clip:
                 obs = (
@@ -519,7 +520,8 @@ class ObservationManager(ManagerBase):
                 obs = self._group_obs_term_delay_buffer[group_name][term_name].compute(
                     obs, update_history=update_history, batch_ids=env_ids
                 )
-                owned = False
+                # the delay buffer returns storage independent of its history
+                owned = True
             # Update the history buffer if observation term has history enabled
             if term_cfg.history_length > 0:
                 circular_buffer = self._group_obs_term_history_buffer[group_name][term_name]
@@ -617,10 +619,15 @@ class ObservationManager(ManagerBase):
     Helper functions.
     """
 
+    def _resolve_common_term_cfg(self, term_name: str, term_cfg: ObservationTermCfg, min_argc: int = 1):
+        if "out" in term_cfg.params:
+            raise ValueError(f"Observation term '{term_name}': 'out' is reserved for the manager.")
+        super()._resolve_common_term_cfg(term_name, term_cfg, min_argc)
+        # The destination is supplied by the manager, not by the term configuration.
+        term_cfg.params.pop("out", None)
+
     def _prepare_term_output(self, group_name: str, term_name: str, term_cfg: ObservationTermCfg) -> tuple[int, ...]:
         """Probe output dimensions and cache destination specifications for explicitly supported terms."""
-        if "out" in term_cfg.params:
-            raise ValueError(f"Observation term '{group_name}/{term_name}': 'out' is reserved for the manager.")
         out_param = inspect.signature(term_cfg.func).parameters.get("out")
         writes_output = out_param is not None and out_param.kind is inspect.Parameter.KEYWORD_ONLY
         if writes_output and out_param.default is not None:
@@ -738,7 +745,6 @@ class ObservationManager(ManagerBase):
                 # add term config to list
                 self._group_obs_term_names[group_name].append(term_name)
                 self._group_obs_term_cfgs[group_name].append(term_cfg)
-
                 # call function the first time to fill up dimensions
                 obs_dims = self._prepare_term_output(group_name, term_name, term_cfg)
 

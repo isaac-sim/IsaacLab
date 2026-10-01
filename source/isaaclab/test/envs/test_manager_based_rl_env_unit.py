@@ -210,7 +210,7 @@ def _make_episode_env(monkeypatch, autoreset_mode=gym.vector.AutoresetMode.DISAB
         env.reward_manager = SimpleNamespace(compute=lambda **kwargs: torch.ones(3), reset=Mock(return_value={}))
         env.curriculum_manager = SimpleNamespace(compute=Mock(), reset=Mock(return_value={}))
         env.command_manager = SimpleNamespace(compute=Mock(), reset=Mock(return_value={}))
-        env.event_manager = SimpleNamespace(available_modes=[], reset=Mock(return_value={}))
+        env.event_manager = SimpleNamespace(active_terms={}, reset=Mock(return_value={}))
 
     monkeypatch.setattr(ManagerBasedEnv, "__init__", initialize_simulation_double)
     cfg = SimpleNamespace(

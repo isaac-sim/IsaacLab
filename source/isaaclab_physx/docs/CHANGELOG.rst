@@ -1,6 +1,28 @@
 Changelog
 ---------
 
+.. towncrier release notes start
+
+7.3.1 (2026-10-01)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Removed the per-frame channel-compacting copies for normals, motion vectors, HDR color, and
+  simple-shading outputs in :class:`~isaaclab_physx.renderers.IsaacRtxRenderer`.
+* Changed PhysX contact, PVA, and frame-transformer debug visualization to refresh outdated
+  sensor buffers before drawing.
+
+* Skipped the joint-limit clamping counter readback when its logging level is disabled and reused
+  the counter buffer across writes.
+
+Fixed
+^^^^^
+
+* Used resolved callable defaults when constructing manager terms instead of duplicating defaults in constructors.
+
+
 7.3.0 (2026-09-29)
 ~~~~~~~~~~~~~~~~~~
 
