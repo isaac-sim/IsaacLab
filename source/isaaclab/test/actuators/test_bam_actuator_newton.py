@@ -482,6 +482,51 @@ def test_delay_hold_and_update_period_reach_the_motor_output(hold_probability, p
 
 
 @pytest.mark.parametrize("device", test_devices())
+def test_delay_rng_changes_on_reset_and_preserves_untouched_environments(device):
+    """Lag draws vary across episodes, remain reproducible, and survive CUDA graph replay."""
+    harnesses = [_Harness(_make_cfg(max_delay=3), num_envs=2, device=device) for _ in range(3)]
+    zeros = np.zeros((2, 2), dtype=np.float32)
+    graphs = []
+    for harness in harnesses:
+        harness.step(zeros, zeros, zeros)  # Compile before CUDA capture.
+        harness.reset(torch.arange(2, device=device))
+        if device.startswith("cuda"):
+            with wp.ScopedDevice(device), wp.ScopedCapture() as capture:
+                harness.adapter.step(harness.state, harness.control, DT, swap_state=False)
+            graphs.append(capture.graph)
+        else:
+            graphs.append(None)
+
+    def rollout():
+        efforts = []
+        for step in range(32):
+            command = np.full_like(zeros, step * 0.001)
+            step_efforts = []
+            for harness, graph in zip(harnesses, graphs, strict=True):
+                harness.target_pos.assign(command)
+                with wp.ScopedDevice(device):
+                    if graph is None:
+                        harness.adapter.step(harness.state, harness.control, DT)
+                    else:
+                        wp.capture_launch(graph)
+                step_efforts.append(harness.control.joint_f_2d.numpy().copy())
+            efforts.append(step_efforts)
+        return np.asarray(efforts)
+
+    first = rollout()
+    np.testing.assert_array_equal(first[:, 0], first[:, 1])
+    np.testing.assert_array_equal(first[:, 0], first[:, 2])
+    for harness in harnesses[:2]:
+        harness.reset(torch.tensor([0], device=device))
+    second = rollout()
+    # Identical reset histories give identical draws, but a new episode gets a new sequence.
+    np.testing.assert_array_equal(second[:, 0], second[:, 1])
+    assert not np.array_equal(first[:, 0, 0], second[:, 0, 0]), "reset replayed the same delay sequence"
+    # The third harness never resets; its second environment is the continuation reference.
+    np.testing.assert_array_equal(second[:, 0, 1], second[:, 2, 1])
+
+
+@pytest.mark.parametrize("device", test_devices())
 def test_reset_restores_the_first_step_behaviour(device):
     """Resetting an environment must clear its caches without touching the others."""
     harness = _Harness(_make_cfg(), num_envs=2, device=device)
