@@ -41,10 +41,7 @@ class InteractiveSceneWarp(InteractiveScene):
         for rigid_object in self._rigid_objects.values():
             rigid_object.reset(env_ids, env_mask=env_mask)
         for surface_gripper in self._surface_grippers.values():
-            if env_mask is None:
-                surface_gripper.reset(env_ids)
-            else:
-                surface_gripper.reset_mask(wp.to_torch(env_mask))
+            surface_gripper.reset(env_ids)
         for rigid_object_collection in self._rigid_object_collections.values():
             rigid_object_collection.reset(env_ids, env_mask=env_mask)
         # -- sensors
