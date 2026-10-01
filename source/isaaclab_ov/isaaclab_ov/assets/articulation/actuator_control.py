@@ -53,7 +53,7 @@ class OvPhysxActuatorControl(ArticulationActuatorControl):
         if not use_newton_actuators:
             return set()
 
-        validate_newton_native_actuator_cfgs(actuator_cfgs, host_adapter=True)
+        validate_newton_native_actuator_cfgs(actuator_cfgs)
         native_group_names = {
             name for name, actuator_cfg in actuator_cfgs.items() if not _is_implicit_actuator_cfg(actuator_cfg)
         }
