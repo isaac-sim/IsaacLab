@@ -160,7 +160,7 @@ def test_version_single_source_matches_literal_pins(source_checkout_root: Path):
 
     # The Newton uv override is its single pin and may select a release or Git revision.
     newton_spec = next(requirement for requirement in overrides if requirement.startswith("newton[sim]"))
-    assert "==" in newton_spec or " @ git+" in newton_spec
+    assert newton_spec.endswith(f"newton.git@{versions['newton']}")
 
     # warp-lang is a core dependency whose table value may be an exact pin
     # ("1.2.3" -> ``==``) or a range (">=1.2.3" -> mirrored verbatim).

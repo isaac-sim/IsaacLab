@@ -310,7 +310,6 @@ class RlGamesVecEnvWrapper(IVecEnv):
         # process observations and states
         obs_and_states = self._process_obs(obs_dict)
         # move buffers to rl-device
-        # note: we perform clone to prevent issues when rl-device and sim-device are the same.
         rew = rew.to(device=self._rl_device)
         dones = (terminated | truncated).to(device=self._rl_device)
         extras = {

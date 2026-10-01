@@ -66,17 +66,19 @@ def generate_cubes_scene(
     kinematic_enabled: bool = False,
     device: str = "cuda:0",
     spawn_unrelated_sibling: bool = False,
+    object_paths: tuple[str, ...] | None = None,
 ) -> tuple[RigidObjectCollection, torch.Tensor]:
     """Generate a scene with the provided number of cubes.
 
     Args:
         num_envs: Number of envs to generate.
-        num_cubes: Number of cubes to generate.
+        num_cubes: Number of cubes to generate when object_paths is not specified.
         height: Height of the cubes.
         has_api: Whether the cubes have a rigid body API on them.
         kinematic_enabled: Whether the cubes are kinematic.
         device: Device to use for the simulation.
         spawn_unrelated_sibling: Whether to spawn a rigid body outside the collection in each environment.
+        object_paths: Member paths relative to each environment. Defaults to Object_0, Object_1, etc.
 
     Returns:
         A tuple containing the rigid object collection representing the cubes and the origins of the cubes.
@@ -100,23 +102,21 @@ def generate_cubes_scene(
 
     # create the rigid object configs
     cube_config_dict = {}
-    for i in range(num_cubes):
+    if object_paths is None:
+        object_paths = tuple(f"Object_{i}" for i in range(num_cubes))
+    for i, path in enumerate(object_paths):
         cube_object_cfg = RigidObjectCfg(
-            prim_path=f"/World/Env_[^/]*/Object_{i}",
+            prim_path=f"/World/Env_[^/]*/{path}",
             spawn=clone(spawn_cfg),
             init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 3 * i, height)),
         )
         cube_config_dict[f"cube_{i}"] = cube_object_cfg
     cfgs = list(cube_config_dict.values())
     if spawn_unrelated_sibling:
-        cfgs.append(AssetBaseCfg(prim_path="/World/Env_[^/]*/UnrelatedObject"))
+        cfgs.append(AssetBaseCfg(prim_path="/World/Env_[^/]*/Object_Target"))
     clone_plan_from_env_0(CloneCfg(clone_template="/World/Env_{}"), cfgs, num_envs, 3.0, positions=origins)
     if spawn_unrelated_sibling:
-        spawn_cfg.func(
-            "/World/Env_0/UnrelatedObject",
-            spawn_cfg,
-            translation=(0.0, -3.0, height),
-        )
+        spawn_cfg.func("/World/Env_0/Object_Target", spawn_cfg, translation=(0.0, -3.0, height))
     # create the rigid object collection
     cube_object_collection_cfg = RigidObjectCollectionCfg(rigid_objects=cube_config_dict)
     cube_object_collection = RigidObjectCollection(cfg=cube_object_collection_cfg)
@@ -124,21 +124,23 @@ def generate_cubes_scene(
     return cube_object_collection, torch.as_tensor(origins, device=device)
 
 
-@pytest.mark.parametrize(("num_envs", "num_cubes", "spawn_unrelated_sibling"), [(1, 1, False), (2, 3, True)])
+@pytest.mark.parametrize(
+    ("num_envs", "object_paths", "spawn_unrelated_sibling"),
+    [
+        (1, ("Object_A",), False),
+        (2, ("Object_A", "Object_B", "Object_C"), True),
+        (2, ("Object_A", "Shelf/Object_B"), False),
+    ],
+    ids=["single_member", "sibling_sharing_prefix", "nested_member"],
+)
 @pytest.mark.parametrize("device", test_devices())
-def test_initialization(num_envs, num_cubes, spawn_unrelated_sibling, device):
-    """Test initialization for prim with rigid body API at the provided prim path.
-
-    With an unrelated rigid body next to the cubes in each environment, the collection view must still
-    select only its configured rigid objects.
-    """
-    with _newton_sim_context(device, auto_add_lighting=True) as sim:
+def test_initialization(num_envs, object_paths, spawn_unrelated_sibling, device):
+    """Bind only configured members, including nested paths, and preserve each body's name-to-pose mapping."""
+    num_cubes = len(object_paths)
+    with _newton_sim_context(device, gravity_enabled=False, auto_add_lighting=True) as sim:
         sim._app_control_on_stop_handle = None
-        object_collection, _ = generate_cubes_scene(
-            num_envs=num_envs,
-            num_cubes=num_cubes,
-            device=device,
-            spawn_unrelated_sibling=spawn_unrelated_sibling,
+        object_collection, origins = generate_cubes_scene(
+            num_envs, device=device, spawn_unrelated_sibling=spawn_unrelated_sibling, object_paths=object_paths
         )
 
         # Check that the framework doesn't hold excessive strong references.
@@ -160,6 +162,12 @@ def test_initialization(num_envs, num_cubes, spawn_unrelated_sibling, device):
         assert object_collection.data.body_link_quat_w.torch.shape == (num_envs, num_cubes, 4)
         assert object_collection.data.body_mass.torch.shape == (num_envs, num_cubes)
         assert object_collection.data.body_inertia.torch.shape == (num_envs, num_cubes, 9)
+
+        for name, member_cfg in object_collection.cfg.rigid_objects.items():
+            body_ids, _ = object_collection.find_bodies(name)
+            body_pos = object_collection.data.body_link_pos_w.torch[:, body_ids[0]] - origins
+            expected_pos = torch.tensor(member_cfg.init_state.pos, device=device).expand(num_envs, 3)
+            torch.testing.assert_close(body_pos, expected_pos, atol=1e-5, rtol=0.0)
 
 
 @pytest.mark.parametrize("device", test_devices())
@@ -401,6 +409,12 @@ def test_gravity_vec_w_tracks_model_gravity(num_envs, num_cubes, device):
             object_collection.update(sim.cfg.dt)
         gravity = torch.zeros(num_envs, num_cubes, 6, device=device)
         gravity[..., 2] = -9.81
+        torch.testing.assert_close(object_collection.data.body_com_acc_w.torch, gravity)
+
+        # One update may span several physics steps, e.g. once per env step when Newton owns decimation.
+        sim.step()
+        sim.step()
+        object_collection.update(2 * sim.cfg.dt)
         torch.testing.assert_close(object_collection.data.body_com_acc_w.torch, gravity)
 
         # GRAVITY_VEC_W must share storage with Newton's per-env gravity array.

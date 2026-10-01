@@ -9,6 +9,7 @@ from unittest import mock
 
 import pytest
 
+import isaaclab.cli as cli
 import isaaclab.cli.commands.misc as misc
 
 pytestmark = pytest.mark.unit
@@ -28,14 +29,26 @@ def test_python_subcommands_propagate_failures():
     ]
 
 
-def test_build_docs_runs_sphinx_with_the_uv_dev_extra():
+def test_build_docs_runs_sphinx_with_the_uv_dev_extra(tmp_path, monkeypatch):
     """The docs command must use the UV extra that provides Sphinx."""
-    docs_dir = misc.ISAACLAB_ROOT / "docs"
+    monkeypatch.setattr(misc, "ISAACLAB_ROOT", tmp_path)
+    docs_dir = tmp_path / "docs"
     output_dir = docs_dir / "_build" / "current"
+    output_dir.mkdir(parents=True)
+    (output_dir / "removed.html").touch()
+    (output_dir / ".doctrees").mkdir()
+    (output_dir / ".doctrees" / "environment.pickle").touch()
+    other_version = docs_dir / "_build" / "v3.0.0-EA"
+    other_version.mkdir()
+    (other_version / "index.html").touch()
+
+    def check_clean_output(*args, **kwargs):
+        assert not output_dir.exists()
+        assert (other_version / "index.html").is_file()
 
     with (
         mock.patch("shutil.which", return_value="/usr/bin/uv"),
-        mock.patch.object(misc, "run_command") as run_command,
+        mock.patch.object(misc, "run_command", side_effect=check_clean_output) as run_command,
     ):
         misc.command_build_docs()
 
@@ -43,7 +56,6 @@ def test_build_docs_runs_sphinx_with_the_uv_dev_extra():
         [
             "/usr/bin/uv",
             "run",
-            "--isolated",
             "--extra",
             "dev",
             "--",
@@ -57,12 +69,65 @@ def test_build_docs_runs_sphinx_with_the_uv_dev_extra():
             "-b",
             "html",
             "-d",
-            "_build/doctrees",
+            str(output_dir / ".doctrees"),
             ".",
             str(output_dir),
         ],
         cwd=docs_dir,
     )
+
+
+def test_build_docs_multi_redirects_to_selected_ref(tmp_path, monkeypatch):
+    """The CLI must write its root redirect to the selected built version."""
+    monkeypatch.setattr(misc, "ISAACLAB_ROOT", tmp_path)
+    monkeypatch.setenv("DOCS_DEFAULT_REF", "develop")
+    monkeypatch.setattr("sys.argv", ["isaaclab", "--docs_multi"])
+    docs_dir = tmp_path / "docs"
+    output_dir = docs_dir / "_build"
+    (output_dir / "develop").mkdir(parents=True)
+    (output_dir / "develop" / "index.html").write_text("built docs", encoding="utf-8")
+    (docs_dir / "_redirect").mkdir()
+    (docs_dir / "_redirect" / "index.html").write_text(
+        '<meta http-equiv="refresh" content="0; url=./__DOCS_DEFAULT_REF__/index.html">', encoding="utf-8"
+    )
+
+    with (
+        mock.patch("shutil.which", return_value="/usr/bin/uv"),
+        mock.patch.object(misc, "run_command") as run_command,
+    ):
+        cli.cli()
+
+    assert (output_dir / "index.html").read_text(encoding="utf-8") == (
+        '<meta http-equiv="refresh" content="0; url=./develop/index.html">'
+    )
+    assert (output_dir / "develop" / "index.html").read_text(encoding="utf-8") == "built docs"
+    run_command.assert_called_once_with(
+        ["/usr/bin/uv", "run", "--extra", "dev", "--", "sphinx-multiversion", ".", str(output_dir), "--jobs=auto"],
+        cwd=docs_dir,
+    )
+
+
+def test_build_docs_multi_rejects_missing_default_ref(tmp_path, monkeypatch):
+    """An unbuilt redirect target must fail with guidance and leave any redirect intact."""
+    monkeypatch.setattr(misc, "ISAACLAB_ROOT", tmp_path)
+    monkeypatch.delenv("DOCS_DEFAULT_REF", raising=False)
+    output_dir = tmp_path / "docs" / "_build"
+    output_dir.mkdir(parents=True)
+    redirect = output_dir / "index.html"
+    redirect.write_text("previous redirect", encoding="utf-8")
+
+    with (
+        mock.patch("shutil.which", return_value="/usr/bin/uv"),
+        mock.patch.object(misc, "run_command"),
+        mock.patch.object(misc, "print_error") as print_error,
+        pytest.raises(SystemExit, match="1"),
+    ):
+        misc.command_build_docs(multi_version=True)
+
+    print_error.assert_called_once_with(
+        "Default docs ref 'v3.0.0-EA' was not built. Fetch the Git refs or set DOCS_DEFAULT_REF."
+    )
+    assert redirect.read_text(encoding="utf-8") == "previous redirect"
 
 
 def test_build_docs_explains_how_to_install_uv():

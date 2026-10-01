@@ -5,9 +5,69 @@ Using Implicit MPM
 
 Newton's implicit Material Point Method (MPM) solver models particle materials
 such as granular media. MPM support and rigid-MPM coupling are experimental.
-Start with the compact ``mpm-granular`` example; the ``snowball-smash`` and ``teapot-fill`` demos provide polished
-coupling and cavity-sampling showcases.
+Start with the compact ``mpm-granular`` example; the ``snowball-smash`` and
+``teapot-fill`` demos provide polished coupling and cavity-sampling showcases.
 
+The launcher uses ``cuda:0`` by default. Pass ``--device cuda:N`` to select a
+different GPU.
+
+
+Explore MPM Scenes
+------------------
+
+These examples and demos introduce MPM construction and interaction before any
+parameter study. They default to Newton GL for interactive viewing:
+
+.. grid:: 1 1 2 2
+   :gutter: 2
+
+   .. grid-item-card:: Granular drop
+
+      .. raw:: html
+
+         <video autoplay loop muted playsinline controls preload="metadata" style="width:100%;">
+           <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/videos/mpm_granular.mp4" type="video/mp4">
+         </video>
+
+      .. code-block:: bash
+
+         uv run isaaclab example mpm-granular
+
+   .. grid-item-card:: Two-way sphere pit
+
+      .. raw:: html
+
+         <video autoplay loop muted playsinline controls preload="metadata" style="width:100%;">
+           <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/videos/mpm_two_way.mp4" type="video/mp4">
+         </video>
+
+      .. code-block:: bash
+
+         uv run isaaclab example mpm-two-way-coupling
+
+   .. grid-item-card:: Snowball smash
+
+      .. raw:: html
+
+         <video autoplay loop muted playsinline controls preload="metadata" style="width:100%;">
+           <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/videos/mpm_snowball.mp4" type="video/mp4">
+         </video>
+
+      .. code-block:: bash
+
+         uv run isaaclab demo snowball-smash
+
+   .. grid-item-card:: Teapot fill
+
+      .. raw:: html
+
+         <video autoplay loop muted playsinline controls preload="metadata" style="width:100%;">
+           <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/videos/mpm_teapot_particles.mp4" type="video/mp4">
+         </video>
+
+      .. code-block:: bash
+
+         uv run isaaclab demo teapot-fill --fluid_render_mode particles
 
 .. _franka-pour-reset-artifact:
 
@@ -22,7 +82,7 @@ training needs no artifact setup:
 .. code-block:: bash
 
    uv run isaaclab train --rl_library rsl_rl --task IsaacContrib-Franka-Pour \
-     --num_envs 2048 --device cuda:0
+     --num_envs 2048
 
 The checked-in generator remains the executable reference for reproducing or
 customizing the distribution. It takes about two minutes on an L40S-class GPU
@@ -30,9 +90,9 @@ and writes a local artifact that can be selected explicitly:
 
 .. code-block:: bash
 
-   uv run python scripts/tools/generate_franka_pour_reset_dataset.py --device cuda:0
+   uv run python scripts/tools/generate_franka_pour_reset_dataset.py
    uv run isaaclab train --rl_library rsl_rl --task IsaacContrib-Franka-Pour \
-     --num_envs 2048 --device cuda:0 \
+     --num_envs 2048 \
      env.reset_dataset_path=datasets/franka_pour/reset_dataset.pt
 
 The task validates the payload's stored content digest automatically. Setting
@@ -52,8 +112,8 @@ callback or particle override is required:
 
 .. code-block:: bash
 
-   uv run isaaclab play --rl_library rsl_rl --task IsaacContrib-Franka-Pour \
-     --checkpoint /path/to/model.pt --num_envs 1 --device cuda:0 --visualizer kit
+   uv run --extra isaacsim isaaclab play --rl_library rsl_rl --task IsaacContrib-Franka-Pour \
+     --checkpoint /path/to/model.pt --num_envs 1 --visualizer kit
 
 
 Minimal Setup
@@ -117,35 +177,48 @@ USD clones share the same local particle distribution. Use reset events or domai
 randomization when each environment needs an independent distribution.
 
 
+Controlled material experiments, comparison demos, and practical solver advice
+are collected in :ref:`newton-tuning-mpm`.
+
+
 Render a Particle Surface
 -------------------------
 
 MPM simulation state remains a set of particles. Surface reconstruction is an
 optional visualization pass: it does not change particle motion, collisions, or
-material behavior. Run the teapot example to compare the available modes:
+material behavior. Run the teapot demo to compare the available modes:
 
 .. code-block:: bash
 
-   # Reconstructed surface (default)
-   uv run isaaclab demo teapot-fill --device cuda:0 \
+   # Reconstructed surface
+   uv run isaaclab demo teapot-fill \
      --visualizer newton_gl --fluid_render_mode surface
    # Surface and source particles together
-   uv run isaaclab demo teapot-fill --device cuda:0 \
+   uv run isaaclab demo teapot-fill \
      --visualizer newton_gl --fluid_render_mode both
    # Path-traced translucent surface
-   uv run --extra ovrtx isaaclab demo teapot-fill --device cuda:0 \
+   uv run --extra ovrtx isaaclab demo teapot-fill \
      --visualizer newton_rtx --fluid_render_mode surface
+
+The teapot demo defaults to the reconstructed surface. Select ``particles`` or
+``both`` to inspect the source MPM state in Newton GL or Newton RTX.
 
 Surface rendering is available in the Newton GL and Newton RTX visualizers.
 The Kit visualizer continues to render the MPM particles directly.
 
-To reconstruct a surface in another Newton MPM script, create one reusable
-``newton.geometry.ParticleSurface`` after ``sim.reset()``. On each render update,
-extract from the current Newton particle positions, radii, flags, and world indices,
-then pass the returned vertex, triangle-index, and normal arrays to
-``NewtonGLVisualizer.log_mesh()`` or ``NewtonRTXVisualizer.log_mesh()`` with
-``dynamic=True`` before calling ``sim.render()``. The visualizer stages the latest
-mesh by name and submits it inside Newton's required viewer-frame lifecycle.
+.. raw:: html
+
+   <video autoplay loop muted playsinline controls preload="metadata" style="width:100%; max-width:960px;">
+     <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/videos/mpm_surface_reconstruction.mp4" type="video/mp4">
+   </video>
+
+This recording demonstrates rendering appearance, not a different
+constitutive model.
+
+The teapot demo configures ``newton.geometry.ParticleSurface`` after
+``sim.reset()`` and updates the mesh before ``sim.render()``. Its renderer
+captures extraction on CUDA when enabled and stages the dynamic mesh inside
+the viewer's frame lifecycle.
 
 Tune reconstruction independently from the simulation:
 
@@ -158,10 +231,10 @@ Tune reconstruction independently from the simulation:
 * Anisotropic kernels preserve sheets and stretched fluid features better, but
   cost more than isotropic kernels.
 
-The demo handles CUDA graph capture, empty surfaces, inactive particles, and
-dynamic topology in one reusable helper:
+The teapot demo handles CUDA graph capture, empty surfaces, inactive particles,
+and dynamic topology:
 
-.. dropdown:: ``FluidSurfaceRenderer`` implementation
+.. dropdown:: Teapot surface renderer implementation
    :icon: code
 
    .. literalinclude:: ../../../examples/demos/teapot_fill.py
@@ -169,51 +242,9 @@ dynamic topology in one reusable helper:
       :pyobject: FluidSurfaceRenderer
 
 
-Tune Resolution, Time, Then Convergence
----------------------------------------
+Next Steps
+----------
 
-Tune one group at a time in this order:
-
-1. **Voxel and particle resolution.** ``MPMSolverCfg.voxel_size`` controls the
-   background grid. Smaller voxels resolve thinner geometry but increase active
-   cells and memory. ``MPMGridCfg.particles_per_cell`` controls particle density;
-   doubling it along each axis creates about eight times as many particles in
-   3D. Start coarse, then refine until the measured behavior stops changing.
-2. **Timestep and substeps.** Each Newton substep uses
-   ``SimulationCfg.dt / NewtonCfg.num_substeps``. Reduce ``dt`` or increase
-   ``num_substeps`` first when contacts tunnel, jitter, or become unstable.
-   Substeps do not change the policy period, which also includes environment
-   decimation.
-3. **Iterations and tolerance.** ``MPMSolverCfg.max_iterations`` caps the
-   rheology solve; ``tolerance`` permits an earlier exit after convergence.
-   Increase the cap only when the solver reaches it, and lower the tolerance
-   only when tighter convergence improves a physical metric. These settings do
-   not repair an unstable timestep, invalid reset, or incorrect collider.
-
-
-Tune Rigid-MPM Coupling
------------------------
-
-For :class:`~isaaclab_contrib.coupling.CouplerProxyCfg`, first stabilize each
-solver alone. Then tune the additional controls:
-
-* ``CouplerEntryCfg.substeps`` divides one coupled step for that entry. Increase
-  the MPM entry's value when only the particle solve needs a smaller timestep.
-* ``CouplerProxyCfg.iterations`` repeats the proxy exchange and relaxation; it
-  does not replace smaller physical timesteps.
-* ``CouplerProxyMappingCfg.mass_scale`` scales the source body's effective mass
-  and inertia only in the destination proxy view. It does not change the body's
-  authored mass in the rigid solver.
-
-Start ``mass_scale`` at ``1`` for a freely moving collider. Increase it when the
-rigid solver strongly constrains the collider during MPM contact. For example, a
-cup resting on a table has much greater effective resistance in the supported
-direction than its free-body mass suggests. Sweep finite values geometrically,
-such as ``1``, ``10``, and ``100``, and keep the smallest value that prevents
-unrealistic proxy motion. Newton requires a finite positive value: do not use
-infinity. An excessively large scalar also suppresses legitimate motion in
-unsupported directions and can make the interaction effectively one-way.
-
-Validate both the supported and free-moving cases after changing coupling. If
-the uncoupled systems are unstable, fix their timestep, contacts, and reset
-states before adjusting ``mass_scale`` or coupling iterations.
+See :ref:`newton-tuning-mpm` for resolution and convergence tuning, controlled
+material comparisons, and the nearly rigid MPM limit. See
+:ref:`newton-coupled-solvers` for rigid--MPM coupling.
