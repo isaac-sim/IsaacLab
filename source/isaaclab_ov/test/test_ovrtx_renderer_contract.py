@@ -102,9 +102,21 @@ def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
 
 @pytest.fixture(autouse=True)
 def _simulation_registry(monkeypatch):
+    from pxr import Usd
+
+    from isaaclab.renderers import RenderContext
+
+    registry = []
     sim = types.SimpleNamespace(
-        _backend_registry=[], physics_manager=types.SimpleNamespace(clone_context_type=None, backend=None)
+        _backend_registry=registry,
+        _render_context=RenderContext(registry),
+        physics_manager=types.SimpleNamespace(clone_context_type=None, backend=None, _clone_recipes=[]),
+        clone_contexts={},
+        stage=Usd.Stage.CreateInMemory(),
+        plan=None,
     )
+    sim.render_context = sim._render_context
+    sim.get_clone_plan = lambda: sim.plan
     sim.get_scene_data_provider = lambda: types.SimpleNamespace(
         backend=types.SimpleNamespace(transform_paths=[]), get_geometry_points=lambda: {}
     )
@@ -115,7 +127,13 @@ def _simulation_registry(monkeypatch):
 
 @pytest.mark.parametrize("use_ovstage, with_physics", [(False, False), (True, False), (False, True), (True, True)])
 def test_ovrtx_renderer_config_enables_supported_runtime_options(monkeypatch, tmp_path, use_ovstage, with_physics):
-    """Equal cfgs share one native resource; closing borrowers leaves it owned by the registry."""
+    """Preparation resolves routes before native allocation; registry ownership outlives borrowers."""
+    from isaaclab_ov.cloner import OvPhysxReplicateContext, OvrtxReplicateContext, OvstageReplicateContext
+
+    from pxr import UsdGeom
+
+    from isaaclab.cloner import make_clone_plan, replicate
+
     config_kwargs: dict[str, object] = {}
     destroyed, redirected, stage_releases = [], [], []
     dependency = tmp_path / "bin/plugins/libosdCPU.so.3.6.0"
@@ -137,7 +155,7 @@ def test_ovrtx_renderer_config_enables_supported_runtime_options(monkeypatch, tm
     monkeypatch.setattr(
         ovrtx_renderer_module, "Renderer", lambda cfg: types.SimpleNamespace(destroy=lambda: destroyed.append(cfg))
     )
-    monkeypatch.setattr(ovrtx_renderer_module, "ovrtx_use_ovstage_enabled", lambda: use_ovstage)
+    monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", str(int(use_ovstage)))
 
     @contextlib.contextmanager
     def stage_resource(label):
@@ -147,29 +165,56 @@ def test_ovrtx_renderer_config_enables_supported_runtime_options(monkeypatch, tm
     monkeypatch.setattr("isaaclab_ov.stage.create_ovstage", lambda _: stage_resource("stage"))
     monkeypatch.setattr(ovrtx_renderer_module.ovstage, "PathDictionary", lambda _: stage_resource("paths"))
 
+    sim = SimulationContext.instance()
     if with_physics:
-        from isaaclab_ov.cloner import OvPhysxReplicateContext
+        sim.physics_manager.clone_context_type = OvPhysxReplicateContext
+    cfg = OVRTXRendererCfg()
+    renderer = sim.get_or_create_backend(cfg)
+    shared = sim.get_or_create_backend(replace(cfg))
+    other = sim.get_or_create_backend(replace(cfg, enable_shadows=True))
+    assert shared is renderer
+    assert renderer.backend is other.backend is None
+    assert renderer.scene is other.scene is None
+    assert not loaded and not redirected and not config_kwargs
+    renderer.close()  # Teardown is also valid before preparation.
 
-        SimulationContext.instance().physics_manager.clone_context_type = OvPhysxReplicateContext
-    renderer = OVRTXRenderer(OVRTXRendererCfg())
+    assets = [AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Visual", cloning_contexts=(OvrtxReplicateContext,))]
+    if with_physics:
+        assets.append(AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Body", cloning_contexts=(OvPhysxReplicateContext,)))
+    for name in ("Visual", "Body"):
+        UsdGeom.Xform.Define(sim.stage, f"/World/envs/env_0/{name}")
+    sim.plan = make_clone_plan(assets, (tuple(range(len(assets))),), 2, positions=np.zeros((2, 3), dtype=np.float32))
+    replicate(sim.plan)
     shared_physics = use_ovstage and with_physics
-    shared = OVRTXRenderer(renderer.cfg)
-
-    assert shared.backend is renderer.backend
-    assert loaded == [str(dependency)]
-    assert len(redirected) == 1
+    assert (other.backend is renderer.backend) is shared_physics
+    assert (other.scene is renderer.scene) is shared_physics
+    assert loaded == [str(dependency)] * (1 if shared_physics else 2)
+    assert len(redirected) == (1 if shared_physics else 2)
     assert renderer.backend.renderer is not None
     assert config_kwargs["suppress_deprecation_warnings"] is True
     assert config_kwargs["texture_streaming_mode"] is ovrtx_renderer_module.TextureStreamingMode.SYNCHRONOUS
-    assert shared.scene is renderer.scene
-    assert len(SimulationContext.instance()._backend_registry) == 1 + use_ovstage
-    other = OVRTXRenderer(replace(renderer.cfg, enable_shadows=True))
-    assert (other.backend is renderer.backend) is shared_physics
-    assert (other.scene is renderer.scene) is shared_physics
+    expected_contexts = {OvstageReplicateContext if use_ovstage else OvrtxReplicateContext}
+    if with_physics and not shared_physics:
+        expected_contexts.add(OvPhysxReplicateContext)
+    assert set(sim.clone_contexts) == expected_contexts
+    assert {source for source, _ in renderer.scene.clone_copies} == {
+        "/World/envs/env_0/Visual",
+        *(["/World/envs/env_0/Body"] if shared_physics else []),
+    }
+    assert bool(sim.physics_manager._clone_recipes) is (with_physics and not shared_physics)
+    # Once prepared, hard/soft reset must retain the selected resource identity.
+    from isaaclab.cloner.replicate_session import _prepare_clone_contexts
+
+    resources = tuple(sim._backend_registry)
+    monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", str(int(not use_ovstage)))
+    _prepare_clone_contexts(sim)
+    assert tuple(sim._backend_registry) == resources
     if shared_physics:
         assert renderer.scene.cfg.population_domains == ovrtx_renderer_module.ovstage.PopulationDomain.ALL
+        conflict = sim.get_or_create_backend(replace(renderer.cfg, log_level="error"))
         with pytest.raises(ValueError, match="one OVRTX engine"):
-            OVRTXRenderer(replace(renderer.cfg, log_level="error"))
+            replicate(sim.plan)
+        sim.close_backend(conflict)
     renderer.close()
     renderer.close()
     assert not destroyed
@@ -186,7 +231,9 @@ def test_ovrtx_renderer_config_enables_supported_runtime_options(monkeypatch, tm
         for scene in dict.fromkeys((renderer.scene, other.scene)):
             SimulationContext.instance().close_backend(scene)
         assert stage_releases == ["paths", "stage"] * (1 if shared_physics else 2)
-    assert not SimulationContext.instance()._backend_registry
+    sim.close_backend(renderer)
+    sim.close_backend(other)
+    assert not sim._backend_registry
 
 
 # Each missing output runs with and without batching; ``use_ovstage`` only changes the ordinal bookkeeping.
@@ -292,10 +339,9 @@ def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, use_ovstag
     """Cameras preserve independent captures, GPU input lifetimes, and reset/cleanup boundaries."""
     from pxr import Gf, Usd, UsdGeom, UsdLux
 
-    from isaaclab.cloner import make_clone_plan
+    from isaaclab.cloner import make_clone_plan, replicate
     from isaaclab.renderers.camera_render_spec import CameraRenderSpec
     from isaaclab.scene_data import SceneDataFormat, SceneDataProvider
-    from isaaclab.utils import string_to_callable
     from isaaclab.utils.math import convert_camera_frame_orientation_convention
     from isaaclab.utils.warp import ProxyArray
 
@@ -346,17 +392,21 @@ def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, use_ovstag
         source.points = wp.array(vertices, dtype=wp.vec3f, device="cuda:0")
         batches.append((source, {path.replace("env_0", f"env_{world}"): (0, len(vertices)) for world in range(2)}))
 
-    renderer = OVRTXRenderer(OVRTXRendererCfg(async_rendering=asynchronous))
+    renderer = SimulationContext.instance().get_or_create_backend(OVRTXRendererCfg(async_rendering=asynchronous))
     publication = types.SimpleNamespace(
         transform_paths=[], geometry_timestamp=0, get_geometry_batches=lambda _format: batches
     )
     renderer._sdp = SceneDataProvider(publication)
     renderer._exported_usd_string = stage.ExportToString()
     plan = make_clone_plan(
-        (AssetBaseCfg(prim_path="/World/envs/env_[^/]+"),), ((0,),), 2, positions=np.zeros((2, 3), dtype=np.float32)
+        (AssetBaseCfg(prim_path="/World/envs/env_[^/]+", cloning_contexts=renderer.cfg.cloning_contexts),),
+        ((0,),),
+        2,
+        positions=np.zeros((2, 3), dtype=np.float32),
     )
-    for context in renderer.cfg.cloning_contexts:
-        string_to_callable(context)(SimulationContext.instance()).replicate(plan, (0,))
+    sim = SimulationContext.instance()
+    sim.plan = plan
+    replicate(plan)
     cameras = []
 
     def camera_scope_exists(rd):

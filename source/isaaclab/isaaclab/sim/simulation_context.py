@@ -551,6 +551,10 @@ class SimulationContext:
         Args:
             soft: If True, skip full reinitialization.
         """
+        from ..cloner.replicate_session import _prepare_clone_contexts  # noqa: PLC0415
+
+        # Standalone cameras may register after scene construction but before the first reset.
+        _prepare_clone_contexts(self)
         self.physics_manager.reset(soft)
         for viz in self._visualizers:
             viz.reset(soft)

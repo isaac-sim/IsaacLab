@@ -10,7 +10,10 @@ Clone contexts route assets to the representation that owns their copies:
 * :class:`~isaaclab_ov.cloner.OvstageReplicateContext` prepares copies for simulation-owned OVStage resources,
   independently of their consumers. An OVRTX engine borrowing that stage does not clone it again.
 
-OVPhysX and OVRTX retain their native cloning paths by default. With
+OVPhysX and OVRTX configurations request their native clone contexts by default. Shared clone preparation
+resolves the representation before native resource initialization; the OVRTX renderer does not select
+physics cloning. The automatic OVPhysX + OVRTX detection is retained as a commented switch in
+``OvrtxReplicateContext.prepare``. With
 ``ISAAC_LAB_OVRTX_USE_OVSTAGE=1``, Isaac Lab creates one shared
 :class:`~isaaclab_ov.stage.OvstageBackend` populated with physics and rendering domains.
 ``OvstageReplicateContext`` replaces both native contexts and clones their combined asset routes once.

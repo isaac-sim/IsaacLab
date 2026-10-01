@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Iterable, Sequence
 from typing import TYPE_CHECKING
 
@@ -18,6 +19,8 @@ from isaaclab import cloner
 from isaaclab.physics import PhysicsManager
 
 from isaaclab_ov._clone import CloneRecipe
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     import ovrtx
@@ -166,6 +169,68 @@ class OvrtxReplicateContext:
 
     replicate_priority = 100
 
+    @staticmethod
+    def prepare(sim: SimulationContext, routing: dict[type, set[int]]) -> None:
+        """Resolve OVRTX's clone route and acquire resources before replication begins.
+
+        Args:
+            sim: Simulation that owns the configured consumers and native resources.
+            routing: Asset routes to merge when physics and rendering share one stage.
+        """
+        import ovstage  # noqa: PLC0415
+
+        from isaaclab_ov.renderers.ovrtx_renderer import (  # noqa: PLC0415
+            _read_gpu_transforms_enabled,
+            ovrtx_use_ovstage_enabled,
+        )
+        from isaaclab_ov.renderers.ovrtx_renderer_cfg import OVRTXBackendCfg, OVRTXRendererCfg  # noqa: PLC0415
+        from isaaclab_ov.stage import OvstageBackendCfg  # noqa: PLC0415
+
+        renderers = [(cfg, renderer) for cfg, renderer in sim._backend_registry if isinstance(cfg, OVRTXRendererCfg)]
+        initialized = next((renderer for _, renderer in renderers if renderer.backend is not None), None)
+        use_ovstage = initialized._use_ovstage if initialized is not None else ovrtx_use_ovstage_enabled()
+        # TODO: Uncomment after requiring an OVPhysX release with batched cold binding and direct
+        # path lookups, and verifying startup parity (release version TBD; 0.6.3 is affected).
+        # use_ovstage |= sim.physics_manager.clone_context_type is OvPhysxReplicateContext
+        shared_physics = use_ovstage and sim.physics_manager.clone_context_type is OvPhysxReplicateContext
+        if shared_physics and sim.physics_manager.backend is not None and sim.physics_manager.backend.scene is None:
+            raise RuntimeError("Configure OVRTX cameras before the first OVPhysX reset to share its OVStage.")
+        if use_ovstage:
+            replaced = (OvrtxReplicateContext, OvPhysxReplicateContext) if shared_physics else (OvrtxReplicateContext,)
+            for context in replaced:
+                routing.setdefault(OvstageReplicateContext, set()).update(routing.pop(context, ()))
+                sim.clone_contexts.pop(context, None)
+
+        # Stage ownership is settled before native construction. Register the stage before its borrowers.
+        for cfg, renderer in renderers:
+            if renderer.backend is not None:
+                continue
+            backend_cfg = OVRTXBackendCfg(
+                scene_key=None if shared_physics else cfg,
+                log_file_path=cfg.log_file_path,
+                log_level=cfg.log_level,
+                use_ovstage=use_ovstage,
+                read_gpu_transforms=_read_gpu_transforms_enabled(),
+            )
+            if shared_physics and any(
+                isinstance(other, OVRTXBackendCfg) and other != backend_cfg for other, _ in sim._backend_registry
+            ):
+                raise ValueError(
+                    "A shared OVStage requires one OVRTX engine; use the same native logging/transform settings."
+                )
+            scene = None
+            if use_ovstage:
+                domains = ovstage.PopulationDomain.ALL if shared_physics else ovstage.PopulationDomain.RENDERING
+                stage_cfg = OvstageBackendCfg(
+                    scene_key=None if shared_physics else backend_cfg, population_domains=domains
+                )
+                scene = sim.get_or_create_backend(stage_cfg)
+            renderer.backend = sim.get_or_create_backend(backend_cfg)
+            renderer.scene = scene if use_ovstage else renderer.backend
+            renderer._use_ovstage = use_ovstage
+            if cfg.async_rendering and use_ovstage:
+                logger.warning("Asynchronous OVRTX rendering is unsupported with ovstage; rendering synchronously.")
+
     def __init__(self, sim_context: SimulationContext):
         self._sim = sim_context
 
@@ -193,15 +258,6 @@ class OvstageReplicateContext:
 
     def __init__(self, sim_context: SimulationContext):
         self._sim = sim_context
-        from isaaclab_ov.stage import OvstageBackendCfg  # noqa: PLC0415
-
-        self.replaces_contexts = (
-            (OvPhysxReplicateContext, OvrtxReplicateContext)
-            if any(
-                isinstance(cfg, OvstageBackendCfg) and cfg.scene_key is None for cfg, _ in sim_context._backend_registry
-            )
-            else ()
-        )
 
     def replicate(self, plan: ClonePlan, asset_prototype_ids: tuple[int, ...]) -> None:
         """Prepare stage copies once for the consumers of each OVStage resource.
