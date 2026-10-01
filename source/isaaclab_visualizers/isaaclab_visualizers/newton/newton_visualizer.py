@@ -21,6 +21,22 @@ import numpy as np  # noqa: F401 — used in type hints and colorization helpers
 import torch
 import warp as wp
 
+
+def _ensure_pyglet_xlib_screen_is_primary() -> None:
+    """Let pyglet pick a default screen on an X server that reports no monitors.
+
+    pyglet's default-screen lookup reads ``screen.is_primary`` whenever XRandr is available, but only
+    XRandr screens define it. On a monitor-free X server (e.g. a GPU-backed virtual display) pyglet
+    falls back to a plain screen and window creation raises :class:`AttributeError`. Defaulting to
+    non-primary makes pyglet use its first screen.
+    """
+    with contextlib.suppress(ImportError):
+        from pyglet.display import xlib
+
+        if not hasattr(xlib.XlibScreen, "is_primary"):
+            xlib.XlibScreen.is_primary = False
+
+
 # On Linux without a display, set pyglet's headless option BEFORE importing newton.viewer
 # so ViewerGL resolves to an EGL HeadlessWindow at class-definition time.  Only apply on
 # headless Linux; on macOS/Windows or when DISPLAY is set the flag is left unset so
@@ -30,6 +46,8 @@ if __import__("sys").platform not in ("win32", "darwin") and not __import__("os"
 
     _pyglet_headless_init.options["headless"] = True
     del _pyglet_headless_init
+elif sys.platform not in ("win32", "darwin"):
+    _ensure_pyglet_xlib_screen_is_primary()
 
 import newton
 from isaaclab_newton.physics import NewtonBackendCfg, NewtonManager

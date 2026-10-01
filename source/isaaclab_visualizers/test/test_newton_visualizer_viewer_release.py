@@ -242,3 +242,16 @@ def test_step_contains_a_failing_viewer_teardown(monkeypatch: pytest.MonkeyPatch
 
     assert viewer.close_calls == 1
     assert visualizer._viewer is None
+
+
+def test_pyglet_default_screen_accepts_screens_without_is_primary(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A monitor-free X server yields plain screens; pyglet must still resolve a default screen."""
+    xlib = pytest.importorskip("pyglet.display.xlib")
+    monkeypatch.delattr(xlib.XlibScreen, "is_primary", raising=False)
+    monkeypatch.setattr(xlib, "_have_xrandr", True)
+    screen = object.__new__(xlib.XlibScreen)
+    display = SimpleNamespace(get_screens=lambda: [screen], _screens=[screen])
+
+    newton_visualizer._ensure_pyglet_xlib_screen_is_primary()
+
+    assert xlib.XlibDisplay.get_default_screen(display) is screen

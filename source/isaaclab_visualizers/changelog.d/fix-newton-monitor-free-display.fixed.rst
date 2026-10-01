@@ -1,0 +1,1 @@
+* Fixed the Newton GL and Newton RTX visualizers failing to open a window on an X server that reports no monitors, such as a GPU-backed virtual display, with ``AttributeError: 'XlibScreen' object has no attribute 'is_primary'``.
