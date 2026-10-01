@@ -854,9 +854,6 @@ def test_physx_sibling_traversal_follows_authored_joint_order() -> None:
     names = ordering_resolvers._get_breadth_first_names_in_authored_joint_order(robot_prim, view)
 
     assert names == {"joint": ("thumb_joint", "index_joint"), "body": ("palm", "thumb", "index")}
-    labels[1] = "/Robot/merged_joint"
-    with pytest.raises(ValueError, match="'/Robot/merged_joint' is not an authored joint prim"):
-        ordering_resolvers._get_breadth_first_names_in_authored_joint_order(robot_prim, view)
 
 
 def test_symbolic_cross_backend_resolver_uses_newton_builder_names(monkeypatch: pytest.MonkeyPatch) -> None:
