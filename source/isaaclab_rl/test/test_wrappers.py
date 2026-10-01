@@ -177,6 +177,20 @@ def test_rsl_rl_wrapper_reports_invalid_unwrapped_type() -> None:
     assert "OuterEnv" not in str(exc_info.value)
 
 
+@pytest.mark.parametrize("library", ["rsl_rl", "rl_games", "sb3", "skrl", "torchrl"])
+def test_wrapper_rejects_disabled_automatic_resets(library: str) -> None:
+    """Training wrappers reject explicit resets before initializing or resetting the environment."""
+    import gymnasium as gym
+
+    from isaaclab.envs import ManagerBasedRLEnv
+
+    env = ManagerBasedRLEnv.__new__(ManagerBasedRLEnv)
+    env.metadata = {"autoreset_mode": gym.vector.AutoresetMode.DISABLED}
+
+    with pytest.raises(ValueError, match="require same-step automatic resets"):
+        _wrap_env(library, env)
+
+
 def _assert_finite(data: Any) -> None:
     if isinstance(data, torch.Tensor):
         assert torch.isfinite(data).all()

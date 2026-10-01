@@ -415,7 +415,7 @@ class ManagerBasedEnv:
 
         Args:
             env_ids: A one-dimensional int32/int64 tensor on the environment device or a positive-step slice.
-                Defaults to ``slice(None)`` (all environments). None also selects all environments.
+                Defaults to ``slice(None)`` (all environments). None is also accepted and normalized to ``slice(None)``.
             seed: The seed to use for randomization. Defaults to None, in which case the seed is not set.
             options: Additional information to specify how the environment is reset. Defaults to None.
 
@@ -425,21 +425,19 @@ class ManagerBasedEnv:
         Returns:
             A tuple containing the observations and extras.
         """
-        self._validate_reset_request("reset")
         if env_ids is None:
             env_ids = slice(None)
-        if isinstance(env_ids, slice):
-            env_ids = torch.arange(self.num_envs, dtype=torch.int32, device=self.device)[env_ids]
+        self.observation_manager.validate_partial_update_support(env_ids)
 
-        self._finish_episodes(env_ids)
+        # trigger recorder terms for pre-reset calls
+        self.recorder_manager.record_pre_reset(env_ids)
 
         # set the seed
         if seed is not None:
             self.seed(seed)
 
-        episode_start_env_ids = self._select_episode_start_env_ids(env_ids)
-        if len(episode_start_env_ids) > 0:
-            self._reset_idx(episode_start_env_ids)
+        # reset state of scene
+        self._reset_idx(env_ids)
 
         # update articulation kinematics
         self.scene.write_data_to_sim()
@@ -450,11 +448,10 @@ class ManagerBasedEnv:
                 self.sim.render()
 
         # trigger recorder terms for post-reset calls
-        if len(episode_start_env_ids) > 0:
-            self.recorder_manager.record_post_reset(episode_start_env_ids)
+        self.recorder_manager.record_post_reset(env_ids)
 
         # compute observations
-        self.obs_buf = self.observation_manager.compute(update_history=True)
+        self.obs_buf = self.observation_manager.compute(update_history=True, env_ids=env_ids)
 
         if self.cfg.wait_for_textures and self.has_rtx_sensors:
             # Wait for assets to finish loading (PhysX-specific)
@@ -485,30 +482,22 @@ class ManagerBasedEnv:
             state: The state to reset the specified environments to. Please refer to
                 :meth:`InteractiveScene.get_state` for the format.
             env_ids: A one-dimensional int32/int64 tensor on the environment device or a positive-step slice.
-                Defaults to ``slice(None)`` (all environments). None also selects all environments.
+                Defaults to ``slice(None)`` (all environments). None is also accepted and normalized to ``slice(None)``.
             seed: The seed to use for randomization. Defaults to None, in which case the seed is not set.
             is_relative: If set to True, the state is considered relative to the environment origins.
                 Defaults to False.
         """
-        self._validate_reset_request("reset_to")
-        # reset all envs in the scene if env_ids is None
         if env_ids is None:
             env_ids = slice(None)
-        if isinstance(env_ids, slice):
-            env_ids = torch.arange(self.num_envs, dtype=torch.int32, device=self.device)[env_ids]
+        self.observation_manager.validate_partial_update_support(env_ids)
 
         # trigger recorder terms for pre-reset calls
-        self._finish_episodes(env_ids)
+        self.recorder_manager.record_pre_reset(env_ids)
 
         # set the seed
         if seed is not None:
             self.seed(seed)
 
-        episode_start_env_ids = self._select_episode_start_env_ids(env_ids)
-        assert torch.equal(episode_start_env_ids.sort().values, env_ids.sort().values), (
-            "reset_to() requires a new episode in every requested environment. "
-            "Reject state restoration in _validate_reset_request() when not all requested episodes can start."
-        )
         self._reset_idx(env_ids)
         # set the state
         self.scene.reset_to(state, env_ids, is_relative=is_relative)
@@ -525,7 +514,7 @@ class ManagerBasedEnv:
         self.recorder_manager.record_post_reset(env_ids)
 
         # compute observations
-        self.obs_buf = self.observation_manager.compute(update_history=True)
+        self.obs_buf = self.observation_manager.compute(update_history=True, env_ids=env_ids)
 
         # return observations
         return self.obs_buf, self.extras
@@ -635,43 +624,6 @@ class ManagerBasedEnv:
     """
     Helper functions.
     """
-
-    def _validate_reset_request(self, reset_kind: str) -> None:
-        """Validate an explicit ``reset``, ``reset_to``, or visualizer ``manual`` reset.
-
-        Subclasses can reject requests before recording or environment state changes.
-        Automatic episode completion does not call this method.
-
-        Args:
-            reset_kind: The requested reset operation.
-        """
-
-    def _select_episode_start_env_ids(self, candidate_env_ids: torch.Tensor) -> torch.Tensor:
-        """Select environments that will start episodes before reset events consume episode inputs.
-
-        Called by ``reset()``, ``reset_to()``, and automatic or visualizer resets in ``ManagerBasedRLEnv``.
-        The default starts an episode in every candidate environment. Overrides must return a subset of the
-        supplied IDs and assign any episode inputs before returning. ``reset_to()`` requires a new episode
-        in every requested environment and retains the caller's ID order when applying supplied states.
-
-        Args:
-            candidate_env_ids: Environment IDs available for a new episode.
-
-        Returns:
-            Environment IDs whose scene and managers should be reset.
-        """
-        return candidate_env_ids
-
-    def _finish_episodes(self, env_ids: torch.Tensor) -> None:
-        """Collect terminal recorder data and export episodes before starting replacements.
-
-        Completion does not require a subsequent reset. Subclasses that track active episodes
-        must record only those episodes and mark them inactive after recording.
-
-        Args:
-            env_ids: Environment IDs whose episodes are ending.
-        """
-        self.recorder_manager.record_pre_reset(env_ids)
 
     def _reset_idx(self, env_ids: torch.Tensor | slice):
         """Reset environments based on specified indices.

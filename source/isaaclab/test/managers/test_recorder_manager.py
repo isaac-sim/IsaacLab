@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, cast
 import pytest
 import torch
 import warp as wp
+from gymnasium.vector import AutoresetMode
 
 from isaaclab.managers import DatasetExportMode, RecorderManager, RecorderManagerBaseCfg, RecorderTerm, RecorderTermCfg
 from isaaclab.utils import configclass
@@ -108,6 +109,8 @@ class DummyEnv:
     def __init__(self, device: str = "cpu", num_envs: int = 20) -> None:
         self.num_envs = num_envs
         self.device = device
+        self.metadata = {"autoreset_mode": AutoresetMode.SAME_STEP}
+        self.active_episode_mask = torch.ones(num_envs, dtype=torch.bool, device=device)
         self.sim = DummySimulation()
         self.cfg = DummyEnvCfg()
         self.cfg.scene.num_envs = num_envs
@@ -185,7 +188,15 @@ def test_record(dataset_dir):
 
 
 class EnvironmentIndexRecorderTerm(RecorderTerm):
-    """Identify each full-batch row across all three recording stages."""
+    """Identify environment rows in initial, terminal, and full-batch step records."""
+
+    def record_pre_reset(self, env_ids):
+        assert len(env_ids) > 0, "Empty selections must not invoke recorder terms"
+        return "terminal", torch.as_tensor(env_ids).reshape(-1, 1)
+
+    def record_post_reset(self, env_ids):
+        assert len(env_ids) > 0, "Empty selections must not invoke recorder terms"
+        return "initial", torch.as_tensor(env_ids).reshape(-1, 1)
 
     def record_pre_step(self):
         return "pre", torch.arange(self._env.num_envs).reshape(-1, 1)
@@ -208,7 +219,10 @@ def test_step_recording_selects_full_batch_rows(dataset_dir):
     wp.init()
     recorder_cfg = SelectedEpisodeRecorderCfg()
     recorder_cfg.dataset_export_dir_path = dataset_dir
-    recorder_manager = RecorderManager(recorder_cfg, create_dummy_env(num_envs=3))
+    env = DummyEnv(num_envs=3)
+    env.metadata["autoreset_mode"] = AutoresetMode.DISABLED
+    env.active_episode_mask[:] = False
+    recorder_manager = RecorderManager(recorder_cfg, env)
     selected_env_ids = torch.tensor([2, 0])
     recording_callbacks = (
         recorder_manager.record_pre_step,
@@ -216,6 +230,13 @@ def test_step_recording_selects_full_batch_rows(dataset_dir):
         recorder_manager.record_post_physics_decimation_step,
     )
     try:
+        empty_env_ids = torch.empty(0, dtype=torch.int64)
+        recorder_manager.record_pre_reset(empty_env_ids)
+        recorder_manager.record_pre_reset(slice(None))
+        assert recorder_manager.exported_failed_episode_count == 0
+        env.active_episode_mask[selected_env_ids] = True
+        recorder_manager.record_post_reset(selected_env_ids)
+        recorder_manager.record_post_reset(empty_env_ids)
         for record_step in recording_callbacks:
             record_step(selected_env_ids)
             record_step(torch.empty(0, dtype=torch.int64))
@@ -231,10 +252,25 @@ def test_step_recording_selects_full_batch_rows(dataset_dir):
             assert episode_data["pre"][0].item() == env_id
             assert episode_data["post"]["nested"]["index"][0].item() == env_id
             assert episode_data["physics"][0].item() == env_id
-        recorder_manager.record_pre_reset(selected_env_ids)
+        recorder_manager.record_pre_reset([1, 2, 0])
+        env.active_episode_mask[selected_env_ids] = False
+        assert recorder_manager.exported_failed_episode_count == 2
+        recorder_manager.record_pre_reset([0])
+        recorder_manager.reset([0])
+        env.active_episode_mask[0] = True
+        recorder_manager.record_post_reset([0])
         for record_step in recording_callbacks:
             record_step([0])
         assert recorder_manager.get_episode(2).is_empty()
         assert not recorder_manager.get_episode(0).is_empty()
+
+        # Resetting an environment whose episode already ended starts only its next recording.
+        recorder_manager.record_pre_reset([2])
+        recorder_manager.reset([2])
+        env.active_episode_mask[2] = True
+        recorder_manager.record_post_reset([2])
+        assert recorder_manager.exported_failed_episode_count == 2
+        assert list(recorder_manager.get_episode(2).data) == ["initial"]
+        assert recorder_manager.get_episode(2).data["initial"][0].item() == 2
     finally:
         recorder_manager.close()
