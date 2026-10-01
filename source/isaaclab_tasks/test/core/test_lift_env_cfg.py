@@ -149,8 +149,8 @@ def test_camera_normalization_is_stationary(data_type: str) -> None:
 
 def _make_pose_command(
     monkeypatch: pytest.MonkeyPatch, num_envs: int, success_asset: object
-) -> tuple[ObjectUniformPoseCommand, torch.Tensor]:
-    """Build a pose command around fake assets and spy markers; returns it with the shared root positions."""
+) -> tuple[ObjectUniformPoseCommand, torch.Tensor, list[torch.Tensor]]:
+    """Build a pose command around fake assets and spies; returns it, the root positions, and material colors."""
     environment_ids = torch.arange(num_envs)
     identity_quat = torch.zeros((num_envs, 4))
     identity_quat[:, 3] = 1.0
@@ -171,13 +171,16 @@ def _make_pose_command(
             root_link_pose_w=SimpleNamespace(torch=root_pose_w),
         )
     )
-    scene = _FakeScene(environment_ids, robot=robot, object=object_asset, table=success_asset)
+    material = SimpleNamespace(is_per_env=True)
+    scene = _FakeScene(environment_ids, robot=robot, object=object_asset, table=success_asset, table_material=material)
     env = SimpleNamespace(num_envs=num_envs, device="cpu", scene=scene)
     cfg = SimpleNamespace(
         asset_name="robot",
         object_name="object",
         success_vis_asset_name="table",
         success_visualizer_cfg=object(),
+        success_vis_material_name="table_material",
+        success_vis_colors=((1.0, 0.0, 0.0), (0.0, 1.0, 0.0)),
         goal_pose_visualizer_cfg=object(),
         curr_pose_visualizer_cfg=object(),
         position_only=True,
@@ -190,9 +193,13 @@ def _make_pose_command(
         command._env = command_env
         command.metrics = {}
 
+    colors: list[torch.Tensor] = []
     monkeypatch.setattr(CommandTerm, "__init__", _initialize_command_term)
     monkeypatch.setattr(pose_commands, "VisualizationMarkers", _MarkerSpy)
-    return ObjectUniformPoseCommand(cfg, env), root_pos_w
+    monkeypatch.setattr(
+        pose_commands.VisualMaterial, "write_channels", lambda _, channels: colors.append(channels["color"])
+    )
+    return ObjectUniformPoseCommand(cfg, env), root_pos_w, colors
 
 
 @pytest.mark.parametrize("static", [False, True])
@@ -204,7 +211,7 @@ def test_lift_pose_markers_forward_environment_ids(monkeypatch: pytest.MonkeyPat
     if static:
         success_asset = object.__new__(Asset)
         success_asset.cfg = SimpleNamespace(init_state=SimpleNamespace(pos=(0.5, 0.0, 0.0)))
-    command, root_pos_w = _make_pose_command(monkeypatch, num_envs, success_asset)
+    command, root_pos_w, colors = _make_pose_command(monkeypatch, num_envs, success_asset)
     command._set_debug_vis_impl(True)
     command._debug_vis_callback(None)
     command.cfg.position_only = False
@@ -215,6 +222,8 @@ def test_lift_pose_markers_forward_environment_ids(monkeypatch: pytest.MonkeyPat
     command.pose_command_b[:, 0] = torch.tensor([1.0, 0.0, 1.0])
     command._update_metrics()
     assert torch.equal(command.success_visualizer.calls[0][1]["marker_indices"], torch.tensor([0, 1, 0]))
+    failure, success = command.cfg.success_vis_colors
+    torch.testing.assert_close(colors[-1], torch.tensor([[failure, success, failure]]))
     DeformableUniformPoseCommand._update_metrics(command)
     command._segment_position_w = lambda: root_pos_w
     CableUniformPoseCommand._update_metrics(command)
