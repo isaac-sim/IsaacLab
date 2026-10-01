@@ -683,8 +683,8 @@ class randomize_actuator_gains(ManagerTermBase):
         for name, actuator in self._gain_actuators.items():
             joint_ids = self._group_joint_indices[name]
             if name in self._native_group_names:
-                stiffness = read_group_parameter(collection, name, "controller", "kp")
-                damping = read_group_parameter(collection, name, "controller", "kd")
+                stiffness = read_group_parameter(collection, name, "drive", "kp")
+                damping = read_group_parameter(collection, name, "drive", "kd")
             else:
                 stiffness = actuator.stiffness
                 damping = actuator.damping
@@ -769,7 +769,7 @@ class randomize_actuator_gains(ManagerTermBase):
                     write_group_parameter(
                         self.asset.actuators,
                         actuator_name,
-                        "controller",
+                        "drive",
                         "kp",
                         values=stiffness[:, actuator_indices],
                         env_ids=env_ids,
@@ -795,7 +795,7 @@ class randomize_actuator_gains(ManagerTermBase):
                     write_group_parameter(
                         self.asset.actuators,
                         actuator_name,
-                        "controller",
+                        "drive",
                         "kd",
                         values=damping[:, actuator_indices],
                         env_ids=env_ids,

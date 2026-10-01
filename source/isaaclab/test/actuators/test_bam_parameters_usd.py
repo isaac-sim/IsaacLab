@@ -16,9 +16,9 @@ from newton.actuators import parse_actuator_prim
 
 from pxr import Usd
 
-from isaaclab.actuators.newton import ControllerBam, register_bam_actuator_component
+from isaaclab.actuators.newton import DriveBam, register_bam_actuator_component
 
-pytestmark = pytest.mark.unit
+pytestmark = [pytest.mark.unit, pytest.mark.filterwarnings("error::DeprecationWarning")]
 
 
 @pytest.fixture(scope="module")
@@ -35,7 +35,7 @@ def test_vendored_params_match_reference(goldens: dict[str, np.ndarray]) -> None
     prim = stage.GetPrimAtPath("/BamActuator")
     stage.DefinePrim("/servo", "PhysicsRevoluteJoint")
     prim.CreateRelationship("newton:targets").SetTargets(["/servo"])
-    params = ControllerBam.resolve_arguments(dict(parse_actuator_prim(prim).controller_kwargs))
+    params = DriveBam.resolve_arguments(dict(parse_actuator_prim(prim).drive_kwargs))
     for name in (
         "kt",
         "R",
@@ -92,7 +92,7 @@ def test_json_import_bakes_coefficients_into_usd(tmp_path):
     stage = Usd.Stage.Open(str(output))
     prim = stage.GetPrimAtPath("/Robot/bam_servo_actuator")
     assert not prim.HasAttribute("newton:paramsFile")
-    resolved = ControllerBam.resolve_arguments(dict(parse_actuator_prim(prim).controller_kwargs))
+    resolved = DriveBam.resolve_arguments(dict(parse_actuator_prim(prim).drive_kwargs))
     for name, value in values.items():
         if name not in ("actuator", "model", "q_offset", "armature"):
             assert resolved[{"R": "resistance", "kp": "kp_fw"}.get(name, name)] == pytest.approx(value)
@@ -107,7 +107,7 @@ def test_incomplete_usd_coefficients_are_rejected(coefficient):
     prim = stage.GetPrimAtPath("/BamActuator")
     stage.DefinePrim("/servo", "PhysicsRevoluteJoint")
     prim.CreateRelationship("newton:targets").SetTargets(["/servo"])
-    values = dict(parse_actuator_prim(prim).controller_kwargs)
+    values = dict(parse_actuator_prim(prim).drive_kwargs)
     values.pop(coefficient)
     with pytest.raises(ValueError, match=f"missing coefficient.*{coefficient}"):
-        ControllerBam.resolve_arguments(values)
+        DriveBam.resolve_arguments(values)

@@ -267,8 +267,9 @@ target under load, whose gearbox sticks, and whose supply voltage sags -- and a 
 effort limit would hide exactly the behavior you want to train against.
 
 The model requires Newton with ``MJWarpSolverCfg`` and
-:attr:`~isaaclab.sim.SimulationCfg.use_newton_actuators` set to ``True``. Its controller,
-:class:`~isaaclab.actuators.newton.ControllerBam`, evaluates the voltage and friction equations
+:attr:`~isaaclab.sim.SimulationCfg.use_newton_actuators` set to ``True``. Its drive,
+:class:`~isaaclab.actuators.newton.DriveBam`, derives from Newton 1.6's
+:class:`~newton.actuators.DriveBase` and evaluates the voltage and friction equations
 as Warp kernels on every physics step. MuJoCo Warp applies the friction constraint in the solver.
 Other physics backends and Newton solvers raise an error; there is no controller-side friction fallback.
 
@@ -317,7 +318,7 @@ USD coefficients
 ^^^^^^^^^^^^^^^^
 
 The asset carries its motor and friction coefficients on each ``NewtonActuator`` prim with
-``NewtonBamControlAPI``. Attributes use the ``newton:`` prefix and camel case, for example
+``NewtonBamDriveAPI``. Attributes use the ``newton:`` prefix and camel case, for example
 ``newton:resistance`` and ``newton:frictionBase``. The prim's ``newton:targets`` relationship
 identifies its driven joint. Isaac Lab preserves these values per joint when authoring the
 configured actuator groups. Newton consumes the resolved coefficients without opening JSON files.
@@ -374,8 +375,7 @@ in code. It writes coefficients directly into the output USD; the JSON is unnece
 
 The example JSON contains the Dynamixel XL330 ``m6`` fit from ``Rhoban/bam`` at commit
 ``62bd8ce`` of ``mjlab_frictionloss`` and is licensed Apache-2.0. ``ATTRIBUTION.md`` next to it
-records the origin of every field. To migrate an earlier version of this draft, bake the file
-previously named by ``BamActuatorCfg.params_file`` into the asset, then remove that config argument.
+records the origin of every field.
 
 .. _actuators-bam-paths:
 
@@ -399,13 +399,9 @@ inside the static-friction band.
 On MJWarp, :attr:`~isaaclab.actuators.ActuatorCollection.applied_effort` reports **motor torque only**;
 it excludes the friction the solver applies. ``data.joint_friction`` reports the authored seed,
 not the live budget. Read the live budget with
-``read_group_parameter(robot.actuators, "servos", "controller", "friction_budget")``.
+``read_group_parameter(robot.actuators, "servos", "drive", "friction_budget")``.
 
-To migrate an earlier version of this draft, select ``MJWarpSolverCfg`` and remove any
-``armature`` entry from ``parameter_overrides`` or ``newton:armature`` from BAM actuator prims.
-Keep the joint's solver armature: only the controller's duplicate parameter was removed.
-
-The controller owns its command-delay buffer and draws a lag per driven joint. The initial lag
+The drive owns its command-delay buffer and draws a lag per driven joint. The initial lag
 is at least ``min_delay``, including when a hold or staggered update postpones the first draw. It honors
 ``min_delay``, ``max_delay``, ``delay_hold_prob`` and ``delay_update_period`` rather than using
 Newton's fixed-delay component.
@@ -421,7 +417,7 @@ The controller exposes five quantities through
     :header-rows: 1
     :widths: 20 50 30
 
-    * - Controller field
+    * - Drive field
       - Meaning
       - Start-up range
     * - ``vin``
@@ -441,14 +437,14 @@ The controller exposes five quantities through
       - --
 
 The three start-up ranges are sampled once per environment after native actuator construction,
-with each draw shared by that environment's joints. Controller state resets preserve these
+with each draw shared by that environment's joints. Drive state resets preserve these
 parameter values. Event terms can write new values for selected environments at episode reset:
 
 .. code-block:: python
 
     from isaaclab.actuators.newton import write_group_parameter
 
-    write_group_parameter(robot.actuators, "servos", "controller", "friction_scale", values=scales)
+    write_group_parameter(robot.actuators, "servos", "drive", "friction_scale", values=scales)
 
 .. _actuators-bam-parity:
 
@@ -894,11 +890,11 @@ the solver still applies their PD gains. On CUDA, the host adapter captures actu
 execution, and telemetry publication when possible; otherwise it uses eager execution. Stateful
 native actuators cannot run in a caller-owned CUDA graph, so the host adapter manages them.
 
-Newton executes native actuators in its controller, and the collection exposes that ownership
+Newton executes native actuators through drives, and the collection exposes that ownership
 directly: ``robot.actuators[name]`` returns the Newton ``Actuator`` object driving the group's
 joints instead of an Isaac Lab model. Newton merges structurally identical joints into one
 actuator, so several groups can share an object (a group spanning several returns them as a
-tuple). Raw component access reads and writes the controller storage in Newton's layout; for
+tuple). Raw component access through ``actuator.drive`` reads and writes drive storage in Newton's layout; for
 group-scoped access in public joint order, use
 :func:`~isaaclab.actuators.newton.read_group_parameter` and
 :func:`~isaaclab.actuators.newton.write_group_parameter`:
@@ -907,13 +903,13 @@ group-scoped access in public joint order, use
 
     # raw ownership: the Newton actuator object itself
     legs = robot.actuators["legs"]
-    print(type(legs.controller).__name__)
+    print(type(legs.drive).__name__)
 
     # group-scoped, user-ordered parameter access
     from isaaclab.actuators.newton import read_group_parameter, write_group_parameter
 
-    kp = read_group_parameter(robot.actuators, "legs", "controller", "kp")
-    write_group_parameter(robot.actuators, "legs", "controller", "kp", values=kp * 2.0)
+    kp = read_group_parameter(robot.actuators, "legs", "drive", "kp")
+    write_group_parameter(robot.actuators, "legs", "drive", "kp", values=kp * 2.0)
 
 Isaac Lab retains named groups for configuration, joint bookkeeping, and command and telemetry
 staging.
@@ -938,7 +934,7 @@ staging.
         :class:`~isaaclab.actuators.ActuatorNetLSTMCfg`
       - ``NewtonNeuralControlAPI`` (+ ``NewtonDCMotorClampingAPI``)
     * - :class:`~isaaclab.actuators.BamActuatorCfg`
-      - ``NewtonBamControlAPI`` (Newton only; see :ref:`actuators-bam-paths`)
+      - ``NewtonBamDriveAPI`` (Newton only; see :ref:`actuators-bam-paths`)
 
 **Existing USD actuators.** For joints covered by an explicit Lab actuator config, the config
 replaces any existing ``NewtonActuator`` prim. Joints not covered by a Lab config keep their

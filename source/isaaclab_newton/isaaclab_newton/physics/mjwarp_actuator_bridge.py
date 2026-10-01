@@ -6,7 +6,7 @@
 """Per-step MuJoCo Warp DOF channel for Newton actuator components.
 
 Some actuator models need more of the solver than
-:class:`~newton.actuators.Controller` is handed: the BAM servo model publishes a
+:class:`~newton.actuators.DriveBase` is handed: the BAM servo model publishes a
 load-dependent dry-friction budget every control step and reads a generalized load estimate on
 the gearbox. Newton exposes neither -- there is no supported per-step override of
 ``dof_frictionloss`` / ``dof_damping``, and ``State``'s extended-attribute whitelist carries

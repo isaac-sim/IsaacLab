@@ -215,7 +215,7 @@ class NewtonActuatorControl(ArticulationActuatorControl):
             SimulationManager._adapter.reset(env_ids)
 
     def _bam_actuators(self) -> list:
-        """Return the Newton actuators driving this articulation with a BAM controller.
+        """Return the Newton actuators driving this articulation with a BAM drive.
 
         The actuator adapter is simulation-global and Newton merges structurally identical
         actuators across articulations, so the adapter's list is not this articulation's list.
@@ -223,7 +223,7 @@ class NewtonActuatorControl(ArticulationActuatorControl):
         belongs here when any of its per-environment DOF offsets falls inside this
         articulation's block.
         """
-        from isaaclab.actuators.newton import ControllerBam  # noqa: PLC0415
+        from isaaclab.actuators.newton import DriveBam  # noqa: PLC0415
 
         adapter = SimulationManager._adapter
         if adapter is None:
@@ -232,7 +232,7 @@ class NewtonActuatorControl(ArticulationActuatorControl):
         last_dof = first_dof + self.num_joints
         owned = []
         for actuator in adapter.actuators:
-            if not isinstance(actuator.controller, ControllerBam):
+            if not isinstance(actuator.drive, DriveBam):
                 continue
             local_dofs = actuator.indices.numpy() % adapter.num_joints
             if ((local_dofs >= first_dof) & (local_dofs < last_dof)).any():
@@ -270,7 +270,7 @@ class NewtonActuatorControl(ArticulationActuatorControl):
         """Draw the start-up per-environment BAM quantities of this articulation's actuators.
 
         Runs while the model is being built, before any solver exists, because the values feed
-        the controller's kernels and do not require a solver. A USD prim is shared by every
+        the drive's kernels and do not require a solver. A USD prim is shared by every
         clone, so the ranges cannot be authored and have to be drawn here.
 
         Each Newton actuator is sampled once. When a second articulation reaches an actuator
@@ -299,11 +299,11 @@ class NewtonActuatorControl(ArticulationActuatorControl):
                         " are not part of Newton's actuator-grouping key, so structurally"
                         " identical robots are merged into one actuator and cannot carry"
                         " per-articulation values. Use matching start-up ranges and stiff_frictionloss"
-                        " for articulations with the same shared controller settings."
+                        " for articulations with the same shared drive settings."
                     )
                 continue
             _BAM_ACTUATOR_SETTINGS[actuator] = settings
-            apply_bam_startup_sampling(actuator.controller, cfg)
+            apply_bam_startup_sampling(actuator.drive, cfg)
 
     def _first_bam_cfg(self):
         """Return one of this articulation's BAM configs; they agree on everything used here."""
@@ -335,19 +335,19 @@ class NewtonActuatorControl(ArticulationActuatorControl):
         if not MjWarpActuatorBridge.is_available(solver):
             raise ValueError(
                 "BAM actuators require the Newton MJWarp solver (MJWarpSolverCfg) with"
-                " use_newton_actuators=True; controller-side friction is not supported."
+                " use_newton_actuators=True; drive-side friction is not supported."
             )
         cfg = self._first_bam_cfg()
         num_newton_dofs = SimulationManager.backend.model.joint_dof_count
 
         for actuator in actuators:
-            controller = actuator.controller
+            drive = actuator.drive
             # A bound external-torque array is the marker: it is what the bridge fills.
-            if controller.external_torque is not None:
+            if drive.external_torque is not None:
                 continue
             bridge = MjWarpActuatorBridge(solver, actuator.indices, num_newton_dofs, self.device)
             external_torque = wp.zeros(actuator.num_actuators, dtype=wp.float32, device=self.device)
-            controller.external_torque = external_torque
+            drive.external_torque = external_torque
             if cfg.stiff_frictionloss:
                 bridge.stiffen_friction_constraint()
 
@@ -355,8 +355,8 @@ class NewtonActuatorControl(ArticulationActuatorControl):
                 lambda bridge=bridge, out=external_torque: bridge.gather_external_torque(out)
             )
             SimulationManager.register_post_actuator_callback(
-                lambda bridge=bridge, ctrl=controller: bridge.publish_dof_friction(
-                    ctrl.friction_budget, ctrl.viscous_damping
+                lambda bridge=bridge, drive=drive: bridge.publish_dof_friction(
+                    drive.friction_budget, drive.viscous_damping
                 )
             )
 
