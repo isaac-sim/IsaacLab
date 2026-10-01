@@ -296,10 +296,16 @@ One step of the model has six stages:
 
     from isaaclab.actuators import BamActuatorCfg, BamMotorCfg
 
-    motor = BamMotorCfg.from_json("fits/xl330_m6.json")
-    # Upstream fits omit these servo firmware constants.
-    motor.error_gain = (4096 / (2 * math.pi)) / (256 * 885)
-    motor.max_current = 1.75                         # XL330 current limit [A]
+    # Illustrative coefficients; use your servo's identified fit.
+    motor = BamMotorCfg(
+        model="m1",
+        kt=0.36,                                   # torque constant [N.m/A]
+        resistance=2.8,                            # winding resistance [Ohm]
+        error_gain=(4096 / (2 * math.pi)) / (256 * 885),
+        max_current=1.75,                          # firmware current limit [A]
+        friction_base=0.005,                       # Coulomb friction [N.m]
+        friction_viscous=0.006,                    # viscous friction [N.m.s/rad]
+    )
 
     robot_cfg = ArticulationCfg(
         spawn=...,
@@ -307,6 +313,7 @@ One step of the model has six stages:
             "servos": BamActuatorCfg(
                 joint_names_expr=[".*"],
                 motor=motor,
+                armature=0.00181,                  # reflected rotor inertia [kg.m^2]
                 kp_fw=200.0,                        # firmware proportional gain
                 vin=7.4,                           # nominal voltage [V]
                 vin_range=(7.0, 8.0),               # per-robot battery voltage [V]
@@ -326,17 +333,16 @@ One step of the model has six stages:
 Motor fit and deployment settings
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-:class:`~isaaclab.actuators.BamMotorCfg` holds the motor and gearbox coefficients. Construct it
-in Python or load a local Rhoban fit with :meth:`~isaaclab.actuators.BamMotorCfg.from_json`.
-The loader renames ``R`` to ``resistance`` and drops ``actuator``, ``kp``, ``vin``, ``armature``,
-and ``q_offset``. It does not import upstream BAM or select implicit servo defaults. If the file
-omits firmware constants, fill in ``error_gain`` and any non-default PWM/current limits before use.
+:class:`~isaaclab.actuators.BamMotorCfg` holds the motor and gearbox coefficients. Set them
+directly in Python, together with ``error_gain`` and any non-default PWM/current limits.
+Configure the fit's reflected rotor inertia separately through ``BamActuatorCfg.armature``
+or author it on the joint in the USD; it is not inferred from the motor coefficients.
 
 ``BamActuatorCfg`` requires ``motor``, ``kp_fw``, and ``vin``. The fit applies to every joint in
 the group; use separate groups for different fits. Like other explicit actuator configurations,
 BAM replaces existing actuator prims on the selected joints. Values on those prims do not serve
 as defaults. Isaac Lab writes the configured coefficients to ``NewtonBamDriveAPI`` prims, and
-Newton consumes them without opening JSON files during simulation.
+Newton consumes those authored coefficients during simulation.
 
 .. list-table:: BAM motor coefficients (rotational servo)
    :header-rows: 1
