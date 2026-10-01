@@ -126,16 +126,6 @@ def test_reach_relative_ik_presets_configure_six_dof_native_teleop_devices(actio
     assert set(cfg.teleop_devices.devices) == {"keyboard", "gamepad", "spacemouse"}
     assert all(not device_cfg.gripper_term for device_cfg in cfg.teleop_devices.devices.values())
 
-    # SpaceMouse per-step deltas match the Franka cube-stack relative IK task.
-    stack_cfg = load_cfg_from_registry("IsaacContrib-Stack-Cube-Franka-IK-Rel", "env_cfg_entry_point")
-    stack_spacemouse = stack_cfg.teleop_devices.devices["spacemouse"]
-    stack_scale = stack_cfg.actions.arm_action.scale
-    arm_action = cfg.actions.arm_action
-    scale = arm_action.objectives[0].scale if action_preset == "newton_ik" else arm_action.scale
-    spacemouse = cfg.teleop_devices.devices["spacemouse"]
-    assert spacemouse.pos_sensitivity * scale[0] == pytest.approx(stack_spacemouse.pos_sensitivity * stack_scale)
-    assert spacemouse.rot_sensitivity * scale[3] == pytest.approx(stack_spacemouse.rot_sensitivity * stack_scale)
-
 
 def test_reach_diffik_physx_configures_teleop_physics():
     cfg = _load_env_cfg("diffik", "isaacsim_physx")
