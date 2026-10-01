@@ -324,6 +324,9 @@ identifies its driven joint. Isaac Lab preserves these values per joint when aut
 configured actuator groups. Newton consumes the resolved coefficients without opening JSON files.
 Missing required coefficients raise an error; there is no implicit XL330 motor default.
 
+Use only ``NewtonBamDriveAPI`` on BAM actuator prims.
+The drive handles its own delay and effort limit, so no additional actuator schemas are needed.
+
 :attr:`~isaaclab.actuators.BamActuatorCfg.parameter_overrides` accepts explicit overrides using
 snake-case names from the table below. For example, ``parameter_overrides={"friction_base": 0.005}``
 changes Coulomb friction for a group while retaining its other asset coefficients. ``kp_fw`` and
