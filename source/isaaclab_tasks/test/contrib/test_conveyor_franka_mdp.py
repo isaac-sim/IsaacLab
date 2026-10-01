@@ -11,6 +11,13 @@ import gymnasium as gym
 import pytest
 import torch
 
+from isaaclab_rl.rsl_rl import (
+    RslRlVecEnvWrapper,
+    check_rsl_rl_version,
+    create_rsl_rl_runner,
+    handle_deprecated_rsl_rl_cfg,
+)
+
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.contrib.conveyor_franka import mdp
 from isaaclab_tasks.contrib.conveyor_franka.agents.rsl_rl_ppo_cfg import ConveyorGaussianBernoulliDistribution
@@ -35,7 +42,7 @@ from isaaclab_tasks.contrib.conveyor_franka.mdp.reset_events import (
     reset_variant_counts,
 )
 from isaaclab_tasks.contrib.conveyor_franka.mdp.rewards import transfer_potential
-from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
+from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry, parse_env_cfg
 
 _BASE = "IsaacContrib-Conveyor-Racetrack-Transfer-v0"
 _SORTER = "IsaacContrib-Conveyor-Warehouse-Sorting-v0"
@@ -85,7 +92,12 @@ def test_checkpoint_interface_and_invalid_action_recovery(task):
         assert torch.isfinite(result[0]["policy"]).all() and torch.isfinite(result[1]).all()
         pool = getattr(env, "conveyor_cube_pool", None)
         if pool is not None:
+            assert not env.curriculum_manager.active_terms, "Warehouse training must not use phase reset rows."
             env.command_manager.get_term("transfer").has_target[:] = torch.tensor([False, True])
+            env.step(torch.full((2, 8), 0.5))
+            torch.testing.assert_close(env.action_manager.action, torch.full((2, 8), 0.5))
+            env.command_manager.get_term("transfer").has_target[:] = torch.tensor([False, True])
+            env.cfg.park_when_idle = True
             env.step(torch.full((2, 8), 0.5))
             torch.testing.assert_close(env.action_manager.action[1], torch.full((8,), 0.5))
             assert env.action_manager.action[0, :7].abs().max() <= 0.25
@@ -325,6 +337,51 @@ def test_sorter_dispatch_inventory_and_selected_resets():
             True,
             False,
         ]
+
+
+def test_curriculum_checkpoint_restores_progress_and_deployment_outcomes(tmp_path):
+    """Actual RSL-RL saves preserve reset evidence; phase progress alone cannot advance deployment."""
+    with closing(_environment(_BASE)) as env:
+        reset_cfg = env.event_manager.get_term_cfg("reset_from_state_table")
+        reset_cfg.params.update(
+            fixed_recipe=int(ConveyorResetRecipe.BELT), fixed_variant_id=mdp.BELT_DEPLOYMENT_VARIANT
+        )
+        env.reset()
+        command = env.command_manager.get_term("transfer")
+        # Supply partial-progress outcomes at the curriculum's episode boundary.
+        env.episode_length_buf.fill_(5)
+        command.progress_ever_success.fill_(True)
+        env.reset()
+        log = env.extras["log"]
+        assert log["Curriculum/reset_sampling/overall_progress_rate"] == 1
+        assert log["Curriculum/reset_sampling/deployment_transfer_success_rate"] == 0
+        torch.testing.assert_close(log["Curriculum/reset_sampling/deployment_probability"], torch.tensor(0.35))
+        env.episode_length_buf.fill_(5)
+        command.ever_success[0] = True
+        env.reset()
+
+        agent = load_cfg_from_registry(_BASE, "rsl_rl_cfg_entry_point")
+        agent = handle_deprecated_rsl_rl_cfg(agent, check_rsl_rl_version())
+        agent.device = "cpu"
+        agent.actor.hidden_dims = agent.critic.hidden_dims = [16]
+        runner = create_rsl_rl_runner(RslRlVecEnvWrapper(env), agent, log_dir=str(tmp_path))
+        curriculum = env.curriculum_manager.cfg.reset_sampling.func
+        expected = curriculum.get_state()
+        checkpoint = tmp_path / "model.pt"
+        runner.save(str(checkpoint), infos={"purpose": "resume"})
+        assert "conveyor_reset_curriculum" in torch.load(checkpoint, weights_only=False)
+        env.episode_length_buf.fill_(5)
+        env.reset()
+        assert curriculum.get_state()["attempts"].sum() > expected["attempts"].sum()
+        assert runner.load(str(checkpoint), map_location="cpu") == {"purpose": "resume"}
+        for name, value in expected.items():
+            torch.testing.assert_close(curriculum.get_state()[name], value)
+        # A policy-only load must not replace a fine-tuning run's curriculum.
+        env.episode_length_buf.fill_(5)
+        env.reset()
+        attempts = curriculum.get_state()["attempts"].sum()
+        runner.load(str(checkpoint), load_cfg={"actor": True}, map_location="cpu")
+        assert curriculum.get_state()["attempts"].sum() == attempts
 
 
 def test_reset_bank_is_complete_and_physically_calibrated():

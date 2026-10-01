@@ -16,7 +16,7 @@ Choose between two tasks using the same pretrained Franka policy:
 
 The sorter inherits the racetrack environment and configuration. Both reuse the same action,
 observation, reward, and placement logic and the same RSL-RL agent configuration. Sorting adds
-class dispatch and a four-slot parcel adapter; it needs no separately trained policy. The original
+class dispatch and a four-slot parcel adapter for playback with the shared checkpoint. The original
 task keeps its compact geometry and four fixed cube identities. Both use 123 observations,
 eight actions, 120 Hz physics, and a 60 Hz policy rate.
 
@@ -67,6 +67,31 @@ uv run isaaclab train --rl_library rsl_rl \
   --num_envs 256 --device cuda:0
 ```
 
+### Curriculum and evaluation
+
+Racetrack training samples physically calibrated resets from release through moving-belt pickup.
+The shared `SuccessMonitorCfg` tracks **phase progress** per reset row and weights intermediate
+variants around a 50% progress target; this is not the full-transfer success rate. Sampling remains
+balanced across phases, cube identities, and directions. Moving-belt starts receive at least 35%
+of resets, increasing toward 90% only when completed transfers from those starts and reset-row
+coverage improve. `deployment_transfer_success_rate` reports that separate rolling signal.
+
+New RSL-RL checkpoints save the curriculum evidence alongside standard PPO state and restore it
+with `--checkpoint /path/to/model.pt`. Older checkpoints load normally with fresh evidence;
+loading actor weights alone leaves the current curriculum intact. Playback disables the curriculum.
+
+Evaluate from home on moving belts, with fixed reset settings and a chosen seed:
+
+```bash
+uv run python -m isaaclab_tasks.contrib.conveyor_franka.evaluate \
+  --checkpoint /path/to/model.pt --num_envs 8 --device cuda:0 \
+  --steps 3600 --seed 0 --output /tmp/conveyor-evaluation.json
+```
+
+The report counts completed transfers in both directions, safety failures, non-finite observations,
+and transfers per simulated environment minute. Repeat with different seeds when comparing policies;
+intermediate-reset training reward alone does not establish deployment reliability.
+
 ## Warehouse sorting task
 
 Run the warehouse sorting task with the same checkpoint. The two parallel manipulation
@@ -89,7 +114,8 @@ four policy slots. The sorting command fills remote slots with misplaced arrival
 active grasp stay pinned. Reassignment runs in the command manager, before the next policy observation,
 and changes only identity mapping, never a physical pose. Commands, rewards, and placement checks
 use the same mapping. All 24 parcels receive belt forces and participate in safety checks.
-The arm parks when there is no active sorting transfer. The policy sees remote inventory in canonical waiting slots;
+During playback, the arm parks when there is no active sorting transfer. The policy sees remote
+inventory in canonical waiting slots;
 all local parcel poses and velocities, physical transport, rewards, and transfer checks remain
 actual simulated states. This adapter is necessary because the checkpoint was trained on compact,
 flat returns. Tensor ordering stays 123 observations to eight actions, but remote observation values
@@ -142,6 +168,21 @@ into the physics model. For a static approximation in `--viz newton_gl`, explici
 The launch override disables experimental geometry streaming to prevent disappearing meshes with
 Fabric transforms. Presentation defaults to one environment. Asset references and textures are downloaded and cached
 on first use, so the first launch takes longer.
+
+### Fine-tuning
+
+Warehouse training starts the robot at home and parcels on the actual supply feeds. It disables
+the racetrack reset curriculum and passes every sampled policy action through, including idle
+steps. Parking is enabled only by the playback configuration so PPO trains on its own actions.
+Use the shared racetrack checkpoint to warm-start warehouse fine-tuning:
+
+```bash
+uv run isaaclab train --rl_library rsl_rl \
+  --task IsaacContrib-Conveyor-Warehouse-Sorting-v0 \
+  --checkpoint /path/to/model.pt --num_envs 256 --device cuda:0
+```
+
+This provides a consistent fine-tuning path; reliable full-batch sorting still requires evaluation.
 
 ### Editing the presentation
 

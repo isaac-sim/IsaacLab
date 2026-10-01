@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Four-slot policy playback over a physical parcel pool and USD-authored warehouse."""
+"""Four-slot policy control over a physical parcel pool and USD-authored warehouse."""
 
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ if TYPE_CHECKING:
 
 
 class ConveyorFrankaWarehouseEnv(ConveyorFrankaEnv):
-    """Play the four-cube checkpoint over an individually tracked workcell parcel pool.
+    """Use the four-cube policy contract over an individually tracked workcell parcel pool.
 
     Kit renders the authored USD materials, lights, and animation. Lightweight
     Newton viewers show a static approximation of the warehouse dressing.
@@ -98,7 +98,9 @@ class ConveyorFrankaWarehouseEnv(ConveyorFrankaEnv):
         )
 
     def step(self, action: torch.Tensor) -> VecEnvStepReturn:
-        """Park while waiting for a misplaced parcel; dispatch runs through the command manager."""
+        """Pass training actions through; optionally park during idle policy playback."""
+        if not self.cfg.park_when_idle:
+            return super().step(action)
         command = self.command_manager.get_term("transfer")
         robot = self.scene["robot"]
         if self._warehouse_arm_joint_ids is None:

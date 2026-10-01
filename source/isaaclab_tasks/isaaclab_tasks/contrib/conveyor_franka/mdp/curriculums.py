@@ -85,7 +85,7 @@ def deployment_probability_from_progress(
     progress_end: float = 0.80,
     coverage_target: float = 0.50,
 ) -> torch.Tensor:
-    """Interpolate deployment sampling from rolling competence and row coverage."""
+    """Interpolate deployment sampling from rolling completed-transfer success and row coverage."""
     if progress_rate.numel() != 1 or row_coverage.numel() != 1:
         raise ValueError("progress_rate and row_coverage must be scalar tensors.")
     if not 0.0 < initial_probability <= final_probability < 1.0:
@@ -125,6 +125,9 @@ class ConveyorResetCurriculum(ManagerTermBase):
             partition_size=reset_term.row_count,
             device=env.device,
         )
+        self._deployment_monitor = monitor_cfg.class_type(
+            monitor_cfg, num_partitions=1, partition_size=2 * CUBE_COUNT, device=env.device
+        )
         variant_counts = reset_variant_counts()
         self._diagnostic_variant_rows = tuple(
             (
@@ -162,6 +165,11 @@ class ConveyorResetCurriculum(ManagerTermBase):
             succeeded = command.ever_success[completed_ids]
             rows = self._reset_term.row_ids[completed_ids]
             self._progress_monitor.success_update(rows, progressed)
+            deployment = (self._reset_term.recipe_ids[rows] == int(ConveyorResetRecipe.BELT)) & (
+                self._reset_term.variant_ids[rows] == BELT_DEPLOYMENT_VARIANT
+            )
+            deployment_slots = 2 * self._reset_term.target_cube_ids[rows] + self._reset_term.source_side_ids[rows]
+            self._deployment_monitor.success_update(deployment_slots, succeeded, valid=deployment)
             self._attempts.scatter_add_(0, rows, torch.ones_like(rows))
             self._progress_successes.scatter_add_(0, rows, progressed.long())
             self._final_successes.scatter_add_(0, rows, succeeded.long())
@@ -173,8 +181,11 @@ class ConveyorResetCurriculum(ManagerTermBase):
         attempted_rows = history_size > 0
         row_coverage = attempted_rows.float().mean()
         total_progress = history_success_count.sum() / history_size.sum().clamp_min(1)
+        deployment_success = self._deployment_monitor.success_buf.sum() / (
+            self._deployment_monitor.success_size.sum().clamp_min(1)
+        )
         deployment_probability = deployment_probability_from_progress(
-            total_progress,
+            deployment_success,
             row_coverage,
             initial_probability=deployment_probability_initial,
             final_probability=deployment_probability_final,
@@ -221,6 +232,7 @@ class ConveyorResetCurriculum(ManagerTermBase):
                 else torch.zeros((), dtype=torch.float32, device=env.device)
             ),
             "deployment_probability": deployment_probability,
+            "deployment_transfer_success_rate": deployment_success,
             "row_coverage": row_coverage,
             "overall_progress_rate": total_progress,
             "cumulative_progress_rate": cumulative_progress,
@@ -270,6 +282,10 @@ class ConveyorResetCurriculum(ManagerTermBase):
             "history_size": self._progress_monitor.success_size.clone(),
             "history_success_count": history_success_count,
             "rolling_progress_rates": self._progress_monitor.success_rate.clone(),
+            "deployment_history": self._deployment_monitor.success_buf.clone(),
+            "deployment_history_pointer": self._deployment_monitor.success_pointer.clone(),
+            "deployment_history_size": self._deployment_monitor.success_size.clone(),
+            "deployment_success_rates": self._deployment_monitor.success_rate.clone(),
         }
 
     def set_state(self, state: dict[str, torch.Tensor]) -> None:
@@ -282,6 +298,10 @@ class ConveyorResetCurriculum(ManagerTermBase):
             "history_pointer": self._progress_monitor.success_pointer,
             "history_size": self._progress_monitor.success_size,
             "rolling_progress_rates": self._progress_monitor.success_rate,
+            "deployment_history": self._deployment_monitor.success_buf,
+            "deployment_history_pointer": self._deployment_monitor.success_pointer,
+            "deployment_history_size": self._deployment_monitor.success_size,
+            "deployment_success_rates": self._deployment_monitor.success_rate,
         }
         for name, target in targets.items():
             if name not in state or state[name].shape != target.shape:
@@ -293,6 +313,12 @@ class ConveyorResetCurriculum(ManagerTermBase):
             raise ValueError("Conveyor curriculum checkpoint has invalid history pointers.")
         if bool(torch.any((state["history_size"] < 0) | (state["history_size"] > history_len))):
             raise ValueError("Conveyor curriculum checkpoint has invalid history sizes.")
+        if bool(
+            torch.any((state["deployment_history_pointer"] < 0) | (state["deployment_history_pointer"] >= history_len))
+        ):
+            raise ValueError("Conveyor curriculum checkpoint has invalid deployment history pointers.")
+        if bool(torch.any((state["deployment_history_size"] < 0) | (state["deployment_history_size"] > history_len))):
+            raise ValueError("Conveyor curriculum checkpoint has invalid deployment history sizes.")
         if bool(
             torch.any((state["history_success_count"] < 0) | (state["history_success_count"] > state["history_size"]))
         ):

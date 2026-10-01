@@ -24,6 +24,7 @@ if TYPE_CHECKING:
 
     from isaaclab.terrains import TerrainImporter
 
+from . import mdp
 from .conveyor_franka_env_cfg import (
     ConveyorFrankaEnvCfg,
     ConveyorFrankaSceneCfg,
@@ -370,6 +371,8 @@ class ConveyorFrankaA09A12EnvCfg(ConveyorFrankaEnvCfg):
     """Newton presentation variant with Digital Twin visuals and extended return routes."""
 
     class_type: type | str = "{DIR}.conveyor_franka_warehouse_env:ConveyorFrankaWarehouseEnv"
+    park_when_idle: bool = False
+    """Replace idle actions with home-position control during pretrained-policy playback only."""
     scene: ConveyorFrankaA09A12SceneCfg = ConveyorFrankaA09A12SceneCfg(
         num_envs=1,
         env_spacing=24.0,
@@ -382,6 +385,11 @@ class ConveyorFrankaA09A12EnvCfg(ConveyorFrankaEnvCfg):
         from .mdp.sorting import ConveyorSortCommandCfg
 
         self.commands.transfer = ConveyorSortCommandCfg()
+        # Warehouse arrivals replace the phase reset bank; fine-tuning starts from home.
+        self.curriculum = None
+        self.events.reset_from_state_table.params.update(
+            fixed_recipe=int(mdp.ConveyorResetRecipe.BELT), fixed_variant_id=mdp.BELT_DEPLOYMENT_VARIANT
+        )
         # Kit renders the authored USD directly; Newton needs only the physical geometry.
         self.sim.physics.load_visual_shapes = False
         # Adjacent static belt sections must not consume the parcel contact budget.
@@ -397,3 +405,8 @@ class ConveyorFrankaA09A12EnvCfg(ConveyorFrankaEnvCfg):
         self.sim.default_visualizer_cfg.eye = (4.8, -5.2, 3.0)
         self.sim.default_visualizer_cfg.lookat = (0.9, 0.6, 0.95)
         self.sim.default_visualizer_cfg.focal_length = 24.0
+
+    def play_mode(self) -> None:
+        """Enable the idle controller only for pretrained-policy playback."""
+        super().play_mode()
+        self.park_when_idle = True

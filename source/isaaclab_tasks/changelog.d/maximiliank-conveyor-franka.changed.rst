@@ -8,3 +8,7 @@
 * Named the new tasks ``IsaacContrib-Conveyor-Racetrack-Transfer-v0`` and
   ``IsaacContrib-Conveyor-Warehouse-Sorting-v0``, with an explicitly named PhysX CPU reference.
 * Aligned conveyor configuration environment classes with their task registrations.
+* Separated phase-progress reset weights from completed-transfer evidence when increasing moving-belt starts.
+* Saved and restored conveyor reset evidence through task-local RSL-RL PPO checkpoint hooks.
+* Disabled racetrack reset sampling and idle action substitution during warehouse fine-tuning.
+* Added seeded moving-belt evaluation reporting completed transfers and safety failures.

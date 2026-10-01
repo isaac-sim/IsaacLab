@@ -275,8 +275,7 @@ class CurriculumCfg:
         func=mdp.ConveyorResetCurriculum,
         params={
             "command_name": "transfer",
-            # Shared target-rate monitor keeps each physical reset row near the
-            # policy's 50% competence frontier without stale early outcomes.
+            # Intermediate rows adapt around 50% phase progress, not completed transfers.
             "success_monitor": mdp.SuccessMonitorCfg(
                 monitored_history_len=50,
                 target_success_rate=0.5,
@@ -284,7 +283,8 @@ class CurriculumCfg:
                 temperature=1.0,
             ),
             # Keep a deployment-facing stream while the remaining starts
-            # adapt around the rolling pickup-to-placement frontier. Every
+            # adapt around the rolling pickup-to-placement frontier. Deployment
+            # mass increases only after actual transfers from moving-belt starts. Every
             # recipe, cube identity, and direction retains equal total mass.
             "deployment_probability_initial": 0.35,
             "deployment_probability_final": 0.90,
