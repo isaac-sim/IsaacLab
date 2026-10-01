@@ -24,7 +24,7 @@ from isaaclab_tasks.contrib.stack.stack_env_cfg import StackEnvCfg
 # Pre-defined configs
 ##
 from isaaclab.markers.config import FRAME_MARKER_CFG  # isort: skip
-from isaaclab_assets.robots.franka import FRANKA_PANDA_CFG  # isort: skip
+from isaaclab_assets.robots.franka import FRANKA_PANDA_LEGACY_CFG  # isort: skip
 
 
 @configclass
@@ -96,7 +96,7 @@ class FrankaBinStackEnvCfg(StackEnvCfg):
         self.events = EventCfg()
 
         # Set Franka as robot
-        self.scene.robot = replace(FRANKA_PANDA_CFG, prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot = replace(FRANKA_PANDA_LEGACY_CFG, prim_path="{ENV_REGEX_NS}/Robot")
         self.scene.robot.spawn.semantic_tags = [("class", "robot")]
 
         # Add semantics to table
