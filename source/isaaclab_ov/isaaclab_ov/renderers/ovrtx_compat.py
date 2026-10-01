@@ -10,21 +10,14 @@ OVRTX 0.4 keys ``frame.render_vars`` by render-var source name (``"LdrColor"``),
 The renderer resolves source names to frame keys when reading each camera's output.
 
 Missing or invalid version metadata selects source-name render-var keys.
-
-Warp stream handles also need translating before they reach OVRTX ``cuda_stream`` fields;
-see :func:`ovrtx_stream_handle`.
 """
 
 from __future__ import annotations
 
 import importlib.metadata
 import logging
-from typing import TYPE_CHECKING
 
 from packaging.version import InvalidVersion, Version
-
-if TYPE_CHECKING:
-    import warp as wp
 
 logger = logging.getLogger(__name__)
 
@@ -64,28 +57,6 @@ def uses_prim_path_render_vars(version: Version | None) -> bool:
         Whether ``version`` is OVRTX 0.5 or newer.
     """
     return version is not None and version >= _PRIM_PATH_RENDER_VARS_VERSION
-
-
-def ovrtx_stream_handle(stream: wp.Stream) -> int:
-    """Encode a Warp stream for OVRTX and ovstage ``cuda_stream`` fields.
-
-    OVRTX and DLPack encode the legacy default stream as ``1`` and reserve ``0`` for
-    "no synchronization". A Warp stream that wraps Torch's legacy default stream reports ``0``,
-    which would silently disable the fence, so it is remapped here.
-
-    Args:
-        stream: Warp stream that produces or consumes the OVRTX data.
-
-    Returns:
-        The OVRTX stream handle.
-
-    Raises:
-        RuntimeError: If ``stream`` has no CUDA stream.
-    """
-    handle = stream.cuda_stream
-    if handle is None:
-        raise RuntimeError(f"{stream.device} has no CUDA stream; OVRTX needs a CUDA device.")
-    return handle or 1
 
 
 OVRTX_VERSION: Version | None = detect_ovrtx_version()
