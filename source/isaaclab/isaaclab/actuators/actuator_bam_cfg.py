@@ -3,9 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import json
 from dataclasses import MISSING
-from pathlib import Path
 from typing import Literal
 
 from isaaclab.utils.configclass import configclass
@@ -80,30 +78,6 @@ class BamMotorCfg:
         """
         if self.model not in ("m1", "m2", "m5", "m6"):
             raise ValueError(f"Unsupported BAM model {self.model!r}; expected m1, m2, m5, or m6.")
-
-    @classmethod
-    def from_json(cls, path: str | Path) -> "BamMotorCfg":
-        """Load a Rhoban BAM fit without importing the upstream BAM package.
-
-        Renames ``R`` to ``resistance`` and drops ``actuator``, ``kp``, ``vin``, ``armature``,
-        and ``q_offset``. Upstream fits may omit firmware constants: set ``error_gain`` and
-        any non-default PWM/current limits on the returned config before using it.
-
-        Args:
-            path: Local path to a Rhoban BAM fit JSON file.
-
-        Returns:
-            Motor config, with unspecified fields left at their declared defaults.
-
-        Raises:
-            TypeError: If the fit contains unrecognized fields.
-        """
-        with Path(path).open() as stream:
-            values = json.load(stream)
-        values["resistance"] = values.pop("R")
-        for name in ("actuator", "kp", "vin", "armature", "q_offset"):
-            values.pop(name, None)
-        return cls(**values)
 
 
 @configclass
