@@ -141,6 +141,53 @@ def test_inverted_pyramid_origin_matches_platform(platform_width: float, border_
     assert origin[2] == pytest.approx(center_vertices[0, 2])
 
 
+@pytest.mark.parametrize("parent_slope_threshold", [0.75, None])
+def test_height_field_sub_terrains_keep_individual_settings(parent_slope_threshold):
+    """Children retain numeric settings and inherit parent values only for None fields."""
+    cfg = TerrainGeneratorCfg(
+        size=(2.0, 2.0),
+        num_rows=1,
+        num_cols=3,
+        curriculum=True,
+        seed=0,
+        horizontal_scale=0.2,
+        vertical_scale=0.02,
+        slope_threshold=parent_slope_threshold,
+        sub_terrains={
+            "fine": HfInvertedPyramidSlopedTerrainCfg(
+                proportion=1 / 3,
+                slope_range=(0.1, 0.1),
+                horizontal_scale=0.05,
+                vertical_scale=0.01,
+                slope_threshold=None,
+            ),
+            "coarse": HfInvertedPyramidSlopedTerrainCfg(
+                proportion=1 / 3,
+                slope_range=(0.1, 0.1),
+                horizontal_scale=None,
+                vertical_scale=None,
+                slope_threshold=0.0,
+            ),
+            "default": HfInvertedPyramidSlopedTerrainCfg(
+                proportion=1 / 3,
+                slope_range=(0.1, 0.1),
+            ),
+        },
+    )
+
+    generator = TerrainGenerator(cfg)
+
+    fine, coarse, default = generator.cfg.sub_terrains.values()
+    assert (fine.horizontal_scale, fine.vertical_scale, fine.slope_threshold) == (0.05, 0.01, parent_slope_threshold)
+    assert (coarse.horizontal_scale, coarse.vertical_scale, coarse.slope_threshold) == (0.2, 0.02, 0.0)
+    assert (default.horizontal_scale, default.vertical_scale, default.slope_threshold) == (
+        0.1,
+        0.005,
+        parent_slope_threshold,
+    )
+    assert len(generator.terrain_meshes[0].vertices) > len(generator.terrain_meshes[1].vertices)
+
+
 @pytest.mark.parametrize("use_global_seed", [True, False])
 def test_generation_reproducibility(use_global_seed):
     """Generates assorted terrains and tests that the resulting mesh is reproducible.

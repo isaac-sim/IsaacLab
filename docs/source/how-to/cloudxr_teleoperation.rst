@@ -386,7 +386,7 @@ choose the tab that matches your hardware.
          .. note::
 
             The web client URL is versioned. The ``release-1.4.x`` path corresponds to the
-            Isaac Teleop version Isaac Lab is pinned to (``isaacteleop~=1.4.0`` in the
+            Isaac Teleop version Isaac Lab is pinned to (``isaacteleop~=1.4.145`` in the
             ``teleop`` extra of the root ``pyproject.toml``). When Isaac Lab bumps its Isaac
             Teleop pin, update this link to the matching client release.
 
@@ -594,7 +594,7 @@ Prerequisites
      step has not been completed.
 
   Clone the repository and check out the release branch matching the ``isaacteleop`` version Isaac
-  Lab is pinned to (``isaacteleop~=1.4.0`` in the ``teleop`` extra of the root
+  Lab is pinned to (``isaacteleop~=1.4.145`` in the ``teleop`` extra of the root
   ``pyproject.toml``), so the plugin's wire format matches the ``isaacteleop`` package Isaac Lab
   installs:
 

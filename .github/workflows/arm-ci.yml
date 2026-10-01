@@ -14,14 +14,14 @@
 # it could be retried. As its own workflow, arm-ci no longer gates the main
 # workflow's lifecycle, and it can be re-run independently.
 #
-# arm-ci is currently informational (continue-on-error), but it is wired to be
-# promotable to a REQUIRED status check: it triggers on every PR and gates the
-# expensive arm64 build behind the shared `changes` detector + `if:`. An
-# irrelevant PR SKIPS the job (which branch protection reads as green) instead
-# of never creating the check — a workflow-level `paths:` filter is deliberately
-# avoided because a not-triggered required check stays pending forever and
-# blocks the PR. This mirrors the `changes`+`if:` pattern build.yaml already
-# uses for its required test jobs.
+# arm-ci is not a required check, so a failure reports red without blocking
+# the merge. It is wired to be promotable to one: it triggers on every PR and
+# gates the expensive arm64 build behind the shared `changes` detector + `if:`.
+# An irrelevant PR SKIPS the job (which branch protection reads as green)
+# instead of never creating the check — a workflow-level `paths:` filter is
+# deliberately avoided because a not-triggered required check stays pending
+# forever and blocks the PR. This mirrors the `changes`+`if:` pattern
+# build.yaml already uses for its required test jobs.
 #
 # Trigger parity with the former build.yaml job:
 #   - push to protected branches always runs (post-merge integration);
@@ -152,7 +152,6 @@ jobs:
     needs: [changes, config]
     if: needs.changes.outputs.should_run == 'true'
     timeout-minutes: 60
-    continue-on-error: true
     steps:
     - uses: actions/checkout@v6
       with:
@@ -183,7 +182,8 @@ jobs:
         container-name: isaac-lab-arm-ci-${{ github.run_id }}-${{ github.run_attempt }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}-arm64
         extra-pip-packages: "${{ steps.ov_pins.outputs.ovrtx }} ${{ steps.ov_pins.outputs.ovphysx }}"
-        test-k-expr: not ovphysx
+        # ovstage rendering cases are post-merge only on x86 as well.
+        test-k-expr: not ovphysx and not ovstage
         ci-marker: arm_ci
         volume-mount-source: ${{ github.workspace }}
 
@@ -195,7 +195,7 @@ jobs:
         container-name: isaac-lab-arm-ci-ovphysx-${{ github.run_id }}-${{ github.run_attempt }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}-arm64
         extra-pip-packages: "${{ steps.ov_pins.outputs.ovrtx }} ${{ steps.ov_pins.outputs.ovphysx }}"
-        test-k-expr: ovphysx
+        test-k-expr: ovphysx and not ovstage
         ci-marker: arm_ci
         volume-mount-source: ${{ github.workspace }}
 

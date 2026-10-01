@@ -105,9 +105,9 @@ def run(argv: list[str]) -> None:
                 " --agent rl_games_cfg_entry_point, or use --rl_library rsl_rl for RSL-RL runner configurations."
             )
         pre_launch_video_config(env_cfg, args_cli)
-        show_run_summary(screen, args_cli, env_cfg, library="rl_games", action="play")
         screen.stage("Launching simulation")
         with launch_simulation(env_cfg, args_cli), contextlib.ExitStack() as cleanup:
+            show_run_summary(screen, args_cli, env_cfg, library="rl_games", action="play")
             apply_env_overrides(args_cli, env_cfg)
             params = agent_cfg["params"]
             args_cli.seed = resolve_seed(args_cli.seed)

@@ -45,6 +45,22 @@ def test_run_python_command_uses_live_isaac_sim_with_active_python(tmp_path):
     assert run.call_args.kwargs["env"]["PYTHONEXE"] == active_python
 
 
+def test_run_python_command_preloads_system_libgomp_path_on_aarch64(tmp_path):
+    """isaacsim starts on aarch64 only when the system libgomp path is listed verbatim in LD_PRELOAD."""
+    with (
+        mock.patch("isaaclab.cli.utils.DEFAULT_ISAAC_SIM_PATH", tmp_path / "_isaac_sim"),
+        mock.patch("isaaclab.cli.utils.extract_python_exe", return_value=sys.executable),
+        mock.patch("isaaclab.cli.utils.platform.system", return_value="Linux"),
+        mock.patch("isaaclab.cli.utils.platform.machine", return_value="aarch64"),
+        mock.patch("isaaclab.cli.utils.glob.glob", return_value=["/lib/aarch64-linux-gnu/libgomp.so.1"]),
+        mock.patch("isaaclab.cli.utils.run_command") as run,
+        mock.patch.dict(os.environ, {"LD_PRELOAD": "libcarb.env.shim.so"}, clear=True),
+    ):
+        run_python_command("train.py", [])
+
+    assert run.call_args.kwargs["env"]["LD_PRELOAD"] == "/lib/aarch64-linux-gnu/libgomp.so.1:libcarb.env.shim.so"
+
+
 def test_run_python_command_accepts_virtual_environment_on_bundled_python(tmp_path):
     """A virtual environment created on a downloaded package's Python runs that interpreter."""
     local_sim = tmp_path / "_isaac_sim"

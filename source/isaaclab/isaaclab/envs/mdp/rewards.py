@@ -55,7 +55,7 @@ class is_terminated_term(ManagerTermBase):
 
     def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
         super().__init__(cfg, env)
-        term_keys = cfg.params.get("term_keys", ".*")
+        term_keys = cfg.params["term_keys"]
         self._term_names = env.termination_manager.find_terms(term_keys)
 
     def __call__(self, env: ManagerBasedRLEnv, term_keys: str | list[str] = ".*") -> torch.Tensor:
