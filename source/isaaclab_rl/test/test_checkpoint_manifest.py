@@ -94,27 +94,25 @@ def test_best_prefers_final_checkpoint(tmp_path: Path) -> None:
     assert checkpoint == str(expected.resolve())
 
 
-def test_recursive_selector_resolves_rlinf_checkpoint(tmp_path: Path) -> None:
-    """Nested RLinf checkpoints participate in the shared selector contract."""
+def test_recursive_selector_resolves_rlinf_checkpoint(tmp_path: Path, monkeypatch) -> None:
+    """RLinf accepts selectors and paths, but never guesses between checkpoint files."""
+    from isaaclab_rl.entrypoints.backends.cli_args_rlinf import resolve_rlinf_checkpoint
+
+    monkeypatch.chdir(tmp_path)
     run_dir = tmp_path / "run"
-    expected = run_dir / "test_gr00t" / "checkpoints" / "global_step_10" / "full_weights.pt"
-    expected.parent.mkdir(parents=True)
-    (run_dir / "test_gr00t" / "checkpoints" / "global_step_2").mkdir()
-    (run_dir / "test_gr00t" / "checkpoints" / "global_step_2" / "full_weights.pt").touch()
-    expected.touch()
+    for step in (2, 10):
+        expected = run_dir / "checkpoints" / f"global_step_{step}" / "actor" / "model_state_dict" / "full_weights.pt"
+        expected.parent.mkdir(parents=True)
+        expected.touch()
     write_run_manifest(str(run_dir), library="rlinf", task="Isaac-Cartpole", metadata={"config_name": "ppo"})
-
-    checkpoint = resolve_checkpoint_selector(
-        str(tmp_path),
-        "latest",
-        library="rlinf",
-        task="Isaac-Cartpole",
-        checkpoint_pattern=r"full_weights[.]pt",
-        metadata={"config_name": "ppo"},
-        recursive=True,
-    )
-
-    assert checkpoint == str(expected.resolve())
+    kwargs = dict(log_root_path=str(tmp_path), task="Isaac-Cartpole", config_name="ppo")
+    paths = (expected, *expected.parents[:3])
+    for checkpoint in ("latest", "best", *(str(path.relative_to(tmp_path)) for path in paths)):
+        assert resolve_rlinf_checkpoint(checkpoint, **kwargs) == str(expected)
+    with pytest.raises(ValueError, match="found 2"):
+        resolve_rlinf_checkpoint(str(run_dir), **kwargs)
+    with pytest.raises(FileNotFoundError):
+        resolve_rlinf_checkpoint("missing.pt", **kwargs)
 
 
 def test_latest_rejects_unmanifested_historical_run(tmp_path: Path) -> None:

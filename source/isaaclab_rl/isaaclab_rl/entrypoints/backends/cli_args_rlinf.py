@@ -97,10 +97,11 @@ def configure_rlinf_environment(config_name: str, config_path: str | None) -> st
 
 
 def resolve_rlinf_checkpoint(checkpoint: str, *, log_root_path: str, task: str, config_name: str) -> str:
-    """Resolve an RLinf checkpoint selector or local path.
+    """Resolve a selector, weights file, or directory containing one weights file to an absolute path.
 
     Raises:
-        ValueError: If a published pre-trained checkpoint is requested; RLinf has none.
+        ValueError: If a pre-trained checkpoint is requested, or a directory does not contain exactly one weights file.
+        FileNotFoundError: If the checkpoint file does not exist.
     """
     if checkpoint == "pretrained":
         raise ValueError("Pre-trained checkpoints are not available for RLinf.")
@@ -114,9 +115,14 @@ def resolve_rlinf_checkpoint(checkpoint: str, *, log_root_path: str, task: str, 
             metadata={"config_name": config_name},
             recursive=True,
         )
-    checkpoint_path = Path(checkpoint)
+    checkpoint_path = Path(checkpoint).expanduser().resolve()
     if checkpoint_path.is_dir():
-        checkpoint_path = checkpoint_path / "full_weights.pt"
+        matches = list(checkpoint_path.rglob("full_weights.pt"))
+        if len(matches) != 1:
+            raise ValueError(f"Expected exactly one full_weights.pt under {checkpoint_path}, found {len(matches)}.")
+        checkpoint_path = matches[0]
+    if not checkpoint_path.is_file():
+        raise FileNotFoundError(f"RLinf checkpoint does not exist: {checkpoint_path}")
     return str(checkpoint_path)
 
 
