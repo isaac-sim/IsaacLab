@@ -713,6 +713,8 @@ class TestActuatorStateReset(ActuatorStateResetBase, unittest.TestCase):
     adapter (``articulation.newton_actuator_adapter``).
     """
 
+    RESET_SELECTORS = ("env_ids", "env_mask")
+
     def _make_sim_cfg(self, use_newton_actuators: bool) -> SimulationCfg:
         return SimulationCfg(dt=DT, physics=PhysxCfg(), use_newton_actuators=use_newton_actuators)
 

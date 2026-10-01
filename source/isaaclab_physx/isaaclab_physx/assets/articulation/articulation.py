@@ -229,7 +229,7 @@ class Articulation(BaseArticulation):
             env_ids = slice(None)
         # reset actuators, including backend-native actuator state. None selects all
         # environments; delayed-actuator buffers do not accept a slice.
-        self.actuators.reset(None if env_ids == slice(None) else env_ids)
+        self.actuators.reset(None if env_ids == slice(None) else env_ids, env_mask=env_mask)
         # reset external wrenches.
         self._instantaneous_wrench_composer.reset(env_ids, env_mask)
         self._permanent_wrench_composer.reset(env_ids, env_mask)

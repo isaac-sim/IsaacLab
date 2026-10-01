@@ -599,16 +599,21 @@ def test_reset_object_collection(sim, num_envs, num_cubes, device):
 
     composers = (object_collection.instantaneous_wrench_composer, object_collection.permanent_wrench_composer)
     ones = torch.ones((num_envs, num_cubes, 3), device=device)
-    object_collection.permanent_wrench_composer.set_forces_and_torques_index(forces=ones, torques=ones)
-    object_collection.instantaneous_wrench_composer.add_forces_and_torques_index(forces=ones, torques=ones)
 
-    # A partial reset clears only the selected environment
-    object_collection.reset(env_ids=torch.tensor([0], device=device))
-    for composer in composers:
-        assert composer.active
-        for buffer in (composer.out_force_b.torch, composer.out_torque_b.torch):
-            assert torch.count_nonzero(buffer[0]) == 0
-            assert torch.count_nonzero(buffer[1:]) == buffer[1:].numel()
+    # A partial reset by indices or by mask clears only the selected environment
+    selections = {
+        "env_ids": torch.tensor([0], device=device),
+        "env_mask": wp.from_torch(torch.arange(num_envs, device=device) == 0),
+    }
+    for selector, selection in selections.items():
+        object_collection.permanent_wrench_composer.set_forces_and_torques_index(forces=ones, torques=ones)
+        object_collection.instantaneous_wrench_composer.add_forces_and_torques_index(forces=ones, torques=ones)
+        object_collection.reset(**{selector: selection})
+        for composer in composers:
+            assert composer.active
+            for buffer in (composer.out_force_b.torch, composer.out_torque_b.torch):
+                assert torch.count_nonzero(buffer[0]) == 0, selector
+                assert torch.count_nonzero(buffer[1:]) == buffer[1:].numel(), selector
 
     # A full reset clears every environment
     object_collection.reset()
