@@ -26,10 +26,13 @@ def parse_video_source(source: str) -> tuple[str, str, str]:
     ``"viz"``) or the sensor name; ``sub`` is ``"streaming_view"``, a sensor channel, or ``""``. The prefix
     ``visualizer`` is the long form of ``viz``, as ``--visualizer`` is of ``--viz``; the deprecated ``newton``
     type is mapped to ``newton_gl`` with a :class:`DeprecationWarning`.
+    A bare visualizer type is shorthand for ``viz:<type>``.
 
     Raises:
         ValueError: If *source* does not follow the source grammar of :class:`VideoRecorderCfg`.
     """
+    if source in (*VISUALIZER_TYPES, *VISUALIZER_ALIASES):
+        source = f"viz:{source}"
     kind, *parts = source.split(":")
     kind = "viz" if kind == "visualizer" else kind
     name, sub = (*parts, "", "")[:2]
@@ -45,12 +48,10 @@ def parse_video_source(source: str) -> tuple[str, str, str]:
         return kind, VISUALIZER_ALIASES.get(name, name), sub
     if kind == "sensor" and 1 <= len(parts) <= 2 and name and sub in ("", *SENSOR_CHANNELS):
         return kind, name, sub
-    # a bare visualizer type is a likely slip for its viz source, e.g. --video kit
-    hint = f" Did you mean 'viz:{source}'?" if kind in (*VISUALIZER_TYPES, *VISUALIZER_ALIASES) else ""
     raise ValueError(
-        f"Invalid video source {source!r}: expected 'viz', 'viz:<type>', 'viz:<type>:streaming_view' or "
+        f"Invalid video source {source!r}: expected '<type>', 'viz', 'viz:<type>', 'viz:<type>:streaming_view' or "
         f"'sensor:<name>[:<channel>]', with <type> one of {', '.join(VISUALIZER_TYPES)} and <channel> one of "
-        f"{', '.join(SENSOR_CHANNELS)}.{hint}"
+        f"{', '.join(SENSOR_CHANNELS)}."
     )
 
 
@@ -83,7 +84,8 @@ class VideoRecorderCfg:
     recording uses. The camera position and resolution are configured on the visualizer cfg, not here.
 
     ``visualizer`` is the long form of the ``viz`` prefix (``"visualizer:kit"`` is ``"viz:kit"``). The deprecated
-    ``newton`` type still works with a warning; use ``newton_gl``.
+    ``newton`` type still works with a warning; use ``newton_gl``. A bare visualizer type is shorthand for
+    ``viz:<type>`` (e.g. ``"newton_gl"`` is ``"viz:newton_gl"``).
     """
 
     source: str = "viz"

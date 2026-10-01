@@ -52,13 +52,13 @@ def _parse(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
     ("argv", "expected_video", "expected_hydra"),
     [
         (["--video", "presets=a", "env.b=1"], "viz", ["presets=a", "env.b=1"]),
-        (["--video", "viz:kit", "x=1"], "viz:kit", ["x=1"]),
+        (["--video", "kit", "x=1"], "kit", ["x=1"]),
         (["--video=sensor:cam"], "sensor:cam", []),
         (["--video"], "viz", []),
         ([], None, []),
         (["--video", "foo"], SystemExit, None),
     ],
-    ids=["hydra-override-after-flag", "source-then-override", "attached-source", "bare", "absent", "invalid"],
+    ids=["hydra-override-after-flag", "alias-then-override", "attached-source", "bare", "absent", "invalid"],
 )
 def test_video_cli(argv, expected_video, expected_hydra):
     """``--video`` takes an optional, validated source; a following Hydra override is passed on, in order."""
@@ -103,11 +103,11 @@ def launches(monkeypatch: pytest.MonkeyPatch) -> dict:
         # viz:<type> records from the selected visualizer, else from a headless one added for the recording
         (dict(video="viz:newton_rtx", visualizer=["newton_rtx"]), ("viz:newton_rtx", [("newton_rtx", False)])),
         (dict(video="viz:newton_rtx"), ("viz:newton_rtx", [("newton_rtx", True)])),
-        (dict(video="viz:kit"), ("viz:kit", [("kit", True)])),
+        (dict(video="kit"), ("viz:kit", [("kit", True)])),
         # a scene sensor needs no visualizer
         (dict(video="sensor:wrist_camera:depth"), ("sensor:wrist_camera:depth", [])),
         # streaming visualizers have no frame capture, and recording needs the torch frontend
-        (dict(video="viz:viser", visualizer=["viser"]), "has no frame capture"),
+        (dict(video="viser", visualizer=["viser"]), "has no frame capture"),
         (dict(frontend="warp"), "--frontend 'warp'"),
     ],
     ids=[

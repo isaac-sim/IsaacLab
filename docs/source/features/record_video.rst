@@ -78,6 +78,10 @@ A visualizer added for the recording reuses the configured visualizer of its typ
 and applies ``--video_length`` and ``--video_interval``. A Hydra override after ``--video`` is never taken as
 its source: ``--video presets=newton_mjwarp`` records from ``viz`` and applies the preset.
 
+A bare visualizer type is shorthand for ``viz:<type>``, so ``--video newton_gl``, ``--video kit`` and
+``--video newton_rtx`` work directly. ``viser`` and ``rerun`` resolve the same way, but recording from these
+streaming visualizers is unsupported because they have no frame capture.
+
 See `Source types`_ for the full list of recordable sources and `Clip control`_ for length and
 interval options.
 
@@ -259,7 +263,9 @@ visualizer config, not on the recorder. A ``viz:<type>`` visualizer that ``--viz
 headless, only for the recording, with the settings of its config in ``sim.visualizer_cfgs``.
 
 ``visualizer`` is accepted as the long form of the ``viz`` prefix (``"visualizer:kit"`` is ``"viz:kit"``). The
-deprecated ``newton`` type (``"viz:newton"``) still works with a warning; use ``newton_gl``.
+deprecated ``newton`` type (``"viz:newton"``) still works with a warning; use ``newton_gl``. Bare visualizer
+types are accepted here too, e.g. ``VideoRecorderCfg(source="newton_gl")`` is equivalent to
+``VideoRecorderCfg(source="viz:newton_gl")``.
 
 .. note::
 

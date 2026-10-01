@@ -82,6 +82,11 @@ def _make_env(visualizers=(), sensors: dict | None = None):
     "source,expected",
     [
         ("viz", ("viz", "", "")),
+        ("kit", ("viz", "kit", "")),
+        ("newton_gl", ("viz", "newton_gl", "")),
+        ("newton_rtx", ("viz", "newton_rtx", "")),
+        ("viser", ("viz", "viser", "")),
+        ("rerun", ("viz", "rerun", "")),
         ("viz:newton_gl:streaming_view", ("viz", "newton_gl", "streaming_view")),
         ("sensor:tiled_camera", ("sensor", "tiled_camera", "")),
         ("sensor:tiled_camera:depth", ("sensor", "tiled_camera", "depth")),
@@ -89,13 +94,14 @@ def _make_env(visualizers=(), sensors: dict | None = None):
         ("visualizer:kit", ("viz", "kit", "")),
         # the deprecated ``newton`` type maps to ``newton_gl``, with a DeprecationWarning
         ("visualizer:newton:streaming_view", ("viz", "newton_gl", "streaming_view")),
+        ("newton", ("viz", "newton_gl", "")),
         ("a=b", "Invalid video source"),
         ("viz:foo", "Invalid video source"),
         ("viz:kit:bar", "Invalid video source"),
         ("sensor", "Invalid video source"),
         ("sensor:", "Invalid video source"),
         ("sensor:cam:foo", "Invalid video source"),
-        ("kit", "Did you mean 'viz:kit'"),
+        ("newton_gl:streaming_view", "Invalid video source"),
     ],
 )
 def test_parse_video_source(source, expected):

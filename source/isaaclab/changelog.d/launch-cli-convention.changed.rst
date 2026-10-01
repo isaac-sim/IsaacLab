@@ -20,6 +20,8 @@
   rewritten to the concrete ``viz:<type>``. Recording from ``viz:rerun`` or ``viz:viser`` raises a
   :class:`ValueError`, as streaming visualizers have no frame capture. ``visualizer`` is accepted as the
   long form of the ``viz`` prefix; the ``newton`` type is a deprecated alias of ``newton_gl``.
+* Accepted bare visualizer types in :attr:`~isaaclab.envs.utils.video_recorder_cfg.VideoRecorderCfg.source`
+  as shorthand for ``viz:<type>``, with the same recording capability checks.
 * The benchmark play entry points take ``--video [SOURCE]`` and ``--video_interval`` like the training entry
   points.
 * :meth:`~isaaclab.sim.SimulationContext.can_render_rgb_array` counts headless visualizers, so a Newton model
