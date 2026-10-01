@@ -369,7 +369,7 @@ The BAM drive has no separate ``armature`` coefficient.
 
 The recorded test fixture ``source/isaaclab/test/actuators/data/bam_xl330_m6_goldens.npz`` contains
 reference outputs and the Dynamixel XL330 ``m6`` coefficients used to generate them.
-``ATTRIBUTION.md`` and ``LICENSE-BAM`` beside it document their upstream provenance and license.
+Its ``attr_bam_attribution`` and ``attr_bam_commit`` metadata record the upstream authors, source, and revision.
 No motor-fit file is shipped with the actuator package.
 
 .. _actuators-bam-paths:
