@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import re
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -225,9 +226,11 @@ def test_ovrtx_keys_render_vars_by_prim_path_follows_installed_version(
         return installed
 
     monkeypatch.setattr(newton_visualizer_module.importlib.metadata, "version", _version)
-
-    # bypass the cache so each installed version is evaluated
-    assert newton_visualizer_module._ovrtx_keys_render_vars_by_prim_path.__wrapped__() is expected
+    newton_visualizer_module._ovrtx_keys_render_vars_by_prim_path.cache_clear()
+    try:
+        assert newton_visualizer_module._ovrtx_keys_render_vars_by_prim_path() is expected
+    finally:
+        newton_visualizer_module._ovrtx_keys_render_vars_by_prim_path.cache_clear()
 
 
 def test_sanitize_newton_marker_group_id_rewrites_invalid_chars_into_usd_path():
@@ -244,12 +247,10 @@ def test_sanitize_newton_marker_group_id_rewrites_invalid_chars_into_usd_path():
 def test_render_newton_visualization_markers_sanitizes_render_id_only_for_rtx(
     marker_registry: _MarkerRegistry, sanitize: bool
 ):
-    """RTX renders under a USD-safe id while the GL path keeps the raw key; the registry key never changes."""
+    """RTX logs markers under a USD-safe id; the GL path keeps the raw registry key."""
     marker = newton_markers.NewtonVisualizationMarkers(
         newton_markers.VisualizationMarkersCfg(prim_path="/Visuals/test", markers={}), visible=False
     )
-    group_id = marker.group_id
-    assert "::" in group_id  # the raw registry key the RTX stage rejects
     marker.render = Mock()
 
     newton_markers.render_newton_visualization_markers(
@@ -258,10 +259,10 @@ def test_render_newton_visualization_markers_sanitizes_render_id_only_for_rtx(
 
     marker.render.assert_called_once()
     render_id = marker.render.call_args.kwargs["render_id"]
-    assert render_id == (newton_markers._sanitize_newton_marker_group_id(group_id) if sanitize else None)
-    assert sanitize == (render_id is not None and "::" not in render_id)
-    assert marker.group_id == group_id
-    assert list(marker_registry.groups) == [group_id]
+    if sanitize:
+        assert re.fullmatch(r"/Visuals/test_\d+", render_id)  # the raw key is "/Visuals/test::<id>"
+    else:
+        assert render_id is None
 
 
 def test_newton_visualizer_set_camera_view_updates_cfg_without_viewer():

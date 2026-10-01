@@ -1012,9 +1012,7 @@ def _assert_newton_rtx_markers_drawn(env, visualizer: NewtonRTXVisualizer, *, ca
 
     def _capture(visible: bool) -> np.ndarray:
         markers.set_visibility(visible)
-        visualizer.step(0.0)
-        # Async OVRTX hands back the previous submission, so keep the capture that follows the toggle.
-        visualizer.render_rgb_array()
+        _flush_newton_render_for_motion_capture(visualizer)
         return visualizer.render_rgb_array()
 
     hidden_frame = _capture(False)
@@ -1659,6 +1657,9 @@ def run_cartpole_env_visualizers_motion_with_play_pause(
             env.reset()
             actions = torch.zeros((env.num_envs, env.action_space.shape[-1]), device=env.device)
 
+            def _step_env() -> None:
+                env.step(action=actions)
+
             if "kit" in visualizer_kinds:
                 kit_visualizers = [viz for viz in env.sim.visualizers if isinstance(viz, KitVisualizer)]
                 assert kit_visualizers, "Expected an initialized Kit visualizer."
@@ -1674,9 +1675,6 @@ def run_cartpole_env_visualizers_motion_with_play_pause(
                 assert newton_visualizers, "Expected an initialized Newton visualizer."
                 viewer = getattr(newton_visualizers[0], "_viewer", None)
                 assert viewer is not None, "Newton viewer was not created."
-
-                def _step_env() -> None:
-                    env.step(action=actions)
 
                 with _visualizer_debug_case("newton", backend_kind):
                     _run_newton_viewer_frame_motion_test(
@@ -1694,15 +1692,12 @@ def run_cartpole_env_visualizers_motion_with_play_pause(
                 rtx_viewer = getattr(rtx_visualizers[0], "_viewer", None)
                 assert rtx_viewer is not None, "Newton RTX viewer was not created."
 
-                def _step_env_rtx() -> None:
-                    env.step(action=actions)
-
                 with _visualizer_debug_case("newton_rtx", backend_kind):
                     _run_newton_viewer_frame_motion_test(
                         env,
                         rtx_viewer,
                         visualizer=rtx_visualizers[0],
-                        step_hook=_step_env_rtx,
+                        step_hook=_step_env,
                         get_physics_step_count=lambda: env.sim._physics_step_count,
                         physics_kind=backend_kind,
                         viz_kind="newton_rtx",

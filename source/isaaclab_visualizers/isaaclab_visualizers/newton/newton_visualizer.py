@@ -763,7 +763,6 @@ class NewtonViewerRTX(_NewtonViewerUIMixin, ViewerRTX):
         if products and _ovrtx_keys_render_vars_by_prim_path():
             for _, product in products.items():
                 for frame in product.frames:
-                    # "/Render/Vars/LdrColor" is the RenderVar prim ViewerRTX authors for the color output
                     if "/Render/Vars/LdrColor" in frame.render_vars:
                         frame.render_vars.setdefault("LdrColor", frame.render_vars["/Render/Vars/LdrColor"])
         self._ovrtx_render_products = products
@@ -1285,16 +1284,7 @@ class NewtonVisualizer(BaseVisualizer):
                         self._viewer.log_contacts(contacts, state)
                     else:
                         self._log_scene_contact_sensor_arrows(num_envs)
-                    if self.cfg.enable_markers:
-                        # ViewerRTX overlays markers on a USD stage that rejects the registry
-                        # group ids verbatim, so sanitize them into valid prim paths for RTX
-                        # while the GL viewer renders the raw ids.
-                        render_newton_visualization_markers(
-                            self._viewer,
-                            self._resolved_visible_env_ids,
-                            num_envs=num_envs,
-                            sanitize_group_ids=isinstance(self._viewer, NewtonViewerRTX),
-                        )
+                    self._render_markers(num_envs)
                     self._log_streaming_image()
                     self._render_live_plots()
                     self._log_pending_meshes()
@@ -1595,6 +1585,16 @@ class NewtonVisualizer(BaseVisualizer):
         """Return the latest RGB frame as a uint8 array with shape ``(H, W, 3)``."""
         raise NotImplementedError
 
+    def _render_markers(self, num_envs: int) -> None:
+        """Log visualization markers; the RTX viewer needs USD-safe group ids, the GL viewer takes them raw."""
+        if self.cfg.enable_markers:
+            render_newton_visualization_markers(
+                self._viewer,
+                self._resolved_visible_env_ids,
+                num_envs=num_envs,
+                sanitize_group_ids=isinstance(self._viewer, NewtonViewerRTX),
+            )
+
     def _render_headless_frame(self) -> None:
         """Render on demand, borrowing current SDP arrays and preserving paused frames."""
         if not self._runtime_headless or self._viewer.is_paused():
@@ -1609,15 +1609,7 @@ class NewtonVisualizer(BaseVisualizer):
         self._viewer.begin_frame(self._sim_time)
         try:
             self._viewer.log_state(backend.state_0)
-            # The headless capture must include markers (goal poses, command arrows) like the
-            # interactive path; RTX needs sanitized group ids, see the live step.
-            if self.cfg.enable_markers:
-                render_newton_visualization_markers(
-                    self._viewer,
-                    self._resolved_visible_env_ids,
-                    num_envs=backend.model.num_envs,
-                    sanitize_group_ids=isinstance(self._viewer, NewtonViewerRTX),
-                )
+            self._render_markers(backend.model.num_envs)
             self._log_pending_meshes()
         finally:
             self._viewer.end_frame()

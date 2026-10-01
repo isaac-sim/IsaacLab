@@ -55,10 +55,8 @@ def render_newton_visualization_markers(
         viewer: The Newton-family viewer the marker groups are logged into.
         visible_env_ids: The env ids to draw markers for, or None for all envs.
         num_envs: The number of environments the marker state is batched over.
-        sanitize_group_ids: Rewrite each marker group id into a valid USD prim path
-            before rendering. The RTX viewer overlays markers on a USD stage that
-            rejects the ``::`` and other characters the registry key carries, so it
-            needs sanitized ids while the GL viewer renders the raw ids directly.
+        sanitize_group_ids: Log each marker group under a USD-safe prim path. The RTX viewer's USD
+            stage rejects the ``::`` in the registry key; the GL viewer takes the raw ids.
     """
     sim = sim_utils.SimulationContext.instance()
     if sim is None:
