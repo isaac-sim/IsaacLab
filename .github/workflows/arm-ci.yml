@@ -183,7 +183,8 @@ jobs:
         container-name: isaac-lab-arm-ci-${{ github.run_id }}-${{ github.run_attempt }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}-arm64
         extra-pip-packages: "${{ steps.ov_pins.outputs.ovrtx }} ${{ steps.ov_pins.outputs.ovphysx }}"
-        test-k-expr: not ovphysx
+        # ovstage rendering cases are post-merge only on x86 as well.
+        test-k-expr: not ovphysx and not ovstage
         ci-marker: arm_ci
         volume-mount-source: ${{ github.workspace }}
 
@@ -195,7 +196,7 @@ jobs:
         container-name: isaac-lab-arm-ci-ovphysx-${{ github.run_id }}-${{ github.run_attempt }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}-arm64
         extra-pip-packages: "${{ steps.ov_pins.outputs.ovrtx }} ${{ steps.ov_pins.outputs.ovphysx }}"
-        test-k-expr: ovphysx
+        test-k-expr: ovphysx and not ovstage
         ci-marker: arm_ci
         volume-mount-source: ${{ github.workspace }}
 
