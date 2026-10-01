@@ -3,6 +3,15 @@ Changelog
 
 .. towncrier release notes start
 
+3.1.1 (2026-10-01)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed visuo-tactile sensor debug visualization to refresh outdated sensor buffers before drawing.
+
+
 3.1.0 (2026-09-29)
 ~~~~~~~~~~~~~~~~~~
 
