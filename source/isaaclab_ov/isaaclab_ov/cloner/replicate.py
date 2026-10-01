@@ -247,7 +247,10 @@ def _prepare_scene_copies(
         for source, template in sorted(copies, key=lambda copy: copy[1].count("/"))
     ]
     env_paths = [plan.env_template.format(world) for world in range(len(plan.topology.world_prototype_layout))]
+    cloned_paths = {target for _, targets in native_copies for target in targets}
+    population_env_paths = [path for path in env_paths if path not in cloned_paths]
     for backend in backends:
+        backend.population_env_paths = population_env_paths
         backend.clone_copies = native_copies
         backend.clone_env_paths = env_paths
         backend.clone_positions = plan.positions
@@ -424,19 +427,19 @@ def _serialize_stage(
         target_by_world = dict(zip(world_ids, targets, strict=True)) if world_ids is not None else {}
         source_pose = xforms.GetLocalToWorldTransform(stage.GetPrimAtPath(source))
         for index, target in enumerate(targets):
-            if target == source:
-                continue
             target_path = Sdf.Path(target)
-            if any(path.HasPrefix(target_path) for path in sources):
+            if target != source and any(path.HasPrefix(target_path) for path in sources):
                 raise ValueError(f"OvPhysX clone target {target!r} overlaps a clone source.")
             world = world_ids[index] if world_ids is not None else None
-            if full_stage or world in originals:
+            if full_stage or world in originals or target == source:
                 # References preserve joint relationships and any authored target opinions.
                 prim = exported.GetPrimAtPath(target)
                 authored = bool(prim)
                 prim = prim or exported.DefinePrim(target, "Xform")
-                prim.GetReferences().AddInternalReference(source)
-                if transforms and not authored:
+                if target != source:
+                    prim.GetReferences().AddInternalReference(source)
+                # Originals also need plan placement; the authoring stage contains only prototypes.
+                if transforms and (not authored or target == source):
                     pose = transforms[index]
                     anchor = Gf.Matrix4d().SetRotate(Gf.Quatd(pose[6], Gf.Vec3d(*pose[3:6])))
                     anchor.SetTranslateOnly(Gf.Vec3d(*pose[:3]))

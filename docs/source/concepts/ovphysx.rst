@@ -86,6 +86,12 @@ warms the runtime before assets and sensors bind. Hard reset reuses the same
 declarations; there is no separate consumable queue. Binding paths come from the
 plan's world layout and environment template, not from native clone order.
 
+Configured scenes author only prototypes before replication. Environment poses come from the clone plan:
+USD replication creates frames for Kit, and OVPhysX places originals in its private import before native cloning.
+OVRTX and OVStage populate their required environment frames in private USD exports, then apply the planned poses.
+The SDK's CPU hierarchy computation requires USD-populated frames. Export filtering still excludes unrouted
+prototypes and any destinations already materialized by USD replication.
+
 Authored sources all receive native environment ID zero. Every world containing
 a source or USD-only physics therefore imports all its declared assets as originals. Other worlds
 clone their assets from a complete original world of the same composition,

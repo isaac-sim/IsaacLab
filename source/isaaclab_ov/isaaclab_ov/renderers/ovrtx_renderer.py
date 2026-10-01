@@ -261,6 +261,7 @@ class OVRTXBackend:
             # Prepared by clone dispatch, consumed after camera overrides are authored.
             self.clone_copies: list[tuple[str, list[str]]] = []
             self.clone_env_paths: list[str] = []
+            self.population_env_paths: list[str] = []
             self.clone_positions: np.ndarray | None = None
         self.renderer = Renderer(native_cfg)
 
@@ -469,16 +470,11 @@ class OVRTXRenderer(BaseRenderer):
         # Composed scales must be read while the full stage is still live, before export trims it.
         self._capture_object_scales(stage)
 
-        # OVRTX cannot clone onto existing prims. Keep environment roots unless explicitly cloned;
-        # asset-level clones need their parents' authored environment transforms.
+        # Populate backend-owned frames; native replication applies plan poses after copying prototypes.
         sources = tuple(source for source, _ in self.scene.clone_copies)
-        env_paths = set(self.scene.clone_env_paths)
-        keep_env_roots = not self._use_ovstage and all(
-            env_paths.isdisjoint(targets) for _, targets in self.scene.clone_copies
-        )
         if not self._use_ovstage or not self.scene.ordinal or self.cfg.temp_usd_dir is not None:
             self._exported_usd_string = export_stage_to_string(
-                stage, num_envs, source_paths=sources, keep_env_roots=keep_env_roots
+                stage, num_envs, source_paths=sources, keep_env_roots=False, env_paths=self.scene.population_env_paths
             )
 
     def _capture_object_scales(self, stage: Any) -> None:
