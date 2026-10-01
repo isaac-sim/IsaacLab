@@ -17,6 +17,10 @@
 **/*.usdc
 **/*.usdz
 
+# Local BAM reference data pending asset-server hosting
+/source/isaaclab/test/actuators/data/bam_xl330_m6_goldens.npz
+/source/isaaclab_newton/test/assets/data/bam_pendulum_trajectory.npz
+
 # Python
 .DS_Store
 **/*.egg-info/
