@@ -247,7 +247,7 @@ without spaces, such as ``--viz newton,rerun``.
    * - ``--viz kit``
      - Open the Kit visualizer when it is available in your environment.
      - ``isaacsim``
-   * - Omit ``--viz`` or use ``--viz none``
+   * - Omit ``--viz``
      - Run without a visualizer.
      - None
 

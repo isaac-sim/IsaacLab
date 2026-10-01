@@ -16,7 +16,7 @@ from isaaclab.sim import MeshCapsuleCfg, MeshCuboidCfg, MeshSphereCfg
 from isaaclab.utils import clone, configclass, replace
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
-from isaaclab_assets.robots import FRANKA_PANDA_CFG
+from isaaclab_assets.robots import FRANKA_PANDA_LEGACY_CFG
 
 from ... import lift_env_cfg as lift
 from ... import mdp
@@ -27,7 +27,7 @@ from ... import mdp
 
 # The lift tasks run the menagerie-converted asset (identified inertials, authored finger coupling) with
 # actuators calibrated for it, while the other Franka tasks keep the stock asset.
-FRANKA_PANDA_LIFT_CFG = clone(FRANKA_PANDA_CFG)
+FRANKA_PANDA_LIFT_CFG = clone(FRANKA_PANDA_LEGACY_CFG)
 FRANKA_PANDA_LIFT_CFG.spawn.usd_path = f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/franka_panda.usda"
 # Reset clearance was calibrated for these arm meshes; the asset's primitive colliders intersect the ground.
 FRANKA_PANDA_LIFT_CFG.spawn.variants = {"Colliders": "convex_hulls"}

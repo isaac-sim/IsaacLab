@@ -289,7 +289,7 @@ Next, construct and step a small vectorized environment with zero actions:
 
    uv run isaaclab zero_agent \
      --task IsaacTutorial-Place-Vial-SO101 \
-     --num_envs 8 --visualizer none presets=newton_mjwarp
+     --num_envs 8 presets=newton_mjwarp
 
 If this fails, fix task discovery, asset loading, or simulation stability before tuning RL. When it passes, measure
 the environment separately from the learning algorithm:
@@ -299,7 +299,7 @@ the environment separately from the learning algorithm:
    uv run isaaclab benchmark runtime \
      --task IsaacTutorial-Place-Vial-SO101 \
      --num_envs 4096 --num_steps 1000 --warmup_steps 50 \
-     --visualizer none presets=newton_mjwarp
+     presets=newton_mjwarp
 
 Reduce ``--num_envs`` if the batch does not fit your GPU. For the camera task, add the Newton renderer preset and
 start with a smaller batch:
@@ -309,7 +309,7 @@ start with a smaller batch:
    uv run isaaclab benchmark runtime \
      --task IsaacTutorial-Place-Vial-SO101-Camera \
      --num_envs 1024 --num_steps 1000 --warmup_steps 50 \
-     --visualizer none presets=newton_mjwarp,newton_renderer
+     presets=newton_mjwarp,newton_renderer
 
 .. _tutorial-so101-train:
 
@@ -324,7 +324,7 @@ Train the state teacher with RSL-RL. The task's default agent configuration is a
      --task IsaacTutorial-Place-Vial-SO101 \
      --num_envs 4096 --max_iterations 800 --seed 42 \
      --run_name so101_vial_seed42 --device cuda:0 \
-     --visualizer none presets=newton_mjwarp
+     presets=newton_mjwarp
 
 Checkpoints and TensorBoard events are written below ``logs/rsl_rl/so101_vial_state/<run>``; the final checkpoint is
 ``model_799.pt``. While training runs, inspect the learning curves in another terminal:
@@ -364,7 +364,7 @@ wrist RGB:
      --num_envs 1024 --max_iterations 800 --seed 42 \
      --checkpoint /path/to/state_teacher.pt \
      --run_name wrist_distillation_seed42 --device cuda:0 \
-     --visualizer none presets=newton_mjwarp,newton_renderer
+     presets=newton_mjwarp,newton_renderer
 
 Distillation is single-GPU. Its bounded replay DAgger runner begins with teacher trajectories, gradually adds student
 recovery states, and retains a 25 percent teacher-action floor. A training-only geometry head supplies a dense
@@ -392,7 +392,7 @@ project's external callback:
      --task IsaacTutorial-Place-Vial-SO101 \
      --num_envs 1024 --checkpoint /path/to/state_model.pt --deterministic \
      --external_callback isaaclab_tutorial.utils.evaluation.install_episode_counter \
-     --visualizer none presets=newton_mjwarp
+     presets=newton_mjwarp
 
 Use the same 1,024-start contract for the distilled policy:
 
@@ -402,7 +402,7 @@ Use the same 1,024-start contract for the distilled policy:
      --task IsaacTutorial-Place-Vial-SO101-Camera-Distillation \
      --num_envs 1024 --checkpoint /path/to/distilled_model.pt --deterministic \
      --external_callback isaaclab_tutorial.utils.evaluation.install_episode_counter \
-     --visualizer none presets=newton_mjwarp,newton_renderer
+     presets=newton_mjwarp,newton_renderer
 
 The callback runs each tracked start once and prints one ``SO101_EVAL_RESULT`` JSON record. Preserve that record,
 the checkpoint, seed, task ID, and resolved configuration when comparing experiments. For reference, the results
@@ -418,7 +418,7 @@ The checked-in reset dataset is ready for training. Generate or inspect a separa
 
    uv run generate-so101-resets \
      --output checkpoints/reset_poses.pt --device cuda:0 \
-     --visualizer none presets=newton_mjwarp
+     presets=newton_mjwarp
 
    uv run view-so101-resets \
      --dataset checkpoints/reset_poses.pt --device cuda:0 \
