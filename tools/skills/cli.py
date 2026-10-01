@@ -13,6 +13,7 @@ portable, and reviewable.
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import sys
 from dataclasses import dataclass
@@ -175,6 +176,10 @@ class Skill:
         errors.extend(self._validate_reference_files())
         if metadata.get("audience") == "user":
             errors.extend(self._validate_user_evaluations(body))
+        elif (self.root / "evals" / "evals.json").exists():
+            # Other skills, such as the internal ones, are not required to ship evals, but a file that
+            # exists must still be well formed.
+            errors.extend(self._validate_evals_json(self.root / "evals" / "evals.json"))
         errors.extend(self._validate_scripts(body))
         return errors
 
@@ -356,42 +361,44 @@ class Skill:
 
         # Validate evals/evals.json when present.
         if evals_json.exists():
-            import json
+            errors.extend(self._validate_evals_json(evals_json))
 
-            try:
-                data = json.loads(evals_json.read_text(encoding="utf-8"))
-            except json.JSONDecodeError as exc:
-                errors.append(f"{_display_path(evals_json)}: invalid JSON: {exc}")
-                return errors
-            evals_raw = data.get("evals") if isinstance(data, dict) else None
-            if not isinstance(evals_raw, list):
-                errors.append(f"{_display_path(evals_json)}: 'evals' must be a JSON array")
-                return errors
-            evals = evals_raw
-            valid_entries = [entry for entry in evals if isinstance(entry, dict)]
-            if len(valid_entries) < 2:
-                errors.append(f"{_display_path(evals_json)}: must contain at least two eval entries")
-            for entry in evals:
-                if not isinstance(entry, dict):
-                    errors.append(f"{_display_path(evals_json)}: eval entry must be an object, got {entry!r}")
-                    continue
-                for field in ("id", "prompt"):
-                    value = entry.get(field)
-                    if value is None or value == "":
-                        errors.append(f"{_display_path(evals_json)}: entry missing required field '{field}'")
-                # `expected_skill: null` is intentional for negative eval cases (no skill should
-                # trigger); only its key membership is required, not a truthy value.
-                if "expected_skill" not in entry:
-                    errors.append(f"{_display_path(evals_json)}: entry missing required field 'expected_skill'")
-                elif entry["expected_skill"] == "":
-                    errors.append(
-                        f"{_display_path(evals_json)}: 'expected_skill' must not be an empty string"
-                        " (use null for negative cases)"
-                    )
-                if "assertions" not in entry or not isinstance(entry["assertions"], list):
-                    errors.append(
-                        f"{_display_path(evals_json)}: entry {entry.get('id', '?')!r} missing 'assertions' list"
-                    )
+        return errors
+
+    def _validate_evals_json(self, evals_json: Path) -> list[str]:
+        errors: list[str] = []
+        try:
+            data = json.loads(evals_json.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            errors.append(f"{_display_path(evals_json)}: invalid JSON: {exc}")
+            return errors
+        evals_raw = data.get("evals") if isinstance(data, dict) else None
+        if not isinstance(evals_raw, list):
+            errors.append(f"{_display_path(evals_json)}: 'evals' must be a JSON array")
+            return errors
+        evals = evals_raw
+        valid_entries = [entry for entry in evals if isinstance(entry, dict)]
+        if len(valid_entries) < 2:
+            errors.append(f"{_display_path(evals_json)}: must contain at least two eval entries")
+        for entry in evals:
+            if not isinstance(entry, dict):
+                errors.append(f"{_display_path(evals_json)}: eval entry must be an object, got {entry!r}")
+                continue
+            for field in ("id", "prompt"):
+                value = entry.get(field)
+                if value is None or value == "":
+                    errors.append(f"{_display_path(evals_json)}: entry missing required field '{field}'")
+            # `expected_skill: null` is intentional for negative eval cases (no skill should
+            # trigger); only its key membership is required, not a truthy value.
+            if "expected_skill" not in entry:
+                errors.append(f"{_display_path(evals_json)}: entry missing required field 'expected_skill'")
+            elif entry["expected_skill"] == "":
+                errors.append(
+                    f"{_display_path(evals_json)}: 'expected_skill' must not be an empty string"
+                    " (use null for negative cases)"
+                )
+            if "assertions" not in entry or not isinstance(entry["assertions"], list):
+                errors.append(f"{_display_path(evals_json)}: entry {entry.get('id', '?')!r} missing 'assertions' list")
 
         return errors
 
@@ -412,11 +419,6 @@ def iter_skills(root: Path = SKILLS_ROOT) -> list[Skill]:
     if not root.exists():
         return []
     return [Skill(path) for path in sorted(root.glob("*/*/SKILL.md"))]
-
-
-def iter_public_skills(root: Path = SKILLS_ROOT) -> list[Skill]:
-    """Return only published (non-internal) skills."""
-    return [s for s in iter_skills(root) if not s.is_internal]
 
 
 def validate_native_discovery(skills: list[Skill], native_roots: tuple[Path, ...] = NATIVE_SKILLS_ROOTS) -> list[str]:

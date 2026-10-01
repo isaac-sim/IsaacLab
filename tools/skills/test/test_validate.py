@@ -397,6 +397,16 @@ def test_validate_rejects_evals_json_null_evals_array(tmp_path):
     assert any("must be a JSON array" in error for error in errors)
 
 
+def test_validate_rejects_malformed_evals_json_for_non_user_skill(tmp_path):
+    # Skills that are not user-facing need no evals, but an evals file that exists must be well formed.
+    skill = _write_skill(tmp_path, audience="developer", name="isaaclab-developer-skill")
+    evals_dir = skill.parent / "evals"
+    evals_dir.mkdir()
+    (evals_dir / "evals.json").write_text(json.dumps({"evals": None}), encoding="utf-8")
+    errors = cli.Skill(skill).validate()
+    assert any("must be a JSON array" in error for error in errors)
+
+
 def test_validate_rejects_non_object_eval_entries_and_excludes_them_from_minimum(tmp_path):
     skill = _write_skill(tmp_path)
     evals_dir = skill.parent / "evals"
