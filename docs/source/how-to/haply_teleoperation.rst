@@ -161,7 +161,7 @@ Basic Usage
 .. code:: bash
 
    # Ensure Haply SDK is running
-   isaaclab example haply-teleoperation --websocket_uri ws://localhost:10001 --pos_sensitivity 1.65 --viz newton_gl
+   isaaclab example haply-teleoperation --websocket_uri ws://localhost:10001 --pos_sensitivity 1.65
 
 The example will:
 
@@ -186,10 +186,10 @@ Customize the example with command-line arguments:
 .. code:: bash
 
    # Use custom WebSocket URI
-   isaaclab example haply-teleoperation --websocket_uri ws://192.168.1.100:10001 --viz newton_gl
+   isaaclab example haply-teleoperation --websocket_uri ws://192.168.1.100:10001
 
    # Adjust position sensitivity (default: 1.0)
-   isaaclab example haply-teleoperation --websocket_uri ws://localhost:10001 --pos_sensitivity 2.0 --viz newton_gl
+   isaaclab example haply-teleoperation --websocket_uri ws://localhost:10001 --pos_sensitivity 2.0
 
 Example Features
 ~~~~~~~~~~~~~~~~

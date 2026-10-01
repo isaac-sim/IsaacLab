@@ -89,17 +89,18 @@ def _make_env(visualizers=(), sensors: dict | None = None):
         ("visualizer:kit", ("viz", "kit", "")),
         # the deprecated ``newton`` type maps to ``newton_gl``, with a DeprecationWarning
         ("visualizer:newton:streaming_view", ("viz", "newton_gl", "streaming_view")),
-        ("a=b", ValueError),
-        ("viz:foo", ValueError),
-        ("viz:kit:bar", ValueError),
-        ("sensor", ValueError),
-        ("sensor:", ValueError),
-        ("sensor:cam:foo", ValueError),
+        ("a=b", "Invalid video source"),
+        ("viz:foo", "Invalid video source"),
+        ("viz:kit:bar", "Invalid video source"),
+        ("sensor", "Invalid video source"),
+        ("sensor:", "Invalid video source"),
+        ("sensor:cam:foo", "Invalid video source"),
+        ("kit", "Did you mean 'viz:kit'"),
     ],
 )
 def test_parse_video_source(source, expected):
-    if expected is ValueError:
-        with pytest.raises(ValueError, match="Invalid video source"):
+    if isinstance(expected, str):  # an invalid source and the error it raises
+        with pytest.raises(ValueError, match=expected):
             parse_video_source(source)
         return
     with warnings.catch_warnings(record=True) as caught:

@@ -2542,18 +2542,13 @@ The details below describe how CLI visualizer arguments resolve together with
 For the full behavior of visualizer resolution with the visualizer CLI argument and visualizer configs,
 see :ref:`visualization-common-modes`.
 
-**Breaking change — ``--headless`` no longer suppresses visualizers.**
+**Breaking change — ``--headless`` is removed.**
 
 In Isaac Lab 2.x, passing ``--headless`` disabled all visualizers regardless of ``--viz``.
-In Isaac Lab 3.0, ``--headless`` and ``--viz`` are independent:
-
-- ``--headless`` controls the simulation rendering pipeline (Kit app mode, GPU context).
-- ``--viz <type>`` controls which visualizer backends to launch.
-
-Passing ``--viz kit --headless`` now launches a Kit visualizer in headless mode using the
-Replicator offscreen renderer (no display window required).  Passing ``--viz newton_gl --headless``
-launches a Newton GL visualizer using pyglet's EGL headless backend.  To run without visualizers,
-omit ``--viz``.
+In Isaac Lab 3.0 the flag is removed: a run opens windows only for the visualizers ``--viz`` selects,
+and runs without visualizers when ``--viz`` is omitted. To keep a selected visualizer windowless, e.g. on a
+machine without a display, set ``HEADLESS=1``: ``--viz kit`` then renders through the Replicator offscreen
+renderer and ``--viz newton_gl`` through pyglet's EGL backend.
 
 .. list-table:: Headless visualizer requirements
    :header-rows: 1

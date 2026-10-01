@@ -594,10 +594,10 @@ Run an example first to confirm that the spawner, solver, and visualizer all wor
 .. code-block:: bash
 
     # Volume and surface deformables falling onto a ground plane.
-    uv run --extra tetrahedralization isaaclab example deformables --viz newton_gl
+    uv run --extra tetrahedralization isaaclab example deformables
 
     # A pile of cables that collide and settle. Newton VBD only.
-    uv run isaaclab example cables --viz newton_gl
+    uv run isaaclab example cables
 
     # A larger cable pile, stopping after a fixed number of steps.
     uv run isaaclab example cables --num_cables 40 --num_segments 15 --max_steps 500

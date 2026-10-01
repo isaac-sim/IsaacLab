@@ -31,7 +31,10 @@ Add a ``VideoRecorderCfg`` to ``env_cfg.video_recorders``:
         VideoRecorderCfg(source="viz:kit", output_dir="videos/")
     ]
 
-Or pass ``--video [SOURCE]`` on the command line to record without editing the environment config:
+Or pass ``--video [SOURCE]`` on the command line to record without editing the environment config. ``--video``
+adds a single recorder; to record several sources at once, list one ``VideoRecorderCfg`` per source in
+``env_cfg.video_recorders``, which then takes precedence over the ``--video`` source (``--video_length`` and
+``--video_interval`` still apply to every recorder):
 
 .. tab-set::
 
@@ -255,11 +258,8 @@ The camera angle, resolution, and other visualizer settings are configured on th
 visualizer config, not on the recorder. A ``viz:<type>`` visualizer that ``--viz`` does not select runs
 headless, only for the recording, with the settings of its config in ``sim.visualizer_cfgs``.
 
-``visualizer`` is accepted as the long form of the ``viz`` prefix (``"visualizer:kit"`` is ``"viz:kit"``).
-
-.. deprecated::
-
-   The ``newton`` type (``"viz:newton"``) still works with a deprecation warning. Use ``newton_gl``.
+``visualizer`` is accepted as the long form of the ``viz`` prefix (``"visualizer:kit"`` is ``"viz:kit"``). The
+deprecated ``newton`` type (``"viz:newton"``) still works with a warning; use ``newton_gl``.
 
 .. note::
 

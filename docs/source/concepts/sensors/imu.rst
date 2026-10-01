@@ -64,4 +64,4 @@ A complete runnable example is available as ``imu``:
 
 .. code-block:: bash
 
-   uv run --extra isaacsim isaaclab example imu --viz kit
+   uv run --extra isaacsim isaaclab example imu

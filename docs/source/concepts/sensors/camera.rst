@@ -341,7 +341,7 @@ A runnable camera example is available as ``camera``:
 
 .. code-block:: bash
 
-   uv run --extra isaacsim isaaclab example camera --viz kit
+   uv run --extra isaacsim isaaclab example camera
 
 For saving output to disk, see :doc:`/source/how-to/save_camera_output`. For renderer selection
 and customization, see :doc:`/source/how-to/configure_rendering`.

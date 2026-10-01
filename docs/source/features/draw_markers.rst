@@ -25,7 +25,7 @@ This guide is accompanied by the packaged ``markers`` example.
 
       .. code-block:: bash
 
-          uv run --extra isaacsim isaaclab example markers --viz kit
+          uv run --extra isaacsim isaaclab example markers
 
    .. tab-item:: isaaclab.sh / isaaclab.bat
 
