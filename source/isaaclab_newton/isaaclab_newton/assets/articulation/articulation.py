@@ -2654,7 +2654,7 @@ class Articulation(BaseArticulation):
             data = wp.from_torch(data, dtype=buffer.dtype)
         self.assert_shape_and_dtype(data, buffer.shape, buffer.dtype, name)
         wp.launch(
-            articulation_kernels.copy_2d_data_with_mask,
+            shared_kernels.write_2d_data_to_buffer_with_mask,
             dim=buffer.shape,
             inputs=[data, env_mask, fixed_tendon_mask],
             outputs=[buffer],
@@ -3163,7 +3163,7 @@ class Articulation(BaseArticulation):
             (self.data._fixed_tendon_pos_limits, self.data._sim_bind_fixed_tendon_pos_limits),
         ):
             wp.launch(
-                articulation_kernels.copy_2d_data_with_mask,
+                shared_kernels.write_2d_data_to_buffer_with_mask,
                 dim=staged.shape,
                 inputs=[staged, env_mask, fixed_tendon_mask],
                 outputs=[sim_bind],

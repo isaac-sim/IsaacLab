@@ -479,9 +479,11 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             env_mask = self._ALL_ENV_MASK
         body_mask = self._resolve_body_selection_mask(body_ids, body_mask)
         self.assert_shape_and_dtype(body_poses, (self.num_instances, self.num_bodies), wp.transformf, "body_poses")
+        if isinstance(body_poses, torch.Tensor):
+            body_poses = wp.from_torch(body_poses, dtype=wp.transformf)
         # Write to consolidated buffer
         wp.launch(
-            shared_kernels.set_body_link_pose_to_sim_mask,
+            shared_kernels.write_2d_data_to_buffer_with_mask,
             dim=(self.num_instances, self.num_bodies),
             inputs=[
                 body_poses,
@@ -489,7 +491,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 body_mask,
             ],
             outputs=[
-                self.data.body_link_pose_w,
+                self.data.body_link_pose_w.warp,
             ],
             device=self.device,
         )

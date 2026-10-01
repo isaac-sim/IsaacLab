@@ -993,30 +993,6 @@ def set_body_link_velocity_to_sim_kernel(
 
 
 @wp.kernel
-def set_body_link_pose_to_sim_mask(
-    data: wp.array2d(dtype=wp.transformf),
-    env_mask: wp.array(dtype=wp.bool),
-    body_mask: wp.array(dtype=wp.bool),
-    body_link_pose_w: wp.array2d(dtype=wp.transformf),
-):
-    """Write masked body link pose data to simulation buffers.
-
-    Launched over the full ``(num_envs, num_bodies)`` grid with an in-kernel mask test, so the
-    write needs no host-side index compaction.
-
-    Args:
-        data: Input array of body link poses. Shape is (num_envs, num_bodies).
-        env_mask: Boolean environment selection. Shape is (num_envs,).
-        body_mask: Boolean body selection. Shape is (num_bodies,).
-        body_link_pose_w: Output array where body link poses are written.
-            Shape is (num_envs, num_bodies).
-    """
-    i, j = wp.tid()
-    if env_mask[i] and body_mask[j]:
-        body_link_pose_w[i, j] = data[i, j]
-
-
-@wp.kernel
 def set_body_com_pose_to_sim_mask(
     data: wp.array2d(dtype=wp.transformf),
     body_com_pos_b: wp.array2d(dtype=wp.vec3f),
@@ -1166,21 +1142,20 @@ def write_2d_data_to_buffer_with_indices_kernel(
 
 @wp.kernel
 def write_2d_data_to_buffer_with_mask(
-    in_data: wp.array2d(dtype=wp.float32),
+    in_data: wp.array2d(dtype=Any),
     env_mask: wp.array(dtype=wp.bool),
     joint_mask: wp.array(dtype=wp.bool),
-    out_data: wp.array2d(dtype=wp.float32),
+    out_data: wp.array2d(dtype=Any),
 ):
-    """Write 2D float data to a buffer at specified indices.
+    """Copy the masked cells of a 2D per-environment buffer of any element type.
 
-    This kernel copies float data from an input array to an output buffer at the specified
-    environment and joint/body indices.
+    The arguments must be Warp arrays: a generic kernel cannot infer the element type of a torch tensor.
 
     Args:
-        in_data: Input array containing float data. Shape is (num_instances, num_joints).
+        in_data: Input array. Shape is (num_instances, num_items).
         env_mask: Input array of environment mask. Shape is (num_instances,).
-        joint_mask: Input array of joint/body mask. Shape is (num_instances, num_joints).
-        out_data: Output array where data is written. Shape is (num_instances, num_joints).
+        joint_mask: Input array of item mask, e.g. joints, bodies, or fixed tendons. Shape is (num_items,).
+        out_data: Output array where the selected cells are written. Shape is (num_instances, num_items).
     """
     i, j = wp.tid()
     if env_mask[i] and joint_mask[j]:

@@ -543,26 +543,6 @@ def float_data_to_buffer_with_mask(
 
 
 @wp.kernel
-def copy_2d_data_with_mask(
-    in_data: wp.array2d(dtype=Any),
-    env_mask: wp.array(dtype=wp.bool),
-    item_mask: wp.array(dtype=wp.bool),
-    out_data: wp.array2d(dtype=Any),
-):
-    """Copy the masked cells of a 2D per-environment buffer of any element type.
-
-    Args:
-        in_data: Input array. Shape is (num_envs, num_items).
-        env_mask: Input array of environment mask. Shape is (num_envs,).
-        item_mask: Input array of item mask, e.g. fixed tendons. Shape is (num_items,).
-        out_data: Output array where the selected cells are written. Shape is (num_envs, num_items).
-    """
-    i, j = wp.tid()
-    if env_mask[i] and item_mask[j]:
-        out_data[i, j] = in_data[i, j]
-
-
-@wp.kernel
 def update_soft_joint_pos_limits(
     joint_pos_limits: wp.array2d(dtype=wp.vec2f),
     soft_limit_factor: wp.float32,
