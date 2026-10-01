@@ -2419,18 +2419,11 @@ class NewtonRTXVisualizer(NewtonVisualizer):
         """Queue FOV for deferred application; ViewerRTX creates its camera on first end_frame()."""
         self._rtx_fov_pending = True
 
-    def _apply_rtx_fov_if_pending(self) -> None:
-        """Apply the deferred camera FOV once ViewerRTX's camera object is available."""
-        if not self._rtx_fov_pending or self._viewer is None:
-            return
-        try:
-            self._viewer.camera.fov = self._focal_length_to_vertical_fov_degrees()
-            self._rtx_fov_pending = False
-        except AttributeError:
-            pass  # camera not yet created by ViewerRTX; retry next frame
-
     def _pre_step(self) -> None:
-        self._apply_rtx_fov_if_pending()
+        """Apply the deferred camera FOV once ViewerRTX's camera object is available."""
+        if self._rtx_fov_pending and (camera := getattr(self._viewer, "camera", None)) is not None:
+            camera.fov = self._focal_length_to_vertical_fov_degrees()
+            self._rtx_fov_pending = False
 
     def render_rgb_array(self) -> np.ndarray | None:
         """Return the latest RGB frame rendered by the Newton RTX viewer.

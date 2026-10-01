@@ -1074,18 +1074,8 @@ def test_newton_rtx_visualizer_set_camera_view_uses_set_camera(simulation):
     assert abs(abs(yaw) - 180.0) < 1e-5
 
 
-def test_newton_rtx_visualizer_fov_deferred_on_initialize(simulation):
-    """_apply_camera_focal_length should set _rtx_fov_pending, not raise."""
-    visualizer = NewtonRTXVisualizer(NewtonRTXVisualizerCfg())
-    visualizer._viewer = SimpleNamespace()  # no .camera attribute
-
-    visualizer._apply_camera_focal_length()
-
-    assert visualizer._rtx_fov_pending is True
-
-
 def test_newton_rtx_visualizer_fov_applied_once_camera_available(simulation):
-    """_apply_rtx_fov_if_pending should set camera.fov and clear the flag."""
+    """Focal changes wait for camera creation and apply only once across subsequent steps."""
     fov_values = []
 
     class _FakeCamera:
@@ -1098,25 +1088,21 @@ def test_newton_rtx_visualizer_fov_applied_once_camera_available(simulation):
             fov_values.append(value)
 
     visualizer = NewtonRTXVisualizer(NewtonRTXVisualizerCfg(focal_length=12.0))
-    visualizer._viewer = SimpleNamespace(camera=_FakeCamera())
-    visualizer._rtx_fov_pending = True
+    visualizer._apply_camera_focal_length()
+    visualizer._pre_step()
+    assert visualizer._rtx_fov_pending
 
-    visualizer._apply_rtx_fov_if_pending()
+    visualizer._viewer = SimpleNamespace()  # ViewerRTX creates the camera on its first end_frame().
+    visualizer._pre_step()
+    assert visualizer._rtx_fov_pending
+
+    visualizer._viewer = SimpleNamespace(camera=_FakeCamera())
+    visualizer._pre_step()
+    visualizer._pre_step()
 
     assert not visualizer._rtx_fov_pending
     assert len(fov_values) == 1
     assert fov_values[0] > 0.0
-
-
-def test_newton_rtx_visualizer_fov_retries_when_camera_absent(simulation):
-    """_apply_rtx_fov_if_pending must not raise and keep flag set if camera is absent."""
-    visualizer = NewtonRTXVisualizer(NewtonRTXVisualizerCfg())
-    visualizer._viewer = SimpleNamespace()  # no .camera
-    visualizer._rtx_fov_pending = True
-
-    visualizer._apply_rtx_fov_if_pending()  # must not raise
-
-    assert visualizer._rtx_fov_pending is True  # still pending, retry next frame
 
 
 @pytest.mark.parametrize("backend", ["physx", "isaacsim_physx"])
