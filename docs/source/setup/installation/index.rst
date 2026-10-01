@@ -224,6 +224,24 @@ Install ``uv``, clone Isaac Lab, and start a workflow:
          :: Play a policy
          uv run isaaclab play --rl_library rsl_rl --task Isaac-Cartpole-Direct --viz newton
 
+   .. tab-item:: :icon:`fa-brands fa-apple` macOS (Apple silicon)
+      :sync: macos-arm64
+
+      macOS support is experimental and CPU-only. It covers the Newton backend without Isaac Sim;
+      Isaac Sim, the OV PhysX and OV RTX backends, and the ``importers`` extra are unavailable.
+
+      .. code-block:: bash
+
+         curl -LsSf https://astral.sh/uv/install.sh | sh
+
+      .. isaaclab-clone-commands::
+
+      .. code-block:: bash
+
+         # Newton backend on the CPU
+         uv run isaaclab train --rl_library rsl_rl \
+            --task Isaac-Cartpole-Direct --device cpu physics=newton_mjwarp
+
 ``uv run`` installs the core dependencies automatically. The ``--extra <name>``
 option includes the selected optional integration in the command's environment. Place it
 before ``isaaclab``; for example, ``--extra ov`` installs both ovphysx and ovrtx
@@ -243,8 +261,8 @@ See :ref:`installation-optional-extras` for the available extras.
 ``uv run --extra <name> <command>`` syncs the selected extra into the project environment
 and then runs the command.
 
-The source checkout selects PyTorch's CUDA 13.0 build on Linux x86_64, Linux aarch64, and Windows.
-No additional command flags are needed.
+The source checkout selects PyTorch's CUDA 13.0 build on Linux x86_64, Linux aarch64, and Windows,
+and the PyPI build on macOS. No additional command flags are needed.
 The published wheel pins the PyTorch versions, but downstream uv projects must configure their own
 PyTorch indexes because uv does not inherit a dependency project's ``tool.uv.sources`` settings.
 

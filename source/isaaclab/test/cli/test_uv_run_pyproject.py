@@ -128,8 +128,11 @@ def test_version_single_source_matches_literal_pins(source_checkout_root: Path):
     optional = pyproject["project"]["optional-dependencies"]
     overrides = pyproject["tool"]["uv"]["override-dependencies"]
 
+    # Isaac Sim and the OV runtimes ship no macOS wheels.
+    not_macos = " ; sys_platform != 'darwin'"
+
     # Isaac Sim extra mirrors the table; it is the only place the wheel is pinned.
-    assert optional["isaacsim"] == [f"isaacsim[all,extscache]=={versions['isaacsim']}"]
+    assert optional["isaacsim"] == [f"isaacsim[all,extscache]=={versions['isaacsim']}{not_macos}"]
 
     # OV extras mirror the table. Table values may be an exact version ("1.2.3",
     # mirrored as ``pkg==1.2.3``) or a range spec (">=1.2.3", mirrored as ``pkg>=1.2.3``).
@@ -137,10 +140,10 @@ def test_version_single_source_matches_literal_pins(source_checkout_root: Path):
         value = versions[package]
         return f"{package}=={value}" if value[0].isdigit() else f"{package}{value}"
 
-    assert spec("ovphysx") in optional["ovphysx"]
-    assert spec("ovrtx") in optional["ovrtx"]
-    assert spec("ovstage") in optional["ovphysx"]
-    assert spec("ovstage") in optional["ovrtx"]
+    assert spec("ovphysx") + not_macos in optional["ovphysx"]
+    assert spec("ovrtx") + not_macos in optional["ovrtx"]
+    assert spec("ovstage") + not_macos in optional["ovphysx"]
+    assert spec("ovstage") + not_macos in optional["ovrtx"]
 
     # CI installs OVRTX through a generic pip-package input (a bare ``pip install
     # ovrtx`` ignores this ceiling). Each such install must therefore be pinned:
