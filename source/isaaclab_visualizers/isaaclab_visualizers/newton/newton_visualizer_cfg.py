@@ -173,9 +173,6 @@ class NewtonRTXVisualizerCfg(NewtonVisualizerCfg):
     )
     """Prepare the Newton model and the simulation-owned stage for RTX rendering."""
 
-    rtx_environment: str = "default"
-    """Deprecated. Lighting comes from the simulation scene; author lights there instead."""
-
     render_settings: dict[str, Any] = dict()
     """RTX attributes to author on the OVRTX render product, as ``{name: (usd_type_name, value)}``.
 
@@ -183,12 +180,3 @@ class NewtonRTXVisualizerCfg(NewtonVisualizerCfg):
     copyable. For example, ``{"omni:rtx:quality": ("Int", 100)}`` re-enables the path tracer's
     quality convergence loop, which ``ViewerRTX`` otherwise disables to keep interactive latency
     down."""
-
-    def __post_init__(self) -> None:
-        super().__post_init__()
-        if self.rtx_environment != "default":
-            warnings.warn(
-                "rtx_environment is deprecated and ignored; configure lights in the simulation scene instead.",
-                DeprecationWarning,
-                stacklevel=2,
-            )

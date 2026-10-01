@@ -963,6 +963,7 @@ def test_newton_visualizer_cfg_distinct_types():
     assert NewtonGLVisualizerCfg().visualizer_type == "newton_gl"
     assert NewtonRTXVisualizerCfg().visualizer_type == "newton_rtx"
     assert not hasattr(NewtonRTXVisualizerCfg(), "render_usd_stage")
+    assert not hasattr(NewtonRTXVisualizerCfg(), "rtx_environment")
     # Public viewer options are accepted as cfg fields.
     NewtonGLVisualizerCfg(enable_picking=False, show_particles=True, particle_color=(0.1, 0.2, 0.3))
 
@@ -985,19 +986,15 @@ def test_newton_gl_background_color(color: tuple[float, float, float] | None) ->
     assert visualizer._viewer.renderer.sky_lower == expected_lower
 
 
-@pytest.mark.parametrize("color, environment", [((0.1, 0.2, 0.3), "default"), (None, "studio")])
-def test_newton_rtx_receives_background_color_and_prepared_stage(monkeypatch, simulation, color, environment):
+@pytest.mark.parametrize("color", [(0.1, 0.2, 0.3), None])
+def test_newton_rtx_receives_background_color_and_prepared_stage(monkeypatch, simulation, color):
     from isaaclab_ov.stage import OvstageBackendCfg
 
     kwargs = {}
     monkeypatch.setattr(
         newton_visualizer_module, "NewtonViewerRTX", lambda **viewer_kwargs: kwargs.update(viewer_kwargs) or object()
     )
-    if environment == "default":
-        cfg = NewtonRTXVisualizerCfg(background_color=color)
-    else:
-        with pytest.warns(DeprecationWarning, match="rtx_environment"):
-            cfg = NewtonRTXVisualizerCfg(background_color=color, rtx_environment=environment)
+    cfg = NewtonRTXVisualizerCfg(background_color=color)
     NewtonRTXVisualizer(cfg)._create_viewer(True, {})
     simulation.get_or_create_backend.assert_called_once_with(OvstageBackendCfg(visualizer_cfg=cfg))
     assert kwargs["background_color"] == color
