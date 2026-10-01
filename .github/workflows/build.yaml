@@ -990,6 +990,65 @@ jobs:
         dockerfile-path: docker/Dockerfile.base
         cache-tag: cache-base
 
+    - name: Capture performance build provenance
+      if: always()
+      env:
+        CI_IMAGE_TAG: ${{ needs.config.outputs.ci_image_tag }}
+        REQUESTED_HEAD_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+      run: |
+        python3 - <<'PY'
+        import json
+        import os
+        import pathlib
+        import subprocess
+        from datetime import datetime, timezone
+
+        commit = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
+        # Read the commit object: revision walkers hide parents in a shallow checkout.
+        parents = [line.split()[1] for line in subprocess.check_output(
+            ["git", "cat-file", "-p", "HEAD"], text=True,
+        ).split("\n\n", 1)[0].splitlines() if line.startswith("parent ")]
+        event = json.loads(pathlib.Path(os.environ["GITHUB_EVENT_PATH"]).read_text())
+        pull_request = event.get("pull_request", {})
+        reference_branch = pull_request.get("base", {}).get("ref") or os.environ["GITHUB_REF_NAME"]
+        inspected = subprocess.run(
+            ["docker", "image", "inspect", os.environ["CI_IMAGE_TAG"]],
+            capture_output=True, text=True,
+        )
+        image = json.loads(inspected.stdout)[0] if inspected.returncode == 0 else {}
+        record = {
+            "schema_version": 1,
+            "source": {
+                "commit": commit,
+                "requested_head_commit": os.environ["REQUESTED_HEAD_COMMIT"],
+                "event": os.environ["GITHUB_EVENT_NAME"],
+                "reference_branch": reference_branch,
+                "reference_commit": parents[0] if parents else None,
+                "commit_parents": parents,
+                "event_base_commit": pull_request.get("base", {}).get("sha"),
+                "image_ref": os.environ["CI_IMAGE_TAG"],
+                "image_digest": next(iter(image.get("RepoDigests", [])), None),
+                "image_id": image.get("Id"),
+                "provenance": "ci_checkout",
+            },
+            "execution": {
+                "run_id": int(os.environ["GITHUB_RUN_ID"]),
+                "run_attempt": int(os.environ["GITHUB_RUN_ATTEMPT"]),
+                "job": os.environ["GITHUB_JOB"],
+                "measurement_not_before": datetime.now(timezone.utc).isoformat(),
+                "expected_samples": 3,
+            },
+            "metric_definition": {
+                "total_fps": "aggregate_frames_over_measured_seconds",
+                "producer_commit": commit,
+                "provenance": "ci_producer_source",
+            },
+        }
+        output = pathlib.Path("benchmark-output")
+        output.mkdir(exist_ok=True)
+        (output / "build-context.json").write_text(json.dumps(record, indent=2) + "\n")
+        PY
+
     # Kit-free combinations only: name|task|num_envs|bench_timeout_s|args
     - name: Define benchmark matrix
       run: |
