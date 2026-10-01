@@ -9,17 +9,18 @@ const arrayTypes = {
 };
 
 class BrowserSimulation {
-  static async load(source) {
+  static async load(source, wasmSource) {
     const url = new URL(source, document.baseURI);
     const response = await fetch(url);
     if (!response.ok) throw new Error(`Manifest request failed (${response.status})`);
     const manifest = await response.json();
     if (manifest.bundleVersion !== 1 || manifest.abiVersion !== 1) throw new Error('Unsupported simulation bundle');
     const factory = (await import(new URL(manifest.module, url).href)).default;
-    const options = { locateFile: (name) => new URL(name.endsWith('.wasm') ? manifest.wasm : name, url).href };
+    const wasmUrl = new URL(wasmSource || manifest.wasm, url);
+    const options = { locateFile: (name) => name.endsWith('.wasm') ? wasmUrl.href : new URL(name, url).href };
     if (manifest.wasm.endsWith('.gz')) {
       if (!('DecompressionStream' in window)) throw new Error('This browser cannot decompress the simulation bundle');
-      const wasmResponse = await fetch(new URL(manifest.wasm, url));
+      const wasmResponse = await fetch(wasmUrl);
       if (!wasmResponse.ok || !wasmResponse.body) throw new Error(`WebAssembly request failed (${wasmResponse.status})`);
       const decompressed = wasmResponse.body.pipeThrough(new DecompressionStream('gzip'));
       options.wasmBinary = new Uint8Array(await new Response(decompressed).arrayBuffer());
@@ -157,14 +158,14 @@ class IsaacLabBrowserDemo extends HTMLElement {
     this.status = this.querySelector('[role="status"]');
     this.canvas = this.querySelector('canvas');
     try {
-      const simulation = await BrowserSimulation.load(this.getAttribute('src'));
+      const simulation = await BrowserSimulation.load(this.getAttribute('src'), this.getAttribute('wasm-src'));
       if (this.generation !== generation) {
         simulation.dispose();
         return;
       }
       this.simulation = simulation;
       this.demo = this.simulation.manifest.isaacLabDemo;
-      if (!this.demo || !['stiffness', 'cloth_bending', 'rigid_friction', 'joint_pd', 'cartpole', 'g1', 'anymal'].includes(this.demo.kind)) throw new Error('Unknown Isaac Lab demo');
+      if (!this.demo || !['stiffness', 'cloth_bending', 'mpm', 'rigid_friction', 'joint_pd', 'cartpole', 'g1', 'anymal'].includes(this.demo.kind)) throw new Error('Unknown Isaac Lab demo');
       this.querySelector('.browser-demo').classList.add(`browser-demo-${this.demo.kind}`);
       const title = this.getAttribute('demo-title') || this.demo.title;
       this.querySelector('.browser-demo-head strong').textContent = title;
@@ -194,7 +195,7 @@ class IsaacLabBrowserDemo extends HTMLElement {
           return;
         }
         this.viewer = viewer;
-      } else if (!['stiffness', 'cloth_bending'].includes(this.demo.kind)) {
+      } else if (!['stiffness', 'cloth_bending', 'mpm'].includes(this.demo.kind)) {
         const [{ LocomotionViewer }, policy] = await Promise.all([
           import('./locomotion-viewer.js'), DensePolicy.load(this.simulation.url, this.demo.policy),
         ]);
@@ -292,6 +293,57 @@ class IsaacLabBrowserDemo extends HTMLElement {
             }
           }, (value) => format(physical(value)));
       }
+    } else if (this.demo.kind === 'mpm') {
+      this.pendingMaterial = Float32Array.from(this.simulation.binding('material'));
+      const hint = document.createElement('small');
+      hint.className = 'browser-demo-material-hint';
+      hint.textContent = `${this.demo.particleCount.toLocaleString()} particles · Qualitative references. Presets reset the drop.`;
+      panel.append(hint);
+      const references = document.createElement('div');
+      references.className = 'browser-demo-material-presets';
+      references.setAttribute('role', 'group');
+      references.setAttribute('aria-label', 'Material references');
+      const presetButtons = [];
+      const sliders = [];
+      for (const [index, preset] of this.demo.materialPresets.entries()) {
+        const button = document.createElement('button');
+        button.textContent = preset.label;
+        button.setAttribute('aria-pressed', String(index === 0));
+        button.style.setProperty('--material-color', preset.color);
+        button.addEventListener('click', () => {
+          this.pendingMaterial.set(preset.values);
+          for (const { parameter, slider, logarithmic, format } of sliders) {
+            const value = preset.values[parameter.index];
+            slider.value = logarithmic ? Math.log10(value) : value;
+            slider.parentElement.querySelector('output').value = format(value);
+          }
+          for (const item of presetButtons) item.setAttribute('aria-pressed', String(item === button));
+          this.viewer.setParticleColor(preset.color);
+          this.resetSimulation();
+          this.running = true;
+          pause.textContent = 'Pause';
+        });
+        presetButtons.push(button);
+        references.append(button);
+      }
+      panel.append(references);
+      for (const parameter of this.simulation.manifest.parameters) {
+        const logarithmic = parameter.index < 2;
+        const physical = (value) => logarithmic ? 10 ** value : value;
+        const format = (value) => parameter.index < 2 || parameter.index === 3
+          ? `${Number((value / 1000).toPrecision(3))} kPa` : value.toFixed(2);
+        const slider = this.addSlider(panel, parameter.label,
+          logarithmic ? Math.log10(parameter.minimum) : parameter.minimum,
+          logarithmic ? Math.log10(parameter.maximum) : parameter.maximum,
+          logarithmic ? 0.01 : parameter.step,
+          logarithmic ? Math.log10(this.pendingMaterial[parameter.index]) : this.pendingMaterial[parameter.index],
+          (value) => {
+            this.pendingMaterial[parameter.index] = physical(value);
+            for (const button of presetButtons) button.setAttribute('aria-pressed', 'false');
+          },
+          (value) => format(physical(value)));
+        sliders.push({ parameter, slider, logarithmic, format });
+      }
     } else if (this.demo.kind === 'joint_pd') {
       this.setupJointPdControls(panel);
     } else if (this.demo.kind === 'cartpole') {
@@ -335,8 +387,14 @@ class IsaacLabBrowserDemo extends HTMLElement {
       pause.textContent = this.running ? 'Pause' : 'Play';
     });
     const reset = document.createElement('button');
-    reset.textContent = 'Reset';
-    reset.addEventListener('click', () => this.resetSimulation());
+    reset.textContent = this.demo.kind === 'mpm' ? 'Reset & drop' : 'Reset';
+    reset.addEventListener('click', () => {
+      this.resetSimulation();
+      if (this.demo.kind === 'mpm') {
+        this.running = true;
+        pause.textContent = 'Pause';
+      }
+    });
     buttons.append(pause, reset);
     panel.append(buttons);
   }
@@ -405,6 +463,7 @@ class IsaacLabBrowserDemo extends HTMLElement {
   }
 
   resetSimulation() {
+    if (this.pendingMaterial) this.simulation.binding('material').set(this.pendingMaterial);
     this.simulation.reset();
     this.previousAction?.fill(0);
     if (this.demo.kind === 'cartpole') this.policyForce = 0;
@@ -622,7 +681,7 @@ class IsaacLabBrowserDemo extends HTMLElement {
     try {
       if (this.running && this.visible) {
         this.elapsed = Math.min(this.elapsed + Math.min((time - this.previousTime) / 1000, 0.05), 0.06);
-        const steps = Math.min(12, Math.floor(this.elapsed / this.simulation.manifest.timestep));
+        const steps = Math.min(this.demo.maxStepsPerFrame || 12, Math.floor(this.elapsed / this.simulation.manifest.timestep));
         let resetDuringFrame = false;
         for (let index = 0; index < steps; index += 1) {
           if (this.policy && this.tick % this.demo.decimation === 0) {

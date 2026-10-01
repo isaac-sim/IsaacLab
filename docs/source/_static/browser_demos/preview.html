@@ -23,10 +23,18 @@ SPDX-License-Identifier: BSD-3-Clause
   <p>This preview runs the compiled Newton simulation in your browser. The documentation places it beside its related guide.</p>
   <script>
     const demo = new URLSearchParams(location.search).get('demo');
-    const supported = new Set(['stiffness', 'cloth_bending', 'rigid_friction', 'joint_pd', 'cartpole', 'g1', 'anymal']);
+    const supported = new Set(['stiffness', 'cloth_bending', 'mpm', 'rigid_friction', 'joint_pd', 'cartpole', 'g1', 'anymal']);
     if (supported.has(demo)) {
       const widget = document.createElement('isaaclab-browser-demo');
       widget.setAttribute('src', `./${demo}/manifest.json`);
+      // GitHub's raw endpoint serves LFS pointers; its media endpoint serves the binary.
+      if (demo === 'mpm' && ['raw.githack.com', 'rawcdn.githack.com'].includes(location.hostname)) {
+        const wasm = new URL(`./${demo}/simulation.wasm.gz`, location.href);
+        wasm.hostname = 'media.githubusercontent.com';
+        wasm.pathname = `/media${wasm.pathname}`;
+        wasm.search = '';
+        widget.setAttribute('wasm-src', wasm.href);
+      }
       document.body.append(widget);
     } else {
       document.body.append(document.createTextNode('Choose a supported demo in the URL.'));

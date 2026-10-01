@@ -18,6 +18,13 @@ isaaclab-browser-demo:empty::before { content: 'Interactive simulation loads whe
 .browser-demo canvas:active { cursor: grabbing; }
 isaaclab-browser-demo.compact .browser-demo canvas { height: min(410px, 55vw); min-height: 320px; }
 .browser-demo-controls { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem 1.5rem; padding: 1rem; background: #fff; border-top: 1px solid #e5ecef; }
+.browser-demo-material-hint { flex-basis: 100%; color: #587078; font-size: .8rem; }
+.browser-demo-mpm .browser-demo-slider { flex-basis: 300px; }
+.browser-demo-material-presets { display: flex; flex-wrap: wrap; gap: .5rem; width: 100%; }
+.browser-demo .browser-demo-material-presets button { display: inline-flex; align-items: center; gap: .45rem; border-radius: 99px; }
+.browser-demo-material-presets button::before { content: ''; width: .65rem; height: .65rem; border-radius: 50%; background: var(--material-color); box-shadow: 0 0 0 1px #14232b22; }
+.browser-demo-material-presets button:hover { background: #f3f7ed; }
+.browser-demo-material-presets button[aria-pressed="true"] { border-color: #76b900; background: #eaf5dc; }
 .browser-demo-slider { display: grid; grid-template-columns: auto minmax(100px, 1fr) 4.5em; align-items: center; gap: .6rem; flex: 1 1 250px; font-size: .85rem; }
 .browser-demo-slider input { width: 100%; accent-color: #76b900; }
 .browser-demo-slider output { text-align: right; font-variant-numeric: tabular-nums; }

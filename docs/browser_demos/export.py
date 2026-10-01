@@ -27,11 +27,21 @@ import numpy as np
 import torch
 import trimesh
 import warp as wp
+import warp.fem as fem
 from mujoco_warp._src.types import DisableBit
+from newton._src.solvers.implicit_mpm.contact_solver_kernels import solve_coulomb_isotropic
+from newton._src.solvers.implicit_mpm.implicit_mpm_solver_kernels import integrate_fraction
+from newton._src.solvers.implicit_mpm.rasterized_collisions import world_position
+from newton._src.solvers.implicit_mpm.rheology_solver_kernels import YieldParamVec
+from newton._src.solvers.implicit_mpm.solver_implicit_mpm import ImplicitMPMScratchpad, LastStepData
 from newton_web import Parameter, export_graph
 
 STIFFNESS_DT = 1.0 / 240.0
 CLOTH_DT = 1.0 / 120.0
+MPM_DT = 1.0 / 60.0
+MPM_TUB_HALF_WIDTH = wp.constant(0.95)
+MPM_TUB_HALF_DEPTH = wp.constant(0.75)
+MPM_TUB_HEIGHT = wp.constant(0.42)
 G1_DOF = 29
 G1_POLICY_SHA256 = "4c92c5a64d1220ab02b042e77bdd69bcd2c0310590755c3dd53b5bde229d26e4"
 G1_VISUAL_URDF_SHA256 = "c0ae739c640c3e2c00d1bdd8810b5d6e59601487bd1a3995859f9543269ee5c8"
@@ -83,6 +93,168 @@ def _set_cloth_bending(value: wp.array(dtype=float), materials: wp.array2d(dtype
 @wp.kernel
 def _set_rigid_friction(value: wp.array(dtype=float), geom_friction: wp.array2d(dtype=wp.vec3), geom: int):
     geom_friction[0, geom] = wp.vec3(value[0], 0.005, 0.0001)
+
+
+@wp.kernel
+def _set_mpm_material(
+    values: wp.array(dtype=float),
+    young_modulus: wp.array(dtype=float),
+    yield_pressure: wp.array(dtype=float),
+    friction: wp.array(dtype=float),
+    yield_stress: wp.array(dtype=float),
+    hardening: wp.array(dtype=float),
+    poisson_ratio: wp.array(dtype=float),
+    tensile_yield_ratio: wp.array(dtype=float),
+):
+    particle = wp.tid()
+    young_modulus[particle] = values[0]
+    yield_pressure[particle] = values[1]
+    friction[particle] = values[2]
+    yield_stress[particle] = values[3]
+    hardening[particle] = values[4]
+    poisson_ratio[particle] = values[5]
+    tensile_yield_ratio[particle] = values[6]
+
+
+@wp.func
+def _mpm_boundary(p: wp.vec3):
+    radial = wp.vec3(p[0], 0.0, p[2] - 0.30)
+    radial_length = wp.length(radial)
+    d = wp.vec2(radial_length - 0.24, wp.abs(p[1]) - 0.42)
+    outside = wp.vec2(wp.max(d[0], 0.0), wp.max(d[1], 0.0))
+    sdf = wp.min(wp.max(d[0], d[1]), 0.0) + wp.length(outside)
+    radial_normal = radial / wp.max(radial_length, 1.0e-6)
+    axial_normal = wp.vec3(0.0, wp.sign(p[1]), 0.0)
+    normal = wp.where(d[0] > d[1], radial_normal, axial_normal)
+    if d[0] > 0.0 and d[1] > 0.0:
+        normal = wp.normalize(outside[0] * radial_normal + outside[1] * axial_normal)
+    if p[2] < sdf:
+        sdf = p[2]
+        normal = wp.vec3(0.0, 0.0, 1.0)
+    # Inner walls are capped at the open rim, allowing material to fall in.
+    for axis in range(2):
+        half_extent = wp.where(axis == 0, MPM_TUB_HALF_WIDTH, MPM_TUB_HALF_DEPTH)
+        wall = wp.vec2(half_extent - wp.abs(p[axis]), p[2] - MPM_TUB_HEIGHT)
+        outside_wall = wp.vec2(wp.max(wall[0], 0.0), wp.max(wall[1], 0.0))
+        wall_sdf = wp.min(wp.max(wall[0], wall[1]), 0.0) + wp.length(outside_wall)
+        inward = wp.vec3(0.0)
+        inward[axis] = -wp.sign(p[axis])
+        upward = wp.vec3(0.0, 0.0, 1.0)
+        wall_normal = wp.where(wall[0] > wall[1], inward, upward)
+        if wall[0] > 0.0 and wall[1] > 0.0:
+            wall_normal = wp.normalize(outside_wall[0] * inward + outside_wall[1] * upward)
+        if wall_sdf < sdf:
+            sdf = wall_sdf
+            normal = wall_normal
+    return sdf, normal
+
+
+@wp.kernel
+def _rasterize_mpm_boundaries(
+    positions: wp.array(dtype=wp.vec3),
+    distance: wp.array(dtype=float),
+    normals: wp.array(dtype=wp.vec3),
+    friction: wp.array(dtype=float),
+    activation_distance: float,
+):
+    node = wp.tid()
+    p = positions[node]
+    if p[0] == fem.OUTSIDE:
+        distance[node] = 1.0e12
+        normals[node] = wp.vec3(0.0)
+        friction[node] = -1.0
+        return
+    sdf, normal = _mpm_boundary(p)
+    distance[node] = sdf
+    normals[node] = wp.where(sdf < activation_distance, normal, wp.vec3(0.0))
+    friction[node] = wp.where(sdf < activation_distance, 0.35, -1.0)
+
+
+@wp.kernel
+def _project_mpm_boundaries(
+    positions: wp.array(dtype=wp.vec3),
+    velocities: wp.array(dtype=wp.vec3),
+    gradients: wp.array(dtype=wp.mat33),
+    dt: float,
+):
+    particle = wp.tid()
+    sdf, normal = _mpm_boundary(positions[particle])
+    if sdf < 0.0:
+        # Use Newton's particle projection and Coulomb response for the same SDF.
+        velocity = velocities[particle]
+        delta_velocity = solve_coulomb_isotropic(0.35, normal, velocity) - velocity
+        positions[particle] += delta_velocity * dt - wp.min(0.0, sdf + dt * wp.dot(delta_velocity, normal)) * normal
+        velocities[particle] += delta_velocity
+        gradients[particle] = 0.5 * (gradients[particle] - wp.transpose(gradients[particle]))
+
+
+@wp.kernel
+def _condition_mpm_cell_volume(volume: wp.array(dtype=float), yield_parameters: wp.array(dtype=YieldParamVec)):
+    cell = wp.tid()
+    if volume[cell] <= 1.0e-6:
+        volume[cell] = 1.0
+        yield_parameters[cell] = YieldParamVec(0.0)
+
+
+class _BrowserMPM(newton.solvers.SolverImplicitMPM):
+    """Use analytic static boundaries in the pinned MPM export graph.
+
+    Newton's grid contact solver consumes these distances and normals. Mesh
+    handles cannot be shared between the native process and WebAssembly.
+    """
+
+    def _build_strain_eigenbasis(
+        self, pic: fem.PicQuadrature, scratch: ImplicitMPMScratchpad, inv_cell_volume: float
+    ) -> tuple[None, None]:
+        # P0's scalar mass matrix is diagonal. Apply Newton's small-volume cutoff
+        # directly, avoiding the general block-copy/eigenbasis path in CPU capture.
+        wp.launch(
+            _condition_mpm_cell_volume,
+            dim=scratch.strain_node_count,
+            inputs=[scratch.strain_node_particle_volume, scratch.strain_yield_parameters_field.dof_values],
+            device=self.model.device,
+        )
+        return None, None
+
+    def _rasterize_colliders(
+        self,
+        state_in: newton.State,
+        dt: float,
+        last_step_data: LastStepData,
+        scratch: ImplicitMPMScratchpad,
+        inv_cell_volume: float,
+    ) -> None:
+        fem.integrate(
+            integrate_fraction,
+            fields={"phi": scratch.collider_fraction_test},
+            values={"inv_cell_volume": inv_cell_volume},
+            assembly="nodal",
+            output=scratch.collider_node_volume,
+            temporary_store=self.temporary_store,
+        )
+        scratch.collider_position_field.dof_values.fill_(wp.vec3(fem.OUTSIDE))
+        fem.interpolate(
+            world_position,
+            dest=scratch.collider_position_field,
+            at=scratch.collider_fraction_test.space_restriction,
+            reduction="first",
+            temporary_store=self.temporary_store,
+        )
+        scratch.collider_velocity.zero_()
+        scratch.collider_adhesion.zero_()
+        scratch.collider_ids.fill_(-1)
+        wp.launch(
+            _rasterize_mpm_boundaries,
+            dim=scratch.collider_node_count,
+            inputs=[
+                scratch.collider_position_field.dof_values,
+                scratch.collider_distance_field.dof_values,
+                scratch.collider_normal_field.dof_values,
+                scratch.collider_friction,
+                0.5 * self._mpm_model.voxel_size,
+            ],
+            device=self.model.device,
+        )
 
 
 @wp.kernel
@@ -339,6 +511,154 @@ def export_cloth_bending(output: Path) -> None:
         wp.capture_launch(capture.graph)
     if not np.isfinite(state_in.particle_q.numpy()).all():
         raise RuntimeError("VBD cloth reference trajectory is not finite")
+
+
+def export_mpm(output: Path) -> None:
+    """Export one MPM block dropping over a horizontal cylinder into a catch tub.
+
+    Args:
+        output: Directory receiving the captured graph and manifest.
+    """
+    solver_type = newton.solvers.SolverImplicitMPM
+    builder = newton.ModelBuilder()
+    solver_type.register_custom_attributes(builder)
+    dimension = 12
+    spacing = 0.35 / dimension
+    voxel_size = 0.1
+    count = dimension**3
+    half_extent = 0.5 * (dimension - 1) * spacing
+    builder.add_particle_grid(
+        pos=wp.vec3(0.02 - half_extent, -half_extent, 0.95),
+        rot=wp.quat_identity(),
+        vel=wp.vec3(0.0),
+        dim_x=dimension,
+        dim_y=dimension,
+        dim_z=dimension,
+        cell_x=spacing,
+        cell_y=spacing,
+        cell_z=spacing,
+        mass=1000.0 * spacing**3,
+        jitter=0.0,
+        radius_mean=0.5 * spacing,
+    )
+    jitter = np.random.default_rng(42).uniform(-0.2 * spacing, 0.2 * spacing, (count, 3))
+    builder.particle_q[:count] = (np.asarray(builder.particle_q[:count]) + jitter).tolist()
+
+    cylinder_radius = 0.24
+    cylinder_height = 0.84
+    cylinder_center = (0.0, 0.0, 0.30)
+    builder.add_ground_plane()
+    model = builder.finalize(device="cpu")
+    # Qualitative references: E, compression yield, friction, cohesion,
+    # hardening, Poisson ratio, and tensile/compressive yield ratio.
+    presets = (
+        {"label": "Sand", "values": [1.0e5, 1.0e5, 0.65, 0.0, 0.0, 0.3, 0.0], "color": "#c8a361"},
+        {"label": "Snow", "values": [5.0e4, 1.0e3, 0.1, 1000.0, 1.5, 0.3, 0.2], "color": "#e7eef5"},
+        {"label": "Clay", "values": [1.0e5, 1.0e5, 0.1, 5000.0, 0.0, 0.3, 0.5], "color": "#b97556"},
+        {"label": "Water", "values": [1.0e4, 1.0e5, 0.0, 0.0, 0.0, 0.49, 0.0], "color": "#438fcb"},
+    )
+    material = wp.array(presets[0]["values"], dtype=float, device="cpu")
+    material_arrays = (
+        model.mpm.young_modulus,
+        model.mpm.yield_pressure,
+        model.mpm.friction,
+        model.mpm.yield_stress,
+        model.mpm.hardening,
+        model.mpm.poisson_ratio,
+        model.mpm.tensile_yield_ratio,
+    )
+    wp.launch(_set_mpm_material, dim=count, inputs=[material, *material_arrays], device="cpu")
+    # Record the plastic-history update even when the selected hardening is zero.
+    model.mpm.hardening.fill_(1.0)
+    model.mpm.damping.fill_(0.01)
+    config = solver_type.Config(
+        voxel_size=voxel_size,
+        grid_type="fixed",
+        grid_padding=14,
+        max_active_cell_count=384,
+        collider_basis="Q1",
+        strain_basis="P0",
+        # The CPU Jacobi solver executes batches of 50 iterations.
+        max_iterations=50,
+        tolerance=1.0e-4,
+        solver="jacobi",
+        warmstart_mode="particles",
+        transfer_scheme="apic",
+    )
+    solver = _BrowserMPM(model, config=config, verbose=False)
+    state_in, state_out = model.state(), model.state()
+    # Materialize sparse matrix layouts before recording the CPU graph.
+    solver.step(state_in, state_out, None, None, MPM_DT)
+    solver.reset(state_in)
+    solver.reset(state_out)
+    # APIC supports conditional CPU graphs; avoid capture-time residual readbacks.
+    solver._use_cuda_graph = True
+    with wp.ScopedCapture(device="cpu", apic=True) as capture:
+        wp.launch(_set_mpm_material, dim=count, inputs=[material, *material_arrays], device="cpu")
+        solver.step(state_in, state_out, None, None, MPM_DT)
+        wp.launch(
+            _project_mpm_boundaries,
+            dim=count,
+            inputs=[state_out.particle_q, state_out.particle_qd, state_out.mpm.particle_qd_grad, MPM_DT],
+            device="cpu",
+        )
+        wp.copy(state_in.particle_q, state_out.particle_q)
+        wp.copy(state_in.particle_qd, state_out.particle_qd)
+        wp.copy(state_in.mpm.particle_qd_grad, state_out.mpm.particle_qd_grad)
+        wp.copy(state_in.mpm.particle_elastic_strain, state_out.mpm.particle_elastic_strain)
+        wp.copy(state_in.mpm.particle_stress, state_out.mpm.particle_stress)
+        wp.copy(state_in.mpm.particle_Jp, state_out.mpm.particle_Jp)
+    # Newton's residual reduction creates unowned views with capacity zero.
+    # Warp 1.17 records those aliases with the owning region's ID; serialize
+    # each region once, using its largest tracked allocation.
+    regions = {}
+    for key, region in capture.graph._apic_capture._regions.items():
+        previous = regions.get(region[0])
+        if previous is None or region[2] > previous[1][2]:
+            regions[region[0]] = (key, region)
+    capture.graph._apic_capture._regions = dict(regions.values())
+    export_graph(
+        capture.graph,
+        model=model,
+        inputs={"particle_q": state_in.particle_q, "particle_qd": state_in.particle_qd, "material": material},
+        outputs={"particle_q": state_in.particle_q, "particle_qd": state_in.particle_qd},
+        output=output,
+        timestep=MPM_DT,
+        parameters=(
+            Parameter("material", 0, "Stiffness", 1.0e4, 1.0e6, 1000.0),
+            Parameter("material", 1, "Compression yield", 200.0, 100000.0, 100.0),
+            Parameter("material", 2, "Internal friction", 0.0, 1.0, 0.01),
+            Parameter("material", 3, "Cohesion", 0.0, 10000.0, 10.0),
+            Parameter("material", 4, "Hardening", 0.0, 2.0, 0.1),
+        ),
+        persistent=("material",),
+        particle_colors=("#c8a361",) * count,
+    )
+    _write_manifest(
+        output,
+        {
+            "kind": "mpm",
+            "title": "Material tuning with MPM",
+            "particleCount": count,
+            "particleRadius": 0.4 * spacing,
+            "materialPresets": presets,
+            "voxelSize": voxel_size,
+            "solverIterations": config.max_iterations,
+            "cycleSteps": 120,
+            "maxStepsPerFrame": 1,
+            "cylinder": {"radius": cylinder_radius, "height": cylinder_height, "position": cylinder_center},
+            "tub": {
+                "halfWidth": float(MPM_TUB_HALF_WIDTH),
+                "halfDepth": float(MPM_TUB_HALF_DEPTH),
+                "height": float(MPM_TUB_HEIGHT),
+                "thickness": 0.04,
+            },
+        },
+    )
+    for _ in range(120):
+        wp.capture_launch(capture.graph)
+    if not np.isfinite(state_in.particle_q.numpy()).all():
+        raise RuntimeError("MPM reference trajectory is not finite")
 
 
 def export_rigid_friction(output: Path) -> None:
@@ -1191,7 +1511,7 @@ def export_anymal(output: Path, usd: Path, checkpoint: Path) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "demo", choices=("stiffness", "cloth_bending", "rigid_friction", "joint_pd", "cartpole", "g1", "anymal")
+        "demo", choices=("stiffness", "cloth_bending", "mpm", "rigid_friction", "joint_pd", "cartpole", "g1", "anymal")
     )
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--usd", type=Path, help="Local task USD asset; required for Cartpole and ANYmal-D")
@@ -1207,6 +1527,8 @@ def main() -> None:
         export_stiffness(bundle)
     elif args.demo == "cloth_bending":
         export_cloth_bending(bundle)
+    elif args.demo == "mpm":
+        export_mpm(bundle)
     elif args.demo == "rigid_friction":
         export_rigid_friction(bundle)
     elif args.demo == "joint_pd":

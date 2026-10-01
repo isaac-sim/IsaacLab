@@ -12,6 +12,8 @@
 *.jit filter=lfs diff=lfs merge=lfs -text
 *.hdf5 filter=lfs diff=lfs merge=lfs -text
 
+docs/source/_static/browser_demos/mpm/*.wasm.gz filter=lfs diff=lfs merge=lfs -text
+
 source/isaaclab_tasks/test/golden_images/**/*.png filter=lfs diff=lfs merge=lfs -text
 
 # Generated actuator plots are reviewed as rendered images rather than XML.

@@ -10,6 +10,7 @@ SPDX-License-Identifier: BSD-3-Clause
 `export.py` is the source for the interactive examples in the
 [VBD tuning](../source/concepts/solver-tuning/tune_vbd.rst),
 [MJWarp tuning](../source/concepts/solver-tuning/tune_mjwarp.rst),
+[MPM](../source/concepts/using_mpm.rst),
 [actuator](../source/concepts/actuators.rst), and
 [reinforcement learning](../source/concepts/reinforcement_learning.rst) guides. Each demo is an
 independent manifest, WebAssembly module, and optional policy and visual files. The shared
@@ -31,6 +32,10 @@ tool). It requires Emscripten 5.0.3. The compiled assets are checked into
 compiler or external robot and policy assets.
 Bundles larger than 2 MB are stored as gzip files. The shared browser widget
 decompresses them with `DecompressionStream` before initializing WebAssembly.
+The compressed MPM module also exceeds 2 MB and uses Git LFS; fetch it with
+`git lfs pull` before building the documentation. The standalone GitHub preview
+selects GitHub's media URL through the widget's optional `wasm-src` attribute,
+while documentation builds use the local bundle.
 The VBD widget exposes shear, volume, damping, and gravity in one WebAssembly
 instance. The joint PD widget exposes the target and both drive gains. Locomotion
 robots share the policy evaluator, joystick controls, and
@@ -51,6 +56,45 @@ arm. The browser supplies step and sine targets and plots measured joint angles;
 the exported graph advances MJWarp with live per-joint implicit-drive gains.
 These bundles are under 1 MB of WebAssembly and
 need no robot asset.
+The MPM demo drops one deterministically jittered 1,728-particle block over a
+horizontal cylinder into a 1.9 m × 1.5 m catch tub with a 0.42 m rim.
+Clear walls reveal the collected material. It uses a fixed 0.1 m grid and a 60 Hz implicit MPM
+step with up to 50 Jacobi iterations. Five controls set `young_modulus`,
+`yield_pressure`, `friction`, `yield_stress`, and `hardening` on reset.
+Sand, snow, clay, and water buttons select qualitative reference materials,
+including Poisson ratio and tensile yield ratio, and restart the drop.
+The 12 × 12 × 12 lattice samples the same 0.35 m cube at a density of
+1,000 kg/m³. Displayed particle radii are 40% of the lattice spacing;
+simulation radii remain 50%, so reducing the displayed grain size does not
+change the material volume.
+
+| Reference | Stiffness [Pa] | Compression yield [Pa] | Friction | Cohesion [Pa] | Hardening | Poisson ratio | Tensile yield ratio |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Sand | 100,000 | 100,000 | 0.65 | 0 | 0 | 0.3 | 0 |
+| Snow | 50,000 | 1,000 | 0.1 | 1,000 | 1.5 | 0.3 | 0.2 |
+| Clay | 100,000 | 100,000 | 0.1 | 5,000 | 0 | 0.3 | 0.5 |
+| Water | 10,000 | 100,000 | 0 | 0 | 0 | 0.49 | 0 |
+
+These presets demonstrate material response on a coarse grid; they are not
+calibrated material models. Water retains the particle view without surface
+reconstruction.
+
+Reset reloads the complete captured state, including plastic strain and solver
+history, while preserving the selected material. A build-only solver subclass
+supplies analytic cylinder, inner tub wall, rim, and floor distances and normals to Newton's grid
+contact solver, with Newton's Coulomb response for particle projection, avoiding
+process-local mesh handles. For the scalar P0 strain
+basis it uses the diagonal cell volumes directly, including Newton's small-volume
+cutoff. The export enables Warp's conditional CPU graph so convergence is checked
+at replay instead of reading an unfinished capture. It also deduplicates recorded
+allocation aliases to preserve the owning capacity when Warp 1.17 serializes
+Newton's residual-reduction views. These hooks rely on the pinned Newton and Warp
+versions. The browser advances the compiled Newton kernels.
+Density is fixed at 1,000 kg/m³ and the elastic damping relaxation time at
+0.01 s. Each two-second drop repeats; at most one physics step
+runs per animation frame, keeping controls responsive on slower CPUs. Playback
+speed depends on the device. The finite grid is intended for this compact comparison.
+The viewer renders the 1,728 moving particles with one instanced draw.
 The ground textures are checked into `docs/source/_static/browser_demos/shared/`
 from the same hosted asset selected by `GroundPlaneCfg`. The Three.js r170 module
 is minified with Terser 5.44.1 and checked into `docs/source/_static/vendor/`
@@ -77,6 +121,8 @@ Then build the physics-only examples:
 uv run --no-sync python docs/browser_demos/export.py stiffness \
     --output /tmp/isaaclab-browser-build --emxx /path/to/emsdk/upstream/emscripten/em++
 uv run --no-sync python docs/browser_demos/export.py cloth_bending \
+    --output /tmp/isaaclab-browser-build --emxx /path/to/emsdk/upstream/emscripten/em++
+uv run --no-sync python docs/browser_demos/export.py mpm \
     --output /tmp/isaaclab-browser-build --emxx /path/to/emsdk/upstream/emscripten/em++
 uv run --no-sync python docs/browser_demos/export.py rigid_friction \
     --output /tmp/isaaclab-browser-build --emxx /path/to/emsdk/upstream/emscripten/em++
@@ -166,7 +212,7 @@ Expected input SHA-256 values for this build:
 | ANYmal-D instanceable meshes | `a864b5b9e192592595490f4116319476090f6789830057854c6532020dfc3d33` |
 | ANYmal-D flat Newton checkpoint | `0654295241696cdc7855f517a8d94a4951a243f6b21d73152225162ea01aeaaa` |
 
-Copy the contents of `stiffness-web/`, `cloth_bending-web/`, `rigid_friction-web/`, `joint_pd-web/`, `cartpole-web/`, `g1-web/`, and `anymal-web/` into the corresponding
+Copy the contents of `stiffness-web/`, `cloth_bending-web/`, `mpm-web/`, `rigid_friction-web/`, `joint_pd-web/`, `cartpole-web/`, `g1-web/`, and `anymal-web/` into the corresponding
 `docs/source/_static/browser_demos/` directories. Verify the widgets through
 an HTTP server, since `file://` URLs cannot load the WebAssembly modules. The
 G1 bundle contains compiled Newton code, the actor weights, and decimated

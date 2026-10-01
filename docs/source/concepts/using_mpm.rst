@@ -116,6 +116,46 @@ USD clones share the same local particle distribution. Use reset events or domai
 randomization when each environment needs an independent distribution.
 
 
+.. _browser-demo-mpm:
+
+Try Material Tuning in the Browser
+----------------------------------
+
+One jittered block of 1,728 particles falls onto a stationary horizontal
+cylinder inside a shallow catch tub. Its clear walls keep the collected
+particles visible. Choose **Sand**, **Snow**, **Clay**, or **Water** to restart with a
+material reference, or adjust the sliders and press **Reset & drop** to compare the same
+initial state. Each two-second drop repeats. The camera starts almost along
+the cylinder axis; drag to orbit or scroll to zoom.
+
+The presets are qualitative comparisons on the same coarse grid, rather than
+calibrated material models. Sand has friction and no tensile strength; snow
+has low compression yield, 1 kPa cohesion, and hardening; clay has cohesion; water has zero
+friction, cohesion, and tensile strength, with a nearly incompressible elastic
+response. Presets also set Poisson ratio and tensile yield ratio. More particles
+sample the same blob volume without changing its total mass or grid resolution.
+
+Stiffness controls elastic deformation. Compression yield and cohesion
+(``yield_pressure`` and ``yield_stress``) control plastic yielding. Internal
+friction controls the pressure-dependent shear strength, and hardening changes
+the yield strength as plastic compression accumulates. Material changes apply
+on reset, including a fresh plastic history.
+Try reducing compression yield and internal friction for a spreading material,
+or increasing cohesion for a clump that rolls off the cylinder.
+
+This compact scene runs Newton's implicit MPM solver on the browser CPU.
+The cylinder, tub walls, and floor supply analytic surface distances and normals to
+Newton's grid contact solver. The grains use an instanced particle view;
+surface reconstruction remains a separate visualization choice. The source and rebuild instructions are in
+`docs/browser_demos <https://github.com/isaac-sim/IsaacLab/tree/develop/docs/browser_demos>`_.
+
+.. raw:: html
+
+   <link rel="stylesheet" href="../../_static/css/browser-demo.css">
+   <script type="module" src="../../_static/css/browser-demo.js"></script>
+   <isaaclab-browser-demo class="compact" src="../../_static/browser_demos/mpm/manifest.json"></isaaclab-browser-demo>
+
+
 Render a Particle Surface
 -------------------------
 
