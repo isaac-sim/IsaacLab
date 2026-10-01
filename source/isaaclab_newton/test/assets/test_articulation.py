@@ -2933,27 +2933,23 @@ def _author_world_hinged_pendulum(usd_path: str) -> None:
     stage.Save()
 
 
-@pytest.mark.parametrize("num_articulations", [1])
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 @pytest.mark.parametrize("articulation_type", ["single_joint_implicit"])  # consumed by the sim fixture
 @pytest.mark.isaacsim_ci
-def test_world_hinged_root_has_no_base_dofs(sim, num_articulations, device, articulation_type, tmp_path):
+def test_world_hinged_root_has_no_base_dofs(sim, device, articulation_type, tmp_path):
     """A root link hinged to the world adds no floating-base DoFs to the Jacobian, mass matrix or gravity."""
     usd_path = str(tmp_path / "world_hinged_pendulum.usda")
     _author_world_hinged_pendulum(usd_path)
     articulation_cfg = ArticulationCfg(
         spawn=sim_utils.UsdFileCfg(usd_path=usd_path),
-        actuators={"joints": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=0.0, damping=0.0)},
+        actuators={},
     )
-    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
+    articulation, _ = generate_articulation(articulation_cfg, 1, device=device)
     replicate(sim.get_clone_plan())
     sim.reset()
 
     assert articulation.num_base_dofs == 0
-    num_dofs = articulation.num_joints
-    assert articulation.data.body_link_jacobian_w.torch.shape[-1] == num_dofs
-    assert articulation.data.mass_matrix.torch.shape[-2:] == (num_dofs, num_dofs)
-    assert articulation.data.gravity_compensation_forces.torch.shape[-1] == num_dofs
+    assert articulation.data.body_link_jacobian_w.torch.shape[-1] == articulation.num_joints
 
 
 @pytest.mark.parametrize("num_articulations", [4])

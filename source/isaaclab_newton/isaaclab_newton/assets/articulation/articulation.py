@@ -251,12 +251,8 @@ class Articulation(BaseArticulation):
 
     @property
     def num_base_dofs(self) -> int:
-        """Number of free DoFs of the floating base.
-
-        Only a free root joint contributes base DoFs. The DoFs of any other root joint, such as a
-        revolute or prismatic joint to the world, are joints of the articulation and contribute none.
-        """
-        return 6 if self.root_view.root_joint_type == JointType.FREE else 0
+        """Number of free DoFs of the floating base: 6 for a free root joint, otherwise 0."""
+        return self.data._num_base_dofs
 
     @property
     def num_joints(self) -> int:
