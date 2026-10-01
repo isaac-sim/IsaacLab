@@ -598,7 +598,7 @@ class WrenchComposer:
 
         With no selection or ``env_ids=slice(None)``, zeros all seven buffers (5 input + 2 output) and clears all
         flags. Other ``env_ids`` or ``env_mask`` values perform a partial reset on the specified environments using
-        the reset kernels.
+        the reset kernels. An inactive composer already holds zero buffers, so any reset of it is a no-op.
 
         .. caution:: If both ``env_ids`` and ``env_mask`` are provided, ``env_mask`` takes precedence.
 
@@ -606,6 +606,8 @@ class WrenchComposer:
             env_ids: Environment indices. Defaults to None (all environments).
             env_mask: Environment mask. Defaults to None (all environments).
         """
+        if not self._active:
+            return
         full_reset = env_mask is None and (env_ids is None or (isinstance(env_ids, slice) and env_ids == slice(None)))
         if full_reset:
             # Full reset: zero all 7 buffers
