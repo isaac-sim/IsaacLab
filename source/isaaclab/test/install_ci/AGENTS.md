@@ -37,4 +37,4 @@
 - That helper must require a zero return code, no traceback, and `Training time:` in combined output.
 - Use the shared canonical Cartpole training command: RSL-RL, `Isaac-Cartpole-Direct`, 16 environments, `presets=newton_mjwarp`, and 5 iterations.
 - Invoke the shared command through `self.run_in_uv_env([str(self.cli_script)] + _TRAIN_CMD, ...)` or the conda equivalent.
-- Run this command headlessly without `--visualizer` or `--viz` unless a future configuration requires `--viz none`.
+- Run this command headlessly without `--visualizer` or `--viz`.
