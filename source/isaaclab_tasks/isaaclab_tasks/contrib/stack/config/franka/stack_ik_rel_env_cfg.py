@@ -22,7 +22,7 @@ from . import stack_joint_pos_env_cfg
 # Pre-defined configs
 ##
 from isaaclab_assets.robots.franka import (  # isort: skip
-    FRANKA_PANDA_HIGH_PD_CFG,
+    FRANKA_PANDA_LEGACY_HIGH_PD_CFG,
 )
 
 
@@ -37,7 +37,7 @@ class FrankaCubeStackEnvCfg(stack_joint_pos_env_cfg.FrankaCubeStackEnvCfg):
         robot_init_state = self.scene.robot.init_state
         robot_semantic_tags = self.scene.robot.spawn.semantic_tags
         self.scene.robot = replace(
-            FRANKA_PANDA_HIGH_PD_CFG, prim_path="{ENV_REGEX_NS}/Robot", init_state=robot_init_state
+            FRANKA_PANDA_LEGACY_HIGH_PD_CFG, prim_path="{ENV_REGEX_NS}/Robot", init_state=robot_init_state
         )
         self.scene.robot.spawn.semantic_tags = robot_semantic_tags
 

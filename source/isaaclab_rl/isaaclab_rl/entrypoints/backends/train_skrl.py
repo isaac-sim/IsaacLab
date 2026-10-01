@@ -14,6 +14,7 @@ import time
 from datetime import datetime
 
 import skrl
+import torch.distributed as dist
 
 from isaaclab.app import add_launcher_args, launch_simulation, report_activity
 from isaaclab.envs import DirectMARLEnvCfg
@@ -73,13 +74,6 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     return args_cli
 
 
-def _distributed_rank(args_cli: argparse.Namespace) -> int:
-    """Return the global distributed rank for the selected skrl ML framework."""
-    if args_cli.ml_framework == "jax":
-        return int(os.getenv("JAX_RANK", "0"))
-    return int(os.getenv("RANK", "0"))
-
-
 def run(argv: list[str]) -> None:
     """Train a skrl agent while restoring the caller's global skrl settings."""
     args_cli = _parse_args(argv)
@@ -110,27 +104,35 @@ def _run(args_cli: argparse.Namespace) -> None:
             args_cli.seed = resolve_seed(args_cli.seed)
             if args_cli.seed is not None:
                 agent_cfg["seed"] = args_cli.seed
-            if args_cli.distributed:
-                agent_cfg["seed"] += _distributed_rank(args_cli)
+            rank_env = "JAX_RANK" if args_cli.ml_framework == "jax" else "RANK"
+            rank = int(os.getenv(rank_env, "0")) if args_cli.distributed else None
+            if rank is not None:
+                agent_cfg["seed"] += rank
             env_cfg.seed = agent_cfg["seed"]
 
             experiment_cfg = agent_cfg["agent"]["experiment"]
             log_root_path = os.path.abspath(os.path.join("logs", "skrl", experiment_cfg["directory"]))
             print(f"[INFO] Logging experiment in directory: {log_root_path}")
-            run_name = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + f"_{algorithm}_{args_cli.ml_framework}"
+            run_name = (
+                args_cli.run_timestamp or datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            ) + f"_{algorithm}_{args_cli.ml_framework}"
             print(f"Exact experiment name requested from command line: {run_name}")
             if experiment_cfg["experiment_name"]:
                 run_name += f"_{experiment_cfg['experiment_name']}"
             experiment_cfg["directory"] = log_root_path
             experiment_cfg["experiment_name"] = run_name
             log_dir = os.path.join(log_root_path, run_name)
+            # rank 0 writes its settings and videos where a single-GPU run does; other ranks use rank_<rank>/
+            rank_dir = log_dir if rank in (None, 0) else os.path.join(log_dir, f"rank_{rank}")
             manifest_metadata = {
                 "agent": agent_cfg_entry_point,
                 "algorithm": algorithm,
                 "ml_framework": args_cli.ml_framework,
             }
-            write_run_manifest(log_dir, library="skrl", task=args_cli.task, metadata=manifest_metadata)
-            dump_train_configs(log_dir, env_cfg, agent_cfg)
+            # All ranks share the run folder, so its manifest is written once.
+            if rank in (None, 0):
+                write_run_manifest(log_dir, library="skrl", task=args_cli.task, metadata=manifest_metadata)
+            dump_train_configs(rank_dir, env_cfg, agent_cfg)
 
             if args_cli.checkpoint in CHECKPOINT_SELECTORS:
                 resume_path = resolve_checkpoint_selector(
@@ -145,8 +147,8 @@ def _run(args_cli: argparse.Namespace) -> None:
             else:
                 resume_path = retrieve_file_path(args_cli.checkpoint) if args_cli.checkpoint else None
 
-            env_cfg.log_dir = log_dir
-            apply_video_recording(env_cfg, log_dir, args_cli)
+            env_cfg.log_dir = rank_dir
+            apply_video_recording(env_cfg, rank_dir, args_cli)
 
             screen.stage("Creating environment")
             env = create_isaaclab_env(
@@ -156,7 +158,7 @@ def _run(args_cli: argparse.Namespace) -> None:
                 convert_marl_to_single_agent=isinstance(env_cfg, DirectMARLEnvCfg) and algorithm == "ppo",
             )
             cleanup.callback(lambda: close_env(env))
-            env = wrap_sensor_capture(env, log_dir, args_cli)
+            env = wrap_sensor_capture(env, rank_dir, args_cli)
 
             screen.stage("Preparing agent")
             start_time = time.time()
@@ -178,7 +180,11 @@ def _run(args_cli: argparse.Namespace) -> None:
             with contextlib.suppress(KeyboardInterrupt):
                 runner.run()
                 print(f"Training time: {round(time.time() - start_time, 2)} seconds")
-                total_timesteps = agent_cfg["trainer"]["timesteps"]
-                os.makedirs(os.path.join(log_dir, "checkpoints"), exist_ok=True)
-                runner.agent.write_checkpoint(timestep=total_timesteps, timesteps=total_timesteps)
-                print(f"[INFO] Saved final agent checkpoint to: {log_dir}/checkpoints")
+                if rank in (None, 0):
+                    total_timesteps = agent_cfg["trainer"]["timesteps"]
+                    os.makedirs(os.path.join(log_dir, "checkpoints"), exist_ok=True)
+                    runner.agent.write_checkpoint(timestep=total_timesteps, timesteps=total_timesteps)
+                    print(f"[INFO] Saved final agent checkpoint to: {log_dir}/checkpoints")
+                # the RL library creates the process group but never destroys it, which torch warns about at exit
+                if dist.is_initialized():
+                    dist.destroy_process_group()

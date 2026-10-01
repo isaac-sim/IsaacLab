@@ -31,7 +31,7 @@ class out_of_bound(ManagerTermBase):
     def __init__(self, cfg: TerminationTermCfg, env: ManagerBasedRLEnv):
         super().__init__(cfg, env)
 
-        asset_cfg: SceneEntityCfg = cfg.params.get("asset_cfg", SceneEntityCfg("object"))
+        asset_cfg: SceneEntityCfg = cfg.params["asset_cfg"]
         self._object: RigidObject = env.scene[asset_cfg.name]
 
         # Pre-apply env_origins so we can compare directly against world-space positions.

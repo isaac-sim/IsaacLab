@@ -172,15 +172,11 @@ class FrameTransformer(BaseFrameTransformer):
         for frame, prim_path, offset, frame_type in zip(frames, frame_prim_paths, frame_offsets, frame_types):
             # Resolve source-side env prims and destination expressions. This keeps discovery plan-aware when
             # the active clone plan has physics clones without authored USD prims for every environment.
-            def has_rigid_body_api(prim) -> bool:
-                return bool(prim.HasAPI(UsdPhysics.RigidBodyAPI))
-
-            matches = resolve_matching_prims_from_source(
-                prim_path,
-                predicate=has_rigid_body_api,
-                raise_if_no_matches=False,
-                prefer_direct_matches=True,
-            )
+            matches = [
+                (prim, destination)
+                for prim, destination in resolve_matching_prims_from_source(prim_path, raise_if_no_matches=False)
+                if prim.HasAPI(UsdPhysics.RigidBodyAPI)
+            ]
             if not matches:
                 raise ValueError(
                     f"Failed to create frame transformer for frame '{frame}' with path '{prim_path}'."

@@ -17,18 +17,18 @@ from isaaclab.utils import clone, configclass, replace
 
 from isaaclab_tasks.utils import preset
 
-from isaaclab_assets.robots import FRANKA_PANDA_FLAT_CFG
+from isaaclab_assets.robots import FRANKA_PANDA_CFG
 
 from ... import lift_env_cfg as lift
 from ... import mdp
 
 # Lift uses task-specific actuators calibrated for contact-rich manipulation.
-FRANKA_PANDA_LIFT_CFG = clone(FRANKA_PANDA_FLAT_CFG)
+FRANKA_PANDA_LIFT_CFG = clone(FRANKA_PANDA_CFG)
 FRANKA_PANDA_LIFT_CFG.actuators = {
     # inspired by libfranka's joint_impedance_control.cpp; ``actuator_velocity_limit`` is the soft task
     # limit and ``joint_velocity_limit`` the separate solver request
     "panda_arm": replace(
-        FRANKA_PANDA_FLAT_CFG.actuators["panda_arm"],
+        FRANKA_PANDA_CFG.actuators["panda_arm"],
         actuator_velocity_limit={"panda_joint[1-4]": 2.175, "panda_joint[5-7]": 2.61},
         stiffness={
             "panda_joint[1-4]": 600.0,
@@ -49,7 +49,7 @@ FRANKA_PANDA_LIFT_CFG.actuators = {
         },
     ),
     "panda_hand": replace(
-        FRANKA_PANDA_FLAT_CFG.actuators["panda_hand"],
+        FRANKA_PANDA_CFG.actuators["panda_hand"],
         joint_effort_limit=70.0,
         actuator_velocity_limit=0.2,
         joint_velocity_limit=2.0,
@@ -58,7 +58,7 @@ FRANKA_PANDA_LIFT_CFG.actuators = {
         armature=0.1,
     ),
     "panda_finger2_passive": replace(
-        FRANKA_PANDA_FLAT_CFG.actuators["panda_finger2_passive"],
+        FRANKA_PANDA_CFG.actuators["panda_finger2_passive"],
         joint_effort_limit=1.0,
         actuator_velocity_limit=0.2,
         joint_velocity_limit=2.0,
@@ -103,12 +103,9 @@ class FrankaSceneCfg(lift.SceneCfg):
 
     def __post_init__(self):
         super().__post_init__()
-        # Lift only requires hand-object and fingertip-object contacts; the asset's
-        # complete primitive colliders remain available for general robot use.
-        self.robot.spawn.variants = {
-            "Physics": preset(default="mujoco", isaacsim_physx="physx", physx="physx", ovphysx="physx"),
-            "Colliders": preset(default="gripper_only", arm_collisions="primitives"),
-        }
+        self.robot.spawn.variants["Physics"] = preset(
+            default="mujoco", isaacsim_physx="physx", physx="physx", ovphysx="physx"
+        )
         self.robot.spawn.activate_contact_sensors = True
         # the base is rotated by 180 degrees about z so the workspace lies at positive x
         self.robot.init_state.rot = (0.0, 0.0, 1.0, 0.0)
@@ -248,11 +245,8 @@ class FrankaEventCfg(lift.EventCfg):
         to_target = reset_terms["reset_object_to_target"].params
         to_target["target_cfg"] = SceneEntityCfg("robot", body_names="panda_hand")
         to_target["pose_range"] = {"x": [-0.02, 0.02], "y": [-0.02, 0.02], "z": [0.08, 0.12]}
-        # Clearance checks follow the enabled contact scope; the ground-mounted base is excluded.
-        criteria["robot_table_clearance"].body_names = preset(
-            default=["panda_hand", ".*finger"],
-            arm_collisions=["panda_link[1-7]", "panda_hand", ".*finger"],
-        )
+        # The ground-mounted base is excluded; all enabled arm and gripper colliders are checked.
+        criteria["robot_table_clearance"].body_names = ["panda_link[1-7]", "panda_hand", ".*finger"]
         # Even one environment per shape can harvest the 1024-state bank at a 10% acceptance rate.
         self.conditional_reset.params["max_prefill_iters"] = 20_000
         # spread the reset bank over the grasp geometry, same bodies as fingers_to_object

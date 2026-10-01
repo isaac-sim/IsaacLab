@@ -29,7 +29,7 @@ import warp as wp
 from PIL import Image
 
 from isaaclab.app import LoadingScreen
-from isaaclab.envs import DirectMARLEnvCfg, DirectRLEnvCfg, ManagerBasedRLEnvCfg, multi_agent_to_single_agent
+from isaaclab.envs import DirectMARLEnvCfg, DirectRLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
 from isaaclab.renderers.renderer_cfg import RendererCfg
 from isaaclab.utils.assets import retrieve_file_path
@@ -184,6 +184,12 @@ def add_common_train_args(
     if include_distributed:
         parser.add_argument(
             "--distributed", action="store_true", default=False, help="Run training with multiple GPUs or nodes."
+        )
+        parser.add_argument(
+            "--run_timestamp",
+            type=str,
+            default=None,
+            help="Timestamp naming the run folder; train_multigpu passes one so that every rank shares the folder.",
         )
     parser.add_argument(
         "--max_iterations", type=max_iterations_type, default=None, help="RL Policy training iterations."
@@ -495,6 +501,9 @@ def create_isaaclab_env(
 
         env = WarpFrontend.build_env(env_cfg, task)
     if convert_marl_to_single_agent and isinstance(env.unwrapped.cfg, DirectMARLEnvCfg):
+        # Import the environment runtime only after simulation launch.
+        from isaaclab.envs import multi_agent_to_single_agent
+
         env = multi_agent_to_single_agent(env)
     return env
 

@@ -129,7 +129,7 @@ def test_lift_bounds_terminate_nonfinite_object_states() -> None:
         )
     )
     env = SimpleNamespace(scene=_FakeScene(torch.arange(5), object=object_asset))
-    term = mdp.out_of_bound(SimpleNamespace(params={}), env)
+    term = mdp.out_of_bound(SimpleNamespace(params={"asset_cfg": SceneEntityCfg("object")}), env)
     assert term(env, in_bound_range={axis: (-1.0, 1.0) for axis in ("x", "y", "z")}).tolist() == [
         False,
         True,
@@ -153,7 +153,7 @@ def test_franka_soft_robot_physics_variant_matches_backend(
     """The Franka USD physics payload must match the selected simulation backend."""
     cfg = resolve_presets(FrankaSoftEnvCfg(), selected=selected_presets)
 
-    assert cfg.scene.robot.spawn.variants == {"Physics": expected_physics, "Colliders": "gripper_only"}
+    assert cfg.scene.robot.spawn.variants == {"Physics": expected_physics, "Colliders": "primitives"}
 
 
 def test_franka_lift_physx_runtimes_share_the_same_mdp() -> None:
@@ -180,13 +180,14 @@ def test_franka_lift_retains_aligned_pregrasp_resets() -> None:
     assert lift_target_reset.func is mdp.reset_to_grasp
     assert lift_target_reset.params["probability"] == pytest.approx(0.75)
     assert len(lift_target_reset.params["grasp_configs"]) == 8
-    for selected, colliders, bodies in (
-        ((), "gripper_only", ["panda_hand", ".*finger"]),
-        (("arm_collisions",), "primitives", ["panda_link[1-7]", "panda_hand", ".*finger"]),
-    ):
+    for selected in ((), ("isaacsim_physx",), ("ovphysx",)):
         cfg = resolve_presets(FrankaLiftEnvCfg(), selected=selected)
-        assert cfg.scene.robot.spawn.variants["Colliders"] == colliders
-        assert cfg.events.conditional_reset.params["valid_criteria"]["robot_table_clearance"].body_names == bodies
+        assert cfg.scene.robot.spawn.variants["Colliders"] == "primitives"
+        assert cfg.events.conditional_reset.params["valid_criteria"]["robot_table_clearance"].body_names == [
+            "panda_link[1-7]",
+            "panda_hand",
+            ".*finger",
+        ]
         assert cfg.events.conditional_reset.params["max_prefill_iters"] > 0
 
     lift.play_mode()
@@ -349,8 +350,8 @@ def test_camera_normalization_is_stationary(data_type: str) -> None:
 
 def _make_pose_command(
     monkeypatch: pytest.MonkeyPatch, num_envs: int, success_asset: object
-) -> tuple[ObjectUniformPoseCommand, torch.Tensor]:
-    """Build a pose command around fake assets and spy markers; returns it with the shared root positions."""
+) -> tuple[ObjectUniformPoseCommand, torch.Tensor, list[torch.Tensor]]:
+    """Build a pose command around fake assets and spies; returns it, the root positions, and material colors."""
     environment_ids = torch.arange(num_envs)
     identity_quat = torch.zeros((num_envs, 4))
     identity_quat[:, 3] = 1.0
@@ -371,13 +372,16 @@ def _make_pose_command(
             root_link_pose_w=SimpleNamespace(torch=root_pose_w),
         )
     )
-    scene = _FakeScene(environment_ids, robot=robot, object=object_asset, table=success_asset)
+    material = SimpleNamespace(is_per_env=True)
+    scene = _FakeScene(environment_ids, robot=robot, object=object_asset, table=success_asset, table_material=material)
     env = SimpleNamespace(num_envs=num_envs, device="cpu", scene=scene)
     cfg = SimpleNamespace(
         asset_name="robot",
         object_name="object",
         success_vis_asset_name="table",
         success_visualizer_cfg=object(),
+        success_vis_material_name="table_material",
+        success_vis_colors=((1.0, 0.0, 0.0), (0.0, 1.0, 0.0)),
         goal_pose_visualizer_cfg=object(),
         curr_pose_visualizer_cfg=object(),
         position_only=True,
@@ -390,9 +394,13 @@ def _make_pose_command(
         command._env = command_env
         command.metrics = {}
 
+    colors: list[torch.Tensor] = []
     monkeypatch.setattr(CommandTerm, "__init__", _initialize_command_term)
     monkeypatch.setattr(pose_commands, "VisualizationMarkers", _MarkerSpy)
-    return ObjectUniformPoseCommand(cfg, env), root_pos_w
+    monkeypatch.setattr(
+        pose_commands.VisualMaterial, "write_channels", lambda _, channels: colors.append(channels["color"])
+    )
+    return ObjectUniformPoseCommand(cfg, env), root_pos_w, colors
 
 
 @pytest.mark.parametrize("static", [False, True])
@@ -404,7 +412,7 @@ def test_lift_pose_markers_forward_environment_ids(monkeypatch: pytest.MonkeyPat
     if static:
         success_asset = object.__new__(Asset)
         success_asset.cfg = SimpleNamespace(init_state=SimpleNamespace(pos=(0.5, 0.0, 0.0)))
-    command, root_pos_w = _make_pose_command(monkeypatch, num_envs, success_asset)
+    command, root_pos_w, colors = _make_pose_command(monkeypatch, num_envs, success_asset)
     command._set_debug_vis_impl(True)
     command._debug_vis_callback(None)
     command.cfg.position_only = False
@@ -415,6 +423,8 @@ def test_lift_pose_markers_forward_environment_ids(monkeypatch: pytest.MonkeyPat
     command.pose_command_b[:, 0] = torch.tensor([1.0, 0.0, 1.0])
     command._update_metrics()
     assert torch.equal(command.success_visualizer.calls[0][1]["marker_indices"], torch.tensor([0, 1, 0]))
+    failure, success = command.cfg.success_vis_colors
+    torch.testing.assert_close(colors[-1], torch.tensor([[failure, success, failure]]))
     DeformableUniformPoseCommand._update_metrics(command)
     command._segment_position_w = lambda: root_pos_w
     CableUniformPoseCommand._update_metrics(command)
