@@ -102,6 +102,7 @@ representation and acquire resources through the simulation registry. For exampl
 can replace native OVPhysX and OVRTX routes with one OVStage route. Renderer constructors declare
 requirements; they must not select another consumer's cloning path. Preparation also runs before
 reset for standalone consumers registered after scene construction.
+Consumers registered after physics is ready use the same preparation before their initialization.
 
 The resulting clone contexts are registered separately as ``sim.clone_contexts[Context] = Context(...)``
 before plan dispatch. They apply the plan but do not own native runtime resources. Stage population,

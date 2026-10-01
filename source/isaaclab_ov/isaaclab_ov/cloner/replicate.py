@@ -187,6 +187,8 @@ class OvrtxReplicateContext:
         from isaaclab_ov.stage import OvstageBackendCfg  # noqa: PLC0415
 
         renderers = [(cfg, renderer) for cfg, renderer in sim._backend_registry if isinstance(cfg, OVRTXRendererCfg)]
+        if not renderers:
+            return
         initialized = next((renderer for _, renderer in renderers if renderer.backend is not None), None)
         use_ovstage = initialized._use_ovstage if initialized is not None else ovrtx_use_ovstage_enabled()
         # TODO: Uncomment after requiring an OVPhysX release with batched cold binding and direct
