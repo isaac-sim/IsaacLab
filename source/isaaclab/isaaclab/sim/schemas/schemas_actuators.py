@@ -325,11 +325,10 @@ def author_actuator_prims(
             elif is_bam:
                 schemas.append(BAM_DRIVE_API)
                 attrs.update(bam_attrs)
-                # MuJoCo only assembles a DOF-friction constraint row for joints whose
-                # frictionloss is positive, and the initial constraint budget (``njmax``) is
-                # sized from the model as spawned. Seeding a positive friction keeps the row
-                # present from the very first solve; the per-step budget overwrites it.
-                _seed_joint_friction(stage, joint_inventory[jname], attrs["friction_base"])
+                # Allocate the friction constraint; BAM overwrites this seed before each solve.
+                stage.GetPrimAtPath(joint_prim_path).CreateAttribute("newton:friction", Sdf.ValueTypeNames.Float).Set(
+                    1.0
+                )
             else:
                 schemas.append("NewtonPDControlAPI")
                 attrs["kp"] = stiffness_map.get(jname, 0.0)
@@ -397,23 +396,6 @@ Private helpers.
 """
 
 _JOINT_TYPES = frozenset({"PhysicsRevoluteJoint", "PhysicsPrismaticJoint"})
-
-
-def _seed_joint_friction(stage: Usd.Stage, joint_prim_path: str, friction: float | None) -> None:
-    """Author a positive ``newton:friction`` on a joint that has none.
-
-    An authored value is left alone: a task that deliberately tunes its joint friction must
-    win over the seed.
-    """
-    if friction is None or friction <= 0.0:
-        return
-    joint_prim = stage.GetPrimAtPath(joint_prim_path)
-    if not joint_prim.IsValid():
-        return
-    attribute = joint_prim.GetAttribute("newton:friction")
-    if attribute and attribute.HasAuthoredValue() and (attribute.Get() or 0.0) > 0.0:
-        return
-    joint_prim.CreateAttribute("newton:friction", Sdf.ValueTypeNames.Float).Set(float(friction))
 
 
 def _get_authored_joint_effort_limit(stage: Usd.Stage, joint_prim_path: str) -> float | None:

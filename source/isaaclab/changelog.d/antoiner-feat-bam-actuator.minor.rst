@@ -12,7 +12,8 @@ Added
   :attr:`~isaaclab.actuators.ActuatorBaseCfg.armature`.
 * Added :class:`~isaaclab.actuators.BamMotorCfg` for explicit motor fits, including m1/m2/m5/m6
   model selection and a local Rhoban JSON loader. BAM authoring replaced existing USD actuators
-  using the configured fit and required firmware gain and nominal voltage. Recorded upstream
+  using the configured fit and required firmware gain and nominal voltage. It authored a positive
+  joint-friction seed to allocate the solver constraint even with zero Coulomb friction. Recorded upstream
   motor and friction samples checked drive behavior without an upstream BAM installation.
 * Added per-environment start-up sampling for supply voltage, supply sag and friction scale.
   Exposed ``vin``, ``sag_gain``, ``friction_scale``, ``kp_scale`` and ``kd_scale`` through
