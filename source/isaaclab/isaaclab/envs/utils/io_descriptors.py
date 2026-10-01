@@ -159,7 +159,8 @@ def generic_io_descriptor(
             def my_func(env: ManagerBasedEnv, *args, **kwargs):
             ...
 
-       ..note:: If description is not set, the function's docstring is used to populate it.
+       ..note:: If description is not set, the function's docstring is used to populate it. If the function has no
+          docstring, the descriptor description remains ``None``.
 
     2. I need to add more information to the descriptor:
 
