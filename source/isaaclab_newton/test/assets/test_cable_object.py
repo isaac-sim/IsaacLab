@@ -17,15 +17,16 @@ from isaaclab_newton.assets import CableObject as NewtonCableObject
 from isaaclab_newton.physics import NewtonCfg, VBDSolverCfg, XPBDSolverCfg
 from isaaclab_newton.physics import NewtonManager as SimulationManager
 
+import isaaclab.cloner as cloner
 import isaaclab.sim as sim_utils
-from isaaclab.assets import CableObjectCfg, RigidObjectCfg
+from isaaclab.assets import AssetBaseCfg, CableObjectCfg, RigidObjectCfg
 from isaaclab.envs.mdp.events import reset_scene_to_default
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sim import GroundPlaneCfg, SimulationCfg, UsdPhysicsCollisionCfg, build_simulation_context
 from isaaclab.sim.spawners.materials import CableMaterialCfg
 from isaaclab.sim.spawners.shapes import CableCfg
 from isaaclab.test.utils import DeviceScope, test_devices
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
 
@@ -52,9 +53,9 @@ class _ProxyCableSceneCfg(_CableSceneCfg):
         prim_path="{ENV_REGEX_NS}/Rigid",
         spawn=sim_utils.CuboidCfg(
             size=(0.1, 0.1, 0.1),
-            rigid_props=sim_utils.RigidBodyBaseCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-            collision_props=sim_utils.CollisionBaseCfg(),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+            mass_props=sim_utils.MassCfg(mass=1.0),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(2.0, 0.0, 1.0)),
     )
@@ -99,6 +100,10 @@ def test_cable_collides_with_ground():
                 init_state=CableObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 0.8)),
             )
         )
+        clone_cfg = cloner.CloneCfg(clone_template="/World/Env_{}")
+        asset_cfgs = cable.cfg, AssetBaseCfg(prim_path="/World/Ground")
+        plan = cloner.clone_plan_from_env_0(clone_cfg, asset_cfgs, 1, 0.0)
+        cloner.replicate(plan)
         sim.reset()
 
         contact_seen = False

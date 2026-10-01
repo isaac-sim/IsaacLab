@@ -33,16 +33,23 @@ asset: ``--viz kit`` opens it in the Isaac Sim viewport, while ``--viz newton`` 
 
 """
 
-"""Parse CLI first so we can decide whether to launch Isaac Sim Kit."""
-
 import argparse
 
-from isaaclab.app import AppLauncher, add_launcher_args, launch_simulation
+from isaaclab.app import add_launcher_args, launch_simulation
+from isaaclab.utils import instantiate, to_dict
 from isaaclab.utils.version import standalone_importers_available
 
 parser = argparse.ArgumentParser(description="Utility to convert a URDF into USD format.")
 parser.add_argument("input", type=str, help="The path to the input URDF file.")
 parser.add_argument("output", type=str, help="The path to store the USD file.")
+parser.add_argument(
+    "--ros_package_path",
+    nargs=2,
+    action="append",
+    default=[],
+    metavar=("NAME", "PATH"),
+    help="Map a ROS package name to its directory for package:// mesh paths. May be repeated.",
+)
 parser.add_argument(
     "--merge_joints",
     "--merge-joints",
@@ -85,18 +92,12 @@ args_cli.require_kit = not standalone_importers_available()
 # runtime provides; without it the preview builds a simulation with no physics manager.
 args_cli.physics = "isaacsim_physx" if args_cli.require_kit else "newton_mjwarp"
 
-# Report the missing importer before converting anything. Without this the launcher reports only
-# that Isaac Sim is absent, which does not mention the wheel that would make this run kitlessly.
-if args_cli.require_kit and not AppLauncher.is_available():
-    raise ImportError(
-        "URDF conversion requires either the full Isaac Sim runtime or the standalone"
-        " 'isaacsim-asset-isolated' importer wheel, but neither is installed."
-    )
-
 import os  # noqa: E402
 
 import isaaclab.sim as sim_utils  # noqa: E402
+from isaaclab.assets import AssetBaseCfg  # noqa: E402
 from isaaclab.physics import PhysicsCfg  # noqa: E402
+from isaaclab.scene import InteractiveSceneCfg  # noqa: E402
 from isaaclab.sim.converters import UrdfConverter, UrdfConverterCfg  # noqa: E402
 from isaaclab.utils.assets import check_file_path  # noqa: E402
 from isaaclab.utils.dict import print_dict  # noqa: E402
@@ -113,23 +114,19 @@ def preview(usd_path: str, physics_cfg: PhysicsCfg) -> None:
     if not visualizers:
         return
 
-    if "kit" in visualizers:
-        # a Kit app that resolved without a GUI has no viewport to display the asset in
-        if AppLauncher.has_gui():
-            sim_utils.show_stage_in_viewport(usd_path)
-        return
-
-    # Kitless preview: the physics backend ingests the USD stage and every visualizer renders the
-    # shared scene data, so no backend-specific code is needed here. Physics is not stepped -- the
+    # The physics backend ingests the USD stage and every visualizer renders the shared scene data,
+    # so no backend-specific code is needed here. Physics is not stepped -- the
     # asset is shown in its imported pose until the visualizer window is closed.
     sim = sim_utils.SimulationContext(sim_utils.SimulationCfg(device=args_cli.device, physics=physics_cfg))
-    light_cfg = sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
-    light_cfg.func("/World/Light", light_cfg)
-    asset_cfg = sim_utils.UsdFileCfg(usd_path=usd_path)
-    asset_cfg.func("/World/ConvertedAsset", asset_cfg)
+    scene_cfg = InteractiveSceneCfg(num_envs=1, env_spacing=0.0)
+    scene_cfg.light = AssetBaseCfg(
+        prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
+    )
+    scene_cfg.asset = AssetBaseCfg(prim_path="/World/ConvertedAsset", spawn=sim_utils.UsdFileCfg(usd_path=usd_path))
+    _scene = instantiate(scene_cfg)
     sim.reset()
 
-    # Checked per visualizer rather than through ``SimulationContext.is_headless_or_exist_active_visualizer``:
+    # Checked per visualizer rather than through ``SimulationContext.is_running``:
     # that predicate also reports True for an empty visualizer list (headless stepping), and ``render``
     # drops visualizers once they close, so the preview would never exit.
     while any(viz.is_running() and not viz.is_closed for viz in sim.visualizers):
@@ -157,6 +154,7 @@ def main():
         fix_base=args_cli.fix_base,
         merge_fixed_joints=args_cli.merge_joints,
         force_usd_conversion=True,
+        ros_package_paths=[{"name": name, "path": os.path.abspath(path)} for name, path in args_cli.ros_package_path],
         joint_drive=UrdfConverterCfg.JointDriveCfg(
             gains=UrdfConverterCfg.JointDriveCfg.PDGainsCfg(
                 stiffness=args_cli.joint_stiffness,
@@ -171,7 +169,7 @@ def main():
     print("-" * 80)
     print(f"Input URDF file: {urdf_path}")
     print("URDF importer config:")
-    print_dict(urdf_converter_cfg.to_dict(), nesting=0)
+    print_dict(to_dict(urdf_converter_cfg), nesting=0)
     print("-" * 80)
     print("-" * 80)
 

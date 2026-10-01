@@ -15,9 +15,13 @@ The following configurations are available:
 Reference: https://github.com/frankaemika/franka_ros
 """
 
+from isaaclab_newton.sim.schemas import NewtonArticulationCfg
+from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxRigidBodyCfg
+
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
+from isaaclab.utils import clone
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 
 ##
@@ -28,13 +32,13 @@ FRANKA_PANDA_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/Legacy/panda_instanceable.usd",
         activate_contact_sensors=False,
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
-            disable_gravity=False,
-            max_depenetration_velocity=5.0,
-        ),
-        articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-            enabled_self_collisions=True, solver_position_iteration_count=8, solver_velocity_iteration_count=0
-        ),
+        rigid_props=PhysxRigidBodyCfg(disable_gravity=False, max_depenetration_velocity=5.0),
+        articulation_props=[
+            PhysxArticulationCfg(
+                enabled_self_collisions=True, solver_position_iteration_count=8, solver_velocity_iteration_count=0
+            ),
+            NewtonArticulationCfg(self_collision_enabled=True),
+        ],
         # collision_props=sim_utils.CollisionPropertiesCfg(contact_offset=0.005, rest_offset=0.0),
     ),
     init_state=ArticulationCfg.InitialStateCfg(
@@ -76,7 +80,7 @@ FRANKA_PANDA_CFG = ArticulationCfg(
 """Configuration of Franka Emika Panda robot."""
 
 
-FRANKA_PANDA_MENAGERIE_CFG = FRANKA_PANDA_CFG.copy()
+FRANKA_PANDA_MENAGERIE_CFG = clone(FRANKA_PANDA_CFG)
 FRANKA_PANDA_MENAGERIE_CFG.spawn.usd_path = f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/franka_panda.usda"
 FRANKA_PANDA_MENAGERIE_CFG.actuators = {
     "panda_arm": ImplicitActuatorCfg(
@@ -99,7 +103,7 @@ backends, while the arm and hand retain their USD-authored drives.
 """
 
 
-FRANKA_PANDA_HIGH_PD_CFG = FRANKA_PANDA_CFG.copy()
+FRANKA_PANDA_HIGH_PD_CFG = clone(FRANKA_PANDA_CFG)
 FRANKA_PANDA_HIGH_PD_CFG.spawn.rigid_props.disable_gravity = True
 FRANKA_PANDA_HIGH_PD_CFG.actuators["panda_shoulder"].stiffness = 400.0
 FRANKA_PANDA_HIGH_PD_CFG.actuators["panda_shoulder"].damping = 80.0
@@ -111,7 +115,7 @@ This configuration is useful for task-space control using differential IK.
 """
 
 
-FRANKA_ROBOTIQ_GRIPPER_CFG = FRANKA_PANDA_CFG.copy()
+FRANKA_ROBOTIQ_GRIPPER_CFG = clone(FRANKA_PANDA_CFG)
 FRANKA_ROBOTIQ_GRIPPER_CFG.spawn.usd_path = f"{ISAAC_NUCLEUS_DIR}/Robots/FrankaRobotics/FrankaPanda/franka.usd"
 FRANKA_ROBOTIQ_GRIPPER_CFG.spawn.variants = {"Gripper": "Robotiq_2F_85"}
 FRANKA_ROBOTIQ_GRIPPER_CFG.spawn.rigid_props.disable_gravity = True

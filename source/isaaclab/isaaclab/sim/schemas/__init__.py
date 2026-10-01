@@ -32,7 +32,7 @@ Locally, the schemas are defined in the following files:
 
 """
 
-from isaaclab.utils.module import lazy_export
+from ...utils.module import lazy_export
 
 _stub_getattr, _stub_dir, __all__ = lazy_export()
 

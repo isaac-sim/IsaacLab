@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from isaaclab.assets import ArticulationCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass, replace
 
 from isaaclab_tasks.contrib.stack import mdp
 from isaaclab_tasks.contrib.stack.stack_env_cfg import (
@@ -50,7 +50,8 @@ class FrankaCubeStackEnvCfg(StackEnvCfg):
         self.events = StackEventCfg()
 
         # Set Franka as robot
-        self.scene.robot = FRANKA_PANDA_CFG.replace(
+        self.scene.robot = replace(
+            FRANKA_PANDA_CFG,
             prim_path="{ENV_REGEX_NS}/Robot",
             init_state=ArticulationCfg.InitialStateCfg(joint_pos=_FRANKA_STACK_IK_REL_INIT_JOINT_POS),
         )

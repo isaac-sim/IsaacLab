@@ -53,7 +53,7 @@ AnymalTerrain is representative because it combines several migration concerns t
 | `numObservations = 188` | `observation_space = 235` in the maintained Isaac Lab rough task |
 | `dt = 0.005`, `control.decimation = 4` | `sim.dt = 1 / 200`, `decimation = 4` |
 | `urdf/anymal_c/urdf/anymal_minimal.urdf` | `isaaclab_assets.robots.anymal.ANYMAL_C_CFG` |
-| `create_sim()`, `_create_trimesh()`, `_create_envs()` | `TerrainImporterCfg`, rough terrain generator, and `_setup_scene()` |
+| `create_sim()`, `_create_trimesh()`, `_create_envs()` | Declarative `InteractiveSceneCfg` with a terrain generator |
 | `compute_observations()` | `_get_observations()` with robot state, commands, contact sensor data, and height scanner data |
 | `compute_reward()` and reward helpers | `_get_rewards()` with explicit reward terms in the direct environment |
 | `reset_idx()` | `_reset_idx()` with command and robot state reset |
