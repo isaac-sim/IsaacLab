@@ -40,7 +40,7 @@ WORLD_BODY_INDEX = -1
 _REGEX_TOKENS = frozenset(".*[]()+?|\\^$")
 
 
-# One resolved site registration: (body_patterns, local transform, xform scale, per_world, env_ids,
+# One resolved frame spec: (body_patterns, local transform, xform scale, per_world, env_ids,
 # destination prim paths).  Prim paths follow the spec's expansion order.
 _Strs = tuple[str, ...]
 _SiteSpec = tuple[_Strs | None, wp.transform, tuple[float, float, float], bool, tuple[int, ...] | None, _Strs | None]
@@ -216,7 +216,7 @@ class NewtonSiteFrameView(BaseFrameView):
 
     The public construction contract matches the generic :class:`FrameView`:
     callers provide a prim expression and the backend resolves the source prim
-    into Newton body-local or world-local sites.
+    into body-local or world-local frames of the Newton model.
     """
 
     def __init__(
@@ -277,7 +277,7 @@ class NewtonSiteFrameView(BaseFrameView):
             )
 
     def _resolve_site_specs(self, stage, validate_xform_ops: bool) -> list[_SiteSpec]:
-        """Resolve source prims into Newton site registration specs."""
+        """Resolve source prims into frame specs."""
         plan = sim_utils.SimulationContext.instance().get_clone_plan()
         groups = ()
         if plan is not None:
