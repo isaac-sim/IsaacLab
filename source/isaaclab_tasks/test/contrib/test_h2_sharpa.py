@@ -107,23 +107,47 @@ def test_progress_without_rewards_and_partial_reset(cfg_type):
     assert term(env, **cfg.params).tolist() == [False, True]
 
 
-def test_prop_material_overrides_clone_with_the_prototype(tmp_path):
-    """Clones receive the shader overrides and keep the authored diffuse texture."""
+@pytest.mark.parametrize("asset_name", ["agx_orin", "protective_box"])
+def test_prop_material_overrides_clone_with_the_prototype(tmp_path, asset_name):
+    """Clones keep distinct authored materials, texture connections, and the configured overrides."""
     path = str(tmp_path / "prop.usda")
     source = Usd.Stage.CreateNew(path)
     source.SetDefaultPrim(UsdGeom.Xform.Define(source, "/Prop").GetPrim())
-    shader = UsdShade.Shader.Define(source, "/Prop/Shader")
-    shader.CreateInput("diffuse_texture", Sdf.ValueTypeNames.Asset).Set(Sdf.AssetPath("texture.png"))
+    for name in ("body", "label"):
+        material = UsdShade.Material.Define(source, f"/Prop/Looks/{name}")
+        shader = UsdShade.Shader.Define(source, f"{material.GetPath()}/Shader")
+        shader.SetSourceAsset(Sdf.AssetPath("OmniPBR.mdl"), "mdl")
+        shader.SetSourceAssetSubIdentifier("OmniPBR", "mdl")
+        material.CreateSurfaceOutput("mdl").ConnectToSource(shader.CreateOutput("out", Sdf.ValueTypeNames.Token))
+        shader.CreateInput("diffuse_texture", Sdf.ValueTypeNames.Asset).Set(Sdf.AssetPath(f"{name}.png"))
+        shader.CreateInput("diffuse_color_constant", Sdf.ValueTypeNames.Color3f).Set((0.2, 0.3, 0.4))
+        texture = UsdShade.Shader.Define(source, f"{material.GetPath()}/Texture")
+        shader.CreateInput("normalmap_texture", Sdf.ValueTypeNames.Asset).ConnectToSource(
+            texture.CreateOutput("texture", Sdf.ValueTypeNames.Asset)
+        )
+        UsdShade.MaterialBindingAPI.Apply(UsdGeom.Cube.Define(source, f"/Prop/{name}").GetPrim()).Bind(material)
     source.GetRootLayer().Save()
-    cfg = PackAgxOrinEnvCfg().scene.agx_orin.spawn.replace(usd_path=path)
+    cfg = getattr(PackAgxOrinEnvCfg().scene, asset_name).spawn.replace(usd_path=path)
     stage = Usd.Stage.CreateInMemory()
     for index in range(2):
         UsdGeom.Xform.Define(stage, f"/World/env_{index}")
     with use_stage(stage):
         cfg.func("/World/env_.*/Prop", cfg)
     for index in range(2):
-        shader = UsdShade.Shader(stage.GetPrimAtPath(f"/World/env_{index}/Prop/Shader"))
-        assert shader.GetInput("diffuse_texture").Get().path == "texture.png"
-        assert shader.GetInput("metallic_constant").Get() == pytest.approx(cfg.metallic)
-        assert shader.GetInput("reflection_roughness_constant").Get() == pytest.approx(cfg.roughness)
-        assert shader.GetInput("albedo_brightness").Get() == pytest.approx(cfg.brightness)
+        for name in ("body", "label"):
+            root = f"/World/env_{index}/Prop"
+            material_path = f"{root}/Looks/{name}"
+            binding = UsdShade.MaterialBindingAPI(stage.GetPrimAtPath(f"{root}/{name}"))
+            assert binding.ComputeBoundMaterial()[0].GetPath() == material_path
+            shader = UsdShade.Shader(stage.GetPrimAtPath(f"{material_path}/Shader"))
+            assert shader.GetInput("diffuse_texture").Get().path == f"{name}.png"
+            assert shader.GetInput("diffuse_color_constant").Get() == pytest.approx((0.2, 0.3, 0.4))
+            assert shader.GetInput("normalmap_texture").GetConnectedSource()[0].GetPath() == f"{material_path}/Texture"
+            for channel in (
+                "metallic_constant",
+                "reflection_roughness_constant",
+                "albedo_brightness",
+                "metallic_texture_influence",
+                "reflection_roughness_texture_influence",
+            ):
+                assert shader.GetInput(channel).Get() == pytest.approx(getattr(cfg.visual_material, channel))

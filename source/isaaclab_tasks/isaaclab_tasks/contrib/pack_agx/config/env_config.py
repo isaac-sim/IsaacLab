@@ -7,7 +7,6 @@
 
 import math
 import os
-from dataclasses import MISSING
 
 from isaaclab_physx.physics import PhysxCfg
 
@@ -37,7 +36,6 @@ from isaaclab_assets.robots.unitree import H2_SHARPA_CFG
 from isaaclab_assets.sensors.unitree import H2_HEAD_CAMERA_CFG
 
 from .. import mdp
-from ..spawners import spawn_prop
 
 # Reuse the proven bimanual, camera-facing H2 teleop pose until a pack-task
 # recording supplies a task-specific frame-zero pose.
@@ -145,16 +143,6 @@ def _randomize_asset_pose(
 
 
 @configclass
-class TexturedPropCfg(sim_utils.UsdFileCfg):
-    """Preserve authored textures while setting constant OmniPBR material channels."""
-
-    func = spawn_prop
-    metallic: float = MISSING
-    roughness: float = MISSING
-    brightness: float = MISSING
-
-
-@configclass
 class PackAgxOrinSceneCfg(InteractiveSceneCfg):
     """Independent H2 scene for packing an AGX Orin."""
 
@@ -252,7 +240,18 @@ class PackAgxOrinSceneCfg(InteractiveSceneCfg):
 
     agx_orin = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/AgxOrin",
-        spawn=TexturedPropCfg(usd_path=AGX_ORIN_USD, metallic=0.15, roughness=0.55, brightness=3.4),
+        spawn=sim_utils.UsdFileCfg(
+            usd_path=AGX_ORIN_USD,
+            visual_material_path=None,
+            visual_material=sim_utils.PbrMdlCfg(
+                diffuse_color_constant=None,
+                metallic_constant=0.15,
+                reflection_roughness_constant=0.55,
+                albedo_brightness=3.4,
+                metallic_texture_influence=0.0,
+                reflection_roughness_texture_influence=0.0,
+            ),
+        ),
         init_state=RigidObjectCfg.InitialStateCfg(
             pos=(-0.58, -0.24, 0.97),
             rot=(0, 0, 0.017099942, 0.99985379),
@@ -261,11 +260,17 @@ class PackAgxOrinSceneCfg(InteractiveSceneCfg):
 
     protective_box = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/ProtectiveBox",
-        spawn=TexturedPropCfg(
+        spawn=sim_utils.UsdFileCfg(
             usd_path=PROTECTIVE_BOX_USD,
-            metallic=0.05,
-            roughness=0.85,
-            brightness=2.6,
+            visual_material_path=None,
+            visual_material=sim_utils.PbrMdlCfg(
+                diffuse_color_constant=None,
+                metallic_constant=0.05,
+                reflection_roughness_constant=0.85,
+                albedo_brightness=2.6,
+                metallic_texture_influence=0.0,
+                reflection_roughness_texture_influence=0.0,
+            ),
             rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
         ),
         init_state=RigidObjectCfg.InitialStateCfg(
