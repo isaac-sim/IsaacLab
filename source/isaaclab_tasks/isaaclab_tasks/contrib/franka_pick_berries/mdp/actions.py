@@ -6,6 +6,7 @@
 """Relative IK and a scalar, continuous gripper opening."""
 
 import torch
+import warp as wp
 
 from isaaclab.envs.mdp.actions.task_space_actions import (
     DifferentialInverseKinematicsAction,
@@ -13,9 +14,20 @@ from isaaclab.envs.mdp.actions.task_space_actions import (
 from isaaclab.managers import ActionTerm, ActionTermCfg
 from isaaclab.utils.configclass import configclass
 
+from ..physics.coupling import set_grasping
+
+HOLD_TOLERANCE = 0.0005
+"""Distance [m] between commanded and current finger opening within which the fingers hold their aperture."""
+
+HOLD_MAX_OPENING = 0.036
+"""Commanded finger opening [m] from which the gripper is open, not holding (fully open is 0.04)."""
+
+HOLD_MAX_SPEED = 0.001
+"""Finger speed [m/s] above which the fingers are moving, not holding."""
+
 
 class BerryIKAction(DifferentialInverseKinematicsAction):
-    """Advance contact at the robot physics rate [120 Hz]."""
+    """Differential IK that holds each command's joint solution across the physics steps of one control step."""
 
     def __init__(self, cfg, env):
         super().__init__(cfg, env)
@@ -23,7 +35,7 @@ class BerryIKAction(DifferentialInverseKinematicsAction):
         # Keep carried tissue inside the explicitly allocated MPM work volume.
         offset = torch.tensor(env.cfg.berry_position, device=self.device)
         # All local grids must cover the commanded workspace, including edge berries.
-        reach = 0.065 if env.cfg.berry == "all" else 0.09
+        reach = 0.065 if env.cfg.berry == "all" or env.cfg.berry_count > 1 else 0.09
         upper_y = 0.205 if env.cfg.background == "ebc" else reach
         self._lower = offset + torch.tensor([-reach, -reach, 0.005], device=self.device)
         self._upper = offset + torch.tensor([reach, upper_y, 0.18], device=self.device)
@@ -43,12 +55,17 @@ class BerryIKAction(DifferentialInverseKinematicsAction):
         if self._ik_pending:
             super().apply_actions()
             self._ik_pending = False
-        if self._env.berry is not None:
-            self._env.advance_berries()
 
 
 class BerryGraspAction(ActionTerm):
-    """Map [-1, 1] continuously to total finger aperture [0, 0.08 m]."""
+    """Map [-1, 1] continuously to total finger aperture [0, 0.08 m], and grasp the tissue the fingers hold.
+
+    The fingers hold an aperture while they are commanded close to their current opening, short of fully open, and
+    are still. With the implicit tissue solver, the tissue they press is then clamped to them (see
+    :class:`~..physics.grasp_implicit_mpm.SolverGraspImplicitMPM`). Moving the fingers releases it: closing
+    compresses the tissue through contact alone, and opening lets go, where two clamped fingers would crush or tear
+    it without limit.
+    """
 
     def __init__(self, cfg, env):
         super().__init__(cfg, env)
@@ -74,6 +91,14 @@ class BerryGraspAction(ActionTerm):
             raise ValueError("Nonfinite grasp command")
         self._raw[:] = actions.clamp(-1, 1)
         self._target[:] = (self._raw + 1) * 0.02
+        opening = self._asset.data.joint_pos.torch[:, self._joint_ids]
+        speed = self._asset.data.joint_vel.torch[:, self._joint_ids]
+        holding = (
+            ((self._target - opening).abs() <= HOLD_TOLERANCE)
+            & (self._target < HOLD_MAX_OPENING)
+            & (speed.abs() <= HOLD_MAX_SPEED)
+        )
+        set_grasping(wp.from_torch(holding.all().to(torch.int32).reshape(1)))
 
     def apply_actions(self):
         self._asset.set_joint_position_target(self._target, joint_ids=self._joint_ids)

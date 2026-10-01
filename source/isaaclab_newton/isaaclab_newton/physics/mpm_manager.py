@@ -185,6 +185,12 @@ class NewtonMPMManager(NewtonManager):
     _implicit_mpm_solver_root: object | None = None
     _implicit_mpm_solver_cache: tuple[SolverImplicitMPM, ...] = ()
 
+    solver_class: type[SolverImplicitMPM] = SolverImplicitMPM
+    """Solver class built by :meth:`_create_solver`.
+
+    Subclasses may set a :class:`SolverImplicitMPM` subclass that extends the implicit MPM step.
+    """
+
     @classmethod
     def initialize(cls, sim_context: SimulationContext) -> None:
         """Initialize Newton and author the MPM solver configuration in USD."""
@@ -231,13 +237,13 @@ class NewtonMPMManager(NewtonManager):
 
     @classmethod
     def _create_solver(cls, model: Model, solver_cfg: MPMSolverCfg) -> SolverImplicitMPM:
-        """Construct the configured implicit MPM solver."""
+        """Construct the configured implicit MPM solver as a :attr:`solver_class`."""
         scene_prim = None
         sim = PhysicsManager._sim
         if sim is not None:
             scene_prim = sim.stage.GetPrimAtPath(sim.cfg.physics_prim_path)
             _author_mpm_scene_config(scene_prim, solver_cfg)
-        return SolverImplicitMPM(
+        return cls.solver_class(
             model,
             _make_solver_config(solver_cfg, scene_prim),
             temporary_store=TemporaryStore(),

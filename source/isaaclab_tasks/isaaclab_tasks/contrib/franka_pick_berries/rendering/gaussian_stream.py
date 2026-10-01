@@ -12,9 +12,34 @@ import warp as wp
 
 from pxr import Sdf, Usd, UsdGeom, UsdShade, Vt
 
-from ..physics.mpm.binding import make_binding
-from ..physics.mpm.rtx_gaussian_frame import GaussianLocalFrame
-from ..physics.mpm.rtx_sh_frame import SHMaterialFrame
+from .binding import make_binding
+from .gaussian_frame import GaussianLocalFrame
+from .sh_frame import SHMaterialFrame
+
+
+@wp.kernel
+def gather_vec3(source: wp.array[wp.vec3], indices: wp.array[int], target: wp.array[wp.vec3]):
+    i = wp.tid()
+    target[i] = source[indices[i]]
+
+
+@wp.kernel
+def gather_vec4(source: wp.array[wp.vec4], indices: wp.array[int], target: wp.array[wp.vec4]):
+    i = wp.tid()
+    target[i] = source[indices[i]]
+
+
+@wp.kernel
+def gather_quat(source: wp.array[wp.quat], indices: wp.array[int], target: wp.array[wp.quat]):
+    i = wp.tid()
+    target[i] = source[indices[i]]
+
+
+_GATHER = {wp.vec3: gather_vec3, wp.vec4: gather_vec4, wp.quat: gather_quat}
+
+
+# Per-frame Gaussian attributes and their number of float lanes: the deformed geometry and the shading frame.
+_DYNAMIC = (("positions", 3), ("scales", 3), ("orientations", 4), ("primvars:squishyShQuaternion", 4))
 
 
 class BerryGaussianStream:
@@ -42,9 +67,10 @@ class BerryGaussianStream:
             self.berry.proxy["regions"],
             self.berry.profile["simulation"]["binding"],
         )
-        with wp.ScopedDevice(self.berry.mpm_device):
-            self.binding.deform_gpu(self.berry.sim.x, host=False)
-            self.frame = GaussianLocalFrame(self.berry.asset["xyz"], self.berry.asset["scales"], self.berry.mpm_device)
+        device = self.berry.particles.device
+        with wp.ScopedDevice(device):
+            self.binding.deform_gpu(self.berry.positions_wp(), host=False)
+            self.frame = GaussianLocalFrame(self.berry.asset["xyz"], self.berry.asset["scales"], device)
             lower = np.max([self.berry.asset["xyz"][idx].min(0) for idx in self.indices], axis=0)
             upper = np.min([self.berry.asset["xyz"][idx].max(0) for idx in self.indices], axis=0)
             self.frame.center, self.frame.half = (
@@ -59,6 +85,12 @@ class BerryGaussianStream:
                 nearest=wp.array(self.binding.ids[:, 0].copy(), dtype=int),
             )
             self.sh_frame = SHMaterialFrame(sh, quaternion=True)
+            # Each partition's Gaussians are gathered on the GPU into buffers that the renderer reads without a
+            # copy, after the write returns. Two sets alternate: a set is refilled only after the frame that read
+            # it has finished rendering. The buffers take their source's element type on the first frame.
+            self._indices = [wp.array(idx.astype(np.int32), dtype=int) for idx in self.indices]
+            self._buffers = ({}, {})
+            self._frame = 0
 
     def author(self, stage):
         self.stage = stage
@@ -123,28 +155,27 @@ class BerryGaussianStream:
             name: self._rtx.bind_array_attribute(
                 self.paths, name, dtype="float32", shape=(lanes,), flags=BindingFlag.OPTIMIZE
             )
-            for name, lanes in (
-                ("positions", 3),
-                ("scales", 3),
-                ("orientations", 4),
-                ("primvars:squishyShQuaternion", 4),
-            )
+            for name, lanes in _DYNAMIC
         }
 
     def prepare(self, sh_rotation):
-        with wp.ScopedDevice(self.berry.mpm_device):
-            xyz, scales, quats = self.binding.deform_gpu(self.berry.sim.x, host=False)
+        """Deform and shade the Gaussians and gather each partition's arrays, all on the GPU."""
+        with wp.ScopedDevice(self.berry.particles.device):
+            xyz, scales, quats = self.binding.deform_gpu(self.berry.positions_wp(), host=False)
             xyz, scales, transform = self.frame.evaluate(xyz, scales)
-            shading = self.sh_frame.evaluate(self.berry.sim.damage, rotate=sh_rotation)
-            values = {
-                "positions": xyz.numpy(),
-                "scales": scales.numpy(),
-                "orientations": quats.numpy(),
-                **{name: array.numpy() for name, array in shading.items()},
-            }
+            shading = self.sh_frame.evaluate(self.berry.damage, rotate=sh_rotation)
+            sources = {"positions": xyz, "scales": scales, "orientations": quats, **shading}
+            buffers = self._buffers[self._frame % 2]
+            self._frame += 1
+            for name, _ in _DYNAMIC:
+                source = sources[name]
+                if name not in buffers:
+                    buffers[name] = [wp.empty(len(idx), dtype=source.dtype) for idx in self._indices]
+                for indices, part in zip(self._indices, buffers[name]):
+                    wp.launch(_GATHER[source.dtype], dim=len(part), inputs=[source, indices, part])
         transform = transform.copy()
         transform[3, :3] += self.berry.offset
-        return transform, values
+        return transform, buffers
 
     def update(self, prepared):
         from ovrtx import Semantic
@@ -156,20 +187,21 @@ class BerryGaussianStream:
             tensor=np.repeat(transform[None], len(self.paths), axis=0),
             semantic=Semantic.XFORM_MAT4x4,
         )
-        for name, value in values.items():
-            self._berry_bindings[name].write([np.ascontiguousarray(value[idx]) for idx in self.indices])
+        from ovrtx import DataAccess
+
+        stream = wp.get_stream(self.berry.particles.device).cuda_stream
+        for name, parts in values.items():
+            # The renderer reads the GPU buffers in place, ordered after the gathers on their stream.
+            self._berry_bindings[name].write(parts, data_access=DataAccess.ASYNC, cuda_stream=stream)
 
     def verify(self, prepared):
         """Read back the native renderer's complete published Gaussian arrays."""
         _, values = prepared
-        for name, expected in values.items():
+        for name, parts in values.items():
             restored = self._rtx.read_array_attribute(attribute_name=name, prim_paths=self.paths)
-            for path, idx in zip(self.paths, self.indices):
-                np.testing.assert_allclose(
-                    np.from_dlpack(restored[path]).reshape(expected[idx].shape),
-                    expected[idx],
-                    atol=1e-7,
-                )
+            for path, part in zip(self.paths, parts):
+                expected = part.numpy()
+                np.testing.assert_allclose(np.from_dlpack(restored[path]).reshape(expected.shape), expected, atol=1e-7)
         for name, key in (
             ("opacities", "alpha"),
             ("radiance:sphericalHarmonicsCoefficients", "sh"),

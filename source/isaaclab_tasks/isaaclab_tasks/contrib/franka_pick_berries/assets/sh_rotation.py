@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Offline SH3 transport in the Graphdeco real-SH basis used by the MDL shader."""
+"""Rotation of degree-three spherical harmonics in the Graphdeco real-SH basis used by the MDL shader."""
 
 import numpy as np
 
@@ -59,10 +59,3 @@ def rotate_sh(coefficients: np.ndarray, rotation: np.ndarray) -> np.ndarray:
         transform = projection @ sh_basis(local)
         result[start:stop] = transform @ coefficients[start:stop]
     return result
-
-
-def proper_rotation(deformation: np.ndarray) -> np.ndarray:
-    """Extract the material rotation, not the Gaussian covariance eigenvectors."""
-    u, _, vt = np.linalg.svd(deformation)
-    u[:, :, -1] *= np.where(np.linalg.det(u @ vt) < 0, -1.0, 1.0)[:, None]
-    return u @ vt

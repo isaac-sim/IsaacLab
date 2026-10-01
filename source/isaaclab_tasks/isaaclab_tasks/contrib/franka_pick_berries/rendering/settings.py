@@ -31,7 +31,7 @@ def require_live_gaussian_renderer():
 
 
 def apply_sampling_settings(product: Usd.Prim, antialiasing: str = "default", rtpt_spp: int | None = None) -> dict:
-    """Author Carsten's DLAA tokens and/or RTPT samples on one render product.
+    """Author DLAA antialiasing tokens and/or RTPT samples on one render product.
 
     ``default`` and ``None`` preserve the inherited settings. RTPT uses
     ``rtpt:spp``, not the separate offline ``pt:samplesPerPixel`` attribute.

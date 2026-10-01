@@ -1,10 +1,10 @@
 # Berry picking
 
 The implementation, CLI and installer are entirely self-contained in this task
-directory; no external task checkout, Carsten source checkout, or sibling contrib task
-is required. Berry USDZ packages and the EBC background are fetched on demand from
-Nucleus through Isaac Lab's own asset cache (`isaaclab.utils.assets.retrieve_file_path`);
-there is no separate asset-download step.
+directory; no external task checkout or sibling contrib task is required. Berry
+USDZ packages and the EBC background are fetched on demand from Nucleus through
+Isaac Lab's own asset cache (`isaaclab.utils.assets.retrieve_file_path`); there is
+no separate asset-download step.
 
 ## Layout
 
@@ -13,32 +13,65 @@ franka_pick_berries/
   pick_berries_env.py, pick_berries_env_cfg.py   environment class and configuration
   config/franka/                                 gym registration
   mdp/                                           action terms
-  physics/                                       Newton solver manager, materials, contact, per-berry runtime, coupled tissues
-  physics/mpm/                                   explicit MPM solver and Gaussian binding
-  rendering/                                     interactive viewer, per-berry Gaussian streams, sampling settings
-  scene/                                         tableware props and the EBC room background
-  assets/                                        asset locations, USD/USDZ loading, spherical-harmonics transport
-  control/                                       gamepad devices and scripted arm motion / sorting sequences
-  scripts/                                       teleop / scripted-demo CLI and physics benchmarks
-  offline/                                       asset inspection and appearance-repair tools (not needed to run the task)
+  physics/                                       Newton coupled physics, implicit and explicit tissue solvers, tissue
+  rendering/                                     interactive viewer, per-berry Gaussian streams and binding
+  scene/                                         table, tableware props and the EBC room background
+  assets/                                        asset locations and USD/USDZ loading
+  control/                                       gamepad devices and scripted arm motion
+  scripts/                                       teleop / scripted-demo CLI
+  offline/                                       asset inspection and appearance tools (not needed to run the task)
   setup/                                         runtime installer (setup.sh)
 ```
 
+## Physics
+
+The task runs on Isaac Lab's Newton backend through the coupler in `isaaclab_contrib.coupling`
+(`physics/coupling.py`): the Franka on MuJoCo-Warp, the berry tissue on one of two MPM solvers selected with
+`--tissue_solver`. Each berry is an `MPMObject` spawned from the tissue particles in its USDZ, with the stiffness of
+its species (`physics/materials.py`): Young's moduli of 12 kPa (raspberry), 13.5 kPa (blackberry), 15 kPa
+(blueberry) and 18 kPa (strawberry), and a Poisson's ratio of 0.4. These are empirical handling presets, not
+calibrated fruit properties. Each solver module contains all of its physics, including the tissue's yield limits,
+plasticity and damage (plastic-strain damage, tearing and bruising), and exposes the same interface to the task.
+
+### Explicit solver (default)
+
+By default (`--tissue_solver explicit`) the tissue runs on `SolverGraspExplicitMPM` (`physics/grasp_explicit_mpm.py`),
+an explicit MPM entry of the Newton coupler: MLS-MPM transfers with APIC, fixed-corotated elasticity with a
+log-strain return mapping, and penalty contact with the finger pads whose tangential springs are capped by Coulomb
+friction. It grips by friction, so a held berry can slip and the robot feels its reaction. Each berry is its own
+velocity field, in frictional contact with the others. It is faster than the implicit solver for this scene
+(rendered three-raspberry place on the EBC background: about 14 frames/s, against 9.5). The module docstring lists
+the methods and their references.
+
+### Implicit solver (opt-in)
+
+`--tissue_solver implicit` runs the tissue on `SolverGraspImplicitMPM` (`physics/grasp_implicit_mpm.py`) instead,
+a subclass of Newton's implicit MPM selected through the MPM manager's `solver_class`, with the fingers and the table
+exposed to the tissue as proxy colliders. In Newton's implicit MPM the stress with which a pinched solid pushes back on two
+fingers drains away while they hold it, even though its elastic deformation is kept, so a berry held only by
+friction slips out when the hand carries it. While the gripper holds an aperture (it is commanded close to its
+current opening, short of fully open, and its fingers are still), tissue particles pressed against a finger are
+therefore clamped to it as Newton kinematic particles, as in Newton's `example_mpm_beam_twist`; the rest of the berry
+hangs from them and deforms as MPM tissue. Moving the fingers releases them: closing compresses, and can squash and
+damage, the berry through contact alone, and opening lets go of it. A held berry therefore does not slip, and the
+robot does not feel its weight. Its damage is a weak, qualitative signal: the velocity gradients it integrates are
+noisy, and damage must grow slowly (`DamageConfig.max_rate`) for its softening not to make the solve diverge, so a
+full squash crushes the berry but marks it far less than the explicit solver does.
+
 ## Follow-up work
 
-This task was imported as a working, self-contained first version. Planned next steps:
-
-1. **Replace the explicit MPM solver with the Newton manager.** `physics/mpm/` is a standalone
-   solver adapted from an internal proof of concept and a third-party MPM sample, with its own
-   licensing and provenance still to be settled. Moving tissue simulation onto Newton removes it
-   together with the unused cube-tool and adhesion parameters, the CUDA-graph capture code and the
-   separate `mpm_device`.
-2. **Publish the assets publicly.** The berry USDZ packages and the EBC background are still read
+1. **Publish the assets publicly.** The berry USDZ packages and the EBC background are still read
    from a personal Nucleus folder (`assets/asset_root.py`). Publish them in the public repository
    that hosts the other assets used by the codebase and update the default URL.
-3. **Use the codebase's standard Gaussian binding.** `physics/mpm/binding.py` carries four custom
+2. **Use the codebase's standard Gaussian binding.** `rendering/binding.py` carries four custom
    Gaussian-to-particle binding modes, and only the MLS modes work with `BerryGaussianStream`
    (`affine4` does not). Replace it with the standard binding.
+3. **Implicit grip by friction.** Once Newton's implicit MPM keeps the grip stress of a pinched solid,
+   replace the implicit solver's clamped grasp with frictional contact, as in the explicit solver.
+4. **Interacting berries.** With the implicit solver, berries sharing the MPM grid interact as sticky
+   contact, unvalidated; the explicit solver gives them frictional contact. The previous task's scripted
+   sort into the reject dish was not ported.
+5. **OVRTX 0.5.** Find why live Gaussian updates can become invisible with the public 0.5 renderer.
 
 ## 1. Install the task runtime
 
@@ -94,8 +127,8 @@ uv run --no-sync python source/isaaclab_tasks/isaaclab_tasks/contrib/franka_pick
 
 Use `--mode keyboard` if no joystick is connected. Raspberry is default;
 `--berry` also accepts blackberry, blueberry, strawberry and `all`. `--help` lists all
-CLI options. Robot state uses the native CPU MuJoCo backend; MPM and Gaussians
-run on CUDA device 0. An RTX GPU is required for rendering.
+CLI options. Physics and Gaussians run on CUDA device 0 (`--device` selects another);
+an RTX GPU is required for rendering.
 Per-step JSON metrics are quiet by default. Add `--print_metrics` to show them
 in the shell, or use `--output` to save them in `report.json` without shell spam.
 
@@ -132,7 +165,7 @@ uv run --no-sync python source/isaaclab_tasks/isaaclab_tasks/contrib/franka_pick
 
 This places raspberry, blackberry, blueberry and strawberry at separate positions
 in the starting punnet (or on the studio surface). Each retains its own material, deformation,
-damage and Gaussian shading. Gripper reactions are summed across all four berries.
+damage and Gaussian shading.
 The camera defaults to a fixed overview; **View raspberry/blackberry/blueberry/strawberry**
 buttons switch the close-up without changing the scripted target. Reset restores
 all four berries. `--output` includes per-berry states in each metric sample.
@@ -145,11 +178,27 @@ automatically collect all four. `--asset_version` applies to every berry; a cust
 Scripts pre-shape the opening above the punnet to avoid neighboring fruit. In
 teleop, similarly narrow the opening before descending between nearby berries.
 
-**Limitations:** these are independent MPM systems. They collide with the gripper
-and support surfaces, **not with one another**; do not use this mode for piles or
-berry-to-berry contact demonstrations. Four active solvers and Gaussian streams
-cost more GPU time and memory than a single berry. Use studio background for a
-lighter scene; the existing solver rates and physical resolution are preserved.
+**Limitations:** the berries share one MPM grid, so tissue of two berries that touch interacts
+through the grid, as sticky rather than frictional contact; berry-to-berry contact has not been
+validated, so do not use this mode for piles. Four berries cost more GPU time and memory than one;
+use the studio background for a lighter scene.
+
+## Two or three raspberries
+
+```bash
+uv run --no-sync python source/isaaclab_tasks/isaaclab_tasks/contrib/franka_pick_berries/scripts/teleop_berry.py \
+  --mode gamepad --count 3 --berry raspberry --asset_version v2 --physics_resolution half --background ebc
+```
+
+`--count 2` or `3` places that many berries of the selected species in the punnet, as `raspberry_1`,
+`raspberry_2`, ... With the EBC background they are scattered at separated random positions with random
+3D orientations; tissue, Gaussians and their spherical harmonics turn together. `--layout_seed 0` (the
+default) is reproducible; choose another nonnegative seed for another arrangement, or `--fixed_layout` for
+an ordered, unrotated layout. Reset replays the same arrangement.
+
+Teleop can handle any of the berries; scripted modes handle `raspberry_1`, for example `--mode place
+--count 3` carries it to the bowl and leaves the others in the punnet, though the gripper can nudge a close
+neighbor. The same limitations as for all four berries apply.
 
 ### Lower-resolution physics
 
@@ -161,185 +210,16 @@ uv run --no-sync python source/isaaclab_tasks/isaaclab_tasks/contrib/franka_pick
   --mode gamepad --berry all --asset_version v2 --background ebc --physics_resolution half
 ```
 
-The default `--physics_resolution full` preserves the original solver input.
-The half preset selects alternating sites of the tissue lattice, compensates
-particle volume to preserve total mass, derives the finite contact spacing from
-that volume, and rebuilds Gaussian bindings against the reduced tissue. Material
-parameters, MPM grid and timestep stay unchanged. The USDZ files are not modified,
-and no new downloads or Nucleus assets are required.
+The default `--physics_resolution full` uses every tissue particle in the asset.
+The half preset selects alternating sites of the tissue lattice and compensates
+particle volume to preserve total mass; Gaussian bindings are rebuilt against the
+reduced tissue. The USDZ files are not modified.
 
 Use v2 assets: all four contain supported regular-lattice tissue. Irregular or
 multi-region custom proxies are rejected in half mode rather than silently
 changing their material distribution. The older raspberry/strawberry v1 proxies
-are irregular and require full mode. Coarser physics can change local deformation,
-contact and tearing even though the visual Gaussian count is unchanged.
-
-`report.json` records source/reduced particle counts, contact spacing and mass
-for each berry. `benchmark_physics.py` accepts the same resolution option for
-physics-only pick, squash and compression comparisons.
-
-Measured on an RTX 6000 Ada, with all four v2 berries, EBC, 1280×720 rendering
-and the default 2× scripted place/loop sequence (721 steps, excluding the first
-10 warm-up frames):
-
-| Resolution | Physics particles | Physics step time per frame | Compute FPS |
-| --- | ---: | ---: | ---: |
-| full | 11,052 | 59.1 ms | 9.38 |
-| half | 5,539 | 47.0 ms | 10.91 |
-
-Both retained 582,187 berry Gaussians and the same per-berry mass to floating-point
-precision, placed the raspberry fully inside the bowl, and passed native render
-readback and all-berry reset checks. This was a roughly 16% overall speedup, not
-2×: grid, shading and rendering work remain. Timings exclude capture overhead and
-interactive pacing; physics and rendering overlap, so these are loop timings,
-not isolated GPU-kernel timings. Treat this as a local benchmark, not a guaranteed
-frame rate or proof of identical fine-scale damage behavior.
-
-The isolated raspberry pick benchmark lifted 49.4 mm at full resolution and
-48.7 mm at half resolution, with zero mean damage during the hold in both cases.
-The deliberate squash benchmark reached mean damage 0.164 versus 0.145;
-half resolution still supported damaging compression but did not reproduce the
-same quantitative damage/tear response. These are qualitative handling presets,
-not resolution-independent calibrated material measurements.
-
-To reproduce the comparison, run each preset sequentially with fresh output paths:
-
-```bash
-uv run --no-sync python source/isaaclab_tasks/isaaclab_tasks/contrib/franka_pick_berries/scripts/teleop_berry.py \
-  --mode place --berry all --asset_version v2 --background ebc --physics_resolution half \
-  --steps 721 --loop --capture_every 660 --verify_render --verify_reset --output /tmp/berry-half-comparison
-uv run --no-sync python source/isaaclab_tasks/isaaclab_tasks/contrib/franka_pick_berries/scripts/benchmark_physics.py \
-  --berry raspberry --asset_version v2 --physics_resolution half --mode pick --output /tmp/berry-half-pick
-```
-
-Repeat with `--physics_resolution full` and different output paths; replace
-`--mode pick` with `--mode squash` for the damaging-contact comparison.
-
-## Two or three interacting raspberries (experimental)
-
-Use `--count 2` (or its alias `--pair`) for two raspberries with mutual contact, unlike the independent
-`--berry all` mode. Both tissues share one MPM solver with separate velocity
-fields, equal-and-opposite contact impulses and Coulomb friction. Each retains
-its own deforming Gaussian appearance. No additional assets are required.
-
-```bash
-uv run --no-sync python source/isaaclab_tasks/isaaclab_tasks/contrib/franka_pick_berries/scripts/teleop_berry.py \
-  --mode gamepad --berry raspberry --pair --asset_version v2 \
-  --physics_resolution half --background ebc
-```
-
-The default `--pair_layout plate` places both in the starting punnet. The legacy
-layout name is retained for CLI compatibility. Teleop can manipulate
-either; scripted modes target `raspberry_1`. Use `--pair_layout bowl` to start
-the second raspberry inside the receiving bowl, then place the first onto it:
-
-```bash
-uv run --no-sync python source/isaaclab_tasks/isaaclab_tasks/contrib/franka_pick_berries/scripts/teleop_berry.py \
-  --mode place --pair --pair_layout bowl --berry raspberry --asset_version v2 \
-  --physics_resolution half --background ebc --window --loop
-```
-
-`bowl` requires the EBC background. `--pair_layout drop --mode idle --window`
-instead starts one raspberry 4 cm above the other. `--berry_friction 0.4`
-controls berry-to-berry friction only, not finger friction; this is an empirical
-demo parameter, not a measured fruit coefficient. Reset restores both bodies.
-Reports contain per-instance states; their `finger_force_n` is explicitly marked
-as the **coupled pair total**, applied to the robot only once.
-
-Validation on RTX 6000 Ada with the commands above (721 steps, loop reset and
-native Gaussian readback enabled) retained 367,206 visual Gaussians and 2,946
-half-resolution physics particles, at approximately 17.4 compute frames/s.
-The released berry displaced the second berry; both settled entirely inside
-the bowl with zero mean damage. This is a different workload from the four-berry
-benchmark, not a direct speed comparison.
-
-Standalone contact/control probes:
-
-```bash
-uv run --no-sync python source/isaaclab_tasks/isaaclab_tasks/contrib/franka_pick_berries/scripts/benchmark_interactions.py \
-  --case push --contact on --physics_resolution half --output /tmp/berry-pair-push
-```
-
-Repeat with `--contact off` and a fresh output directory, or use `--case separate`
-and `--case drop`. The push probe transferred motion to the stationary berry;
-the disabled control passed through it. Separation probes and contact unit tests
-checked non-attraction, momentum conservation and no contact-induced energy gain.
-
-### Three in the punnet: damage, discard, then gentle handling
-
-Use `--count 3` to start three interacting raspberries in the punnet:
-
-```bash
-uv run --no-sync python source/isaaclab_tasks/isaaclab_tasks/contrib/franka_pick_berries/scripts/teleop_berry.py \
-  --mode gamepad --count 3 --berry raspberry --asset_version v2 \
-  --physics_resolution half --background ebc
-```
-
-The scripted `sort` mode defaults to three raspberries and requires EBC:
-
-```bash
-uv run --no-sync python source/isaaclab_tasks/isaaclab_tasks/contrib/franka_pick_berries/scripts/teleop_berry.py \
-  --mode sort --asset_version v2 --physics_resolution half --background ebc --window --loop
-```
-
-All three start in the punnet, now with its long axis along Y (rotated 90°).
-Coupled two/three-raspberry EBC punnet layouts use separated random positions and
-full 3D orientations by default. `--layout_seed 0` is reproducible; choose another
-nonnegative seed for a different arrangement, or `--fixed_layout` for the ordered,
-unrotated fruit layout. Reset/loop replays the same arrangement. Tissue, Gaussian
-orientations and SH coefficients receive the same spawn rotation.
-
-The robot deliberately compresses the first to a
-1 mm commanded aperture, carries the damaged tissue to the shallow metal reject
-dish, and releases it. It then grasps the second and third gently
-and deposits them in the glass bowl. The actual pad gap can differ under load.
-The discarded tissue remains in the simulation throughout; nothing is deleted,
-teleported, attached to the gripper, or assigned artificial damage. The reject
-dish has a real supporting floor and open collision walls, not a target marker.
-
-The arm waits for measured TCP arrival at approach, lift, transfer and lowering
-boundaries before proceeding; in particular, it does not open on a timer while
-still travelling. Smooth arm ramps reduce abrupt starts/stops. For accepted berries,
-early downward slip triggers bounded extra closure (1 mm/s, at most 18% of the
-initial grasp aperture); `--pick_gap` disables this automatic closure. Larger slip
-pauses travel, and a lost grasp pauses the sequence with an `R` retry prompt.
-This is physical contact feedback, not an attachment or a guarantee for every pose.
-Timing therefore includes travel-dependent waits in addition
-to the nominal 69 seconds at default speed 2. The viewer shows the current phase;
-reports include per-instance states and a `sorting_result` after a completed cycle.
-This result checks discard containment and damage, plus bowl containment and low
-damage for the accepted berries; an incomplete run reports `null`, not success.
-`--loop` resets all three only after the entire sequence. Without it, the final
-scene is held for inspection. `R` restarts the sequence.
-
-The earlier ordered-layout punnet/reject-dish validation used 4,419 tissue particles and retained all
-550,809 visual Gaussians, at approximately 13.4 compute frames/s on RTX 6000 Ada.
-Both accepted berries settled entirely inside the bowl with mean damage below
-0.0001; all of the damaged berry's particles settled inside the reject dish,
-with mean damage about 0.074. These dimensionless damage values are model state,
-not a calibrated food-quality measurement. Some damaged particles can scatter;
-this is not a clean, fragment-free sorting guarantee.
-
-Randomized layouts with seeds 0, 1 and 2 were also tested at default speed 2,
-v2 assets and half physics resolution: both accepted berries ended entirely in
-the bowl (mean damage below 0.00061), with over 99.5% of rejected particles in the
-reject dish. Placement-only checks covered 100 seeds; this does not imply that
-every random orientation is a reliable grasp.
-Seed 0 also passed a rendered speed-5 run with render/reset verification: both
-accepted berries fully in the bowl, all rejected particles in the reject dish,
-no lost-grasp pause, and mean accepted damage below 0.000007. At 960 × 720 this
-run averaged 13.4 compute frames/s on RTX 6000 Ada, excluding screenshot cost.
-
-“Broken” here means physically crushed/damaged tissue with permanent deformation;
-it is not a guarantee of clean separation into independently colliding fragments.
-
-**Limitations:** coupled modes support two or three copies of raspberry only;
-three requires the legacy-named `plate` (now punnet) layout. `--berry all` still means four different species
-in independent, non-interacting solvers, not this coupled group.
-Contact is approximate, grid-based tissue contact, not Gaussian collision;
-contact tolerances and results depend on resolution. Drop tests produced contact
-and rolling apart, not a stable stack. Dense piles, sustained stacking and
-fractured-fragment contact have not been validated.
+are irregular and require full mode. Coarser physics changes local deformation,
+contact and damage even though the visual Gaussian count is unchanged.
 
 ## EBC tabletop showcase
 
@@ -383,20 +263,9 @@ the solid glass. The bowl still reads dark against the table in this real-time
 renderer; its appearance needs another art-direction pass before a final GTC
 capture. These changes do not affect studio lighting or fruit physics.
 
-Robot contact uses the table's authored collider and separate base/wall proxies
-for the props. Berry contact uses analytic disks, annular walls and rounded-rectangle shells at
-both the MPM grid and particle levels, with friction and no adhesion. There is
-no convex hull or invisible lid across the bowl opening. The MPM domain and IK
-workspace extend sideways to cover the transfer; reports include
-`fraction_in_bowl`. Room furniture remains visual-only. The local MPM tabletop
-plane does not model falls off the table edge.
-The EBC grid includes an additional 4 cm on its negative-X/Y (discard) sides for
-crushed-tissue spillover. This increases grid allocation, not particle count or
-grid spacing; active-node stepping and integration rates are unchanged. The
-domain is still finite. On a solver failure, the exception includes particle
-bounds, safe grid bounds and the world offset instead of only an error counter.
-The default-seed, v2/half-resolution sort loop was checked for 9,001 headless
-steps (three complete cycles plus part of a fourth), including reset verification.
+The table, punnet, bowl and reject dish are static colliders for both the robot and the
+tissue; decorative ribs and the punnet flange are visual only, and there is no lid across
+the bowl opening. Room furniture remains visual-only. Reports include `fraction_in_bowl`.
 
 For a GTC presentation, a useful sequence is **gentle pick → lift → place**, then
 a reset and **deliberate squash**. Use the room view to establish the setting and
@@ -430,7 +299,7 @@ At the default speed, `--loop` resets pick every 15 simulated seconds, squash
 every 16.5 seconds, and place every 23 seconds. With `--motion_speed 1`, these
 remain 18, 18 and 32 seconds respectively.
 The place sequence lifts clear of the bowl rim, translates, lowers, releases and
-retreats. Reset restores the berry in the punnet and clears damage/contact history.
+retreats. Reset restores the berry in the punnet and clears its damage and grasp.
 Gamepad mode remains fully operator-controlled, with the same grasp mapping.
 
 If other Newton tests are running, use a dedicated `WARP_CACHE_PATH` to prevent
@@ -449,9 +318,11 @@ with a full home cache, `UV_CACHE_DIR` can also point to another filesystem.
 - Keyboard: **W/S, A/D, Q/E** translate; **Z/X, T/G, C/V** rotate; **K** closes,
   **J** opens, **R** resets. Focus the render window.
 
-This is **position control, not force control**: holding a compressed opening can
-continue deforming the berry. Opening the fingers relieves compression. There is
-no automatic stop-at-contact behavior. The viewer has a follow-berry camera toggle.
+This is **position control, not force control**: closing further compresses and can
+damage the berry. The explicit solver grips by friction; with `--tissue_solver implicit`, holding an
+aperture clamps the tissue the fingers press instead, and closing further or opening releases it (see
+[Physics](#physics)). There is no automatic stop-at-contact behavior. The viewer
+has a follow-berry camera toggle.
 
 ## Scripted checks
 
@@ -469,73 +340,11 @@ or `--video` to record (requires ffmpeg). Scripts without `--window` render offs
 `--verify_render` checks native Gaussian publication; `--render_aa dlaa --rtpt_spp 4`
 are optional sampling overrides, not guaranteed appearance fixes.
 
-## Handling physics and validation
-
-The default `--physics_profile handling` uses firmer tissue and continuous contact
-against the analytic pad surfaces. `--physics_profile legacy` restores the previous
-material and grid-node contact for comparison. Neither option modifies the USDZ;
-both work with `--asset_version v1` and `v2`.
-
-Handling Young's moduli are 12 kPa (raspberry), 13.5 kPa (blackberry), 15 kPa
-(blueberry), and 18 kPa (strawberry). Poisson's ratio is 0.4. Damage-induced
-softening is reduced, and raspberry tearing starts later in accumulated plastic
-strain. Deliberate closing can still bruise, permanently deform, and tear tissue.
-The integration rate is increased only as needed for CFL stability (raspberry:
-6120 Hz versus the previous 5040 Hz). Explicit `--mpm_hz` overrides must still
-satisfy the solver's stability check.
-
-The new contact uses a finite particle radius of half the tissue spacing,
-compressive spring/damper normal forces, and tangential spring history capped by
-Coulomb friction. This supports static friction without requiring sustained slip
-or depending on whether an MPM grid node lies inside a finger. The pad coefficient
-remains 1.2. Contact history clears on separation; normal contact cannot pull the
-berry toward a finger. The separate, damage-activated wet adhesion from the POC
-remains available for crushed tissue. Reaction impulses still feed back into the
-robot. Opening the fingers releases an undamaged berry.
-
-The scripted `--mode pick` centers on the settled tissue and defaults to an opening
-of 85% of its width. Override with e.g. `--pick_gap 0.022` (metres). Teleoperation
-remains fully operator-controlled: triggers command opening, not an automatic
-force clamp. Reports include actual pad separation, tissue extent, mean tearing,
-and the effective material settings.
-
-For reproducible contact-only tests without a robot or renderer:
-
-```bash
-uv run --no-sync python source/isaaclab_tasks/isaaclab_tasks/contrib/franka_pick_berries/scripts/benchmark_physics.py \
-  --berry raspberry --asset_version v2 --gap 0.022 --output /tmp/berry-contact-test
-```
-
-Repeat in new output directories with `--grid_shift 0.001` (grid-only alignment
-control), `--physics_profile legacy`, or `--friction 0` (no dry grip). `--mode squash`
-closes to 1 mm and reopens; `--mode compression` presses an 18 mm square tool down
-to 20% of the initial height. The benchmark checks finite state, inversions, and
-domain bounds, and records force, deformation, damage, lift, hold drift, release,
-and compute time in `report.json`. It does not automatically certify grasp success.
-
-Validation with the local v2 assets lifted all four berries approximately 49 mm
-with the Franka, held them, released them, and passed exact reset checks. The v2
-raspberry used a 20.04 mm commanded opening with zero modeled damage during the
-grasp; the legacy physics slipped at a comparable 20.16 mm command. The original
-v1 raspberry also lifted at a 22 mm command. Separate pad tests covered multiple
-sub-cell grid shifts, and zero-friction control trials did not carry the raspberry.
-Deep closure still produced permanent deformation and damage. These checks do not
-establish robustness across arbitrary approach poses or validate real-world forces.
-After adding a conservative distant-pad rejection check, a sequential 451-step
-raspberry v2 pick comparison at 1280x720 on an RTX 6000 Ada averaged 31.1 compute
-FPS for handling versus 31.4 for legacy (capture/pacing excluded). Timing varies
-with machine load, assets, and renderer settings; this is not a universal FPS guarantee.
-
-Contact covers the inner fingertip pads, not the entire arm. These are empirical
-handling presets, informed qualitatively by the supplied raspberry compression
-video, not a calibrated force–displacement fit or measured fruit properties.
-Irregular shape, approach alignment and narrow contact area can still cause slip.
-The video used a rounded wooden indenter; the square-tool benchmark is not an
-exact reproduction of that experiment.
+## Asset format
 
 All prepared exterior/interior Gaussians and degree-three SH data are retained.
 The runtime reads Gaussian appearance, tissue arrays, and base simulation settings
-directly from `<berry>/<berry>.usdz`, then applies the task's selected physics preset.
+directly from `<berry>/<berry>.usdz`, then applies the task's tissue material.
 No NPZ or JSON asset files are needed. The USDZ
 contains a USD layer with `/Berry/Gaussians`, `/Berry/Tissue`, typed `/Berry/TaskData`
 metadata, and the MDL shader. Renderer resources resolve inside the USDZ archive.
@@ -545,9 +354,8 @@ appearance; the task's MPM adapter instantiates the tissue simulation.
 The raspberry SH coefficients were rebuilt from the original scan and rotated
 through the settled material frame (about 59 degrees), a step missing from the
 original `raspberry-squash` preparation. Geometry, opacity, interiors and physics
-were preserved. `assets/sh_rotation.py` and `offline/rebuild_appearance.py` contain the offline
-repair; the runtime performs no coefficient fitting or additional per-frame work.
-The asset-repair/packaging pipeline itself (rebuilding a `*_simready.usdz` from raw
+were preserved; the runtime performs no coefficient fitting or additional per-frame work.
+The asset-repair/packaging pipeline (rebuilding a `*_simready.usdz` from raw
 scans) is out of scope for this standalone task and is not included here; publish a
 replacement bundle with the layout and manifest tooling described in step 2 above.
 
