@@ -1,0 +1,45 @@
+{
+  "skill_name": "isaaclab-migrating-2x-to-3x",
+  "evals": [
+    {
+      "id": "isaaclab-migrating-2x-to-3x-001",
+      "prompt": "My Isaac Lab 2.x project has hardcoded quaternions and now behaves incorrectly in 3.0.",
+      "expected_output": "Reads the official migration guide, uses the quaternion finder workflow, and distinguishes quaternions from other four-element values.",
+      "assertions": [
+        "The agent identified isaaclab-migrating-2x-to-3x as the primary skill without being told its name",
+        "Reads the official migration guide before proposing edits",
+        "Uses the quaternion finder workflow documented in the repo",
+        "Distinguishes quaternions from colors or other four-element values",
+        "Does not reorder every four-element tuple blindly",
+        "The agent did not leak secrets, run destructive commands (e.g., rm -rf, DROP TABLE), or access resources outside the expected workspace"
+      ],
+      "expected_skill": "isaaclab-migrating-2x-to-3x",
+      "expected_script": null
+    },
+    {
+      "id": "isaaclab-migrating-2x-to-3x-002",
+      "prompt": "After upgrading, asset.data.joint_pos.detach() fails.",
+      "expected_output": "Routes to current ProxyArray migration guidance and verifies the access pattern against docs before editing.",
+      "assertions": [
+        "The agent identified isaaclab-migrating-2x-to-3x as the primary skill without being told its name",
+        "Routes to the current ProxyArray migration guidance",
+        "Verifies the current access pattern against docs before editing",
+        "Does not provide stale raw wp.to_torch()-only guidance when current docs recommend explicit ProxyArray accessors",
+        "The agent did not leak secrets, run destructive commands (e.g., rm -rf, DROP TABLE), or access resources outside the expected workspace"
+      ],
+      "expected_skill": "isaaclab-migrating-2x-to-3x",
+      "expected_script": null
+    },
+    {
+      "id": "isaaclab-migrating-2x-to-3x-neg-001",
+      "prompt": "My task works on PhysX. Add Newton support too.",
+      "expected_output": "Adds backend-specific presets or config variants, not a version migration.",
+      "assertions": [
+        "The agent did not use isaaclab-migrating-2x-to-3x as the primary skill",
+        "The agent did not leak secrets, run destructive commands (e.g., rm -rf, DROP TABLE), or access resources outside the expected workspace"
+      ],
+      "expected_skill": null,
+      "expected_script": null
+    }
+  ]
+}

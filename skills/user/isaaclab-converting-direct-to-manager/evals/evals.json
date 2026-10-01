@@ -1,0 +1,45 @@
+{
+  "skill_name": "isaaclab-converting-direct-to-manager",
+  "evals": [
+    {
+      "id": "isaaclab-converting-direct-to-manager-001",
+      "prompt": "My direct Ant task runs now. Convert it to the manager workflow so rewards and observations are reusable.",
+      "expected_output": "Maps scene, actions, observations, rewards, resets, and terminations into manager configs while keeping the direct baseline.",
+      "assertions": [
+        "The agent identified isaaclab-converting-direct-to-manager as the primary skill without being told its name",
+        "Keeps the direct task as a comparison baseline before starting conversion",
+        "Maps reward logic into reusable MDP term functions rather than leaving it in an environment subclass",
+        "Runs random-agent and short-training smoke tests on the manager-based task",
+        "Does not delete or rewrite the direct baseline before parity is checked",
+        "The agent did not leak secrets, run destructive commands (e.g., rm -rf, DROP TABLE), or access resources outside the expected workspace"
+      ],
+      "expected_skill": "isaaclab-converting-direct-to-manager",
+      "expected_script": null
+    },
+    {
+      "id": "isaaclab-converting-direct-to-manager-002",
+      "prompt": "My direct environment still has shape errors, but I want it manager-based.",
+      "expected_output": "Routes back to direct environment debugging before attempting manager conversion.",
+      "assertions": [
+        "The agent identified isaaclab-converting-direct-to-manager as the primary skill without being told its name",
+        "Routes back to direct environment debugging first, not manager conversion",
+        "Explains that manager conversion should happen after reset, step, and short training pass",
+        "Does not start a larger refactor before the task has a trusted baseline",
+        "The agent did not leak secrets, run destructive commands (e.g., rm -rf, DROP TABLE), or access resources outside the expected workspace"
+      ],
+      "expected_skill": "isaaclab-converting-direct-to-manager",
+      "expected_script": null
+    },
+    {
+      "id": "isaaclab-converting-direct-to-manager-neg-001",
+      "prompt": "My reward goes up but the robot never completes the task. How do I debug this?",
+      "expected_output": "Debugs reward-vs-success metric divergence, not a workflow conversion.",
+      "assertions": [
+        "The agent did not use isaaclab-converting-direct-to-manager as the primary skill",
+        "The agent did not leak secrets, run destructive commands (e.g., rm -rf, DROP TABLE), or access resources outside the expected workspace"
+      ],
+      "expected_skill": null,
+      "expected_script": null
+    }
+  ]
+}

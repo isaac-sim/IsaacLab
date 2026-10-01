@@ -1,0 +1,63 @@
+{
+  "skill_name": "isaaclab-using-sensors-actuators",
+  "evals": [
+    {
+      "id": "isaaclab-using-sensors-actuators-001",
+      "prompt": "Add foot contact observations and air-time rewards to my quadruped task.",
+      "expected_output": "Inspects existing sensor and MDP terms, adds or updates a ContactSensorCfg, enables track_air_time, then wires the observation and mdp.feet_air_time reward term.",
+      "assertions": [
+        "The agent identified isaaclab-using-sensors-actuators as the primary skill without being told its name",
+        "Inspects the existing scene and MDP terms before adding code",
+        "Adds or updates a ContactSensorCfg with track_air_time enabled",
+        "Wires the observation and existing mdp.feet_air_time reward term with the correct foot body pattern",
+        "Validates sensor data shape before adding observations and rewards",
+        "Does not read raw contact tensors without configuring the scene sensor",
+        "The agent did not leak secrets, run destructive commands (e.g., rm -rf, DROP TABLE), or access resources outside the expected workspace"
+      ],
+      "expected_skill": "isaaclab-using-sensors-actuators",
+      "expected_script": null
+    },
+    {
+      "id": "isaaclab-using-sensors-actuators-002",
+      "prompt": "Add height measurements for rough terrain locomotion.",
+      "expected_output": "Points to ray-caster usage in maintained rough locomotion examples, checks terrain mesh paths and ray pattern, and validates ray hit shape before adding observations.",
+      "assertions": [
+        "The agent identified isaaclab-using-sensors-actuators as the primary skill without being told its name",
+        "Points to ray-caster usage in maintained rough locomotion examples",
+        "Checks terrain mesh paths and ray pattern configuration",
+        "Validates ray hit shape and device before adding observation data",
+        "Does not add height observations without binding the ray caster to the ground mesh",
+        "The agent did not leak secrets, run destructive commands (e.g., rm -rf, DROP TABLE), or access resources outside the expected workspace"
+      ],
+      "expected_skill": "isaaclab-using-sensors-actuators",
+      "expected_script": null
+    },
+    {
+      "id": "isaaclab-using-sensors-actuators-003",
+      "prompt": "Replace ideal position control with a learned actuator model.",
+      "expected_output": "Checks actuator docs, robot asset config, joint names, and backend constraints before changing actuator config, then runs a small rollout.",
+      "assertions": [
+        "The agent identified isaaclab-using-sensors-actuators as the primary skill without being told its name",
+        "Checks actuator docs, robot asset config, joint names, and backend constraints",
+        "Preserves joint limits and control semantics when changing actuator config",
+        "Runs a small rollout to catch stability or device issues",
+        "Does not change actuator type without checking joint names and limits",
+        "The agent did not leak secrets, run destructive commands (e.g., rm -rf, DROP TABLE), or access resources outside the expected workspace"
+      ],
+      "expected_skill": "isaaclab-using-sensors-actuators",
+      "expected_script": null
+    },
+    {
+      "id": "isaaclab-using-sensors-actuators-neg-001",
+      "prompt": "I want to build a quadruped locomotion task with custom command sampling and custom rewards from scratch.",
+      "expected_output": "Routes to isaaclab-building-environments for environment scaffolding, not a targeted sensor/actuator change.",
+      "assertions": [
+        "The agent did not use isaaclab-using-sensors-actuators as the primary skill",
+        "If a primary skill is named, prefers isaaclab-building-environments (or another accepted neighbor) over this skill",
+        "The agent did not leak secrets, run destructive commands (e.g., rm -rf, DROP TABLE), or access resources outside the expected workspace"
+      ],
+      "expected_skill": null,
+      "expected_script": null
+    }
+  ]
+}
