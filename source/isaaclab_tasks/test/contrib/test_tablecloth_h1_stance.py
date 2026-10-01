@@ -12,8 +12,6 @@ from isaaclab.utils.version import standalone_importers_available
 if not standalone_importers_available():
     launch_test_simulation()
 
-import sys
-
 import gymnasium as gym
 import pytest
 import torch
@@ -25,16 +23,14 @@ from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils.math import quat_apply, quat_error_magnitude, quat_mul, subtract_frame_transforms
 
 import isaaclab_tasks  # noqa: F401
+from isaaclab_tasks.contrib.tablecloth import expert
 from isaaclab_tasks.contrib.tablecloth.h1_env_cfg import HAND_OFFSETS
 from isaaclab_tasks.utils import parse_env_cfg
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-def test_h1_stays_grounded_and_retains_cloth(device, monkeypatch):
+def test_h1_stays_grounded_and_retains_cloth(device):
     """The scripted trick retains both physical grips without destabilizing the robot."""
-    monkeypatch.setattr(sys, "argv", ["tablecloth_h1.py"])
-    from examples import tablecloth_h1 as expert
-
     cfg = parse_env_cfg("IsaacContrib-Tablecloth-H1", device=device, num_envs=1)
     cfg.sim.visualizer_cfgs = []
     success_term = cfg.terminations.success

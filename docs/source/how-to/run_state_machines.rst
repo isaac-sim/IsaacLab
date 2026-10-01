@@ -79,10 +79,12 @@ the mesh or hand asset requires revalidating acquisition and retention.
    uv run --extra importers isaaclab example tablecloth-h1 \
       --max_steps 312
 
-The expert lives in ``examples/tablecloth_h1.py`` so it also ships in the
-Isaac Lab wheel. The reusable task lives in
-``source/isaaclab_tasks/isaaclab_tasks/contrib/tablecloth/`` and appears in the
-:ref:`environment browser <environment-browser>` as ``IsaacContrib-Tablecloth-H1``.
+The reusable task lives in
+``source/isaaclab_tasks/isaaclab_tasks/contrib/tablecloth/``. Its ``expert.py``
+contains the Warp controller and grasp calibration; ``examples/tablecloth_h1.py``
+is only a launcher for that task and expert. Both ship in the Isaac Lab wheel.
+The task appears in the :ref:`environment browser <environment-browser>` as
+``IsaacContrib-Tablecloth-H1``.
 For the five-speed standalone comparison, see :ref:`newton-using-vbd`.
 
 Start with ``lift_cube_sm.py`` for a self-contained state-machine example.
