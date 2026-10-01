@@ -1304,6 +1304,7 @@ jobs:
     permissions:
       contents: read
       actions: read
+      checks: write
     needs: [performance-smoke]
     if: always() && needs.performance-smoke.result != 'skipped'
     steps:
@@ -1368,6 +1369,50 @@ jobs:
         } >> "$GITHUB_STEP_SUMMARY"
         echo "Performance comparison rendered in the GitHub Actions Summary."
         exit "$gate_exit"
+
+    - name: Link the rendered comparison from PR Checks
+      if: always() && github.event_name == 'pull_request'
+      continue-on-error: true
+      uses: actions/github-script@v9
+      with:
+        script: |
+          const fs = require('node:fs');
+          const attempt = Number(process.env.GITHUB_RUN_ATTEMPT);
+          const jobs = await github.paginate(github.rest.actions.listJobsForWorkflowRunAttempt, {
+            ...context.repo,
+            run_id: context.runId,
+            attempt_number: attempt,
+            per_page: 100,
+          });
+          const summaryJob = jobs.find(job => job.name === 'performance-smoke');
+          if (!summaryJob) throw new Error('The Performance smoke Summary job could not be located.');
+          const summaryUrl = `${process.env.GITHUB_SERVER_URL}/${context.repo.owner}/${context.repo.repo}`
+            + `/actions/runs/${context.runId}/attempts/${attempt}#summary-${summaryJob.id}`;
+          const reportPath = 'build-comparison/build-comparison.md';
+          const report = fs.existsSync(reportPath) ? fs.readFileSync(reportPath, 'utf8') : '';
+          const result = report.match(/^\*\*(.+)\*\*$/m)?.[0]
+            || '**Comparison unavailable. Open the Summary for the reason and available evidence.**';
+          // A separate report check opens rendered check output; native Actions job checks open logs.
+          const {data: check} = await github.rest.checks.create({
+            ...context.repo,
+            name: 'Performance smoke comparison',
+            head_sha: context.payload.pull_request.head.sha,
+            status: 'completed',
+            conclusion: 'neutral',
+            external_id: `performance-smoke-comparison:${context.runId}:${attempt}`,
+            details_url: summaryUrl,
+            output: {
+              title: 'Performance smoke comparison',
+              summary: [
+                `## [Open rendered Performance smoke Summary](${summaryUrl})`,
+                result,
+                'View baseline and PR FPS, percentage changes, and results for every workload. '
+                  + 'Builds, source runs, samples, and diagnostics are in the collapsed details.',
+                'This report is informational. The existing `performance-smoke` check retains the rolling-history CI gate.',
+              ].join('\n\n'),
+            },
+          });
+          core.info(`PR comparison check: ${check.html_url}`);
 
   # Publishes the shared Warp kernel cache the test jobs restore. Needed as its
   # own job because a cache written from a PR is readable only by that PR, and
