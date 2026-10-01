@@ -8,8 +8,8 @@ Added
   Added seeded four-color batches, two destination loops, and sorting metrics. Preserved the
   original manipulation geometry and 123-observation, eight-action policy interface. Complete-batch
   reliability with the unchanged policy was not established. Use ``--viz kit`` for authored visuals
-  and the explicit base-task checkpoint URL documented in the conveyor guide.
-* Added a user guide, preview, and environment-browser entries distinguishing the original
+  and ``--checkpoint pretrained`` to load the shared policy.
+* Added a task README, previews, and environment-browser entries distinguishing the original
   four-cube racetrack task from warehouse sorting with the same pretrained policy.
 
 Changed
@@ -24,3 +24,4 @@ Changed
   sanitized commands accepted by the task's action terms.
 * Named the new tasks ``IsaacContrib-Conveyor-Racetrack-Transfer-v0`` and
   ``IsaacContrib-Conveyor-Warehouse-Sorting-v0``, with an explicitly named PhysX CPU reference.
+* Aligned conveyor configuration environment classes with their task registrations.

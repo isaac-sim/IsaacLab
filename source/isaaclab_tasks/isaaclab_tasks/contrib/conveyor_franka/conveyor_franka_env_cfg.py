@@ -616,6 +616,7 @@ class ConveyorFrankaSceneCfg(InteractiveSceneCfg):
 class ConveyorFrankaEnvCfg(ManagerBasedRLEnvCfg):
     """Manager-based RL task for commanded conveyor-to-conveyor cube transfer."""
 
+    class_type: type | str = "{DIR}.conveyor_franka_env:ConveyorFrankaEnv"
     scene: ConveyorFrankaSceneCfg = ConveyorFrankaSceneCfg(num_envs=256, env_spacing=3.0, replicate_physics=True)
     conveyor_force: ConveyorForceCfg = ConveyorForceCfg()
     actions: ActionsCfg = ActionsCfg()

@@ -91,7 +91,6 @@ Table of Contents
    source/setup/ecosystem
    source/setup/installation/index
    source/setup/environments
-   source/setup/conveyor_franka
    source/setup/quickstart
    source/setup/tutorial
    source/setup/demos

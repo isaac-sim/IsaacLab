@@ -5,7 +5,7 @@ All rights reserved.
 SPDX-License-Identifier: BSD-3-Clause
 -->
 
-# Conveyor Franka
+# Conveyor tasks
 
 Choose between two tasks using the same pretrained Franka policy:
 
@@ -49,13 +49,13 @@ Newton is kitless and supports the lightweight GL viewer:
 ```bash
 DISPLAY=:1 uv run isaaclab play --rl_library rsl_rl \
   --task IsaacContrib-Conveyor-Racetrack-Transfer-v0 \
-  --checkpoint https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.1/Isaac/IsaacLab/PretrainedCheckpoints/rsl_rl/IsaacContrib-Conveyor-Franka-Newton-v0_newtonmjwarp_none_rsl_rl.pt \
+  --checkpoint pretrained \
   --num_envs 8 --device cuda:0 --viz newton_gl --real-time
 ```
 
 The `pretrained` selector downloads the RSL-RL policy published specifically for the Newton MJWarp
-backend. The renamed checkpoint keys are published on Isaac Dev; until the public mirror syncs,
-the examples use the existing public URL. Pass a checkpoint path to evaluate another policy.
+backend. Both task keys are published on Isaac Dev. While the public mirror is syncing,
+use a local checkpoint path if the download is unavailable.
 The PhysX task resolves a different backend-specific artifact name, so transferring this Newton policy
 to PhysX currently requires the explicit local checkpoint path shown below.
 
@@ -131,7 +131,7 @@ Use **Kit/RTX** to see the authored MDL textures, USD lights, and background ani
 ```bash
 DISPLAY=:1 uv run --extra isaacsim isaaclab play --rl_library rsl_rl \
   --task IsaacContrib-Conveyor-Warehouse-Sorting-v0 \
-  --checkpoint https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.1/Isaac/IsaacLab/PretrainedCheckpoints/rsl_rl/IsaacContrib-Conveyor-Franka-Newton-v0_newtonmjwarp_none_rsl_rl.pt --num_envs 1 --device cuda:0 --viz kit --real-time \
+  --checkpoint pretrained --num_envs 1 --device cuda:0 --viz kit --real-time \
   --kit_args=--/UJITSO/geometry=false
 ```
 

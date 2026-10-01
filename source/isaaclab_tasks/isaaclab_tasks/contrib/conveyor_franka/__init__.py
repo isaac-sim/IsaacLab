@@ -20,7 +20,6 @@ gym.register(
 )
 
 gym.register(
-    # Warehouse sorting reuses the racetrack policy through an explicit checkpoint URL.
     id="IsaacContrib-Conveyor-Warehouse-Sorting-v0",
     entry_point=f"{__name__}.conveyor_franka_warehouse_env:ConveyorFrankaWarehouseEnv",
     disable_env_checker=True,

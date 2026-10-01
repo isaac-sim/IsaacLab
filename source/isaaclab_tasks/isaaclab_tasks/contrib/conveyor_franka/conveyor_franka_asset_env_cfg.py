@@ -369,6 +369,7 @@ class ConveyorFrankaA09A12SceneCfg(ConveyorFrankaSceneCfg):
 class ConveyorFrankaA09A12EnvCfg(ConveyorFrankaEnvCfg):
     """Newton presentation variant with Digital Twin visuals and extended return routes."""
 
+    class_type: type | str = "{DIR}.conveyor_franka_warehouse_env:ConveyorFrankaWarehouseEnv"
     scene: ConveyorFrankaA09A12SceneCfg = ConveyorFrankaA09A12SceneCfg(
         num_envs=1,
         env_spacing=24.0,
