@@ -5,7 +5,8 @@
 
 """A Franka and a Gaussian berry on a studio surface or the EBC demo table."""
 
-from isaaclab_newton.physics import NewtonCfg
+from isaaclab_newton.sim.schemas import MujocoRigidBodyCfg
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg
@@ -26,7 +27,8 @@ from ..stack.config.franka.stack_joint_pos_env_cfg import FrankaCubeStackEnvCfg
 from .assets.asset_root import berry_root
 from .control.gamepad import BerryGamepadCfg
 from .mdp.actions import BerryGraspActionCfg, BerryIKAction
-from .physics.solver import BerrySolverCfg
+from .physics.coupling import berry_physics_cfg
+from .scene.table import spawn_kinematic_usd
 from .scene.tableware import PLATE, TABLE_POSITION, TABLE_ROTATION, spawn_tableware
 
 
@@ -61,20 +63,18 @@ class BerryTerminationsCfg:
 class BerryPickEnvCfg(FrankaCubeStackEnvCfg):
     berry: str = "raspberry"
     target_berry: str = "raspberry"
-    pair: bool = False
+    tissue_solver: str = "explicit"
+    """Tissue solver: ``explicit`` (explicit MLS-MPM with frictional finger pads, :mod:`.physics.grasp_explicit_mpm`)
+    or ``implicit`` (Newton's implicit MPM with clamped grasping, :mod:`.physics.grasp_implicit_mpm`)."""
     berry_count: int = 1
-    sorting_demo: bool = False
+    """Number of berries of the selected species (1 to 3); they share the punnet."""
     randomize_layout: bool = True
+    """Scatter several berries in the EBC punnet with random orientations, instead of the fixed layout."""
     layout_seed: int = 0
-    pair_layout: str = "plate"
-    berry_friction: float = 0.4
+    """Seed of the random layout; reset replays the same layout."""
     berry_asset_path: str | None = None
     berry_asset_version: str = "v1"
-    physics_profile: str = "handling"
     physics_resolution: str = "full"
-    mpm_hz: int | None = None
-    mpm_device: str | None = None
-    """Warp device of the MPM solver and Gaussian streams; ``None`` follows a CUDA sim device, else ``cuda:0``."""
     asset_root: str = berry_root()
     berry_position: tuple[float, float, float] = (0.48, 0.0, 0.0)
     background: str = "studio"
@@ -90,8 +90,12 @@ class BerryPickEnvCfg(FrankaCubeStackEnvCfg):
         self.scene.cube_1 = self.scene.cube_2 = self.scene.cube_3 = None
         self.scene.ee_frame = None
         self.scene.robot = FRANKA_PANDA_HIGH_PD_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
-        # Gravity-compensated arm, as in the standard Franka differential-IK task.
-        self.scene.robot.spawn.rigid_props.disable_gravity = True
+        # IK targets need backend-native gravity compensation to hold steady between commands, as in the
+        # standard Franka differential-IK reach task.
+        self.scene.robot.spawn.rigid_props = [
+            PhysxRigidBodyCfg(disable_gravity=True, max_depenetration_velocity=5.0),
+            MujocoRigidBodyCfg(gravcomp=1.0),
+        ]
         ready = (
             0.00785503,
             0.30280935,
@@ -107,11 +111,14 @@ class BerryPickEnvCfg(FrankaCubeStackEnvCfg):
         self.scene.table.init_state.rot = (0, 0, 0, 1)
         self.scene.table.spawn = sim_utils.CuboidCfg(
             size=(0.8, 0.7, 0.05),
+            # A kinematic body, so the arm solver collides with it and the tissue solver sees it as a proxy.
+            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
             collision_props=sim_utils.CollisionPropertiesCfg(),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.22, 0.26, 0.29), roughness=0.65),
         )
         if self.background == "ebc":
             self.scene.table = lab_table
+            self.scene.table.spawn.func = spawn_kinematic_usd
             self.scene.table.init_state.pos = TABLE_POSITION
             self.scene.table.init_state.rot = TABLE_ROTATION
             self.scene.plane.spawn.visible = False
@@ -142,22 +149,6 @@ class BerryPickEnvCfg(FrankaCubeStackEnvCfg):
         self.sim.dt = 1 / 120
         self.sim.render_interval = 4
         self.episode_length_s = 3600
-        self.sim.physics = NewtonCfg(
-            num_substeps=1,
-            use_cuda_graph=False,
-            # The task draws with its own viewer, which the default (None) does not detect.
-            load_visual_shapes=True,
-            solver_cfg=BerrySolverCfg(
-                class_type="isaaclab_tasks.contrib.franka_pick_berries.physics.solver:NewtonBerryManager",
-                use_mujoco_contacts=True,
-                use_mujoco_cpu=True,
-                integrator="implicitfast",
-                cone="elliptic",
-                iterations=40,
-                njmax=1024,
-                nconmax=256,
-                update_data_interval=1,
-            ),
-        )
+        self.sim.physics = berry_physics_cfg()
         self.sim.physics.default_shape_cfg.gap = 0.0
-        self.teleop_devices = DevicesCfg(devices={"gamepad": BerryGamepadCfg(sim_device="cpu")})
+        self.teleop_devices = DevicesCfg(devices={"gamepad": BerryGamepadCfg(sim_device=self.sim.device)})

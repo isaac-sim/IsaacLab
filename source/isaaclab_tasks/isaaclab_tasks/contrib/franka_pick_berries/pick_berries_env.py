@@ -3,65 +3,43 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Single workcell environment with resettable tissue, damage, and contact history."""
+"""Single workcell environment: a Franka and deformable berry tissue on Newton's coupled MPM."""
 
 from isaaclab.envs import ManagerBasedRLEnv
 
-from .physics.collection import advance_berries, berry_configs
-from .physics.pair import BerryInstance, pair_offsets
-from .physics.runtime import BerryRuntime
+from .physics.coupling import berry_physics_cfg, bind_tissues, configure_tissue_solver, reset_tissue
+from .physics.tissue import BerryTissue, berry_layout, load_tissue, place_tissue, random_punnet_poses, tissue_object_cfg
 
 
 class BerryPickEnv(ManagerBasedRLEnv):
     def __init__(self, cfg, **kwargs):
         if cfg.scene.num_envs != 1:
             raise ValueError("Berry teleoperation currently supports one environment")
-        if cfg.berry_count not in (1, 2, 3):
-            raise ValueError("Berry count must be 1, 2 or 3")
-        cfg.pair = cfg.pair or cfg.berry_count > 1
-        if cfg.pair and cfg.berry_count == 1:
-            cfg.berry_count = 2
-        # Read by _reset_idx and the IK action term, which can run during super().__init__.
+        # Read by _reset_idx, which can run during super().__init__.
         self.berries = {}
-        self.berry_systems = []
         self.berry = None
+        specs = [load_tissue(cfg, *berry) for berry in berry_layout(cfg)]
+        if cfg.berry_count > 1 and cfg.randomize_layout and cfg.background == "ebc":
+            # Scatter the berries in the punnet with random orientations; every berry shares the punnet frame.
+            rotations, shifts = random_punnet_poses(specs[0].proxy, len(specs), cfg.layout_seed)
+            specs = [
+                place_tissue(spec, rotation, shift, cfg.berry_position)
+                for spec, rotation, shift in zip(specs, rotations, shifts)
+            ]
+        for spec in specs:
+            setattr(cfg.scene, spec.scene_name, tissue_object_cfg(spec))
+        if cfg.tissue_solver != "explicit":
+            # The configuration's default physics uses the explicit solver.
+            cfg.sim.physics = berry_physics_cfg(solver=cfg.tissue_solver)
+        configure_tissue_solver(cfg.sim.physics, specs, cfg.background)
         super().__init__(cfg, **kwargs)
-        if cfg.pair:
-            placements = pair_offsets(cfg)
-            owner = BerryRuntime(cfg, self.scene["robot"], placements=placements)
-            self.berries = {
-                f"raspberry_{i + 1}": BerryInstance(owner, i, shift) for i, shift in enumerate(owner.placements)
-            }
-            self.berry_systems = [owner]
-            self.berry = self.berries["raspberry_1"]
-        else:
-            self.berries = {item.berry: BerryRuntime(item, self.scene["robot"]) for item in berry_configs(cfg)}
-            self.berry_systems = list(self.berries.values())
-            self.berry = self.berries[cfg.target_berry if cfg.berry == "all" else cfg.berry]
-
-    def advance_berries(self) -> None:
-        """Advance all berries over one robot physics step and sum their contact forces."""
-        advance_berries(self.berry_systems, self.scene["robot"])
+        self.berries = {spec.name: BerryTissue(spec, self.scene[spec.scene_name]) for spec in specs}
+        bind_tissues(self.berries.values())
+        # Scripted modes and the close-up handle one berry: the selected species, or the first of several.
+        self.berry = self.berries[cfg.target_berry] if cfg.berry == "all" else next(iter(self.berries.values()))
 
     def _reset_idx(self, env_ids):
         super()._reset_idx(env_ids)
-        for berry in self.berry_systems:
-            berry.reset(self.scene["robot"])
-
-    def step(self, action):
-        result = super().step(action)
-        for berry in self.berry_systems:
-            try:
-                berry.checker.check()
-            except RuntimeError as error:
-                # Read full state only on failure; normal teleop keeps the small
-                # device-side check. Bounds are local to this solver's offset.
-                points = berry.sim.x.numpy()
-                lower = [float(x) + 0.5 * berry.sim.h for x in berry.sim.origin]
-                upper = [float(x) + (int(n) - 1.5) * berry.sim.h for x, n in zip(berry.sim.origin, berry.sim.res)]
-                raise RuntimeError(
-                    f"{error}; particle bounds [m]: {points.min(0).tolist()} .. {points.max(0).tolist()};"
-                    f" safe grid bounds [m]: {lower} .. {upper} (upper exclusive);"
-                    f" world offset [m]: {berry.offset.tolist()}"
-                ) from error
-        return result
+        if self.berries:
+            # The scene reset restores the particles; this clears the solver's stress and deformation history.
+            reset_tissue()

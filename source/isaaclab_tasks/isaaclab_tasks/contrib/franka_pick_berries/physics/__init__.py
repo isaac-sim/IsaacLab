@@ -3,4 +3,4 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Tissue physics: Newton solver manager, materials, contact, and per-berry runtime state."""
+"""Tissue physics: Newton coupled physics, the implicit and explicit tissue solvers, materials and per-berry tissue."""

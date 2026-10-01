@@ -33,24 +33,36 @@ parser.add_argument(
     help="Scripted pick/squash/place and close-up target when --berry all is selected",
 )
 parser.add_argument(
+    "--count",
+    type=int,
+    choices=[1, 2, 3],
+    default=1,
+    help="Berries of the selected species in the punnet; scripted modes handle the first",
+)
+parser.add_argument(
+    "--layout_seed",
+    type=int,
+    default=0,
+    help="Seed of the random punnet layout of several berries (EBC); reset replays it",
+)
+parser.add_argument(
+    "--fixed_layout",
+    action="store_true",
+    help="Place several berries in a fixed, unrotated layout instead of the random one",
+)
+parser.add_argument(
+    "--tissue_solver",
+    choices=["explicit", "implicit"],
+    default="explicit",
+    help="Explicit MLS-MPM with frictional finger pads, or Newton's implicit MPM with clamped grasping",
+)
+parser.add_argument(
     "--mode",
-    choices=["gamepad", "keyboard", "idle", "pick", "place", "squash", "sort"],
+    choices=["gamepad", "keyboard", "idle", "pick", "place", "squash"],
     default="gamepad",
 )
 parser.add_argument("--steps", type=int, default=0, help="0 runs until the window closes")
-parser.add_argument("--pair", action="store_true", help="Two interacting raspberries in a shared physics grid")
-parser.add_argument("--count", type=int, choices=[1, 2, 3], help="Interacting raspberry count; sort defaults to 3")
-parser.add_argument("--pair_layout", choices=["plate", "bowl", "drop"], default="plate")
-parser.add_argument(
-    "--layout_seed", type=int, default=0, help="Seed for separated random raspberry poses in the punnet"
-)
-parser.add_argument("--fixed_layout", action="store_true", help="Use the previous unrotated, ordered berry layout")
-parser.add_argument(
-    "--berry_friction", type=float, default=0.4, help="Berry-to-berry Coulomb friction (not finger friction)"
-)
-parser.add_argument(
-    "--loop", action="store_true", help="Reset and repeat scripted pick/place/squash/sort demonstrations"
-)
+parser.add_argument("--loop", action="store_true", help="Reset and repeat scripted pick/place/squash demonstrations")
 parser.add_argument(
     "--motion_speed",
     type=float,
@@ -71,19 +83,13 @@ parser.add_argument(
     help="Initial camera; auto shows the plate/bowl for EBC and a close-up for studio",
 )
 parser.add_argument(
-    "--physics_profile",
-    choices=["handling", "legacy"],
-    default="handling",
-    help="handling: firmer tissue and continuous pad contact; legacy: previous material and grid contact",
-)
-parser.add_argument(
     "--physics_resolution",
     choices=["full", "half"],
     default="full",
     help="full: original tissue; half: about half the physics particles, unchanged visual Gaussians",
 )
 parser.add_argument(
-    "--pick_gap", type=float, default=None, help="Scripted pick opening [m]; default: 85%% of settled width"
+    "--pick_gap", type=float, default=None, help="Scripted pick opening [m]; default: 70%% of the berry width"
 )
 asset_selection = parser.add_mutually_exclusive_group()
 asset_selection.add_argument(
@@ -118,23 +124,17 @@ parser.add_argument(
     help="Image capture interval; 0 disables screenshots",
 )
 parser.add_argument("--window", action="store_true", help="Show the scripted benchmark in a real window")
-parser.add_argument(
-    "--mpm_hz",
-    type=int,
-    help="MPM steps/s; default: raspberry 5040, blueberry 6000, blackberry/strawberry 4560",
-)
-parser.add_argument("--mpm_device", help="Warp device of the MPM solver and Gaussian streams; default: cuda:0")
 parser.add_argument("--partitions", type=int, choices=[1, 4], default=1)
 parser.add_argument(
     "--render_aa",
     choices=["default", "dlaa"],
     default="default",
-    help="Optional Carsten DLAA settings; default preserves the current viewer",
+    help="Optional DLAA antialiasing; default preserves the current viewer",
 )
 parser.add_argument(
     "--rtpt_spp",
     type=int,
-    help="Explicit realtime path-tracing samples per pixel (Carsten capture: 4)",
+    help="Explicit realtime path-tracing samples per pixel (e.g. 4 for captures)",
 )
 parser.add_argument("--output", type=Path)
 parser.add_argument(
@@ -161,34 +161,20 @@ parser.add_argument(
 parser.add_argument("--width", type=int, default=1280)
 parser.add_argument("--height", type=int, default=720)
 add_launcher_args(parser)
-parser.set_defaults(device="cpu", visualizer=[], headless=True)
+parser.set_defaults(device="cuda:0", visualizer=[], headless=True)
 args = parser.parse_args()
-if args.layout_seed < 0:
-    parser.error("--layout_seed must be nonnegative")
-if args.pair and args.count not in (None, 2):
-    parser.error("--pair is an alias for --count 2")
-args.count = args.count if args.count is not None else (2 if args.pair else 3 if args.mode == "sort" else 1)
-args.pair = args.count > 1
-if args.count == 3 and args.pair_layout != "plate":
-    parser.error("--count 3 requires --pair_layout plate")
-if args.mode == "sort" and (args.count != 3 or args.background != "ebc"):
-    parser.error("--mode sort requires three raspberries in the punnet and --background ebc")
 if not math.isfinite(args.motion_speed) or args.motion_speed <= 0:
     parser.error("--motion_speed must be finite and positive")
-if args.pair and args.berry != "raspberry":
-    parser.error("--pair/--count currently support --berry raspberry only")
-if not math.isfinite(args.berry_friction) or args.berry_friction < 0:
-    parser.error("--berry_friction must be finite and nonnegative")
-if args.pair and args.pair_layout == "bowl" and args.background != "ebc":
-    parser.error("--pair_layout bowl requires --background ebc")
-if not args.pair and args.pair_layout != "plate":
-    parser.error("--pair_layout requires --pair")
 if args.berry == "all" and args.asset:
     parser.error("--asset requires a single --berry; use --asset_version for all berries")
+if args.count > 1 and args.berry == "all":
+    parser.error("--count requires a single --berry species")
+if args.layout_seed < 0:
+    parser.error("--layout_seed must be nonnegative")
 if args.mode == "place" and args.background != "ebc":
     parser.error("--mode place requires --background ebc (punnet and receiving bowl)")
-if args.loop and args.mode not in ("pick", "place", "squash", "sort"):
-    parser.error("--loop requires a scripted pick, place, squash or sort mode")
+if args.loop and args.mode not in ("pick", "place", "squash"):
+    parser.error("--loop requires a scripted pick, place or squash mode")
 if args.rtpt_spp is not None and args.rtpt_spp < 1:
     parser.error("--rtpt_spp must be positive")
 if args.pick_gap is not None and not 0 < args.pick_gap <= 0.08:
@@ -228,20 +214,14 @@ if args.background == "ebc" and not args.no_render:
     retrieve_file_path(ebc_background_path())
 cfg.berry = args.berry
 cfg.target_berry = args.target_berry
-cfg.pair = args.pair
 cfg.berry_count = args.count
-cfg.sorting_demo = args.mode == "sort"
+cfg.tissue_solver = args.tissue_solver
 cfg.randomize_layout = not args.fixed_layout
 cfg.layout_seed = args.layout_seed
-cfg.pair_layout = args.pair_layout
-cfg.berry_friction = args.berry_friction
 cfg.berry_asset_path = str(args.asset.resolve()) if args.asset else None
 cfg.berry_asset_version = args.asset_version
-cfg.physics_profile = args.physics_profile
 cfg.physics_resolution = args.physics_resolution
-cfg.mpm_hz = args.mpm_hz
-cfg.mpm_device = args.mpm_device
-cfg.sim.device = "cpu"
+cfg.sim.device = args.device
 with launch_simulation(cfg, args), ExitStack() as resources:
     import gymnasium as gym
     import numpy as np
@@ -263,7 +243,7 @@ with launch_simulation(cfg, args), ExitStack() as resources:
             env,
             width=args.width,
             height=args.height,
-            headless=not args.window and args.mode in ("idle", "pick", "place", "squash", "sort"),
+            headless=not args.window and args.mode in ("idle", "pick", "place", "squash"),
             pipeline=not args.sync_render,
             partitions=args.partitions,
             antialiasing=args.render_aa,
@@ -286,16 +266,10 @@ with launch_simulation(cfg, args), ExitStack() as resources:
     reset_held = False
     reset_verified = None
     render_verified = None
-    sort_result = None
     video = None
     scripted_center = None
     scripted_gap = args.pick_gap
     scripted_opening = 0.08
-    sorter = None
-    if args.mode == "sort":
-        from isaaclab_tasks.contrib.franka_pick_berries.control.sorting import BerrySortSequence
-
-        sorter = BerrySortSequence(args.motion_speed, args.pick_gap)
     if args.video:
         args.output.mkdir(parents=True, exist_ok=True)
         video = subprocess.Popen(
@@ -333,15 +307,9 @@ with launch_simulation(cfg, args), ExitStack() as resources:
         while (not args.steps or step < args.steps) and (viewer is None or viewer.is_running()):
             started = time.perf_counter()
             script_time = scripted_motion_time(script_step / 30, args.mode, args.motion_speed)
-            finished = sorter.complete if sorter is not None else script_time >= (32 if args.mode == "place" else 18)
+            finished = script_time >= (32 if args.mode == "place" else 18)
             if args.loop and finished:
-                if sorter is not None:
-                    from isaaclab_tasks.contrib.franka_pick_berries.control.sorting import sorting_result
-
-                    sort_result = sorting_result(env.berries)
                 env.reset()
-                if sorter is not None:
-                    sorter.reset()
                 script_step = 0
                 scripted_center = None
                 scripted_gap = args.pick_gap
@@ -350,9 +318,6 @@ with launch_simulation(cfg, args), ExitStack() as resources:
                 reset_key = viewer.is_key_down("R")
                 if viewer.reset_requested or (reset_key and not reset_held):
                     env.reset()
-                    if sorter is not None:
-                        sorter.reset()
-                        sort_result = None
                     script_step = 0
                     scripted_center = None
                     scripted_gap = args.pick_gap
@@ -368,30 +333,18 @@ with launch_simulation(cfg, args), ExitStack() as resources:
                     continue
             if controller is not None:
                 action[0] = controller.advance()
-            elif sorter is not None:
-                arm = env.action_manager.get_term("arm_action")
-                pos, quat = arm._compute_frame_pose()
-                current = pos[0].cpu().numpy()
-                target, aperture = sorter.command(script_step / 30, env.berries, current)
-                env.berry = env.berries[f"raspberry_{sorter.index + 1}"]
-                env.demo_phase = sorter.phase
-                action[0, :3] = torch.from_numpy(np.clip((target - current) * 0.6, -0.008, 0.008))
-                current_rot = Rotation.from_quat(quat[0].cpu().numpy())
-                desired = Rotation.from_euler("x", np.pi)
-                action[0, 3:6] = torch.from_numpy(np.clip((desired * current_rot.inv()).as_rotvec() * 0.2, -0.03, 0.03))
-                action[0, 6] = aperture / 0.04 - 1
             elif args.mode in ("pick", "place", "squash"):
                 arm = env.action_manager.get_term("arm_action")
                 pos, quat = arm._compute_frame_pose()
                 t = scripted_motion_time(script_step / 30, args.mode, args.motion_speed)
                 if scripted_center is None and t >= 1:
-                    tissue = env.berry.sim.x.numpy()
+                    tissue = env.berry.positions()
                     scripted_center = (tissue.min(0) + tissue.max(0)) / 2 + env.berry.offset
-                    if args.berry == "all" or args.pair:
-                        # Pre-shape above the plate so open fingers miss adjacent berries.
+                    if len(env.berries) > 1:
+                        # Pre-shape above the punnet so open fingers miss adjacent berries.
                         scripted_opening = float(np.clip(np.ptp(tissue[:, 1]) + 0.008, 0.02, 0.08))
                     if scripted_gap is None:
-                        scripted_gap = float(np.clip(np.ptp(tissue[:, 1]) * 0.85, 0.001, 0.08))
+                        scripted_gap = float(np.clip(np.ptp(tissue[:, 1]) * 0.7, 0.001, 0.08))
                 target = np.array([0.48, 0, 0.09])
                 if scripted_center is not None:
                     target[:2] = scripted_center[:2]
@@ -454,15 +407,9 @@ with launch_simulation(cfg, args), ExitStack() as resources:
                     "aperture_command_m": float((action[0, 6] + 1) * 0.04),
                 }
                 row["tcp_m"] = env.action_manager.get_term("arm_action")._compute_frame_pose()[0][0].tolist()
-                if sorter is not None:
-                    row["sort_phase"] = sorter.phase
-                    row["target_instance"] = f"raspberry_{sorter.index + 1}"
-                    row["sort_grip_adjustment_m"] = sorter.grip_adjustment
-                    row["sort_holding"] = sorter.holding
-                row["pads_local_m"] = env.berry.collider_poses(env.scene["robot"])[:, :3].tolist()
-                row["inner_pad_gap_m"] = float(
-                    np.linalg.norm(np.diff(np.asarray(row["pads_local_m"]), axis=0)) - 2 * env.berry.sizes[0, 1]
-                )
+                robot = env.scene["robot"]
+                fingers = robot.data.body_pos_w.torch[0, robot.find_bodies("panda_(left|right)finger")[0]]
+                row["finger_separation_m"] = float(torch.linalg.norm(fingers[0] - fingers[1]))
                 if args.output:
                     row["berries"] = {name: berry.metrics() for name, berry in env.berries.items()}
                     rows.append(row)
@@ -480,10 +427,6 @@ with launch_simulation(cfg, args), ExitStack() as resources:
             if args.mode in ("keyboard", "gamepad"):
                 time.sleep(max(0, 1 / 30 - (time.perf_counter() - started)))
             step += 1
-        if sorter is not None and sorter.complete:
-            from isaaclab_tasks.contrib.franka_pick_berries.control.sorting import sorting_result
-
-            sort_result = sorting_result(env.berries)
         if args.verify_render:
             render_verified = viewer.verify_geometry()
             print(
@@ -492,20 +435,16 @@ with launch_simulation(cfg, args), ExitStack() as resources:
             )
         if args.verify_reset:
             env.reset()
-            for berry in env.berry_systems:
-                for name, original in berry.initial.items():
-                    np.testing.assert_array_equal(getattr(berry.sim, name).numpy(), original.numpy())
-                for state, original in zip(berry.contact.state_arrays, berry.contact_initial):
-                    np.testing.assert_array_equal(state.numpy(), original.numpy())
-                assert berry.tick == 0 and not berry.last_force.any()
-                berry.checker.check()
+            for berry in env.berries.values():
+                np.testing.assert_allclose(berry.positions(), berry.rest, atol=1e-6)
+                np.testing.assert_array_equal(berry.velocities(), 0.0)
             np.testing.assert_allclose(
-                env.action_manager.get_term("gripper_action").processed_actions.numpy(),
+                env.action_manager.get_term("gripper_action").processed_actions.cpu().numpy(),
                 0.04,
             )
             reset_verified = True
             print(
-                "Reset verification passed: tissue, damage, plastic state, contact history and aperture",
+                "Reset verification passed: tissue positions, velocities and aperture",
                 flush=True,
             )
     finally:
@@ -514,34 +453,26 @@ with launch_simulation(cfg, args), ExitStack() as resources:
             report = {
                 "berry": args.berry,
                 "target_berry": env.berry.profile["berry"],
-                "pair": args.pair,
-                "count": args.count,
-                "layout_seed": args.layout_seed,
-                "randomize_layout": cfg.randomize_layout,
-                "sorting_result": sort_result,
-                "pair_layout": args.pair_layout if args.pair else None,
-                "berry_friction": args.berry_friction if args.pair else None,
                 "berries": {
                     name: {
                         "asset": str(berry.usd_path),
-                        "position_m": getattr(berry, "initial_position", berry.offset).tolist(),
-                        "initial_rotation_xyzw": getattr(
-                            berry, "initial_rotation_xyzw", np.array([0, 0, 0, 1])
-                        ).tolist(),
-                        "effective_material": berry.effective_parameters,
+                        "position_m": berry.offset.tolist(),
+                        "material": {
+                            "tissue_solver": args.tissue_solver,
+                            "density_kg_m3": berry.spec.material.density,
+                            "young_modulus_pa": berry.spec.material.young_modulus,
+                            "poisson_ratio": berry.spec.material.poisson_ratio,
+                        },
                         "physics_resolution": berry.resolution,
-                        "mpm_hz": berry.sim.hz,
-                        "mpm_device": str(berry.mpm_device),
+                        "voxel_size_m": berry.spec.voxel_size,
                         "gaussians": len(berry.asset["xyz"]),
-                        "physical_particles": len(berry.sim.rest),
+                        "physical_particles": len(berry.rest),
                     }
                     for name, berry in env.berries.items()
                 },
                 "asset": str(env.berry.usd_path),
                 "asset_version": None if args.asset else args.asset_version,
-                "physics_profile": args.physics_profile,
                 "physics_resolution": args.physics_resolution,
-                "effective_material": env.berry.effective_parameters,
                 "scripted_pick_gap_m": scripted_gap,
                 "mode": args.mode,
                 "motion_speed": args.motion_speed,
@@ -554,9 +485,6 @@ with launch_simulation(cfg, args), ExitStack() as resources:
                 "hide_interior": args.hide_interior,
                 "sh_rotation_initial": args.sh_rotation,
                 "sh_rotation_final": ("on" if viewer.sh_rotation else "off") if viewer is not None else None,
-                "mpm_hz": env.berry.sim.hz,
-                "mpm_device": str(env.berry.mpm_device),
-                "mpm_cfl": float(env.berry.sim.cfl),
                 "width": args.width,
                 "height": args.height,
                 "pipeline": not args.sync_render,
@@ -572,7 +500,7 @@ with launch_simulation(cfg, args), ExitStack() as resources:
                 "rows": rows,
                 "timings": timings,
                 "gaussians": sum(len(berry.asset["xyz"]) for berry in env.berries.values()),
-                "physical_particles": sum(len(berry.sim.rest) for berry in env.berries.values()),
+                "physical_particles": sum(len(berry.rest) for berry in env.berries.values()),
             }
             if len(timings) > 10:
                 steady = [r["frame_ms"] for r in timings[10:]]

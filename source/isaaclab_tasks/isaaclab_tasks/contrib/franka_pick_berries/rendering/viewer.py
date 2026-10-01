@@ -14,7 +14,6 @@ from newton.viewer import ViewerRTX
 
 from pxr import Gf, Sdf, UsdGeom, UsdLux, UsdShade
 
-from ..physics.device import on_device
 from ..scene.background import add_ebc_background
 from ..scene.tableware import add_tableware_visuals
 from .gaussian_stream import BerryGaussianStream
@@ -39,9 +38,6 @@ class BerryViewer(ViewerRTX):
         require_live_gaussian_renderer()
         self.env = env
         self.berry = env.berry
-        # The renderer and GL window live on the preferred CUDA device; each stream scopes its own MPM device.
-        # Not ``device``: Newton's viewer owns that name and resets it to the (CPU) model device in set_model.
-        self.render_device = wp.get_preferred_device()
         self.aperture = 0.08
         self.pipeline = pipeline
         self.sh_rotation = sh_rotation
@@ -52,7 +48,7 @@ class BerryViewer(ViewerRTX):
         self.follow_berry = True
         self.background_path = None
         self.reset_requested = False
-        self.last_center = self.berry.sim.rest.mean(0).copy()
+        self.last_center = self.berry.rest.mean(0).copy()
         self.streams = [
             BerryGaussianStream(
                 berry,
@@ -62,9 +58,8 @@ class BerryViewer(ViewerRTX):
             )
             for name, berry in env.berries.items()
         ]
-        with wp.ScopedDevice(self.render_device):
-            super().__init__(**kwargs, environment="studio", fps=30, async_rendering=False)
-            self.set_model(NewtonManager.get_model())
+        super().__init__(**kwargs, environment="studio", fps=30, async_rendering=False)
+        self.set_model(NewtonManager.get_model())
         if view == "auto":
             view = "workcell" if env.cfg.background == "ebc" or len(env.berries) > 1 else "berry"
         self.set_view(view)
@@ -79,9 +74,9 @@ class BerryViewer(ViewerRTX):
             eye = np.array([0.75, -0.24, 0.36])
             target = np.array([0.46, 0.07, 0.035])
         elif view == "berry":
-            center = self.berry.sim.x.numpy().mean(0)
-            if self.env.cfg.background == "studio" and not self.env.cfg.pair:
-                center = center - self.berry.sim.rest.mean(0) + np.array([0, 0, 0.018])
+            center = self.berry.positions().mean(0)
+            if self.env.cfg.background == "studio":
+                center = center - self.berry.rest.mean(0) + np.array([0, 0, 0.018])
             target = self.berry.offset + center
             eye = target + np.array([0.08, -0.025, 0.027])
         else:
@@ -97,18 +92,16 @@ class BerryViewer(ViewerRTX):
         self.camera.pivot = type(self.camera.pos)(*target)
 
     def controls(self, ui):
-        title = "All four berries" if len(self.env.berries) > 1 else self.env.cfg.berry.title()
-        if self.env.cfg.pair:
-            title = f"{len(self.env.berries)} interacting raspberries"
+        count = len(self.env.berries)
+        if self.env.cfg.berry == "all":
+            title = "All four berries"
+        else:
+            title = f"{count} {self.env.cfg.berry}s" if count > 1 else self.env.cfg.berry.title()
         ui.text(f"{title} | continuous grasp")
-        if self.env.cfg.sorting_demo:
-            ui.text(getattr(self.env, "demo_phase", "Sort: crush/discard, then two gentle transfers"))
         ui.text("LB enable | RT close | LT open | release to hold")
         ui.text("Keyboard: WASDQE / ZX TG CV; K close, J open; R reset")
         aperture = float(self.env.action_manager.get_term("gripper_action").processed_actions[0].sum())
         ui.text(f"Commanded aperture: {aperture * 1000:.1f} mm")
-        force = sum(berry.last_force for berry in self.env.berry_systems)
-        ui.text(f"Peak finger reaction: {np.linalg.norm(force, axis=1).max():.3f} N")
         _, self.follow_berry = ui.checkbox("Follow berry", self.follow_berry)
         _, self.sh_rotation = ui.checkbox("Rotate SH with material", self.sh_rotation)
         if ui.button("Room / robot view"):
@@ -121,7 +114,7 @@ class BerryViewer(ViewerRTX):
             for name, berry in self.env.berries.items():
                 if ui.button(f"View {name}"):
                     self.berry = berry
-                    self.last_center = berry.sim.x.numpy().mean(0)
+                    self.last_center = berry.positions().mean(0)
                     self.set_view("berry")
         if ui.button("Reset robot and berries"):
             self.reset_requested = True
@@ -185,7 +178,6 @@ class BerryViewer(ViewerRTX):
         if self.pipeline:
             self.pending_frame = self._rtx.step_async(render_products={self._render_product_path}, delta_time=1 / 30)
 
-    @on_device("render_device")
     def capture_image(self):
         # OVRTX 0.6 keys render vars by prim path, not by source name.
         from ovrtx import Device
@@ -201,16 +193,14 @@ class BerryViewer(ViewerRTX):
             f"No color output: {[(str(k), str(v), str(v.frames)) for k, v in self._render_products.items()]}"
         )
 
-    @on_device("render_device")
     def save_screenshot(self, path):
         from PIL import Image
 
         Image.fromarray(self.capture_image()).save(path)
 
-    @on_device("render_device")
     def draw(self, time_s):
         self.prepared = [stream.prepare(self.sh_rotation) for stream in self.streams]
-        center = self.berry.sim.x.numpy().mean(0)
+        center = self.berry.positions().mean(0)
         if self.follow_berry:
             shift = center - self.last_center
             self.set_camera(wp.vec3(*(np.asarray(self.camera.pos) + shift)), self.camera.pitch, self.camera.yaw)
@@ -225,19 +215,16 @@ class BerryViewer(ViewerRTX):
         if getattr(self, "gui", None) is not None:
             self.gui.update_camera_from_keys = lambda *args: None
 
-    @on_device("render_device")
     def finish_frame(self):
         if self.pending_frame is not None:
             self._render_products = self.pending_frame.wait().fetch()
             self.pending_frame = None
 
-    @on_device("render_device")
     def verify_geometry(self):
         """Verify every berry’s native Gaussian arrays, including static SH and opacity."""
         self.finish_frame()
         return all(stream.verify(prepared) for stream, prepared in zip(self.streams, self.prepared))
 
-    @on_device("render_device")
     def close(self):
         self.finish_frame()
         renderer = self._rtx
