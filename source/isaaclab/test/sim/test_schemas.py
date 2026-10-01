@@ -408,11 +408,7 @@ def test_modify_articulation_root_fix_root_link_uses_given_stage(setup_simulatio
 
 @pytest.mark.parametrize("legacy_writer", [False, True], ids=["fragments", "legacy"])
 def test_fix_root_link_enables_fixed_world_joint_root(setup_simulation, legacy_writer):
-    """``fix_root_link=True`` must enable the fixed joint that roots an articulation and attaches it to the world.
-
-    The joint targets the asset prim, which is not a rigid body, so it attaches the root link to the world. No second
-    world joint is created and the root stays on the joint.
-    """
+    """``fix_root_link=True`` enables the fixed world joint that roots an articulation instead of adding one."""
     stage = sim_utils.get_current_stage()
     sim_utils.create_prim("/World/Robot", prim_type="Xform")
     UsdPhysics.RigidBodyAPI.Apply(sim_utils.create_prim("/World/Robot/base", prim_type="Xform"))
@@ -439,10 +435,7 @@ def test_fix_root_link_enables_fixed_world_joint_root(setup_simulation, legacy_w
 
 @pytest.mark.parametrize("static_base", [False, True], ids=["rigid_base", "static_collider_base"])
 def test_fix_root_link_rejects_internal_fixed_joint_root(setup_simulation, static_base):
-    """``fix_root_link=True`` must not treat an articulation root on a fixed joint between two bodies as fixed.
-
-    A collider without a rigid body is a static body, not the world.
-    """
+    """``fix_root_link=True`` still raises for an articulation rooted at a fixed joint between two bodies."""
     stage = sim_utils.get_current_stage()
     sim_utils.create_prim("/World/Robot", prim_type="Xform")
     if static_base:

@@ -29,6 +29,7 @@ from ..utils import (
     safe_set_attribute_on_usd_prim,
     safe_set_attribute_on_usd_schema,
 )
+from ..utils.queries import _is_world_fixed_joint
 from ..utils.stage import get_current_stage
 from . import schemas_cfg
 from .backend_hooks import skip_joint_drive
@@ -401,28 +402,6 @@ def define_articulation_root_properties(
         UsdPhysics.ArticulationRootAPI.Apply(prim)
     # ``__wrapped__`` skips only the deprecation warning and keeps the nested traversal
     modify_articulation_root_properties.__wrapped__(prim_path, cfg, stage)
-
-
-def _is_world_fixed_joint(prim: Usd.Prim) -> bool:
-    """Return whether a prim is a fixed joint that attaches a body to the world.
-
-    UsdPhysics attaches a side of a joint to the world when its body target is empty, or when neither the target nor
-    an ancestor is a rigid body or a collider. A collider without a rigid-body ancestor is a static body.
-    """
-    if not prim.IsA(UsdPhysics.FixedJoint):
-        return False
-    joint = UsdPhysics.FixedJoint(prim)
-    stage = prim.GetStage()
-    for rel in (joint.GetBody0Rel(), joint.GetBody1Rel()):
-        targets = rel.GetTargets()
-        body = stage.GetPrimAtPath(targets[0]) if targets else None
-        while body and not body.IsPseudoRoot():
-            if body.HasAPI(UsdPhysics.RigidBodyAPI) or body.HasAPI(UsdPhysics.CollisionAPI):
-                break
-            body = body.GetParent()
-        if not body or body.IsPseudoRoot():
-            return True
-    return False
 
 
 def create_world_fixed_joint(articulation_prim: Usd.Prim, stage: Usd.Stage) -> None:

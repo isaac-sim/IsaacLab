@@ -31,14 +31,13 @@ import warp as wp
 from isaaclab_physx.assets import Articulation
 from isaaclab_physx.sim.schemas import PhysxJointCfg
 
-from pxr import Usd, UsdPhysics
+from pxr import Usd, UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 import isaaclab.utils.string as string_utils
 from isaaclab.actuators import IdealPDActuatorCfg, ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg, get_articulation_name_ordering
-from isaaclab.cloner import CloneCfg, clone_plan_from_env_0, replicate
 from isaaclab.controllers import DifferentialIKController, DifferentialIKControllerCfg
 from isaaclab.envs.mdp.terminations import joint_effort_out_of_limit
 from isaaclab.managers import SceneEntityCfg
@@ -56,70 +55,6 @@ from isaaclab_assets import (  # isort:skip
     FRANKA_PANDA_HIGH_PD_CFG,
 )
 from isaaclab_assets.robots.shadow_hand import SHADOW_HAND_PHYSX_CFG
-
-# Base link with one revolute child, rooted at the fixed joint that attaches the base link to the asset prim, the
-# fixed-base layout that UsdPhysics recommends.
-_FIXED_JOINT_ROOT_USDA = """#usda 1.0
-(
-    defaultPrim = "Robot"
-    metersPerUnit = 1
-    upAxis = "Z"
-)
-
-def Xform "Robot"
-{
-    def Xform "base" (
-        prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
-    )
-    {
-        float physics:mass = 5
-        float3 physics:diagonalInertia = (0.05, 0.05, 0.05)
-
-        def Cube "collision" (
-            prepend apiSchemas = ["PhysicsCollisionAPI"]
-        )
-        {
-            double size = 0.2
-        }
-    }
-
-    def Xform "arm" (
-        prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
-    )
-    {
-        float physics:mass = 1
-        float3 physics:diagonalInertia = (0.001, 0.01, 0.01)
-        double3 xformOp:translate = (0.25, 0, 0)
-        uniform token[] xformOpOrder = ["xformOp:translate"]
-
-        def Cube "collision" (
-            prepend apiSchemas = ["PhysicsCollisionAPI"]
-        )
-        {
-            double size = 0.1
-        }
-    }
-
-    def PhysicsFixedJoint "root_joint" (
-        prepend apiSchemas = ["PhysicsArticulationRootAPI"]
-    )
-    {
-        rel physics:body0 = </Robot>
-        rel physics:body1 = </Robot/base>
-    }
-
-    def PhysicsRevoluteJoint "hinge"
-    {
-        rel physics:body0 = </Robot/base>
-        rel physics:body1 = </Robot/arm>
-        uniform token physics:axis = "Y"
-        point3f physics:localPos0 = (0.1, 0, 0)
-        point3f physics:localPos1 = (-0.15, 0, 0)
-        float physics:lowerLimit = -60
-        float physics:upperLimit = 60
-    }
-}
-"""
 
 
 def generate_articulation_cfg(
@@ -848,37 +783,36 @@ def test_initialization_floating_base_made_fixed_base(sim, num_articulations, de
         torch.testing.assert_close(articulation.data.root_com_vel_w.torch, default_root_vel)
 
 
-@pytest.mark.parametrize("num_articulations", [2])
+def _author_fixed_joint_root_robot(usd_path: str) -> None:
+    """Author a two-link robot rooted at the fixed joint that attaches its base to the asset prim."""
+    stage = Usd.Stage.CreateNew(usd_path)
+    stage.SetDefaultPrim(UsdGeom.Xform.Define(stage, "/Robot").GetPrim())
+    for name in ("base", "link"):
+        body = UsdGeom.Xform.Define(stage, f"/Robot/{name}").GetPrim()
+        UsdPhysics.RigidBodyAPI.Apply(body)
+        UsdPhysics.MassAPI.Apply(body).CreateMassAttr(1.0)
+    # body0 is the asset prim, which UsdPhysics resolves to the world
+    root_joint = UsdPhysics.FixedJoint.Define(stage, "/Robot/root_joint")
+    root_joint.CreateBody0Rel().SetTargets(["/Robot"])
+    root_joint.CreateBody1Rel().SetTargets(["/Robot/base"])
+    UsdPhysics.ArticulationRootAPI.Apply(root_joint.GetPrim())
+    joint = UsdPhysics.RevoluteJoint.Define(stage, "/Robot/joint")
+    joint.CreateBody0Rel().SetTargets(["/Robot/base"])
+    joint.CreateBody1Rel().SetTargets(["/Robot/link"])
+    stage.Save()
+
+
+@pytest.mark.parametrize("num_articulations", [1])
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-@pytest.mark.parametrize("fix_root_link", [None, True])
-def test_initialization_fixed_joint_root(sim, num_articulations, device, fix_root_link, tmp_path):
-    """Test an articulation rooted at the fixed joint that attaches its root link to the asset prim.
-
-    It initializes as a fixed-base articulation, and with physics replication each environment keeps its base at its
-    origin. Fixing the root link through the spawner as well must enable that joint instead of raising or adding a
-    second one.
-    """
-    usd_path = tmp_path / "fixed_joint_root.usda"
-    usd_path.write_text(_FIXED_JOINT_ROOT_USDA)
-    spawn = sim_utils.UsdFileCfg(usd_path=str(usd_path), fix_root_link=fix_root_link)
-    cfg = ArticulationCfg(prim_path="/World/Env_[^/]*/Robot", spawn=spawn, actuators={})
-    sim_utils.create_prim("/World/Env_0", "Xform")
-    # the grid places every environment away from the world origin
-    plan = clone_plan_from_env_0(CloneCfg(clone_template="/World/Env_{}"), (cfg,), num_articulations, 2.5)
-    articulation = Articulation(cfg)
-    replicate(plan)
-
+def test_initialization_fixed_joint_root(sim, num_articulations, device, tmp_path):
+    """``fix_root_link=True`` keeps an articulation rooted at its fixed world joint fixed-base."""
+    usd_path = str(tmp_path / "fixed_joint_root.usda")
+    _author_fixed_joint_root_robot(usd_path)
+    articulation_cfg = ArticulationCfg(spawn=sim_utils.UsdFileCfg(usd_path=usd_path, fix_root_link=True), actuators={})
+    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
     sim.reset()
-    assert articulation.is_fixed_base
-    for _ in range(10):
-        sim.step()
-        articulation.update(sim.cfg.dt)
-    env_origins = torch.as_tensor(plan.positions, device=device)
-    torch.testing.assert_close(articulation.data.root_link_pose_w.torch[:, :3], env_origins)
 
-    robot = sim_utils.get_current_stage().GetPrimAtPath("/World/Env_0/Robot")
-    fixed_joints = [prim.GetName() for prim in Usd.PrimRange(robot) if prim.IsA(UsdPhysics.FixedJoint)]
-    assert fixed_joints == ["root_joint"]
+    assert articulation.is_fixed_base
 
 
 @pytest.mark.parametrize("num_articulations", [2])

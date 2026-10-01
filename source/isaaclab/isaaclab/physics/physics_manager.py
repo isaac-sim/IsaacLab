@@ -124,8 +124,9 @@ class PhysicsManager(ABC):
         # managers.manager_base before the simulation app starts.
         from pxr import UsdPhysics  # noqa: PLC0415
 
-        from ..sim.schemas.schemas import _is_world_fixed_joint, create_world_fixed_joint  # noqa: PLC0415
+        from ..sim.schemas.schemas import create_world_fixed_joint  # noqa: PLC0415
         from ..sim.utils import find_global_fixed_joint_prim  # noqa: PLC0415
+        from ..sim.utils.queries import _is_world_fixed_joint  # noqa: PLC0415
 
         if stage is None:
             stage = get_current_stage()
