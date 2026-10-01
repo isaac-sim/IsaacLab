@@ -394,18 +394,18 @@ class CameraImageBase(ManagerTermBase):
     """
 
     default_data_type: str
-    """Data type used when the term's params do not set ``data_type``."""
+    """Legacy data-type alias. Defaults are resolved from the subclass's ``__call__`` signature."""
 
     def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedEnv):
         super().__init__(cfg, env)
-        data_type = cfg.params.get("data_type", self.default_data_type)
+        data_type = cfg.params["data_type"]
         if not self._accepts(data_type):
             raise ValueError(f"{type(self).__name__} does not support camera data type '{data_type}'.")
         self._frames = CameraFrameStack(
             env.num_envs,
             env.device,
-            frame_stack=cfg.params.get("frame_stack", 1),
-            channel_first=cfg.params.get("channel_first", False),
+            frame_stack=cfg.params["frame_stack"],
+            channel_first=cfg.params["channel_first"],
         )
 
     def reset(self, env_ids: Sequence[int] | torch.Tensor | None = None):
@@ -634,9 +634,9 @@ class image_features(ManagerTermBase):
     def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedEnv):
         super().__init__(cfg, env)
 
-        self.model_zoo_cfg: dict = cfg.params.get("model_zoo_cfg")  # type: ignore
-        self.model_name: str = cfg.params.get("model_name", "resnet18")  # type: ignore
-        self.model_device: str = cfg.params.get("model_device", env.device)  # type: ignore
+        self.model_zoo_cfg: dict = cfg.params["model_zoo_cfg"]  # type: ignore
+        self.model_name: str = cfg.params["model_name"]  # type: ignore
+        self.model_device: str = cfg.params["model_device"] if cfg.params["model_device"] is not None else env.device  # type: ignore
 
         # List of Theia models - These are configured through `_prepare_theia_transformer_model` function
         default_theia_models = [
@@ -862,7 +862,7 @@ class stacked_image(ManagerTermBase):
 
     def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedEnv):
         super().__init__(cfg, env)
-        self._frames = CameraFrameStack(env.num_envs, env.device, frame_stack=cfg.params.get("frame_stack", 1))
+        self._frames = CameraFrameStack(env.num_envs, env.device, frame_stack=cfg.params["frame_stack"])
 
     def reset(self, env_ids: torch.Tensor | None = None):
         self._frames.reset(env_ids)

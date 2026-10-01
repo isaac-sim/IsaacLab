@@ -41,7 +41,7 @@ input modes, which determine which retargeters and control schemes are available
    * - Meta Quest 3
      - Motion controllers (triggers, thumbsticks, squeeze), hand tracking
      - CloudXR.js WebXR client (browser)
-     - `CloudXR client <https://nvidia.github.io/IsaacTeleop/client/release-1.3.x>`__; see :ref:`connection guide <connect-quest-pico>`
+     - `CloudXR client <https://nvidia.github.io/IsaacCapture/client/release-1.3.x/>`__; see :ref:`connection guide <connect-quest-pico>`
    * - Pico 4 Ultra
      - Motion controllers, hand tracking
      - CloudXR.js WebXR client (browser)
@@ -1346,6 +1346,8 @@ XR device's view.
    feeds.
 
 
+.. _isaac-teleop-xr-camera-feedback:
+
 XR Camera Feedback
 ------------------
 
@@ -1357,17 +1359,32 @@ vertical, and grid layouts. The following registered tasks enable PiP by default
 * ``IsaacContrib-PickPlace-GR1T2-Abs``
 * ``IsaacContrib-NutPour-GR1T2-Pink-IK-Abs``
 * ``IsaacContrib-ExhaustPipe-GR1T2-Pink-IK-Abs``
+* ``IsaacContrib-PickPlace-Locomanipulation-G1-Abs``
+* ``IsaacContrib-PickPlace-FixedBaseUpperBodyIK-G1-Abs``
 
-The G1 locomanipulation and fixed-base tasks do not create a PiP panel by default because the head
-camera can capture the panel and produce a recursive view. The locomanipulation task retains the
-camera as a recorded policy observation.
+Both G1 tasks present the calibrated head camera in a ``head_locked`` panel that follows headset
+position and orientation. Locomanipulation retains the camera as a recorded policy observation;
+fixed-base G1 uses it only for PiP and keeps its policy observation schema unchanged.
+
+To run fixed-base G1 upper-body teleoperation with its default head-locked PiP:
+
+.. code-block:: bash
+
+   uv run --extra teleop,isaacsim isaaclab teleop run \
+       --task IsaacContrib-PickPlace-FixedBaseUpperBodyIK-G1-Abs \
+       --num_envs 1 --xr --device cpu
+
+This task uses motion controllers for the arms and TriHand fingers while the robot root remains
+fixed. The panel follows the headset, but its image comes from the robot's head camera, not the
+headset view. ``--device cpu`` selects CPU simulation; camera rendering and CloudXR encoding still
+use the GPU.
 
 ``teleop_se3_agent.py`` and ``record_demos.py`` show every enabled feed when an IsaacTeleop-enabled
 environment runs with ``--xr``. PiP is absent unless the task explicitly selects an existing
-``CameraCfg`` through ``xr_camera_feeds``. In the registered tasks above, the selected
+``CameraCfg`` through ``xr_camera_feeds``. Except for fixed-base G1, the selected
 ``robot_pov_cam`` is also a policy image observation, so the normal demonstration recorder stores
 the same view shown to the operator. Each camera is parented to a physical robot body link, so the
-recorded view follows robot motion:
+camera view follows robot motion:
 
 .. figure:: ../_static/teleop/xr-camera-pip.jpg
    :width: 80%
@@ -1377,9 +1394,28 @@ recorded view follows robot motion:
 
 .. warning::
 
-   If a PiP panel enters its source camera's field of view, the camera captures the panel and
-   produces a recursive hall-of-mirrors effect. Move the panel or reorient the camera, for example
-   by changing the robot pose, to keep the panel outside the camera's field of view.
+   Without scene-partition isolation, a PiP panel entering its source camera's field of view
+   produces a recursive hall-of-mirrors effect. Move the panel or reorient the camera to keep
+   the panel outside the camera's field of view.
+
+Both G1 tasks enable :attr:`~isaaclab_teleop.XrCameraFeedLayoutCfg.use_scene_partition`
+to avoid this recursion. Before environment construction, preparation temporarily disables
+per-environment partitioning on selected Isaac RTX camera renderers. Binding sets
+``/rtx/scenePartitioning/showAllPartitionsByDefault=False`` after renderer initialization
+and before creating panels. Geometry must start as shared,
+unpartitioned background; clearing its partition after camera initialization can hide it from XR.
+Other scene cameras must also set ``enable_scene_partitioning=False``.
+
+The SceneUI adapter assigns the XR camera and ``/ui`` to ``isaaclab_teleop_xr_camera_pip`` and
+refreshes inheritance when SceneUI children appear. Robot cameras see shared background without
+UI; XR sees both. XR/UI overrides use the session layer. Prior camera, renderer, and partition
+settings are restored after their final owner closes, unless changed externally. Camera
+configuration is restored after the last prepared session closes; the global setting's
+bind-time value is restored after the last bound session closes. Prepared sessions
+must close even if environment construction fails; the teleoperation and recording scripts handle
+this cleanup. Panels remain
+hidden while tracking or isolation is unavailable and reappear after recovery. Other tasks retain
+their existing behavior because ``use_scene_partition`` defaults to ``False``.
 
 .. code-block:: bash
 
@@ -1389,14 +1425,14 @@ recorded view follows robot motion:
 
 XR camera PiP currently supports exactly one environment. When a task has enabled PiP feeds,
 startup rejects ``--num_envs`` values other than ``1``; IsaacTeleop XR behavior without PiP is
-unchanged.
+unchanged. For either G1 task, set ``env.isaac_teleop.xr_camera_feeds=[]`` to disable PiP and retain
+the camera sensor and any configured camera observations.
 
 The reference feeds request render-product-local DLSS Ray Reconstruction and ``quality`` execution
 mode through :class:`~isaaclab_teleop.XrCameraFeedCfg`. The private PiP adapter authors those two
-attributes only on the selected camera render product. On Isaac Sim 6.1 and newer, Ray
-Reconstruction also requires the process-global responsive-denoising setting, which the session
-enables before environment construction. On earlier versions, selected PiP feeds fall back to
-classic DLSS because responsive denoising is unavailable.
+attributes only on the selected camera render product. Ray Reconstruction also requires the
+process-global responsive-denoising setting, which the teleoperation and recording scripts
+enable before environment construction when a selected feed requests Ray Reconstruction.
 
 Camera selection
 ~~~~~~~~~~~~~~~~
@@ -2075,5 +2111,5 @@ See the :ref:`isaaclab_teleop-api` for full class and function documentation:
    References
 .. _`Isaac XR Teleop Sample Client`: https://github.com/isaac-sim/isaac-xr-teleop-sample-client-apple
 .. _`SO-101 plugin README`: https://github.com/NVIDIA/IsaacTeleop/tree/main/src/plugins/so101_leader
-.. _`Data Collection in Sim`: https://nvidia.github.io/IsaacTeleop/main/getting_started/lerobot/data_collection_sim.html
-.. _`Build from Source`: https://nvidia.github.io/IsaacTeleop/main/getting_started/build_from_source/index.html
+.. _`Data Collection in Sim`: https://nvidia.github.io/IsaacCapture/main/getting_started/lerobot/data_collection_sim.html
+.. _`Build from Source`: https://nvidia.github.io/IsaacCapture/main/getting_started/build_from_source/index.html

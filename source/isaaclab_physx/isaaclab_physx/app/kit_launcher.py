@@ -31,13 +31,16 @@ except ModuleNotFoundError:
 
 SimulationApp = getattr(isaacsim, "SimulationApp", None)
 
+from isaaclab import _deprioritize_prebundle_paths
 from isaaclab.app.loading_screen import report_activity
 from isaaclab.app.logging_utils import apply_python_logging_level
 from isaaclab.app.settings_manager import get_settings_manager
-from isaaclab.app.sim_launcher import SimulationLauncher, _parse_visualizer_csv, fuse_kit_args
+from isaaclab.app.sim_launcher import SimulationLauncher, fuse_kit_args
 from isaaclab.paths import ISAACLAB_ROOT
-from isaaclab.utils._device import set_cuda_device
+from isaaclab.utils import has_kit
+from isaaclab.utils.device import set_cuda_device
 from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
+from isaaclab.visualizers.visualizer_cfg import parse_visualizer_csv
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -76,13 +79,15 @@ def _sanitize_sys_argv_for_kit(argv: list[str]) -> list[str]:
     return [argument for index, argument in enumerate(argv) if index not in indexes_to_remove]
 
 
-class ExplicitAction(argparse.Action):
-    """Custom action to track if an argument was explicitly passed by the user."""
+class _StoreAndMarkExplicit(argparse.Action):
+    """Store the value and set ``<dest>_explicit``, for options whose default must stay a real value.
+
+    ``--device`` defaults to ``"cuda:0"`` because scripts read ``args_cli.device`` before launch, yet XR
+    needs to know whether it was passed (see :meth:`KitLauncher._resolve_device_settings`).
+    """
 
     def __call__(self, parser, namespace, values, option_string=None):
-        # Set the parameter value
         setattr(namespace, self.dest, values)
-        # Set a flag indicating the parameter was explicitly passed
         setattr(namespace, f"{self.dest}_explicit", True)
 
 
@@ -144,8 +149,6 @@ class KitLauncher(SimulationLauncher):
 
         .. _SimulationApp: https://docs.isaacsim.omniverse.nvidia.com/latest/py/source/extensions/isaacsim.simulation_app/docs/index.html#isaacsim.simulation_app.SimulationApp
         """
-        from isaaclab.utils import has_kit
-
         self._app = None
         if has_kit():
             # a Kit app already runs in this process; it is owned (and closed) by whoever started it
@@ -197,7 +200,8 @@ class KitLauncher(SimulationLauncher):
                 hook_name="isaaclab stage context",
             )
         )
-        self._set_deferred_cuda_device()
+        if self._deferred_cuda_device_id is not None:
+            set_cuda_device(self._deferred_cuda_device_id)
         # Load IsaacSim extensions
         self._load_extensions()
 
@@ -205,12 +209,10 @@ class KitLauncher(SimulationLauncher):
         # additional ``pip_prebundle`` or conflicting extension directories onto
         # ``sys.path`` during startup.  A second pass ensures pip-installed
         # packages still take priority over bundled copies.
-        from isaaclab import _deprioritize_prebundle_paths
-
         _deprioritize_prebundle_paths()
 
         # Hide the stop button in the toolbar
-        self._hide_stop_button()
+        self._set_toolbar_button_visible("_stop_button", False)
 
         # Hide play button callback if the timeline is stopped
         import omni.timeline
@@ -219,14 +221,16 @@ class KitLauncher(SimulationLauncher):
             omni.timeline.get_timeline_interface()
             .get_timeline_event_stream()
             .create_subscription_to_pop_by_type(
-                int(omni.timeline.TimelineEventType.STOP), lambda e: self._hide_play_button(True)
+                int(omni.timeline.TimelineEventType.STOP),
+                lambda e: self._set_toolbar_button_visible("_play_button", False),
             )
         )
         self._unhide_play_button_callback = (
             omni.timeline.get_timeline_interface()
             .get_timeline_event_stream()
             .create_subscription_to_pop_by_type(
-                int(omni.timeline.TimelineEventType.PLAY), lambda e: self._hide_play_button(False)
+                int(omni.timeline.TimelineEventType.PLAY),
+                lambda e: self._set_toolbar_button_visible("_play_button", True),
             )
         )
         # the CI runner greps this marker for hang detection; __stderr__ survives
@@ -240,9 +244,13 @@ class KitLauncher(SimulationLauncher):
     def close(self, exit_code: int = 0) -> None:
         """Close the Kit app this launcher started; Kit fast shutdown exits with *exit_code*."""
         if self._app is not None:
-            # let callbacks queued by the closing simulation run before shutdown
-            self._app.update()
-            self._app.close(exit_code=exit_code)
+            previous_handler = signal.signal(signal.SIGINT, signal.SIG_IGN)
+            try:
+                # let callbacks queued by the closing simulation run before shutdown
+                self._app.update()
+                self._app.close(exit_code=exit_code)
+            finally:
+                signal.signal(signal.SIGINT, previous_handler)
 
     """
     Operations.
@@ -259,7 +267,7 @@ class KitLauncher(SimulationLauncher):
         return SimulationApp is not None
 
     @staticmethod
-    def add_app_launcher_args(parser: argparse.ArgumentParser) -> None:
+    def add_launcher_args(parser: argparse.ArgumentParser) -> None:
         """Utility function to configure KitLauncher arguments with an existing argument parser object.
 
         This function appends the command-line arguments relevant to the SimulationApp to the input
@@ -349,15 +357,14 @@ class KitLauncher(SimulationLauncher):
         arg_group.add_argument(
             "--device",
             type=str,
-            action=ExplicitAction,
+            action=_StoreAndMarkExplicit,
             default="cuda:0",
             help='The device to run the simulation on. Can be "cpu", "cuda", "cuda:N", where N is the device ID',
         )
         arg_group.add_argument(
             "--visualizer",
             "--viz",
-            type=_parse_visualizer_csv,
-            action=ExplicitAction,
+            type=parse_visualizer_csv,
             default=None,
             help="Visualizer backends to enable as CSV (e.g., kit,newton,rerun,viser).",
         )
@@ -522,13 +529,11 @@ class KitLauncher(SimulationLauncher):
             self._xr = bool(xr_env)
 
         # Determine whether XR should auto-inject a KitVisualizer.
-        # When XR is enabled but no Kit visualizer was explicitly requested via
-        # CLI, we auto-inject one so that app.update() and forward() are pumped
+        # When XR is enabled but the run has no Kit visualizer (from the config or
+        # --viz), we auto-inject one so that app.update() and forward() are pumped
         # each frame -- the XR runtime needs both to receive updated hand/joint
         # transforms.
-        self._xr_auto_start = self._xr and not (
-            launcher_args.get("visualizer_explicit", False) and "kit" in (launcher_args.get("visualizer") or ())
-        )
+        self._xr_auto_start = self._xr and not self._kit_visualizer
 
     def _resolve_viewport_settings(self, launcher_args: dict):
         """Resolve viewport related settings."""
@@ -614,13 +619,6 @@ class KitLauncher(SimulationLauncher):
         if torch is not None and not torch.cuda.is_initialized():
             torch.cuda.init()
 
-    def _set_deferred_cuda_device(self) -> None:
-        """Set the current CUDA device after Kit startup."""
-        if self._deferred_cuda_device_id is None:
-            return
-
-        set_cuda_device(self._deferred_cuda_device_id)
-
     def _resolve_experience_file(self, launcher_args: dict):
         """Resolve experience file related settings."""
         # Check if input keywords contain an 'experience' file setting
@@ -634,15 +632,13 @@ class KitLauncher(SimulationLauncher):
         # under certain install layouts), derive it from the installed isaacsim package.
         kit_app_exp_path = os.environ.get("EXP_PATH")
         if not kit_app_exp_path:
-            try:
-                import isaacsim as _isaacsim_for_paths
-            except ImportError as e:
+            if isaacsim is None:
                 raise RuntimeError(
                     "EXP_PATH is not set and the 'isaacsim' package is not importable."
                     " Install Isaac Sim (`pip install isaacsim` or the binary distribution)"
                     " before launching KitLauncher."
-                ) from e
-            kit_app_exp_path = os.path.join(os.path.dirname(_isaacsim_for_paths.__file__), "apps")
+                )
+            kit_app_exp_path = os.path.join(os.path.dirname(isaacsim.__file__), "apps")
             os.environ["EXP_PATH"] = kit_app_exp_path
         isaaclab_app_exp_path = str(ISAACLAB_ROOT / "apps")
 
@@ -690,20 +686,17 @@ class KitLauncher(SimulationLauncher):
         # Resolve the absolute path of the experience file
         self._sim_experience_file = os.path.abspath(self._sim_experience_file)
         # Detect a known incompatibility between Isaac Lab and Isaac Sim full-app experiences.
-        if self._livestream in {1, 2} and self._experience_depends_on_isaacsim_exp_full(self._sim_experience_file):
-            raise ValueError(
-                "The experience file depends on 'isaacsim.exp.full', which is known to hang or invalidate PhysX "
-                "tensor views when launched through Isaac Lab with livestreaming enabled. Omit '--experience' so "
-                "KitLauncher can select an Isaac Lab experience file, or remove the 'isaacsim.exp.full' dependency."
-            )
+        if self._livestream in {1, 2}:
+            with open(self._sim_experience_file, encoding="utf-8") as file:
+                experience = file.read()
+            if re.search(r'^\s*["\']isaacsim\.exp\.full["\']\s*=', experience, re.MULTILINE):
+                raise ValueError(
+                    "The experience file depends on 'isaacsim.exp.full', which is known to hang or invalidate PhysX "
+                    "tensor views when launched through Isaac Lab with livestreaming enabled. Omit '--experience' so "
+                    "KitLauncher can select an Isaac Lab experience file, or remove the 'isaacsim.exp.full' dependency."
+                )
         self._deterministic_rendering = bool(deterministic_mode)
         logger.info("Loading experience file: %s", self._sim_experience_file)
-
-    @staticmethod
-    def _experience_depends_on_isaacsim_exp_full(experience_file: str) -> bool:
-        """Return whether a Kit experience directly depends on ``isaacsim.exp.full``."""
-        with open(experience_file, encoding="utf-8") as file:
-            return re.search(r'^\s*["\']isaacsim\.exp\.full["\']\s*=', file.read(), re.MULTILINE) is not None
 
     def _resolve_anim_recording_settings(self, launcher_args: dict):
         """Resolve animation recording settings; recording needs the ``omni.physx.pvd`` extension."""
@@ -720,10 +713,6 @@ class KitLauncher(SimulationLauncher):
             )
         self._anim_recording = (start_time, stop_time)
         sys.argv += ["--enable", "omni.physx.pvd"]
-
-    def _requires_all_partitions_spectator_view(self) -> bool:
-        """Return whether the launch needs an unpartitioned all-environment view."""
-        return self._kit_visualizer or self._render_viewport or self._video_enabled or self._livestream > 0 or self._xr
 
     def _resolve_kit_args(self, launcher_args: dict):
         """Resolve additional arguments passed to Kit."""
@@ -746,9 +735,9 @@ class KitLauncher(SimulationLauncher):
         if not any(arg.partition("=")[0] == setting for arg in sys.argv + self._kit_args):
             self._kit_args.append(argument)
 
-        # RTX allocates spectator support during startup, so visual output intent
-        # must become a Kit argument before SimulationApp is created.
-        if self._requires_all_partitions_spectator_view():
+        # RTX allocates spectator support during startup, so visual output intent (which needs an
+        # unpartitioned all-environment view) must become a Kit argument before SimulationApp is created.
+        if self._kit_visualizer or self._render_viewport or self._video_enabled or self._livestream > 0 or self._xr:
             argument = f"--{ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING}=true"
             setting = argument.partition("=")[0]
             if not any(arg.partition("=")[0] == setting for arg in sys.argv + self._kit_args):
@@ -822,61 +811,50 @@ class KitLauncher(SimulationLauncher):
 
         # Publish whether Kit has an interactive GUI (local window, livestream, or XR).
         # SimulationContext and renderers consume this setting during their initialization.
-        settings.set_bool("/isaaclab/has_gui", not self._headless or self._livestream >= 1 or self._xr)
-        settings.set_bool("/isaaclab/render/offscreen", self._offscreen_render)
-        settings.set_bool("/isaaclab/xr/enabled", self._xr)
+        settings.set("/isaaclab/has_gui", not self._headless or self._livestream >= 1 or self._xr)
+        settings.set("/isaaclab/render/offscreen", self._offscreen_render)
+        settings.set("/isaaclab/xr/enabled", self._xr)
         # set setting to indicate XR auto-start mode -- when running headless
         # (no Kit GUI) the AR profile must be enabled programmatically so that
         # the OpenXR session starts without user interaction
-        settings.set_bool("/isaaclab/xr/auto_start", self._headless and self._xr)
-        settings.set_bool("/isaaclab/video/enabled", self._video_enabled)
+        settings.set("/isaaclab/xr/auto_start", self._headless and self._xr)
+        settings.set("/isaaclab/video/enabled", self._video_enabled)
 
         # publish the reproducible-rendering intent; rendering backends read this on initialization
-        settings.set_bool("/isaaclab/render/deterministic", self._deterministic_rendering)
+        settings.set("/isaaclab/render/deterministic", self._deterministic_rendering)
 
         # use fixed time stepping disabled; custom loop runner from Isaac Sim is used instead
-        settings.set_bool("/app/player/useFixedTimeStepping", False)
+        settings.set("/app/player/useFixedTimeStepping", False)
 
         if self._anim_recording is not None:
-            settings.set_bool("/isaaclab/anim_recording/enabled", True)
-            settings.set_float("/isaaclab/anim_recording/start_time", self._anim_recording[0])
-            settings.set_float("/isaaclab/anim_recording/stop_time", self._anim_recording[1])
+            settings.set("/isaaclab/anim_recording/enabled", True)
+            settings.set("/isaaclab/anim_recording/start_time", self._anim_recording[0])
+            settings.set("/isaaclab/anim_recording/stop_time", self._anim_recording[1])
 
-    def _hide_stop_button(self):
-        """Hide the stop button in the toolbar.
+    def _set_toolbar_button_visible(self, button_name: str, visible: bool):
+        """Show and enable, or hide and disable, a button of the toolbar's play button group.
 
-        For standalone executions, having a stop button is confusing since it invalidates the whole simulation.
-        Thus, we hide the button so that users don't accidentally click it.
+        Standalone runs hide the stop button for good, since stopping invalidates the whole simulation. They hide
+        the play button while a GUI action like "save as" has stopped the timeline, so the user cannot resume it.
+
+        Args:
+            button_name: Attribute of the play button group, ``"_stop_button"`` or ``"_play_button"``.
+            visible: Whether to show and enable the button.
         """
-        # when we are truly headless, then we can't import the widget toolbar
-        # thus, we only hide the stop button when we are not headless (i.e. GUI is enabled)
-        if self._livestream >= 1 or not self._headless:
-            import omni.kit.widget.toolbar
+        # a truly headless app has no toolbar widget to import
+        if self._livestream < 1 and self._headless:
+            return
+        import omni.kit.widget.toolbar
 
-            # grey out the stop button because we don't want to stop the simulation manually in standalone mode
-            toolbar = omni.kit.widget.toolbar.get_instance()
-            play_button_group = toolbar._builtin_tools._play_button_group  # type: ignore
-            if play_button_group is not None:
-                play_button_group._stop_button.visible = False  # type: ignore
-                play_button_group._stop_button.enabled = False  # type: ignore
-                play_button_group._stop_button = None  # type: ignore
-
-    def _hide_play_button(self, flag):
-        """Hide/Unhide the play button in the toolbar.
-
-        This is used if the timeline is stopped by a GUI action like "save as" to not allow the user to
-        resume the timeline afterwards.
-        """
-        # when we are truly headless, then we can't import the widget toolbar
-        # thus, we only hide the play button when we are not headless (i.e. GUI is enabled)
-        if self._livestream >= 1 or not self._headless:
-            import omni.kit.widget.toolbar
-
-            toolbar = omni.kit.widget.toolbar.get_instance()
-            play_button_group = toolbar._builtin_tools._play_button_group  # type: ignore
-            if play_button_group is not None:
-                play_button_group._play_button.visible = not flag  # type: ignore
-                play_button_group._play_button.enabled = not flag  # type: ignore
+        play_button_group = omni.kit.widget.toolbar.get_instance()._builtin_tools._play_button_group  # type: ignore
+        if play_button_group is None:
+            return
+        button = getattr(play_button_group, button_name)
+        button.visible = visible
+        button.enabled = visible
+        if button_name == "_stop_button":
+            # detach the stop button so the group never shows it again
+            setattr(play_button_group, button_name, None)
 
 
 def _share_stage_context() -> None:
@@ -888,7 +866,7 @@ def _share_stage_context() -> None:
         from isaacsim.core.experimental.utils import stage as sim_stage
     except ImportError:
         return
-    from isaaclab.sim.utils import stage as stage_utils
+    from isaaclab.sim.utils import stage as stage_utils  # imports pxr; must load after Kit starts
 
     # Isaac Sim stage helpers read this singleton context.
     sim_stage._context = stage_utils._context

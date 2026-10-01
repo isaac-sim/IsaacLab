@@ -204,7 +204,7 @@ CLI Options
 ^^^^^^^^^^^
 
 The export command accepts the following common LEAPP-specific arguments in addition to
-backend-specific and AppLauncher arguments:
+backend-specific and launcher arguments (see :func:`~isaaclab.app.add_launcher_args`):
 
 .. list-table::
    :widths: 30 15 55

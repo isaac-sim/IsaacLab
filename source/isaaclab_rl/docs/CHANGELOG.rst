@@ -1,6 +1,83 @@
 Changelog
 ---------
 
+.. towncrier release notes start
+
+2.0.0 (2026-10-01)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* The run summary of the reinforcement learning workflows is printed after the launch and reports the resolved
+  backends, visualizers, and device, so ``--viz none`` shows no visualizer and distributed runs show each
+  rank's device. Automatic backend selectors are no longer shown next to the backend they resolved to.
+* **Breaking:** Call :func:`~isaaclab_rl.entrypoints.common.apply_video_recording` inside
+  :func:`~isaaclab.app.launch_simulation`: without declared recorders it records from the first capture-capable
+  visualizer the launch resolved into ``env_cfg.sim.visualizer_cfgs`` and raises when there is none. Only
+  :func:`~isaaclab_rl.entrypoints.common.pre_launch_video_config`, called before the launch, adds a headless Kit
+  visualizer for ``--video``. The zero and random agents now configure recording after the launch.
+* Computed the Stable-Baselines3 wrapper's done flags from the host copies of the termination and
+  truncation flags, saving one device-to-host transfer per step.
+
+Removed
+^^^^^^^
+
+* **Breaking:** Removed the ``apply_device`` argument of :func:`~isaaclab_rl.entrypoints.common.apply_env_overrides`,
+  which no longer writes ``--device``; :func:`~isaaclab.app.launch_simulation` writes it to
+  ``env_cfg.sim.device``. Call :func:`~isaaclab_rl.entrypoints.common.show_run_summary` inside
+  :func:`~isaaclab.app.launch_simulation`.
+* **Breaking:** Removed :func:`~isaaclab_rl.entrypoints.common.validate_distributed_device`: with ``--distributed``,
+  :func:`~isaaclab.app.launch_simulation` always assigns each rank a ``cuda:N`` device, so the check could not fail.
+
+Fixed
+^^^^^
+
+* Fixed multi-GPU training saving ``params/env.yaml`` and ``params/agent.yaml`` with the seed of
+  whichever rank wrote last, and leaving extra settings-only folders when ranks started in different
+  seconds. All ranks of a ``train_multigpu`` launch now shared one run folder: rank 0 wrote its settings,
+  videos, and sensor captures where a single-GPU run does, and every other rank wrote its own ``params/``,
+  videos, and sensor captures to ``rank_<rank>/``. For multi-node jobs on shared storage, pass the same
+  ``--run_timestamp`` to ``train_multigpu`` on every node.
+* Fixed skrl multi-GPU training saving the final checkpoint from every rank to the same file.
+* Fixed multi-GPU training ending with a ``destroy_process_group() was not called`` warning after a
+  successful run.
+* Fixed resumed RSL-RL multi-GPU training loading the checkpoint onto the GPU that saved it in every
+  process instead of the process's own GPU, which could make the first update fail with
+  ``normal expects all elements of std >= 0.0``.
+
+
+1.3.1 (2026-09-29)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed train/play entrypoints leaving environments open after setup failures or interrupts.
+  Cleanup closed the final environment wrapper and ignored further Ctrl+C presses during teardown.
+  Random/zero agents used the same cleanup and propagated interrupts instead of reporting success.
+
+
+1.3.0 (2026-09-28)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``use_mixed_precision`` to :class:`~isaaclab_rl.rsl_rl.RslRlPpoAlgorithmCfg` and
+  ``torch_compile_mode`` to :class:`~isaaclab_rl.rsl_rl.RslRlOnPolicyRunnerCfg` to configure RSL-RL's
+  bfloat16 policy update and ``torch.compile`` of the actor and critic. Both options remained disabled by default.
+  Set ``torch_compile_mode="default"`` (CLI: ``agent.torch_compile_mode=default``) to enable compilation.
+  Compilation added startup overhead and could change floating-point results and sampled training trajectories.
+
+Changed
+^^^^^^^
+
+* Used the shared indexed fill operation to reset recurrent policy state during RL-Games playback.
+* Enabled ``torch.backends.cudnn.benchmark`` in the RSL-RL training entrypoint, matching the existing
+  non-deterministic environment seeding behavior.
+
+
 1.2.1 (2026-09-27)
 ~~~~~~~~~~~~~~~~~~
 

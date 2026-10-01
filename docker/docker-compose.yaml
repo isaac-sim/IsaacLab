@@ -146,35 +146,6 @@ services:
     stdin_open: true
     tty: true
 
-  # This service adds a ROS2 Humble
-  # installation on top of the base image
-  isaac-lab-ros2:
-    profiles: [ "ros2" ]
-    env_file:
-      - .env.base
-      - .env.ros2
-    build:
-      context: ../
-      dockerfile: docker/Dockerfile.ros2
-      args:
-        # ROS2_APT_PACKAGE will default to NONE. This is to
-        # avoid a warning message when building only the base profile
-        # with the .env.base file
-        - ROS2_APT_PACKAGE=${ROS2_APT_PACKAGE:-NONE}
-        # Make sure that the correct Docker Name Suffix is being passed to the dockerfile, to know which base image to
-        # start from.
-        - DOCKER_NAME_SUFFIX=${DOCKER_NAME_SUFFIX-}
-    image: isaac-lab-ros2${DOCKER_NAME_SUFFIX-}
-    container_name: isaac-lab-ros2${DOCKER_NAME_SUFFIX-}
-    environment: *default-isaac-lab-environment
-    volumes: *default-isaac-lab-volumes
-    network_mode: host
-    deploy: *default-isaac-lab-deploy
-    # This is the entrypoint for the container
-    entrypoint: bash
-    stdin_open: true
-    tty: true
-
   # This standalone service provides the kit-less Isaac Lab image.
   isaac-lab-kitless:
     profiles: [ "kitless" ]

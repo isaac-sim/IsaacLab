@@ -22,9 +22,9 @@ from ..utils.types import ArticulationActions
 from ..utils.warp import ProxyArray
 from ..utils.warp.launch_cache import _WarpLaunchCache
 from . import actuator_kernels
-from ._compat import _resolve_limit_aliases
 from .actuator_base import ActuatorBase, resolve_joint_parameter
 from .actuator_base_cfg import ActuatorBaseCfg, _is_implicit_actuator_cfg
+from .actuator_compat import resolve_limit_aliases
 from .actuator_control import _JOINT_PROPERTY_KEYS, ActuatorControl
 from .actuator_pd import IdealPDActuator, ImplicitActuator
 
@@ -89,7 +89,7 @@ class ActuatorCollection(Mapping[str, "ActuatorBase | object"]):
         self._target_command = ActuatorTargetCommand(self)
         self._output_command = ActuatorOutputCommand(self)
         for name, cfg in resolved_cfgs.items():
-            _resolve_limit_aliases(name, cfg, resolved_group_joints[name][1])
+            resolve_limit_aliases(name, cfg, resolved_group_joints[name][1])
         self._native_group_names = self._control.prepare_native_actuators(self, resolved_cfgs)
         self._build_groups(resolved_cfgs, resolved_group_joints)
         self._newton_selection = self._control.finalize_native_actuators(self)

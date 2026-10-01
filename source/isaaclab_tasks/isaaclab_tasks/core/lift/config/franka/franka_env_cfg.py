@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Configuration for the Franka lift and reorient environments."""
+"""Configuration for the Franka lift environment."""
 
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg
@@ -16,7 +16,7 @@ from isaaclab.sim import MeshCapsuleCfg, MeshCuboidCfg, MeshSphereCfg
 from isaaclab.utils import clone, configclass, replace
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
-from isaaclab_assets.robots import FRANKA_PANDA_CFG
+from isaaclab_assets.robots import FRANKA_PANDA_LEGACY_CFG
 
 from ... import lift_env_cfg as lift
 from ... import mdp
@@ -27,7 +27,7 @@ from ... import mdp
 
 # The lift tasks run the menagerie-converted asset (identified inertials, authored finger coupling) with
 # actuators calibrated for it, while the other Franka tasks keep the stock asset.
-FRANKA_PANDA_LIFT_CFG = clone(FRANKA_PANDA_CFG)
+FRANKA_PANDA_LIFT_CFG = clone(FRANKA_PANDA_LEGACY_CFG)
 FRANKA_PANDA_LIFT_CFG.spawn.usd_path = f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/franka_panda.usda"
 # Reset clearance was calibrated for these arm meshes; the asset's primitive colliders intersect the ground.
 FRANKA_PANDA_LIFT_CFG.spawn.variants = {"Colliders": "convex_hulls"}
@@ -96,7 +96,7 @@ FINGER_SENSORS = [f"{name}_object_s" for name in FINGERTIP_LIST if name != "pand
 
 @configclass
 class FrankaSceneCfg(lift.SceneCfg):
-    """Franka scene for the lift and reorient tasks."""
+    """Franka scene for the lift task."""
 
     robot: ArticulationCfg = replace(FRANKA_PANDA_LIFT_CFG, prim_path="{ENV_REGEX_NS}/Robot")
 
@@ -257,17 +257,6 @@ class FrankaMixinCfg:
         # Franka base is rotated 180 deg about z, so the workspace mirrors to positive x.
         self.commands.object_pose.ranges.pos_x = (0.3, 0.7)
         self.terminations.abnormal_robot.params["asset_cfg"] = SceneEntityCfg("robot", joint_names="panda_joint.*")
-
-
-@configclass
-class FrankaReorientEnvCfg(FrankaMixinCfg, lift.ReorientEnvCfg):
-    """Franka object reorientation environment."""
-
-    def play_mode(self):
-        super().play_mode()
-        # evaluate at the datasheet gripper speed: without the closing-speed randomization the hand
-        # damping caps closing at the real hand's jaw-speed limit of 0.2 m/s
-        self.events.gripper_closing_speed = None
 
 
 @configclass

@@ -74,7 +74,7 @@ def command_deploy_leapp(argv: list[str] | None = None) -> int:
             env.reset()
             try:
                 with torch.inference_mode():
-                    while env.sim.is_headless_or_exist_active_visualizer():
+                    while env.sim.is_running():
                         env.step()
             finally:
                 env.close()

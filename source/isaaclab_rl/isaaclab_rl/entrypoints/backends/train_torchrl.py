@@ -24,6 +24,7 @@ from ..common import (
     add_common_train_args,
     apply_env_overrides,
     apply_video_recording,
+    close_env,
     create_isaaclab_env,
     dump_train_configs,
     enable_cameras_for_video,
@@ -64,9 +65,9 @@ def run(argv: list[str]) -> None:
     with startup_screen(args_cli, num_stages=2) as screen:
         env_cfg, agent_cfg = resolve_task_config(args_cli.task, args_cli.agent)
         pre_launch_video_config(env_cfg, args_cli)
-        show_run_summary(screen, args_cli, env_cfg, library="torchrl", action="train")
         screen.stage("Launching simulation")
-        with launch_simulation(env_cfg, args_cli):
+        with launch_simulation(env_cfg, args_cli), contextlib.ExitStack() as cleanup:
+            show_run_summary(screen, args_cli, env_cfg, library="torchrl", action="train")
             # torchrl is an optional extra; importing it after the task config is resolved lets preset errors
             # surface even when it is not installed
             from ...torchrl import IsaacLabTorchRLWrapper, train_ppo
@@ -102,6 +103,7 @@ def run(argv: list[str]) -> None:
                 args_cli,
                 convert_marl_to_single_agent=isinstance(env_cfg, DirectMARLEnvCfg),
             )
+            cleanup.callback(lambda: close_env(env))
             env = wrap_sensor_capture(env, log_dir, args_cli)
             env = IsaacLabTorchRLWrapper(env, clip_actions=agent_cfg.clip_actions)
             if args_cli.deterministic:
@@ -115,4 +117,3 @@ def run(argv: list[str]) -> None:
                 print("[TorchRL] Training interrupted.")
             finally:
                 print(f"Training time: {round(time.time() - start_time, 2)} seconds")
-                env.close()

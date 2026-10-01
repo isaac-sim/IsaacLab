@@ -30,6 +30,7 @@ from ..common import (
     add_common_play_args,
     apply_env_overrides,
     apply_video_recording,
+    close_env,
     create_isaaclab_env,
     enable_cameras_for_video,
     normalize_task_name,
@@ -104,9 +105,9 @@ def run(argv: list[str]) -> None:
                 " --agent rl_games_cfg_entry_point, or use --rl_library rsl_rl for RSL-RL runner configurations."
             )
         pre_launch_video_config(env_cfg, args_cli)
-        show_run_summary(screen, args_cli, env_cfg, library="rl_games", action="play")
         screen.stage("Launching simulation")
-        with launch_simulation(env_cfg, args_cli):
+        with launch_simulation(env_cfg, args_cli), contextlib.ExitStack() as cleanup:
+            show_run_summary(screen, args_cli, env_cfg, library="rl_games", action="play")
             apply_env_overrides(args_cli, env_cfg)
             params = agent_cfg["params"]
             args_cli.seed = resolve_seed(args_cli.seed)
@@ -130,6 +131,7 @@ def run(argv: list[str]) -> None:
                 args_cli,
                 convert_marl_to_single_agent=isinstance(env_cfg, DirectMARLEnvCfg),
             )
+            cleanup.callback(lambda: close_env(env))
 
             screen.stage("Loading policy")
             env = RlGamesVecEnvWrapper.from_agent_cfg(env, agent_cfg)
@@ -166,4 +168,3 @@ def run(argv: list[str]) -> None:
 
             screen.close()
             run_playback(step, dt=env.unwrapped.step_dt, args_cli=args_cli, env_cfg=env_cfg)
-            env.close()

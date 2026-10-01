@@ -33,8 +33,10 @@ from .common import (
     add_video_args,
     apply_env_overrides,
     apply_video_recording,
+    close_env,
     enable_cameras_for_video,
     normalize_task_name,
+    pre_launch_video_config,
     video_playback_steps,
 )
 
@@ -71,43 +73,39 @@ def run(argv: list[str] | None = None, *, policy: PolicyName) -> None:
 
     env_cfg, _ = resolve_task_config(args_cli.task, "")
     apply_env_overrides(args_cli, env_cfg)
-    # pass the resolved task device through to the launcher
-    args_cli.device = env_cfg.sim.device
-    # configure recorders before validation so invalid clip settings fail before the launch
-    log_dir = os.path.abspath(os.path.join("logs", f"{policy}_agent", normalize_task_name(args_cli.task)))
-    apply_video_recording(env_cfg, log_dir, args_cli, subdir="play")
+    pre_launch_video_config(env_cfg, args_cli)
     # reject unsupported configurations before launching Kit or initializing a native physics backend
     try:
         validate(env_cfg)
     except (TypeError, ValueError) as exc:
         raise SystemExit(f"Invalid environment configuration: {exc}") from None
 
-    try:
-        with launch_simulation(env_cfg, args_cli):
-            with contextlib.closing(gym.make(args_cli.task, cfg=env_cfg)) as env:
-                print(f"[INFO]: Gym observation space: {env.observation_space}")
-                print(f"[INFO]: Gym action space: {env.action_space}")
-                env.reset()
-                if policy == "zero":
-                    action_policy = create_zero_action_policy(env)
-                else:
-                    action_policy = create_random_action_policy(env)
-                print(f"[INFO] {policy.capitalize()} agent is running, press Ctrl+C to exit...")
+    with launch_simulation(env_cfg, args_cli), contextlib.ExitStack() as cleanup:
+        log_dir = os.path.abspath(os.path.join("logs", f"{policy}_agent", normalize_task_name(args_cli.task)))
+        apply_video_recording(env_cfg, log_dir, args_cli, subdir="play")
+        env = gym.make(args_cli.task, cfg=env_cfg)
+        cleanup.callback(lambda: close_env(env))
+        print(f"[INFO]: Gym observation space: {env.observation_space}")
+        print(f"[INFO]: Gym action space: {env.action_space}")
+        env.reset()
+        if policy == "zero":
+            action_policy = create_zero_action_policy(env)
+        else:
+            action_policy = create_random_action_policy(env)
+        print(f"[INFO] {policy.capitalize()} agent is running, press Ctrl+C to exit...")
 
-                budgets = [n for n in (args_cli.max_steps, video_playback_steps(args_cli, env_cfg)) if n is not None]
-                max_steps = min(budgets, default=None)
+        budgets = [n for n in (args_cli.max_steps, video_playback_steps(args_cli, env_cfg)) if n is not None]
+        max_steps = min(budgets, default=None)
 
-                # keep running while any visualizer is open and the step budget is not exhausted
-                sim = env.unwrapped.sim
-                step = 0
-                while sim.is_headless_or_exist_active_visualizer():
-                    if max_steps is not None and step >= max_steps:
-                        break
-                    step += 1
-                    with torch.inference_mode():
-                        env.step(action_policy())
-    except KeyboardInterrupt:
-        print(f"\n[INFO] {policy.capitalize()} agent stopped.")
+        # keep running while any visualizer is open and the step budget is not exhausted
+        sim = env.unwrapped.sim
+        step = 0
+        while sim.is_running():
+            if max_steps is not None and step >= max_steps:
+                break
+            step += 1
+            with torch.inference_mode():
+                env.step(action_policy())
 
 
 def create_zero_action_policy(env: gym.Env) -> Callable[[], Any]:

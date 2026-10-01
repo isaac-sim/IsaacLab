@@ -5,13 +5,6 @@
 
 """Smoke tests for contributed environments that run without Isaac Sim."""
 
-import os
-
-# TODO: Remove once usd-core>=26.5 is the minimum. Earlier releases can corrupt
-# the heap while parsing Newton payloads concurrently, so disable USD concurrency
-# before importing modules that may initialize OpenUSD.
-os.environ["PXR_WORK_THREAD_LIMIT"] = "1"
-
 import pytest
 
 import isaaclab_tasks  # noqa: F401

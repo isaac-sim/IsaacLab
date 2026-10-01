@@ -14,8 +14,6 @@ import threading
 from collections.abc import Callable, Generator
 from typing import TYPE_CHECKING
 
-from ...utils.version import get_isaac_sim_version, has_kit
-
 if TYPE_CHECKING:
     from pxr import Sdf, Usd, UsdUtils  # noqa: F401
 
@@ -196,7 +194,7 @@ def open_stage(usd_path: str) -> Usd.Stage:
 
 @contextlib.contextmanager
 def use_stage(stage: Usd.Stage) -> Generator[None, None, None]:
-    """Context manager that sets a thread-local stage, if supported.
+    """Context manager that sets a thread-local stage.
 
     This function binds the stage to the thread-local context for the duration of the context manager.
     During the context manager, any call to :func:`get_current_stage` will return the stage specified
@@ -204,8 +202,6 @@ def use_stage(stage: Usd.Stage) -> Generator[None, None, None]:
     stage attached to the USD context.
 
     .. versionadded:: 2.3.0
-        This function is available in Isaac Sim 5.0 and later. For backwards
-        compatibility, it falls back to a no-op context manager in Isaac Sim < 5.0.
 
     Args:
         stage: The stage to set in the context.
@@ -228,25 +224,19 @@ def use_stage(stage: Usd.Stage) -> Generator[None, None, None]:
     """
     from pxr import Usd  # noqa: PLC0415
 
-    if has_kit() and get_isaac_sim_version().major < 5:
-        logger.warning("Isaac Sim < 5.0 does not support thread-local stage contexts. Skipping use_stage().")
-        yield  # no-op
-    else:
-        # check stage
-        if not isinstance(stage, Usd.Stage):
-            raise TypeError(f"Expected a USD stage instance, got: {type(stage)}")
-        # store previous context value if it exists
-        previous_stage = getattr(_context, "stage", None)
-        # set new context value
-        try:
-            _context.stage = stage
-            yield
-        # remove context value or restore previous one if it exists
-        finally:
-            if previous_stage is None:
-                delattr(_context, "stage")
-            else:
-                _context.stage = previous_stage
+    if not isinstance(stage, Usd.Stage):
+        raise TypeError(f"Expected a USD stage instance, got: {type(stage)}")
+    # store previous context value if it exists
+    previous_stage = getattr(_context, "stage", None)
+    try:
+        _context.stage = stage
+        yield
+    # remove context value or restore previous one if it exists
+    finally:
+        if previous_stage is None:
+            delattr(_context, "stage")
+        else:
+            _context.stage = previous_stage
 
 
 def save_stage(usd_path: str, save_and_reload_in_place: bool = True) -> bool:

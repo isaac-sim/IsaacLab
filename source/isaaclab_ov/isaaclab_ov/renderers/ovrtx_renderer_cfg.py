@@ -56,6 +56,16 @@ class OVRTXRendererCfg(RendererCfg):
     launcher_type: ClassVar[str] = "isaaclab_ov.app:OvrtxLauncher"
     """The launcher that registers the OVRTX runtime before the stage is created."""
 
+    async_rendering: bool = False
+    """Trade one capture of camera latency for pipelined rendering. Defaults to False (synchronous).
+
+    Each camera returns its previous capture while rendering its next image. The first capture
+    and the first capture after reset wait for a fresh image. Live pose and calibration fields
+    stay current. ``camera.data.info[output_name]["capture"]`` carries the image's matching
+    ``pos_w``, ``quat_w_world``, ``intrinsic_matrices``, and per-environment ``frame`` indices.
+    The ovstage path does not support pipelining and renders synchronously.
+    """
+
     temp_usd_dir: str | None = None
     """Directory for temporary USD debug dumps written during OVRTX stage preparation.
 

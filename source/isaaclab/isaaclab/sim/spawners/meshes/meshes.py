@@ -15,7 +15,6 @@ from pxr import Usd, UsdPhysics
 
 from ... import schemas
 from ...utils import bind_physics_material, bind_visual_material, clone, create_prim, get_current_stage
-from .._utils import fragment_mapping, props_expr
 from ..materials import (
     DeformableBodyMaterialBaseCfg,
     RigidBodyMaterialBaseCfg,
@@ -23,6 +22,7 @@ from ..materials import (
     SurfaceDeformableBodyMaterialBaseCfg,
 )
 from ..materials.physics_materials import spawn_physics_material
+from ..utils import apply_schema_props, fragment_mapping, props_expr, resolve_deformable_slot
 
 if TYPE_CHECKING:
     from . import meshes_cfg
@@ -60,13 +60,7 @@ def spawn_mesh_sphere(
         ValueError: If a prim already exists at the given path.
     """
     sphere = trimesh.creation.uv_sphere(radius=cfg.radius)
-
-    # obtain stage handle
-    stage = get_current_stage()
-    # spawn the sphere as a mesh
-    _spawn_mesh_geom_from_mesh(prim_path, cfg, sphere, translation, orientation, stage=stage)
-    # return the prim
-    return stage.GetPrimAtPath(prim_path)
+    return _spawn_mesh_geom_from_mesh(prim_path, cfg, sphere, translation, orientation)
 
 
 @clone
@@ -101,13 +95,7 @@ def spawn_mesh_cuboid(
         ValueError: If a prim already exists at the given path.
     """
     box = trimesh.creation.box(cfg.size)
-
-    # obtain stage handle
-    stage = get_current_stage()
-    # spawn the cuboid as a mesh
-    _spawn_mesh_geom_from_mesh(prim_path, cfg, box, translation, orientation, None, stage=stage)
-    # return the prim
-    return stage.GetPrimAtPath(prim_path)
+    return _spawn_mesh_geom_from_mesh(prim_path, cfg, box, translation, orientation)
 
 
 @clone
@@ -141,23 +129,8 @@ def spawn_mesh_cylinder(
     Raises:
         ValueError: If a prim already exists at the given path.
     """
-    # align axis from "Z" to input by rotating the cylinder
-    axis = cfg.axis.upper()
-    if axis == "X":
-        transform = trimesh.transformations.rotation_matrix(np.pi / 2, [0, 1, 0])
-    elif axis == "Y":
-        transform = trimesh.transformations.rotation_matrix(-np.pi / 2, [1, 0, 0])
-    else:
-        transform = None
-    # create a trimesh cylinder
-    cylinder = trimesh.creation.cylinder(radius=cfg.radius, height=cfg.height, transform=transform)
-
-    # obtain stage handle
-    stage = get_current_stage()
-    # spawn the cylinder as a mesh
-    _spawn_mesh_geom_from_mesh(prim_path, cfg, cylinder, translation, orientation, stage=stage)
-    # return the prim
-    return stage.GetPrimAtPath(prim_path)
+    cylinder = trimesh.creation.cylinder(radius=cfg.radius, height=cfg.height, transform=_axis_transform(cfg.axis))
+    return _spawn_mesh_geom_from_mesh(prim_path, cfg, cylinder, translation, orientation)
 
 
 @clone
@@ -191,23 +164,8 @@ def spawn_mesh_capsule(
     Raises:
         ValueError: If a prim already exists at the given path.
     """
-    # align axis from "Z" to input by rotating the cylinder
-    axis = cfg.axis.upper()
-    if axis == "X":
-        transform = trimesh.transformations.rotation_matrix(np.pi / 2, [0, 1, 0])
-    elif axis == "Y":
-        transform = trimesh.transformations.rotation_matrix(-np.pi / 2, [1, 0, 0])
-    else:
-        transform = None
-    # create a trimesh capsule
-    capsule = trimesh.creation.capsule(radius=cfg.radius, height=cfg.height, transform=transform)
-
-    # obtain stage handle
-    stage = get_current_stage()
-    # spawn capsule if it doesn't exist.
-    _spawn_mesh_geom_from_mesh(prim_path, cfg, capsule, translation, orientation, stage=stage)
-    # return the prim
-    return stage.GetPrimAtPath(prim_path)
+    capsule = trimesh.creation.capsule(radius=cfg.radius, height=cfg.height, transform=_axis_transform(cfg.axis))
+    return _spawn_mesh_geom_from_mesh(prim_path, cfg, capsule, translation, orientation)
 
 
 @clone
@@ -241,23 +199,8 @@ def spawn_mesh_cone(
     Raises:
         ValueError: If a prim already exists at the given path.
     """
-    # align axis from "Z" to input by rotating the cylinder
-    axis = cfg.axis.upper()
-    if axis == "X":
-        transform = trimesh.transformations.rotation_matrix(np.pi / 2, [0, 1, 0])
-    elif axis == "Y":
-        transform = trimesh.transformations.rotation_matrix(-np.pi / 2, [1, 0, 0])
-    else:
-        transform = None
-    # create a trimesh cone
-    cone = trimesh.creation.cone(radius=cfg.radius, height=cfg.height, transform=transform)
-
-    # obtain stage handle
-    stage = get_current_stage()
-    # spawn cone if it doesn't exist.
-    _spawn_mesh_geom_from_mesh(prim_path, cfg, cone, translation, orientation, stage=stage)
-    # return the prim
-    return stage.GetPrimAtPath(prim_path)
+    cone = trimesh.creation.cone(radius=cfg.radius, height=cfg.height, transform=_axis_transform(cfg.axis))
+    return _spawn_mesh_geom_from_mesh(prim_path, cfg, cone, translation, orientation)
 
 
 @clone
@@ -298,16 +241,22 @@ def spawn_mesh_rectangle(
         dtype=np.float32,
     )
     rectangle = trimesh.Trimesh(vertices=vertices, faces=((0, 1, 2), (0, 2, 3)), process=False)
-    stage = get_current_stage()
-    # spawn the rectangle as a mesh
-    _spawn_mesh_geom_from_mesh(prim_path, cfg, rectangle, translation, orientation, None, stage=stage)
-    # return the prim
-    return stage.GetPrimAtPath(prim_path)
+    return _spawn_mesh_geom_from_mesh(prim_path, cfg, rectangle, translation, orientation)
 
 
 """
 Helper functions.
 """
+
+
+def _axis_transform(axis: str) -> np.ndarray | None:
+    """Return the rotation that aligns a Z-axis-aligned trimesh primitive with the requested axis."""
+    axis = axis.upper()
+    if axis == "X":
+        return trimesh.transformations.rotation_matrix(np.pi / 2, [0, 1, 0])
+    if axis == "Y":
+        return trimesh.transformations.rotation_matrix(-np.pi / 2, [1, 0, 0])
+    return None
 
 
 def _refine_surface_mesh(mesh: trimesh.Trimesh, cfg: meshes_cfg.MeshCfg) -> trimesh.Trimesh:
@@ -325,7 +274,12 @@ def _refine_surface_mesh(mesh: trimesh.Trimesh, cfg: meshes_cfg.MeshCfg) -> trim
     """
     if cfg.edge_refinement < 1.0:
         raise ValueError(f"Mesh edge refinement must be at least 1.0, got {cfg.edge_refinement}.")
-    if cfg.deformable_props is None or cfg.edge_refinement == 1.0:
+    # refinement applies to any deformable spelling, so the fragment slots get the same
+    # simulation-mesh resolution the legacy ``deformable_props`` field does
+    is_deformable = any(
+        props is not None for props in (cfg.deformable_props, cfg.volume_deformable_props, cfg.surface_deformable_props)
+    )
+    if not is_deformable or cfg.edge_refinement == 1.0:
         return mesh
 
     max_edge = float(np.linalg.norm(mesh.bounding_box.extents)) / cfg.edge_refinement
@@ -362,10 +316,10 @@ def _spawn_mesh_geom_from_mesh(
     scale: tuple[float, float, float] | None = None,
     stage: Usd.Stage | None = None,
     **kwargs,
-):
+) -> Usd.Prim:
     """Create a `USDGeomMesh`_ prim from the given mesh.
 
-    This function is similar to :func:`shapes._spawn_geom_from_prim_type` but spawns the prim from a given mesh.
+    This function is similar to :func:`shapes.spawn_geom_from_prim_type` but spawns the prim from a given mesh.
     In case of the mesh, it is spawned as a USDGeomMesh prim with the given vertices and faces.
 
     There is a difference in how the properties are applied to the prim based on the type of object:
@@ -387,6 +341,9 @@ def _spawn_mesh_geom_from_mesh(
         stage: The stage to spawn the asset at. Defaults to None, in which case the current stage is used.
         **kwargs: Additional keyword arguments, like ``clone_in_fabric``.
 
+    Returns:
+        The created root prim.
+
     Raises:
         ValueError: If a prim already exists at the given path.
         ValueError: If edge refinement is less than ``1.0``.
@@ -398,26 +355,16 @@ def _spawn_mesh_geom_from_mesh(
     .. _USDGeomMesh: https://openusd.org/dev/api/class_usd_geom_mesh.html
     """
     mesh = _refine_surface_mesh(mesh, cfg)
-
-    # obtain stage handle
     stage = stage if stage is not None else get_current_stage()
 
-    # spawn geometry if it doesn't exist.
-    if not stage.GetPrimAtPath(prim_path).IsValid():
-        create_prim(prim_path, prim_type="Xform", translation=translation, orientation=orientation, stage=stage)
-    else:
-        raise ValueError(f"A prim already exists at path: '{prim_path}'.")
+    prim = create_prim(prim_path, prim_type="Xform", translation=translation, orientation=orientation, stage=stage)
     # check that invalid schema types are not used
-    if cfg.deformable_props is not None and cfg.rigid_props is not None:
+    deformable_slot = resolve_deformable_slot(cfg)
+    if (deformable_slot is not None or cfg.deformable_props is not None) and cfg.rigid_props is not None:
         raise ValueError("Cannot use both deformable and rigid properties at the same time.")
-    if cfg.deformable_props is not None and cfg.collision_props is not None:
+    if (deformable_slot is not None or cfg.deformable_props is not None) and cfg.collision_props is not None:
         # only fragments resolve onto the simulation mesh, legacy cfgs would target the inert body prim
-        collision_props_mapping = fragment_mapping(cfg.collision_props)
-        if collision_props_mapping is not None:
-            frags = [frag for fragments in collision_props_mapping.values() for frag in fragments]
-        else:
-            frags = [cfg.collision_props]
-        if not frags or not all(isinstance(frag, schemas.SchemaFragment) for frag in frags):
+        if fragment_mapping(cfg.collision_props) is None:
             raise ValueError("Deformable bodies require 'collision_props' as collision fragments.")
     # check material types are correct
     if cfg.deformable_props is not None and cfg.physics_material is not None:
@@ -429,7 +376,7 @@ def _spawn_mesh_geom_from_mesh(
         physics_material_frags = (
             cfg.physics_material if isinstance(cfg.physics_material, (list, tuple)) else [cfg.physics_material]
         )
-        is_rigid_material = isinstance(cfg.physics_material, RigidBodyMaterialBaseCfg) or all(
+        is_rigid_material = isinstance(cfg.physics_material, RigidBodyMaterialBaseCfg) or any(
             isinstance(frag, RigidBodyMaterialFragment) for frag in physics_material_frags
         )
         if not is_rigid_material:
@@ -450,7 +397,17 @@ def _spawn_mesh_geom_from_mesh(
         stage=stage,
     )
 
-    if cfg.deformable_props is not None:
+    if deformable_slot is not None:
+        kind, mapping = deformable_slot
+        writer = (
+            schemas.apply_volume_deformable_properties
+            if kind == "volume"
+            else schemas.apply_surface_deformable_properties
+        )
+        kwargs = {"tetrahedralization_edge_length_fac": 1.0 / cfg.edge_refinement} if kind == "volume" else {}
+        for pattern, fragments in mapping.items():
+            writer(props_expr(prim_path, pattern), fragments, create_if_missing=True, stage=stage, **kwargs)
+    elif cfg.deformable_props is not None:
         # apply deformable body properties
         deformable_type = (
             "surface" if isinstance(cfg.physics_material, SurfaceDeformableBodyMaterialBaseCfg) else "volume"
@@ -465,13 +422,6 @@ def _spawn_mesh_geom_from_mesh(
             deformable_type=deformable_type,
             **deformable_kwargs,
         )
-        if cfg.collision_props is not None:
-            _apply_deformable_collision_props(prim_path, cfg.collision_props, stage)
-        if cfg.mass_props is not None:
-            raise ValueError(
-                """MassPropertiesCfg are not supported for deformable bodies
-                and should be set through deformable_props with mass=<value>."""
-            )
     elif cfg.collision_props is not None:
         # decide on type of collision approximation based on the mesh
         if cfg.__class__.__name__ == "MeshSphereCfg":
@@ -481,59 +431,47 @@ def _spawn_mesh_geom_from_mesh(
         else:
             # for: MeshCylinderCfg, MeshCapsuleCfg, MeshConeCfg
             collision_approximation = "convexHull"
-        # apply collision approximation to mesh
         # note: for primitives, we use the convex hull approximation -- this should be sufficient for most cases.
-        mesh_collision_api = UsdPhysics.MeshCollisionAPI.Apply(mesh_prim)
-        mesh_collision_api.GetApproximationAttr().Set(collision_approximation)
-        # apply collision properties
-        # fragment path: a mapping from target pattern to fragment list, applied entry by entry in
-        # insertion order; patterns anchor at the geometry prim this spawner authors, so ``""``
-        # preserves the legacy placement. Otherwise a legacy cfg routes to the legacy writer.
-        collision_props_mapping = fragment_mapping(cfg.collision_props)
-        if collision_props_mapping is not None:
-            for pattern, fragments in collision_props_mapping.items():
-                schemas.apply_collision_properties(
-                    props_expr(mesh_prim_path, pattern), fragments, create_if_missing=True, stage=stage
-                )
-        else:
-            schemas.define_collision_properties(mesh_prim_path, cfg.collision_props, stage=stage)
+        UsdPhysics.MeshCollisionAPI.Apply(mesh_prim).GetApproximationAttr().Set(collision_approximation)
+        # collision properties anchor at the geometry prim
+        apply_schema_props(
+            cfg.collision_props,
+            mesh_prim_path,
+            schemas.apply_collision_properties,
+            schemas.define_collision_properties,
+            stage,
+        )
+
+    if deformable_slot is not None or cfg.deformable_props is not None:
+        if cfg.collision_props is not None:
+            _apply_deformable_collision_props(prim_path, cfg.collision_props, stage)
+        if cfg.mass_props is not None:
+            raise ValueError("Set deformable mass through deformable body properties, not mass_props.")
 
     if cfg.visual_material is not None:
-        if not cfg.visual_material_path.startswith("/"):
-            material_path = f"{geom_prim_path}/{cfg.visual_material_path}"
-        else:
-            material_path = cfg.visual_material_path
-        # create material
+        material_path = (
+            cfg.visual_material_path
+            if cfg.visual_material_path.startswith("/")
+            else f"{geom_prim_path}/{cfg.visual_material_path}"
+        )
         cfg.visual_material.func(material_path, cfg.visual_material)
         bind_visual_material(mesh_prim_path, material_path, stage=stage)
     if cfg.physics_material is not None:
-        if not cfg.physics_material_path.startswith("/"):
-            material_path = f"{geom_prim_path}/{cfg.physics_material_path}"
-        else:
-            material_path = cfg.physics_material_path
-        # create material (accepts a legacy material cfg or rigid-body fragment(s))
+        material_path = (
+            cfg.physics_material_path
+            if cfg.physics_material_path.startswith("/")
+            else f"{geom_prim_path}/{cfg.physics_material_path}"
+        )
         spawn_physics_material(material_path, cfg.physics_material, stage=stage)
         bind_physics_material(prim_path, material_path, stage=stage)
 
-    # note: we apply the rigid properties to the parent prim in case of rigid objects.
-    # fragment path: mapping entries anchor at the container prim, so ``""`` preserves the legacy
-    # placement; entries apply in insertion order. Otherwise a legacy cfg routes to the legacy writer.
+    # mass and rigid body properties anchor at the container prim
     if cfg.rigid_props is not None:
         if cfg.mass_props is not None:
-            mass_props_mapping = fragment_mapping(cfg.mass_props)
-            if mass_props_mapping is not None:
-                for pattern, fragments in mass_props_mapping.items():
-                    schemas.apply_mass_properties(
-                        props_expr(prim_path, pattern), fragments, create_if_missing=True, stage=stage
-                    )
-            else:
-                schemas.define_mass_properties(prim_path, cfg.mass_props, stage=stage)
-        # apply rigid properties
-        rigid_props_mapping = fragment_mapping(cfg.rigid_props)
-        if rigid_props_mapping is not None:
-            for pattern, fragments in rigid_props_mapping.items():
-                schemas.apply_rigid_body_properties(
-                    props_expr(prim_path, pattern), fragments, create_if_missing=True, stage=stage
-                )
-        else:
-            schemas.define_rigid_body_properties(prim_path, cfg.rigid_props, stage=stage)
+            apply_schema_props(
+                cfg.mass_props, prim_path, schemas.apply_mass_properties, schemas.define_mass_properties, stage
+            )
+        apply_schema_props(
+            cfg.rigid_props, prim_path, schemas.apply_rigid_body_properties, schemas.define_rigid_body_properties, stage
+        )
+    return prim

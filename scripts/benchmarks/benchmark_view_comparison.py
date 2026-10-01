@@ -27,7 +27,7 @@ from __future__ import annotations
 
 import argparse
 
-from isaaclab.app import AppLauncher
+from isaaclab.app import add_launcher_args, launch_simulation
 
 parser = argparse.ArgumentParser(description="Benchmark FrameView backends and PhysX RigidBodyView.")
 
@@ -52,13 +52,8 @@ parser.add_argument(
     help="Directory to save profile results. Default: ./profile_results",
 )
 
-AppLauncher.add_app_launcher_args(parser)
+add_launcher_args(parser)
 args_cli = parser.parse_args()
-
-app_launcher = AppLauncher(args_cli)
-simulation_app = app_launcher.app
-
-"""Rest everything follows."""
 
 import cProfile
 import time
@@ -66,14 +61,11 @@ import time
 import torch
 import warp as wp
 
-from pxr import Gf
-
 import isaaclab.sim as sim_utils
 from isaaclab.sim.views import FrameView
 
 try:
     from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
-    from isaaclab_newton.sim.views import NewtonSiteFrameView
 
     HAS_NEWTON = True
 except ImportError:
@@ -88,6 +80,8 @@ except ImportError:
 @torch.no_grad()
 def benchmark_usd_or_fabric(view_type: str, num_iterations: int) -> dict[str, float]:
     """Benchmark USD or Fabric FrameView."""
+    from pxr import Gf
+
     timing_results = {}
 
     print("  Setting up scene")
@@ -138,6 +132,10 @@ def benchmark_usd_or_fabric(view_type: str, num_iterations: int) -> dict[str, fl
 @torch.no_grad()
 def benchmark_newton(num_iterations: int) -> dict[str, float]:
     """Benchmark Newton FrameView."""
+    from isaaclab_newton.sim.views import NewtonSiteFrameView
+
+    from pxr import Gf
+
     from isaaclab.assets import RigidObjectCfg
     from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
     from isaaclab.sim import SimulationCfg, build_simulation_context
@@ -446,4 +444,6 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    # each backend builds its own simulation context; the USD, Fabric, and PhysX views need Kit
+    with launch_simulation(None, args_cli):
+        main()

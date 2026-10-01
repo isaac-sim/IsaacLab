@@ -17,11 +17,9 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
-from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.sensors import CameraCfg
 from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
 from isaaclab.utils import configclass, replace
-from isaaclab.utils.renderers import isaac_rtx_per_env_scene_partition_enabled
 
 from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
 
@@ -32,19 +30,6 @@ from . import franka_soft_env_cfg as soft
 
 _CABLE_SEGMENT_COUNT = 12
 _CABLE_MIDDLE_SEGMENT_INDEX = _CABLE_SEGMENT_COUNT // 2
-
-# Diagonally opposite corners of a box enveloping everything the cable can reach, in env-local
-# coordinates [m]. Derived from the ``cable_out_of_bounds`` termination box below, padded to
-# absorb the segment overshoot of the step that trips the termination.
-_PARTITION_BOUNDS_MIN = (-0.25, -0.75, -0.25)
-_PARTITION_BOUNDS_MAX = (1.25, 0.75, 1.25)
-
-# Millimetre-scale marker cubes pinning those corners. See the "Animated curves disappear under
-# Isaac RTX scene partitioning" entry in ``docs/source/refs/issues.rst``.
-_PARTITION_BOUNDS_MARKER_SPAWN_CFG = sim_utils.CuboidCfg(
-    size=(0.001, 0.001, 0.001),
-    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 0.0)),
-)
 
 
 ##
@@ -134,23 +119,6 @@ class FrankaCableSceneCfg(soft.FrankaSoftBaseSceneCfg):
         init_state=CableObjectCfg.InitialStateCfg(pos=(0.32, 0.0, 0.011)),
     )
 
-    # Workaround for OMPE-105749: Kit RTX never refreshes the bounding box of an animated
-    # ``BasisCurves`` prim, so a partition sized from the cable's initial extent clips the cable
-    # once it moves outside that extent. These two static cubes pin the partition to the full
-    # workspace volume. FrankaCableEnvCfg drops them when partitioning is off, and they can go
-    # altogether once Kit updates animated-curve bounding boxes.
-    partition_bounds_marker_min: AssetBaseCfg | None = AssetBaseCfg(
-        prim_path="{ENV_REGEX_NS}/PartitionBoundsMarkerMin",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=_PARTITION_BOUNDS_MIN),
-        spawn=_PARTITION_BOUNDS_MARKER_SPAWN_CFG,
-    )
-
-    partition_bounds_marker_max: AssetBaseCfg | None = AssetBaseCfg(
-        prim_path="{ENV_REGEX_NS}/PartitionBoundsMarkerMax",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=_PARTITION_BOUNDS_MAX),
-        spawn=_PARTITION_BOUNDS_MARKER_SPAWN_CFG,
-    )
-
 
 @configclass
 class FrankaCableCameraSceneCfg(FrankaCableSceneCfg):
@@ -182,22 +150,8 @@ class CommandsCfg:
             pitch=(0.0, 0.0),
             yaw=(0.0, 0.0),
         ),
-        success_vis_asset_name="table",
-        success_visualizer_cfg=VisualizationMarkersCfg(
-            prim_path="/Visuals/SuccessMarkers",
-            markers={
-                "failure": replace(
-                    soft.TABLE_SPAWN_CFG,
-                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.8, 0.5, 0.5)),
-                    visible=True,
-                ),
-                "success": replace(
-                    soft.TABLE_SPAWN_CFG,
-                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.5, 0.8, 0.5)),
-                    visible=True,
-                ),
-            },
-        ),
+        success_vis_material_name="table_material",
+        success_vis_colors=((0.8, 0.5, 0.5), (0.5, 0.8, 0.5)),
     )
 
 
@@ -365,12 +319,6 @@ class FrankaCableEnvCfg(soft.FrankaSoftEnvCfg):
         self.sim.physics = PhysicsCfg()
         # fully close the gripper on the thin cable; the shared beam default only closes to 0.01 m
         self.actions.ik.gripper_action.close_command_expr = {"panda_finger_joint1": 0.0}
-        # only a partitioned Kit RTX render can cull the cable; the check mirrors the default that
-        # IsaacRtxRendererCfg.enable_scene_partitioning resolves to, so an explicit assignment of that
-        # field must re-add the markers by hand
-        if not isaac_rtx_per_env_scene_partition_enabled():
-            self.scene.partition_bounds_marker_min = None
-            self.scene.partition_bounds_marker_max = None
 
 
 @configclass
