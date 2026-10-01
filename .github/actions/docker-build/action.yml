@@ -25,10 +25,8 @@ inputs:
     default: '.'
     required: false
   platform:
-    description: >-
-      Target platform for `docker buildx build --platform`. Empty builds for the
-      Docker daemon's own platform, as `docker version` reports it.
-    default: ''
+    description: 'Target platform for `docker buildx build --platform`.'
+    default: 'linux/amd64'
     required: false
   cache-from:
     description: >
@@ -69,16 +67,6 @@ runs:
       uses: ./.github/actions/_lib/setup-docker-config
       with:
         base-image-ref: ${{ inputs.isaacsim-base-image }}:${{ inputs.isaacsim-version }}
-
-    - name: Resolve target platform
-      id: platform
-      shell: bash
-      env:
-        PLATFORM_INPUT: ${{ inputs.platform }}
-      run: |
-        platform="${PLATFORM_INPUT:-$(docker version --format '{{.Server.Os}}/{{.Server.Arch}}')}"
-        echo "Target platform: $platform"
-        echo "platform=$platform" >> "$GITHUB_OUTPUT"
 
     ##### 2: Host disk snapshot (pre) #####
 
@@ -132,7 +120,7 @@ runs:
         dockerfile-path: ${{ inputs.dockerfile-path }}
         isaacsim-base-image: ${{ inputs.isaacsim-base-image }}
         isaacsim-version: ${{ inputs.isaacsim-version }}
-        platform: ${{ steps.platform.outputs.platform }}
+        platform: ${{ inputs.platform }}
 
     - name: Check deps-tag locally
       id: local-deps
@@ -164,7 +152,7 @@ runs:
       run: |
         BUILD_ARGS=(
           --progress=plain
-          --platform "${{ steps.platform.outputs.platform }}"
+          --platform "${{ inputs.platform }}"
           -f "${{ inputs.dockerfile-path }}"
           --build-arg "ISAACSIM_BASE_IMAGE_ARG=${{ inputs.isaacsim-base-image }}"
           --build-arg "ISAACSIM_VERSION_ARG=${{ inputs.isaacsim-version }}"
@@ -204,7 +192,7 @@ runs:
         # Dockerfile on stdin (no context to stage). Quoted heredoc so the
         # shell leaves ISAACLAB_PATH and IMAGE_USER for Docker to expand; the
         # image tag is an action input, substituted before bash ever runs.
-        docker build --platform "${{ steps.platform.outputs.platform }}" \
+        docker build --platform "${{ inputs.platform }}" \
           --build-arg "IMAGE_USER=${image_user:-root}" \
           -t "${{ inputs.image-tag }}" - <<'DOCKERFILE'
         FROM ${{ inputs.image-tag }}
