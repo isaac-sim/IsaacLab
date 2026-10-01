@@ -15,6 +15,9 @@ from isaaclab.test.utils.articulation_ordering import (
     BRANCHING_PHYSX_JOINT_NAMES,
     PANDA_JOINT_NAMES,
     PANDA_ROOT_PRESERVING_REVERSED_BODY_NAMES,
+    UNSORTED_SIBLINGS_PHYSX_BODY_NAMES,
+    UNSORTED_SIBLINGS_PHYSX_JOINT_NAMES,
+    author_unsorted_sibling_articulation,
 )
 from isaaclab.utils import clone, replace
 
@@ -869,6 +872,34 @@ def test_branching_fixture_physx_ordering_reorders_newton_to_bfs(sim, device, gr
     articulation.set_inertias_index(inertias=inertia_matrices.reshape(1, 2, 9), env_ids=env_ids, body_ids=body_ids)
     model_inv_inertia = wp.to_torch(articulation.root_view.get_attribute("body_inv_inertia", model)[:, 0])
     torch.testing.assert_close(model_inv_inertia[env_ids][:, backend_body_ids], torch.linalg.inv(inertia_matrices))
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+@pytest.mark.parametrize("gravity_enabled", [False])
+@pytest.mark.parametrize("articulation_type", ["single_joint_explicit"])
+@pytest.mark.parametrize("floating_base", [False, True])
+def test_physx_ordering_follows_authored_sibling_order(
+    sim, device, gravity_enabled, articulation_type, floating_base, tmp_path
+):
+    """Order siblings like PhysX when the joints are not authored in prim-path order."""
+    usd_path = tmp_path / "unsorted_siblings.usda"
+    author_unsorted_sibling_articulation(str(usd_path), floating_base=floating_base)
+    sim_utils.create_prim("/World/Env_0", "Xform")
+    articulation_cfg = ArticulationCfg(
+        prim_path="/World/Env_0/Robot",
+        spawn=sim_utils.UsdFileCfg(usd_path=str(usd_path)),
+        actuators={},
+        joint_ordering="physx",
+        body_ordering="physx",
+    )
+    clone_plan_from_env_0(CloneCfg(clone_template="/World/Env_{}"), (articulation_cfg,), 1, 0.0)
+    articulation = Articulation(articulation_cfg)
+
+    replicate(sim.get_clone_plan())
+    sim.reset()
+
+    assert tuple(articulation.joint_names) == UNSORTED_SIBLINGS_PHYSX_JOINT_NAMES
+    assert tuple(articulation.body_names) == UNSORTED_SIBLINGS_PHYSX_BODY_NAMES
 
 
 def test_num_shapes_per_body_follows_public_body_order() -> None:

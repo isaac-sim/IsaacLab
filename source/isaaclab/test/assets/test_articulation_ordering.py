@@ -784,6 +784,13 @@ def test_physx_ordering_helper_builds_bfs_newton_view_from_usd_source(monkeypatc
     )
     _install_source_asset_resolver(monkeypatch, _resolve_matching_prims_from_source)
 
+    # The fake view has no model to traverse; keep its names.
+    monkeypatch.setattr(
+        ordering_resolvers,
+        "_get_breadth_first_names_in_authored_joint_order",
+        lambda source_asset_prim, view: {"joint": tuple(view.joint_dof_names), "body": tuple(view.link_names)},
+    )
+
     class _Articulation:
         __backend_name__ = "newton"
         _ordering_convention_name_cache: dict = {}
