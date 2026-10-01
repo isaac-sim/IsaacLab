@@ -15,7 +15,7 @@ from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 
 def test_physx_preserves_cpu_policy_and_pivot_conventions():
     """Unspecified parser devices retain CPU; native twists/materials preserve the trained interface."""
-    cfg = parse_env_cfg("IsaacContrib-Conveyor-Franka-PhysX-CPU-v0", device=None, num_envs=2)
+    cfg = parse_env_cfg("IsaacContrib-Conveyor-Racetrack-Transfer-PhysX-CPU-v0", device=None, num_envs=2)
     cfg.validate()
     base = ConveyorFrankaEnvCfg()
     assert cfg.sim.device == "cpu" and cfg.scene.num_envs == 2

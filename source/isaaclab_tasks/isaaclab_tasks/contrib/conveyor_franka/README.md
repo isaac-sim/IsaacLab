@@ -11,8 +11,8 @@ Choose between two tasks using the same pretrained Franka policy:
 
 | Task | Layout and behavior | Newton task ID |
 | --- | --- | --- |
-| Racetrack transfer | Original two closed racetracks and four numbered cubes; continuous alternating transfers | `IsaacContrib-Conveyor-Franka-Newton-v0` |
-| Warehouse sorting | Current extended conveyors and 24 colored parcels; two colors per circulating conveyor | `IsaacContrib-Conveyor-Franka-Newton-Play-v0` |
+| Racetrack transfer | Original two closed racetracks and four numbered cubes; continuous alternating transfers | `IsaacContrib-Conveyor-Racetrack-Transfer-v0` |
+| Warehouse sorting | Current extended conveyors and 24 colored parcels; two colors per circulating conveyor | `IsaacContrib-Conveyor-Warehouse-Sorting-v0` |
 
 The sorter inherits the racetrack environment and configuration. Both reuse the same action,
 observation, reward, and placement logic and the same RSL-RL agent configuration. Sorting adds
@@ -22,7 +22,7 @@ eight actions, 120 Hz physics, and a 60 Hz policy rate.
 
 ## Backend support
 
-Both tasks run on Newton GPU. `IsaacContrib-Conveyor-Franka-PhysX-CPU-v0` provides a CPU-only
+Both tasks run on Newton GPU. `IsaacContrib-Conveyor-Racetrack-Transfer-PhysX-CPU-v0` provides a CPU-only
 native PhysX reference for the original four-cube racetrack task.
 
 The PhysX task rejects CUDA during configuration validation. In the supported Isaac Sim runtime,
@@ -48,27 +48,28 @@ Newton is kitless and supports the lightweight GL viewer:
 
 ```bash
 DISPLAY=:1 uv run isaaclab play --rl_library rsl_rl \
-  --task IsaacContrib-Conveyor-Franka-Newton-v0 \
-  --checkpoint pretrained \
+  --task IsaacContrib-Conveyor-Racetrack-Transfer-v0 \
+  --checkpoint https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.1/Isaac/IsaacLab/PretrainedCheckpoints/rsl_rl/IsaacContrib-Conveyor-Franka-Newton-v0_newtonmjwarp_none_rsl_rl.pt \
   --num_envs 8 --device cuda:0 --viz newton_gl --real-time
 ```
 
 The `pretrained` selector downloads the RSL-RL policy published specifically for the Newton MJWarp
-backend. To evaluate another policy, replace `pretrained` with an explicit checkpoint path. The
-PhysX task resolves a different backend-specific artifact name, so transferring this Newton policy
+backend. The renamed checkpoint keys are published on Isaac Dev; until the public mirror syncs,
+the examples use the existing public URL. Pass a checkpoint path to evaluate another policy.
+The PhysX task resolves a different backend-specific artifact name, so transferring this Newton policy
 to PhysX currently requires the explicit local checkpoint path shown below.
 
 Training uses the same task ID and defaults to 256 environments:
 
 ```bash
 uv run isaaclab train --rl_library rsl_rl \
-  --task IsaacContrib-Conveyor-Franka-Newton-v0 \
+  --task IsaacContrib-Conveyor-Racetrack-Transfer-v0 \
   --num_envs 256 --device cuda:0
 ```
 
 ## Warehouse sorting task
 
-Select the `Newton-Play` task for warehouse sorting with the same checkpoint. The two parallel manipulation
+Run the warehouse sorting task with the same checkpoint. The two parallel manipulation
 straights and their adjoining 90-degree bends retain their original positions, widths, radii,
 and 0.35 m/s surface speed. Beyond these fixed sections, two short rising feeds climb 0.10 m at less than 10 degrees and
 join a shared elevated deck. Guides keep the two return lanes assigned through the upper split,
@@ -79,7 +80,7 @@ manipulation sections retain their trained 0.5 setting.
 Blue conveyor frames reach the floor, and the scanner faces along the background main belt after
 a 90-degree counterclockwise rotation. The cubes wear SimReady cardboard meshes normalized to
 **40 × 40 × 40 mm**, centered on their original colliders; mass remains 50 g. Actions and observation
-ordering stay checkpoint-compatible. The Play variant widens its travel bounds and resets all parcels as a randomized mixed batch on the
+ordering stay checkpoint-compatible. The sorting task widens its travel bounds and resets all parcels as a randomized mixed batch on the
 raised supply belts.
 The base training and PhysX tasks retain the original compact layout.
 
@@ -129,7 +130,7 @@ Use **Kit/RTX** to see the authored MDL textures, USD lights, and background ani
 
 ```bash
 DISPLAY=:1 uv run --extra isaacsim isaaclab play --rl_library rsl_rl \
-  --task IsaacContrib-Conveyor-Franka-Newton-Play-v0 \
+  --task IsaacContrib-Conveyor-Warehouse-Sorting-v0 \
   --checkpoint https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.1/Isaac/IsaacLab/PretrainedCheckpoints/rsl_rl/IsaacContrib-Conveyor-Franka-Newton-v0_newtonmjwarp_none_rsl_rl.pt --num_envs 1 --device cuda:0 --viz kit --real-time \
   --kit_args=--/UJITSO/geometry=false
 ```
@@ -191,7 +192,7 @@ environment is the default and recommended interactive configuration:
 
 ```bash
 DISPLAY=:1 uv run isaaclab play --rl_library rsl_rl \
-  --task IsaacContrib-Conveyor-Franka-PhysX-CPU-v0 \
+  --task IsaacContrib-Conveyor-Racetrack-Transfer-PhysX-CPU-v0 \
   --checkpoint /path/to/model.pt \
   --num_envs 1 --device cpu --viz kit --real-time \
   agent.device=cpu

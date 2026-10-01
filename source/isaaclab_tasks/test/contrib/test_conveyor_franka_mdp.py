@@ -37,8 +37,8 @@ from isaaclab_tasks.contrib.conveyor_franka.mdp.reset_events import (
 from isaaclab_tasks.contrib.conveyor_franka.mdp.rewards import transfer_potential
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 
-_BASE = "IsaacContrib-Conveyor-Franka-Newton-v0"
-_SORTER = "IsaacContrib-Conveyor-Franka-Newton-Play-v0"
+_BASE = "IsaacContrib-Conveyor-Racetrack-Transfer-v0"
+_SORTER = "IsaacContrib-Conveyor-Warehouse-Sorting-v0"
 
 
 def _environment(task):

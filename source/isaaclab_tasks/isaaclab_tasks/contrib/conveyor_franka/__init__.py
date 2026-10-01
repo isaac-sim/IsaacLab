@@ -10,7 +10,7 @@ import gymnasium as gym
 from . import agents
 
 gym.register(
-    id="IsaacContrib-Conveyor-Franka-Newton-v0",
+    id="IsaacContrib-Conveyor-Racetrack-Transfer-v0",
     entry_point=f"{__name__}.conveyor_franka_env:ConveyorFrankaEnv",
     disable_env_checker=True,
     kwargs={
@@ -21,7 +21,7 @@ gym.register(
 
 gym.register(
     # Warehouse sorting reuses the racetrack policy through an explicit checkpoint URL.
-    id="IsaacContrib-Conveyor-Franka-Newton-Play-v0",
+    id="IsaacContrib-Conveyor-Warehouse-Sorting-v0",
     entry_point=f"{__name__}.conveyor_franka_warehouse_env:ConveyorFrankaWarehouseEnv",
     disable_env_checker=True,
     kwargs={
@@ -34,7 +34,7 @@ gym.register(
     # The native PhysxSurfaceVelocityAPI path is intentionally CPU-only. Keep
     # that execution contract visible in the public task ID so a CUDA launch is
     # never mistaken for a supported configuration.
-    id="IsaacContrib-Conveyor-Franka-PhysX-CPU-v0",
+    id="IsaacContrib-Conveyor-Racetrack-Transfer-PhysX-CPU-v0",
     entry_point=f"{__name__}.conveyor_franka_env:ConveyorFrankaEnv",
     disable_env_checker=True,
     kwargs={
