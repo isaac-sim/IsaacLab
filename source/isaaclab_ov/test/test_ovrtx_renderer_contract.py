@@ -825,8 +825,10 @@ class _RecordingRenderVar:
     def __init__(self):
         self.ordering: list[str] = []
         self.release_stream = None
+        self.sync_stream = None
 
     def map(self, *, device, sync_stream):
+        self.sync_stream = sync_stream
         if sync_stream:
             self.ordering.append("gpu")
         recorder = self
@@ -886,8 +888,10 @@ def test_ovrtx_map_render_var_orders_the_read_against_render_completion(
             if consumer_fails:
                 raise ValueError("consumer failed")
 
+    ovrtx_stream = 1 if cuda_stream == 0 else cuda_stream
     assert render_var.ordering == [expected, "consumer", "release"]
-    assert render_var.release_stream == (1 if cuda_stream == 0 else cuda_stream)
+    assert render_var.sync_stream == (ovrtx_stream if gpu_side else 0)
+    assert render_var.release_stream == ovrtx_stream
 
 
 @pytest.mark.parametrize(
