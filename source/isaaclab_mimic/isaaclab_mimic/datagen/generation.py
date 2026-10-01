@@ -18,6 +18,7 @@ from isaaclab.managers.recorder_manager import RecorderManagerBaseCfg
 
 from isaaclab_mimic.datagen.data_generator import DataGenerator
 from isaaclab_mimic.datagen.datagen_info_pool import DataGenInfoPool
+from isaaclab_mimic.datagen.success_term import initialize_success_term
 
 # global variable to keep track of the data generation statistics
 num_success = 0
@@ -240,6 +241,7 @@ def setup_async_generation(
     asyncio_event_loop = asyncio.get_event_loop()
     env_reset_queue = asyncio.Queue()
     env_action_queue = asyncio.Queue()
+    success_term = initialize_success_term(success_term, env)
     shared_datagen_info_pool = DataGenInfoPool(env, env.cfg, env.device)
     shared_datagen_info_pool.load_from_dataset_file(input_file)
     print(f"Loaded {shared_datagen_info_pool.num_datagen_infos} to datagen info pool")

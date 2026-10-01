@@ -28,6 +28,7 @@ from isaaclab.managers import TerminationTermCfg
 
 from isaaclab_mimic.datagen.datagen_info import DatagenInfo
 from isaaclab_mimic.datagen.selection_strategy import make_selection_strategy
+from isaaclab_mimic.datagen.success_term import reset_success_term
 from isaaclab_mimic.datagen.waypoint import MultiWaypoint, Waypoint, WaypointSequence, WaypointTrajectory
 
 from .datagen_info_pool import DataGenInfoPool
@@ -667,6 +668,7 @@ class DataGenerator:
         self.env.recorder_manager.reset(env_ids=env_id_tensor)
         await env_reset_queue.put(env_id)
         await env_reset_queue.join()
+        reset_success_term(success_term, env_ids=env_id_tensor)
         new_initial_state = self.env.scene.get_state(is_relative=True)
 
         # create runtime subtask constraint rules from subtask constraint configs
