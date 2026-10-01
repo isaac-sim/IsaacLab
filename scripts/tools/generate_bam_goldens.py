@@ -10,7 +10,7 @@ Usage::
     uv run --with "git+https://github.com/Rhoban/bam@62bd8ce12154340be97e06f7f41a0ca8f116d967" \
         python scripts/tools/generate_bam_goldens.py
 
-The fixture stores float64 input/output arrays and ``attr_`` metadata for the revision,
+The fixture stores float64 input/output arrays and ``attr_`` metadata for attribution, revision,
 sampling settings, firmware constants and fitted parameters. Inputs are positions [rad],
 velocities [rad/s] and torques [N.m]; outputs are duty cycles [-], voltages [V], motor
 torques [N.m], friction budgets [N.m] and Stribeck coefficients [-]. Supply voltage is fixed.
@@ -115,6 +115,10 @@ def collect_scalars(model: Model) -> dict[str, float | str | int]:
     actuator = model.actuator
     return {
         "bam_commit": BAM_COMMIT,
+        "bam_attribution": (
+            "BAM (Better Actuator Models) by Marc Duclusaud and Grégoire Passault; https://github.com/Rhoban/bam. "
+            f"Fit: bam/params/{MOTOR_NAME}/{MODEL_NAME}.json; firmware: bam/dynamixel/actuator.py (XL330Actuator)."
+        ),
         "motor_name": MOTOR_NAME,
         "model_name": MODEL_NAME,
         "seed": SEED,
