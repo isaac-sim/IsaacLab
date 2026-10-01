@@ -34,8 +34,10 @@ def _fps(bundle: dict) -> float | None:
         return None
 
 
-def _formula(evidence: Evidence | None) -> str | None:
-    value = _object(evidence.context.get("metric_definition")).get("total_fps") if evidence else None
+def _formula(evidence: Evidence | None, definition: dict | None = None) -> str | None:
+    if definition is None:
+        definition = _object(evidence.context.get("metric_definition")) if evidence else {}
+    value = definition.get("total_fps")
     return value if isinstance(value, str) and value.strip() and value.lower() != "unknown" else None
 
 
@@ -192,11 +194,18 @@ def _label(key: str) -> str:
     return label + (f" · presets: {', '.join(presets)}" if presets else "")
 
 
-def _row(key: str, a: Evidence | None, b: Evidence, left: dict | None, right: dict | None) -> dict:
+def _row(
+    key: str,
+    a: Evidence | None,
+    b: Evidence,
+    left: dict | None,
+    right: dict | None,
+    baseline_definition: dict | None = None,
+) -> dict:
     before, left_reasons = _summary(a, left)
     after, right_reasons = _summary(b, right)
     reasons = ["Baseline: " + reason for reason in left_reasons] + ["Candidate: " + reason for reason in right_reasons]
-    formulas = {"baseline": _formula(a), "candidate": _formula(b)}
+    formulas = {"baseline": _formula(a, baseline_definition), "candidate": _formula(b)}
     pa, pb = _observations(left, _protocol), _observations(right, _protocol)
     protocol_differences = _differences(pa, pb, missing=True)
     context_differences = _differences(_context(a, left), _context(b, right))
@@ -251,7 +260,9 @@ def _row(key: str, a: Evidence | None, b: Evidence, left: dict | None, right: di
     }
 
 
-def compare_evidence(baseline: Evidence | None, candidate: Evidence) -> dict:
+def compare_evidence(
+    baseline: Evidence | None, candidate: Evidence, *, baseline_metric_definition: dict | None = None
+) -> dict:
     """Return dynamically discovered workload rows and descriptive FPS deltas."""
     aliases = defaultdict(set)
     for evidence in (baseline, candidate):
@@ -266,10 +277,22 @@ def compare_evidence(baseline: Evidence | None, candidate: Evidence) -> dict:
     ]
     if baseline is None:
         notes.append("No baseline evidence was selected.")
+    derived = (
+        baseline_metric_definition.get("definition") if baseline is not None and baseline_metric_definition else None
+    )
+    if derived is not None:
+        notes.append(
+            "Baseline FPS identity was re-derived from its verified checkout; "
+            "the original artifact and recorded identity are unchanged."
+        )
     for side, evidence in (("Baseline", baseline), ("Candidate", candidate)):
         if evidence:
             notes.extend(f"{side}: {issue}" for issue in evidence.issues)
-            definition = _object(evidence.context.get("metric_definition"))
+            definition = (
+                derived
+                if side == "Baseline" and derived is not None
+                else _object(evidence.context.get("metric_definition"))
+            )
             if definition.get("reason"):
                 notes.append(f"{side} FPS definition: {definition['reason']}")
     if not left and not right:
@@ -278,7 +301,8 @@ def compare_evidence(baseline: Evidence | None, candidate: Evidence) -> dict:
         "baseline": baseline.identity if baseline else None,
         "candidate": candidate.identity,
         "rows": [
-            _row(key, baseline, candidate, left.get(key), right.get(key)) for key in sorted(left.keys() | right.keys())
+            _row(key, baseline, candidate, left.get(key), right.get(key), derived)
+            for key in sorted(left.keys() | right.keys())
         ],
         "notes": notes,
     }
@@ -351,7 +375,7 @@ def main(argv: list[str] | None = None) -> int:
             selection["unavailable_side"] = "candidate"
 
     payload = (
-        compare_evidence(selected, candidate)
+        compare_evidence(selected, candidate, baseline_metric_definition=selection.get("baseline_metric_definition"))
         if candidate is not None
         else {"candidate": None, "baseline": None, "rows": [], "notes": ["Candidate evidence is unavailable."]}
     )

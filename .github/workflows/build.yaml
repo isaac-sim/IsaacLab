@@ -9,7 +9,8 @@
 # GitHub treats skipped required jobs as successful status checks.
 #
 # GitHub cannot filter label names at trigger time, so adding any label to a PR
-# starts this workflow. Only a ``ci:run-docker`` event cancels an in-flight run;
+# starts this workflow. Updates run GPU jobs after that initial activation.
+# A PR update or ``ci:run-docker`` event cancels an in-flight run;
 # other label events queue behind it so that a triage label cannot cancel a
 # build whose required checks have already been reported.
 #
@@ -73,7 +74,7 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   # Push and workflow_dispatch events carry no label, so this stays false for them and
   # preserves the post-merge runs that ``github.event_name == 'pull_request'`` used to protect.
-  cancel-in-progress: ${{ github.event.label.name == 'ci:run-docker' }}
+  cancel-in-progress: ${{ github.event.action == 'synchronize' || github.event.label.name == 'ci:run-docker' }}
 
 permissions:
   contents: read
@@ -92,9 +93,42 @@ jobs:
     permissions:
       contents: read
       pull-requests: read
+      issues: read
     outputs:
       should_run: ${{ steps.detect.outputs.should_run }}
+      activated: ${{ steps.activation.outputs.activated }}
     steps:
+    - name: Check PR update activation
+      id: activation
+      continue-on-error: true
+      timeout-minutes: 5
+      uses: actions/github-script@v9
+      with:
+        script: |
+          // Label events retain the existing trigger behavior. Historical labels
+          // count because run-ci removes its triggering label immediately.
+          core.setOutput('activated', 'false');
+          if (context.eventName !== 'pull_request' || context.payload.action !== 'synchronize') {
+            core.setOutput('activated', 'true');
+            return;
+          }
+          try {
+            for await (const response of github.paginate.iterator(github.rest.issues.listEvents, {
+              ...context.repo, issue_number: context.payload.pull_request.number, per_page: 100,
+              request: {timeout: 60000},
+            })) {
+              // GITHUB_TOKEN labeler events cannot trigger another workflow.
+              // Human/PAT and app-token labels retain the original activation.
+              if (response.data.some(event => event.event === 'labeled'
+                  && event.actor?.login && event.actor.login !== 'github-actions[bot]')) {
+                core.setOutput('activated', 'true');
+                return;
+              }
+            }
+            core.notice('Docker CI has not been activated for this PR. Apply a label or use the existing run-ci command.');
+          } catch (error) {
+            core.warning(`Could not verify prior PR activation (HTTP ${error.status || 'unavailable'}). Apply a label or use run-ci to start CI explicitly.`);
+          }
     - uses: actions/checkout@v6
       with:
         fetch-depth: 1
@@ -231,10 +265,17 @@ jobs:
   #region build jobs
   build:
     name: Build Base Docker Image
-    runs-on: [self-hosted, gpu]
+    # Keep the required build check non-successful when activation is missing;
+    # skipping all required tests would otherwise allow an untested PR to merge.
+    runs-on: ${{ fromJSON(needs.changes.outputs.activated == 'true' && '["self-hosted", "gpu"]' || '["ubuntu-latest"]') }}
     needs: [changes, config]
     if: needs.changes.outputs.should_run == 'true'
     steps:
+    - name: Explain missing PR activation
+      if: needs.changes.outputs.activated != 'true'
+      run: |
+        echo '::error::Docker CI has not been activated, or prior activation could not be verified. Apply a label or use the existing run-ci command. No GPU build or benchmark was started.'
+        exit 1
     - name: Checkout Code
       uses: actions/checkout@v6
       with:
@@ -266,6 +307,7 @@ jobs:
     needs: [changes, config]
     if: >-
       github.event_name != 'push' &&
+      needs.changes.outputs.activated == 'true' &&
       needs.changes.outputs.should_run == 'true'
     steps:
     - name: Checkout Code
@@ -1004,7 +1046,7 @@ jobs:
   performance-smoke:
     name: performance-smoke-benchmarks
     runs-on: [self-hosted, gpu]
-    # The existing job budget covers base and current measurements together.
+    # Base and current share the existing 450-minute job budget; a retry-heavy pair can exhaust it.
     timeout-minutes: 450
     needs: [build, config]
     env:
@@ -1077,6 +1119,7 @@ jobs:
 
     - name: Restore this PR's verified base measurement
       id: pr_baseline
+      timeout-minutes: 5
       if: github.event_name == 'pull_request' && steps.base_checkout.outcome == 'success'
       continue-on-error: true
       env:
@@ -1090,7 +1133,7 @@ jobs:
     - name: Resolve the base revision's dependency image
       id: base_dependencies
       continue-on-error: true
-      if: github.event_name == 'pull_request' && steps.pr_baseline.outputs.reused == 'false' && needs.config.outputs.base_image_config_outcome == 'success'
+      if: github.event_name == 'pull_request' && steps.base_checkout.outcome == 'success' && steps.pr_baseline.outputs.reused != 'true' && needs.config.outputs.base_image_config_outcome == 'success'
       uses: ./.github/actions/ecr-build-push-pull
       with:
         image-tag: isaac-lab-perf-base:${{ needs.config.outputs.paired_base_commit }}
@@ -1102,13 +1145,17 @@ jobs:
 
     - name: Benchmark the PR base on this runner
       id: measure_base
-      if: github.event_name == 'pull_request' && steps.pr_baseline.outputs.reused == 'false' && steps.base_dependencies.outcome == 'success'
+      if: github.event_name == 'pull_request' && steps.pr_baseline.outputs.reused != 'true' && steps.base_dependencies.outcome == 'success'
       continue-on-error: true
       env:
         CI_IMAGE_TAG: isaac-lab-perf-base:${{ needs.config.outputs.paired_base_commit }}
       run: |
         set -euo pipefail
         cd "$PERF_CONTROLLER"
+        # The directory belongs to this run/attempt. Discard any interrupted
+        # restoration before producing a fresh baseline in it.
+        rm -rf -- "$PERF_BASELINE_OUTPUT"
+        mkdir -p "$PERF_BASELINE_OUTPUT"
         python3 -m tools.perf_smoke.paired capture \
           --checkout-root "$GITHUB_WORKSPACE" --output-dir "$PERF_BASELINE_OUTPUT" \
           --image "$CI_IMAGE_TAG" --role baseline --legs "$PERF_CONTROLLER/benchmark-legs.tsv"
@@ -1120,7 +1167,7 @@ jobs:
 
     - name: Archive the PR base measurement
       id: base_artifact
-      if: always() && github.event_name == 'pull_request' && steps.pr_baseline.outputs.reused == 'false'
+      if: always() && github.event_name == 'pull_request' && steps.pr_baseline.outputs.reused != 'true'
       continue-on-error: true
       uses: actions/upload-artifact@v7
       with:
@@ -1129,7 +1176,7 @@ jobs:
         if-no-files-found: warn
 
     - name: Restore the tested PR revision
-      if: always() && github.event_name == 'pull_request'
+      if: ${{ !cancelled() && github.event_name == 'pull_request' }}
       uses: actions/checkout@v6
       with:
         ref: ${{ github.sha }}
@@ -1137,7 +1184,7 @@ jobs:
         lfs: true
 
     - name: Pull pull-request image
-      if: always()
+      if: ${{ !cancelled() }}
       uses: ./.github/actions/ecr-build-push-pull
       with:
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
@@ -1152,6 +1199,7 @@ jobs:
       continue-on-error: true
       env:
         BASE_ARTIFACT_ID: ${{ steps.base_artifact.outputs.artifact-id }}
+        PERF_BASELINE_REUSED: ${{ steps.pr_baseline.outputs.reused }}
         BASE_CHECKOUT: ${{ steps.base_checkout.outcome }}
         BASE_RESTORE: ${{ steps.pr_baseline.outcome }}
         BASE_CONFIG: ${{ needs.config.outputs.base_image_config_outcome }}
@@ -1167,8 +1215,6 @@ jobs:
         fi
         if [ "$BASE_CHECKOUT" != success ]; then
           baseline_issue="The base source checkout failed; baseline FPS is unavailable."
-        elif [ "$BASE_RESTORE" != success ]; then
-          baseline_issue="The base measurement setup failed; baseline FPS is unavailable."
         elif [ "$BASE_CONFIG" != success ]; then
           baseline_issue="The base image configuration could not be read; the base benchmark did not run."
         elif [ "$BASE_IMAGE" = failure ]; then
@@ -1177,6 +1223,8 @@ jobs:
           baseline_issue="The base benchmark failed; baseline results are incomplete or unavailable."
         elif [ "$BASE_ARCHIVE" = failure ]; then
           baseline_issue="The base results could not be uploaded; baseline FPS is unavailable."
+        elif [ "$BASE_RESTORE" != success ] && [ "$BASE_MEASUREMENT" != success ]; then
+          baseline_issue="The base measurement setup failed; baseline FPS is unavailable."
         fi
         cd "$PERF_CONTROLLER"
         python3 -m tools.perf_smoke.paired bind \
@@ -1347,6 +1395,7 @@ jobs:
     - name: Compare the tested build with its selected baseline
       if: always()
       continue-on-error: true
+      timeout-minutes: 5
       env:
         GITHUB_TOKEN: ${{ github.token }}
       run: uv run --no-project python -m tools.perf_smoke.build_compare --output_dir build-comparison
@@ -1398,6 +1447,7 @@ jobs:
     - name: Link the rendered comparison from PR Checks
       if: always() && github.event_name == 'pull_request'
       continue-on-error: true
+      timeout-minutes: 5
       uses: actions/github-script@v9
       with:
         script: |
@@ -1408,11 +1458,15 @@ jobs:
             run_id: context.runId,
             attempt_number: attempt,
             per_page: 100,
+            request: {timeout: 60000},
           });
           const summaryJob = jobs.find(job => job.name === 'performance-smoke');
           if (!summaryJob) throw new Error('The Performance smoke Summary job could not be located.');
           const summaryUrl = `${process.env.GITHUB_SERVER_URL}/${context.repo.owner}/${context.repo.repo}`
             + `/actions/runs/${context.runId}/attempts/${attempt}#summary-${summaryJob.id}`;
+          // Native Actions checks open their job page. Keep a visible annotation
+          // there as well: GitHub may group the report check under another suite.
+          core.notice(summaryUrl, {title: 'Open rendered Performance smoke Summary'});
           const reportPath = 'build-comparison/build-comparison.md';
           const report = fs.existsSync(reportPath) ? fs.readFileSync(reportPath, 'utf8') : '';
           const result = report.match(/^\*\*(.+)\*\*$/m)?.[0]
