@@ -29,7 +29,7 @@ import warp as wp
 from PIL import Image
 
 from isaaclab.app import LoadingScreen
-from isaaclab.envs import DirectMARLEnvCfg, DirectRLEnvCfg, ManagerBasedRLEnvCfg, multi_agent_to_single_agent
+from isaaclab.envs import DirectMARLEnvCfg, DirectRLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
 from isaaclab.renderers.renderer_cfg import RendererCfg
 from isaaclab.utils.assets import retrieve_file_path
@@ -501,6 +501,9 @@ def create_isaaclab_env(
 
         env = WarpFrontend.build_env(env_cfg, task)
     if convert_marl_to_single_agent and isinstance(env.unwrapped.cfg, DirectMARLEnvCfg):
+        # Import the environment runtime only after simulation launch.
+        from isaaclab.envs import multi_agent_to_single_agent
+
         env = multi_agent_to_single_agent(env)
     return env
 
