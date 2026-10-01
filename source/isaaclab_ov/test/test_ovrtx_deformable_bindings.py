@@ -32,6 +32,7 @@ def _make_renderer_without_backend() -> tuple[OVRTXRenderer, MagicMock]:
     renderer = OVRTXRenderer.__new__(OVRTXRenderer)
     renderer.cfg = OVRTXRendererCfg()
     renderer.backend = SimpleNamespace(renderer=MagicMock())
+    renderer.scene = renderer.backend
     renderer._device = "cpu"
     renderer._geometry_paths = []
     renderer._geometry_timestamp = -1
@@ -39,7 +40,7 @@ def _make_renderer_without_backend() -> tuple[OVRTXRenderer, MagicMock]:
     renderer._geometry_writes = _AsyncWriteBuffers()
     renderer._transforms_timestamp = -1
     renderer._use_ovstage = False
-    renderer._init_fields_legacy()
+    renderer._object_xform_binding = renderer._geometry_points_binding = None
     renderer._transform_writes = _AsyncWriteBuffers(SceneDataFormat.TransposedMatrix44d() for _ in range(2))
     renderer._warp_device = SimpleNamespace(ordinal=0, stream=SimpleNamespace(cuda_stream=99))
     return renderer, renderer.backend.renderer
@@ -83,20 +84,20 @@ def test_geometry_bindings_follow_mixed_sdp_points_and_pointer_swaps(mode):
     publication.get_geometry_batches = read_points
     renderer._sdp = SceneDataProvider(publication)
     if use_ovstage:
-        renderer._init_fields_ovstage()
+        renderer._object_xform_query = renderer._geometry_points_query = None
         renderer._current_ordinal = 7
-        renderer.backend.paths = SimpleNamespace(create_path_list_from_strings=lambda paths: paths)
-        renderer.backend.stage = MagicMock()
-        renderer.backend.stage.query_from_path_list.side_effect = lambda paths: paths
+        renderer.scene.paths = SimpleNamespace(create_path_list_from_strings=lambda paths: paths)
+        renderer.scene.stage = MagicMock()
+        renderer.scene.stage.query_from_path_list.side_effect = lambda paths: paths
         publication.points = {}
         renderer._setup_geometry_bindings_ovstage()
         renderer.update_geometries()
-        renderer.backend.stage.write_attribute.assert_not_called()
+        renderer.scene.stage.write_attribute.assert_not_called()
         publication.points = points
         renderer._sdp = SceneDataProvider(publication)
         renderer._setup_geometry_bindings_ovstage()
         assert renderer._geometry_points_query == list(points)
-        write = renderer.backend.stage.write_attribute
+        write = renderer.scene.stage.write_attribute
         assert [call.args[1] for call in write.call_args_list] == ["omni:resetXformStack", "omni:xform"]
         np.testing.assert_array_equal(write.call_args_list[0].kwargs["tensors"], np.ones(len(points), dtype=np.bool_))
         write.reset_mock()
@@ -189,8 +190,8 @@ def test_update_transforms_consumes_sdp_matrices_once_per_publication(monkeypatc
     writes = []
 
     if use_ovstage:
-        renderer.backend.paths = SimpleNamespace(create_path_list_from_strings=lambda actual: actual)
-        renderer.backend.stage = SimpleNamespace(
+        renderer.scene.paths = SimpleNamespace(create_path_list_from_strings=lambda actual: actual)
+        renderer.scene.stage = SimpleNamespace(
             query_from_path_list=lambda actual: actual,
             write_attribute=lambda query, attribute, **kwargs: (
                 writes.append((query, attribute, kwargs)) or SimpleNamespace(wait=lambda: None)

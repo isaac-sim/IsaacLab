@@ -169,7 +169,7 @@ class NewtonRTXVisualizerCfg(NewtonVisualizerCfg):
 
     cloning_contexts: tuple[type | str, ...] = (
         "isaaclab_newton.cloner:NewtonReplicateContext",
-        "isaaclab_ov.cloner:OvrtxReplicateContext",
+        "isaaclab_ov.cloner:OvRenderReplicateContext",
     )
     """Prepare the Newton model and the simulation-owned stage for RTX rendering."""
 

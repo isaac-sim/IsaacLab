@@ -207,7 +207,9 @@ def build_render_scope_usd(
     data_types = list(spec.cfg.data_types or ["rgb"])
     if spec.cfg.isp_cfg is not None and "rgb_hdr" not in data_types:
         data_types.append("rgb_hdr")
-    tiled_width, tiled_height = _tiled_resolution(spec.num_instances, spec.cfg.width, spec.cfg.height)
+    num_cols = math.ceil(math.sqrt(spec.num_instances))
+    tiled_width = num_cols * spec.cfg.width
+    tiled_height = math.ceil(spec.num_instances / num_cols) * spec.cfg.height
     camera_path = spec.camera_prim_paths[0]
     render_var_configs = get_render_var_configs(data_types, render_data.render_scope_name)
     minimal_mode = next(
@@ -272,13 +274,6 @@ def Scope "{render_data.render_scope_name}"
     }}
 }}
 '''
-
-
-def _tiled_resolution(num_envs: int, width: int, height: int) -> tuple[int, int]:
-    """Compute tiled width and height from env count and per-env resolution (same as Camera)."""
-    num_cols = math.ceil(math.sqrt(num_envs))
-    num_rows = math.ceil(num_envs / num_cols)
-    return num_cols * width, num_rows * height
 
 
 def build_render_product_as_string(

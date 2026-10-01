@@ -115,6 +115,7 @@ def _renderer(*, use_ovstage: bool = False):
     events: list[str] = []
     renderer = OVRTXRenderer.__new__(OVRTXRenderer)
     renderer.backend = SimpleNamespace()
+    renderer.scene = renderer.backend
     renderer._initialized_scene = True
     renderer._use_ovstage = use_ovstage
     renderer.backend.renderer = _NativeRecorder(events)
@@ -122,8 +123,8 @@ def _renderer(*, use_ovstage: bool = False):
     renderer.cfg = OVRTXRendererCfg()
     renderer._camera_render_data = []
     if use_ovstage:
-        renderer.backend.stage = _OvstageRecorder(events)
-        renderer.backend.paths = _PathRecorder()
+        renderer.scene.stage = _OvstageRecorder(events)
+        renderer.scene.paths = _PathRecorder()
         renderer._current_ordinal = 7
     return renderer, events
 
@@ -182,12 +183,12 @@ def test_ovstage_compiles_queries_and_publishes_selected_channel_zero_copy():
         torch.tensor([1], dtype=torch.int32, device="cuda"),
     )
 
-    assert renderer.backend.stage.writes == []
+    assert renderer.scene.stage.writes == []
     writer.publish()
 
-    assert len(renderer.backend.stage.writes) == 1
-    query, attribute_name, kwargs, completion = renderer.backend.stage.writes[0]
-    assert query == f"query:{renderer.backend.paths.created[0]}"
+    assert len(renderer.scene.stage.writes) == 1
+    query, attribute_name, kwargs, completion = renderer.scene.stage.writes[0]
+    assert query == f"query:{renderer.scene.paths.created[0]}"
     assert attribute_name == "inputs:roughness"
     assert kwargs["tensors"].untyped_storage().data_ptr() == roughness.untyped_storage().data_ptr()
     assert kwargs["ordinal"] == 7
@@ -253,7 +254,7 @@ def test_ovstage_drain_does_not_mask_publish_or_floor_failure(failure, expected_
         events.append("floor")
         raise ValueError("floor failed")
 
-    renderer.backend.stage.advance_write_floor = advance_write_floor
+    renderer.scene.stage.advance_write_floor = advance_write_floor
     with pytest.raises(ValueError, match=failure):
         renderer.render(SimpleNamespace(render_product_path="/RenderCamera_0/Product", ppisp_pipeline=None))
 

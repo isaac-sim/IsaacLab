@@ -143,13 +143,3 @@ def test_create_ovstage_falls_back_to_the_host_model_for_an_unknown_name(
 
     assert captured_stage_config["model"] is ovstage.HierarchyComputationModel.CPU_INCREMENTAL
     assert "MODEL_FROM_A_FUTURE_OVSTAGE" in caplog.text
-
-
-@pytest.mark.skipif(importlib.util.find_spec("ovstage") is None, reason="requires optional module: ovstage")
-def test_borrowed_stage_requires_device_hierarchy(monkeypatch: pytest.MonkeyPatch):
-    """A borrowed ``ViewerRTX`` stage needs OVStage 0.2's device hierarchy, so the host model must be refused."""
-    from isaaclab_ov import stage as stage_module
-
-    monkeypatch.setattr(stage_module, "HIERARCHY_COMPUTATION_MODEL", "CPU_INCREMENTAL")
-    with pytest.raises(RuntimeError, match="OVStage 0.2"):
-        stage_module.OvstageBackend(stage_module.OvstageBackendCfg(visualizer_cfg=None))

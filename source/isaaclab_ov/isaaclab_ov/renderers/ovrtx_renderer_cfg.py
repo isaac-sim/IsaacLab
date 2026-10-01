@@ -25,13 +25,13 @@ if TYPE_CHECKING:
 
 @configclass
 class OVRTXBackendCfg(BackendCfg):
-    """Native engine settings and the configuration of its detached scene owner."""
+    """Native engine settings and the configuration identifying its scene resource."""
 
     class_type: type[OVRTXBackend] | str = "{DIR}.ovrtx_renderer:OVRTXBackend"
     renderer_cfg: OVRTXRendererCfg = MISSING
     """Renderer configuration; incompatible scene/product policies require separate native engines."""
     use_ovstage: bool = MISSING
-    """Whether the native resource owns a detached OVStage instead of the legacy internal stage."""
+    """Whether the engine borrows a simulation-owned OVStage instead of using its internal stage."""
     read_gpu_transforms: bool = MISSING
     """Whether OVRTX reads its GPU transform cache, resolved before native construction."""
 
@@ -56,7 +56,7 @@ class OVRTXRendererCfg(RendererCfg):
     launcher_type: ClassVar[str] = "isaaclab_ov.app:OvrtxLauncher"
     """The launcher that registers the OVRTX runtime before the stage is created."""
 
-    cloning_contexts: tuple[type | str, ...] = ("isaaclab_ov.cloner:OvrtxReplicateContext",)
+    cloning_contexts: tuple[type | str, ...] = ("isaaclab_ov.cloner:OvRenderReplicateContext",)
     """Prepare native copies for the selected OVRTX scene implementation."""
 
     async_rendering: bool = False

@@ -34,10 +34,10 @@ pytestmark = [
 ]
 
 if not _MISSING_MODULES:
-    from isaaclab_ov.cloner import OvrtxReplicateContext, ovrtx_replicate, ovstage_replicate  # noqa: E402
+    from isaaclab_ov.cloner import OvRenderReplicateContext, ovrtx_replicate, ovstage_replicate  # noqa: E402
     from isaaclab_ov.renderers import OVRTXRendererCfg  # noqa: E402
     from isaaclab_ov.renderers import ovrtx_renderer as ovrtx_renderer_module  # noqa: E402
-    from isaaclab_ov.renderers.ovrtx_renderer import OVRTXCameraRenderData, OVRTXRenderer  # noqa: E402
+    from isaaclab_ov.renderers.ovrtx_renderer import OVRTXRenderer  # noqa: E402
 
     from pxr import Gf, Sdf, Usd, UsdGeom, UsdShade  # noqa: E402
 else:
@@ -71,18 +71,11 @@ def _make_multi_env_stage(num_envs: int) -> Usd.Stage:
     return stage
 
 
-def _patch_simulation_context(monkeypatch: pytest.MonkeyPatch, plan: ClonePlan) -> None:
-    mock_ctx = SimpleNamespace(get_clone_plan=lambda: plan)
-    monkeypatch.setattr(
-        "isaaclab_ov.renderers.ovrtx_renderer.SimulationContext",
-        SimpleNamespace(instance=lambda: mock_ctx),
-    )
-
-
 def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
     renderer = OVRTXRenderer.__new__(OVRTXRenderer)
     renderer.cfg = OVRTXRendererCfg()
     renderer.backend = SimpleNamespace(clone_copies=[], clone_env_paths=[], clone_positions=None)
+    renderer.scene = renderer.backend
     renderer.backend.renderer = SimpleNamespace(
         add_usd_reference_from_string=lambda *args, **kwargs: 1,
         remove_usd=lambda reference: None,
@@ -90,7 +83,6 @@ def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
         write_array_attribute=lambda *args, **kwargs: None,
         write_attribute=lambda *args, **kwargs: None,
     )
-    renderer._clone_plan = None
     renderer._device = "cuda:0"  # __init__'s default, replaced by create_render_data(spec)
     # create_render_data resolves this from the spec; tests that bypass it get the default.
     renderer._warp_device = SimpleNamespace(ordinal=0)
@@ -130,9 +122,12 @@ def _prepare_clones(renderer, plan, routed=None):
     from isaaclab_ov.renderers.ovrtx_renderer_cfg import OVRTXBackendCfg
 
     cfg = OVRTXBackendCfg(renderer_cfg=renderer.cfg, use_ovstage=renderer._use_ovstage, read_gpu_transforms=True)
-    sim = SimpleNamespace(_backend_registry=[(cfg, renderer.backend)])
-    OvrtxReplicateContext(sim).replicate(plan, tuple(range(len(plan.asset_cfgs))) if routed is None else routed)
-    renderer._clone_plan = plan
+    if renderer._use_ovstage:
+        from isaaclab_ov.stage import OvstageBackendCfg
+
+        cfg = OvstageBackendCfg(consumer_cfg=cfg)
+    sim = SimpleNamespace(_backend_registry=[(cfg, renderer.scene)])
+    OvRenderReplicateContext(sim).replicate(plan, tuple(range(len(plan.asset_cfgs))) if routed is None else routed)
 
 
 @pytest.mark.parametrize(
@@ -207,7 +202,7 @@ def test_capture_object_scales_populates_source_and_destination_scale_array(env_
     UsdGeom.Xform.Define(stage, "/World/envs/Unplanned").AddScaleOp().Set(Gf.Vec3d(5, 6, 7))
     renderer = _make_ovrtx_renderer_without_backend()
     renderer._device = "cpu"
-    renderer._clone_plan = ClonePlan(
+    plan = ClonePlan(
         PrototypeWorldTopology(3, np.asarray([2, 0, 0, 1]), np.asarray([0, 1, 3, 4]), np.asarray([0, 1, 0])),
         asset_cfgs=tuple(
             AssetBaseCfg(
@@ -220,6 +215,7 @@ def test_capture_object_scales_populates_source_and_destination_scale_array(env_
         env_template=env_template,
     )
 
+    _prepare_clones(renderer, plan)
     renderer._capture_object_scales(stage)
     scales = renderer._create_object_scale_array(
         [f"{env_template.format(index)}/Object" for index in range(3)]
@@ -236,7 +232,6 @@ def test_prepare_stage_writes_debug_dump_only_when_requested(tmp_path, monkeypat
     """The optional dump preserves the raw stage; default preparation performs no file writes."""
     assets = (AssetBaseCfg(prim_path="/World/envs/env_[^/]+"),)
     plan = make_clone_plan(assets, ((0,),), 2, positions=np.zeros((2, 3), dtype=np.float32))
-    _patch_simulation_context(monkeypatch, plan)
 
     stage = _make_multi_env_stage(2)
     renderer = _make_ovrtx_renderer_without_backend()
@@ -255,8 +250,8 @@ def test_prepare_stage_writes_debug_dump_only_when_requested(tmp_path, monkeypat
     assert (output_dir / _OVRTX_STAGE_FILE).exists() is False
 
 
-def test_initialize_camera_render_data_from_spec_writes_combined_stage_dump(tmp_path: Path):
-    """_initialize_camera_render_data_from_spec writes the combined stage when temp_usd_dir is set."""
+def test_create_render_data_writes_combined_stage_dump(tmp_path: Path, monkeypatch):
+    """Camera registration preserves scene metadata and includes its scoped product in the debug dump."""
     renderer = _make_ovrtx_renderer_without_backend()
     renderer.cfg.temp_usd_dir = str(tmp_path)
     scene = _make_multi_env_stage(1)
@@ -270,11 +265,12 @@ def test_initialize_camera_render_data_from_spec_writes_combined_stage_dump(tmp_
     reference_calls = []
     renderer.backend.renderer.add_usd_reference_from_string = lambda usd, path: reference_calls.append((usd, path))
     renderer.backend.renderer.bind_attribute = lambda **kwargs: SimpleNamespace(unbind=lambda: None)
-    renderer.backend.renderer.write_attribute = lambda **kwargs: None
+    renderer.backend.renderer.write_attribute = lambda *args, **kwargs: None
 
     spec = _make_camera_render_spec(num_envs=1)
-    render_data = OVRTXCameraRenderData(spec, "cpu", render_scope_name="RenderCamera_0")
-    renderer._initialize_camera_render_data_from_spec(spec, render_data)
+    monkeypatch.setattr(ovrtx_renderer_module.wp, "get_device", lambda _: SimpleNamespace(ordinal=0))
+    monkeypatch.setattr(ovrtx_renderer_module.wp, "empty", Mock())
+    render_data = renderer.create_render_data(spec)
 
     combined_path = tmp_path / _OVRTX_STAGE_FILE
     combined_text = combined_path.read_text(encoding="utf-8")
@@ -306,7 +302,7 @@ def test_create_render_data_pins_the_render_product_to_the_spec_device(tmp_path:
 
     renderer.backend.renderer.open_usd_from_string = lambda _usd_string: None
     renderer.backend.renderer.bind_attribute = lambda **kwargs: SimpleNamespace(unbind=lambda: None)
-    renderer.backend.renderer.write_attribute = lambda **kwargs: None
+    renderer.backend.renderer.write_attribute = lambda *args, **kwargs: None
 
     class _FakeWarpDevice:
         ordinal = 1
@@ -322,45 +318,8 @@ def test_create_render_data_pins_the_render_product_to_the_spec_device(tmp_path:
     assert "uint[] deviceIds = [1]" in combined_text
 
 
-def test_initialize_camera_render_data_from_spec_refreshes_camera_relationship_after_cloning(monkeypatch):
-    """Multi-environment initialization rewrites the RenderProduct cameras after cloning."""
-    num_envs = 4
-    renderer = _make_ovrtx_renderer_without_backend()
-    renderer._exported_usd_string = "#usda 1.0\n"
-
-    call_order: list[str] = []
-    write_array_calls: list[tuple[list[str], str, list[list[str]]]] = []
-
-    renderer.backend.renderer.open_usd_from_string = lambda _usd_string: call_order.append("open")
-    monkeypatch.setattr(ovrtx_renderer_module, "ovrtx_replicate", lambda *args: call_order.append("clone"))
-    renderer._update_scene_partitions_after_clone = lambda _num_envs: call_order.append("partitions")
-
-    def _write_array_attribute(prim_paths: list[str], attribute_name: str, tensors: list[list[str]]) -> None:
-        call_order.append("rewrite_cameras")
-        write_array_calls.append((prim_paths, attribute_name, tensors))
-
-    renderer.backend.renderer.write_array_attribute = _write_array_attribute
-    renderer.backend.renderer.bind_attribute = lambda **_kwargs: object()
-    renderer.backend.renderer.write_attribute = lambda **_kwargs: None
-    renderer._setup_xform_bindings_legacy = lambda: None
-    renderer._setup_geometry_bindings_legacy = lambda: None
-
-    spec = _make_camera_render_spec(num_envs=num_envs)
-    render_data = OVRTXCameraRenderData(spec, "cpu", render_scope_name="RenderCamera_0")
-    renderer._initialize_camera_render_data_from_spec(spec, render_data)
-
-    assert call_order == ["open", "clone", "partitions", "rewrite_cameras"]
-    assert write_array_calls == [
-        (
-            [render_data.render_product_path],
-            "camera",
-            [[f"/World/envs/env_{env_id}/Camera" for env_id in range(num_envs)]],
-        )
-    ]
-
-
-@pytest.mark.parametrize("suffix, borrowed", [("", False), ("/Robot", False), ("/Robot", True)])
-def test_prepare_stage_exports_only_clone_sources_and_their_materials(monkeypatch, suffix, borrowed):
+@pytest.mark.parametrize("suffix", ["", "/Robot"])
+def test_prepare_stage_exports_only_clone_sources_and_their_materials(monkeypatch, suffix):
     """Export routed prototypes and materials, excluding unrouted sources and cloned descendants."""
     stage = _make_multi_env_stage(3)
     source = f"/World/envs/env_0{suffix}"
@@ -373,34 +332,30 @@ def test_prepare_stage_exports_only_clone_sources_and_their_materials(monkeypatc
     UsdGeom.Xform.Define(stage, excluded_path)
     excluded = AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Excluded", spawn=SpawnerCfg(spawn_path=excluded_path))
     plan = make_clone_plan((asset, excluded), ((0, 1),), 3, positions=np.zeros((3, 3), dtype=np.float32))
-    if borrowed:
+    renderer = _make_ovrtx_renderer_without_backend()
+    _prepare_clones(renderer, plan, routed=(0,))
+    renderer.prepare_stage(stage, 3)
+    if suffix:
         import ovstage
         from isaaclab_ov.stage import OvstageBackend, OvstageBackendCfg
 
-        native = Mock()
+        native, paths = Mock(), Mock()
         native.query_from_path_list.return_value = contextlib.nullcontext("env_query")
-        monkeypatch.setattr("isaaclab_ov.stage.create_ovstage", lambda name: native)
-        monkeypatch.setattr(ovstage, "PathDictionary", lambda stage: contextlib.nullcontext(Mock()))
+        monkeypatch.setattr("isaaclab_ov.stage.create_ovstage", lambda _: contextlib.nullcontext(native))
+        monkeypatch.setattr(ovstage, "PathDictionary", lambda _: contextlib.nullcontext(paths))
         imported = Mock()
         monkeypatch.setattr(ovstage.population, "open_usd_from_string", imported)
         monkeypatch.setattr(ovstage.population, "apply_usd_changes", Mock())
-        cfg = OvstageBackendCfg(visualizer_cfg=None)
+        cfg = OvstageBackendCfg(consumer_cfg=renderer.cfg)
         backend = OvstageBackend(cfg)
-        sim = SimpleNamespace(stage=stage, _backend_registry=[(cfg, backend)])
-        OvrtxReplicateContext(sim).replicate(plan, (0,))
-        usda = imported.call_args.args[1]
+        OvRenderReplicateContext(SimpleNamespace(_backend_registry=[(cfg, backend)])).replicate(plan, (0,))
+        backend.populate(renderer._exported_usd_string)
+        assert imported.call_args.args == (native, renderer._exported_usd_string)
         native.clone.assert_called_once_with(source, [f"/World/envs/env_{i}{suffix}" for i in (1, 2)], ordinal=1)
         native.advance_write_floor.assert_called_once_with(ordinal=1)
         backend.close()
-        native.destroy.assert_called_once_with()
-    else:
-        _patch_simulation_context(monkeypatch, plan)
-        renderer = _make_ovrtx_renderer_without_backend()
-        _prepare_clones(renderer, plan, routed=(0,))
-        renderer.prepare_stage(stage, 3)
-        usda = renderer._exported_usd_string
     exported = Usd.Stage.CreateInMemory()
-    assert exported.GetRootLayer().ImportFromString(usda)
+    assert exported.GetRootLayer().ImportFromString(renderer._exported_usd_string)
     binding = UsdShade.MaterialBindingAPI(exported.GetPrimAtPath(f"{source}/Body")).GetDirectBindingRel()
     assert binding.GetTargets() == [Sdf.Path(f"{source}/warm")]
     assert exported.GetPrimAtPath(f"{source}/warm")
@@ -409,23 +364,22 @@ def test_prepare_stage_exports_only_clone_sources_and_their_materials(monkeypatc
     assert bool(exported.GetPrimAtPath("/World/envs/env_0/Camera")) is (not suffix)
     for env_id in (1, 2):
         root = f"/World/envs/env_{env_id}"
-        assert bool(exported.GetPrimAtPath(root)) is (bool(suffix) and not borrowed)
+        assert bool(exported.GetPrimAtPath(root)) is bool(suffix)
         assert not exported.GetPrimAtPath(f"{root}/Robot")
         assert not exported.GetPrimAtPath(f"{root}/Object_env{env_id}_only")
 
 
 def test_native_cloners_keep_plan_interpretation_in_the_context():
     """One context owns preparation; native execution never interprets plans or routing ids."""
-    from isaaclab_ov import stage
     from isaaclab_ov.cloner import replicate as replication
-    from isaaclab_ov.renderers import ovrtx_usd
 
-    for name in ("_iter_clone_copies", "_OvRenderReplicateContext", "OvstageReplicateContext"):
+    for name in ("_iter_clone_copies", "_OvRenderReplicateContext", "OvrtxReplicateContext", "OvstageReplicateContext"):
         assert not hasattr(replication, name)
     assert not hasattr(OVRTXRenderer, "_clone_sources")
-    assert not hasattr(stage, "create_render_ovstage")
-    assert not hasattr(ovrtx_usd, "iter_clone_copies")
-    assert not hasattr(ovrtx_usd, "env_root_transforms")
+    for name in ("_initialize_camera_render_data_from_spec", "_init_fields_legacy", "_init_fields_ovstage"):
+        assert not hasattr(OVRTXRenderer, name)
+    renderer_tree = ast.parse(Path(ovrtx_renderer_module.__file__).read_text())
+    assert not any(isinstance(node, ast.Name) and node.id == "ClonePlan" for node in ast.walk(renderer_tree))
     tree = ast.parse(Path(replication.__file__).read_text())
     for function in tree.body:
         if isinstance(function, ast.FunctionDef) and function.name in {"ovrtx_replicate", "ovstage_replicate"}:
@@ -470,4 +424,4 @@ def test_clone_context_omits_covered_children_and_honors_routing(child_source, r
 
     renderer = _make_ovrtx_renderer_without_backend()
     _prepare_clones(renderer, plan, routed)
-    assert renderer.backend.clone_copies == expected
+    assert renderer.scene.clone_copies == expected

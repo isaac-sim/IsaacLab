@@ -158,8 +158,8 @@ class OvPhysxReplicateContext:
         self._sim.physics_manager._clone_recipes.extend(recipes)
 
 
-class OvrtxReplicateContext:
-    """Compile routed assets into native copies for OVRTX renderers and borrowed stages."""
+class OvRenderReplicateContext:
+    """Prepare routed copies for native OVRTX scenes and simulation-owned OVStage resources."""
 
     replicate_priority = 100
 
@@ -175,8 +175,6 @@ class OvrtxReplicateContext:
         from isaaclab_ov.renderers.ovrtx_renderer_cfg import OVRTXBackendCfg  # noqa: PLC0415
         from isaaclab_ov.stage import OvstageBackendCfg  # noqa: PLC0415
 
-        if not any(isinstance(cfg, (OVRTXBackendCfg, OvstageBackendCfg)) for cfg, _ in self._sim._backend_registry):
-            return
         sources = cloner.path.get_asset_prototype_paths(plan)
         templates, starts, world_ids, world_starts = cloner.path.get_world_prototype_asset_templates(
             plan, include_world_indices=True
@@ -203,12 +201,10 @@ class OvrtxReplicateContext:
         ]
         env_paths = [plan.env_template.format(world) for world in range(len(plan.topology.world_prototype_layout))]
         for cfg, backend in self._sim._backend_registry:
-            if isinstance(cfg, OVRTXBackendCfg):
+            if isinstance(cfg, OvstageBackendCfg) or isinstance(cfg, OVRTXBackendCfg) and not cfg.use_ovstage:
                 backend.clone_copies = native_copies
                 backend.clone_env_paths = env_paths
                 backend.clone_positions = plan.positions
-            elif isinstance(cfg, OvstageBackendCfg):
-                backend.populate(self._sim.stage, native_copies, env_paths, plan.positions)
 
 
 def ovrtx_replicate(

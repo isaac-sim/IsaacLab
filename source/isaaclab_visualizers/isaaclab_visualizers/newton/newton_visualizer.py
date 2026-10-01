@@ -2368,9 +2368,20 @@ class NewtonRTXVisualizer(NewtonVisualizer):
         self._disable_viewer_on_step_exception = True
         from isaaclab_ov.stage import OvstageBackendCfg
 
-        self._render_backend = SimulationContext.instance().get_or_create_backend(OvstageBackendCfg(visualizer_cfg=cfg))
+        self._render_backend = SimulationContext.instance().get_or_create_backend(OvstageBackendCfg(consumer_cfg=cfg))
 
     def _create_viewer(self, runtime_headless: bool, metadata: dict) -> NewtonViewerRTX:
+        from isaaclab_ov.renderers.ovrtx_usd import export_stage_to_string
+
+        backend = self._render_backend
+        backend.populate(
+            export_stage_to_string(
+                SimulationContext.instance().stage,
+                len(backend.clone_env_paths),
+                source_paths=tuple(source for source, _ in backend.clone_copies),
+                keep_env_roots=False,
+            )
+        )
         if not runtime_headless:
             # pyglet sets WM_CLASS from the window caption "Newton RTX Viewer".
             write_desktop_entry(

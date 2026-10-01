@@ -385,8 +385,9 @@ Visualizer Overview
       .. note::
 
          Newton RTX renders the simulation's authored USD scene, preserving materials such as MDL glass.
-         The shared OV clone context populates a simulation-owned stage, which the viewer borrows until
-         it closes. Configure lighting through scene lights.
+         The shared OV clone context prepares the scene copies, and the simulation-owned OVStage
+         backend imports the scene and applies them before the viewer borrows the stage. Configure lighting
+         through scene lights.
          Runtime visual-material randomization still writes to the Newton model and does not update the
          rendered stage.
 

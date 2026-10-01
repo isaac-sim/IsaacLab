@@ -26,10 +26,10 @@ The following classes are part of the public :mod:`isaaclab_ov.renderers` API.
 .. autoclass:: OVRTXBackendCfg
    :show-inheritance:
 
-Borrowed stages
----------------
+Simulation-owned stages
+-----------------------
 
-The simulation owns these detached stages and releases them after their visualizer consumers close.
+The simulation owns these detached stages and releases them after their renderer and visualizer consumers close.
 
 .. autoclass:: isaaclab_ov.stage.OvstageBackendCfg
    :show-inheritance:

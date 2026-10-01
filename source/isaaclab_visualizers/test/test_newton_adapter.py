@@ -42,7 +42,14 @@ from isaaclab.utils import instantiate
 @pytest.fixture
 def simulation(monkeypatch):
     """Provide the simulation registry that owns the RTX visualizer's native stage."""
-    sim = SimpleNamespace(get_or_create_backend=Mock(return_value=SimpleNamespace(stage=object())))
+    from pxr import Usd, UsdGeom
+
+    stage = Usd.Stage.CreateInMemory()
+    UsdGeom.Cube.Define(stage, "/World/envs/env_0/Cube")
+    backend = SimpleNamespace(
+        stage=object(), clone_copies=[("/World/envs/env_0", [])], clone_env_paths=["/World/envs/env_0"], populate=Mock()
+    )
+    sim = SimpleNamespace(stage=stage, get_or_create_backend=Mock(return_value=backend))
     monkeypatch.setattr(SimulationContext, "instance", staticmethod(lambda: sim))
     return sim
 
@@ -991,12 +998,15 @@ def test_newton_rtx_receives_background_color_and_prepared_stage(monkeypatch, si
     from isaaclab_ov.stage import OvstageBackendCfg
 
     kwargs = {}
-    monkeypatch.setattr(
-        newton_visualizer_module, "NewtonViewerRTX", lambda **viewer_kwargs: kwargs.update(viewer_kwargs) or object()
-    )
+    def create_viewer(**viewer_kwargs):
+        simulation.get_or_create_backend.return_value.populate.assert_called_once_with(simulation.stage.ExportToString())
+        kwargs.update(viewer_kwargs)
+        return object()
+
+    monkeypatch.setattr(newton_visualizer_module, "NewtonViewerRTX", create_viewer)
     cfg = NewtonRTXVisualizerCfg(background_color=color)
     NewtonRTXVisualizer(cfg)._create_viewer(True, {})
-    simulation.get_or_create_backend.assert_called_once_with(OvstageBackendCfg(visualizer_cfg=cfg))
+    simulation.get_or_create_backend.assert_called_once_with(OvstageBackendCfg(consumer_cfg=cfg))
     assert kwargs["background_color"] == color
     assert kwargs["ovstage"] is simulation.get_or_create_backend.return_value.stage
     assert "environment" not in kwargs
