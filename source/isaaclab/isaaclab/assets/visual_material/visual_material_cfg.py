@@ -5,9 +5,9 @@
 
 from dataclasses import MISSING
 
-from isaaclab.assets.asset_base_cfg import AssetBaseCfg
-from isaaclab.sim.spawners.materials import VisualMaterialCfg as VisualMaterialSpawnerCfg
-from isaaclab.utils.configclass import configclass
+from ...sim.spawners.materials import VisualMaterialCfg as VisualMaterialSpawnerCfg
+from ...utils import configclass
+from ..asset_base_cfg import AssetBaseCfg
 
 
 @configclass

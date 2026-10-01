@@ -7,9 +7,11 @@ __all__ = [
     "DeformableBodyMaterialCfg",
     "PhysXDeformableMaterialCfg",
     "PhysxDeformableBodyMaterialCfg",
+    "PhysxDeformableMaterialCfg",
     "PhysxMaterialCfg",
     "PhysxRigidBodyMaterialCfg",
     "PhysxSurfaceDeformableBodyMaterialCfg",
+    "PhysxSurfaceDeformableMaterialCfg",
     "RigidBodyMaterialCfg",
     "SurfaceDeformableBodyMaterialCfg",
 ]
@@ -18,9 +20,11 @@ from .physics_materials_cfg import (
     DeformableBodyMaterialCfg,
     PhysXDeformableMaterialCfg,
     PhysxDeformableBodyMaterialCfg,
+    PhysxDeformableMaterialCfg,
     PhysxMaterialCfg,
     PhysxRigidBodyMaterialCfg,
     PhysxSurfaceDeformableBodyMaterialCfg,
+    PhysxSurfaceDeformableMaterialCfg,
     RigidBodyMaterialCfg,
     SurfaceDeformableBodyMaterialCfg,
 )

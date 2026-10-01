@@ -57,6 +57,8 @@ class NewtonKaminoManager(NewtonManager):
     # Annotate the concrete solver type.
     _solver: SolverKamino
 
+    _builder_attribute_solvers = (SolverKamino,)
+
     @classmethod
     def _get_kamino_solver_cfg(cls) -> _KaminoSolverCfgBase:
         cfg = PhysicsManager._cfg
@@ -86,16 +88,17 @@ class NewtonKaminoManager(NewtonManager):
         """
         if cls._get_kamino_solver_cfg().use_fk_solver:
             cls._solver.reset(
-                cls._state_0,
+                cls.backend.state_0,
                 world_mask=world_reset_mask,
                 config=SolverKamino.ResetConfig.from_joints(),
             )
         else:
-            eval_fk(cls._model, cls._state_0.joint_q, cls._state_0.joint_qd, cls._state_0, fk_mask)
+            backend = cls.backend
+            eval_fk(backend.model, backend.state_0.joint_q, backend.state_0.joint_qd, backend.state_0, fk_mask)
 
             # Reset solver internals without performing Kamino's FK.
             cls._solver.reset(
-                cls._state_0,
+                cls.backend.state_0,
                 world_mask=world_reset_mask,
                 config=SolverKamino.ResetConfig.preserve(),
             )
@@ -154,6 +157,9 @@ class NewtonKaminoManager(NewtonManager):
             )
 
         NewtonManager._solver = cls._create_solver(model, solver_cfg)
+        # Initialize the output state's persistent Kamino buffers before capture. The input
+        # state is initialized by _eval_fk_impl after solver construction.
+        cls._solver.reset(cls.backend.state_1, config=SolverKamino.ResetConfig.preserve())
         NewtonManager._use_single_state = False
         NewtonManager._needs_collision_pipeline = not solver_cfg.use_collision_detector
         NewtonManager._supports_rigid_body_force_input = True
