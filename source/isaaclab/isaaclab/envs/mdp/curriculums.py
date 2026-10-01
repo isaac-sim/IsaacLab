@@ -323,7 +323,7 @@ class DifficultyScheduler(ManagerTermBase):
 
     def __init__(self, cfg: CurriculumTermCfg, env: ManagerBasedRLEnv):
         super().__init__(cfg, env)
-        init_difficulty: int = cfg.params.get("init_difficulty", 0)
+        init_difficulty: int = cfg.params["init_difficulty"]
         self.current_difficulties = torch.full((env.num_envs,), float(init_difficulty), device=env.device)
         self.difficulty_frac: float = 0.0
         """Mean difficulty across environments, normalized by ``max_difficulty``."""

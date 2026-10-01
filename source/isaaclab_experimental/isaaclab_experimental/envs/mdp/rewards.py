@@ -103,7 +103,7 @@ class is_terminated_term(ManagerTermBase):
     def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
         super().__init__(cfg, env)
         # resolve the selection once, as a per-column mask over the termination manager's terms
-        selected = set(env.termination_manager.find_terms(cfg.params.get("term_keys", ".*")))
+        selected = set(env.termination_manager.find_terms(cfg.params["term_keys"]))
         self._term_mask_wp = wp.array(
             [name in selected for name in env.termination_manager.active_terms],
             dtype=wp.bool,
