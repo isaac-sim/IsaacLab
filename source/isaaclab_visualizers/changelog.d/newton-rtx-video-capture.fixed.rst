@@ -4,4 +4,4 @@
   ids into valid USD prim paths the RTX stage accepts.
 * Fixed the Newton RTX visualizer showing a black window and failing headless frame capture with
   ``ovrtx`` 0.5, which keys render outputs by prim path (``/Render/Vars/LdrColor``) while Newton's
-  ``ViewerRTX`` looks up ``LdrColor``. The viewer now aliases each output under its short name.
+  ``ViewerRTX`` looks up ``LdrColor``. The viewer now aliases the color output as ``LdrColor`` when ``ovrtx`` is 0.5 or newer.

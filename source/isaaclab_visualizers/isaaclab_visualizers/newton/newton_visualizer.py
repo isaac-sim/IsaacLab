@@ -8,6 +8,8 @@
 from __future__ import annotations
 
 import contextlib
+import functools
+import importlib.metadata
 import logging
 import math
 import os
@@ -66,6 +68,21 @@ from isaaclab_visualizers.newton_adapter import resolve_visible_env_indices
 from .newton_visualizer_cfg import NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg, NewtonVisualizerCfg
 
 logger = logging.getLogger(__name__)
+
+_LDR_COLOR_VAR = "LdrColor"
+_LDR_COLOR_PRIM_PATH = "/Render/Vars/LdrColor"
+"""RenderVar prim ``ViewerRTX`` authors for the color output; ovrtx 0.5 keys ``render_vars`` by this path."""
+
+
+@functools.cache
+def _ovrtx_keys_render_vars_by_prim_path() -> bool:
+    """Whether the installed ovrtx (0.5 or newer) keys ``frame.render_vars`` by RenderVar prim path."""
+    from packaging.version import InvalidVersion, Version
+
+    try:
+        return Version(importlib.metadata.version("ovrtx")) >= Version("0.5")
+    except (importlib.metadata.PackageNotFoundError, InvalidVersion):
+        return False
 
 
 def _newton_scalar_base_name(name: str) -> str:
@@ -744,13 +761,14 @@ class NewtonViewerRTX(_NewtonViewerUIMixin, ViewerRTX):
 
     @_render_products.setter
     def _render_products(self, products) -> None:
-        # TODO: Workaround until Newton's ViewerRTX accepts both keys. ovrtx keys render vars by
+        # TODO: Workaround until Newton's ViewerRTX accepts both keys. ovrtx 0.5 keys render vars by
         # prim path ("/Render/Vars/LdrColor"), but ViewerRTX looks up "LdrColor" and silently skips
         # the blit and capture otherwise, leaving the window black.
-        for _, product in (products or {}).items():
-            for frame in product.frames:
-                for path in list(frame.render_vars):
-                    frame.render_vars.setdefault(path.rsplit("/", 1)[-1], frame.render_vars[path])
+        if products and _ovrtx_keys_render_vars_by_prim_path():
+            for _, product in products.items():
+                for frame in product.frames:
+                    if _LDR_COLOR_PRIM_PATH in frame.render_vars:
+                        frame.render_vars.setdefault(_LDR_COLOR_VAR, frame.render_vars[_LDR_COLOR_PRIM_PATH])
         self._ovrtx_render_products = products
 
     def get_frame(self) -> np.ndarray:
