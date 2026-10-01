@@ -10,9 +10,10 @@ Added
   external loads from the solver's generalized forces. Other Newton solvers, PhysX, OVPhysX and
   the Isaac Lab actuator loop rejected this configuration. Rotor inertia remained owned by the joint or
   :attr:`~isaaclab.actuators.ActuatorBaseCfg.armature`.
-* Stored BAM motor and friction coefficients directly in USD actuator prims, with explicit
-  configuration overrides. Simulation did not require a parameter sidecar. Recorded
-  upstream motor and friction samples checked controller behavior without an upstream BAM installation.
+* Added :class:`~isaaclab.actuators.BamMotorCfg` for explicit motor fits, including m1/m2/m5/m6
+  model selection and a local Rhoban JSON loader. BAM authoring replaced existing USD actuators
+  using the configured fit and required firmware gain and nominal voltage. Recorded upstream
+  motor and friction samples checked drive behavior without an upstream BAM installation.
 * Added per-environment start-up sampling for supply voltage, supply sag and friction scale.
   Exposed ``vin``, ``sag_gain``, ``friction_scale``, ``kp_scale`` and ``kd_scale`` through
   :func:`~isaaclab.actuators.newton.read_group_parameter` and
