@@ -1114,7 +1114,7 @@ jobs:
             -e WARP_CACHE_PATH=/tmp/jit-cache/warp \
             -e CUDA_CACHE_PATH=/tmp/jit-cache/nv \
             -v "${GITHUB_WORKSPACE}/jit-cache:/tmp/jit-cache" \
-            -v "${GITHUB_WORKSPACE}/source:/workspace/isaaclab/source:ro" \
+            -v "${GITHUB_WORKSPACE}/source:/workspace/isaaclab/source:rw" \
             -v "${GITHUB_WORKSPACE}/scripts:/workspace/isaaclab/scripts:ro" \
             -v "${GITHUB_WORKSPACE}/apps:/workspace/isaaclab/apps:ro" \
             -v "${GITHUB_WORKSPACE}/tools/perf_smoke/source_revision.py:/tmp/source_revision.py:ro" \
