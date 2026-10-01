@@ -10,6 +10,7 @@ from __future__ import annotations
 import ast
 import copy
 import hashlib
+import inspect
 import json
 from pathlib import Path
 
@@ -19,6 +20,10 @@ PACKAGE = Path("source/isaaclab/isaaclab/benchmark")
 class _WithoutDocstrings(ast.NodeTransformer):
     def generic_visit(self, node):
         node = super().generic_visit(node)
+        # Python 3.12 adds this empty field to non-generic definitions. Its
+        # absence on older interpreters describes the same producer source.
+        if getattr(node, "type_params", None) == []:
+            del node.type_params
         if isinstance(node, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
             if (
                 node.body
@@ -31,7 +36,8 @@ class _WithoutDocstrings(ast.NodeTransformer):
 
 
 def _normalized(node: ast.AST) -> str:
-    return ast.dump(_WithoutDocstrings().visit(copy.deepcopy(node)), include_attributes=False)
+    options = {"show_empty": True} if "show_empty" in inspect.signature(ast.dump).parameters else {}
+    return ast.dump(_WithoutDocstrings().visit(copy.deepcopy(node)), include_attributes=False, **options)
 
 
 def _function(module: ast.Module, name: str) -> ast.FunctionDef:

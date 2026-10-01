@@ -5,11 +5,13 @@
 
 """Source-equivalence checks for FPS aggregation, without simulation imports."""
 
+import ast
+import copy
 import tempfile
 import unittest
 from pathlib import Path
 
-from .metric_identity import PACKAGE, metric_definition
+from .metric_identity import PACKAGE, _normalized, metric_definition
 
 RUNTIME = '''
 def run(argv):
@@ -114,6 +116,21 @@ class MetricIdentityTests(unittest.TestCase):
         original = self.identity()
         self.builders.write_text(self.builders.read_text().replace("SCALE = 1", "SCALE = 2"))
         self.assertNotEqual(self.identity(), original)
+
+    def test_empty_type_parameters_match_older_python_ast_without_erasing_generics(self):
+        legacy = ast.parse("def helper(value):\n    return value\n").body[0]
+        if hasattr(legacy, "type_params"):
+            del legacy.type_params
+        modern = copy.deepcopy(legacy)
+        modern._fields = tuple(dict.fromkeys((*modern._fields, "type_params")))
+        modern.type_params = []
+        self.assertEqual(_normalized(legacy), _normalized(modern))
+        modern.type_params = [ast.Name(id="T", ctx=ast.Load())]
+        self.assertNotEqual(_normalized(legacy), _normalized(modern))
+
+    def test_empty_argument_lists_remain_in_the_fingerprint_serialization(self):
+        node = ast.parse("producer()", mode="eval").body
+        self.assertEqual(_normalized(node), "Call(func=Name(id='producer', ctx=Load()), args=[], keywords=[])")
 
 
 if __name__ == "__main__":
