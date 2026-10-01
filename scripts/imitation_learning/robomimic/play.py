@@ -17,14 +17,10 @@ Args:
     norm_factor_max: If provided, maximum value of the action space normalization factor.
 """
 
-"""Launch Isaac Sim Simulator first."""
-
-
 import argparse
 
-from isaaclab.app import AppLauncher
+from isaaclab.app import add_launcher_args, launch_simulation
 
-# add argparse arguments
 parser = argparse.ArgumentParser(description="Evaluate robomimic policy for Isaac Lab environment.")
 parser.add_argument(
     "--disable_fabric", action="store_true", default=False, help="Disable fabric and use USD I/O operations."
@@ -41,16 +37,12 @@ parser.add_argument(
     "--norm_factor_max", type=float, default=None, help="Optional: maximum value of the normalization factor."
 )
 
-# append AppLauncher cli args
-AppLauncher.add_app_launcher_args(parser)
-# parse the arguments
-args_cli = parser.parse_args()
-
-# launch omniverse app
-app_launcher = AppLauncher(args_cli)
-simulation_app = app_launcher.app
-
-"""Rest everything follows."""
+add_launcher_args(parser)
+# parse the arguments, forwarding unrecognized ones as Hydra-style task config overrides.
+# ``overrides`` must be passed explicitly to the config parser: this script keeps its own flags in
+# ``sys.argv`` rather than stripping them, so letting Hydra fall back to reading ``sys.argv`` makes it
+# reject them.
+args_cli, hydra_overrides = parser.parse_known_args()
 
 import copy
 import random
@@ -132,7 +124,13 @@ def rollout(policy, env, success_term, horizon, device):
 def main():
     """Run a trained policy from robomimic with Isaac Lab environment."""
     # parse configuration
-    env_cfg = parse_env_cfg(args_cli.task, device=args_cli.device, num_envs=1, use_fabric=not args_cli.disable_fabric)
+    env_cfg = parse_env_cfg(
+        args_cli.task,
+        device=args_cli.device,
+        num_envs=1,
+        use_fabric=not args_cli.disable_fabric,
+        overrides=hydra_overrides,
+    )
 
     # Set observations to dictionary mode for Robomimic
     env_cfg.observations.policy.concatenate_terms = False
@@ -147,6 +145,14 @@ def main():
     success_term = env_cfg.terminations.success
     env_cfg.terminations.success = None
 
+    # Launch the runtime the task needs. Camera rendering is only enabled for tasks that declare Kit
+    # camera sensors, so policies trained on low-dimensional observations do not pay for the RTX renderer.
+    with launch_simulation(env_cfg, args_cli):
+        run_policy(env_cfg, success_term)
+
+
+def run_policy(env_cfg, success_term):
+    """Create the environment and evaluate the policy rollouts."""
     # Create environment
     env = gym.make(args_cli.task, cfg=env_cfg).unwrapped
 
@@ -177,7 +183,4 @@ def main():
 
 
 if __name__ == "__main__":
-    # run the main function
     main()
-    # close sim app
-    simulation_app.close()

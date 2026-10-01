@@ -26,28 +26,12 @@ def test_viewer_cfg_default_no_warning():
         ViewerCfg()  # must not raise
 
 
-def test_viewer_cfg_custom_eye_warns():
-    """ViewerCfg(eye=...) with a non-default value must emit DeprecationWarning."""
+# One tuple field and one non-tuple field: the check loops over every field with these two comparisons.
+@pytest.mark.parametrize("field_value", [{"eye": (1.0, 2.0, 3.0)}, {"origin_type": "env"}], ids=["eye", "origin_type"])
+def test_viewer_cfg_custom_eye_warns(field_value):
+    """ViewerCfg with a non-default field value must emit DeprecationWarning."""
     with pytest.warns(DeprecationWarning, match="ViewerCfg is deprecated"):
-        ViewerCfg(eye=(1.0, 2.0, 3.0))
-
-
-def test_viewer_cfg_custom_lookat_warns():
-    """ViewerCfg(lookat=...) with a non-default value must emit DeprecationWarning."""
-    with pytest.warns(DeprecationWarning, match="ViewerCfg is deprecated"):
-        ViewerCfg(lookat=(1.0, 0.0, 0.0))
-
-
-def test_viewer_cfg_custom_resolution_warns():
-    """ViewerCfg(resolution=...) with a non-default value must emit DeprecationWarning."""
-    with pytest.warns(DeprecationWarning, match="ViewerCfg is deprecated"):
-        ViewerCfg(resolution=(640, 480))
-
-
-def test_viewer_cfg_custom_origin_type_warns():
-    """ViewerCfg(origin_type=...) with a non-default value must emit DeprecationWarning."""
-    with pytest.warns(DeprecationWarning, match="ViewerCfg is deprecated"):
-        ViewerCfg(origin_type="env")
+        ViewerCfg(**field_value)
 
 
 def test_viewer_cfg_default_eye_no_warning():

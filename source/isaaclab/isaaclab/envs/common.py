@@ -12,7 +12,7 @@ from typing import Dict, Literal, TypeVar  # noqa: UP035
 import gymnasium as gym
 import torch
 
-from isaaclab.utils.configclass import configclass
+from ..utils import configclass
 
 ##
 # Deprecated: ViewerCfg
@@ -179,7 +179,7 @@ def _apply_deprecated_viewer_cfg(env_cfg: object) -> None:
             **({"window_width": resolution[0], "window_height": resolution[1]} if resolution is not None else {}),
         )
     except ImportError:
-        from isaaclab.visualizers import VisualizerCfg
+        from ..visualizers import VisualizerCfg
 
         sim_cfg.default_visualizer_cfg = VisualizerCfg(
             eye=tuple(viewer.eye),

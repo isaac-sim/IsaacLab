@@ -10,7 +10,7 @@ from isaaclab.managers import EventTermCfg, SceneEntityCfg
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 
 import isaaclab_tasks.core.velocity.mdp as mdp
