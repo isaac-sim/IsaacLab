@@ -79,7 +79,9 @@ def _make_multi_env_stage(num_envs: int) -> Usd.Stage:
 def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
     renderer = OVRTXRenderer.__new__(OVRTXRenderer)
     renderer.cfg = OVRTXRendererCfg()
-    renderer.backend = SimpleNamespace(clone_copies=[], clone_env_paths=[], clone_positions=None)
+    renderer.backend = SimpleNamespace(
+        clone_copies=[], clone_env_paths=[], population_env_paths=[], clone_positions=None
+    )
     renderer.scene = renderer.backend
     renderer.backend.renderer = SimpleNamespace(
         add_usd_reference_from_string=lambda *args, **kwargs: 1,
@@ -334,6 +336,8 @@ def test_create_render_data_pins_the_render_product_to_the_spec_device(tmp_path:
 def test_prepare_stage_exports_only_clone_sources_and_their_materials(monkeypatch, suffix):
     """Export routed prototypes and materials, excluding unrouted sources and cloned descendants."""
     stage = _make_multi_env_stage(3)
+    stage.GetPrimAtPath("/World/envs/env_0").ClearTypeName()
+    stage.RemovePrim("/World/envs/env_2")
     source = f"/World/envs/env_0{suffix}"
     material = UsdShade.Material.Define(stage, f"{source}/warm")
     body = UsdGeom.Xform.Define(stage, f"{source}/Body").GetPrim()
@@ -371,12 +375,15 @@ def test_prepare_stage_exports_only_clone_sources_and_their_materials(monkeypatc
     binding = UsdShade.MaterialBindingAPI(exported.GetPrimAtPath(f"{source}/Body")).GetDirectBindingRel()
     assert binding.GetTargets() == [Sdf.Path(f"{source}/warm")]
     assert exported.GetPrimAtPath(f"{source}/warm")
+    assert exported.GetPrimAtPath("/World/envs/env_0").IsA(UsdGeom.Xform)
     assert not exported.GetPrimAtPath(excluded_path)
     assert exported.GetPrimAtPath("/World/envs/env_0/Robot")
     assert bool(exported.GetPrimAtPath("/World/envs/env_0/Camera")) is (not suffix)
     for env_id in (1, 2):
         root = f"/World/envs/env_{env_id}"
         assert bool(exported.GetPrimAtPath(root)) is bool(suffix)
+        if suffix:
+            assert exported.GetPrimAtPath(root).IsA(UsdGeom.Xform)
         assert not exported.GetPrimAtPath(f"{root}/Robot")
         assert not exported.GetPrimAtPath(f"{root}/Object_env{env_id}_only")
 

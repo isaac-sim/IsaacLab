@@ -401,18 +401,27 @@ def test_export_stage_keeps_all_env_content_when_all_roots_are_sources():
     _assert_export_contains_env_roots_and_children(exported, range(num_envs))
 
 
-def test_export_stage_full_when_single_env():
-    """Single-environment stages are exported without trimming."""
-    num_envs = 1
-    stage = _make_multi_env_stage(num_envs)
+@pytest.mark.parametrize("num_envs", [1, 4])
+def test_export_stage_without_clone_destinations(num_envs):
+    """Single environments and global-only scenes export without losing content."""
+    stage = _make_multi_env_stage(1) if num_envs == 1 else Usd.Stage.CreateInMemory()
+    UsdGeom.Sphere.Define(stage, "/World/Shared")
+    env_paths = tuple(f"/World/envs/env_{i}" for i in range(num_envs))
 
     exported = export_stage_to_string(
         stage,
         num_envs,
-        source_paths=("/World/envs/env_0",),
+        source_paths=("/World/envs/env_0",) if num_envs == 1 else ("/World/Shared",),
+        env_paths=env_paths,
     )
 
-    _assert_export_contains_env_roots_and_children(exported, range(num_envs))
+    if num_envs == 1:
+        _assert_export_contains_env_roots_and_children(exported, range(1))
+    result = Usd.Stage.CreateInMemory()
+    result.GetRootLayer().ImportFromString(exported)
+    assert result.GetPrimAtPath("/World/Shared").IsA(UsdGeom.Sphere)
+    assert all(result.GetPrimAtPath(path).IsDefined() for path in env_paths)
+    assert all(result.GetPrimAtPath(path).IsA(UsdGeom.Xform) for path in env_paths)
 
 
 def test_export_stage_homogeneous_keeps_only_env0_prototype():

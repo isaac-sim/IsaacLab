@@ -8,3 +8,5 @@
 * Shared one OVRTX engine across camera product configurations when opting into a shared OVPhysX stage, as required
   by the SDK's single-renderer attachment contract. Cameras must agree on native logging and transform-cache settings.
   Removed duplicate USD scene-partition authoring; camera registration authored the runtime attributes.
+* Created native environment frames only in private USD exports and placed OVPhysX originals from the clone plan.
+  Replaced recursive export filtering with a pruned USD traversal while retaining routed prototype selection.

@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import contextlib
 import logging
+from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -147,6 +148,7 @@ class OvstageBackend:
         self.next_camera_id = 0
         self.clone_copies: list[tuple[str, list[str]]] = []
         self.clone_env_paths: list[str] = []
+        self.population_env_paths: list[str] = []
         self.clone_positions: np.ndarray | None = None
         with contextlib.ExitStack() as resources:
             self.stage = resources.enter_context(create_ovstage("isaaclab.scene"))
@@ -188,88 +190,66 @@ class OvstageBackend:
         self.stage = self.paths = None
 
 
-def _collect_prims_to_deactivate(parent_prim: Usd.Prim, source_paths: frozenset[Sdf.Path]) -> list[Sdf.Path]:
-    """Collect child prims under ``parent_prim`` for deactivation.
-
-    For each child:
-
-    * If the child is a source, keep the full subtree and stop descending.
-    * If the child is an ancestor of some source, recurse to deactivate non-source siblings deeper in the tree.
-    * Otherwise, deactivate the child prim (including descendants).
-
-    Args:
-        parent_prim: Parent prim whose children are considered.
-        source_paths: The paths to the cloning sources.
-
-    Returns:
-        Paths of prims to deactivate on the root layer.
-    """
-    prim_paths: list[Sdf.Path] = []
-
-    for child in parent_prim.GetChildren():
-        child_path = child.GetPath()
-
-        # If the child is a source, keep it and stop walking down the tree.
-        if child_path in source_paths:
-            continue
-
-        # If the child is an ancestor of some source, recurse to deactivate non-source siblings deeper in the tree.
-        if any(source.HasPrefix(child_path) for source in source_paths):
-            prim_paths.extend(_collect_prims_to_deactivate(child, source_paths))
-            continue
-
-        # Otherwise, deactivate the child prim (including descendants).
-        if child.IsActive():
-            prim_paths.append(child_path)
-
-    return prim_paths
-
-
 def export_stage_to_string(
-    stage: Usd.Stage, num_envs: int, source_paths: tuple[str, ...], keep_env_roots: bool = True
+    stage: Usd.Stage,
+    num_envs: int,
+    source_paths: tuple[str, ...],
+    keep_env_roots: bool = True,
+    *,
+    env_paths: Sequence[str] = (),
 ) -> str:
     """Export routed prototypes without mutating the simulation's authored USD stage.
 
-    An anonymous session layer hides non-source subtrees. Physics population needs typed
-    environment ancestors, so keep environment roots when cloning their children; remove
-    the roots only when they are themselves clone targets.
+    An anonymous session layer hides non-source subtrees, including copies already authored
+    by USD replication. Native clone contexts recreate environment frames from the clone plan;
+    callers preserving authored frames can retain them with ``keep_env_roots``.
 
     Args:
         stage: USD stage to export.
-        num_envs: Number of parallel environments. A single environment is exported unchanged.
+        num_envs: Number of parallel environments. Source filtering is skipped for one environment.
         source_paths: Prototype subtrees retained with their materials and descendants.
         keep_env_roots: Whether to retain non-source environment roots and their transforms.
+        env_paths: Environment frames to create in the private export before native cloning.
 
     Returns:
         USDA text containing the selected prototypes.
     """
-    if num_envs <= 1:
-        return stage.ExportToString()
+    export_stage = stage
+    if num_envs > 1:
+        export_session = Sdf.Layer.CreateAnonymous()
+        export_session.subLayerPaths = [stage.GetSessionLayer().identifier]
+        export_stage = Usd.Stage.Open(stage.GetRootLayer(), export_session)
+        envs_path = Sdf.Path("/World/envs")
+        envs_prim = export_stage.GetPrimAtPath(envs_path)
 
-    export_session = Sdf.Layer.CreateAnonymous()
-    export_session.subLayerPaths = [stage.GetSessionLayer().identifier]
-    export_stage = Usd.Stage.Open(stage.GetRootLayer(), export_session)
-    envs_path = Sdf.Path("/World/envs")
-    envs_prim = export_stage.GetPrimAtPath(envs_path)
-    if not envs_prim.IsValid():
-        raise RuntimeError(f"Failed to get prim at path: {envs_path}")
+        source_path_set = frozenset(map(Sdf.Path, source_paths))
+        ancestors = {prefix for source in source_path_set for prefix in source.GetPrefixes()}
+        prim_paths = []
+        prims = iter(Usd.PrimRange(envs_prim))
+        next(prims, None)
+        for prim in prims:
+            path = prim.GetPath()
+            if path in source_path_set:
+                prims.PruneChildren()
+            elif path not in ancestors and not (keep_env_roots and path.GetParentPath() == envs_path):
+                # Kit may already have USD copies; explicit routing may also exclude a prototype.
+                prim_paths.append(path)
+                prims.PruneChildren()
 
-    source_path_set = frozenset(map(Sdf.Path, source_paths))
-    prim_paths: list[Sdf.Path] = []
-
-    if keep_env_roots:
-        for child in envs_prim.GetChildren():
-            # Retain authored ancestor types and transforms for asset-level clones.
-            child_path = child.GetPath()
-            if child_path not in source_path_set:
-                prim_paths.extend(_collect_prims_to_deactivate(child, source_path_set))
-    else:
-        # Whole-environment copies recreate these roots.
-        prim_paths = _collect_prims_to_deactivate(envs_prim, source_path_set)
-
+        with Sdf.ChangeBlock():
+            for prim_path in prim_paths:
+                Sdf.CreatePrimInLayer(export_session, prim_path).active = False
+                logger.debug("Deactivated prim: %s", prim_path)
+        logger.info("Deactivated %d prims in total", len(prim_paths))
+    # CPU hierarchy propagation requires USD-populated frames, including clone ancestors.
+    # Author them only in the export; native cloning writes their poses from the plan.
+    layer = export_stage.Flatten()
     with Sdf.ChangeBlock():
-        for prim_path in prim_paths:
-            Sdf.CreatePrimInLayer(export_session, prim_path).active = False
-            logger.debug("Deactivated prim: %s", prim_path)
-    logger.info("Deactivated %d prims in total", len(prim_paths))
-    return export_stage.ExportToString()
+        for path in env_paths:
+            prim = Sdf.CreatePrimInLayer(layer, path)
+            if not prim.typeName:
+                prim.typeName = "Xform"
+            while prim and prim.specifier == Sdf.SpecifierOver:
+                prim.specifier = Sdf.SpecifierDef
+                prim = prim.nameParent
+    return layer.ExportToString()

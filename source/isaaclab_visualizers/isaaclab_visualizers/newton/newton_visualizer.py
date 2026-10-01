@@ -2380,6 +2380,7 @@ class NewtonRTXVisualizer(NewtonVisualizer):
                 len(backend.clone_env_paths),
                 source_paths=tuple(source for source, _ in backend.clone_copies),
                 keep_env_roots=False,
+                env_paths=backend.population_env_paths,
             )
         )
         if not runtime_headless:

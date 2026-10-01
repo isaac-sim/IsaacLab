@@ -47,7 +47,11 @@ def simulation(monkeypatch):
     stage = Usd.Stage.CreateInMemory()
     UsdGeom.Cube.Define(stage, "/World/envs/env_0/Cube")
     backend = SimpleNamespace(
-        stage=object(), clone_copies=[("/World/envs/env_0", [])], clone_env_paths=["/World/envs/env_0"], populate=Mock()
+        stage=object(),
+        clone_copies=[("/World/envs/env_0", [])],
+        clone_env_paths=["/World/envs/env_0"],
+        population_env_paths=["/World/envs/env_0"],
+        populate=Mock(),
     )
     sim = SimpleNamespace(stage=stage, get_or_create_backend=Mock(return_value=backend))
     monkeypatch.setattr(SimulationContext, "instance", staticmethod(lambda: sim))
@@ -997,11 +1001,16 @@ def test_newton_gl_background_color(color: tuple[float, float, float] | None) ->
 def test_newton_rtx_receives_background_color_and_prepared_stage(monkeypatch, simulation, color):
     from isaaclab_ov.stage import OvstageBackendCfg
 
+    from pxr import Usd, UsdGeom
+
     kwargs = {}
     backend = simulation.get_or_create_backend.return_value
 
     def create_viewer(**viewer_kwargs):
-        backend.populate.assert_called_once_with(simulation.stage.ExportToString())
+        backend.populate.assert_called_once()
+        exported = Usd.Stage.CreateInMemory()
+        exported.GetRootLayer().ImportFromString(backend.populate.call_args.args[0])
+        assert exported.GetPrimAtPath("/World/envs/env_0").IsA(UsdGeom.Xform)
         kwargs.update(viewer_kwargs)
         return object()
 

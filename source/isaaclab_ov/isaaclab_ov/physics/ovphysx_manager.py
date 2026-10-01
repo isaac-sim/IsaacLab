@@ -795,12 +795,12 @@ class OvPhysxManager(PhysicsManager):
             None,
         )
         if shared_scene is not None:
-            env_paths = set(shared_scene.clone_env_paths)
             stage_usda = export_stage_to_string(
                 sim.stage,
                 len(shared_scene.clone_env_paths),
                 source_paths=tuple(source for source, _ in shared_scene.clone_copies),
-                keep_env_roots=all(env_paths.isdisjoint(targets) for _, targets in shared_scene.clone_copies),
+                keep_env_roots=False,
+                env_paths=shared_scene.population_env_paths,
             )
             native_clones = ()
         else:
