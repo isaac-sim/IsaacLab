@@ -371,11 +371,12 @@ in code. It writes coefficients directly into the output USD; the JSON is unnece
     uv run python scripts/tools/import_bam_parameters.py \
         --input robot.usd --output robot_bam.usda --articulation /Robot \
         --joint_names '.*' \
-        --params_file source/isaaclab/isaaclab/actuators/data/bam_xl330_m6.json
+        --params_file /path/to/servo_fit.json
 
-The example JSON contains the Dynamixel XL330 ``m6`` fit from ``Rhoban/bam`` at commit
-``62bd8ce`` of ``mjlab_frictionloss`` and is licensed Apache-2.0. ``ATTRIBUTION.md`` next to it
-records the origin of every field.
+The test USD fixture ``source/isaaclab/test/actuators/data/bam_xl330_m6.usda`` contains the
+Dynamixel XL330 ``m6`` fit from ``Rhoban/bam`` at commit ``62bd8ce`` of ``mjlab_frictionloss``.
+``ATTRIBUTION.md`` and ``LICENSE-BAM`` beside it document its provenance and Apache-2.0 license.
+No parameter JSON is shipped with the actuator package.
 
 .. _actuators-bam-paths:
 
