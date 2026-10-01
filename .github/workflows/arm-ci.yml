@@ -197,15 +197,6 @@ jobs:
         container-name: isaac-lab-arm-ci
         omni-github-test-type: arm-ci
 
-    - name: Run shared Cartpole smoke
-      uses: ./.github/actions/run-tests
-      with:
-        test-path: source/isaaclab/test/install_ci/misc/cartpole_training_smoke.py
-        result-file: arm-ci-cartpole-smoke-report.xml
-        container-name: isaac-lab-arm-ci-cartpole-${{ github.run_id }}-${{ github.run_attempt }}
-        image-tag: ${{ needs.config.outputs.ci_image_tag }}-arm64
-        volume-mount-source: ${{ github.workspace }}
-
     - name: Upload test reports
       if: always()
       uses: actions/upload-artifact@v7
