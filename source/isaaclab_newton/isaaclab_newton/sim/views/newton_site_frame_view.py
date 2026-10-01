@@ -271,7 +271,6 @@ class NewtonSiteFrameView(BaseFrameView):
         if model is not None:
             self._initialize_from_specs(model)
         else:
-            # The specs already name each selected env; bind them once the model exists.
             self._physics_ready_handle = NewtonManager.register_callback(
                 self._on_physics_ready, PhysicsEvent.PHYSICS_READY, name=f"site_view_{self._prim_path}"
             )

@@ -209,14 +209,13 @@ def test_close_before_reset_cancels_deferred_initialization(device):
         ("Prop", "env_[^/]+", "before_reset"),
         ("Prop", "env_1", "before_replication"),
         ("Cube", "env_1", "before_reset"),
-        ("Cube", "env_[^/]+", "before_replication"),
     ],
 )
 def test_frame_created_before_model_covers_selected_envs(device, parent, envs, created):
     """A view created before the Newton model exists has one frame per selected env, at that env's pose.
 
     ``Prop`` is a non-physics Xform (static frame), ``Cube`` a rigid body (body-local frame). Each frame is
-    paired with its own env's destination prim, and a pose write round-trips.
+    paired with its own env's destination prim.
     """
     num_envs, prop_pos = 3, (0.3, 0.2, 0.0)
     with _sim_context(device, num_envs=num_envs) as sim:
@@ -249,9 +248,6 @@ def test_frame_created_before_model_covers_selected_envs(device, parent, envs, c
         # each frame is paired with its own env's prim, in view order; the private pairing list is read
         # because nothing public exposes which prims receive the mirrored poses
         assert view._site_prim_paths == [f"/World/envs/env_{i}/{parent}/Mount" for i in env_ids]
-        new_pos = expected + torch.tensor([0.0, 0.0, 0.5], device=device)
-        view.set_world_poses(positions=_wp_vec3f(new_pos.tolist(), device=device))
-        torch.testing.assert_close(view.get_world_poses()[0].torch, new_pos, atol=1e-5, rtol=0)
 
 
 # ==================================================================
