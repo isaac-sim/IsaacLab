@@ -187,50 +187,28 @@ def test_newton_marker_registry_lifecycle(marker_registry: _MarkerRegistry):
     assert marker_registry.groups == {}
 
 
-@pytest.mark.parametrize("prim_path_keys", [True, False])
-def test_newton_rtx_viewer_aliases_ldr_color_when_render_vars_use_prim_paths(
-    monkeypatch: pytest.MonkeyPatch, prim_path_keys: bool
-):
+def test_newton_rtx_viewer_aliases_ldr_color_when_render_vars_use_prim_paths():
     """ovrtx 0.5 keys render vars by prim path, but Newton's ViewerRTX looks up ``LdrColor``."""
-    monkeypatch.setattr(newton_visualizer_module, "_ovrtx_keys_render_vars_by_prim_path", lambda: prim_path_keys)
     by_path = SimpleNamespace(render_vars={"/Render/Vars/LdrColor": "ldr"})
+    by_name = SimpleNamespace(render_vars={"LdrColor": "legacy"})
     by_both = SimpleNamespace(render_vars={"LdrColor": "short", "/Render/Vars/LdrColor": "path"})
     other = SimpleNamespace(render_vars={"/Render/Vars/Depth": "depth"})
     viewer = NewtonViewerRTX.__new__(NewtonViewerRTX)
 
-    viewer._render_products = {"/Render/Product": SimpleNamespace(frames=[by_path, by_both, other])}
+    viewer._render_products = {"/Render/Product": SimpleNamespace(frames=[by_path, by_name, by_both, other])}
 
-    assert by_path.render_vars.get("LdrColor") == ("ldr" if prim_path_keys else None)
+    assert by_path.render_vars["LdrColor"] == "ldr"
+    assert by_name.render_vars == {"LdrColor": "legacy"}
     assert by_both.render_vars["LdrColor"] == "short"  # an existing short name is never overwritten
     assert "LdrColor" not in other.render_vars
 
     # ovrtx hands back new frame objects every step, and ViewerRTX reassigns them each time
     next_frame = SimpleNamespace(render_vars={"/Render/Vars/LdrColor": "next"})
     viewer._render_products = {"/Render/Product": SimpleNamespace(frames=[next_frame])}
-    assert next_frame.render_vars.get("LdrColor") == ("next" if prim_path_keys else None)
+    assert next_frame.render_vars["LdrColor"] == "next"
 
     viewer._render_products = None
     assert viewer._render_products is None
-
-
-@pytest.mark.parametrize(
-    "installed,expected",
-    [("0.4.2", False), ("0.5.0.377615", True), ("not-a-version", False), (None, False)],
-)
-def test_ovrtx_keys_render_vars_by_prim_path_follows_installed_version(
-    monkeypatch: pytest.MonkeyPatch, installed: str | None, expected: bool
-):
-    def _version(_name: str) -> str:
-        if installed is None:
-            raise newton_visualizer_module.importlib.metadata.PackageNotFoundError
-        return installed
-
-    monkeypatch.setattr(newton_visualizer_module.importlib.metadata, "version", _version)
-    newton_visualizer_module._ovrtx_keys_render_vars_by_prim_path.cache_clear()
-    try:
-        assert newton_visualizer_module._ovrtx_keys_render_vars_by_prim_path() is expected
-    finally:
-        newton_visualizer_module._ovrtx_keys_render_vars_by_prim_path.cache_clear()
 
 
 def test_sanitize_newton_marker_group_id_rewrites_invalid_chars_into_usd_path():

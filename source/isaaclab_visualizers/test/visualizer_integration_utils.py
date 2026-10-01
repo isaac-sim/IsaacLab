@@ -1693,6 +1693,10 @@ def run_cartpole_env_visualizers_motion_with_play_pause(
                 assert rtx_viewer is not None, "Newton RTX viewer was not created."
 
                 with _visualizer_debug_case("newton_rtx", backend_kind):
+                    # The first async capture must succeed before warm-up can suppress its error.
+                    first_frame = rtx_visualizers[0].render_rgb_array()
+                    width, height = _CARTPOLE_NEWTON_INTEGRATION_WINDOW_SIZE
+                    assert first_frame is not None and first_frame.shape == (height, width, 3)
                     _run_newton_viewer_frame_motion_test(
                         env,
                         rtx_viewer,
