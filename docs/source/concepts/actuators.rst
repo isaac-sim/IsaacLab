@@ -367,6 +367,12 @@ Newton consumes them without opening JSON files during simulation.
 Author rotor inertia on the joint or set :attr:`~isaaclab.actuators.ActuatorBaseCfg.armature`.
 The BAM drive has no separate ``armature`` coefficient.
 
+Without an explicit ``actuator_effort_limit``, BAM caps motor torque at
+``max(vin_range) * motor.kt / motor.resistance``, using ``vin`` when no voltage range is set.
+This stall-torque ceiling also applies when back-driving produces additional torque through back-EMF.
+The separate ``joint_effort_limit`` remains as configured or authored in the USD. Keep it at least
+as large as the actuator cap when the drive should determine the applied motor torque.
+
 The recorded test fixture ``source/isaaclab/test/actuators/data/bam_xl330_m6_goldens.npz`` contains
 reference outputs and the Dynamixel XL330 ``m6`` coefficients used to generate them.
 Its ``attr_bam_attribution`` and ``attr_bam_commit`` metadata record the upstream authors, source, and revision.
@@ -393,16 +399,22 @@ included in this feedback, so their contribution to load-dependent friction is n
 ``stiff_frictionloss=True`` uses a stiff, timestep-independent solver reference to reduce creep
 inside the static-friction band.
 
+The load-dependent friction budget uses the previous step's clamped drive output. Supply sag
+uses the previous step's unclamped motor torque, summed over the group's joints in each environment.
+If a tighter solver joint limit clips the drive output further, that extra clipping is not reflected
+in the friction feedback.
+
 On MJWarp, :attr:`~isaaclab.actuators.ActuatorCollection.applied_effort` reports **motor torque only**;
 it excludes the friction the solver applies. ``data.joint_friction`` reports the authored seed,
 not the live budget. Read the live budget with
 ``read_group_parameter(robot.actuators, "servos", "drive", "friction_budget")``.
 
-The drive owns its command-delay buffer and draws a lag per driven joint. The initial lag
+The drive owns its command-delay buffer and draws one lag per environment, shared by the group's joints.
+The initial lag
 is at least ``min_delay``, including when a hold or staggered update postpones the first draw. It honors
 ``min_delay``, ``max_delay``, ``delay_hold_prob`` and ``delay_update_period`` rather than using
 Newton's fixed-delay component. Reset advances the lag and phase random streams only for the
-selected joints, including during CUDA graph replay. Identical seeds and reset histories remain reproducible.
+selected environments, including during CUDA graph replay. Identical seeds and reset histories remain reproducible.
 
 Randomization hooks
 ^^^^^^^^^^^^^^^^^^^
@@ -476,7 +488,7 @@ Known constraints
   ``stiff_frictionloss`` for articulations with the same shared controller settings. Motor
   coefficients are per DOF and do not separate controller groups. Supply sag sums torque
   over each merged controller's DOFs within an environment. Such a group therefore represents
-  one shared battery; independent batteries on multiple robots within the same environment
+  one shared battery and command delay; independent batteries or delays on multiple robots within the same environment
   are not represented by this model.
 
 
@@ -951,7 +963,7 @@ joints.
     is ignored. A :class:`~isaaclab.actuators.DelayedPDActuator` does not randomize delay between
     resets as it does on the Isaac Lab path.
     :class:`~isaaclab.actuators.BamActuatorCfg` is the exception: its controller owns its own
-    delay, honors both bounds and resamples the lag, per driven joint.
+    delay, honors both bounds and resamples one lag per environment, shared by the group's joints.
 
 .. note::
 

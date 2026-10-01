@@ -10,7 +10,7 @@ from __future__ import annotations
 import warp as wp
 
 _DELAY_RNG_STRIDE: int = 7919
-"""Prime stride that decorrelates the per-DOF delay random streams."""
+"""Prime stride that decorrelates the per-environment delay random streams."""
 
 
 @wp.kernel
@@ -67,7 +67,7 @@ def _bam_motor_kernel(
         should_update = True
         if delay_update_period > 0:
             should_update = ((step_count + delay_phase[i]) % delay_update_period) == 0
-        rng = wp.rand_init(delay_seed[i], i * _DELAY_RNG_STRIDE + step_count)
+        rng = wp.rand_init(delay_seed[i], (i // env_dof_stride) * _DELAY_RNG_STRIDE + step_count)
         if should_update:
             if delay_hold_prob > 0.0:
                 should_update = wp.randf(rng) >= delay_hold_prob
@@ -135,13 +135,14 @@ def _bam_friction_kernel(
     load_friction_motor_quad: wp.array[float],
     load_friction_external_quad: wp.array[float],
     max_effort: wp.array[float],
-    prev_motor_torque: wp.array[float],
+    prev_applied_torque: wp.array[float],
     stribeck: int,
     load_dependent: int,
     quadratic: int,
     forces: wp.array[float],
     friction_budget: wp.array[float],
     next_prev_motor: wp.array[float],
+    next_prev_applied: wp.array[float],
 ):
     """Publish the friction budget for MJWarp and emit the clamped motor torque."""
     i = wp.tid()
@@ -153,7 +154,7 @@ def _bam_friction_kernel(
     if stribeck != 0:
         stribeck_coeff = wp.exp(-wp.pow(wp.abs(joint_vel) / dtheta_stribeck[i], alpha[i]))
 
-    prev_tau = prev_motor_torque[i]
+    prev_tau = prev_applied_torque[i]
     budget = friction_base[i]
     if stribeck != 0:
         budget += stribeck_coeff * friction_stribeck[i]
@@ -181,12 +182,14 @@ def _bam_friction_kernel(
     forces[i] = wp.clamp(motor_tau, -max_effort[i], max_effort[i])
 
     next_prev_motor[i] = motor_tau
+    next_prev_applied[i] = forces[i]
 
 
 @wp.kernel
 def _bam_state_reset_kernel(
     mask: wp.array[wp.bool],
     prev_motor_torque: wp.array[float],
+    prev_applied_torque: wp.array[float],
     delay_ring: wp.array2d[float],
     delay_lag: wp.array[wp.int32],
     delay_fill: wp.array[wp.int32],
@@ -194,6 +197,7 @@ def _bam_state_reset_kernel(
     delay_phase: wp.array[wp.int32],
     delay_rng_seed: wp.array[wp.int32],
     delay_update_period: int,
+    env_dof_stride: int,
     reset_seed: int,
 ):
     """Clear the previous-step caches and the delay state of the masked DOFs."""
@@ -202,6 +206,7 @@ def _bam_state_reset_kernel(
         if not mask[i]:
             return
     prev_motor_torque[i] = 0.0
+    prev_applied_torque[i] = 0.0
     delay_lag[i] = 0
     delay_fill[i] = 0
     delay_step_count[i] = 0
@@ -209,6 +214,6 @@ def _bam_state_reset_kernel(
     for column in range(delay_ring.shape[1]):
         delay_ring[i, column] = 0.0
     if delay_update_period > 0:
-        delay_phase[i] = wp.randi(wp.rand_init(reset_seed, i), 0, delay_update_period)
+        delay_phase[i] = wp.randi(wp.rand_init(reset_seed, i // env_dof_stride), 0, delay_update_period)
     else:
         delay_phase[i] = 0

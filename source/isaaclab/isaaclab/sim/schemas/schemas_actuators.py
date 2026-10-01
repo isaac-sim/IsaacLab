@@ -258,6 +258,7 @@ def author_actuator_prims(
         is_dc_motor = isinstance(cfg, DCMotorCfg)
         is_delayed = isinstance(cfg, DelayedPDActuatorCfg)
         is_bam = isinstance(cfg, BamActuatorCfg)
+        configured_effort_limit = cfg.actuator_effort_limit
         if is_bam:
             from ...actuators.newton.bam_component import BAM_DRIVE_API, DriveBam  # noqa: PLC0415
 
@@ -280,8 +281,14 @@ def author_actuator_prims(
             if cfg.vin_min is not None:
                 bam_attrs["vin_min"] = cfg.vin_min
             bam_attrs = DriveBam.resolve_arguments(bam_attrs)
+            # Match BAM's stall-torque ceiling before any per-environment voltage sampling.
+            voltage = max(cfg.vin_range) if cfg.vin_range is not None else cfg.vin
+            configured_effort_limit = (
+                voltage * cfg.motor.kt / cfg.motor.resistance
+                if configured_effort_limit is None
+                else configured_effort_limit
+            )
 
-        configured_effort_limit = cfg.actuator_effort_limit
         effort_map: dict[str, float] = {}
         if not is_remotized:
             if configured_effort_limit is None:

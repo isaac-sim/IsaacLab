@@ -39,9 +39,9 @@ class DriveBam(DriveBase):
     """Newton-native BAM voltage-domain servo drive implemented as a :class:`~newton.actuators.DriveBase`.
 
     One step runs: delay the position command, sag the supply with the previous step's
-    load, run the firmware proportional control loop to a PWM duty cycle, convert that to a
+    unclamped motor torque, run the firmware proportional control loop to a PWM duty cycle, convert that to a
     motor torque through the DC-motor equation, size the gearbox friction budget from the
-    previous motor torque and the external load, and publish the budget to MJWarp.
+    previous clamped motor torque and the external load, and publish the budget to MJWarp.
     MJWarp applies friction alongside its other constraints; other solvers are unsupported.
 
     The model consumes only the position target; the modelled firmware has no torque input,
@@ -71,11 +71,10 @@ class DriveBam(DriveBase):
     """
 
     env_dof_stride: int
-    """Number of consecutive DOFs that share one supply, i.e. this actuator's DOFs per environment.
+    """Consecutive DOFs sharing one supply and command delay: this actuator's DOFs per environment.
 
     Set by :class:`~isaaclab.actuators.newton.NewtonActuatorAdapter`, the first object that
-    knows the environment count. Left at ``1``, the battery sag is driven by each joint's own
-    load instead of the group's.
+    knows the environment count. Left at ``1``, each joint has its own battery and delay stream.
     """
 
     friction_budget: wp.array[float] | None
@@ -118,7 +117,10 @@ class DriveBam(DriveBase):
         """Double-buffered per-DOF state of the BAM drive."""
 
         prev_motor_torque: wp.array[float] | None = None
-        """Motor-side torque of the previous step [N.m], shape ``(N,)``."""
+        """Unclamped motor torque of the previous step, used for supply sag [N.m], shape ``(N,)``."""
+
+        prev_applied_torque: wp.array[float] | None = None
+        """Clamped effort emitted on the previous step, used for friction [N.m], shape ``(N,)``."""
 
         delay_ring: wp.array2d[float] | None = None
         """Ring of past position commands [rad or m], shape ``(N, max(max_delay, 1))``."""
@@ -133,13 +135,16 @@ class DriveBam(DriveBase):
         """Steps taken since the last reset, shape ``(N,)``."""
 
         delay_phase: wp.array[wp.int32] | None = None
-        """Per-DOF offset of the lag-resampling period, shape ``(N,)``."""
+        """Offset of the lag-resampling period, shared within each environment, shape ``(N,)``."""
 
         delay_rng_seed: wp.array[wp.int32] | None = None
         """Per-DOF seed of the current episode, read during graph replay, shape ``(N,)``."""
 
         delay_update_period: int = 0
         """Update period the phase is redrawn against on reset [physics steps]."""
+
+        env_dof_stride: int = 1
+        """Consecutive DOFs sharing one command-delay stream."""
 
         delay_seed: int = 0
         """Base seed of the lag and phase draws."""
@@ -180,6 +185,7 @@ class DriveBam(DriveBase):
                 inputs=[
                     mask,
                     self.prev_motor_torque,
+                    self.prev_applied_torque,
                     self.delay_ring,
                     self.delay_lag,
                     self.delay_fill,
@@ -187,6 +193,7 @@ class DriveBam(DriveBase):
                     self.delay_phase,
                     self.delay_rng_seed,
                     self.delay_update_period,
+                    self.env_dof_stride,
                     self.delay_seed + self.reset_count,
                 ],
                 device=self.prev_motor_torque.device,
@@ -256,7 +263,12 @@ class DriveBam(DriveBase):
         # Zero disables optional friction terms and the firmware current limiter.
         defaults = dict.fromkeys(cls._PER_DOF_PARAMS, 0.0)
         defaults.update(
-            kp_scale=1.0, kd_scale=1.0, friction_scale=1.0, dtheta_stribeck=1.0, alpha=1.0, max_effort=math.inf
+            kp_scale=1.0,
+            kd_scale=1.0,
+            friction_scale=1.0,
+            dtheta_stribeck=1.0,
+            alpha=1.0,
+            max_effort=float(args["vin"]) * float(args["kt"]) / float(args["resistance"]),
         )
         for name in cls._PER_DOF_PARAMS:
             resolved[name] = float(args.get(name, defaults[name]))
@@ -333,6 +345,7 @@ class DriveBam(DriveBase):
         self.motor_torque = wp.zeros(num_actuators, dtype=wp.float32, device=device)
         self._next_state_arrays = {
             "prev_motor_torque": wp.zeros(num_actuators, dtype=wp.float32, device=device),
+            "prev_applied_torque": wp.zeros(num_actuators, dtype=wp.float32, device=device),
             "delay_ring": wp.zeros((num_actuators, max(self.max_delay, 1)), dtype=wp.float32, device=device),
             "delay_lag": wp.zeros(num_actuators, dtype=wp.int32, device=device),
             "delay_fill": wp.zeros(num_actuators, dtype=wp.int32, device=device),
@@ -346,11 +359,11 @@ class DriveBam(DriveBase):
         return True
 
     def set_env_dof_stride(self, stride: int) -> None:
-        """Declare how many consecutive DOFs share one supply.
+        """Declare how many consecutive DOFs share one supply and command delay before creating state.
 
         Args:
             stride: DOFs per environment handled by this drive. The battery sag sums
-                the previous motor torques over each such block.
+                the previous motor torques over each such block; its joints share one delay draw.
         """
         if stride < 1:
             raise ValueError(f"env_dof_stride must be at least 1, got {stride}")
@@ -359,6 +372,7 @@ class DriveBam(DriveBase):
     def state(self, num_actuators: int, device: wp.Device) -> DriveBam.State:
         state = DriveBam.State(
             prev_motor_torque=wp.zeros(num_actuators, dtype=wp.float32, device=device),
+            prev_applied_torque=wp.zeros(num_actuators, dtype=wp.float32, device=device),
             delay_ring=wp.zeros((num_actuators, max(self.max_delay, 1)), dtype=wp.float32, device=device),
             delay_lag=wp.zeros(num_actuators, dtype=wp.int32, device=device),
             delay_fill=wp.zeros(num_actuators, dtype=wp.int32, device=device),
@@ -366,6 +380,7 @@ class DriveBam(DriveBase):
             delay_phase=wp.zeros(num_actuators, dtype=wp.int32, device=device),
             delay_rng_seed=wp.full(num_actuators, self.delay_seed, dtype=wp.int32, device=device),
             delay_update_period=self.delay_update_period,
+            env_dof_stride=self.env_dof_stride,
             delay_seed=self.delay_seed,
         )
         # Draw the initial phase deterministically: the two ping-pong buffers must agree,
@@ -377,6 +392,7 @@ class DriveBam(DriveBase):
                 inputs=[
                     None,
                     state.prev_motor_torque,
+                    state.prev_applied_torque,
                     state.delay_ring,
                     state.delay_lag,
                     state.delay_fill,
@@ -384,6 +400,7 @@ class DriveBam(DriveBase):
                     state.delay_phase,
                     state.delay_rng_seed,
                     self.delay_update_period,
+                    self.env_dof_stride,
                     self.delay_seed,
                 ],
                 device=device,
@@ -473,7 +490,7 @@ class DriveBam(DriveBase):
                 self.load_friction_motor_quad,
                 self.load_friction_external_quad,
                 self.max_effort,
-                state.prev_motor_torque,
+                state.prev_applied_torque,
                 self.stribeck,
                 self.load_dependent,
                 self.quadratic,
@@ -482,6 +499,7 @@ class DriveBam(DriveBase):
                 forces,
                 self.friction_budget,
                 scratch["prev_motor_torque"],
+                scratch["prev_applied_torque"],
             ],
             device=device,
         )

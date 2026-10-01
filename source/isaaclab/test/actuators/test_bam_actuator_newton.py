@@ -240,7 +240,8 @@ def test_authoring_requires_motor_and_deployment_settings(field):
         author_actuator_prims(stage, "/Robot", {"servo": cfg})
 
 
-def test_effort_limit_is_authored_on_the_drive_not_as_a_clamping_component():
+@pytest.mark.parametrize("limit, voltage_range", [(None, None), (None, (6.5, 8.2)), (0.05, (6.5, 8.2))])
+def test_effort_limit_is_authored_on_the_drive_not_as_a_clamping_component(limit, voltage_range):
     """A BAM actuator prim must carry no USD-registered API schema beside the BAM token.
 
     Newton resolves an actuator prim's components from ``Usd.Prim.GetAppliedSchemas``, falling
@@ -250,14 +251,16 @@ def test_effort_limit_is_authored_on_the_drive_not_as_a_clamping_component():
     composed list non-empty and the BAM drive would vanish from the parse. The effort
     limit is therefore a drive parameter, and this test is what stops it going back.
     """
-    cfg = _make_cfg(actuator_effort_limit=0.05)
+    cfg = _make_cfg(actuator_effort_limit=limit, vin_range=voltage_range)
     stage = _make_stage(cfg)
 
     prim = stage.GetPrimAtPath(f"/Robot/servo_{JOINT_NAMES[0]}_actuator")
     parsed = parse_actuator_prim(prim)
     assert parsed is not None and parsed.drive_class is DriveBam
     assert parsed.component_specs == [], "a BAM prim must compose no clamping or delay component"
-    assert DriveBam.resolve_arguments(dict(parsed.drive_kwargs))["max_effort"] == pytest.approx(0.05)
+    voltage = max(voltage_range) if voltage_range is not None else cfg.vin
+    expected = limit if limit is not None else voltage * cfg.motor.kt / cfg.motor.resistance
+    assert DriveBam.resolve_arguments(dict(parsed.drive_kwargs))["max_effort"] == pytest.approx(expected)
 
     spec = stage.GetRootLayer().GetPrimAtPath(prim.GetPath())
     assert list(spec.GetInfo("apiSchemas").GetAppliedItems()) == [BAM_DRIVE_API]
@@ -295,14 +298,19 @@ def test_drive_matches_upstream_motor_and_friction_goldens(device):
     harness = _Harness(num_envs=samples // 2, device=device)
     # The budget's prior motor load is an independent golden input, not recomputed by the port.
     state_in, state_out = harness.actuator.state(), harness.actuator.state()
-    state_in.drive_state.prev_motor_torque.assign(goldens["prev_tau"].astype(np.float32))
+    state_in.drive_state.prev_applied_torque.assign(goldens["prev_tau"].astype(np.float32))
     harness.drive.external_torque.assign(goldens["ext_tau"].astype(np.float32))
     for array, key in ((harness.joint_pos, "q"), (harness.joint_vel, "dq"), (harness.target_pos, "q_target")):
         array.assign(goldens[key].astype(np.float32).reshape(-1, 2))
     with wp.ScopedDevice(device):
         harness.actuator.step(harness.state, harness.control, state_in, state_out, dt=DT)
+    np.testing.assert_allclose(harness.drive.motor_torque.numpy(), goldens["motor_torque"], rtol=1e-5, atol=1e-6)
+    limit = VIN * float(goldens["attr_kt"]) / float(goldens["attr_R"])
     np.testing.assert_allclose(
-        harness.control.joint_f_2d.numpy().reshape(-1), goldens["motor_torque"], rtol=1e-5, atol=1e-6
+        harness.control.joint_f_2d.numpy().reshape(-1),
+        np.clip(goldens["motor_torque"], -limit, limit),
+        rtol=1e-5,
+        atol=1e-6,
     )
     np.testing.assert_allclose(
         harness.drive.friction_budget.numpy(), goldens["frictionloss_budget"], rtol=1e-5, atol=1e-6
@@ -312,16 +320,33 @@ def test_drive_matches_upstream_motor_and_friction_goldens(device):
 @pytest.mark.parametrize("device", test_devices())
 def test_solver_mode_emits_the_motor_torque_and_publishes_the_budget(device):
     """With the solver owning the friction, BAM applies the motor torque and exports the budget."""
-    harness = _Harness(num_envs=1, device=device, max_effort=0.05)
+    harness = _Harness(num_envs=1, device=device, max_effort=0.05, sag_gain=0.1)
     params = _reference_params()
 
     effort = harness.step(np.array([[0.3, -0.1]]), np.array([[0.5, -0.4]]), np.zeros((1, 2)))
 
-    motor = harness.drive.motor_torque.numpy()
+    motor = harness.drive.motor_torque.numpy().copy()
     assert np.abs(motor).max() > 0.05, "the configured effort limit must bind"
     np.testing.assert_allclose(effort.reshape(-1), np.clip(motor, -0.05, 0.05), atol=0.0, rtol=0.0)
     budget = harness.drive.friction_budget.numpy()
     assert (budget >= params.friction_base).all(), "the published budget must keep the Coulomb floor"
+
+    # Friction uses the previously applied effort even if the limit changes; sag uses raw torque.
+    harness.drive.max_effort.fill_(0.02)
+    zeros = np.zeros((1, 2))
+    harness.step(zeros, zeros, zeros)
+    expected_budget = (
+        params.friction_base
+        + params.friction_stribeck
+        + np.abs(effort.reshape(-1)) * (params.load_friction_motor + params.load_friction_motor_stribeck)
+    )
+    np.testing.assert_allclose(harness.drive.friction_budget.numpy(), expected_budget, rtol=1e-6)
+    np.testing.assert_allclose(harness.drive.effective_vin.numpy(), VIN - 0.1 * np.abs(motor).sum(), rtol=1e-6)
+    harness.reset(torch.tensor([0], device=device))
+    harness.step(zeros, zeros, zeros)
+    np.testing.assert_allclose(
+        harness.drive.friction_budget.numpy(), params.friction_base + params.friction_stribeck, rtol=1e-6
+    )
 
 
 @pytest.mark.parametrize("device", test_devices())
@@ -442,7 +467,7 @@ def test_constant_delay_replays_an_older_command(device, hold_probability, perio
 
 @pytest.mark.parametrize("hold_probability, period", [(1.0, 0), (0.0, 4)])
 def test_delay_hold_and_update_period_reach_the_motor_output(hold_probability, period):
-    """Hold freezes the lag; periodic refreshes remain staggered per driven joint."""
+    """Hold freezes the lag; periodic refreshes remain staggered per environment."""
     harness = _Harness(
         num_envs=16,
         device="cpu",
@@ -462,6 +487,7 @@ def test_delay_hold_and_update_period_reach_the_motor_output(hold_probability, p
         lags.append(step - np.rint(efforts / torque_step).astype(int))
     history = np.stack(lags)
     assert history.min() >= 0 and history.max() <= 3
+    np.testing.assert_array_equal(history[:, :, 0], history[:, :, 1])
     if hold_probability == 1.0:
         np.testing.assert_array_equal(history, 0)
     else:
@@ -508,11 +534,14 @@ def test_delay_rng_changes_on_reset_and_preserves_untouched_environments(device)
         return np.asarray(efforts)
 
     first = rollout()
+    np.testing.assert_array_equal(first[..., 0], first[..., 1])
+    assert not np.array_equal(first[:, 0, 0], first[:, 0, 1]), "environments must have independent lags"
     np.testing.assert_array_equal(first[:, 0], first[:, 1])
     np.testing.assert_array_equal(first[:, 0], first[:, 2])
     for harness in harnesses[:2]:
         harness.reset(torch.tensor([0], device=device))
     second = rollout()
+    np.testing.assert_array_equal(second[..., 0], second[..., 1])
     # Identical reset histories give identical draws, but a new episode gets a new sequence.
     np.testing.assert_array_equal(second[:, 0], second[:, 1])
     assert not np.array_equal(first[:, 0, 0], second[:, 0, 0]), "reset replayed the same delay sequence"
