@@ -28,7 +28,7 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab_tasks.utils import PresetCfg
 from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
 
-from isaaclab_assets.robots.franka import FRANKA_PANDA_HIGH_PD_CFG
+from isaaclab_assets.robots.franka import FRANKA_PANDA_LEGACY_HIGH_PD_CFG
 
 BenchmarkMode = Literal["render", "physics_render"]
 """Animation mode used by the render benchmark.
@@ -144,9 +144,9 @@ class RenderBenchmarkSceneCfg(InteractiveSceneCfg):
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, -0.05)),
     )
     robot: ArticulationCfg = replace(
-        FRANKA_PANDA_HIGH_PD_CFG,
+        FRANKA_PANDA_LEGACY_HIGH_PD_CFG,
         prim_path="{ENV_REGEX_NS}/Robot",
-        init_state=replace(FRANKA_PANDA_HIGH_PD_CFG.init_state, pos=(1.0, 0.0, 0.0), rot=(0.0, 0.0, 1.0, 0.0)),
+        init_state=replace(FRANKA_PANDA_LEGACY_HIGH_PD_CFG.init_state, pos=(1.0, 0.0, 0.0), rot=(0.0, 0.0, 1.0, 0.0)),
     )
     cabinet: ArticulationCfg = ArticulationCfg(
         prim_path="{ENV_REGEX_NS}/Cabinet",
