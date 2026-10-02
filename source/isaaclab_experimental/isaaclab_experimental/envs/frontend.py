@@ -182,7 +182,7 @@ class WarpFrontend:
         2. :meth:`_promote_scene_entity_cfgs` — replace stable
            :class:`~isaaclab.managers.SceneEntityCfg` instances under each
            term's ``params`` with the warp variant (which adds warp-cached
-           ``joint_mask``, ``joint_ids_wp``, ``body_ids_wp`` fields).
+           ``joint_mask_wp``, ``joint_ids_wp``, ``body_ids_wp`` fields).
         3. :meth:`_swap_mdp` — for every MDP term found anywhere in the cfg tree
            (discovered by :meth:`_walk_terms` via :class:`ManagerTermBaseCfg`
            subclassing, not by hard-coded attribute names), replace any stable
@@ -247,7 +247,7 @@ class WarpFrontend:
         rebuilds any stable :class:`SceneEntityCfg` value under ``term.params``
         through :meth:`isaaclab_experimental.managers.SceneEntityCfg.from_stable`.
         The warp variant subclasses the stable one, so type checks elsewhere
-        stay valid; the new fields (``joint_mask`` / ``joint_ids_wp`` /
+        stay valid; the new fields (``joint_mask_wp`` / ``joint_ids_wp`` /
         ``body_ids_wp``) are filled at :meth:`resolve` time by the warp scene.
         """
         from isaaclab_experimental.managers.scene_entity_cfg import SceneEntityCfg as _WarpSceneEntityCfg

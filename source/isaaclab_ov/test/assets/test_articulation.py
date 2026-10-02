@@ -710,6 +710,17 @@ def test_newton_native_actuator_reset_and_gain_event_are_environment_selective(d
         articulation.reset(env_ids=torch.tensor([0], device=device, dtype=torch.long))
         assert stateful_pairs[0].delay_state.num_pushes.numpy().tolist() == [0, 1]
 
+        articulation.write_data_to_sim()
+        sim.step()
+        articulation.update(sim.cfg.dt)
+        articulation.reset(env_mask=wp.array([False, True], dtype=wp.bool, device=device))
+        stateful_pairs = [
+            state
+            for state in adapter._states_a
+            if state is not None and getattr(state, "delay_state", None) is not None
+        ]
+        assert stateful_pairs[0].delay_state.num_pushes.numpy().tolist() == [1, 0]
+
         env = Env(articulation)
         asset_cfg = SceneEntityCfg("robot")
         event_params = {

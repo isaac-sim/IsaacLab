@@ -219,6 +219,7 @@ def create_newton_rigid_object_collection(
     object.__setattr__(collection, "_ALL_BODY_INDICES", wp.array(np.arange(num_bodies, dtype=np.int32), device=device))
     object.__setattr__(collection, "_ALL_ENV_MASK", wp.ones((num_instances,), dtype=wp.bool, device=device))
     object.__setattr__(collection, "_ALL_BODY_MASK", wp.ones((num_bodies,), dtype=wp.bool, device=device))
+    object.__setattr__(collection, "_scratch_body_mask", wp.zeros((num_bodies,), dtype=wp.bool, device=device))
 
     return collection, mock_view
 

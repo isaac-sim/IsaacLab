@@ -13,15 +13,13 @@ The following classes are part of the public :mod:`isaaclab_experimental.utils` 
 .. autosummary::
    :nosignatures:
 
-   ManagerCallMode
-   ManagerCallSwitch
-   WarpGraphCache
+   CapturedStage
+   captured
+   eager
 
-.. autoclass:: ManagerCallMode
+.. autoclass:: CapturedStage
    :show-inheritance:
 
-.. autoclass:: ManagerCallSwitch
-   :show-inheritance:
+.. autofunction:: captured
 
-.. autoclass:: WarpGraphCache
-   :show-inheritance:
+.. autofunction:: eager

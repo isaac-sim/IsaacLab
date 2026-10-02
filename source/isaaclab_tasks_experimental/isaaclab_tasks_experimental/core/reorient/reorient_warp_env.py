@@ -12,21 +12,12 @@ from typing import TYPE_CHECKING
 import torch
 import warp as wp
 from isaaclab_experimental.envs import DirectRLEnvWarp
+from isaaclab_experimental.utils.warp_capture import captured
+
+from isaaclab.utils.seed import WarpRng
 
 if TYPE_CHECKING:
     from isaaclab_tasks.core.reorient.config.allegro_hand.allegro_hand_direct_env_cfg import AllegroHandEnvCfg
-
-
-@wp.kernel
-def initialize_rng_state(
-    # input
-    seed: wp.int32,
-    # output
-    state: wp.array(dtype=wp.uint32),
-):
-    """Initialize each env's random number generator state from the seed."""
-    env_id = wp.tid()
-    state[env_id] = wp.rand_init(seed, wp.int32(env_id))
 
 
 @wp.kernel
@@ -647,20 +638,6 @@ class ReorientDirectWarpEnv(DirectRLEnvWarp):
         self.object_pose = wp.zeros(self.num_envs, dtype=wp.transformf, device=self.device)
         self.object_vels = wp.zeros(self.num_envs, dtype=wp.spatial_vectorf, device=self.device)
 
-        # RNG state (per-env) for randomizations in reset/goal resets.
-        self.rng_state = wp.zeros(self.num_envs, dtype=wp.uint32, device=self.device)
-        if self.cfg.seed is None:
-            self.cfg.seed = -1
-        wp.launch(
-            initialize_rng_state,
-            dim=self.num_envs,
-            inputs=[
-                self.cfg.seed,
-                self.rng_state,
-            ],
-            device=self.device,
-        )
-
         # ---------------------------------------------------------------------
         # Torch views / aliases
         # ---------------------------------------------------------------------
@@ -676,6 +653,7 @@ class ReorientDirectWarpEnv(DirectRLEnvWarp):
         # Store actions in a persistent Warp buffer (analogous to `actions.clone()` in the Torch env).
         wp.copy(self.actions, actions)
 
+    @captured
     def _apply_action(self) -> None:
         wp.launch(
             apply_actions_to_targets,
@@ -696,6 +674,7 @@ class ReorientDirectWarpEnv(DirectRLEnvWarp):
         # All joints are actuated for Allegro, so default masks (None = all) are correct.
         self.hand.set_joint_position_target_mask(target=self.cur_targets)
 
+    @captured
     def _get_observations(self) -> dict:
         # if self.cfg.asymmetric_obs:
         #    self.fingertip_force_sensors = self.hand.root_physx_view.get_link_incoming_joint_force()[
@@ -711,6 +690,7 @@ class ReorientDirectWarpEnv(DirectRLEnvWarp):
             raise ValueError(f"Unknown obs_type: {self.cfg.obs_type}")
         return {"policy": self.torch_obs_buf}
 
+    @captured
     def _get_rewards(self) -> None:
         # Clear reduction buffers before launching the reward kernel.
         # wp.assign(self._num_resets, 0.0)
@@ -766,6 +746,7 @@ class ReorientDirectWarpEnv(DirectRLEnvWarp):
         # This avoids Torch-side index extraction and keeps the step graphable.
         self._reset_target_pose(mask=self.reset_goal_buf)
 
+    @captured
     def _get_dones(self) -> None:
         self._compute_intermediate_values()
 
@@ -789,6 +770,7 @@ class ReorientDirectWarpEnv(DirectRLEnvWarp):
             device=self.device,
         )
 
+    @captured
     def _reset_idx(self, mask: wp.array | None = None):
         if mask is None:
             mask = self._ALL_ENV_MASK
@@ -810,7 +792,7 @@ class ReorientDirectWarpEnv(DirectRLEnvWarp):
                 self.x_unit_vec,
                 self.y_unit_vec,
                 mask,
-                self.rng_state,
+                WarpRng.state,
                 self.object.data.root_link_pose_w.warp,
                 self.object.data.root_com_vel_w.warp,
             ],
@@ -830,7 +812,7 @@ class ReorientDirectWarpEnv(DirectRLEnvWarp):
                 self.cfg.reset_dof_vel_noise,
                 mask,
                 self.num_hand_dofs,
-                self.rng_state,
+                WarpRng.state,
                 self.hand.data.joint_pos.warp,
                 self.hand.data.joint_vel.warp,
                 self.prev_targets,
@@ -874,7 +856,7 @@ class ReorientDirectWarpEnv(DirectRLEnvWarp):
                 self.y_unit_vec,
                 self.env_origins,
                 self.goal_pos,
-                self.rng_state,
+                WarpRng.state,
                 self.goal_rot,
                 self.reset_goal_buf,
                 self.goal_pos_w,
