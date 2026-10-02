@@ -470,6 +470,7 @@ class TerminationsCfg:
 class H1TableclothEnvCfg(ManagerBasedRLEnvCfg):
     """H1 tablecloth task using Newton VBD and Newton IK."""
 
+    class_type: type | str = "{DIR}.h1_env:H1TableclothEnv"
     scene: H1TableclothSceneCfg = H1TableclothSceneCfg(num_envs=1, env_spacing=2.0, replicate_physics=True)
     actions: ActionsCfg = ActionsCfg()
     observations: ObservationsCfg = ObservationsCfg()
