@@ -904,56 +904,28 @@ class PairedTests(unittest.TestCase):
                 self.assertFalse(selected.metadata["baseline_reused"])
                 self.assertNotIn("baseline_metric_definition", selected.metadata)
 
-    def test_bind_cli_recovers_missing_selection_and_reports_failed_stage(self):
-        event_path = self.root / "event.json"
-        event_path.write_bytes(encoded(self.event))
-        issue = "The PR base checkout failed; no baseline was measured."
+    def test_bind_cli_recovers_missing_selection_with_or_without_failure_detail(self):
         tested_merge = "e" * 40
-        with patch.dict(
-            os.environ,
-            {
-                "GITHUB_SHA": tested_merge,
-                "GITHUB_REPOSITORY": REPO,
-                "GITHUB_EVENT_PATH": str(event_path),
-            },
-        ):
-            result = paired.main(
-                [
-                    "bind",
-                    "--selection",
-                    str(self.selection_path),
-                    "--output-dir",
-                    str(self.output),
-                    "--baseline-issue",
-                    issue,
-                ]
-            )
-        self.assertEqual(result, 0)
-        selection = json.loads((self.output / "pr-comparison.json").read_text())
-        self.assertEqual(selection["reason"], issue)
-        self.assertIn(issue, selection["issues"])
-        self.assertEqual(selection["pull_request_number"], 42)
-        self.assertEqual(selection["reference_commit"], self.commit)
-        self.assertEqual(selection["requested_head_commit"], HEAD)
-        self.assertEqual(selection["tested_commit"], tested_merge)
-        self.assertFalse(selection["baseline_reused"])
-        self.assertIsNone(selection["baseline_origin"])
-
-    def test_bind_cli_names_missing_selection_when_stage_detail_is_unavailable(self):
-        event_path = self.root / "event.json"
-        event_path.write_bytes(encoded(self.event))
-        with patch.dict(
-            os.environ,
-            {
-                "GITHUB_SHA": HEAD,
-                "GITHUB_REPOSITORY": REPO,
-                "GITHUB_EVENT_PATH": str(event_path),
-            },
-        ):
-            paired.main(["bind", "--selection", str(self.selection_path), "--output-dir", str(self.output)])
-        selection = json.loads((self.output / "pr-comparison.json").read_text())
-        self.assertIn("Baseline selection metadata was not produced", selection["reason"])
-        self.assertIsNone(selection["baseline_origin"])
+        for issue in ("The PR base checkout failed; no baseline was measured.", None):
+            with self.subTest(failure_detail=issue):
+                self.selection_path.unlink(missing_ok=True)
+                arguments = ["bind", "--selection", str(self.selection_path), "--output-dir", str(self.output)]
+                if issue:
+                    arguments.extend(["--baseline-issue", issue])
+                result = self._cli(arguments, GITHUB_SHA=tested_merge)
+                self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+                selection = json.loads((self.output / "pr-comparison.json").read_text())
+                if issue:
+                    self.assertEqual(selection["reason"], issue)
+                    self.assertIn(issue, selection["issues"])
+                else:
+                    self.assertIn("Baseline selection metadata was not produced", selection["reason"])
+                self.assertEqual(selection["pull_request_number"], 42)
+                self.assertEqual(selection["reference_commit"], self.commit)
+                self.assertEqual(selection["requested_head_commit"], HEAD)
+                self.assertEqual(selection["tested_commit"], tested_merge)
+                self.assertFalse(selection["baseline_reused"])
+                self.assertIsNone(selection["baseline_origin"])
 
 
 if __name__ == "__main__":

@@ -15,6 +15,7 @@ from __future__ import annotations
 import html
 import json
 import re
+from collections import Counter
 from pathlib import Path
 
 from .compare import ERROR, FAIL, PASS, SKIP, WARN, Report
@@ -315,20 +316,10 @@ def render_build_comparison(report: dict) -> str:
     b_label += " (evidence unavailable)" if unavailable_side == "candidate" else ""
     rows = report.get("rows", [])
     labels = _build_labels(rows)
-    higher = lower = unchanged = cannot_compare = 0
-    for row in rows:
-        delta = row.get("absolute_change")
-        if row["status"] != "compared" or delta is None:
-            cannot_compare += 1
-        elif delta > 0:
-            higher += 1
-        elif delta < 0:
-            lower += 1
-        else:
-            unchanged += 1
-    counts = [f"🟢 Improved {higher}", f"🔴 Regressed {lower}", f"⚪ Not comparable {cannot_compare}"]
-    if unchanged:
-        counts.append(f"⚪ Unchanged {unchanged}")
+    results = Counter(_build_result(row) for row in rows)
+    counts = [f"{status} {results[status]}" for status in ("🟢 Improved", "🔴 Regressed", "⚪ Not comparable")]
+    if results["⚪ Unchanged"]:
+        counts.append(f"⚪ Unchanged {results['⚪ Unchanged']}")
     lines = [
         "### PR performance comparison" if paired else "### Automatic build comparison",
         "",

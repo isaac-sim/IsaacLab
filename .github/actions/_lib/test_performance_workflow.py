@@ -46,7 +46,7 @@ WORKFLOW = Path(__file__).resolve().parents[2] / "workflows/build.yaml"
         ("pull_request", "synchronize", [], True, False),
     ],
 )
-def test_update_activation_routes_gpu_only_after_initial_label(tmp_path, event, action, pages, error, expected):
+def test_update_activation_routes_gpu_only_after_initial_label(event, action, pages, error, expected):
     workflow = yaml.safe_load(WORKFLOW.read_text())
     jobs = workflow["jobs"]
     activation = next(step for step in jobs["changes"]["steps"] if step.get("id") == "activation")

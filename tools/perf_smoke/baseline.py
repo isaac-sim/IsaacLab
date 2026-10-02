@@ -53,7 +53,7 @@ class GitHubClient:
         self._token = token if token is not None else os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN")
         self._opener = urllib.request.build_opener(_NoRedirect())
 
-    def _request(self, path: str, *, download: bool = False) -> tuple[bytes, Any]:
+    def _request(self, path: str, *, download: bool = False) -> bytes:
         url = "https://api.github.com" + path
         headers = {"Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28"}
         if self._token:
@@ -71,7 +71,7 @@ class GitHubClient:
                 # A fresh request/opener carries no GitHub authorization to the signed URL.
                 response = urllib.request.urlopen(urllib.request.Request(destination), timeout=_REQUEST_TIMEOUT_SECONDS)
             with response:
-                return response.read(), response.headers
+                return response.read()
         except EvidenceError:
             raise
         except urllib.error.HTTPError as exc:
@@ -86,7 +86,7 @@ class GitHubClient:
             raise EvidenceError("inaccessible", f"GitHub evidence request failed ({type(exc).__name__})") from None
 
     def get(self, path: str) -> dict:
-        data, _ = self._request(path)
+        data = self._request(path)
         try:
             value = json.loads(data)
         except (UnicodeError, ValueError):
@@ -140,11 +140,10 @@ class GitHubClient:
     def download(self, artifact: dict) -> bytes:
         if artifact.get("expired"):
             raise EvidenceError("expired", "Selected GitHub artifact has expired", {"artifact_id": artifact.get("id")})
-        data, _ = self._request(
+        return self._request(
             f"/repos/{self.repository}/actions/artifacts/{artifact['id']}/zip",
             download=True,
         )
-        return data
 
 
 @dataclass
@@ -157,11 +156,11 @@ class Evidence:
     measurement_start: str | None
     measurement_end: str | None
     zip_bytes: bytes = field(repr=False)
-    run: dict[str, Any] = field(repr=False)
+    files: dict[str, bytes] = field(repr=False)
 
     @property
     def has_completed_runtime(self) -> bool:
-        return any(_usable(item["bundle"]) for items in self.samples.values() for item in items)
+        return any(has_usable_runtime(item["bundle"]) for items in self.samples.values() for item in items)
 
 
 @dataclass
@@ -170,7 +169,8 @@ class Selection:
     metadata: dict[str, Any]
 
 
-def _time(value: Any) -> datetime | None:
+def parse_timestamp(value: Any) -> datetime | None:
+    """Read a timezone-aware ISO timestamp as UTC, or return None."""
     if not isinstance(value, str):
         return None
     try:
@@ -180,11 +180,13 @@ def _time(value: Any) -> datetime | None:
         return None
 
 
-def _sha(value: Any) -> bool:
+def is_commit_sha(value: Any) -> bool:
+    """Whether the value identifies a full Git commit SHA."""
     return isinstance(value, str) and re.fullmatch(r"[0-9a-fA-F]{40}", value) is not None
 
 
-def _usable(bundle: dict) -> bool:
+def has_usable_runtime(bundle: dict) -> bool:
+    """Whether a completed runtime sample has a finite, nonnegative FPS value."""
     fps = bundle.get("runtime", {}).get("total_fps")
     value = fps.get("mean") if isinstance(fps, dict) else None
     if bundle.get("run", {}).get("status") != "completed" or isinstance(value, bool):
@@ -224,7 +226,8 @@ def workload_key(bundle: dict) -> str | None:
     )
 
 
-def _zip_files(client: GitHubClient, artifact: dict) -> tuple[bytes, dict[str, bytes]]:
+def download_artifact(client: GitHubClient, artifact: dict) -> tuple[bytes, dict[str, bytes]]:
+    """Download and validate an artifact, retaining its exact ZIP and decoded files."""
     data = client.download(artifact)
     digest = hashlib.sha256(data).hexdigest()
     if artifact.get("digest") and artifact["digest"].lower() != f"sha256:{digest}":
@@ -255,6 +258,13 @@ def _object(data: bytes, name: str) -> dict:
     return value
 
 
+def artifact_json(files: dict[str, bytes], name: str) -> dict:
+    """Read a named JSON object from the validated artifact contents."""
+    if name not in files:
+        raise EvidenceError("missing_source_evidence", f"The artifact has no {name}.")
+    return _object(files[name], name)
+
+
 def _github_links(identity: dict) -> dict[str, str]:
     repository, run_id, attempt = identity["repository"], identity["run_id"], identity["run_attempt"]
     return {
@@ -278,7 +288,7 @@ def _saved_baseline_identity(value: Any) -> dict:
     digest = value.get("sha256")
     if not isinstance(digest, str) or re.fullmatch(r"[0-9a-fA-F]{64}", digest) is None:
         raise EvidenceError("corrupt", "Previous comparison baseline SHA256 is invalid")
-    if not _sha(value.get("source_commit")):
+    if not is_commit_sha(value.get("source_commit")):
         raise EvidenceError("corrupt", "Previous comparison baseline source commit is not a full Git SHA")
     identity = {**value, "sha256": digest.lower(), "source_commit": value["source_commit"].lower()}
     identity["artifact_name"] = f"performance-smoke-{identity['run_id']}-{identity['run_attempt']}"
@@ -301,7 +311,7 @@ def read_evidence(
     if artifact.get("name") != name or (artifact.get("workflow_run") or {}).get("id", run_id) != run_id:
         raise EvidenceError("identity_mismatch", "Artifact does not belong to the requested producing attempt")
     try:
-        data, files = contents if contents is not None else _zip_files(client, artifact)
+        data, files = contents if contents is not None else download_artifact(client, artifact)
     except EvidenceError as exc:
         known = {
             "repository": client.repository,
@@ -326,7 +336,7 @@ def read_evidence(
     if context and (execution.get("run_id") != run_id or execution.get("run_attempt") != attempt):
         raise EvidenceError("identity_mismatch", "Artifact build context identifies another producing attempt")
     commit = source.get("commit") or run.get("head_sha")
-    if not _sha(commit):
+    if not is_commit_sha(commit):
         raise EvidenceError("identity_mismatch", "Evidence source commit is not a full Git SHA")
     samples: dict[str, list[dict]] = {}
     statuses = {}
@@ -354,8 +364,8 @@ def read_evidence(
                 missing_start = missing_end = True
                 continue
             samples.setdefault(parts[0], []).append({"path": path, "bundle": bundle})
-            start = _time(bundle["run"].get("start_time_utc"))
-            end = _time(bundle["run"].get("end_time_utc"))
+            start = parse_timestamp(bundle["run"].get("start_time_utc"))
+            end = parse_timestamp(bundle["run"].get("end_time_utc"))
             if start and end and end < start:
                 issues.append(f"{path}: runtime ends before it starts")
                 start = end = None
@@ -369,11 +379,11 @@ def read_evidence(
             else:
                 missing_end = True
                 issues.append(f"{path}: runtime has no valid end timestamp")
-            if bundle["run"].get("status") == "completed" and not _usable(bundle):
+            if bundle["run"].get("status") == "completed" and not has_usable_runtime(bundle):
                 issues.append(f"{path}: completed runtime has no finite nonnegative FPS value")
     if not context:
         issues.append("Build context and FPS formula provenance are unavailable in this historical artifact")
-    capture_time = _time(execution.get("measurement_not_before"))
+    capture_time = parse_timestamp(execution.get("measurement_not_before"))
     cutoff = min(starts) if starts and not missing_start else capture_time
     if cutoff and (missing_start or not starts):
         if starts and cutoff > min(starts):
@@ -384,7 +394,7 @@ def read_evidence(
     completed = max(ends) if ends and not missing_end else None
     if missing_end:
         jobs = [job for job in client.jobs(run_id, attempt) if job.get("name") == "performance-smoke-benchmarks"]
-        job_ends = [_time(job.get("completed_at")) for job in jobs]
+        job_ends = [parse_timestamp(job.get("completed_at")) for job in jobs]
         if job_ends and all(end is not None for end in job_ends):
             bound = max(job_ends)
             if not ends or bound >= max(ends):
@@ -420,7 +430,7 @@ def read_evidence(
         cutoff.isoformat() if cutoff else None,
         completed.isoformat() if completed else None,
         data,
-        run,
+        files,
     )
 
 
@@ -441,12 +451,12 @@ def resolve_candidate(client: GitHubClient, run_id: int, report_attempt: int) ->
             result = read_evidence(client, run, artifact, attempt)
             result.identity["report_attempt"] = report_attempt
             return result
-        started = _time(run.get("run_started_at"))
+        started = parse_timestamp(run.get("run_started_at"))
         jobs = [job for job in client.jobs(run_id, attempt) if job.get("name") == "performance-smoke-benchmarks"]
         for job in jobs:
             if job.get("conclusion") == "skipped":
                 continue
-            job_started = _time(job.get("started_at"))
+            job_started = parse_timestamp(job.get("started_at"))
             if started is None or job_started is None:
                 raise EvidenceError("ambiguous_attempt", "Cannot establish when the benchmark job ran")
             if job_started >= started:
@@ -471,7 +481,7 @@ def load_previous_selection(client: GitHubClient, candidate: Evidence) -> dict |
         if name.startswith(prefix) and suffix.isdigit() and int(suffix) < report_attempt:
             reports.append((int(suffix), artifact))
     for _, artifact in sorted(reports, key=lambda item: item[0], reverse=True):
-        _, files = _zip_files(client, artifact)
+        _, files = download_artifact(client, artifact)
         if "build-comparison.json" not in files:
             raise EvidenceError("corrupt", "Previous comparison artifact has no build-comparison.json")
         report = _object(files["build-comparison.json"], "build-comparison.json")
@@ -548,8 +558,8 @@ def select_baseline(client: GitHubClient, candidate: Evidence, pinned_identity: 
             selected=baseline.identity,
         )
         return Selection(baseline, metadata)
-    cutoff = _time(candidate.measurement_start)
-    if not branch or not _sha(anchor) or cutoff is None:
+    cutoff = parse_timestamp(candidate.measurement_start)
+    if not branch or not is_commit_sha(anchor) or cutoff is None:
         metadata["reason"] = "Baseline reference branch, tested parent, or candidate measurement start is unavailable"
         return Selection(None, metadata)
     while anchor:
@@ -572,7 +582,7 @@ def select_baseline(client: GitHubClient, candidate: Evidence, pinned_identity: 
                         continue
                     attempt = int(match[1])
                     run = client.run_attempt(run_id, attempt)
-                    attempt_start = _time(run.get("run_started_at"))
+                    attempt_start = parse_timestamp(run.get("run_started_at"))
                     if attempt_start and attempt_start >= cutoff:
                         continue
                     baseline = read_evidence(client, run, artifact, attempt)
@@ -584,14 +594,14 @@ def select_baseline(client: GitHubClient, candidate: Evidence, pinned_identity: 
                             }
                         )
                         continue
-                    end = _time(baseline.measurement_end)
+                    end = parse_timestamp(baseline.measurement_end)
                     if not baseline.has_completed_runtime:
                         metadata["issues"].append(
                             {"artifact_id": artifact["id"], "reason": "No usable completed runtime sample"}
                         )
                     elif not any(
                         baseline.statuses.get(leg) == "ok"
-                        and _usable(item["bundle"])
+                        and has_usable_runtime(item["bundle"])
                         and workload_key(item["bundle"]) in candidate_keys
                         for leg, items in baseline.samples.items()
                         for item in items
@@ -622,7 +632,7 @@ def select_baseline(client: GitHubClient, candidate: Evidence, pinned_identity: 
             return Selection(baseline, metadata)
         parents = client.commit(anchor).get("parents", [])
         anchor = parents[0].get("sha") if parents else None
-        if anchor is not None and not _sha(anchor):
+        if anchor is not None and not is_commit_sha(anchor):
             raise EvidenceError("invalid_ancestry", "GitHub returned an invalid first-parent commit")
     metadata["reason"] = "No available measured target-branch ancestor completed before the candidate"
     return Selection(None, metadata)

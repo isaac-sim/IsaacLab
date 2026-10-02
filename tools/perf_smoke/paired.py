@@ -9,13 +9,11 @@ from __future__ import annotations
 
 import argparse
 import hashlib
-import io
 import json
 import os
 import socket
 import subprocess
 import tempfile
-import zipfile
 from contextlib import suppress
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
@@ -37,17 +35,6 @@ def _write(path: Path, value: dict) -> None:
             temporary.unlink(missing_ok=True)
 
 
-def _files(data: bytes) -> dict[str, bytes]:
-    with zipfile.ZipFile(io.BytesIO(data)) as archive:
-        return {name: archive.read(name) for name in archive.namelist() if not name.endswith("/")}
-
-
-def _json(files: dict[str, bytes], name: str) -> dict:
-    if name not in files:
-        raise store.EvidenceError("missing_source_evidence", f"The artifact has no {name}.")
-    return store._object(files[name], name)
-
-
 def baseline_name(pr_number: int, commit: str, attempt: int = 1) -> str:
     return f"performance-pr-baseline-{pr_number}-{commit}-{attempt}"
 
@@ -65,7 +52,7 @@ def resolve_base(root: Path, event: dict) -> dict:
     tested = os.environ.get("GITHUB_SHA")
     pr = event["pull_request"]
     head = pr["head"]["sha"]
-    if not store._sha(tested) or commit != tested:
+    if not store.is_commit_sha(tested) or commit != tested:
         raise ValueError("Checked-out PR revision does not match the immutable tested merge GITHUB_SHA.")
     if len(parents) != 2 or parents[1] != head:
         raise ValueError("Tested PR merge does not have the event's head commit as its second parent.")
@@ -79,7 +66,7 @@ def resolve_base(root: Path, event: dict) -> dict:
 
 def _resolved_base(commit: str | None = None) -> str:
     commit = os.environ.get("PERF_BASE_COMMIT") if commit is None else commit
-    if not store._sha(commit):
+    if not store.is_commit_sha(commit):
         detail = os.environ.get("PERF_PAIR_ERROR")
         raise ValueError(detail or "The tested PR merge's first parent was not resolved; PERF_BASE_COMMIT is missing.")
     return commit
@@ -88,7 +75,7 @@ def _resolved_base(commit: str | None = None) -> str:
 def source_issues(evidence: store.Evidence, files: dict[str, bytes], commit: str) -> list[str]:
     """Check each result against its same-process source proof, retaining per-leg failures."""
     try:
-        manifest = _json(files, "source-manifest.json")
+        manifest = store.artifact_json(files, "source-manifest.json")
         if manifest.get("commit") != commit or not manifest.get("files"):
             raise store.EvidenceError("source_mismatch", "Source manifest does not identify the selected commit.")
     except store.EvidenceError as exc:
@@ -99,7 +86,7 @@ def source_issues(evidence: store.Evidence, files: dict[str, bytes], commit: str
             path = sample["path"]
             sidecar_path = str(PurePosixPath(path).parent / "source-revision.json")
             try:
-                proof = _json(files, sidecar_path)
+                proof = store.artifact_json(files, sidecar_path)
                 runtime = proof.get("runtime_entrypoint") or {}
                 modules = proof.get("modules") or []
                 if (
@@ -136,8 +123,8 @@ def source_issues(evidence: store.Evidence, files: dict[str, bytes], commit: str
 
 
 def _read_baseline(client: store.GitHubClient, artifact: dict, pr_number: int, base_commit: str) -> store.Evidence:
-    contents = store._zip_files(client, artifact)
-    context = _json(contents[1], "build-context.json")
+    contents = store.download_artifact(client, artifact)
+    context = store.artifact_json(contents[1], "build-context.json")
     execution, source = context.get("execution", {}), context.get("source", {})
     if not isinstance(execution, dict) or not isinstance(source, dict):
         raise store.EvidenceError("corrupt", "Baseline source/execution context is not an object.")
@@ -168,6 +155,22 @@ def _read_baseline(client: store.GitHubClient, artifact: dict, pr_number: int, b
     return evidence
 
 
+def _initial_selection(event: dict, base_commit: str) -> dict:
+    pr = event["pull_request"]
+    return {
+        "schema_version": 1,
+        "comparison_mode": "paired_pr",
+        "pull_request_number": pr["number"],
+        "reference_branch": pr["base"]["ref"],
+        "reference_commit": base_commit,
+        "event_base_commit": pr["base"]["sha"],
+        "requested_head_commit": pr["head"]["sha"],
+        "baseline_reused": False,
+        "baseline_origin": None,
+        "issues": [],
+    }
+
+
 def restore_baseline(
     client: store.GitHubClient,
     checkout_root: Path,
@@ -185,19 +188,8 @@ def restore_baseline(
     manifest = prepare_manifest(checkout_root)
     if manifest["commit"] != base_commit:
         raise ValueError("Baseline checkout is not the tested PR merge's resolved first parent.")
-    selection = {
-        "schema_version": 1,
-        "comparison_mode": "paired_pr",
-        "pull_request_number": pr_number,
-        "reference_branch": pr["base"]["ref"],
-        "reference_commit": base_commit,
-        "event_base_commit": pr["base"]["sha"],
-        "requested_head_commit": pr["head"]["sha"],
-        "baseline_reused": False,
-        "baseline_origin": None,
-        "reason": "No reusable verified baseline exists for this PR and base commit; measure it before the PR.",
-        "issues": [],
-    }
+    selection = _initial_selection(event, base_commit)
+    selection["reason"] = "No reusable verified baseline exists for this PR and base commit; measure it before the PR."
     # A terminated lookup leaves a valid request for fresh measurements, never an old reuse decision.
     _write(selection_path, selection)
     prefix = f"performance-pr-baseline-{pr_number}-{base_commit}-"
@@ -226,7 +218,7 @@ def restore_baseline(
                 evidence = _read_baseline(client, artifact, pr_number, base_commit)
                 if evidence.identity.get("workflow_id") != workflow_id:
                     raise store.EvidenceError("identity_mismatch", "Baseline belongs to another workflow.")
-                saved_manifest = _json(_files(evidence.zip_bytes), "source-manifest.json")
+                saved_manifest = store.artifact_json(evidence.files, "source-manifest.json")
                 expected = evidence.context["execution"].get("expected_samples")
                 planned = evidence.context["execution"].get("expected_legs")
                 complete = (
@@ -239,7 +231,7 @@ def restore_baseline(
                     and all(
                         evidence.statuses.get(leg) == "ok"
                         and len(evidence.samples.get(leg, [])) == expected
-                        and all(store._usable(item["bundle"]) for item in evidence.samples[leg])
+                        and all(store.has_usable_runtime(item["bundle"]) for item in evidence.samples[leg])
                         for leg in evidence.samples.keys() | evidence.statuses.keys()
                     )
                 )
@@ -250,7 +242,7 @@ def restore_baseline(
                 # An artifact from a later attempt cannot stand in for this execution.
                 if evidence.identity["run_id"] == run_id and evidence.identity["run_attempt"] >= run_attempt:
                     continue
-                restored_files = _files(evidence.zip_bytes)
+                restored_files = evidence.files
                 if any(
                     PurePosixPath(path).is_absolute() or ".." in PurePosixPath(path).parts for path in restored_files
                 ):
@@ -391,18 +383,18 @@ def bind_baseline(
 
 def select_pr_baseline(client: store.GitHubClient, candidate: store.Evidence) -> store.Selection:
     """Read the exact base measurement pinned by this PR benchmark job, without ancestry search."""
-    files = _files(candidate.zip_bytes)
+    files = candidate.files
     source = candidate.context.get("source", {})
     for leg in candidate.context.get("execution", {}).get("expected_legs", []):
         candidate.samples.setdefault(leg, [])
     candidate.issues.extend(source_issues(candidate, files, candidate.identity["source_commit"]))
     try:
-        selection = _json(files, "pr-comparison.json")
+        selection = store.artifact_json(files, "pr-comparison.json")
     except store.EvidenceError as exc:
         return store.Selection(None, {"reason": str(exc), "reason_code": exc.code})
     base_commit, pr_number = source.get("reference_commit"), source.get("pull_request_number")
     if (
-        not store._sha(base_commit)
+        not store.is_commit_sha(base_commit)
         or source.get("commit_parents") != [base_commit, source.get("requested_head_commit")]
         or selection.get("reference_commit") != base_commit
         or selection.get("pull_request_number") != pr_number
@@ -441,14 +433,14 @@ def select_pr_baseline(client: store.GitHubClient, candidate: store.Evidence) ->
                         "runner_mismatch", "Fresh base and PR were not measured on the same runner."
                     )
             bound = selection.get("baseline_finished_before")
-            completed = store._time(bound if bound is not None else baseline.measurement_end)
-            started = store._time(candidate.measurement_start)
-            captured = store._time(left.get("measurement_not_before"))
+            completed = store.parse_timestamp(bound if bound is not None else baseline.measurement_end)
+            started = store.parse_timestamp(candidate.measurement_start)
+            captured = store.parse_timestamp(left.get("measurement_not_before"))
             sample_ends = [
                 end
                 for samples in baseline.samples.values()
                 for sample in samples
-                if (end := store._time(sample["bundle"]["run"].get("end_time_utc"))) is not None
+                if (end := store.parse_timestamp(sample["bundle"]["run"].get("end_time_utc"))) is not None
             ]
             if (
                 not completed
@@ -506,22 +498,7 @@ def _execute(args: argparse.Namespace, event: dict) -> None:
         )
     else:
         if not args.selection.exists():
-            pr = event["pull_request"]
-            _write(
-                args.selection,
-                {
-                    "schema_version": 1,
-                    "comparison_mode": "paired_pr",
-                    "pull_request_number": pr["number"],
-                    "reference_branch": pr["base"]["ref"],
-                    "reference_commit": _resolved_base(),
-                    "event_base_commit": pr["base"]["sha"],
-                    "requested_head_commit": pr["head"]["sha"],
-                    "baseline_reused": False,
-                    "baseline_origin": None,
-                    "issues": [],
-                },
-            )
+            _write(args.selection, _initial_selection(event, _resolved_base()))
             if not args.baseline_issue:
                 args.baseline_issue = "Baseline selection metadata was not produced; baseline FPS is unavailable."
         bind_baseline(

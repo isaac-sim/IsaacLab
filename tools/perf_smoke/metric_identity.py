@@ -17,27 +17,23 @@ from pathlib import Path
 PACKAGE = Path("source/isaaclab/isaaclab/benchmark")
 
 
-class _WithoutDocstrings(ast.NodeTransformer):
-    def generic_visit(self, node):
-        node = super().generic_visit(node)
+def _normalized(node: ast.AST) -> str:
+    node = copy.deepcopy(node)
+    for item in ast.walk(node):
         # Python 3.12 adds this empty field to non-generic definitions. Its
         # absence on older interpreters describes the same producer source.
-        if getattr(node, "type_params", None) == []:
-            del node.type_params
-        if isinstance(node, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+        if getattr(item, "type_params", None) == []:
+            del item.type_params
+        if isinstance(item, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
             if (
-                node.body
-                and isinstance(node.body[0], ast.Expr)
-                and isinstance(node.body[0].value, ast.Constant)
-                and isinstance(node.body[0].value.value, str)
+                item.body
+                and isinstance(item.body[0], ast.Expr)
+                and isinstance(item.body[0].value, ast.Constant)
+                and isinstance(item.body[0].value.value, str)
             ):
-                node.body.pop(0)
-        return node
-
-
-def _normalized(node: ast.AST) -> str:
+                item.body.pop(0)
     options = {"show_empty": True} if "show_empty" in inspect.signature(ast.dump).parameters else {}
-    return ast.dump(_WithoutDocstrings().visit(copy.deepcopy(node)), include_attributes=False, **options)
+    return ast.dump(node, include_attributes=False, **options)
 
 
 def _function(module: ast.Module, name: str) -> ast.FunctionDef:
