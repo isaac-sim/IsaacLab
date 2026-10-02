@@ -5,16 +5,16 @@
 
 from __future__ import annotations
 
+import functools
+import http.server
 import importlib
 import json
 import logging
 import os
-import sys
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from types import SimpleNamespace
 
 import pytest
 
@@ -59,84 +59,6 @@ def test_asset_root_ignores_unknown_storage_profile(monkeypatch, caplog):
         assert assets_utils._resolve_asset_root() == "https://example.com/kit-assets"
 
     assert "no asset region profile named 'unknown'" in caplog.text
-
-
-def test_configure_china_storage_profile_once(monkeypatch):
-    """Test the public initializer installs the in-memory CDN mapping once."""
-    import omni.client
-
-    calls = []
-    monkeypatch.setenv("ISAACSIM_ASSET_REGION_PROFILE", "china")
-    monkeypatch.setattr(assets_utils, "_CONFIGURED_STORAGE_PROFILES", set())
-
-    def configure(**kwargs):
-        calls.append(kwargs)
-        return omni.client.Result.OK
-
-    monkeypatch.setattr(omni.client, "set_s3_configuration", configure)
-
-    assets_utils.configure_storage_profile()
-    assets_utils.configure_storage_profile()
-
-    assert calls == [
-        {
-            "url": "simready-cn.s3.oss-cn-shanghai.aliyuncs.com",
-            "bucket": "simready-cn",
-            "region": "oss-cn-shanghai",
-            "cloudfrontUrl": "https://assets.simready.cn/",
-            "cloudfrontForList": False,
-            "writeConfig": False,
-        }
-    ]
-
-
-@pytest.mark.parametrize("profile", ["us", None], ids=["us", "unset"])
-def test_configure_storage_profile_is_lazy(monkeypatch, profile):
-    """Test the primary profile, or no selected profile, does not import OmniClient."""
-    if profile is None:
-        monkeypatch.delenv("ISAACSIM_ASSET_REGION_PROFILE", raising=False)
-    else:
-        monkeypatch.setenv("ISAACSIM_ASSET_REGION_PROFILE", profile)
-    original_omni_client = sys.modules.pop("omni.client", None)
-    try:
-        assets_utils.configure_storage_profile()
-        assert "omni.client" not in sys.modules
-    finally:
-        if original_omni_client is not None:
-            sys.modules["omni.client"] = original_omni_client
-
-
-def test_configure_storage_profile_reports_client_failure(monkeypatch):
-    """Test a rejected OmniClient profile fails before an inaccessible asset is used."""
-    import omni.client
-
-    monkeypatch.setenv("ISAACSIM_ASSET_REGION_PROFILE", "china")
-    monkeypatch.setattr(assets_utils, "_CONFIGURED_STORAGE_PROFILES", set())
-    monkeypatch.setattr(omni.client, "set_s3_configuration", lambda **_kwargs: "rejected")
-
-    with pytest.raises(RuntimeError, match="Asset region profile 'china' failed to configure"):
-        assets_utils.configure_storage_profile()
-
-
-def test_configure_asset_region_profile_alias(monkeypatch):
-    """Test the public Asset Region Profile initializer forwards to the existing initializer."""
-    calls = []
-    monkeypatch.setattr(assets_utils, "configure_storage_profile", lambda: calls.append(True))
-
-    assets_utils.configure_asset_region_profile()
-
-    assert calls == [True]
-
-
-def test_asset_client_applies_storage_profile(monkeypatch):
-    """Test remote asset helpers configure routing whenever they import OmniClient."""
-    import omni.client
-
-    configured_clients = []
-    monkeypatch.setattr(assets_utils, "_configure_storage_profile", configured_clients.append)
-
-    assert assets_utils._get_omni_client() is omni.client
-    assert configured_clients == [omni.client]
 
 
 def test_asset_root_environment_override_strips_windows_separator(monkeypatch):
@@ -234,7 +156,6 @@ def test_check_file_path_invalid():
 @pytest.mark.parametrize("remote", [False, True], ids=["local", "remote"])
 def test_localized_usd_preserves_material_resource_anchors(asset_cache, monkeypatch, remote):
     """MDL modules and sparse UDIM tiles retain their source, not a partial mirror."""
-    import omni.client
     from pxr import Sdf, Usd, UsdShade
 
     layer = (
@@ -253,11 +174,10 @@ def test_localized_usd_preserves_material_resource_anchors(asset_cache, monkeypa
     revision = {"hash": "abc123", "version": "", "size": 32, "modified_time": "2026-07-01 10:00:00"}
     _serve(monkeypatch, dict.fromkeys(payloads, revision))
 
-    def copy(url, target_path, behavior):
+    def copy(url, target_path):
         Path(target_path).write_text(payloads[url])
-        return omni.client.Result.OK
 
-    monkeypatch.setattr(omni.client, "copy", copy)
+    monkeypatch.setattr(assets_utils, "_remote_copy", copy)
     source = "https://example.com/scene.usda" if remote else str(asset_cache / "scene.usda")
     result = assets_utils.retrieve_file_path(source)
     assert result != source
@@ -463,21 +383,18 @@ def asset_cache(tmp_path, monkeypatch):
 
 def _serve(monkeypatch, entries: dict[str, dict | None], payloads: dict[str, bytes] | None = None) -> None:
     """Fake the asset server: ``entries`` maps a URL to its reported metadata (``None`` = absent)."""
-    import omni.client
 
-    def fake_stat(url, *args, **kwargs):
+    def fake_stat(url):
         reported = entries.get(url)
-        if reported is None:
-            return omni.client.Result.ERROR_NOT_FOUND, SimpleNamespace(hash="", version="", size=0, modified_time="")
-        return omni.client.Result.OK, SimpleNamespace(**reported)
+        return None if reported is None else dict(reported)
 
-    def fake_read_file(url, *args, **kwargs):
+    def fake_read(url):
         if payloads is None or url not in payloads:
             raise AssertionError(f"the server should not have been read for: {url}")
-        return omni.client.Result.OK, {}, payloads[url]
+        return payloads[url]
 
-    monkeypatch.setattr(omni.client, "stat", fake_stat)
-    monkeypatch.setattr(omni.client, "read_file", fake_read_file)
+    monkeypatch.setattr(assets_utils, "_remote_stat", fake_stat)
+    monkeypatch.setattr(assets_utils, "_remote_read", fake_read)
 
 
 def _cache_asset(cache_dir, url: str, payload: bytes, fingerprint: dict | None) -> Path:
@@ -495,7 +412,6 @@ def _cache_asset(cache_dir, url: str, payload: bytes, fingerprint: dict | None) 
 @pytest.mark.parametrize("layout", ["direct", "nested", "remote", "package"])
 def test_local_usd_mirrors_remote_sublayer_without_editing_source(asset_cache, monkeypatch, layout):
     """Compose local and remote dependency chains without editing the authored layers."""
-    import omni.client
     from pxr import Sdf, Usd
 
     layers = {
@@ -513,14 +429,13 @@ def test_local_usd_mirrors_remote_sublayer_without_editing_source(asset_cache, m
     }
     revision = {"hash": "abc123", "version": "", "size": 32, "modified_time": "2026-07-01 10:00:00"}
 
-    def fake_copy(url, target_path, behavior):
+    def fake_copy(url, target_path):
         if url not in payloads:
-            return omni.client.Result.ERROR_NOT_FOUND
+            raise FileNotFoundError(url)
         data = payloads[url]
         Path(target_path).write_bytes(data.encode() if isinstance(data, str) else data)
-        return omni.client.Result.OK
 
-    monkeypatch.setattr(omni.client, "copy", fake_copy)
+    monkeypatch.setattr(assets_utils, "_remote_copy", fake_copy)
     source = {"direct": str(asset_cache / "robot.usda"), "nested": str(asset_cache / "scene.usda"), "remote": root_url}
     if layout == "package":
         source[layout] = _REMOTE_URL + "z"
@@ -548,7 +463,6 @@ def test_local_usd_mirrors_remote_sublayer_without_editing_source(asset_cache, m
 
 def test_local_usd_preserves_search_paths_and_relative_sublayers(asset_cache, monkeypatch):
     """Resolve in context without requiring an unavailable, unselected variant."""
-    import omni.client
     from pxr import Ar, Sdf, Usd
 
     source_dir = asset_cache / "source"
@@ -570,12 +484,11 @@ def test_local_usd_preserves_search_paths_and_relative_sublayers(asset_cache, mo
     revision = {"hash": "abc123", "version": "", "size": 32, "modified_time": "2026-07-01 10:00:00"}
     _serve(monkeypatch, {_REMOTE_URL: revision})
 
-    def fake_copy(url, target_path, behavior):
+    def fake_copy(url, target_path):
         assert url == _REMOTE_URL
         Path(target_path).write_text('#usda 1.0\ndef Xform "remote" {}\n', encoding="utf-8")
-        return omni.client.Result.OK
 
-    monkeypatch.setattr(omni.client, "copy", fake_copy)
+    monkeypatch.setattr(assets_utils, "_remote_copy", fake_copy)
     for name in ("first", "second"):
         directory = search_dir / name
         directory.mkdir()
@@ -603,7 +516,6 @@ def test_local_usd_preserves_search_paths_and_relative_sublayers(asset_cache, mo
 @pytest.mark.parametrize("force_download", [False, True])
 def test_retrieve_file_path_retries_incomplete_tree(asset_cache, monkeypatch, failure, force_download):
     """Retry failed or unavailable dependencies; forced downloads also refresh revision metadata."""
-    import omni.client
     from pxr import Usd
 
     child_url = _REMOTE_URL.replace("example.usd", "child.usda")
@@ -614,16 +526,17 @@ def test_retrieve_file_path_retries_incomplete_tree(asset_cache, monkeypatch, fa
     _serve(monkeypatch, entries)
     fail_child = True
 
-    def fake_copy(url, target_path, behavior):
+    def fake_copy(url, target_path):
         if url == _REMOTE_URL:
             Path(target_path).write_bytes(root)
-            return omni.client.Result.OK
+            return
         if fail_child:
-            return omni.client.Result.ERROR_NOT_FOUND
+            if failure == "transfer":
+                raise RuntimeError(f"Unable to copy file: '{url}'")
+            raise FileNotFoundError(url)
         Path(target_path).write_text('#usda 1.0\ndef Xform "child" {}\n', encoding="utf-8")
-        return omni.client.Result.OK
 
-    monkeypatch.setattr(omni.client, "copy", fake_copy)
+    monkeypatch.setattr(assets_utils, "_remote_copy", fake_copy)
     if failure == "transfer":
         with pytest.raises(RuntimeError, match=child_url):
             assets_utils.retrieve_file_path(_REMOTE_URL)
@@ -637,6 +550,55 @@ def test_retrieve_file_path_retries_incomplete_tree(asset_cache, monkeypatch, fa
     stage = Usd.Stage.Open(resolved)
     assert stage.GetPrimAtPath("/child").IsValid()
     assert json.loads(Path(str(mirrored) + assets_utils._MIRROR_FINGERPRINT_SUFFIX).read_text()) == entries[_REMOTE_URL]
+
+
+class _QuietHandler(http.server.SimpleHTTPRequestHandler):
+    def log_message(self, format, *args):
+        pass
+
+
+@pytest.fixture
+def http_assets(tmp_path):
+    """Serve a directory over local HTTP."""
+    served = tmp_path / "served"
+    served.mkdir()
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), functools.partial(_QuietHandler, directory=served))
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    yield served, f"http://127.0.0.1:{server.server_address[1]}"
+    server.shutdown()
+    server.server_close()
+
+
+def test_http_assets_are_retrieved(asset_cache, http_assets):
+    """Test HTTP assets and their USD dependencies are downloaded and read, and missing ones reported."""
+    from pxr import Usd
+
+    served, root = http_assets
+    (served / "robot.usda").write_text('#usda 1.0\n(subLayers = [@./base.usda@])\ndef Xform "Robot" {}\n')
+    (served / "base.usda").write_text('#usda 1.0\ndef Xform "Base" {}\n')
+    (served / "actuator.pt").write_bytes(b"network weights")
+
+    assert assets_utils.check_file_path(f"{root}/robot.usda") == 2
+    stage = Usd.Stage.Open(assets_utils.retrieve_file_path(f"{root}/robot.usda"))
+    assert stage.GetPrimAtPath("/Robot").IsValid()
+    assert stage.GetPrimAtPath("/Base").IsValid()
+    assert assets_utils.read_file(f"{root}/actuator.pt").read() == b"network weights"
+    # a missing asset is reported as absent rather than as a download failure
+    assert assets_utils.check_file_path(f"{root}/missing.usda") == 0
+    with pytest.raises(FileNotFoundError):
+        assets_utils.retrieve_file_path(f"{root}/missing.usda")
+
+
+def test_region_profile_reads_through_its_cdn(asset_cache, http_assets, monkeypatch):
+    """Test a region profile's object-storage endpoint is read through its CDN, as OmniClient routes it."""
+    served, root = http_assets
+    (served / "Assets").mkdir()
+    (served / "Assets" / "robot.usda").write_text('#usda 1.0\ndef Xform "Robot" {}\n')
+    profile = {"asset_root": "https://bucket.invalid/Assets", "endpoint": "bucket.invalid", "cdn_url": f"{root}/"}
+    monkeypatch.setitem(assets_utils._STORAGE_PROFILES, "test", profile)
+    monkeypatch.setenv("ISAACSIM_ASSET_REGION_PROFILE", "test")
+
+    assert assets_utils.read_file("https://bucket.invalid/Assets/robot.usda").read().startswith(b"#usda 1.0")
 
 
 def test_read_file_uses_the_local_copy_when_it_matches_the_server(asset_cache, monkeypatch):
@@ -674,8 +636,6 @@ def test_local_copy_without_a_recorded_revision_is_refetched(asset_cache, monkey
 
 def test_retrieve_file_path_serializes_cold_cache_population(asset_cache, monkeypatch):
     """Test concurrent ranks reuse the mirror populated by the first rank."""
-    import omni.client
-
     revision = {"hash": "abc123", "version": "", "size": 12, "modified_time": "2026-07-01 10:00:00"}
     _serve(monkeypatch, {_REMOTE_URL: revision})
     copy_count = 0
@@ -684,10 +644,9 @@ def test_retrieve_file_path_serializes_cold_cache_population(asset_cache, monkey
     counter_lock = threading.Lock()
     mirrored = Path(assets_utils._mirror_path(_REMOTE_URL, str(asset_cache)))
 
-    def fake_copy(url, target_path, behavior):
+    def fake_copy(url, target_path):
         nonlocal copy_count, active_copies, max_active_copies
         assert url == _REMOTE_URL
-        assert behavior == omni.client.CopyBehavior.OVERWRITE
         assert Path(target_path) != mirrored
         with counter_lock:
             copy_count += 1
@@ -697,9 +656,8 @@ def test_retrieve_file_path_serializes_cold_cache_population(asset_cache, monkey
         Path(target_path).write_bytes(b"#usda 1.0\n")
         with counter_lock:
             active_copies -= 1
-        return omni.client.Result.OK
 
-    monkeypatch.setattr(omni.client, "copy", fake_copy)
+    monkeypatch.setattr(assets_utils, "_remote_copy", fake_copy)
     start = threading.Barrier(2)
 
     def retrieve() -> str:
