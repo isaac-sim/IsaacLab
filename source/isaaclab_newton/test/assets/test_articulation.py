@@ -921,10 +921,8 @@ def test_newton_native_actuator_gain_write_maps_public_joint_subset_to_backend(
             device=articulation.device,
         )
         for actuator in articulation.newton_actuator_adapter.actuators:
-            if hasattr(actuator.controller, "kp"):
-                stiffness += wp.to_torch(
-                    articulation.root_view.get_actuator_parameter(actuator, actuator.controller, "kp")
-                )
+            if hasattr(actuator.drive, "kp"):
+                stiffness += wp.to_torch(articulation.root_view.get_actuator_parameter(actuator, actuator.drive, "kp"))
         return stiffness
 
     stiffness_before = gather_stiffness()
