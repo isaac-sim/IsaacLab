@@ -1772,9 +1772,9 @@ dependencies = [
     { name = "newton-usd-schemas" },
     { name = "numba" },
     { name = "numpy" },
-    { name = "omniverseclient" },
     { name = "onnx" },
     { name = "open3d", marker = "platform_machine == 'x86_64' or sys_platform == 'win32'" },
+    { name = "ovstorage" },
     { name = "packaging" },
     { name = "pillow" },
     { name = "pin", marker = "sys_platform != 'win32'" },
@@ -1995,7 +1995,6 @@ requires-dist = [
     { name = "numba", specifier = ">=0.63.1" },
     { name = "numpy", specifier = ">=2" },
     { name = "numpydantic", marker = "extra == 'rlinf'", specifier = ">=1.7.0" },
-    { name = "omniverseclient", specifier = "==2.74.0", index = "https://pypi.org/simple" },
     { name = "onnx", specifier = ">=1.18.0" },
     { name = "open3d", marker = "(python_full_version < '3.13' and platform_machine != 'aarch64') or (python_full_version < '3.13' and sys_platform != 'linux')", specifier = ">=0.19.0" },
     { name = "ovphysx", marker = "extra == 'ov'", specifier = "==0.6.3", index = "https://pypi.org/simple" },
@@ -2005,6 +2004,7 @@ requires-dist = [
     { name = "ovstage", marker = "extra == 'ov'", specifier = "==0.2.0.377349", index = "https://pypi.org/simple" },
     { name = "ovstage", marker = "extra == 'ovphysx'", specifier = "==0.2.0.377349", index = "https://pypi.org/simple" },
     { name = "ovstage", marker = "extra == 'ovrtx'", specifier = "==0.2.0.377349", index = "https://pypi.org/simple" },
+    { name = "ovstorage", marker = "sys_platform != 'darwin'", specifier = "==0.3.0", index = "https://pypi.org/simple" },
     { name = "packaging" },
     { name = "pandas", marker = "extra == 'rlinf'" },
     { name = "peft", marker = "extra == 'rlinf'", specifier = ">=0.17.0" },
@@ -3551,16 +3551,6 @@ wheels = [
 ]
 
 [[package]]
-name = "omniverseclient"
-version = "2.74.0"
-source = { registry = "https://pypi.org/simple" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/cf/a4/f99608e58ab90602eea23a30ce5d754466151fa5d8765678ddcc4385ceaf/omniverseclient-2.74.0-cp312-cp312-manylinux_2_35_aarch64.whl", hash = "sha256:2071be85b5932b787df280e569078ed9274739da865f14d777a41a4b5e767fc4", size = 17028603, upload-time = "2026-09-17T15:18:48.114Z" },
-    { url = "https://files.pythonhosted.org/packages/74/eb/ff9e3c27e44f3502f1df05ee1598ccbe8f0e86747f82a8efe8bd9f6d42e3/omniverseclient-2.74.0-cp312-cp312-manylinux_2_35_x86_64.whl", hash = "sha256:20ede072259d6912aa2176349b74aae71c0f56c4b7ff26f6885e4a84980cc2cc", size = 17070196, upload-time = "2026-09-17T15:18:31.408Z" },
-    { url = "https://files.pythonhosted.org/packages/00/a6/b8adbe167c854ca8c775c554b4e779dd34f860e06021a6c3b9175b89a7cf/omniverseclient-2.74.0-cp312-cp312-win_amd64.whl", hash = "sha256:a4138c3c17502176b8fab3a0e0f4c8a4aab22006e7a6f4ee7d57a1a44906ee6f", size = 12215440, upload-time = "2026-09-17T15:19:02.933Z" },
-]
-
-[[package]]
 name = "onnx"
 version = "1.22.0"
 source = { registry = "https://pypi.org/simple" }
@@ -3828,6 +3818,16 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/70/83/803ac9c32d1276180e34b5a650ece84d81e995d250e9efc22ab94b00f48f/ovstage-0.2.0.377349-py3-none-manylinux_2_35_aarch64.whl", hash = "sha256:48622327aa693774e0f03a283e11aa25344119ff0cfc411867e4d03a38c6f4ea", size = 68611171, upload-time = "2026-09-08T20:10:56.393Z" },
     { url = "https://files.pythonhosted.org/packages/81/b7/333b3682da5125b9222ada4a11f2a998b922e005ace0a081c088eda731b2/ovstage-0.2.0.377349-py3-none-manylinux_2_35_x86_64.whl", hash = "sha256:092a34c0054664b90a32c07209647bd02e6f774a705295d8c460813940153f5b", size = 70881630, upload-time = "2026-09-08T20:10:34.164Z" },
     { url = "https://files.pythonhosted.org/packages/09/dd/861c19634b92c692cdad925a731661043afa06147672295ee8e9165ebbcc/ovstage-0.2.0.377349-py3-none-win_amd64.whl", hash = "sha256:d1408fd27ad57bc216c8da3ba326fa2a2f9a5abb922c4c42206dd40e0c3e7f3b", size = 46087437, upload-time = "2026-09-08T20:10:16.591Z" },
+]
+
+[[package]]
+name = "ovstorage"
+version = "0.3.0"
+source = { registry = "https://pypi.org/simple" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/01/f7/ddb5bb88c2322d78e44479e0440cb55b2c58a6e2a6f1d6c68121aacc37eb/ovstorage-0.3.0-cp310-abi3-manylinux_2_34_aarch64.whl", hash = "sha256:e7e4bdcd25256c8e5b8f06eed2fd8807c3ce25b52f35d56bbe87f9d56fc7840d", size = 66230840, upload-time = "2026-09-22T19:01:15.768Z" },
+    { url = "https://files.pythonhosted.org/packages/db/92/c4b66bf2dbe67263366e5ba0b4750b906bd9b48595cbbdfb7995a482d1e5/ovstorage-0.3.0-cp310-abi3-manylinux_2_34_x86_64.whl", hash = "sha256:59bfd5d9382d9615a75a10f505ce9adb88b51766fecd861d3da7b1a597b2ea15", size = 66390101, upload-time = "2026-09-22T19:00:25.824Z" },
+    { url = "https://files.pythonhosted.org/packages/ea/d2/69bb2e7b8176213122baa54aaa350ef614f4d9f447a59e74ac0ac263884d/ovstorage-0.3.0-cp310-abi3-win_amd64.whl", hash = "sha256:149a9fece5fc4a48ce18846acdb0d815778fe6fb62ca9719820278ef38eaf421", size = 60547671, upload-time = "2026-09-22T19:01:46.902Z" },
 ]
 
 [[package]]

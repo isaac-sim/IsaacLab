@@ -58,7 +58,9 @@ dependencies = [
     "pillow>=12.3.0",
     "botocore",  # omni.replicator.core S3 backend
     "starlette>=1.3.1",  # livestream; minimum patched for current security advisories
-    "omniverseclient==2.74.0",
+    # Remote asset storage (HTTP(S), Nucleus); no macOS wheels yet, where public HTTP(S) assets
+    # are read with the standard library instead.
+    "ovstorage==0.3.0 ; sys_platform != 'darwin'",
     "filelock",
     "lazy_loader>=0.4",
     # ----- project template generator -----
@@ -432,7 +434,7 @@ package = false
 egl-probe = { CMAKE_POLICY_VERSION_MINIMUM = "3.5" }
 
 [tool.uv.sources]
-omniverseclient = { index = "pypi-public" }
+ovstorage = { index = "pypi-public" }
 ovphysx = { index = "pypi-public" }
 ovrtx = { index = "pypi-public" }
 ovstage = { index = "pypi-public" }

@@ -1170,11 +1170,12 @@ asset-root override takes precedence over the selected profile.
          set ISAACSIM_ASSET_ROOT=
          set ISAACSIM_ASSET_REGION_PROFILE=china
 
-Isaac Lab launchers and asset helpers apply the profile automatically. The same variable also selects
-the profile when Isaac Lab launches Isaac Sim. In kitless mode, Isaac Lab configures the required
-``omni.client`` routing without requiring Isaac Sim.
+Isaac Lab launchers and asset helpers apply the profile automatically: Isaac Lab reads the profile's
+assets through its CDN with `OVStorage <https://github.com/NVIDIA-Omniverse/ovstorage>`__. The same
+variable also selects the profile when Isaac Lab launches Isaac Sim, whose ``omni.client`` Isaac Lab
+configures as well.
 
-A standalone kitless script that calls ``omni.client`` before launching an Isaac Lab runtime must
+A standalone script that calls ``omni.client`` itself before launching an Isaac Lab runtime must
 initialize the profile first:
 
 .. code-block:: python

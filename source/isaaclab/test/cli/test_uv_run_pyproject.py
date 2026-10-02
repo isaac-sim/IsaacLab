@@ -180,7 +180,7 @@ def test_public_ov_packages_use_public_pypi_index(source_checkout_root: Path):
         "url": "https://pypi.org/simple",
         "explicit": True,
     }
-    for package in ("omniverseclient", "ovphysx", "ovrtx", "ovstage"):
+    for package in ("ovstorage", "ovphysx", "ovrtx", "ovstage"):
         assert sources[package] == {"index": "pypi-public"}
 
 
