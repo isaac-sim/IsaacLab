@@ -22,6 +22,29 @@ class ContactSensorData(BaseContactSensorData):
     """Data container for the ovphysx contact reporting sensor."""
 
     @property
+    def net_forces_w(self) -> ProxyArray:
+        """Total contact forces [N] in world frame, shape (num_envs, num_sensors, 3).
+
+        Includes normal and friction forces, even when separate friction tracking is disabled.
+        """
+        return self._net_forces_w
+
+    @property
+    def net_forces_w_history(self) -> ProxyArray:
+        """Total force history [N], shape (num_envs, history_length, num_sensors, 3), newest first."""
+        return self._net_forces_w_history
+
+    @property
+    def force_matrix_w(self) -> ProxyArray | None:
+        """Total filtered forces [N], shape (num_envs, num_sensors, num_filters, 3), or None without filters."""
+        return self._force_matrix_w
+
+    @property
+    def force_matrix_w_history(self) -> ProxyArray | None:
+        """Total filtered force history [N], shape (num_envs, history_length, num_sensors, num_filters, 3)."""
+        return self._force_matrix_w_history
+
+    @property
     def pose_w(self) -> ProxyArray | None:
         """Pose of the sensor origin in world frame.
 
@@ -143,13 +166,18 @@ class ContactSensorData(BaseContactSensorData):
 
     @property
     def net_friction_forces_w(self) -> ProxyArray | None:
-        """Not supported by the OVPhysX contact sensor."""
-        raise NotImplementedError("net_friction_forces_w is not supported by the OVPhysX contact sensor.")
+        """Net friction forces [N], shape (num_envs, num_sensors, 3), or None when tracking is disabled."""
+        return self._net_friction_forces_w
 
     @property
     def net_friction_forces_w_history(self) -> ProxyArray | None:
-        """Not supported by the OVPhysX contact sensor."""
-        raise NotImplementedError("net_friction_forces_w_history is not supported by the OVPhysX contact sensor.")
+        """Net friction force history [N], shape (num_envs, history_length, num_sensors, 3), newest first."""
+        return self._net_friction_forces_w_history
+
+    @property
+    def friction_forces_w(self) -> ProxyArray | None:
+        """Alias for :attr:`net_friction_forces_w`, including contacts outside configured filters."""
+        return self.net_friction_forces_w
 
     @property
     def friction_force_matrix_w(self) -> ProxyArray | None:
@@ -273,6 +301,14 @@ class ContactSensorData(BaseContactSensorData):
         self._net_normal_forces_w_history = wp.zeros(
             (num_envs, effective_history, num_sensors), dtype=wp.vec3f, device=device
         )
+        self._net_forces_w = ProxyArray(wp.zeros_like(self._net_normal_forces_w))
+        self._net_forces_w_history = ProxyArray(wp.zeros_like(self._net_normal_forces_w_history))
+        self._net_friction_forces_w = (
+            ProxyArray(wp.zeros_like(self._net_normal_forces_w)) if track_friction_forces else None
+        )
+        self._net_friction_forces_w_history = (
+            ProxyArray(wp.zeros_like(self._net_normal_forces_w_history)) if track_friction_forces else None
+        )
 
         # Track force matrix if requested - only with filter
         if num_filter_shapes > 0:
@@ -285,6 +321,10 @@ class ContactSensorData(BaseContactSensorData):
         else:
             self._normal_force_matrix_w = None
             self._normal_force_matrix_w_history = None
+        self._force_matrix_w = ProxyArray(wp.zeros_like(self._normal_force_matrix_w)) if num_filter_shapes else None
+        self._force_matrix_w_history = (
+            ProxyArray(wp.zeros_like(self._normal_force_matrix_w_history)) if num_filter_shapes else None
+        )
 
         # Track pose if requested
         if track_pose:
@@ -324,7 +364,7 @@ class ContactSensorData(BaseContactSensorData):
             self._contact_pos_w = None
 
         # Track friction forces if requested
-        if track_friction_forces:
+        if track_friction_forces and num_filter_shapes:
             self._friction_force_matrix_w = wp.zeros(
                 (num_envs, num_sensors, num_filter_shapes), dtype=wp.vec3f, device=device
             )

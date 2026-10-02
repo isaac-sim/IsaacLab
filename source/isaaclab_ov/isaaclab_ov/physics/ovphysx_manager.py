@@ -325,7 +325,7 @@ class OvPhysxBackend:
                 OvPhysxView._close_all_for(physx)
             finally:
                 try:
-                    physx.wait_op(physx.reset_stage())
+                    physx.wait_task(physx.reset_stage())
                 finally:
                     try:
                         destroy = getattr(physx, destroy_entry_point, None)
@@ -628,7 +628,7 @@ class OvPhysxManager(PhysicsManager):
             cls.backend.rigid_body_view.destroy()
             cls.backend.rigid_body_view = None
         OvPhysxView._close_all_for(physx)
-        physx.wait_op(physx.reset_stage())
+        physx.wait_task(physx.reset_stage())
         if cls.backend.stage is not None:
             cls.backend.stage.destroy()
             cls.backend.stage = None
@@ -792,7 +792,7 @@ class OvPhysxManager(PhysicsManager):
         logger.info("OvPhysxManager: attached OVStage to ovphysx (device=%s)", ovphysx_device)
 
         for source, targets, transforms, env_ids, _ in native_clones:
-            cls.backend.physx.wait_op(cls.backend.physx.clone(source, targets, transforms or None, env_ids=env_ids))
+            cls.backend.physx.wait_task(cls.backend.physx.clone(source, targets, transforms or None, env_ids=env_ids))
 
         # Native metadata and bindings must see the newly attached bodies, including on CPU.
         cls._warmup_physx(cls.backend.physx)

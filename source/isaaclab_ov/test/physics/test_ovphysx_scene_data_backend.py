@@ -117,8 +117,8 @@ def test_manager_supports_pinned_runtime_api(
             self.calls.append(("reset_stage",))
             return 23
 
-        def wait_op(self, operation):
-            self.calls.append(("wait_op", operation))
+        def wait_task(self, operation):
+            self.calls.append(("wait_task", operation))
 
     # Strict signature: a keyword the real wheel would reject fails here.
     def pinned_config(*, num_threads=None, cooked_collider_cache_dir=None, carbonite_overrides=None):
@@ -147,7 +147,7 @@ def test_manager_supports_pinned_runtime_api(
     assert physx.constructor["config"].cooked_collider_cache_dir == cache_dir
     assert physx.constructor["config"].carbonite_overrides["/ovphysx/clone/useEnvIds"] is not expected_cpu_mode
     updates = [("step_sync", 0.02), ("update_articulations_kinematic",)]
-    assert physx.calls == updates + [("destroy_view",), ("reset_stage",), ("wait_op", 23)]
+    assert physx.calls == updates + [("destroy_view",), ("reset_stage",), ("wait_task", 23)]
     assert OvPhysxManager.backend.rigid_body_view is None
     assert PhysicsManager._sim_time == 0.02
     assert OvPhysxManager._scene_data_backend.transforms_timestamp > version
@@ -218,7 +218,7 @@ def test_manager_attaches_and_releases_owned_ovstage(monkeypatch):
             events.append(("reset",))
             return 17
 
-        def wait_op(self, op):
+        def wait_task(self, op):
             events.append(("wait", op))
 
         def release(self):
@@ -285,7 +285,7 @@ def test_manager_uses_version_selected_lifecycle_apis(monkeypatch, entry_points,
         destroy=lambda: calls.append("destroy"),
         release=lambda: calls.append("release"),
         reset_stage=lambda: None,
-        wait_op=lambda op: None,
+        wait_task=lambda op: None,
     )
     monkeypatch.setattr(om_mod, "OVPHYSX_LIFECYCLE_ENTRY_POINTS", entry_points)
 
@@ -308,7 +308,7 @@ def test_manager_rejects_missing_lifecycle_api(monkeypatch, operation):
         if operation == "warmup":
             OvPhysxManager._warmup_physx(SimpleNamespace())
         else:
-            OvPhysxManager.backend.physx = SimpleNamespace(reset_stage=lambda: None, wait_op=lambda op: None)
+            OvPhysxManager.backend.physx = SimpleNamespace(reset_stage=lambda: None, wait_task=lambda op: None)
             OvPhysxManager.backend.close()
 
 
@@ -345,7 +345,7 @@ def test_manager_close_preserves_only_retryable_native_owners(monkeypatch, entry
             events.append("reset")
             return 23
 
-        def wait_op(self, operation):
+        def wait_task(self, operation):
             events.append(("wait", operation))
 
         def destroy(self):

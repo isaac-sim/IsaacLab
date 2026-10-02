@@ -284,7 +284,7 @@ def test_stage_reuse_drains_bindings_before_reset(monkeypatch, manager_module):
             events.append("reset")
             return 9
 
-        def wait_op(self, operation):
+        def wait_task(self, operation):
             events.append(("wait", operation))
 
     physx = FakePhysX()

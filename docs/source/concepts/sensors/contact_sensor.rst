@@ -29,10 +29,10 @@ The total force is therefore
 
    \boldsymbol{f}_{total} = \boldsymbol{f}_{normal} + \boldsymbol{f}_{friction}.
 
-On Newton, :attr:`~sensors.ContactSensorData.net_forces_w` reports this total. PhysX and OvPhysX
-cannot compute the aggregate friction component, so ``net_forces_w`` returns
-``net_normal_forces_w`` with a warning. Use the explicit normal and friction properties when the
-split matters.
+On Newton and OvPhysX, :attr:`~sensors.ContactSensorData.net_forces_w` reports this total,
+even when ``track_friction_forces=False``. Isaac Sim PhysX cannot compute the aggregate friction
+component, so ``net_forces_w`` returns ``net_normal_forces_w`` with a warning. Use the explicit
+normal and friction properties when the split matters.
 
 Set :attr:`~sensors.ContactSensorCfg.filter_prim_paths_expr` when forces from specific collision
 partners are also needed. :attr:`~sensors.ContactSensorData.normal_force_matrix_w` and
@@ -73,15 +73,16 @@ Enable optional buffers only when they are needed. Their backend support differs
 
 * Isaac Sim PhysX supports pose, filtered contact-point, and filtered friction-force
   tracking, but not aggregate friction-force tracking.
-* OvPhysX supports filtered contact-point and filtered friction-force tracking, but not aggregate
-  friction-force tracking. Pose tracking is supported for a single sensor body per environment.
+* OvPhysX supports filtered contact-point and aggregate or filtered friction-force tracking.
+  Pose tracking is supported for a single sensor body per environment.
 * Newton supports filtered contact-point and aggregate or filtered friction-force tracking, but not
   pose tracking.
 
-Filtered contact points and friction-force matrices require filters. Isaac Sim PhysX and OvPhysX
-require a positive ``max_contact_data_count_per_prim`` for these features. Contact-rich scenes may
-require a larger value. OvPhysX warns and truncates detailed contacts when capacity is exceeded;
-increase the configured capacity before recreating the sensor to retain all contacts.
+Filtered contact points and friction-force matrices require filters. Isaac Sim PhysX requires a
+positive ``max_contact_data_count_per_prim`` for both features; OvPhysX requires it only for contact
+points. OvPhysX force aggregates and matrices do not depend on this capacity. OvPhysX warns and
+truncates detailed contacts when capacity is exceeded; increase the capacity before recreating the
+sensor to retain all contact positions.
 
 Contact positions are averaged over each sensor/filter pair and are ``NaN`` when the pair has no
 contacts. OvPhysX also resets contact positions to ``NaN``. Filtered friction forces sum the pair's
@@ -106,10 +107,10 @@ principal Torch views have these contracts:
      - Net normal contact force [N] in world frame
    * - ``net_friction_forces_w.torch``
      - ``(E, S, 3)``
-     - Net friction force [N] in world frame; Newton only
+     - Net friction force [N] in world frame; Newton and OvPhysX
    * - ``net_forces_w.torch``
      - ``(E, S, 3)``
-     - Total force [N] on Newton; normal force with a warning on PhysX and OvPhysX
+     - Total force [N] on Newton and OvPhysX; normal force with a warning on Isaac Sim PhysX
    * - ``normal_force_matrix_w.torch``
      - ``(E, S, F, 3)``
      - Normal force [N] from each filtered partner
@@ -125,8 +126,8 @@ principal Torch views have these contracts:
 
 Supported optional buffers are ``None`` unless their matching tracking option or filter is enabled.
 Normal and friction force histories follow the same shapes with an added ``H`` dimension.
-Reading aggregate friction on PhysX or OvPhysX raises ``NotImplementedError``. The compatibility
-alias ``friction_forces_w`` returns the aggregate on Newton; on PhysX and OvPhysX it returns
+Reading aggregate friction on Isaac Sim PhysX raises ``NotImplementedError``. The compatibility
+alias ``friction_forces_w`` returns the aggregate on Newton and OvPhysX; on Isaac Sim PhysX it returns
 ``friction_force_matrix_w`` with a warning.
 Reading pose data on Newton raises ``NotImplementedError``.
 
