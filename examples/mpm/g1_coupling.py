@@ -21,7 +21,6 @@ robot. Compare its progress and balance with ``--coupling one_way`` and
 from __future__ import annotations
 
 import argparse
-from importlib import metadata
 from pathlib import Path
 from typing import Any, NamedTuple
 
@@ -510,9 +509,10 @@ def main() -> None:
         from rsl_rl.runners import OnPolicyRunner
 
         from isaaclab.envs import ManagerBasedRLEnv
+        from isaaclab.utils import to_dict
         from isaaclab.utils.seed import configure_seed
 
-        from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper, handle_deprecated_rsl_rl_cfg
+        from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper
 
         if checkpoint is None:
             from isaaclab_rl.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
@@ -525,10 +525,9 @@ def main() -> None:
             checkpoint = Path(published_checkpoint).resolve()
         print(f"[INFO]: Resolved G1 checkpoint: {checkpoint}", flush=True)
 
-        agent_cfg = handle_deprecated_rsl_rl_cfg(agent_cfg, metadata.version("rsl-rl-lib"))
         base_env = ManagerBasedRLEnv(cfg=env_cfg)
         env = RslRlVecEnvWrapper(base_env, clip_actions=agent_cfg.clip_actions)
-        runner = OnPolicyRunner(env, agent_cfg.to_dict(), log_dir=None, device=agent_cfg.device)
+        runner = OnPolicyRunner(env, to_dict(agent_cfg), log_dir=None, device=agent_cfg.device)
         if args_cli.deterministic:
             configure_seed(args_cli.seed, torch_deterministic=True)
         runner.load(str(checkpoint))
