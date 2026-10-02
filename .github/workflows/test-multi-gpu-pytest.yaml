@@ -106,46 +106,13 @@ jobs:
           echo "isaacsim_image_name=$(yq -r .isaacsim_image_name "$f")" >> "$GITHUB_OUTPUT"
           echo "isaacsim_image_tag=$(yq -r .isaacsim_image_tag "$f")" >> "$GITHUB_OUTPUT"
 
-  build:
-    name: Build / cache image
-    needs: [config, changes]
-    if: needs.changes.outputs.unit == 'true' || needs.changes.outputs.smoke == 'true'
-    # Must run on the SAME pool as the test job. The ECR cache repo is resolved
-    # per runner pool (single-GPU `gpu` runners -> gitci-docker-cache; multi-GPU
-    # runners -> multigpu-docker-cache). If this built on `[self-hosted, gpu]`
-    # the image would land in gitci-docker-cache, which the multi-GPU test job
-    # cannot see, so it would rebuild from scratch on the scarce multi-GPU
-    # runner. Building here populates multigpu-docker-cache so the test job's
-    # pull hits.
-    runs-on: [self-hosted, linux, x64, multi-gpu]
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
-        with:
-          fetch-depth: 1
-          lfs: true
-
-      # Pre-populates the ECR exact-commit tag from deps-cache (registry-side
-      # alias). Without this prior step, run-package-tests' internal
-      # ecr-build-push-pull hits exact-cache-miss + deps-cache-hit and leaves
-      # no local image, causing `docker run` to fail with `pull access
-      # denied`. Mirrors the build → test split in build.yaml.
-      - uses: ./.github/actions/ecr-build-push-pull
-        env:
-          NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
-        with:
-          image-tag: ${{ env.CI_IMAGE_TAG }}
-          isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
-          isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
-          dockerfile-path: docker/Dockerfile.base
-          cache-tag: cache-base
-
   build-kitless:
     name: Build / cache kit-less image
     needs: [config, changes]
     # Only the training smoke uses this image; the sharded unit tests are Kit-only.
     if: needs.changes.outputs.smoke == 'true'
-    # Same pool as the test job for the same reason as ``build`` above -- the ECR cache repo is
-    # per pool, so building elsewhere would force a rebuild on the scarce multi-GPU runner.
+    # Same pool as the test job: the ECR cache repo is per pool (multi-GPU runners cannot read
+    # gitci-docker-cache), so building elsewhere would force a rebuild on the multi-GPU runner.
     runs-on: [self-hosted, linux, x64, multi-gpu]
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
@@ -168,11 +135,10 @@ jobs:
 
   test-multi-gpu-pytest:
     name: Multi-GPU unit tests
-    needs: [config, build, changes]
-    # ``always()`` is load-bearing: ``build`` is skipped when neither gate fires, and GitHub skips
-    # a job whose dependency skipped unless the condition carries a status function. Without it a
-    # gate-miss would silently skip the shards too.
-    if: always() && needs.build.result == 'success'
+    needs: [config, changes]
+    # Resolves its own image (the pull step below), so it needs no separate build job: that job
+    # cost a second runner acquisition and often handed the tests to a different, cold runner.
+    if: needs.changes.outputs.unit == 'true' || needs.changes.outputs.smoke == 'true'
     # The ``multi-gpu`` label is the multi-GPU pool. Do NOT add ``gpu`` here:
     # in this fleet ``gpu`` tags single-GPU runners, so requiring it routes the
     # job onto a 1-GPU box and the shard runner aborts with "Need at least 2
@@ -234,12 +200,10 @@ jobs:
           echo "::notice::Discovered ${#discovered[@]} opt-in test files"
           printf '  %s\n' "${discovered[@]}"
 
-      - name: Pull image from ECR
-        # Pulls the per-commit image the build job pushed. ecr-build-push-pull
-        # handles ECR auth via the EC2 IAM role, and on exact-cache-hit (which
-        # the build job's deps-cache-hit registry-tag created for this SHA)
-        # it pulls the image locally and tags it as ``$CI_IMAGE_TAG`` for our
-        # parallel ``docker run`` block below.
+      - name: Build or pull image from ECR
+        # ecr-build-push-pull handles ECR auth via the EC2 IAM role and leaves the
+        # image locally as ``$CI_IMAGE_TAG`` for the ``docker run`` block below:
+        # pulled on an exact or deps-cache hit, built and pushed on a miss.
         uses: ./.github/actions/ecr-build-push-pull
         env:
           NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
@@ -249,6 +213,7 @@ jobs:
           isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
           dockerfile-path: docker/Dockerfile.base
           cache-tag: cache-base
+          pull-on-deps-hit: 'true'
 
       - name: Resolve Warp cache key
         if: needs.changes.outputs.unit == 'true'
