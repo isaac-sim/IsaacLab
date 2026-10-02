@@ -790,7 +790,7 @@ class SimulationContext:
 
     @classmethod
     def clear_instance(cls) -> None:
-        """Clean up resources and clear the singleton instance."""
+        """Stop the simulation, clean up resources, and clear the singleton instance."""
         instance = cls._instance
         if instance is not None:
             teardown_errors: list[Exception] = []
@@ -802,7 +802,9 @@ class SimulationContext:
                     teardown_errors.append(exc)
 
             try:
-                # Close physics manager FIRST to detach PhysX from the stage.
+                # Stop task producers and deliver STOP before releasing their resources.
+                run_cleanup(instance.stop)
+                # Detach PhysX before any stage-bound resource or prim is deleted.
                 run_cleanup(instance.physics_manager.close)
 
                 # Close camera renderers after STOP invalidates camera-owned render data and
@@ -935,6 +937,4 @@ def build_simulation_context(
         raise
     finally:
         if sim is not None:
-            if not sim.has_gui:
-                sim.stop()
             sim.clear_instance()

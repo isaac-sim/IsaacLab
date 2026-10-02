@@ -532,8 +532,8 @@ class KitLauncher(SimulationLauncher):
                 "Video recording with `--video` requires MoviePy and its imageio-ffmpeg backend, "
                 "which are not installed by default. "
                 "Run uv commands with `uv run --extra video ...`, or install MoviePy into the "
-                'legacy environment with `./isaaclab.sh -p -m pip install "moviepy>=1.0.3,<2.0.0.dev0"` '
-                "(`isaaclab.bat -p -m pip install ...` on Windows), and retry."
+                'standalone uv environment with `uv pip install "moviepy>=1.0.3,<2.0.0.dev0"` '
+                "and retry."
             )
         # Kit renders a recording only when the launch enabled camera rendering for it, i.e. a Kit visualizer or a
         # Kit camera records; a video recorded from a Newton visualizer needs no Kit viewport.
@@ -867,18 +867,12 @@ def _ensure_isaac_sim_available() -> None:
     if KitLauncher.is_available():
         return
 
-    isaaclab_path = os.environ.get("ISAACLAB_PATH")
-    local_sim = os.path.join(isaaclab_path, "_isaac_sim") if isaaclab_path else None
+    local_sim = ISAACLAB_ROOT / "_isaac_sim"
     extra_hint = ""
-    if local_sim and os.path.isdir(local_sim):
-        launcher, source = ("isaaclab.bat", f'call "{local_sim}\\setup_conda_env.bat"')
-        if sys.platform != "win32":
-            launcher, source = ("./isaaclab.sh", f'source "{local_sim}/setup_conda_env.sh"')
+    if local_sim.is_dir():
         extra_hint = (
             f"  Found a local Isaac Sim at {local_sim} but its environment is not active.\n"
-            f"  Either run via `{launcher} ...` (which sources the Isaac Sim env automatically),\n"
-            f"  or in your current shell run:\n"
-            f"    {source}\n"
+            "  Run through `uv run isaaclab -p <script>` to load the source-build environment.\n"
         )
 
     try:
@@ -896,7 +890,7 @@ def _ensure_isaac_sim_available() -> None:
             "  The current Python environment does not expose the SimulationApp API.\n"
             f"{extra_hint}"
             "  Install the full Isaac Sim runtime from the Isaac Lab directory by running:\n"
-            "    uv run isaaclab -i isaacsim\n"
+            "    uv sync --extra isaacsim\n"
             "\n"
             "  See https://isaac-sim.github.io/IsaacLab/main/source/setup/installation for details.\n"
         )

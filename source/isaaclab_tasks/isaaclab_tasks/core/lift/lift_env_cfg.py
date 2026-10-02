@@ -166,7 +166,6 @@ class CommandsCfg:
             pitch=(-3.14, 3.14),
             yaw=(0.0, 0.0),
         ),
-        success_vis_material_name="table_material",
     )
 
 
@@ -569,6 +568,7 @@ class ReorientEnvCfg(ManagerBasedRLEnvCfg):
     def play_mode(self):
         super().play_mode()
         self.commands.object_pose.debug_vis = True
+        self.commands.object_pose.success_vis_material_name = "table_material"
         # the bank shapes what a policy trains on; at play it only has to supply starts for the
         # handful of environments the parent left, so it is harvested small and taken as it comes
         # rather than making the viewer wait through an oversampled prefill and its spread pass

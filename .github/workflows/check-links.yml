@@ -108,7 +108,6 @@ jobs:
           --exclude 'openusd\.org'
           --exclude 'ubuntu\.com/server/docs'
           --exclude 'docs\.ray\.io'
-          --exclude 'docs\.conda\.io'
           --exclude 'stackoverflow\.com'
           --exclude 'docs\.isaacsim\.omniverse\.nvidia\.com'
           --exclude 'download\.isaacsim\.omniverse\.nvidia\.com/isaaclab/images'

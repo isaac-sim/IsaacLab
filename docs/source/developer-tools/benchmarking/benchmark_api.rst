@@ -52,7 +52,7 @@ Run the file through the Isaac Lab Python wrapper:
 
 .. code-block:: bash
 
-   ./isaaclab.sh -p runtime_benchmark.py
+   uv run python runtime_benchmark.py
 
 The command prints the summary report. The paths in ``result.output_paths``
 identify the schema and summary JSON files that were written. Use these paths in
@@ -468,7 +468,7 @@ training throughput. The command matrices and extension protocol are in
 Troubleshooting
 ---------------
 
-Run scripts through ``./isaaclab.sh -p`` so the Isaac Lab and simulator Python
+Run scripts through ``uv run python`` so the Isaac Lab and simulator Python
 environment is active. If output is missing, inspect returned ``output_paths``
 and make sure custom producers call ``finalize()``. Formatter names are lowercase
 and case-sensitive. Valid names are ``schema``, ``summary``, ``json``, ``osmo``,

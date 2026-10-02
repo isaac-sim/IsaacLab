@@ -26,6 +26,17 @@ def stage_package(repo_root: Path, stage_dir: Path, version: str) -> None:
     shutil.copytree(repo_root / "examples", package_dir / "examples")
     shutil.copytree(repo_root / "source", package_dir / "source")
     shutil.copytree(repo_root / "tools" / "template", package_dir / "tools" / "template")
+    for script in (
+        "scripts/reinforcement_learning/train.py",
+        "scripts/reinforcement_learning/train_multigpu.py",
+        "scripts/reinforcement_learning/play.py",
+        "scripts/environments/teleoperation/teleop_se3_agent.py",
+        "scripts/tools/record_demos.py",
+        "scripts/tools/replay_demos.py",
+    ):
+        destination = package_dir / script
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(repo_root / script, destination)
 
     for directory in (package_dir / "apps").rglob("*"):
         if directory.is_dir():
