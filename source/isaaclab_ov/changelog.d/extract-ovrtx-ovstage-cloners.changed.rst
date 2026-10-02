@@ -6,17 +6,13 @@
 * Consolidated scene binding setup, camera pose updates, and render submission across OVRTX scene paths.
   Converted camera poses directly into retained matrix buffers and shared unscaled SDP publications between renderers.
   Paired query and path-list lifetimes on the stage backend, including material updates, and decoded segmentation
-  labels once per frame. Submitted all active products of a shared engine across renderer configurations.
-* Shared one OVRTX engine across camera product configurations when opting into a shared OVPhysX stage, as required
-  by the SDK's single-renderer attachment contract. Cameras must agree on native logging and transform-cache settings.
-  Removed duplicate USD scene-partition authoring; camera registration authored the runtime attributes.
+  labels once per frame. Removed duplicate USD scene-partition authoring; camera registration authored
+  the runtime attributes.
 * Created native environment frames only in private USD exports and placed OVPhysX originals from the clone plan.
   Replaced recursive export filtering with a pruned USD traversal while retaining routed prototype selection.
-* Moved shared-stage selection from renderer construction into clone preparation. OVRTX configurations
-  requested native cloning by default; preparation replaced the physics/render routes when explicitly
-  opting into OVStage and acquired their resources only after deciding scene ownership.
-* Rebuilt shared stages from current USD during forced physics initialization after releasing camera and scene
-  bindings and detaching consumers. Physics and rendering observed new masses and geometry after reinitialization.
+* Moved scene selection from renderer construction into clone preparation. OVRTX configurations
+  requested native cloning by default; preparation selected an isolated OVStage when explicitly
+  requested and acquired resources only after deciding scene ownership.
 * **Breaking:** Removed the OVStage 0.1 and OVRTX 0.4 compatibility modules and their version fallbacks.
   Used the pinned SDKs' GPU hierarchy model and RenderVar prim-path keys directly. Code importing
   ``ovstage_compat`` or ``renderers.ovrtx_compat`` must use OVStage 0.2 and OVRTX 0.5 APIs directly.

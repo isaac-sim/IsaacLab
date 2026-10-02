@@ -17,8 +17,6 @@ from isaaclab.sim import BackendCfg
 from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
-    from isaaclab_ov.stage import OvstageBackendCfg
-
     from .ovphysx_manager import OvPhysxBackend
 
 # POSIX temp roots are shared between users; Windows already gives each user a private one.
@@ -39,9 +37,6 @@ class OvPhysxBackendCfg(BackendCfg):
 
     cooked_collider_cache_dir: str | None = DEFAULT_COOKED_COLLIDER_CACHE_DIR
     """Cooked-collider cache location, fixed by the first runtime created in the process."""
-
-    stage_cfg: OvstageBackendCfg | None = None
-    """Shared OVStage configuration, or None when physics owns its private stage."""
 
 
 @configclass
