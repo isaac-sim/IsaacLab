@@ -31,16 +31,33 @@ def joint_pos_rel_biased(
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
     biased: bool = True,
     action_name: str = "joint_pos",
+    backlash_cfg: SceneEntityCfg | None = None,
 ) -> torch.Tensor:
-    """Encoder joint offsets from the default pose [rad].
+    """Encoder offsets from the default pose [rad], optionally including paired gearbox play.
 
-    ``asset_cfg`` must select the joints of the ``action_name`` action term, in the same order.
+    ``asset_cfg`` must select the joints of the ``action_name`` action term, in the same order, and
+    ``backlash_cfg`` the passive hinges in that order. Calibration bias belongs to the servo encoder only.
     """
     asset: Articulation = env.scene[asset_cfg.name]
     joint_pos = asset.data.joint_pos.torch[:, asset_cfg.joint_ids]
     if biased:
         joint_pos = joint_pos + env.action_manager.get_term(action_name).encoder_bias
+    if backlash_cfg is not None:
+        joint_pos = joint_pos + env.scene[backlash_cfg.name].data.joint_pos.torch[:, backlash_cfg.joint_ids]
     return joint_pos - asset.data.default_joint_pos.torch[:, asset_cfg.joint_ids]
+
+
+def joint_vel_rel_backlash(
+    env: ManagerBasedEnv, asset_cfg: SceneEntityCfg, backlash_cfg: SceneEntityCfg
+) -> torch.Tensor:
+    """Encoder velocity relative to the default [rad/s], including the paired play hinges.
+
+    Both selections must list corresponding servo and passive joints in the same order.
+    """
+    asset: Articulation = env.scene[asset_cfg.name]
+    velocity = asset.data.joint_vel.torch[:, asset_cfg.joint_ids]
+    velocity = velocity + env.scene[backlash_cfg.name].data.joint_vel.torch[:, backlash_cfg.joint_ids]
+    return velocity - asset.data.default_joint_vel.torch[:, asset_cfg.joint_ids]
 
 
 def projected_gravity_imu_misaligned(

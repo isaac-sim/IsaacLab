@@ -11,7 +11,7 @@ MicroDuck Walking
 ``IsaacContrib-Velocity-Flat-MicroDuck`` trains the standard walking MicroDuck on a plane with
 Newton MJWarp and :ref:`BAM servos <actuators-bam>`. It ports the walking recipe from
 `microduck_rl <https://github.com/pollen-robotics/microduck_rl>`_ through the original Isaac Lab
-MicroDuck branch. This task uses the regular walking asset; roller and backlash tasks are not registered.
+MicroDuck branch. The flat and rough tasks each support the regular and backlash walking assets.
 
 The walking USD is currently loaded from
 ``source/isaaclab_assets/data/Robots/PollenRobotics/MicroDuck/microduck_walk.usd``.
@@ -85,3 +85,32 @@ The terrain importer authors MuJoCo contact parameters ``solref=(0.04, 1.0)`` an
 ``solimp=(0.85, 0.95, 0.001, 0.5, 2.0)`` before Newton parses the scene. The task allows 200 contacts
 and 1024 constraint rows per environment and uses 100 solver iterations with 50 line-search iterations.
 This keeps the current flat training run's solver budget rather than mjlab's 30-iteration rough setting.
+
+Backlash variants
+-----------------
+
+Use ``IsaacContrib-Velocity-Flat-Backlash-MicroDuck`` or
+``IsaacContrib-Velocity-Rough-Backlash-MicroDuck`` to train the corresponding task with gearbox play:
+
+.. code-block:: bash
+
+   uv run --extra rsl-rl isaaclab train --rl_library rsl_rl \
+     --task IsaacContrib-Velocity-Flat-Backlash-MicroDuck --num_envs 4096
+
+   uv run --extra rsl-rl isaaclab train --rl_library rsl_rl \
+     --task IsaacContrib-Velocity-Rough-Backlash-MicroDuck --num_envs 4096
+
+Both load ``source/isaaclab_assets/data/Robots/PollenRobotics/MicroDuck/microduck_walk_backlash.usd``.
+This local asset adds a passive hinge with ±1° of play to each servo, for 28 joints and 14 actions.
+The actor and critic retain their 61- and 76-value layouts. Joint observations and head-tracking
+rewards measure the output-side encoder: servo angle or velocity plus the corresponding play hinge.
+Encoder bias is applied once per servo, and the actor's existing velocity observation delay is retained.
+BAM firmware uses output-side position feedback while motor back-EMF remains motor-side.
+
+Only servo joints incur the soft-limit penalty, since passive hinges normally touch their stops.
+Reset centers the play hinges; the existing armature randomization includes them, as in the reference.
+Both backlash tasks use 100 solver iterations; the flat task's 10-iteration budget was exhausted
+at 4096 environments with play hinges. The variants inherit their respective terrain, reward, and PPO settings, with separate
+``microduck_velocity_flat_backlash`` and ``microduck_velocity_rough_backlash`` experiment directories.
+The observation layout permits loading existing walking policies, but the changed dynamics still
+require rollout validation.
