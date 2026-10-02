@@ -41,6 +41,9 @@ The pair is resolved from GitHub's exact tested merge revision. Its first parent
 is the comparison base, and its second parent must match the requested PR head.
 Later changes to the target branch cannot change that pair. The originally
 reported PR-event base is retained separately in the provenance.
+A subsequent PR update resolves its own tested merge. If that merge's first parent
+has changed, the job measures a new baseline even if the PR-event payload still
+reports the older base.
 
 For a PR without a reusable baseline, the performance job checks out that resolved
 base commit and benchmarks it first. It then checks out and
