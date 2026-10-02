@@ -157,10 +157,13 @@ reuses the hierarchy topology. Clean requests never acquire writable Fabric arra
 Renderers do not select a physics-specific synchronization path.
 The same Fabric resource receives geometry through ``update_geometries(provider, frame)``.
 PhysX publishes its native ``FabricPoints`` without a conversion or rewrite. Foreign mesh points
-are interpolated directly into GPU Fabric storage. The current Kit Hydra path requires CPU Fabric
-destinations for ``Points`` and ``BasisCurves``; SDP handles their device transfer without USD
-attribute writes. Only destinations whose update interval has elapsed are transferred. World-space
+are interpolated directly into GPU Fabric storage. ``Points`` destinations also use GPU Fabric
+on Kit 110.4 and newer, keeping the SDP particle-position upload on the device. Older Kit versions and
+``BasisCurves`` use CPU Fabric destinations; SDP handles their device transfer without USD
+attribute writes. Only destinations whose update interval has elapsed are updated. World-space
 point destinations reset their transform stack to avoid applying the environment or body pose twice.
+GPU Fabric point uploads still need additional RTX integration: moving-particle rendering fails
+on Isaac Sim 6.2.0-rc.11 with Kit 110.4, even when Fabric contains the updated positions.
 ``FabricMatrix44`` and ``FabricPoints`` contain only array storage, not bindings or native engine handles.
 
 Newton backend

@@ -24,8 +24,17 @@ import numpy as np
 import pytest
 import torch
 import warp as wp
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonManager, VBDSolverCfg, XPBDSolverCfg
+from isaaclab_newton.assets import MPMObjectCfg
+from isaaclab_newton.physics import (
+    MJWarpSolverCfg,
+    MPMSolverCfg,
+    NewtonCfg,
+    NewtonManager,
+    VBDSolverCfg,
+    XPBDSolverCfg,
+)
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
+from isaaclab_newton.sim.spawners.mpm import MPMGridCfg
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
 from isaaclab_physx.renderers.fabric import FabricBackend, FabricBackendCfg
 from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
@@ -427,8 +436,15 @@ def test_nested_articulation_follows_root_pose_writes():
 
 @pytest.mark.isaacsim_ci
 @pytest.mark.skipif(not wp.get_cuda_device_count(), reason="CUDA is unavailable")
-def test_fabric_geometry_sink_uses_sdp_world_points_and_frame_cadence(monkeypatch):
+@pytest.mark.parametrize("legacy_kit", [False, True], ids=["native-kit", "legacy-kit-fallback"])
+def test_fabric_geometry_sink_uses_sdp_world_points_and_frame_cadence(monkeypatch, legacy_kit):
     """Mesh, curve and cloud sinks consume only named SDP buffers, independent of Newton internals."""
+    kit_version = tuple(map(int, simulation_app.get_kit_version_short().split(".")))
+    gpu_points = not legacy_kit and kit_version >= (110, 4)
+    if legacy_kit:
+        app = Mock(wraps=simulation_app)
+        app.get_kit_version_short.return_value = "110.3"
+        monkeypatch.setattr(omni.kit.app, "get_app", lambda: app)
     cfg = SimulationCfg(device="cuda:0", physics=NewtonCfg(), visualizer_cfgs=[])
     with build_simulation_context(sim_cfg=cfg) as sim:
         parent = UsdGeom.Xform.Define(sim.stage, "/World/Geometry")
@@ -486,7 +502,17 @@ def test_fabric_geometry_sink_uses_sdp_world_points_and_frame_cadence(monkeypatc
         fabric.update_geometries(provider, 1)
         fabric.update_geometries(provider, 2)
         np.testing.assert_allclose(_fabric_curve_points_world(str(cloud.GetPath()))[0], [1.0, 0.0, 2.0])
-        fabric.update_geometries(provider, 3)
+        copy = wp.copy
+
+        def copy_without_point_readback(dest, src, *args, **kwargs):
+            if gpu_points:
+                assert not (src.device.is_cuda and dest.device.is_cpu), "Particle rendering copied points to CPU"
+            return copy(dest, src, *args, **kwargs)
+
+        # Only the cloud is due here; a CUDA cloud must enter Fabric without a host copy.
+        with monkeypatch.context() as patch:
+            patch.setattr(wp, "copy", copy_without_point_readback)
+            fabric.update_geometries(provider, 3)
         np.testing.assert_allclose(
             _fabric_curve_points_world(str(cloud.GetPath())), points["/World/Geometry/Cloud"].numpy(), atol=1.0e-6
         )
@@ -505,6 +531,76 @@ def test_fabric_geometry_sink_uses_sdp_world_points_and_frame_cadence(monkeypatc
         fabric.update_geometries(provider, 3)
         wp.synchronize_device(sim.device)
         np.testing.assert_allclose(_fabric_curve_points_world(mesh_path), points[mesh_path].numpy(), atol=1.0e-6)
+
+
+@pytest.mark.isaacsim_ci
+@pytest.mark.skipif(not wp.get_cuda_device_count(), reason="CUDA is unavailable")
+def test_mpm_particle_writes_and_resets_are_visible_in_rtx():
+    """RTX must render particle writes and resets independently for cloned MPM assets."""
+
+    @configclass
+    class ParticleSceneCfg(InteractiveSceneCfg):
+        red = MPMObjectCfg(
+            prim_path="{ENV_REGEX_NS}/Red",
+            spawn=MPMGridCfg(
+                lower=(-0.1, -0.1, -0.1),
+                upper=(0.1, 0.1, 0.1),
+                voxel_size=0.2,
+                particle_placement="cell_center",
+                visual_color=(1.0, 0.0, 0.0),
+            ),
+            init_state=MPMObjectCfg.InitialStateCfg(pos=(-0.4, 0.0, 1.0)),
+        )
+        green = replace(red, prim_path="{ENV_REGEX_NS}/Green")
+        green.spawn.visual_color = (0.0, 1.0, 0.0)
+        green.init_state.pos = (0.4, 0.0, 1.0)
+        camera = CameraCfg(
+            prim_path="{ENV_REGEX_NS}/Camera",
+            height=128,
+            width=128,
+            data_types=["rgb"],
+            offset=CameraCfg.OffsetCfg(pos=(0.0, 0.0, 4.0), convention="opengl"),
+            spawn=sim_utils.PinholeCameraCfg(focal_length=24.0, horizontal_aperture=20.0),
+            renderer_cfg=IsaacRtxRendererCfg(),
+        )
+        light = AssetBaseCfg(prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=3000.0))
+
+    cfg = SimulationCfg(
+        device="cuda:0",
+        gravity=(0.0, 0.0, 0.0),
+        physics=NewtonCfg(solver_cfg=MPMSolverCfg(max_iterations=2, voxel_size=0.2), use_cuda_graph=False),
+    )
+    with build_simulation_context(sim_cfg=cfg) as sim:
+        scene = InteractiveScene(ParticleSceneCfg(num_envs=2, env_spacing=4.0))
+        sim.register_interactive_scene(scene)
+        try:
+            sim.reset()
+            scene.reset()
+
+            def centers():
+                for _ in range(4):
+                    _render(sim, scene)
+                rgb = scene["camera"].data.output["rgb"].torch[..., :3].to(torch.float32)
+                values = []
+                for image in rgb:
+                    for channel in (0, 1):
+                        others = image[..., [value for value in range(3) if value != channel]].amax(-1)
+                        pixels = torch.nonzero((image[..., channel] > 40) & (image[..., channel] > others * 1.5))
+                        assert len(pixels) >= 5, "The colored particle cloud is absent from RTX"
+                        values.append(pixels.to(torch.float32).mean(0))
+                return torch.stack(values)
+
+            before = centers()
+            state = scene["red"].data.default_particle_state_w.torch[1:2].clone()
+            state[..., 1] += 0.4
+            scene["red"].write_particle_state_to_sim_index(state, env_ids=[1])
+            moved = centers()
+            assert torch.linalg.vector_norm(moved[2] - before[2]) > 10
+            torch.testing.assert_close(moved[[0, 1, 3]], before[[0, 1, 3]], rtol=0.0, atol=2.0)
+            scene["red"].reset(env_ids=[1])
+            torch.testing.assert_close(centers(), before, rtol=0.0, atol=2.0)
+        finally:
+            sim.register_interactive_scene(None)
 
 
 @pytest.mark.isaacsim_ci
