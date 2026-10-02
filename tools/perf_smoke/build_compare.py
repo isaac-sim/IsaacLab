@@ -18,6 +18,8 @@ from typing import Any
 
 from . import baseline as baseline_mod
 from .baseline import Evidence, workload_key
+from .paired import select_pr_baseline
+from .report import render_build_comparison
 
 
 def _object(value: Any) -> dict:
@@ -310,13 +312,11 @@ def compare_evidence(
 
 def _paired_failure(candidate: Evidence) -> dict | None:
     """Recover the benchmark job's concrete failure before checking its incomplete pin."""
-    from .paired import _files, _json
-
-    files = _files(candidate.zip_bytes)
+    files = candidate.files
     if "paired-failure.json" not in files:
         return None
     try:
-        failure = _json(files, "paired-failure.json")
+        failure = baseline_mod.artifact_json(files, "paired-failure.json")
     except baseline_mod.EvidenceError as exc:
         candidate.issues.append(f"Paired failure diagnostics are unreadable: {exc}")
         return None
@@ -335,8 +335,6 @@ def _paired_failure(candidate: Evidence) -> dict | None:
 
 def main(argv: list[str] | None = None) -> int:
     """Generate the advisory automatic report for this workflow's benchmark evidence."""
-    from .report import render_build_comparison
-
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repository", default=os.environ.get("GITHUB_REPOSITORY"))
     parser.add_argument("--run_id", type=int, default=os.environ.get("GITHUB_RUN_ID"))
@@ -352,8 +350,6 @@ def main(argv: list[str] | None = None) -> int:
         client = baseline_mod.GitHubClient(args.repository)
         candidate = baseline_mod.resolve_candidate(client, args.run_id, args.run_attempt)
         if candidate.identity.get("event") == "pull_request":
-            from .paired import select_pr_baseline
-
             paired_failure = _paired_failure(candidate)
             result = select_pr_baseline(client, candidate)
         else:
