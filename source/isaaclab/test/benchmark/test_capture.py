@@ -229,6 +229,32 @@ def test_run_config_uses_concrete_backend_configuration():
     default_env_cfg = SimpleNamespace(sim=SimpleNamespace(physics=None))
     assert run_config_from_env_cfg(default_env_cfg).physics_backend == "physx"
 
+    class NewtonCfg(SimpleNamespace):
+        pass
+
+    coupled_newton_env_cfg = SimpleNamespace(
+        sim=SimpleNamespace(
+            physics=NewtonCfg(
+                class_type="isaaclab_contrib.coupling.coupler:NewtonCouplerManager",
+                solver_cfg=SimpleNamespace(
+                    entries=[
+                        SimpleNamespace(
+                            solver_cfg=SimpleNamespace(
+                                class_type="isaaclab_newton.physics.mjwarp_manager:NewtonMJWarpManager"
+                            )
+                        ),
+                        SimpleNamespace(
+                            solver_cfg=SimpleNamespace(
+                                class_type="isaaclab_newton.physics.vbd_manager:NewtonVBDManager"
+                            )
+                        ),
+                    ]
+                ),
+            )
+        )
+    )
+    assert run_config_from_env_cfg(coupled_newton_env_cfg).physics_backend == "newton_mjwarp"
+
     with pytest.raises(ValueError, match="Unsupported concrete physics config"):
         run_config_from_env_cfg(SimpleNamespace(sim=SimpleNamespace(physics=object())))
 
