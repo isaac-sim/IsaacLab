@@ -543,14 +543,28 @@ def create_isaaclab_env(
         env = multi_agent_to_single_agent(env)
     if distributed:
         _restore_rank_device(env.unwrapped.device)
-        _nccl_probe("after env")  # TEMP diagnostic (revert before review)
+        _cuda_state_dump("after env")  # TEMP diagnostic (revert before review)
     return env
+
+
+def _cuda_state_dump(stage: str) -> None:
+    """TEMP diagnostic: print CUDA/NCCL/graphics environment variables and the CUDA libraries loaded."""
+    keys = sorted(k for k in os.environ if re.match(r"(CUDA|NCCL|CU_|VK_|__GL|LD_PRELOAD|LD_LIBRARY_PATH|NVIDIA)", k))
+    print(f"[CUDA-DUMP] {stage} env: " + " ".join(f"{k}={os.environ[k]}" for k in keys), flush=True)
+    libs = set()
+    with contextlib.suppress(OSError), open("/proc/self/maps") as maps:
+        for line in maps:
+            path = line.split()[-1]
+            if re.search(r"lib(cuda|cudart|nccl|nvrtc|nvJitLink|cublas)[^/]*\.so|warp[^/]*\.so", path):
+                libs.add(path)
+    print(f"[CUDA-DUMP] {stage} libs: " + " ".join(sorted(libs)), flush=True)
 
 
 def _nccl_probe(stage: str) -> None:
     """TEMP diagnostic: all-reduce one element over a fresh NCCL group, then tear the group down."""
     import torch.distributed as dist
 
+    _cuda_state_dump(stage)
     try:
         dist.init_process_group(backend="nccl")
         value = torch.ones(1, device=f"cuda:{torch.cuda.current_device()}")
