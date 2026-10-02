@@ -26,7 +26,7 @@ from typing import Any
 import warp as wp
 from newton.actuators import ComponentKind, DriveBase, register_actuator_component
 
-from .bam_kernels import _bam_friction_kernel, _bam_motor_kernel, _bam_state_reset_kernel
+from .bam_kernels import _bam_delay_kernel, _bam_friction_kernel, _bam_motor_kernel, _bam_state_reset_kernel
 
 BAM_DRIVE_API: str = "NewtonBamDriveAPI"
 """USD API schema token that maps an actuator prim onto :class:`DriveBam`."""
@@ -334,6 +334,7 @@ class DriveBam(DriveBase):
         self.friction_budget = None
         self.effective_vin = None
         self.motor_torque = None
+        self._delayed_target: wp.array[float] | None = None
         self._next_state_arrays: dict[str, wp.array] = {}
 
     """
@@ -344,6 +345,7 @@ class DriveBam(DriveBase):
         self.friction_budget = wp.zeros(num_actuators, dtype=wp.float32, device=device)
         self.effective_vin = wp.zeros(num_actuators, dtype=wp.float32, device=device)
         self.motor_torque = wp.zeros(num_actuators, dtype=wp.float32, device=device)
+        self._delayed_target = wp.empty(num_actuators, dtype=wp.float32, device=device)
         self._next_state_arrays = {
             "prev_motor_torque": wp.zeros(num_actuators, dtype=wp.float32, device=device),
             "prev_applied_torque": wp.zeros(num_actuators, dtype=wp.float32, device=device),
@@ -436,15 +438,40 @@ class DriveBam(DriveBase):
         num_actuators = len(forces)
         scratch = self._next_state_arrays
         wp.launch(
+            kernel=_bam_delay_kernel,
+            dim=num_actuators,
+            inputs=[
+                target_pos,
+                target_pos_indices,
+                state.delay_ring,
+                state.delay_lag,
+                state.delay_fill,
+                state.delay_step_count,
+                state.delay_phase,
+                self.min_delay,
+                self.max_delay,
+                self.delay_hold_prob,
+                self.delay_update_period,
+                state.delay_rng_seed,
+            ],
+            outputs=[
+                self._delayed_target,
+                scratch["delay_ring"],
+                scratch["delay_lag"],
+                scratch["delay_fill"],
+                scratch["delay_step_count"],
+            ],
+            device=device,
+        )
+        wp.launch(
             kernel=_bam_motor_kernel,
             dim=num_actuators,
             inputs=[
                 positions,
                 velocities,
-                target_pos,
+                self._delayed_target,
                 pos_indices,
                 vel_indices,
-                target_pos_indices,
                 self.kp_fw,
                 self.kp_scale,
                 self.kd_scale,
@@ -456,27 +483,10 @@ class DriveBam(DriveBase):
                 self.max_pwm,
                 self.max_current,
                 state.prev_motor_torque,
-                state.delay_ring,
-                state.delay_lag,
-                state.delay_fill,
-                state.delay_step_count,
-                state.delay_phase,
                 self.vin_min,
                 self.env_dof_stride,
-                self.min_delay,
-                self.max_delay,
-                self.delay_hold_prob,
-                self.delay_update_period,
-                state.delay_rng_seed,
             ],
-            outputs=[
-                self.motor_torque,
-                self.effective_vin,
-                scratch["delay_ring"],
-                scratch["delay_lag"],
-                scratch["delay_fill"],
-                scratch["delay_step_count"],
-            ],
+            outputs=[self.motor_torque, self.effective_vin],
             device=device,
         )
         wp.launch(
