@@ -317,6 +317,22 @@ def test_drive_matches_upstream_motor_and_friction_goldens(device):
     )
 
 
+@pytest.mark.parametrize("device", test_devices())
+def test_backlash_feedback_adds_play_angle_but_keeps_motor_velocity(device):
+    """The encoder sees the output angle; back-EMF still uses the rotor velocity."""
+    harness = _Harness(2, device)
+    harness.drive.has_backlash = True
+    harness.drive.backlash_pos_indices = wp.array([1, 0, 3, 2], dtype=wp.uint32, device=device)
+    positions = np.array([[0.01, -0.02], [0.03, -0.01]], dtype=np.float32)
+    velocities = np.array([[0.3, -0.4], [-0.5, 0.2]], dtype=np.float32)
+    targets = np.zeros_like(positions)
+    forces = harness.step(positions, velocities, targets)
+    params = _reference_params()
+    error = targets - positions - positions[:, ::-1]
+    expected = params.kt / params.R * (VIN * KP_FW * params.error_gain * error - params.kt * velocities)
+    np.testing.assert_allclose(forces, expected, rtol=2e-5, atol=1e-7)
+
+
 def test_environment_stride_cannot_be_set_after_state_creation():
     """Existing drive states must never disagree with the motor's environment grouping."""
     harness = _Harness(num_envs=1, device="cpu")
@@ -326,14 +342,18 @@ def test_environment_stride_cannot_be_set_after_state_creation():
     assert harness.drive.env_dof_stride == len(JOINT_NAMES)
 
 
-def test_unbound_drive_rejects_stepping(monkeypatch):
+@pytest.mark.parametrize("binding", ["solver", "play-hinge"])
+def test_unbound_drive_rejects_stepping(monkeypatch, binding):
     """A BAM drive imported outside Lab's solver-binding path must raise a Python error."""
     harness = _Harness(num_envs=1, device="cpu")
-    harness.drive.external_torque = None
+    if binding == "solver":
+        harness.drive.external_torque = None
+    else:
+        harness.drive.has_backlash = True
     # Keep a missing guard from crashing the test process through a null Warp array.
     monkeypatch.setattr(wp, "launch", lambda *args, **kwargs: None)
     zeros = np.zeros((1, 2))
-    with pytest.raises(RuntimeError, match="BAM.*solver binding"):
+    with pytest.raises(RuntimeError, match=f"BAM.*{binding}.*binding"):
         harness.step(zeros, zeros, zeros)
 
 

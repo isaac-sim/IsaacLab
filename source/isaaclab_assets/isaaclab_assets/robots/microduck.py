@@ -10,14 +10,18 @@ The following configurations are available:
 * :data:`MICRODUCK_CFG`: the 14-joint walking robot with its standing pose.
 * :data:`MICRODUCK_ALLCOLLISIONS_CFG`: the robot with additional body and head collisions.
 * :data:`MICRODUCK_ROLLERS_CFG`: the robot with four passive wheels in place of its soles.
+* :data:`MICRODUCK_BACKLASH_CFG`, :data:`MICRODUCK_ALLCOLLISIONS_BACKLASH_CFG`, and
+  :data:`MICRODUCK_ROLLERS_BACKLASH_CFG`: the corresponding variants with gearbox play.
 
 Reference: https://github.com/pollen-robotics/microduck_rl
 """
 
+from dataclasses import fields
+
 from isaaclab_newton.sim.schemas import NewtonArticulationCfg
 
 import isaaclab.sim as sim_utils
-from isaaclab.actuators import BamActuatorCfg, BamMotorCfg
+from isaaclab.actuators import BamActuatorCfg, BamBacklashActuatorCfg, BamMotorCfg
 from isaaclab.assets import ArticulationCfg
 from isaaclab.utils import clone
 
@@ -109,3 +113,25 @@ MICRODUCK_ROLLERS_CFG.init_state.joint_pos["passive_.*"] = 0.0
 
 The initial root height [m] provides clearance for the wheels, which extend below the walking soles.
 """
+
+
+def _with_backlash(cfg: ArticulationCfg) -> ArticulationCfg:
+    """Use the corresponding USD with passive play hinges and output-side encoder feedback."""
+    cfg = clone(cfg)
+    cfg.spawn.usd_path = cfg.spawn.usd_path.removesuffix(".usd") + "_backlash.usd"
+    servos = cfg.actuators["servos"]
+    cfg.actuators["servos"] = BamBacklashActuatorCfg(
+        **{field.name: getattr(servos, field.name) for field in fields(servos)}
+    )
+    cfg.init_state.joint_pos["passive_.*"] = 0.0
+    return cfg
+
+
+MICRODUCK_BACKLASH_CFG = _with_backlash(MICRODUCK_CFG)
+"""Walking MicroDuck with 14 servos and 14 passive gearbox-play hinges spanning ±1°."""
+
+MICRODUCK_ALLCOLLISIONS_BACKLASH_CFG = _with_backlash(MICRODUCK_ALLCOLLISIONS_CFG)
+"""MicroDuck with additional body collisions and passive gearbox-play hinges."""
+
+MICRODUCK_ROLLERS_BACKLASH_CFG = _with_backlash(MICRODUCK_ROLLERS_CFG)
+"""MicroDuck with 14 servos, 14 passive gearbox-play hinges, and four passive wheels."""

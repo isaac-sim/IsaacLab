@@ -78,6 +78,7 @@ def _bam_motor_kernel(
     delayed_target: wp.array[float],
     pos_indices: wp.array[wp.uint32],
     vel_indices: wp.array[wp.uint32],
+    backlash_pos_indices: wp.array[wp.uint32],
     kp_fw: wp.array[float],
     kp_scale: wp.array[float],
     kd_scale: wp.array[float],
@@ -112,6 +113,8 @@ def _bam_motor_kernel(
     scaled_vel = velocities[vel_indices[i]] * kd_scale[i]
 
     measured = positions[pos_indices[i]]
+    if backlash_pos_indices:
+        measured += positions[backlash_pos_indices[i]]
 
     duty = (delayed_target[i] - measured) * (kp_fw[i] * kp_scale[i]) * error_gain[i]
     if max_current[i] > 0.0:

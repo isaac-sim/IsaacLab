@@ -320,6 +320,28 @@ class NewtonActuatorControl(ArticulationActuatorControl):
 
         return next(cfg for cfg in self._native_actuator_cfgs.values() if isinstance(cfg, BamActuatorCfg))
 
+    def _bind_bam_backlash(self, actuator) -> None:
+        """Resolve sibling play hinges using model coordinates, including floating-base offsets."""
+        from newton import JointType  # noqa: PLC0415
+
+        model = SimulationManager.backend.model
+        q_start = model.joint_q_start.numpy()
+        qd_start = model.joint_qd_start.numpy()
+        joint_types = model.joint_type.numpy()
+        worlds = model.joint_world.numpy()
+        joints = {(int(world), label): index for index, (world, label) in enumerate(zip(worlds, model.joint_label))}
+        dof_to_joint = {int(start): index for index, start in enumerate(qd_start[:-1])}
+        indices = []
+        for dof in actuator.indices.numpy():
+            joint = dof_to_joint[int(dof)]
+            parent, _, name = model.joint_label[joint].rpartition("/")
+            twin_label = f"{parent}/passive_{name}_backlash"
+            twin = joints.get((int(worlds[joint]), twin_label))
+            if twin is None or joint_types[joint] != JointType.REVOLUTE or joint_types[twin] != JointType.REVOLUTE:
+                raise ValueError(f"BAM backlash requires a revolute servo and sibling play hinge: {twin_label}")
+            indices.append(int(q_start[twin]))
+        actuator.drive.backlash_pos_indices = wp.array(indices, dtype=wp.uint32, device=self.device)
+
     def _bind_bam_actuators(self) -> None:
         """Give this articulation's BAM actuators their per-step MuJoCo Warp channel.
 
@@ -354,6 +376,8 @@ class NewtonActuatorControl(ArticulationActuatorControl):
             # A bound external-torque array is the marker: it is what the bridge fills.
             if drive.external_torque is not None:
                 continue
+            if drive.has_backlash:
+                self._bind_bam_backlash(actuator)
             bridge = MjWarpActuatorBridge(solver, actuator.indices, num_newton_dofs, self.device)
             external_torque = wp.zeros(actuator.num_actuators, dtype=wp.float32, device=self.device)
             drive.external_torque = external_torque

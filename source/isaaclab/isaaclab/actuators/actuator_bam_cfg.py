@@ -172,3 +172,15 @@ class BamActuatorCfg(ActuatorBaseCfg):
     held joint creeps. Setting this replaces the constraint's solver reference with the stiff,
     timestep-independent form the reference implementation uses.
     """
+
+
+@configclass
+class BamBacklashActuatorCfg(BamActuatorCfg):
+    """BAM servo whose encoder reads through a passive gearbox-play hinge.
+
+    Each driven revolute joint must have a sibling revolute joint named
+    ``passive_<joint>_backlash`` in the USD. The firmware reads the sum of their angles
+    [rad]; back-EMF, friction, and applied torque remain on the driven joint.
+    The passive hinge's limits, damping, and armature are authored in the USD.
+    Missing play hinges raise during solver binding, before stepping or graph capture.
+    """

@@ -258,6 +258,13 @@ the servo firmware's, and its damping is the motor's back-EMF.
 BAM servo model
 ---------------
 
+Use :class:`~isaaclab.actuators.BamBacklashActuatorCfg` when the USD models gearbox play
+as a passive revolute hinge in series with each servo. The sibling joint must be named
+``passive_<servo_joint>_backlash``. Its limits, damping, and armature stay in the USD;
+the firmware measures servo angle plus play angle, while motor velocity and applied torque
+remain on the servo joint. Missing or non-revolute pairs raise before stepping.
+The authored ``newton:hasBacklash`` flag keeps these drives separate from regular BAM drives.
+
 :class:`~isaaclab.actuators.BamActuatorCfg` configures a small smart servo -- the kind used on
 low-cost legged robots -- in the *voltage* domain rather than the torque domain. It is a port of
 the `BAM (Better Actuator Models) <https://github.com/Rhoban/bam>`_ project, whose parameters are

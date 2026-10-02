@@ -53,6 +53,7 @@ class DriveBam(DriveBase):
     """
 
     SHARED_PARAMS = {
+        "has_backlash",
         "stribeck",
         "load_dependent",
         "quadratic",
@@ -69,6 +70,9 @@ class DriveBam(DriveBase):
 
     The MJWarp bridge must bind this array before the first step and CUDA graph capture.
     """
+
+    backlash_pos_indices: wp.array[wp.uint32] | None
+    """Play-hinge coordinate indices, shape ``(N,)``, bound before capture for backlash drives."""
 
     env_dof_stride: int
     """Consecutive DOFs sharing one supply and command delay: this actuator's DOFs per environment.
@@ -249,6 +253,7 @@ class DriveBam(DriveBase):
             raise ValueError(f"delay_hold_prob must lie in [0, 1], got {delay_hold_prob}")
 
         resolved: dict[str, Any] = {
+            "has_backlash": int(args.get("has_backlash", 0)),
             "stribeck": int(args.get("stribeck", 0)),
             "load_dependent": int(args.get("load_dependent", 0)),
             "quadratic": int(args.get("quadratic", 0)),
@@ -277,6 +282,7 @@ class DriveBam(DriveBase):
     def __init__(
         self,
         *,
+        has_backlash: int = 0,
         stribeck: int = 0,
         load_dependent: int = 0,
         quadratic: int = 0,
@@ -291,6 +297,7 @@ class DriveBam(DriveBase):
         """Initialize the drive from pre-built per-DOF parameter arrays.
 
         Args:
+            has_backlash: Whether the encoder includes a passive play hinge, bound before stepping.
             stribeck: Whether the Stribeck friction terms are active.
             load_dependent: Whether the gearbox friction grows with the transmitted torque.
             quadratic: Whether the quadratic load-coupling term is active.
@@ -305,6 +312,8 @@ class DriveBam(DriveBase):
         Raises:
             ValueError: If a per-DOF array is missing or its shape does not match the others.
         """
+        self.has_backlash = bool(has_backlash)
+        self.backlash_pos_indices = None
         self.stribeck = int(stribeck)
         self.load_dependent = int(load_dependent)
         self.quadratic = int(quadratic)
@@ -434,6 +443,8 @@ class DriveBam(DriveBase):
     ) -> None:
         if self.external_torque is None:
             raise RuntimeError("BAM requires an MJWarp solver binding before stepping (external_torque is unbound).")
+        if self.has_backlash and self.backlash_pos_indices is None:
+            raise RuntimeError("BAM backlash requires play-hinge coordinate binding before stepping.")
         del target_vel, feedforward, target_vel_indices, dt  # the modelled firmware has no torque input
         num_actuators = len(forces)
         scratch = self._next_state_arrays
@@ -472,6 +483,7 @@ class DriveBam(DriveBase):
                 self._delayed_target,
                 pos_indices,
                 vel_indices,
+                self.backlash_pos_indices,
                 self.kp_fw,
                 self.kp_scale,
                 self.kd_scale,

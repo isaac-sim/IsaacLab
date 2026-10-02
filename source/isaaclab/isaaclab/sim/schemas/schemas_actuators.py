@@ -260,6 +260,7 @@ def author_actuator_prims(
         is_bam = isinstance(cfg, BamActuatorCfg)
         configured_effort_limit = cfg.actuator_effort_limit
         if is_bam:
+            from ...actuators.actuator_bam_cfg import BamBacklashActuatorCfg  # noqa: PLC0415
             from ...actuators.newton.bam_component import BAM_DRIVE_API, DriveBam  # noqa: PLC0415
 
             validate(cfg)
@@ -268,6 +269,7 @@ def author_actuator_prims(
             bam_attrs.pop("friction_viscous")
             model = bam_attrs.pop("model")
             bam_attrs.update(
+                has_backlash=int(isinstance(cfg, BamBacklashActuatorCfg)),
                 stribeck=int(model != "m1"),
                 load_dependent=int(model in ("m5", "m6")),
                 quadratic=int(model == "m6"),
