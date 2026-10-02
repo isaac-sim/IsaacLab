@@ -54,7 +54,8 @@ class NewtonPolicyGhostPanel:
             imgui.text(f"Simulating {layout.num_slots} slots x {layout.slice_size} envs")
             if imgui.is_item_hovered():
                 imgui.set_tooltip(
-                    "Every slot is simulated, even when empty, so physics cost scales with the slot count."
+                    "Every slot is simulated, even when empty. With few envs per slot the extra cost is small;"
+                    " it grows with the total environment count."
                 )
             for slot in layout.slots:
                 self._draw_slot(imgui, slot)

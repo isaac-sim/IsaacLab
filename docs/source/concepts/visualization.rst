@@ -755,8 +755,9 @@ experiment's log directory; pass ``--policy_ghost_root`` to search another direc
 its own opacity slider and a **Remove** button. ``--policy_ghost_slots`` sets the number of slots,
 including the reference, up to four.
 
-* Every slot simulates ``--num_envs`` environments, even an empty one, so the simulation cost grows
-  with the slot count.
+* Every slot simulates ``--num_envs`` environments, even an empty one. With a few environments per
+  slot the extra cost is small, since the step time is dominated by fixed overhead; it grows with the
+  total environment count (slots times ``--num_envs``).
 * Randomization that cannot be mirrored between slots is disabled: startup and interval events,
   curriculum terms, and observation noise. Reset events and commands are copied from the reference.
 * Identical checkpoints do not stay exactly on top of each other; physics differences grow
