@@ -85,7 +85,7 @@ selected mode to supported solver kernels and enables deterministic contact
 ordering in its collision pipeline. Deterministic execution can increase
 memory use and reduce simulation performance. MJWarp on the GPU with
 :attr:`isaaclab_newton.physics.MJWarpSolverCfg.disable_sensors` set to ``True``,
-XPBD, and Featherstone are supported; selecting an unsupported solver raises
+XPBD, Featherstone, and SemiImplicit are supported; selecting an unsupported solver raises
 an error. MuJoCo on the CPU
 (:attr:`isaaclab_newton.physics.MJWarpSolverCfg.use_mujoco_cpu`) is already
 reproducible and is left unchanged. Set this attribute directly to request the

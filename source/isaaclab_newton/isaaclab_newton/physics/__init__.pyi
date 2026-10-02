@@ -30,6 +30,8 @@ __all__ = [
     "NewtonShapeCfg",
     "NewtonSoftContactCfg",
     "NewtonSolverCfg",
+    "NewtonSemiImplicitManager",
+    "SemiImplicitSolverCfg",
     "NewtonVBDManager",
     "VBDSolverCfg",
     "NewtonXPBDManager",
@@ -65,6 +67,8 @@ from .newton_manager_cfg import (
     NewtonSoftContactCfg,
     NewtonSolverCfg,
 )
+from .semi_implicit_manager import NewtonSemiImplicitManager
+from .semi_implicit_manager_cfg import SemiImplicitSolverCfg
 from .vbd_manager import NewtonVBDManager
 from .vbd_manager_cfg import VBDSolverCfg
 from .xpbd_manager import NewtonXPBDManager

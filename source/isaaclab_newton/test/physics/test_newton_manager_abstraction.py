@@ -29,6 +29,7 @@ import isaaclab_newton.physics.newton_manager as newton_manager_module
 import numpy as np
 import pytest
 import warp as wp
+from isaaclab_newton.assets import Articulation, ArticulationData, RigidObject, RigidObjectData
 from isaaclab_newton.assets.articulation import articulation as articulation_module
 from isaaclab_newton.assets.rigid_object import rigid_object as rigid_object_module
 from isaaclab_newton.cloner import newton_physics_replicate
@@ -50,9 +51,11 @@ from isaaclab_newton.physics import (
     NewtonMJWarpManager,
     NewtonMPMManager,
     NewtonQueries,
+    NewtonSemiImplicitManager,
     NewtonShapeCfg,
     NewtonVBDManager,
     NewtonXPBDManager,
+    SemiImplicitSolverCfg,
     VBDSolverCfg,
     XPBDSolverCfg,
 )
@@ -62,7 +65,15 @@ from isaaclab_newton.renderers.newton_warp_renderer import NewtonWarpRenderer
 from newton import JointTargetMode, JointType, ModelBuilder, ModelFlags
 from newton.actuators import DrivePID
 from newton.selection import ArticulationView
-from newton.solvers import SolverFeatherstone, SolverImplicitMPM, SolverKamino, SolverMuJoCo, SolverVBD, SolverXPBD
+from newton.solvers import (
+    SolverFeatherstone,
+    SolverImplicitMPM,
+    SolverKamino,
+    SolverMuJoCo,
+    SolverSemiImplicit,
+    SolverVBD,
+    SolverXPBD,
+)
 
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.physics import PhysicsEvent, PhysicsManager
@@ -118,6 +129,14 @@ SOLVER_MATRIX = [
         id="featherstone",
     ),
     pytest.param(
+        lambda: SemiImplicitSolverCfg(),
+        NewtonSemiImplicitManager,
+        SolverSemiImplicit,
+        False,
+        True,
+        id="semi_implicit",
+    ),
+    pytest.param(
         lambda: KaminoPADMMSolverCfg(use_collision_detector=True),
         NewtonKaminoManager,
         SolverKamino,
@@ -148,6 +167,7 @@ RIGID_BODY_FORCE_INPUT_SUPPORT = {
     NewtonVBDManager: True,
     NewtonXPBDManager: True,
     NewtonFeatherstoneManager: True,
+    NewtonSemiImplicitManager: True,
     NewtonKaminoManager: True,
     NewtonMPMManager: False,
 }
@@ -219,6 +239,7 @@ def test_deterministic_mode_rejects_unsupported_solver_cfg(solver_cfg) -> None:
     "solver_cfg_cls, solver_cfg_kwargs",
     [
         pytest.param(FeatherstoneSolverCfg, {}, id="featherstone"),
+        pytest.param(SemiImplicitSolverCfg, {}, id="semi_implicit"),
         pytest.param(MJWarpSolverCfg, {"disable_sensors": True}, id="mujoco_warp"),
         pytest.param(XPBDSolverCfg, {}, id="xpbd"),
     ],
@@ -1111,6 +1132,7 @@ def test_clear_resets_rigid_body_force_capability(monkeypatch):
         NewtonXPBDManager,
         NewtonVBDManager,
         NewtonFeatherstoneManager,
+        NewtonSemiImplicitManager,
         NewtonKaminoManager,
         NewtonMPMManager,
     ):
@@ -1281,8 +1303,10 @@ def test_initialize_solver_populates_canonical_state(
         else:
             # Pre-populate the builder with a minimal scene so MJCF conversion has
             # something to work with.
-            body = builder.add_body(mass=1.0)
-            builder.add_joint_revolute(parent=-1, child=body, axis=(0, 0, 1))
+            inertia = wp.mat33(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0)
+            body = builder.add_link(mass=1.0, inertia=inertia, lock_inertia=True)
+            joint = builder.add_joint_revolute(parent=-1, child=body, axis=(0, 0, 1))
+            builder.add_articulation([joint])
             if isinstance(solver_cfg, (KaminoPADMMSolverCfg, KaminoDVISolverCfg)) and solver_cfg.use_collision_detector:
                 builder.add_shape_sphere(body=body, radius=0.05)
                 builder.add_ground_plane()
@@ -1316,6 +1340,130 @@ def test_initialize_solver_populates_canonical_state(
         # end-to-end.  (We do not assert physics; that's covered by the
         # asset/sensor test suites.)
         sim.step(render=False)
+
+
+def _bind_kitless_asset(asset_cls: type, data_cls: type, device: str):
+    """Bind an Isaac Lab asset's public API to every articulation of the finalized model."""
+    model = NewtonManager.get_model()
+    root_view = ArticulationView(model, list(range(model.articulation_count)), verbose=False)
+    asset = object.__new__(asset_cls)
+    asset._device = device
+    asset._root_view = root_view
+    asset._data = data_cls(root_view, device)
+    asset._ALL_ENV_MASK = wp.ones(root_view.count, dtype=wp.bool, device=device)
+    return asset
+
+
+@pytest.mark.parametrize("use_cuda_graph", [False, True])
+def test_semi_implicit_body_force_and_root_resets(use_cuda_graph):
+    """SemiImplicit should expose integrated motion and resets through the public rigid-object API."""
+    dt = 0.1
+    sim_cfg = SimulationCfg(
+        dt=dt,
+        device="cuda:0",
+        gravity=(0.0, 0.0, 0.0),
+        physics=NewtonCfg(
+            solver_cfg=SemiImplicitSolverCfg(angular_damping=0.0), num_substeps=1, use_cuda_graph=use_cuda_graph
+        ),
+    )
+
+    with build_simulation_context(sim_cfg=sim_cfg) as sim:
+        builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics))
+        for _ in range(2):
+            builder.begin_world()
+            builder.add_body(mass=2.0, inertia=wp.mat33(np.eye(3)), lock_inertia=True)
+            builder.end_world()
+        force = wp.array([(4.0, 0.0, 0.0, 0.0, 0.0, 0.0), (0.0,) * 6], dtype=wp.spatial_vector, device=sim.device)
+        NewtonManager.register_state_force_callback(lambda state: state.body_f.assign(force))
+        sim.reset()
+        rigid_object = _bind_kitless_asset(RigidObject, RigidObjectData, sim.device)
+
+        sim.step(render=False)
+        assert (NewtonManager._graph is not None) is use_cuda_graph
+
+        # Semi-implicit Euler: v1 = F/m * dt = 0.2 m/s, x1 = v1 * dt = 0.02 m.
+        root_pose = rigid_object.data.root_link_pose_w.warp.numpy()
+        root_velocity = rigid_object.data.root_com_vel_w.warp.numpy()
+        np.testing.assert_allclose(root_pose[:, 0], [0.02, 0.0], rtol=1.0e-5, atol=1.0e-6)
+        np.testing.assert_allclose(root_velocity[:, 0], [0.2, 0.0], rtol=1.0e-5, atol=1.0e-6)
+
+        force.zero_()
+        reset_pose = root_pose.copy()
+        reset_velocity = root_velocity.copy()
+        reset_pose[0] = [1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0]
+        reset_velocity[0] = [0.5, 0.0, 0.0, 0.0, 0.0, 0.0]
+        env_mask = wp.array([True, False], dtype=wp.bool, device=sim.device)
+        rigid_object.write_root_pose_to_sim_mask(
+            root_pose=wp.array(reset_pose, dtype=wp.transformf, device=sim.device), env_mask=env_mask
+        )
+        rigid_object.write_root_velocity_to_sim_mask(
+            root_velocity=wp.array(reset_velocity, dtype=wp.spatial_vectorf, device=sim.device), env_mask=env_mask
+        )
+        sim.step(render=False)
+
+        selected_pose = rigid_object.data.root_link_pose_w.warp.numpy()
+        selected_velocity = rigid_object.data.root_com_vel_w.warp.numpy()
+        np.testing.assert_allclose(selected_pose[0, :3], [1.05, 2.0, 3.0], rtol=1.0e-5, atol=1.0e-6)
+        np.testing.assert_allclose(selected_velocity[0, :3], [0.5, 0.0, 0.0], rtol=1.0e-5, atol=1.0e-6)
+        np.testing.assert_allclose(selected_pose[1], root_pose[1], rtol=1.0e-5, atol=1.0e-6)
+
+        sim.step(render=False)
+        root_position = rigid_object.data.root_link_pose_w.warp.numpy()[0, :3]
+        np.testing.assert_allclose(root_position, [1.1, 2.0, 3.0], rtol=1.0e-5, atol=1.0e-6)
+
+        sim.reset()
+        rigid_object = _bind_kitless_asset(RigidObject, RigidObjectData, sim.device)
+        sim.step(render=False)
+        assert (NewtonManager._graph is not None) is use_cuda_graph
+        np.testing.assert_allclose(rigid_object.data.root_link_pose_w.warp.numpy()[:, :3], 0.0, atol=1.0e-6)
+        np.testing.assert_allclose(rigid_object.data.root_com_vel_w.warp.numpy(), 0.0, atol=1.0e-6)
+
+
+def test_semi_implicit_joint_state_reaches_next_folded_iteration():
+    """SemiImplicit should publish joint state before the next folded actuator callback."""
+    dt = 0.1
+    sim_cfg = SimulationCfg(
+        dt=dt,
+        device="cpu",
+        gravity=(0.0, 0.0, 0.0),
+        physics=NewtonCfg(solver_cfg=SemiImplicitSolverCfg(angular_damping=0.0), num_substeps=1, use_cuda_graph=False),
+    )
+
+    with build_simulation_context(sim_cfg=sim_cfg) as sim:
+        builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics))
+        for _ in range(2):
+            builder.begin_world()
+            link = builder.add_link(mass=1.0, inertia=wp.mat33(np.eye(3)))
+            joint = builder.add_joint_revolute(
+                parent=-1, child=link, axis=(0.0, 0.0, 1.0), target_ke=0.0, target_kd=0.0
+            )
+            builder.add_articulation([joint])
+            builder.end_world()
+        sim.reset()
+
+        articulation = _bind_kitless_asset(Articulation, ArticulationData, sim.device)
+        articulation._ALL_JOINT_INDICES = wp.array([0], dtype=wp.int32, device=sim.device)
+        articulation._ALL_JOINT_MASK = wp.ones(1, dtype=wp.bool, device=sim.device)
+        articulation.write_joint_state_to_sim_mask(
+            position=wp.zeros((2, 1), dtype=wp.float32, device=sim.device),
+            velocity=wp.array([[1.0], [0.0]], dtype=wp.float32, device=sim.device),
+        )
+
+        observed_joint_q = wp.zeros_like(NewtonManager.get_state_0().joint_q)
+        NewtonManager.activate_newton_actuator_path()
+        NewtonManager.register_post_actuator_callback(
+            lambda: observed_joint_q.assign(NewtonManager.get_state_0().joint_q)
+        )
+        NewtonManager.set_decimation(2)
+        sim.step(render=False)
+
+        # The last callback runs before the second solver iteration, so it sees one integration;
+        # data read after the step sees both.
+        np.testing.assert_allclose(observed_joint_q.numpy(), [dt, 0.0], rtol=2.0e-3, atol=1.0e-6)
+        joint_pos = articulation.data.joint_pos.warp.numpy()[:, 0]
+        joint_vel = articulation.data.joint_vel.warp.numpy()[:, 0]
+        np.testing.assert_allclose(joint_pos, [2.0 * dt, 0.0], rtol=2.0e-3, atol=1.0e-6)
+        np.testing.assert_allclose(joint_vel, [1.0, 0.0], rtol=2.0e-3, atol=1.0e-6)
 
 
 def test_mjwarp_internal_contacts_with_collision_cfg_raises():
