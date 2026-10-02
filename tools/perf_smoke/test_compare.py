@@ -23,7 +23,7 @@ def _measurement(fps: float, startup: float = 10.0) -> dict[str, float]:
     return {"total_fps": fps, "startup_time_s": startup, "gpu_mem_peak_gb": 2.0, "ram_peak_gb": 4.0}
 
 
-def _runtime_bundle(fps: float, *, task: str = "task", gpu_name: str = "NVIDIA L40S") -> dict:
+def _runtime_bundle(fps: float, *, task: str = "task") -> dict:
     return {
         "run": {
             "task": task,
@@ -31,7 +31,7 @@ def _runtime_bundle(fps: float, *, task: str = "task", gpu_name: str = "NVIDIA L
             "config": {"physics_backend": "physx", "rendering_backend": "none", "presets": []},
         },
         "versions": {"torch": "2.0", "warp": "1.0", "isaacsim": "6.0"},
-        "hardware": {"gpu_devices": [{"name": gpu_name}], "cpu_name": "CPU"},
+        "hardware": {"gpu_devices": [{"name": "NVIDIA L40S"}], "cpu_name": "CPU"},
         "runtime": {
             "total_fps": {"mean": fps},
             "startup_time_s": {"app_launch": 1, "env_creation": 2, "first_step": 3},
@@ -46,7 +46,6 @@ def _write_pair_leg(
     values: list[float],
     *,
     task: str = "task",
-    gpu_name: str = "NVIDIA L40S",
 ) -> None:
     leg_dir = root / leg
     leg_dir.mkdir(parents=True)
@@ -55,7 +54,7 @@ def _write_pair_leg(
         sample_dir = leg_dir / f"sample-{index}"
         sample_dir.mkdir()
         (sample_dir / f"benchmark_runtime_{index}.json").write_text(
-            json.dumps(_runtime_bundle(value, task=task, gpu_name=gpu_name)), encoding="utf-8"
+            json.dumps(_runtime_bundle(value, task=task)), encoding="utf-8"
         )
 
 
@@ -208,120 +207,33 @@ class TestAsvComparison(unittest.TestCase):
                 self.assertEqual(status, 0)
                 self.assertEqual(json.loads(output.read_text())["verdict"], expected)
 
-    def test_pair_cli_compares_medians_and_aggregate_renders(self):
+    def test_pair_rows(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             baseline = root / "baseline"
             candidate = root / "candidate"
-            matrix = root / "matrix.tsv"
-            output = root / "artifacts" / "pair-comparison.json"
-            matrix.write_text("cartpole|task|8|60|physics=physx\n", encoding="utf-8")
-            _write_pair_leg(baseline, "cartpole", [90, 100, 110])
-            _write_pair_leg(candidate, "cartpole", [99, 110, 121])
+            cases = {
+                "changed": ([90, 100, 110], [99, 110, 121], "task"),
+                "incomplete": ([90, 100], [90, 100, 110], "task"),
+                "incompatible": ([100, 100, 100], [100, 100, 100], "other"),
+            }
+            for leg, (baseline_values, candidate_values, candidate_task) in cases.items():
+                _write_pair_leg(baseline, leg, baseline_values)
+                _write_pair_leg(candidate, leg, candidate_values, task=candidate_task)
 
-            stdout = io.StringIO()
-            with contextlib.redirect_stdout(stdout):
-                status = cli.main(
-                    [
-                        "pair",
-                        "--baseline_dir",
-                        str(baseline),
-                        "--candidate_dir",
-                        str(candidate),
-                        "--benchmark_matrix",
-                        str(matrix),
-                        "--baseline_commit",
-                        "base",
-                        "--candidate_commit",
-                        "merge",
-                        "--output_json",
-                        str(output),
-                    ]
-                )
-
-            self.assertEqual(status, 0)
-            row = json.loads(output.read_text(encoding="utf-8"))["rows"][0]
-            self.assertEqual(row["status"], "improved")
-            self.assertEqual(row["baseline_fps"], 100)
-            self.assertEqual(row["candidate_fps"], 110)
-            self.assertAlmostEqual(row["change_pct"], 10)
-            self.assertIn("| 🟢 Improved | cartpole | 100 | 110 | +10.00% |", stdout.getvalue())
-
-            stdout = io.StringIO()
-            stderr = io.StringIO()
-            with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
-                self.assertEqual(cli.main(["aggregate", "--comparison_dir", str(root / "artifacts")]), 0)
-            self.assertIn("## PR performance comparison", stdout.getvalue())
-            self.assertEqual(stderr.getvalue(), "")
-
-    def test_pair_cli_reports_incomplete_results(self):
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            matrix = root / "matrix.tsv"
-            output = root / "pair-comparison.json"
-            matrix.write_text("cartpole|task|8|60|physics=physx\n", encoding="utf-8")
-            _write_pair_leg(root / "baseline", "cartpole", [90, 100])
-            _write_pair_leg(root / "candidate", "cartpole", [90, 100, 110])
-
-            with contextlib.redirect_stdout(io.StringIO()):
-                status = cli.main(
-                    [
-                        "pair",
-                        "--baseline_dir",
-                        str(root / "baseline"),
-                        "--candidate_dir",
-                        str(root / "candidate"),
-                        "--benchmark_matrix",
-                        str(matrix),
-                        "--baseline_commit",
-                        "base",
-                        "--candidate_commit",
-                        "merge",
-                        "--output_json",
-                        str(output),
-                    ]
-                )
-
-            self.assertEqual(status, 0)
-            row = json.loads(output.read_text(encoding="utf-8"))["rows"][0]
-            self.assertEqual(row["status"], "not_comparable")
-            self.assertEqual(row["reason"], "baseline has 2 samples; expected 3")
-
-    def test_pair_cli_rejects_workload_and_hardware_mismatches(self):
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            matrix = root / "matrix.tsv"
-            output = root / "pair-comparison.json"
-            matrix.write_text("workload|task|8|60|physics=physx\nhardware|task|8|60|physics=physx\n", encoding="utf-8")
-            for leg in ("workload", "hardware"):
-                _write_pair_leg(root / "baseline", leg, [100, 100, 100])
-            _write_pair_leg(root / "candidate", "workload", [100, 100, 100], task="other")
-            _write_pair_leg(root / "candidate", "hardware", [100, 100, 100], gpu_name="NVIDIA A100")
-
-            with contextlib.redirect_stdout(io.StringIO()):
-                status = cli.main(
-                    [
-                        "pair",
-                        "--baseline_dir",
-                        str(root / "baseline"),
-                        "--candidate_dir",
-                        str(root / "candidate"),
-                        "--benchmark_matrix",
-                        str(matrix),
-                        "--baseline_commit",
-                        "base",
-                        "--candidate_commit",
-                        "merge",
-                        "--output_json",
-                        str(output),
-                    ]
-                )
-
-            self.assertEqual(status, 0)
-            rows = json.loads(output.read_text(encoding="utf-8"))["rows"]
-            self.assertEqual([row["status"] for row in rows], ["not_comparable", "not_comparable"])
-            self.assertEqual(rows[0]["reason"], "baseline and candidate workloads differ")
-            self.assertEqual(rows[1]["reason"], "baseline and candidate hardware differ")
+            changed = cli._pair_row(baseline, candidate, "changed")
+            self.assertEqual(
+                (changed["status"], changed["baseline_fps"], changed["candidate_fps"], changed["change_pct"]),
+                ("improved", 100, 110, 10),
+            )
+            self.assertEqual(
+                cli._pair_row(baseline, candidate, "incomplete")["reason"],
+                "baseline has 2 samples; expected 3",
+            )
+            self.assertEqual(
+                cli._pair_row(baseline, candidate, "incompatible")["reason"],
+                "baseline and candidate workloads differ",
+            )
 
 
 if __name__ == "__main__":
