@@ -87,7 +87,9 @@ MICRODUCK_CFG = ArticulationCfg(
 """MicroDuck with BAM voltage control, battery sag, and a 3--6-step command delay.
 
 Requires Newton's MJWarp solver and ``SimulationCfg.use_newton_actuators=True``.
-The USD carries the joint armature and effort limits. Per-episode friction randomization
+The USD carries BAM actuator prims, passive damping, joint armature, and effort limits.
+As with other explicit actuators, Lab replaces the USD actuators with this configuration's
+matching parameters when spawning. Per-episode friction randomization
 belongs in the task's reset events, using :func:`~isaaclab.actuators.newton.write_group_parameter`.
 """
 
