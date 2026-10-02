@@ -98,6 +98,7 @@ class DirectRLEnvWarp(DirectRLEnv):
     """Whether the environment is a vectorized environment."""
     metadata: ClassVar[dict[str, Any]] = {
         "render_modes": [None, "human", "rgb_array"],
+        "autoreset_mode": gym.vector.AutoresetMode.SAME_STEP,
         # "isaac_sim_version": get_version(),
     }
     """Metadata for the environment."""
@@ -122,6 +123,7 @@ class DirectRLEnvWarp(DirectRLEnv):
         self.render_mode = render_mode
         # initialize internal variables
         self._is_closed = False
+        self._physics_handles_decimation = False
 
         # set the seed for the environment
         if self.cfg.seed is not None:
@@ -192,6 +194,10 @@ class DirectRLEnvWarp(DirectRLEnv):
             # this shouldn't cause an issue since later on, users do a reset over all the
             # environments so the lazy buffers would be reset.
             self.scene.update(dt=self.physics_dt)
+        # let the physics backend know about the env decimation so it can
+        # fold the full loop into a single step() when possible
+        self.sim.physics_manager.set_decimation(self.cfg.decimation)
+        self._physics_handles_decimation = self.sim.physics_manager.handles_decimation()
 
         # check if debug visualization is has been implemented by the environment
         source_code = inspect.getsource(self._set_debug_vis_impl)
@@ -209,6 +215,8 @@ class DirectRLEnvWarp(DirectRLEnv):
 
         # allocate dictionary to store metrics
         self.extras = {}
+        # the log the task writes; the environment returns copies of it (see :meth:`step`)
+        self._task_log: dict | None = None
 
         # initialize data and constants
         # -- counter for simulation steps
@@ -221,6 +229,7 @@ class DirectRLEnvWarp(DirectRLEnv):
         self.reset_terminated = wp.zeros(self.num_envs, dtype=wp.bool, device=self.device)
         self.reset_time_outs = wp.zeros(self.num_envs, dtype=wp.bool, device=self.device)
         self.reset_buf = wp.zeros(self.num_envs, dtype=wp.bool, device=self.device)
+        self._torch_reset_buf = wp.to_torch(self.reset_buf)
         self._ALL_ENV_MASK = wp.ones(self.num_envs, dtype=wp.bool, device=self.device)
 
         # Expected bindings:
@@ -230,8 +239,9 @@ class DirectRLEnvWarp(DirectRLEnv):
         self.torch_reset_time_outs: torch.Tensor = None
         self.torch_episode_length_buf: torch.Tensor = None
 
-        # Warp CUDA graph cache for capture-or-replay
-        self._graph_cache = WarpGraphCache()
+        # Task stages run through this cache and record their CUDA graphs on the first step.
+        self._warp_graph_cache = WarpGraphCache(self.device)
+        self._warp_graph_cache.invalidate_on(self.sim.physics_manager)
 
         # setup the action and observation spaces for Gym
         self._configure_gym_env_spaces()
@@ -394,6 +404,11 @@ class DirectRLEnvWarp(DirectRLEnv):
             A tuple containing the observations, rewards, resets (terminated and truncated) and extras.
         """
 
+        # stages start recording at the first step after construction or an invalidation
+        self._warp_graph_cache.arm()
+        # task code that runs during this step writes into its own log, not into the copy returned last step
+        if self._task_log is not None:
+            self.extras["log"] = self._task_log
         action = action.to(self.device)
         # add action noise
         if self.cfg.action_noise_model:
@@ -409,14 +424,15 @@ class DirectRLEnvWarp(DirectRLEnv):
         # note: hoisted out of the decimation loop; is_rendering does live settings lookups
         is_rendering = self.sim.is_rendering
 
-        # perform physics stepping
+        # physics-owned decimation covers all substeps in one call
+        steps_per_call = self.cfg.decimation if self._physics_handles_decimation else 1
         with Timer(name="physics_loop", msg="Physics loop took:", enable=DEBUG_TIMERS):
-            for _ in range(self.cfg.decimation):
-                self._sim_step_counter += 1
+            for _ in range(self.cfg.decimation // steps_per_call):
+                self._sim_step_counter += steps_per_call
                 # set actions into buffers
                 # simulate
                 with Timer(name="apply_action", msg="Action processing step took:", enable=DEBUG_TIMERS):
-                    self._graph_cache.capture_or_replay("action", self.step_warp_action)
+                    self._warp_graph_cache.call("DirectAction_step", self.step_warp_action)
 
                 # write_data_to_sim runs outside the CUDA graph because _apply_actuator_model
                 # uses torch ops (wp.to_torch + torch arithmetic) that cross CUDA streams.
@@ -430,23 +446,39 @@ class DirectRLEnvWarp(DirectRLEnv):
                 #    If a camera needs rendering at a faster frequency, this will lead to unexpected behavior.
                 if self._sim_step_counter % self.cfg.sim.render_interval == 0 and is_rendering:
                     self.sim.render()
-                # update buffers at sim dt
                 with Timer(name="scene_update", msg="Scene update took:", enable=DEBUG_TIMERS):
-                    self.scene.update(dt=self.physics_dt)
+                    self.scene.update(dt=self.physics_dt * steps_per_call)
 
         self.common_step_counter += 1  # total step (common for all envs)
         with Timer(name="end_pre_graph", msg="End pre-graph took:", enable=DEBUG_TIMERS):
-            self._graph_cache.capture_or_replay("end_pre", self._step_warp_end_pre)
+            self._warp_graph_cache.call("DirectEndPre_step", self._step_warp_end_pre)
+        # one host predicate per step skips the reset stage when no environment terminated
+        if self._torch_reset_buf.any().item():
+            # capture the terminal observation before reset and expose it for Same-Step autoreset.
+            # the reset overwrites the persistent observation buffer, so keep a copy
+            if self.cfg.compute_final_obs:
+                self._warp_graph_cache.call("DirectFinalObs_step", self._get_observations)
+                self.extras["final_obs"] = {"policy": self.torch_obs_buf.clone()}
+            with Timer(name="reset_graph", msg="Reset graph took:", enable=DEBUG_TIMERS):
+                self._warp_graph_cache.call("DirectReset_step", self._step_warp_reset)
         # write_data_to_sim runs uncaptured — it uses torch ops that cross CUDA streams.
         with Timer(name="write_data_to_sim_post", msg="Write data to sim (post-reset) took:", enable=DEBUG_TIMERS):
             self.scene.write_data_to_sim()
         with Timer(name="end_post_graph", msg="End post-graph took:", enable=DEBUG_TIMERS):
-            self._graph_cache.capture_or_replay("end_post", self._step_warp_end_post)
+            self._warp_graph_cache.call("DirectEndPost_step", self._step_warp_end_post)
 
         # Visualization hook — runs after CUDA graph scope. Override in subclass
         # to update markers or other non-graphable visual elements.
         with Timer(name="visualize", msg="Visualize took:", enable=DEBUG_TIMERS):
             self._post_step_visualize()
+
+        # tasks log persistent buffers that later steps overwrite, and RL libraries keep the log of every step
+        # until they average it, so hand out copies like the fresh tensors of stable tasks
+        self._task_log = self.extras.get("log")
+        if self._task_log:
+            self.extras["log"] = {
+                key: value.clone() if torch.is_tensor(value) else value for key, value in self._task_log.items()
+            }
 
         # return observations, rewards, resets and extras
         # store the returned buffer so RslRlVecEnvWrapper.get_observations() can read env.obs_buf
@@ -488,7 +520,8 @@ class DirectRLEnvWarp(DirectRLEnv):
         self._get_dones()
         self._get_rewards()
 
-        # -- reset envs that terminated/timed-out and log the episode information
+    def _step_warp_reset(self) -> None:
+        """Capturable reset of the environments that terminated or timed out."""
         self._reset_idx(mask=self.reset_buf)
 
     def _step_warp_end_post(self) -> None:
@@ -578,6 +611,7 @@ class DirectRLEnvWarp(DirectRLEnv):
             if self.cfg.events:
                 del self.event_manager
             del self.scene
+            self._warp_graph_cache.close()
 
             # # clear callbacks and instance
             # if float(".".join(get_version()[2])) >= 5:

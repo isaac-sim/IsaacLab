@@ -5,7 +5,7 @@
 
 """Warp utility functions and shared kernels for isaaclab_experimental."""
 
-from .kernels import compute_reset_scale, count_masked
+from .kernels import compute_reset_scale, count_masked, zero_masked_int64
 from .utils import (
     WarpCapturable,
     is_warp_capturable,

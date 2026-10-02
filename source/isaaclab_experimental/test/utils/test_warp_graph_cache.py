@@ -3,195 +3,210 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Tests for WarpGraphCache capture/replay and warm-up behavior."""
+"""Tests for the WarpGraphCache capture lifecycle."""
 
 from __future__ import annotations
 
-import unittest
-
+import pytest
+import torch
 import warp as wp
-from isaaclab_experimental.utils.warp_graph_cache import WarpGraphCache
+from isaaclab_experimental.utils.warp_graph_cache import CAPTURE_ENV_VAR, SYNC_DEBUG_ENV_VAR, WarpGraphCache
+
+wp.init()
+pytestmark = pytest.mark.skipif(not wp.is_cuda_available(), reason="CUDA device required")
+
+DEVICE = "cuda:0"
 
 
 @wp.kernel
-def _add_one(a: wp.array(dtype=wp.float32), b: wp.array(dtype=wp.float32)):
-    """Simple warp kernel: b[i] = a[i] + 1."""
+def _increment(values: wp.array(dtype=wp.int32)):
     i = wp.tid()
-    b[i] = a[i] + 1.0
+    values[i] = values[i] + 1
 
 
-class TestWarpGraphCache(unittest.TestCase):
-    """Tests for :class:`WarpGraphCache`."""
+class _CountingStage:
+    """Stage that increments a device counter and counts its Python invocations."""
 
-    def setUp(self):
-        self.device = "cuda:0"
-        self.cache = WarpGraphCache()
+    def __init__(self):
+        self.calls = 0
 
-    # ------------------------------------------------------------------
-    # Warm-up
-    # ------------------------------------------------------------------
-
-    def test_warmup_runs_before_capture(self):
-        """The function should be called eagerly (warm-up) before graph capture.
-
-        We verify this by counting total invocations on the first call.
-        Warm-up = 1, capture = 1, so fn should be called exactly 2 times.
-        """
-        call_count = [0]
-        src = wp.zeros(4, dtype=wp.float32, device=self.device)
-        dst = wp.zeros(4, dtype=wp.float32, device=self.device)
-
-        def counted_launch():
-            call_count[0] += 1
-            wp.launch(_add_one, dim=4, inputs=[src, dst], device=self.device)
-            return dst
-
-        # First call: warm-up + capture
-        self.cache.capture_or_replay("stage_a", counted_launch)
-        self.assertEqual(call_count[0], 2, "First call should invoke fn twice (warm-up + capture)")
-
-        # Second call: replay only
-        self.cache.capture_or_replay("stage_a", counted_launch)
-        self.assertEqual(call_count[0], 2, "Replay should NOT invoke fn again")
-
-    # ------------------------------------------------------------------
-    # Capture / replay correctness
-    # ------------------------------------------------------------------
-
-    def test_replay_uses_updated_input(self):
-        """Replay should re-read from the same input buffer (pointer-stable).
-
-        CUDA graph replay re-executes the same kernel on the same memory
-        addresses. If we update the input buffer in-place, the output
-        should reflect the new values.
-        """
-        src = wp.full(4, value=1.0, dtype=wp.float32, device=self.device)
-        dst = wp.zeros(4, dtype=wp.float32, device=self.device)
-
-        def my_fn():
-            wp.launch(_add_one, dim=4, inputs=[src, dst], device=self.device)
-            return dst
-
-        # Capture
-        first = self.cache.capture_or_replay("replay_test", my_fn)
-
-        # Update input in-place
-        wp.copy(src, wp.full(4, value=10.0, dtype=wp.float32, device=self.device))
-
-        # Replay — should see updated input
-        result = self.cache.capture_or_replay("replay_test", my_fn)
-        # Replay returns the cached object from the capture call, not a new buffer.
-        self.assertIs(result, first)
-        result_np = result.numpy()
-        for val in result_np:
-            self.assertAlmostEqual(val, 11.0, places=5)
-
-    def test_multiple_stages_independent(self):
-        """Different stages should be captured and replayed independently."""
-        src_a = wp.full(4, value=1.0, dtype=wp.float32, device=self.device)
-        dst_a = wp.zeros(4, dtype=wp.float32, device=self.device)
-        src_b = wp.full(4, value=5.0, dtype=wp.float32, device=self.device)
-        dst_b = wp.zeros(4, dtype=wp.float32, device=self.device)
-
-        def fn_a():
-            wp.launch(_add_one, dim=4, inputs=[src_a, dst_a], device=self.device)
-            return dst_a
-
-        def fn_b():
-            wp.launch(_add_one, dim=4, inputs=[src_b, dst_b], device=self.device)
-            return dst_b
-
-        result_a = self.cache.capture_or_replay("stage_a", fn_a)
-        result_b = self.cache.capture_or_replay("stage_b", fn_b)
-
-        self.assertAlmostEqual(result_a.numpy()[0], 2.0, places=5)
-        self.assertAlmostEqual(result_b.numpy()[0], 6.0, places=5)
-
-        # Replay both
-        result_a2 = self.cache.capture_or_replay("stage_a", fn_a)
-        result_b2 = self.cache.capture_or_replay("stage_b", fn_b)
-        self.assertIs(result_a, result_a2)
-        self.assertIs(result_b, result_b2)
-
-    # ------------------------------------------------------------------
-    # Invalidation
-    # ------------------------------------------------------------------
-
-    def test_invalidate_all(self):
-        """invalidate() with no args should drop all cached graphs."""
-        src = wp.zeros(4, dtype=wp.float32, device=self.device)
-        dst = wp.zeros(4, dtype=wp.float32, device=self.device)
-
-        call_count = [0]
-
-        def my_fn():
-            call_count[0] += 1
-            wp.launch(_add_one, dim=4, inputs=[src, dst], device=self.device)
-            return dst
-
-        self.cache.capture_or_replay("s1", my_fn)
-        self.assertEqual(call_count[0], 2)  # warm-up + capture
-
-        self.cache.invalidate()
-
-        # After invalidation, next call should re-warm-up and re-capture
-        self.cache.capture_or_replay("s1", my_fn)
-        self.assertEqual(call_count[0], 4)  # 2 more (warm-up + capture)
-
-    def test_invalidate_single_stage(self):
-        """invalidate(stage) should only drop the named stage."""
-        src = wp.zeros(4, dtype=wp.float32, device=self.device)
-        dst_a = wp.zeros(4, dtype=wp.float32, device=self.device)
-        dst_b = wp.zeros(4, dtype=wp.float32, device=self.device)
-
-        count_a = [0]
-        count_b = [0]
-
-        def fn_a():
-            count_a[0] += 1
-            wp.launch(_add_one, dim=4, inputs=[src, dst_a], device=self.device)
-            return dst_a
-
-        def fn_b():
-            count_b[0] += 1
-            wp.launch(_add_one, dim=4, inputs=[src, dst_b], device=self.device)
-            return dst_b
-
-        self.cache.capture_or_replay("a", fn_a)
-        self.cache.capture_or_replay("b", fn_b)
-        self.assertEqual(count_a[0], 2)
-        self.assertEqual(count_b[0], 2)
-
-        # Invalidate only "a"; a stage that was never captured is a no-op
-        self.cache.invalidate("a")
-        self.cache.invalidate("nonexistent")
-
-        self.cache.capture_or_replay("a", fn_a)
-        self.cache.capture_or_replay("b", fn_b)
-        self.assertEqual(count_a[0], 4, "Stage 'a' should re-capture after invalidation")
-        self.assertEqual(count_b[0], 2, "Stage 'b' should replay (not re-capture)")
-
-    # ------------------------------------------------------------------
-    # Args / kwargs forwarding
-    # ------------------------------------------------------------------
-
-    def test_args_and_kwargs_forwarded(self):
-        """capture_or_replay should forward args and kwargs to fn."""
-        src = wp.full(4, value=2.0, dtype=wp.float32, device=self.device)
-        dst = wp.zeros(4, dtype=wp.float32, device=self.device)
-
-        def my_fn(a, b, device="cuda:0"):
-            wp.launch(_add_one, dim=4, inputs=[a, b], device=device)
-            return b
-
-        result = self.cache.capture_or_replay(
-            "args_test",
-            my_fn,
-            args=(src, dst),
-            kwargs={"device": self.device},
-        )
-        self.assertAlmostEqual(result.numpy()[0], 3.0, places=5)
+    def __call__(self, values: wp.array) -> wp.array:
+        self.calls += 1
+        wp.launch(_increment, dim=values.shape[0], inputs=[values], device=DEVICE)
+        return values
 
 
-if __name__ == "__main__":
-    unittest.main()
+def _read(values: wp.array) -> list[int]:
+    wp.synchronize_device(DEVICE)
+    return values.numpy().tolist()
+
+
+@pytest.fixture
+def cache(monkeypatch):
+    monkeypatch.delenv(CAPTURE_ENV_VAR, raising=False)
+    monkeypatch.delenv(SYNC_DEBUG_ENV_VAR, raising=False)
+    cache = WarpGraphCache(DEVICE)
+    yield cache
+    cache.close()
+
+
+def test_first_armed_call_records_and_runs_the_stage_once(cache):
+    """Recording has no eager warm-up: a stateful stage advances once per call, including the first."""
+    stage = _CountingStage()
+    values = wp.zeros(2, dtype=wp.int32, device=DEVICE)
+    cache.arm()
+
+    result = cache.call("Group_stage", stage, values)
+    assert _read(values) == [1, 1]
+    assert result is values
+
+    cache.call("Group_stage", stage, values)
+    assert _read(values) == [2, 2]
+    assert stage.calls == 1, "the second call must replay the recorded graph"
+    assert cache.captured_stages == ("Group_stage",)
+
+
+def test_stages_run_eagerly_until_armed(cache):
+    stage = _CountingStage()
+    values = wp.zeros(1, dtype=wp.int32, device=DEVICE)
+
+    cache.call("Group_stage", stage, values)
+    cache.call("Group_stage", stage, values)
+    assert (stage.calls, _read(values), cache.captured_stages) == (2, [2], ())
+
+    cache.arm()
+    cache.call("Group_stage", stage, values)
+    cache.call("Group_stage", stage, values)
+    assert (stage.calls, _read(values), cache.captured_stages) == (3, [4], ("Group_stage",))
+
+
+def test_reallocated_argument_records_the_stage_again(cache):
+    """A graph replays recorded pointers, so a new array must not reuse the old graph."""
+    stage = _CountingStage()
+    old = wp.zeros(1, dtype=wp.int32, device=DEVICE)
+    cache.arm()
+    cache.call("Group_stage", stage, old)
+
+    new = wp.zeros(1, dtype=wp.int32, device=DEVICE)
+    cache.call("Group_stage", stage, new)
+    cache.call("Group_stage", stage, new)
+
+    assert (_read(old), _read(new), stage.calls) == ([1], [2], 2)
+
+
+def test_changed_scalar_argument_records_the_stage_again(cache):
+    values = wp.zeros(1, dtype=wp.float32, device=DEVICE)
+
+    def add(values: wp.array, amount: float) -> None:
+        wp.launch(_add_scalar, dim=1, inputs=[values, amount], device=DEVICE)
+
+    cache.arm()
+    cache.call("Group_stage", add, values, 1.0)
+    cache.call("Group_stage", add, values, 10.0)
+    assert _read(values) == [11.0]
+
+
+@wp.kernel
+def _add_scalar(values: wp.array(dtype=wp.float32), amount: wp.float32):
+    values[wp.tid()] = values[wp.tid()] + amount
+
+
+def test_invalidate_drops_graphs_and_waits_for_the_next_arm(cache):
+    stage = _CountingStage()
+    values = wp.zeros(1, dtype=wp.int32, device=DEVICE)
+    cache.arm()
+    cache.call("Group_stage", stage, values)
+
+    cache.invalidate()
+    cache.call("Group_stage", stage, values)
+    assert (stage.calls, cache.captured_stages) == (2, ())
+
+    cache.arm()
+    cache.call("Group_stage", stage, values)
+    cache.call("Group_stage", stage, values)
+    assert (stage.calls, _read(values), cache.captured_stages) == (3, [4], ("Group_stage",))
+
+
+def test_group_invalidation_keeps_other_groups_recorded(cache):
+    values = wp.zeros(1, dtype=wp.int32, device=DEVICE)
+    cache.arm()
+    cache.call("First_stage", _CountingStage(), values)
+    cache.call("Second_stage", _CountingStage(), values)
+
+    cache.invalidate("First")
+
+    assert cache.captured_stages == ("Second_stage",)
+    stage = _CountingStage()
+    cache.call("First_stage", stage, values)
+    assert (stage.calls, cache.captured_stages) == (1, ("First_stage", "Second_stage"))
+
+
+def test_non_capturable_group_stays_eager(cache):
+    stage = _CountingStage()
+    values = wp.zeros(1, dtype=wp.int32, device=DEVICE)
+    cache.register_capturability("Group", True)
+    cache.register_capturability("Group", False)
+    cache.register_capturability("Group", True)
+    cache.arm()
+
+    cache.call("Group_stage", stage, values)
+    cache.call("Group_stage", stage, values)
+
+    assert (stage.calls, _read(values), cache.captured_stages) == (2, [2], ())
+
+
+def test_capture_env_var_forces_eager_execution(monkeypatch):
+    monkeypatch.setenv(CAPTURE_ENV_VAR, "0")
+    cache = WarpGraphCache(DEVICE)
+    stage = _CountingStage()
+    values = wp.zeros(1, dtype=wp.int32, device=DEVICE)
+    cache.arm()
+
+    cache.call("Group_stage", stage, values)
+    cache.call("Group_stage", stage, values)
+
+    assert (stage.calls, _read(values), cache.captured_stages) == (2, [2], ())
+
+
+def test_sync_debug_trap_raises_on_a_hidden_host_sync(monkeypatch):
+    monkeypatch.setenv(CAPTURE_ENV_VAR, "0")
+    monkeypatch.setenv(SYNC_DEBUG_ENV_VAR, "1")
+    cache = WarpGraphCache(DEVICE)
+    flags = torch.ones(4, dtype=torch.bool, device=DEVICE)
+
+    with pytest.raises(RuntimeError, match="synchroniz"):
+        cache.call("Group_stage", lambda: flags.any().item())
+    assert torch.cuda.get_sync_debug_mode() == 0, "the trap must be released after the stage"
+
+
+@wp.kernel
+def _affine(values: wp.array(dtype=wp.int32), scale: wp.int32, shift: wp.int32):
+    values[wp.tid()] = values[wp.tid()] * scale + shift
+
+
+class _AffineStep:
+    """Stage step that applies ``x * scale + shift`` on the device and counts its Python invocations."""
+
+    def __init__(self, scale: int, shift: int):
+        self.scale, self.shift, self.calls = scale, shift, 0
+
+    def __call__(self, values: wp.array) -> wp.array:
+        self.calls += 1
+        wp.launch(_affine, dim=values.shape[0], inputs=[values, self.scale, self.shift], device=DEVICE)
+        return values
+
+
+def test_steps_record_capturable_runs_and_run_the_rest_eagerly_in_order(cache):
+    """Each run of capturable steps becomes one graph; an eager step runs between them on every call."""
+    double, increment, triple = _AffineStep(2, 0), _AffineStep(1, 1), _AffineStep(3, 0)
+    steps = ((True, double), (False, increment), (True, triple))
+    values = wp.ones(1, dtype=wp.int32, device=DEVICE)
+    cache.arm()
+
+    cache.call_steps("Group_stage", steps, values)
+    cache.call_steps("Group_stage", steps, values)
+
+    # the non-commuting steps only give 57 in order: ((1 * 2 + 1) * 3 = 9) -> ((9 * 2 + 1) * 3 = 57)
+    assert _read(values) == [57]
+    assert (double.calls, increment.calls, triple.calls) == (1, 2, 1)
+    assert cache.captured_stages == ("Group_stage[0]", "Group_stage[2]")
