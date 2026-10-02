@@ -149,8 +149,37 @@ def foot_air_time_safe(env: ManagerBasedEnv, sensor_cfg: SceneEntityCfg) -> torc
     return _finite(sensor.data.current_air_time.torch[:, sensor_cfg.body_ids])
 
 
-def foot_height_safe(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
-    """Foot height [m] above the flat ground, with non-finite values replaced by zero."""
+def foot_height(
+    env: ManagerBasedEnv, asset_cfg: SceneEntityCfg, height_sensor_names: tuple[str, ...] = ()
+) -> torch.Tensor:
+    """Foot-frame clearance [m], using the closest terrain ray per foot when supplied.
+
+    Sensors must follow the selected bodies' order. Missed rays are ignored; when all rays
+    miss, clearance falls back to the terrain origin, bounded by the sensor range.
+    Without sensors, the terrain origin defines the flat ground height.
+    """
     asset: Articulation = env.scene[asset_cfg.name]
-    heights = asset.data.body_pos_w.torch[:, asset_cfg.body_ids, 2]
-    return _finite(heights - env.scene.env_origins[:, 2].unsqueeze(-1))
+    heights = asset.data.body_link_pos_w.torch[:, asset_cfg.body_ids, 2]
+    flat_heights = heights - env.scene.env_origins[:, 2].unsqueeze(-1)
+    if not height_sensor_names:
+        return flat_heights
+    clearances = []
+    for index, name in enumerate(height_sensor_names):
+        sensor = env.scene[name]
+        data = sensor.data
+        hit_z = data.ray_hits_w.torch[..., 2]
+        valid = torch.isfinite(hit_z)
+        clearance = (heights[:, index, None] - hit_z).clamp(min=0.0)
+        # A ray inside terrain can hit the underside of a step.
+        clearance = torch.where(data.ray_normals_w.torch[..., 2] < 0.0, 0.0, clearance)
+        clearance = torch.where(valid, clearance, sensor.cfg.max_distance).amin(dim=-1)
+        fallback = flat_heights[:, index].clamp(0.0, sensor.cfg.max_distance)
+        clearances.append(torch.where(valid.any(dim=-1), clearance, fallback))
+    return torch.stack(clearances, dim=-1)
+
+
+def foot_height_safe(
+    env: ManagerBasedEnv, asset_cfg: SceneEntityCfg, height_sensor_names: tuple[str, ...] = ()
+) -> torch.Tensor:
+    """Foot clearance [m] above terrain, with non-finite values replaced by zero."""
+    return _finite(foot_height(env, asset_cfg, height_sensor_names))
