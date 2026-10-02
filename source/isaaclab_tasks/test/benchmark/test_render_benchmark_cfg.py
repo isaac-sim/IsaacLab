@@ -73,7 +73,7 @@ def test_benchmark_mode_from_environment(monkeypatch, mode):
     [
         ("render", False, "newton_warp", False, "lazy_sensor_update=True"),
         ("physics_render", False, "newton_warp", False, None),
-        ("render", True, "isaac_rtx", True, "--visualizer none"),
+        ("render", True, "isaac_rtx", True, "requires no visualizer"),
         ("physics_render", True, "isaac_rtx", True, None),
         ("render", True, "ovrtx", True, None),
         ("render", True, "isaac_rtx", False, None),
@@ -102,7 +102,7 @@ def test_render_mode_rejects_rendering_before_direct_pose(
             RenderBenchmarkEnv(cfg)
     else:
         RenderBenchmarkEnv(cfg)
-    if error == "--visualizer none":
+    if error == "requires no visualizer":
         close.assert_called_once()
     else:
         close.assert_not_called()

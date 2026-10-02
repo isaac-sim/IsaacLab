@@ -227,14 +227,14 @@ def test_zero_agent_supports_direct_multi_agent_action_spaces() -> None:
     assert torch.equal(actions["object"], torch.zeros(3, 1, dtype=torch.int64))
 
 
-def test_simple_agents_parse_device_and_default_to_newton_visualizer(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Checkpoint-free agents default to Newton visualization and retain an explicit CLI device."""
+def test_simple_agents_parse_device_and_default_to_no_visualizer(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Checkpoint-free agents run without a visualizer by default and retain an explicit CLI device."""
     monkeypatch.setattr(sys, "argv", ["pytest"])
 
     args = simple_agents._parse_args([], "zero")
 
     assert args.device is None
-    assert args.visualizer == ["newton_gl"]
+    assert args.visualizer is None
 
     args = simple_agents._parse_args(["--device", "cuda:1"], "random")
 

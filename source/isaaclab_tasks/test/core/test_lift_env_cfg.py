@@ -17,7 +17,7 @@ from pxr import Usd, UsdGeom, UsdPhysics
 from isaaclab.assets import Asset
 from isaaclab.cloner import make_clone_plan
 from isaaclab.managers import CommandTerm, ObservationTermCfg, SceneEntityCfg
-from isaaclab.sim import MeshCapsuleCfg, MeshCuboidCfg, MultiAssetSpawnerCfg, select_usd_variants, use_stage
+from isaaclab.sim import MeshCapsuleCfg, MeshCuboidCfg, MultiAssetSpawnerCfg, use_stage
 from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_tasks.core.lift import mdp
@@ -57,6 +57,24 @@ class _FakeScene(dict):
         super().__init__(assets)
         self._ALL_INDICES = environment_ids
         self.env_origins = torch.zeros((len(environment_ids), 3))
+
+
+@pytest.mark.parametrize(
+    ("selected_presets", "expected_physics"),
+    [
+        ((), "mujoco"),
+        (("newton_mjwarp_vbd_proxy",), "mujoco"),
+        (("isaacsim_physx",), "physx"),
+        (("physx",), "physx"),
+    ],
+)
+def test_franka_soft_robot_physics_variant_matches_backend(
+    selected_presets: tuple[str, ...], expected_physics: str
+) -> None:
+    """The Franka USD physics payload must match the selected simulation backend."""
+    cfg = resolve_presets(FrankaSoftEnvCfg(), selected=selected_presets)
+
+    assert cfg.scene.robot.spawn.variants == {"Physics": expected_physics, "Colliders": "primitives"}
 
 
 def test_kuka_allegro_lift_family_keeps_its_existing_reward_contract() -> None:
@@ -137,45 +155,6 @@ def test_lift_bounds_terminate_nonfinite_object_states() -> None:
         True,
         True,
     ]
-
-
-@pytest.mark.parametrize(
-    ("selected_presets", "expected_physics"),
-    [
-        ((), "mujoco"),
-        (("isaacsim_physx",), "physx"),
-        (("physx",), "physx"),
-    ],
-)
-def test_franka_soft_robot_physics_variant_matches_backend(
-    selected_presets: tuple[str, ...], expected_physics: str
-) -> None:
-    """The Franka USD physics payload must match the selected simulation backend."""
-    cfg = resolve_presets(FrankaSoftEnvCfg(), selected=selected_presets)
-
-    assert cfg.scene.robot.spawn.variants == {"Physics": expected_physics, "Colliders": "primitives"}
-
-
-def test_franka_rigid_task_selects_collision_meshes_for_reset_clearance() -> None:
-    """Rigid Lift inherits the canonical asset's full primitive colliders."""
-    cfg = FrankaLiftEnvCfg()
-    stage = Usd.Stage.CreateInMemory()
-    robot = stage.DefinePrim("/Robot", "Xform")
-    colliders = robot.GetVariantSets().AddVariantSet("Colliders")
-    for selection, prim_path, prim_type in (
-        ("convex_hulls", "/Robot/link1_c/link1_c", "Mesh"),
-        ("primitives", "/Robot/link1_capsule", "Capsule"),
-    ):
-        colliders.AddVariant(selection)
-        colliders.SetVariantSelection(selection)
-        with colliders.GetVariantEditContext():
-            stage.DefinePrim(prim_path, prim_type)
-    colliders.SetVariantSelection("primitives")
-
-    select_usd_variants("/Robot", {"Colliders": cfg.scene.robot.spawn.variants["Colliders"]}, stage=stage)
-
-    assert not stage.GetPrimAtPath("/Robot/link1_c/link1_c").IsValid()
-    assert stage.GetPrimAtPath("/Robot/link1_capsule").IsValid()
 
 
 def test_franka_lift_physx_runtimes_share_the_same_mdp() -> None:

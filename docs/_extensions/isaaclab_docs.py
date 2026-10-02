@@ -7,16 +7,19 @@
 
 from __future__ import annotations
 
+import inspect
 import json
 import posixpath
 from html import escape
 import re
+import sys
 from pathlib import Path
 
 from docutils import nodes
 from docutils.parsers.rst import directives
 from docutils.statemachine import StringList
 from sphinx.application import Sphinx
+from sphinx.config import Config
 from sphinx.util.docutils import SphinxDirective, SphinxRole
 from sphinx.util.nodes import split_explicit_title
 
@@ -37,6 +40,39 @@ def _source_branch(config) -> str:
     if _UPSTREAM_SOURCE_REF_PATTERN.match(branch):
         return branch
     return getattr(config, "isaaclab_latest_branch", "develop")
+
+
+def _configure_source_links(app: Sphinx, config: Config) -> None:
+    """Link API objects to their implementation in the documented Git ref."""
+    root = Path(app.srcdir).resolve().parent
+    branch = _source_branch(config)
+
+    def resolve(domain: str, info: dict[str, str]) -> str | None:
+        if domain != "py":
+            return None
+        try:
+            name, *members = info["fullname"].split(".")
+            obj = getattr(sys.modules[info["module"]], name)
+            for member in members:
+                obj = inspect.getattr_static(obj, member)
+            if isinstance(obj, property):
+                obj = obj.fget
+            elif isinstance(obj, (classmethod, staticmethod)):
+                obj = obj.__func__
+            obj = inspect.unwrap(obj)
+            filename = inspect.getsourcefile(obj)
+            if filename is None:
+                return None
+            path = Path(filename).resolve().relative_to(root)
+            if path.parts[0] != "source":
+                return None
+            lines, start = inspect.getsourcelines(obj)
+        except (AttributeError, KeyError, OSError, TypeError, ValueError):
+            # External, mocked, or generated objects may have no repository source.
+            return None
+        return f"https://github.com/isaac-sim/IsaacLab/blob/{branch}/{path.as_posix()}#L{start}-L{start + len(lines) - 1}"
+
+    config.linkcode_resolve = resolve
 
 
 def _parse_rst(directive: SphinxDirective, content: str) -> list[nodes.Node]:
@@ -383,6 +419,7 @@ def setup(app):
     app.add_config_value("isaaclab_doc_redirects", {}, "html")
     app.add_config_value("isaaclab_doc_redirect_fragments", {}, "html")
     app.connect("build-finished", _write_doc_redirects)
+    app.connect("config-inited", _configure_source_links)
     app.add_config_value("isaaclab_latest_branch", "develop", "env")
     app.add_config_value("isaaclab_wheel_version", "", "env")
     app.add_config_value("isaaclab_wheel_source_tag", "", "env")

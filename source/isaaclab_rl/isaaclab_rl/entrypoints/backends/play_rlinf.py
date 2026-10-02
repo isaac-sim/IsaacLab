@@ -38,7 +38,12 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--num_episodes", type=int, default=None, help="Number of evaluation episodes (overrides the config if set)."
     )
-    parser.add_argument("--video", action="store_true", default=False, help="Enable video recording.")
+    parser.add_argument(
+        "--video",
+        action="store_true",
+        default=False,
+        help="Save the evaluation videos RLinf records (its env.eval.video_cfg); takes no source.",
+    )
     args_cli = parser.parse_args(argv)
     if not args_cli.config_name:
         parser.error("--config_name is required (e.g. --config_name isaaclab_ppo_gr00t_assemble_trocar)")

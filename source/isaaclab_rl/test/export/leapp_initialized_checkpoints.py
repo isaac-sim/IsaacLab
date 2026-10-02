@@ -324,11 +324,7 @@ def main(argv: Sequence[str] | None = None) -> None:
 
     from isaaclab_tasks.utils.hydra import resolve_task_config
 
-    cli_args = SimpleNamespace(
-        seed=args.seed,
-        algorithm=args.algorithm,
-        headless=True,
-    )
+    cli_args = SimpleNamespace(seed=args.seed, algorithm=args.algorithm)
     task_dir = task_checkpoint_dir(args.checkpoint_root, backend_id, task_name)
     task_dir.mkdir(parents=True, exist_ok=True)
     original_argv = sys.argv

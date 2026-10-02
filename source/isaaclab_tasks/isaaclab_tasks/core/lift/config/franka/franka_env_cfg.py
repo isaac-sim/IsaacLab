@@ -17,7 +17,7 @@ from isaaclab.utils import clone, configclass, replace
 
 from isaaclab_tasks.utils import preset
 
-from isaaclab_assets.robots import FRANKA_PANDA_CFG
+from isaaclab_assets.robots import FRANKA_MINIMAL_CFG, FRANKA_PANDA_CFG
 
 from ... import lift_env_cfg as lift
 from ... import mdp
@@ -109,6 +109,10 @@ class FrankaSceneCfg(lift.SceneCfg):
         super().__post_init__()
         self.robot.spawn.variants["Physics"] = preset(
             default="mujoco", isaacsim_physx="physx", physx="physx", ovphysx="physx"
+        )
+        self.robot.spawn.variants["Colliders"] = preset(
+            default=FRANKA_PANDA_CFG.spawn.variants["Colliders"],
+            minimal=FRANKA_MINIMAL_CFG.spawn.variants["Colliders"],
         )
         self.robot.spawn.activate_contact_sensors = True
         # the base is rotated by 180 degrees about z so the workspace lies at positive x

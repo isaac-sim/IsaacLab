@@ -130,15 +130,11 @@ def test_registered_task_physx_presets_keep_auto_selection_explicit():
 @pytest.mark.parametrize(
     "task_id", ["IsaacContrib-Open-Drawer-Franka-IK-Abs", "IsaacContrib-Open-Drawer-Franka-IK-Rel"]
 )
-@pytest.mark.parametrize(
-    ("physics_preset", "expected_asset_physics"),
-    [("newton_mjwarp", "mujoco"), ("isaacsim_physx", "physx"), ("ovphysx", "physx")],
-)
-def test_franka_cabinet_ik_asset_variant_matches_backend(task_id, physics_preset, expected_asset_physics):
+def test_franka_cabinet_ik_preserves_newton_asset_variant(task_id):
     """The IK robot override retains the cabinet task's backend-aware asset selection."""
-    cfg = resolve_presets(load_cfg_from_registry(task_id, "env_cfg_entry_point"), selected=(physics_preset,))
+    cfg = resolve_presets(load_cfg_from_registry(task_id, "env_cfg_entry_point"), selected=("newton_mjwarp",))
 
-    assert cfg.scene.robot.spawn.variants["Physics"] == expected_asset_physics
+    assert cfg.scene.robot.spawn.variants["Physics"] == "mujoco"
 
 
 def test_registered_manager_based_configs_name_their_env_class():

@@ -130,6 +130,10 @@ class FrankaReachEnvCfg(ReachEnvCfg):
         self.scene.robot.spawn.variants["Physics"] = preset(
             default="mujoco", isaacsim_physx="physx", physx="physx", ovphysx="physx"
         )
+        self.scene.robot.spawn.variants["Colliders"] = preset(
+            default=FRANKA_PANDA_CFG.spawn.variants["Colliders"],
+            minimal=FRANKA_MINIMAL_CFG.spawn.variants["Colliders"],
+        )
         # IK targets need backend-native gravity control to hold steady between commands.
         self.scene.robot.spawn.rigid_props = [
             PhysxRigidBodyCfg(
@@ -166,12 +170,3 @@ class FrankaReachEnvCfg(ReachEnvCfg):
         # end-effector is along z-direction
         self.commands.ee_pose.body_name = "panda_hand"
         self.commands.ee_pose.ranges.pitch = (math.pi, math.pi)
-
-
-@configclass
-class FrankaReachMinimalEnvCfg(FrankaReachEnvCfg):
-    """Franka Reach with gripper-only collisions for collision-scope performance comparisons."""
-
-    def __post_init__(self):
-        super().__post_init__()
-        self.scene.robot.spawn.variants["Colliders"] = FRANKA_MINIMAL_CFG.spawn.variants["Colliders"]

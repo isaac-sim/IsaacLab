@@ -93,8 +93,6 @@ def test_training_request_builds_complete_cli() -> None:
         "schema,summary",
         "--device",
         "cuda:1",
-        "--visualizer",
-        "none",
         "--anim_recording_enabled",
         "--anim_recording_start_time",
         "1.5",
@@ -143,10 +141,9 @@ def test_play_request_uses_backend_arguments(backend: str, monkeypatch) -> None:
     assert args.num_steps == 7
     assert argv[argv.index("--warmup_steps") + 1] == "12"
     assert args.warmup_steps == 12
-    assert args.video is True
+    assert args.video == "viz"
     assert args.video_length == 37
     assert args.frontend == "torch"
-    assert args.enable_cameras is True
     assert remaining_args == []
 
 
@@ -164,12 +161,10 @@ def test_play_backend_configures_video_before_environment_creation(
 
     @contextlib.contextmanager
     def launch_simulation(env_cfg, args):
-        assert env_cfg.video_recorders == []
-        assert any(cfg.visualizer_type == "kit" for cfg in env_cfg.sim.visualizer_cfgs)
+        # the launch resolves the recorder source against the visualizer selection
+        assert [recorder.source for recorder in env_cfg.video_recorders] == ["viz"]
         if configured_output_dir is not None:
-            from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
-
-            env_cfg.video_recorders = [VideoRecorderCfg(output_dir=configured_output_dir)]
+            env_cfg.video_recorders[0].output_dir = configured_output_dir
         yield
 
     def create_environment(task, cfg, args, *, convert_marl_to_single_agent):
