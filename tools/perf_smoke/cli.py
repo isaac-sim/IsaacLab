@@ -165,13 +165,13 @@ def _cmd_aggregate(args: argparse.Namespace) -> int:
     elif len(pair_reports) > 1:
         print("::warning::perf-smoke: multiple paired comparison artifacts were found", file=sys.stderr)
 
-    summary = pair_summary + (report_mod.render_aggregate(reports) if reports else "")
+    summary = pair_summary + report_mod.render_aggregate(reports)
     print(summary, end="")
     if args.output_markdown:
         args.output_markdown.parent.mkdir(parents=True, exist_ok=True)
         args.output_markdown.write_text(summary, encoding="utf-8")
 
-    if not reports and not pair_summary:
+    if not reports:
         # Non-blocking: this is an infra fault (e.g. a flaky artifact download)
         print("::warning::perf-smoke: no comparison artifacts were produced", file=sys.stderr)
         return 0

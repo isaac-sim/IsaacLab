@@ -969,8 +969,8 @@ jobs:
   performance-smoke:
     name: performance-smoke-benchmarks
     runs-on: [self-hosted, gpu]
-    # Base and current share the existing budget; a retry-heavy pair can exhaust it.
-    timeout-minutes: 450
+    # Two sides can take 744 minutes when every sample uses its one retry.
+    timeout-minutes: 840
     needs: [build, config]
     # Pull requests and manual dispatches run in gate mode. A push runs only on develop,
     # where it also records a baseline; pushes to main and release/** skip this job.
@@ -980,7 +980,7 @@ jobs:
     steps:
     - uses: actions/checkout@v6
       with:
-        fetch-depth: 1
+        fetch-depth: 2
     - name: Pull current image
       uses: ./.github/actions/ecr-build-push-pull
       with:
