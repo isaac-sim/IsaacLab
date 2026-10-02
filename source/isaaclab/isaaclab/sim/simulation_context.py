@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, Any, ClassVar
 import torch
 import warp as wp
 
+from .. import cloner
 from .. import sim as sim_utils
 from ..app.settings_manager import get_settings_manager
 from ..markers.vis_marker_registry import VisMarkerRegistry
@@ -121,7 +122,7 @@ class SimulationContext:
         # Store config
         self.cfg = SimulationCfg() if cfg is None else cfg
         self._backend_registry: list[tuple[Any, Any]] = []
-        self.clone_contexts: dict[type, Any] = {}
+        self.clone_contexts: dict[type[cloner.ReplicateContext], cloner.ReplicateContext] = {}
         """Clone-context instances registered by type before plan dispatch; not native resource owners."""
 
         use_isaac_sim = has_kit()
@@ -555,6 +556,8 @@ class SimulationContext:
         Args:
             soft: If True, skip full reinitialization.
         """
+        # Standalone cameras may register after scene construction but before the first reset.
+        cloner.prepare_clone_contexts(self)
         self.physics_manager.reset(soft)
         for viz in self._visualizers:
             viz.reset(soft)
@@ -741,6 +744,17 @@ class SimulationContext:
     def get_setting(self, name: str) -> Any:
         """Get a setting value."""
         return self.settings.get(name)
+
+    def get_backends(self, cfg_type: type) -> tuple[Any, ...]:
+        """Return registered resources whose configurations have the requested type.
+
+        Args:
+            cfg_type: Configuration class, including its subclasses.
+
+        Returns:
+            A snapshot of matching resources in registration order.
+        """
+        return tuple(resource for cfg, resource in self._backend_registry if isinstance(cfg, cfg_type))
 
     def get_or_create_backend(self, cfg: Any) -> Any:
         """Return the simulation-owned object for a construction configuration.

@@ -25,3 +25,18 @@ The following classes are part of the public :mod:`isaaclab_ov.renderers` API.
 
 .. autoclass:: OVRTXBackendCfg
    :show-inheritance:
+
+Simulation-owned stages
+-----------------------
+
+The simulation owns these detached stages and releases them after their consumers close. Each stage's
+configuration selects the populated USD domains, and :class:`~isaaclab_ov.cloner.OvstageReplicateContext`
+prepares its copies. Independent renderer and visualizer stages use the rendering domain.
+:ref:`Clone routing <ov-clone-routing>` selects stage ownership and environment overrides before
+backend initialization. OVPhysX retains a separate physics stage and native replication path.
+
+.. autoclass:: isaaclab_ov.stage.OvstageBackendCfg
+   :show-inheritance:
+
+.. autoclass:: isaaclab_ov.stage.OvstageBackend
+   :members: populate, query, commit, reset, close

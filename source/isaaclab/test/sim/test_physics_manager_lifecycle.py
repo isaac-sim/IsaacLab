@@ -79,9 +79,17 @@ def test_backend_registry_identity_and_lifecycle():
     other_type = context.get_or_create_backend(replace(cfg, class_type=OtherBackend))
     assert len({id(resource) for resource in (first, second, other_cfg, other_type)}) == 4
     assert context.get_or_create_backend(Cfg(class_type=Backend, values=[1])) is first
+    snapshot = context.get_backends(Cfg)
+    assert [id(resource) for resource in snapshot] == [
+        id(resource) for resource in (first, second, other_cfg, other_type)
+    ]
+    assert tuple(map(id, context.get_backends(OtherCfg))) == (id(other_cfg),)
+    assert context.get_backends(RendererCfg) == ()
 
     context.close_backend(first)
     first.close.assert_called_once_with()
+    assert len(snapshot) == 4
+    assert all(resource is not first for resource in context.get_backends(Cfg))
     assert all(resource.close.call_count == 0 for resource in (second, other_cfg, other_type))
     replacement = context.get_or_create_backend(cfg)
     assert replacement is not first

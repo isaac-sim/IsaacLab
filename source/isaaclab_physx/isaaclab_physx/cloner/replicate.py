@@ -14,19 +14,13 @@ from omni.physx import get_physx_replicator_interface
 from pxr import Sdf, Usd, UsdUtils
 
 from isaaclab import cloner
-from isaaclab.sim import SimulationContext
 
 if TYPE_CHECKING:
     from isaaclab.cloner import ClonePlan
 
 
-class PhysxReplicateContext:
+class PhysxReplicateContext(cloner.ReplicateContext):
     """Apply one clone plan through the PhysX replicator."""
-
-    replicate_priority = 0
-
-    def __init__(self, sim: SimulationContext):
-        self.stage = sim.stage
 
     def replicate(self, plan: ClonePlan, asset_prototype_ids: tuple[int, ...]) -> None:
         """Register the PhysX replicator for this context's source declarations.
@@ -48,7 +42,7 @@ class PhysxReplicateContext:
         copies = ((key, np.concatenate(groups)) for key, groups in copies.items())
         env_ids = np.arange(len(plan.topology.world_prototype_layout))
         usd_only = any(i not in asset_prototype_ids for i, source in enumerate(sources) if source is not None)
-        _replicate_instances(self.stage, copies, env_ids, usd_only, exclude_self_replication=True)
+        _replicate_instances(self._sim.stage, copies, env_ids, usd_only, exclude_self_replication=True)
 
 
 def physx_replicate(

@@ -191,7 +191,11 @@ def test_scene_publishes_plan_before_replicate(monkeypatch: pytest.MonkeyPatch):
     captured: list = []
 
     def fake_replicate(plan, *, replicate_physics=True):
-        captured.append((plan, replicate_physics, sim_utils.SimulationContext.instance().get_clone_plan()))
+        sim = sim_utils.SimulationContext.instance()
+        captured.append((plan, replicate_physics, sim.get_clone_plan()))
+        root = sim.stage.GetPrimAtPath(plan.env_template.format(0))
+        assert not root.GetAttribute("xformOpOrder")
+        assert all(not sim.stage.GetPrimAtPath(plan.env_template.format(i)) for i in range(1, 4))
 
     monkeypatch.setattr(replicate_session_module, "replicate", fake_replicate)
 
@@ -255,7 +259,7 @@ def test_empty_scene_leaves_clone_lifecycle_to_caller():
         grid_positions = cloner.grid_transforms(4, 1.0)[0]
         torch.testing.assert_close(scene.env_origins, torch.from_numpy(grid_positions))
         env_0 = scene.stage.GetPrimAtPath(env_template.format(0))
-        np.testing.assert_allclose(sim_utils.resolve_prim_pose(env_0)[0], grid_positions[0])
+        assert env_0 and not env_0.GetAttribute("xformOpOrder")
         assert all(not scene.stage.GetPrimAtPath(env_template.format(i)).IsValid() for i in range(1, 4))
 
         cube_cfg = RigidObjectCfg(

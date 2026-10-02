@@ -19,61 +19,10 @@ def create_camera_transforms_kernel(
     orientations: wp.array(dtype=wp.quatf),  # type: ignore
     transforms: wp.array(dtype=wp.mat44d),  # type: ignore
 ):
-    """Build camera 4x4 transforms from positions and quaternions (column-major for OVRTX)."""
+    """Convert world-frame camera poses to OVRTX's OpenGL row-vector matrices in one pass."""
     i = wp.tid()
-    pos = positions[i]
-    quat = orientations[i]
-    qx, qy, qz, qw = quat[0], quat[1], quat[2], quat[3]
-
-    r00 = 1.0 - 2.0 * (qy * qy + qz * qz)
-    r01 = 2.0 * (qx * qy - qw * qz)
-    r02 = 2.0 * (qx * qz + qw * qy)
-    r10 = 2.0 * (qx * qy + qw * qz)
-    r11 = 1.0 - 2.0 * (qx * qx + qz * qz)
-    r12 = 2.0 * (qy * qz - qw * qx)
-    r20 = 2.0 * (qx * qz - qw * qy)
-    r21 = 2.0 * (qy * qz + qw * qx)
-    r22 = 1.0 - 2.0 * (qx * qx + qy * qy)
-
-    _0 = wp.float64(0.0)
-    _1 = wp.float64(1.0)
-    transforms[i] = wp.mat44d(  # type: ignore
-        wp.float64(r00),
-        wp.float64(r10),
-        wp.float64(r20),
-        _0,
-        wp.float64(r01),
-        wp.float64(r11),
-        wp.float64(r21),
-        _0,
-        wp.float64(r02),
-        wp.float64(r12),
-        wp.float64(r22),
-        _0,
-        wp.float64(float(pos[0])),
-        wp.float64(float(pos[1])),
-        wp.float64(float(pos[2])),
-        _1,
-    )
-
-
-@wp.kernel
-def extract_tile_from_tiled_buffer_kernel(
-    tiled_buffer: wp.array(dtype=wp.uint8, ndim=3),  # type: ignore
-    tile_buffer: wp.array(dtype=wp.uint8, ndim=3),  # type: ignore
-    tile_x: int,
-    tile_y: int,
-    tile_width: int,
-    tile_height: int,
-):
-    """Extract one RGBA tile from a tiled buffer."""
-    y, x = wp.tid()
-    src_x = tile_x * tile_width + x
-    src_y = tile_y * tile_height + y
-    tile_buffer[y, x, 0] = tiled_buffer[src_y, src_x, 0]
-    tile_buffer[y, x, 1] = tiled_buffer[src_y, src_x, 1]
-    tile_buffer[y, x, 2] = tiled_buffer[src_y, src_x, 2]
-    tile_buffer[y, x, 3] = tiled_buffer[src_y, src_x, 3]
+    orientation = orientations[i] * wp.quatf(0.5, -0.5, -0.5, 0.5)
+    transforms[i] = wp.mat44d(wp.transpose(wp.transform_to_matrix(wp.transformf(positions[i], orientation))))
 
 
 @wp.kernel

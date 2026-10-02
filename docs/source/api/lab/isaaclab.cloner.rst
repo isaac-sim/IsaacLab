@@ -18,6 +18,7 @@
       PrototypeWorldTopology
       CloneCfg
       InclusionSet
+      ReplicateContext
       ReplicateSession
       UsdReplicateContext
 
@@ -32,6 +33,7 @@
       num_spawn_variants
       grid_transforms
       replicate
+      prepare_clone_contexts
       usd_replicate
       filter_collisions
 
@@ -76,8 +78,13 @@ Additional Public Classes
 .. autoclass:: InclusionSet
    :show-inheritance:
 
+.. autoclass:: ReplicateContext
+   :members:
+
 .. autoclass:: ReplicateSession
    :show-inheritance:
 
 .. autoclass:: UsdReplicateContext
    :show-inheritance:
+
+.. autofunction:: prepare_clone_contexts
