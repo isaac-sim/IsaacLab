@@ -127,7 +127,7 @@ OpenMP preload on aarch64
 
 On DGX Spark and other aarch64 Linux systems only, preload the aarch64 OpenMP
 library so it can be loaded into the Python process (see
-:ref:`installation-method-python-env`):
+:ref:`installation-method-uv`):
 
 .. code-block:: bash
 
@@ -153,14 +153,6 @@ Quick Start
              --config_name isaaclab_ppo_gr00t_assemble_trocar \
              --model_path /path/to/base_model
 
-   .. tab-item:: isaaclab.sh
-
-      .. code-block:: bash
-
-         ./isaaclab.sh train --rl_library rlinf \
-             --config_name isaaclab_ppo_gr00t_assemble_trocar \
-             --model_path /path/to/base_model
-
 **Evaluation** — Evaluate a pretrained (base) model with video recording:
 
 .. tab-set::
@@ -170,15 +162,6 @@ Quick Start
       .. code-block:: bash
 
          uv run --no-sync isaaclab play --rl_library rlinf \
-             --config_name isaaclab_ppo_gr00t_assemble_trocar \
-             --model_path /path/to/base_model \
-             --video
-
-   .. tab-item:: isaaclab.sh
-
-      .. code-block:: bash
-
-         ./isaaclab.sh play --rl_library rlinf \
              --config_name isaaclab_ppo_gr00t_assemble_trocar \
              --model_path /path/to/base_model \
              --video
@@ -197,21 +180,14 @@ Quick Start
              --checkpoint /path/to/checkpoints/global_step_N \
              --video
 
-   .. tab-item:: isaaclab.sh
-
-      .. code-block:: bash
-
-         ./isaaclab.sh play --rl_library rlinf \
-             --config_name isaaclab_ppo_gr00t_assemble_trocar \
-             --model_path /path/to/base_model \
-             --checkpoint /path/to/checkpoints/global_step_N \
-             --video
-
 Here ``--model_path`` points to the HuggingFace-format base model (with
 ``config.json``), and ``--checkpoint`` points to the RLinf checkpoint
-directory (the ``global_step_<N>`` folder). The script loads the model
-architecture from the base model and overlays the RL-finetuned weights
-(``full_weights.pt``) from the checkpoint.
+directory (the ``global_step_<N>`` folder), a subdirectory containing exactly one
+``full_weights.pt``, or that weights file. RLinf loads the base model, then applies the
+RL-finetuned weights through its native checkpoint hook. Relative model and checkpoint
+paths are resolved from the launcher's working directory before Ray workers start.
+The rollout model inherits actor-model settings; explicit rollout settings take precedence.
+RLinf requires Ray for worker scheduling in both training and evaluation, including single-GPU runs.
 
 .. note::
 
@@ -289,4 +265,4 @@ Key Files
    └── extension.py       # Task registration, obs/action conversion
 
 For detailed configuration options, CLI arguments, and how to add new tasks,
-use the unified ``./isaaclab.sh train --rl_library rlinf`` and ``./isaaclab.sh play --rl_library rlinf`` commands.
+use the unified ``uv run isaaclab train --rl_library rlinf`` and ``uv run isaaclab play --rl_library rlinf`` commands.

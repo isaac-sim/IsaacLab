@@ -47,9 +47,7 @@ logger = logging.getLogger(__name__)
 
 _FABRIC_GPU_INTEROP_ENV = "ISAACLAB_FABRIC_USE_GPU_INTEROP"
 
-_SIM_APP_CONFIG_KEYS = frozenset(
-    ("headless", "hide_ui", "physics_gpu", "multi_gpu", "limit_cpu_threads", "width", "height")
-)
+_SIM_APP_CONFIG_KEYS = frozenset(("hide_ui", "physics_gpu", "multi_gpu", "limit_cpu_threads", "width", "height"))
 """Launcher arguments forwarded to the :class:`SimulationApp` config."""
 
 # Suppress noisy debug-level logs from third-party libraries
@@ -168,7 +166,7 @@ class KitLauncher(SimulationLauncher):
         self._livestream: Literal[0, 1, 2]  # 0: Disabled, 1: WebRTC public, 2: WebRTC private
         self._offscreen_render: bool  # 0: Disabled, 1: Enabled
         self._sim_experience_file: str  # Experience file to load
-        self._video_enabled: bool  # Whether --video recording is enabled
+        self._video_enabled: bool  # Whether --video records from Kit rendering
         self.device: str  # resolved device string (e.g. "cuda:0" or "cpu")
         self._deferred_cuda_device_id: int | None = None
 
@@ -309,7 +307,8 @@ class KitLauncher(SimulationLauncher):
           Isaac Lab experiences use one renderer GPU by default. Applications that need single-process
           multi-GPU rendering can override the ``renderer.multiGpu`` settings through this argument.
 
-        * ``visualizer`` (str): Visualizer backends to enable.
+        * ``visualizer`` (str): Visualizer backends to run. Omit it to run none. A visualizer configured in
+          :attr:`~isaaclab.sim.SimulationCfg.visualizer_cfgs` supplies the settings of its type when selected.
           Valid options are:
 
           - ``rerun``: Use Rerun visualizer.
@@ -317,7 +316,6 @@ class KitLauncher(SimulationLauncher):
           - ``newton_rtx``: Use Newton RTX path-tracer visualizer (experimental).
           - ``viser``: Use Viser visualizer.
           - ``kit``: Use Omniverse Kit visualizer.
-          - ``none``: Disable all visualizers explicitly.
           - Multiple visualizers can be specified as a comma-delimited list:
             ``--viz rerun,newton_gl,viser``.
 
@@ -366,7 +364,10 @@ class KitLauncher(SimulationLauncher):
             "--viz",
             type=parse_visualizer_csv,
             default=None,
-            help="Visualizer backends to enable as CSV (e.g., kit,newton,rerun,viser).",
+            help=(
+                "Visualizer backends to run as CSV (e.g., kit,newton_gl,rerun,viser); none run without it. A"
+                " visualizer configured in the task's sim.visualizer_cfgs supplies the settings of its type."
+            ),
         )
         arg_group.add_argument(
             "--verbose",  # Note: This is read by SimulationApp through sys.argv
@@ -440,22 +441,16 @@ class KitLauncher(SimulationLauncher):
     Internal functions.
     """
 
-    # Set by :meth:`_resolve_xr_settings`. Defaulted here so :meth:`_resolve_headless_settings`
-    # stays independent of resolver call order and of whether XR was resolved at all.
-    _xr_auto_start: bool = False
-
     def _config_resolution(self, launcher_args: dict):
         """Resolve the input arguments and environment variables.
 
         Args:
             launcher_args: A dictionary of all input arguments passed to the class object.
         """
-        self._kit_visualizer = bool(launcher_args.get("kit_visualizer", False))
+        self._kit_visualizer = "kit" in (launcher_args.get("visualizer") or ())
         self._resolve_livestream_settings(launcher_args)
-        # XR must be resolved before headless so that XR can prevent
-        # visualizer-intent-based headless forcing.
         self._resolve_xr_settings(launcher_args)
-        self._resolve_headless_settings(launcher_args)
+        self._resolve_headless_settings()
         self._resolve_camera_settings(launcher_args)
         self._resolve_viewport_settings(launcher_args)
         self._resolve_device_settings(launcher_args)
@@ -467,6 +462,7 @@ class KitLauncher(SimulationLauncher):
         # Remove all values from input keyword args which are not meant for SimulationApp
         # Assign all the passed settings to a dictionary for the simulation app
         self._sim_app_config = {key: launcher_args[key] for key in _SIM_APP_CONFIG_KEYS & launcher_args.keys()}
+        self._sim_app_config["headless"] = self._headless
 
     def _resolve_livestream_settings(self, launcher_args: dict):
         """Resolve livestream related settings."""
@@ -494,19 +490,18 @@ class KitLauncher(SimulationLauncher):
             ]
             sys.argv += self._livestream_args
 
-    def _resolve_headless_settings(self, launcher_args: dict):
-        """Resolve headless related settings."""
+    def _resolve_headless_settings(self):
+        """Run the app windowed only for a selected Kit visualizer (``--viz kit``).
+
+        ``HEADLESS=1`` and livestreaming, which streams from the host, keep it headless; so does a Kit
+        visualizer that only records video, which ``--viz`` does not select.
+        """
         headless_env = int(os.environ.get("HEADLESS", 0))
         if headless_env not in {0, 1}:
             raise ValueError(f"Invalid value for environment variable `HEADLESS`: {headless_env}. Expected: 0 or 1.")
-        # livestreaming always runs headless on the host machine
-        self._headless = bool(launcher_args.get("headless", False)) or self._livestream > 0 or bool(headless_env)
-        # only a Kit visualizer opens a window, and XR without an explicit one has no viewport to start from
-        if not self._headless and (self._xr_auto_start or not self._kit_visualizer):
+        self._headless = not self._kit_visualizer or self._livestream > 0 or bool(headless_env)
+        if not self._kit_visualizer:
             logger.info("Running headless because '--viz kit' was not requested. Pass it to open a viewport.")
-            self._headless = True
-        # Headless needs to be passed to the SimulationApp so we keep it here
-        launcher_args["headless"] = self._headless
 
     def _resolve_camera_settings(self, launcher_args: dict):
         """Resolve camera related settings."""
@@ -528,26 +523,21 @@ class KitLauncher(SimulationLauncher):
         else:
             self._xr = bool(xr_env)
 
-        # Determine whether XR should auto-inject a KitVisualizer.
-        # When XR is enabled but the run has no Kit visualizer (from the config or
-        # --viz), we auto-inject one so that app.update() and forward() are pumped
-        # each frame -- the XR runtime needs both to receive updated hand/joint
-        # transforms.
-        self._xr_auto_start = self._xr and not self._kit_visualizer
-
     def _resolve_viewport_settings(self, launcher_args: dict):
         """Resolve viewport related settings."""
-        self._video_enabled = bool(launcher_args.get("video", False))
-        if self._video_enabled and any(
+        if launcher_args.get("video") and any(
             importlib.util.find_spec(package) is None for package in ("moviepy", "imageio_ffmpeg")
         ):
             raise ModuleNotFoundError(
                 "Video recording with `--video` requires MoviePy and its imageio-ffmpeg backend, "
                 "which are not installed by default. "
                 "Run uv commands with `uv run --extra video ...`, or install MoviePy into the "
-                'legacy environment with `./isaaclab.sh -p -m pip install "moviepy>=1.0.3,<2.0.0.dev0"` '
-                "(`isaaclab.bat -p -m pip install ...` on Windows), and retry."
+                'standalone uv environment with `uv pip install "moviepy>=1.0.3,<2.0.0.dev0"` '
+                "and retry."
             )
+        # Kit renders a recording only when the launch enabled camera rendering for it, i.e. a Kit visualizer or a
+        # Kit camera records; a video recorded from a Newton visualizer needs no Kit viewport.
+        self._video_enabled = bool(launcher_args.get("video")) and self._enable_cameras
         # Check if we can disable the viewport to improve performance
         #   This should only happen if we are running headless and do not require livestreaming or video recording
         #   This is different from offscreen_render because this only affects the default viewport and
@@ -877,18 +867,12 @@ def _ensure_isaac_sim_available() -> None:
     if KitLauncher.is_available():
         return
 
-    isaaclab_path = os.environ.get("ISAACLAB_PATH")
-    local_sim = os.path.join(isaaclab_path, "_isaac_sim") if isaaclab_path else None
+    local_sim = ISAACLAB_ROOT / "_isaac_sim"
     extra_hint = ""
-    if local_sim and os.path.isdir(local_sim):
-        launcher, source = ("isaaclab.bat", f'call "{local_sim}\\setup_conda_env.bat"')
-        if sys.platform != "win32":
-            launcher, source = ("./isaaclab.sh", f'source "{local_sim}/setup_conda_env.sh"')
+    if local_sim.is_dir():
         extra_hint = (
             f"  Found a local Isaac Sim at {local_sim} but its environment is not active.\n"
-            f"  Either run via `{launcher} ...` (which sources the Isaac Sim env automatically),\n"
-            f"  or in your current shell run:\n"
-            f"    {source}\n"
+            "  Run through `uv run isaaclab -p <script>` to load the source-build environment.\n"
         )
 
     try:
@@ -906,7 +890,7 @@ def _ensure_isaac_sim_available() -> None:
             "  The current Python environment does not expose the SimulationApp API.\n"
             f"{extra_hint}"
             "  Install the full Isaac Sim runtime from the Isaac Lab directory by running:\n"
-            "    uv run isaaclab -i isaacsim\n"
+            "    uv sync --extra isaacsim\n"
             "\n"
             "  See https://isaac-sim.github.io/IsaacLab/main/source/setup/installation for details.\n"
         )

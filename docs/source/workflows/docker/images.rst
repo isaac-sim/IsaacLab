@@ -160,5 +160,5 @@ Python interpreter
 Every image installs from ``uv.lock`` into a Python 3.12 virtual environment at
 ``/opt/isaaclab-venv``. On the Isaac Sim-based images the environment is built on Isaac Sim's own
 interpreter, and Isaac Sim itself stays outside it, reached through the ``_isaac_sim`` symlink;
-``isaaclab.sh`` puts it on the path. In either case ``python`` on the container's ``PATH`` resolves
+``uv run isaaclab`` puts it on the path. In either case ``python`` on the container's ``PATH`` resolves
 to the right one, so scripts are run the same way regardless of image.
