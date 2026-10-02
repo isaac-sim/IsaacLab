@@ -5,11 +5,17 @@
 
 """Validate MicroDuck USDs and native BAM bindings on MJWarp."""
 
+from dataclasses import fields
+
 import pytest
 import torch
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+from newton.actuators import parse_actuator_prim
+
+from pxr import Usd
 
 import isaaclab.sim as sim_utils
+from isaaclab.actuators.newton import DriveBam
 from isaaclab.assets import Articulation, AssetBaseCfg
 from isaaclab.cloner import CloneCfg, clone_plan_from_env_0, replicate
 from isaaclab.sim import SimulationCfg, build_simulation_context
@@ -29,6 +35,22 @@ pytestmark = [pytest.mark.integration, pytest.mark.kitless]
 )
 def test_microduck_native_bam(asset_cfg, num_joints, device):
     """All variants spawn and step with 14 driven servos; roller wheel joints stay passive."""
+    # Check the shipped USD before Lab replaces its actuators from the configuration.
+    stage = Usd.Stage.Open(asset_cfg.spawn.usd_path)
+    authored = [entry for prim in stage.Traverse() if (entry := parse_actuator_prim(prim))]
+    assert len(authored) == 14
+    servo_cfg = asset_cfg.actuators["servos"]
+    for entry in authored:
+        assert entry.drive_class is DriveBam
+        assert tuple(entry.drive_kwargs[name] for name in ("stribeck", "load_dependent", "quadratic")) == (1, 1, 1)
+        joint = stage.GetPrimAtPath(entry.target_path)
+        assert joint.GetAttribute("newton:friction").Get() > 0.0
+        assert joint.GetAttribute("mjc:damping").Get() == pytest.approx(servo_cfg.motor.friction_viscous)
+        for field in fields(servo_cfg.motor):
+            if field.name not in ("model", "friction_viscous"):
+                assert entry.drive_kwargs[field.name] == pytest.approx(getattr(servo_cfg.motor, field.name))
+        for name in ("kp_fw", "vin", "vin_min", "min_delay", "max_delay"):
+            assert entry.drive_kwargs[name] == pytest.approx(getattr(servo_cfg, name))
     sim_cfg = SimulationCfg(
         dt=0.005,
         device=device,
