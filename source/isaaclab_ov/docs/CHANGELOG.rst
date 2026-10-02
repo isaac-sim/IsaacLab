@@ -1,6 +1,41 @@
 Changelog
 ---------
 
+.. towncrier release notes start
+
+4.1.2 (2026-10-02)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed OVRTX render-output reads and attribute writes skipping synchronization on Torch's
+  legacy default CUDA stream.
+* Fixed mapped-buffer release racing asynchronous render-output extraction.
+* Fixed frame-transformer path expressions that directly match a rigid body from also selecting
+  nested rigid-body descendants.
+
+
+4.1.1 (2026-10-01)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed OVPhysX PVA and frame-transformer debug visualization to refresh outdated sensor
+  buffers before drawing.
+* Changed the OVPhysX rigid-object ``body_com_acc_w`` finite difference to use the elapsed time since the
+  previous update, matching joint accelerations and the Newton backend.
+
+* Skipped the joint-limit clamping counter readback when its logging level is disabled and reused
+  the counter buffer across writes.
+
+Fixed
+^^^^^
+
+* Used resolved callable defaults when constructing manager terms instead of duplicating defaults in constructors.
+
+
 4.1.0 (2026-09-30)
 ~~~~~~~~~~~~~~~~~~
 

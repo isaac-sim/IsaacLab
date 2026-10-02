@@ -47,12 +47,9 @@ def _resolve_env_regex_path(prim_path: str) -> str:
 
 
 def _requested_visualizers(args_cli: argparse.Namespace) -> list[str]:
-    """Return requested visualizers, defaulting to Kit for this tutorial."""
-    visualizers = args_cli.visualizer or ["kit"]
-    visualizers = [str(visualizer).lower() for visualizer in visualizers]
+    """Return the requested visualizers (Kit by default); without any, the tiled camera panel is skipped."""
+    visualizers = [str(visualizer).lower() for visualizer in args_cli.visualizer or []]
 
-    if "none" in visualizers:
-        raise ValueError("This demo requires a tiled-camera visualizer. Use '--viz kit' or '--viz newton_gl'.")
     unsupported = sorted(set(visualizers) & UNSUPPORTED_TILED_VISUALIZERS)
     if unsupported:
         raise ValueError(
@@ -135,6 +132,7 @@ parser.add_argument("--num_envs", type=int, default=None, help="Number of enviro
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
 # append simulation launcher cli args
 add_launcher_args(parser)
+parser.set_defaults(visualizer=["kit"])
 args_cli, hydra_args = setup_preset_cli(parser)
 args_cli.task = _resolve_task(args_cli)
 sys.argv = [sys.argv[0]] + hydra_args

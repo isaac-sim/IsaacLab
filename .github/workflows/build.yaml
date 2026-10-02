@@ -440,7 +440,7 @@ jobs:
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         include-files: "test_standalone_scripts.py"
         standalone-script-scope: "demos"
-        standalone-script-visualizer: "none"
+        standalone-script-visualizer: "default"
         standalone-script-runtime-group: kit
         warp-cache: restore
         result-file: "test-standalone-demos-kit-report.xml"
@@ -471,7 +471,7 @@ jobs:
         extra-pip-packages: "${{ steps.ov_pins.outputs.ovphysx }}"
         include-files: "test_standalone_scripts.py"
         standalone-script-scope: "demos"
-        standalone-script-visualizer: "none"
+        standalone-script-visualizer: "default"
         standalone-script-runtime-group: non-kit
         warp-cache: restore
         result-file: "test-standalone-demos-non-kit-report.xml"
@@ -1025,6 +1025,8 @@ jobs:
       run: |
         set -uo pipefail
         install -d -m 0777 "${GITHUB_WORKSPACE}/jit-cache/warp" "${GITHUB_WORKSPACE}/jit-cache/nv"
+        # Restored version directories and kernels must also be writable by the container user.
+        chmod -R a+rwX "${GITHUB_WORKSPACE}/jit-cache" || exit 1
 
         container=""
         cleanup_container() {
@@ -1055,7 +1057,6 @@ jobs:
               --seed 42 \
               --benchmark_formatter schema \
               --output_path /tmp/benchmark-output \
-              --visualizer none \
               $args"
           local status=$?
           docker cp "$container:/tmp/benchmark-output/." "benchmark-output/${leg}/sample-${sample}/" 2>/dev/null || true
