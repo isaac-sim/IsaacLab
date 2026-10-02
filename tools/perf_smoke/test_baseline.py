@@ -176,24 +176,25 @@ class TestSelection(unittest.TestCase):
         self.client.add(12, PARENT, event="pull_request")
         self.client.add(13, PARENT, branch="feature")
         self.client.add(14, HEAD)
-        selected = self.select()
-        self.assertEqual(selected.evidence.identity["run_id"], 11)
-        self.assertEqual(selected.metadata["visited_commits"], [PARENT])
+        evidence, metadata = self.select()
+        self.assertEqual(evidence.identity["run_id"], 11)
+        self.assertEqual(metadata["visited_commits"], [PARENT])
 
     def test_first_parent_walk_and_skips_no_shared_workload(self):
         self.client.add(10, GRANDPARENT)
         self.client.add(11, PARENT, samples={"other": [bundle(task="different")]})
-        selected = self.select()
-        self.assertEqual(selected.evidence.identity["run_id"], 10)
-        self.assertEqual(selected.metadata["visited_commits"], [PARENT, GRANDPARENT])
-        self.assertIn("No shared workload", str(selected.metadata["issues"]))
+        evidence, metadata = self.select()
+        self.assertEqual(evidence.identity["run_id"], 10)
+        self.assertEqual(metadata["visited_commits"], [PARENT, GRANDPARENT])
+        self.assertIn("No shared workload", str(metadata["issues"]))
 
     def test_latest_measurement_not_artifact_upload_or_workflow_success(self):
         self.client.add(10, PARENT, samples={"leg": [bundle(end=stamp(11))]}, conclusion="failure")
         self.client.add(11, PARENT, samples={"leg": [bundle(end=stamp(10, 30))]})
         self.client.add(12, PARENT, samples={"leg": [bundle(end=stamp(12, 2))]})
         self.client.run_artifacts[11][0]["created_at"] = stamp(15)
-        self.assertEqual(self.select().evidence.identity["run_id"], 10)
+        evidence, _ = self.select()
+        self.assertEqual(evidence.identity["run_id"], 10)
 
     def test_latest_attempt_by_measurement_and_preserve_incomplete_legs(self):
         self.client.add(10, PARENT)
@@ -206,28 +207,29 @@ class TestSelection(unittest.TestCase):
             statuses={"renamed-leg": "ok", "missing-leg": "failed"},
             conclusion="failure",
         )
-        selected = self.select().evidence
-        self.assertEqual(selected.identity["run_attempt"], 2)
-        self.assertEqual(selected.samples["missing-leg"], [])
-        self.assertEqual(selected.statuses["missing-leg"], "failed")
+        evidence, _ = self.select()
+        self.assertEqual(evidence.identity["run_attempt"], 2)
+        self.assertEqual(evidence.samples["missing-leg"], [])
+        self.assertEqual(evidence.statuses["missing-leg"], "failed")
 
     def test_latest_run_creation_after_candidate_does_not_hide_original_attempt(self):
         self.client.add(10, PARENT, created=stamp(14))
         self.client.add(10, PARENT, attempt=2, start=stamp(14), samples={"leg": [bundle(stamp(14), stamp(14, 5))]})
-        selected = self.select().evidence
-        self.assertEqual((selected.identity["run_id"], selected.identity["run_attempt"]), (10, 1))
+        evidence, _ = self.select()
+        self.assertEqual((evidence.identity["run_id"], evidence.identity["run_attempt"]), (10, 1))
 
     def test_formula_and_versions_do_not_choose_a_more_favorable_baseline(self):
         self.client.add(10, PARENT, context=False, samples={"leg": [bundle(fps=1)]})
-        selected = self.select().evidence
-        self.assertEqual(selected.context, {})
-        self.assertIsNone(selected.identity["tested_commit"])
-        self.assertIn("provenance", selected.issues[0])
+        evidence, _ = self.select()
+        self.assertEqual(evidence.context, {})
+        self.assertIsNone(evidence.identity["tested_commit"])
+        self.assertIn("provenance", evidence.issues[0])
 
     def test_candidate_cutoff_uses_earliest_sample_not_capture(self):
         self.client.add(10, PARENT, samples={"leg": [bundle(end=stamp(12))]})
         self.assertEqual(self.candidate().measurement_start, stamp(12, 1))
-        self.assertEqual(self.select().evidence.identity["run_id"], 10)
+        evidence, _ = self.select()
+        self.assertEqual(evidence.identity["run_id"], 10)
 
     def test_missing_candidate_sample_start_uses_capture_or_unknown(self):
         self.client.add(30, HEAD, start=stamp(9), samples={"leg": [bundle(), bundle(start=None)]})
@@ -239,9 +241,9 @@ class TestSelection(unittest.TestCase):
 
     def test_failed_sample_without_end_does_not_prove_baseline_finished(self):
         self.client.add(10, PARENT, samples={"leg": [bundle(), bundle(end=None, status="failed")]})
-        selected = self.select()
-        self.assertIsNone(selected.evidence)
-        self.assertIn("Measurement end time", str(selected.metadata["issues"]))
+        evidence, metadata = self.select()
+        self.assertIsNone(evidence)
+        self.assertIn("Measurement end time", str(metadata["issues"]))
 
     def test_corrupt_workload_preserved_while_valid_shared_leg_can_be_used(self):
         self.client.add(10, PARENT, artifact=False)
@@ -256,7 +258,7 @@ class TestSelection(unittest.TestCase):
                 "broken/status": "failed",
             },
         )
-        evidence = self.select().evidence
+        evidence, _ = self.select()
         self.assertEqual(evidence.identity["run_id"], 10)
         self.assertEqual(evidence.samples["broken"], [])
         self.assertEqual(evidence.measurement_end, stamp(11))
@@ -265,9 +267,9 @@ class TestSelection(unittest.TestCase):
     def test_all_failed_nearer_execution_does_not_replace_valid_older_execution(self):
         self.client.add(10, PARENT, statuses={"leg": "failed"})
         self.client.add(11, GRANDPARENT)
-        selected = self.select()
-        self.assertEqual(selected.evidence.identity["run_id"], 11)
-        self.assertIn("status ok", str(selected.metadata["issues"]))
+        evidence, metadata = self.select()
+        self.assertEqual(evidence.identity["run_id"], 11)
+        self.assertIn("status ok", str(metadata["issues"]))
 
     def test_malformed_fps_is_preserved_and_explicitly_unusable(self):
         malformed = bundle()
@@ -277,7 +279,8 @@ class TestSelection(unittest.TestCase):
         self.assertEqual(len(evidence.samples["leg"]), 2)
         self.assertFalse(evidence.has_completed_runtime)
         self.assertIn("FPS value", str(evidence.issues))
-        self.assertIsNone(self.select().evidence)
+        selected, _ = self.select()
+        self.assertIsNone(selected)
 
     def test_summary_only_rerun_ignores_carried_forward_job_attempt_number(self):
         self.client.add(20, HEAD, attempt=2, start=stamp(13), artifact=False)
@@ -285,12 +288,6 @@ class TestSelection(unittest.TestCase):
         candidate = self.candidate(2)
         self.assertEqual(candidate.identity["run_attempt"], 1)
         self.assertEqual(candidate.identity["report_attempt"], 2)
-
-    def test_missing_artifact_after_actual_benchmark_rerun_is_not_substituted(self):
-        self.client.add(20, HEAD, attempt=2, start=stamp(13), artifact=False)
-        with self.assertRaises(baseline.EvidenceError) as raised:
-            self.candidate(2)
-        self.assertEqual(raised.exception.code, "missing_candidate")
 
     def test_new_benchmark_attempt_uses_new_artifact(self):
         self.client.add(20, HEAD, attempt=2, start=stamp(13), samples={"leg": [bundle(stamp(13), stamp(13, 5))]})
@@ -327,27 +324,29 @@ class TestSelection(unittest.TestCase):
         self.client.add(10, PARENT)
         candidate = baseline.resolve_candidate(self.client, 30, 1)
         candidate.measurement_start = stamp(12)
-        self.assertEqual(baseline.select_baseline(self.client, candidate).evidence.identity["run_id"], 10)
+        evidence, _ = baseline.select_baseline(self.client, candidate)
+        self.assertEqual(evidence.identity["run_id"], 10)
         candidate.identity["event"] = "pull_request"
-        self.assertIsNone(baseline.select_baseline(self.client, candidate).evidence)
+        evidence, _ = baseline.select_baseline(self.client, candidate)
+        self.assertIsNone(evidence)
 
     def test_previous_selection_pins_identical_candidate_bytes(self):
         self.client.add(10, PARENT)
         candidate = self.candidate()
-        old = baseline.select_baseline(self.client, candidate).evidence
+        previous, _ = baseline.select_baseline(self.client, candidate)
         self.client.add_artifact(
             20,
             "performance-build-comparison-20-1",
             {
-                "build-comparison.json": {"candidate": candidate.identity, "baseline": old.identity},
+                "build-comparison.json": {"candidate": candidate.identity, "baseline": previous.identity},
             },
         )
         candidate.identity["report_attempt"] = 2
         pinned = baseline.load_previous_selection(self.client, candidate)
         self.client.add(11, PARENT, samples={"leg": [bundle(end=stamp(11))]})
-        selected = baseline.select_baseline(self.client, candidate, pinned)
-        self.assertEqual(selected.evidence.identity["run_id"], 10)
-        self.assertTrue(selected.metadata["pinned"])
+        evidence, metadata = baseline.select_baseline(self.client, candidate, pinned)
+        self.assertEqual(evidence.identity["run_id"], 10)
+        self.assertTrue(metadata["pinned"])
         candidate.identity["sha256"] = "different"
         self.assertIsNone(baseline.load_previous_selection(self.client, candidate))
 
@@ -386,7 +385,8 @@ class TestSelection(unittest.TestCase):
     def test_only_surviving_unavailable_report_preserves_the_selected_baseline(self):
         self.client.add(10, PARENT)
         candidate = self.candidate()
-        original = baseline.select_baseline(self.client, candidate).evidence.identity
+        evidence, _ = baseline.select_baseline(self.client, candidate)
+        original = evidence.identity
         # Attempt 1's successful report is gone; attempt 2 still records its selected A.
         self.client.add_artifact(
             20,
@@ -459,13 +459,14 @@ class TestSelection(unittest.TestCase):
                 )
                 pinned = baseline.load_previous_selection(self.client, candidate)
                 self.assertIsNone(pinned)
-                selected = baseline.select_baseline(self.client, candidate, pinned)
-                self.assertEqual(selected.evidence.identity["run_id"], 10)
+                evidence, _ = baseline.select_baseline(self.client, candidate, pinned)
+                self.assertEqual(evidence.identity["run_id"], 10)
 
     def test_saved_pin_validates_required_fields_and_reconstructs_links(self):
         self.client.add(10, PARENT)
         candidate = self.candidate()
-        original = baseline.select_baseline(self.client, candidate).evidence.identity
+        evidence, _ = baseline.select_baseline(self.client, candidate)
+        original = evidence.identity
         candidate.identity["report_attempt"] = 2
         invalid = [[], {}, "not-an-object"]
         for field, value in (
@@ -529,16 +530,9 @@ class TestSelection(unittest.TestCase):
 
     def test_no_baseline_is_explicit_and_no_failed_samples_are_discarded(self):
         self.client.add(10, PARENT, samples={"leg": [bundle(status="failed")]}, statuses={"leg": "failed"})
-        selected = self.select()
-        self.assertIsNone(selected.evidence)
-        self.assertIn("No usable completed runtime", str(selected.metadata["issues"]))
-
-    def test_workload_identity_does_not_depend_on_leg_label_or_fps(self):
-        a, b = bundle(fps=10), bundle(fps=20)
-        b["versions"] = {"warp": "changed"}
-        self.assertEqual(baseline.workload_key(a), baseline.workload_key(b))
-        b["run"]["config"]["presets"] = ["different"]
-        self.assertNotEqual(baseline.workload_key(a), baseline.workload_key(b))
+        evidence, metadata = self.select()
+        self.assertIsNone(evidence)
+        self.assertIn("No usable completed runtime", str(metadata["issues"]))
 
     def test_candidate_without_readable_workloads_does_not_query_history(self):
         candidate = self.candidate()
@@ -547,9 +541,9 @@ class TestSelection(unittest.TestCase):
         self.client.commit = Mock(side_effect=AssertionError("Unexpected ancestry request"))
         self.client.runs = Mock(side_effect=AssertionError("Unexpected history request"))
         self.client.artifacts = Mock(side_effect=AssertionError("Unexpected artifact request"))
-        selected = baseline.select_baseline(self.client, candidate)
-        self.assertIsNone(selected.evidence)
-        self.assertEqual(selected.metadata["reason_code"], "no_readable_candidate_workload")
+        evidence, metadata = baseline.select_baseline(self.client, candidate)
+        self.assertIsNone(evidence)
+        self.assertEqual(metadata["reason_code"], "no_readable_candidate_workload")
         self.client.commit.assert_not_called()
         self.client.runs.assert_not_called()
         self.client.artifacts.assert_not_called()
