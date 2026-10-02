@@ -255,8 +255,10 @@ class FrankaEventCfg(lift.EventCfg):
         to_target["pose_range"] = {"x": [-0.02, 0.02], "y": [-0.02, 0.02], "z": [0.08, 0.12]}
         # The ground-mounted base is excluded; all enabled arm and gripper colliders are checked.
         criteria["robot_table_clearance"].body_names = ["panda_link[1-7]", "panda_hand", ".*finger"]
-        # Even one environment per shape can harvest the 1024-state bank at a 10% acceptance rate.
+
+        # Allow prefill even with one environment per shape and a low acceptance rate.
         self.conditional_reset.params["max_prefill_iters"] = 20_000
+
         # spread the reset bank over the grasp geometry, same bodies as fingers_to_object
         diversity_feature = self.conditional_reset.params.get("diversity_feature")
         if diversity_feature is not None:
@@ -308,6 +310,7 @@ class FrankaLiftEnvCfg(FrankaMixinCfg, lift.LiftEnvCfg):
         super().__post_init__()
         reset = self.events.conditional_reset.params
         terms = reset["terms"]
+
         # The aligned opening must be written after the generic gripper-width reset.
         pregrasp = terms.pop("reset_object_to_target")
         terms["reset_object_to_target"] = pregrasp
@@ -321,6 +324,7 @@ class FrankaLiftEnvCfg(FrankaMixinCfg, lift.LiftEnvCfg):
             ],
         )
         pregrasp.params.pop("velocity_range")
+
         # Farthest-point thinning discards valid near-grasp starts.
         reset["diversity_feature"] = None
 

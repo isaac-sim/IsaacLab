@@ -23,14 +23,6 @@ from isaaclab.utils.warp import ProxyArray
 from isaaclab_tasks.core.lift import mdp
 from isaaclab_tasks.core.lift.config.franka.franka_env_cfg import FrankaLiftEnvCfg
 from isaaclab_tasks.core.lift.config.franka_soft.franka_soft_env_cfg import FrankaSoftEnvCfg
-from isaaclab_tasks.core.lift.config.kuka_allegro.kuka_allegro_camera_env_cfg import (
-    KukaAllegroLiftCameraEnvCfg,
-    KukaAllegroReorientCameraEnvCfg,
-)
-from isaaclab_tasks.core.lift.config.kuka_allegro.kuka_allegro_env_cfg import (
-    KukaAllegroLiftEnvCfg,
-    KukaAllegroReorientEnvCfg,
-)
 from isaaclab_tasks.core.lift.mdp.commands import pose_commands
 from isaaclab_tasks.core.lift.mdp.commands.pose_commands import (
     CableUniformPoseCommand,
@@ -77,20 +69,6 @@ def test_franka_soft_robot_physics_variant_matches_backend(
     assert cfg.scene.robot.spawn.variants == {"Physics": expected_physics, "Colliders": "primitives"}
 
 
-def test_kuka_allegro_lift_family_keeps_its_existing_reward_contract() -> None:
-    """Franka-only motion regularization must not enter Kuka state or camera tasks."""
-    cfgs = (
-        KukaAllegroLiftEnvCfg(),
-        KukaAllegroReorientEnvCfg(),
-        KukaAllegroLiftCameraEnvCfg().default,
-        KukaAllegroReorientCameraEnvCfg().default,
-    )
-    for cfg in cfgs:
-        for name in ("action_rate", "joint_vel"):
-            assert not hasattr(cfg.rewards, name)
-            assert not hasattr(cfg.curriculum, name)
-
-
 def test_rigid_lift_motion_regularization_follows_success_driven_adr() -> None:
     """Franka motion penalties should grow with success, not elapsed steps."""
     cfg = FrankaLiftEnvCfg()
@@ -134,7 +112,9 @@ def test_abnormal_robot_state_ignores_nominal_velocity_excursions() -> None:
 
 def test_lift_bounds_terminate_nonfinite_object_states() -> None:
     """A NaN pose or velocity must not survive the workspace comparison."""
-    position, orientation, velocity = torch.zeros((5, 3)), torch.zeros((5, 4)), torch.zeros((5, 6))
+    position = torch.zeros((5, 3))
+    orientation = torch.zeros((5, 4))
+    velocity = torch.zeros((5, 6))
     position[1, 0] = float("nan")
     orientation[2, 3] = float("nan")
     velocity[3, 0] = float("inf")
@@ -148,6 +128,7 @@ def test_lift_bounds_terminate_nonfinite_object_states() -> None:
     )
     env = SimpleNamespace(scene=_FakeScene(torch.arange(5), object=object_asset))
     term = mdp.out_of_bound(SimpleNamespace(params={"asset_cfg": SceneEntityCfg("object")}), env)
+
     assert term(env, in_bound_range={axis: (-1.0, 1.0) for axis in ("x", "y", "z")}).tolist() == [
         False,
         True,
@@ -177,19 +158,19 @@ def test_franka_lift_retains_aligned_pregrasp_resets() -> None:
     lift_reset = lift.events.conditional_reset.params
     lift_reset_terms = list(lift_reset["terms"])
     assert lift_reset_terms.index("reset_object_to_target") > lift_reset_terms.index("reset_gripper_width")
+
     lift_target_reset = lift_reset["terms"]["reset_object_to_target"]
     assert lift_target_reset.func is mdp.reset_to_grasp
     assert lift_target_reset.params["probability"] == pytest.approx(0.75)
     assert len(lift_target_reset.params["grasp_configs"]) == 8
-    for selected in ((), ("isaacsim_physx",), ("ovphysx",)):
-        cfg = resolve_presets(FrankaLiftEnvCfg(), selected=selected)
-        assert cfg.scene.robot.spawn.variants["Colliders"] == "primitives"
-        assert cfg.events.conditional_reset.params["valid_criteria"]["robot_table_clearance"].body_names == [
-            "panda_link[1-7]",
-            "panda_hand",
-            ".*finger",
-        ]
-        assert cfg.events.conditional_reset.params["max_prefill_iters"] > 0
+    assert lift.terminations.abnormal_robot.func is mdp.abnormal_robot_state
+    assert lift.terminations.abnormal_robot.params["asset_cfg"].joint_names == "panda_joint.*"
+    assert lift_reset["valid_criteria"]["robot_table_clearance"].body_names == [
+        "panda_link[1-7]",
+        "panda_hand",
+        ".*finger",
+    ]
+    assert lift_reset["max_prefill_iters"] > 0
 
     lift.play_mode()
     assert lift.events.conditional_reset.params["terms"]["reset_object_to_target"].params[

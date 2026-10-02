@@ -26,7 +26,6 @@ from isaaclab.devices.spacemouse import Se3SpaceMouseCfg
 from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.utils import configclass, replace
 
 from isaaclab_tasks.utils import PresetCfg, preset
@@ -103,18 +102,12 @@ class FrankaReachRewardsCfg(RewardsCfg):
 
 
 @configclass
-class FrankaReachTerminationsCfg(TerminationsCfg):
-    """Track Franka Reach success without ending the episode early."""
-
-    success: DoneTerm | None = None
-
-
-@configclass
 class FrankaReachEnvCfg(ReachEnvCfg):
     """Franka Reach configuration with selectable arm and physics presets."""
 
     rewards: FrankaReachRewardsCfg = FrankaReachRewardsCfg()
-    terminations: FrankaReachTerminationsCfg = FrankaReachTerminationsCfg()
+    # Report success while continuing to track poses until timeout.
+    terminations: TerminationsCfg = replace(TerminationsCfg(), success=None)
 
     def validate_config(self) -> None:
         """Validate the selected controller and physics backend."""

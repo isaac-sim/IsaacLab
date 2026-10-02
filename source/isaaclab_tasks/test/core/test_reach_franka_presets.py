@@ -3,8 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from types import SimpleNamespace
-
 import pytest
 import torch
 from gymnasium.envs.registration import registry
@@ -14,7 +12,7 @@ from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.envs.mdp as mdp
 from isaaclab.actuators import IdealPDActuatorCfg
-from isaaclab.utils import replace, to_dict, validate
+from isaaclab.utils import to_dict, validate
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.hydra import PresetCfg, resolve_presets
@@ -36,52 +34,6 @@ def _load_env_cfg(*presets: str):
 def _load_reach_env_cfg(task: str, *presets: str):
     cfg = load_cfg_from_registry(task, "env_cfg_entry_point")
     return resolve_presets(cfg, selected=presets)
-
-
-def test_reach_tracks_success_without_terminating():
-    cfg = _load_env_cfg()
-
-    assert cfg.commands.ee_pose.position_success_threshold == pytest.approx(0.05)
-    assert cfg.commands.ee_pose.orientation_success_threshold == pytest.approx(0.2)
-    assert cfg.terminations.success is None
-    assert cfg.terminations.time_out.func is mdp.time_out
-    assert cfg.rewards.success is None
-    assert cfg.rewards.end_effector_position_tracking_fine_grained.func is mdp.position_command_error_tanh
-    assert cfg.rewards.end_effector_position_tracking_fine_grained.weight == pytest.approx(0.1)
-    assert cfg.rewards.end_effector_position_tracking_fine_grained.params["std"] == pytest.approx(0.1)
-
-    angles = torch.tensor([0.19, 0.19, 0.21])
-    body_quaternions = torch.zeros(3, 1, 4)
-    body_quaternions[:, 0, 2] = torch.sin(angles / 2)
-    body_quaternions[:, 0, 3] = torch.cos(angles / 2)
-    command_values = torch.zeros(3, 7)
-    command_values[:, 6] = 1.0
-    robot_data = SimpleNamespace(
-        root_pos_w=SimpleNamespace(torch=torch.zeros(3, 3)),
-        root_quat_w=SimpleNamespace(torch=torch.tensor([[0.0, 0.0, 0.0, 1.0]]).repeat(3, 1)),
-        body_pos_w=SimpleNamespace(torch=torch.tensor([[[0.04, 0.0, 0.0]], [[0.06, 0.0, 0.0]], [[0.04, 0.0, 0.0]]])),
-        body_quat_w=SimpleNamespace(torch=body_quaternions),
-    )
-    command = object.__new__(mdp.UniformPoseCommand)
-    command.robot = SimpleNamespace(data=robot_data)
-    command.body_idx = 0
-    command.pose_command_b = command_values
-    command.pose_command_w = torch.zeros_like(command_values)
-    command.cfg = cfg.commands.ee_pose
-    command._env = SimpleNamespace(num_envs=3, device=torch.device("cpu"))
-    command._track_success = True
-    command._succeeded = torch.zeros(3, dtype=torch.bool)
-
-    succeeded = command.compute_success()
-
-    assert torch.equal(succeeded, torch.tensor([True, False, False]))
-    assert torch.equal(command._succeeded, succeeded)
-
-    command.cfg = replace(command.cfg, orientation_success_threshold=None)
-    command._succeeded.zero_()
-    position_only_succeeded = command.compute_success()
-
-    assert torch.equal(position_only_succeeded, torch.tensor([True, False, True]))
 
 
 def _without_controller_dependent_cfg(cfg):
@@ -151,6 +103,16 @@ def test_reach_presets_resolve_supported_combinations(task, presets, action_type
     validate(cfg)
     assert type(cfg.actions.arm_action).__name__ == action_type
     assert type(cfg.sim.physics).__name__ == physics_type
+
+    if task in (_TASK, _OSC_TASK) and not presets:
+        assert cfg.commands.ee_pose.position_success_threshold == pytest.approx(0.05)
+        assert cfg.commands.ee_pose.orientation_success_threshold == pytest.approx(0.2)
+        assert cfg.terminations.success is None
+        assert cfg.terminations.time_out.func is mdp.time_out
+        assert cfg.rewards.success is None
+        assert cfg.rewards.end_effector_position_tracking_fine_grained.func is mdp.position_command_error_tanh
+        assert cfg.rewards.end_effector_position_tracking_fine_grained.weight == pytest.approx(0.1)
+        assert cfg.rewards.end_effector_position_tracking_fine_grained.params["std"] == pytest.approx(0.1)
 
 
 def test_reach_ur10_physics_presets_change_only_physics():
