@@ -77,21 +77,22 @@ if [ "$TORCH_COUNT" -lt "$DEV_COUNT" ]; then
   DEV_COUNT=$TORCH_COUNT
 fi
 
-# Fan out 1 pytest subshell per non-default cuda:N. Each gets its own HOME
-# (per-shard isolation for .cache, .local/share, etc.) and per-shard
-# ISAACLAB_TEST_DEVICES.
-declare -A pids  # associative array: shard index -> background PID
-for ((cuda = 1; cuda < DEV_COUNT; cuda++)); do  # C-style loop; start at 1 to skip cuda:0 (single-GPU CI covers it)
-  zeros=""
+# Fan out 1 pytest subshell per shard. Each gets its own HOME (per-shard
+# isolation for .cache, .local/share, etc.) and per-shard ISAACLAB_TEST_DEVICES.
+#   launch_shard <name> <cuda> [<CUDA_VISIBLE_DEVICES>]
+declare -A pids  # associative array: shard name -> background PID
+launch_shard() {
+  local name="$1" cuda="$2" cvd="${3:-}"
+  local zeros=""
   for ((i = 0; i <= cuda; i++)); do zeros+="0"; done  # build the leading zeros of the device mask
-  runtime_devices="${zeros}1"  # e.g. cuda:2 -> "0001": only this GPU active in the ISAACLAB_TEST_DEVICES mask
+  local runtime_devices="${zeros}1"  # e.g. cuda:2 -> "0001": only this GPU active in the ISAACLAB_TEST_DEVICES mask
 
-  shard_home="/tmp/isaaclab-ci-home-${cuda}"
+  local shard_home="/tmp/isaaclab-ci-home-${name}"
   mkdir -p "${shard_home}/.cache" "${shard_home}/.local/share" \
            "${shard_home}/.nvidia-omniverse/config" \
            "${shard_home}/.nvidia-omniverse/logs"
 
-  shard_log="/shard-logs/cuda-${cuda}.log"
+  local shard_log="/shard-logs/cuda-${name}.log"
 
   # each shard runs in its own subshell, backgrounded with '&' below, so all shards run in parallel
   (
@@ -99,6 +100,7 @@ for ((cuda = 1; cuda < DEV_COUNT; cuda++)); do  # C-style loop; start at 1 to sk
     export XDG_CACHE_HOME="${HOME}/.cache"
     export XDG_DATA_HOME="${HOME}/.local/share"
     export ISAACLAB_TEST_DEVICES="$runtime_devices"
+    [ -z "$cvd" ] || export CUDA_VISIBLE_DEVICES="$cvd"
 
     # Full pytest output captures to $shard_log; live stdout is filtered
     # down to high-signal lines (test boundaries, failures, summary stats,
@@ -115,13 +117,27 @@ for ((cuda = 1; cuda < DEV_COUNT; cuda++)); do  # C-style loop; start at 1 to sk
       | tee "$shard_log" \
       | stdbuf -oL grep -aE \
           '🚀|^source/.*::.* (PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS)|^(Total|Passing|Failing|Crashed|Startup Hang|Timeout|Total Wall Time|Total Test Time|Passing Percentage):|^~~~~|^=+ |^E +|^ +File |Traceback|^FAILED|^ERROR ' \
-      | stdbuf -oL sed "s/^/[cuda:${cuda}] /"
+      | stdbuf -oL sed "s/^/[cuda:${name}] /"
 
     exit "${PIPESTATUS[0]}"  # exit with pytest's code, not tee/grep/sed's (PIPESTATUS[0] = first pipe stage)
   ) &
-  pids[$cuda]=$!  # $! = PID of the subshell just backgrounded
-  echo "::notice::launched shard cuda:${cuda} (pid ${pids[$cuda]}, runtime_devices=$runtime_devices)"
+  pids[$name]=$!  # $! = PID of the subshell just backgrounded
+  echo "::notice::launched shard cuda:${name} (pid ${pids[$name]}, runtime_devices=$runtime_devices${cvd:+, CUDA_VISIBLE_DEVICES=$cvd})"
+}
+
+for ((cuda = 1; cuda < DEV_COUNT; cuda++)); do  # start at 1: a shard tests a non-default device index
+  launch_shard "$cuda" "$cuda"
 done
+
+# Physical GPU 0 would idle, since single-GPU CI covers cuda:0. Swapping the first two visible
+# devices makes it this shard's cuda:1, so it still tests a non-default index.
+if [ -n "${CUDA_VISIBLE_DEVICES:-}" ]; then
+  IFS=',' read -ra visible <<< "$CUDA_VISIBLE_DEVICES"
+else
+  mapfile -t visible < <(seq 0 $((DEV_COUNT - 1)))
+fi
+swapped=("${visible[1]}" "${visible[0]}" "${visible[@]:2}")
+launch_shard "1-gpu0" 1 "$(IFS=,; echo "${swapped[*]}")"
 
 # Wait for every shard before aggregating exits — a fast failure must not
 # tear down still-running siblings.
