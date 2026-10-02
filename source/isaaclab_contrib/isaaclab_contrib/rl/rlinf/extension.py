@@ -239,10 +239,7 @@ def _patch_gr00t_get_model(cfg: dict) -> None:
         )
 
         if rl_model_path:
-            # Accept either the full_weights.pt file itself or the global_step_<N> directory holding it.
-            rl_weights = Path(rl_model_path)
-            if rl_weights.is_dir():
-                rl_weights = rl_weights / "actor" / "model_state_dict" / "full_weights.pt"
+            rl_weights = Path(rl_model_path) / "actor" / "model_state_dict" / "full_weights.pt"
             if not rl_weights.exists():
                 raise FileNotFoundError(
                     f"rl_model_path={rl_model_path}: cannot find full_weights.pt "
