@@ -81,6 +81,22 @@ class PairedTests(unittest.TestCase):
         self.client = PairedFixtureClient()
         self.output = self.root / "baseline output"
         self.selection_path = self.root / "pr-comparison.json"
+        self.legs = self.root / "benchmark-legs.tsv"
+        self.legs.write_text("first|first|512|600|physics=newton_mjwarp\nsecond|second|512|600|physics=newton_mjwarp\n")
+        self.controller = self.root / "controller"
+        self.controller.mkdir()
+        for name in ("run_benchmarks.sh", "source_revision.py"):
+            (self.controller / name).write_bytes(Path(paired.__file__).with_name(name).read_bytes())
+        self.protocol = {
+            "matrix_sha256": hashlib.sha256(self.legs.read_bytes()).hexdigest(),
+            "benchmark_launcher_sha256": hashlib.sha256(
+                (self.controller / "run_benchmarks.sh").read_bytes()
+            ).hexdigest(),
+            "source_launcher_sha256": hashlib.sha256((self.controller / "source_revision.py").read_bytes()).hexdigest(),
+        }
+        controller = patch.object(paired, "__file__", str(self.controller / "paired.py"))
+        controller.start()
+        self.addCleanup(controller.stop)
         self.event = {
             "number": 42,
             "pull_request": {
@@ -173,8 +189,6 @@ class PairedTests(unittest.TestCase):
 
     def test_capture_uses_resolved_parent_and_preserves_original_event_base_for_both_sides(self):
         base, head, merge, _ = self._moving_merge()
-        legs = self.root / "legs.tsv"
-        legs.write_text("first|fixture\nsecond|fixture\n")
         original_run = subprocess.run
 
         def inspect_or_run(command, **kwargs):
@@ -199,13 +213,16 @@ class PairedTests(unittest.TestCase):
             for role, commit in (("baseline", base), ("current", merge)):
                 self._git("checkout", "--quiet", "--detach", commit)
                 output = self.root / role
-                context = paired.capture_context(self.checkout, output, "same-image", role, self.event, legs)
+                context = paired.capture_context(self.checkout, output, "same-image", role, self.event, self.legs)
                 source = context["source"]
                 self.assertEqual(source["commit"], commit)
                 self.assertEqual(source["reference_commit"], base)
                 self.assertEqual(source["event_base_commit"], self.commit)
                 self.assertEqual(source["requested_head_commit"], head)
                 self.assertEqual(json.loads((output / "source-manifest.json").read_text())["commit"], commit)
+                self.assertEqual(context["execution"]["benchmark_protocol"], self.protocol)
+                saved = json.loads((output / "build-context.json").read_text())
+                self.assertEqual(saved["execution"]["benchmark_protocol"], self.protocol)
                 if role == "current":
                     self.assertEqual(source["commit_parents"], [base, head])
 
@@ -325,6 +342,7 @@ class PairedTests(unittest.TestCase):
                         "run_attempt": attempt,
                         "expected_samples": 3,
                         "expected_legs": ["first", "second"],
+                        "benchmark_protocol": self.protocol,
                         "measurement_not_before": stamp(8),
                         "job": "performance-smoke-benchmarks",
                         "runner_name": "fixture-gpu-runner",
@@ -441,6 +459,7 @@ class PairedTests(unittest.TestCase):
             self.event,
             run_id,
             attempt,
+            legs=self.legs,
             base_commit=self._git("rev-parse", "HEAD"),
         )
 
@@ -456,6 +475,40 @@ class PairedTests(unittest.TestCase):
         self.assertEqual(json.loads(self.selection_path.read_text()), selection)
         for name, data in files.items():
             self.assertEqual((self.output / name).read_bytes(), data)
+
+    def test_restore_requests_fresh_baseline_when_matrix_arguments_change(self):
+        self._add_baseline()
+        self.legs.write_text(self.legs.read_text().replace("physics=newton_mjwarp", "physics=ovphysx"))
+        selection = self._restore()
+        self.assertFalse(selection["baseline_reused"])
+        self.assertIn("protocol", " ".join(selection["issues"]))
+        self.assertFalse(self.output.exists())
+
+    def test_restore_requests_fresh_baseline_when_either_controller_launcher_changes(self):
+        self._add_baseline()
+        for name in ("run_benchmarks.sh", "source_revision.py"):
+            with self.subTest(launcher=name):
+                path = self.controller / name
+                original = path.read_bytes()
+                try:
+                    path.write_bytes(original + b"\n# Changed controller launcher\n")
+                    selection = self._restore()
+                    self.assertFalse(selection["baseline_reused"])
+                    self.assertIn("protocol", " ".join(selection["issues"]))
+                    self.assertFalse(self.output.exists())
+                finally:
+                    path.write_bytes(original)
+
+    def test_restore_requests_fresh_baseline_when_protocol_identity_is_missing(self):
+        files = self._files()
+        context = json.loads(files["build-context.json"])
+        del context["execution"]["benchmark_protocol"]
+        files["build-context.json"] = encoded(context)
+        self._add_baseline(files)
+        selection = self._restore()
+        self.assertFalse(selection["baseline_reused"])
+        self.assertIn("protocol", " ".join(selection["issues"]))
+        self.assertFalse(self.output.exists())
 
     def test_reused_legacy_identity_is_migrated_without_changing_measurement_evidence(self):
         files = self._files()
@@ -478,7 +531,8 @@ class PairedTests(unittest.TestCase):
         )
         evidence, _ = paired.select_pr_baseline(self.client, candidate)
         self.assertEqual(evidence.context["metric_definition"], original_definition)
-        self.assertEqual(evidence.zip_bytes, original_bytes)
+        self.assertEqual(evidence.files, files)
+        self.assertEqual(evidence.identity["sha256"], hashlib.sha256(original_bytes).hexdigest())
         report_dir = self.root / "report"
         with patch.object(build_compare.baseline_mod, "GitHubClient", return_value=self.client):
             self.assertEqual(
@@ -529,7 +583,9 @@ class PairedTests(unittest.TestCase):
     def test_restore_requires_resolved_commit_even_when_event_base_matches_checkout(self):
         with patch.dict(os.environ, {"PERF_BASE_COMMIT": ""}):
             with self.assertRaisesRegex(ValueError, "first parent was not resolved"):
-                paired.restore_baseline(self.client, self.checkout, self.output, self.selection_path, self.event, 20, 1)
+                paired.restore_baseline(
+                    self.client, self.checkout, self.output, self.selection_path, self.event, 20, 1, legs=self.legs
+                )
         self.assertFalse(self.selection_path.exists())
         self.assertEqual(self.client.pages_requested, [])
 

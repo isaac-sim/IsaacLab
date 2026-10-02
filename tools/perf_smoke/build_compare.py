@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import math
 import os
 import statistics
 from collections import defaultdict
@@ -17,7 +16,8 @@ from pathlib import Path
 from typing import Any
 
 from . import baseline as baseline_mod
-from .baseline import Evidence, workload_key
+from .baseline import Evidence, valid_fps, workload_key
+from .contract import normalize_gpu_model
 from .paired import select_pr_baseline
 from .report import render_build_comparison
 
@@ -28,12 +28,7 @@ def _object(value: Any) -> dict:
 
 def _fps(bundle: dict) -> float | None:
     value = _object(_object(bundle.get("runtime")).get("total_fps")).get("mean")
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        return None
-    try:
-        return float(value) if math.isfinite(value) and value >= 0 else None
-    except OverflowError:
-        return None
+    return valid_fps(value)
 
 
 def _formula(evidence: Evidence | None, definition: dict | None = None) -> str | None:
@@ -188,6 +183,26 @@ def _context(evidence: Evidence | None, group: dict | None) -> dict:
     return observed
 
 
+def _hardware(bundle: dict) -> dict:
+    """Identify recorded CPU/GPU hardware without treating host metadata as hardware."""
+    hardware = _object(bundle.get("hardware"))
+    identity = {}
+    cpu = hardware.get("cpu_name")
+    if isinstance(cpu, str) and cpu.strip() and cpu.strip().lower() != "unknown":
+        identity["cpu_name"] = cpu.strip().casefold()
+    cores = hardware.get("cpu_count")
+    if isinstance(cores, int) and not isinstance(cores, bool) and cores > 0:
+        identity["cpu_count"] = cores
+    devices = hardware.get("gpu_devices")
+    if isinstance(devices, list) and devices:
+        models = [normalize_gpu_model(_object(device).get("name")) for device in devices]
+        if all(model not in ("unknown", "unknown-gpu") for model in models):
+            # Preserve order: the current single-GPU command defaults to cuda:0,
+            # and the bundle does not separately identify the selected device.
+            identity["gpu_devices"] = models
+    return identity
+
+
 def _label(key: str) -> str:
     if key.startswith("unknown:"):
         return key.removeprefix("unknown:") + " (workload identity unavailable)"
@@ -211,6 +226,12 @@ def _row(
     pa, pb = _observations(left, _protocol), _observations(right, _protocol)
     protocol_differences = _differences(pa, pb, missing=True)
     context_differences = _differences(_context(a, left), _context(b, right))
+    ha, hb = _observations(left, _hardware), _observations(right, _hardware)
+    # Missing hardware remains diagnostic context; compare only recorded fields.
+    shared_hardware = ha.keys() & hb.keys()
+    hardware_differences = _differences(
+        {field: ha[field] for field in shared_hardware}, {field: hb[field] for field in shared_hardware}
+    )
     status = "compared"
     if "missing" in (before["status"], after["status"]):
         status = "missing"
@@ -230,6 +251,10 @@ def _row(
         reasons.append("Measurement protocol differs, varies within a selection, or has unrecorded fields.")
         if status == "compared":
             status = "unknown" if any(None in values for values in (*pa.values(), *pb.values())) else "incompatible"
+    if hardware_differences:
+        reasons.append("CPU/GPU hardware differs or varies within a selection.")
+        if status == "compared":
+            status = "incompatible"
     absolute_change = change_pct = None
     notes = []
     if status == "compared":
