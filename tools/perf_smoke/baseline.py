@@ -163,12 +163,6 @@ class Evidence:
         return any(has_usable_runtime(item["bundle"]) for items in self.samples.values() for item in items)
 
 
-@dataclass
-class Selection:
-    evidence: Evidence | None
-    metadata: dict[str, Any]
-
-
 def parse_timestamp(value: Any) -> datetime | None:
     """Read a timezone-aware ISO timestamp as UTC, or return None."""
     if not isinstance(value, str):
@@ -501,7 +495,9 @@ def load_previous_selection(client: GitHubClient, candidate: Evidence) -> dict |
     return None
 
 
-def select_baseline(client: GitHubClient, candidate: Evidence, pinned_identity: dict | None = None) -> Selection:
+def select_baseline(
+    client: GitHubClient, candidate: Evidence, pinned_identity: dict | None = None
+) -> tuple[Evidence | None, dict[str, Any]]:
     """Find one measured branch execution on the nearest first-parent ancestor."""
     if pinned_identity is not None:
         pinned_identity = _saved_baseline_identity(pinned_identity)
@@ -529,7 +525,7 @@ def select_baseline(client: GitHubClient, candidate: Evidence, pinned_identity: 
             reason_code="no_readable_candidate_workload",
             reason="Candidate evidence has no readable workload identity to match against historical measurements",
         )
-        return Selection(None, metadata)
+        return None, metadata
     if not anchor and candidate.identity["event"] in ("push", "workflow_dispatch"):
         parents = client.commit(candidate.identity["source_commit"]).get("parents", [])
         anchor = parents[0].get("sha") if parents else None
@@ -557,11 +553,11 @@ def select_baseline(client: GitHubClient, candidate: Evidence, pinned_identity: 
             reason="Reused the prior report's exact baseline for the same candidate artifact",
             selected=baseline.identity,
         )
-        return Selection(baseline, metadata)
+        return baseline, metadata
     cutoff = parse_timestamp(candidate.measurement_start)
     if not branch or not is_commit_sha(anchor) or cutoff is None:
         metadata["reason"] = "Baseline reference branch, tested parent, or candidate measurement start is unavailable"
-        return Selection(None, metadata)
+        return None, metadata
     while anchor:
         if anchor in metadata["visited_commits"]:
             raise EvidenceError("invalid_ancestry", "GitHub commit ancestry contains a cycle")
@@ -629,10 +625,10 @@ def select_baseline(client: GitHubClient, candidate: Evidence, pinned_identity: 
                 selected=baseline.identity,
                 baseline_measurement_end=baseline.measurement_end,
             )
-            return Selection(baseline, metadata)
+            return baseline, metadata
         parents = client.commit(anchor).get("parents", [])
         anchor = parents[0].get("sha") if parents else None
         if anchor is not None and not is_commit_sha(anchor):
             raise EvidenceError("invalid_ancestry", "GitHub returned an invalid first-parent commit")
     metadata["reason"] = "No available measured target-branch ancestor completed before the candidate"
-    return Selection(None, metadata)
+    return None, metadata

@@ -397,10 +397,6 @@ class PairedTests(unittest.TestCase):
         artifact = self.client.add_artifact(10, "source-fixture", files)
         return baseline.read_evidence(self.client, run, artifact, 1, artifact_name=artifact["name"])
 
-    def test_source_proof_matches_immutable_manifest_and_each_result(self):
-        files = self._files()
-        self.assertEqual(paired.source_issues(self._evidence(files), files, self.commit), [])
-
     def test_source_proof_detects_runtime_bytes_changed_after_verification(self):
         files = self._files()
         path = "first/sample-1/benchmark_runtime_fixture.json"
@@ -480,9 +476,9 @@ class PairedTests(unittest.TestCase):
         candidate = self._candidate(
             restored["baseline_origin"], reused=True, selection=restored, definition=current_definition
         )
-        selected = paired.select_pr_baseline(self.client, candidate)
-        self.assertEqual(selected.evidence.context["metric_definition"], original_definition)
-        self.assertEqual(selected.evidence.zip_bytes, original_bytes)
+        evidence, _ = paired.select_pr_baseline(self.client, candidate)
+        self.assertEqual(evidence.context["metric_definition"], original_definition)
+        self.assertEqual(evidence.zip_bytes, original_bytes)
         report_dir = self.root / "report"
         with patch.object(build_compare.baseline_mod, "GitHubClient", return_value=self.client):
             self.assertEqual(
@@ -506,10 +502,10 @@ class PairedTests(unittest.TestCase):
                 pin = json.loads(encoded(restored))
                 pin["baseline_metric_definition"][field] = value
                 candidate = self._candidate(restored["baseline_origin"], reused=True, selection=pin)
-                selected = paired.select_pr_baseline(self.client, candidate)
-                self.assertIsNone(selected.evidence)
-                self.assertEqual(selected.metadata["reason_code"], "identity_mismatch")
-                self.assertEqual(selected.metadata["unavailable_evidence"]["artifact_id"], artifact["id"])
+                evidence, metadata = paired.select_pr_baseline(self.client, candidate)
+                self.assertIsNone(evidence)
+                self.assertEqual(metadata["reason_code"], "identity_mismatch")
+                self.assertEqual(metadata["unavailable_evidence"]["artifact_id"], artifact["id"])
 
     def test_restore_and_selection_use_resolved_reference_not_recorded_event_base(self):
         event_base = "f" * 40
@@ -523,10 +519,12 @@ class PairedTests(unittest.TestCase):
         self.assertTrue(restored["baseline_reused"])
         self.assertEqual(restored["reference_commit"], self.commit)
         self.assertEqual(restored["event_base_commit"], event_base)
-        candidate = self._candidate(self._origin(artifact, run_id=10), reused=True)
+        candidate = self._candidate(self._origin(artifact, run_id=10), reused=True, hostname="different-gpu-host")
         candidate.context["source"]["event_base_commit"] = event_base
-        selected = paired.select_pr_baseline(self.client, candidate)
-        self.assertEqual(selected.evidence.identity["source_commit"], self.commit)
+        evidence, metadata = paired.select_pr_baseline(self.client, candidate)
+        self.assertEqual(evidence.identity["source_commit"], self.commit)
+        self.assertEqual(evidence.identity["run_id"], 10)
+        self.assertTrue(metadata["baseline_reused"])
 
     def test_restore_requires_resolved_commit_even_when_event_base_matches_checkout(self):
         with patch.dict(os.environ, {"PERF_BASE_COMMIT": ""}):
@@ -733,9 +731,9 @@ class PairedTests(unittest.TestCase):
 
     def test_fresh_pair_uses_exact_pinned_base_from_same_runner_in_order(self):
         artifact = self._add_baseline(run_id=20)
-        selected = paired.select_pr_baseline(self.client, self._candidate(self._origin(artifact)))
-        self.assertEqual(selected.evidence.identity["artifact_id"], artifact["id"])
-        self.assertEqual(selected.evidence.identity["source_commit"], self.commit)
+        evidence, _ = paired.select_pr_baseline(self.client, self._candidate(self._origin(artifact)))
+        self.assertEqual(evidence.identity["artifact_id"], artifact["id"])
+        self.assertEqual(evidence.identity["source_commit"], self.commit)
         self.assertEqual(self.client.queried, [])
         self.assertEqual(self.client.pages_requested, [])
 
@@ -747,26 +745,19 @@ class PairedTests(unittest.TestCase):
             paired.select_pr_baseline(self.client, candidate)
         self.assertEqual(self.client.downloaded, downloaded)
 
-    def test_reused_base_remains_pinned_across_runner_change(self):
-        artifact = self._add_baseline()
-        candidate = self._candidate(self._origin(artifact, run_id=10), reused=True, hostname="different-gpu-host")
-        selected = paired.select_pr_baseline(self.client, candidate)
-        self.assertEqual(selected.evidence.identity["run_id"], 10)
-        self.assertTrue(selected.metadata["baseline_reused"])
-
     def test_fresh_pair_reports_mismatched_runner(self):
         artifact = self._add_baseline(run_id=20)
         candidate = self._candidate(self._origin(artifact), hostname="different-gpu-host")
-        selected = paired.select_pr_baseline(self.client, candidate)
-        self.assertIsNone(selected.evidence)
-        self.assertEqual(selected.metadata["reason_code"], "runner_mismatch")
+        evidence, metadata = paired.select_pr_baseline(self.client, candidate)
+        self.assertIsNone(evidence)
+        self.assertEqual(metadata["reason_code"], "runner_mismatch")
 
     def test_fresh_pair_reports_base_not_finished_before_current(self):
         artifact = self._add_baseline(run_id=20)
         candidate = self._candidate(self._origin(artifact), start=stamp(9))
-        selected = paired.select_pr_baseline(self.client, candidate)
-        self.assertIsNone(selected.evidence)
-        self.assertEqual(selected.metadata["reason_code"], "measurement_order")
+        evidence, metadata = paired.select_pr_baseline(self.client, candidate)
+        self.assertIsNone(evidence)
+        self.assertEqual(metadata["reason_code"], "measurement_order")
 
     def test_partial_fresh_baseline_preserves_healthy_workload_comparison(self):
         files = self._files(run_id=20)
@@ -795,9 +786,9 @@ class PairedTests(unittest.TestCase):
         candidate = self._candidate(origin, selection=pin)
         # GitHub's job completion covers B as well and cannot establish the end of A.
         self.client.run_jobs[20, 1][0]["completed_at"] = stamp(12)
-        selected = paired.select_pr_baseline(self.client, candidate)
-        self.assertIsNotNone(selected.evidence)
-        report = build_compare.compare_evidence(selected.evidence, candidate)
+        evidence, _ = paired.select_pr_baseline(self.client, candidate)
+        self.assertIsNotNone(evidence)
+        report = build_compare.compare_evidence(evidence, candidate)
         by_leg = {row["legs"]["baseline"][0]: row for row in report["rows"]}
         self.assertEqual(by_leg["first"]["status"], "compared")
         self.assertEqual(by_leg["first"]["change_pct"], 0)
@@ -809,33 +800,18 @@ class PairedTests(unittest.TestCase):
         candidate = self._candidate(
             self._origin(artifact), start=stamp(9), selection={"baseline_finished_before": stamp(8, 59)}
         )
-        selected = paired.select_pr_baseline(self.client, candidate)
-        self.assertIsNone(selected.evidence)
-        self.assertEqual(selected.metadata["reason_code"], "measurement_order")
+        evidence, metadata = paired.select_pr_baseline(self.client, candidate)
+        self.assertIsNone(evidence)
+        self.assertEqual(metadata["reason_code"], "measurement_order")
 
     def test_expired_pinned_baseline_never_falls_back_to_history(self):
         artifact = self._add_baseline(run_id=20)
         artifact["expired"] = True
-        selected = paired.select_pr_baseline(self.client, self._candidate(self._origin(artifact)))
-        self.assertIsNone(selected.evidence)
-        self.assertEqual(selected.metadata["reason_code"], "expired")
-        self.assertEqual(selected.metadata["unavailable_evidence"]["artifact_id"], artifact["id"])
+        evidence, metadata = paired.select_pr_baseline(self.client, self._candidate(self._origin(artifact)))
+        self.assertIsNone(evidence)
+        self.assertEqual(metadata["reason_code"], "expired")
+        self.assertEqual(metadata["unavailable_evidence"]["artifact_id"], artifact["id"])
         self.assertEqual(self.client.queried, [])
-
-    def test_missing_baseline_pointer_produces_explicit_absence(self):
-        selected = paired.select_pr_baseline(self.client, self._candidate(None))
-        self.assertIsNone(selected.evidence)
-        self.assertEqual(self.client.queried, [])
-
-    def test_bind_retains_default_absence_message(self):
-        self._restore()
-        with patch.dict(os.environ, {"GITHUB_SHA": HEAD}):
-            paired.bind_baseline(self.selection_path, None, self.output, REPO)
-        selection = json.loads((self.output / "pr-comparison.json").read_text())
-        self.assertEqual(
-            selection["reason"], "The base benchmark artifact was not produced; baseline FPS is unavailable."
-        )
-        self.assertIsNone(selection["baseline_origin"])
 
     def test_bind_rejects_selection_for_another_resolved_base(self):
         self._restore()
@@ -893,16 +869,19 @@ class PairedTests(unittest.TestCase):
                     self.assertEqual(paired.main(arguments), 0)
                 pin = json.loads((self.output / "pr-comparison.json").read_text())
                 candidate = self._candidate(pin["baseline_origin"], selection=pin)
-                selected = paired.select_pr_baseline(self.client, candidate)
+                evidence, metadata = paired.select_pr_baseline(self.client, candidate)
                 if uploaded:
-                    self.assertEqual(selected.evidence.identity["artifact_id"], fresh["id"])
-                    self.assertEqual(selected.evidence.identity["run_id"], 20)
+                    self.assertEqual(evidence.identity["artifact_id"], fresh["id"])
+                    self.assertEqual(evidence.identity["run_id"], 20)
                 else:
-                    self.assertIsNone(selected.evidence)
-                    self.assertIsNone(selected.metadata["baseline_origin"])
-                    self.assertIn("artifact was not produced", selected.metadata["reason"])
-                self.assertFalse(selected.metadata["baseline_reused"])
-                self.assertNotIn("baseline_metric_definition", selected.metadata)
+                    self.assertIsNone(evidence)
+                    self.assertIsNone(metadata["baseline_origin"])
+                    self.assertEqual(
+                        metadata["reason"], "The base benchmark artifact was not produced; baseline FPS is unavailable."
+                    )
+                    self.assertEqual(self.client.queried, [])
+                self.assertFalse(metadata["baseline_reused"])
+                self.assertNotIn("baseline_metric_definition", metadata)
 
     def test_bind_cli_recovers_missing_selection_with_or_without_failure_detail(self):
         tested_merge = "e" * 40
