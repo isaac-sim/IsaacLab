@@ -2474,6 +2474,9 @@ def rendering_test_franka_cable(
     if env_cfg.curriculum is not None:
         env_cfg.curriculum.gravity = None
 
+    # Settling the USD pose must not trigger randomized RL resets during golden capture.
+    env_cfg.terminations.joint_vel_out_of_limit = None
+
     _maybe_enable_physx_determinism_for_motion(env_cfg, physics_backend, _motion_data_type(data_types))
 
     test_name = "franka_cable"
@@ -2496,7 +2499,8 @@ def rendering_test_franka_cable(
             return
 
         # Let the cable settle under gravity so golden frames are not first-frame spawn poses.
-        env.step(zero_actions)
+        _, _, terminated, truncated, _ = env.step(zero_actions)
+        assert not torch.any(terminated | truncated), "Cable golden capture unexpectedly reset the scene."
 
         validate_camera_outputs(
             test_name,
