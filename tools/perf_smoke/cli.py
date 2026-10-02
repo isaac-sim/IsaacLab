@@ -5,13 +5,14 @@
 
 """Command-line entry points for the performance smoke gate.
 
-Wiring only; every decision lives in :mod:`compare`, :mod:`contract` or
-:mod:`store`, so the library stays importable without argparse.
+The paired comparison stays here as a small, stateless transform over benchmark
+bundles. The rolling-history policy lives in :mod:`compare` and :mod:`store`.
 
 The container SAS URL is read from ``$ISAACLAB_BLOB_URL``.
 
 Subcommands:
     ``compare``    compare independent benchmark runs against the baseline store
+    ``pair``       describe FPS changes between a PR base and tested merge
     ``write``      record one measurement in the store (develop only)
     ``aggregate``  roll several comparison JSONs into one summary
 """
@@ -31,6 +32,7 @@ from . import report as report_mod
 from . import store as store_mod
 
 _DEFAULT_THRESHOLDS = Path(__file__).resolve().parent.parent / "perf_smoke_thresholds.json"
+_PAIR_SAMPLE_COUNT = 3
 
 
 def _load_json(path: Path, name: str) -> dict:
@@ -94,6 +96,18 @@ def _cmd_compare(args: argparse.Namespace) -> int:
     return 1 if report.verdict == compare_mod.FAIL else 0
 
 
+def _cmd_pair(args: argparse.Namespace) -> int:
+    report = {
+        "baseline_commit": args.baseline_commit,
+        "candidate_commit": args.candidate_commit,
+        "rows": [_pair_row(args.baseline_dir, args.candidate_dir, leg) for leg in _matrix_legs(args.benchmark_matrix)],
+    }
+    args.output_json.parent.mkdir(parents=True, exist_ok=True)
+    args.output_json.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    print(report_mod.render_pair(report), end="")
+    return 0
+
+
 def _cmd_write(args: argparse.Namespace) -> int:
     bundle = _load_json(args.benchmark_result, "benchmark result")
     key = contract_mod.build(bundle)
@@ -141,13 +155,23 @@ def _cmd_aggregate(args: argparse.Namespace) -> int:
             )
         )
 
-    summary = report_mod.render_aggregate(reports)
+    pair_reports = sorted(args.comparison_dir.rglob("pair-comparison.json"))
+    pair_summary = ""
+    if len(pair_reports) == 1:
+        try:
+            pair_summary = report_mod.render_pair(_load_json(pair_reports[0], str(pair_reports[0]))) + "\n"
+        except metrics_mod.PerfSmokeError as exc:
+            print(f"::warning::perf-smoke: paired comparison could not be read: {exc}", file=sys.stderr)
+    elif len(pair_reports) > 1:
+        print("::warning::perf-smoke: multiple paired comparison artifacts were found", file=sys.stderr)
+
+    summary = pair_summary + (report_mod.render_aggregate(reports) if reports else "")
     print(summary, end="")
     if args.output_markdown:
         args.output_markdown.parent.mkdir(parents=True, exist_ok=True)
         args.output_markdown.write_text(summary, encoding="utf-8")
 
-    if not reports:
+    if not reports and not pair_summary:
         # Non-blocking: this is an infra fault (e.g. a flaky artifact download)
         print("::warning::perf-smoke: no comparison artifacts were produced", file=sys.stderr)
         return 0
@@ -167,6 +191,15 @@ def build_parser() -> argparse.ArgumentParser:
     compare_parser.add_argument("--label", default="", help="matrix combination name, carried into the artifact")
     compare_parser.set_defaults(func=_cmd_compare)
 
+    pair_parser = subparsers.add_parser("pair", help="compare a PR base and tested merge")
+    pair_parser.add_argument("--baseline_dir", type=Path, required=True)
+    pair_parser.add_argument("--candidate_dir", type=Path, required=True)
+    pair_parser.add_argument("--benchmark_matrix", type=Path, required=True)
+    pair_parser.add_argument("--baseline_commit", required=True)
+    pair_parser.add_argument("--candidate_commit", required=True)
+    pair_parser.add_argument("--output_json", type=Path, required=True)
+    pair_parser.set_defaults(func=_cmd_pair)
+
     write_parser = subparsers.add_parser("write", help="append a measurement to the baseline store")
     write_parser.add_argument("--benchmark_result", type=Path, required=True)
     write_parser.add_argument("--commit", required=True)
@@ -180,6 +213,78 @@ def build_parser() -> argparse.ArgumentParser:
     aggregate_parser.set_defaults(func=_cmd_aggregate)
 
     return parser
+
+
+def _matrix_legs(path: Path) -> list[str]:
+    try:
+        legs = [line.split("|", 1)[0] for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    except OSError as exc:
+        raise metrics_mod.PerfSmokeError(f"benchmark matrix could not be read: {path} ({exc})") from exc
+    if not legs or len(legs) != len(set(legs)):
+        raise metrics_mod.PerfSmokeError("benchmark matrix must contain unique, non-empty leg names")
+    return legs
+
+
+def _pair_measurement(root: Path, leg: str, side: str) -> tuple[dict | None, str | None]:
+    leg_dir = root / leg
+    try:
+        status = (leg_dir / "status").read_text(encoding="utf-8").strip()
+    except OSError:
+        return None, f"{side} status is unavailable"
+    if status != "ok":
+        return None, f"{side} status is {status or 'unavailable'}"
+
+    paths = sorted(leg_dir.rglob("benchmark_runtime_*.json"))
+    if len(paths) != _PAIR_SAMPLE_COUNT:
+        return None, f"{side} has {len(paths)} samples; expected {_PAIR_SAMPLE_COUNT}"
+    try:
+        bundles = [_load_json(path, f"{side} benchmark result") for path in paths]
+        contracts = [contract_mod.build(bundle) for bundle in bundles]
+        if any(not contract.matches(contracts[0]) for contract in contracts[1:]):
+            raise metrics_mod.PerfSmokeError(f"{side} samples have different runtime contracts")
+        samples = [metrics_mod.extract(bundle)["total_fps"] for bundle in bundles]
+    except metrics_mod.PerfSmokeError as exc:
+        return None, str(exc)
+    return {
+        "fps": statistics.median(samples),
+        "samples": samples,
+        "workload": contracts[0].workload,
+        "hardware": {
+            "cpu_name": contracts[0].runtime.get("cpu_name"),
+            "gpu_model": contracts[0].runtime.get("gpu_model"),
+        },
+    }, None
+
+
+def _pair_row(baseline_dir: Path, candidate_dir: Path, leg: str) -> dict:
+    baseline, baseline_error = _pair_measurement(baseline_dir, leg, "baseline")
+    candidate, candidate_error = _pair_measurement(candidate_dir, leg, "candidate")
+    row = {
+        "label": leg,
+        "status": "not_comparable",
+        "baseline_fps": baseline["fps"] if baseline else None,
+        "candidate_fps": candidate["fps"] if candidate else None,
+        "change_pct": None,
+        "baseline_samples": baseline["samples"] if baseline else [],
+        "candidate_samples": candidate["samples"] if candidate else [],
+        "reason": "; ".join(reason for reason in (baseline_error, candidate_error) if reason),
+    }
+    if baseline is None or candidate is None:
+        return row
+    if baseline["workload"] != candidate["workload"]:
+        row["reason"] = "baseline and candidate workloads differ"
+        return row
+    if baseline["hardware"] != candidate["hardware"]:
+        row["reason"] = "baseline and candidate hardware differ"
+        return row
+    if baseline["fps"] == 0:
+        row["reason"] = "baseline FPS is zero"
+        return row
+
+    row["change_pct"] = 100 * (candidate["fps"] - baseline["fps"]) / baseline["fps"]
+    row["status"] = "improved" if row["change_pct"] > 0 else "regressed" if row["change_pct"] < 0 else "unchanged"
+    row["reason"] = ""
+    return row
 
 
 def main(argv: list[str] | None = None) -> int:

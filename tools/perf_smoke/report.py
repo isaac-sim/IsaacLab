@@ -19,6 +19,12 @@ from .compare import ERROR, FAIL, PASS, SKIP, WARN, Report
 from .metrics import METRICS
 
 _ICONS = {PASS: "✅", WARN: "⚠️", FAIL: "❌", SKIP: "⏭️", ERROR: "🚫"}
+_PAIR_LABELS = {
+    "improved": "🟢 Improved",
+    "regressed": "🔴 Regressed",
+    "unchanged": "⚪ Unchanged",
+    "not_comparable": "⚪ Not comparable",
+}
 
 
 def _num(value: float | None, digits: int = 6) -> str:
@@ -113,6 +119,40 @@ def render_aggregate(reports: list[tuple[str, Report]]) -> str:
         "result, and never blocks a pull request. A combination whose benchmark crashed shows both an ERROR "
         "row here and a failed job.",
     ]
+    return "\n".join(lines) + "\n"
+
+
+def render_pair(report: dict) -> str:
+    """Render an informational base-versus-tested-merge FPS comparison."""
+    rows = report.get("rows", [])
+    counts = {status: sum(row.get("status") == status for row in rows) for status in _PAIR_LABELS}
+    lines = [
+        "## PR performance comparison",
+        "",
+        (
+            f"**🟢 Improved {counts['improved']} · 🔴 Regressed {counts['regressed']} · "
+            f"⚪ Unchanged {counts['unchanged']} · ⚪ Not comparable {counts['not_comparable']}**"
+        ),
+        "",
+        (
+            f"Base: `{report.get('baseline_commit', 'unknown')}` · "
+            f"Tested merge: `{report.get('candidate_commit', 'unknown')}`"
+        ),
+        "",
+        "| Status | Workload | Base FPS | PR FPS | Change |",
+        "| --- | --- | ---: | ---: | ---: |",
+    ]
+    for row in rows:
+        lines.append(
+            f"| {_PAIR_LABELS.get(row.get('status'), '⚪ Not comparable')} | {row.get('label', 'unknown')} | "
+            f"{_num(row.get('baseline_fps'))} | {_num(row.get('candidate_fps'))} | "
+            f"{_pct(row.get('change_pct'))} |"
+        )
+    unavailable = [row for row in rows if row.get("reason")]
+    if unavailable:
+        lines += ["", "Not comparable:"]
+        lines.extend(f"- `{row.get('label', 'unknown')}`: {row['reason']}." for row in unavailable)
+    lines += ["", "This same-job comparison is informational; the rolling-history gate remains authoritative."]
     return "\n".join(lines) + "\n"
 
 

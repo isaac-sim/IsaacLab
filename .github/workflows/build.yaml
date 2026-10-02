@@ -969,7 +969,7 @@ jobs:
   performance-smoke:
     name: performance-smoke-benchmarks
     runs-on: [self-hosted, gpu]
-    # Four legs x three samples, including one retry each: 372 minutes + setup/comparison buffer.
+    # Base and current share the existing budget; a retry-heavy pair can exhaust it.
     timeout-minutes: 450
     needs: [build, config]
     # Pull requests and manual dispatches run in gate mode. A push runs only on develop,
@@ -981,7 +981,7 @@ jobs:
     - uses: actions/checkout@v6
       with:
         fetch-depth: 1
-    - name: Pull pull-request image
+    - name: Pull current image
       uses: ./.github/actions/ecr-build-push-pull
       with:
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
@@ -1019,89 +1019,119 @@ jobs:
         restore-keys: |
           perf-jit-warp${{ steps.warp_version.outputs.value }}-
 
-    - name: Run runtime benchmarks
-      env:
-        CI_IMAGE_TAG: ${{ needs.config.outputs.ci_image_tag }}
+    # Checkouts clean the workspace. Keep the controller, matrix, output, and JIT cache
+    # outside it while switching between the exact parents of GitHub's tested merge.
+    - name: Preserve benchmark controller
       run: |
-        set -uo pipefail
-        install -d -m 0777 "${GITHUB_WORKSPACE}/jit-cache/warp" "${GITHUB_WORKSPACE}/jit-cache/nv"
-        # Restored version directories and kernels must also be writable by the container user.
-        chmod -R a+rwX "${GITHUB_WORKSPACE}/jit-cache" || exit 1
+        set -euo pipefail
+        controller="${RUNNER_TEMP}/performance-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+        mkdir -p "$controller/tools" "$controller/baseline-output"
+        cp -a tools/perf_smoke "$controller/tools/"
+        cp benchmark-legs.tsv "$controller/benchmark-legs.tsv"
+        if [ -d jit-cache ]; then
+          mv jit-cache "$controller/jit-cache"
+        else
+          mkdir "$controller/jit-cache"
+        fi
+        echo "PERF_CONTROLLER=$controller" >> "$GITHUB_ENV"
+        echo "PERF_BASELINE_OUTPUT=$controller/baseline-output" >> "$GITHUB_ENV"
+        echo "PERF_JIT_CACHE=$controller/jit-cache" >> "$GITHUB_ENV"
 
-        container=""
-        cleanup_container() {
-          if [ -n "$container" ]; then
-            docker rm -f "$container" >/dev/null 2>&1 || true
-          fi
-        }
-        trap cleanup_container EXIT
-        trap 'exit 130' INT
-        trap 'exit 143' TERM
-
-        run_attempt() {
-          local attempt="$1"
-          container="performance-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${leg}-${sample}-${attempt}"
-          cleanup_container
-          timeout "${bench_timeout_s}" docker run --name "$container" --gpus all --network=host --ipc=host \
-            -e WARP_CACHE_PATH=/tmp/jit-cache/warp \
-            -e CUDA_CACHE_PATH=/tmp/jit-cache/nv \
-            -v "${GITHUB_WORKSPACE}/jit-cache:/tmp/jit-cache" \
-            --entrypoint bash "$CI_IMAGE_TAG" -lc \
-            "set -euo pipefail
-            mkdir -p /tmp/benchmark-output
-            uv run --no-sync isaaclab benchmark runtime \
-              --task '$task' \
-              --num_envs '$num_envs' \
-              --num_steps 200 \
-              --warmup_steps 100 \
-              --seed 42 \
-              --benchmark_formatter schema \
-              --output_path /tmp/benchmark-output \
-              $args"
-          local status=$?
-          docker cp "$container:/tmp/benchmark-output/." "benchmark-output/${leg}/sample-${sample}/" 2>/dev/null || true
-          cleanup_container
-          container=""
-          local -a bundles
-          mapfile -t bundles < <(find "benchmark-output/${leg}/sample-${sample}" -maxdepth 1 -type f -name 'benchmark_runtime_*.json')
-          if [ "$status" -eq 0 ] && [ "${#bundles[@]}" -ne 1 ]; then
-            echo "::error::${leg} exited 0 but did not produce exactly one benchmark JSON"
-            return 1
-          fi
-          return $status
-        }
-
-        failed_legs=()
-        while IFS='|' read -r leg task num_envs bench_timeout_s args; do
-          echo "::group::performance-smoke: ${leg}"
-          install -d -m 0777 "benchmark-output/${leg}"
-          leg_ok=true
-          # ASV needs repeated independent runs on both sides for significance tests.
-          # Per-frame samples within one simulation are not independent CI runs.
-          for sample in 1 2 3; do
-            mkdir -p "benchmark-output/${leg}/sample-${sample}"
-            if ! run_attempt 1; then
-              echo "::warning::${leg} sample ${sample} failed; retrying once"
-              rm -f "benchmark-output/${leg}/sample-${sample}/"benchmark_runtime_*.json
-              if ! run_attempt 2; then
-                echo "::error::${leg} sample ${sample} failed on both attempts"
-                leg_ok=false
-                break
-              fi
-            fi
-          done
-          if [ "$leg_ok" = true ]; then
-            echo ok > "benchmark-output/${leg}/status"
-          else
-            echo failed > "benchmark-output/${leg}/status"
-            failed_legs+=("$leg")
-          fi
-          echo "::endgroup::"
-        done < benchmark-legs.tsv
-
-        if [ "${#failed_legs[@]}" -gt 0 ]; then
-          echo "::error::performance-smoke: failed combination(s): ${failed_legs[*]}"
+    - name: Resolve exact pull-request pair
+      if: github.event_name == 'pull_request'
+      id: perf_pair
+      env:
+        PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      run: |
+        set -euo pipefail
+        read -r base_commit head_commit extra <<< "$(git show -s --format=%P "$GITHUB_SHA")"
+        if [ -z "${base_commit:-}" ] || [ -z "${head_commit:-}" ] || [ -n "${extra:-}" ]; then
+          echo "::error::Expected the tested revision to be a two-parent merge commit"
           exit 1
+        fi
+        if [ "$head_commit" != "$PR_HEAD_SHA" ]; then
+          echo "::error::The tested merge second parent does not match the pull-request head"
+          exit 1
+        fi
+        echo "base_commit=$base_commit" >> "$GITHUB_OUTPUT"
+        echo "head_commit=$head_commit" >> "$GITHUB_OUTPUT"
+
+    - name: Checkout exact base
+      if: github.event_name == 'pull_request'
+      id: base_checkout
+      continue-on-error: true
+      uses: actions/checkout@v6
+      with:
+        ref: ${{ steps.perf_pair.outputs.base_commit }}
+        fetch-depth: 1
+
+    - name: Read base image configuration
+      if: steps.base_checkout.outcome == 'success'
+      id: base_config
+      continue-on-error: true
+      run: |
+        set -euo pipefail
+        config=.github/workflows/config.yaml
+        echo "isaacsim_image_name=$(yq -er .isaacsim_image_name "$config")" >> "$GITHUB_OUTPUT"
+        echo "isaacsim_image_tag=$(yq -er .isaacsim_image_tag "$config")" >> "$GITHUB_OUTPUT"
+
+    - name: Build or pull base dependency image
+      if: steps.base_config.outcome == 'success'
+      id: base_image
+      continue-on-error: true
+      uses: ./.github/actions/ecr-build-push-pull
+      with:
+        image-tag: isaac-lab-perf-base:${{ steps.perf_pair.outputs.base_commit }}
+        isaacsim-base-image: ${{ steps.base_config.outputs.isaacsim_image_name }}
+        isaacsim-version: ${{ steps.base_config.outputs.isaacsim_image_tag }}
+        dockerfile-path: docker/Dockerfile.base
+        cache-tag: cache-base
+        pull-on-deps-hit: 'true'
+
+    - name: Benchmark exact base
+      if: steps.base_image.outcome == 'success'
+      id: base_benchmark
+      continue-on-error: true
+      env:
+        BENCHMARK_LEGS: ${{ env.PERF_CONTROLLER }}/benchmark-legs.tsv
+        BENCHMARK_OUTPUT: ${{ env.PERF_BASELINE_OUTPUT }}
+        BENCHMARK_ROLE: baseline
+        CHECKOUT_ROOT: ${{ github.workspace }}
+        CI_IMAGE_TAG: isaac-lab-perf-base:${{ steps.perf_pair.outputs.base_commit }}
+        JIT_CACHE_ROOT: ${{ env.PERF_JIT_CACHE }}
+      run: "$PERF_CONTROLLER/tools/perf_smoke/run_benchmarks.sh"
+
+    - name: Restore tested merge
+      if: always() && !cancelled() && github.event_name == 'pull_request'
+      id: current_checkout
+      uses: actions/checkout@v6
+      with:
+        ref: ${{ github.sha }}
+        fetch-depth: 1
+
+    - name: Run runtime benchmarks
+      if: >-
+        !cancelled() &&
+        (github.event_name != 'pull_request' || steps.current_checkout.outcome == 'success')
+      env:
+        BENCHMARK_LEGS: ${{ env.PERF_CONTROLLER }}/benchmark-legs.tsv
+        BENCHMARK_OUTPUT: ${{ github.workspace }}/benchmark-output
+        BENCHMARK_ROLE: current
+        CHECKOUT_ROOT: ${{ github.workspace }}
+        CI_IMAGE_TAG: ${{ needs.config.outputs.ci_image_tag }}
+        JIT_CACHE_ROOT: ${{ env.PERF_JIT_CACHE }}
+      run: "$PERF_CONTROLLER/tools/perf_smoke/run_benchmarks.sh"
+
+    - name: Restore JIT cache path
+      if: always() && github.event_name == 'push' && github.ref == 'refs/heads/develop'
+      run: |
+        set -euo pipefail
+        if [ -d "$PERF_JIT_CACHE" ]; then
+          if [ -e "${GITHUB_WORKSPACE}/jit-cache" ]; then
+            echo "::error::Cannot restore the JIT cache because the destination already exists"
+            exit 1
+          fi
+          mv "$PERF_JIT_CACHE" "${GITHUB_WORKSPACE}/jit-cache"
         fi
 
     - name: Save warm JIT cache
@@ -1133,6 +1163,25 @@ jobs:
           -r tools/perf_smoke/requirements.txt
         echo "python=$venv/bin/python" >> "$GITHUB_OUTPUT"
 
+    - name: Compare exact base with tested merge
+      if: always() && github.event_name == 'pull_request'
+      continue-on-error: true
+      env:
+        PERF_PYTHON: ${{ steps.store_venv.outputs.python }}
+      run: |
+        set -euo pipefail
+        mkdir -p benchmark-baseline-output benchmark-output
+        cp -a "$PERF_BASELINE_OUTPUT/." benchmark-baseline-output/
+        cd "$PERF_CONTROLLER"
+        uv run --no-project --python "${PERF_PYTHON:-python3}" python -m tools.perf_smoke.cli pair \
+          --baseline_dir "$GITHUB_WORKSPACE/benchmark-baseline-output" \
+          --candidate_dir "$GITHUB_WORKSPACE/benchmark-output" \
+          --benchmark_matrix "$PERF_CONTROLLER/benchmark-legs.tsv" \
+          --baseline_commit "${{ steps.perf_pair.outputs.base_commit }}" \
+          --candidate_commit "$GITHUB_SHA" \
+          --output_json "$GITHUB_WORKSPACE/benchmark-output/pair-comparison.json" \
+          | tee -a "$GITHUB_STEP_SUMMARY"
+
     # Read-only. Runs PR-checkout code (tools.perf_smoke), so it must use a separate
     # list/read-only SAS, never the write-capable credential below
     - name: Compare against baseline history
@@ -1161,7 +1210,7 @@ jobs:
             --label "$leg" \
             --output_json "benchmark-output/${leg}/comparison.json" \
             | tee -a "$GITHUB_STEP_SUMMARY"
-        done < benchmark-legs.tsv
+        done < "$PERF_CONTROLLER/benchmark-legs.tsv"
 
     # Only develop records baselines, so the gate always compares a pull request
     # against the branch it will merge into rather than against a stale snapshot.
@@ -1196,13 +1245,15 @@ jobs:
               --timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
               --run_id "${GITHUB_RUN_ID}-${leg}-sample-${index}"
           done
-        done < benchmark-legs.tsv
+        done < "$PERF_CONTROLLER/benchmark-legs.tsv"
     - name: Upload performance results
       if: always()
       uses: actions/upload-artifact@v7
       with:
         name: performance-smoke-${{ github.run_id }}-${{ github.run_attempt }}
-        path: benchmark-output/
+        path: |
+          benchmark-output/
+          benchmark-baseline-output/
         if-no-files-found: warn
         retention-days: 7
 
