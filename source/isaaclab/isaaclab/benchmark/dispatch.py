@@ -211,9 +211,8 @@ def _launcher_argv(launcher: BenchmarkLauncherConfig) -> list[str]:
     _append_value(argv, "--device", launcher.device)
     if launcher.enable_cameras:
         argv.append("--enable_cameras")
-    if launcher.visualizers is not None:
-        value = ",".join(launcher.visualizers) if launcher.visualizers else "none"
-        argv.extend(("--visualizer", value))
+    if launcher.visualizers:
+        argv.extend(("--visualizer", ",".join(launcher.visualizers)))
     _append_value(argv, "--max_visible_envs", launcher.max_visible_envs)
     _append_value(argv, "--experience", launcher.experience)
     if launcher.animation_recording:

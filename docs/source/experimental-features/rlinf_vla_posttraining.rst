@@ -87,7 +87,9 @@ From the Isaac Lab root directory:
    # Step 2: Install packages with conflicting constraints (--no-deps to bypass resolver)
    uv pip install rlinf==0.2.0dev2 transformers==4.51.3 "tokenizers>=0.21,<0.22" --no-deps
    # Use the official PyTorch3D v0.7.9 tag instead of the older pipablepytorch3d package.
-   uv pip install --no-build-isolation "git+https://github.com/facebookresearch/pytorch3d.git@v0.7.9" --no-deps
+   # GR00T only uses pytorch3d.transforms, so skip the compiled extension.
+   PYTORCH3D_NO_EXTENSION=1 uv pip install --no-build-isolation \
+       "git+https://github.com/facebookresearch/pytorch3d.git@v0.7.9" --no-deps
 
    # Step 3: Install Isaac-GR00T (pinned version)
    git clone https://github.com/NVIDIA/Isaac-GR00T.git

@@ -173,12 +173,12 @@ class TestEnvProfilePaths:
 
 
 # ============================================================================
-# IsaacTeleop execution config
+# Isaac Capture execution config
 # ============================================================================
 
 
 class TestRetargetingExecutionConfig:
-    """Tests for Isaac Lab's IsaacTeleop retargeting execution defaults."""
+    """Tests for Isaac Lab's Isaac Capture retargeting execution defaults."""
 
     def test_session_config_receives_deadline_paced_pipelined_retargeting(self):
         """An unset retargeting execution config resolves to the pipelined default at session start."""

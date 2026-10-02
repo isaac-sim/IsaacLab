@@ -282,7 +282,7 @@ Key parameters for SkillGen data generation:
 * ``--generation_num_trials``: Number of demonstrations to generate
 * ``--num_envs``: Parallel environments (tune based on GPU memory)
 * ``--device``: Computation device (cpu/cuda). Use cpu for stable physics
-* Visualization: Omit ``--visualizer`` / ``--viz`` for headless generation; use ``--viz none`` only when a config or command would otherwise launch visualizers
+* Visualization: Omit ``--visualizer`` / ``--viz`` for headless generation
 
 .. _task-basic-cube-stacking:
 

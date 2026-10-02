@@ -71,6 +71,7 @@ def test_zero_agent_infers_finite_manager_actions() -> None:
         action_dim = 7
         cfg = SimpleNamespace(controller=SimpleNamespace(use_relative_mode=False, command_type="pose"))
         _scale = torch.tensor([2.0, 2.0, 2.0, 1.0, 1.0, 1.0, 1.0])
+        _offset = torch.tensor([0.2, -0.4, 0.6, 0.0, 0.0, 0.0, 0.0])
 
         def _compute_frame_pose(self):
             return torch.tensor([[2.0, 4.0, 6.0]]), torch.tensor([[0.0, 0.0, 0.0, 1.0]])
@@ -148,7 +149,7 @@ def test_zero_agent_infers_finite_manager_actions() -> None:
     ).flatten(start_dim=1)
     expected = torch.cat(
         (
-            torch.tensor([[1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0]]),
+            torch.tensor([[0.9, 2.2, 2.7, 0.0, 0.0, 0.0, 1.0]]),
             torch.tensor([[3.0, 2.0, 1.0, 0.0, 0.0, 1.0, 0.0]]),
             expected_pink_poses,
             torch.tensor([[0.2, 0.4]]),
@@ -169,6 +170,7 @@ def test_zero_agent_rejects_non_finite_inferred_actions() -> None:
         action_dim = 7
         cfg = SimpleNamespace(controller=SimpleNamespace(use_relative_mode=False, command_type="pose"))
         _scale = torch.ones(7)
+        _offset = torch.zeros(7)
 
         def _compute_frame_pose(self):
             return torch.full((1, 3), torch.nan), torch.tensor([[0.0, 0.0, 0.0, 1.0]])
@@ -225,14 +227,14 @@ def test_zero_agent_supports_direct_multi_agent_action_spaces() -> None:
     assert torch.equal(actions["object"], torch.zeros(3, 1, dtype=torch.int64))
 
 
-def test_simple_agents_parse_device_and_default_to_newton_visualizer(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Checkpoint-free agents default to Newton visualization and retain an explicit CLI device."""
+def test_simple_agents_parse_device_and_default_to_no_visualizer(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Checkpoint-free agents run without a visualizer by default and retain an explicit CLI device."""
     monkeypatch.setattr(sys, "argv", ["pytest"])
 
     args = simple_agents._parse_args([], "zero")
 
     assert args.device is None
-    assert args.visualizer == ["newton_gl"]
+    assert args.visualizer is None
 
     args = simple_agents._parse_args(["--device", "cuda:1"], "random")
 
