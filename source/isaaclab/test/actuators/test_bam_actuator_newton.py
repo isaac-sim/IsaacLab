@@ -317,6 +317,17 @@ def test_drive_matches_upstream_motor_and_friction_goldens(device):
     )
 
 
+def test_unbound_drive_rejects_stepping(monkeypatch):
+    """A BAM drive imported outside Lab's solver-binding path must raise a Python error."""
+    harness = _Harness(num_envs=1, device="cpu")
+    harness.drive.external_torque = None
+    # Keep a missing guard from crashing the test process through a null Warp array.
+    monkeypatch.setattr(wp, "launch", lambda *args, **kwargs: None)
+    zeros = np.zeros((1, 2))
+    with pytest.raises(RuntimeError, match="BAM.*solver binding"):
+        harness.step(zeros, zeros, zeros)
+
+
 @pytest.mark.parametrize("device", test_devices())
 def test_solver_mode_emits_the_motor_torque_and_publishes_the_budget(device):
     """With the solver owning the friction, BAM applies the motor torque and exports the budget."""

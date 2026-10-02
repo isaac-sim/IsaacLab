@@ -333,7 +333,8 @@ Motor fit and deployment settings
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 :class:`~isaaclab.actuators.BamMotorCfg` holds the motor and gearbox coefficients. Set them
-directly in Python, together with ``error_gain`` and any non-default PWM/current limits.
+directly in Python, including the required ``error_gain`` and ``max_current`` firmware settings.
+Set ``max_current=0.0`` explicitly only when current limiting should be disabled.
 Configure the fit's reflected rotor inertia separately through ``BamActuatorCfg.armature``
 or author it on the joint in the USD; it is not inferred from the motor coefficients.
 
@@ -357,7 +358,7 @@ Newton consumes those authored coefficients during simulation.
    * - ``error_gain``
      - Position-error-to-duty-cycle factor per unit of firmware gain [1/rad]. Required.
    * - ``max_pwm``, ``max_current``
-     - Maximum duty-cycle magnitude [-], default 1, and current limit [A], default 0 (disabled).
+     - Maximum duty-cycle magnitude [-], default 1, and required current limit [A]; explicit 0 disables it.
    * - ``friction_base``, ``friction_viscous``
      - Coulomb friction [N.m] and viscous coefficient [N.m.s/rad]. Required.
    * - ``friction_stribeck``, ``dtheta_stribeck``, ``alpha``

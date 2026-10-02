@@ -34,8 +34,8 @@ class BamMotorCfg:
     max_pwm: float = 1.0
     """Maximum duty-cycle magnitude [-]."""
 
-    max_current: float = 0.0
-    """Firmware current limit [A]. Zero disables current limiting."""
+    max_current: float = MISSING
+    """Required firmware current limit [A]. Set zero explicitly to disable current limiting."""
 
     friction_base: float = MISSING
     """Coulomb friction [N.m]."""

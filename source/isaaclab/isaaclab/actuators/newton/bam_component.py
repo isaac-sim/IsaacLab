@@ -423,6 +423,8 @@ class DriveBam(DriveBase):
         dt: float,
         device: wp.Device | None = None,
     ) -> None:
+        if self.external_torque is None:
+            raise RuntimeError("BAM requires an MJWarp solver binding before stepping (external_torque is unbound).")
         del target_vel, feedforward, target_vel_indices, dt  # the modelled firmware has no torque input
         num_actuators = len(forces)
         scratch = self._next_state_arrays
