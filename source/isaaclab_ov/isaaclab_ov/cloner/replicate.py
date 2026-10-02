@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from collections.abc import Iterable, Sequence
 from typing import TYPE_CHECKING
 
@@ -169,20 +170,36 @@ class OvrtxReplicateContext(cloner.ReplicateContext):
             routing: Asset routes to merge when physics and rendering share one stage.
         """
         # OVRTX is optional for physics-only users, and the renderer imports native clone operations.
-        from isaaclab_ov.renderers.ovrtx_renderer import (  # noqa: PLC0415
-            ovrtx_read_gpu_transforms_enabled,
-            ovrtx_use_ovstage_enabled,
-        )
+        from isaaclab_ov.renderers.ovrtx_renderer import ovrtx_read_gpu_transforms_enabled  # noqa: PLC0415
 
         renderers = sim.get_backends(OVRTXRendererCfg)
         if not renderers:
             return
         initialized = next((renderer for renderer in renderers if renderer.backend is not None), None)
-        use_ovstage = initialized._use_ovstage if initialized is not None else ovrtx_use_ovstage_enabled()
-        # TODO: Uncomment after requiring an OVPhysX release with batched cold binding and direct
-        # path lookups, and verifying startup and rendering parity (release version TBD; 0.6.3 is affected).
-        # use_ovstage |= sim.physics_manager.clone_context_type is OvPhysxReplicateContext
-        shared_physics = use_ovstage and sim.physics_manager.clone_context_type is OvPhysxReplicateContext
+        if initialized is not None:
+            use_ovstage = initialized._use_ovstage
+            shared_physics = initialized.backend.cfg.scene_key is None
+        else:
+            # Defaults: independent OVStage rendering with OVPhysX; native OVRTX cloning with Newton.
+            # Keep sharing opt-in until OVPhysX cold binding and shared-stage update performance are fixed.
+            flags: list[str | None] = []
+            for name in ("ISAAC_LAB_OVRTX_USE_OVSTAGE", "ISAAC_LAB_OVPHYSX_USE_OVSTAGE", "ISAAC_LAB_SHARE_OVSTAGE"):
+                value = os.environ.get(name)
+                if value is not None:
+                    value = value.strip()
+                    if value not in {"0", "1"}:
+                        raise ValueError(f"Invalid {name}: {value!r}. Expected 0 or 1.")
+                flags.append(value)
+            rtx, physx, share = flags
+            if share == "1":
+                if "0" in (rtx, physx):
+                    raise ValueError("ISAAC_LAB_SHARE_OVSTAGE=1 conflicts with an explicit per-backend 0.")
+                rtx = physx = "1"
+            with_ovphysx = sim.physics_manager.clone_context_type is OvPhysxReplicateContext
+            use_ovstage = with_ovphysx if rtx is None else rtx == "1"
+            shared_physics = physx == "1"
+            if shared_physics and (not with_ovphysx or not use_ovstage or share == "0"):
+                raise ValueError("Shared OVStage cloning requires OVPhysX, OVStage rendering, and sharing not disabled.")
         if shared_physics and sim.physics_manager.backend is not None and sim.physics_manager.backend.scene is None:
             raise RuntimeError("Configure OVRTX cameras before the first OVPhysX reset to share its OVStage.")
         if use_ovstage:
