@@ -29,16 +29,15 @@ import socket
 import subprocess
 import sys
 import time
+import uuid
 from pathlib import Path
 
 import pytest
 import yaml
 
-# Small on purpose: Kit boot dominates the runtime at this size, and the defect these guard
-# reproduces at any env count. Sized for the CI pool's 23 GiB A10G rather than the 48 GiB L40S
-# it was first measured on -- at 1024 a single rank reached 20.72 GiB and the run died allocating
-# 864 MiB more.
-_NUM_ENVS = "512"
+# Small on purpose: Kit boot dominates the runtime, and the defect these guard reproduces at any
+# env count. Kept small enough that several cases share a GPU, so CI runs them concurrently.
+_NUM_ENVS = "64"
 _MAX_ITERATIONS = "3"
 # Not the agent default, so the saved settings can only match it if they came from the launch.
 _SEED = 7
@@ -105,8 +104,8 @@ def _repo_root() -> Path:
 def _free_port() -> int:
     """Return a port that is free right now, for this run's torchrun rendezvous.
 
-    Cases run sequentially in one CI job and a killed rank releases the port asynchronously,
-    so reusing torchrun's default 29500 makes the next case abort with "The server socket has
+    Cases run back to back and concurrently, and a killed rank releases the port asynchronously,
+    so reusing torchrun's default 29500 makes another case abort with "The server socket has
     failed to listen on any local network address".
     """
     with socket.socket() as probe:
@@ -158,6 +157,7 @@ def _run_training(
     task: str,
     presets: str,
     num_gpus: int,
+    experiment: str,
 ) -> tuple[str, str]:
     """Launch a multi-rank training run and wait for it to settle.
 
@@ -171,6 +171,8 @@ def _run_training(
         task: Gym task id to train.
         presets: Value for the ``presets=`` selector (physics and/or renderer).
         num_gpus: Number of ranks to launch.
+        experiment: Log folder under ``logs/rsl_rl``; unique per case, so cases running at the
+            same time never share a run directory (run names only carry the start second).
 
     Returns:
         ``(outcome, output, gpu_processes)`` where outcome is ``"passed"``, ``"failed"`` or
@@ -207,6 +209,8 @@ def _run_training(
         _MAX_ITERATIONS,
         "--seed",
         str(_SEED),
+        "--experiment_name",
+        experiment,
     ]
 
     started = time.monotonic()
@@ -289,6 +293,11 @@ def _assert_training_passed(
     )
 
 
+def _experiment_name() -> str:
+    """Return a log folder name no other case, concurrent or earlier, has used."""
+    return f"mgpu_smoke_{uuid.uuid4().hex[:12]}"
+
+
 def _visible_gpus() -> int:
     """Return how many CUDA devices the host can address; skip below :data:`_MIN_RANKS`."""
     # Local import so collecting this module does not pull torch in before Kit.
@@ -331,14 +340,15 @@ class TestMultiGpuTrainingSmoke:
         launch settings and ``rank_<rank>/params`` every other rank's.
         """
         num_gpus = _visible_gpus()
-        runs_root = _repo_root() / "logs" / "rsl_rl"
-        runs_before = set(runs_root.glob("*/*"))
-        outcome, output, gpu_processes = _run_training(None, _PHYSICS_ONLY_TASK, "isaacsim_physx", num_gpus=num_gpus)
+        experiment = _experiment_name()
+        outcome, output, gpu_processes = _run_training(
+            None, _PHYSICS_ONLY_TASK, "isaacsim_physx", num_gpus=num_gpus, experiment=experiment
+        )
         _assert_training_passed(outcome, output, gpu_processes)
 
-        new_runs = set(runs_root.glob("*/*")) - runs_before
-        assert len(new_runs) == 1, f"expected one run directory, found {sorted(map(str, new_runs))}"
-        (run_dir,) = new_runs
+        runs = sorted((_repo_root() / "logs" / "rsl_rl" / experiment).iterdir())
+        assert len(runs) == 1, f"expected one run directory, found {list(map(str, runs))}"
+        (run_dir,) = runs
         for rank in range(num_gpus):
             params_dir = run_dir / ("params" if rank == 0 else f"rank_{rank}/params")
             for name in ("agent", "env"):
@@ -354,6 +364,6 @@ class TestMultiGpuTrainingSmoke:
         num_gpus = _visible_gpus()
         devices = _rotated_devices(num_gpus) if rotated else None
         _assert_training_passed(
-            *_run_training(devices, _CAMERA_TASK, stack, num_gpus=num_gpus),
+            *_run_training(devices, _CAMERA_TASK, stack, num_gpus=num_gpus, experiment=_experiment_name()),
             devices=devices,
         )
