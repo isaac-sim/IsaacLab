@@ -195,7 +195,7 @@ def _create_action_term_zero_policy(term: Any, env: Any) -> Callable[[], torch.T
         def differential_ik_policy() -> torch.Tensor:
             ee_pos, ee_quat = term._compute_frame_pose()
             command = ee_pos if term.cfg.controller.command_type == "position" else torch.cat((ee_pos, ee_quat), dim=-1)
-            return _unscale_action(command, term._scale)
+            return _unscale_action(command - term._offset, term._scale)
 
         return differential_ik_policy
 
@@ -255,8 +255,8 @@ def _parse_args(argv: list[str] | None, policy: PolicyName) -> argparse.Namespac
     )
     add_video_args(parser, action=f"the {policy} agent run")
     add_launcher_args(parser)
-    # let task configs select the simulation device and keep checkpoint-free agents on the kitless default path
-    parser.set_defaults(device=None, visualizer=["newton_gl"])
+    # let task configs select the simulation device
+    parser.set_defaults(device=None)
     args_cli, hydra_args = setup_preset_cli(parser, argv)
     enable_cameras_for_video(args_cli)
     sys.argv = [sys.argv[0]] + hydra_args

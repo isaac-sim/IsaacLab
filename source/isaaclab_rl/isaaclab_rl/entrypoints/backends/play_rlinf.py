@@ -5,8 +5,7 @@
 
 """RLinf evaluation backend of the unified reinforcement learning entrypoint.
 
-Evaluation runs on RLinf's distributed infrastructure, which VLA model inference requires since the
-models are too large to run on a single GPU without FSDP.
+Evaluation uses RLinf's Ray-based worker infrastructure, including on a single GPU.
 
 Usage:
     # Evaluate a trained checkpoint (config YAML discovered in the isaaclab_tasks package)
@@ -41,7 +40,12 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--num_episodes", type=int, default=None, help="Number of evaluation episodes (overrides the config if set)."
     )
-    parser.add_argument("--video", action="store_true", default=False, help="Enable video recording.")
+    parser.add_argument(
+        "--video",
+        action="store_true",
+        default=False,
+        help="Save the evaluation videos RLinf records (its env.eval.video_cfg); takes no source.",
+    )
     args_cli = parser.parse_args(argv)
     if not args_cli.config_name:
         parser.error("--config_name is required (e.g. --config_name isaaclab_ppo_gr00t_assemble_trocar)")
@@ -59,7 +63,7 @@ def run(argv: list[str]) -> None:
     import torch.multiprocessing as mp
     from hydra import compose, initialize_config_dir
     from hydra.core.global_hydra import GlobalHydra
-    from omegaconf import open_dict
+    from omegaconf import OmegaConf, open_dict
     from rlinf.config import validate_cfg
     from rlinf.runners.embodied_eval_runner import EmbodiedEvalRunner
     from rlinf.scheduler import Cluster
@@ -89,7 +93,7 @@ def run(argv: list[str]) -> None:
         if args_cli.model_path:
             cfg.rollout.model.model_path = args_cli.model_path
         if args_cli.checkpoint:
-            cfg.runner.eval_policy_path = cli_args.resolve_rlinf_checkpoint(
+            cfg.runner.ckpt_path = cli_args.resolve_rlinf_checkpoint(
                 args_cli.checkpoint,
                 log_root_path=str(Path("logs") / "rlinf"),
                 task=args_cli.task or task_id,
@@ -107,13 +111,17 @@ def run(argv: list[str]) -> None:
             cfg.actor.seed = args_cli.seed
         if args_cli.num_episodes is not None:
             cfg.algorithm.eval_rollout_epoch = args_cli.num_episodes
+        cfg.rollout.model = OmegaConf.merge(cfg.actor.model, cfg.rollout.model)
+        # Ray workers may launch from a different working directory.
+        for model in (cfg.actor.model, cfg.rollout.model):
+            model.model_path = str(Path(model.model_path).expanduser().resolve())
 
     cfg = validate_cfg(cfg)
     fields = {
         "Task": cfg.env.eval.init_params.id,
         "Num envs": cfg.env.eval.total_num_envs,
         "Model": cfg.rollout.model.model_path,
-        "Checkpoint": cfg.runner.eval_policy_path,
+        "Checkpoint": cfg.runner.get("ckpt_path"),
         "Videos": cfg.env.eval.video_cfg.save_video,
     }
     if cfg.env.eval.video_cfg.save_video:

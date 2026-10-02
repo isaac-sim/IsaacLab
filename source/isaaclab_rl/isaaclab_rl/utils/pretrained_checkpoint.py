@@ -19,6 +19,7 @@ from isaaclab.envs import DirectMARLEnvCfg, DirectRLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.physics import PhysicsCfg
 from isaaclab.renderers import RendererCfg
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, NUCLEUS_ASSET_ROOT_DIR, retrieve_file_path
+from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry  # noqa: F401
 
@@ -501,6 +502,9 @@ def _find_renderer_cfgs(value, visited: set[int] | None = None) -> list[Renderer
 
     if isinstance(value, RendererCfg):
         return [value]
+    # a visualizer's streaming-camera renderer does not produce policy observations
+    if isinstance(value, VisualizerCfg):
+        return []
     if dataclasses.is_dataclass(value) and not isinstance(value, type):
         configs = []
         for field in dataclasses.fields(value):

@@ -26,7 +26,7 @@ Use this skill whenever a registered environment is added or renamed, or when it
    This rewrites the environment-browser task rows from the Gym registry and groups names under ``physics=``, ``renderer=``, and ``presets=``. Existing preview-image assignments are preserved.
 4. Review the generated diff. Do not edit selector data between the environment-browser marker comments by hand.
 5. Confirm the environment browser contains the task and agrees with the task's accepted selectors.
-6. When the documentation update is part of a PR, build the docs and require a clean result. The docs target runs Sphinx with warnings treated as errors, so any warning or error must be resolved before publishing the PR.
+6. Follow the [contribution guide's documentation validation guidance](../../../docs/source/refs/contributing.rst#contributing-documentation): use incremental HTML previews while editing and require one clean, warning-free build of the final documentation update before publishing the PR.
 
 ## Validation
 
@@ -35,11 +35,11 @@ Run:
 ```bash
 uv run python tools/update_environments_rst.py --check
 uv run python scripts/environments/list_envs.py --show_presets
-uv run --isolated --extra test -- make -C docs current-docs
 uv run --no-project python tools/skills/cli.py check
 ```
 
-Require the combined test and documentation build to exit successfully with no warnings or errors. Inspect the
+Run the guide's HTML preview or final clean build as appropriate, using the ``dev`` extra for Sphinx dependencies.
+Require the checks and final documentation build to exit successfully with no warnings or errors. Inspect the
 compiled environment browser in the documentation build output and verify that every new image
 and task selector renders correctly.
 
