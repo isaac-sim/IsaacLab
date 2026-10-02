@@ -13,6 +13,7 @@ from collections.abc import Iterable, Sequence
 from typing import TYPE_CHECKING
 
 import numpy as np
+import ovstage
 
 from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics
 
@@ -166,7 +167,7 @@ class OvrtxReplicateContext(cloner.ReplicateContext):
 
         Args:
             sim: Simulation that owns the configured consumers and native resources.
-            routing: Asset routes to prepare for each native representation.
+            routing: Asset routes to merge when physics and rendering share one stage.
         """
         # OVRTX is optional for physics-only users, and the renderer imports native clone operations.
         from isaaclab_ov.renderers.ovrtx_renderer import ovrtx_read_gpu_transforms_enabled  # noqa: PLC0415
@@ -177,16 +178,24 @@ class OvrtxReplicateContext(cloner.ReplicateContext):
         initialized = next((renderer for renderer in renderers if renderer.backend is not None), None)
         if initialized is not None:
             use_ovstage = initialized._use_ovstage
+            share_ovstage = initialized.backend.cfg.scene_key is None
         else:
-            # OVPhysX is faster with independent OVStage rendering; Newton is faster with native OVRTX cloning.
-            default = "1" if sim.physics_manager.clone_context_type is OvPhysxReplicateContext else "0"
-            value = os.environ.get("ISAAC_LAB_OVRTX_USE_OVSTAGE", default).strip()
-            if value not in {"0", "1"}:
-                raise ValueError(f"Invalid ISAAC_LAB_OVRTX_USE_OVSTAGE: {value!r}. Expected 0 or 1.")
-            use_ovstage = value == "1"
+            # Defaults: independent OVStage rendering with OVPhysX; native OVRTX cloning with Newton.
+            # Keep sharing opt-in until OVPhysX cold binding and shared-stage update performance are fixed.
+            with_ovphysx = sim.physics_manager.clone_context_type is OvPhysxReplicateContext
+            use_ovstage = os.environ.get("ISAAC_LAB_OVRTX_USE_OVSTAGE", "1" if with_ovphysx else "0") == "1"
+            share_ovstage = os.environ.get("ISAAC_LAB_OVPHYSX_USE_OVSTAGE") == "1"
+            if os.environ.get("ISAAC_LAB_SHARE_OVSTAGE") == "1":
+                use_ovstage = share_ovstage = True
+            if share_ovstage and not (with_ovphysx and use_ovstage):
+                raise ValueError("Shared OVStage cloning requires OVPhysX and OVStage rendering.")
+        if share_ovstage and sim.physics_manager.backend is not None and sim.physics_manager.backend.scene is None:
+            raise RuntimeError("Configure OVRTX cameras before the first OVPhysX reset to share its OVStage.")
         if use_ovstage:
-            routing.setdefault(OvstageReplicateContext, set()).update(routing.pop(OvrtxReplicateContext, ()))
-            sim.clone_contexts.pop(OvrtxReplicateContext, None)
+            replaced = (OvrtxReplicateContext, OvPhysxReplicateContext) if share_ovstage else (OvrtxReplicateContext,)
+            for context in replaced:
+                routing.setdefault(OvstageReplicateContext, set()).update(routing.pop(context, ()))
+                sim.clone_contexts.pop(context, None)
 
         # Stage ownership is settled before native construction. Register the stage before its borrowers.
         for renderer in renderers:
@@ -194,13 +203,21 @@ class OvrtxReplicateContext(cloner.ReplicateContext):
             if renderer.backend is not None:
                 continue
             backend_cfg = OVRTXBackendCfg(
-                scene_key=cfg,
+                scene_key=None if share_ovstage else cfg,
                 log_file_path=cfg.log_file_path,
                 log_level=cfg.log_level,
                 use_ovstage=use_ovstage,
                 read_gpu_transforms=ovrtx_read_gpu_transforms_enabled(),
             )
-            scene = sim.get_or_create_backend(OvstageBackendCfg(scene_key=backend_cfg)) if use_ovstage else None
+            if share_ovstage and any(other.cfg != backend_cfg for other in sim.get_backends(OVRTXBackendCfg)):
+                raise ValueError(
+                    "A shared OVStage requires one OVRTX engine; use the same native logging/transform settings."
+                )
+            scene = None
+            if use_ovstage:
+                domains = ovstage.PopulationDomain.ALL if share_ovstage else ovstage.PopulationDomain.RENDERING
+                stage_cfg = OvstageBackendCfg(scene_key=None if share_ovstage else backend_cfg, population_domains=domains)
+                scene = sim.get_or_create_backend(stage_cfg)
             renderer.backend = sim.get_or_create_backend(backend_cfg)
             renderer.scene = scene if use_ovstage else renderer.backend
             renderer._use_ovstage = use_ovstage

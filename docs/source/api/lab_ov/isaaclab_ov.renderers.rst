@@ -33,7 +33,7 @@ The simulation owns these detached stages and releases them after their consumer
 configuration selects the populated USD domains, and :class:`~isaaclab_ov.cloner.OvstageReplicateContext`
 prepares its copies. Independent renderer and visualizer stages use the rendering domain.
 :ref:`Clone routing <ov-clone-routing>` selects stage ownership and environment overrides before
-backend initialization. OVPhysX retains a separate physics stage and native replication path.
+backend initialization. OVPhysX retains a separate physics stage and native replication path by default.
 
 .. autoclass:: isaaclab_ov.stage.OvstageBackendCfg
    :show-inheritance:

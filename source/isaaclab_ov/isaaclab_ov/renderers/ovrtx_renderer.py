@@ -223,6 +223,7 @@ class OVRTXBackend:
 
     def __init__(self, cfg: OVRTXBackendCfg):
         self.cfg = cfg
+        self.render_products: set[str] = set()
         # Resolve the wheel's native dependency here, including callers without a viewer.
         dependency = Path(ovstage.__file__).parent / "bin/plugins/libosdCPU.so.3.6.0"
         if dependency.exists():
@@ -626,6 +627,8 @@ class OVRTXRenderer(BaseRenderer):
             raise
         self.scene.next_camera_id += 1
         self._camera_render_data.append(render_data)
+        self.backend.render_products.add(render_data.render_product_path)
+        render_data.resources.callback(self.backend.render_products.discard, render_data.render_product_path)
         return render_data
 
     def _register_camera(
@@ -1182,7 +1185,7 @@ class OVRTXRenderer(BaseRenderer):
             raise RuntimeError("Scene not initialized. Call initialize() first.")
         if self.backend.renderer is None or not self._camera_render_data:
             return
-        products = {data.render_product_path for data in self._camera_render_data}
+        products = self.backend.render_products.copy()
         material_writer = self._visual_material_writer_ref() if self._visual_material_writer_ref is not None else None
         try:
             if material_writer is not None:
