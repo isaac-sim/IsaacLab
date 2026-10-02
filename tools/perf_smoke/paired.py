@@ -381,7 +381,7 @@ def bind_baseline(
     _write(output_dir / "pr-comparison.json", selection)
 
 
-def select_pr_baseline(client: store.GitHubClient, candidate: store.Evidence) -> store.Selection:
+def select_pr_baseline(client: store.GitHubClient, candidate: store.Evidence) -> tuple[store.Evidence | None, dict]:
     """Read the exact base measurement pinned by this PR benchmark job, without ancestry search."""
     files = candidate.files
     source = candidate.context.get("source", {})
@@ -391,7 +391,7 @@ def select_pr_baseline(client: store.GitHubClient, candidate: store.Evidence) ->
     try:
         selection = store.artifact_json(files, "pr-comparison.json")
     except store.EvidenceError as exc:
-        return store.Selection(None, {"reason": str(exc), "reason_code": exc.code})
+        return None, {"reason": str(exc), "reason_code": exc.code}
     base_commit, pr_number = source.get("reference_commit"), source.get("pull_request_number")
     if (
         not store.is_commit_sha(base_commit)
@@ -406,7 +406,7 @@ def select_pr_baseline(client: store.GitHubClient, candidate: store.Evidence) ->
         )
     origin = selection.get("baseline_origin")
     if not origin:
-        return store.Selection(None, selection)
+        return None, selection
     try:
         artifact = client.get(f"/repos/{client.repository}/actions/artifacts/{origin['artifact_id']}")
         baseline = _read_baseline(client, artifact, pr_number, base_commit)
@@ -453,12 +453,12 @@ def select_pr_baseline(client: store.GitHubClient, candidate: store.Evidence) ->
                     "measurement_order", "Fresh baseline did not finish before the PR measurement."
                 )
         selection.update(baseline_origin=baseline.identity, selected=baseline.identity)
-        return store.Selection(baseline, selection)
+        return baseline, selection
     except store.EvidenceError as exc:
         selection.update(
             reason=str(exc), reason_code=exc.code, unavailable_evidence=origin, unavailable_side="baseline"
         )
-        return store.Selection(None, selection)
+        return None, selection
 
 
 def _execute(args: argparse.Namespace, event: dict) -> None:

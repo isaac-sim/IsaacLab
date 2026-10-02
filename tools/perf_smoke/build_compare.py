@@ -351,11 +351,10 @@ def main(argv: list[str] | None = None) -> int:
         candidate = baseline_mod.resolve_candidate(client, args.run_id, args.run_attempt)
         if candidate.identity.get("event") == "pull_request":
             paired_failure = _paired_failure(candidate)
-            result = select_pr_baseline(client, candidate)
+            selected, selection = select_pr_baseline(client, candidate)
         else:
             pinned = baseline_mod.load_previous_selection(client, candidate)
-            result = baseline_mod.select_baseline(client, candidate, pinned)
-        selected, selection = result.evidence, result.metadata
+            selected, selection = baseline_mod.select_baseline(client, candidate, pinned)
     except baseline_mod.EvidenceError as exc:
         selection = {
             "reason": str(exc),

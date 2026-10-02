@@ -67,18 +67,6 @@ def evidence(samples=None, *, expected=3, formula="aggregate_frames_over_measure
 
 
 class ReportRenderingTests(unittest.TestCase):
-    def test_observed_direction_is_explicit_without_a_gate_verdict(self):
-        for fps, expected in ((110, "🟢 Improved"), (90, "🔴 Regressed"), (100, "⚪ Unchanged")):
-            with self.subTest(fps=fps):
-                report = compare_evidence(evidence(), evidence({"leg": [bundle(fps)] * 3}))
-                snapshot = copy.deepcopy(report)
-                markdown = render_build_comparison(report)
-                self.assertIn(expected, markdown)
-                self.assertIn("Status | Workload | Baseline FPS | Current FPS | Change %", markdown)
-                self.assertNotIn("PASS", markdown)
-                self.assertNotIn("FAIL", markdown)
-                self.assertEqual(report, snapshot)
-
     def test_missing_partial_and_incompatible_reasons_remain_visible(self):
         for a, b, expected, reason in (
             (None, evidence(), "No baseline samples", "Baseline:"),
@@ -107,8 +95,12 @@ class ReportRenderingTests(unittest.TestCase):
         )
         report = compare_evidence(a, b)
         before = copy.deepcopy(report)
-        primary, diagnostics = render_build_comparison(report).split("<details>", 1)
+        markdown = render_build_comparison(report)
+        primary, diagnostics = markdown.split("<details>", 1)
         self.assertIn("**🟢 Improved 2 · 🔴 Regressed 1 · ⚪ Not comparable 1 · ⚪ Unchanged 1**", primary)
+        self.assertIn("Status | Workload | Baseline FPS | Current FPS | Change %", primary)
+        self.assertNotIn("PASS", markdown)
+        self.assertNotIn("FAIL", markdown)
         rows = [line for line in primary.splitlines() if line.startswith("|")]
         self.assertEqual(len(rows), 7)  # Header, separator and all five workloads.
         self.assertTrue(all(len(line.split("|")) == 7 for line in rows))
@@ -123,6 +115,10 @@ class ReportRenderingTests(unittest.TestCase):
 
     def test_zero_baseline_and_no_rows_are_not_misreported(self):
         report = compare_evidence(evidence({"leg": [bundle(0)] * 3}), evidence({"leg": [bundle(10)] * 3}))
+        row = report["rows"][0]
+        self.assertEqual(row["absolute_change"], 10)
+        self.assertIsNone(row["change_pct"])
+        self.assertIn("zero", row["notes"][0])
         primary = render_build_comparison(report).split("<details>", 1)[0]
         self.assertIn("🟢 Improved 1 · 🔴 Regressed 0 · ⚪ Not comparable 0", primary)
         self.assertIn("N/A (baseline is zero)", primary)
@@ -133,6 +129,12 @@ class ReportRenderingTests(unittest.TestCase):
 
     def test_selection_reason_is_visible_when_no_baseline_was_found_without_an_error_code(self):
         report = compare_evidence(None, evidence())
+        row = report["rows"][0]
+        self.assertIsNone(report["baseline"])
+        self.assertEqual(row["status"], "missing")
+        self.assertEqual(row["candidate"]["median"], 100)
+        self.assertEqual(row["baseline"]["samples"], [])
+        self.assertIsNone(row["change_pct"])
         report["selection"] = {"reason": "No earlier measured ancestor was found."}
         primary = render_build_comparison(report).split("<details>", 1)[0]
         self.assertIn("No earlier measured ancestor was found", primary)
@@ -325,13 +327,6 @@ class BuildComparisonTests(unittest.TestCase):
         self.assertNotIn("verdict", row)
         self.assertTrue(any("not statistical significance" in note for note in report["notes"]))
 
-    def test_zero_baseline_does_not_invent_a_percentage(self):
-        a = evidence({"leg": [bundle(0)] * 3})
-        row = compare_evidence(a, evidence())["rows"][0]
-        self.assertEqual(row["absolute_change"], 100)
-        self.assertIsNone(row["change_pct"])
-        self.assertIn("zero", row["notes"][0])
-
     def test_dynamic_workloads_include_every_shared_and_missing_identity(self):
         a = evidence({"unfamiliar-leg": [bundle(100, "Shared")] * 3, "removed": [bundle(50, "Removed")] * 3})
         b = evidence({"renamed-leg": [bundle(110, "Shared")] * 3, "new": [bundle(60, "New")] * 3})
@@ -341,15 +336,6 @@ class BuildComparisonTests(unittest.TestCase):
         self.assertEqual(len(compared), 1)
         self.assertEqual(compared[0]["change_pct"], 10)
         self.assertEqual(sum(row["status"] == "missing" for row in rows), 2)
-
-    def test_missing_baseline_keeps_candidate_measurements(self):
-        report = compare_evidence(None, evidence())
-        row = report["rows"][0]
-        self.assertIsNone(report["baseline"])
-        self.assertEqual(row["status"], "missing")
-        self.assertEqual(row["candidate"]["median"], 100)
-        self.assertEqual(row["baseline"]["samples"], [])
-        self.assertIsNone(row["change_pct"])
 
     def test_status_only_leg_is_associated_without_claiming_identity(self):
         b = evidence({"leg": []}, statuses={"leg": "failed"})
