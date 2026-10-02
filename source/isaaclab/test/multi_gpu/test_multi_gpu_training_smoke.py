@@ -73,22 +73,26 @@ _CAMERA_TASK = "Isaac-Cartpole-Camera-Direct"
 # Fewest ranks a multi-GPU case can launch; below this every case skips.
 _MIN_RANKS = 2
 
+# Newton or OvPhysX physics with an RTX renderer: NCCL setup fails with "Cuda failure 'invalid
+# argument'" on the 2x RTX PRO 4500 CI runners, where each rank also holds a context on the other
+# GPU. PhysX with Kit RTX, and every Newton-renderer stack, train on the same runners.
+_RTX_NCCL_XFAIL = pytest.mark.xfail(reason="NCCL 'invalid argument' with Newton/OvPhysX physics and an RTX renderer")
+
 # The backend grid is 3 physics x 3 renderers; two of the nine cells cannot run at all, rejected
 # before launch by ``sim_launcher._validate_runtime`` because OVRTX and OvPhysX are kitless and
 # cannot share a process with Kit: ``isaacsim_physx,ovrtx`` and ``ovphysx,isaacsim_rtx``. The
 # Newton renderer pairs with every physics backend -- ``NewtonManager.get_model`` builds a shadow
 # model when the active backend is not Newton -- so it appears three times here. The ``kitless``
-# marker routes each stack to the CI image that carries its runtime. All seven run: ``ovphysx,ovrtx``
-# did not complete under ovphysx 0.5.10 and was xfailed, which 0.5.11 fixed.
+# marker routes each stack to the CI image that carries its runtime.
 _STACKS = [
     pytest.param("isaacsim_physx", id="isaacsim_physx-kit_rtx"),
-    pytest.param("newton_mjwarp,isaacsim_rtx", id="newton-kit_rtx"),
+    pytest.param("newton_mjwarp,isaacsim_rtx", id="newton-kit_rtx", marks=_RTX_NCCL_XFAIL),
     # Kit physics with a kitless renderer: still a Kit process, so it stays in the Kit lane.
     pytest.param("isaacsim_physx,newton_renderer", id="isaacsim_physx-newton_renderer"),
-    pytest.param("newton_mjwarp,ovrtx", id="newton-ovrtx", marks=pytest.mark.kitless),
+    pytest.param("newton_mjwarp,ovrtx", id="newton-ovrtx", marks=(pytest.mark.kitless, _RTX_NCCL_XFAIL)),
     pytest.param("newton_mjwarp,newton_renderer", id="newton-newton_renderer", marks=pytest.mark.kitless),
     pytest.param("ovphysx,newton_renderer", id="ovphysx-newton_renderer", marks=pytest.mark.kitless),
-    pytest.param("ovphysx,ovrtx", id="ovphysx-ovrtx", marks=pytest.mark.kitless),
+    pytest.param("ovphysx,ovrtx", id="ovphysx-ovrtx", marks=(pytest.mark.kitless, _RTX_NCCL_XFAIL)),
 ]
 
 _DEVICE_ORDERS = [
