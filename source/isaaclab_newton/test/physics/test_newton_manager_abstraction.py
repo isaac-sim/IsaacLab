@@ -1566,6 +1566,34 @@ def test_graph_capture_preserves_first_step_and_recapture(monkeypatch, solver_cf
             assert counter.numpy()[0] == step + 1
 
 
+@pytest.mark.parametrize(
+    ("solver_cfg", "num_substeps", "decimation"),
+    [(MJWarpSolverCfg(use_mujoco_contacts=True), 2, 1), (KaminoPADMMSolverCfg(), 3, 2)],
+    ids=["single_state_substeps", "double_state_folded_decimation"],
+)
+def test_staged_body_force_acts_on_every_solver_substep(solver_cfg, num_substeps, decimation):
+    """A body force written before a step acts on every solver substep of every physics step in that step."""
+    sim_cfg = SimulationCfg(
+        dt=0.005,
+        device="cuda:0",
+        gravity=(0.0, 0.0, -9.81),
+        physics=NewtonCfg(solver_cfg=solver_cfg, num_substeps=num_substeps),
+    )
+    with build_simulation_context(sim_cfg=sim_cfg) as sim:
+        builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics))
+        builder.add_body(mass=1.0)
+        sim.reset()
+        if decimation > 1:
+            # Newton runs the whole decimation loop inside one step() call.
+            NewtonManager.activate_newton_actuator_path()
+            NewtonManager.set_decimation(decimation)
+        NewtonManager.get_state_0().body_f.assign(
+            wp.array([[0.0, 0.0, 9.81, 0.0, 0.0, 0.0]], dtype=wp.spatial_vector, device="cuda:0")
+        )
+        sim.step(render=False)
+        np.testing.assert_allclose(NewtonManager.get_state_0().joint_qd.numpy(), 0.0, atol=1e-6)
+
+
 def test_stateful_actuator_graph_matches_eager_across_decimation_changes(monkeypatch):
     """PID and delay history survive repeated replay, recapture, and odd/even loop lengths."""
     trajectories = []
