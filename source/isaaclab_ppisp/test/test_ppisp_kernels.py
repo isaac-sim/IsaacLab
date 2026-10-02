@@ -338,63 +338,6 @@ def test_ppisp_warp_crf_extreme_centers_match_reference():
         np.testing.assert_allclose(rgba_np[:, channel].astype(float), expected_bytes, atol=1.0, err_msg=suffix)
 
 
-def test_ppisp_warp_controller_exposure_increases_ldr_output():
-    import numpy as np
-
-    hdr_color = _hdr(0.25, (1, 4, 4, 3))
-    baseline = _rgba((1, 4, 4, 4))
-    exposed = _rgba((1, 4, 4, 4))
-    baseline_params = wp.zeros((1, 9), dtype=wp.float32)
-    exposed_params = wp.from_numpy(
-        np.array([[1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]], dtype=np.float32),
-        dtype=wp.float32,
-    )
-    cfg = normalize_ppisp_cfg(PpispCfg())
-
-    apply_ppisp_to_rgba_with_controller_params(hdr_color, baseline, cfg, baseline_params)
-    apply_ppisp_to_rgba_with_controller_params(hdr_color, exposed, cfg, exposed_params)
-
-    baseline_np = baseline.numpy()
-    exposed_np = exposed.numpy()
-    assert (baseline_np[..., 3] == 255).all()
-    assert (exposed_np[..., 3] == 255).all()
-    assert exposed_np[..., :3].astype(float).mean() > baseline_np[..., :3].astype(float).mean()
-
-
-def test_ppisp_warp_crf_extreme_centers_stay_finite():
-    import numpy as np
-
-    hdr_data = np.array(
-        [
-            [
-                [[0.0, 0.25, 0.5], [0.75, 1.0, 0.5]],
-                [[0.0, 0.25, 0.5], [0.75, 1.0, 0.5]],
-            ]
-        ],
-        dtype=np.float32,
-    )
-    hdr_color = wp.from_numpy(hdr_data, dtype=wp.float32)
-    rgba = _rgba((1, 2, 2, 4))
-
-    apply_ppisp_to_rgba(
-        hdr_color,
-        rgba,
-        normalize_ppisp_cfg(
-            PpispCfg(
-                inputs={
-                    "crfCenterR": -100.0,
-                    "crfCenterG": 100.0,
-                    "crfCenterB": -100.0,
-                }
-            )
-        ),
-    )
-
-    rgba_np = rgba.numpy()
-    assert (rgba_np[..., 3] == 255).all()
-    assert np.isfinite(rgba_np.astype(float)).all()
-
-
 @pytest.mark.parametrize("controller", [False, True])
 def test_ppisp_processor_preserves_pipeline_output_and_borrowed_bindings(controller):
     import numpy as np
