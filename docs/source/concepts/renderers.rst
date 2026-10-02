@@ -515,7 +515,8 @@ Asynchronous Rendering
 
 :attr:`~isaaclab_ov.renderers.OVRTXRendererCfg.async_rendering` returns a camera's previous capture
 while rendering its next image. This allows rendering to overlap simulation and Python work.
-The first capture, including after reset, waits for a fresh image. The ovstage path stays synchronous.
+The first capture, including after a full reset, waits for a fresh image. The ovstage path stays
+synchronous.
 
 Latency is one capture, not necessarily one physics or control step. State observations remain
 current, so enabling this option changes the policy's observation timing; training may need to
@@ -533,9 +534,15 @@ For a camera capturing once per environment step, steady-state operation is:
 The first image is returned immediately after priming and repeated once on the next capture.
 
 Each camera owns its pending observations. Reading camera A never changes camera B's pixels or
-metadata, even when they share a native render submission. Reset discards that camera's pending
-observations. A partial environment reset re-primes the whole tiled camera product, without
-invalidating other cameras.
+metadata, even when they share a native render submission. A full reset discards that camera's pending
+observations and primes a fresh image.
+
+A partial environment reset keeps the pipeline. One capture renders every environment tile, so a fresh
+image for the reset environments would make all environments wait. Instead, the first observation of a
+new episode shows the tile from the end of the previous episode. Set ``blank_first_frame=True`` on the
+image observation terms, such as :class:`~isaaclab.envs.mdp.observations.image_rgb`, to replace this
+frame with zeros. The policy then sees the same "no image yet" frame with every renderer, and a real
+camera can give the same frame at start-up.
 
 Live fields such as ``camera.data.pos_w`` and ``camera.data.intrinsic_matrices`` remain current.
 Use the capture metadata when pairing delayed pixels with a pose or calibration, for example
