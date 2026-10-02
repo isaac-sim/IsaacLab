@@ -99,6 +99,7 @@ def _cmd_compare(args: argparse.Namespace) -> int:
 def _cmd_pair(args: argparse.Namespace) -> int:
     report = {
         "baseline_commit": args.baseline_commit,
+        "baseline_source": args.baseline_source,
         "candidate_commit": args.candidate_commit,
         "rows": [_pair_row(args.baseline_dir, args.candidate_dir, leg) for leg in _matrix_legs(args.benchmark_matrix)],
     }
@@ -196,6 +197,7 @@ def build_parser() -> argparse.ArgumentParser:
     pair_parser.add_argument("--candidate_dir", type=Path, required=True)
     pair_parser.add_argument("--benchmark_matrix", type=Path, required=True)
     pair_parser.add_argument("--baseline_commit", required=True)
+    pair_parser.add_argument("--baseline_source", choices=("fresh", "reused"), default="fresh")
     pair_parser.add_argument("--candidate_commit", required=True)
     pair_parser.add_argument("--output_json", type=Path, required=True)
     pair_parser.set_defaults(func=_cmd_pair)

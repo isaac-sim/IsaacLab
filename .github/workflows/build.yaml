@@ -4,12 +4,13 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 # region help
-# Docker builds and their dependent tests run only on a labeled PR event, a push to a protected
+# Docker builds and their dependent tests run on an activated PR, a push to a protected
 # branch, or a manual workflow dispatch. Do not filter the label with a job-level ``if``:
 # GitHub treats skipped required jobs as successful status checks.
 #
 # GitHub cannot filter label names at trigger time, so adding any label to a PR
-# starts this workflow. Only a ``ci:run-docker`` event cancels an in-flight run;
+# starts this workflow. Later updates run only after that activation. An update or
+# ``ci:run-docker`` event cancels an in-flight run;
 # other label events queue behind it so that a triage label cannot cancel a
 # build whose required checks have already been reported.
 #
@@ -61,7 +62,7 @@ on:
       - develop
       - 'release/**'
   pull_request:
-    types: [labeled]
+    types: [labeled, synchronize]
     branches:
       - main
       - develop
@@ -73,7 +74,7 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   # Push and workflow_dispatch events carry no label, so this stays false for them and
   # preserves the post-merge runs that ``github.event_name == 'pull_request'`` used to protect.
-  cancel-in-progress: ${{ github.event.label.name == 'ci:run-docker' }}
+  cancel-in-progress: ${{ github.event.action == 'synchronize' || github.event.label.name == 'ci:run-docker' }}
 
 permissions:
   contents: read
@@ -90,10 +91,35 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      issues: read
       pull-requests: read
     outputs:
+      activated: ${{ steps.activation.outputs.activated }}
       should_run: ${{ steps.detect.outputs.should_run }}
     steps:
+    - name: Check PR update activation
+      id: activation
+      continue-on-error: true
+      timeout-minutes: 5
+      env:
+        EVENT_ACTION: ${{ github.event.action }}
+        GH_TOKEN: ${{ github.token }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+      run: |
+        set -euo pipefail
+        echo "activated=false" >> "$GITHUB_OUTPUT"
+        activated=true
+        if [ "$EVENT_ACTION" = synchronize ]; then
+          activated="$(
+            gh api --paginate --slurp \
+              "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/events?per_page=100" \
+              --jq 'map(.[]) | any(.event == "labeled" and .actor.login != "github-actions[bot]")'
+          )"
+        fi
+        echo "activated=$activated" >> "$GITHUB_OUTPUT"
+        if [ "$activated" != true ]; then
+          echo "::notice::Docker CI is not activated. Apply a label or use run-ci first."
+        fi
     - uses: actions/checkout@v6
       with:
         fetch-depth: 1
@@ -196,10 +222,15 @@ jobs:
   #region build jobs
   build:
     name: Build Base Docker Image
-    runs-on: [self-hosted, gpu]
+    runs-on: ${{ fromJSON(needs.changes.outputs.activated == 'true' && '["self-hosted", "gpu"]' || '["ubuntu-latest"]') }}
     needs: [changes, config]
     if: needs.changes.outputs.should_run == 'true'
     steps:
+    - name: Require prior PR activation
+      if: needs.changes.outputs.activated != 'true'
+      run: |
+        echo '::error::Docker CI is not activated. Apply a label or use run-ci first.'
+        exit 1
     - name: Checkout Code
       uses: actions/checkout@v6
       with:
@@ -231,6 +262,7 @@ jobs:
     needs: [changes, config]
     if: >-
       github.event_name != 'push' &&
+      needs.changes.outputs.activated == 'true' &&
       needs.changes.outputs.should_run == 'true'
     steps:
     - name: Checkout Code
@@ -1056,8 +1088,57 @@ jobs:
         echo "base_commit=$base_commit" >> "$GITHUB_OUTPUT"
         echo "head_commit=$head_commit" >> "$GITHUB_OUTPUT"
 
-    - name: Checkout exact base
+    - name: Key reusable baseline
       if: github.event_name == 'pull_request'
+      id: baseline_key
+      env:
+        BASE_COMMIT: ${{ steps.perf_pair.outputs.base_commit }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+      run: |
+        set -euo pipefail
+        protocol_hash=$(
+          cd "$PERF_CONTROLLER"
+          sha256sum benchmark-legs.tsv tools/perf_smoke/run_benchmarks.sh | sha256sum | cut -c1-16
+        )
+        echo "prefix=performance-pr-baseline-${PR_NUMBER}-${BASE_COMMIT}-${protocol_hash}" >> "$GITHUB_OUTPUT"
+
+    - name: Restore reusable baseline
+      if: github.event_name == 'pull_request'
+      id: baseline_cache
+      continue-on-error: true
+      uses: actions/cache/restore@v4
+      with:
+        path: ${{ env.PERF_BASELINE_OUTPUT }}
+        key: ${{ steps.baseline_key.outputs.prefix }}-${{ github.run_id }}-${{ github.run_attempt }}
+        restore-keys: |
+          ${{ steps.baseline_key.outputs.prefix }}-
+
+    - name: Validate reusable baseline
+      if: steps.baseline_cache.outputs.cache-matched-key != ''
+      id: cached_baseline
+      run: |
+        set -uo pipefail
+        validate_baseline() {
+          while IFS='|' read -r leg task num_envs bench_timeout_s args; do
+            test "$(cat "$PERF_BASELINE_OUTPUT/$leg/status" 2>/dev/null)" = ok || return 1
+            mapfile -t results < <(
+              find "$PERF_BASELINE_OUTPUT/$leg" -type f -name 'benchmark_runtime_*.json' | sort
+            )
+            test "${#results[@]}" -eq 3 || return 1
+            for result in "${results[@]}"; do
+              python3 -m json.tool "$result" >/dev/null || return 1
+            done
+          done < "$PERF_CONTROLLER/benchmark-legs.tsv"
+        }
+        if validate_baseline; then
+          echo "reused=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "::warning::Ignoring incomplete reusable baseline"
+          find "$PERF_BASELINE_OUTPUT" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +
+        fi
+
+    - name: Checkout exact base
+      if: github.event_name == 'pull_request' && steps.cached_baseline.outputs.reused != 'true'
       id: base_checkout
       continue-on-error: true
       uses: actions/checkout@v6
@@ -1100,6 +1181,18 @@ jobs:
         CI_IMAGE_TAG: isaac-lab-perf-base:${{ steps.perf_pair.outputs.base_commit }}
         JIT_CACHE_ROOT: ${{ env.PERF_JIT_CACHE }}
       run: "$PERF_CONTROLLER/tools/perf_smoke/run_benchmarks.sh"
+
+    - name: Cache fresh baseline
+      if: >-
+        always() && !cancelled() &&
+        github.event_name == 'pull_request' &&
+        steps.cached_baseline.outputs.reused != 'true' &&
+        steps.base_benchmark.outcome == 'success'
+      continue-on-error: true
+      uses: actions/cache/save@v4
+      with:
+        path: ${{ env.PERF_BASELINE_OUTPUT }}
+        key: ${{ steps.baseline_key.outputs.prefix }}-${{ github.run_id }}-${{ github.run_attempt }}
 
     - name: Restore tested merge
       if: always() && !cancelled() && github.event_name == 'pull_request'
@@ -1167,6 +1260,7 @@ jobs:
       if: always() && github.event_name == 'pull_request'
       continue-on-error: true
       env:
+        BASELINE_SOURCE: ${{ steps.cached_baseline.outputs.reused == 'true' && 'reused' || 'fresh' }}
         PERF_PYTHON: ${{ steps.store_venv.outputs.python }}
       run: |
         set -euo pipefail
@@ -1178,6 +1272,7 @@ jobs:
           --candidate_dir "$GITHUB_WORKSPACE/benchmark-output" \
           --benchmark_matrix "$PERF_CONTROLLER/benchmark-legs.tsv" \
           --baseline_commit "${{ steps.perf_pair.outputs.base_commit }}" \
+          --baseline_source "$BASELINE_SOURCE" \
           --candidate_commit "$GITHUB_SHA" \
           --output_json "$GITHUB_WORKSPACE/benchmark-output/pair-comparison.json" \
           | tee -a "$GITHUB_STEP_SUMMARY"

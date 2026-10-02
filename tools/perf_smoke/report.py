@@ -126,6 +126,9 @@ def render_pair(report: dict) -> str:
     """Render an informational base-versus-tested-merge FPS comparison."""
     rows = report.get("rows", [])
     counts = {status: sum(row.get("status") == status for row in rows) for status in _PAIR_LABELS}
+    baseline_source = (
+        "reused from an earlier run" if report.get("baseline_source") == "reused" else "fresh on this runner"
+    )
     lines = [
         "## PR performance comparison",
         "",
@@ -135,7 +138,7 @@ def render_pair(report: dict) -> str:
         ),
         "",
         (
-            f"Base: `{report.get('baseline_commit', 'unknown')}` · "
+            f"Base: `{report.get('baseline_commit', 'unknown')}` ({baseline_source}) · "
             f"Tested merge: `{report.get('candidate_commit', 'unknown')}`"
         ),
         "",
@@ -152,7 +155,7 @@ def render_pair(report: dict) -> str:
     if unavailable:
         lines += ["", "Not comparable:"]
         lines.extend(f"- `{row.get('label', 'unknown')}`: {row['reason']}." for row in unavailable)
-    lines += ["", "This same-job comparison is informational; the rolling-history gate remains authoritative."]
+    lines += ["", "This build comparison is informational; the rolling-history gate remains authoritative."]
     return "\n".join(lines) + "\n"
 
 
