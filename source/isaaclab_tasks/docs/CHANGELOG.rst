@@ -3,6 +3,34 @@ Changelog
 
 .. towncrier release notes start
 
+24.0.0 (2026-10-02)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``presets=minimal`` to Franka Reach and rigid Lift, selecting the ``FRANKA_MINIMAL_CFG``
+  gripper-only colliders while preserving task controls and independent physics backend selection.
+
+Changed
+^^^^^^^
+
+* **Breaking:** The UR10 particle-push task no longer opens a Newton GL visualizer in play mode. Pass
+  ``--visualizer newton_gl`` to open one.
+* :func:`~isaaclab_tasks.utils.setup_preset_cli` never takes a Hydra override as the value of an option whose
+  value is optional: ``--video presets=newton_mjwarp`` uses the ``--video`` default and passes the override on.
+* **Breaking:** Migrated maintained Franka Reach, Drawer, rigid and deformable Lift, and related
+  contributed tasks to the main ``FRANKA_PANDA_CFG`` with backend-specific physics and full arm and
+  gripper collisions. Existing checkpoints require requalification against the changed robot dynamics.
+
+Fixed
+^^^^^
+
+* Fixed Franka Pour startup with the shared Franka asset by selecting its MuJoCo physics payload
+  and removing the obsolete duplicate-mimic workaround.
+* Corrected the Reach action and controller contracts for the shared asset.
+
+
 23.1.0 (2026-10-01)
 ~~~~~~~~~~~~~~~~~~~
 
