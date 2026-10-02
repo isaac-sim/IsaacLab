@@ -326,19 +326,21 @@ class _NewtonViewerUIMixin:
     def _patch_viewer_panel(self) -> None:
         """Replace Newton's left panel with an IsaacLab-oriented layout.
 
-        New section order:
+        A compact info strip (physics backend, up axis, gravity) sits above the sections, which are ordered by
+        how often they are used:
 
-        1. **Isaac Lab** (open) — physics backend, model info, training controls.
-        2. **Live Plots** (closed) — injected when :meth:`~NewtonVisualizer.add_live_plots`
-           is called.
-        3. **Visualization Markers** (open) — Newton's debug overlays, renamed.
-        4. **Rendering Options** (open) — VSync and renderer-specific options.
-        5. **Wind** (closed) — only shown when ``viewer.wind`` is set.
-        6. **Controls** (closed) — camera keyboard reference.
-        7. **Selection API** (closed) — Newton's selection panel.
+        1. **Playback** (open) — pause, reset, and update-frequency controls, and any ``"side"`` UI callbacks.
+        2. **Environments** (open) — how many environments are drawn; shown when more than one is available.
+        3. **Policy Ghosts** (open) — added by :meth:`~NewtonVisualizer.attach_policy_ghosts`.
+        4. **Streaming View** and **Live Plots** (closed) — live feeds from the running simulation.
+        5. **Visualization Markers** (closed) — Newton's debug overlays; the name is shared with the Kit and Viser
+           visualizers.
+        6. **Rendering Options** (closed) — VSync and renderer-specific options.
+        7. **Wind** (closed) — only shown when ``viewer.wind`` is set.
+        8. **Controls** and **Selection API** (closed) — camera keyboard reference and Newton's selection panel.
 
-        The top-level Newton ``Pause / Step`` row is suppressed; pause/resume is
-        handled by the IsaacLab training controls inside **Isaac Lab**.
+        The top-level Newton ``Pause / Step`` row is suppressed; pause/resume is handled by the Isaac Lab controls
+        inside **Playback**.
         """
         import newton as nt
 
@@ -375,19 +377,29 @@ class _NewtonViewerUIMixin:
             for callback in _g._ui_callbacks.get("panel", []):
                 callback(imgui)
 
-            # --- Simulation -------------------------------------------------
+            # --- Info strip -------------------------------------------------
+            imgui.text(f"Physics: {getattr(viewer, '_backend_display', 'Unknown')}")
+            if viewer.model is not None:
+                axis_names = ["X", "Y", "Z"]
+                gravity = viewer.model.gravity.numpy()[0]
+                imgui.text(
+                    f"Up: {axis_names[viewer.model.up_axis]}   Gravity: "
+                    f"({gravity[0]:.2f}, {gravity[1]:.2f}, {gravity[2]:.2f})"
+                )
+
+            # --- Playback ---------------------------------------------------
             imgui.set_next_item_open(True, imgui.Cond_.appearing)
-            if imgui.collapsing_header("Simulation"):
-                imgui.separator()
-                imgui.text(f"Physics: {getattr(viewer, '_backend_display', 'Unknown')}")
-                if viewer.model is not None:
-                    axis_names = ["X", "Y", "Z"]
-                    imgui.text(f"Up Axis: {axis_names[viewer.model.up_axis]}")
-                    gravity = viewer.model.gravity.numpy()[0]
-                    imgui.text(f"Gravity: ({gravity[0]:.2f}, {gravity[1]:.2f}, {gravity[2]:.2f})")
+            if imgui.collapsing_header("Playback"):
                 imgui.separator()
                 for callback in _g._ui_callbacks.get("side", []):
                     callback(imgui)
+
+            # --- Environments -----------------------------------------------
+            if viewer._has_environment_controls():
+                imgui.set_next_item_open(True, imgui.Cond_.appearing)
+                if imgui.collapsing_header("Environments"):
+                    imgui.separator()
+                    viewer._render_environment_controls(imgui)
 
             # --- Policy Ghosts ----------------------------------------------
             ghost_panel = getattr(viewer, "_policy_ghost_panel", None)
@@ -482,7 +494,7 @@ class _NewtonViewerUIMixin:
                             marker.set_visibility(visible)
 
             # --- Rendering Options ------------------------------------------
-            imgui.set_next_item_open(True, imgui.Cond_.appearing)
+            imgui.set_next_item_open(False, imgui.Cond_.appearing)
             if imgui.collapsing_header("Rendering Options"):
                 imgui.separator()
                 _c, viewer.vsync = imgui.checkbox("VSync", viewer.vsync)
@@ -534,8 +546,23 @@ class _NewtonViewerUIMixin:
 
         gui._render_left_panel = _render_left_panel
 
+    def _has_environment_controls(self) -> bool:
+        """Return whether more than one environment can be shown, so the Environments section is useful."""
+        owner = getattr(self, "_owner", None)
+        return owner is not None and owner.visible_env_limit > 1
+
+    def _render_environment_controls(self, imgui) -> None:
+        """Render the visible-environment count slider."""
+        owner = self._owner
+        imgui.text("Visible Envs (per slot)" if owner._policy_ghost_panel is not None else "Visible Envs")
+        changed, new_count = imgui.slider_int("##VisibleEnvs", owner.visible_env_count, 1, owner.visible_env_limit)
+        if changed:
+            owner.set_visible_env_count(new_count)
+        if imgui.is_item_hovered():
+            imgui.set_tooltip("Number of environments drawn in the viewer; simulation is unaffected")
+
     def _render_training_controls(self, imgui):
-        """Render Isaac Lab training control widgets inside the Isaac Lab panel section."""
+        """Render the Isaac Lab playback controls inside the Playback section."""
         pause_label = "Resume Simulation" if self._paused_training else "Pause Simulation"
         if imgui.button(pause_label):
             self._paused_training = not self._paused_training
@@ -552,16 +579,6 @@ class _NewtonViewerUIMixin:
 
         if imgui.button("Reset Episode"):
             self._reset_requested = True
-
-        owner = getattr(self, "_owner", None)
-        if owner is not None and owner.visible_env_limit > 1:
-            imgui.text("Visible Envs (per slot)" if owner._policy_ghost_panel is not None else "Visible Envs")
-            count = owner.visible_env_count
-            changed, new_count = imgui.slider_int("##VisibleEnvs", count, 1, owner.visible_env_limit)
-            if changed:
-                owner.set_visible_env_count(new_count)
-            if imgui.is_item_hovered():
-                imgui.set_tooltip("Number of environments drawn in the viewer; simulation is unaffected")
 
         imgui.text("Visualizer Update Frequency")
         current_frequency = self._update_frequency
