@@ -222,9 +222,6 @@ contain a ``UsdGeom.TetMesh``, Isaac Lab generates one, which requires the optio
 
     uv sync --inexact --extra tetrahedralization
 
-    # With the legacy installer.
-    ./isaaclab.sh -i tetrahedralization
-
 Surface deformables never need it, and neither do volume deformables loaded from a USD that already
 ships a pre-tetrahedralized ``UsdGeom.TetMesh`` under the deformable prim.
 

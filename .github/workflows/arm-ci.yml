@@ -60,7 +60,7 @@ jobs:
   # Shared change-detection gate. The trigger is unfiltered (see header) so the
   # arm-ci check is always creatable; this decides whether the expensive jobs
   # actually run. Lists arm-ci's real inputs — including the root files
-  # Dockerfile.base copies (pyproject.toml, environment.yml, isaaclab.*) that a
+  # Dockerfile.base copies (pyproject.toml and uv.lock) that a
   # path filter would otherwise miss.
   changes:
     name: Detect Changes
@@ -89,9 +89,8 @@ jobs:
           ^apps/ :: Standalone apps
           ^scripts/ :: Standalone scripts
           ^\.dockerignore$ :: Docker build context filter
+          ^uv\.lock$ :: Dependency lockfile
           ^pyproject\.toml$ :: Root Python project (OV pins + Docker copy)
-          ^environment\.yml$ :: Conda env (Docker copy)
-          ^isaaclab\. :: isaaclab.sh/.bat entrypoints (Docker copy)
           ^\.github/workflows/arm-ci\.yml$ :: This workflow file
           ^\.github/workflows/config\.yaml$ :: Base image config
           ^\.github/actions/ :: CI actions
