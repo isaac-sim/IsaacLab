@@ -87,6 +87,15 @@ The task appears in the :ref:`environment browser <environment-browser>` as
 ``IsaacContrib-Tablecloth-H1``.
 For the five-speed standalone comparison, see :ref:`newton-using-vbd`.
 
+This experimental expert is open-loop; cloth withdrawal can succeed even if a
+grip slips during the hold. CI covers launch and backend regressions. Full stance
+and physical-grasp validation is an opt-in check for changes to the asset or expert:
+
+.. code-block:: bash
+
+   uv run --extra importers python -m pytest -q \
+      source/isaaclab_tasks/test/contrib/test_tablecloth_h1_stance.py
+
 Start with ``lift_cube_sm.py`` for a self-contained state-machine example.
 The H1 example shows how to keep scene, observations, rewards, and terminations
 in a reusable task while the scripted expert supplies only actions.
