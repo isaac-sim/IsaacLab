@@ -300,14 +300,34 @@ def test_drive_matches_upstream_motor_and_friction_goldens(goldens, servo_usd, d
     np.testing.assert_allclose(bam.drive.friction_budget.numpy(), goldens["frictionloss_budget"], rtol=1e-5, atol=1e-6)
 
 
-def test_unbound_drive_rejects_stepping(monkeypatch, servo_usd):
-    """A drive stepped without the MJWarp binding raises instead of reading no external load."""
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_backlash_feedback_adds_play_angle_but_keeps_motor_velocity(goldens, servo_usd, device):
+    """The encoder sees the output angle; back-EMF still uses the rotor velocity."""
+    bam = make_actuator(servo_usd, num_envs=2, device=device)
+    bam.drive.has_backlash = True
+    bam.drive.backlash_pos_indices = wp.array([1, 0, 3, 2], dtype=wp.uint32, device=device)
+    positions = np.array([[0.01, -0.02], [0.03, -0.01]], dtype=np.float32)
+    velocities = np.array([[0.3, -0.4], [-0.5, 0.2]], dtype=np.float32)
+    targets = np.zeros_like(positions)
+    forces = step(bam, positions, velocities, targets)
+    kt, resistance = goldens["attr_kt"].item(), goldens["attr_R"].item()
+    error = targets - positions - positions[:, ::-1]
+    expected = kt / resistance * (VIN * KP_FW * goldens["attr_error_gain"].item() * error - kt * velocities)
+    np.testing.assert_allclose(forces, expected, rtol=2e-5, atol=1e-7)
+
+
+@pytest.mark.parametrize("binding", ["solver", "play-hinge"])
+def test_unbound_drive_rejects_stepping(monkeypatch, servo_usd, binding):
+    """A drive stepped without its MJWarp or play-hinge binding raises instead of reading garbage."""
     bam = make_actuator(servo_usd, num_envs=1, device="cpu")
-    bam.drive.external_torque = None
+    if binding == "solver":
+        bam.drive.external_torque = None
+    else:
+        bam.drive.has_backlash = True
     # Keep a missing guard from crashing the process through a null Warp array.
     monkeypatch.setattr(wp, "launch", lambda *args, **kwargs: None)
     zeros = np.zeros((1, 2))
-    with pytest.raises(RuntimeError, match="BAM.*solver binding"):
+    with pytest.raises(RuntimeError, match=f"BAM.*{binding}.*binding"):
         step(bam, zeros, zeros, zeros)
 
 
