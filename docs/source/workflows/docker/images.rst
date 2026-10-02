@@ -48,9 +48,17 @@ container after pulling repository changes, rebuild it and recreate the service:
     ./docker/container.py build base --pull
     ./docker/container.py start base
 
-Stopping preserves the named volumes. Existing bind-mounted caches keep their host ownership;
-before reusing a cache created by a root container, give its directories to uid/gid 1000.
-Changing the image cannot repair permissions on a host bind mount.
+Stopping now preserves named volumes; older versions deleted them on every stop. Compose
+caches, logs, and data use named volumes, whose existing ownership is unchanged by rebuilding.
+For a one-time upgrade from a root-run image, copy any results you need, stop other profiles
+without ``--remove-volumes`` (use ``docker rm <name>`` for already-stopped containers),
+then run ``./docker/container.py stop base --remove-volumes``
+before rebuilding and starting base. This deletes the project's caches, logs, and data so
+new volumes inherit uid/gid 1000 ownership. Cleanup requires the selected container to still
+exist and refuses to run while another container remains in the Compose project.
+
+If the selected container was already removed, start it again before requesting cleanup.
+For custom host bind-mounted caches, fix ownership on the host to uid/gid 1000 instead.
 
 With X11 forwarding enabled, launch the standalone Isaac Sim GUI from its installation directory:
 
@@ -62,8 +70,10 @@ With X11 forwarding enabled, launch the standalone Isaac Sim GUI from its instal
 The image redirects shared Python packages, including the direct ``omni.warp.core`` package,
 to the locked environment. Missing ``packaging/__init__.py`` or ``warp/_src/apic/__init__.py``
 errors indicate broken shared package files; recreating a container from a newly built image
-restores the package tree. Cache-permission errors require fixing ownership of the mounted
-cache directories separately.
+restores the package tree. An installer error about a whole-namespace NVIDIA symlink likewise
+requires restoring a clean Isaac Sim installation or rebuilding the image before retrying;
+removing the link alone does not restore Kit's CUDA 12 libraries. Cache-permission errors
+require the named-volume migration above or fixing ownership on custom host bind mounts.
 
 Kit-less image
 --------------
@@ -192,5 +202,5 @@ Python interpreter
 Every image installs from ``uv.lock`` into a Python 3.12 virtual environment at
 ``/opt/isaaclab-venv``. On the Isaac Sim-based images the environment is built on Isaac Sim's own
 interpreter, and Isaac Sim itself stays outside it, reached through the ``_isaac_sim`` symlink;
-``isaaclab.sh`` puts it on the path. In either case ``python`` on the container's ``PATH`` resolves
+``uv run isaaclab`` puts it on the path. In either case ``python`` on the container's ``PATH`` resolves
 to the right one, so scripts are run the same way regardless of image.

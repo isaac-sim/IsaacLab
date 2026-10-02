@@ -105,7 +105,12 @@ the container:
 
 The log is now at ``docker/artifacts/logs/docker_tutorial/log.txt`` on the host.
 The ``stop`` command removes the container and preserves its named volumes, including logs
-and caches. Pass ``--remove-volumes`` to delete them explicitly. The image remains. To remove
+and caches. Older versions deleted volumes on every stop. Pass ``--remove-volumes`` to delete
+them explicitly; this is project-wide cleanup, requires the selected container to exist, and
+refuses to run while other project containers remain (including stopped ones). Copy results
+and remove those containers without volume cleanup first (``docker rm <name>`` for stopped
+containers). See :ref:`docker-images` for the
+one-time migration from root-owned volumes. The image remains. To remove
 it after stopping, run ``docker image rm isaac-lab-base``; the next ``start`` rebuilds it. See
 `Docker pruning <https://docs.docker.com/engine/manage-resources/pruning/>`__ for other cleanup options.
 
@@ -190,21 +195,16 @@ What persists between runs
 --------------------------
 
 The compose file declares named volumes for Isaac Sim caches, logs, and your own data. They
-remain available while reusing a container, but ``container.py stop`` runs ``docker compose down
---volumes`` and removes them. Run ``container.py copy`` before ``stop`` to preserve your results
+remain available across ``container.py stop`` calls. Explicit ``container.py stop --remove-volumes``
+deletes them project-wide. Run ``container.py copy`` before volume cleanup to preserve your results
 on the host.
 
 ``container.py copy`` extracts the three volumes you are most likely to want on the host --
 ``logs``, ``data_storage``, and ``docs/_build`` -- into ``docker/artifacts``. For anything else, use
 ``docker cp``, for example ``docker cp isaac-lab-base:/workspace/isaaclab/logs .``.
 
-If you are upgrading from an Isaac Lab image that ran as ``root``, the existing volumes still hold
-root-owned files that the current uid/gid 1000 runtime user cannot write. Copy out anything worth
-keeping, then recreate them from the ``docker`` directory:
-
-.. code:: bash
-
-    docker compose --file docker-compose.yaml --profile base --env-file .env.base down --volumes
+For volumes inherited from an image that ran as ``root``, follow the one-time cleanup
+and ownership migration in :ref:`docker-images` before reusing them.
 
 .. dropdown:: All named volumes and their container paths
    :icon: file-directory

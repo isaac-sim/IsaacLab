@@ -167,7 +167,11 @@ class ContainerInterface:
         return result.returncode == 0
 
     def build(self, pull: bool = False):
-        """Build the Docker image, optionally refreshing its parent images."""
+        """Build the Docker image, optionally refreshing its parent images.
+
+        Args:
+            pull: Whether to pull updated parent images before building. Defaults to False.
+        """
         # Base-derived profiles must build their parent image first. Standalone
         # profiles, such as kitless, build only their selected service.
         if self.profile == "base" or self.requires_base_image:
@@ -251,8 +255,42 @@ class ContainerInterface:
             raise RuntimeError(f"The container '{self.container_name}' is not running.")
 
     def stop(self, remove_volumes: bool = False):
-        """Stop and remove the container, preserving volumes unless explicitly requested."""
-        if self.is_container_running() or remove_volumes:
+        """Stop and remove the container, preserving volumes unless explicitly requested.
+
+        Args:
+            remove_volumes: Whether to delete Compose-managed named and anonymous volumes,
+                including caches, logs, and data. Defaults to False. Cleanup requires the selected
+                container to exist and no other containers to remain in the Compose project.
+
+        Raises:
+            RuntimeError: If volume cleanup could affect another container in the Compose project.
+        """
+        if remove_volumes:
+            # Compose down --volumes deletes project-wide volumes, including those shared by profiles.
+            result = subprocess.run(
+                ["docker", "compose"]
+                + self.add_yamls
+                + self.add_profiles
+                + self.add_env_files
+                + ["ps", "--all", "--format", "{{.Name}}"],
+                capture_output=True,
+                text=True,
+                check=True,
+                cwd=self.context_dir,
+                env=self.environ,
+            )
+            containers = set(result.stdout.splitlines())
+            if self.container_name not in containers:
+                print(f"[INFO] Container '{self.container_name}' does not exist; no volumes were removed.")
+                return
+            others = containers - {self.container_name}
+            if others:
+                raise RuntimeError(
+                    "Refusing project-wide volume cleanup while other containers exist: "
+                    + ", ".join(sorted(others))
+                    + ". Copy their results and remove them without deleting volumes before retrying."
+                )
+        if remove_volumes or self.is_container_running():
             print(f"[INFO] Stopping the launched docker container '{self.container_name}'...\n")
             # stop running services
             cmd = (

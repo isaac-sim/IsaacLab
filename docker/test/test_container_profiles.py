@@ -126,9 +126,6 @@ def test_kitless_enter_and_stop_target_profile_container(
 
     interface.enter()
     interface.stop()
-    # Explicit cleanup must also work after a previous stop preserved the volumes.
-    interface.is_container_running.return_value = False
-    interface.stop(remove_volumes=True)
 
     stop_command = [
         "docker",
@@ -144,8 +141,28 @@ def test_kitless_enter_and_stop_target_profile_container(
     assert [call.args[0] for call in run.call_args_list] == [
         ["docker", "exec", "--interactive", "--tty", "-e", "DISPLAY=:99", "isaac-lab-kitless", "bash"],
         stop_command,
-        [*stop_command, "--volumes"],
     ]
+
+
+@pytest.mark.parametrize(
+    "containers",
+    [[], ["isaac-lab-kitless"], ["isaac-lab-kitless", "isaac-lab-base"], ["isaac-lab-base"]],
+)
+def test_volume_cleanup_requires_exclusive_project_container(make_interface, monkeypatch, containers):
+    """An absent profile cannot delete another profile's stopped data; shared containers block cleanup."""
+    run = MagicMock(return_value=Namespace(returncode=0, stdout="\n".join(containers)))
+    monkeypatch.setattr("docker.utils.container_interface.subprocess.run", run)
+    interface = make_interface("kitless")
+
+    if len(containers) > 1:
+        with pytest.raises(RuntimeError, match="Refusing project-wide volume cleanup"):
+            interface.stop(remove_volumes=True)
+    else:
+        interface.stop(remove_volumes=True)
+
+    commands = [call.args[0] for call in run.call_args_list]
+    cleanup = [command for command in commands if "--volumes" in command]
+    assert len(cleanup) == (1 if containers == ["isaac-lab-kitless"] else 0)
 
 
 def test_x11_overlay_covers_every_profile():

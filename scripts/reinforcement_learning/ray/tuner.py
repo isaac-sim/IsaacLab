@@ -6,6 +6,7 @@ import argparse
 import importlib.util
 import os
 import random
+import shlex
 import subprocess
 import sys
 from time import sleep, time
@@ -64,7 +65,7 @@ Usage:
 
 DOCKER_PREFIX = "/workspace/isaaclab/"
 BASE_DIR = os.path.expanduser("~")
-PYTHON_EXEC = "./isaaclab.sh -p"
+PYTHON_EXEC = "uv run --no-sync isaaclab -p"
 WORKFLOW = "scripts/reinforcement_learning/train.py"
 NUM_WORKERS_PER_NODE = 1  # needed for local parallelism
 PROCESS_RESPONSE_TIMEOUT = 200.0  # seconds to wait before killing the process when it stops responding
@@ -396,7 +397,7 @@ if __name__ == "__main__":
         "--run_mode",
         choices=["local", "remote"],
         default="remote",
-        help=("Set to local to use uv run python, set to remote to use /workspace/isaaclab/isaaclab.sh -p python"),
+        help=("Run in the local uv environment or the prepared remote container environment"),
     )
     parser.add_argument(
         "--workflow",
@@ -490,7 +491,7 @@ if __name__ == "__main__":
     print(f"[INFO]: Using {NUM_WORKERS_PER_NODE} workers per node.")
     if args.run_mode == "remote":
         BASE_DIR = DOCKER_PREFIX  # ensure logs are dumped to persistent location
-        PYTHON_EXEC = DOCKER_PREFIX + PYTHON_EXEC[2:]
+        PYTHON_EXEC = f"uv run --project {shlex.quote(DOCKER_PREFIX)} --no-sync isaaclab -p"
         if args.workflow is None:
             WORKFLOW = DOCKER_PREFIX + WORKFLOW
         else:
@@ -505,7 +506,7 @@ if __name__ == "__main__":
         else:
             raise ValueError("Please provide a result MLFLow URI server.")
     else:  # local
-        PYTHON_EXEC = os.getcwd() + "/" + PYTHON_EXEC[2:]
+        PYTHON_EXEC = f"uv run --project {shlex.quote(os.getcwd())} --no-sync isaaclab -p"
         if args.workflow is None:
             WORKFLOW = os.getcwd() + "/" + WORKFLOW
         else:
