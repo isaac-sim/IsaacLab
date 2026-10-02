@@ -11,6 +11,7 @@ from collections.abc import Collection
 import gymnasium as gym
 import pytest
 import torch
+from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.app.settings_manager import get_settings_manager
@@ -323,6 +324,11 @@ def _check_random_actions(
                 env_cfg.scene.num_envs = num_envs
         else:
             env_cfg = parse_env_cfg(task_name, device=device, num_envs=num_envs)
+        if task_name == "IsaacContrib-Factory-Franka" and num_envs == 2 and isinstance(env_cfg.sim.physics, PhysxCfg):
+            # Two-environment smoke tests do not need the Factory training-scale GPU buffers.
+            env_cfg.sim.physics.gpu_max_rigid_contact_count = 2**20
+            env_cfg.sim.physics.gpu_max_rigid_patch_count = 2**18
+            env_cfg.sim.physics.gpu_collision_stack_size = 2**26
         reset_event = getattr(env_cfg.events, "reset_strategies", None)
         if reset_event is not None and "state_table_size" in reset_event.params:
             reset_event.params["state_table_size"] = min(32, reset_event.params["state_table_size"])
