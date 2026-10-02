@@ -19,6 +19,7 @@ are never imported here.
 from __future__ import annotations
 
 import socket
+from collections.abc import Iterator
 from datetime import datetime, timezone
 from typing import Any
 
@@ -228,39 +229,16 @@ def capture_hardware(bm: Any) -> Hardware:
     )
 
 
-def _backends_from_env_cfg(env_cfg: object) -> tuple[str | None, str | None]:
-    """Return active backend names from a concrete environment configuration."""
-    physics_cfg = getattr(getattr(env_cfg, "sim", None), "physics", None)
-    physics_type = type(physics_cfg)
-    physics_descriptor = (
-        "physx"
-        if physics_cfg is None
-        else f"{physics_type.__module__}.{physics_type.__name__} {getattr(physics_cfg, 'class_type', '')}".lower()
-    )
-    physics = next(
-        (
-            name
-            for marker, name in (
-                ("ovphysx", "ovphysx"),
-                ("kamino", "newton_kamino"),
-                ("mjwarp", "newton_mjwarp"),
-                ("physx", "physx"),
-            )
-            if marker in physics_descriptor
-        ),
-        None,
-    )
-
-    renderer_names = {"isaac_rtx": "isaacsim_rtx", "ovrtx": "ovrtx", "newton_warp": "newton"}
-    rendering = None
-    stack = [env_cfg]
+def _iter_config_nodes(root: object) -> Iterator[object]:
+    """Yield non-scalar nodes from a concrete configuration tree."""
+    stack = [root]
     visited: set[int] = set()
-    while stack and rendering is None:
+    while stack:
         node = stack.pop()
         if id(node) in visited:
             continue
         visited.add(id(node))
-        rendering = renderer_names.get(getattr(node, "renderer_type", None))
+        yield node
         if isinstance(node, dict):
             children = node.values()
         elif isinstance(node, (list, tuple)):
@@ -275,6 +253,39 @@ def _backends_from_env_cfg(env_cfg: object) -> tuple[str | None, str | None]:
             for child in children
             if child is not None and not isinstance(child, (str, bytes, int, float, bool, type))
         )
+
+
+def _backends_from_env_cfg(env_cfg: object) -> tuple[str | None, str | None]:
+    """Return active backend names from a concrete environment configuration."""
+    physics_cfg = getattr(getattr(env_cfg, "sim", None), "physics", None)
+    physics_descriptors = (
+        ["physx"]
+        if physics_cfg is None
+        else [
+            f"{type(node).__module__}.{type(node).__name__} {getattr(node, 'class_type', '')}".lower()
+            for node in _iter_config_nodes(physics_cfg)
+        ]
+    )
+    physics = next(
+        (
+            name
+            for marker, name in (
+                ("ovphysx", "ovphysx"),
+                ("kamino", "newton_kamino"),
+                ("mjwarp", "newton_mjwarp"),
+                ("physx", "physx"),
+            )
+            if any(marker in descriptor for descriptor in physics_descriptors)
+        ),
+        None,
+    )
+
+    renderer_names = {"isaac_rtx": "isaacsim_rtx", "ovrtx": "ovrtx", "newton_warp": "newton"}
+    rendering = None
+    for node in _iter_config_nodes(env_cfg):
+        rendering = renderer_names.get(getattr(node, "renderer_type", None))
+        if rendering is not None:
+            break
     return physics, rendering
 
 
