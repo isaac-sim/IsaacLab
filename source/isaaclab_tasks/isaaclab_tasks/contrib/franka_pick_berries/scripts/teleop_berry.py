@@ -160,6 +160,23 @@ parser.add_argument(
 )
 parser.add_argument("--width", type=int, default=1280)
 parser.add_argument("--height", type=int, default=720)
+parser.add_argument(
+    "--tracy",
+    action="store_true",
+    help="Profile with Tracy: renderer, physics and task zones on port 8086 (see the README)",
+)
+parser.add_argument(
+    "--tracy_sync",
+    action="store_true",
+    help="With --tracy, time GPU work per zone: synchronizes each zone and disables the physics CUDA graph",
+)
+parser.add_argument(
+    "--tracy_setting",
+    action="append",
+    default=[],
+    metavar="SETTING",
+    help="With --tracy, an extra Carbonite renderer setting such as --tracy_setting=--/app/profilerMask=7 (repeatable)",
+)
 add_launcher_args(parser)
 parser.set_defaults(device="cuda:0", visualizer=[], headless=True)
 args = parser.parse_args()
@@ -183,6 +200,10 @@ if args.steps < 0 or args.width <= 0 or args.height <= 0 or args.capture_every <
     parser.error("Steps/capture interval must be nonnegative and image size positive")
 if args.mode == "keyboard" and args.no_render:
     parser.error("Keyboard mode requires its interactive window")
+if args.tracy_setting and not (args.tracy or args.tracy_sync):
+    parser.error("--tracy_setting requires --tracy")
+if (args.tracy or args.tracy_sync) and args.no_render:
+    parser.error("--tracy requires rendering: the Tracy client ships with the OVRTX renderer")
 if args.verify_render and args.no_render:
     parser.error("--verify_render requires rendering")
 if args.video and (args.no_render or args.output is None or shutil.which("ffmpeg") is None):
@@ -203,6 +224,7 @@ if not args.no_render:
 
     require_live_gaussian_renderer()
 
+from isaaclab_tasks.contrib.franka_pick_berries import profiling  # noqa: E402
 from isaaclab_tasks.contrib.franka_pick_berries.pick_berries_env_cfg import BerryPickEnvCfg  # noqa: E402
 
 cfg = BerryPickEnvCfg(background=args.background)
@@ -222,6 +244,11 @@ cfg.berry_asset_path = str(args.asset.resolve()) if args.asset else None
 cfg.berry_asset_version = args.asset_version
 cfg.physics_resolution = args.physics_resolution
 cfg.sim.device = args.device
+if args.tracy or args.tracy_sync:
+    profiling.enable(sync=args.tracy_sync, settings=args.tracy_setting)
+    if args.tracy_sync:
+        # Run the solvers from Python on every step, so that their zones appear.
+        cfg.sim.physics.use_cuda_graph = False
 with launch_simulation(cfg, args), ExitStack() as resources:
     import gymnasium as gym
     import numpy as np
@@ -230,10 +257,14 @@ with launch_simulation(cfg, args), ExitStack() as resources:
 
     from isaaclab_tasks.contrib.franka_pick_berries.control.gamepad import BerryGamepad, BerryGamepadCfg
     from isaaclab_tasks.contrib.franka_pick_berries.control.motion import scripted_motion_time
+    from isaaclab_tasks.contrib.franka_pick_berries.physics.coupling import coupled_solver
     from isaaclab_tasks.contrib.franka_pick_berries.scene.tableware import BOWL
 
     env = gym.make("IsaacContrib-Pick-Berry-Franka-IK-Rel-Newton", cfg=cfg).unwrapped
     resources.callback(env.close)
+    if profiling.enabled():
+        profiling.instrument(env.sim, "step", "physics", 0x4C8BF5)
+        profiling.instrument_solvers(coupled_solver())
     env.reset()
     viewer = None
     if not args.no_render:
@@ -386,11 +417,13 @@ with launch_simulation(cfg, args), ExitStack() as resources:
                 action[0, 6] = viewer.aperture / 0.04 - 1
             if args.mode in ("gamepad", "keyboard"):
                 action[0, :6] *= args.motion_speed
-            env.step(action)
+            with profiling.zone("env: step"):
+                env.step(action)
             script_step += 1
             simulated = time.perf_counter()
             if viewer is not None:
-                viewer.draw(step / 30)
+                with profiling.zone("viewer: draw", 0xFBBC04):
+                    viewer.draw(step / 30)
             ended = time.perf_counter()
             timings.append(
                 {
@@ -426,6 +459,7 @@ with launch_simulation(cfg, args), ExitStack() as resources:
                 viewer.save_screenshot(str(args.output / f"frame-{step:05d}.png"))
             if args.mode in ("keyboard", "gamepad"):
                 time.sleep(max(0, 1 / 30 - (time.perf_counter() - started)))
+            profiling.frame_mark()
             step += 1
         if args.verify_render:
             render_verified = viewer.verify_geometry()
