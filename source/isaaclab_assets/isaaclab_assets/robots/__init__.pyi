@@ -4,6 +4,9 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
+    "MICRODUCK_CFG",
+    "MICRODUCK_ALLCOLLISIONS_CFG",
+    "MICRODUCK_ROLLERS_CFG",
     "AGIBOT_A2D_CFG",
     "LEG_JOINT_NAMES",
     "ARM_JOINT_NAMES",
@@ -93,6 +96,7 @@ from .franka import (
     FRANKA_ROBOTIQ_GRIPPER_CFG,
 )
 from .fourbar_pole import FOURBAR_POLE_CFG
+from .microduck import MICRODUCK_CFG, MICRODUCK_ALLCOLLISIONS_CFG, MICRODUCK_ROLLERS_CFG
 from .galbot import GALBOT_ONE_CHARLIE_CFG
 from .humanoid import HUMANOID_CFG
 from .humanoid_28 import HUMANOID_28_CFG
