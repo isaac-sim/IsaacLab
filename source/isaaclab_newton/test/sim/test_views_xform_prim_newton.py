@@ -27,11 +27,11 @@ from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_newton.physics.newton_manager import NewtonManager
 from isaaclab_newton.sim.views import NewtonSiteFrameView as FrameView
 
-from pxr import Sdf
+from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics
 
 import isaaclab.cloner as cloner
 import isaaclab.sim as sim_utils
-from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
+from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg, build_simulation_context
 from isaaclab.utils import configclass
@@ -232,3 +232,44 @@ def test_world_attached_pose_read_and_write(device):
     torch.testing.assert_close(ret_pos.torch, wp.to_torch(new_pos), atol=1e-5, rtol=0)
     torch.testing.assert_close(ret_quat.torch, wp.to_torch(new_quat), atol=1e-5, rtol=0)
     ctx.__exit__(None, None, None)
+
+
+# ==================================================================
+# Newton edge case: frame below a non-body articulation root
+# ==================================================================
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_frame_below_non_body_articulation_root_is_static(device, tmp_path):
+    """The non-body ``ArticulationRootAPI`` Xform and a frame below it outside every body are static frames."""
+    usd_path = str(tmp_path / "xform_rooted_articulation.usda")
+    stage = Usd.Stage.CreateNew(usd_path)
+    stage.SetDefaultPrim(UsdGeom.Xform.Define(stage, "/Robot").GetPrim())
+    UsdPhysics.ArticulationRootAPI.Apply(stage.GetPrimAtPath("/Robot"))
+    for name in ("base", "link"):
+        body = UsdGeom.Xform.Define(stage, f"/Robot/{name}").GetPrim()
+        UsdPhysics.RigidBodyAPI.Apply(body)
+        UsdPhysics.MassAPI.Apply(body).CreateMassAttr(1.0)
+    joint = UsdPhysics.RevoluteJoint.Define(stage, "/Robot/joint")
+    joint.CreateBody0Rel().SetTargets(["/Robot/base"])
+    joint.CreateBody1Rel().SetTargets(["/Robot/link"])
+    UsdGeom.Xform.Define(stage, "/Robot/Mount").AddTranslateOp().Set(Gf.Vec3d(*CHILD_OFFSET))
+    stage.Save()
+
+    @configclass
+    class _RobotSceneCfg(InteractiveSceneCfg):
+        robot: ArticulationCfg = ArticulationCfg(
+            prim_path="{ENV_REGEX_NS}/Robot", spawn=sim_utils.UsdFileCfg(usd_path=usd_path), actuators={}
+        )
+
+    with _sim_context(device, num_envs=2) as sim:
+        sim._app_control_on_stop_handle = None
+        scene = InteractiveScene(_RobotSceneCfg(num_envs=2, env_spacing=2.0))
+        sim.reset()
+        root_view = FrameView("/World/envs/env_[^/]+/Robot", device=device)
+        mount_view = FrameView("/World/envs/env_[^/]+/Robot/Mount", device=device)
+
+        origins = scene.env_origins.to(device)
+        torch.testing.assert_close(root_view.get_world_poses()[0].torch, origins, atol=1e-5, rtol=0)
+        expected = origins + torch.tensor(CHILD_OFFSET, device=device)
+        torch.testing.assert_close(mount_view.get_world_poses()[0].torch, expected, atol=1e-5, rtol=0)

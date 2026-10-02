@@ -380,7 +380,7 @@ class NewtonSiteFrameView(BaseFrameView):
                 f"FrameView prim '{prim_path}' is a Newton collision shape. "
                 "FrameView should only be used for non-physics frames."
             )
-        if prim.HasAPI(UsdPhysics.RigidBodyAPI) or prim.HasAPI(UsdPhysics.ArticulationRootAPI):
+        if prim.HasAPI(UsdPhysics.RigidBodyAPI):
             raise ValueError(
                 f"FrameView prim '{prim_path}' is a Newton physics body. "
                 "FrameView should only be used for non-physics frames."
@@ -397,9 +397,10 @@ class NewtonSiteFrameView(BaseFrameView):
             else (1.0, 1.0, 1.0)
         )
 
+        # only rigid bodies are simulated; a non-body articulation root is not a parent body
         body_prim = prim.GetParent()
         while body_prim and body_prim.IsValid():
-            if body_prim.HasAPI(UsdPhysics.RigidBodyAPI) or body_prim.HasAPI(UsdPhysics.ArticulationRootAPI):
+            if body_prim.HasAPI(UsdPhysics.RigidBodyAPI):
                 pos, quat = sim_utils.resolve_prim_pose(prim, body_prim)
                 body_path = body_prim.GetPath().pathString
                 spec_tail = (wp.transform(pos, quat), scale, False, env_ids, dest_paths)
