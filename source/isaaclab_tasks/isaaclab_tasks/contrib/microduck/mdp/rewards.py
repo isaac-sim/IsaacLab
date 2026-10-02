@@ -17,6 +17,8 @@ from isaaclab.managers import ManagerTermBase, RewardTermCfg, SceneEntityCfg
 from isaaclab.utils import math as math_utils
 from isaaclab.utils.string import resolve_matching_names_values
 
+from .observations import foot_height
+
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation
     from isaaclab.envs import ManagerBasedRLEnv
@@ -27,13 +29,6 @@ def _command_magnitude(env: ManagerBasedRLEnv, command_name: str) -> torch.Tenso
     """Upstream's scalar command magnitude ``|v_xy| + |w_z|``."""
     command = env.command_manager.get_command(command_name)
     return torch.norm(command[:, :2], dim=1) + torch.abs(command[:, 2])
-
-
-def _feet_height_above_ground(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
-    """Height of the selected foot bodies above the ground [m], shape (num_envs, num_feet)."""
-    asset: Articulation = env.scene[asset_cfg.name]
-    foot_pos_z = asset.data.body_link_pos_w.torch[:, asset_cfg.body_ids, 2]
-    return foot_pos_z - env.scene.env_origins[:, 2].unsqueeze(1)
 
 
 def track_linear_velocity(
@@ -157,13 +152,18 @@ def feet_air_time_windowed(
 
 
 def foot_clearance(
-    env: ManagerBasedRLEnv, target_height: float, command_name: str, asset_cfg: SceneEntityCfg, command_threshold: float
+    env: ManagerBasedRLEnv,
+    target_height: float,
+    command_name: str,
+    asset_cfg: SceneEntityCfg,
+    command_threshold: float,
+    height_sensor_names: tuple[str, ...] = (),
 ) -> torch.Tensor:
     """Penalize moving feet that deviate from ``target_height`` [m] above the ground."""
     asset: Articulation = env.scene[asset_cfg.name]
-    foot_height = _feet_height_above_ground(env, asset_cfg)
+    heights = foot_height(env, asset_cfg, height_sensor_names)
     foot_vel_xy = asset.data.body_link_lin_vel_w.torch[:, asset_cfg.body_ids, :2]
-    cost = torch.sum(torch.abs(foot_height - target_height) * torch.norm(foot_vel_xy, dim=-1), dim=1)
+    cost = torch.sum(torch.abs(heights - target_height) * torch.norm(foot_vel_xy, dim=-1), dim=1)
     return cost * (_command_magnitude(env, command_name) > command_threshold).float()
 
 
@@ -191,12 +191,13 @@ class foot_swing_height(ManagerTermBase):
         target_height: float,
         command_name: str,
         command_threshold: float,
+        height_sensor_names: tuple[str, ...] = (),
     ) -> torch.Tensor:
         """Penalize touchdown error relative to ``target_height`` [m]."""
         contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
         in_air = contact_sensor.data.current_contact_time.torch[:, sensor_cfg.body_ids] == 0.0
-        foot_height = _feet_height_above_ground(env, asset_cfg)
-        self._peak_heights = torch.where(in_air, torch.maximum(self._peak_heights, foot_height), self._peak_heights)
+        heights = foot_height(env, asset_cfg, height_sensor_names)
+        self._peak_heights = torch.where(in_air, torch.maximum(self._peak_heights, heights), self._peak_heights)
         first_contact = contact_sensor.compute_first_contact(env.step_dt).torch[:, sensor_cfg.body_ids] > 0.5
         error = self._peak_heights / target_height - 1.0
         cost = torch.sum(torch.square(error) * first_contact.float(), dim=1)
