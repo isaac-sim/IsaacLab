@@ -66,7 +66,7 @@ fi
 # address. Guards against a CUDA_VISIBLE_DEVICES misconfig silently fanning
 # out shards that crash on device access.
 # torch lives in the image's venv, not Kit's bundled Python, so resolve it the way the shards do.
-TORCH_COUNT=$(./isaaclab.sh -p -c "import torch; print(torch.cuda.device_count())" | tail -n1)
+TORCH_COUNT=$(uv run --no-sync isaaclab -p -c "import torch; print(torch.cuda.device_count())" | tail -n1)
 if ! [[ "$TORCH_COUNT" =~ ^[0-9]+$ ]]; then
   echo "::error::Could not read torch.cuda.device_count(); got '$TORCH_COUNT'"
   exit 1
