@@ -60,7 +60,7 @@ def raw_env(task: str, library: str, finite_horizon: bool) -> Iterator[Any]:
     cfg.seed = 42
     cfg.is_finite_horizon = finite_horizon
     cfg.compute_final_obs = library == "torchrl"
-    with launch_simulation(cfg, {"headless": True, "visualizer": ["none"]}):
+    with launch_simulation(cfg):
         env = gym.make(task, cfg=cfg)
         try:
             yield env

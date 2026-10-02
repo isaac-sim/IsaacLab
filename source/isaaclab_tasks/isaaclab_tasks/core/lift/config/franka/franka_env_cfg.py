@@ -5,7 +5,6 @@
 
 """Configuration for the Franka lift environment."""
 
-from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationTermCfg as ObsTerm
@@ -14,9 +13,10 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import ContactSensorCfg
 from isaaclab.sim import MeshCapsuleCfg, MeshCuboidCfg, MeshSphereCfg
 from isaaclab.utils import clone, configclass, replace
-from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
-from isaaclab_assets.robots import FRANKA_PANDA_CFG
+from isaaclab_tasks.utils import preset
+
+from isaaclab_assets.robots import FRANKA_MINIMAL_CFG, FRANKA_PANDA_CFG
 
 from ... import lift_env_cfg as lift
 from ... import mdp
@@ -25,20 +25,14 @@ from ... import mdp
 # Scene assets
 ##
 
-# The lift tasks run the menagerie-converted asset (identified inertials, authored finger coupling) with
-# actuators calibrated for it, while the other Franka tasks keep the stock asset.
+# Lift inherits the shared asset and overrides its calibrated manipulation actuators.
 FRANKA_PANDA_LIFT_CFG = clone(FRANKA_PANDA_CFG)
-FRANKA_PANDA_LIFT_CFG.spawn.usd_path = f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/franka_panda.usda"
-# Reset clearance was calibrated for these arm meshes; the asset's primitive colliders intersect the ground.
-FRANKA_PANDA_LIFT_CFG.spawn.variants = {"Colliders": "convex_hulls"}
 FRANKA_PANDA_LIFT_CFG.actuators = {
     # inspired by libfranka's joint_impedance_control.cpp; ``actuator_velocity_limit`` is the soft task
     # limit and ``joint_velocity_limit`` the separate solver request
-    "panda_arm": ImplicitActuatorCfg(
-        joint_names_expr=["panda_joint[1-7]"],
-        joint_effort_limit={"panda_joint[1-4]": 87.0, "panda_joint[5-7]": 12.0},
+    "panda_arm": replace(
+        FRANKA_PANDA_CFG.actuators["panda_arm"],
         actuator_velocity_limit={"panda_joint[1-4]": 2.175, "panda_joint[5-7]": 2.61},
-        joint_velocity_limit={"panda_joint[1-4]": 20.0, "panda_joint[5-7]": 25.0},
         stiffness={
             "panda_joint[1-4]": 600.0,
             "panda_joint5": 250.0,
@@ -57,8 +51,8 @@ FRANKA_PANDA_LIFT_CFG.actuators = {
             "panda_joint[5-7]": 0.2055,
         },
     ),
-    "panda_hand": ImplicitActuatorCfg(
-        joint_names_expr=["panda_finger_joint1"],
+    "panda_hand": replace(
+        FRANKA_PANDA_CFG.actuators["panda_hand"],
         joint_effort_limit=70.0,
         actuator_velocity_limit=0.2,
         joint_velocity_limit=2.0,
@@ -66,13 +60,11 @@ FRANKA_PANDA_LIFT_CFG.actuators = {
         damping=175.0,
         armature=0.1,
     ),
-    "panda_finger2_passive": ImplicitActuatorCfg(
-        joint_names_expr=["panda_finger_joint2"],
+    "panda_finger2_passive": replace(
+        FRANKA_PANDA_CFG.actuators["panda_finger2_passive"],
         joint_effort_limit=1.0,
         actuator_velocity_limit=0.2,
         joint_velocity_limit=2.0,
-        stiffness=0.0,
-        damping=0.0,
         armature=0.1,
     ),
 }
@@ -102,6 +94,13 @@ class FrankaSceneCfg(lift.SceneCfg):
 
     def __post_init__(self):
         super().__post_init__()
+        self.robot.spawn.variants["Physics"] = preset(
+            default="mujoco", isaacsim_physx="physx", physx="physx", ovphysx="physx"
+        )
+        self.robot.spawn.variants["Colliders"] = preset(
+            default=FRANKA_PANDA_CFG.spawn.variants["Colliders"],
+            minimal=FRANKA_MINIMAL_CFG.spawn.variants["Colliders"],
+        )
         self.robot.spawn.activate_contact_sensors = True
         # the base is rotated by 180 degrees about z so the workspace lies at positive x
         self.robot.init_state.rot = (0.0, 0.0, 1.0, 0.0)

@@ -164,6 +164,7 @@ def run(argv: list[str]) -> BenchmarkResult | None:
     config_t0 = time.perf_counter_ns()
     env_cfg, agent_cfg = resolve_task_config(args_cli.task, args_cli.agent)
     config_t1 = time.perf_counter_ns()
+    common.pre_launch_video_config(env_cfg, args_cli)
 
     start_utc = capture.now_utc_iso()
     app_t0 = time.perf_counter_ns()
@@ -187,7 +188,6 @@ def run(argv: list[str]) -> BenchmarkResult | None:
             )
             env_cfg.seed = agent_cfg.seed
 
-            common.validate_distributed_device(args_cli)
             if distributed.enabled:
                 # Mirror the regular training entrypoint: the launcher pinned this rank to its own
                 # device, and offsetting the seed by the rank decorrelates exploration across ranks.

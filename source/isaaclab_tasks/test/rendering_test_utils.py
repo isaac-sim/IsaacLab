@@ -1954,12 +1954,6 @@ def rendering_test_lift_kuka(
     if point_cloud_term is not None:
         point_cloud_term.params["visualize"] = False
 
-    # The success and failure markers are placed exactly at the same location. If both markers are
-    # visible, the rendering order will determine which one is visible in the camera output. Hide
-    # both markers to avoid this nondeterministic behavior.
-    for marker_cfg in env_cfg.commands.object_pose.success_visualizer_cfg.markers.values():
-        marker_cfg.visible = False
-
     test_name = f"lift_kuka_{'homo' if setup_homogeneous_envs else 'hetero'}"
 
     env = None
@@ -2152,28 +2146,19 @@ def _apply_franka_camera_golden_scene_overrides(env_cfg: Any, data_types: list[s
 
 
 def _configure_franka_camera_test_env_cfg(
-    env_cfg: Any,
-    data_types: list[str],
-    command_name: str = "deformable_pose",
-    reset_event_name: str = "reset_deformable",
+    env_cfg: Any, data_types: list[str], command_cfg: Any, reset_event_cfg: Any
 ) -> None:
     """Apply deterministic golden rendering test overrides to a resolved Franka camera config.
 
     Args:
         env_cfg: Resolved Franka camera environment config to mutate in place.
         data_types: Camera data types the golden capture requests.
-        command_name: Name of the pose command term whose success visualizer is disabled.
-        reset_event_name: Name of the reset event term whose position range is pinned to zero.
+        command_cfg: Pose command term whose debug visualization is disabled.
+        reset_event_cfg: Reset event term whose position range is pinned to zero.
     """
     _apply_franka_camera_golden_scene_overrides(env_cfg, data_types)
-    command_cfg = getattr(env_cfg.commands, command_name)
-    # The table spawns invisible because the success visualizer normally draws it; the goldens hide
-    # that visualizer, so paint the table itself with the marker material instead of replacing the
-    # spawn, which would drop task-specific physics overrides.
-    env_cfg.scene.table.spawn.visual_material = command_cfg.success_visualizer_cfg.markers["failure"].visual_material
-    env_cfg.scene.table.spawn.visible = True
     command_cfg.debug_vis = False
-    getattr(env_cfg.events, reset_event_name).params["position_range"] = {
+    reset_event_cfg.params["position_range"] = {
         "x": (0.0, 0.0),
         "y": (0.0, 0.0),
         "z": (0.0, 0.0),
@@ -2206,7 +2191,9 @@ def rendering_test_franka_cloth(
     _skip_if_physics_preset_unsupported(env_cfg, physics_preset_name)
 
     env_cfg = _apply_overrides_to_env_cfg(env_cfg, [f"presets={physics_preset_name},{renderer}"])
-    _configure_franka_camera_test_env_cfg(env_cfg, data_types)
+    _configure_franka_camera_test_env_cfg(
+        env_cfg, data_types, env_cfg.commands.deformable_pose, env_cfg.events.reset_deformable
+    )
     if is_newton_ovrtx_motion:
         initial_pos = env_cfg.scene.deformable.init_state.pos
         env_cfg.scene.deformable.init_state.pos = (initial_pos[0], initial_pos[1], initial_pos[2] + 0.01)
@@ -2218,7 +2205,6 @@ def rendering_test_franka_cloth(
 
     try:
         env = ManagerBasedRLEnv(env_cfg)
-        env.command_manager.get_term("deformable_pose").success_visualizer.set_visibility(False)
 
         maybe_save_stage(test_name, physics_backend, renderer, data_types[0])
 
@@ -2283,7 +2269,9 @@ def rendering_test_franka_soft(
     _skip_if_physics_preset_unsupported(env_cfg, physics_preset_name)
 
     env_cfg = _apply_overrides_to_env_cfg(env_cfg, [f"presets={physics_preset_name},{renderer}"])
-    _configure_franka_camera_test_env_cfg(env_cfg, data_types)
+    _configure_franka_camera_test_env_cfg(
+        env_cfg, data_types, env_cfg.commands.deformable_pose, env_cfg.events.reset_deformable
+    )
 
     _maybe_enable_physx_determinism_for_motion(env_cfg, physics_backend, _motion_data_type(data_types))
 
@@ -2292,7 +2280,6 @@ def rendering_test_franka_soft(
 
     try:
         env = ManagerBasedRLEnv(env_cfg)
-        env.command_manager.get_term("deformable_pose").success_visualizer.set_visibility(False)
 
         maybe_step_env_for_motion(env, _motion_data_type(data_types), action_value=0.5)
 
@@ -2480,14 +2467,15 @@ def rendering_test_franka_cable(
     _skip_if_physics_preset_unsupported(env_cfg, physics_preset_name)
 
     env_cfg = _apply_overrides_to_env_cfg(env_cfg, [f"presets={physics_preset_name},{renderer}"])
-    _configure_franka_camera_test_env_cfg(
-        env_cfg, data_types, command_name="cable_pose", reset_event_name="reset_cable"
-    )
+    _configure_franka_camera_test_env_cfg(env_cfg, data_types, env_cfg.commands.cable_pose, env_cfg.events.reset_cable)
 
     # Training ramps gravity from ~0 → -9.81; without this, reset installs g≈0 and the cable floats.
     # Same as FrankaSoftEnvCfg.play_mode(): keep variable_gravity's fixed -9.81.
     if env_cfg.curriculum is not None:
         env_cfg.curriculum.gravity = None
+
+    # Settling the USD pose must not trigger randomized RL resets during golden capture.
+    env_cfg.terminations.joint_vel_out_of_limit = None
 
     _maybe_enable_physx_determinism_for_motion(env_cfg, physics_backend, _motion_data_type(data_types))
 
@@ -2511,7 +2499,8 @@ def rendering_test_franka_cable(
             return
 
         # Let the cable settle under gravity so golden frames are not first-frame spawn poses.
-        env.step(zero_actions)
+        _, _, terminated, truncated, _ = env.step(zero_actions)
+        assert not torch.any(terminated | truncated), "Cable golden capture unexpectedly reset the scene."
 
         validate_camera_outputs(
             test_name,

@@ -1,1 +1,0 @@
-The RSL-RL benchmark entrypoints now pass current agent configurations directly to RSL-RL.

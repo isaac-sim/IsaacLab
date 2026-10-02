@@ -31,22 +31,23 @@ except ModuleNotFoundError:
 
 SimulationApp = getattr(isaacsim, "SimulationApp", None)
 
+from isaaclab import _deprioritize_prebundle_paths
 from isaaclab.app.loading_screen import report_activity
 from isaaclab.app.logging_utils import apply_python_logging_level
 from isaaclab.app.settings_manager import get_settings_manager
-from isaaclab.app.sim_launcher import SimulationLauncher, _parse_visualizer_csv, fuse_kit_args
+from isaaclab.app.sim_launcher import SimulationLauncher, fuse_kit_args
 from isaaclab.paths import ISAACLAB_ROOT
+from isaaclab.utils import has_kit
 from isaaclab.utils.device import set_cuda_device
 from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
+from isaaclab.visualizers.visualizer_cfg import parse_visualizer_csv
 
 # import logger
 logger = logging.getLogger(__name__)
 
 _FABRIC_GPU_INTEROP_ENV = "ISAACLAB_FABRIC_USE_GPU_INTEROP"
 
-_SIM_APP_CONFIG_KEYS = frozenset(
-    ("headless", "hide_ui", "physics_gpu", "multi_gpu", "limit_cpu_threads", "width", "height")
-)
+_SIM_APP_CONFIG_KEYS = frozenset(("hide_ui", "physics_gpu", "multi_gpu", "limit_cpu_threads", "width", "height"))
 """Launcher arguments forwarded to the :class:`SimulationApp` config."""
 
 # Suppress noisy debug-level logs from third-party libraries
@@ -146,8 +147,6 @@ class KitLauncher(SimulationLauncher):
 
         .. _SimulationApp: https://docs.isaacsim.omniverse.nvidia.com/latest/py/source/extensions/isaacsim.simulation_app/docs/index.html#isaacsim.simulation_app.SimulationApp
         """
-        from isaaclab.utils import has_kit
-
         self._app = None
         if has_kit():
             # a Kit app already runs in this process; it is owned (and closed) by whoever started it
@@ -167,7 +166,7 @@ class KitLauncher(SimulationLauncher):
         self._livestream: Literal[0, 1, 2]  # 0: Disabled, 1: WebRTC public, 2: WebRTC private
         self._offscreen_render: bool  # 0: Disabled, 1: Enabled
         self._sim_experience_file: str  # Experience file to load
-        self._video_enabled: bool  # Whether --video recording is enabled
+        self._video_enabled: bool  # Whether --video records from Kit rendering
         self.device: str  # resolved device string (e.g. "cuda:0" or "cpu")
         self._deferred_cuda_device_id: int | None = None
 
@@ -208,8 +207,6 @@ class KitLauncher(SimulationLauncher):
         # additional ``pip_prebundle`` or conflicting extension directories onto
         # ``sys.path`` during startup.  A second pass ensures pip-installed
         # packages still take priority over bundled copies.
-        from isaaclab import _deprioritize_prebundle_paths
-
         _deprioritize_prebundle_paths()
 
         # Hide the stop button in the toolbar
@@ -310,7 +307,8 @@ class KitLauncher(SimulationLauncher):
           Isaac Lab experiences use one renderer GPU by default. Applications that need single-process
           multi-GPU rendering can override the ``renderer.multiGpu`` settings through this argument.
 
-        * ``visualizer`` (str): Visualizer backends to enable.
+        * ``visualizer`` (str): Visualizer backends to run. Omit it to run none. A visualizer configured in
+          :attr:`~isaaclab.sim.SimulationCfg.visualizer_cfgs` supplies the settings of its type when selected.
           Valid options are:
 
           - ``rerun``: Use Rerun visualizer.
@@ -318,7 +316,6 @@ class KitLauncher(SimulationLauncher):
           - ``newton_rtx``: Use Newton RTX path-tracer visualizer (experimental).
           - ``viser``: Use Viser visualizer.
           - ``kit``: Use Omniverse Kit visualizer.
-          - ``none``: Disable all visualizers explicitly.
           - Multiple visualizers can be specified as a comma-delimited list:
             ``--viz rerun,newton_gl,viser``.
 
@@ -365,9 +362,12 @@ class KitLauncher(SimulationLauncher):
         arg_group.add_argument(
             "--visualizer",
             "--viz",
-            type=_parse_visualizer_csv,
+            type=parse_visualizer_csv,
             default=None,
-            help="Visualizer backends to enable as CSV (e.g., kit,newton,rerun,viser).",
+            help=(
+                "Visualizer backends to run as CSV (e.g., kit,newton_gl,rerun,viser); none run without it. A"
+                " visualizer configured in the task's sim.visualizer_cfgs supplies the settings of its type."
+            ),
         )
         arg_group.add_argument(
             "--verbose",  # Note: This is read by SimulationApp through sys.argv
@@ -441,22 +441,16 @@ class KitLauncher(SimulationLauncher):
     Internal functions.
     """
 
-    # Set by :meth:`_resolve_xr_settings`. Defaulted here so :meth:`_resolve_headless_settings`
-    # stays independent of resolver call order and of whether XR was resolved at all.
-    _xr_auto_start: bool = False
-
     def _config_resolution(self, launcher_args: dict):
         """Resolve the input arguments and environment variables.
 
         Args:
             launcher_args: A dictionary of all input arguments passed to the class object.
         """
-        self._kit_visualizer = bool(launcher_args.get("kit_visualizer", False))
+        self._kit_visualizer = "kit" in (launcher_args.get("visualizer") or ())
         self._resolve_livestream_settings(launcher_args)
-        # XR must be resolved before headless so that XR can prevent
-        # visualizer-intent-based headless forcing.
         self._resolve_xr_settings(launcher_args)
-        self._resolve_headless_settings(launcher_args)
+        self._resolve_headless_settings()
         self._resolve_camera_settings(launcher_args)
         self._resolve_viewport_settings(launcher_args)
         self._resolve_device_settings(launcher_args)
@@ -468,6 +462,7 @@ class KitLauncher(SimulationLauncher):
         # Remove all values from input keyword args which are not meant for SimulationApp
         # Assign all the passed settings to a dictionary for the simulation app
         self._sim_app_config = {key: launcher_args[key] for key in _SIM_APP_CONFIG_KEYS & launcher_args.keys()}
+        self._sim_app_config["headless"] = self._headless
 
     def _resolve_livestream_settings(self, launcher_args: dict):
         """Resolve livestream related settings."""
@@ -495,19 +490,18 @@ class KitLauncher(SimulationLauncher):
             ]
             sys.argv += self._livestream_args
 
-    def _resolve_headless_settings(self, launcher_args: dict):
-        """Resolve headless related settings."""
+    def _resolve_headless_settings(self):
+        """Run the app windowed only for a selected Kit visualizer (``--viz kit``).
+
+        ``HEADLESS=1`` and livestreaming, which streams from the host, keep it headless; so does a Kit
+        visualizer that only records video, which ``--viz`` does not select.
+        """
         headless_env = int(os.environ.get("HEADLESS", 0))
         if headless_env not in {0, 1}:
             raise ValueError(f"Invalid value for environment variable `HEADLESS`: {headless_env}. Expected: 0 or 1.")
-        # livestreaming always runs headless on the host machine
-        self._headless = bool(launcher_args.get("headless", False)) or self._livestream > 0 or bool(headless_env)
-        # only a Kit visualizer opens a window, and XR without an explicit one has no viewport to start from
-        if not self._headless and (self._xr_auto_start or not self._kit_visualizer):
+        self._headless = not self._kit_visualizer or self._livestream > 0 or bool(headless_env)
+        if not self._kit_visualizer:
             logger.info("Running headless because '--viz kit' was not requested. Pass it to open a viewport.")
-            self._headless = True
-        # Headless needs to be passed to the SimulationApp so we keep it here
-        launcher_args["headless"] = self._headless
 
     def _resolve_camera_settings(self, launcher_args: dict):
         """Resolve camera related settings."""
@@ -529,17 +523,9 @@ class KitLauncher(SimulationLauncher):
         else:
             self._xr = bool(xr_env)
 
-        # Determine whether XR should auto-inject a KitVisualizer.
-        # When XR is enabled but no Kit visualizer was explicitly requested via
-        # CLI, we auto-inject one so that app.update() and forward() are pumped
-        # each frame -- the XR runtime needs both to receive updated hand/joint
-        # transforms.
-        self._xr_auto_start = self._xr and "kit" not in (launcher_args.get("visualizer") or ())
-
     def _resolve_viewport_settings(self, launcher_args: dict):
         """Resolve viewport related settings."""
-        self._video_enabled = bool(launcher_args.get("video", False))
-        if self._video_enabled and any(
+        if launcher_args.get("video") and any(
             importlib.util.find_spec(package) is None for package in ("moviepy", "imageio_ffmpeg")
         ):
             raise ModuleNotFoundError(
@@ -549,6 +535,9 @@ class KitLauncher(SimulationLauncher):
                 'legacy environment with `./isaaclab.sh -p -m pip install "moviepy>=1.0.3,<2.0.0.dev0"` '
                 "(`isaaclab.bat -p -m pip install ...` on Windows), and retry."
             )
+        # Kit renders a recording only when the launch enabled camera rendering for it, i.e. a Kit visualizer or a
+        # Kit camera records; a video recorded from a Newton visualizer needs no Kit viewport.
+        self._video_enabled = bool(launcher_args.get("video")) and self._enable_cameras
         # Check if we can disable the viewport to improve performance
         #   This should only happen if we are running headless and do not require livestreaming or video recording
         #   This is different from offscreen_render because this only affects the default viewport and
@@ -633,15 +622,13 @@ class KitLauncher(SimulationLauncher):
         # under certain install layouts), derive it from the installed isaacsim package.
         kit_app_exp_path = os.environ.get("EXP_PATH")
         if not kit_app_exp_path:
-            try:
-                import isaacsim as _isaacsim_for_paths
-            except ImportError as e:
+            if isaacsim is None:
                 raise RuntimeError(
                     "EXP_PATH is not set and the 'isaacsim' package is not importable."
                     " Install Isaac Sim (`pip install isaacsim` or the binary distribution)"
                     " before launching KitLauncher."
-                ) from e
-            kit_app_exp_path = os.path.join(os.path.dirname(_isaacsim_for_paths.__file__), "apps")
+                )
+            kit_app_exp_path = os.path.join(os.path.dirname(isaacsim.__file__), "apps")
             os.environ["EXP_PATH"] = kit_app_exp_path
         isaaclab_app_exp_path = str(ISAACLAB_ROOT / "apps")
 
@@ -869,7 +856,7 @@ def _share_stage_context() -> None:
         from isaacsim.core.experimental.utils import stage as sim_stage
     except ImportError:
         return
-    from isaaclab.sim.utils import stage as stage_utils
+    from isaaclab.sim.utils import stage as stage_utils  # imports pxr; must load after Kit starts
 
     # Isaac Sim stage helpers read this singleton context.
     sim_stage._context = stage_utils._context

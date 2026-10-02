@@ -31,6 +31,7 @@ from isaaclab_rl.entrypoints.simple_agents import create_zero_action_policy
     [
         ("import isaaclab_rl", ["isaaclab_rl.entrypoints", "torch"]),
         ("import isaaclab_rl.entrypoints.backends", ["torch"]),
+        ("import isaaclab_rl.entrypoints.common", ["isaaclab.envs.direct_marl_env", "moviepy"]),
         # the LEAPP runtime must only load once the simulation has launched
         ("import isaaclab_rl.entrypoints.backends.export_rsl_rl", ["leapp", "isaaclab.utils.leapp"]),
         ("import isaaclab_rl.rl_games", ["isaaclab_rl.rl_games.rl_games", "rl_games", "torch"]),
@@ -70,6 +71,7 @@ def test_zero_agent_infers_finite_manager_actions() -> None:
         action_dim = 7
         cfg = SimpleNamespace(controller=SimpleNamespace(use_relative_mode=False, command_type="pose"))
         _scale = torch.tensor([2.0, 2.0, 2.0, 1.0, 1.0, 1.0, 1.0])
+        _offset = torch.tensor([0.2, -0.4, 0.6, 0.0, 0.0, 0.0, 0.0])
 
         def _compute_frame_pose(self):
             return torch.tensor([[2.0, 4.0, 6.0]]), torch.tensor([[0.0, 0.0, 0.0, 1.0]])
@@ -147,7 +149,7 @@ def test_zero_agent_infers_finite_manager_actions() -> None:
     ).flatten(start_dim=1)
     expected = torch.cat(
         (
-            torch.tensor([[1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0]]),
+            torch.tensor([[0.9, 2.2, 2.7, 0.0, 0.0, 0.0, 1.0]]),
             torch.tensor([[3.0, 2.0, 1.0, 0.0, 0.0, 1.0, 0.0]]),
             expected_pink_poses,
             torch.tensor([[0.2, 0.4]]),
@@ -168,6 +170,7 @@ def test_zero_agent_rejects_non_finite_inferred_actions() -> None:
         action_dim = 7
         cfg = SimpleNamespace(controller=SimpleNamespace(use_relative_mode=False, command_type="pose"))
         _scale = torch.ones(7)
+        _offset = torch.zeros(7)
 
         def _compute_frame_pose(self):
             return torch.full((1, 3), torch.nan), torch.tensor([[0.0, 0.0, 0.0, 1.0]])
@@ -224,36 +227,27 @@ def test_zero_agent_supports_direct_multi_agent_action_spaces() -> None:
     assert torch.equal(actions["object"], torch.zeros(3, 1, dtype=torch.int64))
 
 
-def test_simple_agents_parse_device_and_default_to_newton_visualizer(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Checkpoint-free agents default to Newton visualization and retain an explicit CLI device."""
+def test_simple_agents_parse_device_and_default_to_no_visualizer(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Checkpoint-free agents run without a visualizer by default and retain an explicit CLI device."""
     monkeypatch.setattr(sys, "argv", ["pytest"])
 
     args = simple_agents._parse_args([], "zero")
 
     assert args.device is None
-    assert args.visualizer == ["newton_gl"]
+    assert args.visualizer is None
 
     args = simple_agents._parse_args(["--device", "cuda:1"], "random")
 
     assert args.device == "cuda:1"
 
 
-@pytest.mark.parametrize(
-    ("cli_device", "expected_device", "policy"),
-    [
-        # a task-required device is not replaced with the CLI default
-        (None, "cpu", "zero"),
-        # an explicit CLI device overrides the task default
-        ("cuda:1", "cuda:1", "random"),
-    ],
-)
-def test_simple_agents_resolve_simulation_device(
+@pytest.mark.parametrize(("cli_device", "policy"), [(None, "zero"), ("cuda:1", "random")])
+def test_simple_agents_leave_the_device_to_the_launch(
     cli_device: str | None,
-    expected_device: str,
     policy: simple_agents.PolicyName,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Checkpoint-free agents keep the task device unless the CLI selects one."""
+    """Checkpoint-free agents pass the CLI device, or None to keep the task's, to the launch that resolves it."""
 
     class _ExpectedStop(Exception):
         pass
@@ -273,8 +267,8 @@ def test_simple_agents_resolve_simulation_device(
     )
 
     def launch_simulation(cfg, launcher_args):
-        assert cfg.sim.device == expected_device
-        assert launcher_args.device == expected_device
+        assert cfg.sim.device == "cpu"
+        assert launcher_args.device == cli_device
         raise _ExpectedStop
 
     monkeypatch.setattr(simple_agents, "_parse_args", lambda argv, policy: args)
@@ -336,7 +330,7 @@ def test_random_agent_closes_environment_after_keyboard_interrupt(monkeypatch, i
         close=close,
     )
     getattr(env, interrupted_operation).side_effect = KeyboardInterrupt
-    args = SimpleNamespace(max_steps=None, task="Example", device=None)
+    args = SimpleNamespace(max_steps=None, task="Example", device=None, num_envs=None)
     monkeypatch.setattr(simple_agents, "_parse_args", lambda argv, policy: args)
     monkeypatch.setattr(simple_agents, "resolve_task_config", lambda task, agent: (cfg, None))
     monkeypatch.setattr(simple_agents, "launch_simulation", lambda cfg, launcher_args: contextlib.nullcontext())
@@ -352,18 +346,17 @@ def test_random_agent_closes_environment_after_keyboard_interrupt(monkeypatch, i
 
 @pytest.mark.parametrize(
     ("video_length", "max_steps", "expected_steps"),
-    [(None, None, 55), (None, 40, 40), (0, None, None)],
-    ids=["last_recorder_clip", "max_steps_caps_clip", "invalid_length_fails_before_launch"],
+    [(None, None, 55), (None, 40, 40)],
+    ids=["last_recorder_clip", "max_steps_caps_clip"],
 )
 def test_simple_agent_video_step_budget(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     video_length: int | None,
     max_steps: int | None,
-    expected_steps: int | None,
+    expected_steps: int,
 ) -> None:
-    """``--video`` steps until the last recorder's first clip ends (25 + 30), capped by ``--max_steps``;
-    an invalid ``--video_length`` fails config validation before the simulation launches."""
+    """``--video`` steps until the last recorder's first clip ends (25 + 30), capped by ``--max_steps``."""
     from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
 
     recorders = [
@@ -388,7 +381,13 @@ def test_simple_agent_video_step_budget(
         close=mock.Mock(),
     )
     args = SimpleNamespace(
-        max_steps=max_steps, task="Example", device=None, video=True, video_length=video_length, video_interval=None
+        max_steps=max_steps,
+        task="Example",
+        device=None,
+        num_envs=None,
+        video=True,
+        video_length=video_length,
+        video_interval=None,
     )
     launched = mock.Mock(return_value=contextlib.nullcontext())
     monkeypatch.setattr(simple_agents, "_parse_args", lambda argv, policy: args)
@@ -397,13 +396,8 @@ def test_simple_agent_video_step_budget(
     monkeypatch.setattr(simple_agents.gym, "make", lambda task, cfg: env)
     monkeypatch.setattr(simple_agents, "create_random_action_policy", lambda environment: lambda: None)
 
-    if expected_steps is None:
-        with pytest.raises(SystemExit, match=f"video_length={video_length}"):
-            simple_agents.run([], policy="random")
-        launched.assert_not_called()
-    else:
-        simple_agents.run([], policy="random")
-        assert env.step.call_count == expected_steps
+    simple_agents.run([], policy="random")
+    assert env.step.call_count == expected_steps
 
 
 def test_simple_agent_request_forwards_video(monkeypatch) -> None:

@@ -21,8 +21,7 @@ from isaaclab_physx.sim.schemas import PhysxCollisionCfg, PhysxDeformableBodyPro
 from isaaclab_physx.sim.spawners.materials import PhysxDeformableBodyMaterialCfg
 
 import isaaclab.sim as sim_utils
-from isaaclab.actuators import ImplicitActuatorCfg
-from isaaclab.assets import ArticulationCfg, AssetBaseCfg
+from isaaclab.assets import ArticulationCfg, AssetBaseCfg, VisualMaterialCfg
 from isaaclab.assets.deformable_object import DeformableObjectCfg
 from isaaclab.controllers import DifferentialIKControllerCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
@@ -33,7 +32,6 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
-from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import CameraCfg, FrameTransformerCfg
@@ -48,7 +46,7 @@ from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerP
 from isaaclab_tasks.utils import PresetCfg, preset
 from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
 
-from isaaclab_assets.robots.franka import FRANKA_PANDA_MENAGERIE_CFG
+from isaaclab_assets.robots.franka import FRANKA_PANDA_CFG
 
 from ... import mdp
 
@@ -56,16 +54,16 @@ from ... import mdp
 # Scene assets
 ##
 
-# shared volume material parameters; the Newton configuration uses the equivalent Lame parameters
+# Shared volume material parameters. The Newton config below uses the equivalent Lame parameters.
 YOUNGS_MODULUS = 2e5
 POISSONS_RATIO = 0.3
 
 TABLE_SPAWN_CFG = sim_utils.CuboidCfg(
     size=(1.3, 0.9, 1.05),
     collision_props=sim_utils.UsdPhysicsCollisionCfg(),
-    visible=False,
+    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.8, 0.5, 0.5)),
 )
-"""Table collider whose top surface sits at z = 0, drawn by the command term's success markers."""
+"""Table collider whose top surface sits at z = 0."""
 
 FRANKA_CAMERA_CFG = CameraCfg(
     prim_path="{ENV_REGEX_NS}/Camera",
@@ -190,12 +188,8 @@ class PhysicsCfg(PresetCfg):
 class FrankaSoftBaseSceneCfg(InteractiveSceneCfg):
     """Scene for the Franka deformable environment, also the base of the cloth and cable scenes."""
 
-    robot: ArticulationCfg = replace(FRANKA_PANDA_MENAGERIE_CFG, prim_path="{ENV_REGEX_NS}/Robot")
-    robot.spawn.variants = preset(
-        default={"Physics": "mujoco"},
-        isaacsim_physx={"Physics": "physx"},
-        physx={"Physics": "physx"},
-    )
+    robot: ArticulationCfg = replace(FRANKA_PANDA_CFG, prim_path="{ENV_REGEX_NS}/Robot")
+    robot.spawn.variants["Physics"] = preset(default="mujoco", isaacsim_physx="physx", physx="physx", ovphysx="physx")
 
     # end-effector frame for reward shaping
     ee_frame: FrameTransformerCfg = FrameTransformerCfg(
@@ -215,11 +209,14 @@ class FrankaSoftBaseSceneCfg(InteractiveSceneCfg):
 
     deformable: DeformableCfg = DeformableCfg()
 
-    # static table collider drawn by the command term's success markers (see CommandsCfg)
+    # static table collider
     table: AssetBaseCfg = AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/Table",
         init_state=AssetBaseCfg.InitialStateCfg(pos=[0.5, 0.0, -0.525]),
         spawn=TABLE_SPAWN_CFG,
+    )
+    table_material: VisualMaterialCfg = VisualMaterialCfg(
+        prim_path="{ENV_REGEX_NS}/Table/geometry/material", spawn=None
     )
 
     # ground plane
@@ -239,11 +236,11 @@ class FrankaSoftBaseSceneCfg(InteractiveSceneCfg):
     )
 
     def __post_init__(self):
+        # Inherit shared joint properties and override the checkpoint's task-specific gains and limits.
         self.robot.actuators = {
             # inspired by libfranka's joint_impedance_control.cpp
-            "panda_arm": ImplicitActuatorCfg(
-                joint_names_expr=["panda_joint[1-7]"],
-                joint_effort_limit={"panda_joint[1-4]": 87.0, "panda_joint[5-7]": 12.0},
+            "panda_arm": replace(
+                FRANKA_PANDA_CFG.actuators["panda_arm"],
                 joint_velocity_limit={"panda_joint[1-4]": 2.175, "panda_joint[5-7]": 2.61},
                 stiffness={
                     "panda_joint[1-4]": 600.0,
@@ -263,22 +260,20 @@ class FrankaSoftBaseSceneCfg(InteractiveSceneCfg):
                     "panda_joint[5-7]": 0.2055,
                 },
             ),
-            "panda_hand": ImplicitActuatorCfg(
-                joint_names_expr=["panda_finger_joint1"],
-                joint_effort_limit=70.0,
+            "panda_hand": replace(
+                FRANKA_PANDA_CFG.actuators["panda_hand"],
+                joint_effort_limit=500.0,
                 actuator_velocity_limit=0.2,
                 joint_velocity_limit=2.0,
-                stiffness=350.0,
-                damping=175.0,
+                stiffness=1000.0,
+                damping=100.0,
                 armature=0.1,
             ),
-            "panda_finger2_passive": ImplicitActuatorCfg(
-                joint_names_expr=["panda_finger_joint2"],
+            "panda_finger2_passive": replace(
+                FRANKA_PANDA_CFG.actuators["panda_finger2_passive"],
                 joint_effort_limit=1.0,
                 actuator_velocity_limit=0.2,
                 joint_velocity_limit=2.0,
-                stiffness=0.0,
-                damping=0.0,
                 armature=0.1,
             ),
         }
@@ -286,11 +281,6 @@ class FrankaSoftBaseSceneCfg(InteractiveSceneCfg):
         # disable gravity on the arm so the low-gain actuators do not fight gravity sag, the dominant
         # source of steady-state IK tracking error
         self.robot.spawn.rigid_props.disable_gravity = True
-
-        # increase franka gripper stiffness
-        self.robot.actuators["panda_hand"].joint_effort_limit = 500.0
-        self.robot.actuators["panda_hand"].stiffness = 1000.0
-        self.robot.actuators["panda_hand"].damping = 100.0
 
 
 @configclass
@@ -322,23 +312,8 @@ class CommandsCfg:
             pitch=(0.0, 0.0),
             yaw=(0.0, 0.0),
         ),
-        # the invisible table is drawn by these markers, tinted green once the goal is reached
-        success_vis_asset_name="table",
-        success_visualizer_cfg=VisualizationMarkersCfg(
-            prim_path="/Visuals/SuccessMarkers",
-            markers={
-                "failure": replace(
-                    TABLE_SPAWN_CFG,
-                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.8, 0.5, 0.5)),
-                    visible=True,
-                ),
-                "success": replace(
-                    TABLE_SPAWN_CFG,
-                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.5, 0.8, 0.5)),
-                    visible=True,
-                ),
-            },
-        ),
+        success_vis_material_name="table_material",
+        success_vis_colors=((0.8, 0.5, 0.5), (0.5, 0.8, 0.5)),
     )
 
 
