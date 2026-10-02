@@ -24,21 +24,29 @@ class InteractiveSceneWarp(InteractiveScene):
     def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None):
         """Reset scene entities using either env_ids or a boolean env_mask.
 
+        .. caution::
+            If both ``env_ids`` and ``env_mask`` are provided, ``env_mask`` takes precedence.
+
         Args:
             env_ids: The indices of the environments to reset. Defaults to None (all instances).
             env_mask: Boolean warp mask of shape (num_envs,). Defaults to None.
         """
-        # -- assets (support env_mask)
+        # -- assets
         for articulation in self._articulations.values():
             articulation.reset(env_ids, env_mask=env_mask)
+        for cable_object in self._cable_objects.values():
+            cable_object.reset(env_ids, env_mask=env_mask)
         for deformable_object in self._deformable_objects.values():
-            deformable_object.reset(env_ids)
+            deformable_object.reset(env_ids, env_mask=env_mask)
         for rigid_object in self._rigid_objects.values():
             rigid_object.reset(env_ids, env_mask=env_mask)
         for surface_gripper in self._surface_grippers.values():
-            surface_gripper.reset(env_ids)
+            if env_mask is None:
+                surface_gripper.reset(env_ids)
+            else:
+                surface_gripper.reset_mask(wp.to_torch(env_mask))
         for rigid_object_collection in self._rigid_object_collections.values():
             rigid_object_collection.reset(env_ids, env_mask=env_mask)
-        # -- sensors (no env_mask support)
+        # -- sensors
         for sensor in self._sensors.values():
-            sensor.reset(env_ids)
+            sensor.reset(env_ids, env_mask=env_mask)

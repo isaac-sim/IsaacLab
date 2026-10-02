@@ -25,6 +25,7 @@ from isaaclab_newton.kernels.state_kernels import (
 )
 
 from isaaclab_experimental.managers import ManagerTermBase, SceneEntityCfg
+from isaaclab_experimental.utils.warp import WarpCapturable
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation
@@ -226,6 +227,10 @@ def _base_height_l2_kernel(
     out[i] = error * error
 
 
+@WarpCapturable(
+    lambda params: params.get("sensor_cfg") is None,
+    reason="Ray-caster reads refresh the sensor through host-side timestamps and scene transforms.",
+)
 def base_height_l2(
     env: ManagerBasedRLEnv,
     out: wp.array(dtype=wp.float32),
@@ -509,24 +514,13 @@ def track_lin_vel_xy_exp(
     Warp-first override of :func:`isaaclab.envs.mdp.rewards.track_lin_vel_xy_exp`.
     """
     asset: Articulation = env.scene[asset_cfg.name]
-    # cache the warp view of the command tensor on first call (zero-copy)
-    # TODO(warp-migration): Cross-manager access (reward → command). Replace with direct
-    #  warp getter once all managers are guaranteed to be warp-native.
-    if not getattr(track_lin_vel_xy_exp, "_is_warmed_up", False) or track_lin_vel_xy_exp._cmd_name != command_name:
-        cmd = env.command_manager.get_command(command_name)
-        if isinstance(cmd, wp.array):
-            track_lin_vel_xy_exp._cmd_wp = cmd
-        else:
-            track_lin_vel_xy_exp._cmd_wp = wp.from_torch(cmd)
-        track_lin_vel_xy_exp._cmd_name = command_name
-        track_lin_vel_xy_exp._is_warmed_up = True
     wp.launch(
         kernel=_track_lin_vel_xy_exp_kernel,
         dim=env.num_envs,
         inputs=[
             asset.data.root_link_pose_w.warp,
             asset.data.root_com_vel_w.warp,
-            track_lin_vel_xy_exp._cmd_wp,
+            env.command_manager.get_command_wp(command_name),
             1.0 / (std * std),
             out,
         ],
@@ -560,23 +554,13 @@ def track_ang_vel_z_exp(
     Warp-first override of :func:`isaaclab.envs.mdp.rewards.track_ang_vel_z_exp`.
     """
     asset: Articulation = env.scene[asset_cfg.name]
-    # TODO(warp-migration): Cross-manager access (reward → command). Replace with direct
-    #  warp getter once all managers are guaranteed to be warp-native.
-    if not getattr(track_ang_vel_z_exp, "_is_warmed_up", False) or track_ang_vel_z_exp._cmd_name != command_name:
-        cmd = env.command_manager.get_command(command_name)
-        if isinstance(cmd, wp.array):
-            track_ang_vel_z_exp._cmd_wp = cmd
-        else:
-            track_ang_vel_z_exp._cmd_wp = wp.from_torch(cmd)
-        track_ang_vel_z_exp._cmd_name = command_name
-        track_ang_vel_z_exp._is_warmed_up = True
     wp.launch(
         kernel=_track_ang_vel_z_exp_kernel,
         dim=env.num_envs,
         inputs=[
             asset.data.root_link_pose_w.warp,
             asset.data.root_com_vel_w.warp,
-            track_ang_vel_z_exp._cmd_wp,
+            env.command_manager.get_command_wp(command_name),
             2,
             1.0 / (std * std),
             out,

@@ -17,12 +17,15 @@ from __future__ import annotations
 
 import contextlib
 import copy
+import dataclasses
 import inspect
 import logging
 from abc import ABC, abstractmethod
-from collections.abc import Sequence
+from collections.abc import Callable, Iterable, Sequence
 from typing import TYPE_CHECKING, Any
 
+import numpy as np
+import torch
 import warp as wp
 
 import isaaclab.utils.string as string_utils
@@ -38,8 +41,6 @@ from .scene_entity_cfg import SceneEntityCfg
 
 
 if TYPE_CHECKING:
-    import torch
-
     from isaaclab.envs import ManagerBasedEnv
 
 # import logger
@@ -198,6 +199,11 @@ class ManagerBase(ABC):
         # else:
         #     self._resolve_terms_handle = None
         self._resolve_terms_handle = None
+        # steps of each operation for the environment's graph cache, built on first use
+        self._stage_steps: dict[str, tuple[tuple[bool, Callable[..., Any]], ...]] = {}
+        # what the built steps read from each term configuration, compared when a term configuration is set
+        self._term_signatures: dict[str, Any] | None = None
+        self._all_terms_capturable = True
 
         # parse config to create terms information
         if self.cfg:
@@ -286,9 +292,79 @@ class ManagerBase(ABC):
         """
         raise NotImplementedError
 
+    def stage_steps(self, operation: str) -> tuple[tuple[bool, Callable[..., Any]], ...]:
+        """Ordered steps of an operation, each marked as capturable or not.
+
+        Calling the steps in order with the operation's arguments performs the operation. The Warp
+        environments record each run of consecutive capturable steps into a CUDA graph and run the other
+        steps eagerly in between (see :meth:`~isaaclab_experimental.utils.WarpGraphCache.call_steps`). A
+        term decorated with ``@WarpCapturable(False)`` makes its own step eager.
+
+        Args:
+            operation: Name of the operation, such as ``"compute"`` or ``"reset"``.
+
+        Returns:
+            The steps, reused until a term changes.
+        """
+        steps = self._stage_steps.get(operation)
+        if steps is None:
+            if self._term_signatures is None:
+                self._term_signatures = {name: self._term_signature(cfg) for name, cfg in self._named_term_cfgs()}
+            steps = self._stage_steps[operation] = tuple(self._build_stage_steps(operation))
+        return steps
+
     """
     Implementation specific.
     """
+
+    def _build_stage_steps(self, operation: str) -> list[tuple[bool, Callable[..., Any]]]:
+        """Build the steps of an operation.
+
+        The default runs the whole method as one step, capturable when every term is. Managers that
+        split an operation per term override this.
+
+        Args:
+            operation: Name of the operation.
+
+        Returns:
+            The ordered steps.
+        """
+        return [(self._all_terms_capturable, getattr(self, operation))]
+
+    def _run_steps(self, operation: str, *args: Any, **kwargs: Any) -> Any:
+        """Run the steps of an operation eagerly and return the last step's result."""
+        result = None
+        for _, step in self.stage_steps(operation):
+            result = step(*args, **kwargs)
+        return result
+
+    def _clear_stage_steps(self) -> None:
+        """Rebuild the steps on next use and drop the graphs recorded from them."""
+        self._stage_steps.clear()
+        self._term_signatures = None
+        graph_cache = getattr(self._env, "_warp_graph_cache", None)
+        if graph_cache is not None:
+            graph_cache.invalidate(type(self).__name__)
+
+    def _named_term_cfgs(self) -> Iterable[tuple[str, Any]]:
+        """Name and configuration of each term whose configuration can be set."""
+        return ()
+
+    def _term_signature(self, term_cfg: ManagerTermBaseCfg) -> Any:
+        """What the steps read from a term configuration when they are built or recorded.
+
+        Values the steps read from device arrays on every call are left out, since a replayed graph sees
+        their changes.
+        """
+        return (term_cfg.func, _config_key(term_cfg.params), is_warp_capturable(term_cfg.func, term_cfg.params))
+
+    def _term_cfg_changed(self, term_name: str, term_cfg: Any) -> bool:
+        """Whether the built steps read a different configuration of the term.
+
+        Compares against the values taken when the steps were built, since curricula change a stored
+        configuration in place before setting it again.
+        """
+        return self._term_signatures is None or self._term_signatures.get(term_name) != self._term_signature(term_cfg)
 
     @abstractmethod
     def _prepare_terms(self):
@@ -324,6 +400,8 @@ class ManagerBase(ABC):
 
         # set the flag
         self._is_scene_entities_resolved = True
+        # class terms were just created
+        self._clear_stage_steps()
 
     """
     Internal functions.
@@ -407,11 +485,8 @@ class ManagerBase(ABC):
                     f" and optional parameters: {args_with_defaults}, but received: {term_params}."
                 )
 
-        # register non-capturable terms with the call switch for mode=2 fallback
-        if not is_warp_capturable(term_cfg.func):
-            switch = getattr(self._env, "_manager_call_switch", None)
-            if switch is not None:
-                switch.register_manager_capturability(type(self).__name__, False)
+        if not is_warp_capturable(term_cfg.func, term_cfg.params):
+            self._all_terms_capturable = False
 
         # process attributes at runtime
         # these properties are only resolvable once the simulation starts playing
@@ -456,3 +531,24 @@ class ManagerBase(ABC):
         if inspect.isclass(term_cfg.func):
             logger.info(f"Initializing term '{term_name}' with class '{term_cfg.func.__name__}'.")
             term_cfg.func = term_cfg.func(cfg=term_cfg, env=self._env)
+
+
+def _config_key(value: Any) -> Any:
+    """Comparable copy of a configuration value, taken by value.
+
+    Arrays are keyed by the memory a recorded graph reads, configuration objects by their attributes
+    (including those set when they are resolved, such as the Warp joint mask), and other objects by identity.
+    """
+    if isinstance(value, wp.array):
+        return ("wp.array", value.ptr, value.shape, value.strides, value.dtype)
+    if isinstance(value, torch.Tensor):
+        return ("tensor", value.data_ptr(), tuple(value.shape), value.stride(), value.dtype)
+    if isinstance(value, np.ndarray):
+        return ("ndarray", value.shape, value.dtype.str, value.tobytes())
+    if isinstance(value, dict):
+        return ("dict", tuple((key, _config_key(item)) for key, item in value.items()))
+    if isinstance(value, (list, tuple)):
+        return (type(value), tuple(_config_key(item) for item in value))
+    if dataclasses.is_dataclass(value) and not isinstance(value, type):
+        return (type(value), _config_key(vars(value)))
+    return value
