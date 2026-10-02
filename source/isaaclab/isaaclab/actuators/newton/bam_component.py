@@ -330,6 +330,7 @@ class DriveBam(DriveBase):
 
         self.external_torque = None
         self.env_dof_stride = 1
+        self._state_created = False
         self.friction_budget = None
         self.effective_vin = None
         self.motor_torque = None
@@ -364,7 +365,13 @@ class DriveBam(DriveBase):
         Args:
             stride: DOFs per environment handled by this drive. The battery sag sums
                 the previous motor torques over each such block; its joints share one delay draw.
+
+        Raises:
+            RuntimeError: If a drive state has already been created.
+            ValueError: If the stride is less than one.
         """
+        if self._state_created:
+            raise RuntimeError("BAM environment stride must be configured before creating drive state.")
         if stride < 1:
             raise ValueError(f"env_dof_stride must be at least 1, got {stride}")
         self.env_dof_stride = int(stride)
@@ -404,6 +411,7 @@ class DriveBam(DriveBase):
                 ],
                 device=device,
             )
+        self._state_created = True
         return state
 
     def compute(
