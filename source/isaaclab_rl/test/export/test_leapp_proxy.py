@@ -4,16 +4,18 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import math
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 import torch
 import warp as wp
 
-pytest.importorskip("leapp")
+leapp = pytest.importorskip("leapp")
 
 from isaaclab.assets.articulation import BaseArticulationData
 from isaaclab.envs import mdp
+from isaaclab.managers import ObservationTermCfg, SceneEntityCfg
 from isaaclab.sensors.camera import CameraData
 from isaaclab.utils import math as math_utils
 from isaaclab.utils.leapp import utils as leapp_utils
@@ -197,6 +199,52 @@ def test_camera_output_mapping_registers_each_buffer_as_an_input(monkeypatch: py
         "state:camera:output.rgb",
         "state:camera:output.depth",
     }
+
+
+def test_rgb_observation_export_keeps_live_camera_input(tmp_path: Path):
+    """Test exported RGB preprocessing responds to runtime camera input changes."""
+    from leapp import InferenceManager, annotate
+
+    rgb = torch.arange(48, dtype=torch.uint8).reshape(1, 4, 4, 3)
+    camera_buffer = rgb.clone()
+    changed_rgb = rgb.clone()
+    changed_rgb[:, :2] = 0
+    camera_data = CameraData()
+    camera_data._output = {"rgb": ProxyArray(wp.from_torch(camera_buffer))}
+    camera = SimpleNamespace(data=camera_data)
+    scene = _TestScene()
+    scene.sensors = {"base_camera": camera}
+    env = SimpleNamespace(num_envs=1, device="cpu", scene=scene)
+    params = {
+        "sensor_cfg": SceneEntityCfg("base_camera"),
+        "normalize": True,
+        "channel_first": True,
+    }
+    cfg = ObservationTermCfg(func=mdp.image_rgb, params=params)
+    term_cfg = SimpleNamespace(func=mdp.image_rgb(cfg, env), params=params, noise=None)
+    obs_manager = SimpleNamespace(_group_obs_term_cfgs={"policy": [term_cfg]}, compute=lambda *args, **kwargs: None)
+    proxy_env = _EnvProxy(env, "camera-task", {}, {})
+    patcher = ExportPatcher(export_method="onnx-dynamo", required_obs_groups={"policy"})
+    patcher.task_name = "camera-task"
+    patcher._patch_observation_manager(obs_manager, proxy_env)
+
+    leapp.start("camera-task", save_path=str(tmp_path))
+    destination = torch.empty((1, 3, 4, 4), dtype=torch.float32)
+    observation = term_cfg.func(env, **params, out=destination)
+    assert observation is destination
+    downstream = observation.square().mean(dim=(1, 2, 3))
+    annotate.output_tensors("camera-task", {"downstream": downstream}, export_with="onnx-dynamo")
+    leapp.stop()
+    leapp.compile_graph(visualize=False, validate=True)
+
+    pipeline = tmp_path / "camera-task" / "camera-task.yaml"
+    manager = InferenceManager(str(pipeline))
+    input_name = "camera-task/base_camera_output_rgb"
+    output_name = "camera-task/downstream"
+    assert input_name in manager.inputs
+    baseline = manager.run_policy({input_name: rgb})[output_name]
+    perturbed = manager.run_policy({input_name: changed_rgb})[output_name]
+    assert not torch.allclose(baseline, perturbed)
 
 
 def test_named_last_action_observations_use_independent_feedback_states(monkeypatch: pytest.MonkeyPatch):
