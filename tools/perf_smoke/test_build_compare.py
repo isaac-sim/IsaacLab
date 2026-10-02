@@ -62,7 +62,7 @@ def evidence(samples=None, *, expected=3, formula="aggregate_frames_over_measure
         measurement_start=None,
         measurement_end=None,
         zip_bytes=b"",
-        run={},
+        files={},
     )
 
 
@@ -237,6 +237,18 @@ class ReportRenderingTests(unittest.TestCase):
         self.assertEqual(markdown.count("</details>"), 2)
         primary = markdown.split("<details>", 1)[0]
         self.assertTrue(all(len(line.split("|")) == 7 for line in primary.splitlines() if line.startswith("|")))
+
+    def test_artifact_text_cannot_inject_markdown_rows_or_html(self):
+        report = compare_evidence(evidence(), evidence())
+        report["baseline"].update(repository="isaac-sim/IsaacLab", run_url="https://example.invalid/untrusted")
+        report["rows"][0]["label"] = "Task | [click](https://example.invalid)\n<script>bad()</script>"
+        markdown = render_build_comparison(report)
+        self.assertNotIn("<script>", markdown)
+        self.assertNotIn("[click]", markdown)
+        self.assertIn("&#124;", markdown)
+        self.assertIn("&lt;script&gt;", markdown)
+        self.assertNotIn("https://example.invalid/untrusted", markdown)
+        self.assertIn("https://github.com/isaac-sim/IsaacLab/actions/runs/1/attempts/1", markdown)
 
     def test_context_details_are_outside_the_numeric_table_and_shared_notes_are_collapsed(self):
         a = evidence({"one": [bundle(100, "One")] * 3, "two": [bundle(200, "Two")] * 3})
@@ -531,29 +543,26 @@ class AutomaticReportTests(unittest.TestCase):
         self.assertIn("Comparison unavailable", markdown)
         self.assertIn("expired", markdown)
 
-    def test_known_dispatch_event_overrides_ambient_pr_event(self):
-        self.client.attempts[20, 1]["event"] = "workflow_dispatch"
-        with (
-            tempfile.TemporaryDirectory() as directory,
-            patch.dict("os.environ", {"GITHUB_EVENT_NAME": "pull_request"}),
+    def test_known_event_overrides_ambient_event(self):
+        for event, ambient, mode, kind, heading in (
+            ("workflow_dispatch", "pull_request", "historical", None, "Automatic build comparison"),
+            ("pull_request", "push", "paired_pr", "merge", "PR performance comparison"),
         ):
-            status, result, markdown = self.run_report(Path(directory))
-        self.assertEqual(status, 0)
-        self.assertEqual(result["candidate"]["event"], "workflow_dispatch")
-        self.assertEqual(result["comparison_mode"], "historical")
-        self.assertIsNone(result["candidate_kind"])
-        self.assertIn("Automatic build comparison", markdown)
-        self.assertIn("A — historical baseline", markdown)
-        self.assertNotIn("PR merge result", markdown)
-
-    def test_known_pr_event_overrides_ambient_push_event(self):
-        self.client.attempts[20, 1]["event"] = "pull_request"
-        with tempfile.TemporaryDirectory() as directory, patch.dict("os.environ", {"GITHUB_EVENT_NAME": "push"}):
-            status, result, markdown = self.run_report(Path(directory))
-        self.assertEqual(status, 0)
-        self.assertEqual(result["comparison_mode"], "paired_pr")
-        self.assertEqual(result["candidate_kind"], "merge")
-        self.assertIn("PR performance comparison", markdown)
+            with self.subTest(event=event, ambient=ambient):
+                self.client.attempts[20, 1]["event"] = event
+                with (
+                    tempfile.TemporaryDirectory() as directory,
+                    patch.dict("os.environ", {"GITHUB_EVENT_NAME": ambient}),
+                ):
+                    status, result, markdown = self.run_report(Path(directory))
+                self.assertEqual(status, 0)
+                self.assertEqual(result["candidate"]["event"], event)
+                self.assertEqual(result["comparison_mode"], mode)
+                self.assertEqual(result["candidate_kind"], kind)
+                self.assertIn(heading, markdown)
+                if kind is None:
+                    self.assertIn("A — historical baseline", markdown)
+                    self.assertNotIn("PR merge result", markdown)
 
     def test_capture_failure_explains_missing_results_before_pin_identity_error(self):
         self.client.attempts[20, 1]["event"] = "pull_request"
@@ -607,9 +616,7 @@ class AutomaticReportTests(unittest.TestCase):
     def test_baseline_failure_keeps_available_current_fps_and_partial_workloads(self):
         self.client.attempts[20, 1]["event"] = "pull_request"
         candidate = build_compare.baseline_mod.resolve_candidate(self.client, 20, 1)
-        from .paired import _files
-
-        files = _files(candidate.zip_bytes)
+        files = candidate.files
         reason = "The base dependency image could not be pulled; baseline samples were not produced."
         files["paired-failure.json"] = json.dumps(
             {
@@ -696,20 +703,6 @@ class AutomaticReportTests(unittest.TestCase):
         self.assertEqual(third["selection"]["unavailable_evidence"], result["selection"]["unavailable_evidence"])
         self.assertEqual(third["selection"]["reason_code"], "expired")
         self.assertIn("/actions/runs/10/attempts/1", third_markdown)
-
-    def test_artifact_text_cannot_inject_markdown_rows_or_html(self):
-        from .report import render_build_comparison
-
-        report = compare_evidence(evidence(), evidence())
-        report["baseline"].update(repository="isaac-sim/IsaacLab", run_url="https://example.invalid/untrusted")
-        report["rows"][0]["label"] = "Task | [click](https://example.invalid)\n<script>bad()</script>"
-        markdown = render_build_comparison(report)
-        self.assertNotIn("<script>", markdown)
-        self.assertNotIn("[click]", markdown)
-        self.assertIn("&#124;", markdown)
-        self.assertIn("&lt;script&gt;", markdown)
-        self.assertNotIn("https://example.invalid/untrusted", markdown)
-        self.assertIn("https://github.com/isaac-sim/IsaacLab/actions/runs/1/attempts/1", markdown)
 
 
 if __name__ == "__main__":
