@@ -36,7 +36,12 @@ def bundle(fps, task="Task", *, seed=42):
             "steps_per_iteration": 512,
             "environment_step_timing": {"warmup_steps": 100, "measurement_mode": "host_return"},
         },
-        "hardware": {"hostname": "worker-a", "gpu_devices": [{"name": "GPU"}]},
+        "hardware": {
+            "hostname": "worker-a",
+            "cpu_name": "Intel(R) Xeon(R) 6975P-C",
+            "cpu_count": 16,
+            "gpu_devices": [{"name": "NVIDIA RTX PRO 4500 Blackwell Server Edition"}],
+        },
         "versions": {"warp": "1.0"},
     }
 
@@ -61,7 +66,6 @@ def evidence(samples=None, *, expected=3, formula="aggregate_frames_over_measure
         issues=[],
         measurement_start=None,
         measurement_end=None,
-        zip_bytes=b"",
         files={},
     )
 
@@ -227,30 +231,31 @@ class ReportRenderingTests(unittest.TestCase):
         self.assertIn("A — historical baseline", details)
         self.assertIn("B — current benchmark", details)
 
-    def test_artifact_text_cannot_break_detail_blocks_or_table_columns(self):
-        report = compare_evidence(evidence(), evidence())
-        label = "leg | </details><script>"
-        report["rows"][0]["legs"] = {"baseline": [label], "candidate": [label]}
-        report["rows"][0]["notes"].append(label)
-        markdown = render_build_comparison(report)
-        self.assertNotIn("<script>", markdown)
-        self.assertIn("&lt;/details&gt;&lt;script&gt;", markdown)
-        self.assertEqual(markdown.count("<details>"), 2)
-        self.assertEqual(markdown.count("</details>"), 2)
-        primary = markdown.split("<details>", 1)[0]
-        self.assertTrue(all(len(line.split("|")) == 7 for line in primary.splitlines() if line.startswith("|")))
-
-    def test_artifact_text_cannot_inject_markdown_rows_or_html(self):
-        report = compare_evidence(evidence(), evidence())
-        report["baseline"].update(repository="isaac-sim/IsaacLab", run_url="https://example.invalid/untrusted")
-        report["rows"][0]["label"] = "Task | [click](https://example.invalid)\n<script>bad()</script>"
-        markdown = render_build_comparison(report)
-        self.assertNotIn("<script>", markdown)
-        self.assertNotIn("[click]", markdown)
-        self.assertIn("&#124;", markdown)
-        self.assertIn("&lt;script&gt;", markdown)
-        self.assertNotIn("https://example.invalid/untrusted", markdown)
-        self.assertIn("https://github.com/isaac-sim/IsaacLab/actions/runs/1/attempts/1", markdown)
+    def test_artifact_text_preserves_tables_details_and_reconstructed_github_links(self):
+        for target, text, escaped in (
+            ("legs", "leg | </details><script>", "&lt;/details&gt;&lt;script&gt;"),
+            ("label", "Task | [click](https://example.invalid)\n<script>bad()</script>", "&lt;script&gt;"),
+        ):
+            with self.subTest(target=target):
+                report = compare_evidence(evidence(), evidence())
+                report["baseline"].update(repository="isaac-sim/IsaacLab", run_url="https://example.invalid/untrusted")
+                row = report["rows"][0]
+                if target == "legs":
+                    row["legs"] = {"baseline": [text], "candidate": [text]}
+                    row["notes"].append(text)
+                else:
+                    row["label"] = text
+                markdown = render_build_comparison(report)
+                self.assertNotIn("<script>", markdown)
+                self.assertNotIn("[click]", markdown)
+                self.assertIn("&#124;", markdown)
+                self.assertIn(escaped, markdown)
+                self.assertEqual(markdown.count("<details>"), 2)
+                self.assertEqual(markdown.count("</details>"), 2)
+                primary = markdown.split("<details>", 1)[0]
+                self.assertTrue(all(len(line.split("|")) == 7 for line in primary.splitlines() if line.startswith("|")))
+                self.assertNotIn("https://example.invalid/untrusted", markdown)
+                self.assertIn("https://github.com/isaac-sim/IsaacLab/actions/runs/1/attempts/1", markdown)
 
     def test_context_details_are_outside_the_numeric_table_and_shared_notes_are_collapsed(self):
         a = evidence({"one": [bundle(100, "One")] * 3, "two": [bundle(200, "Two")] * 3})
@@ -436,17 +441,75 @@ class BuildComparisonTests(unittest.TestCase):
         self.assertIsNone(row["absolute_change"])
 
     def test_hardware_packages_and_image_qualify_without_causal_verdict(self):
-        b = evidence({"leg": [bundle(110)] * 3})
-        b.context["source"]["image_digest"] = "sha256:other"
+        for image, device_metadata in (
+            ("sha256:other", {}),
+            ("sha256:fixture", {"uuid": "different-device", "index": 7, "driver_version": "other-driver"}),
+        ):
+            with self.subTest(image=image, device_metadata=device_metadata):
+                b = evidence({"leg": [bundle(110) for _ in range(3)]})
+                b.context["source"]["image_digest"] = image
+                for sample in b.samples["leg"]:
+                    hardware = sample["bundle"]["hardware"]
+                    hardware["hostname"] = "worker-b"
+                    hardware["gpu_devices"][0].update(device_metadata)
+                    sample["bundle"]["versions"]["warp"] = "2.0"
+                row = compare_evidence(evidence(), b)["rows"][0]
+                self.assertEqual(row["status"], "compared")
+                self.assertEqual(row["change_pct"], 10)
+                self.assertTrue(row["context_differences"])
+                fields = {item["field"] for item in row["context_differences"]}
+                expected = {"hardware.hostname", "versions.warp"}
+                if image != "sha256:fixture":
+                    expected.add("source.image_digest")
+                self.assertTrue(expected.issubset(fields))
+                self.assertTrue(any("does not isolate a commit effect" in note for note in row["notes"]))
+
+    def test_material_hardware_changes_preserve_fps_without_comparing_them(self):
+        variants = (
+            {"cpu_name": "AMD EPYC 9554"},
+            {"cpu_count": 32},
+            {"gpu_devices": [{"name": "NVIDIA H100"}]},
+            {"gpu_devices": [{"name": "NVIDIA RTX PRO 4500 Blackwell Server Edition"}] * 2},
+        )
+        for hardware in variants:
+            with self.subTest(hardware=hardware):
+                b = evidence({"leg": [bundle(110) for _ in range(3)]})
+                for sample in b.samples["leg"]:
+                    sample["bundle"]["hardware"].update(hardware)
+                report = compare_evidence(evidence(), b)
+                row = report["rows"][0]
+                self.assertEqual(row["status"], "incompatible")
+                self.assertEqual((row["baseline"]["median"], row["candidate"]["median"]), (100, 110))
+                self.assertIsNone(row["absolute_change"])
+                self.assertIsNone(row["change_pct"])
+                self.assertIn("CPU/GPU hardware differs or varies within a selection.", row["reasons"])
+                primary, details = render_build_comparison(report).split("<details>", 1)
+                self.assertIn("| ⚪ Not comparable | leg | 100 | 110 | — |", primary)
+                self.assertNotIn("+10.00%", primary)
+                self.assertIn("CPU/GPU hardware differs", details)
+
+    def test_hardware_variation_and_heterogeneous_gpu_order_are_not_pooled(self):
+        a = evidence()
+        a.samples["leg"][1]["bundle"]["hardware"]["cpu_count"] = 32
+        row = compare_evidence(a, copy.deepcopy(a))["rows"][0]
+        self.assertEqual(row["status"], "incompatible")
+        self.assertIsNone(row["change_pct"])
+
+        a, b = evidence(), evidence()
+        for samples, models in ((a.samples["leg"], ("A100", "H100")), (b.samples["leg"], ("H100", "A100"))):
+            for sample in samples:
+                sample["bundle"]["hardware"]["gpu_devices"] = [{"name": model} for model in models]
+        row = compare_evidence(a, b)["rows"][0]
+        self.assertEqual(row["status"], "incompatible")
+        self.assertIsNone(row["change_pct"])
+
+    def test_missing_hardware_fields_retain_existing_diagnostic_behavior(self):
+        b = evidence()
         for sample in b.samples["leg"]:
-            sample["bundle"]["hardware"]["hostname"] = "worker-b"
-            sample["bundle"]["versions"]["warp"] = "2.0"
+            sample["bundle"].pop("hardware")
         row = compare_evidence(evidence(), b)["rows"][0]
         self.assertEqual(row["status"], "compared")
-        self.assertEqual(row["change_pct"], 10)
-        fields = {item["field"] for item in row["context_differences"]}
-        self.assertTrue({"hardware.hostname", "versions.warp", "source.image_digest"}.issubset(fields))
-        self.assertTrue(any("does not isolate a commit effect" in note for note in row["notes"]))
+        self.assertTrue(row["context_differences"])
 
     def test_presets_and_environment_count_use_validated_workload_identity(self):
         for field, value in (("num_envs", 1024), ("presets", ["new_preset"])):
