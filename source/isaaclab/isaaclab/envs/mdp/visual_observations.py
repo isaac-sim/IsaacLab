@@ -27,10 +27,23 @@ if TYPE_CHECKING:
 
 @wp.kernel
 def _find_new_camera_frames(
+    current: wp.array(dtype=wp.int64),
+    previous: wp.array(dtype=wp.int64),
+    reset_generations: wp.array(dtype=wp.int64),
+    generation: wp.int64,
+    mask: wp.array(dtype=wp.bool),
+):
+    index = wp.tid()
+    mask[index] = generation > reset_generations[index] and current[index] != previous[index]
+
+
+@wp.kernel
+def _record_processed_camera_frames(
     current: wp.array(dtype=wp.int64), previous: wp.array(dtype=wp.int64), mask: wp.array(dtype=wp.bool)
 ):
     index = wp.tid()
-    mask[index] = current[index] != previous[index]
+    if mask[index]:
+        previous[index] = current[index]
 
 
 class processed_image(ManagerTermBase):
@@ -73,6 +86,7 @@ class processed_image(ManagerTermBase):
         self._mean: torch.Tensor | None = None
         self._reset_mask: wp.array | None = None
         self._last_frames: wp.array | None = None
+        self._reset_generations: wp.array | None = None
         self._process_mask: wp.array | None = None
         try:
             context = CameraPostProcessorContext(
@@ -133,6 +147,8 @@ class processed_image(ManagerTermBase):
                 if self._reset_mask is None:
                     self._reset_mask = wp.zeros(self.num_envs, dtype=wp.bool, device=self.device)
                 self._last_frames = wp.full(self.num_envs, -1, dtype=wp.int64, device=self.device)
+                if self._reset_generations is None:
+                    self._reset_generations = wp.full(self.num_envs, -1, dtype=wp.int64, device=self.device)
                 self._process_mask = wp.empty(self.num_envs, dtype=wp.bool, device=self.device)
                 if self._normalize:
                     self._normalized = torch.empty(self._image.shape, dtype=torch.float32, device=self.device)
@@ -149,7 +165,7 @@ class processed_image(ManagerTermBase):
                 wp.launch(
                     _find_new_camera_frames,
                     dim=self.num_envs,
-                    inputs=[frames, self._last_frames, self._process_mask],
+                    inputs=[frames, self._last_frames, self._reset_generations, generation, self._process_mask],
                     device=self.device,
                 )
                 self._pipeline.process(self._process_mask)
@@ -157,7 +173,14 @@ class processed_image(ManagerTermBase):
                     self._normalized.copy_(self._image).div_(255.0)
                     torch.mean(self._normalized, dim=(1, 2), keepdim=True, out=self._mean)
                     self._normalized.sub_(self._mean)
-                wp.copy(self._last_frames, frames)
+                # Retain reset sentinels until a post-reset capture is processed: episode frame
+                # numbers can repeat, and an unconsumed pre-reset capture must not consume them.
+                wp.launch(
+                    _record_processed_camera_frames,
+                    dim=self.num_envs,
+                    inputs=[frames, self._last_frames, self._process_mask],
+                    device=self.device,
+                )
                 self._generation = generation
             return self._result
 
@@ -171,19 +194,25 @@ class processed_image(ManagerTermBase):
             wp.stream_from_torch(torch.cuda.current_stream(self.device)) if self.device.startswith("cuda") else None
         )
         with wp.ScopedStream(stream, sync_enter=True, sync_exit=True):
+            if self._reset_generations is None:
+                self._reset_generations = wp.full(self.num_envs, -1, dtype=wp.int64, device=self.device)
+            indices = slice(None) if env_ids is None else env_ids
+            wp.to_torch(self._reset_generations)[indices] = self._camera.render_generation
             if env_ids is None:
                 self._reset_mask.fill_(True)
+                if self._result is not None:
+                    self._generation = self._camera.render_generation
             else:
                 self._reset_mask.zero_()
                 wp.to_torch(self._reset_mask)[env_ids] = True
             if self._last_frames is not None:
-                wp.to_torch(self._last_frames)[slice(None) if env_ids is None else env_ids] = -1
+                wp.to_torch(self._last_frames)[indices] = -1
             self._pipeline.reset(self._reset_mask)
 
     def close(self) -> None:
         """Release owned processor state and buffers. Repeated calls are safe."""
         pipeline, self._pipeline = self._pipeline, None
         self._image = self._result = self._normalized = self._mean = self._reset_mask = None
-        self._last_frames = self._process_mask = None
+        self._last_frames = self._reset_generations = self._process_mask = None
         if pipeline is not None:
             pipeline.close()

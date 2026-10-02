@@ -5,6 +5,7 @@
 
 """Image-observation ownership, caching, and lifecycle without a renderer runtime."""
 
+import contextlib
 from types import SimpleNamespace
 
 import numpy as np
@@ -17,6 +18,7 @@ from isaaclab.managers import ObservationGroupCfg, ObservationManager, Observati
 from isaaclab.renderers import RenderBufferSpec
 from isaaclab.sensors.camera.camera_data import CameraData, RenderBufferKind
 from isaaclab.sensors.post_processing import SensorPostProcessor, SensorPostProcessorCfg
+from isaaclab.test.utils import test_devices
 from isaaclab.utils.warp import ProxyArray
 
 pytestmark = pytest.mark.unit
@@ -25,7 +27,7 @@ pytestmark = pytest.mark.unit
 class CameraSource:
     """Persistent raw frames with the camera's lazy-read contract."""
 
-    def __init__(self):
+    def __init__(self, device="cpu"):
         self.cfg = SimpleNamespace(height=2, width=3)
         self.camera_prim_paths = ("/World/envs/env_0/Camera",)
         self.render_buffer_specs = {
@@ -38,12 +40,12 @@ class CameraSource:
             height=2,
             width=3,
             num_views=2,
-            device="cpu",
+            device=device,
             supported_specs={RenderBufferKind(name): spec for name, spec in self.render_buffer_specs.items()},
         ).output
         self.render_outputs["rgb"].torch.copy_(torch.arange(36, dtype=torch.uint8).reshape(2, 2, 3, 3))
         self.render_generation = 1
-        self.frame = ProxyArray(wp.ones(2, dtype=wp.int64, device="cpu"))
+        self.frame = ProxyArray(wp.ones(2, dtype=wp.int64, device=device))
         self.render_frame = self.frame
         self.requests = []
 
@@ -90,7 +92,10 @@ def make_term_cfg(events, *, source="rgb", increment=1, **params):
 
 def make_env(camera):
     return SimpleNamespace(
-        num_envs=2, device="cpu", scene={"camera": camera}, sim=SimpleNamespace(stage=None, is_playing=lambda: True)
+        num_envs=2,
+        device=str(camera.frame.warp.device),
+        scene={"camera": camera},
+        sim=SimpleNamespace(stage=None, is_playing=lambda: True),
     )
 
 
@@ -221,4 +226,40 @@ def test_term_mask_covers_all_views_changed_since_its_previous_read():
     camera.render_generation += 1
     term(env, **cfg.params)
     np.testing.assert_array_equal(events[-1][1], [True, False])
+    term.close()
+
+
+@pytest.mark.parametrize("env_ids", [None, [1]])
+@pytest.mark.parametrize("device", test_devices())
+def test_reset_excludes_unconsumed_pre_reset_capture(env_ids, device):
+    """A skipped observation preserves peer updates but cannot advance reset state from old pixels."""
+    with contextlib.ExitStack() as stack:
+        if device.startswith("cuda"):
+            # Camera writes and reset bookkeeping originate on a non-default Torch stream;
+            # the observation must order its Warp mask kernels with that same stream.
+            stack.enter_context(torch.cuda.stream(torch.cuda.Stream(device=device)))
+        _check_reset_excludes_unconsumed_pre_reset_capture(env_ids, device)
+
+
+def _check_reset_excludes_unconsumed_pre_reset_capture(env_ids, device):
+    camera = CameraSource(device)
+    env = make_env(camera)
+    events = []
+    cfg, _ = make_term_cfg(events)
+    term = processed_image.prepare_scene(cfg, env)
+    term(env, **cfg.params)
+    camera.frame.torch.fill_(2)
+    camera.render_generation += 1
+    term.reset(env_ids)
+    term(env, **cfg.params)
+    if env_ids is None:
+        assert [kind for kind, _ in events] == ["process", "reset"]
+    else:
+        np.testing.assert_array_equal(events[-1][1], [True, False])
+
+    # Episode-local frame numbers can repeat: this is a genuinely new post-reset capture.
+    camera.frame.torch[slice(None) if env_ids is None else env_ids] = 1
+    camera.render_generation += 1
+    term(env, **cfg.params)
+    np.testing.assert_array_equal(events[-1][1], [env_ids is None, True])
     term.close()

@@ -12,3 +12,5 @@
   ``Camera.render_generation`` attribute to track completed render batches without advancing on cached reads.
   Added ``Camera.render_frame`` to match processing state to published asynchronous captures;
   repeated priming frames and resets before a new delayed capture did not republish earlier images.
+  Excluded unconsumed pre-reset captures from reset observation state while preserving updates
+  for other environments and accepting repeated episode-local frame numbers after reset.
