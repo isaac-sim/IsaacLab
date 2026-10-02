@@ -72,6 +72,16 @@ def _resolved_base(commit: str | None = None) -> str:
     return commit
 
 
+def _benchmark_protocol(legs: Path) -> dict[str, str]:
+    """Identify the matrix and preserved controller files that actually launch both builds."""
+    paths = {
+        "matrix_sha256": legs,
+        "benchmark_launcher_sha256": Path(__file__).with_name("run_benchmarks.sh"),
+        "source_launcher_sha256": Path(__file__).with_name("source_revision.py"),
+    }
+    return {name: hashlib.sha256(path.read_bytes()).hexdigest() for name, path in paths.items()}
+
+
 def source_issues(evidence: store.Evidence, files: dict[str, bytes], commit: str) -> list[str]:
     """Check each result against its same-process source proof, retaining per-leg failures."""
     try:
@@ -180,6 +190,7 @@ def restore_baseline(
     run_id: int,
     run_attempt: int,
     *,
+    legs: Path,
     base_commit: str | None = None,
 ) -> dict:
     """Restore a complete verified measurement for this PR/base, or request a fresh one."""
@@ -192,6 +203,7 @@ def restore_baseline(
     selection["reason"] = "No reusable verified baseline exists for this PR and base commit; measure it before the PR."
     # A terminated lookup leaves a valid request for fresh measurements, never an old reuse decision.
     _write(selection_path, selection)
+    protocol = _benchmark_protocol(legs)
     prefix = f"performance-pr-baseline-{pr_number}-{base_commit}-"
     try:
         current_run = client.run_attempt(run_id, run_attempt)
@@ -218,6 +230,11 @@ def restore_baseline(
                 evidence = _read_baseline(client, artifact, pr_number, base_commit)
                 if evidence.identity.get("workflow_id") != workflow_id:
                     raise store.EvidenceError("identity_mismatch", "Baseline belongs to another workflow.")
+                if evidence.context["execution"].get("benchmark_protocol") != protocol:
+                    raise store.EvidenceError(
+                        "protocol_mismatch",
+                        "Baseline benchmark protocol is missing or differs from the current matrix or launchers.",
+                    )
                 saved_manifest = store.artifact_json(evidence.files, "source-manifest.json")
                 expected = evidence.context["execution"].get("expected_samples")
                 planned = evidence.context["execution"].get("expected_legs")
@@ -319,6 +336,7 @@ def capture_context(root: Path, output_dir: Path, image_ref: str, role: str, eve
             "measurement_not_before": datetime.now(timezone.utc).isoformat(),
             "expected_samples": 3,
             "expected_legs": [line.split("|", 1)[0] for line in legs.read_text().splitlines() if line.strip()],
+            "benchmark_protocol": _benchmark_protocol(legs),
         },
         "metric_definition": {
             "total_fps": "aggregate_frames_over_measured_seconds",
@@ -477,6 +495,7 @@ def _execute(args: argparse.Namespace, event: dict) -> None:
             event,
             int(os.environ["GITHUB_RUN_ID"]),
             int(os.environ["GITHUB_RUN_ATTEMPT"]),
+            legs=args.legs,
         )
         with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
             output.write(f"reused={str(selection['baseline_reused']).lower()}\n")
@@ -573,6 +592,7 @@ def main(argv: list[str] | None = None) -> int:
     restore.add_argument("--checkout-root", type=Path, required=True)
     restore.add_argument("--output-dir", type=Path, required=True)
     restore.add_argument("--selection", type=Path, required=True)
+    restore.add_argument("--legs", type=Path, required=True)
     capture = commands.add_parser("capture")
     capture.add_argument("--checkout-root", type=Path, required=True)
     capture.add_argument("--output-dir", type=Path, required=True)

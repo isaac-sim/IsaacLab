@@ -155,7 +155,6 @@ class Evidence:
     issues: list[str]
     measurement_start: str | None
     measurement_end: str | None
-    zip_bytes: bytes = field(repr=False)
     files: dict[str, bytes] = field(repr=False)
 
     @property
@@ -179,16 +178,21 @@ def is_commit_sha(value: Any) -> bool:
     return isinstance(value, str) and re.fullmatch(r"[0-9a-fA-F]{40}", value) is not None
 
 
+def valid_fps(value: Any) -> float | None:
+    """Read a finite, nonnegative numeric FPS value, excluding booleans."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    try:
+        return float(value) if math.isfinite(value) and value >= 0 else None
+    except OverflowError:
+        return None
+
+
 def has_usable_runtime(bundle: dict) -> bool:
     """Whether a completed runtime sample has a finite, nonnegative FPS value."""
     fps = bundle.get("runtime", {}).get("total_fps")
     value = fps.get("mean") if isinstance(fps, dict) else None
-    if bundle.get("run", {}).get("status") != "completed" or isinstance(value, bool):
-        return False
-    try:
-        return isinstance(value, (int, float)) and math.isfinite(value) and value >= 0
-    except OverflowError:
-        return False
+    return bundle.get("run", {}).get("status") == "completed" and valid_fps(value) is not None
 
 
 def workload_key(bundle: dict) -> str | None:
@@ -423,7 +427,6 @@ def read_evidence(
         issues,
         cutoff.isoformat() if cutoff else None,
         completed.isoformat() if completed else None,
-        data,
         files,
     )
 

@@ -1128,7 +1128,7 @@ jobs:
         cd "$PERF_CONTROLLER"
         python3 -m tools.perf_smoke.paired restore \
           --checkout-root "$GITHUB_WORKSPACE" --output-dir "$PERF_BASELINE_OUTPUT" \
-          --selection "$PERF_CONTROLLER/selection.json"
+          --selection "$PERF_CONTROLLER/selection.json" --legs "$PERF_CONTROLLER/benchmark-legs.tsv"
 
     - name: Resolve the base revision's dependency image
       id: base_dependencies
