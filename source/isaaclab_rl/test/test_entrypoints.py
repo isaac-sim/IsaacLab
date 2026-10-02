@@ -21,8 +21,11 @@ import gymnasium as gym
 import numpy as np
 import pytest
 import torch
+from hydra.core.global_hydra import GlobalHydra
+from omegaconf import OmegaConf
 
 from isaaclab_rl.entrypoints import PlaybackRequest, SimpleAgentRequest, TrainingRequest, api, dispatch, simple_agents
+from isaaclab_rl.entrypoints.backends import play_rlinf, train_rlinf
 from isaaclab_rl.entrypoints.simple_agents import create_zero_action_policy
 
 
@@ -451,8 +454,6 @@ def test_train_request_adapts_typed_parameters_to_cli(monkeypatch) -> None:
 
 def test_rlinf_parser_uses_unified_checkpoint_and_iteration_flags() -> None:
     """RLinf accepts the public checkpoint and iteration option names."""
-    from isaaclab_rl.entrypoints.backends import train_rlinf
-
     args = train_rlinf._parse_args(["--config_name", "ppo", "--checkpoint", "latest", "--max_iterations", "10"])
 
     assert args.checkpoint == "latest"
@@ -475,6 +476,57 @@ def test_rlinf_rejects_pretrained_checkpoint() -> None:
 
     with pytest.raises(ValueError, match="Pre-trained checkpoints are not available for RLinf"):
         resolve_rlinf_checkpoint("pretrained", log_root_path="logs/rlinf", task="Isaac-Task", config_name="ppo")
+
+
+@pytest.mark.parametrize("backend", [train_rlinf, play_rlinf], ids=["train", "play"])
+def test_rlinf_launch_passes_checkpoint_and_model_config_to_workers(tmp_path: Path, monkeypatch, backend) -> None:
+    """Real CLI composition supplies the native RLinf weight/resume hooks before workers start."""
+    validate = mock.Mock(side_effect=RuntimeError("worker boundary"))
+    modules = {
+        "rlinf": {},
+        "rlinf.config": {"validate_cfg": validate},
+        "rlinf.runners.embodied_runner": {"EmbodiedRunner": mock.Mock()},
+        "rlinf.runners.embodied_eval_runner": {"EmbodiedEvalRunner": mock.Mock()},
+        "rlinf.scheduler": {"Cluster": mock.Mock()},
+        "rlinf.utils.placement": {"HybridComponentPlacement": mock.Mock()},
+        "rlinf.workers.env.env_worker": {"EnvWorker": mock.Mock()},
+        "rlinf.workers.rollout.hf.huggingface_worker": {"MultiStepRolloutWorker": mock.Mock()},
+    }
+    for name, attributes in modules.items():
+        module = types.ModuleType(name)
+        vars(module).update(attributes)
+        monkeypatch.setitem(sys.modules, name, module)
+    monkeypatch.setattr(torch.multiprocessing, "set_start_method", lambda *args, **kwargs: None)
+    monkeypatch.chdir(tmp_path)
+    for variable in ("PYTHONPATH", "RLINF_CONFIG_FILE", "RLINF_EXT_MODULE", "RAY_ENABLE_UV_RUN_RUNTIME_ENV"):
+        monkeypatch.delenv(variable, raising=False)
+    step_dir = tmp_path / "checkpoints" / "global_step_400"
+    weights = step_dir / "actor" / "model_state_dict" / "full_weights.pt"
+    weights.parent.mkdir(parents=True)
+    weights.touch()
+    cfg = OmegaConf.create(
+        {
+            "runner": {"logger": {"log_path": "unused"}},
+            "actor": {
+                "model": {"model_path": "./base", "model_type": "gr00t", "rl_head_config": {"add_value_head": True}}
+            },
+            "rollout": {"model": {"model_path": "./rollout", "rl_head_config": {"disable_dropout": True}}},
+            "env": {"train": {"init_params": {"id": "Test"}}, "eval": {"init_params": {"id": "Test"}}},
+        }
+    )
+    OmegaConf.save(cfg, tmp_path / "ppo.yaml")
+    checkpoint = step_dir if backend is train_rlinf else weights
+    args = ["--config_path", str(tmp_path), "--config_name", "ppo"]
+    args += ["--checkpoint", str(checkpoint.relative_to(tmp_path))]
+    with pytest.raises(RuntimeError, match="worker boundary"):
+        backend.run(args)
+    GlobalHydra.instance().clear()
+    resolved = validate.call_args.args[0]
+    assert resolved.runner["resume_dir" if backend is train_rlinf else "ckpt_path"] == str(checkpoint)
+    assert resolved.actor.model.model_path == str(tmp_path / "base")
+    assert resolved.rollout.model.model_path == str(tmp_path / "rollout")
+    assert resolved.rollout.model.model_type == "gr00t"
+    assert dict(resolved.rollout.model.rl_head_config) == {"add_value_head": True, "disable_dropout": True}
 
 
 def test_run_backend_restores_sys_argv_after_training(monkeypatch) -> None:
