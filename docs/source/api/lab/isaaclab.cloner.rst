@@ -32,6 +32,7 @@
       num_spawn_variants
       grid_transforms
       replicate
+      prepare_clone_contexts
       usd_replicate
       filter_collisions
 
@@ -81,3 +82,5 @@ Additional Public Classes
 
 .. autoclass:: UsdReplicateContext
    :show-inheritance:
+
+.. autofunction:: prepare_clone_contexts

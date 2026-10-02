@@ -120,7 +120,7 @@ class _PathRecorder:
 def _renderer(*, use_ovstage: bool = False):
     events: list[str] = []
     renderer = OVRTXRenderer.__new__(OVRTXRenderer)
-    renderer.backend = SimpleNamespace()
+    renderer.backend = SimpleNamespace(render_products=set())
     renderer.scene = renderer.backend
     renderer._initialized_scene = True
     renderer._use_ovstage = use_ovstage
@@ -220,6 +220,7 @@ def test_render_publishes_and_drains_material_writes_at_backend_boundary(use_ovs
         SimpleNamespace(render_product_path=path, ppisp_pipeline=None, warp_buffers={})
         for path in ("/Render/Product0", "/Render/Product1")
     ]
+    renderer.backend.render_products = {camera.render_product_path for camera in renderer._camera_render_data}
     renderer._process_render_frame = lambda *args: None
 
     class Writer:

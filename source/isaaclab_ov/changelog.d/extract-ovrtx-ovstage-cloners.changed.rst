@@ -6,7 +6,7 @@
 * Consolidated scene binding setup, camera pose updates, and render submission across OVRTX scene paths.
   Converted camera poses directly into retained matrix buffers and shared unscaled SDP publications between renderers.
   Paired query and path-list lifetimes on the stage backend, including material updates, and decoded segmentation
-  labels once per frame. Derived active products from registered cameras.
+  labels once per frame. Submitted all active products of a shared engine across renderer configurations.
 * Shared one OVRTX engine across camera product configurations when opting into a shared OVPhysX stage, as required
   by the SDK's single-renderer attachment contract. Cameras must agree on native logging and transform-cache settings.
   Removed duplicate USD scene-partition authoring; camera registration authored the runtime attributes.
@@ -15,3 +15,5 @@
 * Moved shared-stage selection from renderer construction into clone preparation. OVRTX configurations
   requested native cloning by default; preparation replaced the physics/render routes when explicitly
   opting into OVStage and acquired their resources only after deciding scene ownership.
+* Rebuilt shared stages from current USD during forced physics initialization after releasing camera and scene
+  bindings and detaching consumers. Physics and rendering observed new masses and geometry after reinitialization.

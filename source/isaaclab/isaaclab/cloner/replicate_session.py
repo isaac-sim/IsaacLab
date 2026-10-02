@@ -125,7 +125,7 @@ def replicate(plan: ClonePlan, *, replicate_physics: bool = True) -> None:
                 raise TypeError(f"{type(cfg).__name__}.cloning_contexts must contain only context classes.")
             routing.setdefault(context, set()).add(index)
 
-    _prepare_clone_contexts(sim, routing)
+    prepare_clone_contexts(sim, routing)
     for context in routing:
         if context not in sim.clone_contexts:
             sim.clone_contexts[context] = context(sim)
@@ -134,14 +134,19 @@ def replicate(plan: ClonePlan, *, replicate_physics: bool = True) -> None:
             sim.clone_contexts[context].replicate(plan, tuple(sorted(routing[context])))
 
 
-def _prepare_clone_contexts(sim: sim_utils.SimulationContext, routing: dict[type, set[int]] | None = None) -> None:
-    """Resolve consumer requirements before clone dispatch or a standalone simulation reset."""
+def prepare_clone_contexts(sim: sim_utils.SimulationContext, routing: dict[type, set[int]] | None = None) -> None:
+    """Resolve consumer requirements before clone dispatch or a standalone simulation reset.
+
+    Args:
+        sim: Simulation owning the consumers and native resources.
+        routing: Mutable asset routes; omitted when preparing registered renderers before reset.
+    """
     if routing is None:
         routing = {
             string_to_callable(context) if isinstance(context, str) else context: set()
             for context in sim.render_context.clone_contexts
         }
-    # Backend packages own selection rules; core preparation has no optional SDK dependencies.
+    # Preparation is optional for context extensions; existing USD/physics contexts only replicate.
     for context in tuple(routing):
         if context in routing and (prepare := getattr(context, "prepare", None)) is not None:
             prepare(sim, routing)

@@ -98,7 +98,10 @@ def test_kinematic_rigid_object_scale_and_pose_are_rendered(monkeypatch: pytest.
 
 def test_shared_stage_isolates_contacts_and_interleaves_rendering_with_gravity(monkeypatch):
     """Overlapping worlds retain distinct contacts and images across shared-stage control writes."""
+    import ovrtx
     import torch
+
+    from pxr import UsdGeom, UsdPhysics
 
     import isaaclab.sim as sim_utils
     from isaaclab.assets import RigidObjectCfg
@@ -141,6 +144,14 @@ def test_shared_stage_isolates_contacts_and_interleaves_rendering_with_gravity(m
             renderer_cfg=OVRTXRendererCfg(enable_shadows=True),
         )
 
+    submissions = []
+    native_step = ovrtx.Renderer.step
+
+    def record_products(renderer, **kwargs):
+        submissions.append(set(kwargs["render_products"]))
+        return native_step(renderer, **kwargs)
+
+    monkeypatch.setattr(ovrtx.Renderer, "step", record_products)
     cfg = SimulationCfg(device="cuda:0", dt=1 / 120, gravity=(0.0, 0.0, -10.0), physics=OvPhysxCfg())
     with build_simulation_context(sim_cfg=cfg) as sim:
         sim._app_control_on_stop_handle = None
@@ -165,6 +176,8 @@ def test_shared_stage_isolates_contacts_and_interleaves_rendering_with_gravity(m
                     assert torch.isfinite(camera.data.output["depth"].torch[:, 16, 16]).all()
             expected = torch.tensor([[0.0, 0.0, 1.5], [0.0, 0.0, 2.5]], device="cuda:0")
             torch.testing.assert_close(scene["body"].data.root_link_pos_w.torch, expected, atol=0.02, rtol=0.0)
+            products = {sensor._render_data.render_product_path for sensor in (camera, other)}
+            assert submissions and all(submitted == products for submitted in submissions)
             for sensor in (camera, other):
                 depth = sensor.data.output["depth"].torch[:, 16, 16, 0]
                 torch.testing.assert_close(depth, 6.0 - expected[:, 2] - 0.5, atol=0.02, rtol=0.0)
@@ -172,6 +185,10 @@ def test_shared_stage_isolates_contacts_and_interleaves_rendering_with_gravity(m
                 if not soft:
                     from isaaclab_ov.physics.ovphysx_manager import OvPhysxManager
 
+                    UsdPhysics.MassAPI(sim.stage.GetPrimAtPath("/World/envs/env_0/Body")).GetMassAttr().Set(2.0)
+                    marker = UsdGeom.Cube.Define(sim.stage, "/World/ReloadMarker")
+                    marker.GetSizeAttr().Set(1.0)
+                    marker.AddTranslateOp().Set((0.0, 0.0, 5.0))
                     OvPhysxManager._warmup_done = False
                 sim.reset(soft=soft)
                 scene.reset()
@@ -179,6 +196,17 @@ def test_shared_stage_isolates_contacts_and_interleaves_rendering_with_gravity(m
                 sim.render()
                 scene.update(cfg.dt)
                 torch.testing.assert_close(camera.data.output["depth"].torch, other.data.output["depth"].torch)
+                if not soft:
+                    torch.testing.assert_close(
+                        scene["body"].data.body_mass.torch, torch.full((2, 1), 2.0, device="cuda:0")
+                    )
+                    for sensor in (camera, other):
+                        torch.testing.assert_close(
+                            sensor.data.output["depth"].torch[:, 16, 16, 0],
+                            torch.full((2,), 0.5, device="cuda:0"),
+                            atol=0.02,
+                            rtol=0.0,
+                        )
         finally:
             sim.register_interactive_scene(None)
             scene["camera"]._invalidate_initialize_callback(None)

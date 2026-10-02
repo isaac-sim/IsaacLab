@@ -41,6 +41,7 @@ from isaaclab_ov._clone import CloneRecipe, clone_transforms_from_positions
 from isaaclab_ov._runtime import import_ovphysx
 from isaaclab_ov.cloner import OvPhysxReplicateContext
 from isaaclab_ov.cloner.replicate import _serialize_stage
+from isaaclab_ov.renderers.ovrtx_renderer_cfg import OVRTXBackendCfg, OVRTXRendererCfg
 from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView
 from isaaclab_ov.stage import OvstageBackendCfg, create_ovstage, export_stage_to_string
 
@@ -633,6 +634,15 @@ class OvPhysxManager(PhysicsManager):
         physx = cls.backend.physx
         if physx is None:
             return
+        if cls.backend.scene is not None:
+            sim = PhysicsManager._sim
+            for renderer in sim.get_backends(OVRTXRendererCfg):
+                if renderer.scene is cls.backend.scene:
+                    renderer.close()
+            for engine in sim.get_backends(OVRTXBackendCfg):
+                if engine.cfg.use_ovstage and engine.cfg.scene_key is None and engine.attached:
+                    engine.renderer.detach_ovstage()
+                    engine.attached = False
         if cls.backend.rigid_body_view is not None:
             cls.backend.rigid_body_view.destroy()
             cls.backend.rigid_body_view = None
@@ -641,6 +651,8 @@ class OvPhysxManager(PhysicsManager):
         if cls.backend.stage is not None:
             if cls.backend.scene is None:
                 cls.backend.stage.destroy()
+            else:
+                cls.backend.scene.reset()
             cls.backend.stage = None
         cls._next_control_ordinal = 2
 
@@ -787,12 +799,7 @@ class OvPhysxManager(PhysicsManager):
             cls._configure_physx_scene_prim(scene_prim, PhysicsManager._cfg, ovphysx_device)
 
         shared_scene = next(
-            (
-                backend
-                for cfg, backend in sim._backend_registry
-                if isinstance(cfg, OvstageBackendCfg) and cfg.scene_key is None
-            ),
-            None,
+            (scene for scene in sim.get_backends(OvstageBackendCfg) if scene.cfg.scene_key is None), None
         )
         if shared_scene is not None:
             stage_usda = export_stage_to_string(
