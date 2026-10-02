@@ -78,14 +78,7 @@ class MemoryInfoRecorder(MeasurementDataRecorder):
         self._memory_runtime_info["vms_n"] = self._vms_n
         self._memory_runtime_info["vms_peak"] = self._vms_peak
 
-        # USS (Unique Set Size) is deliberately not sampled here.
-        # ``psutil.Process.memory_full_info()`` walks the process page tables on every
-        # call, which costs hundreds of milliseconds once the process is a few GB
-        # resident. This recorder is driven by
-        # :class:`~isaaclab.benchmark.BenchmarkMonitor` from a background thread while
-        # the benchmark is being timed, so that walk perturbs the very workload the run
-        # is measuring. ``memory_info()`` above reads cheap kernel counters and is
-        # unaffected.
+        # USS (Unique Set Size) is deliberately not sampled, it's too expensive.
 
     def update(self) -> None:
         self._get_runtime_info()
