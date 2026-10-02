@@ -720,7 +720,13 @@ def test_native_explicit_groups_zero_solver_drives_and_build_no_lab_model(monkey
 def _bam_cfg(joints: list[str], **kwargs) -> BamActuatorCfg:
     """Create a native BAM configuration."""
     motor = BamMotorCfg(
-        model="m1", kt=0.36, resistance=2.8, error_gain=0.003, friction_base=0.005, friction_viscous=0.006
+        model="m1",
+        kt=0.36,
+        resistance=2.8,
+        error_gain=0.003,
+        max_current=0.0,
+        friction_base=0.005,
+        friction_viscous=0.006,
     )
     return BamActuatorCfg(joint_names_expr=joints, motor=motor, kp_fw=200.0, vin=7.4, **kwargs)
 
