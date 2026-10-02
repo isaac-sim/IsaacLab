@@ -2314,7 +2314,7 @@ def rendering_test_mpm_particles(
 
     Covers the ``UsdGeom.Points`` clouds authored by
     MPM spawners and updated by the shared Fabric resource through SDP. The camera frames the
-    UR10 particle pile head-on so the particles, not the workcell, dominate the frame.
+    UR10 particle pile and nearby wrist while keeping the rest of the workcell out of frame.
 
     MPM runs only on Newton's coupled MPM/MJWarp solver, so ``UR10ParticlePushEnvCfg`` pins
     ``sim.physics`` directly rather than exposing physics presets; only the renderer is selected
@@ -2348,13 +2348,13 @@ def rendering_test_mpm_particles(
     )
     from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
 
-    # Orientation is the quaternion for eye (1.05, -0.50, 0.35) looking at the pile centre
-    # (0.70, 0.0, 0.03), i.e. the value create_rotation_matrix_from_view yields for that view.
+    # Look from (1.15, -0.80, 0.55) toward (0.62, 0.0, 0.18) to include the pile and wrist
+    # without the ground plane. Rotation is create_rotation_matrix_from_view's OpenGL quaternion.
     particle_camera_cfg = CameraCfg(
         prim_path="{ENV_REGEX_NS}/Camera",
         offset=CameraCfg.OffsetCfg(
-            pos=(1.05, -0.50, 0.35),
-            rot=(0.493575, 0.155586, 0.257249, 0.816088),
+            pos=(1.15, -0.80, 0.55),
+            rot=(0.541755, 0.163176, 0.237799, 0.789510),
             convention="opengl",
         ),
         data_types=list(data_types),
