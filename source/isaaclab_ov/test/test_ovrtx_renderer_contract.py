@@ -134,7 +134,7 @@ def _simulation_registry(monkeypatch):
         pytest.param(("1", "1", None), True, True, True, id="shared-pair"),
         pytest.param((None, None, "1"), True, True, True, id="shared-shorthand"),
         pytest.param((None, "1", None), True, True, True, id="shared-render-default"),
-        pytest.param((None, None, "0"), True, True, False, id="sharing-disabled"),
+        pytest.param(("0", "0", "1"), True, True, True, id="shared-override"),
     ],
 )
 def test_ovrtx_renderer_config_enables_supported_runtime_options(
@@ -899,18 +899,14 @@ def test_segmentation_outputs_share_metadata_and_clear_stale_labels(monkeypatch,
 
 
 @pytest.mark.parametrize(
-    "settings, with_physics, error",
+    "settings, with_physics",
     [
-        ((None, None, "true"), True, "Expected 0 or 1"),
-        (("0", None, "1"), True, "conflicts"),
-        ((None, "0", "1"), True, "conflicts"),
-        (("1", "1", "0"), True, "requires"),
-        (("0", "1", None), True, "requires"),
-        ((None, None, "1"), False, "requires"),
+        (("0", "1", None), True),
+        ((None, None, "1"), False),
     ],
 )
-def test_ovrtx_clone_preparation_rejects_invalid_settings(monkeypatch, settings, with_physics, error):
-    """Malformed, conflicting or unsupported routes fail before allocating native resources."""
+def test_ovrtx_clone_preparation_requires_both_shared_stage_consumers(monkeypatch, settings, with_physics):
+    """Sharing requires OVPhysX and OVStage rendering before allocating native resources."""
     from isaaclab_ov.cloner import OvPhysxReplicateContext, OvrtxReplicateContext
 
     sim = SimulationContext.instance()
@@ -923,7 +919,7 @@ def test_ovrtx_clone_preparation_rejects_invalid_settings(monkeypatch, settings,
         if value is not None:
             monkeypatch.setenv(name, value)
 
-    with pytest.raises(ValueError, match=error):
+    with pytest.raises(ValueError, match="requires OVPhysX and OVStage rendering"):
         OvrtxReplicateContext.prepare(sim, {})
     assert renderer.backend is None
 

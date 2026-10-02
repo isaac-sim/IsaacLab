@@ -26,13 +26,12 @@ selected route. This flag alone never enables physics/rendering stage sharing.
 To share one OVStage with OVPhysX and OVRTX, set either:
 
 * ``ISAAC_LAB_OVRTX_USE_OVSTAGE=1`` and ``ISAAC_LAB_OVPHYSX_USE_OVSTAGE=1``; or
-* ``ISAAC_LAB_SHARE_OVSTAGE=1``, shorthand for enabling both.
+* ``ISAAC_LAB_SHARE_OVSTAGE=1``, which enables both regardless of their individual flags.
 
 Because OVStage rendering already defaults on with OVPhysX, setting only
 ``ISAAC_LAB_OVPHYSX_USE_OVSTAGE=1`` also selects sharing. Physics stage cloning requires OVPhysX and
-OVStage rendering. Explicit ``0`` values disable their respective option; contradictory settings
-raise an error instead of overriding one another. ``ISAAC_LAB_SHARE_OVSTAGE=0`` prohibits sharing
-without changing the rendering default.
+OVStage rendering. Each flag is enabled only by ``1``; ``ISAAC_LAB_SHARE_OVSTAGE=0`` leaves the
+individual flags and defaults in control.
 
 Sharing remains opt-in pending upstream cold-binding and shared-stage update performance fixes;
 OVPhysX 0.6.3 has the measured startup regression. In shared mode, ``OvstageReplicateContext`` combines

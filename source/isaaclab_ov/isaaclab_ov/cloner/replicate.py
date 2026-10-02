@@ -178,32 +178,21 @@ class OvrtxReplicateContext(cloner.ReplicateContext):
         initialized = next((renderer for renderer in renderers if renderer.backend is not None), None)
         if initialized is not None:
             use_ovstage = initialized._use_ovstage
-            shared_physics = initialized.backend.cfg.scene_key is None
+            share_ovstage = initialized.backend.cfg.scene_key is None
         else:
             # Defaults: independent OVStage rendering with OVPhysX; native OVRTX cloning with Newton.
             # Keep sharing opt-in until OVPhysX cold binding and shared-stage update performance are fixed.
-            flags: list[str | None] = []
-            for name in ("ISAAC_LAB_OVRTX_USE_OVSTAGE", "ISAAC_LAB_OVPHYSX_USE_OVSTAGE", "ISAAC_LAB_SHARE_OVSTAGE"):
-                value = os.environ.get(name)
-                if value is not None:
-                    value = value.strip()
-                    if value not in {"0", "1"}:
-                        raise ValueError(f"Invalid {name}: {value!r}. Expected 0 or 1.")
-                flags.append(value)
-            rtx, physx, share = flags
-            if share == "1":
-                if "0" in (rtx, physx):
-                    raise ValueError("ISAAC_LAB_SHARE_OVSTAGE=1 conflicts with an explicit per-backend 0.")
-                rtx = physx = "1"
             with_ovphysx = sim.physics_manager.clone_context_type is OvPhysxReplicateContext
-            use_ovstage = with_ovphysx if rtx is None else rtx == "1"
-            shared_physics = physx == "1"
-            if shared_physics and (not with_ovphysx or not use_ovstage or share == "0"):
-                raise ValueError("Shared OVStage cloning requires OVPhysX, OVStage rendering, and sharing not disabled.")
-        if shared_physics and sim.physics_manager.backend is not None and sim.physics_manager.backend.scene is None:
+            use_ovstage = os.environ.get("ISAAC_LAB_OVRTX_USE_OVSTAGE", "1" if with_ovphysx else "0") == "1"
+            share_ovstage = os.environ.get("ISAAC_LAB_OVPHYSX_USE_OVSTAGE") == "1"
+            if os.environ.get("ISAAC_LAB_SHARE_OVSTAGE") == "1":
+                use_ovstage = share_ovstage = True
+            if share_ovstage and not (with_ovphysx and use_ovstage):
+                raise ValueError("Shared OVStage cloning requires OVPhysX and OVStage rendering.")
+        if share_ovstage and sim.physics_manager.backend is not None and sim.physics_manager.backend.scene is None:
             raise RuntimeError("Configure OVRTX cameras before the first OVPhysX reset to share its OVStage.")
         if use_ovstage:
-            replaced = (OvrtxReplicateContext, OvPhysxReplicateContext) if shared_physics else (OvrtxReplicateContext,)
+            replaced = (OvrtxReplicateContext, OvPhysxReplicateContext) if share_ovstage else (OvrtxReplicateContext,)
             for context in replaced:
                 routing.setdefault(OvstageReplicateContext, set()).update(routing.pop(context, ()))
                 sim.clone_contexts.pop(context, None)
@@ -214,22 +203,20 @@ class OvrtxReplicateContext(cloner.ReplicateContext):
             if renderer.backend is not None:
                 continue
             backend_cfg = OVRTXBackendCfg(
-                scene_key=None if shared_physics else cfg,
+                scene_key=None if share_ovstage else cfg,
                 log_file_path=cfg.log_file_path,
                 log_level=cfg.log_level,
                 use_ovstage=use_ovstage,
                 read_gpu_transforms=ovrtx_read_gpu_transforms_enabled(),
             )
-            if shared_physics and any(other.cfg != backend_cfg for other in sim.get_backends(OVRTXBackendCfg)):
+            if share_ovstage and any(other.cfg != backend_cfg for other in sim.get_backends(OVRTXBackendCfg)):
                 raise ValueError(
                     "A shared OVStage requires one OVRTX engine; use the same native logging/transform settings."
                 )
             scene = None
             if use_ovstage:
-                domains = ovstage.PopulationDomain.ALL if shared_physics else ovstage.PopulationDomain.RENDERING
-                stage_cfg = OvstageBackendCfg(
-                    scene_key=None if shared_physics else backend_cfg, population_domains=domains
-                )
+                domains = ovstage.PopulationDomain.ALL if share_ovstage else ovstage.PopulationDomain.RENDERING
+                stage_cfg = OvstageBackendCfg(scene_key=None if share_ovstage else backend_cfg, population_domains=domains)
                 scene = sim.get_or_create_backend(stage_cfg)
             renderer.backend = sim.get_or_create_backend(backend_cfg)
             renderer.scene = scene if use_ovstage else renderer.backend
