@@ -677,6 +677,8 @@ class TestActuatorStateReset(ActuatorStateResetBase, unittest.TestCase):
     this subclass provides the Newton sim config and the model-wide adapter.
     """
 
+    RESET_SELECTORS = ("env_ids", "env_mask")
+
     def _make_sim_cfg(self, use_newton_actuators: bool) -> SimulationCfg:
         return SimulationCfg(dt=DT, physics=NEWTON_CFG, use_newton_actuators=use_newton_actuators)
 
@@ -695,6 +697,28 @@ class TestActuatorStateReset(ActuatorStateResetBase, unittest.TestCase):
 
     def _get_adapter(self, articulation):
         return SimulationManager._adapter
+
+    def test_newton_masked_reset_replays_from_cuda_graph_without_allocation(self):
+        """A masked reset records into a CUDA graph without allocating and, on replay, clears only the masked env."""
+        ctx, sim, articulation = self._build_and_warm(use_newton_actuators=True)
+        try:
+            adapter = self._get_adapter(articulation)
+            env_mask = torch.zeros(self.NUM_ENVS, dtype=torch.bool, device=articulation.device)
+            env_mask[self.RESET_ENV] = True
+            env_mask = wp.from_torch(env_mask)
+            # Allocating inside the capture raises while the memory pool is disabled.
+            with wp.ScopedMempool(articulation.device, False), wp.ScopedCapture(articulation.device) as capture:
+                articulation.reset(env_mask=env_mask)
+            self._warm(sim, articulation)
+            stateful_pairs = self._stateful_pairs(adapter)
+            self.assertGreater(len(stateful_pairs), 0, "expected at least one DelayedPD actuator with delay_state")
+            for _, state in stateful_pairs:
+                self.assertTrue((state.delay_state.num_pushes.numpy() > 0).all(), "the replay must do the reset")
+
+            wp.capture_launch(capture.graph)
+            self._assert_delay_state_cleared_for_reset_env_only(adapter, stateful_pairs)
+        finally:
+            ctx.__exit__(None, None, None)
 
 
 # ---------------------------------------------------------------------------

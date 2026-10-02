@@ -10,10 +10,8 @@ via ``wp.launch``.  The calling convention mirrors the stable noise interface::
 
     noise_cfg.func(data_wp, noise_cfg) -> None
 
-Random noise kernels (gaussian, uniform) consume the shared per-env Warp RNG state
-(``rng_state_wp``) that is set on the config at manager prep time from
-``env.rng_state_wp``.  See :func:`initialize_rng_state` in
-``isaaclab_experimental.envs.manager_based_env_warp`` for the initialization pattern.
+Random noise kernels (gaussian, uniform) draw from the process-wide per-env Warp RNG state
+:attr:`isaaclab.utils.seed.WarpRng.state`.
 """
 
 from __future__ import annotations
@@ -21,6 +19,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import warp as wp
+
+from isaaclab.utils.seed import WarpRng
 
 if TYPE_CHECKING:
     from . import noise_cfg
@@ -108,7 +108,7 @@ def uniform_noise(data: wp.array, cfg: noise_cfg.UniformNoiseCfg) -> None:
     wp.launch(
         _apply_uniform_noise,
         dim=data.shape[0],
-        inputs=[data, cfg.rng_state_wp, float(cfg.n_min), float(cfg.n_max), _OPERATION_MAP[cfg.operation]],
+        inputs=[data, WarpRng.state, float(cfg.n_min), float(cfg.n_max), _OPERATION_MAP[cfg.operation]],
         device=data.device,
     )
 
@@ -149,7 +149,7 @@ def gaussian_noise(data: wp.array, cfg: noise_cfg.GaussianNoiseCfg) -> None:
     wp.launch(
         _apply_gaussian_noise,
         dim=data.shape[0],
-        inputs=[data, cfg.rng_state_wp, float(cfg.mean), float(cfg.std), _OPERATION_MAP[cfg.operation]],
+        inputs=[data, WarpRng.state, float(cfg.mean), float(cfg.std), _OPERATION_MAP[cfg.operation]],
         device=data.device,
     )
 
