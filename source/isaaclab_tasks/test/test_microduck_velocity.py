@@ -3,14 +3,18 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Deployment contract and reset/step checks for MicroDuck flat walking."""
+"""Deployment contract and reset/step checks for MicroDuck walking."""
+
+from types import SimpleNamespace
 
 import gymnasium as gym
+import numpy as np
 import pytest
 import torch
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators.newton import read_group_parameter
+from isaaclab.managers import SceneEntityCfg
 from isaaclab.sim import SimulationContext
 from isaaclab.test.utils import DeviceScope, test_devices
 
@@ -18,6 +22,7 @@ import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 
 TASK = "IsaacContrib-Velocity-Flat-MicroDuck"
+ROUGH_TASK = "IsaacContrib-Velocity-Rough-MicroDuck"
 JOINT_NAMES = [
     "left_hip_yaw",
     "left_hip_roll",
@@ -46,9 +51,10 @@ POLICY_TERMS = [
 ]
 
 
-def test_microduck_policy_contract():
+@pytest.mark.parametrize("task", [TASK, ROUGH_TASK])
+def test_microduck_policy_contract(task):
     """Keep the original walking policy's joint order and 50 Hz interface."""
-    cfg = parse_env_cfg(TASK, device="cpu", num_envs=2)
+    cfg = parse_env_cfg(task, device="cpu", num_envs=2)
     assert cfg.sim.dt * cfg.decimation == pytest.approx(0.02)
     assert cfg.actions.joint_pos.joint_names == JOINT_NAMES
     assert cfg.actions.joint_pos.preserve_order
@@ -56,18 +62,68 @@ def test_microduck_policy_contract():
     terms = [name for name in vars(cfg.observations.policy) if name in POLICY_TERMS]
     assert terms == POLICY_TERMS
     assert cfg.observations.policy.joint_pos.params["asset_cfg"].joint_names == JOINT_NAMES
-    assert cfg.scene.terrain.terrain_type == "plane"
+    assert cfg.scene.terrain.terrain_type == ("generator" if task == ROUGH_TASK else "plane")
     assert cfg.sim.use_newton_actuators
+
+
+def test_microduck_foot_height_on_steps():
+    """Use the closest terrain sample per foot, ignoring misses and world elevation."""
+    from isaaclab_tasks.contrib.microduck.mdp.observations import foot_height_safe
+
+    foot_positions = torch.tensor([[[0.0, 0.0, 0.05], [0.0, 0.0, 0.07]]])
+    left_hits = torch.tensor([[[0.0, 0.0, 0.01], [0.0, 0.0, 0.02]]])
+    right_hits = torch.tensor([[[0.0, 0.0, 0.03], [float("inf"), float("inf"), float("inf")]]])
+    left_normals = torch.tensor([[[0.0, 0.0, 1.0], [0.0, 0.0, 1.0]]])
+    scene = {
+        "robot": SimpleNamespace(data=SimpleNamespace(body_link_pos_w=SimpleNamespace(torch=foot_positions))),
+        "left": SimpleNamespace(
+            data=SimpleNamespace(
+                ray_hits_w=SimpleNamespace(torch=left_hits), ray_normals_w=SimpleNamespace(torch=left_normals)
+            ),
+            cfg=SimpleNamespace(max_distance=1.0),
+        ),
+        "right": SimpleNamespace(
+            data=SimpleNamespace(
+                ray_hits_w=SimpleNamespace(torch=right_hits), ray_normals_w=SimpleNamespace(torch=left_normals.clone())
+            ),
+            cfg=SimpleNamespace(max_distance=1.0),
+        ),
+    }
+
+    class Scene(dict):
+        env_origins = torch.zeros(1, 3)
+
+    env = SimpleNamespace(scene=Scene(scene))
+    params = {"asset_cfg": SceneEntityCfg("robot", body_ids=[0, 1]), "height_sensor_names": ("left", "right")}
+    expected = torch.tensor([[0.03, 0.04]])
+    torch.testing.assert_close(foot_height_safe(env, **params), expected)
+    foot_positions[..., 2] += 4.0
+    left_hits[..., 2] += 4.0
+    right_hits[..., 2] += 4.0
+    env.scene.env_origins[:, 2] += 4.0
+    torch.testing.assert_close(foot_height_safe(env, **params), expected)
+    right_hits.fill_(float("inf"))
+    torch.testing.assert_close(foot_height_safe(env, **params), torch.tensor([[0.03, 0.07]]))
+    # A ray starting inside a step hits its underside; that foot has no clearance.
+    left_normals[0, 0, 2] = -1.0
+    torch.testing.assert_close(foot_height_safe(env, **params), torch.tensor([[0.0, 0.07]]))
 
 
 @pytest.mark.integration
 @pytest.mark.kitless
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-def test_microduck_reset_and_step(device):
+@pytest.mark.parametrize("task", [TASK, ROUGH_TASK])
+def test_microduck_reset_and_step(device, task):
     """Resolve the policy interface on the USD and exercise reset-time BAM writes."""
-    cfg = parse_env_cfg(TASK, device=device, num_envs=8)
+    cfg = parse_env_cfg(task, device=device, num_envs=8)
+    if task == ROUGH_TASK:
+        cfg.scene.terrain.terrain_generator.num_rows = 2
+        cfg.scene.terrain.terrain_generator.num_cols = 4
+        cfg.scene.terrain.terrain_generator.seed = 42
+        for sub_terrain in cfg.scene.terrain.terrain_generator.sub_terrains.values():
+            sub_terrain.proportion = 0.25
     sim_utils.create_new_stage()
-    env = gym.make(TASK, cfg=cfg).unwrapped
+    env = gym.make(task, cfg=cfg).unwrapped
     try:
         obs, _ = env.reset()
         assert obs["policy"].shape == (8, 61)
@@ -82,6 +138,27 @@ def test_microduck_reset_and_step(device):
         assert not torch.equal(before, after)
         torch.testing.assert_close(after, after[:, :1].expand_as(after))
         assert ((after >= 0.9) & (after <= 1.1)).all()
+        if task == ROUGH_TASK:
+            from isaaclab_newton.physics import NewtonManager
+
+            from isaaclab_tasks.contrib.microduck.mdp.observations import foot_height_safe
+
+            solver = NewtonManager._solver
+            terrain_shape = NewtonManager.backend.model.shape_label.index("/World/ground/terrain/mesh")
+            terrain_geom = np.flatnonzero(solver.mjc_geom_to_newton_shape.numpy()[0] == terrain_shape).item()
+            for name, expected in (("geom_solref", [0.04, 1.0]), ("geom_solimp", [0.85, 0.95, 0.001, 0.5, 2.0])):
+                actual = getattr(solver.mjw_model, name).numpy()[:, terrain_geom]
+                np.testing.assert_allclose(actual, np.broadcast_to(expected, actual.shape), rtol=1e-6)
+            assert env.scene.env_origins[:, 2].max() > 0.05
+            for name in ("left_foot_height", "right_foot_height"):
+                hits = env.scene[name].data.ray_hits_w.torch
+                assert hits.shape == (8, 2, 3)
+                assert torch.isfinite(hits).all()
+                torch.testing.assert_close(
+                    hits[..., 2], env.scene.env_origins[:, 2, None].expand(-1, 2), atol=2e-3, rtol=0
+                )
+            heights = foot_height_safe(env, **env.observation_manager.cfg.critic.foot_height.params)
+            assert ((heights > 0.01) & (heights < 0.04)).all()
         with torch.inference_mode():
             for _ in range(64):
                 obs, reward, terminated, truncated, _ = env.step(torch.randn(8, 14, device=env.device) * 0.1)

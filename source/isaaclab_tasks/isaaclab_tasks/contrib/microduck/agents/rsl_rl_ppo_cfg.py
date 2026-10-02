@@ -42,3 +42,10 @@ class MicroDuckPPORunnerCfg(RslRlOnPolicyRunnerCfg):
         desired_kl=0.01,
         max_grad_norm=1.0,
     )
+
+
+@configclass
+class MicroDuckRoughPPORunnerCfg(MicroDuckPPORunnerCfg):
+    """The same PPO recipe with a separate experiment directory for rough terrain."""
+
+    experiment_name = "microduck_velocity_rough"

@@ -5,8 +5,8 @@
 
 :orphan:
 
-MicroDuck Flat Walking
-========================
+MicroDuck Walking
+=================
 
 ``IsaacContrib-Velocity-Flat-MicroDuck`` trains the standard walking MicroDuck on a plane with
 Newton MJWarp and :ref:`BAM servos <actuators-bam>`. It ports the walking recipe from
@@ -55,3 +55,33 @@ This is not an exact reproduction of mjlab physics. Foot heights use ankle frame
 offset, and the walking USD's self-contact signal covers sole against sole. Its disabled shin and
 battery-holder colliders cannot reproduce mjlab's self-collision-only geometry. A compatible policy
 layout therefore still requires a rollout check on the current assets and actuators.
+
+Rough terrain
+-------------
+
+``IsaacContrib-Velocity-Rough-MicroDuck`` adds the gentle terrain recipe from
+`microduck_rl's velocity task <https://github.com/pollen-robotics/microduck_rl/blob/8d0db74916a4f833d1d9b95d6a1d7f4d13b9d5ec/src/mjlab_microduck/tasks/microduck_velocity_env_cfg.py>`_.
+It uses the same walking USD, BAM settings, rewards, randomization, and PPO configuration as the flat task.
+No additional assets or teacher policies are required.
+
+.. code-block:: bash
+
+   uv run --extra rsl-rl isaaclab train --rl_library rsl_rl \
+     --task IsaacContrib-Velocity-Rough-MicroDuck --num_envs 4096
+
+The terrain contains 8 m square tiles in ten difficulty levels: 25% flat, 25% stairs with steps
+up to 1.5 cm high, 30% random grids with height offsets up to 1 cm, and 20% slopes with a rise/run
+of 0.03--0.10. The distance walked controls progression through terrain levels. Initial resets sample
+levels 0--5. Playback uses a smaller, randomly generated map without terrain progression.
+
+The actor remains blind to terrain, with the same 61 observations and 14 actions. Two downward rays
+per foot, 4 cm ahead and behind its frame, measure the closest ground for the clearance and swing-height
+rewards and the critic's foot-height observations. The critic still receives 76 values. Rays query only
+the shared terrain. If both rays miss, clearance falls back to the tile origin and is bounded by the
+sensor's 1 m range.
+
+Lab generates a triangle mesh instead of mjlab's box geometry, so contact behavior is not identical.
+The terrain importer authors MuJoCo contact parameters ``solref=(0.04, 1.0)`` and
+``solimp=(0.85, 0.95, 0.001, 0.5, 2.0)`` before Newton parses the scene. The task allows 200 contacts
+and 1024 constraint rows per environment and uses 100 solver iterations with 50 line-search iterations.
+This keeps the current flat training run's solver budget rather than mjlab's 30-iteration rough setting.
