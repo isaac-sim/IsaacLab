@@ -257,18 +257,28 @@ def test_task_presets_select_published_feature_extractor_checkpoint(
     assert env_cfg.feature_extractor.pretrained_checkpoint == expected_path
 
 
-def test_depth_preprocessing_does_not_mutate_camera_buffer() -> None:
-    """Depth normalization must not modify the renderer-owned camera buffer."""
+def test_depth_preprocessing_is_traceable_and_does_not_mutate_camera_buffer() -> None:
+    """Depth normalization must remain finite after tracing and preserve the camera buffer."""
     extractor = object.__new__(FeatureExtractor)
     extractor.data_types = ["depth"]
     depth = torch.tensor([[[[1.0], [float("inf")]], [[2.5], [5.0]]]])
-    original = depth.clone()
 
-    processed = extractor._preprocess_images({"depth": depth})
+    class DepthPreprocessor(torch.nn.Module):
+        def forward(self, image: torch.Tensor) -> torch.Tensor:
+            return extractor._preprocess_images({"depth": image})
 
-    assert torch.equal(depth, original)
-    assert torch.isfinite(processed).all()
-    assert processed.max() == 1.0
+    preprocess = DepthPreprocessor()
+    exported_preprocess = torch.export.export(preprocess, (depth,)).module()
+
+    for image, expected in (
+        (depth, torch.tensor([[[[0.2], [0.0]], [[0.5], [1.0]]]])),
+        (torch.zeros_like(depth), torch.zeros_like(depth)),
+        (torch.full_like(depth, float("inf")), torch.zeros_like(depth)),
+    ):
+        original = image.clone()
+        torch.testing.assert_close(preprocess(image), expected)
+        torch.testing.assert_close(exported_preprocess(image), expected)
+        assert torch.equal(image, original)
 
 
 @pytest.fixture
