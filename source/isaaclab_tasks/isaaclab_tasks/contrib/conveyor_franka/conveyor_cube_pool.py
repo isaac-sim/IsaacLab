@@ -51,8 +51,11 @@ class ConveyorCubePool:
         self.transfer_counts = torch.zeros_like(self.assignment_counts)
 
     def reset(self, env_ids: Sequence[int] | torch.Tensor) -> None:
-        """Restore reset-recipe slot identities for selected environments."""
+        """Restore slot identities and fresh batch counters for selected environments."""
         self.slot_ids[env_ids] = torch.arange(CUBE_COUNT, device=self.slot_ids.device)
+        self.assignment_counts[env_ids] = 0
+        self.assignment_counts[env_ids, :CUBE_COUNT] = 1
+        self.transfer_counts[env_ids] = 0
 
     def refresh(
         self,

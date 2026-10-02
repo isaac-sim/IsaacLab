@@ -222,17 +222,26 @@ def test_sorter_dispatch_inventory_and_selected_resets():
     with closing(_environment(_SORTER)) as env:
         env.reset()
         pool = env.conveyor_cube_pool
+        before_assignments = pool.assignment_counts.clone()
+        before_transfers = pool.transfer_counts.clone()
         before_slots = pool.slot_ids[0].clone()
         before_velocity = torch.stack([p.data.root_vel_w.torch.clone() for p in pool.assets], dim=1)
         before = torch.stack([p.data.root_pose_w.torch.clone() for p in pool.assets], dim=1)
         repeated = None
         for ids in (torch.tensor([1]), slice(1, 2)):
+            pool.assignment_counts.fill_(7)
+            pool.transfer_counts.fill_(3)
             velocity = pool.assets[-1].data.root_vel_w.torch.clone()
             velocity[1].fill_(0.2)
             pool.assets[-1].write_root_velocity_to_sim_index(root_velocity=velocity)
             torch.manual_seed(42)
             env._reset_idx(ids)
             assert not pool.assets[-1].data.root_vel_w.torch[1].any()
+            torch.testing.assert_close(
+                pool.assignment_counts[1], torch.tensor([1] * CUBE_COUNT + [0] * (len(pool.assets) - CUBE_COUNT))
+            )
+            assert not pool.transfer_counts[1].any()
+            assert (pool.assignment_counts[0] == 7).all() and (pool.transfer_counts[0] == 3).all()
             actual = torch.stack([p.data.root_pose_w.torch.clone() for p in pool.assets], dim=1)
             torch.testing.assert_close(actual[0], before[0])
             torch.testing.assert_close(pool.slot_ids[0], before_slots)
@@ -249,6 +258,8 @@ def test_sorter_dispatch_inventory_and_selected_resets():
             if repeated is not None:
                 torch.testing.assert_close(actual, repeated)
             repeated = actual.clone()
+        pool.assignment_counts.copy_(before_assignments)
+        pool.transfer_counts.copy_(before_transfers)
         positions = _waiting_positions(env)
         positions[:, 0] = torch.tensor([0.7, 0.27, 0.06])  # Correct class, so leave it alone.
         positions[0, 2:4] = torch.tensor([[0.6, 0.27, 0.06], [0.6, -0.27, 0.06]])
