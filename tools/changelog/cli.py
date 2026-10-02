@@ -126,7 +126,7 @@ def check_fragment(path: Path) -> list[str]:
     if not ENTRY_RE.match(path.name):
         return [
             f"{rel}: expected <slug>.<{'|'.join(TYPES)}>.rst holding * bullets, or an empty <slug>.skip,"
-            " <slug>.minor or <slug>.major; see skills/developer/changelog-fragments/SKILL.md"
+            " <slug>.minor or <slug>.major; see skills/_internal/changelog-fragments/SKILL.md"
         ]
     error = check_bullet_list(path.read_text(encoding="utf-8"))
     return [f"{rel}: {error}"] if error else []

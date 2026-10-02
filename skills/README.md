@@ -4,31 +4,36 @@ Isaac Lab skills are repo-owned instructions that help agents follow project wor
 
 ## Catalog
 
-Developer skills:
+Internal skills (`_internal/`) cover contributing to and maintaining this repository. Agents can use them here,
+but they are not part of the externally published catalog:
 
-- `developer/pr-workflow/`: prepare changes for review using Isaac Lab's PR, commit, changelog, and validation conventions.
-- `developer/changelog-fragments/`: add and validate package changelog fragments.
-- `developer/coding-style/`: apply Isaac Lab coding style, API design, docstring, type-hint, lazy export, and contribution conventions.
-- `developer/test-audit/`: gate new tests and audit existing ones for low-value, implementation-coupled, or duplicated coverage.
+- `_internal/pr-workflow/`: prepare changes for review using Isaac Lab's PR, commit, changelog, and validation conventions.
+- `_internal/changelog-fragments/`: add and validate package changelog fragments.
+- `_internal/coding-style/`: apply Isaac Lab coding style, API design, docstring, type-hint, lazy export, and contribution conventions.
+- `_internal/test-audit/`: gate new tests and audit existing ones for low-value, implementation-coupled, or duplicated coverage.
+- `_internal/issue-audit/`: audit one open GitHub issue against current code to decide close or keep-open.
+- `_internal/issue-backlog-triage/`: triage many open GitHub issues at once into close or keep-open.
+- `_internal/isaaclab-updating-environment-docs/`: keep the generated environment browser synchronized with task registrations and preset selectors.
+- `_internal/install-isaac-lab/`: install Isaac Lab following the current install docs — automatic uv setup, downloaded Isaac Sim package, source build, Isaac Lab wheel, legacy isaaclab.sh installer, or Docker — across Linux (x86_64, aarch64) and Windows 11.
+- `_internal/setup-troubleshooting/`: route installation, verification, and setup issues to official docs and canonical commands.
+- `_internal/migrate-2x-to-3x/`: migrate Isaac Lab 2.x projects to Isaac Lab 3.0 using the official migration guide.
 
-User skills:
+User skills (`user/`) are published in the external catalog:
 
-- `user/install-isaac-lab/`: install Isaac Lab following the current install docs — automatic uv setup, downloaded Isaac Sim package, source build, Isaac Lab wheel, legacy isaaclab.sh installer, or Docker — across Linux (x86_64, aarch64) and Windows 11.
-- `user/migrate-from-isaac-gym/`: migrate Isaac Gym tasks, assets, and training workflows to Isaac Lab.
-- `user/migrate-2x-to-3x/`: migrate Isaac Lab 2.x projects to Isaac Lab 3.0 using the official migration guide.
-- `user/domain-randomization-events/`: implement fixed and adaptive domain randomization through event and curriculum terms.
-- `user/create-environments/`: create manager-based Isaac Lab environments by default, with direct environments for special cases.
-- `user/convert-direct-to-manager/`: convert validated direct Isaac Lab environments into manager-based task configurations.
-- `user/train-rl-agents/`: configure and run Isaac Lab reinforcement learning workflows.
-- `user/debug-rl-training/`: diagnose RL rewards, task metrics, checkpoint compatibility, and training experiments.
-- `user/plan-manipulation-tasks/`: stage manipulation tasks through scene, reset, action, reward, and behavior gates.
-- `user/use-sensors-actuators/`: add sensors, sensor observations, and actuator models to tasks.
-- `user/diagnose-joint-poses/`: measure and correct robot initial joint poses from semantic or visual pose requests.
-- `user/select-backends/`: choose and validate PhysX, Newton, and backend-specific task presets.
-- `user/use-presets/`: define and use preset configurations for multi-backend and variant-rich tasks.
-- `user/prepare-assets-for-newton/`: prepare assets for Newton and migrate PhysX-authored assets without losing their physical contract.
+- `user/isaaclab-migrating-from-isaac-gym/`: migrate Isaac Gym tasks, assets, and training workflows to Isaac Lab.
+- `user/isaaclab-randomizing-with-events/`: implement fixed and adaptive domain randomization through event and curriculum terms.
+- `user/isaaclab-building-environments/`: create manager-based Isaac Lab environments by default, with direct environments for special cases.
+- `user/isaaclab-converting-direct-to-manager/`: convert validated direct Isaac Lab environments into manager-based task configurations.
+- `user/isaaclab-training-rl-agents/`: configure and run Isaac Lab reinforcement learning workflows.
+- `user/isaaclab-training-multi-gpu/`: launch and debug multi-GPU and multi-node RL training, including NCCL hangs and collective failures.
+- `user/isaaclab-debugging-rl-training/`: diagnose RL rewards, task metrics, checkpoint compatibility, and training experiments.
+- `user/isaaclab-planning-manipulation-tasks/`: stage manipulation tasks through scene, reset, action, reward, and behavior gates.
+- `user/isaaclab-using-sensors-actuators/`: add sensors, sensor observations, and actuator models to tasks.
+- `user/isaaclab-diagnosing-joint-poses/`: measure and correct robot initial joint poses from semantic or visual pose requests.
+- `user/isaaclab-selecting-backends/`: choose and validate PhysX, Newton, and backend-specific task presets.
+- `user/isaaclab-using-presets/`: define and use preset configurations for multi-backend and variant-rich tasks.
+- `user/isaaclab-preparing-assets-for-newton/`: prepare assets for Newton and migrate PhysX-authored assets without losing their physical contract.
 - `user/isaaclab-transferring-policies-sim-to-sim/`: validate bidirectional PhysX/Newton policy transfer and diagnose transfer gaps.
-- `user/setup-troubleshooting/`: route installation, verification, and setup issues to official docs and canonical commands.
 
 Planned user skills:
 
