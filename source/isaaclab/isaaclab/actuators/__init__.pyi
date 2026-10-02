@@ -14,6 +14,9 @@ __all__ = [
     "ActuatorNetMLP",
     "ActuatorNetLSTMCfg",
     "ActuatorNetMLPCfg",
+    "BamActuatorCfg",
+    "BamBacklashActuatorCfg",
+    "BamMotorCfg",
     "DCMotor",
     "DelayedPDActuator",
     "IdealPDActuator",
@@ -27,6 +30,7 @@ __all__ = [
     "resolve_joint_parameter",
 ]
 
+from .actuator_bam_cfg import BamActuatorCfg, BamBacklashActuatorCfg, BamMotorCfg
 from .actuator_base import ActuatorBase, resolve_joint_parameter
 from .actuator_base_cfg import ActuatorBaseCfg
 from .actuator_collection import ActuatorCollection, ActuatorTargetCommand, ActuatorOutputCommand
