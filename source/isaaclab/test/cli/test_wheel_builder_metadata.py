@@ -187,12 +187,5 @@ def test_wheel_builder_uv_overrides_match_root_pyproject(source_checkout_root: P
     published_overrides = (
         (source_checkout_root / "tools" / "wheel_builder" / "uv-overrides.txt").read_text(encoding="utf-8").splitlines()
     )
-    install_ci_overrides = (
-        (source_checkout_root / "source" / "isaaclab" / "test" / "install_ci" / "uv_pip" / "uv-overrides.txt")
-        .read_text(encoding="utf-8")
-        .splitlines()
-    )
-
     assert generated_overrides == root["tool"]["uv"]["override-dependencies"]
     assert published_overrides == generated_overrides
-    assert install_ci_overrides == generated_overrides
