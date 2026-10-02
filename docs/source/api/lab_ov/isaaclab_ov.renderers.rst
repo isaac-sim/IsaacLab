@@ -39,4 +39,4 @@ OVPhysX and OVRTX share one stage populated with both domains and cloned once.
    :show-inheritance:
 
 .. autoclass:: isaaclab_ov.stage.OvstageBackend
-   :members: populate, close
+   :members: populate, query, commit, close

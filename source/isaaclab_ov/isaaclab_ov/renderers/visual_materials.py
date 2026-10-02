@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import itertools
 import logging
 import weakref
@@ -32,7 +33,7 @@ class OVRTXVisualMaterialWriter:
         self._buffers: dict[str, torch.Tensor] = {}
         self._dirty_channels: set[str] = set()
         self._operations: tuple[Any, ...] = ()
-        self._addresses: list[tuple[str, Any, Any | None, str, slice]] = []
+        self._addresses: list[tuple[str, Any, str, slice]] = []
 
         groups = []
         device = None
@@ -61,17 +62,11 @@ class OVRTXVisualMaterialWriter:
                 start = end
         self._device = str(device)
         self._event = wp.Event(device=self._device)
-        try:
+        with contextlib.ExitStack() as resources:
             for channel, attribute_name, shader_paths, rows, dtype, shape in groups:
                 if renderer._use_ovstage:
-                    path_list = renderer.scene.paths.create_path_list_from_strings(shader_paths)
-                    try:
-                        address = renderer.scene.stage.query_from_path_list(path_list)
-                    except Exception:
-                        renderer.scene.paths.destroy_path_list(path_list)
-                        raise
+                    address = resources.enter_context(renderer.scene.query(shader_paths))
                 else:
-                    path_list = None
                     address = renderer.backend.renderer.bind_attribute(
                         prim_paths=shader_paths,
                         attribute_name=attribute_name,
@@ -80,10 +75,9 @@ class OVRTXVisualMaterialWriter:
                         prim_mode=PrimMode.EXISTING_ONLY,
                         flags=BindingFlag.OPTIMIZE,
                     )
-                self._addresses.append((channel, address, path_list, attribute_name, rows))
-        except Exception:
-            self._release_backend_addresses(renderer)
-            raise
+                    resources.callback(address.unbind)
+                self._addresses.append((channel, address, attribute_name, rows))
+            self._resources = resources.pop_all()
 
     def __call__(self, material_offsets: dict[str, Any] | None = None, env_ids: Any | None = None) -> None:
         """Mark channels dirty; OVRTX currently copies each dirty channel's full device buffer."""
@@ -100,7 +94,7 @@ class OVRTXVisualMaterialWriter:
         renderer = self._renderer_ref()
         operations = []
         try:
-            for channel, address, _path_list, attribute_name, rows in self._addresses:
+            for channel, address, attribute_name, rows in self._addresses:
                 if channel not in channels:
                     continue
                 if renderer._use_ovstage:
@@ -144,28 +138,19 @@ class OVRTXVisualMaterialWriter:
         if errors:
             raise RuntimeError(f"{len(errors)} OVRTX material write(s) failed to complete") from errors[0]
 
-    def _release_backend_addresses(self, renderer: OVRTXRenderer) -> None:
-        for _channel, address, path_list, _attribute_name, _rows in self._addresses:
-            if renderer._use_ovstage:
-                renderer.scene.stage.release_query(address).wait()
-                renderer.scene.paths.destroy_path_list(path_list)
-            else:
-                address.unbind()
-        self._addresses.clear()
-
     def close(self) -> None:
         """Drain writes and release every compiled backend address."""
         try:
-            self.drain()
+            with self._resources:
+                try:
+                    self.drain()
+                finally:
+                    renderer = self._renderer_ref()
+                    if renderer is not None:
+                        # A render may still read these bindings when RenderContext closes its writers.
+                        for error in renderer.drain_pending_renders():
+                            logger.warning("Error draining in-flight render before material release: %s", error)
         finally:
-            renderer = self._renderer_ref()
-            if renderer is not None:
-                # RenderContext.close() closes writers before the renderer, so an asynchronous
-                # render can still be in flight here and still read these bindings. Deliver every
-                # queued render before the release below. One failed render must not leave the
-                # others in flight while their bindings are released.
-                for error in renderer.drain_pending_renders():
-                    logger.warning("Error draining in-flight render before material release: %s", error)
-                self._release_backend_addresses(renderer)
+            self._addresses.clear()
             self._dirty_channels.clear()
             self._buffers.clear()

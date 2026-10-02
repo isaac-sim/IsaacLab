@@ -27,6 +27,7 @@ if not _MISSING_MODULES:
     import isaaclab_ov.renderers.ovrtx_renderer as ovrtx_renderer_module
     from isaaclab_ov.renderers import OVRTXRendererCfg
     from isaaclab_ov.renderers.ovrtx_renderer import OVRTXRenderer
+    from isaaclab_ov.stage import OvstageBackend
     from ovrtx import DataAccess
 
 
@@ -39,6 +40,7 @@ def _make_renderer_without_backend() -> tuple[OVRTXRenderer, MagicMock]:
     renderer = OVRTXRenderer(OVRTXRendererCfg())
     renderer.backend = SimpleNamespace(renderer=MagicMock())
     renderer.scene = renderer.backend
+    renderer.scene.query = OvstageBackend.query.__get__(renderer.scene)
     renderer._device = "cpu"
     renderer._warp_device = SimpleNamespace(ordinal=0, stream=SimpleNamespace(cuda_stream=99))
     return renderer, renderer.backend.renderer
@@ -167,8 +169,8 @@ def test_geometry_bindings_follow_mixed_sdp_points_and_pointer_swaps(mode):
         binding.write.assert_not_called()
 
 
-@pytest.mark.parametrize("mode", ["sync", "async", "ovstage"])
-def test_update_transforms_consumes_sdp_matrices_once_per_publication(monkeypatch, mode):
+@pytest.mark.parametrize("mode, scaled", [("sync", False), ("async", True), ("ovstage", True)])
+def test_update_transforms_consumes_sdp_matrices_once_per_publication(monkeypatch, mode, scaled):
     """Borrow synchronous publications or convert directly into retained asynchronous write buffers."""
     from isaaclab.scene_data import SceneDataFormat, SceneDataProvider
 
@@ -182,7 +184,7 @@ def test_update_transforms_consumes_sdp_matrices_once_per_publication(monkeypatc
     backend = SimpleNamespace(transforms=transforms, transforms_timestamp=0, transform_count=2, transform_paths=paths)
     backend.get_transforms = lambda _format: transforms
     renderer._sdp = SceneDataProvider(backend)
-    renderer._object_scales_by_path = {paths[0]: (2, 3, 4)}
+    renderer._object_scales_by_path = {paths[0]: (2, 3, 4)} if scaled else {}
     renderer._warp_device = SimpleNamespace(stream=SimpleNamespace(cuda_stream=99))
     renderer._use_ovstage = use_ovstage
     renderer.scene.ordinal = 5
@@ -216,7 +218,8 @@ def test_update_transforms_consumes_sdp_matrices_once_per_publication(monkeypatc
     assert len(writes) == 1
     matrices = writes[0][2]["tensors"] if use_ovstage else writes[0][1]
     expected = np.tile(np.eye(4), (2, 1, 1))
-    expected[0, :3, :3] = np.diag([2, 3, 4])
+    if scaled:
+        expected[0, :3, :3] = np.diag([2, 3, 4])
     expected[:, 3, :3] = poses[:, :3]
     np.testing.assert_array_equal(matrices.numpy(), expected)
     assert writes[0][2]["cuda_stream"] == 99
@@ -224,6 +227,13 @@ def test_update_transforms_consumes_sdp_matrices_once_per_publication(monkeypatc
         assert writes[0][2]["ordinal"] == 5
     else:
         assert writes[0][2]["data_access"] is DataAccess.ASYNC
+
+    if not scaled:
+        other, native = _make_renderer_without_backend()
+        other._sdp = renderer._sdp
+        other._setup_xform_bindings()
+        other.update_transforms()
+        assert native.bind_attribute.return_value.write.call_args.args[0] is matrices
 
     poses[:, 0] += 10
     transforms.transforms.assign(poses)
