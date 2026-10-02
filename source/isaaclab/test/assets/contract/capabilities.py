@@ -18,7 +18,7 @@ import warp as wp
 from _pytest.mark.structures import ParameterSet
 
 # Install the kitless import stubs before resolving the declared backend dependencies.
-from . import _contract_boot  # noqa: F401
+from . import contract_boot  # noqa: F401
 
 
 @dataclass(frozen=True)
@@ -126,11 +126,6 @@ def backend_parameters(capability: str, *, names: tuple[str, ...] | None = None)
         marks = () if reason is None else pytest.mark.skip(reason=reason)
         parameters.append(pytest.param(declaration.name, marks=marks, id=declaration.name))
     return parameters
-
-
-def contract_backend(capability: str, *, names: tuple[str, ...] | None = None) -> pytest.MarkDecorator:
-    """Parametrize ``backend`` over the declared backends for one capability."""
-    return pytest.mark.parametrize("backend", backend_parameters(capability, names=names))
 
 
 def requires_backend(name: str) -> pytest.MarkDecorator:

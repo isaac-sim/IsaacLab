@@ -20,7 +20,6 @@ defined first and pytest runs them before it creates the module-scoped scenes.
 from __future__ import annotations
 
 from collections.abc import Iterator
-from contextlib import AbstractContextManager
 from dataclasses import dataclass
 
 import pytest
@@ -44,11 +43,6 @@ from isaaclab.utils.math import quat_apply_inverse, quat_mul  # noqa: E402
 pytestmark = pytest.mark.integration
 
 _NUM_CUBES = 2
-
-
-def _sim_context(device: str) -> AbstractContextManager[SimulationContext]:
-    """Build a local OVPhysX context from an in-memory USD stage."""
-    return build_simulation_context(device=device, sim_cfg=SimulationCfg(physics=OvPhysxCfg(), device=device))
 
 
 def _spawn_cubes(name: str, y_offset: float, **rigid_props) -> RigidObject:
@@ -85,7 +79,7 @@ def _spawn_static_colliders() -> RigidObject:
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CPU))
 def test_initialization_with_no_rigid_body(device: str) -> None:
     """Test that initialization fails when no rigid body is found at the provided prim path."""
-    with _sim_context(device) as sim:
+    with build_simulation_context(device=device, sim_cfg=SimulationCfg(physics=OvPhysxCfg(), device=device)) as sim:
         # Keep the asset alive: only a live asset initializes, and fails, on reset.
         cube_object = _spawn_static_colliders()
         with pytest.raises(RuntimeError, match="Expected 1 prims"):
@@ -101,7 +95,7 @@ def test_initialization_with_no_rigid_body(device: str) -> None:
 )
 def test_initialization_with_articulation_root(device: str) -> None:
     """Test that initialization fails when an articulation root is found at the provided prim path."""
-    with _sim_context(device) as sim:
+    with build_simulation_context(device=device, sim_cfg=SimulationCfg(physics=OvPhysxCfg(), device=device)) as sim:
         # Mark each rigid body as an articulation root; the asset must stay alive for reset.
         _cube_object = _spawn_cubes("Rooted", y_offset=0.0)
         stage = sim_utils.get_current_stage()
@@ -127,7 +121,7 @@ class _RigidScene:
 def scene(request: pytest.FixtureRequest) -> Iterator[_RigidScene]:
     """Initialize every cuboid pair for one device once for this module."""
     device = request.param
-    with _sim_context(device) as sim:
+    with build_simulation_context(device=device, sim_cfg=SimulationCfg(physics=OvPhysxCfg(), device=device)) as sim:
         dynamic = _spawn_cubes("Dynamic", y_offset=0.0, disable_gravity=True)
         kinematic = _spawn_cubes("Kinematic", y_offset=2.0, kinematic_enabled=True)
         resettable = _spawn_cubes("Resettable", y_offset=4.0, disable_gravity=True)

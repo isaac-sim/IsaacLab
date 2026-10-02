@@ -11,15 +11,15 @@
 from unittest.mock import MagicMock
 
 import numpy as np
+import pytest
 import warp as wp
 
 from isaaclab.assets.rigid_object.rigid_object_cfg import RigidObjectCfg
 from isaaclab.assets.rigid_object_collection.rigid_object_collection_cfg import RigidObjectCollectionCfg
 from isaaclab.utils.wrench_composer import WrenchComposer
 
-from ._manager_patch_scope import patch_contract_manager
-from ._mock_backends import install_physx_recording_setters, patch_ovphysx_manager, patch_physx_manager
 from .capabilities import available_backends
+from .mock_backends import install_physx_recording_setters, patch_ovphysx_manager, patch_physx_manager
 
 BACKENDS = available_backends()
 
@@ -60,12 +60,10 @@ _PHYSX_RIGID_BODY_STORAGE = {
 
 
 def create_physx_rigid_object_collection(
-    num_instances: int = 2,
-    num_bodies: int = 3,
-    device: str = "cuda:0",
+    num_instances: int = 2, num_bodies: int = 3, device: str = "cuda:0", *, monkeypatch: pytest.MonkeyPatch
 ):
     """Create a test RigidObjectCollection instance with mocked dependencies."""
-    patch_physx_manager()
+    patch_physx_manager(monkeypatch=monkeypatch)
     collection = object.__new__(PhysXRigidObjectCollection)
 
     rigid_objects = {f"object_{i}": RigidObjectCfg(prim_path=f"/World/Object_{i}") for i in range(num_bodies)}
@@ -79,54 +77,48 @@ def create_physx_rigid_object_collection(
     mock_view.set_random_mock_data()
     install_physx_recording_setters(mock_view, _PHYSX_RIGID_BODY_STORAGE)
 
-    object.__setattr__(collection, "_root_view", mock_view)
-    object.__setattr__(collection, "_device", device)
-    object.__setattr__(collection, "_num_bodies", num_bodies)
-    object.__setattr__(collection, "_num_instances", num_instances)
-    object.__setattr__(collection, "_body_names_list", [f"object_{i}" for i in range(num_bodies)])
+    collection._root_view = mock_view
+    collection._device = device
+    collection._num_bodies = num_bodies
+    collection._num_instances = num_instances
+    collection._body_names_list = [f"object_{i}" for i in range(num_bodies)]
 
     # Create RigidObjectCollectionData instance
     data = PhysXRigidObjectCollectionData(mock_view, num_bodies, device)
-    object.__setattr__(collection, "_data", data)
+    collection._data = data
     data.body_names = [f"object_{i}" for i in range(num_bodies)]
 
     # Create wrench composers
     mock_inst_wrench = WrenchComposer(collection, supports_world_at_com=True)
     mock_perm_wrench = WrenchComposer(collection, supports_world_at_com=True)
-    object.__setattr__(collection, "_instantaneous_wrench_composer", mock_inst_wrench)
-    object.__setattr__(collection, "_permanent_wrench_composer", mock_perm_wrench)
+    collection._instantaneous_wrench_composer = mock_inst_wrench
+    collection._permanent_wrench_composer = mock_perm_wrench
 
     # Prevent __del__ / _clear_callbacks from raising AttributeError
-    object.__setattr__(collection, "_initialize_handle", None)
-    object.__setattr__(collection, "_invalidate_initialize_handle", None)
-    object.__setattr__(collection, "_prim_deletion_handle", None)
-    object.__setattr__(collection, "_debug_vis_handle", None)
+    collection._initialize_handle = None
+    collection._invalidate_initialize_handle = None
+    collection._prim_deletion_handle = None
+    collection._debug_vis_handle = None
 
     # Set up index arrays
-    object.__setattr__(
-        collection, "_ALL_ENV_INDICES", wp.array(np.arange(num_instances, dtype=np.int32), device=device)
-    )
-    object.__setattr__(collection, "_ALL_BODY_INDICES", wp.array(np.arange(num_bodies, dtype=np.int32), device=device))
+    collection._ALL_ENV_INDICES = wp.array(np.arange(num_instances, dtype=np.int32), device=device)
+    collection._ALL_BODY_INDICES = wp.array(np.arange(num_bodies, dtype=np.int32), device=device)
     num_view_ids = num_instances * num_bodies
     all_view_ids = wp.array(np.arange(num_view_ids, dtype=np.int32), device=device)
-    object.__setattr__(collection, "_ALL_VIEW_INDICES", all_view_ids)
-    object.__setattr__(collection, "_sim_view_ids", wp.empty(num_view_ids, dtype=wp.int32, device=device))
-    object.__setattr__(collection, "_sim_view_ids_views", {})
+    collection._ALL_VIEW_INDICES = all_view_ids
+    collection._sim_view_ids = wp.empty(num_view_ids, dtype=wp.int32, device=device)
+    collection._sim_view_ids_views = {}
     cpu_all_view_ids = wp.empty(num_view_ids, dtype=wp.int32, device="cpu", pinned=wp.is_cuda_available())
     wp.copy(cpu_all_view_ids, all_view_ids)
-    object.__setattr__(collection, "_cpu_all_view_ids", cpu_all_view_ids)
-    object.__setattr__(
-        collection, "_cpu_view_ids", wp.empty(num_view_ids, dtype=wp.int32, device="cpu", pinned=wp.is_cuda_available())
-    )
-    object.__setattr__(collection, "_cpu_view_ids_views", {})
+    collection._cpu_all_view_ids = cpu_all_view_ids
+    collection._cpu_view_ids = wp.empty(num_view_ids, dtype=wp.int32, device="cpu", pinned=wp.is_cuda_available())
+    collection._cpu_view_ids_views = {}
 
     return collection, mock_view
 
 
 def create_newton_rigid_object_collection(
-    num_instances: int = 2,
-    num_bodies: int = 3,
-    device: str = "cuda:0",
+    num_instances: int = 2, num_bodies: int = 3, device: str = "cuda:0", *, monkeypatch: pytest.MonkeyPatch
 ):
     """Create a test Newton RigidObjectCollection instance with mocked dependencies."""
     import isaaclab_newton.assets.rigid_object_collection.rigid_object_collection as newton_coll_module
@@ -161,8 +153,8 @@ def create_newton_rigid_object_collection(
     mock_manager.get_control.return_value = mock_control
 
     # Patch SimulationManager in both data and collection modules until the test finishes.
-    patch_contract_manager(newton_data_module, "SimulationManager", mock_manager)
-    patch_contract_manager(newton_coll_module, "SimulationManager", mock_manager)
+    monkeypatch.setattr(newton_data_module, "SimulationManager", mock_manager, raising=False)
+    monkeypatch.setattr(newton_coll_module, "SimulationManager", mock_manager, raising=False)
     data = NewtonRigidObjectCollectionData(mock_view, num_bodies, device)
 
     # Create collection shell (bypass __init__)
@@ -171,44 +163,40 @@ def create_newton_rigid_object_collection(
     rigid_objects = {f"object_{i}": RigidObjectCfg(prim_path=f"/World/Object_{i}") for i in range(num_bodies)}
     collection.cfg = RigidObjectCollectionCfg(rigid_objects=rigid_objects)
 
-    object.__setattr__(collection, "_root_view", mock_view)
-    object.__setattr__(collection, "_device", device)
-    object.__setattr__(collection, "_num_bodies", num_bodies)
-    object.__setattr__(collection, "_num_instances", num_instances)
-    object.__setattr__(collection, "_body_names_list", body_names)
-    object.__setattr__(collection, "_data", data)
+    collection._root_view = mock_view
+    collection._device = device
+    collection._num_bodies = num_bodies
+    collection._num_instances = num_instances
+    collection._body_names_list = body_names
+    collection._data = data
     data.body_names = body_names
 
     # Wrench composers (Newton-specific)
     mock_inst_wrench = WrenchComposer(collection)
     mock_perm_wrench = WrenchComposer(collection)
-    object.__setattr__(collection, "_instantaneous_wrench_composer", mock_inst_wrench)
-    object.__setattr__(collection, "_permanent_wrench_composer", mock_perm_wrench)
+    collection._instantaneous_wrench_composer = mock_inst_wrench
+    collection._permanent_wrench_composer = mock_perm_wrench
 
     # Prevent __del__ / _clear_callbacks from raising AttributeError
-    object.__setattr__(collection, "_initialize_handle", None)
-    object.__setattr__(collection, "_invalidate_initialize_handle", None)
-    object.__setattr__(collection, "_prim_deletion_handle", None)
-    object.__setattr__(collection, "_debug_vis_handle", None)
+    collection._initialize_handle = None
+    collection._invalidate_initialize_handle = None
+    collection._prim_deletion_handle = None
+    collection._debug_vis_handle = None
 
     # Index arrays (warp)
-    object.__setattr__(
-        collection, "_ALL_ENV_INDICES", wp.array(np.arange(num_instances, dtype=np.int32), device=device)
-    )
-    object.__setattr__(collection, "_ALL_BODY_INDICES", wp.array(np.arange(num_bodies, dtype=np.int32), device=device))
-    object.__setattr__(collection, "_ALL_ENV_MASK", wp.ones((num_instances,), dtype=wp.bool, device=device))
-    object.__setattr__(collection, "_ALL_BODY_MASK", wp.ones((num_bodies,), dtype=wp.bool, device=device))
+    collection._ALL_ENV_INDICES = wp.array(np.arange(num_instances, dtype=np.int32), device=device)
+    collection._ALL_BODY_INDICES = wp.array(np.arange(num_bodies, dtype=np.int32), device=device)
+    collection._ALL_ENV_MASK = wp.ones((num_instances,), dtype=wp.bool, device=device)
+    collection._ALL_BODY_MASK = wp.ones((num_bodies,), dtype=wp.bool, device=device)
 
     return collection, mock_view
 
 
 def create_ovphysx_rigid_object_collection(
-    num_instances: int = 2,
-    num_bodies: int = 3,
-    device: str = "cuda:0",
+    num_instances: int = 2, num_bodies: int = 3, device: str = "cuda:0", *, monkeypatch: pytest.MonkeyPatch
 ):
     """Create a test OVPhysX RigidObjectCollection instance with mocked tensor bindings."""
-    patch_ovphysx_manager()
+    patch_ovphysx_manager(monkeypatch=monkeypatch)
     body_names = [f"object_{i}" for i in range(num_bodies)]
 
     collection = object.__new__(OvPhysxRigidObjectCollection)
@@ -226,20 +214,20 @@ def create_ovphysx_rigid_object_collection(
     )
     mock_bindings.set_random_data()
 
-    object.__setattr__(collection, "_device", device)
-    object.__setattr__(collection, "_ovphysx", MagicMock())
-    object.__setattr__(collection, "_root_view", mock_bindings.view)
-    object.__setattr__(collection, "_bindings", mock_bindings.bindings)
-    object.__setattr__(collection, "_num_instances", num_instances)
-    object.__setattr__(collection, "_num_bodies", num_bodies)
-    object.__setattr__(collection, "_body_names_list", body_names)
+    collection._device = device
+    collection._ovphysx = MagicMock()
+    collection._root_view = mock_bindings.view
+    collection._bindings = mock_bindings.bindings
+    collection._num_instances = num_instances
+    collection._num_bodies = num_bodies
+    collection._body_names_list = body_names
 
     # Create RigidObjectCollectionData
     data = OvPhysxRigidObjectCollectionData(mock_bindings.view, num_bodies, device)
     data.num_instances = num_instances
     data.num_bodies = num_bodies
     data._is_primed = True
-    object.__setattr__(collection, "_data", data)
+    collection._data = data
 
     # Allocate the buffers that RigidObjectCollection normally allocates in _initialize_impl.
     collection._create_buffers()
@@ -247,14 +235,14 @@ def create_ovphysx_rigid_object_collection(
     # Use production wrench composers for interface coverage.
     mock_inst_wrench = WrenchComposer(collection, supports_world_at_com=True)
     mock_perm_wrench = WrenchComposer(collection, supports_world_at_com=True)
-    object.__setattr__(collection, "_instantaneous_wrench_composer", mock_inst_wrench)
-    object.__setattr__(collection, "_permanent_wrench_composer", mock_perm_wrench)
+    collection._instantaneous_wrench_composer = mock_inst_wrench
+    collection._permanent_wrench_composer = mock_perm_wrench
 
     # Prevent __del__ / _clear_callbacks from raising
-    object.__setattr__(collection, "_initialize_handle", None)
-    object.__setattr__(collection, "_invalidate_initialize_handle", None)
-    object.__setattr__(collection, "_prim_deletion_handle", None)
-    object.__setattr__(collection, "_debug_vis_handle", None)
+    collection._initialize_handle = None
+    collection._invalidate_initialize_handle = None
+    collection._prim_deletion_handle = None
+    collection._debug_vis_handle = None
 
     return collection, mock_bindings
 
@@ -264,12 +252,14 @@ def get_rigid_object_collection(
     num_instances: int = 2,
     num_bodies: int = 3,
     device: str = "cuda:0",
+    *,
+    monkeypatch: pytest.MonkeyPatch,
 ):
     if backend == "physx":
-        return create_physx_rigid_object_collection(num_instances, num_bodies, device)
+        return create_physx_rigid_object_collection(num_instances, num_bodies, device, monkeypatch=monkeypatch)
     elif backend == "ovphysx":
-        return create_ovphysx_rigid_object_collection(num_instances, num_bodies, device)
+        return create_ovphysx_rigid_object_collection(num_instances, num_bodies, device, monkeypatch=monkeypatch)
     elif backend == "newton":
-        return create_newton_rigid_object_collection(num_instances, num_bodies, device)
+        return create_newton_rigid_object_collection(num_instances, num_bodies, device, monkeypatch=monkeypatch)
     else:
         raise ValueError(f"Invalid backend: {backend}")

@@ -3,17 +3,22 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Fixtures shared by the asset contract tests."""
-
-from collections.abc import Iterator
+"""Backend and device parameters shared by the asset contracts."""
 
 import pytest
 
-from ._manager_patch_scope import contract_manager_patch_scope
+from isaaclab.test.utils import DeviceScope, test_devices
+
+from .capabilities import backend_parameters
 
 
-@pytest.fixture(autouse=True)
-def _restore_contract_manager_patches() -> Iterator[None]:
-    """Limit factory manager substitutions to one test invocation."""
-    with contract_manager_patch_scope():
-        yield
+@pytest.fixture(params=backend_parameters("api"))
+def backend(request: pytest.FixtureRequest) -> str:
+    """Run each shared contract on every declared backend, with explicit unavailable skips."""
+    return request.param
+
+
+@pytest.fixture(params=test_devices(DeviceScope.CPU_AND_DEFAULT_CUDA))
+def device(request: pytest.FixtureRequest) -> str:
+    """Exercise CPU buffers and CUDA staging without repeating CPU-only bookkeeping."""
+    return request.param

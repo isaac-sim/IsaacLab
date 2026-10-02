@@ -185,10 +185,14 @@ def _yaw_quat(angle: float) -> tuple[float, float, float, float]:
 
 
 @pytest.fixture
-def sim(request) -> Iterator[SimulationContext]:
+def gravity_enabled() -> bool:
+    """Enable gravity unless a test explicitly parametrizes it otherwise."""
+    return True
+
+
+@pytest.fixture
+def sim(device: str, gravity_enabled: bool) -> Iterator[SimulationContext]:
     """Create a function-scoped simulation context for tests that own their scene."""
-    device = request.getfixturevalue("device")
-    gravity_enabled = request.getfixturevalue("gravity_enabled") if "gravity_enabled" in request.fixturenames else True
     with build_simulation_context(device=device, auto_add_lighting=True, gravity_enabled=gravity_enabled) as sim:
         sim._app_control_on_stop_handle = None
         yield sim
@@ -254,15 +258,15 @@ def test_setting_invalid_articulation_root_prim_path(sim, device) -> None:
         sim.reset()
 
 
-@pytest.mark.parametrize("num_articulations", [2])
 @pytest.mark.parametrize("device", test_devices())
-def test_fixed_tendon_position_target_writes_offset(sim, num_articulations, device) -> None:
+def test_fixed_tendon_position_target_writes_offset(sim, device) -> None:
     """A tendon length target lands in the simulation as ``rest_length - target`` on the selected cells only.
 
     The index form commands every tendon of environment 0; the mask form commands tendon 0 of
     environment 1. Every other cell must keep its initial offset. The Shadow Hand is the shipped asset whose
     native PhysX fixed tendons these writers command.
     """
+    num_articulations = 2
     articulation_cfg = SHADOW_HAND_PHYSX_CFG
     articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
 
@@ -305,10 +309,9 @@ def test_fixed_tendon_position_target_writes_offset(sim, num_articulations, devi
     torch.testing.assert_close(articulation.data.fixed_tendon_offset.torch, expected)
 
 
-@pytest.mark.parametrize("num_articulations", [1])
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 @pytest.mark.isaacsim_ci
-def test_get_gravity_compensation_forces_static_equilibrium(sim, num_articulations, device) -> None:
+def test_get_gravity_compensation_forces_static_equilibrium(sim, device) -> None:
     """PhysX accuracy: ``τ_gc`` must hold the manipulator in static equilibrium.
 
     The contract is the EOM identity ``M(q) q̈ + C(q,q̇) q̇ + g(q) = τ_input``.
@@ -322,6 +325,7 @@ def test_get_gravity_compensation_forces_static_equilibrium(sim, num_articulatio
     Newton-side variant of the same name lives in
     ``isaaclab_newton/test/assets/test_articulation.py`` (backend parity).
     """
+    num_articulations = 1
     # Replace default Franka actuators with a passthrough implicit actuator
     # (stiffness = 0, damping = 0). With both gains zero the effort target
     # we set IS the joint torque applied — no PD spring-damper masks the

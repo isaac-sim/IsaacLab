@@ -199,9 +199,6 @@ class _ArticulationScene:
     native_actuators: bool
     islands: dict[str, Articulation]
 
-    def __getitem__(self, name: str) -> Articulation:
-        return self.islands[name]
-
     def step(self, articulation: Articulation, count: int = 1) -> None:
         """Step the shared scene while writing and refreshing one island."""
         for _ in range(count):
@@ -392,7 +389,7 @@ def test_setting_invalid_articulation_root_prim_path(device: str) -> None:
 @pytest.mark.parametrize("scene", _ALL_DEVICES, indirect=True)
 def test_articulation_initialization_and_partial_state(scene: _ArticulationScene) -> None:
     """Prove ordering and indexed state writes against the real OVPhysX view."""
-    articulation = scene["ordered"]
+    articulation = scene.islands["ordered"]
     device = scene.device
     assert articulation.is_initialized
     assert articulation.is_fixed_base
@@ -443,7 +440,7 @@ def test_articulation_initialization_and_partial_state(scene: _ArticulationScene
 @pytest.mark.parametrize("scene", _ALL_DEVICES, indirect=True)
 def test_articulation_joint_and_body_properties_round_trip(scene: _ArticulationScene) -> None:
     """Prove selected joint and body properties reach real OVPhysX bindings and public getters."""
-    articulation = scene["ordered"]
+    articulation = scene.islands["ordered"]
     device = scene.device
     env_ids = torch.tensor([1], dtype=torch.int32, device=device)
     joint_ids = torch.tensor([articulation.num_joints - 1, 0], dtype=torch.int32, device=device)
@@ -527,7 +524,7 @@ def test_set_material_properties(scene: _ArticulationScene) -> None:
     :class:`~isaaclab_ov.sim.views.OvPhysxView`. The binding is CPU-native, so the
     buffer lives in host memory.
     """
-    articulation = scene["ordered"]
+    articulation = scene.islands["ordered"]
     num_articulations = articulation.num_instances
     device = scene.device
     sim = scene.sim
@@ -571,7 +568,7 @@ def test_setting_velocity_and_effort_limits_write_to_solver(scene: _Articulation
     USD-authored defaults when unset) land in the native solver buffers and match
     ``data.joint_vel_limits`` and ``data.joint_effort_limits``.
     """
-    articulation = scene[island]
+    articulation = scene.islands[island]
     device = scene.device
     actuator_cfg = _ISLANDS[island].actuators["joints"]
     joint_drive_props = _ISLANDS[island].joint_drive_props
@@ -604,7 +601,7 @@ def test_effort_binding_excludes_implicit_pd(scene: _ArticulationScene) -> None:
     The CUDA scene runs the explicit group on the native Newton actuator path; the CPU scene keeps it
     on the host actuator path.
     """
-    articulation = scene["mixed"]
+    articulation = scene.islands["mixed"]
     stiffness, effort_limit = 20.0, 400.0
     joint_names = articulation.joint_names
     shoulder_ids = [joint_names.index(name) for name in ("left_shoulder", "right_shoulder")]
@@ -648,7 +645,7 @@ def test_com_orientation_write_invalidates_static_inertia_cache_with_body_orderi
     COM pose is a CPU-resident OVPhysX binding, and the raw ``root_view.set_attribute`` restore
     below forbids cross-device staging, so the raw COM tensors stay on the host.
     """
-    articulation = scene["com_order"]
+    articulation = scene.islands["com_order"]
     device = scene.device
     assert articulation.body_ordering is not None
 
@@ -715,7 +712,7 @@ def test_com_orientation_write_invalidates_static_inertia_cache_with_body_orderi
 @pytest.mark.parametrize("scene", _CUDA_DEVICES, indirect=True)
 def test_loading_gains_from_usd(scene: _ArticulationScene) -> None:
     """Adopt the authored drive gains when the actuator config leaves stiffness and damping unset."""
-    articulation = scene["usd_gains"]
+    articulation = scene.islands["usd_gains"]
     actuator = articulation.actuators["joints"]
     # Angular drive gains are authored per degree and exposed per radian.
     expected_stiffness = torch.full_like(actuator.stiffness, math.degrees(_STIFFNESS))
@@ -729,7 +726,7 @@ def test_loading_gains_from_usd(scene: _ArticulationScene) -> None:
 @pytest.mark.parametrize("scene", _CUDA_DEVICES, indirect=True)
 def test_explicit_articulation_root_on_a_floating_base_body(scene: _ArticulationScene) -> None:
     """Initialize and simulate a floating articulation from an explicit root path to a rigid body below the asset."""
-    articulation = scene["non_root"]
+    articulation = scene.islands["non_root"]
     num_articulations = articulation.num_instances
     assert articulation.is_initialized
     assert not articulation.is_fixed_base
@@ -753,7 +750,7 @@ def test_explicit_articulation_root_on_a_floating_base_body(scene: _Articulation
 @pytest.mark.parametrize("scene", _CUDA_DEVICES, indirect=True)
 def test_joint_position_limits_clamp_default_joint_positions(scene: _ArticulationScene) -> None:
     """Write partial joint position limits and clamp only the selected default joint positions into them."""
-    articulation = scene["pos_limits"]
+    articulation = scene.islands["pos_limits"]
     device = scene.device
     default_before = articulation.data.default_joint_pos.torch.clone()
     env_ids = torch.tensor([1], dtype=torch.int32, device=device)
@@ -774,7 +771,7 @@ def test_joint_position_limits_clamp_default_joint_positions(scene: _Articulatio
 @pytest.mark.parametrize("scene", _CUDA_DEVICES, indirect=True)
 def test_implicit_drive_targets_submit_feedforward_effort_and_track(scene: _ArticulationScene) -> None:
     """Write nonidentity-ordered implicit targets to their backend columns and track them in the solver."""
-    articulation = scene["drive"]
+    articulation = scene.islands["drive"]
     device = scene.device
     ordering = articulation.joint_ordering
     assert ordering is not None
@@ -840,7 +837,7 @@ def test_computed_dynamics_follow_public_order_and_model_writes(scene: _Articula
     temporary Newton USD discovery of the depth-first order and reorders the public joint/body axes to it.
     Joint-state and model-property writes refresh the gathered dynamics without advancing simulation time.
     """
-    articulation = scene["dynamics"]
+    articulation = scene.islands["dynamics"]
     device = scene.device
     num_envs = articulation.num_instances
 
@@ -965,7 +962,7 @@ def test_computed_dynamics_follow_public_order_and_model_writes(scene: _Articula
 @pytest.mark.parametrize("island", ["reversed", "reversed_ordered"])
 def test_reversed_joint_dynamics_use_public_joint_basis(scene: _ArticulationScene, island: str) -> None:
     """Check velocity, kinetic energy and gravity in the public joint basis."""
-    articulation = scene[island]
+    articulation = scene.islands[island]
     device = scene.device
     assert (articulation.joint_ordering is not None) == (island == "reversed_ordered")
 
@@ -1004,7 +1001,7 @@ def test_reversed_joint_dynamics_use_public_joint_basis(scene: _ArticulationScen
 @pytest.mark.parametrize("scene", _CUDA_DEVICES, indirect=True)
 def test_floating_articulation_root_state_dynamics_wrench_and_reset(scene: _ArticulationScene) -> None:
     """Prove floating-root state, generalized dynamics, reset, and a real OVPhysX external-wrench response."""
-    articulation = scene["floating"]
+    articulation = scene.islands["floating"]
     device = scene.device
     num_articulations = articulation.num_instances
     num_bodies = articulation.num_bodies
@@ -1127,7 +1124,7 @@ def test_tendon_properties_and_position_targets(scene: _ArticulationScene) -> No
     every tendon of environment 0; the mask form commands tendon 0 of environment 1. Every other cell must
     keep its initial offset.
     """
-    articulation = scene["tendon"]
+    articulation = scene.islands["tendon"]
     device = scene.device
     num_articulations = articulation.num_instances
     assert articulation.is_initialized
@@ -1180,7 +1177,7 @@ def test_tendon_properties_and_position_targets(scene: _ArticulationScene) -> No
 @pytest.mark.parametrize("scene", _CUDA_DEVICES, indirect=True)
 def test_native_actuator_submits_real_effort(scene: _ArticulationScene) -> None:
     """Run a Newton-native explicit actuator through the current OVPhysX state and effort binding."""
-    articulation = scene["native"]
+    articulation = scene.islands["native"]
     device = scene.device
     assert articulation._actuator_control.native_actuator_path_active
     assert articulation.newton_actuator_adapter is not None
@@ -1232,7 +1229,7 @@ def test_native_actuator_reset_and_gain_event_are_environment_selective(scene: _
             assert name == "robot"
             return self._asset
 
-    articulation = scene["delayed"]
+    articulation = scene.islands["delayed"]
     device = scene.device
     num_joints = articulation.num_joints
     scene.step(articulation, count=3)
@@ -1273,7 +1270,7 @@ def test_root_link_vel_w_refreshes_fk_before_body_com_vel_w_read(scene: _Articul
     Native tensor reads may refresh internally, so also verify that asset and rendering reads
     share one explicit FK update after each write, regardless of which reader comes first.
     """
-    articulation = scene["ordered"]
+    articulation = scene.islands["ordered"]
     articulation.update(scene.sim.cfg.dt)
 
     # Prime the derived buffers before the write so their TimestampedBuffers are populated; otherwise
@@ -1315,7 +1312,7 @@ def test_cpu_only_property_writes_wait_for_pinned_host_staging(scene: _Articulat
     device stream, so a long kernel queued ahead of the copy must not let the setter consume the
     previous contents of the pinned buffers.
     """
-    articulation = scene["staging"]
+    articulation = scene.islands["staging"]
     device = scene.device
     num_envs, num_joints = articulation.num_instances, articulation.num_joints
 

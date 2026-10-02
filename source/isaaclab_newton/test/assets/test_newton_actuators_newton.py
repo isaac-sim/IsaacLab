@@ -26,7 +26,6 @@ from isaaclab.test.utils import launch_test_simulation
 
 launch_test_simulation(SimulationCfg(physics=NewtonCfg()))
 
-import functools
 import os
 import sys
 from collections.abc import Iterator
@@ -651,10 +650,8 @@ def test_randomize_actuator_gains_reaches_newton_controllers(newton_run: _Run) -
     cartpole = newton_run.articulations["cartpole"]
     assert SimulationManager._adapter is not None
 
-    anymal_read = functools.partial(read_group_parameter, anymal.actuators)
-    cartpole_read = functools.partial(read_group_parameter, cartpole.actuators)
-    anymal_stiffness_before = anymal_read("legs", "controller", "kp").clone()
-    anymal_damping_before = anymal_read("legs", "controller", "kd").clone()
+    anymal_stiffness_before = read_group_parameter(anymal.actuators, "legs", "controller", "kp").clone()
+    anymal_damping_before = read_group_parameter(anymal.actuators, "legs", "controller", "kd").clone()
     # Before DR, native gain reads must return the configured values for *every* env. This is
     # also the regression check for the env-major DOF stride decoding on floating-base
     # articulations (6 free-root DOFs + the leg joints): a wrong stride corrupts every
@@ -662,8 +659,8 @@ def test_randomize_actuator_gains_reaches_newton_controllers(newton_run: _Run) -
     n = anymal.num_joints
     torch.testing.assert_close(anymal_stiffness_before, torch.full((NUM_ENVS, n), 40.0, device=anymal.device))
     torch.testing.assert_close(anymal_damping_before, torch.full((NUM_ENVS, n), 5.0, device=anymal.device))
-    cartpole_stiffness_before = cartpole_read("all_joints", "controller", "kp").clone()
-    cartpole_damping_before = cartpole_read("all_joints", "controller", "kd").clone()
+    cartpole_stiffness_before = read_group_parameter(cartpole.actuators, "all_joints", "controller", "kp").clone()
+    cartpole_damping_before = read_group_parameter(cartpole.actuators, "all_joints", "controller", "kd").clone()
 
     env = MockEnv({"anymal": anymal, "cartpole": cartpole}, NUM_ENVS, anymal.device)
     term, asset_cfg = build_dr_term(env, "cartpole")
@@ -681,23 +678,31 @@ def test_randomize_actuator_gains_reaches_newton_controllers(newton_run: _Run) -
 
     n_cp = cartpole.num_joints
     torch.testing.assert_close(
-        cartpole_read("all_joints", "controller", "kp")[0], torch.full((n_cp,), 100.0, device=anymal.device)
+        read_group_parameter(cartpole.actuators, "all_joints", "controller", "kp")[0],
+        torch.full((n_cp,), 100.0, device=anymal.device),
     )
     torch.testing.assert_close(
-        cartpole_read("all_joints", "controller", "kd")[0], torch.full((n_cp,), 5.0, device=anymal.device)
+        read_group_parameter(cartpole.actuators, "all_joints", "controller", "kd")[0],
+        torch.full((n_cp,), 5.0, device=anymal.device),
     )
 
     # The leg is untouched (DR was scoped to cartpole).
-    torch.testing.assert_close(anymal_read("legs", "controller", "kp"), anymal_stiffness_before)
-    torch.testing.assert_close(anymal_read("legs", "controller", "kd"), anymal_damping_before)
+    torch.testing.assert_close(
+        read_group_parameter(anymal.actuators, "legs", "controller", "kp"), anymal_stiffness_before
+    )
+    torch.testing.assert_close(
+        read_group_parameter(anymal.actuators, "legs", "controller", "kd"), anymal_damping_before
+    )
 
     # Cartpole's other envs are also untouched (env_ids=[0] only).
     for env_idx in range(1, NUM_ENVS):
         torch.testing.assert_close(
-            cartpole_read("all_joints", "controller", "kp")[env_idx], cartpole_stiffness_before[env_idx]
+            read_group_parameter(cartpole.actuators, "all_joints", "controller", "kp")[env_idx],
+            cartpole_stiffness_before[env_idx],
         )
         torch.testing.assert_close(
-            cartpole_read("all_joints", "controller", "kd")[env_idx], cartpole_damping_before[env_idx]
+            read_group_parameter(cartpole.actuators, "all_joints", "controller", "kd")[env_idx],
+            cartpole_damping_before[env_idx],
         )
 
     # DR scoped to the floating-base leg updates only its selected env.
@@ -712,12 +717,21 @@ def test_randomize_actuator_gains_reaches_newton_controllers(newton_run: _Run) -
         distribution="uniform",
     )
     torch.testing.assert_close(
-        anymal_read("legs", "controller", "kp")[0], torch.full((n,), 100.0, device=anymal.device)
+        read_group_parameter(anymal.actuators, "legs", "controller", "kp")[0],
+        torch.full((n,), 100.0, device=anymal.device),
     )
-    torch.testing.assert_close(anymal_read("legs", "controller", "kd")[0], torch.full((n,), 5.0, device=anymal.device))
+    torch.testing.assert_close(
+        read_group_parameter(anymal.actuators, "legs", "controller", "kd")[0],
+        torch.full((n,), 5.0, device=anymal.device),
+    )
     for env_idx in range(1, NUM_ENVS):
-        torch.testing.assert_close(anymal_read("legs", "controller", "kp")[env_idx], anymal_stiffness_before[env_idx])
-        torch.testing.assert_close(anymal_read("legs", "controller", "kd")[env_idx], anymal_damping_before[env_idx])
+        torch.testing.assert_close(
+            read_group_parameter(anymal.actuators, "legs", "controller", "kp")[env_idx],
+            anymal_stiffness_before[env_idx],
+        )
+        torch.testing.assert_close(
+            read_group_parameter(anymal.actuators, "legs", "controller", "kd")[env_idx], anymal_damping_before[env_idx]
+        )
 
 
 # ---------------------------------------------------------------------------

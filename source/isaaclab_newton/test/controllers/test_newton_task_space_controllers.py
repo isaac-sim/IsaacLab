@@ -112,15 +112,6 @@ def _compute_jacobian_root_frame(robot: Articulation, ee_jacobi_idx: int, arm_jo
     return jacobian
 
 
-def _build_relative_pose_target(
-    robot: Articulation, ee_frame_idx: int, delta_xyz: tuple[float, float, float]
-) -> torch.Tensor:
-    """Return the current end-effector pose in the root frame offset by ``delta_xyz`` [m], keeping its orientation."""
-    initial_ee_pos_b, initial_ee_quat_b = _compute_ee_pose_root(robot, ee_frame_idx)
-    target_pos_b = initial_ee_pos_b + initial_ee_pos_b.new_tensor(delta_xyz)
-    return torch.cat([target_pos_b, initial_ee_quat_b], dim=-1)
-
-
 def _make_osc(device: str) -> OperationalSpaceController:
     """Return a fixed-impedance absolute-pose controller with inertial decoupling and no gravity compensation."""
     return OperationalSpaceController(
@@ -184,7 +175,8 @@ def test_osc_tracking_accuracy(chain: _Chain) -> None:
     ``inertial_dynamics_decoupling=True`` exercises ``mass_matrix`` and the COM-referenced J → M_b → J product.
     """
     chain.rest()
-    target_pose_b = _build_relative_pose_target(chain.robot, chain.ee_frame_idx, (0.05, 0.0, 0.0))
+    ee_pos_b, ee_quat_b = _compute_ee_pose_root(chain.robot, chain.ee_frame_idx)
+    target_pose_b = torch.cat([ee_pos_b + ee_pos_b.new_tensor((0.05, 0.0, 0.0)), ee_quat_b], dim=-1)
     pos_history, rot_history = _run_osc(chain, _make_osc(chain.device), target_pose_b, 300, gravity=False)
 
     pos_mean = sum(pos_history[-200:]) / 200
@@ -217,7 +209,8 @@ def test_osc_gravity_compensation_precision(chain: _Chain) -> None:
     chain.rest()
     osc = _make_osc(chain.device)
     # Hold the initial EE pose: phase-1 steady-state error is pure gravity sag.
-    target_pose_b = _build_relative_pose_target(chain.robot, chain.ee_frame_idx, (0.0, 0.0, 0.0))
+    ee_pos_b, ee_quat_b = _compute_ee_pose_root(chain.robot, chain.ee_frame_idx)
+    target_pose_b = torch.cat([ee_pos_b, ee_quat_b], dim=-1)
 
     def _stationary_tail_mean(history: list[float], label: str) -> float:
         """Mean of the last 200 samples, asserting the two tail halves agree within 25%.

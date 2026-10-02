@@ -10,29 +10,11 @@ from importlib.util import find_spec
 
 import pytest
 
-from ._articulation_contract_cases import (  # noqa: F401
-    TestArticulationFinderReturnModes,
-    TestArticulationIndexResolution,
-    TestArticulationProperties,
-    TestFixedTendonTargetScheduling,
-    TestResolveMatchingNamesCache,
-)
-from ._articulation_contract_utils import get_articulation
-from ._manager_patch_scope import contract_manager_patch_scope
-from ._rigid_object_collection_contract_cases import (  # noqa: F401
-    TestCollectionFinderReturnModes,
-    TestCollectionIndexResolution,
-    TestCollectionProperties,
-)
-from ._rigid_object_collection_contract_utils import get_rigid_object_collection
-from ._rigid_object_contract_cases import (  # noqa: F401
-    TestRigidObjectFinderReturnModes,
-    TestRigidObjectIndexResolution,
-    TestRigidObjectProperties,
-)
-from ._rigid_object_contract_utils import get_rigid_object
+from .articulation_factory import get_articulation
 from .capabilities import BACKEND_STATUSES, available_backends
 from .public_surface import BASE_SURFACE_CLASSES, PUBLIC_SURFACE_CONTRACTS, public_surface_mismatches
+from .rigid_object_collection_factory import get_rigid_object_collection
+from .rigid_object_factory import get_rigid_object
 
 pytestmark = pytest.mark.integration
 
@@ -91,15 +73,19 @@ def test_contract_factories_scope_manager_patches_to_one_test(reverse: bool) -> 
         assert all(manager is NewtonManager for name, manager in original.items() if name.startswith("newton."))
 
     backends = available_backends()[::-1] if reverse else available_backends()
-    with contract_manager_patch_scope():
+    patches = pytest.MonkeyPatch()
+    try:
         for backend in backends:
-            rigid_object, _ = get_rigid_object(backend, device="cpu")
-            collection, _ = get_rigid_object_collection(backend, device="cpu")
-            articulation, _ = get_articulation(backend, device="cpu")
+            rigid_object, _ = get_rigid_object(backend, device="cpu", monkeypatch=patches)
+            collection, _ = get_rigid_object_collection(backend, device="cpu", monkeypatch=patches)
+            articulation, _ = get_articulation(backend, device="cpu", monkeypatch=patches)
             # Later factories must not break the patched managers the earlier families read through.
             assert rigid_object.data.root_link_pose_w.shape == (2,)
             assert collection.data.body_link_pose_w.shape == (2, 3)
             assert articulation.data.root_link_pose_w.shape == (2,)
+
+    finally:
+        patches.undo()
 
     restored = _manager_bindings()
     assert restored.keys() == original.keys()

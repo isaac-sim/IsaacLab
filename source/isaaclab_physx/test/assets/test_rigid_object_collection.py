@@ -98,10 +98,14 @@ def _yaw_quat(angle: float) -> tuple[float, float, float, float]:
 
 
 @pytest.fixture
-def sim(request) -> Iterator[SimulationContext]:
+def gravity_enabled() -> bool:
+    """Enable gravity unless a test explicitly parametrizes it otherwise."""
+    return True
+
+
+@pytest.fixture
+def sim(device: str, gravity_enabled: bool) -> Iterator[SimulationContext]:
     """Create a function-scoped simulation context for tests that own their scene."""
-    device = request.getfixturevalue("device")
-    gravity_enabled = request.getfixturevalue("gravity_enabled") if "gravity_enabled" in request.fixturenames else True
     with build_simulation_context(device=device, auto_add_lighting=True, gravity_enabled=gravity_enabled) as sim:
         sim._app_control_on_stop_handle = None
         yield sim
@@ -112,10 +116,10 @@ def sim(request) -> Iterator[SimulationContext]:
 ##
 
 
-@pytest.mark.parametrize("num_cubes", [2])
 @pytest.mark.parametrize("device", test_devices())
-def test_initialization_with_no_rigid_body(sim, num_cubes, device) -> None:
+def test_initialization_with_no_rigid_body(sim, device) -> None:
     """Test that initialization fails when no rigid body is found at the provided prim path."""
+    num_cubes = 2
     object_collection, _ = generate_cubes_scene(num_cubes=num_cubes, has_api=False)
 
     # Check that the framework doesn't hold excessive strong references.
@@ -187,12 +191,12 @@ def test_inertial_property_subset_writes_reach_selected_view_entries(sim, device
     torch.testing.assert_close(object_collection.data.body_inertia.torch.cpu(), expected_inertias)
 
 
-@pytest.mark.parametrize("num_envs", [3])
-@pytest.mark.parametrize("num_cubes", [2])
 @pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("gravity_enabled", [True, False])
-def test_gravity_vec_w(sim, num_envs, num_cubes, device, gravity_enabled) -> None:
+def test_gravity_vec_w(sim, device, gravity_enabled) -> None:
     """Test that gravity vector direction is set correctly for the rigid object."""
+    num_envs = 3
+    num_cubes = 2
     object_collection, _ = generate_cubes_scene(num_envs=num_envs, num_cubes=num_cubes)
 
     gravity_dir = (0.0, 0.0, -1.0) if gravity_enabled else (0.0, 0.0, 0.0)

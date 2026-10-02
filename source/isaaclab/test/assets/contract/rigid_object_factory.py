@@ -11,14 +11,14 @@
 from unittest.mock import MagicMock
 
 import numpy as np
+import pytest
 import warp as wp
 
 from isaaclab.assets.rigid_object.rigid_object_cfg import RigidObjectCfg
 from isaaclab.utils.wrench_composer import WrenchComposer
 
-from ._manager_patch_scope import patch_contract_manager
-from ._mock_backends import install_physx_recording_setters, patch_ovphysx_manager, patch_physx_manager
 from .capabilities import available_backends
+from .mock_backends import install_physx_recording_setters, patch_ovphysx_manager, patch_physx_manager
 
 BACKENDS = available_backends()
 
@@ -46,12 +46,9 @@ _PHYSX_RIGID_BODY_STORAGE = {
 }
 
 
-def create_physx_rigid_object(
-    num_instances: int = 2,
-    device: str = "cuda:0",
-):
+def create_physx_rigid_object(num_instances: int = 2, device: str = "cuda:0", *, monkeypatch: pytest.MonkeyPatch):
     """Create a test RigidObject instance with mocked dependencies."""
-    patch_physx_manager()
+    patch_physx_manager(monkeypatch=monkeypatch)
     body_names = ["body_0"]
 
     rigid_object = object.__new__(PhysXRigidObject)
@@ -66,12 +63,12 @@ def create_physx_rigid_object(
     mock_view.set_random_mock_data()
     install_physx_recording_setters(mock_view, _PHYSX_RIGID_BODY_STORAGE)
 
-    object.__setattr__(rigid_object, "_root_view", mock_view)
-    object.__setattr__(rigid_object, "_device", device)
+    rigid_object._root_view = mock_view
+    rigid_object._device = device
 
     # The data reads gravity from the PhysX manager patched above.
     data = PhysXRigidObjectData(mock_view, device)
-    object.__setattr__(rigid_object, "_data", data)
+    rigid_object._data = data
 
     # Set body names on data
     data.body_names = body_names
@@ -79,44 +76,39 @@ def create_physx_rigid_object(
     # Create wrench composers
     mock_inst_wrench = WrenchComposer(rigid_object, supports_world_at_com=True)
     mock_perm_wrench = WrenchComposer(rigid_object, supports_world_at_com=True)
-    object.__setattr__(rigid_object, "_instantaneous_wrench_composer", mock_inst_wrench)
-    object.__setattr__(rigid_object, "_permanent_wrench_composer", mock_perm_wrench)
+    rigid_object._instantaneous_wrench_composer = mock_inst_wrench
+    rigid_object._permanent_wrench_composer = mock_perm_wrench
 
     # Prevent __del__ / _clear_callbacks from raising AttributeError
-    object.__setattr__(rigid_object, "_initialize_handle", None)
-    object.__setattr__(rigid_object, "_invalidate_initialize_handle", None)
-    object.__setattr__(rigid_object, "_prim_deletion_handle", None)
-    object.__setattr__(rigid_object, "_debug_vis_handle", None)
+    rigid_object._initialize_handle = None
+    rigid_object._invalidate_initialize_handle = None
+    rigid_object._prim_deletion_handle = None
+    rigid_object._debug_vis_handle = None
 
     # Set up index arrays (warp arrays for rigid object)
-    object.__setattr__(rigid_object, "_ALL_INDICES", wp.array(np.arange(num_instances, dtype=np.int32), device=device))
-    object.__setattr__(rigid_object, "_ALL_BODY_INDICES", wp.array(np.array([0], dtype=np.int32), device=device))
+    rigid_object._ALL_INDICES = wp.array(np.arange(num_instances, dtype=np.int32), device=device)
+    rigid_object._ALL_BODY_INDICES = wp.array(np.array([0], dtype=np.int32), device=device)
 
     # Cached .view(wp.float32) wrappers
-    object.__setattr__(rigid_object, "_root_link_pose_w_f32", None)
-    object.__setattr__(rigid_object, "_root_com_vel_w_f32", None)
+    rigid_object._root_link_pose_w_f32 = None
+    rigid_object._root_com_vel_w_f32 = None
 
     # Pre-allocated pinned CPU buffers for PhysX TensorAPI writes
     N, B = num_instances, 1  # rigid object has 1 body
-    object.__setattr__(rigid_object, "_sim_env_ids", wp.empty(N, dtype=wp.int32, device=device))
-    object.__setattr__(rigid_object, "_sim_env_ids_views", {})
+    rigid_object._sim_env_ids = wp.empty(N, dtype=wp.int32, device=device)
+    rigid_object._sim_env_ids_views = {}
     cpu_env_ids = wp.array(np.arange(N, dtype=np.int32), device="cpu")
-    object.__setattr__(rigid_object, "_cpu_env_ids_all", cpu_env_ids)
-    object.__setattr__(
-        rigid_object, "_cpu_env_ids", wp.empty(N, dtype=wp.int32, device="cpu", pinned=wp.is_cuda_available())
-    )
-    object.__setattr__(rigid_object, "_cpu_env_ids_views", {})
-    object.__setattr__(rigid_object, "_cpu_body_mass", wp.zeros((N, B), dtype=wp.float32, device="cpu"))
-    object.__setattr__(rigid_object, "_cpu_body_coms", wp.zeros((N, B, 7), dtype=wp.float32, device="cpu"))
-    object.__setattr__(rigid_object, "_cpu_body_inertia", wp.zeros((N, B, 9), dtype=wp.float32, device="cpu"))
+    rigid_object._cpu_env_ids_all = cpu_env_ids
+    rigid_object._cpu_env_ids = wp.empty(N, dtype=wp.int32, device="cpu", pinned=wp.is_cuda_available())
+    rigid_object._cpu_env_ids_views = {}
+    rigid_object._cpu_body_mass = wp.zeros((N, B), dtype=wp.float32, device="cpu")
+    rigid_object._cpu_body_coms = wp.zeros((N, B, 7), dtype=wp.float32, device="cpu")
+    rigid_object._cpu_body_inertia = wp.zeros((N, B, 9), dtype=wp.float32, device="cpu")
 
     return rigid_object, mock_view
 
 
-def create_newton_rigid_object(
-    num_instances: int = 2,
-    device: str = "cuda:0",
-):
+def create_newton_rigid_object(num_instances: int = 2, device: str = "cuda:0", *, monkeypatch: pytest.MonkeyPatch):
     """Create a test Newton RigidObject instance with mocked dependencies."""
     import isaaclab_newton.assets.rigid_object.rigid_object_data as newton_data_module
 
@@ -152,7 +144,7 @@ def create_newton_rigid_object(
     mock_manager.get_control.return_value = mock_control
 
     # Patch SimulationManager in the Newton data module until the test finishes.
-    patch_contract_manager(newton_data_module, "SimulationManager", mock_manager)
+    monkeypatch.setattr(newton_data_module, "SimulationManager", mock_manager, raising=False)
     data = NewtonRigidObjectData(mock_view, device)
 
     # Create RigidObject shell (bypass __init__)
@@ -160,39 +152,36 @@ def create_newton_rigid_object(
 
     rigid_object.cfg = RigidObjectCfg(prim_path="/World/Object")
 
-    object.__setattr__(rigid_object, "_root_view", mock_view)
-    object.__setattr__(rigid_object, "_device", device)
-    object.__setattr__(rigid_object, "_data", data)
+    rigid_object._root_view = mock_view
+    rigid_object._device = device
+    rigid_object._data = data
 
     # Wrench composers
     mock_inst_wrench = WrenchComposer(rigid_object)
     mock_perm_wrench = WrenchComposer(rigid_object)
-    object.__setattr__(rigid_object, "_instantaneous_wrench_composer", mock_inst_wrench)
-    object.__setattr__(rigid_object, "_permanent_wrench_composer", mock_perm_wrench)
+    rigid_object._instantaneous_wrench_composer = mock_inst_wrench
+    rigid_object._permanent_wrench_composer = mock_perm_wrench
 
     # Prevent __del__ / _clear_callbacks from raising AttributeError
-    object.__setattr__(rigid_object, "_initialize_handle", None)
-    object.__setattr__(rigid_object, "_invalidate_initialize_handle", None)
-    object.__setattr__(rigid_object, "_prim_deletion_handle", None)
-    object.__setattr__(rigid_object, "_debug_vis_handle", None)
+    rigid_object._initialize_handle = None
+    rigid_object._invalidate_initialize_handle = None
+    rigid_object._prim_deletion_handle = None
+    rigid_object._debug_vis_handle = None
 
     # Newton uses wp.array for indices
-    object.__setattr__(rigid_object, "_ALL_INDICES", wp.array(np.arange(num_instances, dtype=np.int32), device=device))
-    object.__setattr__(rigid_object, "_ALL_BODY_INDICES", wp.array(np.array([0], dtype=np.int32), device=device))
+    rigid_object._ALL_INDICES = wp.array(np.arange(num_instances, dtype=np.int32), device=device)
+    rigid_object._ALL_BODY_INDICES = wp.array(np.array([0], dtype=np.int32), device=device)
 
     # Newton uses wp.bool masks
-    object.__setattr__(rigid_object, "_ALL_ENV_MASK", wp.ones((num_instances,), dtype=wp.bool, device=device))
-    object.__setattr__(rigid_object, "_ALL_BODY_MASK", wp.ones((1,), dtype=wp.bool, device=device))
+    rigid_object._ALL_ENV_MASK = wp.ones((num_instances,), dtype=wp.bool, device=device)
+    rigid_object._ALL_BODY_MASK = wp.ones((1,), dtype=wp.bool, device=device)
 
     return rigid_object, mock_view
 
 
-def create_ovphysx_rigid_object(
-    num_instances: int = 2,
-    device: str = "cuda:0",
-):
+def create_ovphysx_rigid_object(num_instances: int = 2, device: str = "cuda:0", *, monkeypatch: pytest.MonkeyPatch):
     """Create a test OvPhysX RigidObject instance with mocked tensor bindings."""
-    patch_ovphysx_manager()
+    patch_ovphysx_manager(monkeypatch=monkeypatch)
     body_names = ["base_link"]
 
     obj = object.__new__(OvPhysxRigidObject)
@@ -209,20 +198,20 @@ def create_ovphysx_rigid_object(
     )
     mock_bindings.set_random_data()
 
-    object.__setattr__(obj, "_device", device)
-    object.__setattr__(obj, "_ovphysx", MagicMock())
-    object.__setattr__(obj, "_root_view", mock_bindings.view)
-    object.__setattr__(obj, "_bindings", mock_bindings.bindings)
-    object.__setattr__(obj, "_num_instances", num_instances)
-    object.__setattr__(obj, "_num_bodies", 1)
-    object.__setattr__(obj, "_body_names", body_names)
+    obj._device = device
+    obj._ovphysx = MagicMock()
+    obj._root_view = mock_bindings.view
+    obj._bindings = mock_bindings.bindings
+    obj._num_instances = num_instances
+    obj._num_bodies = 1
+    obj._body_names = body_names
 
     # Create RigidObjectData
     data = OvPhysxRigidObjectData(mock_bindings.view, device)
     data.num_instances = num_instances
     data.num_bodies = 1
     data._is_primed = True
-    object.__setattr__(obj, "_data", data)
+    obj._data = data
 
     # Build the buffers RigidObject normally allocates in _initialize_impl
     # (_ALL_INDICES, _ALL_*_MASK, pinned CPU staging buffers, wrench buf).
@@ -233,28 +222,24 @@ def create_ovphysx_rigid_object(
     # Use production wrench composers for interface coverage.
     mock_inst_wrench = WrenchComposer(obj, supports_world_at_com=True)
     mock_perm_wrench = WrenchComposer(obj, supports_world_at_com=True)
-    object.__setattr__(obj, "_instantaneous_wrench_composer", mock_inst_wrench)
-    object.__setattr__(obj, "_permanent_wrench_composer", mock_perm_wrench)
+    obj._instantaneous_wrench_composer = mock_inst_wrench
+    obj._permanent_wrench_composer = mock_perm_wrench
 
     # Prevent __del__ / _clear_callbacks from raising
-    object.__setattr__(obj, "_initialize_handle", None)
-    object.__setattr__(obj, "_invalidate_initialize_handle", None)
-    object.__setattr__(obj, "_prim_deletion_handle", None)
-    object.__setattr__(obj, "_debug_vis_handle", None)
+    obj._initialize_handle = None
+    obj._invalidate_initialize_handle = None
+    obj._prim_deletion_handle = None
+    obj._debug_vis_handle = None
 
     return obj, mock_bindings
 
 
-def get_rigid_object(
-    backend: str,
-    num_instances: int = 2,
-    device: str = "cuda:0",
-):
+def get_rigid_object(backend: str, num_instances: int = 2, device: str = "cuda:0", *, monkeypatch: pytest.MonkeyPatch):
     if backend == "physx":
-        return create_physx_rigid_object(num_instances, device)
+        return create_physx_rigid_object(num_instances, device, monkeypatch=monkeypatch)
     elif backend == "ovphysx":
-        return create_ovphysx_rigid_object(num_instances, device)
+        return create_ovphysx_rigid_object(num_instances, device, monkeypatch=monkeypatch)
     elif backend == "newton":
-        return create_newton_rigid_object(num_instances, device)
+        return create_newton_rigid_object(num_instances, device, monkeypatch=monkeypatch)
     else:
         raise ValueError(f"Invalid backend: {backend}")

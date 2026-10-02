@@ -9,28 +9,27 @@ from collections.abc import Callable
 from unittest.mock import MagicMock
 
 import numpy as np
+import pytest
 import warp as wp
 
-from ._manager_patch_scope import patch_contract_manager
 
-
-def patch_physx_manager() -> None:
+def patch_physx_manager(*, monkeypatch: pytest.MonkeyPatch) -> None:
     """Give PhysX data classes gravity and a scene-data backend without creating a physics scene."""
     from isaaclab_physx.physics import PhysxManager
     from isaaclab_physx.physics.physx_manager import PhysxSceneDataBackend
 
     physics_sim_view = MagicMock()
     physics_sim_view.get_gravity.return_value = (0.0, 0.0, -9.81)
-    patch_contract_manager(PhysxManager, "get_physics_sim_view", MagicMock(return_value=physics_sim_view))
+    monkeypatch.setattr(PhysxManager, "get_physics_sim_view", MagicMock(return_value=physics_sim_view), raising=False)
     # Writers bump the scene-data transform version that ``initialize()`` would normally create.
-    patch_contract_manager(PhysxManager, "_scene_data_backend", PhysxSceneDataBackend())
+    monkeypatch.setattr(PhysxManager, "_scene_data_backend", PhysxSceneDataBackend(), raising=False)
 
 
-def patch_ovphysx_manager() -> None:
+def patch_ovphysx_manager(*, monkeypatch: pytest.MonkeyPatch) -> None:
     """Create the OVPhysX scene-data backend whose transform version the writers bump."""
     from isaaclab_ov.physics.ovphysx_manager import OvPhysxManager, OvPhysxSceneDataBackend
 
-    patch_contract_manager(OvPhysxManager, "_scene_data_backend", OvPhysxSceneDataBackend())
+    monkeypatch.setattr(OvPhysxManager, "_scene_data_backend", OvPhysxSceneDataBackend(), raising=False)
 
 
 def install_physx_recording_setters(mock_view, storage_by_method: dict[str, str]) -> None:
@@ -68,3 +67,18 @@ def install_physx_recording_setters(mock_view, storage_by_method: dict[str, str]
     mock_view._noop_setters = False
     for method_name, storage_name in storage_by_method.items():
         setattr(mock_view, method_name, make_setter(storage_name))
+
+
+def read_backend_joint_state(backend: str, art, raw_backend) -> tuple[np.ndarray, np.ndarray]:
+    """Return joint position and velocity from backend-order storage."""
+    if backend == "physx":
+        return raw_backend._dof_positions.numpy().copy(), raw_backend._dof_velocities.numpy().copy()
+    if backend == "ovphysx":
+        from isaaclab_ov import tensor_types as TT
+
+        position = np.asarray(raw_backend.bindings[TT.DOF_POSITION]._data).copy()
+        velocity = np.asarray(raw_backend.bindings[TT.DOF_VELOCITY]._data).copy()
+        return position, velocity
+    if backend == "newton":
+        return art.data._sim_bind_joint_pos.numpy().copy(), art.data._sim_bind_joint_vel.numpy().copy()
+    raise AssertionError(f"Unsupported backend for joint-state parity test: {backend}")
