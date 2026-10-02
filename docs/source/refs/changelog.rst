@@ -17,5 +17,6 @@ framework releases.
 * :isaaclab-source:`isaaclab_ppisp <source/isaaclab_ppisp/docs/CHANGELOG.rst>`
 * :isaaclab-source:`isaaclab_rl <source/isaaclab_rl/docs/CHANGELOG.rst>`
 * :isaaclab-source:`isaaclab_tasks <source/isaaclab_tasks/docs/CHANGELOG.rst>`
+* :isaaclab-source:`isaaclab_tasks_experimental <source/isaaclab_tasks_experimental/docs/CHANGELOG.rst>`
 * :isaaclab-source:`isaaclab_teleop <source/isaaclab_teleop/docs/CHANGELOG.rst>`
 * :isaaclab-source:`isaaclab_visualizers <source/isaaclab_visualizers/docs/CHANGELOG.rst>`

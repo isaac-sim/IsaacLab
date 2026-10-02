@@ -11,7 +11,8 @@ cleanly; other scripts must print their readiness marker and survive a soak.
 GUI cases additionally require ``DISPLAY`` or ``WAYLAND_DISPLAY``.
 ``ISAACLAB_STANDALONE_SOAK_TIME`` and ``ISAACLAB_STANDALONE_STARTUP_TIMEOUT``
 may be used to tune the default five-second soak and five-minute time limit.
-Set ``ISAACLAB_STANDALONE_VISUALIZER`` to run one visualizer slice of the matrix.
+Set ``ISAACLAB_STANDALONE_VISUALIZER`` to run one visualizer slice of the matrix, or ``default`` for the
+launches without ``--viz``.
 Set ``ISAACLAB_STANDALONE_SCRIPT_RUNTIME_GROUP`` to ``kit`` or ``non-kit`` to
 run the corresponding backend-runtime group.
 ``ISAACLAB_STANDALONE_SCREENSHOT_DIR`` captures a screenshot of soaked visual
@@ -47,21 +48,22 @@ SELECTED_SPECS = select_script_scope(SPECS, SCOPE)
 CASES = build_cases(SELECTED_SPECS)
 VISUALIZER = os.environ.get("ISAACLAB_STANDALONE_VISUALIZER")
 if VISUALIZER:
-    if VISUALIZER not in script_cases.VISUALIZERS:
+    selected_visualizer = None if VISUALIZER == "default" else VISUALIZER
+    if selected_visualizer not in script_cases.VISUALIZERS:
         raise ValueError(f"unsupported ISAACLAB_STANDALONE_VISUALIZER: {VISUALIZER!r}")
-    CASES = [case for case in CASES if case.visualizer == VISUALIZER]
+    CASES = [case for case in CASES if case.visualizer == selected_visualizer]
 RUNTIME_GROUP = os.environ.get("ISAACLAB_STANDALONE_SCRIPT_RUNTIME_GROUP")
 if RUNTIME_GROUP:
     CASES = select_runtime_group(CASES, RUNTIME_GROUP)
 MULTI_MESH_RAYCASTER_CASES = [
     case
     for case in CASES
-    if case.spec.relative_path == "examples/sensors/multi_mesh_raycaster.py" and case.visualizer == "none"
+    if case.spec.relative_path == "examples/sensors/multi_mesh_raycaster.py" and case.visualizer is None
 ]
 NEWTON_RAYCAST_CASES = [
     case
     for case in CASES
-    if case.spec.relative_path == "examples/sensors/newton_raycast.py" and case.visualizer == "none"
+    if case.spec.relative_path == "examples/sensors/newton_raycast.py" and case.visualizer is None
 ]
 RUN_LAUNCH_MATRIX = os.environ.get("ISAACLAB_RUN_STANDALONE_SCRIPT_TESTS") == "1"
 SCREENSHOT_DIR = os.environ.get("ISAACLAB_STANDALONE_SCREENSHOT_DIR")
@@ -219,7 +221,8 @@ def test_demo_browser_documents_options_for_each_demo():
         assert set(entry["physics"].split(",")) == {backend for _, backend in spec.physics_backends}, (
             f"{demo_name} documents incorrect physics options"
         )
-        assert set(entry["visualizers"].split(",")) == set(spec.visualizers), (
+        # the demo browser offers the visualizer types; omitting --viz is not a menu entry
+        assert set(entry["visualizers"].split(",")) == set(spec.visualizers) - {None}, (
             f"{demo_name} documents incorrect visualizer options"
         )
 
@@ -256,14 +259,14 @@ def test_ast_discovery_recognizes_main_guards_and_literal_choices():
 import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument('--physics', choices=['physx', 'newton_mjwarp'])
-parser.add_argument('--viz', choices=('none',))
+parser.add_argument('--viz', choices=('kit',))
 parser.add_argument('positional')
 if __name__ == '__main__':
     pass
 """
     )
     assert script_cases._has_main_guard(tree)
-    assert script_cases._literal_cli_options(tree) == {"--physics": ("physx", "newton_mjwarp"), "--viz": ("none",)}
+    assert script_cases._literal_cli_options(tree) == {"--physics": ("physx", "newton_mjwarp"), "--viz": ("kit",)}
     assert not script_cases._has_main_guard(ast.parse("print('library module')"))
 
 
@@ -409,7 +412,7 @@ def test_standalone_script_runs_cleanly(case):
     """Each supported script launch must initialize, step, and stop without a fatal error."""
     _skip_unsupported(case)
     screenshot_path = None
-    if SCREENSHOT_DIR and not case.spec.finite and case.visualizer != "none" and gui_is_available():
+    if SCREENSHOT_DIR and not case.spec.finite and case.visualizer is not None and gui_is_available():
         screenshot_path = Path(SCREENSHOT_DIR) / f"{case.id}.png"
     _launch(case, screenshot_path=screenshot_path)
 
