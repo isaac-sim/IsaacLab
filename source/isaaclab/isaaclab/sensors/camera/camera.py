@@ -669,7 +669,8 @@ class Camera(SensorBase):
         if isinstance(env_ids, slice):
             env_ids = range(*env_ids.indices(self._num_envs))
         self._renderer.reset(self._render_data, env_ids)
-        self._published_frame = None
+        # Keep the published capture: a delayed renderer retains it until a new one is ready, and
+        # clearing it would republish pre-reset pixels as a new frame.
         # reset the timestamps
         super().reset(env_ids, env_mask)
         # reset the data

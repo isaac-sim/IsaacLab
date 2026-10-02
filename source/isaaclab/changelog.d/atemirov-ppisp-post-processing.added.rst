@@ -11,4 +11,4 @@
   shared stage export, including public outputs and private processor inputs. Added the
   ``Camera.render_generation`` attribute to track completed render batches without advancing on cached reads.
   Added ``Camera.render_frame`` to match processing state to published asynchronous captures;
-  repeated priming frames did not advance PPISP controllers.
+  repeated priming frames and resets before a new delayed capture did not republish earlier images.

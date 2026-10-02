@@ -473,6 +473,28 @@ def test_delayed_capture_publishes_each_frame_once(camera_batch_context):
     assert camera.render_frame is second
 
 
+def test_reset_does_not_republish_a_retained_capture(camera_batch_context):
+    """A reset before the next delayed capture is ready must not publish pre-reset pixels again."""
+    _, renderer, _ = camera_batch_context
+    camera = _CpuCamera(renderer, "delayed")
+    first = ProxyArray(wp.array([1, 1], dtype=wp.int64, device="cpu"))
+    camera._render_camera_data.info["pose"] = {"capture": {"frame": first}}
+    camera._finish_capture()
+    generation = camera.render_generation
+
+    camera.reset()
+    # The renderer leaves the pre-reset capture in place until a new one is ready.
+    camera._finish_capture()
+    assert camera.render_generation == generation
+    assert camera.render_frame is first
+
+    second = ProxyArray(wp.array([2, 2], dtype=wp.int64, device="cpu"))
+    camera._render_camera_data.info["pose"] = {"capture": {"frame": second}}
+    camera._finish_capture()
+    assert camera.render_generation == generation + 1
+    assert camera.render_frame is second
+
+
 def test_eager_scene_batches_multiple_sensor_families(camera_batch_context):
     """Sensor families batch together unless an earlier update already refreshed their data."""
     _, renderer, camera_batches = camera_batch_context
