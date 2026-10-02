@@ -33,10 +33,12 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
+import numpy as np
 import pytest
 import torch
 import warp as wp
 from isaaclab_physx.assets import Articulation
+from isaaclab_physx.assets.articulation.kernels import write_joint_state_data, write_joint_state_data_kernel
 
 from pxr import Gf, PhysxSchema, UsdGeom, UsdPhysics
 
@@ -233,13 +235,14 @@ def test_setting_invalid_articulation_root_prim_path(sim, device) -> None:
         sim.reset()
 
 
-@pytest.mark.parametrize("device", test_devices())
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CPU))
 def test_gravity_compensation_holds_static_equilibrium(sim, device) -> None:
-    """Gravity compensation efforts hold the arms still and follow mass writes.
+    """Gravity compensation efforts hold the arms still; gravity compensation and the mass matrix follow mass writes.
 
     Setting ``tau = g(q)`` at rest gives zero joint acceleration, so sign, frame, and DoF-ordering errors in
     :attr:`~isaaclab.assets.BaseArticulationData.gravity_compensation_forces` surface as joint drift. The robot is
-    rolled 90 deg about x so that its joint axes are horizontal.
+    rolled 90 deg about x so that its joint axes are horizontal. Inertial writes are checked on CPU, where PhysX
+    applies them immediately (see ``test_inertial_writes_refresh_the_mass_matrix`` for the GPU pipeline).
     """
     articulation = Articulation(
         _branching_cfg(
@@ -265,13 +268,17 @@ def test_gravity_compensation_holds_static_equilibrium(sim, device) -> None:
         articulation.update(sim.cfg.dt)
     torch.testing.assert_close(articulation.data.joint_pos.torch, joint_pos, atol=5e-3, rtol=0.0)
 
-    # A mass write refreshes efforts already read in this step. GPU PhysX applies mass writes on the next step
-    # (see ``test_inertial_writes_refresh_the_mass_matrix``).
-    if device == "cpu":
-        primed = articulation.data.gravity_compensation_forces.torch.clone()
-        tips = articulation.find_bodies(".*_tip")[0]
-        articulation.set_masses_index(masses=2.0 * articulation.data.body_mass.torch[:, tips], body_ids=tips)
-        assert not torch.allclose(articulation.data.gravity_compensation_forces.torch, primed, atol=1e-3)
+    # Mass and inertia writes refresh gravity compensation and a mass matrix already read in this step.
+    data = articulation.data
+    for write, kwarg, values in (
+        (articulation.set_masses_index, "masses", data.body_mass),
+        (articulation.set_inertias_index, "inertias", data.body_inertia),
+    ):
+        primed = (data.gravity_compensation_forces.torch.clone(), data.mass_matrix.torch.clone())
+        write(**{kwarg: 2.0 * values.torch.clone() + 0.1})
+        if kwarg == "masses":
+            assert not torch.allclose(data.gravity_compensation_forces.torch, primed[0], atol=1e-3)
+        assert not torch.allclose(data.mass_matrix.torch, primed[1], atol=1e-4), f"{kwarg} write left a stale matrix"
 
 
 ##
@@ -331,7 +338,7 @@ def _spawn_island(name: str, y_offset: float, cfg: ArticulationCfg, **authoring)
     return articulation, torch.tensor(origins)
 
 
-@pytest.fixture(scope="module", params=test_devices())
+@pytest.fixture(scope="module", params=test_devices(DeviceScope.CUDA))
 def articulation_scene(request) -> Iterator[_ArticulationScene]:
     """Initialize every composite-scene articulation once for this module."""
     device = request.param
@@ -1179,12 +1186,9 @@ def test_fixed_tendon_position_target_writes_offset(articulation_scene: _Articul
     torch.testing.assert_close(wp.to_torch(articulation.root_view.get_fixed_tendon_offsets()).to(device), offset)
 
 
-def test_inertial_writes_refresh_the_mass_matrix(articulation_scene: _ArticulationScene, request) -> None:
+@pytest.mark.xfail(strict=True, reason="GPU PhysX applies mass and inertia writes on the next step")
+def test_inertial_writes_refresh_the_mass_matrix(articulation_scene: _ArticulationScene) -> None:
     """Mass and inertia writes refresh a mass matrix that was already read in the same step."""
-    if articulation_scene.device.startswith("cuda"):
-        request.applymarker(
-            pytest.mark.xfail(strict=True, reason="GPU PhysX applies mass and inertia writes on the next step")
-        )
     articulation = articulation_scene.ordered
     data = articulation.data
     writes = (
@@ -1223,3 +1227,46 @@ def test_joint_position_limit_clamping_respects_logging(articulation_scene: _Art
     finally:
         articulation.write_joint_position_limit_to_sim_index(limits=original_limits)
         articulation.data.default_joint_pos.torch.copy_(original_defaults)
+
+
+##
+# Kernels, without a simulation.
+##
+
+
+def _selector(values: list[int], dtype: type) -> wp.array:
+    """Create a CPU Warp selector with the requested integer width."""
+    return wp.array(values, dtype=dtype, device="cpu")
+
+
+@pytest.mark.parametrize("env_dtype", [wp.int32, wp.int64])
+@pytest.mark.parametrize("joint_dtype", [wp.int32, wp.int64])
+def test_write_joint_state_data_scatters_nonidentity_selectors(env_dtype: type, joint_dtype: type) -> None:
+    """Scatter compact joint state for every supported selector-width combination."""
+    pos_data = wp.array(np.asarray([[11.0, 12.0], [21.0, 22.0]], dtype=np.float32), device="cpu")
+    vel_data = wp.array(np.asarray([[111.0, 112.0], [121.0, 122.0]], dtype=np.float32), device="cpu")
+    env_ids = _selector([1, 0], env_dtype)
+    joint_ids = _selector([2, 0], joint_dtype)
+    joint_pos = wp.full((2, 3), value=-1.0, dtype=wp.float32, device="cpu")
+    joint_vel = wp.full((2, 3), value=-1.0, dtype=wp.float32, device="cpu")
+    prev_joint_vel = wp.full((2, 3), value=-1.0, dtype=wp.float32, device="cpu")
+    joint_acc = wp.full((2, 3), value=-1.0, dtype=wp.float32, device="cpu")
+    kernel = write_joint_state_data
+    if env_dtype != wp.int32 or joint_dtype != wp.int32:
+        kernel = write_joint_state_data_kernel(env_ids, joint_ids)
+
+    wp.launch(
+        kernel,
+        dim=(2, 2),
+        inputs=[pos_data, vel_data, env_ids, joint_ids, False],
+        outputs=[joint_pos, joint_vel, prev_joint_vel, joint_acc],
+        device="cpu",
+    )
+
+    expected_position = np.asarray([[22.0, -1.0, 21.0], [12.0, -1.0, 11.0]], dtype=np.float32)
+    expected_velocity = np.asarray([[122.0, -1.0, 121.0], [112.0, -1.0, 111.0]], dtype=np.float32)
+    expected_acceleration = np.asarray([[0.0, -1.0, 0.0], [0.0, -1.0, 0.0]], dtype=np.float32)
+    np.testing.assert_array_equal(joint_pos.numpy(), expected_position)
+    np.testing.assert_array_equal(joint_vel.numpy(), expected_velocity)
+    np.testing.assert_array_equal(prev_joint_vel.numpy(), expected_velocity)
+    np.testing.assert_array_equal(joint_acc.numpy(), expected_acceleration)
