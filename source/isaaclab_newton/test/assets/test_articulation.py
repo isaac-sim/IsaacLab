@@ -30,6 +30,7 @@ from isaaclab.test.utils import DeviceScope, launch_test_simulation, test_device
 
 launch_test_simulation(SimulationCfg(physics=NewtonCfg()))
 
+import logging
 import sys
 from collections.abc import Callable, Iterator
 from copy import copy
@@ -443,6 +444,7 @@ def test_newton_rebind_refreshes_ordered_state_and_preserves_lab_owned_actuator_
 def _prime_ordered_state_rebind(articulation: Articulation, dt: float) -> Callable[[State, Model], None]:
     """Prime an implicit island's ordered state caches and return the check to run after the arrays are swapped."""
     data = articulation.data
+    previous_body_com_vel = data._previous_body_com_vel.numpy().copy()
     has_ordering = data.joint_ordering is not None
     assert (data.body_ordering is not None) is has_ordering
     primed_joint_vel_values = (
@@ -465,13 +467,25 @@ def _prime_ordered_state_rebind(articulation: Articulation, dt: float) -> Callab
     # ``joint_vel`` shadow) observes the primed backend state. No-op under identity
     # ordering, where the getters alias the sim-bound arrays directly.
     data._refresh_user_order_state()
-    data.update(dt)
+    # Newton decimation may collect several physics steps into one data update.
+    update_dt = 2 * dt
+    data.update(update_dt)
     primed_joint_acc = data.joint_acc.warp.numpy().copy()
     primed_body_com_acc_w = data.body_com_acc_w.warp.numpy().copy()
     assert data._joint_acc.timestamp == data._sim_timestamp
     assert data._body_com_acc_w.timestamp == data._sim_timestamp
     assert np.any(primed_joint_acc != 0.0)
     assert np.any(primed_body_com_acc_w != 0.0)
+    body_user_to_backend = (
+        np.asarray(articulation.body_ordering.user_to_backend_indices)
+        if articulation.body_ordering is not None
+        else np.arange(articulation.num_bodies)
+    )
+    np.testing.assert_allclose(
+        primed_body_com_acc_w,
+        ((primed_body_com_vel_values - previous_body_com_vel) / update_dt)[:, body_user_to_backend],
+        rtol=1e-5,
+    )
 
     public_to_binding = {
         "joint_pos": "_sim_bind_joint_pos",
@@ -2041,3 +2055,28 @@ def test_body_q_consistent_after_root_write(scene: _Scene) -> None:
         f"body_q was stale when collide() ran: diff={diff:.4f}m, jq={jq_root.tolist()}, bq={bq_root.tolist()}"
     )
     scene.rest(articulation)
+
+
+def test_joint_position_limit_clamping_respects_logging(scene: _Scene, caplog) -> None:
+    """Logging level controls reporting without changing clamping or reusing a stale violation count."""
+    articulation = scene.articulations["ordered"]
+    logger = type(articulation).__module__
+    original_limits = articulation.data.joint_pos_limits.torch.clone()
+    original_defaults = articulation.data.default_joint_pos.torch.clone()
+    limits = torch.zeros_like(original_limits)
+    limits[..., 1] = 0.5
+    try:
+        for level in (logging.WARNING, logging.INFO):
+            articulation.data.default_joint_pos.torch.fill_(1.0)
+            caplog.clear()
+            with caplog.at_level(level, logger=logger):
+                articulation.write_joint_position_limit_to_sim_index(limits=limits, warn_limit_violation=False)
+            assert [record.levelno for record in caplog.records] == ([logging.INFO] if level == logging.INFO else [])
+            torch.testing.assert_close(articulation.data.default_joint_pos.torch, torch.full_like(limits[..., 1], 0.5))
+        caplog.clear()
+        with caplog.at_level(logging.INFO, logger=logger):
+            articulation.write_joint_position_limit_to_sim_mask(limits=limits, warn_limit_violation=False)
+        assert not caplog.records
+    finally:
+        articulation.write_joint_position_limit_to_sim_index(limits=original_limits)
+        articulation.data.default_joint_pos.torch.copy_(original_defaults)

@@ -46,8 +46,7 @@ def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
     from isaaclab_tasks.utils import setup_preset_cli
 
     parser = argparse.ArgumentParser(description="Benchmark RL inference (play) with RSL-RL.")
-    parser.add_argument("--video", action="store_true", default=False, help="Record videos during play.")
-    parser.add_argument("--video_length", type=int, default=None, help="Recorded video length in environment steps.")
+    common.add_video_args(parser, action="play")
     help_requested = "-h" in argv or "--help" in argv
     parser.add_argument("--task", type=str, required=not help_requested, help="Gym task id to benchmark.")
     parser.add_argument("--num_envs", type=int, default=None, help="Number of parallel environments.")
@@ -103,7 +102,6 @@ def run(argv: list[str]) -> BenchmarkResult:
             after the dispatcher has stripped ``--rl_library``).
     """
     import contextlib
-    import importlib.metadata as metadata
     import os
     import time
 
@@ -113,7 +111,7 @@ def run(argv: list[str]) -> BenchmarkResult:
     from isaaclab.benchmark import BaseIsaacLabBenchmark, BenchmarkMonitor, BenchmarkResult, builders, capture, stepping
     from isaaclab.benchmark.schema import StartupTime
 
-    from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper, handle_deprecated_rsl_rl_cfg
+    from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper
 
     # Importing the task packages registers their gym environments so the
     # requested ``--task`` can be resolved.
@@ -142,9 +140,6 @@ def run(argv: list[str]) -> BenchmarkResult:
             if args.seed is not None:
                 agent_cfg.seed = args.seed
             env_cfg.seed = agent_cfg.seed
-
-            installed_rsl_rl = metadata.version("rsl-rl-lib")
-            agent_cfg = handle_deprecated_rsl_rl_cfg(agent_cfg, installed_rsl_rl)
 
             log_root_path = os.path.abspath(os.path.join("logs", "rsl_rl", agent_cfg.experiment_name))
             if args.checkpoint in common.CHECKPOINT_SELECTORS:

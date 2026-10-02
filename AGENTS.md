@@ -21,7 +21,6 @@ The guide owns shared contribution rules. Update them there instead of copying t
 - Use the repository's current SPDX header template for new source files; do not change existing file headers.
 - Follow the existing style and abstractions in the affected package.
 - Use the uv-managed environment for routine commands and `uv run python` for Python scripts.
-  Use `./isaaclab.sh` only for installer workflows that require it.
 - Run the guide's formatting and lint checks before committing.
 - Do not define Warp kernels in `python -c`; write a temporary Python file instead so Warp can inspect the source.
 - Do not add debug output to production Warp kernels. Use temporary standalone reproductions and remove debug output before committing.

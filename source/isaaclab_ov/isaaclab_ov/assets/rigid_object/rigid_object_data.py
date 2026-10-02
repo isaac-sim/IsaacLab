@@ -452,13 +452,15 @@ class RigidObjectData(BaseRigidObjectData):
         if self._body_com_acc_w.timestamp < self._sim_timestamp:
             if self._previous_body_com_vel is None:
                 self._previous_body_com_vel = wp.clone(self.body_com_vel_w.warp)
+            # Finite-difference over the elapsed time, matching joint accelerations.
+            time_elapsed = self._sim_timestamp - self._body_com_acc_w.timestamp
             wp.launch(
                 shared_kernels.derive_body_acceleration_from_body_com_velocities,
                 dim=(self._num_instances, 1),
                 device=self.device,
                 inputs=[
                     self.body_com_vel_w.warp,
-                    SimulationManager.get_physics_dt(),
+                    time_elapsed,
                     self._previous_body_com_vel,
                 ],
                 outputs=[

@@ -6,6 +6,7 @@
 """Tests for the PhysX-side Newton actuator adapter."""
 
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -16,8 +17,12 @@ from pxr import Usd, UsdGeom, UsdPhysics
 
 from isaaclab.actuators import ActuatorBaseCfg, DCMotor, DCMotorCfg, DelayedPDActuatorCfg, RemotizedPDActuatorCfg
 from isaaclab.actuators.newton import NewtonActuatorAdapter
-from isaaclab.sim import SimulationCfg
-from isaaclab.sim.schemas.schemas_actuators import author_actuator_prims, resave_checkpoint_with_metadata
+from isaaclab.sim import SimulationCfg, SimulationContext
+from isaaclab.sim.schemas.schemas_actuators import (
+    author_actuator_prims,
+    define_actuator_properties,
+    resave_checkpoint_with_metadata,
+)
 from isaaclab.utils import configclass
 
 _JOINT_NAMES = ["pd_a", "pd_b", "dc_a", "dc_b", "remote_a", "remote_b"]
@@ -314,3 +319,29 @@ def test_schema_authoring_accepts_supported_public_actuator_alias():
     author_actuator_prims(stage, "/World/Robot", {"public_alias": cfg})
 
     assert stage.GetPrimAtPath("/World/Robot/public_alias_pd_a_actuator").IsValid()
+
+
+def test_define_actuator_properties_authors_every_spawned_articulation(monkeypatch):
+    """A multi-asset spawner creates one articulation per match, and each needs its own actuator prims."""
+    stage = Usd.Stage.CreateInMemory()
+    robot_paths = [f"/World/envs/env_{index}/Robot" for index in range(3)]
+    for robot_path in robot_paths:
+        UsdGeom.Xform.Define(stage, robot_path)
+        body = UsdGeom.Xform.Define(stage, f"{robot_path}/body")
+        UsdPhysics.RigidBodyAPI.Apply(body.GetPrim())
+        joint = UsdPhysics.RevoluteJoint.Define(stage, f"{robot_path}/pd_a")
+        joint.CreateBody1Rel().SetTargets([body.GetPath()])
+    monkeypatch.setattr(
+        SimulationContext,
+        "instance",
+        staticmethod(lambda: SimpleNamespace(cfg=SimpleNamespace(use_newton_actuators=True))),
+    )
+    cfg = DelayedPDActuatorCfg(
+        joint_names_expr=["pd_a"], stiffness=11.0, damping=1.5, actuator_effort_limit=21.0, max_delay=2
+    )
+
+    define_actuator_properties(r"/World/envs/env_.*/Robot", {"pd": cfg}, stage=stage)
+
+    for robot_path in robot_paths:
+        actuators = [prim for prim in stage.Traverse() if prim.GetTypeName() == "NewtonActuator"]
+        assert any(str(prim.GetPath()).startswith(robot_path + "/") for prim in actuators), robot_path

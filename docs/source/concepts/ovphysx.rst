@@ -63,11 +63,42 @@ validated at the time of writing. The following pieces are available on
   `PR #5678 <https://github.com/isaac-sim/IsaacLab/pull/5678>`_.
 * :class:`~isaaclab.assets.DeformableObject` — experimental volume- and
   surface-deformable support on CUDA simulation devices.
+* Fast-path cloning of heterogeneous rigid-body and articulation geometry
+  variants with matching native tensor layouts.
 
 Additional OvPhysX work remains in flight. IMU, Frame Transformer, Joint Wrench,
 PVA, Ray Caster, and rendering support are not documented as supported here
 until their implementations land on ``develop`` and pass the backend smoke
 tests.
+
+Heterogeneous cloning
+---------------------
+
+OvPhysX 0.6.3 is required for heterogeneous runtime cloning. Tensor bindings use
+numeric environment order so indexed resets, actions and observations address
+the correct variant. Variants may differ in geometry but must preserve body,
+joint and tendon layout. Isaac Lab checks prototype rotation axes and tendon layouts;
+OVPhysX checks body and joint metadata when binding articulations.
+
+The clone context compiles the plan's prototypes and world assignments once.
+The physics manager attaches one exported stage, replays the native copies, and
+warms the runtime before assets and sensors bind. Hard reset reuses the same
+declarations; there is no separate consumable queue. Binding paths come from the
+plan's world layout and environment template, not from native clone order.
+
+Authored sources all receive native environment ID zero. Every world containing
+a source or USD-only physics therefore imports all its declared assets as originals. Other worlds
+clone their assets from a complete original world of the same composition,
+using one native environment ID per destination world. This keeps a robot,
+table and object able to contact one another without destination placeholders.
+Only declared asset subtrees are copied; unrelated authored assets are retained.
+
+Keep :attr:`~isaaclab.scene.InteractiveSceneCfg.filter_collisions` enabled to
+isolate original worlds with USD collision groups. GPU copies additionally use
+native environment-ID filtering. CPU has no native environment-ID filtering
+in OvPhysX 0.6.3, so it imports all declared USD copies and uses collision groups.
+Large overlapping original layouts can still exhaust broadphase pair capacity;
+use spatially separated environments.
 
 Deformable limitations
 ----------------------
@@ -80,7 +111,8 @@ padded state that would produce incorrect reductions.
 Deformable scenes also require full-stage materialization. Startup cost therefore
 grows with the number of authored environments. Use this path for small validation
 scenes; training-scale workloads with thousands of environments are not currently
-supported.
+supported. Deformable bodies are not supported by the heterogeneous fast-path
+cloner.
 
 Installation
 ------------
@@ -92,9 +124,9 @@ The ``ovphysx`` extra requires OvPhysX 0.6.3. Install it from the repository roo
     uv sync --inexact --extra ovphysx
 
 The ``--inexact`` flag preserves packages installed through other extras.
-Use ``--extra ov`` to install both public OvPhysX and OVRTX runtimes. The legacy
-Isaac Lab installer also supports ``./isaaclab.sh -i 'ov[ovphysx]'`` and
-``./isaaclab.sh -i 'ov[all]'``.
+Use ``--extra ov`` to install both public OvPhysX and OVRTX runtimes. The combined
+extra pairs OVRTX 0.5.0.377615 with OVStage 0.2; OVRTX 0.4.1 is not compatible
+with this runtime combination.
 
 Testing the Installation
 ------------------------
@@ -109,12 +141,6 @@ First check that the Python package and runtime wheel import correctly:
 
           uv run --extra ovphysx --extra test python -c "import ovphysx.types; from isaaclab_ov.physics import OvPhysxCfg; print('OvPhysX runtime OK')"
 
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-          ./isaaclab.sh -p -c "import ovphysx.types; from isaaclab_ov.physics import OvPhysxCfg; print('OvPhysX runtime OK')"
-
 Then run a small backend smoke test:
 
 .. tab-set::
@@ -124,12 +150,6 @@ Then run a small backend smoke test:
       .. code-block:: bash
 
           uv run --extra ovphysx --extra test python -m pytest source/isaaclab_ov/test/assets/test_rigid_object.py::test_rigid_object_real_ovphysx_seams -k cpu
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-          ./isaaclab.sh -p -m pytest source/isaaclab_ov/test/assets/test_rigid_object.py::test_rigid_object_real_ovphysx_seams -k cpu
 
 To try a task that declares an OvPhysX physics preset, use the same preset CLI
 syntax as the other backends:
@@ -141,14 +161,7 @@ syntax as the other backends:
       .. code-block:: bash
 
           uv run --extra ovphysx isaaclab zero_agent --task Isaac-Cartpole-Direct \
-              --num_envs 128 --max_steps 64 --viz none physics=ovphysx
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-          ./isaaclab.sh -p scripts/environments/zero_agent.py --task Isaac-Cartpole-Direct \
-              --num_envs 128 --max_steps 64 --viz none physics=ovphysx
+              --num_envs 128 --max_steps 64 physics=ovphysx
 
 This command runs a 64-step headless zero-action rollout and then exits.
 

@@ -26,6 +26,7 @@ from isaaclab.utils import clone, replace
 
 launch_test_simulation()
 
+import logging
 import math
 import sys
 from collections.abc import Iterator
@@ -1378,3 +1379,28 @@ def test_spatial_tendon_properties_round_trip(articulation_scene: _ArticulationS
         articulation.write_spatial_tendon_properties_to_sim_index(env_ids=env_ids)
         for name, (_, read_view) in readers.items():
             torch.testing.assert_close(wp.to_torch(read_view()).to(device), values[name])
+
+
+def test_joint_position_limit_clamping_respects_logging(articulation_scene: _ArticulationScene, caplog) -> None:
+    """Logging level controls reporting without changing clamping or reusing a stale violation count."""
+    articulation = articulation_scene.ordered
+    logger = type(articulation).__module__
+    original_limits = articulation.data.joint_pos_limits.torch.clone()
+    original_defaults = articulation.data.default_joint_pos.torch.clone()
+    limits = torch.zeros_like(original_limits)
+    limits[..., 1] = 0.5
+    try:
+        for level in (logging.WARNING, logging.INFO):
+            articulation.data.default_joint_pos.torch.fill_(1.0)
+            caplog.clear()
+            with caplog.at_level(level, logger=logger):
+                articulation.write_joint_position_limit_to_sim_index(limits=limits, warn_limit_violation=False)
+            assert [record.levelno for record in caplog.records] == ([logging.INFO] if level == logging.INFO else [])
+            torch.testing.assert_close(articulation.data.default_joint_pos.torch, torch.full_like(limits[..., 1], 0.5))
+        caplog.clear()
+        with caplog.at_level(logging.INFO, logger=logger):
+            articulation.write_joint_position_limit_to_sim_mask(limits=limits, warn_limit_violation=False)
+        assert not caplog.records
+    finally:
+        articulation.write_joint_position_limit_to_sim_index(limits=original_limits)
+        articulation.data.default_joint_pos.torch.copy_(original_defaults)

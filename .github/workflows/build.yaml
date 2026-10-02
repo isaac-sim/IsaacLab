@@ -46,7 +46,7 @@
 #      -e TEST_FILTER_PATTERN="isaaclab_physx" \
 #      -e TEST_INCLUDE_FILES="test_rigid_object_collection.py" \
 #      -v "$PWD":/workspace/isaaclab isaac-lab-base:latest \
-#      -c 'cd /workspace/isaaclab && ./isaaclab.sh -p -m pytest tools -v'
+#      -c 'cd /workspace/isaaclab && uv run --no-sync isaaclab -p -m pytest tools -v'
 #
 # Remember to REVERT all temporary changes before merging!
 # =============================================================================
@@ -114,9 +114,8 @@ jobs:
           ^scripts/ :: Standalone scripts
           ^\.dockerignore$ :: Docker build context filter
           ^conftest\.py$ :: Root pytest configuration
+          ^uv\.lock$ :: Dependency lockfile
           ^pyproject\.toml$ :: Root Python project (Docker copy)
-          ^environment\.yml$ :: Conda env (Docker copy)
-          ^isaaclab\. :: isaaclab.sh/.bat entrypoints (Docker copy)
           ^\.github/workflows/build\.yaml$ :: This workflow file
           ^\.github/workflows/config\.yaml$ :: Shared CI config
           ^\.github/actions/ :: CI actions
@@ -440,7 +439,7 @@ jobs:
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         include-files: "test_standalone_scripts.py"
         standalone-script-scope: "demos"
-        standalone-script-visualizer: "none"
+        standalone-script-visualizer: "default"
         standalone-script-runtime-group: kit
         warp-cache: restore
         result-file: "test-standalone-demos-kit-report.xml"
@@ -471,7 +470,7 @@ jobs:
         extra-pip-packages: "${{ steps.ov_pins.outputs.ovphysx }}"
         include-files: "test_standalone_scripts.py"
         standalone-script-scope: "demos"
-        standalone-script-visualizer: "none"
+        standalone-script-visualizer: "default"
         standalone-script-runtime-group: non-kit
         warp-cache: restore
         result-file: "test-standalone-demos-non-kit-report.xml"
@@ -969,9 +968,8 @@ jobs:
   performance-smoke:
     name: performance-smoke-benchmarks
     runs-on: [self-hosted, gpu]
-    # Ceiling is the sum of each leg's own bench_timeout_s x 3 + buffer
-    # Individual attempts are still bound tightly by `timeout` inside the loop.
-    timeout-minutes: 510
+    # Four legs x three samples, including one retry each: 372 minutes + setup/comparison buffer.
+    timeout-minutes: 450
     needs: [build, config]
     # Pull requests and manual dispatches run in gate mode. A push runs only on develop,
     # where it also records a baseline; pushes to main and release/** skip this job.
@@ -991,19 +989,13 @@ jobs:
         dockerfile-path: docker/Dockerfile.base
         cache-tag: cache-base
 
-    # One row per combination: name|task|num_envs|bench_timeout_s|args
+    # Kit-free combinations only: name|task|num_envs|bench_timeout_s|args
     - name: Define benchmark matrix
       run: |
         cat > benchmark-legs.tsv <<'EOF'
-        cartpole-physx|Isaac-Cartpole-Direct|4096|600|
         cartpole-newton|Isaac-Cartpole-Direct|4096|600|physics=newton_mjwarp
-        gear-mesh-physx|IsaacContrib-Factory-GearMesh-Direct|512|900|
-        shadow-camera-physx-rtx|IsaacContrib-Reorient-Cube-Shadow-Camera-Benchmark-Direct|512|1200|renderer=isaacsim_rtx
-        shadow-camera-physx-newton-renderer|IsaacContrib-Reorient-Cube-Shadow-Camera-Benchmark-Direct|512|1200|renderer=newton_renderer
-        shadow-camera-newton-rtx|IsaacContrib-Reorient-Cube-Shadow-Camera-Benchmark-Direct|512|1200|physics=newton_mjwarp renderer=isaacsim_rtx
         shadow-camera-newton-renderer|IsaacContrib-Reorient-Cube-Shadow-Camera-Benchmark-Direct|512|1200|physics=newton_mjwarp renderer=newton_renderer
         shadow-camera-ovphysx-newton|IsaacContrib-Reorient-Cube-Shadow-Camera-Benchmark-Direct|512|1200|physics=ovphysx renderer=newton_renderer
-        g1-physx|Isaac-Velocity-Flat-G1|512|720|
         g1-newton|Isaac-Velocity-Flat-G1|512|720|physics=newton_mjwarp
         EOF
 
@@ -1027,12 +1019,13 @@ jobs:
           perf-jit-warp${{ steps.warp_version.outputs.value }}-
 
     - name: Run runtime benchmarks
-      id: runtime_benchmark
       env:
         CI_IMAGE_TAG: ${{ needs.config.outputs.ci_image_tag }}
       run: |
         set -uo pipefail
         install -d -m 0777 "${GITHUB_WORKSPACE}/jit-cache/warp" "${GITHUB_WORKSPACE}/jit-cache/nv"
+        # Restored version directories and kernels must also be writable by the container user.
+        chmod -R a+rwX "${GITHUB_WORKSPACE}/jit-cache" || exit 1
 
         container=""
         cleanup_container() {
@@ -1049,9 +1042,6 @@ jobs:
           container="performance-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${leg}-${sample}-${attempt}"
           cleanup_container
           timeout "${bench_timeout_s}" docker run --name "$container" --gpus all --network=host --ipc=host \
-            -e OMNI_KIT_ACCEPT_EULA=yes \
-            -e ACCEPT_EULA=Y \
-            -e ISAAC_SIM_HEADLESS=1 \
             -e WARP_CACHE_PATH=/tmp/jit-cache/warp \
             -e CUDA_CACHE_PATH=/tmp/jit-cache/nv \
             -v "${GITHUB_WORKSPACE}/jit-cache:/tmp/jit-cache" \
@@ -1066,7 +1056,6 @@ jobs:
               --seed 42 \
               --benchmark_formatter schema \
               --output_path /tmp/benchmark-output \
-              --visualizer none \
               $args"
           local status=$?
           docker cp "$container:/tmp/benchmark-output/." "benchmark-output/${leg}/sample-${sample}/" 2>/dev/null || true
@@ -1100,8 +1089,12 @@ jobs:
               fi
             fi
           done
-          echo "$([ "$leg_ok" = true ] && echo ok || echo failed)" > "benchmark-output/${leg}/status"
-          [ "$leg_ok" = true ] || failed_legs+=("$leg")
+          if [ "$leg_ok" = true ]; then
+            echo ok > "benchmark-output/${leg}/status"
+          else
+            echo failed > "benchmark-output/${leg}/status"
+            failed_legs+=("$leg")
+          fi
           echo "::endgroup::"
         done < benchmark-legs.tsv
 

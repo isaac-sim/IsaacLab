@@ -58,11 +58,6 @@ one set of environment files, and one image name:
      - ``Dockerfile.base``
      - ``.env.base``
      - the Isaac Sim image
-   * - ``ros2``
-     - ``isaac-lab-ros2``
-     - ``Dockerfile.ros2``
-     - ``.env.base`` + ``.env.ros2``
-     - the ``base`` image, built first
    * - ``kitless``
      - ``isaac-lab-kitless``
      - ``Dockerfile.kitless``
@@ -96,7 +91,7 @@ Inside the container, run the logging example without a visualizer:
 
 .. code-block:: bash
 
-    uv run isaaclab -p scripts/tutorials/00_sim/log_time.py --viz none
+    uv run isaaclab -p scripts/tutorials/00_sim/log_time.py
 
 The script writes simulation time at each step to
 ``/workspace/isaaclab/logs/docker_tutorial/log.txt``. Stop the script with ``Ctrl+C``
@@ -161,7 +156,7 @@ Every command accepts the following arguments:
    * - Argument
      - Description
    * - ``profile``
-     - Optional profile name; defaults to ``base``. Other profiles are ``ros2`` and ``kitless``.
+     - Optional profile name; defaults to ``base``. The other profile is ``kitless``.
    * - ``--files [FILE ...]``
      - Merge additional Compose YAML files after ``docker-compose.yaml``, in the supplied order.
    * - ``--env-files [FILE ...]``

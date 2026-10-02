@@ -119,7 +119,6 @@ def run(argv: list[str]) -> BenchmarkResult | None:
     imports_t0 = time.perf_counter_ns()
 
     import contextlib
-    import importlib.metadata as metadata
     import os
     import re
     from datetime import datetime
@@ -140,7 +139,7 @@ def run(argv: list[str]) -> BenchmarkResult | None:
     from isaaclab.benchmark.metrics import RL_LIBRARY_DESCRIPTORS, parse_tf_logs
     from isaaclab.benchmark.schema import StartupTime
 
-    from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper, handle_deprecated_rsl_rl_cfg
+    from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper
 
     import isaaclab_tasks  # noqa: F401
 
@@ -165,6 +164,7 @@ def run(argv: list[str]) -> BenchmarkResult | None:
     config_t0 = time.perf_counter_ns()
     env_cfg, agent_cfg = resolve_task_config(args_cli.task, args_cli.agent)
     config_t1 = time.perf_counter_ns()
+    common.pre_launch_video_config(env_cfg, args_cli)
 
     start_utc = capture.now_utc_iso()
     app_t0 = time.perf_counter_ns()
@@ -186,11 +186,8 @@ def run(argv: list[str]) -> BenchmarkResult | None:
             agent_cfg.max_iterations = (
                 args_cli.max_iterations if args_cli.max_iterations is not None else agent_cfg.max_iterations
             )
-            installed_rsl_rl = metadata.version("rsl-rl-lib")
-            agent_cfg = handle_deprecated_rsl_rl_cfg(agent_cfg, installed_rsl_rl)
             env_cfg.seed = agent_cfg.seed
 
-            common.validate_distributed_device(args_cli)
             if distributed.enabled:
                 # Mirror the regular training entrypoint: the launcher pinned this rank to its own
                 # device, and offsetting the seed by the rank decorrelates exploration across ranks.

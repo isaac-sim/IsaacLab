@@ -10,7 +10,7 @@ runs kitless against the OVPhysX backend. Also times the per-body blocking
 ``RIGID_BODY_POSE`` reads in isolation.
 
 Usage:
-    ./isaaclab.sh -p source/isaaclab_ov/benchmark/sensors/benchmark_frame_transformer.py --num_envs 4096
+    uv run python source/isaaclab_ov/benchmark/sensors/benchmark_frame_transformer.py --num_envs 4096
 """
 
 from __future__ import annotations

@@ -32,12 +32,15 @@ pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 
 from isaaclab_ov import tensor_types as TT  # noqa: E402
 from isaaclab_ov.assets import RigidObject  # noqa: E402
-from isaaclab_ov.physics import OvPhysxCfg  # noqa: E402
+from isaaclab_ov.physics import OvPhysxCfg, OvPhysxManager  # noqa: E402
 
 import isaaclab.sim as sim_utils  # noqa: E402
-from isaaclab.assets import RigidObjectCfg  # noqa: E402
+from isaaclab import cloner  # noqa: E402
+from isaaclab.assets import AssetBaseCfg, RigidObjectCfg  # noqa: E402
+from isaaclab.scene import InteractiveScene, InteractiveSceneCfg  # noqa: E402
 from isaaclab.sim import SimulationCfg, SimulationContext, build_simulation_context  # noqa: E402
 from isaaclab.test.utils import DeviceScope, test_devices  # noqa: E402
+from isaaclab.utils import configclass  # noqa: E402
 from isaaclab.utils.math import quat_apply_inverse, quat_mul  # noqa: E402
 
 pytestmark = pytest.mark.integration
@@ -74,6 +77,112 @@ def _spawn_static_colliders() -> RigidObject:
             init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 1.0)),
         )
     )
+
+
+@configclass
+class HeterogeneousRigidSceneCfg(InteractiveSceneCfg):
+    """Two object variants dropping onto an independently cloned support."""
+
+    support = RigidObjectCfg(
+        prim_path="{ENV_REGEX_NS}/Support",
+        spawn=sim_utils.CuboidCfg(
+            size=(1.0, 1.0, 0.2),
+            rigid_props=sim_utils.RigidBodyBaseCfg(kinematic_enabled=True),
+            collision_props=sim_utils.CollisionBaseCfg(),
+        ),
+    )
+    object = RigidObjectCfg(
+        prim_path="{ENV_REGEX_NS}/Object",
+        spawn=sim_utils.MultiAssetSpawnerCfg(
+            assets_cfg=[sim_utils.CuboidCfg(size=(0.2, 0.2, 0.2)), sim_utils.SphereCfg(radius=0.1)],
+            rigid_props=sim_utils.RigidBodyBaseCfg(),
+            collision_props=sim_utils.CollisionBaseCfg(),
+            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+        ),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 1.0)),
+    )
+
+
+@pytest.mark.parametrize("device", test_devices())
+@pytest.mark.parametrize("filter_collisions", [False, True])
+@pytest.mark.parametrize("support_cloning", ["native", "usd_and_native", "usd", "usd_nested"])
+def test_heterogeneous_clone_contacts(device, filter_collisions, support_cloning):
+    """Sources and clones from different variants contact their own support."""
+    with build_simulation_context(
+        device=device, sim_cfg=SimulationCfg(physics=OvPhysxCfg(), device=device, dt=1.0 / 120.0)
+    ) as sim:
+        cfg = HeterogeneousRigidSceneCfg(num_envs=6, env_spacing=2.0, filter_collisions=filter_collisions)
+        if support_cloning != "native":
+            cfg.clone_cfg.clone_template = "/Scenes/World_{}"
+            cfg.support.cloning_contexts = ("isaaclab.cloner:UsdReplicateContext",)
+            if support_cloning == "usd_and_native":
+                cfg.support.cloning_contexts += ("isaaclab_ov.cloner:OvPhysxReplicateContext",)
+        if support_cloning == "usd_nested":
+            cfg.support.prim_path = "{ENV_REGEX_NS}/Assembly/Support"
+            cfg.object.spawn.assets_cfg = cfg.object.spawn.assets_cfg[:1]
+            spawn = sim_utils.SpawnerCfg(func=lambda path, cfg, **kwargs: sim.stage.DefinePrim(path, "Xform"))
+            cfg.assembly = AssetBaseCfg(prim_path="{ENV_REGEX_NS}/Assembly", spawn=spawn, cloning_contexts=None)
+            cfg.clone_cfg.clone_combinations = [cloner.InclusionSet(assets=names) for names in (["assembly"], [])]
+        scene = InteractiveScene(cfg)
+        sim.reset()
+        for _ in range(240):
+            sim.step()
+            scene.update(sim.get_physics_dt())
+        positions = scene["object"].data.root_pos_w.torch
+        torch.testing.assert_close(positions[:, 2], torch.full_like(positions[:, 2], 0.2), atol=0.02, rtol=0.0)
+        torch.testing.assert_close(positions[:, :2], scene.env_origins[:, :2], atol=0.02, rtol=0.0)
+
+
+@pytest.mark.parametrize("device", test_devices())
+def test_heterogeneous_clone_collision_isolation(device):
+    """Collision groups isolate overlapping environments, including both retained sources."""
+    with build_simulation_context(
+        device=device, sim_cfg=SimulationCfg(physics=OvPhysxCfg(), device=device, dt=1.0 / 120.0)
+    ) as sim:
+        # Without GPU environment-ID filtering, 2048 overlapping worlds exhaust broadphase pairs.
+        num_envs = 2048 if device.startswith("cuda") else 6
+        scene = InteractiveScene(HeterogeneousRigidSceneCfg(num_envs=num_envs, env_spacing=0.0))
+        sim.reset()
+        for _ in range(240):
+            sim.step()
+            scene.update(sim.get_physics_dt())
+        positions = scene["object"].data.root_pos_w.torch
+        expected = scene.env_origins.clone()
+        expected[:, 2] = 0.2
+        torch.testing.assert_close(positions, expected, atol=0.02, rtol=0.0)
+
+
+@pytest.mark.parametrize("device", test_devices())
+def test_heterogeneous_clone_indexed_state(device):
+    """Indexed reads and writes use environment order across six interleaved variants."""
+    with build_simulation_context(
+        device=device, sim_cfg=SimulationCfg(physics=OvPhysxCfg(), device=device, gravity=(0.0, 0.0, 0.0))
+    ) as sim:
+        scene = InteractiveScene(HeterogeneousRigidSceneCfg(num_envs=6, env_spacing=2.0))
+        sim.reset()
+        obj = scene["object"]
+        expected_paths = [f"/World/envs/env_{i}/Object" for i in range(scene.num_envs)]
+        assert obj.root_view.prim_paths == expected_paths
+        torch.testing.assert_close(obj.data.root_pos_w.torch[:, :2], scene.env_origins[:, :2])
+        selected = torch.tensor([3], device=device)
+        pose = obj.data.root_pose_w.torch[selected].clone()
+        pose[:, 2] = 3.0
+        obj.write_root_pose_to_sim(pose, env_ids=selected)
+        sim.step()
+        scene.update(sim.get_physics_dt())
+        # An independent exact-path binding detects a write to the wrong physical object.
+        binding = OvPhysxManager.get_physx_instance().create_tensor_binding(
+            prim_paths=expected_paths, tensor_type=TT.RIGID_BODY_POSE
+        )
+        try:
+            actual = torch.empty(binding.shape, device=device)
+            binding.read(actual)
+            expected_height = torch.ones(scene.num_envs, device=device)
+            expected_height[selected] = 3.0
+            torch.testing.assert_close(actual[:, 2], expected_height)
+            torch.testing.assert_close(obj.data.root_pos_w.torch, actual[:, :3])
+        finally:
+            binding.destroy()
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CPU))

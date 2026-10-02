@@ -64,8 +64,7 @@ def manager_module(monkeypatch):
         "_next_control_ordinal": 2,
         "_warmup_done": False,
         "_requires_full_stage": False,
-        "_active_clone_recipes": [],
-        "_pending_clones": [],
+        "_clone_recipes": [],
         "_atexit_registered": False,
         "_scene_data_backend": None,
         "_physx_schemas_registered": False,
@@ -156,11 +155,18 @@ def test_schema_registration_skips_providers_already_supplied_by_host(
     # A None entry makes importing OVStage raise ModuleNotFoundError.
     monkeypatch.setitem(sys.modules, "ovstage", fake_ovstage if has_registration_api is not None else None)
     monkeypatch.setitem(sys.modules, "pxr", fake_pxr)
+    newton_schema_root = "/schemas/newton"
+    monkeypatch.setattr(manager_module, "_newton_schema_root", lambda: newton_schema_root, raising=False)
 
     manager._ensure_physx_schemas_registered()
     manager._ensure_physx_schemas_registered()
 
-    assert ovstage_registrations == ([schema_root] if schema_root is not None and has_registration_api else [])
+    expected_ovstage_registrations = []
+    if has_registration_api:
+        if schema_root is not None:
+            expected_ovstage_registrations.append(schema_root)
+        expected_ovstage_registrations.append(newton_schema_root)
+    assert ovstage_registrations == expected_ovstage_registrations
     assert host_registrations == ([expected_paths] if expected_paths else [])
 
 
@@ -542,10 +548,10 @@ def test_retained_binding_preserves_uncaught_failure_exit_status():
     _assert_no_atexit_errors(output)
 
 
-@pytest.mark.parametrize("device", ["cpu", "gpu"])
+@pytest.mark.parametrize(("device", "rate"), [("cpu", 60), ("gpu", 120)])
 @pytest.mark.parametrize(("override", "expected"), [(None, True), (False, False), (True, True)])
-def test_scene_external_forces_every_iteration(monkeypatch, manager_module, device, override, expected):
-    """Default TGS force integration and explicit overrides reach the USD physics scene."""
+def test_scene_settings(monkeypatch, manager_module, device, rate, override, expected):
+    """The simulation timestep, scene queries, and TGS force settings reach the native scene."""
     from isaaclab_ov.physics.ovphysx_manager_cfg import OvPhysxCfg
 
     from pxr import Usd
@@ -554,11 +560,14 @@ def test_scene_external_forces_every_iteration(monkeypatch, manager_module, devi
 
     cfg = OvPhysxCfg() if override is None else OvPhysxCfg(enable_external_forces_every_iteration=override)
     assert cfg.enable_external_forces_every_iteration is expected
-    monkeypatch.setattr(PhysicsManager, "_sim", None)
+    sim_cfg = SimpleNamespace(dt=1.0 / rate, enable_scene_query_support=device == "gpu")
+    monkeypatch.setattr(PhysicsManager, "_sim", SimpleNamespace(cfg=sim_cfg))
     stage = Usd.Stage.CreateInMemory()
     prim = stage.DefinePrim("/World/PhysicsScene", "PhysicsScene")
     manager_module.OvPhysxManager._configure_physx_scene_prim(prim, cfg, device)
     assert prim.GetAttribute("physxScene:enableExternalForcesEveryIteration").Get() is expected
+    assert prim.GetAttribute("physxScene:timeStepsPerSecond").Get() == rate
+    assert prim.GetAttribute("physxScene:enableSceneQuerySupport").Get() is sim_cfg.enable_scene_query_support
 
 
 @pytest.mark.parametrize(("device", "gpu_dynamics", "broadphase"), [("cpu", False, "MBP"), ("gpu", True, "GPU")])
@@ -570,7 +579,9 @@ def test_scenes_author_device_dynamics_and_broadphase(monkeypatch, manager_modul
 
     from isaaclab.physics import PhysicsManager
 
-    monkeypatch.setattr(PhysicsManager, "_sim", None)
+    monkeypatch.setattr(
+        PhysicsManager, "_sim", SimpleNamespace(cfg=SimpleNamespace(dt=1.0 / 60.0, enable_scene_query_support=False))
+    )
     stage = Usd.Stage.CreateInMemory()
     UsdPhysics.Scene.Define(stage, "/World/PhysicsScene")
     # An asset's own scene, authored for the other device.

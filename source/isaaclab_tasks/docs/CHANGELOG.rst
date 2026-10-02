@@ -1,6 +1,117 @@
 Changelog
 ---------
 
+.. towncrier release notes start
+
+24.0.0 (2026-10-02)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``presets=minimal`` to Franka Reach and rigid Lift, selecting the ``FRANKA_MINIMAL_CFG``
+  gripper-only colliders while preserving task controls and independent physics backend selection.
+
+Changed
+^^^^^^^
+
+* **Breaking:** The UR10 particle-push task no longer opens a Newton GL visualizer in play mode. Pass
+  ``--visualizer newton_gl`` to open one.
+* :func:`~isaaclab_tasks.utils.setup_preset_cli` never takes a Hydra override as the value of an option whose
+  value is optional: ``--video presets=newton_mjwarp`` uses the ``--video`` default and passes the override on.
+* **Breaking:** Migrated maintained Franka Reach, Drawer, rigid and deformable Lift, and related
+  contributed tasks to the main ``FRANKA_PANDA_CFG`` with backend-specific physics and full arm and
+  gripper collisions. Existing checkpoints require requalification against the changed robot dynamics.
+
+Fixed
+^^^^^
+
+* Fixed Franka Pour startup with the shared Franka asset by selecting its MuJoCo physics payload
+  and removing the obsolete duplicate-mimic workaround.
+* Corrected the Reach action and controller contracts for the shared asset.
+
+
+23.1.0 (2026-10-01)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Stored the joint, body, and tendon indices of the Reorient, Cabinet, and locomotion direct tasks as
+  device tensors, and precomputed their static joint limits and default arm pose, removing host-to-device
+  index uploads and CUDA synchronizations from every physics substep. The public
+  ``actuated_dof_indices``, ``finger_bodies``, ``finger_wrench_bodies``, ``arm_joint_ids``, and
+  ``finger_joint_ids`` attributes, and the indices returned by
+  :func:`~isaaclab_tasks.core.reorient.utils.resolve_actuated_tendons`, are now ``torch.long`` tensors
+  instead of lists. Call ``.tolist()`` where a list is needed.
+* Switched the Reorient, Cabinet, and locomotion direct tasks from the deprecated articulation target
+  setters to ``articulation.actuators.target_command``.
+* Logged the Cabinet, locomotion direct, Lift deformable and cable, and Fourbar pole success metrics as
+  0-d device tensors instead of synchronizing with ``.item()`` on every reset. Call ``.item()`` where a
+  float is needed.
+* Changed :meth:`~isaaclab_tasks.core.reorient.utils.EpisodeErrorRecorder.reset` to compute its statistics
+  without a host synchronization. Once any error has been recorded, it returns NaN statistics instead of an
+  empty dictionary when none of the selected environments has a sample. Check the values with
+  :func:`torch.isnan` instead of testing for missing keys.
+* Stacked the Lift contact sensor forces so :func:`~isaaclab_tasks.core.lift.mdp.contacts` and
+  :func:`~isaaclab_tasks.core.lift.mdp.contact_count` take one norm per call instead of one per sensor.
+* Precomputed the ANYmal symmetry augmentation as one cached column permutation and sign tensor per
+  transform, removing the per-minibatch index and sign uploads (about 1.5 ms to 0.15 ms per call).
+* Cached the locomotion walk-target offset and sampled Lift reset offsets through the shared
+  :func:`~isaaclab.utils.math.sample_uniform_from_ranges` helper,
+  and read the Reorient goal directly
+  from the command buffers instead of concatenating the command on every access.
+
+Fixed
+^^^^^
+
+* Fixed the lift table missing from OVRTX and Newton Warp camera images. The table is now visible scene
+  geometry that the pose command tints by success through the optional ``success_vis_material_name`` and
+  ``success_vis_colors`` settings of :class:`~isaaclab_tasks.core.lift.mdp.ObjectUniformPoseCommandCfg`.
+* Used resolved callable defaults when constructing manager terms instead of duplicating defaults in constructors.
+* Fixed direct handover action application with device-resident tendon indices.
+
+
+23.0.0 (2026-09-30)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :func:`~isaaclab_tasks.core.velocity.mdp.rewards.feet_air_time_variance`, penalizing an
+  uneven swing/stance split between a biped's feet.
+
+Changed
+^^^^^^^
+
+* Enabled the heterogeneous shapes preset by default for KUKA–Allegro tasks with OvPhysX. Select the ``cube`` preset explicitly to retain the previous homogeneous object setup.
+* Changed ``Isaac-Velocity-Flat-Cassie``, ``Isaac-Velocity-Rough-Cassie`` and
+  ``Isaac-Velocity-Flat-H1`` to include the new ``air_time_variance`` reward term, which fixes the
+  tilted gait these tasks otherwise converge on. Policies trained on them will differ from ones
+  trained before this change; set the weight to ``0.0`` to recover the previous reward.
+* Changed ``Isaac-Velocity-Flat-UnitreeGo2`` and ``Isaac-Velocity-Rough-UnitreeGo2`` to add a
+  ``base_height_l2`` reward term at weight ``-30.0`` (rough, height-scanner adjusted) and disabled
+  on flat via ``sensor_cfg=None``. Without it, Go2's leg colliders let a policy rest its weight on
+  the legs and collect the full episode-length alive bonus from a permanent crouch, since torso
+  contact never fires and flat-orientation reward can't see it.
+* Changed ``action_rate_l2`` on both tasks from the shared default of ``-0.01`` to ``-0.005``. The
+  stronger penalty locked one hind foot into a low-amplitude, dragging gait on flat terrain with
+  the Newton backend. Policies trained on these tasks will differ from ones trained before this
+  change.
+
+Removed
+^^^^^^^
+
+* Removed the unsupported ``Isaac-Reorient-Franka`` task and its environment configuration. Migrate custom
+  reorientation experiments to a maintained task or keep a local copy of the old configuration.
+
+Fixed
+^^^^^
+
+* Stabilized the DR Legs Kamino P-ADMM preset by disabling its driven-joint effort limit; PhysX retained
+  the 3.1 N m limit.
+
+
 22.0.0 (2026-09-29)
 ~~~~~~~~~~~~~~~~~~~
 

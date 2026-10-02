@@ -95,7 +95,6 @@ DEFAULT_TASKS = (
     "IsaacContrib-Navigation-Flat-AnymalC",
     # arm and hand manipulation
     "Isaac-Lift-Franka",
-    "Isaac-Reorient-Franka",
     "Isaac-Lift-KukaAllegro",
     "Isaac-Reorient-KukaAllegro",
     "Isaac-Open-Drawer-Franka",

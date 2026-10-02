@@ -5,11 +5,8 @@
 
 """Real-backend test for the OVPhysX branch of the ``randomize_rigid_body_material`` MDP term.
 
-Drives the public :class:`isaaclab.envs.mdp.events.randomize_rigid_body_material` term against a real
-OVPhysX :class:`~isaaclab_ov.assets.RigidObject`, so the backend dispatch itself is exercised (the
-``ovphysxmanager`` name also contains ``physx``), and verifies that it writes per-shape
-friction/restitution through the asset's ``OvPhysxView``. The ``cfg`` / ``env`` / ``asset_cfg`` inputs
-are stubbed: the term only reads ``cfg.params``, ``env.scene[...]`` and ``env.sim.physics_manager``.
+Constructs the public term with an ``EventTermCfg`` and verifies per-shape friction/restitution
+writes through a real OVPhysX rigid object's ``OvPhysxView``.
 
 Kitless; the CPU and CUDA cases run in one process.
 """
@@ -30,6 +27,7 @@ from isaaclab_ov.physics import OvPhysxCfg  # noqa: E402
 import isaaclab.sim as sim_utils  # noqa: E402
 from isaaclab.assets import RigidObjectCfg  # noqa: E402
 from isaaclab.envs.mdp.events import randomize_rigid_body_material  # noqa: E402
+from isaaclab.managers import EventTermCfg, SceneEntityCfg  # noqa: E402
 from isaaclab.sim import SimulationCfg, build_simulation_context  # noqa: E402
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR  # noqa: E402
 
@@ -76,12 +74,13 @@ def test_randomize_material_writes_friction_within_range(device):
             "dynamic_friction_range": dynamic_range,
             "restitution_range": restitution_range,
             "num_buckets": 16,
+            "asset_cfg": SceneEntityCfg("cube", body_ids=[0]),
         }
-        asset_cfg = SimpleNamespace(name="cube", body_ids=[0])
         env = SimpleNamespace(sim=sim, scene={"cube": cube_object})
 
-        term = randomize_rigid_body_material(SimpleNamespace(params={**params, "asset_cfg": asset_cfg}), env)
-        term(env, None, static_range, dynamic_range, restitution_range, 16, asset_cfg)
+        cfg = EventTermCfg(func=randomize_rigid_body_material, mode="reset", params=params)
+        term = randomize_rigid_body_material(cfg, env)
+        term(env, None, **cfg.params)
 
         materials = wp.to_torch(cube_object.root_view.get_attribute(TT.RIGID_BODY_SHAPE_FRICTION_AND_RESTITUTION))
         assert materials.shape[0] == num_cubes and materials.shape[-1] == 3
@@ -90,6 +89,6 @@ def test_randomize_material_writes_friction_within_range(device):
             values = materials[..., component]
             assert (values >= lo - eps).all() and (values <= hi + eps).all()
 
-        subset_cfg = SimpleNamespace(name="cube", body_ids=[])  # proper subset of the rigid object's single body
+        cfg.params["asset_cfg"] = SceneEntityCfg("cube", body_ids=[])
         with pytest.raises(NotImplementedError, match="per-body"):
-            randomize_rigid_body_material(SimpleNamespace(params={**params, "asset_cfg": subset_cfg}), env)
+            randomize_rigid_body_material(cfg, env)

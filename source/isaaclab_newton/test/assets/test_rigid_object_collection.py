@@ -71,16 +71,20 @@ def _cube_spawn_cfg(rigid: bool = True) -> sim_utils.CuboidCfg:
     )
 
 
-def _collection_cfg(num_cubes: int, height: float = 1.0, rigid: bool = True) -> RigidObjectCollectionCfg:
+def _collection_cfg(
+    num_cubes: int, height: float = 1.0, rigid: bool = True, *, object_paths: tuple[str, ...] | None = None
+) -> RigidObjectCollectionCfg:
     """Return a collection of cubes spaced 3 m apart along y."""
+    if object_paths is None:
+        object_paths = tuple(f"Object_{i}" for i in range(num_cubes))
     return RigidObjectCollectionCfg(
         rigid_objects={
             f"cube_{i}": RigidObjectCfg(
-                prim_path=f"/World/Env_[^/]*/Object_{i}",
+                prim_path=f"/World/Env_[^/]*/{path}",
                 spawn=_cube_spawn_cfg(rigid),
                 init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 3.0 * i, height)),
             )
-            for i in range(num_cubes)
+            for i, path in enumerate(object_paths)
         }
     )
 
@@ -170,12 +174,19 @@ def shared_scene(request: pytest.FixtureRequest) -> Iterator[_Scene]:
     """Initialize the collection and its unrelated sibling bodies once per device for this module."""
     device = request.param
     sibling_cfg = RigidObjectCfg(
-        prim_path="/World/Env_[^/]*/UnrelatedObject",
+        prim_path="/World/Env_[^/]*/Object_Target",
         spawn=_cube_spawn_cfg(),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, -3.0, 1.0)),
     )
     with build_simulation_context(sim_cfg=newton_sim_cfg(device)) as sim:
-        assets = spawn_assets({"collection": _collection_cfg(_NUM_CUBES), "sibling": sibling_cfg})
+        assets = spawn_assets(
+            {
+                "collection": _collection_cfg(
+                    _NUM_CUBES, object_paths=("Object_0", "RobotLeft/Body", "RobotRight/Body")
+                ),
+                "sibling": sibling_cfg,
+            }
+        )
         sim.reset()
         collection = assets["collection"]
         yield _Scene(
@@ -397,6 +408,12 @@ def test_gravity_vec_w_tracks_model_gravity(scene: _Scene) -> None:
         scene.step(2)
         gravity = torch.zeros(num_envs, num_cubes, 6, device=device)
         gravity[..., 2] = -9.81
+        torch.testing.assert_close(object_collection.data.body_com_acc_w.torch, gravity)
+
+        # An environment update may span multiple physics steps under Newton decimation.
+        scene.sim.step()
+        scene.sim.step()
+        object_collection.update(2 * scene.sim.cfg.dt)
         torch.testing.assert_close(object_collection.data.body_com_acc_w.torch, gravity)
 
         # GRAVITY_VEC_W must share storage with Newton's per-env gravity array.

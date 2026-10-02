@@ -34,7 +34,8 @@ EXTRA_SCRIPTS = (
     ROOT / "scripts" / "tools" / "convert_urdf.py",
     ROOT / "scripts" / "tools" / "convert_mjcf.py",
 )
-VISUALIZERS = ("none", "kit", "newton_gl", "newton_rtx", "rerun", "viser")
+VISUALIZERS = (None, "kit", "newton_gl", "newton_rtx", "rerun", "viser")
+"""Visualizer selections of the launch matrix; None launches without ``--viz``."""
 DEFAULT_READINESS_PATTERN = r"Setup complete"
 MAX_OUTPUT_BYTES = 4 * 1024 * 1024
 DEFAULT_BATCHED_NUM_ENVS = 2
@@ -65,8 +66,8 @@ class ScriptOverride:
     startup_timeout: float | None = None
     skip_reason: str | None = None
     fixed_physics_backend: str | None = None
-    visualizers: tuple[str, ...] | None = None
-    case_skip_reasons: dict[tuple[str, str, str], str] = field(default_factory=dict)
+    visualizers: tuple[str | None, ...] | None = None
+    case_skip_reasons: dict[tuple[str, str, str | None], str] = field(default_factory=dict)
     required_modules: tuple[str, ...] = ()
 
 
@@ -81,8 +82,8 @@ class ScriptSpec:
     startup_timeout: float | None
     skip_reason: str | None
     fixed_physics_backend: str | None
-    visualizers: tuple[str, ...]
-    case_skip_reasons: dict[tuple[str, str, str], str]
+    visualizers: tuple[str | None, ...]
+    case_skip_reasons: dict[tuple[str, str, str | None], str]
     visualizer_option: str
     required_modules: tuple[str, ...]
 
@@ -126,13 +127,13 @@ class LaunchCase:
     physics_backend: str
     renderer_option: str | None
     renderer_backend: str
-    visualizer: str
+    visualizer: str | None
 
     @property
     def id(self) -> str:
         """Return a stable pytest identifier."""
         stem = self.spec.relative_path.removeprefix("scripts/").removesuffix(".py").replace("/", "-")
-        return f"{stem}-{self.physics_backend}-{self.renderer_backend}-{self.visualizer}"
+        return f"{stem}-{self.physics_backend}-{self.renderer_backend}-{self.visualizer or 'default'}"
 
     @property
     def skip_reason(self) -> str | None:
@@ -143,11 +144,14 @@ class LaunchCase:
     def command(self) -> list[str]:
         """Build the repository launcher command for this case."""
         if self.spec.program is None:
-            command = [str(ROOT / "isaaclab.sh"), "-p", self.spec.relative_path, *self.spec.args]
+            command = ["uv", "run", "--no-sync", "isaaclab", "-p", self.spec.relative_path, *self.spec.args]
         else:
             program_command, program_name = self.spec.program
             command = [
-                str(ROOT / "isaaclab.sh"),
+                "uv",
+                "run",
+                "--no-sync",
+                "isaaclab",
                 "-p",
                 "-m",
                 "isaaclab",
@@ -163,7 +167,8 @@ class LaunchCase:
             command.extend((self.physics_option, self.physics_backend))
         if self.renderer_option is not None:
             command.extend((self.renderer_option, self.renderer_backend))
-        command.extend((self.spec.visualizer_option, self.visualizer))
+        if self.visualizer is not None:
+            command.extend((self.spec.visualizer_option, self.visualizer))
         return command
 
 
@@ -232,13 +237,13 @@ OVERRIDES = {
     ),
     "examples/sensors/newton_raycast.py": ScriptOverride(
         fixed_physics_backend="newton_mjwarp",
-        visualizers=("none", "newton_gl", "rerun", "viser"),
+        visualizers=(None, "newton_gl", "rerun", "viser"),
     ),
     "examples/demos/pick_and_place.py": ScriptOverride(visualizers=("kit",)),
     "examples/sensors/ppisp_camera.py": ScriptOverride(
         args=("--max_steps", "3", "--warmup_steps", "1", "--image_width", "64", "--image_height", "64"),
         startup_timeout=600.0,
-        visualizers=("none",),
+        visualizers=(None,),
     ),
     # Readiness fires once conversion succeeds, so the preview runs inside the soak.
     "scripts/tools/convert_urdf.py": ScriptOverride(
@@ -253,12 +258,12 @@ OVERRIDES = {
         args=(_NEWTON_MJCF, str(Path(tempfile.gettempdir()) / "isaaclab_converter_smoke" / "mjcf")),
         readiness_pattern=r"Generated USD file:",
     ),
-    "scripts/tutorials/00_sim/create_empty.py": ScriptOverride(visualizers=("none", "kit")),
-    "scripts/tutorials/00_sim/launch_app.py": ScriptOverride(visualizers=("none", "kit")),
-    "scripts/tutorials/00_sim/log_time.py": ScriptOverride(visualizers=("none", "kit")),
-    "scripts/tutorials/00_sim/spawn_prims.py": ScriptOverride(visualizers=("none", "kit")),
+    "scripts/tutorials/00_sim/create_empty.py": ScriptOverride(visualizers=(None, "kit")),
+    "scripts/tutorials/00_sim/launch_app.py": ScriptOverride(visualizers=(None, "kit")),
+    "scripts/tutorials/00_sim/log_time.py": ScriptOverride(visualizers=(None, "kit")),
+    "scripts/tutorials/00_sim/spawn_prims.py": ScriptOverride(visualizers=(None, "kit")),
     "scripts/tutorials/01_assets/run_surface_gripper.py": ScriptOverride(
-        args=("--device", "cpu"), visualizers=("none", "kit")
+        args=("--device", "cpu"), visualizers=(None, "kit")
     ),
     "scripts/tutorials/03_envs/create_cartpole_base_env.py": ScriptOverride(readiness_pattern=r"Resetting environment"),
     "scripts/tutorials/03_envs/create_cube_base_env.py": ScriptOverride(readiness_pattern=r"Mean position error"),
@@ -270,9 +275,9 @@ OVERRIDES = {
     ),
     "scripts/tutorials/03_envs/run_cartpole_rl_env.py": ScriptOverride(readiness_pattern=r"Resetting environment"),
     "scripts/tutorials/04_sensors/add_sensors_on_robot.py": ScriptOverride(args=("--enable_cameras",)),
-    "scripts/tutorials/04_sensors/run_ray_caster.py": ScriptOverride(visualizers=("none", "kit")),
-    "scripts/tutorials/04_sensors/run_ray_caster_camera.py": ScriptOverride(visualizers=("none", "kit")),
-    "scripts/tutorials/04_sensors/run_usd_camera.py": ScriptOverride(visualizers=("none", "kit")),
+    "scripts/tutorials/04_sensors/run_ray_caster.py": ScriptOverride(visualizers=(None, "kit")),
+    "scripts/tutorials/04_sensors/run_ray_caster_camera.py": ScriptOverride(visualizers=(None, "kit")),
+    "scripts/tutorials/04_sensors/run_usd_camera.py": ScriptOverride(visualizers=(None, "kit")),
     "scripts/tutorials/07_visualizers/run_tiled_camera_visualizer.py": ScriptOverride(
         readiness_pattern=r"Gym action space",
         visualizers=("kit", "newton_gl"),
@@ -405,9 +410,9 @@ def module_is_available(module: str) -> bool:
     return importlib.util.find_spec(module) is not None
 
 
-def visualizer_is_available(visualizer: str) -> bool:
+def visualizer_is_available(visualizer: str | None) -> bool:
     """Return whether the package implementing a visualizer is importable."""
-    if visualizer == "none":
+    if visualizer is None:
         return True
     if visualizer == "kit":
         return importlib.util.find_spec("isaacsim") is not None or (ROOT / "_isaac_sim").exists()
