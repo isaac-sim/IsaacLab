@@ -114,3 +114,55 @@ at 4096 environments with play hinges. The variants inherit their respective ter
 ``microduck_velocity_flat_backlash`` and ``microduck_velocity_rough_backlash`` experiment directories.
 The observation layout permits loading existing walking policies, but the changed dynamics still
 require rollout validation.
+
+Walking with fall recovery
+--------------------------
+
+``IsaacContrib-Recovery-Velocity-Flat-Backlash-MicroDuck`` trains one PPO policy from scratch
+to walk and get up. It uses the local ``microduck_allcollisions_backlash.usd`` asset, including
+body and head contacts. No teacher or walking checkpoint is required.
+
+.. code-block:: bash
+
+   uv run --extra rsl-rl isaaclab train --rl_library rsl_rl \
+     --task IsaacContrib-Recovery-Velocity-Flat-Backlash-MicroDuck \
+     --num_envs 16384 --seed 42
+
+Level zero starts upright and terminates on a fall. The curriculum collects one completed
+episode per environment from the current level, retaining early failures until the later
+survivors finish. After a full cohort and at least 4096 episodes, it checks fall-free survival
+(at least 80%) and mean velocity tracking score (at least 0.65) on upright starts. Both must
+pass to introduce recovery starts. Tracking uses the lower of the linear and angular scores
+and requires at least half the commanded motion for nontrivial translation/turn commands.
+Later levels additionally require at least 60% success on randomized starts. Success requires
+stable standing, two continuous seconds of command tracking, and completing the episode
+without an unresolved fall. Failed gates retain the current difficulty.
+
+Levels 1--5 increase the randomized-start fraction from 10% to 50%, roll/pitch range from
+±36° to ±180°, and servo offsets from ±0.2 to ±1.0 rad, clamped to soft joint limits.
+Yaw spans ±180° at all levels. Randomized starts are released from a root height of 0.4 m;
+these are controlled drops, not a bank of settled ground poses. Passive play hinges start
+centered. At least half the starts stay upright throughout the curriculum.
+
+After level zero, **all** falls get the same six-second recovery window, including spontaneous
+falls during walking. A fall is root height below 5.5 cm or tilt beyond 70°. Clearing the
+window requires 0.5 s continuously above 9.5 cm, within 30° of upright, and below 2 rad/s
+angular speed. Brief threshold crossings do not restart the window. Eight seconds of total
+recovery time also ends an episode, preventing repeated short stand-ups from extending it
+indefinitely. These failures are terminations; the usual 20 s horizon is a time-limit truncation.
+Each episode keeps the termination budget it had at reset, even if the curriculum advances.
+
+Walking rewards fade smoothly with reduced height and uprightness, freeing the legs and head
+for recovery. Signed orientation and height provide recovery shaping; a spontaneous fall has a
+one-off cost. Intentional randomized starts incur no initial fall cost. The head-bias integrator
+is disabled because head support on the ground is useful for getting up. The actor keeps 61
+observations and 14 actions; the critic has 80 observations, including recovery state, remaining
+attempt/episode budgets, and root height. PPO uses discount 0.995 and 16 minibatches.
+
+Monitor ``Curriculum/recovery/level``, ``survival``, ``tracking``, and ``recovery_success`` in
+TensorBoard. These thresholds are initial training settings, not established performance claims.
+Evaluate upright walking and randomized recovery separately before raising difficulty.
+Playback fixes the curriculum at level five. For a specific level, or to resume the curriculum
+level recorded in a training log, override ``env.recovery.initial_level``; the adaptive counters
+are environment state and are not included in PPO checkpoints. Fixed-level evaluation uses
+``env.recovery.curriculum_enabled=False``.
