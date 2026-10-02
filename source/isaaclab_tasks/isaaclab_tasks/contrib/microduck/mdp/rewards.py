@@ -16,7 +16,7 @@ from isaaclab.managers import ManagerTermBase, RewardTermCfg, SceneEntityCfg
 from isaaclab.utils import math as math_utils
 from isaaclab.utils.string import resolve_matching_names_values
 
-from .observations import foot_height
+from .observations import foot_height, joint_pos_rel_biased
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation
@@ -131,13 +131,15 @@ class pose_mode_switch(ManagerTermBase):
 
 
 def head_pose_tracking(
-    env: ManagerBasedRLEnv, command_name: str, std: float, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
+    env: ManagerBasedRLEnv,
+    command_name: str,
+    std: float,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    backlash_cfg: SceneEntityCfg | None = None,
 ) -> torch.Tensor:
-    """Track head joint offsets with tolerance ``std`` [rad], averaged over the selected joints."""
-    asset: Articulation = env.scene[asset_cfg.name]
+    """Track head encoder offsets with tolerance ``std`` [rad], including play when configured."""
     command = env.command_manager.get_command(command_name)
-    measured = asset.data.joint_pos.torch[:, asset_cfg.joint_ids]
-    error = measured - asset.data.default_joint_pos.torch[:, asset_cfg.joint_ids] - command
+    error = joint_pos_rel_biased(env, asset_cfg, biased=False, backlash_cfg=backlash_cfg) - command
     return torch.exp(-((error / std) ** 2)).mean(dim=-1)
 
 
@@ -159,13 +161,16 @@ class head_pose_bias_penalty(ManagerTermBase):
             self._error_ema[env_ids] = 0.0
 
     def __call__(
-        self, env: ManagerBasedRLEnv, command_name: str, tau_s: float, asset_cfg: SceneEntityCfg
+        self,
+        env: ManagerBasedRLEnv,
+        command_name: str,
+        tau_s: float,
+        asset_cfg: SceneEntityCfg,
+        backlash_cfg: SceneEntityCfg | None = None,
     ) -> torch.Tensor:
         """Return the negative absolute error averaged with time constant ``tau_s`` [s]."""
-        asset: Articulation = env.scene[asset_cfg.name]
         command = env.command_manager.get_command(command_name)
-        measured = asset.data.joint_pos.torch[:, asset_cfg.joint_ids]
-        error = measured - asset.data.default_joint_pos.torch[:, asset_cfg.joint_ids] - command
+        error = joint_pos_rel_biased(env, asset_cfg, biased=False, backlash_cfg=backlash_cfg) - command
         alpha = min(1.0, float(env.step_dt) / max(tau_s, 1e-06))
         self._error_ema = (1.0 - alpha) * self._error_ema + alpha * error
         penalty = -self._error_ema.abs().mean(dim=-1)

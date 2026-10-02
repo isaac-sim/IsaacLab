@@ -23,6 +23,9 @@ from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 
 TASK = "IsaacContrib-Velocity-Flat-MicroDuck"
 ROUGH_TASK = "IsaacContrib-Velocity-Rough-MicroDuck"
+BACKLASH_TASK = "IsaacContrib-Velocity-Flat-Backlash-MicroDuck"
+ROUGH_BACKLASH_TASK = "IsaacContrib-Velocity-Rough-Backlash-MicroDuck"
+TASKS = [TASK, ROUGH_TASK, BACKLASH_TASK, ROUGH_BACKLASH_TASK]
 JOINT_NAMES = [
     "left_hip_yaw",
     "left_hip_roll",
@@ -51,7 +54,7 @@ POLICY_TERMS = [
 ]
 
 
-@pytest.mark.parametrize("task", [TASK, ROUGH_TASK])
+@pytest.mark.parametrize("task", TASKS)
 def test_microduck_policy_contract(task):
     """Keep the original walking policy's joint order and 50 Hz interface."""
     cfg = parse_env_cfg(task, device="cpu", num_envs=2)
@@ -62,7 +65,7 @@ def test_microduck_policy_contract(task):
     terms = [name for name in vars(cfg.observations.policy) if name in POLICY_TERMS]
     assert terms == POLICY_TERMS
     assert cfg.observations.policy.joint_pos.params["asset_cfg"].joint_names == JOINT_NAMES
-    assert cfg.scene.terrain.terrain_type == ("generator" if task == ROUGH_TASK else "plane")
+    assert cfg.scene.terrain.terrain_type == ("generator" if "Rough" in task else "plane")
     assert cfg.sim.use_newton_actuators
 
 
@@ -112,11 +115,11 @@ def test_microduck_foot_height_on_steps():
 @pytest.mark.integration
 @pytest.mark.kitless
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-@pytest.mark.parametrize("task", [TASK, ROUGH_TASK])
+@pytest.mark.parametrize("task", TASKS)
 def test_microduck_reset_and_step(device, task):
     """Resolve the policy interface on the USD and exercise reset-time BAM writes."""
     cfg = parse_env_cfg(task, device=device, num_envs=8)
-    if task == ROUGH_TASK:
+    if "Rough" in task:
         cfg.scene.terrain.terrain_generator.num_rows = 2
         cfg.scene.terrain.terrain_generator.num_cols = 4
         cfg.scene.terrain.terrain_generator.seed = 42
@@ -138,7 +141,7 @@ def test_microduck_reset_and_step(device, task):
         assert not torch.equal(before, after)
         torch.testing.assert_close(after, after[:, :1].expand_as(after))
         assert ((after >= 0.9) & (after <= 1.1)).all()
-        if task == ROUGH_TASK:
+        if "Rough" in task:
             from isaaclab_newton.physics import NewtonManager
 
             from isaaclab_tasks.contrib.microduck.mdp.observations import foot_height_safe
@@ -159,12 +162,55 @@ def test_microduck_reset_and_step(device, task):
                 )
             heights = foot_height_safe(env, **env.observation_manager.cfg.critic.foot_height.params)
             assert ((heights > 0.01) & (heights < 0.04)).all()
+        if "Backlash" in task:
+            assert robot.num_joints == 28
+            passive_ids, _ = robot.find_joints("passive_.*_backlash")
+            torch.testing.assert_close(
+                robot.data.joint_pos.torch[:, passive_ids], torch.zeros(8, 14, device=env.device)
+            )
+        if task == BACKLASH_TASK:
+            # Distinct play values catch pairing/order mistakes in the policy's encoder view.
+            from isaaclab_tasks.contrib.microduck.mdp.events import encoder_bias
+
+            play_ids = [robot.joint_names.index(f"passive_{name}_backlash") for name in JOINT_NAMES]
+            play = torch.linspace(-0.014, 0.014, 8 * 14, device=env.device).reshape(8, 14)
+            q = robot.data.default_joint_pos.torch.clone()
+            qd = torch.zeros_like(q)
+            q[:, play_ids] = play
+            qd[:, play_ids] = play * 10.0
+            robot.write_joint_state_to_sim_index(position=q, velocity=qd)
+            for group in (env.observation_manager.cfg.policy, env.observation_manager.cfg.critic):
+                term = group.joint_pos
+                expected = play + (encoder_bias(env)[:, ids] if term.params["biased"] else 0.0)
+                torch.testing.assert_close(term.func(env, **term.params), expected)
+            term = env.observation_manager.cfg.policy.joint_vel
+            torch.testing.assert_close(term.params["term_func"](env, **term.params["term_params"]), play * 10.0)
+            term = env.observation_manager.cfg.critic.joint_vel
+            torch.testing.assert_close(term.func(env, **term.params), play * 10.0)
+            env.command_manager.get_command("head_pose").zero_()
+            head = env.reward_manager.get_term_cfg("head_pose_tracking")
+            expected = torch.exp(-((play[:, 5:9] / head.params["std"]) ** 2)).mean(dim=-1)
+            torch.testing.assert_close(head.func(env, **head.params), expected)
+            head_bias = env.reward_manager.get_term_cfg("head_pose_bias")
+            head_bias.func.reset()
+            expected = -play[:, 5:9].abs().mean(dim=-1) * env.step_dt / head_bias.params["tau_s"]
+            torch.testing.assert_close(head_bias.func(env, **head_bias.params), expected)
+            # Riding the play stops must not incur a servo soft-limit penalty.
+            q[:, play_ids] = robot.data.soft_joint_pos_limits.torch[:, play_ids, 1] + 0.001
+            robot.write_joint_state_to_sim_index(position=q, velocity=qd)
+            limits = env.reward_manager.get_term_cfg("dof_pos_limits")
+            torch.testing.assert_close(limits.func(env, **limits.params), torch.zeros(8, device=env.device))
+            env.reset()
         with torch.inference_mode():
             for _ in range(64):
                 obs, reward, terminated, truncated, _ = env.step(torch.randn(8, 14, device=env.device) * 0.1)
                 assert all(torch.isfinite(value).all() for value in obs.values())
                 assert torch.isfinite(reward).all()
         assert terminated.shape == truncated.shape == (8,)
+        if "Backlash" in task:
+            torch.testing.assert_close(
+                robot.actuators.applied_effort.torch[:, passive_ids], torch.zeros(8, 14, device=env.device)
+            )
     finally:
         env.close()
         SimulationContext.clear_instance()

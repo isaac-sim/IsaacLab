@@ -26,3 +26,14 @@ gym.register(
         "rsl_rl_cfg_entry_point": f"{__name__}.agents.rsl_rl_ppo_cfg:MicroDuckRoughPPORunnerCfg",
     },
 )
+
+for terrain in ("Flat", "Rough"):
+    gym.register(
+        id=f"IsaacContrib-Velocity-{terrain}-Backlash-MicroDuck",
+        entry_point="isaaclab.envs:ManagerBasedRLEnv",
+        disable_env_checker=True,
+        kwargs={
+            "env_cfg_entry_point": f"{__name__}.backlash_env_cfg:MicroDuckVelocityBacklash{terrain}EnvCfg",
+            "rsl_rl_cfg_entry_point": f"{__name__}.agents.rsl_rl_ppo_cfg:MicroDuckBacklash{terrain}PPORunnerCfg",
+        },
+    )
