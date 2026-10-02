@@ -7,6 +7,7 @@
 
 from dataclasses import fields
 
+import numpy as np
 import pytest
 import torch
 from isaaclab_newton.actuators import DriveBam
@@ -99,6 +100,31 @@ def test_microduck_native_bam(asset_cfg, num_joints, device):
         assert (robot.data.joint_armature.torch[:, servo_ids] > 0.0).all()
         assert (robot.data.joint_friction_coeff.torch[:, servo_ids] > 0.0).all()
         if has_backlash:
+            solver = NewtonManager._solver
+            play_prims = {p.GetName(): p for p in stage.Traverse() if p.GetName().endswith("_backlash")}
+            properties = ("jnt_range", "jnt_solref", "jnt_solimp", "dof_armature", "dof_damping")
+            live = {name: getattr(solver.mjw_model, name).numpy() for name in properties}
+            checked = set()
+            for mj_joint, newton_joint in enumerate(solver.mjc_jnt_to_newton_jnt.numpy()[0]):
+                if newton_joint < 0:
+                    continue
+                name = NewtonManager.backend.model.joint_label[newton_joint].rsplit("/", 1)[-1]
+                if name not in play_prims:
+                    continue
+                prim = play_prims[name]
+                checked.add(name)
+                dof = solver.mj_model.jnt_dofadr[mj_joint]
+                expected_fields = (
+                    np.deg2rad([prim.GetAttribute(f"physics:{bound}Limit").Get() for bound in ("lower", "upper")]),
+                    prim.GetAttribute("mjc:solreflimit").Get(),
+                    prim.GetAttribute("mjc:solimplimit").Get(),
+                    prim.GetAttribute("physxJoint:armature").Get(),
+                    prim.GetAttribute("mjc:damping").Get(),
+                )
+                for field, expected in zip(properties, expected_fields):
+                    actual = live[field][:, mj_joint if field.startswith("jnt_") else dof]
+                    np.testing.assert_allclose(actual, np.broadcast_to(expected, actual.shape), rtol=1e-6)
+            assert len(checked) == 14
             # Distinct play angles expose incorrect joint pairing and cross-environment indexing.
             play_ids = [robot.joint_names.index(f"passive_{robot.joint_names[j]}_backlash") for j in servo_ids]
             q = torch.zeros_like(robot.data.default_joint_pos.torch)
