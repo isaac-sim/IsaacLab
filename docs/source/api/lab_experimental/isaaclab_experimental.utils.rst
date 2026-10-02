@@ -13,7 +13,13 @@ The following classes are part of the public :mod:`isaaclab_experimental.utils` 
 .. autosummary::
    :nosignatures:
 
-   WarpGraphCache
+   CapturedStage
+   captured
+   eager
 
-.. autoclass:: WarpGraphCache
+.. autoclass:: CapturedStage
    :show-inheritance:
+
+.. autofunction:: captured
+
+.. autofunction:: eager

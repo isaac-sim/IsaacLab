@@ -199,12 +199,15 @@ def _joint_pos_out_of_manual_limit_kernel(
     upper: float,
     out: wp.array(dtype=wp.bool),
 ):
-    """2D kernel (num_envs, num_joints). ``out`` is pre-zeroed; only writes True."""
-    i, j = wp.tid()
-    if joint_mask[j]:
-        v = joint_pos[i, j]
-        if v < lower or v > upper:
-            out[i] = True
+    """1D kernel (num_envs,): whether any selected joint is outside the bounds."""
+    i = wp.tid()
+    violated = bool(False)
+    for j in range(joint_pos.shape[1]):
+        if joint_mask[j]:
+            v = joint_pos[i, j]
+            if v < lower or v > upper:
+                violated = True
+    out[i] = violated
 
 
 def joint_pos_out_of_manual_limit(
@@ -212,20 +215,20 @@ def joint_pos_out_of_manual_limit(
 ) -> None:
     """Terminate when joint positions are outside configured bounds. Writes into ``out``."""
     asset: Articulation = env.scene[asset_cfg.name]
-    if asset_cfg.joint_mask is None:
+    if asset_cfg.joint_mask_wp is None:
         raise ValueError(
-            f"joint_pos_out_of_manual_limit requires SceneEntityCfg with resolved joint_mask, "
+            f"joint_pos_out_of_manual_limit requires SceneEntityCfg with resolved joint_mask_wp, "
             f"but got None for asset '{asset_cfg.name}'."
         )
-    if asset.data.joint_pos.warp.shape[1] != asset_cfg.joint_mask.shape[0]:
+    if asset.data.joint_pos.warp.shape[1] != asset_cfg.joint_mask_wp.shape[0]:
         raise ValueError(
-            f"joint_mask length ({asset_cfg.joint_mask.shape[0]}) does not match "
+            f"joint_mask_wp length ({asset_cfg.joint_mask_wp.shape[0]}) does not match "
             f"joint_pos dim ({asset.data.joint_pos.warp.shape[1]}) for asset '{asset_cfg.name}'."
         )
     wp.launch(
         kernel=_joint_pos_out_of_manual_limit_kernel,
-        dim=(env.num_envs, asset.data.joint_pos.warp.shape[1]),
-        inputs=[asset.data.joint_pos.warp, asset_cfg.joint_mask, bounds[0], bounds[1], out],
+        dim=env.num_envs,
+        inputs=[asset.data.joint_pos.warp, asset_cfg.joint_mask_wp, bounds[0], bounds[1], out],
         device=env.device,
     )
 

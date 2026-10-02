@@ -4,7 +4,9 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
-    "WarpGraphCache",
+    "CapturedStage",
+    "captured",
+    "eager",
     "clone_obs_buffer",
     "buffers",
     "modifiers",
@@ -13,5 +15,5 @@ __all__ = [
 ]
 
 from .torch_utils import clone_obs_buffer
-from .warp_graph_cache import WarpGraphCache
+from .warp_capture import CapturedStage, captured, eager
 from . import buffers, modifiers, noise, warp

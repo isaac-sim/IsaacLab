@@ -6,7 +6,7 @@
 """CUDA-graph capture safety for warp MDP terms.
 
 The Warp environments record every capturable manager stage into a CUDA graph by default
-(:class:`~isaaclab_experimental.utils.WarpGraphCache`), so a warp MDP term that is not capture-safe
+(:class:`~isaaclab_experimental.utils.CapturedStage`), so a warp MDP term that is not capture-safe
 is not an edge case — it is the normal execution path. A captured graph records launch topology and
 pointer values and replays them, so a term must launch a fixed dim, touch only buffers that
 were allocated before capture and never move, and do all of its work in kernels: host-side

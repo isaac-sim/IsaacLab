@@ -40,9 +40,8 @@ from isaaclab.utils.timer import Timer
 
 from isaaclab_experimental.envs.interactive_scene_warp import InteractiveSceneWarp as InteractiveScene
 from isaaclab_experimental.managers import ActionManager, EventManager, ObservationManager
-from isaaclab_experimental.utils.torch_utils import clone_obs_buffer
 from isaaclab_experimental.utils.warp import resolve_1d_mask
-from isaaclab_experimental.utils.warp_graph_cache import WarpGraphCache
+from isaaclab_experimental.utils.warp_capture import CapturedStage
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -79,7 +78,6 @@ class ManagerBasedEnvWarp:
             )
         # initialize internal variables
         self._is_closed = False
-        self._physics_handles_decimation = False
 
         # set the seed for the environment
         if self.cfg.seed is not None:
@@ -103,9 +101,9 @@ class ManagerBasedEnvWarp:
         if "cuda" in self.device:
             torch.cuda.set_device(self.device)
 
-        # Manager stages run through this cache; managers register terms that are unsafe to capture.
-        self._warp_graph_cache = WarpGraphCache(self.device)
-        self._warp_graph_cache.invalidate_on(self.sim.physics_manager)
+        # the managers' stages record CUDA graphs, and record again after the physics buffers rebind
+        CapturedStage.enabled = True
+        CapturedStage.invalidate_on(self.sim.physics_manager)
 
         # print useful information
         print("[INFO]: Base environment:")
@@ -140,8 +138,6 @@ class ManagerBasedEnvWarp:
         # Process-wide per-env Warp RNG state (isaaclab.utils.seed.WarpRng), shared by terms, tasks and sensors.
         WarpRng.initialize(self.num_envs, self.device)
 
-        # TODO(jichuanh): this is problematic as warp capture requires stable pointers,
-        #                 using different masks for different managers/terms will cause problems.
         # Pre-allocated env masks (shared across managers/terms via `env`).
         self.ALL_ENV_MASK = wp.ones((self.num_envs,), dtype=wp.bool, device=self.device)
         self.ENV_MASK = wp.zeros((self.num_envs,), dtype=wp.bool, device=self.device)
@@ -361,8 +357,6 @@ class ManagerBasedEnvWarp:
             :meth:`SimulationContext.reset_async` and it isn't possible to call async functions in the constructor.
 
         """
-        # recorded stages read buffers of the managers being replaced
-        self._warp_graph_cache.invalidate()
         # prepare the managers
         # -- event manager (we print it here to make the logging consistent)
         print("[INFO] Event Manager: ", self.event_manager)
@@ -375,12 +369,6 @@ class ManagerBasedEnvWarp:
         # -- observation manager
         self.observation_manager = ObservationManager(self.cfg.observations, self)
         print("[INFO] Observation Manager:", self.observation_manager)
-        # persistent action input: recorded stages read this pointer, so each step copies into it
-        self._action_in_wp = wp.zeros(
-            (self.num_envs, self.action_manager.total_action_dim), dtype=wp.float32, device=self.device
-        )
-        # whether a reset has to compact its mask for a manager that resets by environment index
-        self._resets_by_index = bool(self.recorder_manager.active_terms)
 
         # perform events at the start of the simulation
         # in-case a child implementation creates other managers, the randomization should happen
@@ -431,8 +419,11 @@ class ManagerBasedEnvWarp:
         Returns:
             A tuple containing the observations and extras.
         """
+        if env_mask is not None and self.recorder_manager.active_terms:
+            # the stable recorder manager hooks take indices; a mask takes precedence over the caller's ids
+            env_mask = self.resolve_env_mask(env_mask=env_mask)
+            env_ids = wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1)
         env_mask = self.resolve_env_mask(env_ids=env_ids, env_mask=env_mask)
-        env_ids = self._reset_env_ids(env_mask)
 
         # trigger recorder terms for pre-reset calls
         self.recorder_manager.record_pre_reset(env_ids)
@@ -445,7 +436,7 @@ class ManagerBasedEnvWarp:
             self.cfg.seed = used_seed
 
         # reset state of scene
-        self._reset_mask(env_mask, env_ids)
+        self._reset_mask(env_mask)
 
         # update articulation kinematics
         self.scene.write_data_to_sim()
@@ -499,7 +490,7 @@ class ManagerBasedEnvWarp:
         if seed is not None:
             configure_seed(seed)
 
-        self._reset_mask(self.resolve_env_mask(env_ids=env_ids), env_ids)
+        self._reset_mask(self.resolve_env_mask(env_ids=env_ids))
 
         # set the state
         self.scene.reset_to(state, env_ids, is_relative=is_relative)
@@ -536,14 +527,8 @@ class ManagerBasedEnvWarp:
         Returns:
             A tuple containing the observations and extras.
         """
-        # stages start recording at the first step after construction or an invalidation
-        self._warp_graph_cache.arm()
         # process actions
-        action_device = action.to(device=self.device, dtype=torch.float32).contiguous()
-        wp.copy(self._action_in_wp, wp.from_torch(action_device, dtype=wp.float32))
-        self._warp_graph_cache.call_steps(
-            "ActionManager_process_action", self.action_manager.stage_steps("process_action"), action=self._action_in_wp
-        )
+        self.action_manager.process_action(action.to(self.device))
 
         self.recorder_manager.record_pre_step()
 
@@ -556,9 +541,7 @@ class ManagerBasedEnvWarp:
         for _ in range(self.cfg.decimation // steps_per_call):
             self._sim_step_counter += steps_per_call
             # set actions into buffers
-            self._warp_graph_cache.call_steps(
-                "ActionManager_apply_action", self.action_manager.stage_steps("apply_action")
-            )
+            self.action_manager.apply_action()
             # set actions into simulator
             self.scene.write_data_to_sim()
             # simulate
@@ -572,18 +555,10 @@ class ManagerBasedEnvWarp:
 
         # post-step: step interval event
         if "interval" in self.event_manager.available_modes:
-            self._warp_graph_cache.call_steps(
-                "EventManager_apply_interval", self.event_manager.stage_steps("apply_interval"), dt=self.step_dt
-            )
+            self.event_manager.apply(mode="interval", dt=self.step_dt)
 
         # -- compute observations
-        self.obs_buf = self._warp_graph_cache.call_steps(
-            "ObservationManager_compute_update_history",
-            self.observation_manager.stage_steps("compute"),
-            update_history=True,
-            return_cloned_output=False,
-            output=clone_obs_buffer,
-        )
+        self.obs_buf = self.observation_manager.compute(update_history=True)
         self.recorder_manager.record_post_step()
 
         # return observations and extras
@@ -610,7 +585,7 @@ class ManagerBasedEnvWarp:
             del self.event_manager
             del self.recorder_manager
             del self.scene
-            self._warp_graph_cache.close()
+            CapturedStage.disable()
 
             # self.sim.clear_all_callbacks()
             self.sim.clear_instance()
@@ -625,33 +600,20 @@ class ManagerBasedEnvWarp:
     Helper functions.
     """
 
-    def _reset_env_ids(self, env_mask: wp.array) -> torch.Tensor | None:
-        """Compact a reset mask for the managers that reset by environment index.
-
-        This is the host boundary of the mask-first reset: it synchronizes with the device.
+    def _reset_mask(self, env_mask: wp.array):
+        """Reset the environments selected by a boolean mask.
 
         Args:
-            env_mask: Boolean mask of the environments to reset.
-
-        Returns:
-            Indices of the selected environments, or None when every active manager resets by mask.
-        """
-        if not self._resets_by_index:
-            return None
-        return wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1)
-
-    def _reset_mask(self, env_mask: wp.array, env_ids: torch.Tensor | None = None) -> None:
-        """Reset the selected environments.
-
-        Args:
-            env_mask: Boolean mask of the environments to reset.
-            env_ids: Indices of the same environments for the managers that reset by index, or None
-                when every active manager resets by mask.
+            env_mask: Boolean mask of the environments to reset, of shape ``(num_envs,)``.
         """
         # recorded reset stages read the environment-owned mask
         if env_mask is not self.reset_mask_wp:
             wp.copy(self.reset_mask_wp, env_mask)
         env_mask = self.reset_mask_wp
+        # the stable recorder manager resets by index
+        env_ids = (
+            wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1) if self.recorder_manager.active_terms else None
+        )
 
         # reset the internal buffers of the scene elements
         self.scene.reset(env_mask=env_mask)
@@ -660,11 +622,8 @@ class ManagerBasedEnvWarp:
         if "reset" in self.event_manager.available_modes:
             env_step_count = self._sim_step_counter // self.cfg.decimation
             self._global_env_step_count_wp.fill_(env_step_count)
-            self._warp_graph_cache.call_steps(
-                "EventManager_apply_reset",
-                self.event_manager.stage_steps("apply_reset"),
-                env_mask_wp=env_mask,
-                global_env_step_count=self._global_env_step_count_wp,
+            self.event_manager.apply(
+                mode="reset", env_mask_wp=env_mask, global_env_step_count=self._global_env_step_count_wp
             )
 
         # iterate over all managers and reset them
@@ -672,19 +631,13 @@ class ManagerBasedEnvWarp:
         # note: This is order-sensitive! Certain things need be reset before others.
         self.extras["log"] = dict()
         # -- observation manager
-        info = self._warp_graph_cache.call_steps(
-            "ObservationManager_reset", self.observation_manager.stage_steps("reset"), env_mask=env_mask
-        )
+        info = self.observation_manager.reset(env_mask=env_mask)
         self.extras["log"].update(info)
         # -- action manager
-        info = self._warp_graph_cache.call_steps(
-            "ActionManager_reset", self.action_manager.stage_steps("reset"), env_mask=env_mask
-        )
+        info = self.action_manager.reset(env_mask=env_mask)
         self.extras["log"].update(info)
         # -- event manager
-        info = self._warp_graph_cache.call_steps(
-            "EventManager_reset", self.event_manager.stage_steps("reset"), env_mask=env_mask
-        )
+        info = self.event_manager.reset(env_mask=env_mask)
         self.extras["log"].update(info)
         # -- recorder manager
         info = self.recorder_manager.reset(env_ids)

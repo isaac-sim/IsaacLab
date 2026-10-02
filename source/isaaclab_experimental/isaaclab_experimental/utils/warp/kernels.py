@@ -11,14 +11,6 @@ import warp as wp
 
 
 @wp.kernel
-def zero_masked_int64(mask: wp.array(dtype=wp.bool), values: wp.array(dtype=wp.int64)):
-    """Zero the entries of a one-dimensional int64 array selected by ``mask``."""
-    index = wp.tid()
-    if mask[index]:
-        values[index] = wp.int64(0)
-
-
-@wp.kernel
 def count_masked(
     mask: wp.array(dtype=wp.bool),
     out_count: wp.array(dtype=wp.int32),

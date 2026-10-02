@@ -47,8 +47,7 @@ Experimental (Warp-first) note:
 from __future__ import annotations
 
 import inspect
-from collections.abc import Callable, Sequence
-from functools import partial
+from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
@@ -63,9 +62,9 @@ from isaaclab.utils import instantiate, to_dict
 from isaaclab_experimental.utils import modifiers, noise
 from isaaclab_experimental.utils.buffers import CircularBuffer
 from isaaclab_experimental.utils.torch_utils import clone_obs_buffer
-from isaaclab_experimental.utils.warp import is_warp_capturable
+from isaaclab_experimental.utils.warp_capture import captured, eager
 
-from .manager_base import ManagerBase, ManagerTermBase
+from .manager_base import ManagerBase, ManagerTermBase, split_resets, split_terms
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
@@ -196,6 +195,14 @@ class ObservationManager(ManagerBase):
 
         # Stores the latest observations.
         self._obs_buffer: dict[str, torch.Tensor | dict[str, torch.Tensor]] | None = None
+        # (group, index) of every term, and the class terms, split by capturability
+        terms = [
+            (group_name, index) for group_name, cfgs in self._group_obs_term_cfgs.items() for index in range(len(cfgs))
+        ]
+        self._term_split = split_terms(terms, lambda term: self._group_obs_term_cfgs[term[0]][term[1]].capturable)
+        self._class_term_split = split_resets(
+            [cfg for cfgs in self._group_obs_class_term_cfgs.values() for cfg in cfgs]
+        )
         # Note: Persistent Warp output buffers (`_group_out_wp` / `_group_out_torch`) and per-term post-processing
         # buffers are allocated during `_prepare_terms()` since they are per-term/per-group setup.
 
@@ -387,22 +394,33 @@ class ObservationManager(ManagerBase):
     Operations.
     """
 
-    def reset(
-        self,
-        env_ids: Sequence[int] | torch.Tensor | None = None,
-        *,
-        env_mask: wp.array | None = None,
-    ) -> dict[str, float]:
-        # Mask-first path: captured callers must provide env_mask.
-        if env_mask is None or not isinstance(env_mask, wp.array):
-            # Keep all id->mask resolution strictly outside capture.
-            if wp.get_device().is_capturing:
-                raise RuntimeError(
-                    "ObservationManager.reset requires env_mask(wp.array[bool]) during capture. "
-                    "Do not pass env_ids on captured paths."
-                )
-            env_mask = self._env.resolve_env_mask(env_ids=env_ids, env_mask=env_mask)
-        return self._run_steps("reset", env_mask=env_mask)
+    @captured
+    def _reset(self, env_mask: wp.array) -> dict[str, float]:
+        """Resets the observation terms of the environments selected by a boolean mask of shape (num_envs,)."""
+        # call all terms that are classes
+        for term_cfg in self._class_term_split.eager:
+            eager(term_cfg.func.reset, env_mask=env_mask)
+        for term_cfg in self._class_term_split.captured:
+            term_cfg.func.reset(env_mask=env_mask)
+        # reset terms with history
+        if any(self._group_obs_term_history_buffer.values()):
+            eager(self._reset_history, env_mask)
+        # call all modifiers/noise models that are classes
+        for mod in self._group_obs_class_instances:
+            mod.reset(env_mask=env_mask)
+
+        # nothing to log here
+        return {}
+
+    def _reset_history(self, env_mask: wp.array) -> None:
+        """Resets the history buffers of the selected environments, which are not capture-safe.
+
+        The buffers are looked up at call time because :meth:`_compute_term` can replace them, while :func:`eager`
+        replays its recorded arguments.
+        """
+        for history_buffers in self._group_obs_term_history_buffer.values():
+            for circular_buffer in history_buffers.values():
+                circular_buffer.reset(env_mask=env_mask)
 
     def compute(
         self, update_history: bool = False, return_cloned_output: bool = True
@@ -424,12 +442,18 @@ class ObservationManager(ManagerBase):
             The observations are either concatenated into a single tensor or returned as a dictionary
             with keys corresponding to the term's name.
         """
-        return self._run_steps("compute", update_history=update_history, return_cloned_output=return_cloned_output)
+        obs_buffer = self._compute(update_history)
+        # clone outside the recorded stage
+        return clone_obs_buffer(obs_buffer) if return_cloned_output else obs_buffer
 
-    def _compute_output(
-        self, update_history: bool = False, return_cloned_output: bool = True
-    ) -> dict[str, torch.Tensor | dict[str, torch.Tensor]]:
-        """Return the persistent observation buffer, or a clone of it."""
+    @captured
+    def _compute(self, update_history: bool) -> dict[str, torch.Tensor | dict[str, torch.Tensor]]:
+        """Compute every term into the persistent buffers and return the persistent observation buffer."""
+        # Launch kernels for every group (writes into persistent buffers in-place).
+        for group_name, index in self._term_split.eager:
+            eager(self._compute_term, group_name, index, update_history=update_history)
+        for group_name, index in self._term_split.captured:
+            self._compute_term(group_name, index, update_history=update_history)
         # Build the obs buffer once (persistent refs to in-place-updated tensors/dicts).
         if self._obs_buffer is None:
             self._obs_buffer = {
@@ -440,8 +464,6 @@ class ObservationManager(ManagerBase):
                 )
                 for group_name in self._group_obs_term_names
             }
-        if return_cloned_output:
-            return clone_obs_buffer(self._obs_buffer)
         return self._obs_buffer
 
     def compute_group(self, group_name: str, update_history: bool = False) -> torch.Tensor | dict[str, torch.Tensor]:
@@ -497,9 +519,7 @@ class ObservationManager(ManagerBase):
             return self._group_out_torch[group_name]
         return self._group_obs_dict[group_name]
 
-    def _compute_term(
-        self, group_name: str, index: int, update_history: bool = False, return_cloned_output: bool = True
-    ) -> None:
+    def _compute_term(self, group_name: str, index: int, update_history: bool = False) -> None:
         """Compute one observation term into its slice of the group buffer."""
         term_name = self._group_obs_term_names[group_name][index]
         term_cfg = self._group_obs_term_cfgs[group_name][index]
@@ -562,51 +582,6 @@ class ObservationManager(ManagerBase):
                 group_obs[term_name] = circular_buffer.buffer.reshape(self._env.num_envs, -1)
             else:
                 group_obs[term_name] = circular_buffer.buffer
-
-    """
-    Operations - Stage steps.
-    """
-
-    def _build_stage_steps(self, operation: str) -> list[tuple[bool, Callable[..., Any]]]:
-        if operation == "compute":
-            # Noise draws from the environment's shared random state, so terms keep their order.
-            steps = [
-                (
-                    is_warp_capturable(term_cfg.func, term_cfg.params) and term_cfg.history_length == 0,
-                    partial(self._compute_term, group_name, index),
-                )
-                for group_name, term_cfgs in self._group_obs_term_cfgs.items()
-                for index, term_cfg in enumerate(term_cfgs)
-            ]
-            return [*steps, (True, self._compute_output)]
-        if operation == "reset":
-            steps = []
-            for group_name, term_cfgs in self._group_obs_class_term_cfgs.items():
-                steps += [
-                    (is_warp_capturable(cfg.func, cfg.params), partial(self._reset_class_term, cfg))
-                    for cfg in term_cfgs
-                ]
-                # history buffers are not capture-safe
-                steps += [
-                    (False, partial(self._reset_history, group_name, term_name))
-                    for term_name in self._group_obs_term_history_buffer[group_name]
-                ]
-            steps += [(True, instance.reset) for instance in self._group_obs_class_instances]
-            return [*steps, (True, self._reset_output)]
-        return super()._build_stage_steps(operation)
-
-    @staticmethod
-    def _reset_class_term(term_cfg: ObservationTermCfg, env_mask: wp.array) -> None:
-        term_cfg.func.reset(env_mask=env_mask)
-
-    def _reset_history(self, group_name: str, term_name: str, env_mask: wp.array) -> None:
-        # computing a term before the first step may replace its buffer, so look it up on every call
-        self._group_obs_term_history_buffer[group_name][term_name].reset(env_mask=env_mask)
-
-    @staticmethod
-    def _reset_output(env_mask: wp.array) -> dict:
-        # nothing to log here
-        return {}
 
     def serialize(self) -> dict:
         """Serialize the observation term configurations for all active groups.
@@ -745,6 +720,8 @@ class ObservationManager(ManagerBase):
                 if group_cfg.history_length is not None:
                     term_cfg.history_length = group_cfg.history_length
                     term_cfg.flatten_history_dim = group_cfg.flatten_history_dim
+                # history buffers are not capture-safe yet
+                term_cfg.capturable = term_cfg.capturable and term_cfg.history_length == 0
                 # add term config to list
                 self._group_obs_term_names[group_name].append(term_name)
                 self._group_obs_term_cfgs[group_name].append(term_cfg)

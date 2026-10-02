@@ -488,7 +488,7 @@ class MockActionManagerTorch:
 
 
 class MockSceneEntityCfg:
-    """Unified cfg that works for both stable (joint_ids) and experimental (joint_mask / joint_ids_wp)."""
+    """Unified cfg that works for both stable (joint_ids) and experimental (joint_mask_wp / joint_ids_wp)."""
 
     def __init__(self, name: str, joint_ids: list[int], num_joints: int, device: str):
         self.name = name
@@ -498,7 +498,7 @@ class MockSceneEntityCfg:
         mask = [False] * num_joints
         for idx in joint_ids:
             mask[idx] = True
-        self.joint_mask = wp.array(mask, dtype=wp.bool, device=device)
+        self.joint_mask_wp = wp.array(mask, dtype=wp.bool, device=device)
         self.joint_ids_wp = wp.array(joint_ids, dtype=wp.int32, device=device)
 
 

@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 import torch
 import warp as wp
 from isaaclab_experimental.envs import DirectRLEnvWarp
+from isaaclab_experimental.utils.warp_capture import captured
 
 from isaaclab.utils.seed import WarpRng
 
@@ -652,6 +653,7 @@ class ReorientDirectWarpEnv(DirectRLEnvWarp):
         # Store actions in a persistent Warp buffer (analogous to `actions.clone()` in the Torch env).
         wp.copy(self.actions, actions)
 
+    @captured
     def _apply_action(self) -> None:
         wp.launch(
             apply_actions_to_targets,
@@ -672,6 +674,7 @@ class ReorientDirectWarpEnv(DirectRLEnvWarp):
         # All joints are actuated for Allegro, so default masks (None = all) are correct.
         self.hand.set_joint_position_target_mask(target=self.cur_targets)
 
+    @captured
     def _get_observations(self) -> dict:
         # if self.cfg.asymmetric_obs:
         #    self.fingertip_force_sensors = self.hand.root_physx_view.get_link_incoming_joint_force()[
@@ -687,6 +690,7 @@ class ReorientDirectWarpEnv(DirectRLEnvWarp):
             raise ValueError(f"Unknown obs_type: {self.cfg.obs_type}")
         return {"policy": self.torch_obs_buf}
 
+    @captured
     def _get_rewards(self) -> None:
         # Clear reduction buffers before launching the reward kernel.
         # wp.assign(self._num_resets, 0.0)
@@ -742,6 +746,7 @@ class ReorientDirectWarpEnv(DirectRLEnvWarp):
         # This avoids Torch-side index extraction and keeps the step graphable.
         self._reset_target_pose(mask=self.reset_goal_buf)
 
+    @captured
     def _get_dones(self) -> None:
         self._compute_intermediate_values()
 
@@ -765,6 +770,7 @@ class ReorientDirectWarpEnv(DirectRLEnvWarp):
             device=self.device,
         )
 
+    @captured
     def _reset_idx(self, mask: wp.array | None = None):
         if mask is None:
             mask = self._ALL_ENV_MASK

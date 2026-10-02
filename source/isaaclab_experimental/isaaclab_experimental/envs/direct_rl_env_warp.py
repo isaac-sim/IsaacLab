@@ -9,7 +9,6 @@ import contextlib
 import inspect
 import logging
 import math
-import os
 from abc import abstractmethod
 from dataclasses import MISSING
 from typing import Any, ClassVar
@@ -35,7 +34,8 @@ from isaaclab.utils.noise import NoiseModel
 from isaaclab.utils.seed import WarpRng, configure_seed
 from isaaclab.utils.timer import Timer
 
-from isaaclab_experimental.utils.warp_graph_cache import WarpGraphCache
+from isaaclab_experimental.utils.warp import count_masked
+from isaaclab_experimental.utils.warp_capture import CapturedStage, captured, reset_captured_stages
 
 # from isaacsim.core.simulation_manager import SimulationManager
 # from isaacsim.core.version import get_version
@@ -43,12 +43,6 @@ from isaaclab_experimental.utils.warp_graph_cache import WarpGraphCache
 
 # import logger
 logger = logging.getLogger(__name__)
-
-DEBUG_TIMER_STEP = os.environ.get("DEBUG_TIMER_STEP", "0") == "1"
-"""Enable outer step() timer only. Set DEBUG_TIMER_STEP=1 env var to enable."""
-
-DEBUG_TIMERS = os.environ.get("DEBUG_TIMERS", "0") == "1"
-"""Enable all fine-grained inner timers (adds wp.synchronize per sub-phase). Set DEBUG_TIMERS=1 env var to enable."""
 
 
 @wp.kernel
@@ -85,6 +79,10 @@ class DirectRLEnvWarp(DirectRLEnv):
     environment. Thus, to reduce complexity, we directly use the :class:`gym.Env` over
     here and leave it up to library-defined wrappers to take care of wrapping this
     environment for their agents.
+
+    Tasks record their GPU work as CUDA graphs by decorating :meth:`_apply_action`, :meth:`_get_dones`,
+    :meth:`_get_rewards`, :meth:`_get_observations` and :meth:`_reset_idx` with
+    :func:`~isaaclab_experimental.utils.captured`.
 
     Note:
         For vectorized environments, it is recommended to **only** call the :meth:`reset`
@@ -123,7 +121,6 @@ class DirectRLEnvWarp(DirectRLEnv):
         self.render_mode = render_mode
         # initialize internal variables
         self._is_closed = False
-        self._physics_handles_decimation = False
 
         # set the seed for the environment
         if self.cfg.seed is not None:
@@ -229,7 +226,8 @@ class DirectRLEnvWarp(DirectRLEnv):
         self.reset_terminated = wp.zeros(self.num_envs, dtype=wp.bool, device=self.device)
         self.reset_time_outs = wp.zeros(self.num_envs, dtype=wp.bool, device=self.device)
         self.reset_buf = wp.zeros(self.num_envs, dtype=wp.bool, device=self.device)
-        self._torch_reset_buf = wp.to_torch(self.reset_buf)
+        # the number of environments to reset, counted on the device so the step does not synchronize with the host
+        self._reset_count_wp = wp.zeros(1, dtype=wp.int32, device=self.device)
         self._ALL_ENV_MASK = wp.ones(self.num_envs, dtype=wp.bool, device=self.device)
 
         # Expected bindings:
@@ -239,9 +237,9 @@ class DirectRLEnvWarp(DirectRLEnv):
         self.torch_reset_time_outs: torch.Tensor = None
         self.torch_episode_length_buf: torch.Tensor = None
 
-        # Task stages run through this cache and record their CUDA graphs on the first step.
-        self._warp_graph_cache = WarpGraphCache(self.device)
-        self._warp_graph_cache.invalidate_on(self.sim.physics_manager)
+        # the task stages record CUDA graphs, and record again after the physics buffers rebind
+        CapturedStage.enabled = True
+        CapturedStage.invalidate_on(self.sim.physics_manager)
 
         # setup the action and observation spaces for Gym
         self._configure_gym_env_spaces()
@@ -378,7 +376,6 @@ class DirectRLEnvWarp(DirectRLEnv):
         self.obs_buf = {"policy": self.torch_obs_buf.clone()}
         return self.obs_buf, self.extras
 
-    @Timer(name="env_step", msg="Step took:", enable=DEBUG_TIMER_STEP or DEBUG_TIMERS)
     def step(self, action: torch.Tensor) -> VecEnvStepReturn:
         """Execute one time-step of the environment's dynamics.
 
@@ -404,8 +401,6 @@ class DirectRLEnvWarp(DirectRLEnv):
             A tuple containing the observations, rewards, resets (terminated and truncated) and extras.
         """
 
-        # stages start recording at the first step after construction or an invalidation
-        self._warp_graph_cache.arm()
         # task code that runs during this step writes into its own log, not into the copy returned last step
         if self._task_log is not None:
             self.extras["log"] = self._task_log
@@ -414,11 +409,8 @@ class DirectRLEnvWarp(DirectRLEnv):
         if self.cfg.action_noise_model:
             action = self._action_noise_model(action)
 
-        # process actions, #TODO pass the torch tensor directly.
-        with Timer(name="pre_physics", msg="Pre-physics step took:", enable=DEBUG_TIMERS):
-            self._pre_physics_step(
-                wp.from_torch(action)
-            )  # Creates a tensor and discards it. Not graphable unless training loop reuses the same pointer.
+        # process actions
+        self._pre_physics_step(wp.from_torch(action))
 
         # check if we need to do rendering within the physics loop
         # note: hoisted out of the decimation loop; is_rendering does live settings lookups
@@ -426,51 +418,57 @@ class DirectRLEnvWarp(DirectRLEnv):
 
         # physics-owned decimation covers all substeps in one call
         steps_per_call = self.cfg.decimation if self._physics_handles_decimation else 1
-        with Timer(name="physics_loop", msg="Physics loop took:", enable=DEBUG_TIMERS):
-            for _ in range(self.cfg.decimation // steps_per_call):
-                self._sim_step_counter += steps_per_call
-                # set actions into buffers
-                # simulate
-                with Timer(name="apply_action", msg="Action processing step took:", enable=DEBUG_TIMERS):
-                    self._warp_graph_cache.call("DirectAction_step", self.step_warp_action)
-
-                # write_data_to_sim runs outside the CUDA graph because _apply_actuator_model
-                # uses torch ops (wp.to_torch + torch arithmetic) that cross CUDA streams.
-                with Timer(name="write_data_to_sim_loop", msg="Write data to sim (loop) took:", enable=DEBUG_TIMERS):
-                    self.scene.write_data_to_sim()
-
-                with Timer(name="simulate", msg="Newton simulation step took:", enable=DEBUG_TIMERS):
-                    self.sim.step(render=False)
-                # render between steps only if the GUI or an RTX sensor needs it
-                # note: we assume the render interval to be the shortest accepted rendering interval.
-                #    If a camera needs rendering at a faster frequency, this will lead to unexpected behavior.
-                if self._sim_step_counter % self.cfg.sim.render_interval == 0 and is_rendering:
-                    self.sim.render()
-                with Timer(name="scene_update", msg="Scene update took:", enable=DEBUG_TIMERS):
-                    self.scene.update(dt=self.physics_dt * steps_per_call)
-
-        self.common_step_counter += 1  # total step (common for all envs)
-        with Timer(name="end_pre_graph", msg="End pre-graph took:", enable=DEBUG_TIMERS):
-            self._warp_graph_cache.call("DirectEndPre_step", self._step_warp_end_pre)
-        # one host predicate per step skips the reset stage when no environment terminated
-        if self._torch_reset_buf.any().item():
-            # capture the terminal observation before reset and expose it for Same-Step autoreset.
-            # the reset overwrites the persistent observation buffer, so keep a copy
-            if self.cfg.compute_final_obs:
-                self._warp_graph_cache.call("DirectFinalObs_step", self._get_observations)
-                self.extras["final_obs"] = {"policy": self.torch_obs_buf.clone()}
-            with Timer(name="reset_graph", msg="Reset graph took:", enable=DEBUG_TIMERS):
-                self._warp_graph_cache.call("DirectReset_step", self._step_warp_reset)
-        # write_data_to_sim runs uncaptured — it uses torch ops that cross CUDA streams.
-        with Timer(name="write_data_to_sim_post", msg="Write data to sim (post-reset) took:", enable=DEBUG_TIMERS):
+        for _ in range(self.cfg.decimation // steps_per_call):
+            self._sim_step_counter += steps_per_call
+            self._apply_action()
+            # write_data_to_sim runs outside the CUDA graph because _apply_actuator_model
+            # uses torch ops (wp.to_torch + torch arithmetic) that cross CUDA streams.
             self.scene.write_data_to_sim()
-        with Timer(name="end_post_graph", msg="End post-graph took:", enable=DEBUG_TIMERS):
-            self._warp_graph_cache.call("DirectEndPost_step", self._step_warp_end_post)
+
+            self.sim.step(render=False)
+            # render between steps only if the GUI or an RTX sensor needs it
+            # note: we assume the render interval to be the shortest accepted rendering interval.
+            #    If a camera needs rendering at a faster frequency, this will lead to unexpected behavior.
+            if self._sim_step_counter % self.cfg.sim.render_interval == 0 and is_rendering:
+                self.sim.render()
+            self.scene.update(dt=self.physics_dt * steps_per_call)
+
+        # post-step:
+        # -- update env counters (used for curriculum generation)
+        wp.launch(add_to_env, dim=self.num_envs, inputs=[self._episode_length_buf_wp, 1])  # step in current episode
+        self.common_step_counter += 1  # total step (common for all envs)
+
+        self._get_dones()
+        self._get_rewards()
+
+        # capture the terminal observation before reset and expose it for Same-Step autoreset.
+        # whether any environment resets is only known on the device, so it is kept on every step
+        if self.cfg.compute_final_obs:
+            self._get_observations()
+            self.extras["final_obs"] = {"policy": self.torch_obs_buf.clone()}
+        # -- reset envs that terminated/timed-out
+        self._reset_terminated()
+        # if sensors are added to the scene, make sure we render to reflect changes in reset
+        # if self.sim.has_rtx_sensors() and self.cfg.rerender_on_reset:
+        #    self.sim.render()
+        # write_data_to_sim runs uncaptured — it uses torch ops that cross CUDA streams.
+        self.scene.write_data_to_sim()
+
+        # post-step: step interval event
+        # if self.cfg.events:
+        #    if "interval" in self.event_manager.available_modes:
+        #        self.event_manager.apply(mode="interval", dt=self.step_dt)
+
+        self._get_observations()
+
+        # add observation noise
+        # note: we apply no noise to the state space (since it is used for critic networks)
+        # if self.cfg.observation_noise_model:
+        #    self.obs_buf["policy"] = self._observation_noise_model(self.obs_buf["policy"])
 
         # Visualization hook — runs after CUDA graph scope. Override in subclass
         # to update markers or other non-graphable visual elements.
-        with Timer(name="visualize", msg="Visualize took:", enable=DEBUG_TIMERS):
-            self._post_step_visualize()
+        self._post_step_visualize()
 
         # tasks log persistent buffers that later steps overwrite, and RL libraries keep the log of every step
         # until they average it, so hand out copies like the fresh tensors of stable tasks
@@ -499,50 +497,6 @@ class DirectRLEnvWarp(DirectRLEnv):
         This runs every step, outside any CUDA graph capture.
         """
         pass
-
-    def step_warp_action(self) -> None:
-        self._apply_action()
-        # Note: scene.write_data_to_sim() is called separately outside the CUDA graph
-        # capture scope because it invokes _apply_actuator_model() which uses torch
-        # arithmetic (wp.to_torch + torch ops). This would cause a CUDA stream crossing
-        # error during graph capture. Moving it outside is safe since it runs every step.
-
-    def _step_warp_end_pre(self) -> None:
-        """Capturable portion before write_data_to_sim (pure warp kernels)."""
-        wp.launch(
-            add_to_env,
-            dim=self.num_envs,
-            inputs=[
-                self._episode_length_buf_wp,
-                1,
-            ],
-        )
-        self._get_dones()
-        self._get_rewards()
-
-    def _step_warp_reset(self) -> None:
-        """Capturable reset of the environments that terminated or timed out."""
-        self._reset_idx(mask=self.reset_buf)
-
-    def _step_warp_end_post(self) -> None:
-        """Capturable portion after write_data_to_sim (pure warp kernels)."""
-        # if sensors are added to the scene, make sure we render to reflect changes in reset
-        # if self.sim.has_rtx_sensors() and self.cfg.rerender_on_reset:
-        #    self.sim.render()
-
-        # TODO We could split it out.
-        # post-step: step interval event
-        # if self.cfg.events:
-        #    if "interval" in self.event_manager.available_modes:
-        #        self.event_manager.apply(mode="interval", dt=self.step_dt)
-
-        # update observations
-        self._get_observations()
-
-        # add observation noise
-        # note: we apply no noise to the state space (since it is used for critic networks)
-        # if self.cfg.observation_noise_model:
-        #    self.obs_buf["policy"] = self._observation_noise_model(self.obs_buf["policy"])
 
     @staticmethod
     def seed(seed: int = -1) -> int:
@@ -611,7 +565,8 @@ class DirectRLEnvWarp(DirectRLEnv):
             if self.cfg.events:
                 del self.event_manager
             del self.scene
-            self._warp_graph_cache.close()
+            CapturedStage.disable()
+            reset_captured_stages(self)
 
             # # clear callbacks and instance
             # if float(".".join(get_version()[2])) >= 5:
@@ -699,6 +654,17 @@ class DirectRLEnvWarp(DirectRLEnv):
 
         # instantiate actions (needed for tasks for which the observations computation is dependent on the actions)
         self.actions = sample_space(self.single_action_space, self.sim.device, batch_size=self.num_envs, fill_value=0)
+
+    @captured
+    def _reset_terminated(self) -> None:
+        """Reset the environments in :attr:`reset_buf`, deciding on the device whether any must reset.
+
+        Recorded, the decision is a conditional graph node (CUDA 12.4+), so the step does not synchronize with the host;
+        run eagerly, :func:`warp.capture_if` reads the count on the host.
+        """
+        self._reset_count_wp.zero_()
+        wp.launch(count_masked, dim=self.num_envs, inputs=[self.reset_buf, self._reset_count_wp], device=self.device)
+        wp.capture_if(self._reset_count_wp, on_true=lambda: self._reset_idx(mask=self.reset_buf))
 
     def _reset_idx(self, mask: wp.array | None = None):
         """Reset environments based on a boolean mask.

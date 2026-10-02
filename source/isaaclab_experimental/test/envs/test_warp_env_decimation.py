@@ -82,24 +82,17 @@ def _rollout(frontend: str) -> dict:
         return sim_step(*args, **kwargs)
 
     env.sim.step = count_sim_step
+    apply_action = env.action_manager.apply_action
+
+    def count_apply_action():
+        calls["apply_action"] += 1
+        apply_action()
+
+    env.action_manager.apply_action = count_apply_action
     if frontend == "warp":
-        call_steps = env._warp_graph_cache.call_steps
-
-        def count_apply_action(stage, *args, **kwargs):
-            calls["apply_action"] += stage == "ActionManager_apply_action"
-            return call_steps(stage, *args, **kwargs)
-
-        env._warp_graph_cache.call_steps = count_apply_action
         step_reward = env.reward_manager._step_reward_tensor_view
         term_dones = env.termination_manager._term_dones_tensor_view
     else:
-        apply_action = env.action_manager.apply_action
-
-        def count_apply_action():
-            calls["apply_action"] += 1
-            apply_action()
-
-        env.action_manager.apply_action = count_apply_action
         step_reward = env.reward_manager._step_reward
         term_dones = env.termination_manager._term_dones
     reward_names = env.reward_manager._term_names

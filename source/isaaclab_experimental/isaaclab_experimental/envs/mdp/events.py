@@ -45,15 +45,6 @@ if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
 
 
-def _resolve_body_ids(asset_cfg: SceneEntityCfg, num_bodies: int) -> list[int]:
-    """Resolve a configured body selection to a list of body indices."""
-    if asset_cfg.body_ids is None or asset_cfg.body_ids == slice(None):
-        return list(range(num_bodies))
-    if isinstance(asset_cfg.body_ids, int):
-        return [asset_cfg.body_ids]
-    return list(asset_cfg.body_ids)
-
-
 def _vec3_range(ranges: dict[str, tuple[float, float]], keys: tuple[str, str, str]) -> tuple[wp.vec3f, wp.vec3f]:
     """Lower and upper bounds of three named ranges; a missing key is the zero range."""
     bounds = [ranges.get(key, (0.0, 0.0)) for key in keys]
@@ -68,6 +59,7 @@ def _vec3_range(ranges: dict[str, tuple[float, float]], keys: tuple[str, str, st
 @wp.kernel
 def _randomize_com_kernel(
     env_mask: wp.array(dtype=wp.bool),
+    needs_default: wp.array(dtype=wp.bool),
     rng_state: wp.array(dtype=wp.uint32),
     default_body_com_pos_b: wp.array(dtype=wp.vec3f, ndim=2),
     body_com_pos_b: wp.array(dtype=wp.vec3f, ndim=2),
@@ -77,6 +69,9 @@ def _randomize_com_kernel(
 ):
     """Offset the default center of mass of the selected bodies by one random offset per environment."""
     env_id = wp.tid()
+    if needs_default[0]:
+        for k in range(body_ids.shape[0]):
+            default_body_com_pos_b[env_id, body_ids[k]] = body_com_pos_b[env_id, body_ids[k]]
     if not env_mask[env_id]:
         return
 
@@ -110,13 +105,10 @@ class randomize_rigid_body_com(ManagerTermBase):
         super().__init__(cfg, env)
         asset_cfg: SceneEntityCfg = cfg.params["asset_cfg"]
         self._asset: RigidObject | Articulation = env.scene[asset_cfg.name]
-        self._body_ids = wp.array(
-            _resolve_body_ids(asset_cfg, self._asset.num_bodies), dtype=wp.int32, device=env.device
-        )
         # Other startup terms may move the CoM after this term is built, so the defaults are copied on the
         # first call. Randomizing from them keeps repeated calls from accumulating offsets.
         self._default_com = wp.zeros_like(self._asset.data.body_com_pos_b.warp)
-        self._has_default_com = False
+        self._needs_default_com = wp.ones(1, dtype=wp.bool, device=env.device)
 
     def __call__(
         self,
@@ -127,16 +119,25 @@ class randomize_rigid_body_com(ManagerTermBase):
     ):
         """Offset the selected environments' CoM positions [m] by a sample from ``com_range``."""
         body_com_pos_b = self._asset.data.body_com_pos_b.warp
-        if not self._has_default_com:
-            wp.copy(self._default_com, body_com_pos_b)
-            self._has_default_com = True
         com_lo, com_hi = _vec3_range(com_range, ("x", "y", "z"))
         wp.launch(
             kernel=_randomize_com_kernel,
             dim=env.num_envs,
-            inputs=[env_mask, WarpRng.state, self._default_com, body_com_pos_b, self._body_ids, com_lo, com_hi],
+            inputs=[
+                env_mask,
+                self._needs_default_com,
+                WarpRng.state,
+                self._default_com,
+                body_com_pos_b,
+                asset_cfg.body_ids_wp,
+                com_lo,
+                com_hi,
+            ],
             device=env.device,
         )
+        # the kernel only reads the flag, so it is cleared after the launch
+        self._needs_default_com.zero_()
+        # Notify the solver that inertial properties changed (COM position affects inertia).
         self._asset.set_coms_mask(coms=body_com_pos_b, env_mask=env_mask)
 
 
@@ -194,12 +195,8 @@ class apply_external_force_torque(ManagerTermBase):
         super().__init__(cfg, env)
         asset_cfg: SceneEntityCfg = cfg.params["asset_cfg"]
         self._asset: RigidObject | Articulation = env.scene[asset_cfg.name]
-        num_bodies = self._asset.num_bodies
-        body_ids = _resolve_body_ids(asset_cfg, num_bodies)
-        self._body_ids = wp.array(body_ids, dtype=wp.int32, device=env.device)
-        self._body_mask = wp.array([i in body_ids for i in range(num_bodies)], dtype=wp.bool, device=env.device)
-        self._forces = wp.zeros((env.num_envs, num_bodies), dtype=wp.vec3f, device=env.device)
-        self._torques = wp.zeros((env.num_envs, num_bodies), dtype=wp.vec3f, device=env.device)
+        self._forces = wp.zeros((env.num_envs, self._asset.num_bodies), dtype=wp.vec3f, device=env.device)
+        self._torques = wp.zeros((env.num_envs, self._asset.num_bodies), dtype=wp.vec3f, device=env.device)
 
     def __call__(
         self,
@@ -220,7 +217,7 @@ class apply_external_force_torque(ManagerTermBase):
             inputs=[
                 env_mask,
                 WarpRng.state,
-                self._body_ids,
+                asset_cfg.body_ids_wp,
                 self._forces,
                 self._torques,
                 float(force_range[0]),
@@ -231,7 +228,7 @@ class apply_external_force_torque(ManagerTermBase):
             device=env.device,
         )
         self._asset.permanent_wrench_composer.set_forces_and_torques_mask(
-            forces=self._forces, torques=self._torques, body_mask=self._body_mask, env_mask=env_mask
+            forces=self._forces, torques=self._torques, body_mask=asset_cfg.body_mask_wp, env_mask=env_mask
         )
 
 
@@ -632,9 +629,9 @@ def reset_joints_by_scale(
 # The stable material/mass randomization terms already dispatch to the active
 # physics backend (Newton included); only their calling convention differs —
 # the warp EventManager invokes terms with a Warp env-mask while the stable
-# class terms expect torch env indices. Both terms run in ``startup`` mode,
-# once at construction and outside any recorded stage, so a host-side
-# mask-to-ids conversion is acceptable.
+# class terms expect torch env indices. Both terms are marked non-capturable, so
+# in reset or interval mode the event stages run them eagerly and the host-side
+# mask-to-ids conversion stays outside any recorded graph.
 
 
 def _mask_to_env_ids(env_mask: wp.array) -> torch.Tensor:
@@ -642,24 +639,14 @@ def _mask_to_env_ids(env_mask: wp.array) -> torch.Tensor:
     return torch.nonzero(wp.to_torch(env_mask), as_tuple=False).squeeze(-1)
 
 
-def _require_startup_mode(cfg: EventTermCfg, term: type) -> None:
-    """Reject modes that would run a host-synchronizing adapter on every reset or interval."""
-    if cfg.mode != "startup":
-        raise ValueError(f"'{term.__name__}' supports only the 'startup' event mode, got '{cfg.mode}'.")
-
-
 @WarpCapturable(False, reason="converts the environment mask to indices on the host")
 class randomize_rigid_body_material(_StableRandomizeRigidBodyMaterial, ManagerTermBase):
     """Warp adapter for the stable, backend-dispatched material randomization term.
 
     Converts the warp event manager's env-mask calling convention to the stable
-    term's env-ids convention and delegates. Startup mode only. Inherits the
-    warp :class:`ManagerTermBase` so the warp managers accept it as a class term.
+    term's env-ids convention and delegates. Inherits the warp :class:`ManagerTermBase`
+    so the warp managers accept it as a class term.
     """
-
-    def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv):
-        _require_startup_mode(cfg, type(self))
-        super().__init__(cfg, env)
 
     def __call__(
         self,
@@ -684,7 +671,7 @@ class randomize_rigid_body_material(_StableRandomizeRigidBodyMaterial, ManagerTe
         )
 
     def reset(self, env_mask: wp.array | None = None) -> None:
-        """Nothing to reset; materials are randomized once at startup."""
+        """Nothing to reset; the term keeps no per-environment state."""
         return
 
 
@@ -693,13 +680,9 @@ class randomize_rigid_body_mass(_StableRandomizeRigidBodyMass, ManagerTermBase):
     """Warp adapter for the stable, backend-dispatched mass randomization term.
 
     Converts the warp event manager's env-mask calling convention to the stable
-    term's env-ids convention and delegates. Startup mode only. Inherits the
-    warp :class:`ManagerTermBase` so the warp managers accept it as a class term.
+    term's env-ids convention and delegates. Inherits the warp :class:`ManagerTermBase`
+    so the warp managers accept it as a class term.
     """
-
-    def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv):
-        _require_startup_mode(cfg, type(self))
-        super().__init__(cfg, env)
 
     def __call__(
         self,
@@ -724,5 +707,5 @@ class randomize_rigid_body_mass(_StableRandomizeRigidBodyMass, ManagerTermBase):
         )
 
     def reset(self, env_mask: wp.array | None = None) -> None:
-        """Nothing to reset; masses are randomized once at startup."""
+        """Nothing to reset; the term keeps no per-environment state."""
         return

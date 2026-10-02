@@ -21,7 +21,8 @@ wp.init()
 pytestmark = pytest.mark.skipif(not wp.is_cuda_available(), reason="CUDA device required")
 
 import isaaclab_experimental.envs.mdp.events as warp_evt
-from isaaclab_experimental.managers import EventTermCfg, ManagerTermBase, SceneEntityCfg
+from isaaclab_experimental.managers import EventManager, EventTermCfg, ManagerTermBase, SceneEntityCfg
+from isaaclab_experimental.utils import CapturedStage
 from parity_helpers import (
     DEVICE,
     NUM_ACTIONS,
@@ -106,9 +107,16 @@ def all_joints_cfg():
 
 
 def _make_event_term(term_type: type[ManagerTermBase], env, mode: str = "reset", **params) -> ManagerTermBase:
-    """Build a class event term the way the event manager does."""
+    """Build a class event term the way the event manager does, after resolving its asset's Warp body fields."""
     params.setdefault("asset_cfg", SceneEntityCfg("robot"))
-    return term_type(EventTermCfg(func=term_type, mode=mode, params=params), env)
+    cfg = EventTermCfg(func=term_type, mode=mode, params=params)
+    # the mock scene cannot run SceneEntityCfg.resolve, so fill the fields it would set on the stored cfg
+    asset_cfg = cfg.params["asset_cfg"]
+    num_bodies = env.scene[asset_cfg.name].num_bodies
+    body_ids = list(range(num_bodies)) if asset_cfg.body_ids in (None, slice(None)) else list(asset_cfg.body_ids)
+    asset_cfg.body_ids_wp = wp.array(body_ids, dtype=wp.int32, device=DEVICE)
+    asset_cfg.body_mask_wp = wp.array([i in body_ids for i in range(num_bodies)], dtype=wp.bool, device=DEVICE)
+    return term_type(cfg, env)
 
 
 def _all_envs() -> wp.array:
@@ -359,9 +367,49 @@ def test_com_randomization_uses_the_first_call_baseline_without_accumulating():
     assert_close(data.body_com_pos_b.torch[..., 0], torch.full((NUM_ENVS, 2), 1.75, device=DEVICE))
 
 
-@pytest.mark.parametrize("term_type", [warp_evt.randomize_rigid_body_material, warp_evt.randomize_rigid_body_mass])
-def test_mask_adapters_reject_modes_other_than_startup(term_type):
-    """The adapters convert the mask to indices on the host, which a reset or interval stage must not do."""
-    cfg = EventTermCfg(func=term_type, mode="reset", params={"asset_cfg": SceneEntityCfg("robot")})
-    with pytest.raises(ValueError, match="startup"):
-        term_type(cfg, SimpleNamespace())
+@pytest.mark.parametrize(
+    ("term_type", "params"),
+    [
+        (
+            warp_evt.randomize_rigid_body_material,
+            {
+                "static_friction_range": (0.5, 0.5),
+                "dynamic_friction_range": (0.5, 0.5),
+                "restitution_range": (0.0, 0.0),
+                "num_buckets": 1,
+            },
+        ),
+        (warp_evt.randomize_rigid_body_mass, {"mass_distribution_params": (1.0, 1.0), "operation": "scale"}),
+    ],
+    ids=["material", "mass"],
+)
+def test_mask_adapters_run_eagerly_in_reset_mode(term_type, params, monkeypatch):
+    """The adapters convert the mask to indices on the host, so reset events run them outside the recorded graph."""
+    stable_term_type = term_type.__mro__[1]
+    calls = []
+
+    def stable_init(self, cfg, env):
+        self.cfg, self._env = cfg, env
+
+    monkeypatch.setattr(stable_term_type, "__init__", stable_init)
+    monkeypatch.setattr(stable_term_type, "__call__", lambda self, env, env_ids, *args: calls.append(env_ids.tolist()))
+    monkeypatch.setattr(CapturedStage, "enabled", True)
+    env, _, _ = _make_event_env(5)
+    env.sim = SimpleNamespace(is_playing=lambda: True)
+    manager = EventManager(
+        {
+            "randomize": EventTermCfg(
+                func=term_type, mode="reset", params={**params, "asset_cfg": SimpleNamespace(name="robot")}
+            )
+        },
+        env,
+    )
+    env_mask = wp.array([i % 2 == 0 for i in range(NUM_ENVS)], dtype=wp.bool, device=DEVICE)
+    selected = [i for i in range(NUM_ENVS) if i % 2 == 0]
+
+    for _ in range(2):
+        manager.apply(
+            mode="reset", env_mask_wp=env_mask, global_env_step_count=wp.zeros(1, dtype=wp.int32, device=DEVICE)
+        )
+
+    assert calls == [selected, selected], "the adapter must run, eagerly, on every reset"

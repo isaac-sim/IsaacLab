@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import inspect
 from collections.abc import Callable, Sequence
 from typing import Any
 
@@ -117,15 +118,16 @@ def warp_capturable(capturable: bool):
 def is_warp_capturable(func, params: dict[str, Any] | None = None) -> bool:
     """Check if a term is CUDA-graph-capturable.
 
-    Checks ``_warp_capturable`` on the term (a function, a class, or a class instance) and on its
+    Checks ``_warp_capturable`` on the term function or class (the class of an instance) and on its
     ``__wrapped__`` target. The annotation is a bool, or a predicate that decides from the term's
-    parameters (see :class:`WarpCapturable`). A class term may also set ``self._warp_capturable`` in
-    ``__init__`` to decide per instance. Returns True (capturable) if no annotation is found.
+    parameters (see :class:`WarpCapturable`). Returns True (capturable) if no annotation is found.
 
     Args:
         func: The term function, class, or class instance.
         params: The term's parameters, passed to a predicate annotation. Defaults to None (no parameters).
     """
+    if not (isinstance(func, type) or inspect.isroutine(func)):
+        func = type(func)
     for f in (func, getattr(func, "__wrapped__", None)):
         if f is not None:
             val = getattr(f, "_warp_capturable", None)
@@ -164,11 +166,10 @@ class WarpCapturable:
     - ``@WarpCapturable(True)`` or no decorator: capturable, returned unwrapped.
     - ``@WarpCapturable(False)`` on a function: sets ``func._warp_capturable = False`` and wraps it with a
       runtime guard that raises if ``wp.get_device().is_capturing`` is ``True``.
-    - ``@WarpCapturable(False)`` on a class term: annotates the class and guards its ``__call__``.
+    - ``@WarpCapturable(False)`` on a class term: annotates the class and guards its ``__call__``. The term's
+      ``reset`` is still recorded; decorate the ``reset`` method itself to keep it out of the recording.
     - ``@WarpCapturable(predicate)``: the term is capturable for the parameters the predicate accepts. The
       predicate receives the term's parameters as a dict, and the guard raises only for rejected ones.
-
-    A class term can also decide per instance by setting ``self._warp_capturable`` in ``__init__``.
     """
 
     def __init__(self, capturable: bool | Callable[[dict[str, Any]], bool], *, reason: str | None = None):

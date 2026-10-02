@@ -64,17 +64,16 @@ NON_STEP_FUNCTIONS = {
 
 # Sanctioned host-synchronization boundaries, by (path suffix, function name).
 SANCTIONED_BOUNDARIES = {
-    # one host predicate per step decides whether the reset pipeline runs (W7)
-    ("envs/manager_based_rl_env_warp.py", "_reset_terminated_envs"),
-    ("envs/direct_rl_env_warp.py", "step"),
+    # one host predicate per step decides whether the reset pipeline runs (W7); the direct env decides on the device
+    ("envs/manager_based_rl_env_warp.py", "step"),
     # mask to index compaction for the managers that reset by index (W11)
-    ("envs/manager_based_env_warp.py", "_reset_env_ids"),
-    # startup-only stable randomization terms take environment indices
+    ("envs/manager_based_env_warp.py", "reset"),
+    ("envs/manager_based_env_warp.py", "_reset_mask"),
+    ("envs/manager_based_rl_env_warp.py", "_reset_mask"),
+    # the stable randomization adapters take environment indices; they run outside recorded graphs
     ("envs/mdp/events.py", "_mask_to_env_ids"),
     # the camera's empty-reset predicate
     ("isaaclab/sensors/camera/camera.py", "_env_mask_has_any"),
-    # backends without a mask-native actuator reset fall back to indices; Newton and OVPhysX override it
-    ("isaaclab/actuators/actuator_control.py", "reset_native_actuators_mask"),
     # joint-limit writes mutate the solver model (event-driven, not per-step)
     ("isaaclab_newton/assets/articulation/articulation.py", "write_joint_position_limit_to_sim_mask"),
 }

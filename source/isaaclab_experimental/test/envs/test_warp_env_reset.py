@@ -14,6 +14,7 @@ launch_test_simulation(SimulationCfg(physics=NewtonCfg(solver_cfg=MJWarpSolverCf
 
 import torch
 from isaaclab_experimental.envs.frontend import WarpFrontend
+from isaaclab_experimental.managers import EventManager
 
 import isaaclab.sim as sim_utils
 
@@ -62,7 +63,7 @@ def test_set_term_cfg_applies_to_recorded_reset_events():
         selected = torch.arange(_NUM_ENVS, device=env.device) % 2 == 0
         # records the reset events with the configured random cart offsets
         env.reset(env_mask=selected)
-        assert "EventManager_apply_reset" in env._warp_graph_cache.captured_stages
+        assert env.event_manager._captured_stages[EventManager._apply_reset].num_graphs
 
         term_cfg = env.event_manager.get_term_cfg("reset_cart_position")
         term_cfg.params["position_range"] = (0.5, 0.5)

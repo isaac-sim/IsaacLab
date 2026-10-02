@@ -10,8 +10,7 @@ from __future__ import annotations
 import inspect
 import re
 from abc import abstractmethod
-from collections.abc import Callable, Sequence
-from functools import partial
+from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
 import torch
@@ -24,8 +23,9 @@ from isaaclab.managers.manager_term_cfg import ActionTermCfg
 from isaaclab.utils import instantiate
 
 from isaaclab_experimental.utils.warp import is_warp_capturable
+from isaaclab_experimental.utils.warp_capture import captured, eager
 
-from .manager_base import ManagerBase, ManagerTermBase
+from .manager_base import ManagerBase, ManagerTermBase, split_terms
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
@@ -230,6 +230,15 @@ class ActionManager(ManagerBase):
         self._action_torch = wp.to_torch(self._action)
         self._prev_action_torch = wp.to_torch(self._prev_action)
 
+        terms = list(self._terms.values())
+        self._term_split = split_terms(terms, is_warp_capturable)
+        # an annotation on a term class covers its processing; its reset is judged by its own annotation
+        self._reset_split = split_terms(terms, lambda term: is_warp_capturable(term.reset))
+        # each term's slice of the action vector
+        self._term_offsets = {
+            term: sum(other.action_dim for other in terms[:index]) for index, term in enumerate(terms)
+        }
+
         # check if any term has debug visualization implemented
         self.cfg.debug_vis = False
         for term in self._terms.values():
@@ -369,61 +378,39 @@ class ActionManager(ManagerBase):
         for term in self._terms.values():
             term.set_debug_vis(debug_vis)
 
-    def reset(
-        self,
-        env_ids: Sequence[int] | torch.Tensor | None = None,
-        *,
-        env_mask: wp.array | None = None,
-    ) -> dict[str, Any]:
+    @captured
+    def _reset(self, env_mask: wp.array) -> dict[str, Any]:
         """Resets the action history.
 
         Args:
-            env_ids: The specific environment indices to reset.
-                If None, all environments are considered.
             env_mask: Boolean Warp mask of shape (num_envs,) indicating which envs to reset.
-                If provided, takes precedence over ``env_ids``.
 
         Returns:
             An empty dictionary.
         """
-        # Mask-first path: captured callers must provide env_mask.
-        if env_mask is None or not isinstance(env_mask, wp.array):
-            if wp.get_device().is_capturing:
-                raise RuntimeError(
-                    "ActionManager.reset requires env_mask(wp.array[bool]) during capture. "
-                    "Do not pass env_ids on captured paths."
-                )
-            env_mask = self._env.resolve_env_mask(env_ids=env_ids, env_mask=env_mask)
-        return self._run_steps("reset", env_mask=env_mask)
+        # reset the action history
+        wp.launch(
+            kernel=_zero_masked_2d,
+            dim=(self.num_envs, self.total_action_dim),
+            inputs=[env_mask, self._prev_action],
+            device=self.device,
+        )
+        wp.launch(
+            kernel=_zero_masked_2d,
+            dim=(self.num_envs, self.total_action_dim),
+            inputs=[env_mask, self._action],
+            device=self.device,
+        )
 
-    def _reset_action_history(self, env_mask: wp.array) -> dict[str, Any]:
-        """Zero the current and previous actions of the selected environments."""
-        if env_mask is None:
-            self._prev_action.fill_(0.0)
-            self._action.fill_(0.0)
-        else:
-            wp.launch(
-                kernel=_zero_masked_2d,
-                dim=(self.num_envs, self.total_action_dim),
-                inputs=[env_mask, self._prev_action],
-                device=self.device,
-            )
-            wp.launch(
-                kernel=_zero_masked_2d,
-                dim=(self.num_envs, self.total_action_dim),
-                inputs=[env_mask, self._action],
-                device=self.device,
-            )
+        # reset all action terms
+        for term in self._reset_split.eager:
+            eager(term.reset, env_mask=env_mask)
+        for term in self._reset_split.captured:
+            term.reset(env_mask=env_mask)
         # nothing to log here
         return {}
 
-    @staticmethod
-    def _reset_term(term: ActionTerm, env_mask: wp.array) -> dict[str, Any]:
-        term.reset(env_mask=env_mask)
-        # nothing to log here
-        return {}
-
-    def process_action(self, action: wp.array):
+    def process_action(self, action: torch.Tensor):
         """Processes the actions sent to the environment.
 
         Note:
@@ -432,46 +419,36 @@ class ActionManager(ManagerBase):
         Args:
             action: The actions to process. Shape is (num_envs, total_action_dim).
         """
-        self._run_steps("process_action", action)
+        # check if action dimension is valid
+        if self.total_action_dim != action.shape[1]:
+            raise ValueError(f"Invalid action shape, expected: {self.total_action_dim}, received: {action.shape[1]}.")
 
+        # store the input actions
+        wp.copy(self._prev_action, self._action)
+        wp.copy(self._action, wp.from_torch(action.float()))
+
+        # split the actions and apply to each term
+        self._process_action()
+
+    @captured
+    def _process_action(self) -> None:
+        """Processes each term's slice of the stored actions."""
+        for term in self._term_split.eager:
+            eager(term.process_actions, self._action, self._term_offsets[term])
+        for term in self._term_split.captured:
+            term.process_actions(self._action, self._term_offsets[term])
+
+    @captured
     def apply_action(self) -> None:
         """Applies the actions to the environment/simulation.
 
         Note:
             This should be called at every simulation step.
         """
-        self._run_steps("apply_action")
-
-    """
-    Operations - Stage steps.
-    """
-
-    def _build_stage_steps(self, operation: str) -> list[tuple[bool, Callable[..., Any]]]:
-        terms = list(self._terms.values())
-        if operation == "process_action":
-            offsets = [sum(term.action_dim for term in terms[:index]) for index in range(len(terms))]
-            steps = [
-                (is_warp_capturable(term), partial(self._process_term_actions, term, offset))
-                for term, offset in zip(terms, offsets)
-            ]
-            return [(True, self._store_actions), *steps]
-        if operation == "apply_action":
-            return [(is_warp_capturable(term), term.apply_actions) for term in terms]
-        if operation == "reset":
-            steps = [(is_warp_capturable(term), partial(self._reset_term, term)) for term in terms]
-            return [(True, self._reset_action_history), *steps]
-        return super()._build_stage_steps(operation)
-
-    def _store_actions(self, action: wp.array) -> None:
-        """Check the action shape and store the actions, keeping the previous ones."""
-        if self.total_action_dim != action.shape[1]:
-            raise ValueError(f"Invalid action shape, expected: {self.total_action_dim}, received: {action.shape[1]}.")
-        wp.copy(self._prev_action, self._action)
-        wp.copy(self._action, action)
-
-    def _process_term_actions(self, term: ActionTerm, offset: int, action: wp.array) -> None:
-        """Hand a term its slice of the stored actions."""
-        term.process_actions(self._action, offset)
+        for term in self._term_split.eager:
+            eager(term.apply_actions)
+        for term in self._term_split.captured:
+            term.apply_actions()
 
     def get_term(self, name: str) -> ActionTerm:
         """Returns the action term with the specified name.

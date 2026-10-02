@@ -23,9 +23,7 @@ from __future__ import annotations
 
 import inspect
 import logging
-from collections.abc import Callable, Sequence
-from functools import partial
-from typing import Any
+from collections.abc import Sequence
 
 import torch
 import warp as wp
@@ -35,8 +33,9 @@ from isaaclab.managers.manager_term_cfg import EventTermCfg
 from isaaclab.utils.seed import WarpRng
 
 from isaaclab_experimental.utils.warp import is_warp_capturable
+from isaaclab_experimental.utils.warp_capture import captured, eager, reset_captured_stages
 
-from .manager_base import ManagerBase, ManagerTermBase
+from .manager_base import ManagerBase, ManagerTermBase, split_resets
 
 logger = logging.getLogger(__name__)
 
@@ -175,7 +174,6 @@ class EventManager(ManagerBase):
 
         # Warp buffers for interval/reset modes (populated in _prepare_terms)
         self._interval_term_time_left_wp: list[wp.array] = []
-        self._interval_term_ranges: list[tuple[float, float]] = []
         self._interval_term_is_global: list[bool] = []
         # Scalar RNG state for global interval timers (allocated lazily if needed).
         self._interval_global_rng_state_wp: wp.array | None = None
@@ -184,6 +182,7 @@ class EventManager(ManagerBase):
         self._reset_term_triggered_once_wp: list[wp.array] = []
 
         super().__init__(cfg, env)
+        self._split_terms()
 
         # persistent scratch mask for per-term interval/reset triggering (must be stable pointer for capture)
         self._scratch_term_mask_wp = wp.zeros((self.num_envs,), dtype=wp.bool, device=self.device)
@@ -228,41 +227,30 @@ class EventManager(ManagerBase):
         return list(self._mode_term_names.keys())
 
     def set_term_cfg(self, term_name: str, cfg: EventTermCfg):
-        """Set the configuration of an existing event term.
+        """Sets the configuration of the specified term into the manager.
 
-        Recorded event stages read the replaced configuration, so they are recorded again on their next call.
+        The method finds the term by name by searching through all the modes.
+        It then updates the configuration of the term with the first matching name.
 
         Args:
-            term_name: Name of the event term.
-            cfg: Replacement event term configuration.
+            term_name: The name of the event term.
+            cfg: The configuration for the event term.
 
         Raises:
-            ValueError: If the term does not exist, or the replacement changes its mode or interval timing.
+            ValueError: If the term name is not found.
         """
+        term_found = False
         for mode, terms in self._mode_term_names.items():
-            if term_name not in terms:
-                continue
-            if cfg.mode != mode:
-                raise ValueError(f"Event term '{term_name}' has mode '{mode}', but the replacement has '{cfg.mode}'.")
-            term_index = terms.index(term_name)
-            if mode == "interval":
-                if cfg.interval_range_s is None:
-                    raise ValueError(f"Event term '{term_name}' has mode 'interval' but 'interval_range_s' is not set.")
-                if cfg.is_global_time != self._mode_term_cfgs[mode][term_index].is_global_time:
-                    raise ValueError(f"Event term '{term_name}' cannot change 'is_global_time' at runtime.")
-            self._resolve_common_term_cfg(term_name, cfg, min_argc=2)
-            self._mode_term_cfgs[mode][term_index] = cfg
-            if mode == "interval":
-                lower, upper = cfg.interval_range_s
-                self._interval_term_ranges[term_index] = (float(lower), float(upper))
-            self._mode_class_term_cfgs[mode] = [
-                term_cfg
-                for term_cfg in self._mode_term_cfgs[mode]
-                if inspect.isclass(term_cfg.func) or isinstance(term_cfg.func, ManagerTermBase)
-            ]
-            self._clear_stage_steps()
-            return
-        raise ValueError(f"Event term '{term_name}' not found.")
+            if term_name in terms:
+                cfg.capturable = is_warp_capturable(cfg.func, cfg.params)
+                self._mode_term_cfgs[mode][terms.index(term_name)] = cfg
+                term_found = True
+                break
+        if not term_found:
+            raise ValueError(f"Event term '{term_name}' not found.")
+        # the class terms derive from the term configurations, and the recorded stages hold the replaced term
+        self._split_terms()
+        reset_captured_stages(self)
 
     def get_term_cfg(self, term_name: str) -> EventTermCfg:
         for mode, terms in self._mode_term_names.items():
@@ -270,23 +258,36 @@ class EventManager(ManagerBase):
                 return self._mode_term_cfgs[mode][terms.index(term_name)]
         raise ValueError(f"Event term '{term_name}' not found.")
 
-    def reset(
-        self,
-        env_ids: Sequence[int] | slice | torch.Tensor | wp.array | None = None,
-        *,
-        env_mask: wp.array | torch.Tensor | None = None,
-    ) -> dict[str, float]:
-        # Mask-first path: captured callers must provide env_mask.
-        if env_mask is None or not isinstance(env_mask, wp.array):
-            # Keep all id->mask resolution strictly outside capture.
-            if wp.get_device().is_capturing:
-                raise RuntimeError(
-                    "EventManager.reset requires env_mask(wp.array[bool]) during capture. "
-                    "Do not pass env_ids on captured paths."
-                )
-            env_mask = self._env.resolve_env_mask(env_ids=env_ids, env_mask=env_mask)
+    @captured
+    def _reset(self, env_mask: wp.array) -> dict[str, float]:
+        """Resets the class terms and the interval timers of the environments selected by a boolean mask."""
+        # reset class terms (mask-based)
+        for term_cfg in self._class_term_split.eager:
+            eager(term_cfg.func.reset, env_mask=env_mask)
+        for term_cfg in self._class_term_split.captured:
+            term_cfg.func.reset(env_mask=env_mask)
 
-        return self._run_steps("reset", env_mask=env_mask)
+        # reset interval timers for non-global interval events
+        # note: terms with resample_interval_on_reset=False keep their per-environment counter
+        #   across resets, so we do not resample them either
+        if "interval" in self._mode_term_cfgs:
+            for i, term_cfg in enumerate(self._mode_term_cfgs["interval"]):
+                if term_cfg.is_global_time or not term_cfg.resample_interval_on_reset:
+                    continue
+                lower, upper = term_cfg.interval_range_s
+                wp.launch(
+                    kernel=_interval_reset_selected,
+                    dim=self.num_envs,
+                    inputs=[
+                        env_mask,
+                        self._interval_term_time_left_wp[i],
+                        WarpRng.state,
+                        lower,
+                        upper,
+                    ],
+                    device=self.device,
+                )
+        return {}
 
     def apply(
         self,
@@ -318,7 +319,7 @@ class EventManager(ManagerBase):
                 raise ValueError(
                     f"Event mode '{mode}' does not require environment indices. This is an undefined behavior."
                 )
-            self._apply_interval(float(dt))
+            self._apply_interval(dt)
             return
 
         # resolve the environment mask
@@ -337,125 +338,80 @@ class EventManager(ManagerBase):
         for term_cfg in self._mode_term_cfgs[mode]:
             term_cfg.func(self._env, env_mask_wp, **term_cfg.params)
 
+    @captured
     def _apply_interval(self, dt: float) -> None:
-        self._run_steps("apply_interval", dt=dt)
+        # iterate over all the interval terms (fixed list; captured graph-friendly)
+        for i, term_cfg in enumerate(self._mode_term_cfgs["interval"]):
+            lower, upper = term_cfg.interval_range_s
+            if self._interval_term_is_global[i]:
+                if self._interval_global_rng_state_wp is None:
+                    raise RuntimeError(
+                        "EventManager._apply_interval: _interval_global_rng_state_wp is not initialized."
+                    )
+                # update scalar time_left and scalar flag (mask is a broadcast view of the flag)
+                wp.launch(
+                    kernel=_interval_step_global,
+                    dim=1,
+                    inputs=[
+                        self._interval_term_time_left_wp[i],
+                        self._interval_global_rng_state_wp,
+                        self._scratch_interval_trigger_flag_wp,
+                        dt,
+                        lower,
+                        upper,
+                    ],
+                    device=self.device,
+                )
+                term_mask = self._scratch_interval_trigger_mask_view_wp
+            else:
+                wp.launch(
+                    kernel=_interval_step_per_env,
+                    dim=self.num_envs,
+                    inputs=[
+                        self._interval_term_time_left_wp[i],
+                        WarpRng.state,
+                        self._scratch_term_mask_wp,
+                        dt,
+                        lower,
+                        upper,
+                    ],
+                    device=self.device,
+                )
+                term_mask = self._scratch_term_mask_wp
+            if term_cfg.capturable:
+                term_cfg.func(self._env, term_mask, **term_cfg.params)
+            else:
+                eager(term_cfg.func, self._env, term_mask, **term_cfg.params)
 
+    @captured
     def _apply_reset(self, env_mask_wp: wp.array, global_env_step_count_wp: wp.array) -> None:
-        if self._scratch_term_mask_wp is None:
-            raise RuntimeError("EventManager._apply_reset: _scratch_term_mask_wp is not initialized.")
-        self._run_steps("apply_reset", env_mask_wp=env_mask_wp, global_env_step_count=global_env_step_count_wp)
-
-    """
-    Operations - Stage steps.
-    """
-
-    def _build_stage_steps(self, operation: str) -> list[tuple[bool, Callable[..., Any]]]:
-        # Terms draw from the environment's shared random state, so every stage keeps the configured order.
-        if operation == "apply_interval":
-            return [
-                (is_warp_capturable(term_cfg.func, term_cfg.params), partial(self._apply_interval_term, index))
-                for index, term_cfg in enumerate(self._mode_term_cfgs.get("interval", []))
-            ]
-        if operation == "apply_reset":
-            return [
-                (is_warp_capturable(term_cfg.func, term_cfg.params), partial(self._apply_reset_term, index))
-                for index, term_cfg in enumerate(self._mode_term_cfgs.get("reset", []))
-            ]
-        if operation == "reset":
-            steps = [
-                (is_warp_capturable(term_cfg.func, term_cfg.params), partial(self._reset_class_term, term_cfg))
-                for mode_cfgs in self._mode_class_term_cfgs.values()
-                for term_cfg in mode_cfgs
-            ]
-            # note: terms with resample_interval_on_reset=False keep their per-environment counter
-            #   across resets, so we do not resample them either
-            steps += [
-                (True, partial(self._resample_interval, index))
-                for index, term_cfg in enumerate(self._mode_term_cfgs.get("interval", []))
-                if not term_cfg.is_global_time and term_cfg.resample_interval_on_reset
-            ]
-            return [*steps, (True, self._reset_output)]
-        return super()._build_stage_steps(operation)
-
-    def _apply_interval_term(self, index: int, dt: float) -> None:
-        """Advance one interval term's timers and apply it to the environments whose timer expired."""
-        term_cfg = self._mode_term_cfgs["interval"][index]
-        lower, upper = self._interval_term_ranges[index]
-        if self._interval_term_is_global[index]:
-            if self._interval_global_rng_state_wp is None:
-                raise RuntimeError("EventManager._apply_interval: _interval_global_rng_state_wp is not initialized.")
-            # update scalar time_left and scalar flag (mask is a broadcast view of the flag)
+        # iterate over all the reset terms
+        for index, term_cfg in enumerate(self._mode_term_cfgs["reset"]):
             wp.launch(
-                kernel=_interval_step_global,
-                dim=1,
-                inputs=[
-                    self._interval_term_time_left_wp[index],
-                    self._interval_global_rng_state_wp,
-                    self._scratch_interval_trigger_flag_wp,
-                    float(dt),
-                    float(lower),
-                    float(upper),
-                ],
-                device=self.device,
-            )
-            term_cfg.func(self._env, self._scratch_interval_trigger_mask_view_wp, **term_cfg.params)
-        else:
-            wp.launch(
-                kernel=_interval_step_per_env,
+                kernel=_reset_compute_valid_mask,
                 dim=self.num_envs,
                 inputs=[
-                    self._interval_term_time_left_wp[index],
-                    WarpRng.state,
+                    env_mask_wp,
+                    self._reset_term_last_triggered_step_wp[index],
+                    self._reset_term_triggered_once_wp[index],
                     self._scratch_term_mask_wp,
-                    float(dt),
-                    float(lower),
-                    float(upper),
+                    global_env_step_count_wp,
+                    term_cfg.min_step_count_between_reset,
                 ],
                 device=self.device,
             )
-            term_cfg.func(self._env, self._scratch_term_mask_wp, **term_cfg.params)
+            if term_cfg.capturable:
+                term_cfg.func(self._env, self._scratch_term_mask_wp, **term_cfg.params)
+            else:
+                eager(term_cfg.func, self._env, self._scratch_term_mask_wp, **term_cfg.params)
 
-    def _apply_reset_term(self, index: int, env_mask_wp: wp.array, global_env_step_count: wp.array) -> None:
-        """Apply one reset term to the selected environments its trigger spacing allows."""
-        term_cfg = self._mode_term_cfgs["reset"][index]
-        wp.launch(
-            kernel=_reset_compute_valid_mask,
-            dim=self.num_envs,
-            inputs=[
-                env_mask_wp,
-                self._reset_term_last_triggered_step_wp[index],
-                self._reset_term_triggered_once_wp[index],
-                self._scratch_term_mask_wp,
-                global_env_step_count,
-                int(term_cfg.min_step_count_between_reset),
-            ],
-            device=self.device,
-        )
-        term_cfg.func(self._env, self._scratch_term_mask_wp, **term_cfg.params)
-
-    @staticmethod
-    def _reset_class_term(term_cfg: EventTermCfg, env_mask: wp.array) -> None:
-        term_cfg.func.reset(env_mask=env_mask)
-
-    def _resample_interval(self, index: int, env_mask: wp.array) -> None:
-        """Draw new interval timers for the selected environments."""
-        lower, upper = self._interval_term_ranges[index]
-        wp.launch(
-            kernel=_interval_reset_selected,
-            dim=self.num_envs,
-            inputs=[
-                env_mask,
-                self._interval_term_time_left_wp[index],
-                WarpRng.state,
-                float(lower),
-                float(upper),
-            ],
-            device=self.device,
-        )
-
-    @staticmethod
-    def _reset_output(env_mask: wp.array) -> dict[str, float]:
-        return {}
+    def _split_terms(self) -> None:
+        """Collect the class terms of every mode and split them by whether their resets can be recorded."""
+        self._mode_class_term_cfgs = {
+            mode: [cfg for cfg in cfgs if inspect.isclass(cfg.func) or isinstance(cfg.func, ManagerTermBase)]
+            for mode, cfgs in self._mode_term_cfgs.items()
+        }
+        self._class_term_split = split_resets([cfg for cfgs in self._mode_class_term_cfgs.values() for cfg in cfgs])
 
     def _prepare_terms(self):
         # check if config is dict already
@@ -502,13 +458,9 @@ class EventManager(ManagerBase):
             if term_cfg.mode not in self._mode_term_names:
                 self._mode_term_names[term_cfg.mode] = []
                 self._mode_term_cfgs[term_cfg.mode] = []
-                self._mode_class_term_cfgs[term_cfg.mode] = []
             # add term name and parameters
             self._mode_term_names[term_cfg.mode].append(term_name)
             self._mode_term_cfgs[term_cfg.mode].append(term_cfg)
-
-            if inspect.isclass(term_cfg.func):
-                self._mode_class_term_cfgs[term_cfg.mode].append(term_cfg)
 
             # per-mode Warp buffers
             if term_cfg.mode == "interval":
@@ -517,7 +469,6 @@ class EventManager(ManagerBase):
                         f"Event term '{term_name}' has mode 'interval' but 'interval_range_s' is not specified."
                     )
                 lower, upper = term_cfg.interval_range_s
-                self._interval_term_ranges.append((float(lower), float(upper)))
 
                 if term_cfg.is_global_time:
                     # allocate and seed scalar global RNG state if needed (avoid consuming env0 RNG stream)
@@ -533,7 +484,7 @@ class EventManager(ManagerBase):
                     wp.launch(
                         kernel=_interval_init_global,
                         dim=1,
-                        inputs=[time_left, self._interval_global_rng_state_wp, float(lower), float(upper)],
+                        inputs=[time_left, self._interval_global_rng_state_wp, lower, upper],
                         device=self.device,
                     )
                     self._interval_term_time_left_wp.append(time_left)
@@ -543,7 +494,7 @@ class EventManager(ManagerBase):
                     wp.launch(
                         kernel=_interval_init_per_env,
                         dim=self.num_envs,
-                        inputs=[time_left, WarpRng.state, float(lower), float(upper)],
+                        inputs=[time_left, WarpRng.state, lower, upper],
                         device=self.device,
                     )
                     self._interval_term_time_left_wp.append(time_left)

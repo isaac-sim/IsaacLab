@@ -5,12 +5,12 @@
 
 """Eager and CUDA-graph execution of the Warp environments must produce the same rollout.
 
-Each task runs the same seeded action sequence twice, once with ``ISAACLAB_WARP_CAPTURE=0`` and
-once with stage capture on. For manager-based tasks, a hard :meth:`SimulationContext.reset` halfway
-through rebuilds the Newton model and reallocates every simulation buffer; recorded graphs still
-point at the freed buffers, so the captured rollout only stays equal when the environment records
-its stages again. A variant marks one term of every manager as not capturable: its stage must record
-the other terms and run that term eagerly in its place.
+Each task runs the same seeded action sequence twice, once with capture disabled
+(:attr:`CapturedStage.enabled` False) and once with stage capture on. For manager-based tasks, a hard
+:meth:`SimulationContext.reset` halfway through rebuilds the Newton model and reallocates every simulation
+buffer; recorded graphs still point at the freed buffers, so the captured rollout only stays equal when the
+stages record again. A variant marks one term of every manager as not capturable: its stage must record the
+other terms and run that term eagerly.
 """
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
@@ -24,8 +24,8 @@ import isaaclab_tasks_experimental  # noqa: F401
 import pytest
 import torch
 from isaaclab_experimental.envs.frontend import WarpFrontend
+from isaaclab_experimental.utils import CapturedStage
 from isaaclab_experimental.utils.warp import WarpCapturable
-from isaaclab_experimental.utils.warp_graph_cache import CAPTURE_ENV_VAR
 
 import isaaclab.sim as sim_utils
 
@@ -33,6 +33,7 @@ import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import resolve_task_config
 
 _NUM_ENVS = 32
+_MANAGERS = ("action_manager", "observation_manager", "event_manager", "reward_manager", "termination_manager")
 _STEPS = 80
 _REBIND_STEP = 40
 
@@ -45,11 +46,34 @@ _CARTPOLE_EAGER_TERMS = (
 )
 
 
+def _recorded_stages(env) -> tuple[str, ...]:
+    """``Owner.method`` of every stage currently backed by a recorded graph, sorted."""
+    owners = [env, *(getattr(env, name) for name in _MANAGERS if hasattr(env, name))]
+    return tuple(
+        sorted(
+            f"{type(owner).__name__}.{method.__name__}"
+            for owner in owners
+            for method, stage in owner.__dict__.get("_captured_stages", {}).items()
+            if stage.num_graphs
+        )
+    )
+
+
+def _stale_stages(env) -> list[str]:
+    """Stages whose graphs were recorded before the latest physics rebind."""
+    owners = [env, *(getattr(env, name) for name in _MANAGERS if hasattr(env, name))]
+    return [
+        method.__name__
+        for owner in owners
+        for method, stage in owner.__dict__.get("_captured_stages", {}).items()
+        if stage.num_graphs and stage._generation != CapturedStage.generation
+    ]
+
+
 def _rollout(
     task_id: str, capture: bool, rebind: bool, monkeypatch: pytest.MonkeyPatch, eager_terms: tuple[str, ...] = ()
 ) -> dict:
     """Run the seeded action sequence and return the rollout with the recorded stages."""
-    monkeypatch.setenv(CAPTURE_ENV_VAR, "1" if capture else "0")
     env_cfg, _ = resolve_task_config(task_id, "", overrides=("physics=newton_mjwarp",))
     env_cfg.seed = 7
     env_cfg.scene.num_envs = _NUM_ENVS
@@ -65,6 +89,8 @@ def _rollout(
         term_cfg.func = WarpCapturable(False, reason="marked eager by the test")(term_cfg.func)
     sim_utils.create_new_stage()
     env = WarpFrontend.build_env(env_cfg, task_id).unwrapped
+    # the environment enables capture when it is built
+    monkeypatch.setattr(CapturedStage, "enabled", capture)
     rollout = {"obs": [], "reward": [], "terminated": [], "truncated": []}
     try:
         env.reset()
@@ -73,9 +99,10 @@ def _rollout(
         bias = torch.rand((_NUM_ENVS, env.action_space.shape[-1]), generator=generator) * 2.0 - 1.0
         for step in range(_STEPS):
             if rebind and step == _REBIND_STEP:
-                rollout["stages_before_rebind"] = env._warp_graph_cache.captured_stages
+                rollout["stages_before_rebind"] = _recorded_stages(env)
+                generation = CapturedStage.generation
                 env.sim.reset()
-                rollout["stages_at_rebind"] = env._warp_graph_cache.captured_stages
+                rollout["rebind_advanced_generation"] = CapturedStage.generation > generation
                 env.reset()
             noise = torch.rand((_NUM_ENVS, bias.shape[1]), generator=generator) * 2.0 - 1.0
             obs, reward, terminated, truncated, _ = env.step((bias + 0.5 * noise).to(env.device))
@@ -83,7 +110,8 @@ def _rollout(
             rollout["reward"].append(reward.clone())
             rollout["terminated"].append(terminated.clone())
             rollout["truncated"].append(truncated.clone())
-        rollout["stages_at_end"] = env._warp_graph_cache.captured_stages
+        rollout["stages_at_end"] = _recorded_stages(env)
+        rollout["stale_stages"] = _stale_stages(env)
     finally:
         env.close()
     for key in ("obs", "reward", "terminated", "truncated"):
@@ -111,10 +139,11 @@ def test_captured_rollout_matches_eager(
     assert captured["stages_at_end"], "no stage was recorded; the comparison proves nothing"
     if eager_terms:
         # every stage holding an eager term still records the terms around it
-        recorded_groups = {stage.partition("_")[0] for stage in captured["stages_at_end"]}
+        recorded_groups = {stage.partition(".")[0] for stage in captured["stages_at_end"]}
         assert {"ObservationManager", "RewardManager", "TerminationManager", "EventManager"} <= recorded_groups
     if rebind:
-        assert captured["stages_at_rebind"] == (), "the rebind must drop graphs that read freed buffers"
+        assert captured["rebind_advanced_generation"], "the rebind must retire graphs that read freed buffers"
+        assert captured["stale_stages"] == [], "every stage must record again after the rebind"
         assert captured["stages_at_end"] == captured["stages_before_rebind"]
     for window in (slice(0, _REBIND_STEP), slice(_REBIND_STEP, _STEPS)):
         dones = captured["terminated"][window] | captured["truncated"][window]
