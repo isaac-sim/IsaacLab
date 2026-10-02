@@ -48,7 +48,7 @@ def test_kinematic_rigid_object_scale_and_pose_are_rendered(monkeypatch: pytest.
     import ovrtx
     import ovstage
 
-    monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", "1")
+    monkeypatch.delenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", raising=False)
     copies, physics_copies, attached = [], [], []
     clone_physics = ovphysx.PhysX.clone
     clone = ovstage.Stage.clone

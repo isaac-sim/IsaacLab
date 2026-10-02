@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from collections.abc import Iterable, Sequence
 from typing import TYPE_CHECKING
 
@@ -168,16 +169,21 @@ class OvrtxReplicateContext(cloner.ReplicateContext):
             routing: Asset routes to prepare for each native representation.
         """
         # OVRTX is optional for physics-only users, and the renderer imports native clone operations.
-        from isaaclab_ov.renderers.ovrtx_renderer import (  # noqa: PLC0415
-            ovrtx_read_gpu_transforms_enabled,
-            ovrtx_use_ovstage_enabled,
-        )
+        from isaaclab_ov.renderers.ovrtx_renderer import ovrtx_read_gpu_transforms_enabled  # noqa: PLC0415
 
         renderers = sim.get_backends(OVRTXRendererCfg)
         if not renderers:
             return
         initialized = next((renderer for renderer in renderers if renderer.backend is not None), None)
-        use_ovstage = initialized._use_ovstage if initialized is not None else ovrtx_use_ovstage_enabled()
+        if initialized is not None:
+            use_ovstage = initialized._use_ovstage
+        else:
+            # OVPhysX is faster with independent OVStage rendering; Newton is faster with native OVRTX cloning.
+            default = "1" if sim.physics_manager.clone_context_type is OvPhysxReplicateContext else "0"
+            value = os.environ.get("ISAAC_LAB_OVRTX_USE_OVSTAGE", default).strip()
+            if value not in {"0", "1"}:
+                raise ValueError(f"Invalid ISAAC_LAB_OVRTX_USE_OVSTAGE: {value!r}. Expected 0 or 1.")
+            use_ovstage = value == "1"
         if use_ovstage:
             routing.setdefault(OvstageReplicateContext, set()).update(routing.pop(OvrtxReplicateContext, ()))
             sim.clone_contexts.pop(OvrtxReplicateContext, None)

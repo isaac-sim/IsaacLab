@@ -45,14 +45,12 @@ if not _MISSING_MODULES:
         OVRTXRenderer,
         _AsyncWriteBuffers,
         _gpu_side_render_var_sync_enabled,
-        ovrtx_use_ovstage_enabled,
     )
 else:
     OVRTXCameraRenderData = None
     OVRTXRenderer = None
     OVRTXRendererCfg = None
     ovrtx_renderer_module = None
-    ovrtx_use_ovstage_enabled = None
     _DISABLE_LINUX_CUDA_CPU_SYNC_ENV = None
     _gpu_side_render_var_sync_enabled = None
 
@@ -102,6 +100,7 @@ def _simulation_registry(monkeypatch):
 
     from isaaclab.renderers import RenderContext
 
+    monkeypatch.delenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", raising=False)
     registry = []
     sim = types.SimpleNamespace(
         _backend_registry=registry,
@@ -122,8 +121,13 @@ def _simulation_registry(monkeypatch):
     monkeypatch.setattr(SimulationContext, "_instance", sim)
 
 
-@pytest.mark.parametrize("use_ovstage, with_physics", [(False, False), (True, False), (False, True), (True, True)])
-def test_ovrtx_renderer_config_enables_supported_runtime_options(monkeypatch, tmp_path, use_ovstage, with_physics):
+@pytest.mark.parametrize(
+    "setting, with_physics, use_ovstage",
+    [(None, False, False), (None, True, True), ("1", False, True), ("0", True, False)],
+)
+def test_ovrtx_renderer_config_enables_supported_runtime_options(
+    monkeypatch, tmp_path, setting, with_physics, use_ovstage
+):
     """Preparation resolves routes before native allocation; registry ownership outlives borrowers."""
     from isaaclab_ov.cloner import OvPhysxReplicateContext, OvrtxReplicateContext, OvstageReplicateContext
 
@@ -152,7 +156,8 @@ def test_ovrtx_renderer_config_enables_supported_runtime_options(monkeypatch, tm
     monkeypatch.setattr(
         ovrtx_renderer_module, "Renderer", lambda cfg: types.SimpleNamespace(destroy=lambda: destroyed.append(cfg))
     )
-    monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", str(int(use_ovstage)))
+    if setting is not None:
+        monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", setting)
 
     @contextlib.contextmanager
     def stage_resource(label):
@@ -860,27 +865,17 @@ def test_segmentation_outputs_share_metadata_and_clear_stale_labels(monkeypatch,
     assert camera_data.info == dict.fromkeys(seeded_keys)
 
 
-def test_ovrtx_use_ovstage_defaults_to_disabled(monkeypatch):
-    """The ovstage path is off unless explicitly opted into, so existing deployments are unaffected."""
-    monkeypatch.delenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", raising=False)
-    assert ovrtx_use_ovstage_enabled() is False
-
-    monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", "0")
-    assert ovrtx_use_ovstage_enabled() is False
-
-
-def test_ovrtx_use_ovstage_enabled_when_requested(monkeypatch):
-    """Setting the variable to 1 selects the ovstage path."""
-    monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", "1")
-    assert ovrtx_use_ovstage_enabled() is True
-
-
 def test_ovrtx_use_ovstage_rejects_non_boolean_values(monkeypatch):
     """Values other than 0/1 are a configuration error, not a silent disable."""
+    from isaaclab_ov.cloner import OvrtxReplicateContext
+
+    sim = SimulationContext.instance()
+    renderer = sim.get_or_create_backend(OVRTXRendererCfg())
     monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", "true")
 
     with pytest.raises(ValueError, match="Expected 0 or 1"):
-        ovrtx_use_ovstage_enabled()
+        OvrtxReplicateContext.prepare(sim, {})
+    assert renderer.backend is None
 
 
 @pytest.mark.parametrize(
