@@ -15,6 +15,7 @@ leapp = pytest.importorskip("leapp")
 
 from isaaclab.assets.articulation import BaseArticulationData
 from isaaclab.envs import mdp
+from isaaclab.envs.leapp_deployment_env import LeappDeploymentEnv, StateInputSpec
 from isaaclab.managers import ObservationTermCfg, SceneEntityCfg
 from isaaclab.sensors.camera import CameraData
 from isaaclab.utils import math as math_utils
@@ -173,8 +174,8 @@ def test_deformable_nodal_positions_use_inherited_semantics(monkeypatch: pytest.
     assert semantics.extra == {"isaaclab_connection": "state:deformable:nodal_pos_w"}
 
 
-def test_camera_output_mapping_registers_each_buffer_as_an_input(monkeypatch: pytest.MonkeyPatch):
-    """Test each camera output buffer becomes an independently wired LEAPP input."""
+def test_camera_output_mapping_round_trips_through_deployment(monkeypatch: pytest.MonkeyPatch):
+    """Test camera buffers are independently wired and resolved during deployment."""
     annotated_inputs = _capture_leapp_inputs(monkeypatch)
     camera_data = CameraData()
     camera_data._output = {
@@ -199,6 +200,15 @@ def test_camera_output_mapping_registers_each_buffer_as_an_input(monkeypatch: py
         "state:camera:output.rgb",
         "state:camera:output.depth",
     }
+
+    rgb_semantics = next(semantics for _, semantics in annotated_inputs if semantics.name == "camera_output_rgb")
+    _, entity_name, property_name = rgb_semantics.extra["isaaclab_connection"].split(":", 2)
+    env = object.__new__(LeappDeploymentEnv)
+    env.scene = {entity_name: SimpleNamespace(data=camera_data)}
+    env._input_mapping = {
+        "camera-task/camera_output_rgb": StateInputSpec(entity_name=entity_name, property_name=property_name)
+    }
+    assert env._read_inputs() == {"camera-task/camera_output_rgb": camera_data.output["rgb"].torch}
 
 
 def test_rgb_observation_export_keeps_live_camera_input(tmp_path: Path):
