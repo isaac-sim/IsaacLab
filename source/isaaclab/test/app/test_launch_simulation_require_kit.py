@@ -48,35 +48,19 @@ def test_default_stays_kitless_for_a_kitless_config(kit_branch_taken):
     assert kit_branch_taken == []
 
 
-def test_kitless_launch_configures_storage_before_user_code(kit_branch_taken, monkeypatch: pytest.MonkeyPatch):
-    """A direct OmniClient read inside a kitless runtime must see profile routing."""
-    events = []
-    monkeypatch.setattr(sim_launcher, "configure_storage_profile", lambda: events.append("configured"))
-
-    with launch_simulation(cfg=PhysicsCfg(), launcher_args={}):
-        events.append("user-code")
-
-    assert events == ["configured", "user-code"]
-    assert kit_branch_taken == []
-
-
-def test_storage_profile_failure_closes_started_kit(monkeypatch: pytest.MonkeyPatch):
-    """A profile failure after Kit starts must still close the application."""
+def test_failure_after_kit_starts_closes_it(monkeypatch: pytest.MonkeyPatch):
+    """A failure after Kit starts must still close the application."""
     close_calls = []
 
     class FakeKitLauncher(SimulationLauncher):
         def close(self, exit_code=0):
             close_calls.append(exit_code)
 
-    def reject_profile():
-        raise RuntimeError("profile rejected")
-
     monkeypatch.setattr(physx_app, "KitLauncher", FakeKitLauncher)
-    monkeypatch.setattr(sim_launcher, "configure_storage_profile", reject_profile)
 
-    with pytest.raises(RuntimeError, match="profile rejected"):
+    with pytest.raises(RuntimeError, match="user failure"):
         with launch_simulation(cfg=PhysicsCfg(), launcher_args={"require_kit": True}):
-            pass
+            raise RuntimeError("user failure")
 
     assert close_calls == [1]
 
@@ -136,11 +120,10 @@ def test_kitless_ovrtx_registers_before_user_code(monkeypatch: pytest.MonkeyPatc
     monkeypatch.setitem(
         sys.modules, "ovrtx", types.SimpleNamespace(register_schema_paths=lambda: calls.append("register"))
     )
-    monkeypatch.setattr(sim_launcher, "configure_storage_profile", lambda: calls.append("storage"))
     with launch_simulation(sim_launcher.NewtonCfg(), {"visualizer": ["newton_rtx"]}):
         calls.append("user")
 
-    assert calls == ["register", "storage", "user"]
+    assert calls == ["register", "user"]
 
 
 @pytest.mark.parametrize("interrupt", [False, True])

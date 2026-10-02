@@ -26,15 +26,15 @@ import shutil
 import subprocess
 import tempfile
 import threading
-import urllib.error
-import urllib.request
 import uuid
-from collections.abc import Iterator
-from types import ModuleType
+from collections.abc import Coroutine, Iterator
 from typing import Any, Literal, NotRequired, TypedDict
 from urllib.parse import urlparse
 
+import ovstorage
 from filelock import FileLock
+from ovstorage.plugin import PluginBackend
+from ovstorage.redirect_follower import RedirectFollower
 
 from ..paths import ISAACLAB_ROOT
 
@@ -77,14 +77,11 @@ _US_ASSET_ROOT = _parse_kit_asset_root()
 
 
 class _StorageProfile(TypedDict):
-    """OmniClient routing and asset-root values for a named asset region profile."""
+    """Asset root of a named asset region profile, and the CDN serving its object-storage endpoint."""
 
     asset_root: str
     endpoint: NotRequired[str]
-    bucket: NotRequired[str]
-    region: NotRequired[str]
     cdn_url: NotRequired[str]
-    cdn_for_list: NotRequired[bool]
 
 
 _STORAGE_PROFILES: dict[str, _StorageProfile] = {
@@ -93,14 +90,10 @@ _STORAGE_PROFILES: dict[str, _StorageProfile] = {
     },
     "china": {
         "endpoint": _CHINA_ASSET_ENDPOINT,
-        "bucket": "simready-cn",
-        "region": "oss-cn-shanghai",
         "cdn_url": "https://assets.simready.cn/",
-        "cdn_for_list": False,
         "asset_root": f"https://{_CHINA_ASSET_ENDPOINT}/Assets/Isaac/{_ISAAC_SIM_ASSET_RELEASE}",
     },
 }
-_CONFIGURED_STORAGE_PROFILES: set[str] = set()
 
 
 def _selected_storage_profile() -> tuple[str, _StorageProfile] | None:
@@ -116,70 +109,11 @@ def _selected_storage_profile() -> tuple[str, _StorageProfile] | None:
     return profile_name, profile
 
 
-def _configure_storage_profile(omni_client: ModuleType) -> None:
-    """Configure the selected profile on an imported ``omni.client`` module."""
-    selected_profile = _selected_storage_profile()
-    if selected_profile is None:
-        return
-
-    profile_name, profile = selected_profile
-    if profile_name in _CONFIGURED_STORAGE_PROFILES:
-        return
-
-    endpoint = profile.get("endpoint")
-    if endpoint:
-        result = omni_client.set_s3_configuration(
-            url=endpoint,
-            bucket=profile.get("bucket"),
-            region=profile.get("region"),
-            cloudfrontUrl=profile.get("cdn_url"),
-            cloudfrontForList=profile.get("cdn_for_list", False),
-            writeConfig=False,
-        )
-        if result != omni_client.Result.OK:
-            raise RuntimeError(f"Asset region profile '{profile_name}' failed to configure {endpoint}: {result}")
-
-    _CONFIGURED_STORAGE_PROFILES.add(profile_name)
-    logger.info("Applied asset region profile '%s'", profile_name)
-
-
-def configure_storage_profile() -> None:
-    """Configure OmniClient routing for the selected asset region profile.
-
-    Isaac Lab's own asset transfers apply the profile themselves (see :func:`retrieve_file_path`). This
-    initializer routes the ``omni.client`` that Kit resolves USD assets with, and that scripts may call
-    directly. The configuration is applied in memory and at most once per profile, and it is skipped when
-    ``omni.client`` is not installed. Isaac Lab launchers call this automatically.
-
-    Raises:
-        RuntimeError: When OmniClient rejects the selected asset region profile.
-    """
-    selected_profile = _selected_storage_profile()
-    if selected_profile is None or not selected_profile[1].get("endpoint"):
-        return
-
-    try:
-        import omni.client  # noqa: PLC0415
-    except ImportError:
-        return
-
-    _configure_storage_profile(omni.client)
-
-
-def configure_asset_region_profile() -> None:
-    """Configure the selected asset region profile.
-
-    This name matches the public Asset Region Profile terminology. The existing
-    :func:`configure_storage_profile` initializer remains supported.
-    """
-    configure_storage_profile()
-
-
 def _profile_url(url: str) -> str:
-    """Route ``url`` through the selected asset region profile's CDN, as ``omni.client`` does.
+    """Route ``url`` through the selected asset region profile's CDN.
 
     The China profile's asset root names its object-storage endpoint, which does not serve anonymous
-    reads; its CDN serves the same keys over plain HTTPS.
+    reads; its CDN serves the same keys over HTTPS.
     """
     selected_profile = _selected_storage_profile()
     if selected_profile is None:
@@ -191,44 +125,32 @@ def _profile_url(url: str) -> str:
     return cdn_url.rstrip("/") + parsed.path
 
 
-_HTTP_TIMEOUT_S = 60.0
-"""Timeout of a single HTTP request made when OVStorage is unavailable."""
-
 _OVSTORAGE_LOCK = threading.Lock()
 """Guards the lazily created OVStorage loop and stacks."""
 
-_OVSTORAGE_LOOP: Any = None
-"""``ovstorage.OwnedLoop`` driving every OVStorage stack, created on first use."""
+_OVSTORAGE_LOOP: ovstorage.OwnedLoop | None = None
+"""Event loop thread driving every OVStorage stack, created on first use."""
 
-_OVSTORAGE_STACKS: dict[str, Any] = {}
-"""Built OVStorage stack per URL origin (``scheme://host``), each bound to one connection."""
+_OVSTORAGE_STACKS: dict[str, ovstorage.LayerBase] = {}
+"""Built OVStorage stack per URL origin, since each OVStorage connection serves one origin."""
 
 
-def _ovstorage_stack(url: str) -> Any:
-    """Return the OVStorage stack serving ``url``'s origin, or ``None`` when OVStorage is not installed.
+def _ovstorage_run(coroutine: Coroutine[Any, Any, Any]) -> Any:
+    """Run an OVStorage coroutine on its event loop thread and return the result."""
+    return asyncio.run_coroutine_threadsafe(coroutine, _OVSTORAGE_LOOP.loop).result()
 
-    OVStorage binds each connection to one HTTP origin or Nucleus server, so one stack is built per
-    origin and reused. The stacks run on a dedicated event loop thread, so the synchronous asset API
-    can drive them from any thread, including one that runs its own event loop.
-    """
-    try:
-        import ovstorage  # noqa: PLC0415
-        from ovstorage.plugin import PluginBackend  # noqa: PLC0415
-        from ovstorage.redirect_follower import RedirectFollower  # noqa: PLC0415
-    except ImportError:
-        return None
 
+def _ovstorage_stack(url: str) -> ovstorage.LayerBase:
+    """Return the OVStorage stack serving ``url``'s origin, building it on first use."""
     global _OVSTORAGE_LOOP
     parsed = urlparse(url)
     origin = f"{parsed.scheme}://{parsed.netloc}"
     with _OVSTORAGE_LOCK:
         if origin not in _OVSTORAGE_STACKS:
-            if parsed.scheme in ("http", "https"):
-                kind, config = "http", {"root_url": f"{origin}/"}
-            elif parsed.scheme == "omniverse":
+            if parsed.scheme == "omniverse":
                 kind, config = "nucleus", {"server": parsed.netloc}
             else:
-                raise ValueError(f"Unsupported asset URL scheme '{parsed.scheme}': {url}")
+                kind, config = "http", {"root_url": f"{origin}/"}
             request = ovstorage.ConnectionRequest(kind)
             for key, value in config.items():
                 request.add_config(key, ovstorage.ConfigValue.string(value))
@@ -239,53 +161,23 @@ def _ovstorage_stack(url: str) -> Any:
                 .backend(PluginBackend(kind, "origin"))
                 .connection("origin", request)
             )
-            if _OVSTORAGE_LOOP is None:
-                _OVSTORAGE_LOOP = ovstorage.OwnedLoop()
+            _OVSTORAGE_LOOP = _OVSTORAGE_LOOP or ovstorage.OwnedLoop()
             _OVSTORAGE_STACKS[origin] = _ovstorage_run(stack.build())
         return _OVSTORAGE_STACKS[origin]
-
-
-def _ovstorage_run(coroutine: Any) -> Any:
-    """Run an OVStorage coroutine on its event loop thread and return the result."""
-    return asyncio.run_coroutine_threadsafe(coroutine, _OVSTORAGE_LOOP.loop).result()
-
-
-def _require_http(url: str) -> None:
-    """Reject ``url`` when it can only be read through OVStorage, which is not installed."""
-    if urlparse(url).scheme not in ("http", "https"):
-        raise RuntimeError(f"Reading '{url}' requires the 'ovstorage' package, which is not installed.")
 
 
 def _remote_stat(url: str) -> dict | None:
     """Revision metadata of ``url``, or ``None`` when the server does not report the file."""
     url = _profile_url(url)
-    stack = _ovstorage_stack(url)
-    if stack is not None:
-        import ovstorage  # noqa: PLC0415
-
-        try:
-            info = _ovstorage_run(stack.stat(url))
-        except ovstorage.Error:
-            return None
-        return {
-            "hash": info.etag or "",
-            "version": info.version or "",
-            "size": info.size or 0,
-            "modified_time": str(info.mtime_unix_nanos or ""),
-        }
-
-    # Without OVStorage (e.g. on macOS, which it publishes no wheels for), public HTTP(S) is read directly.
-    _require_http(url)
     try:
-        with urllib.request.urlopen(urllib.request.Request(url, method="HEAD"), timeout=_HTTP_TIMEOUT_S) as r:
-            headers = r.headers
-    except (urllib.error.URLError, TimeoutError):
+        info = _ovstorage_run(_ovstorage_stack(url).stat(url))
+    except ovstorage.Error:
         return None
     return {
-        "hash": headers.get("ETag", "").strip('"'),
-        "version": "",
-        "size": int(headers.get("Content-Length") or 0),
-        "modified_time": headers.get("Last-Modified", ""),
+        "hash": info.etag or "",
+        "version": info.version or "",
+        "size": info.size or 0,
+        "modified_time": str(info.mtime_unix_nanos or ""),
     }
 
 
@@ -297,53 +189,19 @@ def _remote_copy(url: str, target: str) -> None:
         RuntimeError: When the download fails.
     """
     url = _profile_url(url)
-    stack = _ovstorage_stack(url)
-    if stack is not None:
-        import ovstorage  # noqa: PLC0415
-
-        try:
-            _ovstorage_run(_ovstorage_download(stack, url, target))
-        except ovstorage.NotFoundError as exc:
-            raise FileNotFoundError(f"Unable to find the file: {url}") from exc
-        except ovstorage.Error as exc:
-            raise RuntimeError(f"Unable to copy file: '{url}' ({exc})") from exc
-        return
-
-    _require_http(url)
     try:
-        with urllib.request.urlopen(url, timeout=_HTTP_TIMEOUT_S) as r, open(target, "wb") as f:
-            shutil.copyfileobj(r, f)
-    except urllib.error.HTTPError as exc:
-        if exc.code == 404:
-            raise FileNotFoundError(f"Unable to find the file: {url}") from exc
-        raise RuntimeError(f"Unable to copy file: '{url}' (HTTP {exc.code})") from exc
-    except (urllib.error.URLError, TimeoutError) as exc:
+        delegate = _ovstorage_run(_ovstorage_stack(url).materialize(url))
+    except ovstorage.NotFoundError as exc:
+        raise FileNotFoundError(f"Unable to find the file: {url}") from exc
+    except ovstorage.Error as exc:
         raise RuntimeError(f"Unable to copy file: '{url}' ({exc})") from exc
-
-
-async def _ovstorage_download(stack: Any, url: str, target: str) -> None:
-    """Stream ``url`` from an OVStorage stack into the local file ``target``."""
-    body = await stack.read(url)
-    with open(target, "wb") as f:
-        if isinstance(body, tuple):
-            body = body[0]
-        if isinstance(body, (bytes, bytearray, memoryview)):
-            f.write(body)
-            return
-        async for chunk in body:
-            f.write(chunk)
+    shutil.copyfile(delegate.path, target)
 
 
 def _remote_read(url: str) -> bytes:
     """Read the contents of ``url``."""
     url = _profile_url(url)
-    stack = _ovstorage_stack(url)
-    if stack is not None:
-        return _ovstorage_run(stack.read_bytes(url))[0]
-
-    _require_http(url)
-    with urllib.request.urlopen(url, timeout=_HTTP_TIMEOUT_S) as r:
-        return r.read()
+    return _ovstorage_run(_ovstorage_stack(url).read_bytes(url))[0]
 
 
 def _resolve_asset_root() -> str:
@@ -649,8 +507,7 @@ def _remote_fingerprint(url: str) -> dict | None:
 
     Returns:
         The reported metadata, or ``None`` when the server does not report the file. That
-        covers both a missing file and an unreachable server, which ``omni.client`` does not
-        distinguish here.
+        covers both a missing file and an unreachable server, which are not distinguished here.
     """
     if url not in _REMOTE_FINGERPRINTS:
         fingerprint = _remote_stat(url)

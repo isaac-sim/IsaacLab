@@ -34,7 +34,6 @@ from ..physics.physics_manager_cfg import PhysicsCfg, PhysxAutoCfg, _resolve_phy
 from ..renderers.renderer_cfg import RendererCfg
 from ..sensors.camera.camera_cfg import CameraCfg
 from ..sim.simulation_cfg import SimulationCfg
-from ..utils.assets import configure_storage_profile
 from ..utils.device import set_cuda_device
 from ..utils.string import string_to_callable
 from ..visualizers.visualizer_cfg import parse_visualizer_csv, resolve_visualizer_cfgs
@@ -631,9 +630,6 @@ def launch_simulation(
 
     exit_code = 0
     try:
-        # With no selected profile this is a no-op; with one, it installs process-wide OmniClient
-        # routing before user code runs.
-        configure_storage_profile()
         yield physics_cfg
     except KeyboardInterrupt:
         exit_code = 130

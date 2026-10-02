@@ -11,7 +11,6 @@ import importlib
 import json
 import logging
 import os
-import sys
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -60,84 +59,6 @@ def test_asset_root_ignores_unknown_storage_profile(monkeypatch, caplog):
         assert assets_utils._resolve_asset_root() == "https://example.com/kit-assets"
 
     assert "no asset region profile named 'unknown'" in caplog.text
-
-
-def test_configure_china_storage_profile_once(monkeypatch):
-    """Test the public initializer installs the in-memory CDN mapping once."""
-    omni = pytest.importorskip("omni.client")
-
-    calls = []
-    monkeypatch.setenv("ISAACSIM_ASSET_REGION_PROFILE", "china")
-    monkeypatch.setattr(assets_utils, "_CONFIGURED_STORAGE_PROFILES", set())
-
-    def configure(**kwargs):
-        calls.append(kwargs)
-        return omni.Result.OK
-
-    monkeypatch.setattr(omni, "set_s3_configuration", configure)
-
-    assets_utils.configure_storage_profile()
-    assets_utils.configure_storage_profile()
-
-    assert calls == [
-        {
-            "url": "simready-cn.s3.oss-cn-shanghai.aliyuncs.com",
-            "bucket": "simready-cn",
-            "region": "oss-cn-shanghai",
-            "cloudfrontUrl": "https://assets.simready.cn/",
-            "cloudfrontForList": False,
-            "writeConfig": False,
-        }
-    ]
-
-
-@pytest.mark.parametrize("profile", ["us", None], ids=["us", "unset"])
-def test_configure_storage_profile_is_lazy(monkeypatch, profile):
-    """Test the primary profile, or no selected profile, does not import OmniClient."""
-    if profile is None:
-        monkeypatch.delenv("ISAACSIM_ASSET_REGION_PROFILE", raising=False)
-    else:
-        monkeypatch.setenv("ISAACSIM_ASSET_REGION_PROFILE", profile)
-    original_omni_client = sys.modules.pop("omni.client", None)
-    try:
-        assets_utils.configure_storage_profile()
-        assert "omni.client" not in sys.modules
-    finally:
-        if original_omni_client is not None:
-            sys.modules["omni.client"] = original_omni_client
-
-
-def test_configure_storage_profile_reports_client_failure(monkeypatch):
-    """Test a rejected OmniClient profile fails before an inaccessible asset is used."""
-    omni = pytest.importorskip("omni.client")
-
-    monkeypatch.setenv("ISAACSIM_ASSET_REGION_PROFILE", "china")
-    monkeypatch.setattr(assets_utils, "_CONFIGURED_STORAGE_PROFILES", set())
-    monkeypatch.setattr(omni, "set_s3_configuration", lambda **_kwargs: "rejected")
-
-    with pytest.raises(RuntimeError, match="Asset region profile 'china' failed to configure"):
-        assets_utils.configure_storage_profile()
-
-
-def test_configure_asset_region_profile_alias(monkeypatch):
-    """Test the public Asset Region Profile initializer forwards to the existing initializer."""
-    calls = []
-    monkeypatch.setattr(assets_utils, "configure_storage_profile", lambda: calls.append(True))
-
-    assets_utils.configure_asset_region_profile()
-
-    assert calls == [True]
-
-
-def test_configure_storage_profile_without_omni_client(monkeypatch):
-    """Test a kit-less install without OmniClient skips its configuration instead of failing."""
-    monkeypatch.setenv("ISAACSIM_ASSET_REGION_PROFILE", "china")
-    monkeypatch.setattr(assets_utils, "_CONFIGURED_STORAGE_PROFILES", set())
-    monkeypatch.setitem(sys.modules, "omni.client", None)
-
-    assets_utils.configure_storage_profile()
-
-    assert not assets_utils._CONFIGURED_STORAGE_PROFILES
 
 
 def test_asset_root_environment_override_strips_windows_separator(monkeypatch):
@@ -636,13 +557,9 @@ class _QuietHandler(http.server.SimpleHTTPRequestHandler):
         pass
 
 
-@pytest.fixture(params=["ovstorage", "stdlib"])
-def http_assets(request, tmp_path, monkeypatch):
-    """Serve a directory over local HTTP, read through OVStorage or, without it (e.g. macOS), the stdlib."""
-    if request.param == "ovstorage":
-        pytest.importorskip("ovstorage")
-    else:
-        monkeypatch.setitem(sys.modules, "ovstorage", None)
+@pytest.fixture
+def http_assets(tmp_path):
+    """Serve a directory over local HTTP."""
     served = tmp_path / "served"
     served.mkdir()
     server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), functools.partial(_QuietHandler, directory=served))
@@ -653,7 +570,7 @@ def http_assets(request, tmp_path, monkeypatch):
 
 
 def test_http_assets_are_retrieved(asset_cache, http_assets):
-    """Test HTTP assets and their USD dependencies are downloaded and read."""
+    """Test HTTP assets and their USD dependencies are downloaded and read, and missing ones reported."""
     from pxr import Usd
 
     served, root = http_assets
@@ -666,12 +583,7 @@ def test_http_assets_are_retrieved(asset_cache, http_assets):
     assert stage.GetPrimAtPath("/Robot").IsValid()
     assert stage.GetPrimAtPath("/Base").IsValid()
     assert assets_utils.read_file(f"{root}/actuator.pt").read() == b"network weights"
-
-
-def test_missing_http_asset_is_reported(asset_cache, http_assets):
-    """Test a missing HTTP asset is reported as absent rather than as a download failure."""
-    _, root = http_assets
-
+    # a missing asset is reported as absent rather than as a download failure
     assert assets_utils.check_file_path(f"{root}/missing.usda") == 0
     with pytest.raises(FileNotFoundError):
         assets_utils.retrieve_file_path(f"{root}/missing.usda")
