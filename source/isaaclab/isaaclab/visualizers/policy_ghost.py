@@ -20,6 +20,10 @@ POLICY_GHOST_COLORS: tuple[tuple[float, float, float], ...] = (
     (1.0, 0.1, 0.1),
     (0.1, 1.0, 0.25),
     (1.0, 0.85, 0.05),
+    (0.1, 0.9, 1.0),
+    (1.0, 0.2, 0.9),
+    (1.0, 0.5, 0.05),
+    (0.55, 0.3, 1.0),
 )
 """Tint colors of the ghost slots in order; the reference slot keeps its native colors."""
 
@@ -55,7 +59,13 @@ class PolicyGhostSlot:
     """Opacity of the slot's robots in ``[0, 1]``. Ignored for the reference slot."""
 
     tint: float = 1.0
-    """How strongly :attr:`color` replaces the robots' native colors, in ``[0, 1]``. Ignored for the reference slot."""
+    """How strongly :attr:`color` replaces the robots' native colors, in ``[0, 1]``.
+
+    At ``1.0`` the color replaces all native colors and textures. Ignored for the reference slot.
+    """
+
+    visible: bool = True
+    """Whether the slot's robots are drawn. A hidden slot keeps its checkpoint and keeps running."""
 
     color: tuple[float, float, float] | None = None
     """Tint color of the slot's robots, or None to keep the native colors."""
@@ -67,6 +77,11 @@ class PolicyGhostSlot:
     def active(self) -> bool:
         """Whether a checkpoint is loaded into the slot."""
         return self.checkpoint is not None
+
+    @property
+    def shown(self) -> bool:
+        """Whether the slot has a checkpoint and is set to be drawn."""
+        return self.checkpoint is not None and self.visible
 
 
 @dataclass
@@ -96,9 +111,9 @@ class PolicyGhostLayout:
         return self.slice_size * self.num_slots
 
     def visible_env_ids(self, per_slot: int) -> list[int]:
-        """Return the environments to show when each active slot shows its first ``per_slot`` environments."""
+        """Return the environments to show when each shown slot shows its first ``per_slot`` environments."""
         per_slot = max(0, min(int(per_slot), self.slice_size))
-        return [slot.index * self.slice_size + i for slot in self.slots if slot.active for i in range(per_slot)]
+        return [slot.index * self.slice_size + i for slot in self.slots if slot.shown for i in range(per_slot)]
 
     def slot_of_env(self, env_ids: np.ndarray) -> np.ndarray:
         """Return the slot index of each environment id."""

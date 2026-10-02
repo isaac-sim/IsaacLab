@@ -23,7 +23,7 @@ from .common import _compatible_runs, _natural_sort_key, normalize_task_name
 if TYPE_CHECKING:
     pass
 
-MAX_POLICY_GHOST_SLOTS = 4
+MAX_POLICY_GHOST_SLOTS = 8
 """Largest number of slots, including the reference."""
 
 
@@ -131,6 +131,7 @@ class PolicyGhostSession(PolicyGhostController):
             return "All ghost slots are in use."
         try:
             self._load(empty.index, checkpoint)
+            empty.visible = True
             # a new ghost starts together with the reference from the same spawn state
             self._restart_pending = True
         except Exception as error:  # a corrupt or mismatched checkpoint must not end the session

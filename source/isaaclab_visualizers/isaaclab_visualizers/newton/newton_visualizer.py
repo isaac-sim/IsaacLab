@@ -12,6 +12,7 @@ import logging
 import math
 import os
 import sys
+import webbrowser
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -114,6 +115,9 @@ class _MeshSubmission:
     opacity: float | None
 
 
+VISUALIZER_DOCS_URL = "https://isaac-sim.github.io/IsaacLab/main/source/concepts/visualization.html"
+"""Published documentation of the visualizers, opened from the viewer's HUD."""
+
 _NEWTON_ICON_DIR = Path(newton.__file__).parent / "_src" / "viewer" / "gl"
 
 
@@ -139,6 +143,21 @@ if TYPE_CHECKING:
     from newton import State
 
     from isaaclab.scene_data import SceneDataProvider
+
+
+def _draw_info_strip(imgui, viewer) -> None:
+    """Draw the physics backend, up axis, gravity, and the link to the visualizer documentation."""
+    imgui.text(f"Physics: {getattr(viewer, '_backend_display', 'Unknown')}")
+    if viewer.model is not None:
+        axis_names = ["X", "Y", "Z"]
+        gravity = viewer.model.gravity.numpy()[0]
+        imgui.text(
+            f"Up: {axis_names[viewer.model.up_axis]}   Gravity: ({gravity[0]:.2f}, {gravity[1]:.2f}, {gravity[2]:.2f})"
+        )
+    if imgui.text_link("Visualizer docs"):
+        webbrowser.open(VISUALIZER_DOCS_URL)
+    if imgui.is_item_hovered():
+        imgui.set_tooltip(VISUALIZER_DOCS_URL)
 
 
 def _imgui_optional_checkbox(imgui, label: str, value: bool, available: bool, tip: str) -> bool:
@@ -377,15 +396,7 @@ class _NewtonViewerUIMixin:
             for callback in _g._ui_callbacks.get("panel", []):
                 callback(imgui)
 
-            # --- Info strip -------------------------------------------------
-            imgui.text(f"Physics: {getattr(viewer, '_backend_display', 'Unknown')}")
-            if viewer.model is not None:
-                axis_names = ["X", "Y", "Z"]
-                gravity = viewer.model.gravity.numpy()[0]
-                imgui.text(
-                    f"Up: {axis_names[viewer.model.up_axis]}   Gravity: "
-                    f"({gravity[0]:.2f}, {gravity[1]:.2f}, {gravity[2]:.2f})"
-                )
+            _draw_info_strip(imgui, viewer)
 
             # --- Playback ---------------------------------------------------
             imgui.set_next_item_open(True, imgui.Cond_.appearing)
@@ -1285,6 +1296,7 @@ class NewtonVisualizer(BaseVisualizer):
                     self._policy_ghost_panel.apply_tint(backend.model)
                     if self._policy_ghost_panel.consume_slots_changed():
                         self._apply_visible_worlds()
+                    self._policy_ghost_panel.apply_materials(self._viewer)
                 self._viewer.begin_frame(self._sim_time)
                 try:
                     state = backend.state_0

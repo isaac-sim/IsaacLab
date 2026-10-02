@@ -18,12 +18,19 @@ from isaaclab.visualizers.policy_ghost import PolicyGhostCheckpoint, PolicyGhost
 MAX_GHOST_OPACITY = 0.95
 """Highest ghost opacity; Newton re-batches shapes that become fully opaque, so the slider stops short of it."""
 
+TEXTURE_ENABLE = 3
+"""Component of a Newton instance material, ``(roughness, metallic, checker, texture)``, that enables the texture."""
+
+METALLIC = 1
+"""Component of a Newton instance material that holds the metallic factor."""
+
 
 class NewtonPolicyGhostPanel:
     """Draws the Policy Ghosts HUD for a :class:`~isaaclab.visualizers.policy_ghost.PolicyGhostController`.
 
     The panel owns the checkpoint discovery window and tints each ghost slot's shapes through the Newton model's
-    per-shape color and opacity arrays, which the viewer re-reads every frame.
+    per-shape color and opacity arrays, which the viewer re-reads every frame. A ghost at full tint also drops its
+    mesh textures and metallic shading, so no native material color shows through.
     """
 
     def __init__(self, controller: PolicyGhostController):
@@ -38,7 +45,9 @@ class NewtonPolicyGhostPanel:
         self._message = ""
         self._base_colors: np.ndarray | None = None
         self._tint_signature: tuple | None = None
-        self._active_signature: tuple | None = None
+        self._shown_signature: tuple | None = None
+        self._native_materials: dict[int, tuple[Any, np.ndarray]] = {}
+        self._material_signature: tuple | None = None
 
     @property
     def layout(self):
@@ -58,13 +67,14 @@ class NewtonPolicyGhostPanel:
                     " it grows with the total environment count."
                 )
             for slot in layout.slots:
-                self._draw_slot(imgui, slot)
-            has_empty = any(not slot.active for slot in layout.slots[1:])
-            if not has_empty:
+                if slot.active:
+                    self._draw_slot(imgui, slot)
+            empty = sum(not slot.active for slot in layout.slots[1:])
+            if not empty:
                 imgui.begin_disabled()
-            if imgui.button("Add Checkpoint..."):
+            if imgui.button(f"Add Checkpoint...  ({empty} free)"):
                 self._open_window()
-            if not has_empty:
+            if not empty:
                 imgui.end_disabled()
             if self._message:
                 imgui.text_wrapped(self._message)
@@ -72,8 +82,8 @@ class NewtonPolicyGhostPanel:
             self._draw_window(imgui)
 
     def apply_tint(self, model: Any) -> None:
-        """Write each slot's tint and opacity to the shapes of its worlds when anything changed."""
-        tint_signature = tuple((slot.active, slot.opacity, slot.tint) for slot in self.layout.slots)
+        """Write each slot's tint color and opacity to the shapes of its worlds when anything changed."""
+        tint_signature = tuple((slot.shown, slot.opacity, slot.tint) for slot in self.layout.slots)
         if tint_signature == self._tint_signature or model.shape_color is None or model.shape_world is None:
             return
         self._tint_signature = tint_signature
@@ -84,18 +94,53 @@ class NewtonPolicyGhostPanel:
         colors = self._base_colors.copy()
         opacity = np.ones(len(worlds), dtype=np.float32)
         for slot in self.layout.slots[1:]:
-            if slot.active:
+            if slot.shown:
                 mask = slot_of_shape == slot.index
                 colors[mask] = self._base_colors[mask] * (1.0 - slot.tint) + np.asarray(slot.color) * slot.tint
                 opacity[mask] = slot.opacity
         model.shape_color = wp.array(colors, dtype=wp.vec3, device=model.shape_color.device)
         model.shape_opacity = wp.array(opacity, dtype=wp.float32, device=model.shape_color.device)
 
+    def apply_materials(self, viewer: Any) -> None:
+        """Flatten the shading of ghosts at full tint so that no native texture or metallic look remains.
+
+        Newton rebuilds its shape batches, and with them the native materials, whenever the visible worlds change, so
+        the native materials are re-read from every batch the panel has not seen yet.
+
+        Args:
+            viewer: Newton GL viewer whose shape batches are modified.
+        """
+        batches = getattr(viewer, "_shape_instances", None)
+        if not batches:
+            return
+        flat = tuple((slot.shown and slot.tint >= 1.0) for slot in self.layout.slots)
+        signature = (flat, tuple(id(batch) for batch in batches.values()))
+        if signature == self._material_signature:
+            return
+        self._material_signature = signature
+        known = {id(batch) for batch in batches.values()}
+        self._native_materials = {k: v for k, v in self._native_materials.items() if k in known}
+        for batch in batches.values():
+            if id(batch) not in self._native_materials:
+                self._native_materials[id(batch)] = (batch, batch.materials.numpy().copy())
+            native = self._native_materials[id(batch)][1]
+            worlds = batch.worlds.numpy()
+            slot_of_instance = np.where(worlds >= 0, worlds // self.layout.slice_size, -1)
+            materials = native.copy()
+            for slot in self.layout.slots[1:]:
+                if flat[slot.index]:
+                    mask = slot_of_instance == slot.index
+                    materials[mask, TEXTURE_ENABLE] = 0.0
+                    materials[mask, METALLIC] = 0.0
+            batch.materials = wp.array(materials, dtype=wp.vec4, device=batch.materials.device)
+        # Newton uploads instance materials only while the model is flagged as changed
+        viewer.model_changed = True
+
     def consume_slots_changed(self) -> bool:
-        """Return whether slots were filled or emptied since the last call, which changes the visible worlds."""
-        signature = tuple(slot.active for slot in self.layout.slots)
-        changed = signature != self._active_signature
-        self._active_signature = signature
+        """Return whether slots were filled, emptied, or shown/hidden since the last call."""
+        signature = tuple(slot.shown for slot in self.layout.slots)
+        changed = signature != self._shown_signature
+        self._shown_signature = signature
         return changed
 
     def _draw_slot(self, imgui: Any, slot: Any) -> None:
@@ -105,18 +150,23 @@ class NewtonPolicyGhostPanel:
             "##swatch", imgui.ImVec4(*color, 1.0), imgui.ColorEditFlags_.no_tooltip, imgui.ImVec2(14, 14)
         )
         imgui.same_line()
+        _, slot.visible = imgui.checkbox("##show", slot.visible)
+        if imgui.is_item_hovered():
+            imgui.set_tooltip("Show or hide this checkpoint")
+        imgui.same_line()
         role = "Reference" if slot.index == 0 else f"Ghost {slot.index}"
-        imgui.text(f"{role}: {slot.label if slot.active else '(empty)'}")
-        if slot.index > 0 and slot.active:
-            changed, opacity = imgui.slider_float("Opacity", slot.opacity, 0.1, MAX_GHOST_OPACITY)
-            if changed:
-                slot.opacity = opacity
-            changed, tint = imgui.slider_float("Tint", slot.tint, 0.0, 1.0)
-            if changed:
-                slot.tint = tint
-            if imgui.button("Remove"):
-                self.controller.remove_ghost(slot.index)
-                self._message = ""
+        imgui.text(f"{role}: {slot.label}")
+        if slot.index > 0:
+            imgui.set_next_item_open(False, imgui.Cond_.appearing)
+            if imgui.tree_node("Settings"):
+                _, slot.opacity = imgui.slider_float("Opacity", slot.opacity, 0.1, MAX_GHOST_OPACITY)
+                _, slot.tint = imgui.slider_float("Tint", slot.tint, 0.0, 1.0)
+                if imgui.is_item_hovered():
+                    imgui.set_tooltip("1.0 replaces all native colors and textures with the ghost color")
+                if imgui.button("Remove"):
+                    self.controller.remove_ghost(slot.index)
+                    self._message = ""
+                imgui.tree_pop()
         imgui.pop_id()
 
     def _open_window(self) -> None:

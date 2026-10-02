@@ -44,6 +44,10 @@ def test_only_slots_with_a_checkpoint_are_visible_and_limited_per_slot() -> None
     assert layout.visible_env_ids(1) == [0, 4]
     assert layout.visible_env_ids(SLICE_SIZE + 5) == [0, 1, 4, 5]
 
+    layout.slots[2].visible = False
+
+    assert layout.visible_env_ids(SLICE_SIZE) == [0, 1]
+
 
 def test_tint_applies_to_active_ghost_worlds_only_and_follows_slot_changes() -> None:
     layout = PolicyGhostLayout(SLICE_SIZE, 3)
@@ -96,3 +100,34 @@ def test_tint_strength_blends_between_native_and_ghost_color() -> None:
     layout.slots[1].tint = 0.0
     panel.apply_tint(model)
     assert np.allclose(model.shape_color.numpy()[ghost_shape], 0.5)
+
+
+def _viewer_with_batch() -> SimpleNamespace:
+    """Viewer with one batch holding a textured, metallic instance for each of the three slots' first worlds."""
+    worlds = np.array([0, SLICE_SIZE, 2 * SLICE_SIZE])
+    native = np.tile([0.5, 0.7, 0.0, 1.0], (3, 1)).astype(np.float32)
+    batch = SimpleNamespace(
+        worlds=wp.array(worlds, dtype=wp.int32, device="cpu"),
+        materials=wp.array(native, dtype=wp.vec4, device="cpu"),
+    )
+    return SimpleNamespace(_shape_instances={"batch": batch}, model_changed=False)
+
+
+def test_full_tint_removes_texture_and_metallic_shading_only_from_that_ghost() -> None:
+    layout = PolicyGhostLayout(SLICE_SIZE, 3)
+    for slot in layout.slots:
+        slot.checkpoint = CHECKPOINT
+    layout.slots[1].tint = 1.0
+    layout.slots[2].tint = 0.5
+    panel, viewer = _panel(layout), _viewer_with_batch()
+
+    panel.apply_materials(viewer)
+
+    materials = viewer._shape_instances["batch"].materials.numpy()
+    assert np.allclose(materials[1], [0.5, 0.0, 0.0, 0.0])
+    assert np.allclose(materials[[0, 2]], [0.5, 0.7, 0.0, 1.0])
+    assert viewer.model_changed
+
+    layout.slots[1].tint = 0.5
+    panel.apply_materials(viewer)
+    assert np.allclose(viewer._shape_instances["batch"].materials.numpy(), [0.5, 0.7, 0.0, 1.0])
