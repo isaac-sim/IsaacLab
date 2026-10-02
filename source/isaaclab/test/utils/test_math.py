@@ -1028,6 +1028,23 @@ def test_quat_inv(device):
         torch.testing.assert_close(math_utils.quat_mul(q_inv, q), id_batch, atol=1e-4, rtol=1e-4)
 
 
+@pytest.mark.parametrize("angle", [0.0, 1e-7, 0.03, 0.050001])
+def test_interpolate_rotations_small_angles(angle):
+    """Retain geodesic interpolation and both endpoints for small rotations."""
+    axis = np.array([1.0, -2.0, 3.0])
+    axis /= np.linalg.norm(axis)
+    first = scipy_tf.Rotation.from_euler("ZYX", [0.21, -0.18, 0.39]).as_matrix()
+    second = scipy_tf.Rotation.from_rotvec(axis * angle).as_matrix() @ first
+    key_rotations = scipy_tf.Rotation.from_matrix(np.stack([first, second]))
+    expected = scipy_tf.Slerp([0.0, 1.0], key_rotations)(np.linspace(0.0, 1.0, 5)).as_matrix()
+
+    result = math_utils.interpolate_rotations(
+        torch.tensor(first, dtype=torch.float64), torch.tensor(second, dtype=torch.float64), num_steps=4
+    )
+
+    np.testing.assert_allclose(result.cpu().numpy(), expected, atol=1e-12, rtol=1e-12)
+
+
 def test_interpolate_rotations():
     """Test interpolate_rotations function.
 

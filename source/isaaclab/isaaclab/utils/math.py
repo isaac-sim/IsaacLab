@@ -1843,16 +1843,13 @@ def interpolate_rotations(R1: torch.Tensor, R2: torch.Tensor, num_steps: int, ax
         rot_step_size = delta_angle / num_steps
 
         # Convert into delta rotation matrices, and then convert to absolute rotations
-        if delta_angle < 0.05:
-            # Small angle - don't bother with interpolation
-            rot_steps = torch.stack([R2 for _ in range(num_steps)])
-        else:
-            # Make sure that axis is a unit vector
-            delta_axis = delta_axis_angle / delta_angle
-            delta_rot_steps = [
-                matrix_from_quat(quat_from_angle_axis(i * rot_step_size, delta_axis)) for i in range(num_steps)
-            ]
-            rot_steps = torch.stack([torch.matmul(delta_rot_steps[i], R1) for i in range(num_steps)])
+        # The identity case has no preferred axis. Keep a finite axis while
+        # retaining the complete interpolation path for every angle.
+        delta_axis = delta_axis_angle / delta_angle.clamp_min(torch.finfo(R1.dtype).tiny)
+        delta_rot_steps = [
+            matrix_from_quat(quat_from_angle_axis(i * rot_step_size, delta_axis)) for i in range(num_steps)
+        ]
+        rot_steps = torch.stack([torch.matmul(delta_rot_steps[i], R1) for i in range(num_steps)])
     else:
         q1 = quat_from_matrix(R1)
         q2 = quat_from_matrix(R2)

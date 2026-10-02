@@ -48,6 +48,7 @@ Guidelines for modifications:
 
 * Achintya Paningapalli
 * Advait Jayant
+* Afloat
 * Agon Serifi
 * Alessandro Assirelli
 * Alex Omar
