@@ -9,9 +9,6 @@ from __future__ import annotations
 
 import warp as wp
 
-_DELAY_RNG_STRIDE: int = 7919
-"""Prime stride that decorrelates the per-environment delay random streams."""
-
 
 @wp.kernel
 def _bam_motor_kernel(
@@ -67,7 +64,7 @@ def _bam_motor_kernel(
         should_update = True
         if delay_update_period > 0:
             should_update = ((step_count + delay_phase[i]) % delay_update_period) == 0
-        rng = wp.rand_init(delay_seed[i], (i // env_dof_stride) * _DELAY_RNG_STRIDE + step_count)
+        rng = wp.rand_init(delay_seed[i], step_count)
         if should_update:
             if delay_hold_prob > 0.0:
                 should_update = wp.randf(rng) >= delay_hold_prob
@@ -210,7 +207,7 @@ def _bam_state_reset_kernel(
     delay_lag[i] = 0
     delay_fill[i] = 0
     delay_step_count[i] = 0
-    delay_rng_seed[i] = reset_seed
+    delay_rng_seed[i] = wp.int32(wp.rand_init(reset_seed, i // env_dof_stride))
     for column in range(delay_ring.shape[1]):
         delay_ring[i, column] = 0.0
     if delay_update_period > 0:

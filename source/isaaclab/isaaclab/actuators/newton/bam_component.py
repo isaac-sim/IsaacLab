@@ -138,7 +138,7 @@ class DriveBam(DriveBase):
         """Offset of the lag-resampling period, shared within each environment, shape ``(N,)``."""
 
         delay_rng_seed: wp.array[wp.int32] | None = None
-        """Per-DOF seed of the current episode, read during graph replay, shape ``(N,)``."""
+        """Episode seed shared within each environment, read during graph replay, shape ``(N,)``."""
 
         delay_update_period: int = 0
         """Update period the phase is redrawn against on reset [physics steps]."""
@@ -383,9 +383,8 @@ class DriveBam(DriveBase):
             env_dof_stride=self.env_dof_stride,
             delay_seed=self.delay_seed,
         )
-        # Draw the initial phase deterministically: the two ping-pong buffers must agree,
-        # and a reproducible stream keeps rollouts comparable across runs.
-        if self.delay_update_period > 0:
+        # Initialize environment seeds and phases identically in both ping-pong buffers.
+        if self.max_delay > 0:
             wp.launch(
                 _bam_state_reset_kernel,
                 dim=num_actuators,

@@ -600,6 +600,24 @@ def test_delay_rng_changes_on_reset_and_preserves_untouched_environments(device)
     np.testing.assert_array_equal(second[:, 0, 1], second[:, 2, 1])
 
 
+def test_delay_rng_does_not_replay_another_environments_stream():
+    """Long episodes must not reach a neighboring environment's earlier lag sequence."""
+    harness = _Harness(num_envs=2, device="cpu", min_delay=3, max_delay=6)
+    state_in, state_out = harness.actuator.state(), harness.actuator.state()
+    # Jump ahead by the old environment offset without simulating thousands of empty steps.
+    state_in.drive_state.delay_step_count.assign(np.array([7919, 7919, 0, 0], dtype=np.int32))
+    efforts = []
+    with wp.ScopedDevice("cpu"):
+        for step in range(32):
+            harness.target_pos.assign(np.full((2, 2), 0.001 * step, dtype=np.float32))
+            harness.control.joint_f_2d.zero_()
+            harness.actuator.step(harness.state, harness.control, state_in, state_out, dt=DT)
+            state_in, state_out = state_out, state_in
+            efforts.append(harness.control.joint_f_2d.numpy().copy())
+    history = np.asarray(efforts)[6:]
+    assert not np.array_equal(history[:, 0], history[:, 1]), "neighboring environments replayed the same stream"
+
+
 @pytest.mark.parametrize("device", test_devices())
 def test_reset_restores_the_first_step_behaviour(device):
     """Resetting an environment must clear its caches without touching the others."""
