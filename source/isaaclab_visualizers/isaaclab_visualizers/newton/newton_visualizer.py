@@ -8,8 +8,6 @@
 from __future__ import annotations
 
 import contextlib
-import functools
-import importlib.metadata
 import logging
 import math
 import os
@@ -68,20 +66,6 @@ from isaaclab_visualizers.newton_adapter import resolve_visible_env_indices
 from .newton_visualizer_cfg import NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg, NewtonVisualizerCfg
 
 logger = logging.getLogger(__name__)
-
-
-@functools.cache
-def _ovrtx_keys_render_vars_by_prim_path() -> bool:
-    """Whether the installed ovrtx (0.5 or newer) keys ``frame.render_vars`` by RenderVar prim path.
-
-    Mirrors ``isaaclab_ov.renderers.ovrtx_compat.uses_prim_path_render_vars``, which this package cannot import.
-    """
-    from packaging.version import InvalidVersion, Version
-
-    try:
-        return Version(importlib.metadata.version("ovrtx")) >= Version("0.5")
-    except (importlib.metadata.PackageNotFoundError, InvalidVersion):
-        return False
 
 
 def _newton_scalar_base_name(name: str) -> str:
@@ -763,8 +747,8 @@ class NewtonViewerRTX(_NewtonViewerUIMixin, ViewerRTX):
         # TODO: Workaround until Newton's ViewerRTX accepts both keys. ovrtx 0.5 keys render vars by
         # prim path ("/Render/Vars/LdrColor"), but ViewerRTX looks up "LdrColor" and silently skips
         # the blit and capture otherwise, leaving the window black.
-        if products and _ovrtx_keys_render_vars_by_prim_path():
-            for _, product in products.items():
+        if products:
+            for product in products.values():
                 for frame in product.frames:
                     if "/Render/Vars/LdrColor" in frame.render_vars:
                         frame.render_vars.setdefault("LdrColor", frame.render_vars["/Render/Vars/LdrColor"])
@@ -774,6 +758,12 @@ class NewtonViewerRTX(_NewtonViewerUIMixin, ViewerRTX):
         """Return the latest OVRTX LDR framebuffer as contiguous RGB pixels."""
         # TODO: Use Newton's public RGB capture API when one becomes available.
         return np.ascontiguousarray(self._capture_screenshot_pixels()[..., :3])
+
+    def _capture_screenshot_pixels(self) -> np.ndarray:
+        """Normalize the first asynchronous result before Newton reads its color output."""
+        if self._render_products is None and self._render_result is not None:
+            self._render_products = self._render_result.wait().fetch()
+        return super()._capture_screenshot_pixels()
 
     def _init_window(self) -> None:
         """Create the viewer window and immediately apply Isaac Lab UI patches."""
