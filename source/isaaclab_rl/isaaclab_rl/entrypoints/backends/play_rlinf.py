@@ -5,8 +5,7 @@
 
 """RLinf evaluation backend of the unified reinforcement learning entrypoint.
 
-Evaluation runs on RLinf's distributed infrastructure, which VLA model inference requires since the
-models are too large to run on a single GPU without FSDP.
+Evaluation uses RLinf's Ray-based worker infrastructure, including on a single GPU.
 
 Usage:
     # Evaluate a trained checkpoint (config YAML discovered in the isaaclab_tasks package)

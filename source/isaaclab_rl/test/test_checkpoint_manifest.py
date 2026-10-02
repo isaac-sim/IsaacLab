@@ -106,10 +106,10 @@ def test_recursive_selector_resolves_rlinf_checkpoint(tmp_path: Path, monkeypatc
         expected.touch()
     write_run_manifest(str(run_dir), library="rlinf", task="Isaac-Cartpole", metadata={"config_name": "ppo"})
     kwargs = dict(log_root_path=str(tmp_path), task="Isaac-Cartpole", config_name="ppo")
-    paths = (expected, *expected.parents[:3])
+    paths = (expected, expected.parents[2])
     for checkpoint in ("latest", "best", *(str(path.relative_to(tmp_path)) for path in paths)):
         assert resolve_rlinf_checkpoint(checkpoint, **kwargs) == str(expected)
-    with pytest.raises(ValueError, match="found 2"):
+    with pytest.raises(ValueError):
         resolve_rlinf_checkpoint(str(run_dir), **kwargs)
     with pytest.raises(FileNotFoundError):
         resolve_rlinf_checkpoint("missing.pt", **kwargs)

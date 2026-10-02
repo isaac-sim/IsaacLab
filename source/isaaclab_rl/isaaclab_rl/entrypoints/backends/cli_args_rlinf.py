@@ -117,11 +117,8 @@ def resolve_rlinf_checkpoint(checkpoint: str, *, log_root_path: str, task: str, 
         )
     checkpoint_path = Path(checkpoint).expanduser().resolve()
     if checkpoint_path.is_dir():
-        matches = list(checkpoint_path.rglob("full_weights.pt"))
-        if len(matches) != 1:
-            raise ValueError(f"Expected exactly one full_weights.pt under {checkpoint_path}, found {len(matches)}.")
-        checkpoint_path = matches[0]
-    if not checkpoint_path.is_file():
+        (checkpoint_path,) = (path for path in checkpoint_path.rglob("full_weights.pt") if path.is_file())
+    elif not checkpoint_path.is_file():
         raise FileNotFoundError(f"RLinf checkpoint does not exist: {checkpoint_path}")
     return str(checkpoint_path)
 

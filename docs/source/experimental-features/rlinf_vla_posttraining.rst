@@ -214,6 +214,7 @@ directory (the ``global_step_<N>`` folder), a subdirectory containing exactly on
 RL-finetuned weights through its native checkpoint hook. Relative model and checkpoint
 paths are resolved from the launcher's working directory before Ray workers start.
 The rollout model inherits actor-model settings; explicit rollout settings take precedence.
+RLinf requires Ray for worker scheduling in both training and evaluation, including single-GPU runs.
 
 .. note::
 
