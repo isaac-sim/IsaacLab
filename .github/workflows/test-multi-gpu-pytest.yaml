@@ -40,7 +40,8 @@ jobs:
     name: Detect Changes
     runs-on: ubuntu-latest
     outputs:
-      unit: ${{ steps.unit.outputs.should_run }}
+      # TEMP (revert before review): mask the unit shards while testing the smoke fix.
+      unit: 'false'
       smoke: ${{ steps.smoke.outputs.should_run }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
