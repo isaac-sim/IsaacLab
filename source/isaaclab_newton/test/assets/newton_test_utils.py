@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Locally authored scenes shared by the kitless Newton asset and controller tests.
+"""Locally authored scenes shared by the kitless Newton asset tests.
 
 The small USD scenes live in ``test/assets/data`` and need neither Kit nor Nucleus.
 Tests load them directly, so their bodies, joints, mass properties, and drives are readable without running
@@ -37,7 +37,7 @@ WRIST_USD_STIFFNESS = (0.5, 0.4, 0.3)
 
 Vec3 = tuple[float, float, float]
 
-_DATA_DIR = Path(__file__).resolve().parent / "assets" / "data"
+_DATA_DIR = Path(__file__).resolve().parent / "data"
 """Directory holding the checked-in USD fixtures."""
 
 _ENV_SPACING = 40.0

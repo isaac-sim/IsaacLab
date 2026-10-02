@@ -35,18 +35,31 @@ import sys
 from collections.abc import Callable, Iterator
 from copy import copy
 from dataclasses import dataclass
-from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
+import isaaclab_newton.physics.newton_manager as newton_manager_module
+import newton
 import numpy as np
 import pytest
 import torch
 import warp as wp
 from isaaclab_newton.assets import Articulation
+from isaaclab_newton.assets.articulation import kernels as articulation_kernels
+from isaaclab_newton.assets.articulation.articulation_data import ArticulationData
 from isaaclab_newton.physics import NewtonManager as SimulationManager
 from isaaclab_physx.sim.schemas import PhysxJointCfg
-from newton import Model, ModelFlags, ShapeFlags, State
+from newton import JointType, Model, ModelBuilder, ModelFlags, ShapeFlags, State
+from newton.selection import ArticulationView
+from newton_test_utils import (
+    NUM_ENVS,
+    WRIST_USD_STIFFNESS,
+    env_origins,
+    local_usd,
+    newton_sim_cfg,
+    spawn_assets,
+    world_gravity,
+)
 
 from pxr import UsdPhysics
 
@@ -56,6 +69,7 @@ import isaaclab.utils.math as math_utils
 from isaaclab.actuators import ActuatorBaseCfg, IdealPDActuatorCfg, ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg
 from isaaclab.assets.articulation.ordering_resolvers import get_articulation_name_ordering
+from isaaclab.controllers import OperationalSpaceController, OperationalSpaceControllerCfg
 from isaaclab.envs.mdp import randomize_physics_scene_gravity
 from isaaclab.envs.mdp.events import randomize_rigid_body_collider_offsets, randomize_rigid_body_material
 from isaaclab.managers import EventTermCfg, SceneEntityCfg
@@ -67,17 +81,6 @@ from isaaclab.test.utils.articulation_ordering import (
     BRANCHING_PHYSX_JOINT_NAMES,
 )
 from isaaclab.utils import replace
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-
-from articulation_test_utils import (  # noqa: E402
-    WRIST_USD_STIFFNESS,
-    env_origins,
-    local_usd,
-    newton_sim_cfg,
-    spawn_assets,
-    world_gravity,
-)
 
 pytestmark = [pytest.mark.integration, pytest.mark.kitless]
 
@@ -219,6 +222,14 @@ def _island_cfgs() -> dict[str, ArticulationCfg]:
             18.0,
             _limit_actuators(IdealPDActuatorCfg),
         ),
+        "osc": island(
+            "Osc",
+            local_usd("fixed_spatial_chain.usda"),
+            22.0,
+            # unpowered, so the operational-space controller's efforts are the only actuation
+            {"arm": ImplicitActuatorCfg(joint_names_expr=["Joint_.*"], stiffness=0.0, damping=0.0)},
+            init_state=ArticulationCfg.InitialStateCfg(joint_pos={"Joint_3": 0.3, "Joint_4": -0.2, "Joint_5": 0.4}),
+        ),
     }
 
 
@@ -267,6 +278,214 @@ class _Scene:
         commands.set_effort_index(value=torch.zeros_like(default_joint_pos))
         articulation.reset()
         articulation.write_data_to_sim()
+
+
+##
+# Kernels and model-level accessors. These build no simulation context.
+##
+
+
+def _selector(values: list[int], dtype: type) -> wp.array:
+    """Create a CPU Warp selector with the requested integer width."""
+    return wp.array(values, dtype=dtype, device="cpu")
+
+
+@pytest.mark.parametrize(("env_dtype", "joint_dtype"), [(wp.int32, wp.int32), (wp.int64, wp.int64)])
+def test_write_joint_limit_data_to_user_and_backend_index_accepts_index_dtypes(
+    env_dtype: type, joint_dtype: type
+) -> None:
+    """Write partial user-order joint limits into user and backend-order buffers."""
+    limits_np = np.asarray([[[1.0, 3.0], [2.0, 5.0]], [[-1.0, 1.0], [4.0, 8.0]]], dtype=np.float32)
+    limits = wp.array(limits_np, dtype=wp.vec2f, device="cpu")
+    env_ids = _selector([0, 1], env_dtype)
+    user_ids = _selector([2, 0], joint_dtype)
+    user_to_backend = wp.array(np.asarray([1, 2, 0], dtype=np.int32), dtype=wp.int32, device="cpu")
+    user_lower = wp.zeros((2, 3), dtype=wp.float32, device="cpu")
+    user_upper = wp.zeros((2, 3), dtype=wp.float32, device="cpu")
+    user_limits = wp.zeros((2, 3), dtype=wp.vec2f, device="cpu")
+    backend_lower = wp.zeros((2, 3), dtype=wp.float32, device="cpu")
+    backend_upper = wp.zeros((2, 3), dtype=wp.float32, device="cpu")
+    soft_limits = wp.zeros((2, 3), dtype=wp.vec2f, device="cpu")
+    default_pos = wp.array(
+        np.asarray([[0.0, 0.0, 4.0], [0.0, 0.0, 0.0]], dtype=np.float32), dtype=wp.float32, device="cpu"
+    )
+    clamped_defaults = wp.zeros(1, dtype=wp.int32, device="cpu")
+    kernel = articulation_kernels.write_joint_limit_data_to_user_and_backend_index
+    if env_dtype != wp.int32 or joint_dtype != wp.int32:
+        kernel = articulation_kernels.write_joint_limit_data_to_user_and_backend_index_kernel(env_ids, user_ids)
+
+    wp.launch(
+        kernel,
+        dim=limits.shape,
+        inputs=[limits, 1.0, env_ids, user_ids, user_to_backend, True],
+        outputs=[
+            user_lower,
+            user_upper,
+            user_limits,
+            backend_lower,
+            backend_upper,
+            soft_limits,
+            default_pos,
+            clamped_defaults,
+        ],
+        device="cpu",
+    )
+
+    np.testing.assert_allclose(user_lower.numpy(), np.asarray([[2.0, 0.0, 1.0], [4.0, 0.0, -1.0]], dtype=np.float32))
+    np.testing.assert_allclose(user_upper.numpy(), np.asarray([[5.0, 0.0, 3.0], [8.0, 0.0, 1.0]], dtype=np.float32))
+    np.testing.assert_allclose(backend_lower.numpy(), np.asarray([[1.0, 2.0, 0.0], [-1.0, 4.0, 0.0]], dtype=np.float32))
+    np.testing.assert_allclose(backend_upper.numpy(), np.asarray([[3.0, 5.0, 0.0], [1.0, 8.0, 0.0]], dtype=np.float32))
+    np.testing.assert_allclose(
+        user_limits.numpy(),
+        np.asarray([[[2.0, 5.0], [0.0, 0.0], [1.0, 3.0]], [[4.0, 8.0], [0.0, 0.0], [-1.0, 1.0]]], dtype=np.float32),
+    )
+    np.testing.assert_allclose(default_pos.numpy(), np.asarray([[2.0, 0.0, 3.0], [4.0, 0.0, 0.0]], dtype=np.float32))
+    assert clamped_defaults.numpy()[0] == 3
+
+
+def test_write_joint_limit_data_to_user_and_backend_mask_reorders_backend_buffers() -> None:
+    """Write masked user-order joint limits into user and backend-order buffers."""
+    limits_np = np.asarray(
+        [[[1.0, 2.0], [3.0, 6.0], [4.0, 9.0]], [[-2.0, 2.0], [5.0, 7.0], [8.0, 10.0]]], dtype=np.float32
+    )
+    limits = wp.array(limits_np, dtype=wp.vec2f, device="cpu")
+    env_mask = wp.array(np.asarray([True, False], dtype=bool), dtype=wp.bool, device="cpu")
+    user_mask = wp.array(np.asarray([False, True, True], dtype=bool), dtype=wp.bool, device="cpu")
+    user_to_backend = wp.array(np.asarray([1, 2, 0], dtype=np.int32), dtype=wp.int32, device="cpu")
+    user_lower = wp.zeros((2, 3), dtype=wp.float32, device="cpu")
+    user_upper = wp.zeros((2, 3), dtype=wp.float32, device="cpu")
+    user_limits = wp.zeros((2, 3), dtype=wp.vec2f, device="cpu")
+    backend_lower = wp.zeros((2, 3), dtype=wp.float32, device="cpu")
+    backend_upper = wp.zeros((2, 3), dtype=wp.float32, device="cpu")
+    soft_limits = wp.zeros((2, 3), dtype=wp.vec2f, device="cpu")
+    default_pos = wp.zeros((2, 3), dtype=wp.float32, device="cpu")
+    clamped_defaults = wp.zeros(1, dtype=wp.int32, device="cpu")
+
+    wp.launch(
+        articulation_kernels.write_joint_limit_data_to_user_and_backend_mask,
+        dim=limits.shape,
+        inputs=[limits, 1.0, env_mask, user_mask, user_to_backend, True],
+        outputs=[
+            user_lower,
+            user_upper,
+            user_limits,
+            backend_lower,
+            backend_upper,
+            soft_limits,
+            default_pos,
+            clamped_defaults,
+        ],
+        device="cpu",
+    )
+
+    np.testing.assert_allclose(user_lower.numpy(), np.asarray([[0.0, 3.0, 4.0], [0.0, 0.0, 0.0]], dtype=np.float32))
+    np.testing.assert_allclose(user_upper.numpy(), np.asarray([[0.0, 6.0, 9.0], [0.0, 0.0, 0.0]], dtype=np.float32))
+    np.testing.assert_allclose(backend_lower.numpy(), np.asarray([[4.0, 0.0, 3.0], [0.0, 0.0, 0.0]], dtype=np.float32))
+    np.testing.assert_allclose(backend_upper.numpy(), np.asarray([[9.0, 0.0, 6.0], [0.0, 0.0, 0.0]], dtype=np.float32))
+    np.testing.assert_allclose(
+        user_limits.numpy(),
+        np.asarray([[[0.0, 0.0], [3.0, 6.0], [4.0, 9.0]], [[0.0, 0.0], [0.0, 0.0], [0.0, 0.0]]], dtype=np.float32),
+    )
+    np.testing.assert_allclose(default_pos.numpy(), np.asarray([[0.0, 3.0, 4.0], [0.0, 0.0, 0.0]], dtype=np.float32))
+    assert clamped_defaults.numpy()[0] == 2
+
+
+@pytest.mark.parametrize("index_dtype", [wp.int32, wp.int64])
+def test_scatter_reset_masks_from_ids_accepts_index_dtype(index_dtype: type) -> None:
+    """Set exact world and articulation reset masks from nonidentity environment IDs."""
+
+    env_ids = _selector([2, 0], index_dtype)
+    articulation_ids = wp.array(np.asarray([[0, 1], [2, 3], [4, 5]], dtype=np.int32), dtype=int, device="cpu")
+    world_mask = wp.zeros(3, dtype=wp.bool, device="cpu")
+    fk_mask = wp.zeros(6, dtype=wp.bool, device="cpu")
+
+    wp.launch(
+        newton_manager_module._scatter_reset_masks_from_ids,
+        dim=(env_ids.shape[0], articulation_ids.shape[1]),
+        inputs=[env_ids, articulation_ids],
+        outputs=[world_mask, fk_mask],
+        device="cpu",
+    )
+
+    np.testing.assert_array_equal(world_mask.numpy(), np.asarray([True, False, True]))
+    np.testing.assert_array_equal(fk_mask.numpy(), np.asarray([True, True, False, False, True, True]))
+
+
+def test_num_shapes_per_body_follows_public_body_order() -> None:
+    """Align Newton shape counts with the public body-name axis."""
+
+    class _ShapeCountSurface:
+        backend_num_shapes_per_body = Articulation.backend_num_shapes_per_body
+        num_shapes_per_body = Articulation.num_shapes_per_body
+
+    articulation = _ShapeCountSurface()
+    articulation._num_shapes_per_body_backend = None
+    articulation._root_view = SimpleNamespace(
+        body_shapes=((), (object(), object()), (object(), object(), object())),
+    )
+    articulation.body_ordering = SimpleNamespace(
+        user_to_backend_indices=(2, 0, 1),
+    )
+
+    assert articulation.num_shapes_per_body == [3, 0, 2]
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+@pytest.mark.parametrize(
+    "first_property",
+    ["body_com_jacobian_w", "body_link_jacobian_w", "mass_matrix", "gravity_compensation_forces"],
+)
+def test_task_space_allocation_and_capture(monkeypatch, device, first_property):
+    """Allocate only requested outputs and retain them across changed-state graph replay."""
+    builder = ModelBuilder()
+    builder.begin_world()
+    base = builder.add_link(mass=4.0, inertia=wp.mat33(np.eye(3)), label="Robot/base")
+    arm = builder.add_link(mass=2.0, inertia=wp.mat33(np.eye(3)), com=(0.5, 0.0, 0.0), label="Robot/arm")
+    slider = builder.add_link(mass=3.0, inertia=wp.mat33(np.eye(3)), com=(0.25, 0.0, 0.0), label="Robot/slider")
+    builder.add_articulation(
+        [
+            builder.add_joint_fixed(-1, base),
+            builder.add_joint_revolute(base, arm, axis=(0.0, 1.0, 0.0), label="hinge"),
+            builder.add_joint_prismatic(arm, slider, axis=(1.0, 0.0, 0.0), label="slide"),
+        ],
+        label="Robot",
+    )
+    builder.end_world()
+    model = builder.finalize(device=device)
+    state, control = model.state(), model.control()
+    monkeypatch.setattr(SimulationManager, "get_model", lambda: model)
+    monkeypatch.setattr(SimulationManager, "get_state_0", lambda: state)
+    monkeypatch.setattr(SimulationManager, "get_control", lambda: control)
+    view = ArticulationView(model, "Robot", exclude_joint_types=[JointType.FIXED])
+    eager = ArticulationData(view, device)
+    eager._apply_ordering_maps_after_resolve()
+    newton.eval_fk(model, state.joint_q, state.joint_qd, state)
+    getattr(eager, first_property)  # Compile kernels before first-use capture on a fresh container.
+    data = ArticulationData(view, device)
+    data._apply_ordering_maps_after_resolve()
+    properties = ("body_com_jacobian_w", "body_link_jacobian_w", "mass_matrix", "gravity_compensation_forces")
+    assert all(getattr(data, f"_{name}_ta") is None for name in properties)
+    assert data._jacobian_buf_flat is data._mass_matrix_full_buf is data._gravity_force_full_buf is None
+    with wp.ScopedCapture(device=device) as capture:
+        output = getattr(data, first_property)
+    required = {first_property}
+    if first_property == "body_link_jacobian_w":
+        required.add("body_com_jacobian_w")
+    for name in properties:
+        assert (getattr(data, f"_{name}_ta") is not None) == (name in required)
+    assert (data._jacobian_buf_flat is not None) == (first_property != "gravity_compensation_forces")
+    assert (data._mass_matrix_full_buf is not None) == (first_property == "mass_matrix")
+    assert (data._gravity_force_full_buf is not None) == (first_property == "gravity_compensation_forces")
+
+    for angle, displacement in ((0.0, 0.0), (0.7, 0.4), (-0.3, 0.2)):
+        state.joint_q.assign(np.asarray([angle, displacement], dtype=np.float32))
+        newton.eval_fk(model, state.joint_q, state.joint_qd, state)
+        expected = getattr(eager, first_property).warp.numpy()
+        wp.capture_launch(capture.graph)
+        np.testing.assert_allclose(output.warp.numpy(), expected, atol=1e-5)
+    data._create_simulation_bindings()
+    data._apply_ordering_maps_after_resolve()
+    assert getattr(data, first_property) is output
 
 
 ##
@@ -707,6 +926,7 @@ def test_articulation_initialization_and_partial_state(scene: _Scene) -> None:
         "limits_implicit": False,
         "limits_explicit": False,
         "branching": False,
+        "osc": True,
     }
     for name, articulation in scene.articulations.items():
         # Check that the framework doesn't hold excessive strong references.
@@ -2034,3 +2254,164 @@ def test_joint_position_limit_clamping_respects_logging(scene: _Scene, caplog) -
     finally:
         articulation.write_joint_position_limit_to_sim_index(limits=original_limits)
         articulation.data.default_joint_pos.torch.copy_(original_defaults)
+
+
+##
+# Operational-space control. The OSC island's six-DOF chain carries center-of-mass offsets and its joints are
+# unpowered, so a wrong Jacobian, mass matrix, gravity force, or DoF ordering pushes the controller's steady-state
+# error well past the bounds.
+##
+
+
+def _compute_ee_pose_root(robot: Articulation, ee_frame_idx: int) -> tuple[torch.Tensor, torch.Tensor]:
+    """Return the end-effector position [m] and quaternion ``(x, y, z, w)`` in the root frame."""
+    ee_pose_w = robot.data.body_pose_w.torch[:, ee_frame_idx]
+    root_pose_w = robot.data.root_pose_w.torch
+    return math_utils.subtract_frame_transforms(
+        root_pose_w[:, 0:3], root_pose_w[:, 3:7], ee_pose_w[:, 0:3], ee_pose_w[:, 3:7]
+    )
+
+
+def _compute_jacobian_root_frame(robot: Articulation, ee_jacobi_idx: int, arm_joint_ids: list[int]) -> torch.Tensor:
+    """Return the end-effector Jacobian sliced to ``arm_joint_ids`` and rotated to the root frame, shape [N, 6, D]."""
+    jacobian = robot.data.body_link_jacobian_w.torch[:, ee_jacobi_idx, :, arm_joint_ids]
+    base_rot_matrix = math_utils.matrix_from_quat(math_utils.quat_inv(robot.data.root_pose_w.torch[:, 3:7]))
+    jacobian[:, :3, :] = torch.bmm(base_rot_matrix, jacobian[:, :3, :])
+    jacobian[:, 3:, :] = torch.bmm(base_rot_matrix, jacobian[:, 3:, :])
+    return jacobian
+
+
+def _make_osc(device: str) -> OperationalSpaceController:
+    """Return a fixed-impedance absolute-pose controller with inertial decoupling and no gravity compensation."""
+    return OperationalSpaceController(
+        OperationalSpaceControllerCfg(
+            target_types=["pose_abs"],
+            impedance_mode="fixed",
+            inertial_dynamics_decoupling=True,
+            partial_inertial_dynamics_decoupling=False,
+            gravity_compensation=False,
+            motion_stiffness_task=500.0,
+            motion_damping_ratio_task=1.0,
+        ),
+        num_envs=NUM_ENVS,
+        device=device,
+    )
+
+
+def _osc_chain(scene: _Scene) -> tuple[Articulation, int, int, list[int]]:
+    """Step the OSC island once and return it with its end-effector body and Jacobian indices and arm joints."""
+    robot = scene.articulations["osc"]
+    scene.step("osc")
+    ee_frame_idx = robot.find_bodies("Link_5")[0][0]
+    # the fixed root has no Jacobian row
+    return robot, ee_frame_idx, ee_frame_idx - 1, robot.find_joints(["Joint_.*"])[0]
+
+
+def _run_osc(
+    scene: _Scene, osc: OperationalSpaceController, target_pose_b: torch.Tensor, num_steps: int, *, gravity: bool
+) -> tuple[list[float], list[float]]:
+    """Close the OSC loop for ``num_steps`` steps; return the per-step max position and rotation errors."""
+    robot, ee_frame_idx, ee_jacobi_idx, arm_joint_ids = _osc_chain(scene)
+    pos_history: list[float] = []
+    rot_history: list[float] = []
+    for _ in range(num_steps):
+        jacobian_b = _compute_jacobian_root_frame(robot, ee_jacobi_idx, arm_joint_ids)
+        mass_matrix = robot.data.mass_matrix.torch[:, arm_joint_ids, :][:, :, arm_joint_ids]
+        gravity_forces = robot.data.gravity_compensation_forces.torch[:, arm_joint_ids] if gravity else None
+        ee_pos_b, ee_quat_b = _compute_ee_pose_root(robot, ee_frame_idx)
+        ee_pose_b = torch.cat([ee_pos_b, ee_quat_b], dim=-1)
+        # OSC's damping term ``kd * ee_vel_b`` needs the end-effector velocity ``J · q_dot``; a zero velocity
+        # leaves the impedance undamped.
+        joint_vel = robot.data.joint_vel.torch[:, arm_joint_ids]
+        ee_vel_b = torch.bmm(jacobian_b, joint_vel.unsqueeze(-1)).squeeze(-1)
+
+        osc.set_command(target_pose_b, current_ee_pose_b=ee_pose_b)
+        joint_efforts = osc.compute(
+            jacobian_b=jacobian_b,
+            current_ee_pose_b=ee_pose_b,
+            current_ee_vel_b=ee_vel_b,
+            mass_matrix=mass_matrix,
+            gravity=gravity_forces,
+        )
+        robot.actuators.target_command.set_effort_index(value=joint_efforts, joint_ids=arm_joint_ids)
+        scene.step("osc")
+
+        pos_error, rot_error = math_utils.compute_pose_error(
+            ee_pos_b, ee_quat_b, target_pose_b[:, 0:3], target_pose_b[:, 3:7]
+        )
+        pos_history.append(pos_error.norm(dim=-1).max().item())
+        rot_history.append(rot_error.norm(dim=-1).max().item())
+    return pos_history, rot_history
+
+
+@pytest.mark.isaacsim_ci
+def test_osc_tracking_accuracy(scene: _Scene) -> None:
+    """OSC pose tracking sentinel for the Jacobian and mass-matrix bridge.
+
+    OSC runs with ``gravity_compensation=False`` and scene gravity disabled so the sentinel isolates the J/M
+    bridge; the gravity-compensation path is covered by :func:`test_osc_gravity_compensation_precision`.
+    ``inertial_dynamics_decoupling=True`` exercises ``mass_matrix`` and the COM-referenced J → M_b → J product.
+    """
+    robot, ee_frame_idx, _, _ = _osc_chain(scene)
+    ee_pos_b, ee_quat_b = _compute_ee_pose_root(robot, ee_frame_idx)
+    target_pose_b = torch.cat([ee_pos_b + ee_pos_b.new_tensor((0.05, 0.0, 0.0)), ee_quat_b], dim=-1)
+    pos_history, rot_history = _run_osc(scene, _make_osc(scene.device), target_pose_b, 150, gravity=False)
+
+    pos_mean = sum(pos_history[-100:]) / 100
+    rot_mean = sum(rot_history[-100:]) / 100
+
+    # Regression sentinel: assert on tail mean rather than min. With ``current_ee_vel_b = J · q_dot`` providing
+    # OSC's damping term and no joint PD, the impedance settles to machine precision. A wrong J, wrong mass
+    # matrix, or DoF mis-ordering pushes the steady-state error well past the 5 mm bound because OSC consumes
+    # both ``body_link_jacobian_w`` and ``mass_matrix`` per step.
+    assert pos_mean < 5e-3, f"OSC pos_mean {pos_mean:.5f} > 5 mm — bridge regression?"
+    assert rot_mean < 5e-2, f"OSC rot_mean {rot_mean:.5f} > 0.05 rad — bridge regression?"
+
+
+@pytest.mark.isaacsim_ci
+def test_osc_gravity_compensation_precision(scene: _Scene) -> None:
+    """Two-phase EE hold: gravity sag without compensation, tight hold with it.
+
+    Same OSC pose-hold loop as :func:`test_osc_tracking_accuracy`, but with gravity on and the target pinned
+    to the initial EE pose, so any steady-state error is pure gravity sag. Phase 1 runs with
+    ``gravity_compensation=False`` and must sag past a floor; phase 2 flips ``osc.cfg.gravity_compensation``
+    — read per :meth:`compute` call, so the flag is the only variable across phases (the gravity tensor is
+    fetched and passed in both) — and must recover the hold to under 0.1 mm.
+
+    The floor assertion keeps the test discriminating: if the task stiffness is ever raised high enough to
+    mask gravity, phase 1 stops clearing the floor and the test fails loudly instead of silently passing on a
+    non-discriminating setup. The gravity feed-forward consumes ``gravity_compensation_forces`` (Newton RNEA via
+    ``eval_inverse_dynamics_passive``) live in the loop, covering the FK-staleness refresh on every step of
+    phase 2. Both phases reach a true steady state, enforced by tail-half stationarity guards.
+    """
+    robot, ee_frame_idx, _, _ = _osc_chain(scene)
+    osc = _make_osc(scene.device)
+    # Hold the initial EE pose: phase-1 steady-state error is pure gravity sag.
+    ee_pos_b, ee_quat_b = _compute_ee_pose_root(robot, ee_frame_idx)
+    target_pose_b = torch.cat([ee_pos_b, ee_quat_b], dim=-1)
+
+    def _stationary_tail_mean(history: list[float], label: str) -> float:
+        """Mean of the last 100 samples, asserting the two tail halves agree within 25%.
+
+        The relative check carries a 10 µm absolute floor: at the solver noise floor of the compensated hold,
+        tail jitter is far below the 0.1 mm verdict threshold and cannot flip the outcome.
+        """
+        a = sum(history[-100:-50]) / 50
+        b = sum(history[-50:]) / 50
+        mean = (a + b) / 2.0
+        assert abs(a - b) < 0.25 * max(mean, 1e-5), (
+            f"{label} not stationary: tail halves {a:.6f} vs {b:.6f} — extend the phase"
+        )
+        return mean
+
+    with world_gravity((0.0, 0.0, -9.81)):
+        hist_off, _ = _run_osc(scene, osc, target_pose_b, 200, gravity=True)
+        osc.cfg.gravity_compensation = True
+        hist_on, _ = _run_osc(scene, osc, target_pose_b, 200, gravity=True)
+
+    pos_off = _stationary_tail_mean(hist_off, "phase-1 sag")
+    pos_on = _stationary_tail_mean(hist_on, "phase-2 hold")
+
+    assert pos_off > 1.2e-2, f"uncompensated sag {pos_off:.5f} < 1.2 cm — setup no longer discriminates gravity"
+    assert pos_on < 1e-4, f"compensated hold {pos_on:.6f} > 0.1 mm — gravity compensation inaccurate"
+    assert pos_on < pos_off / 10.0, f"compensation only improved sag {pos_off:.5f} -> {pos_on:.6f} (<10x)"
