@@ -191,6 +191,8 @@ def _run_training(
     else:
         env["CUDA_VISIBLE_DEVICES"] = ",".join(devices)
     env["PYTHONUNBUFFERED"] = "1"
+    # TEMP (revert before review): report which NCCL call hits "invalid argument".
+    env.setdefault("NCCL_DEBUG", "WARN")
 
     cmd = [
         sys.executable,
