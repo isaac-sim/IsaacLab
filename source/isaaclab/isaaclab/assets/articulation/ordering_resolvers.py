@@ -425,6 +425,7 @@ def _get_names_from_newton_usd_builder(
     *,
     joint_ordering: Literal["bfs", "dfs"],
     bodies_follow_joint_ordering: bool,
+    authored_sibling_order: bool = False,
 ) -> dict[Literal["joint", "body"], tuple[str, ...]] | None:
     """Build a lightweight Newton prototype view and return its articulation names."""
     cfg = articulation.cfg
@@ -452,7 +453,8 @@ def _get_names_from_newton_usd_builder(
     source_asset_matches = resolve_matching_prims_from_source(prim_path, expected_num_matches=1)
     if not source_asset_matches:
         return None
-    source_asset_path = _get_prim_path_string(source_asset_matches[0][0])
+    source_asset_prim = source_asset_matches[0][0]
+    source_asset_path = _get_prim_path_string(source_asset_prim)
 
     articulation_root_prim_path = cfg.articulation_root_prim_path
     if articulation_root_prim_path is not None:
@@ -489,15 +491,47 @@ def _get_names_from_newton_usd_builder(
         verbose=False,
         exclude_joint_types=[JointType.FREE, JointType.FIXED],
     )
+    if authored_sibling_order:
+        return _get_breadth_first_names_in_authored_joint_order(source_asset_prim, view)
     return {"joint": tuple(view.joint_dof_names), "body": tuple(view.link_names)}
+
+
+def _get_breadth_first_names_in_authored_joint_order(
+    source_asset_prim: Usd.Prim, view
+) -> dict[Literal["joint", "body"], tuple[str, ...]]:
+    """Return a Newton view's names breadth-first, with sibling links in authored joint-prim order."""
+    from pxr import Usd, UsdPhysics  # noqa: PLC0415
+
+    prims = Usd.PrimRange(source_asset_prim, Usd.TraverseInstanceProxies())
+    joint_prims = (p for p in prims if p.IsA(UsdPhysics.Joint))
+    authored_index = {_get_prim_path_string(p): i for i, p in enumerate(joint_prims)}
+    model = view.model
+    articulation_id = int(view.articulation_ids.numpy().reshape(-1)[0])
+    start = int(model.articulation_start.numpy()[articulation_id])
+    end = int(model.articulation_end.numpy()[articulation_id])
+    joint_parent, joint_child = model.joint_parent.numpy(), model.joint_child.numpy()
+    # Joint ``start`` attaches the root link to the world; group the others by parent in authored order.
+    child_joints: dict[int, list[int]] = {}
+    for joint in sorted(range(start + 1, end), key=lambda j: authored_index[model.joint_label[j]]):
+        child_joints.setdefault(int(joint_parent[joint]), []).append(joint)
+    joints = [start]
+    for joint in joints:
+        joints.extend(child_joints.get(int(joint_child[joint]), ()))
+    dof_names = iter(view.joint_dof_names)
+    dofs = {label: [next(dof_names) for _ in range(n)] for label, n in zip(view.joint_labels, view.joint_dof_counts)}
+    link_names = dict(zip(view.link_labels, view.link_names))
+    return {
+        "joint": tuple(name for j in joints for name in dofs.get(model.joint_label[j], ())),
+        "body": tuple(link_names[model.body_label[joint_child[j]]] for j in joints),
+    }
 
 
 def _get_physx_names_from_newton_usd_builder(
     articulation: BaseArticulation,
 ) -> dict[Literal["joint", "body"], tuple[str, ...]] | None:
     """Build a lightweight Newton prototype view with PhysX-style articulation names."""
-    # NOTE: "bfs" assumes Newton's breadth-first USD traversal reproduces
-    # PhysX's native articulation-view order. Unlike the MJWarp constants
+    # NOTE: PhysX lists links breadth-first with siblings in authored joint-prim
+    # order, while Newton visits siblings in prim-path order. Unlike the MJWarp constants
     # below, this is not coupled to isaaclab_newton's NewtonManager: a live
     # PhysX/OVPhysX backend never goes through Newton's ModelBuilder.add_usd,
     # so there is no analogous "active backend already matches these
@@ -506,6 +540,7 @@ def _get_physx_names_from_newton_usd_builder(
         articulation,
         joint_ordering="bfs",
         bodies_follow_joint_ordering=True,
+        authored_sibling_order=True,
     )
 
 
@@ -599,8 +634,8 @@ def _resolve_articulation_convention_name_ordering(
     A convention matching the active backend returns backend names without
     discovery. Cross-backend resolution uses a validated per-articulation cache,
     authored robot-schema relationships for robot_schema, or a temporary Newton
-    USD view. PhysX discovery uses breadth-first joint ordering and MJWarp
-    discovery uses depth-first ordering. Builder results are cached only when
+    USD view. PhysX discovery uses breadth-first ordering with siblings in
+    authored joint-prim order and MJWarp discovery uses depth-first ordering. Builder results are cached only when
     both joint and body names are complete permutations.
 
     Args:
@@ -699,8 +734,8 @@ def get_articulation_name_ordering(
 
     * ``"physx"`` -- PhysX or OVPhysX articulation-view order. PhysX and OVPhysX
       articulations return active-backend names without discovery; other backends
-      discover the order from a temporary Newton USD view using breadth-first
-      joint ordering.
+      discover the order from a temporary Newton USD view traversed breadth-first,
+      with sibling links in authored joint-prim order.
     * ``"mjwarp"`` -- Newton or MJWarp articulation-view order. Newton
       articulations return active-backend names without discovery; other backends
       discover the order from a temporary Newton USD view using depth-first joint

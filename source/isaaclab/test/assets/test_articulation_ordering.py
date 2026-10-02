@@ -11,7 +11,7 @@ from collections import UserList
 import numpy as np
 import pytest
 
-from pxr import Sdf, Usd
+from pxr import Sdf, Usd, UsdPhysics
 
 import isaaclab.assets.articulation.ordering_resolvers as ordering_resolvers
 from isaaclab.assets.articulation.ordering import (
@@ -783,6 +783,12 @@ def test_physx_ordering_helper_builds_bfs_newton_view_from_usd_source(monkeypatc
         },
     )
     _install_source_asset_resolver(monkeypatch, _resolve_matching_prims_from_source)
+    # The fake view has no joint tree to traverse; keep its names.
+    monkeypatch.setattr(
+        ordering_resolvers,
+        "_get_breadth_first_names_in_authored_joint_order",
+        lambda source_asset_prim, view: {"joint": tuple(view.joint_dof_names), "body": tuple(view.link_names)},
+    )
 
     class _Articulation:
         __backend_name__ = "newton"
@@ -817,6 +823,37 @@ def test_physx_ordering_helper_builds_bfs_newton_view_from_usd_source(monkeypatc
     assert calls["add_usd"][0]["joint_ordering"] == "bfs"
     assert calls["add_usd"][0]["bodies_follow_joint_ordering"] is True
     assert calls["views"] == [("/World/envs/env_0/Robot/base", {"verbose": False, "exclude_joint_types": [0, 1]})]
+
+
+def test_physx_sibling_traversal_follows_authored_joint_order() -> None:
+    """Visit sibling links in authored joint-prim order instead of Newton's prim-path order."""
+    stage = Usd.Stage.CreateInMemory()
+    robot_prim = stage.DefinePrim("/Robot", "Xform")
+    UsdPhysics.RevoluteJoint.Define(stage, "/Robot/thumb_joint")
+    UsdPhysics.RevoluteJoint.Define(stage, "/Robot/index_joint")
+    # Newton lists the sibling joints in prim-path order after the palm's floating-base joint.
+    labels = ["/Robot/root_joint", "/Robot/index_joint", "/Robot/thumb_joint"]
+    model = types.SimpleNamespace(
+        articulation_start=types.SimpleNamespace(numpy=lambda: np.array([0])),
+        articulation_end=types.SimpleNamespace(numpy=lambda: np.array([3])),
+        joint_parent=types.SimpleNamespace(numpy=lambda: np.array([-1, 0, 0])),
+        joint_child=types.SimpleNamespace(numpy=lambda: np.array([0, 1, 2])),
+        joint_label=labels,
+        body_label=["/Robot/palm", "/Robot/index", "/Robot/thumb"],
+    )
+    view = types.SimpleNamespace(
+        model=model,
+        articulation_ids=types.SimpleNamespace(numpy=lambda: np.array([[0]])),
+        link_labels=model.body_label,
+        link_names=["palm", "index", "thumb"],
+        joint_labels=labels[1:],
+        joint_dof_counts=[1, 1],
+        joint_dof_names=["index_joint", "thumb_joint"],
+    )
+
+    names = ordering_resolvers._get_breadth_first_names_in_authored_joint_order(robot_prim, view)
+
+    assert names == {"joint": ("thumb_joint", "index_joint"), "body": ("palm", "thumb", "index")}
 
 
 def test_symbolic_cross_backend_resolver_uses_newton_builder_names(monkeypatch: pytest.MonkeyPatch) -> None:
