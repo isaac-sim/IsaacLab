@@ -14,7 +14,6 @@
 
 import argparse
 import math
-from importlib import metadata
 
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.utils import to_dict
@@ -47,7 +46,7 @@ from tensordict import TensorDict
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.utils.math import quat_apply
 
-from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlVecEnvWrapper, handle_deprecated_rsl_rl_cfg
+from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlVecEnvWrapper
 from isaaclab_rl.utils.pretrained_checkpoint import (
     get_pretrained_checkpoint_backend_names,
     get_published_pretrained_checkpoint,
@@ -91,7 +90,6 @@ class H1RoughDemo:
             FileNotFoundError: If no published checkpoint matches the configured backends.
         """
         agent_cfg: RslRlOnPolicyRunnerCfg = cli_args.parse_rsl_rl_cfg(TASK, args_cli)
-        agent_cfg = handle_deprecated_rsl_rl_cfg(agent_cfg, metadata.version("rsl-rl-lib"))
         backend_names = get_pretrained_checkpoint_backend_names(env_cfg)
         checkpoint = get_published_pretrained_checkpoint(RL_LIBRARY, TASK, *backend_names)
         if checkpoint is None:
