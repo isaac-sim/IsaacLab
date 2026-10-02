@@ -119,6 +119,8 @@ jobs:
     # Shards plus the full training-smoke matrix. The smoke alone is ~30 min
     # (Kit boot dominates the Kit-renderer cases), so 60 no longer fits.
     timeout-minutes: 120
+    outputs:
+      smoke_device_skips: ${{ steps.smoke-skips.outputs.device_skips }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
@@ -242,6 +244,12 @@ jobs:
           # commit never contained. The shard launcher already bind-mounts for this reason.
           volume-mount-source: ${{ github.workspace }}
 
+      - name: Count smoke cases skipped for too few GPUs
+        # Feeds ``smoke-coverage``; this job stays green for the shards' sake.
+        id: smoke-skips
+        if: always() && needs.changes.outputs.smoke == 'true'
+        run: python3 .github/actions/multi-gpu/smoke_device_skips.py reports/multi-gpu-smoke-report.xml
+
       - name: Aggregated test summary
         # Per-shard + per-file pass/total/walltime, plus a combined table, also
         # written to $GITHUB_STEP_SUMMARY. Runs on success or failure.
@@ -261,6 +269,8 @@ jobs:
     runs-on: [self-hosted, linux, x64, multi-gpu]
     # One lane only; the 120 min ceiling on the sharded job covers shards + Kit smoke together.
     timeout-minutes: 60
+    outputs:
+      smoke_device_skips: ${{ steps.smoke-skips.outputs.device_skips }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
@@ -298,3 +308,29 @@ jobs:
           pytest-options: -m kitless
           # Same reason as the Kit step above.
           volume-mount-source: ${{ github.workspace }}
+
+      - name: Count smoke cases skipped for too few GPUs
+        id: smoke-skips
+        if: always()
+        run: python3 .github/actions/multi-gpu/smoke_device_skips.py reports/multi-gpu-smoke-kitless-report.xml
+
+  smoke-coverage:
+    name: Multi-GPU training smoke coverage
+    needs: [changes, test-multi-gpu-pytest, test-multi-gpu-smoke-kitless]
+    # Red when a smoke case was skipped because the runner has too few GPUs, so a smaller runner
+    # cannot silently drop the coverage. Keep it out of the required checks: it reports, it does
+    # not block a merge.
+    if: always() && needs.changes.outputs.smoke == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail on smoke cases the runner could not run
+        env:
+          KIT_SKIPS: ${{ needs.test-multi-gpu-pytest.outputs.smoke_device_skips }}
+          KITLESS_SKIPS: ${{ needs.test-multi-gpu-smoke-kitless.outputs.smoke_device_skips }}
+        run: |
+          total=$(( ${KIT_SKIPS:-0} + ${KITLESS_SKIPS:-0} ))
+          if [ "$total" -gt 0 ]; then
+            echo "::error::$total multi-GPU training smoke case(s) did not run: the runner has too few GPUs (Kit lane ${KIT_SKIPS:-0}, kit-less lane ${KITLESS_SKIPS:-0})"
+            exit 1
+          fi
+          echo "No multi-GPU training smoke case was skipped for lack of GPUs."
