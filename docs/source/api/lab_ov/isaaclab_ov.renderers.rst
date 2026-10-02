@@ -31,9 +31,9 @@ Simulation-owned stages
 
 The simulation owns these detached stages and releases them after their consumers close. Each stage's
 configuration selects the populated USD domains, and :class:`~isaaclab_ov.cloner.OvstageReplicateContext`
-prepares its copies. Independent renderer and visualizer stages use the rendering domain. With
-``ISAAC_LAB_OVRTX_USE_OVSTAGE=1``, OVRTX borrows its rendering stage from the simulation registry.
-OVPhysX retains a separate physics stage and native replication path.
+prepares its copies. Independent renderer and visualizer stages use the rendering domain.
+:ref:`Clone routing <ov-clone-routing>` selects stage ownership and environment overrides before
+backend initialization. OVPhysX retains a separate physics stage and native replication path.
 
 .. autoclass:: isaaclab_ov.stage.OvstageBackendCfg
    :show-inheritance:

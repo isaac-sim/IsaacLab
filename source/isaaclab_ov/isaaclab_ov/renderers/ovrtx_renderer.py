@@ -155,28 +155,9 @@ _PPISP_IMPORT_ERROR_MESSAGE = (
 _READ_GPU_TRANSFORMS_ENV = "ISAAC_LAB_OVRTX_READ_GPU_TRANSFORMS"
 
 
-# Runtime environment variable used to enable the ovstage code path for ovrtx.
-_USE_OVSTAGE_ENV = "ISAAC_LAB_OVRTX_USE_OVSTAGE"
-
-
 # Opts Linux out of the host wait, onto the same GPU-side ordering every other platform uses.
 # See :meth:`OVRTXRenderer._map_render_var_to_dlpack`.
 _DISABLE_LINUX_CUDA_CPU_SYNC_ENV = "ISAAC_LAB_OVRTX_DISABLE_LINUX_CUDA_CPU_SYNC"
-
-
-def ovrtx_use_ovstage_enabled() -> bool:
-    """Return whether the ovstage scene-ownership path should be used.
-
-    Enabled by ``ISAAC_LAB_OVRTX_USE_OVSTAGE=1``. Rendering uses an isolated simulation-owned
-    stage; physics retains its own stage and cloning path. Native OVRTX cloning remains the default.
-
-    Raises:
-        ValueError: If the environment variable is set to anything other than ``0`` or ``1``.
-    """
-    value = os.environ.get(_USE_OVSTAGE_ENV, "0").strip()
-    if value not in {"0", "1"}:
-        raise ValueError(f"Invalid value for environment variable `{_USE_OVSTAGE_ENV}`: {value}. Expected 0 or 1.")
-    return value == "1"
 
 
 def _raise_missing_ppisp_error(exc: ModuleNotFoundError) -> NoReturn:
