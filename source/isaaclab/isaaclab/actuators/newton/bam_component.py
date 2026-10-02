@@ -517,7 +517,7 @@ def apply_bam_startup_sampling(drive: DriveBam, cfg: Any) -> None:
 
     A USD prim is shared by every clone, so the ranges
     :class:`~isaaclab.actuators.BamActuatorCfg` exposes (``vin_range``,
-    ``vin_drop_gain_range``, ``friction_scale_range``) cannot be authored per environment.
+    ``vin_drop_gain_range``) cannot be authored per environment.
     They are drawn here instead, once the actuator exists: one value per environment,
     shared by that environment's joints and held constant across resets.
 
@@ -530,7 +530,6 @@ def apply_bam_startup_sampling(drive: DriveBam, cfg: Any) -> None:
     ranges = (
         ("vin", cfg.vin_range),
         ("sag_gain", cfg.vin_drop_gain_range),
-        ("friction_scale", cfg.friction_scale_range),
     )
     for attr, value_range in ranges:
         if value_range is None:

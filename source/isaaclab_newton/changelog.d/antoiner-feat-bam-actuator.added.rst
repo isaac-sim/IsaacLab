@@ -9,6 +9,8 @@
   joint-friction property; the module documents the resulting ordering contract.
   BAM viscous damping was initialized once through the articulation's joint-property setter,
   preserving it across solver property resynchronization without per-step publication.
+  Shared BAM actuators required matching voltage/sag start-up ranges and ``stiff_frictionloss``;
+  friction scale was controlled through task events and was excluded from that agreement check.
 * Added :meth:`~isaaclab_newton.physics.NewtonManager.register_pre_actuator_callback`, an
   in-graph hook that runs immediately before the actuator step so a component can consume
   solver quantities on the same decimation iteration, and

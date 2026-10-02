@@ -148,15 +148,6 @@ class BamActuatorCfg(ActuatorBaseCfg):
     vin_min: float | None = None
     """Lower bound on the supply voltage after the load-induced sag [V], or None for no bound."""
 
-    friction_scale_range: tuple[float, float] | None = None
-    """Range to sample the per-environment friction-budget scale from [-].
-
-    The scale multiplies the whole velocity-independent friction budget (Coulomb, Stribeck
-    and load-dependent terms). Sampled once at construction. Per-episode friction randomization
-    writes the drive's ``friction_scale`` through
-    :func:`~isaaclab.actuators.newton.write_group_parameter`. If None, the scale is 1.
-    """
-
     min_delay: int = 0
     """Minimum command delay [physics steps]. Defaults to 0."""
 

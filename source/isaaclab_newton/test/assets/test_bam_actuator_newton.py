@@ -243,13 +243,13 @@ def _build_two_native_pendulums(sim, pendulum_usd: str, second_cfg: BamActuatorC
 def test_two_articulations_sharing_one_actuator_must_agree(native_sim, device, pendulum_usd):
     """Two robots merged into one Newton actuator cannot carry different BAM settings.
 
-    ``vin_range``, ``vin_drop_gain_range``, ``friction_scale_range`` and ``stiff_frictionloss``
+    ``vin_range``, ``vin_drop_gain_range`` and ``stiff_frictionloss``
     are not part of Newton's actuator-grouping key, so structurally identical robots share one
     actuator and one set of parameter arrays. Applying the second articulation's ranges would
     silently discard the first's randomization, and skipping them would silently ignore the
     second's configuration, so the conflict has to be refused.
     """
-    conflicting = _make_cfg(friction_scale_range=(0.5, 2.0))
+    conflicting = _make_cfg(vin_drop_gain_range=(0.0, 0.2))
     with pytest.raises(ValueError, match="share one Newton actuator"):
         _build_two_native_pendulums(native_sim, pendulum_usd, conflicting)
 
@@ -290,7 +290,7 @@ def test_startup_ranges_are_sampled_per_environment(native_sim, device, pendulum
                     joint_names_expr=[".*"],
                     kp_fw=KP_FW,
                     vin_range=(6.0, 8.0),
-                    friction_scale_range=(0.5, 1.5),
+                    vin_drop_gain_range=(0.0, 0.2),
                 )
             },
         )
@@ -300,14 +300,14 @@ def test_startup_ranges_are_sampled_per_environment(native_sim, device, pendulum
     native_sim.reset()
     assert robot.is_initialized
 
-    for attr, (low, high) in (("vin", (6.0, 8.0)), ("friction_scale", (0.5, 1.5))):
+    for attr, (low, high) in (("vin", (6.0, 8.0)), ("sag_gain", (0.0, 0.2))):
         values = read_group_parameter(robot.actuators, "servo", "drive", attr)
         assert bool(((values >= low) & (values <= high)).all()), f"{attr} outside its configured range"
         assert len(torch.unique(values)) > 1, f"{attr} drew the same value for every environment"
-    # An unset range keeps the authored nominal.
+    # Friction remains unscaled until a task event writes it.
     torch.testing.assert_close(
-        read_group_parameter(robot.actuators, "servo", "drive", "sag_gain"),
-        torch.zeros(NUM_ENVS, robot.num_joints, device=robot.device),
+        read_group_parameter(robot.actuators, "servo", "drive", "friction_scale"),
+        torch.ones(NUM_ENVS, robot.num_joints, device=robot.device),
     )
 
 
@@ -320,16 +320,16 @@ def test_each_articulation_configures_only_its_own_actuator(native_sim, device, 
     with whichever articulation initialized first winning. Differing ``max_delay`` puts the two
     robots in different Newton actuators; only the scoping decides which one each configures.
     """
-    delayed = _make_cfg(max_delay=2, friction_scale_range=(3.0, 3.0))
+    delayed = _make_cfg(max_delay=2, vin_range=(6.5, 6.5))
     robot_a, robot_b = _build_two_native_pendulums(native_sim, pendulum_usd, delayed)
     assert len({id(actuator) for actuator in NewtonManager._adapter.actuators}) == 2, (
         "the two robots must not merge, or the test cannot tell the configurations apart"
     )
 
-    # robot_a keeps ``_build_two_native_pendulums``'s default cfg (no start-up range, so 1.0).
-    for robot, expected in ((robot_a, 1.0), (robot_b, 3.0)):
-        friction_scale = read_group_parameter(robot.actuators, "servo", "drive", "friction_scale")
-        torch.testing.assert_close(friction_scale, torch.full_like(friction_scale, expected), atol=1e-6, rtol=0.0)
+    # robot_a keeps the nominal supply; robot_b uses its configured start-up range.
+    for robot, expected in ((robot_a, VIN), (robot_b, 6.5)):
+        voltage = read_group_parameter(robot.actuators, "servo", "drive", "vin")
+        torch.testing.assert_close(voltage, torch.full_like(voltage, expected), atol=1e-6, rtol=0.0)
 
 
 def test_bam_rejects_a_non_mjwarp_solver(pendulum_usd):
