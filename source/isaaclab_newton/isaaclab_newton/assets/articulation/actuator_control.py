@@ -262,14 +262,14 @@ class NewtonActuatorControl(ArticulationActuatorControl):
         from isaaclab.actuators.actuator_bam_cfg import BamActuatorCfg  # noqa: PLC0415
 
         settings = {
-            (cfg.vin_range, cfg.vin_drop_gain_range, cfg.friction_scale_range, cfg.stiff_frictionloss)
+            (cfg.vin_range, cfg.vin_drop_gain_range, cfg.stiff_frictionloss)
             for cfg in self._native_actuator_cfgs.values()
             if isinstance(cfg, BamActuatorCfg)
         }
         if len(settings) > 1:
             raise ValueError(
                 "BAM actuator groups on one articulation must agree on 'vin_range',"
-                " 'vin_drop_gain_range', 'friction_scale_range' and 'stiff_frictionloss': they are"
+                " 'vin_drop_gain_range' and 'stiff_frictionloss': they are"
                 " not part of Newton's actuator-grouping key, so one Newton actuator may cover"
                 " several groups and there is no per-group value to apply."
             )
@@ -304,7 +304,7 @@ class NewtonActuatorControl(ArticulationActuatorControl):
                     raise ValueError(
                         "Two articulations share one Newton actuator but configure their BAM"
                         f" groups differently ({previous} vs {settings}). 'vin_range',"
-                        " 'vin_drop_gain_range', 'friction_scale_range' and 'stiff_frictionloss'"
+                        " 'vin_drop_gain_range' and 'stiff_frictionloss'"
                         " are not part of Newton's actuator-grouping key, so structurally"
                         " identical robots are merged into one actuator and cannot carry"
                         " per-articulation values. Use matching start-up ranges and stiff_frictionloss"
