@@ -14,16 +14,23 @@ import torch
 import warp as wp
 
 from ...managers import ManagerTermBase, ObservationTermCfg, SceneEntityCfg
-from ...utils.visual_processing import (
-    VisualProcessingPipeline,
-    VisualProcessorCfg,
-    VisualProcessorContext,
-    _find_new_camera_frames,
+from ...sensors.post_processing import (
+    CameraPostProcessorContext,
+    SensorPostProcessingPipeline,
+    SensorPostProcessorCfg,
 )
 
 if TYPE_CHECKING:
     from ...sensors import Camera
     from .. import ManagerBasedEnv
+
+
+@wp.kernel
+def _find_new_camera_frames(
+    current: wp.array(dtype=wp.int64), previous: wp.array(dtype=wp.int64), mask: wp.array(dtype=wp.bool)
+):
+    index = wp.tid()
+    mask[index] = current[index] != previous[index]
 
 
 class processed_image(ManagerTermBase):
@@ -58,7 +65,7 @@ class processed_image(ManagerTermBase):
             raise ValueError(
                 "processed_image normalize=True supports 'rgb' and 'rgba'; use a processor for other outputs."
             )
-        self._pipeline: VisualProcessingPipeline | None = None
+        self._pipeline: SensorPostProcessingPipeline | None = None
         self._generation = -1
         self._result: torch.Tensor | None = None
         self._image: torch.Tensor | None = None
@@ -68,7 +75,7 @@ class processed_image(ManagerTermBase):
         self._last_frames: wp.array | None = None
         self._process_mask: wp.array | None = None
         try:
-            context = VisualProcessorContext(
+            context = CameraPostProcessorContext(
                 stage=env.sim.stage,
                 camera_prim_paths=self._camera.camera_prim_paths,
                 num_views=env.num_envs,
@@ -76,7 +83,7 @@ class processed_image(ManagerTermBase):
                 width=self._camera.cfg.width,
                 device=env.device,
             )
-            self._pipeline = VisualProcessingPipeline(
+            self._pipeline = SensorPostProcessingPipeline(
                 cfg.params["processors"], context, self._camera.render_buffer_specs, [self._data_type]
             )
             self._camera.request_render_inputs(self._pipeline.render_data_types)
@@ -90,7 +97,7 @@ class processed_image(ManagerTermBase):
         self,
         env: ManagerBasedEnv,
         sensor_cfg: SceneEntityCfg,
-        processors: list[VisualProcessorCfg],
+        processors: list[SensorPostProcessorCfg],
         data_type: str = "rgb",
         normalize: bool = False,
         permute: bool = False,

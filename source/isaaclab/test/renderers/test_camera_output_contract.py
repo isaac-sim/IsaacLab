@@ -18,14 +18,14 @@ pytest.importorskip("isaaclab_physx")
 
 from isaaclab.sensors.camera import CameraCfg, TiledCameraCfg
 from isaaclab.sensors.camera.camera_data import CameraData, RenderBufferKind, RenderBufferSpec
+from isaaclab.sensors.post_processing import (
+    CameraPostProcessorContext,
+    SensorPostProcessingPipeline,
+    SensorPostProcessor,
+    SensorPostProcessorCfg,
+)
 from isaaclab.sim import PinholeCameraCfg
 from isaaclab.utils import clone, validate
-from isaaclab.utils.visual_processing import (
-    VisualProcessingPipeline,
-    VisualProcessor,
-    VisualProcessorCfg,
-    VisualProcessorContext,
-)
 
 pytestmark = [pytest.mark.integration, pytest.mark.rendering]
 
@@ -309,7 +309,7 @@ def _make_increment_processor(cfg, context, events):
         output = bindings["output"].torch
         output[selected] = (source[selected] + cfg.params.get("increment", 1)).to(output.dtype)
 
-    return VisualProcessor(
+    return SensorPostProcessor(
         inputs=cfg.inputs,
         outputs=cfg.outputs,
         initialize=initialize,
@@ -321,7 +321,7 @@ def _make_increment_processor(cfg, context, events):
 
 
 def _processor_cfg(name, inputs, outputs, events, **params):
-    return VisualProcessorCfg(
+    return SensorPostProcessorCfg(
         func=lambda cfg, context: _make_increment_processor(cfg, context, events),
         inputs=inputs,
         outputs=outputs,
@@ -330,7 +330,7 @@ def _processor_cfg(name, inputs, outputs, events, **params):
 
 
 def _processing_context():
-    return VisualProcessorContext(
+    return CameraPostProcessorContext(
         stage=None,
         camera_prim_paths=("/World/envs/env_0/Camera", "/World/envs/env_1/Camera"),
         num_views=2,
@@ -342,7 +342,7 @@ def _processing_context():
 
 def test_visual_pipeline_preserves_rgb_only_renderer_contract():
     """An empty chain does not request RGBA from a renderer that only supplies RGB."""
-    pipeline = VisualProcessingPipeline([], _processing_context(), {"rgb": RenderBufferSpec(3, wp.uint8)}, ["rgb"])
+    pipeline = SensorPostProcessingPipeline([], _processing_context(), {"rgb": RenderBufferSpec(3, wp.uint8)}, ["rgb"])
     outputs = pipeline.allocate()
     assert pipeline.render_data_types == ("rgb",)
     assert set(pipeline.render_outputs) == set(outputs) == {"rgb"}
@@ -360,7 +360,7 @@ def test_visual_processors_order_intermediates_and_persistent_aliases():
         _processor_cfg("color", {"tone_mapped": rgb}, {"rgb": rgb}, events, increment=2),
         _processor_cfg("finish", {"rgb": rgb}, {"rgb": rgb}, events, increment=3, in_place=True),
     ]
-    pipeline = VisualProcessingPipeline(configs, _processing_context(), {"rgb_hdr": hdr}, ["rgb", "rgba"])
+    pipeline = SensorPostProcessingPipeline(configs, _processing_context(), {"rgb_hdr": hdr}, ["rgb", "rgba"])
     outputs = pipeline.allocate()
     assert set(pipeline.render_data_types) == {"rgb_hdr"}
     assert set(pipeline.render_outputs) == {"rgb_hdr"}
@@ -405,7 +405,7 @@ def test_visual_processors_reject_incompatible_order():
         _processor_cfg("producer", {"rgb_hdr": hdr}, {"tone_mapped": rgb}, []),
     ]
     with pytest.raises(ValueError, match="tone_mapped"):
-        VisualProcessingPipeline(configs, _processing_context(), {"rgb_hdr": hdr}, ["rgb"])
+        SensorPostProcessingPipeline(configs, _processing_context(), {"rgb_hdr": hdr}, ["rgb"])
 
 
 @pytest.mark.parametrize(
@@ -423,7 +423,7 @@ def test_visual_processors_reject_incompatible_input_contract(requirement):
     hdr = RenderBufferSpec(3, wp.float32, color_space="scene_linear")
     config = _processor_cfg("invalid", {"rgb_hdr": requirement}, {"rgb": RenderBufferSpec(3, wp.uint8)}, [])
     with pytest.raises(ValueError, match="rgb_hdr|NHWC|device|layout"):
-        VisualProcessingPipeline([config], _processing_context(), {"rgb_hdr": hdr}, ["rgb"])
+        SensorPostProcessingPipeline([config], _processing_context(), {"rgb_hdr": hdr}, ["rgb"])
 
 
 def test_visual_processors_keep_intermediate_rgb_storage_alive():
@@ -435,7 +435,7 @@ def test_visual_processors_keep_intermediate_rgb_storage_alive():
         _processor_cfg("first", {"rgb_hdr": hdr}, {"rgb": rgb}, events),
         _processor_cfg("second", {"rgb": rgb}, {"rgb": rgb}, events),
     ]
-    pipeline = VisualProcessingPipeline(configs, _processing_context(), {"rgb_hdr": hdr}, ["rgb"])
+    pipeline = SensorPostProcessingPipeline(configs, _processing_context(), {"rgb_hdr": hdr}, ["rgb"])
     outputs = pipeline.allocate()
     first_bindings = events[0][2]
     assert first_bindings["rgba_owner"]() is not None
@@ -455,7 +455,7 @@ def test_visual_processor_cleanup_after_initialization_failure():
             if cfg.params["fail"]:
                 raise RuntimeError("processor initialization failed")
 
-        return VisualProcessor(
+        return SensorPostProcessor(
             inputs={},
             outputs={},
             initialize=initialize,
@@ -464,10 +464,10 @@ def test_visual_processor_cleanup_after_initialization_failure():
         )
 
     configs = [
-        VisualProcessorCfg(func=make_processor, params={"name": "first", "fail": False}),
-        VisualProcessorCfg(func=make_processor, params={"name": "second", "fail": True}),
+        SensorPostProcessorCfg(func=make_processor, params={"name": "first", "fail": False}),
+        SensorPostProcessorCfg(func=make_processor, params={"name": "second", "fail": True}),
     ]
-    pipeline = VisualProcessingPipeline(configs, _processing_context(), {}, [])
+    pipeline = SensorPostProcessingPipeline(configs, _processing_context(), {}, [])
     with pytest.raises(RuntimeError, match="processor initialization failed"):
         pipeline.allocate()
     assert closed == ["second", "first"]
@@ -483,13 +483,13 @@ def test_visual_processor_cleanup_continues_after_callback_failure():
             if cfg.params["fail"]:
                 raise RuntimeError("processor cleanup failed")
 
-        return VisualProcessor(inputs={}, outputs={}, process=lambda mask: None, close=close)
+        return SensorPostProcessor(inputs={}, outputs={}, process=lambda mask: None, close=close)
 
     configs = [
-        VisualProcessorCfg(func=make_processor, params={"name": "first", "fail": False}),
-        VisualProcessorCfg(func=make_processor, params={"name": "second", "fail": True}),
+        SensorPostProcessorCfg(func=make_processor, params={"name": "first", "fail": False}),
+        SensorPostProcessorCfg(func=make_processor, params={"name": "second", "fail": True}),
     ]
-    pipeline = VisualProcessingPipeline(configs, _processing_context(), {}, [])
+    pipeline = SensorPostProcessingPipeline(configs, _processing_context(), {}, [])
     pipeline.allocate()
     with pytest.raises(RuntimeError) as exc_info:
         pipeline.close()

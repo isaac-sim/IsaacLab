@@ -10,15 +10,15 @@ from __future__ import annotations
 import warp as wp
 
 from isaaclab.renderers import RenderBufferSpec
+from isaaclab.sensors.post_processing import CameraPostProcessorContext, SensorPostProcessor, SensorPostProcessorCfg
 from isaaclab.utils import configclass
-from isaaclab.utils.visual_processing import VisualProcessor, VisualProcessorCfg, VisualProcessorContext
 from isaaclab.utils.warp import ProxyArray
 
 from .cfg import PpispCfg, PpispDiscoveryMode, resolve_and_normalize
 from .pipeline import PpispPipeline
 
 
-def resolve_ppisp_processor(cfg: PpispProcessorCfg, context: VisualProcessorContext) -> VisualProcessor | None:
+def resolve_ppisp_processor(cfg: PpispProcessorCfg, context: CameraPostProcessorContext) -> SensorPostProcessor | None:
     """Resolve camera PPISP attributes and create independent processing callbacks.
 
     Args:
@@ -58,7 +58,7 @@ def resolve_ppisp_processor(cfg: PpispProcessorCfg, context: VisualProcessorCont
         rgba = None
         pipeline.close()
 
-    return VisualProcessor(
+    return SensorPostProcessor(
         inputs=cfg.inputs,
         outputs=cfg.outputs,
         initialize=initialize,
@@ -68,7 +68,7 @@ def resolve_ppisp_processor(cfg: PpispProcessorCfg, context: VisualProcessorCont
 
 
 @configclass
-class PpispProcessorCfg(VisualProcessorCfg):
+class PpispProcessorCfg(SensorPostProcessorCfg):
     """PPISP stage for :class:`~isaaclab.envs.mdp.visual_observations.processed_image`.
 
     Consumes unexposed scene-linear ``rgb_radiance`` and produces RGB/RGBA with PPISP's camera response

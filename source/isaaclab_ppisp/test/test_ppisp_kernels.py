@@ -42,13 +42,13 @@ from isaaclab_ppisp.kernels import (
     PPISP_CONTROLLER_PARAM_COUNT,
 )
 
-from isaaclab.utils import clone
-from isaaclab.utils.visual_processing import (
-    VisualProcessingPipeline,
-    VisualProcessor,
-    VisualProcessorCfg,
-    VisualProcessorContext,
+from isaaclab.sensors.post_processing import (
+    CameraPostProcessorContext,
+    SensorPostProcessingPipeline,
+    SensorPostProcessor,
+    SensorPostProcessorCfg,
 )
+from isaaclab.utils import clone
 from isaaclab.utils.warp import ProxyArray
 
 wp.init()
@@ -407,8 +407,10 @@ def test_ppisp_processor_preserves_pipeline_output_and_borrowed_bindings(control
         controller_weights=(0.0,) * PPISP_CONTROLLER_EXPECTED_WEIGHTS_LEN if controller else None,
     )
     cfg = PpispProcessorCfg(isp_cfg=ppisp_cfg)
-    context = VisualProcessorContext(stage=None, camera_prim_paths=(), num_views=2, height=4, width=4, device=device)
-    processing = VisualProcessingPipeline([cfg], context, cfg.inputs, ["rgb"])
+    context = CameraPostProcessorContext(
+        stage=None, camera_prim_paths=(), num_views=2, height=4, width=4, device=device
+    )
+    processing = SensorPostProcessingPipeline([cfg], context, cfg.inputs, ["rgb"])
     raw = {"rgb_radiance": ProxyArray(wp.zeros((2, 4, 4, 3), dtype=wp.float32, device=device))}
     outputs = processing.allocate(raw)
     hdr = processing.render_outputs["rgb_radiance"].warp
@@ -446,22 +448,24 @@ def test_ppisp_consumes_radiance_from_an_earlier_processor():
             source = inputs["rgb_hdr"].warp
             target = outputs["rgb_radiance"].warp
 
-        return VisualProcessor(
+        return SensorPostProcessor(
             inputs=cfg.inputs,
             outputs=cfg.outputs,
             initialize=initialize,
             process=lambda mask: wp.copy(target, source),
         )
 
-    producer_cfg = VisualProcessorCfg(
+    producer_cfg = SensorPostProcessorCfg(
         func=make_radiance,
         inputs={"rgb_hdr": radiance_spec},
         outputs={"rgb_radiance": radiance_spec},
     )
     device = "cuda:0" if wp.is_cuda_available() else "cpu"
-    context = VisualProcessorContext(stage=None, camera_prim_paths=(), num_views=1, height=2, width=2, device=device)
+    context = CameraPostProcessorContext(
+        stage=None, camera_prim_paths=(), num_views=1, height=2, width=2, device=device
+    )
     renderer_specs = {"rgb_hdr": radiance_spec}
-    processing = VisualProcessingPipeline([producer_cfg, ppisp_cfg], context, renderer_specs, ["rgba"])
+    processing = SensorPostProcessingPipeline([producer_cfg, ppisp_cfg], context, renderer_specs, ["rgba"])
     assert processing.render_data_types == ("rgb_hdr",)
     output = processing.allocate()["rgba"].warp
     hdr = processing.render_outputs["rgb_hdr"].warp

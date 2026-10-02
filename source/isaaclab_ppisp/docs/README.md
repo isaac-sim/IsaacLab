@@ -27,7 +27,7 @@ camera_image = ObservationTermCfg(
 Add the term to an observation group in a manager-based environment whose scene
 contains a camera named `camera`. Append additional processor configurations to
 `processors` to consume PPISP's RGB result. Processor factories and buffer
-declarations live in `isaaclab.utils.visual_processing`; no renderer changes
+declarations live in `isaaclab.sensors.post_processing`; no renderer changes
 are required to add a stage.
 
 `normalize=False` returns persistent `uint8` output by default. For RGB/RGBA,

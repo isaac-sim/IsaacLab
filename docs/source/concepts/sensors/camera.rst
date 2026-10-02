@@ -408,9 +408,9 @@ Run the ``ppisp-camera`` example for a PPISP workflow using the observation API:
 Add a processor
 ~~~~~~~~~~~~~~~
 
-A :class:`~utils.visual_processing.VisualProcessorCfg` factory receives the configuration and a
-:class:`~utils.visual_processing.VisualProcessorContext` containing the stage, camera paths, image
-dimensions, and device. It returns a :class:`~utils.visual_processing.VisualProcessor` with buffer
+A :class:`~sensors.post_processing.SensorPostProcessorCfg` factory receives the configuration and a
+:class:`~sensors.post_processing.CameraPostProcessorContext` containing the stage, camera paths, image
+dimensions, and device. It returns a :class:`~sensors.post_processing.SensorPostProcessor` with buffer
 declarations and callbacks, or ``None`` to disable the stage. Keep state inside that factory so
 observation terms remain independent.
 
@@ -422,7 +422,7 @@ module so Warp can inspect its source:
    import warp as wp
 
    from isaaclab.renderers import RenderBufferSpec
-   from isaaclab.utils.visual_processing import VisualProcessor, VisualProcessorCfg
+   from isaaclab.sensors.post_processing import SensorPostProcessor, SensorPostProcessorCfg
 
 
    @wp.kernel
@@ -447,7 +447,7 @@ module so Warp can inspect its source:
                device=context.device,
            )
 
-       return VisualProcessor(
+       return SensorPostProcessor(
            inputs=cfg.inputs,
            outputs=cfg.outputs,
            initialize=initialize,
@@ -463,7 +463,7 @@ module so Warp can inspect its source:
            "sensor_cfg": SceneEntityCfg("front_camera"),
            "processors": [
                PpispProcessorCfg(isp_cfg=PpispCfg()),
-               VisualProcessorCfg(
+               SensorPostProcessorCfg(
                    func=make_invert_processor,
                    inputs={"rgb": rgb_spec},
                    outputs={"rgb": rgb_spec},

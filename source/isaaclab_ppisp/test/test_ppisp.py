@@ -23,7 +23,7 @@ from isaaclab_ppisp.cfg import PPISP_CONTROLLER_EXPECTED_WEIGHTS_LEN, resolve_an
 
 from pxr import Gf, Sdf, Usd, Vt
 
-from isaaclab.utils.visual_processing import VisualProcessingPipeline, VisualProcessorContext
+from isaaclab.sensors.post_processing import CameraPostProcessorContext, SensorPostProcessingPipeline
 
 _PPISP_FLOAT2_ATTRS = {
     "vignettingCenterR",
@@ -78,17 +78,17 @@ def test_ppisp_processor_discovery_resolves_before_requesting_radiance():
     stage = Usd.Stage.CreateInMemory()
     _author_camera(stage)
     _author_ppisp_camera(stage, inherits=None, attrs={"exposureOffset": 1.5})
-    context = VisualProcessorContext(
+    context = CameraPostProcessorContext(
         stage=stage, camera_prim_paths=("/World/Camera",), num_views=1, height=4, width=4, device="cpu"
     )
 
     cfg = PpispProcessorCfg()
-    processing = VisualProcessingPipeline([cfg], context, {"rgb": cfg.outputs["rgb"]}, ["rgb"])
+    processing = SensorPostProcessingPipeline([cfg], context, {"rgb": cfg.outputs["rgb"]}, ["rgb"])
     assert processing.render_data_types == ("rgb",)
     processing.close()
 
     cfg.isp_cfg = PpispDiscoveryMode.AUTO_ANY
-    processing = VisualProcessingPipeline([cfg], context, cfg.inputs, ["rgb"])
+    processing = SensorPostProcessingPipeline([cfg], context, cfg.inputs, ["rgb"])
     assert processing.render_data_types == ("rgb_radiance",)
     processing.close()
 

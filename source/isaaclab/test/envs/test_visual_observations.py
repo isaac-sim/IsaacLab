@@ -16,7 +16,7 @@ from isaaclab.envs.mdp import processed_image
 from isaaclab.managers import ObservationGroupCfg, ObservationManager, ObservationTermCfg, SceneEntityCfg
 from isaaclab.renderers import RenderBufferSpec
 from isaaclab.sensors.camera.camera_data import CameraData, RenderBufferKind
-from isaaclab.utils.visual_processing import VisualProcessor, VisualProcessorCfg
+from isaaclab.sensors.post_processing import SensorPostProcessor, SensorPostProcessorCfg
 from isaaclab.utils.warp import ProxyArray
 
 pytestmark = pytest.mark.unit
@@ -71,7 +71,7 @@ def make_term_cfg(events, *, source="rgb", increment=1, **params):
             events.append(("process", mask.numpy().copy()))
             torch.add(buffers["input"], increment, out=buffers["output"])
 
-        return VisualProcessor(
+        return SensorPostProcessor(
             inputs={source: source_spec},
             outputs={"rgb": RenderBufferSpec(3, wp.uint8, color_space="srgb")},
             initialize=initialize,
@@ -83,7 +83,7 @@ def make_term_cfg(events, *, source="rgb", increment=1, **params):
 
     cfg = ObservationTermCfg(
         func=processed_image,
-        params={"sensor_cfg": SceneEntityCfg("camera"), "processors": [VisualProcessorCfg(func=factory)], **params},
+        params={"sensor_cfg": SceneEntityCfg("camera"), "processors": [SensorPostProcessorCfg(func=factory)], **params},
     )
     return cfg, bindings
 

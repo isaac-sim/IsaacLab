@@ -3,32 +3,26 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Composable pixel operations and persistent buffers for image observations."""
+"""Sensor post-processors and the pipeline that chains them with persistent buffers."""
 
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import MISSING, dataclass, replace
-from typing import Any
+from dataclasses import dataclass, replace
+from typing import TYPE_CHECKING, Any
 
 import warp as wp
 
-from ..renderers.output_contract import RenderBufferSpec
-from . import configclass
-from .warp import ProxyArray
+from ...renderers.output_contract import RenderBufferSpec
+from ...utils.warp import ProxyArray
 
-
-@wp.kernel
-def _find_new_camera_frames(
-    current: wp.array(dtype=wp.int64), previous: wp.array(dtype=wp.int64), mask: wp.array(dtype=wp.bool)
-):
-    index = wp.tid()
-    mask[index] = current[index] != previous[index]
+if TYPE_CHECKING:
+    from .post_processor_cfg import SensorPostProcessorCfg
 
 
 @dataclass(frozen=True)
-class VisualProcessorContext:
-    """Initialization context shared by processor factories, without a renderer reference."""
+class CameraPostProcessorContext:
+    """Camera initialization context shared by processor factories, without a renderer reference."""
 
     stage: Any
     camera_prim_paths: tuple[str, ...]
@@ -39,9 +33,10 @@ class VisualProcessorContext:
 
 
 @dataclass
-class VisualProcessor:
-    """Resolved buffer declarations and callbacks for one pixel operation.
+class SensorPostProcessor:
+    """Resolved buffer declarations and callbacks for one sensor post-processing operation.
 
+    Only camera image buffers (NHWC) are currently supported.
     Factories may return closures or bound methods; no processor inheritance is required.
     ``initialize(inputs, outputs)`` binds persistent buffers once. Inputs are read-only
     unless also bound as an output. ``process(env_mask)``
@@ -71,23 +66,7 @@ class VisualProcessor:
     in_place: bool = False
 
 
-@configclass
-class VisualProcessorCfg:
-    """Configure a factory that creates independent state for each processing chain.
-
-    ``func(cfg, context)`` resolves configuration before renderer setup and returns a
-    :class:`VisualProcessor`, or ``None`` to disable this operation. Static ``inputs``
-    declare potential renderer requirements needed before simulation startup (e.g. HDR).
-    The returned processor declares the actual inputs and outputs after discovery.
-    """
-
-    func: Callable[[VisualProcessorCfg, VisualProcessorContext], VisualProcessor | None] = MISSING
-    inputs: dict[str, RenderBufferSpec] = {}
-    outputs: dict[str, RenderBufferSpec] = {}
-    params: dict[str, Any] = {}
-
-
-class VisualProcessingPipeline:
+class SensorPostProcessingPipeline:
     """Resolve an ordered processor chain and bind storage once per consumer.
 
     Resolution validates every input against the preceding output or renderer contract.
@@ -103,13 +82,13 @@ class VisualProcessingPipeline:
 
     def __init__(
         self,
-        configs: list[VisualProcessorCfg],
-        context: VisualProcessorContext,
+        configs: list[SensorPostProcessorCfg],
+        context: CameraPostProcessorContext,
         renderer_specs: dict[str, RenderBufferSpec],
         requested_outputs: list[str],
     ):
         self.context = context
-        self._processors: list[VisualProcessor] = []
+        self._processors: list[SensorPostProcessor] = []
         self._renderer_specs: dict[str, RenderBufferSpec] = {}
         self.render_outputs: dict[str, ProxyArray] = {}
         self._buffers: list[dict[str, ProxyArray]] = []
@@ -244,7 +223,7 @@ class VisualProcessingPipeline:
         self._outputs = None
         self._buffers.clear()
         if error is not None:
-            raise RuntimeError("Failed to close a visual processor.") from error
+            raise RuntimeError("Failed to close a sensor post-processor.") from error
 
     def _validate_spec(self, name: str, spec: RenderBufferSpec) -> None:
         if spec.layout != "NHWC":
