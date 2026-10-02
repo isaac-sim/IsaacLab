@@ -1153,8 +1153,14 @@ jobs:
       run: |
         set -euo pipefail
         config=.github/workflows/config.yaml
-        echo "isaacsim_image_name=$(yq -er .isaacsim_image_name "$config")" >> "$GITHUB_OUTPUT"
-        echo "isaacsim_image_tag=$(yq -er .isaacsim_image_tag "$config")" >> "$GITHUB_OUTPUT"
+        read_config() {
+          sed -n "s/^$1:[[:space:]]*//p" "$config"
+        }
+        image_name="$(read_config isaacsim_image_name)"
+        image_tag="$(read_config isaacsim_image_tag)"
+        test -n "$image_name" && test -n "$image_tag"
+        echo "isaacsim_image_name=$image_name" >> "$GITHUB_OUTPUT"
+        echo "isaacsim_image_tag=$image_tag" >> "$GITHUB_OUTPUT"
 
     - name: Build or pull base dependency image
       if: steps.base_config.outcome == 'success'

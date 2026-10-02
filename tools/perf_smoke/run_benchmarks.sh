@@ -31,6 +31,8 @@ run_attempt() {
   timeout "${bench_timeout_s}" docker run --name "$container" --gpus all --network=host --ipc=host \
     --user "$(id -u):$(id -g)" \
     -e HOME=/tmp/isaaclab-ci-home \
+    -e USER="$(id -un)" \
+    -e LOGNAME="$(id -un)" \
     -e XDG_CACHE_HOME=/tmp/isaaclab-ci-home/.cache \
     -e XDG_DATA_HOME=/tmp/isaaclab-ci-home/.local/share \
     -e UV_CACHE_DIR=/tmp/isaaclab-ci-home/.cache/uv \
