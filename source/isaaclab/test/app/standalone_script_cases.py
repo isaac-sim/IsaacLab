@@ -144,11 +144,14 @@ class LaunchCase:
     def command(self) -> list[str]:
         """Build the repository launcher command for this case."""
         if self.spec.program is None:
-            command = [str(ROOT / "isaaclab.sh"), "-p", self.spec.relative_path, *self.spec.args]
+            command = ["uv", "run", "--no-sync", "isaaclab", "-p", self.spec.relative_path, *self.spec.args]
         else:
             program_command, program_name = self.spec.program
             command = [
-                str(ROOT / "isaaclab.sh"),
+                "uv",
+                "run",
+                "--no-sync",
+                "isaaclab",
                 "-p",
                 "-m",
                 "isaaclab",
