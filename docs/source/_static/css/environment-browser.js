@@ -139,6 +139,7 @@
             ["IsaacContrib-Velocity-Flat-AnymalC-Direct", "rl_games,rsl_rl,skrl", "", "", "", "environment-previews/anymal_c_flat.jpg"],
             ["IsaacContrib-Velocity-Flat-AnymalC", "rl_games,rsl_rl,skrl", "isaacsim_physx,newton_kamino,newton_mjwarp,ovphysx", "", "", "environment-previews/anymal_c_flat.jpg", true],
             ["IsaacContrib-Velocity-Flat-Digit", "rsl_rl", "isaacsim_physx,newton_mjwarp", "", "", "environment-previews/agility_digit_flat.jpg"],
+            ["IsaacContrib-Velocity-Flat-MicroDuck", "rsl_rl", "", "", "", "tasks/locomotion/microduck_flat.png"],
             ["IsaacContrib-Velocity-Flat-Spot", "rsl_rl,skrl", "isaacsim_physx,newton_kamino,newton_mjwarp", "", "", "tasks/locomotion/spot_flat.jpg"],
             ["IsaacContrib-Velocity-Flat-UnitreeA1", "rsl_rl,skrl,sb3", "isaacsim_physx,newton_kamino,newton_mjwarp,ovphysx", "", "", "environment-previews/a1_flat.jpg", true],
             ["IsaacContrib-Velocity-Flat-UnitreeGo1", "rsl_rl,skrl", "isaacsim_physx,newton_kamino,newton_mjwarp,ovphysx", "", "", "environment-previews/go1_flat.jpg", true],
