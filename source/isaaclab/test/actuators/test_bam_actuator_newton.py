@@ -475,6 +475,11 @@ def test_delay_matches_recorded_mjlab_sequence(device):
             harness.control.joint_f_2d.zero_()
             harness.actuator.step(harness.state, harness.control, state_in, state_out, dt=DT)
             state_in, state_out = state_out, state_in
+        np.testing.assert_array_equal(
+            harness.drive._delayed_target.numpy().reshape(shape),
+            goldens["delay_targets"][step].astype(np.float32),
+            err_msg=f"step {step}",
+        )
         np.testing.assert_allclose(
             harness.control.joint_f_2d.numpy(),
             goldens["delay_motor_torque"][step],
