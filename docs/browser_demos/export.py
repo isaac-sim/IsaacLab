@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import gzip
 import hashlib
+import importlib.metadata
 import json
 import re
 import shutil
@@ -23,6 +24,7 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import newton
+import newton_web
 import numpy as np
 import torch
 import trimesh
@@ -35,6 +37,9 @@ from newton._src.solvers.implicit_mpm.rasterized_collisions import world_positio
 from newton._src.solvers.implicit_mpm.rheology_solver_kernels import YieldParamVec
 from newton._src.solvers.implicit_mpm.solver_implicit_mpm import ImplicitMPMScratchpad, LastStepData
 from newton_web import Parameter, export_graph
+
+NEWTON_WEB_REVISION = "b0795fbe6b46e08a1fea2425699421415ca4cdf1"
+BROWSER_BUILD_VERSIONS = {"newton": "1.6.0", "warp-lang": "1.17.0", "mujoco-warp": "3.12.0"}
 
 STIFFNESS_DT = 1.0 / 240.0
 CLOTH_DT = 1.0 / 120.0
@@ -1508,12 +1513,46 @@ def export_anymal(output: Path, usd: Path, checkpoint: Path) -> None:
         raise RuntimeError("ANYmal-D reference trajectory is not finite")
 
 
+def _validate_browser_toolchain() -> dict[str, str]:
+    """Reject unreviewed dependency changes before capturing solver internals."""
+    versions = {name: importlib.metadata.version(name) for name in BROWSER_BUILD_VERSIONS}
+    mismatches = [
+        f"{name}: expected {expected}, found {versions[name]}"
+        for name, expected in BROWSER_BUILD_VERSIONS.items()
+        if versions[name] != expected
+    ]
+    compiler_root = Path(newton_web.__file__).resolve().parents[2]
+    try:
+        revision = subprocess.run(
+            ["git", "-C", str(compiler_root), "rev-parse", "HEAD"],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+    except subprocess.CalledProcessError as error:
+        raise RuntimeError(
+            "Install the pinned Newton Web source checkout from docs/browser_demos/README.md."
+        ) from error
+    if revision != NEWTON_WEB_REVISION:
+        mismatches.append(f"newton-web: expected {NEWTON_WEB_REVISION}, found {revision}")
+    if mismatches:
+        raise RuntimeError(
+            "Browser export requires the reviewed toolchain:\n"
+            + "\n".join(mismatches)
+            + "\nFollow docs/browser_demos/README.md; review and validate upgrades before changing these pins."
+        )
+    return {**versions, "newton-web": revision}
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "demo", choices=("stiffness", "cloth_bending", "mpm", "rigid_friction", "joint_pd", "cartpole", "g1", "anymal")
+        "demo",
+        nargs="?",
+        choices=("stiffness", "cloth_bending", "mpm", "rigid_friction", "joint_pd", "cartpole", "g1", "anymal"),
     )
-    parser.add_argument("--output", required=True, type=Path)
+    parser.add_argument("--output", type=Path)
+    parser.add_argument("--check-toolchain", action="store_true", help="Check the pinned export dependencies and exit")
     parser.add_argument("--usd", type=Path, help="Local task USD asset; required for Cartpole and ANYmal-D")
     parser.add_argument("--checkpoint", type=Path, help="Local policy checkpoint (ONNX for G1, RSL-RL for others)")
     parser.add_argument("--policy-description", type=Path, help="WBC-AGILE G1 policy YAML")
@@ -1521,6 +1560,12 @@ def main() -> None:
     parser.add_argument("--visual-source", type=Path, help="Local pinned Unitree G1 description and meshes")
     parser.add_argument("--emxx", default="em++", help="Emscripten 5.0.3 compiler")
     args = parser.parse_args()
+    build_versions = _validate_browser_toolchain()
+    if args.check_toolchain:
+        print(json.dumps(build_versions, indent=2))
+        return
+    if args.demo is None or args.output is None:
+        parser.error("Export requires a demo name and --output")
     wp.init()
     bundle = args.output / args.demo
     if args.demo == "stiffness":
@@ -1555,6 +1600,7 @@ def main() -> None:
     deployment = args.output / f"{args.demo}-web"
     manifest_path = deployment / "manifest.json"
     manifest = json.loads(manifest_path.read_text())
+    manifest["build"]["isaacLabExporter"] = build_versions
     manifest["isaacLabDemo"] = json.loads((bundle / "manifest.json").read_text())["isaacLabDemo"]
     wasm_path = deployment / manifest["wasm"]
     if wasm_path.stat().st_size > 2_000_000:

@@ -18,6 +18,11 @@ documentation widget lazy loads the bundle when it enters the viewport. To add
 another physics example, export another bundle and add a view in `browser-demo.js`. The
 3D views use a locally vendored Three.js module, loaded only when needed.
 Each widget appears beside the guidance it illustrates.
+Use `.. isaaclab-browser-demo:: <name>` to embed a bundle; the shared Sphinx
+directive checks its files and ABI and loads the widget assets once per page.
+The [contributor guide](../source/developer-tools/interactive_examples.rst)
+describes the capture boundary, current manual adaptations, candidate examples,
+native browser sessions, and version maintenance.
 All 3D views use the albedo and roughness textures from Isaac Lab's
 [`GroundPlaneCfg`](../../source/isaaclab/isaaclab/sim/spawners/from_files/from_files_cfg.py)
 default USD asset. Its 2 m repeat gives 1 m checker cells and green landmarks
@@ -118,6 +123,7 @@ Install Emscripten 5.0.3 using its
 Then build the physics-only examples:
 
 ```bash
+uv run --no-sync python docs/browser_demos/export.py --check-toolchain
 uv run --no-sync python docs/browser_demos/export.py stiffness \
     --output /tmp/isaaclab-browser-build --emxx /path/to/emsdk/upstream/emscripten/em++
 uv run --no-sync python docs/browser_demos/export.py cloth_bending \
@@ -222,6 +228,12 @@ binary with its BSD 3-Clause license. Visual meshes are separate from the
 exported collision graph.
 
 ## Policy contract
+
+Published WASM bundles are independent of the Python environment's Warp version.
+Rebuilding requires the reviewed Newton/Warp/MJWarp pins and Newton Web checkout;
+the exporter rejects mismatches before capture. New builds record these versions
+under `manifest.build.isaacLabExporter`. Upgrade the compiler and review the affected
+adapters together, then compare native/WASM behavior before updating the pins.
 
 The G1 policy has 83 observations and 12 lower-body actions, mapped by name into
 the 29-joint Unitree asset. The observations are command (four values, with the

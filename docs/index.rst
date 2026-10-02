@@ -145,6 +145,7 @@ Table of Contents
    source/developer-tools/template_generator
    source/developer-tools/add_physics_backend
    source/developer-tools/extending_newton_solvers
+   source/developer-tools/interactive_examples
    source/developer-tools/scene_data_providers
    source/developer-tools/agent_skills
    source/developer-tools/benchmarking/index

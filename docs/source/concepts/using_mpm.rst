@@ -149,11 +149,7 @@ Newton's grid contact solver. The grains use an instanced particle view;
 surface reconstruction remains a separate visualization choice. The source and rebuild instructions are in
 `docs/browser_demos <https://github.com/isaac-sim/IsaacLab/tree/develop/docs/browser_demos>`_.
 
-.. raw:: html
-
-   <link rel="stylesheet" href="../../_static/css/browser-demo.css">
-   <script type="module" src="../../_static/css/browser-demo.js"></script>
-   <isaaclab-browser-demo class="compact" src="../../_static/browser_demos/mpm/manifest.json"></isaaclab-browser-demo>
+.. isaaclab-browser-demo:: mpm
 
 
 Render a Particle Surface

@@ -108,11 +108,7 @@ the fixed low- and high-friction references. This isolated MJWarp scene
 illustrates how contact friction affects slip; reproduce any task-specific
 result with the task's own geometry, mass, contact settings, and solver budget.
 
-.. raw:: html
-
-   <link rel="stylesheet" href="../../../_static/css/browser-demo.css">
-   <script type="module" src="../../../_static/css/browser-demo.js"></script>
-   <isaaclab-browser-demo class="compact" src="../../../_static/browser_demos/rigid_friction/manifest.json"></isaaclab-browser-demo>
+.. isaaclab-browser-demo:: rigid_friction
 
 Validate colliders, contact locations, normal force, material friction, and
 ``condim`` before changing global friction settings. ``cone`` selects the

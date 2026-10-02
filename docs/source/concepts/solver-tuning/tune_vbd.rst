@@ -479,11 +479,8 @@ settings as visual references. This small scene illustrates material response.
 The browser simulation source and rebuild instructions are in
 `docs/browser_demos <https://github.com/isaac-sim/IsaacLab/tree/develop/docs/browser_demos>`_.
 
-.. raw:: html
-
-   <link rel="stylesheet" href="../../../_static/css/browser-demo.css">
-   <script type="module" src="../../../_static/css/browser-demo.js"></script>
-   <isaaclab-browser-demo class="compact" src="../../../_static/browser_demos/stiffness/manifest.json" demo-title="VBD material tuning"></isaaclab-browser-demo>
+.. isaaclab-browser-demo:: stiffness
+   :title: VBD material tuning
 
 
 Surface Deformable Materials
@@ -526,9 +523,7 @@ stiffness on the logarithmic slider, or change gravity, then press **Reset**
 to replay the same drop. Roller contact is part of the VBD solve. The slider
 changes the material coefficient, not the 12 solver iterations.
 
-.. raw:: html
-
-   <isaaclab-browser-demo class="compact" src="../../../_static/browser_demos/cloth_bending/manifest.json"></isaaclab-browser-demo>
+.. isaaclab-browser-demo:: cloth_bending
 
 Tuning Workflow
 ---------------

@@ -339,11 +339,7 @@ actuator model, effort limits, timestep, and full task conditions. This exercise
 addresses the browser part of the `PD tuning proposal
 <https://github.com/isaac-sim/IsaacLab/issues/2783>`_.
 
-.. raw:: html
-
-   <link rel="stylesheet" href="../../_static/css/browser-demo.css">
-   <script type="module" src="../../_static/css/browser-demo.js"></script>
-   <isaaclab-browser-demo class="compact" src="../../_static/browser_demos/joint_pd/manifest.json"></isaaclab-browser-demo>
+.. isaaclab-browser-demo:: joint_pd
 
 
 Armature

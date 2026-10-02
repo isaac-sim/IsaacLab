@@ -19,6 +19,7 @@ from docutils.statemachine import StringList
 from sphinx.application import Sphinx
 from sphinx.util.docutils import SphinxDirective, SphinxRole
 from sphinx.util.nodes import split_explicit_title
+from sphinx.util.osutil import relative_uri
 
 _UPSTREAM_SOURCE_REF_PATTERN = re.compile(r"^(main|develop|release/.*|v[1-9]\d*\.\d+\.\d+(-[A-Za-z0-9.]+)?)$")
 
@@ -87,6 +88,55 @@ class IsaacLabSourceLink(SphinxRole):
         refuri = f"https://github.com/isaac-sim/IsaacLab/blob/{branch}/{target}"
         node = nodes.reference(self.rawtext, title, refuri=refuri, **self.options)
         return [node], []
+
+
+class IsaacLabBrowserDemo(SphinxDirective):
+    """Embed a checked browser bundle using paths relative to the HTML page."""
+
+    required_arguments = 1
+    has_content = False
+    option_spec = {"title": directives.unchanged_required}
+
+    def run(self) -> list[nodes.Node]:
+        name = self.arguments[0]
+        if not re.fullmatch(r"[a-z][a-z0-9_]*", name):
+            raise self.error("Browser demo names must contain lowercase letters, digits, or underscores.")
+        manifest_path = Path(self.env.srcdir) / "source/_static/browser_demos" / name / "manifest.json"
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            if manifest["bundleVersion"] != 1 or manifest["abiVersion"] != 1:
+                raise ValueError("unsupported bundle or runtime ABI version")
+            for field in ("module", "wasm"):
+                asset = manifest_path.parent / manifest[field]
+                if not asset.is_file():
+                    raise ValueError(f"missing {field} asset: {asset.name}")
+                self.env.note_dependency(str(asset))
+        except (OSError, ValueError, KeyError, TypeError) as error:
+            raise self.error(f"Cannot embed browser demo '{name}': {error}") from error
+        self.env.note_dependency(str(manifest_path))
+        if self.env.app.builder.format != "html":
+            return []
+        page = self.env.app.builder.get_target_uri(self.env.docname)
+        source = relative_uri(page, f"_static/browser_demos/{name}/manifest.json")
+        title = self.options.get("title")
+        title_attribute = f' demo-title="{escape(title, quote=True)}"' if title else ""
+        node = nodes.raw(
+            "",
+            f'<isaaclab-browser-demo class="compact" src="{escape(source, quote=True)}"'
+            f'{title_attribute}></isaaclab-browser-demo>',
+            format="html",
+        )
+        node["isaaclab_browser_demo"] = True
+        return [node]
+
+
+def _add_browser_demo_assets(
+    app: Sphinx, pagename: str, templatename: str, context: dict, doctree: nodes.document | None
+) -> None:
+    """Load the shared widget once on each page containing an interactive demo."""
+    if doctree is not None and any(node.get("isaaclab_browser_demo") for node in doctree.findall(nodes.raw)):
+        app.add_css_file("css/browser-demo.css")
+        app.add_js_file("css/browser-demo.js", type="module")
 
 
 class IsaacLabCloneHttps(SphinxDirective):
@@ -383,6 +433,7 @@ def setup(app):
     app.add_config_value("isaaclab_doc_redirects", {}, "html")
     app.add_config_value("isaaclab_doc_redirect_fragments", {}, "html")
     app.connect("build-finished", _write_doc_redirects)
+    app.connect("html-page-context", _add_browser_demo_assets)
     app.add_config_value("isaaclab_latest_branch", "develop", "env")
     app.add_config_value("isaaclab_wheel_version", "", "env")
     app.add_config_value("isaaclab_wheel_source_tag", "", "env")
@@ -391,6 +442,7 @@ def setup(app):
     app.add_config_value("torchvision_version", "", "env")
     app.add_config_value("ovrtx_spec", "", "env")
     app.add_role("isaaclab-source", IsaacLabSourceLink())
+    app.add_directive("isaaclab-browser-demo", IsaacLabBrowserDemo)
     app.add_directive("isaaclab-clone-commands", IsaacLabCloneCommands)
     app.add_directive("isaaclab-clone-https", IsaacLabCloneHttps)
     app.add_directive("isaaclab-kitless-install-snippet", IsaacLabKitlessInstallSnippet)

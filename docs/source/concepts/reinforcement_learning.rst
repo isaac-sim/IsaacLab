@@ -49,11 +49,6 @@ task evaluation and metrics, use ``isaaclab play`` with the corresponding task.
 The exporter and rebuild instructions live in
 `docs/browser_demos <https://github.com/isaac-sim/IsaacLab/tree/develop/docs/browser_demos>`_.
 
-.. raw:: html
-
-   <link rel="stylesheet" href="../../_static/css/browser-demo.css">
-   <script type="module" src="../../_static/css/browser-demo.js"></script>
-
 .. _browser-demo-cartpole:
 
 Cartpole policy
@@ -64,9 +59,7 @@ a repeatable 0.2 rad initial angle. Hold the slider to push the cart with up
 to 300 N in either direction; release it to watch the policy recover. The cart
 resets beyond 3 m of travel. **Reset** restores the starting state.
 
-.. raw:: html
-
-   <isaaclab-browser-demo class="compact" src="../../_static/browser_demos/cartpole/manifest.json"></isaaclab-browser-demo>
+.. isaaclab-browser-demo:: cartpole
 
 .. _browser-demo-g1:
 
@@ -79,9 +72,7 @@ release them to stop. The arrow keys also work when a pad is focused. The G1
 geometry comes from Unitree's open robot description. This is a browser
 demonstration of an external policy, not an Isaac Lab task evaluation.
 
-.. raw:: html
-
-   <isaaclab-browser-demo class="compact" src="../../_static/browser_demos/g1/manifest.json"></isaaclab-browser-demo>
+.. isaaclab-browser-demo:: g1
 
 .. _browser-demo-anymal:
 
@@ -93,9 +84,7 @@ trained with Newton MJWarp. The travel and yaw pads command its body velocity.
 The full task uses an LSTM ANYdrive actuator; this compact browser scene uses
 a tuned PD drive, so motion can differ from a full task run.
 
-.. raw:: html
-
-   <isaaclab-browser-demo class="compact" src="../../_static/browser_demos/anymal/manifest.json"></isaaclab-browser-demo>
+.. isaaclab-browser-demo:: anymal
 
 .. _choose-an-rl-library:
 
