@@ -1685,8 +1685,8 @@ class NewtonManager(PhysicsManager):
     def _run_solver_substeps(cls, contacts) -> None:
         """Run ``num_substeps`` solver iterations, handling double-buffered state swap.
 
-        Each substep first re-applies the staged body forces (see :meth:`_stage_body_forces`), then runs the
-        state-force callbacks.
+        The staged body forces overwrite the input state's ``body_f``, so they are written before the state-force
+        callbacks, which add on top of them.
         """
         backend = cls.backend
         collide_every = cls._collision_decimation
