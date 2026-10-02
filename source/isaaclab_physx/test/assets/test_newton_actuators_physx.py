@@ -667,10 +667,10 @@ class TestRandomizeActuatorGainsViaEventsPhysx(unittest.TestCase):
             anymal_read = functools.partial(read_group_parameter, anymal.actuators)
             cartpole_read = functools.partial(read_group_parameter, cartpole.actuators)
             n_cp = cartpole.num_joints
-            anymal_kp_before = anymal_read("legs", "controller", "kp").clone()
-            anymal_kd_before = anymal_read("legs", "controller", "kd").clone()
-            cp_kp_before = cartpole_read("all_joints", "controller", "kp").clone()
-            cp_kd_before = cartpole_read("all_joints", "controller", "kd").clone()
+            anymal_kp_before = anymal_read("legs", "drive", "kp").clone()
+            anymal_kd_before = anymal_read("legs", "drive", "kd").clone()
+            cp_kp_before = cartpole_read("all_joints", "drive", "kp").clone()
+            cp_kd_before = cartpole_read("all_joints", "drive", "kd").clone()
 
             env = MockEnv({"anymal": anymal, "cartpole": cartpole}, NUM_ENVS, anymal.device)
             term, asset_cfg = build_dr_term(env, "cartpole")
@@ -686,8 +686,8 @@ class TestRandomizeActuatorGainsViaEventsPhysx(unittest.TestCase):
                 distribution="uniform",
             )
 
-            cp_kp_after = cartpole_read("all_joints", "controller", "kp")
-            cp_kd_after = cartpole_read("all_joints", "controller", "kd")
+            cp_kp_after = cartpole_read("all_joints", "drive", "kp")
+            cp_kd_after = cartpole_read("all_joints", "drive", "kd")
             torch.testing.assert_close(cp_kp_after[0], torch.full((n_cp,), 100.0, device=anymal.device))
             torch.testing.assert_close(cp_kd_after[0], torch.full((n_cp,), 5.0, device=anymal.device))
             # Cartpole's other envs are untouched (env_ids=[0] only).
@@ -696,8 +696,8 @@ class TestRandomizeActuatorGainsViaEventsPhysx(unittest.TestCase):
                 torch.testing.assert_close(cp_kd_after[env_idx], cp_kd_before[env_idx])
 
             # ANYmal's controllers are fully untouched — DR was scoped to cartpole.
-            torch.testing.assert_close(anymal_read("legs", "controller", "kp"), anymal_kp_before)
-            torch.testing.assert_close(anymal_read("legs", "controller", "kd"), anymal_kd_before)
+            torch.testing.assert_close(anymal_read("legs", "drive", "kp"), anymal_kp_before)
+            torch.testing.assert_close(anymal_read("legs", "drive", "kd"), anymal_kd_before)
 
 
 # ---------------------------------------------------------------------------

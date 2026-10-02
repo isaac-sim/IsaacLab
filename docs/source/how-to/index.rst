@@ -170,6 +170,12 @@ How-to Guides
 
       .. container:: guide-entry
 
+         :doc:`MicroDuck flat walking </source/how-to/microduck_flat_walk>`
+
+         Train the BAM-actuated walking robot and check its policy interface.
+
+      .. container:: guide-entry
+
          :doc:`Configuring an RL agent </source/how-to/configuring_rl_training>`
 
          Customize agent settings and training hyperparameters.
