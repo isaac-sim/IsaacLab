@@ -127,6 +127,47 @@ def points_tensor_from_warp(points: wp.array) -> ovstage.DLTensor:
     return ovstage.make_dltensor(points, dtype=OVSTAGE_POINT_DTYPE)
 
 
+def ovstage_replicate(
+    stage: ovstage.Stage,
+    paths: ovstage.PathDictionary,
+    copies: Sequence[tuple[str, Sequence[str]]],
+    env_paths: Sequence[str],
+    positions: np.ndarray | None = None,
+    *,
+    ordinal: int,
+) -> None:
+    """Apply the same prepared copies and placement to an OVStage scene.
+
+    Args:
+        stage: Native stage holding the source prims.
+        paths: Path dictionary of ``stage``.
+        copies: Source paths paired with destination paths, ordered with parents before children.
+            Self-copies must be excluded.
+        env_paths: Environment-root paths in placement order.
+        positions: Optional environment positions [m], shape ``[len(env_paths), 3]``.
+        ordinal: Write ordinal for the clones and environment placement.
+    """
+    for source, targets in copies:
+        if targets:
+            stage.clone(source, targets, ordinal=ordinal)
+    if positions is not None and env_paths:
+        xforms = np.tile(np.eye(4, dtype=np.float64), (len(env_paths), 1, 1))
+        xforms[:, 3, :3] = positions
+        path_list = paths.create_path_list_from_strings(env_paths)
+        try:
+            with stage.query_from_path_list(path_list) as query:
+                stage.write_attribute(
+                    query,
+                    "omni:xform",
+                    ordinal=ordinal,
+                    tensors=xform_tensor_from_numpy(xforms),
+                    is_array=False,
+                    semantic=ovstage.AttributeSemantic.MATRIX,
+                ).wait()
+        finally:
+            paths.destroy_path_list(path_list)
+
+
 @configclass
 class OvstageBackendCfg(BackendCfg):
     """Configuration of a simulation-owned stage and its populated domains."""
@@ -142,14 +183,27 @@ class OvstageBackend:
     """Own a detached stage and its paths until the simulation has closed its consumers."""
 
     def __init__(self, cfg: OvstageBackendCfg):
-        """Create the stage identified by its consumer configuration and population domains."""
+        """Create the stage identified by its consumer configuration and population domains.
+
+        Args:
+            cfg: Scene identity and USD domains to populate.
+        """
         self.cfg = cfg
-        self.ordinal = 0
-        self.next_camera_id = 0
         self.clone_copies: list[tuple[str, list[str]]] = []
         self.clone_env_paths: list[str] = []
         self.population_env_paths: list[str] = []
         self.clone_positions: np.ndarray | None = None
+        self._resources = contextlib.ExitStack()
+        self.reset()
+
+    def reset(self) -> None:
+        """Replace the native stage after all consumers have released their bindings and detached.
+
+        Prepared clone operations are retained for population from the next USD export.
+        """
+        self.close()
+        self.ordinal = 0
+        self.next_camera_id = 0
         with contextlib.ExitStack() as resources:
             self.stage = resources.enter_context(create_ovstage("isaaclab.scene"))
             self.paths = resources.enter_context(ovstage.PathDictionary(self.stage))
@@ -164,8 +218,6 @@ class OvstageBackend:
         Args:
             usda: USD scene containing the routed prototypes and their materials.
         """
-        from isaaclab_ov.cloner import ovstage_replicate  # noqa: PLC0415
-
         if self.ordinal:
             return
 

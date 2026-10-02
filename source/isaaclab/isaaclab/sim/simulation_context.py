@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, Any, ClassVar
 import torch
 import warp as wp
 
+from .. import cloner
 from .. import sim as sim_utils
 from ..app.settings_manager import get_settings_manager
 from ..markers.vis_marker_registry import VisMarkerRegistry
@@ -551,10 +552,8 @@ class SimulationContext:
         Args:
             soft: If True, skip full reinitialization.
         """
-        from ..cloner.replicate_session import _prepare_clone_contexts  # noqa: PLC0415
-
         # Standalone cameras may register after scene construction but before the first reset.
-        _prepare_clone_contexts(self)
+        cloner.prepare_clone_contexts(self)
         self.physics_manager.reset(soft)
         for viz in self._visualizers:
             viz.reset(soft)
@@ -743,6 +742,17 @@ class SimulationContext:
     def get_setting(self, name: str) -> Any:
         """Get a setting value."""
         return self.settings.get(name)
+
+    def get_backends(self, cfg_type: type) -> tuple[Any, ...]:
+        """Return registered resources whose configurations have the requested type.
+
+        Args:
+            cfg_type: Configuration class, including its subclasses.
+
+        Returns:
+            A snapshot of matching resources in registration order.
+        """
+        return tuple(resource for cfg, resource in self._backend_registry if isinstance(cfg, cfg_type))
 
     def get_or_create_backend(self, cfg: Any) -> Any:
         """Return the simulation-owned object for a construction configuration.

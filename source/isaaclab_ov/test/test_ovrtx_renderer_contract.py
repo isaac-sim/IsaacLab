@@ -89,8 +89,10 @@ def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
     renderer.scene.query = OvstageBackend.query.__get__(renderer.scene)
     renderer.scene.next_camera_id = 0
     renderer.backend.attached = False
+    renderer.backend.render_products = set()
     cfg = OVRTXBackendCfg(scene_key=renderer.cfg, use_ovstage=False, read_gpu_transforms=True)
     renderer.scene.stage = renderer.scene.paths = None
+    renderer.backend.cfg = cfg
     SimulationContext.instance()._backend_registry.append((cfg, renderer.backend))
     return renderer
 
@@ -115,6 +117,7 @@ def _simulation_registry(monkeypatch):
     sim.get_scene_data_provider = lambda: types.SimpleNamespace(
         backend=types.SimpleNamespace(transform_paths=[]), get_geometry_points=lambda: {}
     )
+    sim.get_backends = SimulationContext.get_backends.__get__(sim)
     sim.get_or_create_backend = SimulationContext.get_or_create_backend.__get__(sim)
     sim.close_backend = SimulationContext.close_backend.__get__(sim)
     monkeypatch.setattr(SimulationContext, "_instance", sim)
@@ -205,11 +208,11 @@ def test_ovrtx_renderer_config_enables_supported_runtime_options(monkeypatch, tm
     }
     assert bool(sim.physics_manager._clone_recipes) is (with_physics and not shared_physics)
     # Once prepared, hard/soft reset must retain the selected resource identity.
-    from isaaclab.cloner.replicate_session import _prepare_clone_contexts
+    from isaaclab.cloner.replicate_session import prepare_clone_contexts
 
     resources = tuple(sim._backend_registry)
     monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", str(int(not use_ovstage)))
-    _prepare_clone_contexts(sim)
+    prepare_clone_contexts(sim)
     assert tuple(sim._backend_registry) == resources
     if shared_physics:
         assert renderer.scene.cfg.population_domains == ovrtx_renderer_module.ovstage.PopulationDomain.ALL
@@ -274,7 +277,13 @@ def test_ovrtx_render_submits_every_product_and_routes_requested_outputs(
         camera.warp_buffers = {str(RenderBufferKind.RGB_HDR): object(), str(RenderBufferKind.RGBA): object()}
         camera.ppisp_pipeline = types.SimpleNamespace(apply=lambda *buffers: postprocessed.append(buffers))
         products[camera.render_product_path] = types.SimpleNamespace(frames=[object()])
-    renderer._camera_render_data = [*cameras, types.SimpleNamespace(render_product_path="/Render/UnrequestedCamera")]
+    renderer._camera_render_data = cameras
+    other = OVRTXRenderer(OVRTXRendererCfg(enable_shadows=True))
+    other.backend = renderer.backend
+    other._camera_render_data = [types.SimpleNamespace(render_product_path="/Render/UnrequestedCamera")]
+    renderer.backend.render_products.update(
+        camera.render_product_path for camera in (*cameras, *other._camera_render_data)
+    )
     if missing_output == "product":
         del products[cameras[-1].render_product_path]
     elif missing_output == "frame":
@@ -555,6 +564,7 @@ def test_async_cameras_publish_independently_with_capture_metadata_and_reset(mon
         data.create_buffers(2, "cpu")
         renderer.set_outputs(camera, data.output)
         camera_data.append(data)
+        renderer.backend.render_products.add(camera.render_product_path)
     frame = ProxyArray(wp.zeros(2, dtype=wp.int64, device="cpu"))
     operations = []
     ordinal = 0

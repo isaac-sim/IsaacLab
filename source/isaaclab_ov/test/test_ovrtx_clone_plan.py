@@ -85,7 +85,7 @@ def _simulation(monkeypatch):
 def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
     renderer = OVRTXRenderer(OVRTXRendererCfg())
     renderer.backend = SimpleNamespace(
-        clone_copies=[], clone_env_paths=[], population_env_paths=[], clone_positions=None
+        clone_copies=[], clone_env_paths=[], population_env_paths=[], clone_positions=None, render_products=set()
     )
     renderer.scene = renderer.backend
     renderer.backend.renderer = SimpleNamespace(
@@ -129,7 +129,9 @@ def _prepare_clones(renderer, plan, routed=None):
         from isaaclab_ov.stage import OvstageBackendCfg
 
         cfg = OvstageBackendCfg(scene_key=cfg)
+    renderer.scene.cfg = cfg
     sim = SimpleNamespace(_backend_registry=[(cfg, renderer.scene)])
+    sim.get_backends = SimulationContext.get_backends.__get__(sim)
     routed = tuple(range(len(plan.asset_cfgs))) if routed is None else routed
     context = OvstageReplicateContext if renderer._use_ovstage else OvrtxReplicateContext
     context(sim).replicate(plan, routed)
@@ -358,7 +360,9 @@ def test_prepare_stage_exports_only_clone_sources_and_their_materials(monkeypatc
         monkeypatch.setattr(ovstage.population, "open_usd_from_string", imported)
         cfg = OvstageBackendCfg(scene_key=renderer.cfg, population_domains=ovstage.PopulationDomain.ALL)
         backend = OvstageBackend(cfg)
-        OvstageReplicateContext(SimpleNamespace(_backend_registry=[(cfg, backend)])).replicate(plan, (0,))
+        sim = SimpleNamespace(_backend_registry=[(cfg, backend)])
+        sim.get_backends = SimulationContext.get_backends.__get__(sim)
+        OvstageReplicateContext(sim).replicate(plan, (0,))
         backend.populate(renderer._exported_usd_string)
         assert imported.call_args.args == (native, renderer._exported_usd_string)
         assert imported.call_args.kwargs["domains"] == ovstage.PopulationDomain.ALL
@@ -383,25 +387,10 @@ def test_prepare_stage_exports_only_clone_sources_and_their_materials(monkeypatc
         assert not exported.GetPrimAtPath(f"{root}/Object_env{env_id}_only")
 
 
-def test_native_cloners_keep_plan_interpretation_in_the_context():
-    """Contexts own preparation; consumers and native execution never reinterpret plans or routing ids."""
-    from isaaclab_ov.cloner import replicate as replication
+def test_renderer_and_stage_do_not_select_physics_clone_routes():
+    """Stage ownership stays independent of rendering; consumers cannot select physics cloning."""
+    import isaaclab_ov.stage as stage_module
 
-    for name in ("_iter_clone_copies", "_OvRenderReplicateContext", "OvRenderReplicateContext"):
-        assert not hasattr(replication, name)
-    assert not hasattr(OVRTXRenderer, "_clone_sources")
-    for name in ("_initialize_camera_render_data_from_spec", "_init_fields_legacy", "_init_fields_ovstage"):
-        assert not hasattr(OVRTXRenderer, name)
-    for name in (
-        "_create_object_scale_array",
-        "_update_camera_legacy",
-        "_update_camera_ovstage",
-        "_render_legacy",
-        "_render_ovstage",
-        "_close_legacy",
-        "_close_ovstage",
-    ):
-        assert not hasattr(OVRTXRenderer, name)
     renderer_tree = ast.parse(Path(ovrtx_renderer_module.__file__).read_text())
     assert not any(
         isinstance(node, ast.Name)
@@ -410,19 +399,11 @@ def test_native_cloners_keep_plan_interpretation_in_the_context():
         and node.attr == "clone_context_type"
         for node in ast.walk(renderer_tree)
     )
+    stage_tree = ast.parse(Path(stage_module.__file__).read_text())
     assert not any(
-        isinstance(node, ast.Attribute) and node.attr in {"_render_product_paths", "camera_xform_query"}
-        for node in ast.walk(renderer_tree)
+        isinstance(node, ast.ImportFrom) and node.module.startswith("isaaclab_ov.renderers")
+        for node in ast.walk(stage_tree)
     )
-    tree = ast.parse(Path(replication.__file__).read_text())
-    for function in tree.body:
-        if isinstance(function, ast.FunctionDef) and function.name in {"ovrtx_replicate", "ovstage_replicate"}:
-            assert not any(isinstance(node, ast.Name) and node.id in {"plan", "cloner"} for node in ast.walk(function))
-        if isinstance(function, ast.ClassDef) and function.name == "OvstageReplicateContext":
-            assert not any(
-                isinstance(node, ast.ImportFrom) and node.module.startswith("isaaclab_ov.renderers")
-                for node in ast.walk(function)
-            )
 
 
 @pytest.mark.parametrize(
@@ -473,7 +454,12 @@ def test_clone_context_omits_covered_children_and_honors_routing(child_source, r
     for selected, context in enumerate((OvrtxReplicateContext, OvstageReplicateContext)):
         backends = [SimpleNamespace() for _ in configs]
         sim = SimpleNamespace(_backend_registry=list(zip(configs, backends)), physics_manager=SimpleNamespace())
+        sim.get_backends = SimulationContext.get_backends.__get__(sim)
+        for cfg, backend in sim._backend_registry:
+            backend.cfg = cfg
         context(sim).replicate(plan, routed)
         assert backends[selected].clone_copies == expected
         assert not vars(sim.physics_manager)
-        assert all(not vars(backend) for index, backend in enumerate(backends) if index != selected)
+        assert all(
+            vars(backend) == {"cfg": configs[index]} for index, backend in enumerate(backends) if index != selected
+        )

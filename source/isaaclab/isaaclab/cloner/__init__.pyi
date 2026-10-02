@@ -16,6 +16,7 @@ __all__ = [
     "make_clone_plan",
     "make_valid_clone_combinations",
     "num_spawn_variants",
+    "prepare_clone_contexts",
     "path",
     "PrototypeWorldTopology",
     "query",
@@ -38,6 +39,7 @@ from .replicate_session import (
     clone_plan_from_env_0,
     make_valid_clone_combinations,
     num_spawn_variants,
+    prepare_clone_contexts,
     replicate,
 )
 from .usd import (

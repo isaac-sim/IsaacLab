@@ -15,6 +15,7 @@ from typing import Any
 import torch
 import warp as wp
 
+from .. import cloner, sim
 from ..sensors.camera.camera_data import CameraData
 from .base_renderer import BaseRenderer, VisualMaterialBatch
 from .renderer_cfg import RendererCfg
@@ -123,10 +124,7 @@ class RenderContext:
         """Include a newly registry-owned renderer in cloning and post-physics initialization."""
         self.clone_contexts.update(cfg.cloning_contexts)
         if self._physics_initialized:
-            from ..cloner.replicate_session import _prepare_clone_contexts  # noqa: PLC0415
-            from ..sim import SimulationContext  # noqa: PLC0415
-
-            _prepare_clone_contexts(SimulationContext.instance())
+            cloner.prepare_clone_contexts(sim.SimulationContext.instance())
             renderer.initialize()
 
     def ensure_initialize(self) -> None:

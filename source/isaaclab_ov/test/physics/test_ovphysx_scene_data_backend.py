@@ -26,7 +26,7 @@ def _native_backend(monkeypatch):
 
     backend = OvPhysxBackend.__new__(OvPhysxBackend)
     backend.physx = None
-    backend.stage = None
+    backend.stage = backend.scene = None
     backend.rigid_body_view = None
     monkeypatch.setattr(OvPhysxManager, "backend", backend)
     monkeypatch.setattr(OvPhysxManager, "_scene_data_backend", OvPhysxSceneDataBackend())

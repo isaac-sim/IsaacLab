@@ -12,6 +12,7 @@ from collections.abc import Iterable, Sequence
 from typing import TYPE_CHECKING
 
 import numpy as np
+import ovstage
 
 from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics
 
@@ -19,18 +20,19 @@ from isaaclab import cloner
 from isaaclab.physics import PhysicsManager
 
 from isaaclab_ov._clone import CloneRecipe
+from isaaclab_ov.renderers.ovrtx_renderer_cfg import OVRTXBackendCfg, OVRTXRendererCfg
+from isaaclab_ov.stage import OvstageBackend, OvstageBackendCfg
+from isaaclab_ov.stage import ovstage_replicate as ovstage_replicate
 
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     import ovrtx
-    import ovstage
 
     from isaaclab.cloner import ClonePlan
     from isaaclab.sim import SimulationContext
 
     from isaaclab_ov.renderers.ovrtx_renderer import OVRTXBackend
-    from isaaclab_ov.stage import OvstageBackend
 
 
 def _clone_recipes(
@@ -177,22 +179,19 @@ class OvrtxReplicateContext:
             sim: Simulation that owns the configured consumers and native resources.
             routing: Asset routes to merge when physics and rendering share one stage.
         """
-        import ovstage  # noqa: PLC0415
-
+        # OVRTX is optional for physics-only users, and the renderer imports native clone operations.
         from isaaclab_ov.renderers.ovrtx_renderer import (  # noqa: PLC0415
-            _read_gpu_transforms_enabled,
+            ovrtx_read_gpu_transforms_enabled,
             ovrtx_use_ovstage_enabled,
         )
-        from isaaclab_ov.renderers.ovrtx_renderer_cfg import OVRTXBackendCfg, OVRTXRendererCfg  # noqa: PLC0415
-        from isaaclab_ov.stage import OvstageBackendCfg  # noqa: PLC0415
 
-        renderers = [(cfg, renderer) for cfg, renderer in sim._backend_registry if isinstance(cfg, OVRTXRendererCfg)]
+        renderers = sim.get_backends(OVRTXRendererCfg)
         if not renderers:
             return
-        initialized = next((renderer for _, renderer in renderers if renderer.backend is not None), None)
+        initialized = next((renderer for renderer in renderers if renderer.backend is not None), None)
         use_ovstage = initialized._use_ovstage if initialized is not None else ovrtx_use_ovstage_enabled()
         # TODO: Uncomment after requiring an OVPhysX release with batched cold binding and direct
-        # path lookups, and verifying startup parity (release version TBD; 0.6.3 is affected).
+        # path lookups, and verifying startup and rendering parity (release version TBD; 0.6.3 is affected).
         # use_ovstage |= sim.physics_manager.clone_context_type is OvPhysxReplicateContext
         shared_physics = use_ovstage and sim.physics_manager.clone_context_type is OvPhysxReplicateContext
         if shared_physics and sim.physics_manager.backend is not None and sim.physics_manager.backend.scene is None:
@@ -204,7 +203,8 @@ class OvrtxReplicateContext:
                 sim.clone_contexts.pop(context, None)
 
         # Stage ownership is settled before native construction. Register the stage before its borrowers.
-        for cfg, renderer in renderers:
+        for renderer in renderers:
+            cfg = renderer.cfg
             if renderer.backend is not None:
                 continue
             backend_cfg = OVRTXBackendCfg(
@@ -212,11 +212,9 @@ class OvrtxReplicateContext:
                 log_file_path=cfg.log_file_path,
                 log_level=cfg.log_level,
                 use_ovstage=use_ovstage,
-                read_gpu_transforms=_read_gpu_transforms_enabled(),
+                read_gpu_transforms=ovrtx_read_gpu_transforms_enabled(),
             )
-            if shared_physics and any(
-                isinstance(other, OVRTXBackendCfg) and other != backend_cfg for other, _ in sim._backend_registry
-            ):
+            if shared_physics and any(other.cfg != backend_cfg for other in sim.get_backends(OVRTXBackendCfg)):
                 raise ValueError(
                     "A shared OVStage requires one OVRTX engine; use the same native logging/transform settings."
                 )
@@ -234,22 +232,23 @@ class OvrtxReplicateContext:
                 logger.warning("Asynchronous OVRTX rendering is unsupported with ovstage; rendering synchronously.")
 
     def __init__(self, sim_context: SimulationContext):
+        """Initialize the context.
+
+        Args:
+            sim_context: Simulation owning this representation's backends.
+        """
         self._sim = sim_context
 
     def replicate(self, plan: ClonePlan, asset_prototype_ids: tuple[int, ...]) -> None:
-        """Prepare copies for native OVRTX scenes; engines borrowing an OVStage do not clone.
+        """Publish routed copies, environment paths and positions to native OVRTX scene owners.
+
+        Engines borrowing an OVStage receive their copies through that stage's context.
 
         Args:
             plan: Replication layout shared by every clone backend.
             asset_prototype_ids: Asset definitions routed to native OVRTX scenes.
         """
-        from isaaclab_ov.renderers.ovrtx_renderer_cfg import OVRTXBackendCfg  # noqa: PLC0415
-
-        backends = [
-            backend
-            for cfg, backend in self._sim._backend_registry
-            if isinstance(cfg, OVRTXBackendCfg) and not cfg.use_ovstage
-        ]
+        backends = [backend for backend in self._sim.get_backends(OVRTXBackendCfg) if not backend.cfg.use_ovstage]
         _prepare_scene_copies(plan, asset_prototype_ids, backends)
 
 
@@ -259,19 +258,21 @@ class OvstageReplicateContext:
     replicate_priority = 100
 
     def __init__(self, sim_context: SimulationContext):
+        """Initialize the context.
+
+        Args:
+            sim_context: Simulation owning this representation's backends.
+        """
         self._sim = sim_context
 
     def replicate(self, plan: ClonePlan, asset_prototype_ids: tuple[int, ...]) -> None:
-        """Prepare stage copies once for the consumers of each OVStage resource.
+        """Publish routed copies, environment paths and positions to simulation-owned stages.
 
         Args:
             plan: Replication layout shared by every clone backend.
             asset_prototype_ids: Asset definitions routed to OVStage resources.
         """
-        from isaaclab_ov.stage import OvstageBackendCfg  # noqa: PLC0415
-
-        backends = [backend for cfg, backend in self._sim._backend_registry if isinstance(cfg, OvstageBackendCfg)]
-        _prepare_scene_copies(plan, asset_prototype_ids, backends)
+        _prepare_scene_copies(plan, asset_prototype_ids, self._sim.get_backends(OvstageBackendCfg))
 
 
 def _prepare_scene_copies(
@@ -340,50 +341,6 @@ def ovrtx_replicate(
         renderer.write_attribute(
             env_paths, "omni:xform", xforms, semantic=Semantic.XFORM_MAT4x4, prim_mode=PrimMode.MUST_EXIST
         )
-
-
-def ovstage_replicate(
-    stage: ovstage.Stage,
-    paths: ovstage.PathDictionary,
-    copies: Sequence[tuple[str, Sequence[str]]],
-    env_paths: Sequence[str],
-    positions: np.ndarray | None = None,
-    *,
-    ordinal: int,
-) -> None:
-    """Apply the same prepared copies and placement to an OVStage scene.
-
-    Args:
-        stage: Native stage holding the source prims.
-        paths: Path dictionary of ``stage``.
-        copies: Source paths paired with destination paths, with the same contract as :func:`ovrtx_replicate`.
-        env_paths: Environment-root paths in placement order.
-        positions: Optional environment positions [m], shape ``[len(env_paths), 3]``.
-        ordinal: Write ordinal for the clones and environment placement.
-    """
-    import ovstage  # noqa: PLC0415
-
-    from isaaclab_ov.stage import xform_tensor_from_numpy  # noqa: PLC0415
-
-    for source, targets in copies:
-        if targets:
-            stage.clone(source, targets, ordinal=ordinal)
-    if positions is not None and env_paths:
-        xforms = np.tile(np.eye(4, dtype=np.float64), (len(env_paths), 1, 1))
-        xforms[:, 3, :3] = positions
-        path_list = paths.create_path_list_from_strings(env_paths)
-        try:
-            with stage.query_from_path_list(path_list) as query:
-                stage.write_attribute(
-                    query,
-                    "omni:xform",
-                    ordinal=ordinal,
-                    tensors=xform_tensor_from_numpy(xforms),
-                    is_array=False,
-                    semantic=ovstage.AttributeSemantic.MATRIX,
-                ).wait()
-        finally:
-            paths.destroy_path_list(path_list)
 
 
 def ovphysx_replicate(
