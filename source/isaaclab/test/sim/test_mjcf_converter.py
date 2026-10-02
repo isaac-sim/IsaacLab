@@ -105,11 +105,14 @@ def test_no_change(test_setup_teardown):
 
 
 def test_config_change(test_setup_teardown):
-    """Call conversion twice but change the config in the second call. This should generate a new USD file."""
+    """Call conversion twice but change the config in the second call. This should generate a new USD file.
+
+    A third call with the changed config must load that file, although the importer writes it next to the
+    first one instead of overwriting it.
+    """
     sim, mjcf_config = test_setup_teardown
 
     mjcf_converter = MjcfConverter(mjcf_config)
-    time_usd_file_created = os.stat(mjcf_converter.usd_path).st_mtime_ns
 
     # change the config
     new_config = mjcf_config
@@ -120,7 +123,13 @@ def test_config_change(test_setup_teardown):
     new_mjcf_converter = MjcfConverter(new_config)
     new_time_usd_file_created = os.stat(new_mjcf_converter.usd_path).st_mtime_ns
 
-    assert time_usd_file_created != new_time_usd_file_created
+    # the importer writes the new conversion next to the first one; file times may share a second
+    assert new_mjcf_converter.usd_path != mjcf_converter.usd_path
+
+    # convert again with the changed config, which must not generate a new USD file
+    lazy_mjcf_converter = MjcfConverter(new_config)
+    assert lazy_mjcf_converter.usd_path == new_mjcf_converter.usd_path
+    assert os.stat(lazy_mjcf_converter.usd_path).st_mtime_ns == new_time_usd_file_created
 
 
 def test_create_prim_from_usd(test_setup_teardown):

@@ -24,6 +24,7 @@ if _USE_RUNTIME:
 
 import math
 import os
+import shutil
 import warnings
 from types import SimpleNamespace
 
@@ -97,7 +98,11 @@ def test_no_change(sim_config):
 
 @pytest.mark.isaacsim_ci
 def test_config_change(sim_config, tmp_path):
-    """Call conversion twice but change the config in the second call. This should generate a new USD file."""
+    """Call conversion twice but change the config in the second call. This should generate a new USD file.
+
+    A third call with the changed config must load that file, although the importer writes it next to the
+    first one instead of overwriting it.
+    """
 
     sim, config = sim_config
     output_dir = os.path.join(str(tmp_path), "urdf_config_change")
@@ -105,7 +110,6 @@ def test_config_change(sim_config, tmp_path):
 
     config.usd_dir = output_dir
     urdf_converter = UrdfConverter(config)
-    time_usd_file_created = os.stat(urdf_converter.usd_path).st_mtime_ns
 
     # change the config
     new_config = config
@@ -116,7 +120,54 @@ def test_config_change(sim_config, tmp_path):
     new_urdf_converter = UrdfConverter(new_config)
     new_time_usd_file_created = os.stat(new_urdf_converter.usd_path).st_mtime_ns
 
-    assert time_usd_file_created != new_time_usd_file_created
+    # the importer writes the new conversion next to the first one; file times may share a second
+    assert new_urdf_converter.usd_path != urdf_converter.usd_path
+
+    # convert again with the changed config, which must not generate a new USD file
+    lazy_urdf_converter = UrdfConverter(new_config)
+    assert lazy_urdf_converter.usd_path == new_urdf_converter.usd_path
+    assert os.stat(lazy_urdf_converter.usd_path).st_mtime_ns == new_time_usd_file_created
+
+
+@pytest.mark.isaacsim_ci
+def test_lazy_conversion_converts_again_for_stale_record(sim_config, tmp_path):
+    """Convert again when the record comes from an earlier version or its generated file is missing.
+
+    Each new output is a numbered folder next to the earlier ones, and later lazy conversions reuse it.
+    """
+    sim, config = sim_config
+    config.usd_dir = os.path.join(str(tmp_path), "urdf_stale_record")
+    first_path = UrdfConverter(config).usd_path
+
+    # a record of an earlier version holds only the hash
+    record_path = os.path.join(config.usd_dir, ".asset_hash")
+    with open(record_path, encoding="utf-8") as f:
+        asset_hash = f.readline().strip()
+    with open(record_path, "w", encoding="utf-8") as f:
+        f.write(asset_hash)
+    second_path = UrdfConverter(config).usd_path
+    assert second_path != first_path
+    assert UrdfConverter(config).usd_path == second_path
+
+    # a missing generated file converts again, into a folder next to the first one
+    shutil.rmtree(os.path.dirname(second_path))
+    converter = UrdfConverter(config)
+    assert os.path.isfile(converter.usd_path)
+    assert converter.usd_path != first_path
+    assert os.path.dirname(os.path.dirname(converter.usd_path)) == converter.usd_dir
+
+
+@pytest.mark.isaacsim_ci
+def test_lazy_conversion_converts_again_for_another_requested_file(sim_config, tmp_path):
+    """Convert again when the record matches the hash but names another requested USD file."""
+    sim, config = sim_config
+    config.usd_dir = os.path.join(str(tmp_path), "urdf_requested_file")
+    # the same bytes under another file name hash the same but request another USD file
+    for name in ("robot_a", "robot_b"):
+        config.asset_path = os.path.join(str(tmp_path), f"{name}.urdf")
+        shutil.copy(_MERGE_JOINTS_URDF, config.asset_path)
+        usd_path = UrdfConverter(config).usd_path
+    assert os.path.relpath(usd_path, config.usd_dir) == os.path.join("robot_b", "robot_b.usda")
 
 
 @pytest.mark.isaacsim_ci
