@@ -110,6 +110,8 @@ def run(argv: list[str]) -> None:
             show_run_summary(screen, args_cli, env_cfg, library="rl_games", action="play")
             apply_env_overrides(args_cli, env_cfg)
             params = agent_cfg["params"]
+            # the agent runs on the device launch_simulation resolved for the simulation
+            params["config"]["device"] = params["config"]["device_name"] = env_cfg.sim.device
             args_cli.seed = resolve_seed(args_cli.seed)
             if args_cli.seed is not None:
                 params["seed"] = args_cli.seed

@@ -198,12 +198,12 @@ def run(argv: list[str]) -> BenchmarkResult | None:
             if args_cli.max_iterations is not None:
                 agent_cfg["params"]["config"]["max_epochs"] = args_cli.max_iterations
 
+            # the agent runs on the device launch_simulation resolved for the simulation
+            agent_cfg["params"]["config"]["device"] = agent_cfg["params"]["config"]["device_name"] = env_cfg.sim.device
             if distributed.enabled:
-                # Mirror the regular training entrypoint: the launcher pinned this rank to its own
-                # device, and offsetting the seed by the rank decorrelates exploration across ranks.
+                # Mirror the regular training entrypoint: offsetting the seed by the rank decorrelates
+                # exploration across ranks.
                 agent_cfg["params"]["seed"] += distributed.rank
-                agent_cfg["params"]["config"]["device"] = env_cfg.sim.device
-                agent_cfg["params"]["config"]["device_name"] = env_cfg.sim.device
                 agent_cfg["params"]["config"]["multi_gpu"] = True
             env_cfg.seed = agent_cfg["params"]["seed"]
             horizon_length = agent_cfg["params"]["config"].get("horizon_length", 16)

@@ -141,6 +141,9 @@ def run(argv: list[str]) -> BenchmarkResult:
                 agent_cfg.seed = args.seed
             env_cfg.seed = agent_cfg.seed
 
+            # the agent runs on the device launch_simulation resolved for the simulation
+            agent_cfg.device = env_cfg.sim.device
+
             log_root_path = os.path.abspath(os.path.join("logs", "rsl_rl", agent_cfg.experiment_name))
             if args.checkpoint in common.CHECKPOINT_SELECTORS:
                 resume_path = common.resolve_checkpoint_selector(

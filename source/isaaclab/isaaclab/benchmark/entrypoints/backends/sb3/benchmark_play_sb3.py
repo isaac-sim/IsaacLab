@@ -212,7 +212,7 @@ def run(argv: list[str]) -> BenchmarkResult:
                 )
 
             # Load the trained policy.
-            agent = PPO.load(resume_path, env, print_system_info=True)
+            agent = PPO.load(resume_path, env, device=env_cfg.sim.device, print_system_info=True)
 
             def policy(obs):
                 """Map an observation batch to a deterministic action batch via the sb3 agent.

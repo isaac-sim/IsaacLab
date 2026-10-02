@@ -239,6 +239,8 @@ def run(argv: list[str]) -> BenchmarkResult:
 
             agent_cfg["seed"] = args_cli.seed if args_cli.seed is not None else agent_cfg.get("seed", 0)
             env_cfg.seed = agent_cfg["seed"]
+            # the agent runs on the device launch_simulation resolved for the simulation
+            agent_cfg["device"] = env_cfg.sim.device
 
             # Convert the iteration override to SB3 total timesteps.
             n_steps_cfg = agent_cfg.get("n_steps", 2048)

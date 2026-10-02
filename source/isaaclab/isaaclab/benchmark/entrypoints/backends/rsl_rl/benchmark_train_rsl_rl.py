@@ -188,10 +188,11 @@ def run(argv: list[str]) -> BenchmarkResult | None:
             )
             env_cfg.seed = agent_cfg.seed
 
+            # the agent runs on the device launch_simulation resolved for the simulation
+            agent_cfg.device = env_cfg.sim.device
             if distributed.enabled:
-                # Mirror the regular training entrypoint: the launcher pinned this rank to its own
-                # device, and offsetting the seed by the rank decorrelates exploration across ranks.
-                agent_cfg.device = env_cfg.sim.device
+                # Mirror the regular training entrypoint: offsetting the seed by the rank decorrelates
+                # exploration across ranks.
                 agent_cfg.seed += distributed.rank
                 env_cfg.seed = agent_cfg.seed
             reported_num_envs, _ = distributed.global_work(env_cfg.scene.num_envs, agent_cfg.num_steps_per_env)

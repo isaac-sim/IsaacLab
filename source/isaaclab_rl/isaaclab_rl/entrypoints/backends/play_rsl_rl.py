@@ -105,6 +105,8 @@ def run(argv: list[str]) -> None:
         with launch_simulation(env_cfg, args_cli), contextlib.ExitStack() as cleanup:
             show_run_summary(screen, args_cli, env_cfg, library="rsl_rl", action="play")
             agent_cfg = cli_args.update_rsl_rl_cfg(agent_cfg, args_cli)
+            # the agent runs on the device launch_simulation resolved for the simulation
+            agent_cfg.device = env_cfg.sim.device
             apply_env_overrides(args_cli, env_cfg)
             # certain randomizations occur in the environment initialization so we set the seed here
             env_cfg.seed = agent_cfg.seed
