@@ -49,3 +49,17 @@ class MicroDuckRoughPPORunnerCfg(MicroDuckPPORunnerCfg):
     """The same PPO recipe with a separate experiment directory for rough terrain."""
 
     experiment_name = "microduck_velocity_rough"
+
+
+@configclass
+class MicroDuckBacklashFlatPPORunnerCfg(MicroDuckPPORunnerCfg):
+    """Flat walking PPO with separate logs for the backlash robot."""
+
+    experiment_name = "microduck_velocity_flat_backlash"
+
+
+@configclass
+class MicroDuckBacklashRoughPPORunnerCfg(MicroDuckRoughPPORunnerCfg):
+    """Rough walking PPO with separate logs for the backlash robot."""
+
+    experiment_name = "microduck_velocity_rough_backlash"
