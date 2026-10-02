@@ -639,8 +639,14 @@ def launch_simulation(
     try:
         # With no selected profile this is a no-op; with one, it installs process-wide OmniClient
         # routing before user code runs.
-        configure_storage_profile()
-        yield physics_cfg
+        try:
+            configure_storage_profile()
+            yield physics_cfg
+        finally:
+            # Release runtime consumers before a launcher can terminate the process.
+            context = SimulationContext.instance()
+            if context is not None and context is not previous_context:
+                SimulationContext.clear_instance()
     except KeyboardInterrupt:
         exit_code = 130
         raise
@@ -653,16 +659,5 @@ def launch_simulation(
         traceback.print_exc()
         raise
     finally:
-        try:
-            context = SimulationContext.instance()
-            if context is not None and context is not previous_context:
-                SimulationContext.clear_instance()
-        except Exception:
-            if exit_code == 0:
-                exit_code = 1
-                raise
-            logger.exception("Failed to clean up the simulation before runtime shutdown")
-        finally:
-            # Runtime shutdown may terminate the process; release its consumers first.
-            for launcher in reversed(launchers):
-                launcher.close(exit_code)
+        for launcher in reversed(launchers):
+            launcher.close(exit_code)
