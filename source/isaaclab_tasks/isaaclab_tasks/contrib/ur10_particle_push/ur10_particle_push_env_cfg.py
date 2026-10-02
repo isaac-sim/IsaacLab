@@ -199,6 +199,45 @@ def _spawn_fixed_paddle(
     return _spawn_one(prim_path, cfg, translation=translation, orientation=orientation, **kwargs)
 
 
+def _spawn_ur10_with_paddle(
+    prim_path: str,
+    cfg: UR10WithPaddleCfg,
+    translation: tuple[float, float, float] | None = None,
+    orientation: tuple[float, float, float, float] | None = None,
+    **kwargs,
+) -> Usd.Prim:
+    """Author the welded tool inside the robot's clone prototype."""
+    robot_prim = sim_utils.spawn_from_usd(prim_path, cfg, translation, orientation, **kwargs)
+    for root_prim in sim_utils.find_matching_prims(prim_path, stage=robot_prim.GetStage()):
+        paddle_path = f"{root_prim.GetPath()}/ee_link/Paddle"
+        cfg.paddle.func(paddle_path, cfg.paddle, translation=cfg.paddle_offset)
+        cfg.paddle_visual.func(f"{paddle_path}/PaddleVisual", cfg.paddle_visual)
+    return robot_prim
+
+
+@configclass
+class UR10WithPaddleCfg(sim_utils.UsdFileCfg):
+    """Robot and welded paddle imported together, including the tool's visual geometry."""
+
+    func = _spawn_ur10_with_paddle
+    paddle_offset: tuple[float, float, float] = PADDLE_OFFSET
+    paddle = sim_utils.CuboidCfg(
+        func=_spawn_fixed_paddle,
+        size=PADDLE_SIZE,
+        rigid_props=UsdPhysicsRigidBodyCfg(rigid_body_enabled=True),
+        mass_props=sim_utils.MassCfg(mass=PADDLE_MASS),
+        collision_props=[
+            UsdPhysicsCollisionCfg(collision_enabled=True),
+            NewtonCollisionCfg(contact_margin=PADDLE_CONTACT_MARGIN, contact_gap=0.002),
+        ],
+        physics_material=RigidBodyMaterialBaseCfg(static_friction=0.8, dynamic_friction=0.7),
+    )
+    paddle_visual = sim_utils.CuboidCfg(
+        size=PADDLE_SIZE,
+        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.18, 0.45, 0.82), metallic=0.25, roughness=0.35),
+    )
+
+
 # Collision-screened nominal pose for PADDLE_RESET_CENTER. The reset IK bank stays on this branch
 # while varying only small upright paddle translations and world-Z yaw.
 UR10_PUSH_HOME = (
@@ -357,43 +396,14 @@ class UR10ParticlePushSceneCfg(InteractiveSceneCfg):
     )
 
     robot = replace(UR10_CFG, prim_path="{ENV_REGEX_NS}/Robot")
+    robot.spawn = UR10WithPaddleCfg(**vars(robot.spawn))
+    robot.spawn.func = _spawn_ur10_with_paddle
     robot.init_state.joint_pos = dict(zip(UR10_JOINT_NAMES, UR10_PUSH_HOME, strict=True))
     # Override arm drive gains; preserve the USD inertia, limits, and effort cap.
     robot.actuators["arm"].stiffness = 2400.0
     robot.actuators["arm"].damping = 70.0
     # Enable actuator gravity compensation in MuJoCo; do not add task-level effort commands.
     robot.spawn.joint_drive_props = [MujocoJointCfg(actuatorgravcomp=True)]
-
-    # Weld the paddle to ee_link; separate collision and visual geometry for independent visibility.
-    paddle = AssetBaseCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/ee_link/Paddle",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=PADDLE_OFFSET),
-        spawn=sim_utils.CuboidCfg(
-            func=_spawn_fixed_paddle,
-            size=PADDLE_SIZE,
-            rigid_props=UsdPhysicsRigidBodyCfg(rigid_body_enabled=True),
-            mass_props=sim_utils.MassCfg(mass=PADDLE_MASS),
-            collision_props=[
-                UsdPhysicsCollisionCfg(collision_enabled=True),
-                NewtonCollisionCfg(contact_margin=PADDLE_CONTACT_MARGIN, contact_gap=0.002),
-            ],
-            physics_material=RigidBodyMaterialBaseCfg(
-                static_friction=0.8,
-                dynamic_friction=0.7,
-            ),
-        ),
-    )
-    paddle_visual = AssetBaseCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/ee_link/Paddle/PaddleVisual",
-        spawn=sim_utils.CuboidCfg(
-            size=PADDLE_SIZE,
-            visual_material=sim_utils.PreviewSurfaceCfg(
-                diffuse_color=(0.18, 0.45, 0.82),
-                metallic=0.25,
-                roughness=0.35,
-            ),
-        ),
-    )
 
     # The official table supplies rigid robot contact. This co-located simple slab belongs only to
     # the MPM entry, avoiding a mesh approximation and keeping particle collision explicit.
@@ -787,8 +797,8 @@ class UR10ParticlePushEnvCfg(ManagerBasedRLEnvCfg):
         if (
             len(paddle_size) != 3
             or any(not math.isfinite(value) or value <= 0.0 for value in paddle_size)
-            or tuple(self.scene.paddle.spawn.size) != paddle_size
-            or tuple(self.scene.paddle_visual.spawn.size) != paddle_size
+            or tuple(self.scene.robot.spawn.paddle.size) != paddle_size
+            or tuple(self.scene.robot.spawn.paddle_visual.size) != paddle_size
         ):
             raise ValueError("paddle_size must be finite, positive, and match both authored paddle geometries.")
         if any(

@@ -540,7 +540,7 @@ class FrankaPourResetDatasetEnvCfg(ManagerBasedRLEnvCfg):
     state_bound_max_joint_velocity: float = 20.0
     state_bound_max_cup_linear_velocity: float = 10.0
     state_bound_max_cup_angular_velocity: float = 50.0
-    particle_workspace_lower_bound: tuple[float, float, float] = (-1.0, -1.0, -0.5)
+    particle_workspace_lower_bound: tuple[float, float, float] = (-1.0, -1.0, -1.10)
     particle_workspace_upper_bound: tuple[float, float, float] = (1.5, 1.0, 1.5)
 
     particle_max_velocity: float = 10.0

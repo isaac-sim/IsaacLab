@@ -79,8 +79,8 @@ particle layouts, runtime restores its rigid start states with the currently con
 Changing the fill therefore does not require regenerating the artifact. This analytic fill volume
 is non-colliding. The visible cup mesh remains a particle-only collider so it can physically contain
 the media. The receiver uses a solid analytic box only for robot contact; it is invisible to particles,
-which continue to collide with the hollow receiver mesh. An invisible particle-only plane at the table
-height contains spilled media without adding rigid contacts or visible geometry.
+which continue to collide with the hollow receiver mesh. An invisible particle-only plane at ground
+height catches media falling off the table without adding rigid contacts or visible geometry.
 
 The particle generator and MPM solver both use a 15 mm voxel. Setting
 `particles_per_cell=2.5` gives 6 mm particle spacing at every fill level, while the

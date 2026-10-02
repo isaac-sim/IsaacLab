@@ -138,6 +138,7 @@ class FrankaPourEnv(ManagerBasedRLEnv):
         self._rigid_contact_margin = float(cfg.collider_margin)
         self._mpm_collider_margin = MPM_COLLIDER_MARGIN
         self._particle_max_velocity = float(cfg.particle_max_velocity)
+        self._spill_floor_height = float(cfg.scene.plane.init_state.pos[2])
 
     def _add_pour_world_to_builder(self, builder, env_id: int, position, quaternion) -> None:
         """Add only solver-specific collision representations to one imported scene world."""
@@ -232,8 +233,8 @@ class FrankaPourEnv(ManagerBasedRLEnv):
         self._configure_mjwarp_force_space_shape(builder, table_collider)
 
         world_xform = wp.transform(
-            wp.vec3(*[float(value) for value in position]),
-            wp.quat(*[float(value) for value in quaternion]),
+            wp.vec3(float(position[0]), float(position[1]), self._spill_floor_height),
+            wp.quat_identity(),
         )
         spill_floor = builder.add_body(
             xform=world_xform,
