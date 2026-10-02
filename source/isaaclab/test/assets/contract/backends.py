@@ -20,6 +20,8 @@ import numpy as np
 import pytest
 import warp as wp
 
+from isaaclab.utils.wrench_composer import WrenchComposer
+
 if "ovphysx" not in os.environ.get("LD_PRELOAD", "") and (os.environ.get("LD_PRELOAD") or "EXP_PATH" in os.environ):
     from isaaclab.test.utils import launch_test_simulation
 
@@ -160,3 +162,28 @@ def read_backend_joint_state(backend: str, art, raw_backend) -> tuple[np.ndarray
         velocity = np.asarray(raw_backend.bindings[TT.DOF_VELOCITY]._data).copy()
         return position, velocity
     return art.data._sim_bind_joint_pos.numpy().copy(), art.data._sim_bind_joint_vel.numpy().copy()
+
+
+def finish_shell(asset, *, supports_world_at_com: bool = True) -> None:
+    """Attach wrench composers and clear the callback handles that ``__del__`` releases."""
+    asset._instantaneous_wrench_composer = WrenchComposer(asset, supports_world_at_com=supports_world_at_com)
+    asset._permanent_wrench_composer = WrenchComposer(asset, supports_world_at_com=supports_world_at_com)
+    asset._initialize_handle = None
+    asset._invalidate_initialize_handle = None
+    asset._prim_deletion_handle = None
+    asset._debug_vis_handle = None
+
+
+def indices(count: int, device: str) -> wp.array:
+    """Return ``[0, count)`` as an int32 Warp array."""
+    return wp.array(np.arange(count, dtype=np.int32), device=device)
+
+
+def newton_manager(num_instances: int, device: str) -> MagicMock:
+    """Return a NewtonManager double with a gravity-carrying model."""
+    model = MagicMock(world_count=num_instances)
+    model.gravity = wp.array(np.tile([[0.0, 0.0, -9.81]], (num_instances + 1, 1)), dtype=wp.vec3f, device=device)
+    manager = MagicMock()
+    manager.get_model.return_value = model
+    manager.get_state_0.return_value = manager.get_state_1.return_value = MagicMock()
+    return manager

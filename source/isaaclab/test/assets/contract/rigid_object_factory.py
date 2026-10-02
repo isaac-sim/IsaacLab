@@ -14,15 +14,21 @@ and data classes run against mocked views. They return the asset and the raw bac
 
 from unittest.mock import MagicMock
 
-import numpy as np
 import pytest
 import warp as wp
 
 from isaaclab.assets.rigid_object.rigid_object_cfg import RigidObjectCfg
 from isaaclab.assets.rigid_object_collection.rigid_object_collection_cfg import RigidObjectCollectionCfg
-from isaaclab.utils.wrench_composer import WrenchComposer
 
-from .backends import AVAILABLE, install_physx_recording_setters, patch_ovphysx_manager, patch_physx_manager
+from .backends import (
+    AVAILABLE,
+    finish_shell,
+    indices,
+    install_physx_recording_setters,
+    newton_manager,
+    patch_ovphysx_manager,
+    patch_physx_manager,
+)
 
 if "physx" in AVAILABLE:
     import isaaclab_physx.assets as physx_assets
@@ -48,30 +54,6 @@ _PHYSX_STORAGE = {
 }
 
 
-def _finish_shell(asset, *, supports_world_at_com: bool = True) -> None:
-    """Attach wrench composers and clear the callback handles that ``__del__`` releases."""
-    asset._instantaneous_wrench_composer = WrenchComposer(asset, supports_world_at_com=supports_world_at_com)
-    asset._permanent_wrench_composer = WrenchComposer(asset, supports_world_at_com=supports_world_at_com)
-    asset._initialize_handle = None
-    asset._invalidate_initialize_handle = None
-    asset._prim_deletion_handle = None
-    asset._debug_vis_handle = None
-
-
-def _indices(count: int, device: str) -> wp.array:
-    return wp.array(np.arange(count, dtype=np.int32), device=device)
-
-
-def _newton_manager(num_instances: int, device: str) -> MagicMock:
-    """Return a NewtonManager double with a gravity-carrying model."""
-    model = MagicMock(world_count=num_instances)
-    model.gravity = wp.array(np.tile([[0.0, 0.0, -9.81]], (num_instances + 1, 1)), dtype=wp.vec3f, device=device)
-    manager = MagicMock()
-    manager.get_model.return_value = model
-    manager.get_state_0.return_value = manager.get_state_1.return_value = MagicMock()
-    return manager
-
-
 def _physx_rigid_object(num_instances: int, device: str, monkeypatch: pytest.MonkeyPatch):
     patch_physx_manager(monkeypatch)
     view = MockRigidBodyViewWarp(count=num_instances, device=device)
@@ -84,16 +66,16 @@ def _physx_rigid_object(num_instances: int, device: str, monkeypatch: pytest.Mon
     obj._device = device
     obj._data = physx_assets.RigidObjectData(view, device)
     obj._data.body_names = ["body_0"]
-    _finish_shell(obj)
-    obj._ALL_INDICES = _indices(num_instances, device)
-    obj._ALL_BODY_INDICES = _indices(1, device)
+    finish_shell(obj)
+    obj._ALL_INDICES = indices(num_instances, device)
+    obj._ALL_BODY_INDICES = indices(1, device)
     obj._root_link_pose_w_f32 = None
     obj._root_com_vel_w_f32 = None
     # Pinned CPU staging buffers for PhysX TensorAPI writes.
     pinned = wp.is_cuda_available()
     obj._sim_env_ids = wp.empty(num_instances, dtype=wp.int32, device=device)
     obj._sim_env_ids_views = {}
-    obj._cpu_env_ids_all = _indices(num_instances, "cpu")
+    obj._cpu_env_ids_all = indices(num_instances, "cpu")
     obj._cpu_env_ids = wp.empty(num_instances, dtype=wp.int32, device="cpu", pinned=pinned)
     obj._cpu_env_ids_views = {}
     obj._cpu_body_mass = wp.zeros((num_instances, 1), dtype=wp.float32, device="cpu")
@@ -113,16 +95,16 @@ def _newton_rigid_object(num_instances: int, device: str, monkeypatch: pytest.Mo
         body_names=["body_0"],
     )
     view.set_random_mock_data()
-    monkeypatch.setattr(newton_rigid_object_data, "SimulationManager", _newton_manager(num_instances, device))
+    monkeypatch.setattr(newton_rigid_object_data, "SimulationManager", newton_manager(num_instances, device))
 
     obj = object.__new__(newton_assets.RigidObject)
     obj.cfg = RigidObjectCfg(prim_path="/World/Object")
     obj._root_view = view
     obj._device = device
     obj._data = newton_assets.RigidObjectData(view, device)
-    _finish_shell(obj, supports_world_at_com=False)
-    obj._ALL_INDICES = _indices(num_instances, device)
-    obj._ALL_BODY_INDICES = _indices(1, device)
+    finish_shell(obj, supports_world_at_com=False)
+    obj._ALL_INDICES = indices(num_instances, device)
+    obj._ALL_BODY_INDICES = indices(1, device)
     obj._ALL_ENV_MASK = wp.ones((num_instances,), dtype=wp.bool, device=device)
     obj._ALL_BODY_MASK = wp.ones((1,), dtype=wp.bool, device=device)
     return obj, view
@@ -149,7 +131,7 @@ def _ovphysx_rigid_object(num_instances: int, device: str, monkeypatch: pytest.M
     obj._data.num_bodies = 1
     obj._data._is_primed = True
     obj._create_buffers()
-    _finish_shell(obj)
+    finish_shell(obj)
     return obj, bindings
 
 
@@ -177,10 +159,10 @@ def _physx_collection(num_instances: int, num_bodies: int, device: str, monkeypa
     collection._body_names_list = body_names
     collection._data = physx_assets.RigidObjectCollectionData(view, num_bodies, device)
     collection._data.body_names = body_names
-    _finish_shell(collection)
-    collection._ALL_ENV_INDICES = _indices(num_instances, device)
-    collection._ALL_BODY_INDICES = _indices(num_bodies, device)
-    collection._ALL_VIEW_INDICES = _indices(num_view_ids, device)
+    finish_shell(collection)
+    collection._ALL_ENV_INDICES = indices(num_instances, device)
+    collection._ALL_BODY_INDICES = indices(num_bodies, device)
+    collection._ALL_VIEW_INDICES = indices(num_view_ids, device)
     pinned = wp.is_cuda_available()
     collection._sim_view_ids = wp.empty(num_view_ids, dtype=wp.int32, device=device)
     collection._sim_view_ids_views = {}
@@ -195,7 +177,7 @@ def _newton_collection(num_instances: int, num_bodies: int, device: str, monkeyp
     body_names = [f"object_{i}" for i in range(num_bodies)]
     view = MockNewtonCollectionView(num_envs=num_instances, num_bodies=num_bodies, device=device, body_names=body_names)
     view.set_random_mock_data()
-    manager = _newton_manager(num_instances, device)
+    manager = newton_manager(num_instances, device)
     monkeypatch.setattr(newton_collection_data, "SimulationManager", manager)
     monkeypatch.setattr(newton_collection, "SimulationManager", manager)
 
@@ -208,9 +190,9 @@ def _newton_collection(num_instances: int, num_bodies: int, device: str, monkeyp
     collection._body_names_list = body_names
     collection._data = newton_assets.RigidObjectCollectionData(view, num_bodies, device)
     collection._data.body_names = body_names
-    _finish_shell(collection, supports_world_at_com=False)
-    collection._ALL_ENV_INDICES = _indices(num_instances, device)
-    collection._ALL_BODY_INDICES = _indices(num_bodies, device)
+    finish_shell(collection, supports_world_at_com=False)
+    collection._ALL_ENV_INDICES = indices(num_instances, device)
+    collection._ALL_BODY_INDICES = indices(num_bodies, device)
     collection._ALL_ENV_MASK = wp.ones((num_instances,), dtype=wp.bool, device=device)
     collection._ALL_BODY_MASK = wp.ones((num_bodies,), dtype=wp.bool, device=device)
     return collection, view
@@ -243,7 +225,7 @@ def _ovphysx_collection(num_instances: int, num_bodies: int, device: str, monkey
     collection._data.num_bodies = num_bodies
     collection._data._is_primed = True
     collection._create_buffers()
-    _finish_shell(collection)
+    finish_shell(collection)
     return collection, bindings
 
 
