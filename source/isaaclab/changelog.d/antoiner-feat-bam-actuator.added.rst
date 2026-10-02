@@ -1,6 +1,3 @@
-Added
-^^^^^
-
 * Added :class:`~isaaclab.actuators.BamActuatorCfg` and
   :class:`~isaaclab.actuators.newton.DriveBam`, a voltage-domain servo model implemented as
   Newton Warp kernels using the Newton 1.6 ``DriveBase`` API. The controller required Newton's MJWarp solver with
