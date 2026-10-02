@@ -30,11 +30,11 @@ def test_body_offset_jacobian_uses_offset_in_root_frame():
     data = SimpleNamespace(
         body_link_jacobian_w=SimpleNamespace(torch=jacobian_w),
         root_quat_w=SimpleNamespace(torch=root_quat_w),
-        body_quat_w=SimpleNamespace(torch=body_quat_w.unsqueeze(1)),
+        body_quat_w=SimpleNamespace(torch=torch.stack([root_quat_w, body_quat_w], dim=1)),  # [root, hand]
     )
     term = SimpleNamespace(
         _asset=SimpleNamespace(data=data),
-        _body_idx=0,
+        _body_idx=1,  # a fixed base has no Jacobian row for its root, so the hand stays Jacobian row 0
         _jacobi_body_idx=0,
         _jacobi_joint_ids=[0],
         _jacobian_b=torch.zeros(1, 6, 1),
