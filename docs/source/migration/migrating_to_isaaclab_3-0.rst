@@ -46,6 +46,10 @@ Installation
 Start from a fresh Isaac Lab 3.0 checkout. uv is the only supported installation method;
 create a new environment instead of upgrading an existing 2.x environment.
 
+Isaac Lab 3.0 removes ``isaaclab.sh``, ``isaaclab.bat``, and the CLI installation and
+environment-creation options (``--install``, ``--conda``, and ``--uv``, including their short forms).
+Replace installation commands with ``uv sync`` and launcher commands with ``uv run isaaclab``.
+
 .. code-block:: bash
 
    uv sync --extra isaacsim
@@ -2356,7 +2360,7 @@ Move training and inference workflows to the unified entrypoints after the envir
 
       .. code-block:: bash
 
-         uv run python scripts/reinforcement_learning/rsl_rl/train.py \
+         ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
             --task Isaac-Cartpole --resume --load_run RUN
 
    .. grid-item-card:: Isaac Lab 3.0
@@ -2733,7 +2737,7 @@ Finish by updating importers, benchmarks, and optional integrations used around 
 
       .. code-block:: bash
 
-         uv run python scripts/benchmarks/benchmark_rsl_rl.py \
+         ./isaaclab.sh -p scripts/benchmarks/benchmark_rsl_rl.py \
             --task Isaac-Cartpole
 
    .. grid-item-card:: Isaac Lab 3.0
@@ -3111,15 +3115,15 @@ exactly as for the training workflow. There is no ``--physics`` or ``--render`` 
 
 .. tab-set::
 
-   .. tab-item:: uv (Recommended)
+   .. tab-item:: Isaac Lab launcher
 
       .. code-block:: bash
 
          # Non-RL (random-action) runtime benchmark
-         uv run python scripts/benchmarks/benchmark_non_rl.py --task Isaac-Cartpole-Direct
+         ./isaaclab.sh -p scripts/benchmarks/benchmark_non_rl.py --task Isaac-Cartpole-Direct
 
          # Training benchmark (RSL-RL)
-         uv run python scripts/benchmarks/benchmark_rsl_rl.py --task Isaac-Cartpole-Direct
+         ./isaaclab.sh -p scripts/benchmarks/benchmark_rsl_rl.py --task Isaac-Cartpole-Direct
 
          # Wrapper shell runners
          ./scripts/benchmarks/run_non_rl_benchmarks.sh

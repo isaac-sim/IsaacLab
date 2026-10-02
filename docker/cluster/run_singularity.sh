@@ -68,7 +68,7 @@ singularity exec \
     -B $TMPDIR/$dir_name:/workspace/isaaclab:rw \
     -B $CLUSTER_ISAACLAB_DIR/logs:/workspace/isaaclab/logs:rw \
     --nv --writable --containall $TMPDIR/$2.sif \
-    bash -c "export ISAACLAB_PATH=/workspace/isaaclab && cd /workspace/isaaclab && uv run --no-sync isaaclab -p ${CLUSTER_PYTHON_EXECUTABLE} ${@:3}"
+    bash -c "export ISAACLAB_PATH=/workspace/isaaclab && cd /workspace/isaaclab && ln -sfn ${DOCKER_ISAACSIM_ROOT_PATH} _isaac_sim && uv run --no-sync isaaclab -p ${CLUSTER_PYTHON_EXECUTABLE} ${@:3}"
 
 # copy resulting cache files back to host
 rsync -azPv $TMPDIR/docker-isaac-sim $CLUSTER_ISAAC_SIM_CACHE_DIR/..

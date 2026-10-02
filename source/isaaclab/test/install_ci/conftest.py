@@ -93,9 +93,8 @@ def workspace(
     directory = tmp_path_factory.mktemp(request.param)
     env = {"UV_PROJECT_ENVIRONMENT": str(directory / "venv")}
     extras = ["--extra", "isaacsim"] if request.param == "isaacsim" else []
-    # Exercise the documented install command. Release automation can bump workspace
-    # versions before the lock is refreshed, so allow uv to reconcile that metadata.
-    run("uv", "sync", *extras, cwd=checkout, env=env, timeout=4500)
+    # Validate the committed lock rather than silently resolving or rewriting it.
+    run("uv", "sync", "--locked", *extras, cwd=checkout, env=env, timeout=4500)
     yield request.param, directory, env
     shutil.rmtree(directory / "venv")
 

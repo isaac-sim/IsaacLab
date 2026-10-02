@@ -247,11 +247,6 @@ be installed via the `Kubernetes website <https://kubernetes.io/docs/tasks/tools
 Google Cloud is currently the only platform tested, although
 any cloud provider should work if one configures the following.
 
-.. attention::
-  The ``ray`` command should be modified to use Isaac python, which could be achieved in a fashion similar to
-  ``sed -i "1i $(echo "#!/workspace/isaaclab/_isaac_sim/python.sh")" \
-  /isaac-sim/kit/python/bin/ray && ln -s /isaac-sim/kit/python/bin/ray /usr/local/bin/ray``.
-
 - An container registry (NGC, GCS artifact registry, AWS ECR, etc) with
   an Isaac Lab image configured to support Ray. See ``cluster_configs/Dockerfile`` to see how to modify the ``isaac-lab-base``
   container for Ray compatibility. Ray uses the image's uv environment, and ``nvidia-smi``

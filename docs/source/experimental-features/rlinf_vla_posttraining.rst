@@ -127,7 +127,7 @@ OpenMP preload on aarch64
 
 On DGX Spark and other aarch64 Linux systems only, preload the aarch64 OpenMP
 library so it can be loaded into the Python process (see
-:ref:`installation-method-python-env`):
+:ref:`installation-method-uv`):
 
 .. code-block:: bash
 

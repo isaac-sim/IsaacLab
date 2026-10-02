@@ -5,6 +5,7 @@
 
 """Tests for CLI utility functions used by the uv installation path."""
 
+import json
 import os
 import subprocess
 import sys
@@ -21,28 +22,50 @@ from isaaclab.cli.utils import (
 pytestmark = pytest.mark.unit
 
 
-def test_run_python_command_uses_live_isaac_sim_with_active_python(tmp_path):
-    """Direct uv launches must combine the live source build with the active Python."""
+@pytest.mark.skipif(os.name == "nt", reason="exercises the POSIX source-build launcher")
+def test_source_build_cli_child_loads_kit_once(tmp_path: Path) -> None:
+    """The CLI child loads native paths, keeps uv's Python, and does not recurse."""
     local_sim = tmp_path / "_isaac_sim"
-    local_sim.mkdir()
-    python_launcher = local_sim / "python.sh"
-    python_launcher.touch()
+    bindings = local_sim / "kit" / "plugins" / "bindings-python"
+    bindings.mkdir(parents=True)
+    (bindings / "kit_bootstrap_probe.py").write_text("VALUE = 'native binding loaded'\n")
     (local_sim / ".isaaclab_source_build").touch()
-    active_python = str(tmp_path / ".venv" / "bin" / "python")
-
-    with (
-        mock.patch("isaaclab.cli.utils.DEFAULT_ISAAC_SIM_PATH", local_sim),
-        mock.patch("isaaclab.cli.utils.extract_python_exe", return_value=active_python),
-        mock.patch("isaaclab.cli.utils.run_command") as run,
-        mock.patch.dict(os.environ, {}, clear=True),
-    ):
-        run_python_command("train.py", ["--task", "Cartpole"])
-
-    command = run.call_args.args[0]
-    assert command[0] == str(python_launcher)
-    assert Path(command[1]).name == "train.py"
-    assert command[2:] == ["--task", "Cartpole"]
-    assert run.call_args.kwargs["env"]["PYTHONEXE"] == active_python
+    launches = tmp_path / "launches"
+    launcher = local_sim / "python.sh"
+    launcher.write_text(
+        '#!/bin/sh\necho launch >> "$BOOTSTRAP_LAUNCHES"\nexport ISAAC_PATH="$BOOTSTRAP_SIM"\nexec "$PYTHONEXE" "$@"\n'
+    )
+    launcher.chmod(0o755)
+    # Configure discovery in both interpreters without changing the developer's local link.
+    (tmp_path / "sitecustomize.py").write_text(
+        "import json, os, sys\n"
+        "from pathlib import Path\n"
+        "import isaaclab.cli as cli\n"
+        "from isaaclab.cli import utils\n"
+        "cli.DEFAULT_ISAAC_SIM_PATH = utils.DEFAULT_ISAAC_SIM_PATH = Path(os.environ['BOOTSTRAP_SIM'])\n"
+        "if os.environ.get('ISAAC_PATH') == os.environ['BOOTSTRAP_SIM']:\n"
+        "    import kit_bootstrap_probe\n"
+        "    print(json.dumps({'python': sys.executable, 'binding': kit_bootstrap_probe.VALUE}))\n"
+    )
+    env = dict(os.environ)
+    env.pop("ISAAC_PATH", None)
+    env["BOOTSTRAP_SIM"] = str(local_sim)
+    env["BOOTSTRAP_LAUNCHES"] = str(launches)
+    env["PYTHONPATH"] = os.pathsep.join(filter(None, [str(tmp_path), env.get("PYTHONPATH")]))
+    result = subprocess.run(
+        [sys.executable, "-m", "isaaclab", "demo", "--help"],
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    probe = next(json.loads(line) for line in result.stdout.splitlines() if line.startswith('{"python":'))
+    assert Path(probe["python"]).resolve() == Path(sys.executable).resolve()
+    assert probe["binding"] == "native binding loaded"
+    assert "usage:" in result.stdout
+    assert launches.read_text().splitlines() == ["launch"]
 
 
 def test_run_python_command_preloads_system_libgomp_path_on_aarch64(tmp_path):

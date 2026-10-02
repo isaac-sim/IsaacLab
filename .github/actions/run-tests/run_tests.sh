@@ -398,8 +398,8 @@ run_tests() {
         fi
 
         echo \"Installing wheelhouse packages offline: \${TEST_WHEELHOUSE_PACKAGES}\"
-        uv pip uninstall \${TEST_WHEELHOUSE_PACKAGES} || true
-        uv pip install --no-index --find-links=\"\${TEST_WHEELHOUSE_PATH}\" --upgrade --reinstall \${TEST_WHEELHOUSE_PACKAGES}
+        uv pip uninstall --python \"\${VIRTUAL_ENV}/bin/python\" \${TEST_WHEELHOUSE_PACKAGES} || true
+        uv pip install --python \"\${VIRTUAL_ENV}/bin/python\" --no-index --find-links=\"\${TEST_WHEELHOUSE_PATH}\" --upgrade --reinstall \${TEST_WHEELHOUSE_PACKAGES}
 
         case \" \${TEST_WHEELHOUSE_PACKAGES} \" in
           *\" ovphysx \"*)
@@ -409,11 +409,11 @@ run_tests() {
       fi
       if [ -n \"\${TEST_EXTRA_PIP_PACKAGES:-}\" ]; then
         echo \"Installing extra pip packages: \${TEST_EXTRA_PIP_PACKAGES}\"
-        bash /with-python-package-retries.sh uv pip install \${TEST_EXTRA_PIP_PACKAGES}
+        bash /with-python-package-retries.sh uv pip install --python \"\${VIRTUAL_ENV}/bin/python\" \${TEST_EXTRA_PIP_PACKAGES}
         case \" \${TEST_EXTRA_PIP_PACKAGES} \" in
           *\" leapp\"*)
             echo \"Resolved LEAPP package:\"
-            uv pip show leapp || true
+            uv pip show --python \"\${VIRTUAL_ENV}/bin/python\" leapp || true
             ;;
         esac
       fi

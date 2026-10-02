@@ -62,7 +62,7 @@ def main():
     update_task_param(args.cfg_path, args.assembly_id, args.train, args.log_eval)
 
     # build the command
-    command = [sys.executable]
+    command = [sys.executable, "-m", "isaaclab", "-p"]
 
     if args.train:
         command.extend(

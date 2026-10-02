@@ -64,7 +64,7 @@ def main():
         args.disassembly_dir,
     )
 
-    command = [sys.executable]
+    command = [sys.executable, "-m", "isaaclab", "-p"]
 
     command.extend(
         [
