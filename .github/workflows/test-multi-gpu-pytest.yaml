@@ -193,6 +193,7 @@ jobs:
         continue-on-error: true
         run: |
           set +e
+          probe() {
           t=$(curl -sX PUT http://169.254.169.254/latest/api/token -H 'X-aws-ec2-metadata-token-ttl-seconds: 300')
           imds() { curl -s -H "X-aws-ec2-metadata-token: $t" "http://169.254.169.254/latest/meta-data/$1"; }
           echo "instance-type: $(imds instance-type)  az: $(imds placement/availability-zone)"
@@ -215,6 +216,11 @@ jobs:
                 --layer-digest "$layer" --query 'layerDigest' --output text 2>&1 | sed "s/^/download-url-for-layer: /"
             done
           done
+          }
+          out=$(probe 2>&1)
+          echo "$out"
+          # One annotation, readable through the API while the job is still running.
+          echo "::notice title=TEMP runner probe::$(printf '%s' "$out" | sed ':a;N;$!ba;s/%/%25/g;s/\r//g;s/\n/%0A/g')"
 
       - name: Discover opt-in test files
         # Auto-discovery: any test_*.py with a non-default-capable scope — an
