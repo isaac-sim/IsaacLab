@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -135,13 +136,11 @@ class SourceRevisionTests(unittest.TestCase):
             self.assertEqual(json.loads(path.read_text())["commit"], self._git("rev-parse", "HEAD"))
         return path, process
 
-    def _run(self, manifest, name, *, roots=None, **extra):
+    def _run(self, manifest, name, *, roots=None, launcher=None, **extra):
         output = self.directory / name
         process = subprocess.run(
             [
-                sys.executable,
-                str(LAUNCHER),
-                "run",
+                *(launcher or [sys.executable, str(LAUNCHER), "run"]),
                 "--manifest",
                 str(manifest),
                 "--checkout-root",
@@ -200,6 +199,51 @@ class SourceRevisionTests(unittest.TestCase):
         self.assertNotEqual(self.commit_a, commit_b)
         self.assertNotEqual(result_a["executed_revision"], result_b["executed_revision"])
         self.assertEqual(result_a["image_identity"], result_b["image_identity"])
+
+    def test_ci_launcher_verifies_the_initialized_benchmark_worker(self):
+        self._write(
+            "source/isaaclab/isaaclab/cli/__init__.py",
+            """
+            import os
+            import subprocess
+            import sys
+
+            def cli():
+                initialized = dict(os.environ, FIXTURE_INITIALIZED="1")
+                if sys.argv[1] == "-p":
+                    raise SystemExit(subprocess.call([sys.executable, *sys.argv[2:]], env=initialized))
+                if os.environ.get("FIXTURE_INITIALIZED") != "1":
+                    raise SystemExit(subprocess.call(
+                        [sys.executable, "-m", "isaaclab.cli", *sys.argv[1:]], env=initialized
+                    ))
+                from isaaclab.benchmark.entrypoints import runtime
+                runtime.run(sys.argv[1:])
+            """,
+        )
+        self._write("source/isaaclab/isaaclab/cli/__main__.py", "from . import cli\ncli()\n")
+        commit = self._commit()
+        manifest, _ = self._prepare()
+        process, output, proof = self._run(manifest, "direct-wrapper", FIXTURE_INITIALIZED="")
+        self.assertNotEqual(process.returncode, 0)
+        self.assertEqual(proof["benchmark_exit_code"], 0)
+        self.assertEqual(proof["status"], "failed")
+        self.assertIsNone(proof["runtime_entrypoint"])
+        self.assertTrue(any("Runtime entrypoint was not imported" in item["reason"] for item in proof["mismatches"]))
+        result = json.loads((output / "benchmark_runtime_fixture.json").read_text())
+        self.assertNotEqual(result["worker_pid"], proof["pid"])
+
+        # Exercise the launch choice from the real CI script with fixture executables.
+        runner = LAUNCHER.with_name("run_benchmarks.sh").read_text()
+        line = next(line for line in runner.splitlines() if line.strip().startswith("uv run --no-sync "))
+        command = shlex.split(line.strip().removesuffix("\\").strip())[3:]
+        command[command.index("/tmp/source_revision.py")] = str(LAUNCHER)
+        executables = {
+            "python": [sys.executable],
+            "isaaclab": [sys.executable, "-m", "isaaclab.cli"],
+        }
+        launcher = executables[command[0]] + command[1:]
+        verified = self._run(manifest, "ci-wrapper", launcher=launcher, FIXTURE_INITIALIZED="")
+        self._assert_verified(*verified, "A", commit)
 
     def test_docstring_only_revision_changes_live_function_proof_in_same_image(self):
         runtime = self.checkout / RUNTIME_PATH

@@ -54,7 +54,7 @@ run_attempt() {
     mkdir -p /tmp/benchmark-output /tmp/isaaclab-ci-home/.cache /tmp/isaaclab-ci-home/.local/share
     id
     stat -c 'Source owner: %u:%g; permissions: %a' /workspace/isaaclab/source
-    uv run --no-sync python /tmp/source_revision.py run \
+    uv run --no-sync isaaclab -p /tmp/source_revision.py run \
       --manifest /tmp/source-manifest.json \
       --checkout-root /workspace/isaaclab \
       --output-dir /tmp/benchmark-output \
