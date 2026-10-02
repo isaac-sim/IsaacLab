@@ -68,7 +68,8 @@ RUN if [ "$(dpkg --print-architecture)" = "arm64" ]; then \
     fi
 
 COPY --from=ghcr.io/astral-sh/uv:0.12.9@sha256:8b940d3a9d65bed080436972241af2e21c84b5e8c9193f7014ed71479ee795ff /uv /uvx /usr/local/bin/
-RUN uv venv --python /usr/bin/python3 /opt/tests && \
+ENV UV_PYTHON_INSTALL_DIR=/opt/uv-python
+RUN uv venv --python 3.12 /opt/tests && \
     uv pip install --python /opt/tests/bin/python 'pytest>=8'
 ENV PATH="/opt/tests/bin:${PATH}"
 

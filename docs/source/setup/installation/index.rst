@@ -519,7 +519,7 @@ Clone Isaac Lab, then build, start, and enter the development container:
    ./docker/container.py start
    ./docker/container.py enter base
 
-The container uses ``/isaac-sim/python.sh`` and mounts the repository's ``source`` and ``docs``
+The container uses a uv environment built on Isaac Sim's interpreter and mounts the repository's ``source`` and ``docs``
 directories for live editing. Use ``./docker/container.py stop`` to stop it and
 ``./docker/container.py copy`` to retrieve logs, data, and documentation artifacts.
 
@@ -580,14 +580,14 @@ Launch Isaac Sim:
 
       .. code-block:: bash
 
-         uv run isaaclab -s
+         uv run --extra isaacsim isaaclab -s
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
 
       .. code-block:: batch
 
-         uv run isaaclab -s
+         uv run --extra isaacsim isaaclab -s
 
 Select the ``CACHE:`` message in the upper-right corner and enable `Hub Workstation Cache
 <https://docs.omniverse.nvidia.com/utilities/latest/cache/hub-workstation.html>`__. The first load

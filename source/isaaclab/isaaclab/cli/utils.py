@@ -251,11 +251,7 @@ def _escape_for_cmd_exe(cmd: list[str] | tuple[str, ...]) -> list[str]:
         s = str(arg)
         has_meta = any(c in s for c in _CMD_METACHARACTERS)
         has_space = " " in s or "\t" in s
-        # Args with spaces fall back to double-quoting: cmd.exe does not
-        # interpret metacharacters inside "..." but the literal quotes can
-        # leak through the python.bat hop. Bypass python.bat entirely (see
-        # extract_python_exe) for the common case; pip args with spaces and
-        # metacharacters in the same token are not currently used.
+        # cmd.exe does not interpret metacharacters inside double quotes.
         if has_space:
             parts.append(f'"{s}"')
         elif has_meta:

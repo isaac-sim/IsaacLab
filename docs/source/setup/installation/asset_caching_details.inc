@@ -17,14 +17,14 @@ First, launch the Isaac Sim application:
 
       .. code:: bash
 
-         uv run isaaclab -s
+         uv run --extra isaacsim isaaclab -s
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
 
       .. code:: batch
 
-         uv run isaaclab -s
+         uv run --extra isaacsim isaaclab -s
 
 On the top right of the Isaac Lab or Isaac Sim app, look for the icon labeled ``CACHE:``.
 You may see a message such as ``HUB NOT DETECTED`` or ``NEW VERSION DETECTED``.
