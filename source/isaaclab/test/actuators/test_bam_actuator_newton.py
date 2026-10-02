@@ -317,6 +317,15 @@ def test_drive_matches_upstream_motor_and_friction_goldens(device):
     )
 
 
+def test_environment_stride_cannot_be_set_after_state_creation():
+    """Existing drive states must never disagree with the motor's environment grouping."""
+    harness = _Harness(num_envs=1, device="cpu")
+    for stride in (1, len(JOINT_NAMES)):
+        with pytest.raises(RuntimeError, match="before.*state"):
+            harness.drive.set_env_dof_stride(stride)
+    assert harness.drive.env_dof_stride == len(JOINT_NAMES)
+
+
 def test_unbound_drive_rejects_stepping(monkeypatch):
     """A BAM drive imported outside Lab's solver-binding path must raise a Python error."""
     harness = _Harness(num_envs=1, device="cpu")
