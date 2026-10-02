@@ -740,6 +740,62 @@ class TestRePointPrebundlePackages:
         assert bundled_newton.is_symlink()
         assert bundled_newton.resolve() == (site_pkgs / "newton").resolve()
 
+    def test_standalone_warp_extension_loads_environment_package(self, tmp_path):
+        """Kit's direct Warp path must load the installed copy despite broken shared files."""
+        isaacsim_path, _ = self._sim_with_prebundle(tmp_path / "sim", [])
+        extension = isaacsim_path / "extscache" / "omni.warp.core-1.16.0+lx64"
+        bundled = extension / "warp"
+        bundled.mkdir(parents=True)
+        (bundled / "__init__.py").symlink_to(tmp_path / "removed-teleop-init.py")
+        site_pkgs = _make_site_packages(tmp_path / "env", ["warp"])
+        (site_pkgs / "warp" / "__init__.py").write_text("__version__ = '1.17.0'\n")
+
+        with self._patch(isaacsim_path, site_pkgs, sys.executable):
+            _repoint_prebundle_packages()
+
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-I",
+                "-S",
+                "-c",
+                f"import sys; sys.path.insert(0, {str(extension)!r}); import warp; print(warp.__version__)",
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        assert result.stdout.strip() == "1.17.0"
+
+    def test_cuda13_redirect_preserves_kits_shared_cuda12_libraries(self, tmp_path):
+        """Native Kit library links survive exposing the environment's CUDA 13 subtree."""
+        isaacsim_path, prebundle = self._sim_with_prebundle(tmp_path / "sim", ["nvidia"])
+        cuda12 = prebundle / "nvidia" / "cuda_nvrtc" / "lib" / "libnvrtc-builtins.so.12.8"
+        cuda12.parent.mkdir(parents=True)
+        cuda12.write_bytes(b"Kit CUDA 12 library")
+        hydra = isaacsim_path / "extscache" / "omni.hydra.rtx" / "bin" / "libnvrtc-builtins.so"
+        hydra.parent.mkdir(parents=True)
+        hydra.symlink_to(cuda12)
+        site_pkgs = _make_site_packages(tmp_path / "env", ["nvidia"])
+        cuda13 = site_pkgs / "nvidia" / "cu13" / "lib" / "libnvrtc-builtins.so.13.0"
+        (site_pkgs / "nvidia" / "cudnn").mkdir()
+        cuda13.parent.mkdir(parents=True)
+        cuda13.write_bytes(b"Environment CUDA 13 library")
+        old_nccl = prebundle / "nvidia" / "nccl" / "lib" / "libnccl.so.2"
+        old_nccl.parent.mkdir(parents=True)
+        old_nccl.write_bytes(b"Old NCCL missing Torch symbols")
+        new_nccl = site_pkgs / "nvidia" / "nccl" / "lib" / "libnccl.so.2"
+        new_nccl.parent.mkdir(parents=True)
+        new_nccl.write_bytes(b"Locked NCCL")
+
+        with self._patch(isaacsim_path, site_pkgs, sys.executable):
+            _repoint_prebundle_packages()
+            _repoint_prebundle_packages()
+
+        assert hydra.read_bytes() == b"Kit CUDA 12 library"
+        assert (prebundle / "nvidia" / "cu13" / "lib" / cuda13.name).read_bytes() == b"Environment CUDA 13 library"
+        assert old_nccl.read_bytes() == b"Locked NCCL"
+
     # ---- Windows: copy instead of symlink -----------------------------------
 
     def test_copies_package_on_windows_instead_of_symlinking(self, tmp_path):

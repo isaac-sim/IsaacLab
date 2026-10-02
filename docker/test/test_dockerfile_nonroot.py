@@ -23,8 +23,12 @@ def _load_module(name: str, path: Path):
     return module
 
 
-# Collect every Dockerfile.* from the entire repository tree.
-DOCKERFILES = sorted(REPO_ROOT.glob("**/Dockerfile.*"))
+# Generated wheel staging trees can contain copies of the source Dockerfiles.
+DOCKERFILES = sorted(
+    path
+    for path in REPO_ROOT.glob("**/Dockerfile.*")
+    if not path.is_relative_to(REPO_ROOT / "tools/wheel_builder/build")
+)
 
 ROOT_USERS = {"root", "0"}
 

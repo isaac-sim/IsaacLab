@@ -104,8 +104,9 @@ the container:
     ./docker/container.py stop
 
 The log is now at ``docker/artifacts/logs/docker_tutorial/log.txt`` on the host.
-The ``stop`` command removes the container and its Compose-managed volumes, including logs
-and caches; copy out anything you need first. The image remains. To remove it after stopping, run ``docker image rm isaac-lab-base``; the next ``start`` rebuilds it. See
+The ``stop`` command removes the container and preserves its named volumes, including logs
+and caches. Pass ``--remove-volumes`` to delete them explicitly. The image remains. To remove
+it after stopping, run ``docker image rm isaac-lab-base``; the next ``start`` rebuilds it. See
 `Docker pruning <https://docs.docker.com/engine/manage-resources/pruning/>`__ for other cleanup options.
 
 .. dropdown:: Code for log_time.py
@@ -119,7 +120,7 @@ and caches; copy out anything you need first. The image remains. To remove it af
 
     The image copies the repository to ``/workspace/isaaclab`` at build time, so edits made after the
     build are not picked up automatically. To keep the development loop fast, the compose file
-    bind-mounts ``source``, ``scripts``, ``docs``, and ``tools`` from the host, so changes to those
+    bind-mounts ``source``, ``scripts``, ``apps``, ``docs``, and ``tools`` from the host, so changes to those
     directories appear inside the container immediately. Everything else requires a rebuild.
 
 ``container.py`` command reference
@@ -135,7 +136,7 @@ Run ``./docker/container.py --help`` to list commands and
    * - Command
      - Description
    * - ``build``
-     - Build the image without creating a container.
+     - Build the image without creating a container. Use ``--pull`` to refresh its parent images.
    * - ``start``
      - Build the image and start the container in the background.
    * - ``enter``
@@ -145,7 +146,8 @@ Run ``./docker/container.py --help`` to list commands and
    * - ``copy``
      - Copy logs, data, and built documentation to ``docker/artifacts`` on the host.
    * - ``stop``
-     - Stop and remove the container and its Compose-managed volumes.
+     - Stop and remove the container, preserving caches, logs, and data.
+       Use ``--remove-volumes`` to delete its Compose-managed volumes explicitly.
 
 Every command accepts the following arguments:
 

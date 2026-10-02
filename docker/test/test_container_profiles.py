@@ -159,8 +159,9 @@ def test_kitless_start_does_not_build_base(
     ]
 
 
+@pytest.mark.parametrize("remove_volumes", [False, True])
 def test_kitless_enter_and_stop_target_profile_container(
-    make_interface: Callable[[str], ContainerInterface], monkeypatch: pytest.MonkeyPatch
+    make_interface: Callable[[str], ContainerInterface], monkeypatch: pytest.MonkeyPatch, remove_volumes: bool
 ):
     """Enter and stop use the kit-less service name, environment, and display."""
     interface = make_interface("kitless")
@@ -171,7 +172,9 @@ def test_kitless_enter_and_stop_target_profile_container(
     monkeypatch.setattr(interface, "is_container_running", MagicMock(return_value=True))
 
     interface.enter()
-    interface.stop()
+    # Explicit cleanup must also work after a previous stop preserved the volumes.
+    interface.is_container_running.return_value = not remove_volumes
+    interface.stop(remove_volumes=remove_volumes)
 
     assert [call.args[0] for call in run.call_args_list] == [
         ["docker", "exec", "--interactive", "--tty", "-e", "DISPLAY=:99", "isaac-lab-kitless", "bash"],
@@ -185,8 +188,8 @@ def test_kitless_enter_and_stop_target_profile_container(
             "--env-file",
             ".env.kitless",
             "down",
-            "--volumes",
-        ],
+        ]
+        + (["--volumes"] if remove_volumes else []),
     ]
 
 

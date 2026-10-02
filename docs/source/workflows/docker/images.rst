@@ -33,6 +33,38 @@ Kit, RTX rendering, and the Isaac Sim asset pipeline. The Isaac Sim version it b
 by ``ISAACSIM_VERSION`` in ``.env.base``; the other variables in that file control paths inside the
 container.
 
+Direct builds use the same default paths as Compose:
+
+.. code:: bash
+
+    docker build --pull --file docker/Dockerfile.base --tag isaac-lab-base .
+
+Dependencies are installed from ``uv.lock`` with frozen resolution. To update the development
+container after pulling repository changes, rebuild it and recreate the service:
+
+.. code:: bash
+
+    ./docker/container.py stop base
+    ./docker/container.py build base --pull
+    ./docker/container.py start base
+
+Stopping preserves the named volumes. Existing bind-mounted caches keep their host ownership;
+before reusing a cache created by a root container, give its directories to uid/gid 1000.
+Changing the image cannot repair permissions on a host bind mount.
+
+With X11 forwarding enabled, launch the standalone Isaac Sim GUI from its installation directory:
+
+.. code:: bash
+
+    cd /isaac-sim
+    ./runapp.sh
+
+The image redirects shared Python packages, including the direct ``omni.warp.core`` package,
+to the locked environment. Missing ``packaging/__init__.py`` or ``warp/_src/apic/__init__.py``
+errors indicate broken shared package files; recreating a container from a newly built image
+restores the package tree. Cache-permission errors require fixing ownership of the mounted
+cache directories separately.
+
 Kit-less image
 --------------
 

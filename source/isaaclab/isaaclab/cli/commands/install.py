@@ -1020,8 +1020,9 @@ def _repoint_prebundle_packages() -> None:
 
     Scans every ``pip_prebundle`` directory under the Isaac Sim installation
     for package directories listed in :data:`_PREBUNDLE_REPOINT_PACKAGES`.
+    Also includes ``omni.warp.core``, which exposes Warp directly from its extension root.
     When the same package exists in the active environment's ``site-packages``,
-    the prebundled copy is moved to ``<name>.bak`` and replaced with a symlink.
+    the prebundled copy is replaced with a symlink.
 
     This is idempotent — existing symlinks that already point to the correct
     target are left untouched.
@@ -1057,6 +1058,11 @@ def _repoint_prebundle_packages() -> None:
     package_roots = prebundle_dirs | {
         path for prebundle_dir in prebundle_dirs for path in prebundle_dir.glob("*[[]*[]]/*") if path.is_dir()
     }
+    # Kit adds this extension root directly to sys.path, bypassing pip_prebundle.
+    # Its Warp tree also shares per-file symlinks with other bundled packages;
+    # redirect the whole package so standalone Sim launches use the locked version.
+    for extension_dir in ("exts", "extscache"):
+        package_roots.update((isaacsim_path / extension_dir).glob("omni.warp.core*"))
     repointed = 0
     for package_root in package_roots:
         for pkg_name in _PREBUNDLE_REPOINT_PACKAGES:
@@ -1068,35 +1074,46 @@ def _repoint_prebundle_packages() -> None:
             if not prebundled.exists() and not prebundled.is_symlink():
                 continue
 
-            # The 'nvidia' directory is a Python namespace package shared across many
-            # distributions (nvidia-cudnn-cu12, nvidia-cublas-cu12, nvidia-srl, …).
-            # When using Isaac Sim's built-in Python, site-packages/nvidia only contains
-            # 'srl'; replacing the whole prebundle nvidia/ with that symlink strips away
-            # the CUDA shared libraries (libcudnn.so.9, etc.) that torch needs.
-            # Only repoint the nvidia namespace when the target actually provides the
-            # CUDA subpackages (cudnn is the minimal required indicator).
-            if pkg_name == "nvidia" and not (venv_pkg / "cudnn").exists():
-                print_debug(f"Skipping repoint of {prebundled}: {venv_pkg} lacks CUDA subpackages (cudnn missing).")
-                continue
-
-            try:
-                # Already repointed to the right place — nothing to do.
-                if prebundled.is_symlink() and prebundled.resolve() == venv_pkg.resolve():
+            targets = [(prebundled, venv_pkg)]
+            if pkg_name == "nvidia":
+                # CUDA 13 wheels share cudnn/NCCL directories with older layouts,
+                # but move the toolkit libraries into cu13/. Redirect Torch's
+                # runtime directories while preserving Kit's CUDA 12 files:
+                # Hydra links to cuda_nvrtc/lib/libnvrtc-builtins.so.12.8.
+                if (venv_pkg / "cu13").is_dir():
+                    if prebundled.is_symlink():
+                        print_debug(f"Keeping existing NVIDIA namespace link: {prebundled}")
+                        continue
+                    targets = [
+                        (prebundled / name, venv_pkg / name)
+                        for name in ("cu13", "cudnn", "cusparselt", "nccl", "nvshmem")
+                        if (venv_pkg / name).is_dir()
+                    ]
+                elif not (venv_pkg / "cudnn").exists():
+                    # Kit's interpreter may provide only nvidia-srl; replacing
+                    # the namespace with it would remove the CUDA libraries.
+                    print_debug(f"Skipping repoint of {prebundled}: {venv_pkg} lacks CUDA subpackages.")
                     continue
-                # Replace the prebundled copy (a stale symlink or a real directory)
-                # with a symlink to the active environment. We remove rather than
-                # rename-to-``.bak``: the env copy is the symlink target, so the
-                # prebundle content is redundant, and renaming a directory on an
-                # overlayfs lower layer (Docker image build) fails with ``EXDEV``.
-                _force_remove(prebundled)
-                if use_symlinks:
-                    prebundled.symlink_to(venv_pkg)
-                else:
-                    shutil.copytree(venv_pkg, prebundled)
-                repointed += 1
-                print_debug(f"Repointed {prebundled} -> {venv_pkg}")
-            except OSError as exc:
-                print_warning(f"Could not repoint {prebundled}: {exc} — skipping.")
+
+            for prebundled, venv_pkg in targets:
+                try:
+                    # Already repointed to the right place — nothing to do.
+                    if prebundled.is_symlink() and prebundled.resolve() == venv_pkg.resolve():
+                        continue
+                    # Replace the prebundled copy (a stale symlink or a real directory)
+                    # with a symlink to the active environment. We remove rather than
+                    # rename-to-``.bak``: the env copy is the symlink target, so the
+                    # prebundle content is redundant, and renaming a directory on an
+                    # overlayfs lower layer (Docker image build) fails with ``EXDEV``.
+                    _force_remove(prebundled)
+                    if use_symlinks:
+                        prebundled.symlink_to(venv_pkg)
+                    else:
+                        shutil.copytree(venv_pkg, prebundled)
+                    repointed += 1
+                    print_debug(f"Repointed {prebundled} -> {venv_pkg}")
+                except OSError as exc:
+                    print_warning(f"Could not repoint {prebundled}: {exc} — skipping.")
     if repointed:
         print_info(
             f"Repointed {repointed} prebundled package(s) in Isaac Sim to the active environment's site-packages."

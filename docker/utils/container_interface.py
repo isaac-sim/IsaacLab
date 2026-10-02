@@ -166,8 +166,8 @@ class ContainerInterface:
         result = subprocess.run(["docker", "image", "inspect", self.image_name], capture_output=True, text=True)
         return result.returncode == 0
 
-    def build(self):
-        """Build the Docker image."""
+    def build(self, pull: bool = False):
+        """Build the Docker image, optionally refreshing its parent images."""
         # Base-derived profiles must build their parent image first. Standalone
         # profiles, such as kitless, build only their selected service.
         if self.profile == "base" or self.requires_base_image:
@@ -177,7 +177,9 @@ class ContainerInterface:
                 + ["--file", "docker-compose.yaml"]
                 + ["--profile", "base"]
                 + ["--env-file", ".env.base"]
-                + ["build", self.base_service_name]
+                + ["build"]
+                + (["--pull"] if pull else [])
+                + [self.base_service_name]
             )
             self._run_docker_command(cmd, "build the docker image for the profile 'base'")
             print("[INFO] Finished building the docker image for the profile 'base'.\n")
@@ -190,7 +192,9 @@ class ContainerInterface:
                 + self.add_yamls
                 + self.add_profiles
                 + self.add_env_files
-                + ["build", self.service_name]
+                + ["build"]
+                + (["--pull"] if pull else [])
+                + [self.service_name]
             )
             self._run_docker_command(cmd, f"build the docker image for the profile '{self.profile}'")
             print(f"[INFO] Finished building the docker image for the profile '{self.profile}'.\n")
@@ -246,13 +250,18 @@ class ContainerInterface:
         else:
             raise RuntimeError(f"The container '{self.container_name}' is not running.")
 
-    def stop(self):
-        """Stop the running container using the Docker compose command."""
-        if self.is_container_running():
+    def stop(self, remove_volumes: bool = False):
+        """Stop and remove the container, preserving volumes unless explicitly requested."""
+        if self.is_container_running() or remove_volumes:
             print(f"[INFO] Stopping the launched docker container '{self.container_name}'...\n")
             # stop running services
             cmd = (
-                ["docker", "compose"] + self.add_yamls + self.add_profiles + self.add_env_files + ["down", "--volumes"]
+                ["docker", "compose"]
+                + self.add_yamls
+                + self.add_profiles
+                + self.add_env_files
+                + ["down"]
+                + (["--volumes"] if remove_volumes else [])
             )
             self._run_docker_command(cmd, f"stop the container '{self.container_name}'")
         else:
