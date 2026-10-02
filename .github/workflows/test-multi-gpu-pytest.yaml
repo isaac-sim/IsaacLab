@@ -110,17 +110,13 @@ jobs:
     needs: [config, changes]
     # Resolves its own image (the pull step below), so it needs no separate build job: that job
     # cost a second runner acquisition and often handed the tests to a different, cold runner.
-    if: needs.changes.outputs.unit == 'true' || needs.changes.outputs.smoke == 'true'
+    if: needs.changes.outputs.unit == 'true'
     # The ``multi-gpu`` label is the multi-GPU pool. Do NOT add ``gpu`` here:
     # in this fleet ``gpu`` tags single-GPU runners, so requiring it routes the
     # job onto a 1-GPU box and the shard runner aborts with "Need at least 2
     # visible devices; found 1".
     runs-on: [self-hosted, linux, x64, multi-gpu]
-    # Shards plus the full training-smoke matrix. The smoke alone is ~30 min
-    # (Kit boot dominates the Kit-renderer cases), so 60 no longer fits.
-    timeout-minutes: 120
-    outputs:
-      smoke_device_skips: ${{ steps.smoke-skips.outputs.device_skips }}
+    timeout-minutes: 60
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
@@ -218,38 +214,6 @@ jobs:
         if: needs.changes.outputs.unit == 'true'
         run: bash .github/actions/multi-gpu/multi_gpu_host_launcher.sh
 
-      - name: Multi-GPU training smoke (Kit renderer)
-        # Real multi-rank training runs, outside the sharded device-parametrized
-        # path above: a multi-GPU job owns several GPUs at once, so a per-device
-        # shard cannot express it. Unsharded, all GPUs exposed; the tests choose
-        # their own device order.
-        #
-        # Uses the shared run-tests action rather than a bespoke ``docker run``:
-        # passing a file path (not ``tools``) skips the conftest sharding
-        # orchestrator, so this is a plain single pytest run, while still
-        # inheriting the standard container contract -- writable HOME, the Isaac
-        # Sim cache mounts, and junit results collected into ``reports/``.
-        # Runs on failure too, so a red shard does not hide smoke coverage.
-        if: always() && needs.changes.outputs.smoke == 'true'
-        uses: ./.github/actions/run-tests
-        with:
-          test-path: source/isaaclab/test/multi_gpu/test_multi_gpu_training_smoke.py
-          result-file: multi-gpu-smoke-report.xml
-          container-name: isaac-lab-mgpu-smoke-${{ github.run_id }}-${{ github.run_attempt }}
-          image-tag: ${{ env.CI_IMAGE_TAG }}
-          pytest-options: -m "not kitless"
-          # Run the checkout, not the image's baked-in copy. ecr-build-push-pull serves a
-          # commit-tagged or deps-cache image, so on a cache hit the container carries source
-          # from whenever that image was built -- CI then reports a pass or fail for code this
-          # commit never contained. The shard launcher already bind-mounts for this reason.
-          volume-mount-source: ${{ github.workspace }}
-
-      - name: Count smoke cases skipped for too few GPUs
-        # Feeds ``smoke-coverage``; this job stays green for the shards' sake.
-        id: smoke-skips
-        if: always() && needs.changes.outputs.smoke == 'true'
-        run: python3 .github/actions/multi-gpu/smoke_device_skips.py reports/multi-gpu-smoke-report.xml
-
       - name: Aggregated test summary
         # Per-shard + per-file pass/total/walltime, plus a combined table, also
         # written to $GITHUB_STEP_SUMMARY. Runs on success or failure.
@@ -257,6 +221,64 @@ jobs:
         env:
           RUNTIME_DIR: ${{ env.MGPU_RUNTIME_DIR }}
         run: python3 .github/actions/multi-gpu/aggregate_test_summary.py
+
+  test-multi-gpu-smoke-kit:
+    name: Multi-GPU training smoke (Kit)
+    needs: [config, changes]
+    # Its own job so it runs beside the shards instead of after them.
+    if: needs.changes.outputs.smoke == 'true'
+    runs-on: [self-hosted, linux, x64, multi-gpu]
+    timeout-minutes: 60
+    outputs:
+      smoke_device_skips: ${{ steps.smoke-skips.outputs.device_skips }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+        with:
+          fetch-depth: 1
+          lfs: true
+
+      - name: Build or pull image from ECR
+        uses: ./.github/actions/ecr-build-push-pull
+        env:
+          NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
+        with:
+          image-tag: ${{ env.CI_IMAGE_TAG }}
+          isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+          isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
+          dockerfile-path: docker/Dockerfile.base
+          cache-tag: cache-base
+          pull-on-deps-hit: 'true'
+
+      - name: Multi-GPU training smoke (Kit renderer)
+        # Real multi-rank training runs, outside the sharded device-parametrized
+        # path: a multi-GPU job owns several GPUs at once, so a per-device shard
+        # cannot express it. Unsharded, all GPUs exposed; the tests choose their
+        # own device order. ``-n 4`` runs four cases at once; each is small enough
+        # to share the GPUs, and Kit boot dominates a case.
+        #
+        # Uses the shared run-tests action rather than a bespoke ``docker run``:
+        # passing a file path (not ``tools``) skips the conftest sharding
+        # orchestrator, so this is a plain pytest run, while still inheriting the
+        # standard container contract -- writable HOME, the Isaac Sim cache mounts,
+        # and junit results collected into ``reports/``.
+        uses: ./.github/actions/run-tests
+        with:
+          test-path: source/isaaclab/test/multi_gpu/test_multi_gpu_training_smoke.py
+          result-file: multi-gpu-smoke-report.xml
+          container-name: isaac-lab-mgpu-smoke-${{ github.run_id }}-${{ github.run_attempt }}
+          image-tag: ${{ env.CI_IMAGE_TAG }}
+          pytest-options: -m "not kitless" -n 4
+          # Run the checkout, not the image's baked-in copy. ecr-build-push-pull serves a
+          # commit-tagged or deps-cache image, so on a cache hit the container carries source
+          # from whenever that image was built -- CI then reports a pass or fail for code this
+          # commit never contained. The shard launcher bind-mounts for the same reason.
+          volume-mount-source: ${{ github.workspace }}
+
+      - name: Count smoke cases skipped for too few GPUs
+        id: smoke-skips
+        if: always()
+        run: python3 .github/actions/multi-gpu/smoke_device_skips.py reports/multi-gpu-smoke-report.xml
 
   test-multi-gpu-smoke-kitless:
     name: Multi-GPU training smoke (kit-less)
@@ -267,7 +289,6 @@ jobs:
     # scheduler serialises them onto it, which is the previous behaviour.
     if: needs.changes.outputs.smoke == 'true'
     runs-on: [self-hosted, linux, x64, multi-gpu]
-    # One lane only; the 120 min ceiling on the sharded job covers shards + Kit smoke together.
     timeout-minutes: 60
     outputs:
       smoke_device_skips: ${{ steps.smoke-skips.outputs.device_skips }}
@@ -305,8 +326,8 @@ jobs:
           result-file: multi-gpu-smoke-kitless-report.xml
           container-name: isaac-lab-mgpu-smoke-kitless-${{ github.run_id }}-${{ github.run_attempt }}
           image-tag: ${{ env.CI_KITLESS_IMAGE_TAG }}
-          pytest-options: -m kitless
-          # Same reason as the Kit step above.
+          pytest-options: -m kitless -n 4
+          # Same reason as the Kit lane.
           volume-mount-source: ${{ github.workspace }}
 
       - name: Count smoke cases skipped for too few GPUs
@@ -316,7 +337,7 @@ jobs:
 
   smoke-coverage:
     name: Multi-GPU training smoke coverage
-    needs: [changes, test-multi-gpu-pytest, test-multi-gpu-smoke-kitless]
+    needs: [changes, test-multi-gpu-smoke-kit, test-multi-gpu-smoke-kitless]
     # Red when a smoke case was skipped because the runner has too few GPUs, so a smaller runner
     # cannot silently drop the coverage. Keep it out of the required checks: it reports, it does
     # not block a merge.
@@ -325,7 +346,7 @@ jobs:
     steps:
       - name: Fail on smoke cases the runner could not run
         env:
-          KIT_SKIPS: ${{ needs.test-multi-gpu-pytest.outputs.smoke_device_skips }}
+          KIT_SKIPS: ${{ needs.test-multi-gpu-smoke-kit.outputs.smoke_device_skips }}
           KITLESS_SKIPS: ${{ needs.test-multi-gpu-smoke-kitless.outputs.smoke_device_skips }}
         run: |
           total=$(( ${KIT_SKIPS:-0} + ${KITLESS_SKIPS:-0} ))
