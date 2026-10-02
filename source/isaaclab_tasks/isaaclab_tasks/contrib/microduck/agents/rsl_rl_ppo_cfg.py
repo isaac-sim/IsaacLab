@@ -63,3 +63,14 @@ class MicroDuckBacklashRoughPPORunnerCfg(MicroDuckRoughPPORunnerCfg):
     """Rough walking PPO with separate logs for the backlash robot."""
 
     experiment_name = "microduck_velocity_rough_backlash"
+
+
+@configclass
+class MicroDuckRecoveryPPORunnerCfg(MicroDuckPPORunnerCfg):
+    """Single-policy PPO from scratch, with a longer horizon for getting up."""
+
+    experiment_name = "microduck_recovery_velocity_backlash"
+
+    def __post_init__(self):
+        self.algorithm.gamma = 0.995
+        self.algorithm.num_mini_batches = 16

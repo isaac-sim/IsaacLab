@@ -25,7 +25,8 @@ TASK = "IsaacContrib-Velocity-Flat-MicroDuck"
 ROUGH_TASK = "IsaacContrib-Velocity-Rough-MicroDuck"
 BACKLASH_TASK = "IsaacContrib-Velocity-Flat-Backlash-MicroDuck"
 ROUGH_BACKLASH_TASK = "IsaacContrib-Velocity-Rough-Backlash-MicroDuck"
-TASKS = [TASK, ROUGH_TASK, BACKLASH_TASK, ROUGH_BACKLASH_TASK]
+RECOVERY_TASK = "IsaacContrib-Recovery-Velocity-Flat-Backlash-MicroDuck"
+TASKS = [TASK, ROUGH_TASK, BACKLASH_TASK, ROUGH_BACKLASH_TASK, RECOVERY_TASK]
 JOINT_NAMES = [
     "left_hip_yaw",
     "left_hip_roll",
@@ -130,7 +131,7 @@ def test_microduck_reset_and_step(device, task):
     try:
         obs, _ = env.reset()
         assert obs["policy"].shape == (8, 61)
-        assert obs["critic"].shape == (8, 76)
+        assert obs["critic"].shape == (8, 80 if task == RECOVERY_TASK else 76)
         assert env.observation_manager.active_terms["policy"] == POLICY_TERMS
         robot = env.scene["robot"]
         ids = env.action_manager.get_term("joint_pos")._joint_ids
@@ -168,6 +169,19 @@ def test_microduck_reset_and_step(device, task):
             torch.testing.assert_close(
                 robot.data.joint_pos.torch[:, passive_ids], torch.zeros(8, 14, device=env.device)
             )
+        if task == RECOVERY_TASK:
+            from isaaclab_tasks.contrib.microduck.mdp.recovery import recovery_state
+
+            state = recovery_state(env)
+            state.level = state.cfg.max_level
+            state.cfg.curriculum_enabled = False
+            # Exercise tilted drops and selective resets as well as upright initialization.
+            torch.manual_seed(42)
+            env.reset()
+            assert state.selected.any() and (~state.selected).any()
+            limits = robot.data.soft_joint_pos_limits.torch
+            assert (robot.data.joint_pos.torch >= limits[..., 0]).all()
+            assert (robot.data.joint_pos.torch <= limits[..., 1]).all()
         if task == BACKLASH_TASK:
             # Distinct play values catch pairing/order mistakes in the policy's encoder view.
             from isaaclab_tasks.contrib.microduck.mdp.events import encoder_bias
@@ -202,7 +216,7 @@ def test_microduck_reset_and_step(device, task):
             torch.testing.assert_close(limits.func(env, **limits.params), torch.zeros(8, device=env.device))
             env.reset()
         with torch.inference_mode():
-            for _ in range(64):
+            for _ in range(360 if task == RECOVERY_TASK else 64):
                 obs, reward, terminated, truncated, _ = env.step(torch.randn(8, 14, device=env.device) * 0.1)
                 assert all(torch.isfinite(value).all() for value in obs.values())
                 assert torch.isfinite(reward).all()
@@ -214,3 +228,112 @@ def test_microduck_reset_and_step(device, task):
     finally:
         env.close()
         SimulationContext.clear_instance()
+
+
+def test_microduck_recovery_deadlines():
+    """All falls get the same budget; stable standing, expiry, and reset remain independent."""
+    from isaaclab_tasks.contrib.microduck.mdp.recovery import MicroDuckRecoveryCfg, RecoveryState
+
+    cfg = MicroDuckRecoveryCfg(
+        initial_level=1, recovery_time_s=1.0, total_recovery_time_s=2.0, stable_time_s=0.3, tracking_time_s=0.2
+    )
+    state = RecoveryState(2, "cpu", 0.1, cfg)
+    ids = torch.arange(2)
+    state.reset(ids, torch.tensor([False, True]))
+    down = torch.zeros(2)
+    up, height = torch.ones(2), torch.full((2,), 0.115)
+    assert not state.update(down, down, down, down).any()
+    assert state.fall.tolist() == [True, False]
+    torch.testing.assert_close(state.elapsed, torch.full((2,), 0.1))
+    # A brief upright excursion does not replenish the attempt.
+    state.update(height, up, down, up)
+    state.update(down, down, down, down)
+    torch.testing.assert_close(state.elapsed, torch.full((2,), 0.3))
+    for _ in range(3):
+        state.update(height, up, down, up)
+    assert not state.active.any()
+    assert not state.success.any()
+    state.update(height, up, down, up)
+    assert state.success.tolist() == [False, True]
+    previous_total = state.total[1].clone()
+    state.reset(ids[:1], torch.tensor([False]))
+    assert state.total[0] == 0 and state.total[1] == previous_total
+    # Both intentional and spontaneous falls expire, even with nonzero tracking rewards.
+    state.reset(ids, torch.tensor([False, True]))
+    for _ in range(10):
+        failed = state.update(down, down, down, up)
+    assert failed.all()
+    assert not state.success.any()
+    # Brief repeated recoveries do not replenish the episode's total downtime budget.
+    state.reset(ids, torch.tensor([True, True]))
+    state.total[:] = cfg.total_recovery_time_s - state.dt / 2
+    assert state.update(height, up, down, up).all()
+    state.level = 0
+    state.reset(ids, torch.tensor([False, False]))
+    assert state.update(down, down, down, down).all()
+
+
+def test_microduck_recovery_curriculum_requires_walking_and_recovery():
+    """Survival alone cannot unlock random starts or advance past failed recoveries."""
+    from isaaclab_tasks.contrib.microduck.mdp.recovery import MicroDuckRecoveryCfg, RecoveryState
+
+    cfg = MicroDuckRecoveryCfg(episodes_per_level=2)
+    state = RecoveryState(2, "cpu", 0.1, cfg)
+    ids = torch.arange(2)
+    done = torch.ones(2, dtype=torch.bool)
+    state.reset(ids, ~done)
+    state.steps[:] = 100
+    state.tracking_sum[:] = 10
+    state.curriculum(ids, done)
+    assert state.level == 0
+    state.tracking_sum[:] = 100
+    state.curriculum(ids, done)
+    assert state.level == 1
+    # Completed episodes from the preceding level cannot advance again.
+    state.curriculum(ids, done)
+    assert state.level == 1 and state.totals.sum() == 0
+    state.reset(ids, torch.tensor([False, True]))
+    state.steps[:] = 100
+    state.tracking_sum[:] = 100
+    state.active[:] = False
+    state.curriculum(ids, done)
+    assert state.level == 1
+    state.success[1] = True
+    state.curriculum(ids, done)
+    assert state.level == 2
+
+    # Early failures and late survivors belong to one gate, regardless of reset batching.
+    state = RecoveryState(16, "cpu", 0.1, MicroDuckRecoveryCfg(episodes_per_level=4))
+    ids = torch.arange(16)
+    state.reset(ids, torch.zeros(16, dtype=torch.bool))
+    state.steps[:] = 100
+    state.tracking_sum[:] = 100
+    state.had_fall[:12] = True
+    state.curriculum(ids[:12], torch.zeros(12, dtype=torch.bool))
+    # Repeated episodes from fast-failing environments must not dominate the cohort either.
+    state.curriculum(ids[:12], torch.zeros(12, dtype=torch.bool))
+    state.curriculum(ids[12:], torch.ones(4, dtype=torch.bool))
+    assert state.level == 0
+    assert state.metrics["survival"] == pytest.approx(0.25)
+
+
+def test_microduck_recovery_requires_commanded_motion():
+    """Standing still cannot pass a forward or turn command just by matching another axis."""
+    from isaaclab_tasks.contrib.microduck.mdp.recovery import recovery_tracking
+
+    commands = torch.tensor([[0.3, 0.0, 0.0], [0.0, 0.0, 1.0], [0.0, 0.0, 0.0]])
+    linear, angular = torch.zeros(3, 3), torch.zeros(3, 3)
+    env = SimpleNamespace(
+        command_manager=SimpleNamespace(get_command=lambda _: commands),
+        scene={
+            "robot": SimpleNamespace(
+                data=SimpleNamespace(
+                    root_link_lin_vel_b=SimpleNamespace(torch=linear),
+                    root_link_ang_vel_b=SimpleNamespace(torch=angular),
+                )
+            )
+        },
+    )
+    torch.testing.assert_close(recovery_tracking(env), torch.tensor([0.0, 0.0, 1.0]))
+    linear[0, 0], angular[1, 2] = 0.3, 1.0
+    torch.testing.assert_close(recovery_tracking(env), torch.ones(3))
