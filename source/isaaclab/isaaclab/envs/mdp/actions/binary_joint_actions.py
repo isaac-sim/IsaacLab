@@ -41,6 +41,8 @@ class BinaryJointAction(ActionTerm):
     add such constraints to the gripper.
     """
 
+    apply_every_physics_step = False
+
     cfg: actions_cfg.BinaryJointActionCfg
     """The configuration of the action term."""
     _asset: Articulation

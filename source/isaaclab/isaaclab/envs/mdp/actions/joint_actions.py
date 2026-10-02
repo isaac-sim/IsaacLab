@@ -183,6 +183,8 @@ class JointAction(ActionTerm):
 class JointPositionAction(JointAction):
     """Joint action term that applies the processed actions to the articulation's joints as position commands."""
 
+    apply_every_physics_step = False
+
     cfg: actions_cfg.JointPositionActionCfg
     """The configuration of the action term."""
 
@@ -234,6 +236,8 @@ class RelativeJointPositionAction(JointAction):
 class JointVelocityAction(JointAction):
     """Joint action term that applies the processed actions to the articulation's joints as velocity commands."""
 
+    apply_every_physics_step = False
+
     cfg: actions_cfg.JointVelocityActionCfg
     """The configuration of the action term."""
 
@@ -251,6 +255,8 @@ class JointVelocityAction(JointAction):
 
 class JointEffortAction(JointAction):
     """Joint action term that applies the processed actions to the articulation's joints as effort commands."""
+
+    apply_every_physics_step = False
 
     cfg: actions_cfg.JointEffortActionCfg
     """The configuration of the action term."""

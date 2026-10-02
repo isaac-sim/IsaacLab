@@ -124,13 +124,12 @@ class Pva(BasePva):
         """PHYSICS_READY callback: resolves site indices and stores model reference."""
         super()._initialize_impl()
 
-        site_map = NewtonManager._cl_site_index_map
+        site_map = NewtonManager.get_site_index_map()
         num_envs = self._num_envs
 
         if self._site_label not in site_map:
             raise ValueError(
-                f"Pva '{self.cfg.prim_path}': site label '{self._site_label}' "
-                "not found in NewtonManager._cl_site_index_map."
+                f"Pva '{self.cfg.prim_path}': site label '{self._site_label}' not found in the Newton site map."
             )
 
         global_idx, per_world = site_map[self._site_label]
@@ -153,7 +152,7 @@ class Pva(BasePva):
                 site_indices.append(world_sites[0])
 
         self._site_indices = wp.array(site_indices, dtype=int, device=self._device)
-        self._newton_model = NewtonManager.backend.model
+        self._newton_model = NewtonManager.get_model()
 
         self._data.create_buffers(num_envs=num_envs, device=self._device)
 
@@ -166,7 +165,7 @@ class Pva(BasePva):
                 f"Pva '{self.cfg.prim_path}': sensor not initialized. "
                 "Access sensor data only after sim.reset() has been called."
             )
-        state = NewtonManager.backend.state_0
+        state = NewtonManager.get_state_0()
 
         wp.launch(
             pva_update_kernel,

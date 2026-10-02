@@ -32,7 +32,7 @@ if __import__("sys").platform not in ("win32", "darwin") and not __import__("os"
     del _pyglet_headless_init
 
 import newton
-from isaaclab_newton.physics import NewtonBackendCfg, NewtonManager
+from isaaclab_newton.physics import NewtonBackendCfg, NewtonManager, StepPhase
 from newton.viewer import ViewerGL, ViewerRTX
 from pyglet.math import Vec3 as PygletVec3
 
@@ -1102,9 +1102,8 @@ class NewtonVisualizer(BaseVisualizer):
         newton_backend_active = self.physics_backend == "newton"
         sim = SimulationContext.instance()
         physics_manager = sim.physics_manager
-        picking_supported = newton_backend_active and bool(
-            getattr(physics_manager, "_supports_rigid_body_force_input", False)
-        )
+        runtime = physics_manager._runtime if newton_backend_active else None
+        picking_supported = runtime is not None and runtime.solver is not None and runtime.solver.supports_body_forces
         num_envs = scene_data_provider.num_envs
         metadata = {"num_envs": num_envs}
         self._env_ids = self._compute_visualized_env_ids()
@@ -1185,7 +1184,7 @@ class NewtonVisualizer(BaseVisualizer):
         )
         if self._viewer is not None and self._picking_enabled:
             self._viewer_picking_binding.bind(self._viewer)
-            NewtonManager.register_state_force_callback(self._viewer_picking_binding.apply)
+            NewtonManager.add_stage(self._viewer_picking_binding.apply, StepPhase.SUBSTEP, name="viewer.picking")
         if self._viewer is not None and self.cfg.enable_picking and not picking_supported:
             logger.info(
                 "[NewtonVisualizer] Object dragging is disabled because the active physics solver does not support"
@@ -1321,6 +1320,8 @@ class NewtonVisualizer(BaseVisualizer):
             self._viewer.picking_enabled = self._picking_enabled
             if self._picking_enabled:
                 self._viewer_picking_binding.bind(self._viewer)
+                # A hard reset discards the Newton runtime and its stages, so add picking to the new one.
+                NewtonManager.add_stage(self._viewer_picking_binding.apply, StepPhase.SUBSTEP, name="viewer.picking")
 
     def _release_viewer(self) -> None:
         """Release the viewer this visualizer owns and drop the reference to it.

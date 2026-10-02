@@ -200,14 +200,16 @@ class ManagerBasedEnv:
             # this shouldn't cause an issue since later on, users do a reset over all the environments
             # so the lazy buffers would be reset.
             self.scene.update(dt=self.physics_dt)
-        # let the physics backend know about the env decimation so it can
-        # fold the full loop into a single step() when possible
-        self.sim.physics_manager.set_decimation(self.cfg.decimation)
-        self._physics_handles_decimation = self.sim.physics_manager.handles_decimation()
         # add timeline event to load managers
         report_activity("Setting up managers")
         self.load_managers()
         report_activity(None)
+        # let the physics backend fold the decimation loop into a single step() when no action term
+        # has to be re-applied between physics steps
+        self.sim.physics_manager.set_decimation(
+            self.cfg.decimation, fold=not self.action_manager.apply_every_physics_step
+        )
+        self._physics_handles_decimation = self.sim.physics_manager.handles_decimation()
 
         # Wire live plots into all active visualizers (Newton, Rerun, Viser) and create
         # Kit omni.ui ManagerLiveVisualizer widgets when a GUI window is present.

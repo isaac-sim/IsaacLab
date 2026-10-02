@@ -217,13 +217,13 @@ class _NewtonRayCasterPoseMixin:
     @staticmethod
     def _resolve_site_indices(labels: list[str], prim_expr: str, num_envs: int) -> list[int]:
         """Expand registered site labels into per-environment Newton site indices."""
-        site_map = NewtonManager._cl_site_index_map
+        site_map = NewtonManager.get_site_index_map()
         site_indices: list[int] = []
         for env_index in range(num_envs):
             for label in labels:
                 error_prefix = f"RayCaster target '{prim_expr}' site label '{label}'"
                 if label not in site_map:
-                    raise ValueError(f"{error_prefix} was not found in NewtonManager._cl_site_index_map.")
+                    raise ValueError(f"{error_prefix} was not found in the Newton site map.")
                 global_index, per_world = site_map[label]
                 env_site_indices = [global_index] if per_world is None else per_world[env_index]
                 site_indices.extend(env_site_indices)

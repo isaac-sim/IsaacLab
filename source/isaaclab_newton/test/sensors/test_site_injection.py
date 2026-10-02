@@ -8,6 +8,7 @@
 import pytest
 import warp as wp
 from isaaclab_newton.physics.newton_manager import NewtonManager
+from isaaclab_newton.physics.runtime import NewtonBuildRequests
 from isaaclab_newton.sensors.frame_transformer.frame_transformer import FrameTransformer
 from newton import ModelBuilder
 
@@ -38,7 +39,7 @@ def test_sites_bind_once_to_clone_sources_or_explicit_builder(monkeypatch, repli
     source = ModelBuilder() if replicated else main
     for leg in ("FL", "FR", "RL", "RR"):
         source.add_body(label=f"Robot/{leg}_foot")
-    monkeypatch.setattr(NewtonManager, "_cl_pending_sites", {})
+    monkeypatch.setattr(NewtonManager, "_requests", NewtonBuildRequests())
     xform = wp.transform((1.0, 2.0, 3.0), wp.quat_identity())
     global_label = NewtonManager.cl_register_site(None, xform)
     local_label = NewtonManager.cl_register_site("Robot/.*_foot", xform)
@@ -46,17 +47,17 @@ def test_sites_bind_once_to_clone_sources_or_explicit_builder(monkeypatch, repli
     assert NewtonManager.cl_register_site(None, xform, per_world=True) == world_label
 
     sources = {"Robot": source} if replicated else {}
-    global_sites, body_sites, world_sites = NewtonManager._cl_inject_sites(main, sources)
+    global_sites, body_sites, world_sites = NewtonManager.build_requests().inject_sites(main, sources)
     assert main.shape_body[global_sites[global_label]] == -1
     indices = body_sites[id(source)][local_label]
     assert [source.shape_body[index] for index in indices] == list(range(4))
     assert [source.shape_label[index] for index in indices] == [f"{name}/{local_label}" for name in source.body_label]
     assert world_sites == {world_label: xform}
-    assert not NewtonManager._cl_pending_sites
+    assert not NewtonManager.build_requests().sites
 
     NewtonManager.cl_register_site("Robot/nonexistent", xform)
     with pytest.raises(ValueError, match="matched no builder bodies"):
-        NewtonManager._cl_inject_sites(main, sources)
+        NewtonManager.build_requests().inject_sites(main, sources)
 
 
 # ---------------------------------------------------------------------------

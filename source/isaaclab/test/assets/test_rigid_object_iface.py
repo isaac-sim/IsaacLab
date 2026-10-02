@@ -27,6 +27,15 @@ from isaaclab.test.utils import DeviceScope, test_devices
 pytestmark = pytest.mark.integration
 
 
+@pytest.fixture(autouse=True)
+def _record_newton_model_changes(monkeypatch):
+    """Record Newton model-change notifications; the mock shells have no finalized model to notify."""
+    if "newton" in BACKENDS:
+        from isaaclab_newton.physics import NewtonManager
+
+        monkeypatch.setattr(NewtonManager, "add_model_change", MagicMock())
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

@@ -62,7 +62,6 @@ class FrameTransformer(BaseFrameTransformer):
         self._newton_transforms = None
         self._stride: int = 0
 
-        self._sensor_index: int | None = None
         self._source_frame_body_name: str = split_path_expr(cfg.prim_path)[-1]
 
         # Register world-origin reference site
@@ -124,7 +123,7 @@ class FrameTransformer(BaseFrameTransformer):
         super()._initialize_impl()
 
         num_envs = self._num_envs
-        site_map = NewtonManager._cl_site_index_map
+        site_map = NewtonManager.get_site_index_map()
 
         # Resolve and validate per-env site indices
         assert self._world_origin_label in site_map
@@ -143,7 +142,7 @@ class FrameTransformer(BaseFrameTransformer):
             source_indices,
             target_per_world,
             self._target_frame_body_names,
-            NewtonManager.backend.model.shape_label,
+            NewtonManager.get_model().shape_label,
             world_origin_idx,
             num_envs,
         )
@@ -154,21 +153,15 @@ class FrameTransformer(BaseFrameTransformer):
         self._target_frame_body_names = expanded_names
         self._data._target_frame_names = expanded_names
 
-        # Create SensorFrameTransform via NewtonManager
-        self._sensor_index = NewtonManager.add_frame_transform_sensor(shapes_list, references_list)
-
-        # Store reference to Newton sensor's flat transforms array
-        sensor = NewtonManager._newton_frame_transform_sensors[self._sensor_index]
+        # Store reference to the Newton sensor's flat transforms array
+        sensor = NewtonManager.add_frame_transform_sensor(shapes_list, references_list)
         self._newton_transforms = sensor.transforms
         self._stride = 1 + self._num_targets
 
         # Allocate owned buffers
         self._data._create_buffers(num_envs, self._num_targets, self._device)
 
-        logger.info(
-            f"FrameTransformer initialized: {num_envs} envs, "
-            f"{self._num_targets} targets, sensor_index={self._sensor_index}"
-        )
+        logger.info(f"FrameTransformer initialized: {num_envs} envs, {self._num_targets} targets")
 
     @staticmethod
     def _validate_site_map(
@@ -186,7 +179,7 @@ class FrameTransformer(BaseFrameTransformer):
             source_prim_path: Config prim path used in error messages.
             target_labels: Site labels for each target frame (in order).
             target_prim_paths: Config prim paths used in error messages.
-            site_map: ``NewtonManager._cl_site_index_map``.
+            site_map: :meth:`NewtonManager.get_site_index_map`.
             num_envs: Expected number of environments.
 
         Returns:
@@ -201,7 +194,7 @@ class FrameTransformer(BaseFrameTransformer):
         """
         assert source_label in site_map, (
             f"FrameTransformer source '{source_prim_path}' (site label '{source_label}') "
-            "not found in NewtonManager._cl_site_index_map."
+            "not found in the Newton site map."
         )
         _, source_per_world = site_map[source_label]
         if len(source_per_world) != num_envs:
@@ -222,7 +215,7 @@ class FrameTransformer(BaseFrameTransformer):
         for tgt_idx, label in enumerate(target_labels):
             assert label in site_map, (
                 f"FrameTransformer target '{target_prim_paths[tgt_idx]}' (site label '{label}') "
-                "not found in NewtonManager._cl_site_index_map."
+                "not found in the Newton site map."
             )
             _, per_world = site_map[label]
             if len(per_world) != num_envs:
@@ -340,7 +333,6 @@ class FrameTransformer(BaseFrameTransformer):
         """
         super()._invalidate_initialize_callback(event)
         self._newton_transforms = None
-        self._sensor_index = None
 
         # Re-register sites so a subsequent start_simulation picks them up.
         self._world_origin_label = NewtonManager.cl_register_site(None, wp.transform())

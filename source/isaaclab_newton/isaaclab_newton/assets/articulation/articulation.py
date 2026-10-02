@@ -38,7 +38,7 @@ from isaaclab.utils.wrench_composer import WrenchComposer
 from isaaclab_newton.assets import kernels as shared_kernels
 from isaaclab_newton.assets.articulation import kernels as articulation_kernels
 from isaaclab_newton.assets.articulation.joint_coordinates import scatter_joint_coordinates
-from isaaclab_newton.physics import NewtonBuilderCfg
+from isaaclab_newton.physics import NewtonBuilderCfg, StepPhase
 from isaaclab_newton.physics import NewtonManager as SimulationManager
 
 from .actuator_control import NewtonActuatorControl
@@ -701,7 +701,7 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
         # Nonfloating root bindings write model.joint_X_p, not state.joint_q.
-        if (solver := SimulationManager._solver) is not None and not self.root_view.is_floating_base:
+        if (solver := SimulationManager.get_solver()) is not None and not self.root_view.is_floating_base:
             solver.notify_model_changed(ModelFlags.JOINT_PROPERTIES)
         # Let the data class handle the invalidation of the pose related properties.
         if not skip_forward:
@@ -750,7 +750,7 @@ class Articulation(BaseArticulation):
             ],
             device=self.device,
         )
-        if (solver := SimulationManager._solver) is not None and not self.root_view.is_floating_base:
+        if (solver := SimulationManager.get_solver()) is not None and not self.root_view.is_floating_base:
             solver.notify_model_changed(ModelFlags.JOINT_PROPERTIES)
         # Let the data class handle the invalidation of the pose related properties.
         if not skip_forward:
@@ -805,7 +805,7 @@ class Articulation(BaseArticulation):
             ],
             device=self.device,
         )
-        if (solver := SimulationManager._solver) is not None and not self.root_view.is_floating_base:
+        if (solver := SimulationManager.get_solver()) is not None and not self.root_view.is_floating_base:
             solver.notify_model_changed(ModelFlags.JOINT_PROPERTIES)
         # Let the data class handle the invalidation of the pose related properties.
         # The com pose was just written, so it must not be invalidated.
@@ -857,7 +857,7 @@ class Articulation(BaseArticulation):
             ],
             device=self.device,
         )
-        if (solver := SimulationManager._solver) is not None and not self.root_view.is_floating_base:
+        if (solver := SimulationManager.get_solver()) is not None and not self.root_view.is_floating_base:
             solver.notify_model_changed(ModelFlags.JOINT_PROPERTIES)
         # Let the data class handle the invalidation of the pose related properties.
         # The com pose was just written, so it must not be invalidated.
@@ -3437,13 +3437,12 @@ class Articulation(BaseArticulation):
         if hasattr(self, "_physics_ready_handle") and self._physics_ready_handle is not None:
             self._physics_ready_handle.deregister()
             self._physics_ready_handle = None
-        # Remove the post-step republish hook registered in ``_create_buffers`` so the
-        # bound method does not linger on ``NewtonManager._post_step_callbacks`` after
-        # this articulation is gone (registered only for non-identity ordering).
-        post_step_callback = getattr(self, "_post_step_callback", None)
-        if post_step_callback is not None:
-            SimulationManager.unregister_post_step_callback(post_step_callback)
-            self._post_step_callback = None
+        # Remove the post-step republish stage added in ``_create_buffers`` so it does not
+        # outlive this articulation (added only for non-identity ordering).
+        post_step_stage = getattr(self, "_post_step_stage", None)
+        if post_step_stage is not None:
+            SimulationManager.remove_stage(post_step_stage)
+            self._post_step_stage = None
 
     def _create_buffers(self):
         self._ALL_INDICES = wp.array(np.arange(self.num_instances, dtype=np.int32), device=self.device)
@@ -3477,20 +3476,18 @@ class Articulation(BaseArticulation):
         self._joint_user_to_backend_torch = (
             wp.to_torch(joint_ordering.user_to_backend).to(dtype=torch.long) if joint_ordering is not None else None
         )
-        # Republish the Tier-1 backend->user state shadows inside the stepped
-        # (and captured) region after the last solver substep. Registering only
-        # when ordering is non-identity or a ball joint needs the coordinate
-        # gather keeps a plain identity-ordering, non-ball-joint scene at zero
-        # overhead (empty callback list). The reorders are then recorded into
-        # every captured graph, so passthrough state getters never replay stale.
-        # The stored handle is the exact bound method ``_clear_callbacks`` later
-        # deregisters.
-        # A ball-jointed articulation also needs the slot: its DOF-space joint_pos is derived, not
+        # Republish the Tier-1 backend->user state shadows inside the step program after the
+        # last solver substep. Adding the stage only when ordering is non-identity or a ball
+        # joint needs the coordinate gather keeps a plain identity-ordering, non-ball-joint
+        # scene at zero overhead. The reorders are then recorded into every captured graph,
+        # so passthrough state getters never replay stale.
+        # A ball-jointed articulation also needs the stage: its DOF-space joint_pos is derived, not
         # sim-bound, so it has to be republished after every step just like the ordering shadows.
-        self._post_step_callback = None
+        self._post_step_stage = None
         if self.data.has_joint_ordering or self.data.has_body_ordering or self.data._joint_coord_map.required:
-            self._post_step_callback = self._data._refresh_user_order_state
-            SimulationManager.register_post_step_callback(self._post_step_callback)
+            self._post_step_stage = SimulationManager.add_stage(
+                self._data._refresh_user_order_state, StepPhase.POST_STEP, name="articulation.republish_state"
+            )
         # tendon names are set in _process_tendons function
 
         # soft joint position limits (recommended not to be too close to limits).

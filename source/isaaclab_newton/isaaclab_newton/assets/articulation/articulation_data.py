@@ -160,7 +160,7 @@ class ArticulationData(BaseArticulationData):
     def _update_body_state(self) -> None:
         """Resolve shared FK, then refresh this view's reordered body state after a manual write."""
         SimulationManager.forward()
-        if self._body_state_dirty or SimulationManager.transforms_may_change_on_graph_replay:
+        if self._body_state_dirty or SimulationManager.transforms_may_change_on_graph_replay():
             self._refresh_user_order_body_state()
 
     def _reset_pose(
@@ -2111,8 +2111,8 @@ class ArticulationData(BaseArticulationData):
         """Republish all Tier-1 user-order state shadows from live backend state, and gather any
         ball-joint DOF positions ahead of them.
 
-        Registered as a post-step callback (see
-        :meth:`isaaclab_newton.physics.NewtonManager.register_post_step_callback`)
+        Added as a post-step stage (see
+        :meth:`isaaclab_newton.physics.NewtonManager.add_stage`)
         so the reorder launches land inside the stepped/captured region right after
         the last solver substep. With no Python freshness guard the launches are
         recorded into every captured graph and replayed on each tick, so the

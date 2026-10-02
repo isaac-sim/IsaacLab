@@ -7,37 +7,44 @@
 
 from __future__ import annotations
 
-from newton import Model, ModelBuilder
+import warp as wp
+from newton import Model, ModelBuilder, State
 from newton.solvers import SolverVBD
 
 from .newton_manager import NewtonManager
+from .solver_binding import NewtonSolverBinding
 from .vbd_manager_cfg import VBDSolverCfg
 
 
-class NewtonVBDManager(NewtonManager):
-    """Newton manager specialization for the VBD solver."""
+class VBDSolverBinding(NewtonSolverBinding):
+    """Binding for the VBD solver, which double-buffers state and uses Newton's collision pipeline."""
+
+    def __init__(self, model: Model, solver_cfg: VBDSolverCfg, deterministic_mode: wp.DeterministicMode):
+        super().__init__(model, solver_cfg, deterministic_mode)
+        self.supports_body_forces = not solver_cfg.integrate_with_external_rigid_solver
 
     @classmethod
-    def _prepare_builder_for_finalize(cls, builder: ModelBuilder) -> None:
+    def prepare_builder(cls, builder: ModelBuilder) -> None:
         """Color the completed builder before allocating the model."""
         builder.color(balance_colors=False)
 
     @classmethod
-    def _create_solver(cls, model: Model, solver_cfg: VBDSolverCfg) -> SolverVBD:
+    def create(
+        cls,
+        model: Model,
+        solver_cfg: VBDSolverCfg,
+        deterministic_mode: wp.DeterministicMode = wp.DeterministicMode.NOT_GUARANTEED,
+    ) -> SolverVBD:
         """Construct the configured VBD solver."""
-        return SolverVBD(model, **cls._filter_solver_kwargs(SolverVBD, solver_cfg))
+        return SolverVBD(model, **cls.filter_kwargs(SolverVBD, solver_cfg, deterministic_mode))
 
-    @classmethod
-    def _build_solver(cls, model: Model, solver_cfg: VBDSolverCfg) -> None:
-        """Construct VBD and configure its base-manager state."""
-        NewtonManager._solver = cls._create_solver(model, solver_cfg)
-        NewtonManager._use_single_state = False
-        NewtonManager._needs_collision_pipeline = True
-        NewtonManager._supports_rigid_body_force_input = not solver_cfg.integrate_with_external_rigid_solver
+    def prepare_step(self, state: State) -> None:
+        """Rebuild the particle BVH before each physics step."""
+        if self.model.particle_count > 0:
+            self.solver.rebuild_bvh(state)
 
-    @classmethod
-    def _simulate_physics_only(cls) -> None:
-        """Rebuild the VBD particle BVH before stepping physics."""
-        if cls.backend.model.particle_count > 0 and hasattr(cls._solver, "rebuild_bvh"):
-            cls._solver.rebuild_bvh(cls.backend.state_0)
-        super()._simulate_physics_only()
+
+class NewtonVBDManager(NewtonManager):
+    """:class:`NewtonManager` running the VBD solver."""
+
+    solver_binding = VBDSolverBinding

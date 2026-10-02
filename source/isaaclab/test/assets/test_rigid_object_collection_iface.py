@@ -15,7 +15,7 @@ The setup is a bit convoluted so that we can run these tests without requiring I
 """
 
 import math
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
@@ -26,6 +26,16 @@ from _rigid_object_collection_iface_test_utils import BACKENDS, get_rigid_object
 from isaaclab.test.utils import DeviceScope, test_devices
 
 pytestmark = pytest.mark.integration
+
+
+@pytest.fixture(autouse=True)
+def _record_newton_model_changes(monkeypatch):
+    """Record Newton model-change notifications; the mock shells have no finalized model to notify."""
+    if "newton" in BACKENDS:
+        from isaaclab_newton.physics import NewtonManager
+
+        monkeypatch.setattr(NewtonManager, "add_model_change", MagicMock())
+
 
 # Distinct instance and body counts make swapped axes visible.
 _NUM_INSTANCES, _NUM_BODIES = 2, 3

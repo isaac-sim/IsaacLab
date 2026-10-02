@@ -62,6 +62,8 @@ _WARP_SUPPORTED_TASKS = frozenset(
         "IsaacContrib-Velocity-Flat-AnymalC",
         "IsaacContrib-Velocity-Flat-UnitreeA1",
         "IsaacContrib-Velocity-Flat-UnitreeGo1",
+        "IsaacContrib-StepProgram-Velocity-Flat-AnymalD-DCMotor",
+        "IsaacContrib-StepProgram-Velocity-Flat-AnymalD-MixedActuators",
     }
 )
 

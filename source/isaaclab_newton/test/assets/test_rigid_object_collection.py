@@ -464,7 +464,7 @@ def test_object_state_properties(num_envs, num_cubes, device):
         cube_object.set_coms_index(coms=wp.from_torch(offset, dtype=wp.vec3f))
         # Flush the model change immediately so it takes effect before the next step
         with wp.ScopedDevice(device):
-            SimulationManager._solver.notify_model_changed(ModelFlags.BODY_INERTIAL_PROPERTIES)
+            SimulationManager.get_solver().notify_model_changed(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
         # check center of mass has been set
         torch.testing.assert_close(cube_object.data.body_com_pos_b.torch, offset)
@@ -554,7 +554,7 @@ def test_write_object_state(num_envs, num_cubes, device, state_location):
         cube_object.set_coms_index(coms=wp.from_torch(offset, dtype=wp.vec3f))
         # Flush the model change immediately so it takes effect before the next step
         with wp.ScopedDevice(device):
-            SimulationManager._solver.notify_model_changed(ModelFlags.BODY_INERTIAL_PROPERTIES)
+            SimulationManager.get_solver().notify_model_changed(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
         # check center of mass has been set
         torch.testing.assert_close(cube_object.data.body_com_pos_b.torch, offset)
@@ -647,14 +647,14 @@ def test_body_pose_write_marks_fk_reset_mask(device):
     buffer, so the property read is not what becomes stale — the simulator's internal ``body_q`` used by
     collision detection is. The write methods must therefore call :meth:`SimulationManager.invalidate_fk`
     so downstream consumers re-run forward kinematics before the next step. Without the fix,
-    ``_fk_reset_mask`` remains unset after an explicit pose write. The buffer-aliasing invariant is
+    runtime ``fk_mask`` remains unset after an explicit pose write. The buffer-aliasing invariant is
     also pinned: a refactor that decouples ``_sim_bind_body_link_pose_w`` from the write target would
     silently make the property stale, so we check the post-write pose matches the written value.
     """
 
     def _fk_reset_mask_dirty() -> bool:
-        assert SimulationManager._fk_reset_mask is not None
-        return bool(wp.to_torch(SimulationManager._fk_reset_mask).any().item())
+        assert SimulationManager._runtime.fk_mask is not None
+        return bool(wp.to_torch(SimulationManager._runtime.fk_mask).any().item())
 
     num_envs = 2
     num_cubes = 2

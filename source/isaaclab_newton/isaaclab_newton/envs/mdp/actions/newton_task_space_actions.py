@@ -10,16 +10,21 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
+import warp as wp
 
 import isaaclab.utils.math as math_utils
 import isaaclab.utils.string as string_utils
 from isaaclab.assets.articulation import Articulation
 from isaaclab.managers.action_manager import ActionTerm
+from isaaclab.physics import PhysicsEvent
 from isaaclab.sensors import ContactSensor, ContactSensorCfg
 from isaaclab.utils import index_fill_, replace
 
 from isaaclab_newton.controllers.differential_ik import NewtonDifferentialIKController
 from isaaclab_newton.controllers.operational_space import NewtonOperationalSpaceController
+from isaaclab_newton.physics import NewtonManager, StepPhase
+
+from . import task_space_kernels
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
@@ -277,6 +282,158 @@ class NewtonOperationalSpaceControllerAction(_NewtonTaskSpaceAction):
                 self._contact_sensor._initialize_impl()
                 self._contact_sensor._is_initialized = True
 
+        self._in_graph = self._supports_step_program()
+        if self._in_graph:
+            self._bind_step_program()
+
+    def _supports_step_program(self) -> bool:
+        """Whether the controller can run inside the Newton step program.
+
+        The step program computes efforts before every physics step from simulation-bound buffers. It needs Newton
+        physics, public joint and body order equal to the backend order, and no measured-wrench feedback, whose contact
+        sensor refreshes on the host.
+        """
+        data = self._asset.data
+        return (
+            NewtonManager.get_newton_backend() is not None
+            and not self._controller.cfg.use_wrench_feedback
+            and not (data.has_joint_ordering or data.has_body_ordering or data._joint_coord_map.required)
+        )
+
+    def _bind_step_program(self) -> None:
+        """Bind the controller to fixed buffers and schedule it before Newton actuators on every physics step."""
+        cfg, device = self._controller.cfg, self.device
+        num_envs, num_joints = self.num_envs, self._num_joints
+        joint_ids = list(range(num_joints)) if isinstance(self._joint_ids, slice) else list(self._joint_ids)
+        self._joint_ids_wp = wp.array(joint_ids, dtype=wp.int32, device=device)
+        self._jacobian_columns_wp = wp.array(self._jacobi_joint_ids, dtype=wp.int32, device=device)
+        offset = self.cfg.body_offset
+        self._offset_wp = (
+            wp.transformf(wp.vec3f(*offset.pos), wp.quatf(*offset.rot))
+            if offset is not None
+            else wp.transform_identity()
+        )
+        self._ee_pose_b_wp = wp.zeros(num_envs, dtype=wp.transformf, device=device)
+        self._ee_vel_b_wp = wp.zeros(num_envs, dtype=wp.spatial_vectorf, device=device)
+        self._jacobian_b_wp = wp.zeros((num_envs, 6, num_joints), dtype=wp.float32, device=device)
+        self._mass_matrix_wp = wp.zeros((num_envs, num_joints, num_joints), dtype=wp.float32, device=device)
+        self._gravity_wp = wp.zeros(num_envs * num_joints, dtype=wp.float32, device=device)
+        self._joint_pos_wp = wp.zeros(num_envs * num_joints, dtype=wp.float32, device=device)
+        self._joint_vel_wp = wp.zeros(num_envs * num_joints, dtype=wp.float32, device=device)
+        self._unused_2d = wp.zeros((1, 1), dtype=wp.float32, device=device)
+        # Commands change once per environment step; process_actions copies them into these fixed buffers.
+        self._command_buffers = {
+            name: torch.zeros(num_envs, 6, device=device)
+            for name in ("wrench", "stiffness", "damping")
+            if name in self._slices
+        }
+
+        inputs = self._controller._inputs
+        inputs.jacobian_tool_world = self._jacobian_b_wp
+        inputs.tool_pose_world = self._ee_pose_b_wp
+        inputs.tool_twist_world = self._ee_vel_b_wp
+        inputs.desired_tool_pose_operational = wp.from_torch(self._ee_pose_des, dtype=wp.transformf)
+        if cfg.use_inertia_decoupling:
+            inputs.mass_matrix = self._mass_matrix_wp
+        if cfg.use_gravity_compensation:
+            inputs.gravity_force = self._gravity_wp
+        if cfg.use_null_space_control:
+            inputs.joint_q = self._joint_pos_wp
+            inputs.joint_qd = self._joint_vel_wp
+            self._null_space_target = self._null_space_target.contiguous()
+            inputs.joint_q_des_null = wp.from_torch(self._null_space_target.reshape(-1))
+        for name, port in (
+            ("wrench", "desired_wrench_world"),
+            ("stiffness", "motion_stiffness"),
+            ("damping", "motion_damping"),
+        ):
+            if name in self._command_buffers:
+                setattr(inputs, port, wp.from_torch(self._command_buffers[name], dtype=wp.spatial_vectorf))
+
+        # The controller runs inside the step program, so the environment may fold its decimation loop.
+        self.apply_every_physics_step = False
+        self._schedule_step_program()
+        self._physics_ready_handle = NewtonManager.register_callback(
+            lambda _: self._schedule_step_program(),
+            PhysicsEvent.PHYSICS_READY,
+            name=f"osc_action_{self._asset.cfg.prim_path}",
+        )
+        # Allocate the articulation's lazily created dynamics buffers before any capture records them.
+        self._apply_in_step_program()
+
+    def _schedule_step_program(self) -> None:
+        """Add the controller stage to the current runtime; a hard reset discards stages with the model."""
+        NewtonManager.add_stage(self._apply_in_step_program, StepPhase.COMMAND, name="osc_action")
+
+    def _apply_in_step_program(self) -> None:
+        """Compute and write joint efforts from the current physics state. Graph-safe."""
+        data, device = self._asset.data, self.device
+        num_envs, num_joints = self.num_envs, self._num_joints
+        cfg = self._controller.cfg
+        root_pose = data.root_link_pose_w.warp
+        wp.launch(
+            task_space_kernels.task_space_state,
+            dim=num_envs,
+            inputs=[
+                root_pose,
+                data.root_com_vel_w.warp,
+                data.body_link_pose_w.warp,
+                data.body_com_vel_w.warp,
+                data.body_com_pos_b.warp,
+                self._body_idx,
+                self._offset_wp,
+            ],
+            outputs=[self._ee_pose_b_wp, self._ee_vel_b_wp],
+            device=device,
+        )
+        wp.launch(
+            task_space_kernels.task_space_jacobian,
+            dim=(num_envs, num_joints),
+            inputs=[
+                root_pose,
+                data.body_link_jacobian_w.warp,
+                self._jacobi_body_idx,
+                self._jacobian_columns_wp,
+                self._offset_wp,
+            ],
+            outputs=[self._jacobian_b_wp],
+            device=device,
+        )
+        if cfg.use_null_space_control:
+            wp.launch(
+                task_space_kernels.task_space_joint_state,
+                dim=(num_envs, num_joints),
+                inputs=[data.joint_pos.warp, data.joint_vel.warp, self._joint_ids_wp, num_joints],
+                outputs=[self._joint_pos_wp, self._joint_vel_wp],
+                device=device,
+            )
+        if cfg.use_inertia_decoupling or cfg.use_gravity_compensation:
+            mass_matrix = data.mass_matrix.warp if cfg.use_inertia_decoupling else self._mass_matrix_wp
+            gravity = data.gravity_compensation_forces.warp if cfg.use_gravity_compensation else self._unused_2d
+            wp.launch(
+                task_space_kernels.task_space_dynamics,
+                dim=(num_envs, num_joints),
+                inputs=[
+                    mass_matrix,
+                    gravity,
+                    self._jacobian_columns_wp,
+                    num_joints,
+                    cfg.use_inertia_decoupling,
+                    cfg.use_gravity_compensation,
+                ],
+                outputs=[self._mass_matrix_wp, self._gravity_wp],
+                device=device,
+            )
+        controller = self._controller
+        controller.newton_controller.step(inputs=controller._inputs, outputs=controller._outputs, dt=0.0)
+        wp.launch(
+            task_space_kernels.scatter_joint_efforts,
+            dim=(num_envs, num_joints),
+            inputs=[controller._outputs.joint_f, self._joint_ids_wp, num_joints, self._asset._has_newton_actuators],
+            outputs=[data._sim_bind_joint_effort, data._sim_bind_joint_act],
+            device=device,
+        )
+
     @property
     def action_dim(self) -> int:
         return self._action_dim
@@ -304,8 +461,14 @@ class NewtonOperationalSpaceControllerAction(_NewtonTaskSpaceAction):
         else:
             self._ee_pose_des[:, :3] = command[:, :3]
             self._ee_pose_des[:, 3:] = math_utils.normalize(command[:, 3:])
+        if self._in_graph:
+            for name, buffer in self._command_buffers.items():
+                buffer.copy_(self._processed_actions[:, self._slices[name]])
 
     def apply_actions(self):
+        if self._in_graph:
+            # The step program computes efforts before every physics step.
+            return
         cfg = self._controller.cfg
         data = self._asset.data
         ee_pose = self._compute_ee_pose()

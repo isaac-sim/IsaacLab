@@ -37,7 +37,7 @@ import warp as wp
 from isaaclab_newton.assets import Articulation
 from isaaclab_newton.assets.articulation.actuator_control import NewtonActuatorControl
 from isaaclab_newton.assets.articulation.articulation_data import ArticulationData
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonBuilderCfg, NewtonCfg
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonBuilderCfg, NewtonCfg, StepPhase
 from isaaclab_newton.physics import NewtonManager as SimulationManager
 from isaaclab_physx.sim.schemas import PhysxJointCfg
 from newton import JointTargetMode, JointType, ModelBuilder, ModelFlags, ShapeFlags
@@ -1126,8 +1126,8 @@ def test_newton_ordered_state_caches_invalidate_on_rebind(
     new_model.joint_limit_upper = wp.array(
         limit_upper_values, dtype=wp.float32, device=old_model.joint_limit_upper.device
     )
-    SimulationManager.backend.state_0 = new_state
-    SimulationManager.backend.model = new_model
+    SimulationManager.get_newton_backend().state_0 = new_state
+    SimulationManager.get_newton_backend().model = new_model
 
     body_velocities = articulation.root_view.get_link_velocities(new_state)
     assert body_velocities is not None
@@ -1279,7 +1279,7 @@ def test_newton_rebind_preserves_lab_owned_actuator_gains(
         dtype=wp.float32,
         device=old_model.joint_target_kd.device,
     )
-    SimulationManager.backend.model = new_model
+    SimulationManager.get_newton_backend().model = new_model
     data._create_simulation_bindings()
 
     # The actuator-owned gains must survive the rebind unchanged...
@@ -1314,7 +1314,7 @@ def test_newton_post_step_hook_publishes_ordered_state_and_deregisters(
     Ships the eager-mode invariant variant: CUDA-graph capture is not reliably reachable
     from this CPU test harness, and this invariant directly proves the in-step republish.
 
-    Finally checks that ``_clear_callbacks`` deregisters the hook without touching other callbacks.
+    Finally checks that ``_clear_callbacks`` removes the stage without touching other stages.
     """
     articulation_cfg = replace(
         generate_articulation_cfg(articulation_type=articulation_type),
@@ -1350,21 +1350,21 @@ def test_newton_post_step_hook_publishes_ordered_state_and_deregisters(
     )
     np.testing.assert_allclose(data._body_com_vel_w_user.numpy(), data._sim_bind_body_com_vel_w.numpy()[:, body_u2b])
 
-    # ``_clear_callbacks`` must deregister exactly this hook so it does not leak on the class-level list,
-    # and leave an unrelated callback (standing in for another articulation's hook) untouched.
-    registered_callback = articulation._post_step_callback
-    assert registered_callback is not None
-    assert registered_callback in SimulationManager._post_step_callbacks
+    # ``_clear_callbacks`` must remove exactly this stage so it does not leak into later step programs,
+    # and leave an unrelated stage (standing in for another articulation's hook) untouched.
+    registered_stage = articulation._post_step_stage
+    assert registered_stage is not None
+    assert registered_stage in SimulationManager._runtime.stages
 
     def _other_callback() -> None:
         return None
 
-    SimulationManager.register_post_step_callback(_other_callback)
+    other_stage = SimulationManager.add_stage(_other_callback, StepPhase.POST_STEP)
     articulation._clear_callbacks()
 
-    assert articulation._post_step_callback is None
-    assert registered_callback not in SimulationManager._post_step_callbacks
-    assert _other_callback in SimulationManager._post_step_callbacks
+    assert articulation._post_step_stage is None
+    assert registered_stage not in SimulationManager._runtime.stages
+    assert other_stage in SimulationManager._runtime.stages
 
 
 @pytest.mark.parametrize("num_articulations", [1])
@@ -1636,7 +1636,7 @@ def test_fixed_tendon_properties_reach_solver(sim, num_articulations, device, ar
     articulation.write_fixed_tendon_properties_to_sim_mask()
     sim.step()
 
-    solver_model = SimulationManager._solver.mjw_model
+    solver_model = SimulationManager.get_solver().mjw_model
     np.testing.assert_allclose(solver_model.tendon_stiffness.numpy(), 12.0)
     np.testing.assert_allclose(solver_model.tendon_damping.numpy(), 3.0)
     np.testing.assert_allclose(solver_model.tendon_range.numpy(), limits.cpu().numpy(), rtol=1e-6)
@@ -2172,7 +2172,7 @@ def test_body_root_state(sim, num_articulations, device, articulation_type):
     com[:, 0, arm_idx, :] = new_com.squeeze(-2)
     articulation.root_view.set_attribute("body_com", SimulationManager.get_model(), wp.from_torch(com, dtype=wp.vec3f))
     with wp.ScopedDevice(device):
-        SimulationManager._solver.notify_model_changed(ModelFlags.BODY_INERTIAL_PROPERTIES)
+        SimulationManager.get_solver().notify_model_changed(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
     # check they are set
     torch.testing.assert_close(
@@ -2610,7 +2610,7 @@ def test_body_q_consistent_after_root_write(num_articulations, device, articulat
     reset because eval_fk was not called between write_root_pose and collide.
 
     Uses ``use_mujoco_contacts=False`` so the Newton collision pipeline is
-    active, then patches ``_simulate_physics_only`` to capture body_q at
+    active, then wraps the pipeline's ``collide`` to capture body_q at
     the moment collide() is called and asserts it matches joint_q.
     """
 
@@ -2652,26 +2652,30 @@ def test_body_q_consistent_after_root_write(num_articulations, device, articulat
             env_ids=torch.tensor([0], device=device, dtype=torch.int32),
         )
 
-        # Patch _simulate_physics_only to capture body_q before collide runs
+        # Wrap the pipeline's collide to capture body_q as collide() sees it; the step program binds
+        # collide when it is compiled, so drop the compiled program before stepping.
         captured = {}
-        original_simulate = SimulationManager._simulate_physics_only.__func__
+        runtime = SimulationManager._runtime
+        assert runtime.solver.needs_collision_pipeline
+        pipeline = runtime.collision_pipeline
+        original_collide = pipeline.collide
 
-        @classmethod  # type: ignore[misc]
-        def _patched_simulate(cls):
-            if cls._needs_collision_pipeline:
-                bq = wp.to_torch(cls.backend.state_0.body_q)
-                jq = wp.to_torch(cls.backend.state_0.joint_q)
-                b0 = int(body_starts[0])
-                jc0 = int(jc_starts[0])
-                captured["bq_root"] = bq[b0, :3].clone()
-                captured["jq_root"] = jq[jc0 : jc0 + 3].clone()
-            original_simulate(cls)
+        def _capturing_collide(state, contacts, *args, **kwargs):
+            bq = wp.to_torch(state.body_q)
+            jq = wp.to_torch(state.joint_q)
+            b0 = int(body_starts[0])
+            jc0 = int(jc_starts[0])
+            captured["bq_root"] = bq[b0, :3].clone()
+            captured["jq_root"] = jq[jc0 : jc0 + 3].clone()
+            original_collide(state, contacts, *args, **kwargs)
 
-        with patch.object(SimulationManager, "_simulate_physics_only", _patched_simulate):
+        runtime.program = None
+        with patch.object(pipeline, "collide", _capturing_collide):
             sim.step()
+        runtime.program = None
         articulation.update(sim.cfg.dt)
 
-        assert captured, "collision pipeline did not run — _needs_collision_pipeline is False"
+        assert captured, "collision pipeline did not run in the step program"
 
         bq_root = captured["bq_root"]
         jq_root = captured["jq_root"]

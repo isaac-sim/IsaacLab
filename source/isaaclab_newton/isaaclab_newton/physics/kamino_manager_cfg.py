@@ -256,7 +256,7 @@ class _KaminoSolverCfgBase(NewtonSolverCfg):
     When ``None``, Kamino will automatically determine whether to use the FK solver based on the model's
     articulation structure. If the model has loop-closing joints, the FK solver will be used.
 
-    When ``True``, :meth:`NewtonKaminoManager._eval_fk_impl` reconciles body state via
+    When ``True``, :meth:`KaminoSolverBinding.eval_fk` reconciles body state via
     :meth:`SolverKamino.reset` with :class:`SolverKamino.ResetConfig.from_joints`. Kamino's FK
     solver computes consistent body poses/velocities from the joint coordinates (including the
     base joint for floating bases), resolves passive / loop-closure joints, and writes back a

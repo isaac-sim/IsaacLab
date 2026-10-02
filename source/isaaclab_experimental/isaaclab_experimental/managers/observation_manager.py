@@ -655,6 +655,11 @@ class ObservationManager(ManagerBase):
                 group_cfg.concatenate_dim + 1 if group_cfg.concatenate_dim >= 0 else group_cfg.concatenate_dim
             )
             # check if config is dict already
+            if getattr(group_cfg, "history_order", "term") != "term":
+                raise NotImplementedError(
+                    f"Observation group '{group_name}' uses history_order={group_cfg.history_order!r}; the Warp"
+                    " observation manager flattens histories per term only."
+                )
             if isinstance(group_cfg, dict):
                 term_cfg_items = group_cfg.items()
             else:
@@ -671,6 +676,7 @@ class ObservationManager(ManagerBase):
                     "history_length",
                     "flatten_history_dim",
                     "concatenate_dim",
+                    "history_order",
                 ]:
                     continue
                 # check for non config

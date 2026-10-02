@@ -91,8 +91,8 @@ the entry for retry. After physics shutdown invalidates camera
 render data, simulation teardown closes material writers, renderer instances, visualizers,
 and remaining native resources, in that order, before closing the stage.
 
-Managers and native renderers expose their borrowed resource through ``backend``.
-For example, ``NewtonManager.backend.model`` accesses the finalized native model.
+Managers and native renderers expose their borrowed resource. For example,
+``NewtonManager.get_newton_backend().model`` accesses the finalized native model.
 Closing a renderer releases its bindings, not the shared native resource.
 Exposing native handles does not replace SDP transport.
 
