@@ -523,15 +523,7 @@ class TestEnsureCudaTorch:
 
 
 class TestRePointPrebundlePackages:
-    """Tests for :func:`_repoint_prebundle_packages`.
-
-    Covers all combinations of:
-    - Isaac Sim installation method: local _isaac_sim symlink, pip-installed isaacsim, none
-    - Python environment / site-packages source: uv venv, pip venv, conda, kit Python
-    - nvidia namespace package special handling: cudnn present vs absent
-    """
-
-    # ---- shared fixtures / helpers ------------------------------------------
+    """Package redirection, discovery layouts, native dependencies, and failure handling."""
 
     @pytest.fixture(autouse=True)
     def _isolate_home(self, tmp_path, monkeypatch):
@@ -569,8 +561,6 @@ class TestRePointPrebundlePackages:
         ):
             yield
 
-    # ---- no Isaac Sim --------------------------------------------------------
-
     def test_no_op_when_isaac_sim_absent(self, tmp_path):
         """When Isaac Sim is not found, _repoint_prebundle_packages returns immediately without touching anything."""
         with (
@@ -579,8 +569,6 @@ class TestRePointPrebundlePackages:
         ):
             _repoint_prebundle_packages()
         mock_run.assert_not_called()
-
-    # ---- no pip_prebundle directories ----------------------------------------
 
     def test_no_op_when_no_pip_prebundle_dirs(self, tmp_path):
         """When Isaac Sim has no pip_prebundle directories, nothing is repointed."""
@@ -595,21 +583,22 @@ class TestRePointPrebundlePackages:
         assert list(isaacsim_path.rglob("*")) == []
         assert (site_pkgs / "torch").is_dir() and not (site_pkgs / "torch").is_symlink()
 
-    # ---- local _isaac_sim symlink (local build) ------------------------------
-
-    def test_local_build_symlinks_torch_to_venv_site_packages(self, tmp_path):
-        """Local _isaac_sim symlink + uv/pip venv: prebundle torch → venv site-packages/torch."""
+    def test_repoints_torch_across_bundles_and_repeated_installs(self, tmp_path):
+        """Replace bundled and stale Torch copies across extensions, then safely repeat."""
         isaacsim_path, prebundle = self._sim_with_prebundle(tmp_path / "sim", ["torch"])
+        cached = isaacsim_path / "extscache" / "other.ext" / "pip_prebundle"
+        cached.mkdir(parents=True)
         site_pkgs = _make_site_packages(tmp_path / "env", ["torch"])
-        py = str(tmp_path / "env" / "bin" / "python")
+        old_env = _make_site_packages(tmp_path / "old_env", ["torch"])
+        (cached / "torch").symlink_to(old_env / "torch")
 
-        with self._patch(isaacsim_path, site_pkgs, py):
-            _repoint_prebundle_packages()
-
-        symlink = prebundle / "torch"
-        assert symlink.is_symlink(), "torch should be a symlink after repoint"
-        assert symlink.resolve() == (site_pkgs / "torch").resolve()
-        assert not (prebundle / "torch.bak").exists(), "repoint replaces in place — no .bak (env copy is the target)"
+        with self._patch(isaacsim_path, site_pkgs, sys.executable):
+            for _ in range(2):
+                _repoint_prebundle_packages()
+                for bundle in (prebundle, cached):
+                    assert (bundle / "torch").is_symlink()
+                    assert (bundle / "torch").resolve() == (site_pkgs / "torch").resolve()
+                    assert not (bundle / "torch.bak").exists()
 
     def test_local_build_skips_nvidia_when_cudnn_absent_kit_python(self, tmp_path):
         """Local build + kit Python: site-packages/nvidia has only 'srl' (no cudnn) → nvidia NOT repointed.
@@ -653,36 +642,6 @@ class TestRePointPrebundlePackages:
         assert symlink.is_symlink(), "nvidia should be repointed when cudnn is present"
         assert symlink.resolve() == (site_pkgs / "nvidia").resolve()
 
-    def test_idempotent_when_symlink_already_correct(self, tmp_path):
-        """Calling _repoint_prebundle_packages twice does not break the symlinks."""
-        isaacsim_path, prebundle = self._sim_with_prebundle(tmp_path / "sim", [])
-        site_pkgs = _make_site_packages(tmp_path / "env", ["torch"])
-        py = str(tmp_path / "env" / "bin" / "python")
-
-        # Pre-create the correct symlink (as if a previous install already ran).
-        (prebundle / "torch").symlink_to(site_pkgs / "torch")
-        original_target = (prebundle / "torch").resolve()
-
-        with self._patch(isaacsim_path, site_pkgs, py):
-            _repoint_prebundle_packages()
-
-        assert (prebundle / "torch").resolve() == original_target, "Correct symlink must not be changed"
-
-    def test_updates_stale_symlink_pointing_to_old_env(self, tmp_path):
-        """A symlink from a previous venv that no longer matches current site-packages is updated."""
-        isaacsim_path, prebundle = self._sim_with_prebundle(tmp_path / "sim", [])
-        site_pkgs = _make_site_packages(tmp_path / "env_new", ["torch"])
-        old_env = _make_site_packages(tmp_path / "env_old", ["torch"])
-        py = str(tmp_path / "env_new" / "bin" / "python")
-
-        # Pre-create a stale symlink pointing at the old env.
-        (prebundle / "torch").symlink_to(old_env / "torch")
-
-        with self._patch(isaacsim_path, site_pkgs, py):
-            _repoint_prebundle_packages()
-
-        assert (prebundle / "torch").resolve() == (site_pkgs / "torch").resolve(), "Stale symlink must be updated"
-
     def test_raises_when_prebundled_torch_not_neutralized(self, tmp_path):
         """Fail loud: a real prebundled torch surviving repoint would shadow the pip torch
         on launch paths that do not import isaaclab (nvbugs 6343978), so repoint raises
@@ -697,29 +656,6 @@ class TestRePointPrebundlePackages:
             with mock.patch("isaaclab.cli.commands.install._force_remove"):
                 with pytest.raises(RuntimeError, match="neutralize"):
                     _repoint_prebundle_packages()
-
-    # ---- multiple prebundle directories -------------------------------------
-
-    def test_repoints_across_multiple_prebundle_dirs(self, tmp_path):
-        """When Isaac Sim has multiple pip_prebundle directories, each is processed."""
-        isaacsim_path = tmp_path / "isaac_sim"
-        isaacsim_path.mkdir()
-
-        # Two separate extension pip_prebundle dirs, each with torch.
-        pb1 = isaacsim_path / "exts" / "ext_a" / "pip_prebundle"
-        pb2 = isaacsim_path / "exts" / "ext_b" / "pip_prebundle"
-        for pb in (pb1, pb2):
-            pb.mkdir(parents=True)
-            (pb / "torch").mkdir()
-
-        site_pkgs = _make_site_packages(tmp_path / "env", ["torch"])
-        py = str(tmp_path / "env" / "bin" / "python")
-
-        with self._patch(isaacsim_path, site_pkgs, py):
-            _repoint_prebundle_packages()
-
-        for pb in (pb1, pb2):
-            assert (pb / "torch").is_symlink(), f"torch in {pb} should be repointed"
 
     def test_repoints_package_inside_expanded_extra_bundle(self, tmp_path):
         """Expanded extras bundles must not retain file links into a replaced package."""
