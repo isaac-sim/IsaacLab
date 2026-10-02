@@ -110,11 +110,12 @@ jobs:
         echo "activated=false" >> "$GITHUB_OUTPUT"
         activated=true
         if [ "$EVENT_ACTION" = synchronize ]; then
-          activated="$(
-            gh api --paginate --slurp \
+          activation_events="$(
+            gh api --paginate \
               "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/events?per_page=100" \
-              --jq 'map(.[]) | any(.event == "labeled" and .actor.login != "github-actions[bot]")'
+              --jq '.[] | select(.event == "labeled" and .actor.login != "github-actions[bot]") | .id'
           )"
+          test -n "$activation_events" || activated=false
         fi
         echo "activated=$activated" >> "$GITHUB_OUTPUT"
         if [ "$activated" != true ]; then
