@@ -382,6 +382,15 @@ Visualizer Overview
          ``--viz newton_rtx``, or switch to ``--viz newton_gl``, ``--viz viser``, ``--viz rerun``,
          or ``--viz kit`` with a Kit-compatible physics backend.
 
+      .. note::
+
+         Newton RTX renders the simulation's authored USD scene, preserving materials such as MDL glass.
+         The shared OV clone context prepares the scene copies, and the simulation-owned OVStage
+         backend imports the scene and applies them before the viewer borrows the stage. Configure lighting
+         through scene lights.
+         Runtime visual-material randomization still writes to the Newton model and does not update the
+         rendered stage.
+
    .. tab-item:: Rerun
 
       Like Viser, `Rerun <https://rerun.io/>`_ streams simulation state to a local web server, for
@@ -903,13 +912,10 @@ Limitations
 **Lighting differences across visualizers**
 
 Each backend lights the scene differently, so the same environment can look noticeably
-different across visualizers. Kit renders the scene's actual authored USD lights. Newton GL
+different across visualizers. Kit and Newton RTX render the scene's authored USD lights. Newton GL
 uses a fixed sky-gradient and single directional light color
 (:attr:`~isaaclab_visualizers.newton.NewtonVisualizerCfg.sky_upper_color`,
-``sky_lower_color``, ``light_color``), independent of scene USD lights. Newton RTX supports
-only 3 lighting-environment presets
-(:attr:`~isaaclab_visualizers.newton.NewtonRTXVisualizerCfg.rtx_environment`: ``"default"``,
-``"studio"``, ``"none"``) and does not use any scene-authored USD lights. Viser uses a single
+``sky_lower_color``, ``light_color``), independent of scene USD lights. Viser uses a single
 ambient light with no directional key light, so scenes tend to look darker and flatter than
 the other backends. Rerun uses fixed built-in viewer shading with no scene-driven lighting.
 

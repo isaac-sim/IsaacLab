@@ -2366,8 +2366,23 @@ class NewtonRTXVisualizer(NewtonVisualizer):
         # OVRTX loads lazily on first begin_frame(); disable permanently on first failure
         # so a missing/broken OVRTX install doesn't spam the log every step.
         self._disable_viewer_on_step_exception = True
+        from isaaclab_ov.stage import OvstageBackendCfg
+
+        self._render_backend = SimulationContext.instance().get_or_create_backend(OvstageBackendCfg(scene_key=cfg))
 
     def _create_viewer(self, runtime_headless: bool, metadata: dict) -> NewtonViewerRTX:
+        from isaaclab_ov.stage import export_stage_to_string
+
+        backend = self._render_backend
+        backend.populate(
+            export_stage_to_string(
+                SimulationContext.instance().stage,
+                len(backend.clone_env_paths),
+                source_paths=tuple(source for source, _ in backend.clone_copies),
+                keep_env_roots=False,
+                env_paths=backend.population_env_paths,
+            )
+        )
         if not runtime_headless:
             # pyglet sets WM_CLASS from the window caption "Newton RTX Viewer".
             write_desktop_entry(
@@ -2380,9 +2395,9 @@ class NewtonRTXVisualizer(NewtonVisualizer):
             up_axis="Z",
             metadata=metadata,
             update_frequency=self.cfg.update_frequency,
-            environment=self.cfg.rtx_environment,
             background_color=self.cfg.background_color,
             render_settings=self.cfg.render_settings,
+            ovstage=self._render_backend.stage,
         )
 
     def _apply_viewer_post_init(self) -> None:
@@ -2405,18 +2420,11 @@ class NewtonRTXVisualizer(NewtonVisualizer):
         """Queue FOV for deferred application; ViewerRTX creates its camera on first end_frame()."""
         self._rtx_fov_pending = True
 
-    def _apply_rtx_fov_if_pending(self) -> None:
-        """Apply the deferred camera FOV once ViewerRTX's camera object is available."""
-        if not self._rtx_fov_pending or self._viewer is None:
-            return
-        try:
-            self._viewer.camera.fov = self._focal_length_to_vertical_fov_degrees()
-            self._rtx_fov_pending = False
-        except AttributeError:
-            pass  # camera not yet created by ViewerRTX; retry next frame
-
     def _pre_step(self) -> None:
-        self._apply_rtx_fov_if_pending()
+        """Apply the deferred camera FOV once ViewerRTX's camera object is available."""
+        if self._rtx_fov_pending and (camera := getattr(self._viewer, "camera", None)) is not None:
+            camera.fov = self._focal_length_to_vertical_fov_degrees()
+            self._rtx_fov_pending = False
 
     def render_rgb_array(self) -> np.ndarray | None:
         """Return the latest RGB frame rendered by the Newton RTX viewer.

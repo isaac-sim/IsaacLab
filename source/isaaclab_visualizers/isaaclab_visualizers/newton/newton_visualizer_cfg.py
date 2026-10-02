@@ -35,7 +35,7 @@ class NewtonVisualizerCfg(VisualizerCfg):
     # Deprecated alias: "newton" routes to the GL backend via visualizer_cfg.VISUALIZER_ALIASES.
     visualizer_type: str = "newton_gl"
 
-    cloning_contexts: tuple[type | str, ...] = ("isaaclab_newton.cloner:NewtonReplicateContext",)
+    cloning_contexts = ("isaaclab_newton.cloner:NewtonReplicateContext",)
 
     streaming_cam_renderer_cfg: RendererCfg = NewtonWarpRendererCfg()
     """Renderer configuration for the auto-created streaming camera."""
@@ -153,8 +153,8 @@ class NewtonRTXVisualizerCfg(NewtonVisualizerCfg):
     Selects Newton's OVRTX backend — photorealistic rendering using the same
     ``begin_frame / log_state / end_frame`` step interface as the GL backend.
 
-    .. note::
-        Lighting environment and denoiser settings use ``ViewerRTX`` defaults.
+    The OVStage clone context prepares the simulation-owned stage that ``ViewerRTX`` renders,
+    preserving authored materials and lighting while Newton drives the body poses.
 
     ``render_rgb_array()`` captures the path-traced LDR framebuffer at
     :attr:`window_width` by :attr:`window_height`. The tiled camera panel remains
@@ -167,9 +167,11 @@ class NewtonRTXVisualizerCfg(NewtonVisualizerCfg):
     visualizer_type: str = "newton_rtx"
     """Visualizer selector identifier. Do not change."""
 
-    rtx_environment: str = "default"
-    """OVRTX lighting environment.  One of ``"default"`` (dome + distant light),
-    ``"studio"`` (three-point rig for cleaner highlights), or ``"none"``."""
+    cloning_contexts = (
+        "isaaclab_newton.cloner:NewtonReplicateContext",
+        "isaaclab_ov.cloner:OvstageReplicateContext",
+    )
+    """Prepare the Newton model and the simulation-owned stage for RTX rendering."""
 
     render_settings: dict[str, Any] = dict()
     """RTX attributes to author on the OVRTX render product, as ``{name: (usd_type_name, value)}``.
