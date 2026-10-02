@@ -1,6 +1,3 @@
-Removed
-^^^^^^^
-
 * Removed Unique Set Size (USS) collection from :class:`~isaaclab.benchmark.recorders.MemoryInfoRecorder`.
   ``psutil.Process.memory_full_info()`` walks the process page tables on every call, and the recorder ran it
   once per second from the :class:`~isaaclab.benchmark.BenchmarkMonitor` thread while the benchmark was being
