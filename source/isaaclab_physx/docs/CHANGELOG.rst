@@ -3,6 +3,51 @@ Changelog
 
 .. towncrier release notes start
 
+7.4.2 (2026-10-02)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* :class:`~isaaclab_physx.app.KitLauncher` reads whether the run has the Kit visualizer from the ``visualizer``
+  selection (``--visualizer kit``) instead of the removed ``kit_visualizer`` launcher argument.
+* **Breaking:** :class:`~isaaclab_physx.app.KitLauncher` no longer reads a ``headless`` launcher argument: it opens
+  a window exactly when ``--visualizer`` selects ``kit`` and neither ``HEADLESS=1`` nor livestreaming is set, so a
+  Kit visualizer only a video records from (``--video viz:kit``) runs headless. XR auto-starts under the same
+  rule, when ``--visualizer`` does not select ``kit``.
+
+Fixed
+^^^^^
+
+* Fixed frame-transformer path expressions that directly match a rigid body from also selecting
+  nested rigid-body descendants.
+* Added a PhysX warning and known-issues documentation for GPU articulation scenes that may hit the known solver
+  partition aliasing issue, and pointed users to ``PhysxCfg(gpu_max_num_partitions=1)`` as the workaround.
+
+
+7.4.1 (2026-10-01)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* :class:`~isaaclab_physx.app.KitLauncher` auto-starts XR only when the run has no Kit visualizer, whether it comes
+  from the config or ``--visualizer``, so a Kit visualizer declared in the config keeps its window with ``--xr``
+  instead of being forced headless.
+* Removed the per-frame channel-compacting copies for normals, motion vectors, HDR color, and
+  simple-shading outputs in :class:`~isaaclab_physx.renderers.IsaacRtxRenderer`.
+* Changed PhysX contact, PVA, and frame-transformer debug visualization to refresh outdated
+  sensor buffers before drawing.
+
+* Skipped the joint-limit clamping counter readback when its logging level is disabled and reused
+  the counter buffer across writes.
+
+Fixed
+^^^^^
+
+* Used resolved callable defaults when constructing manager terms instead of duplicating defaults in constructors.
+
+
 7.4.0 (2026-09-29)
 ~~~~~~~~~~~~~~~~~~
 

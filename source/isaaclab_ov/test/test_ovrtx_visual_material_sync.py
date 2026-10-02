@@ -11,6 +11,7 @@ from types import SimpleNamespace
 
 import pytest
 import torch
+import warp as wp
 
 _REQUIRED_MODULES = ("isaaclab_ov", "ovrtx")
 _MISSING_MODULES = [module for module in _REQUIRED_MODULES if importlib.util.find_spec(module) is None]
@@ -169,7 +170,8 @@ def test_legacy_compiles_typed_bindings_and_publishes_selected_channels_zero_cop
     )
     assert renderer.backend.renderer.writes == []
     assert len(renderer.backend.renderer.bindings) == 4
-    writer.publish()
+    with wp.ScopedStream(wp.stream_from_torch(torch.cuda.default_stream())):
+        writer.publish()
 
     writes = {write[0].attribute_name: write for write in renderer.backend.renderer.writes}
     assert set(writes) == {"inputs:texture_scale"}
@@ -177,6 +179,7 @@ def test_legacy_compiles_typed_bindings_and_publishes_selected_channels_zero_cop
     assert write[1].untyped_storage().data_ptr() == texture_scale.untyped_storage().data_ptr()
     assert write[2]["data_access"] is DataAccess.ASYNC
     assert write[2]["cuda_event"] == writer._event.cuda_event
+    assert write[2]["cuda_stream"] == 1
     writer.drain()
     assert all(write[3].wait_count == 1 for write in renderer.backend.renderer.writes)
 

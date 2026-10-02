@@ -79,6 +79,10 @@ We use `Sphinx <https://www.sphinx-doc.org/en/master/>`__ with the
 `Book Theme <https://sphinx-book-theme.readthedocs.io/en/stable/>`__
 for maintaining the documentation.
 
+API ``[source]`` links open the implementation on GitHub, using the published documentation's
+branch or tag (``develop`` for a current-checkout build by default). We do not generate local
+Python source pages; viewing the implementation requires internet access.
+
 Sending a pull request for the documentation is the same as sending a pull request for the codebase.
 Please follow the steps mentioned in the `Contributing Code`_ section.
 
@@ -93,7 +97,33 @@ the externally hosted file from the documentation.
   documentation requirements, into the repository's ``.venv``.
 
 
-To build the documentation, run the following command from the repository root. It installs
+Choose documentation validation according to the changed behavior:
+
+* Skip Sphinx when rendered docs are unaffected, including standalone ``AGENTS.md`` and ``skills/``
+  edits. Run the relevant code or skill checks instead.
+* Use the incremental HTML preview while editing documentation pages.
+* Use a clean build for API signatures or docstrings, Sphinx configuration or extensions, and
+  theme changes. Sphinx's cache does not reliably detect Python source changes.
+* Run one clean, warning-free build of final documentation-affecting changes before submitting
+  a PR. Repeat it only after further relevant changes or a failure. CI also runs the clean build.
+
+For an incremental HTML preview, run this command from the repository root on Linux or Windows:
+
+.. code:: bash
+
+   uv run --extra dev --directory docs python -m sphinx -W --keep-going -j auto . _build/incremental
+
+On systems with Make, the equivalent command is:
+
+.. code:: bash
+
+   uv run --extra dev make -C docs incremental-docs
+
+Open ``docs/_build/incremental/index.html`` to inspect the preview. Subsequent runs reuse the cache
+and treat new warnings as errors, but can omit old warnings and retain deleted pages. Use a clean
+build for final validation, and avoid concurrent builds in the same output directory.
+
+For the final clean build, run the following command from the repository root. It installs
 the documentation packages and builds the current version:
 
 .. code:: bash
