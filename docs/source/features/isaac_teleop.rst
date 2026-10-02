@@ -2008,7 +2008,7 @@ Optimize XR Performance
 
       uv run --extra teleop,isaacsim isaaclab teleop run \
           --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
-          --viz none --xr
+          --xr
 
    In headless XR the OpenXR/AR session **starts automatically** -- there is no local viewport to
    click **Start XR**, so Isaac Lab begins streaming as soon as a CloudXR client connects.
@@ -2016,8 +2016,7 @@ Optimize XR Performance
    .. note::
 
       The ``--headless`` CLI flag was removed in Isaac Lab 3.0. Headless is now the **default**
-      (omit ``--visualizer``); pass ``--visualizer none`` / ``--viz none`` to force it when a
-      config might otherwise enable a visualizer, or set ``HEADLESS=1`` in the environment.
+      (omit ``--visualizer``), or set ``HEADLESS=1`` in the environment.
 
 .. dropdown:: Configure retargeting execution
    :open:

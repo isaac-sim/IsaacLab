@@ -26,7 +26,6 @@ import isaaclab.app.sim_launcher as sim_launcher
 from isaaclab.app import SimulationLauncher, launch_simulation
 from isaaclab.physics import PhysicsCfg
 from isaaclab.renderers import RendererCfg
-from isaaclab.visualizers import VisualizerCfg
 
 
 @pytest.fixture
@@ -102,14 +101,17 @@ def test_require_kit_rejects_ovrtx_runtime(monkeypatch: pytest.MonkeyPatch):
         resolved_physics_cfg=None,
         effective_cfg=object(),
         sim_cfg=None,
-        visualizer_intent={"has_kit_visualizer": False},
         has_ovrtx=True,
         has_kit_camera=False,
         has_kit_physics=False,
         has_ovphysx_physics=False,
         needs_kit=False,
     )
-    monkeypatch.setattr(sim_launcher, "scan", lambda _cfg, _launcher_args: config_scan)
+    monkeypatch.setattr(
+        sim_launcher,
+        "scan",
+        lambda _cfg, launcher_args: sim_launcher._resolve_launcher_args(launcher_args) or config_scan,
+    )
 
     with pytest.raises(ValueError, match="OVRTX runtime"):
         with launch_simulation(cfg=object(), launcher_args={"require_kit": True}):
@@ -135,12 +137,7 @@ def test_kitless_ovrtx_registers_before_user_code(monkeypatch: pytest.MonkeyPatc
         sys.modules, "ovrtx", types.SimpleNamespace(register_schema_paths=lambda: calls.append("register"))
     )
     monkeypatch.setattr(sim_launcher, "configure_storage_profile", lambda: calls.append("storage"))
-    cfg = argparse.Namespace(
-        physics=sim_launcher.NewtonCfg(),
-        visualizer_cfgs=VisualizerCfg(visualizer_type="newton_rtx"),
-    )
-
-    with launch_simulation(cfg):
+    with launch_simulation(sim_launcher.NewtonCfg(), {"visualizer": ["newton_rtx"]}):
         calls.append("user")
 
     assert calls == ["register", "storage", "user"]

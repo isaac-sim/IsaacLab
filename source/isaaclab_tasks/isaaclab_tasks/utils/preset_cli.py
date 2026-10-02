@@ -87,6 +87,12 @@ def setup_preset_cli(
             argv. Help-time variant enumeration always reads ``sys.argv`` --
             the user's interactive command line is the only argv that
             triggers ``--help`` rendering.
+    A Hydra override is never the value of an option whose value is optional
+    (``nargs="?"``): ``--video presets=newton_mjwarp`` records video with the
+    option's default source and passes the override on. Overrides always
+    contain ``=``, so such an option followed by a token with ``=`` takes its
+    ``const`` instead.
+
     Returns:
         ``(args, remaining)`` where ``remaining`` is the verbatim output of
         ``parser.parse_known_args(argv)``, ready to hand to Hydra via
@@ -120,6 +126,16 @@ def setup_preset_cli(
         parser.print_help()
         raise SystemExit(0)
 
+    optional_value_consts = {
+        option: action.const
+        for action in parser._actions
+        if action.nargs == argparse.OPTIONAL
+        for option in action.option_strings
+    }
+    args_to_parse = [
+        f"{token}={optional_value_consts[token]}" if token in optional_value_consts and "=" in next_token else token
+        for token, next_token in zip(args_to_parse, [*args_to_parse[1:], ""])
+    ]
     return parser.parse_known_args(args_to_parse)
 
 

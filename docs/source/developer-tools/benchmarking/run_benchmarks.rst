@@ -61,7 +61,6 @@ From a source installation, run:
        --warmup_steps 50 \
        --num_steps 1000 \
        --seed 42 \
-       --visualizer none \
        --benchmark_formatter schema,summary \
        --output_path ./benchmark_results \
        physics=isaacsim_physx
@@ -105,7 +104,7 @@ For ``Isaac-RenderBenchmark-Franka-Cabinet``, an unset ``BENCHMARK_MODE`` defaul
 scope profiling. Set ``BENCHMARK_MODE=render`` to write analytic joint poses after
 physics, while ``BENCHMARK_MODE=physics_render``
 sets actuator targets before physics. Both modes still step physics. Direct posing
-requires ``scene.lazy_sensor_update=True``. With Isaac RTX, use ``--visualizer none``
+requires ``scene.lazy_sensor_update=True``. With Isaac RTX, omit ``--visualizer``
 in this mode: a Kit visualizer would render before the pose write.
 
 Set ``ISAACLAB_PHYSICS_PROFILE=1`` to collect synchronized physics-step timings during
@@ -250,7 +249,6 @@ Run it
        --warmup_steps 50 \
        --checkpoint /path/to/model.pt \
        --seed 42 \
-       --visualizer none \
        --benchmark_formatter schema,summary \
        --output_path ./benchmark_results/play \
        physics=isaacsim_physx
@@ -309,7 +307,6 @@ Run it
        --max_iterations 100 \
        --warmup_steps 50 \
        --seed 42 \
-       --visualizer none \
        --benchmark_formatter schema,summary \
        --output_path ./benchmark_results/training \
        physics=isaacsim_physx
@@ -386,7 +383,6 @@ Run it
        --num_envs 4096 \
        --top_n 30 \
        --seed 42 \
-       --visualizer none \
        --benchmark_formatter schema,summary \
        --output_path ./benchmark_results/startup \
        physics=isaacsim_physx
@@ -476,7 +472,6 @@ and sensor preset explicitly:
        --num_steps 1000 \
        --seed 42 \
        --enable_cameras \
-       --visualizer none \
        --benchmark_formatter schema,summary \
        --output_path ./benchmark_results/rendered \
        physics=isaacsim_physx renderer=isaacsim_rtx presets=rgb

@@ -398,7 +398,7 @@ Try the demo:
           uv run --extra tetrahedralization python scripts/environments/zero_agent.py --task Isaac-Lift-Soft-Franka --num_envs 1 --visualizer kit
 
           # scripted pick-and-lift via state machine
-          uv run --extra tetrahedralization python scripts/environments/state_machine/lift_franka_soft.py --num_envs 1
+          uv run --extra tetrahedralization python scripts/environments/state_machine/lift_franka_soft.py --num_envs 1 --visualizer newton_gl
 
    .. tab-item:: isaaclab.sh / isaaclab.bat
 
@@ -408,7 +408,7 @@ Try the demo:
           ./isaaclab.sh -p scripts/environments/zero_agent.py --task Isaac-Lift-Soft-Franka --num_envs 1 --visualizer kit
 
           # scripted pick-and-lift via state machine
-          ./isaaclab.sh -p scripts/environments/state_machine/lift_franka_soft.py --num_envs 1
+          ./isaaclab.sh -p scripts/environments/state_machine/lift_franka_soft.py --num_envs 1 --visualizer newton_gl
 
 
 Contact and Material Parameters
