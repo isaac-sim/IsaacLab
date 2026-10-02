@@ -75,7 +75,6 @@ from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
 from isaaclab.scene_data import SceneDataFormat
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.warp import ProxyArray
-from isaaclab.utils.warp.warp_math import convert_camera_frame_orientation_convention_wp
 
 from isaaclab_ov.cloner import ovrtx_replicate
 from isaaclab_ov.renderers.ovrtx_annotator_utils import (
@@ -294,7 +293,6 @@ class OVRTXCameraRenderData:
             else {source: source for source in _RENDER_VAR_PRIM_NAMES}
         )
         self.camera_xform_binding = None
-        self.camera_xform_query = None
         self.resources = contextlib.ExitStack()
         self.width = spec.cfg.width
         self.height = spec.cfg.height
@@ -336,7 +334,6 @@ class OVRTXCameraRenderData:
             self.pending = self.ready = None
             self.capture = {}
             self.camera_xform_binding = None
-            self.camera_xform_query = None
             self.intrinsic_bindings.clear()
             self.warp_buffers.clear()
             self.renderer_info.clear()
@@ -477,9 +474,7 @@ class OVRTXRenderer(BaseRenderer):
             return
         reset_xforms = np.ones(len(object_paths), dtype=np.bool_)
         if self._use_ovstage:
-            paths = self.scene.paths.create_path_list_from_strings(object_paths)
-            self._bindings.callback(self.scene.paths.destroy_path_list, paths)
-            self._object_xform_binding = self._bindings.enter_context(self.scene.stage.query_from_path_list(paths))
+            self._object_xform_binding = self._bindings.enter_context(self.scene.query(object_paths))
             self.scene.stage.write_attribute(
                 self._object_xform_binding,
                 "omni:resetXformStack",
@@ -500,8 +495,11 @@ class OVRTXRenderer(BaseRenderer):
             self.backend.renderer.write_attribute(
                 prim_paths=object_paths, attribute_name="omni:resetXformStack", tensor=reset_xforms
             )
-        scales = [self._object_scales_by_path.get(path, (1.0, 1.0, 1.0)) for path in object_paths]
-        self._object_scales = wp.array(scales, dtype=wp.vec3f, device=self._device)
+        self._object_scales = None
+        # No scale override lets renderers share SDP's converted publication instead of multiplying by ones.
+        if any(path in self._object_scales_by_path for path in object_paths):
+            scales = [self._object_scales_by_path.get(path, (1.0, 1.0, 1.0)) for path in object_paths]
+            self._object_scales = wp.array(scales, dtype=wp.vec3f, device=self._device)
 
     def _setup_geometry_bindings(self) -> None:
         """Bind SDP's world-space point prims without applying inherited transforms again."""
@@ -513,9 +511,7 @@ class OVRTXRenderer(BaseRenderer):
         reset_xforms = np.ones(prim_count, dtype=np.bool_)
         identity_xforms = np.tile(np.eye(4, dtype=np.float64), (prim_count, 1, 1))
         if self._use_ovstage:
-            paths = self.scene.paths.create_path_list_from_strings(self._geometry_paths)
-            self._bindings.callback(self.scene.paths.destroy_path_list, paths)
-            self._geometry_points_binding = self._bindings.enter_context(self.scene.stage.query_from_path_list(paths))
+            self._geometry_points_binding = self._bindings.enter_context(self.scene.query(self._geometry_paths))
             self.scene.stage.write_attribute(
                 self._geometry_points_binding,
                 "omni:resetXformStack",
@@ -596,21 +592,15 @@ class OVRTXRenderer(BaseRenderer):
                     if not self.scene.ordinal:
                         self.scene.populate(self._exported_usd_string)
                     if env_paths:
-                        paths = self.scene.paths.create_path_list_from_strings(env_paths)
-                        try:
-                            with self.scene.stage.query_from_path_list(paths) as query:
-                                self.scene.stage.write_attribute(
-                                    query,
-                                    "primvars:omni:scenePartition",
-                                    ordinal=self.scene.ordinal,
-                                    tensors=np.array(
-                                        [self.scene.paths.intern_token(t) for t in tokens], dtype=np.uint64
-                                    ),
-                                    is_array=False,
-                                    semantic=ovstage.AttributeSemantic.TOKEN_ID,
-                                ).wait()
-                        finally:
-                            self.scene.paths.destroy_path_list(paths)
+                        with self.scene.query(env_paths) as query:
+                            self.scene.stage.write_attribute(
+                                query,
+                                "primvars:omni:scenePartition",
+                                ordinal=self.scene.ordinal,
+                                tensors=np.array([self.scene.paths.intern_token(t) for t in tokens], dtype=np.uint64),
+                                is_array=False,
+                                semantic=ovstage.AttributeSemantic.TOKEN_ID,
+                            ).wait()
                 else:
                     self.backend.renderer.open_usd_from_string(self._exported_usd_string)
                     ovrtx_replicate(
@@ -635,7 +625,7 @@ class OVRTXRenderer(BaseRenderer):
                 self._exported_usd_string = None
                 self._initialized_scene = True
             render_data.camera_writes = _AsyncWriteBuffers(
-                tuple(wp.empty(spec.num_instances, dtype, device=self._device) for dtype in (wp.quatf, wp.mat44d))
+                wp.empty(spec.num_instances, wp.mat44d, device=self._device)
                 for _ in range(2 if self.cfg.async_rendering and not self._use_ovstage else 1)
             )
             if not self._use_ovstage:
@@ -679,34 +669,26 @@ class OVRTXRenderer(BaseRenderer):
             reference = ovstage.population.add_usd_reference_from_string(self.scene.stage, usd, f"/{scope}")
             render_data.resources.callback(self._remove_camera_reference, reference)
             ovstage.population.apply_usd_changes(self.scene.stage, ordinal=self.scene.ordinal)
-            product_paths = self.scene.paths.create_path_list_from_strings([product_path])
-            try:
-                with self.scene.stage.query_from_path_list(product_paths) as query:
-                    # USD references drop external camera targets; author the relationship in Fabric.
-                    self.scene.stage.write_attribute(
-                        query,
-                        "camera",
-                        ordinal=self.scene.ordinal,
-                        tensors=np.array([self.scene.paths.intern_path(p) for p in camera_paths], dtype=np.uint64),
-                        is_array=True,
-                        semantic=ovstage.AttributeSemantic.RELATIONSHIP_PATH_ID,
-                    ).wait()
-            finally:
-                self.scene.paths.destroy_path_list(product_paths)
-            camera_paths_list = self.scene.paths.create_path_list_from_strings(camera_paths)
-            render_data.resources.callback(self.scene.paths.destroy_path_list, camera_paths_list)
-            render_data.camera_xform_query = render_data.resources.enter_context(
-                self.scene.stage.query_from_path_list(camera_paths_list)
-            )
+            with self.scene.query([product_path]) as query:
+                # USD references drop external camera targets; author the relationship in Fabric.
+                self.scene.stage.write_attribute(
+                    query,
+                    "camera",
+                    ordinal=self.scene.ordinal,
+                    tensors=np.array([self.scene.paths.intern_path(p) for p in camera_paths], dtype=np.uint64),
+                    is_array=True,
+                    semantic=ovstage.AttributeSemantic.RELATIONSHIP_PATH_ID,
+                ).wait()
+            render_data.camera_xform_binding = render_data.resources.enter_context(self.scene.query(camera_paths))
             self.scene.stage.write_attribute(
-                render_data.camera_xform_query,
+                render_data.camera_xform_binding,
                 "omni:resetXformStack",
                 ordinal=self.scene.ordinal,
                 tensors=np.full(spec.num_instances, True, dtype=np.bool_),
                 is_array=False,
             ).wait()
             self.scene.stage.write_attribute(
-                render_data.camera_xform_query,
+                render_data.camera_xform_binding,
                 "omni:scenePartition",
                 ordinal=self.scene.ordinal,
                 tensors=np.array(
@@ -810,29 +792,6 @@ class OVRTXRenderer(BaseRenderer):
             info = render_data.renderer_info.get(output_name)
             camera_data.info[output_name] = {**(info or {}), "capture": capture} if capture else info
 
-    def _generate_random_colors_from_ids(self, input_ids: wp.array, output_colors: wp.array | None) -> wp.array:
-        """Generate pseudo-random RGBA colors from uint32 IDs into a reusable output buffer.
-
-        Args:
-            input_ids: 3-D uint32 Warp array of shape (H, W, 1).
-            output_colors: Existing color buffer to reuse, or None to allocate a new one.
-
-        Returns:
-            Color buffer containing the generated colors.
-        """
-
-        # Lazily allocate, and re-allocate if the shape changes.
-        if output_colors is None or output_colors.shape != input_ids.shape:
-            output_colors = wp.zeros(shape=input_ids.shape, dtype=wp.uint32, device=self._device)
-
-        wp.launch(
-            kernel=generate_random_colors_from_ids_kernel,
-            dim=input_ids.shape,
-            inputs=[input_ids, output_colors],
-            device=self._device,
-        )
-        return output_colors
-
     @contextlib.contextmanager
     def _map_render_var_to_dlpack(self, render_var: Any) -> Iterator[wp.array]:
         """Map ``render_var`` for CUDA reads and yield it as a Warp array.
@@ -867,135 +826,66 @@ class OVRTXRenderer(BaseRenderer):
                 mapping.wait()
             yield wp.from_dlpack(mapping)
 
-    def _process_id_segmentation_render_var(
-        self,
-        render_data: OVRTXCameraRenderData,
-        frame,
-        output_buffers: dict,
-        render_var_key: str,
-        buffer_key: str,
-        colorize: bool,
-    ) -> None:
-        """Extract a uint32 ID-segmentation render var into ``output_buffers[buffer_key]``.
-
-        Shared by ``semantic_segmentation`` (``SemanticSegmentation``) and ``instance_segmentation``
-        (``NonStableInstanceSegmentation``), which only differ in the source render var, the destination buffer,
-        and whether to colorize.
-
-        Args:
-            render_data: OVRTX render data for the current frame.
-            frame: OVRTX frame holding the mapped render vars.
-            output_buffers: Destination warp buffers, keyed by data type.
-            render_var_key: Render-var source name.
-            buffer_key: Data type key into ``output_buffers``.
-            colorize: If True, IDs are mapped to RGBA colors; otherwise raw uint32 IDs are copied.
-        """
-        render_var = frame.render_vars.get(render_data.render_var_keys[render_var_key])
-        if render_var is None or buffer_key not in output_buffers:
+    def _process_segmentation(self, render_data: OVRTXCameraRenderData, frame, output_buffers: dict) -> None:
+        """Extract segmentation pixels and decode their shared label map once per frame."""
+        semantic, instance = "semantic_segmentation", "instance_segmentation"
+        if semantic not in output_buffers and instance not in output_buffers:
             return
-
-        with self._map_render_var_to_dlpack(render_var) as tiled_data:
-            if tiled_data.dtype != wp.uint32:
-                return
-
-            if colorize:
-                color_buffer = self._generate_random_colors_from_ids(
-                    tiled_data, self._output_id_color_buffers.get(buffer_key)
-                )
-                self._output_id_color_buffers[buffer_key] = color_buffer
-
-                colors_torch = wp.to_torch(color_buffer)
-                colors_uint8 = colors_torch.view(torch.uint8)
-                if colors_torch.dim() == 2:
-                    h, w = colors_torch.shape
-                    colors_uint8 = colors_uint8.reshape(h, w, 4)
-                tiled_data = wp.from_torch(colors_uint8, dtype=wp.uint8)
-                self._extract_rgba_tiles(render_data, tiled_data, output_buffers, buffer_key)
-            else:
-                # Non-colorized: ensure (TH, TW, 1) shape for the uint32 extraction kernel. Reshape the warp
-                # array directly instead of round-tripping through torch, which raises on ``torch.uint32``
-                # (newer torch exposes the dtype but ``wp.from_torch`` still rejects it).
-                if tiled_data.ndim == 2:
-                    tiled_data = tiled_data.reshape((*tiled_data.shape, 1))
-                self._launch_extract_all_tiles(render_data, tiled_data, output_buffers[buffer_key])
-
-    def _process_semantic_id_map(self, render_data: OVRTXCameraRenderData, frame) -> None:
-        """Decode the ``SemanticIdMap`` render var into ``render_data.renderer_info["semantic_segmentation"]``.
-
-        Populates an ``"idToLabels"`` mapping compatible with Isaac RTX / Replicator: keys are the raw semantic
-        IDs (``colorize_semantic_segmentation=False``) or the RGBA color tuples the segmentation buffer uses
-        (``colorize_semantic_segmentation=True``); values are ``{semantic_type: label}`` dicts. The reserved
-        BACKGROUND (ID 0) and UNLABELLED (ID 1) entries are always included.
-
-        Args:
-            render_data: OVRTX render data for the current frame.
-            frame: OVRTX frame holding the mapped render vars.
-        """
-        semantic_id_map = frame.render_vars.get(render_data.render_var_keys[_SEMANTIC_ID_MAP_VAR])
-        if semantic_id_map is None:
-            return
-
-        with semantic_id_map.map(device=Device.CPU) as mapping:
-            labels_by_id = decode_semantic_id_map(np.from_dlpack(mapping))
-
-        render_data.renderer_info["semantic_segmentation"] = {
-            "idToLabels": build_semantic_id_to_labels(
-                labels_by_id, colorize=self.cfg.colorize_semantic_segmentation, device=self._device
-            )
-        }
-
-    def _process_instance_segmentation_maps(self, render_data: OVRTXCameraRenderData, frame) -> None:
-        """Decode the instance-segmentation map render vars into ``renderer_info["instance_segmentation"]``.
-
-        An *instance pixel ID* is a compact integer that the renderer assigns to each visible object instance.
-        Every pixel in the segmentation buffer holds the ID of the instance rendered at that location; the same
-        ID maps to the same object across the entire frame.  ID 0 is reserved for BACKGROUND (no geometry), and
-        ID 1 for UNLABELLED (geometry with no semantic annotation).  All other IDs are dynamically assigned per
-        frame.
-
-        Populates ``"idToLabels"`` (instance pixel ID -> USD prim path) and ``"idToSemantics"`` (instance pixel
-        ID -> ``{semantic_type: label}``) compatible with Isaac RTX / Replicator. Resolving both requires all
-        three map render vars — ``StableIdSemanticIdMap`` (pixel ID -> stable ID + semantic ID), ``StableIdMap``
-        (stable ID -> prim path), and ``SemanticIdMap`` (semantic ID -> label). Keys are the raw pixel IDs
-        (``colorize_instance_segmentation=False``) or the RGBA color tuples the segmentation buffer uses
-        (``colorize_instance_segmentation=True``); the reserved BACKGROUND (ID 0) and UNLABELLED (ID 1) entries
-        are always included.
-
-        Raises:
-            RuntimeError: If any of the three required render vars is absent from ``frame``.
-
-        Args:
-            render_data: OVRTX render data for the current frame.
-            frame: OVRTX frame holding the mapped render vars.
-        """
-        resolved = {
-            key: frame.render_vars.get(render_data.render_var_keys[key]) for key in _INSTANCE_SEGMENTATION_MAP_VARS
-        }
-        missing = [key for key, render_var in resolved.items() if render_var is None]
-        if missing:
+        maps = {key: frame.render_vars.get(render_data.render_var_keys[key]) for key in _INSTANCE_SEGMENTATION_MAP_VARS}
+        if instance in output_buffers and (missing := [key for key, value in maps.items() if value is None]):
             raise RuntimeError(
                 f"instance_segmentation was requested but the following render vars are missing from the "
-                f"OVRTX frame: {missing}. Available vars: {list(frame.render_vars.keys())}"
+                f"OVRTX frame: {missing}. Available vars: {list(frame.render_vars)}"
             )
+        labels = None
+        if maps[_SEMANTIC_ID_MAP_VAR] is not None:
+            with maps[_SEMANTIC_ID_MAP_VAR].map(device=Device.CPU) as mapping:
+                labels = decode_semantic_id_map(np.from_dlpack(mapping))
 
-        with resolved[_STABLE_ID_SEMANTIC_ID_MAP_VAR].map(device=Device.CPU) as mapping:
-            stable_id_semantic_id_map = decode_stable_id_semantic_id_map(np.from_dlpack(mapping))
-        with resolved[_STABLE_ID_MAP_VAR].map(device=Device.CPU) as mapping:
-            stable_id_to_path = decode_stable_id_map(np.from_dlpack(mapping))
-        with resolved[_SEMANTIC_ID_MAP_VAR].map(device=Device.CPU) as mapping:
-            semantic_id_to_labels = decode_semantic_id_map(np.from_dlpack(mapping))
+        for source, key, colorize in (
+            (_SEMANTIC_SEGMENTATION_VAR, semantic, self.cfg.colorize_semantic_segmentation),
+            (_INSTANCE_SEGMENTATION_VAR, instance, self.cfg.colorize_instance_segmentation),
+        ):
+            render_var = frame.render_vars.get(render_data.render_var_keys[source])
+            if key not in output_buffers or render_var is None:
+                continue
+            with self._map_render_var_to_dlpack(render_var) as tiled_data:
+                if tiled_data.dtype != wp.uint32:
+                    continue
+                if colorize:
+                    color_buffer = self._output_id_color_buffers.get(key)
+                    if color_buffer is None or color_buffer.shape != tiled_data.shape:
+                        color_buffer = wp.zeros(tiled_data.shape, dtype=wp.uint32, device=self._device)
+                        self._output_id_color_buffers[key] = color_buffer
+                    wp.launch(
+                        generate_random_colors_from_ids_kernel,
+                        tiled_data.shape,
+                        inputs=[tiled_data, color_buffer],
+                        device=self._device,
+                    )
+                    colors = wp.to_torch(color_buffer).view(torch.uint8).reshape(*tiled_data.shape[:2], 4)
+                    self._extract_rgba_tiles(render_data, wp.from_torch(colors, dtype=wp.uint8), output_buffers, key)
+                else:
+                    # Keep uint32 in Warp; torch-to-Warp conversion does not support that dtype.
+                    if tiled_data.ndim == 2:
+                        tiled_data = tiled_data.reshape((*tiled_data.shape, 1))
+                    self._launch_extract_all_tiles(render_data, tiled_data, output_buffers[key])
 
-        id_to_labels, id_to_semantics = build_instance_id_to_labels_and_semantics(
-            stable_id_semantic_id_map,
-            stable_id_to_path,
-            semantic_id_to_labels,
-            colorize=self.cfg.colorize_instance_segmentation,
-            device=self._device,
-        )
-        render_data.renderer_info["instance_segmentation"] = {
-            "idToLabels": id_to_labels,
-            "idToSemantics": id_to_semantics,
-        }
+        if semantic in output_buffers and labels is not None:
+            render_data.renderer_info[semantic] = {
+                "idToLabels": build_semantic_id_to_labels(
+                    labels, colorize=self.cfg.colorize_semantic_segmentation, device=self._device
+                )
+            }
+        if instance in output_buffers:
+            with maps[_STABLE_ID_SEMANTIC_ID_MAP_VAR].map(device=Device.CPU) as mapping:
+                instances = decode_stable_id_semantic_id_map(np.from_dlpack(mapping))
+            with maps[_STABLE_ID_MAP_VAR].map(device=Device.CPU) as mapping:
+                paths = decode_stable_id_map(np.from_dlpack(mapping))
+            id_to_labels, id_to_semantics = build_instance_id_to_labels_and_semantics(
+                instances, paths, labels, colorize=self.cfg.colorize_instance_segmentation, device=self._device
+            )
+            render_data.renderer_info[instance] = {"idToLabels": id_to_labels, "idToSemantics": id_to_semantics}
 
     def _launch_extract_all_tiles(
         self, render_data: OVRTXCameraRenderData, tiled_buffer: wp.array, output_buffer: wp.array
@@ -1104,30 +994,7 @@ class OVRTXRenderer(BaseRenderer):
                     raise TypeError(f"Unsupported OVRTX HdrColor dtype: {tiled_hdr_data.dtype}.")
                 self._launch_extract_all_tiles(render_data, tiled_hdr_data, output_buffers["rgb_hdr"])
 
-        self._process_id_segmentation_render_var(
-            render_data,
-            frame,
-            output_buffers,
-            _SEMANTIC_SEGMENTATION_VAR,
-            "semantic_segmentation",
-            self.cfg.colorize_semantic_segmentation,
-        )
-        # Decode the SemanticIdMap into camera.data.info["semantic_segmentation"]["idToLabels"].
-        if "semantic_segmentation" in output_buffers:
-            self._process_semantic_id_map(render_data, frame)
-
-        self._process_id_segmentation_render_var(
-            render_data,
-            frame,
-            output_buffers,
-            _INSTANCE_SEGMENTATION_VAR,
-            "instance_segmentation",
-            self.cfg.colorize_instance_segmentation,
-        )
-        # Decode the StableIdSemanticIdMap/StableIdMap/SemanticIdMap trio into
-        # camera.data.info["instance_segmentation"]["idToLabels"] and ["idToSemantics"].
-        if "instance_segmentation" in output_buffers:
-            self._process_instance_segmentation_maps(render_data, frame)
+        self._process_segmentation(render_data, frame, output_buffers)
 
         normals_var = frame.render_vars.get(render_data.render_var_keys[_NORMALS_VAR])
         if normals_var is not None and "normals" in output_buffers:
@@ -1262,14 +1129,13 @@ class OVRTXRenderer(BaseRenderer):
         intrinsics: ProxyArray,
     ) -> None:
         """Update camera poses using the camera's reusable conversion buffers."""
-        binding = render_data.camera_xform_query if self._use_ovstage else render_data.camera_xform_binding
+        binding = render_data.camera_xform_binding
         if binding is None:
             return
         stream = self._warp_device.stream
-        converted, matrices = render_data.camera_writes.acquire(stream)
-        convert_camera_frame_orientation_convention_wp(orientations, converted, "world", "opengl", device=self._device)
+        matrices = render_data.camera_writes.acquire(stream)
         wp.launch(
-            create_camera_transforms_kernel, len(matrices), inputs=[positions, converted, matrices], device=self._device
+            create_camera_transforms_kernel, len(matrices), [positions, orientations, matrices], device=self._device
         )
         if self._use_ovstage:
             self.scene.stage.write_attribute(
@@ -1296,7 +1162,7 @@ class OVRTXRenderer(BaseRenderer):
         stream = wp.get_stream(parameters.device).cuda_stream
         if self._use_ovstage:
             self.scene.stage.write_attributes(
-                render_data.camera_xform_query,
+                render_data.camera_xform_binding,
                 [
                     ovstage.WriteDesc(attribute=name, tensors=parameters[row], is_array=False, cuda_stream=stream)
                     for row, name in enumerate(_CAMERA_INTRINSIC_ATTRIBUTES)

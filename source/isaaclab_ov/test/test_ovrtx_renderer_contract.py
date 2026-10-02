@@ -86,6 +86,7 @@ def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
     from isaaclab_ov.stage import OvstageBackend
 
     renderer.scene.commit = OvstageBackend.commit.__get__(renderer.scene)
+    renderer.scene.query = OvstageBackend.query.__get__(renderer.scene)
     renderer.scene.next_camera_id = 0
     renderer.backend.attached = False
     cfg = OVRTXBackendCfg(scene_key=renderer.cfg, use_ovstage=False, read_gpu_transforms=True)
@@ -811,37 +812,61 @@ def test_launch_extract_all_tiles_rejects_wider_output_channels():
         )
 
 
-def test_ovrtx_read_output_clears_stale_metadata_and_keeps_seeded_keys():
-    """read_output replaces (not merges): a dropped render var resets its info entry, seeded keys persist."""
-    renderer = _make_ovrtx_renderer_without_backend()
-    render_data = _make_ovrtx_camera_render_data()
-
-    # ``camera_data.info`` is seeded with one key per output (mirrors ``camera_data.output``); both start None.
-    camera_data = CameraData()
-    camera_data.info = {"rgb": None, "semantic_segmentation": None}
-    camera_data._output = {}
-
-    # Frame 1: the SemanticIdMap render var is present, so its metadata lands in info.
-    id_to_labels = {"2": {"class": "cartpole"}}
-    render_data.renderer_info = {"semantic_segmentation": {"idToLabels": id_to_labels}}
-    renderer.read_output(render_data, camera_data)
-    assert camera_data.info["semantic_segmentation"] == {"idToLabels": id_to_labels}
-
-    # Frame 2: render() rebuilds renderer_info from scratch and the SemanticIdMap is gone this frame.
-    render_data.renderer_info = {}
-    renderer.read_output(render_data, camera_data)
-
-    # The stale idToLabels must be cleared, and the seeded keys (rgb, semantic_segmentation) must remain.
-    assert camera_data.info == {"rgb": None, "semantic_segmentation": None}
-
-
-@pytest.mark.parametrize("kind", [RenderBufferKind.SEMANTIC_SEGMENTATION, RenderBufferKind.INSTANCE_SEGMENTATION])
 @pytest.mark.parametrize("colorized", [False, True])
-def test_segmentation_spec_follows_colorize_flag(kind, colorized):
+def test_segmentation_outputs_share_metadata_and_clear_stale_labels(monkeypatch, colorized):
+    """Pixel types, label keys and missing-map handling follow the requested output contract."""
+    from isaaclab.renderers.segmentation_colors import random_color_from_id
+
+    from .test_ovrtx_annotator_utils import _encode_identifier_map, _encode_stable_id_semantic_id_map
+
     renderer = _make_ovrtx_renderer_without_backend()
-    setattr(renderer.cfg, f"colorize_{kind.value}", colorized)
-    expected = RenderBufferSpec(4, wp.uint8) if colorized else RenderBufferSpec(1, wp.int32)
-    assert renderer.supported_output_types()[kind] == expected
+    renderer._device = "cpu"
+    renderer.cfg.colorize_semantic_segmentation = renderer.cfg.colorize_instance_segmentation = colorized
+    render_data = _make_ovrtx_camera_render_data()
+    kinds = ["semantic_segmentation", "instance_segmentation"]
+    camera_data = CameraData.allocate(
+        data_types=["rgb", *kinds],
+        height=8,
+        width=16,
+        num_views=2,
+        device="cpu",
+        supported_specs=renderer.supported_output_types(),
+    )
+    renderer.set_outputs(render_data, camera_data.output)
+    seeded_keys = tuple(camera_data.info)
+    stable_id = (42, 0, 0, 0)
+    maps = {
+        "SemanticIdMap": _encode_identifier_map([((2, 0, 0, 0), "class: cone;")]),
+        "StableIdMap": _encode_identifier_map([(stable_id, "/World/Cone")]),
+        "StableIdSemanticIdMap": _encode_stable_id_semantic_id_map([(stable_id, 2)]),
+    }
+    frame = types.SimpleNamespace(render_vars={})
+    for key, value in maps.items():
+        render_var = MagicMock()
+        render_var.map.side_effect = lambda value=value, **kwargs: contextlib.nullcontext(value)
+        frame.render_vars[render_data.render_var_keys[key]] = render_var
+    for key in ("SemanticSegmentation", "NonStableInstanceSegmentation"):
+        frame.render_vars[render_data.render_var_keys[key]] = wp.full((8, 32, 1), 2, dtype=wp.uint32, device="cpu")
+    monkeypatch.setattr(renderer, "_map_render_var_to_dlpack", contextlib.nullcontext)
+    renderer._process_render_frame(render_data, frame, render_data.warp_buffers)
+    renderer.read_output(render_data, camera_data)
+    pixel = random_color_from_id(2) if colorized else 2
+    for kind in kinds:
+        output = camera_data.output[kind].warp
+        assert output.dtype == (wp.uint8 if colorized else wp.int32)
+        assert output.shape == (2, 8, 16, 4 if colorized else 1)
+        np.testing.assert_array_equal(output.numpy(), np.broadcast_to(pixel, output.shape))
+    assert camera_data.info[kinds[0]]["idToLabels"][pixel] == {"class": "cone"}
+    assert camera_data.info[kinds[1]]["idToLabels"][pixel] == "/World/Cone"
+    assert camera_data.info[kinds[1]]["idToSemantics"][pixel] == {"class": "cone"}
+    frame.render_vars[render_data.render_var_keys["SemanticIdMap"]].map.assert_called_once()
+
+    frame.render_vars.clear()
+    with pytest.raises(RuntimeError, match="SemanticIdMap"):
+        renderer._process_render_frame(render_data, frame, render_data.warp_buffers)
+    renderer._process_render_frame(render_data, frame, {kinds[0]: render_data.warp_buffers[kinds[0]]})
+    renderer.read_output(render_data, camera_data)
+    assert camera_data.info == dict.fromkeys(seeded_keys)
 
 
 def test_ovrtx_use_ovstage_defaults_to_disabled(monkeypatch):
@@ -956,7 +981,7 @@ def test_ovrtx_cleanup_releases_only_the_given_render_data(monkeypatch, cleanup_
     render_data.renderer_info = {"semantic_segmentation": {"idToLabels": {}}}
     render_data.ppisp_pipeline = object()
     if use_ovstage:
-        render_data.camera_xform_query = "to_remove"
+        render_data.camera_xform_binding = "to_remove"
         render_data.resources.callback(renderer.scene.paths.destroy_path_list, "to_remove")
         render_data.resources.enter_context(renderer.scene.stage.query_from_path_list("to_remove"))
     else:
@@ -997,7 +1022,6 @@ def test_ovrtx_cleanup_releases_only_the_given_render_data(monkeypatch, cleanup_
     assert events == expected
     assert renderer._camera_render_data == [other_camera]
     assert render_data.camera_xform_binding is None
-    assert render_data.camera_xform_query is None
     assert render_data.intrinsic_bindings == []
     assert render_data.warp_buffers == {}
     assert render_data.renderer_info == {}
@@ -1037,7 +1061,7 @@ def test_create_render_data_rejects_cameras_outside_source_environment(camera_pa
 
 
 @pytest.mark.parametrize("use_ovstage", [False, True])
-def test_intrinsic_updates_target_the_given_camera(monkeypatch, use_ovstage):
+def test_pose_and_intrinsic_updates_target_the_given_camera(monkeypatch, use_ovstage):
     """Distinct cameras, including a prototype-only wrist camera, bind every environment independently."""
     renderer = _make_ovrtx_renderer_without_backend()
     renderer._initialized_scene = True
@@ -1068,10 +1092,31 @@ def test_intrinsic_updates_target_the_given_camera(monkeypatch, use_ovstage):
         for camera_paths in (paths[0], paths[1][:1])
     ]
     monkeypatch.setattr(wp, "get_stream", lambda device: types.SimpleNamespace(cuda_stream=99))
+    monkeypatch.setattr(wp, "synchronize_stream", lambda stream: None)
+    renderer._warp_device = types.SimpleNamespace(stream=types.SimpleNamespace(cuda_stream=99))
+    monkeypatch.setattr(ovrtx_renderer_module, "xform_tensor_from_warp", lambda value: value)
+    positions = wp.array([[1, 2, 3], [4, 5, 6]], dtype=wp.vec3f, device="cpu")
+    rotations = np.array([[1, 2, 3, 4], [0, 0, 0, 1]], dtype=np.float32)
+    rotations /= np.linalg.norm(rotations, axis=1, keepdims=True)
+    renderer.update_camera(cameras[1], positions, wp.array(rotations, dtype=wp.quatf, device="cpu"), None)
+    matrices = (
+        renderer.scene.stage.write_attribute.call_args.kwargs["tensors"]
+        if use_ovstage
+        else cameras[1].camera_xform_binding.write_async.call_args.args[0]
+    )
+    from pxr import Gf
+
+    # OpenGL's right/up/back axes are -Y/+Z/-X in the world camera convention.
+    basis = np.eye(4)
+    basis[:3, :3] = [[0, -1, 0], [0, 0, 1], [-1, 0, 0]]
+    world_rotations = [Gf.Quatd(float(q[3]), Gf.Vec3d(*map(float, q[:3]))) for q in rotations]
+    expected = np.array([basis @ np.array(Gf.Matrix4d().SetRotate(q)) for q in world_rotations])
+    expected[:, 3, :3] = positions.numpy()
+    np.testing.assert_allclose(matrices.numpy(), expected, atol=1e-6, rtol=0)
     parameters = wp.zeros((5, 2), dtype=wp.float32, device="cpu")
     renderer.update_camera_intrinsics(cameras[1], wp.zeros(2, dtype=wp.mat33f, device="cpu"), parameters)
     if use_ovstage:
-        assert renderer.scene.stage.write_attributes.call_args.args[0] is cameras[1].camera_xform_query
+        assert renderer.scene.stage.write_attributes.call_args.args[0] is cameras[1].camera_xform_binding
         bound_paths = [call.args[0] for call in renderer.scene.paths.create_path_list_from_strings.call_args_list]
         assert bound_paths == [[cameras[0].render_product_path], paths[0], [cameras[1].render_product_path], paths[1]]
     else:
@@ -1141,7 +1186,7 @@ def _make_renderer_with_backend(events: list[str], use_ovstage: bool) -> OVRTXRe
         renderer.scene._resources.callback(events.append, "close_stage")
         renderer.scene.ordinal = 7
         render_data.resources.callback(renderer.scene.paths.destroy_path_list, "camera")
-        render_data.camera_xform_query = render_data.resources.enter_context(query("camera"))
+        render_data.camera_xform_binding = render_data.resources.enter_context(query("camera"))
     else:
         render_data.camera_xform_binding = _RecordingBinding(events, "camera")
         render_data.resources.callback(render_data.camera_xform_binding.unbind)

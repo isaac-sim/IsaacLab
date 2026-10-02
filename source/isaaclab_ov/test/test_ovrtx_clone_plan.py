@@ -411,7 +411,8 @@ def test_native_cloners_keep_plan_interpretation_in_the_context():
         for node in ast.walk(renderer_tree)
     )
     assert not any(
-        isinstance(node, ast.Attribute) and node.attr == "_render_product_paths" for node in ast.walk(renderer_tree)
+        isinstance(node, ast.Attribute) and node.attr in {"_render_product_paths", "camera_xform_query"}
+        for node in ast.walk(renderer_tree)
     )
     tree = ast.parse(Path(replication.__file__).read_text())
     for function in tree.body:

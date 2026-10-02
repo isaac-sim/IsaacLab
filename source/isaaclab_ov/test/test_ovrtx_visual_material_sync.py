@@ -5,6 +5,7 @@
 
 """Unit tests for typed visual-material writes into OVRTX-owned scenes."""
 
+import contextlib
 import importlib.util
 from types import SimpleNamespace
 
@@ -78,8 +79,13 @@ class _OvstageRecorder:
         self.completions = []
         self.released = []
 
+    @contextlib.contextmanager
     def query_from_path_list(self, path_list):
-        return f"query:{path_list}"
+        query = f"query:{path_list}"
+        try:
+            yield query
+        finally:
+            self.release_query(query).wait()
 
     def write_attribute(self, query, attribute_name, **kwargs):
         self.events.append(f"write:{attribute_name}")
@@ -263,15 +269,22 @@ def test_ovstage_drain_does_not_mask_publish_or_floor_failure(failure, expected_
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="requires CUDA")
-def test_writer_close_drains_and_unbinds_compiled_legacy_addresses():
-    renderer, _events = _renderer()
+@pytest.mark.parametrize("use_ovstage", [False, True])
+def test_writer_close_drains_and_releases_compiled_addresses(use_ovstage):
+    renderer, _events = _renderer(use_ovstage=use_ovstage)
     writer = renderer.visual_material_writer((_batch("roughness", ("roughness",), torch.zeros(1, device="cuda")),))
     writer(None)
     writer.publish()
     writer.close()
 
-    assert all(binding.unbound for binding in renderer.backend.renderer.bindings)
-    assert all(write[3].wait_count == 1 for write in renderer.backend.renderer.writes)
+    writer.close()
+    if use_ovstage:
+        assert renderer.scene.stage.released == [f"query:{paths}" for paths in renderer.scene.paths.created]
+        assert renderer.scene.paths.destroyed == renderer.scene.paths.created
+        assert all(op.wait_count == 1 for op in renderer.scene.stage.completions)
+    else:
+        assert all(binding.unbound for binding in renderer.backend.renderer.bindings)
+        assert all(write[3].wait_count == 1 for write in renderer.backend.renderer.writes)
 
 
 @pytest.mark.parametrize("values", [torch.zeros(1, dtype=torch.float64), torch.zeros(1, 4)])

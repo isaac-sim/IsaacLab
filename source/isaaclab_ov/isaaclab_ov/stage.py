@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import contextlib
 import logging
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -176,6 +176,23 @@ class OvstageBackend:
         )
         self.ordinal = 1
         self.commit()
+
+    @contextlib.contextmanager
+    def query(self, prim_paths: Sequence[str]) -> Iterator[ovstage.Query]:
+        """Retain a query and its path list together until the caller leaves the context.
+
+        Args:
+            prim_paths: Prim paths in the query's binding order.
+
+        Yields:
+            The query, released before its caller-owned path list.
+        """
+        paths = self.paths.create_path_list_from_strings(prim_paths)
+        try:
+            with self.stage.query_from_path_list(paths) as query:
+                yield query
+        finally:
+            self.paths.destroy_path_list(paths)
 
     def commit(self) -> int:
         """Seal pending writes and return their ordinal; all consumers share the next write ordinal."""
