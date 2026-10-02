@@ -126,9 +126,22 @@ class processed_image(ManagerTermBase):
             normalize: For RGB/RGBA, convert to float32, divide by 255, and subtract
                 each image's spatial mean, matching :func:`isaaclab.envs.mdp.image`.
             permute: Return BCHW instead of BHWC as a view of the persistent output.
+
+        ``data_type``, ``normalize``, and ``permute`` are fixed when the term is prepared, because they
+        select persistent buffers. Calls must pass the same values as the term's ``params``.
+
+        Raises:
+            ValueError: If ``data_type``, ``normalize``, or ``permute`` differs from the prepared value.
         """
         if self._pipeline is None:
             raise RuntimeError("Cannot read a closed processed_image observation term.")
+        requested = (data_type, normalize, permute)
+        prepared = (self._data_type, self._normalize, self._permute)
+        if requested != prepared:
+            raise ValueError(
+                f"processed_image prepared (data_type, normalize, permute) = {prepared}, but was called with "
+                f"{requested}. Set these values in the observation term's params."
+            )
         # Render, Warp processing, and the manager's Torch snapshot share a stream.
         # Enter/exit waits also cover a camera frame rendered outside this term.
         stream = (

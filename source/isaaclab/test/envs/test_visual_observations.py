@@ -178,6 +178,9 @@ def test_normalized_permuted_output_reuses_storage_and_matches_image_math():
     torch.testing.assert_close(result, expected.permute(0, 3, 1, 2))
     camera.render_generation += 1
     assert term(env, **cfg.params) is result
+    # Output selection is fixed during preparation; a different call-time value must not be ignored.
+    with pytest.raises(ValueError, match="prepared"):
+        term(env, **{**cfg.params, "permute": False})
     term.close()
 
 
