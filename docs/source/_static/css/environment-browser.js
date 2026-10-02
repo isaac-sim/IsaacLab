@@ -106,6 +106,7 @@
             ["IsaacContrib-Place-Toy2Box-Agibot-Right-Arm-RmpFlow", "", "isaacsim_physx", "", "", "tasks/manipulation/agibot_place_toy.jpg"],
             ["IsaacContrib-Reach-OpenArm", "rl_games,rsl_rl,skrl", "", "", "", "tasks/manipulation/openarm_uni_reach.jpg"],
             ["IsaacContrib-Reach-OpenArmBi", "rl_games,rsl_rl", "", "", "", "tasks/manipulation/openarm_bi_reach.jpg"],
+            ["IsaacContrib-Recovery-Velocity-Flat-Backlash-MicroDuck", "rsl_rl", "", "", ""],
             ["IsaacContrib-Reorient-Cube-Shadow-OpenAI-FF-Direct", "rl_games,rsl_rl,skrl", "isaacsim_physx,newton_mjwarp,ovphysx", "", "", "tasks/manipulation/shadow_cube.jpg"],
             ["IsaacContrib-Reorient-Cube-Shadow-OpenAI-LSTM-Direct", "rl_games,rsl_rl", "isaacsim_physx,newton_mjwarp,ovphysx", "", "", "tasks/manipulation/shadow_cube.jpg"],
             ["IsaacContrib-Stack-Cube-Bin-Franka-IK-Rel-Mimic", "", "isaacsim_physx", "", ""],
