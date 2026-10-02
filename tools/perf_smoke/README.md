@@ -47,19 +47,30 @@ base commit and benchmarks it first. It then checks out and
 benchmarks GitHub's tested merge revision on the same runner. The PR head SHA and
 the tested merge SHA are both recorded, so the source actually tested is explicit.
 Each revision resolves its dependency image from its own checked-out build inputs
-and overlays its own source through the verified benchmark launcher.
+and overlays its own source through the verified benchmark launcher. The launcher
+uses `isaaclab -p` to initialize the runtime before starting source verification,
+so the verifier and benchmark execute in the same Python process.
 
 When the tested merge's base parent is unchanged, the job can reuse that PR's
-previously verified baseline artifact. It still benchmarks the current tested revision.
+previously verified baseline artifact if the benchmark matrix and preserved
+launchers also match. Their hashes are recorded with the measurement. A changed
+matrix or launcher, or an older artifact without those hashes, requests a fresh
+baseline. The current tested revision is always benchmarked again.
 When the base changes, or the previous baseline is expired, incomplete or fails
-verification, the job measures a fresh baseline. Artifact names include the
+verification, the job also measures a fresh baseline. Artifact names include the
 producing attempt, so reruns preserve earlier evidence.
 
 Workloads are matched dynamically using their recorded task, physics backend,
 renderer, environment count and presets. All shared compatible workloads are
 compared. Missing, partial, unverified or incompatible results appear as not
-comparable, with explanations in the details. A later PR can add a workload that
-has no measurement in its saved base artifact; that absence stays visible.
+comparable, with explanations in the details. Adding a workload to the matrix
+requests a fresh baseline; if either revision cannot produce its measurement,
+that absence stays visible.
+
+Different recorded CPU models/core counts or GPU models/counts make measurements
+not comparable: the table retains their FPS values but does not show a percentage
+change. GPU order is retained because the benchmark defaults to the first device.
+Hostname, device UUID and software-version differences remain diagnostic context.
 
 ## Reading the evidence
 
