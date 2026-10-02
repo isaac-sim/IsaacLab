@@ -89,9 +89,6 @@ PYTEST_WORKERS = {
     # stays whole: its workers would each start the RTX renderer, and one environment dominates it.
     "test_contrib_environments_kit.py": 2,
     "test_contrib_environments_kitless.py": 2,
-    # Multi-GPU lane long poles: the Newton files dominate a shard even with a warm Warp cache.
-    "test_articulation.py": 3,
-    "test_contact_sensor.py": 2,
 }
 """Test files split across ``pytest-xdist`` workers, and how many.
 
