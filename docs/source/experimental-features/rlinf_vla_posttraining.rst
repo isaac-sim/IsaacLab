@@ -209,9 +209,12 @@ Quick Start
 
 Here ``--model_path`` points to the HuggingFace-format base model (with
 ``config.json``), and ``--checkpoint`` points to the RLinf checkpoint
-directory (the ``global_step_<N>`` folder). The script loads the model
-architecture from the base model and overlays the RL-finetuned weights
-(``full_weights.pt``) from the checkpoint.
+directory (the ``global_step_<N>`` folder), a subdirectory containing exactly one
+``full_weights.pt``, or that weights file. RLinf loads the base model, then applies the
+RL-finetuned weights through its native checkpoint hook. Relative model and checkpoint
+paths are resolved from the launcher's working directory before Ray workers start.
+The rollout model inherits actor-model settings; explicit rollout settings take precedence.
+RLinf requires Ray for worker scheduling in both training and evaluation, including single-GPU runs.
 
 .. note::
 

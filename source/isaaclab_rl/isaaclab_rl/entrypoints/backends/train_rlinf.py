@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 from datetime import datetime
 from pathlib import Path
 
@@ -65,7 +66,7 @@ def run(argv: list[str]) -> None:
     import torch.multiprocessing as mp
     from hydra import compose, initialize_config_dir
     from hydra.core.global_hydra import GlobalHydra
-    from omegaconf import open_dict
+    from omegaconf import OmegaConf, open_dict
     from rlinf.config import validate_cfg
     from rlinf.runners.embodied_runner import EmbodiedRunner
     from rlinf.scheduler import Cluster
@@ -113,7 +114,16 @@ def run(argv: list[str]) -> None:
                 task=args_cli.task or task_id,
                 config_name=config_name,
             )
-            cfg.runner.resume_dir = str(Path(checkpoint_path).parent)
+            for directory in Path(checkpoint_path).parents:
+                if re.fullmatch(r"global_step_\d+", directory.name):
+                    cfg.runner.resume_dir = str(directory)
+                    break
+            else:
+                raise ValueError(f"Cannot resume: {checkpoint_path} is not inside a global_step_<N> directory.")
+        cfg.rollout.model = OmegaConf.merge(cfg.actor.model, cfg.rollout.model)
+        # Ray workers may launch from a different working directory.
+        for model in (cfg.actor.model, cfg.rollout.model):
+            model.model_path = str(Path(model.model_path).expanduser().resolve())
 
     write_run_manifest(
         str(log_dir), library="rlinf", task=args_cli.task or task_id, metadata={"config_name": config_name}
