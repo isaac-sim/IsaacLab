@@ -82,6 +82,8 @@ PER_TEST_STARTUP_TIMEOUTS = {
 """Per-test startup timeouts for cold external asset downloads."""
 
 PYTEST_WORKERS = {
+    # Standalone launches already use independent subprocesses; overlap two simulator startups.
+    "test_standalone_scripts.py": 2,
     # 20 independent export round trips, ~18 min serially: the RL job's long pole.
     "test_leapp_export_flow.py": 4,
     # Contributed-environment smoke tests: environment runs of several seconds to 2 min each. The camera file
