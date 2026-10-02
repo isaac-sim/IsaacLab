@@ -147,7 +147,7 @@ class ManagerBasedEnvWarp:
             with use_stage(self.sim.stage):
                 self.scene = InteractiveScene(self.cfg.scene)
                 # attach_stage_to_usd_context()
-        logger.info("Scene manager: %s", self.scene)
+        logger.info(f"Scene manager: {self.scene}")
 
         # Shared per-env Warp RNG state (accessible to all managers/terms via `env`).
         # This is a single stream per env (no lookup) and is initialized once when `num_envs` is known.
@@ -377,20 +377,20 @@ class ManagerBasedEnvWarp:
         """
         # prepare the managers
         # -- event manager (we print it here to make the logging consistent)
-        logger.info("Event Manager: %s", self.event_manager)
+        logger.info(f"Event Manager: {self.event_manager}")
         # -- recorder manager
         self.recorder_manager = self._manager_call_switch.resolve_manager_class("RecorderManager")(
             self.cfg.recorders, self
         )
-        logger.info("Recorder Manager: %s", self.recorder_manager)
+        logger.info(f"Recorder Manager: {self.recorder_manager}")
         # -- action manager
         self.action_manager = self._manager_call_switch.resolve_manager_class("ActionManager")(self.cfg.actions, self)
-        logger.info("Action Manager: %s", self.action_manager)
+        logger.info(f"Action Manager: {self.action_manager}")
         # -- observation manager
         self.observation_manager = self._manager_call_switch.resolve_manager_class("ObservationManager")(
             self.cfg.observations, self
         )
-        logger.info("Observation Manager: %s", self.observation_manager)
+        logger.info(f"Observation Manager: {self.observation_manager}")
 
         # perform events at the start of the simulation
         # in-case a child implementation creates other managers, the randomization should happen

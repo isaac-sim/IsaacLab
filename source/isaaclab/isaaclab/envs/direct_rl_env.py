@@ -151,7 +151,7 @@ class DirectRLEnv(gym.Env):
                 self.scene = instantiate(self.cfg.scene)
                 self._setup_scene()
             self.sim.register_interactive_scene(self.scene)
-        logger.info("Scene manager: %s", self.scene)
+        logger.info(f"Scene manager: {self.scene}")
 
         # create event manager
         # note: this is needed here (rather than after simulation play) to allow USD-related randomization events
@@ -236,7 +236,7 @@ class DirectRLEnv(gym.Env):
         # perform events at the start of the simulation
         if self.cfg.events:
             # we print it here to make the logging consistent
-            logger.info("Event Manager: %s", self.event_manager)
+            logger.info(f"Event Manager: {self.event_manager}")
 
             if "startup" in self.event_manager.available_modes:
                 self.event_manager.apply(mode="startup")
