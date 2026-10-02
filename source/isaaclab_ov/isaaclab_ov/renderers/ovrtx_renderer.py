@@ -87,6 +87,7 @@ from isaaclab_ov.renderers.ovrtx_annotator_utils import (
     decode_stable_id_semantic_id_map,
 )
 from isaaclab_ov.renderers.ovrtx_compat import OVRTX_VERSION, uses_prim_path_render_vars
+from isaaclab_ov.renderers.ovrtx_crash_reporter import enable_crash_upload
 from isaaclab_ov.renderers.ovrtx_renderer_cfg import OVRTXBackendCfg, OVRTXRendererCfg
 from isaaclab_ov.renderers.ovrtx_renderer_kernels import (
     create_camera_transforms_kernel,
@@ -289,8 +290,9 @@ class OVRTXBackend:
             suppress_deprecation_warnings=True,
             texture_streaming_mode=TextureStreamingMode.SYNCHRONOUS,
         )
-        # Redirection may initialize the native library and must use the same settings.
+        # Either helper may initialize the native library and must use the renderer's config.
         redirect_shader_cache(native_cfg)
+        enable_crash_upload(native_cfg)
         self.stage = None
         self.paths = None
         with contextlib.ExitStack() as resources:
