@@ -89,7 +89,6 @@ def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
     renderer.scene.query = OvstageBackend.query.__get__(renderer.scene)
     renderer.scene.next_camera_id = 0
     renderer.backend.attached = False
-    renderer.backend.render_products = set()
     cfg = OVRTXBackendCfg(scene_key=renderer.cfg, use_ovstage=False, read_gpu_transforms=True)
     renderer.scene.stage = renderer.scene.paths = None
     renderer.backend.cfg = cfg
@@ -197,23 +196,19 @@ def test_ovrtx_renderer_config_enables_supported_runtime_options(monkeypatch, tm
     sim.render_context.ensure_initialize()
     other = sim.get_or_create_backend(replace(cfg, enable_shadows=True))
     assert other.backend is not None
-    shared_physics = use_ovstage and with_physics
-    assert (other.backend is renderer.backend) is shared_physics
-    assert (other.scene is renderer.scene) is shared_physics
-    assert loaded == [str(dependency)] * (1 if shared_physics else 2)
-    assert len(redirected) == (1 if shared_physics else 2)
+    assert other.backend is not renderer.backend
+    assert other.scene is not renderer.scene
+    assert loaded == [str(dependency)] * 2
+    assert len(redirected) == 2
     assert renderer.backend.renderer is not None
     assert config_kwargs["suppress_deprecation_warnings"] is True
     assert config_kwargs["texture_streaming_mode"] is ovrtx_renderer_module.TextureStreamingMode.SYNCHRONOUS
     expected_contexts = {OvstageReplicateContext if use_ovstage else OvrtxReplicateContext}
-    if with_physics and not shared_physics:
+    if with_physics:
         expected_contexts.add(OvPhysxReplicateContext)
     assert set(sim.clone_contexts) == expected_contexts
-    assert {source for source, _ in renderer.scene.clone_copies} == {
-        "/World/envs/env_0/Visual",
-        *(["/World/envs/env_0/Body"] if shared_physics else []),
-    }
-    assert bool(sim.physics_manager._clone_recipes) is (with_physics and not shared_physics)
+    assert {source for source, _ in renderer.scene.clone_copies} == {"/World/envs/env_0/Visual"}
+    assert bool(sim.physics_manager._clone_recipes) is with_physics
     # Once prepared, hard/soft reset must retain the selected resource identity.
     from isaaclab.cloner.replicate_session import prepare_clone_contexts
 
@@ -221,16 +216,8 @@ def test_ovrtx_renderer_config_enables_supported_runtime_options(monkeypatch, tm
     monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", str(int(not use_ovstage)))
     prepare_clone_contexts(sim)
     assert tuple(sim._backend_registry) == resources
-    if shared_physics:
-        assert renderer.scene.cfg.population_domains == ovrtx_renderer_module.ovstage.PopulationDomain.ALL
-        with pytest.raises(ValueError, match="one OVRTX engine"):
-            sim.get_or_create_backend(replace(renderer.cfg, log_level="error"))
-        conflict = next(
-            resource
-            for cfg, resource in sim._backend_registry
-            if isinstance(cfg, OVRTXRendererCfg) and cfg.log_level == "error"
-        )
-        sim.close_backend(conflict)
+    if use_ovstage:
+        assert renderer.scene.cfg.population_domains == ovrtx_renderer_module.ovstage.PopulationDomain.RENDERING
     renderer.close()
     renderer.close()
     assert not destroyed
@@ -240,13 +227,13 @@ def test_ovrtx_renderer_config_enables_supported_runtime_options(monkeypatch, tm
     assert not destroyed
     for backend in dict.fromkeys((renderer.backend, other.backend)):
         SimulationContext.instance().close_backend(backend)
-    assert len(destroyed) == (1 if shared_physics else 2)
+    assert len(destroyed) == 2
     assert redirected == destroyed
     assert not stage_releases
     if use_ovstage:
         for scene in dict.fromkeys((renderer.scene, other.scene)):
             SimulationContext.instance().close_backend(scene)
-        assert stage_releases == ["paths", "stage"] * (1 if shared_physics else 2)
+        assert stage_releases == ["paths", "stage"] * 2
     sim.close_backend(renderer)
     sim.close_backend(other)
     assert not sim._backend_registry
@@ -284,13 +271,7 @@ def test_ovrtx_render_submits_every_product_and_routes_requested_outputs(
         camera.warp_buffers = {str(RenderBufferKind.RGB_HDR): object(), str(RenderBufferKind.RGBA): object()}
         camera.ppisp_pipeline = types.SimpleNamespace(apply=lambda *buffers: postprocessed.append(buffers))
         products[camera.render_product_path] = types.SimpleNamespace(frames=[object()])
-    renderer._camera_render_data = cameras
-    other = OVRTXRenderer(OVRTXRendererCfg(enable_shadows=True))
-    other.backend = renderer.backend
-    other._camera_render_data = [types.SimpleNamespace(render_product_path="/Render/UnrequestedCamera")]
-    renderer.backend.render_products.update(
-        camera.render_product_path for camera in (*cameras, *other._camera_render_data)
-    )
+    renderer._camera_render_data = [*cameras, types.SimpleNamespace(render_product_path="/Render/UnrequestedCamera")]
     if missing_output == "product":
         del products[cameras[-1].render_product_path]
     elif missing_output == "frame":
@@ -571,7 +552,6 @@ def test_async_cameras_publish_independently_with_capture_metadata_and_reset(mon
         data.create_buffers(2, "cpu")
         renderer.set_outputs(camera, data.output)
         camera_data.append(data)
-        renderer.backend.render_products.add(camera.render_product_path)
     frame = ProxyArray(wp.zeros(2, dtype=wp.int64, device="cpu"))
     operations = []
     ordinal = 0
