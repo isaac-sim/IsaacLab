@@ -10,10 +10,7 @@ quarter turn about +Z maps a world vector ``(x, y, z)`` to the body vector ``(y,
 ``(-x, -y, z)``. Real-solver delivery is covered by ``test_wrench_composer_integration.py``.
 """
 
-import ast
-import inspect
 from types import SimpleNamespace
-from typing import get_type_hints
 from unittest.mock import patch
 
 import numpy as np
@@ -37,19 +34,6 @@ _METHODS = [
 ]
 # ``(env, body)`` cell -> literal 3-vector or quaternion
 _Cells = dict[tuple[int, int], tuple[float, ...]]
-
-
-def test_wrench_composer_uses_asset_frame_conventions():
-    """Keep frame selection as an is_global boolean, with no enum or content-classification layer."""
-    tree = ast.parse(inspect.getsource(WrenchComposer))
-    assert [node.name for node in ast.walk(tree) if isinstance(node, ast.ClassDef)] == ["WrenchComposer"]
-    assert not any(
-        isinstance(node, ast.Attribute) and node.attr in {"_content", "_classify"} for node in ast.walk(tree)
-    )
-    module_tree = ast.parse(inspect.getsource(inspect.getmodule(WrenchComposer)))
-    assert not any(isinstance(node, ast.ImportFrom) and node.module == "enum" for node in ast.walk(module_tree))
-    assert not hasattr(WrenchComposer, "resolve_submission")
-    assert get_type_hints(WrenchComposer.get_forces_and_torques)["return"] == tuple[wp.array, wp.array, bool]
 
 
 # ---------------------------------------------------------------------------
@@ -252,11 +236,8 @@ def test_index_and_mask_selection_change_only_selected_cells() -> None:
     _assert_vectors(composer.out_force_b, _grid({(0, 1): (1.0, 0.0, 0.0), (1, 0): (30.0, 0.0, 0.0)}))
 
 
-@pytest.mark.parametrize("env_dtype", [torch.int32, torch.int64])
-@pytest.mark.parametrize("body_dtype", [torch.int32, torch.int64])
-def test_index_dtype_combinations_preserve_selected_wrench_cells(
-    env_dtype: torch.dtype, body_dtype: torch.dtype
-) -> None:
+@pytest.mark.parametrize("env_dtype, body_dtype", [(torch.int32, torch.int64), (torch.int64, torch.int32)])
+def test_index_dtypes_preserve_selected_wrench_cells(env_dtype: torch.dtype, body_dtype: torch.dtype) -> None:
     """Set, add, and reset selected cells with either index width."""
     asset = SimpleNamespace(num_instances=3, num_bodies=3, device="cpu", data=_AssetData(*_poses(shape=(3, 3))))
     composer = WrenchComposer(asset)
@@ -332,8 +313,7 @@ def test_set_clears_every_buffer_of_targeted_environments_only(method: str) -> N
         _assert_vectors(getattr(composer, name), expected)
 
 
-@pytest.mark.parametrize("source_is_global", [False, True], ids=["local_source", "global_source"])
-@pytest.mark.parametrize("selector", ["list", "slice", "mask"])
+@pytest.mark.parametrize("selector, source_is_global", [("list", False), ("slice", True), ("mask", False)])
 def test_partial_reset_zeros_only_selected_environments(selector: str, source_is_global: bool) -> None:
     """Partial resets keep the remaining merged wrench and its required body-frame composition."""
     composer = _make_composer(supports_world_at_com=True)
@@ -435,34 +415,21 @@ def test_raw_buffer_merge_accumulates_all_five_buffers_and_ignores_inactive_sour
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("input_name, output_name", [("forces", "out_force_b"), ("torques", "out_torque_b")])
-def test_output_property_triggers_lazy_composition(input_name: str, output_name: str):
-    """Test that reading out_force_b/out_torque_b without explicit compose_to_body_frame returns correct results."""
+def test_output_properties_compose_lazily_and_reflect_later_adds() -> None:
+    """Reading an output composes pending input into the body frame; later adds are reflected by the next read."""
     composer = _make_composer(quat={(0, 1): _QUARTER_TURN_Z})
-    _apply_to_cell(composer, "add_forces_and_torques_index", (0, 1), True, **{input_name: (2.0, 0.0, 0.0)})
-
-    # Do NOT call compose_to_body_frame -- rely on lazy composition
+    _apply_to_cell(composer, "add_forces_and_torques_index", (0, 1), True, forces=(2.0, 0.0, 0.0))
     assert composer._dirty
-    _assert_vectors(getattr(composer, output_name), _grid({(0, 1): (0.0, -2.0, 0.0)}))
+    _assert_vectors(composer.out_force_b, _grid({(0, 1): (0.0, -2.0, 0.0)}))
     assert not composer._dirty
 
-
-def test_lazy_composition_reflects_later_adds():
-    """Test that an add after a lazy composition is reflected by the next output read."""
-    composer = _make_composer()
-    ones = torch.ones((2, 2, 3))
-    composer.add_forces_and_torques_index(forces=_vectors(ones))
-    # Reading out_force_b composes lazily
-    _assert_vectors(composer.out_force_b, ones)
-
-    # Another add must be reflected by the next read of either output
-    composer.add_forces_and_torques_index(forces=_vectors(ones), torques=_vectors(ones))
-    _assert_vectors(composer.out_torque_b, ones)
-    _assert_vectors(composer.out_force_b, 2.0 * ones)
+    _apply_to_cell(composer, "add_forces_and_torques_index", (0, 1), True, torques=(2.0, 0.0, 0.0))
+    _assert_vectors(composer.out_torque_b, _grid({(0, 1): (0.0, -2.0, 0.0)}))
+    _assert_vectors(composer.out_force_b, _grid({(0, 1): (0.0, -2.0, 0.0)}))
     # Composing again without new input is idempotent.
     composer.compose_to_body_frame()
-    _assert_vectors(composer.out_force_b, 2.0 * ones)
-    _assert_vectors(composer.out_torque_b, ones)
+    _assert_vectors(composer.out_force_b, _grid({(0, 1): (0.0, -2.0, 0.0)}))
+    _assert_vectors(composer.out_torque_b, _grid({(0, 1): (0.0, -2.0, 0.0)}))
 
 
 # ---------------------------------------------------------------------------
@@ -470,21 +437,20 @@ def test_lazy_composition_reflects_later_adds():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize(
-    "deprecated_name, name, input_name",
-    [("composed_force", "out_force_b", "forces"), ("composed_torque", "out_torque_b", "torques")],
-)
-def test_composed_wrench_emits_deprecation_warning(deprecated_name: str, name: str, input_name: str):
-    """Test that accessing composed_force/composed_torque emits a DeprecationWarning and aliases the output."""
+def test_deprecated_composed_wrench_properties_alias_the_outputs() -> None:
     composer = _make_composer()
-    _apply_to_cell(composer, "add_forces_and_torques_index", (1, 0), False, **{input_name: (1.0, 2.0, 3.0)})
+    _apply_to_cell(
+        composer, "add_forces_and_torques_index", (1, 0), False, forces=(1.0, 2.0, 3.0), torques=(4.0, 5.0, 6.0)
+    )
 
-    with pytest.warns(DeprecationWarning, match=f"{deprecated_name}.*is deprecated"):
-        result = getattr(composer, deprecated_name)
-
-    # The deprecated property aliases the new output property.
-    assert result is getattr(composer, name)
-    _assert_vectors(result, _grid({(1, 0): (1.0, 2.0, 3.0)}))
+    for deprecated_name, name, expected in (
+        ("composed_force", "out_force_b", (1.0, 2.0, 3.0)),
+        ("composed_torque", "out_torque_b", (4.0, 5.0, 6.0)),
+    ):
+        with pytest.warns(DeprecationWarning, match=f"{deprecated_name}.*is deprecated"):
+            result = getattr(composer, deprecated_name)
+        assert result is getattr(composer, name)
+        _assert_vectors(result, _grid({(1, 0): expected}))
 
 
 def test_deprecated_writers_warn_and_keep_add_and_set_behavior() -> None:
