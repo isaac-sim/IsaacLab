@@ -365,6 +365,7 @@ def _run(
                 for act in group_actuators:
                     actuator_info.append(
                         {
+                            "group": group_name,
                             "controller_type": type(act.controller).__name__,
                             "clamping_types": sorted(type(c).__name__ for c in (act.clamping or [])),
                             "has_delay": act.delay is not None,
@@ -511,51 +512,29 @@ def test_dc_motor_clamp_binds(lab_run: dict, newton_run: _Run) -> None:
         ), "the DC-motor clamp never bound, so the equivalence cannot detect missing clamping"
 
 
-def test_newton_actuators_are_delayed_pd(newton_run: _Run) -> None:
-    """Command delays are authored as ``NewtonActuatorDelayAPI`` on a PD drive."""
-    actuator_info = newton_run.results["delayed"]["actuator_info"]
-    assert actuator_info, "No Newton actuators were created"
-    for a in actuator_info:
-        assert a["has_delay"], "Delay not found on delayed PD actuator"
-        assert a["controller_type"] == "DrivePD"
-
-
-def test_newton_knee_actuators_are_delayed_position_clamped_pd(newton_run: _Run) -> None:
-    """RemotizedPD knees are authored as a delayed PD drive with position-based clamping."""
-    kfe_acts = [
-        a for a in newton_run.results["remotized"]["actuator_info"] if "ClampingPositionBased" in a["clamping_types"]
-    ]
-    assert len(kfe_acts) > 0, "No actuator with position-based clamping found"
-    for a in kfe_acts:
-        assert a["controller_type"] == "DrivePD"
-        assert a["has_delay"], "Delay not found on remotized KFE actuator"
-
-
-# ---------------------------------------------------------------------------
-# Neural network actuator authoring: MLP and LSTM
-# ---------------------------------------------------------------------------
-
-
-def test_mlp_has_dc_motor_clamping(newton_run: _Run) -> None:
-    """ActuatorNetMLPCfg is authored as a Newton neural MLP controller with DC motor clamping."""
-    mlp_acts = [a for a in newton_run.results["neural"]["actuator_info"] if a["controller_type"] == "DriveNeuralMLP"]
-    assert len(mlp_acts) > 0, "No NeuralMLP controller found"
-    for a in mlp_acts:
-        assert "ClampingDCMotor" in a["clamping_types"]
-
-
-def test_lstm_has_dc_motor_clamping(newton_run: _Run) -> None:
-    """ActuatorNetLSTMCfg is authored as a Newton neural LSTM controller with DC motor clamping."""
-    lstm_acts = [a for a in newton_run.results["neural"]["actuator_info"] if a["controller_type"] == "DriveNeuralLSTM"]
-    assert len(lstm_acts) > 0, "No NeuralLSTM controller found"
-    for a in lstm_acts:
-        assert "ClampingDCMotor" in a["clamping_types"]
-
-
-def test_positions_finite(newton_run: _Run) -> None:
-    """The neural actuators run on the Newton backend without producing non-finite joint positions."""
-    for step_i, pos in enumerate(newton_run.results["neural"]["joint_pos"]):
-        assert torch.isfinite(pos).all(), f"Non-finite positions at step {step_i}"
+@pytest.mark.parametrize(
+    "island, group_names, controller_type, clamping, has_delay",
+    [
+        ("delayed", ("legs",), "DrivePD", None, True),
+        ("remotized", ("knees",), "DrivePD", "ClampingPositionBased", True),
+        ("neural", ("mlp_legs",), "DriveNeuralMLP", "ClampingDCMotor", False),
+        ("neural", ("lstm_legs",), "DriveNeuralLSTM", "ClampingDCMotor", False),
+    ],
+    ids=["delayed_pd", "remotized_pd", "mlp", "lstm"],
+)
+def test_newton_actuator_authoring(
+    newton_run: _Run, island: str, group_names: tuple[str, ...], controller_type: str, clamping: str | None, has_delay
+) -> None:
+    """Lab actuator configurations are authored as the matching Newton controller, clamping, and delay."""
+    info = [entry for entry in newton_run.results[island]["actuator_info"] if entry["group"] in group_names]
+    assert info, f"no Newton actuators were created for {group_names}"
+    for entry in info:
+        assert entry["controller_type"] == controller_type
+        assert clamping is None or clamping in entry["clamping_types"]
+        assert entry["has_delay"] is has_delay
+    if island == "neural":
+        # the neural controllers run without producing non-finite joint positions
+        assert all(torch.isfinite(pos).all() for pos in newton_run.results[island]["joint_pos"])
 
 
 # ---------------------------------------------------------------------------
@@ -640,98 +619,46 @@ def test_newton_native_actuator_gain_write_maps_public_joint_subset_to_backend(n
 
 
 def test_randomize_actuator_gains_reaches_newton_controllers(newton_run: _Run) -> None:
-    """``randomize_actuator_gains`` writes kp/kd into the controllers of the articulation's Newton actuators.
+    """``randomize_actuator_gains`` writes kp/kd into the selected environment of one articulation's controllers.
 
-    The event writes through ``write_group_parameter``; the assertions read the controllers back via the public
-    ``read_group_parameter``. With ``operation="abs"`` and ``distribution="uniform"`` over a degenerate range
-    ``(K, K)``, every randomized cell is set to exactly ``K`` — so the assertions are deterministic.
+    The event writes through ``write_group_parameter`` and the assertions read back through the public
+    ``read_group_parameter``. A degenerate ``(K, K)`` range with ``operation="abs"`` sets each randomized cell to
+    exactly ``K``.
     """
-    anymal = newton_run.articulations["ideal"]
-    cartpole = newton_run.articulations["cartpole"]
+    groups = {
+        "legs": (newton_run.articulations["ideal"], "legs"),
+        "cartpole": (newton_run.articulations["cartpole"], "all_joints"),
+    }
+    legs = groups["legs"][0]
     assert SimulationManager._adapter is not None
 
-    anymal_stiffness_before = read_group_parameter(anymal.actuators, "legs", "controller", "kp").clone()
-    anymal_damping_before = read_group_parameter(anymal.actuators, "legs", "controller", "kd").clone()
-    # Before DR, native gain reads must return the configured values for *every* env. This is
-    # also the regression check for the env-major DOF stride decoding on floating-base
-    # articulations (6 free-root DOFs + the leg joints): a wrong stride corrupts every
-    # env past the first.
-    n = anymal.num_joints
-    torch.testing.assert_close(anymal_stiffness_before, torch.full((NUM_ENVS, n), 40.0, device=anymal.device))
-    torch.testing.assert_close(anymal_damping_before, torch.full((NUM_ENVS, n), 5.0, device=anymal.device))
-    cartpole_stiffness_before = read_group_parameter(cartpole.actuators, "all_joints", "controller", "kp").clone()
-    cartpole_damping_before = read_group_parameter(cartpole.actuators, "all_joints", "controller", "kd").clone()
+    def gains(name: str) -> torch.Tensor:
+        """Return the ``(kp, kd)`` gains of one articulation's actuator group, shape ``(2, num_envs, num_joints)``."""
+        articulation, group = groups[name]
+        return torch.stack([read_group_parameter(articulation.actuators, group, "controller", p) for p in ("kp", "kd")])
 
-    env = MockEnv({"anymal": anymal, "cartpole": cartpole}, NUM_ENVS, anymal.device)
-    term, asset_cfg = build_dr_term(env, "cartpole")
-    env_ids = torch.tensor([0], device=anymal.device, dtype=torch.long)
+    # Every environment reads the configured gains. On the floating leg this pins the env-major DOF stride
+    # decoding (6 free-root DOFs + leg joints): a wrong stride corrupts every environment past the first.
+    configured = torch.tensor([40.0, 5.0], device=legs.device).view(2, 1, 1).expand(2, NUM_ENVS, legs.num_joints)
+    torch.testing.assert_close(gains("legs"), configured)
 
-    term(
-        env,
-        env_ids=env_ids,
-        asset_cfg=asset_cfg,
-        stiffness_distribution_params=(100.0, 100.0),
-        damping_distribution_params=(5.0, 5.0),
-        operation="abs",
-        distribution="uniform",
-    )
-
-    n_cp = cartpole.num_joints
-    torch.testing.assert_close(
-        read_group_parameter(cartpole.actuators, "all_joints", "controller", "kp")[0],
-        torch.full((n_cp,), 100.0, device=anymal.device),
-    )
-    torch.testing.assert_close(
-        read_group_parameter(cartpole.actuators, "all_joints", "controller", "kd")[0],
-        torch.full((n_cp,), 5.0, device=anymal.device),
-    )
-
-    # The leg is untouched (DR was scoped to cartpole).
-    torch.testing.assert_close(
-        read_group_parameter(anymal.actuators, "legs", "controller", "kp"), anymal_stiffness_before
-    )
-    torch.testing.assert_close(
-        read_group_parameter(anymal.actuators, "legs", "controller", "kd"), anymal_damping_before
-    )
-
-    # Cartpole's other envs are also untouched (env_ids=[0] only).
-    for env_idx in range(1, NUM_ENVS):
-        torch.testing.assert_close(
-            read_group_parameter(cartpole.actuators, "all_joints", "controller", "kp")[env_idx],
-            cartpole_stiffness_before[env_idx],
+    env = MockEnv({name: articulation for name, (articulation, _) in groups.items()}, NUM_ENVS, legs.device)
+    for name in ("cartpole", "legs"):
+        expected = {other: gains(other).clone() for other in groups}
+        expected[name][:, 0] = torch.tensor([100.0, 7.0], device=legs.device).view(2, 1)
+        term, asset_cfg = build_dr_term(env, name)
+        term(
+            env,
+            env_ids=torch.tensor([0], device=legs.device, dtype=torch.long),
+            asset_cfg=asset_cfg,
+            stiffness_distribution_params=(100.0, 100.0),
+            damping_distribution_params=(7.0, 7.0),
+            operation="abs",
+            distribution="uniform",
         )
-        torch.testing.assert_close(
-            read_group_parameter(cartpole.actuators, "all_joints", "controller", "kd")[env_idx],
-            cartpole_damping_before[env_idx],
-        )
-
-    # DR scoped to the floating-base leg updates only its selected env.
-    anymal_term, anymal_asset_cfg = build_dr_term(env, "anymal")
-    anymal_term(
-        env,
-        env_ids=env_ids,
-        asset_cfg=anymal_asset_cfg,
-        stiffness_distribution_params=(100.0, 100.0),
-        damping_distribution_params=(5.0, 5.0),
-        operation="abs",
-        distribution="uniform",
-    )
-    torch.testing.assert_close(
-        read_group_parameter(anymal.actuators, "legs", "controller", "kp")[0],
-        torch.full((n,), 100.0, device=anymal.device),
-    )
-    torch.testing.assert_close(
-        read_group_parameter(anymal.actuators, "legs", "controller", "kd")[0],
-        torch.full((n,), 5.0, device=anymal.device),
-    )
-    for env_idx in range(1, NUM_ENVS):
-        torch.testing.assert_close(
-            read_group_parameter(anymal.actuators, "legs", "controller", "kp")[env_idx],
-            anymal_stiffness_before[env_idx],
-        )
-        torch.testing.assert_close(
-            read_group_parameter(anymal.actuators, "legs", "controller", "kd")[env_idx], anymal_damping_before[env_idx]
-        )
+        # only environment 0 of the selected articulation changes
+        for other in groups:
+            torch.testing.assert_close(gains(other), expected[other])
 
 
 # ---------------------------------------------------------------------------

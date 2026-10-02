@@ -22,7 +22,7 @@ from isaaclab_newton.physics import NewtonManager as SimulationManager
 from newton import JointType, ModelBuilder
 from newton.selection import ArticulationView
 
-from isaaclab.test.utils import test_devices
+from isaaclab.test.utils import DeviceScope, test_devices
 
 pytestmark = pytest.mark.unit
 
@@ -46,7 +46,7 @@ def test_num_shapes_per_body_follows_public_body_order() -> None:
     assert articulation.num_shapes_per_body == [3, 0, 2]
 
 
-@pytest.mark.parametrize("device", test_devices())
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 @pytest.mark.parametrize(
     "first_property",
     ["body_com_jacobian_w", "body_link_jacobian_w", "mass_matrix", "gravity_compensation_forces"],
@@ -82,10 +82,7 @@ def test_task_space_allocation_and_capture(monkeypatch, device, first_property):
     properties = ("body_com_jacobian_w", "body_link_jacobian_w", "mass_matrix", "gravity_compensation_forces")
     assert all(getattr(data, f"_{name}_ta") is None for name in properties)
     assert data._jacobian_buf_flat is data._mass_matrix_full_buf is data._gravity_force_full_buf is None
-    if wp.get_device(device).is_cuda:
-        with wp.ScopedCapture(device=device) as capture:
-            output = getattr(data, first_property)
-    else:
+    with wp.ScopedCapture(device=device) as capture:
         output = getattr(data, first_property)
     required = {first_property}
     if first_property == "body_link_jacobian_w":
@@ -100,10 +97,7 @@ def test_task_space_allocation_and_capture(monkeypatch, device, first_property):
         state.joint_q.assign(np.asarray([angle, displacement], dtype=np.float32))
         newton.eval_fk(model, state.joint_q, state.joint_qd, state)
         expected = getattr(eager, first_property).warp.numpy()
-        if wp.get_device(device).is_cuda:
-            wp.capture_launch(capture.graph)
-        else:
-            assert getattr(data, first_property) is output
+        wp.capture_launch(capture.graph)
         np.testing.assert_allclose(output.warp.numpy(), expected, atol=1e-5)
     data._create_simulation_bindings()
     data._apply_ordering_maps_after_resolve()

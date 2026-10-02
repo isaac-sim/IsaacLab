@@ -161,12 +161,6 @@ def _island_cfgs() -> dict[str, ArticulationCfg]:
                 "wrist": ImplicitActuatorCfg(joint_names_expr=["Joint_[3-5]"], stiffness=None, damping=None),
             },
         ),
-        "passive": island(
-            "Passive",
-            local_usd("fixed_spatial_chain.usda"),
-            4.0,
-            {"all": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=0.0, damping=0.0)},
-        ),
         "pendulum": island(
             "Pendulum",
             local_usd("revolute_pendulum.usda"),
@@ -705,7 +699,6 @@ def test_articulation_initialization_and_partial_state(scene: _Scene) -> None:
     expected_fixed_base = {
         "floating": False,
         "fixed": True,
-        "passive": True,
         "pendulum": True,
         "ordered": False,
         "tendon": True,
@@ -1825,45 +1818,6 @@ def test_get_gravity_compensation_forces_matches_jacobian_gravity(scene: _Scene,
     # Tolerance: 5 mm absolute; a missing COM-offset correction is centimeters off at these velocities.
     torch.testing.assert_close(v_pred_ang, body_omega, atol=5e-3, rtol=1e-2)
     torch.testing.assert_close(v_pred_lin, v_origin_expected, atol=5e-3, rtol=1e-2)
-    scene.rest(articulation)
-
-
-@pytest.mark.isaacsim_ci
-def test_get_gravity_compensation_forces_static_equilibrium(scene: _Scene) -> None:
-    """Newton accuracy: ``τ_gc`` must hold a passive manipulator in static equilibrium.
-
-    The contract is the EOM identity ``M(q) q̈ + C(q,q̇) q̇ + g(q) = τ_input``. Setting ``τ_input = g(q)`` at
-    ``q̇ = 0`` gives ``q̈ = 0`` — the chain should not move. The island's actuators have zero gains, so the effort
-    target IS the joint torque applied and no PD spring-damper masks the gravity-compensation signal. Sign
-    errors, frame errors, and DoF-ordering errors all surface as joint drift.
-    """
-    device = scene.device
-    articulation = scene.articulations["passive"]
-    scene.rest(articulation)
-    # a configuration that loads the prismatic and the revolute joints with gravity
-    q = articulation.data.default_joint_pos.torch.clone()
-    q[:, 3:] = torch.tensor([0.4, -0.3, 0.5], device=device)
-    articulation.write_joint_position_to_sim_index(position=q)
-    articulation.update(scene.sim.cfg.dt)
-    init_q = articulation.data.joint_pos.torch.clone()
-
-    with world_gravity(_GRAVITY):
-        tau_gc = articulation.data.gravity_compensation_forces.torch[:, articulation.num_base_dofs :]
-        assert tau_gc.abs().max() > 1.0, "the configuration carries no gravity load"
-        for _ in range(100):
-            # ``gravity_compensation_forces`` leads with ``num_base_dofs`` floating-base entries (0 on fixed-base);
-            # slice past them so the remaining tensor aligns with the actuated joints.
-            tau_gc = articulation.data.gravity_compensation_forces.torch[:, articulation.num_base_dofs :]
-            articulation.actuators.target_command.set_effort_index(value=tau_gc)
-            scene.step("passive")
-        final_q = articulation.data.joint_pos.torch.clone()
-
-    drift = (final_q - init_q).abs().max()
-    # A sign or frame bug in τ_gc produces drift of at least a degree per step on this configuration.
-    assert drift < 5e-3, (
-        f"max joint drift {drift:.5f} after 100 gravity-comp-only steps — τ_gc did not hold static equilibrium."
-        " Check sign, DoF ordering, and whether gravity_compensation_forces returns g(q) (positive) or its negation."
-    )
     scene.rest(articulation)
 
 

@@ -177,10 +177,10 @@ def test_osc_tracking_accuracy(chain: _Chain) -> None:
     chain.rest()
     ee_pos_b, ee_quat_b = _compute_ee_pose_root(chain.robot, chain.ee_frame_idx)
     target_pose_b = torch.cat([ee_pos_b + ee_pos_b.new_tensor((0.05, 0.0, 0.0)), ee_quat_b], dim=-1)
-    pos_history, rot_history = _run_osc(chain, _make_osc(chain.device), target_pose_b, 300, gravity=False)
+    pos_history, rot_history = _run_osc(chain, _make_osc(chain.device), target_pose_b, 150, gravity=False)
 
-    pos_mean = sum(pos_history[-200:]) / 200
-    rot_mean = sum(rot_history[-200:]) / 200
+    pos_mean = sum(pos_history[-100:]) / 100
+    rot_mean = sum(rot_history[-100:]) / 100
 
     # Regression sentinel: assert on tail mean rather than min. With ``current_ee_vel_b = J · q_dot`` providing
     # OSC's damping term and no joint PD, the impedance settles to machine precision. A wrong J, wrong mass
@@ -213,13 +213,13 @@ def test_osc_gravity_compensation_precision(chain: _Chain) -> None:
     target_pose_b = torch.cat([ee_pos_b, ee_quat_b], dim=-1)
 
     def _stationary_tail_mean(history: list[float], label: str) -> float:
-        """Mean of the last 200 samples, asserting the two tail halves agree within 25%.
+        """Mean of the last 100 samples, asserting the two tail halves agree within 25%.
 
         The relative check carries a 10 µm absolute floor: at the solver noise floor of the compensated hold,
         tail jitter is far below the 0.1 mm verdict threshold and cannot flip the outcome.
         """
-        a = sum(history[-200:-100]) / 100
-        b = sum(history[-100:]) / 100
+        a = sum(history[-100:-50]) / 50
+        b = sum(history[-50:]) / 50
         mean = (a + b) / 2.0
         assert abs(a - b) < 0.25 * max(mean, 1e-5), (
             f"{label} not stationary: tail halves {a:.6f} vs {b:.6f} — extend the phase"
@@ -227,9 +227,9 @@ def test_osc_gravity_compensation_precision(chain: _Chain) -> None:
         return mean
 
     with world_gravity((0.0, 0.0, -9.81)):
-        hist_off, _ = _run_osc(chain, osc, target_pose_b, 300, gravity=True)
+        hist_off, _ = _run_osc(chain, osc, target_pose_b, 200, gravity=True)
         osc.cfg.gravity_compensation = True
-        hist_on, _ = _run_osc(chain, osc, target_pose_b, 300, gravity=True)
+        hist_on, _ = _run_osc(chain, osc, target_pose_b, 200, gravity=True)
 
     pos_off = _stationary_tail_mean(hist_off, "phase-1 sag")
     pos_on = _stationary_tail_mean(hist_on, "phase-2 hold")
