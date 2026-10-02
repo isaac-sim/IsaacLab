@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Warp kernels for BAM motor control, gearbox friction, and state reset."""
+"""Warp kernels for BAM command delay, motor control, gearbox friction, and state reset."""
 
 from __future__ import annotations
 
@@ -11,44 +11,26 @@ import warp as wp
 
 
 @wp.kernel
-def _bam_motor_kernel(
-    positions: wp.array[float],
-    velocities: wp.array[float],
+def _bam_delay_kernel(
     target_pos: wp.array[float],
-    pos_indices: wp.array[wp.uint32],
-    vel_indices: wp.array[wp.uint32],
     target_pos_indices: wp.array[wp.uint32],
-    kp_fw: wp.array[float],
-    kp_scale: wp.array[float],
-    kd_scale: wp.array[float],
-    vin: wp.array[float],
-    sag_gain: wp.array[float],
-    kt: wp.array[float],
-    resistance: wp.array[float],
-    error_gain: wp.array[float],
-    max_pwm: wp.array[float],
-    max_current: wp.array[float],
-    prev_motor_torque: wp.array[float],
     delay_ring: wp.array2d[float],
     delay_lag: wp.array[wp.int32],
     delay_fill: wp.array[wp.int32],
     delay_step_count: wp.array[wp.int32],
     delay_phase: wp.array[wp.int32],
-    vin_min: float,
-    env_dof_stride: int,
     min_delay: int,
     max_delay: int,
     delay_hold_prob: float,
     delay_update_period: int,
     delay_seed: wp.array[wp.int32],
-    motor_torque: wp.array[float],
-    effective_vin: wp.array[float],
+    delayed_target: wp.array[float],
     next_ring: wp.array2d[float],
     next_lag: wp.array[wp.int32],
     next_fill: wp.array[wp.int32],
     next_step_count: wp.array[wp.int32],
 ):
-    """Delay the command, sag the supply and run the firmware and DC-motor stages."""
+    """Draw the command lag, read the delayed target, and advance its history."""
     i = wp.tid()
 
     target = target_pos[target_pos_indices[i]]
@@ -86,6 +68,34 @@ def _bam_motor_kernel(
         next_fill[i] = 0
     next_lag[i] = lag
     next_step_count[i] = step_count + 1
+    delayed_target[i] = target
+
+
+@wp.kernel
+def _bam_motor_kernel(
+    positions: wp.array[float],
+    velocities: wp.array[float],
+    delayed_target: wp.array[float],
+    pos_indices: wp.array[wp.uint32],
+    vel_indices: wp.array[wp.uint32],
+    kp_fw: wp.array[float],
+    kp_scale: wp.array[float],
+    kd_scale: wp.array[float],
+    vin: wp.array[float],
+    sag_gain: wp.array[float],
+    kt: wp.array[float],
+    resistance: wp.array[float],
+    error_gain: wp.array[float],
+    max_pwm: wp.array[float],
+    max_current: wp.array[float],
+    prev_motor_torque: wp.array[float],
+    vin_min: float,
+    env_dof_stride: int,
+    motor_torque: wp.array[float],
+    effective_vin: wp.array[float],
+):
+    """Sag the supply and convert the delayed command through firmware PWM to motor torque."""
+    i = wp.tid()
 
     # All joints sharing one supply sag together, so the drop is driven by the summed
     # magnitude of the torques the environment's joints drew on the previous step.
@@ -103,7 +113,7 @@ def _bam_motor_kernel(
 
     measured = positions[pos_indices[i]]
 
-    duty = (target - measured) * (kp_fw[i] * kp_scale[i]) * error_gain[i]
+    duty = (delayed_target[i] - measured) * (kp_fw[i] * kp_scale[i]) * error_gain[i]
     if max_current[i] > 0.0:
         duty_center = kt[i] * scaled_vel / vin_eff
         duty_span = resistance[i] * max_current[i] / vin_eff
