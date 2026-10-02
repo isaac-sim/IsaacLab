@@ -13,7 +13,7 @@ import torch
 from isaaclab_newton.physics import FeatherstoneSolverCfg, MJWarpSolverCfg, NewtonCfg, NewtonManager
 
 import isaaclab.sim as sim_utils
-from isaaclab.actuators import BamActuatorCfg, BamMotorCfg
+from isaaclab.actuators import BamActuatorCfg, BamBacklashActuatorCfg, BamMotorCfg
 from isaaclab.actuators.newton import read_group_parameter, write_group_parameter
 from isaaclab.assets import Articulation, ArticulationCfg
 from isaaclab.cloner import CloneCfg, clone_plan_from_env_0, replicate
@@ -230,6 +230,15 @@ def test_each_articulation_configures_only_its_own_actuator(native_sim, device, 
     for robot, expected in ((robot_a, VIN), (robot_b, 6.5)):
         voltage = read_group_parameter(robot.actuators, "servo", "drive", "vin")
         torch.testing.assert_close(voltage, torch.full_like(voltage, expected), atol=1e-6, rtol=0.0)
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_backlash_requires_a_play_hinge(native_sim, device, pendulum_usd):
+    """A backlash configuration on a plain servo must fail before graph capture."""
+    cfg = _make_cfg()
+    cfg = BamBacklashActuatorCfg(**{field.name: getattr(cfg, field.name) for field in fields(cfg)})
+    with pytest.raises(ValueError, match="BAM backlash requires.*passive_joint_backlash"):
+        _build_native_pendulum(native_sim, pendulum_usd, cfg)
 
 
 def test_bam_rejects_a_non_mjwarp_solver(pendulum_usd):

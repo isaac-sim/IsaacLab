@@ -310,6 +310,10 @@ every physics step:
         },
     )
 
+Use :class:`~isaaclab.actuators.BamBacklashActuatorCfg` when the USD models gearbox play as a passive
+revolute hinge named ``passive_<servo_joint>_backlash`` in series with each servo. The firmware then
+reads servo angle plus play angle; missing or non-revolute pairs raise before stepping.
+
 ``stiffness`` and ``damping`` are unused; the firmware gain is ``kp_fw``. Like other explicit
 actuators, BAM replaces existing actuator prims on the selected joints, and one motor fit applies to
 every joint in a group. Set the reflected rotor inertia through ``armature`` or on the joint.

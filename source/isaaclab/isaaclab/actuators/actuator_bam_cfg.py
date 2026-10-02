@@ -135,3 +135,13 @@ class BamActuatorCfg(ActuatorBaseCfg):
 
     stiff_frictionloss: bool = True
     """Use a stiff friction-constraint solver reference, since MJWarp has no noslip solver."""
+
+
+@configclass
+class BamBacklashActuatorCfg(BamActuatorCfg):
+    """BAM servo whose encoder reads through a passive gearbox-play hinge.
+
+    Each driven revolute joint needs a sibling revolute joint named ``passive_<joint>_backlash``
+    in the USD. The firmware reads the sum of both angles; back-EMF, friction, and applied torque
+    stay on the driven joint.
+    """
