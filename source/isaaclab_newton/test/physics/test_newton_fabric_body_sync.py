@@ -209,7 +209,7 @@ def test_root_pose_write_is_visible_on_next_render_without_step(capture_method, 
                 assert not sim.is_rendering
                 monkeypatch.setattr("isaaclab.envs.utils.video_recorder.ImageSequenceClip", Mock())
                 recorder = VideoRecorder(
-                    VideoRecorderCfg(source="visualizer:kit", output_dir=str(tmp_path)), SimpleNamespace(sim=sim)
+                    VideoRecorderCfg(source="viz:kit", output_dir=str(tmp_path)), SimpleNamespace(sim=sim)
                 )
 
             def capture_frame() -> None:

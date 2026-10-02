@@ -17,6 +17,7 @@ import torch
 import warp as wp
 
 from isaaclab.benchmark.stepping import RENDER_PROFILE_SCOPE, profile_renderers
+from isaaclab.cloner import ReplicateContext
 from isaaclab.renderers.base_renderer import BaseRenderer
 from isaaclab.renderers.render_context import RenderContext
 from isaaclab.renderers.renderer_cfg import RendererCfg
@@ -79,13 +80,16 @@ def test_renderer_initializes_once_before_or_after_physics_ready(sim):
 
     prepared = []
 
-    class LateContext:
+    class LateContext(ReplicateContext):
         @staticmethod
         def prepare(context, routing):
             assert context is sim
             pending = next(renderer for cfg, renderer in sim._backend_registry if cfg == second_cfg)
             pending.initialize.assert_not_called()
             prepared.append(True)
+
+        def replicate(self, plan, asset_prototype_ids):
+            pytest.fail("Standalone renderer preparation must not execute cloning.")
 
     second_cfg = replace(cfg, renderer_type="second", cloning_contexts=(LateContext,))
     second = sim.get_or_create_backend(second_cfg)

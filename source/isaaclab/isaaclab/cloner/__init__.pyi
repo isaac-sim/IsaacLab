@@ -21,6 +21,7 @@ __all__ = [
     "PrototypeWorldTopology",
     "query",
     "random",
+    "ReplicateContext",
     "ReplicateSession",
     "replicate",
     "sequential",
@@ -34,6 +35,7 @@ from .cloner_cfg import CloneCfg, InclusionSet, add, expand_env_regex_ns
 from .cloner_strategies import random, sequential
 from .collision_filter import filter_collisions
 from .fabric_notices import disabled_fabric_change_notifies
+from .replicate_context import ReplicateContext
 from .replicate_session import (
     ReplicateSession,
     clone_plan_from_env_0,

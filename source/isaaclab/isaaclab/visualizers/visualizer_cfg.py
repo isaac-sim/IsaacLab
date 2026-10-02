@@ -15,6 +15,7 @@ from ..utils import configclass
 from ..utils.string import string_to_callable
 
 if TYPE_CHECKING:
+    from ..cloner import ReplicateContext
     from ..renderers import RendererCfg
     from .base_visualizer import BaseVisualizer
 
@@ -50,31 +51,17 @@ def get_visualizer_install_hint(visualizer_type: str) -> str:
 def parse_visualizer_csv(value: str | list[str]) -> list[str]:
     """Parse a ``--visualizer`` comma-separated list, or a list of names, into canonical names.
 
-    ``none`` yields an empty list. Parsing canonical names again returns them unchanged.
+    Parsing canonical names again returns them unchanged.
     """
-    if isinstance(value, str):
-        token = value.strip()
-        if not token:
-            raise argparse.ArgumentTypeError(
-                "Invalid --visualizer value: empty string. Use a comma-separated list, e.g. --viz kit,newton_gl."
-            )
-        if " " in token:
-            raise argparse.ArgumentTypeError(
-                "Invalid --visualizer value: spaces are not allowed. "
-                "Use a comma-separated list without spaces, e.g. --viz kit,newton_gl,rerun,viser."
-            )
-        value = token.split(",")
-    names = [str(item).strip().lower() for item in value]
-    if any(not name for name in names):
-        raise argparse.ArgumentTypeError(
-            "Invalid --visualizer value: empty visualizer entry detected. "
-            "Use a comma-separated list without empty items."
-        )
-    invalid = [name for name in names if name not in (*VISUALIZER_TYPES, *VISUALIZER_ALIASES, "none")]
+    names = value.split(",") if isinstance(value, str) else list(value)
+    # an undocumented alias of omitting --visualizer, kept so older commands keep running
+    if names == ["none"]:
+        return []
+    invalid = [name for name in names if name not in (*VISUALIZER_TYPES, *VISUALIZER_ALIASES)]
     if invalid:
         raise argparse.ArgumentTypeError(
-            f"Invalid --visualizer value(s): {', '.join(invalid)}. "
-            f"Valid options: {', '.join(sorted((*VISUALIZER_TYPES, 'none')))}."
+            f"Invalid --visualizer value {value!r}: use a comma-separated list, without spaces, of "
+            f"{', '.join(VISUALIZER_TYPES)}."
         )
     for name in names:
         if name in VISUALIZER_ALIASES:
@@ -83,48 +70,56 @@ def parse_visualizer_csv(value: str | list[str]) -> list[str]:
                 DeprecationWarning,
                 stacklevel=3,
             )
-    names = [VISUALIZER_ALIASES.get(name, name) for name in names]
-    if "none" in names:
-        if len(names) > 1:
-            raise argparse.ArgumentTypeError(
-                "Invalid --visualizer value: 'none' cannot be combined with other visualizer types."
-            )
-        return []
-    return list(dict.fromkeys(names))
+    return list(dict.fromkeys(VISUALIZER_ALIASES.get(name, name) for name in names))
 
 
 def _make_visualizer_cfg(visualizer_type: str) -> VisualizerCfg:
     """Construct the default config of a visualizer type, importing only its backend package."""
     try:
         cfg_class = string_to_callable(f"isaaclab_visualizers.{VISUALIZER_TYPES[visualizer_type]}")
-    except (ImportError, ValueError) as exc:  # string_to_callable reports a missing module as ValueError
+    except ValueError as exc:  # string_to_callable reports a missing module as ValueError
         raise RuntimeError(
-            f"Explicitly requested visualizer(s) {[visualizer_type]} could not be configured: {exc}. "
-            f"{get_visualizer_install_hint(visualizer_type)}"
+            f"Visualizer '{visualizer_type}' is not available: {exc}. {get_visualizer_install_hint(visualizer_type)}"
         ) from exc
     return cfg_class()
 
 
 def resolve_visualizer_cfgs(
-    visualizer_cfgs: list[VisualizerCfg] | VisualizerCfg | None, visualizers: list[str] | None, max_visible_envs=None
+    visualizer_cfgs: list[VisualizerCfg] | VisualizerCfg | None,
+    visualizers: list[str] | None,
+    max_visible_envs=None,
+    headless_visualizers: tuple[str, ...] | list[str] = (),
 ) -> list[VisualizerCfg]:
-    """Return the visualizers a run uses: the configured ones, narrowed by a ``--visualizer`` selection.
+    """Return the visualizers a run uses: exactly the selected types, configured by *visualizer_cfgs*.
+
+    Each selected type reuses the configured visualizer of that type, with its settings, or else gets its default
+    config; configured visualizers of unselected types do not run. Each type of *headless_visualizers* the
+    selection lacks is added the same way but runs headless, e.g. a visualizer only a video recorder uses.
 
     Args:
         visualizer_cfgs: Configured visualizers, e.g. :attr:`~isaaclab.sim.SimulationCfg.visualizer_cfgs`.
-        visualizers: Selection in canonical names (see :func:`parse_visualizer_csv`): None keeps the configured
-            visualizers, an empty list (``--viz none``) disables all, and names keep exactly those types, reusing
-            a configured visualizer of each type (with its settings) or else its default config.
+        visualizers: Selection in canonical names (see :func:`parse_visualizer_csv`), empty for no visualizers.
+            None applies no selection and keeps the configured visualizers, for a simulation built without a
+            launch.
         max_visible_envs: ``--max_visible_envs`` applied to every resulting visualizer, or None.
+        headless_visualizers: Capture-capable types (``kit``, ``newton_gl``, ``newton_rtx``) to add headless when
+            not selected, in canonical names.
     """
     if visualizer_cfgs is None:
         visualizer_cfgs = []
     elif not isinstance(visualizer_cfgs, list):
         visualizer_cfgs = [visualizer_cfgs]
     if visualizers is not None:
+        configured = {cfg.visualizer_type: cfg for cfg in reversed(visualizer_cfgs)}
+        added = [name for name in headless_visualizers if name not in visualizers]
         visualizer_cfgs = [cfg for cfg in visualizer_cfgs if cfg.visualizer_type in visualizers]
         configured_types = {cfg.visualizer_type for cfg in visualizer_cfgs}
         visualizer_cfgs += [_make_visualizer_cfg(name) for name in visualizers if name not in configured_types]
+        for name in added:
+            # a headless copy of the configured visualizer of the type keeps its settings, e.g. the camera pose
+            cfg = configured[name].copy() if name in configured else _make_visualizer_cfg(name)
+            cfg.headless = True
+            visualizer_cfgs.append(cfg)
     if max_visible_envs is not None:
         for cfg in visualizer_cfgs:
             cfg.max_visible_envs = int(max_visible_envs)
@@ -145,7 +140,7 @@ class VisualizerCfg:
     class_type: type[BaseVisualizer] | str | None = None
     """Visualizer implementation class. Concrete configs must set this field."""
 
-    cloning_contexts: tuple[type | str, ...] = ()
+    cloning_contexts: tuple[type[ReplicateContext] | str, ...] = ()
     """Clone contexts that build this visualizer's scene representation from the asset plan."""
 
     # Primary interactive camera settings

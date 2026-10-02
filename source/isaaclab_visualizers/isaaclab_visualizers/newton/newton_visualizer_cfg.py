@@ -35,7 +35,7 @@ class NewtonVisualizerCfg(VisualizerCfg):
     # Deprecated alias: "newton" routes to the GL backend via visualizer_cfg.VISUALIZER_ALIASES.
     visualizer_type: str = "newton_gl"
 
-    cloning_contexts: tuple[type | str, ...] = ("isaaclab_newton.cloner:NewtonReplicateContext",)
+    cloning_contexts = ("isaaclab_newton.cloner:NewtonReplicateContext",)
 
     streaming_cam_renderer_cfg: RendererCfg = NewtonWarpRendererCfg()
     """Renderer configuration for the auto-created streaming camera."""
@@ -167,7 +167,7 @@ class NewtonRTXVisualizerCfg(NewtonVisualizerCfg):
     visualizer_type: str = "newton_rtx"
     """Visualizer selector identifier. Do not change."""
 
-    cloning_contexts: tuple[type | str, ...] = (
+    cloning_contexts = (
         "isaaclab_newton.cloner:NewtonReplicateContext",
         "isaaclab_ov.cloner:OvstageReplicateContext",
     )

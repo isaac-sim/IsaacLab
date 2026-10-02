@@ -115,7 +115,7 @@ class OVRTXVisualMaterialWriter:
                         self._buffers[channel][rows],
                         data_access=DataAccess.ASYNC,
                         cuda_event=self._event.cuda_event,
-                        cuda_stream=wp.get_stream(self._device).cuda_stream,
+                        cuda_stream=wp.get_stream(self._device).cuda_stream or 1,
                     )
                 operations.append(operation)
         finally:

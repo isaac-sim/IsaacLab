@@ -18,7 +18,7 @@ from newton import Axis, ModelBuilder
 from pxr import Sdf, Usd, UsdGeom
 
 from isaaclab.assets import AssetBaseCfg
-from isaaclab.cloner import ClonePlan, PrototypeWorldTopology
+from isaaclab.cloner import ClonePlan, PrototypeWorldTopology, ReplicateContext
 from isaaclab.cloner import path as cloner_path
 from isaaclab.physics import PhysicsManager
 from isaaclab.scene_data import SceneDataFormat
@@ -266,14 +266,12 @@ def _replicate_newton(
     return builder, stage_info, site_index_map
 
 
-class NewtonReplicateContext:
+class NewtonReplicateContext(ReplicateContext):
     """Build one Newton model from the sources routed to it in a clone plan."""
-
-    replicate_priority = 0
 
     def __init__(self, sim_context: SimulationContext, *, up_axis: str = "Z"):
         """Initialize the context from its owning simulation."""
-        self._sim = sim_context
+        super().__init__(sim_context)
         self.up_axis = up_axis
 
     def replicate(self, plan: ClonePlan, asset_prototype_ids: tuple[int, ...]) -> tuple[ModelBuilder, object, dict]:

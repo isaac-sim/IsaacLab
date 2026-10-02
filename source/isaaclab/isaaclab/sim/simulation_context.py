@@ -122,7 +122,7 @@ class SimulationContext:
         # Store config
         self.cfg = SimulationCfg() if cfg is None else cfg
         self._backend_registry: list[tuple[Any, Any]] = []
-        self.clone_contexts: dict[type, Any] = {}
+        self.clone_contexts: dict[type[cloner.ReplicateContext], cloner.ReplicateContext] = {}
         """Clone-context instances registered by type before plan dispatch; not native resource owners."""
 
         use_isaac_sim = has_kit()
@@ -160,8 +160,9 @@ class SimulationContext:
 
         # Acquire settings interface (SettingsManager: standalone dict or Omniverse when available)
         self.settings = get_settings_manager()
-        # Normalize the visualizers to a list, applying the selection a launch without a SimulationCfg
-        # left for the config built afterwards.
+        # Normalize the visualizers to a list, applying the --visualizer selection a launch recorded for the
+        # config built afterwards. Without a selection (the setting absent or empty), a config built by the caller
+        # keeps the visualizers it lists.
         pending_visualizers = self.get_setting("/isaaclab/visualizer/types")
         max_visible_envs = self.get_setting("/isaaclab/visualizer/max_visible_envs")
         self.cfg.visualizer_cfgs = resolve_visualizer_cfgs(
@@ -229,7 +230,7 @@ class SimulationContext:
         self._is_playing = False
         self._is_stopped = True
 
-        # Monotonic physics-step counter used by camera sensors for
+        # Monotonic physics-step counter used by camera sensors for data freshness checks.
         self._physics_step_count: int = 0
         # Monotonic render-generation counter. This increments whenever render()
         # is executed and lets downstream camera freshness logic distinguish
@@ -343,8 +344,10 @@ class SimulationContext:
         return self._visual_shapes_required
 
     def can_render_rgb_array(self) -> bool:
-        """Return whether rgb-array rendering is currently available."""
-        return self.has_gui or self.has_offscreen_render or self.has_active_visualizers()
+        """Return whether rgb-array rendering is currently available, including from a headless visualizer."""
+        return (
+            self.has_gui or self.has_offscreen_render or self.has_active_visualizers() or bool(self.cfg.visualizer_cfgs)
+        )
 
     @property
     def is_rendering(self) -> bool:
@@ -388,7 +391,7 @@ class SimulationContext:
         class defaults. Backend-specific defaults, such as the streaming renderer,
         do not transfer between visualizer types.
         """
-        default_cfg = getattr(self.cfg, "default_visualizer_cfg", None)
+        default_cfg = self.cfg.default_visualizer_cfg
         if default_cfg is None:
             return
         source_defaults, target_defaults = type(default_cfg)(), type(cfg)()
@@ -468,6 +471,7 @@ class SimulationContext:
             self._pending_camera_view = None
 
     def get_scene_data_provider(self) -> SceneDataProvider:
+        """Return the scene data provider shared by visualizers and renderers."""
         return self._scene_data_provider
 
     def register_interactive_scene(self, scene) -> None:
@@ -541,7 +545,7 @@ class SimulationContext:
     def _requires_pre_capture_newton_init(cfg: Any) -> bool:
         """Return whether a config contributes Newton picking inputs to capture."""
         return (
-            getattr(cfg, "visualizer_type", None) in {"newton_gl", "newton_rtx"}
+            cfg.visualizer_type in {"newton_gl", "newton_rtx"}
             and bool(getattr(cfg, "enable_picking", False))
             and not bool(getattr(cfg, "headless", False))
         )
@@ -637,7 +641,7 @@ class SimulationContext:
         # consumes that state later in this method. Live-plot panels register in the same
         # registry and their flag is independent of markers, so gate on either capability.
         if any(
-            viz.supports_markers() or (viz.supports_live_plots() and getattr(viz.cfg, "enable_live_plots", True))
+            viz.supports_markers() or (viz.supports_live_plots() and viz.cfg.enable_live_plots)
             for viz in self._visualizers
         ):
             self.vis_marker_registry.dispatch_callbacks()
@@ -649,10 +653,8 @@ class SimulationContext:
                 if skip_app_pumping and viz.pumps_app_update():
                     continue
                 if viz.is_closed or not viz.is_running():
-                    if viz.is_closed:
-                        logger.info("Visualizer closed: %s", type(viz).__name__)
-                    else:
-                        logger.info("Visualizer not running: %s", type(viz).__name__)
+                    state = "closed" if viz.is_closed else "not running"
+                    logger.info("Visualizer %s: %s", state, type(viz).__name__)
                     visualizers_to_remove.append(viz)
                     continue
                 if viz.is_rendering_paused():
@@ -873,12 +875,7 @@ class SimulationContext:
             return
 
         def _predicate(prim: Usd.Prim) -> bool:
-            path = prim.GetPath().pathString
-            if path == "/World":
-                return False
-            if prim.GetTypeName() == "PhysicsScene":
-                return False
-            return True
+            return prim.GetPath().pathString != "/World" and prim.GetTypeName() != "PhysicsScene"
 
         sim_utils.clear_stage(predicate=_predicate)
 

@@ -183,14 +183,14 @@ syntax as the other backends:
       .. code-block:: bash
 
           uv run --extra ovphysx isaaclab zero_agent --task Isaac-Cartpole-Direct \
-              --num_envs 128 --max_steps 64 --viz none physics=ovphysx
+              --num_envs 128 --max_steps 64 physics=ovphysx
 
    .. tab-item:: isaaclab.sh / isaaclab.bat
 
       .. code-block:: bash
 
           ./isaaclab.sh -p scripts/environments/zero_agent.py --task Isaac-Cartpole-Direct \
-              --num_envs 128 --max_steps 64 --viz none physics=ovphysx
+              --num_envs 128 --max_steps 64 physics=ovphysx
 
 This command runs a 64-step headless zero-action rollout and then exits.
 

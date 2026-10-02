@@ -32,7 +32,7 @@ from builtins import ExceptionGroup
 from collections import deque
 from collections.abc import Iterable, Iterator, Sequence
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, NoReturn, cast
+from typing import TYPE_CHECKING, Any, Generic, NoReturn, TypeVar
 
 logger = logging.getLogger(__name__)
 
@@ -84,7 +84,6 @@ from isaaclab_ov.renderers.ovrtx_annotator_utils import (
     decode_stable_id_map,
     decode_stable_id_semantic_id_map,
 )
-from isaaclab_ov.renderers.ovrtx_compat import OVRTX_VERSION, uses_prim_path_render_vars
 from isaaclab_ov.renderers.ovrtx_renderer_cfg import OVRTXBackendCfg, OVRTXRendererCfg
 from isaaclab_ov.renderers.ovrtx_renderer_kernels import (
     create_camera_transforms_kernel,
@@ -107,7 +106,9 @@ from isaaclab_ov.stage import (
 
 if TYPE_CHECKING:
     from isaaclab_ppisp import PpispPipeline
-    from ovrtx import AttributeBinding, Operation, PendingFetch, RenderProductSetOutputs
+    from ovrtx import AttributeBinding, FrameOutput, Operation, PendingFetch, RenderVarOutput
+
+    from pxr import Usd
 
     from isaaclab.renderers.base_renderer import VisualMaterialBatch
     from isaaclab.sensors.camera.camera_data import CameraData
@@ -278,7 +279,7 @@ class OVRTXBackend:
 class OVRTXCameraRenderData:
     """Owns one camera sensor's native resources and Warp output buffers."""
 
-    def __init__(self, spec: CameraRenderSpec, device, render_scope_name: str):
+    def __init__(self, spec: CameraRenderSpec, device: str | wp.Device, render_scope_name: str):
         """Create render data for a camera in its assigned render scope.
 
         Args:
@@ -289,12 +290,10 @@ class OVRTXCameraRenderData:
         self.render_scope_name = render_scope_name
         self.render_product_name = "RenderProduct"
         self.render_product_path = f"/{render_scope_name}/{self.render_product_name}"
-        self.render_var_keys: dict[str, str] = (
-            {source: f"/{render_scope_name}/Vars/{name}" for source, name in _RENDER_VAR_PRIM_NAMES.items()}
-            if uses_prim_path_render_vars(OVRTX_VERSION)
-            else {source: source for source in _RENDER_VAR_PRIM_NAMES}
-        )
-        self.camera_xform_binding = None
+        self.render_var_keys = {
+            source: f"/{render_scope_name}/Vars/{name}" for source, name in _RENDER_VAR_PRIM_NAMES.items()
+        }
+        self.camera_xform_binding: AttributeBinding[wp.array] | ovstage.Query | None = None
         self.resources = contextlib.ExitStack()
         self.width = spec.cfg.width
         self.height = spec.cfg.height
@@ -304,7 +303,7 @@ class OVRTXCameraRenderData:
         self.num_rows = math.ceil(self.num_envs / self.num_cols)
         self.warp_buffers: dict[str, wp.array] = {}
         self.intrinsic_bindings: list[AttributeBinding] = []
-        self.camera_writes = _AsyncWriteBuffers()
+        self.camera_writes = _AsyncWriteBuffers[wp.array]()
         self.pending: tuple[Operation[PendingFetch[RenderProductSetOutputs]], dict | None] | None = None
         self.ready: tuple[Operation[PendingFetch[RenderProductSetOutputs]], dict | None] | None = None
         self.capture: dict[str, ProxyArray] = {}
@@ -370,7 +369,7 @@ class OVRTXRenderer(BaseRenderer):
         self._object_scales_by_path: dict[str, tuple[float, float, float]] = {}
         self._geometry_paths: list[str] = []
         self._geometry_offsets: dict[str, int] = {}
-        self._geometry_writes = _AsyncWriteBuffers()
+        self._geometry_writes = _AsyncWriteBuffers[wp.array]()
         self._geometry_timestamp = -1
         self._initialized_scene = False
         self._exported_usd_string: str | None = None
@@ -382,7 +381,8 @@ class OVRTXRenderer(BaseRenderer):
         self.scene: OvstageBackend | OVRTXBackend | None = None
         self.backend: OVRTXBackend | None = None
         """Native engine borrowed from the simulation registry after clone preparation."""
-        self._object_xform_binding = self._geometry_points_binding = None
+        self._object_xform_binding: AttributeBinding[wp.array] | ovstage.Query | None = None
+        self._geometry_points_binding: AttributeBinding[list[wp.array]] | ovstage.Query | None = None
         self._bindings = contextlib.ExitStack()
 
     def visual_material_writer(self, batches: tuple[VisualMaterialBatch, ...]) -> OVRTXVisualMaterialWriter:
@@ -393,7 +393,7 @@ class OVRTXRenderer(BaseRenderer):
         self._visual_material_writer_ref = weakref.ref(writer)
         return writer
 
-    def prepare_cameras(self, stage: Any, spec: CameraRenderSpec) -> None:
+    def prepare_cameras(self, stage: Usd.Stage, spec: CameraRenderSpec) -> None:
         """Resolve the camera's PPISP cfg and apply OVRTX-specific USD overrides.
 
         When ``spec.cfg.isp_cfg`` is set, resolves it (sentinel discovery +
@@ -416,7 +416,7 @@ class OVRTXRenderer(BaseRenderer):
             return
         apply_rtx_exposure_overrides(stage, list(spec.camera_prim_paths))
 
-    def prepare_stage(self, stage: Any, num_envs: int) -> None:
+    def prepare_stage(self, stage: Usd.Stage, num_envs: int) -> None:
         """Prepare the USD stage for OVRTX before :meth:`create_render_data`.
 
         Capture composed scales and export unpopulated scenes for :meth:`create_render_data`.
@@ -440,7 +440,7 @@ class OVRTXRenderer(BaseRenderer):
                 stage, num_envs, source_paths=sources, keep_env_roots=False, env_paths=self.scene.population_env_paths
             )
 
-    def _capture_object_scales(self, stage: Any) -> None:
+    def _capture_object_scales(self, stage: Usd.Stage) -> None:
         """Record composed world scales beneath the routed sources and their prepared destinations.
 
         The per-frame object transform write rebuilds each body's matrix from an SDP
@@ -797,25 +797,13 @@ class OVRTXRenderer(BaseRenderer):
             camera_data.info[output_name] = {**(info or {}), "capture": capture} if capture else info
 
     @contextlib.contextmanager
-    def _map_render_var_to_dlpack(self, render_var: Any) -> Iterator[wp.array]:
+    def _map_render_var_to_dlpack(self, render_var: RenderVarOutput) -> Iterator[wp.array]:
         """Map ``render_var`` for CUDA reads and yield it as a Warp array.
 
-        The render is still in flight when the mapping returns, so reading it has to be ordered
-        against render completion. Normally that is a ``cudaStreamWaitEvent`` on the Warp stream the
-        consuming kernels run on, which is the ordering the OVRTX API is designed around.
-
-        On Linux that GPU-side wait measures substantially slower end to end, so the mapping is
-        instead requested with no GPU-side barrier and the calling thread blocks on the
-        render-completion event. Setting :data:`_DISABLE_LINUX_CUDA_CPU_SYNC_ENV` to ``1`` puts
-        Linux back on the GPU-side wait; it is an escape hatch for platforms where that trade-off
-        no longer holds, and is worth re-measuring before being relied on.
-
-        Note that ``sync_stream=0`` is OVRTX's "no sync" sentinel, *not* the NULL CUDA stream: the
-        field encodes ``0=no sync, 1=default stream, >1=specific stream``, so omitting the argument
-        entirely means ``1``, not ``0``.
-
-        The yielded array is a zero-copy view of the mapped memory and is only valid inside the
-        ``with`` block -- the mapping is released on exit.
+        Wait for rendering on the consuming stream, or on the host on Linux unless
+        :data:`_DISABLE_LINUX_CUDA_CPU_SYNC_ENV` is ``1``. Consume the zero-copy view inside the
+        context. Unmapping records the consuming stream; native release waits for its queued
+        reads and the last view to be dropped.
 
         Args:
             render_var: OVRTX ``RenderVarOutput`` to map (looked up from ``frame.render_vars``).
@@ -824,13 +812,19 @@ class OVRTXRenderer(BaseRenderer):
             The render var's contents as a Warp array, valid for the duration of the context.
         """
         gpu_side_sync = _gpu_side_render_var_sync_enabled()
-        sync_stream = self._warp_device.stream.cuda_stream if gpu_side_sync else 0
-        with render_var.map(device=Device.CUDA, sync_stream=sync_stream) as mapping:
+        # OVRTX uses 0 for no synchronization and 1 for Torch's legacy default stream (CUDA handle 0).
+        stream = self._warp_device.stream.cuda_stream or 1
+        mapping = render_var.map(device=Device.CUDA, sync_stream=stream if gpu_side_sync else 0)
+        try:
             if not gpu_side_sync:
                 mapping.wait()
             yield wp.from_dlpack(mapping)
+        finally:
+            mapping.unmap(stream=stream)
 
-    def _process_segmentation(self, render_data: OVRTXCameraRenderData, frame, output_buffers: dict) -> None:
+    def _process_segmentation(
+        self, render_data: OVRTXCameraRenderData, frame: FrameOutput, output_buffers: dict[str, wp.array]
+    ) -> None:
         """Extract segmentation pixels and decode their shared label map once per frame."""
         semantic, instance = "semantic_segmentation", "instance_segmentation"
         if semantic not in output_buffers and instance not in output_buffers:
@@ -868,7 +862,7 @@ class OVRTXRenderer(BaseRenderer):
                         device=self._device,
                     )
                     colors = wp.to_torch(color_buffer).view(torch.uint8).reshape(*tiled_data.shape[:2], 4)
-                    self._extract_rgba_tiles(render_data, wp.from_torch(colors, dtype=wp.uint8), output_buffers, key)
+                    self._extract_rgba_tiles(render_data, wp.from_torch(colors, dtype=wp.uint8), output_buffers[key])
                 else:
                     # Keep uint32 in Warp; torch-to-Warp conversion does not support that dtype.
                     if tiled_data.ndim == 2:
@@ -932,17 +926,18 @@ class OVRTXRenderer(BaseRenderer):
         )
 
     def _extract_rgba_tiles(
-        self, render_data: OVRTXCameraRenderData, tiled_data: wp.array, output_buffers: dict, buffer_key: str
+        self, render_data: OVRTXCameraRenderData, tiled_data: wp.array, output_buffer: wp.array
     ) -> None:
-        """Extract per-env RGBA tiles from tiled buffer into output_buffers (single kernel launch)."""
-        output_buffer = output_buffers[buffer_key]
+        """Extract RGB or RGBA tiles into the requested output buffer."""
         num_channels = output_buffer.shape[-1]
         if num_channels not in (3, 4):
             raise ValueError(f"Expected RGB (3 channels) or RGBA (4 channels), got {num_channels}")
 
         self._launch_extract_all_tiles(render_data, tiled_data, output_buffer)
 
-    def _process_render_frame(self, render_data: OVRTXCameraRenderData, frame, output_buffers: dict) -> None:
+    def _process_render_frame(
+        self, render_data: OVRTXCameraRenderData, frame: FrameOutput, output_buffers: dict[str, wp.array]
+    ) -> None:
         """Extract RGB, depth, albedo, and semantic from a single render frame into output_buffers."""
         # Reset per-output metadata so it is a snapshot of this frame only. Unlike pixel AOVs (always
         # present), metadata like the semantic ``idToLabels`` is only repopulated below when its render var
@@ -965,7 +960,7 @@ class OVRTXRenderer(BaseRenderer):
 
             if buffer_key is not None:
                 with self._map_render_var_to_dlpack(ldr_color) as tiled_data:
-                    self._extract_rgba_tiles(render_data, tiled_data, output_buffers, buffer_key)
+                    self._extract_rgba_tiles(render_data, tiled_data, output_buffers[buffer_key])
 
         for depth_var, buffer_keys in _DEPTH_VAR_BUFFER_KEYS.items():
             depth_render_var = frame.render_vars.get(render_data.render_var_keys[depth_var])
@@ -985,7 +980,7 @@ class OVRTXRenderer(BaseRenderer):
         albedo_var = frame.render_vars.get(render_data.render_var_keys[_ALBEDO_VAR])
         if albedo_var is not None and "albedo" in output_buffers:
             with self._map_render_var_to_dlpack(albedo_var) as tiled_albedo_data:
-                self._extract_rgba_tiles(render_data, tiled_albedo_data, output_buffers, "albedo")
+                self._extract_rgba_tiles(render_data, tiled_albedo_data, output_buffers["albedo"])
 
         hdr_color = frame.render_vars.get(render_data.render_var_keys[_HDR_COLOR_VAR])
         if hdr_color is not None and "rgb_hdr" in output_buffers:
@@ -1083,12 +1078,12 @@ class OVRTXRenderer(BaseRenderer):
                 tensors=xform_tensor_from_warp(matrices),
                 is_array=False,
                 semantic=ovstage.AttributeSemantic.MATRIX,
-                cuda_stream=self._warp_device.stream.cuda_stream,
+                cuda_stream=stream.cuda_stream or 1,
             ).wait()
         elif asynchronous:
             self._transform_writes.submit(binding, matrices, stream)
         else:
-            binding.write(matrices, data_access=DataAccess.ASYNC, cuda_stream=stream.cuda_stream)
+            binding.write(matrices, data_access=DataAccess.ASYNC, cuda_stream=stream.cuda_stream or 1)
         self._transforms_timestamp = timestamp
 
     def update_geometries(self) -> None:
@@ -1117,12 +1112,12 @@ class OVRTXRenderer(BaseRenderer):
                 tensors=[points_tensor_from_warp(array) for array in points],
                 is_array=True,
                 semantic=ovstage.AttributeSemantic.POINT,
-                cuda_stream=self._warp_device.stream.cuda_stream,
+                cuda_stream=stream.cuda_stream or 1,
             ).wait()
         elif asynchronous:
             self._geometry_writes.submit(binding, points, stream)
         else:
-            binding.write(cast(Any, points), data_access=DataAccess.ASYNC, cuda_stream=stream.cuda_stream)
+            binding.write(points, data_access=DataAccess.ASYNC, cuda_stream=stream.cuda_stream or 1)
         self._geometry_timestamp = timestamp
 
     def update_camera(
@@ -1149,7 +1144,7 @@ class OVRTXRenderer(BaseRenderer):
                 tensors=xform_tensor_from_warp(matrices),
                 is_array=False,
                 semantic=ovstage.AttributeSemantic.MATRIX,
-                cuda_stream=stream.cuda_stream,
+                cuda_stream=stream.cuda_stream or 1,
             ).wait()
         else:
             operation = render_data.camera_writes.submit(binding, matrices, stream)
@@ -1163,7 +1158,7 @@ class OVRTXRenderer(BaseRenderer):
         errors = self.drain_pending_renders((render_data,))
         if errors:
             raise ExceptionGroup("OVRTX renders failed before calibration update", errors)
-        stream = wp.get_stream(parameters.device).cuda_stream
+        stream = wp.get_stream(parameters.device).cuda_stream or 1
         if self._use_ovstage:
             self.scene.stage.write_attributes(
                 render_data.camera_xform_binding,
@@ -1298,13 +1293,18 @@ class OVRTXRenderer(BaseRenderer):
             self._visual_material_writer_ref = None
 
 
-class _AsyncWriteBuffers:
+_BufferT = TypeVar("_BufferT", wp.array, SceneDataFormat.TransposedMatrix44d)
+
+
+class _AsyncWriteBuffers(Generic[_BufferT]):
     """Retain GPU buffers until native writes finish; reuse them in submission order."""
 
-    def __init__(self, buffers: Iterable[Any] = ()):
-        self._writes = deque((buffer, None, None) for buffer in buffers)
+    def __init__(self, buffers: Iterable[_BufferT] = ()):
+        self._writes: deque[tuple[_BufferT, Operation[bool] | None, wp.Stream | None]] = deque(
+            (buffer, None, None) for buffer in buffers
+        )
 
-    def acquire(self, stream: wp.Stream) -> Any:
+    def acquire(self, stream: wp.Stream) -> _BufferT:
         """Wait until the next buffer is writable on the given stream."""
         buffer, operation, producer = self._writes[0]
         if operation is not None:
@@ -1313,9 +1313,11 @@ class _AsyncWriteBuffers:
                 stream.wait_stream(producer)
         return buffer
 
-    def submit(self, binding: AttributeBinding, values: Any, stream: wp.Stream) -> Operation:
+    def submit(
+        self, binding: AttributeBinding, values: wp.array | list[wp.array], stream: wp.Stream
+    ) -> Operation[bool]:
         """Submit a write and retain its inputs; a failed submission does not advance the buffers."""
-        operation = binding.write_async(values, data_access=DataAccess.ASYNC, cuda_stream=stream.cuda_stream)
+        operation = binding.write_async(values, data_access=DataAccess.ASYNC, cuda_stream=stream.cuda_stream or 1)
         self._writes[0] = (self._writes[0][0], operation, stream)
         self._writes.rotate(-1)
         return operation

@@ -23,6 +23,7 @@ from .clone_plan import ClonePlan, grid_transforms, make_clone_plan
 from .clone_plan import path as cloner_path
 from .cloner_cfg import DEFAULT_ENV_TEMPLATE, CloneCfg, InclusionSet, expand_env_regex_ns
 from .cloner_strategies import sequential
+from .replicate_context import ReplicateContext
 from .usd import UsdReplicateContext
 
 
@@ -79,7 +80,7 @@ def make_valid_clone_combinations(
 def replicate(plan: ClonePlan, *, replicate_physics: bool = True) -> None:
     """Execute one topology through its declared clone contexts.
 
-    A context may implement ``prepare(sim, routing)`` to resolve shared representations and
+    Each context implements ``prepare(sim, routing)`` to resolve shared representations and
     acquire their simulation-owned resources before any context is constructed or dispatched.
 
     Args:
@@ -121,8 +122,6 @@ def replicate(plan: ClonePlan, *, replicate_physics: bool = True) -> None:
         if index in shared:
             contexts += tuple(context for context in (physics_context, *render_contexts) if context is not None)
         for context in contexts:
-            if not isinstance(context, type):
-                raise TypeError(f"{type(cfg).__name__}.cloning_contexts must contain only context classes.")
             routing.setdefault(context, set()).add(index)
 
     prepare_clone_contexts(sim, routing)
@@ -134,7 +133,9 @@ def replicate(plan: ClonePlan, *, replicate_physics: bool = True) -> None:
             sim.clone_contexts[context].replicate(plan, tuple(sorted(routing[context])))
 
 
-def prepare_clone_contexts(sim: sim_utils.SimulationContext, routing: dict[type, set[int]] | None = None) -> None:
+def prepare_clone_contexts(
+    sim: sim_utils.SimulationContext, routing: dict[type[ReplicateContext], set[int]] | None = None
+) -> None:
     """Resolve consumer requirements before clone dispatch or a standalone simulation reset.
 
     Args:
@@ -146,10 +147,11 @@ def prepare_clone_contexts(sim: sim_utils.SimulationContext, routing: dict[type,
             string_to_callable(context) if isinstance(context, str) else context: set()
             for context in sim.render_context.clone_contexts
         }
-    # Preparation is optional for context extensions; existing USD/physics contexts only replicate.
     for context in tuple(routing):
-        if context in routing and (prepare := getattr(context, "prepare", None)) is not None:
-            prepare(sim, routing)
+        if not isinstance(context, type) or not issubclass(context, ReplicateContext):
+            raise TypeError("cloning_contexts must contain ReplicateContext subclasses.")
+        if context in routing:
+            context.prepare(sim, routing)
 
 
 def clone_plan_from_env_0(

@@ -28,6 +28,7 @@ from isaaclab_visualizers.newton.newton_visualizer_cfg import (
 from isaaclab_visualizers.rerun.rerun_visualizer_cfg import RerunVisualizerCfg
 from isaaclab_visualizers.viser.viser_visualizer_cfg import ViserVisualizerCfg
 
+from isaaclab.cloner import ReplicateContext
 from isaaclab.markers.vis_marker_registry import VisMarkerRegistry
 from isaaclab.sim.simulation_context import SimulationContext
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
@@ -316,11 +317,14 @@ def test_reset_initializes_visualizers_before_playing_timeline():
         def play():
             events.append("play")
 
-    class _CloneContext:
+    class _CloneContext(ReplicateContext):
         @staticmethod
         def prepare(sim, routing):
             assert sim is ctx and set(routing) == {_CloneContext}
             events.append("prepare")
+
+        def replicate(self, plan, asset_prototype_ids):
+            pytest.fail("Reset preparation must not execute cloning.")
 
     class _RenderContext:
         clone_contexts = (_CloneContext,)
@@ -949,17 +953,6 @@ def test_is_rendering_false_when_only_cfg_visualizer_is_headless():
     assert ctx.is_rendering is False
 
 
-def test_is_rendering_false_when_cli_disable_all_even_with_cfg_visualizer():
-    from isaaclab.visualizers.visualizer_cfg import resolve_visualizer_cfgs
-
-    cfg_visualizer = type("CfgVisualizer", (), {"visualizer_type": "newton_gl"})()
-    settings = {
-        "/isaaclab/render/rtx_sensors": False,
-    }
-    ctx = _make_context_with_settings(settings, visualizer_cfgs=resolve_visualizer_cfgs([cfg_visualizer], []))
-    assert ctx.is_rendering is False
-
-
 def test_explicit_missing_package_raises(monkeypatch: pytest.MonkeyPatch):
     """Requesting a valid type whose package is not installed raises RuntimeError."""
     # Force import to fail for the rerun visualizer module
@@ -971,7 +964,7 @@ def test_explicit_missing_package_raises(monkeypatch: pytest.MonkeyPatch):
 
     def _failing_import(name, *args, **kwargs):
         if "isaaclab_visualizers.rerun" in name:
-            raise ImportError("No module named 'isaaclab_visualizers.rerun'")
+            raise ModuleNotFoundError("No module named 'isaaclab_visualizers.rerun'")
         return real_import(name, *args, **kwargs)
 
     monkeypatch.setattr(importlib, "import_module", _failing_import)
@@ -999,14 +992,12 @@ def test_visualizer_init_keeps_requirements_published_before_reset():
     assert ctx.requires_usd_stage
 
 
-@pytest.mark.parametrize("cli_explicit", [False, True])
 @pytest.mark.parametrize("fail_construct", [False, True])
-def test_visualizer_failures_propagate_and_retain_constructed_instances(cli_explicit, fail_construct):
+def test_visualizer_failures_propagate_and_retain_constructed_instances(fail_construct):
     """Cfg-requested failures propagate naturally; completed instances stay owned until explicit teardown."""
     good_cfg = _FakeVisualizerCfg("kit")
     failing_cfg = _FakeVisualizerCfg("newton_gl", fail_construct=fail_construct, fail_init=not fail_construct)
-    settings = {}
-    ctx = _make_context_with_settings(settings, visualizer_cfgs=[good_cfg, failing_cfg])
+    ctx = _make_context_with_settings({}, visualizer_cfgs=[good_cfg, failing_cfg])
 
     with pytest.raises(RuntimeError, match="construction failed" if fail_construct else "init failed"):
         ctx._create_visualizers()
@@ -1046,7 +1037,7 @@ def test_explicit_existing_cfg_plus_failing_requested_type_raises_for_the_failur
     def _failing_import(name, *args, **kwargs):
         requested.append(name)
         if name == "isaaclab_visualizers.rerun":
-            raise ImportError("No module named 'isaaclab_visualizers.rerun'")
+            raise ModuleNotFoundError("No module named 'isaaclab_visualizers.rerun'")
         return real_import(name, *args, **kwargs)
 
     monkeypatch.setattr(importlib, "import_module", _failing_import)
@@ -1054,7 +1045,7 @@ def test_explicit_existing_cfg_plus_failing_requested_type_raises_for_the_failur
     with pytest.raises(RuntimeError) as exc_info:
         resolve_visualizer_cfgs([_FakeVisualizerCfg("kit")], ["kit", "rerun"])
     # 'kit' was satisfied by the pre-existing cfg, so only the unresolved type is constructed and reported.
-    assert "['rerun']" in str(exc_info.value)
+    assert "'rerun'" in str(exc_info.value)
     assert requested == ["isaaclab_visualizers.rerun"]
 
 

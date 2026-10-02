@@ -160,7 +160,14 @@ def test_ovrtx_renderer_config_enables_supported_runtime_options(monkeypatch, tm
         yield object()
         stage_releases.append(label)
 
-    monkeypatch.setattr("isaaclab_ov.stage.create_ovstage", lambda _: stage_resource("stage"))
+    def create_stage(name, config):
+        assert (
+            config.runtime_default_hierarchy_computation_model
+            is ovrtx_renderer_module.ovstage.HierarchyComputationModel.GPU_INCREMENTAL
+        )
+        return stage_resource("stage")
+
+    monkeypatch.setattr(ovrtx_renderer_module.ovstage, "Stage", create_stage)
     monkeypatch.setattr(ovrtx_renderer_module.ovstage, "PathDictionary", lambda _: stage_resource("paths"))
 
     sim = SimulationContext.instance()
@@ -731,15 +738,11 @@ def test_ovrtx_process_frame_routes_ppisp_hdr_to_output_device(monkeypatch, sour
         clone.assert_called_once_with(source, device="cpu")
 
 
-# Render-var keys depend only on the OVRTX version; ``use_ovstage`` only selects the registration path.
-@pytest.mark.parametrize(("use_ovstage", "version"), [(False, "0.4"), (True, "0.5")])
-def test_ovrtx_process_frame_reads_authored_camera_render_vars(monkeypatch, use_ovstage, version):
+@pytest.mark.parametrize("use_ovstage", [False, True])
+def test_ovrtx_process_frame_reads_authored_camera_render_vars(monkeypatch, use_ovstage):
     """Both OVRTX APIs extract each camera's outputs using keys from its authored USD."""
-    from packaging.version import Version
-
     from pxr import Usd
 
-    monkeypatch.setattr(ovrtx_renderer_module, "OVRTX_VERSION", Version(version))
     renderer = _make_ovrtx_renderer_without_backend()
     renderer._initialized_scene = True
     renderer._device = "cpu"
@@ -792,9 +795,7 @@ def test_ovrtx_process_frame_reads_authored_camera_render_vars(monkeypatch, use_
         )
         stage = stages[render_data.render_product_path]
         keys = {
-            prim.GetAttribute("sourceName").Get(): (
-                str(prim.GetPath()) if version == "0.5" else prim.GetAttribute("sourceName").Get()
-            )
+            prim.GetAttribute("sourceName").Get(): str(prim.GetPath())
             for prim in stage.Traverse()
             if prim.GetTypeName() == "RenderVar"
         }
@@ -928,50 +929,34 @@ def test_ovrtx_render_var_sync_rejects_non_boolean_values(monkeypatch, value):
         _gpu_side_render_var_sync_enabled()
 
 
-class _RecordingRenderVar:
-    """Stand-in for an OVRTX ``RenderVarOutput`` that records how the read was ordered.
-
-    Any of OVRTX's ordering mechanisms counts, so the test stays about *whether* the read is
-    ordered rather than which call carries it.
-    """
-
-    def __init__(self):
-        self.ordering: list[str] = []
-
-    def map(self, *, device, sync_stream):
-        if sync_stream:
-            self.ordering.append("gpu")
-        recorder = self
-
-        class _Mapping:
-            def wait(self):
-                recorder.ordering.append("host")
-
-            def wait_on(self, stream):
-                recorder.ordering.append("gpu")
-
-        return contextlib.nullcontext(_Mapping())
-
-
-@pytest.mark.parametrize(("gpu_side", "expected"), [(True, "gpu"), (False, "host")])
-def test_ovrtx_map_render_var_orders_the_read_against_render_completion(monkeypatch, gpu_side, expected):
-    """The read is ordered exactly once -- by a GPU-side barrier or a host block, never by neither.
-
-    Ordering by neither is a silent race on half-written render output rather than a failure, so
-    this asserts which mechanism ran and not which API call carries it.
-    """
+@pytest.mark.parametrize(
+    ("gpu_side", "cuda_stream", "expected_stream", "consumer_fails"),
+    [(True, 0, 1, False), (True, 99, 99, True), (False, 0, 1, False)],
+)
+def test_ovrtx_map_render_var_orders_the_read_against_render_completion(
+    monkeypatch, gpu_side, cuda_stream, expected_stream, consumer_fails
+):
+    """Order reads after rendering and release after reads, including when the consumer raises."""
+    events = []
+    mapping = types.SimpleNamespace(
+        wait=lambda: events.append("wait"), unmap=lambda *, stream: events.append(("release", stream))
+    )
+    render_var = types.SimpleNamespace(map=MagicMock(return_value=mapping))
     sentinel = object()
-    render_var = _RecordingRenderVar()
     monkeypatch.setattr(ovrtx_renderer_module, "_gpu_side_render_var_sync_enabled", lambda: gpu_side)
     monkeypatch.setattr(ovrtx_renderer_module.wp, "from_dlpack", lambda mapping: sentinel)
 
     renderer = _make_ovrtx_renderer_without_backend()
-    renderer._device = "cuda:0"
-    renderer._warp_device = types.SimpleNamespace(stream=types.SimpleNamespace(cuda_stream=99))
-    with renderer._map_render_var_to_dlpack(render_var) as array:
-        assert array is sentinel
+    renderer._warp_device = types.SimpleNamespace(stream=types.SimpleNamespace(cuda_stream=cuda_stream))
+    with pytest.raises(ValueError, match="consumer failed") if consumer_fails else contextlib.nullcontext():
+        with renderer._map_render_var_to_dlpack(render_var) as array:
+            assert array is sentinel
+            events.append("consume")
+            if consumer_fails:
+                raise ValueError("consumer failed")
 
-    assert render_var.ordering == [expected]
+    assert render_var.map.call_args.kwargs["sync_stream"] == (expected_stream if gpu_side else 0)
+    assert events == ([] if gpu_side else ["wait"]) + ["consume", ("release", expected_stream)]
 
 
 @pytest.mark.parametrize(
