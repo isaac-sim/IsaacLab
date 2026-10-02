@@ -3,6 +3,19 @@ Changelog
 
 .. towncrier release notes start
 
+5.1.2 (2026-10-02)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed OVRTX render-output reads and attribute writes skipping synchronization on Torch's
+  legacy default CUDA stream.
+* Fixed mapped-buffer release racing asynchronous render-output extraction.
+* Fixed frame-transformer path expressions that directly match a rigid body from also selecting
+  nested rigid-body descendants.
+
+
 5.1.1 (2026-10-01)
 ~~~~~~~~~~~~~~~~~~
 

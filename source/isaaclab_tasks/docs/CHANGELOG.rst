@@ -3,6 +3,30 @@ Changelog
 
 .. towncrier release notes start
 
+22.0.0 (2026-10-02)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``presets=minimal`` to Franka Reach and rigid Lift, selecting the ``FRANKA_MINIMAL_CFG``
+  gripper-only colliders while preserving task controls and independent physics backend selection.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Migrated maintained Franka Reach, Drawer, rigid and deformable Lift, and related
+  contributed tasks to the main ``FRANKA_PANDA_CFG`` with backend-specific physics and full arm and
+  gripper collisions. Existing checkpoints require requalification against the changed robot dynamics.
+
+Fixed
+^^^^^
+
+* Fixed Franka Pour startup with the shared Franka asset by selecting its MuJoCo physics payload
+  and removing the obsolete duplicate-mimic workaround.
+* Corrected the Reach action and controller contracts for the shared asset.
+
+
 21.1.0 (2026-10-01)
 ~~~~~~~~~~~~~~~~~~~
 

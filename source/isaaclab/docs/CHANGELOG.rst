@@ -3,6 +3,39 @@ Changelog
 
 .. towncrier release notes start
 
+27.0.0 (2026-10-02)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added an ``offset`` to ``DifferentialInverseKinematicsActionCfg`` so normalized policies can use
+  an affine task-space action transform. The default is zero and preserves existing configurations.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Changed ``load_torchscript_model`` to raise ``RuntimeError`` when TorchScript loading fails instead
+  of returning ``None``. Callers that previously checked for a ``None`` return should catch ``RuntimeError`` at
+  the load call instead.
+
+Fixed
+^^^^^
+
+* Fixed Newton-native actuators driving only the first asset of a multi-asset scene. ``NewtonActuator`` prims
+  were authored on the first prim matching the articulation path, so every other spawned asset
+  imported into the Newton model without actuators and its joints received no torque. They are now authored on
+  every matching articulation.
+* Fixed CLI runs on Linux aarch64 from a virtual environment exiting at ``isaacsim`` import with
+  the ``LD_PRELOAD`` banner. The CLI now preloads the system ``libgomp.so.1`` by its full path,
+  which is the form Isaac Sim's check accepts.
+* Removed stray debug output from action IO descriptor export.
+* Fixed ``dump_yaml()`` to preserve existing ``.yml`` and case-insensitive YAML file extensions instead of appending
+  ``.yaml``.
+* Fixed ``CircularBuffer.buffer`` raising an implementation-level PyTorch error when accessed before the first
+  ``append()`` by reporting a clear ``RuntimeError`` instead.
+
+
 26.0.0 (2026-10-01)
 ~~~~~~~~~~~~~~~~~~~
 

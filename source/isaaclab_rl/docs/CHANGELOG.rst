@@ -3,6 +3,15 @@ Changelog
 
 .. towncrier release notes start
 
+1.3.3 (2026-10-02)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Corrected zero-agent hold actions for absolute differential IK configured with a nonzero action offset.
+
+
 1.3.2 (2026-10-01)
 ~~~~~~~~~~~~~~~~~~
 
