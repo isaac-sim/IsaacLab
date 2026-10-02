@@ -86,12 +86,13 @@ else
 fi
 
 # "${cvd_args[@]}" expands to the CUDA_VISIBLE_DEVICES flag on MIG hosts, nothing otherwise.
+# .git is hidden as the images do: the checkout's config requires Git LFS, which they do not ship.
 docker run --rm --gpus all --network=host \
   --entrypoint bash \
   --user "${host_uid}:${host_gid}" \
   --name "isaac-lab-mgpu-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
   -v "$PWD:/workspace/isaaclab:rw" \
-  --env-file "$PWD/.github/actions/_lib/disable-git-lfs-filter.env" \
+  --tmpfs /workspace/isaaclab/.git \
   -v "$queue_root:/mgpu:rw" \
   -v "$logs_dir:/shard-logs:rw" \
   -e USER="${host_user}" \

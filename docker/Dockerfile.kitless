@@ -124,9 +124,8 @@ ENV PYTHONUNBUFFERED=1
 ENV NVIDIA_VISIBLE_DEVICES=all
 ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility,graphics
 
-# Neither image ships Git LFS: scanners flag the Go modules embedded in its upstream binary. CI
-# bind-mounts an ``lfs: true`` checkout whose .git/config requires the LFS filter, so its launchers
-# pass ``.github/actions/_lib/disable-git-lfs-filter.env`` to keep in-container git working.
+# Neither image ships Git LFS: scanners flag the Go modules embedded in its upstream binary. Nothing
+# here needs it, since .dockerignore keeps .git out and CI's test launchers hide the mounted one.
 #
 # Libraries ovrtx loads at init. GLVND splits these: libgl1 gives libGL.so.1,
 # but libOpenGL.so.0 and libEGL.so.1 need libopengl0 and libegl1. libxrender1 is

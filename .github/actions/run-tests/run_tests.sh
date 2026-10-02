@@ -249,6 +249,8 @@ run_tests() {
       "${docker_runtime_dir}/isaac-sim/pkg"
     docker_volume_args=(
       -v "${volume_mount_source}:/workspace/isaaclab:rw"
+      # Hide .git as the images do: the checkout's config requires Git LFS, which they do not ship.
+      --tmpfs /workspace/isaaclab/.git
       -v "${docker_runtime_dir}/home:/tmp/isaaclab-ci-home:rw"
       -v "${docker_runtime_dir}/isaac-sim/kit/cache:/isaac-sim/kit/cache:rw"
       -v "${docker_runtime_dir}/isaac-sim/kit/data:/isaac-sim/kit/data:rw"
@@ -359,7 +361,6 @@ run_tests() {
     --init --stop-timeout 5 \
     --entrypoint bash --gpus all --network=host \
     -v "$PWD/.github/actions/_lib/with-python-package-retries.sh:/with-python-package-retries.sh:ro" \
-    --env-file "$PWD/.github/actions/_lib/disable-git-lfs-filter.env" \
     --security-opt=no-new-privileges:true \
     --memory="$(echo "$(free -m | awk '/^Mem:/{print $2}') * 0.9 / 1" | bc)m" \
     --cpus="$(echo "$(nproc) * 0.9" | bc)" \
