@@ -1058,10 +1058,7 @@ jobs:
       run: |
         set -euo pipefail
         controller="${RUNNER_TEMP}/performance-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-        # Cache versions include the path, so keep this stable across runs.
-        baseline_output=../performance-smoke-baseline
-        mkdir -p "$controller/tools" "$baseline_output"
-        find "$baseline_output" -mindepth 1 -delete
+        mkdir -p "$controller/tools" "$controller/baseline-output"
         cp -a tools/perf_smoke "$controller/tools/"
         cp benchmark-legs.tsv "$controller/benchmark-legs.tsv"
         if [ -d jit-cache ]; then
@@ -1070,7 +1067,7 @@ jobs:
           mkdir "$controller/jit-cache"
         fi
         echo "PERF_CONTROLLER=$controller" >> "$GITHUB_ENV"
-        echo "PERF_BASELINE_OUTPUT=$baseline_output" >> "$GITHUB_ENV"
+        echo "PERF_BASELINE_OUTPUT=$controller/baseline-output" >> "$GITHUB_ENV"
         echo "PERF_JIT_CACHE=$controller/jit-cache" >> "$GITHUB_ENV"
 
     - name: Resolve exact pull-request pair
@@ -1112,7 +1109,8 @@ jobs:
       continue-on-error: true
       uses: actions/cache/restore@v4
       with:
-        path: ${{ env.PERF_BASELINE_OUTPUT }}
+        # Cache versions include the path, so keep this relative path stable across runs.
+        path: benchmark-baseline-cache
         key: ${{ steps.baseline_key.outputs.prefix }}-${{ github.run_id }}-${{ github.run_attempt }}
         restore-keys: |
           ${{ steps.baseline_key.outputs.prefix }}-
@@ -1122,11 +1120,12 @@ jobs:
       id: cached_baseline
       run: |
         set -uo pipefail
+        cached=benchmark-baseline-cache
         validate_baseline() {
           while IFS='|' read -r leg task num_envs bench_timeout_s args; do
-            test "$(cat "$PERF_BASELINE_OUTPUT/$leg/status" 2>/dev/null)" = ok || return 1
+            test "$(cat "$cached/$leg/status" 2>/dev/null)" = ok || return 1
             mapfile -t results < <(
-              find "$PERF_BASELINE_OUTPUT/$leg" -type f -name 'benchmark_runtime_*.json' | sort
+              find "$cached/$leg" -type f -name 'benchmark_runtime_*.json' | sort
             )
             test "${#results[@]}" -eq 3 || return 1
             for result in "${results[@]}"; do
@@ -1135,10 +1134,10 @@ jobs:
           done < "$PERF_CONTROLLER/benchmark-legs.tsv"
         }
         if validate_baseline; then
+          cp -a "$cached/." "$PERF_BASELINE_OUTPUT/"
           echo "reused=true" >> "$GITHUB_OUTPUT"
         else
           echo "::warning::Ignoring incomplete reusable baseline"
-          find "$PERF_BASELINE_OUTPUT" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +
         fi
 
     - name: Checkout exact base
@@ -1192,16 +1191,23 @@ jobs:
         JIT_CACHE_ROOT: ${{ env.PERF_JIT_CACHE }}
       run: "$PERF_CONTROLLER/tools/perf_smoke/run_benchmarks.sh"
 
+    - name: Stage fresh baseline cache
+      if: steps.base_benchmark.outcome == 'success'
+      id: stage_baseline
+      run: |
+        mkdir -p benchmark-baseline-cache
+        cp -a "$PERF_BASELINE_OUTPUT/." benchmark-baseline-cache/
+
     - name: Cache fresh baseline
       if: >-
         always() && !cancelled() &&
         github.event_name == 'pull_request' &&
         steps.cached_baseline.outputs.reused != 'true' &&
-        steps.base_benchmark.outcome == 'success'
+        steps.stage_baseline.outcome == 'success'
       continue-on-error: true
       uses: actions/cache/save@v4
       with:
-        path: ${{ env.PERF_BASELINE_OUTPUT }}
+        path: benchmark-baseline-cache
         key: ${{ steps.baseline_key.outputs.prefix }}-${{ github.run_id }}-${{ github.run_attempt }}
 
     - name: Restore tested merge
