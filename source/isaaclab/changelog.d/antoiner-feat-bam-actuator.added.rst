@@ -23,12 +23,13 @@
   Reference recordings also covered stateful supply sag from BAM ``62bd8ce`` and mjlab 1.3.0
   command-buffer output for 3--6-step delays, including a partial reset. Delay tests replayed
   recorded lag draws independently of Warp's RNG.
-* Added per-environment start-up sampling for supply voltage, supply sag and friction scale.
+* Added per-environment start-up sampling for supply voltage and supply sag.
   Exposed ``vin``, ``sag_gain``, ``friction_scale``, ``kp_scale`` and ``kd_scale`` through
   :func:`~isaaclab.actuators.newton.read_group_parameter` and
   :func:`~isaaclab.actuators.newton.write_group_parameter` for event-driven randomization.
-  Controller resets preserved the sampled parameters. Command lag and phase were shared by the group's
-  joints within each environment. Delay resets advanced the selected environments' random streams,
+  Friction scale defaulted to one and was randomized per episode through a task reset event,
+  without a start-up range. Controller resets preserved the sampled parameters. Command lag and phase
+  were shared by the group's joints within each environment. Delay resets advanced the selected environments' random streams,
   including during CUDA graph replay, without changing untouched environments.
 * Added :attr:`~isaaclab.actuators.BamActuatorCfg.stiff_frictionloss` to reduce static-friction
   creep on MJWarp with a stiff solver reference. Documented that, on this solver,

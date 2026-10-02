@@ -408,22 +408,22 @@ def test_startup_sampling_draws_one_value_per_environment(device):
     A USD prim is shared by every clone, so the ranges cannot be authored per environment.
     They are drawn afterwards, with one value covering all of an environment's joints.
     """
-    cfg = _make_cfg(vin_range=(6.0, 8.0), friction_scale_range=(0.5, 1.5))
+    cfg = _make_cfg(vin_range=(6.0, 8.0), vin_drop_gain_range=(0.0, 0.2))
     harness = _Harness(num_envs=8, device=device)
 
     apply_bam_startup_sampling(harness.drive, cfg)
 
-    for attr, (low, high) in (("vin", cfg.vin_range), ("friction_scale", cfg.friction_scale_range)):
+    for attr, (low, high) in (("vin", cfg.vin_range), ("sag_gain", cfg.vin_drop_gain_range)):
         values = getattr(harness.drive, attr).numpy().reshape(8, len(JOINT_NAMES))
         np.testing.assert_allclose(values[:, 0], values[:, 1], atol=0.0, rtol=0.0)
         assert ((values >= low) & (values <= high)).all()
         assert len(np.unique(values[:, 0])) > 1, "every environment drew the same value"
-    before_reset = {name: getattr(harness.drive, name).numpy().copy() for name in ("vin", "friction_scale")}
+    before_reset = {name: getattr(harness.drive, name).numpy().copy() for name in ("vin", "sag_gain")}
     harness.reset(torch.arange(8, device=device))
     for name, values in before_reset.items():
         np.testing.assert_array_equal(getattr(harness.drive, name).numpy(), values)
-    # An unset range leaves the authored nominal in place.
-    np.testing.assert_allclose(harness.drive.sag_gain.numpy(), 0.0, atol=0.0, rtol=0.0)
+    # Friction remains unscaled until a task event writes it.
+    np.testing.assert_allclose(harness.drive.friction_scale.numpy(), 1.0, atol=0.0, rtol=0.0)
 
 
 @pytest.mark.parametrize("device", test_devices())

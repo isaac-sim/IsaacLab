@@ -318,7 +318,6 @@ One step of the model has six stages:
                 vin=7.4,                           # nominal voltage [V]
                 vin_range=(7.0, 8.0),               # per-robot battery voltage [V]
                 vin_drop_gain_range=(0.0, 3.0),     # per-robot supply sag [V/(N*m)]
-                friction_scale_range=(0.8, 1.2),    # per-robot gearbox friction [-]
                 max_delay=2,                        # command lag [physics steps]
             ),
         },
@@ -444,7 +443,7 @@ The controller exposes five quantities through
       - ``vin_drop_gain_range``
     * - ``friction_scale``
       - Multiplier of the whole friction budget [-]
-      - ``friction_scale_range``
+      - -- (defaults to 1)
     * - ``kp_scale``
       - Firmware gain multiplier [-]
       - --
@@ -452,15 +451,36 @@ The controller exposes five quantities through
       - Multiplier of the velocity the motor sees [-]
       - --
 
-The three start-up ranges are sampled once per environment after native actuator construction,
-with each draw shared by that environment's joints. Drive state resets preserve these
-parameter values. Event terms can write new values for selected environments at episode reset:
+Supply voltage and sag gain are sampled once per environment after native actuator construction,
+with each draw shared by that environment's joints. Drive state resets preserve these values.
+Friction has no start-up randomization range. To resample it every episode, add a reset term to
+the task's event configuration. This example draws one scale per resetting environment, shared
+by its servo joints; environments that do not reset retain their current scale:
 
 .. code-block:: python
 
-    from isaaclab.actuators.newton import write_group_parameter
+    import torch
 
-    write_group_parameter(robot.actuators, "servos", "drive", "friction_scale", values=scales)
+    from isaaclab.actuators.newton import write_group_parameter
+    from isaaclab.envs import ManagerBasedEnv
+    from isaaclab.managers import EventTermCfg
+    from isaaclab.utils import configclass
+
+    def randomize_bam_friction(env: ManagerBasedEnv, env_ids: torch.Tensor | slice | None) -> None:
+        rows = torch.arange(env.num_envs, device=env.device)
+        if env_ids is not None:
+            rows = rows[env_ids]
+        scales = torch.empty((len(rows), 1), device=env.device).uniform_(0.8, 1.2)
+        write_group_parameter(
+            env.scene["robot"].actuators, "servos", "drive", "friction_scale",
+            values=scales, env_ids=rows,
+        )
+
+    @configclass
+    class EventsCfg:
+        bam_friction = EventTermCfg(func=randomize_bam_friction, mode="reset")
+
+The scale affects dry friction only; the motor fit's viscous damping stays fixed.
 
 .. _actuators-bam-parity:
 
