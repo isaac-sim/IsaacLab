@@ -73,7 +73,7 @@ class NewtonPolicyGhostPanel:
 
     def apply_tint(self, model: Any) -> None:
         """Write each slot's tint and opacity to the shapes of its worlds when anything changed."""
-        tint_signature = tuple((slot.active, slot.opacity) for slot in self.layout.slots)
+        tint_signature = tuple((slot.active, slot.opacity, slot.tint) for slot in self.layout.slots)
         if tint_signature == self._tint_signature or model.shape_color is None or model.shape_world is None:
             return
         self._tint_signature = tint_signature
@@ -86,7 +86,7 @@ class NewtonPolicyGhostPanel:
         for slot in self.layout.slots[1:]:
             if slot.active:
                 mask = slot_of_shape == slot.index
-                colors[mask] = slot.color
+                colors[mask] = self._base_colors[mask] * (1.0 - slot.tint) + np.asarray(slot.color) * slot.tint
                 opacity[mask] = slot.opacity
         model.shape_color = wp.array(colors, dtype=wp.vec3, device=model.shape_color.device)
         model.shape_opacity = wp.array(opacity, dtype=wp.float32, device=model.shape_color.device)
@@ -111,6 +111,9 @@ class NewtonPolicyGhostPanel:
             changed, opacity = imgui.slider_float("Opacity", slot.opacity, 0.1, MAX_GHOST_OPACITY)
             if changed:
                 slot.opacity = opacity
+            changed, tint = imgui.slider_float("Tint", slot.tint, 0.0, 1.0)
+            if changed:
+                slot.tint = tint
             if imgui.button("Remove"):
                 self.controller.remove_ghost(slot.index)
                 self._message = ""

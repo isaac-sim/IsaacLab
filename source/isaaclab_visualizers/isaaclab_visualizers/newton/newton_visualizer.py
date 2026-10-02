@@ -2159,11 +2159,25 @@ class NewtonGLVisualizer(NewtonVisualizer):
         ids = self._cfg_visible_env_ids if self._cfg_visible_env_ids is not None else range(self._num_envs)
         return list(ids)[: self._visible_env_count]
 
+    def _drop_shape_instancers(self) -> None:
+        """Free the GL shape instancers so they are re-allocated for the new visible worlds.
+
+        Newton keeps an instancer per shape batch by name and reuses it with its original capacity, so showing
+        more worlds than were visible when it was allocated fails every frame with a capacity error.
+        """
+        objects = getattr(self._viewer, "objects", None)
+        if objects is None or not hasattr(self._viewer, "_qualify"):
+            return
+        prefix = self._viewer._qualify("/model/shapes/")
+        for key in [k for k in objects if k.startswith(prefix) and hasattr(objects[k], "num_instances")]:
+            del objects[key]
+
     def _apply_visible_worlds(self) -> None:
         """Apply the visible environments and, with Policy Ghosts, overlay each ghost on the reference."""
         if self._viewer is None:
             return
         self._resolved_visible_env_ids = self._select_visible_env_ids()
+        self._drop_shape_instancers()
         self._viewer.set_visible_worlds(self._resolved_visible_env_ids)
         self._viewer.set_world_offsets(self.cfg.world_spacing)
         if self._policy_ghost_panel is not None and getattr(self._viewer, "world_offsets", None) is not None:

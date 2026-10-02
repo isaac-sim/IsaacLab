@@ -752,7 +752,8 @@ drift apart:
 Open **Policy Ghosts** in the viewer's left panel and choose **Add Checkpoint...** to list the
 checkpoints of runs of this task that were written by training (those with a ``run.json``) under the
 experiment's log directory; pass ``--policy_ghost_root`` to search another directory. Each ghost has
-its own opacity slider and a **Remove** button. ``--policy_ghost_slots`` sets the number of slots,
+its own opacity and tint sliders, which blend the ghost's color over the robot's native colors, and a
+**Remove** button. ``--policy_ghost_slots`` sets the number of slots,
 including the reference, up to four.
 
 * Every slot simulates ``--num_envs`` environments, even an empty one. With a few environments per

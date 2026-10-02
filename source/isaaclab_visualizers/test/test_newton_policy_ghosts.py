@@ -50,6 +50,7 @@ def test_tint_applies_to_active_ghost_worlds_only_and_follows_slot_changes() -> 
     layout.slots[0].checkpoint = CHECKPOINT
     layout.slots[1].checkpoint = CHECKPOINT
     layout.slots[1].opacity = 0.4
+    layout.slots[1].tint = 1.0
     panel, model = _panel(layout), _model()
 
     panel.apply_tint(model)
@@ -77,3 +78,21 @@ def test_slot_changes_are_reported_once() -> None:
     layout.slots[1].checkpoint = CHECKPOINT
 
     assert panel.consume_slots_changed()
+
+
+def test_tint_strength_blends_between_native_and_ghost_color() -> None:
+    layout = PolicyGhostLayout(SLICE_SIZE, 3)
+    layout.slots[0].checkpoint = CHECKPOINT
+    layout.slots[1].checkpoint = CHECKPOINT
+    layout.slots[1].tint = 0.5
+    panel, model = _panel(layout), _model()
+
+    panel.apply_tint(model)
+
+    ghost_shape = 1 + SLICE_SIZE
+    expected = 0.5 * 0.5 + 0.5 * np.asarray(layout.slots[1].color)
+    assert np.allclose(model.shape_color.numpy()[ghost_shape], expected)
+
+    layout.slots[1].tint = 0.0
+    panel.apply_tint(model)
+    assert np.allclose(model.shape_color.numpy()[ghost_shape], 0.5)

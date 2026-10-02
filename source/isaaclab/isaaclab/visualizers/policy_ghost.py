@@ -17,9 +17,9 @@ from dataclasses import dataclass, field
 import numpy as np
 
 POLICY_GHOST_COLORS: tuple[tuple[float, float, float], ...] = (
-    (1.0, 0.25, 0.25),
-    (0.25, 0.9, 0.35),
-    (1.0, 0.8, 0.2),
+    (1.0, 0.1, 0.1),
+    (0.1, 1.0, 0.25),
+    (1.0, 0.85, 0.05),
 )
 """Tint colors of the ghost slots in order; the reference slot keeps its native colors."""
 
@@ -51,8 +51,11 @@ class PolicyGhostSlot:
     checkpoint: PolicyGhostCheckpoint | None = None
     """Checkpoint driving this slot, or None when the slot is empty."""
 
-    opacity: float = 0.5
+    opacity: float = 0.65
     """Opacity of the slot's robots in ``[0, 1]``. Ignored for the reference slot."""
+
+    tint: float = 1.0
+    """How strongly :attr:`color` replaces the robots' native colors, in ``[0, 1]``. Ignored for the reference slot."""
 
     color: tuple[float, float, float] | None = None
     """Tint color of the slot's robots, or None to keep the native colors."""
