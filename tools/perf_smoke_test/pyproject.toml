@@ -1,0 +1,12 @@
+# Scopes pytest to this self-contained tool: the ``[tool.pytest.ini_options]``
+# section makes pytest treat ``tools/perf_smoke_test/`` as its rootdir, so:
+#
+#   1. ``pythonpath = ["."]`` adds ``tools/perf_smoke_test/`` to ``sys.path``,
+#      making ``import oracle`` work from the test files without any shim.
+#   2. ``tools/conftest.py`` sits above rootdir and is therefore not loaded,
+#      keeping these tests runnable without an Isaac Lab / Isaac Sim install.
+#
+# Run with: ``uv run python -m pytest tools/perf_smoke_test/``
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["test"]
