@@ -20,7 +20,7 @@ import copy
 import inspect
 import logging
 from abc import ABC, abstractmethod
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, Any
 
 import warp as wp
@@ -198,6 +198,9 @@ class ManagerBase(ABC):
         # else:
         #     self._resolve_terms_handle = None
         self._resolve_terms_handle = None
+        # steps of each operation for the environment's graph cache, built on first use
+        self._stage_steps: dict[str, tuple[tuple[bool, Callable[..., Any]], ...]] = {}
+        self._all_terms_capturable = True
 
         # parse config to create terms information
         if self.cfg:
@@ -286,9 +289,56 @@ class ManagerBase(ABC):
         """
         raise NotImplementedError
 
+    def stage_steps(self, operation: str) -> tuple[tuple[bool, Callable[..., Any]], ...]:
+        """Ordered steps of an operation, each marked as capturable or not.
+
+        Calling the steps in order with the operation's arguments performs the operation. The Warp
+        environments record each run of consecutive capturable steps into a CUDA graph and run the other
+        steps eagerly in between (see :meth:`~isaaclab_experimental.utils.WarpGraphCache.call_steps`). A
+        term decorated with ``@WarpCapturable(False)`` makes its own step eager.
+
+        Args:
+            operation: Name of the operation, such as ``"compute"`` or ``"reset"``.
+
+        Returns:
+            The steps, reused until a term changes.
+        """
+        steps = self._stage_steps.get(operation)
+        if steps is None:
+            steps = self._stage_steps[operation] = tuple(self._build_stage_steps(operation))
+        return steps
+
     """
     Implementation specific.
     """
+
+    def _build_stage_steps(self, operation: str) -> list[tuple[bool, Callable[..., Any]]]:
+        """Build the steps of an operation.
+
+        The default runs the whole method as one step, capturable when every term is. Managers that
+        split an operation per term override this.
+
+        Args:
+            operation: Name of the operation.
+
+        Returns:
+            The ordered steps.
+        """
+        return [(self._all_terms_capturable, getattr(self, operation))]
+
+    def _run_steps(self, operation: str, *args: Any, **kwargs: Any) -> Any:
+        """Run the steps of an operation eagerly and return the last step's result."""
+        result = None
+        for _, step in self.stage_steps(operation):
+            result = step(*args, **kwargs)
+        return result
+
+    def _clear_stage_steps(self) -> None:
+        """Rebuild the steps on next use and drop the graphs recorded from them."""
+        self._stage_steps.clear()
+        graph_cache = getattr(self._env, "_warp_graph_cache", None)
+        if graph_cache is not None:
+            graph_cache.invalidate(type(self).__name__)
 
     @abstractmethod
     def _prepare_terms(self):
@@ -324,6 +374,8 @@ class ManagerBase(ABC):
 
         # set the flag
         self._is_scene_entities_resolved = True
+        # class terms were just created
+        self._clear_stage_steps()
 
     """
     Internal functions.
@@ -407,11 +459,8 @@ class ManagerBase(ABC):
                     f" and optional parameters: {args_with_defaults}, but received: {term_params}."
                 )
 
-        # register non-capturable terms with the call switch for mode=2 fallback
-        if not is_warp_capturable(term_cfg.func):
-            switch = getattr(self._env, "_manager_call_switch", None)
-            if switch is not None:
-                switch.register_manager_capturability(type(self).__name__, False)
+        if not is_warp_capturable(term_cfg.func, term_cfg.params):
+            self._all_terms_capturable = False
 
         # process attributes at runtime
         # these properties are only resolvable once the simulation starts playing

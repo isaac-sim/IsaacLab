@@ -6,7 +6,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
@@ -106,7 +105,7 @@ def reset_object(
     root_pose_w: wp.array(dtype=wp.transformf),
     root_vel_w: wp.array(dtype=wp.spatial_vectorf),
 ):
-    """Reset masked envs' object root pose with position noise and a randomized rotation, zeroing its velocity."""
+    """Sample masked envs' object root pose with position noise and a randomized rotation, and a zero velocity."""
     env_id = wp.tid()
     if env_mask[env_id]:
         nx = wp.randf(rng_state[env_id], wp.float32(-1.0), wp.float32(1.0))
@@ -126,7 +125,6 @@ def reset_object(
         rng_state[env_id] += wp.uint32(1)
         rot_w = randomize_rotation(rand0, rand1, x_unit_vec, y_unit_vec)
 
-        # The following should be equivalent, but consider using write_root_pose_to_sim and write_root_velocity_to_sim
         root_pose_w[env_id] = wp.transform(pos_w, rot_w)
         root_vel_w[env_id] = wp.spatial_vectorf(
             wp.float32(0.0), wp.float32(0.0), wp.float32(0.0), wp.float32(0.0), wp.float32(0.0), wp.float32(0.0)
@@ -151,9 +149,8 @@ def reset_hand(
     joint_vel: wp.array2d(dtype=wp.float32),
     prev_targets: wp.array2d(dtype=wp.float32),
     cur_targets: wp.array2d(dtype=wp.float32),
-    hand_dof_targets: wp.array2d(dtype=wp.float32),
 ):
-    """Reset masked envs' hand joint positions and velocities with noise and initialize their position targets."""
+    """Sample masked envs' reset joint positions and velocities with noise and initialize their position targets."""
     env_id = wp.tid()
     if env_mask[env_id]:
         # Each env runs sequentially inside this kernel (avoids RNG races across DOFs).
@@ -170,27 +167,45 @@ def reset_hand(
             rng_state[env_id] += wp.uint32(1)
             vel = default_joint_vel[env_id, dof_id] + reset_dof_vel_noise * dof_vel_noise
 
-            # The following lines should be equivalent to the following:
-            # self.hand.write_joint_state_to_sim(dof_pos, dof_vel, env_ids=env_ids)
             joint_pos[env_id, dof_id] = pos
             joint_vel[env_id, dof_id] = vel
-
             prev_targets[env_id, dof_id] = pos
             cur_targets[env_id, dof_id] = pos
-            hand_dof_targets[env_id, dof_id] = pos
 
 
 @wp.kernel
 def reset_successes(
     # input
     env_mask: wp.array(dtype=wp.bool),
-    # output
+    # input/output
     successes: wp.array(dtype=wp.float32),
+    success_rate_stats: wp.array(dtype=wp.float32),
 ):
-    """Zero the consecutive-success counter for masked envs."""
+    """Accumulate masked envs' finished-episode success rate into ``success_rate_stats``, then zero their counts.
+
+    Reaching a goal draws a replacement, so an episode that reached ``n`` goals attempted ``n + 1``.
+    ``success_rate_stats`` must be zeroed before the launch; ``[0]`` receives the summed per-episode
+    rates and ``[1]`` the number of finished episodes.
+    """
     env_id = wp.tid()
     if env_mask[env_id]:
+        goals = successes[env_id]
+        wp.atomic_add(success_rate_stats, 0, goals / (goals + wp.float32(1.0)))
+        wp.atomic_add(success_rate_stats, 1, wp.float32(1.0))
         successes[env_id] = wp.float32(0.0)
+
+
+@wp.kernel
+def update_success_rate_from_stats(
+    # input
+    success_rate_stats: wp.array(dtype=wp.float32),
+    # output
+    success_rate: wp.array(dtype=wp.float32),
+):
+    """Average the accumulated episode success rates; keep the last value when no episode finished."""
+    # single-thread kernel (dim=1)
+    if success_rate_stats[1] > wp.float32(0.0):
+        success_rate[0] = success_rate_stats[0] / success_rate_stats[1]
 
 
 @wp.kernel
@@ -242,11 +257,17 @@ def get_dones(
     # input/output
     episode_length_buf: wp.array(dtype=wp.int32),
     # output
+    orientation_error: wp.array(dtype=wp.float32),
+    goal_reached: wp.array(dtype=wp.bool),
     out_of_reach: wp.array(dtype=wp.bool),
     time_out: wp.array(dtype=wp.bool),
     reset: wp.array(dtype=wp.bool),
 ):
-    """Flag object-fall and time-out/max-success termination, reset progress on goal, write the reset union."""
+    """Evaluate goal success once per step, flag object-fall and time-out/max-success termination.
+
+    The orientation error [rad] and success flags are written for the reward to reuse. Progress is
+    reset on reaching a goal when a consecutive-success cap is configured.
+    """
     env_id = wp.tid()
 
     object_pos = wp.transform_get_translation(object_pose[env_id])
@@ -255,11 +276,14 @@ def get_dones(
     goal_dist = wp.length(object_pos - in_hand_pos[env_id])
     out_of_reach[env_id] = goal_dist >= fall_dist
 
+    error = rotation_distance(object_rot, goal_rot[env_id])
+    reached = error <= success_tolerance
+    orientation_error[env_id] = error
+    goal_reached[env_id] = reached
+
     max_success_reached = False
     if max_consecutive_success > 0:
-        # Reset progress (episode length buf) on goal envs if max_consecutive_success > 0
-        rot_dist = rotation_distance(object_rot, goal_rot[env_id])
-        if wp.abs(rot_dist) <= success_tolerance:
+        if reached:
             episode_length_buf[env_id] = 0
         max_success_reached = successes[env_id] >= wp.float32(max_consecutive_success)
 
@@ -359,16 +383,15 @@ def compute_full_observations(
     observations[env_id, offset + 3] = obj_rot[3]
     offset += 4
 
-    # spatial_vectorf layout: [0:3]=angular, [3:6]=linear
-    # torch reference order: linear (unscaled) first, then angular (scaled)
-    observations[env_id, offset + 0] = object_vels[env_id][3]
-    observations[env_id, offset + 1] = object_vels[env_id][4]
-    observations[env_id, offset + 2] = object_vels[env_id][5]
+    # root velocities are laid out [lin_vel, ang_vel]; only the angular part is scaled
+    observations[env_id, offset + 0] = object_vels[env_id][0]
+    observations[env_id, offset + 1] = object_vels[env_id][1]
+    observations[env_id, offset + 2] = object_vels[env_id][2]
     offset += 3
 
-    observations[env_id, offset + 0] = vel_obs_scale * object_vels[env_id][0]
-    observations[env_id, offset + 1] = vel_obs_scale * object_vels[env_id][1]
-    observations[env_id, offset + 2] = vel_obs_scale * object_vels[env_id][2]
+    observations[env_id, offset + 0] = vel_obs_scale * object_vels[env_id][3]
+    observations[env_id, offset + 1] = vel_obs_scale * object_vels[env_id][4]
+    observations[env_id, offset + 2] = vel_obs_scale * object_vels[env_id][5]
     offset += 3
 
     # goal
@@ -438,13 +461,13 @@ def compute_rewards(
     reset_buf: wp.array(dtype=wp.bool),
     object_pose: wp.array(dtype=wp.transformf),
     target_pos: wp.array(dtype=wp.vec3f),
-    target_rot: wp.array(dtype=wp.quatf),
+    goal_reached: wp.array(dtype=wp.bool),
+    orientation_error: wp.array(dtype=wp.float32),
     dist_reward_scale: wp.float32,
     rot_reward_scale: wp.float32,
     rot_eps: wp.float32,
     actions: wp.array2d(dtype=wp.float32),
     action_penalty_scale: wp.float32,
-    success_tolerance: wp.float32,
     reach_goal_bonus: wp.float32,
     fall_dist: wp.float32,
     fall_penalty: wp.float32,
@@ -461,13 +484,10 @@ def compute_rewards(
     env_id = wp.tid()
 
     obj_pos = wp.transform_get_translation(object_pose[env_id])
-    obj_rot = wp.transform_get_rotation(object_pose[env_id])
-
     goal_dist = wp.length(obj_pos - target_pos[env_id])
-    rot_dist = rotation_distance(obj_rot, target_rot[env_id])
 
     dist_rew = goal_dist * dist_reward_scale
-    rot_rew = wp.float32(1.0) / (wp.abs(rot_dist) + rot_eps) * rot_reward_scale
+    rot_rew = rot_reward_scale / (orientation_error[env_id] + rot_eps)
 
     action_penalty = wp.float32(0.0)
     for i in range(action_dim):
@@ -476,15 +496,11 @@ def compute_rewards(
     # Total reward is: position distance + orientation alignment + action regularization + success bonus + fall penalty
     reward = dist_rew + rot_rew + action_penalty * action_penalty_scale
 
-    # Find out which envs hit the goal and update successes count
-    reached = wp.abs(rot_dist) <= success_tolerance
-    goal_resets = reached or reset_goal_buf[env_id]
+    # a goal stays flagged until it is resampled, which happens later this step
+    goal_resets = goal_reached[env_id] or reset_goal_buf[env_id]
     reset_goal_buf[env_id] = goal_resets
     if goal_resets:
         successes[env_id] = successes[env_id] + wp.float32(1.0)
-
-    # Success bonus: orientation is within `success_tolerance` of goal orientation
-    if goal_resets:
         reward = reward + reach_goal_bonus
 
     # Fall penalty: distance to the goal is larger than a threshold
@@ -535,19 +551,20 @@ def randomize_rotation(rand0: wp.float32, rand1: wp.float32, x_axis: wp.vec3f, y
 
 @wp.func
 def rotation_distance(object_rot: wp.quatf, target_rot: wp.quatf) -> wp.float32:
-    # Orientation alignment for the cube in hand and goal cube
+    """Angle [rad] between two ``(x, y, z, w)`` orientations, as :func:`~isaaclab.utils.math.quat_error_magnitude`."""
     quat_diff = object_rot * wp.quat_inverse(target_rot)
-    # Match Torch env convention: uses indices [1:4] for the vector part (see `rotation_distance` in Torch env).
-    v_norm = wp.sqrt(quat_diff[1] * quat_diff[1] + quat_diff[2] * quat_diff[2] + quat_diff[3] * quat_diff[3])
-    v_norm = wp.min(v_norm, wp.float32(1.0))
-    return wp.float32(2.0) * wp.asin(v_norm)
+    v_norm = wp.length(wp.vec3f(quat_diff[0], quat_diff[1], quat_diff[2]))
+    return wp.float32(2.0) * wp.asin(wp.min(v_norm, wp.float32(1.0)))
 
 
 class ReorientDirectWarpEnv(DirectRLEnvWarp):
-    cfg: AllegroHandEnvCfg  # | ShadowHandEnvCfg
+    """Warp twin of :class:`~isaaclab_tasks.core.reorient.reorient_direct_env.ReorientDirectEnv`."""
 
-    # def __init__(self, cfg: AllegroHandEnvCfg | ShadowHandEnvCfg, render_mode: str | None = None, **kwargs):
+    cfg: AllegroHandEnvCfg
+
     def __init__(self, cfg: AllegroHandEnvCfg, render_mode: str | None = None, **kwargs):
+        if cfg.asymmetric_obs:
+            raise NotImplementedError("The Warp reorientation environment has no asymmetric critic observations.")
         super().__init__(cfg, render_mode, **kwargs)
         self.hand, self.object, self.goal_markers = [self.scene[name] for name in ("robot", "object", "goal_object")]
 
@@ -564,13 +581,7 @@ class ReorientDirectWarpEnv(DirectRLEnvWarp):
             actuated_dof_indices.append(self.hand.joint_names.index(joint_name))
         actuated_dof_indices.sort()
         self.num_actuated_dofs = len(actuated_dof_indices)
-
-        # Warp index/mask helpers for kernels and articulation APIs.
         self.actuated_dof_indices = wp.array(actuated_dof_indices, dtype=wp.int32, device=self.device)
-        actuated_mask = [False] * self.num_hand_dofs
-        for idx in actuated_dof_indices:
-            actuated_mask[idx] = True
-        self.actuated_dof_mask = wp.array(actuated_mask, dtype=wp.bool, device=self.device)
 
         # finger bodies
         finger_bodies: list[int] = list()
@@ -587,7 +598,6 @@ class ReorientDirectWarpEnv(DirectRLEnvWarp):
         # unit vectors
         self.x_unit_vec = wp.vec3f(1.0, 0.0, 0.0)
         self.y_unit_vec = wp.vec3f(0.0, 1.0, 0.0)
-        self.z_unit_vec = wp.vec3f(0.0, 0.0, 1.0)
 
         # Per-env origins (Warp view for kernels; Torch env uses `self.scene.env_origins` directly).
         self.env_origins = wp.from_torch(self.scene.env_origins, dtype=wp.vec3f)
@@ -597,9 +607,18 @@ class ReorientDirectWarpEnv(DirectRLEnvWarp):
         # ---------------------------------------------------------------------
 
         # buffers for position targets
-        self.hand_dof_targets = wp.zeros((self.num_envs, self.num_hand_dofs), dtype=wp.float32, device=self.device)
         self.prev_targets = wp.zeros((self.num_envs, self.num_hand_dofs), dtype=wp.float32, device=self.device)
         self.cur_targets = wp.zeros((self.num_envs, self.num_hand_dofs), dtype=wp.float32, device=self.device)
+
+        # reset states sampled per env; the asset writers apply the masked rows
+        self.reset_joint_pos = wp.zeros((self.num_envs, self.num_hand_dofs), dtype=wp.float32, device=self.device)
+        self.reset_joint_vel = wp.zeros((self.num_envs, self.num_hand_dofs), dtype=wp.float32, device=self.device)
+        self.reset_object_pose = wp.zeros(self.num_envs, dtype=wp.transformf, device=self.device)
+        self.reset_object_vel = wp.zeros(self.num_envs, dtype=wp.spatial_vectorf, device=self.device)
+
+        # per-step goal evaluation, written in `_get_dones` and reused by the reward
+        self.orientation_error = wp.zeros(self.num_envs, dtype=wp.float32, device=self.device)
+        self.goal_reached = wp.zeros(self.num_envs, dtype=wp.bool, device=self.device)
 
         # track goal resets
         self.reset_goal_buf = wp.zeros(self.num_envs, dtype=wp.bool, device=self.device)
@@ -611,12 +630,12 @@ class ReorientDirectWarpEnv(DirectRLEnvWarp):
         self.goal_pos_w = wp.zeros(self.num_envs, dtype=wp.vec3f, device=self.device)
 
         # Initialize goal constants from Torch (avoid a one-off kernel launch).
-        default_root_pose = self.object.data.default_root_pose.torch.to(self.device)
-        in_hand_pos = default_root_pose[:, 0:3].clone()
-        in_hand_pos[:, 2] -= 0.04
+        in_hand_pos = self.object.data.default_root_pose.torch[:, 0:3] + torch.tensor(
+            self.cfg.in_hand_pos_offset, device=self.device
+        )
         self.in_hand_pos.assign(wp.from_torch(in_hand_pos, dtype=wp.vec3f))
 
-        goal_pos = torch.tensor([-0.2, -0.45, 0.68], device=self.device, dtype=torch.float32).repeat((self.num_envs, 1))
+        goal_pos = torch.tensor(self.cfg.goal_marker_position, device=self.device).repeat((self.num_envs, 1))
         self.goal_pos.assign(wp.from_torch(goal_pos, dtype=wp.vec3f))
 
         goal_rot = torch.zeros((self.num_envs, 4), device=self.device, dtype=torch.float32)
@@ -629,6 +648,8 @@ class ReorientDirectWarpEnv(DirectRLEnvWarp):
         # track successes
         self.successes = wp.zeros(self.num_envs, dtype=wp.float32, device=self.device)
         self.consecutive_successes = wp.zeros(1, dtype=wp.float32, device=self.device)
+        self._success_rate_stats = wp.zeros(2, dtype=wp.float32, device=self.device)
+        self.success_rate = wp.zeros(1, dtype=wp.float32, device=self.device)
 
         # Persistent RL buffers (Warp).
         self.actions = wp.zeros((self.num_envs, self.cfg.action_space), dtype=wp.float32, device=self.device)
@@ -692,17 +713,10 @@ class ReorientDirectWarpEnv(DirectRLEnvWarp):
             device=self.device,
         )
 
-        # Apply position targets using mask method (CUDA graph safe).
-        # All joints are actuated for Allegro, so default masks (None = all) are correct.
-        self.hand.set_joint_position_target_mask(target=self.cur_targets)
+        # unactuated joints keep the targets their last reset wrote
+        self.hand.actuators.target_command.set_position_mask(value=self.cur_targets)
 
     def _get_observations(self) -> dict:
-        # if self.cfg.asymmetric_obs:
-        #    self.fingertip_force_sensors = self.hand.root_physx_view.get_link_incoming_joint_force()[
-        #        :, self.finger_bodies
-        #    ]
-        # NOTE: if re-enabled, `self.finger_bodies` holds public-order indices (from `body_names.index`)
-        # and must be translated to backend view order before indexing this `root_physx_view` array.
         if self.cfg.obs_type == "openai":
             self.compute_reduced_observations()
         elif self.cfg.obs_type == "full":
@@ -713,8 +727,6 @@ class ReorientDirectWarpEnv(DirectRLEnvWarp):
 
     def _get_rewards(self) -> None:
         # Clear reduction buffers before launching the reward kernel.
-        # wp.assign(self._num_resets, 0.0)
-        # wp.assign(self._finished_cons_successes, 0.0)
         self._num_resets.zero_()
         self._finished_cons_successes.zero_()
         wp.launch(
@@ -724,13 +736,13 @@ class ReorientDirectWarpEnv(DirectRLEnvWarp):
                 self.reset_buf,
                 self.object_pose,
                 self.in_hand_pos,
-                self.goal_rot,
+                self.goal_reached,
+                self.orientation_error,
                 self.cfg.dist_reward_scale,
                 self.cfg.rot_reward_scale,
                 self.cfg.rot_eps,
                 self.actions,
                 self.cfg.action_penalty_scale,
-                self.cfg.success_tolerance,
                 self.cfg.reach_goal_bonus,
                 self.cfg.fall_dist,
                 self.cfg.fall_penalty,
@@ -762,9 +774,7 @@ class ReorientDirectWarpEnv(DirectRLEnvWarp):
         # .mean() cannot be called here as it causes problems on stream
         self.extras["log"]["consecutive_successes"] = wp.to_torch(self.consecutive_successes)
 
-        # Reset goals for envs that reached the target (mask is `reset_goal_buf`).
-        # This avoids Torch-side index extraction and keeps the step graphable.
-        self._reset_target_pose(mask=self.reset_goal_buf)
+        self._reset_target_pose(self.reset_goal_buf)
 
     def _get_dones(self) -> None:
         self._compute_intermediate_values()
@@ -782,6 +792,8 @@ class ReorientDirectWarpEnv(DirectRLEnvWarp):
                 self.cfg.max_consecutive_success,
                 self.successes,
                 self._episode_length_buf_wp,
+                self.orientation_error,
+                self.goal_reached,
                 self.reset_terminated,
                 self.reset_time_outs,
                 self.reset_buf,
@@ -796,10 +808,8 @@ class ReorientDirectWarpEnv(DirectRLEnvWarp):
         # resets articulation and rigid body attributes
         super()._reset_idx(mask)
 
-        # reset goals
-        self._reset_target_pose(mask=mask)
+        self._reset_target_pose(mask)
 
-        # reset object
         wp.launch(
             reset_object,
             dim=self.num_envs,
@@ -811,13 +821,14 @@ class ReorientDirectWarpEnv(DirectRLEnvWarp):
                 self.y_unit_vec,
                 mask,
                 self.rng_state,
-                self.object.data.root_link_pose_w.warp,
-                self.object.data.root_com_vel_w.warp,
+                self.reset_object_pose,
+                self.reset_object_vel,
             ],
             device=self.device,
         )
+        self.object.write_root_pose_to_sim_mask(root_pose=self.reset_object_pose, env_mask=mask)
+        self.object.write_root_velocity_to_sim_mask(root_velocity=self.reset_object_vel, env_mask=mask)
 
-        # reset hand
         wp.launch(
             reset_hand,
             dim=self.num_envs,
@@ -831,40 +842,35 @@ class ReorientDirectWarpEnv(DirectRLEnvWarp):
                 mask,
                 self.num_hand_dofs,
                 self.rng_state,
-                self.hand.data.joint_pos.warp,
-                self.hand.data.joint_vel.warp,
+                self.reset_joint_pos,
+                self.reset_joint_vel,
                 self.prev_targets,
                 self.cur_targets,
-                self.hand_dof_targets,
             ],
             device=self.device,
         )
+        self.hand.actuators.target_command.set_position_mask(value=self.cur_targets, env_mask=mask)
+        self.hand.write_joint_position_to_sim_mask(position=self.reset_joint_pos, env_mask=mask)
+        self.hand.write_joint_velocity_to_sim_mask(velocity=self.reset_joint_vel, env_mask=mask)
 
-        self.hand.set_joint_position_target_mask(target=self.cur_targets, env_mask=mask)
-
+        self._success_rate_stats.zero_()
         wp.launch(
             reset_successes,
             dim=self.num_envs,
-            inputs=[
-                mask,
-                self.successes,
-            ],
+            inputs=[mask, self.successes, self._success_rate_stats],
             device=self.device,
         )
+        wp.launch(
+            update_success_rate_from_stats,
+            dim=1,
+            inputs=[self._success_rate_stats, self.success_rate],
+            device=self.device,
+        )
+        self.extras.setdefault("log", {})["Metrics/success_rate"] = wp.to_torch(self.success_rate)
 
         self._compute_intermediate_values()
 
-    def _reset_target_pose(self, env_ids: Sequence[int] | None = None, mask: wp.array | None = None):
-        # reset goal rotation
-        if mask is None:
-            if env_ids is None:
-                return
-            env_mask_list = [False] * self.num_envs
-            for env_id in env_ids:
-                env_mask_list[int(env_id)] = True
-            mask = wp.array(env_mask_list, dtype=wp.bool, device=self.device)
-
-        # update goal pose and markers
+    def _reset_target_pose(self, mask: wp.array):
         wp.launch(
             reset_target_pose,
             dim=self.num_envs,

@@ -315,6 +315,18 @@ class ActuatorControl(ABC):
             env_ids: Environments to reset.
         """
 
+    def reset_native_actuators_mask(self, env_mask: wp.array) -> None:
+        """Reset backend-native actuator state for the environments selected by a mask.
+
+        The default converts the mask to indices for :meth:`reset_native_actuators`. Backends whose
+        native state resets from a mask override it.
+
+        Args:
+            env_mask: Environments to reset. Shape is (num_instances,).
+        """
+        if self.native_actuator_path_active:
+            self.reset_native_actuators(wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1))
+
 
 class ArticulationActuatorControl(ActuatorControl):
     """Shared control adapter for articulation-backed actuator collections.

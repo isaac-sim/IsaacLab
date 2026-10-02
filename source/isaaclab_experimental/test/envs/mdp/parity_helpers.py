@@ -279,15 +279,19 @@ class MockArticulationData:
 
 
 class MockWrenchComposer:
-    """Mock wrench composer that records the last forces and torques it was handed."""
+    """Mock wrench composer that records the last wrenches and selection it was handed."""
 
     def __init__(self):
         self.last_forces = None
         self.last_torques = None
+        self.last_body_mask = None
+        self.last_env_mask = None
 
-    def set_forces_and_torques_mask(self, forces=None, torques=None, **kw):
+    def set_forces_and_torques_mask(self, forces=None, torques=None, body_mask=None, env_mask=None, **kw):
         self.last_forces = forces
         self.last_torques = torques
+        self.last_body_mask = body_mask
+        self.last_env_mask = env_mask
 
 
 class MockArticulation:

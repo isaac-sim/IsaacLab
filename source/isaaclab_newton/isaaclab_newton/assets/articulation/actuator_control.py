@@ -200,6 +200,10 @@ class NewtonActuatorControl(ArticulationActuatorControl):
         if self._native_actuator_path_active and SimulationManager._adapter is not None:
             SimulationManager._adapter.reset(env_ids)
 
+    def reset_native_actuators_mask(self, env_mask: wp.array) -> None:
+        if self._native_actuator_path_active and SimulationManager._adapter is not None:
+            SimulationManager._adapter.reset(env_mask=env_mask)
+
     def _joint_dof_offset(self) -> int:
         """Return the first selected joint DOF's model offset within an environment."""
         from newton import Model as NewtonModel  # noqa: PLC0415
