@@ -426,16 +426,26 @@ def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, use_ovstag
                     wp.synchronize_stream()
                 check_depth(*cameras[0], 8.5 - (height - 1))
                 check_depth(*cameras[1], 5.5 - (height - 1))
+            # A partial reset keeps the pipeline: the next image is the capture from before the reset.
             renderer.reset(cameras[1][0], [0])
+            for (source, _), vertices in zip(batches, initial_points, strict=True):
+                source.points.assign(vertices + (0, 0, 4.0))
+            publication.geometry_timestamp += 1
+            renderer.update_geometries()
             renderer.render(cameras[1][0])
             renderer.read_output(*cameras[1])
             check_depth(*cameras[1], 2.5)
+            # A full reset primes a fresh image.
+            renderer.reset(cameras[1][0])
+            renderer.render(cameras[1][0])
+            renderer.read_output(*cameras[1])
+            check_depth(*cameras[1], 1.5)
         assert all(camera_scope_exists(rd) for rd, _ in cameras)
         renderer.cleanup(cameras[0][0])
         assert not camera_scope_exists(cameras[0][0])
         renderer.render(cameras[1][0])
         renderer.read_output(*cameras[1])
-        check_depth(*cameras[1], 2.5 if asynchronous else 5.5)
+        check_depth(*cameras[1], 1.5 if asynchronous else 5.5)
         renderer.cleanup(cameras[1][0])
         renderer.cleanup(cameras[1][0])
         assert not camera_scope_exists(cameras[1][0])
@@ -521,11 +531,15 @@ def test_async_cameras_publish_independently_with_capture_metadata_and_reset(mon
     assert consume.call_count == 5
     np.testing.assert_array_equal(camera_data[0].output["rgb"].warp.numpy(), 4)
     np.testing.assert_array_equal(camera_data[1].output["rgb"].warp.numpy(), 2)
+    # A partial reset keeps the pipeline: the next image is the capture from before the reset.
+    renderer.reset(cameras[1], [0])
+    capture(6, (1,))
+    np.testing.assert_array_equal(camera_data[1].output["rgb"].warp.numpy(), 5)
     renderer.cleanup(cameras[0])
 
     monkeypatch.setattr(renderer, "_process_render_frame", MagicMock(side_effect=RuntimeError("output extraction")))
     with pytest.raises(RuntimeError, match="output extraction"):
-        capture(6, (1,))
+        capture(7, (1,))
     renderer.cleanup(cameras[1])
     assert all(operation.wait.called for operation in operations)
     assert renderer._camera_render_data == []

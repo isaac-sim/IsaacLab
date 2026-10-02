@@ -1420,12 +1420,16 @@ class OVRTXRenderer(BaseRenderer):
         return errors
 
     def reset(self, render_data: OVRTXCameraRenderData, env_ids: Sequence[int] | None = None) -> None:
-        """Retire pre-reset frames. The next capture primes this whole tiled product.
+        """Retire pre-reset frames on a full reset. A partial reset keeps the pipeline.
 
-        Pending captures cover every environment tile, so they are not separable per environment
-        and ``env_ids`` is not consulted.
+        One capture covers every environment tile, so a fresh image for some environments costs a wait
+        for all of them. After a partial reset, the next published image is the capture submitted before
+        the reset: the tiles of ``env_ids`` still show their previous episode for one step. The image
+        observation terms can blank this frame (``blank_first_frame``). A full reset (``env_ids`` is None
+        or covers every environment) drains the pending captures, and the next capture primes a fresh image.
         """
-        del env_ids
+        if env_ids is not None and len(env_ids) < render_data.num_envs:
+            return
         errors = self.drain_pending_renders((render_data,))
         render_data.pending = render_data.ready = None
         render_data.capture = {}

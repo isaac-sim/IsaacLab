@@ -407,9 +407,20 @@ class CameraImageBase(ManagerTermBase):
             frame_stack=cfg.params["frame_stack"],
             channel_first=cfg.params["channel_first"],
         )
+        self._blank_first_frame = cfg.params["blank_first_frame"]
 
     def reset(self, env_ids: Sequence[int] | torch.Tensor | None = None):
         self._frames.reset(env_ids)
+
+    def _blank_new_episodes(self, env: ManagerBasedRLEnv, images: torch.Tensor) -> torch.Tensor:
+        """Return ``images`` with zeros for environments in the first step of an episode, if enabled.
+
+        A delayed renderer can still show the previous episode in this step. Zeros give the policy one
+        consistent "no image yet" frame that is independent of the renderer.
+        """
+        if not self._blank_first_frame:
+            return images
+        return images.masked_fill((env.episode_length_buf == 0).view(-1, 1, 1, 1), 0)
 
     @staticmethod
     def _accepts(data_type: str) -> bool:
@@ -431,6 +442,9 @@ class image_rgb(CameraImageBase):
             per-channel mean.
         channel_first: Whether to return ``(num_envs, C, H, W)``. Defaults to False.
         frame_stack: Number of recent frames to stack along the channel axis. Defaults to 1.
+        blank_first_frame: Whether to replace the camera frame with zeros in the first step of each episode,
+            before normalization and frame stacking. Requires a :class:`~isaaclab.envs.ManagerBasedRLEnv`.
+            Defaults to False.
         out: Optional contiguous destination with the output shape, dtype and device. Defaults to None,
             which allocates a new result. The observation manager supplies a fresh destination automatically.
             Normalized uint8 frames, including stacked frames, are written directly; other inputs are copied.
@@ -455,10 +469,11 @@ class image_rgb(CameraImageBase):
         mean: float | None = None,
         channel_first: bool = False,
         frame_stack: int = 1,
+        blank_first_frame: bool = False,
         *,
         out: torch.Tensor | None = None,
     ) -> torch.Tensor:
-        images = _read_camera_output(env, sensor_cfg, data_type)[..., :3]
+        images = self._blank_new_episodes(env, _read_camera_output(env, sensor_cfg, data_type)[..., :3])
         result = self._frames(images, functools.partial(normalize_rgb, mean=mean, out=out) if normalize else None)
         if out is None:
             return result
@@ -485,6 +500,9 @@ class image_depth(CameraImageBase):
         tanh_scale: Map depth to ``tanh(depth / tanh_scale) - 0.5`` [m]. Defaults to None.
         channel_first: Whether to return ``(num_envs, C, H, W)``. Defaults to False.
         frame_stack: Number of recent frames to stack along the channel axis. Defaults to 1.
+        blank_first_frame: Whether to replace the camera frame with zeros in the first step of each episode,
+            before normalization and frame stacking. Requires a :class:`~isaaclab.envs.ManagerBasedRLEnv`.
+            Defaults to False.
 
     Returns:
         The depth image, metric [m] unless rescaled. Shape is ``(num_envs, H, W, frame_stack)``,
@@ -509,8 +527,11 @@ class image_depth(CameraImageBase):
         tanh_scale: float | None = None,
         channel_first: bool = False,
         frame_stack: int = 1,
+        blank_first_frame: bool = False,
     ) -> torch.Tensor:
-        images = _read_camera_output(env, sensor_cfg, data_type, convert_perspective_to_orthogonal)
+        images = self._blank_new_episodes(
+            env, _read_camera_output(env, sensor_cfg, data_type, convert_perspective_to_orthogonal)
+        )
         normalizer = None
         if normalize:
             normalizer = functools.partial(
@@ -530,6 +551,9 @@ class image_normals(CameraImageBase):
         normalize: Whether to normalize the image. Defaults to True.
         channel_first: Whether to return ``(num_envs, C, H, W)``. Defaults to False.
         frame_stack: Number of recent frames to stack along the channel axis. Defaults to 1.
+        blank_first_frame: Whether to replace the camera frame with zeros in the first step of each episode,
+            before normalization and frame stacking. Requires a :class:`~isaaclab.envs.ManagerBasedRLEnv`.
+            Defaults to False.
 
     Returns:
         The normals image. Shape is ``(num_envs, H, W, 3 * frame_stack)``, or channel-first.
@@ -548,8 +572,9 @@ class image_normals(CameraImageBase):
         normalize: bool = True,
         channel_first: bool = False,
         frame_stack: int = 1,
+        blank_first_frame: bool = False,
     ) -> torch.Tensor:
-        images = _read_camera_output(env, sensor_cfg, "normals")
+        images = self._blank_new_episodes(env, _read_camera_output(env, sensor_cfg, "normals"))
         return self._frames(images, normalize_normals if normalize else None)
 
 
@@ -565,6 +590,9 @@ class image_segmentation(CameraImageBase):
         normalize: Whether to normalize the image. Defaults to True.
         channel_first: Whether to return ``(num_envs, C, H, W)``. Defaults to False.
         frame_stack: Number of recent frames to stack along the channel axis. Defaults to 1.
+        blank_first_frame: Whether to replace the camera frame with zeros in the first step of each episode,
+            before normalization and frame stacking. Requires a :class:`~isaaclab.envs.ManagerBasedRLEnv`.
+            Defaults to False.
 
     Returns:
         The segmentation image. Shape is ``(num_envs, H, W, C * frame_stack)``, or channel-first.
@@ -584,8 +612,9 @@ class image_segmentation(CameraImageBase):
         normalize: bool = True,
         channel_first: bool = False,
         frame_stack: int = 1,
+        blank_first_frame: bool = False,
     ) -> torch.Tensor:
-        images = _read_camera_output(env, sensor_cfg, data_type)
+        images = self._blank_new_episodes(env, _read_camera_output(env, sensor_cfg, data_type))
         return self._frames(images, normalize_segmentation if normalize else None)
 
 
