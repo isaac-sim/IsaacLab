@@ -18,7 +18,7 @@ from .pickplace_gr1t2_env_cfg import (
     ObjectTableSceneCfg,
     ObservationsCfg,
     TerminationsCfg,
-    _build_gr1t2_pickplace_pipeline,
+    build_gr1t2_pickplace_pipeline,
 )
 
 
@@ -61,13 +61,13 @@ class PickPlaceGR1T2WaistEnabledEnvCfg(ManagerBasedRLEnvCfg):
         self.actions.upper_body_ik.controller.usd_path = self.scene.robot.spawn.usd_path
         self.actions.upper_body_ik.controller.urdf_output_dir = self.temp_urdf_dir
 
-        # IsaacTeleop-based teleoperation pipeline.
+        # Isaac Capture-based teleoperation pipeline.
         self.xr = XrCfg(
             anchor_pos=(0.0, 0.0, 0.0),
             anchor_rot=(0.0, 0.0, 0.0, 1.0),
         )
         self.isaac_teleop = IsaacTeleopCfg(
-            pipeline_builder=lambda: _build_gr1t2_pickplace_pipeline()[0],
+            pipeline_builder=lambda: build_gr1t2_pickplace_pipeline()[0],
             sim_device=self.sim.device,
             xr_cfg=self.xr,
         )

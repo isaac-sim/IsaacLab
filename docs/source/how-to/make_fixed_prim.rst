@@ -12,6 +12,10 @@ i.e. the prim should still participate in collisions but its position and orient
 
 The following sections describe how to spawn a prim with physics schemas and make it static in the simulation world.
 
+Static colliders and fixed articulation roots use shared USD topology on PhysX and Newton.
+Use the shared configurations below for these operations. Backend-specific solver settings are
+covered in :ref:`asset-config-backends`.
+
 Static colliders
 ----------------
 
@@ -19,20 +23,19 @@ Static colliders are prims that are not affected by physics but can collide with
 These don't have any rigid body properties applied on them. However, this also means that they can't be accessed
 using the physics tensor API (i.e., through the :class:`assets.RigidObject` class).
 
-For instance, to spawn a cone static in the simulation world, the following code can be used:
+For instance, to spawn a sphere static in the simulation world, the following code can be used:
 
 .. code-block:: python
 
     import isaaclab.sim as sim_utils
 
-    cone_spawn_cfg = sim_utils.ConeCfg(
+    sphere_spawn_cfg = sim_utils.SphereCfg(
         radius=0.15,
-        height=0.5,
-        collision_props=sim_utils.CollisionPropertiesCfg(),
+        collision_props=sim_utils.CollisionBaseCfg(),
         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 0.0)),
     )
-    cone_spawn_cfg.func(
-        "/World/Cone", cone_spawn_cfg, translation=(0.0, 0.0, 2.0), orientation=(0.5, 0.0, 0.5, 0.0)
+    sphere_spawn_cfg.func(
+        "/World/Sphere", sphere_spawn_cfg, translation=(0.0, 0.0, 2.0)
     )
 
 
@@ -40,26 +43,26 @@ Rigid object
 ------------
 
 Rigid objects (i.e. object only has a single body) can be made static by setting the parameter
-:attr:`sim.schemas.RigidBodyPropertiesCfg.kinematic_enabled` as True. This will make the object
-kinematic and it will not be affected by physics.
+:attr:`sim.schemas.RigidBodyBaseCfg.kinematic_enabled` as True. This will make the object
+kinematic: its motion is prescribed by user code rather than integrated from gravity and
+forces. Without prescribed motion, it stays fixed. It can still participate in collisions.
 
-For instance, to spawn a cone static in the simulation world but with rigid body schema on it,
+For instance, to spawn a sphere static in the simulation world but with rigid body schema on it,
 the following code can be used:
 
 .. code-block:: python
 
     import isaaclab.sim as sim_utils
 
-    cone_spawn_cfg = sim_utils.ConeCfg(
+    sphere_spawn_cfg = sim_utils.SphereCfg(
         radius=0.15,
-        height=0.5,
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
+        rigid_props=sim_utils.RigidBodyBaseCfg(kinematic_enabled=True),
         mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-        collision_props=sim_utils.CollisionPropertiesCfg(),
+        collision_props=sim_utils.CollisionBaseCfg(),
         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 0.0)),
     )
-    cone_spawn_cfg.func(
-        "/World/Cone", cone_spawn_cfg, translation=(0.0, 0.0, 2.0), orientation=(0.5, 0.0, 0.5, 0.0)
+    sphere_spawn_cfg.func(
+        "/World/Sphere", sphere_spawn_cfg, translation=(0.0, 0.0, 2.0)
     )
 
 
@@ -67,115 +70,106 @@ Articulation
 ------------
 
 Fixing the root of an articulation requires having a fixed joint to the root rigid body link of the articulation.
-This can be achieved by setting the parameter :attr:`sim.schemas.ArticulationRootPropertiesCfg.fix_root_link`
+This can be achieved by setting the parameter :attr:`sim.schemas.ArticulationRootBaseCfg.fix_root_link`
 as True. Based on the value of this parameter, the following cases are possible:
 
 * If set to :obj:`None`, the root link is not modified.
 * If the articulation already has a fixed root link, this flag will enable or disable the fixed joint.
 * If the articulation does not have a fixed root link, this flag will create a fixed joint between the world
-  frame and the root link. The joint is created with the name "FixedJoint" under the root link.
+  frame and the root link, under a writable prim in the asset hierarchy.
 
-For instance, to spawn an ANYmal robot and make it static in the simulation world, the following code can be used:
+For instance, to spawn an ANYmal robot and fix its base while leaving its joints movable, the following code can be used:
 
 .. code-block:: python
 
     import isaaclab.sim as sim_utils
+    from isaaclab.sim.schemas import ArticulationRootBaseCfg
     from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
     anymal_spawn_cfg = sim_utils.UsdFileCfg(
         usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/ANYbotics/ANYmal-C/anymal_c.usd",
-        activate_contact_sensors=True,
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
-            disable_gravity=False,
-            retain_accelerations=False,
-            linear_damping=0.0,
-            angular_damping=0.0,
-            max_linear_velocity=1000.0,
-            max_angular_velocity=1000.0,
-            max_depenetration_velocity=1.0,
-        ),
-        articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-            enabled_self_collisions=True,
-            solver_position_iteration_count=4,
-            solver_velocity_iteration_count=0,
-            fix_root_link=True,
-        ),
+        articulation_props=ArticulationRootBaseCfg(fix_root_link=True),
     )
     anymal_spawn_cfg.func(
         "/World/ANYmal", anymal_spawn_cfg, translation=(0.0, 0.0, 0.8), orientation=(0.0, 0.0, 0.0, 1.0)
     )
 
 
-This will create a fixed joint between the world frame and the root link of the ANYmal robot
-at the prim path ``"/World/ANYmal/base/FixedJoint"`` since the root link is at the path ``"/World/ANYmal/base"``.
+This creates a fixed joint between the world frame and the root link of the ANYmal robot.
+The joint is authored under a writable prim; its exact path depends on the asset's root
+and instancing layout.
 
+For a spawn configuration using schema fragments, or no ``articulation_props``, set
+``UsdFileCfg(fix_root_link=True, ...)`` instead. When using a legacy properties configuration
+as above, keep ``fix_root_link`` on that configuration. Both paths author the fixed joint
+before the backend imports the articulation.
 
-Further notes
--------------
+.. _further-notes:
 
-Given the flexibility of USD asset designing the following possible scenarios are usually encountered:
+.. dropdown:: PhysX articulation-root placement details
 
-1. **Articulation root schema on the rigid body prim without a fixed joint**:
+   The following parser details explain the PhysX-specific root-placement adjustment. Newton
+   imports the resulting USD joint topology; do not apply PhysX parser heuristics as Newton
+   configuration rules.
 
-   This is the most common and recommended scenario for floating-base articulations. The root prim
-   has both the rigid body and the articulation root properties. In this case, the articulation root
-   is parsed as a floating-base with the root prim of the articulation ``Link0Xform``.
+   Given the flexibility of USD asset designing the following possible scenarios are usually encountered:
 
-   .. code-block:: text
+   1. **Articulation root schema on the rigid body prim without a fixed joint**:
 
-       ArticulationXform
-           └── Link0Xform  (RigidBody and ArticulationRoot schema)
+      This is the most common and recommended scenario for floating-base articulations. The root prim
+      has both the rigid body and the articulation root properties. In this case, the articulation root
+      is parsed as a floating-base with the root prim of the articulation ``Link0Xform``.
 
-2. **Articulation root schema on the parent prim with a fixed joint**:
+      .. code-block:: text
 
-   This is the expected arrangement for fixed-base articulations. The root prim has only the rigid body
-   properties and the articulation root properties are applied to its parent prim. In this case, the
-   articulation root is parsed as a fixed-base with the root prim of the articulation ``Link0Xform``.
+          ArticulationXform
+              └── Link0Xform  (RigidBody and ArticulationRoot schema)
 
-   .. code-block:: text
+   2. **Articulation root schema on the parent prim with a fixed joint**:
 
-       ArticulationXform (ArticulationRoot schema)
-           └── Link0Xform  (RigidBody schema)
-           └── FixedJoint (connecting the world frame and Link0Xform)
+      This is the expected arrangement for fixed-base articulations. The root prim has only the rigid body
+      properties and the articulation root properties are applied to its parent prim. In this case, the
+      articulation root is parsed as a fixed-base with the root prim of the articulation ``Link0Xform``.
 
-3. **Articulation root schema on the parent prim without a fixed joint**:
+      .. code-block:: text
 
-   This is a scenario where the root prim has only the rigid body properties and the articulation root properties
-   are applied to its parent prim. However, the fixed joint is not created between the world frame and the root link.
-   In this case, the articulation is parsed as a floating-base system. However, the PhysX parser uses its own
-   heuristic (such as alphabetical order) to determine the root prim of the articulation. It may select the root prim
-   at ``Link0Xform`` or choose another prim as the root prim.
+          ArticulationXform (ArticulationRoot schema)
+              └── Link0Xform  (RigidBody schema)
+              └── FixedJoint (connecting the world frame and Link0Xform)
 
-   .. code-block:: text
+   3. **Articulation root schema on the parent prim without a fixed joint**:
 
-       ArticulationXform (ArticulationRoot schema)
-           └── Link0Xform  (RigidBody schema)
+      This is a scenario where the root prim has only the rigid body properties and the articulation root properties
+      are applied to its parent prim. However, the fixed joint is not created between the world frame and the root link.
+      In this case, the articulation is parsed as a floating-base system. However, the PhysX parser uses its own
+      heuristic (such as alphabetical order) to determine the root prim of the articulation. It may select the root prim
+      at ``Link0Xform`` or choose another prim as the root prim.
 
-4. **Articulation root schema on the rigid body prim with a fixed joint**:
+      .. code-block:: text
 
-   While this is a valid scenario, it is not recommended as it may lead to unexpected behavior. In this case,
-   the articulation is still parsed as a floating-base system. However, the fixed joint, created between the
-   world frame and the root link, is considered as a part of the maximal coordinate tree. This is different from
-   PhysX considering the articulation as a fixed-base system. Hence, the simulation may not behave as expected.
+          ArticulationXform (ArticulationRoot schema)
+              └── Link0Xform  (RigidBody schema)
 
-   .. code-block:: text
+   4. **Articulation root schema on the rigid body prim with a fixed joint**:
 
-       ArticulationXform
-           └── Link0Xform  (RigidBody and ArticulationRoot schema)
-           └── FixedJoint (connecting the world frame and Link0Xform)
+      While this is a valid scenario, it is not recommended as it may lead to unexpected behavior. In this case,
+      the articulation is still parsed as a floating-base system. However, the fixed joint, created between the
+      world frame and the root link, is considered as a part of the maximal coordinate tree. This is different from
+      PhysX considering the articulation as a fixed-base system. Hence, the simulation may not behave as expected.
 
-For floating base articulations, the root prim usually has both the rigid body and the articulation
-root properties. However, directly connecting this prim to the world frame will cause the simulation
-to consider the fixed joint as a part of the maximal coordinate tree. This is different from PhysX
-considering the articulation as a fixed-base system.
+      .. code-block:: text
 
-Internally, when the parameter :attr:`sim.schemas.ArticulationRootPropertiesCfg.fix_root_link` is set to True
-and the articulation is detected as a floating-base system, the fixed joint is created between the world frame
-the root rigid body link of the articulation. However, to make the PhysX parser consider the articulation as a
-fixed-base system, the articulation root properties are removed from the root rigid body prim and applied to
-its parent prim instead.
+          ArticulationXform
+              └── Link0Xform  (RigidBody and ArticulationRoot schema)
+              └── FixedJoint (connecting the world frame and Link0Xform)
 
-.. note::
+   For floating base articulations, the root prim usually has both the rigid body and the articulation
+   root properties. However, directly connecting this prim to the world frame will cause the simulation
+   to consider the fixed joint as a part of the maximal coordinate tree. This is different from PhysX
+   considering the articulation as a fixed-base system.
 
-    In future release of Isaac Sim, an explicit flag will be added to the articulation root schema from PhysX
-    to toggle between fixed-base and floating-base systems. This will resolve the need of the above workaround.
+   Internally, when the parameter :attr:`sim.schemas.ArticulationRootBaseCfg.fix_root_link` is set to True
+   and the articulation is detected as a floating-base system, the fixed joint is created between the world frame
+   the root rigid body link of the articulation. However, to make the PhysX parser consider the articulation as a
+   fixed-base system, the articulation root properties are removed from the root rigid body prim and applied to
+   its parent prim instead.

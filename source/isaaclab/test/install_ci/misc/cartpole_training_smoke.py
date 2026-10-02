@@ -96,7 +96,7 @@ def test_render_cartpole_camera_produces_valid_observation_and_reward() -> None:
         env = CartpoleCameraEnv(cfg=env_cfg)
         obs, _ = env.reset()
         image = obs["policy"]
-        expected_shape = (2, 3, env_cfg.tiled_camera.height, env_cfg.tiled_camera.width)
+        expected_shape = (2, 3, env_cfg.scene.tiled_camera.height, env_cfg.scene.tiled_camera.width)
         assert tuple(image.shape) == expected_shape, (
             f"Camera observation shape {tuple(image.shape)} != {expected_shape}"
         )

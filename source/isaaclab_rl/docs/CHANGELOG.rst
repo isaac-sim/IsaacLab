@@ -1,6 +1,250 @@
 Changelog
 ---------
 
+.. towncrier release notes start
+
+3.0.0 (2026-10-02)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** The zero and random agents no longer open the Newton GL visualizer by default. Pass
+  ``--visualizer newton_gl`` to open it.
+* **Breaking:** ``--video`` takes an optional source, ``--video [SOURCE]``, and ``--visualizer`` still decides
+  which visualizers open a window:
+
+  * ``--video`` (``--video viz``): the first capture-capable visualizer ``--visualizer`` selects, else a headless
+    ``newton_gl``, also when only streaming visualizers such as ``viser`` or ``rerun`` are selected.
+  * ``--video viz:<type>`` (``kit``, ``newton_gl``, ``newton_rtx``): the selected visualizer of that type, else an
+    extra headless one, e.g. ``--video viz:newton_gl --visualizer viser``.
+  * ``--video sensor:<name>[:<channel>]``: that scene sensor; no visualizer is added.
+
+  A Hydra override is never taken as the source: ``--video presets=newton_mjwarp`` records from ``viz`` and
+  applies the preset. ``--video`` without ``--visualizer`` now records from a headless ``newton_gl`` instead of a
+  headless Kit; pass ``--video viz:kit`` for the previous behavior.
+* Accepted bare visualizer types in ``--video``, so ``--video newton_gl`` is equivalent to
+  ``--video viz:newton_gl``.
+* **Breaking:** :func:`~isaaclab_rl.entrypoints.common.pre_launch_video_config`, called before
+  :func:`~isaaclab.app.launch_simulation`, adds a recorder for the ``--video`` source unless the environment config
+  declares recorders, and no longer selects ``--visualizer kit`` or sets ``headless``; the launch resolves the
+  source. :func:`~isaaclab_rl.entrypoints.common.apply_video_recording`, called inside the launch, only applies the
+  output directory, ``--video_length`` and ``--video_interval``. The zero and random agents now configure
+  recording after the launch.
+* :func:`~isaaclab_rl.entrypoints.common.enable_cameras_for_video` only enables cameras for
+  ``--capture_env_sensors``; the launch enables the rendering a video source needs.
+* The ``video`` field of the :mod:`isaaclab_rl.entrypoints.api` requests takes a ``--video`` source string as
+  well as a bool.
+* ``get_pretrained_checkpoint_backend_names`` ignores the renderers of visualizer configs, so a published
+  checkpoint lookup with a visualizer selected, e.g. ``--visualizer newton_gl`` or ``--visualizer kit``, no longer
+  asks for a ``newton`` or ``rtx`` render-backend checkpoint.
+
+Fixed
+^^^^^
+
+* Fixed Isaac Sim crashing at startup in OpenBLAS's at-fork handler when ``moviepy`` is installed: the
+  reinforcement learning entry points imported the environment runtime, and with it the video recorder's
+  ``moviepy`` and SciPy, before the launch.
+* Corrected zero-agent hold actions for absolute differential IK configured with a nonzero action offset.
+* Fixed RLinf playback ignoring ``--checkpoint`` and training resume selecting a directory below
+  ``global_step_<N>``. Checkpoint files, directories containing one ``full_weights.pt``, and the existing
+  ``latest``/``best`` selectors remained supported.
+* Resolved RLinf model and checkpoint paths before launching Ray workers and merged actor-model settings
+  into rollout settings while preserving explicit rollout overrides.
+
+
+2.0.0 (2026-10-01)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* The run summary of the reinforcement learning workflows is printed after the launch and reports the resolved
+  backends, visualizers, and device, so ``--viz none`` shows no visualizer and distributed runs show each
+  rank's device. Automatic backend selectors are no longer shown next to the backend they resolved to.
+* **Breaking:** Call :func:`~isaaclab_rl.entrypoints.common.apply_video_recording` inside
+  :func:`~isaaclab.app.launch_simulation`: without declared recorders it records from the first capture-capable
+  visualizer the launch resolved into ``env_cfg.sim.visualizer_cfgs`` and raises when there is none. Only
+  :func:`~isaaclab_rl.entrypoints.common.pre_launch_video_config`, called before the launch, adds a headless Kit
+  visualizer for ``--video``. The zero and random agents now configure recording after the launch.
+* Computed the Stable-Baselines3 wrapper's done flags from the host copies of the termination and
+  truncation flags, saving one device-to-host transfer per step.
+
+Removed
+^^^^^^^
+
+* **Breaking:** Removed the ``apply_device`` argument of :func:`~isaaclab_rl.entrypoints.common.apply_env_overrides`,
+  which no longer writes ``--device``; :func:`~isaaclab.app.launch_simulation` writes it to
+  ``env_cfg.sim.device``. Call :func:`~isaaclab_rl.entrypoints.common.show_run_summary` inside
+  :func:`~isaaclab.app.launch_simulation`.
+* **Breaking:** Removed :func:`~isaaclab_rl.entrypoints.common.validate_distributed_device`: with ``--distributed``,
+  :func:`~isaaclab.app.launch_simulation` always assigns each rank a ``cuda:N`` device, so the check could not fail.
+
+Fixed
+^^^^^
+
+* Fixed multi-GPU training saving ``params/env.yaml`` and ``params/agent.yaml`` with the seed of
+  whichever rank wrote last, and leaving extra settings-only folders when ranks started in different
+  seconds. All ranks of a ``train_multigpu`` launch now shared one run folder: rank 0 wrote its settings,
+  videos, and sensor captures where a single-GPU run does, and every other rank wrote its own ``params/``,
+  videos, and sensor captures to ``rank_<rank>/``. For multi-node jobs on shared storage, pass the same
+  ``--run_timestamp`` to ``train_multigpu`` on every node.
+* Fixed skrl multi-GPU training saving the final checkpoint from every rank to the same file.
+* Fixed multi-GPU training ending with a ``destroy_process_group() was not called`` warning after a
+  successful run.
+* Fixed resumed RSL-RL multi-GPU training loading the checkpoint onto the GPU that saved it in every
+  process instead of the process's own GPU, which could make the first update fail with
+  ``normal expects all elements of std >= 0.0``.
+
+
+1.3.1 (2026-09-29)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed train/play entrypoints leaving environments open after setup failures or interrupts.
+  Cleanup closed the final environment wrapper and ignored further Ctrl+C presses during teardown.
+  Random/zero agents used the same cleanup and propagated interrupts instead of reporting success.
+
+
+1.3.0 (2026-09-28)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``use_mixed_precision`` to :class:`~isaaclab_rl.rsl_rl.RslRlPpoAlgorithmCfg` and
+  ``torch_compile_mode`` to :class:`~isaaclab_rl.rsl_rl.RslRlOnPolicyRunnerCfg` to configure RSL-RL's
+  bfloat16 policy update and ``torch.compile`` of the actor and critic. Both options remained disabled by default.
+  Set ``torch_compile_mode="default"`` (CLI: ``agent.torch_compile_mode=default``) to enable compilation.
+  Compilation added startup overhead and could change floating-point results and sampled training trajectories.
+
+Changed
+^^^^^^^
+
+* Used the shared indexed fill operation to reset recurrent policy state during RL-Games playback.
+* Enabled ``torch.backends.cudnn.benchmark`` in the RSL-RL training entrypoint, matching the existing
+  non-deterministic environment seeding behavior.
+
+
+1.2.1 (2026-09-27)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Removed the redundant RL-Games action clone before out-of-place clipping.
+
+
+1.2.0 (2026-09-23)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``--video``, ``--video_length``, and ``--video_interval`` CLI arguments to the zero and
+  random checkpoint-free agents (:mod:`isaaclab_rl.entrypoints.simple_agents`), reusing the video
+  recording infrastructure shared with the train and play entrypoints.
+* Added :attr:`~isaaclab_rl.entrypoints.SimpleAgentRequest.video` to request video recording from the
+  typed zero and random agent APIs.
+
+Fixed
+^^^^^
+
+* Fixed ``--video`` playback stopping before every video recorder had finished its first clip. Playback
+  now runs until the recorder whose first clip ends last is done, including its ``step_offset`` when
+  ``--video_length`` is passed.
+
+
+1.1.1 (2026-09-22)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the zero and random agents to exit cleanly on ``Ctrl+C`` and close the environment without printing a
+  ``KeyboardInterrupt`` traceback.
+
+
+1.1.0 (2026-09-21)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_rl.torchrl.IsaacLabTorchRLWrapper` to wrap Isaac Lab environments for the
+  `TorchRL <https://github.com/pytorch/rl>`_ library. The wrapper implements :class:`~torchrl.envs.EnvBase`
+  directly, preserving per-group observation structure (e.g. ``"policy"``/``"critic"``) as a
+  :class:`~torchrl.data.Composite` spec and exposing ``done``/``terminated``/``truncated`` as separate spec
+  keys. Reset requests that TorchRL issues after a step with done environments are served from the current
+  observations, since Isaac Lab already reset those environments inside ``step()``, and the terminal
+  observation (``extras["final_obs"]``, when ``cfg.compute_final_obs`` is enabled) is reported for done
+  transitions so that time-limit bootstrapping is correct.
+* Added :func:`~isaaclab_rl.torchrl.train_ppo` with :class:`~isaaclab_rl.torchrl.TorchRlPpoCfg`, a PPO example
+  built from TorchRL's collector, GAE, and clipped PPO loss, and the ``torchrl`` backend of the unified ``train``
+  and ``play`` entrypoints (``--rl_library torchrl``). Training supports named runs, optional clipped value loss
+  and adaptive KL learning rates, and records policy and throughput diagnostics in TensorBoard.
+* Added automatic Weights & Biases checkpoint resolution to the RSL-RL ``train`` and ``play``
+  entrypoints. Passing a wandb run URL (``https://wandb.ai/<entity>/<project>/runs/<run_id>``,
+  optionally with a ``?checkpoint=<iteration>`` query) or a ``wandb:<entity>/<project>/<run_id>``
+  shorthand as ``--checkpoint`` downloads and loads that run's checkpoint with no extra arguments.
+* Starting a new ``--logger wandb`` training run with RSL-RL now prints the
+  ``wandb:<entity>/<project>/<run_id>`` shorthand for the run being created, so it can be copied
+  straight into a later ``--checkpoint``.
+
+Changed
+^^^^^^^
+
+* Restructured the ``isaaclab_rl.entrypoints`` backends so that every train, play, and export module exposes the
+  same ``run(argv)`` function with module-level imports; the play backends are no longer module-level scripts
+  executed through ``runpy``. Shared playback pieces moved to ``isaaclab_rl.entrypoints.common``
+  (``add_common_play_args``, ``run_playback``, ``resolve_published_checkpoint``, ``resolve_seed``,
+  ``normalize_task_name``) and the LEAPP exporters share ``run_export``, ``prepare_export_env``, and
+  ``leapp_capture`` from ``export_common``. Downstream code that imported the play modules as scripts should
+  call their ``run(argv)`` function instead.
+* Added :func:`~isaaclab_rl.rsl_rl.check_rsl_rl_version` and :func:`~isaaclab_rl.rsl_rl.create_rsl_rl_runner`,
+  :func:`~isaaclab_rl.skrl.check_skrl_version` and :func:`~isaaclab_rl.skrl.import_skrl_runner`, and
+  :meth:`~isaaclab_rl.rl_games.RlGamesVecEnvWrapper.from_agent_cfg` with
+  :func:`~isaaclab_rl.rl_games.register_rl_games_env`, which the entrypoints now share. The RSL-RL play and
+  export backends require ``rsl-rl-lib`` 5.0.1 or newer like training already did; the legacy
+  ``export_policy_as_jit``/``export_policy_as_onnx`` path for older releases was dropped from playback.
+* The framework wrappers validate their environment through :func:`isaaclab_rl.utils.env_types.check_env_type`
+  instead of repeating the type check.
+* ``apply_env_overrides`` now also applies ``--disable_fabric`` and ``--export_io_descriptors``, so the
+  ``--disable_fabric`` flag of the play entrypoints is functional and IO descriptors are only enabled when the
+  flag is passed. The zero and random agents honor ``--deterministic``.
+* Population-Based Training restarts re-execute :data:`sys.executable` instead of the legacy
+  ``_isaac_sim/python.sh`` launcher.
+
+Removed
+^^^^^^^
+
+* Removed the unused ``dispatch_library_entrypoint``, ``import_local_module``, ``configure_io_descriptors``, and
+  ``wrap_training_capture`` helpers from ``isaaclab_rl.entrypoints.common``. Use the unified
+  ``isaaclab_rl.entrypoints.run_train_cli``/``run_play_cli`` dispatchers, ``apply_env_overrides``, and
+  ``wrap_sensor_capture`` instead. ``pre_launch_video_config`` takes ``(env_cfg, args_cli)``; its unused
+  ``log_dir`` parameter was dropped.
+
+
+1.0.0 (2026-09-20)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Changed ``Sb3VecEnvWrapper`` to expose normalized ``[-1, 1]`` bounds instead of the artificial
+  ``[-100, 100]`` fallback for unbounded continuous action spaces. Pass ``action_bounds=(-100, 100)``
+  to preserve the previous action space when loading an existing Stable-Baselines3 checkpoint.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated the ``--export_io_descriptors`` training option. It remains
+  available for compatibility and will be removed in Isaac Lab 3.2. Use the
+  LEAPP export workflow for supported RSL-RL/PyTorch deployments.
+
+
 0.17.5 (2026-09-16)
 ~~~~~~~~~~~~~~~~~~~
 

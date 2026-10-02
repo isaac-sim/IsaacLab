@@ -13,21 +13,20 @@ This script demonstrates how to use the ray-caster sensor.
 
 """
 
-"""Launch Isaac Sim Simulator first."""
+"""Parse the command-line arguments first."""
 
 import argparse
+from typing import TYPE_CHECKING
 
-from isaaclab.app import AppLauncher
+from isaaclab.app import add_launcher_args, launch_simulation
+from isaaclab.utils import instantiate
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Ray Caster Test Script")
-# append AppLauncher cli args
-AppLauncher.add_app_launcher_args(parser)
+# append simulation launcher cli args
+add_launcher_args(parser)
 # parse the arguments
 args_cli = parser.parse_args()
-# launch omniverse app
-app_launcher = AppLauncher(args_cli)
-simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
@@ -35,12 +34,15 @@ import torch
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObject, RigidObjectCfg
-from isaaclab.sensors.ray_caster import RayCaster, RayCasterCfg, patterns
+from isaaclab.sensors.ray_caster import RayCasterCfg, patterns
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.timer import Timer
 
+if TYPE_CHECKING:
+    from isaaclab.sensors.ray_caster import RayCaster
 
-def define_sensor() -> RayCaster:
+
+def define_sensor() -> "RayCaster":
     """Defines the ray-caster sensor to add to the scene."""
     # Create a ray-caster sensor
     ray_caster_cfg = RayCasterCfg(
@@ -48,9 +50,10 @@ def define_sensor() -> RayCaster:
         mesh_prim_paths=["/World/ground"],
         pattern_cfg=patterns.GridPatternCfg(resolution=0.1, size=(2.0, 2.0)),
         ray_alignment="yaw",
-        debug_vis=not args_cli.headless,
+        # draw the ray hits only when a visualizer is requested
+        debug_vis=bool(args_cli.visualizer),
     )
-    ray_caster = RayCaster(cfg=ray_caster_cfg)
+    ray_caster = instantiate(ray_caster_cfg)
 
     return ray_caster
 
@@ -75,9 +78,9 @@ def design_scene() -> dict:
         prim_path="/World/Origin.*/ball",
         spawn=sim_utils.SphereCfg(
             radius=0.25,
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(mass=0.5),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+            mass_props=sim_utils.MassCfg(mass=0.5),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0)),
         ),
     )
@@ -104,7 +107,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene_entities: dict):
     # Create a counter for resetting the scene
     step_count = 0
     # Simulate physics
-    while simulation_app.is_running():
+    while sim.is_running():
         # Reset the scene
         if step_count % 250 == 0:
             # reset the balls
@@ -119,7 +122,9 @@ def run_simulator(sim: sim_utils.SimulationContext, scene_entities: dict):
         # Update the ray-caster
         with Timer(
             f"Ray-caster update with {4} x {ray_caster.num_rays} rays with max height of"
-            f" {torch.max(ray_caster.data.pos_w.torch).item():.2f}"
+            f" {torch.max(ray_caster.data.pos_w.torch).item():.2f}",
+            synchronize="both",
+            device=sim.device,
         ):
             ray_caster.update(dt=sim.get_physics_dt(), force_recompute=True)
         # Update counter
@@ -128,23 +133,24 @@ def run_simulator(sim: sim_utils.SimulationContext, scene_entities: dict):
 
 def main():
     """Main function."""
-    # Load simulation context
+    # Configure the simulation
     sim_cfg = sim_utils.SimulationCfg(device=args_cli.device)
-    sim = sim_utils.SimulationContext(sim_cfg)
-    # Set main camera
-    sim.set_camera_view([0.0, 15.0, 15.0], [0.0, 0.0, -2.5])
-    # Design scene
-    scene_entities = design_scene()
-    # Play simulator
-    sim.reset()
-    # Now we are ready!
-    print("[INFO]: Setup complete...")
-    # Run simulator
-    run_simulator(sim=sim, scene_entities=scene_entities)
+    # Launch the simulator runtime that the configuration needs
+    with launch_simulation(sim_cfg, args_cli):
+        # Initialize the simulation context
+        sim = sim_utils.SimulationContext(sim_cfg)
+        # Set main camera
+        sim.set_camera_view([0.0, 15.0, 15.0], [0.0, 0.0, -2.5])
+        # Design scene
+        scene_entities = design_scene()
+        # Play simulator
+        sim.reset()
+        # Now we are ready!
+        print("[INFO]: Setup complete...")
+        # Run simulator
+        run_simulator(sim=sim, scene_entities=scene_entities)
 
 
 if __name__ == "__main__":
     # run the main function
     main()
-    # close sim app
-    simulation_app.close()

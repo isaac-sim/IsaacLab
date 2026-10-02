@@ -1,6 +1,72 @@
 Changelog
 ---------
 
+.. towncrier release notes start
+
+2.0.0 (2026-10-02)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``FRANKA_MINIMAL_CFG`` using the same USD and actuator settings as ``FRANKA_PANDA_CFG`` with only
+  hand and fingertip colliders for applications that do not need arm contacts.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Enabled full primitive arm and gripper collisions in ``FRANKA_PANDA_CFG`` and its high-PD
+  derivative. Use ``FRANKA_MINIMAL_CFG`` or select ``Colliders=gripper_only`` to retain the previous reduced
+  collision scope. Requalify policies against the chosen robot configuration.
+* **Breaking:** changed ``FRANKA_PANDA_CFG`` and ``FRANKA_PANDA_HIGH_PD_CFG`` to use the shared
+  flat Franka asset with gripper-only collisions, a single ``panda_arm`` actuator group,
+  and a driven leader finger with a passive mimic follower.
+  Use ``FRANKA_PANDA_LEGACY_CFG`` and ``FRANKA_PANDA_LEGACY_HIGH_PD_CFG`` to retain the
+  original USD path, shoulder/forearm actuator groups, gains, and collision settings.
+  Select the ``Physics`` variant for the backend when using the main configs.
+* **Breaking:** the published ``franka_panda.usda`` now contains the flat asset. Consumers
+  needing the former nested hierarchy can explicitly select ``franka_panda_nestedInstance.usda``.
+
+
+1.0.0 (2026-09-20)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Changed the shipped robot configurations to the composable physics-schema
+  fragment API. The ``rigid_props``, ``collision_props``, ``articulation_props`` and
+  ``joint_drive_props`` spawner fields now hold a fragment (or a list for multiple fragments) instead of a legacy
+  properties config, and the non-USD ``fix_root_link`` and ``ensure_drives_exist`` knobs are set
+  on the spawner itself. The authored USD attributes are unchanged, but code that tuned a shipped
+  configuration in place must be updated:
+
+  * Single-fragment slots retain direct field access, for example
+    ``FRANKA_PANDA_HIGH_PD_CFG.spawn.rigid_props.disable_gravity = True``.
+    When a slot holds multiple fragments, select the one carrying the field, e.g.
+    ``next(f for f in cfg.spawn.articulation_props if isinstance(f, PhysxArticulationCfg))`` for
+    the PhysX solver iteration counts.
+  * Set ``fix_root_link`` and ``ensure_drives_exist`` on the spawner, for example
+    ``G1_INSPIRE_FTP_CFG.spawn.fix_root_link = True`` instead of
+    ``G1_INSPIRE_FTP_CFG.spawn.articulation_props.fix_root_link = True``.
+
+* Changed articulation self-collision to be authored for both backends, by
+  :class:`~isaaclab_physx.sim.schemas.PhysxArticulationCfg` and
+  :class:`~isaaclab_newton.sim.schemas.NewtonArticulationCfg`, matching what the legacy writer
+  mirrored automatically.
+
+
+0.8.2 (2026-09-17)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed :obj:`~isaaclab_assets.robots.agility.DIGIT_V4_CFG` to disable colliders on the
+  RealSense camera mount's decoration meshes and to split actuators into a stable-armature and a
+  low-armature group, matching what the Digit velocity tasks previously configured per-task.
+
+
 0.8.1 (2026-09-11)
 ~~~~~~~~~~~~~~~~~~
 

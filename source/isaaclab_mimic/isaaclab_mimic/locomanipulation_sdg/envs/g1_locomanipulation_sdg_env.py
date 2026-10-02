@@ -54,7 +54,7 @@ class G1LocomanipulationSDGSceneCfg(LocomanipulationG1SceneCfg):
         ),
         spawn=UsdFileCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/PackingTable/packing_table.usd",
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
         ),
     )
 
@@ -102,7 +102,7 @@ class G1LocomanipulationSDGSceneCfg(LocomanipulationG1SceneCfg):
                 init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, 0.0], rot=[0.0, 0.0, 0.0, 1.0]),
                 spawn=UsdFileCfg(
                     usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Forklift/forklift.usd",
-                    rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
+                    rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
                 ),
             )
             setattr(self, f"forklift_{i}", forklift)
@@ -128,8 +128,8 @@ class G1LocomanipulationSDGObservationsCfg(ObservationsCfg):
     @configclass
     class PolicyCfg(ObservationsCfg.PolicyCfg):
         robot_pov_cam = ObsTerm(
-            func=manip_mdp.image,
-            params={"sensor_cfg": SceneEntityCfg("robot_pov_cam"), "data_type": "rgb", "normalize": False},
+            func=manip_mdp.image_rgb,
+            params={"sensor_cfg": SceneEntityCfg("robot_pov_cam"), "normalize": False},
         )
 
     policy: PolicyCfg = PolicyCfg()

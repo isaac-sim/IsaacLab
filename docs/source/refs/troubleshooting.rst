@@ -156,14 +156,14 @@ prompt when launching an Isaac Lab process:
 
       .. code:: bash
 
-          uv run --extra isaacsim python scripts/demos/bipeds.py --kit_args "--/persistent/physics/omniPvdOvdRecordingDirectory=/tmp/ --/physics/omniPvdOutputEnabled=true"
+          uv run --extra isaacsim isaaclab demo zoo --physics isaacsim_physx --viz kit --kit_args "--/persistent/physics/omniPvdOvdRecordingDirectory=/tmp/ --/physics/omniPvdOutputEnabled=true"
 
 
    .. tab-item:: isaaclab.sh / isaaclab.bat
 
       .. code:: bash
 
-          ./isaaclab.sh -p scripts/demos/bipeds.py --kit_args "--/persistent/physics/omniPvdOvdRecordingDirectory=/tmp/ --/physics/omniPvdOutputEnabled=true"
+          ./isaaclab.sh demo zoo --physics isaacsim_physx --viz kit --kit_args "--/persistent/physics/omniPvdOvdRecordingDirectory=/tmp/ --/physics/omniPvdOutputEnabled=true"
 
 GPU buffer capacity errors
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -230,8 +230,8 @@ in physics, rendering, environment code, and policy inference.
 
 For PhysX workloads, check the following common causes:
 
-* **Unneeded visualization:** Commands that do not select a visualizer launch without a viewer by
-  default. If a configuration would otherwise launch one, pass ``--viz none`` to disable it.
+* **Unneeded visualization:** Commands that do not select a visualizer with ``--viz`` launch without a
+  viewer, even if a configuration lists visualizers in ``SimulationCfg.visualizer_cfgs``. Drop ``--viz``.
 * **Excessive collision work:** Avoid duplicated or overlapping collision geometry and use the
   simplest collider that provides the required fidelity.
 * **GPU collider fallbacks:** A warning that a convex mesh failed to cook as GPU-compatible means
@@ -312,7 +312,7 @@ Livestreaming and WebRTC
 ``NVST_R_BUSY`` / ``NVST_R_INTERNAL_ERROR`` on ``LIVESTREAM=1`` or ``LIVESTREAM=2``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:class:`~isaaclab.app.AppLauncher` pins TCP port ``49100`` for WebRTC signaling whenever
+:class:`~isaaclab_physx.app.KitLauncher` pins TCP port ``49100`` for WebRTC signaling whenever
 ``LIVESTREAM=1`` (public network) or ``LIVESTREAM=2`` (private network) is set. If a
 previous livestream process is still bound to that port, the new session fails to start
 with:

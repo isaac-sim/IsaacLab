@@ -19,6 +19,7 @@ from isaaclab.envs import DirectMARLEnvCfg, DirectRLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.physics import PhysicsCfg
 from isaaclab.renderers import RendererCfg
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, NUCLEUS_ASSET_ROOT_DIR, retrieve_file_path
+from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry  # noqa: F401
 
@@ -459,6 +460,7 @@ def _get_physics_backend_name(physics_cfg: PhysicsCfg | None) -> str:
         if solver_name is None:
             raise ValueError(f"Unsupported Newton solver for pretrained checkpoints: {type(solver_cfg).__name__}")
         return f"newton{solver_name}"
+    # OVPhysX configs match too: they run the same PhysX engine, so they share the PhysX checkpoints
     if "physx" in type_path:
         return "physx"
     raise ValueError(f"Unable to identify physics backend from {type(physics_cfg).__name__}")
@@ -500,6 +502,9 @@ def _find_renderer_cfgs(value, visited: set[int] | None = None) -> list[Renderer
 
     if isinstance(value, RendererCfg):
         return [value]
+    # a visualizer's streaming-camera renderer does not produce policy observations
+    if isinstance(value, VisualizerCfg):
+        return []
     if dataclasses.is_dataclass(value) and not isinstance(value, type):
         configs = []
         for field in dataclasses.fields(value):

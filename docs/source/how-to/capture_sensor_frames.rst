@@ -60,7 +60,7 @@ index used in output tags and file names.
 Overview
 --------
 
-The sensor capture feature wraps the training environment through ``wrap_training_capture`` in
+The sensor capture feature wraps the training environment through ``wrap_sensor_capture`` in
 ``isaaclab_rl.entrypoints.common`` and saves frames on reset and step when the current
 **per-episode** step falls inside a capture window. For each image-like scene sensor, the wrapper:
 
@@ -85,7 +85,7 @@ The training entrypoints register the capture flags in ``add_common_train_args``
 
 .. literalinclude:: ../../../source/isaaclab_rl/isaaclab_rl/entrypoints/common.py
    :language: python
-   :lines: 407-430
+   :pyobject: add_common_train_args
 
 
 Capture schedule

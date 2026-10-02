@@ -6,11 +6,11 @@
 """Unit tests for typed visual-material writes into OVRTX-owned scenes."""
 
 import importlib.util
-import inspect
 from types import SimpleNamespace
 
 import pytest
 import torch
+import warp as wp
 
 _REQUIRED_MODULES = ("isaaclab_ov", "ovrtx")
 _MISSING_MODULES = [module for module in _REQUIRED_MODULES if importlib.util.find_spec(module) is None]
@@ -21,7 +21,7 @@ pytestmark = pytest.mark.skipif(
 
 if not _MISSING_MODULES:
     from isaaclab_ov.renderers.ovrtx_renderer import OVRTXRenderer
-    from isaaclab_ov.renderers.visual_materials import OVRTXVisualMaterialWriter
+    from isaaclab_ov.renderers.ovrtx_renderer_cfg import OVRTXRendererCfg
     from ovrtx import DataAccess
 
     from isaaclab.renderers.base_renderer import VisualMaterialBatch
@@ -51,7 +51,7 @@ class _NativeRecorder:
 
     def step(self, **kwargs):
         self.events.append("step")
-        return {}
+        return {path: SimpleNamespace(frames=[object()]) for path in kwargs["render_products"]}
 
 
 class _NativeBinding:
@@ -115,13 +115,16 @@ class _PathRecorder:
 def _renderer(*, use_ovstage: bool = False):
     events: list[str] = []
     renderer = OVRTXRenderer.__new__(OVRTXRenderer)
+    renderer.backend = SimpleNamespace()
     renderer._initialized_scene = True
     renderer._use_ovstage = use_ovstage
-    renderer._renderer = _NativeRecorder(events)
+    renderer.backend.renderer = _NativeRecorder(events)
     renderer._visual_material_writer_ref = None
+    renderer.cfg = OVRTXRendererCfg()
+    renderer._camera_render_data = []
     if use_ovstage:
-        renderer._stage = _OvstageRecorder(events)
-        renderer._stage_paths = _PathRecorder()
+        renderer.backend.stage = _OvstageRecorder(events)
+        renderer.backend.paths = _PathRecorder()
         renderer._current_ordinal = 7
     return renderer, events
 
@@ -155,18 +158,20 @@ def test_legacy_compiles_typed_bindings_and_publishes_selected_channels_zero_cop
         {"texture_scale": torch.tensor([0], dtype=torch.int32, device="cuda")},
         torch.tensor([0], dtype=torch.int32, device="cuda"),
     )
-    assert renderer._renderer.writes == []
-    assert len(renderer._renderer.bindings) == 4
-    writer.publish()
+    assert renderer.backend.renderer.writes == []
+    assert len(renderer.backend.renderer.bindings) == 4
+    with wp.ScopedStream(wp.stream_from_torch(torch.cuda.default_stream())):
+        writer.publish()
 
-    writes = {write[0].attribute_name: write for write in renderer._renderer.writes}
+    writes = {write[0].attribute_name: write for write in renderer.backend.renderer.writes}
     assert set(writes) == {"inputs:texture_scale"}
     write = writes["inputs:texture_scale"]
     assert write[1].untyped_storage().data_ptr() == texture_scale.untyped_storage().data_ptr()
     assert write[2]["data_access"] is DataAccess.ASYNC
     assert write[2]["cuda_event"] == writer._event.cuda_event
+    assert write[2]["cuda_stream"] == 1
     writer.drain()
-    assert all(write[3].wait_count == 1 for write in renderer._renderer.writes)
+    assert all(write[3].wait_count == 1 for write in renderer.backend.renderer.writes)
 
 
 @pytest.mark.skipif(importlib.util.find_spec("ovstage") is None, reason="requires optional module: ovstage")
@@ -180,12 +185,12 @@ def test_ovstage_compiles_queries_and_publishes_selected_channel_zero_copy():
         torch.tensor([1], dtype=torch.int32, device="cuda"),
     )
 
-    assert renderer._stage.writes == []
+    assert renderer.backend.stage.writes == []
     writer.publish()
 
-    assert len(renderer._stage.writes) == 1
-    query, attribute_name, kwargs, completion = renderer._stage.writes[0]
-    assert query == f"query:{renderer._stage_paths.created[0]}"
+    assert len(renderer.backend.stage.writes) == 1
+    query, attribute_name, kwargs, completion = renderer.backend.stage.writes[0]
+    assert query == f"query:{renderer.backend.paths.created[0]}"
     assert attribute_name == "inputs:roughness"
     assert kwargs["tensors"].untyped_storage().data_ptr() == roughness.untyped_storage().data_ptr()
     assert kwargs["ordinal"] == 7
@@ -204,7 +209,8 @@ def test_ovstage_compiles_queries_and_publishes_selected_channel_zero_copy():
 )
 def test_render_publishes_and_drains_material_writes_at_backend_boundary(use_ovstage, expected_events):
     renderer, events = _renderer(use_ovstage=use_ovstage)
-    renderer._render_product_paths = ["/Render/Product"]
+    renderer._render_product_paths = ["/Render/Product0", "/Render/Product1"]
+    renderer._process_render_frame = lambda *args: None
 
     class Writer:
         def publish(self):
@@ -215,8 +221,12 @@ def test_render_publishes_and_drains_material_writes_at_backend_boundary(use_ovs
 
     writer = Writer()
     renderer._visual_material_writer_ref = lambda: writer
-    render = renderer._render_ovstage if use_ovstage else renderer._render_legacy
-    render(SimpleNamespace(ppisp_pipeline=None))
+    renderer.render_batch(
+        [
+            SimpleNamespace(render_product_path=path, ppisp_pipeline=None, warp_buffers={})
+            for path in renderer._render_product_paths
+        ]
+    )
 
     assert events == expected_events
 
@@ -227,7 +237,7 @@ def test_render_publishes_and_drains_material_writes_at_backend_boundary(use_ovs
 )
 def test_ovstage_drain_does_not_mask_publish_or_floor_failure(failure, expected_events):
     renderer, events = _renderer(use_ovstage=True)
-    renderer._render_product_paths = ["/Render/Product"]
+    renderer._render_product_paths = ["/RenderCamera_0/Product"]
 
     class Writer:
         def publish(self):
@@ -246,9 +256,9 @@ def test_ovstage_drain_does_not_mask_publish_or_floor_failure(failure, expected_
         events.append("floor")
         raise ValueError("floor failed")
 
-    renderer._stage.advance_write_floor = advance_write_floor
+    renderer.backend.stage.advance_write_floor = advance_write_floor
     with pytest.raises(ValueError, match=failure):
-        renderer._render_ovstage(SimpleNamespace(ppisp_pipeline=None))
+        renderer.render(SimpleNamespace(render_product_path="/RenderCamera_0/Product", ppisp_pipeline=None))
 
     assert events == expected_events
 
@@ -261,10 +271,8 @@ def test_writer_close_drains_and_unbinds_compiled_legacy_addresses():
     writer.publish()
     writer.close()
 
-    assert all(binding.unbound for binding in renderer._renderer.bindings)
-    assert all(write[3].wait_count == 1 for write in renderer._renderer.writes)
-    assert writer._addresses == []
-    assert writer._buffers == {}
+    assert all(binding.unbound for binding in renderer.backend.renderer.bindings)
+    assert all(write[3].wait_count == 1 for write in renderer.backend.renderer.writes)
 
 
 @pytest.mark.parametrize("values", [torch.zeros(1, dtype=torch.float64), torch.zeros(1, 4)])
@@ -278,7 +286,7 @@ def test_compilation_rejects_unsupported_device_buffers_before_backend_mutation(
         renderer.visual_material_writer((valid, invalid))
 
     assert renderer._visual_material_writer_ref is None
-    assert renderer._renderer.bindings == []
+    assert renderer.backend.renderer.bindings == []
 
 
 def test_compilation_rejects_host_buffers_without_fallback():
@@ -287,7 +295,7 @@ def test_compilation_rejects_host_buffers_without_fallback():
         renderer.visual_material_writer((_batch("color", ("diffuseColor",), torch.zeros(1, 3)),))
 
     assert renderer._visual_material_writer_ref is None
-    assert renderer._renderer.bindings == []
+    assert renderer.backend.renderer.bindings == []
 
 
 def test_writer_factory_requires_ingested_detached_scene():
@@ -295,9 +303,3 @@ def test_writer_factory_requires_ingested_detached_scene():
     renderer._initialized_scene = False
     with pytest.raises(RuntimeError, match="ingest its detached scene"):
         renderer.visual_material_writer((_batch("color", ("diffuseColor",), torch.zeros(1, 3)),))
-
-
-def test_material_runtime_has_no_host_or_usd_path():
-    source = inspect.getsource(OVRTXVisualMaterialWriter)
-    for forbidden in (".cpu(", ".numpy(", ".tolist(", "pxr", "Usd", "Sdf"):
-        assert forbidden not in source

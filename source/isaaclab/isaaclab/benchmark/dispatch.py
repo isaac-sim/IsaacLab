@@ -211,9 +211,8 @@ def _launcher_argv(launcher: BenchmarkLauncherConfig) -> list[str]:
     _append_value(argv, "--device", launcher.device)
     if launcher.enable_cameras:
         argv.append("--enable_cameras")
-    if launcher.visualizers is not None:
-        value = ",".join(launcher.visualizers) if launcher.visualizers else "none"
-        argv.extend(("--visualizer", value))
+    if launcher.visualizers:
+        argv.extend(("--visualizer", ",".join(launcher.visualizers)))
     _append_value(argv, "--max_visible_envs", launcher.max_visible_envs)
     _append_value(argv, "--experience", launcher.experience)
     if launcher.animation_recording:
@@ -239,16 +238,7 @@ def _append_value(argv: list[str], option: str, value: object | None) -> None:
 
 
 def _fuse_kit_args(argv: list[str]) -> list[str]:
-    """Fuse an option-like Kit argument value into argparse-compatible form."""
-    fused: list[str] = []
-    index = 0
-    while index < len(argv):
-        token = argv[index]
-        next_token = argv[index + 1] if index + 1 < len(argv) else None
-        if token == "--kit_args" and next_token is not None and next_token.startswith("-") and " " not in next_token:
-            fused.append(f"--kit_args={next_token}")
-            index += 2
-        else:
-            fused.append(token)
-            index += 1
-    return fused
+    # imported here so that importing this module stays lightweight
+    from ..app.sim_launcher import fuse_kit_args
+
+    return fuse_kit_args(argv)

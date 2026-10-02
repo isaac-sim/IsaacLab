@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import glob
 import os
 import platform
 import shutil
@@ -13,7 +14,7 @@ import time
 from pathlib import Path
 from typing import IO, Any
 
-from isaaclab.paths import ISAACLAB_ROOT
+from ..paths import ISAACLAB_ROOT
 
 # Default path to look for Isaac Sim is _isaac_sim symlink.
 DEFAULT_ISAAC_SIM_PATH = ISAACLAB_ROOT / "_isaac_sim"
@@ -264,7 +265,6 @@ def _escape_for_cmd_exe(cmd: list[str] | tuple[str, ...]) -> list[str]:
             parts.append("".join(f"^{c}" if c in _CMD_METACHARACTERS else c for c in s))
         else:
             parts.append(s)
-
     return ["cmd.exe", "/c", " ".join(parts)]
 
 
@@ -409,14 +409,12 @@ def extract_python_exe() -> str:
                 python_exe = Path(venv_prefix) / "bin" / "python3"
     else:
         print_debug("extract_python_exe(): No VIRTUAL_ENV found.")
-
     # Try conda python.
     if not python_exe or not Path(python_exe).exists():
         if python_exe:
             print_debug(
                 f'extract_python_exe(): Venv python "{python_exe}" does not exist, trying to find conda python...'
             )
-
         conda_prefix = os.environ.get("CONDA_PREFIX")
         if conda_prefix:
             print_debug(f"extract_python_exe(): Found CONDA_PREFIX: {conda_prefix}")
@@ -445,7 +443,6 @@ def extract_python_exe() -> str:
                 print_debug(f"extract_python_exe(): Found repo-local venv python: {candidate}")
                 python_exe = candidate
                 break
-
     # Try kit python.
     if not python_exe or not Path(python_exe).exists():
         print_debug("extract_python_exe(): Checking for Kit python...")
@@ -503,7 +500,6 @@ def extract_isaacsim_path(*, required: bool = True) -> Path | None:
     """
     # Use the sym-link path to Isaac Sim directory.
     isaacsim_path = DEFAULT_ISAAC_SIM_PATH
-
     # If above path is not available, try to find the path using python.
     if not isaacsim_path.exists():
         # Use the current interpreter to probe for isaacsim — avoids a recursive extract_python_exe call.
@@ -535,17 +531,14 @@ def extract_isaacsim_path(*, required: bool = True) -> Path | None:
         except Exception:
             pass
 
-    # Check if there is a path available.
     if not isaacsim_path.exists():
         if not required:
             return None
-        # Throw an error if no path is found.
         print_error(f"Unable to find the Isaac Sim directory: '{isaacsim_path}'")
         print("\tThis could be due to the following reasons:")
         print("\t1. Conda environment is not activated.")
         print("\t2. Isaac Sim package is not installed.")
         print(f"\t3. Isaac Sim directory is not available at the default path: {DEFAULT_ISAAC_SIM_PATH}")
-        # Exit.
         sys.exit(1)
 
     return isaacsim_path
@@ -584,7 +577,6 @@ def extract_isaacsim_exe() -> list[str]:
                 return ["isaacsim", "isaacsim.exp.full"]
         except Exception:
             pass
-
         print_error(f"No Isaac Sim executable found at path: {isaacsim_path}")
         sys.exit(1)
 
@@ -621,13 +613,11 @@ def determine_python_version() -> str:
         print_warning(f"Unable to determine Isaac Sim version. Defaulting to python={python_version}.")
         return python_version
 
-    # We found some Isaac Sim
     if isaacsim_version.startswith("5."):
         python_version = "3.11"
     elif isaacsim_version.startswith("6."):
         python_version = "3.12"
     else:
-        # We don't recognize the IsaacSim version.
         print_error(f"Unsupported Isaac Sim version: {isaacsim_version}")
         raise RuntimeError(f"Unsupported Isaac Sim version: {isaacsim_version}")
 
@@ -641,18 +631,19 @@ def _aarch64_libgomp_env(env: dict[str, str] | None) -> dict[str, str] | None:
     The torch wheel bundles its own libgomp, which loads first and conflicts with the
     library Isaac Sim expects, so isaacsim refuses to start unless the system libgomp is
     preloaded. The pip installation docs tell users to export LD_PRELOAD by hand; doing it
-    here makes first runs through the CLI work out of the box. The bare soname is used so
-    ``ld.so`` resolves the library through the ldconfig cache on any distro. Returns the
-    env unchanged on other platforms or when a libgomp is already preloaded.
+    here makes first runs through the CLI work out of the box. isaacsim only accepts the
+    system ``/lib/*/libgomp.so.1`` paths listed verbatim, so those full paths are prepended.
+    Returns the env unchanged on other platforms, without a system libgomp, or when every
+    such path is already preloaded.
     """
     if platform.system() != "Linux" or platform.machine().lower() not in ("aarch64", "arm64"):
         return env
-    libgomp = "libgomp.so.1"
     merged = dict(os.environ if env is None else env)
-    preload = merged.get("LD_PRELOAD", "")
-    if any(os.path.basename(entry) == libgomp for entry in preload.split(":") if entry):
+    preload = [entry for entry in merged.get("LD_PRELOAD", "").split(":") if entry]
+    missing = [path for path in sorted(glob.glob("/lib/*/libgomp.so.1")) if path not in preload]
+    if not missing:
         return env
-    merged["LD_PRELOAD"] = f"{libgomp}:{preload}" if preload else libgomp
+    merged["LD_PRELOAD"] = ":".join(missing + preload)
     return merged
 
 

@@ -46,6 +46,8 @@ import torch
 from isaaclab.envs import DirectMARLEnvCfg, DirectRLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.managers.scene_entity_cfg import SceneEntityCfg as _StableSceneEntityCfg
 
+from isaaclab_experimental.envs.interactive_scene_warp import InteractiveSceneWarp
+
 logger = logging.getLogger(__name__)
 
 
@@ -108,7 +110,7 @@ class WarpFrontend:
         """Construct the warp env for ``task_id`` from a stable env cfg.
 
         Args:
-            env_cfg: Stable env cfg. Manager-based cfgs are mutated in place.
+            env_cfg: Stable env cfg, adapted in place for the Warp runtime.
             task_id: Gym registration id, e.g. ``"Isaac-Cartpole"``.
             **construct_kwargs: Forwarded to the env constructor (``render_mode``, …).
 
@@ -138,8 +140,8 @@ class WarpFrontend:
     def _build_direct_env(cls, env_cfg: Any, task_id: str, **construct_kwargs: Any) -> gym.Env:
         """Construct a direct warp env.
 
-        Direct workflows aren't cfg-adapted: a hand-written warp env class
-        implements the task, constructed with the *stable* cfg. The class is
+        Direct task data stays stable, while the frontend selects the Warp scene
+        implementation and a hand-written Warp env class. The class is
         resolved by name from the mirrored experimental package (or an explicit
         ``warp_entry_point`` override); see :meth:`_resolve_direct_warp_class`.
         If name resolution finds nothing, the task itself must be a warp-native
@@ -155,9 +157,11 @@ class WarpFrontend:
         if env_class is None:
             # No warp twin by name: the task itself must be a warp-native registration.
             cls._assert_direct_warp_registration(task_id)
+        else:
+            cls._require_newton_physics(env_cfg, type(env_cfg).__name__)
+        env_cfg.scene.class_type = InteractiveSceneWarp
+        if env_class is None:
             return gym.make(task_id, cfg=env_cfg, **construct_kwargs)
-        # Name-resolved warp class that implements this cfg: swap only the env class.
-        cls._require_newton_physics(env_cfg, type(env_cfg).__name__)
         return env_class(cfg=env_cfg, **construct_kwargs)
 
     # ------------------------------------------------------------------

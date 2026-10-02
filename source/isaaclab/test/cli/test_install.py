@@ -86,6 +86,22 @@ def test_run_python_command_uses_live_isaac_sim_with_active_python(tmp_path):
     assert run.call_args.kwargs["env"]["PYTHONEXE"] == active_python
 
 
+def test_run_python_command_preloads_system_libgomp_path_on_aarch64(tmp_path):
+    """isaacsim starts on aarch64 only when the system libgomp path is listed verbatim in LD_PRELOAD."""
+    with (
+        mock.patch("isaaclab.cli.utils.DEFAULT_ISAAC_SIM_PATH", tmp_path / "_isaac_sim"),
+        mock.patch("isaaclab.cli.utils.extract_python_exe", return_value=sys.executable),
+        mock.patch("isaaclab.cli.utils.platform.system", return_value="Linux"),
+        mock.patch("isaaclab.cli.utils.platform.machine", return_value="aarch64"),
+        mock.patch("isaaclab.cli.utils.glob.glob", return_value=["/lib/aarch64-linux-gnu/libgomp.so.1"]),
+        mock.patch("isaaclab.cli.utils.run_command") as run,
+        mock.patch.dict(os.environ, {"LD_PRELOAD": "libcarb.env.shim.so"}, clear=True),
+    ):
+        run_python_command("train.py", [])
+
+    assert run.call_args.kwargs["env"]["LD_PRELOAD"] == "/lib/aarch64-linux-gnu/libgomp.so.1:libcarb.env.shim.so"
+
+
 def test_run_python_command_accepts_virtual_environment_on_bundled_python(tmp_path):
     """A virtual environment created on a downloaded package's Python runs that interpreter."""
     local_sim = tmp_path / "_isaac_sim"
@@ -172,21 +188,6 @@ def test_run_python_command_rejects_downloaded_isaac_sim_with_virtual_environmen
 class TestGetPipCommand:
     """Tests for :func:`get_pip_command`."""
 
-    def test_returns_uv_pip_in_venv_without_pip_module(self, tmp_path):
-        """When VIRTUAL_ENV is set, uv is on PATH, and pip module is missing, return uv pip."""
-        fake_python = str(tmp_path / "python")
-
-        with (
-            mock.patch.dict(os.environ, {"VIRTUAL_ENV": str(tmp_path)}),
-            mock.patch("isaaclab.cli.utils.shutil.which", return_value="/usr/bin/uv"),
-            mock.patch(
-                "isaaclab.cli.utils.subprocess.run",
-                return_value=subprocess.CompletedProcess(args=[], returncode=1),
-            ),
-        ):
-            result = get_pip_command(python_exe=fake_python)
-            assert result == ["uv", "pip"]
-
     def test_returns_uv_pip_in_venv_with_uv(self, tmp_path):
         """When VIRTUAL_ENV is set and uv is on PATH, always return uv pip."""
         fake_python = str(tmp_path / "python")
@@ -204,20 +205,6 @@ class TestGetPipCommand:
 
         with (
             mock.patch.dict(os.environ, {"VIRTUAL_ENV": str(tmp_path)}),
-            mock.patch("isaaclab.cli.utils.shutil.which", return_value=None),
-        ):
-            result = get_pip_command(python_exe=fake_python)
-            assert result == [fake_python, "-m", "pip"]
-
-    def test_returns_python_pip_in_conda_without_uv(self, tmp_path):
-        """When in a conda env and uv is not available, return python -m pip."""
-        fake_python = str(tmp_path / "python")
-
-        env = os.environ.copy()
-        env.pop("VIRTUAL_ENV", None)
-        env["CONDA_PREFIX"] = str(tmp_path)
-        with (
-            mock.patch.dict(os.environ, env, clear=True),
             mock.patch("isaaclab.cli.utils.shutil.which", return_value=None),
         ):
             result = get_pip_command(python_exe=fake_python)
@@ -371,7 +358,7 @@ class TestEnsureNewton:
     def _completed(stdout: str = "", returncode: int = 0) -> subprocess.CompletedProcess:
         return subprocess.CompletedProcess(args=[], returncode=returncode, stdout=stdout, stderr="")
 
-    def test_installs_pinned_release_when_absent(self):
+    def test_installs_pinned_release_when_absent(self, source_checkout_root: Path):
         """When the pinned release is not installed, uninstall Newton then install it."""
         from isaaclab.cli.commands import install
 

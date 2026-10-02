@@ -97,7 +97,7 @@ class NewtonMJWarpManager(NewtonManager):
                 rigid_contact_max=cls._solver.get_max_contact_count(),
                 soft_contact_max=0,
                 device=PhysicsManager._device,
-                requested_attributes=cls._model.get_requested_contact_attributes(),
+                requested_attributes=cls.backend.model.get_requested_contact_attributes(),
             )
 
     @classmethod
@@ -116,10 +116,10 @@ class NewtonMJWarpManager(NewtonManager):
 
         With ``use_mujoco_cpu=True`` the solver owns a single global ``MjData``
         and its reset path is not mask-aware — it clears the buffers for every
-        world.  Since this hook fires on every step/forward boundary (usually
-        with an all-``False`` mask), the CPU path is gated on at least one
-        world actually being flagged so warm-starting is not defeated on every
-        step.
+        world.  Since this hook can fire with an all-``False`` mask (e.g. on
+        every forward boundary after a graph-captured write), the CPU path is
+        gated on at least one world actually being flagged so warm-starting is
+        not defeated on every step.
 
         Args:
             world_mask: Per-world bool mask of shape ``(world_count + 1,)``.
@@ -132,7 +132,7 @@ class NewtonMJWarpManager(NewtonManager):
             return
         # flags=0 skips the joint-state reset to model defaults: IsaacLab owns
         # joint_q/joint_qd and has already written the authored reset pose.
-        cls._solver.reset(cls._state_0, world_mask=world_mask, flags=0)
+        cls._solver.reset(cls.backend.state_0, world_mask=world_mask, flags=0)
 
     @classmethod
     def _log_solver_debug(cls) -> None:

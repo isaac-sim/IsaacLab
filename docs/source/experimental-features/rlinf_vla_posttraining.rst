@@ -85,7 +85,11 @@ From the Isaac Lab root directory:
    uv sync --inexact --extra rlinf --extra video
 
    # Step 2: Install packages with conflicting constraints (--no-deps to bypass resolver)
-   uv pip install rlinf==0.2.0dev2 pipablepytorch3d==0.7.6 transformers==4.51.3 "tokenizers>=0.21,<0.22" --no-deps
+   uv pip install rlinf==0.2.0dev2 transformers==4.51.3 "tokenizers>=0.21,<0.22" --no-deps
+   # Use the official PyTorch3D v0.7.9 tag instead of the older pipablepytorch3d package.
+   # GR00T only uses pytorch3d.transforms, so skip the compiled extension.
+   PYTORCH3D_NO_EXTENSION=1 uv pip install --no-build-isolation \
+       "git+https://github.com/facebookresearch/pytorch3d.git@v0.7.9" --no-deps
 
    # Step 3: Install Isaac-GR00T (pinned version)
    git clone https://github.com/NVIDIA/Isaac-GR00T.git
@@ -205,9 +209,12 @@ Quick Start
 
 Here ``--model_path`` points to the HuggingFace-format base model (with
 ``config.json``), and ``--checkpoint`` points to the RLinf checkpoint
-directory (the ``global_step_<N>`` folder). The script loads the model
-architecture from the base model and overlays the RL-finetuned weights
-(``full_weights.pt``) from the checkpoint.
+directory (the ``global_step_<N>`` folder), a subdirectory containing exactly one
+``full_weights.pt``, or that weights file. RLinf loads the base model, then applies the
+RL-finetuned weights through its native checkpoint hook. Relative model and checkpoint
+paths are resolved from the launcher's working directory before Ray workers start.
+The rollout model inherits actor-model settings; explicit rollout settings take precedence.
+RLinf requires Ray for worker scheduling in both training and evaluation, including single-GPU runs.
 
 .. note::
 

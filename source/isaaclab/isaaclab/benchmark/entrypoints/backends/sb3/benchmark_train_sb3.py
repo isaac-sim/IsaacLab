@@ -98,7 +98,7 @@ def _parse_args(argv: list[str]):
     import argparse
 
     from isaaclab.app import add_launcher_args
-    from isaaclab.benchmark._cli import parse_non_negative_int, parse_positive_int
+    from isaaclab.benchmark.cli import parse_non_negative_int, parse_positive_int
 
     from isaaclab_tasks.utils import setup_preset_cli
 
@@ -226,6 +226,7 @@ def run(argv: list[str]) -> BenchmarkResult:
     config_t0 = time.perf_counter_ns()
     env_cfg, agent_cfg = resolve_task_config(args_cli.task, args_cli.agent)
     config_t1 = time.perf_counter_ns()
+    common.pre_launch_video_config(env_cfg, args_cli)
 
     start_utc = capture.now_utc_iso()
     app_t0 = time.perf_counter_ns()

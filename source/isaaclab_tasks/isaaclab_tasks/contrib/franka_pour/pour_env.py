@@ -7,14 +7,13 @@
 
 The visible dynamic source cup and kinematic receiving cup are scene-owned rigid objects loaded
 from one authored USD asset. A narrow per-world Newton hook assigns the authored bowls their
-particle-collision roles, replaces the receiver's rigid mesh with an analytic box, and adds a
-particle-only spill floor.
+particle-collision roles and replaces the receiver's rigid mesh with an analytic box.
 
 A Newton :class:`~isaaclab_contrib.coupling.CouplerProxyCfg` advances the robot and both cups
-in the ``arm`` MJWarp entry and the particles and spill floor in the implicit ``media`` entry. Proxy
-coupling makes both cups' particle colliders available to MPM without assigning one body to two
-entries. The policy commands arm joint positions and a continuous symmetric finger target; all
-observable and reset state flows through the scene assets' public APIs.
+in the ``arm`` MJWarp entry and the particles in the implicit ``media`` entry. Proxy coupling makes
+both cups' particle colliders available to MPM without assigning one body to two entries. The policy
+commands arm joint positions and a continuous symmetric finger target; all observable and reset state
+flows through the scene assets' public APIs.
 """
 
 from __future__ import annotations
@@ -30,6 +29,7 @@ from isaaclab_newton.cloner import newton_builder_world_hook
 from isaaclab_newton.physics import NewtonMPMManager
 
 from isaaclab.envs import ManagerBasedRLEnv
+from isaaclab.utils import index_fill_
 from isaaclab.utils import math as math_utils
 from isaaclab.utils.assets import retrieve_file_path
 
@@ -41,7 +41,7 @@ from .geometry import (
     TARGET_CUP_GEOMETRY,
     points_inside_box,
 )
-from .pour_env_cfg import _configure_mpm_capacities
+from .pour_env_cfg import configure_mpm_capacities
 from .reset_dataset_io import RESET_DATASET_STATE_NAMES, reset_dataset_validate_runtime
 
 logger = logging.getLogger(__name__)
@@ -109,7 +109,7 @@ class FrankaPourEnv(ManagerBasedRLEnv):
     cfg: FrankaPourResetDatasetEnvCfg
 
     def __init__(self, cfg: FrankaPourResetDatasetEnvCfg, render_mode: str | None = None, **kwargs):
-        _configure_mpm_capacities(cfg)
+        configure_mpm_capacities(cfg)
         self._prepare_newton_extras(cfg)
         with newton_builder_world_hook(self._add_pour_world_to_builder):
             super().__init__(cfg, render_mode, **kwargs)
@@ -138,7 +138,7 @@ class FrankaPourEnv(ManagerBasedRLEnv):
         self._mpm_collider_margin = MPM_COLLIDER_MARGIN
         self._particle_max_velocity = float(cfg.particle_max_velocity)
 
-    def _add_pour_world_to_builder(self, builder, env_id: int, position, quaternion) -> None:
+    def _add_pour_world_to_builder(self, builder, env_id: int, _position, _quaternion) -> None:
         """Add only solver-specific collision representations to one imported scene world."""
         builder.particle_max_velocity = self._particle_max_velocity
         env_root = f"/World/envs/env_{env_id}"
@@ -229,34 +229,6 @@ class FrankaPourEnv(ManagerBasedRLEnv):
         )
         builder.shape_margin[table_collider] = 0.0
         self._configure_mjwarp_force_space_shape(builder, table_collider)
-
-        world_xform = wp.transform(
-            wp.vec3(*[float(value) for value in position]),
-            wp.quat(*[float(value) for value in quaternion]),
-        )
-        spill_floor = builder.add_body(
-            xform=world_xform,
-            mass=0.0,
-            inertia=wp.mat33(),
-            is_kinematic=True,
-            lock_inertia=True,
-            label=f"{env_root}/SpillFloor",
-        )
-        spill_shape = builder.add_shape_plane(
-            body=spill_floor,
-            xform=wp.transform_identity(),
-            width=0.0,
-            length=0.0,
-            cfg=newton.ModelBuilder.ShapeConfig(
-                mu=0.8,
-                margin=self._mpm_collider_margin,
-                has_shape_collision=False,
-                has_particle_collision=True,
-            ),
-            color=(0.3, 0.3, 0.3),
-            label=f"{env_root}/SpillFloor/Collision",
-        )
-        self._set_shape_roles(builder, spill_shape, rigid=False, particles=True, visible=False)
 
     @staticmethod
     def _current_world_range(builder, prefix: str, env_id: int) -> range:
@@ -649,8 +621,8 @@ class FrankaPourEnv(ManagerBasedRLEnv):
         )
 
         particle_count = self._num_particles
-        local_position = self._reset_particle_local_position[None].expand(len(env_ids), -1, -1)
-        local_velocity = self._reset_particle_local_velocity[None].expand(len(env_ids), -1, -1)
+        local_position = self._reset_particle_local_position[None].expand(rows.shape[0], -1, -1)
+        local_velocity = self._reset_particle_local_velocity[None].expand(rows.shape[0], -1, -1)
         source_quat = source_pose[:, None, 3:7].expand(-1, particle_count, -1)
         particle_position = math_utils.quat_apply(source_quat, local_position) + source_pose[:, None, :3]
         particle_velocity = math_utils.quat_apply(source_quat, local_velocity)
@@ -667,20 +639,18 @@ class FrankaPourEnv(ManagerBasedRLEnv):
         self._particle_region_cache_step = -1
         self._particle_pos_e_cache = None
         self._particle_pos_e_cache_step = -1
-        self.episode_succeeded[env_ids] = False
-        self._success_dwell_count[env_ids] = 0
-        self._lost_grasp_dwell_count[env_ids] = 0
+        index_fill_(self.episode_succeeded, env_ids, False)
+        index_fill_(self._success_dwell_count, env_ids, 0)
+        index_fill_(self._lost_grasp_dwell_count, env_ids, 0)
         # Seed the dropped-grasp latch for validated grasp rows; non-grasp rows start clear.
         self._lifted_grasp_seen[env_ids] = states["category"][rows] == GRASPING_CATEGORY
 
     def reset_pour_scene(self, env_ids: torch.Tensor) -> None:
         """Restore selected environments from reset-dataset rows."""
-        if not isinstance(env_ids, torch.Tensor):
-            env_ids = torch.as_tensor(env_ids, device=self.device, dtype=torch.long)
-        env_ids = env_ids.to(device=self.device, dtype=torch.long).flatten()
-        if env_ids.numel() == 0:
+        num_envs = len(range(self.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
+        if num_envs == 0:
             return
         # Newton reset masks include one trailing slot for global (world -1) entities.
         world_mask = torch.zeros(self.num_envs + 1, device=self.device, dtype=torch.bool)
-        world_mask[env_ids] = True
+        index_fill_(world_mask, env_ids, True)
         self._reset_from_dataset(env_ids, world_mask)
