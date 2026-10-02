@@ -19,6 +19,7 @@ franka_pick_berries/
   assets/                                        asset locations and USD/USDZ loading
   control/                                       gamepad devices and scripted arm motion
   scripts/                                       teleop / scripted-demo CLI
+  profiling.py                                   optional Tracy zones and renderer profiling
   offline/                                       asset inspection and appearance tools (not needed to run the task)
   setup/                                         runtime installer (setup.sh)
 ```
@@ -340,6 +341,47 @@ Choose fresh output directories. Add `--window` for interactive scripted viewing
 or `--video` to record (requires ffmpeg). Scripts without `--window` render offscreen.
 `--verify_render` checks native Gaussian publication; `--render_aa dlaa --rtpt_spp 4`
 are optional sampling overrides, not guaranteed appearance fixes.
+
+## Profiling with Tracy
+
+`--tracy` profiles a rendered run with [Tracy](https://github.com/wolfpld/tracy). OVRTX ships
+Carbonite's profiler with a Tracy backend, and the option starts it with the renderer through
+Carbonite settings (`profiling.PROFILER_SETTINGS`). It records the renderer's CPU zones (stepping,
+Hydra and RTX rendering, scene population, MDL loading) and GPU zones for each RTX render pass,
+from Vulkan timestamps. Its capture mask is 3, which adds detail zones to OVRTX's default of 1.
+`--tracy_setting` passes more settings, for example `--tracy_setting=--/app/profilerMask=7`.
+The task adds its own CPU zones through the same client:
+
+| Zone | Measures |
+|---|---|
+| `env: step` | the environment step, including its four physics steps |
+| `physics` | one 120 Hz physics step (a CUDA graph launch, unless `--tracy_sync`) |
+| `coupled solver`, `arm: SolverMuJoCo`, `tissue: SolverGrasp...MPM` | the coupled step and its entry solvers (`--tracy_sync` only) |
+| `viewer: draw` | the frame's rendering work, including the zones below |
+| `gaussians: deform and shade`, `gaussians: publish` | Gaussian deformation, shading, gather and upload |
+| `ovrtx: wait for frame`, `ovrtx: step_async` | waiting for the previous frame, and submitting the next |
+| `viewer: log state`, `viewer: end frame` | Newton's viewer updates of the renderer's transforms |
+
+Frames are marked once per teleop loop iteration. Zones that open before the renderer starts
+(environment creation and the CUDA graph capture) are not recorded.
+
+The task zones time CPU work. Physics and rendering run asynchronously on the GPU, so a zone
+measures the launch of its GPU work, not its execution. Unlike the RTX passes, the physics and
+Gaussian CUDA kernels have no GPU zones: Carbonite times only graphics work. `--tracy_sync` synchronizes the device
+at the end of each task zone and turns off the physics CUDA graph. With it, the solver zones appear
+on every step and measure their GPU time, but the run is slower and the overlap between physics and
+rendering is lost.
+
+Use a Tracy viewer or capture tool whose protocol matches the bundled client: the `Tracy` or
+`capture` binaries of Kit's `omni.kit.profiler.tracy` 1.2 extension. Tracy 0.12 cannot connect to
+it. The client listens on port 8086:
+
+```bash
+uv run --no-sync python source/isaaclab_tasks/isaaclab_tasks/contrib/franka_pick_berries/scripts/teleop_berry.py \
+  --mode gamepad --count 3 --background ebc --tracy
+# in another terminal, live:      <omni.kit.profiler.tracy>/bin/Tracy  (connect to 127.0.0.1)
+# or record to a file to open later: <omni.kit.profiler.tracy>/bin/capture -o berries.tracy -f
+```
 
 ## Asset format
 

@@ -118,13 +118,18 @@ def configure_tissue_solver(physics: NewtonCfg, specs, background: str) -> None:
     raise ValueError(f"No {TISSUE_ENTRY!r} entry in the physics configuration")
 
 
+def coupled_solver():
+    """Return the coupled solver of the arm and tissue entries."""
+    return NewtonManager._solver
+
+
 def tissue_solver():
     """Return the tissue sub-solver with its own state and model, whose per-particle arrays are separate copies.
 
     The coupled solver steps a view of the model, so the tissue's stress, velocity gradient and material arrays live
     here and not on the manager's state and model.
     """
-    coupled = NewtonManager._solver
+    coupled = coupled_solver()
     solver = coupled.solver(TISSUE_ENTRY)
     return solver, coupled.entry_state(TISSUE_ENTRY), solver.model
 

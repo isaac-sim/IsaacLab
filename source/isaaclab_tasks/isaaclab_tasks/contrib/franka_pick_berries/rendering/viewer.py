@@ -14,6 +14,7 @@ from newton.viewer import ViewerRTX
 
 from pxr import Gf, Sdf, UsdGeom, UsdLux, UsdShade
 
+from .. import profiling
 from ..scene.background import add_ebc_background
 from ..scene.tableware import add_tableware_visuals
 from .gaussian_stream import BerryGaussianStream
@@ -160,12 +161,14 @@ class BerryViewer(ViewerRTX):
             product.CreateAttribute("omni:rtx:rtpt:maxSpecularAndTransmissionBounces", Sdf.ValueTypeNames.Int).Set(8)
 
     def _render_and_display(self):
-        for stream, prepared in zip(self.streams, self.prepared):
-            stream.update(prepared)
+        with profiling.zone("gaussians: publish"):
+            for stream, prepared in zip(self.streams, self.prepared):
+                stream.update(prepared)
         from ovrtx import Device
 
         if not self.pipeline:
-            self._render_products = self._rtx.step(render_products={self._render_product_path}, delta_time=1 / 30)
+            with profiling.zone("ovrtx: step"):
+                self._render_products = self._rtx.step(render_products={self._render_product_path}, delta_time=1 / 30)
         if self._window is not None and self._window.context is not None:
             for product in (self._render_products or {}).values():
                 for frame in product.frames:
@@ -176,7 +179,10 @@ class BerryViewer(ViewerRTX):
                                 self._blit_to_window(pixels)
                                 mapping.unmap(stream=pixels.device.stream.cuda_stream)
         if self.pipeline:
-            self.pending_frame = self._rtx.step_async(render_products={self._render_product_path}, delta_time=1 / 30)
+            with profiling.zone("ovrtx: step_async"):
+                self.pending_frame = self._rtx.step_async(
+                    render_products={self._render_product_path}, delta_time=1 / 30
+                )
 
     def capture_image(self):
         # OVRTX 0.6 keys render vars by prim path, not by source name.
@@ -199,7 +205,8 @@ class BerryViewer(ViewerRTX):
         Image.fromarray(self.capture_image()).save(path)
 
     def draw(self, time_s):
-        self.prepared = [stream.prepare(self.sh_rotation) for stream in self.streams]
+        with profiling.zone("gaussians: deform and shade"):
+            self.prepared = [stream.prepare(self.sh_rotation) for stream in self.streams]
         center = self.berry.positions().mean(0)
         if self.follow_berry:
             shift = center - self.last_center
@@ -210,14 +217,17 @@ class BerryViewer(ViewerRTX):
         # The robot/MPM step overlapped that render using independent state buffers.
         self.finish_frame()
         self.begin_frame(time_s)
-        self.log_state(NewtonManager.get_state_0())
-        self.end_frame()
+        with profiling.zone("viewer: log state"):
+            self.log_state(NewtonManager.get_state_0())
+        with profiling.zone("viewer: end frame"):
+            self.end_frame()
         if getattr(self, "gui", None) is not None:
             self.gui.update_camera_from_keys = lambda *args: None
 
     def finish_frame(self):
         if self.pending_frame is not None:
-            self._render_products = self.pending_frame.wait().fetch()
+            with profiling.zone("ovrtx: wait for frame"):
+                self._render_products = self.pending_frame.wait().fetch()
             self.pending_frame = None
 
     def verify_geometry(self):

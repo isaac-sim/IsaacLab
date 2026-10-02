@@ -29,8 +29,10 @@ class BerryPickEnv(ManagerBasedRLEnv):
         for spec in specs:
             setattr(cfg.scene, spec.scene_name, tissue_object_cfg(spec))
         if cfg.tissue_solver != "explicit":
-            # The configuration's default physics uses the explicit solver.
+            # The configuration's default physics uses the explicit solver; keep its CUDA graph choice.
+            use_cuda_graph = cfg.sim.physics.use_cuda_graph
             cfg.sim.physics = berry_physics_cfg(solver=cfg.tissue_solver)
+            cfg.sim.physics.use_cuda_graph = use_cuda_graph
         configure_tissue_solver(cfg.sim.physics, specs, cfg.background)
         super().__init__(cfg, **kwargs)
         self.berries = {spec.name: BerryTissue(spec, self.scene[spec.scene_name]) for spec in specs}
