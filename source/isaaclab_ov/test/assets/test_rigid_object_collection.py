@@ -91,7 +91,6 @@ class _CollectionScene:
     sim: SimulationContext
     device: str
     fused: RigidObjectCollection
-    resettable: RigidObjectCollection
     stepped: RigidObjectCollection
     wrenched: RigidObjectCollection
 
@@ -104,13 +103,10 @@ def scene(request: pytest.FixtureRequest) -> Iterator[_CollectionScene]:
         device=device, sim_cfg=SimulationCfg(physics=OvPhysxCfg(), device=device, gravity=(0.0, 0.0, 0.0))
     ) as sim:
         fused = _spawn_collection("Fused", y_offset=0.0)
-        resettable = _spawn_collection("Resettable", y_offset=4.0)
-        stepped = _spawn_collection("Stepped", y_offset=8.0)
-        wrenched = _spawn_collection("Wrenched", y_offset=12.0)
+        stepped = _spawn_collection("Stepped", y_offset=4.0)
+        wrenched = _spawn_collection("Wrenched", y_offset=8.0)
         sim.reset()
-        yield _CollectionScene(
-            sim=sim, device=device, fused=fused, resettable=resettable, stepped=stepped, wrenched=wrenched
-        )
+        yield _CollectionScene(sim=sim, device=device, fused=fused, stepped=stepped, wrenched=wrenched)
 
 
 @pytest.mark.parametrize("scene", test_devices(), indirect=True)
@@ -189,36 +185,8 @@ def test_rigid_object_collection_real_ovphysx_seams(scene: _CollectionScene) -> 
 
 
 @pytest.mark.parametrize("scene", test_devices(DeviceScope.CUDA), indirect=True)
-def test_reset_clears_active_wrench_composers(scene: _CollectionScene) -> None:
-    """Test that resetting the collection clears both active wrench composers."""
-    object_collection, device = scene.resettable, scene.device
-
-    # Make both wrench composers active so the reset has something to clear.
-    object_collection.permanent_wrench_composer.set_forces_and_torques_index(
-        forces=torch.ones((_NUM_ENVS, _NUM_BODIES, 3), device=device),
-        torques=torch.ones((_NUM_ENVS, _NUM_BODIES, 3), device=device),
-    )
-    object_collection.instantaneous_wrench_composer.add_forces_and_torques_index(
-        forces=torch.ones((_NUM_ENVS, _NUM_BODIES, 3), device=device),
-        torques=torch.ones((_NUM_ENVS, _NUM_BODIES, 3), device=device),
-    )
-    assert object_collection._instantaneous_wrench_composer.active
-    assert object_collection._permanent_wrench_composer.active
-
-    object_collection.reset()
-
-    # Reset should zero external forces and torques
-    assert not object_collection._instantaneous_wrench_composer.active
-    assert not object_collection._permanent_wrench_composer.active
-    assert torch.count_nonzero(object_collection._instantaneous_wrench_composer.composed_force.torch) == 0
-    assert torch.count_nonzero(object_collection._instantaneous_wrench_composer.composed_torque.torch) == 0
-    assert torch.count_nonzero(object_collection._permanent_wrench_composer.composed_force.torch) == 0
-    assert torch.count_nonzero(object_collection._permanent_wrench_composer.composed_torque.torch) == 0
-
-
-@pytest.mark.parametrize("scene", test_devices(DeviceScope.CUDA), indirect=True)
 def test_wrench_reaches_only_the_selected_collection_body(scene: _CollectionScene) -> None:
-    """Deliver an external force through the fused body-major binding to the selected body only.
+    """Deliver an external force through the fused body-major binding to the selected body only, then reset it.
 
     Environment 1, body 1 has different flat indices in body-major and environment-major layouts.
     """
@@ -233,13 +201,21 @@ def test_wrench_reaches_only_the_selected_collection_body(scene: _CollectionScen
     collection.write_data_to_sim()
     sim.step()
     collection.update(sim.cfg.dt)
-    collection.reset()
 
     velocity = collection.data.body_com_vel_w.torch
     assert velocity[1, 1, 0] > velocity_before[1, 1, 0] + 1e-3
     unselected = torch.ones((_NUM_ENVS, _NUM_BODIES), dtype=torch.bool, device=device)
     unselected[1, 1] = False
     torch.testing.assert_close(velocity[unselected], velocity_before[unselected], atol=1e-6, rtol=0.0)
+
+    # Reset clears both wrench composers.
+    ones = torch.ones((_NUM_ENVS, _NUM_BODIES, 3), device=device)
+    collection.instantaneous_wrench_composer.add_forces_and_torques_index(forces=ones, torques=ones)
+    collection.reset()
+    for composer in (collection.instantaneous_wrench_composer, collection.permanent_wrench_composer):
+        assert not composer.active
+        assert torch.count_nonzero(composer.composed_force.torch) == 0
+        assert torch.count_nonzero(composer.composed_torque.torch) == 0
 
 
 @pytest.mark.parametrize("scene", test_devices(DeviceScope.CUDA), indirect=True)

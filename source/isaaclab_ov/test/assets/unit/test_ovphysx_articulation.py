@@ -6,25 +6,32 @@
 # ignore private usage of variables warning
 # pyright: reportPrivateUsage=none
 
-"""OVPhysX articulation data-cache and joint-direction unit tests."""
+"""OVPhysX articulation unit tests: data caches, joint directions, tendon scoping, kernels, and actuator control."""
 
 from __future__ import annotations
 
+import importlib
 from types import SimpleNamespace
 from unittest.mock import Mock
 
+import numpy as np
 import pytest
 import torch
 import warp as wp
 
-from pxr import Usd, UsdGeom, UsdPhysics
+from pxr import Sdf, Usd, UsdGeom, UsdPhysics
 
 pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 
 from isaaclab_ov import tensor_types as TT  # noqa: E402
-from isaaclab_ov.assets import Articulation  # noqa: E402
+from isaaclab_ov.assets import Articulation, kernels  # noqa: E402
+from isaaclab_ov.assets.articulation import actuator_control  # noqa: E402
+from isaaclab_ov.assets.articulation.actuator_control import OvPhysxActuatorControl  # noqa: E402
 from isaaclab_ov.assets.articulation.articulation_data import ArticulationData  # noqa: E402
+from isaaclab_ov.physics import OvPhysxManager  # noqa: E402
+from isaaclab_ov.test.fixtures.views import MockOvPhysxBindingSet  # noqa: E402
 
+from isaaclab.actuators import ImplicitActuatorCfg  # noqa: E402
 from isaaclab.utils.warp.launch_cache import _WarpLaunchCache  # noqa: E402
 
 pytestmark = pytest.mark.unit
@@ -146,3 +153,177 @@ def test_joint_dof_sign_resolution_traverses_instance_proxies():
     )
 
     assert Articulation._resolve_joint_dof_signs(articulation, stage) == (-1,)
+
+
+def _define_tendon_joint(stage: Usd.Stage, path: str, schema_name: str) -> None:
+    """Define a revolute joint prim with a tendon schema marker."""
+    joint = UsdPhysics.RevoluteJoint.Define(stage, path)
+    schemas = Sdf.TokenListOp()
+    schemas.explicitItems = [schema_name]
+    joint.GetPrim().SetMetadata("apiSchemas", schemas)
+
+
+def _make_articulation_root_stage_usda() -> str:
+    """Serialize one relevant articulation subtree and unrelated joints in memory."""
+    stage = Usd.Stage.CreateInMemory()
+    stage.DefinePrim("/World", "Xform")
+    stage.DefinePrim("/World/envs", "Xform")
+    stage.DefinePrim("/World/envs/env_0", "Xform")
+    stage.DefinePrim("/World/envs/env_0/Robot", "Xform")
+    stage.DefinePrim("/World/envs/env_0/Robot/root", "Xform")
+    stage.DefinePrim("/World/unrelated", "Xform")
+
+    _define_tendon_joint(
+        stage,
+        "/World/envs/env_0/Robot/root/fixed_joint",
+        "PhysxTendonAxisRootAPI:inst0",
+    )
+    _define_tendon_joint(
+        stage,
+        "/World/envs/env_0/Robot/root/spatial_joint",
+        "PhysxTendonAttachmentRootAPI:inst0",
+    )
+    _define_tendon_joint(
+        stage,
+        "/World/unrelated/unrelated_fixed_joint",
+        "PhysxTendonAxisRootAPI:inst0",
+    )
+    _define_tendon_joint(
+        stage,
+        "/World/unrelated/unrelated_spatial_joint",
+        "PhysxTendonAttachmentLeafAPI:inst0",
+    )
+
+    return stage.Flatten().ExportToString()
+
+
+def _make_articulation_shell() -> Articulation:
+    """Create a minimal ovphysx articulation shell for tendon processing tests."""
+    articulation = object.__new__(Articulation)
+    bindings = MockOvPhysxBindingSet(
+        num_instances=1,
+        num_joints=2,
+        num_bodies=2,
+        num_fixed_tendons=1,
+        num_spatial_tendons=1,
+    )
+    # The migrated Articulation reads tendon counts off its OvPhysxView; inject the mock
+    # view over these bindings so the metadata passthrough resolves without a real view.
+    object.__setattr__(articulation, "_root_view", bindings.view)
+    object.__setattr__(articulation, "_articulation_root_path", "/World/envs/env_0/Robot/root")
+    object.__setattr__(articulation, "_initialize_handle", None)
+    object.__setattr__(articulation, "_invalidate_initialize_handle", None)
+    object.__setattr__(articulation, "_prim_deletion_handle", None)
+    object.__setattr__(articulation, "_debug_vis_handle", None)
+    object.__setattr__(
+        articulation,
+        "_data",
+        SimpleNamespace(
+            _num_fixed_tendons=0,
+            _num_spatial_tendons=0,
+            fixed_tendon_names=[],
+            spatial_tendon_names=[],
+        ),
+    )
+    return articulation
+
+
+def test_process_tendons_scopes_to_articulation_root():
+    """Tendon discovery should ignore joints that live outside the current articulation subtree."""
+    articulation = _make_articulation_shell()
+    stage_usda = _make_articulation_root_stage_usda()
+    old_stage_usda = OvPhysxManager._stage_usda
+    OvPhysxManager._stage_usda = stage_usda
+    try:
+        articulation._process_tendons()
+    finally:
+        OvPhysxManager._stage_usda = old_stage_usda
+
+    # the tendon is reported by its schema INSTANCE name, matching PhysX; scope leakage would
+    # add the identically-named instance from /World/unrelated, giving two entries
+    assert articulation.fixed_tendon_names == ["inst0"]
+    assert articulation.spatial_tendon_names == ["spatial_joint"]
+
+
+def _selector(values: list[int], dtype: type) -> wp.array:
+    return wp.array(values, dtype=dtype, device="cpu")
+
+
+@pytest.mark.parametrize("env_dtype", [wp.int32, wp.int64])
+def test_root_worker_accepts_selector_widths(env_dtype: type) -> None:
+    env_ids = _selector([1, 0], env_dtype)
+    data = wp.array(
+        [[11.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0], [21.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]],
+        dtype=wp.transformf,
+        device="cpu",
+    )
+    output = wp.zeros(2, dtype=wp.transformf, device="cpu")
+    sim_env_ids = wp.empty(2, dtype=wp.int32, device="cpu")
+    kernel = kernels.set_root_link_pose_to_sim_index
+    if env_dtype == wp.int64:
+        kernel = kernels.set_root_link_pose_to_sim_index_kernel(env_ids)
+
+    wp.launch(kernel, dim=2, inputs=[data, env_ids], outputs=[output, sim_env_ids], device="cpu")
+
+    np.testing.assert_array_equal(output.numpy(), data.numpy()[[1, 0]])
+    np.testing.assert_array_equal(sim_env_ids.numpy(), [1, 0])
+
+
+@pytest.mark.parametrize(("env_dtype", "item_dtype"), [(wp.int32, wp.int32), (wp.int64, wp.int64)])
+def test_item_worker_accepts_selector_widths(env_dtype: type, item_dtype: type) -> None:
+    env_ids = _selector([1, 0], env_dtype)
+    item_ids = _selector([2, 0], item_dtype)
+    data = wp.array([[11.0, 12.0], [21.0, 22.0]], dtype=wp.float32, device="cpu")
+    output = wp.full((2, 3), value=-1.0, dtype=wp.float32, device="cpu")
+    kernel = kernels.write_2d_data_to_buffer_with_indices
+    if env_dtype != wp.int32 or item_dtype != wp.int32:
+        kernel = kernels.write_2d_data_to_buffer_with_indices_kernel(env_ids, item_ids)
+
+    wp.launch(kernel, dim=(2, 2), inputs=[data, env_ids, item_ids], outputs=[output], device="cpu")
+
+    np.testing.assert_array_equal(output.numpy(), [[22.0, -1.0, 21.0], [12.0, -1.0, 11.0]])
+
+
+def test_prepare_native_actuators_leaves_implicit_only_articulation_on_standard_path(monkeypatch):
+    """Keep implicit-only articulations on the unchanged solver-drive path."""
+    runtime_prepare_calls = []
+    runtime = SimpleNamespace(
+        prepare=lambda *args, **kwargs: runtime_prepare_calls.append(True), wrapper=None, adapter=None
+    )
+    articulation = SimpleNamespace(
+        _sim_cfg=SimpleNamespace(use_newton_actuators=True),
+        cfg=SimpleNamespace(prim_path="/World/Robot"),
+    )
+    monkeypatch.setattr(actuator_control, "PhysxActuatorRuntime", lambda *args, **kwargs: runtime)
+    monkeypatch.setattr(actuator_control, "find_first_matching_prim", lambda _: None)
+
+    control = OvPhysxActuatorControl(articulation)
+    native_groups = control.prepare_native_actuators(
+        collection=None,
+        actuator_cfgs={"implicit": ImplicitActuatorCfg(joint_names_expr=["joint"], stiffness=10.0, damping=1.0)},
+    )
+
+    assert native_groups == set()
+    assert not control.native_actuator_path_active
+    assert not articulation._has_newton_actuators
+    assert runtime_prepare_calls == []
+
+
+@pytest.mark.parametrize(
+    "module_name",
+    [
+        "isaaclab_physx.assets.articulation.actuator_control",
+        "isaaclab_ov.assets.articulation.actuator_control",
+    ],
+)
+def test_host_actuator_control_import_does_not_probe_optional_newton_runtime(monkeypatch, module_name):
+    """Import host controls without probing an unrequested Newton optional dependency."""
+    original_find_spec = importlib.util.find_spec
+
+    def reject_newton_probe(name, *args, **kwargs):
+        if name.startswith("isaaclab_newton"):
+            raise AssertionError("host actuator-control import eagerly probed Newton")
+        return original_find_spec(name, *args, **kwargs)
+
+    monkeypatch.setattr(importlib.util, "find_spec", reject_newton_probe)
+    importlib.reload(importlib.import_module(module_name))

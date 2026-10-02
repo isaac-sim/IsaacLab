@@ -647,12 +647,10 @@ def test_default_cache_dir_rejects_a_directory_owned_by_another_user(manager_mod
 
 
 @pytest.mark.skipif(not (_CPU_DEVICES and _CUDA_DEVICES), reason="The device sequence requires a CPU and a CUDA device")
-@pytest.mark.parametrize("order", ["cpu-cuda-cpu", "cuda-cpu"])
-def test_cpu_and_cuda_scenes_run_sequentially_in_one_process(order):
+def test_cpu_and_cuda_scenes_run_sequentially_in_one_process():
     """A CPU scene must not prevent a later CUDA scene in the same process, or the reverse."""
     cpu, cuda = _CPU_DEVICES[0], _CUDA_DEVICES[0]
-    devices = (cpu, cuda, cpu) if order == "cpu-cuda-cpu" else (cuda, cpu)
-    completed, output = _run_child(_device_sequence_script(devices))
+    completed, output = _run_child(_device_sequence_script((cpu, cuda, cpu)))
 
     assert completed.returncode == 0, output[-8000:]
     assert "DEVICE_SEQUENCE_OK" in output, output[-8000:]

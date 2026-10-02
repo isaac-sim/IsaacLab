@@ -3,11 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Unit tests for the kitless OVPhysX deformable object asset."""
+"""Unit tests for the kitless OVPhysX deformable object asset and its body view."""
 
 from __future__ import annotations
 
-import importlib
 from types import SimpleNamespace
 
 import pytest
@@ -17,11 +16,12 @@ pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 import torch  # noqa: E402
 import warp as wp  # noqa: E402
 from isaaclab_ov import tensor_types as TT  # noqa: E402
-from isaaclab_ov.assets.deformable_object.deformable_object import DeformableObject  # noqa: E402
+from isaaclab_ov.assets import DeformableObject  # noqa: E402
 from isaaclab_ov.assets.deformable_object.deformable_object_data import (  # noqa: E402
     DeformableObjectData,
 )
 from isaaclab_ov.assets.deformable_object.kernels import vec6f  # noqa: E402
+from isaaclab_ov.assets.deformable_object.views import OvPhysxDeformableBodyView  # noqa: E402
 from isaaclab_ov.physics.ovphysx_manager import OvPhysxManager, OvPhysxSceneDataBackend  # noqa: E402
 
 pytestmark = pytest.mark.unit
@@ -289,12 +289,11 @@ def test_full_overwrite_stale_cache_does_not_read_simulator() -> None:
     torch.testing.assert_close(asset.data.nodal_state_w.torch, full_state)
 
 
-@pytest.mark.parametrize("trailing_dimension", [7])
-def test_malformed_state_write_fails_before_mutating_or_writing(trailing_dimension: int):
+def test_malformed_state_write_fails_before_mutating_or_writing():
     asset = _make_asset_shell(deformable_type="volume", num_instances=2, num_vertices=4)
     original_positions = asset.data.nodal_pos_w.torch.clone()
     original_velocities = asset.data.nodal_vel_w.torch.clone()
-    malformed_state = torch.ones((1, 4, trailing_dimension), device=asset.device)
+    malformed_state = torch.ones((1, 4, 7), device=asset.device)
 
     with pytest.raises(AssertionError, match="nodal_state.*Shape mismatch"):
         asset.write_nodal_state_to_sim_index(malformed_state, env_ids=[1])
@@ -342,7 +341,43 @@ def test_surface_debug_visualization_uses_below_ground_sentinel():
     torch.testing.assert_close(asset.target_visualizer.positions, torch.tensor([[0.0, 0.0, -10.0]]))
 
 
-def test_factory_export_is_present():
-    assets_module = importlib.import_module("isaaclab_ov.assets")
+class _MixedTopologyBinding:
+    """Padded simulation connectivity with five nodes in one body and four in another."""
 
-    assert assets_module.DeformableObject is DeformableObject
+    _SHAPES = {
+        TT.DEFORMABLE_SIM_NODAL_POSITION: (2, 5, 3),
+        TT.DEFORMABLE_SIM_ELEMENT_INDICES: (2, 2, 4),
+        TT.DEFORMABLE_COLLISION_ELEMENT_INDICES: (2, 6, 4),
+    }
+
+    def __init__(self, tensor_type: int):
+        self._tensor_type = tensor_type
+        self.shape = self._SHAPES[tensor_type]
+        float_dtype = tensor_type == TT.DEFORMABLE_SIM_NODAL_POSITION
+        self.dtype = SimpleNamespace(code=2 if float_dtype else 0, bits=32, lanes=1)
+        self.count = self.shape[0]
+        self.prim_paths = [f"/World/env_{index}/Soft" for index in range(self.count)]
+
+    def read(self, values: wp.array) -> None:
+        if self._tensor_type == TT.DEFORMABLE_SIM_ELEMENT_INDICES:
+            connectivity = [[[0, 1, 2, 3], [1, 2, 3, 4]], [[0, 1, 2, 3], [0, 0, 0, 0]]]
+            wp.copy(values, wp.array(connectivity, dtype=wp.int32, device="cpu"))
+        elif self._tensor_type == TT.DEFORMABLE_COLLISION_ELEMENT_INDICES:
+            wp.copy(values, wp.full(self.shape, value=4, dtype=wp.int32, device="cpu"))
+
+
+def test_volume_view_rejects_mixed_simulation_node_counts():
+    physx = SimpleNamespace(
+        create_tensor_binding=lambda *, tensor_type, pattern=None: _MixedTopologyBinding(tensor_type)
+    )
+    with pytest.raises(ValueError, match=r"uniform simulation-node counts.*\[5, 4\]"):
+        OvPhysxDeformableBodyView(
+            physx,
+            pattern="/World/env_*/Soft",
+            device="cpu",
+            tensor_types=list(_MixedTopologyBinding._SHAPES),
+            eager=True,
+            simulation_nodal_position_type=TT.DEFORMABLE_SIM_NODAL_POSITION,
+            simulation_element_indices_type=TT.DEFORMABLE_SIM_ELEMENT_INDICES,
+            collision_element_indices_type=TT.DEFORMABLE_COLLISION_ELEMENT_INDICES,
+        )

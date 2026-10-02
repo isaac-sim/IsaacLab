@@ -104,10 +104,15 @@ class HeterogeneousRigidSceneCfg(InteractiveSceneCfg):
 
 
 @pytest.mark.parametrize("device", test_devices())
-@pytest.mark.parametrize("filter_collisions", [False, True])
-@pytest.mark.parametrize("support_cloning", ["native", "usd_and_native", "usd", "usd_nested"])
-def test_heterogeneous_clone_contacts(device, filter_collisions, support_cloning):
-    """Sources and clones from different variants contact their own support."""
+@pytest.mark.parametrize(
+    ("support_cloning", "filter_collisions"),
+    [("native", False), ("usd_and_native", True), ("usd", False), ("usd_nested", True)],
+)
+def test_heterogeneous_clone_contacts(device, support_cloning, filter_collisions):
+    """Sources and clones from different variants contact their own support.
+
+    Collision filtering is an independent scene setting, so it alternates across the cloning paths.
+    """
     with build_simulation_context(
         device=device, sim_cfg=SimulationCfg(physics=OvPhysxCfg(), device=device, dt=1.0 / 120.0)
     ) as sim:
@@ -222,7 +227,6 @@ class _RigidScene:
     device: str
     dynamic: RigidObject
     kinematic: RigidObject
-    resettable: RigidObject
     spinning: RigidObject
 
 
@@ -233,17 +237,14 @@ def scene(request: pytest.FixtureRequest) -> Iterator[_RigidScene]:
     with build_simulation_context(device=device, sim_cfg=SimulationCfg(physics=OvPhysxCfg(), device=device)) as sim:
         dynamic = _spawn_cubes("Dynamic", y_offset=0.0, disable_gravity=True)
         kinematic = _spawn_cubes("Kinematic", y_offset=2.0, kinematic_enabled=True)
-        resettable = _spawn_cubes("Resettable", y_offset=4.0, disable_gravity=True)
-        spinning = _spawn_cubes("Spinning", y_offset=6.0, disable_gravity=True)
+        spinning = _spawn_cubes("Spinning", y_offset=4.0, disable_gravity=True)
         sim.reset()
-        yield _RigidScene(
-            sim=sim, device=device, dynamic=dynamic, kinematic=kinematic, resettable=resettable, spinning=spinning
-        )
+        yield _RigidScene(sim=sim, device=device, dynamic=dynamic, kinematic=kinematic, spinning=spinning)
 
 
 @pytest.mark.parametrize("scene", test_devices(), indirect=True)
 def test_rigid_object_real_ovphysx_seams(scene: _RigidScene) -> None:
-    """Prove partial state, inertial properties, and one real wrench delivery."""
+    """Prove partial state, inertial properties, one real wrench delivery, and the wrench reset."""
     rigid_object, sim, device = scene.dynamic, scene.sim, scene.device
     assert rigid_object.is_initialized
     assert rigid_object.num_instances == _NUM_CUBES
@@ -300,6 +301,16 @@ def test_rigid_object_real_ovphysx_seams(scene: _RigidScene) -> None:
     assert rigid_object.data.root_com_vel_w.torch[1, 0] > initial_velocity[1, 0]
     torch.testing.assert_close(rigid_object.data.root_com_vel_w.torch[0], initial_velocity[0], atol=1e-6, rtol=0.0)
 
+    # Reset clears both wrench composers.
+    ones = torch.ones((_NUM_CUBES, 1, 3), device=device)
+    rigid_object.permanent_wrench_composer.set_forces_and_torques_index(forces=ones, torques=ones)
+    rigid_object.instantaneous_wrench_composer.add_forces_and_torques_index(forces=ones, torques=ones)
+    rigid_object.reset()
+    for composer in (rigid_object.instantaneous_wrench_composer, rigid_object.permanent_wrench_composer):
+        assert not composer.active
+        assert torch.count_nonzero(composer.composed_force.torch) == 0
+        assert torch.count_nonzero(composer.composed_torque.torch) == 0
+
 
 @pytest.mark.parametrize("scene", test_devices(), indirect=True)
 def test_initialization_with_kinematic_enabled(scene: _RigidScene) -> None:
@@ -308,7 +319,7 @@ def test_initialization_with_kinematic_enabled(scene: _RigidScene) -> None:
 
     # SDP bindings must be ready on CPU and GPU before any asset pose read.
     provider = sim.get_scene_data_provider()
-    names = ("Dynamic", "Kinematic", "Resettable", "Spinning")
+    names = ("Dynamic", "Kinematic", "Spinning")
     expected_paths = {f"/World/{name}/Env_{i}/Cube" for name in names for i in (0, 1)}
     assert provider.transform_count == len(expected_paths)
     assert set(provider.backend.transform_paths) == expected_paths
@@ -323,34 +334,6 @@ def test_initialization_with_kinematic_enabled(scene: _RigidScene) -> None:
         cube_object.update(sim.cfg.dt)
         torch.testing.assert_close(cube_object.data.root_link_pose_w.torch, default_root_pose)
         torch.testing.assert_close(cube_object.data.root_com_vel_w.torch, default_root_vel)
-
-
-@pytest.mark.parametrize("scene", test_devices(DeviceScope.CUDA), indirect=True)
-def test_reset_clears_active_wrench_composers(scene: _RigidScene) -> None:
-    """Test that resetting the rigid object clears both active wrench composers."""
-    cube_object, device = scene.resettable, scene.device
-
-    # Make both wrench composers active so the reset has something to clear.
-    cube_object.permanent_wrench_composer.set_forces_and_torques_index(
-        forces=torch.ones((_NUM_CUBES, 1, 3), device=device),
-        torques=torch.ones((_NUM_CUBES, 1, 3), device=device),
-    )
-    cube_object.instantaneous_wrench_composer.add_forces_and_torques_index(
-        forces=torch.ones((_NUM_CUBES, 1, 3), device=device),
-        torques=torch.ones((_NUM_CUBES, 1, 3), device=device),
-    )
-    assert cube_object._instantaneous_wrench_composer.active
-    assert cube_object._permanent_wrench_composer.active
-
-    cube_object.reset()
-
-    # Reset should zero external forces and torques
-    assert not cube_object._instantaneous_wrench_composer.active
-    assert not cube_object._permanent_wrench_composer.active
-    assert torch.count_nonzero(cube_object._instantaneous_wrench_composer.composed_force.torch) == 0
-    assert torch.count_nonzero(cube_object._instantaneous_wrench_composer.composed_torque.torch) == 0
-    assert torch.count_nonzero(cube_object._permanent_wrench_composer.composed_force.torch) == 0
-    assert torch.count_nonzero(cube_object._permanent_wrench_composer.composed_torque.torch) == 0
 
 
 @pytest.mark.parametrize("scene", test_devices(DeviceScope.CUDA), indirect=True)

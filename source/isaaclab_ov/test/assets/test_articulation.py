@@ -180,7 +180,6 @@ _ISLANDS: dict[str, _IslandCfg] = {
     "non_root": _IslandCfg(
         _implicit(), fixed_base=False, articulation_root_prim_path="/base", devices=DeviceScope.CUDA
     ),
-    "pos_limits": _IslandCfg(_implicit(), devices=DeviceScope.CUDA),
     "com_order": _IslandCfg(
         _implicit(), num_envs=1, body_ordering=_ROOT_PRESERVING_REVERSED_BODY_NAMES, distinct_coms=True
     ),
@@ -381,9 +380,15 @@ def test_mimic_finger_follows_commanded_finger(device: str) -> None:
         torch.testing.assert_close(follower, leader, rtol=0.0, atol=5.0e-4)
 
 
-@pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize(
-    "variant", ["geometry", "joint_type", "d6_rotation", "d6_translation", "disabled_joint", "fixed_tendon"]
+    ("device", "variant"),
+    [
+        (device, variant)
+        for variant in ("geometry", "joint_type", "d6_translation", "disabled_joint")
+        for device in _ALL_DEVICES
+    ]
+    # The cloner rejects incompatible layouts from USD before any device-specific physics.
+    + [(_ALL_DEVICES[0], variant) for variant in ("d6_rotation", "fixed_tendon")],
 )
 def test_heterogeneous_articulation_clone_indexed_state(device, variant, tmp_path):
     """Compatible variants preserve indexed state; incompatible action/tendon layouts are rejected."""
@@ -875,27 +880,6 @@ def test_explicit_articulation_root_on_a_floating_base_body(scene: _Articulation
 
 
 @pytest.mark.parametrize("scene", _CUDA_DEVICES, indirect=True)
-def test_joint_position_limits_clamp_default_joint_positions(scene: _ArticulationScene) -> None:
-    """Write partial joint position limits and clamp only the selected default joint positions into them."""
-    articulation = scene.islands["pos_limits"]
-    device = scene.device
-    default_before = articulation.data.default_joint_pos.torch.clone()
-    env_ids = torch.tensor([1], dtype=torch.int32, device=device)
-    joint_ids = torch.tensor([0, 2], dtype=torch.int32, device=device)
-    # The default positions are zero, so both new ranges exclude them.
-    limits = torch.tensor([[[0.2, 0.3], [0.25, 0.35]]], device=device)
-    articulation.write_joint_position_limit_to_sim_index(limits=limits, env_ids=env_ids, joint_ids=joint_ids)
-
-    torch.testing.assert_close(articulation.data.joint_pos_limits.torch[env_ids][:, joint_ids], limits)
-    default_joint_pos = articulation.data.default_joint_pos.torch
-    selected = default_joint_pos[env_ids][:, joint_ids]
-    assert torch.all((selected >= limits[..., 0]) & (selected <= limits[..., 1]))
-    unselected = torch.ones_like(default_joint_pos, dtype=torch.bool)
-    unselected[env_ids[:, None].long(), joint_ids.long()] = False
-    torch.testing.assert_close(default_joint_pos[unselected], default_before[unselected])
-
-
-@pytest.mark.parametrize("scene", _CUDA_DEVICES, indirect=True)
 def test_implicit_drive_targets_submit_feedforward_effort_and_track(scene: _ArticulationScene) -> None:
     """Write nonidentity-ordered implicit targets to their backend columns and track them in the solver."""
     articulation = scene.islands["drive"]
@@ -1161,31 +1145,21 @@ def test_floating_articulation_root_state_dynamics_wrench_and_reset(scene: _Arti
         raw_gravity[:, generalized_user_to_backend],
     )
 
-    # Reset should zero external forces and torques
-    articulation.reset()
-    assert not articulation._instantaneous_wrench_composer.active
-    assert not articulation._permanent_wrench_composer.active
-    assert torch.count_nonzero(articulation._instantaneous_wrench_composer.composed_force.torch) == 0
-    assert torch.count_nonzero(articulation._instantaneous_wrench_composer.composed_torque.torch) == 0
-    assert torch.count_nonzero(articulation._permanent_wrench_composer.composed_force.torch) == 0
-    assert torch.count_nonzero(articulation._permanent_wrench_composer.composed_torque.torch) == 0
-
-    articulation.permanent_wrench_composer.set_forces_and_torques_index(
-        forces=torch.ones((num_articulations, num_bodies, 3), device=device),
-        torques=torch.ones((num_articulations, num_bodies, 3), device=device),
-    )
-    articulation.instantaneous_wrench_composer.add_forces_and_torques_index(
-        forces=torch.ones((num_articulations, num_bodies, 3), device=device),
-        torques=torch.ones((num_articulations, num_bodies, 3), device=device),
-    )
+    # A partial reset clears the wrenches of the selected environment only; a full reset clears them all.
+    composers = (articulation.instantaneous_wrench_composer, articulation.permanent_wrench_composer)
+    ones = torch.ones((num_articulations, num_bodies, 3), device=device)
+    articulation.permanent_wrench_composer.set_forces_and_torques_index(forces=ones, torques=ones)
+    articulation.instantaneous_wrench_composer.add_forces_and_torques_index(forces=ones, torques=ones)
     articulation.reset(env_ids=torch.tensor([0], device=device))
-    assert articulation._instantaneous_wrench_composer.active
-    assert articulation._permanent_wrench_composer.active
-    assert torch.count_nonzero(articulation._instantaneous_wrench_composer.composed_force.torch) == num_bodies * 3
-    assert torch.count_nonzero(articulation._instantaneous_wrench_composer.composed_torque.torch) == num_bodies * 3
-    assert torch.count_nonzero(articulation._permanent_wrench_composer.composed_force.torch) == num_bodies * 3
-    assert torch.count_nonzero(articulation._permanent_wrench_composer.composed_torque.torch) == num_bodies * 3
+    for composer in composers:
+        assert composer.active
+        assert torch.count_nonzero(composer.composed_force.torch) == num_bodies * 3
+        assert torch.count_nonzero(composer.composed_torque.torch) == num_bodies * 3
     articulation.reset()
+    for composer in composers:
+        assert not composer.active
+        assert torch.count_nonzero(composer.composed_force.torch) == 0
+        assert torch.count_nonzero(composer.composed_torque.torch) == 0
 
     # A written root frame moves the other frame through the root-body COM offset.
     com = _read_binding_to_torch(articulation, TT.BODY_COM_POSE, device)
@@ -1483,15 +1457,34 @@ def test_cpu_only_property_writes_wait_for_pinned_host_staging(scene: _Articulat
 
 
 @pytest.mark.parametrize("scene", _ALL_DEVICES, indirect=True)
-def test_joint_position_limit_clamping_respects_logging(scene: _ArticulationScene, caplog) -> None:
-    """Logging level controls reporting without changing clamping or reusing a stale violation count."""
+def test_joint_position_limit_writes_clamp_default_joint_positions(scene: _ArticulationScene, caplog) -> None:
+    """Clamp only the selected default joint positions into written limits; logging never changes clamping.
+
+    The logging level controls reporting without reusing a stale violation count.
+    """
     articulation = scene.islands["ordered"]
+    device = scene.device
     logger = type(articulation).__module__
     original_limits = articulation.data.joint_pos_limits.torch.clone()
     original_defaults = articulation.data.default_joint_pos.torch.clone()
-    limits = torch.zeros_like(original_limits)
-    limits[..., 1] = 0.5
     try:
+        # The default positions are zero, so both new ranges exclude them.
+        env_ids = torch.tensor([1], dtype=torch.int32, device=device)
+        joint_ids = torch.tensor([0, 2], dtype=torch.int32, device=device)
+        partial_limits = torch.tensor([[[0.2, 0.3], [0.25, 0.35]]], device=device)
+        articulation.write_joint_position_limit_to_sim_index(
+            limits=partial_limits, env_ids=env_ids, joint_ids=joint_ids
+        )
+        torch.testing.assert_close(articulation.data.joint_pos_limits.torch[env_ids][:, joint_ids], partial_limits)
+        default_joint_pos = articulation.data.default_joint_pos.torch
+        selected = default_joint_pos[env_ids][:, joint_ids]
+        assert torch.all((selected >= partial_limits[..., 0]) & (selected <= partial_limits[..., 1]))
+        unselected = torch.ones_like(default_joint_pos, dtype=torch.bool)
+        unselected[env_ids[:, None].long(), joint_ids.long()] = False
+        torch.testing.assert_close(default_joint_pos[unselected], original_defaults[unselected])
+
+        limits = torch.zeros_like(original_limits)
+        limits[..., 1] = 0.5
         for level in (logging.WARNING, logging.INFO):
             articulation.data.default_joint_pos.torch.fill_(1.0)
             caplog.clear()
