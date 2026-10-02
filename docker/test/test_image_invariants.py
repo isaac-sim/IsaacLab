@@ -57,6 +57,12 @@ def test_no_prebundled_package_lost_its_entry_point():
     assert not broken, "prebundled packages lost their entry point:\n" + broken
 
 
+def test_kit_links_into_nvidia_prebundle_resolve():
+    """Kit's shared CUDA 12 files stay reachable after the CUDA 13 redirect."""
+    dangling = _in_image('find /isaac-sim -xtype l -lname "*pip_prebundle/nvidia/*" -print').strip()
+    assert not dangling, "Kit links into the NVIDIA prebundle are dangling:\n" + dangling
+
+
 def test_kit_nvrtc_builtins_can_be_loaded():
     """RTX's CUDA 12 library remains loadable after installing the CUDA 13 Torch stack."""
     _in_image(
