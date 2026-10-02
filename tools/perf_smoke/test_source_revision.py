@@ -136,11 +136,14 @@ class SourceRevisionTests(unittest.TestCase):
             self.assertEqual(json.loads(path.read_text())["commit"], self._git("rev-parse", "HEAD"))
         return path, process
 
-    def _run(self, manifest, name, *, roots=None, launcher=None, **extra):
+    def _run(self, manifest, name, *, roots=None, command=None, **extra):
         output = self.directory / name
         process = subprocess.run(
-            [
-                *(launcher or [sys.executable, str(LAUNCHER), "run"]),
+            command
+            or [
+                sys.executable,
+                str(LAUNCHER),
+                "run",
                 "--manifest",
                 str(manifest),
                 "--checkout-root",
@@ -204,6 +207,7 @@ class SourceRevisionTests(unittest.TestCase):
         self._write(
             "source/isaaclab/isaaclab/cli/__init__.py",
             """
+            import argparse
             import os
             import subprocess
             import sys
@@ -211,7 +215,10 @@ class SourceRevisionTests(unittest.TestCase):
             def cli():
                 initialized = dict(os.environ, FIXTURE_INITIALIZED="1")
                 if sys.argv[1] == "-p":
-                    raise SystemExit(subprocess.call([sys.executable, *sys.argv[2:]], env=initialized))
+                    parser = argparse.ArgumentParser()
+                    parser.add_argument("-p", "--python", nargs=argparse.REMAINDER)
+                    args = parser.parse_args()
+                    raise SystemExit(subprocess.call([sys.executable, *args.python], env=initialized))
                 if os.environ.get("FIXTURE_INITIALIZED") != "1":
                     raise SystemExit(subprocess.call(
                         [sys.executable, "-m", "isaaclab.cli", *sys.argv[1:]], env=initialized
@@ -221,6 +228,10 @@ class SourceRevisionTests(unittest.TestCase):
             """,
         )
         self._write("source/isaaclab/isaaclab/cli/__main__.py", "from . import cli\ncli()\n")
+        runtime = self.checkout / RUNTIME_PATH
+        runtime.write_text(
+            runtime.read_text().replace('"worker_pid": os.getpid(),', '"worker_pid": os.getpid(), "argv": argv,')
+        )
         commit = self._commit()
         manifest, _ = self._prepare()
         process, output, proof = self._run(manifest, "direct-wrapper", FIXTURE_INITIALIZED="")
@@ -232,18 +243,47 @@ class SourceRevisionTests(unittest.TestCase):
         result = json.loads((output / "benchmark_runtime_fixture.json").read_text())
         self.assertNotEqual(result["worker_pid"], proof["pid"])
 
-        # Exercise the launch choice from the real CI script with fixture executables.
+        # Exercise the entire CI command, including both parsers and benchmark arguments.
         runner = LAUNCHER.with_name("run_benchmarks.sh").read_text()
-        line = next(line for line in runner.splitlines() if line.strip().startswith("uv run --no-sync "))
-        command = shlex.split(line.strip().removesuffix("\\").strip())[3:]
-        command[command.index("/tmp/source_revision.py")] = str(LAUNCHER)
+        command_text = runner[runner.index("uv run --no-sync ") :].split('$args"', 1)[0] + "$args"
+        output = self.directory / "ci-wrapper"
+        replacements = {
+            "/tmp/source_revision.py": str(LAUNCHER),
+            "/tmp/source-manifest.json": str(manifest),
+            "/workspace/isaaclab": str(self.checkout),
+            "/tmp/benchmark-output": str(output),
+            "$task": "Fixture-Task",
+            "$num_envs": "512",
+        }
+        command = []
+        for argument in shlex.split(command_text.replace("\\\n", " "))[3:]:
+            command.extend(
+                ["physics=newton_mjwarp", "renderer=newton_renderer"]
+                if argument == "$args"
+                else [replacements.get(argument, argument)]
+            )
         executables = {
             "python": [sys.executable],
             "isaaclab": [sys.executable, "-m", "isaaclab.cli"],
         }
-        launcher = executables[command[0]] + command[1:]
-        verified = self._run(manifest, "ci-wrapper", launcher=launcher, FIXTURE_INITIALIZED="")
-        self._assert_verified(*verified, "A", commit)
+        command = executables[command[0]] + command[1:]
+        rejected = command.copy()
+        rejected.insert(rejected.index("benchmark"), "--")
+        process = subprocess.run(
+            rejected, cwd=self.directory, env=self._environment(FIXTURE_INITIALIZED=""), capture_output=True, text=True
+        )
+        self.assertEqual(process.returncode, 2, process.stdout + process.stderr)
+        self.assertIn("unrecognized arguments: -- benchmark runtime", process.stderr)
+        self.assertFalse((output / "source-revision.json").exists())
+
+        verified = self._run(manifest, "ci-wrapper", command=command, FIXTURE_INITIALIZED="")
+        result = self._assert_verified(*verified, "A", commit)
+        expected = shlex.split(
+            "benchmark runtime --task Fixture-Task --num_envs 512 --num_steps 200 "
+            "--warmup_steps 100 --seed 42 --benchmark_formatter schema --output_path"
+        )
+        expected += [str(output), "--visualizer", "none", "physics=newton_mjwarp", "renderer=newton_renderer"]
+        self.assertEqual(result["argv"], expected)
 
     def test_docstring_only_revision_changes_live_function_proof_in_same_image(self):
         runtime = self.checkout / RUNTIME_PATH

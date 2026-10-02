@@ -58,7 +58,7 @@ run_attempt() {
       --manifest /tmp/source-manifest.json \
       --checkout-root /workspace/isaaclab \
       --output-dir /tmp/benchmark-output \
-      -- benchmark runtime \
+      benchmark runtime \
       --task '$task' \
       --num_envs '$num_envs' \
       --num_steps 200 \
