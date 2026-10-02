@@ -1,6 +1,3 @@
-Added
-^^^^^
-
 * Added :class:`~isaaclab_newton.physics.MjWarpActuatorBridge`, the single place Isaac Lab
   touches MuJoCo Warp's device model on behalf of a Newton actuator component. It publishes a
   component's per-step dry-friction budget into ``dof_frictionloss``, reads back the true external load on the driven DOFs
