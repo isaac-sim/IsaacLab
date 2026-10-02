@@ -201,14 +201,7 @@ def _patch_gr00t_get_model(cfg: dict) -> None:
 
         # Handle custom embodiment (we only get here if tag was not natively supported)
         from gr00t.experiment.data_config import load_data_config
-
-        try:
-            from rlinf.models.embodiment.gr00t.gr00t_n1d5.gr00t_action_model import GR00T_N1_5_ForRLActionPrediction
-        except ModuleNotFoundError as error:
-            if error.name != "rlinf.models.embodiment.gr00t.gr00t_n1d5":
-                raise
-            # RLinf 0.2 predates the per-generation model packages.
-            from rlinf.models.embodiment.gr00t.gr00t_action_model import GR00T_N1_5_ForRLActionPrediction
+        from rlinf.models.embodiment.gr00t.gr00t_n1d5.gr00t_action_model import GR00T_N1_5_ForRLActionPrediction
         from rlinf.models.embodiment.gr00t.utils import replace_dropout_with_identity
         from rlinf.utils.patcher import Patcher
 
@@ -286,16 +279,9 @@ def _register_gr00t_converters(cfg: dict) -> None:
     from rlinf.models.embodiment.gr00t import simulation_io
 
     obs_converter_type = cfg.get("obs_converter_type", "dex3")
-
-    if obs_converter_type not in simulation_io.OBS_CONVERSION:
-        simulation_io.OBS_CONVERSION[obs_converter_type] = _convert_isaaclab_obs_to_gr00t
-        logger.info(f"Registered obs converter: {obs_converter_type}")
-
-    # RLinf 0.2 has one action registry; 0.3 splits it by GR00T generation.
-    for name in ("ACTION_CONVERSION", "ACTION_CONVERSION_N1D5", "ACTION_CONVERSION_N1D7"):
-        registry = getattr(simulation_io, name, None)
-        if registry is not None:
-            registry.setdefault(obs_converter_type, _convert_gr00t_to_isaaclab_action)
+    simulation_io.OBS_CONVERSION.setdefault(obs_converter_type, _convert_isaaclab_obs_to_gr00t)
+    for registry in (simulation_io.ACTION_CONVERSION_N1D5, simulation_io.ACTION_CONVERSION_N1D7):
+        registry.setdefault(obs_converter_type, _convert_gr00t_to_isaaclab_action)
 
 
 def _convert_isaaclab_obs_to_gr00t(env_obs: dict) -> dict:
@@ -360,7 +346,7 @@ def _convert_gr00t_to_isaaclab_action(action_chunk: dict, chunk_size: int = 1) -
     """Convert GR00T action output to IsaacLab env action format.
 
     Uses ``action_mapping`` from the YAML config (``env.train.isaaclab.action_mapping``)
-    to order action parts by ``keys`` and apply optional prefix/suffix zero-padding.
+    to select and order action parts by ``keys`` and apply optional prefix/suffix zero-padding.
     Without ``keys``, the model's dictionary order is preserved.
 
     Args:

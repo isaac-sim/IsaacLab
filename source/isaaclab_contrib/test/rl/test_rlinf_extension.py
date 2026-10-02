@@ -53,7 +53,8 @@ def _build_rlinf_mocks() -> dict[str, types.ModuleType]:
 
     mock_simulation_io = types.ModuleType("rlinf.models.embodiment.gr00t.simulation_io")
     mock_simulation_io.OBS_CONVERSION = {}
-    mock_simulation_io.ACTION_CONVERSION = {}
+    mock_simulation_io.ACTION_CONVERSION_N1D5 = {}
+    mock_simulation_io.ACTION_CONVERSION_N1D7 = {}
 
     mock_isaaclab_env = types.ModuleType("rlinf.envs.isaaclab")
     mock_isaaclab_env.REGISTER_ISAACLAB_ENVS = {}
@@ -163,8 +164,10 @@ def _reset_extension_state():
     ext._registered = False
     ext._full_cfg_cache = None
     # Reset mock registries
-    _rlinf_mocks["rlinf.models.embodiment.gr00t.simulation_io"].OBS_CONVERSION = {}
-    _rlinf_mocks["rlinf.models.embodiment.gr00t.simulation_io"].ACTION_CONVERSION = {}
+    sim_io = _rlinf_mocks["rlinf.models.embodiment.gr00t.simulation_io"]
+    sim_io.OBS_CONVERSION.clear()
+    sim_io.ACTION_CONVERSION_N1D5.clear()
+    sim_io.ACTION_CONVERSION_N1D7.clear()
     _rlinf_mocks["rlinf.envs.isaaclab"].REGISTER_ISAACLAB_ENVS = {}
     _rlinf_mocks["rlinf.models.embodiment.gr00t.embodiment_tags"].EMBODIMENT_TAG_MAPPING = dict(
         _MOCK_EMBODIMENT_TAG_MAPPING
@@ -424,35 +427,29 @@ class TestConverterRegistration:
 
     @pytest.mark.parametrize("model_type", ["gr00t", "gr00t_n1d7"])
     def test_converters_registered(self, set_config_env, monkeypatch, model_type) -> None:
-        """Register with either RLinf layout without replacing its native N1.7 loader."""
+        """Register converters for both models, patching only the custom N1.5 loader."""
         ext._load_full_cfg()["actor"] = {"model": {"model_type": model_type}}
+        ext._get_isaaclab_cfg()["data_config_class"] = "custom:DataConfig"
         gr00t = _rlinf_mocks["rlinf.models.embodiment.gr00t"]
         native_loader = object()
         monkeypatch.setattr(gr00t, "get_model", native_loader, raising=False)
         sim_io = _rlinf_mocks["rlinf.models.embodiment.gr00t.simulation_io"]
-        registry_names = ("ACTION_CONVERSION",)
-        if model_type == "gr00t_n1d7":
-            monkeypatch.delattr(sim_io, "ACTION_CONVERSION")
-            registry_names = ("ACTION_CONVERSION_N1D5", "ACTION_CONVERSION_N1D7")
-            for name in registry_names:
-                monkeypatch.setattr(sim_io, name, {}, raising=False)
-            # A leftover N1.5 setting must not bypass RLinf's model dispatcher.
-            ext._get_isaaclab_cfg()["data_config_class"] = "custom:DataConfig"
         ext.register()
 
-        assert gr00t.get_model is native_loader
+        assert (gr00t.get_model is native_loader) == (model_type == "gr00t_n1d7")
         assert sim_io.OBS_CONVERSION["isaaclab"] is ext._convert_isaaclab_obs_to_gr00t
-        for name in registry_names:
-            assert getattr(sim_io, name)["isaaclab"] is ext._convert_gr00t_to_isaaclab_action
+        for registry in (sim_io.ACTION_CONVERSION_N1D5, sim_io.ACTION_CONVERSION_N1D7):
+            assert registry["isaaclab"] is ext._convert_gr00t_to_isaaclab_action
 
     def test_no_duplicate_converter_registration(self) -> None:
         """Should not overwrite existing converter entries."""
         sim_io = _rlinf_mocks["rlinf.models.embodiment.gr00t.simulation_io"]
         sentinel = lambda x: None  # noqa: E731
-        sim_io.OBS_CONVERSION["isaaclab"] = sentinel
-        sim_io.ACTION_CONVERSION["isaaclab"] = sentinel
+        registries = (sim_io.OBS_CONVERSION, sim_io.ACTION_CONVERSION_N1D5, sim_io.ACTION_CONVERSION_N1D7)
+        for registry in registries:
+            registry["isaaclab"] = sentinel
 
         ext._register_gr00t_converters({"obs_converter_type": "isaaclab"})
 
-        assert sim_io.OBS_CONVERSION["isaaclab"] is sentinel
-        assert sim_io.ACTION_CONVERSION["isaaclab"] is sentinel
+        for registry in registries:
+            assert registry["isaaclab"] is sentinel
