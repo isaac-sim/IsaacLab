@@ -37,6 +37,14 @@ import isaaclab_tasks
 assert list(isaaclab.__path__) == [str(Path(isaaclab.__file__).parent)]
 assert all(program.path.is_file() for program in (*DEMOS, *EXAMPLES))
 assert (ISAACLAB_ROOT / 'tools/template/cli.py').is_file()
+assert all((ISAACLAB_ROOT / script).is_file() for script in (
+    'scripts/reinforcement_learning/train.py',
+    'scripts/reinforcement_learning/train_multigpu.py',
+    'scripts/reinforcement_learning/play.py',
+    'scripts/environments/teleoperation/teleop_se3_agent.py',
+    'scripts/tools/record_demos.py',
+    'scripts/tools/replay_demos.py',
+))
 assert (ISAACLAB_ROOT / 'apps/isaaclab.python.kit').is_file()
 assert (Path(isaaclab.__file__).parent / 'examples/assets/nvidia_logo_domino_poses.pth').is_file()
 assert importlib.util.find_spec('pytetwild') is None

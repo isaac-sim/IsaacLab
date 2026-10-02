@@ -61,13 +61,13 @@ workflow:
           export OPENBLAS_NUM_THREADS="${OMP_NUM_THREADS}"
 
           {% if num_gpu > 1 %}
-          uv run --project /workspace/isaaclab --no-sync isaaclab train_multigpu \
+          uv run --no-sync isaaclab train_multigpu \
             --rl_library {{ rl_library }} \
             --nproc_per_node {{ num_gpu }} \
             --master_port {{ master_port }} \
             {{ args }}
           {% else %}
-          uv run --project /workspace/isaaclab --no-sync isaaclab train \
+          uv run --no-sync isaaclab train \
             --rl_library {{ rl_library }} \
             {{ args }}
           {% endif %}

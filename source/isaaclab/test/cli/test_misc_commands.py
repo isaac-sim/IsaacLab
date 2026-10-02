@@ -5,6 +5,7 @@
 
 """Tests for miscellaneous Isaac Lab CLI commands."""
 
+import sys
 from unittest import mock
 
 import pytest
@@ -13,6 +14,30 @@ import isaaclab.cli as cli
 import isaaclab.cli.commands.misc as misc
 
 pytestmark = pytest.mark.unit
+
+
+def test_checkout_command_rejects_wheel_installation(tmp_path, monkeypatch, capsys):
+    """Wheel users get checkout guidance before a development command launches or installs tools."""
+    monkeypatch.setattr(cli, "ISAACLAB_ROOT", tmp_path)
+    monkeypatch.setattr(sys, "argv", ["isaaclab", "--format"])
+
+    with mock.patch.object(cli, "command_format") as format_command, pytest.raises(SystemExit) as error:
+        cli.cli()
+
+    assert error.value.code == 2
+    assert "requires an Isaac Lab source checkout" in capsys.readouterr().err
+    format_command.assert_not_called()
+
+
+def test_sim_command_propagates_failure(monkeypatch):
+    """A failed simulator process must make the CLI fail with the same exit code."""
+    monkeypatch.setattr(sys, "argv", ["isaaclab", "--sim"])
+    monkeypatch.setattr(misc, "extract_isaacsim_exe", lambda: [sys.executable, "-c", "raise SystemExit(7)"])
+
+    with pytest.raises(SystemExit) as error:
+        cli.cli()
+
+    assert error.value.code == 7
 
 
 def test_python_subcommands_propagate_failures():

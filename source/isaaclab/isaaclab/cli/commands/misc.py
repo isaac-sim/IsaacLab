@@ -38,7 +38,7 @@ def command_run_isaacsim(sim_args: list[str]) -> None:
     isaacsim_exe.append(str(ISAACLAB_ROOT / "source"))
     isaacsim_exe.extend(sim_args)
 
-    run_command(isaacsim_exe, check=False)
+    run_command(isaacsim_exe, check=True)
 
 
 def command_new(new_args: list[str]) -> None:

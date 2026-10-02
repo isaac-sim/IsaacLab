@@ -368,7 +368,7 @@ def extract_isaacsim_path(*, required: bool = True) -> Path | None:
             return None
         print_error(f"Unable to find the Isaac Sim directory: '{isaacsim_path}'")
         print("\tThis could be due to the following reasons:")
-        print("\t1. Conda environment is not activated.")
+        print("\t1. The CLI is not running in the intended uv environment.")
         print("\t2. Isaac Sim package is not installed.")
         print(f"\t3. Isaac Sim directory is not available at the default path: {DEFAULT_ISAAC_SIM_PATH}")
         sys.exit(1)

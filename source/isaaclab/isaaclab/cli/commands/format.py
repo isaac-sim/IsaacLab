@@ -12,13 +12,7 @@ def command_format() -> None:
     """Run code formatting using pre-commit."""
     python_exe = extract_python_exe()
 
-    def _run_pre_commit() -> None:
-        run_command([python_exe, "-m", "pre_commit", "run", "--all-files"], cwd=ISAACLAB_ROOT)
-
-    # Check if pre-commit is installed.
-
-    pre_commit_module = False
-
+    # Install the formatting tool into the interpreter running the CLI when needed.
     result = run_command(
         [python_exe, "-c", "import pre_commit"],
         check=False,
@@ -26,25 +20,15 @@ def command_format() -> None:
         stderr=subprocess.DEVNULL,
     )
 
-    if result.returncode == 0:
-        pre_commit_module = True
-    # If pre-commit is not installed, install it.
-    if not pre_commit_module:
+    if result.returncode != 0:
         print_info('Pre-commit not found. Installing "pre-commit" module...')
         run_command(["uv", "pip", "install", "--python", python_exe, "pre-commit"])
 
     print_info("Formatting the repository...")
 
-    try:
-        # Run pre-commit as a module since we may have just installed it.
-        _run_pre_commit()
-
-    except SystemExit:
-        # Pre-commit exits with code=1 when files changed, that is expected.
-        # To verify if the error is due to pre-commit just changing files,
-        # run pre-commit again to see if it exits with code=0.
-        print_info("Pre-commit changed some files, running it again to validate...")
-        _run_pre_commit()
-
-    finally:
-        pass
+    cmd = [python_exe, "-m", "pre_commit", "run", "--all-files"]
+    result = run_command(cmd, cwd=ISAACLAB_ROOT, check=False)
+    if result.returncode != 0:
+        # Hooks can fail after applying automatic fixes; the retry must still propagate failures.
+        print_info("Pre-commit failed; running it again to check for automatic fixes...")
+        run_command(cmd, cwd=ISAACLAB_ROOT)

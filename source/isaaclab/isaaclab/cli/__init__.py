@@ -247,7 +247,7 @@ def cli() -> None:
         "-p",
         "--python",
         nargs=argparse.REMAINDER,
-        help="Run the python executable provided by Isaac Sim or virtual environment (if active).",
+        help="Run Python in the active environment, initializing the linked Isaac Sim runtime when needed.",
     )
     parser.add_argument(
         "-s",
@@ -259,13 +259,13 @@ def cli() -> None:
         "-t",
         "--test",
         nargs=argparse.REMAINDER,
-        help="Run all python pytest tests.",
+        help="Run the repository tooling tests under tools/ with pytest.",
     )
     parser.add_argument(
         "-o",
         "--docker",
         nargs=argparse.REMAINDER,
-        help="Run the docker container helper script (docker/container.sh).",
+        help="Run the docker container helper script (docker/container.py).",
     )
     parser.add_argument(
         "--editor",
@@ -299,6 +299,16 @@ def cli() -> None:
     )
 
     args = parser.parse_args()
+
+    if (
+        args.format
+        or args.docs
+        or args.docs_multi
+        or args.docker is not None
+        or args.test is not None
+        or args.isaacsim_source is not None
+    ) and not (ISAACLAB_ROOT / "pyproject.toml").is_file():
+        parser.error("This command requires an Isaac Lab source checkout. Run it with uv run isaaclab from that checkout.")
 
     if args.format:
         command_format()
