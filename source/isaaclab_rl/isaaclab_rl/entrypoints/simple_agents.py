@@ -193,7 +193,7 @@ def _create_action_term_zero_policy(term: Any, env: Any) -> Callable[[], torch.T
         def differential_ik_policy() -> torch.Tensor:
             ee_pos, ee_quat = term._compute_frame_pose()
             command = ee_pos if term.cfg.controller.command_type == "position" else torch.cat((ee_pos, ee_quat), dim=-1)
-            return _unscale_action(command, term._scale)
+            return _unscale_action(command - term._offset, term._scale)
 
         return differential_ik_policy
 
