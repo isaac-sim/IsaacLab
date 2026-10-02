@@ -10,9 +10,17 @@ Clone contexts route assets to the representation that owns their copies:
 * :class:`~isaaclab_ov.cloner.OvstageReplicateContext` prepares copies for simulation-owned OVStage resources,
   independently of their consumers. An OVRTX engine borrowing that stage does not clone it again.
 
-OVPhysX and OVRTX configurations request their native clone contexts by default. Clone preparation
-resolves the representation before native resource initialization. With
-``ISAAC_LAB_OVRTX_USE_OVSTAGE=1``, it replaces the OVRTX route with
-``OvstageReplicateContext`` and acquires an isolated rendering stage from the simulation registry.
-OVPhysX retains its private stage and native cloning. The stage owner coordinates rendering write
-ordinals and closes after its borrowers. Rendering on an OVStage is synchronous.
+OVPhysX and OVRTX configurations request their native clone contexts by default. Shared clone preparation
+resolves the representation before native resource initialization; the OVRTX renderer does not select
+physics cloning. The automatic OVPhysX + OVRTX detection is retained as a commented switch in
+``OvrtxReplicateContext.prepare``. With
+``ISAAC_LAB_OVRTX_USE_OVSTAGE=1``, Isaac Lab creates one shared
+:class:`~isaaclab_ov.stage.OvstageBackend` populated with physics and rendering domains.
+``OvstageReplicateContext`` replaces both native contexts and clones their combined asset routes once.
+Physics and rendering attach to that same stage; the stage owner coordinates write ordinals and closes
+only after both borrowers. Automatic sharing is deferred until an OVPhysX release includes the cold
+binding and path-lookup performance fixes and startup parity is validated; OVPhysX 0.6.3 is affected.
+
+For shared stages, configure cameras before the initial simulation reset. Camera overrides are authored
+before the stage is populated. OVRTX cameras may have different product settings, but share one native renderer
+and must agree on native logging and transform-cache settings. Rendering on the shared stage is synchronous.

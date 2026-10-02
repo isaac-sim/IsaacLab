@@ -101,8 +101,10 @@ Only declared asset subtrees are copied; unrelated authored assets are retained.
 
 Keep :attr:`~isaaclab.scene.InteractiveSceneCfg.filter_collisions` enabled to
 isolate original worlds with USD collision groups. Native GPU physics copies additionally use
-native environment-ID filtering. CPU has no native environment-ID filtering in OvPhysX 0.6.3,
-so it imports all declared USD copies and uses collision groups.
+native environment-ID filtering. With OVRTX cameras and ``ISAAC_LAB_OVRTX_USE_OVSTAGE=1``, both backends attach to one
+OVStage and clone it once; these copies use the authored USD collision groups. Native cloning remains the default
+while shared-stage cold binding lookup is slow in OVPhysX 0.6.3. CPU has no native environment-ID filtering
+in OvPhysX 0.6.3, so it imports all declared USD copies and uses collision groups.
 Large overlapping original layouts can still exhaust broadphase pair capacity;
 use spatially separated environments.
 
