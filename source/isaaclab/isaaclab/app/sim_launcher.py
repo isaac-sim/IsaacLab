@@ -656,15 +656,12 @@ def launch_simulation(
         try:
             context = SimulationContext.instance()
             if context is not None and context is not previous_context:
-                try:
-                    SimulationContext.clear_instance()
-                except Exception:
-                    # Preserve the user's exception, but never report successful shutdown
-                    # when releasing simulation resources failed.
-                    if exit_code == 0:
-                        exit_code = 1
-                        raise
-                    logger.exception("Failed to clean up the simulation before runtime shutdown")
+                SimulationContext.clear_instance()
+        except Exception:
+            if exit_code == 0:
+                exit_code = 1
+                raise
+            logger.exception("Failed to clean up the simulation before runtime shutdown")
         finally:
             # Runtime shutdown may terminate the process; release its consumers first.
             for launcher in reversed(launchers):

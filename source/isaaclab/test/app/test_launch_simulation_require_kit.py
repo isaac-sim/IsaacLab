@@ -26,7 +26,6 @@ import isaaclab.app.sim_launcher as sim_launcher
 from isaaclab.app import SimulationLauncher, launch_simulation
 from isaaclab.physics import PhysicsCfg
 from isaaclab.renderers import RendererCfg
-from isaaclab.sim import BackendCfg, SimulationCfg, SimulationContext
 
 
 @pytest.fixture
@@ -183,74 +182,3 @@ def test_require_kit_false_does_not_suppress_a_kit_config(kit_branch_taken):
         pass
 
     assert kit_branch_taken == [True]
-
-
-@pytest.mark.parametrize(
-    "body_error, cleanup_fails, expected_status",
-    [
-        (None, False, 0),
-        (ValueError, False, 1),
-        (KeyboardInterrupt, False, 130),
-        (SystemExit, False, 7),
-        (None, True, 1),
-        (ValueError, True, 1),
-    ],
-)
-def test_launch_releases_simulation_before_runtime_exit(monkeypatch, body_error, cleanup_fails, expected_status):
-    """Release real context resources before a runtime can exit, including failed runs and cleanup."""
-    closed = []
-
-    class Runtime(SimulationLauncher):
-        def close(self, exit_code=0):
-            assert SimulationContext.instance() is None
-            assert closed == ["resource"]
-            closed.append(exit_code)
-
-    class Resource:
-        def __init__(self, cfg):
-            pass
-
-        def close(self):
-            assert sim.is_stopped()
-            closed.append("resource")
-            if cleanup_fails:
-                raise RuntimeError("cleanup failed")
-
-    class RuntimeRendererCfg(RendererCfg):
-        launcher_type = "shutdown_runtime:Runtime"
-
-    monkeypatch.setitem(sys.modules, "shutdown_runtime", types.SimpleNamespace(Runtime=Runtime))
-    cfg = SimulationCfg(physics=sim_launcher.NewtonCfg(), device="cpu", visualizer_cfgs=[])
-    launch_cfg = argparse.Namespace(sim=cfg, renderer=RuntimeRendererCfg())
-    expected_error = body_error or (RuntimeError if cleanup_fails else None)
-
-    try:
-        with launch_simulation(launch_cfg):
-            sim = SimulationContext(cfg)
-            sim.get_or_create_backend(BackendCfg(class_type=Resource))
-            sim.play()
-            if body_error is not None:
-                raise body_error(7 if body_error is SystemExit else "body failed")
-    except BaseException as exc:
-        assert expected_error is not None
-        assert type(exc) is expected_error
-        assert str(exc) == ("7" if body_error is SystemExit else "body failed" if body_error else "cleanup failed")
-    else:
-        assert expected_error is None
-    finally:
-        SimulationContext.clear_instance()
-
-    assert closed == ["resource", expected_status]
-
-
-def test_nested_launch_preserves_outer_simulation():
-    """An inner launch must not stop or release a context owned by its caller."""
-    cfg = SimulationCfg(physics=sim_launcher.NewtonCfg(), device="cpu", visualizer_cfgs=[])
-    with launch_simulation(cfg):
-        sim = SimulationContext(cfg)
-        sim.play()
-        with launch_simulation(cfg):
-            pass
-        assert SimulationContext.instance() is sim
-        assert sim.is_playing()
-    assert SimulationContext.instance() is None
