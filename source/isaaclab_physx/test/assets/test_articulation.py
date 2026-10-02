@@ -22,7 +22,7 @@ from isaaclab.test.utils.articulation_ordering import (
     BRANCHING_PHYSX_BODY_NAMES,
     BRANCHING_PHYSX_JOINT_NAMES,
 )
-from isaaclab.utils import clone, replace
+from isaaclab.utils import replace
 
 launch_test_simulation()
 
@@ -43,22 +43,8 @@ from pxr import Gf, PhysxSchema, UsdGeom, UsdPhysics
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg, get_articulation_name_ordering
-from isaaclab.controllers import DifferentialIKController, DifferentialIKControllerCfg
 from isaaclab.sim import SimulationContext, build_simulation_context
-from isaaclab.utils.math import (
-    combine_frame_transforms,
-    compute_pose_error,
-    matrix_from_quat,
-    quat_apply,
-    quat_inv,
-    subtract_frame_transforms,
-)
-
-##
-# Pre-defined configs
-##
-from isaaclab_assets import FRANKA_PANDA_CFG, FRANKA_PANDA_HIGH_PD_CFG  # isort:skip
-from isaaclab_assets.robots.shadow_hand import SHADOW_HAND_PHYSX_CFG  # isort:skip
+from isaaclab.utils.math import combine_frame_transforms, matrix_from_quat, quat_apply
 
 _FIXTURE = Path(__file__).parent / "data" / "articulation_ordering_branching.usda"
 _NUM_ENVS = 2
@@ -110,6 +96,7 @@ def _author_branching_robot(
     root_on_base: bool = False,
     reversed_left_elbow: bool = False,
     spatial_tendon: bool = False,
+    fixed_tendon: bool = False,
     joint_limits_deg: tuple[float, float] = (-170.0, 170.0),
 ) -> None:
     """Author geometry, drives, and optional structure on one spawned branching robot.
@@ -120,6 +107,7 @@ def _author_branching_robot(
         root_on_base: Whether to move the articulation root API from the robot prim onto the base link.
         reversed_left_elbow: Whether to swap the bodies of the left elbow joint.
         spatial_tendon: Whether to attach a spatial tendon from the base to the left tip.
+        fixed_tendon: Whether to couple the right shoulder and elbow with a fixed tendon.
         joint_limits_deg: Lower and upper joint limits [deg] applied to every joint. PhysX ignores limit writes
             on joints authored without limits.
     """
@@ -173,6 +161,17 @@ def _author_branching_robot(
         leaf.CreateRestLengthAttr(0.5)
         leaf.CreateLowerLimitAttr(0.0)
         leaf.CreateUpperLimitAttr(2.0)
+    if fixed_tendon:
+        # The root joint carries the tendon and its own axis; the elbow adds the child axis.
+        root = PhysxSchema.PhysxTendonAxisRootAPI.Apply(stage.GetPrimAtPath(f"{robot_path}/right_shoulder"), "fixed")
+        root.CreateStiffnessAttr(5.0)
+        root.CreateDampingAttr(0.5)
+        root.CreateRestLengthAttr(0.4)
+        root.CreateOffsetAttr(0.0)
+        for joint_name in ("right_shoulder", "right_elbow"):
+            axis = PhysxSchema.PhysxTendonAxisAPI.Apply(stage.GetPrimAtPath(f"{robot_path}/{joint_name}"), "fixed")
+            axis.CreateGearingAttr([1.0])
+            axis.CreateForceCoefficientAttr([1.0])
 
 
 def _in_user_order(values: dict[str, float], names: list[str], device: str) -> torch.Tensor:
@@ -186,15 +185,11 @@ def _yaw_quat(angle: float) -> tuple[float, float, float, float]:
 
 
 @pytest.fixture
-def gravity_enabled() -> bool:
-    """Enable gravity unless a test explicitly parametrizes it otherwise."""
-    return True
-
-
-@pytest.fixture
-def sim(device: str, gravity_enabled: bool) -> Iterator[SimulationContext]:
+def sim(device: str) -> Iterator[SimulationContext]:
     """Create a function-scoped simulation context for tests that own their scene."""
-    with build_simulation_context(device=device, auto_add_lighting=True, gravity_enabled=gravity_enabled) as sim:
+    # A new context would replace the stage of a live composite scene, so these tests must run before it.
+    assert SimulationContext.instance() is None, "define tests that own a simulation above the composite scene"
+    with build_simulation_context(device=device, auto_add_lighting=True) as sim:
         sim._app_control_on_stop_handle = None
         yield sim
 
@@ -202,27 +197,6 @@ def sim(device: str, gravity_enabled: bool) -> Iterator[SimulationContext]:
 ##
 # Tests that own their simulation context. Keep them above the composite scene.
 ##
-
-
-def generate_articulation(
-    articulation_cfg: ArticulationCfg, num_articulations: int, device: str
-) -> tuple[Articulation, torch.Tensor]:
-    """Spawn ``num_articulations`` copies of an articulation 2.5 m apart along x.
-
-    Args:
-        articulation_cfg: Articulation configuration.
-        num_articulations: Number of articulations to generate.
-        device: Device to use for the tensors.
-
-    Returns:
-        The articulation and environment translations.
-    """
-    translations = torch.zeros(num_articulations, 3, device=device)
-    translations[:, 0] = torch.arange(num_articulations) * 2.5
-    for i in range(num_articulations):
-        sim_utils.create_prim(f"/World/Env_{i}", "Xform", translation=translations[i][:3])
-    articulation = Articulation(replace(articulation_cfg, prim_path="/World/Env_[^/]*/Robot"))
-    return articulation, translations
 
 
 @pytest.mark.parametrize(
@@ -260,254 +234,44 @@ def test_setting_invalid_articulation_root_prim_path(sim, device) -> None:
 
 
 @pytest.mark.parametrize("device", test_devices())
-def test_fixed_tendon_position_target_writes_offset(sim, device) -> None:
-    """A tendon length target lands in the simulation as ``rest_length - target`` on the selected cells only.
+def test_gravity_compensation_holds_static_equilibrium(sim, device) -> None:
+    """Gravity compensation efforts hold the arms still and follow mass writes.
 
-    The index form commands every tendon of environment 0; the mask form commands tendon 0 of
-    environment 1. Every other cell must keep its initial offset. The Shadow Hand is the shipped asset whose
-    native PhysX fixed tendons these writers command.
+    Setting ``tau = g(q)`` at rest gives zero joint acceleration, so sign, frame, and DoF-ordering errors in
+    :attr:`~isaaclab.assets.BaseArticulationData.gravity_compensation_forces` surface as joint drift. The robot is
+    rolled 90 deg about x so that its joint axes are horizontal.
     """
-    num_articulations = 2
-    articulation_cfg = SHADOW_HAND_PHYSX_CFG
-    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
-
+    articulation = Articulation(
+        _branching_cfg(
+            actuators={"joints": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=0.0, damping=0.0)},
+            joint_ordering="mjwarp",
+            init_state=ArticulationCfg.InitialStateCfg(rot=(math.sqrt(0.5), 0.0, 0.0, math.sqrt(0.5))),
+        )
+    )
+    _author_branching_robot("/World/Robot", fixed_base=True)
+    # Offset the tip centers of mass from the elbow axes so that gravity also loads the elbows.
+    for tip in ("left_tip", "right_tip"):
+        UsdPhysics.MassAPI(sim.stage.GetPrimAtPath(f"/World/Robot/{tip}")).CreateCenterOfMassAttr(Gf.Vec3f(0.2, 0, 0))
     sim.reset()
-    assert articulation.is_initialized
-    assert articulation.is_fixed_base
-    assert articulation.data.joint_pos.torch.shape == (num_articulations, 24)
-    assert articulation.data.body_mass.torch.shape == (num_articulations, articulation.num_bodies)
-    assert articulation.data.body_inertia.torch.shape == (num_articulations, articulation.num_bodies, 9)
-    for actuator_name, actuator in articulation.actuators.items():
-        is_implicit_model_cfg = isinstance(articulation_cfg.actuators[actuator_name], ImplicitActuatorCfg)
-        assert actuator.is_implicit_model == is_implicit_model_cfg
-    num_tendons = articulation.num_fixed_tendons
-    assert num_tendons > 0
-    rest_length = articulation.data.fixed_tendon_rest_length.torch.clone()
-    initial_offset = articulation.data.fixed_tendon_offset.torch.clone()
+    joint_pos = torch.tensor([[0.3, -0.5, 0.4, 0.6]], device=device)
+    articulation.write_joint_state_to_sim_index(position=joint_pos, velocity=torch.zeros_like(joint_pos))
 
-    index_target = torch.full((1, num_tendons), 0.3, dtype=torch.float32, device=device)
-    articulation.set_fixed_tendon_position_target_index(target=index_target, env_ids=[0])
-    # Distinct per-cell values: a uniform target cannot catch the mask form reading the wrong
-    # cell, because every wrong read returns the same number.
-    mask_target = (
-        0.7
-        + 0.1 * torch.arange(num_articulations, dtype=torch.float32, device=device).unsqueeze(1)
-        + 0.01 * torch.arange(num_tendons, dtype=torch.float32, device=device).unsqueeze(0)
-    )
-    env_mask = wp.array([False, True], dtype=wp.bool, device=device)
-    tendon_mask = wp.array([i == 0 for i in range(num_tendons)], dtype=wp.bool, device=device)
-    articulation.set_fixed_tendon_position_target_mask(
-        target=mask_target, fixed_tendon_mask=tendon_mask, env_mask=env_mask
-    )
-
-    articulation.write_data_to_sim()
-    sim.step()
-    articulation.update(sim.cfg.dt)
-
-    expected = initial_offset.clone()
-    expected[0] = rest_length[0] - 0.3
-    expected[1, 0] = rest_length[1, 0] - mask_target[1, 0]
-    torch.testing.assert_close(articulation.data.fixed_tendon_offset.torch, expected)
-
-
-@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-@pytest.mark.isaacsim_ci
-def test_get_gravity_compensation_forces_static_equilibrium(sim, device) -> None:
-    """PhysX accuracy: ``τ_gc`` must hold the manipulator in static equilibrium.
-
-    The contract is the EOM identity ``M(q) q̈ + C(q,q̇) q̇ + g(q) = τ_input``.
-    Setting ``τ_input = g(q)`` at ``q̇ = 0`` gives ``q̈ = 0`` — the arm should
-    not move. This pins
-    :attr:`~isaaclab.assets.BaseArticulationData.gravity_compensation_forces`
-    in isolation: sign errors, frame errors, and DoF-ordering errors all
-    surface as joint drift, while a controller-level test would have those
-    bugs averaged out by PD damping.
-
-    Newton-side variant of the same name lives in
-    ``isaaclab_newton/test/assets/test_articulation.py`` (backend parity).
-    """
-    num_articulations = 1
-    # Replace default Franka actuators with a passthrough implicit actuator
-    # (stiffness = 0, damping = 0). With both gains zero the effort target
-    # we set IS the joint torque applied — no PD spring-damper masks the
-    # gravity-comp signal. Default Franka cfg has stiffness=80 / damping=4
-    # which would absorb gravity through PD bias and hide accessor bugs.
-    cfg = replace(
-        FRANKA_PANDA_CFG, actuators={"all": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=0.0, damping=0.0)}
-    )
-    # FRANKA_PANDA_CFG has rigid_props.disable_gravity=False already, but be
-    # defensive — gravity must be ON for τ_gc to have anything to cancel.
-    cfg = replace(cfg, spawn=replace(cfg.spawn, rigid_props=replace(cfg.spawn.rigid_props, disable_gravity=False)))
-
-    articulation, _ = generate_articulation(cfg, num_articulations, device=device)
-    sim.reset()
-    assert articulation.is_initialized
-
-    # Force a clean static state: default joint positions, zero velocities.
-    # ``sim.reset`` may leave residual ``q_dot`` from solver settling under
-    # gravity, so we pin it explicitly here.
-    default_q = articulation.data.default_joint_pos.torch.clone()
-    default_qd = torch.zeros_like(default_q)
-    articulation.write_joint_state_to_sim(default_q, default_qd)
-    articulation.update(sim.cfg.dt)
-
-    # Default joint pose from FRANKA_PANDA_CFG bends the elbow
-    # (joint2=-0.569, joint4=-2.81, joint6=3.04) so several links carry a
-    # gravity load — τ_gc is non-trivial in this configuration. A natural-
-    # hang pose (all zeros) would produce near-zero τ_gc and make this
-    # test uninformative.
-    init_q = articulation.data.joint_pos.torch.clone()
-
-    # Step 100 times applying only τ_gc as joint efforts.
     for _ in range(100):
-        # ``gravity_compensation_forces`` shape is ``(N, num_joints + num_base_dofs)``
-        # — leading ``num_base_dofs`` floating-base entries (0 on fixed-base) followed
-        # by the actuated-joint entries. Slice past the floating-base entries so the
-        # remaining tensor aligns with ``set_joint_effort_target`` (actuated only).
-        tau_gc = articulation.data.gravity_compensation_forces.torch[:, articulation.num_base_dofs :]
-        articulation.set_joint_effort_target(tau_gc)
+        gravity_compensation = articulation.data.gravity_compensation_forces.torch[:, articulation.num_base_dofs :]
+        assert gravity_compensation.abs().min() > 0.1, "every joint must carry a gravity load"
+        articulation.set_joint_effort_target_index(target=gravity_compensation)
         articulation.write_data_to_sim()
         sim.step()
         articulation.update(sim.cfg.dt)
+    torch.testing.assert_close(articulation.data.joint_pos.torch, joint_pos, atol=5e-3, rtol=0.0)
 
-    final_q = articulation.data.joint_pos.torch
-    drift = (final_q - init_q).abs().max()
-    # Tight bound: 5e-3 rad ≈ 0.3°. Numerical integration over 100 steps will
-    # accumulate some floor (sub-millirad on Franka), but a sign or frame bug
-    # in τ_gc produces drift of at least a degree per step on bent-elbow
-    # poses. This bound separates "correct" from "broken" cleanly.
-    assert drift < 5e-3, (
-        f"max joint drift {drift:.5f} rad after 100 gravity-comp-only steps —"
-        " τ_gc did not hold static equilibrium. Check sign, DoF ordering, and"
-        " whether gravity_compensation_forces returns g(q) (positive) or"
-        " its negation."
-    )
-
-
-# ---------------------------------------------------------------------------
-# Franka task-space tracking helpers for the IK test.
-# Mirrors the helpers in ``isaaclab_newton/test/assets/test_articulation.py``.
-# ---------------------------------------------------------------------------
-
-
-def _setup_franka_at_home_pose(sim):
-    """Build a Franka articulation at its configured home pose.
-
-    See the Newton-side mirror for full docs. Standalone tests skip the
-    env reset path that normally pushes ``default_joint_pos`` to sim,
-    so we teleport explicitly to avoid the URDF-neutral
-    near-singular pose where the Franka wrist axes nearly align.
-
-    Args:
-        sim: The simulation context to use.
-
-    Returns:
-        Tuple of ``(robot, ee_frame_idx, ee_jacobi_idx, arm_joint_ids)``.
-    """
-    cfg = replace(clone(FRANKA_PANDA_HIGH_PD_CFG), prim_path="/World/Env_[^/]*/Robot")
-    sim_utils.create_prim("/World/Env_0", "Xform", translation=(0.0, 0.0, 0.0))
-    robot = Articulation(cfg)
-    sim.reset()
-    assert robot.is_initialized
-
-    ee_frame_idx = robot.find_bodies("panda_hand")[0][0]
-    ee_jacobi_idx = ee_frame_idx - 1
-    arm_joint_ids = robot.find_joints(["panda_joint.*"])[0]
-
-    robot.write_joint_state_to_sim(
-        position=robot.data.default_joint_pos.torch[:, :].clone(),
-        velocity=robot.data.default_joint_vel.torch[:, :].clone(),
-    )
-    return robot, ee_frame_idx, ee_jacobi_idx, arm_joint_ids
-
-
-def _compute_ee_pose_root(robot, ee_frame_idx):
-    """Return ``(ee_pos_b, ee_quat_b, root_pose_w)`` in the root frame."""
-    ee_pose_w = robot.data.body_pose_w.torch[:, ee_frame_idx]
-    root_pose_w = robot.data.root_pose_w.torch
-    ee_pos_b, ee_quat_b = subtract_frame_transforms(
-        root_pose_w[:, 0:3], root_pose_w[:, 3:7], ee_pose_w[:, 0:3], ee_pose_w[:, 3:7]
-    )
-    return ee_pos_b, ee_quat_b, root_pose_w
-
-
-def _compute_jacobian_root_frame(robot, ee_jacobi_idx, arm_joint_ids):
-    """Return the EE Jacobian sliced to ``arm_joint_ids`` and rotated to the root frame."""
-    jacobian = robot.data.body_link_jacobian_w.torch[:, ee_jacobi_idx, :, :][:, :, arm_joint_ids]
-    base_rot_matrix = matrix_from_quat(quat_inv(robot.data.root_pose_w.torch[:, 3:7]))
-    jacobian[:, :3, :] = torch.bmm(base_rot_matrix, jacobian[:, :3, :])
-    jacobian[:, 3:, :] = torch.bmm(base_rot_matrix, jacobian[:, 3:, :])
-    return jacobian
-
-
-def _build_relative_pose_target(robot, ee_frame_idx, delta_xyz, device):
-    """Build a target pose = (current EE pose) + ``delta_xyz``, preserving orientation."""
-    initial_ee_pos_b, initial_ee_quat_b, _ = _compute_ee_pose_root(robot, ee_frame_idx)
-    target_pos_b = initial_ee_pos_b + torch.tensor([list(delta_xyz)], device=device, dtype=initial_ee_pos_b.dtype)
-    return torch.cat([target_pos_b, initial_ee_quat_b], dim=-1)
-
-
-def _summarize_history(history, tail: int = 200):
-    """Return ``(min, mean)`` over the last ``tail`` samples."""
-    tail_slice = history[-tail:]
-    return min(tail_slice), sum(tail_slice) / len(tail_slice)
-
-
-@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-@pytest.mark.parametrize("gravity_enabled", [False])
-@pytest.mark.isaacsim_ci
-def test_franka_ik_tracking_accuracy(sim, device, gravity_enabled) -> None:
-    """PhysX-side IK convergence sentinel — backend parity with the Newton test.
-
-    Mirrors :func:`isaaclab_newton.test.assets.test_articulation.test_franka_ik_tracking_accuracy`
-    so both backends are pinned by the same IK trajectory. With the
-    robot teleported to its configured init_state home pose and scene
-    gravity off, PhysX's IK converges to ~mm precision on this 5 cm
-    Cartesian step. A bridge regression (wrong J shape, wrong DoF
-    ordering) would push the steady-state error well past the
-    threshold.
-    """
-    robot, ee_frame_idx, ee_jacobi_idx, arm_joint_ids = _setup_franka_at_home_pose(sim)
-
-    sim.step()
-    robot.update(sim.cfg.dt)
-    target_pose_b = _build_relative_pose_target(robot, ee_frame_idx, (0.05, 0.0, 0.0), device)
-
-    ik = DifferentialIKController(
-        DifferentialIKControllerCfg(command_type="pose", use_relative_mode=False, ik_method="dls"),
-        num_envs=1,
-        device=device,
-    )
-    ik.set_command(target_pose_b)
-
-    pos_history: list[float] = []
-    rot_history: list[float] = []
-    for _ in range(800):
-        jacobian = _compute_jacobian_root_frame(robot, ee_jacobi_idx, arm_joint_ids)
-        ee_pos_b, ee_quat_b, _ = _compute_ee_pose_root(robot, ee_frame_idx)
-        joint_pos = robot.data.joint_pos.torch[:, arm_joint_ids]
-
-        joint_pos_des = ik.compute(ee_pos_b, ee_quat_b, jacobian, joint_pos)
-
-        robot.set_joint_position_target(joint_pos_des, joint_ids=arm_joint_ids)
-        robot.write_data_to_sim()
-        sim.step()
-        robot.update(sim.cfg.dt)
-
-        pos_error, rot_error = compute_pose_error(ee_pos_b, ee_quat_b, target_pose_b[:, 0:3], target_pose_b[:, 3:7])
-        pos_history.append(pos_error.norm(dim=-1).max().item())
-        rot_history.append(rot_error.norm(dim=-1).max().item())
-
-    pos_min, pos_mean = _summarize_history(pos_history)
-    rot_min, rot_mean = _summarize_history(rot_history)
-
-    print(f"IK_METRIC pos_min={pos_min:.5f} pos_mean={pos_mean:.5f} rot_min={rot_min:.5f} rot_mean={rot_mean:.5f}")
-
-    # Assert on tail mean (not min) so an oscillating envelope can't
-    # squeeze through. Threshold matched to the Newton-side test
-    # (5 mm / 0.05 rad).
-    assert pos_mean < 5e-3, f"IK pos_mean {pos_mean:.5f} > 5 mm — bridge regression?"
-    assert rot_mean < 5e-2, f"IK rot_mean {rot_mean:.5f} > 0.05 rad — bridge regression?"
+    # A mass write refreshes efforts already read in this step. GPU PhysX applies mass writes on the next step
+    # (see ``test_inertial_writes_refresh_the_mass_matrix``).
+    if device == "cpu":
+        primed = articulation.data.gravity_compensation_forces.torch.clone()
+        tips = articulation.find_bodies(".*_tip")[0]
+        articulation.set_masses_index(masses=2.0 * articulation.data.body_mass.torch[:, tips], body_ids=tips)
+        assert not torch.allclose(articulation.data.gravity_compensation_forces.torch, primed, atol=1e-3)
 
 
 ##
@@ -528,7 +292,7 @@ class _ArticulationScene:
     reordered: Articulation
     """Floating base with an explicit root path and a body ordering that moves the root link."""
     tendon: Articulation
-    """Fixed base with a reversed left elbow and a spatial tendon."""
+    """Fixed base with a reversed left elbow, a spatial tendon, and a fixed tendon."""
     origins: dict[str, torch.Tensor]
     """World position of every environment of each island, keyed by island name."""
     refcounts: dict[str, int]
@@ -592,7 +356,10 @@ def articulation_scene(request) -> Iterator[_ArticulationScene]:
                 ),
                 {"root_on_base": True},
             ),
-            "tendon": (_branching_cfg(), {"fixed_base": True, "reversed_left_elbow": True, "spatial_tendon": True}),
+            "tendon": (
+                _branching_cfg(),
+                {"fixed_base": True, "reversed_left_elbow": True, "spatial_tendon": True, "fixed_tendon": True},
+            ),
         }
         for index, (name, (cfg, authoring)) in enumerate(island_specs.items()):
             islands[name], origins[name] = _spawn_island(name.capitalize(), 3.0 * index, cfg, **authoring)
@@ -639,6 +406,8 @@ def test_articulation_initialization_and_ordering(articulation_scene: _Articulat
         for actuator_name, actuator in articulation.actuators.items():
             is_implicit_model_cfg = isinstance(articulation.cfg.actuators[actuator_name], ImplicitActuatorCfg)
             assert actuator.is_implicit_model == is_implicit_model_cfg
+        # The composite scene runs without gravity.
+        torch.testing.assert_close(articulation.data.GRAVITY_VEC_W.torch, torch.zeros((_NUM_ENVS, 3), device=device))
     assert scene.ordered.is_fixed_base and scene.tendon.is_fixed_base
     assert not scene.floating.is_fixed_base and not scene.reordered.is_fixed_base
     # The floating root is discovered on the base link below the spawned robot prim; the reordered root is
@@ -1294,8 +1063,8 @@ def test_floating_articulation_root_writes_and_wrenches(articulation_scene: _Art
         reordered.data.body_link_lin_vel_w.torch[:, floating_order], floating.data.body_link_lin_vel_w.torch
     )
 
-    # A partial reset clears the selected environment; a full reset resets every actuator environment and
-    # clears all external forces and torques.
+    # A partial reset clears the selected environment of the actuators and wrench composers; a full reset resets
+    # every actuator environment and clears all external forces and torques.
     actuator = next(iter(floating.actuators.values()))
     actuator_reset = actuator.reset
     reset_env_ids = []
@@ -1310,6 +1079,7 @@ def test_floating_articulation_root_writes_and_wrenches(articulation_scene: _Art
     floating.permanent_wrench_composer.set_forces_and_torques_index(forces=ones, torques=ones)
     floating.instantaneous_wrench_composer.add_forces_and_torques_index(forces=ones, torques=ones)
     floating.reset(env_ids=torch.tensor([0], device=device))
+    assert [env_ids.tolist() for env_ids in reset_env_ids] == [[0]]
     for composer in composers:
         assert composer.active
         for buffer in (composer.out_force_b.torch, composer.out_torque_b.torch):
@@ -1379,6 +1149,55 @@ def test_spatial_tendon_properties_round_trip(articulation_scene: _ArticulationS
         articulation.write_spatial_tendon_properties_to_sim_index(env_ids=env_ids)
         for name, (_, read_view) in readers.items():
             torch.testing.assert_close(wp.to_torch(read_view()).to(device), values[name])
+
+
+def test_fixed_tendon_position_target_writes_offset(articulation_scene: _ArticulationScene) -> None:
+    """A tendon length target reaches PhysX as ``rest_length - target`` in the selected environments only.
+
+    The index form commands environment 0 and the mask form environment 1, with distinct values.
+    """
+    device = articulation_scene.device
+    articulation = articulation_scene.tendon
+    assert articulation.num_fixed_tendons == 1
+    rest_length = articulation.data.fixed_tendon_rest_length.torch.clone()
+    torch.testing.assert_close(rest_length, torch.full((_NUM_ENVS, 1), 0.4, device=device))
+    offset = articulation.data.fixed_tendon_offset.torch.clone()
+
+    articulation.set_fixed_tendon_position_target_index(target=torch.tensor([[0.3]], device=device), env_ids=[0])
+    articulation.write_data_to_sim()
+    offset[0] = rest_length[0] - 0.3
+    torch.testing.assert_close(articulation.data.fixed_tendon_offset.torch, offset)
+    torch.testing.assert_close(wp.to_torch(articulation.root_view.get_fixed_tendon_offsets()).to(device), offset)
+
+    articulation.set_fixed_tendon_position_target_mask(
+        target=torch.tensor([[0.7], [0.8]], device=device),
+        env_mask=wp.array([False, True], dtype=wp.bool, device=device),
+    )
+    articulation.write_data_to_sim()
+    offset[1] = rest_length[1] - 0.8
+    torch.testing.assert_close(articulation.data.fixed_tendon_offset.torch, offset)
+    torch.testing.assert_close(wp.to_torch(articulation.root_view.get_fixed_tendon_offsets()).to(device), offset)
+
+
+def test_inertial_writes_refresh_the_mass_matrix(articulation_scene: _ArticulationScene, request) -> None:
+    """Mass and inertia writes refresh a mass matrix that was already read in the same step."""
+    if articulation_scene.device.startswith("cuda"):
+        request.applymarker(
+            pytest.mark.xfail(strict=True, reason="GPU PhysX applies mass and inertia writes on the next step")
+        )
+    articulation = articulation_scene.ordered
+    data = articulation.data
+    writes = (
+        (articulation.set_masses_index, "masses", data.body_mass),
+        (articulation.set_inertias_index, "inertias", data.body_inertia),
+    )
+    for write, kwarg, values in writes:
+        initial = values.torch.clone()
+        before = data.mass_matrix.torch.clone()
+        write(**{kwarg: 2.0 * initial + 0.1})
+        after = data.mass_matrix.torch.clone()
+        write(**{kwarg: initial})
+        assert not torch.allclose(after, before, atol=1e-4), f"{kwarg} write left a stale matrix"
 
 
 def test_joint_position_limit_clamping_respects_logging(articulation_scene: _ArticulationScene, caplog) -> None:

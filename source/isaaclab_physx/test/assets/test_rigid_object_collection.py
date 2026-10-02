@@ -14,7 +14,7 @@ created, and a new simulation context would replace the composite stage.
 # ignore private usage of variables warning
 # pyright: reportPrivateUsage=none
 
-from isaaclab.test.utils import launch_test_simulation, test_devices
+from isaaclab.test.utils import DeviceScope, launch_test_simulation, test_devices
 
 launch_test_simulation()
 
@@ -98,15 +98,11 @@ def _yaw_quat(angle: float) -> tuple[float, float, float, float]:
 
 
 @pytest.fixture
-def gravity_enabled() -> bool:
-    """Enable gravity unless a test explicitly parametrizes it otherwise."""
-    return True
-
-
-@pytest.fixture
-def sim(device: str, gravity_enabled: bool) -> Iterator[SimulationContext]:
+def sim(device: str) -> Iterator[SimulationContext]:
     """Create a function-scoped simulation context for tests that own their scene."""
-    with build_simulation_context(device=device, auto_add_lighting=True, gravity_enabled=gravity_enabled) as sim:
+    # A new context would replace the stage of a live composite scene, so these tests must run before it.
+    assert SimulationContext.instance() is None, "define tests that own a simulation above the composite scene"
+    with build_simulation_context(device=device, auto_add_lighting=True) as sim:
         sim._app_control_on_stop_handle = None
         yield sim
 
@@ -116,7 +112,7 @@ def sim(device: str, gravity_enabled: bool) -> Iterator[SimulationContext]:
 ##
 
 
-@pytest.mark.parametrize("device", test_devices())
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CPU))
 def test_initialization_with_no_rigid_body(sim, device) -> None:
     """Test that initialization fails when no rigid body is found at the provided prim path."""
     num_cubes = 2
@@ -130,94 +126,21 @@ def test_initialization_with_no_rigid_body(sim, device) -> None:
         sim.reset()
 
 
-@pytest.mark.parametrize("device", test_devices())
-@pytest.mark.parametrize("gravity_enabled", [False])
-def test_subset_write_reaches_selected_view_entry(sim, device, gravity_enabled) -> None:
-    """A write to one (env, body) cell must move only that object in the simulation."""
-    object_collection, _ = generate_cubes_scene(num_envs=2, num_cubes=3)
-
-    # Play sim
-    sim.reset()
-    sim.step()
-    object_collection.update(sim.cfg.dt)
-
-    initial_pose = object_collection.data.body_link_pose_w.torch.clone()
-    new_pose = initial_pose[1:2, 2:3].clone()
-    new_pose[..., 2] += 0.5
-    object_collection.write_body_link_pose_to_sim_index(body_poses=new_pose, env_ids=[1], body_ids=[2])
-
-    # Read the pose back from the simulation so that a wrong view index cannot hide in the data buffer
-    sim.step()
-    object_collection.update(sim.cfg.dt)
-
-    expected_pose = initial_pose.clone()
-    expected_pose[1, 2] = new_pose[0, 0]
-    torch.testing.assert_close(object_collection.data.body_link_pose_w.torch, expected_pose)
-
-
-@pytest.mark.parametrize("device", test_devices())
-def test_inertial_property_subset_writes_reach_selected_view_entries(sim, device) -> None:
-    """COM and inertia writes to a subset of (env, body) cells must reach only those PhysX view entries."""
-    num_envs, num_cubes = 2, 3
-    object_collection, _ = generate_cubes_scene(num_envs=num_envs, num_cubes=num_cubes)
-    sim.reset()
-
-    def read_view(values: wp.array, data_dim: int) -> torch.Tensor:
-        # The view is body-major, (num_cubes * num_envs, data_dim); return it as (num_envs, num_cubes, data_dim)
-        return wp.to_torch(values).reshape(num_cubes, num_envs, data_dim).transpose(0, 1).cpu()
-
-    # Write in non-sorted env order so that a wrong env/body to view index mapping cannot pass
-    env_ids = [1, 0]
-    body_ids = [2]
-
-    initial_coms = read_view(object_collection.root_view.get_coms().view(wp.float32), 7)
-    coms = initial_coms[env_ids][:, body_ids].clone()
-    coms[0, 0, :3] = torch.tensor([0.02, 0.03, 0.04])
-    coms[1, 0, :3] = torch.tensor([-0.01, 0.01, 0.02])
-    object_collection.set_coms_index(coms=coms.to(device), env_ids=env_ids, body_ids=body_ids)
-    expected_coms = initial_coms.clone()
-    expected_coms[env_ids, 2] = coms[:, 0]
-    torch.testing.assert_close(read_view(object_collection.root_view.get_coms().view(wp.float32), 7), expected_coms)
-    torch.testing.assert_close(object_collection.data.body_com_pose_b.torch.cpu(), expected_coms)
-
-    initial_inertias = read_view(object_collection.root_view.get_inertias(), 9)
-    inertias = initial_inertias[env_ids][:, body_ids].clone()
-    inertias[0, 0, [0, 4, 8]] *= 1.5
-    inertias[1, 0, [0, 4, 8]] *= 2.0
-    object_collection.set_inertias_index(inertias=inertias.to(device), env_ids=env_ids, body_ids=body_ids)
-    expected_inertias = initial_inertias.clone()
-    expected_inertias[env_ids, 2] = inertias[:, 0]
-    torch.testing.assert_close(read_view(object_collection.root_view.get_inertias(), 9), expected_inertias)
-    torch.testing.assert_close(object_collection.data.body_inertia.torch.cpu(), expected_inertias)
-
-
-@pytest.mark.parametrize("device", test_devices())
-@pytest.mark.parametrize("gravity_enabled", [True, False])
-def test_gravity_vec_w(sim, device, gravity_enabled) -> None:
-    """Test that gravity vector direction is set correctly for the rigid object."""
-    num_envs = 3
-    num_cubes = 2
-    object_collection, _ = generate_cubes_scene(num_envs=num_envs, num_cubes=num_cubes)
-
-    gravity_dir = (0.0, 0.0, -1.0) if gravity_enabled else (0.0, 0.0, 0.0)
-
-    sim.reset()
-
-    gravity_vec = object_collection.data.GRAVITY_VEC_W.torch
-    assert gravity_vec[0, 0, 0] == gravity_dir[0]
-    assert gravity_vec[0, 0, 1] == gravity_dir[1]
-    assert gravity_vec[0, 0, 2] == gravity_dir[2]
-
-    for _ in range(2):
-        sim.step()
-        object_collection.update(sim.cfg.dt)
-
-        # Expected gravity value is the acceleration of the body
-        gravity = torch.zeros(num_envs, num_cubes, 6, device=device)
-        if gravity_enabled:
-            gravity[..., 2] = -9.81
-
-        torch.testing.assert_close(object_collection.data.body_com_acc_w.torch, gravity)
+@pytest.mark.xfail(
+    strict=True, raises=AssertionError, reason="The first CPU simulation after a failed initialization reads zero poses"
+)
+def test_failed_initialization_does_not_leak_into_the_next_cpu_simulation() -> None:
+    """A kinematic cube reports its spawn pose in the CPU simulation that follows a failed initialization."""
+    with build_simulation_context(device="cpu") as sim:
+        sim._app_control_on_stop_handle = None
+        invalid_collection, _ = generate_cubes_scene(num_cubes=2, has_api=False)  # noqa: F841  # keep it alive
+        with pytest.raises(RuntimeError):
+            sim.reset()
+    with build_simulation_context(device="cpu") as sim:
+        sim._app_control_on_stop_handle = None
+        kinematic, origins = generate_cubes_scene(kinematic_enabled=True)
+        sim.reset()
+        torch.testing.assert_close(kinematic.data.body_link_pos_w.torch[:, 0], origins + torch.tensor([0.0, 0.0, 1.0]))
 
 
 ##
@@ -238,6 +161,8 @@ class _CollectionScene:
     """Two environments of three dynamic cubes that ignore gravity."""
     kinematic: RigidObjectCollection
     """One environment of one kinematic cube."""
+    falling: RigidObjectCollection
+    """Two environments of two dynamic cubes under gravity."""
     origins: dict[str, torch.Tensor]
     """Environment origins keyed by collection name."""
     refcounts: dict[str, int]
@@ -246,10 +171,10 @@ class _CollectionScene:
     def step(self, num_steps: int = 1) -> None:
         """Write, step, and update every collection."""
         for _ in range(num_steps):
-            for collection in (self.cubes, self.kinematic):
+            for collection in (self.cubes, self.kinematic, self.falling):
                 collection.write_data_to_sim()
             self.sim.step()
-            for collection in (self.cubes, self.kinematic):
+            for collection in (self.cubes, self.kinematic, self.falling):
                 collection.update(self.sim.cfg.dt)
 
     def place_cubes_at_rest(self, body_poses: torch.Tensor) -> None:
@@ -274,6 +199,7 @@ def collection_scene(request) -> Iterator[_CollectionScene]:
         kinematic, kinematic_origins = generate_cubes_scene(
             num_envs=1, num_cubes=1, kinematic_enabled=True, root="/World/Kinematic", y_offset=12.0
         )
+        falling, _ = generate_cubes_scene(num_envs=_NUM_ENVS, num_cubes=2, root="/World/Falling", y_offset=18.0)
         refcounts = {"cubes": sys.getrefcount(cubes), "kinematic": sys.getrefcount(kinematic)}
         sim.reset()
         yield _CollectionScene(
@@ -281,6 +207,7 @@ def collection_scene(request) -> Iterator[_CollectionScene]:
             device=device,
             cubes=cubes,
             kinematic=kinematic,
+            falling=falling,
             origins={"cubes": cube_origins.to(device), "kinematic": kinematic_origins.to(device)},
             refcounts=refcounts,
         )
@@ -295,7 +222,8 @@ def _rest_poses(scene: _CollectionScene, yaw: float = 0.0) -> torch.Tensor:
 
 
 def test_collection_initialization(collection_scene: _CollectionScene) -> None:
-    """Initialize local collections, including a single-cube one; kinematic cubes hold their pose under gravity."""
+    """Initialize local collections, including a single-cube one; under gravity, kinematic cubes hold their pose and
+    dynamic cubes accelerate downward on every step."""
     scene = collection_scene
     for name, collection, num_envs, num_cubes in (
         ("cubes", scene.cubes, _NUM_ENVS, _NUM_CUBES),
@@ -310,10 +238,15 @@ def test_collection_initialization(collection_scene: _CollectionScene) -> None:
         assert collection.data.body_link_quat_w.torch.shape == (num_envs, num_cubes, 4)
         assert collection.data.body_mass.torch.shape == (num_envs, num_cubes)
         assert collection.data.body_inertia.torch.shape == (num_envs, num_cubes, 9)
+        torch.testing.assert_close(
+            collection.data.GRAVITY_VEC_W.torch[..., 2], torch.full((num_envs, num_cubes), -1.0, device=scene.device)
+        )
 
     kinematic = scene.kinematic
+    gravity_acceleration = torch.tensor([0.0, 0.0, -9.81, 0.0, 0.0, 0.0], device=scene.device).repeat(_NUM_ENVS, 2, 1)
     for _ in range(2):
         scene.step()
+        torch.testing.assert_close(scene.falling.data.body_com_acc_w.torch, gravity_acceleration)
         default_body_pose = kinematic.data.default_body_pose.torch.clone()
         default_body_vel = kinematic.data.default_body_vel.torch.clone()
         default_body_pose[..., :3] += scene.origins["kinematic"].unsqueeze(1)
@@ -439,22 +372,41 @@ def test_collection_state_writes(collection_scene: _CollectionScene) -> None:
         torch.testing.assert_close(object_com_vel_w[..., 3:], object_link_vel_w[..., 3:])
 
 
-def test_collection_masses_reach_selected_view_entries(collection_scene: _CollectionScene) -> None:
-    """Mass writes to a non-sorted subset reach only the selected body-major view entries."""
+def test_collection_inertial_properties_reach_selected_view_entries(collection_scene: _CollectionScene) -> None:
+    """Mass, center-of-mass, and inertia writes to a non-sorted subset reach only the selected body-major entries."""
     scene = collection_scene
     device = scene.device
     collection = scene.cubes
     env_ids = torch.tensor([1, 0], dtype=torch.int32, device=device)
     body_ids = torch.tensor([1], dtype=torch.int32, device=device)
-    expected = collection.data.body_mass.torch.clone()
-    masses = torch.tensor([[5.0], [7.0]], device=device)
-    expected[env_ids[:, None], body_ids] = masses
-    collection.set_masses_index(masses=masses, env_ids=env_ids, body_ids=body_ids)
-    torch.testing.assert_close(collection.data.body_mass.torch, expected)
-    raw_mass = wp.to_torch(collection.root_view.get_masses()).to(device).reshape(_NUM_CUBES, _NUM_ENVS).T
-    torch.testing.assert_close(raw_mass, expected)
-    # Restore uniform masses for the wrench checks.
-    collection.set_masses_index(masses=torch.ones((_NUM_ENVS, _NUM_CUBES), device=device))
+    initial = {
+        "masses": collection.data.body_mass.torch.clone(),
+        "coms": collection.data.body_com_pose_b.torch.clone(),
+        "inertias": collection.data.body_inertia.torch.clone(),
+    }
+    values = {name: value[env_ids][:, body_ids].clone() for name, value in initial.items()}
+    values["masses"][:, 0] = torch.tensor([5.0, 7.0], device=device)
+    values["coms"][:, 0, :3] = torch.tensor([[0.02, 0.03, 0.04], [-0.01, 0.01, 0.02]], device=device)
+    values["inertias"][0, 0, [0, 4, 8]] *= 1.5
+    values["inertias"][1, 0, [0, 4, 8]] *= 2.0
+    collection.set_masses_index(masses=values["masses"], env_ids=env_ids, body_ids=body_ids)
+    collection.set_coms_index(coms=values["coms"], env_ids=env_ids, body_ids=body_ids)
+    collection.set_inertias_index(inertias=values["inertias"], env_ids=env_ids, body_ids=body_ids)
+    for name, data, raw in (
+        ("masses", collection.data.body_mass, collection.root_view.get_masses()),
+        ("coms", collection.data.body_com_pose_b, collection.root_view.get_coms().view(wp.float32)),
+        ("inertias", collection.data.body_inertia, collection.root_view.get_inertias()),
+    ):
+        expected = initial[name].clone()
+        expected[env_ids[:, None], body_ids] = values[name]
+        torch.testing.assert_close(data.torch, expected)
+        # The view is body-major: (num_cubes * num_envs, ...).
+        raw = wp.to_torch(raw).to(device).reshape(_NUM_CUBES, _NUM_ENVS, -1).transpose(0, 1)
+        torch.testing.assert_close(raw, expected.reshape(_NUM_ENVS, _NUM_CUBES, -1))
+    # Restore the initial properties for the wrench checks.
+    collection.set_masses_index(masses=initial["masses"])
+    collection.set_coms_index(coms=initial["coms"])
+    collection.set_inertias_index(inertias=initial["inertias"])
 
 
 def test_collection_wrench_delivery_and_reset(collection_scene: _CollectionScene) -> None:

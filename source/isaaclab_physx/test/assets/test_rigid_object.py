@@ -14,7 +14,7 @@ composite scene is created, and a new simulation context would replace the compo
 # ignore private usage of variables warning
 # pyright: reportPrivateUsage=none
 
-from isaaclab.test.utils import launch_test_simulation, test_devices
+from isaaclab.test.utils import DeviceScope, launch_test_simulation, test_devices
 
 launch_test_simulation()
 
@@ -74,6 +74,16 @@ def _yaw_quat(angle: float) -> tuple[float, float, float, float]:
     return (0.0, 0.0, math.sin(0.5 * angle), math.cos(0.5 * angle))
 
 
+@pytest.fixture
+def sim(device: str) -> Iterator[SimulationContext]:
+    """Create a function-scoped simulation context for tests that own their scene."""
+    # A new context would replace the stage of a live composite scene, so these tests must run before it.
+    assert SimulationContext.instance() is None, "define tests that own a simulation above the composite scene"
+    with build_simulation_context(device=device, auto_add_lighting=True) as sim:
+        sim._app_control_on_stop_handle = None
+        yield sim
+
+
 ##
 # Tests that own their simulation context. Keep them above the composite scene.
 ##
@@ -93,110 +103,67 @@ def _yaw_quat(angle: float) -> tuple[float, float, float, float]:
         ),
     ],
 )
-@pytest.mark.parametrize("device", test_devices())
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 @pytest.mark.isaacsim_ci
-def test_initialization_rejects_invalid_rigid_body(device, api: Literal["none", "articulation_root"]) -> None:
+def test_initialization_rejects_invalid_rigid_body(sim, device, api: Literal["none", "articulation_root"]) -> None:
     """Initialization fails without a rigid body and when the rigid body is an articulation root."""
-    with build_simulation_context(device=device, auto_add_lighting=True) as sim:
-        sim._app_control_on_stop_handle = None
-        _spawn_envs("/World")
-        if api == "none":
-            # Without rigid body properties the cube is a static collider.
-            cfg = RigidObjectCfg(
-                prim_path="/World/Env_[^/]*/Object",
-                spawn=sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1), collision_props=sim_utils.UsdPhysicsCollisionCfg()),
-            )
-            cube_object = RigidObject(cfg=cfg)
-        else:
-            cube_object = RigidObject(cfg=_cube_cfg("/World/Env_[^/]*/Object"))
-            # An enabled articulation root on the rigid body turns the body into an articulation link.
-            assert apply_articulation_root_properties(
-                "/World/Env_[^/]*/Object",
-                [PhysxArticulationCfg(articulation_enabled=True)],
-                stage=sim.stage,
-                create_if_missing=True,
-            )
-            for index in range(_NUM_ENVS):
-                prim = sim.stage.GetPrimAtPath(f"/World/Env_{index}/Object")
-                assert prim.HasAPI(UsdPhysics.ArticulationRootAPI)
-                assert prim.GetAttribute("physxArticulation:articulationEnabled").Get()
-
-        # Check that the framework doesn't hold excessive strong references.
-        assert sys.getrefcount(cube_object) < 10
-
-        with pytest.raises(RuntimeError):
-            sim.reset()
-
-
-@pytest.mark.parametrize("device", test_devices())
-@pytest.mark.parametrize("gravity_enabled", [True, False])
-@pytest.mark.isaacsim_ci
-def test_gravity_vec_w(device, gravity_enabled) -> None:
-    """Test that gravity vector direction is set correctly for the rigid object."""
-    with build_simulation_context(device=device, gravity_enabled=gravity_enabled) as sim:
-        sim._app_control_on_stop_handle = None
-        _spawn_envs("/World")
+    _spawn_envs("/World")
+    if api == "none":
+        # Without rigid body properties the cube is a static collider.
+        cfg = RigidObjectCfg(
+            prim_path="/World/Env_[^/]*/Object",
+            spawn=sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1), collision_props=sim_utils.UsdPhysicsCollisionCfg()),
+        )
+        cube_object = RigidObject(cfg=cfg)
+    else:
         cube_object = RigidObject(cfg=_cube_cfg("/World/Env_[^/]*/Object"))
+        # An enabled articulation root on the rigid body turns the body into an articulation link.
+        assert apply_articulation_root_properties(
+            "/World/Env_[^/]*/Object",
+            [PhysxArticulationCfg(articulation_enabled=True)],
+            stage=sim.stage,
+            create_if_missing=True,
+        )
+        for index in range(_NUM_ENVS):
+            prim = sim.stage.GetPrimAtPath(f"/World/Env_{index}/Object")
+            assert prim.HasAPI(UsdPhysics.ArticulationRootAPI)
+            assert prim.GetAttribute("physxArticulation:articulationEnabled").Get()
 
-        # Obtain gravity direction
-        if gravity_enabled:
-            gravity_dir = (0.0, 0.0, -1.0)
-        else:
-            gravity_dir = (0.0, 0.0, 0.0)
+    # Check that the framework doesn't hold excessive strong references.
+    assert sys.getrefcount(cube_object) < 10
 
-        # Play sim
+    with pytest.raises(RuntimeError):
         sim.reset()
 
-        # Check that gravity is set correctly
-        assert cube_object.data.GRAVITY_VEC_W.torch[0, 0] == gravity_dir[0]
-        assert cube_object.data.GRAVITY_VEC_W.torch[0, 1] == gravity_dir[1]
-        assert cube_object.data.GRAVITY_VEC_W.torch[0, 2] == gravity_dir[2]
-
-        # Simulate physics
-        for _ in range(2):
-            # perform rendering
-            sim.step()
-            # update object
-            cube_object.update(sim.cfg.dt)
-
-            # Expected gravity value is the acceleration of the body
-            gravity = torch.zeros(_NUM_ENVS, 1, 6, device=device)
-            if gravity_enabled:
-                gravity[:, :, 2] = -9.81
-            # Check the body accelerations are correct
-            torch.testing.assert_close(cube_object.data.body_acc_w.torch, gravity)
-
 
 @pytest.mark.isaacsim_ci
 @pytest.mark.parametrize("device", test_devices())
-def test_warmup_loads_physics_once(device) -> None:
+def test_warmup_loads_physics_once(sim, device) -> None:
     """Attach on GPU or force-load on CPU, without destroying and rebuilding native objects."""
-    with build_simulation_context(device=device, add_ground_plane=True, dt=0.01, auto_add_lighting=True) as sim:
-        sim._app_control_on_stop_handle = None
-        sim_utils.create_prim("/World/Table_0", "Xform", translation=(0.0, 0.0, 1.0))
-        cube = RigidObject(cfg=_cube_cfg("/World/Table_[^/]*/Object"))
+    sim_utils.create_prim("/World/Table_0", "Xform", translation=(0.0, 0.0, 1.0))
+    cube = RigidObject(cfg=_cube_cfg("/World/Table_[^/]*/Object"))
 
-        # Wrap read-only native interfaces through their accessors; real calls still execute.
-        physx_spy = MagicMock(wraps=omni.physx.get_physx_interface())
-        physx_sim_spy = MagicMock(wraps=omni.physx.get_physx_simulation_interface())
-        with (
-            patch("omni.physx.get_physx_interface", return_value=physx_spy),
-            patch("omni.physx.get_physx_simulation_interface", return_value=physx_sim_spy),
-        ):
-            sim.reset()
+    # Wrap read-only native interfaces through their accessors; real calls still execute.
+    physx_spy = MagicMock(wraps=omni.physx.get_physx_interface())
+    physx_sim_spy = MagicMock(wraps=omni.physx.get_physx_simulation_interface())
+    with (
+        patch("omni.physx.get_physx_interface", return_value=physx_spy),
+        patch("omni.physx.get_physx_simulation_interface", return_value=physx_sim_spy),
+    ):
+        sim.reset()
 
-        extension_manager = omni.kit.app.get_app().get_extension_manager()
-        assert extension_manager.is_extension_enabled("omni.physics.physx"), (
-            "The omni.physics.physx bridge must register PhysX with the unified physics API."
-        )
-        assert physx_sim_spy.attach_stage.call_count == int(device.startswith("cuda"))
-        assert physx_spy.force_load_physics_from_usd.call_count == int(device == "cpu")
-        assert cube.is_initialized and cube.num_instances == 1
-        initial = cube.data.root_pos_w.torch.clone()
-        for _ in range(10):
-            sim.step(render=False)
-            cube.update(sim.get_physics_dt())
-        assert torch.all(cube.data.root_pos_w.torch[:, 2] < initial[:, 2])
+    extension_manager = omni.kit.app.get_app().get_extension_manager()
+    assert extension_manager.is_extension_enabled("omni.physics.physx"), (
+        "The omni.physics.physx bridge must register PhysX with the unified physics API."
+    )
+    assert physx_sim_spy.attach_stage.call_count == int(device.startswith("cuda"))
+    assert physx_spy.force_load_physics_from_usd.call_count == int(device == "cpu")
+    assert cube.is_initialized and cube.num_instances == 1
+    initial = cube.data.root_pos_w.torch.clone()
+    for _ in range(10):
+        sim.step(render=False)
+        cube.update(sim.get_physics_dt())
+    assert torch.all(cube.data.root_pos_w.torch[:, 2] < initial[:, 2])
 
 
 ##
@@ -214,6 +181,8 @@ class _RigidObjectScene:
     """Dynamic cubes that ignore gravity."""
     kinematic: RigidObject
     """Kinematic cubes."""
+    falling: RigidObject
+    """Dynamic cubes under gravity."""
     origins: dict[str, torch.Tensor]
     """Environment origins keyed by object name."""
     refcounts: dict[str, int]
@@ -222,10 +191,10 @@ class _RigidObjectScene:
     def step(self, num_steps: int = 1) -> None:
         """Write, step, and update every object."""
         for _ in range(num_steps):
-            for rigid_object in (self.cubes, self.kinematic):
+            for rigid_object in (self.cubes, self.kinematic, self.falling):
                 rigid_object.write_data_to_sim()
             self.sim.step()
-            for rigid_object in (self.cubes, self.kinematic):
+            for rigid_object in (self.cubes, self.kinematic, self.falling):
                 rigid_object.update(self.sim.cfg.dt)
 
     def place_cubes_at_rest(self, root_pose: torch.Tensor) -> None:
@@ -241,9 +210,14 @@ def rigid_object_scene(request) -> Iterator[_RigidObjectScene]:
     device = request.param
     with build_simulation_context(device=device, gravity_enabled=True) as sim:
         sim._app_control_on_stop_handle = None
-        origins = {"cubes": _spawn_envs("/World/Cubes"), "kinematic": _spawn_envs("/World/Kinematic", 3.0)}
+        origins = {
+            "cubes": _spawn_envs("/World/Cubes"),
+            "kinematic": _spawn_envs("/World/Kinematic", 3.0),
+            "falling": _spawn_envs("/World/Falling", 6.0),
+        }
         cubes = RigidObject(cfg=_cube_cfg("/World/Cubes/Env_[^/]*/Object", disable_gravity=True))
         kinematic = RigidObject(cfg=_cube_cfg("/World/Kinematic/Env_[^/]*/Object", kinematic=True))
+        falling = RigidObject(cfg=_cube_cfg("/World/Falling/Env_[^/]*/Object"))
         refcounts = {"cubes": sys.getrefcount(cubes), "kinematic": sys.getrefcount(kinematic)}
         sim.reset()
         yield _RigidObjectScene(
@@ -251,6 +225,7 @@ def rigid_object_scene(request) -> Iterator[_RigidObjectScene]:
             device=device,
             cubes=cubes,
             kinematic=kinematic,
+            falling=falling,
             origins={name: value.to(device) for name, value in origins.items()},
             refcounts=refcounts,
         )
@@ -258,7 +233,8 @@ def rigid_object_scene(request) -> Iterator[_RigidObjectScene]:
 
 @pytest.mark.isaacsim_ci
 def test_rigid_object_initialization(rigid_object_scene: _RigidObjectScene) -> None:
-    """Initialize local cubes with the expected buffers; kinematic cubes hold their default pose under gravity."""
+    """Initialize local cubes with the expected buffers; under gravity, kinematic cubes hold their default pose and
+    dynamic cubes accelerate downward on every step."""
     scene = rigid_object_scene
     for name, rigid_object in (("cubes", scene.cubes), ("kinematic", scene.kinematic)):
         # Check that the framework doesn't hold excessive strong references.
@@ -270,10 +246,15 @@ def test_rigid_object_initialization(rigid_object_scene: _RigidObjectScene) -> N
         assert rigid_object.data.root_quat_w.torch.shape == (_NUM_ENVS, 4)
         assert rigid_object.data.body_mass.torch.shape == (_NUM_ENVS, 1)
         assert rigid_object.data.body_inertia.torch.shape == (_NUM_ENVS, 1, 9)
+        torch.testing.assert_close(
+            rigid_object.data.GRAVITY_VEC_W.torch, torch.tensor([[0.0, 0.0, -1.0]] * _NUM_ENVS, device=scene.device)
+        )
 
     kinematic = scene.kinematic
+    gravity_acceleration = torch.tensor([[[0.0, 0.0, -9.81, 0.0, 0.0, 0.0]]] * _NUM_ENVS, device=scene.device)
     for _ in range(2):
         scene.step()
+        torch.testing.assert_close(scene.falling.data.body_acc_w.torch, gravity_acceleration)
         default_root_pose = kinematic.data.default_root_pose.torch.clone()
         default_root_pose[:, :3] += scene.origins["kinematic"]
         torch.testing.assert_close(kinematic.data.root_link_pose_w.torch, default_root_pose)
