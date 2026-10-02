@@ -72,11 +72,14 @@ jobs:
       with:
         # Check all markdown files and documentation
         # Excluded are known crawl blockers
+        # 502/503/504 are transient (GitHub throttles runners) and lychee does not retry them,
+        # so accept them like 429 and keep them out of the shared cache so later runs re-check.
         args: >-
           --verbose
           --no-progress
           --cache
           --max-cache-age 1d
+          --cache-exclude-status 429,502,503,504
           --exclude-path './docs/_build'
           --exclude-path './apps/warp-*'
           --exclude-path './logs'
@@ -118,7 +121,7 @@ jobs:
           --retry-wait-time 10
           --timeout 20
           --user-agent 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-          --accept 200,201,202,203,204,206,301,302,303,307,308,429
+          --accept 200,201,202,203,204,206,301,302,303,307,308,429,502,503,504
           --scheme https
           --scheme http
           '*.md'
