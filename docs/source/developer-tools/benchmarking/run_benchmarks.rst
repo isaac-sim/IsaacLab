@@ -148,7 +148,7 @@ so these profiled runs are diagnostics rather than throughput measurements.
    .. code-block:: json
 
       {
-        "schema_version": "1.4",
+        "schema_version": "1.5",
         "run": {
           "config": {"physics_backend": "physx", "rendering_backend": "none", "presets": ["physx"]},
           "task": "Isaac-Cartpole-Direct", "seed": 42, "status": "completed", "num_envs": 4096
@@ -183,7 +183,7 @@ so these profiled runs are diagnostics rather than throughput measurements.
    .. code-block:: json
 
       {
-        "schema_version": "1.4",
+        "schema_version": "1.5",
         "run": {
           "config": {
             "physics_backend": "physx", "rendering_backend": "isaacsim_rtx",

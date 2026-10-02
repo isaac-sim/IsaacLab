@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Public schema for Isaac Lab benchmark bundles (v1.4).
+"""Public schema for Isaac Lab benchmark bundles (v1.5).
 
 Defines the on-disk JSON schema produced by the benchmark workflows
 in :mod:`isaaclab.benchmark.entrypoints`.
@@ -17,7 +17,7 @@ Each bundle is self-contained: every top-level bundle carries its own
 :class:`Versions` and :class:`Hardware` metadata so a reader need not
 cross-reference other files in the bundle directory.
 
-Current version: 1.4
+Current version: 1.5
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ import math
 from dataclasses import dataclass, field
 from typing import Literal
 
-SCHEMA_VERSION = "1.4"
+SCHEMA_VERSION = "1.5"
 
 Framework = Literal["rsl_rl", "rl_games", "skrl", "sb3"]
 PhysicsBackend = Literal["physx", "newton_mjwarp", "newton_kamino", "ovphysx"]
@@ -146,11 +146,15 @@ class RunConfig:
             resolutions, and any other domain presets are captured without a
             closed enum; ``physics_backend`` / ``rendering_backend`` surface the
             two primary grouping dimensions as typed fields.
+        physics_solvers: Every physics solver in the concrete physics configuration
+            (e.g. ``["newton_mjwarp", "newton_vbd"]`` for a coupled Newton run), so
+            composite runs are distinguishable from single-solver runs.
     """
 
     physics_backend: PhysicsBackend
     rendering_backend: RenderingBackend = "none"
     presets: list[str] = field(default_factory=list)
+    physics_solvers: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)

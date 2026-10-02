@@ -221,10 +221,15 @@ def test_run_config_uses_concrete_backend_configuration():
     assert cfg.physics_backend == "newton_mjwarp"
     assert cfg.rendering_backend == "isaacsim_rtx"
     assert cfg.presets == []
+    assert cfg.physics_solvers == ["newton_mjwarp"]
 
     physx_env_cfg = SimpleNamespace(sim=SimpleNamespace(physics=SimpleNamespace(class_type="PhysXManager")))
     cfg = run_config_from_env_cfg(physx_env_cfg)
     assert cfg.physics_backend == "physx"
+    assert cfg.physics_solvers == ["physx"]
+
+    ovphysx_env_cfg = SimpleNamespace(sim=SimpleNamespace(physics=SimpleNamespace(class_type="OvPhysxManager")))
+    assert run_config_from_env_cfg(ovphysx_env_cfg).physics_solvers == ["ovphysx"]
 
     default_env_cfg = SimpleNamespace(sim=SimpleNamespace(physics=None))
     assert run_config_from_env_cfg(default_env_cfg).physics_backend == "physx"
@@ -253,7 +258,9 @@ def test_run_config_uses_concrete_backend_configuration():
             )
         )
     )
-    assert run_config_from_env_cfg(coupled_newton_env_cfg).physics_backend == "newton_mjwarp"
+    cfg = run_config_from_env_cfg(coupled_newton_env_cfg)
+    assert cfg.physics_backend == "newton_mjwarp"
+    assert cfg.physics_solvers == ["newton_mjwarp", "newton_vbd"]
 
     with pytest.raises(ValueError, match="Unsupported concrete physics config"):
         run_config_from_env_cfg(SimpleNamespace(sim=SimpleNamespace(physics=object())))

@@ -255,8 +255,20 @@ def _iter_config_nodes(root: object) -> Iterator[object]:
         )
 
 
-def _backends_from_env_cfg(env_cfg: object) -> tuple[str | None, str | None]:
-    """Return active backend names from a concrete environment configuration."""
+_PHYSICS_SOLVER_MARKERS = (
+    ("ovphysx", "ovphysx"),
+    ("kamino", "newton_kamino"),
+    ("mjwarp", "newton_mjwarp"),
+    ("featherstone", "newton_featherstone"),
+    ("xpbd", "newton_xpbd"),
+    ("vbd", "newton_vbd"),
+    ("mpm", "newton_mpm"),
+    ("physx", "physx"),
+)
+
+
+def _backends_from_env_cfg(env_cfg: object) -> tuple[str | None, list[str], str | None]:
+    """Return active backend and solver names from a concrete environment configuration."""
     physics_cfg = getattr(getattr(env_cfg, "sim", None), "physics", None)
     physics_descriptors = (
         ["physx"]
@@ -279,6 +291,13 @@ def _backends_from_env_cfg(env_cfg: object) -> tuple[str | None, str | None]:
         ),
         None,
     )
+    solvers: set[str] = set()
+    for descriptor in physics_descriptors:
+        for marker, name in _PHYSICS_SOLVER_MARKERS:
+            if marker in descriptor:
+                solvers.add(name)
+                # Keep "ovphysx" from also matching "physx".
+                descriptor = descriptor.replace(marker, "")
 
     renderer_names = {"isaac_rtx": "isaacsim_rtx", "ovrtx": "ovrtx", "newton_warp": "newton"}
     rendering = None
@@ -286,7 +305,7 @@ def _backends_from_env_cfg(env_cfg: object) -> tuple[str | None, str | None]:
         rendering = renderer_names.get(getattr(node, "renderer_type", None))
         if rendering is not None:
             break
-    return physics, rendering
+    return physics, [name for _, name in _PHYSICS_SOLVER_MARKERS if name in solvers], rendering
 
 
 def run_config_from_env_cfg(env_cfg: object) -> RunConfig:
@@ -301,13 +320,14 @@ def run_config_from_env_cfg(env_cfg: object) -> RunConfig:
     Raises:
         ValueError: If the config does not contain a supported concrete physics backend.
     """
-    physics, rendering = _backends_from_env_cfg(env_cfg)
+    physics, solvers, rendering = _backends_from_env_cfg(env_cfg)
     if physics is None:
         physics_cfg = getattr(getattr(env_cfg, "sim", None), "physics", None)
         raise ValueError(f"Unsupported concrete physics config: {type(physics_cfg).__name__}.")
     return RunConfig(
         physics_backend=physics,
         rendering_backend=rendering or "none",
+        physics_solvers=solvers,
     )
 
 
