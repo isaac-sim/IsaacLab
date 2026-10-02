@@ -69,7 +69,8 @@ Prerequisites
 Installation
 ------------
 
-From the Isaac Lab root directory:
+For GR00T N1.5, run the following from the Isaac Lab root directory. For N1.7, use
+the alternative model dependencies below.
 
 .. code-block:: bash
 
@@ -107,8 +108,8 @@ Isaac Lab lockfile. Use ``uv run --no-sync`` for the commands below so that
 
 .. _rlinf-skipping-flash-attn:
 
-Skipping flash-attn
-~~~~~~~~~~~~~~~~~~~
+Skipping flash-attn for N1.5
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 If Step 4 fails, skip installation of flash-attn and apply this patch instead:
 
@@ -118,7 +119,40 @@ If Step 4 fails, skip installation of flash-attn and apply this patch instead:
    git apply /path/to/IsaacLab/scripts/imitation_learning/locomanipulation_sdg/gr00t/no_flash_attn.patch
 
 The patch switches GR00T to PyTorch SDPA, so flash-attn is no longer required.
-The training and evaluation commands below work unchanged.
+The training and evaluation commands below work unchanged. This patch does not apply to N1.7.
+
+GR00T N1.7
+~~~~~~~~~~
+
+Use a separate Python 3.12 Isaac Lab environment: N1.5 and N1.7 install the same ``gr00t``
+package with incompatible APIs. After Step 1 above, replace Steps 2–4 with:
+
+.. code-block:: bash
+
+   uv pip install --no-deps \
+       "git+https://github.com/RLinf/RLinf.git@0f9ea98c7a6d9e3ade24e8f4846c64d3b135dbcc" \
+       "git+https://github.com/NVIDIA/Isaac-GR00T.git@1a1837f20538b7d7e21f977a11a5aee14f99803c" \
+       "transformers==4.57.3" "tokenizers>=0.22,<0.23"
+   uv pip install --no-deps --no-build-isolation "flash-attn==2.8.3"
+
+Set ``actor.model.model_type: gr00t_n1d7`` in the task YAML. RLinf loads the model and
+processor from ``model_path``; ``data_config_class`` is only used for N1.5. The checkpoint
+must include ``processor_config.json``, ``statistics.json``, and ``embodiment_id.json``
+at its root or in a ``processor/`` subdirectory.
+
+Match the checkpoint's language key and the environment's action order explicitly. For example,
+these entries belong under ``env.train.isaaclab``:
+
+.. code-block:: yaml
+
+   gr00t_mapping:
+     language: annotation.human.task_description
+     # Keep the checkpoint's video and state mappings here as well.
+   action_mapping:
+     keys: [action.left_arm, action.right_arm, action.left_hand, action.right_hand]
+
+Without these entries, the language key remains ``annotation.human.action.task_description``
+and actions retain the model's dictionary order. Use ``uv run --no-sync`` to preserve the pins.
 
 .. _rlinf-decord-aarch64:
 
