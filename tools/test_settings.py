@@ -49,7 +49,6 @@ PER_TEST_TIMEOUTS = {
     "test_visualizer_golden_newton.py": 6000,
     "test_visuotactile_sensor.py": 1000,
     "test_visuotactile_render.py": 1000,
-    "test_rigid_object_collection.py": 1500,
     "test_outdated_sensor.py": 1000,
     "test_multi_tiled_camera.py": 1000,
     "test_multirotor.py": 1000,
