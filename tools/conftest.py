@@ -715,21 +715,6 @@ def _unslugify_queue_entry(entry_name):
     return entry_name.replace("__", "/")
 
 
-def _queue_claim_order(entry_name):
-    """Sort key that claims the longest-running queued tests first.
-
-    A file claimed late sets the tail of its shard, so claim by the per-file timeout (the
-    existing hint for long files), then by file size, which tracks the test count.
-    """
-    path = _unslugify_queue_entry(entry_name)
-    timeout = test_settings.PER_TEST_TIMEOUTS.get(os.path.basename(path), test_settings.DEFAULT_TIMEOUT)
-    try:
-        size = os.path.getsize(path)
-    except OSError:
-        size = 0
-    return -timeout, -size, entry_name
-
-
 def _claim_queued_file(queue_dir):
     """Atomically claim one pending test from the work-queue directory.
 
@@ -762,7 +747,7 @@ def _claim_queued_file(queue_dir):
     # an entry we'd otherwise try. We pay one listdir per claim attempt; with
     # N≤20 entries this is microseconds.
     try:
-        entries = sorted(os.listdir(pending_dir), key=_queue_claim_order)
+        entries = sorted(os.listdir(pending_dir))
     except FileNotFoundError:
         return None
 
