@@ -1058,7 +1058,10 @@ jobs:
       run: |
         set -euo pipefail
         controller="${RUNNER_TEMP}/performance-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-        mkdir -p "$controller/tools" "$controller/baseline-output"
+        # Cache versions include the path, so keep this stable across runs.
+        baseline_output=../performance-smoke-baseline
+        mkdir -p "$controller/tools" "$baseline_output"
+        find "$baseline_output" -mindepth 1 -delete
         cp -a tools/perf_smoke "$controller/tools/"
         cp benchmark-legs.tsv "$controller/benchmark-legs.tsv"
         if [ -d jit-cache ]; then
@@ -1067,7 +1070,7 @@ jobs:
           mkdir "$controller/jit-cache"
         fi
         echo "PERF_CONTROLLER=$controller" >> "$GITHUB_ENV"
-        echo "PERF_BASELINE_OUTPUT=$controller/baseline-output" >> "$GITHUB_ENV"
+        echo "PERF_BASELINE_OUTPUT=$baseline_output" >> "$GITHUB_ENV"
         echo "PERF_JIT_CACHE=$controller/jit-cache" >> "$GITHUB_ENV"
 
     - name: Resolve exact pull-request pair
