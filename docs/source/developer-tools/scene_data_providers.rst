@@ -157,13 +157,25 @@ reuses the hierarchy topology. Clean requests never acquire writable Fabric arra
 Renderers do not select a physics-specific synchronization path.
 The same Fabric resource receives geometry through ``update_geometries(provider, frame)``.
 PhysX publishes its native ``FabricPoints`` without a conversion or rewrite. Foreign mesh points
-are interpolated directly into GPU Fabric storage. ``Points`` destinations also use GPU Fabric
-on Kit 110.4 and newer, keeping the SDP particle-position upload on the device. Older Kit versions and
+are interpolated directly into GPU Fabric storage. ``Points`` destinations use GPU Fabric
+on Kit 110.4 and newer when RTX Points geometry streaming is disabled, keeping the SDP
+particle-position upload on the device. Older Kit versions, streamed ``Points``, and
 ``BasisCurves`` use CPU Fabric destinations; SDP handles their device transfer without USD
 attribute writes. Only destinations whose update interval has elapsed are updated. World-space
 point destinations reset their transform stack to avoid applying the environment or body pose twice.
-GPU Fabric point uploads still need additional RTX integration: moving-particle rendering fails
-on Isaac Sim 6.2.0-rc.11 with Kit 110.4, even when Fabric contains the updated positions.
+Isaac Sim 6.2.0-rc.11 / Kit 110.4 renders GPU position changes through its procedural Points
+path, but its geometry-streaming path leaves the image stale. Points streaming is enabled by
+default, including when ``/UJITSO/geometry`` is false or ``/UJITSO/geometryTypes`` is empty.
+To use GPU particle updates, set the following Kit arguments before creating the scene:
+
+.. code-block:: text
+
+   --kit_args "--/UJITSO/geometry=false --/UJITSO/geometryTypes=Mesh"
+
+This configuration enables geometry streaming for meshes and excludes Points. Gaussian
+rendering requires Points streaming; retain the CPU particle fallback for scenes that need it.
+This removes the SDP particle-position readback; unrelated Fabric/RTX synchronization and
+small renderer metadata transfers can still occur.
 ``FabricMatrix44`` and ``FabricPoints`` contain only array storage, not bindings or native engine handles.
 
 Newton backend

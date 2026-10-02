@@ -1,3 +1,3 @@
-* Selected GPU Fabric storage for particle-point destinations on Kit 110.4 and newer, while
-  retaining CPU Fabric fallback for older Kit versions and curve geometry. RTX moving-particle
-  integration remains incomplete on Isaac Sim 6.2.0-rc.11.
+* Added GPU Fabric particle-point updates on Kit 110.4 and newer when RTX Points geometry
+  streaming is disabled. Older Kit versions, streamed Points, and curve geometry retain CPU
+  Fabric destinations because Kit 110.4's streamed Points do not render GPU position changes.

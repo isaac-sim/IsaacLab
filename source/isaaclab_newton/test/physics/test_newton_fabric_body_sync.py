@@ -47,6 +47,7 @@ from usdrt import Sdf as RtSdf
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
+from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, CableObjectCfg, RigidObjectCfg
 from isaaclab.envs.utils.video_recorder import VideoRecorder
 from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
@@ -436,12 +437,15 @@ def test_nested_articulation_follows_root_pose_writes():
 
 @pytest.mark.isaacsim_ci
 @pytest.mark.skipif(not wp.get_cuda_device_count(), reason="CUDA is unavailable")
-@pytest.mark.parametrize("legacy_kit", [False, True], ids=["native-kit", "legacy-kit-fallback"])
-def test_fabric_geometry_sink_uses_sdp_world_points_and_frame_cadence(monkeypatch, legacy_kit):
+@pytest.mark.parametrize("point_path", ["gpu", "legacy-kit", "streaming"])
+def test_fabric_geometry_sink_uses_sdp_world_points_and_frame_cadence(
+    monkeypatch, particle_render_settings, point_path
+):
     """Mesh, curve and cloud sinks consume only named SDP buffers, independent of Newton internals."""
     kit_version = tuple(map(int, simulation_app.get_kit_version_short().split(".")))
-    gpu_points = not legacy_kit and kit_version >= (110, 4)
-    if legacy_kit:
+    gpu_points = point_path == "gpu" and kit_version >= (110, 4)
+    particle_render_settings.set("/UJITSO/geometryTypes", "Points" if point_path == "streaming" else "Mesh")
+    if point_path == "legacy-kit":
         app = Mock(wraps=simulation_app)
         app.get_kit_version_short.return_value = "110.3"
         monkeypatch.setattr(omni.kit.app, "get_app", lambda: app)
@@ -535,8 +539,10 @@ def test_fabric_geometry_sink_uses_sdp_world_points_and_frame_cadence(monkeypatc
 
 @pytest.mark.isaacsim_ci
 @pytest.mark.skipif(not wp.get_cuda_device_count(), reason="CUDA is unavailable")
-def test_mpm_particle_writes_and_resets_are_visible_in_rtx():
+@pytest.mark.parametrize("point_path", ["gpu", "streaming"])
+def test_mpm_particle_writes_and_resets_are_visible_in_rtx(particle_render_settings, point_path):
     """RTX must render particle writes and resets independently for cloned MPM assets."""
+    particle_render_settings.set("/UJITSO/geometryTypes", "Points" if point_path == "streaming" else "Mesh")
 
     @configclass
     class ParticleSceneCfg(InteractiveSceneCfg):
@@ -679,6 +685,19 @@ def _frame_scene(frame_path: str, translation, device: str = "cuda:0"):
             yield sim, scene, view
         finally:
             sim.register_interactive_scene(None)
+
+
+@pytest.fixture
+def particle_render_settings():
+    """Restore the process-wide geometry settings after each particle render case."""
+    settings = get_settings_manager()
+    original = {path: settings.get(path) for path in ("/UJITSO/geometry", "/UJITSO/geometryTypes")}
+    settings.set("/UJITSO/geometry", False)
+    try:
+        yield settings
+    finally:
+        for path, value in original.items():
+            settings.set(path, value)
 
 
 def _render(sim, scene) -> None:
