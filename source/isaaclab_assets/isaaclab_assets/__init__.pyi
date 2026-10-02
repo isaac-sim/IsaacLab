@@ -4,6 +4,9 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
+    "MICRODUCK_CFG",
+    "MICRODUCK_ALLCOLLISIONS_CFG",
+    "MICRODUCK_ROLLERS_CFG",
     "AGIBOT_A2D_CFG",
     "LEG_JOINT_NAMES",
     "ARM_JOINT_NAMES",
@@ -74,6 +77,9 @@ ISAACLAB_ASSETS_METADATA: dict
 __version__: str
 
 from .robots import (
+    MICRODUCK_CFG,
+    MICRODUCK_ALLCOLLISIONS_CFG,
+    MICRODUCK_ROLLERS_CFG,
     AGIBOT_A2D_CFG,
     LEG_JOINT_NAMES,
     ARM_JOINT_NAMES,
