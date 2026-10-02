@@ -442,7 +442,11 @@ jobs:
         standalone-script-scope: "demos"
         standalone-script-visualizer: "default"
         standalone-script-runtime-group: kit
+        # Dedicated sensor tests cover raycasting; keep these example launches available for manual runs.
+        test-k-expr: "not (multi_mesh_raycaster or newton_raycast or raycaster_sensor)"
         warp-cache: restore
+        ovrtx-shader-cache: restore
+        test-jobs: "2"
         result-file: "test-standalone-demos-kit-report.xml"
         container-name: isaac-lab-standalone-demos-kit-test
         omni-github-test-type: standalone-demo
@@ -473,7 +477,10 @@ jobs:
         standalone-script-scope: "demos"
         standalone-script-visualizer: "default"
         standalone-script-runtime-group: non-kit
+        test-k-expr: "not (multi_mesh_raycaster or newton_raycast or raycaster_sensor)"
         warp-cache: restore
+        ovrtx-shader-cache: restore
+        test-jobs: "2"
         result-file: "test-standalone-demos-non-kit-report.xml"
         container-name: isaac-lab-standalone-demos-non-kit-test
         omni-github-test-type: standalone-demo

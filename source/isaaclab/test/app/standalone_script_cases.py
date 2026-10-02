@@ -212,8 +212,12 @@ OVERRIDES = {
         visualizers=("newton_gl",),
         required_modules=("isaaclab_contrib",),
     ),
-    "examples/demos/snowball_smash.py": ScriptOverride(fixed_physics_backend="newton_mpm"),
-    "examples/demos/teapot_fill.py": ScriptOverride(fixed_physics_backend="newton_mpm"),
+    # Smoke launches retain every robot family and MPM solver path with smaller scenes.
+    "examples/demos/zoo.py": ScriptOverride(args=("--num_envs", "1")),
+    "examples/demos/snowball_smash.py": ScriptOverride(
+        args=("--voxel_size", "0.1"), fixed_physics_backend="newton_mpm"
+    ),
+    "examples/demos/teapot_fill.py": ScriptOverride(args=("--voxel_size", "0.006"), fixed_physics_backend="newton_mpm"),
     "examples/multi_asset.py": ScriptOverride(args=("--num_envs", "4")),
     "examples/demos/newton_viewer_block_and_tackle.py": ScriptOverride(
         fixed_physics_backend="newton_vbd",
