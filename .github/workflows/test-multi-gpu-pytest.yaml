@@ -188,6 +188,34 @@ jobs:
           fetch-depth: 1
           lfs: true
 
+      # TEMP (revert before review): probe the runner and whether it can read the single-GPU ECR repo.
+      - name: "TEMP: probe runner identity and ECR access"
+        continue-on-error: true
+        run: |
+          set +e
+          t=$(curl -sX PUT http://169.254.169.254/latest/api/token -H 'X-aws-ec2-metadata-token-ttl-seconds: 300')
+          imds() { curl -s -H "X-aws-ec2-metadata-token: $t" "http://169.254.169.254/latest/meta-data/$1"; }
+          echo "instance-type: $(imds instance-type)  az: $(imds placement/availability-zone)"
+          echo "iam: $(imds iam/info | tr -d '\n ')"
+          echo "ECR_CACHE_URL=${ECR_CACHE_URL:-<unset>}"
+          nproc; free -g | head -2; nvidia-smi -L
+          aws sts get-caller-identity --output text
+          for repo in gitci-docker-cache multigpu-docker-cache; do
+            echo "== $repo"
+            aws ecr list-images --region us-west-2 --repository-name "$repo" --filter tagStatus=TAGGED --max-items 3 --output text 2>&1 | head -4
+            for tag in deps-a353077c2d464e46 cache-base; do
+              m=$(aws ecr batch-get-image --region us-west-2 --repository-name "$repo" --image-ids imageTag="$tag" \
+                  --accepted-media-types application/vnd.docker.distribution.manifest.v2+json application/vnd.oci.image.manifest.v1+json \
+                  application/vnd.oci.image.index.v1+json application/vnd.docker.distribution.manifest.list.v2+json \
+                  --query 'images[0].imageManifest' --output text 2>&1)
+              layer=$(python3 -c 'import json,sys; d=json.loads(sys.argv[1]); print(d["layers"][0]["digest"] if "layers" in d else "")' "$m" 2>/dev/null)
+              python3 -c 'import json,sys; d=json.loads(sys.argv[1]); "manifests" in d and print("  (index:", len(d["manifests"]), "manifests)")' "$m" 2>/dev/null
+              echo "batch-get-image $tag: ${layer:+manifest ok}${layer:-${m:0:200}}"
+              [ -n "$layer" ] && aws ecr get-download-url-for-layer --region us-west-2 --repository-name "$repo" \
+                --layer-digest "$layer" --query 'layerDigest' --output text 2>&1 | sed "s/^/download-url-for-layer: /"
+            done
+          done
+
       - name: Discover opt-in test files
         # Auto-discovery: any test_*.py with a non-default-capable scope — an
         # argless ``test_devices()``, a named scope containing non-default GPUs,
