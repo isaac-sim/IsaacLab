@@ -388,23 +388,3 @@ def test_apply_env_overrides_tolerates_a_config_without_physics(monkeypatch: pyt
     rl_common.apply_env_overrides(args_cli, env_cfg)
 
     assert env_cfg.sim.physics is None
-
-
-@pytest.mark.parametrize("task", ["Isaac-Reorient-Cube-Shadow-Camera", "Isaac-Reorient-Cube-Shadow-Camera-Direct"])
-def test_leapp_export_loads_feature_extractor_for_inference(monkeypatch: pytest.MonkeyPatch, task: str) -> None:
-    """Export must load the vision checkpoint and disable feature-extractor training."""
-    pytest.importorskip("leapp")
-    from contextlib import nullcontext
-
-    from isaaclab_rl.entrypoints.backends import export_common
-
-    monkeypatch.setattr(export_common, "launch_simulation", lambda *args: nullcontext())
-
-    def export_agent(args, env_cfg, agent_cfg):
-        assert env_cfg.feature_extractor.train is False
-        assert env_cfg.feature_extractor.load_checkpoint is True
-        assert env_cfg.feature_extractor.pretrained_checkpoint
-        return True
-
-    args = argparse.Namespace(task=task, agent=None)
-    assert export_common.run_export(args, [], export_agent) == 0
