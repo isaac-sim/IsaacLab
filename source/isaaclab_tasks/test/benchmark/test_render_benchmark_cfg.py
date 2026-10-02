@@ -155,18 +155,19 @@ def test_benchmark_mode_orders_joint_updates_and_rendering(mode):
 
 
 @pytest.mark.parametrize(
-    ("presets", "expected_type"),
+    ("presets", "expected_type", "expected_asset_physics"),
     [
-        ((), NewtonCfg),
-        (("physx",), PhysxAutoCfg),
-        (("isaacsim_physx",), PhysxCfg),
-        (("ovphysx",), OvPhysxCfg),
+        ((), NewtonCfg, "mujoco"),
+        (("physx",), PhysxAutoCfg, "physx"),
+        (("isaacsim_physx",), PhysxCfg, "physx"),
+        (("ovphysx",), OvPhysxCfg, "physx"),
     ],
 )
-def test_physics_presets_resolve_to_expected_backend(presets, expected_type):
+def test_physics_presets_resolve_to_expected_backend(presets, expected_type, expected_asset_physics):
     cfg = resolve_presets(_load_cfg(), selected=presets)
 
     assert isinstance(cfg.sim.physics, expected_type)
+    assert cfg.scene.robot.spawn.variants["Physics"] == expected_asset_physics
 
 
 @pytest.mark.parametrize("physics_preset", ["ovphysx", "physx"])
