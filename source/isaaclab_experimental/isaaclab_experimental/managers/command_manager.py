@@ -18,6 +18,7 @@ from prettytable import PrettyTable
 
 from isaaclab.managers.manager_term_cfg import CommandTermCfg
 from isaaclab.utils import instantiate
+from isaaclab.utils.seed import WarpRng
 
 from isaaclab_experimental.utils.warp.kernels import compute_reset_scale, count_masked
 
@@ -306,8 +307,6 @@ class CommandTerm(ManagerTermBase):
             raise TypeError(f"env_mask must be a wp.array (got {type(env_mask)}).")
         if env_mask.dtype != wp.bool or env_mask.ndim != 1:
             raise TypeError(f"env_mask must be wp.bool 1D (got dtype={env_mask.dtype}, ndim={env_mask.ndim}).")
-        if self._env.rng_state_wp is None:
-            raise RuntimeError("Environment rng_state_wp is not initialized.")
 
         # resample time-left and increment command-counter for masked envs
         wp.launch(
@@ -317,7 +316,7 @@ class CommandTerm(ManagerTermBase):
                 env_mask,
                 self.time_left_wp,
                 self.command_counter_wp,
-                self._env.rng_state_wp,
+                WarpRng.state,
                 float(self.cfg.resampling_time_range[0]),
                 float(self.cfg.resampling_time_range[1]),
             ],

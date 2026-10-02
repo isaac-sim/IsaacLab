@@ -279,15 +279,19 @@ class MockArticulationData:
 
 
 class MockWrenchComposer:
-    """Mock wrench composer that records the last forces and torques it was handed."""
+    """Mock wrench composer that records the last wrenches and selection it was handed."""
 
     def __init__(self):
         self.last_forces = None
         self.last_torques = None
+        self.last_body_mask = None
+        self.last_env_mask = None
 
-    def set_forces_and_torques_mask(self, forces=None, torques=None, **kw):
+    def set_forces_and_torques_mask(self, forces=None, torques=None, body_mask=None, env_mask=None, **kw):
         self.last_forces = forces
         self.last_torques = torques
+        self.last_body_mask = body_mask
+        self.last_env_mask = env_mask
 
 
 class MockArticulation:
@@ -484,7 +488,7 @@ class MockActionManagerTorch:
 
 
 class MockSceneEntityCfg:
-    """Unified cfg that works for both stable (joint_ids) and experimental (joint_mask / joint_ids_wp)."""
+    """Unified cfg that works for both stable (joint_ids) and experimental (joint_mask_wp / joint_ids_wp)."""
 
     def __init__(self, name: str, joint_ids: list[int], num_joints: int, device: str):
         self.name = name
@@ -494,7 +498,7 @@ class MockSceneEntityCfg:
         mask = [False] * num_joints
         for idx in joint_ids:
             mask[idx] = True
-        self.joint_mask = wp.array(mask, dtype=wp.bool, device=device)
+        self.joint_mask_wp = wp.array(mask, dtype=wp.bool, device=device)
         self.joint_ids_wp = wp.array(joint_ids, dtype=wp.int32, device=device)
 
 

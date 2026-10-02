@@ -163,6 +163,9 @@ class MjWarpTendonControl:
         articulation = self._articulation
         buffer = articulation.data._fixed_tendon_position_target
         articulation.assert_shape_and_dtype(target, buffer.shape, wp.float32, "target")
+        # the masked-copy kernel is generic, so it cannot take a torch tensor directly
+        if isinstance(target, torch.Tensor):
+            target = wp.from_torch(target, dtype=wp.float32)
         env_mask = articulation._resolve_mask(env_mask, articulation._ALL_ENV_MASK)
         fixed_tendon_mask = articulation._resolve_mask(fixed_tendon_mask, articulation._ALL_FIXED_TENDON_MASK)
         wp.launch(

@@ -16,11 +16,9 @@ from __future__ import annotations
 
 # import builtins
 import contextlib
-import importlib
 import logging
 import warnings
 from collections.abc import Sequence
-from copy import deepcopy
 from typing import Any
 
 import torch
@@ -33,29 +31,20 @@ from isaaclab.envs.utils.io_descriptors import (
     export_articulations_data,
     export_scene_data,
 )
+from isaaclab.managers import RecorderManager
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils import use_stage
 from isaaclab.utils import validate
-from isaaclab.utils.seed import configure_seed
+from isaaclab.utils.seed import WarpRng, configure_seed
 from isaaclab.utils.timer import Timer
 
 from isaaclab_experimental.envs.interactive_scene_warp import InteractiveSceneWarp as InteractiveScene
-from isaaclab_experimental.utils.manager_call_switch import ManagerCallMode, ManagerCallSwitch
+from isaaclab_experimental.managers import ActionManager, EventManager, ObservationManager
 from isaaclab_experimental.utils.warp import resolve_1d_mask
+from isaaclab_experimental.utils.warp_capture import CapturedStage
 
 # import logger
 logger = logging.getLogger(__name__)
-
-
-@wp.kernel
-def initialize_rng_state(
-    # input
-    seed: wp.int32,
-    # output
-    state: wp.array(dtype=wp.uint32),
-):
-    env_id = wp.tid()
-    state[env_id] = wp.rand_init(seed, wp.int32(env_id))
 
 
 class ManagerBasedEnvWarp:
@@ -89,15 +78,10 @@ class ManagerBasedEnvWarp:
             )
         # initialize internal variables
         self._is_closed = False
-        # temporary debug runtime config for manager source/call switching.
-        cfg_source: dict | str | None = getattr(self.cfg, "manager_call_config", None)
-        max_modes: dict[str, int] | None = getattr(self.cfg, "manager_call_max_mode", None)
-        self._manager_call_switch = ManagerCallSwitch(cfg_source, max_modes=max_modes)
-        self._apply_manager_term_cfg_profile()
 
         # set the seed for the environment
         if self.cfg.seed is not None:
-            self.cfg.seed = self.seed(self.cfg.seed)
+            self.cfg.seed = configure_seed(self.cfg.seed)
         else:
             logger.warning("Seed not set for the environment. The environment creation may not be deterministic.")
 
@@ -116,6 +100,10 @@ class ManagerBasedEnvWarp:
         # make sure torch is running on the correct device
         if "cuda" in self.device:
             torch.cuda.set_device(self.device)
+
+        # the managers' stages record CUDA graphs, and record again after the physics buffers rebind
+        CapturedStage.enabled = True
+        CapturedStage.invalidate_on(self.sim.physics_manager)
 
         # print useful information
         print("[INFO]: Base environment:")
@@ -147,22 +135,14 @@ class ManagerBasedEnvWarp:
                 # attach_stage_to_usd_context()
         print("[INFO]: Scene manager: ", self.scene)
 
-        # Shared per-env Warp RNG state (accessible to all managers/terms via `env`).
-        # This is a single stream per env (no lookup) and is initialized once when `num_envs` is known.
-        self.rng_state_wp = wp.zeros((self.num_envs,), dtype=wp.uint32, device=self.device)
-        seed_val = int(self.cfg.seed) if self.cfg.seed is not None else -1
-        wp.launch(
-            kernel=initialize_rng_state,
-            dim=self.num_envs,
-            inputs=[seed_val, self.rng_state_wp],
-            device=self.device,
-        )
+        # Process-wide per-env Warp RNG state (isaaclab.utils.seed.WarpRng), shared by terms, tasks and sensors.
+        WarpRng.initialize(self.num_envs, self.device)
 
-        # TODO(jichuanh): this is problematic as warp capture requires stable pointers,
-        #                 using different masks for different managers/terms will cause problems.
         # Pre-allocated env masks (shared across managers/terms via `env`).
         self.ALL_ENV_MASK = wp.ones((self.num_envs,), dtype=wp.bool, device=self.device)
         self.ENV_MASK = wp.zeros((self.num_envs,), dtype=wp.bool, device=self.device)
+        # Reset stages read this mask; every reset selection is copied into it.
+        self.reset_mask_wp = wp.zeros((self.num_envs,), dtype=wp.bool, device=self.device)
 
         # Persistent scalar buffer for global env step count (stable pointer for capture).
         self._global_env_step_count_wp = wp.zeros((1,), dtype=wp.int32, device=self.device)
@@ -170,7 +150,7 @@ class ManagerBasedEnvWarp:
         # create event manager
         # note: this is needed here (rather than after simulation play) to allow USD-related randomization events
         #   that must happen before the simulation starts. Example: randomizing mesh scale
-        self.event_manager = self._manager_call_switch.resolve_manager_class("EventManager")(self.cfg.events, self)
+        self.event_manager = EventManager(self.cfg.events, self)
 
         # apply USD-related randomization events
         if "prestartup" in self.event_manager.available_modes:
@@ -191,6 +171,10 @@ class ManagerBasedEnvWarp:
             # this shouldn't cause an issue since later on, users do a reset over all the environments so the lazy
             # buffers would be reset.
             self.scene.update(dt=self.physics_dt)
+        # let the physics backend know about the env decimation so it can
+        # fold the full loop into a single step() when possible
+        self.sim.physics_manager.set_decimation(self.cfg.decimation)
+        self._physics_handles_decimation = self.sim.physics_manager.handles_decimation()
 
         # TODO(jichuanh): This is a temporary solution for event_manager only, but it should be general for all managers
         # Resolve SceneEntityCfg-dependent term params once before any captured event paths.
@@ -377,17 +361,13 @@ class ManagerBasedEnvWarp:
         # -- event manager (we print it here to make the logging consistent)
         print("[INFO] Event Manager: ", self.event_manager)
         # -- recorder manager
-        self.recorder_manager = self._manager_call_switch.resolve_manager_class("RecorderManager")(
-            self.cfg.recorders, self
-        )
+        self.recorder_manager = RecorderManager(self.cfg.recorders, self)
         print("[INFO] Recorder Manager: ", self.recorder_manager)
         # -- action manager
-        self.action_manager = self._manager_call_switch.resolve_manager_class("ActionManager")(self.cfg.actions, self)
+        self.action_manager = ActionManager(self.cfg.actions, self)
         print("[INFO] Action Manager: ", self.action_manager)
         # -- observation manager
-        self.observation_manager = self._manager_call_switch.resolve_manager_class("ObservationManager")(
-            self.cfg.observations, self
-        )
+        self.observation_manager = ObservationManager(self.cfg.observations, self)
         print("[INFO] Observation Manager:", self.observation_manager)
 
         # perform events at the start of the simulation
@@ -413,11 +393,15 @@ class ManagerBasedEnvWarp:
     """
 
     def reset(
-        self, seed: int | None = None, env_ids: Sequence[int] | None = None, options: dict[str, Any] | None = None
+        self,
+        seed: int | None = None,
+        env_ids: Sequence[int] | None = None,
+        options: dict[str, Any] | None = None,
+        env_mask: wp.array | torch.Tensor | None = None,
     ) -> tuple[VecEnvObs, dict]:
         """Resets the specified environments and returns observations.
 
-        This function calls the :meth:`_reset_idx` function to reset the specified environments.
+        This function calls the :meth:`_reset_mask` function to reset the specified environments.
         However, certain operations, such as procedural terrain generation, that happened during initialization
         are not repeated.
 
@@ -429,30 +413,30 @@ class ManagerBasedEnvWarp:
                 Note:
                     This argument is used for compatibility with Gymnasium environment definition.
 
+            env_mask: Boolean mask of the environments to reset, of shape ``(num_envs,)``. Takes precedence
+                over :paramref:`env_ids`. Defaults to None.
+
         Returns:
             A tuple containing the observations and extras.
         """
-        if env_ids is None:
-            env_ids = torch.arange(self.num_envs, dtype=torch.int64, device=self.device)
+        if env_mask is not None and self.recorder_manager.active_terms:
+            # the stable recorder manager hooks take indices; a mask takes precedence over the caller's ids
+            env_mask = self.resolve_env_mask(env_mask=env_mask)
+            env_ids = wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1)
+        env_mask = self.resolve_env_mask(env_ids=env_ids, env_mask=env_mask)
 
         # trigger recorder terms for pre-reset calls
         self.recorder_manager.record_pre_reset(env_ids)
 
         # set the seed
         if seed is not None:
-            used_seed = self.seed(seed)
+            # also reseeds the per-env Warp RNG state in place (stable pointer for capture)
+            used_seed = configure_seed(seed)
             # keep cfg seed in sync for downstream users
             self.cfg.seed = used_seed
-            # re-initialize per-env Warp RNG state without reallocating (stable pointer for capture)
-            wp.launch(
-                kernel=initialize_rng_state,
-                dim=self.num_envs,
-                inputs=[int(used_seed), self.rng_state_wp],
-                device=self.device,
-            )
 
         # reset state of scene
-        self._reset_idx(env_ids)
+        self._reset_mask(env_mask)
 
         # update articulation kinematics
         self.scene.write_data_to_sim()
@@ -504,9 +488,9 @@ class ManagerBasedEnvWarp:
 
         # set the seed
         if seed is not None:
-            self.seed(seed)
+            configure_seed(seed)
 
-        self._reset_idx(env_ids)
+        self._reset_mask(self.resolve_env_mask(env_ids=env_ids))
 
         # set the state
         self.scene.reset_to(state, env_ids, is_relative=is_relative)
@@ -544,13 +528,7 @@ class ManagerBasedEnvWarp:
             A tuple containing the observations and extras.
         """
         # process actions
-        action_device = action.to(self.device)
-        if action_device.dtype != torch.float32:
-            action_device = action_device.float()
-        if not action_device.is_contiguous():
-            action_device = action_device.contiguous()
-        action_wp = wp.from_torch(action_device, dtype=wp.float32)
-        self.action_manager.process_action(action_wp)
+        self.action_manager.process_action(action.to(self.device))
 
         self.recorder_manager.record_pre_step()
 
@@ -558,9 +536,10 @@ class ManagerBasedEnvWarp:
         # note: hoisted out of the decimation loop; is_rendering does live settings lookups
         is_rendering = self.sim.is_rendering
 
-        # perform physics stepping
-        for _ in range(self.cfg.decimation):
-            self._sim_step_counter += 1
+        # physics-owned decimation covers all substeps in one call
+        steps_per_call = self.cfg.decimation if self._physics_handles_decimation else 1
+        for _ in range(self.cfg.decimation // steps_per_call):
+            self._sim_step_counter += steps_per_call
             # set actions into buffers
             self.action_manager.apply_action()
             # set actions into simulator
@@ -572,8 +551,7 @@ class ManagerBasedEnvWarp:
             #    If a camera needs rendering at a faster frequency, this will lead to unexpected behavior.
             if self._sim_step_counter % self.cfg.sim.render_interval == 0 and is_rendering:
                 self.sim.render()
-            # update buffers at sim dt
-            self.scene.update(dt=self.physics_dt)
+            self.scene.update(dt=self.physics_dt * steps_per_call)
 
         # post-step: step interval event
         if "interval" in self.event_manager.available_modes:
@@ -607,6 +585,7 @@ class ManagerBasedEnvWarp:
             del self.event_manager
             del self.recorder_manager
             del self.scene
+            CapturedStage.disable()
 
             # self.sim.clear_all_callbacks()
             self.sim.clear_instance()
@@ -621,118 +600,36 @@ class ManagerBasedEnvWarp:
     Helper functions.
     """
 
-    def _resolve_stable_cfg_counterpart(self) -> ManagerBasedEnvCfg | None:
-        """Resolve a stable task config counterpart for the current experimental task config.
-
-        The lookup follows a module-name mirror convention:
-        ``isaaclab_tasks_experimental...`` -> ``isaaclab_tasks...`` with the same config class name.
-        """
-        cfg_cls = self.cfg.__class__
-        cfg_module_name = cfg_cls.__module__
-        if "isaaclab_tasks_experimental" not in cfg_module_name:
-            return None
-
-        stable_module_name = cfg_module_name.replace("isaaclab_tasks_experimental", "isaaclab_tasks", 1)
-        try:
-            stable_module = importlib.import_module(stable_module_name)
-        except Exception as exc:
-            logger.warning(
-                "Failed to import stable task cfg module '%s' for manager_call_config stable mode: %s",
-                stable_module_name,
-                exc,
-            )
-            return None
-
-        stable_cfg_cls = getattr(stable_module, cfg_cls.__name__, None)
-        if stable_cfg_cls is None:
-            logger.warning(
-                "Stable task cfg class '%s' not found in module '%s'.",
-                cfg_cls.__name__,
-                stable_module_name,
-            )
-            return None
-
-        try:
-            return stable_cfg_cls()
-        except Exception as exc:
-            logger.warning(
-                "Failed to instantiate stable task cfg '%s.%s': %s",
-                stable_module_name,
-                cfg_cls.__name__,
-                exc,
-            )
-            return None
-
-    def _apply_manager_term_cfg_profile(self) -> None:
-        """Align term configs with manager modes for stable manager selections.
-
-        When a manager is configured as STABLE (0), swap its corresponding config subtree
-        from the stable task counterpart to keep manager-term type/signature compatibility.
-        """
-        manager_to_cfg_attr = {
-            "ActionManager": "actions",
-            "ObservationManager": "observations",
-            "EventManager": "events",
-            "RecorderManager": "recorders",
-            "CommandManager": "commands",
-            "TerminationManager": "terminations",
-            "RewardManager": "rewards",
-            "CurriculumManager": "curriculum",
-        }
-
-        stable_manager_names = [
-            manager_name
-            for manager_name in manager_to_cfg_attr
-            if self._manager_call_switch.get_mode_for_manager(manager_name) == ManagerCallMode.STABLE
-        ]
-        if not stable_manager_names:
-            return
-
-        stable_cfg = self._resolve_stable_cfg_counterpart()
-        if stable_cfg is None:
-            logger.warning(
-                "Stable managers requested (%s), but no stable cfg counterpart could be resolved."
-                " Keeping experimental term configs.",
-                ", ".join(stable_manager_names),
-            )
-            return
-
-        replaced_items: list[str] = []
-        for manager_name, cfg_attr in manager_to_cfg_attr.items():
-            if self._manager_call_switch.get_mode_for_manager(manager_name) != ManagerCallMode.STABLE:
-                continue
-            if not hasattr(self.cfg, cfg_attr) or not hasattr(stable_cfg, cfg_attr):
-                continue
-            setattr(self.cfg, cfg_attr, deepcopy(getattr(stable_cfg, cfg_attr)))
-            replaced_items.append(f"{manager_name} -> cfg.{cfg_attr}")
-
-        if replaced_items:
-            print("[INFO] Applied stable term config profile for managers:")
-            for item in replaced_items:
-                print(f"  - {item}")
-
-    def _reset_idx(self, env_ids: Sequence[int]):
-        """Reset environments based on specified indices.
+    def _reset_mask(self, env_mask: wp.array):
+        """Reset the environments selected by a boolean mask.
 
         Args:
-            env_ids: List of environment ids which must be reset
+            env_mask: Boolean mask of the environments to reset, of shape ``(num_envs,)``.
         """
+        # recorded reset stages read the environment-owned mask
+        if env_mask is not self.reset_mask_wp:
+            wp.copy(self.reset_mask_wp, env_mask)
+        env_mask = self.reset_mask_wp
+        # the stable recorder manager resets by index
+        env_ids = (
+            wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1) if self.recorder_manager.active_terms else None
+        )
+
         # reset the internal buffers of the scene elements
-        self.scene.reset(env_ids)
+        self.scene.reset(env_mask=env_mask)
 
         # apply events such as randomization for environments that need a reset
         if "reset" in self.event_manager.available_modes:
             env_step_count = self._sim_step_counter // self.cfg.decimation
             self._global_env_step_count_wp.fill_(env_step_count)
             self.event_manager.apply(
-                mode="reset", env_ids=env_ids, global_env_step_count=self._global_env_step_count_wp
+                mode="reset", env_mask_wp=env_mask, global_env_step_count=self._global_env_step_count_wp
             )
 
         # iterate over all managers and reset them
         # this returns a dictionary of information which is stored in the extras
         # note: This is order-sensitive! Certain things need be reset before others.
         self.extras["log"] = dict()
-        env_mask = self.resolve_env_mask(env_ids=env_ids)
         # -- observation manager
         info = self.observation_manager.reset(env_mask=env_mask)
         self.extras["log"].update(info)
@@ -745,3 +642,8 @@ class ManagerBasedEnvWarp:
         # -- recorder manager
         info = self.recorder_manager.reset(env_ids)
         self.extras["log"].update(info)
+        # the managers log persistent buffers that the next reset overwrites, and RL libraries keep the log of
+        # every step until they average it, so hand out copies like the stable managers' fresh tensors
+        self.extras["log"] = {
+            key: value.clone() if torch.is_tensor(value) else value for key, value in self.extras["log"].items()
+        }

@@ -26,10 +26,10 @@ class SceneEntityCfg(_SceneEntityCfg):
     """Scene entity configuration with an optional Warp joint mask.
 
     Notes:
-    - `joint_mask` is intended for Warp kernels only.
+    - `joint_mask_wp` is intended for Warp kernels only.
     """
 
-    joint_mask: wp.array | None = None
+    joint_mask_wp: wp.array | None = None
 
     """Integer indices of selected joints — used for subset-sized gathers where a boolean mask
     cannot provide the mapping from output index k to joint index."""
@@ -37,6 +37,9 @@ class SceneEntityCfg(_SceneEntityCfg):
 
     """Integer indices of selected bodies — used for subset-sized body gathers."""
     body_ids_wp: wp.array | None = None
+
+    """Boolean mask of selected bodies — used for masked per-body writes."""
+    body_mask_wp: wp.array | None = None
 
     @classmethod
     def from_stable(cls, stable: _SceneEntityCfg) -> SceneEntityCfg:
@@ -63,11 +66,18 @@ class SceneEntityCfg(_SceneEntityCfg):
                 mask_list = [False] * entity.num_joints
                 for idx in joint_ids_list:
                     mask_list[idx] = True
-            self.joint_mask = wp.array(mask_list, dtype=wp.bool, device=scene.device)
+            self.joint_mask_wp = wp.array(mask_list, dtype=wp.bool, device=scene.device)
             self.joint_ids_wp = wp.array(joint_ids_list, dtype=wp.int32, device=scene.device)
 
-        # -- Warp body ids
+        # -- Warp body ids / mask
         if self.body_ids is not None and self.body_ids != slice(None):
-            self.body_ids_wp = wp.array(list(self.body_ids), dtype=wp.int32, device=scene.device)
+            body_ids_list = list(self.body_ids)
         elif hasattr(entity, "num_bodies"):
-            self.body_ids_wp = wp.array(list(range(entity.num_bodies)), dtype=wp.int32, device=scene.device)
+            body_ids_list = list(range(entity.num_bodies))
+        else:
+            return
+        self.body_ids_wp = wp.array(body_ids_list, dtype=wp.int32, device=scene.device)
+        if hasattr(entity, "num_bodies"):
+            selected = set(body_ids_list)
+            mask_list = [idx in selected for idx in range(entity.num_bodies)]
+            self.body_mask_wp = wp.array(mask_list, dtype=wp.bool, device=scene.device)
