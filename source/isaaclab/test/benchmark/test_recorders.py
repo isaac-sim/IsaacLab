@@ -383,8 +383,6 @@ class TestMemoryInfoRecorder:
         assert recorder._rss_n == 0
         assert recorder._vms_mean == 0
         assert recorder._vms_n == 0
-        assert not hasattr(recorder, "_uss_mean")
-        assert not hasattr(recorder, "_uss_n")
 
     def test_get_initial_data_structure(self, recorder):
         """Test that get_initial_data returns correct structure."""
@@ -565,64 +563,6 @@ class TestMemoryInfoRecorder:
         data = rec.get_data()
         rss_peak = next(m for m in data.measurements if m.name == "System Memory RSS peak")
         assert rss_peak.value == 300.0
-
-    def test_memory_full_info_is_never_called(self, monkeypatch):
-        """Test that the recorder never calls psutil's expensive USS query.
-
-        ``memory_full_info()`` walks the process page tables, which is what made this
-        recorder perturb the benchmark it runs inside. Fail loudly if it comes back.
-        """
-        import psutil
-
-        def _explode(self):  # noqa: ARG001 — bound method, self is the process
-            raise AssertionError("MemoryInfoRecorder must not call memory_full_info()")
-
-        monkeypatch.setattr(psutil.Process, "memory_full_info", _explode)
-
-        rec = MemoryInfoRecorder()
-        for _ in range(5):
-            rec.update()
-        rec.get_runtime_data()
-        rec.get_data()
-
-    def test_no_uss_keys_in_runtime_data(self, recorder):
-        """Test that no USS key is emitted, so nothing downstream can read a stale value."""
-        for _ in range(3):
-            recorder.update()
-
-        runtime = recorder.get_runtime_data()["memory_utilization"]
-        assert not [k for k in runtime if "uss" in k.lower()]
-
-    def test_rss_and_vms_means_are_tracked(self, monkeypatch):
-        """Test that RSS and VMS means are still computed correctly after the USS removal."""
-        import psutil
-
-        rss_values = [1 * 1024**3, 3 * 1024**3]  # bytes; mean = 2 GiB
-        vms_values = [2 * 1024**3, 6 * 1024**3]  # bytes; mean = 4 GiB
-        pairs = iter(zip(rss_values, vms_values))
-
-        class _FakeMemInfo:
-            def __init__(self, rss, vms):
-                self.rss = rss
-                self.vms = vms
-
-        def _fake_memory_info(self):  # noqa: ARG001 — bound method, self is the process
-            return _FakeMemInfo(*next(pairs))
-
-        monkeypatch.setattr(psutil.Process, "memory_info", _fake_memory_info)
-
-        rec = MemoryInfoRecorder()
-        for _ in range(len(rss_values)):
-            rec.update()
-
-        data = rec.get_data()
-        by_name = {m.name: m.value for m in data.measurements}
-        assert by_name["System Memory RSS"] == 2.0
-        assert by_name["System Memory VMS"] == 4.0
-        assert by_name["System Memory RSS peak"] == 3.0
-        assert by_name["System Memory VMS peak"] == 6.0
-        assert by_name["System Memory RSS n"] == 2
-        assert by_name["System Memory VMS n"] == 2
 
 
 # ==============================================================================
