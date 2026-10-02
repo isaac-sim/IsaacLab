@@ -11,8 +11,11 @@ import argparse
 import contextlib
 import os
 
+from rsl_rl.runners import DistillationRunner, OnPolicyRunner
+
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.envs import DirectMARLEnvCfg
+from isaaclab.utils import to_dict
 from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.string import list_intersection
@@ -20,13 +23,7 @@ from isaaclab.utils.string import list_intersection
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import get_checkpoint_path, resolve_task_config, setup_preset_cli
 
-from ...rsl_rl import (
-    RslRlBaseRunnerCfg,
-    RslRlVecEnvWrapper,
-    check_rsl_rl_version,
-    create_rsl_rl_runner,
-    handle_deprecated_rsl_rl_cfg,
-)
+from ...rsl_rl import RslRlBaseRunnerCfg, RslRlVecEnvWrapper
 from ...utils.wandb import is_wandb_checkpoint, resolve_wandb_checkpoint
 from ..common import (
     CHECKPOINT_SELECTORS,
@@ -101,8 +98,6 @@ def _resolve_checkpoint(
 def run(argv: list[str]) -> None:
     """Play a checkpoint of an RSL-RL agent."""
     args_cli = _parse_args(argv)
-    installed_version = check_rsl_rl_version()
-
     with startup_screen(args_cli, num_stages=3) as screen:
         env_cfg, agent_cfg = resolve_task_config(args_cli.task, args_cli.agent, play_mode=not args_cli.train_env_cfg)
         pre_launch_video_config(env_cfg, args_cli)
@@ -110,7 +105,6 @@ def run(argv: list[str]) -> None:
         with launch_simulation(env_cfg, args_cli), contextlib.ExitStack() as cleanup:
             show_run_summary(screen, args_cli, env_cfg, library="rsl_rl", action="play")
             agent_cfg = cli_args.update_rsl_rl_cfg(agent_cfg, args_cli)
-            agent_cfg = handle_deprecated_rsl_rl_cfg(agent_cfg, installed_version)
             # the agent runs on the device launch_simulation resolved for the simulation
             agent_cfg.device = env_cfg.sim.device
             apply_env_overrides(args_cli, env_cfg)
@@ -138,7 +132,12 @@ def run(argv: list[str]) -> None:
             screen.stage("Loading policy")
             env = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
             print(f"[INFO]: Loading model checkpoint from: {resume_path}")
-            runner = create_rsl_rl_runner(env, agent_cfg)
+            if agent_cfg.class_name == "OnPolicyRunner":
+                runner = OnPolicyRunner(env, to_dict(agent_cfg), log_dir=None, device=agent_cfg.device)
+            elif agent_cfg.class_name == "DistillationRunner":
+                runner = DistillationRunner(env, to_dict(agent_cfg), log_dir=None, device=agent_cfg.device)
+            else:
+                raise ValueError(f"Unsupported runner class: {agent_cfg.class_name}")
             # configure_seed must run after runner construction so torch determinism does not disturb its initialization
             if args_cli.deterministic:
                 configure_seed(env_cfg.seed, torch_deterministic=True)

@@ -2535,24 +2535,20 @@ The details below describe how CLI visualizer arguments resolve together with
 
 - ``--viz`` accepts **comma-separated** values (for example ``--viz kit,newton_gl``).
   ``"newton"`` is a deprecated alias for ``"newton_gl"``; prefer ``"newton_gl"`` or ``"newton_rtx"``.
-- If omitted, visualizers are resolved from ``SimulationCfg.visualizer_cfgs``.
-- ``--viz none`` explicitly disables all visualizers, including config-defined ones.
+- If omitted, no visualizer runs. ``SimulationCfg.visualizer_cfgs`` only configures the visualizers
+  ``--viz`` selects: a selected type uses the configured visualizer of that type, with its settings, or
+  else its default config.
 
 For the full behavior of visualizer resolution with the visualizer CLI argument and visualizer configs,
 see :ref:`visualization-common-modes`.
 
-**Breaking change — ``--headless`` no longer suppresses visualizers.**
+**Breaking change — ``--headless`` is removed.**
 
 In Isaac Lab 2.x, passing ``--headless`` disabled all visualizers regardless of ``--viz``.
-In Isaac Lab 3.0, ``--headless`` and ``--viz`` are independent:
-
-- ``--headless`` controls the simulation rendering pipeline (Kit app mode, GPU context).
-- ``--viz <type>`` controls which visualizer backends to launch.
-
-Passing ``--viz kit --headless`` now launches a Kit visualizer in headless mode using the
-Replicator offscreen renderer (no display window required).  Passing ``--viz newton_gl --headless``
-launches a Newton GL visualizer using pyglet's EGL headless backend.  To disable all visualizers
-explicitly, use ``--viz none``.
+In Isaac Lab 3.0 the flag is removed: a run opens windows only for the visualizers ``--viz`` selects,
+and runs without visualizers when ``--viz`` is omitted. To keep a selected visualizer windowless, e.g. on a
+machine without a display, set ``HEADLESS=1``: ``--viz kit`` then renders through the Replicator offscreen
+renderer and ``--viz newton_gl`` through pyglet's EGL backend.
 
 .. list-table:: Headless visualizer requirements
    :header-rows: 1
@@ -2575,23 +2571,15 @@ explicitly, use ``--viz none``.
 **Headless video recording (``--video`` without ``--viz``).**
 
 In Isaac Lab 2.x, ``--video`` alone would use the Kit Replicator pipeline implicitly.
-In Isaac Lab 3.0, the equivalent is:
+In Isaac Lab 3.0, ``--video`` alone records from a headless Newton GL visualizer. The equivalent of the
+2.x behavior records from a headless Kit visualizer, configured by the Kit visualizer of the task config
+if it lists one:
 
 .. code-block:: bash
 
-   # Record from Kit viewport headlessly (equivalent to 2.x --video behaviour)
-   uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Direct \
-       --viz kit --enable_cameras --headless --video
+   uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Direct --video viz:kit
 
-As a convenience, passing ``--video`` without ``--viz`` still works: Isaac Lab
-auto-creates a headless Kit visualizer (falling back to Newton GL if Kit is unavailable)
-and sets ``source="visualizer:kit"`` on the default recorder, printing:
-
-.. code-block:: text
-
-   [INFO] --video specified without --viz: adding a headless Kit visualizer to record
-   from. Pass --viz <type> to choose a different visualizer, or set video_recorders in
-   your env config to record from a scene sensor instead.
+See :ref:`the --video sources <record_video_cli>`.
 
 
 .. rubric:: Viewport Camera Configuration (``ViewerCfg`` deprecated)
@@ -2631,7 +2619,7 @@ For asset-body tracking (previously ``origin_type="asset_root"`` / ``"asset_body
 
    # After (Isaac Lab 3.x)
    from isaaclab_visualizers.kit import KitVisualizerCfg
-   env_cfg.sim.visualizer_cfgs = [KitVisualizerCfg(origin_type="asset", origin_track_path="robot")]
+   env_cfg.sim.visualizer_cfgs = [KitVisualizerCfg(origin_type="asset", origin_track_path="robot")]  # --viz kit
 
 The :class:`~isaaclab.envs.ui.ViewportCameraController` class is also deprecated; camera
 tracking is handled directly by :class:`~isaaclab_visualizers.kit.KitVisualizer`.
@@ -2742,9 +2730,9 @@ Similarly, when importing the config class directly:
    from isaaclab_visualizers.newton import NewtonGLVisualizerCfg  # or NewtonRTXVisualizerCfg
    cfg = NewtonGLVisualizerCfg()
 
-The ``source="visualizer:newton"`` string in :class:`~isaaclab.envs.utils.video_recorder_cfg.VideoRecorderCfg`
-continues to work as a backward-compatible alias for ``"visualizer:newton_gl"``, but
-``"visualizer:newton_gl"`` and ``"visualizer:newton_rtx"`` are now the canonical source strings.
+The ``newton`` type in a :class:`~isaaclab.envs.utils.video_recorder_cfg.VideoRecorderCfg` source (e.g.
+``source="visualizer:newton"``) continues to work as a deprecated alias for ``newton_gl``; use
+``"viz:newton_gl"`` or ``"viz:newton_rtx"``.
 
 
 .. rubric:: Video Recording (``gym.wrappers.RecordVideo`` replaced)
@@ -2762,14 +2750,13 @@ environment config, sourcing frames from the active visualizer or a scene sensor
    # After (Isaac Lab 3.x)
    from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
    env_cfg.video_recorders = [
-       VideoRecorderCfg(source="visualizer", output_dir="videos/", video_length=200)
+       VideoRecorderCfg(source="viz", output_dir="videos/", video_length=200)
    ]
    env = gym.make(task, cfg=env_cfg)
 
-Available sources: ``"visualizer"`` (auto-pick), ``"visualizer:kit"``, ``"visualizer:newton_gl"``,
-``"visualizer:newton_rtx"``, ``"visualizer:newton_gl:tiled"``, ``"sensor:<name>"``.
-``"visualizer:newton"`` and ``"visualizer:newton:tiled"`` remain as deprecated backward-compatible
-aliases for ``"visualizer:newton_gl"`` and ``"visualizer:newton_gl:tiled"`` respectively.
+Available sources: ``"viz"`` (auto-pick), ``"viz:kit"``, ``"viz:newton_gl"``, ``"viz:newton_rtx"``,
+``"viz:<type>:streaming_view"``, ``"sensor:<name>[:<channel>]"``. ``visualizer`` is accepted as the long
+form of ``viz``; the ``newton`` type remains a deprecated alias of ``newton_gl``.
 The ``eye`` and ``lookat`` fields have been removed from ``VideoRecorderCfg``; position the
 camera via ``sim.default_visualizer_cfg`` instead.
 
@@ -3302,19 +3289,19 @@ For a complete guide to multi-backend support, see the "Multi-Backend Support: P
 Pattern" section above.
 
 
-.. rubric:: XR Teleoperation: Isaac Teleop Integration
+.. rubric:: XR Teleoperation: Isaac Capture Integration
 
 The native XR teleoperation stack in ``isaaclab.devices.openxr`` has been deprecated and replaced
-by `Isaac Teleop <https://github.com/NVIDIA/IsaacTeleop>`_, integrated via the ``isaaclab_teleop``
+by `Isaac Capture <https://github.com/NVIDIA/IsaacCapture>`_, integrated via the ``isaaclab_teleop``
 extension. The ``isaac-teleop-device-plugins`` repository has also been deprecated; all device
-plugin support is now in Isaac Teleop.
+plugin support is now in Isaac Capture.
 
 For full documentation on the new stack, see :ref:`isaac-teleop-feature`.
 
 
 **Installation Requirement**
 
-Isaac Teleop must now be installed in your Isaac Lab environment:
+Isaac Capture must now be installed in your Isaac Lab environment:
 
 .. code-block:: bash
 
@@ -3340,7 +3327,7 @@ See :ref:`install-isaac-teleop` for complete installation instructions.
    * - ``from isaaclab.devices.openxr import ManusVive``
      - ``from isaaclab_teleop import IsaacTeleopDevice`` (with Manus plugin configured)
    * - ``from isaaclab.devices import RetargeterBase``
-     - Use Isaac Teleop ``BaseRetargeter`` and pipeline builder pattern
+     - Use Isaac Capture ``BaseRetargeter`` and pipeline builder pattern
    * - ``from isaaclab.devices.openxr.retargeters import Se3AbsRetargeter``
      - ``from isaacteleop.retargeters import Se3AbsRetargeter``
 

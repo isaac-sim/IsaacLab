@@ -194,7 +194,7 @@ mimic = [
 teleop = [
     "isaaclab-teleop",
     "isaaclab-mimic",
-    "isaacteleop[retargeters,ui,cloudxr]~=1.4.0 ; platform_system == 'Linux' and platform_machine == 'x86_64'",
+    "isaacteleop[retargeters,ui,cloudxr]~=1.4.145 ; platform_system == 'Linux' and platform_machine == 'x86_64'",
     "dex-retargeting==0.5.0 ; platform_system == 'Linux' and platform_machine == 'x86_64'",
 ]
 rlinf = [

@@ -8,7 +8,7 @@ This script demonstrates how to run the RL environment for the cartpole balancin
 
 .. code-block:: bash
 
-    uv run python scripts/tutorials/03_envs/run_cartpole_rl_env.py --num_envs 32
+    uv run python scripts/tutorials/03_envs/run_cartpole_rl_env.py --num_envs 32 --viz kit
 
 Trailing ``key=value`` arguments (e.g. ``physics=isaacsim_physx``) are forwarded as Hydra-style
 overrides to the task configuration; see :func:`~isaaclab_tasks.utils.parse_env_cfg`.
@@ -28,8 +28,6 @@ parser.add_argument("--num_envs", type=int, default=16, help="Number of environm
 
 # append simulation launcher cli args
 add_launcher_args(parser)
-# tutorials should open Kit visualizer by default
-parser.set_defaults(visualizer=["kit"])
 # parse the arguments, forwarding unrecognized ones as Hydra-style task config overrides
 args_cli, hydra_overrides = parser.parse_known_args()
 
