@@ -122,7 +122,7 @@ class SimulationContext:
         # Store config
         self.cfg = SimulationCfg() if cfg is None else cfg
         self._backend_registry: list[tuple[Any, Any]] = []
-        self.clone_contexts: dict[type, Any] = {}
+        self.clone_contexts: dict[type[cloner.ReplicateContext], cloner.ReplicateContext] = {}
         """Clone-context instances registered by type before plan dispatch; not native resource owners."""
 
         use_isaac_sim = has_kit()

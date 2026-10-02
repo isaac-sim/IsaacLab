@@ -28,6 +28,7 @@ from isaaclab_visualizers.newton.newton_visualizer_cfg import (
 from isaaclab_visualizers.rerun.rerun_visualizer_cfg import RerunVisualizerCfg
 from isaaclab_visualizers.viser.viser_visualizer_cfg import ViserVisualizerCfg
 
+from isaaclab.cloner import ReplicateContext
 from isaaclab.markers.vis_marker_registry import VisMarkerRegistry
 from isaaclab.sim.simulation_context import SimulationContext
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
@@ -316,11 +317,14 @@ def test_reset_initializes_visualizers_before_playing_timeline():
         def play():
             events.append("play")
 
-    class _CloneContext:
+    class _CloneContext(ReplicateContext):
         @staticmethod
         def prepare(sim, routing):
             assert sim is ctx and set(routing) == {_CloneContext}
             events.append("prepare")
+
+        def replicate(self, plan, asset_prototype_ids):
+            pytest.fail("Reset preparation must not execute cloning.")
 
     class _RenderContext:
         clone_contexts = (_CloneContext,)

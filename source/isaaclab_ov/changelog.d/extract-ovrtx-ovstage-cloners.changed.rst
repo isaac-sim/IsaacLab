@@ -17,3 +17,6 @@
   opting into OVStage and acquired their resources only after deciding scene ownership.
 * Rebuilt shared stages from current USD during forced physics initialization after releasing camera and scene
   bindings and detaching consumers. Physics and rendering observed new masses and geometry after reinitialization.
+* **Breaking:** Removed the OVStage 0.1 and OVRTX 0.4 compatibility modules and their version fallbacks.
+  Used the pinned SDKs' GPU hierarchy model and RenderVar prim-path keys directly. Code importing
+  ``ovstage_compat`` or ``renderers.ovrtx_compat`` must use OVStage 0.2 and OVRTX 0.5 APIs directly.

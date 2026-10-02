@@ -160,7 +160,14 @@ def test_ovrtx_renderer_config_enables_supported_runtime_options(monkeypatch, tm
         yield object()
         stage_releases.append(label)
 
-    monkeypatch.setattr("isaaclab_ov.stage.create_ovstage", lambda _: stage_resource("stage"))
+    def create_stage(name, config):
+        assert (
+            config.runtime_default_hierarchy_computation_model
+            is ovrtx_renderer_module.ovstage.HierarchyComputationModel.GPU_INCREMENTAL
+        )
+        return stage_resource("stage")
+
+    monkeypatch.setattr(ovrtx_renderer_module.ovstage, "Stage", create_stage)
     monkeypatch.setattr(ovrtx_renderer_module.ovstage, "PathDictionary", lambda _: stage_resource("paths"))
 
     sim = SimulationContext.instance()
@@ -731,15 +738,11 @@ def test_ovrtx_process_frame_routes_ppisp_hdr_to_output_device(monkeypatch, sour
         clone.assert_called_once_with(source, device="cpu")
 
 
-# Render-var keys depend only on the OVRTX version; ``use_ovstage`` only selects the registration path.
-@pytest.mark.parametrize(("use_ovstage", "version"), [(False, "0.4"), (True, "0.5")])
-def test_ovrtx_process_frame_reads_authored_camera_render_vars(monkeypatch, use_ovstage, version):
+@pytest.mark.parametrize("use_ovstage", [False, True])
+def test_ovrtx_process_frame_reads_authored_camera_render_vars(monkeypatch, use_ovstage):
     """Both OVRTX APIs extract each camera's outputs using keys from its authored USD."""
-    from packaging.version import Version
-
     from pxr import Usd
 
-    monkeypatch.setattr(ovrtx_renderer_module, "OVRTX_VERSION", Version(version))
     renderer = _make_ovrtx_renderer_without_backend()
     renderer._initialized_scene = True
     renderer._device = "cpu"
@@ -792,9 +795,7 @@ def test_ovrtx_process_frame_reads_authored_camera_render_vars(monkeypatch, use_
         )
         stage = stages[render_data.render_product_path]
         keys = {
-            prim.GetAttribute("sourceName").Get(): (
-                str(prim.GetPath()) if version == "0.5" else prim.GetAttribute("sourceName").Get()
-            )
+            prim.GetAttribute("sourceName").Get(): str(prim.GetPath())
             for prim in stage.Traverse()
             if prim.GetTypeName() == "RenderVar"
         }

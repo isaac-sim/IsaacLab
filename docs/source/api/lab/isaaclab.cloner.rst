@@ -18,6 +18,7 @@
       PrototypeWorldTopology
       CloneCfg
       InclusionSet
+      ReplicateContext
       ReplicateSession
       UsdReplicateContext
 
@@ -76,6 +77,9 @@ Additional Public Classes
 
 .. autoclass:: InclusionSet
    :show-inheritance:
+
+.. autoclass:: ReplicateContext
+   :members:
 
 .. autoclass:: ReplicateSession
    :show-inheritance:

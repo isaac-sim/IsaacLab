@@ -126,19 +126,8 @@ def _clone_recipes(
     return recipes
 
 
-class OvPhysxReplicateContext:
+class OvPhysxReplicateContext(cloner.ReplicateContext):
     """Apply one clone plan to an OvPhysX simulation."""
-
-    replicate_priority = 0
-
-    def __init__(self, sim_context: SimulationContext):
-        """Initialize the context.
-
-        Args:
-            sim_context: Simulation context that owns this clone backend.
-        """
-        self._sim = sim_context
-        self.stage = sim_context.stage
 
     def replicate(self, plan: ClonePlan, asset_prototype_ids: tuple[int, ...]) -> None:
         """Publish clone operations from this context's source declarations.
@@ -162,17 +151,17 @@ class OvPhysxReplicateContext:
                 if (asset := plan.topology.world_prototypes[index]) in asset_prototype_ids:
                     copies.append(((sources[asset], templates[index]), targets))
         env_ids = np.arange(len(plan.topology.world_prototype_layout))
-        recipes = _clone_recipes(self.stage, copies, env_ids, plan.positions, None)
+        recipes = _clone_recipes(self._sim.stage, copies, env_ids, plan.positions, None)
         self._sim.physics_manager._clone_recipes.extend(recipes)
 
 
-class OvrtxReplicateContext:
+class OvrtxReplicateContext(cloner.ReplicateContext):
     """Prepare routed copies for OVRTX engines that own their scene internally."""
 
     replicate_priority = 100
 
     @staticmethod
-    def prepare(sim: SimulationContext, routing: dict[type, set[int]]) -> None:
+    def prepare(sim: SimulationContext, routing: dict[type[cloner.ReplicateContext], set[int]]) -> None:
         """Resolve OVRTX's clone route and acquire resources before replication begins.
 
         Args:
@@ -231,14 +220,6 @@ class OvrtxReplicateContext:
             if cfg.async_rendering and use_ovstage:
                 logger.warning("Asynchronous OVRTX rendering is unsupported with ovstage; rendering synchronously.")
 
-    def __init__(self, sim_context: SimulationContext):
-        """Initialize the context.
-
-        Args:
-            sim_context: Simulation owning this representation's backends.
-        """
-        self._sim = sim_context
-
     def replicate(self, plan: ClonePlan, asset_prototype_ids: tuple[int, ...]) -> None:
         """Publish routed copies, environment paths and positions to native OVRTX scene owners.
 
@@ -252,18 +233,10 @@ class OvrtxReplicateContext:
         _prepare_scene_copies(plan, asset_prototype_ids, backends)
 
 
-class OvstageReplicateContext:
+class OvstageReplicateContext(cloner.ReplicateContext):
     """Prepare routed copies for simulation-owned stages, independently of their consumers."""
 
     replicate_priority = 100
-
-    def __init__(self, sim_context: SimulationContext):
-        """Initialize the context.
-
-        Args:
-            sim_context: Simulation owning this representation's backends.
-        """
-        self._sim = sim_context
 
     def replicate(self, plan: ClonePlan, asset_prototype_ids: tuple[int, ...]) -> None:
         """Publish routed copies, environment paths and positions to simulation-owned stages.
