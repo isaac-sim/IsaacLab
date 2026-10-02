@@ -8,10 +8,12 @@
 Setup:
     - none; each test launches a real multi-rank training run as a subprocess
 Tests:
-    - physics-only task on 2 GPUs -> verify training completes, writes one run directory with each
-      rank's settings, and releases the process group
-    - each of the seven runnable backend stacks on 4 GPUs, in the host's device
-      order and exposed as ``3,1,2,0`` -> verify training completes
+    - physics-only task on every visible GPU -> verify training completes, writes one run
+      directory with each rank's settings, and releases the process group
+    - each of the seven runnable backend stacks on every visible GPU, in the host's device
+      order and rotated by one (``1,...,N-1,0``) -> verify training completes
+
+Every case launches one rank per visible GPU and needs at least two.
 
 ``CUDA_VISIBLE_DEVICES`` renumbers devices for CUDA but not for the graphics stack, so only a
 reordered mask makes the two indices disagree. That case is what exercises renderer device
@@ -69,12 +71,8 @@ _FAILURE_OUTPUT_CHARS = 8000
 _PHYSICS_ONLY_TASK = "Isaac-Cartpole-Direct"
 _CAMERA_TASK = "Isaac-Cartpole-Camera-Direct"
 
-# Four ranks rather than two: with two, a wrong device assignment can still land on a visible GPU
-# by chance.
-_CAMERA_RANKS = 4
-
-# Not sorted and not contiguous-from-zero, so no rank resolves by assuming the list is ordered.
-_UNORDERED_DEVICES = (3, 1, 2, 0)
+# Fewest ranks a multi-GPU case can launch; below this every case skips.
+_MIN_RANKS = 2
 
 # The backend grid is 3 physics x 3 renderers; two of the nine cells cannot run at all, rejected
 # before launch by ``sim_launcher._validate_runtime`` because OVRTX and OvPhysX are kitless and
@@ -95,8 +93,8 @@ _STACKS = [
 ]
 
 _DEVICE_ORDERS = [
-    pytest.param(None, id="default_order"),
-    pytest.param(_UNORDERED_DEVICES, id="unordered_devices"),
+    pytest.param(False, id="default_order"),
+    pytest.param(True, id="unordered_devices"),
 ]
 
 
@@ -156,7 +154,7 @@ def _gpu_processes() -> str:
 
 
 def _run_training(
-    devices: tuple[int, ...] | None,
+    devices: tuple[str, ...] | None,
     task: str,
     presets: str,
     num_gpus: int,
@@ -185,7 +183,7 @@ def _run_training(
     if devices is None:
         env.pop("CUDA_VISIBLE_DEVICES", None)
     else:
-        env["CUDA_VISIBLE_DEVICES"] = ",".join(str(index) for index in devices)
+        env["CUDA_VISIBLE_DEVICES"] = ",".join(devices)
     env["PYTHONUNBUFFERED"] = "1"
 
     cmd = [
@@ -281,7 +279,7 @@ def _kill_process_group(process: subprocess.Popen) -> None:
 
 
 def _assert_training_passed(
-    outcome: str, output: str, gpu_processes: str, devices: tuple[int, ...] | None = None
+    outcome: str, output: str, gpu_processes: str, devices: tuple[str, ...] | None = None
 ) -> None:
     """Assert a training subprocess actually trained, not merely exited cleanly."""
     where = f" on CUDA_VISIBLE_DEVICES={devices}" if devices is not None else " with no device mask"
@@ -291,14 +289,31 @@ def _assert_training_passed(
     )
 
 
-def _require_devices(count: int) -> None:
-    """Skip unless the host can address ``count`` CUDA devices."""
+def _visible_gpus() -> int:
+    """Return how many CUDA devices the host can address; skip below :data:`_MIN_RANKS`."""
     # Local import so collecting this module does not pull torch in before Kit.
     import torch
 
     available = torch.cuda.device_count() if torch.cuda.is_available() else 0
-    if available < count:
-        pytest.skip(f"needs {count} visible CUDA devices, host has {available}")
+    if available < _MIN_RANKS:
+        pytest.skip(f"needs {_MIN_RANKS} visible CUDA devices, host has {available}")
+    return available
+
+
+def _rotated_devices(count: int) -> tuple[str, ...]:
+    """Return the visible GPUs rotated by one, as a ``CUDA_VISIBLE_DEVICES`` list.
+
+    Rank ``i`` gets the device listed ``i + 1`` (the last gets the first), so no rank keeps its
+    own index and the list is neither sorted nor starting at the first device. Rotates an
+    inherited mask rather than replacing it, so a runner that already narrowed the devices keeps
+    them.
+
+    Args:
+        count: Number of visible devices, from :func:`_visible_gpus`.
+    """
+    inherited = os.environ.get("CUDA_VISIBLE_DEVICES")
+    visible = inherited.split(",") if inherited else [str(index) for index in range(count)]
+    return (*visible[1:count], visible[0])
 
 
 @pytest.mark.smoke
@@ -310,13 +325,12 @@ class TestMultiGpuTrainingSmoke:
         """Physics-only multi-GPU training completes with no device mask and writes one run.
 
         The cheapest signal that the launcher and NCCL are healthy before any renderer is
-        involved. Needs only two devices, so it still runs on hosts too small for the rest.
+        involved.
 
         Each rank offsets the seed by its rank, so the shared run directory's ``params`` must hold rank 0's
         launch settings and ``rank_<rank>/params`` every other rank's.
         """
-        num_gpus = 2
-        _require_devices(num_gpus)
+        num_gpus = _visible_gpus()
         runs_root = _repo_root() / "logs" / "rsl_rl"
         runs_before = set(runs_root.glob("*/*"))
         outcome, output, gpu_processes = _run_training(None, _PHYSICS_ONLY_TASK, "isaacsim_physx", num_gpus=num_gpus)
@@ -333,12 +347,13 @@ class TestMultiGpuTrainingSmoke:
         assert "destroy_process_group() was not called" not in output
 
     @pytest.mark.rendering
-    @pytest.mark.parametrize("devices", _DEVICE_ORDERS)
+    @pytest.mark.parametrize("rotated", _DEVICE_ORDERS)
     @pytest.mark.parametrize("stack", _STACKS)
-    def test_camera_training(self, stack: str, devices: tuple[int, ...] | None) -> None:
-        """Camera-rendered training on four GPUs for one backend stack and device order."""
-        _require_devices(_CAMERA_RANKS)
+    def test_camera_training(self, stack: str, rotated: bool) -> None:
+        """Camera-rendered training on every visible GPU for one backend stack and device order."""
+        num_gpus = _visible_gpus()
+        devices = _rotated_devices(num_gpus) if rotated else None
         _assert_training_passed(
-            *_run_training(devices, _CAMERA_TASK, stack, num_gpus=_CAMERA_RANKS),
+            *_run_training(devices, _CAMERA_TASK, stack, num_gpus=num_gpus),
             devices=devices,
         )

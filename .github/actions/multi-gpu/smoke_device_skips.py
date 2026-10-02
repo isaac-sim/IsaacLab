@@ -6,8 +6,8 @@
 
 """Count multi-GPU training smoke cases skipped because the runner has too few GPUs.
 
-The smoke skips a case whose rank count exceeds the visible devices, which keeps it runnable
-on a workstation but lets a smaller CI runner pass without running it. This reads one JUnit
+The smoke skips every case on a host with fewer than two GPUs, which keeps it collectable on a
+workstation but would let an undersized CI runner pass without running it. This reads one JUnit
 report, warns once per such case, and writes ``device_skips=<n>`` to ``$GITHUB_OUTPUT`` so a
 separate, non-required job can turn the lost coverage red.
 
