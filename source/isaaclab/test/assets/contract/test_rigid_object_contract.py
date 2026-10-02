@@ -6,13 +6,14 @@
 # ignore private usage of variables warning
 # pyright: reportPrivateUsage=none
 
-"""Shared rigid-object contracts across the production backends.
+"""Shared rigid-object and rigid-object-collection contracts across the production backends.
 
-Checks that every rigid-object backend provides the data and writer behavior the base rigid-object class advertises.
-The backends run on mocked views, so these cases need neither Isaac Sim nor a GPU simulation.
+Both asset families run on mocked backend views, so these cases need neither Isaac Sim nor a GPU simulation. A rigid
+object exposes root quantities of shape ``(N,)`` and body quantities of shape ``(N, 1)``; a collection exposes body
+quantities of shape ``(N, B)``. Bookkeeping runs on CPU; getters and writers run on every test device because PhysX
+stages writes through pinned CPU buffers on CUDA.
 """
 
-import math
 from unittest.mock import MagicMock, patch
 
 import numpy as np
@@ -20,44 +21,88 @@ import pytest
 import torch
 import warp as wp
 
-from .rigid_object_factory import get_rigid_object
+from isaaclab.assets import BaseRigidObjectCollectionData, BaseRigidObjectData
+from isaaclab.utils.warp import ProxyArray
+
+from .rigid_object_factory import get_rigid_object, get_rigid_object_collection
 
 pytestmark = pytest.mark.integration
 
+# Distinct instance and body counts make swapped axes visible.
+_NUM_INSTANCES, _NUM_BODIES = 2, 3
+_ASSETS = ["object", "collection"]
+
+
+def _create(asset: str, backend: str, monkeypatch: pytest.MonkeyPatch, device: str = "cpu", num_instances: int = 2):
+    """Create a mocked asset and return it with its raw backend view, its top-level prefix, and its body count."""
+    if asset == "object":
+        obj, raw = get_rigid_object(backend, num_instances, device, monkeypatch=monkeypatch)
+        return obj, raw, "root", 1
+    obj, raw = get_rigid_object_collection(backend, num_instances, _NUM_BODIES, device, monkeypatch=monkeypatch)
+    return obj, raw, "body", _NUM_BODIES
+
+
+def _payload(shape: tuple[int, ...], trailing: tuple[int, ...], offset: float = 0.0, device: str = "cpu"):
+    """Return per-element distinct values; 7-wide transforms carry a 90-degree rotation about Z."""
+    data = torch.arange(np.prod(shape + trailing), dtype=torch.float32, device=device).reshape(shape + trailing)
+    data += 1.25 + offset
+    if trailing == (7,):
+        data[..., 3:5] = 0.0
+        data[..., 5:7] = 2.0**-0.5
+    return data
+
+
+def _select_last(values: torch.Tensor, selection: str, per_body: bool) -> tuple[torch.Tensor, dict]:
+    """Return the payload and selectors that write the last environment (and last body) of ``values``.
+
+    Selecting the last rather than the first element keeps identity or transposed routing from passing.
+    """
+    device = values.device
+    if selection == "index":
+        selected = values[-1:, -1:] if per_body else values[-1:]
+        selectors = {"env_ids": torch.tensor([values.shape[0] - 1], dtype=torch.int32, device=device)}
+        if per_body:
+            selectors["body_ids"] = torch.tensor([values.shape[1] - 1], dtype=torch.int32, device=device)
+        return selected, selectors
+    masks = [wp.array(np.arange(n) == n - 1, dtype=wp.bool, device=str(device)) for n in values.shape[:2]]
+    selectors = {"env_mask": masks[0]}
+    if per_body:
+        selectors["body_mask"] = masks[1]
+    return values, selectors
+
+
 # ---------------------------------------------------------------------------
-# Helpers
+# Bookkeeping, finders, and data properties
 # ---------------------------------------------------------------------------
 
 
-def _check_proxy_array(arr, *, expected_shape: tuple, expected_dtype: type, name: str):
-    """Assert that `arr` is a ProxyArray with the expected shape and dtype."""
-    from isaaclab.utils.warp import ProxyArray
+@pytest.mark.parametrize("asset", _ASSETS)
+def test_counts_names_finders_and_index_resolution(monkeypatch, backend, asset):
+    obj, _, _, num_bodies = _create(asset, backend, monkeypatch, num_instances=4)
 
-    assert isinstance(arr, ProxyArray), f"{name}: expected ProxyArray, got {type(arr)}"
-    assert arr.shape == expected_shape, f"{name}: expected shape {expected_shape}, got {arr.shape}"
-    assert arr.dtype == expected_dtype, f"{name}: expected dtype {expected_dtype}, got {arr.dtype}"
+    assert obj.num_instances == 4
+    assert obj.num_bodies == num_bodies
+    assert len(obj.body_names) == num_bodies and all(isinstance(name, str) for name in obj.body_names)
+    assert isinstance(obj.data, BaseRigidObjectData if asset == "object" else BaseRigidObjectCollectionData)
 
+    # The legacy return mode is a list for rigid objects and an int32 tensor for collections.
+    indices, names = obj.find_bodies(".*")
+    proxy, proxy_names = obj.find_bodies(".*", as_proxy=True)
+    assert isinstance(indices, list if asset == "object" else torch.Tensor)
+    assert list(indices) == proxy.torch.tolist() == list(range(num_bodies))
+    assert names == proxy_names == obj.body_names
+    assert proxy is obj.find_bodies(".*", as_proxy=True)[0]
+    assert proxy.dtype == wp.int32 and str(proxy.device) == obj.device
+    assert obj.find_bodies(obj.body_names[-1])[1] == [obj.body_names[-1]]
+    if asset == "collection":
+        with pytest.warns(DeprecationWarning):
+            assert obj.find_objects(".*", as_proxy=True)[0] is proxy
+        assert obj._resolve_body_ids(torch.arange(3, dtype=torch.int32)[:2]).shape[0] == 2
 
-# Common parametrize decorators. Pure bookkeeping (counts, names, finders, aliases) runs on CPU only;
-# getters and writers keep every test device because PhysX stages through CPU-pinned buffers on CUDA.
-_NUM_INSTANCES = 2
-
-
-# ---------------------------------------------------------------------------
-# Tests: Index resolution helpers
-# ---------------------------------------------------------------------------
-
-
-def test_resolve_env_ids_handles_tensor_view_shape(monkeypatch, backend, device):
-    obj, _ = get_rigid_object(backend, num_instances=4, device=device, monkeypatch=monkeypatch)
-
-    env_ids = torch.arange(4, dtype=torch.int32, device=device)
-    resolved_full = obj._resolve_env_ids(env_ids)
-    resolved_view = obj._resolve_env_ids(env_ids[:2])
-
-    assert resolved_full.shape[0] == 4
-    assert resolved_view.shape[0] == 2
-    cached = wp.to_torch(obj._ALL_INDICES)
+    # Environment selections resolve to strided views of the cached indices without copying.
+    env_ids = torch.arange(4, dtype=torch.int32)
+    assert obj._resolve_env_ids(env_ids[:2]).shape[0] == 2
+    cached = wp.to_torch(obj._ALL_INDICES if asset == "object" else obj._ALL_ENV_INDICES)
     for selection in (slice(None), slice(1, None, 2), slice(0, 0)):
         resolved = wp.to_torch(obj._resolve_env_ids(selection))
         torch.testing.assert_close(resolved, cached[selection])
@@ -65,551 +110,293 @@ def test_resolve_env_ids_handles_tensor_view_shape(monkeypatch, backend, device)
         assert resolved.stride() == cached[selection].stride()
 
 
-# ---------------------------------------------------------------------------
-# Tests: RigidObject properties and finders
-# ---------------------------------------------------------------------------
+def _expected_properties(top: str) -> dict[str, type]:
+    """Return the public data properties and their dtypes for an asset whose top-level prefix is ``top``."""
+    frame_quantities = {
+        "pose_w": wp.transformf,
+        "vel_w": wp.spatial_vectorf,
+        "pos_w": wp.vec3f,
+        "quat_w": wp.quatf,
+        "lin_vel_w": wp.vec3f,
+        "ang_vel_w": wp.vec3f,
+    }
+    properties = {
+        f"{prefix}_{frame}_{quantity}": dtype
+        for prefix in {top, "body"}
+        for frame in ("link", "com")
+        for quantity, dtype in frame_quantities.items()
+    }
+    properties |= {f"{top}_{frame}_{axis}_vel_b": wp.vec3f for frame in ("link", "com") for axis in ("lin", "ang")}
+    return properties | {
+        "projected_gravity_b": wp.vec3f,
+        "heading_w": wp.float32,
+        "body_com_acc_w": wp.spatial_vectorf,
+        "body_com_lin_acc_w": wp.vec3f,
+        "body_com_ang_acc_w": wp.vec3f,
+        "body_com_pose_b": wp.transformf,
+        "body_com_pos_b": wp.vec3f,
+        "body_com_quat_b": wp.quatf,
+        "body_mass": wp.float32,
+        "body_inertia": wp.float32,
+        f"default_{top}_pose": wp.transformf,
+        f"default_{top}_vel": wp.spatial_vectorf,
+    }
 
 
-def test_rigid_object_counts_and_names(monkeypatch, backend):
-    from isaaclab.assets.rigid_object.base_rigid_object_data import BaseRigidObjectData
-
-    obj, _ = get_rigid_object(backend, _NUM_INSTANCES, device="cpu", monkeypatch=monkeypatch)
-
-    assert obj.num_instances == _NUM_INSTANCES
-    assert obj.num_bodies == 1
-    names = obj.body_names
-    assert isinstance(names, list)
-    assert len(names) == 1
-    assert all(isinstance(n, str) for n in names)
-    assert isinstance(obj.data, BaseRigidObjectData)
-
-
-def test_find_bodies_returns_legacy_list_or_cached_proxy(monkeypatch, backend):
-    obj, _ = get_rigid_object(backend, num_instances=2, device="cpu", monkeypatch=monkeypatch)
-
-    indices, names = obj.find_bodies(".*")
-    proxy, proxy_names = obj.find_bodies(".*", as_proxy=True)
-
-    assert isinstance(indices, list) and isinstance(names, list)
-    assert len(indices) == 1
-    assert len(names) == 1
-    assert all(isinstance(i, int) for i in indices)
-    assert all(isinstance(n, str) for n in names)
-    assert indices == proxy.torch.tolist()
-    assert names == proxy_names
-    assert proxy is obj.find_bodies(".*", as_proxy=True)[0]
-    assert proxy.dtype == wp.int32
-    assert str(proxy.device) == obj.device
-
-    first_body = obj.body_names[0]
-    assert obj.find_bodies(first_body) == ([0], [first_body])
+def _expected_aliases(top: str) -> dict[str, str]:
+    """Return the shorthand data properties and the canonical properties they alias."""
+    aliases = {
+        "body_acc_w": "body_com_acc_w",
+        "body_lin_acc_w": "body_com_lin_acc_w",
+        "body_ang_acc_w": "body_com_ang_acc_w",
+        "com_pos_b": "body_com_pos_b",
+        "com_quat_b": "body_com_quat_b",
+    }
+    for prefix in {top, "body"}:
+        aliases |= {f"{prefix}_{quantity}_w": f"{prefix}_link_{quantity}_w" for quantity in ("pose", "pos", "quat")}
+        aliases |= {
+            f"{prefix}_{quantity}_w": f"{prefix}_com_{quantity}_w" for quantity in ("vel", "lin_vel", "ang_vel")
+        }
+    return aliases
 
 
-# ---------------------------------------------------------------------------
-# Tests: RigidObjectData property contract
-# ---------------------------------------------------------------------------
-
-# (property, shape kind, dtype). Shape kinds: "N" = (num_instances,), "N1" = (num_instances, 1),
-# "N19" = (num_instances, 1, 9).
-_RIGID_OBJECT_DATA_PROPERTIES = [
-    # root state
-    ("root_link_pose_w", "N", wp.transformf),
-    ("root_link_vel_w", "N", wp.spatial_vectorf),
-    ("root_com_pose_w", "N", wp.transformf),
-    ("root_com_vel_w", "N", wp.spatial_vectorf),
-    ("root_link_pos_w", "N", wp.vec3f),
-    ("root_link_quat_w", "N", wp.quatf),
-    ("root_link_lin_vel_w", "N", wp.vec3f),
-    ("root_link_ang_vel_w", "N", wp.vec3f),
-    ("root_com_pos_w", "N", wp.vec3f),
-    ("root_com_quat_w", "N", wp.quatf),
-    ("root_com_lin_vel_w", "N", wp.vec3f),
-    ("root_com_ang_vel_w", "N", wp.vec3f),
-    # derived
-    ("projected_gravity_b", "N", wp.vec3f),
-    ("heading_w", "N", wp.float32),
-    ("root_link_lin_vel_b", "N", wp.vec3f),
-    ("root_link_ang_vel_b", "N", wp.vec3f),
-    ("root_com_lin_vel_b", "N", wp.vec3f),
-    ("root_com_ang_vel_b", "N", wp.vec3f),
-    # body state
-    ("body_link_pose_w", "N1", wp.transformf),
-    ("body_link_vel_w", "N1", wp.spatial_vectorf),
-    ("body_com_pose_w", "N1", wp.transformf),
-    ("body_com_vel_w", "N1", wp.spatial_vectorf),
-    ("body_com_acc_w", "N1", wp.spatial_vectorf),
-    ("body_com_pose_b", "N1", wp.transformf),
-    ("body_mass", "N1", wp.float32),
-    ("body_inertia", "N19", wp.float32),
-    ("body_link_pos_w", "N1", wp.vec3f),
-    ("body_link_quat_w", "N1", wp.quatf),
-    ("body_link_lin_vel_w", "N1", wp.vec3f),
-    ("body_link_ang_vel_w", "N1", wp.vec3f),
-    ("body_com_pos_w", "N1", wp.vec3f),
-    ("body_com_quat_w", "N1", wp.quatf),
-    ("body_com_pos_b", "N1", wp.vec3f),
-    ("body_com_quat_b", "N1", wp.quatf),
-    # defaults
-    ("default_root_pose", "N", wp.transformf),
-    ("default_root_vel", "N", wp.spatial_vectorf),
-]
-
-
-def test_rigid_object_data_property_contract(monkeypatch, backend, device):
-    obj, _ = get_rigid_object(backend, _NUM_INSTANCES, device, monkeypatch=monkeypatch)
-    obj.data.update(dt=0.01)
-    if backend == "newton":
+@pytest.mark.parametrize("asset", _ASSETS)
+def test_data_properties_shapes_aliases_and_views(monkeypatch, backend, device, asset):
+    obj, _, top, num_bodies = _create(asset, backend, monkeypatch, device)
+    data = obj.data
+    data.update(dt=0.01)
+    if backend == "newton" and asset == "object":
+        # Derived quantities stay unallocated until first read.
         for name in ("root_link_vel_w", "root_com_pose_w", "body_com_pose_b", "projected_gravity_b", "heading_w"):
-            assert getattr(obj.data, "_" + name).data is None
-    shapes = {"N": (_NUM_INSTANCES,), "N1": (_NUM_INSTANCES, 1), "N19": (_NUM_INSTANCES, 1, 9)}
-    for name, shape_kind, dtype in _RIGID_OBJECT_DATA_PROPERTIES:
-        _check_proxy_array(getattr(obj.data, name), expected_shape=shapes[shape_kind], expected_dtype=dtype, name=name)
+            assert getattr(data, "_" + name).data is None
 
-    for frame in ("root_link", "root_com", "body_link", "body_com"):
-        for quantity, components in (("pose", ("pos", "quat")), ("vel", ("lin_vel", "ang_vel"))):
-            packed = getattr(obj.data, f"{frame}_{quantity}_w").torch
-            for component, expected in zip(components, (packed[..., :3], packed[..., 3:]), strict=True):
-                view = getattr(obj.data, f"{frame}_{component}_w").torch
-                torch.testing.assert_close(view, expected)
-                assert view.data_ptr() == expected.data_ptr()
-                assert view.stride() == expected.stride()
+    for name, dtype in _expected_properties(top).items():
+        value = getattr(data, name)
+        per_instance = asset == "object" and not name.startswith("body")
+        shape = (_NUM_INSTANCES,) if per_instance else (_NUM_INSTANCES, num_bodies)
+        assert isinstance(value, ProxyArray), name
+        assert (value.shape, value.dtype) == (shape + ((9,) if name == "body_inertia" else ()), dtype), name
 
-
-# ---------------------------------------------------------------------------
-# Tests: Alias/shorthand properties
-# ---------------------------------------------------------------------------
-
-_RIGID_OBJECT_ALIASES = [
-    ("root_pose_w", "root_link_pose_w"),
-    ("root_pos_w", "root_link_pos_w"),
-    ("root_quat_w", "root_link_quat_w"),
-    ("root_vel_w", "root_com_vel_w"),
-    ("root_lin_vel_w", "root_com_lin_vel_w"),
-    ("root_ang_vel_w", "root_com_ang_vel_w"),
-    ("body_pose_w", "body_link_pose_w"),
-    ("body_pos_w", "body_link_pos_w"),
-    ("body_quat_w", "body_link_quat_w"),
-    ("body_vel_w", "body_com_vel_w"),
-    ("body_lin_vel_w", "body_com_lin_vel_w"),
-    ("body_ang_vel_w", "body_com_ang_vel_w"),
-]
-
-
-def test_aliases_match_canonical_values(monkeypatch, backend):
     # Random mock state makes link and COM quantities differ, so a retargeted alias fails.
-    obj, _ = get_rigid_object(backend, _NUM_INSTANCES, device="cpu", monkeypatch=monkeypatch)
-    obj.data.update(dt=0.01)
-    d = obj.data
-
-    for alias, canonical in _RIGID_OBJECT_ALIASES:
-        alias_value, canonical_value = getattr(d, alias), getattr(d, canonical)
-        assert alias_value.shape == canonical_value.shape, alias
-        assert alias_value.dtype == canonical_value.dtype, alias
+    for alias, canonical in _expected_aliases(top).items():
+        alias_value, canonical_value = getattr(data, alias), getattr(data, canonical)
+        assert (alias_value.shape, alias_value.dtype) == (canonical_value.shape, canonical_value.dtype), alias
         assert torch.equal(alias_value.torch, canonical_value.torch), alias
 
-
-# ---------------------------------------------------------------------------
-# Writer/setter test helpers
-# ---------------------------------------------------------------------------
-
-# Map warp structured dtypes to their torch trailing dimension size.
-_WP_DTYPE_TO_TRAILING = {
-    wp.transformf: 7,
-    wp.spatial_vectorf: 6,
-    wp.vec2f: 2,
-    wp.float32: 0,  # no trailing dimension
-}
+    # Position, orientation, and velocity components are zero-copy views of the packed pose and velocity.
+    for frame in {f"{top}_link", f"{top}_com", "body_link", "body_com"}:
+        for quantity, components in (("pose", ("pos", "quat")), ("vel", ("lin_vel", "ang_vel"))):
+            packed = getattr(data, f"{frame}_{quantity}_w").torch
+            for component, expected in zip(components, (packed[..., :3], packed[..., 3:]), strict=True):
+                view = getattr(data, f"{frame}_{component}_w").torch
+                torch.testing.assert_close(view, expected)
+                assert (view.data_ptr(), view.stride()) == (expected.data_ptr(), expected.stride()), component
 
 
-def _make_data_torch(shape: tuple, device: str, wp_dtype=wp.float32) -> torch.Tensor:
-    """Create valid torch test data for a given warp dtype."""
-    trailing = _WP_DTYPE_TO_TRAILING[wp_dtype]
-    if trailing:
-        full_shape = (*shape, trailing)
+@pytest.mark.parametrize("trigger", ["pose", "velocity", "coms_index", "coms_mask"])
+@pytest.mark.parametrize("asset", _ASSETS)
+def test_writes_invalidate_dependent_caches(monkeypatch, backend, asset, trigger):
+    obj, _, top, num_bodies = _create(asset, backend, monkeypatch)
+    data = obj.data
+    data.update(dt=0.01)
+    body_frame_velocities = [f"{top}_{frame}_{axis}_vel_b" for frame in ("link", "com") for axis in ("lin", "ang")]
+    stale = {
+        "pose": [f"{top}_link_vel_w", "projected_gravity_b", "heading_w", *body_frame_velocities],
+        "velocity": body_frame_velocities,
+    }.get(trigger)
+    if stale is None:
+        states = [f"{top}_state_w", f"{top}_link_state_w", f"{top}_com_state_w"]
+        stale = [f"{top}_com_pose_w", f"{top}_link_vel_w", *body_frame_velocities, *states]
+        stale.append("body_com_pose_b" if backend == "newton" else f"{top}_com_vel_w")
+    # Read each property so lazy caches allocate, then mark it current.
+    buffers = {}
+    for name in stale:
+        getattr(data, name)
+        buffers[name] = getattr(data, "_" + name)
+        buffers[name].timestamp = data._sim_timestamp
+    body_velocity = data.body_link_vel_w
+
+    shape = (_NUM_INSTANCES,) if asset == "object" else (_NUM_INSTANCES, num_bodies)
+    pose_kwarg, velocity_kwarg = (
+        ("root_pose", "root_velocity") if asset == "object" else ("body_poses", "body_velocities")
+    )
+    if trigger == "pose":
+        getattr(obj, f"write_{top}_link_pose_to_sim_index")(**{pose_kwarg: _payload(shape, (7,))})
+    elif trigger == "velocity":
+        # Zero angular velocity makes link and COM velocities equal.
+        velocity = torch.zeros(shape + (6,))
+        velocity[..., :3] = _payload(shape, (3,))
+        getattr(obj, f"write_{top}_com_velocity_to_sim_index")(**{velocity_kwarg: velocity})
+        body_velocity_expected = velocity if asset == "collection" else velocity.unsqueeze(1)
+        torch.testing.assert_close(data.body_link_vel_w.torch, body_velocity_expected)
+        assert data.body_link_vel_w is body_velocity
     else:
-        full_shape = shape
-    data = torch.zeros(full_shape, device=device, dtype=torch.float32)
-    if wp_dtype == wp.transformf:
-        data[..., 6] = 1.0  # identity quat w
-    elif wp_dtype == wp.vec2f:
-        data[..., 0] = -1.0
-        data[..., 1] = 1.0
-    elif wp_dtype == wp.float32:
-        data.fill_(1.0)
-    return data
+        layout = (3,) if backend == "newton" else (7,)
+        coms = _payload((_NUM_INSTANCES, num_bodies), layout)
+        if backend == "newton":
+            from isaaclab_newton.physics import NewtonManager
 
+            monkeypatch.setattr(NewtonManager, "add_model_change", MagicMock())
+        getattr(obj, f"set_{trigger}")(coms=coms)
 
-def _make_data_warp(shape: tuple, device: str, wp_dtype=wp.float32) -> wp.array:
-    """Create valid warp test data for a given warp dtype."""
-    t = _make_data_torch(shape, device, wp_dtype)
-    if wp_dtype == wp.float32:
-        return wp.from_torch(t, dtype=wp.float32)
-    return wp.from_torch(t.contiguous(), dtype=wp_dtype)
-
-
-def _make_payload_torch(shape: tuple, device: str, wp_dtype=wp.float32) -> torch.Tensor:
-    """Create valid torch data whose entries differ per element, for writer read-back checks.
-
-    Transforms get distinct positions and a fixed 90-degree rotation about Z.
-    """
-    values = torch.arange(1, math.prod(shape) + 1, dtype=torch.float32, device=device).reshape(shape) + 0.25
-    if wp_dtype == wp.spatial_vectorf:
-        return values.unsqueeze(-1) + torch.arange(6, dtype=torch.float32, device=device) / 10.0
-    if wp_dtype == wp.transformf:
-        data = torch.zeros((*shape, 7), dtype=torch.float32, device=device)
-        data[..., :3] = values.unsqueeze(-1) + torch.arange(3, dtype=torch.float32, device=device) / 10.0
-        data[..., 5] = data[..., 6] = 2.0**-0.5
-        return data
-    raise ValueError(f"Unsupported payload dtype: {wp_dtype}")
-
-
-def _make_payload_warp(shape: tuple, device: str, wp_dtype=wp.float32) -> wp.array:
-    """Create the per-element distinct payload of :func:`_make_payload_torch` as a warp array."""
-    return wp.from_torch(_make_payload_torch(shape, device, wp_dtype).contiguous(), dtype=wp_dtype)
-
-
-def _assert_reads_back(value, expected: torch.Tensor, name: str) -> None:
-    """Assert a data getter (ProxyArray) returns the values a writer just wrote."""
-    torch.testing.assert_close(value.torch, expected, atol=1e-5, rtol=1e-5, msg=lambda msg: f"{name}: {msg}")
-
-
-def _make_com_data(backend: str, shape: tuple[int, ...], device: str) -> wp.array:
-    """Create backend-compatible center-of-mass test data."""
-    if backend == "newton":
-        return wp.zeros(shape, dtype=wp.vec3f, device=device)
-    return _make_data_warp(shape, device, wp.transformf)
-
-
-def _prime_timestamped_properties(data, property_buffer_pairs: list[tuple[str, str]]):
-    """Prime public lazy properties and return their concrete timestamped buffers."""
-    buffers = []
-    for property_name, buffer_name in property_buffer_pairs:
-        getattr(data, property_name)
-        buffer = getattr(data, buffer_name)
-        assert buffer is not None, buffer_name
-        buffer.timestamp = data._sim_timestamp
-        buffers.append((buffer_name, buffer))
-    return buffers
-
-
-def _assert_buffers_stale(data, buffers) -> None:
-    for name, buffer in buffers:
+    for name, buffer in buffers.items():
         assert buffer.timestamp < data._sim_timestamp, name
 
 
-def _make_bad_data_torch(shape: tuple, device: str, wp_dtype=wp.float32) -> torch.Tensor:
-    """Create torch data with wrong leading shape for negative testing."""
-    bad_shape = (shape[0] + 1,) + shape[1:]
-    return _make_data_torch(bad_shape, device, wp_dtype)
-
-
-def _make_bad_data_warp(shape: tuple, device: str, wp_dtype=wp.float32) -> wp.array:
-    """Create warp data with wrong leading shape for negative testing."""
-    bad_shape = (shape[0] + 1,) + shape[1:]
-    return _make_data_warp(bad_shape, device, wp_dtype)
-
-
-def _make_env_mask(num_instances: int, device: str, partial: bool) -> wp.array | None:
-    """Create an env_mask: None for all envs, or a partial bool mask."""
-    if not partial:
-        return None
-    mask_np = np.zeros(num_instances, dtype=bool)
-    mask_np[0] = True
-    return wp.array(mask_np, dtype=wp.bool, device=device)
-
-
-def _make_env_ids(device: str, subset: bool) -> torch.Tensor | None:
-    """Create env_ids: None for all envs, or [0] for a subset."""
-    if not subset:
-        return None
-    return torch.tensor([0], dtype=torch.int32, device=device)
-
-
-def _make_item_mask(total: int, selected: list[int], device: str) -> wp.array:
-    """Create a bool warp mask with True at `selected` indices, False elsewhere."""
-    mask_np = np.zeros(total, dtype=bool)
-    for i in selected:
-        mask_np[i] = True
-    return wp.array(mask_np, dtype=wp.bool, device=device)
-
-
 # ---------------------------------------------------------------------------
-# Tests: Root writers — torch/warp × index/mask × all/subset × negative
+# Writers
 # ---------------------------------------------------------------------------
 
-# writer suffix -> data getter that reads the written quantity back
-_ROOT_POSE_METHODS = {
-    "root_pose": "root_link_pose_w",
-    "root_link_pose": "root_link_pose_w",
-    "root_com_pose": "root_com_pose_w",
-}
-_ROOT_VEL_METHODS = {
-    "root_velocity": "root_com_vel_w",
-    "root_link_velocity": "root_link_vel_w",
-    "root_com_velocity": "root_com_vel_w",
+_POSE, _VELOCITY = ((7,), wp.transformf), ((6,), wp.spatial_vectorf)
+# written quantity -> (read-back getter with ``{top}`` as ``root`` or ``body``, (per-element shape, warp dtype))
+_WRITERS = {
+    "link_pose": ("{top}_link_pose_w", _POSE),
+    "com_pose": ("{top}_com_pose_w", _POSE),
+    "link_velocity": ("{top}_link_vel_w", _VELOCITY),
+    "com_velocity": ("{top}_com_vel_w", _VELOCITY),
+    "masses": ("body_mass", ((), wp.float32)),
+    "inertias": ("body_inertia", ((9,), wp.float32)),
+    "coms": ("body_com_pose_b", _POSE),
 }
 
 
-def test_pose_write_invalidates_pose_dependent_caches(monkeypatch, backend):
-    obj, _ = get_rigid_object(backend, num_instances=2, device="cpu", monkeypatch=monkeypatch)
+def _writer(obj, asset: str, quantity: str, selection: str):
+    """Return the index or mask writer of a quantity and its payload keyword."""
+    if quantity in ("masses", "inertias", "coms"):
+        return getattr(obj, f"set_{quantity}_{selection}"), quantity
+    top = "root" if asset == "object" else "body"
+    kind = "pose" if quantity.endswith("pose") else "velocity"
+    kwarg = f"root_{kind}" if asset == "object" else {"pose": "body_poses", "velocity": "body_velocities"}[kind]
+    return getattr(obj, f"write_{top}_{quantity}_to_sim_{selection}"), kwarg
+
+
+@pytest.mark.parametrize("selection", ["index", "mask"])
+@pytest.mark.parametrize("quantity", _WRITERS)
+@pytest.mark.parametrize("asset", _ASSETS)
+def test_writer_reads_back_full_and_partial_writes(monkeypatch, backend, device, asset, quantity, selection):
+    obj, _, top, num_bodies = _create(asset, backend, monkeypatch, device)
     obj.data.update(dt=0.01)
-    buffers = _prime_timestamped_properties(
-        obj.data,
-        [
-            ("root_link_vel_w", "_root_link_vel_w"),
-            ("projected_gravity_b", "_projected_gravity_b"),
-            ("heading_w", "_heading_w"),
-            ("root_link_lin_vel_b", "_root_link_lin_vel_b"),
-            ("root_link_ang_vel_b", "_root_link_ang_vel_b"),
-            ("root_com_lin_vel_b", "_root_com_lin_vel_b"),
-            ("root_com_ang_vel_b", "_root_com_ang_vel_b"),
-        ],
-    )
-    root_pose = _make_data_warp((obj.num_instances,), "cpu", wp.transformf)
-    obj.write_root_link_pose_to_sim_index(root_pose=root_pose)
-    _assert_buffers_stale(obj.data, buffers)
+    getter, (trailing, wp_dtype) = _WRITERS[quantity]
+    if quantity == "coms" and backend == "newton":
+        # Newton stores the center of mass as a position only.
+        getter, (trailing, wp_dtype) = "body_com_pos_b", ((3,), wp.vec3f)
+    getter = getter.format(top=top)
+    method, kwarg = _writer(obj, asset, quantity, selection)
+    per_body = asset == "collection" or quantity in ("masses", "inertias", "coms")
+    shape = (_NUM_INSTANCES, num_bodies) if per_body else (_NUM_INSTANCES,)
+
+    # A torch write of every element reads back through the matching getter.
+    full = _payload(shape, trailing, device=device)
+    method(**{kwarg: full})
+    torch.testing.assert_close(getattr(obj.data, getter).torch, full, atol=1e-5, rtol=1e-5)
+
+    # A warp write selecting the last environment (and last body) leaves every other element untouched.
+    update = _payload(shape, trailing, offset=100.0, device=device)
+    selected, selectors = _select_last(update, selection, per_body)
+    method(**{kwarg: wp.from_torch(selected.contiguous(), dtype=wp_dtype)}, **selectors)
+    expected = full.clone()
+    last = (-1, -1) if per_body else -1
+    expected[last] = update[last]
+    torch.testing.assert_close(getattr(obj.data, getter).torch, expected, atol=1e-5, rtol=1e-5)
+
+    # Data with an extra environment is rejected for torch and warp inputs.
+    bad = _payload((_NUM_INSTANCES + 1, *shape[1:]), trailing, device=device)
+    for value in (bad, wp.from_torch(bad.contiguous(), dtype=wp_dtype)):
+        with pytest.raises((AssertionError, RuntimeError)):
+            method(**{kwarg: value})
 
 
-def test_velocity_write_invalidates_body_frame_caches(monkeypatch, backend):
-    obj, _ = get_rigid_object(backend, num_instances=2, device="cpu", monkeypatch=monkeypatch)
-    obj.data.update(dt=0.01)
-    body_velocity = obj.data.body_link_vel_w
-    buffers = _prime_timestamped_properties(
-        obj.data,
-        [
-            ("root_link_lin_vel_b", "_root_link_lin_vel_b"),
-            ("root_link_ang_vel_b", "_root_link_ang_vel_b"),
-            ("root_com_lin_vel_b", "_root_com_lin_vel_b"),
-            ("root_com_ang_vel_b", "_root_com_ang_vel_b"),
-        ],
-    )
-    root_velocity = _make_data_warp((obj.num_instances,), "cpu", wp.spatial_vectorf)
-    obj.write_root_com_velocity_to_sim_index(root_velocity=root_velocity)
-    _assert_buffers_stale(obj.data, buffers)
-    # Read the body alias first; zero angular velocity makes link and COM velocities equal.
-    _assert_reads_back(obj.data.body_link_vel_w, wp.to_torch(root_velocity).unsqueeze(1), "body_link_vel_w")
-    assert obj.data.body_link_vel_w is body_velocity
+@pytest.mark.parametrize("asset", _ASSETS)
+def test_pose_and_velocity_writer_aliases_forward_to_canonical_writers(monkeypatch, backend, asset):
+    obj, _, top, num_bodies = _create(asset, backend, monkeypatch)
+    shape = (_NUM_INSTANCES,) if asset == "object" else (_NUM_INSTANCES, num_bodies)
+    for quantity, getter, trailing in (("pose", f"{top}_link_pose_w", (7,)), ("velocity", f"{top}_com_vel_w", (6,))):
+        for offset, selection in enumerate(("index", "mask")):
+            values = _payload(shape, trailing, offset=10.0 * offset)
+            method, kwarg = _writer(obj, asset, quantity, selection)
+            method(**{kwarg: values})
+            torch.testing.assert_close(getattr(obj.data, getter).torch, values, atol=1e-5, rtol=1e-5)
 
 
-@pytest.mark.parametrize("setter_kind", ["index", "mask"])
-def test_set_coms_invalidates_same_timestamp_dependents(monkeypatch, backend, setter_kind):
-    obj, _ = get_rigid_object(backend, num_instances=2, device="cpu", monkeypatch=monkeypatch)
-    obj.data.update(dt=0.01)
-    common_pairs = [
-        ("root_com_pose_w", "_root_com_pose_w"),
-        ("root_link_vel_w", "_root_link_vel_w"),
-        ("root_link_lin_vel_b", "_root_link_lin_vel_b"),
-        ("root_link_ang_vel_b", "_root_link_ang_vel_b"),
-        ("root_com_lin_vel_b", "_root_com_lin_vel_b"),
-        ("root_com_ang_vel_b", "_root_com_ang_vel_b"),
-        ("root_state_w", "_root_state_w"),
-        ("root_link_state_w", "_root_link_state_w"),
-        ("root_com_state_w", "_root_com_state_w"),
-    ]
-    if backend != "newton":
-        common_pairs.append(("root_com_vel_w", "_root_com_vel_w"))
-    # Prime public properties before resolving private buffers so Newton allocates lazy caches.
-    buffers = _prime_timestamped_properties(obj.data, common_pairs)
-    if backend == "newton":
-        buffers += _prime_timestamped_properties(obj.data, [("body_com_pose_b", "_body_com_pose_b")])
-    coms = _make_com_data(backend, (obj.num_instances, obj.num_bodies), "cpu")
-
-    def set_coms() -> None:
-        if setter_kind == "index":
-            obj.set_coms_index(coms=coms)
-        else:
-            obj.set_coms_mask(coms=coms)
-
-    if backend == "newton":
-        from isaaclab_newton.physics import NewtonManager
-
-        with patch.object(NewtonManager, "add_model_change"):
-            set_coms()
-    else:
-        set_coms()
-    _assert_buffers_stale(obj.data, buffers)
+# backend-stored quantity -> (written quantity, per-element shape)
+_PARTIAL_WRITES = {"pose": ("link_pose", (7,)), "velocity": ("com_velocity", (6,)), "mass": ("masses", ())}
 
 
-# -- index variants --
-
-
-@pytest.mark.parametrize("method_suffix", _ROOT_POSE_METHODS)
-def test_write_root_pose_to_sim_index(monkeypatch, backend, device, method_suffix):
-    num_instances = _NUM_INSTANCES
-    obj, _ = get_rigid_object(backend, num_instances, device, monkeypatch=monkeypatch)
-    obj.data.update(dt=0.01)
-    method = getattr(obj, f"write_{method_suffix}_to_sim_index")
-
-    # torch, all envs
-    method(root_pose=_make_data_torch((num_instances,), device, wp.transformf))
-    # torch, subset
-    method(root_pose=_make_data_torch((1,), device, wp.transformf), env_ids=_make_env_ids(device, True))
-    # warp, all envs: the matching getter reads the written poses back
-    method(root_pose=_make_payload_warp((num_instances,), device, wp.transformf))
-    getter = _ROOT_POSE_METHODS[method_suffix]
-    _assert_reads_back(getattr(obj.data, getter), _make_payload_torch((num_instances,), device, wp.transformf), getter)
-    # warp, subset
-    method(root_pose=_make_data_warp((1,), device, wp.transformf), env_ids=_make_env_ids(device, True))
-    # negative: bad torch shape
-    with pytest.raises((AssertionError, RuntimeError)):
-        method(root_pose=_make_bad_data_torch((num_instances,), device, wp.transformf))
-    # negative: bad warp shape
-    with pytest.raises((AssertionError, RuntimeError)):
-        method(root_pose=_make_bad_data_warp((num_instances,), device, wp.transformf))
-
-
-@pytest.mark.parametrize("method_suffix", _ROOT_VEL_METHODS)
-def test_write_root_velocity_to_sim_index(monkeypatch, backend, device, method_suffix):
-    num_instances = _NUM_INSTANCES
-    obj, _ = get_rigid_object(backend, num_instances, device, monkeypatch=monkeypatch)
-    obj.data.update(dt=0.01)
-    method = getattr(obj, f"write_{method_suffix}_to_sim_index")
-
-    # torch, all envs
-    method(root_velocity=_make_data_torch((num_instances,), device, wp.spatial_vectorf))
-    # torch, subset
-    method(root_velocity=_make_data_torch((1,), device, wp.spatial_vectorf), env_ids=_make_env_ids(device, True))
-    # warp, all envs: the matching getter reads the written velocities back
-    method(root_velocity=_make_payload_warp((num_instances,), device, wp.spatial_vectorf))
-    getter = _ROOT_VEL_METHODS[method_suffix]
-    _assert_reads_back(
-        getattr(obj.data, getter), _make_payload_torch((num_instances,), device, wp.spatial_vectorf), getter
-    )
-    # warp, subset
-    method(root_velocity=_make_data_warp((1,), device, wp.spatial_vectorf), env_ids=_make_env_ids(device, True))
-    # negative: bad torch shape
-    with pytest.raises((AssertionError, RuntimeError)):
-        method(root_velocity=_make_bad_data_torch((num_instances,), device, wp.spatial_vectorf))
-    # negative: bad warp shape
-    with pytest.raises((AssertionError, RuntimeError)):
-        method(root_velocity=_make_bad_data_warp((num_instances,), device, wp.spatial_vectorf))
-
-
-# -- mask variants --
-
-
-@pytest.mark.parametrize("method_suffix", _ROOT_POSE_METHODS)
-def test_write_root_pose_to_sim_mask(monkeypatch, backend, device, method_suffix):
-    num_instances = _NUM_INSTANCES
-    obj, _ = get_rigid_object(backend, num_instances, device, monkeypatch=monkeypatch)
-    obj.data.update(dt=0.01)
-    method = getattr(obj, f"write_{method_suffix}_to_sim_mask")
-
-    # torch, no mask (all)
-    method(root_pose=_make_data_torch((num_instances,), device, wp.transformf))
-    # torch, partial mask
-    method(
-        root_pose=_make_data_torch((num_instances,), device, wp.transformf),
-        env_mask=_make_env_mask(num_instances, device, True),
-    )
-    # warp, no mask: the matching getter reads the written poses back
-    method(root_pose=_make_payload_warp((num_instances,), device, wp.transformf))
-    getter = _ROOT_POSE_METHODS[method_suffix]
-    _assert_reads_back(getattr(obj.data, getter), _make_payload_torch((num_instances,), device, wp.transformf), getter)
-    # warp, partial mask
-    method(
-        root_pose=_make_data_warp((num_instances,), device, wp.transformf),
-        env_mask=_make_env_mask(num_instances, device, True),
-    )
-    # negative: bad torch shape
-    with pytest.raises((AssertionError, RuntimeError)):
-        method(root_pose=_make_bad_data_torch((num_instances,), device, wp.transformf))
-    # negative: bad warp shape
-    with pytest.raises((AssertionError, RuntimeError)):
-        method(root_pose=_make_bad_data_warp((num_instances,), device, wp.transformf))
-
-
-@pytest.mark.parametrize("method_suffix", _ROOT_VEL_METHODS)
-def test_write_root_velocity_to_sim_mask(monkeypatch, backend, device, method_suffix):
-    num_instances = _NUM_INSTANCES
-    obj, _ = get_rigid_object(backend, num_instances, device, monkeypatch=monkeypatch)
-    obj.data.update(dt=0.01)
-    method = getattr(obj, f"write_{method_suffix}_to_sim_mask")
-
-    # torch, no mask
-    method(root_velocity=_make_data_torch((num_instances,), device, wp.spatial_vectorf))
-    # torch, partial mask
-    method(
-        root_velocity=_make_data_torch((num_instances,), device, wp.spatial_vectorf),
-        env_mask=_make_env_mask(num_instances, device, True),
-    )
-    # warp, no mask: the matching getter reads the written velocities back
-    method(root_velocity=_make_payload_warp((num_instances,), device, wp.spatial_vectorf))
-    getter = _ROOT_VEL_METHODS[method_suffix]
-    _assert_reads_back(
-        getattr(obj.data, getter), _make_payload_torch((num_instances,), device, wp.spatial_vectorf), getter
-    )
-    # warp, partial mask
-    method(
-        root_velocity=_make_data_warp((num_instances,), device, wp.spatial_vectorf),
-        env_mask=_make_env_mask(num_instances, device, True),
-    )
-    # negative: bad torch shape
-    with pytest.raises((AssertionError, RuntimeError)):
-        method(root_velocity=_make_bad_data_torch((num_instances,), device, wp.spatial_vectorf))
-    # negative: bad warp shape
-    with pytest.raises((AssertionError, RuntimeError)):
-        method(root_velocity=_make_bad_data_warp((num_instances,), device, wp.spatial_vectorf))
-
-
-# ---------------------------------------------------------------------------
-# Tests: Body writers — torch/warp × index/mask × all/subset × negative
-# ---------------------------------------------------------------------------
-
-_BODY_METHODS = [("set_masses", "masses"), ("set_coms", "coms"), ("set_inertias", "inertias")]
-
-
-def _body_writer_layout(backend: str, method_base: str) -> tuple[type, int, str]:
-    """Return the warp dtype, torch trailing size, and read-back getter of a body property writer."""
-    if method_base == "set_masses":
-        return wp.float32, 0, "body_mass"
-    if method_base == "set_inertias":
-        return wp.float32, 9, "body_inertia"
-    if backend == "newton":
-        # Newton stores the COM as a position only.
-        return wp.vec3f, 3, "body_com_pos_b"
-    return wp.transformf, 7, "body_com_pose_b"
-
-
-def _make_body_torch(shape: tuple[int, int], device: str, wp_dtype: type, trailing: int, payload: bool = False):
-    """Create body-property torch data: valid ones by default, or per-element distinct values."""
-    full_shape = (*shape, trailing) if trailing else shape
-    if payload:
-        data = torch.arange(1, math.prod(full_shape) + 1, dtype=torch.float32, device=device).reshape(full_shape)
-    else:
-        data = torch.ones(full_shape, device=device, dtype=torch.float32)
-    if wp_dtype == wp.transformf:
-        data[..., 3:6] = 0.0
-        data[..., 6] = 1.0
-        if not payload:
-            data[..., :3] = 0.0
-    return data
-
-
-def _make_body_warp(shape: tuple[int, int], device: str, wp_dtype: type, trailing: int, payload: bool = False):
-    """Create body-property data as a warp array (structured dtypes collapse the trailing dim)."""
-    t = _make_body_torch(shape, device, wp_dtype, trailing, payload).contiguous()
-    return wp.from_torch(t, dtype=wp.float32 if wp_dtype == wp.float32 else wp_dtype)
-
-
-def test_external_wrench_frames(monkeypatch, backend):
-    """Forward local and world wrenches through the real writer in each backend's frame."""
-    device = "cpu"  # the composer and wrench-packing kernels are device-independent
-    obj, raw_backend = get_rigid_object(backend, num_instances=2, device=device, monkeypatch=monkeypatch)
-    # Seed a known 90-degree rotation about Z so the local-frame expectation is independent of production.
-    root_pose = torch.tensor(
-        [[1.0, 2.0, 3.0, 0.0, 0.0, 2.0**-0.5, 2.0**-0.5], [4.0, 5.0, 6.0, 0.0, 0.0, 2.0**-0.5, 2.0**-0.5]],
-        device=device,
-    )
-    obj.write_root_link_pose_to_sim_index(root_pose=root_pose)
-    if backend == "newton":
-        # Seed the body pose the native FK would publish.
-        obj.data._sim_bind_body_link_pose_w.assign(wp.from_torch(root_pose, dtype=wp.transformf))
-    composer = obj.permanent_wrench_composer
-    forces = torch.arange(1.0, 7.0, device=device).reshape(2, 1, 3)
-    torques = forces + 10.0
+def _read_backend(backend: str, asset: str, raw, quantity: str, num_bodies: int) -> torch.Tensor:
+    """Read one quantity from backend storage as an ``(env, body, -1)`` tensor."""
     if backend == "physx":
-        raw_backend.apply_forces_and_torques_at_position = MagicMock()
+        values = {"pose": raw.get_transforms, "velocity": raw.get_velocities, "mass": raw.get_masses}[quantity]()
+        values = wp.to_torch(values)
+        if asset == "collection":
+            # PhysX collection views are body-major.
+            values = values.reshape(num_bodies, _NUM_INSTANCES, -1).transpose(0, 1)
+    elif backend == "newton":
+        if quantity == "mass":
+            values = wp.to_torch(raw.get_attribute("body_mass", None))
+        else:
+            values = wp.to_torch({"pose": raw.get_root_transforms, "velocity": raw.get_root_velocities}[quantity](None))
+    else:
+        from isaaclab_ov import tensor_types as TT
+
+        bindings = {
+            "object": {"pose": TT.RIGID_BODY_POSE, "velocity": TT.RIGID_BODY_VELOCITY, "mass": TT.RIGID_BODY_MASS},
+            "collection": {"pose": TT.LINK_POSE, "velocity": TT.LINK_VELOCITY, "mass": TT.BODY_MASS},
+        }
+        values = torch.as_tensor(raw.bindings[bindings[asset][quantity]]._data)
+    return values.reshape(_NUM_INSTANCES, num_bodies, -1).cpu().clone()
+
+
+@pytest.mark.parametrize("selection", ["index", "mask"])
+@pytest.mark.parametrize("quantity", _PARTIAL_WRITES)
+@pytest.mark.parametrize("asset", _ASSETS)
+def test_partial_write_preserves_unselected_backend_elements(monkeypatch, request, backend, asset, quantity, selection):
+    if backend == "ovphysx" and asset == "collection" and quantity != "mass":
+        # Product bug: OVPhysX pushes whole environment rows from a pose/velocity buffer that a partial write does
+        # not refresh first, so the unselected bodies of the selected environment receive stale (here zero) state.
+        request.applymarker(
+            pytest.mark.xfail(
+                raises=AssertionError,
+                strict=True,
+                reason="OVPhysX partial body writes overwrite unselected bodies of the selected environment",
+            )
+        )
+    obj, raw, _, num_bodies = _create(asset, backend, monkeypatch)
+    written, trailing = _PARTIAL_WRITES[quantity]
+    per_body = asset == "collection" or quantity == "mass"
+    shape = (_NUM_INSTANCES, num_bodies) if per_body else (_NUM_INSTANCES,)
+    values = _payload(shape, trailing, offset=100.0)
+    before = _read_backend(backend, asset, raw, quantity, num_bodies)
+
+    selected, selectors = _select_last(values, selection, per_body)
+    method, kwarg = _writer(obj, asset, written, selection)
+    method(**{kwarg: selected}, **selectors)
+
+    expected = before.clone()
+    expected[-1, -1] = values.reshape(_NUM_INSTANCES, num_bodies, -1)[-1, -1]
+    torch.testing.assert_close(_read_backend(backend, asset, raw, quantity, num_bodies), expected, rtol=0, atol=0)
+
+
+# ---------------------------------------------------------------------------
+# Family-specific behavior
+# ---------------------------------------------------------------------------
+
+
+def test_rigid_object_external_wrench_frames(monkeypatch, backend):
+    """Forward local and world wrenches through the real writer in each backend's frame."""
+    obj, raw, _, _ = _create("object", backend, monkeypatch)
+    # A known 90-degree rotation about Z keeps the local-frame expectation independent of production.
+    root_pose = torch.tensor(
+        [[1.0, 2.0, 3.0, 0.0, 0.0, 2.0**-0.5, 2.0**-0.5], [4.0, 5.0, 6.0, 0.0, 0.0, 2.0**-0.5, 2.0**-0.5]]
+    )
+    obj.write_root_link_pose_to_sim_index(root_pose=root_pose)
+    if backend == "newton":
+        # Seed the body pose the native forward kinematics would publish.
+        obj.data._sim_bind_body_link_pose_w.assign(wp.from_torch(root_pose, dtype=wp.transformf))
+    if backend == "physx":
+        raw.apply_forces_and_torques_at_position = MagicMock()
+    composer = obj.permanent_wrench_composer
+    forces = torch.arange(1.0, 7.0).reshape(2, 1, 3)
+    torques = forces + 10.0
 
     for is_global in (False, True):
         composer.reset()
@@ -620,11 +407,10 @@ def test_external_wrench_frames(monkeypatch, backend):
 
         expected_force, expected_torque = forces, torques
         if backend == "physx":
-            call = raw_backend.apply_forces_and_torques_at_position.call_args.kwargs
+            call = raw.apply_forces_and_torques_at_position.call_args.kwargs
             assert call["is_global"] is is_global
             assert call["position_data"] is None
-            actual_force = call["force_data"].numpy().reshape(2, 1, 3)
-            actual_torque = call["torque_data"].numpy().reshape(2, 1, 3)
+            actual_force, actual_torque = call["force_data"].numpy(), call["torque_data"].numpy()
         else:
             if not is_global:
                 # A 90-degree Z rotation maps body (x, y, z) to world (-y, x, z).
@@ -635,156 +421,31 @@ def test_external_wrench_frames(monkeypatch, backend):
             else:
                 from isaaclab_ov import tensor_types as TT
 
-                packed = raw_backend.bindings[TT.RIGID_BODY_WRENCH]._data.reshape(2, 1, 9)
+                packed = raw.bindings[TT.RIGID_BODY_WRENCH]._data.reshape(2, 1, 9)
                 np.testing.assert_allclose(packed[..., 6:9], root_pose[:, None, :3].numpy())
             actual_force, actual_torque = packed[..., :3], packed[..., 3:6]
-        np.testing.assert_allclose(actual_force, expected_force.cpu().numpy(), atol=1e-5, rtol=1e-5)
-        np.testing.assert_allclose(actual_torque, expected_torque.cpu().numpy(), atol=1e-5, rtol=1e-5)
+        np.testing.assert_allclose(actual_force.reshape(2, 1, 3), expected_force.numpy(), atol=1e-5, rtol=1e-5)
+        np.testing.assert_allclose(actual_torque.reshape(2, 1, 3), expected_torque.numpy(), atol=1e-5, rtol=1e-5)
 
 
-@pytest.mark.parametrize("method_base, kwarg", _BODY_METHODS, ids=[m[0] for m in _BODY_METHODS])
-def test_body_writer_index(monkeypatch, backend, device, method_base, kwarg):
-    num_instances, num_bodies = _NUM_INSTANCES, 1
-    obj, _ = get_rigid_object(backend, num_instances, device, monkeypatch=monkeypatch)
-    wp_dtype, trailing, getter = _body_writer_layout(backend, method_base)
-    obj.data.update(dt=0.01)
-    method = getattr(obj, f"{method_base}_index")
-    sub_b = 1  # rigid object always has 1 body
-    sub_body_ids = [0]
-
-    # torch, all envs + all bodies
-    method(**{kwarg: _make_body_torch((num_instances, num_bodies), device, wp_dtype, trailing)})
-    # torch, subset
-    method(
-        **{
-            kwarg: _make_body_torch((1, sub_b), device, wp_dtype, trailing),
-            "body_ids": sub_body_ids,
-            "env_ids": _make_env_ids(device, True),
-        }
+@pytest.mark.parametrize("dtype", [torch.float32, torch.float64])
+def test_collection_reshape_data_to_view_3d(monkeypatch, backend, device, dtype):
+    """Environment-major data becomes body-major view data, keeping the input dtype and array type."""
+    obj, _, _, num_bodies = _create("collection", backend, monkeypatch, device)
+    data = torch.arange(_NUM_INSTANCES * num_bodies * 4, dtype=dtype, device=device).reshape(
+        _NUM_INSTANCES, num_bodies, 4
     )
-    # warp, all envs + all bodies: the matching getter reads the written values back
-    method(**{kwarg: _make_body_warp((num_instances, num_bodies), device, wp_dtype, trailing, payload=True)})
-    expected = _make_body_torch((num_instances, num_bodies), device, wp_dtype, trailing, payload=True)
-    _assert_reads_back(getattr(obj.data, getter), expected, getter)
-    # warp, subset
-    method(
-        **{
-            kwarg: _make_body_warp((1, sub_b), device, wp_dtype, trailing),
-            "body_ids": sub_body_ids,
-            "env_ids": _make_env_ids(device, True),
-        }
-    )
-    # negative: bad torch shape (extra env)
-    with pytest.raises((AssertionError, RuntimeError)):
-        method(**{kwarg: _make_body_torch((num_instances + 1, num_bodies), device, wp_dtype, trailing)})
-    # negative: bad warp shape
-    with pytest.raises((AssertionError, RuntimeError)):
-        method(**{kwarg: _make_body_warp((num_instances + 1, num_bodies), device, wp_dtype, trailing)})
+    expected = data.permute(1, 0, 2).reshape(num_bodies * _NUM_INSTANCES, 4)
 
+    view = obj.reshape_data_to_view_3d(data, 4, device=device)
+    assert isinstance(view, torch.Tensor) and view.is_contiguous()
+    assert (view.dtype, view.device) == (dtype, data.device)
+    torch.testing.assert_close(view, expected)
 
-@pytest.mark.parametrize("method_base, kwarg", _BODY_METHODS, ids=[m[0] for m in _BODY_METHODS])
-def test_body_writer_mask(monkeypatch, backend, device, method_base, kwarg):
-    num_instances, num_bodies = _NUM_INSTANCES, 1
-    obj, _ = get_rigid_object(backend, num_instances, device, monkeypatch=monkeypatch)
-    wp_dtype, trailing, getter = _body_writer_layout(backend, method_base)
-    obj.data.update(dt=0.01)
-    method = getattr(obj, f"{method_base}_mask")
-    sub_body_sel = [0]
-
-    # torch, no mask
-    method(**{kwarg: _make_body_torch((num_instances, num_bodies), device, wp_dtype, trailing)})
-    # torch, partial env_mask + body_mask
-    method(
-        **{
-            kwarg: _make_body_torch((num_instances, num_bodies), device, wp_dtype, trailing),
-            "body_mask": _make_item_mask(num_bodies, sub_body_sel, device),
-            "env_mask": _make_env_mask(num_instances, device, True),
-        }
-    )
-    # warp, no mask: the matching getter reads the written values back
-    method(**{kwarg: _make_body_warp((num_instances, num_bodies), device, wp_dtype, trailing, payload=True)})
-    expected = _make_body_torch((num_instances, num_bodies), device, wp_dtype, trailing, payload=True)
-    _assert_reads_back(getattr(obj.data, getter), expected, getter)
-    # warp, partial env_mask + body_mask
-    method(
-        **{
-            kwarg: _make_body_warp((num_instances, num_bodies), device, wp_dtype, trailing),
-            "body_mask": _make_item_mask(num_bodies, sub_body_sel, device),
-            "env_mask": _make_env_mask(num_instances, device, True),
-        }
-    )
-    # negative: bad torch shape
-    with pytest.raises((AssertionError, RuntimeError)):
-        method(**{kwarg: _make_body_torch((num_instances + 1, num_bodies), device, wp_dtype, trailing)})
-    # negative: bad warp shape
-    with pytest.raises((AssertionError, RuntimeError)):
-        method(**{kwarg: _make_body_warp((num_instances + 1, num_bodies), device, wp_dtype, trailing)})
-
-
-# ---------------------------------------------------------------------------
-# Tests: partial writes reach only the selected backend rows
-# ---------------------------------------------------------------------------
-
-# quantity -> (writer base name, writer keyword, literal per-environment payload)
-_PARTIAL_WRITES = {
-    "root_pose": (
-        "write_root_link_pose_to_sim",
-        "root_pose",
-        [[31.0, 32.0, 33.0, 0.0, 0.0, 0.0, 1.0], [41.0, 42.0, 43.0, 0.0, 0.0, 0.0, 1.0]],
-    ),
-    "root_velocity": (
-        "write_root_com_velocity_to_sim",
-        "root_velocity",
-        [[21.0, 22.0, 23.0, 24.0, 25.0, 26.0], [71.0, 72.0, 73.0, 74.0, 75.0, 76.0]],
-    ),
-    "mass": ("set_masses", "masses", [[51.0], [61.0]]),
-}
-
-
-def _read_backend_rows(backend: str, raw_backend, quantity: str) -> torch.Tensor:
-    """Read one rigid-object quantity from backend storage as one row per environment."""
-    if backend == "physx":
-        getter = {
-            "root_pose": raw_backend.get_transforms,
-            "root_velocity": raw_backend.get_velocities,
-            "mass": raw_backend.get_masses,
-        }
-        values = getter[quantity]()
-    elif backend == "newton":
-        if quantity == "mass":
-            values = raw_backend.get_attribute("body_mass", None)
-        else:
-            getter = {"root_pose": raw_backend.get_root_transforms, "root_velocity": raw_backend.get_root_velocities}
-            values = getter[quantity](None)
-    else:
-        from isaaclab_ov import tensor_types as TT
-
-        binding = {"root_pose": TT.RIGID_BODY_POSE, "root_velocity": TT.RIGID_BODY_VELOCITY, "mass": TT.RIGID_BODY_MASS}
-        values = raw_backend.bindings[binding[quantity]]._data
-    values = wp.to_torch(values) if isinstance(values, wp.array) else torch.as_tensor(values)
-    return values.reshape(2, -1).cpu().clone()
-
-
-@pytest.mark.parametrize("selection", ["index", "mask"])
-@pytest.mark.parametrize("quantity", _PARTIAL_WRITES)
-def test_partial_write_preserves_unselected_backend_rows(monkeypatch, backend, selection, quantity):
-    obj, raw_backend = get_rigid_object(backend, num_instances=2, device="cpu", monkeypatch=monkeypatch)
-    writer, kwarg, payload = _PARTIAL_WRITES[quantity]
-    values = torch.tensor(payload, dtype=torch.float32)
-    before = _read_backend_rows(backend, raw_backend, quantity)
-    # Select the second environment so a writer that ignores the selection cannot pass by writing row 0.
-    selected, unselected = 1, 0
-    if selection == "index":
-        kwargs = {kwarg: values[selected : selected + 1], "env_ids": torch.tensor([selected], dtype=torch.int32)}
-        if quantity == "mass":
-            kwargs["body_ids"] = [0]
-    else:
-        kwargs = {kwarg: values, "env_mask": _make_item_mask(2, [selected], "cpu")}
-        if quantity == "mass":
-            kwargs["body_mask"] = _make_item_mask(1, [0], "cpu")
-
-    getattr(obj, f"{writer}_{selection}")(**kwargs)
-
-    after = _read_backend_rows(backend, raw_backend, quantity)
-    torch.testing.assert_close(after[selected], values[selected], rtol=0.0, atol=0.0)
-    torch.testing.assert_close(after[unselected], before[unselected], rtol=0.0, atol=0.0)
+    if dtype == torch.float32:
+        warp_view = obj.reshape_data_to_view_3d(wp.from_torch(data, dtype=wp.float32), 4, device=device)
+        assert isinstance(warp_view, wp.array) and warp_view.dtype == wp.float32 and str(warp_view.device) == device
+        torch.testing.assert_close(wp.to_torch(warp_view), expected)
+    if device != "cpu":
+        # Torch inputs move to the requested device.
+        torch.testing.assert_close(obj.reshape_data_to_view_3d(data, 4, device="cpu"), expected.cpu())

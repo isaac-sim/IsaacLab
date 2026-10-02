@@ -9,16 +9,16 @@ import pytest
 
 from isaaclab.test.utils import DeviceScope, test_devices
 
-from .capabilities import backend_parameters
+from .backends import backends
 
 
-@pytest.fixture(params=backend_parameters("api"))
+@pytest.fixture(params=backends())
 def backend(request: pytest.FixtureRequest) -> str:
-    """Run each shared contract on every declared backend, with explicit unavailable skips."""
+    """Run each shared contract on every backend, skipping the ones unavailable in this process."""
     return request.param
 
 
 @pytest.fixture(params=test_devices(DeviceScope.CPU_AND_DEFAULT_CUDA))
 def device(request: pytest.FixtureRequest) -> str:
-    """Exercise CPU buffers and CUDA staging without repeating CPU-only bookkeeping."""
+    """Exercise CPU buffers and CUDA staging."""
     return request.param

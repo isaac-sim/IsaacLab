@@ -17,22 +17,19 @@ import warp as wp
 from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
 from isaaclab.utils.wrench_composer import WrenchComposer
 
-from .capabilities import available_backends
-from .mock_backends import install_physx_recording_setters, patch_ovphysx_manager, patch_physx_manager
+from .backends import AVAILABLE, install_physx_recording_setters, patch_ovphysx_manager, patch_physx_manager
 
-BACKENDS = available_backends()
-
-if "physx" in BACKENDS:
+if "physx" in AVAILABLE:
     from isaaclab_physx.assets.articulation.articulation import Articulation as PhysXArticulation
     from isaaclab_physx.assets.articulation.articulation_data import ArticulationData as PhysXArticulationData
     from isaaclab_physx.test.fixtures.views import MockArticulationViewWarp as PhysXMockArticulationViewWarp
 
-if "newton" in BACKENDS:
+if "newton" in AVAILABLE:
     from isaaclab_newton.assets.articulation.articulation import Articulation as NewtonArticulation
     from isaaclab_newton.assets.articulation.articulation_data import ArticulationData as NewtonArticulationData
     from isaaclab_newton.test.fixtures.views import MockNewtonArticulationView as NewtonMockArticulationView
 
-if "ovphysx" in BACKENDS:
+if "ovphysx" in AVAILABLE:
     from isaaclab_ov.assets.articulation.articulation import Articulation as OvPhysxArticulation
     from isaaclab_ov.assets.articulation.articulation_data import ArticulationData as OvPhysxArticulationData
     from isaaclab_ov.test.fixtures.views import MockOvPhysxBindingSet
@@ -439,50 +436,12 @@ def get_articulation(
     num_fixed_tendons: int = 0,
     num_spatial_tendons: int = 0,
     device: str = "cuda:0",
-    is_fixed_base: bool = False,
-    joint_ordering: tuple[str, ...] | None = None,
-    body_ordering: tuple[str, ...] | None = None,
-    *,
-    monkeypatch: pytest.MonkeyPatch,
+    **kwargs,
 ):
-    if backend == "physx":
-        return create_physx_articulation(
-            num_instances,
-            num_joints,
-            num_bodies,
-            num_fixed_tendons,
-            num_spatial_tendons,
-            device,
-            is_fixed_base=is_fixed_base,
-            joint_ordering=joint_ordering,
-            body_ordering=body_ordering,
-            monkeypatch=monkeypatch,
-        )
-    elif backend == "ovphysx":
-        return create_ovphysx_articulation(
-            num_instances,
-            num_joints,
-            num_bodies,
-            num_fixed_tendons,
-            num_spatial_tendons,
-            device,
-            is_fixed_base=is_fixed_base,
-            joint_ordering=joint_ordering,
-            body_ordering=body_ordering,
-            monkeypatch=monkeypatch,
-        )
-    elif backend == "newton":
-        return create_newton_articulation(
-            num_instances,
-            num_joints,
-            num_bodies,
-            num_fixed_tendons,
-            num_spatial_tendons,
-            device,
-            is_fixed_base=is_fixed_base,
-            joint_ordering=joint_ordering,
-            body_ordering=body_ordering,
-            monkeypatch=monkeypatch,
-        )
-    else:
-        raise ValueError(f"Invalid backend: {backend}")
+    """Create a mocked articulation of one backend and return it with its backend view or bindings."""
+    factory = {
+        "physx": create_physx_articulation,
+        "ovphysx": create_ovphysx_articulation,
+        "newton": create_newton_articulation,
+    }[backend]
+    return factory(num_instances, num_joints, num_bodies, num_fixed_tendons, num_spatial_tendons, device, **kwargs)

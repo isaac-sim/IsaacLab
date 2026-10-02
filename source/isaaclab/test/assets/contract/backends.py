@@ -3,17 +3,97 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Backend-manager and tensor-view doubles shared by the mocked contract factories."""
+"""Backend bootstrap, availability, and manager doubles shared by the asset contract tests.
 
+Importing this module launches Kit when the process runs inside Isaac Sim. Otherwise it stubs the Kit-only modules
+that the PhysX and OVPhysX asset classes import, so the real asset and data classes run against mocked views.
+"""
+
+import os
+import sys
 from collections.abc import Callable
+from importlib.machinery import ModuleSpec
+from importlib.util import find_spec
 from unittest.mock import MagicMock
 
 import numpy as np
 import pytest
 import warp as wp
 
+if "ovphysx" not in os.environ.get("LD_PRELOAD", "") and (os.environ.get("LD_PRELOAD") or "EXP_PATH" in os.environ):
+    from isaaclab.test.utils import launch_test_simulation
 
-def patch_physx_manager(*, monkeypatch: pytest.MonkeyPatch) -> None:
+    launch_test_simulation()
+else:
+    import omni  # noqa: F401  # real namespace package; the stubs below become its attributes
+
+    for _name, _is_package in (
+        ("carb", False),
+        ("usdrt", True),
+        ("omni.kit", True),
+        ("omni.kit.app", False),
+        ("omni.physics", True),
+        ("omni.physics.tensors", False),
+        ("omni.physx", False),
+        ("omni.timeline", False),
+        ("omni.usd", False),
+        ("isaacsim", True),
+        ("isaacsim.core", True),
+        ("isaacsim.core.simulation_manager", False),
+    ):
+        if _name in sys.modules:
+            continue
+        _stub = MagicMock()
+        _stub.__spec__ = ModuleSpec(_name, loader=None, is_package=_is_package)
+        if _is_package:
+            _stub.__path__ = []
+        sys.modules[_name] = _stub
+        if "." in _name:
+            _parent, _attribute = _name.rsplit(".", 1)
+            setattr(sys.modules[_parent], _attribute, _stub)
+    sys.modules["omni.kit.app"].get_app.return_value = None
+
+
+def _unavailable_reason(*modules: str, cuda: bool = False) -> str | None:
+    """Return why a backend cannot run in this process, or None when it can."""
+    for module in modules:
+        if find_spec(module) is None:
+            return f"missing module: {module}"
+    if cuda and not wp.is_cuda_available():
+        # The mocked OVPhysX bindings allocate pinned host staging buffers even for CPU tensors.
+        return "requires a CUDA runtime"
+    return None
+
+
+UNAVAILABLE = {
+    name: reason
+    for name, reason in {
+        "physx": _unavailable_reason("isaaclab_physx"),
+        "newton": _unavailable_reason("isaaclab_newton"),
+        "ovphysx": _unavailable_reason("ovphysx", "isaaclab_ov", cuda=True),
+    }.items()
+    if reason is not None
+}
+"""Backend name to the reason it is skipped in this process."""
+
+AVAILABLE = [name for name in ("physx", "newton", "ovphysx") if name not in UNAVAILABLE]
+"""Backends that run in this process."""
+
+
+def backends(*names: str) -> list:
+    """Return pytest parameters for the named backends (default: all), skipping the unavailable ones."""
+    return [
+        pytest.param(name, id=name, marks=pytest.mark.skipif(name in UNAVAILABLE, reason=UNAVAILABLE.get(name, "")))
+        for name in names or ("physx", "newton", "ovphysx")
+    ]
+
+
+def requires(name: str) -> pytest.MarkDecorator:
+    """Skip a backend-specific test when that backend is unavailable."""
+    return pytest.mark.skipif(name in UNAVAILABLE, reason=f"{name}: {UNAVAILABLE.get(name)}")
+
+
+def patch_physx_manager(monkeypatch: pytest.MonkeyPatch) -> None:
     """Give PhysX data classes gravity and a scene-data backend without creating a physics scene."""
     from isaaclab_physx.physics import PhysxManager
     from isaaclab_physx.physics.physx_manager import PhysxSceneDataBackend
@@ -25,7 +105,7 @@ def patch_physx_manager(*, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(PhysxManager, "_scene_data_backend", PhysxSceneDataBackend(), raising=False)
 
 
-def patch_ovphysx_manager(*, monkeypatch: pytest.MonkeyPatch) -> None:
+def patch_ovphysx_manager(monkeypatch: pytest.MonkeyPatch) -> None:
     """Create the OVPhysX scene-data backend whose transform version the writers bump."""
     from isaaclab_ov.physics.ovphysx_manager import OvPhysxManager, OvPhysxSceneDataBackend
 
@@ -79,6 +159,4 @@ def read_backend_joint_state(backend: str, art, raw_backend) -> tuple[np.ndarray
         position = np.asarray(raw_backend.bindings[TT.DOF_POSITION]._data).copy()
         velocity = np.asarray(raw_backend.bindings[TT.DOF_VELOCITY]._data).copy()
         return position, velocity
-    if backend == "newton":
-        return art.data._sim_bind_joint_pos.numpy().copy(), art.data._sim_bind_joint_vel.numpy().copy()
-    raise AssertionError(f"Unsupported backend for joint-state parity test: {backend}")
+    return art.data._sim_bind_joint_pos.numpy().copy(), art.data._sim_bind_joint_vel.numpy().copy()
