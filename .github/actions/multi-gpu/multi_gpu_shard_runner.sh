@@ -65,7 +65,12 @@ fi
 # Cross-check with torch and cap shard count to what torch can actually
 # address. Guards against a CUDA_VISIBLE_DEVICES misconfig silently fanning
 # out shards that crash on device access.
-TORCH_COUNT=$(/isaac-sim/python.sh -c "import torch; print(torch.cuda.device_count())")
+# torch lives in the image's venv, not Kit's bundled Python, so resolve it the way the shards do.
+TORCH_COUNT=$(./isaaclab.sh -p -c "import torch; print(torch.cuda.device_count())" | tail -n1)
+if ! [[ "$TORCH_COUNT" =~ ^[0-9]+$ ]]; then
+  echo "::error::Could not read torch.cuda.device_count(); got '$TORCH_COUNT'"
+  exit 1
+fi
 echo "container: torch sees $TORCH_COUNT cuda devices (cross-check vs $DEV_COUNT)"
 if [ "$TORCH_COUNT" -lt "$DEV_COUNT" ]; then
   echo "::warning::torch sees fewer devices than nvidia-smi — capping shards to $TORCH_COUNT"
