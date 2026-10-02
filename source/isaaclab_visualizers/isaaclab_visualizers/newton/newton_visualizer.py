@@ -58,11 +58,13 @@ from isaaclab.envs.utils.camera_view import (
 from isaaclab.scene_data import SceneDataFormat
 from isaaclab.sim import SimulationContext
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
+from isaaclab.visualizers.policy_ghost import PolicyGhostController
 
 from isaaclab_visualizers.desktop_entry import write_desktop_entry
 from isaaclab_visualizers.newton.newton_visualization_markers import render_newton_visualization_markers
 from isaaclab_visualizers.newton_adapter import resolve_visible_env_indices
 
+from .newton_policy_ghosts import NewtonPolicyGhostPanel
 from .newton_visualizer_cfg import NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg, NewtonVisualizerCfg
 
 logger = logging.getLogger(__name__)
@@ -387,6 +389,11 @@ class _NewtonViewerUIMixin:
                 for callback in _g._ui_callbacks.get("side", []):
                     callback(imgui)
 
+            # --- Policy Ghosts ----------------------------------------------
+            ghost_panel = getattr(viewer, "_policy_ghost_panel", None)
+            if ghost_panel is not None:
+                ghost_panel.draw(imgui)
+
             # --- Streaming View ---------------------------------------------
             viewer._draw_streaming_view_controls()
 
@@ -545,6 +552,16 @@ class _NewtonViewerUIMixin:
 
         if imgui.button("Reset Episode"):
             self._reset_requested = True
+
+        owner = getattr(self, "_owner", None)
+        if owner is not None and owner.visible_env_limit > 1:
+            imgui.text("Visible Envs (per slot)" if owner._policy_ghost_panel is not None else "Visible Envs")
+            count = owner.visible_env_count
+            changed, new_count = imgui.slider_int("##VisibleEnvs", count, 1, owner.visible_env_limit)
+            if changed:
+                owner.set_visible_env_count(new_count)
+            if imgui.is_item_hovered():
+                imgui.set_tooltip("Number of environments drawn in the viewer; simulation is unaffected")
 
         imgui.text("Visualizer Update Frequency")
         current_frequency = self._update_frequency
@@ -1051,6 +1068,10 @@ class NewtonVisualizer(BaseVisualizer):
         self._last_camera_pose: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
         self._headless_no_viewer = False
         self._resolved_visible_env_ids: list[int] | None = None
+        self._cfg_visible_env_ids: list[int] | None = None
+        self._visible_env_count: int | None = None
+        self._num_envs = 0
+        self._policy_ghost_panel: NewtonPolicyGhostPanel | None = None
         self._camera_sensor = None
         self._camera_sensor_indices: list[int] = []
         self._camera_env_indices: list[int] = []
@@ -1109,6 +1130,8 @@ class NewtonVisualizer(BaseVisualizer):
         metadata = {"num_envs": num_envs}
         self._env_ids = self._compute_visualized_env_ids()
         self._resolved_visible_env_ids = resolve_visible_env_indices(self._env_ids, self.cfg.max_visible_envs, num_envs)
+        self._cfg_visible_env_ids = self._resolved_visible_env_ids
+        self._num_envs = num_envs
         self.newton_cfg = NewtonBackendCfg(physics_cfg=sim.cfg.physics, device=sim.device)
         self.backend = sim.get_or_create_backend(self.newton_cfg)
         self._transform_mapping = scene_data_provider.create_mapping(list(self.backend.model.body_label))
@@ -1146,8 +1169,8 @@ class NewtonVisualizer(BaseVisualizer):
             if self._picking_enabled:
                 # Keep Newton's public force path scoped to picking for this integration.
                 self._viewer.wind = None
-            self._viewer.set_visible_worlds(self._resolved_visible_env_ids)
-            self._viewer.set_world_offsets(self.cfg.world_spacing)
+            self._viewer._owner = self
+            self._apply_visible_worlds()
             self._apply_camera_focal_length()
             initial_pose = self._resolve_initial_camera_pose()
             self._apply_camera_pose(initial_pose)
@@ -1241,6 +1264,10 @@ class NewtonVisualizer(BaseVisualizer):
                     backend.state_0.body_q = poses.transforms
                 if backend.geometry_offsets:
                     provider.get_geometry_points(output=backend.state_0.particle_q, offsets=backend.geometry_offsets)
+                if self._policy_ghost_panel is not None:
+                    self._policy_ghost_panel.apply_tint(backend.model)
+                    if self._policy_ghost_panel.consume_slots_changed():
+                        self._apply_visible_worlds()
                 self._viewer.begin_frame(self._sim_time)
                 try:
                     state = backend.state_0
@@ -1315,8 +1342,7 @@ class NewtonVisualizer(BaseVisualizer):
             if self._picking_enabled:
                 self._viewer.wind = None
             self._viewer._register_isaaclab_ui_callbacks()
-            self._viewer.set_visible_worlds(self._resolved_visible_env_ids)
-            self._viewer.set_world_offsets(self.cfg.world_spacing)
+            self._apply_visible_worlds()
             self._apply_model_visualization_options()
             self._viewer.picking_enabled = self._picking_enabled
             if self._picking_enabled:
@@ -2085,6 +2111,64 @@ class NewtonGLVisualizer(NewtonVisualizer):
             metadata=metadata,
             update_frequency=self.cfg.update_frequency,
         )
+
+    def attach_policy_ghosts(self, controller: PolicyGhostController) -> None:
+        """Show the Policy Ghosts HUD section for a playback loop that drives several checkpoints.
+
+        Only environments of slots with a checkpoint are visible, and each ghost slot is tinted and overlaid on
+        the reference slot. The visible-environment slider then counts environments per slot.
+
+        Args:
+            controller: Playback-loop side of Policy Ghosts.
+        """
+        self._policy_ghost_panel = NewtonPolicyGhostPanel(controller)
+        if self._viewer is not None:
+            self._viewer._policy_ghost_panel = self._policy_ghost_panel
+            self._apply_visible_worlds()
+
+    @property
+    def visible_env_limit(self) -> int:
+        """Largest value of the visible-environment count: environments per slot with Policy Ghosts, else all."""
+        if self._policy_ghost_panel is not None:
+            return self._policy_ghost_panel.layout.slice_size
+        return len(self._cfg_visible_env_ids) if self._cfg_visible_env_ids is not None else self._num_envs
+
+    @property
+    def visible_env_count(self) -> int:
+        """Number of environments currently shown (per slot with Policy Ghosts)."""
+        if self._visible_env_count is not None:
+            return min(self._visible_env_count, self.visible_env_limit)
+        return self.visible_env_limit
+
+    def set_visible_env_count(self, count: int) -> None:
+        """Show only the first ``count`` environments (per slot with Policy Ghosts).
+
+        Args:
+            count: Number of environments to show, clamped to ``[1, visible_env_limit]``.
+        """
+        self._visible_env_count = max(1, min(int(count), self.visible_env_limit))
+        self._apply_visible_worlds()
+
+    def _select_visible_env_ids(self) -> list[int] | None:
+        """Resolve the environments to show from the cfg, the HUD count, and the Policy Ghosts slots."""
+        panel = self._policy_ghost_panel
+        if panel is not None:
+            return panel.layout.visible_env_ids(self.visible_env_count)
+        if self._visible_env_count is None:
+            return self._cfg_visible_env_ids
+        ids = self._cfg_visible_env_ids if self._cfg_visible_env_ids is not None else range(self._num_envs)
+        return list(ids)[: self._visible_env_count]
+
+    def _apply_visible_worlds(self) -> None:
+        """Apply the visible environments and, with Policy Ghosts, overlay each ghost on the reference."""
+        if self._viewer is None:
+            return
+        self._resolved_visible_env_ids = self._select_visible_env_ids()
+        self._viewer.set_visible_worlds(self._resolved_visible_env_ids)
+        self._viewer.set_world_offsets(self.cfg.world_spacing)
+        if self._policy_ghost_panel is not None and getattr(self._viewer, "world_offsets", None) is not None:
+            offsets = self._viewer.world_offsets.numpy() + self._policy_ghost_panel.controller.env_origin_offsets()
+            self._viewer.world_offsets = wp.array(offsets, dtype=wp.vec3, device=self._viewer.world_offsets.device)
 
     def register_ui_callback(self, callback: Callable[[Any], None], position: str = "side") -> None:
         """Add a panel to the viewer's ImGui interface.

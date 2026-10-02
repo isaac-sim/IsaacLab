@@ -11,6 +11,7 @@ from pathlib import Path
 import pytest
 
 from isaaclab_rl.entrypoints.common import RUN_MANIFEST_FILENAME, resolve_checkpoint_selector, write_run_manifest
+from isaaclab_rl.entrypoints.policy_ghosts import discover_checkpoints
 
 
 def _set_created_at(run_dir: Path, created_at: str) -> None:
@@ -128,3 +129,27 @@ def test_latest_rejects_unmanifested_historical_run(tmp_path: Path) -> None:
             task="Isaac-Cartpole",
             checkpoint_pattern=r"model_.*\.pt",
         )
+
+
+def test_discover_checkpoints_lists_compatible_runs_newest_first_in_natural_order(tmp_path: Path) -> None:
+    old_run, new_run, other_task_run = tmp_path / "old", tmp_path / "new", tmp_path / "other"
+    for run_dir, task in ((old_run, "Isaac-Cartpole"), (new_run, "Isaac-Cartpole"), (other_task_run, "Isaac-Ant")):
+        run_dir.mkdir()
+        (run_dir / "model_10.pt").touch()
+        (run_dir / "model_9.pt").touch()
+        (run_dir / "notes.txt").touch()
+        write_run_manifest(str(run_dir), library="rsl_rl", task=task)
+    _set_created_at(old_run, "2026-01-01T00:00:00+00:00")
+    _set_created_at(new_run, "2026-01-02T00:00:00+00:00")
+
+    found = discover_checkpoints(
+        str(tmp_path), library="rsl_rl", task="Isaac-Cartpole", checkpoint_pattern=r"model_.*\.pt"
+    )
+
+    assert [(c.run, c.name) for c in found] == [
+        ("new", "model_9.pt"),
+        ("new", "model_10.pt"),
+        ("old", "model_9.pt"),
+        ("old", "model_10.pt"),
+    ]
+    assert all(Path(c.path).is_absolute() for c in found)
