@@ -1,6 +1,6 @@
-* Added :mod:`isaaclab.sensors.post_processing` with :class:`~isaaclab.sensors.post_processing.SensorPostProcessor`,
-  :class:`~isaaclab.sensors.post_processing.SensorPostProcessorCfg`, and
-  :class:`~isaaclab.sensors.post_processing.SensorPostProcessingPipeline` for ordered, renderer-independent
+* Added ``isaaclab.sensors.post_processing`` with :class:`~isaaclab.sensors.SensorPostProcessor`,
+  :class:`~isaaclab.sensors.SensorPostProcessorCfg`, and
+  :class:`~isaaclab.sensors.SensorPostProcessingPipeline` for ordered, renderer-independent
   post-processing of camera image buffers.
 * Added ``mdp.processed_image`` for ordered image-processing chains owned by observation terms,
   with explicit buffer requirements, persistent intermediates, cached frame processing, and

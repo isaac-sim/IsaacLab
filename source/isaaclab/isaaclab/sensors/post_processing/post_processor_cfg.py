@@ -23,7 +23,7 @@ class SensorPostProcessorCfg:
     """Configure a factory that creates independent state for each processing chain.
 
     ``func(cfg, context)`` resolves configuration before renderer setup and returns a
-    :class:`~isaaclab.sensors.post_processing.SensorPostProcessor`, or ``None`` to disable this
+    :class:`~isaaclab.sensors.SensorPostProcessor`, or ``None`` to disable this
     operation. Static ``inputs`` declare potential renderer requirements needed before simulation
     startup (e.g. HDR). The returned processor declares the actual inputs and outputs after discovery.
     """

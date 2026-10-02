@@ -408,9 +408,9 @@ Run the ``ppisp-camera`` example for a PPISP workflow using the observation API:
 Add a processor
 ~~~~~~~~~~~~~~~
 
-A :class:`~sensors.post_processing.SensorPostProcessorCfg` factory receives the configuration and a
-:class:`~sensors.post_processing.CameraPostProcessorContext` containing the stage, camera paths, image
-dimensions, and device. It returns a :class:`~sensors.post_processing.SensorPostProcessor` with buffer
+A :class:`~sensors.SensorPostProcessorCfg` factory receives the configuration and a
+:class:`~sensors.CameraPostProcessorContext` containing the stage, camera paths, image
+dimensions, and device. It returns a :class:`~sensors.SensorPostProcessor` with buffer
 declarations and callbacks, or ``None`` to disable the stage. Keep state inside that factory so
 observation terms remain independent.
 
