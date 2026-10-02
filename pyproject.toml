@@ -360,7 +360,6 @@ ignore-words-list = "aheared,collet,followng,haa,publically,rouines,slq,collapsa
 
 markers = [
     "isaacsim_ci: mark test to run in isaacsim ci",
-    "device_split: re-invoke this file in a separate process per device (CPU, then GPU) in CI",
     "windows_ci: mark test to run on Windows platforms in CI",
     "arm_ci: mark test to run on ARM platforms in CI (e.g. NVIDIA DGX Spark)",
     "unit: test exercises isolated logic and does not launch the simulator",
