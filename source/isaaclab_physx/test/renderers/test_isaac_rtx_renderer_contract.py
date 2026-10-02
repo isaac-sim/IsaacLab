@@ -581,7 +581,6 @@ def test_render_keeps_leading_channels_of_padded_annotator_tiles(monkeypatch, da
         output_data={data_type: SimpleNamespace(warp=output_buffer)},
         spec=SimpleNamespace(view_count=view_count, device="cpu", cfg=SimpleNamespace(width=width, height=height)),
         renderer_info={},
-        ppisp_pipeline=None,
         _hdr_scratch_wp=None,
     )
     renderer = rtx_renderer.IsaacRtxRenderer.__new__(rtx_renderer.IsaacRtxRenderer)
