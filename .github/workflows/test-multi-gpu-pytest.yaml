@@ -249,6 +249,19 @@ jobs:
           dockerfile-path: docker/Dockerfile.base
           cache-tag: cache-base
 
+      - name: Resolve Warp cache key
+        if: needs.changes.outputs.unit == 'true'
+        id: warp-cache-key
+        uses: ./.github/actions/warp-cache-key
+
+      - name: Restore Warp kernel cache
+        if: needs.changes.outputs.unit == 'true'
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ steps.warp-cache-key.outputs.host-dir }}
+          key: ${{ steps.warp-cache-key.outputs.key }}
+          restore-keys: ${{ steps.warp-cache-key.outputs.restore-keys }}
+
       - name: Run shards in parallel on local GPUs (1-docker N-shard)
         # ONE container hosts all N pytest shards as parallel subshells, each
         # pinned to its own non-default cuda:N and pulling from a shared work
@@ -259,6 +272,9 @@ jobs:
           IMAGE_TAG: ${{ env.CI_IMAGE_TAG }}
           INCLUDE_FILES: ${{ steps.discover.outputs.include }}
           PATHS: ${{ steps.discover.outputs.paths }}
+          # Files per shard at once, as the package jobs in build.yaml run them.
+          TEST_JOBS: "4"
+          WARP_CACHE_HOST_DIR: ${{ steps.warp-cache-key.outputs.host-dir }}
         if: needs.changes.outputs.unit == 'true'
         run: bash .github/actions/multi-gpu/multi_gpu_host_launcher.sh
 
