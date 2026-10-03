@@ -373,3 +373,16 @@ class TestMultiGpuTrainingSmoke:
             *_run_training(devices, _CAMERA_TASK, stack, num_gpus=num_gpus, experiment=_experiment_name()),
             devices=devices,
         )
+
+
+# TEMP (revert before review): minimal NCCL + OVRTX CUDA 12 repro, no Isaac Lab code involved.
+@pytest.mark.kitless
+@pytest.mark.parametrize("variant", ["none", "load", "cudart", "jit"])
+def test_tmp_nccl_cuda12_repro(variant: str) -> None:
+    script = Path(__file__).with_name("tmp_nccl_cuda12_repro.py")
+    env = dict(os.environ, NCCL_DEBUG="WARN")
+    cmd = [sys.executable, "-m", "torch.distributed.run", "--nproc_per_node", "2", "--master_port"]
+    proc = subprocess.run([*cmd, str(_free_port()), str(script), variant], env=env, capture_output=True, text=True)
+    output = proc.stdout + proc.stderr
+    print("\n".join(line for line in output.splitlines() if "REPRO" in line or "NCCL WARN" in line or "Error" in line))
+    assert proc.returncode == 0, output[-_FAILURE_OUTPUT_CHARS:]
