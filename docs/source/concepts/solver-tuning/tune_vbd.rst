@@ -159,6 +159,10 @@ Core Solve
       - Default: ``10``. Number of VBD iterations per substep. Increasing this value improves deformation and contact convergence, especially for stiff materials or rigid gripper contacts, but increases runtime.
     * - ``rigid_compliant_alm``
       - Default: ``None``. Preserves Newton's rigid solver mode. In Newton 1.6, ``None`` selects deprecated legacy AVBD. Set to ``True`` to use compliant ALM for rigid joints and body-body contacts, or ``False`` to explicitly retain legacy AVBD.
+    * - ``rigid_avbd_contact_alpha``
+      - Default: ``None``. Body-body contact C0 stabilization strength in [0, 1]. ``None`` uses Newton's mode default (``0.0`` for compliant ALM; ``0.95`` for legacy AVBD). Under ALM this does not set contact stiffness or multiplier retention.
+    * - ``rigid_contact_history``
+      - Default: ``False``. Warm-starts matched body-body contacts across steps. Standalone VBD requires ``NewtonCfg.collision_cfg.contact_matching`` set to ``"latest"`` or ``"sticky"`` when it integrates rigid bodies.
     * - ``rigid_body_contact_buffer_size``
       - Default: ``64``. Per-body capacity for body-body contacts when VBD integrates rigid bodies. Increase it if Newton reports a per-body body-body contact buffer overflow.
     * - ``rigid_body_particle_contact_buffer_size``
@@ -190,6 +194,20 @@ capacity only increases the available storage; it does not change stiffness.
 unset. Newton 1.6 defaults it to ``0.0`` for compliant ALM and ``0.95`` for legacy
 AVBD, for both rigid joints and body-body contacts. Setting alpha to zero alone
 does not enable ALM.
+
+For standalone VBD, enable matching on the collision pipeline as well as
+history on VBD. ``"latest"`` matches the previous frame; ``"sticky"`` also
+retains friction anchors. Isaac Lab clears both histories for reset worlds.
+Coupled VBD entries use separate collision pipelines.
+
+.. code-block:: python
+
+    from isaaclab_newton.physics import NewtonCfg, NewtonCollisionPipelineCfg, VBDSolverCfg
+
+    physics_cfg = NewtonCfg(
+        solver_cfg=VBDSolverCfg(rigid_compliant_alm=True, rigid_contact_history=True),
+        collision_cfg=NewtonCollisionPipelineCfg(contact_matching="latest"),
+    )
 
 
 Self-Contact
