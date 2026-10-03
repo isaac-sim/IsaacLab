@@ -48,8 +48,7 @@ _SEED = 7
 #
 # Startup is legitimately silent for long stretches: Kit boot, Warp kernel compilation, and
 # OVRTX ray-tracing pipeline compilation all report little or nothing to stdout. Deliberately
-# generous, because the cost of being wrong is a false failure on slower hardware -- the CI pool
-# is 4x A10G, well below the L40S these were first measured on.
+# generous, because the cost of being wrong is a false failure on slower hardware.
 _STARTUP_IDLE_TIMEOUT_S = 600
 # Once iterations are logging, gaps are small (~10 s first, ~6 s after), so silence here is a
 # real hang and worth catching quickly.
@@ -186,9 +185,7 @@ def _run_training(
     env = dict(os.environ)
     # Docker's --gpus flag is unavailable from inside the test process, so devices are selected
     # with CUDA_VISIBLE_DEVICES instead.
-    if devices is None:
-        env.pop("CUDA_VISIBLE_DEVICES", None)
-    else:
+    if devices is not None:
         env["CUDA_VISIBLE_DEVICES"] = ",".join(devices)
     env["PYTHONUNBUFFERED"] = "1"
 
