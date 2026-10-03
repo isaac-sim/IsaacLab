@@ -20,8 +20,7 @@ PACKAGE = Path("source/isaaclab/isaaclab/benchmark")
 def _normalized(node: ast.AST) -> str:
     node = copy.deepcopy(node)
     for item in ast.walk(node):
-        # Python 3.12 adds this empty field to non-generic definitions. Its
-        # absence on older interpreters describes the same producer source.
+        # Ignore Python 3.12's empty type_params so fingerprints match older interpreters.
         if getattr(item, "type_params", None) == []:
             del item.type_params
         if isinstance(item, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):

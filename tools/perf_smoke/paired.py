@@ -256,7 +256,6 @@ def restore_baseline(
                     raise store.EvidenceError(
                         "unverified_baseline", "Baseline is incomplete or its source proof is invalid."
                     )
-                # An artifact from a later attempt cannot stand in for this execution.
                 if evidence.identity["run_id"] == run_id and evidence.identity["run_attempt"] >= run_attempt:
                     continue
                 restored_files = evidence.files
@@ -384,7 +383,7 @@ def bind_baseline(
                 "run_attempt": int(os.environ["GITHUB_RUN_ATTEMPT"]),
                 "source_commit": selection["reference_commit"],
             }
-            # Binding runs after base archival and before current capture/measurement.
+            # The job also measures the PR, so use this timestamp as the baseline completion bound.
             selection["baseline_finished_before"] = datetime.now(timezone.utc).isoformat()
             selection["reason"] = baseline_issue or (
                 "Measured the PR's exact base commit before its tested revision on the same runner."
