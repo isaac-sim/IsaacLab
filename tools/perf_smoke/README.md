@@ -2,8 +2,6 @@
 
 The **Performance smoke** Summary shows how the PR performed compared to its base.
 
-From a PR:
-
 **Checks → Performance smoke comparison → Open rendered Performance smoke Summary**
 
 The main table shows:
