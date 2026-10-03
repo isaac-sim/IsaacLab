@@ -82,8 +82,7 @@ def prepare_manifest(root: Path) -> dict:
     namespaces = {}
     for path in files:
         parts = PurePosixPath(path).parts
-        # Workspace packages live under source/<distribution>/<module>. Test
-        # directories are not installed namespaces, even when they have __init__.py.
+        # Test directories are not installed namespaces, even when they have __init__.py.
         if len(parts) >= 4 and parts[0] == "source" and parts[2] == parts[1].replace("-", "_"):
             prefix = "/".join(parts[:3])
             namespaces.setdefault(parts[2], set()).add(prefix)
