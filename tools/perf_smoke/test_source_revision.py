@@ -244,7 +244,6 @@ class SourceRevisionTests(unittest.TestCase):
         self.assertNotEqual(result["worker_pid"], proof["pid"])
 
         # Use the CI command so the test catches regressions in the production launch choice.
-        # Running through both parsers also checks benchmark argument forwarding.
         runner = LAUNCHER.with_name("run_benchmarks.sh").read_text()
         command_text = runner[runner.index("uv run --no-sync ") :].split('$args"', 1)[0] + "$args"
         output = self.directory / "ci-wrapper"
