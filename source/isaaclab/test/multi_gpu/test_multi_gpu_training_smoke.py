@@ -37,7 +37,7 @@ import yaml
 
 # Small on purpose: Kit boot dominates the runtime, and the defect these guard reproduces at any
 # env count. Kept small enough that several cases share a GPU, so CI runs them concurrently.
-_NUM_ENVS = "64"
+_NUM_ENVS = "2"
 _MAX_ITERATIONS = "3"
 # Not the agent default, so the saved settings can only match it if they came from the launch.
 _SEED = 7
