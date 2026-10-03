@@ -69,7 +69,7 @@ _FAILURE_OUTPUT_CHARS = 8000
 _PHYSICS_ONLY_TASK = "Isaac-Cartpole-Direct"
 _CAMERA_TASK = "Isaac-Cartpole-Camera-Direct"
 
-# Fewest ranks a multi-GPU case can launch; below this every case skips.
+# Fewest ranks a multi-GPU case can launch; below this every case skips (fails in multi-GPU CI).
 _MIN_RANKS = 2
 
 # Newton or OvPhysX physics with an RTX renderer: NCCL setup fails with "Cuda failure 'invalid
@@ -300,13 +300,23 @@ def _experiment_name() -> str:
 
 
 def _visible_gpus() -> int:
-    """Return how many CUDA devices the host can address; skip below :data:`_MIN_RANKS`."""
+    """Return how many CUDA devices the host can address, ending the case below :data:`_MIN_RANKS`.
+
+    Skips, so the module stays collectable on a single-GPU host, unless
+    ``ISAACLAB_TEST_REQUIRE_MULTI_GPU`` is set: the multi-GPU CI jobs set it so an undersized
+    runner fails instead of passing with nothing run.
+    """
     # Local import so collecting this module does not pull torch in before Kit.
     import torch
 
     available = torch.cuda.device_count() if torch.cuda.is_available() else 0
     if available < _MIN_RANKS:
-        pytest.skip(f"needs {_MIN_RANKS} visible CUDA devices, host has {available}")
+        reason = f"needs {_MIN_RANKS} visible CUDA devices, host has {available}"
+        if os.environ.get("ISAACLAB_TEST_REQUIRE_MULTI_GPU"):
+            # pytest's one-line summary drops the reason for node ids this long; the annotation keeps it visible.
+            print(f"::error::multi-GPU training smoke {reason}")
+            pytest.fail(reason)
+        pytest.skip(reason)
     return available
 
 

@@ -251,8 +251,6 @@ jobs:
     if: needs.changes.outputs.smoke == 'true'
     runs-on: [self-hosted, linux, x64, multi-gpu]
     timeout-minutes: 60
-    outputs:
-      smoke_device_skips: ${{ steps.smoke-skips.outputs.device_skips }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
@@ -285,6 +283,10 @@ jobs:
         # standard container contract -- writable HOME, the Isaac Sim cache mounts,
         # and junit results collected into ``reports/``.
         uses: ./.github/actions/run-tests
+        env:
+          # Fail rather than skip when the runner has fewer than two GPUs; the job is not a
+          # required check, so this turns lost coverage red without blocking a merge.
+          ISAACLAB_TEST_REQUIRE_MULTI_GPU: "1"
         with:
           test-path: source/isaaclab/test/multi_gpu/test_multi_gpu_training_smoke.py
           result-file: multi-gpu-smoke-report.xml
@@ -297,11 +299,6 @@ jobs:
           # commit never contained. The shard launcher bind-mounts for the same reason.
           volume-mount-source: ${{ github.workspace }}
 
-      - name: Count smoke cases skipped for too few GPUs
-        id: smoke-skips
-        if: always()
-        run: python3 .github/actions/multi-gpu/smoke_device_skips.py reports/multi-gpu-smoke-report.xml
-
   test-multi-gpu-smoke-kitless:
     name: Multi-GPU training smoke (kit-less)
     needs: [config, changes]
@@ -312,8 +309,6 @@ jobs:
     if: needs.changes.outputs.smoke == 'true'
     runs-on: [self-hosted, linux, x64, multi-gpu]
     timeout-minutes: 60
-    outputs:
-      smoke_device_skips: ${{ steps.smoke-skips.outputs.device_skips }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
@@ -343,6 +338,8 @@ jobs:
         # job split keeps a kitless-renderer fault from taking down the Kit-renderer coverage
         # that guards renderer device selection.
         uses: ./.github/actions/run-tests
+        env:
+          ISAACLAB_TEST_REQUIRE_MULTI_GPU: "1"  # same as the Kit lane
         with:
           test-path: source/isaaclab/test/multi_gpu/test_multi_gpu_training_smoke.py
           result-file: multi-gpu-smoke-kitless-report.xml
@@ -351,36 +348,3 @@ jobs:
           pytest-options: -m kitless -n 4
           # Same reason as the Kit lane.
           volume-mount-source: ${{ github.workspace }}
-
-      - name: Count smoke cases skipped for too few GPUs
-        id: smoke-skips
-        if: always()
-        run: python3 .github/actions/multi-gpu/smoke_device_skips.py reports/multi-gpu-smoke-kitless-report.xml
-
-  smoke-coverage:
-    name: Multi-GPU training smoke coverage
-    needs: [changes, test-multi-gpu-smoke-kit, test-multi-gpu-smoke-kitless]
-    # Red when a smoke case was skipped because the runner has too few GPUs, so a smaller runner
-    # cannot silently drop the coverage. Keep it out of the required checks: it reports, it does
-    # not block a merge.
-    if: always() && needs.changes.outputs.smoke == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Fail on smoke cases the runner could not run
-        env:
-          KIT_SKIPS: ${{ needs.test-multi-gpu-smoke-kit.outputs.smoke_device_skips }}
-          KITLESS_SKIPS: ${{ needs.test-multi-gpu-smoke-kitless.outputs.smoke_device_skips }}
-        run: |
-          # Empty = the lane never reached its count step; ``unknown`` = it ran without a report.
-          for lane in "Kit:$KIT_SKIPS" "kit-less:$KITLESS_SKIPS"; do
-            if ! [[ "${lane#*:}" =~ ^[0-9]+$ ]]; then
-              echo "::error::multi-GPU training smoke coverage unknown: the ${lane%%:*} lane produced no report"
-              exit 1
-            fi
-          done
-          total=$(( KIT_SKIPS + KITLESS_SKIPS ))
-          if [ "$total" -gt 0 ]; then
-            echo "::error::$total multi-GPU training smoke case(s) did not run: the runner has too few GPUs (Kit lane $KIT_SKIPS, kit-less lane $KITLESS_SKIPS)"
-            exit 1
-          fi
-          echo "No multi-GPU training smoke case was skipped for lack of GPUs."
