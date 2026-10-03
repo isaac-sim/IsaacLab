@@ -3,6 +3,16 @@ Changelog
 
 .. towncrier release notes start
 
+27.0.1 (2026-10-03)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed ``NoiseModelWithAdditiveBias`` broadcasting environment bias along the wrong axis for multidimensional
+  observations, allowing scalar and per-component bias to preserve arbitrary observation shapes.
+
+
 27.0.0 (2026-10-02)
 ~~~~~~~~~~~~~~~~~~~
 

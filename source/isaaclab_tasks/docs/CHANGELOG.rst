@@ -3,6 +3,28 @@ Changelog
 
 .. towncrier release notes start
 
+23.0.0 (2026-10-03)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Changed Franka Reach and Reach-OSC to continuous pose tracking: success remained a
+  reported metric but no longer ended the episode or awarded the terminal success bonus. Episodes
+  ran until timeout. Requalify existing checkpoints because reward totals and episode lengths changed.
+* Kept table colors static during training for lift and reorientation tasks, with success coloring in play.
+  Set the pose command's ``success_vis_material_name`` to ``"table_material"`` to enable it during training.
+
+Fixed
+^^^^^
+
+* **Breaking:** Corrected rigid Lift reset sampling and success-driven motion regularization without changing
+  Kuka-Allegro rewards. Requalify existing Franka Lift checkpoints because the reset distribution changed.
+  Training and play mode now propose aligned pre-grasps with probability 0.75 before bank rejection and
+  sampling. Reported success covers this mixed reset distribution. For table-only evaluation, set
+  ``env.events.conditional_reset.params.terms.reset_object_to_target.params.probability=0`` before startup.
+
+
 22.0.0 (2026-10-02)
 ~~~~~~~~~~~~~~~~~~~
 
