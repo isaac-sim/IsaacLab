@@ -686,6 +686,73 @@ and constraints in docstrings without repeating the annotated types:
 * Annotate functions that return no value with ``-> None``. Omit an unnecessary ``Returns:`` section
   from their docstrings.
 
+Warnings and Logging
+^^^^^^^^^^^^^^^^^^^^
+
+Choose the mechanism by who has to act on the message, following the Python
+`logging HOWTO <https://docs.python.org/3/howto/logging.html#when-to-use-logging>`__:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 50 50
+
+   * - Situation
+     - Mechanism
+   * - The **caller should change their code or config**: a deprecated API or parameter, an ignored or
+       conflicting setting, or misuse.
+     - ``warnings.warn(message, <Category>, stacklevel=...)``
+   * - A **runtime event** that the caller cannot avoid by changing their code: a fallback was taken, an
+       optional dependency or feature is unavailable, or performance is degraded.
+     - ``logger.warning(message)`` with a module-level ``logger = logging.getLogger(__name__)``
+   * - User-facing notices in scripts and command-line tools.
+     - ``logger.warning(message)``, as above
+   * - **Progress and status** from library code and entry points: the parsed task configuration, the log
+       directory, environment and manager summaries.
+     - ``logger.info(message)``
+   * - A **failure reported before exiting** a command-line tool.
+     - ``logger.error(message)``
+
+* Always pass an explicit category to ``warnings.warn``:
+
+  * ``DeprecationWarning`` for deprecated Python APIs that callers use from their own code.
+  * ``FutureWarning`` for deprecated configuration values, presets, or command-line options that end users
+    reach through Isaac Lab entry points. Python shows these by default even when they are raised from
+    library code.
+  * ``UserWarning`` for misuse or for settings that are ignored.
+
+* Set ``stacklevel`` so that the warning points at the caller's line, not at Isaac Lab internals.
+* Do not use ``print`` for warnings or status messages, and do not add ``[WARNING]``, ``[WARN]``,
+  ``[INFO]``, or ``[ERROR]`` prefixes. Printed messages ignore ``--verbose`` / ``--info`` and log handlers,
+  and tests cannot capture them reliably. The logging record already carries the level. ``print`` remains
+  the right tool for a program's actual output, such as command results, a ``--dry_run`` command line, or
+  the tables a tutorial walks through.
+* Isaac Lab entry points and :func:`~isaaclab.app.launch_simulation` call
+  ``isaaclab.app.logging_utils.configure_console_logging``, which prints INFO records from ``isaaclab*``
+  loggers on stdout as ``[INFO]: <message>`` and warnings on stderr. Call it first in a new command-line
+  entry point so that messages logged before the simulation runtime starts are shown.
+* In tests, assert ``warnings.warn`` with ``pytest.warns`` and ``logger.warning`` with ``caplog``.
+
+.. code:: python
+
+   import logging
+   import warnings
+
+   logger = logging.getLogger(__name__)
+
+
+   def set_gains(stiffness: float, damping: float | None = None, kd: float | None = None) -> None:
+       if kd is not None:
+           warnings.warn("'kd' is deprecated. Use 'damping' instead.", DeprecationWarning, stacklevel=2)
+           damping = kd
+       ...
+
+
+   def capture_graph() -> None:
+       try:
+           ...
+       except RuntimeError as exc:
+           logger.warning(f"CUDA graph capture failed; falling back to eager launches. Reason: {exc}")
+
 Documenting the code
 ^^^^^^^^^^^^^^^^^^^^
 

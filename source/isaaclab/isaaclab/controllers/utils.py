@@ -219,7 +219,7 @@ def import_lula():
 
     ``lula`` ships as a prebundled module of the ``isaacsim.robot_motion.lula`` Isaac Sim extension.
     Resolution proceeds in order: import directly when the ``pip_prebundle`` paths are already on
-    :data:`sys.path` (e.g. when launched via ``isaaclab.sh``); otherwise locate the prebundle directory
+    :data:`sys.path` (e.g. when launched via ``uv run isaaclab``); otherwise locate the prebundle directory
     and add it to :data:`sys.path` (works under both Kit and the kitless Newton visualizer); and only as
     a last resort ask a running Kit app to enable the owning extension. The prebundle is tried before
     :func:`enable_extension` on purpose -- in Isaac Sim 6.0 the extension is deprecated and unresolvable

@@ -33,7 +33,11 @@ SimulationApp = getattr(isaacsim, "SimulationApp", None)
 
 from isaaclab import _deprioritize_prebundle_paths
 from isaaclab.app.loading_screen import report_activity
-from isaaclab.app.logging_utils import apply_python_logging_level
+from isaaclab.app.logging_utils import (
+    apply_python_logging_level,
+    ensure_console_handlers,
+    resolve_python_logging_level,
+)
 from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.app.sim_launcher import SimulationLauncher, fuse_kit_args
 from isaaclab.paths import ISAACLAB_ROOT
@@ -113,25 +117,6 @@ class KitLauncher(SimulationLauncher):
 
     """
 
-    @staticmethod
-    def _ensure_isaaclab_info_stream_handler() -> None:
-        """Add a stream handler for Isaac Lab INFO records hidden by Kit logging."""
-        handler_name = "isaaclab_info_stream"
-        root_logger = logging.getLogger()
-        if any(getattr(handler, "name", None) == handler_name for handler in root_logger.handlers):
-            return
-
-        class _IsaacLabInfoFilter(logging.Filter):
-            def filter(self, record: logging.LogRecord) -> bool:
-                return record.levelno == logging.INFO and record.name.startswith("isaaclab")
-
-        handler = logging.StreamHandler(sys.stdout)
-        handler.name = handler_name
-        handler.setLevel(logging.INFO)
-        handler.addFilter(_IsaacLabInfoFilter())
-        handler.setFormatter(logging.Formatter("[INFO]: %(message)s"))
-        root_logger.addHandler(handler)
-
     def __init__(self, launcher_args: argparse.Namespace | dict | None = None):
         """Create a `SimulationApp`_ instance based on the input settings.
 
@@ -158,8 +143,8 @@ class KitLauncher(SimulationLauncher):
         elif isinstance(launcher_args, argparse.Namespace):
             launcher_args = launcher_args.__dict__
 
-        # ``launch_simulation`` applied the Python logging level; keep it for after Kit installs its logging bridge.
-        self._python_logging_level = logging.getLogger().getEffectiveLevel()
+        # Re-applied after Kit installs its logging bridge, which resets the Python logging level.
+        self._python_logging_level = resolve_python_logging_level(launcher_args)
 
         # Define config members that are read from env-vars or keyword args
         self._headless: bool  # 0: GUI, 1: Headless
@@ -532,8 +517,8 @@ class KitLauncher(SimulationLauncher):
                 "Video recording with `--video` requires MoviePy and its imageio-ffmpeg backend, "
                 "which are not installed by default. "
                 "Run uv commands with `uv run --extra video ...`, or install MoviePy into the "
-                'legacy environment with `./isaaclab.sh -p -m pip install "moviepy>=1.0.3,<2.0.0.dev0"` '
-                "(`isaaclab.bat -p -m pip install ...` on Windows), and retry."
+                'standalone uv environment with `uv pip install "moviepy>=1.0.3,<2.0.0.dev0"` '
+                "and retry."
             )
         # Kit renders a recording only when the launch enabled camera rendering for it, i.e. a Kit visualizer or a
         # Kit camera records; a video recorded from a Newton visualizer needs no Kit viewport.
@@ -789,14 +774,11 @@ class KitLauncher(SimulationLauncher):
     def _load_extensions(self):
         """Load correct extensions based on KitLauncher's resolved config member variables."""
         # After SimulationApp starts, Kit installs its Python log bridge at DEBUG level.
-        # Re-apply the intended Python logging level, then add a scoped stream handler for
-        # Isaac Lab INFO records that Kit's bridge does not mirror to the console.
+        # Re-apply the intended Python logging level, then keep the scoped stream handler for
+        # Isaac Lab INFO records that Kit's bridge does not mirror to the console. The bridge
+        # prints warnings, so the stderr fallback installed before Kit started is removed.
         apply_python_logging_level(self._python_logging_level)
-        if self._python_logging_level <= logging.WARNING:
-            KitLauncher._ensure_isaaclab_info_stream_handler()
-            # At WARNING, let Isaac Lab INFO records reach the scoped handler while the other
-            # root handlers stay at WARNING.
-            logging.getLogger().setLevel(min(self._python_logging_level, logging.INFO))
+        ensure_console_handlers(self._python_logging_level, fallback=False)
         settings = get_settings_manager()
 
         # Publish whether Kit has an interactive GUI (local window, livestream, or XR).
@@ -867,18 +849,12 @@ def _ensure_isaac_sim_available() -> None:
     if KitLauncher.is_available():
         return
 
-    isaaclab_path = os.environ.get("ISAACLAB_PATH")
-    local_sim = os.path.join(isaaclab_path, "_isaac_sim") if isaaclab_path else None
+    local_sim = ISAACLAB_ROOT / "_isaac_sim"
     extra_hint = ""
-    if local_sim and os.path.isdir(local_sim):
-        launcher, source = ("isaaclab.bat", f'call "{local_sim}\\setup_conda_env.bat"')
-        if sys.platform != "win32":
-            launcher, source = ("./isaaclab.sh", f'source "{local_sim}/setup_conda_env.sh"')
+    if local_sim.is_dir():
         extra_hint = (
             f"  Found a local Isaac Sim at {local_sim} but its environment is not active.\n"
-            f"  Either run via `{launcher} ...` (which sources the Isaac Sim env automatically),\n"
-            f"  or in your current shell run:\n"
-            f"    {source}\n"
+            "  Run through `uv run isaaclab -p <script>` to load the source-build environment.\n"
         )
 
     try:
@@ -896,7 +872,7 @@ def _ensure_isaac_sim_available() -> None:
             "  The current Python environment does not expose the SimulationApp API.\n"
             f"{extra_hint}"
             "  Install the full Isaac Sim runtime from the Isaac Lab directory by running:\n"
-            "    uv run isaaclab -i isaacsim\n"
+            "    uv sync --extra isaacsim\n"
             "\n"
             "  See https://isaac-sim.github.io/IsaacLab/main/source/setup/installation for details.\n"
         )
