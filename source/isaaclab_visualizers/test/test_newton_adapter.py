@@ -7,6 +7,10 @@
 
 from __future__ import annotations
 
+import os
+import subprocess
+import sys
+import textwrap
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -178,6 +182,35 @@ def test_newton_marker_registry_lifecycle(monkeypatch: pytest.MonkeyPatch):
 
     assert marker._registry is None
     assert registry.groups == {}
+
+
+def test_importing_newton_visualizer_lets_pyglet_resolve_a_screen_without_monitors():
+    """On a monitor-free X server, importing the module must still let pyglet resolve a default screen."""
+    pytest.importorskip("pyglet.display.xlib")
+    code = textwrap.dedent(
+        """
+        from types import SimpleNamespace
+
+        from pyglet.display import xlib
+
+        xlib._have_xrandr = True
+        import isaaclab_visualizers.newton.newton_visualizer  # noqa: F401
+
+        screen = object.__new__(xlib.XlibScreen)
+        display = SimpleNamespace(get_screens=lambda: [screen], _screens=[screen])
+        assert xlib.XlibDisplay.get_default_screen(display) is screen
+        """
+    )
+    # a fresh interpreter: the workaround runs at import, and only when DISPLAY is set
+    result = subprocess.run(
+        [sys.executable, "-c", code],
+        env={**os.environ, "DISPLAY": ":99"},
+        capture_output=True,
+        text=True,
+        timeout=300,
+    )
+
+    assert result.returncode == 0, result.stderr[-2000:]
 
 
 def test_newton_visualizer_set_camera_view_updates_cfg_without_viewer():

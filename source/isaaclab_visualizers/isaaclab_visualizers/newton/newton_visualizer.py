@@ -30,6 +30,16 @@ if __import__("sys").platform not in ("win32", "darwin") and not __import__("os"
 
     _pyglet_headless_init.options["headless"] = True
     del _pyglet_headless_init
+elif sys.platform not in ("win32", "darwin"):
+    # A monitor-free X server (e.g. a GPU-backed virtual display) makes pyglet fall back to a plain
+    # XlibScreen, which lacks the ``is_primary`` its default-screen lookup reads, so no window opens.
+    # Defaulting to non-primary makes pyglet use its first screen.
+    with contextlib.suppress(ImportError, AttributeError):  # best effort; skip if pyglet's Xlib layout differs
+        from pyglet.display import xlib as _pyglet_xlib
+
+        if not hasattr(_pyglet_xlib.XlibScreen, "is_primary"):
+            _pyglet_xlib.XlibScreen.is_primary = False
+        del _pyglet_xlib
 
 import newton
 from isaaclab_newton.physics import NewtonBackendCfg, NewtonManager
