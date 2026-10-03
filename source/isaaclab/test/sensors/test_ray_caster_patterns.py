@@ -109,6 +109,8 @@ class TestLidarPattern:
             ((-180.0, 180.0), 90.0, 1, (-10.0, -10.0), 4),
             # partial FOV keeps both endpoints: -90, -60, ..., 90
             ((-90.0, 90.0), 30.0, 1, (-10.0, -10.0), 7),
+            # non-divisible partial FOV preserves the requested 30-degree step: 0, 30, 60, 90
+            ((0.0, 100.0), 30.0, 1, (0.0, 0.0), 4),
             # multiple channels multiply the horizontal count
             ((-180.0, 180.0), 90.0, 16, (-15.0, 15.0), 64),
         ],
