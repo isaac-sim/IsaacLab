@@ -72,9 +72,6 @@ RUN apt-get update && \
     wget \
  && rm -rf /var/lib/apt/lists/*
 
-COPY docker/scripts/install_git_lfs.sh /tmp/install_git_lfs.sh
-RUN /bin/bash /tmp/install_git_lfs.sh && rm /tmp/install_git_lfs.sh
-
 # Install the Carbonite environment shim that serializes glibc environment
 # access across Kit worker threads. Use /etc/ld.so.preload because Isaac Sim's
 # python.sh overwrites LD_PRELOAD before launching the interpreter.
