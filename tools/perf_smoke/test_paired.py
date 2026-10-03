@@ -489,22 +489,17 @@ class PairedTests(unittest.TestCase):
         for name, data in files.items():
             self.assertEqual((self.output / name).read_bytes(), data)
 
-    def test_restore_requests_fresh_baseline_when_matrix_arguments_change(self):
+    def test_restore_requests_fresh_baseline_when_matrix_or_launcher_changes(self):
         self._add_baseline()
-        self.legs.write_text(self.legs.read_text().replace("physics=newton_mjwarp", "physics=ovphysx"))
-        selection = self._restore()
-        self.assertFalse(selection["baseline_reused"])
-        self.assertIn("protocol", " ".join(selection["issues"]))
-        self.assertFalse(self.output.exists())
-
-    def test_restore_requests_fresh_baseline_when_either_controller_launcher_changes(self):
-        self._add_baseline()
-        for name in ("run_benchmarks.sh", "source_revision.py"):
-            with self.subTest(launcher=name):
-                path = self.controller / name
+        for path in (self.legs, self.controller / "run_benchmarks.sh", self.controller / "source_revision.py"):
+            with self.subTest(protocol_file=path.name):
                 original = path.read_bytes()
                 try:
-                    path.write_bytes(original + b"\n# Changed controller launcher\n")
+                    path.write_bytes(
+                        original.replace(b"physics=newton_mjwarp", b"physics=ovphysx")
+                        if path == self.legs
+                        else original + b"\n# Changed controller launcher\n"
+                    )
                     selection = self._restore()
                     self.assertFalse(selection["baseline_reused"])
                     self.assertIn("protocol", " ".join(selection["issues"]))
@@ -725,28 +720,21 @@ class PairedTests(unittest.TestCase):
                 self.assertFalse(self.output.exists())
 
     def test_incomplete_or_failed_workload_requests_fresh_measurement(self):
-        for mutation in ("missing-sample", "failed-leg"):
+        for mutation in ("missing-sample", "failed-leg", "missing-workload"):
             with self.subTest(mutation=mutation):
                 self.client = PairedFixtureClient()
                 files = self._files()
                 if mutation == "missing-sample":
                     del files["second/sample-3/benchmark_runtime_fixture.json"]
-                else:
+                elif mutation == "failed-leg":
                     files["second/status"] = b"failed"
+                else:
+                    files = {name: data for name, data in files.items() if not name.startswith("second/")}
                 self._add_baseline(files)
-                self.assertFalse(self._restore()["baseline_reused"])
-
-    def test_same_attempt_does_not_restore_its_own_results(self):
-        self._add_baseline(run_id=20)
-        self.assertFalse(self._restore()["baseline_reused"])
-
-    def test_entire_missing_workload_cannot_appear_complete(self):
-        files = {name: data for name, data in self._files().items() if not name.startswith("second/")}
-        self._add_baseline(files)
-        selection = self._restore()
-        self.assertFalse(selection["baseline_reused"])
-        self.assertTrue(selection["issues"])
-        self.assertFalse(self.output.exists())
+                selection = self._restore()
+                self.assertFalse(selection["baseline_reused"])
+                self.assertTrue(selection["issues"])
+                self.assertFalse(self.output.exists())
 
     def test_invalid_first_attempt_is_remeasured_then_second_attempt_is_reused(self):
         incomplete = self._files()
@@ -756,6 +744,8 @@ class PairedTests(unittest.TestCase):
         self.assertFalse(self._restore(run_id=10, attempt=2)["baseline_reused"])
         second = self._add_baseline(run_id=10, attempt=2)
         self.assertNotEqual(first["name"], second["name"])
+        with self.subTest(stage="valid_attempt_cannot_reuse_itself"):
+            self.assertFalse(self._restore(run_id=10, attempt=2)["baseline_reused"])
         selection = self._restore(run_id=10, attempt=3)
         self.assertTrue(selection["baseline_reused"])
         self.assertEqual(selection["baseline_origin"]["artifact_id"], second["id"])
@@ -827,21 +817,26 @@ class PairedTests(unittest.TestCase):
             paired.select_pr_baseline(self.client, candidate)
         self.assertEqual(self.client.downloaded, downloaded)
 
-    def test_fresh_pair_reports_mismatched_runner(self):
-        artifact = self._add_baseline(run_id=20)
-        candidate = self._candidate(self._origin(artifact), hostname="different-gpu-host")
-        evidence, metadata = paired.select_pr_baseline(self.client, candidate)
-        self.assertIsNone(evidence)
-        self.assertEqual(metadata["reason_code"], "runner_mismatch")
-
-    def test_fresh_pair_reports_base_not_finished_before_current(self):
-        artifact = self._add_baseline(run_id=20)
-        candidate = self._candidate(self._origin(artifact), start=stamp(9))
-        evidence, metadata = paired.select_pr_baseline(self.client, candidate)
-        self.assertIsNone(evidence)
-        self.assertEqual(metadata["reason_code"], "measurement_order")
+    def test_fresh_pair_rejects_runner_or_measurement_order_mismatch(self):
+        for case, arguments, reason in (
+            ("different_runner", {"hostname": "different-gpu-host"}, "runner_mismatch"),
+            ("overlap", {"start": stamp(9)}, "measurement_order"),
+            (
+                "completion_bound_hides_sample",
+                {"start": stamp(9), "selection": {"baseline_finished_before": stamp(8, 59)}},
+                "measurement_order",
+            ),
+        ):
+            with self.subTest(case=case):
+                self.client = PairedFixtureClient()
+                artifact = self._add_baseline(run_id=20)
+                candidate = self._candidate(self._origin(artifact), **arguments)
+                evidence, metadata = paired.select_pr_baseline(self.client, candidate)
+                self.assertIsNone(evidence)
+                self.assertEqual(metadata["reason_code"], reason)
 
     def test_partial_fresh_baseline_preserves_healthy_workload_comparison(self):
+        issue = "The baseline benchmark step failed after producing partial evidence."
         files = self._files(run_id=20)
         files["second/sample-3/benchmark_runtime_fixture.json"] = b"{invalid JSON"
         artifact = self._add_baseline(files, run_id=20)
@@ -863,8 +858,11 @@ class PairedTests(unittest.TestCase):
             patch.object(paired, "datetime") as clock,
         ):
             clock.now.return_value.isoformat.return_value = stamp(9, 30)
-            paired.bind_baseline(self.selection_path, str(artifact["id"]), self.output, REPO)
+            paired.bind_baseline(self.selection_path, str(artifact["id"]), self.output, REPO, issue)
         pin = json.loads((self.output / "pr-comparison.json").read_text())
+        self.assertEqual(pin["reason"], issue)
+        self.assertIn(issue, pin["issues"])
+        self.assertEqual(pin["baseline_origin"]["artifact_id"], artifact["id"])
         candidate = self._candidate(origin, selection=pin)
         # GitHub's job completion covers B as well and cannot establish the end of A.
         self.client.run_jobs[20, 1][0]["completed_at"] = stamp(12)
@@ -876,15 +874,6 @@ class PairedTests(unittest.TestCase):
         self.assertEqual(by_leg["first"]["change_pct"], 0)
         self.assertEqual(by_leg["second"]["status"], "partial")
         self.assertIsNone(by_leg["second"]["change_pct"])
-
-    def test_fresh_completion_bound_cannot_hide_samples_after_pr_start(self):
-        artifact = self._add_baseline(run_id=20)
-        candidate = self._candidate(
-            self._origin(artifact), start=stamp(9), selection={"baseline_finished_before": stamp(8, 59)}
-        )
-        evidence, metadata = paired.select_pr_baseline(self.client, candidate)
-        self.assertIsNone(evidence)
-        self.assertEqual(metadata["reason_code"], "measurement_order")
 
     def test_expired_pinned_baseline_never_falls_back_to_history(self):
         artifact = self._add_baseline(run_id=20)
@@ -901,16 +890,6 @@ class PairedTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "selection does not match"):
                 paired.bind_baseline(self.selection_path, None, self.output, REPO)
         self.assertFalse((self.output / "pr-comparison.json").exists())
-
-    def test_bind_preserves_failure_stage_when_partial_artifact_exists(self):
-        self._restore()
-        issue = "The baseline benchmark step failed after producing partial evidence."
-        with patch.dict(os.environ, {"GITHUB_SHA": HEAD, "GITHUB_RUN_ID": "20", "GITHUB_RUN_ATTEMPT": "1"}):
-            paired.bind_baseline(self.selection_path, "123", self.output, REPO, issue)
-        selection = json.loads((self.output / "pr-comparison.json").read_text())
-        self.assertEqual(selection["reason"], issue)
-        self.assertIn(issue, selection["issues"])
-        self.assertEqual(selection["baseline_origin"]["artifact_id"], 123)
 
     def test_bind_keeps_valid_reused_baseline_despite_unneeded_setup_issue(self):
         self._add_baseline()
