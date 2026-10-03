@@ -3,6 +3,22 @@ Changelog
 
 .. towncrier release notes start
 
+4.0.0 (2026-10-03)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added GR00T N1.7 support through RLinf's native model and processor loader, with configurable
+  ``gr00t_mapping.language`` and ``action_mapping.keys`` for observation and action conversion.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Updated both GR00T setups to the documented RLinf revision with per-generation model packages
+  and action registries. Existing RLinf 0.2 installations must rerun the shared installation step.
+
+
 3.1.1 (2026-10-01)
 ~~~~~~~~~~~~~~~~~~
 
