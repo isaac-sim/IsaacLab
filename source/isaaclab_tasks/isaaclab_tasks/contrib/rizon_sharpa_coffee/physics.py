@@ -251,8 +251,8 @@ def configure_contact_grasp(physics: NewtonCfg, *, rigid_substeps: int = 2, mass
     ]
 
 
-def make_physics_cfg(voxel_size: float) -> NewtonCfg:
-    """Configure rigid and material stepping in one place."""
+def make_physics_cfg(voxel_size: float, *, water: bool = False) -> NewtonCfg:
+    """Configure rigid and material stepping with a liquid pressure budget."""
     return NewtonCfg(
         solver_cfg=CoffeeCouplerCfg(
             entries=[
@@ -272,7 +272,10 @@ def make_physics_cfg(voxel_size: float) -> NewtonCfg:
                         max_active_cell_count=-1,
                         max_lower_node_count=256,
                         max_upper_node_count=32,
-                        max_iterations=100,
+                        solver="gs" if water else "auto",
+                        # Tall liquid fills need a converged pressure solve;
+                        # conserved particle mass alone does not preserve level.
+                        max_iterations=500 if water else 100,
                         # Resolve contacts at particle sites and pressure within
                         # each cell. Hard projection can permanently collapse
                         # powder onto the concave tool's surface.

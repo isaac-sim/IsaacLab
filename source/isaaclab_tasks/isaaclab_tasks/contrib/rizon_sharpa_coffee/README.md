@@ -59,13 +59,12 @@ Start the dry Newton GL preview with five visual grains per physical particle:
 uv run --no-sync python scripts/demos/rizon_sharpa_coffee.py --keep_open
 ```
 
-For the wet Kit demonstration and a video, use the coarser profile validated on
-this workstation:
+For the wet Kit demonstration and a video, use the following liquid pressure profile:
 
 ```bash
 uv run --no-sync python scripts/demos/rizon_sharpa_coffee.py \
     --mode scripted --water --visualizer kit --headless --video \
-    --voxel_size 0.003 --physics_hz 200 --mpm_iterations 100 \
+    --voxel_size 0.003 --physics_hz 400 --mpm_iterations 500 \
     --mpm_grid_capacity 49152 --grains_per_particle 5 \
     --render_samples 4 --width 1280 --height 720 \
     --output_dir logs/coffee_video
@@ -101,8 +100,8 @@ first pour and moves closer for pouring and stirring. `--max_steps 8000` gives
 ## Physics and collision settings
 
 The environment configuration defaults to a 2 mm grid and 800 Hz physics. The
-demo selects 400 Hz for a dry mounted scripted run at 2 mm; water, teleoperation,
-contact grasping and other resolutions default to 800 Hz. `--physics_hz` selects
+demo selects 400 Hz for a dry mounted scripted run at 2 mm or a wet mounted
+script at 3 mm and above; other runs default to 800 Hz. `--physics_hz` selects
 200, 400 or 800 Hz, and `--mpm_substeps` multiplies the material step rate. Rigid
 integration remains at 800 Hz for the mounted spoon and 1,600 Hz for contact
 grasping through solver-entry substeps.
@@ -110,7 +109,8 @@ grasping through solver-entry substeps.
 The MPM profile uses sparse CUDA graph capture, `P1d` strain interpolation,
 `pic27` particle-sampled contacts, `backward` collider velocities and native
 background-air regularization. Hard particle projection is disabled. The
-default iteration cap is 100. `--mpm_iterations` and `--mpm_grid_capacity` permit
+default iteration cap is 100 for dry runs and 500 with water, which uses Newton's
+standard `gs` solver. `--mpm_iterations` and `--mpm_grid_capacity` permit
 explicit overrides; zero grid capacity requests automatic sizing. Grid overflow
 must be checked when changing the fill, resolution or motion.
 
@@ -137,6 +137,16 @@ physical contact resolution.
 `--water` initializes a fuller cup with a 75 mm seed height and a 37 mm seed
 radius. The free surface settles below the seed height within the cup's 39 mm
 interior radius; headroom remains for pouring and stirring.
+Construct `CoffeeEnvCfg(water_enabled=True)` to select the liquid pressure profile.
+The wet 3 mm demo uses 400 Hz MPM and eight physical particles per cell. A 200 Hz
+step with a small iteration budget can lose visible liquid volume during stirring
+despite conserving mass. Smaller voxels or more particles alone do not correct an
+underconverged pressure solve. Check the settled level after withdrawing the spoon,
+along with containment and mass, when changing these settings.
+The task keeps the standard Gauss-Seidel solver for mixed powder and liquid runs.
+Cup-only tests with the reordered SoA solver were promising, but complete scene
+validation scattered dry coffee during settling. The liquid profile requires no
+changes to the pinned Newton dependency.
 `--water_fill_height` overrides the task default within 12–79 mm. For example,
 `--water_fill_height 0.060` reduces the initial fill. The procedural cup handle
 has upper and lower wall attachments and remains visual decoration.

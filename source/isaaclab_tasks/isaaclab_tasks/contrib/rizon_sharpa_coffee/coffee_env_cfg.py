@@ -156,7 +156,7 @@ class CoffeeEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.dt = 1.0 / 800.0
         self.sim.render_interval = 16
         self.sim.use_newton_actuators = True
-        self.sim.physics = make_physics_cfg(self.voxel_size)
+        self.sim.physics = make_physics_cfg(self.voxel_size, water=self.water_enabled)
 
 
 def configure_scene(cfg: CoffeeEnvCfg) -> None:

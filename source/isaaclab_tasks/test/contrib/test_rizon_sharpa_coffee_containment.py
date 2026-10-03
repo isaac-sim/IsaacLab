@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Native thin-spoon containment regression, without a robot or renderer."""
+"""Native tool containment and liquid-level regressions, without a robot or renderer."""
 
 import math
 
@@ -19,13 +19,14 @@ from scipy.spatial.transform import Rotation
 from isaaclab.test.utils import DeviceScope, test_devices
 
 from isaaclab_tasks.contrib.rizon_sharpa_coffee.assets import (
+    CUP_INNER_RADIUS,
     SPOON_BOWL_DEPTH,
     SPOON_BOWL_LENGTH,
     SPOON_BOWL_THICKNESS,
     SPOON_BOWL_WIDTH,
     build_coffee_assets,
 )
-from isaaclab_tasks.contrib.rizon_sharpa_coffee.coffee_env_cfg import CoffeeEnvCfg
+from isaaclab_tasks.contrib.rizon_sharpa_coffee.coffee_env_cfg import CoffeeEnvCfg, _particle_cfg
 from isaaclab_tasks.contrib.rizon_sharpa_coffee.physics import CoffeeMPMSolver, configure_spoon_rim_margin
 
 _SPOON_HALF_LENGTH = wp.constant(SPOON_BOWL_LENGTH / 2.0)
@@ -216,3 +217,93 @@ def test_spoon_holds_coffee_through_motion_and_releases_when_tipped(device):
             assert retained_count() / len(points) > 0.99
     assert not crossed.numpy().any(), "Coffee crossed the floor during release."
     assert retained_count() / len(points) < 0.01, "Coffee should fall freely over the rim at ninety degrees."
+
+
+@wp.kernel
+def _stir_spoon(pose: wp.array[wp.transform], tick: wp.array[int], dt: float):
+    time = float(tick[0]) * dt
+    lower = _blend(wp.clamp((time - 4.0) / 2.0, 0.0, 1.0))
+    raised = _blend(wp.clamp((time - 14.0) / 2.0, 0.0, 1.0))
+    angle = 6.0 * wp.pi * _blend(wp.clamp((time - 6.0) / 8.0, 0.0, 1.0))
+    position = wp.vec3(0.009 * wp.cos(angle), 0.009 * wp.sin(angle), 0.150 - 0.119 * lower + 0.119 * raised)
+    rotation = wp.quat_from_axis_angle(wp.vec3(0.0, 0.0, 1.0), 0.5 * wp.pi) * wp.quat_from_axis_angle(
+        wp.vec3(0.0, 1.0, 0.0), 65.0 * wp.pi / 180.0
+    )
+    pose[0] = wp.transform(position, rotation)
+    tick[0] += 1
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_water_level_survives_stirring_with_native_profile(device):
+    """A full-size fill retains its settled level after three turns and tool withdrawal."""
+    cfg = CoffeeEnvCfg(water_enabled=True, voxel_size=0.003)
+    dt = 1.0 / 400.0
+    water = _particle_cfg("Water", (0.0, 0.0, 0.0), CUP_INNER_RADIUS - 0.002, cfg.water_fill_height, 0.0015, True)
+    prototype = newton.ModelBuilder()
+    SolverImplicitMPM.register_custom_attributes(prototype)
+    paths = build_coffee_assets()
+    prototype.add_usd(paths["cup"], load_visual_shapes=False)
+    prototype.add_usd(
+        paths["spoon"], xform=wp.transform((0.009, 0.0, 0.150), wp.quat_identity()), load_visual_shapes=False
+    )
+    prototype.body_label[0] = "/Spoon"
+    for index, body in enumerate(prototype.shape_body):
+        prototype.shape_flags[index] |= int(newton.ShapeFlags.COLLIDE_PARTICLES)
+        prototype.shape_flags[index] &= ~int(newton.ShapeFlags.COLLIDE_SHAPES)
+        prototype.shape_margin[index] = cfg.voxel_size * (cfg.spoon_margin_voxels if body >= 0 else 0.3)
+    count = len(water.spawn.positions)
+    prototype.add_particles(
+        pos=water.spawn.positions,
+        vel=[(0.0, 0.0, 0.0)] * count,
+        mass=[water.spawn.mass] * count,
+        radius=[water.spawn.radius] * count,
+    )
+    builder = newton.ModelBuilder()
+    SolverImplicitMPM.register_custom_attributes(builder)
+    builder.add_world(prototype)
+    builder.particle_max_velocity = 0.5 * cfg.voxel_size / dt
+    model = builder.finalize(device=device)
+    for name in (
+        "young_modulus",
+        "poisson_ratio",
+        "damping",
+        "friction",
+        "viscosity",
+        "yield_pressure",
+        "tensile_yield_ratio",
+        "yield_stress",
+        "hardening",
+        "hardening_rate",
+        "softening_rate",
+        "dilatancy",
+    ):
+        getattr(model.mpm, name).fill_(getattr(water.spawn.material, name))
+    config = _make_solver_config(cfg.sim.physics.solver_cfg.entries[1].solver_cfg)
+    # Reserve the whole cup's 29^3 voxel bounding box plus splash headroom,
+    # rather than padding one voxel for each densely seeded particle.
+    config.max_active_cell_count = 32768
+    solver = CoffeeMPMSolver(model, config, grains_per_particle=0)
+    configure_spoon_rim_margin(solver, cfg.spoon_rim_margin_scale)
+    state = model.state()
+    tick = wp.zeros(1, dtype=int, device=device)
+    with wp.ScopedCapture(device=device) as capture:
+        for _ in range(8):
+            wp.launch(_stir_spoon, dim=1, inputs=[state.body_q, tick, dt], device=device)
+            solver.step(state, state, None, None, dt)
+
+    initial_level = None
+    for block in range(900):  # Four-second settle, immersion, eight-second stir, withdrawal and settle.
+        wp.capture_launch(capture.graph)
+        if block == 199:
+            initial_level = np.quantile(state.particle_q.numpy()[:, 2], 0.999)
+    positions = state.particle_q.numpy()
+    assert np.isfinite(positions).all()
+    contained = (
+        (np.linalg.norm(positions[:, :2], axis=1) < CUP_INNER_RADIUS + 0.004)
+        & (positions[:, 2] > 0.002)
+        & (positions[:, 2] < 0.085)
+    )
+    assert contained.mean() > 0.995, "Stirring should retain the water inside the cup."
+    final_level = np.quantile(positions[contained, 2], 0.999)
+    assert abs(final_level - initial_level) < 0.002, "The full fill contracted during stirring despite retaining mass."
+    solver.check_sparse_grid_rebuild_status()

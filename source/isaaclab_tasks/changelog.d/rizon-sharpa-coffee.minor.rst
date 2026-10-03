@@ -24,3 +24,6 @@ Fixed
   glaze authoring and surface-cache invalidation removed repeated setup code.
 * Bounded particle advection by voxel size and the MPM substep duration to retain
   collider queries when using coarser timesteps with a fuller water fill.
+* Reduced liquid contraction during stirring with Newton's existing standard
+  Gauss-Seidel solver, a larger wet-run pressure iteration budget and a 400 Hz
+  default for mounted wet scripts at 3 mm or coarser resolution.

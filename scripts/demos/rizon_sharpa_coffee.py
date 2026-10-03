@@ -55,10 +55,15 @@ def _parse_args():
         type=int,
         choices=(200, 400, 800),
         default=None,
-        help="Coupling rate; defaults to 400 Hz for the dry mounted 2 mm script, otherwise 800 Hz. Control is 100 Hz.",
+        help="Coupling rate; defaults to 400 Hz for dry 2 mm or wet 3+ mm mounted scripts, otherwise 800 Hz.",
     )
     parser.add_argument("--mpm_substeps", type=int, default=None, help="MPM substeps per physics tick.")
-    parser.add_argument("--mpm_iterations", type=int, default=None, help="Maximum MPM solver iterations; default 100.")
+    parser.add_argument(
+        "--mpm_iterations",
+        type=int,
+        default=None,
+        help="Maximum MPM solver iterations; default 500 with water, 100 dry.",
+    )
     parser.add_argument(
         "--spoon_proxy_mass_scale",
         type=float,
@@ -102,7 +107,9 @@ def _parse_args():
     args = parser.parse_args()
     if args.physics_hz is None:
         fast_script = (
-            args.mode == "scripted" and args.grasp_mode == "mounted" and not args.water and args.voxel_size == 0.002
+            args.mode == "scripted"
+            and args.grasp_mode == "mounted"
+            and ((not args.water and args.voxel_size == 0.002) or (args.water and args.voxel_size >= 0.003))
         )
         args.physics_hz = 400 if fast_script else 800
     if args.visualizer is None:
@@ -134,7 +141,7 @@ def _parse_args():
 def _make_env_cfg(args, parser, video_stride):
     from isaaclab_tasks.contrib.rizon_sharpa_coffee.coffee_env_cfg import CoffeeEnvCfg
 
-    cfg = CoffeeEnvCfg()
+    cfg = CoffeeEnvCfg(water_enabled=args.water)
     cfg.seed = 7
     cfg.sim.device = args.device
     cfg.voxel_size = args.voxel_size
@@ -146,7 +153,6 @@ def _make_env_cfg(args, parser, video_stride):
     cfg.sim.physics.solver_cfg.entries[0].substeps = 800 // args.physics_hz
     if args.spoon_proxy_mass_scale is not None:
         cfg.spoon_proxy_mass_scale = args.spoon_proxy_mass_scale
-    cfg.water_enabled = args.water
     if args.water_fill_height is not None:
         cfg.water_fill_height = args.water_fill_height
     cfg.coffee_wetting_time = args.coffee_wetting_time
@@ -252,6 +258,7 @@ def main() -> None:
                 mpm_substeps=cfg.sim.physics.solver_cfg.entries[1].substeps,
                 control_dt_s=env.step_dt,
                 solver_iterations=cfg.sim.physics.solver_cfg.entries[1].solver_cfg.max_iterations,
+                rheology_solver=cfg.sim.physics.solver_cfg.entries[1].solver_cfg.solver,
                 collider_basis=cfg.sim.physics.solver_cfg.entries[1].solver_cfg.collider_basis,
                 strain_basis=cfg.sim.physics.solver_cfg.entries[1].solver_cfg.strain_basis,
                 collider_velocity_mode=cfg.sim.physics.solver_cfg.entries[1].solver_cfg.collider_velocity_mode,
