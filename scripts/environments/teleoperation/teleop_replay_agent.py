@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""CI/automation entry point for replaying captured Isaac Teleop sessions.
+"""CI/automation entry point for replaying captured Isaac Capture sessions.
 
 This is the non-interactive counterpart to ``teleop_se3_agent.py``. It builds
 a teleop environment, attaches an :class:`~isaaclab_teleop.IsaacTeleopDevice`
@@ -13,7 +13,7 @@ and pumps the simulation loop until the recorded operator presses STOP (or
 teleop script remains ``teleop_se3_agent.py``.
 
 Inputs:
-    ``--replay_file`` is an MCAP capture produced by Isaac Teleop's
+    ``--replay_file`` is an MCAP capture produced by Isaac Capture's
     ``McapRecordingConfig`` path (typically written by ``record_demos.py
     --mcap_record_path``). The recorder lays down per-tracker flatbuffer
     messages (head / hands / controllers) plus the ``_teleop_control``
@@ -256,7 +256,7 @@ from isaaclab.app import add_launcher_args, launch_simulation
 
 parser = argparse.ArgumentParser(
     description=(
-        "Replay a captured Isaac Teleop MCAP session against an Isaac Lab environment. "
+        "Replay a captured Isaac Capture MCAP session against an Isaac Lab environment. "
         "CI/automation entry point; for interactive teleoperation see teleop_se3_agent.py."
     )
 )
@@ -266,7 +266,7 @@ parser.add_argument(
     "--replay_file",
     type=str,
     required=True,
-    help="Absolute path to the Isaac Teleop MCAP capture to replay.",
+    help="Absolute path to the Isaac Capture MCAP capture to replay.",
 )
 parser.add_argument(
     "--num_success_steps",
@@ -359,7 +359,7 @@ parser.add_argument(
     "--enable_debug_visualization",
     action="store_true",
     default=False,
-    help="Enable hand joint and controller aim debug visualization at session start (IsaacTeleop only).",
+    help="Enable hand joint and controller aim debug visualization at session start (Isaac Capture only).",
 )
 parser.add_argument(
     "--disable_external_cameras",
@@ -1466,7 +1466,7 @@ def _run_single_replay(
 
 
 def main() -> int:
-    """Replay a captured Isaac Teleop session against an Isaac Lab environment.
+    """Replay a captured Isaac Capture session against an Isaac Lab environment.
 
     Builds the env once, then loops :func:`_run_single_replay` for
     ``--num_replays`` iterations. Each iteration builds a fresh
@@ -1549,7 +1549,7 @@ def main() -> int:
 
     if not hasattr(env_cfg, "isaac_teleop") or env_cfg.isaac_teleop is None:
         raise ValueError(
-            f"Task '{args_cli.task}' does not configure an IsaacTeleop pipeline. "
+            f"Task '{args_cli.task}' does not configure an Isaac Capture pipeline. "
             "MCAP replay requires env_cfg.isaac_teleop to be set."
         )
 

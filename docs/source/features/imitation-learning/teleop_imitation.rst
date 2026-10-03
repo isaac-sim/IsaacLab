@@ -201,10 +201,10 @@ the key bindings are:
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 For tasks that benefit from the use of an extended reality (XR) device with hand tracking,
-Isaac Lab supports using `Isaac Teleop <https://github.com/NVIDIA/IsaacTeleop>`_ with NVIDIA CloudXR
+Isaac Lab supports using `Isaac Capture <https://github.com/NVIDIA/IsaacCapture>`_ with NVIDIA CloudXR
 to immersively stream the scene to compatible XR devices for teleoperation.
 
-Follow the steps in :ref:`cloudxr-teleoperation` to learn how to install Isaac Teleop and set up CloudXR for
+Follow the steps in :ref:`cloudxr-teleoperation` to learn how to install Isaac Capture and set up CloudXR for
 teleoperation. Once you have set it up, you can launch the cube stacking environment with the follow command to try it out
 with an XR headset. Note that when using hand tracking, we recommend using the absolute action space
 variant of the task (``IsaacContrib-Stack-Cube-Franka-IK-Abs``):
@@ -263,7 +263,7 @@ Select the tab that matches your input device:
    .. tab-item:: XR Headset (Meta Quest / Pico)
 
       When using hand tracking via an XR headset, use the absolute action space
-      variant of the task and omit ``--teleop_device``. The IsaacTeleop pipeline
+      variant of the task and omit ``--teleop_device``. The Isaac Capture pipeline
       is activated automatically via the ``--xr`` flag.
 
       .. code:: bash
@@ -481,8 +481,7 @@ Install the Robomimic framework using the following command:
    # resolve and verify Robomimic in the uv-managed environment
    uv run --extra mimic python -c "import robomimic"
 
-For a legacy environment, install the same dependencies with
-``./isaaclab.sh -i mimic``.
+To prepare the dependencies explicitly, run ``uv sync --extra mimic``.
 
 
 Train an Agent
