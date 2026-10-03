@@ -357,19 +357,18 @@
         return imageRules.find(([pattern]) => pattern.test(taskName))?.[1] || "tasks/classic/cartpole.jpg";
     };
 
+    const stackPreviewBaseUrl = "https://media.githubusercontent.com/media/maxkra15/IsaacLab/226ead1683a31094e263116d6cb82d8225c4ddf5/docs/source/_static/tasks/previews/";
     const previewVideos = {
         "Isaac-Cartpole": "cartpole-newton-mjwarp-rsl-rl.mp4",
         "Isaac-Ant": "ant-newton-mjwarp-rsl-rl.mp4",
         "Isaac-Velocity-Rough-G1": "velocity-rough-g1-newton-mjwarp-rsl-rl.mp4",
         "Isaac-Lift-KukaAllegro": "lift-kuka-allegro-newton-mjwarp-rsl-rl.mp4",
-        "IsaacContrib-Stack-Cube-Franka-RL": "stack-franka-newton-mjwarp-rsl-rl.mp4",
-        "IsaacContrib-Stack-Cube-KukaAllegro-RL": "stack-kuka-allegro-newton-mjwarp-rsl-rl.mp4",
-        "IsaacContrib-Stack-Cube-Franka-RL-Camera-Distillation": "stack-franka-camera-newton-mjwarp-rsl-rl.mp4",
+        "IsaacContrib-Stack-Cube-Franka-RL": `${stackPreviewBaseUrl}stack-franka-newton-mjwarp-rsl-rl.mp4`,
+        "IsaacContrib-Stack-Cube-KukaAllegro-RL": `${stackPreviewBaseUrl}stack-kuka-allegro-newton-mjwarp-rsl-rl.mp4`,
     };
     const fixedNewtonPreviewTasks = new Set([
         "IsaacContrib-Stack-Cube-Franka-RL",
         "IsaacContrib-Stack-Cube-KukaAllegro-RL",
-        "IsaacContrib-Stack-Cube-Franka-RL-Camera-Distillation",
     ]);
     const previewImageBaseUrl = "https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/";
     const failedPreviewVideos = new Set();
@@ -487,7 +486,7 @@
             ? previewVideos[state.task]
             : undefined;
         const videoUrl = videoName
-            ? new URL(`../../_static/tasks/previews/${videoName}`, window.location.href).href
+            ? new URL(videoName, new URL("../../_static/tasks/previews/", window.location.href)).href
             : undefined;
         previewImage.src = previewImageUrl(selectedTask());
         previewImage.alt = `${state.task} preview`;

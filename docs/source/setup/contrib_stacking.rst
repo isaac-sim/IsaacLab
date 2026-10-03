@@ -47,6 +47,22 @@ states weighted toward the success monitor's target rate. Learning-progress
 success updates that sampler; full-stack success separately requires a stable,
 released tower. Play mode disables the curriculum and uses only table starts.
 
+To inspect a phase without adaptive sampling, configure the existing reset event
+before creating the environment; no custom reset loop is needed:
+
+.. code-block:: python
+
+   from isaaclab_tasks.contrib.stack import mdp
+   from isaaclab_tasks.utils import parse_env_cfg
+
+   cfg = parse_env_cfg("IsaacContrib-Stack-Cube-Franka-RL", num_envs=4)
+   cfg.curriculum = None
+   cfg.events.reset_from_state_buffer.params["fixed_recipe"] = int(mdp.StackResetRecipe.FIRST_PICK)
+
+Other recipes cover transport, placement, release, and table starts. Leave
+``fixed_recipe=None`` and retain the curriculum for normal training. These are
+task-specific reset banks; an offline grasp generator does not run during resets.
+
 The Franka task uses ``FRANKA_PANDA_CFG`` with the ``mujoco`` physics payload
 and the asset's authored finger mimic: the policy commands the leading finger,
 while the follower remains passive. Task-specific arm impedance gains and
@@ -76,7 +92,7 @@ rendering choice used by this task:
 
 .. code-block:: bash
 
-   uv run isaaclab train --rl_library rsl_rl \
+   OMNI_KIT_ACCEPT_EULA=Y ACCEPT_EULA=Y uv run --extra isaacsim isaaclab train --rl_library rsl_rl \
        --task IsaacContrib-Stack-Cube-Franka-RL-Camera-Distillation \
        --checkpoint /path/to/teacher.pt renderer=isaacsim_rtx
 
@@ -111,8 +127,8 @@ and is not validation of an older checkpoint on the current dynamics.
 .. raw:: html
 
    <video controls muted loop playsinline width="48%" preload="metadata" aria-label="Franka state-policy stacking preview">
-     <source src="../../_static/tasks/previews/stack-franka-newton-mjwarp-rsl-rl.mp4" type="video/mp4">
+     <source src="https://media.githubusercontent.com/media/maxkra15/IsaacLab/226ead1683a31094e263116d6cb82d8225c4ddf5/docs/source/_static/tasks/previews/stack-franka-newton-mjwarp-rsl-rl.mp4" type="video/mp4">
    </video>
    <video controls muted loop playsinline width="48%" preload="metadata" aria-label="KUKA-Allegro state-policy stacking preview">
-     <source src="../../_static/tasks/previews/stack-kuka-allegro-newton-mjwarp-rsl-rl.mp4" type="video/mp4">
+     <source src="https://media.githubusercontent.com/media/maxkra15/IsaacLab/226ead1683a31094e263116d6cb82d8225c4ddf5/docs/source/_static/tasks/previews/stack-kuka-allegro-newton-mjwarp-rsl-rl.mp4" type="video/mp4">
    </video>
