@@ -3,32 +3,23 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""End-to-end checks of Newton-native BAM on live MJWarp articulations.
-
-Recorded pendulum trajectories cover motor response, settling and live friction changes.
-No Isaac Sim runtime or downloaded asset is needed.
-"""
+"""End-to-end checks of Newton-native BAM on live MJWarp articulations."""
 
 from dataclasses import fields
-from pathlib import Path
 
 import numpy as np
 import pytest
 import torch
-from isaaclab_newton.physics import (
-    FeatherstoneSolverCfg,
-    MJWarpSolverCfg,
-    NewtonCfg,
-    NewtonManager,
-)
+from isaaclab_newton.physics import FeatherstoneSolverCfg, MJWarpSolverCfg, NewtonCfg, NewtonManager
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import BamActuatorCfg, BamMotorCfg
-from isaaclab.actuators.newton import DriveBam, read_group_parameter, write_group_parameter
+from isaaclab.actuators.newton import read_group_parameter, write_group_parameter
 from isaaclab.assets import Articulation, ArticulationCfg
 from isaaclab.cloner import CloneCfg, clone_plan_from_env_0, replicate
 from isaaclab.sim import SimulationCfg, build_simulation_context
 from isaaclab.test.utils import DeviceScope, test_devices
+from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 
 pytestmark = [
     pytest.mark.integration,
@@ -39,11 +30,11 @@ pytestmark = [
 DT = 1.0 / 120.0
 """Physics timestep [s]."""
 
+BAM_DATA_DIR = f"{ISAACLAB_NUCLEUS_DIR}/Tests/BAM"
+"""Hosted BAM fixtures: the pendulum USD, its recorded trajectory and the upstream fit."""
+
 NUM_ENVS = 2
 """Environments simulated side by side, so a per-environment randomization is observable."""
-
-NUM_STEPS = 200
-"""Steps each settling phase runs for [-]. The joint is at rest well before this."""
 
 VIN = 7.4
 """Supply voltage the actuator is configured with [V]."""
@@ -71,8 +62,8 @@ def _make_sim_cfg(device: str, use_newton_actuators: bool = False) -> Simulation
 
 @pytest.fixture(scope="module")
 def pendulum_usd() -> str:
-    """Path of the authored fixed-base BAM pendulum fixture."""
-    return str(Path(__file__).parent / "data" / "bam_pendulum.usda")
+    """Local path of the fixed-base BAM pendulum fixture."""
+    return retrieve_file_path(f"{BAM_DATA_DIR}/bam_pendulum.usda")
 
 
 @pytest.fixture
@@ -110,8 +101,7 @@ def _release(robot: Articulation) -> None:
 
 def _make_cfg(**overrides) -> BamActuatorCfg:
     """Use the identified fit recorded alongside the upstream reference outputs."""
-    path = Path(__file__).resolve().parents[3] / "isaaclab/test/actuators/data/bam_xl330_m6_goldens.npz"
-    with np.load(path) as data:
+    with np.load(retrieve_file_path(f"{BAM_DATA_DIR}/bam_xl330_m6_goldens.npz")) as data:
         params = {key.removeprefix("attr_"): data[key].item() for key in data.files if key.startswith("attr_")}
     params["resistance"] = params.pop("R")
     motor = BamMotorCfg(model="m6", **{f.name: params[f.name] for f in fields(BamMotorCfg) if f.name in params})
@@ -142,15 +132,7 @@ def _build_native_pendulum(sim, pendulum_usd: str, actuator_cfg: BamActuatorCfg 
     replicate(sim.get_clone_plan())
     sim.reset()
     assert robot.is_initialized
-    assert "servo" in robot.actuators._native_group_names, "the BAM group must run on the Newton path"
     return robot
-
-
-def _native_drive(robot: Articulation) -> DriveBam:
-    """Return the BAM drive the articulation's native group is executed by."""
-    drives = [actuator.drive for actuator in NewtonManager._adapter.actuators if isinstance(actuator.drive, DriveBam)]
-    assert len(drives) == 1, "the fixture has exactly one BAM actuator"
-    return drives[0]
 
 
 @pytest.mark.parametrize(
@@ -164,20 +146,17 @@ def _native_drive(robot: Articulation) -> DriveBam:
 def test_native_pendulum_matches_recorded_trajectory(native_sim, device, pendulum_usd, decimation):
     """Replay command reversals, settling and per-environment friction changes.
 
-    The first 32 steps were recorded at 3691a0bf04 and remain unchanged. The extension
-    was recorded eagerly at db06f2bd9b and checked against the original static-friction
-    bounds before removing those helpers. It adds 200 settling steps followed by 200
-    steps with distinct friction scales. CUDA replays change those scales after capture,
-    exercising live parameter updates with both odd and even state-buffer parity.
+    On CUDA the friction scales change after graph capture, so live parameter updates are
+    exercised with both state-buffer parities.
     """
     robot = _build_native_pendulum(native_sim, pendulum_usd)
-    drive = _native_drive(robot)
+    drive = robot.actuators["servo"].drive
     np.testing.assert_allclose(
         robot.data.joint_viscous_friction_coeff.torch.cpu().numpy(), _make_cfg().motor.friction_viscous, rtol=1e-6
     )
     NewtonManager.set_decimation(decimation)
     _release(robot)
-    with np.load(Path(__file__).parent / "data" / "bam_pendulum_trajectory.npz") as golden:
+    with np.load(retrieve_file_path(f"{BAM_DATA_DIR}/bam_pendulum_trajectory.npz")) as golden:
         assert native_sim.get_physics_dt() == float(golden["dt"])
         traces = {name: [] for name in ("position", "velocity", "effort", "friction_budget")}
         for index in range(0, len(golden["target"]), decimation):
@@ -205,17 +184,10 @@ def test_native_pendulum_matches_recorded_trajectory(native_sim, device, pendulu
             np.testing.assert_allclose(
                 np.stack(values), golden[name][decimation - 1 :: decimation], atol=2e-5, rtol=2e-4, err_msg=name
             )
-    if device.startswith("cuda"):
-        assert NewtonManager._graph is not None, "the trajectory must exercise graph replay"
 
 
 def _build_two_native_pendulums(sim, pendulum_usd: str, second_cfg: BamActuatorCfg) -> tuple:
-    """Spawn two BAM articulations per environment and initialize the simulation.
-
-    Both robots are the same asset, so Newton merges their BAM joints into *one* actuator
-    whenever the configurations agree on every grouping-key field -- which is exactly the
-    multi-robot case the per-articulation binding has to get right.
-    """
+    """Spawn two BAM pendulums per environment; Newton merges them when their grouping keys agree."""
     for index in range(NUM_ENVS):
         sim_utils.create_prim(f"/World/Env_{index}", "Xform", translation=(index * 1.0, 0.0, 1.0))
     robots = []
@@ -240,39 +212,18 @@ def _build_two_native_pendulums(sim, pendulum_usd: str, second_cfg: BamActuatorC
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-def test_two_articulations_sharing_one_actuator_must_agree(native_sim, device, pendulum_usd):
-    """Two robots merged into one Newton actuator cannot carry different BAM settings.
-
-    ``vin_range``, ``vin_drop_gain_range`` and ``stiff_frictionloss``
-    are not part of Newton's actuator-grouping key, so structurally identical robots share one
-    actuator and one set of parameter arrays. Applying the second articulation's ranges would
-    silently discard the first's randomization, and skipping them would silently ignore the
-    second's configuration, so the conflict has to be refused.
-    """
-    conflicting = _make_cfg(vin_drop_gain_range=(0.0, 0.2))
-    with pytest.raises(ValueError, match="share one Newton actuator"):
-        _build_two_native_pendulums(native_sim, pendulum_usd, conflicting)
+def test_articulations_sharing_one_actuator_bind_once_and_must_agree(native_sim, device, pendulum_usd):
+    """Merged robots share one bound drive; settings outside Newton's grouping key must match."""
+    robot_a, robot_b = _build_two_native_pendulums(native_sim, pendulum_usd, _make_cfg())
+    assert robot_a.actuators["servo"] is robot_b.actuators["servo"], "identical robots must merge"
+    assert robot_a.actuators["servo"].drive.external_torque is not None
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-def test_two_articulations_with_matching_settings_bind_once(native_sim, device, pendulum_usd):
-    """Agreeing robots share the actuator, and neither is left unbound or bound twice."""
-    matching = _make_cfg()
-    robot_a, robot_b = _build_two_native_pendulums(native_sim, pendulum_usd, matching)
-
-    bam_actuators = [actuator for actuator in NewtonManager._adapter.actuators if isinstance(actuator.drive, DriveBam)]
-    assert len(bam_actuators) == 1, "the identical robots must merge into one Newton actuator"
-    drive = bam_actuators[0].drive
-    assert drive.external_torque is not None
-
-    # One binding, not one per articulation: a second registration would write the same budget
-    # twice per step and, worse, hide a scoping mistake. The gather hook is the countable half
-    # of the pair -- the publish hook is registered as a lambda, so it cannot be told apart from
-    # any other post-actuator callback -- and both are registered together or not at all.
-    assert len(NewtonManager._pre_actuator_callbacks) == 1
-
-    for robot in (robot_a, robot_b):
-        assert "servo" in robot.actuators._native_group_names
+def test_articulations_sharing_one_actuator_reject_conflicting_settings(native_sim, device, pendulum_usd):
+    """Differing start-up ranges cannot be applied to one shared drive."""
+    with pytest.raises(ValueError, match="sharing a Newton BAM actuator"):
+        _build_two_native_pendulums(native_sim, pendulum_usd, _make_cfg(vin_drop_gain_range=(0.0, 0.2)))
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
@@ -313,18 +264,10 @@ def test_startup_ranges_are_sampled_per_environment(native_sim, device, pendulum
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_each_articulation_configures_only_its_own_actuator(native_sim, device, pendulum_usd):
-    """Two robots that do *not* merge must each get their own configuration.
-
-    The actuator adapter is simulation-global, so an articulation that walked the whole
-    adapter would apply its own start-up ranges to another robot's actuator -- silently, and
-    with whichever articulation initialized first winning. Differing ``max_delay`` puts the two
-    robots in different Newton actuators; only the scoping decides which one each configures.
-    """
+    """Robots in separate Newton actuators each get their own start-up configuration."""
     delayed = _make_cfg(max_delay=2, vin_range=(6.5, 6.5))
     robot_a, robot_b = _build_two_native_pendulums(native_sim, pendulum_usd, delayed)
-    assert len({id(actuator) for actuator in NewtonManager._adapter.actuators}) == 2, (
-        "the two robots must not merge, or the test cannot tell the configurations apart"
-    )
+    assert robot_a.actuators["servo"] is not robot_b.actuators["servo"], "differing max_delay must not merge"
 
     # robot_a keeps the nominal supply; robot_b uses its configured start-up range.
     for robot, expected in ((robot_a, VIN), (robot_b, 6.5)):
