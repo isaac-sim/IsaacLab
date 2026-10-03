@@ -27,6 +27,8 @@ from isaaclab_tasks.contrib.tablecloth import expert
 from isaaclab_tasks.contrib.tablecloth.h1_env_cfg import HAND_OFFSETS
 from isaaclab_tasks.utils import parse_env_cfg
 
+MULTI_GPU_SKIP_REASON = "Experimental open-loop grasp diagnostic; run manually, not in CI."
+
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_h1_stays_grounded_and_retains_cloth(device):
