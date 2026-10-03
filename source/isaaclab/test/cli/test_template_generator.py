@@ -6,6 +6,7 @@
 """Tests for the project template interactive prompts."""
 
 import importlib.util
+import subprocess
 import sys
 import types
 from pathlib import Path
@@ -299,6 +300,27 @@ def test_generated_project_uses_active_source_checkout(tmp_path):
     assert project_config["tool"]["uv"]["environments"] == source_config["tool"]["uv"]["environments"]
     assert sources["torch"] == source_config["tool"]["uv"]["sources"]["torch"]
     assert "uses editable relative paths" in (project_dir / "README.md").read_text()
+
+    # Path consumers must be able to build the dependency-only root, not just resolve its TOML.
+    result = subprocess.run(
+        [
+            "uv",
+            "pip",
+            "install",
+            "--no-deps",
+            "--target",
+            str(tmp_path / "installed"),
+            "--editable",
+            str(expected_root),
+        ],
+        cwd=project_dir,
+        capture_output=True,
+        text=True,
+        timeout=120,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert list((tmp_path / "installed").glob("isaaclab_dev-*.dist-info"))
 
 
 def test_installed_project_discovers_all_distribution_extras(tmp_path):

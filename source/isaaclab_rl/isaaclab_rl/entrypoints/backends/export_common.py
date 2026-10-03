@@ -111,14 +111,12 @@ def add_common_export_args(parser: argparse.ArgumentParser, *, agent_default: st
 def finalize_export_args(
     parser: argparse.ArgumentParser, argv: list[str] | None = None
 ) -> tuple[argparse.Namespace, list[str]]:
-    """Parse export arguments with preset support and force headless mode.
+    """Parse export arguments with preset support.
 
-    The remainder carries the typed preset selectors (``physics=``, ``renderer=``, ``presets=``) verbatim
-    for Hydra.
+    Export runs headless, as no ``--viz`` opens a window. The remainder carries the typed preset selectors
+    (``physics=``, ``renderer=``, ``presets=``) verbatim for Hydra.
     """
-    args_cli, hydra_args = setup_preset_cli(parser, argv)
-    args_cli.headless = True
-    return args_cli, hydra_args
+    return setup_preset_cli(parser, argv)
 
 
 def run_export(
