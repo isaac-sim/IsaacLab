@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+from contextlib import nullcontext
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -1020,6 +1021,47 @@ def test_newton_rtx_visualizer_render_rgb_array_returns_frame():
     visualizer._viewer = viewer
 
     assert visualizer.render_rgb_array() is frame
+
+
+def test_newton_rtx_captures_ovrtx_render_variable_paths(monkeypatch: pytest.MonkeyPatch):
+    """Capture RGB from the full-path render variable returned by OVRTX."""
+    pytest.importorskip("ovrtx")
+    rgba = np.arange(24, dtype=np.uint8).reshape(2, 3, 4)
+    color = SimpleNamespace(map=lambda **kwargs: nullcontext(rgba))
+    frame = SimpleNamespace(render_vars={"/Render/Vars/LdrColor": color})
+    viewer = NewtonViewerRTX.__new__(NewtonViewerRTX)
+    viewer._render_products = {"/Render/Product": SimpleNamespace(frames=[frame])}
+    viewer._render_result = None
+    viewer._rtx = None
+    viewer._window = None
+    # Supply a completed renderer result; exercise the adapter and native pixel reader.
+    monkeypatch.setattr(newton_visualizer_module.ViewerRTX, "_render_and_display", lambda self: None)
+    viewer._render_and_display()
+
+    np.testing.assert_array_equal(viewer.get_frame(), rgba[..., :3])
+    assert viewer.get_frame().flags.c_contiguous
+
+
+def test_newton_rtx_updates_deforming_mesh_with_managed_arrays():
+    """Mesh updates reach OVRTX as float3 arrays without removed DLTensor APIs."""
+    pytest.importorskip("ovrtx")
+    points = np.arange(18, dtype=np.float32).reshape(6, 3)[::2]
+    viewer = NewtonViewerRTX.__new__(NewtonViewerRTX)
+    viewer._rtx = Mock()
+    viewer._mesh_prim_paths = {"water": "/root/water"}
+    viewer._pending_mesh_points = {"water": points}
+    viewer._pending_mesh_normals = {}
+    viewer._pending_mesh_topology = {}
+    viewer._pending_mesh_visibility = {}
+
+    viewer._update_ovrtx_mesh_points()
+
+    update = viewer._rtx.write_array_attribute.call_args.kwargs
+    assert update["prim_paths"] == ["/root/water"]
+    assert update["attribute_name"] == "points"
+    tensor = np.from_dlpack(update["tensors"][0])
+    np.testing.assert_array_equal(tensor, points)
+    assert tensor.dtype == np.float32 and tensor.flags.c_contiguous
 
 
 def test_newton_rtx_visualizer_render_rgb_array_returns_none_when_viewer_unavailable():

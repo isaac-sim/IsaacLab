@@ -39,3 +39,11 @@ include = ["isaaclab_tasks", "isaaclab_tasks.*"]
 
 [tool.setuptools.package-data]
 "*" = ["*.pyi"]
+"isaaclab_tasks.contrib.rizon_sharpa_coffee" = [
+    "README.md",
+    "assets/NOTICE",
+    "assets/*.json",
+    "assets/*.mdl",
+    "assets/*.urdf",
+    "assets/*.yml",
+]

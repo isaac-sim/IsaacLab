@@ -1010,36 +1010,41 @@ class KitVisualizer(BaseVisualizer):
         if self._generated_camera_pose_cache.get(camera_path) == pose_key:
             return False
 
-        if camera_path not in self._generated_camera_xform_ops:
-            camera = UsdGeom.Camera.Define(usd_stage, camera_path)
-            camera_xform = UsdGeom.Xformable(camera.GetPrim())
-            camera_xform.ClearXformOpOrder()
-            # Generated visualizer cameras live under env prims, but eyes/targets are world-space.
-            # Reset the xform stack so Kit/Fabric sees the authored pose as a world pose.
-            camera_xform.SetResetXformStack(True)
-            # ClearXformOpOrder removes the ordering metadata but not the prim attributes
-            # themselves, so AddTranslateOp/AddOrientOp fail if they already exist on the
-            # prim (e.g. for /OmniverseKit_Persp which Isaac Sim pre-populates).
-            # Reuse existing attributes when present; add them only when absent.
-            prim = camera.GetPrim()
-            t_attr = prim.GetAttribute("xformOp:translate")
-            translate_op = UsdGeom.XformOp(t_attr) if t_attr else camera_xform.AddTranslateOp()
-            o_attr = prim.GetAttribute("xformOp:orient")
-            orient_op = UsdGeom.XformOp(o_attr) if o_attr else camera_xform.AddOrientOp(UsdGeom.XformOp.PrecisionDouble)
-            camera_xform.SetXformOpOrder([translate_op, orient_op], camera_xform.GetResetXformStack())
-            self._generated_camera_xform_ops[camera_path] = (translate_op, orient_op)
-        else:
-            translate_op, orient_op = self._generated_camera_xform_ops[camera_path]
+        # Kit owns camera defaults in the stronger session layer. Publish there
+        # so viewport-authored transforms cannot hide these direct pose updates.
+        with Usd.EditContext(usd_stage, usd_stage.GetSessionLayer()):
+            if camera_path not in self._generated_camera_xform_ops:
+                camera = UsdGeom.Camera.Define(usd_stage, camera_path)
+                camera_xform = UsdGeom.Xformable(camera.GetPrim())
+                camera_xform.ClearXformOpOrder()
+                # Generated visualizer cameras live under env prims, but eyes/targets are world-space.
+                # Reset the xform stack so Kit/Fabric sees the authored pose as a world pose.
+                camera_xform.SetResetXformStack(True)
+                # ClearXformOpOrder removes the ordering metadata but not the prim attributes
+                # themselves, so AddTranslateOp/AddOrientOp fail if they already exist on the
+                # prim (e.g. for /OmniverseKit_Persp which Isaac Sim pre-populates).
+                # Reuse existing attributes when present; add them only when absent.
+                prim = camera.GetPrim()
+                t_attr = prim.GetAttribute("xformOp:translate")
+                translate_op = UsdGeom.XformOp(t_attr) if t_attr else camera_xform.AddTranslateOp()
+                o_attr = prim.GetAttribute("xformOp:orient")
+                orient_op = (
+                    UsdGeom.XformOp(o_attr) if o_attr else camera_xform.AddOrientOp(UsdGeom.XformOp.PrecisionDouble)
+                )
+                camera_xform.SetXformOpOrder([translate_op, orient_op], camera_xform.GetResetXformStack())
+                self._generated_camera_xform_ops[camera_path] = (translate_op, orient_op)
+            else:
+                translate_op, orient_op = self._generated_camera_xform_ops[camera_path]
 
-        quat_gf = Gf.Quatd(
-            float(quat_xyzw[3]),
-            Gf.Vec3d(float(quat_xyzw[0]), float(quat_xyzw[1]), float(quat_xyzw[2])),
-        )
+            quat_gf = Gf.Quatd(
+                float(quat_xyzw[3]),
+                Gf.Vec3d(float(quat_xyzw[0]), float(quat_xyzw[1]), float(quat_xyzw[2])),
+            )
 
-        translate_op.Set(Gf.Vec3d(float(eye[0, 0]), float(eye[0, 1]), float(eye[0, 2])))
-        orient_op.Set(quat_gf)
-        self._generated_camera_pose_cache[camera_path] = pose_key
-        return True
+            translate_op.Set(Gf.Vec3d(float(eye[0, 0]), float(eye[0, 1]), float(eye[0, 2])))
+            orient_op.Set(quat_gf)
+            self._generated_camera_pose_cache[camera_path] = pose_key
+            return True
 
     def _apply_cfg_camera_pose_if_configured(self) -> None:
         """Apply configured camera pose from eye/lookat."""
@@ -1223,6 +1228,11 @@ class KitVisualizer(BaseVisualizer):
         eye = np.array(self.cfg.eye, dtype=float) + origin
         target = np.array(self.cfg.lookat, dtype=float) + origin
         self.set_camera_view(tuple(float(v) for v in eye), tuple(float(v) for v in target))
+        # Direct USD publication already positions a camera without a viewport.
+        # The viewport helper would author stronger session-layer transforms
+        # over that camera, hiding subsequent updates to its cached USD ops.
+        if self._viewport_api is None:
+            return
         # Keep the Isaac RTX renderer camera in sync (no-op if isaaclab_physx is not installed).
         try:
             from isaaclab_physx.renderers.kit_viewport_utils import set_kit_renderer_camera_view  # noqa: PLC0415

@@ -1,0 +1,329 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""Measured-pose IK demonstration of two scoops and optional stirring."""
+
+from __future__ import annotations
+
+import math
+from typing import TYPE_CHECKING
+
+import torch
+
+from isaaclab.utils import math as math_utils
+
+from .assets import BOWL_POSITION, CUP_HEIGHT, CUP_POSITION, SPOON_BOWL_WIDTH
+from .grasp_reset import configured_hand_targets
+
+if TYPE_CHECKING:
+    from .coffee_env import CoffeeEnv
+
+
+class CoffeeScoopDemo:
+    """Operate the same 29-dimensional manager action used by teleoperation.
+
+    Waypoints describe the spoon cavity in the environment frame. Each command
+    is converted through the measured robot root and palm/tool transform, so IK
+    controls the physical arm. Contact mode measures the tool offset each step
+    to compensate for compliance; mounted mode uses its configured rigid offset.
+    Phase transitions require both elapsed motion time and measured arrival.
+    """
+
+    def __init__(self, env: CoffeeEnv) -> None:
+        self._env = env
+        self._offset_pos = torch.tensor(env.cfg.spoon_offset_pos, device=env.device).expand(env.num_envs, -1)
+        self._offset_quat = torch.tensor(env.cfg.spoon_offset_rot, device=env.device).expand(env.num_envs, -1)
+        self._hand = torch.tensor(configured_hand_targets(env.cfg), device=env.device).expand(env.num_envs, -1)
+        self._phases: list[tuple[str, float, torch.Tensor, float]] = []
+        self.reset()
+
+    @property
+    def phase(self) -> str:
+        """Current motion phase, or ``complete`` after returning upright."""
+        return "complete" if self.finished else self._phases[self._phase_index][0]
+
+    @property
+    def phase_kind(self) -> str:
+        """Motion kind without the cycle suffix, for example ``pour_height``."""
+        name, _, suffix = self.phase.rpartition("_")
+        return name if suffix.isdecimal() else self.phase
+
+    @property
+    def cycle_index(self) -> int:
+        """Zero-based scoop cycle; initial positioning belongs to the first."""
+        if self.finished:
+            return len(self._scoop_lanes) - 1
+        suffix = self.phase.rpartition("_")[2]
+        return int(suffix) - 1 if suffix.isdecimal() else 0
+
+    @property
+    def finished(self) -> bool:
+        """Whether all waypoints were reached with the measured physical spoon."""
+        return self._phase_index >= len(self._phases)
+
+    def reset(self) -> None:
+        """Restart from the current physical spoon pose after an environment reset."""
+        initial = self._spoon_pose()
+        source_x, source_y, source_z = BOWL_POSITION
+        cup_x, cup_y, cup_z = CUP_POSITION
+        level = (0.0, 0.0, 0.0, 1.0)
+        tipped = (math.sin(math.pi / 4.0), 0.0, 0.0, math.cos(math.pi / 4.0))
+        # Curl upward while leveling so the original flat handle clears the
+        # ceramic rim before the loaded spoon lifts out of the powder.
+        scoop_z = source_z + 0.0365
+        transfer_z = max(source_z + 0.22, cup_z + CUP_HEIGHT + 0.135)
+        pour_z = cup_z + CUP_HEIGHT + 0.040
+        # Positive X-axis roll releases over the -Y lip. Center that lip over
+        # the mouth rather than centering the unrotated spoon cavity.
+        pour_y = cup_y + SPOON_BOWL_WIDTH * 0.46
+
+        def pose(position, quaternion=level):
+            return (
+                torch.tensor((*position, *quaternion), dtype=torch.float32, device=self._env.device)
+                .expand(self._env.num_envs, -1)
+                .clone()
+            )
+
+        # First raise the current tool before leveling it, keeping the hand and
+        # the long handle clear of the containers during the large wrist turn.
+        clearance = initial.clone()
+        clearance[:, 2] = torch.maximum(clearance[:, 2], torch.full_like(clearance[:, 2], transfer_z + 0.08))
+        approach = pose((source_x - 0.012, source_y, transfer_z))
+        # Enter steeply, then curl level inside the powder during a short
+        # forward draw. Keep the lateral position fixed until the level lift.
+        # Nonzero interior velocities keep the motion continuous;
+        # zero knot accelerations make the quintic segments C2 continuous.
+        # Coordinates are X/Y/Z, pitch and roll, followed by derivatives per s.
+        self._scoop_knots = [
+            (
+                0.0,
+                (source_x - 0.030, source_y - 0.010, transfer_z, 0.0, 0.0),
+                (0.0, 0.0, 0.0, 0.0, 0.0),
+            ),
+            (
+                2.5,
+                (source_x - 0.030, source_y - 0.010, source_z + 0.070, math.radians(60.0), 0.0),
+                (0.0, 0.0, -0.015, 0.0, 0.0),
+            ),
+            (
+                3.8,
+                (source_x - 0.030, source_y - 0.010, source_z + 0.030, math.radians(60.0), 0.0),
+                (0.001, 0.0, -0.002, math.radians(-5.0), 0.0),
+            ),
+            (
+                5.2,
+                (source_x - 0.025, source_y - 0.010, source_z + 0.030, math.radians(40.0), 0.0),
+                (0.0025, 0.0, 0.001, math.radians(-12.0), 0.0),
+            ),
+            (
+                8.2,
+                (source_x - 0.015, source_y - 0.010, scoop_z, 0.0, 0.0),
+                (0.001, 0.0, 0.0, 0.0, 0.0),
+            ),
+            (
+                9.2,
+                (source_x - 0.014, source_y - 0.010, scoop_z + 0.012, 0.0, 0.0),
+                (0.001, 0.0, 0.024, 0.0, 0.0),
+            ),
+            (
+                10.4,
+                (source_x - 0.014, source_y - 0.010, source_z + 0.105, 0.0, 0.0),
+                (0.0, 0.0, 0.055, 0.0, 0.0),
+            ),
+            (
+                11.7,
+                (source_x - 0.014, source_y - 0.010, source_z + 0.165, 0.0, 0.0),
+                (0.0, 0.0, 0.045, 0.0, 0.0),
+            ),
+            (
+                13.2,
+                (source_x - 0.014, source_y - 0.010, transfer_z, 0.0, 0.0),
+                (0.0, 0.0, 0.0, 0.0, 0.0),
+            ),
+        ]
+        ready_distance = torch.linalg.vector_norm(initial[:, :3] - approach[:, :3], dim=-1)
+        ready_angle = math_utils.quat_error_magnitude(initial[:, 3:], approach[:, 3:])
+        already_ready = bool(((ready_distance <= 0.007) & (ready_angle <= math.radians(6.0))).all())
+        self._phases = [("settle", 0.7, initial, 0.010)]
+        if not already_ready:
+            self._phases += [
+                ("clearance", 1.4, clearance, 0.010),
+                ("approach", 2.5, approach, 0.007),
+            ]
+        # Mirrored local entries and separate X lanes reach fresh material.
+        # Both motions share one episode and preserve the powder state.
+        self._scoop_lanes = {"scoop_1": (-0.004, 1.0), "scoop_2": (0.004, -1.0)}
+        for cycle, (name, (lane_offset, direction)) in enumerate(self._scoop_lanes.items(), start=1):
+            self._phases.append(
+                (
+                    "approach_1" if cycle == 1 else f"return_{cycle}",
+                    1.4 if cycle == 1 else 4.0,
+                    pose((source_x - 0.030 + lane_offset, source_y - 0.010 * direction, transfer_z)),
+                    0.007,
+                )
+            )
+            self._phases += [
+                (
+                    name,
+                    self._scoop_knots[-1][0],
+                    pose((source_x - 0.014, source_y - 0.010 * direction, transfer_z)),
+                    0.007,
+                ),
+                (f"transfer_{cycle}", 4.5, pose((cup_x, pour_y, transfer_z)), 0.007),
+                (f"pour_height_{cycle}", 1.4, pose((cup_x, pour_y, pour_z)), 0.006),
+                (f"tip_{cycle}", 2.4, pose((cup_x, pour_y, pour_z), tipped), 0.006),
+                (f"empty_{cycle}", 1.3, pose((cup_x, pour_y, pour_z), tipped), 0.006),
+                (f"recover_{cycle}", 3.0, pose((cup_x, pour_y, transfer_z)), 0.007),
+            ]
+        if self._env.cfg.water_enabled:
+            # An inclined spoon keeps the original flat handle above the glass
+            # rim while its front is immersed. Lift before leveling again.
+            pitch = math.radians(65.0)
+            # Face along +Y to keep the arm away from its wrist limit.
+            yaw = math.pi / 2.0
+            stirring = (
+                -math.sin(yaw / 2.0) * math.sin(pitch / 2.0),
+                math.cos(yaw / 2.0) * math.sin(pitch / 2.0),
+                math.sin(yaw / 2.0) * math.cos(pitch / 2.0),
+                math.cos(yaw / 2.0) * math.cos(pitch / 2.0),
+            )
+            stir_clearance_z = cup_z + 0.150
+            self._stir_center = (cup_x, cup_y, cup_z + 0.031)
+            self._stir_radius = 0.009
+            self._stir_turns = 3
+            self._stir_duration = 8.0
+            start = (cup_x + self._stir_radius, cup_y, self._stir_center[2])
+            self._phases += [
+                ("stir_align", 2.5, pose((start[0], start[1], stir_clearance_z), stirring), 0.006),
+                ("stir_lower", 2.5, pose(start, stirring), 0.004),
+                ("stir", self._stir_duration, pose(start, stirring), 0.004),
+                ("stir_raise", 2.5, pose((start[0], start[1], stir_clearance_z), stirring), 0.006),
+                ("stir_upright", 2.5, pose((start[0], start[1], transfer_z)), 0.007),
+            ]
+        self._phases.append(("retreat_2", 2.0, pose((cup_x + 0.015, pour_y, transfer_z + 0.04)), 0.010))
+        self._phase_index = 0
+        self._elapsed = 0.0
+        self._start_pose = initial.clone()
+        self._command_pose = initial.clone()
+
+    def compute(self) -> torch.Tensor:
+        """Return absolute robot-base palm pose and hand positions, shape ``(N,29)``.
+
+        Raises:
+            RuntimeError: The real spoon fails to reach a phase endpoint within
+                six additional seconds, its state becomes invalid, or the
+                contact grasp exceeds the allowed slip/rotation bounds.
+        """
+        actual = self._spoon_pose()
+        if not torch.isfinite(actual).all():
+            raise RuntimeError(f"Coffee demo has an invalid spoon pose in phase {self.phase!r}.")
+        if not self.finished:
+            name, duration, endpoint, tolerance = self._phases[self._phase_index]
+            self._elapsed += self._env.step_dt
+            progress = min(self._elapsed / duration, 1.0)
+            blend = progress * progress * progress * (10.0 + progress * (-15.0 + 6.0 * progress))
+            if name in self._scoop_lanes:
+                self._command_pose[:] = self._scoop_pose(self._elapsed, *self._scoop_lanes[name])
+            elif name == "stir":
+                self._command_pose[:] = endpoint
+                angle = 2.0 * math.pi * self._stir_turns * blend
+                self._command_pose[:, 0] = self._stir_center[0] + self._stir_radius * math.cos(angle)
+                self._command_pose[:, 1] = self._stir_center[1] + self._stir_radius * math.sin(angle)
+            else:
+                self._command_pose[:, :3] = torch.lerp(self._start_pose[:, :3], endpoint[:, :3], blend)
+                self._command_pose[:, 3:] = self._slerp(self._start_pose[:, 3:], endpoint[:, 3:], blend)
+            if progress >= 1.0:
+                distance = torch.linalg.vector_norm(actual[:, :3] - endpoint[:, :3], dim=-1)
+                angle = math_utils.quat_error_magnitude(actual[:, 3:], endpoint[:, 3:])
+                arrived = (distance <= tolerance) & (angle <= math.radians(6.0))
+                if bool(arrived.all()):
+                    self._phase_index += 1
+                    self._elapsed = 0.0
+                    self._start_pose = actual.clone()
+                elif self._elapsed > duration + 6.0:
+                    raise RuntimeError(
+                        f"Coffee demo phase {name!r} timed out: spoon position error "
+                        f"{float(distance.max()):.4f} m, rotation error {math.degrees(float(angle.max())):.1f} deg."
+                    )
+        return self._palm_action(self._command_pose)
+
+    def _scoop_pose(self, elapsed: float, lane_offset: float = 0.0, direction: float = 1.0) -> torch.Tensor:
+        """Evaluate one local entry and level the scoop before lifting."""
+        elapsed = min(elapsed, self._scoop_knots[-1][0])
+        # Converge to the common transfer X only after leveling in the mound.
+        lift_progress = min(max((elapsed - 9.2) / (10.4 - 9.2), 0.0), 1.0)
+        lane_blend = 1.0 - lift_progress**3 * (10.0 + lift_progress * (-15.0 + 6.0 * lift_progress))
+        for start, end in zip(self._scoop_knots[:-1], self._scoop_knots[1:]):
+            if elapsed <= end[0]:
+                duration = end[0] - start[0]
+                fraction = max(0.0, (elapsed - start[0]) / duration)
+                s3, s4, s5 = fraction**3, fraction**4, fraction**5
+                weights = (
+                    1.0 - 10.0 * s3 + 15.0 * s4 - 6.0 * s5,
+                    fraction - 6.0 * s3 + 8.0 * s4 - 3.0 * s5,
+                    10.0 * s3 - 15.0 * s4 + 6.0 * s5,
+                    -4.0 * s3 + 7.0 * s4 - 3.0 * s5,
+                )
+                coordinates = [
+                    weights[0] * p0 + weights[1] * duration * v0 + weights[2] * p1 + weights[3] * duration * v1
+                    for p0, v0, p1, v1 in zip(start[1], start[2], end[1], end[2])
+                ]
+                coordinates[0] += lane_offset * lane_blend
+                coordinates[1] = BOWL_POSITION[1] + (coordinates[1] - BOWL_POSITION[1]) * direction
+                pitch, roll = coordinates[3], coordinates[4] * direction
+                sin_pitch, cos_pitch = math.sin(pitch / 2.0), math.cos(pitch / 2.0)
+                sin_roll, cos_roll = math.sin(roll / 2.0), math.cos(roll / 2.0)
+                pose = (
+                    *coordinates[:3],
+                    sin_roll * cos_pitch,
+                    cos_roll * sin_pitch,
+                    -sin_roll * sin_pitch,
+                    cos_roll * cos_pitch,
+                )
+                return torch.tensor(pose, dtype=torch.float32, device=self._env.device).expand(self._env.num_envs, -1)
+        raise RuntimeError("The coffee scoop path has no endpoint.")
+
+    def _spoon_pose(self) -> torch.Tensor:
+        pose = self._env.scene["spoon"].data.root_link_pose_w.torch.clone()
+        pose[:, :3] -= self._env.scene.env_origins
+        return pose
+
+    def _palm_action(self, spoon_pose: torch.Tensor) -> torch.Tensor:
+        # T_world_palm = T_world_spoon * inverse(T_palm_spoon).
+        robot = self._env.scene["robot"].data
+        offset_pos, offset_quat = self._offset_pos, self._offset_quat
+        if self._env.cfg.grasp_mode == "contact":
+            palm = robot.body_link_pose_w.torch[:, self._env._palm_id]
+            spoon = self._env.scene["spoon"].data.root_link_pose_w.torch
+            offset_pos, offset_quat = math_utils.subtract_frame_transforms(
+                palm[:, :3], palm[:, 3:], spoon[:, :3], spoon[:, 3:]
+            )
+            slip = torch.linalg.vector_norm(offset_pos - self._offset_pos, dim=-1)
+            rotation = math_utils.quat_error_magnitude(offset_quat, self._offset_quat)
+            if bool(((slip > 0.03) | (rotation > math.radians(35.0))).any()):
+                raise RuntimeError(
+                    f"Coffee demo lost its contact grasp: {float(slip.max()):.4f} m displacement, "
+                    f"{math.degrees(float(rotation.max())):.1f} deg rotation. Reset or refine the finger preload."
+                )
+        spoon_pos_w = spoon_pose[:, :3] + self._env.scene.env_origins
+        palm_quat_w = math_utils.quat_mul(spoon_pose[:, 3:], math_utils.quat_inv(offset_quat))
+        palm_pos_w = spoon_pos_w - math_utils.quat_apply(palm_quat_w, offset_pos)
+        pos_b, quat_b = math_utils.subtract_frame_transforms(
+            robot.root_pos_w.torch, robot.root_quat_w.torch, palm_pos_w, palm_quat_w
+        )
+        return torch.cat((pos_b, quat_b, self._hand), dim=-1)
+
+    @staticmethod
+    def _slerp(start: torch.Tensor, end: torch.Tensor, fraction: float) -> torch.Tensor:
+        """Interpolate a batch of XYZW quaternions along the shortest rotation."""
+        dot = torch.sum(start * end, dim=-1, keepdim=True)
+        end = torch.where(dot < 0.0, -end, end)
+        cosine = dot.abs().clamp(max=1.0)
+        angle = torch.acos(cosine)
+        denominator = torch.sin(angle).clamp_min(1.0e-6)
+        spherical = (torch.sin((1.0 - fraction) * angle) * start + torch.sin(fraction * angle) * end) / denominator
+        linear = torch.lerp(start, end, fraction)
+        result = torch.where(cosine > 0.9995, linear, spherical)
+        return result / torch.linalg.vector_norm(result, dim=-1, keepdim=True).clamp_min(1.0e-6)

@@ -397,7 +397,7 @@ class _NewtonViewerUIMixin:
 
             # --- Visualization Markers (GL only; RTX log_mesh crashes on empty USD path) --
             if viewer.model is not None and not isinstance(viewer, NewtonViewerRTX):
-                imgui.set_next_item_open(False, imgui.Cond_.appearing)
+                imgui.set_next_item_open(True, imgui.Cond_.appearing)
                 if imgui.collapsing_header("Visualization Markers"):
                     imgui.separator()
                     renderer = getattr(viewer, "renderer", None)
@@ -740,6 +740,55 @@ class NewtonViewerRTX(_NewtonViewerUIMixin, ViewerRTX):
         """Return the latest OVRTX LDR framebuffer as contiguous RGB pixels."""
         # TODO: Use Newton's public RGB capture API when one becomes available.
         return np.ascontiguousarray(self._capture_screenshot_pixels()[..., :3])
+
+    def _capture_screenshot_pixels(self) -> np.ndarray:
+        """Read the latest LDR output using its USD path or short render-var name."""
+        from ovrtx import Device
+
+        products = self._render_products
+        if products is None and self._render_result is not None:
+            products = self._render_result.wait().fetch()
+        if products is None:
+            raise RuntimeError("Screenshot capture requires a completed render frame.")
+        for product in products.values():
+            for frame in reversed(product.frames):
+                for path, color in frame.render_vars.items():
+                    if path.rsplit("/", 1)[-1] == "LdrColor":
+                        with color.map(device=Device.CPU) as mapping:
+                            return np.array(np.from_dlpack(mapping), copy=True)
+        raise RuntimeError("The completed render frame contains no LdrColor output.")
+
+    @staticmethod
+    def _make_laned_array_dltensor(values_np: np.ndarray, lanes: int) -> np.ndarray:
+        """Supply shaped arrays to OVRTX's managed DLPack ingestion.
+
+        OVRTX infers vector lanes from the trailing dimension and retains the
+        array while writing. Its current DLTensor is only a C descriptor.
+        """
+        return np.ascontiguousarray(values_np).reshape(-1, lanes)
+
+    @staticmethod
+    def _make_point3f_dltensor(points_np: np.ndarray) -> np.ndarray:
+        """Use the managed array path for deforming mesh points and normals."""
+        return NewtonViewerRTX._make_laned_array_dltensor(np.asarray(points_np, dtype=np.float32), lanes=3)
+
+    def _render_and_display(self) -> None:
+        """Accept OVRTX render variables keyed by their complete USD paths."""
+        super()._render_and_display()
+        if self._render_products is None:
+            return
+        from ovrtx import Device
+
+        for product in self._render_products.values():
+            for frame in product.frames:
+                if "LdrColor" in frame.render_vars or "/Render/Vars/LdrColor" not in frame.render_vars:
+                    continue
+                color = frame.render_vars["/Render/Vars/LdrColor"]
+                if self._window is not None and self._window.context is not None:
+                    with color.map(device=Device.CUDA) as mapping:
+                        pixels = wp.from_dlpack(mapping, dtype=wp.vec4ub)
+                        self._blit_to_window(pixels)
+                        mapping.unmap(stream=pixels.device.stream.cuda_stream)
 
     def _init_window(self) -> None:
         """Create the viewer window and immediately apply Isaac Lab UI patches."""

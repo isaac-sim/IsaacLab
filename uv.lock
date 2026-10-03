@@ -19,7 +19,7 @@ prerelease-mode = "allow"
 overrides = [
     { name = "mujoco", specifier = "~=3.12.0" },
     { name = "mujoco-warp", specifier = "~=3.12.0" },
-    { name = "newton", extras = ["sim"], specifier = "==1.6.0" },
+    { name = "newton", extras = ["sim"], git = "https://github.com/newton-physics/newton.git?rev=1aca1a72dbeedc7cadc05d28f44575a2bbab9003" },
     { name = "newton-usd-schemas", specifier = ">=0.5.0" },
     { name = "numpy", specifier = ">=2" },
     { name = "packaging", specifier = ">=20,<27" },
@@ -1699,7 +1699,7 @@ wheels = [
 
 [[package]]
 name = "isaaclab"
-version = "31.0.0"
+version = "32.0.0"
 source = { editable = "source/isaaclab" }
 
 [[package]]
@@ -1723,7 +1723,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-contrib"
-version = "3.0.0"
+version = "3.1.0"
 source = { editable = "source/isaaclab_contrib" }
 dependencies = [
     { name = "isaaclab" },
@@ -1989,7 +1989,7 @@ requires-dist = [
     { name = "meshio", specifier = ">=5.3.5" },
     { name = "moviepy", marker = "extra == 'video'", specifier = ">=1.0.3,<2.0.0.dev0" },
     { name = "myst-parser", marker = "extra == 'dev'" },
-    { name = "newton", extras = ["sim"], specifier = "==1.6.0" },
+    { name = "newton", extras = ["sim"], git = "https://github.com/newton-physics/newton.git?rev=1aca1a72dbeedc7cadc05d28f44575a2bbab9003" },
     { name = "newton-usd-schemas", specifier = ">=0.5.0" },
     { name = "numba", specifier = ">=0.63.1" },
     { name = "numpy", specifier = ">=2" },
@@ -2061,7 +2061,7 @@ requires-dist = [
     { name = "usd-exchange", specifier = "==3.0.0" },
     { name = "viser", marker = "extra == 'viser'", specifier = ">=1.0.16" },
     { name = "wandb", marker = "extra == 'wandb'", specifier = ">=0.13.11" },
-    { name = "warp-lang", specifier = "==1.17.0" },
+    { name = "warp-lang", specifier = "==1.19.0.dev20260930" },
 ]
 provides-extras = ["tetrahedralization", "video", "importers", "test", "dev", "sb3", "skrl", "rl-games", "wandb", "rsl-rl", "torchrl", "viser", "rerun", "isaacsim", "ov", "ovphysx", "ovrtx", "mimic", "teleop", "rlinf", "leapp", "all"]
 
@@ -2095,7 +2095,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-newton"
-version = "9.0.0"
+version = "9.1.0"
 source = { editable = "source/isaaclab_newton" }
 dependencies = [
     { name = "isaaclab" },
@@ -2106,7 +2106,7 @@ requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
 
 [[package]]
 name = "isaaclab-ov"
-version = "3.5.0"
+version = "4.0.0"
 source = { editable = "source/isaaclab_ov" }
 dependencies = [
     { name = "isaaclab" },
@@ -2121,7 +2121,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-physx"
-version = "7.3.0"
+version = "7.4.0"
 source = { editable = "source/isaaclab_physx" }
 dependencies = [
     { name = "isaaclab" },
@@ -2143,7 +2143,7 @@ requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
 
 [[package]]
 name = "isaaclab-rl"
-version = "1.3.0"
+version = "1.3.1"
 source = { editable = "source/isaaclab_rl" }
 dependencies = [
     { name = "isaaclab" },
@@ -2160,7 +2160,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-tasks"
-version = "21.3.0"
+version = "22.0.0"
 source = { editable = "source/isaaclab_tasks" }
 dependencies = [
     { name = "isaaclab" },
@@ -2190,7 +2190,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-teleop"
-version = "0.9.0"
+version = "0.10.0"
 source = { editable = "source/isaaclab_teleop" }
 dependencies = [
     { name = "isaaclab" },
@@ -3291,13 +3291,10 @@ wheels = [
 
 [[package]]
 name = "newton"
-version = "1.6.0"
-source = { registry = "https://pypi.org/simple" }
+version = "1.7.0.dev0"
+source = { git = "https://github.com/newton-physics/newton.git?rev=1aca1a72dbeedc7cadc05d28f44575a2bbab9003#1aca1a72dbeedc7cadc05d28f44575a2bbab9003" }
 dependencies = [
     { name = "warp-lang" },
-]
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/7b/d0/1955c2623762fd1d9f3bc0bb9866b6c0669e1e277202bdc16772520d7da1/newton-1.6.0-py3-none-any.whl", hash = "sha256:5eedebe17d7261ca39e8f97c2f2f20e22e7264d0aed01782f3cb1dd60180b872", size = 6159741, upload-time = "2026-09-10T13:50:10.666Z" },
 ]
 
 [package.optional-dependencies]
@@ -5809,15 +5806,15 @@ wheels = [
 
 [[package]]
 name = "warp-lang"
-version = "1.17.0"
+version = "1.19.0.dev20260930"
 source = { registry = "https://pypi.nvidia.com/" }
 dependencies = [
     { name = "numpy" },
 ]
 wheels = [
-    { url = "https://pypi.nvidia.com/warp-lang/warp_lang-1.17.0-py3-none-manylinux_2_28_x86_64.whl", hash = "sha256:47cd93636828dd16e55eeb4e77a0e3547b5fb0f383000a3d228629df68f28fd8" },
-    { url = "https://pypi.nvidia.com/warp-lang/warp_lang-1.17.0-py3-none-manylinux_2_34_aarch64.whl", hash = "sha256:5051271048da956a8b94e2db9771ce60ce9591a3ac5bb49037f3d6812d1eea00" },
-    { url = "https://pypi.nvidia.com/warp-lang/warp_lang-1.17.0-py3-none-win_amd64.whl", hash = "sha256:ca35c82242a7553046f09023bbe56750b5c3d9af72625bd1a905a56d3189771d" },
+    { url = "https://pypi.nvidia.com/warp-lang/warp_lang-1.19.0.dev20260930-py3-none-manylinux_2_28_x86_64.whl", hash = "sha256:2c1d11872adc4a7c4586576c58dbbdf9f80775bff409e2326d0b999ef565fa19" },
+    { url = "https://pypi.nvidia.com/warp-lang/warp_lang-1.19.0.dev20260930-py3-none-manylinux_2_34_aarch64.whl", hash = "sha256:374d88061f45f377a67c27966c7a8d5f018c58c14dc6a95335786b60b625889d" },
+    { url = "https://pypi.nvidia.com/warp-lang/warp_lang-1.19.0.dev20260930-py3-none-win_amd64.whl", hash = "sha256:1d7779540e57cdc5b40b9edfb7f81e9464c2904dda9d05712997ce66cdc90a6b" },
 ]
 
 [[package]]

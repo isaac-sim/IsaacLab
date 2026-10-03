@@ -1,0 +1,21 @@
+Portions of this codebase include software, Mujoco, developed by Google-Deepmind (https://github.com/google-deepmind/mujoco):
+Copyright 2021 DeepMind Technologies Limited
+Box collision code (engine_collision_box.c) is Copyright 2016 Svetoslav Kolev.
+Source code is licensed under the Apache License, Version 2.0:
+Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at
+    http://www.apache.org/licenses/LICENSE-2.0
+Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+
+The packaged ``right_sharpa_wave.urdf`` is from
+https://github.com/sharpa-robotics/sharpa-urdf-usd-xml at commit
+3e953f588ba9954cebaa720aaa4cee06a43a068e.
+The packaged URDF removed two trailing spaces after the closing mujoco tag;
+its XML content was unchanged. The original 34,545-byte file had SHA-256
+7a9ab7f824482d23765b2da40b7e96fc605e7e70eda4615a5ca51fea88afb845.
+
+The packaged ``sharpa_wave_right_dexpilot.yml`` is from NVIDIA IsaacTeleop at
+commit c5fe6624cc4dff456485d2e786922c8e41100f83. IsaacTeleop and this
+configuration are licensed under the Apache License, Version 2.0.
+The packaged configuration prepends the Isaac Lab repository header. Removing
+that five-line packaging header gives the unchanged 985-byte upstream file,
+SHA-256 d3e9e017084f45c1d2f80718d2fa976a08f47bd5e2da879b8aecf849a6cf25e7.
