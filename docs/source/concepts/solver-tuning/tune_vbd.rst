@@ -22,6 +22,43 @@ rigid-body scenes, the named-entry coupling options are:
 * :class:`~isaaclab_contrib.coupling.CouplerAdmmCfg` for linearized ADMM
   coupling between named solver entries.
 
+Run the Tablecloth Example
+--------------------------
+
+The focused ``examples/newton_tablecloth.py`` script demonstrates
+standalone VBD before the task and coupling examples below. It compares five
+pull speeds side by side and shows how to configure full-surface contact while
+controlling deformable kinematic targets through Isaac Lab.
+
+.. figure:: ../../_static/examples/newton_tablecloth.jpg
+   :alt: Five side-by-side kitchen tables with red cloths and tableware during the pull-speed comparison.
+   :width: 100%
+
+   Five pull speeds in one Isaac Lab scene, rendered with Kit.
+
+Run it with the lightweight Newton GL visualizer:
+
+.. code-block:: bash
+
+   uvx isaaclab example newton-tablecloth --device cuda:0 --visualizer newton_gl
+
+The script declares its ground, tables, cloth, and tableware with
+``InteractiveSceneCfg`` and uses the standard scene write/step/update lifecycle.
+
+For robot manipulation, ``examples/tablecloth_h1.py`` runs a scripted expert for
+the manager-based ``IsaacContrib-Tablecloth-H1`` task:
+
+.. code-block:: bash
+
+   uvx --from 'isaaclab[importers]' isaaclab example tablecloth-h1 \
+      --device cuda:0 --max_steps 312
+
+Both examples use the default Isaac Lab ground plane and share SimReady kitchen
+assets with analytic collision proxies. The H1 task owns the scene, Newton IK
+actions, observations, resets, rewards, and terminations; its expert script
+only supplies actions. No trained policy or RL-library configuration is included.
+See :ref:`tablecloth-h1-expert` for the action interface and grasp calibration.
+
 Start from a Supported Deformable Task
 --------------------------------------
 
@@ -159,12 +196,32 @@ Core Solve
       - Default: ``10``. Number of VBD iterations per substep. Increasing this value improves deformation and contact convergence, especially for stiff materials or rigid gripper contacts, but increases runtime.
     * - ``rigid_compliant_alm``
       - Default: ``None``. Preserves Newton's rigid solver mode. In Newton 1.6, ``None`` selects deprecated legacy AVBD. Set to ``True`` to use compliant ALM for rigid joints and body-body contacts, or ``False`` to explicitly retain legacy AVBD.
+    * - ``rigid_joint_linear_ke``
+      - Default: ``1.0e5`` [N/m]. Structural linear stiffness for non-rod rigid joints, separate from actuator gains. Increase it when articulated links separate under load with compliant ALM.
+    * - ``rigid_joint_angular_ke``
+      - Default: ``1.0e5`` [N m/rad]. Structural angular stiffness for non-rod rigid joints, separate from actuator gains. Increase it when articulated links rotate about constrained axes with compliant ALM.
     * - ``rigid_body_contact_buffer_size``
       - Default: ``64``. Per-body capacity for body-body contacts when VBD integrates rigid bodies. Increase it if Newton reports a per-body body-body contact buffer overflow.
     * - ``rigid_body_particle_contact_buffer_size``
       - Default: ``256``. Per-body capacity for particle, edge, and face soft contacts. Increase it if Newton reports a per-body contact buffer overflow.
     * - ``integrate_with_external_rigid_solver``
       - Default: ``False``. Set to ``True`` only when a manual manager integrates rigid bodies in the shared model. Proxy-coupled entries use partitioned model views and leave this ``False``.
+
+Structural joint stiffness keeps rigid links attached; actuator stiffness drives
+the allowed joint coordinates toward their targets. Tune these separately under
+the intended contact loads. Higher structural stiffness can require more solver
+iterations for drive and contact convergence. Set it before creating the
+simulation because Newton captures these material values during solver construction.
+
+Contact Scheduling
+^^^^^^^^^^^^^^^^^^
+
+:attr:`~isaaclab_newton.physics.NewtonCfg.collision_decimation` controls how
+often the collision pipeline refreshes contacts within a physics tick. ``0``
+runs collision once per tick. A positive value ``k`` re-runs it every ``k``
+solver substeps. Use ``1`` for fast or thin rigid-soft interactions that can
+cross the contact band within one substep; increase it only after verifying that
+the cheaper, staler contact set does not cause tunneling or ejection.
 
 
 Rigid Cables

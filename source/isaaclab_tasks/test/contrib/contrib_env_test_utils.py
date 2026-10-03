@@ -7,10 +7,10 @@
 
 The smoke tests are split by the runtime each environment needs, so a test process only starts what its
 environments use: ``kitless`` environments run without Isaac Sim, ``kit`` environments need Isaac Sim for
-PhysX but no renderer, and ``kit_cameras`` environments also need the RTX renderer, the expensive part of
-starting Isaac Sim. The runtime comes from :func:`isaaclab.app.sim_launcher.scan`, the same check
-``launch_simulation`` uses to decide whether to start Isaac Sim, so a new environment lands in the right file
-without being listed anywhere.
+physics or asset import but no renderer, and ``kit_cameras`` environments also need the RTX renderer,
+the expensive part of starting Isaac Sim. The runtime comes from :func:`isaaclab.app.sim_launcher.scan`,
+the same check ``launch_simulation`` uses to decide whether to start Isaac Sim, with cold asset-import
+requirements accounted for separately.
 
 Contributed environments are intentionally sampled once per task package, robot directory, and runtime.
 Additional variants in the same family do not add smoke tests.
@@ -23,6 +23,7 @@ import gymnasium as gym
 import pytest
 
 from isaaclab.app.sim_launcher import scan
+from isaaclab.utils.version import standalone_importers_available
 
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 
@@ -54,6 +55,9 @@ def _skip_reason(task_name: str) -> str | None:
 
 def task_runtime(task_name: str) -> Runtime:
     """Return the runtime an environment's default configuration launches with."""
+    # H1 converts a downloaded MJCF before scene construction, even though its physics is kitless.
+    if task_name == "IsaacContrib-Tablecloth-H1" and not standalone_importers_available():
+        return "kit"
     config_scan = scan(parse_env_cfg(task_name))
     if not config_scan.needs_kit:
         return "kitless"

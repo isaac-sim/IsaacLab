@@ -78,6 +78,7 @@ PER_TEST_STARTUP_TIMEOUTS = {
     "test_environments_newton.py": GIT_ASSET_STARTUP_TIMEOUT,
     "test_environments_ovphysx.py": GIT_ASSET_STARTUP_TIMEOUT,
     "test_multi_agent_environments.py": GIT_ASSET_STARTUP_TIMEOUT,
+    "test_tablecloth_h1_stance.py": GIT_ASSET_STARTUP_TIMEOUT,
 }
 """Per-test startup timeouts for cold external asset downloads."""
 
@@ -152,6 +153,8 @@ TESTS_TO_SKIP = [
     # lab
     # lab_tasks
     "test_record_video.py",  # Failing
+    # Experimental H1 full-trick validation is opt-in; launch smoke coverage stays in CI.
+    "test_tablecloth_h1_stance.py",
     # curobo / skillgen - require cuRobo installation; run via test-curobo and test-skillgen CI jobs
     *CUROBO_TESTS,
     # quarantined tests - run in dedicated CI job that does not block PR merges

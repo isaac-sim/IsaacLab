@@ -47,6 +47,55 @@ and releases it:
    uv run python scripts/environments/state_machine/open_cabinet_sm.py \
       --num_envs 32 --viz kit
 
-Each script defines its states, wait times, transition kernel, and action loop
-in one file. Start with ``lift_cube_sm.py`` when adapting the pattern to a new
-manipulation task.
+.. _tablecloth-h1-expert:
+
+Pull a tablecloth with H1
+-------------------------
+
+This example runs a bimanual Warp state machine against the manager-based
+``IsaacContrib-Tablecloth-H1`` task. It uses Newton VBD for the cloth and rigid
+tableware, Newton IK for the hands, and a downloaded H1 asset. The Newton GL
+visualizer opens by default; the SimReady table and tableware require asset
+access.
+
+.. figure:: ../_static/tasks/manipulation/h1_tablecloth.jpg
+   :alt: A grounded H1 robot grasping the corners of a red cloth beside a kitchen table.
+   :width: 80%
+
+   The H1 tablecloth task with its scripted bimanual expert, rendered with Kit.
+
+The pelvis is fixed and the leg actuators hold a grounded standing pose; this
+example demonstrates manipulation, not humanoid balance. Absolute hand and
+torso pose targets are expressed in the robot root frame, while the fingers
+receive joint-position targets.
+
+The expert lifts the cloth's overhanging corners before pinching, then follows a
+constant-attitude arc reachable by H1's five-DOF arms, accelerating and braking
+to rest. The grasp is calibrated for the task's cloth resolution; changing
+the mesh or hand asset requires revalidating acquisition and retention.
+
+.. code-block:: bash
+
+   uv run --extra importers isaaclab example tablecloth-h1 \
+      --max_steps 312
+
+The reusable task lives in
+``source/isaaclab_tasks/isaaclab_tasks/contrib/tablecloth/``. Its ``expert.py``
+contains the Warp controller and grasp calibration; ``examples/tablecloth_h1.py``
+is only a launcher for that task and expert. Both ship in the Isaac Lab wheel.
+The task appears in the :ref:`environment browser <environment-browser>` as
+``IsaacContrib-Tablecloth-H1``.
+For the five-speed standalone comparison, see :ref:`newton-using-vbd`.
+
+This experimental expert is open-loop; cloth withdrawal can succeed even if a
+grip slips during the hold. CI covers launch and backend regressions. Full stance
+and physical-grasp validation is an opt-in check for changes to the asset or expert:
+
+.. code-block:: bash
+
+   uv run --extra importers python -m pytest -q \
+      source/isaaclab_tasks/test/contrib/test_tablecloth_h1_stance.py
+
+Start with ``lift_cube_sm.py`` for a self-contained state-machine example.
+The H1 example shows how to keep scene, observations, rewards, and terminations
+in a reusable task while the scripted expert supplies only actions.

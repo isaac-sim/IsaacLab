@@ -132,6 +132,7 @@
             ["IsaacContrib-Stack-Cube-SO101-v0", "", "isaacsim_physx", "", ""],
             ["IsaacContrib-Stack-Cube-UR10-Long-Suction-IK-Rel", "", "isaacsim_physx", "", "", "tasks/manipulation/ur10_stack_surface_gripper.jpg"],
             ["IsaacContrib-Stack-Cube-UR10-Short-Suction-IK-Rel", "", "isaacsim_physx", "", "", "tasks/manipulation/ur10_stack_surface_gripper.jpg"],
+            ["IsaacContrib-Tablecloth-H1", "", "", "", "", "./tasks/manipulation/h1_tablecloth.jpg"],
             ["IsaacContrib-TrackPositionNoObstacles-ARL-Robot-1", "rl_games,rsl_rl,skrl", "", "", "", "tasks/drone_arl/arl_robot_1_track_position_state_based.jpg"],
             ["IsaacContrib-Tracking-LocoManip-Digit", "rsl_rl", "isaacsim_physx,newton_mjwarp", "", "", "tasks/locomotion/agility_digit_loco_manip.jpg"],
             ["IsaacContrib-UR10-Particle-Push", "rsl_rl", "", "", "", "tasks/manipulation/ur10_particle_push.jpg"],
