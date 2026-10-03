@@ -159,7 +159,7 @@ def _build_identity(label: str, identity: dict | None) -> str:
     commit = _build_text(str(identity.get("source_commit", "unknown"))[:12])
     run = _build_text(identity.get("run_id", "unknown"))
     attempt = _build_text(identity.get("run_attempt", "unknown"))
-    # Reconstruct links even for unavailable identities recovered from an earlier report.
+    # Artifact-provided URLs are untrusted, including links recovered from earlier reports.
     repository = identity.get("repository", "")
     origin = f"https://github.com/{repository}" if re.fullmatch(r"[\w.-]+/[\w.-]+", repository) else None
     source = commit
