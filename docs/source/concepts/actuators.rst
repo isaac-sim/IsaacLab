@@ -155,8 +155,8 @@ live articulation properties; assigning to these properties is ignored with a wa
 articulation joint writers or the ``randomize_actuator_gains`` event instead.
 
 Newton-executed groups have no Isaac Lab model at all: the collection mapping entry is the owning
-Newton ``Actuator`` object, whose controller keeps its parameters separate from solver gains.
-Read or modify its components (``controller``, ``delay``, ``clamping``) directly for raw access,
+Newton ``Actuator`` object, whose drive keeps its parameters separate from solver gains.
+Read or modify its components (``drive``, ``delay``, ``clamping``) directly for raw access,
 or use :func:`~isaaclab.actuators.newton.read_group_parameter` and
 :func:`~isaaclab.actuators.newton.write_group_parameter` for group-scoped access in
 public joint order with environment selection.
@@ -258,37 +258,24 @@ the servo firmware's, and its damping is the motor's back-EMF.
 BAM servo model
 ---------------
 
-:class:`~isaaclab.actuators.BamActuatorCfg` configures a small smart servo -- the kind used on
-low-cost legged robots -- in the *voltage* domain rather than the torque domain. It is a port of
-the `BAM (Better Actuator Models) <https://github.com/Rhoban/bam>`_ project, whose parameters are
-fitted to bench measurements of a real actuator, so the model's numbers are identified rather than
-tuned. Use it when the actuator's own dynamics matter for transfer -- a servo that cannot hold its
-target under load, whose gearbox sticks, and whose supply voltage sags -- and a PD model with an
-effort limit would hide exactly the behavior you want to train against.
+:class:`~isaaclab.actuators.BamActuatorCfg` models a small smart servo in the *voltage* domain. It
+ports `BAM (Better Actuator Models) <https://github.com/Rhoban/bam>`_, whose parameters are
+identified from bench measurements. Use it when the servo's own dynamics matter for transfer: it
+cannot hold its target under load, its gearbox sticks, and its supply sags.
 
-The model requires Newton with ``MJWarpSolverCfg`` and
-:attr:`~isaaclab.sim.SimulationCfg.use_newton_actuators` set to ``True``. Its drive,
-:class:`~isaaclab.actuators.newton.DriveBam`, derives from Newton 1.6's
-:class:`~newton.actuators.DriveBase` and evaluates the voltage and friction equations
-as Warp kernels on every physics step. MuJoCo Warp applies the friction constraint in the solver.
-Other physics backends and Newton solvers raise an error; there is no controller-side friction fallback.
+BAM requires Newton with ``MJWarpSolverCfg`` and
+:attr:`~isaaclab.sim.SimulationCfg.use_newton_actuators` set to ``True``; other backends and solvers
+raise an error. Its drive, :class:`~isaaclab_newton.actuators.DriveBam`, runs as Warp kernels on
+every physics step:
 
-One step of the model has six stages:
-
-#. **Command delay** -- the position target is replayed from a ring buffer with a randomly
-   resampled lag, modelling the servo bus.
-#. **Supply sag** -- ``vin_eff = max(vin - sag_gain * sum_j |tau_j|, vin_min)``. Every joint of one
-   environment draws from the same battery, so a group's torques sag their shared supply together.
-#. **Firmware control law** -- a proportional position law in the firmware's own units,
-   ``duty = (q_des - q) * kp_fw * error_gain``, clipped by the servo's current limiter around the
-   back-EMF operating point and then by the PWM range.
-#. **DC motor** -- ``tau = kt * vin_eff * duty / R - kt^2 * dq / R``. The second term is the motor's
-   back-EMF; no PD ``damping`` gain is used. The friction stage also includes identified viscous friction.
-#. **Friction budget** -- a Coulomb floor, a Stribeck term that decays with speed, and
-   load-dependent terms that grow with the torque flowing through the gearbox. The BAM ``m1``--``m6``
-   variants ``m1``, ``m2``, ``m5``, and ``m6`` select which terms are active.
-#. **Static friction** -- the budget arrests the joint whenever the net torque fits inside it, which
-   is what makes the servo hang short of its target instead of converging on it.
+* the position command is delayed by a randomly resampled lag;
+* the supply sags with the summed torque of the environment's joints,
+  ``vin_eff = max(vin - sag_gain * sum_j |tau_j|, vin_min)``;
+* the firmware law ``duty = (q_des - q) * kp_fw * error_gain`` is clipped by the current limiter
+  and the PWM range;
+* the DC motor gives ``tau = kt * vin_eff * duty / R - kt^2 * dq / R``, so damping is back-EMF;
+* the gearbox friction budget (Coulomb, Stribeck, and load-dependent terms selected by
+  ``m1``, ``m2``, ``m5``, or ``m6``) is applied by MJWarp as a friction constraint.
 
 .. code-block:: python
 
@@ -314,35 +301,18 @@ One step of the model has six stages:
                 joint_names_expr=[".*"],
                 motor=motor,
                 armature=0.00181,                  # reflected rotor inertia [kg.m^2]
-                kp_fw=200.0,                        # firmware proportional gain
+                kp_fw=200.0,                       # firmware proportional gain
                 vin=7.4,                           # nominal voltage [V]
-                vin_range=(7.0, 8.0),               # per-robot battery voltage [V]
-                vin_drop_gain_range=(0.0, 3.0),     # per-robot supply sag [V/(N*m)]
-                max_delay=2,                        # command lag [physics steps]
+                vin_range=(7.0, 8.0),              # per-robot battery voltage [V]
+                vin_drop_gain_range=(0.0, 3.0),    # per-robot supply sag [V/(N*m)]
+                max_delay=2,                       # command lag [physics steps]
             ),
         },
     )
 
-.. note::
-
-    :attr:`~isaaclab.actuators.ActuatorBaseCfg.stiffness` and
-    :attr:`~isaaclab.actuators.ActuatorBaseCfg.damping` are unused and default to ``None``.
-    Leave them unset and configure the firmware gain with ``kp_fw``.
-
-Motor fit and deployment settings
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-:class:`~isaaclab.actuators.BamMotorCfg` holds the motor and gearbox coefficients. Set them
-directly in Python, including the required ``error_gain`` and ``max_current`` firmware settings.
-Set ``max_current=0.0`` explicitly only when current limiting should be disabled.
-Configure the fit's reflected rotor inertia separately through ``BamActuatorCfg.armature``
-or author it on the joint in the USD; it is not inferred from the motor coefficients.
-
-``BamActuatorCfg`` requires ``motor``, ``kp_fw``, and ``vin``. The fit applies to every joint in
-the group; use separate groups for different fits. Like other explicit actuator configurations,
-BAM replaces existing actuator prims on the selected joints. Values on those prims do not serve
-as defaults. Isaac Lab writes the configured coefficients to ``NewtonBamDriveAPI`` prims, and
-Newton consumes those authored coefficients during simulation.
+``stiffness`` and ``damping`` are unused; the firmware gain is ``kp_fw``. Like other explicit
+actuators, BAM replaces existing actuator prims on the selected joints, and one motor fit applies to
+every joint in a group. Set the reflected rotor inertia through ``armature`` or on the joint.
 
 .. list-table:: BAM motor coefficients (rotational servo)
    :header-rows: 1
@@ -351,14 +321,14 @@ Newton consumes those authored coefficients during simulation.
    * - Name
      - Meaning and units
    * - ``model``
-     - Required variant: ``m1`` (Coulomb), ``m2`` (adds Stribeck), ``m5`` (adds directional
-       load dependence), or ``m6`` (adds quadratic load coupling). ``m3`` and ``m4`` are unsupported.
+     - ``m1`` (Coulomb), ``m2`` (adds Stribeck), ``m5`` (adds directional load dependence), or
+       ``m6`` (adds quadratic load coupling).
    * - ``kt``, ``resistance``
-     - Motor torque/back-EMF constant [N.m/A or V.s/rad] and winding resistance [Ohm]. Required.
+     - Torque/back-EMF constant [N.m/A or V.s/rad] and winding resistance [Ohm]. Required.
    * - ``error_gain``
      - Position-error-to-duty-cycle factor per unit of firmware gain [1/rad]. Required.
    * - ``max_pwm``, ``max_current``
-     - Maximum duty-cycle magnitude [-], default 1, and required current limit [A]; explicit 0 disables it.
+     - Maximum duty cycle [-], default 1, and current limit [A], required; 0 disables it.
    * - ``friction_base``, ``friction_viscous``
      - Coulomb friction [N.m] and viscous coefficient [N.m.s/rad]. Required.
    * - ``friction_stribeck``, ``dtheta_stribeck``, ``alpha``
@@ -370,64 +340,35 @@ Newton consumes those authored coefficients during simulation.
    * - ``load_friction_motor_quad``, ``load_friction_external_quad``
      - Quadratic load-coupling coefficients [1/(N.m)]. Defaults: 0.
 
-Author rotor inertia on the joint or set :attr:`~isaaclab.actuators.ActuatorBaseCfg.armature`.
-The BAM drive has no separate ``armature`` coefficient.
-
-Without an explicit ``actuator_effort_limit``, BAM caps motor torque at
-``max(vin_range) * motor.kt / motor.resistance``, using ``vin`` when no voltage range is set.
-This stall-torque ceiling also applies when back-driving produces additional torque through back-EMF.
-The separate ``joint_effort_limit`` remains as configured or authored in the USD. Keep it at least
-as large as the actuator cap when the drive should determine the applied motor torque.
-
-The recorded test fixture ``source/isaaclab/test/actuators/data/bam_xl330_m6_goldens.npz`` contains
-reference outputs and the Dynamixel XL330 ``m6`` coefficients used to generate them.
-Its ``attr_bam_attribution`` and ``attr_bam_commit`` metadata record the upstream authors, source, and revision.
-No motor-fit file is shipped with the actuator package.
+Without an explicit ``actuator_effort_limit``, motor torque is capped at the stall torque
+``max(vin_range) * motor.kt / motor.resistance``. ``joint_effort_limit`` is unchanged; keep it at
+least as large as the actuator cap.
 
 .. _actuators-bam-paths:
 
-Newton execution
-^^^^^^^^^^^^^^^^
+MJWarp coupling
+^^^^^^^^^^^^^^^
 
-:class:`~isaaclab.actuators.BamActuatorCfg` requires Newton with ``MJWarpSolverCfg`` and
-``use_newton_actuators=True``. PhysX, OVPhysX, the Isaac Lab actuator loop and other Newton
-solvers reject this configuration. The solver check runs before CUDA graph capture.
+Each physics step the drive writes its friction budget into MuJoCo's ``dof_frictionloss``, so the
+solver resolves static friction with the other constraints. The external load is the previous
+solve's bias and constraint forces without the drive's own friction; applied body wrenches are not
+included. The viscous coefficient is applied once as passive joint damping and is visible through
+``data.joint_viscous_friction_coeff``. ``stiff_frictionloss=True`` uses a stiff friction-constraint
+reference to reduce creep, since MJWarp has no noslip solver.
 
-With MJWarp, the controller publishes the velocity-independent friction budget into MuJoCo's
-``dof_frictionloss`` each physics step. The motor fit's viscous coefficient initializes Newton's
-passive joint damping once; normal joint-property synchronization carries it into MuJoCo's
-``dof_damping``. It remains visible through ``data.joint_viscous_friction_coeff``. The solver resolves static
-friction jointly with the other constraints. A configured joint ``friction`` value is a seed that
-the controller overwrites on every physics step. The external load comes from the solver's
-generalized bias and constraint forces, with the controller's own friction rows removed, and is
-one physics step old. Applied body wrenches and other externally applied force channels are not
-included in this feedback, so their contribution to load-dependent friction is not modeled.
-``stiff_frictionloss=True`` uses a stiff, timestep-independent solver reference to reduce creep
-inside the static-friction band.
+:attr:`~isaaclab.actuators.ActuatorCollection.applied_effort` reports motor torque only, and
+``data.joint_friction`` reports the authored seed. Read the live budget with
+``robot.actuators["servos"].drive.friction_budget``.
 
-The load-dependent friction budget uses the previous step's clamped drive output. Supply sag
-uses the previous step's unclamped motor torque, summed over the group's joints in each environment.
-If a tighter solver joint limit clips the drive output further, that extra clipping is not reflected
-in the friction feedback.
-
-On MJWarp, :attr:`~isaaclab.actuators.ActuatorCollection.applied_effort` reports **motor torque only**;
-it excludes the friction the solver applies. ``data.joint_friction`` reports the authored seed,
-not the live budget. Read the live budget with
-``read_group_parameter(robot.actuators, "servos", "drive", "friction_budget")``.
-
-The drive owns its command-delay buffer and draws one lag per environment, shared by the group's joints.
-The initial lag
-is at least ``min_delay``, including when a hold or staggered update postpones the first draw. It honors
-``min_delay``, ``max_delay``, ``delay_hold_prob`` and ``delay_update_period`` rather than using
-Newton's fixed-delay component. Reset advances the lag and phase random streams only for the
-selected environments, including during CUDA graph replay. Identical seeds and reset histories remain reproducible.
+The drive draws one command lag per environment, shared by its joints, honoring ``min_delay``,
+``max_delay``, ``delay_hold_prob`` and ``delay_update_period``. Reset redraws the lag only for the
+selected environments, including during CUDA graph replay.
 
 Randomization hooks
 ^^^^^^^^^^^^^^^^^^^
 
-The controller exposes five quantities through
-:func:`~isaaclab.actuators.newton.read_group_parameter` and
-:func:`~isaaclab.actuators.newton.write_group_parameter`:
+The drive exposes these fields through :func:`~isaaclab.actuators.newton.read_group_parameter`
+and :func:`~isaaclab.actuators.newton.write_group_parameter`:
 
 .. list-table::
     :header-rows: 1
@@ -443,7 +384,7 @@ The controller exposes five quantities through
       - Supply sag under load [V/(N·m)]
       - ``vin_drop_gain_range``
     * - ``friction_scale``
-      - Multiplier of the whole friction budget [-]
+      - Multiplier of the dry-friction budget [-]
       - -- (defaults to 1)
     * - ``kp_scale``
       - Firmware gain multiplier [-]
@@ -452,11 +393,8 @@ The controller exposes five quantities through
       - Multiplier of the velocity the motor sees [-]
       - --
 
-Supply voltage and sag gain are sampled once per environment after native actuator construction,
-with each draw shared by that environment's joints. Drive state resets preserve these values.
-Friction has no start-up randomization range. To resample it every episode, add a reset term to
-the task's event configuration. This example draws one scale per resetting environment, shared
-by its servo joints; environments that do not reset retain their current scale:
+Start-up ranges are sampled once per environment and kept across resets. To resample friction every
+episode, add a reset event:
 
 .. code-block:: python
 
@@ -481,46 +419,14 @@ by its servo joints; environments that do not reset retain their current scale:
     class EventsCfg:
         bam_friction = EventTermCfg(func=randomize_bam_friction, mode="reset")
 
-The scale affects dry friction only; the motor fit's viscous damping stays fixed.
-
-.. _actuators-bam-parity:
-
-Recorded reference fixtures
-^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Two recorded fixtures cover different contracts:
-
-* ``source/isaaclab/test/actuators/data/bam_xl330_m6_goldens.npz`` contains motor and friction
-  samples and stateful supply-sag outputs from upstream BAM ``62bd8ce``. It also records mjlab 1.3.0
-  ``DelayBuffer`` outputs with lags of 3--6 steps through warm-up, ring wrap, and a partial reset.
-  Delay tests replay the recorded lag draws because Torch and Warp use different RNGs; they compare
-  motor output against upstream BAM driven by mjlab's delayed targets. RNG reproducibility and
-  per-environment sharing have separate coverage. ``scripts/tools/generate_bam_goldens.py``
-  regenerates these recordings and embeds version and source-hash provenance.
-* ``source/isaaclab_newton/test/assets/data/bam_pendulum_trajectory.npz`` records a deterministic
-  Newton / MJWarp pendulum rollout from the native controller before the cleanup. Its provenance
-  identifies the source commit and dependency versions. This fixture checks that cleanup preserves
-  the recorded Newton behavior; it does not establish agreement with an upstream trajectory.
-
-Routine regression tests read these fixtures without importing upstream BAM or evaluating a
-second implementation of the servo equations. Upstream BAM and mjlab are needed only when regenerating
-the upstream sample fixture. The solver's friction constraint and the CPU reference's torque-level
-friction clip can differ near rest; matching identified parameters does not imply identical trajectories.
-
 Known constraints
 ^^^^^^^^^^^^^^^^^
 
-* **MJWarp telemetry excludes solver friction.** ``actuators.applied_effort`` is motor torque and
-  ``data.joint_friction`` is the authored seed. Use the controller's ``friction_budget`` field for
-  the live dry-friction budget.
-* **Merged robots must agree.** Newton merges structurally identical joints into one actuator, and
-  the start-up ranges and ``stiff_frictionloss`` are not part of its grouping key. Two articulations
-  that merge but configure them differently raise at start-up. Use matching ranges and
-  ``stiff_frictionloss`` for articulations with the same shared controller settings. Motor
-  coefficients are per DOF and do not separate controller groups. Supply sag sums torque
-  over each merged controller's DOFs within an environment. Such a group therefore represents
-  one shared battery and command delay; independent batteries or delays on multiple robots within the same environment
-  are not represented by this model.
+* **Merged robots share one drive.** Newton merges structurally identical joints into one actuator.
+  Articulations that merge must use the same start-up ranges and ``stiff_frictionloss``, and their
+  joints in one environment share one supply and one command delay.
+* **Friction feedback ignores extra clipping.** If a tighter solver joint limit clips the drive
+  output, the load-dependent friction does not see it.
 
 
 .. _actuators-parameter-reference:
@@ -993,12 +899,12 @@ joints.
     Under native execution, delay is fixed. The schema stores only ``max_delay``, so ``min_delay``
     is ignored. A :class:`~isaaclab.actuators.DelayedPDActuator` does not randomize delay between
     resets as it does on the Isaac Lab path.
-    :class:`~isaaclab.actuators.BamActuatorCfg` is the exception: its controller owns its own
+    :class:`~isaaclab.actuators.BamActuatorCfg` is the exception: its drive owns its own
     delay, honors both bounds and resamples one lag per environment, shared by the group's joints.
 
 .. note::
 
-    Stateful native actuators, including the BAM controller, support CUDA graph capture at any
+    Stateful native actuators, including the BAM drive, support CUDA graph capture at any
     positive decimation. For an odd decimation, Newton copies the final actuator state into the
     starting buffer so its history advances across graph replays.
 
