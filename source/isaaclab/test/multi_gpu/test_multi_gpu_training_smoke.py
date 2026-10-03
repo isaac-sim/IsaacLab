@@ -74,8 +74,10 @@ _MIN_RANKS = 2
 
 # Newton or OvPhysX physics with an RTX renderer: NCCL setup fails with "Cuda failure 'invalid
 # argument'" on the 2x RTX PRO 4500 CI runners. PhysX with Kit RTX, and every Newton-renderer
-# stack, train on the same runners.
-_RTX_NCCL_XFAIL = pytest.mark.xfail(reason="NCCL 'invalid argument' with Newton/OvPhysX physics and an RTX renderer")
+# stack, train on the same runners. Not run: each case spends minutes starting up before failing.
+_RTX_NCCL_XFAIL = pytest.mark.xfail(
+    run=False, reason="NCCL 'invalid argument' with Newton/OvPhysX physics and an RTX renderer"
+)
 
 # The backend grid is 3 physics x 3 renderers; two of the nine cells cannot run at all, rejected
 # before launch by ``sim_launcher._validate_runtime`` because OVRTX and OvPhysX are kitless and
