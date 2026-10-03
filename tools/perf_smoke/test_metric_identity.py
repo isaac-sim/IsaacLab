@@ -98,7 +98,6 @@ class MetricIdentityTests(unittest.TestCase):
             (self.runtime, RUNTIME, "startup_time_s=startup", "startup_time_s=startup * 1000"),
             (self.builders, BUILDERS, "Startup timing is missing", "Provide startup timing"),
             (self.builders, BUILDERS, "startup_time_s=startup_time_s", "startup_time_s=startup_time_s * 1000"),
-            (self.builders, BUILDERS, "aggregate_throughput=False", "aggregate_throughput=True"),
         ):
             with self.subTest(change=new):
                 path.write_text(source.replace(old, new))
@@ -140,7 +139,7 @@ class MetricIdentityTests(unittest.TestCase):
         self.runtime.write_text(RUNTIME.replace(", aggregate_throughput=True", ""))
         self.assertEqual(self.identity(), arithmetic)
         self.builders.write_text(BUILDERS.replace("aggregate_throughput=False", "aggregate_throughput=True"))
-        self.assertNotEqual(self.identity(), arithmetic)
+        self.assertEqual(self.identity(), aggregate)
 
     def test_runtime_argument_helpers_include_their_constants(self):
         source = RUNTIME.replace("iteration_times_s=step_times", "iteration_times_s=scale(step_times)")
