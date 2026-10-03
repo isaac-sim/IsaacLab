@@ -4,15 +4,8 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 # region help
-# Docker builds and their dependent tests run on a labeled PR event, a PR update, a push to a protected
-# branch, or a manual workflow dispatch. Do not filter the label with a job-level ``if``:
-# GitHub treats skipped required jobs as successful status checks.
-#
-# GitHub cannot filter label names at trigger time, so adding any label to a PR
-# starts this workflow. Updates run GPU jobs after that initial activation.
-# A PR update or ``ci:run-docker`` event cancels an in-flight run;
-# other label events queue behind it so that a triage label cannot cancel a
-# build whose required checks have already been reported.
+# Any label starts a run because GitHub cannot filter label names at trigger time.
+# Ordinary label events queue to avoid cancelling builds with reported required checks.
 #
 # Pushes to protected branches still run the post-merge integration tests.
 #
@@ -105,8 +98,7 @@ jobs:
       uses: actions/github-script@v9
       with:
         script: |
-          // Label events retain the existing trigger behavior. Historical labels
-          // count because run-ci removes its triggering label immediately.
+          // Label history preserves activation after run-ci removes its triggering label.
           core.setOutput('activated', 'false');
           if (context.eventName !== 'pull_request' || context.payload.action !== 'synchronize') {
             core.setOutput('activated', 'true');
@@ -118,7 +110,6 @@ jobs:
               request: {timeout: 60000},
             })) {
               // GITHUB_TOKEN labeler events cannot trigger another workflow.
-              // Human/PAT and app-token labels retain the original activation.
               if (response.data.some(event => event.event === 'labeled'
                   && event.actor?.login && event.actor.login !== 'github-actions[bot]')) {
                 core.setOutput('activated', 'true');
@@ -1046,7 +1037,6 @@ jobs:
   performance-smoke:
     name: performance-smoke-benchmarks
     runs-on: [self-hosted, gpu]
-    # Base and current share the existing 450-minute job budget; a retry-heavy pair can exhaust it.
     timeout-minutes: 450
     needs: [build, config]
     env:
@@ -1152,8 +1142,7 @@ jobs:
       run: |
         set -euo pipefail
         cd "$PERF_CONTROLLER"
-        # The directory belongs to this run/attempt. Discard any interrupted
-        # restoration before producing a fresh baseline in it.
+        # Clear this run's baseline directory so interrupted restores cannot contaminate fresh results.
         rm -rf -- "$PERF_BASELINE_OUTPUT"
         mkdir -p "$PERF_BASELINE_OUTPUT"
         python3 -m tools.perf_smoke.paired capture \
@@ -1464,14 +1453,13 @@ jobs:
           if (!summaryJob) throw new Error('The Performance smoke Summary job could not be located.');
           const summaryUrl = `${process.env.GITHUB_SERVER_URL}/${context.repo.owner}/${context.repo.repo}`
             + `/actions/runs/${context.runId}/attempts/${attempt}#summary-${summaryJob.id}`;
-          // Native Actions checks open their job page. Keep a visible annotation
-          // there as well: GitHub may group the report check under another suite.
+          // Native checks open logs; the report check opens rendered output.
+          // Also link the Summary here because GitHub may group the report under another suite.
           core.notice(summaryUrl, {title: 'Open rendered Performance smoke Summary'});
           const reportPath = 'build-comparison/build-comparison.md';
           const report = fs.existsSync(reportPath) ? fs.readFileSync(reportPath, 'utf8') : '';
           const result = report.match(/^\*\*(.+)\*\*$/m)?.[0]
             || '**Comparison unavailable. Open the Summary for the reason and available evidence.**';
-          // A separate report check opens rendered check output; native Actions job checks open logs.
           const {data: check} = await github.rest.checks.create({
             ...context.repo,
             name: 'Performance smoke comparison',

@@ -68,7 +68,7 @@ def prepare_manifest(root: Path) -> dict:
                 raise ValueError(f"Unrecognized Git LFS Python content identity for {path}.")
             lfs_files[path] = {"sha256": expected, "bytes": int(pointer["size"])}
         if mode == "120000":
-            # Git stores the link text; resolve its tracked target rather than hash the link text as Python.
+            # Git symlink blobs contain link text, so hash the tracked target's contents.
             target = (PurePosixPath(path).parent / blob.decode()).as_posix()
             target_blob = _git(root, "show", f"{commit}:{target}")
             expected = _sha256(target_blob)

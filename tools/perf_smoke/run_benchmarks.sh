@@ -4,7 +4,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Run the performance-smoke matrix for CHECKOUT_ROOT using the selected image.
 # Paths are supplied by the workflow so the launcher can remain at the current
 # revision while the source and manifest describe either side of a comparison.
 set -uo pipefail

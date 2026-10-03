@@ -347,8 +347,7 @@ def test_second_image_never_publishes_under_first_images_dependency_key(tmp_path
             for line in path.read_text().splitlines():
                 key, value = line.split("=", 1)
                 destination[prefix + key] = value
-    # Evaluate the publication guard from the action, including the old job-wide
-    # env guard: reverting the fix must actually attempt the wrong Docker push.
+    # Evaluate both guard forms so reverting to the job-wide guard exposes the wrong image push.
     push = steps["Push deps tag"]
     lhs, operator, rhs = push["if"].split()
     value = env.get(lhs[4:], "") if lhs.startswith("env.") else values.get(lhs, "")
