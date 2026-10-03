@@ -222,7 +222,8 @@ def test_frame_transformer_sources_and_targets(sim):
             # reset buffers
             scene.reset()
 
-            # Read the sensor before forward, asset-pose reads, or the next physics step.
+            sim.forward()
+            # Read the sensor after FK, before asset-pose reads or the next physics step.
             reset_frames = scene.sensors["ft_cube"].data
             torch.testing.assert_close(reset_frames.source_pos_w.torch, root_state[:, :3])
             torch.testing.assert_close(reset_frames.target_pos_w.torch[:, 0], cube_state[:, :3])

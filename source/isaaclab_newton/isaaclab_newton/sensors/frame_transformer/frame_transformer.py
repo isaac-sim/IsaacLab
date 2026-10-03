@@ -309,7 +309,6 @@ class FrameTransformer(BaseFrameTransformer):
         """Samples current frame transforms into owned buffers."""
         if self._newton_transforms is None:
             raise RuntimeError(f"FrameTransformer '{self.cfg.prim_path}': sensor is not initialized")
-        NewtonManager.forward()
         sensor = NewtonManager._newton_frame_transform_sensors[self._sensor_index]
         sensor.update(NewtonManager.get_state_0())
         wp.launch(
