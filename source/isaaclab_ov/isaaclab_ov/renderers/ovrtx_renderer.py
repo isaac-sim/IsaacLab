@@ -101,7 +101,7 @@ from isaaclab_ov.renderers.ovrtx_usd import (
     export_stage_to_string,
     render_var_prim_names_by_source,
 )
-from isaaclab_ov.renderers.visual_materials import OVRTXVisualMaterialWriter
+from isaaclab_ov.renderers.visual_materials import OVRTXVisualMaterialWriter, _prepare_material_color_primvars
 from isaaclab_ov.stage import (
     create_ovstage,
     points_tensor_from_warp,
@@ -417,6 +417,7 @@ class OVRTXRenderer(BaseRenderer):
         self._output_id_color_buffers: dict[str, wp.array] = {}
         self._clone_plan: ClonePlan | None = None
         self._visual_material_writer_ref: weakref.ReferenceType[OVRTXVisualMaterialWriter] | None = None
+        self._visual_material_color_paths: dict[str, str] = {}
 
         # Selected once at construction so every dispatch method below sees a stable path for the
         # lifetime of the renderer, even if the environment variable changes mid-process.
@@ -500,6 +501,13 @@ class OVRTXRenderer(BaseRenderer):
         self._exported_usd_string = export_stage_to_string(
             stage, num_envs, source_paths=sources, keep_env_roots=keep_env_roots
         )
+        self._visual_material_color_paths = {}
+        if not self._use_ovstage:
+            self._exported_usd_string, self._visual_material_color_paths = _prepare_material_color_primvars(
+                self._exported_usd_string,
+                SimulationContext.instance().render_context.visual_materials,
+                self._clone_plan,
+            )
 
     def _capture_object_scales(self, stage: Any) -> None:
         """Record composed world scales beneath the plan's prototypes and shared roots before export.

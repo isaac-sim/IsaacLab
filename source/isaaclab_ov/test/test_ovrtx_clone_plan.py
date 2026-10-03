@@ -69,8 +69,8 @@ def _make_multi_env_stage(num_envs: int) -> Usd.Stage:
     return stage
 
 
-def _patch_simulation_context(monkeypatch: pytest.MonkeyPatch, plan: ClonePlan) -> None:
-    mock_ctx = SimpleNamespace(get_clone_plan=lambda: plan)
+def _patch_simulation_context(monkeypatch: pytest.MonkeyPatch, plan: ClonePlan, materials=()) -> None:
+    mock_ctx = SimpleNamespace(get_clone_plan=lambda: plan, render_context=SimpleNamespace(visual_materials=materials))
     monkeypatch.setattr(
         "isaaclab_ov.renderers.ovrtx_renderer.SimulationContext",
         SimpleNamespace(instance=lambda: mock_ctx),
@@ -101,6 +101,7 @@ def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
     renderer._sdp = SimpleNamespace(backend=SimpleNamespace(transform_paths=[]), get_geometry_points=lambda: {})
     renderer._object_scales = None
     renderer._object_scales_by_path = {}
+    renderer._visual_material_color_paths = {}
     return renderer
 
 
@@ -269,6 +270,144 @@ def test_prepare_stage_writes_debug_dump_only_when_requested(tmp_path, monkeypat
     if dump_enabled:
         assert (output_dir / _PRE_OVRTX_STAGE_FILE).read_text(encoding="utf-8") == expected_pre_export
     assert (output_dir / _OVRTX_STAGE_FILE).exists() is False
+
+
+def _add_preview_material(stage, material_path, geometry_path, geometry_type=None):
+    material = UsdShade.Material.Define(stage, material_path)
+    shader = UsdShade.Shader.Define(stage, material_path + "/Surface")
+    shader.CreateIdAttr("UsdPreviewSurface")
+    shader.CreateInput("diffuseColor", Sdf.ValueTypeNames.Color3f).Set((0.8, 0.1, 0.2))
+    shader.CreateOutput("surface", Sdf.ValueTypeNames.Token)
+    material.CreateSurfaceOutput().ConnectToSource(shader.ConnectableAPI(), "surface")
+    geometry = (geometry_type or UsdGeom.Cube).Define(stage, geometry_path).GetPrim()
+    UsdShade.MaterialBindingAPI.Apply(geometry).Bind(material)
+    return material, shader, geometry
+
+
+def test_prepare_stage_maps_owned_colors_from_nonzero_clone_sources(monkeypatch):
+    stage = _make_multi_env_stage(3)
+    sources = ("/World/envs/env_42/Furniture", "/World/envs/env_7/Furniture")
+    assets = tuple(
+        AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Furniture", spawn=SpawnerCfg(spawn_path=source))
+        for source in sources
+    )
+    plan = make_clone_plan(assets, ((0,), (1,)), 3, weights=(2, 1))
+    registered = SimpleNamespace(
+        _input_names={"color": "diffuseColor"},
+        cfg=SimpleNamespace(prim_path="/World/envs/env_.*/Furniture/surfaces/top"),
+    )
+    _patch_simulation_context(monkeypatch, plan, (registered,))
+    for source, geometry_type in zip(sources, (UsdGeom.Cube, UsdGeom.Mesh), strict=True):
+        _add_preview_material(stage, source + "/surfaces/top", source + "/geometry/panel", geometry_type)
+    renderer = _make_ovrtx_renderer_without_backend()
+    renderer.prepare_stage(stage, 3)
+
+    expected_roots = (
+        *sources,
+        "/World/envs/env_0/Furniture",
+        "/World/envs/env_1/Furniture",
+        "/World/envs/env_2/Furniture",
+    )
+    assert renderer._visual_material_color_paths == {
+        root + "/surfaces/top/Surface": root + "/geometry/panel" for root in expected_roots
+    }
+    layer = Sdf.Layer.CreateAnonymous()
+    layer.ImportFromString(renderer._exported_usd_string)
+    exported = Usd.Stage.Open(layer)
+    for source in sources:
+        original = UsdShade.Shader(stage.GetPrimAtPath(source + "/surfaces/top/Surface"))
+        assert not original.GetInput("diffuseColor").HasConnectedSource()
+        assert not stage.GetPrimAtPath(source + "/geometry/panel").HasAttribute("primvars:isaaclab:materialColor")
+        rewritten = UsdShade.Shader(exported.GetPrimAtPath(source + "/surfaces/top/Surface"))
+        reader = UsdShade.Shader(rewritten.GetInput("diffuseColor").GetConnectedSource()[0].GetPrim())
+        assert reader.GetShaderId() == "UsdPrimvarReader_float3"
+        primvar = UsdGeom.PrimvarsAPI(exported.GetPrimAtPath(source + "/geometry/panel")).GetPrimvar(
+            "isaaclab:materialColor"
+        )
+        assert primvar.GetTypeName() == Sdf.ValueTypeNames.Color3f
+        assert primvar.GetInterpolation() == UsdGeom.Tokens.constant
+        assert tuple(primvar.Get()) == pytest.approx((0.8, 0.1, 0.2))
+
+
+def test_prepare_stage_preserves_ambiguous_or_authored_material_bindings(monkeypatch):
+    stage = _make_multi_env_stage(1)
+    plan = make_clone_plan((AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Furniture"),), ((0,),), 1)
+    names = (
+        "shared",
+        "shared_shader",
+        "output_forward",
+        "output_variant",
+        "stronger_ancestor",
+        "inherited",
+        "subset",
+        "connected",
+        "collision",
+        "instance",
+        "collection",
+        "cross_owner",
+    )
+    materials = []
+    for name in names:
+        material_path = "/World/Looks/" + name
+        geometry_path = "/World/Objects/" + name
+        if name == "stronger_ancestor":
+            geometry_path += "/panel"
+        material, shader, geometry = _add_preview_material(stage, material_path, geometry_path)
+        materials.append(
+            SimpleNamespace(_input_names={"color": "diffuseColor"}, cfg=SimpleNamespace(prim_path=material_path))
+        )
+        if name == "shared":
+            other = UsdGeom.Cube.Define(stage, geometry_path + "_other")
+            UsdShade.MaterialBindingAPI.Apply(other.GetPrim()).Bind(material)
+        elif name == "shared_shader":
+            other = UsdShade.Material.Define(stage, material_path + "_alias")
+            other.CreateSurfaceOutput().ConnectToSource(shader.ConnectableAPI(), "surface")
+        elif name == "output_forward":
+            other = UsdShade.Material.Define(stage, material_path + "_alias")
+            other.CreateSurfaceOutput().ConnectToSource(material.GetSurfaceOutput())
+        elif name == "output_variant":
+            other = UsdShade.Shader.Define(stage, material_path + "/MdlSurface")
+            other.CreateIdAttr("UsdPreviewSurface")
+            material.CreateSurfaceOutput("mdl").ConnectToSource(other.CreateOutput("surface", Sdf.ValueTypeNames.Token))
+        elif name == "stronger_ancestor":
+            other = UsdShade.Material.Define(stage, material_path + "_ancestor")
+            UsdShade.MaterialBindingAPI.Apply(geometry.GetParent()).Bind(other, UsdShade.Tokens.strongerThanDescendants)
+        elif name == "inherited":
+            geometry.SetTypeName("Xform")
+            UsdGeom.Cube.Define(stage, geometry_path + "/child")
+        elif name == "subset":
+            UsdGeom.Subset.Define(stage, geometry_path + "/faces")
+        elif name == "connected":
+            texture = UsdShade.Shader.Define(stage, material_path + "/Texture")
+            shader.GetInput("diffuseColor").ConnectToSource(texture.CreateOutput("rgb", Sdf.ValueTypeNames.Float3))
+        elif name == "collision":
+            UsdGeom.PrimvarsAPI(geometry).CreatePrimvar("isaaclab:materialColor", Sdf.ValueTypeNames.Color3f)
+        elif name == "instance":
+            prototype = UsdGeom.Cube.Define(stage, "/World/Prototype")
+            geometry.GetReferences().AddInternalReference(prototype.GetPath())
+            geometry.SetInstanceable(True)
+        elif name == "collection":
+            geometry.RemoveProperty("material:binding")
+            geometry.CreateRelationship("material:binding:collection:custom").SetTargets([material.GetPath()])
+        else:
+            geometry.RemoveProperty("material:binding")
+            cloned = UsdGeom.Cube.Define(stage, "/World/envs/env_0/Furniture/panel")
+            UsdShade.MaterialBindingAPI.Apply(cloned.GetPrim()).Bind(material)
+    _patch_simulation_context(monkeypatch, plan, tuple(materials))
+    renderer = _make_ovrtx_renderer_without_backend()
+    renderer.prepare_stage(stage, 1)
+    assert renderer._visual_material_color_paths == {}
+    layer = Sdf.Layer.CreateAnonymous()
+    layer.ImportFromString(renderer._exported_usd_string)
+    exported = Usd.Stage.Open(layer)
+    for name in names:
+        material_path = "/World/Looks/" + name
+        assert not exported.GetPrimAtPath(material_path + "/IsaacLabColorReader")
+        input_path = material_path + "/Surface.inputs:diffuseColor"
+        assert (
+            exported.GetAttributeAtPath(input_path).GetConnections()
+            == stage.GetAttributeAtPath(input_path).GetConnections()
+        )
 
 
 def test_initialize_camera_render_data_from_spec_writes_combined_stage_dump(tmp_path: Path):

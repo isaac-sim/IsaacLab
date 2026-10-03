@@ -393,6 +393,15 @@ The renderer system consists of:
 5. **RenderContext** — Coordinates initialization, stage preparation, scene updates, and material writers using
    a filtered view of the simulation registry. It does not construct, cache, or close renderer instances.
 
+Initialized :class:`~isaaclab.assets.VisualMaterial` assets are available through
+:attr:`~isaaclab.renderers.RenderContext.visual_materials` before cameras prepare their scenes, including after
+a simulation stop and reset. OVRTX's legacy scene API can represent an independently bound PreviewSurface
+color as a constant geometry primvar in its exported scene. Shared materials, inherited bindings, and existing
+shader connections retain their original material-input writes. These renderer-owned changes do not modify
+the source USD stage or the material buffers used by other renderers and visualizers. Keeping these updates
+on the GPU throughout rendering also requires native OVRTX support for GPU constant-color primvars; the Lab
+mapping alone does not eliminate renderer CPU readback.
+
 .. code-block:: python
 
    import isaaclab.sim as sim_utils
