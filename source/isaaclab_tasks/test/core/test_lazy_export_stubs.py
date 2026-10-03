@@ -92,7 +92,7 @@ def test_parse_stub_same_package_multiple_lines_accumulates():
     finally:
         os.unlink(stub)
 
-    assert absolute_named["pkg"] == ["a", "b", "c"]
+    assert absolute_named["pkg"] == [("a", "a"), ("b", "b"), ("c", "c")]
 
 
 def test_parse_stub_mixed_import_kinds():
@@ -110,7 +110,7 @@ def test_parse_stub_mixed_import_kinds():
 
     assert fallbacks == ["abs.pkg"]
     assert rel_wildcards == ["wildmod"]
-    assert absolute_named == {"abs.other": ["x", "y"], "abs.more": ["z"]}
+    assert absolute_named == {"abs.other": [("x", "x"), ("y", "y")], "abs.more": [("z", "z")]}
     assert filtered_path is not None
 
 
