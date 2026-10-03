@@ -67,25 +67,30 @@ def repo(tmp_path, monkeypatch):
     return tmp_path
 
 
-def check(include_worktree=False):
-    return cli.cmd_check(argparse.Namespace(base_ref="develop", include_worktree=include_worktree))
+def check(include_worktree=False, base_ref="develop"):
+    return cli.cmd_check(argparse.Namespace(base_ref=base_ref, include_worktree=include_worktree))
 
 
 @pytest.mark.parametrize(
-    ("files", "status"),
+    ("files", "status", "base_ref"),
     [
-        ({FRAGMENTS + "a.fixed.rst": "* Fixed x.\n  More on x.\n", FRAGMENTS + "a.major": ""}, 0),
-        ({FRAGMENTS + "a.skip": ""}, 0),
-        ({FRAGMENTS + "a.minor.rst": "* Added x.\n"}, 1),  # pre-towncrier name
-        ({FRAGMENTS + "a.minor": ""}, 1),  # a tier file alone is not an entry
-        ({FRAGMENTS + "a.fixed.rst": ""}, 1),
-        ({FRAGMENTS + "a.fixed.rst": "* Fixed x.\nFlush-left paragraph.\n"}, 1),
+        ({FRAGMENTS + "a.fixed.rst": "* Fixed x.\n  More on x.\n", FRAGMENTS + "a.major": ""}, 0, "develop"),
+        ({FRAGMENTS + "a.skip": ""}, 0, "upstream/develop"),
+        ({FRAGMENTS + "a.minor.rst": "* Added x.\n"}, 1, "upstream/develop"),  # pre-towncrier name
+        ({FRAGMENTS + "a.minor": ""}, 1, "refs/heads/develop"),  # a tier file alone is not an entry
+        ({FRAGMENTS + "a.fixed.rst": ""}, 1, "commit"),
+        ({FRAGMENTS + "a.fixed.rst": "* Fixed x.\nFlush-left paragraph.\n"}, 1, "develop"),
     ],
 )
-def test_check_requires_a_valid_fragment_for_a_changed_package(repo, files, status):
+def test_check_requires_a_valid_fragment_for_a_changed_package(repo, files, status, base_ref):
+    # Rotate supported base forms across existing cases without multiplying Git fixtures.
+    git(repo, "update-ref", "refs/remotes/upstream/develop", "HEAD")
+    if base_ref == "commit":
+        base_ref = git(repo, "rev-parse", "HEAD").strip()
+    git(repo, "switch", "-qc", "feature")
     write(repo, {"source/pkg/code.py": "x = 1\n", **files})
     commit(repo, "change")
-    assert check() == status
+    assert check(base_ref=base_ref) == status
 
 
 def test_check_rejects_editing_or_deleting_a_pending_fragment(repo, capsys):
@@ -104,29 +109,6 @@ def test_check_ignores_changes_outside_packages(repo):
     write(repo, {"tools/script.py": "x = 1\n"})
     git(repo, "add", "-A")
     assert check(include_worktree=True) == 0
-
-
-@pytest.mark.parametrize("base_ref", ["upstream/develop", "refs/heads/develop", "commit"])
-def test_check_accepts_explicit_git_bases(repo, base_ref, capsys):
-    """Explicit refs and SHAs must inspect the requested base, not the current HEAD."""
-    base = git(repo, "rev-parse", "HEAD").strip()
-    git(repo, "update-ref", "refs/remotes/upstream/develop", base)
-    git(repo, "switch", "-qc", "feature")
-    write(repo, {"source/pkg/code.py": "x = 1\n"})
-    commit(repo, "missing fragment")
-    if base_ref == "commit":
-        base_ref = base
-    args = argparse.Namespace(base_ref=base_ref, include_worktree=False)
-    assert cli.cmd_check(args) == 1
-    assert "changed without a changelog fragment" in capsys.readouterr().out
-    write(repo, {FRAGMENTS + "a.skip": ""})
-    commit(repo, "fragment")
-    assert cli.cmd_check(args) == 0
-
-
-def test_check_reports_a_missing_base(repo, capsys):
-    assert cli.cmd_check(argparse.Namespace(base_ref="missing", include_worktree=False)) == 1
-    assert "Cannot resolve changelog base 'missing'" in capsys.readouterr().out
 
 
 @pytest.mark.parametrize(

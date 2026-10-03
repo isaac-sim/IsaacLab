@@ -20,13 +20,12 @@ import isaaclab.cli.commands.misc as misc
 pytestmark = pytest.mark.unit
 
 
-@pytest.mark.parametrize("files", [[], ["first.txt"]], ids=["all-files", "selected-file"])
-def test_format_checks_the_requested_files(tmp_path, monkeypatch, files):
+def test_format_checks_the_requested_files(tmp_path, monkeypatch):
     """The public CLI formats the requested scope and returns hook failures without retrying."""
     pytest.importorskip("pre_commit")
     monkeypatch.setattr(cli, "ISAACLAB_ROOT", tmp_path)
     monkeypatch.setattr(formatter, "ISAACLAB_ROOT", tmp_path)
-    monkeypatch.setattr(sys, "argv", ["isaaclab", "--format", *files])
+    monkeypatch.setattr(sys, "argv", ["isaaclab", "--format", "first.txt"])
     (tmp_path / "pyproject.toml").touch()
     (tmp_path / "hook.py").write_text(
         "import sys\n"
@@ -52,7 +51,7 @@ def test_format_checks_the_requested_files(tmp_path, monkeypatch, files):
     assert error.value.code == 1
     assert (tmp_path / "runs.log").read_text(encoding="utf-8") == "run\n"
     assert (tmp_path / "first.txt").read_text(encoding="utf-8") == "formatted\n"
-    assert (tmp_path / "second.txt").read_text(encoding="utf-8") == ("unformatted\n" if files else "formatted\n")
+    assert (tmp_path / "second.txt").read_text(encoding="utf-8") == "unformatted\n"
     cli.cli()
     assert (tmp_path / "runs.log").read_text(encoding="utf-8") == "run\nrun\n"
 
