@@ -682,5 +682,5 @@ class FrankaPourEnv(ManagerBasedRLEnv):
             return
         # Newton reset masks include one trailing slot for global (world -1) entities.
         world_mask = torch.zeros(self.num_envs + 1, device=self.device, dtype=torch.bool)
-        index_fill_(world_mask, env_ids, True)
+        index_fill_(world_mask[: self.num_envs], env_ids, True)
         self._reset_from_dataset(env_ids, world_mask)

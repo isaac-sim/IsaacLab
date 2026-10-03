@@ -265,6 +265,7 @@ def configure_sparse_mpm_capacities(cfg: UR10ParticlePushEnvCfg) -> None:
     calls this function once more immediately before simulation creation, so reduced evaluation
     runs and large distributed jobs reserve proportional memory. Upper nodes cover a much wider
     spatial region than a single environment, so their reservation is shared across nearby worlds.
+    A single environment retains two worlds' capacity to cover pile spreading without pooled headroom.
     """
     per_world = {
         "active cells": cfg.mpm_active_cell_count_per_world,
@@ -293,7 +294,7 @@ def configure_sparse_mpm_capacities(cfg: UR10ParticlePushEnvCfg) -> None:
             f"of {SPARSE_MPM_MIN_UPPER_NODES_PER_WORLD} nodes per world."
         )
 
-    world_count = max(1, int(cfg.scene.num_envs))
+    world_count = max(2, int(cfg.scene.num_envs))
     solver_cfg = get_mpm_solver_cfg(cfg)
     solver_cfg.max_upper_node_count = max(
         SPARSE_MPM_MIN_TOTAL_UPPER_NODE_COUNT,

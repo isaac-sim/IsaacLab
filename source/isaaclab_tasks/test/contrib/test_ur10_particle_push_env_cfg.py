@@ -45,6 +45,8 @@ def test_sparse_mpm_capacities_keep_small_batch_hierarchy(num_envs, expected_low
     solver_cfg = get_mpm_solver_cfg(cfg)
     assert solver_cfg.max_upper_node_count == 32
     assert solver_cfg.max_lower_node_count == expected_lower_nodes
+    assert solver_cfg.max_active_cell_count >= 3072
+    assert solver_cfg.max_leaf_node_count >= 96
     assert (
         solver_cfg.max_upper_node_count
         <= solver_cfg.max_lower_node_count

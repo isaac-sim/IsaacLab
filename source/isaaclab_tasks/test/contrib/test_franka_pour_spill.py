@@ -11,7 +11,7 @@ from isaaclab_tasks.contrib.franka_pour.pour_env_cfg import FrankaPourResetDatas
 
 ENV_CFG = FrankaPourResetDatasetEnvCfg()
 ENV_CFG.play_mode()
-ENV_CFG.scene.num_envs = 4
+ENV_CFG.scene.num_envs = 1
 launch_test_simulation(ENV_CFG)
 
 import newton
