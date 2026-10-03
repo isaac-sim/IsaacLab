@@ -59,6 +59,7 @@ class FrameTransformer(BaseFrameTransformer):
         super().__init__(cfg)
 
         self._data: FrameTransformerData = FrameTransformerData()
+        self._newton_sensor = None
         self._newton_transforms = None
         self._stride: int = 0
 
@@ -157,9 +158,9 @@ class FrameTransformer(BaseFrameTransformer):
         # Create SensorFrameTransform via NewtonManager
         self._sensor_index = NewtonManager.add_frame_transform_sensor(shapes_list, references_list)
 
-        # Store reference to Newton sensor's flat transforms array
-        sensor = NewtonManager._newton_frame_transform_sensors[self._sensor_index]
-        self._newton_transforms = sensor.transforms
+        # Store the native sensor and its flat transforms array.
+        self._newton_sensor = NewtonManager._newton_frame_transform_sensors[self._sensor_index]
+        self._newton_transforms = self._newton_sensor.transforms
         self._stride = 1 + self._num_targets
 
         # Allocate owned buffers
@@ -309,8 +310,7 @@ class FrameTransformer(BaseFrameTransformer):
         """Samples current frame transforms into owned buffers."""
         if self._newton_transforms is None:
             raise RuntimeError(f"FrameTransformer '{self.cfg.prim_path}': sensor is not initialized")
-        sensor = NewtonManager._newton_frame_transform_sensors[self._sensor_index]
-        sensor.update(NewtonManager.get_state_0())
+        self._newton_sensor.update(NewtonManager.get_state_0())
         wp.launch(
             copy_from_newton_kernel,
             dim=(self._num_envs, 1 + self._num_targets),
@@ -341,6 +341,7 @@ class FrameTransformer(BaseFrameTransformer):
         stale registrations from old sensors cannot leak into the next context.
         """
         super()._invalidate_initialize_callback(event)
+        self._newton_sensor = None
         self._newton_transforms = None
         self._sensor_index = None
 
