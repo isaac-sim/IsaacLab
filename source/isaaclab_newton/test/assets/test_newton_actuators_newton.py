@@ -252,7 +252,7 @@ def _run_simulation(
             for act in SimulationManager.get_model().actuators:
                 actuator_info.append(
                     {
-                        "controller_type": type(act.controller).__name__,
+                        "drive_type": type(act.drive).__name__,
                         "clamping_types": sorted(type(c).__name__ for c in (act.clamping or [])),
                         "has_delay": act.delay is not None,
                     }
@@ -539,8 +539,8 @@ class TestRandomizeActuatorGainsViaEventsNewton(unittest.TestCase):
 
             anymal_read = functools.partial(read_group_parameter, anymal.actuators)
             cartpole_read = functools.partial(read_group_parameter, cartpole.actuators)
-            anymal_stiffness_before = anymal_read("legs", "controller", "kp").clone()
-            anymal_damping_before = anymal_read("legs", "controller", "kd").clone()
+            anymal_stiffness_before = anymal_read("legs", "drive", "kp").clone()
+            anymal_damping_before = anymal_read("legs", "drive", "kd").clone()
             # Before DR, native gain reads must return the configured values for *every* env. This is
             # also the regression check for the env-major DOF stride decoding on floating-base
             # articulations (ANYmal-C has 6 free-root DOFs + 12 joints): a wrong stride corrupts every
@@ -548,8 +548,8 @@ class TestRandomizeActuatorGainsViaEventsNewton(unittest.TestCase):
             n = anymal.num_joints
             torch.testing.assert_close(anymal_stiffness_before, torch.full((NUM_ENVS, n), 40.0, device=anymal.device))
             torch.testing.assert_close(anymal_damping_before, torch.full((NUM_ENVS, n), 5.0, device=anymal.device))
-            cartpole_stiffness_before = cartpole_read("all_joints", "controller", "kp").clone()
-            cartpole_damping_before = cartpole_read("all_joints", "controller", "kd").clone()
+            cartpole_stiffness_before = cartpole_read("all_joints", "drive", "kp").clone()
+            cartpole_damping_before = cartpole_read("all_joints", "drive", "kd").clone()
 
             env = MockEnv({"anymal": anymal, "cartpole": cartpole}, NUM_ENVS, anymal.device)
             term, asset_cfg = build_dr_term(env, "cartpole")
@@ -567,23 +567,23 @@ class TestRandomizeActuatorGainsViaEventsNewton(unittest.TestCase):
 
             n_cp = cartpole.num_joints
             torch.testing.assert_close(
-                cartpole_read("all_joints", "controller", "kp")[0], torch.full((n_cp,), 100.0, device=anymal.device)
+                cartpole_read("all_joints", "drive", "kp")[0], torch.full((n_cp,), 100.0, device=anymal.device)
             )
             torch.testing.assert_close(
-                cartpole_read("all_joints", "controller", "kd")[0], torch.full((n_cp,), 5.0, device=anymal.device)
+                cartpole_read("all_joints", "drive", "kd")[0], torch.full((n_cp,), 5.0, device=anymal.device)
             )
 
             # ANYmal is untouched (DR was scoped to cartpole).
-            torch.testing.assert_close(anymal_read("legs", "controller", "kp"), anymal_stiffness_before)
-            torch.testing.assert_close(anymal_read("legs", "controller", "kd"), anymal_damping_before)
+            torch.testing.assert_close(anymal_read("legs", "drive", "kp"), anymal_stiffness_before)
+            torch.testing.assert_close(anymal_read("legs", "drive", "kd"), anymal_damping_before)
 
             # Cartpole's other envs are also untouched (env_ids=[0] only).
             for env_idx in range(1, NUM_ENVS):
                 torch.testing.assert_close(
-                    cartpole_read("all_joints", "controller", "kp")[env_idx], cartpole_stiffness_before[env_idx]
+                    cartpole_read("all_joints", "drive", "kp")[env_idx], cartpole_stiffness_before[env_idx]
                 )
                 torch.testing.assert_close(
-                    cartpole_read("all_joints", "controller", "kd")[env_idx], cartpole_damping_before[env_idx]
+                    cartpole_read("all_joints", "drive", "kd")[env_idx], cartpole_damping_before[env_idx]
                 )
 
             # DR scoped to the floating-base ANYmal updates only its selected env.
@@ -598,18 +598,16 @@ class TestRandomizeActuatorGainsViaEventsNewton(unittest.TestCase):
                 distribution="uniform",
             )
             torch.testing.assert_close(
-                anymal_read("legs", "controller", "kp")[0], torch.full((n,), 100.0, device=anymal.device)
+                anymal_read("legs", "drive", "kp")[0], torch.full((n,), 100.0, device=anymal.device)
             )
             torch.testing.assert_close(
-                anymal_read("legs", "controller", "kd")[0], torch.full((n,), 5.0, device=anymal.device)
+                anymal_read("legs", "drive", "kd")[0], torch.full((n,), 5.0, device=anymal.device)
             )
             for env_idx in range(1, NUM_ENVS):
                 torch.testing.assert_close(
-                    anymal_read("legs", "controller", "kp")[env_idx], anymal_stiffness_before[env_idx]
+                    anymal_read("legs", "drive", "kp")[env_idx], anymal_stiffness_before[env_idx]
                 )
-                torch.testing.assert_close(
-                    anymal_read("legs", "controller", "kd")[env_idx], anymal_damping_before[env_idx]
-                )
+                torch.testing.assert_close(anymal_read("legs", "drive", "kd")[env_idx], anymal_damping_before[env_idx])
 
 
 # ---------------------------------------------------------------------------
@@ -633,7 +631,7 @@ class TestDelayedPDEquivalence(_EquivalenceTestBase):
         self.assertTrue(self.newton_result["actuator_info"], "No Newton actuators were created")
         for a in self.newton_result["actuator_info"]:
             self.assertTrue(a["has_delay"], "Delay not found on delayed PD actuator")
-            self.assertEqual(a["controller_type"], "DrivePD")
+            self.assertEqual(a["drive_type"], "DrivePD")
 
 
 # ---------------------------------------------------------------------------
@@ -740,7 +738,7 @@ class TestRemotizedPDEquivalence(_EquivalenceTestBase):
         kfe_acts = [a for a in self.newton_result["actuator_info"] if "ClampingPositionBased" in a["clamping_types"]]
         self.assertTrue(len(kfe_acts) > 0, "No actuator with position-based clamping found")
         for a in kfe_acts:
-            self.assertEqual(a["controller_type"], "DrivePD")
+            self.assertEqual(a["drive_type"], "DrivePD")
             self.assertTrue(a["has_delay"], "Delay not found on remotized KFE actuator")
 
 
@@ -801,13 +799,13 @@ class TestNeuralActuatorAuthoring(unittest.TestCase):
         os.unlink(cls.lstm_path)
 
     def test_mlp_has_dc_motor_clamping(self):
-        mlp_acts = [a for a in self.result["actuator_info"] if a["controller_type"] == "DriveNeuralMLP"]
+        mlp_acts = [a for a in self.result["actuator_info"] if a["drive_type"] == "DriveNeuralMLP"]
         self.assertTrue(len(mlp_acts) > 0, "No NeuralMLP controller found")
         for a in mlp_acts:
             self.assertIn("ClampingDCMotor", a["clamping_types"])
 
     def test_lstm_has_dc_motor_clamping(self):
-        lstm_acts = [a for a in self.result["actuator_info"] if a["controller_type"] == "DriveNeuralLSTM"]
+        lstm_acts = [a for a in self.result["actuator_info"] if a["drive_type"] == "DriveNeuralLSTM"]
         self.assertTrue(len(lstm_acts) > 0, "No NeuralLSTM controller found")
         for a in lstm_acts:
             self.assertIn("ClampingDCMotor", a["clamping_types"])

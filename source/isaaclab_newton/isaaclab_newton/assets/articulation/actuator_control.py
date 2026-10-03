@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-import logging
+import weakref
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
@@ -28,7 +28,15 @@ from isaaclab_newton.physics import NewtonManager as SimulationManager
 if TYPE_CHECKING:
     from .articulation import Articulation
 
-logger = logging.getLogger(__name__)
+_BAM_ACTUATOR_SETTINGS: weakref.WeakKeyDictionary = weakref.WeakKeyDictionary()
+"""BAM settings each Newton actuator was set up with, keyed by the actuator.
+
+Newton merges structurally identical actuators across articulations, so a multi-robot scene can
+have one actuator reached by several :class:`NewtonActuatorControl` instances. The entry marks
+the actuator as already set up and records the settings, so a second articulation that
+configures it differently fails loudly instead of silently losing one of the two. Weak keys, so
+the map empties itself with the model.
+"""
 
 
 class NewtonActuatorControl(ArticulationActuatorControl):
@@ -41,6 +49,7 @@ class NewtonActuatorControl(ArticulationActuatorControl):
             articulation: Newton articulation that owns backend simulation handles.
         """
         super().__init__(articulation)
+        self._native_actuator_cfgs: dict = {}
 
     def prepare_native_actuators(self, collection: ActuatorCollection, actuator_cfgs: dict) -> set[str]:
         articulation = self._articulation
@@ -58,6 +67,7 @@ class NewtonActuatorControl(ArticulationActuatorControl):
         if not native_group_names:
             return set()
 
+        self._native_actuator_cfgs = dict(actuator_cfgs)
         self._native_actuator_path_active = True
         articulation._has_newton_actuators = True
         SimulationManager.activate_newton_actuator_path()
@@ -65,10 +75,19 @@ class NewtonActuatorControl(ArticulationActuatorControl):
         return native_group_names
 
     def finalize_native_actuators(self, collection: ActuatorCollection) -> NewtonActuatorSelection | None:
+        from isaaclab.actuators.actuator_bam_cfg import BamActuatorCfg  # noqa: PLC0415
+
         if not self._native_actuator_path_active:
             return None
 
         articulation = self._articulation
+        # Constant BAM damping belongs to the joint model, including later property resyncs.
+        for name, cfg in self._native_actuator_cfgs.items():
+            if isinstance(cfg, BamActuatorCfg):
+                articulation.write_joint_viscous_friction_coefficient_to_sim_index(
+                    joint_viscous_friction_coeff=cfg.motor.friction_viscous,
+                    joint_ids=collection._group_joint_indices[name],
+                )
         adapter = SimulationManager._adapter
         if adapter is not None:
             arti_start = self._joint_dof_offset()
@@ -122,6 +141,10 @@ class NewtonActuatorControl(ArticulationActuatorControl):
             )
 
         SimulationManager.register_post_actuator_callback(_post_actuator)
+        # Start-up randomization only needs the actuators, so it runs now. Publishing friction
+        # to the solver needs a solver, which does not exist while assets are initializing.
+        self._sample_bam_startup_parameters()
+        SimulationManager.register_solver_init_callback(self._bind_bam_actuators)
 
         if adapter is None:
             return None
@@ -199,6 +222,150 @@ class NewtonActuatorControl(ArticulationActuatorControl):
     def reset_native_actuators(self, env_ids: Sequence[int] | slice) -> None:
         if self._native_actuator_path_active and SimulationManager._adapter is not None:
             SimulationManager._adapter.reset(env_ids)
+
+    def _bam_actuators(self) -> list:
+        """Return the Newton actuators driving this articulation with a BAM drive.
+
+        The actuator adapter is simulation-global and Newton merges structurally identical
+        actuators across articulations, so the adapter's list is not this articulation's list.
+        Actuator indices are global Newton DOFs in environment-major order, so an actuator
+        belongs here when any of its per-environment DOF offsets falls inside this
+        articulation's block.
+        """
+        from isaaclab.actuators.newton import DriveBam  # noqa: PLC0415
+
+        adapter = SimulationManager._adapter
+        if adapter is None:
+            return []
+        first_dof = self._joint_dof_offset()
+        last_dof = first_dof + self.num_joints
+        owned = []
+        for actuator in adapter.actuators:
+            if not isinstance(actuator.drive, DriveBam):
+                continue
+            local_dofs = actuator.indices.numpy() % adapter.num_joints
+            if ((local_dofs >= first_dof) & (local_dofs < last_dof)).any():
+                owned.append(actuator)
+        return owned
+
+    def _bam_settings(self) -> tuple:
+        """Return the BAM settings of this articulation that a Newton actuator cannot carry.
+
+        The start-up randomization ranges and ``stiff_frictionloss`` are not part of Newton's
+        actuator-grouping key, so one Newton actuator may span several Lab groups -- and, in a
+        multi-robot scene, several articulations. They therefore have to agree wherever they
+        meet, which is what this key lets the caller check.
+
+        Raises:
+            ValueError: If this articulation's BAM groups disagree.
+        """
+        from isaaclab.actuators.actuator_bam_cfg import BamActuatorCfg  # noqa: PLC0415
+
+        settings = {
+            (cfg.vin_range, cfg.vin_drop_gain_range, cfg.stiff_frictionloss)
+            for cfg in self._native_actuator_cfgs.values()
+            if isinstance(cfg, BamActuatorCfg)
+        }
+        if len(settings) > 1:
+            raise ValueError(
+                "BAM actuator groups on one articulation must agree on 'vin_range',"
+                " 'vin_drop_gain_range' and 'stiff_frictionloss': they are"
+                " not part of Newton's actuator-grouping key, so one Newton actuator may cover"
+                " several groups and there is no per-group value to apply."
+            )
+        return next(iter(settings)) if settings else ()
+
+    def _sample_bam_startup_parameters(self) -> None:
+        """Draw the start-up per-environment BAM quantities of this articulation's actuators.
+
+        Runs while the model is being built, before any solver exists, because the values feed
+        the drive's kernels and do not require a solver. A USD prim is shared by every
+        clone, so the ranges cannot be authored and have to be drawn here.
+
+        Each Newton actuator is sampled once. When a second articulation reaches an actuator
+        that a first one already sampled, their settings must match: re-drawing would silently
+        discard the first articulation's randomization, and applying the first articulation's
+        ranges to the second would silently ignore its configuration.
+
+        Raises:
+            ValueError: If two articulations sharing a Newton actuator disagree on the settings.
+        """
+        from isaaclab.actuators.newton import apply_bam_startup_sampling  # noqa: PLC0415
+
+        actuators = self._bam_actuators()
+        if not actuators:
+            return
+        settings = self._bam_settings()
+        cfg = self._first_bam_cfg()
+        for actuator in actuators:
+            previous = _BAM_ACTUATOR_SETTINGS.get(actuator)
+            if previous is not None:
+                if previous != settings:
+                    raise ValueError(
+                        "Two articulations share one Newton actuator but configure their BAM"
+                        f" groups differently ({previous} vs {settings}). 'vin_range',"
+                        " 'vin_drop_gain_range' and 'stiff_frictionloss'"
+                        " are not part of Newton's actuator-grouping key, so structurally"
+                        " identical robots are merged into one actuator and cannot carry"
+                        " per-articulation values. Use matching start-up ranges and stiff_frictionloss"
+                        " for articulations with the same shared drive settings."
+                    )
+                continue
+            _BAM_ACTUATOR_SETTINGS[actuator] = settings
+            apply_bam_startup_sampling(actuator.drive, cfg)
+
+    def _first_bam_cfg(self):
+        """Return one of this articulation's BAM configs; they agree on everything used here."""
+        from isaaclab.actuators.actuator_bam_cfg import BamActuatorCfg  # noqa: PLC0415
+
+        return next(cfg for cfg in self._native_actuator_cfgs.values() if isinstance(cfg, BamActuatorCfg))
+
+    def _bind_bam_actuators(self) -> None:
+        """Give this articulation's BAM actuators their per-step MuJoCo Warp channel.
+
+        The BAM servo model needs two things the actuator component interface does not carry:
+        it publishes a load-dependent dry-friction budget so the solver performs the stiction
+        clipping natively, and it estimates the gearbox load from bias and constraint forces. Both go
+        through :class:`~isaaclab_newton.physics.MjWarpActuatorBridge`, on the in-graph pre-
+        and post-actuator hooks, so that the load is the previous solve's and the budget
+        reaches the substeps of the same iteration.
+
+        Runs on the solver-init hook, which is the first point at which the MuJoCo Warp model
+        exists and still precedes CUDA graph capture. Each actuator is bound once: Newton merges
+        structurally identical actuators, so a second articulation may reach one that is already
+        bound.
+        """
+        from isaaclab_newton.physics.mjwarp_actuator_bridge import MjWarpActuatorBridge  # noqa: PLC0415
+
+        actuators = self._bam_actuators()
+        if not actuators:
+            return
+        solver = SimulationManager._solver
+        if not MjWarpActuatorBridge.is_available(solver):
+            raise ValueError(
+                "BAM actuators require the Newton MJWarp solver (MJWarpSolverCfg) with"
+                " use_newton_actuators=True; drive-side friction is not supported."
+            )
+        cfg = self._first_bam_cfg()
+        num_newton_dofs = SimulationManager.backend.model.joint_dof_count
+
+        for actuator in actuators:
+            drive = actuator.drive
+            # A bound external-torque array is the marker: it is what the bridge fills.
+            if drive.external_torque is not None:
+                continue
+            bridge = MjWarpActuatorBridge(solver, actuator.indices, num_newton_dofs, self.device)
+            external_torque = wp.zeros(actuator.num_actuators, dtype=wp.float32, device=self.device)
+            drive.external_torque = external_torque
+            if cfg.stiff_frictionloss:
+                bridge.stiffen_friction_constraint()
+
+            SimulationManager.register_pre_actuator_callback(
+                lambda bridge=bridge, out=external_torque: bridge.gather_external_torque(out)
+            )
+            SimulationManager.register_post_actuator_callback(
+                lambda bridge=bridge, drive=drive: bridge.publish_dof_friction(drive.friction_budget)
+            )
 
     def _joint_dof_offset(self) -> int:
         """Return the first selected joint DOF's model offset within an environment."""
