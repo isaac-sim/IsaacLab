@@ -93,6 +93,14 @@ class OVRTXRendererCfg(RendererCfg):
     does not change ``rgb`` and the other AOV outputs.
     """
 
+    render_mode: str | None = None
+    """Optional OVRTX render-mode override for generated render products.
+
+    When ``None``, the renderer selects RTX Minimal for simple-shading outputs and Real-Time
+    Path-Tracing otherwise. ``"Minimal"`` requires a simple-shading output so its minimal mode can
+    be determined; ``"RealTimePathTracing"`` and ``"PathTracing"`` are valid for color outputs.
+    """
+
     colorize_semantic_segmentation: bool = True
     """Whether to colorize semantic segmentation output. Defaults to True.
 

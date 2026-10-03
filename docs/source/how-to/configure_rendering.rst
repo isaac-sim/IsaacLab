@@ -113,6 +113,16 @@ OVRTX outputs always cast shadows, so this option does not affect regular ``rgb`
 
    renderer_cfg = OVRTXRendererCfg(enable_shadows=True)
 
+By default OVRTX selects RTX Minimal for ``simple_shading_*`` outputs and Real-Time Path-Tracing
+otherwise. Set :attr:`~isaaclab_ov.renderers.OVRTXRendererCfg.render_mode` to ``"RealTimePathTracing"``
+or ``"PathTracing"`` to force that mode on every camera's render product, for example to path-trace
+a camera that also requests a ``simple_shading_*`` output. ``"Minimal"`` is only valid when the camera
+requests a ``simple_shading_*`` output.
+
+.. code-block:: python
+
+   renderer_cfg = OVRTXRendererCfg(render_mode="PathTracing")
+
 Customize Isaac RTX
 -------------------
 
@@ -129,6 +139,19 @@ that legacy renderer; use Newton Warp or OVRTX for new Newton and kit-less workl
    ``rgb_hdr`` is requested from the same render product, it retains its configured render mode to
    preserve the color output; the ``simple_shading_*`` output remains available but does not receive
    the RTX Minimal performance improvement.
+
+To pin the render mode explicitly, set :attr:`~isaaclab_physx.renderers.IsaacRtxRendererCfg.render_mode`
+to ``"Minimal"``, ``"RealTimePathTracing"`` or ``"PathTracing"``. The value is authored on each camera's
+render product, so it takes precedence over both the ``simple_shading_*`` rule above and Kit's
+process-wide ``/rtx/rendermode``. ``"Minimal"`` requires a ``simple_shading_*`` output and, unlike the
+default, also applies when ``rgb``, ``rgba`` or ``rgb_hdr`` is requested from the same render product.
+Leaving it as ``None`` keeps the behavior described above.
+
+.. code-block:: python
+
+   from isaaclab_physx.renderers import IsaacRtxRendererCfg
+
+   renderer_cfg = IsaacRtxRendererCfg(render_mode="PathTracing")
 
 Overriding Specific Rendering Settings
 --------------------------------------
