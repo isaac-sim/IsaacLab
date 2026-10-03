@@ -3,19 +3,20 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Class-based observation terms for the gear assembly manipulation environment."""
+"""Class-based observation terms for manipulation deployment environments."""
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
 import torch
+import warp as wp
 
 from isaaclab.managers import ManagerTermBase, ObservationTermCfg, SceneEntityCfg
-from isaaclab.utils.math import combine_frame_transforms
+from isaaclab.utils.math import combine_frame_transforms, matrix_from_quat
 
 if TYPE_CHECKING:
-    from isaaclab.assets import RigidObject
+    from isaaclab.assets import Articulation, RigidObject
     from isaaclab.envs import ManagerBasedRLEnv
 
     from .events import randomize_gear_type
@@ -338,3 +339,228 @@ class gear_quat_w(ManagerTermBase):
         gear_positive_quat[w_negative] = -gear_quat[w_negative]
 
         return gear_positive_quat
+
+
+class rigid_object_pos_w(ManagerTermBase):
+    """Rigid object position in the environment frame, with optional local-frame offset.
+
+    Generic observation term that returns the position of any
+    :class:`~isaaclab.assets.RigidObject` in the environment frame. An optional
+    3D offset can be applied in the object's local frame before subtracting the
+    environment origin.
+
+    Args:
+        asset_cfg: The asset configuration. Required.
+        offset: A 3D offset ``[x, y, z]`` [m] applied in the object's local frame.
+            Defaults to ``[0, 0, 0]``.
+
+    Returns:
+        Object position tensor in the environment frame, shape ``[num_envs, 3]`` [m].
+    """
+
+    def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedRLEnv):
+        super().__init__(cfg, env)
+
+        if "asset_cfg" not in cfg.params:
+            raise ValueError("'asset_cfg' parameter is required in rigid_object_pos_w configuration.")
+        self.asset_cfg: SceneEntityCfg = cfg.params["asset_cfg"]
+        self.asset: RigidObject = env.scene[self.asset_cfg.name]
+
+        offset = cfg.params.get("offset", [0.0, 0.0, 0.0])
+        self.offset_tensor = torch.tensor(offset, device=env.device, dtype=torch.float32)
+
+        self.identity_quat = (
+            torch.tensor([[0.0, 0.0, 0.0, 1.0]], device=env.device, dtype=torch.float32)
+            .repeat(env.num_envs, 1)
+            .contiguous()
+        )
+
+    def __call__(
+        self,
+        env: ManagerBasedRLEnv,
+        asset_cfg: SceneEntityCfg | None = None,
+        offset: list | None = None,
+    ) -> torch.Tensor:
+        obj_pos = wp.to_torch(self.asset.data.root_pos_w)
+        obj_quat = wp.to_torch(self.asset.data.root_quat_w)
+
+        if torch.any(self.offset_tensor != 0):
+            offset_repeated = self.offset_tensor.unsqueeze(0).repeat(env.num_envs, 1)
+            obj_pos, _ = combine_frame_transforms(obj_pos, obj_quat, offset_repeated, self.identity_quat)
+
+        return obj_pos - env.scene.env_origins
+
+
+class rigid_object_quat_w(ManagerTermBase):
+    """Rigid object orientation in the world frame.
+
+    Generic observation term that returns the orientation of any
+    :class:`~isaaclab.assets.RigidObject`. The quaternion is canonicalized so
+    that the ``w`` component is positive, reducing observation variation seen
+    by the policy.
+
+    Args:
+        asset_cfg: The asset configuration. Required.
+
+    Returns:
+        Object orientation as a quaternion ``(x, y, z, w)``, shape ``[num_envs, 4]``.
+    """
+
+    def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedRLEnv):
+        super().__init__(cfg, env)
+
+        if "asset_cfg" not in cfg.params:
+            raise ValueError("'asset_cfg' parameter is required in rigid_object_quat_w configuration.")
+        self.asset_cfg: SceneEntityCfg = cfg.params["asset_cfg"]
+        self.asset: RigidObject = env.scene[self.asset_cfg.name]
+
+    def __call__(
+        self,
+        env: ManagerBasedRLEnv,
+        asset_cfg: SceneEntityCfg | None = None,
+    ) -> torch.Tensor:
+        obj_quat = wp.to_torch(self.asset.data.root_quat_w)
+
+        w_negative = obj_quat[:, 3] < 0
+        positive_quat = obj_quat.clone()
+        positive_quat[w_negative] = -obj_quat[w_negative]
+
+        return positive_quat
+
+
+def _quat_to_rot_6d(quat: torch.Tensor) -> torch.Tensor:
+    """Convert quaternion (x, y, z, w) to 6D rotation (Zhou et al.).
+
+    Takes the first two rows of the 3x3 rotation matrix and flattens
+    them into a 6-element vector per sample.
+
+    Args:
+        quat: Quaternion tensor of shape ``(..., 4)`` in ``(x, y, z, w)`` format.
+
+    Returns:
+        6D rotation tensor of shape ``(..., 6)``.
+    """
+    rot_mat = matrix_from_quat(quat)
+    batch_shape = rot_mat.shape[:-2]
+    return rot_mat[..., :2, :].clone().reshape(batch_shape + (6,))
+
+
+class rigid_object_rot_6d_w(ManagerTermBase):
+    """Rigid object 6D rotation in the world frame (Zhou et al.).
+
+    Returns the first two rows of the 3x3 rotation matrix derived from
+    the object's root quaternion, giving a continuous 6D rotation
+    representation that avoids quaternion discontinuities.
+
+    Args:
+        asset_cfg: The asset configuration. Required.
+
+    Returns:
+        6D rotation tensor, shape ``[num_envs, 6]``.
+    """
+
+    def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedRLEnv):
+        super().__init__(cfg, env)
+        if "asset_cfg" not in cfg.params:
+            raise ValueError("'asset_cfg' parameter is required in rigid_object_rot_6d_w configuration.")
+        self.asset_cfg: SceneEntityCfg = cfg.params["asset_cfg"]
+        self.asset: RigidObject = env.scene[self.asset_cfg.name]
+
+    def __call__(
+        self,
+        env: ManagerBasedRLEnv,
+        asset_cfg: SceneEntityCfg | None = None,
+    ) -> torch.Tensor:
+        obj_quat = wp.to_torch(self.asset.data.root_quat_w)
+        return _quat_to_rot_6d(obj_quat)
+
+
+class eef_pos_w(ManagerTermBase):
+    """End-effector position in the environment frame.
+
+    Gets the position of a specified body on a robot articulation and
+    returns it relative to the environment origin. An optional 3D offset can be
+    applied in the body's local frame, e.g. to report the gripper tool-center
+    point (TCP) rather than the raw flange.
+
+    Args:
+        asset_cfg: The robot articulation configuration. Required.
+        body_name: Name of the end-effector body link. Required.
+        offset: A 3D offset ``[x, y, z]`` [m] applied in the body's local frame.
+            Defaults to ``[0, 0, 0]``.
+
+    Returns:
+        EEF position tensor, shape ``[num_envs, 3]`` [m].
+    """
+
+    def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedRLEnv):
+        super().__init__(cfg, env)
+        if "asset_cfg" not in cfg.params:
+            raise ValueError("'asset_cfg' parameter is required in eef_pos_w configuration.")
+        if "body_name" not in cfg.params:
+            raise ValueError("'body_name' parameter is required in eef_pos_w configuration.")
+
+        self.asset_cfg: SceneEntityCfg = cfg.params["asset_cfg"]
+        self.robot: Articulation = env.scene[self.asset_cfg.name]
+        self.body_name: str = cfg.params["body_name"]
+        self.body_idx = self.robot.find_bodies(self.body_name)[0][0]
+
+        offset = cfg.params.get("offset", [0.0, 0.0, 0.0])
+        self.offset_tensor = torch.tensor(offset, device=env.device, dtype=torch.float32)
+        self.identity_quat = (
+            torch.tensor([[0.0, 0.0, 0.0, 1.0]], device=env.device, dtype=torch.float32)
+            .repeat(env.num_envs, 1)
+            .contiguous()
+        )
+
+    def __call__(
+        self,
+        env: ManagerBasedRLEnv,
+        asset_cfg: SceneEntityCfg | None = None,
+        body_name: str | None = None,
+        offset: list | None = None,
+    ) -> torch.Tensor:
+        body_pos = wp.to_torch(self.robot.data.body_pos_w)[:, self.body_idx, :]
+
+        if torch.any(self.offset_tensor != 0):
+            body_quat = wp.to_torch(self.robot.data.body_quat_w)[:, self.body_idx, :]
+            offset_repeated = self.offset_tensor.unsqueeze(0).repeat(env.num_envs, 1)
+            body_pos, _ = combine_frame_transforms(body_pos, body_quat, offset_repeated, self.identity_quat)
+
+        return body_pos - env.scene.env_origins
+
+
+class eef_rot_6d_w(ManagerTermBase):
+    """End-effector 6D rotation in the world frame (Zhou et al.).
+
+    Gets the quaternion of a specified body on a robot articulation and
+    converts it to a continuous 6D rotation representation.
+
+    Args:
+        asset_cfg: The robot articulation configuration. Required.
+        body_name: Name of the end-effector body link. Required.
+
+    Returns:
+        6D rotation tensor, shape ``[num_envs, 6]``.
+    """
+
+    def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedRLEnv):
+        super().__init__(cfg, env)
+        if "asset_cfg" not in cfg.params:
+            raise ValueError("'asset_cfg' parameter is required in eef_rot_6d_w configuration.")
+        if "body_name" not in cfg.params:
+            raise ValueError("'body_name' parameter is required in eef_rot_6d_w configuration.")
+
+        self.asset_cfg: SceneEntityCfg = cfg.params["asset_cfg"]
+        self.robot: Articulation = env.scene[self.asset_cfg.name]
+        self.body_name: str = cfg.params["body_name"]
+        self.body_idx = self.robot.find_bodies(self.body_name)[0][0]
+
+    def __call__(
+        self,
+        env: ManagerBasedRLEnv,
+        asset_cfg: SceneEntityCfg | None = None,
+        body_name: str | None = None,
+    ) -> torch.Tensor:
+        body_quat = wp.to_torch(self.robot.data.body_quat_w)[:, self.body_idx, :]
+        return _quat_to_rot_6d(body_quat)

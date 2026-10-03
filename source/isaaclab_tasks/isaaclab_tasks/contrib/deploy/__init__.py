@@ -11,5 +11,7 @@ and deployed on physical robots.
 
 The deploy module includes:
 - Reach environments for end-effector pose tracking
+- Gear assembly environments for multi-gear insertion tasks
+- Cable insertion environments for DisplayPort plug insertion tasks
 
 """
