@@ -274,7 +274,7 @@ jobs:
             exit 1
           fi
 
-          python_output="$(./isaaclab.sh -p -c \
+          python_output="$(uv run --no-sync isaaclab -p -c \
             "import importlib.util; print(\"present\" if importlib.util.find_spec(\"imageio_ffmpeg\") else \"absent\")" \
             2>&1)"
           printf "%s\n" "$python_output"

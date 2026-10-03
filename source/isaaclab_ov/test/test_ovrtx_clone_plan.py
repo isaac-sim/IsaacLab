@@ -331,6 +331,7 @@ def test_create_render_data_pins_the_render_product_to_the_spec_device(tmp_path:
             return "cuda:1"
 
     monkeypatch.setattr(ovrtx_renderer_module.wp, "get_device", lambda device: _FakeWarpDevice())
+    monkeypatch.setattr(ovrtx_renderer_module.wp, "empty", Mock())
     renderer.create_render_data(_make_camera_render_spec(num_envs=1, device="cuda:1"))
 
     combined_text = (tmp_path / _OVRTX_STAGE_FILE).read_text(encoding="utf-8")
