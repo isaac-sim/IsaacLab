@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import logging
 import os
 from pathlib import Path
 
@@ -41,6 +42,8 @@ from ..common import (
     show_run_summary,
     startup_screen,
 )
+
+logger = logging.getLogger(__name__)
 
 # PLACEHOLDER: Extension template (do not remove this comment)
 with contextlib.suppress(ImportError):
@@ -108,7 +111,7 @@ def run(argv: list[str]) -> None:
             env_cfg.seed = agent_cfg["seed"]
 
             log_root_path = os.path.abspath(os.path.join("logs", "sb3", normalize_task_name(args_cli.task)))
-            print(f"[INFO] Loading experiment from directory: {log_root_path}")
+            logger.info(f"Loading experiment from directory: {log_root_path}")
             checkpoint_path = _resolve_checkpoint(args_cli, env_cfg, log_root_path)
             if checkpoint_path is None:
                 return

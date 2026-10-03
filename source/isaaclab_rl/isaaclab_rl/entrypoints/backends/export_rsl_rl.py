@@ -8,11 +8,14 @@
 from __future__ import annotations
 
 import argparse
+import logging
 import os
 from collections.abc import Mapping
 from typing import Any
 
 import torch
+
+logger = logging.getLogger(__name__)
 
 # LEAPP traces Isaac Lab's Python tensor operations, so TorchScript is disabled before importing task
 # or environment modules that compile decorated helpers at import time.
@@ -140,10 +143,10 @@ def export_rsl_rl_agent(args_cli: argparse.Namespace, env_cfg: Any, agent_cfg: R
     env_cfg.seed = agent_cfg.seed
 
     log_root_path = os.path.abspath(os.path.join("logs", "rsl_rl", agent_cfg.experiment_name))
-    print(f"[INFO] Loading checkpoint search path from directory: {log_root_path}")
+    logger.info(f"Loading checkpoint search path from directory: {log_root_path}")
     resume_path = _resolve_checkpoint(args_cli, agent_cfg, env_cfg, log_root_path)
     if not resume_path:
-        print(f"[INFO] No checkpoint found for task: {args_cli.task} in directory: {log_root_path}")
+        logger.info(f"No checkpoint found for task: {args_cli.task} in directory: {log_root_path}")
         return False
     log_dir = os.path.dirname(resume_path)
     env_cfg.log_dir = log_dir
@@ -159,7 +162,7 @@ def export_rsl_rl_agent(args_cli: argparse.Namespace, env_cfg: Any, agent_cfg: R
         policy_node_name = prepare_export_env(env, args_cli, required_obs_groups=required_obs_groups)
         env = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
 
-        print(f"[INFO]: Loading model checkpoint from: {resume_path}")
+        logger.info(f"Loading model checkpoint from: {resume_path}")
         if agent_cfg.class_name == "OnPolicyRunner":
             runner = OnPolicyRunner(env, to_dict(agent_cfg), log_dir=None, device=agent_cfg.device)
         elif agent_cfg.class_name == "DistillationRunner":
