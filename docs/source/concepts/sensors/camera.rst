@@ -123,8 +123,8 @@ updating it adds frame-query overhead.
 Output types
 ------------
 
-The active renderer validates ``data_types`` and allocates the channel count and data type declared
-by its :class:`~isaaclab.renderers.RenderBufferSpec`.
+The camera validates ``data_types`` against the renderer, then allocates the channel count and data
+type declared by each :class:`~isaaclab.renderers.RenderBufferSpec`.
 
 .. list-table:: Common output contracts
    :header-rows: 1
@@ -138,7 +138,10 @@ by its :class:`~isaaclab.renderers.RenderBufferSpec`.
      - Low-dynamic-range color
    * - ``rgb_hdr``
      - 3, ``float32``
-     - Scene-linear high-dynamic-range color
+     - High-dynamic-range RGB using the active camera settings
+   * - ``rgb_radiance``
+     - 3, ``float32``
+     - Scene-linear RGB before exposure and response, in renderer-relative intensity units
    * - ``albedo``
      - 4, ``uint8``
      - Material base color
@@ -167,6 +170,20 @@ by its :class:`~isaaclab.renderers.RenderBufferSpec`.
 ``depth`` is an alias of ``distance_to_image_plane``. Colorized segmentation uses RGBA ``uint8``;
 non-colorized segmentation uses one ``int32`` ID channel. Label and prim-path mappings are stored in
 ``camera_data.info[output_name]``.
+
+Requesting ``rgb_hdr`` alone preserves the renderer's existing camera settings. Requesting
+``rgb_radiance`` makes the renderer prepare its source for processing before exposure and camera
+response. If both raw names are requested, they alias the same active HDR source.
+
+.. note::
+
+   On Isaac RTX and OVRTX, ``rgb_radiance`` is not a native renderer output. These renderers derive
+   it from HDR color by authoring neutral exposure on the camera prim, so every output rendered from
+   that prim, including ``rgb``, ``rgba``, and ``rgb_hdr``, loses the authored exposure. This also
+   applies to other camera sensors that share the prim. A single render product cannot return both
+   authored-exposure color and ``rgb_radiance``; use a separate camera prim when both are required.
+   Newton Warp has no exposure model and is not affected. A native pre-exposure radiance output has
+   been requested from the RTX team (NVBug 6858736).
 
 .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-isaac-rtx.webp
    :align: center
@@ -200,7 +217,7 @@ current support matrix is:
      - Isaac RTX
      - OVRTX
      - Newton Warp
-   * - ``rgb``, ``rgba``, ``rgb_hdr``
+   * - ``rgb``, ``rgba``, ``rgb_hdr``, ``rgb_radiance``
      - Yes
      - Yes
      - Yes
@@ -275,54 +292,234 @@ background. Set a normalized RGB tuple to use a solid color for pixels that miss
 The setting is per camera. Cameras with renderer-default and solid backgrounds can coexist in one
 scene.
 
-Post-render image signal processing
------------------------------------
+.. _camera-post-processing:
 
-:attr:`~sensors.CameraCfg.isp_cfg` optionally applies an image signal processing (ISP) pass to the
-renderer's scene-linear HDR output. The shipped implementation is PPISP (Physically Plausible Image
-Signal Processing), which applies responsivity, exposure, vignetting, color correction, and a camera
-response function before writing ``rgb`` or ``rgba``.
+Process camera observations
+---------------------------
 
-The field accepts:
+:class:`~envs.mdp.visual_observations.processed_image` configures an ordered image-processing chain as an
+observation term:
 
-* ``None`` to disable post-render ISP.
-* :class:`~isaaclab_ppisp.PpispCfg` for explicit coefficients or coefficients imported from a USD
-  camera.
-* :class:`~sensors.CameraISPMode` to discover ``ppisp:*`` attributes on a camera prim.
+.. code-block:: text
+
+   renderer -> camera buffers -> processor 1 -> processor 2 -> observation
+
+Each observation term owns its processor state. Separate terms can consume the same camera with
+independent processing, and cameras can share a renderer. Processors declare
+their required inputs and produced outputs with :class:`~isaaclab.renderers.RenderBufferSpec`:
+channel count, Warp dtype, layout, device, and color space. The term resolves these requirements
+before renderer setup and requests the camera inputs it needs. Inputs may come from the camera or
+an earlier processor. An unavailable input or incompatible declaration raises an initialization error;
+the chain performs no implicit
+layout, dtype, device, or color conversions.
+
+Buffers use ``NHWC`` layout on the camera device. A processor can use private intermediate names
+without adding them to ``CameraCfg.data_types``. The chain allocates its intermediate and output
+buffers once. Its ``rgb`` and ``rgba`` outputs share storage; ``rgb`` is a strided view of the first
+three ``rgba`` channels. ``CameraData.output`` continues to expose the configured camera outputs;
+the observation term returns its processed result.
+
+PPISP
+~~~~~
+
+:class:`~isaaclab_ppisp.PpispProcessorCfg` configures PPISP (Physically Plausible Image Signal
+Processing). It applies responsivity, exposure, vignetting, color correction, and a camera response
+function to ``rgb_radiance``, producing ``rgb`` and ``rgba``. The input is scene-linear RGB before
+exposure and response, expressed in renderer-relative intensity units. The same processor works
+with Isaac RTX, OVRTX, and Newton Warp.
+
+PPISP declares ``color_space="camera_response"`` because its configurable response curve does not
+guarantee an sRGB transfer function. Downstream operations can require that encoding or leave
+``color_space=None`` when they accept any encoding.
 
 .. code-block:: python
 
-   from isaaclab.sensors.camera import CameraCfg, CameraISPMode
-   from isaaclab.utils import replace
-   from isaaclab_ppisp import PpispCfg
+   from isaaclab.envs import mdp
+   from isaaclab.managers import ObservationTermCfg, SceneEntityCfg
+   from isaaclab_ppisp import PpispCfg, PpispProcessorCfg
 
-   explicit_isp = replace(front_camera, data_types=["rgb"], isp_cfg=PpispCfg(inputs={"exposureOffset": 1.5}))
+   camera_image = ObservationTermCfg(
+       func=mdp.processed_image,
+       params={
+           "sensor_cfg": SceneEntityCfg("front_camera"),
+           "processors": [PpispProcessorCfg(isp_cfg=PpispCfg(inputs={"exposureOffset": 1.5}))],
+           "data_type": "rgb",
+           "normalize": False,
+       },
+   )
 
-   discovered_isp = replace(front_camera, data_types=["rgb"], isp_cfg=CameraISPMode.AUTO_CAMERA)
+Add this term to an :class:`~managers.ObservationGroupCfg` in the environment's observation
+configuration. ``normalize=False`` is the default and returns the persistent ``uint8`` RGB result.
+``normalize=True`` supports RGB/RGBA and follows :func:`~envs.mdp.observations.image`: it converts to
+``float32``, divides by 255, and subtracts the spatial mean for each view and channel. Its output
+and mean buffers are reused. ``permute=True`` returns a cached ``NCHW`` view; the default is ``NHWC``.
 
-``AUTO_CAMERA`` checks the first matched camera prim. ``AUTO_ANY`` falls back to the first PPISP
-camera anywhere on the stage. Discovery happens once during camera construction.
+For automatic discovery, use ``PpispProcessorCfg()`` or explicitly pass
+``isp_cfg=PpispDiscoveryMode.AUTO_CAMERA``. ``AUTO_CAMERA`` reads ``ppisp:*`` attributes from the
+first matched camera prim. ``AUTO_ANY`` also falls back to the first camera with PPISP attributes
+on the stage. Import ``PpispDiscoveryMode`` from ``isaaclab_ppisp``. Discovery runs once while preparing the
+observation term; an unsuccessful automatic lookup disables that processor. A static
+configuration is shared by all cloned views in one camera batch. Controller weights can predict
+per-view exposure and color parameters, while the remaining coefficients stay shared.
 
-PPISP is composed by Isaac RTX, OVRTX, and Newton Warp. It requires ``rgb`` or ``rgba`` output. A
-static configuration is shared by all cloned views in one camera batch; controller weights may
-predict per-view exposure and color parameters, while the remaining coefficients stay shared. ISP
-configuration and discovered USD attributes are fixed for the camera lifetime.
+The observation term resolves PPISP's ``rgb_radiance`` input independently of ``CameraCfg.data_types``.
+If an earlier processor produces that signal, PPISP consumes its result. Otherwise the term requests
+it from the camera, and the renderer selects the required exposure setup. For example, requesting
+only ``rgb`` as camera output keeps the radiance intermediate private. A subsequent processor can
+consume PPISP's RGB result; a future visual domain randomization processor can be added in the same way.
 
 .. important::
 
-   With Isaac RTX and OVRTX, enabling ``isp_cfg`` makes PPISP the ISP authority. The renderer
-   disables RTX auto-exposure, authors neutral ``exposure:*`` values, and applies the
+   Supplying ``rgb_radiance`` from Isaac RTX or OVRTX disables RTX auto-exposure, authors neutral
+   ``exposure:*`` values, and applies the
    ``OmniRtxCameraAutoExposureAPI_1`` and ``OmniRtxCameraExposureAPI_1`` schemas on every matched
-   camera prim so RTX does not process the image a second time. Do not combine ``isp_cfg`` with
-   separately authored RTX exposure or tonemapping settings. When ``isp_cfg`` is ``None``, the
-   renderer leaves authored camera exposure unchanged.
+   camera prim. This retains the existing PPISP camera-wide exposure behavior: raw outputs and
+   every observation using that camera reflect the resulting renderer settings. ``rgb_hdr`` and
+   ``rgb_radiance`` share that source when both are requested. Use separate cameras for separate
+   exposure settings. When an earlier processor supplies ``rgb_radiance``, PPISP adds no renderer
+   request for that signal.
 
-Run the ``ppisp-camera`` example for a complete PPISP workflow:
+   OVRTX also configures each HDR-consuming render product to route Gaussian pixels through
+   ``HdrColor``. This applies to public ``rgb_hdr`` and private ``rgb_radiance`` requests;
+   no external Gaussian tone-mapping setting is required.
+
+.. important::
+
+   **Breaking change:** ``CameraCfg.isp_cfg`` and ``isaaclab.sensors.camera.CameraISPMode`` were removed.
+   To migrate, remove the ``isp_cfg`` argument from the camera configuration and pass its previous
+   value as ``processors=[PpispProcessorCfg(isp_cfg=existing_cfg)]`` in the ``params`` of an
+   ``ObservationTermCfg(func=mdp.processed_image, ...)``, as shown above. Replace discovery enum
+   imports with ``from isaaclab_ppisp import PpispDiscoveryMode``; ``AUTO_CAMERA`` and ``AUTO_ANY``
+   retain their discovery behavior.
+
+   Read the processed image from the environment's observations. ``camera.data.output`` contains
+   the renderer's raw camera outputs and no longer returns PPISP results. To access the image by
+   its term name within an observation group, set that group's ``concatenate_terms=False``.
+
+Using the generic pipeline without PPISP does not import the optional ``isaaclab_ppisp`` package.
+
+Run the ``ppisp-camera`` example for a PPISP workflow using the observation API:
 
 .. code-block:: bash
 
    uv run --extra isaacsim isaaclab example ppisp-camera \
       --renderer newton_renderer --max_steps 60
+
+Add a processor
+~~~~~~~~~~~~~~~
+
+A :class:`~sensors.SensorPostProcessorCfg` factory receives the configuration and a
+:class:`~sensors.CameraPostProcessorContext` containing the stage, camera paths, image
+dimensions, and device. It returns a :class:`~sensors.SensorPostProcessor` with buffer
+declarations and callbacks, or ``None`` to disable the stage. Keep state inside that factory so
+observation terms remain independent.
+
+For example, this stateless processor inverts RGB values after PPISP. Save the kernel in a Python
+module so Warp can inspect its source:
+
+.. code-block:: python
+
+   import warp as wp
+
+   from isaaclab.renderers import RenderBufferSpec
+   from isaaclab.sensors.post_processing import SensorPostProcessor, SensorPostProcessorCfg
+
+
+   @wp.kernel
+   def invert_rgb(source: wp.array4d(dtype=wp.uint8), output: wp.array4d(dtype=wp.uint8)):
+       view, row, column, channel = wp.tid()
+       output[view, row, column, channel] = wp.uint8(255) - source[view, row, column, channel]
+
+
+   def make_invert_processor(cfg, context):
+       source = output = None
+
+       def initialize(inputs, outputs):
+           nonlocal source, output
+           source = inputs["rgb"].warp
+           output = outputs["rgb"].warp
+
+       def process(mask):
+           wp.launch(
+               invert_rgb,
+               dim=(context.num_views, context.height, context.width, 3),
+               inputs=[source, output],
+               device=context.device,
+           )
+
+       return SensorPostProcessor(
+           inputs=cfg.inputs,
+           outputs=cfg.outputs,
+           initialize=initialize,
+           process=process,
+           in_place=True,
+       )
+
+
+   rgb_spec = RenderBufferSpec(3, wp.uint8, color_space="camera_response")
+   inverted_image = ObservationTermCfg(
+       func=mdp.processed_image,
+       params={
+           "sensor_cfg": SceneEntityCfg("front_camera"),
+           "processors": [
+               PpispProcessorCfg(isp_cfg=PpispCfg()),
+               SensorPostProcessorCfg(
+                   func=make_invert_processor,
+                   inputs={"rgb": rgb_spec},
+                   outputs={"rgb": rgb_spec},
+               ),
+           ],
+           "data_type": "rgb",
+       },
+   )
+
+``initialize(inputs, outputs)`` receives persistent ``ProxyArray`` bindings once. Allocate scratch
+storage there and write into the supplied outputs in ``process(mask)``. Set ``in_place=True`` only
+when the operation supports shared input/output storage; this permits reuse of a preceding stage's
+output. Camera inputs are borrowed read-only, so callbacks must also handle separate input/output
+buffers. Replacing bound arrays would invalidate renderer and downstream bindings.
+
+Processing runs when the observation term consumes a fresh camera frame, on the current Warp
+stream. If a processor uses Torch or another stream, it must establish stream dependencies before
+returning. Repeated observation reads of a cached camera frame do not execute the chain again.
+The boolean device mask identifies updated views; use it to advance temporal state only for those
+views. Renderers refresh the image batch, so
+an image transform may still need to process all views to keep its outputs coherent.
+
+Stateful processors can provide ``reset(mask)`` for partial environment resets and ``close()`` for
+cleanup. The observation manager forwards its reset selection and closes its terms when the
+environment closes. Cleanup must also tolerate partial initialization. These callbacks and
+declarations are sufficient to add another processor without changing renderer code.
+
+The observation manager takes its usual snapshot before applying modifiers, noise, clipping,
+scaling, delay, and history. Code that calls the term directly should clone its result before modifying
+it or retaining it beyond the next rendered frame.
+
+Preparation and ownership
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``processed_image`` uses :meth:`~managers.ManagerTermBase.prepare_scene` after scene spawning and
+before the first simulation reset. This lets PPISP discover USD camera settings and resolve its
+``rgb_radiance`` input before renderer setup or stage export. The observation manager adopts this
+prepared term, retaining its processor state and allocated buffers for its lifetime.
+
+The camera provides rendered inputs and a frame generation counter. Other consumers can call
+``Camera.request_render_inputs(("rgb_radiance",))`` before camera initialization, then read
+``render_outputs`` for persistent raw buffers. The ``render_generation`` attribute changes when a new image is
+published. The per-view ``render_frame`` counters identify updated views, including delayed asynchronous captures;
+the existing ``frame`` counters describe live camera updates. ``render_buffer_specs`` and ``camera_prim_paths`` are
+available during preparation.
+
+At simulation startup, cameras prepare their configured and requested signals before
+any camera initializes render data. This ensures shared renderer exports include every camera's settings.
+
+Processing state, ordering, normalization, and observation caching belong to the term. A compatible
+additional processor can therefore be composed in the observation configuration without editing
+the camera or renderer.
+
+Bindings persist for the environment's lifetime. If simulation stop/start recreates camera buffers,
+recreate the environment before reading processed observations again; existing terms reject the
+replaced buffers.
 
 Performance and validation
 --------------------------

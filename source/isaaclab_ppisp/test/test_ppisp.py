@@ -10,6 +10,8 @@ from __future__ import annotations
 import pytest
 from isaaclab_ppisp import (
     PpispCfg,
+    PpispDiscoveryMode,
+    PpispProcessorCfg,
     auto_any_ppisp_cfg,
     auto_camera_ppisp_cfg,
     default_ppisp_inputs,
@@ -20,6 +22,8 @@ from isaaclab_ppisp import (
 from isaaclab_ppisp.cfg import PPISP_CONTROLLER_EXPECTED_WEIGHTS_LEN, resolve_and_normalize
 
 from pxr import Gf, Sdf, Usd, Vt
+
+from isaaclab.sensors.post_processing import CameraPostProcessorContext, SensorPostProcessingPipeline
 
 _PPISP_FLOAT2_ATTRS = {
     "vignettingCenterR",
@@ -68,6 +72,25 @@ def _author_ppisp_camera(
 
 def _controller_weights() -> list[float]:
     return [0.0] * PPISP_CONTROLLER_EXPECTED_WEIGHTS_LEN
+
+
+def test_ppisp_processor_discovery_resolves_before_requesting_radiance():
+    stage = Usd.Stage.CreateInMemory()
+    _author_camera(stage)
+    _author_ppisp_camera(stage, inherits=None, attrs={"exposureOffset": 1.5})
+    context = CameraPostProcessorContext(
+        stage=stage, camera_prim_paths=("/World/Camera",), num_views=1, height=4, width=4, device="cpu"
+    )
+
+    cfg = PpispProcessorCfg()
+    processing = SensorPostProcessingPipeline([cfg], context, {"rgb": cfg.outputs["rgb"]}, ["rgb"])
+    assert processing.render_data_types == ("rgb",)
+    processing.close()
+
+    cfg.isp_cfg = PpispDiscoveryMode.AUTO_ANY
+    processing = SensorPostProcessingPipeline([cfg], context, cfg.inputs, ["rgb"])
+    assert processing.render_data_types == ("rgb_radiance",)
+    processing.close()
 
 
 def test_ppisp_camera_attr_import_uses_first_time_sample():
@@ -226,13 +249,11 @@ def test_auto_any_ppisp_cfg_reads_first_camera_with_ppisp_attrs():
 
 
 def test_resolve_and_normalize_without_camera_uses_first_ppisp_camera():
-    from isaaclab.sensors.camera.camera_isp import CameraISPMode
-
     stage = Usd.Stage.CreateInMemory()
     _author_camera(stage, "/World/CameraWithoutPpisp")
     _author_ppisp_camera(stage, "/World/Camera_ppisp", inherits=None, attrs={"exposureOffset": 2.0})
 
-    cfg = resolve_and_normalize(CameraISPMode.AUTO_CAMERA, stage)
+    cfg = resolve_and_normalize(PpispDiscoveryMode.AUTO_CAMERA, stage)
 
     assert cfg is not None
     assert cfg.camera_prim_path is None

@@ -141,6 +141,9 @@ class CameraData:
         wrapped in a :class:`~isaaclab.utils.warp.ProxyArray`; call ``.torch`` on
         the result to obtain a zero-copy :class:`torch.Tensor` view.
 
+        When both are requested with matching layouts, ``rgb_hdr`` aliases ``rgb_radiance``:
+        radiance selects the camera's active HDR signal before exposure and response.
+
         Args:
             data_types: Requested output names (typically :attr:`CameraCfg.data_types`).
                 Every name must be a member of :class:`RenderBufferKind`.
@@ -175,6 +178,11 @@ class CameraData:
         allocated = requested.intersection(supported_specs)
         if rgb_alias:
             allocated.remove(RenderBufferKind.RGB)
+        hdr_alias = {RenderBufferKind.RGB_HDR, RenderBufferKind.RGB_RADIANCE} <= allocated and (
+            supported_specs[RenderBufferKind.RGB_HDR] == supported_specs[RenderBufferKind.RGB_RADIANCE]
+        )
+        if hdr_alias:
+            allocated.remove(RenderBufferKind.RGB_HDR)
 
         buffers: dict[str, ProxyArray] = {}
         for name, spec in supported_specs.items():
@@ -182,6 +190,9 @@ class CameraData:
                 continue
             shape = (num_views, height, width, spec.channels)
             buffers[str(name)] = ProxyArray(wp.zeros(shape, dtype=spec.dtype, device=device))
+
+        if hdr_alias:
+            buffers[str(RenderBufferKind.RGB_HDR)] = buffers[str(RenderBufferKind.RGB_RADIANCE)]
 
         if rgb_alias:
             # Zero-copy strided view into rgba: shape (N, H, W, 3), skipping the alpha channel.
