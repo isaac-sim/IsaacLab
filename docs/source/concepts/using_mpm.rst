@@ -230,15 +230,18 @@ Tune reconstruction independently from the simulation:
 * Anisotropic kernels preserve sheets and stretched fluid features better, but
   cost more than isotropic kernels.
 
-The teapot demo handles CUDA graph capture, empty surfaces, inactive particles,
-and dynamic topology:
+To render a surface in your own scene, pass the configured
+``newton.geometry.ParticleSurface`` to ``ParticleSurfaceRenderer`` after
+``sim.reset()``. Call ``update()`` before ``sim.render()`` to extract and stage
+the current mesh. The renderer handles CUDA graph capture, empty surfaces,
+inactive particles, and dynamic topology:
 
-.. dropdown:: Teapot surface renderer implementation
+.. dropdown:: ``ParticleSurfaceRenderer`` implementation
    :icon: code
 
-   .. literalinclude:: ../../../examples/demos/teapot_fill.py
+   .. literalinclude:: ../../../source/isaaclab_visualizers/isaaclab_visualizers/newton/particle_surface.py
       :language: python
-      :pyobject: FluidSurfaceRenderer
+      :pyobject: ParticleSurfaceRenderer
 
 
 Next Steps
