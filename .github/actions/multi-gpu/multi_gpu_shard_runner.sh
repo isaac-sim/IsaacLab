@@ -57,10 +57,6 @@ else
   DEV_COUNT=$GPU_COUNT
   echo "::notice::container: discrete mode, $GPU_COUNT GPUs"
 fi
-if [ "$DEV_COUNT" -lt 2 ]; then
-  echo "::error::Need at least 2 visible devices; found $DEV_COUNT"
-  exit 1
-fi
 
 # Cross-check with torch and cap shard count to what torch can actually
 # address. Guards against a CUDA_VISIBLE_DEVICES misconfig silently fanning
@@ -75,6 +71,10 @@ echo "container: torch sees $TORCH_COUNT cuda devices (cross-check vs $DEV_COUNT
 if [ "$TORCH_COUNT" -lt "$DEV_COUNT" ]; then
   echo "::warning::torch sees fewer devices than nvidia-smi — capping shards to $TORCH_COUNT"
   DEV_COUNT=$TORCH_COUNT
+fi
+if [ "$DEV_COUNT" -lt 2 ]; then
+  echo "::error::Need at least 2 visible devices; found $DEV_COUNT"
+  exit 1
 fi
 
 # Fan out 1 pytest subshell per shard. Each gets its own HOME (per-shard
@@ -100,6 +100,7 @@ launch_shard() {
     export XDG_CACHE_HOME="${HOME}/.cache"
     export XDG_DATA_HOME="${HOME}/.local/share"
     export ISAACLAB_TEST_DEVICES="$runtime_devices"
+    export ISAACLAB_TEST_QUEUE_SHARD="cuda-${name}"  # done/<shard>/ in the queue, so the summary splits shards
     [ -z "$cvd" ] || export CUDA_VISIBLE_DEVICES="$cvd"
 
     # Full pytest output captures to $shard_log; live stdout is filtered

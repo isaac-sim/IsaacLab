@@ -715,6 +715,15 @@ def _unslugify_queue_entry(entry_name):
     return entry_name.replace("__", "/")
 
 
+def _queue_shard():
+    """Name of this shard's ``inflight/`` and ``done/`` subdirs in the work queue.
+
+    ``ISAACLAB_TEST_QUEUE_SHARD`` when set, so two shards testing the same device index on
+    different physical GPUs report separately; otherwise the shard's device, e.g. ``cuda-1``.
+    """
+    return os.environ.get("ISAACLAB_TEST_QUEUE_SHARD") or resolve_test_sim_device().replace(":", "-")
+
+
 def _claim_queued_file(queue_dir):
     """Atomically claim one pending test from the work-queue directory.
 
@@ -738,7 +747,7 @@ def _claim_queued_file(queue_dir):
         The decoded test path for the claimed file, or ``None`` when the
         queue is empty.
     """
-    shard = resolve_test_sim_device().replace(":", "-")
+    shard = _queue_shard()
     pending_dir = os.path.join(queue_dir, "queue")
     inflight_dir = os.path.join(queue_dir, "inflight", shard)
     os.makedirs(inflight_dir, exist_ok=True)
@@ -775,7 +784,7 @@ def _mark_queued_file_done(queue_dir, test_path):
     The inflight residual is what the post-run reconciler uses to detect
     crashed shards: anything still in ``inflight/`` at job-end is an orphan.
     """
-    shard = resolve_test_sim_device().replace(":", "-")
+    shard = _queue_shard()
     entry = _slugify_test_path(test_path)
     src = os.path.join(queue_dir, "inflight", shard, entry)
     dst_dir = os.path.join(queue_dir, "done", shard)
