@@ -11,6 +11,7 @@ from collections.abc import Collection
 import gymnasium as gym
 import pytest
 import torch
+from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.app.settings_manager import get_settings_manager
@@ -231,7 +232,7 @@ def _configure_osc_smoke_actions(env, actions: torch.Tensor) -> None:
 
 def _run_environments(
     task_name,
-    device,
+    device: str | None,
     num_envs,
     num_steps=20,
     multi_agent=False,
@@ -243,7 +244,7 @@ def _run_environments(
 
     Args:
         task_name: Name of the environment.
-        device: Device to use (e.g., 'cuda').
+        device: Device override to use (e.g., 'cuda'), or None to preserve the task default.
         num_envs: Number of environments.
         num_steps: Number of simulation steps.
         multi_agent: Whether the environment is multi-agent.
@@ -284,7 +285,7 @@ def _run_environments(
 
 def _check_random_actions(
     task_name: str,
-    device: str,
+    device: str | None,
     num_envs: int,
     num_steps: int = 20,
     multi_agent: bool = False,
@@ -296,7 +297,7 @@ def _check_random_actions(
 
     Args:
         task_name: Name of the environment.
-        device: Device to use (e.g., 'cuda').
+        device: Device override to use (e.g., 'cuda'), or None to preserve the task default.
         num_envs: Number of environments.
         num_steps: Number of simulation steps.
         multi_agent: Whether the environment is multi-agent.
@@ -323,6 +324,11 @@ def _check_random_actions(
                 env_cfg.scene.num_envs = num_envs
         else:
             env_cfg = parse_env_cfg(task_name, device=device, num_envs=num_envs)
+        if task_name == "IsaacContrib-Factory-Franka" and num_envs == 2 and isinstance(env_cfg.sim.physics, PhysxCfg):
+            # Two-environment smoke tests do not need the Factory training-scale GPU buffers.
+            env_cfg.sim.physics.gpu_max_rigid_contact_count = 2**20
+            env_cfg.sim.physics.gpu_max_rigid_patch_count = 2**18
+            env_cfg.sim.physics.gpu_collision_stack_size = 2**26
         reset_event = getattr(env_cfg.events, "reset_strategies", None)
         if reset_event is not None and "state_table_size" in reset_event.params:
             reset_event.params["state_table_size"] = min(32, reset_event.params["state_table_size"])

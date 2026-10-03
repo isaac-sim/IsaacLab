@@ -8,7 +8,19 @@ __all__ = [
     "IsaacEvents",
     "PhysxCfg",
     "PhysxBackendCfg",
+    "PhysxSurfaceVelocityTwist",
+    "SurfaceVelocity",
+    "apply_surface_velocity_api",
+    "compute_surface_velocity_twist",
+    "resolve_surface_velocity_paths",
 ]
 
 from .physx_manager import PhysxManager, IsaacEvents
 from .physx_manager_cfg import PhysxCfg, PhysxBackendCfg
+from .surface_velocity import (
+    PhysxSurfaceVelocityTwist,
+    SurfaceVelocity,
+    apply_surface_velocity_api,
+    compute_surface_velocity_twist,
+    resolve_surface_velocity_paths,
+)

@@ -217,6 +217,17 @@ def test_newton_visualizer_set_camera_view_updates_active_viewer():
     assert visualizer.cfg.lookat == (0.0, 0.0, 1.0)
 
 
+def test_newton_visualizer_register_ui_callback_forwards_to_active_viewer():
+    callback = Mock()
+    viewer = SimpleNamespace(register_ui_callback=Mock())
+    visualizer = NewtonGLVisualizer(NewtonGLVisualizerCfg())
+    visualizer._viewer = viewer
+
+    visualizer.register_ui_callback(callback, position="panel")
+
+    viewer.register_ui_callback.assert_called_once_with(callback, position="panel")
+
+
 @pytest.mark.parametrize(
     "cfg_type", [NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg, RerunVisualizerCfg, ViserVisualizerCfg]
 )
