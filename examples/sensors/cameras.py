@@ -81,7 +81,12 @@ class SensorsSceneCfg(InteractiveSceneCfg):
         prim_path="/World/ground",
         max_init_terrain_level=None,
         terrain_type="generator",
-        terrain_generator=replace(ROUGH_TERRAINS_CFG, color_scheme="random"),
+        # MuJoCo limits contacts per heightfield-geometry pair; use a coarser Newton grid.
+        terrain_generator=replace(
+            ROUGH_TERRAINS_CFG,
+            color_scheme="random",
+            horizontal_scale=0.2 if args_cli.physics == "newton_mjwarp" else ROUGH_TERRAINS_CFG.horizontal_scale,
+        ),
         visual_material=None,
         debug_vis=False,
     )
@@ -203,7 +208,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: "InteractiveScene") -
         # -- generate actions/commands
         targets = scene["robot"].data.default_joint_pos.torch
         # -- apply action to the robot
-        scene["robot"].set_joint_position_target_index(target=targets)
+        scene["robot"].actuators.target_command.set_position_index(value=targets)
         # -- write data to sim
         scene.write_data_to_sim()
         sim.step()

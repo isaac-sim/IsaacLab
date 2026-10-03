@@ -18,7 +18,8 @@ focused programs for learning an API or tuning a feature in directories such as 
 ``uvx isaaclab example list`` and run one with ``uvx isaaclab example <name>``.
 
 Newton with the Newton GL viewer is the default for portable programs. The marker and procedural-terrain examples
-use Newton VBD; articulated sensor examples use Newton MJWarp, and ``camera`` uses Newton Warp rendering. Select
+use Newton VBD; articulated sensor examples use Newton MJWarp, and ``camera`` uses Newton Warp rendering with a
+coarser terrain grid to stay within MuJoCo's per-heightfield contact limit. Select
 ``--physics isaacsim_physx --viz kit`` to use the previous PhysX/Kit path. ``bin-packing`` uses Newton VBD by default
 because its environments contain different numbers of objects. ``arl-robot-1`` uses Newton MJWarp by default while
 preserving its PhysX path. ``pick-and-place``, ``heterogeneous-scene``, and ``tactile-sensor`` retain PhysX-only

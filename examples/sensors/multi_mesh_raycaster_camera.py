@@ -257,7 +257,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: "InteractiveScene") -
         if isinstance(scene["asset"], Articulation):
             default_joint_pos = scene["asset"].data.default_joint_pos.torch
             targets = default_joint_pos + 5 * (torch.rand_like(default_joint_pos) - 0.5)
-            scene["asset"].set_joint_position_target_index(target=targets)
+            scene["asset"].actuators.target_command.set_position_index(value=targets)
         scene.write_data_to_sim()
         sim.step()
         count += 1

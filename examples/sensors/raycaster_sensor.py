@@ -106,7 +106,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: "InteractiveScene") -
             scene.reset()
             print("[INFO]: Resetting robot state...")
         targets = scene["robot"].data.default_joint_pos.torch
-        scene["robot"].set_joint_position_target_index(target=targets)
+        scene["robot"].actuators.target_command.set_position_index(value=targets)
         scene.write_data_to_sim()
         sim.step()
         count += 1
