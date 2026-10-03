@@ -29,6 +29,7 @@ from ..utils import (
     safe_set_attribute_on_usd_prim,
     safe_set_attribute_on_usd_schema,
 )
+from ..utils.queries import _is_world_fixed_joint
 from ..utils.stage import get_current_stage
 from . import schemas_cfg
 from .backend_hooks import skip_joint_drive
@@ -517,7 +518,11 @@ def modify_articulation_root_properties(
     apply_namespaced_schemas(articulation_prim, cfg, cfg_dict)
 
     if fix_root_link is not None:
-        existing_fixed_joint_prim = find_global_fixed_joint_prim(prim_path, stage=stage)
+        if fix_root_link and _is_world_fixed_joint(articulation_prim):
+            # an articulation rooted at its fixed world joint is attached to the world by that joint
+            existing_fixed_joint_prim = UsdPhysics.Joint(articulation_prim)
+        else:
+            existing_fixed_joint_prim = find_global_fixed_joint_prim(prim_path, stage=stage)
         # enable/disable an existing world joint, otherwise create one
         if existing_fixed_joint_prim is not None:
             logger.info(

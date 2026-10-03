@@ -15,9 +15,9 @@ backend state. The islands of one environment share a solver world, so every tes
 rest and restores the properties it changes. Scene gravity is off; a test that needs gravity applies it to every
 world for its own duration.
 
-Configurations that fail initialization, the rebind scenario, which swaps the live Newton state, and the
-CUDA-graph check build their own small scenes. Only one simulation context can be alive, so these tests come
-first and fail if selected after a composite-scene test.
+Configurations that fail initialization, an articulation rooted at its fixed world joint, the rebind scenario,
+which swaps the live Newton state, and the CUDA-graph check build their own small scenes. Only one simulation
+context can be alive, so these tests come first and fail if selected after a composite-scene test.
 
 The composite scene runs on the CPU without CUDA-graph capture. On CUDA, one own-scene test covers the
 ordered-state republish recorded into a captured graph.
@@ -61,7 +61,7 @@ from newton_test_utils import (
     world_gravity,
 )
 
-from pxr import UsdPhysics
+from pxr import Usd, UsdGeom, UsdPhysics
 
 import isaaclab.assets.articulation.ordering_resolvers as ordering_resolvers
 import isaaclab.sim as sim_utils
@@ -519,6 +519,42 @@ def test_invalid_articulation_cfg_fails_initialization(device: str, invalid_fiel
 
         with pytest.raises(error, match=match):
             sim.reset()
+
+
+def _author_fixed_joint_root_robot(usd_path: str) -> None:
+    """Author a two-link robot rooted at the fixed joint that attaches its base to the asset prim."""
+    stage = Usd.Stage.CreateNew(usd_path)
+    stage.SetDefaultPrim(UsdGeom.Xform.Define(stage, "/Robot").GetPrim())
+    for name in ("base", "link"):
+        body = UsdGeom.Xform.Define(stage, f"/Robot/{name}").GetPrim()
+        UsdPhysics.RigidBodyAPI.Apply(body)
+        UsdPhysics.MassAPI.Apply(body).CreateMassAttr(1.0)
+    # body0 is the asset prim, which UsdPhysics resolves to the world
+    root_joint = UsdPhysics.FixedJoint.Define(stage, "/Robot/root_joint")
+    root_joint.CreateBody0Rel().SetTargets(["/Robot"])
+    root_joint.CreateBody1Rel().SetTargets(["/Robot/base"])
+    UsdPhysics.ArticulationRootAPI.Apply(root_joint.GetPrim())
+    joint = UsdPhysics.RevoluteJoint.Define(stage, "/Robot/joint")
+    joint.CreateBody0Rel().SetTargets(["/Robot/base"])
+    joint.CreateBody1Rel().SetTargets(["/Robot/link"])
+    stage.Save()
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CPU))
+def test_initialization_fixed_joint_root(device, tmp_path) -> None:
+    """``fix_root_link=True`` keeps an articulation rooted at its fixed world joint fixed-base."""
+    usd_path = str(tmp_path / "fixed_joint_root.usda")
+    _author_fixed_joint_root_robot(usd_path)
+    articulation_cfg = ArticulationCfg(
+        prim_path="/World/Env_[^/]*/Robot",
+        spawn=sim_utils.UsdFileCfg(usd_path=usd_path, fix_root_link=True),
+        actuators={},
+    )
+    with build_simulation_context(sim_cfg=newton_sim_cfg(device)) as sim:
+        articulation = spawn_assets({"robot": articulation_cfg}, num_envs=1)["robot"]
+        sim.reset()
+
+        assert articulation.is_fixed_base
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CPU))
