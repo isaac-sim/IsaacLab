@@ -2076,9 +2076,8 @@ def _tetrahedralize_surface(
         raise ModuleNotFoundError(
             "Automatic tetrahedralization of volume deformables requires the optional "
             "tetrahedralization dependencies. Install them with "
-            "uv sync --inexact --extra tetrahedralization from a source checkout "
-            "(or ./isaaclab.sh -i tetrahedralization with the legacy installer), or "
-            'pip install "isaaclab[tetrahedralization]" from a wheel. Alternatively, provide '
+            "uv sync --inexact --extra tetrahedralization from a source checkout, or "
+            'uv pip install "isaaclab[tetrahedralization]" from a wheel. Alternatively, provide '
             f"a pre-tetrahedralized UsdGeom.TetMesh under the deformable prim {prim_path}."
         ) from exc
 

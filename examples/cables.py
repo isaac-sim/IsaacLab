@@ -9,8 +9,8 @@
 
     uvx isaaclab example cables
 
-    # Usage without a visualizer and with a larger cable pile.
-    uvx isaaclab example cables --visualizer none --num_cables 40 --num_segments 15
+    # Usage with a larger cable pile.
+    uvx isaaclab example cables --num_cables 40 --num_segments 15
 
 """
 
