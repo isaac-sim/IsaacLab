@@ -18,7 +18,8 @@ import newton
 import pytest
 import torch
 import warp as wp
-from isaaclab_newton.physics import NewtonMPMManager
+from isaaclab_newton.physics import NewtonManager, NewtonMPMManager
+from newton import ShapeFlags
 
 from isaaclab.utils import clone
 
@@ -35,6 +36,11 @@ def test_spilled_particles_land_on_ground_without_escaping_workspace(device):
     env = FrankaPourEnv(cfg)
     try:
         env.reset()
+        model = NewtonManager.get_model()
+        table_shapes = [index for index, label in enumerate(model.shape_label) if "/Table/" in label]
+        assert table_shapes, "The stationary table must retain its collision geometry."
+        assert (model.shape_body.numpy()[table_shapes] == -1).all()
+        assert (model.shape_flags.numpy()[table_shapes] & ShapeFlags.COLLIDE_SHAPES).any()
         points = env._media.data.particle_pos_w.torch.clone() - env.env_origins[:, None]
         points[..., :2] -= points[..., :2].mean(dim=1, keepdim=True)
         points[..., :2] += torch.tensor((-0.4, 0.6), device=device)

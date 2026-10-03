@@ -208,6 +208,24 @@ def spawn_franka_with_arm_collisions(
     return robot_prim
 
 
+def spawn_static_table(
+    prim_path: str,
+    cfg: UsdFileCfg,
+    translation: tuple[float, float, float] | None = None,
+    orientation: tuple[float, float, float, float] | None = None,
+    **kwargs,
+):
+    """Keep the stationary table's colliders without a rigid-body simulation state."""
+    from pxr import Usd, UsdPhysics  # noqa: PLC0415
+
+    table_prim = sim_utils.spawn_from_usd(prim_path, cfg, translation, orientation, **kwargs)
+    for root_prim in sim_utils.find_matching_prims(prim_path, stage=table_prim.GetStage()):
+        for prim in Usd.PrimRange(root_prim):
+            if prim.HasAPI(UsdPhysics.RigidBodyAPI):
+                prim.RemoveAPI(UsdPhysics.RigidBodyAPI)
+    return table_prim
+
+
 @dataclass(frozen=True)
 class _PourSolverTree:
     """Typed references into the task's coupled Newton configuration."""
@@ -304,7 +322,8 @@ class PourSceneCfg(InteractiveSceneCfg):
         init_state=AssetBaseCfg.InitialStateCfg(pos=[0.5, 0, 0], rot=[0, 0, 0.707, 0.707]),
         spawn=UsdFileCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd",
-            rigid_props=UsdPhysicsRigidBodyCfg(rigid_body_enabled=True, kinematic_enabled=True),
+            func=spawn_static_table,
+            make_uninstanceable=True,
         ),
     )
     plane = AssetBaseCfg(
@@ -592,7 +611,6 @@ class FrankaPourResetDatasetEnvCfg(ManagerBasedRLEnvCfg):
                         ),
                         bodies=[
                             r"/World/envs/env_.*/Robot",
-                            r"/World/envs/env_.*/Table",
                             r"/World/envs/env_.*/SourceCup",
                             r"/World/envs/env_.*/TargetCup",
                         ],

@@ -11,7 +11,7 @@ import logging
 
 import numpy as np
 import warp as wp
-from newton import Contacts, Model, ModelBuilder
+from newton import Contacts, Model
 from newton.solvers import SolverMuJoCo
 
 from isaaclab.physics import PhysicsManager
@@ -33,28 +33,6 @@ class NewtonMJWarpManager(NewtonManager):
     """
 
     _builder_attribute_solvers = (SolverMuJoCo,)
-
-    @classmethod
-    def _prepare_builder_for_finalize(cls, builder: ModelBuilder) -> None:
-        """Resolve imported single-DOF actuator targets in the composed scene."""
-        if not builder._custom_frequency_counts.get("mujoco:actuator", 0):
-            return
-        # Newton's joint-target actuator rows retain asset-local DOF indices during
-        # builder composition. Their scene-path labels remain authoritative.
-        targets = builder.custom_attributes["mujoco:actuator_target_label"].values
-        transmissions = builder.custom_attributes["mujoco:actuator_trnid"].values
-        sources = builder.custom_attributes["mujoco:ctrl_source"].values
-        types = builder.custom_attributes["mujoco:actuator_trntype"].values
-        joint_dofs = {
-            label: builder.joint_qd_start[index]
-            for index, label in enumerate(builder.joint_label)
-            if sum(builder.joint_dof_dim[index]) == 1
-        }
-        for row, target in enumerate(targets):
-            if sources[row] != SolverMuJoCo.CtrlSource.JOINT_TARGET or types[row] != SolverMuJoCo.TrnType.JOINT:
-                continue
-            if target in joint_dofs:
-                transmissions[row] = wp.vec2i(joint_dofs[target], transmissions[row][1])
 
     @classmethod
     def _create_solver(cls, model: Model, solver_cfg: MJWarpSolverCfg) -> SolverMuJoCo:
