@@ -3,6 +3,15 @@ Changelog
 
 .. towncrier release notes start
 
+9.1.3 (2026-10-03)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Update runtime installation guidance and launcher examples to use uv.
+
+
 9.1.2 (2026-10-01)
 ~~~~~~~~~~~~~~~~~~
 

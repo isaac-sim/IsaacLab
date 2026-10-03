@@ -11,7 +11,7 @@ plane and deterministic rough terrain. The script also times each blocking
 native ``RIGID_BODY_POSE`` binding read in isolation.
 
 Usage:
-    ./isaaclab.sh -p source/isaaclab_ov/benchmark/sensors/benchmark_ray_caster.py --num_envs 4096
+    uv run python source/isaaclab_ov/benchmark/sensors/benchmark_ray_caster.py --num_envs 4096
 """
 
 from __future__ import annotations

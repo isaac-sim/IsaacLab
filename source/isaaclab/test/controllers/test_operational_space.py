@@ -95,6 +95,7 @@ def sim():
     # clone the env xform
     cloner.usd_replicate(stage, [env_fmt.format(0)], [env_fmt], env_ids, positions=env_origins)
 
+    # Keep controller regressions on their original plant; canonical asset parity is tested by each backend.
     robot_cfg = replace(FRANKA_PANDA_LEGACY_CFG, prim_path="{ENV_REGEX_NS}/Robot")
     # Explicit torque actuators enforce effort limits on the commands sent to the simulator.
     for actuator_name in ("panda_shoulder", "panda_forearm"):
