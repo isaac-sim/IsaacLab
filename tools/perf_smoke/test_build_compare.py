@@ -144,25 +144,20 @@ class ReportRenderingTests(unittest.TestCase):
         self.assertIn("No earlier measured ancestor was found", primary)
         self.assertIn("| ⚪ Not comparable | leg | — | 100 | — |", primary)
 
-    def test_configuration_labels_fall_back_when_the_same_name_covers_different_workloads(self):
-        report = compare_evidence(evidence({"leg": [bundle(100, "Before")] * 3}), evidence())
-        primary, diagnostics = render_build_comparison(report).split("<details>", 1)
-        self.assertIn("leg (1)", primary)
-        self.assertIn("leg (2)", primary)
+    def test_duplicate_short_labels_do_not_collide_with_existing_numbered_label(self):
+        a = evidence({"leg": [bundle(100, "Before")] * 3, "leg (1)": [bundle(100, "Other")] * 3})
+        b = evidence({"leg": [bundle(100, "Task")] * 3, "leg (1)": [bundle(100, "Other")] * 3})
+        primary, diagnostics = render_build_comparison(compare_evidence(a, b)).split("<details>", 1)
+        labels = [line.split("|")[2].strip() for line in primary.splitlines() if line.startswith("| ⚪")]
+        self.assertEqual(len(labels), 3)
+        self.assertEqual(len(set(labels)), 3)
+        self.assertIn("leg (1)", labels)
+        self.assertIn("leg (2)", labels)
         self.assertNotIn("newton_mjwarp", primary)
         self.assertIn("Before · newton_mjwarp", diagnostics)
         self.assertIn("Task · newton_mjwarp", diagnostics)
         self.assertIn("No baseline samples", diagnostics)
         self.assertIn("No current samples", diagnostics)
-
-    def test_duplicate_short_labels_do_not_collide_with_existing_numbered_label(self):
-        a = evidence({"leg": [bundle(100, "Before")] * 3, "leg (1)": [bundle(100, "Other")] * 3})
-        b = evidence({"leg": [bundle(100, "After")] * 3, "leg (1)": [bundle(100, "Other")] * 3})
-        primary = render_build_comparison(compare_evidence(a, b)).split("<details>", 1)[0]
-        labels = [line.split("|")[2].strip() for line in primary.splitlines() if line.startswith("| ⚪")]
-        self.assertEqual(len(labels), 3)
-        self.assertEqual(len(set(labels)), 3)
-        self.assertIn("leg (1)", labels)
 
     def test_paired_pr_labels_exact_sources_and_reused_baseline_inside_details(self):
         report = compare_evidence(evidence(), evidence({"leg": [bundle(110)] * 3}))
@@ -172,6 +167,7 @@ class ReportRenderingTests(unittest.TestCase):
             )
         report["candidate"].update(requested_head_commit="c" * 40, event="pull_request")
         report.update(comparison_mode="paired_pr", candidate_kind="merge", report_attempt=1)
+        report["source_context"] = {"reference_commit": PARENT, "event_base_commit": HEAD}
         report["selection"] = {
             "reason": "Exact PR base and merge result.",
             "baseline_reused": True,
@@ -190,6 +186,11 @@ class ReportRenderingTests(unittest.TestCase):
         self.assertIn("https://github.com/isaac-sim/IsaacLab/actions/runs/15/attempts/1", details)
         self.assertIn("https://github.com/isaac-sim/IsaacLab/actions/runs/11/attempts/1", details)
         self.assertIn("Baseline measurements: reused.", details)
+        self.assertNotIn(PARENT, primary)
+        self.assertNotIn(HEAD, primary)
+        self.assertIn(f"Resolved PR base: `{PARENT}`", details)
+        self.assertIn(f"The PR event reported `{HEAD}`", details)
+        self.assertIn("actual first parent", details)
         self.assertEqual(report, snapshot)
 
     def test_paired_baseline_measurement_status_reflects_available_evidence(self):
@@ -205,31 +206,6 @@ class ReportRenderingTests(unittest.TestCase):
                 report["selection"] = {"baseline_reused": reused}
                 markdown = render_build_comparison(report)
                 self.assertIn(f"Baseline measurements: {expected}", markdown)
-
-    def test_event_base_difference_is_explained_only_in_collapsed_provenance(self):
-        report = compare_evidence(evidence(), evidence())
-        report.update(
-            comparison_mode="paired_pr",
-            candidate_kind="merge",
-            source_context={"reference_commit": PARENT, "event_base_commit": HEAD},
-        )
-        primary, details = render_build_comparison(report).split("<details>", 1)
-        self.assertNotIn(PARENT, primary)
-        self.assertNotIn(HEAD, primary)
-        self.assertIn(f"Resolved PR base: `{PARENT}`", details)
-        self.assertIn(f"The PR event reported `{HEAD}`", details)
-        self.assertIn("actual first parent", details)
-
-    def test_historical_dispatch_is_not_labeled_as_a_pull_request(self):
-        report = compare_evidence(evidence(), evidence())
-        report["candidate"]["event"] = "workflow_dispatch"
-        primary, details = render_build_comparison(report).split("<details>", 1)
-        self.assertIn("### Automatic build comparison", primary)
-        self.assertNotIn("### PR performance comparison", primary)
-        self.assertIn("| Current FPS |", primary)
-        self.assertNotIn("PR FPS", primary)
-        self.assertIn("A — historical baseline", details)
-        self.assertIn("B — current benchmark", details)
 
     def test_artifact_text_preserves_tables_details_and_reconstructed_github_links(self):
         for target, text, escaped in (
@@ -681,8 +657,14 @@ class AutomaticReportTests(unittest.TestCase):
                 self.assertEqual(result["candidate_kind"], kind)
                 self.assertIn(heading, markdown)
                 if kind is None:
-                    self.assertIn("A — historical baseline", markdown)
-                    self.assertNotIn("PR merge result", markdown)
+                    primary, details = markdown.split("<details>", 1)
+                    self.assertIn("### Automatic build comparison", primary)
+                    self.assertNotIn("### PR performance comparison", primary)
+                    self.assertIn("| Current FPS |", primary)
+                    self.assertNotIn("PR FPS", primary)
+                    self.assertIn("A — historical baseline", details)
+                    self.assertIn("B — current benchmark", details)
+                    self.assertNotIn("PR merge result", details)
 
     def test_capture_failure_explains_missing_results_before_pin_identity_error(self):
         self.client.attempts[20, 1]["event"] = "pull_request"
@@ -783,35 +765,30 @@ class AutomaticReportTests(unittest.TestCase):
         self.assertEqual(result["selection"]["reason_code"], "missing_candidate")
         self.assertIn("Candidate evidence is unavailable", markdown)
 
-    def test_report_only_rerun_reuses_producing_attempt_and_pinned_baseline(self):
+    def test_report_only_reruns_preserve_the_pin_when_its_baseline_expires(self):
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory)
             _, first, _ = self.run_report(output)
             self.client.add_artifact(20, "performance-build-comparison-20-1", {"build-comparison.json": first})
             self.client.add(20, HEAD, attempt=2, start=stamp(13), artifact=False)
             self.client.run_jobs[20, 2][0]["started_at"] = stamp(12)
-            _, second, markdown = self.run_report(output, attempt=2)
-        self.assertEqual(second["baseline"], first["baseline"])
-        self.assertTrue(second["selection"]["pinned"])
-        self.assertEqual(second["candidate"]["run_attempt"], 1)
-        self.assertIn("Measurements: attempt 1; report: attempt 2", markdown)
-
-    def test_expired_pinned_baseline_remains_identified_without_forcing_delta(self):
-        with tempfile.TemporaryDirectory() as directory:
-            output = Path(directory)
-            _, first, _ = self.run_report(output)
-            self.client.add_artifact(20, "performance-build-comparison-20-1", {"build-comparison.json": first})
-            self.client.add(20, HEAD, attempt=2, start=stamp(13), artifact=False)
-            self.client.run_jobs[20, 2][0]["started_at"] = stamp(12)
+            _, second, rerun_markdown = self.run_report(output, attempt=2)
             self.client.run_artifacts[10][0]["expired"] = True
             _, result, markdown = self.run_report(output, attempt=2)
             self.client.run_artifacts[20] = [
                 item for item in self.client.run_artifacts[20] if item["name"] == "performance-smoke-20-1"
             ]
             self.client.add_artifact(20, "performance-build-comparison-20-2", {"build-comparison.json": result})
+            newer = bundle(90)
+            newer["run"].update(start_time_utc=stamp(10), end_time_utc=stamp(11))
+            self.client.add(11, PARENT, samples={"leg": [newer] * 3})
             self.client.add(20, HEAD, attempt=3, start=stamp(14), artifact=False)
             self.client.run_jobs[20, 3][0]["started_at"] = stamp(12)
             _, third, third_markdown = self.run_report(output, attempt=3)
+        self.assertEqual(second["baseline"], first["baseline"])
+        self.assertTrue(second["selection"]["pinned"])
+        self.assertEqual(second["candidate"]["run_attempt"], 1)
+        self.assertIn("Measurements: attempt 1; report: attempt 2", rerun_markdown)
         self.assertIsNone(result["baseline"])
         self.assertTrue(result["selection"]["pinned"])
         self.assertEqual(result["selection"]["unavailable_evidence"]["run_id"], 10)
