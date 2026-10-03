@@ -36,6 +36,7 @@ import inspect
 import logging
 from collections.abc import Callable
 from contextlib import suppress
+from functools import wraps
 from typing import TYPE_CHECKING, Any
 
 import torch
@@ -107,6 +108,59 @@ def _effective_joint_gains(real_asset) -> tuple[torch.Tensor | None, torch.Tenso
         if kd is not None:
             kd[:, actuator.joint_indices] = actuator.damping
     return kp, kd
+
+
+def _leapp_history_buffer_append(circular_buffer, task_name: str, state_name: str):
+    """Decorate a buffer's bound append method with LEAPP state capture.
+
+    During capture, a functional shift replaces in-place writes that the tracer
+    cannot see. The push counter is feedback state so first-frame backfill is
+    evaluated at inference time. Outside capture, the original method runs.
+
+    Args:
+        circular_buffer: Circular buffer whose state should be captured.
+        task_name: LEAPP node that owns the buffer state.
+        state_name: LEAPP state tensor name for the buffer contents.
+
+    Returns:
+        Decorator for the buffer's bound append method.
+    """
+
+    def decorate(original_append):
+        @wraps(original_append)
+        def wrapped(data: torch.Tensor) -> None:
+            if not ExportManager.is_interpret_graph_enabled():
+                original_append(data)
+                return
+
+            if data.shape[0] != circular_buffer.batch_size:
+                raise ValueError(
+                    f"The input data has '{data.shape[0]}' batch size while expecting '{circular_buffer.batch_size}'"
+                )
+            data = data.to(circular_buffer._device)
+
+            if circular_buffer._buffer is None:
+                circular_buffer._allocate_buffer(data)
+                circular_buffer._buffer.zero_()
+
+            buffer, num_pushes = annotate.state_tensors(
+                task_name,
+                {state_name: circular_buffer._buffer, f"{state_name}_num_pushes": circular_buffer._num_pushes},
+            )
+            k_pos = 0 if circular_buffer._stack_dim_internal is None else circular_buffer._stack_dim_internal
+            frame = data.unsqueeze(k_pos)
+            buffer = torch.cat((buffer.narrow(k_pos, 1, circular_buffer.max_length - 1), frame), dim=k_pos)
+            mask_shape = [1] * buffer.ndim
+            mask_shape[1 if circular_buffer._stack_dim_internal is None else 0] = circular_buffer.batch_size
+            buffer = torch.where((num_pushes == 0).view(mask_shape), frame, buffer)
+            circular_buffer._buffer, circular_buffer._num_pushes = annotate.update_state(
+                task_name, {state_name: buffer, f"{state_name}_num_pushes": num_pushes + 1}
+            )
+            circular_buffer._need_reset = False
+
+        return wrapped
+
+    return decorate
 
 
 class _ImageRgbExportProxy(_ManagerTermProxy):
@@ -307,14 +361,7 @@ class ExportPatcher:
                     self._patch_history_buffer_append(frames._buffer, f"frames_{group_name}_{term_name}")
 
     def _patch_history_buffer_append(self, circular_buffer, state_name: str):
-        """Replace ``append`` with a functional shift so history is LEAPP state.
-
-        Production :meth:`~isaaclab.utils.buffers.CircularBuffer.append` shifts
-        with in-place ``copy_``, which the tracer cannot see. During export the
-        same oldest→newest layout is produced with ``torch.cat`` so the
-        recurrence appears in the graph, using the buffer's configured history
-        dimension. The push counter is also feedback state so first-frame
-        backfill is evaluated at inference time rather than frozen during tracing.
+        """Install the LEAPP state decorator once on a buffer's append method.
 
         Args:
             circular_buffer: Circular buffer instance to patch.
@@ -323,45 +370,10 @@ class ExportPatcher:
         if hasattr(circular_buffer, "_leapp_original_append"):
             return
 
-        task_name = self.task_name
         circular_buffer._leapp_original_append = circular_buffer.append
-
-        def patched_append(data: torch.Tensor) -> None:
-            """Shift history with ``torch.cat`` and annotate as LEAPP state.
-
-            Args:
-                data: New observation slice appended to the buffer.
-            """
-            if not ExportManager.is_interpret_graph_enabled():
-                circular_buffer._leapp_original_append(data)
-                return
-
-            if data.shape[0] != circular_buffer.batch_size:
-                raise ValueError(
-                    f"The input data has '{data.shape[0]}' batch size while expecting '{circular_buffer.batch_size}'"
-                )
-            data = data.to(circular_buffer._device)
-
-            if circular_buffer._buffer is None:
-                circular_buffer._allocate_buffer(data)
-                circular_buffer._buffer.zero_()
-
-            buffer, num_pushes = annotate.state_tensors(
-                task_name,
-                {state_name: circular_buffer._buffer, f"{state_name}_num_pushes": circular_buffer._num_pushes},
-            )
-            k_pos = 0 if circular_buffer._stack_dim_internal is None else circular_buffer._stack_dim_internal
-            frame = data.unsqueeze(k_pos)
-            buffer = torch.cat((buffer.narrow(k_pos, 1, circular_buffer.max_length - 1), frame), dim=k_pos)
-            mask_shape = [1] * buffer.ndim
-            mask_shape[1 if circular_buffer._stack_dim_internal is None else 0] = circular_buffer.batch_size
-            buffer = torch.where((num_pushes == 0).view(mask_shape), frame, buffer)
-            circular_buffer._buffer, circular_buffer._num_pushes = annotate.update_state(
-                task_name, {state_name: buffer, f"{state_name}_num_pushes": num_pushes + 1}
-            )
-            circular_buffer._need_reset = False
-
-        circular_buffer.append = patched_append
+        circular_buffer.append = _leapp_history_buffer_append(circular_buffer, self.task_name, state_name)(
+            circular_buffer.append
+        )
 
     def _patch_observation_manager(self, obs_manager, proxy_env):
         """Patch observation terms to use annotating proxies and disable noise.
