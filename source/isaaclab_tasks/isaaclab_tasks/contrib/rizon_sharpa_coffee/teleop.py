@@ -11,6 +11,10 @@ Rizon/Sharpa RJ45 task. See ``assets/NOTICE`` for upstream asset provenance.
 
 from __future__ import annotations
 
+import hashlib
+import os
+import tempfile
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -29,6 +33,41 @@ HANDTRACKING_TO_BASELINK = (0.0, -1.0, 0.0, -1.0, 0.0, 0.0, 0.0, 0.0, -1.0)
 
 OPENXR_TO_PALM_RPY_DEG = (90.28118057, 2.77868426, -101.70219973)
 """OpenXR wrist to Fabrics-Sim ``r_palm_ctrl`` intrinsic XYZ offset [deg]."""
+
+SHARPA_URDF_REVISION = "3e953f588ba9954cebaa720aaa4cee06a43a068e"
+SHARPA_URDF_SHA256 = "7a9ab7f824482d23765b2da40b7e96fc605e7e70eda4615a5ca51fea88afb845"
+
+
+def right_hand_urdf() -> Path:
+    """Resolve pinned Sharpa kinematics for DexPilot without visual meshes.
+
+    Set ``ISAACLAB_SHARPA_RIGHT_URDF`` to override the default asset cache. See
+    the task README for download instructions. A derived cache removes unused
+    visual/collision elements so the optimizer needs no STL bundle. Joint
+    origins, limits, inertias and frames are retained; the source is unchanged.
+    Neither model is redistributed.
+    """
+    default = Path.home() / ".cache/isaaclab/sharpa" / SHARPA_URDF_REVISION / "right_sharpa_wave.urdf"
+    path = Path(os.environ.get("ISAACLAB_SHARPA_RIGHT_URDF", default)).expanduser().resolve()
+    if not path.is_file():
+        raise FileNotFoundError(
+            f"Sharpa retargeting URDF not found at {path}. Follow the coffee task README's asset setup or set"
+            " ISAACLAB_SHARPA_RIGHT_URDF. Scripted operation and PPO do not require this model."
+        )
+    if hashlib.sha256(path.read_bytes()).hexdigest() != SHARPA_URDF_SHA256:
+        raise ValueError(f"Sharpa retargeting URDF at {path} does not match pinned revision {SHARPA_URDF_REVISION}.")
+    model = ET.parse(path).getroot()
+    for link in model.findall("link"):
+        for geometry in link.findall("visual") + link.findall("collision"):
+            link.remove(geometry)
+    content = ET.tostring(model, encoding="utf-8", xml_declaration=True)
+    kinematics = default.with_name("right_sharpa_wave_kinematic.urdf")
+    if not kinematics.is_file() or kinematics.read_bytes() != content:
+        kinematics.parent.mkdir(parents=True, exist_ok=True)
+        with tempfile.NamedTemporaryFile(dir=kinematics.parent, suffix=".urdf", delete=False) as temporary:
+            temporary.write(content)
+        os.replace(temporary.name, kinematics)
+    return kinematics
 
 
 class CoffeeTeleopController:
@@ -57,7 +96,7 @@ class CoffeeTeleopController:
         self._held = torch.cat((self._robot_pose, hand), dim=-1)
 
     def compute(self, sample: torch.Tensor) -> torch.Tensor:
-        """Return one bounded, recentered 29-dimensional manager action."""
+        """Return one bounded, recentered palm pose and 22 hand joint targets."""
         sample = sample.reshape(1, -1).to(self._env.device)
         if sample.shape[1] != 29:
             raise ValueError("Expected a palm pose and 22 Sharpa finger angles.")
@@ -95,7 +134,7 @@ def build_teleop_pipeline() -> OutputCombiner:
     The arm pose uses the XR anchor transform; DexPilot consumes the raw hand
     skeleton and removes wrist motion itself. Reapplying the XR transform to
     fingers would mix coordinate systems. A missing/invalid wrist produces a
-    zero-position sentinel, which the task's arm action interprets as hold.
+    zero-position sentinel, which :class:`CoffeeTeleopController` interprets as hold.
     Missing finger joints hold the last complete hand command.
     """
     from isaacteleop.retargeters import (
@@ -183,7 +222,7 @@ def build_teleop_pipeline() -> OutputCombiner:
     hand = TrackedSharpaRetargeter(
         DexHandRetargeterConfig(
             hand_retargeting_config=str(assets / "sharpa_wave_right_dexpilot.yml"),
-            hand_urdf=str(assets / "right_sharpa_wave.urdf"),
+            hand_urdf=str(right_hand_urdf()),
             hand_joint_names=list(HAND_JOINT_NAMES),
             handtracking_to_baselink_frame_transform=HANDTRACKING_TO_BASELINK,
             hand_side="right",

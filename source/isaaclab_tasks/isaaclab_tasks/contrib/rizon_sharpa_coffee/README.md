@@ -21,7 +21,7 @@ The Gym registration points to `CoffeeEnv`, a `ManagerBasedRLEnv`, and
 `CoffeeEnvCfg`. The task owns the action interface, observations, rewards,
 terminations, scene resets and coupled physics. `mdp.py` defines its manager
 terms; `dissolution.py` performs physical material conversion independently of
-rendering. This is the reusable environment for future learning experiments.
+rendering. A registered RSL-RL PPO configuration uses this same environment.
 
 `scripts/demos/rizon_sharpa_coffee.py` is the demonstration runner. It selects
 scripted IK or AVP input, configures optional presentation, follows the spoon
@@ -50,6 +50,23 @@ Live headset operation additionally requires IsaacTeleop, CloudXR and a
 configured headset connection. Follow the maintained
 [CloudXR guide](../../../../../docs/source/how-to/cloudxr_teleoperation.rst).
 Physics, rendering and headset transport are separate runtime requirements.
+
+For AVP finger retargeting, obtain the pinned official Sharpa URDF separately,
+as in [IsaacTeleop's model setup](https://github.com/NVIDIA/IsaacTeleop/blob/c5fe6624cc4dff456485d2e786922c8e41100f83/examples/teleop_ros2/assets/urdf/sharpa_standalone/README.md):
+
+```bash
+coffee_urdf_dir="$HOME/.cache/isaaclab/sharpa/3e953f588ba9954cebaa720aaa4cee06a43a068e"
+mkdir -p "$coffee_urdf_dir"
+curl --fail --location \
+    https://raw.githubusercontent.com/sharpa-robotics/sharpa-urdf-usd-xml/3e953f588ba9954cebaa720aaa4cee06a43a068e/wave_01/right_sharpa_wave/right_sharpa_wave.urdf \
+    --output "$coffee_urdf_dir/right_sharpa_wave.urdf"
+```
+
+The teleoperation pipeline verifies the upstream SHA-256 before using the model.
+It caches the same kinematics with unused visual and collision elements removed,
+so DexPilot does not try to resolve the upstream STL bundle.
+Set `ISAACLAB_SHARPA_RIGHT_URDF` for a different local path to the same file.
+Scripted operation and PPO require only the robot USD bundle.
 
 ## Run and record
 
@@ -202,9 +219,17 @@ transport.
 
 The default spoon follows the **measured** palm through a graph-safe kinematic
 attachment at every physics tick, with the correct centre-of-mass twist. It
-does not apply reaction force to the hand. The 29 actions are absolute palm XYZ
-and XYZW orientation in the robot-base frame, followed by 22 absolute finger
-angles. IK targets remain within the articulation's soft joint limits.
+does not apply reaction force to the hand. The task accepts 28 actions: three
+robot-base translation increments, three axis-angle rotation increments and
+22 named finger controls. At the default 100 Hz policy rate, unit arm actions
+represent 5 mm or 0.03 rad. Finger actions in `[-1, 1]` map to the authored joint
+limits. IK targets remain within the articulation's soft joint limits.
+
+The scripted and AVP controllers produce absolute palm XYZ/XYZW and finger
+angle targets. The runner calls `env.actions_from_targets()` before each step
+to encode them into the task interface. This preserves the existing pose
+trajectories. PPO clips exploration to `[-1, 1]`; absolute demonstration targets
+retain their full pose error.
 
 Author a named grasp candidate with independent initial positions and motor
 preload targets:
@@ -228,16 +253,51 @@ demonstration.
 
 ## Learning and validation
 
-The task provides observation, reward, action, reset and termination managers;
-it does not bundle a trained policy or training framework configuration. The
-observations include joints, palm and spoon poses, coffee fractions and the
-previous action. Success requires the configured coffee fraction in the cup
-for a dwell period. Rewards use delivery, retention above the source and spill
-fractions. Dose reporting is independent of the success threshold.
+The task provides observation, reward, action, reset and termination managers
+and a state-based RSL-RL PPO baseline. It does not bundle a trained policy. The
+110 policy observations include joints, palm and spoon poses, vectors to the
+source and cup, coffee fractions and the previous action. Success requires the
+configured coffee fraction in the cup for a dwell period. A small approach reward
+guides an empty spoon to the source and a loaded spoon to the cup, using measured
+contents rather than scripted phases. Other rewards use delivery, retention,
+spill, action changes and success. Dose reporting is independent of the success
+threshold. The demo disables success termination so it can complete
+both scoops and stirring; PPO retains success, invalid-state and timeout resets.
+
+Train the dry mounted task without presentation resources:
+
+```bash
+uv run --no-sync isaaclab train --rl_library rsl_rl \
+    --task IsaacContrib-Rizon-Sharpa-Coffee --num_envs 4 --visualizer none
+```
+
+The baseline uses normalized actor and critic observations, a 28-action Gaussian
+policy, and the native PPO runner and vector wrapper. `agents/rsl_rl_ppo_cfg.py`
+defines its hyperparameters. They are a starting point; successful learning
+and a target delivered dose have not been established. Keep environment counts
+small initially because each world owns a fine MPM grid. Larger voxel sizes can
+reduce training cost but change spoon containment and must be validated before
+using them for policy development. Optional water conversion is enabled with
+`env.water_enabled=True`; the dry task is the default learning configuration.
+
+The current workstation also uses pinned Newton main and Warp nightly builds
+for MPM optimizations. Their revisions are declared in the root `pyproject.toml`
+and `uv.lock`. Include that dependency update in review or land it as a
+prerequisite; the captured material-conversion regression does not pass on the
+repository's earlier Newton 1.6.0 / Warp 1.17.0 combination. The task does not
+patch Newton itself.
+
+Play a saved policy with the standard runner:
+
+```bash
+uv run --no-sync isaaclab play --rl_library rsl_rl \
+    --task IsaacContrib-Rizon-Sharpa-Coffee --num_envs 1 \
+    --checkpoint /path/to/model.pt --visualizer newton
+```
 
 Focused tests are in `source/isaaclab_tasks/test/contrib/test_rizon_sharpa_coffee_*.py`.
 They cover asset geometry and clearance, native loaded-spoon containment,
-batched mounted dynamics and partial reset, contact hold/release, physical
+batched mounted dynamics, action encoding, PPO timeout resets, contact hold/release, physical
 dissolution during graph replay, conservative colour transport, spatial surface
 history, GL texture upload and retargeting conventions. Robot integration tests
 require the licensed asset bundle; the other contracts use generated fixtures.

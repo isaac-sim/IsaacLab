@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 
 
 class CoffeeScoopDemo:
-    """Operate the same 29-dimensional manager action used by teleoperation.
+    """Generate absolute palm and hand targets for the task's action encoder.
 
     Waypoints describe the spoon cavity in the environment frame. Each command
     is converted through the measured robot root and palm/tool transform, so IK

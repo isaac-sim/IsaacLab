@@ -6,6 +6,13 @@ Added
   optional stirring, Apple Vision Pro retargeting and named grasp-reset authoring.
   The default uses a measured-palm tool attachment; free-spoon contact grasping
   remains experimental. The licensed robot bundle must be provided separately.
+* Registered a state-based RSL-RL PPO baseline with normalized palm and finger
+  actions. Scripted IK and teleoperation preserve their absolute trajectories
+  through the task's target encoder, sharing the same manager action interface.
+  Source/cup target observations and a measured-load approach reward support
+  learning without a scripted phase oracle.
+* Kept the Sharpa retargeting URDF external with pinned checksum validation and
+  included the license for the packaged IsaacTeleop retargeting configuration.
 * Added mass-preserving soluble-coffee conversion into liquid during captured
   physics, world-local material resets and conservative colour transport.
   Optional GL, RTX and Kit presentation includes native rendering grains,

@@ -42,8 +42,8 @@ include = ["isaaclab_tasks", "isaaclab_tasks.*"]
 "isaaclab_tasks.contrib.rizon_sharpa_coffee" = [
     "README.md",
     "assets/NOTICE",
+    "assets/LICENSE-IsaacTeleop",
     "assets/*.json",
     "assets/*.mdl",
-    "assets/*.urdf",
     "assets/*.yml",
 ]

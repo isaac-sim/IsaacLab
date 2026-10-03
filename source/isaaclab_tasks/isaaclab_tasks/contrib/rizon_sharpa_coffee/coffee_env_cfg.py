@@ -60,19 +60,31 @@ class CoffeeSceneCfg(InteractiveSceneCfg):
 
 @configclass
 class CoffeeActionsCfg:
-    """Absolute palm pose followed by 22 named, absolute hand positions [rad]."""
+    """Six scaled palm increments and 22 finger positions normalized to joint limits."""
 
     arm = mdp.PalmPoseIKActionCfg(
         asset_name="robot",
         joint_names=list(ARM_JOINT_NAMES),
         body_name=PALM_BODY_NAME,
-        controller=DifferentialIKControllerCfg(command_type="pose", ik_method="dls", ik_params={"lambda_val": 0.05}),
+        scale=(0.005, 0.005, 0.005, 0.03, 0.03, 0.03),
+        controller=DifferentialIKControllerCfg(
+            command_type="pose", use_relative_mode=True, ik_method="dls", ik_params={"lambda_val": 0.05}
+        ),
     )
     hand = common_mdp.JointPositionActionCfg(
+        class_type=mdp.HandPositionAction,
         asset_name="robot",
         joint_names=list(HAND_JOINT_NAMES),
         preserve_order=True,
         use_default_offset=False,
+        scale={
+            name: (upper - lower) / 2.0
+            for name, (lower, upper) in zip(HAND_JOINT_NAMES, HAND_JOINT_LIMITS, strict=True)
+        },
+        offset={
+            name: (upper + lower) / 2.0
+            for name, (lower, upper) in zip(HAND_JOINT_NAMES, HAND_JOINT_LIMITS, strict=True)
+        },
         clip=dict(zip(HAND_JOINT_NAMES, HAND_JOINT_LIMITS, strict=True)),
     )
 
@@ -85,6 +97,7 @@ class CoffeeObservationsCfg:
         joint_vel = ObservationTermCfg(func=common_mdp.joint_vel_rel)
         palm = ObservationTermCfg(func=mdp.palm_pose)
         spoon = ObservationTermCfg(func=mdp.spoon_pose)
+        targets = ObservationTermCfg(func=mdp.target_vectors)
         coffee = ObservationTermCfg(func=mdp.particle_fractions)
         last_action = ObservationTermCfg(func=common_mdp.last_action)
 
@@ -97,9 +110,11 @@ class CoffeeObservationsCfg:
 
 @configclass
 class CoffeeRewardsCfg:
+    approach = RewardTermCfg(func=mdp.approach, weight=0.1, params={"std": 0.1})
     delivered = RewardTermCfg(func=mdp.delivery, weight=20.0)
     carried = RewardTermCfg(func=mdp.spoon_load, weight=2.0)
     spilled = RewardTermCfg(func=mdp.spill, weight=-10.0)
+    succeeded = RewardTermCfg(func=mdp.success, weight=1000.0)
     action_rate = RewardTermCfg(func=common_mdp.action_rate_l2, weight=-0.001)
 
 
@@ -176,6 +191,10 @@ def configure_scene(cfg: CoffeeEnvCfg) -> None:
         raise ValueError("coffee_fill_height must be between 9 and 75 mm.")
     if not 0.012 <= cfg.water_fill_height <= 0.079:
         raise ValueError("water_fill_height must be between 12 and 79 mm.")
+    if not 0.0 < cfg.success_fraction <= 1.0:
+        raise ValueError("success_fraction must be in (0, 1].")
+    if not math.isfinite(cfg.success_dwell_s) or cfg.success_dwell_s <= 0.0:
+        raise ValueError("success_dwell_s must be finite and positive.")
     paths = build_coffee_assets()
     cfg.scene.robot = get_robot_cfg(contact_grasp=cfg.grasp_mode == "contact")
     from .grasp_reset import configure_grasp_reset

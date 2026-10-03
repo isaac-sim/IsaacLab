@@ -12,35 +12,42 @@ from typing import TYPE_CHECKING
 import torch
 
 from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
+from isaaclab.envs.mdp.actions.joint_actions import JointPositionAction
 from isaaclab.envs.mdp.actions.task_space_actions import DifferentialInverseKinematicsAction
 from isaaclab.utils import configclass
+from isaaclab.utils import math as math_utils
 
 if TYPE_CHECKING:
     from .coffee_env import CoffeeEnv
 
 
 class PalmPoseIKAction(DifferentialInverseKinematicsAction):
-    """Control a bounded absolute palm pose for either tool-grasp mode.
+    """Control palm translation and axis-angle increments in the robot-base frame.
 
-    Absolute commands use robot-base positions [m] and XYZW quaternions. Invalid
-    tracking samples retain the preceding target. Spoon dynamics are configured
-    independently by the environment.
+    Policy commands are scaled by the configuration. Absolute targets from the
+    demo and teleoperation are converted to the same relative action interface.
+    Spoon dynamics are configured independently by the environment.
     """
 
     def process_actions(self, actions: torch.Tensor) -> None:
-        valid = torch.isfinite(actions).all(dim=-1) & (actions[:, 3:7].norm(dim=-1) > 1.0e-6)
-        # IsaacTeleop's missing-pose sentinel must never send the hand to the base.
-        valid &= actions[:, :3].norm(dim=-1) > 1.0e-6
-        safe = torch.where(valid[:, None], actions, self._processed_actions).clone()
-        safe[:, 3:7] /= safe[:, 3:7].norm(dim=-1, keepdim=True).clamp_min(1.0e-6)
-        super().process_actions(safe)
+        valid = torch.isfinite(actions).all(dim=-1, keepdim=True)
+        super().process_actions(torch.where(valid, actions, 0.0))
+
+    def actions_from_pose(self, pose: torch.Tensor) -> torch.Tensor:
+        """Encode an absolute robot-base palm pose, shape (N, 7), XYZW."""
+        pos, quat = self._compute_frame_pose()
+        translation, rotation = math_utils.compute_pose_error(pos, quat, pose[:, :3], pose[:, 3:])
+        return torch.cat((translation, rotation), dim=-1) / self._scale
 
     def reset(self, env_ids=None) -> None:
         super().reset(env_ids)
         selected = slice(None) if env_ids is None else env_ids
         pos, quat = self._compute_frame_pose()
-        self._processed_actions[selected] = torch.cat((pos, quat), dim=-1)[selected]
-        self._ik_controller.set_command(self._processed_actions, pos, quat)
+        self._processed_actions[selected] = 0.0
+        # Updating every relative command here would advance unreset worlds'
+        # targets a second time. Reset only the selected controller targets.
+        self._ik_controller.ee_pos_des[selected] = pos[selected]
+        self._ik_controller.ee_quat_des[selected] = quat[selected]
 
     def apply_actions(self) -> None:
         """Keep drive targets inside soft limits before native actuation."""
@@ -56,9 +63,17 @@ class PalmPoseIKAction(DifferentialInverseKinematicsAction):
 
 @configclass
 class PalmPoseIKActionCfg(DifferentialInverseKinematicsActionCfg):
-    """Absolute palm inverse kinematics with bounded joint targets."""
+    """Relative palm inverse kinematics with bounded joint targets."""
 
     class_type: type = PalmPoseIKAction
+
+
+class HandPositionAction(JointPositionAction):
+    """Use the native affine joint action for policy and absolute hand targets."""
+
+    def actions_from_positions(self, positions: torch.Tensor) -> torch.Tensor:
+        """Encode named hand joint positions [rad], shape (N, 22)."""
+        return (positions - self._offset) / self._scale
 
 
 def palm_pose(env: CoffeeEnv) -> torch.Tensor:
@@ -76,6 +91,23 @@ def spoon_pose(env: CoffeeEnv) -> torch.Tensor:
 def particle_fractions(env: CoffeeEnv) -> torch.Tensor:
     """Coffee fractions in the source, spoon, cup and below the table, (N, 4)."""
     return env.particle_fractions()
+
+
+def target_vectors(env: CoffeeEnv) -> torch.Tensor:
+    """Vectors from the spoon to the source and cup targets, shape (N, 6)."""
+    return (env.tool_targets - spoon_pose(env)[:, None, :3]).flatten(start_dim=1)
+
+
+def approach(env: CoffeeEnv, std: float) -> torch.Tensor:
+    """Approach the source while empty and the cup while carrying coffee.
+
+    The blend depends on measured spoon contents, without a scripted phase or
+    a waypoint controller in the learning environment.
+    """
+    distances = target_vectors(env).reshape(env.num_envs, 2, 3).norm(dim=-1)
+    loaded = (env.particle_fractions()[:, 1] / env.cfg.success_fraction).clamp(0.0, 1.0)
+    proximity = 1.0 - torch.tanh(distances / std)
+    return torch.lerp(proximity[:, 0], proximity[:, 1], loaded)
 
 
 def delivery(env: CoffeeEnv) -> torch.Tensor:

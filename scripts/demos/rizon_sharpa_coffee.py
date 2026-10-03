@@ -257,6 +257,8 @@ def main() -> None:
                 rigid_substeps=cfg.sim.physics.solver_cfg.entries[0].substeps,
                 mpm_substeps=cfg.sim.physics.solver_cfg.entries[1].substeps,
                 control_dt_s=env.step_dt,
+                policy_actions=env.action_manager.total_action_dim,
+                control_targets="absolute robot-base palm XYZ/XYZW and 22 hand angles",
                 solver_iterations=cfg.sim.physics.solver_cfg.entries[1].solver_cfg.max_iterations,
                 rheology_solver=cfg.sim.physics.solver_cfg.entries[1].solver_cfg.solver,
                 collider_basis=cfg.sim.physics.solver_cfg.entries[1].solver_cfg.collider_basis,
@@ -319,7 +321,7 @@ def main() -> None:
                         controller.phase if controller is not None else "teleoperation",
                         env.step_dt,
                     )
-                observations, reward, terminated, truncated, _ = env.step(action)
+                observations, reward, terminated, truncated, _ = env.step(env.actions_from_targets(action))
                 if not torch.isfinite(observations["policy"]).all() or not torch.isfinite(reward).all():
                     raise RuntimeError("Coffee rollout produced a nonfinite observation or reward.")
                 if bool(terminated.any()) or bool(truncated.any()):

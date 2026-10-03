@@ -40,7 +40,7 @@ from .robot import PALM_BODY_NAME
 
 
 class CoffeeEnv(ManagerBasedRLEnv):
-    """Lean tool-use environment; controllers share its 29-dimensional action API.
+    """Lean tool-use environment with a 28-dimensional policy action interface.
 
     MJWarp advances the arm and hand; implicit MPM advances the material. Mounted
     mode makes the spoon follow the palm. Contact mode instead gives the free
@@ -72,6 +72,9 @@ class CoffeeEnv(ManagerBasedRLEnv):
             (BOWL_INNER_RADIUS * BOWL_SCALE[0], BOWL_INNER_RADIUS * BOWL_SCALE[1]), device=self.device
         )
         self._cup_position = torch.tensor(CUP_POSITION, device=self.device)
+        self.tool_targets = torch.stack((self._bowl_position, self._cup_position)).clone()
+        self.tool_targets[0, 2] += 0.7 * self.cfg.coffee_fill_height
+        self.tool_targets[1, 2] += CUP_HEIGHT + 0.020
         self._source_top = max(BOWL_HEIGHT + 0.002, self.cfg.coffee_fill_height + 0.010)
         self.delivery_dwell = torch.zeros(self.num_envs, device=self.device)
         self._fraction_cache = None
@@ -141,6 +144,24 @@ class CoffeeEnv(ManagerBasedRLEnv):
         root = robot.data.root_link_pose_w.torch
         pos, quat = math_utils.subtract_frame_transforms(root[:, :3], root[:, 3:], palm[:, :3], palm[:, 3:])
         return torch.cat((pos, quat), dim=-1)
+
+    def actions_from_targets(self, targets: torch.Tensor) -> torch.Tensor:
+        """Encode absolute palm XYZ/XYZW and 22 finger angles into task actions.
+
+        Args:
+            targets: Robot-base palm pose followed by named hand positions [rad],
+                shape (num_envs, 29). Recompute the encoding before every step.
+
+        Returns:
+            Scaled relative palm control and normalized hand positions, shape
+            (num_envs, 28). The policy wrapper clips exploration to [-1, 1];
+            scripted and teleoperated targets retain their full pose errors.
+        """
+        if targets.shape != (self.num_envs, 29):
+            raise ValueError(f"Expected targets with shape ({self.num_envs}, 29), received {tuple(targets.shape)}.")
+        arm = self.action_manager.get_term("arm").actions_from_pose(targets[:, :7])
+        hand = self.action_manager.get_term("hand").actions_from_positions(targets[:, 7:])
+        return torch.cat((arm, hand), dim=-1)
 
     def sync_spoon(self, env_ids=None) -> None:
         """Initialize the spoon from the palm during construction or episode reset."""
