@@ -40,8 +40,6 @@ class PairedFixtureClient(FixtureClient):
 
     def paginate(self, path, key, **params):
         self.pages_requested.append((path, key, params))
-        if key == "artifacts":
-            return [item for items in self.run_artifacts.values() for item in items]
         if key == "workflow_runs":
             latest = {}
             for (run_id, attempt), run in self.attempts.items():
