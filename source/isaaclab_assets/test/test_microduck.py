@@ -9,13 +9,13 @@ from dataclasses import fields
 
 import pytest
 import torch
+from isaaclab_newton.actuators import DriveBam
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from newton.actuators import parse_actuator_prim
 
 from pxr import Usd
 
 import isaaclab.sim as sim_utils
-from isaaclab.actuators.newton import DriveBam
 from isaaclab.assets import Articulation, AssetBaseCfg
 from isaaclab.cloner import CloneCfg, clone_plan_from_env_0, replicate
 from isaaclab.sim import SimulationCfg, build_simulation_context
