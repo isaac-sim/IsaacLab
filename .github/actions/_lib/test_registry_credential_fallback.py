@@ -16,9 +16,11 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import re
 import subprocess
 from pathlib import Path
 
+import pytest
 import yaml
 
 _LIB_DIR = Path(__file__).resolve().parent
@@ -303,3 +305,58 @@ def test_successful_read_ignores_stderr_noise(tmp_path: Path) -> None:
     result = _run_hash(tmp_path, "nvcr.io/example/isaac-sim", "latest-release-6-1", stub)
     assert result.returncode == 0, result.stderr
     assert f"RESULT=nvcr.io/example/isaac-sim:latest-release-6-1:{_DIGEST}" in result.stdout
+
+
+@pytest.mark.parametrize("cache", ["exact", "deps", "miss"])
+def test_second_image_never_publishes_under_first_images_dependency_key(tmp_path: Path, cache: str) -> None:
+    """Exercise the real cache/push shells with state left by an older base-side action."""
+    action = yaml.safe_load((_LIB_DIR.parent / "ecr-build-push-pull/action.yml").read_text())
+    steps = {step["name"]: step for step in action["runs"]["steps"]}
+    bin_dir = tmp_path / "bin"
+    trace = tmp_path / "docker.log"
+    _write_stub_docker(
+        bin_dir,
+        'if [ "$1 $2" = "manifest inspect" ]; then [ "$CACHE" = deps ]; exit $?; fi\nprintf "%s\\n" "$*" >> "$TRACE"',
+    )
+    env = {
+        **os.environ,
+        "PATH": f"{bin_dir}:{os.environ['PATH']}",
+        "CACHE": cache,
+        "TRACE": str(trace),
+        "ECR_URL": "registry.example/lab",
+        "ECR_IMAGE": "registry.example/lab:PR",
+        "DEPS_ECR_IMAGE": "registry.example/lab:deps-BASE",
+        "PUSH_DEPS_IMAGE": "true",
+        "GITHUB_ENV": str(tmp_path / "env"),
+        "GITHUB_OUTPUT": str(tmp_path / "output"),
+    }
+    values = {"inputs.image-tag": "local:PR", "steps.deps-hash.outputs.hash": "PR"}
+
+    def expand(text):
+        return re.sub(r"\$\{\{\s*([^}]+?)\s*}}", lambda match: values.get(match[1], ""), text)
+
+    def run(body):
+        result = subprocess.run(["bash", "-e", "-c", expand(body)], env=env, capture_output=True, text=True)
+        assert result.returncode == 0, result.stderr
+
+    if cache != "exact":
+        run(steps["Check deps cache"]["run"])
+    for file, destination, prefix in (("env", env, ""), ("output", values, "steps.deps-cache.outputs.")):
+        path = tmp_path / file
+        if path.exists():
+            for line in path.read_text().splitlines():
+                key, value = line.split("=", 1)
+                destination[prefix + key] = value
+    # Evaluate both guard forms so reverting to the job-wide guard exposes the wrong image push.
+    push = steps["Push deps tag"]
+    lhs, operator, rhs = push["if"].split()
+    value = env.get(lhs[4:], "") if lhs.startswith("env.") else values.get(lhs, "")
+    enabled = {"==": value == rhs.strip("'"), "!=": value != rhs.strip("'")}[operator]
+    if enabled:
+        env.update({key: expand(value) for key, value in push.get("env", {}).items()})
+        run(push["run"])
+    commands = trace.read_text().splitlines() if trace.exists() else []
+    publications = [line for line in commands if line.startswith(("tag ", "push "))]
+    assert publications == (
+        ["tag local:PR registry.example/lab:deps-PR", "push registry.example/lab:deps-PR"] if cache == "miss" else []
+    )

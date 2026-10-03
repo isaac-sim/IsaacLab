@@ -12,7 +12,10 @@ same data.
 
 from __future__ import annotations
 
+import html
 import json
+import re
+from collections import Counter
 from pathlib import Path
 
 from .compare import ERROR, FAIL, PASS, SKIP, WARN, Report
@@ -81,7 +84,7 @@ def render_aggregate(reports: list[tuple[str, Report]]) -> str:
         Markdown for the aggregate job summary.
     """
     if not reports:
-        return "## Performance smoke: no results\n\nNo comparison artifacts were produced.\n"
+        return "### Rolling-history CI gate: no results\n\nNo comparison artifacts were produced.\n"
 
     # SKIP ranks below PASS so that a run where nothing was compared does not headline as a green
     # pass. A mix still headlines PASS since at least once comparison was made.
@@ -89,9 +92,16 @@ def render_aggregate(reports: list[tuple[str, Report]]) -> str:
     worst = max((report.verdict for _, report in reports), key=lambda verdict: order.get(verdict, 0))
 
     lines = [
-        f"## Performance smoke: {_icon(worst)}",
+        f"### Rolling-history CI gate: {_icon(worst)}",
         "",
-        "| Combination | Total FPS | Baseline | Change | Startup [s] | GPU mem [GB] | RSS [GB] | Verdict |",
+    ]
+    for message in dict.fromkeys(report.message for _, report in reports if report.message):
+        lines += [_build_text(message), ""]
+    lines += [
+        "<details>",
+        "<summary>Rolling-history gate details</summary>",
+        "",
+        "| Combination | Total FPS | Baseline | FPS regression % | Startup [s] | GPU mem [GB] | RSS [GB] | Verdict |",
         "| --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |",
     ]
     # Sort on the label only: a duplicate label would otherwise fall through to
@@ -100,18 +110,31 @@ def render_aggregate(reports: list[tuple[str, Report]]) -> str:
         by_name = {metric.name: metric for metric in report.metrics}
         fps = by_name.get("total_fps")
         lines.append(
-            f"| {name} | {_num(fps.measured) if fps else '-'} | {_num(fps.reference) if fps else '-'} | "
+            f"| {_build_text(name)} | {_num(fps.measured) if fps else '-'} | {_num(fps.reference) if fps else '-'} | "
             f"{_pct(fps.regression_pct) if fps else '-'} | "
             f"{_num(by_name['startup_time_s'].measured, 4) if 'startup_time_s' in by_name else '-'} | "
             f"{_num(by_name['gpu_mem_peak_gb'].measured, 4) if 'gpu_mem_peak_gb' in by_name else '-'} | "
             f"{_num(by_name['ram_peak_gb'].measured, 4) if 'ram_peak_gb' in by_name else '-'} | "
             f"{_icon(report.verdict)} |"
         )
+    lines += ["", "For the rolling-history gate, positive FPS regression % means lower FPS.", ""]
+    for name, report in sorted(reports, key=lambda item: item[0]):
+        reasons = [report.message] if report.message else []
+        reasons.extend(f"{metric.label}: {metric.note}" for metric in report.metrics if metric.note)
+        if not reasons and report.verdict in (SKIP, ERROR):
+            reasons.append("No reason was recorded in this comparison artifact.")
+        if reasons:
+            lines.append(
+                f"- **{_build_text(name)} — {_build_text(report.verdict)}:** "
+                + " ".join(_build_text(reason) for reason in dict.fromkeys(reasons))
+            )
     lines += [
         "",
         f"{len(reports)} combination(s) reported. A 🚫 ERROR row is a fault in the gate, not a performance "
         "result, and never blocks a pull request. A combination whose benchmark crashed shows both an ERROR "
         "row here and a failed job.",
+        "",
+        "</details>",
     ]
     return "\n".join(lines) + "\n"
 
@@ -120,3 +143,302 @@ def write_json(report: Report, path: Path) -> None:
     """Write the machine-readable comparison to ``path``. The Markdown form goes to stdout."""
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(report.as_dict(), indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def _build_text(value: object) -> str:
+    """Keep artifact-provided labels inside their Markdown table cell or paragraph."""
+    result = html.escape(str(value)).replace("\n", " ").replace("\r", " ")
+    for character, entity in (("|", "&#124;"), ("`", "&#96;"), ("[", "&#91;"), ("]", "&#93;")):
+        result = result.replace(character, entity)
+    return result
+
+
+def _build_identity(label: str, identity: dict | None) -> str:
+    if not identity:
+        return f"**{label}:** unavailable."
+    commit = _build_text(str(identity.get("source_commit", "unknown"))[:12])
+    run = _build_text(identity.get("run_id", "unknown"))
+    attempt = _build_text(identity.get("run_attempt", "unknown"))
+    # Artifact-provided URLs are untrusted, including links recovered from earlier reports.
+    repository = identity.get("repository", "")
+    origin = f"https://github.com/{repository}" if re.fullmatch(r"[\w.-]+/[\w.-]+", repository) else None
+    source = commit
+    if origin and re.fullmatch(r"[0-9a-fA-F]{40}", str(identity.get("source_commit", ""))):
+        source = f"[{commit}]({origin}/commit/{identity['source_commit']})"
+    execution = f"run {run}, attempt {attempt}"
+    run_url = None
+    if origin and all(str(identity.get(field, "")).isdigit() for field in ("run_id", "run_attempt")):
+        run_url = f"{origin}/actions/runs/{identity['run_id']}"
+        execution = f"[{execution}]({run_url}/attempts/{identity['run_attempt']})"
+    evidence = ""
+    if run_url and str(identity.get("artifact_id", "")).isdigit():
+        evidence = f" · [source results]({run_url}/artifacts/{identity['artifact_id']})"
+    note = ""
+    if identity.get("source_provenance") == "github_run_metadata":
+        note = " · source SHA recovered from GitHub; tested checkout not independently recorded"
+    head = str(identity.get("requested_head_commit") or "")
+    if origin and head != identity.get("source_commit") and re.fullmatch(r"[0-9a-fA-F]{40}", str(head)):
+        note += f" · requested PR head [{head[:12]}]({origin}/commit/{head})"
+    return f"**{label}:** {source} · {execution}{evidence}{note}."
+
+
+def _build_result(row: dict) -> str:
+    if row["status"] != "compared" or row.get("absolute_change") is None:
+        return "⚪ Not comparable"
+    if row["absolute_change"] > 0:
+        return "🟢 Improved"
+    if row["absolute_change"] < 0:
+        return "🔴 Regressed"
+    return "⚪ Unchanged"
+
+
+def _build_reason(row: dict) -> str:
+    if row["status"] == "compared":
+        delta = row.get("absolute_change")
+        if delta is None:
+            return "Cannot compare: change unavailable"
+        if delta > 0:
+            return "↑ Higher FPS"
+        if delta < 0:
+            return "↓ Lower FPS"
+        return "Unchanged"
+    if row["status"] in ("missing", "partial"):
+        affected = [
+            label
+            for side, label in (("baseline", "Baseline"), ("candidate", "Current"))
+            if row[side]["status"] == row["status"]
+        ]
+        subject = " and ".join(affected) or "Benchmark"
+        if row["status"] == "missing":
+            return f"No {subject.lower()} samples"
+        return subject + " results incomplete"
+    return {
+        "unknown": "Cannot compare: measurement details unknown",
+        "incompatible": "Cannot compare: measurement setup differs",
+    }.get(row["status"], f"Cannot compare: {row['status']}")
+
+
+def _build_fps(value: float | None) -> str:
+    """Make FPS readable at a glance while keeping small nonzero values visible."""
+    if value is None:
+        return "—"
+    if 0 < abs(value) < 0.01:
+        return f"{value:.6g}"
+    return f"{value:,.2f}".rstrip("0").rstrip(".")
+
+
+def _build_labels(rows: list[dict]) -> list[str]:
+    """Use unambiguous CI configuration names, retaining full identities below."""
+    labels = []
+    for index, row in enumerate(rows, 1):
+        legs = row.get("legs", {})
+        names = set(legs.get("baseline", [])) | set(legs.get("candidate", []))
+        current = legs.get("candidate", [])
+        previous = legs.get("baseline", [])
+        label = next(iter(names)) if len(names) == 1 else None
+        if label is None:
+            label = current[0] if len(current) == 1 else previous[0] if len(previous) == 1 else f"Workload {index}"
+        labels.append(label)
+    result, used = [], set(labels)
+    for index, label in enumerate(labels, 1):
+        if labels.count(label) > 1:
+            while f"{label} ({index})" in used:
+                index += 1
+            label = f"{label} ({index})"
+        used.add(label)
+        result.append(label)
+    return result
+
+
+def _build_source_diagnostics(report: dict) -> list[str]:
+    """Keep actual, intended and event revisions below the primary comparison."""
+    selection = report.get("selection", {})
+    lines = []
+    source_context = report.get("source_context") or {}
+    reference_commit = source_context.get("reference_commit") or selection.get("reference_commit")
+    event_base_commit = source_context.get("event_base_commit") or selection.get("event_base_commit")
+    if reference_commit and event_base_commit and reference_commit != event_base_commit:
+        lines += [
+            f"Resolved PR base: `{_build_text(reference_commit)}`. "
+            f"The PR event reported `{_build_text(event_base_commit)}`; "
+            "the resolved base identifies the tested merge's actual first parent.",
+            "",
+        ]
+    failure = selection.get("paired_failure") or {}
+    if failure:
+        lines += ["**Source setup diagnostics:**", "", f"Stage: `{_build_text(failure.get('stage'))}`.", ""]
+        failure_source = failure.get("source") or {}
+        for field, label in (
+            ("commit", "Actual checkout"),
+            ("intended_commit", "Intended checkout"),
+            ("reference_commit", "Resolved PR base"),
+            ("event_base_commit", "PR event base"),
+            ("requested_head_commit", "Requested PR head"),
+        ):
+            if failure_source.get(field):
+                lines.append(f"- {label}: `{_build_text(failure_source[field])}`")
+        if failure_source.get("commit_parents"):
+            parents = ", ".join(f"`{_build_text(parent)}`" for parent in failure_source["commit_parents"])
+            lines.append(f"- Checkout parents: {parents}")
+        lines.append("")
+    return lines
+
+
+def _build_candidate_label(report: dict, pr: bool, identity: dict | None) -> str:
+    if not pr:
+        return "B — current benchmark"
+    if (identity or {}).get("source_provenance") == "github_run_metadata":
+        return "B — PR revision (not verified)"
+    return {
+        "merge": "B — PR merge result",
+        "head": "B — PR head",
+    }.get(report.get("candidate_kind"), "B — PR benchmark")
+
+
+def _build_primary_rows(rows: list[dict], failure: dict | None) -> list[dict]:
+    if failure and not any(row[side]["median"] is not None for row in rows for side in ("baseline", "candidate")):
+        return []
+    return rows
+
+
+def render_build_comparison(report: dict) -> str:
+    """Render exact-build FPS observations within the existing Performance smoke summary."""
+    selection = report.get("selection", {})
+    identities = {side: report.get(side) for side in ("baseline", "candidate")}
+    unavailable_side = selection.get("unavailable_side")
+    if unavailable_side in identities and not identities[unavailable_side]:
+        identities[unavailable_side] = selection.get("unavailable_evidence")
+    paired = report.get("comparison_mode") == "paired_pr"
+    pr = paired or (report.get("candidate") or {}).get("event") == "pull_request"
+    a_label = "A — PR base" if paired else "A — historical baseline"
+    b_label = _build_candidate_label(report, pr, identities["candidate"])
+    a_label += " (evidence unavailable)" if unavailable_side == "baseline" else ""
+    b_label += " (evidence unavailable)" if unavailable_side == "candidate" else ""
+    rows = report.get("rows", [])
+    labels = _build_labels(rows)
+    results = Counter(_build_result(row) for row in rows)
+    counts = [f"{status} {results[status]}" for status in ("🟢 Improved", "🔴 Regressed", "⚪ Not comparable")]
+    if results["⚪ Unchanged"]:
+        counts.append(f"⚪ Unchanged {results['⚪ Unchanged']}")
+    lines = [
+        "### PR performance comparison" if paired else "### Automatic build comparison",
+        "",
+        "**" + (" · ".join(counts) if rows else "⚪ Not comparable: no workload results available") + "**",
+        "",
+    ]
+    if selection.get("reason_code") or not report.get("baseline") or not rows:
+        missing_reason = (
+            "No baseline results were available." if rows else "No readable workload results were recorded."
+        )
+        lines += [
+            "Comparison unavailable: " + _build_text(selection.get("reason", missing_reason)),
+            "",
+        ]
+    primary_rows = _build_primary_rows(rows, selection.get("paired_failure"))
+    if primary_rows:
+        lines += [
+            f"| Status | Workload | Baseline FPS | {'PR' if pr else 'Current'} FPS | Change % |",
+            "| --- | --- | ---: | ---: | ---: |",
+        ]
+    for label, row in zip(labels, primary_rows):
+        percent = _pct(row["change_pct"]) if row.get("change_pct") is not None else "—"
+        if row["status"] == "compared" and row.get("change_pct") is None and row["baseline"]["median"] == 0:
+            percent = "N/A (baseline is zero)"
+        lines.append(
+            f"| {_build_result(row)} | {_build_text(label)} | {_build_fps(row['baseline']['median'])} | "
+            f"{_build_fps(row['candidate']['median'])} | {percent} |"
+        )
+    if primary_rows:
+        lines += [
+            "",
+            "FPS is the median of recorded samples. Improved and regressed describe observed FPS changes; "
+            "positive change means higher FPS. These observations do not change the rolling-history CI gate below.",
+            "",
+        ]
+    lines += [
+        "<details>",
+        "<summary>Builds and source results</summary>",
+        "",
+        _build_identity(a_label, identities["baseline"]),
+        "",
+        _build_identity(b_label, identities["candidate"]),
+        "",
+        "**Baseline selection:** " + _build_text(selection.get("reason", "Selection information is unavailable.")),
+        "",
+    ]
+    if paired and isinstance(selection.get("baseline_reused"), bool):
+        measurement_status = "reused." if selection["baseline_reused"] else "run for this PR."
+        lines += ["Baseline measurements: " + (measurement_status if report.get("baseline") else "unavailable."), ""]
+    if paired and selection.get("baseline_origin"):
+        lines += [_build_identity("Baseline measurement origin", selection["baseline_origin"]), ""]
+    if selection.get("reference_branch"):
+        anchor = _build_text(str(selection.get("reference_commit") or "unknown")[:12])
+        lines += [f"Reference: {_build_text(selection['reference_branch'])} at `{anchor}`.", ""]
+    if paired:
+        lines += _build_source_diagnostics(report)
+    visited = selection.get("visited_commits", [])
+    if report.get("baseline") and len(visited) > 1:
+        lines += [f"The selected reference is {len(visited) - 1} first-parent commit(s) older than the anchor.", ""]
+    candidate = report.get("candidate") or {}
+    if candidate.get("run_attempt") and report.get("report_attempt") != candidate["run_attempt"]:
+        lines += [
+            f"Measurements: attempt {_build_text(candidate['run_attempt'])}; "
+            f"report: attempt {_build_text(report.get('report_attempt'))}.",
+            "",
+        ]
+    if selection.get("reason_code"):
+        lines += ["**Comparison unavailable:** " + _build_text(selection["reason_code"]) + ".", ""]
+    for issue in selection.get("issues", []):
+        lines.append("- Selection note: " + _build_text(json.dumps(issue, sort_keys=True)))
+    lines += [
+        "",
+        "</details>",
+        "",
+        "<details>",
+        "<summary>Samples, environment and diagnostic details</summary>",
+        "",
+    ]
+    if rows:
+        lines += [
+            "Sample counts are valid/expected for baseline A and current B.",
+            "",
+            "| Workload | Samples A / B | Δ FPS (B − A) |",
+            "| --- | --- | ---: |",
+        ]
+    detail_workloads: dict[str, list[str]] = {}
+    for label, row in zip(labels, rows):
+        counts = []
+        for side in ("baseline", "candidate"):
+            item = row[side]
+            expected = item.get("expected_count")
+            counts.append(f"{item['count']}/{expected if expected is not None else '?'}")
+        details = [_build_reason(row), *row.get("reasons", []), *row.get("notes", [])]
+        for difference in row.get("protocol_differences", []) + row.get("context_differences", []):
+            details.append(
+                f"{difference['field']}: "
+                f"{json.dumps(difference['baseline'], sort_keys=True)} → "
+                f"{json.dumps(difference['candidate'], sort_keys=True)}"
+            )
+        for detail in dict.fromkeys(details):
+            detail_workloads.setdefault(detail, []).append(label)
+        delta = row.get("absolute_change")
+        absolute = "—" if delta is None else f"{delta:+.6g}"
+        lines.append(f"| {_build_text(label)} | {' / '.join(counts)} | {absolute} |")
+    if rows:
+        lines += ["", "**Workload identities:**", ""]
+        lines.extend(f"- **{_build_text(label)}:** {_build_text(row['label'])}" for label, row in zip(labels, rows))
+        lines += ["", "**FPS samples:**", ""]
+        for label, row in zip(labels, rows):
+            a = json.dumps(row["baseline"].get("samples", []))
+            b = json.dumps(row["candidate"].get("samples", []))
+            lines.append(f"- **{_build_text(label)}:** A {_build_text(a)}; B {_build_text(b)}")
+    if detail_workloads:
+        lines += ["", "**Comparison details:**", ""]
+        for detail, labels in detail_workloads.items():
+            applies_to = "All workloads" if len(labels) == len(rows) and len(rows) > 1 else "; ".join(labels)
+            lines.append(f"- **{_build_text(applies_to)}:** {_build_text(detail)}")
+    lines.append("")
+    for note in dict.fromkeys(report.get("notes", [])):
+        lines.append("- " + _build_text(note))
+    lines += ["", "</details>", ""]
+    return "\n".join(lines) + "\n"

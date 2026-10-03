@@ -69,11 +69,16 @@ jobs:
         # orchestrator - its pytest_sessionstart scans source/ and scripts/ and runs the whole
         # suite, so loading it here would ignore the files named below.
         run: python3 -m pytest tools/test_crash_journal.py tools/test_file_scheduler.py
-          .github/actions/_lib/test_registry_credential_fallback.py -v --noconftest
+          .github/actions/_lib/test_registry_credential_fallback.py
+          .github/actions/_lib/test_performance_workflow.py -v --noconftest
 
       - uses: astral-sh/setup-uv@v6
         with:
           enable-cache: false
 
-      - name: Test ASV performance comparisons
-        run: uv run --no-project --with-requirements tools/perf_smoke/requirements.txt python -m unittest tools.perf_smoke.test_compare
+      - name: Test performance comparisons
+        run: uv run --no-project --with-requirements tools/perf_smoke/requirements.txt python -m unittest
+          tools.perf_smoke.test_compare
+          tools.perf_smoke.test_baseline tools.perf_smoke.test_build_compare
+          tools.perf_smoke.test_source_revision tools.perf_smoke.test_paired
+          tools.perf_smoke.test_metric_identity
