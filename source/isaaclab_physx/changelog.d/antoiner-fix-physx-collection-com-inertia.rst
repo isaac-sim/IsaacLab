@@ -11,3 +11,5 @@ Fixed
 * Fixed :meth:`~isaaclab_physx.assets.RigidObjectCollection.set_inertias_index` and
   :meth:`~isaaclab_physx.assets.RigidObjectCollection.set_inertias_mask` failing in the PhysX backend because the
   inertias were passed to the PhysX tensor API with the wrong layout.
+* Fixed inertia writes leaving cached center-of-mass poses and their derived states stale when PhysX
+  recomputed the principal-axis rotation.

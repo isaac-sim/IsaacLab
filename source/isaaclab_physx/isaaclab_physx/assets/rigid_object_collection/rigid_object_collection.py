@@ -1032,8 +1032,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             ],
             device=self.device,
         )
-        # Invalidate the cached buffers. The next read refreshes from the view, so that a partial write does not
-        # expose entries of the buffer that were never read back from the simulation.
+        # Invalidate derived caches; preserve the COM timestamp so unread or stale entries refresh from PhysX.
         self.data._reset_body_com_pose_b_dependents()
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
         # Convert from instance order (num_instances, num_bodies, 7) to view order (num_bodies*num_instances, 7) for
@@ -1133,6 +1132,9 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         inertia_view_order = self.reshape_data_to_view_3d(self.data._body_inertia, 9, device="cpu")
         view_ids = self._env_body_ids_to_view_ids(env_ids, body_ids, device="cpu")
         self.root_view.set_inertias(inertia_view_order, indices=view_ids)
+        # PhysX recomputes the principal-axis rotation when setting inertia.
+        self.data._body_com_pose_b.timestamp = -1.0
+        self.data._reset_body_com_pose_b_dependents()
 
     def set_inertias_mask(
         self,

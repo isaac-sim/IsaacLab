@@ -187,6 +187,21 @@ def test_inertial_property_subset_writes_reach_selected_view_entries(sim, device
     torch.testing.assert_close(read_view(object_collection.root_view.get_inertias(), 9), expected_inertias)
     torch.testing.assert_close(object_collection.data.body_inertia.torch.cpu(), expected_inertias)
 
+    # An inertia write can rotate the COM frame, including poses already cached at this timestamp.
+    initial_com_pose_w = object_collection.data.body_com_pose_w.torch.cpu().clone()
+    inertias = torch.tensor([[[3.0, 1.0, 0.0, 1.0, 3.0, 0.0, 0.0, 0.0, 5.0]]], device=device)
+    object_collection.set_inertias_index(inertias=inertias, env_ids=[0], body_ids=[0])
+    updated_coms = read_view(object_collection.root_view.get_coms().view(wp.float32), 7)
+    assert not torch.allclose(updated_coms[0, 0, 3:], expected_coms[0, 0, 3:])
+    torch.testing.assert_close(object_collection.data.body_com_pose_b.torch.cpu(), updated_coms)
+    link_pose = object_collection.data.body_link_pose_w.torch.cpu()
+    expected_com_pos, expected_com_quat = combine_frame_transforms(
+        link_pose[..., :3], link_pose[..., 3:], updated_coms[..., :3], updated_coms[..., 3:]
+    )
+    expected_com_pose_w = torch.cat((expected_com_pos, expected_com_quat), dim=-1)
+    assert not torch.allclose(expected_com_pose_w[0, 0], initial_com_pose_w[0, 0])
+    torch.testing.assert_close(object_collection.data.body_com_pose_w.torch.cpu(), expected_com_pose_w)
+
 
 @pytest.mark.parametrize("num_envs", [2])
 @pytest.mark.parametrize("num_cubes", [3])
