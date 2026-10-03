@@ -374,32 +374,28 @@ class BuildComparisonTests(unittest.TestCase):
         self.assertIsNone(row["change_pct"])
         self.assertIn("Candidate: " + b.issues[0], report["notes"])
 
-    def test_unknown_or_different_fps_formula_is_not_equivalent(self):
-        for formula, expected in (
-            (None, "unknown"),
-            ("unknown", "unknown"),
-            (" AGGREGATE_FRAMES_OVER_MEASURED_SECONDS ", "unknown"),
-            ("mean_instantaneous_fps", "incompatible"),
-        ):
-            with self.subTest(formula=formula):
-                row = compare_evidence(evidence(), evidence(formula=formula))["rows"][0]
-                self.assertEqual(row["status"], expected)
-                self.assertEqual(row["candidate"]["median"], 100)
-                self.assertIsNone(row["absolute_change"])
-
-    def test_legacy_formula_labels_do_not_establish_a_comparable_identity(self):
+    def test_unknown_different_and_legacy_fps_formulas_are_not_equivalent(self):
+        known = "source-fps-v2:" + "a" * 64
         legacy = "aggregate_frames_over_measured_seconds"
-        for side in ("baseline", "candidate", "both"):
-            with self.subTest(side=side):
-                a, b = evidence(), evidence({"leg": [bundle(110) for _ in range(3)]})
-                for selection in [a, b] if side == "both" else [a if side == "baseline" else b]:
-                    selection.context["metric_definition"]["total_fps"] = legacy
+        for case, baseline_formula, candidate_formula, candidate_fps, expected in (
+            ("missing", known, None, 100, "unknown"),
+            ("unknown", known, "unknown", 100, "unknown"),
+            ("padded_legacy", known, " AGGREGATE_FRAMES_OVER_MEASURED_SECONDS ", 100, "unknown"),
+            ("different", known, "mean_instantaneous_fps", 100, "incompatible"),
+            ("legacy_baseline", legacy, known, 110, "unknown"),
+            ("legacy_candidate", known, legacy, 110, "unknown"),
+            ("legacy_both", legacy, legacy, 110, "unknown"),
+        ):
+            with self.subTest(case=case):
+                samples = None if candidate_fps == 100 else {"leg": [bundle(candidate_fps) for _ in range(3)]}
+                a, b = evidence(formula=baseline_formula), evidence(samples, formula=candidate_formula)
                 row = compare_evidence(a, b)["rows"][0]
-                self.assertEqual(row["status"], "unknown")
-                self.assertEqual((row["baseline"]["median"], row["candidate"]["median"]), (100, 110))
+                self.assertEqual(row["status"], expected)
+                self.assertEqual((row["baseline"]["median"], row["candidate"]["median"]), (100, candidate_fps))
                 self.assertIsNone(row["absolute_change"])
                 self.assertIsNone(row["change_pct"])
-                self.assertIn("FPS formula identity is unknown for one or both selections.", row["reasons"])
+                if case.startswith("legacy_"):
+                    self.assertIn("FPS formula identity is unknown for one or both selections.", row["reasons"])
 
     def test_verified_baseline_definition_can_replace_a_legacy_recorded_label(self):
         a = evidence(formula="aggregate_frames_over_measured_seconds")
@@ -639,24 +635,37 @@ class AutomaticReportTests(unittest.TestCase):
         self.assertIn("Comparison unavailable", markdown)
         self.assertIn("expired", markdown)
 
-    def test_known_event_overrides_ambient_event(self):
-        for event, ambient, mode, kind, heading in (
-            ("workflow_dispatch", "pull_request", "historical", None, "Automatic build comparison"),
-            ("pull_request", "push", "paired_pr", "merge", "PR performance comparison"),
+    def test_known_event_takes_precedence_with_ambient_fallback_when_candidate_is_unavailable(self):
+        artifacts = self.client.run_artifacts[20]
+        for case, event, ambient, mode, kind, heading in (
+            (
+                "dispatch_over_ambient_pr",
+                "workflow_dispatch",
+                "pull_request",
+                "historical",
+                None,
+                "Automatic build comparison",
+            ),
+            ("pr_over_ambient_push", "pull_request", "push", "paired_pr", "merge", "PR performance comparison"),
+            ("unavailable_candidate", None, "pull_request", "paired_pr", None, "PR performance comparison"),
         ):
-            with self.subTest(event=event, ambient=ambient):
-                self.client.attempts[20, 1]["event"] = event
+            with self.subTest(case=case):
+                self.client.attempts[20, 1]["event"] = event or "push"
+                self.client.run_artifacts[20] = artifacts if event is not None else []
                 with (
                     tempfile.TemporaryDirectory() as directory,
                     patch.dict("os.environ", {"GITHUB_EVENT_NAME": ambient}),
                 ):
                     status, result, markdown = self.run_report(Path(directory))
                 self.assertEqual(status, 0)
-                self.assertEqual(result["candidate"]["event"], event)
+                if event is None:
+                    self.assertIsNone(result["candidate"])
+                else:
+                    self.assertEqual(result["candidate"]["event"], event)
                 self.assertEqual(result["comparison_mode"], mode)
                 self.assertEqual(result["candidate_kind"], kind)
                 self.assertIn(heading, markdown)
-                if kind is None:
+                if mode == "historical":
                     primary, details = markdown.split("<details>", 1)
                     self.assertIn("### Automatic build comparison", primary)
                     self.assertNotIn("### PR performance comparison", primary)
@@ -743,19 +752,6 @@ class AutomaticReportTests(unittest.TestCase):
         self.assertTrue(all(row["change_pct"] is None for row in result["rows"]))
         self.assertIn("another-workload", primary)
 
-    def test_unavailable_candidate_uses_ambient_event_as_fallback(self):
-        self.client.run_artifacts[20] = []
-        with (
-            tempfile.TemporaryDirectory() as directory,
-            patch.dict("os.environ", {"GITHUB_EVENT_NAME": "pull_request"}),
-        ):
-            status, result, markdown = self.run_report(Path(directory))
-        self.assertEqual(status, 0)
-        self.assertIsNone(result["candidate"])
-        self.assertEqual(result["comparison_mode"], "paired_pr")
-        self.assertIsNone(result["candidate_kind"])
-        self.assertIn("PR performance comparison", markdown)
-
     def test_new_benchmark_attempt_without_artifact_is_not_old_measurements(self):
         self.client.add(20, HEAD, attempt=2, start=stamp(13), artifact=False)
         with tempfile.TemporaryDirectory() as directory:
@@ -771,8 +767,13 @@ class AutomaticReportTests(unittest.TestCase):
             _, first, _ = self.run_report(output)
             self.client.add_artifact(20, "performance-build-comparison-20-1", {"build-comparison.json": first})
             self.client.add(20, HEAD, attempt=2, start=stamp(13), artifact=False)
-            self.client.run_jobs[20, 2][0]["started_at"] = stamp(12)
+            self.client.run_jobs[20, 2][0].update(started_at=stamp(12), run_attempt=2, id=999)
             _, second, rerun_markdown = self.run_report(output, attempt=2)
+            self.assertEqual(second["baseline"], first["baseline"])
+            self.assertTrue(second["selection"]["pinned"])
+            self.assertEqual(second["candidate"]["run_attempt"], 1)
+            self.assertEqual(second["candidate"]["report_attempt"], 2)
+            self.assertIn("Measurements: attempt 1; report: attempt 2", rerun_markdown)
             self.client.run_artifacts[10][0]["expired"] = True
             _, result, markdown = self.run_report(output, attempt=2)
             self.client.run_artifacts[20] = [
@@ -785,10 +786,6 @@ class AutomaticReportTests(unittest.TestCase):
             self.client.add(20, HEAD, attempt=3, start=stamp(14), artifact=False)
             self.client.run_jobs[20, 3][0]["started_at"] = stamp(12)
             _, third, third_markdown = self.run_report(output, attempt=3)
-        self.assertEqual(second["baseline"], first["baseline"])
-        self.assertTrue(second["selection"]["pinned"])
-        self.assertEqual(second["candidate"]["run_attempt"], 1)
-        self.assertIn("Measurements: attempt 1; report: attempt 2", rerun_markdown)
         self.assertIsNone(result["baseline"])
         self.assertTrue(result["selection"]["pinned"])
         self.assertEqual(result["selection"]["unavailable_evidence"]["run_id"], 10)

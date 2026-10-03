@@ -170,6 +170,10 @@ class TestSelection(unittest.TestCase):
     def select(self):
         return baseline.select_baseline(self.client, self.candidate())
 
+    def add_previous_report(self, report):
+        self.client.run_artifacts[20] = self.client.run_artifacts[20][:1]
+        self.client.add_artifact(20, "performance-build-comparison-20-1", {"build-comparison.json": report})
+
     def test_nearest_first_parent_branch_and_event_not_latest_branch_tip(self):
         self.client.add(10, GRANDPARENT)
         self.client.add(11, PARENT)
@@ -275,13 +279,6 @@ class TestSelection(unittest.TestCase):
         selected, _ = self.select()
         self.assertIsNone(selected)
 
-    def test_summary_only_rerun_ignores_carried_forward_job_attempt_number(self):
-        self.client.add(20, HEAD, attempt=2, start=stamp(13), artifact=False)
-        self.client.run_jobs[20, 2][0].update(started_at=stamp(12), run_attempt=2, id=999)
-        candidate = self.candidate(2)
-        self.assertEqual(candidate.identity["run_attempt"], 1)
-        self.assertEqual(candidate.identity["report_attempt"], 2)
-
     def test_new_benchmark_attempt_uses_new_artifact(self):
         self.client.add(20, HEAD, attempt=2, start=stamp(13), samples={"leg": [bundle(stamp(13), stamp(13, 5))]})
         self.assertEqual(self.candidate(2).identity["run_attempt"], 2)
@@ -327,13 +324,7 @@ class TestSelection(unittest.TestCase):
         self.client.add(10, PARENT)
         candidate = self.candidate()
         previous, _ = baseline.select_baseline(self.client, candidate)
-        self.client.add_artifact(
-            20,
-            "performance-build-comparison-20-1",
-            {
-                "build-comparison.json": {"candidate": candidate.identity, "baseline": previous.identity},
-            },
-        )
+        self.add_previous_report({"candidate": candidate.identity, "baseline": previous.identity})
         candidate.identity["report_attempt"] = 2
         pinned = baseline.load_previous_selection(self.client, candidate)
         self.client.add(11, PARENT, samples={"leg": [bundle(end=stamp(11))]})
@@ -343,89 +334,35 @@ class TestSelection(unittest.TestCase):
         candidate.identity["sha256"] = "different"
         self.assertIsNone(baseline.load_previous_selection(self.client, candidate))
 
-    def test_previous_report_rejects_malformed_identity(self):
-        candidate = self.candidate()
-        candidate.identity["report_attempt"] = 2
-        self.client.add_artifact(
-            20,
-            "performance-build-comparison-20-1",
-            {"build-comparison.json": {"candidate": [], "baseline": None}},
-        )
-        with self.assertRaises(baseline.EvidenceError) as raised:
-            baseline.load_previous_selection(self.client, candidate)
-        self.assertEqual(raised.exception.code, "corrupt")
-
-    def test_previous_unavailable_or_different_candidate_does_not_supply_a_pin(self):
-        candidate = self.candidate()
-        candidate.identity["report_attempt"] = 2
-        for previous in (None, {"artifact_id": 999, "sha256": "different"}):
-            with self.subTest(previous=previous):
-                self.client.run_artifacts[20] = self.client.run_artifacts[20][:1]
-                self.client.add_artifact(
-                    20,
-                    "performance-build-comparison-20-1",
-                    {
-                        "build-comparison.json": {"candidate": previous, "baseline": "irrelevant"},
-                    },
-                )
-                self.assertIsNone(baseline.load_previous_selection(self.client, candidate))
-
-    def test_saved_unavailable_selection_payload_types_are_validated(self):
-        candidate = self.candidate()
-        candidate.identity["report_attempt"] = 2
-        invalid = [[], {"pinned": True, "unavailable_side": "baseline", "unavailable_evidence": None}]
-        for selection in invalid:
-            with self.subTest(selection=selection):
-                self.client.run_artifacts[20] = self.client.run_artifacts[20][:1]
-                self.client.add_artifact(
-                    20,
-                    "performance-build-comparison-20-1",
-                    {
-                        "build-comparison.json": {
-                            "candidate": candidate.identity,
-                            "baseline": None,
-                            "selection": selection,
-                        },
-                    },
-                )
-                with self.assertRaises(baseline.EvidenceError) as raised:
-                    baseline.load_previous_selection(self.client, candidate)
-                self.assertEqual(raised.exception.code, "corrupt")
-
-    def test_unpinned_transient_failure_does_not_prevent_later_selection(self):
+    def test_previous_report_without_a_valid_pin_allows_fresh_selection(self):
         self.client.add(10, PARENT)
         candidate = self.candidate()
         candidate.identity["report_attempt"] = 2
-        for unavailable in ({}, {"run_id": 10}):
-            with self.subTest(unavailable=unavailable):
-                self.client.run_artifacts[20] = self.client.run_artifacts[20][:1]
-                self.client.add_artifact(
-                    20,
-                    "performance-build-comparison-20-1",
-                    {
-                        "build-comparison.json": {
-                            "candidate": candidate.identity,
-                            "baseline": None,
-                            "selection": {
-                                "pinned": False,
-                                "unavailable_side": "baseline",
-                                "unavailable_evidence": unavailable,
-                            },
-                        },
-                    },
-                )
+        reports = [
+            ("missing_candidate", {"candidate": None, "baseline": "irrelevant"}),
+            (
+                "different_candidate",
+                {"candidate": {"artifact_id": 999, "sha256": "different"}, "baseline": "irrelevant"},
+            ),
+        ]
+        for name, unavailable in (("unidentified_failure", {}), ("partial_failure", {"run_id": 10})):
+            selection = {"pinned": False, "unavailable_side": "baseline", "unavailable_evidence": unavailable}
+            reports.append((name, {"baseline": None, "selection": selection}))
+        for name, report in reports:
+            with self.subTest(case=name):
+                self.add_previous_report({"candidate": candidate.identity, **report})
                 pinned = baseline.load_previous_selection(self.client, candidate)
                 self.assertIsNone(pinned)
                 evidence, _ = baseline.select_baseline(self.client, candidate, pinned)
                 self.assertEqual(evidence.identity["run_id"], 10)
 
-    def test_saved_pin_validates_required_fields_and_reconstructs_links(self):
+    def test_saved_report_validates_identity_and_selection_and_reconstructs_links(self):
         self.client.add(10, PARENT)
         candidate = self.candidate()
         evidence, _ = baseline.select_baseline(self.client, candidate)
         original = evidence.identity
         candidate.identity["report_attempt"] = 2
-        invalid = [[], {}]
+        invalid = [("baseline_not_object", []), ("empty_baseline", {})]
         for field, value in (
             ("repository", "https://external.invalid"),
             ("run_id", 0),
@@ -434,19 +371,19 @@ class TestSelection(unittest.TestCase):
             ("sha256", "not-a-digest"),
             ("source_commit", "short"),
         ):
-            invalid.append({**original, field: value})
+            invalid.append((f"invalid_{field}", {**original, field: value}))
         for field in ("repository", "run_id", "run_attempt", "artifact_id", "sha256", "source_commit"):
-            invalid.append({key: value for key, value in original.items() if key != field})
-        for saved in invalid:
-            with self.subTest(saved=saved):
-                self.client.run_artifacts[20] = self.client.run_artifacts[20][:1]
-                self.client.add_artifact(
-                    20,
-                    "performance-build-comparison-20-1",
-                    {
-                        "build-comparison.json": {"candidate": candidate.identity, "baseline": saved},
-                    },
-                )
+            invalid.append((f"missing_{field}", {key: value for key, value in original.items() if key != field}))
+        reports = [(name, {"baseline": saved}) for name, saved in invalid]
+        selection = {"pinned": True, "unavailable_side": "baseline", "unavailable_evidence": None}
+        reports += [
+            ("candidate_not_object", {"candidate": [], "baseline": None}),
+            ("selection_not_object", {"baseline": None, "selection": []}),
+            ("missing_unavailable_identity", {"baseline": None, "selection": selection}),
+        ]
+        for name, report in reports:
+            with self.subTest(case=name):
+                self.add_previous_report({"candidate": candidate.identity, **report})
                 with self.assertRaises(baseline.EvidenceError) as raised:
                     baseline.load_previous_selection(self.client, candidate)
                 self.assertEqual(raised.exception.code, "corrupt")
@@ -456,14 +393,7 @@ class TestSelection(unittest.TestCase):
             "artifact_url": "https://external.invalid",
             "commit_url": "https://external.invalid",
         }
-        self.client.run_artifacts[20] = self.client.run_artifacts[20][:1]
-        self.client.add_artifact(
-            20,
-            "performance-build-comparison-20-1",
-            {
-                "build-comparison.json": {"candidate": candidate.identity, "baseline": altered},
-            },
-        )
+        self.add_previous_report({"candidate": candidate.identity, "baseline": altered})
         recovered = baseline.load_previous_selection(self.client, candidate)
         for field in ("run_url", "artifact_url", "commit_url"):
             self.assertEqual(recovered[field], original[field])
@@ -590,29 +520,25 @@ class TestGitHubTransport(unittest.TestCase):
                     self.assertEqual(opened.call_args.kwargs["timeout"], 60)
                     self.assertIsNone(opened.call_args.args[0].get_header("Authorization"))
 
-    def test_wrapped_connection_timeout_uses_the_same_safe_failure(self):
-        client = baseline.GitHubClient(REPO)
-        client._opener = Mock()
-        client._opener.open.side_effect = urllib.error.URLError(TimeoutError("connect stalled: ?sig=secret"))
-        with self.assertRaises(baseline.EvidenceError) as raised:
-            client.run_attempt(10, 1)
-        self.assertEqual(raised.exception.code, "timeout")
-        self.assertNotIn("secret", str(raised.exception))
-
-    def test_signed_url_not_in_error_message(self):
-        client = baseline.GitHubClient(REPO)
-        client._opener = Mock()
-        client._opener.open.side_effect = urllib.error.HTTPError(
-            "https://storage.example.invalid/?sig=secret",
-            403,
-            "secret",
-            {},
-            None,
-        )
-        with self.assertRaises(baseline.EvidenceError) as raised:
-            client.download({"id": 7})
-        self.assertNotIn("secret", str(raised.exception))
-        self.assertIn("403", str(raised.exception))
+    def test_request_failures_have_safe_reason_codes_and_messages(self):
+        for error in (
+            urllib.error.URLError(TimeoutError("connect stalled: ?sig=secret")),
+            urllib.error.HTTPError("https://storage.example.invalid/?sig=secret", 403, "secret", {}, None),
+        ):
+            with self.subTest(case=type(error).__name__):
+                client = baseline.GitHubClient(REPO)
+                client._opener = Mock()
+                client._opener.open.side_effect = error
+                with self.assertRaises(baseline.EvidenceError) as raised:
+                    if isinstance(error, urllib.error.HTTPError):
+                        client.download({"id": 7})
+                    else:
+                        client.run_attempt(10, 1)
+                self.assertNotIn("secret", str(raised.exception))
+                if isinstance(error, urllib.error.HTTPError):
+                    self.assertIn("403", str(raised.exception))
+                else:
+                    self.assertEqual(raised.exception.code, "timeout")
 
 
 if __name__ == "__main__":
