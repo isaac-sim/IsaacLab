@@ -74,8 +74,8 @@ _CAMERA_TASK = "Isaac-Cartpole-Camera-Direct"
 _MIN_RANKS = 2
 
 # Newton or OvPhysX physics with an RTX renderer: NCCL setup fails with "Cuda failure 'invalid
-# argument'" on the 2x RTX PRO 4500 CI runners, where each rank also holds a context on the other
-# GPU. PhysX with Kit RTX, and every Newton-renderer stack, train on the same runners.
+# argument'" on the 2x RTX PRO 4500 CI runners. PhysX with Kit RTX, and every Newton-renderer
+# stack, train on the same runners.
 _RTX_NCCL_XFAIL = pytest.mark.xfail(reason="NCCL 'invalid argument' with Newton/OvPhysX physics and an RTX renderer")
 
 # The backend grid is 3 physics x 3 renderers; two of the nine cells cannot run at all, rejected

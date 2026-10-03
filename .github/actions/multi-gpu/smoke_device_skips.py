@@ -18,7 +18,7 @@ import os
 import sys
 import xml.etree.ElementTree as ET
 
-# The reason ``_require_devices`` in test_multi_gpu_training_smoke.py skips with.
+# The reason ``_visible_gpus`` in test_multi_gpu_training_smoke.py skips with.
 _DEVICE_SKIP = "visible CUDA devices"
 
 report = sys.argv[1]

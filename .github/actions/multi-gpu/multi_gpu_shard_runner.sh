@@ -141,7 +141,7 @@ launch_shard "1-gpu0" 1 "$(IFS=,; echo "${swapped[*]}")"
 
 # Wait for every shard before aggregating exits — a fast failure must not
 # tear down still-running siblings.
-declare -A results  # associative array: shard index -> exit code
+declare -A results  # associative array: shard name -> exit code
 for cuda in "${!pids[@]}"; do  # "${!pids[@]}" = the array's keys (the shard indices)
   wait "${pids[$cuda]}"  # block until that shard's PID exits
   results[$cuda]=$?      # $? = the waited shard's exit code
