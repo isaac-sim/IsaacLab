@@ -7,6 +7,8 @@ from __future__ import annotations
 
 from dataclasses import MISSING
 
+import gymnasium as gym
+
 from ..utils import configclass
 from .manager_based_env_cfg import ManagerBasedEnvCfg
 
@@ -22,6 +24,16 @@ class ManagerBasedRLEnvCfg(ManagerBasedEnvCfg):
     ui_window_class_type: type | str | None = "isaaclab.envs.ui.manager_based_rl_env_window:ManagerBasedRLEnvWindow"
 
     # general settings
+    autoreset_mode: gym.vector.AutoresetMode = gym.vector.AutoresetMode.SAME_STEP
+    """When to reset completed environments. Defaults to SAME_STEP.
+
+    DISABLED leaves completed environments inactive until reset() or reset_to() starts
+    their next episode. Physics and manager computations continue, but inactive environments
+    return zero rewards, no completion signals, and their last observations. Episode recordings
+    finish at termination. Manager logs are still produced by reset(), not by completion.
+    NEXT_STEP is not supported.
+    """
+
     is_finite_horizon: bool = False
     """Whether the learning task is treated as a finite or infinite horizon problem for the agent.
     Defaults to False, which means the task is treated as an infinite horizon problem.
