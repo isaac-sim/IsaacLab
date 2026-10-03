@@ -5,12 +5,9 @@
 
 """Tests for Newton and MuJoCo schema cfg classes in isaaclab_newton."""
 
-from isaaclab.app import AppLauncher
+from isaaclab.test.utils import launch_test_simulation
 
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
-
-"""Rest everything follows."""
+launch_test_simulation()
 
 import math
 
@@ -160,10 +157,10 @@ def test_newton_material_fragment_authors_all_six_newton_attrs(setup_sim):
     from newton._src.usd.schema_resolver import PrimType
     from newton._src.usd.schemas import SchemaResolverNewton
 
-    from isaaclab.sim.spawners.materials import spawn_rigid_body_material_from_fragments
+    from isaaclab.sim.spawners.materials import spawn_physics_material_from_fragments
     from isaaclab.sim.spawners.materials.physics_materials_cfg import UsdPhysicsRigidBodyMaterialCfg
 
-    prim = spawn_rigid_body_material_from_fragments(
+    prim = spawn_physics_material_from_fragments(
         "/World/newton_mat_contact",
         [
             UsdPhysicsRigidBodyMaterialCfg(static_friction=0.6, dynamic_friction=0.5),
@@ -325,3 +322,42 @@ def test_newton_mesh_collision_mixed_namespace_write(setup_sim):
         NewtonMeshCollisionPropertiesCfg(mesh_approximation_name="convexHull"),
     )
     assert "NewtonMeshCollisionAPI" not in stage.GetPrimAtPath("/World/mesh_col2").GetAppliedSchemas()
+
+
+@pytest.mark.parametrize("kind", ["volume", "surface"])
+def test_newton_deformable_schemas(kind):
+    """Create both native anchors and author the material fields consumed by the importer."""
+    from isaaclab_newton.physics import NewtonManager
+    from isaaclab_newton.sim.spawners.materials import (
+        NewtonSurfaceDeformableMaterialCfg,
+        NewtonVolumeDeformableMaterialCfg,
+    )
+
+    from pxr import Usd, UsdGeom
+
+    from isaaclab.sim.spawners.materials import spawn_physics_material_from_fragments
+
+    stage = Usd.Stage.CreateInMemory()
+    body = UsdGeom.Xform.Define(stage, "/Body").GetPrim()
+    visual = UsdGeom.Mesh.Define(stage, "/Body/visual")
+    mesh = UsdGeom.TetMesh.Define(stage, "/Body/sim") if kind == "volume" else UsdGeom.Mesh.Define(stage, "/Body/sim")
+    mesh.CreatePointsAttr([(0, 0, 0), (1, 0, 0), (0, 1, 0), (0, 0, 1)])
+    if kind == "volume":
+        mesh.CreateTetVertexIndicesAttr([(0, 1, 2, 3)])
+        faces = UsdGeom.TetMesh.ComputeSurfaceFaces(mesh, Usd.TimeCode.Default())
+        mesh.CreateSurfaceFaceVertexIndicesAttr(faces)
+        material = NewtonVolumeDeformableMaterialCfg(k_mu=123.0, density=6.0)
+        attribute = "newton:kMu"
+    else:
+        mesh.CreateFaceVertexIndicesAttr([0, 1, 2])
+        mesh.CreateFaceVertexCountsAttr([3])
+        material = NewtonSurfaceDeformableMaterialCfg(tri_ke=123.0, density=6.0)
+        attribute = "newton:triKe"
+    NewtonManager.setup_deformable_body(body, kind, mesh.GetPrim(), visual.GetPrim())
+    assert "PhysicsDeformableBodyAPI" in body.GetPrimTypeInfo().GetAppliedAPISchemas()
+    assert f"Physics{kind.title()}DeformableSimAPI" in mesh.GetPrim().GetPrimTypeInfo().GetAppliedAPISchemas()
+    assert len(visual.GetFaceVertexIndicesAttr().Get()) == (12 if kind == "volume" else 3)
+    prim = spawn_physics_material_from_fragments("/Material", material, stage)
+    assert prim.GetAttribute(attribute).Get() == pytest.approx(123.0)
+    assert prim.GetAttribute("newton:density").Get() == pytest.approx(6.0)
+    assert not prim.HasAPI(UsdPhysics.MaterialAPI)

@@ -7,11 +7,13 @@
 
 import torch
 
+from isaaclab.utils import instantiate
+
 from isaaclab_tasks.contrib.nist.utils import BetaSamplingStrategyCfg, UniformSamplingStrategyCfg
 
 
 def _score(cfg, rates: torch.Tensor) -> torch.Tensor:
-    strategy = cfg.class_type(cfg, rates)
+    strategy = instantiate(cfg, rates)
     scores = torch.empty_like(rates)
     strategy.score(scores)
     return scores

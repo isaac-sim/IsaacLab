@@ -5,8 +5,8 @@
 
 from __future__ import annotations
 
+import logging
 import math
-from collections.abc import Sequence
 from typing import Any, ClassVar
 
 import gymnasium as gym
@@ -14,9 +14,12 @@ import numpy as np
 import torch
 
 from ..managers import CommandManager, CurriculumManager, RewardManager, TerminationManager
+from ..utils import index_fill_
 from .common import VecEnvStepReturn
 from .manager_based_env import ManagerBasedEnv
 from .manager_based_rl_env_cfg import ManagerBasedRLEnvCfg
+
+logger = logging.getLogger(__name__)
 
 
 class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
@@ -85,7 +88,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         #    produced video matches the simulation
         self.metadata["render_fps"] = 1 / self.step_dt
         self.has_rtx_sensors = self.sim.get_setting("/isaaclab/render/rtx_sensors")
-        print("[INFO]: Completed setting up the environment...")
+        logger.info("Completed setting up the environment...")
 
     """
     Properties.
@@ -110,7 +113,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         # and the reward manager needs to know the termination manager
         # -- command manager
         self.command_manager: CommandManager = CommandManager(self.cfg.commands, self)
-        print("[INFO] Command Manager: ", self.command_manager)
+        logger.info(f"Command Manager: {self.command_manager}")
 
         # call the parent class to load the managers for observations and actions.
         super().load_managers()
@@ -118,13 +121,13 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         # prepare the managers
         # -- termination manager
         self.termination_manager = TerminationManager(self.cfg.terminations, self)
-        print("[INFO] Termination Manager: ", self.termination_manager)
+        logger.info(f"Termination Manager: {self.termination_manager}")
         # -- reward manager
         self.reward_manager = RewardManager(self.cfg.rewards, self)
-        print("[INFO] Reward Manager: ", self.reward_manager)
+        logger.info(f"Reward Manager: {self.reward_manager}")
         # -- curriculum manager
         self.curriculum_manager = CurriculumManager(self.cfg.curriculum, self)
-        print("[INFO] Curriculum Manager: ", self.curriculum_manager)
+        logger.info(f"Curriculum Manager: {self.curriculum_manager}")
 
         # setup the action and observation spaces for Gym
         self._configure_gym_env_spaces()
@@ -207,7 +210,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         self.recorder_manager.record_pre_step()
 
         # check if we need to do rendering within the physics loop
-        # note: uses cached property to avoid settings lookup every step
+        # note: evaluated once per step rather than once per physics substep
         is_rendering = self.sim.is_rendering
 
         # physics-owned decimation covers all substeps in one call
@@ -258,18 +261,18 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         if self.sim.consume_reset_request():
             # Only reset envs not already reset this step to avoid redundant resets.
             not_yet_reset = torch.ones(self.num_envs, dtype=torch.bool, device=self.device)
-            not_yet_reset[reset_env_ids] = False
+            index_fill_(not_yet_reset, reset_env_ids, False)
             manual_reset_ids = not_yet_reset.nonzero(as_tuple=False).squeeze(-1).int()
             if len(manual_reset_ids) > 0:
                 # mark as terminated so RL wrappers observe the episode boundary
-                self.reset_terminated[manual_reset_ids] = True
+                index_fill_(self.reset_terminated, manual_reset_ids, True)
                 # mirror the recorder lifecycle used for normal resets
                 self.recorder_manager.record_pre_reset(manual_reset_ids)
                 self._reset_idx(manual_reset_ids)
                 self.recorder_manager.record_post_reset(manual_reset_ids)
 
         self.command_manager.compute(dt=self.step_dt)
-        if "interval" in self.event_manager.available_modes:
+        if "interval" in self.event_manager.active_terms:
             self.event_manager.apply(mode="interval", dt=self.step_dt)
         # -- advance video recorders (after render and resets, before final obs)
         for recorder in self.video_recorders:
@@ -376,18 +379,18 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         self.observation_space = gym.vector.utils.batch_space(self.single_observation_space, self.num_envs)
         self.action_space = gym.vector.utils.batch_space(self.single_action_space, self.num_envs)
 
-    def _reset_idx(self, env_ids: Sequence[int]):
+    def _reset_idx(self, env_ids: torch.Tensor | slice):
         """Reset environments based on specified indices.
 
         Args:
-            env_ids: List of environment ids which must be reset
+            env_ids: A slice or environment indices on the environment device.
         """
         # update the curriculum for environments that need a reset
         self.curriculum_manager.compute(env_ids=env_ids)
         # reset the internal buffers of the scene elements
         self.scene.reset(env_ids)
         # apply events such as randomizations for environments that need a reset
-        if "reset" in self.event_manager.available_modes:
+        if "reset" in self.event_manager.active_terms:
             env_step_count = self._sim_step_counter // self.cfg.decimation
             self.event_manager.apply(mode="reset", env_ids=env_ids, global_env_step_count=env_step_count)
 
@@ -420,4 +423,4 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         info = self.recorder_manager.reset(env_ids)
         self.extras["log"].update(info)
 
-        self.episode_length_buf[env_ids] = 0
+        index_fill_(self.episode_length_buf, env_ids, 0)

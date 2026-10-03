@@ -17,7 +17,7 @@ from isaaclab_newton.assets import MPMObjectCfg
 from isaaclab_newton.physics import MJWarpSolverCfg, MPMSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg
 from isaaclab_newton.sim.schemas import MujocoJointCfg, NewtonCollisionCfg
 from isaaclab_newton.sim.spawners.mpm import MPMGridCfg, MPMParticleMaterialCfg
-from isaaclab_visualizers.newton import NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg
+from isaaclab_visualizers.newton import NewtonRTXVisualizerCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
@@ -33,7 +33,7 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.sim.schemas import UsdPhysicsCollisionCfg, UsdPhysicsRigidBodyCfg
 from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
@@ -354,7 +354,7 @@ class UR10ParticlePushSceneCfg(InteractiveSceneCfg):
         spawn=sim_utils.DomeLightCfg(color=(0.8, 0.8, 0.8), intensity=2500.0),
     )
 
-    robot = UR10_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    robot = replace(UR10_CFG, prim_path="{ENV_REGEX_NS}/Robot")
     robot.init_state.joint_pos = dict(zip(UR10_JOINT_NAMES, UR10_PUSH_HOME, strict=True))
     # Override arm drive gains; preserve the USD inertia, limits, and effort cap.
     robot.actuators["arm"].stiffness = 2400.0
@@ -585,6 +585,8 @@ class CurriculumCfg:
 @configclass
 class UR10ParticlePushEnvCfg(ManagerBasedRLEnvCfg):
     """Manager-based, relative-joint-control UR10 particle-pushing task."""
+
+    class_type: type | str = "{DIR}.ur10_particle_push_env:UR10ParticlePushEnv"
 
     decimation = 2
     # One approach and sweep comfortably fits within this horizon.
@@ -1045,6 +1047,5 @@ class UR10ParticlePushEnvCfg(ManagerBasedRLEnvCfg):
             show_particles=True,
             particle_color=MPM_VISUAL_COLOR,
         )
-        self.sim.visualizer_cfgs = [NewtonGLVisualizerCfg()]
         self.heightmap_visualizer_cfg = HEIGHTMAP_VISUALIZER_CFG
         configure_sparse_mpm_capacities(self)

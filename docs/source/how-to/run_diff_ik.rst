@@ -29,7 +29,7 @@ The tutorial corresponds to the ``run_diff_ik.py`` script in the
 
    .. literalinclude:: ../../../scripts/tutorials/05_controllers/run_diff_ik.py
       :language: python
-      :emphasize-lines: 98-100, 121-136, 155-157, 161-171
+      :emphasize-lines: 98-100, 121-136, 156-158, 162-175
       :linenos:
 
 
@@ -154,12 +154,6 @@ Now that we have gone through the code, let's run the script and see the result:
       .. code-block:: bash
 
          uv run isaaclab -p scripts/tutorials/05_controllers/run_diff_ik.py --robot franka_panda --num_envs 128 --viz kit
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         ./isaaclab.sh -p scripts/tutorials/05_controllers/run_diff_ik.py --robot franka_panda --num_envs 128 --viz kit
 
 The script will start a simulation with 128 robots. The robots will be controlled using the IK controller.
 The current and desired end-effector poses should be displayed using frame markers. When the robot reaches

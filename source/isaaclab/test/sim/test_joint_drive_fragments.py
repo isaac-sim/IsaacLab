@@ -3,14 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Launch Isaac Sim Simulator first."""
+from isaaclab.test.utils import launch_test_simulation
 
-from isaaclab.app import AppLauncher
-
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
-
-"""Rest everything follows."""
+launch_test_simulation()
 
 import math
 
@@ -229,10 +224,10 @@ def test_apply_joint_drive_properties_skips_joint_via_registered_predicate(monke
     monkeypatch clears the module-global predicate list (other tests register the PhysX detector
     session-wide) and restores it afterwards, keeping this isolated.
     """
-    from isaaclab.sim.schemas import UsdPhysicsDriveCfg, _backend_hooks, apply_joint_drive_properties
+    from isaaclab.sim.schemas import UsdPhysicsDriveCfg, apply_joint_drive_properties, backend_hooks
 
-    monkeypatch.setattr(_backend_hooks, "_JOINT_DRIVE_SKIP_PREDICATES", [])
-    _backend_hooks.register_joint_drive_skip_predicate(lambda prim: True)  # exclude every joint
+    monkeypatch.setattr(backend_hooks, "_JOINT_DRIVE_SKIP_PREDICATES", [])
+    backend_hooks.register_joint_drive_skip_predicate(lambda prim: True)  # exclude every joint
 
     sim_utils.create_new_stage()
     SimulationContext(SimulationCfg(dt=0.01))
@@ -244,9 +239,9 @@ def test_apply_joint_drive_properties_skips_joint_via_registered_predicate(monke
 
 def test_apply_joint_drive_properties_authors_when_no_skip_predicate(monkeypatch):
     """Empty predicate registry (the default) skips nothing -- the writer authors on the joint."""
-    from isaaclab.sim.schemas import UsdPhysicsDriveCfg, _backend_hooks, apply_joint_drive_properties
+    from isaaclab.sim.schemas import UsdPhysicsDriveCfg, apply_joint_drive_properties, backend_hooks
 
-    monkeypatch.setattr(_backend_hooks, "_JOINT_DRIVE_SKIP_PREDICATES", [])
+    monkeypatch.setattr(backend_hooks, "_JOINT_DRIVE_SKIP_PREDICATES", [])
 
     sim_utils.create_new_stage()
     SimulationContext(SimulationCfg(dt=0.01))

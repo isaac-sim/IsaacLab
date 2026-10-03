@@ -25,7 +25,7 @@ directory.
 
    .. literalinclude:: ../../../scripts/tutorials/01_assets/run_surface_gripper.py
       :language: python
-      :emphasize-lines: 61-85, 124-125, 128-142, 147-150
+      :emphasize-lines: 58-82, 126-127, 130-144, 149-152
       :linenos:
 
 
@@ -143,13 +143,6 @@ To run the code and see the results, let's run the script from the terminal:
          uv run python scripts/tutorials/01_assets/run_surface_gripper.py --device cpu --viz kit
 
 
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         ./isaaclab.sh -p scripts/tutorials/01_assets/run_surface_gripper.py --device cpu --viz kit
-
-
 This command should open a stage with a ground plane, lights, and two pick-and-place robots.
 In the terminal, you should see the gripper state and the command being printed.
 To stop the simulation, you can either close the window, or press ``Ctrl+C`` in the terminal.
@@ -173,13 +166,6 @@ through the packaged demo command. You can run it as:
 
          # Spawn many pick-and-place robots and perform a pick-and-place task
          uv run --extra isaacsim isaaclab demo pick-and-place --viz kit
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         # Spawn many pick-and-place robots and perform a pick-and-place task
-         ./isaaclab.sh demo pick-and-place --viz kit
 
 Note that in practice, the users would be expected to register their :class:`assets.SurfaceGripper` instances inside
 a :class:`isaaclab.InteractiveScene` object, which will automatically handle the calls to the

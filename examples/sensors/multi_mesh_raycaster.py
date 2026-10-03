@@ -51,15 +51,14 @@ parser.add_argument(
 )
 parser.add_argument("--max_steps", type=int, default=-1, help="Stop after this many steps; negative runs forever.")
 add_launcher_args(parser)
-parser.set_defaults(visualizer=["newton_gl"])
+# a Newton viewer cannot build its model from this PhysX scene, so PhysX defaults to the Kit viewer
+physics_args, _ = parser.parse_known_args()
+parser.set_defaults(visualizer=["kit"] if physics_args.physics == "isaacsim_physx" else ["newton_gl"])
 args_cli = parser.parse_args()
 if args_cli.max_steps == 0 or args_cli.max_steps < -1:
     parser.error("--max_steps must be positive or -1.")
-if args_cli.physics == "newton_mjwarp":
-    if not getattr(args_cli, "visualizer_explicit", False):
-        args_cli.visualizer = ["newton_gl"]
-    elif "kit" in (args_cli.visualizer or []):
-        parser.error("the Kit visualizer is not supported with Newton physics; select newton, rerun, viser, or none")
+if args_cli.physics == "newton_mjwarp" and "kit" in (args_cli.visualizer or []):
+    parser.error("the Kit visualizer is not supported with Newton physics; select newton_gl, rerun, or viser")
 
 import random
 
@@ -72,7 +71,7 @@ from isaaclab.markers.config import VisualizationMarkersCfg
 from isaaclab.physics import PhysicsCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors.ray_caster import MultiMeshRayCasterCfg, patterns
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 from isaaclab_assets.robots.allegro import ALLEGRO_HAND_CFG
@@ -81,7 +80,7 @@ from isaaclab_assets.robots.anymal import ANYMAL_D_CFG
 if TYPE_CHECKING:
     from isaaclab.scene import InteractiveScene
 
-DEBUG_VISUALIZATION_ENABLED = "none" not in (args_cli.visualizer or [])
+DEBUG_VISUALIZATION_ENABLED = bool(args_cli.visualizer)
 if args_cli.flat_ground:
     ground_spawn_cfg = sim_utils.MeshCuboidCfg(
         size=(20.0, 20.0, 0.1),
@@ -105,7 +104,7 @@ RAY_CASTER_MARKER_CFG = VisualizationMarkersCfg(
 )
 
 if args_cli.asset_type == "allegro_hand":
-    asset_cfg = ALLEGRO_HAND_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    asset_cfg = replace(ALLEGRO_HAND_CFG, prim_path="{ENV_REGEX_NS}/Robot")
     ray_caster_cfg = MultiMeshRayCasterCfg(
         prim_path="{ENV_REGEX_NS}/Robot/palm_link",
         update_period=1 / 60,
@@ -122,11 +121,11 @@ if args_cli.asset_type == "allegro_hand":
         ray_alignment="world",
         pattern_cfg=patterns.GridPatternCfg(resolution=0.005, size=(0.4, 0.4), direction=(0, 0, -1)),
         debug_vis=DEBUG_VISUALIZATION_ENABLED,
-        visualizer_cfg=RAY_CASTER_MARKER_CFG.replace(prim_path="/Visuals/RayCaster"),
+        visualizer_cfg=replace(RAY_CASTER_MARKER_CFG, prim_path="/Visuals/RayCaster"),
     )
 
 elif args_cli.asset_type == "anymal_d":
-    asset_cfg = ANYMAL_D_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    asset_cfg = replace(ANYMAL_D_CFG, prim_path="{ENV_REGEX_NS}/Robot")
     ray_caster_cfg = MultiMeshRayCasterCfg(
         prim_path="{ENV_REGEX_NS}/Robot/base",
         update_period=1 / 60,
@@ -142,7 +141,7 @@ elif args_cli.asset_type == "anymal_d":
         ray_alignment="world",
         pattern_cfg=patterns.GridPatternCfg(resolution=0.02, size=(2.5, 2.5), direction=(0, 0, -1)),
         debug_vis=DEBUG_VISUALIZATION_ENABLED,
-        visualizer_cfg=RAY_CASTER_MARKER_CFG.replace(prim_path="/Visuals/RayCaster"),
+        visualizer_cfg=replace(RAY_CASTER_MARKER_CFG, prim_path="/Visuals/RayCaster"),
     )
 
 elif args_cli.asset_type == "objects":
@@ -200,7 +199,7 @@ elif args_cli.asset_type == "objects":
         ray_alignment="world",
         pattern_cfg=patterns.GridPatternCfg(resolution=0.01, size=(0.6, 0.6), direction=(0, 0, -1)),
         debug_vis=DEBUG_VISUALIZATION_ENABLED,
-        visualizer_cfg=RAY_CASTER_MARKER_CFG.replace(prim_path="/Visuals/RayCaster"),
+        visualizer_cfg=replace(RAY_CASTER_MARKER_CFG, prim_path="/Visuals/RayCaster"),
     )
 else:
     raise ValueError(f"Unknown asset type: {args_cli.asset_type}")
@@ -267,7 +266,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
 
     # Simulate physics
     step_count = 0
-    while sim.is_headless_or_exist_active_visualizer() and (args_cli.max_steps < 0 or step_count < args_cli.max_steps):
+    while sim.is_running() and (args_cli.max_steps < 0 or step_count < args_cli.max_steps):
         if count % 500 == 0:
             # reset counter
             count = 0
@@ -315,7 +314,6 @@ def main():
     with launch_simulation(cfg=PhysicsCfg(), launcher_args=args_cli) as physics_cfg:
         from isaaclab.scene import InteractiveScene
 
-        # Initialize the simulation context
         sim_cfg = sim_utils.SimulationCfg(
             dt=0.005,
             device=args_cli.device,
@@ -332,14 +330,10 @@ def main():
         if args_cli.asset_type == "objects":
             randomize_shape_color(scene_cfg.asset.prim_path.format(ENV_REGEX_NS="/World/envs/env_.*"))
 
-        # Play the simulator
         sim.reset()
-        # Now we are ready!
         print("[INFO]: Setup complete...")
-        # Run the simulator
         run_simulator(sim, scene)
 
 
 if __name__ == "__main__":
-    # run the main function
     main()

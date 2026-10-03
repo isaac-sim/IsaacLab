@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import logging
 import re
-import warnings
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
@@ -92,7 +91,7 @@ class ContactSensor(BaseContactSensor):
         super().__init__(cfg)
 
         # Enable contact processing
-        get_settings_manager().set_bool("/physics/disableContactProcessing", False)
+        get_settings_manager().set("/physics/disableContactProcessing", False)
 
         # Create empty variables for storing output data
         self._data: ContactSensorData = ContactSensorData()
@@ -212,7 +211,7 @@ class ContactSensor(BaseContactSensor):
         super().update(dt, force_recompute=force_recompute)
         # Skip the fetch if the base class already refreshed the buffers on this step, which it
         # does when the sensor carries a history buffer.
-        if self._is_initialized and self._data_generation != self._data_generation_last_update:
+        if self._is_initialized and self._data_dirty:
             self._fetch_physx_buffers(include_pose=False)
 
     def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> None:
@@ -684,13 +683,10 @@ class ContactSensor(BaseContactSensor):
             # set their visibility to true
             self.contact_visualizer.set_visibility(True)
             self.normal_force_visualizer.set_visibility(True)
-            if not getattr(self, "_warned_missing_net_friction_vis", False):
-                warnings.warn(
-                    "PhysX contact sensor visualization cannot display net friction forces because the backend"
-                    " only reports friction for configured filter objects.",
-                    stacklevel=2,
-                )
-                self._warned_missing_net_friction_vis = True
+            logger.warning(
+                "PhysX contact sensor visualization cannot display net friction forces because the backend"
+                " only reports friction for configured filter objects."
+            )
         else:
             if hasattr(self, "contact_visualizer"):
                 self.contact_visualizer.set_visibility(False)
@@ -701,6 +697,7 @@ class ContactSensor(BaseContactSensor):
         # note: this invalidity happens because of isaac sim view callbacks
         if self.body_physx_view is None:
             return
+        self._update_outdated_buffers()
         # Convert warp data to torch at the boundary for visualization
         net_forces_torch = self._data.net_normal_forces_w.torch  # (N, B, 3)
         net_contact_force_w = torch.linalg.norm(net_forces_torch, dim=-1)

@@ -69,6 +69,9 @@ class BaseRayCaster(SensorBase):
         BaseRayCaster._instance_count += 1
         super().__init__(cfg)
         self._data = RayCasterData()
+        self._drift_sampled = False
+        self._ray_cast_drift_range_list: tuple[tuple[float, float], ...] | None = None
+        self._ray_cast_drift_ranges: torch.Tensor | None = None
 
     def __str__(self) -> str:
         """Returns: A string containing information about the instance."""
@@ -104,9 +107,18 @@ class BaseRayCaster(SensorBase):
     def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None):
         # reset the timers and counters
         super().reset(env_ids, env_mask)
-        # resolve to indices for torch indexing
+        # Drift buffers start at zero, so zero ranges (the defaults) need no resampling.
+        sample_drift = any(self.cfg.drift_range)
+        ray_cast_range_list = tuple(
+            tuple(self.cfg.ray_cast_drift_range.get(key, (0.0, 0.0))) for key in ("x", "y", "z")
+        )
+        sample_ray_cast_drift = any(any(axis_range) for axis_range in ray_cast_range_list)
+        self._drift_sampled |= sample_drift or sample_ray_cast_drift
+        if not self._drift_sampled:
+            return
+        # determine the selected batch size
         if env_ids is not None:
-            num_envs_ids = len(env_ids)
+            num_envs_ids = len(range(self._view_count)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
         elif env_mask is not None:
             env_ids = wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1)
             num_envs_ids = len(env_ids)
@@ -114,14 +126,23 @@ class BaseRayCaster(SensorBase):
             env_ids = slice(None)
             num_envs_ids = self._view_count
         # resample drift (uses torch views for indexing)
-        r = torch.empty(num_envs_ids, 3, device=self.device)
-        self.drift.torch[env_ids] = r.uniform_(*self.cfg.drift_range)
+        if sample_drift:
+            r = torch.empty(num_envs_ids, 3, device=self.device)
+            self.drift.torch[env_ids] = r.uniform_(*self.cfg.drift_range)
+        else:
+            self.drift.torch[env_ids] = 0.0
         # resample the ray cast drift
-        range_list = [self.cfg.ray_cast_drift_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z"]]
-        ranges = torch.tensor(range_list, device=self.device)
-        self.ray_cast_drift.torch[env_ids] = math_utils.sample_uniform(
-            ranges[:, 0], ranges[:, 1], (num_envs_ids, 3), device=self.device
-        )
+        if sample_ray_cast_drift:
+            # Upload the ranges to the device only when the configuration changes.
+            if ray_cast_range_list != self._ray_cast_drift_range_list:
+                self._ray_cast_drift_range_list = ray_cast_range_list
+                self._ray_cast_drift_ranges = torch.tensor(ray_cast_range_list, device=self.device)
+            ranges = self._ray_cast_drift_ranges
+            self.ray_cast_drift.torch[env_ids] = math_utils.sample_uniform(
+                ranges[:, 0], ranges[:, 1], (num_envs_ids, 3), device=self.device
+            )
+        else:
+            self.ray_cast_drift.torch[env_ids] = 0.0
 
     """
     Implementation.
@@ -194,9 +215,6 @@ class BaseRayCaster(SensorBase):
                 wp_mesh = convert_to_warp_mesh(mesh.vertices, mesh.faces, device=self._device)
                 logger.info(f"Created infinite plane mesh prim: {mesh_prim.GetPath()}.")
             BaseRayCaster.meshes[mesh_key] = wp_mesh
-
-        if all((path, self._device) not in BaseRayCaster.meshes for path in self.cfg.mesh_prim_paths):
-            raise RuntimeError(f"No meshes found for ray-casting! Please check paths: {self.cfg.mesh_prim_paths}")
 
     def _initialize_rays_impl(self):
         # Compute ray starts and directions from pattern (torch, init-time only)
@@ -319,27 +337,20 @@ class BaseRayCaster(SensorBase):
         )
 
     def _set_debug_vis_impl(self, debug_vis: bool):
-        if debug_vis:
-            if not hasattr(self, "ray_visualizer"):
-                self.ray_visualizer = VisualizationMarkers(self.cfg.visualizer_cfg)
-            self.ray_visualizer.set_visibility(True)
-        else:
-            if hasattr(self, "ray_visualizer"):
-                self.ray_visualizer.set_visibility(False)
+        if debug_vis and not hasattr(self, "ray_visualizer"):
+            self.ray_visualizer = VisualizationMarkers(self.cfg.visualizer_cfg)
+        if hasattr(self, "ray_visualizer"):
+            self.ray_visualizer.set_visibility(debug_vis)
 
     def _debug_vis_callback(self, event):
         if self._data._ray_hits_w is None:
             return
-        ray_hits_torch = wp.to_torch(self._data._ray_hits_w)
-        # remove possible inf values
-        viz_points = ray_hits_torch.reshape(-1, 3)
-        viz_points = viz_points[~torch.any(torch.isinf(viz_points), dim=1)]
-
-        # if no points to visualize, skip
-        if viz_points.shape[0] == 0:
-            return
-
-        self.ray_visualizer.visualize(viz_points)
+        self._update_outdated_buffers()
+        # drop missed rays (inf) before visualizing
+        viz_points = wp.to_torch(self._data._ray_hits_w).reshape(-1, 3)
+        viz_points = viz_points[~torch.isinf(viz_points).any(dim=1)]
+        if viz_points.shape[0] > 0:
+            self.ray_visualizer.visualize(viz_points)
 
     """
     Internal simulation callbacks.

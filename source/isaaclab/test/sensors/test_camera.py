@@ -6,14 +6,10 @@
 # ignore private usage of variables warning
 # pyright: reportPrivateUsage=none
 
-"""Launch Isaac Sim Simulator first."""
+from isaaclab.test.utils import launch_test_simulation
+from isaaclab.utils import replace
 
-from isaaclab.app import AppLauncher
-
-# launch omniverse app
-simulation_app = AppLauncher(headless=True, enable_cameras=True).app
-
-"""Rest everything follows."""
+launch_test_simulation(enable_cameras=True)
 
 import copy
 import random
@@ -24,7 +20,6 @@ import scipy.spatial.transform as tf
 import torch
 import warp as wp
 
-import omni.replicator.core as rep
 from pxr import Gf, Usd, UsdGeom
 
 import isaaclab.sim as sim_utils
@@ -80,15 +75,11 @@ def setup() -> tuple[sim_utils.SimulationContext, CameraCfg, float]:
     sim = sim_utils.SimulationContext(sim_cfg)
     # populate scene
     _populate_scene()
-    # load stage
-    sim_utils.update_stage()
     return sim, camera_cfg, dt
 
 
 def teardown(sim: sim_utils.SimulationContext):
     # Cleanup
-    # close all the opened viewport from before.
-    rep.vp_manager.destroy_hydra_textures("Replicator")
     # stop simulation
     sim.stop()
     # clear the stage
@@ -514,7 +505,6 @@ def setup_with_device(device) -> tuple[sim_utils.SimulationContext, CameraCfg, f
     sim_cfg = sim_utils.SimulationCfg(dt=dt, device=device)
     sim = sim_utils.SimulationContext(sim_cfg)
     _populate_scene()
-    sim_utils.update_stage()
     return sim, camera_cfg, dt
 
 
@@ -542,6 +532,10 @@ def test_camera_multi_regex_init(setup_camera_device, device):
     sim.reset()
 
     assert camera.is_initialized
+    camera.frame.torch.fill_(7)
+    camera.reset(slice(1, None, 2))
+    torch.testing.assert_close(camera.frame.torch[::2], torch.full((5,), 7, device=device, dtype=torch.int64))
+    torch.testing.assert_close(camera.frame.torch[1::2], torch.zeros(4, device=device, dtype=torch.int64))
     assert camera._sensor_prims[1].GetPath().pathString == "/World/Origin_1/CameraSensor"
     assert isinstance(camera._sensor_prims[0], UsdGeom.Camera)
 
@@ -864,7 +858,7 @@ def test_camera_pose_update_reflected_in_render(setup_camera_device, device):
 def test_camera_invalidate_before_initialize(setup_sim_camera):
     """Invalidation on a camera that never initialized does not raise."""
     _, camera_cfg, _ = setup_sim_camera
-    camera = Camera(camera_cfg.replace(prim_path="/World/NeverInitialized", spawn=None))
+    camera = Camera(replace(camera_cfg, prim_path="/World/NeverInitialized", spawn=None))
     try:
         assert camera._view is None
         camera._invalidate_initialize_callback(None)

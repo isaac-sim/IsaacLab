@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import functools
 from typing import TYPE_CHECKING
 
 import torch
@@ -104,29 +105,8 @@ def _transform_policy_obs_left_right(env: ManagerBasedRLEnv, obs: torch.Tensor) 
     Returns:
         The transformed observation tensor with left-right symmetry applied.
     """
-    # copy observation tensor
-    obs = obs.clone()
-    device = obs.device
-    # lin vel
-    obs[:, :3] = obs[:, :3] * torch.tensor([1, -1, 1], device=device)
-    # ang vel
-    obs[:, 3:6] = obs[:, 3:6] * torch.tensor([-1, 1, -1], device=device)
-    # projected gravity
-    obs[:, 6:9] = obs[:, 6:9] * torch.tensor([1, -1, 1], device=device)
-    # velocity command
-    obs[:, 9:12] = obs[:, 9:12] * torch.tensor([1, -1, -1], device=device)
-    # joint pos
-    obs[:, 12:24] = _switch_anymal_joints_left_right(obs[:, 12:24])
-    # joint vel
-    obs[:, 24:36] = _switch_anymal_joints_left_right(obs[:, 24:36])
-    # last actions
-    obs[:, 36:48] = _switch_anymal_joints_left_right(obs[:, 36:48])
-
-    # note: this is hard-coded for grid-pattern of ordering "xy" and size (1.6, 1.0)
-    if "height_scan" in env.observation_manager.active_terms["policy"]:
-        obs[:, 48:235] = obs[:, 48:235].view(-1, 11, 17).flip(dims=[1]).view(-1, 11 * 17)
-
-    return obs
+    perm, sign = _policy_obs_symmetry("left_right", obs.shape[1], _has_height_scan(env), str(obs.device))
+    return obs[:, perm] * sign
 
 
 def _transform_policy_obs_front_back(env: ManagerBasedRLEnv, obs: torch.Tensor) -> torch.Tensor:
@@ -145,29 +125,8 @@ def _transform_policy_obs_front_back(env: ManagerBasedRLEnv, obs: torch.Tensor) 
     Returns:
         The transformed observation tensor with front-back symmetry applied.
     """
-    # copy observation tensor
-    obs = obs.clone()
-    device = obs.device
-    # lin vel
-    obs[:, :3] = obs[:, :3] * torch.tensor([-1, 1, 1], device=device)
-    # ang vel
-    obs[:, 3:6] = obs[:, 3:6] * torch.tensor([1, -1, -1], device=device)
-    # projected gravity
-    obs[:, 6:9] = obs[:, 6:9] * torch.tensor([-1, 1, 1], device=device)
-    # velocity command
-    obs[:, 9:12] = obs[:, 9:12] * torch.tensor([-1, 1, -1], device=device)
-    # joint pos
-    obs[:, 12:24] = _switch_anymal_joints_front_back(obs[:, 12:24])
-    # joint vel
-    obs[:, 24:36] = _switch_anymal_joints_front_back(obs[:, 24:36])
-    # last actions
-    obs[:, 36:48] = _switch_anymal_joints_front_back(obs[:, 36:48])
-
-    # note: this is hard-coded for grid-pattern of ordering "xy" and size (1.6, 1.0)
-    if "height_scan" in env.observation_manager.active_terms["policy"]:
-        obs[:, 48:235] = obs[:, 48:235].view(-1, 11, 17).flip(dims=[2]).view(-1, 11 * 17)
-
-    return obs
+    perm, sign = _policy_obs_symmetry("front_back", obs.shape[1], _has_height_scan(env), str(obs.device))
+    return obs[:, perm] * sign
 
 
 """
@@ -189,9 +148,8 @@ def _transform_actions_left_right(actions: torch.Tensor) -> torch.Tensor:
     Returns:
         The transformed actions tensor with left-right symmetry applied.
     """
-    actions = actions.clone()
-    actions[:] = _switch_anymal_joints_left_right(actions[:])
-    return actions
+    perm, sign = _joint_symmetry("left_right", str(actions.device))
+    return actions[:, perm] * sign
 
 
 def _transform_actions_front_back(actions: torch.Tensor) -> torch.Tensor:
@@ -208,9 +166,8 @@ def _transform_actions_front_back(actions: torch.Tensor) -> torch.Tensor:
     Returns:
         The transformed actions tensor with front-back symmetry applied.
     """
-    actions = actions.clone()
-    actions[:] = _switch_anymal_joints_front_back(actions[:])
-    return actions
+    perm, sign = _joint_symmetry("front_back", str(actions.device))
+    return actions[:, perm] * sign
 
 
 """
@@ -229,32 +186,58 @@ Correspondingly, the joint ordering for the ANYmal robot is:
 * LH = left hind --> [1, 5, 9]
 * RF = right front --> [2, 6, 10]
 * RH = right hind --> [3, 7, 11]
+
+Each transform is a column permutation and a sign per column: ``out[:, i] = sign[i] * x[:, perm[i]]``.
 """
 
+# signs of the base lin vel, ang vel, projected gravity, and velocity command columns
+_BASE_SIGNS = {
+    "left_right": (1, -1, 1, -1, 1, -1, 1, -1, 1, 1, -1, -1),
+    "front_back": (-1, 1, 1, 1, -1, -1, -1, 1, 1, -1, 1, -1),
+}
+# source joint of each switched joint: left <-> right swaps LF/RF and LH/RH, front <-> back swaps LF/LH and RF/RH
+_JOINT_PERMS = {
+    "left_right": (2, 3, 0, 1, 6, 7, 4, 5, 10, 11, 8, 9),
+    "front_back": (1, 0, 3, 2, 5, 4, 7, 6, 9, 8, 11, 10),
+}
+# left <-> right flips the HAA joints, front <-> back flips the HFE and KFE joints
+_JOINT_SIGNS = {
+    "left_right": (-1,) * 4 + (1,) * 8,
+    "front_back": (1,) * 4 + (-1,) * 8,
+}
+# height-scan grid dimension flipped per transform, for the (11, 17) grid
+_HEIGHT_SCAN_FLIP_DIM = {"left_right": 0, "front_back": 1}
 
-def _switch_anymal_joints_left_right(joint_data: torch.Tensor) -> torch.Tensor:
-    """Applies a left-right symmetry transformation to the joint data tensor."""
-    joint_data_switched = torch.zeros_like(joint_data)
-    # left <-- right
-    joint_data_switched[..., [0, 4, 8, 1, 5, 9]] = joint_data[..., [2, 6, 10, 3, 7, 11]]
-    # right <-- left
-    joint_data_switched[..., [2, 6, 10, 3, 7, 11]] = joint_data[..., [0, 4, 8, 1, 5, 9]]
 
-    # Flip the sign of the HAA joints
-    joint_data_switched[..., [0, 1, 2, 3]] *= -1.0
-
-    return joint_data_switched
+def _has_height_scan(env: ManagerBasedRLEnv) -> bool:
+    """Whether the policy observation contains the height scan."""
+    return "height_scan" in env.observation_manager.active_terms["policy"]
 
 
-def _switch_anymal_joints_front_back(joint_data: torch.Tensor) -> torch.Tensor:
-    """Applies a front-back symmetry transformation to the joint data tensor."""
-    joint_data_switched = torch.zeros_like(joint_data)
-    # front <-- hind
-    joint_data_switched[..., [0, 4, 8, 2, 6, 10]] = joint_data[..., [1, 5, 9, 3, 7, 11]]
-    # hind <-- front
-    joint_data_switched[..., [1, 5, 9, 3, 7, 11]] = joint_data[..., [0, 4, 8, 2, 6, 10]]
+@functools.cache
+def _joint_symmetry(kind: str, device: str) -> tuple[torch.Tensor, torch.Tensor]:
+    """Column permutation and signs of a transform over the 12 joints, cached per device."""
+    return (
+        torch.tensor(_JOINT_PERMS[kind], dtype=torch.long, device=device),
+        torch.tensor(_JOINT_SIGNS[kind], device=device),
+    )
 
-    # Flip the sign of the HFE and KFE joints
-    joint_data_switched[..., 4:] *= -1
 
-    return joint_data_switched
+@functools.cache
+def _policy_obs_symmetry(kind: str, num_obs: int, height_scan: bool, device: str) -> tuple[torch.Tensor, torch.Tensor]:
+    """Column permutation and signs of a transform over the policy observation, cached per device."""
+    perm = list(range(num_obs))
+    sign = [1] * num_obs
+    sign[:12] = _BASE_SIGNS[kind]
+    # joint positions, joint velocities, and last actions
+    for start in (12, 24, 36):
+        perm[start : start + 12] = [start + joint for joint in _JOINT_PERMS[kind]]
+        sign[start : start + 12] = _JOINT_SIGNS[kind]
+    # note: this is hard-coded for grid-pattern of ordering "xy" and size (1.6, 1.0)
+    if height_scan:
+        grid = torch.arange(48, 235).view(11, 17).flip(dims=[_HEIGHT_SCAN_FLIP_DIM[kind]])
+        perm[48:235] = grid.flatten().tolist()
+    return (
+        torch.tensor(perm, dtype=torch.long, device=device),
+        torch.tensor(sign, device=device),
+    )

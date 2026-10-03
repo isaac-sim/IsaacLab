@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 import torch
 
 from isaaclab.managers import ManagerTermBase, RewardTermCfg, SceneEntityCfg
+from isaaclab.utils import index_fill_
 from isaaclab.utils.math import matrix_from_quat
 
 if TYPE_CHECKING:
@@ -154,13 +155,13 @@ class open_drawer_bonus(ManagerTermBase):
 
     def reset(self, env_ids: torch.Tensor):
         log = self._env.extras.setdefault("log", {})
-        log["Metrics/success_rate"] = self.succeeded[env_ids].float().mean().item()
-        log["Metrics/drawer_pos"] = self.best_drawer_pos[env_ids].mean().item()
-        self.succeeded[env_ids] = False
-        self.best_drawer_pos[env_ids] = 0.0
+        log["Metrics/success_rate"] = self.succeeded[env_ids].float().mean()
+        log["Metrics/drawer_pos"] = self.best_drawer_pos[env_ids].mean()
+        index_fill_(self.succeeded, env_ids, False)
+        index_fill_(self.best_drawer_pos, env_ids, 0.0)
 
     def __call__(self, env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg, success_threshold: float) -> torch.Tensor:
-        drawer_pos = env.scene[asset_cfg.name].data.joint_pos.torch[:, asset_cfg.joint_ids[0]]
+        drawer_pos = env.scene[asset_cfg.name].data.joint_pos.torch[:, asset_cfg.joint_ids][:, 0]
         self.succeeded |= drawer_pos > success_threshold
         self.best_drawer_pos = torch.maximum(self.best_drawer_pos, drawer_pos)
         return (align_grasp_around_handle(env) + 1.0) * drawer_pos
@@ -172,7 +173,7 @@ def multi_stage_open_drawer(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg) -
     Depending on the drawer's position, the reward is given in three stages: easy, medium, and hard.
     This helps the agent to learn to open the drawer in a controlled manner.
     """
-    drawer_pos = env.scene[asset_cfg.name].data.joint_pos.torch[:, asset_cfg.joint_ids[0]]
+    drawer_pos = env.scene[asset_cfg.name].data.joint_pos.torch[:, asset_cfg.joint_ids][:, 0]
     is_graspable = align_grasp_around_handle(env)
 
     open_easy = (drawer_pos > 0.01) * 0.5

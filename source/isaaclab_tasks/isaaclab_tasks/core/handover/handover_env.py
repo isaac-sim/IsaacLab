@@ -14,6 +14,7 @@ import torch
 
 from isaaclab.assets import Articulation
 from isaaclab.envs import DirectMARLEnv
+from isaaclab.utils import index_fill_
 from isaaclab.utils.math import quat_conjugate, quat_mul, sample_uniform, saturate, scale_transform, unscale_transform
 
 from isaaclab_tasks.core.reorient.utils import (
@@ -69,7 +70,7 @@ class HandoverEnv(DirectMARLEnv):
 
         # Motors that pull a tendon rather than drive a joint. Both hands are the same model, so
         # one index set serves both.
-        self.actuated_tendon_indices: list[int] = []
+        self.actuated_tendon_indices = torch.empty(0, dtype=torch.long, device=self.device)
         if cfg.actuated_tendon_names:
             self.actuated_tendon_indices, self.tendon_lower_limits, self.tendon_upper_limits = resolve_actuated_tendons(
                 self.right_hand,
@@ -145,7 +146,7 @@ class HandoverEnv(DirectMARLEnv):
         prev_targets[:, idx] = targets
         hand.set_joint_position_target_index(target=targets, joint_ids=idx)
 
-        if self.actuated_tendon_indices:
+        if len(self.actuated_tendon_indices) > 0:
             # No moving average on the tendon target: the manager task's action term applies none,
             # and the two task variants have to stay comparable.
             # saturate like the joint target above: a Gaussian policy samples past the action range,
@@ -256,7 +257,7 @@ class HandoverEnv(DirectMARLEnv):
         self.extras.setdefault("log", {})["Metrics/success_rate"] = succeeded.float().mean()
         for statistic, value in self._goal_distance.reset(env_ids).items():
             self.extras["log"][f"Diagnostics/episode_min_goal_distance_{statistic}"] = value
-        self._episode_succeeded[env_ids] = False
+        index_fill_(self._episode_succeeded, env_ids, False)
         # reset articulation and rigid body attributes
         super()._reset_idx(env_ids)
 

@@ -11,11 +11,6 @@ without a simulator, data generator, or dataset. A step-count fuse turns an unbo
 test failure instead of a hang.
 """
 
-from isaaclab.app import AppLauncher
-
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
-
 import asyncio
 from types import SimpleNamespace
 

@@ -17,7 +17,7 @@ The capture flags are registered on the shared training entrypoints for RSL-RL, 
 Baselines3, and skrl. They are not available on ``play`` scripts.
 
 This feature can be enabled using the following command line arguments with
-``./isaaclab.sh train``:
+``uv run isaaclab train``:
 
 * ``--capture_env_sensors``: number of parallel environments to include in each saved frame grid
   (default: ``0``, which disables capture)
@@ -42,13 +42,6 @@ Example usage:
       .. code-block:: shell
 
           uv run isaaclab train --rl_library rsl_rl --task=Isaac-Reorient-Cube-Shadow-Camera-Direct --capture_env_sensors 4 --capture_env_sensors_length 100 --capture_env_sensors_interval 2000 --capture_env_sensors_format file
-
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: shell
-
-          ./isaaclab.sh train --rl_library rsl_rl --task=Isaac-Reorient-Cube-Shadow-Camera-Direct --capture_env_sensors 4 --capture_env_sensors_length 100 --capture_env_sensors_interval 2000 --capture_env_sensors_format file
 
 
 The captured frames will be saved in the same directory as the training checkpoints, under
@@ -160,12 +153,6 @@ subdirectory:
       .. code-block:: shell
 
           uv run python -m tensorboard.main --logdir logs/rsl_rl/Isaac-Reorient-Cube-Shadow-Camera-Direct/<run>/sensor_frames/train
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: shell
-
-          ./isaaclab.sh -p -m tensorboard.main --logdir logs/rsl_rl/Isaac-Reorient-Cube-Shadow-Camera-Direct/<run>/sensor_frames/train
 
 **File.** PNG images are written per sensor, data type, episode, and step:
 

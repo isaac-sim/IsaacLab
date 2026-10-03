@@ -33,7 +33,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg, RigidObjectCollectionCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sim.spawners.materials import UsdPhysicsRigidBodyMaterialCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, replace
 
 DOMINO_SIZE = (0.12, 0.032, 0.36)
 DOMINO_SPACING = 0.12
@@ -109,8 +109,8 @@ class DominoSceneCfg(InteractiveSceneCfg):
     )
     dominoes: RigidObjectCollectionCfg = RigidObjectCollectionCfg(
         rigid_objects={
-            f"domino_{index:04d}": _domino_cfg(position, orientation).replace(
-                prim_path=f"/World/Dominoes/Domino{index:04d}"
+            f"domino_{index:04d}": replace(
+                _domino_cfg(position, orientation), prim_path=f"/World/Dominoes/Domino{index:04d}"
             )
             for index, (position, orientation) in enumerate(LOGO_DOMINO_POSES)
         }
@@ -129,7 +129,7 @@ def _apply_display_colors() -> None:
 def run_simulator(sim: sim_utils.SimulationContext) -> None:
     """Run until the viewer closes or the optional step limit is reached."""
     step_count = 0
-    while sim.is_headless_or_exist_active_visualizer() and (args_cli.max_steps < 0 or step_count < args_cli.max_steps):
+    while sim.is_running() and (args_cli.max_steps < 0 or step_count < args_cli.max_steps):
         sim.step()
         step_count += 1
 
@@ -148,8 +148,6 @@ def main() -> None:
         sim.set_camera_view(eye=(0.0, -18.0, 15.0), target=(0.0, 0.0, 0.0))
         _scene = InteractiveScene(DominoSceneCfg(num_envs=1, env_spacing=1.0))
         _apply_display_colors()
-        if NewtonManager._builder is None:
-            NewtonManager.instantiate_builder_from_stage()
         NewtonManager._builder.rigid_gap = 0.001
         sim.reset()
         print(

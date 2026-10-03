@@ -24,13 +24,18 @@ from isaaclab.devices.gamepad import Se3GamepadCfg
 from isaaclab.devices.keyboard import Se3KeyboardCfg
 from isaaclab.devices.spacemouse import Se3SpaceMouseCfg
 from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
-from isaaclab.utils import configclass
+from isaaclab.managers import RewardTermCfg as RewTerm
+from isaaclab.managers import SceneEntityCfg
+from isaaclab.utils import configclass, replace
 
 from isaaclab_tasks.utils import PresetCfg, preset
 
-from isaaclab_assets import FRANKA_PANDA_CFG, FRANKA_PANDA_MENAGERIE_CFG
+##
+# Pre-defined configs
+##
+from isaaclab_assets import FRANKA_MINIMAL_CFG, FRANKA_PANDA_CFG  # isort: skip
 
-from ...reach_env_cfg import ReachEnvCfg
+from ...reach_env_cfg import ReachEnvCfg, RewardsCfg, TerminationsCfg
 
 ##
 # Environment configuration
@@ -57,13 +62,13 @@ class FrankaArmActionCfg(PresetCfg):
         scale=(0.05, 0.05, 0.05, 0.5, 0.5, 0.5),
         body_offset=DifferentialInverseKinematicsActionCfg.OffsetCfg(pos=[0.0, 0.0, 0.107]),
     )
-    diffik_abs: DifferentialInverseKinematicsActionCfg = diffik.replace(
-        controller=diffik.controller.replace(
-            use_relative_mode=False,
-            ik_params={"lambda_val": 0.45},
-        ),
+    diffik_abs: DifferentialInverseKinematicsActionCfg = replace(
+        diffik,
+        controller=replace(diffik.controller, use_relative_mode=False, ik_params={"lambda_val": 0.45}),
         body_offset=None,
-        scale=1.0,
+        # Normalize position actions around the center and half-spans of the commanded workspace.
+        scale=(0.15, 0.2, 0.175, 1.0, 1.0, 1.0, 1.0),
+        offset=(0.5, 0.0, 0.325, 0.0, 0.0, 0.0, 0.0),
     )
     newton_ik: NewtonInverseKinematicsActionCfg = NewtonInverseKinematicsActionCfg(
         asset_name="robot",
@@ -85,8 +90,24 @@ class FrankaArmActionCfg(PresetCfg):
 
 
 @configclass
+class FrankaReachRewardsCfg(RewardsCfg):
+    """Keep continuous pose-tracking rewards specific to Franka Reach."""
+
+    end_effector_position_tracking_fine_grained = RewTerm(
+        func=mdp.position_command_error_tanh,
+        weight=0.1,
+        params={"asset_cfg": SceneEntityCfg("robot", body_names="panda_hand"), "std": 0.1, "command_name": "ee_pose"},
+    )
+    success: RewTerm | None = None
+
+
+@configclass
 class FrankaReachEnvCfg(ReachEnvCfg):
     """Franka Reach configuration with selectable arm and physics presets."""
+
+    rewards: FrankaReachRewardsCfg = FrankaReachRewardsCfg()
+    # Report success while continuing to track poses until timeout.
+    terminations: TerminationsCfg = replace(TerminationsCfg(), success=None)
 
     def validate_config(self) -> None:
         """Validate the selected controller and physics backend."""
@@ -98,13 +119,13 @@ class FrankaReachEnvCfg(ReachEnvCfg):
     def __post_init__(self):
         super().__post_init__()
 
-        # Use the collision-complete legacy asset in PhysX until the Menagerie asset is corrected.
-        self.scene.robot = FRANKA_PANDA_MENAGERIE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
-        self.scene.robot.spawn.usd_path = preset(
-            default=self.scene.robot.spawn.usd_path,
-            isaacsim_physx=FRANKA_PANDA_CFG.spawn.usd_path,
-            physx=FRANKA_PANDA_CFG.spawn.usd_path,
-            ovphysx=FRANKA_PANDA_CFG.spawn.usd_path,
+        self.scene.robot = replace(FRANKA_PANDA_CFG, prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot.spawn.variants["Physics"] = preset(
+            default="mujoco", isaacsim_physx="physx", physx="physx", ovphysx="physx"
+        )
+        self.scene.robot.spawn.variants["Colliders"] = preset(
+            default=FRANKA_PANDA_CFG.spawn.variants["Colliders"],
+            minimal=FRANKA_MINIMAL_CFG.spawn.variants["Colliders"],
         )
         # IK targets need backend-native gravity control to hold steady between commands.
         self.scene.robot.spawn.rigid_props = [

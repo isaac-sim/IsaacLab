@@ -64,12 +64,13 @@ def sample_object_point_cloud(num_envs: int, num_points: int, prim_path: str, de
     # Obtain stage handle
     stage = sim_utils.get_current_stage()
 
-    sample_targets: list[tuple[str, tuple[int, ...]]] = []
-    clone_plan = sim_utils.SimulationContext.instance().get_clone_plan()
-    for _, _, source_path, env_ids in cloner.query.iter_sources(clone_plan, prim_path):
-        sample_targets.append((source_path, env_ids))
-
-    for obj_path, env_ids in sample_targets:
+    plan = sim_utils.SimulationContext.instance().get_clone_plan()
+    source_paths = cloner.path.get_asset_prototype_paths(plan)
+    for index in cloner.path.get_asset_prototypes(plan, prim_path):
+        env_ids, _ = cloner.query.get_asset_prototype_unique_world_index(plan.topology, index)
+        if not len(env_ids):
+            continue
+        obj_path = source_paths[index]
         # Gather prims
         prims = sim_utils.get_all_matching_child_prims(
             obj_path, predicate=lambda p: p.GetTypeName() in ("Mesh", "Cube", "Sphere", "Cylinder", "Capsule", "Cone")
@@ -287,7 +288,9 @@ def farthest_point_sampling(
 
 
 def collect_collision_meshes(root_prim, owner_frame_fn: Callable) -> dict[int, trimesh.Trimesh]:
-    """Collect collision meshes under ``root_prim``, grouped in caller-selected frames.
+    """Collect enabled collision meshes under ``root_prim``, grouped in caller-selected frames.
+
+    Disabled colliders and visual-only geometry are excluded from reset clearance checks.
 
     Args:
         root_prim: Prim whose subtree is searched for collision meshes.
@@ -310,7 +313,11 @@ def collect_collision_meshes(root_prim, owner_frame_fn: Callable) -> dict[int, t
     mesh_types = PRIMITIVE_MESH_TYPES + ["Mesh"]
     mesh_prims = sim_utils.get_all_matching_child_prims(
         root_prim.GetPath(),
-        lambda prim: prim.GetTypeName() in mesh_types and prim.HasAPI(UsdPhysics.CollisionAPI),
+        lambda prim: (
+            prim.GetTypeName() in mesh_types
+            and prim.HasAPI(UsdPhysics.CollisionAPI)
+            and UsdPhysics.CollisionAPI(prim).GetCollisionEnabledAttr().Get()
+        ),
     )
 
     meshes_by_owner: dict[int, list[trimesh.Trimesh]] = {}

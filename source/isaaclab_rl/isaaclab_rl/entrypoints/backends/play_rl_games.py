@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import logging
 import os
 import re
 
@@ -17,6 +18,7 @@ from rl_games.torch_runner import Runner
 
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.envs import DirectMARLEnvCfg
+from isaaclab.utils import index_fill_
 from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.seed import configure_seed
 
@@ -29,6 +31,7 @@ from ..common import (
     add_common_play_args,
     apply_env_overrides,
     apply_video_recording,
+    close_env,
     create_isaaclab_env,
     enable_cameras_for_video,
     normalize_task_name,
@@ -41,6 +44,8 @@ from ..common import (
     show_run_summary,
     startup_screen,
 )
+
+logger = logging.getLogger(__name__)
 
 # PLACEHOLDER: Extension template (do not remove this comment)
 with contextlib.suppress(ImportError):
@@ -103,9 +108,9 @@ def run(argv: list[str]) -> None:
                 " --agent rl_games_cfg_entry_point, or use --rl_library rsl_rl for RSL-RL runner configurations."
             )
         pre_launch_video_config(env_cfg, args_cli)
-        show_run_summary(screen, args_cli, env_cfg, library="rl_games", action="play")
         screen.stage("Launching simulation")
-        with launch_simulation(env_cfg, args_cli):
+        with launch_simulation(env_cfg, args_cli), contextlib.ExitStack() as cleanup:
+            show_run_summary(screen, args_cli, env_cfg, library="rl_games", action="play")
             apply_env_overrides(args_cli, env_cfg)
             params = agent_cfg["params"]
             args_cli.seed = resolve_seed(args_cli.seed)
@@ -114,7 +119,7 @@ def run(argv: list[str]) -> None:
             env_cfg.seed = params["seed"]
 
             log_root_path = os.path.abspath(os.path.join("logs", "rl_games", params["config"]["name"]))
-            print(f"[INFO] Loading experiment from directory: {log_root_path}")
+            logger.info(f"Loading experiment from directory: {log_root_path}")
             resume_path = _resolve_checkpoint(args_cli, agent_cfg, env_cfg, log_root_path)
             if resume_path is None:
                 return
@@ -129,6 +134,7 @@ def run(argv: list[str]) -> None:
                 args_cli,
                 convert_marl_to_single_agent=isinstance(env_cfg, DirectMARLEnvCfg),
             )
+            cleanup.callback(lambda: close_env(env))
 
             screen.stage("Loading policy")
             env = RlGamesVecEnvWrapper.from_agent_cfg(env, agent_cfg)
@@ -136,7 +142,7 @@ def run(argv: list[str]) -> None:
             params["load_checkpoint"] = True
             params["load_path"] = resume_path
             params["config"]["num_actors"] = env.unwrapped.num_envs
-            print(f"[INFO]: Loading model checkpoint from: {resume_path}")
+            logger.info(f"Loading model checkpoint from: {resume_path}")
             runner = Runner()
             # configure_seed must run after Runner() so torch determinism does not disturb its initialization
             if args_cli.deterministic:
@@ -161,8 +167,7 @@ def run(argv: list[str]) -> None:
                 # reset recurrent states for episodes that have terminated
                 if agent.is_rnn and agent.states is not None and len(dones) > 0:
                     for state in agent.states:
-                        state[:, dones, :] = 0.0
+                        index_fill_(state, dones, 0.0, dim=1)
 
             screen.close()
             run_playback(step, dt=env.unwrapped.step_dt, args_cli=args_cli, env_cfg=env_cfg)
-            env.close()

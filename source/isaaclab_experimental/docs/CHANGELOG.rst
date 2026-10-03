@@ -1,6 +1,50 @@
 Changelog
 ---------
 
+.. towncrier release notes start
+
+0.2.6 (2026-10-03)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed ``[INFO]`` messages printed by the Warp environments and the manager call switch to
+  ``logger.info``.
+
+
+0.2.5 (2026-10-01)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Used resolved callable defaults when constructing manager terms instead of duplicating defaults in constructors.
+
+
+0.2.4 (2026-09-30)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Added the Warp implementation of ``base_height_l2``, restoring Warp frontend support for
+  Unitree Go2 tasks with the base-height reward enabled.
+
+
+0.2.3 (2026-09-28)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Used the shared indexed fill operation for environment and circular-buffer resets.
+* Changed ``seed()`` of the Warp environments to no longer seed Replicator; the Replicator event terms seed it
+  with ``env.cfg.seed``.
+* Changed ``render()`` with ``render_mode="rgb_array"`` in the Warp environments to warn and return ``None``,
+  matching the core environments. Use ``VideoRecorderCfg`` on ``env_cfg.video_recorders`` to capture frames.
+
+
 0.2.2 (2026-09-20)
 ~~~~~~~~~~~~~~~~~~
 

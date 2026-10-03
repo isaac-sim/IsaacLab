@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 import isaaclab.sim as sim_utils
 from isaaclab.managers import CommandTermCfg
 from isaaclab.markers import VisualizationMarkersCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 if TYPE_CHECKING:
@@ -84,20 +84,33 @@ class ObjectUniformPoseCommandCfg(CommandTermCfg):
     """Command goal position only. Command includes goal quat if False"""
 
     # Pose Markers
-    goal_pose_visualizer_cfg: VisualizationMarkersCfg = ALIGN_MARKER_CFG.replace(prim_path="/Visuals/Command/goal_pose")
+    goal_pose_visualizer_cfg: VisualizationMarkersCfg = replace(
+        ALIGN_MARKER_CFG, prim_path="/Visuals/Command/goal_pose"
+    )
     """The configuration for the goal pose visualization marker. Defaults to FRAME_MARKER_CFG."""
 
-    curr_pose_visualizer_cfg: VisualizationMarkersCfg = ALIGN_MARKER_CFG.replace(prim_path="/Visuals/Command/body_pose")
+    curr_pose_visualizer_cfg: VisualizationMarkersCfg = replace(
+        ALIGN_MARKER_CFG, prim_path="/Visuals/Command/body_pose"
+    )
     """The configuration for the current pose visualization marker. Defaults to FRAME_MARKER_CFG."""
 
-    success_vis_asset_name: str = MISSING
-    """Name of the asset in the environment for which the success color are indicated."""
+    success_vis_asset_name: str | None = None
+    """Name of the asset at which the success markers are drawn, or None for no markers."""
 
     # success markers
     success_visualizer_cfg: VisualizationMarkersCfg = VisualizationMarkersCfg(
         prim_path="/Visuals/SuccessMarkers", markers={}
     )
     """The configuration for the success visualization marker. User needs to add the markers"""
+
+    success_vis_material_name: str | None = None
+    """Name of the per-environment :class:`~isaaclab.assets.VisualMaterial` tinted by success, or None."""
+
+    success_vis_colors: tuple[tuple[float, float, float], tuple[float, float, float]] = (
+        (0.25, 0.15, 0.15),
+        (0.15, 0.25, 0.15),
+    )
+    """Failure and success RGB colors written to the success material."""
 
 
 @configclass

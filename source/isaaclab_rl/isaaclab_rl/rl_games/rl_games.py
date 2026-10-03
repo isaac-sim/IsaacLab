@@ -296,7 +296,7 @@ class RlGamesVecEnvWrapper(IVecEnv):
 
     def step(self, actions):  # noqa: D102
         # move actions to sim-device
-        actions = actions.detach().clone().to(device=self._sim_device)
+        actions = actions.detach().to(device=self._sim_device)
         # clip the actions
         actions = torch.clamp(actions, -self._clip_actions, self._clip_actions)
         # perform environment step
@@ -310,7 +310,6 @@ class RlGamesVecEnvWrapper(IVecEnv):
         # process observations and states
         obs_and_states = self._process_obs(obs_dict)
         # move buffers to rl-device
-        # note: we perform clone to prevent issues when rl-device and sim-device are the same.
         rew = rew.to(device=self._rl_device)
         dones = (terminated | truncated).to(device=self._rl_device)
         extras = {

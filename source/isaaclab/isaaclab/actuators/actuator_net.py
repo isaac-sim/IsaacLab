@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING
 
 import torch
 
+from ..utils import index_fill_
 from ..utils.assets import read_file
 from ..utils.types import ArticulationActions
 from .actuator_pd import DCMotor
@@ -70,8 +71,8 @@ class ActuatorNetLSTM(DCMotor):
     def reset(self, env_ids: Sequence[int]):
         # reset the hidden and cell states for the specified environments
         with torch.no_grad():
-            self.sea_hidden_state_per_env[:, env_ids] = 0.0
-            self.sea_cell_state_per_env[:, env_ids] = 0.0
+            index_fill_(self.sea_hidden_state_per_env, env_ids, 0.0, dim=1)
+            index_fill_(self.sea_cell_state_per_env, env_ids, 0.0, dim=1)
 
     def compute(
         self, control_action: ArticulationActions, joint_pos: torch.Tensor, joint_vel: torch.Tensor
@@ -139,8 +140,8 @@ class ActuatorNetMLP(DCMotor):
 
     def reset(self, env_ids: Sequence[int]):
         # reset the history for the specified environments
-        self._joint_pos_error_history[env_ids] = 0.0
-        self._joint_vel_history[env_ids] = 0.0
+        index_fill_(self._joint_pos_error_history, env_ids, 0.0)
+        index_fill_(self._joint_vel_history, env_ids, 0.0)
 
     def compute(
         self, control_action: ArticulationActions, joint_pos: torch.Tensor, joint_vel: torch.Tensor

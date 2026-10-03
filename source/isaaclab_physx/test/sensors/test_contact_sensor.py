@@ -5,15 +5,9 @@
 
 """Tests to verify contact sensor functionality on rigid object prims."""
 
-"""Launch Isaac Sim Simulator first."""
+from isaaclab.test.utils import DeviceScope, launch_test_simulation, test_devices
 
-from isaaclab.app import AppLauncher
-from isaaclab.test.utils import DeviceScope, test_devices
-
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
-
-"""Rest everything follows."""
+launch_test_simulation()
 
 from dataclasses import MISSING
 from enum import Enum
@@ -39,7 +33,7 @@ from isaaclab.sensors.contact_sensor import BaseContactSensor
 from isaaclab.sim import SimulationCfg, SimulationContext, build_simulation_context
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.terrains import HfRandomUniformTerrainCfg, TerrainGeneratorCfg, TerrainImporterCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, replace
 
 ##
 # Custom helper classes.
@@ -490,12 +484,12 @@ def test_cube_stack_contact_filtering(setup_simulation, device):
         sim._app_control_on_stop_handle = None
         # Instance new scene for the current terrain and contact prim.
         scene_cfg = ContactSensorSceneCfg(num_envs=num_envs, env_spacing=1.0, lazy_sensor_update=False)
-        scene_cfg.terrain = FLAT_TERRAIN_CFG.replace(prim_path="/World/ground")
+        scene_cfg.terrain = replace(FLAT_TERRAIN_CFG, prim_path="/World/ground")
         # -- cube 1
-        scene_cfg.shape = CUBE_CFG.replace(prim_path="{ENV_REGEX_NS}/Cube_1")
+        scene_cfg.shape = replace(CUBE_CFG, prim_path="{ENV_REGEX_NS}/Cube_1")
         scene_cfg.shape.init_state.pos = (0, -1.0, 1.0)
         # -- cube 2 (on top of cube 1)
-        scene_cfg.shape_2 = CUBE_CFG.replace(prim_path="{ENV_REGEX_NS}/Cube_2")
+        scene_cfg.shape_2 = replace(CUBE_CFG, prim_path="{ENV_REGEX_NS}/Cube_2")
         scene_cfg.shape_2.init_state.pos = (0, -1.0, 1.525)
         # -- contact sensor 1
         scene_cfg.contact_sensor = ContactSensorCfg(
@@ -639,12 +633,12 @@ def test_contact_sensor_no_stale_data_after_reset(setup_simulation, device):
     PhysX's stale post-step buffer for the reset env — it must reflect the freshly reset state.
     """
     sim_dt, _, settings = setup_simulation
-    settings.set_bool("/physics/disableContactProcessing", False)
+    settings.set("/physics/disableContactProcessing", False)
     with build_simulation_context(device=device, dt=sim_dt, add_lighting=True) as sim:
         sim._app_control_on_stop_handle = None
         scene_cfg = ContactSensorSceneCfg(num_envs=1, env_spacing=2.0, lazy_sensor_update=False)
-        scene_cfg.terrain = FLAT_TERRAIN_CFG.replace(prim_path="/World/ground")
-        scene_cfg.shape = CUBE_CFG.replace(prim_path="{ENV_REGEX_NS}/Cube")
+        scene_cfg.terrain = replace(FLAT_TERRAIN_CFG, prim_path="/World/ground")
+        scene_cfg.shape = replace(CUBE_CFG, prim_path="{ENV_REGEX_NS}/Cube")
         scene_cfg.shape.init_state.pos = (0.0, 0.0, 1.0)
         scene_cfg.contact_sensor = ContactSensorCfg(
             prim_path="{ENV_REGEX_NS}/Cube",
@@ -698,12 +692,12 @@ def test_contact_history_updates_at_sensor_period(
     timestamps) on data access.
     """
     sim_dt, _, settings = setup_simulation
-    settings.set_bool("/physics/disableContactProcessing", False)
+    settings.set("/physics/disableContactProcessing", False)
     with build_simulation_context(device=device, dt=sim_dt, add_lighting=False) as sim:
         sim._app_control_on_stop_handle = None
         scene_cfg = ContactSensorSceneCfg(num_envs=1, env_spacing=2.0, lazy_sensor_update=True)
-        scene_cfg.terrain = FLAT_TERRAIN_CFG.replace(prim_path="/World/ground")
-        scene_cfg.shape = CUBE_CFG.replace(prim_path="{ENV_REGEX_NS}/Cube")
+        scene_cfg.terrain = replace(FLAT_TERRAIN_CFG, prim_path="/World/ground")
+        scene_cfg.shape = replace(CUBE_CFG, prim_path="{ENV_REGEX_NS}/Cube")
         scene_cfg.contact_sensor = ContactSensorCfg(
             prim_path="{ENV_REGEX_NS}/Cube",
             update_period=update_period_steps * sim_dt,
@@ -758,7 +752,7 @@ def test_lazy_sensor_reports_contact_loss(setup_simulation, device):
     (regression for #3498, where the spawner passed ``activate_contact_sensors`` as the threshold).
     """
     sim_dt, _, settings = setup_simulation
-    settings.set_bool("/physics/disableContactProcessing", False)
+    settings.set("/physics/disableContactProcessing", False)
     with build_simulation_context(device=device, dt=sim_dt, add_lighting=False) as sim:
         sim._app_control_on_stop_handle = None
         scene_cfg = ContactSensorSceneCfg(num_envs=1, env_spacing=1.0, lazy_sensor_update=True)
@@ -820,7 +814,7 @@ def test_friction_reporting(setup_simulation):
     # minor gravity force in -z to ensure object stays on ground plane
     grav_dir = (-10.0, 0.0, -0.1)
     sim_dt, _, settings = setup_simulation
-    settings.set_bool("/physics/disableContactProcessing", True)
+    settings.set("/physics/disableContactProcessing", True)
     device = "cuda:0"
     sim_cfg = SimulationCfg(dt=sim_dt, device=device, gravity=grav_dir)
     with build_simulation_context(sim_cfg=sim_cfg, add_lighting=False) as sim:
@@ -877,7 +871,7 @@ def test_friction_reporting(setup_simulation):
 def test_invalid_contact_data_config(setup_simulation, use_filter, max_contact_data_count_per_prim, match):
     """Tracking friction forces requires a filter pattern and a positive contact data budget."""
     sim_dt, _, settings = setup_simulation
-    settings.set_bool("/physics/disableContactProcessing", True)
+    settings.set("/physics/disableContactProcessing", True)
     device = "cuda:0"
     sim_cfg = SimulationCfg(dt=sim_dt, device=device)
     with build_simulation_context(sim_cfg=sim_cfg, add_lighting=False) as sim:

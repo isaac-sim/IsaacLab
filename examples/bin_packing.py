@@ -7,7 +7,7 @@
 
 The scene declares a bin layout as a clone combination on its
 :class:`~isaaclab.cloner.CloneCfg`, and the replication pipeline then spawns
-only the assets named by each combination, cycling environments through the
+only the assets named by each combination, grouping environments by their
 declared layouts. Instead of listing those assets by hand, this script defines
 its own combination set, ``RandomSubsetSet``, which draws a random subset of
 the grocery slots: the cloner only reads ``assets`` and ``weight`` off a
@@ -65,7 +65,7 @@ from isaaclab.cloner import CloneCfg, InclusionSet, sequential
 from isaaclab.physics import PhysicsCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import schemas
-from isaaclab.utils import Timer, configclass
+from isaaclab.utils import Timer, configclass, index_fill_, instantiate
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 if TYPE_CHECKING:
@@ -80,7 +80,7 @@ if TYPE_CHECKING:
 # Layout and spawn counts.
 MAX_OBJECTS_PER_BIN = 24  # Maximum active objects we plan to fit inside the bin.
 MIN_OBJECTS_PER_BIN = 1  # Lower bound for randomized active object count.
-NUM_LAYOUTS = 16  # Number of distinct bin layouts declared; environments cycle through them.
+NUM_LAYOUTS = 16  # Maximum number of distinct bin layouts.
 NUM_OBJECTS_PER_LAYER = 4  # Number of groceries spawned on each layer of the active stack.
 ACTIVE_LAYER_SPACING = 0.1  # Vertical spacing (m) between layers inside the bin.
 BIN_DIMENSIONS = (0.2, 0.3, 0.15)  # Physical size (m) of the storage bin.
@@ -277,10 +277,6 @@ class BinPackingSceneCfg(InteractiveSceneCfg):
     grocery_22: AssetBaseCfg = grocery_cfg(22)
     grocery_23: AssetBaseCfg = grocery_cfg(23)
 
-    # A slot claimed by some layout but active in none of the layouts the environments
-    # actually receive is never spawned, which the scene rejects. Environments cycle
-    # through the layouts in order, so a full first layout keeps every slot active for
-    # any ``--num_envs``, and the random draws below stay unconstrained.
     clone_cfg: CloneCfg = CloneCfg(
         clone_combinations=[
             InclusionSet(assets=GROCERY_NAMES),
@@ -291,6 +287,10 @@ class BinPackingSceneCfg(InteractiveSceneCfg):
         ],
         clone_strategy=sequential,
     )
+
+    def __post_init__(self):
+        """Give every declared layout an environment, including the full first bin."""
+        self.clone_cfg.clone_combinations = self.clone_cfg.clone_combinations[: self.num_envs]
 
 
 ##
@@ -337,7 +337,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene) -> 
 
     step_count = 0
     # Step while a visualizer window is still open (or none exist, e.g. headless); works for kit and newton.
-    while sim.is_headless_or_exist_active_visualizer() and (args_cli.max_steps < 0 or step_count < args_cli.max_steps):
+    while sim.is_running() and (args_cli.max_steps < 0 or step_count < args_cli.max_steps):
         if count % 250 == 0:
             # reset counter
             count = 0
@@ -379,7 +379,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene) -> 
             corrected_velocities = (
                 wp.to_torch(velocities).clone() if isinstance(velocities, wp.array) else velocities.clone()
             )
-            corrected_velocities[stray] = 0.0
+            index_fill_(corrected_velocities, stray, 0.0)
             root_view.set_transforms(wp.from_torch(corrected_transforms.contiguous()), stray_indices)
             root_view.set_velocities(wp.from_torch(corrected_velocities.contiguous()), stray_indices)
         # Increment counter
@@ -395,7 +395,6 @@ def main():
         None: The function drives the simulation for its side-effects.
     """
     with launch_simulation(cfg=PhysicsCfg(), launcher_args=args_cli) as physics_cfg:
-        # Load kit helper
         sim_cfg = sim_utils.SimulationCfg(dt=0.005, device=args_cli.device, physics=physics_cfg)
         sim = sim_utils.SimulationContext(sim_cfg)
         # Set main camera
@@ -406,16 +405,12 @@ def main():
         layouts = [combination.assets for combination in scene_cfg.clone_cfg.clone_combinations]
         print(f"[INFO] Drawn bin layouts (objects per layout): {[len(layout) for layout in layouts]}")
         with Timer("[INFO] Time to create scene: "):
-            scene = scene_cfg.class_type(scene_cfg)
+            scene = instantiate(scene_cfg)
 
-        # Play the simulator
         sim.reset()
-        # Now we are ready!
         print("[INFO]: Setup complete...")
-        # Run the simulator
         run_simulator(sim, scene)
 
 
 if __name__ == "__main__":
-    # run the main execution
     main()

@@ -9,10 +9,14 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import logging
 import os
+
+from rsl_rl.runners import DistillationRunner, OnPolicyRunner
 
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.envs import DirectMARLEnvCfg
+from isaaclab.utils import to_dict
 from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.string import list_intersection
@@ -20,19 +24,14 @@ from isaaclab.utils.string import list_intersection
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import get_checkpoint_path, resolve_task_config, setup_preset_cli
 
-from ...rsl_rl import (
-    RslRlBaseRunnerCfg,
-    RslRlVecEnvWrapper,
-    check_rsl_rl_version,
-    create_rsl_rl_runner,
-    handle_deprecated_rsl_rl_cfg,
-)
+from ...rsl_rl import RslRlBaseRunnerCfg, RslRlVecEnvWrapper
 from ...utils.wandb import is_wandb_checkpoint, resolve_wandb_checkpoint
 from ..common import (
     CHECKPOINT_SELECTORS,
     add_common_play_args,
     apply_env_overrides,
     apply_video_recording,
+    close_env,
     create_isaaclab_env,
     enable_cameras_for_video,
     normalize_task_name,
@@ -45,6 +44,8 @@ from ..common import (
     startup_screen,
 )
 from . import cli_args_rsl_rl as cli_args
+
+logger = logging.getLogger(__name__)
 
 # PLACEHOLDER: Extension template (do not remove this comment)
 with contextlib.suppress(ImportError):
@@ -100,22 +101,19 @@ def _resolve_checkpoint(
 def run(argv: list[str]) -> None:
     """Play a checkpoint of an RSL-RL agent."""
     args_cli = _parse_args(argv)
-    installed_version = check_rsl_rl_version()
-
     with startup_screen(args_cli, num_stages=3) as screen:
         env_cfg, agent_cfg = resolve_task_config(args_cli.task, args_cli.agent, play_mode=not args_cli.train_env_cfg)
         pre_launch_video_config(env_cfg, args_cli)
-        show_run_summary(screen, args_cli, env_cfg, library="rsl_rl", action="play")
         screen.stage("Launching simulation")
-        with launch_simulation(env_cfg, args_cli):
+        with launch_simulation(env_cfg, args_cli), contextlib.ExitStack() as cleanup:
+            show_run_summary(screen, args_cli, env_cfg, library="rsl_rl", action="play")
             agent_cfg = cli_args.update_rsl_rl_cfg(agent_cfg, args_cli)
-            agent_cfg = handle_deprecated_rsl_rl_cfg(agent_cfg, installed_version)
             apply_env_overrides(args_cli, env_cfg)
             # certain randomizations occur in the environment initialization so we set the seed here
             env_cfg.seed = agent_cfg.seed
 
             log_root_path = os.path.abspath(os.path.join("logs", "rsl_rl", agent_cfg.experiment_name))
-            print(f"[INFO] Loading experiment from directory: {log_root_path}")
+            logger.info(f"Loading experiment from directory: {log_root_path}")
             resume_path = _resolve_checkpoint(args_cli, agent_cfg, env_cfg, log_root_path)
             if resume_path is None:
                 return
@@ -130,11 +128,17 @@ def run(argv: list[str]) -> None:
                 args_cli,
                 convert_marl_to_single_agent=isinstance(env_cfg, DirectMARLEnvCfg),
             )
+            cleanup.callback(lambda: close_env(env))
 
             screen.stage("Loading policy")
             env = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
-            print(f"[INFO]: Loading model checkpoint from: {resume_path}")
-            runner = create_rsl_rl_runner(env, agent_cfg)
+            logger.info(f"Loading model checkpoint from: {resume_path}")
+            if agent_cfg.class_name == "OnPolicyRunner":
+                runner = OnPolicyRunner(env, to_dict(agent_cfg), log_dir=None, device=agent_cfg.device)
+            elif agent_cfg.class_name == "DistillationRunner":
+                runner = DistillationRunner(env, to_dict(agent_cfg), log_dir=None, device=agent_cfg.device)
+            else:
+                raise ValueError(f"Unsupported runner class: {agent_cfg.class_name}")
             # configure_seed must run after runner construction so torch determinism does not disturb its initialization
             if args_cli.deterministic:
                 configure_seed(env_cfg.seed, torch_deterministic=True)
@@ -155,4 +159,3 @@ def run(argv: list[str]) -> None:
 
             screen.close()
             run_playback(step, dt=env.unwrapped.step_dt, args_cli=args_cli, env_cfg=env_cfg)
-            env.close()

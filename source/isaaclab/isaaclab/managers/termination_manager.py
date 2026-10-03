@@ -140,11 +140,10 @@ class TerminationManager(ManagerBase):
             env_ids = slice(None)
         # add to episode dict
         extras = {}
-        # move to host once; per-element .item() would sync per term
-        last_episode_done_stats = self._last_episode_dones.float().mean(dim=0).cpu()
+        last_episode_done_stats = self._last_episode_dones.float().mean(dim=0)
         for i, key in enumerate(self._term_names):
             # store information
-            extras["Episode_Termination/" + key] = last_episode_done_stats[i].item()
+            extras["Episode_Termination/" + key] = last_episode_done_stats[i]
         # reset all the termination terms
         for term_cfg in self._class_term_cfgs:
             term_cfg.func.reset(env_ids=env_ids)
@@ -174,9 +173,8 @@ class TerminationManager(ManagerBase):
             self._term_dones[:, i] = value
         # update last-episode dones once per compute: for any env where a term fired,
         # reflect exactly which term(s) fired this step and clear others
-        rows = self._term_dones.any(dim=1).nonzero(as_tuple=True)[0]
-        if rows.numel() > 0:
-            self._last_episode_dones[rows] = self._term_dones[rows]
+        fired = self._term_dones.any(dim=1, keepdim=True)
+        torch.where(fired, self._term_dones, self._last_episode_dones, out=self._last_episode_dones)
         # return combined termination signal
         return self._truncated_buf | self._terminated_buf
 

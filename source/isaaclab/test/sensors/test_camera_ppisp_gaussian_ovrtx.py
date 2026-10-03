@@ -29,7 +29,7 @@ between renderers.
 
 Notes:
   * Runs **kit-less**: this test does not call
-    :class:`~isaaclab.app.AppLauncher`. ``ovrtx`` and Isaac Sim Kit ship the
+    :class:`~isaaclab_physx.app.KitLauncher`. ``ovrtx`` and Isaac Sim Kit ship the
     same RTX hydra libraries (``librtx.hydra.so``, ``liblegacy.hydra.so``)
     under conflicting USD namespaces; loading both into the same process
     causes a dynamic-linker crash. See

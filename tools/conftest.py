@@ -27,7 +27,6 @@ import hang_dump  # isort: skip
 import ovrtx_log  # isort: skip
 import test_settings as test_settings  # isort: skip
 from crash_journal import JOURNAL_ENV_VAR, create_crash_report  # isort: skip
-from _device_split import DEVICE_SPLIT_PASSES, is_device_split_file  # isort: skip
 from _file_scheduler import JobContext, TestFileJob, run_test_files  # isort: skip
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
@@ -47,10 +46,10 @@ it finishes, the on-disk shader cache is populated and later tests are fast.
 """
 
 STARTUP_DEADLINE = 120
-"""Seconds to wait for AppLauncher init or pytest collection before declaring a
+"""Seconds to wait for Kit launch or pytest collection before declaring a
 startup hang.
 
-AppLauncher prints ``[ISAACLAB] AppLauncher initialization complete`` to
+The Kit launcher prints ``[ISAACLAB] KitLauncher initialization complete`` to
 ``sys.__stderr__`` (never suppressed) when Kit finishes initializing, and pytest
 prints ``collected N items`` to stdout after collection (``N workers [M items]``
 under ``pytest-xdist``, once every worker has collected).  If none appears
@@ -353,7 +352,7 @@ def capture_test_output_with_timeout(cmd, timeout, env, startup_deadline=0, repo
         timeout: Maximum wall-clock seconds before the process is killed.
         env: Environment variables for the subprocess.
         startup_deadline: If > 0, the process is killed early when neither
-            ``AppLauncher initialization complete`` (stderr) nor ``collected``
+            ``KitLauncher initialization complete`` (stderr) nor ``collected``
             (stdout) appears within this many seconds.
         report_file: Path to the JUnit XML report file.  When set, the process
             is given only :data:`SHUTDOWN_GRACE_PERIOD` seconds to exit after
@@ -406,7 +405,7 @@ def capture_test_output_with_timeout(cmd, timeout, env, startup_deadline=0, repo
             elapsed = time.time() - start_time
 
             if not started and (
-                b"AppLauncher initialization complete" in stderr_data
+                b"KitLauncher initialization complete" in stderr_data
                 or b"collected " in stdout_data
                 or b" workers [" in stdout_data
             ):
@@ -1510,13 +1509,6 @@ def _run_test_file(
 
     timeout = test_settings.PER_TEST_TIMEOUTS.get(file_name, test_settings.DEFAULT_TIMEOUT)
 
-    # Read the test file once for device-split detection.
-    try:
-        with open(test_file) as fh:
-            test_content = fh.read()
-    except OSError:
-        test_content = ""
-
     # The first renderer in a fresh container compiles shaders (~600 s).
     # Give it extra time so that doesn't look like a test timeout.
     is_cold_cache_test = context.renderer_cold
@@ -1539,18 +1531,7 @@ def _run_test_file(
         capture=_CaptureOptions(echo=echo, workers=workers, on_started=context.mark_started),
     )
 
-    # On a multi-GPU shard, test_devices() already resolves to this shard's single
-    # GPU and mgpu_shard_select drops every other variant, so the device_split
-    # CPU/GPU two-pass (which exists to dodge the process-global device lock when
-    # CPU and GPU share one container) is unnecessary here — the CPU pass would
-    # collect zero tests yet still pay full Kit-startup cost. Run once on a shard.
-    if _inject_shard_select:
-        passes = [("", None)]
-    elif is_device_split_file(test_file, source=test_content):
-        logger.info(f"⚙️  device_split detected — invoking {file_name} once per device (CPU then GPU)")
-        passes = DEVICE_SPLIT_PASSES
-    else:
-        passes = [("", None)]
+    passes = [("", None)]
 
     reports = []
     failed = False

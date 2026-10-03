@@ -168,13 +168,16 @@ def test_record(dataset_dir):
         assert torch.stack(episode.data["record_post_step"]).shape == (2, 5)
 
     # Trigger pre-reset callbacks which then export and clean the episode data
-    recorder_manager.record_pre_reset(env_ids=None)
+    recorder_manager.record_pre_reset(env_ids=slice(None))
     for env_id in range(env.num_envs):
         episode = recorder_manager.get_episode(env_id)
         assert episode.is_empty()
 
-    recorder_manager.record_post_reset(env_ids=None)
+    recorder_manager.record_post_reset(env_ids=slice(None))
     for env_id in range(env.num_envs):
         episode = recorder_manager.get_episode(env_id)
         assert torch.stack(episode.data["record_post_reset"]).shape == (1, 3)
+    recorder_manager.reset(slice(1, None, 2))
+    for env_id in range(env.num_envs):
+        assert recorder_manager.get_episode(env_id).is_empty() == (env_id % 2 == 1)
     recorder_manager.close()

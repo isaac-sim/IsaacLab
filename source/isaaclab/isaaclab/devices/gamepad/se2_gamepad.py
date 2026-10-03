@@ -49,21 +49,14 @@ class Se2Gamepad(DeviceBase):
 
     """
 
-    def __init__(
-        self,
-        cfg: Se2GamepadCfg,
-    ):
+    def __init__(self, cfg: Se2GamepadCfg):
         """Initialize the gamepad layer.
 
         Args:
-            v_x_sensitivity: Magnitude of linear velocity along x-direction scaling. Defaults to 1.0.
-            v_y_sensitivity: Magnitude of linear velocity along y-direction scaling. Defaults to 1.0.
-            omega_z_sensitivity: Magnitude of angular velocity along z-direction scaling. Defaults to 1.0.
-            dead_zone: Magnitude of dead zone for gamepad. An event value from the gamepad less than
-                this value will be ignored. Defaults to 0.01.
+            cfg: Configuration object for gamepad settings.
         """
         # turn off simulator gamepad control
-        get_settings_manager().set_bool("/persistent/app/omniverse/gamepadCameraControl", False)
+        get_settings_manager().set("/persistent/app/omniverse/gamepadCameraControl", False)
         # store inputs
         self.v_x_sensitivity = cfg.v_x_sensitivity
         self.v_y_sensitivity = cfg.v_y_sensitivity

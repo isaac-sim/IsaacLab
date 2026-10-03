@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import MISSING
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 import torch
 
@@ -44,6 +44,11 @@ class ManagerTermBaseCfg:
 
     params: dict[str, Any | SceneEntityCfg] = {}
     """The parameters to be passed to the function as keyword arguments. Defaults to an empty dict.
+
+    During preparation, omitted keyword parameters are filled from the callable's signature.
+    Mutable defaults are copied per term before scene entities are resolved. Explicit values,
+    including None, take precedence. Class terms can read these defaults after calling
+    :meth:`ManagerTermBase.__init__`.
 
     .. note::
         If the value is a :class:`SceneEntityCfg` object, the manager will query the scene entity
@@ -132,10 +137,12 @@ class CommandTermCfg:
 class CurriculumTermCfg(ManagerTermBaseCfg):
     """Configuration for a curriculum term."""
 
-    func: Callable[..., float | dict[str, float] | None] = MISSING
-    """The name of the function to be called.
+    func: Callable[..., float | dict[str, float] | None] | type[ManagerTermBase] = MISSING
+    """The function or :class:`ManagerTermBase` subclass to be called.
 
-    This function should take the environment object, environment indices
+    The manager instantiates class-based terms before calling them.
+    The function or the class's ``__call__`` method should take the environment object,
+    an environment slice or device-resident indices
     and any other parameters as input and return the curriculum state for
     logging purposes. If the function returns None, the curriculum state
     is not logged.
@@ -151,10 +158,11 @@ class CurriculumTermCfg(ManagerTermBaseCfg):
 class ObservationTermCfg(ManagerTermBaseCfg):
     """Configuration for an observation term."""
 
-    func: Callable[..., torch.Tensor | None] = MISSING
-    """The name of the function to be called.
+    func: Callable[..., torch.Tensor | None] | type[ManagerTermBase] = MISSING
+    """The function or :class:`ManagerTermBase` subclass to be called.
 
-    This function should take the environment object and any other parameters
+    The manager instantiates class-based terms before calling them.
+    The function or the class's ``__call__`` method should take the environment object and any other parameters
     as input and return the observation signal as torch float tensors of
     shape (num_envs, obs_term_dim).
     """
@@ -281,6 +289,15 @@ class ObservationGroupCfg:
     ObservationGroupCfg.history_length is set.
     """
 
+    history_order: Literal["term", "time"] = "term"
+    """Order of a flattened, concatenated group history. Defaults to ``"term"``.
+
+    ``"term"`` keeps each term's full history together. ``"time"`` groups all terms by time step, so
+    the flattened output can be reshaped to ``(num_envs, history_length, combined_term_dim)``.
+    The ``"time"`` option applies when :attr:`history_length` is positive, :attr:`flatten_history_dim` and
+    :attr:`concatenate_terms` are true, and :attr:`concatenate_dim` is ``-1``.
+    """
+
 
 ##
 # Event manager
@@ -291,10 +308,12 @@ class ObservationGroupCfg:
 class EventTermCfg(ManagerTermBaseCfg):
     """Configuration for a event term."""
 
-    func: Callable[..., None] = MISSING
-    """The name of the function to be called.
+    func: Callable[..., None] | type[ManagerTermBase] = MISSING
+    """The function or :class:`ManagerTermBase` subclass to be called.
 
-    This function should take the environment object, environment indices
+    The manager instantiates class-based terms before calling them.
+    The function or the class's ``__call__`` method should take the environment object,
+    an environment slice or device-resident indices
     and any other parameters as input.
     """
 
@@ -370,10 +389,11 @@ class EventTermCfg(ManagerTermBaseCfg):
 class RewardTermCfg(ManagerTermBaseCfg):
     """Configuration for a reward term."""
 
-    func: Callable[..., torch.Tensor | None] = MISSING
-    """The name of the function to be called.
+    func: Callable[..., torch.Tensor | None] | type[ManagerTermBase] = MISSING
+    """The function or :class:`ManagerTermBase` subclass to be called.
 
-    This function should take the environment object and any other parameters
+    The manager instantiates class-based terms before calling them.
+    The function or the class's ``__call__`` method should take the environment object and any other parameters
     as input and return the reward signals as torch float tensors of
     shape (num_envs,).
     """
@@ -398,10 +418,11 @@ class RewardTermCfg(ManagerTermBaseCfg):
 class TerminationTermCfg(ManagerTermBaseCfg):
     """Configuration for a termination term."""
 
-    func: Callable[..., torch.Tensor | None] = MISSING
-    """The name of the function to be called.
+    func: Callable[..., torch.Tensor | None] | type[ManagerTermBase] = MISSING
+    """The function or :class:`ManagerTermBase` subclass to be called.
 
-    This function should take the environment object and any other parameters
+    The manager instantiates class-based terms before calling them.
+    The function or the class's ``__call__`` method should take the environment object and any other parameters
     as input and return the termination signals as torch boolean tensors of
     shape (num_envs,).
     """

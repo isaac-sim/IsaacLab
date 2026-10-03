@@ -18,6 +18,7 @@
 import argparse
 
 from isaaclab.app import add_launcher_args, launch_simulation
+from isaaclab.utils import instantiate, replace
 
 parser = argparse.ArgumentParser(
     description="View ARL Robot 1 with Lee Position Controller.",
@@ -64,11 +65,10 @@ def main():
         ground_cfg.func("/World/defaultGroundPlane", ground_cfg)
 
         # Spawn robot
-        robot_cfg = ARL_ROBOT_1_CFG.replace(prim_path="/World/Robot")
+        robot_cfg = replace(ARL_ROBOT_1_CFG, prim_path="/World/Robot")
         robot_cfg.actuators["thrusters"].dt = sim_cfg.dt
-        robot = robot_cfg.class_type(robot_cfg)
+        robot = instantiate(robot_cfg)
 
-        # Play the simulator
         sim.reset()
 
         # Create Lee position controller
@@ -96,9 +96,7 @@ def main():
 
         step_count = 0
         # Step while a visualizer window is still open (or none exist, e.g. headless); works for kit and newton.
-        while sim.is_headless_or_exist_active_visualizer() and (
-            args_cli.max_steps < 0 or step_count < args_cli.max_steps
-        ):
+        while sim.is_running() and (args_cli.max_steps < 0 or step_count < args_cli.max_steps):
             # Compute wrench from position controller
             wrench = controller.compute(pos_command)  # Shape: (1, 6)
 

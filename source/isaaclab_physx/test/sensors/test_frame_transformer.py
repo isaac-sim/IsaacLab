@@ -3,14 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Launch Isaac Sim Simulator first."""
+from isaaclab.test.utils import launch_test_simulation
 
-from isaaclab.app import AppLauncher
-
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
-
-"""Rest everything follows."""
+launch_test_simulation()
 
 import math
 from types import SimpleNamespace
@@ -31,12 +26,13 @@ from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import FrameTransformerCfg, OffsetCfg
 from isaaclab.sensors.frame_transformer import BaseFrameTransformer
 from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, replace
 
 ##
 # Pre-defined configs
 ##
 from isaaclab_assets.robots.anymal import ANYMAL_C_CFG  # isort:skip
+from isaaclab_assets.robots.franka import FRANKA_PANDA_CFG  # isort:skip
 
 
 def quat_from_euler_rpy(roll, pitch, yaw, degrees=False):
@@ -59,7 +55,7 @@ class MySceneCfg(InteractiveSceneCfg):
     terrain = TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane")
 
     # articulation - robot
-    robot = ANYMAL_C_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    robot = replace(ANYMAL_C_CFG, prim_path="{ENV_REGEX_NS}/Robot")
 
     # sensors - frame transformer (filled inside unit test)
     frame_transformer: FrameTransformerCfg = None
@@ -430,10 +426,11 @@ def test_frame_transformer_duplicate_body_names(sim, source_robot, path_prefix):
 
     # Create scene config with appropriate prim paths
     scene_cfg = MultiRobotSceneCfg(num_envs=num_envs, env_spacing=env_spacing, lazy_sensor_update=False)
-    scene_cfg.robot = ANYMAL_C_CFG.replace(prim_path=f"{path_prefix}/Robot")
-    scene_cfg.robot_1 = ANYMAL_C_CFG.replace(
+    scene_cfg.robot = replace(ANYMAL_C_CFG, prim_path=f"{path_prefix}/Robot")
+    scene_cfg.robot_1 = replace(
+        ANYMAL_C_CFG,
         prim_path=f"{path_prefix}/Robot_1",
-        init_state=ANYMAL_C_CFG.init_state.replace(pos=(2.0, 0.0, 0.6)),
+        init_state=replace(ANYMAL_C_CFG.init_state, pos=(2.0, 0.0, 0.6)),
     )
 
     # Frame transformer tracking same-named bodies from both robots
@@ -724,3 +721,30 @@ def test_frame_transformer_invalidation_drops_cached_launch_state(monkeypatch):
     assert sensor._frame_physx_view is None
     assert sensor._raw_transforms is None
     assert sensor._update_cmd is None
+
+
+def test_frame_transformer_nested_rigid_bodies(sim):
+    """Test that a matched rigid body does not include nested rigid-body descendants."""
+    scene_cfg = MySceneCfg(num_envs=2, env_spacing=5.0, lazy_sensor_update=False)
+    scene_cfg.robot = replace(FRANKA_PANDA_CFG, prim_path="{ENV_REGEX_NS}/Robot")
+    scene_cfg.frame_transformer = FrameTransformerCfg(
+        prim_path="{ENV_REGEX_NS}/Robot/(Geometry/)?panda_link0",
+        target_frames=[
+            FrameTransformerCfg.FrameCfg(prim_path="{ENV_REGEX_NS}/Robot/(Geometry/.*/)?panda_(hand|.*finger)"),
+        ],
+    )
+    scene = InteractiveScene(scene_cfg)
+
+    sim.reset()
+    scene.update(sim.get_physics_dt())
+
+    robot = scene.articulations["robot"]
+    source_id = robot.find_bodies("panda_link0")[0][0]
+    target_ids = robot.find_bodies(["panda_hand", "panda_leftfinger", "panda_rightfinger"])[0]
+    frame_data = scene.sensors["frame_transformer"].data
+
+    assert frame_data.target_frame_names == ["panda_hand", "panda_leftfinger", "panda_rightfinger"]
+    torch.testing.assert_close(frame_data.source_pos_w.torch, robot.data.body_pos_w.torch[:, source_id])
+    torch.testing.assert_close(frame_data.source_quat_w.torch, robot.data.body_quat_w.torch[:, source_id])
+    torch.testing.assert_close(frame_data.target_pos_w.torch, robot.data.body_pos_w.torch[:, target_ids])
+    torch.testing.assert_close(frame_data.target_quat_w.torch, robot.data.body_quat_w.torch[:, target_ids])

@@ -3,14 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Launch Isaac Sim Simulator first."""
+from isaaclab.test.utils import launch_test_simulation
 
-from isaaclab.app import AppLauncher
-
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
-
-"""Rest everything follows."""
+launch_test_simulation()
 
 import pytest
 
@@ -34,16 +29,16 @@ def cleanup_simulation_context():
 # -------------------------------------------------------------------------------------
 
 
-def test_spawn_rigid_body_material_from_fragments_composes_namespaces():
+def test_spawn_physics_material_from_fragments_composes_namespaces():
     from isaaclab_physx.sim.spawners.materials.physics_materials_cfg import PhysxMaterialCfg
 
-    from isaaclab.sim.spawners.materials.physics_materials import spawn_rigid_body_material_from_fragments
+    from isaaclab.sim.spawners.materials.physics_materials import spawn_physics_material_from_fragments
     from isaaclab.sim.spawners.materials.physics_materials_cfg import UsdPhysicsRigidBodyMaterialCfg
 
     sim_utils.create_new_stage()
     SimulationContext(SimulationCfg(dt=0.01))
     stage = sim_utils.get_current_stage()
-    prim = spawn_rigid_body_material_from_fragments(
+    prim = spawn_physics_material_from_fragments(
         "/World/Mat",
         [
             UsdPhysicsRigidBodyMaterialCfg(static_friction=0.7, dynamic_friction=0.6, restitution=0.1, density=1200.0),
@@ -71,19 +66,41 @@ def test_spawn_rigid_body_material_from_fragments_composes_namespaces():
     assert prim.GetAttribute("physxMaterial:compliantContactAccelerationSpring").Get() is True
 
 
-def test_spawn_rigid_body_material_from_fragments_accepts_single_fragment():
-    from isaaclab.sim.spawners.materials.physics_materials import spawn_rigid_body_material_from_fragments
+def test_spawn_physics_material_from_fragments_accepts_single_fragment():
+    from isaaclab.sim.spawners.materials.physics_materials import spawn_physics_material_from_fragments
     from isaaclab.sim.spawners.materials.physics_materials_cfg import UsdPhysicsRigidBodyMaterialCfg
 
     sim_utils.create_new_stage()
     SimulationContext(SimulationCfg(dt=0.01))
     stage = sim_utils.get_current_stage()
-    prim = spawn_rigid_body_material_from_fragments(
+    prim = spawn_physics_material_from_fragments(
         "/World/Mat2", UsdPhysicsRigidBodyMaterialCfg(static_friction=0.3), stage
     )
     assert prim.IsA(UsdShade.Material)
     assert bool(UsdPhysics.MaterialAPI(prim))
     assert prim.GetAttribute("physics:staticFriction").Get() == pytest.approx(0.3)
+
+
+def test_spawn_rigid_body_material_from_fragments_alias_warns_and_forwards():
+    """The pre-rename public name stays importable, warns, and authors through the new writer."""
+    import warnings
+
+    from isaaclab.sim.spawners.materials import spawn_rigid_body_material_from_fragments
+    from isaaclab.sim.spawners.materials.physics_materials_cfg import UsdPhysicsRigidBodyMaterialCfg
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    stage = sim_utils.get_current_stage()
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        prim = spawn_rigid_body_material_from_fragments(
+            "/World/MatAlias", UsdPhysicsRigidBodyMaterialCfg(static_friction=0.5), stage
+        )
+    assert any(issubclass(w.category, DeprecationWarning) for w in caught)
+    assert any("spawn_physics_material_from_fragments" in str(w.message) for w in caught)
+    assert prim.IsA(UsdShade.Material)
+    assert bool(UsdPhysics.MaterialAPI(prim))
+    assert prim.GetAttribute("physics:staticFriction").Get() == pytest.approx(0.5)
 
 
 def test_spawn_physics_material_dispatches_fragments_and_legacy():
@@ -106,6 +123,36 @@ def test_spawn_physics_material_dispatches_fragments_and_legacy():
     legacy_prim = spawn_physics_material("/World/MaterialB", PhysxRigidBodyMaterialCfg(static_friction=0.9))
     assert bool(UsdPhysics.MaterialAPI(legacy_prim))
     assert legacy_prim.GetAttribute("physics:staticFriction").Get() == pytest.approx(0.9)
+
+
+def test_spawn_physics_material_accepts_deformable_and_mixed_fragments():
+    from pxr import UsdPhysics, UsdShade
+
+    import isaaclab.sim as sim_utils
+    from isaaclab.sim import SimulationCfg, SimulationContext
+    from isaaclab.sim.spawners.materials import (
+        OmniPhysicsDeformableMaterialCfg,
+        UsdPhysicsRigidBodyMaterialCfg,
+        spawn_physics_material,
+    )
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    stage = sim_utils.get_current_stage()
+    # deformable-only list: NO MaterialAPI anchor
+    prim = spawn_physics_material("/World/DefMat", [OmniPhysicsDeformableMaterialCfg(youngs_modulus=1e6)], stage)
+    assert prim.IsA(UsdShade.Material)
+    assert not prim.HasAPI(UsdPhysics.MaterialAPI)
+    assert abs(prim.GetAttribute("omniphysics:youngsModulus").Get() - 1e6) < 1.0
+    # mixed list: legal, anchor applied because a rigid fragment is present
+    prim2 = spawn_physics_material(
+        "/World/MixMat",
+        [UsdPhysicsRigidBodyMaterialCfg(static_friction=0.5), OmniPhysicsDeformableMaterialCfg(density=1000.0)],
+        stage,
+    )
+    assert prim2.HasAPI(UsdPhysics.MaterialAPI)
+    assert prim2.GetAttribute("physics:staticFriction").Get() is not None
+    assert prim2.GetAttribute("omniphysics:density").Get() is not None
 
 
 def test_spawn_physics_material_rejects_non_current_stage_for_legacy():
@@ -136,7 +183,7 @@ def test_fragment_writer_validates_inputs_before_authoring():
 
     from isaaclab.sim.spawners.materials.physics_materials import (
         spawn_physics_material,
-        spawn_rigid_body_material_from_fragments,
+        spawn_physics_material_from_fragments,
     )
     from isaaclab.sim.spawners.materials.physics_materials_cfg import UsdPhysicsRigidBodyMaterialCfg
 
@@ -145,7 +192,7 @@ def test_fragment_writer_validates_inputs_before_authoring():
     stage = sim_utils.get_current_stage()
 
     with pytest.raises(ValueError):
-        spawn_rigid_body_material_from_fragments("/World/MatEmpty", [], stage)
+        spawn_physics_material_from_fragments("/World/MatEmpty", [], stage)
     # a list mixing a fragment with a legacy cfg is not a valid fragment list
     with pytest.raises(TypeError):
         spawn_physics_material(
@@ -153,7 +200,7 @@ def test_fragment_writer_validates_inputs_before_authoring():
             [UsdPhysicsRigidBodyMaterialCfg(static_friction=0.4), PhysxRigidBodyMaterialCfg(static_friction=0.9)],
         )
     with pytest.raises(TypeError):
-        spawn_rigid_body_material_from_fragments("/World/MatLegacy", PhysxRigidBodyMaterialCfg(), stage)
+        spawn_physics_material_from_fragments("/World/MatLegacy", PhysxRigidBodyMaterialCfg(), stage)
     with pytest.raises(TypeError):
         spawn_physics_material("/World/MatInvalid", object())
     for path in ("MatEmpty", "MatMixed", "MatLegacy", "MatInvalid"):

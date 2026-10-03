@@ -8,16 +8,13 @@
 
 from __future__ import annotations
 
-from isaaclab.app import AppLauncher
+from isaaclab.test.utils import launch_test_simulation
+from isaaclab.utils import replace
 
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
+launch_test_simulation()
 
-import numpy as np
 import pytest
-from isaaclab_physx.cloner import physx_replicate
 
-import isaaclab.sim.utils as sim_utils
 from isaaclab import cloner
 from isaaclab.assets import Articulation
 from isaaclab.sim import build_simulation_context
@@ -47,33 +44,13 @@ def test_robot_load_performance(test_config, device):
     """Test robot load time."""
     with build_simulation_context(device=device) as sim:
         sim._app_control_on_stop_handle = None
-        stage = sim_utils.get_current_stage()
-
-        # Generate grid positions for environments
-        positions, _ = cloner.grid_transforms(NUM_ENVS, SPACING)
-
-        # Create environment prims using USD replicate
-        env_paths = [f"/World/Robots_{i}" for i in range(NUM_ENVS)]
-        stage.DefinePrim(env_paths[0], "Xform")
-        cloner.usd_replicate(
-            stage=stage,
-            sources=[env_paths[0]],
-            destinations=["/World/Robots_{}"],
-            env_ids=np.arange(NUM_ENVS, dtype=np.int64),
-            positions=positions,
-        )
-
-        # Replicate physics - mapping is (num_sources, num_envs) bool mask
-        physx_replicate(
-            stage=stage,
-            sources=[env_paths[0]],
-            destinations=["/World/Robots_{}"],
-            env_ids=np.arange(NUM_ENVS, dtype=np.int64),
-            mapping=np.ones((1, NUM_ENVS), dtype=np.bool_),  # 1 source -> all envs
-        )
 
         with Timer(f"{test_config['name']} load time for device {device}") as timer:
-            robot = Articulation(test_config["robot_cfg"].replace(prim_path="/World/Robots_[^/]*/Robot"))  # noqa: F841
+            cfg = replace(test_config["robot_cfg"], prim_path="{ENV_REGEX_NS}/Robot")
+            plan = cloner.clone_plan_from_env_0(cloner.CloneCfg(), (cfg,), NUM_ENVS, SPACING)
+            robot = Articulation(cfg)
+            cloner.replicate(plan)
             sim.reset()
             elapsed_time = timer.time_elapsed
+        assert robot.num_instances == NUM_ENVS
         assert elapsed_time <= test_config["expected_load_time"]

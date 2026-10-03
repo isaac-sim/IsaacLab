@@ -65,11 +65,7 @@ class WrenchComposer:
                 wrench. Defaults to False.
         """
         self.num_envs = asset.num_instances
-        # Avoid isinstance to prevent circular import issues; check by attribute presence instead.
-        if hasattr(asset, "num_bodies"):
-            self.num_bodies = asset.num_bodies
-        else:
-            raise ValueError(f"Unsupported asset type: {asset.__class__.__name__}")
+        self.num_bodies = asset.num_bodies
         self.device = asset.device
         self._asset = asset
         self._active = False
@@ -79,14 +75,6 @@ class WrenchComposer:
         self._has_local_wrench = False
         self._has_global_wrench = False
         self._has_global_positions = False
-        if hasattr(self._asset.data, "body_com_pos_w"):
-            self._get_com_pos_fn = lambda a=self._asset: a.data.body_com_pos_w.warp
-        else:
-            raise ValueError(f"Unsupported asset type: {self._asset.__class__.__name__}")
-        if hasattr(self._asset.data, "body_link_quat_w"):
-            self._get_link_quat_fn = lambda a=self._asset: a.data.body_link_quat_w.warp
-        else:
-            raise ValueError(f"Unsupported asset type: {self._asset.__class__.__name__}")
 
         # -- Input buffers (5 total) --
         self._global_force_w = wp.zeros((self.num_envs, self.num_bodies), dtype=wp.vec3f, device=self.device)
@@ -557,9 +545,6 @@ class WrenchComposer:
 
         The dirty flag is cleared after composition.
         """
-        com_pos_w = self._get_com_pos_fn()
-        link_quat_w = self._get_link_quat_fn()
-
         wp.launch(
             compose_wrench_to_body_frame,
             dim=(self.num_envs, self.num_bodies),
@@ -569,8 +554,8 @@ class WrenchComposer:
                 self._global_force_at_com_w,
                 self._local_force_b,
                 self._local_torque_b,
-                com_pos_w,
-                link_quat_w,
+                self._asset.data.body_com_pos_w,
+                self._asset.data.body_link_quat_w,
                 self._out_force_b,
                 self._out_torque_b,
             ],
@@ -613,7 +598,7 @@ class WrenchComposer:
 
         With no selection or ``env_ids=slice(None)``, zeros all seven buffers (5 input + 2 output) and clears all
         flags. Other ``env_ids`` or ``env_mask`` values perform a partial reset on the specified environments using
-        the reset kernels.
+        the reset kernels. An inactive composer already holds zero buffers, so any reset of it is a no-op.
 
         .. caution:: If both ``env_ids`` and ``env_mask`` are provided, ``env_mask`` takes precedence.
 
@@ -621,6 +606,8 @@ class WrenchComposer:
             env_ids: Environment indices. Defaults to None (all environments).
             env_mask: Environment mask. Defaults to None (all environments).
         """
+        if not self._active:
+            return
         full_reset = env_mask is None and (env_ids is None or (isinstance(env_ids, slice) and env_ids == slice(None)))
         if full_reset:
             # Full reset: zero all 7 buffers
@@ -655,8 +642,7 @@ class WrenchComposer:
             self._dirty = True
         else:
             # Partial reset via index
-            if isinstance(env_ids, list):
-                env_ids = wp.array(env_ids, dtype=wp.int32, device=self.device)
+            env_ids = self._resolve_env_ids(env_ids)
 
             wp.launch(
                 reset_wrench_composer_index_kernel(env_ids),
@@ -746,6 +732,8 @@ class WrenchComposer:
             return env_ids
         if env_ids == slice(None):
             return self._ALL_ENV_INDICES
+        if isinstance(env_ids, slice):
+            return wp.from_torch(wp.to_torch(self._ALL_ENV_INDICES)[env_ids])
         if isinstance(env_ids, list):
             return wp.array(env_ids, dtype=wp.int32, device=self.device)
         raise TypeError(

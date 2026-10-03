@@ -55,16 +55,33 @@ From a source installation, run:
 
 .. code-block:: bash
 
-   ./isaaclab.sh benchmark runtime \
+   uv run isaaclab benchmark runtime \
        --task Isaac-Cartpole-Direct \
        --num_envs 4096 \
        --warmup_steps 50 \
        --num_steps 1000 \
        --seed 42 \
-       --visualizer none \
        --benchmark_formatter schema,summary \
        --output_path ./benchmark_results \
        physics=isaacsim_physx
+
+OVRTX camera tasks can compare synchronous against asynchronous (pipelined) rendering through a
+Hydra override on the camera's renderer configuration:
+
+.. code-block:: bash
+
+   uv run --extra ovrtx isaaclab benchmark runtime \
+       --task Isaac-Cartpole-Camera-Direct \
+       --num_envs 256 \
+       --warmup_steps 30 \
+       --num_steps 200 \
+       --benchmark_formatter schema,omniperf \
+       --output_path ./results/ovrtx_async \
+       physics=newton_mjwarp renderer=ovrtx presets=rgb \
+       env.scene.tiled_camera.renderer_cfg.async_rendering=True
+
+Only the OVRTX renderer implements asynchronous rendering.
+See :ref:`renderers-async-data-flow` for how states, observations, and frames line up in each mode.
 
 Read the result
 ~~~~~~~~~~~~~~~
@@ -82,10 +99,12 @@ Render and physics scope profiling requires a non-``None`` ``benchmark_mode`` in
 task configuration. If the field is absent or ``None``, both scopes remain disabled
 even when their profiling flags are set; standard runtime reports are still produced.
 
-For ``Isaac-RenderBenchmark-Franka-Cabinet``, ``BENCHMARK_MODE=render`` (the default)
-writes analytic joint poses after physics, while ``BENCHMARK_MODE=physics_render``
+For ``Isaac-RenderBenchmark-Franka-Cabinet``, an unset ``BENCHMARK_MODE`` defaults to
+``None``: physics and camera rendering still run, without benchmark animation or
+scope profiling. Set ``BENCHMARK_MODE=render`` to write analytic joint poses after
+physics, while ``BENCHMARK_MODE=physics_render``
 sets actuator targets before physics. Both modes still step physics. Direct posing
-requires ``scene.lazy_sensor_update=True``. With Isaac RTX, use ``--visualizer none``
+requires ``scene.lazy_sensor_update=True``. With Isaac RTX, omit ``--visualizer``
 in this mode: a Kit visualizer would render before the pose write.
 
 Set ``ISAACLAB_PHYSICS_PROFILE=1`` to collect synchronized physics-step timings during
@@ -96,11 +115,14 @@ renderers through :func:`~isaaclab.benchmark.stepping.profile_renderers`, timing
 ``render()`` and excluding scene updates and output readback. Both context managers install
 wrappers after warmup and restore the original methods when measurement ends, including on
 failure, so subsequent benchmark runs are unaffected. The render sweep
-enables both flags automatically. Ordered ``[scope, elapsed_ms]`` samples are written under
+enables both flags but requires an explicit ``BENCHMARK_MODE=render`` or
+``BENCHMARK_MODE=physics_render`` to collect timings. Ordered
+``[scope, elapsed_ms]`` samples are written under
 ``timings_ms`` in the local ``<output_path>/profile_timings.json`` file. The benchmark bundle's
 ``extra`` dictionary holds scalar ``physics_mean_ms``, ``physics_std_ms``, ``physics_max_ms``,
 ``physics_calls``, and corresponding ``render_*`` summaries. Disabled scopes contribute no keys.
-Schema version 1.4 remains unchanged, and OmniPerf output includes the same summaries.
+Schema version 1.5 records active physics solvers and their coupling method.
+OmniPerf output includes the same profiling summaries.
 These statistics describe individual calls after warmup; the render sweep instead groups physics
 calls by rendered frame and discards its padding frames. The sweep reads the local profiling file
 from a separate directory for each profile. Device synchronization changes execution overlap,
@@ -127,9 +149,10 @@ so these profiled runs are diagnostics rather than throughput measurements.
    .. code-block:: json
 
       {
-        "schema_version": "1.4",
+        "schema_version": "1.5",
         "run": {
-          "config": {"physics_backend": "physx", "rendering_backend": "none", "presets": ["physx"]},
+          "config": {"physics_backend": "physx", "rendering_backend": "none", "presets": ["physx"],
+                     "physics_solvers": ["physx"], "physics_coupling": null},
           "task": "Isaac-Cartpole-Direct", "seed": 42, "status": "completed", "num_envs": 4096
         },
         "runtime": {
@@ -162,11 +185,12 @@ so these profiled runs are diagnostics rather than throughput measurements.
    .. code-block:: json
 
       {
-        "schema_version": "1.4",
+        "schema_version": "1.5",
         "run": {
           "config": {
             "physics_backend": "physx", "rendering_backend": "isaacsim_rtx",
-            "presets": ["physx", "isaacsim_rtx", "rgb"]
+            "presets": ["physx", "isaacsim_rtx", "rgb"],
+            "physics_solvers": ["physx"], "physics_coupling": null
           },
           "task": "Isaac-Cartpole-Camera-Direct", "seed": 42,
           "status": "completed", "num_envs": 1024
@@ -220,7 +244,7 @@ Run it
 
 .. code-block:: bash
 
-   ./isaaclab.sh benchmark play \
+   uv run isaaclab benchmark play \
        --rl_library rsl_rl \
        --task Isaac-Cartpole-Direct \
        --num_envs 4096 \
@@ -228,7 +252,6 @@ Run it
        --warmup_steps 50 \
        --checkpoint /path/to/model.pt \
        --seed 42 \
-       --visualizer none \
        --benchmark_formatter schema,summary \
        --output_path ./benchmark_results/play \
        physics=isaacsim_physx
@@ -280,14 +303,13 @@ Run it
 
 .. code-block:: bash
 
-   ./isaaclab.sh benchmark training \
+   uv run isaaclab benchmark training \
        --rl_library rsl_rl \
        --task Isaac-Cartpole-Direct \
        --num_envs 4096 \
        --max_iterations 100 \
        --warmup_steps 50 \
        --seed 42 \
-       --visualizer none \
        --benchmark_formatter schema,summary \
        --output_path ./benchmark_results/training \
        physics=isaacsim_physx
@@ -359,12 +381,11 @@ Run it
 
 .. code-block:: bash
 
-   ./isaaclab.sh benchmark startup \
+   uv run isaaclab benchmark startup \
        --task Isaac-Cartpole-Direct \
        --num_envs 4096 \
        --top_n 30 \
        --seed 42 \
-       --visualizer none \
        --benchmark_formatter schema,summary \
        --output_path ./benchmark_results/startup \
        physics=isaacsim_physx
@@ -447,14 +468,13 @@ and sensor preset explicitly:
 
 .. code-block:: bash
 
-   ./isaaclab.sh benchmark runtime \
+   uv run isaaclab benchmark runtime \
        --task Isaac-Cartpole-Camera-Direct \
        --num_envs 1024 \
        --warmup_steps 50 \
        --num_steps 1000 \
        --seed 42 \
        --enable_cameras \
-       --visualizer none \
        --benchmark_formatter schema,summary \
        --output_path ./benchmark_results/rendered \
        physics=isaacsim_physx renderer=isaacsim_rtx presets=rgb

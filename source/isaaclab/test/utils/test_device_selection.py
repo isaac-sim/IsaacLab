@@ -98,7 +98,7 @@ def test_helper_is_not_collected_by_pytest():
 
 
 # ---------------------------------------------------------------------------
-# AppLauncher device resolution from the runtime mask
+# the Kit launcher device resolution from the runtime mask
 # ---------------------------------------------------------------------------
 
 

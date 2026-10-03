@@ -14,6 +14,8 @@ from typing import TYPE_CHECKING
 
 import gymnasium as gym
 
+from isaaclab.app.logging_utils import configure_console_logging
+
 if TYPE_CHECKING:
     from .simple_agents import PolicyName
 
@@ -86,6 +88,7 @@ def run_cli(action: str, argv: list[str] | None = None) -> int:
     """
     if action not in _BACKEND_MODULES:
         raise ValueError(f"Unsupported RL action {action!r}. Expected one of: {sorted(_BACKEND_MODULES)}.")
+    configure_console_logging()
     argv = _normalize_argv(argv)
     backends = _BACKEND_MODULES[action]
     parser = argparse.ArgumentParser(add_help=False)
@@ -115,6 +118,7 @@ def _run_simple_agent_cli(policy: PolicyName, argv: list[str] | None) -> int:
     # imported here so that importing this module stays lightweight
     from .simple_agents import run
 
+    configure_console_logging()
     argv = _normalize_argv(argv)
     original_argv = sys.argv
     try:
@@ -128,14 +132,14 @@ def _normalize_argv(argv: list[str] | None) -> list[str]:
     """Return the command line to dispatch with space-separated Kit arguments fused.
 
     The backends parse this explicit list rather than ``sys.argv``, so the fusing that
-    :meth:`~isaaclab.app.AppLauncher.add_app_launcher_args` applies to ``sys.argv`` never reaches it.
+    :func:`~isaaclab.app.add_launcher_args` applies to ``sys.argv`` never reaches it.
     """
     # imported here so that importing this module stays lightweight
-    from isaaclab.app import AppLauncher
+    from isaaclab.app.sim_launcher import fuse_kit_args
 
     if argv is None:
         argv = sys.argv[1:]
-    return AppLauncher._fuse_kit_args(argv)
+    return fuse_kit_args(argv)
 
 
 def _resolve_default_library(argv: list[str], backends: dict[str, str]) -> str | None:

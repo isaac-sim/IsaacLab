@@ -53,7 +53,7 @@ from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import ContactSensor, ContactSensorCfg
 from isaaclab.sim import build_simulation_context
 from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import clone, configclass
 
 from isaaclab_assets.robots.allegro import ALLEGRO_HAND_CFG
 
@@ -743,7 +743,7 @@ def test_finger_contact_sensor_isolation(device: str, use_mujoco_contacts: bool,
 
         scene_cfg = ContactSensorTestSceneCfg(num_envs=num_envs, env_spacing=1.0, lazy_sensor_update=False)
 
-        scene_cfg.hand = ALLEGRO_HAND_CFG.copy()
+        scene_cfg.hand = clone(ALLEGRO_HAND_CFG)
         scene_cfg.hand.prim_path = "{ENV_REGEX_NS}/Hand"
         scene_cfg.hand.init_state.pos = hand_pos
 

@@ -11,13 +11,6 @@
 Wrench values and frames are checked against analytic loads by the shared
 ``test_joint_wrench_frame`` contract imported below; the local tests cover
 initialization, body resolution, and reset behavior.
-
-The OVPhysX runtime fixes device mode (CPU vs GPU) when the process creates
-its first ``ovphysx.PhysX`` instance. Full coverage therefore requires two
-pytest runs -- once with ``-k 'cpu'`` and once with
-``-k 'cuda:0'``.  The ``_ovphysx_skip_other_device`` autouse fixture below
-preempts the manager's :exc:`RuntimeError` by ``pytest.skip``-ing on the
-unlocked device so single-device runs finish cleanly.
 """
 
 from __future__ import annotations
@@ -47,39 +40,12 @@ from isaaclab.scene import InteractiveScene, InteractiveSceneCfg  # noqa: E402
 from isaaclab.sensors import JointWrenchSensor, JointWrenchSensorCfg  # noqa: E402
 from isaaclab.sim import SimulationCfg, build_simulation_context  # noqa: E402
 from isaaclab.terrains import TerrainImporterCfg  # noqa: E402
-from isaaclab.utils import configclass  # noqa: E402
+from isaaclab.utils import configclass, replace  # noqa: E402
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR  # noqa: E402
 
 from isaaclab_assets.robots.ant import ANT_CFG  # noqa: E402
 
 wp.init()
-
-pytestmark = pytest.mark.device_split
-
-# ---------------------------------------------------------------------------
-# Device-lock autouse fixture (copied from test_contact_sensor.py)
-# ---------------------------------------------------------------------------
-
-_LOCKED_DEVICE: list[str | None] = [None]
-"""Device the session pins to on the first parametrized test that runs."""
-
-
-@pytest.fixture(autouse=True)
-def _ovphysx_skip_other_device(request):
-    """Skip parametrized tests on the device the session is not pinned to."""
-    callspec = getattr(request.node, "callspec", None)
-    device = callspec.params.get("device") if callspec is not None else None
-    if device is None:
-        return
-    locked = _LOCKED_DEVICE[0]
-    if locked is None:
-        _LOCKED_DEVICE[0] = device
-        return
-    if device != locked:
-        pytest.skip(
-            f"ovphysx process-global device lock is held by '{locked}'; cannot run '{device}' "
-            "tests in the same session.  Run pytest twice (once per device) for full coverage."
-        )
 
 
 # ---------------------------------------------------------------------------
@@ -139,7 +105,7 @@ class _NestedRootAntSceneCfg(InteractiveSceneCfg):
 
     env_spacing = 4.0
     terrain = TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane")
-    robot = ANT_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    robot = replace(ANT_CFG, prim_path="{ENV_REGEX_NS}/Robot")
     wrench = JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot")
 
 

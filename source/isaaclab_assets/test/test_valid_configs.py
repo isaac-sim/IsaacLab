@@ -6,16 +6,10 @@
 # ignore private usage of variables warning
 # pyright: reportPrivateUsage=none
 
-"""Launch Isaac Sim Simulator first."""
+from isaaclab.test.utils import launch_test_simulation
+from isaaclab.utils import instantiate
 
-from isaaclab.app import AppLauncher
-
-# launch the simulator
-app_launcher = AppLauncher(headless=True)
-simulation_app = app_launcher.app
-
-
-"""Rest everything follows."""
+launch_test_simulation()
 
 # Define a fixture to replace setUpClass
 import pytest
@@ -56,7 +50,7 @@ def test_asset_configs(registered_entities, device):
             # name the prim path
             entity_cfg.prim_path = "/World/asset"
             # create the asset / sensors
-            entity: AssetBase = entity_cfg.class_type(entity_cfg)  # type: ignore
+            entity: AssetBase = instantiate(entity_cfg)  # type: ignore
 
             # play the sim
             sim.reset()

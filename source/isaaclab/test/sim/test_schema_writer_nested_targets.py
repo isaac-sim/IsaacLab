@@ -3,14 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Launch Isaac Sim Simulator first."""
+from isaaclab.test.utils import launch_test_simulation
 
-from isaaclab.app import AppLauncher
-
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
-
-"""Rest everything follows."""
+launch_test_simulation()
 
 import os
 
@@ -61,7 +56,7 @@ def _author_robot_usd(path: str) -> None:
 
 def _spawn_robot(tmp_path, prim_path: str, **cfg_kwargs):
     """Author the robot asset and spawn it at *prim_path* through the production USD spawn path."""
-    from isaaclab.sim.spawners.from_files.from_files import _spawn_from_usd_file
+    from isaaclab.sim.spawners.from_files.from_files import spawn_from_usd_file
     from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
 
     usd_path = os.path.join(tmp_path, "robot.usda")
@@ -69,7 +64,7 @@ def _spawn_robot(tmp_path, prim_path: str, **cfg_kwargs):
     sim_utils.create_new_stage()
     SimulationContext(SimulationCfg(dt=0.01))
     cfg = UsdFileCfg(usd_path=usd_path, **cfg_kwargs)
-    _spawn_from_usd_file(prim_path, usd_path, cfg)
+    spawn_from_usd_file(prim_path, usd_path, cfg)
     return sim_utils.get_current_stage()
 
 
@@ -124,7 +119,7 @@ def test_fragment_and_legacy_paths_place_apis_identically_on_usd_asset(tmp_path)
     """
     from isaaclab_physx.sim.schemas import PhysxRigidBodyPropertiesCfg
 
-    from isaaclab.sim.spawners.from_files.from_files import _spawn_from_usd_file
+    from isaaclab.sim.spawners.from_files.from_files import spawn_from_usd_file
     from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
 
     usd_path = os.path.join(tmp_path, "robot.usda")
@@ -135,8 +130,8 @@ def test_fragment_and_legacy_paths_place_apis_identically_on_usd_asset(tmp_path)
     frag_cfg = UsdFileCfg(
         usd_path=usd_path, rigid_props={"(/.*)?": [PhysxRigidBodyCfg(max_depenetration_velocity=5.0)]}
     )
-    _spawn_from_usd_file("/World/Legacy", usd_path, legacy_cfg)
-    _spawn_from_usd_file("/World/Frag", usd_path, frag_cfg)
+    spawn_from_usd_file("/World/Legacy", usd_path, legacy_cfg)
+    spawn_from_usd_file("/World/Frag", usd_path, frag_cfg)
     stage = sim_utils.get_current_stage()
 
     legacy_root = stage.GetPrimAtPath("/World/Legacy")
@@ -366,7 +361,7 @@ def test_empty_articulation_fragments_still_fix_the_root_link(tmp_path):
     entry instead pins the expression to the spawn prim, which carries no root API, so nothing is
     authored and the world joint is never created.
     """
-    from isaaclab.sim.spawners.from_files.from_files import _spawn_from_usd_file
+    from isaaclab.sim.spawners.from_files.from_files import spawn_from_usd_file
     from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
 
     usd_path = os.path.join(tmp_path, "child_root_robot.usda")
@@ -374,7 +369,7 @@ def test_empty_articulation_fragments_still_fix_the_root_link(tmp_path):
     sim_utils.create_new_stage()
     SimulationContext(SimulationCfg(dt=0.01))
     cfg = UsdFileCfg(usd_path=usd_path, articulation_props=[], fix_root_link=True)
-    _spawn_from_usd_file("/World/Robot", usd_path, cfg)
+    spawn_from_usd_file("/World/Robot", usd_path, cfg)
 
     stage = sim_utils.get_current_stage()
     assert sim_utils.find_global_fixed_joint_prim("/World/Robot", stage=stage) is not None
@@ -416,7 +411,7 @@ def _author_prop_usd(path: str) -> None:
 
 def _spawn_prop(tmp_path, prim_path: str, **cfg_kwargs):
     """Author the schema-free prop asset and spawn it through the production USD spawn path."""
-    from isaaclab.sim.spawners.from_files.from_files import _spawn_from_usd_file
+    from isaaclab.sim.spawners.from_files.from_files import spawn_from_usd_file
     from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
 
     usd_path = os.path.join(tmp_path, "prop.usda")
@@ -424,7 +419,7 @@ def _spawn_prop(tmp_path, prim_path: str, **cfg_kwargs):
     sim_utils.create_new_stage()
     SimulationContext(SimulationCfg(dt=0.01))
     cfg = UsdFileCfg(usd_path=usd_path, **cfg_kwargs)
-    _spawn_from_usd_file(prim_path, usd_path, cfg)
+    spawn_from_usd_file(prim_path, usd_path, cfg)
     return sim_utils.get_current_stage()
 
 

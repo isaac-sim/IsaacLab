@@ -30,6 +30,7 @@ from isaaclab.actuators import (
 )
 from isaaclab.actuators.actuator_control import ArticulationActuatorControl
 from isaaclab.actuators.newton import read_group_parameter, write_group_parameter
+from isaaclab.utils import clone
 from isaaclab.utils.warp import ProxyArray
 
 
@@ -432,9 +433,7 @@ def test_constructor_effort_limit_alias_conflicts_with_explicit_infinity(cfg, ac
 
     with pytest.warns(DeprecationWarning, match=canonical_name):
         actuator = actuator_type(
-            cfg.copy(),
-            **constructor_kwargs,
-            **{canonical_name: torch.full((2, 3), 12.0), "effort_limit": 12.0},
+            clone(cfg), **constructor_kwargs, **{canonical_name: torch.full((2, 3), 12.0), "effort_limit": 12.0}
         )
     torch.testing.assert_close(getattr(actuator, canonical_name), torch.full((2, 3), 12.0))
 
@@ -720,7 +719,8 @@ def test_native_explicit_groups_zero_solver_drives_and_build_no_lab_model(monkey
     assert articulation.calls[-1][1]["damping"] == 0.0
 
 
-def test_native_group_parameters_route_through_the_collection_door():
+@pytest.mark.parametrize("env_ids", [torch.tensor([0]), slice(0, 1)])
+def test_native_group_parameters_route_through_the_collection_door(env_ids):
     """Read and write native group parameters through the collection's single parameter door."""
     control = NativeGainFakeActuatorControl()
     control.native_gains["kp"].copy_(torch.tensor([[2.0, 3.0, 4.0], [5.0, 6.0, 7.0]]))
@@ -752,7 +752,7 @@ def test_native_group_parameters_route_through_the_collection_door():
         "controller",
         "kp",
         values=torch.tensor([[42.0]]),
-        env_ids=torch.tensor([0]),
+        env_ids=env_ids,
         joint_ids=torch.tensor([1]),
     )
     torch.testing.assert_close(control.native_gains["kp"], torch.tensor([[2.0, 42.0, 4.0], [5.0, 6.0, 7.0]]))

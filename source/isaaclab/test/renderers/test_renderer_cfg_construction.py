@@ -22,7 +22,7 @@ pytestmark = [pytest.mark.integration, pytest.mark.rendering]
     ],
 )
 def test_renderer_cfg_names_its_implementation(module_name, cfg_name, implementation):
-    """Every concrete renderer cfg resolves the class used by ``cfg.class_type(cfg)``."""
+    """Every concrete renderer cfg resolves the class used by ``instantiate(cfg)``."""
     cfg_type = getattr(pytest.importorskip(module_name), cfg_name)
     class_type = cfg_type().class_type
     assert isinstance(class_type, ResolvableString)

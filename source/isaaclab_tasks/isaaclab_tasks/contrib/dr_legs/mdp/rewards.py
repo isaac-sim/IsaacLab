@@ -21,6 +21,7 @@ import torch
 
 import isaaclab.utils.math as math_utils
 from isaaclab.managers import ManagerTermBase, RewardTermCfg, SceneEntityCfg
+from isaaclab.utils import index_fill_
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
@@ -119,10 +120,8 @@ class ActionRate2L2(ManagerTermBase):
         self._prev_prev_action = torch.zeros((env.num_envs, dim), device=env.device)
 
     def reset(self, env_ids: torch.Tensor | None = None):
-        if env_ids is None:
-            env_ids = slice(None)
-        self._prev_action[env_ids] = 0.0
-        self._prev_prev_action[env_ids] = 0.0
+        index_fill_(self._prev_action, env_ids, 0.0)
+        index_fill_(self._prev_prev_action, env_ids, 0.0)
 
     def __call__(self, env: ManagerBasedRLEnv) -> torch.Tensor:
         current_action = env.action_manager.action
@@ -255,10 +254,10 @@ class walk_success_rate(ManagerTermBase):
         log["Metrics/error_vel_xy"] = err_xy.mean().item()
         log["Metrics/error_vel_yaw"] = err_yaw.mean().item()
         log["Metrics/contact_match_rate"] = contact.mean().item()
-        self._err_xy_sum[env_ids] = 0.0
-        self._err_yaw_sum[env_ids] = 0.0
-        self._contact_sum[env_ids] = 0.0
-        self._steps[env_ids] = 0.0
+        index_fill_(self._err_xy_sum, env_ids, 0.0)
+        index_fill_(self._err_yaw_sum, env_ids, 0.0)
+        index_fill_(self._contact_sum, env_ids, 0.0)
+        index_fill_(self._steps, env_ids, 0.0)
 
     def __call__(
         self,

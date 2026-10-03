@@ -28,8 +28,12 @@ def test_backend_registry_identity_and_lifecycle():
     sim_package = Path(__file__).parents[2] / "isaaclab" / "sim"
     assert not (sim_package / "service_locator.py").exists()
     assert not hasattr(SimulationContext, "services")
+    assert not hasattr(SimulationContext, "register_backend")
+    assert not hasattr(SimulationContext, "get_backend")
+    assert not hasattr(BackendCfg, "close")
     assert issubclass(RendererCfg, BackendCfg)
     assert not hasattr(RenderContext, "get_renderer")
+    assert "BACKEND_CFG_READY" not in PhysicsEvent.__members__
     assert "_renderer_entries" not in RenderContext.__slots__
     assert tuple(inspect.signature(SimulationContext.get_or_create_backend).parameters) == ("self", "cfg")
     assert all(
@@ -92,6 +96,25 @@ def test_backend_registry_identity_and_lifecycle():
     second.close.side_effect = None
     context.close_backend(second)
     assert second.close.call_count == 2
+
+    # Backend declarations require close(); plain construction cfgs only share Python-owned data.
+    data_cfg = Cfg(class_type=lambda cfg: list(cfg.values), values=[3])
+    data = context.get_or_create_backend(data_cfg)
+    with pytest.raises(AttributeError, match="close"):
+        context.close_backend(data)
+    assert context.get_or_create_backend(data_cfg) is data
+
+    @dataclass
+    class DataCfg:
+        class_type: object
+        values: list[int]
+
+    data_cfg = DataCfg(class_type=data_cfg.class_type, values=data_cfg.values)
+    data = context.get_or_create_backend(data_cfg)
+    assert context.get_or_create_backend(replace(data_cfg)) is data
+    context.close_backend(data)
+    assert context.get_or_create_backend(data_cfg) == data
+    assert context.get_or_create_backend(data_cfg) is not data
 
 
 def test_physics_manager_close_only_clears_active_manager_binding(monkeypatch):
@@ -245,15 +268,24 @@ def test_clear_instance_closes_renderers_before_native_backends(monkeypatch, ren
 
     class Manager:
         @classmethod
+        def stop(cls):
+            events.append("stop")
+            if fail_cleanup:
+                raise RuntimeError("STOP failed")
+
+        @classmethod
         def close(cls):
             events.append("physics")
             if fail_cleanup:
-                raise RuntimeError("STOP failed")
+                raise RuntimeError("physics close failed")
 
     class Resource:
         def __init__(self, name, error=None):
             self.name = name
             self.error = error
+
+        def stop(self):
+            events.append(f"{self.name}_stop")
 
         def close(self):
             events.append(self.name)
@@ -277,18 +309,19 @@ def test_clear_instance_closes_renderers_before_native_backends(monkeypatch, ren
             context.get_or_create_backend(
                 cfg_type(class_type=lambda cfg, name=name, error=error: Resource(name, error))
             )
+    context.get_or_create_backend(SimpleNamespace(class_type=lambda cfg: Resource("data")))
     monkeypatch.setattr(SimulationContext, "_instance", context)
     monkeypatch.setattr(context_module.stage_utils, "close_stage", lambda: events.append("stage"))
     monkeypatch.setattr(context_module, "clear_resolve_matching_names_cache", lambda: events.append("cache"))
     monkeypatch.setattr(context_module.gc, "collect", lambda: events.append("gc"))
 
     if fail_cleanup:
-        with pytest.raises(RuntimeError, match=r"4 error\(s\) occurred during teardown") as exc_info:
+        with pytest.raises(RuntimeError, match=r"5 error\(s\) occurred during teardown") as exc_info:
             SimulationContext.clear_instance()
         assert str(exc_info.value) == (
-            "SimulationContext.clear_instance(): 4 error(s) occurred during teardown: "
-            "RuntimeError: STOP failed; OSError: renderer failed; ValueError: visualizer failed; "
-            "LookupError: backend failed"
+            "SimulationContext.clear_instance(): 5 error(s) occurred during teardown: "
+            "RuntimeError: STOP failed; RuntimeError: physics close failed; OSError: renderer failed; "
+            "ValueError: visualizer failed; LookupError: backend failed"
         )
         assert str(exc_info.value.__cause__) == "STOP failed"
     else:
@@ -296,6 +329,8 @@ def test_clear_instance_closes_renderers_before_native_backends(monkeypatch, ren
 
     SimulationContext.clear_instance()
     assert events == [
+        "stop",
+        *([] if fail_cleanup else ["visualizer_failed_stop", "visualizer_last_stop"]),
         "physics",
         "writers",
         "renderer_failed",
@@ -303,8 +338,9 @@ def test_clear_instance_closes_renderers_before_native_backends(monkeypatch, ren
         "visualizer_failed",
         "visualizer_last",
         "visualizer_pending",
-        "backend_failed",
+        # native backends close newest first
         "backend_last",
+        "backend_failed",
         "stage",
         "cache",
         "gc",
@@ -331,7 +367,8 @@ def test_clear_instance_drops_owned_context_references_before_garbage_collection
             pass
 
     class Context:
-        pass
+        def stop(self):
+            pass
 
     context = Context()
     context.physics_manager = Manager

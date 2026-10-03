@@ -12,6 +12,8 @@ from pathlib import Path
 
 import pytest
 import tomllib
+from packaging.requirements import Requirement
+from packaging.version import Version
 
 pytestmark = pytest.mark.unit
 
@@ -158,7 +160,7 @@ def test_version_single_source_matches_literal_pins(source_checkout_root: Path):
 
     # The Newton uv override is its single pin and may select a release or Git revision.
     newton_spec = next(requirement for requirement in overrides if requirement.startswith("newton[sim]"))
-    assert "==" in newton_spec or " @ git+" in newton_spec
+    assert newton_spec.endswith(f"newton.git@{versions['newton']}")
 
     # warp-lang is a core dependency whose table value may be an exact pin
     # ("1.2.3" -> ``==``) or a range (">=1.2.3" -> mirrored verbatim).
@@ -194,6 +196,15 @@ def test_uv_run_declares_no_extra_conflicts(source_checkout_root: Path):
 
     assert "conflicts" not in tool_uv
     assert "packaging>=20,<27" in tool_uv["override-dependencies"]
+
+
+def test_rl_games_aiohttp_requirement_accepts_isaacsim_kernel_versions(source_checkout_root: Path):
+    """The aggregate RL extra must coexist with supported Isaac Sim kernels."""
+    optional = _root_pyproject(source_checkout_root)["project"]["optional-dependencies"]
+    aiohttp = next(Requirement(dependency) for dependency in optional["rl-games"] if dependency.startswith("aiohttp"))
+
+    assert Version("3.14.1") in aiohttp.specifier
+    assert Version("3.14.3") in aiohttp.specifier
 
 
 def test_uv_run_isaacsim_is_an_opt_in_extra(source_checkout_root: Path):

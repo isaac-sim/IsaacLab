@@ -16,6 +16,7 @@ from isaaclab.assets import Articulation
 from isaaclab.managers import CommandTerm
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.terrains import TerrainImporter
+from isaaclab.utils import index_fill_
 from isaaclab.utils.math import quat_apply_inverse, quat_from_euler_xyz, wrap_to_pi, yaw_quat
 
 if TYPE_CHECKING:
@@ -97,24 +98,23 @@ class UniformPose2dCommand(CommandTerm):
         if self._track_success:
             self._succeeded |= self.metrics["error_pos"] < self.cfg.position_success_threshold
 
-    def reset(self, env_ids: Sequence[int] | None = None) -> dict[str, float]:
+    def reset(self, env_ids: Sequence[int] | None = None) -> dict[str, torch.Tensor]:
         extras = super().reset(env_ids)
         if self._track_success:
             if env_ids is None:
                 env_ids = slice(None)
             # Write the unified ``Metrics/success_rate`` directly to env extras so it shares
             # a TensorBoard card with the same metric from other tasks.
-            self._env.extras.setdefault("log", {})["Metrics/success_rate"] = (
-                self._succeeded[env_ids].float().mean().item()
-            )
-            self._succeeded[env_ids] = False
+            self._env.extras.setdefault("log", {})["Metrics/success_rate"] = self._succeeded[env_ids].float().mean()
+            index_fill_(self._succeeded, env_ids, False)
         return extras
 
     def _resample_command(self, env_ids: Sequence[int]):
         # obtain env origins for the environments
+        num_envs = len(range(self.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
         self.pos_command_w[env_ids] = self._env.scene.env_origins[env_ids]
         # offset the position command by the current root position
-        r = torch.empty(len(env_ids), device=self.device)
+        r = torch.empty(num_envs, device=self.device)
         self.pos_command_w[env_ids, 0] += r.uniform_(*self.cfg.ranges.pos_x)
         self.pos_command_w[env_ids, 1] += r.uniform_(*self.cfg.ranges.pos_y)
         self.pos_command_w[env_ids, 2] += self.robot.data.default_root_pose.torch[env_ids, 2]
@@ -202,7 +202,8 @@ class TerrainBasedPose2dCommand(UniformPose2dCommand):
 
     def _resample_command(self, env_ids: Sequence[int]):
         # sample new position targets from the terrain
-        ids = torch.randint(0, self.valid_targets.shape[2], size=(len(env_ids),), device=self.device)
+        num_envs = len(range(self.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
+        ids = torch.randint(0, self.valid_targets.shape[2], size=(num_envs,), device=self.device)
         self.pos_command_w[env_ids] = self.valid_targets[
             self.terrain.terrain_levels[env_ids], self.terrain.terrain_types[env_ids], ids
         ]
@@ -230,5 +231,5 @@ class TerrainBasedPose2dCommand(UniformPose2dCommand):
             )
         else:
             # random heading command
-            r = torch.empty(len(env_ids), device=self.device)
+            r = torch.empty(num_envs, device=self.device)
             self.heading_command_w[env_ids] = r.uniform_(*self.cfg.ranges.heading)

@@ -52,6 +52,7 @@ Guidelines for modifications:
 * Alessandro Assirelli
 * Alex Omar
 * Alexander Millane
+* Alexander Temirov
 * Alice Zhou
 * alltheseas
 * Amr Mousa
@@ -167,6 +168,7 @@ Guidelines for modifications:
 * Oyindamola Omotuyi
 * Özhan Özen
 * Patrick Yin
+* Patrick-SCH03
 * Paul Reeves
 * Peter Du
 * Peter Verswyvelen
@@ -225,8 +227,10 @@ Guidelines for modifications:
 * Yijie Guo
 * Yize Wang
 * Yohan Choi
+* Yuguo Shan
 * Yujian Zhang
 * Yun Liu
+* Yusuf Guenena
 * YuTeh Shen
 * Zehao Wang
 * Zeng Qingcheng

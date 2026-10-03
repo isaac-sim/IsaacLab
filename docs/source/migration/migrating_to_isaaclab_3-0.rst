@@ -43,37 +43,18 @@ your project does not use that feature.
 Installation
 ------------
 
-Start from a fresh Isaac Lab 3.0 checkout and Python 3.12 environment instead of upgrading the
-packages inside an existing 2.x environment. The recommended workflow now uses ``uv`` to resolve the
-project environment and optional integrations when a command runs. The ``isaaclab.sh`` installer is
-still available for manually managed environments, but it is no longer the default path.
+Start from a fresh Isaac Lab 3.0 checkout. uv is the only supported installation method;
+create a new environment instead of upgrading an existing 2.x environment.
 
-.. grid:: 2
-   :gutter: 2
+Isaac Lab 3.0 removes ``isaaclab.sh``, ``isaaclab.bat``, and the CLI installation and
+environment-creation options (``--install``, ``--conda``, and ``--uv``, including their short forms).
+Replace installation commands with ``uv sync`` and launcher commands with ``uv run isaaclab``.
 
-   .. grid-item-card:: Isaac Lab 2.x
+.. code-block:: bash
 
-      Create and activate an environment, install every extension, then launch a library-specific script.
-
-      .. code-block:: bash
-
-         conda create -n env_isaaclab python=3.11
-         conda activate env_isaaclab
-         ./isaaclab.sh --install rsl_rl
-         ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
-            --task Isaac-Cartpole
-
-   .. grid-item-card:: Isaac Lab 3.0
-
-      Install ``uv`` once; ``uv run`` creates or synchronizes the project environment and launches the
-      unified command. Select optional runtimes with ``--extra`` before ``isaaclab``.
-
-      .. code-block:: bash
-
-         curl -LsSf https://astral.sh/uv/install.sh | sh
-         uv run --extra isaacsim isaaclab train \
-            --rl_library rsl_rl --task Isaac-Cartpole \
-            physics=isaacsim_physx
+   uv sync --extra isaacsim
+   uv run --extra isaacsim isaaclab train \
+      --rl_library rsl_rl --task Isaac-Cartpole physics=isaacsim_physx
 
 Use ``uv run isaaclab ...`` for Newton-only workflows, ``--extra ovphysx`` for OV PhysX, and
 ``--extra isaacsim`` for full Isaac Sim support. See :ref:`installation-method-uv` for platform-specific
@@ -839,7 +820,7 @@ replacement, prefer the Isaac Lab API** over the ``isaacsim.core.experimental.*`
    * - ``isaacsim.core.utils.stage``
      - :mod:`isaaclab.sim.utils.stage` (e.g. ``get_current_stage``,
        ``create_new_stage``, ``open_stage``, ``save_stage``, ``close_stage``,
-       ``clear_stage``, ``update_stage``, ``use_stage``)
+       ``clear_stage``, ``use_stage``)
    * - ``isaacsim.core.utils.prims``
      - :mod:`isaaclab.sim.utils.prims` (e.g. ``create_prim``, ``delete_prim``,
        ``change_prim_property``, ``bind_visual_material``,
@@ -1613,9 +1594,10 @@ For configuration and data access examples, see the :ref:`overview_sensors_joint
    import torch
    from isaaclab.scene import InteractiveSceneCfg
    from isaaclab.sensors import JointWrenchSensorCfg
+   from isaaclab.utils import replace
 
    class MySceneCfg(InteractiveSceneCfg):
-       robot = ROBOT_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+       robot = replace(ROBOT_CFG, prim_path="{ENV_REGEX_NS}/Robot")
        joint_wrench = JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot")
 
    sensor = env.scene.sensors["joint_wrench"]
@@ -1643,9 +1625,10 @@ depend on the joint-wrench sensor instead:
    from isaaclab.managers import ObservationTermCfg as ObsTerm
    from isaaclab.scene import InteractiveSceneCfg
    from isaaclab.sensors import JointWrenchSensorCfg
+   from isaaclab.utils import replace
 
    class MySceneCfg(InteractiveSceneCfg):
-       robot = ROBOT_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+       robot = replace(ROBOT_CFG, prim_path="{ENV_REGEX_NS}/Robot")
        joint_wrench = JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot")
 
    feet_body_forces = ObsTerm(
@@ -2033,13 +2016,6 @@ Enable it by setting an environment variable before launching your script:
          export WARN_ON_TORCH_QUATF_ACCESS=1
          uv run python my_script.py
 
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         export WARN_ON_TORCH_QUATF_ACCESS=1
-         ./isaaclab.sh -p my_script.py
-
 Every read of ``.torch`` on a ``ProxyArray`` whose underlying ``wp.array`` has
 dtype ``wp.quatf`` then emits a :class:`UserWarning` with the message:
 
@@ -2352,25 +2328,22 @@ The previous ``write_*_to_sim(data, env_ids)`` methods have been removed.
      - ``write_body_link_velocity_to_sim_index`` / ``write_body_link_velocity_to_sim_mask``
 
 
-.. rubric:: TimestampedBufferWarp
+.. rubric:: Timestamped buffers
 
-If you have custom asset or sensor data classes that subclass the Isaac Lab base data classes,
-note that internal buffers have changed from :class:`~isaaclab.utils.buffers.TimestampedBuffer`
-to :class:`~isaaclab.utils.buffers.TimestampedBufferWarp`. The new class takes ``(shape, device,
-wp_dtype)`` as constructor arguments instead of a ``torch.Tensor``:
+Custom asset and sensor data classes use :class:`~isaaclab.utils.buffers.TimestampedBuffer`
+with explicitly allocated Torch or Warp storage. The separate ``TimestampedBufferWarp``
+allocator was removed; replace it with ``TimestampedBuffer(wp.zeros(...))``.
 
 .. code-block:: python
 
    import warp as wp
-   from isaaclab.utils.buffers import TimestampedBufferWarp
+   from isaaclab.utils.buffers import TimestampedBuffer
 
    # Before (Isaac Lab 2.x)
    self._data.root_pos_w = TimestampedBuffer(torch.zeros(num_envs, 3, device=device))
 
    # After (Isaac Lab 3.x)
-   self._data.root_pos_w = TimestampedBufferWarp(
-       shape=(num_envs,), device=device, wp_dtype=wp.vec3f
-   )
+   self._data.root_pos_w = TimestampedBuffer(wp.zeros(num_envs, dtype=wp.vec3f, device=device))
 
 
 Reinforcement Learning
@@ -2416,13 +2389,6 @@ and play. Instead of launching library-specific scripts under
          # Isaac Lab 3.0
          uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole
 
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         # Isaac Lab 3.0
-         ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole
-
 The same pattern applies to the play workflow:
 
 .. tab-set::
@@ -2432,12 +2398,6 @@ The same pattern applies to the play workflow:
       .. code-block:: bash
 
          uv run isaaclab play --rl_library rsl_rl --task Isaac-Cartpole --checkpoint /PATH/TO/model.pt
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         ./isaaclab.sh play --rl_library rsl_rl --task Isaac-Cartpole --checkpoint /PATH/TO/model.pt
 
 Supported reinforcement learning libraries are ``rsl_rl``, ``rl_games``, ``skrl``,
 ``sb3``, and ``rlinf``. Backend-local ``train.py`` and ``play.py`` scripts were removed; use these
@@ -2536,24 +2496,20 @@ The details below describe how CLI visualizer arguments resolve together with
 
 - ``--viz`` accepts **comma-separated** values (for example ``--viz kit,newton_gl``).
   ``"newton"`` is a deprecated alias for ``"newton_gl"``; prefer ``"newton_gl"`` or ``"newton_rtx"``.
-- If omitted, visualizers are resolved from ``SimulationCfg.visualizer_cfgs``.
-- ``--viz none`` explicitly disables all visualizers, including config-defined ones.
+- If omitted, no visualizer runs. ``SimulationCfg.visualizer_cfgs`` only configures the visualizers
+  ``--viz`` selects: a selected type uses the configured visualizer of that type, with its settings, or
+  else its default config.
 
 For the full behavior of visualizer resolution with the visualizer CLI argument and visualizer configs,
 see :ref:`visualization-common-modes`.
 
-**Breaking change — ``--headless`` no longer suppresses visualizers.**
+**Breaking change — ``--headless`` is removed.**
 
 In Isaac Lab 2.x, passing ``--headless`` disabled all visualizers regardless of ``--viz``.
-In Isaac Lab 3.0, ``--headless`` and ``--viz`` are independent:
-
-- ``--headless`` controls the simulation rendering pipeline (Kit app mode, GPU context).
-- ``--viz <type>`` controls which visualizer backends to launch.
-
-Passing ``--viz kit --headless`` now launches a Kit visualizer in headless mode using the
-Replicator offscreen renderer (no display window required).  Passing ``--viz newton_gl --headless``
-launches a Newton GL visualizer using pyglet's EGL headless backend.  To disable all visualizers
-explicitly, use ``--viz none``.
+In Isaac Lab 3.0 the flag is removed: a run opens windows only for the visualizers ``--viz`` selects,
+and runs without visualizers when ``--viz`` is omitted. To keep a selected visualizer windowless, e.g. on a
+machine without a display, set ``HEADLESS=1``: ``--viz kit`` then renders through the Replicator offscreen
+renderer and ``--viz newton_gl`` through pyglet's EGL backend.
 
 .. list-table:: Headless visualizer requirements
    :header-rows: 1
@@ -2576,23 +2532,15 @@ explicitly, use ``--viz none``.
 **Headless video recording (``--video`` without ``--viz``).**
 
 In Isaac Lab 2.x, ``--video`` alone would use the Kit Replicator pipeline implicitly.
-In Isaac Lab 3.0, the equivalent is:
+In Isaac Lab 3.0, ``--video`` alone records from a headless Newton GL visualizer. The equivalent of the
+2.x behavior records from a headless Kit visualizer, configured by the Kit visualizer of the task config
+if it lists one:
 
 .. code-block:: bash
 
-   # Record from Kit viewport headlessly (equivalent to 2.x --video behaviour)
-   uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Direct \
-       --viz kit --enable_cameras --headless --video
+   uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Direct --video viz:kit
 
-As a convenience, passing ``--video`` without ``--viz`` still works: Isaac Lab
-auto-creates a headless Kit visualizer (falling back to Newton GL if Kit is unavailable)
-and sets ``source="visualizer:kit"`` on the default recorder, printing:
-
-.. code-block:: text
-
-   [INFO] --video specified without --viz: auto-creating a headless Kit visualizer
-   for video recording. Pass --viz <type> to choose a different visualizer, or
-   set video_recorders in your env config to record from a scene sensor instead.
+See :ref:`the --video sources <record_video_cli>`.
 
 
 .. rubric:: Viewport Camera Configuration (``ViewerCfg`` deprecated)
@@ -2632,7 +2580,7 @@ For asset-body tracking (previously ``origin_type="asset_root"`` / ``"asset_body
 
    # After (Isaac Lab 3.x)
    from isaaclab_visualizers.kit import KitVisualizerCfg
-   env_cfg.sim.visualizer_cfgs = [KitVisualizerCfg(origin_type="asset", origin_track_path="robot")]
+   env_cfg.sim.visualizer_cfgs = [KitVisualizerCfg(origin_type="asset", origin_track_path="robot")]  # --viz kit
 
 The :class:`~isaaclab.envs.ui.ViewportCameraController` class is also deprecated; camera
 tracking is handled directly by :class:`~isaaclab_visualizers.kit.KitVisualizer`.
@@ -2643,8 +2591,9 @@ tracking is handled directly by :class:`~isaaclab_visualizers.kit.KitVisualizer`
 The ``tiled_cam_*`` configuration fields on visualizer configs (e.g. ``tiled_cam_view``,
 ``tiled_cam_num``, ``tiled_cam_prim_path``) have been removed and replaced by the unified
 ``streaming_*`` API available on all four visualizer backends.  A one-release deprecation
-shim forwards each removed field to its ``streaming_*`` equivalent and emits
+shim forwards the old fields except renderer selection to their ``streaming_*`` equivalents and emits
 :class:`DeprecationWarning`; the shim will be removed in the next major release.
+Renderer selection now takes a configuration directly, without a nickname compatibility path.
 
 .. list-table:: Field rename reference
    :header-rows: 1
@@ -2666,8 +2615,15 @@ shim forwards each removed field to its ``streaming_*`` equivalent and emits
      - ``streaming_cam_eye``
      -
    * - ``tiled_cam_renderer``
-     - ``streaming_cam_renderer``
-     - Accepts ``"newton_warp"``, ``"ovrtx"``, ``"isaac_rtx"``, or ``None``
+     - ``streaming_cam_renderer_cfg``
+     - Renderer configuration, not a nickname
+
+Replace ``streaming_cam_renderer="ovrtx"`` with ``streaming_cam_renderer_cfg=OVRTXRendererCfg()``
+(imported from ``isaaclab_ov.renderers``). Likewise, pass ``NewtonWarpRendererCfg()`` or
+``IsaacRtxRendererCfg()`` for Newton Warp or Isaac RTX. Custom configurations use their existing
+``class_type`` class or resolvable string. Kit defaults to Isaac RTX; the other visualizers default
+to Newton Warp. An unavailable explicitly selected renderer raises its construction error instead
+of silently selecting another renderer.
 
 .. code-block:: python
 
@@ -2735,9 +2691,9 @@ Similarly, when importing the config class directly:
    from isaaclab_visualizers.newton import NewtonGLVisualizerCfg  # or NewtonRTXVisualizerCfg
    cfg = NewtonGLVisualizerCfg()
 
-The ``source="visualizer:newton"`` string in :class:`~isaaclab.envs.utils.video_recorder_cfg.VideoRecorderCfg`
-continues to work as a backward-compatible alias for ``"visualizer:newton_gl"``, but
-``"visualizer:newton_gl"`` and ``"visualizer:newton_rtx"`` are now the canonical source strings.
+The ``newton`` type in a :class:`~isaaclab.envs.utils.video_recorder_cfg.VideoRecorderCfg` source (e.g.
+``source="visualizer:newton"``) continues to work as a deprecated alias for ``newton_gl``; use
+``"viz:newton_gl"`` or ``"viz:newton_rtx"``.
 
 
 .. rubric:: Video Recording (``gym.wrappers.RecordVideo`` replaced)
@@ -2755,14 +2711,13 @@ environment config, sourcing frames from the active visualizer or a scene sensor
    # After (Isaac Lab 3.x)
    from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
    env_cfg.video_recorders = [
-       VideoRecorderCfg(source="visualizer", output_dir="videos/", video_length=200)
+       VideoRecorderCfg(source="viz", output_dir="videos/", video_length=200)
    ]
    env = gym.make(task, cfg=env_cfg)
 
-Available sources: ``"visualizer"`` (auto-pick), ``"visualizer:kit"``, ``"visualizer:newton_gl"``,
-``"visualizer:newton_rtx"``, ``"visualizer:newton_gl:tiled"``, ``"sensor:<name>"``.
-``"visualizer:newton"`` and ``"visualizer:newton:tiled"`` remain as deprecated backward-compatible
-aliases for ``"visualizer:newton_gl"`` and ``"visualizer:newton_gl:tiled"`` respectively.
+Available sources: ``"viz"`` (auto-pick), ``"viz:kit"``, ``"viz:newton_gl"``, ``"viz:newton_rtx"``,
+``"viz:<type>:streaming_view"``, ``"sensor:<name>[:<channel>]"``. ``visualizer`` is accepted as the long
+form of ``viz``; the ``newton`` type remains a deprecated alias of ``newton_gl``.
 The ``eye`` and ``lookat`` fields have been removed from ``VideoRecorderCfg``; position the
 camera via ``sim.default_visualizer_cfg`` instead.
 
@@ -2865,16 +2820,6 @@ automatically by the importer based on the robot name and cannot be overridden.
            --fix-base \
            --merge-joints
 
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         ./isaaclab.sh -p scripts/tools/convert_urdf.py \
-           robot.urdf \
-           /output/dir/robot.usd \
-           --fix-base \
-           --merge-joints
-
 **After (Isaac Lab 3.0):**
 
 .. tab-set::
@@ -2884,18 +2829,6 @@ automatically by the importer based on the robot name and cannot be overridden.
       .. code-block:: bash
 
          uv run --extra importers python scripts/tools/convert_urdf.py \
-           robot.urdf \
-           /output/dir \
-           --fix-base \
-           --joint-stiffness 100.0 \
-           --joint-damping 1.0 \
-           --viz kit
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         ./isaaclab.sh -p scripts/tools/convert_urdf.py \
            robot.urdf \
            /output/dir \
            --fix-base \
@@ -3045,16 +2978,6 @@ are no longer available.
            --import-sites \
            --make-instanceable
 
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         ./isaaclab.sh -p scripts/tools/convert_mjcf.py \
-           ../mujoco_menagerie/unitree_h1/h1.xml \
-           source/isaaclab_assets/data/Robots/Unitree/h1.usd \
-           --import-sites \
-           --make-instanceable
-
 **After (Isaac Lab 3.0):**
 
 .. tab-set::
@@ -3064,17 +2987,6 @@ are no longer available.
       .. code-block:: bash
 
          uv run --extra importers python scripts/tools/convert_mjcf.py \
-           ../mujoco_menagerie/unitree_h1/h1.xml \
-           source/isaaclab_assets/data/Robots/Unitree/h1.usd \
-           --merge-mesh \
-           --self-collision \
-           --viz kit
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         ./isaaclab.sh -p scripts/tools/convert_mjcf.py \
            ../mujoco_menagerie/unitree_h1/h1.xml \
            source/isaaclab_assets/data/Robots/Unitree/h1.usd \
            --merge-mesh \
@@ -3203,21 +3115,7 @@ exactly as for the training workflow. There is no ``--physics`` or ``--render`` 
 
 .. tab-set::
 
-   .. tab-item:: uv (Recommended)
-
-      .. code-block:: bash
-
-         # Non-RL (random-action) runtime benchmark
-         uv run python scripts/benchmarks/benchmark_non_rl.py --task Isaac-Cartpole-Direct
-
-         # Training benchmark (RSL-RL)
-         uv run python scripts/benchmarks/benchmark_rsl_rl.py --task Isaac-Cartpole-Direct
-
-         # Wrapper shell runners
-         ./scripts/benchmarks/run_non_rl_benchmarks.sh
-         ./scripts/benchmarks/run_training_benchmarks.sh
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
+   .. tab-item:: Isaac Lab launcher
 
       .. code-block:: bash
 
@@ -3295,19 +3193,19 @@ For a complete guide to multi-backend support, see the "Multi-Backend Support: P
 Pattern" section above.
 
 
-.. rubric:: XR Teleoperation: Isaac Teleop Integration
+.. rubric:: XR Teleoperation: Isaac Capture Integration
 
 The native XR teleoperation stack in ``isaaclab.devices.openxr`` has been deprecated and replaced
-by `Isaac Teleop <https://github.com/NVIDIA/IsaacTeleop>`_, integrated via the ``isaaclab_teleop``
+by `Isaac Capture <https://github.com/NVIDIA/IsaacCapture>`_, integrated via the ``isaaclab_teleop``
 extension. The ``isaac-teleop-device-plugins`` repository has also been deprecated; all device
-plugin support is now in Isaac Teleop.
+plugin support is now in Isaac Capture.
 
 For full documentation on the new stack, see :ref:`isaac-teleop-feature`.
 
 
 **Installation Requirement**
 
-Isaac Teleop must now be installed in your Isaac Lab environment:
+Isaac Capture must now be installed in your Isaac Lab environment:
 
 .. code-block:: bash
 
@@ -3333,7 +3231,7 @@ See :ref:`install-isaac-teleop` for complete installation instructions.
    * - ``from isaaclab.devices.openxr import ManusVive``
      - ``from isaaclab_teleop import IsaacTeleopDevice`` (with Manus plugin configured)
    * - ``from isaaclab.devices import RetargeterBase``
-     - Use Isaac Teleop ``BaseRetargeter`` and pipeline builder pattern
+     - Use Isaac Capture ``BaseRetargeter`` and pipeline builder pattern
    * - ``from isaaclab.devices.openxr.retargeters import Se3AbsRetargeter``
      - ``from isaacteleop.retargeters import Se3AbsRetargeter``
 

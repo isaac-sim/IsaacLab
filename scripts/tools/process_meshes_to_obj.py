@@ -17,7 +17,6 @@ BLENDER_EXE_PATH = shutil.which("blender")
 
 def parse_cli_args():
     """Parse the input command line arguments."""
-    # add argparse arguments
     parser = argparse.ArgumentParser("Utility to convert all mesh files to `.obj` in given folders.")
     parser.add_argument("input_dir", type=str, help="The input directory from which to load meshes.")
     parser.add_argument(
@@ -35,22 +34,27 @@ def parse_cli_args():
     return args_cli
 
 
-def run_blender_convert2obj(in_file: str, out_file: str):
-    """Calls the python script using `subprocess` to perform processing of mesh file.
+def run_blender_convert2obj(in_file: str, out_file: str) -> None:
+    """Call the Blender script to convert a mesh file to OBJ.
 
     Args:
         in_file: Input mesh file.
         out_file: Output obj file.
+
+    Raises:
+        FileNotFoundError: If the Blender executable cannot be found on ``PATH``.
+        subprocess.CalledProcessError: If Blender exits with a non-zero status.
     """
+    if BLENDER_EXE_PATH is None:
+        raise FileNotFoundError("Unable to find the Blender executable on PATH.")
+
     # resolve for python file
     tools_dirname = os.path.dirname(os.path.abspath(__file__))
     script_file = os.path.join(tools_dirname, "blender_obj.py")
-    # complete command
-    command_exe = f"{BLENDER_EXE_PATH} --background --python {script_file} -- -i {in_file} -o {out_file}"
-    # break command into list
-    command_exe_list = command_exe.split(" ")
-    # run command
-    subprocess.run(command_exe_list)
+    # build the argument list directly so paths containing whitespace remain single arguments
+    command_exe = [BLENDER_EXE_PATH, "--background", "--python", script_file, "--", "-i", in_file, "-o", out_file]
+    # run command and surface conversion failures to the caller
+    subprocess.run(command_exe, check=True)
 
 
 def convert_meshes(source_folders: list[str], destination_folders: list[str]):
@@ -84,7 +88,6 @@ def convert_meshes(source_folders: list[str], destination_folders: list[str]):
 
 
 if __name__ == "__main__":
-    # Parse command line arguments
     args = parse_cli_args()
     # Run conversion
     convert_meshes([args.input_dir], [args.output_dir])

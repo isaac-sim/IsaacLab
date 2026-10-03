@@ -53,6 +53,11 @@ from pathlib import Path
 
 import gymnasium as gym
 import torch
+from isaaclab_visualizers.kit import KitVisualizerCfg
+from isaaclab_visualizers.newton import NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg
+from isaaclab_visualizers.rerun import RerunVisualizerCfg
+from isaaclab_visualizers.viser import ViserVisualizerCfg
+from PIL import Image
 
 from pxr import Gf, Sdf, UsdShade
 
@@ -488,9 +493,9 @@ _HERO_SKY_LOWER_COLOR = (0.15, 0.80, 0.65)
 # Kit/Newton GL/Newton RTX sources for the standard VideoRecorderCfg path (see
 # _hero_configure_capture); Rerun/Viser are captured separately via headless-browser recording.
 _HERO_SOURCE_BY_VISUALIZER = {
-    "kit": "visualizer:kit:streaming_view",
-    "newton_gl": "visualizer:newton_gl",
-    "newton_rtx": "visualizer:newton_rtx",
+    "kit": "viz:kit:streaming_view",
+    "newton_gl": "viz:newton_gl",
+    "newton_rtx": "viz:newton_rtx",
 }
 
 # Driven by the per-step _follow_camera event rather than streaming_cam_target_prim_path.
@@ -613,8 +618,6 @@ def _hero_headless() -> bool:
 
 
 def _hero_make_kit_visualizer_cfg() -> VisualizerCfg:
-    from isaaclab_visualizers.kit import KitVisualizerCfg
-
     if _hero_headless():
         # streaming_cam_target_prim_path follows the robot via a separate "Streaming View"
         # panel, captured through the standard VideoRecorderCfg path.
@@ -642,8 +645,6 @@ def _hero_make_kit_visualizer_cfg() -> VisualizerCfg:
 
 
 def _hero_make_newton_gl_visualizer_cfg() -> VisualizerCfg:
-    from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
-
     # No streaming_view: markers aren't drawn into that camera sensor (see module docstring).
     # eye/lookat seed the initial pose before _follow_camera takes over.
     return NewtonGLVisualizerCfg(
@@ -660,8 +661,6 @@ def _hero_make_newton_gl_visualizer_cfg() -> VisualizerCfg:
 
 
 def _hero_make_newton_rtx_visualizer_cfg() -> VisualizerCfg:
-    from isaaclab_visualizers.newton import NewtonRTXVisualizerCfg
-
     # No streaming_view: unusable for kitless RTX (see module docstring). Markers are
     # unsupported on this backend regardless of enable_markers (hard-blocked for the kitless
     # viewer).
@@ -679,15 +678,11 @@ def _hero_make_newton_rtx_visualizer_cfg() -> VisualizerCfg:
 
 
 def _hero_make_rerun_visualizer_cfg() -> VisualizerCfg:
-    from isaaclab_visualizers.rerun import RerunVisualizerCfg
-
     # No streaming_view: captures its own native 3D view (see module docstring).
     return RerunVisualizerCfg(eye=_HERO_BROWSER_FOLLOW_EYE_OFFSET, lookat=(0.0, 0.0, 0.0), enable_markers=True)
 
 
 def _hero_make_viser_visualizer_cfg() -> VisualizerCfg:
-    from isaaclab_visualizers.viser import ViserVisualizerCfg
-
     # Same switch to native-view capture as Rerun; see _hero_make_rerun_visualizer_cfg().
     return ViserVisualizerCfg(eye=_HERO_VISER_FOLLOW_EYE_OFFSET, lookat=(0.0, 0.0, 0.0), enable_markers=True)
 
@@ -731,7 +726,7 @@ def configure_playback_hero() -> list[str]:
 def _hero_configure_capture(env_cfg: AnymalDTileCaptureCfg) -> None:
     """Attach the requested visualizer and video recorder to the AnymalD flat config."""
     # Read the visualizer selection from HERO_VISUALIZER, not --viz off sys.argv: by the time
-    # __post_init__ runs, rsl_rl has already rewritten sys.argv and AppLauncher's parser has
+    # __post_init__ runs, rsl_rl has already rewritten sys.argv and the launcher's parser has
     # consumed --viz.
     visualizer = os.environ.get("HERO_VISUALIZER")
     if visualizer != "combined" and visualizer not in _HERO_VISUALIZER_BUILDERS:
@@ -870,8 +865,8 @@ def _run_combined_capture(args: argparse.Namespace) -> None:
         args.task,
         "--checkpoint",
         "pretrained",
-        # Must list all 3 types env_cfg.sim.visualizer_cfgs attaches: SimulationContext
-        # ._resolve_visualizer_cfgs() filters to only the CLI-requested types otherwise.
+        # Must list all 3 types env_cfg.sim.visualizer_cfgs attaches: launch_simulation
+        # keeps only the CLI-requested types otherwise.
         "--num_envs",
         "1",
         "--viz",
@@ -1420,8 +1415,6 @@ def _showcase_headless() -> bool:
 
 
 def _showcase_make_kit_visualizer_cfg() -> VisualizerCfg:
-    from isaaclab_visualizers.kit import KitVisualizerCfg
-
     return KitVisualizerCfg(
         headless=_showcase_headless(),
         window_width=_SHOWCASE_WINDOW_WIDTH,
@@ -1433,8 +1426,6 @@ def _showcase_make_kit_visualizer_cfg() -> VisualizerCfg:
 
 
 def _showcase_make_newton_gl_visualizer_cfg() -> VisualizerCfg:
-    from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
-
     # streaming_view defaults to True; this showcase only wants the interactive camera.
     return NewtonGLVisualizerCfg(
         headless=_showcase_headless(),
@@ -1448,8 +1439,6 @@ def _showcase_make_newton_gl_visualizer_cfg() -> VisualizerCfg:
 
 
 def _showcase_make_newton_rtx_visualizer_cfg() -> VisualizerCfg:
-    from isaaclab_visualizers.newton import NewtonRTXVisualizerCfg
-
     # Markers are hard-blocked in NewtonRTXVisualizer for the kitless viewer.
     return NewtonRTXVisualizerCfg(
         headless=_showcase_headless(),
@@ -1462,8 +1451,6 @@ def _showcase_make_newton_rtx_visualizer_cfg() -> VisualizerCfg:
 
 
 def _showcase_make_rerun_visualizer_cfg() -> VisualizerCfg:
-    from isaaclab_visualizers.rerun import RerunVisualizerCfg
-
     # Live plots disabled: not useful in a short clip, and adds overhead to an already
     # browser-bottlenecked capture.
     return RerunVisualizerCfg(
@@ -1472,8 +1459,6 @@ def _showcase_make_rerun_visualizer_cfg() -> VisualizerCfg:
 
 
 def _showcase_make_viser_visualizer_cfg() -> VisualizerCfg:
-    from isaaclab_visualizers.viser import ViserVisualizerCfg
-
     return ViserVisualizerCfg(
         eye=_SHOWCASE_KUKA_ALLEGRO_LIFT_EYE, lookat=_SHOWCASE_KUKA_ALLEGRO_LIFT_LOOKAT, enable_markers=True
     )
@@ -1488,9 +1473,9 @@ _SHOWCASE_VISUALIZER_BUILDERS = {
 }
 
 _SHOWCASE_SOURCE_BY_VISUALIZER = {
-    "kit": "visualizer:kit",
-    "newton_gl": "visualizer:newton_gl",
-    "newton_rtx": "visualizer:newton_rtx",
+    "kit": "viz:kit",
+    "newton_gl": "viz:newton_gl",
+    "newton_rtx": "viz:newton_rtx",
 }
 
 
@@ -2027,8 +2012,6 @@ def record_showcase_browser(
 
 
 def _showcase_open_image(png_bytes: bytes):
-    from PIL import Image
-
     return Image.open(io.BytesIO(png_bytes))
 
 
@@ -2229,8 +2212,6 @@ def _streaming_headless() -> bool:
 
 
 def _streaming_make_kit_visualizer_cfg() -> VisualizerCfg:
-    from isaaclab_visualizers.kit import KitVisualizerCfg
-
     return KitVisualizerCfg(
         headless=_streaming_headless(),
         window_width=_STREAMING_WINDOW_WIDTH,
@@ -2313,8 +2294,6 @@ def _streaming_resolve_env_regex_path(prim_path: str) -> str:
 
 def _streaming_make_newton_gl_visualizer_cfg(env_cfg):
     """Matches run_tiled_camera_visualizer.py's _make_newton_visualizer_cfg for this task."""
-    from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
-
     cfg = NewtonGLVisualizerCfg()
     cfg.streaming_view = True
     cfg.streaming_envs = _STREAMING_NEWTON_GL_STREAMING_ENVS

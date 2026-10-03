@@ -320,8 +320,7 @@ class VisuoTactileSensor(SensorBase):
 
         """
         # Resolve the elastomer's destination expression (multi-env glob form for PhysX views).
-        # The sensor's cfg.prim_path lives under the elastomer; the parent expression is the
-        # elastomer body itself (matching :attr:`SensorBase._parent_prims`).
+        # The sensor's parent is the elastomer body.
         elastomer_expr = "/".join(sim_utils.split_path_expr(self.cfg.prim_path)[:-1])
         elastomer_dest_expr = sim_utils.resolve_matching_prims_from_source(elastomer_expr)[0][1]
         elastomer_pattern = sim_utils.path_expr_to_glob(elastomer_dest_expr)
@@ -422,8 +421,7 @@ class VisuoTactileSensor(SensorBase):
         """
 
         # Resolve the elastomer's source-side env prim and use it as the walk root.
-        # The sensor's cfg.prim_path lives under the elastomer; the parent expression is the
-        # elastomer body itself (matching :attr:`SensorBase._parent_prims`).
+        # The sensor's parent is the elastomer body.
         elastomer_expr = "/".join(sim_utils.split_path_expr(self.cfg.prim_path)[:-1])
         elastomer_prim_path = sim_utils.resolve_matching_prims_from_source(elastomer_expr)[0][0].GetPath().pathString
 
@@ -907,6 +905,8 @@ class VisuoTactileSensor(SensorBase):
         # Safety check - return if not properly initialized
         if not hasattr(self, "_tactile_visualizer") or self._tactile_visualizer is None:
             return
+        if self._is_initialized:
+            self._update_outdated_buffers()
         vis_points = None
 
         if self.cfg.visualize_sdf_closest_pts and hasattr(self, "debug_closest_points_wolrd"):

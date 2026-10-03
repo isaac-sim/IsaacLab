@@ -8,11 +8,12 @@
 from __future__ import annotations
 
 import copy
-import importlib.metadata as metadata
 import math
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
+
+from isaaclab.utils import to_dict
 
 
 def create_initialized_checkpoint(
@@ -58,13 +59,11 @@ def _create_rsl_rl_checkpoint(
 
     from isaaclab.envs import DirectMARLEnvCfg, multi_agent_to_single_agent
 
-    from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper, handle_deprecated_rsl_rl_cfg
+    from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper
 
     _set_single_env(env_cfg)
-    installed_version = metadata.version("rsl-rl-lib")
     if getattr(args_cli, "seed", None) is not None:
         agent_cfg.seed = args_cli.seed
-    agent_cfg = handle_deprecated_rsl_rl_cfg(agent_cfg, installed_version)
     env_cfg.seed = agent_cfg.seed
     env_cfg.log_dir = str(checkpoint_root)
 
@@ -76,9 +75,9 @@ def _create_rsl_rl_checkpoint(
         env = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
 
         if agent_cfg.class_name == "OnPolicyRunner":
-            runner = OnPolicyRunner(env, agent_cfg.to_dict(), log_dir=str(checkpoint_root), device=agent_cfg.device)
+            runner = OnPolicyRunner(env, to_dict(agent_cfg), log_dir=str(checkpoint_root), device=agent_cfg.device)
         elif agent_cfg.class_name == "DistillationRunner":
-            runner = DistillationRunner(env, agent_cfg.to_dict(), log_dir=str(checkpoint_root), device=agent_cfg.device)
+            runner = DistillationRunner(env, to_dict(agent_cfg), log_dir=str(checkpoint_root), device=agent_cfg.device)
         else:
             raise ValueError(f"Unsupported RSL-RL runner class: {agent_cfg.class_name}")
 
@@ -322,14 +321,7 @@ def main(argv: Sequence[str] | None = None) -> None:
 
     from isaaclab_tasks.utils.hydra import resolve_task_config
 
-    # TODO: Remove once usd-core>=26.5 is the minimum. Earlier OpenUSD releases
-    # can corrupt the heap while parsing the Newton Franka payload concurrently.
-    cli_args = SimpleNamespace(
-        seed=args.seed,
-        algorithm=args.algorithm,
-        headless=True,
-        limit_cpu_threads=1,
-    )
+    cli_args = SimpleNamespace(seed=args.seed, algorithm=args.algorithm)
     task_dir = task_checkpoint_dir(args.checkpoint_root, backend_id, task_name)
     task_dir.mkdir(parents=True, exist_ok=True)
     original_argv = sys.argv
@@ -337,8 +329,8 @@ def main(argv: Sequence[str] | None = None) -> None:
     try:
         env_cfg, agent_cfg = resolve_task_config(task_name, _agent_cfg_entry_point(backend_id))
         with launch_simulation(env_cfg, vars(cli_args)):
-            get_settings_manager().set_bool("/physics/cooking/ujitsoCollisionCooking", False)
-            get_settings_manager().set_bool("/isaaclab/render/rtx_sensors", False)
+            get_settings_manager().set("/physics/cooking/ujitsoCollisionCooking", False)
+            get_settings_manager().set("/isaaclab/render/rtx_sensors", False)
             checkpoint_path = create_initialized_checkpoint(
                 backend_id,
                 task_name,

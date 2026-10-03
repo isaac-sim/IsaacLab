@@ -13,7 +13,7 @@ from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.sim.schemas import PhysxCollisionCfg, PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
+from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg, VisualMaterialCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
@@ -21,7 +21,6 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
-from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import MeshCapsuleCfg, MeshConeCfg, MeshCuboidCfg, MeshSphereCfg, RigidBodyMaterialCfg
@@ -43,8 +42,7 @@ TABLE_SPAWN_CFG = sim_utils.CuboidCfg(
     size=(0.8, 1.5, 0.04),
     rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
     collision_props=sim_utils.UsdPhysicsCollisionCfg(),
-    # spawned invisible: the command term's success markers draw the table, tinted by success
-    visible=False,
+    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.25, 0.15, 0.15)),
 )
 """Table the object rests on."""
 
@@ -57,7 +55,7 @@ OBJECT_PHYSICS = {
 
 @configclass
 class ObjectCfg(PresetCfg):
-    """Graspable object presets: a set of primitive shapes, or a single cube for OvPhysX."""
+    """Graspable objects: heterogeneous shapes by default, or an explicit single-cube preset."""
 
     shapes = sim_utils.MultiAssetSpawnerCfg(
         assets_cfg=[
@@ -97,7 +95,6 @@ class ObjectCfg(PresetCfg):
         mass_props=sim_utils.MassCfg(mass=0.2),
     )
     default = shapes
-    ovphysx = cube
 
 
 ##
@@ -124,6 +121,9 @@ class SceneCfg(InteractiveSceneCfg):
         prim_path="{ENV_REGEX_NS}/table",
         spawn=TABLE_SPAWN_CFG,
         init_state=RigidObjectCfg.InitialStateCfg(pos=(-0.55, 0.0, 0.235), rot=(0.0, 0.0, 0.0, 1.0)),
+    )
+    table_material: VisualMaterialCfg = VisualMaterialCfg(
+        prim_path="{ENV_REGEX_NS}/table/geometry/material", spawn=None
     )
 
     # plane
@@ -165,18 +165,6 @@ class CommandsCfg:
             roll=(-3.14, 3.14),
             pitch=(-3.14, 3.14),
             yaw=(0.0, 0.0),
-        ),
-        success_vis_asset_name="table",
-        success_visualizer_cfg=VisualizationMarkersCfg(
-            prim_path="/Visuals/SuccessMarkers",
-            markers={
-                "failure": TABLE_SPAWN_CFG.replace(
-                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.25, 0.15, 0.15)), visible=True
-                ),
-                "success": TABLE_SPAWN_CFG.replace(
-                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.15, 0.25, 0.15)), visible=True
-                ),
-            },
         ),
     )
 
@@ -232,7 +220,7 @@ class ObservationsCfg:
             func=mdp.object_point_cloud_b,
             noise=Unoise(n_min=-0.0, n_max=0.0),
             clip=(-2.0, 2.0),  # [m]
-            params={"num_points": 64, "flatten": True},
+            params={"num_points": 64, "flatten": True, "visualize": False},
         )
 
         def __post_init__(self):
@@ -580,6 +568,7 @@ class ReorientEnvCfg(ManagerBasedRLEnvCfg):
     def play_mode(self):
         super().play_mode()
         self.commands.object_pose.debug_vis = True
+        self.commands.object_pose.success_vis_material_name = "table_material"
         # the bank shapes what a policy trains on; at play it only has to supply starts for the
         # handful of environments the parent left, so it is harvested small and taken as it comes
         # rather than making the viewer wait through an oversampled prefill and its spread pass

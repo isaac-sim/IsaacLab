@@ -1,6 +1,245 @@
 Changelog
 ---------
 
+.. towncrier release notes start
+
+9.1.3 (2026-10-03)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Update runtime installation guidance and launcher examples to use uv.
+
+
+9.1.2 (2026-10-01)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Removed the redundant per-step solver-internal reset from :meth:`~isaaclab_newton.physics.NewtonManager.step`.
+  The reset still runs through :meth:`~isaaclab_newton.physics.NewtonManager.forward` for worlds flagged by
+  state writes.
+* Skipped the device-to-host readback in joint position-limit writes of
+  :class:`~isaaclab_newton.assets.Articulation` when the clamped-default message would not be logged.
+* Removed the unused per-frame output copy loop from
+  :class:`~isaaclab_newton.renderers.NewtonWarpRenderer`, whose outputs alias the camera buffers.
+* Changed Newton contact and PVA debug visualization to refresh outdated sensor buffers before drawing.
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_newton.envs.mdp.events.randomize_rigid_body_material` writing the friction and
+  restitution of other bodies' shapes when ``asset_cfg`` selects a subset of an articulation's bodies. The
+  Newton view's shape axis follows the model's shape order, which is not grouped by body, so the term now
+  selects each body's shapes from ``root_view.body_shapes`` instead of offsets accumulated from the per-body
+  shape counts.
+* Used resolved callable defaults when constructing manager terms instead of duplicating defaults in constructors.
+* Fixed ``body_com_acc_w`` of :class:`~isaaclab_newton.assets.Articulation`,
+  :class:`~isaaclab_newton.assets.RigidObject`, and :class:`~isaaclab_newton.assets.RigidObjectCollection`
+  dividing by the physics time step when an update spans several physics steps, such as when Newton owns
+  the decimation loop. The finite difference now uses the elapsed time since the previous update.
+
+
+9.1.1 (2026-09-30)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_newton.assets.RigidObjectCollection` selecting rigid bodies outside the
+  collection whose names share the members' prefix or suffix, and rejecting members at different
+  path depths. The collection view now matches each configured prim path exactly.
+
+
+9.1.0 (2026-09-29)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the Newton deformable material fragments
+  :class:`~isaaclab_newton.sim.spawners.materials.NewtonVolumeDeformableMaterialCfg` and
+  :class:`~isaaclab_newton.sim.spawners.materials.NewtonSurfaceDeformableMaterialCfg`, authoring the
+  ``newton:*`` attributes read by the Newton deformable-body builder hooks.
+* Added :meth:`~isaaclab_newton.physics.NewtonManager.setup_deformable_body`, applying Newton's
+  token deformable anchor schemas and syncing the visual mesh geometry from the simulation mesh.
+
+
+9.0.0 (2026-09-28)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Exposed ``rigid_compliant_alm`` and ``rigid_body_contact_buffer_size`` on
+  ``VBDSolverCfg`` for compliant ALM selection and per-body contact capacity,
+  while preserving Newton's existing defaults.
+
+Changed
+^^^^^^^
+
+* Moved physics randomization implementations into backend ``envs.mdp.events`` modules.
+  The shared ``isaaclab.envs.mdp`` terms kept their API and selected the backend internally.
+* Moved the Newton deformable asset, data buffers, and kernels into
+  :mod:`isaaclab_newton.assets`, removing the optional dependency on ``isaaclab_contrib``.
+  Imported declared deformable prototypes once during cloning and selected their native particle
+  ranges during asset initialization, removing the geometry registry and per-world construction hook.
+  The shared :class:`isaaclab.assets.DeformableObjectCfg` and backend-independent asset API remained unchanged.
+
+* **Breaking:** Made ``NewtonManager.instantiate_builder_from_stage()`` consume the active clone plan
+  instead of discovering environment roots. Construct an ``InteractiveScene``, explicitly replicate a
+  ``ClonePlan``, or supply a native builder with ``NewtonManager.set_builder()``.
+* Reduced Newton camera kernel launches by combining pose conversion with transform packing and
+  rendering planar depth directly into camera output buffers, removing the intermediate ray-depth
+  allocation and conversion pass. Camera output conventions and clipping behavior were preserved;
+  no configuration changes are required.
+* Avoided scalar uploads and CUDA synchronization when resetting selected IK and task-space actions.
+* Moved Newton camera and ray-cast consumers to the simulation-owned native backend. Consumers
+  requested transforms and geometry directly through SDP and shared native BVH refits while owning
+  their individual query graphs. ``NewtonWarpRendererCfg.use_cuda_graph`` controlled camera query
+  capture independently of physics capture. Deformable triangle-mesh rendering stayed eager because
+  native mesh updates required host reads and allocations.
+  Stateless query and capture functions lived in ``NewtonQueries`` alongside ``NewtonManager``;
+  the container retained no model or scheduling state.
+* Applied ray-cast BVH requirements to the shared builder before finalization, including when
+  another consumer acquired the builder first.
+* **Breaking:** Replaced the native builder input in ``NewtonBackendCfg`` with the selected physics
+  configuration. Acquire builders through ``NewtonBuilderCfg(physics_cfg=sim.cfg.physics)``
+  and finalized models through ``NewtonBackendCfg(physics_cfg=sim.cfg.physics, device=sim.device)``
+  using ``sim.get_or_create_backend(cfg)``. Non-Newton physics selected a render-only representation;
+  model allocation followed cloning rather than occurring inside it. Kept construction and runtime
+  cfgs independent: closing a backend released its native buffers but retained the builder for hard reset.
+
+Removed
+^^^^^^^
+
+* **Breaking:** Removed ``NewtonManager.set_builder()``. Acquire and populate the shared builder with
+  ``sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics))`` before ``sim.reset()``.
+* **Breaking:** Removed ``NewtonManager.get_state()`` and ``update_visualization_state()``.
+  Acquire the native backend through ``sim.get_or_create_backend(backend_cfg)`` and request
+  ``SceneDataProvider.get_transforms()`` and ``get_geometry_points()`` directly instead.
+* **Breaking:** Removed ``NewtonManager.sync_transforms_to_fabric()`` and ``sync_transforms_to_usd()``.
+  Kit/Isaac RTX rendering already requested published poses through SDP. Custom Fabric consumers
+  should call ``FabricBackend.update_transforms(provider)`` instead of asking the physics manager to render.
+
+Fixed
+^^^^^
+
+* Applied clone-plan world compositions to Newton deformables and imported shared deformables once.
+  Preserved rotated particle positions, velocities, and tetrahedral rest frames during builder composition.
+  Built render-only deformable meshes in source builders before native replication, instead of
+  rebuilding their geometry for every destination world.
+
+* Moved MPM particle-range and visual-geometry binding into clone/import, removing asset-side registration.
+
+* Moved Fabric body-prim preparation out of Newton physics startup and into the shared Fabric rendering resource.
+  Preserved rendering-compatible CUDA graph capture independently of Fabric bindings.
+
+* Scoped deformable kinematic defaults to each asset's selected particles instead of copying the entire model.
+  Preserved imported cloth rest angles during asset initialization.
+
+* Preserved imported robot bodies selected by sensors that opted out of cloning.
+
+* Kept source labels and material references unchanged during world composition, naming only
+  appended instances. Used imported static geometry for collider visibility instead of traversing
+  USD subtrees, and preserved Newton's visual meshes and material bindings for approximated colliders.
+
+
+8.1.1 (2026-09-27)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Reduced Newton articulation startup memory by allocating optional Jacobian, mass-matrix, and
+  gravity-compensation buffers on first use instead of eagerly for every articulation view.
+  With CUDA memory pools disabled, these quantities must be accessed before graph capture.
+* Centralized pending kinematic refresh in the physics manager for articulation, rigid-object,
+  rigid-object-collection, and scene-data reads, removing duplicate asset-local FK timestamps.
+* Unified joint-limit and foreign-physics rendering caches with timestamped asset buffers and
+  consolidated the shared BVH's eager refresh path.
+* Removed redundant zero initialization from fully overwritten asset read caches.
+* Removed unused articulation/rigid-object caches and refreshed rigid body-velocity aliases through
+  their root-velocity cache, preventing stale reads after same-step writes.
+* Replaced articulation and rigid-object component copies with strided views of their parent poses
+  and velocities, removing extraction buffers and kernels while retaining lazy refresh and reset rebinding.
+* Composed reusable asset builders into world prototypes before native replication,
+  preserving repeated instances without widening the declared USD import scope.
+  Removed the redundant post-clone label pass. Direct ``newton_physics_replicate`` calls
+  retained their path-based inputs.
+* Deferred allocation of derived articulation and rigid-object pose, velocity, heading, and
+  projected-gravity buffers until first access. Existing timestamp invalidation and
+  finite-difference history updates were preserved; no caller changes are required.
+
+Fixed
+^^^^^
+
+* Accepted partial environment slices at indexed asset write boundaries using views of cached device
+  indices, without creating or uploading host index lists.
+* Restricted visual-shape randomization to the requested slice instead of updating every environment.
+* Captured Newton physics and sensor CUDA graphs without executing an eager warmup. Initial steps
+  and recapture preserved staged forces and callback, sensor, and solver history. Initialized
+  Kamino's output state before capture instead of replaying a hidden physics step.
+* Deferred physics capture until reset and decimation setup completed, and replaced the custom
+  RTX capture implementation with Warp's capture API on a nonblocking stream. Unexpected physics
+  capture errors were surfaced without falling back to an unaccounted eager step.
+* Kept fixed MPM grids with an unbounded active-cell partition on the eager path because they
+  read partition sizes on the CPU each step. Set ``max_active_cell_count`` to a positive capacity
+  to enable capture for fixed grids.
+* Fixed model finalization, solver initialization, and contact-sensor construction timings to synchronize
+  only the physics device at both measurement boundaries, excluding previously queued work from each phase.
+
+
+8.1.0 (2026-09-26)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added fixed tendon position limits to :class:`~isaaclab_newton.assets.Articulation`:
+  :meth:`~isaaclab_newton.assets.Articulation.set_fixed_tendon_position_limit_index` and
+  :meth:`~isaaclab_newton.assets.Articulation.set_fixed_tendon_position_limit_mask` now write the MuJoCo tendon
+  range instead of raising :class:`NotImplementedError`.
+
+Changed
+^^^^^^^
+
+* Changed the fixed tendon limit stiffness, rest length, and offset setters and data properties of
+  :class:`~isaaclab_newton.assets.Articulation` to explain why the Newton backend does not support them in
+  their :class:`NotImplementedError`.
+* Changed the ``set_coms_index`` and ``set_coms_mask`` methods of the Newton
+  :class:`~isaaclab_newton.assets.Articulation`, :class:`~isaaclab_newton.assets.RigidObject`, and
+  :class:`~isaaclab_newton.assets.RigidObjectCollection` to also accept center of mass poses (trailing dimension
+  of 7 or ``wp.transformf``), like the other backends. The orientation is ignored.
+
+Fixed
+^^^^^
+
+* Bound Newton rendering geometry from clone-plan prototypes and native ranges, preserving
+  heterogeneous deformables and authoring MPM point clouds before cloning.
+* Published native particle and cable data through SDP, replacing Newton-owned Fabric writers and
+  intermediate deformable buffers. Removed internal USD geometry sync calls; renderers request SDP data.
+* Fixed :meth:`~isaaclab_newton.assets.Articulation.write_fixed_tendon_properties_to_sim_index` not notifying
+  the solver of the change, so written fixed tendon stiffness and damping never reached the MuJoCo model.
+* Fixed :meth:`~isaaclab_newton.assets.Articulation.write_fixed_tendon_properties_to_sim_index` failing when
+  ``env_ids`` is None.
+* Fixed selected tendon property writes reading staged values from the first environment or tendon instead
+  of the selected indices.
+* Fixed :meth:`~isaaclab_newton.assets.Articulation.set_fixed_tendon_stiffness_mask` and
+  :meth:`~isaaclab_newton.assets.Articulation.set_fixed_tendon_damping_mask` raising ``AttributeError``.
+* Fixed :meth:`~isaaclab_newton.assets.Articulation.write_fixed_tendon_properties_to_sim_mask` raising
+  ``TypeError``, and added the ``fixed_tendon_ids`` and ``fixed_tendon_mask`` arguments that the base class
+  declares to the fixed tendon writers.
+* Corrected fixed tendon errors and documentation to distinguish unimplemented Isaac Lab properties from
+  Newton's MuJoCo tendon support. Identified the missing tendon force-gain conversion and the existing
+  Newton joint-limit conversion that provides a reference implementation.
+* Fixed mass, center of mass, and inertia changes on the Featherstone solver being dropped silently. The
+  solver does not apply them after it is constructed; the Newton manager now logs a warning the first time
+  such a change is made.
+
+
 8.0.0 (2026-09-25)
 ~~~~~~~~~~~~~~~~~~
 

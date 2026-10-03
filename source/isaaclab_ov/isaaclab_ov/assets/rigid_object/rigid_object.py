@@ -28,7 +28,7 @@ from isaaclab_ov import tensor_types as TT
 from isaaclab_ov.assets import kernels as shared_kernels
 from isaaclab_ov.assets.kernels import _body_wrench_to_world
 from isaaclab_ov.physics import OvPhysxManager
-from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView
+from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView, _expand_env_pattern
 
 from .rigid_object_data import RigidObjectData
 
@@ -375,14 +375,10 @@ class RigidObject(BaseRigidObject):
         self._root_view.set_attribute(
             TT.RIGID_BODY_POSE, self.data._root_link_pose_w.data.view(wp.float32), indices=sim_env_ids
         )
-        OvPhysxManager._scene_data_backend.transforms_version += 1
+        OvPhysxManager._scene_data_backend.transforms_timestamp += 1
 
     def write_root_link_pose_to_sim_mask(
-        self,
-        *,
-        root_pose: torch.Tensor | wp.array,
-        env_mask: wp.array | None = None,
-        skip_forward: bool = False,
+        self, *, root_pose: torch.Tensor | wp.array, env_mask: wp.array | None = None, skip_forward: bool = False
     ) -> None:
         """Set the root link pose over selected environment mask into the simulation.
 
@@ -416,7 +412,7 @@ class RigidObject(BaseRigidObject):
         self._root_view.set_attribute(
             TT.RIGID_BODY_POSE, self.data._root_link_pose_w.data.view(wp.float32), mask=env_mask_wp
         )
-        OvPhysxManager._scene_data_backend.transforms_version += 1
+        OvPhysxManager._scene_data_backend.transforms_timestamp += 1
 
     def write_root_com_pose_to_sim_index(
         self,
@@ -459,14 +455,10 @@ class RigidObject(BaseRigidObject):
         self._root_view.set_attribute(
             TT.RIGID_BODY_POSE, self.data._root_link_pose_w.data.view(wp.float32), indices=sim_env_ids
         )
-        OvPhysxManager._scene_data_backend.transforms_version += 1
+        OvPhysxManager._scene_data_backend.transforms_timestamp += 1
 
     def write_root_com_pose_to_sim_mask(
-        self,
-        *,
-        root_pose: torch.Tensor | wp.array,
-        env_mask: wp.array | None = None,
-        skip_forward: bool = False,
+        self, *, root_pose: torch.Tensor | wp.array, env_mask: wp.array | None = None, skip_forward: bool = False
     ) -> None:
         """Set the root center of mass pose over selected environment mask into the simulation.
 
@@ -501,7 +493,7 @@ class RigidObject(BaseRigidObject):
         self._root_view.set_attribute(
             TT.RIGID_BODY_POSE, self.data._root_link_pose_w.data.view(wp.float32), mask=env_mask_wp
         )
-        OvPhysxManager._scene_data_backend.transforms_version += 1
+        OvPhysxManager._scene_data_backend.transforms_timestamp += 1
 
     def write_root_com_velocity_to_sim_index(
         self,
@@ -965,7 +957,8 @@ class RigidObject(BaseRigidObject):
         # Eagerly create every binding the data container reads at init, so failures
         # surface here with a helpful message rather than as a raw wheel exception
         # (or a KeyError) at first writer call.
-        self._root_view = OvPhysxView(self._ovphysx, pattern=pattern, device=self._device)
+        paths = _expand_env_pattern(pattern, OvPhysxManager._sim.get_clone_plan())
+        self._root_view = OvPhysxView(self._ovphysx, prim_paths=paths, device=self._device)
         for tt in (
             TT.RIGID_BODY_POSE,
             TT.RIGID_BODY_VELOCITY,
@@ -1084,6 +1077,8 @@ class RigidObject(BaseRigidObject):
         """
         if env_ids is None or env_ids == slice(None):
             return self._ALL_INDICES
+        if isinstance(env_ids, slice):
+            return wp.from_torch(wp.to_torch(self._ALL_INDICES)[env_ids])
         if isinstance(env_ids, list):
             return wp.array(env_ids, dtype=wp.int32, device=self._device)
         if isinstance(env_ids, torch.Tensor):

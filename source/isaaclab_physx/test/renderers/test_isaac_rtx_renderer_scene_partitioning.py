@@ -24,12 +24,10 @@ variable remains a legacy construction-time override.
 Launch Isaac Sim Simulator first.
 """
 
-from isaaclab.app import AppLauncher
+# Cameras are required to read back per-env RGB tiles.
+from isaaclab.test.utils import launch_test_simulation
 
-# launch omniverse app — cameras are required to read back per-env RGB tiles.
-simulation_app = AppLauncher(headless=True, enable_cameras=True).app
-
-"""Rest everything follows."""
+launch_test_simulation(enable_cameras=True)
 
 import os
 
@@ -46,7 +44,7 @@ from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors.camera import CameraCfg
 from isaaclab.sim import build_simulation_context
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, replace
 
 from isaaclab_assets.robots.kuka_allegro import KUKA_ALLEGRO_CFG
 
@@ -56,7 +54,7 @@ _ENV_VAR = "ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION"
 def _isolation_renderer_cfg() -> IsaacRtxRendererCfg:
     """Disable spectator world-space layout for intentionally overlapping test environments.
 
-    The visualizer goldens cover AppLauncher's spectator configuration with spatially separated environments.
+    The visualizer goldens cover the Kit launcher's spectator configuration with spatially separated environments.
     """
     return IsaacRtxRendererCfg(global_settings=IsaacRtxRendererGlobalSettingsCfg(show_all_partitions_by_default=False))
 
@@ -242,7 +240,7 @@ def test_partitioning_isolates_articulation(monkeypatch: pytest.MonkeyPatch):
         light = AssetBaseCfg(
             prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=2000.0, color=(0.9, 0.9, 0.9))
         )
-        robot: ArticulationCfg = KUKA_ALLEGRO_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        robot: ArticulationCfg = replace(KUKA_ALLEGRO_CFG, prim_path="{ENV_REGEX_NS}/Robot")
         camera = CameraCfg(
             prim_path="{ENV_REGEX_NS}/Camera",
             update_period=0.0,

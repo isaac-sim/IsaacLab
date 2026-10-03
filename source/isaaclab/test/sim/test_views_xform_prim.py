@@ -7,30 +7,20 @@
 
 Imports the shared contract tests and provides the USD-specific
 ``view_factory`` fixture.  Also includes USD-only tests for visibility,
-prim ordering, xformOp standardization, and Isaac Sim comparison.
+prim ordering, and xformOp standardization.
 """
 
-from isaaclab.app import AppLauncher
-from isaaclab.test.utils import resolve_test_sim_device
+from isaaclab.test.utils import launch_test_simulation, resolve_test_sim_device
 
-simulation_app = AppLauncher(headless=True, device=resolve_test_sim_device()).app
+launch_test_simulation()
 
 import pytest  # noqa: E402
 import torch  # noqa: E402
 import warp as wp  # noqa: E402
-
-from pxr import Gf, UsdGeom  # noqa: E402
-
-try:
-    from isaaclab.sim.utils import enable_extension  # noqa: E402
-
-    enable_extension("isaacsim.core.experimental.prims")
-    from isaacsim.core.experimental.prims import XformPrim as _IsaacSimXformPrimView
-except (ModuleNotFoundError, ImportError, RuntimeError):
-    _IsaacSimXformPrimView = None
-
 from frame_view_contract_utils import *  # noqa: F401, F403, E402
 from frame_view_contract_utils import CHILD_OFFSET, ViewBundle  # noqa: E402
+
+from pxr import Gf, UsdGeom  # noqa: E402
 
 import isaaclab.sim as sim_utils  # noqa: E402
 from isaaclab.sim.views import UsdFrameView as FrameView  # noqa: E402
@@ -46,7 +36,6 @@ contract tests cover per device; the USD-only tests below run on the boot device
 @pytest.fixture(autouse=True)
 def test_setup_teardown():
     sim_utils.create_new_stage()
-    sim_utils.update_stage()
     yield
     sim_utils.clear_stage()
     sim_utils.SimulationContext.clear_instance()
@@ -282,50 +271,6 @@ def test_local_scale_inverts_parent_when_writing_world_scale(device):
     local_scales = view.get_local_scales().torch
     expected = torch.tensor([[3.0, 1.0, 1.0]], dtype=torch.float32, device=device)
     torch.testing.assert_close(local_scales, expected, atol=1e-5, rtol=0)
-
-
-# ==================================================================
-# USD-only: Comparison with Isaac Sim
-# ==================================================================
-
-
-def test_compare_get_world_poses_with_isaacsim():
-    """Compare get_world_poses with Isaac Sim's implementation."""
-    if _IsaacSimXformPrimView is None:
-        pytest.skip("Isaac Sim is not available")
-
-    stage = sim_utils.get_current_stage()
-    num_prims = 10
-    for i in range(num_prims):
-        pos = (i * 2.0, i * 0.5, i * 1.5)
-        quat = (0.0, 0.0, 0.0, 1.0) if i % 2 == 0 else (0.0, 0.0, 0.7071068, 0.7071068)
-        sim_utils.create_prim(f"/World/Env_{i}/Object", "Xform", translation=pos, orientation=quat, stage=stage)
-
-    pattern = "/World/Env_[^/]*/Object"
-    isaacsim_paths = [f"/World/Env_{i}/Object" for i in range(num_prims)]
-    isaaclab_view = FrameView(pattern, device="cpu")
-
-    import omni.usd  # noqa: PLC0415
-
-    context = omni.usd.get_context()
-    context.attach_stage_with_callback(sim_utils.get_current_stage_id())
-    sim_utils.update_stage()
-
-    for kwargs in ({"reset_xform_properties": False}, {"reset_xform_op_properties": False}, {}):
-        try:
-            isaacsim_view = _IsaacSimXformPrimView(isaacsim_paths, **kwargs)
-            break
-        except TypeError as exc:
-            if kwargs and next(iter(kwargs)) in str(exc):
-                continue
-            raise
-
-    isaaclab_pos, isaaclab_quat = (a.torch for a in isaaclab_view.get_world_poses())
-    isaacsim_pos, isaacsim_quat = (wp.to_torch(a).cpu() for a in isaacsim_view.get_world_poses())
-
-    torch.testing.assert_close(isaaclab_pos, isaacsim_pos, atol=1e-5, rtol=0)
-    # Isaac Sim returns (w, x, y, z); Isaac Lab returns (x, y, z, w)
-    torch.testing.assert_close(isaaclab_quat, isaacsim_quat[:, [1, 2, 3, 0]], atol=1e-5, rtol=0)
 
 
 # ==================================================================

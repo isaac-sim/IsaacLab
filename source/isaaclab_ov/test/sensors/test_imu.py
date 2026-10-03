@@ -8,7 +8,7 @@
 """Real-backend tests for the OVPhysX IMU sensor.
 
 Mirrors the structure of source/isaaclab_physx/test/sensors/test_imu.py
-but runs kitless under uv run python -m pytest — no AppLauncher needed.
+but runs kitless under uv run python -m pytest — no Kit launch needed.
 SimulationContext is instantiated directly (it does not require Kit), and
 UsdFileCfg(usd_path=ISAAC_NUCLEUS_DIR/...) downloads Nucleus assets via
 omni.client (which works standalone in Kit's Python).
@@ -62,13 +62,12 @@ from isaaclab.assets import Articulation, RigidObject, RigidObjectCfg  # noqa: E
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg  # noqa: E402
 from isaaclab.sensors.imu import Imu, ImuCfg  # noqa: E402
 from isaaclab.sim import SimulationCfg, build_simulation_context  # noqa: E402
-from isaaclab.utils import configclass  # noqa: E402
+from isaaclab.utils import configclass, replace  # noqa: E402
 
 from isaaclab_assets.robots.anymal import ANYMAL_C_CFG  # noqa: E402
 
 wp.init()
 
-pytestmark = pytest.mark.device_split
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -147,7 +146,7 @@ def _spawn_anymal(num_envs: int) -> Articulation:
     The :class:`Articulation` performs the per-env spawn itself once the env
     Xform containers exist; :func:`_spawn_envs` must be called first.
     """
-    cfg = ANYMAL_C_CFG.replace(prim_path="/World/env_[^/]+/robot")
+    cfg = replace(ANYMAL_C_CFG, prim_path="/World/env_[^/]+/robot")
     cfg.init_state.pos = (0.0, 2.0, 1.0)
     # bump solver iteration counts to match the PhysX test's scene cfg -- the counts live on the
     # PhysX articulation fragment
@@ -180,33 +179,6 @@ class _StaleResetSceneCfg(InteractiveSceneCfg):
         ),
     )
     imu_cube: ImuCfg = ImuCfg(prim_path="{ENV_REGEX_NS}/cube")
-
-
-# ---------------------------------------------------------------------------
-# Process-global device-mode lock (matches the rigid-object and contact-sensor
-# tests). The ovphysx wheel can only run one device per process; parametrized
-# tests skip on the unlocked device so single-device runs finish cleanly.
-# ---------------------------------------------------------------------------
-
-_LOCKED_DEVICE: list[str | None] = [None]
-
-
-@pytest.fixture(autouse=True)
-def _ovphysx_skip_other_device(request):
-    """Skip parametrized tests on the device the session is not pinned to."""
-    callspec = getattr(request.node, "callspec", None)
-    device = callspec.params.get("device") if callspec is not None else None
-    if device is None:
-        return
-    locked = _LOCKED_DEVICE[0]
-    if locked is None:
-        _LOCKED_DEVICE[0] = device
-        return
-    if device != locked:
-        pytest.skip(
-            f"ovphysx process-global device lock is held by '{locked}'; cannot run '{device}' "
-            "tests in the same session.  Run pytest twice (once per device) for full coverage."
-        )
 
 
 # ---------------------------------------------------------------------------

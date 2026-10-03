@@ -17,7 +17,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from types import SimpleNamespace
 
-import isaaclab_newton.physics.newton_manager as newton_manager_module
 import numpy as np
 import pytest
 from isaaclab_newton.physics import (
@@ -139,6 +138,41 @@ def _valid_proxy_setup(
 def test_config_validation_requires_entries():
     with pytest.raises(ValueError, match="at least one solver entry"):
         NewtonCouplerManager._validate_config(CouplerProxyCfg())
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("contact_max_triangle_pairs", 0),
+        ("contact_max_triangle_pairs", 1.5),
+        ("contact_reduction_hashtable_size_factor", 0.0),
+        ("contact_reduction_hashtable_size_factor", float("nan")),
+        ("contact_reduction_hashtable_size_factor", float("inf")),
+    ],
+)
+def test_config_validation_rejects_invalid_admm_contact_capacity(field, value):
+    cfg = CouplerAdmmCfg(entries=[CouplerEntryCfg(name="entry", solver_cfg=XPBDSolverCfg())])
+    setattr(cfg, field, value)
+    with pytest.raises(ValueError, match=field):
+        NewtonCouplerManager._validate_config(cfg)
+
+
+@pytest.mark.parametrize("matching", ["latest", "sticky", "disabled"])
+@pytest.mark.parametrize(
+    ("capacity", "valid_with_matching"),
+    [(None, True), (2**20 - 1, True), (2**20, False), (2**20 + 1, False)],
+)
+def test_config_validation_admm_contact_capacity_matching_limit(matching, capacity, valid_with_matching):
+    cfg = CouplerAdmmCfg(
+        entries=[CouplerEntryCfg(name="entry", solver_cfg=XPBDSolverCfg())],
+        contact_max_triangle_pairs=capacity,
+        rigid_contact_matching=matching,
+    )
+    if valid_with_matching or matching == "disabled":
+        NewtonCouplerManager._validate_config(cfg)
+    else:
+        with pytest.raises(ValueError, match=r"contact_max_triangle_pairs.*2\*\*20.*rigid_contact_matching"):
+            NewtonCouplerManager._validate_config(cfg)
 
 
 def test_config_validation_requires_nonempty_entry_names():
@@ -461,7 +495,8 @@ def test_mpm_entry_forwards_config_and_execution_policy():
 @pytest.mark.parametrize(
     ("grid_type", "max_active_cell_count", "expected"),
     [
-        pytest.param("fixed", -1, True, id="fixed"),
+        pytest.param("fixed", 1024, True, id="bounded_fixed"),
+        pytest.param("fixed", -1, False, id="unbounded_fixed"),
         pytest.param("sparse", 1024, True, id="bounded_sparse"),
         pytest.param("sparse", -1, False, id="unbounded_sparse"),
         pytest.param("dense", -1, False, id="dense"),
@@ -484,7 +519,6 @@ def test_mpm_grid_controls_coupled_cuda_graph_support(monkeypatch, grid_type, ma
     )
 
     assert NewtonCouplerManager._supports_cuda_graph_capture() is expected
-    assert NewtonCouplerManager._requires_initial_reset_before_graph_capture() is True
 
 
 def test_coupler_clear_releases_nested_manager_state(monkeypatch):
@@ -506,13 +540,15 @@ def test_coupler_clear_releases_nested_manager_state(monkeypatch):
     assert events == ["vbd", "mpm"]
 
 
-def test_mpm_entry_reuses_builder_lifecycle_hooks(monkeypatch):
-    """Coupled MPM entries normalize kinematic colliders before finalize."""
+@pytest.mark.parametrize("vbd_entries", [0, 2])
+def test_mpm_entry_reuses_builder_lifecycle_hooks(monkeypatch, vbd_entries):
+    """Prepare the shared builder once per selected solver, without unconditional VBD coloring."""
     events: list[tuple[str, object]] = []
-    builder = object()
-    solver_cfg = CouplerProxyCfg(
-        entries=[CouplerEntryCfg(name="media", solver_cfg=MPMSolverCfg())],
-    )
+    builder = ModelBuilder()
+    monkeypatch.setattr(builder, "color", lambda *, balance_colors: events.append(("color", balance_colors)))
+    entries = [CouplerEntryCfg(name="media", solver_cfg=MPMSolverCfg())]
+    entries.extend(CouplerEntryCfg(name=f"cloth_{index}", solver_cfg=VBDSolverCfg()) for index in range(vbd_entries))
+    solver_cfg = CouplerProxyCfg(entries=entries)
     monkeypatch.setattr(coupler.PhysicsManager, "_cfg", SimpleNamespace(solver_cfg=solver_cfg))
     monkeypatch.setattr(
         coupler.NewtonMPMManager,
@@ -522,7 +558,7 @@ def test_mpm_entry_reuses_builder_lifecycle_hooks(monkeypatch):
 
     NewtonCouplerManager._prepare_builder_for_finalize(builder)
 
-    assert events == [("finalize", builder)]
+    assert events == [("finalize", builder)] + ([("color", False)] if vbd_entries else [])
 
 
 def test_nested_solvers_register_their_builder_attributes(monkeypatch):
@@ -572,16 +608,10 @@ def test_nested_solver_scopes_mujoco_joint_properties(
     joint.GetPrim().CreateAttribute("mjc:frictionloss", Sdf.ValueTypeNames.Double, True).Set(0.11)
     joint.GetPrim().CreateAttribute("mjc:damping", Sdf.ValueTypeNames.Double, True).Set(0.23)
 
-    monkeypatch.setattr(newton_manager_module, "get_current_stage", lambda: stage)
-    monkeypatch.setattr(newton_manager_module, "_restore_visible_colliders_without_visual_shapes", lambda *args: None)
-    monkeypatch.setattr(newton_manager_module, "replace_newton_builder_shape_colors", lambda *args: None)
-    monkeypatch.setattr(newton_manager_module, "import_builder_visual_material_paths", lambda *args: None)
-    monkeypatch.setattr(NewtonManager, "_builder", None)
-    monkeypatch.setattr(NewtonManager, "_deformable_registry", [])
-    monkeypatch.setattr(NewtonManager, "_per_world_builder_hooks", [])
-
-    NewtonCouplerManager.instantiate_builder_from_stage()
-    builder = NewtonManager._builder
+    builder = NewtonCouplerManager.create_builder(up_axis="Z")
+    builder.add_usd(
+        stage, root_path=root_path, schema_resolvers=NewtonCouplerManager._get_usd_import_schema_resolvers()
+    )
     model = builder.finalize(device="cpu")
 
     assert model.joint_friction.numpy()[-1] == pytest.approx(expected_friction)
@@ -864,6 +894,44 @@ def test_admm_build_forwards_multiple_pairs_matching_and_proximal_options(monkey
     assert solver.coupling.contact_matching_pos_threshold == pytest.approx(0.01)
     assert solver.coupling.contact_matching_normal_dot_threshold == pytest.approx(0.8)
     assert solver.coupling.contact_matching_force_scale == pytest.approx(0.7)
+
+
+def test_admm_build_forwards_native_contact_capacity(monkeypatch):
+    @dataclass(frozen=True)
+    class NativeCapacityConfig(_RecordingAdmm.Config):
+        contact_max_triangle_pairs: int | None = None
+        contact_reduction_hashtable_size_factor: float | None = None
+
+    monkeypatch.setattr(_RecordingAdmm, "Config", NativeCapacityConfig)
+    monkeypatch.setattr(coupler, "SolverCoupledADMM", _RecordingAdmm)
+    cfg = CouplerAdmmCfg(
+        contact_pairs=[],
+        contact_max_triangle_pairs=8192,
+        contact_reduction_hashtable_size_factor=2.0,
+    )
+
+    solver = NewtonCouplerManager._build_admm_coupled_solver(_FakeModel(), [], cfg)
+
+    assert solver.coupling.contact_max_triangle_pairs == 8192
+    assert solver.coupling.contact_reduction_hashtable_size_factor == 2.0
+
+
+@pytest.mark.parametrize(
+    ("name", "value"),
+    [("contact_max_triangle_pairs", 8192), ("contact_reduction_hashtable_size_factor", 2.0)],
+)
+def test_admm_build_rejects_contact_capacity_without_native_support(monkeypatch, name, value):
+    @dataclass(frozen=True)
+    class LegacyConfig:
+        contact_pairs: tuple = ()
+
+    monkeypatch.setattr(_RecordingAdmm, "Config", LegacyConfig)
+    monkeypatch.setattr(coupler, "SolverCoupledADMM", _RecordingAdmm)
+    cfg = CouplerAdmmCfg(contact_pairs=[])
+    setattr(cfg, name, value)
+
+    with pytest.raises(RuntimeError, match=rf"Newton.*does not support {name}"):
+        NewtonCouplerManager._build_admm_coupled_solver(_FakeModel(), [], cfg)
 
 
 def test_admm_build_auto_detects_symmetric_contact_pairs_by_default(monkeypatch):

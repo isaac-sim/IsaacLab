@@ -3,15 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Launch Isaac Sim Simulator first."""
+from isaaclab.test.utils import launch_test_simulation
 
-from isaaclab.app import AppLauncher
-
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
-
-"""Rest everything follows."""
-
+launch_test_simulation()
 
 import numpy as np
 import pytest
@@ -33,8 +27,6 @@ def sim():
     dt = 0.1
     # Load kit helper
     sim = SimulationContext(SimulationCfg(dt=dt))
-    # Wait for spawning
-    sim_utils.update_stage()
     yield sim
     # Cleanup
     sim._disable_app_control_on_stop_handle = True  # prevent timeout
@@ -106,8 +98,9 @@ def test_spawn_mesh_with_edge_refinement(sim, monkeypatch, cfg_type, kwargs, edg
         (sim_utils.MeshRectangleCfg, {"size": (1.0, 1.0)}, {}, sim_utils.PhysxSurfaceDeformableBodyMaterialCfg(), None),
     ],
 )
+@pytest.mark.parametrize("fragments", [False, True])
 def test_edge_refinement_sets_tetrahedralization_resolution(
-    sim, monkeypatch, cfg_type, geometry_kwargs, refinement_kwargs, physics_material, expected_factor
+    sim, monkeypatch, cfg_type, geometry_kwargs, refinement_kwargs, physics_material, expected_factor, fragments
 ):
     """Test edge refinement is forwarded to volume tetrahedralization."""
     captured_kwargs = {}
@@ -115,9 +108,16 @@ def test_edge_refinement_sets_tetrahedralization_resolution(
     def capture_deformable_properties(*args, **kwargs):
         captured_kwargs.update(kwargs)
 
-    monkeypatch.setattr(mesh_spawner.schemas, "define_deformable_body_properties", capture_deformable_properties)
+    kind = "surface" if expected_factor is None else "volume"
+    writer = f"apply_{kind}_deformable_properties" if fragments else "define_deformable_body_properties"
+    monkeypatch.setattr(mesh_spawner.schemas, writer, capture_deformable_properties)
+    props = (
+        {f"{kind}_deformable_props": sim_utils.OmniPhysicsDeformableBodyCfg()}
+        if fragments
+        else {"deformable_props": sim_utils.DeformableBodyPropertiesCfg()}
+    )
     cfg = cfg_type(
-        deformable_props=sim_utils.DeformableBodyPropertiesCfg(),
+        **props,
         physics_material=physics_material,
         **geometry_kwargs,
         **refinement_kwargs,

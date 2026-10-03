@@ -21,13 +21,13 @@ from isaaclab.sim.schemas.schemas_cfg import (
     MeshCollisionFragment,
     RigidBodyBaseCfg,
     RigidBodyFragment,
-    _deprecated_schema_cfg,
+    deprecated_schema_cfg,
 )
 from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialBaseCfg
 from isaaclab.utils import configclass
 
 
-@_deprecated_schema_cfg("[UsdPhysicsRigidBodyCfg(...), PhysxRigidBodyCfg(...)]")
+@deprecated_schema_cfg("[UsdPhysicsRigidBodyCfg(...), PhysxRigidBodyCfg(...)]")
 @configclass
 class NewtonRigidBodyPropertiesCfg(RigidBodyBaseCfg):
     """Newton-targeted rigid body properties.
@@ -74,7 +74,7 @@ class NewtonDeformableBodyPropertiesCfg(DeformableBodyPropertiesBaseCfg):
     _usd_field_exceptions: ClassVar[dict] = {}
 
 
-@_deprecated_schema_cfg("[UsdPhysicsRigidBodyCfg(...), PhysxRigidBodyCfg(...), MujocoRigidBodyCfg(...)]")
+@deprecated_schema_cfg("[UsdPhysicsRigidBodyCfg(...), PhysxRigidBodyCfg(...), MujocoRigidBodyCfg(...)]")
 @configclass
 class MujocoRigidBodyPropertiesCfg(NewtonRigidBodyPropertiesCfg):
     """MuJoCo-solver-specific rigid body properties.
@@ -164,9 +164,7 @@ class MujocoJointCfg(JointDriveFragment):
     """
 
 
-@_deprecated_schema_cfg(
-    "[UsdPhysicsDriveCfg(...), PhysxJointCfg(...)] (and set ensure_drives_exist on the spawner cfg)"
-)
+@deprecated_schema_cfg("[UsdPhysicsDriveCfg(...), PhysxJointCfg(...)] (and set ensure_drives_exist on the spawner cfg)")
 @configclass
 class NewtonJointDrivePropertiesCfg(JointDriveBaseCfg):
     """Newton-targeted joint drive properties.
@@ -196,7 +194,7 @@ class NewtonJointDrivePropertiesCfg(JointDriveBaseCfg):
     _usd_applied_schema: ClassVar[str | None] = None
 
 
-@_deprecated_schema_cfg(
+@deprecated_schema_cfg(
     "[UsdPhysicsDriveCfg(...), PhysxJointCfg(...), MujocoJointCfg(...)] (and set ensure_drives_exist on"
     " the spawner cfg)"
 )
@@ -338,7 +336,7 @@ class NewtonCollisionCfg(CollisionFragment):
     """
 
 
-@_deprecated_schema_cfg(
+@deprecated_schema_cfg(
     "[UsdPhysicsCollisionCfg(...), PhysxCollisionCfg(...), NewtonCollisionCfg(...)] (and move"
     " mesh_collision_property to the spawner's mesh_collision_props slot)"
 )
@@ -385,7 +383,7 @@ class NewtonCollisionPropertiesCfg(CollisionBaseCfg):
     """
 
 
-@_deprecated_schema_cfg(
+@deprecated_schema_cfg(
     "[UsdPhysicsCollisionCfg(...), PhysxCollisionCfg(...), NewtonCollisionCfg(...),"
     " UsdPhysicsMeshCollisionCfg(...), NewtonMeshCollisionCfg(...)] (and move mesh_collision_property"
     " to the spawner's mesh_collision_props slot)"
@@ -422,7 +420,7 @@ class NewtonMeshCollisionPropertiesCfg(NewtonCollisionPropertiesCfg, MeshCollisi
     """
 
 
-@_deprecated_schema_cfg(
+@deprecated_schema_cfg(
     "[UsdPhysicsCollisionCfg(...), PhysxCollisionCfg(...), NewtonCollisionCfg(...),"
     " NewtonSDFCollisionCfg(...)] (and move mesh_collision_property to the spawner's"
     " mesh_collision_props slot)"
@@ -707,7 +705,7 @@ class MujocoFixedTendonCfg(FixedTendonFragment):
     """Damping term acting on the tendon length [N·s/m]."""
 
 
-@_deprecated_schema_cfg(
+@deprecated_schema_cfg(
     "[PhysxArticulationCfg(...), NewtonArticulationCfg(...)] (and set fix_root_link on the spawner cfg)"
 )
 @configclass

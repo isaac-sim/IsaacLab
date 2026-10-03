@@ -3,16 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Launch Isaac Sim Simulator first."""
+from isaaclab.test.utils import launch_test_simulation
 
-from isaaclab.app import AppLauncher
-
-# launch the simulator
-app_launcher = AppLauncher(headless=True)
-simulation_app = app_launcher.app
-
-
-"""Rest everything follows."""
+launch_test_simulation()
 
 import gymnasium as gym
 import pytest
@@ -32,7 +25,7 @@ def setup_environment():
     # test on many environments.
     from isaaclab.app.settings_manager import get_settings_manager
 
-    get_settings_manager().set_bool("/physics/cooking/ujitsoCollisionCooking", False)
+    get_settings_manager().set("/physics/cooking/ujitsoCollisionCooking", False)
 
 
 @pytest.mark.parametrize(

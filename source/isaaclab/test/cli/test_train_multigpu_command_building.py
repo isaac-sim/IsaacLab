@@ -11,7 +11,7 @@ itself looks like an option (starts with ``-`` and contains no space) with
 space-separated form ``--kit_args "--foo=/bar"`` for a single Kit argument on
 every entry point, including all ranks of the multi-GPU launcher.
 
-:meth:`~isaaclab.app.AppLauncher.add_app_launcher_args` now fuses such pairs in
+:func:`~isaaclab.app.add_launcher_args` now fuses such pairs in
 ``sys.argv`` into single ``--kit_args=<value>`` tokens before any parsing, and
 the unified RL dispatcher applies the same fusing to the explicit argv list it
 forwards to the backend modules (which parse that list, not ``sys.argv``).
@@ -25,12 +25,14 @@ without a GPU or Isaac Sim installation.
 from __future__ import annotations
 
 import argparse
+import os
+import re
 import shlex
 import sys
 
 import pytest
 
-from isaaclab.app.app_launcher import AppLauncher
+from isaaclab.app import add_launcher_args
 
 from isaaclab_rl.entrypoints import multigpu as train_multigpu
 
@@ -50,13 +52,13 @@ def _parse_as_training_script(child_argv: list[str], monkeypatch: pytest.MonkeyP
     """Parse forwarded argv the way the child training script does.
 
     Replicates the training-script startup: ``sys.argv`` holds the forwarded
-    tokens, the parser is extended via :meth:`AppLauncher.add_app_launcher_args`
+    tokens, the parser is extended via :func:`~isaaclab.app.add_launcher_args`
     (which installs the ``--kit_args`` normalization), and parsing must succeed.
     """
     monkeypatch.setattr(sys, "argv", ["train.py", *child_argv])
     parser = argparse.ArgumentParser()
     parser.add_argument("--task", type=str, default=None)
-    AppLauncher.add_app_launcher_args(parser)
+    add_launcher_args(parser)
     try:
         args, _unknown = parser.parse_known_args()
     except SystemExit:
@@ -65,13 +67,13 @@ def _parse_as_training_script(child_argv: list[str], monkeypatch: pytest.MonkeyP
 
 
 class TestAddAppLauncherArgsNormalization:
-    """Integration tests for the ``sys.argv`` normalization in ``add_app_launcher_args``."""
+    """Integration tests for the ``sys.argv`` normalization in ``add_launcher_args``."""
 
     def test_unknown_leftovers_are_preserved(self, monkeypatch):
         monkeypatch.setattr(sys, "argv", ["prog", "--task", "X", "--kit_args", "--foo=/bar", "env.param=1"])
         parser = argparse.ArgumentParser()
         parser.add_argument("--task", type=str, default=None)
-        AppLauncher.add_app_launcher_args(parser)
+        add_launcher_args(parser)
         args, unknown = parser.parse_known_args()
         assert args.kit_args == "--foo=/bar"
         assert unknown == ["env.param=1"]
@@ -109,6 +111,16 @@ class TestKitArgsForwarding:
         assert "skrl.utils.distributed.jax" in command
         kit_args = _parse_as_training_script(_forwarded_train_argv(command), monkeypatch)
         assert kit_args == "--foo=/bar"
+
+    def test_every_rank_receives_one_run_timestamp(self, capsys):
+        def forwarded_timestamps(argv: list[str]) -> list[str]:
+            assert train_multigpu.run_train_multigpu_cli(["--dry_run", "--task", "Isaac-Cartpole-Direct", *argv]) == 0
+            return [token for token in shlex.split(capsys.readouterr().out) if token.startswith("--run_timestamp")]
+
+        (generated,) = forwarded_timestamps([])
+        assert re.fullmatch(r"--run_timestamp=\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}", generated)
+        assert forwarded_timestamps(["--run_timestamp=2026-01-02_03-04-05"]) == ["--run_timestamp=2026-01-02_03-04-05"]
+        assert os.environ.get("ISAACLAB_RUN_TIMESTAMP") is None  # the launcher leaves no process state behind
 
     def test_dry_run_prints_shell_parsable_command(self, capsys):
         exit_code = train_multigpu.run_train_multigpu_cli(

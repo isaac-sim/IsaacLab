@@ -24,10 +24,11 @@
 
 import argparse
 import random
+from typing import TYPE_CHECKING
 
 import torch
 
-from isaaclab.app import AppLauncher
+from isaaclab.app import add_launcher_args, launch_simulation
 
 parser = argparse.ArgumentParser(description="Example on using the multi-mesh raycaster sensor.")
 parser.add_argument("--num_envs", type=int, default=16, help="Number of environments to spawn.")
@@ -46,7 +47,7 @@ parser.add_argument(
     choices=["isaacsim_physx"],
     help="Physics backend.",
 )
-AppLauncher.add_app_launcher_args(parser)
+add_launcher_args(parser)
 parser.set_defaults(visualizer=["kit"])
 args_cli = parser.parse_args()
 if args_cli.log_interval < 1:
@@ -54,25 +55,21 @@ if args_cli.log_interval < 1:
 if args_cli.max_steps == 0 or args_cli.max_steps < -1:
     parser.error("--max_steps must be positive or -1.")
 
-app_launcher = AppLauncher(args_cli)
-simulation_app = app_launcher.app
-
-
-# Simulator-dependent imports must follow AppLauncher initialization.
 from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
-
-from pxr import Gf, Sdf
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation, AssetBaseCfg, RigidObjectCfg
 from isaaclab.markers.config import VisualizationMarkersCfg
-from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
+from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors.ray_caster import MultiMeshRayCasterCameraCfg, patterns
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, instantiate, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 from isaaclab_assets.robots.allegro import ALLEGRO_HAND_CFG
 from isaaclab_assets.robots.anymal import ANYMAL_D_CFG
+
+if TYPE_CHECKING:
+    from isaaclab.scene import InteractiveScene
 
 RAY_CASTER_MARKER_CFG = VisualizationMarkersCfg(
     markers={
@@ -84,7 +81,7 @@ RAY_CASTER_MARKER_CFG = VisualizationMarkersCfg(
 )
 
 if args_cli.asset_type == "allegro_hand":
-    asset_cfg = ALLEGRO_HAND_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    asset_cfg = replace(ALLEGRO_HAND_CFG, prim_path="{ENV_REGEX_NS}/Robot")
     ray_caster_cfg = MultiMeshRayCasterCameraCfg(
         prim_path="{ENV_REGEX_NS}/Robot",
         update_period=1 / 60,
@@ -106,12 +103,12 @@ if args_cli.asset_type == "allegro_hand":
             height=120,
             width=240,
         ),
-        debug_vis=not args_cli.headless,
-        visualizer_cfg=RAY_CASTER_MARKER_CFG.replace(prim_path="/Visuals/RayCaster"),
+        debug_vis=bool(args_cli.visualizer),
+        visualizer_cfg=replace(RAY_CASTER_MARKER_CFG, prim_path="/Visuals/RayCaster"),
     )
 
 elif args_cli.asset_type == "anymal_d":
-    asset_cfg = ANYMAL_D_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    asset_cfg = replace(ANYMAL_D_CFG, prim_path="{ENV_REGEX_NS}/Robot")
     ray_caster_cfg = MultiMeshRayCasterCameraCfg(
         prim_path="{ENV_REGEX_NS}/Robot/base",
         update_period=1 / 60,
@@ -130,8 +127,8 @@ elif args_cli.asset_type == "anymal_d":
             height=120,
             width=240,
         ),
-        debug_vis=not args_cli.headless,
-        visualizer_cfg=RAY_CASTER_MARKER_CFG.replace(prim_path="/Visuals/RayCaster"),
+        debug_vis=bool(args_cli.visualizer),
+        visualizer_cfg=replace(RAY_CASTER_MARKER_CFG, prim_path="/Visuals/RayCaster"),
     )
 
 elif args_cli.asset_type == "objects":
@@ -187,8 +184,8 @@ elif args_cli.asset_type == "objects":
             height=120,
             width=240,
         ),
-        debug_vis=not args_cli.headless,
-        visualizer_cfg=RAY_CASTER_MARKER_CFG.replace(prim_path="/Visuals/RayCaster"),
+        debug_vis=bool(args_cli.visualizer),
+        visualizer_cfg=replace(RAY_CASTER_MARKER_CFG, prim_path="/Visuals/RayCaster"),
     )
 else:
     raise ValueError(f"Unknown asset type: {args_cli.asset_type}")
@@ -220,6 +217,7 @@ class RaycasterSensorSceneCfg(InteractiveSceneCfg):
 
 def randomize_shape_color(prim_path_expr: str) -> None:
     """Randomize the color of the geometry."""
+    from pxr import Gf, Sdf
 
     stage = sim_utils.get_current_stage()
     # resolve prim paths for spawning and cloning
@@ -235,12 +233,12 @@ def randomize_shape_color(prim_path_expr: str) -> None:
             scale_spec.default = Gf.Vec3f(random.uniform(0.5, 1.5), random.uniform(0.5, 1.5), random.uniform(0.5, 1.5))
 
 
-def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene) -> None:
+def run_simulator(sim: sim_utils.SimulationContext, scene: "InteractiveScene") -> None:
     """Run the simulator."""
     sim_dt = sim.get_physics_dt()
     count = 0
 
-    while simulation_app.is_running() and (args_cli.max_steps < 0 or count < args_cli.max_steps):
+    while sim.is_running() and (args_cli.max_steps < 0 or count < args_cli.max_steps):
         if count % 500 == 0:
             root_pose = scene["asset"].data.default_root_pose.torch.clone()
             root_pose[:, :3] += scene.env_origins
@@ -269,36 +267,29 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene) -> 
         scene.update(sim_dt)
 
         if count % args_cli.log_interval == 0:
-            hits = scene["ray_caster"].data.ray_hits_w.torch
-            valid = torch.isfinite(hits).all(dim=-1)
-            print(f"[INFO] step={count} ray hit rate={valid.float().mean().item():.1%}")
+            depth = scene["ray_caster"].data.output["distance_to_image_plane"].torch
+            print(f"[INFO] step={count} ray hit rate={torch.isfinite(depth).float().mean().item():.1%}")
 
 
 def main() -> None:
     """Run the multi-mesh ray-caster camera example."""
 
-    # Initialize the simulation context
     sim_cfg = sim_utils.SimulationCfg(dt=0.005, device=args_cli.device)
-    sim = sim_utils.SimulationContext(sim_cfg)
-    # Set main camera
-    sim.set_camera_view(eye=[3.5, 3.5, 3.5], target=[0.0, 0.0, 0.0])
-    # design scene
-    scene_cfg = RaycasterSensorSceneCfg(num_envs=args_cli.num_envs, env_spacing=2.0, replicate_physics=True)
-    scene = InteractiveScene(scene_cfg)
+    with launch_simulation(sim_cfg, args_cli):
+        sim = sim_utils.SimulationContext(sim_cfg)
+        # Set main camera
+        sim.set_camera_view(eye=[3.5, 3.5, 3.5], target=[0.0, 0.0, 0.0])
+        # design scene
+        scene_cfg = RaycasterSensorSceneCfg(num_envs=args_cli.num_envs, env_spacing=2.0, replicate_physics=True)
+        scene = instantiate(scene_cfg)
 
-    if args_cli.asset_type == "objects":
-        randomize_shape_color(scene_cfg.asset.prim_path.format(ENV_REGEX_NS="/World/envs/env_.*"))
+        if args_cli.asset_type == "objects":
+            randomize_shape_color(scene_cfg.asset.prim_path.format(ENV_REGEX_NS="/World/envs/env_.*"))
 
-    # Play the simulator
-    sim.reset()
-    # Now we are ready!
-    print("[INFO]: Setup complete...")
-    # Run the simulator
-    run_simulator(sim, scene)
+        sim.reset()
+        print("[INFO]: Setup complete...")
+        run_simulator(sim, scene)
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    finally:
-        simulation_app.close()
+    main()

@@ -21,11 +21,11 @@ demonstrates how to spawn a ground plane, lights, primitive shapes, and meshes f
 
       uv run --extra tetrahedralization python scripts/tutorials/00_sim/spawn_prims.py
 
-   With the legacy installer, install the optional dependencies first:
+   To install the optional dependencies explicitly:
 
    .. code-block:: bash
 
-      ./isaaclab.sh -i tetrahedralization
+      uv sync --extra tetrahedralization
 
 
 The Code
@@ -39,7 +39,7 @@ Let's take a look at the Python script:
 
    .. literalinclude:: ../../../scripts/tutorials/00_sim/spawn_prims.py
       :language: python
-      :emphasize-lines: 40-88, 100-101
+      :emphasize-lines: 38-86, 100-101
       :linenos:
 
 
@@ -194,12 +194,6 @@ Similar to the tutorial before, to run the script, execute the following command
       .. code-block:: bash
 
         uv run --extra tetrahedralization python scripts/tutorials/00_sim/spawn_prims.py
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-        ./isaaclab.sh -p scripts/tutorials/00_sim/spawn_prims.py
 
 Once the simulation starts, you should see a window with a ground plane, a light, some cones, and a table.
 The green cone, which has rigid body physics enabled, should fall and collide with the table and the ground

@@ -18,12 +18,9 @@ try:
 except ImportError:
     pytest.skip("moviepy is not installed; install with: pip install 'moviepy<2'", allow_module_level=True)
 
-from isaaclab.app import AppLauncher
+from isaaclab.test.utils import launch_test_simulation
 
-app_launcher = AppLauncher(headless=True, enable_cameras=True)
-simulation_app = app_launcher.app
-
-"""Rest everything follows."""
+launch_test_simulation(enable_cameras=True)
 
 import logging
 import os
@@ -161,15 +158,15 @@ def _assert_clip_has_content(clip_path: str, label: str) -> None:
 
 
 def test_headless_kit_physx_recorders_share_visualizer():
-    """Two source='visualizer:kit' recorders share one headless Kit visualizer on PhysX; both clips move."""
+    """Two source='viz:kit' recorders share one headless Kit visualizer on PhysX; both clips move."""
     from isaaclab_visualizers.kit import KitVisualizerCfg
 
     with tempfile.TemporaryDirectory() as output_dir:
         env_cfg = _cartpole_cfg(num_envs=1)
         env_cfg.sim.visualizer_cfgs = [KitVisualizerCfg(headless=True, window_width=320, window_height=240)]
         env_cfg.video_recorders = [
-            _recorder_cfg(output_dir, "visualizer:kit", prefix="first"),
-            _recorder_cfg(output_dir, "visualizer:kit", prefix="second"),
+            _recorder_cfg(output_dir, "viz:kit", prefix="first"),
+            _recorder_cfg(output_dir, "viz:kit", prefix="second"),
         ]
         _run_cartpole(env_cfg)
         for prefix in ("first", "second"):
@@ -177,11 +174,11 @@ def test_headless_kit_physx_recorders_share_visualizer():
 
 
 def test_newton_records_clip_and_warns_for_kit_capture(caplog):
-    """On Newton physics, source='visualizer:newton' writes a non-black clip and source='visualizer:kit' warns.
+    """On Newton physics, source='viz:newton_gl' writes a non-black clip and source='viz:kit' warns.
 
     Newton GL renders asynchronously, so the motion check is skipped: consecutive render_rgb_array() calls may
     return the same framebuffer. Kit capture needs cubric to see Newton transforms, so the recorder warns and
-    points to 'visualizer:newton' instead of failing.
+    points to 'viz:newton_gl' instead of failing.
     """
     from isaaclab_visualizers.kit import KitVisualizerCfg
     from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
@@ -193,19 +190,19 @@ def test_newton_records_clip_and_warns_for_kit_capture(caplog):
             NewtonGLVisualizerCfg(window_width=320, window_height=240),
         ]
         env_cfg.video_recorders = [
-            _recorder_cfg(output_dir, "visualizer:kit", prefix="kit"),
-            _recorder_cfg(output_dir, "visualizer:newton", prefix="newton"),
+            _recorder_cfg(output_dir, "viz:kit", prefix="kit"),
+            _recorder_cfg(output_dir, "viz:newton_gl", prefix="newton"),
         ]
         with caplog.at_level(logging.WARNING, logger="isaaclab.envs.utils.video_recorder"):
             _run_cartpole(env_cfg)
-        assert any("source='visualizer:newton'" in r.message for r in caplog.records)
+        assert any("source='viz:newton_gl'" in r.message for r in caplog.records)
         _assert_clip_nonblack(os.path.join(output_dir, "newton_0000.mp4"), "newton")
 
 
 def test_multiple_recorders_simultaneous():
     """Two VideoRecorderCfg entries write independent clips from the same env step loop.
 
-    Kit viewport (source='visualizer:kit') and tiled camera sensor
+    Kit viewport (source='viz:kit') and tiled camera sensor
     (source='sensor:tiled_camera') record simultaneously.  Verifies that both
     clips are created and non-empty.  The sensor clip also receives the full
     non-black + motion check.  The Kit clip is only checked for file existence —
@@ -219,7 +216,7 @@ def test_multiple_recorders_simultaneous():
         env_cfg = _cartpole_camera_cfg_physx(num_envs=1)
         env_cfg.sim.visualizer_cfgs = [KitVisualizerCfg(window_width=320, window_height=240)]
         env_cfg.video_recorders = [
-            _recorder_cfg(output_dir, "visualizer:kit", prefix="viewport"),
+            _recorder_cfg(output_dir, "viz:kit", prefix="viewport"),
             _recorder_cfg(output_dir, "sensor:tiled_camera", prefix="sensor"),
         ]
         _run_cartpole_camera(env_cfg)

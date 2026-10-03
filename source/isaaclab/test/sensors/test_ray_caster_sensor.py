@@ -9,9 +9,9 @@
 
 from typing import Literal
 
-from isaaclab.app import AppLauncher
+from isaaclab.test.utils import launch_test_simulation
 
-simulation_app = AppLauncher(headless=True).app
+launch_test_simulation()
 
 import numpy as np
 import pytest
@@ -40,7 +40,6 @@ def _make_sim_and_ground():
     sim = sim_utils.SimulationContext(sim_cfg)
     mesh = make_plane(size=(100, 100), height=0.0, center_zero=True)
     create_prim_from_mesh(_GROUND_PATH, mesh)
-    sim_utils.update_stage()
     return sim
 
 
@@ -182,18 +181,21 @@ def test_ray_caster_reset_resamples_drift(sim_ground):
 
     sim_utils.create_prim("/World/Sensor", "Xform", translation=(0.0, 0.0, 2.0))
     cfg = _ray_caster_cfg("/World/Sensor", "world")
-    cfg.drift_range = (0.01, 0.05)  # force non-zero drift
     sensor = RayCaster(cfg)
     sim.reset()
-    # sim.reset() initializes the sensor with zero drift; call sensor.reset() to resample
-    # from the configured drift_range before we capture the baseline.
+    sensor.reset()
+    assert (sensor.drift.torch == 0.0).all()
+    assert (sensor.ray_cast_drift.torch == 0.0).all()
+
+    sensor.cfg.drift_range = (0.01, 0.05)
+    sensor.cfg.ray_cast_drift_range = {"x": (0.1, 0.2), "y": (-0.2, -0.1)}
     sensor.reset()
 
     dt = 0.01
     sensor.update(dt)
     drift_before = sensor.drift.clone()  # (1, 3) torch tensor
 
-    lo, hi = cfg.drift_range
+    lo, hi = sensor.cfg.drift_range
 
     # After sensor.reset(), drift should be within the configured range
     assert drift_before.shape == (1, 3), f"Drift shape should be (1, 3), got {drift_before.shape}"
@@ -217,6 +219,20 @@ def test_ray_caster_reset_resamples_drift(sim_ground):
     assert not torch.allclose(drift_after, drift_before), (
         "reset() must resample drift; values must change from initial sample"
     )
+    # Ray cast drift is sampled per axis; missing axes default to zero range.
+    ray_cast_drift = sensor.ray_cast_drift.torch
+    assert ((ray_cast_drift[:, 0] >= 0.1) & (ray_cast_drift[:, 0] <= 0.2)).all()
+    assert ((ray_cast_drift[:, 1] >= -0.2) & (ray_cast_drift[:, 1] <= -0.1)).all()
+    assert (ray_cast_drift[:, 2] == 0.0).all()
+
+    # Disabling either drift clears its old sample.
+    sensor.cfg.drift_range = (0.0, 0.0)
+    sensor.reset(env_ids=[0])
+    assert (sensor.drift.torch == 0.0).all()
+    assert (sensor.ray_cast_drift.torch[:, 0] >= 0.1).all()
+    sensor.cfg.ray_cast_drift_range = {}
+    sensor.reset(env_ids=[0])
+    assert (sensor.ray_cast_drift.torch == 0.0).all()
 
 
 @pytest.mark.isaacsim_ci
@@ -304,7 +320,6 @@ def test_ray_caster_tracks_physics_body_parent_motion(sim_ground):
         raise RuntimeError(f"Failed to create collision cube at {cube_path}.")
     cube.CreateSizeAttr().Set(0.1)
     UsdPhysics.CollisionAPI.Apply(stage.GetPrimAtPath(cube_path))
-    sim_utils.update_stage()
 
     sensor = RayCaster(_ray_caster_cfg(parent_path, "world"))
     sim.reset()

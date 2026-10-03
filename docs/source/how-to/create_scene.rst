@@ -42,7 +42,7 @@ This tutorial corresponds to the ``create_scene.py`` script within
 
    .. literalinclude:: ../../../scripts/tutorials/02_scene/create_scene.py
       :language: python
-      :emphasize-lines: 50-63, 68-70, 91-92, 99-100, 105-106, 116-118
+      :emphasize-lines: 50-63, 68-70, 97-98, 105-106, 111-112, 125-127
       :linenos:
 
 
@@ -103,15 +103,21 @@ Scene instantiation
 -------------------
 
 Unlike before where we called the ``design_scene`` function to create the scene, we now
-create an instance of the :class:`scene.InteractiveScene` class and pass in the configuration
-object to its constructor. While creating the configuration instance of ``CartpoleSceneCfg``
-we specify how many environment copies we want to create using the ``num_envs`` argument.
-This will be used to clone the scene for each environment.
+create an instance of the :class:`scene.InteractiveScene` class from the configuration object.
+The configuration names the class it builds in its :attr:`~scene.InteractiveSceneCfg.class_type`
+attribute, so :func:`~isaaclab.utils.instantiate` constructs the scene from it. While creating the
+configuration instance of ``CartpoleSceneCfg`` we specify how many environment copies we want to
+create using the ``num_envs`` argument. This will be used to clone the scene for each environment.
 
 .. literalinclude:: ../../../scripts/tutorials/02_scene/create_scene.py
    :language: python
    :start-at: # Design scene
-   :end-at: scene = InteractiveScene(scene_cfg)
+   :end-at: scene = instantiate(scene_cfg)
+
+The configuration class ``CartpoleSceneCfg`` can be defined at the top of the script, but the
+:class:`scene.InteractiveScene` class works on the USD stage of the running simulator. The
+``class_type`` attribute resolves the class lazily, so the scene class is only imported when it is
+constructed inside the ``with launch_simulation(...)`` block, once the simulator runtime has been launched.
 
 Accessing scene elements
 ------------------------
@@ -156,12 +162,6 @@ the ``--num_envs`` argument to the script.
       .. code-block:: bash
 
          uv run python scripts/tutorials/02_scene/create_scene.py --num_envs 32
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         ./isaaclab.sh -p scripts/tutorials/02_scene/create_scene.py --num_envs 32
 
 This should open a stage with 32 cartpoles swinging around randomly. You can use the
 mouse to rotate the camera and the arrow keys to move around the scene.

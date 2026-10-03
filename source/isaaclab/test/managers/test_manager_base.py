@@ -9,21 +9,22 @@
 """Tests for recursive manager term configuration resolution.
 
 These tests exercise ManagerBase's parameter resolution logic and do NOT
-require an Isaac Sim launch, so they can run without AppLauncher.
+require an Isaac Sim launch, so they can run without Kit.
 """
 
 from collections import namedtuple
 from collections.abc import Sequence
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
 import torch
 
 from isaaclab.envs import ManagerBasedEnv
-from isaaclab.managers import ManagerTermBase, ManagerTermBaseCfg
+from isaaclab.managers import ManagerTermBase, ManagerTermBaseCfg, SceneEntityCfg
 from isaaclab.managers.manager_base import ManagerBase
 from isaaclab.physics import PhysicsEvent
-from isaaclab.utils import configclass, modifiers
+from isaaclab.utils import configclass, modifiers, to_dict, update_from_dict
 
 pytestmark = pytest.mark.unit
 
@@ -63,7 +64,7 @@ def increment_dummy1_by_one(env, env_ids: torch.Tensor):
     env.dummy1[env_ids] += 1
 
 
-def change_dummy1_by_value(env, env_ids: torch.Tensor, value: int):
+def change_dummy1_by_value(env, env_ids: torch.Tensor, value: int = 10):
     env.dummy1[env_ids] += value
 
 
@@ -133,6 +134,22 @@ class list_terms_class(ManagerTermBase):
             term_cfg.func(env, env_ids, **term_cfg.params)
 
 
+class record_joint_selection_class(ManagerTermBase):
+    """A class-based term that records the joint selection seen during construction."""
+
+    def __init__(self, cfg: ManagerTermBaseCfg, env: ManagerBasedEnv):
+        super().__init__(cfg, env)
+        self.init_joint_ids = cfg.params["asset_cfg"].joint_ids
+
+    def __call__(
+        self,
+        env: ManagerBasedEnv,
+        env_ids: torch.Tensor,
+        asset_cfg: SceneEntityCfg = SceneEntityCfg("robot", joint_ids=[2, 0]),
+    ) -> None:
+        pass
+
+
 @pytest.fixture
 def env():
     num_envs = 2
@@ -158,7 +175,6 @@ def test_string_func_in_nested_term_cfg(env):
                     ),
                     "step_b": ManagerTermBaseCfg(
                         func=f"{this_module}:change_dummy1_by_value",
-                        params={"value": 10},
                     ),
                 }
             },
@@ -171,6 +187,7 @@ def test_string_func_in_nested_term_cfg(env):
     inner_terms = outer_cfg.params["terms"]
     assert inner_terms["step_a"].func is increment_dummy1_by_one
     assert inner_terms["step_b"].func is change_dummy1_by_value
+    assert inner_terms["step_b"].params["value"] == 10
 
     # Apply and verify: +1 then +10 -> 11
     manager.apply(torch.arange(env.num_envs, device=env.device))
@@ -183,7 +200,7 @@ def test_resolution_walks_declared_term_fields_outside_params(env):
         func=increment_dummy1_by_one,
         nested_term=ManagerTermBaseCfg(func=f"{__name__}:reset_dummy2_to_zero"),
     )
-    outer_cfg.from_dict(outer_cfg.to_dict())
+    update_from_dict(outer_cfg, to_dict(outer_cfg))
     cfg = {"outer": outer_cfg}
     manager = SimpleManager(cfg, env)
 
@@ -290,3 +307,55 @@ def test_terms_resolve_when_physics_is_ready_if_created_before_play(env):
     env.dummy2[:] = 42.0
     manager.apply(torch.arange(env.num_envs, device=env.device))
     torch.testing.assert_close(env.dummy2, torch.zeros_like(env.dummy2))
+
+
+@pytest.mark.parametrize("playing", [True, False])
+def test_scene_entities_finalize_after_class_terms_are_constructed(env, playing):
+    """Class terms read host selections during construction; term calls receive device selections."""
+    env.sim.is_playing.return_value = playing
+    env = SimpleNamespace(**env._asdict(), scene=dict(robot=SimpleNamespace(joint_names=["a", "b", "c"])))
+    cfg = {"term": ManagerTermBaseCfg(func=record_joint_selection_class)}
+    manager = SimpleManager(cfg, env)
+    if not playing:
+        callback, _ = env.sim.physics_manager.register_callback.call_args.args
+        callback(None)
+
+    term_cfg = manager._term_cfgs[0][1]
+    assert term_cfg.func.init_joint_ids == [2, 0]
+    assert isinstance(term_cfg.params["asset_cfg"].joint_ids, torch.Tensor)
+    assert term_cfg.params["asset_cfg"].joint_ids.tolist() == [2, 0]
+    assert cfg["term"].params == {}
+
+
+def test_term_defaults_are_isolated_and_explicit_values_win(env):
+    """Construction and invocation share defaults without aliasing terms or the function signature."""
+
+    class Accumulate(ManagerTermBase):
+        def __init__(self, cfg, env):
+            super().__init__(cfg, env)
+            self.weights = cfg.params["weights"]
+            self.bias = cfg.params["bias"]
+
+        def __call__(self, env, env_ids, weights=[1], *, bias=2):
+            env.dummy1[env_ids] += sum(weights) + (0 if bias is None else bias)
+
+    cfg = {
+        "default": ManagerTermBaseCfg(func=Accumulate),
+        "explicit": ManagerTermBaseCfg(func=Accumulate, params={"bias": None}),
+    }
+    manager = SimpleManager(cfg, env)
+    first, second = (term_cfg for _, term_cfg in manager._term_cfgs)
+    assert first.func.bias == 2
+    assert second.func.bias is None
+    first.func.weights.append(4)
+    assert first.params["weights"] == [1, 4]
+    assert second.func.weights == [1]
+    manager.apply(torch.arange(env.num_envs))
+    torch.testing.assert_close(env.dummy1, torch.full_like(env.dummy1, 8))
+
+    direct_cfg = ManagerTermBaseCfg(func=Accumulate)
+    direct_term = Accumulate(direct_cfg, env)
+    assert direct_term.weights == [1]
+    direct_cfg.params["bias"] = 5
+    direct_term(env, torch.arange(env.num_envs), **direct_cfg.params)
+    torch.testing.assert_close(env.dummy1, torch.full_like(env.dummy1, 14))

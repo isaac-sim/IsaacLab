@@ -17,6 +17,7 @@ import numpy as np
 import torch
 
 import isaaclab.utils.math as math_utils
+from isaaclab.utils import index_fill_
 from isaaclab.utils.math import quat_from_angle_axis, quat_mul
 
 if TYPE_CHECKING:
@@ -40,6 +41,7 @@ class EpisodeErrorRecorder:
         """
         self.minimum_error = torch.full((num_envs,), torch.inf, device=device)
         self._has_sample = torch.zeros(num_envs, dtype=torch.bool, device=device)
+        self._updated = False
 
     def update(self, error: torch.Tensor) -> None:
         """Record one error sample for every environment.
@@ -57,6 +59,7 @@ class EpisodeErrorRecorder:
         # force a host synchronization every step, so substitute-and-minimum instead
         torch.minimum(self.minimum_error, torch.where(finite, error, self.minimum_error), out=self.minimum_error)
         self._has_sample |= finite
+        self._updated = True
 
     def reset(self, env_ids: Sequence[int] | torch.Tensor | slice | None = None) -> dict[str, torch.Tensor]:
         """Summarize and clear completed episodes.
@@ -67,22 +70,23 @@ class EpisodeErrorRecorder:
         Returns:
             Mean, median, and 90th-percentile episode-minimum errors as 0-dim
             device tensors, so logging them does not force a host
-            synchronization in the reset path. The result is empty when none of
-            the selected environments has a sample.
+            synchronization in the reset path. Environments without a sample
+            are excluded. The result is empty before the first :meth:`update`,
+            and its values are NaN when none of the selected environments has
+            a sample.
         """
         if env_ids is None:
             env_ids = slice(None)
-        valid = self._has_sample[env_ids]
-        values = self.minimum_error[env_ids][valid]
         statistics = {}
-        if values.numel() > 0:
+        if self._updated:
+            values = torch.where(self._has_sample[env_ids], self.minimum_error[env_ids], torch.nan)
             statistics = {
-                "mean": values.mean(),
-                "median": values.median(),
-                "p90": torch.quantile(values, 0.9),
+                "mean": values.nanmean(),
+                "median": values.nanmedian(),
+                "p90": torch.nanquantile(values, 0.9),
             }
-        self.minimum_error[env_ids] = torch.inf
-        self._has_sample[env_ids] = False
+        index_fill_(self.minimum_error, env_ids, torch.inf)
+        index_fill_(self._has_sample, env_ids, False)
         return statistics
 
 
@@ -191,7 +195,7 @@ class SuccessTracker:
                 the step leaves the task to evaluate the new goal a full step later,
                 where a reach is earned.
         """
-        self._goals_reached[env_ids] = 0.0
+        index_fill_(self._goals_reached, env_ids, 0.0)
         self._skip_update[env_ids] = skip_next_update
 
 
@@ -254,7 +258,7 @@ def resolve_actuated_tendons(
     num_envs: int,
     device: str,
     position_limits: tuple[float, float],
-) -> tuple[list[int], torch.Tensor, torch.Tensor]:
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """Resolve a hand's actuated tendons and the limits its command is unscaled against.
 
     A tendon has its own index space, so the indices come from :meth:`find_fixed_tendons` rather
@@ -270,7 +274,8 @@ def resolve_actuated_tendons(
         position_limits: Lower and upper bound of the tendon command [m or rad].
 
     Returns:
-        The tendon indices and the lower / upper limit tensors, shaped ``(num_envs, n_tendons)``.
+        The tendon indices as a device tensor, so per-step commands do not upload them, and the
+        lower / upper limit tensors, shaped ``(num_envs, n_tendons)``.
 
     Raises:
         ValueError: If a requested tendon is not present on the articulation.
@@ -280,4 +285,8 @@ def resolve_actuated_tendons(
         raise ValueError(f"Expected {len(tendon_names)} actuated tendons, found {len(indices)}.")
     shape = (num_envs, len(indices))
     lower, upper = position_limits
-    return indices, torch.full(shape, lower, device=device), torch.full(shape, upper, device=device)
+    return (
+        torch.tensor(indices, dtype=torch.long, device=device),
+        torch.full(shape, lower, device=device),
+        torch.full(shape, upper, device=device),
+    )

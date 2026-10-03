@@ -10,7 +10,7 @@ runs kitless against the OVPhysX backend. Also times the per-body blocking
 ``RIGID_BODY_POSE`` reads in isolation.
 
 Usage:
-    ./isaaclab.sh -p source/isaaclab_ov/benchmark/sensors/benchmark_frame_transformer.py --num_envs 4096
+    uv run python source/isaaclab_ov/benchmark/sensors/benchmark_frame_transformer.py --num_envs 4096
 """
 
 from __future__ import annotations
@@ -18,7 +18,7 @@ from __future__ import annotations
 import argparse
 from functools import partial
 
-from isaaclab.benchmark._cli import parse_positive_int
+from isaaclab.benchmark.cli import parse_positive_int
 from isaaclab.benchmark.sensor_suites import add_sensor_benchmark_args
 
 parser = argparse.ArgumentParser(description="Benchmark the OVPhysX FrameTransformer update path.")

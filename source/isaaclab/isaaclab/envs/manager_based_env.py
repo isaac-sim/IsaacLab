@@ -9,7 +9,6 @@ import builtins
 import logging
 import sys
 import warnings
-from collections.abc import Sequence
 from typing import Any
 
 import torch
@@ -19,6 +18,7 @@ from ..managers import ActionManager, EventManager, ObservationManager, Recorder
 from ..scene import InteractiveScene
 from ..sim import SimulationContext
 from ..sim.utils.stage import use_stage
+from ..utils import validate
 from ..utils.seed import configure_seed
 from ..utils.timer import Timer
 from .common import VecEnvObs, _apply_deprecated_viewer_cfg
@@ -89,7 +89,7 @@ class ManagerBasedEnv:
         self._is_closed = True
 
         # check that the config is valid
-        cfg.validate()
+        validate(cfg)
         # store inputs to class
         self.cfg = cfg
         # initialize internal variables
@@ -140,12 +140,14 @@ class ManagerBasedEnv:
             torch.cuda.set_device(self.device)
 
         # print useful information
-        print("[INFO]: Base environment:")
-        print(f"\tEnvironment device    : {self.device}")
-        print(f"\tEnvironment seed      : {self.cfg.seed}")
-        print(f"\tPhysics step-size     : {self.physics_dt}")
-        print(f"\tRendering step-size   : {self.physics_dt * self.cfg.sim.render_interval}")
-        print(f"\tEnvironment step-size : {self.step_dt}")
+        logger.info(
+            "Base environment:\n"
+            f"\tEnvironment device    : {self.device}\n"
+            f"\tEnvironment seed      : {self.cfg.seed}\n"
+            f"\tPhysics step-size     : {self.physics_dt}\n"
+            f"\tRendering step-size   : {self.physics_dt * self.cfg.sim.render_interval}\n"
+            f"\tEnvironment step-size : {self.step_dt}"
+        )
         if self.cfg.sim.render_interval < self.cfg.decimation:
             msg = (
                 f"The render interval ({self.cfg.sim.render_interval}) is smaller than the decimation "
@@ -174,7 +176,7 @@ class ManagerBasedEnv:
             with use_stage(self.sim.stage):
                 self.scene = InteractiveScene(self.cfg.scene)
             self.sim.register_interactive_scene(self.scene)
-        print("[INFO]: Scene manager: ", self.scene)
+        logger.info(f"Scene manager: {self.scene}")
 
         # create event manager
         # note: this is needed here (rather than after simulation play) to allow USD-related randomization events
@@ -330,7 +332,7 @@ class ManagerBasedEnv:
             os.makedirs(output_dir, exist_ok=True)
 
         with open(os.path.join(output_dir, "IO_descriptors.yaml"), "w") as f:
-            print(f"[INFO]: Exporting IO descriptors to {os.path.join(output_dir, 'IO_descriptors.yaml')}")
+            logger.info(f"Exporting IO descriptors to {os.path.join(output_dir, 'IO_descriptors.yaml')}")
             yaml.safe_dump(IO_descriptors, f)
 
     """
@@ -355,16 +357,16 @@ class ManagerBasedEnv:
         """
         # prepare the managers
         # -- event manager (we print it here to make the logging consistent)
-        print("[INFO] Event Manager: ", self.event_manager)
+        logger.info(f"Event Manager: {self.event_manager}")
         # -- recorder manager
         self.recorder_manager = RecorderManager(self.cfg.recorders, self)
-        print("[INFO] Recorder Manager: ", self.recorder_manager)
+        logger.info(f"Recorder Manager: {self.recorder_manager}")
         # -- action manager
         self.action_manager = ActionManager(self.cfg.actions, self)
-        print("[INFO] Action Manager: ", self.action_manager)
+        logger.info(f"Action Manager: {self.action_manager}")
         # -- observation manager
         self.observation_manager = ObservationManager(self.cfg.observations, self)
-        print("[INFO] Observation Manager:", self.observation_manager)
+        logger.info(f"Observation Manager: {self.observation_manager}")
 
         # perform events at the start of the simulation
         # in-case a child implementation creates other managers, the randomization should happen
@@ -401,7 +403,11 @@ class ManagerBasedEnv:
     """
 
     def reset(
-        self, seed: int | None = None, env_ids: Sequence[int] | None = None, options: dict[str, Any] | None = None
+        self,
+        env_ids: torch.Tensor | slice | None = slice(None),
+        *,
+        seed: int | None = None,
+        options: dict[str, Any] | None = None,
     ) -> tuple[VecEnvObs, dict]:
         """Resets the specified environments and returns observations.
 
@@ -410,8 +416,9 @@ class ManagerBasedEnv:
         are not repeated.
 
         Args:
+            env_ids: A one-dimensional int32/int64 tensor on the environment device or a positive-step slice.
+                Defaults to ``slice(None)`` (all environments). None is also accepted and normalized to ``slice(None)``.
             seed: The seed to use for randomization. Defaults to None, in which case the seed is not set.
-            env_ids: The environment ids to reset. Defaults to None, in which case all environments are reset.
             options: Additional information to specify how the environment is reset. Defaults to None.
 
                 Note:
@@ -421,8 +428,7 @@ class ManagerBasedEnv:
             A tuple containing the observations and extras.
         """
         if env_ids is None:
-            env_ids = torch.arange(self.num_envs, dtype=torch.int32, device=self.device)
-
+            env_ids = slice(None)
         # trigger recorder terms for pre-reset calls
         self.recorder_manager.record_pre_reset(env_ids)
 
@@ -459,7 +465,7 @@ class ManagerBasedEnv:
     def reset_to(
         self,
         state: dict[str, dict[str, dict[str, torch.Tensor]]],
-        env_ids: Sequence[int] | None,
+        env_ids: torch.Tensor | slice | None = slice(None),
         seed: int | None = None,
         is_relative: bool = False,
     ):
@@ -475,15 +481,14 @@ class ManagerBasedEnv:
         Args:
             state: The state to reset the specified environments to. Please refer to
                 :meth:`InteractiveScene.get_state` for the format.
-            env_ids: The environment ids to reset. Defaults to None, in which case all environments are reset.
+            env_ids: A one-dimensional int32/int64 tensor on the environment device or a positive-step slice.
+                Defaults to ``slice(None)`` (all environments). None is also accepted and normalized to ``slice(None)``.
             seed: The seed to use for randomization. Defaults to None, in which case the seed is not set.
             is_relative: If set to True, the state is considered relative to the environment origins.
                 Defaults to False.
         """
-        # reset all envs in the scene if env_ids is None
         if env_ids is None:
-            env_ids = torch.arange(self.num_envs, dtype=torch.int32, device=self.device)
-
+            env_ids = slice(None)
         # trigger recorder terms for pre-reset calls
         self.recorder_manager.record_pre_reset(env_ids)
 
@@ -543,7 +548,7 @@ class ManagerBasedEnv:
         self.recorder_manager.record_pre_step()
 
         # check if we need to do rendering within the physics loop
-        # note: uses cached property to avoid settings lookup every step
+        # note: evaluated once per step rather than once per physics substep
         is_rendering = self.sim.is_rendering
 
         # physics-owned decimation covers all substeps in one call
@@ -559,7 +564,7 @@ class ManagerBasedEnv:
             self.scene.update(dt=self.physics_dt * steps_per_call)
 
         # post-step: step interval event
-        if "interval" in self.event_manager.available_modes:
+        if "interval" in self.event_manager.active_terms:
             self.event_manager.apply(mode="interval", dt=self.step_dt)
 
         # advance video recorders (after render, before obs)
@@ -581,14 +586,6 @@ class ManagerBasedEnv:
         Returns:
             The seed used for random generator.
         """
-        # set seed for replicator
-        try:
-            import omni.replicator.core as rep
-
-            rep.set_global_seed(seed)
-        except (ModuleNotFoundError, AttributeError):
-            pass
-        # set seed for torch and other libraries
         return configure_seed(seed)
 
     def close(self):
@@ -626,17 +623,17 @@ class ManagerBasedEnv:
     Helper functions.
     """
 
-    def _reset_idx(self, env_ids: Sequence[int]):
+    def _reset_idx(self, env_ids: torch.Tensor | slice):
         """Reset environments based on specified indices.
 
         Args:
-            env_ids: List of environment ids which must be reset
+            env_ids: A slice or environment indices on the environment device.
         """
         # reset the internal buffers of the scene elements
         self.scene.reset(env_ids)
 
         # apply events such as randomization for environments that need a reset
-        if "reset" in self.event_manager.available_modes:
+        if "reset" in self.event_manager.active_terms:
             env_step_count = self._sim_step_counter // self.cfg.decimation
             self.event_manager.apply(mode="reset", env_ids=env_ids, global_env_step_count=env_step_count)
 

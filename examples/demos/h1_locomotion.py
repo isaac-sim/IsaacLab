@@ -14,9 +14,9 @@
 
 import argparse
 import math
-from importlib import metadata
 
 from isaaclab.app import add_launcher_args, launch_simulation
+from isaaclab.utils import to_dict
 
 from isaaclab_rl.entrypoints.backends import cli_args_rsl_rl as cli_args
 
@@ -30,7 +30,9 @@ parser.add_argument(
     "--physics", default="newton_mjwarp", choices=["isaacsim_physx", "newton_mjwarp"], help="Physics backend."
 )
 add_launcher_args(parser)
-parser.set_defaults(visualizer=["newton_gl"])
+# a Newton viewer cannot build its model from this PhysX scene, so PhysX defaults to the Kit viewer
+physics_args, _ = parser.parse_known_args()
+parser.set_defaults(visualizer=["kit"] if physics_args.physics == "isaacsim_physx" else ["newton_gl"])
 args_cli = parser.parse_args()
 if args_cli.num_envs < 1:
     parser.error("--num_envs must be at least 1.")
@@ -44,7 +46,7 @@ from tensordict import TensorDict
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.utils.math import quat_apply
 
-from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlVecEnvWrapper, handle_deprecated_rsl_rl_cfg
+from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlVecEnvWrapper
 from isaaclab_rl.utils.pretrained_checkpoint import (
     get_pretrained_checkpoint_backend_names,
     get_published_pretrained_checkpoint,
@@ -88,7 +90,6 @@ class H1RoughDemo:
             FileNotFoundError: If no published checkpoint matches the configured backends.
         """
         agent_cfg: RslRlOnPolicyRunnerCfg = cli_args.parse_rsl_rl_cfg(TASK, args_cli)
-        agent_cfg = handle_deprecated_rsl_rl_cfg(agent_cfg, metadata.version("rsl-rl-lib"))
         backend_names = get_pretrained_checkpoint_backend_names(env_cfg)
         checkpoint = get_published_pretrained_checkpoint(RL_LIBRARY, TASK, *backend_names)
         if checkpoint is None:
@@ -98,7 +99,7 @@ class H1RoughDemo:
 
         self.env = RslRlVecEnvWrapper(ManagerBasedRLEnv(cfg=env_cfg))
         self.device = self.env.unwrapped.device
-        ppo_runner = OnPolicyRunner(self.env, agent_cfg.to_dict(), log_dir=None, device=self.device)
+        ppo_runner = OnPolicyRunner(self.env, to_dict(agent_cfg), log_dir=None, device=self.device)
         ppo_runner.load(checkpoint)
         self.policy = ppo_runner.get_inference_policy(device=self.device)
 
@@ -207,9 +208,7 @@ def main() -> None:
         sim = demo_h1.env.unwrapped.sim
         step_count = 0
         try:
-            while sim.is_headless_or_exist_active_visualizer() and (
-                args_cli.max_steps < 0 or step_count < args_cli.max_steps
-            ):
+            while sim.is_running() and (args_cli.max_steps < 0 or step_count < args_cli.max_steps):
                 demo_h1.update_controls()
                 with torch.inference_mode():
                     obs = demo_h1.apply_commands()

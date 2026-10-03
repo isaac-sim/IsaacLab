@@ -18,15 +18,20 @@ import pytest
 import torch
 from isaaclab_newton.physics import NewtonCfg
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
+from isaaclab_ov.physics import OvPhysxCfg
+from isaaclab_ov.renderers import OVRTXRendererCfg
 from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
+from isaaclab.app import scan
 from isaaclab.envs import DirectRLEnv
 from isaaclab.physics import PhysxAutoCfg
 from isaaclab.sim.schemas import MassCfg, UsdPhysicsCollisionCfg, UsdPhysicsRigidBodyCfg
+from isaaclab.utils import replace
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.benchmark.render_benchmark.render_benchmark_env import RenderBenchmarkEnv
+from isaaclab_tasks.benchmark.render_benchmark.render_benchmark_env_cfg import _read_benchmark_mode
 from isaaclab_tasks.utils.hydra import collect_presets, resolve_presets
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 
@@ -46,8 +51,21 @@ def test_default_scene_and_articulations():
     assert cfg.scene.robot.prim_path == "{ENV_REGEX_NS}/Robot"
     assert cfg.scene.cabinet.prim_path == "{ENV_REGEX_NS}/Cabinet"
     assert cfg.joint_animation_amplitude == pytest.approx(0.4)
-    assert cfg.benchmark_mode == "render"
+    assert cfg.benchmark_mode is None
     assert gym.spec(_TASK).disable_env_checker is True
+
+
+@pytest.mark.parametrize("mode", [None, "render", "physics_render", "invalid"])
+def test_benchmark_mode_from_environment(monkeypatch, mode):
+    if mode is None:
+        monkeypatch.delenv("BENCHMARK_MODE", raising=False)
+    else:
+        monkeypatch.setenv("BENCHMARK_MODE", mode)
+    if mode == "invalid":
+        with pytest.raises(ValueError, match="Unknown BENCHMARK_MODE"):
+            _read_benchmark_mode()
+    else:
+        assert _read_benchmark_mode() == mode
 
 
 @pytest.mark.parametrize(
@@ -55,7 +73,7 @@ def test_default_scene_and_articulations():
     [
         ("render", False, "newton_warp", False, "lazy_sensor_update=True"),
         ("physics_render", False, "newton_warp", False, None),
-        ("render", True, "isaac_rtx", True, "--visualizer none"),
+        ("render", True, "isaac_rtx", True, "requires no visualizer"),
         ("physics_render", True, "isaac_rtx", True, None),
         ("render", True, "ovrtx", True, None),
         ("render", True, "isaac_rtx", False, None),
@@ -65,7 +83,7 @@ def test_render_mode_rejects_rendering_before_direct_pose(
     monkeypatch, mode, lazy_sensor_update, renderer_type, pumps_app_update, error
 ):
     """Direct posing requires camera rendering to follow the joint writes."""
-    cfg = _load_cfg().replace(benchmark_mode=mode)
+    cfg = replace(_load_cfg(), benchmark_mode=mode)
     cfg.scene.lazy_sensor_update = lazy_sensor_update
 
     def initialize(self, *args, **kwargs):
@@ -84,13 +102,13 @@ def test_render_mode_rejects_rendering_before_direct_pose(
             RenderBenchmarkEnv(cfg)
     else:
         RenderBenchmarkEnv(cfg)
-    if error == "--visualizer none":
+    if error == "requires no visualizer":
         close.assert_called_once()
     else:
         close.assert_not_called()
 
 
-@pytest.mark.parametrize("mode", ["render", "physics_render"])
+@pytest.mark.parametrize("mode", [None, "render", "physics_render"])
 def test_benchmark_mode_orders_joint_updates_and_rendering(mode):
     """Direct poses follow physics; actuator targets precede it, and both render last."""
     events = Mock()
@@ -100,7 +118,7 @@ def test_benchmark_mode_orders_joint_updates_and_rendering(mode):
     camera_data = Mock()
     type(camera_data).output = PropertyMock(side_effect=lambda: events.render())
     env = SimpleNamespace(
-        cfg=_load_cfg().replace(benchmark_mode=mode, write_image_to_file=False),
+        cfg=replace(_load_cfg(), benchmark_mode=mode, write_image_to_file=False),
         sim=events.sim,
         num_envs=1,
         device="cpu",
@@ -126,26 +144,41 @@ def test_benchmark_mode_orders_joint_updates_and_rendering(mode):
         ]
         velocity = articulation.write_joint_velocity_to_sim_index.call_args.kwargs["velocity"]
         assert torch.equal(velocity, torch.zeros_like(velocity))
-    else:
+    elif mode == "physics_render":
         assert [entry[0] for entry in events.mock_calls] == [
             "articulation.actuators.target_command.set_position_index",
             "physics",
             "render",
         ]
+    else:
+        assert [entry[0] for entry in events.mock_calls] == ["physics", "render"]
 
 
 @pytest.mark.parametrize(
-    ("presets", "expected_type"),
+    ("presets", "expected_type", "expected_asset_physics"),
     [
-        ((), NewtonCfg),
-        (("physx",), PhysxAutoCfg),
-        (("isaacsim_physx",), PhysxCfg),
+        ((), NewtonCfg, "mujoco"),
+        (("physx",), PhysxAutoCfg, "physx"),
+        (("isaacsim_physx",), PhysxCfg, "physx"),
+        (("ovphysx",), OvPhysxCfg, "physx"),
     ],
 )
-def test_physics_presets_resolve_to_expected_backend(presets, expected_type):
+def test_physics_presets_resolve_to_expected_backend(presets, expected_type, expected_asset_physics):
     cfg = resolve_presets(_load_cfg(), selected=presets)
 
     assert isinstance(cfg.sim.physics, expected_type)
+    assert cfg.scene.robot.spawn.variants["Physics"] == expected_asset_physics
+
+
+@pytest.mark.parametrize("physics_preset", ["ovphysx", "physx"])
+def test_ovphysx_presets_resolve_with_ovrtx(physics_preset):
+    """Explicit and automatic PhysX presets support rendering without Kit."""
+    cfg = resolve_presets(_load_cfg(), selected=(physics_preset, "ovrtx"))
+    config_scan = scan(cfg)
+
+    assert isinstance(cfg.sim.physics, OvPhysxCfg)
+    assert isinstance(cfg.scene.tiled_camera.renderer_cfg, OVRTXRendererCfg)
+    assert config_scan.needs_kit is False
 
 
 @pytest.fixture(scope="module")

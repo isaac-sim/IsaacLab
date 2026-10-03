@@ -21,6 +21,7 @@ import torch
 from ..managers import EventManager
 from ..sim import SimulationContext
 from ..sim.utils.stage import use_stage
+from ..utils import index_fill_, instantiate, validate
 from ..utils.noise import NoiseModel
 from ..utils.seed import configure_seed
 from ..utils.timer import Timer
@@ -76,7 +77,7 @@ class DirectMARLEnv(gym.Env):
         self._is_closed = True
 
         # check that the config is valid
-        cfg.validate()
+        validate(cfg)
         # store inputs to class
         self.cfg = cfg
         # store the render mode
@@ -120,12 +121,14 @@ class DirectMARLEnv(gym.Env):
             torch.cuda.set_device(self.device)
 
         # print useful information
-        print("[INFO]: Base environment:")
-        print(f"\tEnvironment device    : {self.device}")
-        print(f"\tEnvironment seed      : {self.cfg.seed}")
-        print(f"\tPhysics step-size     : {self.physics_dt}")
-        print(f"\tRendering step-size   : {self.physics_dt * self.cfg.sim.render_interval}")
-        print(f"\tEnvironment step-size : {self.step_dt}")
+        logger.info(
+            "Base environment:\n"
+            f"\tEnvironment device    : {self.device}\n"
+            f"\tEnvironment seed      : {self.cfg.seed}\n"
+            f"\tPhysics step-size     : {self.physics_dt}\n"
+            f"\tRendering step-size   : {self.physics_dt * self.cfg.sim.render_interval}\n"
+            f"\tEnvironment step-size : {self.step_dt}"
+        )
 
         if self.cfg.sim.render_interval < self.cfg.decimation:
             msg = (
@@ -139,10 +142,10 @@ class DirectMARLEnv(gym.Env):
         with Timer("[INFO]: Time taken for scene creation", "scene_creation", activity="Creating scene"):
             # set the stage context for scene creation steps which use the stage
             with use_stage(self.sim.stage):
-                self.scene = self.cfg.scene.class_type(self.cfg.scene)
+                self.scene = instantiate(self.cfg.scene)
                 self._setup_scene()
             self.sim.register_interactive_scene(self.scene)
-        print("[INFO]: Scene manager: ", self.scene)
+        logger.info(f"Scene manager: {self.scene}")
 
         # create event manager
         # note: this is needed here (rather than after simulation play) to allow USD-related randomization events
@@ -159,7 +162,7 @@ class DirectMARLEnv(gym.Env):
         # play the simulator to activate physics handles
         # note: this activates the physics simulation view that exposes TensorAPIs
         # note: when started in extension mode, first call sim.reset_async() and then initialize the managers
-        print("[INFO]: Starting the simulation. This may take a few seconds. Please wait...")
+        logger.info("Starting the simulation. This may take a few seconds. Please wait...")
         with Timer("[INFO]: Time taken for simulation start", "simulation_start", activity="Starting physics"):
             # since the reset can trigger callbacks which use the stage,
             # we need to set the stage context here
@@ -211,13 +214,13 @@ class DirectMARLEnv(gym.Env):
         # setup noise cfg for adding action and observation noise
         if self.cfg.action_noise_model:
             self._action_noise_model: dict[AgentID, NoiseModel] = {
-                agent: noise_model.class_type(noise_model, num_envs=self.num_envs, device=self.device)
+                agent: instantiate(noise_model, num_envs=self.num_envs, device=self.device)
                 for agent, noise_model in self.cfg.action_noise_model.items()
                 if noise_model is not None
             }
         if self.cfg.observation_noise_model:
             self._observation_noise_model: dict[AgentID, NoiseModel] = {
-                agent: noise_model.class_type(noise_model, num_envs=self.num_envs, device=self.device)
+                agent: instantiate(noise_model, num_envs=self.num_envs, device=self.device)
                 for agent, noise_model in self.cfg.observation_noise_model.items()
                 if noise_model is not None
             }
@@ -225,13 +228,13 @@ class DirectMARLEnv(gym.Env):
         # perform events at the start of the simulation
         if self.cfg.events:
             # we print it here to make the logging consistent
-            print("[INFO] Event Manager: ", self.event_manager)
+            logger.info(f"Event Manager: {self.event_manager}")
 
             if "startup" in self.event_manager.available_modes:
                 self.event_manager.apply(mode="startup")
         self.has_rtx_sensors = self.sim.get_setting("/isaaclab/render/rtx_sensors")
 
-        print("[INFO]: Completed setting up the environment...")
+        logger.info("Completed setting up the environment...")
 
     def __del__(self, _sys=sys):
         """Cleanup for the environment."""
@@ -444,11 +447,11 @@ class DirectMARLEnv(gym.Env):
         if self.sim.consume_reset_request():
             not_yet_reset = torch.ones(self.num_envs, dtype=torch.bool, device=self.device)
             if len(reset_env_ids) > 0:
-                not_yet_reset[reset_env_ids] = False
+                index_fill_(not_yet_reset, reset_env_ids, False)
             manual_reset_ids = not_yet_reset.nonzero(as_tuple=False).squeeze(-1)
             if len(manual_reset_ids) > 0:
                 for agent in self.terminated_dict:
-                    self.terminated_dict[agent][manual_reset_ids] = True
+                    index_fill_(self.terminated_dict[agent], manual_reset_ids, True)
                 self._reset_idx(manual_reset_ids)
 
         # post-step: step interval event
@@ -498,14 +501,6 @@ class DirectMARLEnv(gym.Env):
         Returns:
             The seed used for random generator.
         """
-        # set seed for replicator
-        try:
-            import omni.replicator.core as rep
-
-            rep.set_global_seed(seed)
-        except ModuleNotFoundError:
-            pass
-        # set seed for torch and other libraries
         return configure_seed(seed)
 
     def render(self, recompute: bool = False) -> np.ndarray | None:
@@ -692,7 +687,7 @@ class DirectMARLEnv(gym.Env):
             for noise_model in self._observation_noise_model.values():
                 noise_model.reset(env_ids)
 
-        self.episode_length_buf[env_ids] = 0
+        index_fill_(self.episode_length_buf, env_ids, 0)
 
     """
     Implementation-specific functions.

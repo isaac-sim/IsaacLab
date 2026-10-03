@@ -38,7 +38,9 @@ parser.add_argument(
 )
 parser.add_argument("--max_steps", type=int, default=-1, help="Stop after this many steps; negative runs forever.")
 add_launcher_args(parser)
-parser.set_defaults(visualizer=["newton_gl"])
+# a Newton viewer cannot build its model from this PhysX scene, so PhysX defaults to the Kit viewer
+physics_args, _ = parser.parse_known_args()
+parser.set_defaults(visualizer=["kit"] if physics_args.physics == "isaacsim_physx" else ["newton_gl"])
 args_cli = parser.parse_args()
 if args_cli.max_steps == 0 or args_cli.max_steps < -1:
     parser.error("--max_steps must be positive or -1.")
@@ -55,7 +57,7 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.physics import PhysicsCfg
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, replace
 from isaaclab.utils.timer import Timer
 
 from isaaclab_assets.robots.anymal import ANYMAL_C_CFG  # isort: skip
@@ -120,38 +122,27 @@ class VisualMaterialSceneCfg(InteractiveSceneCfg):
         spawn=sim_utils.PbrMdlCfg(diffuse_color_constant=(0.1, 0.6, 0.2), reflection_roughness_constant=0.9),
     )
 
-    robot: ArticulationCfg = ANYMAL_C_CFG.replace(
+    robot: ArticulationCfg = replace(
+        ANYMAL_C_CFG,
         prim_path="{ENV_REGEX_NS}/Robot",
         spawn=sim_utils.MultiAssetSpawnerCfg(
             assets_cfg=[
                 ANYMAL_C_CFG.spawn,
-                ANYMAL_C_CFG.spawn.replace(
-                    visual_material_bindings=_bindings(
-                        "./surface_body",
-                        "./surface_leg",
-                        "./surface_foot",
-                    )
+                replace(
+                    ANYMAL_C_CFG.spawn,
+                    visual_material_bindings=_bindings("./surface_body", "./surface_leg", "./surface_foot"),
                 ),
-                ANYMAL_C_CFG.spawn.replace(
-                    visual_material_bindings=_bindings(
-                        "./glass_body",
-                        "./glass_leg",
-                        "./glass_foot",
-                    )
+                replace(
+                    ANYMAL_C_CFG.spawn,
+                    visual_material_bindings=_bindings("./glass_body", "./glass_leg", "./glass_foot"),
                 ),
-                ANYMAL_C_CFG.spawn.replace(
-                    visual_material_bindings=_bindings(
-                        "./solid_body",
-                        "./solid_leg",
-                        "./solid_foot",
-                    )
+                replace(
+                    ANYMAL_C_CFG.spawn,
+                    visual_material_bindings=_bindings("./solid_body", "./solid_leg", "./solid_foot"),
                 ),
-                ANYMAL_C_CFG.spawn.replace(
-                    visual_material_bindings=_bindings(
-                        "./surface_body",
-                        "./solid_leg",
-                        "./glass_foot",
-                    )
+                replace(
+                    ANYMAL_C_CFG.spawn,
+                    visual_material_bindings=_bindings("./surface_body", "./solid_leg", "./glass_foot"),
                 ),
             ],
             random_choice=False,
@@ -288,9 +279,7 @@ def main() -> None:
         count = 0
         env.reset()
         print("[INFO]: Setup complete.")
-        while env.sim.is_headless_or_exist_active_visualizer() and (
-            args_cli.max_steps < 0 or count < args_cli.max_steps
-        ):
+        while env.sim.is_running() and (args_cli.max_steps < 0 or count < args_cli.max_steps):
             if count > 0 and count % 50 == 0:
                 num_reset = int(torch.randint(1, env.num_envs + 1, ()).item())
                 env_ids = torch.randperm(env.num_envs, dtype=torch.int32, device=env.device)[:num_reset]

@@ -3,14 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Launch Isaac Sim Simulator first."""
+from isaaclab.test.utils import launch_test_simulation
 
-from isaaclab.app import AppLauncher
-
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
-
-"""Rest everything follows."""
+launch_test_simulation()
 
 import pytest
 
@@ -152,7 +147,7 @@ def test_apply_namespaced_raises_without_namespace():
 def test_fragment_mapping_normalizes_bare_fragment_and_list():
     """A bare fragment (or list) on a spawner field is shorthand for the anchor-prim mapping."""
     from isaaclab.sim.schemas import MassCfg, MassPropertiesCfg, UsdPhysicsRigidBodyCfg
-    from isaaclab.sim.spawners._utils import fragment_mapping
+    from isaaclab.sim.spawners.utils import fragment_mapping
 
     frag = UsdPhysicsRigidBodyCfg(rigid_body_enabled=True)
     assert fragment_mapping(frag) == {"": [frag]}

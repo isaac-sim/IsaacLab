@@ -17,7 +17,8 @@ from tqdm import tqdm
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
 from isaaclab.managers import EventTermCfg, ManagerTermBase, ManagerTermBaseCfg, SceneEntityCfg
-from isaaclab.utils.math import quat_apply, random_orientation, sample_uniform
+from isaaclab.utils import instantiate
+from isaaclab.utils.math import quat_apply, quat_mul, random_orientation, sample_uniform, sample_uniform_from_ranges
 
 from isaaclab_tasks.utils.success_monitor import SuccessMonitor, SuccessMonitorCfg
 
@@ -63,7 +64,7 @@ def reset_joints_shared_offset(
     asset = env.scene[asset_cfg.name]
     default = asset.data.default_joint_pos.torch[env_ids][:, asset_cfg.joint_ids]
     limits = asset.data.soft_joint_pos_limits.torch[env_ids][:, asset_cfg.joint_ids]
-    offset = sample_uniform(position_range[0], position_range[1], (len(env_ids), 1), device=default.device)
+    offset = sample_uniform(position_range[0], position_range[1], (default.shape[0], 1), device=default.device)
     positions = (default + offset).clamp(limits[..., 0], limits[..., 1])
     asset.write_joint_position_to_sim_index(position=positions, joint_ids=asset_cfg.joint_ids, env_ids=env_ids)
     asset.write_joint_velocity_to_sim_index(
@@ -81,8 +82,7 @@ def reset_cable_state_uniform(
     asset: CableObject = env.scene[asset_cfg.name]
     segment_pose = asset.data.default_segment_pose_w.torch[env_ids].clone()
     segment_velocity = asset.data.default_segment_velocity_w.torch[env_ids].clone()
-    ranges = torch.tensor([position_range.get(axis, (0.0, 0.0)) for axis in ("x", "y", "z")], device=asset.device)
-    offset = sample_uniform(ranges[:, 0], ranges[:, 1], (len(env_ids), 3), device=asset.device)
+    offset = sample_uniform_from_ranges(position_range, ("x", "y", "z"), segment_pose.shape[0], device=asset.device)
     segment_pose[..., :3] += offset.unsqueeze(1)
     asset.write_segment_pose_to_sim_index(segment_pose=segment_pose, env_ids=env_ids)
     asset.write_segment_velocity_to_sim_index(segment_velocity=segment_velocity, env_ids=env_ids)
@@ -121,6 +121,7 @@ def reset_to_target(
         target_cfg: Target body (e.g. the gripper palm) to spawn the asset at.
         asset_cfg: The asset to reset.
     """
+    env_ids = env.scene._ALL_INDICES[env_ids]
     picked = env_ids[torch.rand(len(env_ids), device=env.device) < probability]
     if len(picked) == 0:
         return
@@ -143,6 +144,125 @@ def reset_to_target(
 
     asset.write_root_pose_to_sim_index(root_pose=torch.cat([positions, orientations], dim=-1), env_ids=picked)
     asset.write_root_velocity_to_sim_index(root_velocity=velocities, env_ids=picked)
+
+
+class reset_to_grasp(ManagerTermBase):
+    """Place selected object variants in aligned parallel-gripper pre-grasps."""
+
+    def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv) -> None:
+        super().__init__(cfg, env)
+
+        asset_cfg: SceneEntityCfg = cfg.params["asset_cfg"]
+        gripper_cfg: SceneEntityCfg = cfg.params["gripper_cfg"]
+        target_cfg: SceneEntityCfg = cfg.params["target_cfg"]
+        self._asset = env.scene[asset_cfg.name]
+        self._gripper = env.scene[gripper_cfg.name]
+        self._target = env.scene[target_cfg.name]
+        self._target_body_ids = target_cfg.body_ids
+
+        object_cfg = getattr(env.cfg.scene, asset_cfg.name)
+        plan = env.scene.clone_plan
+        object_prototypes = cloner.path.get_asset_prototypes(plan, object_cfg.prim_path)
+        if len(object_prototypes) == 0:
+            raise ValueError(f"Could not find clone-plan prototypes for asset '{asset_cfg.name}'.")
+
+        grasp_configs = cfg.params["grasp_configs"]
+        grasp_by_geometry = {_grasp_geometry(shape): index for index, (shape, _, _) in enumerate(grasp_configs)}
+        if len(grasp_by_geometry) != len(grasp_configs):
+            raise ValueError("reset_to_grasp requires one unambiguous pre-grasp per object geometry.")
+
+        variant_ids = np.full(env.num_envs, -1, dtype=np.int64)
+        for prototype_id in object_prototypes:
+            spawn = plan.asset_cfgs[prototype_id].spawn
+            shape = spawn.assets_cfg[0] if isinstance(spawn, sim_utils.MultiAssetSpawnerCfg) else spawn
+            geometry = _grasp_geometry(shape)
+            if geometry not in grasp_by_geometry:
+                raise ValueError(f"reset_to_grasp has no configured pre-grasp for object geometry {geometry}.")
+
+            world_ids, _ = cloner.query.get_asset_prototype_unique_world_index(plan.topology, int(prototype_id))
+            world_ids = world_ids[world_ids >= 0]
+            if (variant_ids[world_ids] >= 0).any():
+                raise ValueError(f"Multiple object variants are assigned to asset '{asset_cfg.name}' in one world.")
+            variant_ids[world_ids] = grasp_by_geometry[geometry]
+        if (variant_ids < 0).any():
+            raise ValueError(f"No object variant is assigned to asset '{asset_cfg.name}' in some worlds.")
+
+        self._variant_ids = torch.as_tensor(variant_ids, device=env.device)
+        self._gripper_joint_ids = self._gripper.find_joints(gripper_cfg.joint_names)[0]
+        self._gripper_joint_positions = torch.tensor([opening for _, opening, _ in grasp_configs], device=env.device)
+        self._asset_orientations = torch.tensor([orientation for _, _, orientation in grasp_configs], device=env.device)
+        self._offset_ranges = torch.tensor(
+            [cfg.params["pose_range"].get(axis, (0.0, 0.0)) for axis in ("x", "y", "z")], device=env.device
+        )
+        self._zero_joint_velocities = torch.zeros((env.num_envs, len(self._gripper_joint_ids)), device=env.device)
+        self._zero_root_velocities = torch.zeros((env.num_envs, 6), device=env.device)
+
+    def __call__(
+        self,
+        env: ManagerBasedEnv,
+        env_ids: Sequence[int] | slice | torch.Tensor,
+        pose_range: dict[str, tuple[float, float]],
+        probability: float,
+        target_cfg: SceneEntityCfg,
+        gripper_cfg: SceneEntityCfg,
+        grasp_configs: list[tuple[sim_utils.SpawnerCfg, float, tuple[float, float, float, float]]],
+        asset_cfg: SceneEntityCfg = SceneEntityCfg("object"),
+    ) -> None:
+        """Reset a fraction of environments to configured pre-grasps.
+
+        Args:
+            env: The environment.
+            env_ids: Environments to reset.
+            pose_range: Object-position offsets in the target frame [m].
+            probability: Per-environment probability of applying the pre-grasp.
+            target_cfg: Body defining the pre-grasp frame.
+            gripper_cfg: Parallel gripper joints to pose.
+            grasp_configs: Shape configs paired with a finger opening [m or rad, depending on joint type]
+                and object orientation in the target frame in ``(x, y, z, w)`` order. Geometry, not list order,
+                associates each pre-grasp with its cloned object. Static values are cached at initialization.
+            asset_cfg: Object asset to reset.
+        """
+        env_ids = env.scene._ALL_INDICES[env_ids]
+        picked = env_ids[torch.rand(len(env_ids), device=env.device) < probability]
+        if len(picked) == 0:
+            return
+
+        variant_ids = self._variant_ids[picked]
+
+        target_pos = self._target.data.body_pos_w.torch[picked][:, self._target_body_ids, :].flatten(1)[:, :3]
+        target_quat = self._target.data.body_quat_w.torch[picked][:, self._target_body_ids, :].flatten(1)[:, :4]
+        local_offsets = sample_uniform(
+            self._offset_ranges[:, 0], self._offset_ranges[:, 1], (len(picked), 3), device=env.device
+        )
+        positions = target_pos + quat_apply(target_quat, local_offsets)
+        local_orientations = self._asset_orientations[variant_ids]
+        orientations = quat_mul(target_quat, local_orientations)
+
+        joint_positions = self._gripper_joint_positions[variant_ids, None].expand(-1, len(self._gripper_joint_ids))
+        self._gripper.write_joint_position_to_sim_index(
+            position=joint_positions, joint_ids=self._gripper_joint_ids, env_ids=picked
+        )
+        self._gripper.write_joint_velocity_to_sim_index(
+            velocity=self._zero_joint_velocities[: len(picked)], joint_ids=self._gripper_joint_ids, env_ids=picked
+        )
+        self._gripper.set_joint_position_target_index(
+            target=joint_positions, joint_ids=self._gripper_joint_ids, env_ids=picked
+        )
+        self._asset.write_root_pose_to_sim_index(root_pose=torch.cat((positions, orientations), dim=-1), env_ids=picked)
+        self._asset.write_root_velocity_to_sim_index(
+            root_velocity=self._zero_root_velocities[: len(picked)], env_ids=picked
+        )
+
+
+def _grasp_geometry(shape: sim_utils.SpawnerCfg) -> tuple:
+    """Identify parallel-gripper geometry independently of mesh authoring and prototype order."""
+    if isinstance(shape, (sim_utils.CuboidCfg, sim_utils.MeshCuboidCfg)):
+        return ("cuboid", *shape.size)
+    if isinstance(shape, (sim_utils.SphereCfg, sim_utils.MeshSphereCfg)):
+        return ("sphere", shape.radius)
+    if isinstance(shape, (sim_utils.CapsuleCfg, sim_utils.MeshCapsuleCfg)):
+        return ("capsule", shape.radius, shape.height, shape.axis)
+    raise ValueError(f"reset_to_grasp does not support shape {type(shape).__name__}.")
 
 
 class conditional_reset(ManagerTermBase):
@@ -248,8 +368,8 @@ class conditional_reset(ManagerTermBase):
             return ok
 
         if not self._prefilled:
-            # envs sharing a clone-mask column are clones of the same unique asset combination
-            _, group = np.unique(env.scene.clone_plan.clone_mask.T, axis=0, return_inverse=True)
+            # The plan already identifies the world prototype selected by each environment.
+            _, group = np.unique(env.scene.clone_plan.topology.world_prototype_layout, return_inverse=True)
             self._group = torch.as_tensor(group, device=env.device)
             num_groups = int(self._group.max().item()) + 1
             # without a descriptor there is nothing to spread over, so harvesting extra is waste
@@ -313,9 +433,7 @@ class conditional_reset(ManagerTermBase):
                 self._keep_most_spread(num_groups, harvest_size, buffer_size_per_group)
             if success_monitor is not None:
                 # one monitored slot per banked state, partitioned exactly like the bank
-                self._monitor = success_monitor.class_type(
-                    success_monitor, num_groups, buffer_size_per_group, env.device
-                )
+                self._monitor = instantiate(success_monitor, num_groups, buffer_size_per_group, env.device)
             self._prefilled = True
             # drop the prefill-only terms/criteria so their device memory is freed
             terms.clear()
@@ -327,7 +445,7 @@ class conditional_reset(ManagerTermBase):
         groups = self._group[env_ids]
         if self._monitor is None:
             # ``rand * fill`` floors to a uniform draw in ``[0, fill)``.
-            donor = (torch.rand(len(env_ids), device=env_ids.device) * self._fill[groups]).long()
+            donor = (torch.rand(groups.shape[0], device=env.device) * self._fill[groups]).long()
             rows = groups * buffer_size_per_group + donor
         else:
             # credit before drawing: the outcome belongs to the row these environments were playing
@@ -380,8 +498,7 @@ class conditional_reset(ManagerTermBase):
                 )
         played = self._playing_row[env_ids]
         # an environment that has not been restored yet has no episode to credit
-        started = played >= 0
-        monitor.success_update(played[started], self._success_term.succeeded[env_ids][started])
+        monitor.success_update(played, self._success_term.succeeded[env_ids], valid=played >= 0)
 
 
 class grasp_travel_distance(ManagerTermBase):
@@ -431,7 +548,7 @@ class grasp_travel_distance(ManagerTermBase):
         body_pos = self._robot.data.body_pos_w.torch[env_ids][:, self._body_ids]
         grasp = torch.linalg.norm(body_pos - object_pos[:, None, :], dim=-1).amax(dim=-1, keepdim=True)
         goal_pos = self._robot.data.root_pos_w.torch[env_ids] + quat_apply(
-            self._robot.data.root_quat_w.torch[env_ids], self._goal_center_b.expand(len(env_ids), 3)
+            self._robot.data.root_quat_w.torch[env_ids], self._goal_center_b.expand(object_pos.shape[0], 3)
         )
         travel = torch.linalg.norm(goal_pos - object_pos, dim=-1, keepdim=True)
         feature = torch.cat([grasp, travel], dim=-1)
@@ -636,8 +753,13 @@ class mesh_clearance(ManagerTermBase):
         object_meshes = []
         env_object_mesh = np.zeros(env.num_envs, dtype=np.int32)
         mesh_by_path: dict[str, int] = {}
-        clone_plan = sim_utils.SimulationContext.instance().get_clone_plan()
-        for _, _, source_path, env_ids in cloner.query.iter_sources(clone_plan, self._object.cfg.prim_path):
+        plan = sim_utils.SimulationContext.instance().get_clone_plan()
+        source_paths = cloner.path.get_asset_prototype_paths(plan)
+        for index in cloner.path.get_asset_prototypes(plan, self._object.cfg.prim_path):
+            env_ids, _ = cloner.query.get_asset_prototype_unique_world_index(plan.topology, index)
+            if not len(env_ids):
+                continue
+            source_path = source_paths[index]
             if source_path not in mesh_by_path:
                 object_prim = sim_utils.get_current_stage().GetPrimAtPath(source_path)
                 object_mesh_by_id = collect_collision_meshes(object_prim, lambda prim: (0, object_prim))
@@ -674,6 +796,7 @@ class mesh_clearance(ManagerTermBase):
         self._max_dist = max(4.0 * cfg.min_clearance, 0.15)
 
     def __call__(self, env: ManagerBasedEnv, env_ids: torch.Tensor) -> torch.Tensor:
+        env_ids = env.scene._ALL_INDICES[env_ids]
         num = len(env_ids)
         out_min = wp.full(num, 1.0e6, dtype=wp.float32, device=env.device)
         wp.launch(
@@ -759,6 +882,7 @@ class slab_clearance(ManagerTermBase):
         self._env_origins = wp.from_torch(env.scene.env_origins.contiguous(), dtype=wp.vec3)
 
     def __call__(self, env: ManagerBasedEnv, env_ids: torch.Tensor) -> torch.Tensor:
+        env_ids = env.scene._ALL_INDICES[env_ids]
         num = len(env_ids)
         out_min = wp.full(num, 1.0e6, dtype=wp.float32, device=env.device)
         ids = wp.from_torch(env_ids.to(torch.int32).contiguous())
@@ -816,8 +940,8 @@ def reset_deformable_over_support(
     deformable: DeformableObject = env.scene[asset_cfg.name]
     supports: tuple[RigidObject, RigidObject] = (env.scene[support_cfg[0].name], env.scene[support_cfg[1].name])
 
-    ranges = torch.tensor([position_range.get(key, (0.0, 0.0)) for key in ("x", "y", "z")], device=deformable.device)
-    offset = sample_uniform(ranges[:, 0], ranges[:, 1], (len(env_ids), 3), device=deformable.device)
+    num_envs = len(range(env.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
+    offset = sample_uniform_from_ranges(position_range, ("x", "y", "z"), num_envs, device=deformable.device)
 
     nodal_state = deformable.data.default_nodal_state_w.torch[env_ids].clone()
     nodal_state[..., :3] += offset.unsqueeze(1)
@@ -828,7 +952,7 @@ def reset_deformable_over_support(
         root_pose[:, :3] += env.scene.env_origins[env_ids]
         root_pose[:, :2] += offset[:, :2]
 
-    gap = sample_uniform(*clear_gap_range, (len(env_ids),), device=supports[0].device)
+    gap = sample_uniform(*clear_gap_range, (num_envs,), device=supports[0].device)
     center_y = 0.5 * (root_poses[0][:, 1] + root_poses[1][:, 1])
     thickness_neg = supports[0].cfg.spawn.size[1]
     thickness_pos = supports[1].cfg.spawn.size[1]

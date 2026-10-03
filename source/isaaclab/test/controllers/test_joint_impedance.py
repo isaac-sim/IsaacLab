@@ -44,7 +44,6 @@ def test_compute_matches_impedance_law(
         inertial_compensation=inertial,
         gravity_compensation=gravity,
         stiffness=stiffness,
-        damping_ratio=damping_ratio,
         dof_pos_offset=[offset] * _NUM_DOF,
     )
     # tight enough that some desired positions are clipped to the joint limits

@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 import logging
-import warnings
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -15,6 +14,7 @@ import warp as wp
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBase
+from isaaclab.utils import clone
 from isaaclab.utils.version import get_isaac_sim_version, has_kit
 
 if TYPE_CHECKING:
@@ -83,7 +83,7 @@ class SurfaceGripper(AssetBase):
             cfg: A configuration instance.
         """
         # copy the configuration
-        self._cfg = cfg.copy()
+        self._cfg = clone(cfg)
 
         # checks for Isaac Sim v5.0 to ensure that the surface gripper is supported
         if has_kit() and get_isaac_sim_version().major < 5:
@@ -514,7 +514,7 @@ class SurfaceGripper(AssetBase):
         try:
             max_grip_distance = gripper_prim.GetAttribute("isaac:maxGripDistance").Get()
         except Exception as e:
-            warnings.warn(
+            logger.warning(
                 f"Failed to retrieve max_grip_distance from stage, defaulting to user provided cfg. Exception: {e}"
             )
             max_grip_distance = None
@@ -522,7 +522,7 @@ class SurfaceGripper(AssetBase):
         try:
             coaxial_force_limit = gripper_prim.GetAttribute("isaac:coaxialForceLimit").Get()
         except Exception as e:
-            warnings.warn(
+            logger.warning(
                 f"Failed to retrieve coaxial_force_limit from stage, defaulting to user provided cfg. Exception: {e}"
             )
             coaxial_force_limit = None
@@ -530,7 +530,7 @@ class SurfaceGripper(AssetBase):
         try:
             shear_force_limit = gripper_prim.GetAttribute("isaac:shearForceLimit").Get()
         except Exception as e:
-            warnings.warn(
+            logger.warning(
                 f"Failed to retrieve shear_force_limit from stage, defaulting to user provided cfg. Exception: {e}"
             )
             shear_force_limit = None
@@ -538,7 +538,7 @@ class SurfaceGripper(AssetBase):
         try:
             retry_interval = gripper_prim.GetAttribute("isaac:retryInterval").Get()
         except Exception as e:
-            warnings.warn(
+            logger.warning(
                 f"Failed to retrieve retry_interval from stage defaulting to user provided cfg. Exception: {e}"
             )
             retry_interval = None
@@ -563,6 +563,8 @@ class SurfaceGripper(AssetBase):
         """
         if env_ids is None or env_ids == slice(None):
             return self._ALL_INDICES
+        if isinstance(env_ids, slice):
+            return wp.from_torch(wp.to_torch(self._ALL_INDICES)[env_ids])
         elif isinstance(env_ids, list):
             return wp.array(env_ids, dtype=wp.int32, device=self._device)
         elif isinstance(env_ids, torch.Tensor):

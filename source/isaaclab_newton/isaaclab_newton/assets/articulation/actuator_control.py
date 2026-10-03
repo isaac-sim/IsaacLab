@@ -20,7 +20,7 @@ from isaaclab.actuators.newton import build_implicit_dof_mask
 from isaaclab.actuators.newton import kernels as actuator_kernels
 from isaaclab.actuators.newton.adapter import NewtonActuatorSelection
 from isaaclab.assets.articulation import ordering_kernels
-from isaaclab.sim.schemas.schemas_actuators import _validate_newton_native_actuator_cfgs
+from isaaclab.sim.schemas.schemas_actuators import validate_newton_native_actuator_cfgs
 
 from isaaclab_newton.assets.articulation.joint_coordinates import scatter_joint_coordinates
 from isaaclab_newton.physics import NewtonManager as SimulationManager
@@ -51,7 +51,7 @@ class NewtonActuatorControl(ArticulationActuatorControl):
         if not getattr(articulation._sim_cfg, "use_newton_actuators", False):
             return set()
 
-        _validate_newton_native_actuator_cfgs(actuator_cfgs)
+        validate_newton_native_actuator_cfgs(actuator_cfgs)
         native_group_names = {
             name for name, actuator_cfg in actuator_cfgs.items() if not _is_implicit_actuator_cfg(actuator_cfg)
         }

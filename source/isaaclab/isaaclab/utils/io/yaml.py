@@ -9,7 +9,7 @@ import os
 
 import yaml
 
-from .. import class_to_dict
+from .. import to_dict
 
 
 def load_yaml(filename: str) -> dict:
@@ -43,15 +43,15 @@ def dump_yaml(filename: str, data: dict | object, sort_keys: bool = False):
         sort_keys: Whether to sort the keys in the output file. Defaults to False.
     """
     # check ending
-    if not filename.endswith("yaml"):
+    if not filename.lower().endswith((".yaml", ".yml")):
         filename += ".yaml"
     # create directory
     directory = os.path.dirname(filename)
-    if directory and not os.path.exists(directory):
+    if directory:
         os.makedirs(directory, exist_ok=True)
     # convert data into dictionary
     if not isinstance(data, dict):
-        data = class_to_dict(data)
+        data = to_dict(data)
     # save data
     with open(filename, "w") as f:
         yaml.dump(data, f, default_flow_style=False, sort_keys=sort_keys)

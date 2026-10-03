@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 from dataclasses import MISSING
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, ClassVar, Literal
 
 from isaaclab.physics import PhysicsCfg
 from isaaclab.sim import BackendCfg
@@ -54,6 +54,9 @@ class PhysxCfg(PhysicsCfg):
 
     class_type: type[PhysxManager] | str = "{DIR}.physx_manager:PhysxManager"
     """The class type of the PhysxManager."""
+
+    launcher_type: ClassVar[str] = "isaaclab_physx.app:KitLauncher"
+    """The launcher that starts the Isaac Sim / Kit runtime this backend runs in."""
 
     # ------------------------------------------------------------------
     # Solver Settings

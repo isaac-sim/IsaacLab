@@ -3,15 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Launch Isaac Sim Simulator first."""
+from isaaclab.test.utils import launch_test_simulation
 
-from isaaclab.app import AppLauncher
-
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
-
-"""Rest everything follows."""
-
+launch_test_simulation()
 
 import pytest
 from isaaclab_physx.sim.spawners.materials.physics_materials_cfg import (
@@ -31,7 +25,6 @@ def sim():
     sim_utils.create_new_stage()
     dt = 0.1
     sim = SimulationContext(SimulationCfg(dt=dt))
-    sim_utils.update_stage()
     yield sim
     sim.stop()
     sim.clear_instance()

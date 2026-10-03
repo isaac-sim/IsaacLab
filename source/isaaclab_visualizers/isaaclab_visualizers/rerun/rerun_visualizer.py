@@ -20,8 +20,11 @@ import newton
 import numpy as np
 import rerun as rr
 import rerun.blueprint as rrb
+from isaaclab_newton.physics import NewtonBackendCfg
 from newton.viewer import ViewerRerun
 
+from isaaclab.scene_data import SceneDataFormat
+from isaaclab.sim import SimulationContext
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
 from isaaclab_visualizers.newton.newton_visualization_markers import render_newton_visualization_markers
@@ -37,54 +40,6 @@ if TYPE_CHECKING:
     from isaaclab.scene_data import SceneDataProvider
 
 logger = logging.getLogger(__name__)
-
-
-def _preload_ovrtx_native_deps() -> None:
-    """Pre-load ``libosdCPU.so`` from ``ovstage`` so ``ovrtx.Renderer`` can resolve it.
-
-    ``libovrtx.dylib.so`` depends on ``libosdCPU.so.3.6.0`` which ships inside the
-    ``ovstage`` wheel but is not on the system ``LD_LIBRARY_PATH``.  Loading it
-    explicitly places it in the process-wide ``dlopen`` cache.
-    """
-    import ctypes
-    import importlib.util
-    import pathlib
-
-    spec = importlib.util.find_spec("ovstage")
-    if spec is None:
-        return
-    lib = pathlib.Path(spec.origin).parent / "bin" / "plugins" / "libosdCPU.so.3.6.0"
-    if lib.exists():
-        with contextlib.suppress(OSError):
-            ctypes.CDLL(str(lib))
-
-
-def _resolve_streaming_renderer_cfg(renderer_name: str | None):
-    """Return a renderer cfg for the auto-created streaming camera."""
-    from isaaclab_newton.renderers import NewtonWarpRendererCfg
-
-    if renderer_name is None or renderer_name == "newton_warp":
-        return NewtonWarpRendererCfg()
-    if renderer_name == "ovrtx":
-        _preload_ovrtx_native_deps()
-        from isaaclab_ov.renderers import OVRTXRendererCfg
-
-        return OVRTXRendererCfg()
-    if renderer_name == "isaac_rtx":
-        try:
-            from isaaclab_physx.renderers import IsaacRtxRendererCfg
-
-            import omni.replicator.core  # noqa: F401
-
-            return IsaacRtxRendererCfg()
-        except ModuleNotFoundError:
-            logger.info(
-                "[RerunVisualizer] streaming_cam_renderer='isaac_rtx' unavailable (kitless); using newton_warp."
-            )
-            return NewtonWarpRendererCfg()
-    raise ValueError(
-        f"streaming_cam_renderer={renderer_name!r} unsupported. Use 'newton_warp', 'ovrtx', 'isaac_rtx', or None."
-    )
 
 
 _BACKEND_DISPLAY_NAMES = {
@@ -322,8 +277,7 @@ class RerunVisualizer(BaseVisualizer):
         self._backend_display: str | None = None
         self._sim_time = 0.0
         self._step_counter = 0
-        self._model = None
-        self._state = None
+        self.backend = None
         self._last_camera_pose: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
         self._resolved_visible_env_ids: list[int] | None = None
         self._camera_sensor = None
@@ -341,16 +295,16 @@ class RerunVisualizer(BaseVisualizer):
         Args:
             scene_data_provider: Scene data provider used to fetch model/state data.
         """
-        from isaaclab_newton.physics import NewtonManager
-
         if self._is_initialized:
             return
 
         scene_data_provider = self._set_scene_data_provider(scene_data_provider)
         num_envs = scene_data_provider.num_envs
         self._env_ids = self._compute_visualized_env_ids()
-        self._model = NewtonManager.get_model()
-        self._state = NewtonManager.get_state(self._scene_data_provider)
+        sim = SimulationContext.instance()
+        self.newton_cfg = NewtonBackendCfg(physics_cfg=sim.cfg.physics, device=sim.device)
+        self.backend = sim.get_or_create_backend(self.newton_cfg)
+        self._transform_mapping = scene_data_provider.create_mapping(list(self.backend.model.body_label))
 
         grpc_port = int(self.cfg.grpc_port)
         web_port = int(self.cfg.web_port)
@@ -384,7 +338,7 @@ class RerunVisualizer(BaseVisualizer):
         self._log_viewer_url("RerunVisualizer", viewer_url)
         if self.cfg.open_browser and not start_server_in_viewer:
             _open_rerun_web_viewer(viewer_host, web_port, rerun_address)
-        self._viewer.set_model(self._model)
+        self._viewer.set_model(self.backend.model)
         self._viewer.show_particles = self.cfg.show_particles
         apply_viewer_visible_worlds(
             self._viewer,
@@ -436,30 +390,31 @@ class RerunVisualizer(BaseVisualizer):
         Args:
             dt: Simulation time-step in seconds.
         """
-        from isaaclab_newton.physics import NewtonManager
-
         if not self._is_initialized or self._is_closed or self._viewer is None:
             return
 
         self._sim_time += dt
         self._step_counter += 1
 
-        self._state = NewtonManager.get_state(self._scene_data_provider)
-        num_envs = NewtonManager.get_num_envs()
+        num_envs = self.backend.model.num_envs
 
         if not self._viewer.is_paused():
+            backend, provider = self.backend, self._scene_data_provider
+            poses = SceneDataFormat.Transform()
+            if provider.get_transforms(poses, mapping=self._transform_mapping, count=backend.model.body_count):
+                backend.state_0.body_q = poses.transforms
+            if backend.geometry_offsets:
+                provider.get_geometry_points(output=backend.state_0.particle_q, offsets=backend.geometry_offsets)
             self._viewer.begin_frame(self._sim_time)
             try:
-                if self._state is not None:
-                    body_q = getattr(self._state, "body_q", None)
-                    # Skip log_state for empty body arrays but do not return: _push_streaming_frame
-                    # must still run after end_frame() so the streaming panel stays live.
-                    if not (hasattr(body_q, "shape") and body_q.shape[0] == 0):
-                        self._viewer.log_state(self._state)
-                        if self.cfg.enable_markers:
-                            render_newton_visualization_markers(
-                                self._viewer, self._resolved_visible_env_ids, num_envs=num_envs
-                            )
+                # Empty body arrays skip log_state, but streaming still runs after end_frame.
+                body_q = backend.state_0.body_q
+                if body_q is None or body_q.shape[0]:
+                    self._viewer.log_state(backend.state_0)
+                    if self.cfg.enable_markers:
+                        render_newton_visualization_markers(
+                            self._viewer, self._resolved_visible_env_ids, num_envs=num_envs
+                        )
                 self._render_live_plots()
             finally:
                 self._viewer.end_frame()
@@ -474,6 +429,20 @@ class RerunVisualizer(BaseVisualizer):
             self._compose_streaming_frame()
         else:
             self._push_streaming_frame()
+
+    def reset(self, soft: bool = False) -> None:
+        """Rebind the viewer when a hard reset replaces the shared native model."""
+        if soft or not self._is_initialized or self._is_closed:
+            return
+        sim = SimulationContext.instance()
+        backend = sim.get_or_create_backend(self.newton_cfg)
+        if backend is self.backend:
+            return
+        self.backend = backend
+        self._transform_mapping = self._scene_data_provider.create_mapping(list(backend.model.body_label))
+        self._viewer.set_model(backend.model)
+        self._viewer.set_visible_worlds(self._resolved_visible_env_ids)
+        self._viewer.set_world_offsets((0.0, 0.0, 0.0))
 
     def close(self) -> None:
         """Close viewer/session resources."""
@@ -499,6 +468,7 @@ class RerunVisualizer(BaseVisualizer):
             rr.disconnect()
         except Exception as exc:
             logger.warning("[RerunVisualizer] Failed while disconnecting rerun: %s", exc)
+        self.backend = self._scene_data_provider = self._transform_mapping = None
         self._is_closed = True
 
     def is_running(self) -> bool:
@@ -554,41 +524,24 @@ class RerunVisualizer(BaseVisualizer):
             self._viewer._streaming_view_active = True
             return
 
-        # Auto-detect fallback: with Newton MJWarp replicate_physics=True, post-init prim
-        # spawning only survives at env_0. Reuse the first scene camera with matching
-        # renderer_type (or any scene camera with the right count as secondary fallback).
-        renderer_cfg = _resolve_streaming_renderer_cfg(self.cfg.streaming_cam_renderer)
-        renderer_type = getattr(renderer_cfg, "renderer_type", None)
-        scene_cameras = self._scene_data_provider.get_camera_sensors()
-        _fallback_cam = None
-        for cam in scene_cameras.values():
-            if cam._view.count != num_envs:
-                continue
-            if getattr(getattr(cam.cfg, "renderer_cfg", None), "renderer_type", None) == renderer_type:
-                _fallback_cam = cam
-                break
-            if _fallback_cam is None:
-                _fallback_cam = cam
-        if _fallback_cam is not None:
-            self._camera_sensor = _fallback_cam
-            self._camera_sensor_indices = env_ids
-            self._streaming_view_active = True
-            self._viewer._streaming_view_active = True
+        if self.cfg.streaming_cam_target_prim_path is None:
+            cameras = self._scene_data_provider.get_camera_sensors()
+            if cameras:
+                self._camera_sensor = next(iter(cameras.values()))
+                self._camera_sensor_indices = env_ids
+                self._streaming_view_active = self._viewer._streaming_view_active = True
             return
 
-        tile_w, tile_h = 320, 240  # default resolution for Rerun stream (no window size)
-        try:
-            result = create_visualizer_camera(
-                num_envs=num_envs,
-                width=tile_w,
-                height=tile_h,
-                renderer_cfg=renderer_cfg,
-                data_types=sensor_keys_for_gt_types(gt_types),
-                streaming_envs=tuple(int(i) for i in env_ids),
-            )
-        except Exception as e:
-            logger.warning("[RerunVisualizer] Streaming view disabled: could not auto-create a camera sensor (%s).", e)
-            return
+        result = create_visualizer_camera(
+            num_envs=num_envs,
+            width=320,
+            height=240,
+            renderer_cfg=self.cfg.streaming_cam_renderer_cfg,
+            data_types=sensor_keys_for_gt_types(gt_types),
+            target_prim_path=self.cfg.streaming_cam_target_prim_path,
+            eye=self.cfg.streaming_cam_eye,
+            streaming_envs=tuple(int(i) for i in env_ids),
+        )
         self._camera_sensor, self._generated_camera_prim_paths, self._camera_is_owned, self._streaming_camera_key = (
             result
         )

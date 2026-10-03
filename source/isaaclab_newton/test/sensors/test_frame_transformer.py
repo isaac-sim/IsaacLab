@@ -25,7 +25,7 @@ from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import FrameTransformerCfg, OffsetCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, replace
 
 ##
 # Pre-defined configs
@@ -53,7 +53,7 @@ class MySceneCfg(InteractiveSceneCfg):
     terrain = TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane")
 
     # articulation - robot
-    robot = ANYMAL_C_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    robot = replace(ANYMAL_C_CFG, prim_path="{ENV_REGEX_NS}/Robot")
 
     # block
     cube: RigidObjectCfg = RigidObjectCfg(
@@ -179,7 +179,8 @@ def test_frame_transformer_sources_and_targets(sim):
     robot = scene.articulations["robot"]
     cube = scene["cube"]
 
-    torch.testing.assert_close(scene.sensors["ft_cube"].data.target_pos_w.torch[:, 0], cube.data.root_pos_w.torch)
+    initial_frames = scene.sensors["ft_cube"].data
+    torch.testing.assert_close(initial_frames.target_pos_w.torch[:, 0], cube.data.root_pos_w.torch)
 
     # -- ft_base: reorder the feet indices to match the target frames with the _USER suffix removed
     base_feet_indices, base_feet_names = robot.find_bodies(["LF_FOOT", "RF_FOOT", "LH_FOOT", "RH_FOOT"])
@@ -221,9 +222,8 @@ def test_frame_transformer_sources_and_targets(sim):
             # reset buffers
             scene.reset()
 
-            # Reset observations must reflect teleports before the next physics step.
-            scene.write_data_to_sim()
             sim.forward()
+            # Read the sensor after FK, before asset-pose reads or the next physics step.
             reset_frames = scene.sensors["ft_cube"].data
             torch.testing.assert_close(reset_frames.source_pos_w.torch, root_state[:, :3])
             torch.testing.assert_close(reset_frames.target_pos_w.torch[:, 0], cube_state[:, :3])
@@ -324,6 +324,17 @@ def test_frame_transformer_sources_and_targets(sim):
             data.target_quat_source.torch,
         )
 
+    # A cached update must honor changes to the reset mask.
+    sensor = scene.sensors["ft_cube"]
+    previous_frames = sensor.data.target_pos_w.torch.clone()
+    cube_pose = cube.data.root_pose_w.torch.clone()
+    cube_pose[1, 0] += 1.0
+    cube.write_root_pose_to_sim_index(root_pose=cube_pose[1:2], env_ids=[1])
+    sim.forward()
+    sensor.reset(env_ids=[1])
+    torch.testing.assert_close(sensor.data.target_pos_w.torch[1, 0], cube_pose[1, :3])
+    torch.testing.assert_close(sensor.data.target_pos_w.torch[0], previous_frames[0])
+
 
 # Each source robot and each path prefix is covered once; the axes select independent branches.
 @pytest.mark.parametrize(("source_robot", "path_prefix"), [("Robot", "{ENV_REGEX_NS}"), ("Robot_1", "/World")])
@@ -371,10 +382,11 @@ def test_frame_transformer_duplicate_body_names(sim, source_robot, path_prefix):
 
     # Create scene config with appropriate prim paths
     scene_cfg = MultiRobotSceneCfg(num_envs=num_envs, env_spacing=env_spacing, lazy_sensor_update=False)
-    scene_cfg.robot = ANYMAL_C_CFG.replace(prim_path=f"{path_prefix}/Robot")
-    scene_cfg.robot_1 = ANYMAL_C_CFG.replace(
+    scene_cfg.robot = replace(ANYMAL_C_CFG, prim_path=f"{path_prefix}/Robot")
+    scene_cfg.robot_1 = replace(
+        ANYMAL_C_CFG,
         prim_path=f"{path_prefix}/Robot_1",
-        init_state=ANYMAL_C_CFG.init_state.replace(pos=(2.0, 0.0, 0.6)),
+        init_state=replace(ANYMAL_C_CFG.init_state, pos=(2.0, 0.0, 0.6)),
     )
 
     # Frame transformer tracking same-named bodies from both robots

@@ -7,7 +7,7 @@
 
 """Integration tests for ray caster sensor view paths, env_mask, and intrinsics.
 
-These tests require Isaac Sim (AppLauncher). They cover the integration-level
+These tests require Isaac Sim (the Kit launcher). They cover the integration-level
 items from ``TODO_ray_caster_kernel_tests.md``:
 
 - ``_get_sensor_transforms_wp`` RigidBodyView path
@@ -17,9 +17,10 @@ items from ``TODO_ray_caster_kernel_tests.md``:
 - Depth clipping ordering for ``MultiMeshRayCasterCamera``
 """
 
-from isaaclab.app import AppLauncher
+from isaaclab.assets import AssetBaseCfg
+from isaaclab.test.utils import launch_test_simulation
 
-simulation_app = AppLauncher(headless=True, enable_cameras=True).app
+launch_test_simulation(enable_cameras=True)
 
 import copy
 from typing import Any, cast
@@ -32,7 +33,7 @@ import warp as wp
 from pxr import UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
-from isaaclab.cloner.clone_plan import ClonePlan
+from isaaclab.cloner import ClonePlan, PrototypeWorldTopology
 from isaaclab.sensors.ray_caster import (
     MultiMeshRayCaster,
     MultiMeshRayCasterCamera,
@@ -62,7 +63,6 @@ def _make_sim_and_ground():
     sim = sim_utils.SimulationContext(sim_utils.SimulationCfg(dt=_DT))
     mesh = make_plane(size=(100, 100), height=0.0, center_zero=True)
     create_prim_from_mesh(_GROUND_PATH, mesh)
-    sim_utils.update_stage()
     return sim
 
 
@@ -121,7 +121,6 @@ def test_rigid_body_view_path(sim_ground):
     cube_geom = cast(Any, UsdGeom.Cube.Define(stage, cube_path))
     cube_geom.CreateSizeAttr().Set(0.1)
     UsdPhysics.CollisionAPI.Apply(stage.GetPrimAtPath(cube_path))
-    sim_utils.update_stage()
 
     sensor = RayCaster(_single_downward_ray_cfg(prim_path))
     sim.reset()
@@ -306,17 +305,16 @@ def test_multi_mesh_uses_clone_plan_geometry_and_backend_object_pose(sim_ground)
 
     # This test intentionally does not author /env_2/Object/part_0. ClonePlan
     # selects source geometry; the object body view supplies env_2's live pose.
-    sim.set_clone_plan(
-        ClonePlan(
-            sources=("/World/envs/env_0/Object", "/World/envs/env_1/Object"),
-            destinations=("/World/envs/env_{}/Object", "/World/envs/env_{}/Object"),
-            clone_mask=np.asarray([[True, False, True], [False, True, False]], dtype=np.bool_),
-            env_ids=np.arange(3, dtype=np.int64),
-            positions=None,
-            cfg_rows={},
-        )
+    plan = ClonePlan(
+        PrototypeWorldTopology(
+            num_asset_prototypes=2,
+            world_prototypes=np.array([0, 1]),
+            world_prototype_starts=np.array([0, 0, 1, 2]),
+            world_prototype_layout=np.array([0, 1, 0]),
+        ),
+        asset_cfgs=(AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Object"),) * 2,
     )
-    sim_utils.update_stage()
+    sim.set_clone_plan(plan)
 
     cfg = MultiMeshRayCasterCfg(
         prim_path="{ENV_REGEX_NS}/Sensor",
@@ -449,7 +447,6 @@ def test_update_mesh_transforms_non_identity_offset(sim_ground):
     cube_geom = cast(Any, UsdGeom.Cube.Define(stage, col_path))
     cube_geom.CreateSizeAttr().Set(0.1)
     UsdPhysics.CollisionAPI.Apply(stage.GetPrimAtPath(col_path))
-    sim_utils.update_stage()
 
     # Create a sensor prim to mount the MultiMeshRayCaster on
     sensor_path = "/World/SensorMount"

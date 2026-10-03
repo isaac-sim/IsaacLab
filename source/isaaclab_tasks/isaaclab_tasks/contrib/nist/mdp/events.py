@@ -15,6 +15,7 @@ import torch
 from isaaclab.controllers import DifferentialIKControllerCfg
 from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
 from isaaclab.managers import EventTermCfg, ManagerTermBase, SceneEntityCfg
+from isaaclab.utils import instantiate
 from isaaclab.utils import math as math_utils
 
 from ..assembly_keypoints import NIST_BOARD_CFG
@@ -57,7 +58,8 @@ def reset_fixed_asset_uniform(
 
     range_list = [pose_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z", "roll", "pitch", "yaw"]]
     ranges = torch.tensor(range_list, device=env.device)
-    samples = math_utils.sample_uniform(ranges[:, 0], ranges[:, 1], (len(env_ids), 6), device=env.device)
+    num_envs = len(range(env.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
+    samples = math_utils.sample_uniform(ranges[:, 0], ranges[:, 1], (num_envs, 6), device=env.device)
     new_pos = nominal_pos + samples[:, 0:3]
     new_quat = math_utils.quat_mul(
         nominal_quat, math_utils.quat_from_euler_xyz(samples[:, 3], samples[:, 4], samples[:, 5])
@@ -120,7 +122,7 @@ class reset_held_asset_on_fixed_asset(ManagerTermBase):
     def __init__(self, cfg: EventTermCfg, env: ManagerBasedRLEnv):
         super().__init__(cfg, env)
         profile_cfg: AssemblyProfileCfg = cfg.params["assembly_profile"]
-        self.profile = profile_cfg.class_type(profile_cfg)
+        self.profile = instantiate(profile_cfg)
 
     def __call__(
         self,
@@ -139,8 +141,9 @@ class reset_held_asset_on_fixed_asset(ManagerTermBase):
         fractions = (
             _sweep_assembly_fraction(*assembly_fraction_range) if debug_term else iter([assembly_fraction_range])
         )
+        num_envs = len(range(env.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
         for frac_range in fractions:
-            pos_offset, quat_offset = self.profile.sample(frac_range, len(env_ids), env.device)
+            pos_offset, quat_offset = self.profile.sample(frac_range, num_envs, env.device)
             fixed_root_pos_w = fixed_asset.data.root_pos_w.torch
             fixed_root_quat_w = fixed_asset.data.root_quat_w.torch
             pos, quat = math_utils.combine_frame_transforms(
@@ -168,7 +171,8 @@ def reset_held_asset_in_gripper(
 
     end_effector_quat_w = robot.data.body_link_quat_w.torch[env_ids, holding_body_cfg.body_ids].view(-1, 4)
     end_effector_pos_w = robot.data.body_link_pos_w.torch[env_ids, holding_body_cfg.body_ids].view(-1, 3)
-    grasp_quat = gripper_grasp_offset.quat_t(env.device).expand(len(env_ids), -1)
+    num_envs = len(range(env.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
+    grasp_quat = gripper_grasp_offset.quat_t(env.device).expand(num_envs, -1)
 
     # Randomize the grasp target (at the grasp point) BEFORE solving for the asset root, so the
     # pose noise pivots about the grasp point and the graspable frame stays coincident with the
@@ -176,7 +180,7 @@ def reset_held_asset_in_gripper(
     # swings the graspable point off the gripper — the asset stops being held at the grasp point.
     range_list = [held_asset_inhand_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z", "roll", "pitch", "yaw"]]
     ranges = torch.tensor(range_list, device=env.device)
-    samples = math_utils.sample_uniform(ranges[:, 0], ranges[:, 1], (len(env_ids), 6), device=env.device)
+    samples = math_utils.sample_uniform(ranges[:, 0], ranges[:, 1], (num_envs, 6), device=env.device)
     grasp_pos_w = end_effector_pos_w + samples[:, 0:3]
     grasp_quat_w = math_utils.quat_mul(
         math_utils.quat_mul(end_effector_quat_w, grasp_quat),
@@ -201,11 +205,10 @@ def grasp_held_asset(
     robot: Articulation = env.scene[robot_cfg.name]
     joint_pos = robot.data.joint_pos.torch[:, robot_cfg.joint_ids][env_ids].clone()
     min_angle = held_asset_diameter / 2 * 1.15
+    num_envs = len(range(env.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
     if flexible_angle:
-        max_angle = robot.data.joint_pos_limits.torch[0, robot_cfg.joint_ids[0], 1]
-        joint_pos[:] = (torch.rand((len(env_ids),), device=env.device) * (max_angle - min_angle) + min_angle).unsqueeze(
-            1
-        )
+        max_angle = robot.data.joint_pos_limits.torch[0, robot_cfg.joint_ids, 1][0]
+        joint_pos[:] = (torch.rand((num_envs,), device=env.device) * (max_angle - min_angle) + min_angle).unsqueeze(1)
     else:
         joint_pos[:] = min_angle
 
@@ -215,10 +218,10 @@ def grasp_held_asset(
 class reset_end_effector_around_asset(ManagerTermBase):
     def __init__(self, cfg: EventTermCfg, env: ManagerBasedRLEnv):
         super().__init__(cfg, env)
-        fixed_asset_cfg: SceneEntityCfg = cfg.params.get("fixed_asset_cfg")  # type: ignore
-        fixed_asset_offset: Offset = cfg.params.get("fixed_asset_offset")  # type: ignore
-        pose_range_b: dict[str, tuple[float, float]] = cfg.params.get("pose_range_b")  # type: ignore
-        robot_ik_cfg: SceneEntityCfg = cfg.params.get("robot_ik_cfg", SceneEntityCfg("robot"))
+        fixed_asset_cfg: SceneEntityCfg = cfg.params["fixed_asset_cfg"]  # type: ignore
+        fixed_asset_offset: Offset = cfg.params["fixed_asset_offset"]  # type: ignore
+        pose_range_b: dict[str, tuple[float, float]] = cfg.params["pose_range_b"]  # type: ignore
+        robot_ik_cfg: SceneEntityCfg = cfg.params["robot_ik_cfg"]
 
         range_list = [pose_range_b.get(key, (0.0, 0.0)) for key in ["x", "y", "z", "roll", "pitch", "yaw"]]
         self.wrist_idx = 6
@@ -249,9 +252,10 @@ class reset_end_effector_around_asset(ManagerTermBase):
         ik_iterations: tuple[int, int] = (5, 10),
     ) -> None:
         if self.solver is None:
-            self.solver = self.robot_ik_solver_cfg.class_type(self.robot_ik_solver_cfg, env)
+            self.solver = instantiate(self.robot_ik_solver_cfg, env)
         fixed_tip_pos_w, fixed_tip_quat_w = self.fixed_asset_offset.apply(self.fixed_asset)
-        samples = math_utils.sample_uniform(self.ranges[:, 0], self.ranges[:, 1], (len(env_ids), 6), device=env.device)
+        num_envs = len(range(env.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
+        samples = math_utils.sample_uniform(self.ranges[:, 0], self.ranges[:, 1], (num_envs, 6), device=env.device)
         pos_b, quat_b = self.solver._compute_frame_pose()
         # for those non_reset_id, we will let ik solve for its current position
         pos_w = fixed_tip_pos_w[env_ids] + samples[:, 0:3]

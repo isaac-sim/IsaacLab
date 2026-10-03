@@ -3,16 +3,24 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Run the converter from the standalone importer wheel when installed; otherwise launch Isaac Sim."""
+"""Run the converter from the standalone importer wheel when installed; otherwise launch the default runtime."""
 
-from isaaclab.app import AppLauncher
+from isaaclab.test.utils import launch_test_simulation
 from isaaclab.utils.version import standalone_importers_available
 
-# Prefer kit-less; fall back to Kit when the standalone importers are not usable.
-_USE_KIT = not standalone_importers_available() and AppLauncher.is_available()
-simulation_app = AppLauncher(headless=True).app if _USE_KIT else None
+# The standalone importers need no runtime; without them the default runtime provides the importer.
+_USE_RUNTIME = not standalone_importers_available()
+if _USE_RUNTIME:
+    try:
+        launch_test_simulation()
+    except SystemExit:
+        # the launcher exits when its runtime is not installed; without either importer there is nothing to test
+        import pytest
 
-"""Rest everything follows."""
+        pytest.skip(
+            "Needs the URDF importer: install isaacsim-asset-isolated or the Isaac Sim runtime.",
+            allow_module_level=True,
+        )
 
 import math
 import os
@@ -20,9 +28,6 @@ import warnings
 from types import SimpleNamespace
 
 import pytest
-
-if _USE_KIT:
-    import omni.kit.app
 
 import isaaclab
 import isaaclab.sim as sim_utils
@@ -33,8 +38,7 @@ from isaaclab.sim.converters import UrdfConverter, UrdfConverterCfg
 pytestmark = [pytest.mark.integration, pytest.mark.kitless]
 
 
-# Portable Franka URDF for the kitless path (the Kit path uses the importer extension's bundled
-# ``panda_arm_hand.urdf``). Both expose the same 7 revolute + 2 prismatic joint structure.
+# Portable Franka URDF with 7 revolute + 2 prismatic joints, readable by either importer.
 _REPO_FRANKA_URDF = os.path.join(
     os.path.dirname(isaaclab.__file__), "controllers", "config", "data", "lula_franka_gen.urdf"
 )
@@ -52,25 +56,15 @@ _FIXED_ONLY_URDF = os.path.join(os.path.dirname(os.path.abspath(__file__)), "urd
 @pytest.fixture
 def sim_config():
     stage = sim_utils.create_new_stage()
-    if _USE_KIT:
-        # Kit path: enable the importer extension and use its bundled Franka asset.
-        manager = omni.kit.app.get_app().get_extension_manager()
-        if not manager.is_extension_enabled("isaacsim.asset.importer.urdf"):
-            manager.set_extension_enabled_immediate("isaacsim.asset.importer.urdf", True)
-        extension_id = manager.get_enabled_extension_id("isaacsim.asset.importer.urdf")
-        extension_path = manager.get_extension_path(extension_id)
-        asset_path = f"{extension_path}/data/urdf/robots/franka_description/robots/panda_arm_hand.urdf"
-        # Load kit helper
+    if _USE_RUNTIME:
         sim = SimulationContext(SimulationCfg(dt=0.01))
     else:
-        # Kitless path: the converter loads the importer from the standalone wheel. Spawning and
-        # inspecting prims needs a USD stage but neither physics nor Kit, so the plain stage above
+        # Spawning and inspecting prims needs a USD stage but no physics, so the plain stage
         # stands in for the simulation context.
-        asset_path = _REPO_FRANKA_URDF
         sim = SimpleNamespace(stage=stage)
     # default configuration
     config = UrdfConverterCfg(
-        asset_path=asset_path,
+        asset_path=_REPO_FRANKA_URDF,
         fix_base=True,
         joint_drive=UrdfConverterCfg.JointDriveCfg(
             gains=UrdfConverterCfg.JointDriveCfg.PDGainsCfg(stiffness=None, damping=None)
@@ -78,7 +72,7 @@ def sim_config():
     )
     yield sim, config
     # Teardown
-    if _USE_KIT:
+    if _USE_RUNTIME:
         sim._disable_app_control_on_stop_handle = True  # prevent timeout
         sim.stop()
         sim.clear_instance()

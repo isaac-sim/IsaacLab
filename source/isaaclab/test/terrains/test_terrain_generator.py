@@ -21,6 +21,7 @@ from isaaclab.terrains import (
 )
 from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG
 from isaaclab.terrains.height_field import HfInvertedPyramidSlopedTerrainCfg
+from isaaclab.terrains.trimesh.utils import make_box, make_cone, make_cylinder
 from isaaclab.utils.seed import configure_seed
 
 pytestmark = pytest.mark.integration
@@ -73,6 +74,26 @@ def test_generation_star_terrain():
     assert terrain_generator.terrain_origins.shape == (cfg.num_rows, cfg.num_cols, 3)
 
 
+@pytest.mark.parametrize(
+    "make_object, object_kwargs",
+    [
+        (make_box, {"length": 1.0, "width": 1.0}),
+        (make_cylinder, {"radius": 0.5}),
+        (make_cone, {"radius": 0.5}),
+    ],
+)
+def test_object_max_yx_angle_units(make_object, object_kwargs):
+    """``max_yx_angle`` limits the object tilt the same way whether it is given in degrees or radians."""
+    np.random.seed(0)
+    mesh_deg = make_object(height=1.0, center=(0.0, 0.0, 0.0), max_yx_angle=30.0, degrees=True, **object_kwargs)
+    np.random.seed(0)
+    mesh_rad = make_object(
+        height=1.0, center=(0.0, 0.0, 0.0), max_yx_angle=np.deg2rad(30.0), degrees=False, **object_kwargs
+    )
+
+    np.testing.assert_allclose(mesh_rad.vertices, mesh_deg.vertices, atol=1e-6)
+
+
 def test_repeated_objects_default_object_type():
     """The default resolvable ``object_type`` of the repeated-object configs is called, not looked up by name."""
     object_cfg = MeshRepeatedBoxesTerrainCfg.ObjectCfg(num_objects=3, height=0.2, size=(0.3, 0.3))
@@ -118,6 +139,53 @@ def test_inverted_pyramid_origin_matches_platform(platform_width: float, border_
     np.testing.assert_allclose(origin[:2], (4.0, 4.0))
     assert len(center_vertices) == 1
     assert origin[2] == pytest.approx(center_vertices[0, 2])
+
+
+@pytest.mark.parametrize("parent_slope_threshold", [0.75, None])
+def test_height_field_sub_terrains_keep_individual_settings(parent_slope_threshold):
+    """Children retain numeric settings and inherit parent values only for None fields."""
+    cfg = TerrainGeneratorCfg(
+        size=(2.0, 2.0),
+        num_rows=1,
+        num_cols=3,
+        curriculum=True,
+        seed=0,
+        horizontal_scale=0.2,
+        vertical_scale=0.02,
+        slope_threshold=parent_slope_threshold,
+        sub_terrains={
+            "fine": HfInvertedPyramidSlopedTerrainCfg(
+                proportion=1 / 3,
+                slope_range=(0.1, 0.1),
+                horizontal_scale=0.05,
+                vertical_scale=0.01,
+                slope_threshold=None,
+            ),
+            "coarse": HfInvertedPyramidSlopedTerrainCfg(
+                proportion=1 / 3,
+                slope_range=(0.1, 0.1),
+                horizontal_scale=None,
+                vertical_scale=None,
+                slope_threshold=0.0,
+            ),
+            "default": HfInvertedPyramidSlopedTerrainCfg(
+                proportion=1 / 3,
+                slope_range=(0.1, 0.1),
+            ),
+        },
+    )
+
+    generator = TerrainGenerator(cfg)
+
+    fine, coarse, default = generator.cfg.sub_terrains.values()
+    assert (fine.horizontal_scale, fine.vertical_scale, fine.slope_threshold) == (0.05, 0.01, parent_slope_threshold)
+    assert (coarse.horizontal_scale, coarse.vertical_scale, coarse.slope_threshold) == (0.2, 0.02, 0.0)
+    assert (default.horizontal_scale, default.vertical_scale, default.slope_threshold) == (
+        0.1,
+        0.005,
+        parent_slope_threshold,
+    )
+    assert len(generator.terrain_meshes[0].vertices) > len(generator.terrain_meshes[1].vertices)
 
 
 @pytest.mark.parametrize("use_global_seed", [True, False])

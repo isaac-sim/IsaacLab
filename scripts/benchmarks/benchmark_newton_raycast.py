@@ -14,10 +14,8 @@ rough terrain on the Newton backend:
   refit (the refit is shared with the tiled-camera renderer in real scenes).
 
 Usage:
-    ./isaaclab.sh -p scripts/benchmarks/benchmark_newton_raycast.py --num_envs 1024 --headless
+    uv run python scripts/benchmarks/benchmark_newton_raycast.py --num_envs 1024 --headless
 """
-
-"""Parse CLI first so we can decide whether to launch Isaac Sim Kit."""
 
 import argparse
 

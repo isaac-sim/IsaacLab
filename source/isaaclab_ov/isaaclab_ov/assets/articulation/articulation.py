@@ -30,7 +30,7 @@ from isaaclab.assets.articulation.ordering_resolvers import (
     _canonical_joint_dof_name,
 )
 from isaaclab.physics import PhysicsManager
-from isaaclab.utils.buffers import TimestampedBufferWarp
+from isaaclab.utils.buffers import TimestampedBuffer
 from isaaclab.utils.string import resolve_matching_names
 from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.warp import kernels as warp_kernels
@@ -40,7 +40,7 @@ from isaaclab_ov import tensor_types as TT
 from isaaclab_ov.assets import kernels as shared_kernels
 from isaaclab_ov.physics import OvPhysxManager
 from isaaclab_ov.physics.ovphysx_compat import OVPHYSX_VERSION, requires_legacy_joint_sign_correction
-from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView
+from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView, _expand_env_pattern
 
 from .actuator_control import OvPhysxActuatorControl
 from .articulation_data import ArticulationData
@@ -536,15 +536,11 @@ class Articulation(BaseArticulation):
         self._root_view.set_attribute(
             TT.ROOT_POSE, self.data._root_link_pose_w.data.view(wp.float32), indices=sim_env_ids
         )
-        OvPhysxManager._kinematics_dirty = True
-        OvPhysxManager._scene_data_backend.transforms_version += 1
+        OvPhysxManager.kinematics_dirty = True
+        OvPhysxManager._scene_data_backend.transforms_timestamp += 1
 
     def write_root_link_pose_to_sim_mask(
-        self,
-        *,
-        root_pose: torch.Tensor | wp.array,
-        env_mask: wp.array | None = None,
-        skip_forward: bool = False,
+        self, *, root_pose: torch.Tensor | wp.array, env_mask: wp.array | None = None, skip_forward: bool = False
     ) -> None:
         """Set the root link pose over selected environment mask into the simulation.
 
@@ -577,8 +573,8 @@ class Articulation(BaseArticulation):
         if not skip_forward:
             self.data._reset_pose()
         self._root_view.set_attribute(TT.ROOT_POSE, self.data._root_link_pose_w.data.view(wp.float32), mask=env_mask_wp)
-        OvPhysxManager._kinematics_dirty = True
-        OvPhysxManager._scene_data_backend.transforms_version += 1
+        OvPhysxManager.kinematics_dirty = True
+        OvPhysxManager._scene_data_backend.transforms_timestamp += 1
 
     def write_root_com_pose_to_sim_index(
         self,
@@ -622,15 +618,11 @@ class Articulation(BaseArticulation):
         self._root_view.set_attribute(
             TT.ROOT_POSE, self.data._root_link_pose_w.data.view(wp.float32), indices=sim_env_ids
         )
-        OvPhysxManager._kinematics_dirty = True
-        OvPhysxManager._scene_data_backend.transforms_version += 1
+        OvPhysxManager.kinematics_dirty = True
+        OvPhysxManager._scene_data_backend.transforms_timestamp += 1
 
     def write_root_com_pose_to_sim_mask(
-        self,
-        *,
-        root_pose: torch.Tensor | wp.array,
-        env_mask: wp.array | None = None,
-        skip_forward: bool = False,
+        self, *, root_pose: torch.Tensor | wp.array, env_mask: wp.array | None = None, skip_forward: bool = False
     ) -> None:
         """Set the root center of mass pose over selected environment mask into the simulation.
 
@@ -664,8 +656,8 @@ class Articulation(BaseArticulation):
         if not skip_forward:
             self.data._reset_pose(from_link=False)
         self._root_view.set_attribute(TT.ROOT_POSE, self.data._root_link_pose_w.data.view(wp.float32), mask=env_mask_wp)
-        OvPhysxManager._kinematics_dirty = True
-        OvPhysxManager._scene_data_backend.transforms_version += 1
+        OvPhysxManager.kinematics_dirty = True
+        OvPhysxManager._scene_data_backend.transforms_timestamp += 1
 
     def write_root_velocity_to_sim_index(
         self,
@@ -981,8 +973,8 @@ class Articulation(BaseArticulation):
             self._data._reset_pose()
             self._data._reset_velocity()
         self._root_view.set_attribute(TT.DOF_POSITION, joint_pos_backend, indices=sim_env_ids)
-        OvPhysxManager._kinematics_dirty = True
-        OvPhysxManager._scene_data_backend.transforms_version += 1
+        OvPhysxManager.kinematics_dirty = True
+        OvPhysxManager._scene_data_backend.transforms_timestamp += 1
         self._root_view.set_attribute(TT.DOF_VELOCITY, joint_vel_backend, indices=sim_env_ids)
 
     def write_joint_position_to_sim_index(
@@ -1033,8 +1025,8 @@ class Articulation(BaseArticulation):
             self._data._reset_pose()
             self._data._reset_velocity()
         self._root_view.set_attribute(TT.DOF_POSITION, joint_pos_backend, indices=sim_env_ids)
-        OvPhysxManager._kinematics_dirty = True
-        OvPhysxManager._scene_data_backend.transforms_version += 1
+        OvPhysxManager.kinematics_dirty = True
+        OvPhysxManager._scene_data_backend.transforms_timestamp += 1
 
     def write_joint_position_to_sim_mask(
         self,
@@ -1086,8 +1078,8 @@ class Articulation(BaseArticulation):
             self._data._reset_pose()
             self._data._reset_velocity()
         self._root_view.set_attribute(TT.DOF_POSITION, joint_pos_backend, mask=env_mask_wp)
-        OvPhysxManager._kinematics_dirty = True
-        OvPhysxManager._scene_data_backend.transforms_version += 1
+        OvPhysxManager.kinematics_dirty = True
+        OvPhysxManager._scene_data_backend.transforms_timestamp += 1
 
     def write_joint_velocity_to_sim_index(
         self,
@@ -1258,8 +1250,8 @@ class Articulation(BaseArticulation):
             self._data._reset_pose()
             self._data._reset_velocity()
         self._root_view.set_attribute(TT.DOF_POSITION, joint_pos_backend, mask=env_mask_wp)
-        OvPhysxManager._kinematics_dirty = True
-        OvPhysxManager._scene_data_backend.transforms_version += 1
+        OvPhysxManager.kinematics_dirty = True
+        OvPhysxManager._scene_data_backend.transforms_timestamp += 1
         self._root_view.set_attribute(TT.DOF_VELOCITY, joint_vel_backend, mask=env_mask_wp)
 
     """
@@ -1526,7 +1518,10 @@ class Articulation(BaseArticulation):
             device=self._device,
         )
         # Clamp default_joint_pos to the new limits and refresh soft_joint_pos_limits.
-        clamped_count = wp.zeros(1, dtype=wp.int32, device=self._device)
+        log_level = logging.WARNING if warn_limit_violation else logging.INFO
+        report_clamping = logger.isEnabledFor(log_level)
+        if report_clamping:
+            self._clamped_default_count.zero_()
         wp.launch(
             clamp_default_joint_pos_and_update_soft_limits_index_kernel(env_ids, joint_ids),
             dim=(env_ids.shape[0], joint_ids.shape[0]),
@@ -1539,19 +1534,16 @@ class Articulation(BaseArticulation):
             outputs=[
                 self._data._default_joint_pos,
                 self._data._soft_joint_pos_limits,
-                clamped_count,
+                self._clamped_default_count,
             ],
             device=self._device,
         )
-        if clamped_count.numpy()[0] > 0:
+        if report_clamping and self._clamped_default_count.numpy()[0] > 0:
             violation_message = (
                 "Some default joint positions are outside of the range of the new joint limits. Default joint"
                 " positions will be clamped to be within the new joint limits."
             )
-            if warn_limit_violation:
-                logger.warning(violation_message)
-            else:
-                logger.info(violation_message)
+            logger.log(log_level, violation_message)
         # Stage to pinned-host CPU: flatten the vec2f buffer to float32 view.
         self._push_joint_property(
             TT.DOF_LIMIT,
@@ -1621,7 +1613,10 @@ class Articulation(BaseArticulation):
             device=self._device,
         )
         # Clamp default_joint_pos to the new limits and refresh soft_joint_pos_limits.
-        clamped_count = wp.zeros(1, dtype=wp.int32, device=self._device)
+        log_level = logging.WARNING if warn_limit_violation else logging.INFO
+        report_clamping = logger.isEnabledFor(log_level)
+        if report_clamping:
+            self._clamped_default_count.zero_()
         wp.launch(
             clamp_default_joint_pos_and_update_soft_limits_mask,
             dim=(self._num_instances, self._num_joints),
@@ -1634,19 +1629,16 @@ class Articulation(BaseArticulation):
             outputs=[
                 self._data._default_joint_pos,
                 self._data._soft_joint_pos_limits,
-                clamped_count,
+                self._clamped_default_count,
             ],
             device=self._device,
         )
-        if clamped_count.numpy()[0] > 0:
+        if report_clamping and self._clamped_default_count.numpy()[0] > 0:
             violation_message = (
                 "Some default joint positions are outside of the range of the new joint limits. Default joint"
                 " positions will be clamped to be within the new joint limits."
             )
-            if warn_limit_violation:
-                logger.warning(violation_message)
-            else:
-                logger.info(violation_message)
+            logger.log(log_level, violation_message)
         self._push_joint_property(
             TT.DOF_LIMIT,
             self._data._joint_pos_limits.data,
@@ -3960,7 +3952,8 @@ class Articulation(BaseArticulation):
             TT.BODY_COM_POSE,
             TT.BODY_INERTIA,
         ]
-        self._root_view = OvPhysxView(self._ovphysx, pattern=pattern, device=self._device)
+        paths = _expand_env_pattern(pattern, PhysicsManager._sim.get_clone_plan())
+        self._root_view = OvPhysxView(self._ovphysx, prim_paths=paths, device=self._device)
         # ``try_binding_for`` creates and caches each binding, returning ``None`` for tensor
         # types that do not apply to these prims (so a minimal articulation that lacks some
         # of these types is skipped rather than failing the whole init).
@@ -4088,6 +4081,7 @@ class Articulation(BaseArticulation):
         self._ALL_INDICES = wp.array(np.arange(N, dtype=np.int32), device=device)
         self._ALL_BODY_INDICES = wp.array(np.arange(B, dtype=np.int32), device=device)
         self._ALL_JOINT_INDICES = wp.array(np.arange(J, dtype=np.int32), device=device)
+        self._clamped_default_count = wp.zeros(1, dtype=wp.int32, device=self._device)
         self._ALL_FIXED_TENDON_INDICES = wp.array(np.arange(FT, dtype=np.int32), device=device)
         self._ALL_SPATIAL_TENDON_INDICES = wp.array(np.arange(ST, dtype=np.int32), device=device)
         self._sim_env_ids = wp.empty(N, dtype=wp.int32, device=device)
@@ -4384,6 +4378,8 @@ class Articulation(BaseArticulation):
         """Resolve environment indices on ``self._device``."""
         if env_ids is None or (isinstance(env_ids, slice) and env_ids == slice(None)):
             return self._ALL_INDICES
+        if isinstance(env_ids, slice):
+            return wp.from_torch(wp.to_torch(self._ALL_INDICES)[env_ids])
         if isinstance(env_ids, ProxyArray):
             raise TypeError("ProxyArray is output-only; pass .warp or .torch explicitly.")
         if isinstance(env_ids, list):
@@ -4612,7 +4608,7 @@ class Articulation(BaseArticulation):
         self,
         tensor_type: int,
         user_buffer: wp.array,
-        backend_buffer: wp.array | TimestampedBufferWarp | None,
+        backend_buffer: wp.array | TimestampedBuffer | None,
         *,
         cpu_buffer: wp.array | None = None,
         component_count: int | None = None,
@@ -4621,9 +4617,7 @@ class Articulation(BaseArticulation):
     ) -> None:
         """Push a public-order joint property through backend and CPU staging."""
         property_backend = self._get_backend_ordered_joint_buffer(
-            user_buffer,
-            backend_buffer,
-            component_count=component_count,
+            user_buffer, backend_buffer, component_count=component_count
         )
         if cpu_buffer is None:
             cpu_buffer = self._data._stage_to_pinned_cpu(tensor_type, "write", property_backend)
@@ -4631,11 +4625,7 @@ class Articulation(BaseArticulation):
             source = property_backend
             if source.dtype != wp.float32:
                 source = wp.array(
-                    ptr=source.ptr,
-                    shape=cpu_buffer.shape,
-                    dtype=wp.float32,
-                    device=str(source.device),
-                    copy=False,
+                    ptr=source.ptr, shape=cpu_buffer.shape, dtype=wp.float32, device=str(source.device), copy=False
                 )
             wp.copy(cpu_buffer, source)
             # The device-to-host copy into pinned memory is asynchronous; the CPU-only

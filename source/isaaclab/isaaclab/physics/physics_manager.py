@@ -139,6 +139,32 @@ class PhysicsManager(ABC):
         create_world_fixed_joint(articulation_prim, stage)
         return articulation_prim
 
+    @classmethod
+    def setup_deformable_body(cls, prim: Any, deformable_type: str, sim_mesh_prim: Any, vis_mesh_prim: Any) -> None:
+        """Apply the backend's deformable anchor schemas to a prepared deformable body.
+
+        Called by the deformable family writers after the backend-neutral mesh setup: the
+        simulation mesh already exists (a ``UsdGeom.TetMesh`` for volume, a triangle
+        ``UsdGeom.Mesh`` for surface) with collision enabled. The backend applies its sim and
+        body anchor schemas and any backend-specific authoring (rest state, pose bindings,
+        visual-mesh synchronization).
+
+        The base raises: backends with deformable support override.
+
+        Args:
+            prim: The deformable-body prim to anchor.
+            deformable_type: The deformable type, ``"volume"`` or ``"surface"``.
+            sim_mesh_prim: The prepared simulation-mesh prim.
+            vis_mesh_prim: The visual-mesh prim.
+
+        Raises:
+            NotImplementedError: If the backend does not implement deformable fragment setup.
+        """
+        raise NotImplementedError(
+            f"Physics backend '{cls.__name__}' does not implement deformable fragment setup, so the"
+            " 'volume_deformable_props' and 'surface_deformable_props' slots cannot be used with it."
+        )
+
     @staticmethod
     def _relocate_articulation_root(
         articulation_prim: Any,
@@ -158,14 +184,14 @@ class PhysicsManager(ABC):
             )
 
         # Keep this import local for the same reason as the pxr imports above.
-        from ..sim.schemas._backend_hooks import _articulation_root_companion_namespace  # noqa: PLC0415
+        from ..sim.schemas.backend_hooks import articulation_root_companion_namespace  # noqa: PLC0415
 
         registry = Usd.SchemaRegistry()
         root_schema = UsdPhysics.Tokens.PhysicsArticulationRootAPI
         schemas_to_move = []
         for schema_name in articulation_prim.GetPrimTypeInfo().GetAppliedAPISchemas():
             definition = registry.FindAppliedAPIPrimDefinition(schema_name)
-            companion_namespace_override = _articulation_root_companion_namespace(schema_name)
+            companion_namespace_override = articulation_root_companion_namespace(schema_name)
             if schema_name == companion_schema:
                 properties = list(articulation_prim.GetAuthoredPropertiesInNamespace(companion_namespace))
             elif companion_namespace_override is not None:
