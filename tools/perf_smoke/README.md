@@ -2,7 +2,7 @@
 
 The **Performance smoke** Summary shows how the PR performed compared to its base.
 
-**Checks → Performance smoke comparison → Open rendered Performance smoke Summary**
+It's located in **Checks → Performance smoke comparison → Open rendered Performance smoke Summary**
 
 The main table shows:
 
@@ -10,7 +10,7 @@ The main table shows:
 
 with workload, baseline FPS, PR FPS, and percentage change.
 
-These are observed FPS differences, not statistical-significance verdicts. The existing rolling-history gate remains separate and keeps its existing calculations, thresholds, and exit behavior.
+Small FPS changes may just be normal variation between runs.
 
 ## How it runs
 
