@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import numpy as np
 import warp as wp
+from newton import JointType
 
 
 class MockNewtonCollectionView:
@@ -347,6 +348,11 @@ class MockNewtonArticulationView:
     def is_fixed_base(self) -> bool:
         """Whether the articulation has a fixed base."""
         return self._is_fixed_base
+
+    @property
+    def root_joint_type(self) -> int:
+        """Type of the root joint: fixed for a fixed base, free otherwise."""
+        return int(JointType.FIXED if self._is_fixed_base else JointType.FREE)
 
     @property
     def joint_dof_names(self) -> list[str]:

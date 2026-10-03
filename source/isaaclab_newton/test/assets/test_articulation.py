@@ -488,6 +488,33 @@ def test_task_space_allocation_and_capture(monkeypatch, device, first_property):
     assert getattr(data, first_property) is output
 
 
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CPU))
+def test_world_hinged_root_has_no_base_dofs(monkeypatch, device):
+    """A root link hinged to the world adds no floating-base DoF columns to the Jacobian."""
+    builder = ModelBuilder()
+    builder.begin_world()
+    base = builder.add_link(mass=1.0, inertia=wp.mat33(np.eye(3)), label="Robot/base")
+    link = builder.add_link(mass=1.0, inertia=wp.mat33(np.eye(3)), label="Robot/link")
+    builder.add_articulation(
+        [
+            builder.add_joint_revolute(-1, base, axis=(0.0, 1.0, 0.0), label="root"),
+            builder.add_joint_revolute(base, link, axis=(0.0, 1.0, 0.0), label="elbow"),
+        ],
+        label="Robot",
+    )
+    builder.end_world()
+    model = builder.finalize(device=device)
+    state, control = model.state(), model.control()
+    monkeypatch.setattr(SimulationManager, "get_model", lambda: model)
+    monkeypatch.setattr(SimulationManager, "get_state_0", lambda: state)
+    monkeypatch.setattr(SimulationManager, "get_control", lambda: control)
+    view = ArticulationView(model, "Robot", exclude_joint_types=[JointType.FREE, JointType.FIXED])
+    data = ArticulationData(view, device)
+    data._apply_ordering_maps_after_resolve()
+
+    assert data.body_link_jacobian_w.torch.shape[-1] == view.joint_dof_count == 2
+
+
 ##
 # Own scenes. These tests run before the composite scene exists: only one simulation context can be alive.
 ##
