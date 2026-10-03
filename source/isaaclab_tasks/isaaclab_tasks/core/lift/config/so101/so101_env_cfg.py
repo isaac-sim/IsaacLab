@@ -65,7 +65,7 @@ class SO101SceneCfg(lift.SceneCfg):
             size=(0.03, 0.03, 0.03), mass_props=MassCfg(mass=0.05), activate_contact_sensors=True
         ),
         # Start 2 mm above the resting center height to avoid penetration on reset.
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(-0.32, 0.2, 0.272)),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(-0.43, 0.2, 0.272)),
     )
     table: RigidObjectCfg = lift.SceneCfg().table.replace(spawn=lift.TABLE_SPAWN_CFG.replace(visible=True))
     # Object-side sensing supports filtered moving-jaw contact on PhysX as well as Newton.
@@ -191,11 +191,12 @@ class SO101TerminationCfg:
 class SO101LiftEnvCfg(ManagerBasedRLEnvCfg):
     """Lift a tabletop cube to a commanded position under full gravity.
 
-    Episodes last 6 s. Each reset samples the cube within a 5 cm square with yaw in
+    Episodes last 12 s. Each reset samples the cube within a 5 cm square centered
+    27 cm in front of the robot base, with yaw in
     [-45, 45] degrees and returns the arm to an open-gripper home pose. Actor and critic
     receive the same 39 state and command values; there are no cameras, point clouds, or history.
 
-    Five actions command arm joint offsets about home, and one commands the jaw angle.
+    Five actions command arm targets within joint limits, and one commands the jaw angle.
     The command generator and contact-gated position-progress and success rewards are
     shared with Franka and Kuka lift. Target positions are sampled in the robot root
     frame within its reach. Orientation tracking is disabled, with no hold-duration
@@ -218,7 +219,8 @@ class SO101LiftEnvCfg(ManagerBasedRLEnvCfg):
     def __post_init__(self):
         self.commands.object_pose.position_only = True
         self.commands.object_pose.ranges.pos_x = (-0.025, 0.025)
-        self.commands.object_pose.ranges.pos_y = (-0.185, -0.135)
+        # Keep both the cube resets and commanded lifts away from the base.
+        self.commands.object_pose.ranges.pos_y = (-0.295, -0.245)
         self.commands.object_pose.ranges.pos_z = (0.15, 0.20)
         self.commands.object_pose.ranges.roll = (0.0, 0.0)
         self.commands.object_pose.ranges.pitch = (0.0, 0.0)
