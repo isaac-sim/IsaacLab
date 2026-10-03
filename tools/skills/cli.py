@@ -377,13 +377,17 @@ def validate_native_discovery(skills: list[Skill], native_roots: tuple[Path, ...
 
 
 def validate_catalog(skills: list[Skill], root: Path) -> list[str]:
-    """Check that fallback discovery lists every maintained skill."""
+    """Check that described catalog entries match maintained skills; planned entries have no description."""
     catalog = root / "README.md"
     if not catalog.is_file():
         return [f"{_display_path(catalog)}: skill catalog does not exist"]
     listed = set(re.findall(r"^- `((?:developer|user)/[^`]+?)/`:", catalog.read_text(encoding="utf-8"), re.MULTILINE))
-    missing = sorted({skill.root.relative_to(root).as_posix() for skill in skills} - listed)
-    return [f"{_display_path(catalog)}: missing skill catalog entry {path!r}" for path in missing]
+    discovered = {skill.root.relative_to(root).as_posix() for skill in skills}
+    errors = [f"{_display_path(catalog)}: missing skill catalog entry {path!r}" for path in sorted(discovered - listed)]
+    errors.extend(
+        f"{_display_path(catalog)}: stale skill catalog entry {path!r}" for path in sorted(listed - discovered)
+    )
+    return errors
 
 
 def validate_all(root: Path = SKILLS_ROOT) -> list[str]:

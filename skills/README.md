@@ -34,7 +34,7 @@ User skills:
 - `user/isaaclab-transferring-policies-sim-to-sim/`: validate bidirectional PhysX/Newton policy transfer and diagnose transfer gaps.
 - `user/setup-troubleshooting/`: route installation, verification, and setup issues to official docs and canonical commands.
 
-Planned user skills:
+Planned user skills (paths without descriptions are excluded from maintained-catalog validation):
 
 - `user/import-robot-urdf-mjcf/`
 

@@ -23,7 +23,13 @@ Use when preparing the final change for a commit or PR. Follow the user's existi
 
 ## Validation
 
-Use the guide's Unit Testing, Tools, and Contributing Documentation sections for final checks. Run the [skill validator](../../../tools/skills/cli.py) for skill changes. Report checks actually completed separately from CI that is still running.
+Use the guide's Unit Testing, Tools, and Contributing Documentation sections for final checks. For skill changes, run the [skill validator](../../../tools/skills/cli.py):
+
+```bash
+uv run --no-project python tools/skills/cli.py check
+```
+
+Report checks actually completed separately from CI that is still running.
 
 ## Maintenance
 

@@ -21,7 +21,11 @@ Use for Isaac Lab Python changes and reviews, especially APIs and imports that m
 
 ## Validation
 
-Follow the guide's [Unit Testing](../../../docs/source/refs/contributing.rst#unit-testing) and [Tools](../../../docs/source/refs/contributing.rst#tools) sections for focused checks and final validation. Skill-only changes use the [skill validator](../../../tools/skills/cli.py).
+Follow the guide's [Unit Testing](../../../docs/source/refs/contributing.rst#unit-testing) and [Tools](../../../docs/source/refs/contributing.rst#tools) sections for focused checks and final validation. Skill-only changes use the [skill validator](../../../tools/skills/cli.py):
+
+```bash
+uv run --no-project python tools/skills/cli.py check
+```
 
 ## Maintenance
 

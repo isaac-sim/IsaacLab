@@ -192,7 +192,18 @@ def check_lock_pins() -> list[str]:
 
 def cmd_check(args: argparse.Namespace) -> int:
     """PR gate: check the fragments added since the merge base, the release-notes markers and the lock pins."""
-    for ref in (f"origin/{args.base_ref}", args.base_ref):
+    refs = [args.base_ref]
+    if "/" not in args.base_ref:
+        try:
+            resolved_ref = run(
+                "git", "rev-parse", "--symbolic-full-name", "--verify", "--end-of-options", args.base_ref
+            ).strip()
+        except subprocess.CalledProcessError:
+            resolved_ref = None
+        # Preserve origin shorthand for branches, but never shadow HEAD, revisions, or commit SHAs.
+        if resolved_ref is None or resolved_ref == f"refs/heads/{args.base_ref}":
+            refs.insert(0, f"origin/{args.base_ref}")
+    for ref in refs:
         try:
             base_commit = run("git", "rev-parse", "--verify", "--end-of-options", f"{ref}^{{commit}}").strip()
             break
