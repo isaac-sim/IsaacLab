@@ -818,9 +818,9 @@ def test_functions_config():
     """Tests having functions as values in the configuration instance."""
     cfg = FunctionsDemoCfg()
     # check types
-    assert cfg.__annotations__["func"] is type(dummy_function1)
-    assert cfg.__annotations__["wrapped_func"] is type(wrapped_dummy_function3)
-    assert cfg.__annotations__["func_in_dict"] is dict
+    assert type(cfg).__annotations__["func"] is type(dummy_function1)
+    assert type(cfg).__annotations__["wrapped_func"] is type(wrapped_dummy_function3)
+    assert type(cfg).__annotations__["func_in_dict"] is dict
     # check calling
     assert cfg.func() == 1
     assert cfg.wrapped_func() == 4

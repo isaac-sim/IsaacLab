@@ -99,7 +99,7 @@ def configclass(cls, **kwargs):
     """
     # snapshot field names declared in *this* class body before configclass
     # merges parent fields — used by _field_module_dir to resolve {DIR} correctly.
-    _own_ann = set(cls.__dict__.get("__annotations__", {}).keys())
+    _own_ann = set(_own_annotations(cls).keys())
     _own_body = {k for k in cls.__dict__ if not k.startswith("__")}
     cls.__configclass_own_fields__ = frozenset(_own_ann | _own_body)
     # add type annotations
@@ -250,6 +250,20 @@ Private helper functions.
 """
 
 
+def _own_annotations(cls: type) -> dict[str, Any]:
+    """Return the annotations declared in the body of ``cls``, excluding its bases.
+
+    Python 3.14 evaluates annotations lazily (PEP 649), so they are no longer stored in
+    ``cls.__dict__["__annotations__"]`` and reading the class dictionary returns nothing.
+    Forward references are kept unresolved, matching the pre-3.14 behavior.
+    """
+    if sys.version_info >= (3, 14):
+        import annotationlib
+
+        return annotationlib.get_annotations(cls, format=annotationlib.Format.FORWARDREF)
+    return cls.__dict__.get("__annotations__", {})
+
+
 def _add_annotation_types(cls):
     """Add annotations to all elements in the dataclass.
 
@@ -277,7 +291,7 @@ def _add_annotation_types(cls):
         if base is object:
             continue
         # get base class annotations
-        ann = base.__dict__.get("__annotations__", {})
+        ann = _own_annotations(base)
         # iterate over base class members
         # Note: Do not change this to dir(base) since it orders the members alphabetically.
         #   This is not desirable since the order of the members is important in some cases.
@@ -425,7 +439,7 @@ def _process_mutable_types(cls):
     """
     # note: Need to set this up in the same order as annotations. Otherwise, it
     #   complains about missing positional arguments.
-    ann = cls.__dict__.get("__annotations__", {})
+    ann = _own_annotations(cls)
 
     # iterate over all class members and store them in a dictionary
     class_members = {}
