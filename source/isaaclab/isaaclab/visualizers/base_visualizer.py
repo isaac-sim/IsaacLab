@@ -24,6 +24,7 @@ if TYPE_CHECKING:
     from ..managers import ManagerBase
     from ..renderers.base_renderer import VisualMaterialBatch
     from ..scene_data import SceneDataProvider
+    from .key_event_source import KeyEventSource
     from .visualizer_cfg import VisualizerCfg
 
 
@@ -176,6 +177,18 @@ class BaseVisualizer(ABC):
             ``True`` if marker rendering is supported, otherwise ``False``.
         """
         return False
+
+    @property
+    def key_event_source(self) -> KeyEventSource | None:
+        """Keyboard input from this visualizer's local window, or ``None`` when there is none.
+
+        Consumers subscribe to the keys pressed and released while the window has focus, e.g. for
+        keyboard teleoperation or script hotkeys. The source is created on first access after the
+        visualizer is initialized, and the visualizer closes it when the visualizer closes. ``None``
+        before initialization, after close, and for backends or modes with no local window that can
+        report keys (the default).
+        """
+        return None
 
     def supports_live_plots(self) -> bool:
         """Check if visualizer supports live plots.
