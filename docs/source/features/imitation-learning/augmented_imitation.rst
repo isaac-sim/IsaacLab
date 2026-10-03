@@ -33,15 +33,6 @@ In the following example, we will show you how to use Isaac Lab Mimic to generat
           --input_file ./datasets/annotated_dataset.hdf5 --output_file ./datasets/mimic_dataset_1k.hdf5 \
           --task Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos-Mimic-v0
 
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code:: bash
-
-          ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
-          --device cpu --num_envs 10 --generation_num_trials 1000 \
-          --input_file ./datasets/annotated_dataset.hdf5 --output_file ./datasets/mimic_dataset_1k.hdf5 \
-          --task Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos-Mimic-v0
-
 The number of demonstrations can be increased or decreased, 1000 demonstrations have been shown to provide good training results for this task.
 
 Additionally, the number of environments in the ``--num_envs`` parameter can be adjusted to speed up data generation.
@@ -66,12 +57,6 @@ Cosmos Augmentation
           .. code:: bash
 
               uv pip install opencv-python
-
-       .. tab-item:: isaaclab.sh / isaaclab.bat
-
-          .. code:: bash
-
-              ./isaaclab.sh -p -m pip install opencv-python
 
     Without it, the conversion scripts fail to open or write the video files.
 
@@ -121,14 +106,6 @@ Example usage for the cube stacking task:
       .. code:: bash
 
           uv run --extra mimic python scripts/tools/hdf5_to_mp4.py \
-          --input_file datasets/mimic_dataset_1k.hdf5 \
-          --output_dir datasets/mimic_dataset_1k_mp4
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code:: bash
-
-          ./isaaclab.sh -p scripts/tools/hdf5_to_mp4.py \
           --input_file datasets/mimic_dataset_1k.hdf5 \
           --output_dir datasets/mimic_dataset_1k_mp4
 
@@ -295,15 +272,6 @@ Example usage for the cube stacking task:
           --videos_dir datasets/cosmos_dataset_1k_mp4 \
           --output_file datasets/cosmos_dataset_1k.hdf5
 
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code:: bash
-
-          ./isaaclab.sh -p scripts/tools/mp4_to_hdf5.py \
-          --input_file datasets/mimic_dataset_1k.hdf5 \
-          --videos_dir datasets/cosmos_dataset_1k_mp4 \
-          --output_file datasets/cosmos_dataset_1k.hdf5
-
 Pre-generated Dataset
 ^^^^^^^^^^^^^^^^^^^^^
 
@@ -347,14 +315,6 @@ Example usage for the cube stacking task:
           --input_files datasets/mimic_dataset_1k.hdf5 datasets/cosmos_dataset_1k.hdf5 \
           --output_file datasets/mimic_cosmos_dataset.hdf5
 
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code:: bash
-
-          ./isaaclab.sh -p scripts/tools/merge_hdf5_datasets.py \
-          --input_files datasets/mimic_dataset_1k.hdf5 datasets/cosmos_dataset_1k.hdf5 \
-          --output_file datasets/mimic_cosmos_dataset.hdf5
-
 Model Training and Evaluation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -372,8 +332,7 @@ To install the robomimic framework, use the following commands:
    # resolve and verify Robomimic in the uv-managed environment
    uv run --extra mimic python -c "import robomimic"
 
-For a legacy environment, install the same dependencies with
-``./isaaclab.sh -i mimic``.
+To prepare the dependencies explicitly, run ``uv sync --extra mimic``.
 
 Training an agent
 ^^^^^^^^^^^^^^^^^
@@ -387,15 +346,6 @@ Using the generated data, we can now train a visuomotor BC agent for ``IsaacCont
       .. code:: bash
 
           uv run --extra isaacsim,mimic python scripts/imitation_learning/robomimic/train.py \
-          --task IsaacContrib-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos --algo bc \
-          --dataset ./datasets/mimic_cosmos_dataset.hdf5 \
-          --name bc_rnn_image_franka_stack_mimic_cosmos
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code:: bash
-
-          ./isaaclab.sh -p scripts/imitation_learning/robomimic/train.py \
           --task IsaacContrib-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos --algo bc \
           --dataset ./datasets/mimic_cosmos_dataset.hdf5 \
           --name bc_rnn_image_franka_stack_mimic_cosmos
@@ -479,18 +429,6 @@ Example usage for the cube stacking task:
       .. code:: bash
 
           uv run --extra isaacsim,mimic python scripts/imitation_learning/robomimic/robust_eval.py \
-          --task IsaacContrib-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos \
-          --input_dir logs/robomimic/IsaacContrib-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos/bc_rnn_image_franka_stack_mimic_cosmos/*/models \
-          --log_dir robust_results/bc_rnn_image_franka_stack_mimic_cosmos \
-          --log_file result \
-          --seeds 0 \
-          --num_rollouts 15
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code:: bash
-
-          ./isaaclab.sh -p scripts/imitation_learning/robomimic/robust_eval.py \
           --task IsaacContrib-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos \
           --input_dir logs/robomimic/IsaacContrib-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos/bc_rnn_image_franka_stack_mimic_cosmos/*/models \
           --log_dir robust_results/bc_rnn_image_franka_stack_mimic_cosmos \

@@ -65,7 +65,7 @@ from ray import job_submission
 logger = logging.getLogger(__name__)
 
 script_directory = os.path.dirname(os.path.abspath(__file__))
-CONFIG = {"working_dir": script_directory, "executable": "/workspace/isaaclab/isaaclab.sh -p"}
+CONFIG = {"working_dir": script_directory, "executable": "uv run --project /workspace/isaaclab --no-sync isaaclab -p"}
 
 
 def read_cluster_spec(fn: str | None = None) -> list[dict]:

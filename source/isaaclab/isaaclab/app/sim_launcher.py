@@ -530,6 +530,9 @@ def launch_simulation(
     needed), then starts the launcher each required runtime's config names (closed on exit) or
     does nothing for kitless ones. Cameras are auto-enabled for Kit-renderer sensors.
 
+    On exit, stops and releases a simulation context created inside the scope before closing
+    its runtimes. An existing context owned by the caller is preserved.
+
     The run's visualizers and device are decided here, once: they are written to the
     :class:`~isaaclab.sim.SimulationCfg` in *cfg* (``visualizer_cfgs`` and ``device``), which
     every later consumer reads. ``--visualizer`` selects the visualizers that run, none without it;
@@ -620,12 +623,21 @@ def launch_simulation(
     settings.set("/isaaclab/visualizer/types", ",".join(args["visualizer"]) if sim_cfg is None else "")
     settings.set("/isaaclab/visualizer/max_visible_envs", -1 if max_visible_envs is None else int(max_visible_envs))
 
+    from ..sim.simulation_context import SimulationContext
+
+    previous_context = SimulationContext.instance()
     exit_code = 0
     try:
         # With no selected profile this is a no-op; with one, it installs process-wide OmniClient
         # routing before user code runs.
-        configure_storage_profile()
-        yield physics_cfg
+        try:
+            configure_storage_profile()
+            yield physics_cfg
+        finally:
+            # Release runtime consumers before a launcher can terminate the process.
+            context = SimulationContext.instance()
+            if context is not None and context is not previous_context:
+                SimulationContext.clear_instance()
     except KeyboardInterrupt:
         exit_code = 130
         raise
