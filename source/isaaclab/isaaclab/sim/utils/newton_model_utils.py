@@ -109,18 +109,14 @@ def _get_input_value(shader: UsdShade.Shader, name: str) -> tuple[float, float, 
 def _get_surface_shader(material_prim: Usd.Prim) -> Usd.Prim:
     """Get the surface shader from a material."""
     material = UsdShade.Material(material_prim)
-    surface_output = material.GetSurfaceOutput()
-    if not surface_output:
-        surface_output = material.GetOutput("surface")
-    if not surface_output:
-        surface_output = material.GetOutput("mdl:surface")
-
     shader_prim = Usd.Prim()
-
-    if surface_output:
-        connected_source = surface_output.GetConnectedSource()
-        if connected_source:
-            shader_prim = connected_source[0].GetPrim()
+    for surface_output in (material.GetSurfaceOutput(), material.GetSurfaceOutput("mdl")):
+        if surface_output:
+            connected_source = surface_output.GetConnectedSource()
+            if connected_source:
+                shader_prim = connected_source[0].GetPrim()
+                if shader_prim.IsValid():
+                    break
 
     if not shader_prim.IsValid():
         for child in material_prim.GetChildren():

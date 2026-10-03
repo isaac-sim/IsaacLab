@@ -234,6 +234,27 @@ def test_replace_newton_builder_shape_colors_neutral_material():
     assert tuple(builder.shape_color[0]) == pytest.approx(initial)
 
 
+def test_replace_newton_builder_shape_colors_instanced_mdl_material():
+    """An unconnected universal output must not hide an instanced material's MDL surface."""
+    stage = Usd.Stage.CreateInMemory()
+    shader = _make_omnipbr_test_shader(stage, "/World/SourceMaterial")
+    color = (1.0, 0.82, 0.12)
+    shader.CreateInput("diffuse_color_constant", Sdf.ValueTypeNames.Color3f).Set(Gf.Vec3f(*color))
+    shader.CreateOutput("out", Sdf.ValueTypeNames.Token)
+    source = UsdShade.Material(shader.GetPrim().GetParent())
+    source.CreateSurfaceOutput()
+    source.CreateSurfaceOutput("mdl").ConnectToSource(shader.ConnectableAPI(), "out")
+
+    material = UsdShade.Material.Define(stage, "/World/InstancedMaterial")
+    material.GetPrim().GetReferences().AddInternalReference(source.GetPath())
+    material.GetPrim().SetInstanceable(True)
+    _define_mesh_and_bind_material(stage, "/World/Mesh", material)
+    builder = SimpleNamespace(shape_label=["/World/Mesh"], shape_color=[wp.vec3(0.18, 0.18, 0.18)])
+
+    assert _replace_newton_builder_shape_colors_wrapper(builder, stage) == 1
+    assert tuple(builder.shape_color[0]) == pytest.approx(_reference_linear_to_srgb(color))
+
+
 def test_replace_newton_builder_shape_colors_respects_binding_strength():
     """Parent stronger-than-descendants binding overrides direct child binding."""
     # Scene graph (``ComputeBoundMaterial`` on the mesh yields ParentMat / green, not ChildMat / red):
