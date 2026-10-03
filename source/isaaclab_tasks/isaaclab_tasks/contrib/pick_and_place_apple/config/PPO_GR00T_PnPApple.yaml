@@ -141,6 +141,7 @@ env:
         - key: "robot_policy_joint_pos"
 
       gr00t_mapping:
+        language: annotation.human.task_description
         video:
           main_images: "video.high"
           extra_view_images:
