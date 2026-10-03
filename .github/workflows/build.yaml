@@ -1020,6 +1020,7 @@ jobs:
     - uses: actions/checkout@v6
       with:
         fetch-depth: 1
+        lfs: true
     - name: Pull pull-request image
       uses: ./.github/actions/ecr-build-push-pull
       with:
@@ -1028,6 +1029,7 @@ jobs:
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         dockerfile-path: docker/Dockerfile.base
         cache-tag: cache-base
+        pull-on-deps-hit: 'true'
 
     # Kit-free combinations only: name|task|num_envs|bench_timeout_s|args
     - name: Define benchmark matrix
@@ -1058,90 +1060,21 @@ jobs:
         restore-keys: |
           perf-jit-warp${{ steps.warp_version.outputs.value }}-
 
+    - name: Prepare benchmark source revision evidence
+      run: |
+        python3 tools/perf_smoke/source_revision.py prepare \
+          --checkout-root "$GITHUB_WORKSPACE" \
+          --output "$GITHUB_WORKSPACE/benchmark-output/source-manifest.json"
+
     - name: Run runtime benchmarks
       env:
         CI_IMAGE_TAG: ${{ needs.config.outputs.ci_image_tag }}
       run: |
-        set -uo pipefail
-        install -d -m 0777 "${GITHUB_WORKSPACE}/jit-cache/warp" "${GITHUB_WORKSPACE}/jit-cache/nv"
-        # Restored version directories and kernels must also be writable by the container user.
-        chmod -R a+rwX "${GITHUB_WORKSPACE}/jit-cache" || exit 1
-
-        container=""
-        cleanup_container() {
-          if [ -n "$container" ]; then
-            docker rm -f "$container" >/dev/null 2>&1 || true
-          fi
-        }
-        trap cleanup_container EXIT
-        trap 'exit 130' INT
-        trap 'exit 143' TERM
-
-        run_attempt() {
-          local attempt="$1"
-          container="performance-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${leg}-${sample}-${attempt}"
-          cleanup_container
-          timeout "${bench_timeout_s}" docker run --name "$container" --gpus all --network=host --ipc=host \
-            -e WARP_CACHE_PATH=/tmp/jit-cache/warp \
-            -e CUDA_CACHE_PATH=/tmp/jit-cache/nv \
-            -v "${GITHUB_WORKSPACE}/jit-cache:/tmp/jit-cache" \
-            --entrypoint bash "$CI_IMAGE_TAG" -lc \
-            "set -euo pipefail
-            mkdir -p /tmp/benchmark-output
-            uv run --no-sync isaaclab benchmark runtime \
-              --task '$task' \
-              --num_envs '$num_envs' \
-              --num_steps 200 \
-              --warmup_steps 100 \
-              --seed 42 \
-              --benchmark_formatter schema \
-              --output_path /tmp/benchmark-output \
-              $args"
-          local status=$?
-          docker cp "$container:/tmp/benchmark-output/." "benchmark-output/${leg}/sample-${sample}/" 2>/dev/null || true
-          cleanup_container
-          container=""
-          local -a bundles
-          mapfile -t bundles < <(find "benchmark-output/${leg}/sample-${sample}" -maxdepth 1 -type f -name 'benchmark_runtime_*.json')
-          if [ "$status" -eq 0 ] && [ "${#bundles[@]}" -ne 1 ]; then
-            echo "::error::${leg} exited 0 but did not produce exactly one benchmark JSON"
-            return 1
-          fi
-          return $status
-        }
-
-        failed_legs=()
-        while IFS='|' read -r leg task num_envs bench_timeout_s args; do
-          echo "::group::performance-smoke: ${leg}"
-          install -d -m 0777 "benchmark-output/${leg}"
-          leg_ok=true
-          # ASV needs repeated independent runs on both sides for significance tests.
-          # Per-frame samples within one simulation are not independent CI runs.
-          for sample in 1 2 3; do
-            mkdir -p "benchmark-output/${leg}/sample-${sample}"
-            if ! run_attempt 1; then
-              echo "::warning::${leg} sample ${sample} failed; retrying once"
-              rm -f "benchmark-output/${leg}/sample-${sample}/"benchmark_runtime_*.json
-              if ! run_attempt 2; then
-                echo "::error::${leg} sample ${sample} failed on both attempts"
-                leg_ok=false
-                break
-              fi
-            fi
-          done
-          if [ "$leg_ok" = true ]; then
-            echo ok > "benchmark-output/${leg}/status"
-          else
-            echo failed > "benchmark-output/${leg}/status"
-            failed_legs+=("$leg")
-          fi
-          echo "::endgroup::"
-        done < benchmark-legs.tsv
-
-        if [ "${#failed_legs[@]}" -gt 0 ]; then
-          echo "::error::performance-smoke: failed combination(s): ${failed_legs[*]}"
-          exit 1
-        fi
+        CHECKOUT_ROOT="$GITHUB_WORKSPACE" BENCHMARK_OUTPUT="$GITHUB_WORKSPACE/benchmark-output" \
+        SOURCE_REVISION_LAUNCHER="$GITHUB_WORKSPACE/tools/perf_smoke/source_revision.py" \
+        SOURCE_MANIFEST="$GITHUB_WORKSPACE/benchmark-output/source-manifest.json" \
+        BENCHMARK_LEGS="$GITHUB_WORKSPACE/benchmark-legs.tsv" JIT_CACHE_ROOT="$GITHUB_WORKSPACE/jit-cache" \
+        bash "$GITHUB_WORKSPACE/tools/perf_smoke/run_benchmarks.sh"
 
     - name: Save warm JIT cache
       if: always() && github.event_name == 'push' && github.ref == 'refs/heads/develop'
