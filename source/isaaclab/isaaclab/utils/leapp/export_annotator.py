@@ -371,7 +371,7 @@ class ExportPatcher:
                 elif func_name == "generated_commands":
                     term_cfg.func = self._wrap_generated_commands(original_func, term_cfg)
                 elif func_name == "image_rgb":
-                    term_cfg.func = self._wrap_image_rgb(original_func, proxy_env)
+                    term_cfg.func = _ImageRgbExportProxy(original_func, proxy_env)
                 elif func_name == "projected_gravity":
                     term_cfg.func = self._wrap_projected_gravity(original_func, proxy_env)
                 else:
@@ -532,11 +532,6 @@ class ExportPatcher:
 
         wrapped.__name__ = getattr(original_func, "__name__", "unknown")
         return wrapped
-
-    @staticmethod
-    def _wrap_image_rgb(original_func, proxy_env):
-        """Wrap RGB preprocessing with Torch operations that remain traceable during export."""
-        return _ImageRgbExportProxy(original_func, proxy_env)
 
     @staticmethod
     def _wrap_projected_gravity(original_func, proxy_env):

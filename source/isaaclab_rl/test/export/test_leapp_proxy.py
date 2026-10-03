@@ -239,12 +239,14 @@ def test_rgb_observation_export_keeps_live_camera_input(tmp_path: Path):
     patcher._patch_observation_manager(obs_manager, proxy_env)
 
     leapp.start("camera-task", save_path=str(tmp_path))
-    destination = torch.empty((1, 3, 4, 4), dtype=torch.float32)
-    observation = term_cfg.func(env, **params, out=destination)
-    assert observation is destination
-    downstream = observation.square().mean(dim=(1, 2, 3))
-    annotate.output_tensors("camera-task", {"downstream": downstream}, export_with="onnx-dynamo")
-    leapp.stop()
+    try:
+        destination = torch.empty((1, 3, 4, 4), dtype=torch.float32)
+        observation = term_cfg.func(env, **params, out=destination)
+        assert observation is destination
+        downstream = observation.square().mean(dim=(1, 2, 3))
+        annotate.output_tensors("camera-task", {"downstream": downstream}, export_with="onnx-dynamo")
+    finally:
+        leapp.stop()
     leapp.compile_graph(visualize=False, validate=True)
 
     pipeline = tmp_path / "camera-task" / "camera-task.yaml"

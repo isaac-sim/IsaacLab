@@ -75,15 +75,6 @@ class DeformableObjectData(BaseDeformableObjectData):
         self._root_pos_w_ta: ProxyArray | None = None
         self._root_vel_w_ta: ProxyArray | None = None
 
-    def update(self, dt: float):
-        """Updates the data for the deformable object.
-
-        Args:
-            dt: The time step for the update. This must be a positive value.
-        """
-        # update the simulation timestamp
-        self._sim_timestamp += dt
-
     ##
     # Defaults.
     ##
