@@ -33,6 +33,8 @@ plugins = Path(importlib.util.find_spec("ovrtx").origin).parent / "bin" / "plugi
 steps = ["none", "load", "cudart", "jit"]
 if steps.index(variant) >= 1:
     cudart = ctypes.CDLL(str(plugins / "gpu.foundation" / "libcudart.so.12"))
+    # NVRTC loads its builtins by name at compile time; OVRTX's plugin loader makes them findable.
+    ctypes.CDLL(str(plugins / "rtx" / "libnvrtc-builtins.so.12.8"), mode=ctypes.RTLD_GLOBAL)
     nvrtc = ctypes.CDLL(str(plugins / "rtx" / "libnvrtc.so.12"))
 if steps.index(variant) >= 2:
     assert cudart.cudaSetDevice(rank) == 0
@@ -43,7 +45,14 @@ if steps.index(variant) >= 3:
     src = b'extern "C" __global__ void k(float* x) { x[threadIdx.x] += 1.0f; }'
     assert nvrtc.nvrtcCreateProgram(ctypes.byref(prog), src, b"k.cu", 0, None, None) == 0
     opts = (ctypes.c_char_p * 1)(f"--gpu-architecture=sm_{major}{minor}".encode())
-    assert nvrtc.nvrtcCompileProgram(prog, 1, opts) == 0
+    result = nvrtc.nvrtcCompileProgram(prog, 1, opts)
+    if result != 0:
+        log_size = ctypes.c_size_t()
+        nvrtc.nvrtcGetProgramLogSize(prog, ctypes.byref(log_size))
+        log = ctypes.create_string_buffer(log_size.value)
+        nvrtc.nvrtcGetProgramLog(prog, log)
+        nvrtc.nvrtcGetErrorString.restype = ctypes.c_char_p
+        raise RuntimeError(f"nvrtc {result} {nvrtc.nvrtcGetErrorString(result)}: {log.value.decode()}")
     size = ctypes.c_size_t()
     assert nvrtc.nvrtcGetCUBINSize(prog, ctypes.byref(size)) == 0
     cubin = ctypes.create_string_buffer(size.value)

@@ -269,7 +269,7 @@ jobs:
           result-file: multi-gpu-smoke-report.xml
           container-name: isaac-lab-mgpu-smoke-${{ github.run_id }}-${{ github.run_attempt }}
           image-tag: ${{ env.CI_IMAGE_TAG }}
-          pytest-options: -m "not kitless" -n 4 --runxfail -o junit_logging=all -k "newton-kit_rtx-default_order or isaacsim_physx-kit_rtx-default_order"
+          pytest-options: -m "not kitless" -n 4 --runxfail -o junit_logging=all -k "newton-kit_rtx-unordered_devices or isaacsim_physx-kit_rtx-default_order"
           # Run the checkout, not the image's baked-in copy. ecr-build-push-pull serves a
           # commit-tagged or deps-cache image, so on a cache hit the container carries source
           # from whenever that image was built -- CI then reports a pass or fail for code this
@@ -327,7 +327,7 @@ jobs:
           result-file: multi-gpu-smoke-kitless-report.xml
           container-name: isaac-lab-mgpu-smoke-kitless-${{ github.run_id }}-${{ github.run_attempt }}
           image-tag: ${{ env.CI_KITLESS_IMAGE_TAG }}
-          pytest-options: -m kitless -n 4 --runxfail -o junit_logging=all -k "newton-ovrtx-default_order or newton-newton_renderer-default_order or tmp_nccl"
+          pytest-options: -m kitless -n 4 --runxfail -o junit_logging=all -k "(tmp_nccl and jit) or ovphysx-ovrtx-default_order or newton-ovrtx-unordered_devices or newton-newton_renderer-default_order"
           # Same reason as the Kit lane.
           volume-mount-source: ${{ github.workspace }}
 
