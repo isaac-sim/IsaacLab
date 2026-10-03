@@ -240,8 +240,15 @@ def test_camera_data_allocates_supported_subset_and_aliases_rgb():
     assert data.output["depth"].shape == (2, 8, 16, 1)
     assert data.output["depth"].dtype == wp.float32
     assert data.output["rgb"].warp.ptr == data.output["rgba"].warp.ptr
+    assert data.rgb is data.output["rgb"]
     assert data.image_shape == (8, 16)
     assert data.info == {"rgba": None, "rgb": None, "depth": None}
+
+    depth_only = CameraData.allocate(
+        data_types=["depth"], height=8, width=16, num_views=2, device="cpu", supported_specs=specs
+    )
+    with pytest.raises(RuntimeError, match="Add 'rgb' to CameraCfg.data_types"):
+        _ = depth_only.rgb
 
 
 def test_camera_data_allocate_raises_on_unknown_name():

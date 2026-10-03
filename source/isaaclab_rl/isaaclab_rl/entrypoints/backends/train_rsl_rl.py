@@ -95,7 +95,7 @@ def _resolve_checkpoint(args_cli: argparse.Namespace, agent_cfg: RslRlBaseRunner
         )
     if args_cli.checkpoint:
         return retrieve_file_path(args_cli.checkpoint)
-    if agent_cfg.algorithm.class_name == "Distillation":
+    if agent_cfg.class_name == "DistillationRunner":
         raise ValueError("Distillation training requires --checkpoint.")
     return None
 
