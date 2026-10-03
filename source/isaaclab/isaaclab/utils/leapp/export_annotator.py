@@ -39,13 +39,14 @@ from contextlib import suppress
 from typing import TYPE_CHECKING, Any
 
 import torch
-from leapp import annotate
+from leapp import ExportManager, annotate
 from leapp.utils.tensor_description import TensorSemantics
 
 from ...actuators import IdealPDActuator, ImplicitActuator
 from ...assets.articulation.base_articulation import BaseArticulation
 from ...managers import ManagerTermBase
 from ..array import convert_to_torch
+from ..images import CameraFrameStack
 from .leapp_semantics import select_element_names
 from .proxy import _ArticulationWriteProxy, _DataProxy, _EnvProxy, _ManagerTermProxy
 from .utils import (
@@ -277,7 +278,7 @@ class ExportPatcher:
     # ── Observation manager patches ───────────────────────────────
 
     def _patch_history_buffers(self, obs_manager):
-        """Patch history-enabled observation buffers to export as LEAPP state.
+        """Patch observation history and camera frame buffers to export as LEAPP state.
 
         Args:
             obs_manager: Observation manager whose history buffers should be
@@ -293,20 +294,17 @@ class ExportPatcher:
             group_term_names = term_names_by_group.get(group_name, [])
 
             for index, term_cfg in enumerate(term_cfgs):
-                history_length = getattr(term_cfg, "history_length", 0) or 0
-                if history_length <= 0:
-                    continue
-
                 if index >= len(group_term_names):
                     continue
 
                 term_name = group_term_names[index]
                 circular_buffer = group_buffers.get(term_name)
-                if circular_buffer is None:
-                    continue
+                if circular_buffer is not None:
+                    self._patch_history_buffer_append(circular_buffer, f"h_{group_name}_{term_name}")
 
-                state_name = f"h_{group_name}_{term_name}"
-                self._patch_history_buffer_append(circular_buffer, state_name)
+                frames = getattr(term_cfg.func, "_frames", None)
+                if isinstance(frames, CameraFrameStack) and frames._buffer is not None:
+                    self._patch_history_buffer_append(frames._buffer, f"frames_{group_name}_{term_name}")
 
     def _patch_history_buffer_append(self, circular_buffer, state_name: str):
         """Replace ``append`` with a functional shift so history is LEAPP state.
@@ -314,8 +312,9 @@ class ExportPatcher:
         Production :meth:`~isaaclab.utils.buffers.CircularBuffer.append` shifts
         with in-place ``copy_``, which the tracer cannot see. During export the
         same oldest→newest layout is produced with ``torch.cat`` so the
-        recurrence appears in the graph. Observation-manager buffers use the
-        legacy ``(K, B, ...)`` layout (no ``stack_dim``).
+        recurrence appears in the graph, using the buffer's configured history
+        dimension. The push counter is also feedback state so first-frame
+        backfill is evaluated at inference time rather than frozen during tracing.
 
         Args:
             circular_buffer: Circular buffer instance to patch.
@@ -333,6 +332,10 @@ class ExportPatcher:
             Args:
                 data: New observation slice appended to the buffer.
             """
+            if not ExportManager.is_interpret_graph_enabled():
+                circular_buffer._leapp_original_append(data)
+                return
+
             if data.shape[0] != circular_buffer.batch_size:
                 raise ValueError(
                     f"The input data has '{data.shape[0]}' batch size while expecting '{circular_buffer.batch_size}'"
@@ -340,14 +343,22 @@ class ExportPatcher:
             data = data.to(circular_buffer._device)
 
             if circular_buffer._buffer is None:
-                # Match first-push backfill: broadcast into all K slots.
-                circular_buffer._buffer = data.unsqueeze(0).expand(circular_buffer._max_len_int, *data.shape).clone()
-            else:
-                buffer = annotate.state_tensors(task_name, {state_name: circular_buffer._buffer})
-                circular_buffer._buffer = torch.cat([buffer[1:], data.unsqueeze(0)], dim=0)
+                circular_buffer._allocate_buffer(data)
+                circular_buffer._buffer.zero_()
 
-            circular_buffer._buffer = annotate.update_state(task_name, {state_name: circular_buffer._buffer})
-            circular_buffer._num_pushes += 1
+            buffer, num_pushes = annotate.state_tensors(
+                task_name,
+                {state_name: circular_buffer._buffer, f"{state_name}_num_pushes": circular_buffer._num_pushes},
+            )
+            k_pos = 0 if circular_buffer._stack_dim_internal is None else circular_buffer._stack_dim_internal
+            frame = data.unsqueeze(k_pos)
+            buffer = torch.cat((buffer.narrow(k_pos, 1, circular_buffer.max_length - 1), frame), dim=k_pos)
+            mask_shape = [1] * buffer.ndim
+            mask_shape[1 if circular_buffer._stack_dim_internal is None else 0] = circular_buffer.batch_size
+            buffer = torch.where((num_pushes == 0).view(mask_shape), frame, buffer)
+            circular_buffer._buffer, circular_buffer._num_pushes = annotate.update_state(
+                task_name, {state_name: buffer, f"{state_name}_num_pushes": num_pushes + 1}
+            )
             circular_buffer._need_reset = False
 
         circular_buffer.append = patched_append
