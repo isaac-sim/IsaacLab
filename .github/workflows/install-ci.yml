@@ -36,8 +36,7 @@ jobs:
     name: Detect Changes
     runs-on: ubuntu-latest
     outputs:
-      # TEMP (revert before review): mask Installation Tests while testing multi-GPU CI timing.
-      run_install_tests: 'false'
+      run_install_tests: ${{ steps.detect.outputs.run_install_tests }}
     steps:
       - id: detect
         env:
