@@ -289,6 +289,15 @@ are converted to GR00T format:
        prefix_pad: 15
        suffix_pad: 0
 
+Action chunks across resets
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Isaac Lab resets completed environments inside ``step()``. For absolute joint-position policies,
+set ``env.train.isaaclab.hold_pose_on_midchunk_reset: true`` to replace the remaining old-episode
+actions with the returned joint positions until the next chunk. The configured ``states`` vector
+must contain only those joint positions, in the same order and units as the environment actions.
+This option defaults to false and does not apply to delta-position, velocity, or torque actions.
+
 Key Files
 ---------
 
