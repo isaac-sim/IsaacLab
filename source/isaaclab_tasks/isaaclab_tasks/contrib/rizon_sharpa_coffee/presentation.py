@@ -169,10 +169,7 @@ class CoffeePresentation:
         self._liquid_radii = None
         self._surface = None
         self._surface_history = SurfaceHistory(surface_smoothing_time)
-        self._surface_step = -1
-        self._surface_time = None
-        self._surface_mesh = None
-        self._surface_cache = None
+        self._clear_surface_cache()
         self._surface_ids = None
         self._surface_ids_host = None
         self._surface_points = None
@@ -485,17 +482,21 @@ class CoffeePresentation:
             np.asarray([viewer._preview_surface_opacity_value(opacity)], dtype=np.float32),
         )
 
+    def _clear_surface_cache(self) -> None:
+        """Invalidate geometry and temporal history together at lifecycle boundaries."""
+        self._surface_history.reset()
+        self._surface_step = -1
+        self._surface_time = None
+        self._surface_mesh = None
+        self._surface_cache = None
+
     def reset(self, env_ids=None) -> None:
         """Clear appearance after the single demo world is reset."""
         if env_ids is not None and not isinstance(env_ids, slice) and len(env_ids) == 0:
             return
         self._rtx_static_grain_views.clear()
         self._tint_elapsed = 0.0
-        self._surface_history.reset()
-        self._surface_step = -1
-        self._surface_time = None
-        self._surface_mesh = None
-        self._surface_cache = None
+        self._clear_surface_cache()
         if self._water is not None:
             self._dye_mass.zero_()
             self._next_dye_mass.zero_()
@@ -510,9 +511,7 @@ class CoffeePresentation:
         self._kit_visualizers.clear()
         self._rtx_water_shaders.clear()
         self._rtx_static_grain_views.clear()
-        self._surface_history.reset()
-        self._surface_mesh = None
-        self._surface_cache = None
+        self._clear_surface_cache()
 
 
 @wp.kernel

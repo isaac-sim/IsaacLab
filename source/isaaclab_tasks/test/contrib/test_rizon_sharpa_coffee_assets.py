@@ -18,7 +18,7 @@ from isaaclab_tasks.contrib.rizon_sharpa_coffee.assets import build_coffee_asset
 def test_imported_coffee_props_have_open_cavities_and_solid_bottoms(tmp_path: Path):
     """Detect sealed mouths, inverted shells and accidental convexification in USD."""
     paths = build_coffee_assets(tmp_path)
-    # Distinct physical fixtures: a curved bowl, a straight glass and an elliptical
+    # Distinct physical fixtures: a curved bowl, a straight cup and an elliptical
     # spoon. Probe heights are inside the cavities, independently of tessellation.
     fixtures = (("bowl", 0.020, 0.004), ("cup", 0.040, 0.004), ("spoon", 0.005, 0.0))
     with wp.ScopedDevice("cpu"):
@@ -52,3 +52,14 @@ def test_imported_coffee_props_have_open_cavities_and_solid_bottoms(tmp_path: Pa
             assert visuals, f"{name} has no visible geometry"
             visible_bottom = trimesh.util.concatenate(visuals).ray.intersects_any(origin, np.array([[0.0, 0.0, -1.0]]))
             assert visible_bottom[0], f"{name} decoration hides the vessel's visible shell"
+            if name == "cup":
+                handle = next(
+                    trimesh.Trimesh(source.vertices, np.asarray(source.indices).reshape(-1, 3), process=False)
+                    for label, source in zip(builder.shape_label, builder.shape_source, strict=True)
+                    if label.endswith("/Handle")
+                )
+                assert handle.is_volume, "Cup handle has an open or inverted tube"
+                attached = geometry.contains(handle.vertices)
+                assert attached[handle.vertices[:, 2] > 0.058].any(), "Cup handle has no upper wall attachment"
+                assert attached[handle.vertices[:, 2] < 0.030].any(), "Cup handle has no lower wall attachment"
+                assert np.linalg.norm(handle.vertices[:, :2], axis=1).min() > 0.039, "Handle enters the cup opening"

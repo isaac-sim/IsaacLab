@@ -15,6 +15,21 @@ entries are offset by −4 and +4 mm. The original 50 × 32 × 10 mm spoon and
 1.8 mm shell are retained. A delivered dose of 8–10 g per scoop has not been
 established with this spoon.
 
+## Task and demo
+
+The Gym registration points to `CoffeeEnv`, a `ManagerBasedRLEnv`, and
+`CoffeeEnvCfg`. The task owns the action interface, observations, rewards,
+terminations, scene resets and coupled physics. `mdp.py` defines its manager
+terms; `dissolution.py` performs physical material conversion independently of
+rendering. This is the reusable environment for future learning experiments.
+
+`scripts/demos/rizon_sharpa_coffee.py` is the demonstration runner. It selects
+scripted IK or AVP input, configures optional presentation, follows the spoon
+with a camera and records video. Both controllers send actions through the same
+task interface. Grain rendering, colour transport and surface reconstruction
+are optional presentation resources; learning can run with no visualizer and
+`grains_per_particle = 0`.
+
 ## Requirements and assets
 
 Use the repository's uv-managed environment with Newton and a CUDA-capable
@@ -50,7 +65,7 @@ this workstation:
 ```bash
 uv run --no-sync python scripts/demos/rizon_sharpa_coffee.py \
     --mode scripted --water --visualizer kit --headless --video \
-    --voxel_size 0.003 --physics_hz 200 --mpm_iterations 50 \
+    --voxel_size 0.003 --physics_hz 200 --mpm_iterations 100 \
     --mpm_grid_capacity 49152 --grains_per_particle 5 \
     --render_samples 4 --width 1280 --height 720 \
     --output_dir logs/coffee_video
@@ -106,6 +121,9 @@ Native per-face collider materials implement the taper before graph capture;
 the closed shell and handle retain their geometry. `CoffeeEnvCfg.spoon_margin_voxels`
 and `--spoon_rim_margin_scale` control these values. Reducing the timestep rate or
 margin requires checking loaded-tool containment as well as the complete path.
+Particle speed is capped at half a physics voxel per MPM substep, up to 4 m/s.
+This keeps coarse-step advection within the native collider query band and
+limits fast pressure-driven outliers without projecting particles out of walls.
 
 At 2 mm, the default source contains 456,836 physical particles at 1 mm spacing,
 with 205.5762 g total mass and density 450 kg/m³. Coarser grids resample the fill
@@ -116,8 +134,15 @@ physical contact resolution.
 
 ## Water, dissolution and surface reconstruction
 
-`--water` initializes water in the cup. Soluble coffee accumulates wet contact
-time and converts after 0.12 s into the contacted liquid's MPM material.
+`--water` initializes a fuller cup with a 75 mm seed height and a 37 mm seed
+radius. The free surface settles below the seed height within the cup's 39 mm
+interior radius; headroom remains for pouring and stirring.
+`--water_fill_height` overrides the task default within 12–79 mm. For example,
+`--water_fill_height 0.060` reduces the initial fill. The procedural cup handle
+has upper and lower wall attachments and remains visual decoration.
+
+Soluble coffee accumulates wet contact time and converts after 0.12 s into the
+contacted liquid's MPM material.
 Conversion retains mass, position, velocity and particle identity, sets the
 reference volume from liquid density, and clears granular stress. The physical
 conversion runs inside captured MPM stepping even when presentation is absent.

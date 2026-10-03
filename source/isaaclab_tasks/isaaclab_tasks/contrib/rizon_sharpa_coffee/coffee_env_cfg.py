@@ -24,7 +24,7 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils import configclass
 
 from . import mdp
-from .assets import BOWL_POSITION, CUP_POSITION, coffee_cavity_radius
+from .assets import BOWL_POSITION, CUP_INNER_RADIUS, CUP_POSITION, coffee_cavity_radius
 from .physics import configure_contact_grasp, make_physics_cfg
 from .robot import (
     ARM_JOINT_NAMES,
@@ -143,7 +143,8 @@ class CoffeeEnvCfg(ManagerBasedRLEnvCfg):
     grasp_mode: Literal["mounted", "contact"] = "mounted"
     """Use a kinematic tool mount or a free spoon held by rigid finger contacts."""
     coffee_fill_height: float = 0.065
-    water_fill_height: float = 0.060
+    water_fill_height: float = 0.075
+    """Initial water seed height [m]; gravity spreads the fill to a lower free surface."""
     success_fraction: float = 0.005
     success_dwell_s: float = 0.5
     spoon_offset_pos: tuple[float, float, float] = DEFAULT_SPOON_OFFSET_POS
@@ -173,8 +174,8 @@ def configure_scene(cfg: CoffeeEnvCfg) -> None:
         raise ValueError("spoon_proxy_mass_scale must be finite and positive.")
     if not 0.009 <= cfg.coffee_fill_height <= 0.075:
         raise ValueError("coffee_fill_height must be between 9 and 75 mm.")
-    if not 0.012 <= cfg.water_fill_height <= 0.07:
-        raise ValueError("water_fill_height must be between 12 and 70 mm.")
+    if not 0.012 <= cfg.water_fill_height <= 0.079:
+        raise ValueError("water_fill_height must be between 12 and 79 mm.")
     paths = build_coffee_assets()
     cfg.scene.robot = get_robot_cfg(contact_grasp=cfg.grasp_mode == "contact")
     from .grasp_reset import configure_grasp_reset
@@ -209,7 +210,9 @@ def configure_scene(cfg: CoffeeEnvCfg) -> None:
     spacing = cfg.voxel_size / 2.0
     cfg.scene.coffee = _particle_cfg("Coffee", BOWL_POSITION, 0.060, cfg.coffee_fill_height, spacing, False)
     cfg.scene.water = (
-        _particle_cfg("Water", CUP_POSITION, 0.035, cfg.water_fill_height, spacing, True) if cfg.water_enabled else None
+        _particle_cfg("Water", CUP_POSITION, CUP_INNER_RADIUS - 0.002, cfg.water_fill_height, spacing, True)
+        if cfg.water_enabled
+        else None
     )
     solver = cfg.sim.physics.solver_cfg.entries[1].solver_cfg
     solver.voxel_size = cfg.voxel_size
@@ -228,7 +231,15 @@ def configure_scene(cfg: CoffeeEnvCfg) -> None:
     solver.max_upper_node_count = max(32, cfg.scene.num_envs)
 
 
-def _particle_cfg(name, position, radius, height, spacing, water) -> MPMObjectCfg:
+def _particle_cfg(
+    name: str,
+    position: tuple[float, float, float],
+    radius: float,
+    height: float,
+    spacing: float,
+    water: bool,
+) -> MPMObjectCfg:
+    """Seed a deterministic fill and bind its granular or liquid material."""
     axis = np.arange(-radius + spacing / 2.0, radius, spacing)
     z = np.arange(0.007 + spacing / 2.0, height, spacing)
     points = np.stack(np.meshgrid(axis, axis, z, indexing="ij"), axis=-1).reshape(-1, 3)

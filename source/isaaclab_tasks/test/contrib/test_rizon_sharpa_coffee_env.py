@@ -29,6 +29,9 @@ def test_batched_dynamics_attachment_and_partial_reset(device, tmp_path):
     cfg.scene.num_envs = 2
     cfg.voxel_size = 0.005
     cfg.sim.device = device
+    cfg.sim.dt = 0.005
+    cfg.decimation = 2
+    cfg.sim.physics.solver_cfg.entries[0].substeps = 4
     cfg.grains_per_particle = 0
     reset = default_grasp_reset()
     reset.joint_targets["right_thumb_IP"] += 0.02
@@ -102,6 +105,14 @@ def test_batched_dynamics_attachment_and_partial_reset(device, tmp_path):
             assert torch.isfinite(targets).all()
             assert (targets >= limits[..., 0]).all()
             assert (targets <= limits[..., 1]).all()
+
+            # Fast input must remain bounded during graph replay at the coarse
+            # material timestep: a 5 mm voxel permits 2.5 mm of travel per tick.
+            velocity = torch.zeros_like(coffee.data.particle_vel_w.torch)
+            velocity[..., 2] = 4.0
+            coffee.write_particle_velocity_to_sim_index(velocity)
+            env.step(action)
+            assert coffee.data.particle_vel_w.torch.norm(dim=-1).max() <= 0.5001
         finally:
             env.close()
 

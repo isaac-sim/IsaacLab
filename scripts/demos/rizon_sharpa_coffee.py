@@ -37,6 +37,9 @@ def _parse_args():
         action="store_true",
         help="Fill the cup, dissolve wet coffee into liquid, diffuse its colour and stir.",
     )
+    parser.add_argument(
+        "--water_fill_height", type=float, default=None, help="Override the task's water seed height [m]."
+    )
     parser.add_argument("--voxel_size", type=float, default=0.002)
     parser.add_argument(
         "--spoon_rim_margin_scale", type=float, default=1.0 / 9.0, help="Rim margin relative to the broad spoon faces."
@@ -144,6 +147,8 @@ def _make_env_cfg(args, parser, video_stride):
     if args.spoon_proxy_mass_scale is not None:
         cfg.spoon_proxy_mass_scale = args.spoon_proxy_mass_scale
     cfg.water_enabled = args.water
+    if args.water_fill_height is not None:
+        cfg.water_fill_height = args.water_fill_height
     cfg.coffee_wetting_time = args.coffee_wetting_time
     cfg.grasp_reset_path = args.grasp_reset
     cfg.grasp_mode = args.grasp_mode
@@ -261,6 +266,7 @@ def main() -> None:
                 coffee_mass_g=coffee_mass_g,
                 coffee_particle_mass_g=cfg.scene.coffee.spawn.mass * 1000.0,
                 water_particles=len(cfg.scene.water.spawn.positions) if cfg.water_enabled else 0,
+                water_fill_height_m=cfg.water_fill_height if cfg.water_enabled else None,
                 coffee_wetting_time_s=cfg.coffee_wetting_time if cfg.water_enabled else None,
                 grains_per_particle=cfg.grains_per_particle,
                 render_samples=args.render_samples,

@@ -111,6 +111,42 @@ def cup_mesh() -> trimesh.Trimesh:
     )
 
 
+def cup_handle_mesh() -> trimesh.Trimesh:
+    """Return a capped C-shaped handle embedded in the cup at both ends.
+
+    Sweep a round tube around half an ellipse in the XZ plane. The ends lie
+    inside the ceramic wall rather than touching it at a single tangent point.
+    The handle stays outside the opening and is visual decoration only.
+    """
+    angles = np.linspace(-math.pi / 2.0, math.pi / 2.0, 64)
+    radial_angles = np.linspace(0.0, 2.0 * math.pi, 16, endpoint=False)
+    centers = np.column_stack(
+        (CUP_INNER_RADIUS + 0.0018 + 0.031 * np.cos(angles), np.zeros_like(angles), 0.044 + 0.024 * np.sin(angles))
+    )
+    normals = np.column_stack((0.024 * np.cos(angles), np.zeros_like(angles), 0.031 * np.sin(angles)))
+    normals /= np.linalg.norm(normals, axis=1, keepdims=True)
+    rings = centers[:, None, :] + 0.0038 * (
+        normals[:, None, :] * np.cos(radial_angles)[None, :, None]
+        + np.array((0.0, 1.0, 0.0)) * np.sin(radial_angles)[None, :, None]
+    )
+    sides = len(radial_angles)
+    vertices = np.concatenate((rings.reshape(-1, 3), centers[[0, -1]]))
+    faces = []
+    for ring in range(len(angles) - 1):
+        for side in range(sides):
+            a = ring * sides + side
+            b = ring * sides + (side + 1) % sides
+            faces.extend(((a, b, b + sides), (a, b + sides, a + sides)))
+    start, end = len(vertices) - 2, len(vertices) - 1
+    last_ring = (len(angles) - 1) * sides
+    for side in range(sides):
+        following = (side + 1) % sides
+        faces.extend(((start, following, side), (end, last_ring + side, last_ring + following)))
+    mesh = trimesh.Trimesh(vertices=vertices, faces=faces, process=False)
+    mesh.fix_normals()
+    return mesh
+
+
 def spoon_mesh() -> trimesh.Trimesh:
     """Return the closed, concave spoon bowl; the handle is a separate mesh.
 
@@ -281,19 +317,31 @@ def _mesh(
     return mesh
 
 
+def _vessel_mesh(
+    stage: Usd.Stage,
+    name: str,
+    geometry: trimesh.Trimesh,
+    interior: UsdShade.Material,
+    exterior: UsdShade.Material,
+    *,
+    center: tuple[float, float] = (0.0, 0.0),
+) -> None:
+    """Author an open vessel with distinct inner and outer glazes."""
+    mesh = _mesh(stage, name, geometry, interior)
+    # The outer walls face radially away from the center; the inner walls face in.
+    radial_centers = geometry.triangles_center[:, :2] - np.asarray(center)
+    radial_dot = np.sum(geometry.face_normals[:, :2] * radial_centers, axis=1)
+    faces = np.flatnonzero((radial_dot > 0.0) | (geometry.face_normals[:, 2] < -0.8))
+    subset = UsdShade.MaterialBindingAPI(mesh.GetPrim()).CreateMaterialBindSubset("Exterior", faces.tolist())
+    UsdShade.MaterialBindingAPI.Apply(subset.GetPrim()).Bind(exterior)
+
+
 def _write_bowl(path: Path) -> None:
     """Create a glazed ivory bowl with a muted teal exterior."""
     stage = _stage(path)
     ivory = _material(stage, "IvoryGlaze", (0.78, 0.70, 0.53), roughness=0.20)
     teal = _material(stage, "TealGlaze", (0.026, 0.115, 0.125), roughness=0.22)
-    geometry = bowl_mesh()
-    mesh = _mesh(stage, "Bowl", geometry, ivory)
-    # The outer walls face radially away from the center; the inner walls face in.
-    radial_centers = geometry.triangles_center[:, :2] - np.asarray(BOWL_CAVITY_OFFSET[:2])
-    radial_dot = np.sum(geometry.face_normals[:, :2] * radial_centers, axis=1)
-    exterior = np.flatnonzero((radial_dot > 0.0) | (geometry.face_normals[:, 2] < -0.8))
-    subset = UsdShade.MaterialBindingAPI(mesh.GetPrim()).CreateMaterialBindSubset("Exterior", exterior.tolist())
-    UsdShade.MaterialBindingAPI.Apply(subset.GetPrim()).Bind(teal)
+    _vessel_mesh(stage, "Bowl", bowl_mesh(), ivory, teal, center=BOWL_CAVITY_OFFSET[:2])
     stage.GetRootLayer().Save()
 
 
@@ -302,17 +350,8 @@ def _write_cup(path: Path) -> None:
     stage = _stage(path)
     ivory = _material(stage, "IvoryGlaze", (0.82, 0.77, 0.67), roughness=0.28)
     sage = _material(stage, "SageGlaze", (0.12, 0.23, 0.19), roughness=0.32)
-    geometry = cup_mesh()
-    mesh = _mesh(stage, "Cup", geometry, ivory)
-    radial_dot = np.sum(geometry.face_normals[:, :2] * geometry.triangles_center[:, :2], axis=1)
-    exterior = np.flatnonzero((radial_dot > 0.0) | (geometry.face_normals[:, 2] < -0.8))
-    subset = UsdShade.MaterialBindingAPI(mesh.GetPrim()).CreateMaterialBindSubset("Exterior", exterior.tolist())
-    UsdShade.MaterialBindingAPI.Apply(subset.GetPrim()).Bind(sage)
-    handle = trimesh.creation.torus(major_radius=0.022, minor_radius=0.0038, major_sections=64, minor_sections=12)
-    handle.apply_transform(trimesh.transformations.rotation_matrix(math.pi / 2.0, (1.0, 0.0, 0.0)))
-    handle.apply_scale((0.82, 1.0, 1.0))
-    handle.apply_translation((0.0625, 0.0, 0.043))
-    _mesh(stage, "Handle", handle, sage, collision=False)
+    _vessel_mesh(stage, "Cup", cup_mesh(), ivory, sage)
+    _mesh(stage, "Handle", cup_handle_mesh(), sage, collision=False)
     stage.GetRootLayer().Save()
 
 

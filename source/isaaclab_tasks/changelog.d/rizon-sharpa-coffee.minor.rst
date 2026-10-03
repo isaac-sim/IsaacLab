@@ -19,3 +19,8 @@ Fixed
 * Stabilized liquid presentation with a render-only temporal density filter,
   shared-vertex colour interpolation and reconstruction caching per physics state.
   These changes use existing Newton surface APIs without modifying Newton itself.
+* Raised and widened the initial water fill and replaced the cup's tangential
+  handle with a curved handle attached to the wall at both ends. Shared vessel
+  glaze authoring and surface-cache invalidation removed repeated setup code.
+* Bounded particle advection by voxel size and the MPM substep duration to retain
+  collider queries when using coarser timesteps with a fuller water fill.

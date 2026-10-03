@@ -113,7 +113,9 @@ class CoffeeEnv(ManagerBasedRLEnv):
 
     def _configure_colliders(self, builder, env_id: int, _position, _quaternion) -> None:
         """Expand the thin spoon shell separately from the container colliders."""
-        builder.particle_max_velocity = 4.0
+        # Keep advection inside the native collider query band at coarse timesteps.
+        material_dt = self.cfg.sim.dt / self.cfg.sim.physics.solver_cfg.entries[1].substeps
+        builder.particle_max_velocity = min(4.0, 0.5 * self.cfg.voxel_size / material_dt)
         prefix = f"/World/envs/env_{env_id}/"
         for index, label in enumerate(builder.shape_label):
             if not str(label).startswith(prefix):
