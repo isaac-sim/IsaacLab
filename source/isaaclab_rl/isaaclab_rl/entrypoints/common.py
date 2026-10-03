@@ -538,7 +538,29 @@ def create_isaaclab_env(
         from isaaclab.envs import multi_agent_to_single_agent
 
         env = multi_agent_to_single_agent(env)
+    if getattr(args_cli, "distributed", False):
+        _restore_rank_device(env.unwrapped.device)
     return env
+
+
+def _restore_rank_device(device: str) -> None:
+    """Make ``device`` this rank's current CUDA device again once the environment exists.
+
+    Creating the environment starts its renderers, which can leave another GPU current on this
+    thread; the rank's first collective then runs NCCL against the wrong device.
+
+    Args:
+        device: The rank's simulation device, such as ``"cuda:1"``.
+    """
+    if not str(device).startswith("cuda"):
+        return
+    from isaaclab.utils.device import set_cuda_device
+
+    expected = torch.device(device).index or 0
+    current = torch.cuda.current_device()
+    if current != expected:
+        logger.warning("Creating the environment moved this rank from cuda:%d to cuda:%d.", expected, current)
+    set_cuda_device(device)
 
 
 def close_env(env: gym.Env) -> None:

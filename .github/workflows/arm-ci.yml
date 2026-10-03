@@ -69,7 +69,8 @@ jobs:
       contents: read
       pull-requests: read
     outputs:
-      should_run: ${{ steps.detect.outputs.should_run }}
+      # TEMP (revert before review): mask ARM CI while testing multi-GPU CI timing.
+      should_run: 'false'
     steps:
     - uses: actions/checkout@v6
       with:

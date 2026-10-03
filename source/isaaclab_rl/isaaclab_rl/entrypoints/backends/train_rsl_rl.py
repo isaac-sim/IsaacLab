@@ -109,11 +109,35 @@ def run(argv: list[str]) -> None:
         _run(args_cli)
 
 
+def _init_nccl_before_renderer() -> None:
+    """TEMP experiment: create the NCCL communicator before any renderer loads, and keep it.
+
+    RSL-RL creates the process group itself, unconditionally; let that call reuse this one.
+    """
+    import torch
+
+    torch.cuda.set_device(int(os.getenv("LOCAL_RANK", "0")))
+    dist.init_process_group(backend="nccl")
+    value = torch.ones(1, device=f"cuda:{torch.cuda.current_device()}")
+    dist.all_reduce(value)
+    torch.cuda.synchronize()
+    print(f"[NCCL-EARLY] communicator ready on cuda:{torch.cuda.current_device()}", flush=True)
+    init_process_group = dist.init_process_group
+
+    def init_once(*args, **kwargs):
+        if not dist.is_initialized():
+            init_process_group(*args, **kwargs)
+
+    dist.init_process_group = init_once
+
+
 def _run(args_cli: argparse.Namespace) -> None:
     """Execute RSL-RL training with parsed arguments."""
     with startup_screen(args_cli, num_stages=3) as screen:
         env_cfg, agent_cfg = resolve_task_config(args_cli.task, args_cli.agent)
         pre_launch_video_config(env_cfg, args_cli)
+        if args_cli.distributed:  # TEMP experiment (revert before review)
+            _init_nccl_before_renderer()
         screen.stage("Launching simulation")
         with launch_simulation(env_cfg, args_cli), contextlib.ExitStack() as cleanup:
             show_run_summary(screen, args_cli, env_cfg, library="rsl_rl", action="train")
