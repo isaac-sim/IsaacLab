@@ -286,6 +286,7 @@ class PairedTests(unittest.TestCase):
 
     def test_capture_failure_preserves_actual_identity_and_does_not_fall_back_to_event_base(self):
         base, head, merge, _ = self._moving_merge()
+        reason = "Tested PR merge does not have the event's head commit as its second parent."
         for resolved in ("", self.commit):
             with self.subTest(resolved=resolved):
                 output = self.root / (resolved or "unresolved")
@@ -305,11 +306,14 @@ class PairedTests(unittest.TestCase):
                     ],
                     GITHUB_SHA=merge,
                     PERF_BASE_COMMIT=resolved,
+                    PERF_PAIR_ERROR=reason,
                 )
                 self.assertNotEqual(result.returncode, 0)
                 failure_path = output / "paired-failure.json"
                 failure = json.loads(failure_path.read_text())
                 self.assertEqual(failure["stage"], "capture_current")
+                if not resolved:
+                    self.assertEqual(failure["reason"], reason)
                 self.assertEqual(failure["source"]["commit"], merge)
                 self.assertEqual(failure["source"]["intended_commit"], merge)
                 self.assertEqual(failure["source"]["tested_commit"], merge)
@@ -324,30 +328,6 @@ class PairedTests(unittest.TestCase):
                     PERF_BASE_COMMIT="",
                 )
                 self.assertEqual(failure_path.read_bytes(), previous)
-
-    def test_capture_forwards_cpu_resolution_failure(self):
-        _, _, merge, _ = self._moving_merge()
-        reason = "Tested PR merge does not have the event's head commit as its second parent."
-        result = self._cli(
-            [
-                "capture",
-                "--checkout-root",
-                str(self.checkout),
-                "--output-dir",
-                str(self.output),
-                "--image",
-                "unused",
-                "--role",
-                "current",
-                "--legs",
-                str(self.root / "unused.tsv"),
-            ],
-            GITHUB_SHA=merge,
-            PERF_BASE_COMMIT="",
-            PERF_PAIR_ERROR=reason,
-        )
-        self.assertNotEqual(result.returncode, 0)
-        self.assertEqual(json.loads((self.output / "paired-failure.json").read_text())["reason"], reason)
 
     def test_bind_failure_is_enriched_by_later_capture_without_replacing_primary_reason(self):
         base, head, merge, _ = self._moving_merge()
@@ -472,36 +452,6 @@ class PairedTests(unittest.TestCase):
                     }
                 )
         return files
-
-    def _evidence(self, files):
-        run = self.client.add(10, HEAD, event="pull_request", branch="feature", artifact=False)
-        artifact = self.client.add_artifact(10, "source-fixture", files)
-        return baseline.read_evidence(self.client, run, artifact, 1, artifact_name=artifact["name"])
-
-    def test_source_proof_detects_runtime_bytes_changed_after_verification(self):
-        files = self._files()
-        path = "first/sample-1/benchmark_runtime_fixture.json"
-        changed = json.loads(files[path])
-        changed["runtime"]["total_fps"]["mean"] = 900
-        files[path] = encoded(changed)
-        issues = paired.source_issues(self._evidence(files), files, self.commit)
-        self.assertTrue(issues)
-        self.assertIn("first/sample-1", str(issues))
-
-    def test_source_proof_missing_for_one_sample_is_reported(self):
-        files = self._files()
-        del files["second/sample-3/source-revision.json"]
-        issues = paired.source_issues(self._evidence(files), files, self.commit)
-        self.assertTrue(issues)
-        self.assertIn("second/sample-3", str(issues))
-
-    def test_loaded_source_hash_cannot_disagree_with_selected_commit(self):
-        files = self._files()
-        path = "first/sample-1/source-revision.json"
-        sidecar = json.loads(files[path])
-        sidecar["modules"][0]["sha256"] = "0" * 64
-        files[path] = encoded(sidecar)
-        self.assertTrue(paired.source_issues(self._evidence(files), files, self.commit))
 
     def _add_baseline(self, files=None, *, run_id=10, attempt=1):
         self.client.add(run_id, HEAD, event="pull_request", branch="feature", attempt=attempt, artifact=False)
@@ -743,22 +693,35 @@ class PairedTests(unittest.TestCase):
         self.assertFalse(self._restore()["baseline_reused"])
         self.assertFalse(self.output.exists())
 
-    def test_missing_or_tampered_proof_requests_fresh_measurement(self):
-        for mutation in ("missing", "hash"):
+    def test_invalid_source_proof_blocks_reuse_and_identifies_the_affected_sample(self):
+        for mutation, sample, reason in (
+            ("missing", "second/sample-3", "source-revision.json"),
+            ("result", "first/sample-1", "Result bytes do not match their source verification"),
+            ("module", "first/sample-1", "Loaded source does not match its manifest"),
+        ):
             with self.subTest(mutation=mutation):
                 self.client = PairedFixtureClient()
                 files = self._files()
-                path = "first/sample-1/source-revision.json"
+                path = f"{sample}/source-revision.json"
                 if mutation == "missing":
                     del files[path]
+                elif mutation == "result":
+                    path = f"{sample}/benchmark_runtime_fixture.json"
+                    changed = json.loads(files[path])
+                    changed["runtime"]["total_fps"]["mean"] = 900
+                    files[path] = encoded(changed)
                 else:
                     proof = json.loads(files[path])
-                    proof["outputs"][0]["sha256"] = "0" * 64
+                    proof["modules"][0]["sha256"] = "0" * 64
                     files[path] = encoded(proof)
-                self._add_baseline(files)
+                artifact = self._add_baseline(files)
+                candidate = self._candidate(self._origin(artifact, run_id=10), reused=True)
+                evidence, _ = paired.select_pr_baseline(self.client, candidate)
+                self.assertIn(sample, str(evidence.issues))
+                self.assertIn(reason, str(evidence.issues))
                 selection = self._restore()
                 self.assertFalse(selection["baseline_reused"])
-                self.assertTrue(selection["issues"])
+                self.assertIn("Baseline is incomplete or its source proof is invalid.", str(selection["issues"]))
                 self.assertFalse(self.output.exists())
 
     def test_incomplete_or_failed_workload_requests_fresh_measurement(self):
