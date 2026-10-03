@@ -25,8 +25,8 @@ from dataclasses import dataclass
 import pytest
 import torch
 import warp as wp
-from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.assets import DeformableObject
+from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.sim import PhysxDeformableBodyMaterialCfg, PhysxSurfaceDeformableBodyMaterialCfg
 
 from pxr import Gf, Sdf, Usd, UsdGeom, UsdShade
@@ -133,7 +133,9 @@ def _spawn_surface_deformables(root: str, y_offset: float) -> DeformableObject:
 @pytest.mark.isaacsim_ci
 def test_initialization_on_device_cpu() -> None:
     """Test that initialization fails with deformable body API on the CPU."""
-    with build_simulation_context(device="cpu", sim_cfg=SimulationCfg(physics=PhysxCfg(), dt=0.01, gravity=(0.0, 0.0, 0.0))) as sim:
+    with build_simulation_context(
+        device="cpu", sim_cfg=SimulationCfg(physics=PhysxCfg(), dt=0.01, gravity=(0.0, 0.0, 0.0))
+    ) as sim:
         sim._app_control_on_stop_handle = None
         deformable = _spawn_volume_deformables("/World/Volume", 0.0)
 
@@ -168,7 +170,9 @@ class _DeformableScene:
 def deformable_scene(request) -> Iterator[_DeformableScene]:
     """Initialize the deformables once for this module; PhysX deformables require CUDA."""
     device = request.param
-    with build_simulation_context(device=device, sim_cfg=SimulationCfg(physics=PhysxCfg(), dt=0.01, gravity=(0.0, 0.0, 0.0))) as sim:
+    with build_simulation_context(
+        device=device, sim_cfg=SimulationCfg(physics=PhysxCfg(), dt=0.01, gravity=(0.0, 0.0, 0.0))
+    ) as sim:
         sim._app_control_on_stop_handle = None
         volume = _spawn_volume_deformables("/World/Volume", 0.0)
         surface = _spawn_surface_deformables("/World/Surface", 2.0)

@@ -37,9 +37,9 @@ import numpy as np
 import pytest
 import torch
 import warp as wp
-from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.assets import Articulation
 from isaaclab_physx.assets.articulation.kernels import write_joint_state_data, write_joint_state_data_kernel
+from isaaclab_physx.physics import PhysxCfg
 
 from pxr import Gf, PhysxSchema, UsdGeom, UsdPhysics
 
@@ -192,7 +192,9 @@ def sim(device: str) -> Iterator[SimulationContext]:
     """Create a function-scoped simulation context for tests that own their scene."""
     # A new context would replace the stage of a live composite scene, so these tests must run before it.
     assert SimulationContext.instance() is None, "define tests that own a simulation above the composite scene"
-    with build_simulation_context(device=device, auto_add_lighting=True, sim_cfg=SimulationCfg(physics=PhysxCfg(), dt=0.01)) as sim:
+    with build_simulation_context(
+        device=device, auto_add_lighting=True, sim_cfg=SimulationCfg(physics=PhysxCfg(), dt=0.01)
+    ) as sim:
         sim._app_control_on_stop_handle = None
         yield sim
 
@@ -343,7 +345,9 @@ def _spawn_island(name: str, y_offset: float, cfg: ArticulationCfg, **authoring)
 def articulation_scene(request) -> Iterator[_ArticulationScene]:
     """Initialize every composite-scene articulation once for this module."""
     device = request.param
-    with build_simulation_context(device=device, sim_cfg=SimulationCfg(physics=PhysxCfg(), dt=0.01, gravity=(0.0, 0.0, 0.0))) as sim:
+    with build_simulation_context(
+        device=device, sim_cfg=SimulationCfg(physics=PhysxCfg(), dt=0.01, gravity=(0.0, 0.0, 0.0))
+    ) as sim:
         sim._app_control_on_stop_handle = None
         islands, origins, refcounts = {}, {}, {}
         island_specs = {

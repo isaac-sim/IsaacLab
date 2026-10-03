@@ -30,8 +30,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 import torch
 import warp as wp
-from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.assets import RigidObject, RigidObjectCollection
+from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxRigidBodyCfg
 
 import omni.kit.app
@@ -115,7 +115,9 @@ def sim(device: str) -> Iterator[SimulationContext]:
     """Create a function-scoped simulation context for tests that own their scene."""
     # A new context would replace the stage of a live composite scene, so these tests must run before it.
     assert SimulationContext.instance() is None, "define tests that own a simulation above the composite scene"
-    with build_simulation_context(device=device, auto_add_lighting=True, sim_cfg=SimulationCfg(physics=PhysxCfg(), dt=0.01)) as sim:
+    with build_simulation_context(
+        device=device, auto_add_lighting=True, sim_cfg=SimulationCfg(physics=PhysxCfg(), dt=0.01)
+    ) as sim:
         sim._app_control_on_stop_handle = None
         yield sim
 
