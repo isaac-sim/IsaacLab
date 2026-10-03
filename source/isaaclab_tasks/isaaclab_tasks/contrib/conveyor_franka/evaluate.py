@@ -14,17 +14,14 @@ from pathlib import Path
 
 import gymnasium as gym
 import torch
+from rsl_rl.runners import OnPolicyRunner
 
 from isaaclab.app import add_launcher_args, launch_simulation
+from isaaclab.utils import to_dict
 from isaaclab.utils.assets import retrieve_file_path
 
 from isaaclab_rl.entrypoints.common import resolve_published_checkpoint
-from isaaclab_rl.rsl_rl import (
-    RslRlVecEnvWrapper,
-    check_rsl_rl_version,
-    create_rsl_rl_runner,
-    handle_deprecated_rsl_rl_cfg,
-)
+from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import load_cfg_from_registry, parse_env_cfg
@@ -54,7 +51,6 @@ def main() -> None:
     cfg.sim.save_logs_to_file = False
     cfg.sim.physics.use_cuda_graph = torch.device(args.device).type == "cuda"
     agent = load_cfg_from_registry(_TASK, "rsl_rl_cfg_entry_point")
-    agent = handle_deprecated_rsl_rl_cfg(agent, check_rsl_rl_version())
     agent.device = args.device
     checkpoint = (
         resolve_published_checkpoint("rsl_rl", _TASK, cfg)
@@ -65,7 +61,7 @@ def main() -> None:
         raise FileNotFoundError("No published conveyor checkpoint was found; pass --checkpoint /path/to/model.pt.")
     with launch_simulation(cfg, args), closing(gym.make(_TASK, cfg=cfg).unwrapped) as env:
         wrapped = RslRlVecEnvWrapper(env, clip_actions=agent.clip_actions)
-        runner = create_rsl_rl_runner(wrapped, agent)
+        runner = OnPolicyRunner(wrapped, to_dict(agent), device=agent.device)
         runner.load(checkpoint, map_location=args.device)
         policy = runner.get_inference_policy(device=args.device)
         env.reset(seed=args.seed)

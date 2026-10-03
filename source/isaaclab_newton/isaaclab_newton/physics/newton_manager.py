@@ -1716,9 +1716,7 @@ class NewtonManager(PhysicsManager):
 
     @classmethod
     def _update_sensors(cls, contacts) -> None:
-        """Push latest state to all registered Newton sensors."""
-        for sensor in cls._newton_frame_transform_sensors:
-            sensor.update(cls.backend.state_0)
+        """Push latest state to registered IMU and contact sensors."""
         for sensor in cls._newton_imu_sensors:
             sensor.update(cls.backend.state_0)
         if cls._report_contacts:

@@ -19,7 +19,7 @@ after 50 warm-up steps and prints a summary:
 
 .. code-block:: bash
 
-   ./isaaclab.sh benchmark runtime \
+   uv run isaaclab benchmark runtime \
        --task Isaac-Cartpole-Direct \
        --num_envs 4096 \
        --warmup_steps 50 \

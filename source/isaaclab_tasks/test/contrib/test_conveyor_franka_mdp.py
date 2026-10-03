@@ -10,13 +10,11 @@ from contextlib import closing
 import gymnasium as gym
 import pytest
 import torch
+from rsl_rl.runners import OnPolicyRunner
 
-from isaaclab_rl.rsl_rl import (
-    RslRlVecEnvWrapper,
-    check_rsl_rl_version,
-    create_rsl_rl_runner,
-    handle_deprecated_rsl_rl_cfg,
-)
+from isaaclab.utils import to_dict
+
+from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.contrib.conveyor_franka import mdp
@@ -372,10 +370,9 @@ def test_curriculum_checkpoint_restores_progress_and_deployment_outcomes(tmp_pat
         env.reset()
 
         agent = load_cfg_from_registry(_BASE, "rsl_rl_cfg_entry_point")
-        agent = handle_deprecated_rsl_rl_cfg(agent, check_rsl_rl_version())
         agent.device = "cpu"
         agent.actor.hidden_dims = agent.critic.hidden_dims = [16]
-        runner = create_rsl_rl_runner(RslRlVecEnvWrapper(env), agent, log_dir=str(tmp_path))
+        runner = OnPolicyRunner(RslRlVecEnvWrapper(env), to_dict(agent), log_dir=str(tmp_path), device=agent.device)
         curriculum = env.curriculum_manager.cfg.reset_sampling.func
         expected = curriculum.get_state()
         checkpoint = tmp_path / "model.pt"

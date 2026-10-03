@@ -378,14 +378,14 @@ run_tests() {
       mkdir -p tests
       # The runtime mounts above create /isaac-sim in every image. Link it only where Kit
       # lives there: in the kit-less image the link would read as a downloaded Isaac Sim,
-      # which isaaclab.sh refuses to combine with the image's VIRTUAL_ENV.
+      # which uv run isaaclab refuses to combine with the image's VIRTUAL_ENV.
       rm -f _isaac_sim
       if [ -x /isaac-sim/python.sh ]; then ln -s /isaac-sim _isaac_sim; fi
       if [ -n \"\${WARP_CACHE_PATH:-}\" ]; then
-        ./isaaclab.sh -p tools/verify_warp_cache.py
+        uv run --no-sync isaaclab -p tools/verify_warp_cache.py
       fi
       if [ -n \"\${OVRTX_SHADER_CACHE_PATH:-}\" ] || [ -n \"\${OVRTX_KIT_SHADER_CACHE_PATH:-}\" ]; then
-        ./isaaclab.sh -p tools/verify_ovrtx_shader_cache.py
+        uv run --no-sync isaaclab -p tools/verify_ovrtx_shader_cache.py
       fi
       if [ -n \"\${TEST_WHEELHOUSE_PACKAGES:-}\" ]; then
         if [ ! -d \"\${TEST_WHEELHOUSE_PATH:-}\" ]; then
@@ -398,41 +398,30 @@ run_tests() {
         fi
 
         echo \"Installing wheelhouse packages offline: \${TEST_WHEELHOUSE_PACKAGES}\"
-        ./isaaclab.sh -p -m pip uninstall -y \${TEST_WHEELHOUSE_PACKAGES} || true
-        PIP_NO_INDEX=1 ./isaaclab.sh -p -m pip install --no-index --find-links=\"\${TEST_WHEELHOUSE_PATH}\" --upgrade --force-reinstall \${TEST_WHEELHOUSE_PACKAGES}
+        uv pip uninstall --python \"\${VIRTUAL_ENV}/bin/python\" \${TEST_WHEELHOUSE_PACKAGES} || true
+        uv pip install --python \"\${VIRTUAL_ENV}/bin/python\" --no-index --find-links=\"\${TEST_WHEELHOUSE_PATH}\" --upgrade --reinstall \${TEST_WHEELHOUSE_PACKAGES}
 
         case \" \${TEST_WHEELHOUSE_PACKAGES} \" in
           *\" ovphysx \"*)
-            ./isaaclab.sh -p -c \"import importlib.metadata,json,os,pathlib; from packaging.version import Version; manifest=json.loads(pathlib.Path(os.environ['TEST_WHEELHOUSE_MANIFEST']).read_text(encoding='utf-8')); expected=manifest.get('ovphysx_version'); actual=importlib.metadata.version('ovphysx'); print(f'Resolved ovphysx package version: {actual}'); print(f'Wheelhouse manifest ovphysx version: {expected}'); import ovphysx; runtime=getattr(ovphysx, '__version__', actual); print(f'Imported ovphysx runtime version: {runtime}'); raise SystemExit(0 if Version(actual) == Version(expected) and Version(runtime) == Version(expected) else f'ovphysx version mismatch: installed {actual}, import {runtime}, manifest {expected}')\"
+            uv run --no-sync isaaclab -p -c \"import importlib.metadata,json,os,pathlib; from packaging.version import Version; manifest=json.loads(pathlib.Path(os.environ['TEST_WHEELHOUSE_MANIFEST']).read_text(encoding='utf-8')); expected=manifest.get('ovphysx_version'); actual=importlib.metadata.version('ovphysx'); print(f'Resolved ovphysx package version: {actual}'); print(f'Wheelhouse manifest ovphysx version: {expected}'); import ovphysx; runtime=getattr(ovphysx, '__version__', actual); print(f'Imported ovphysx runtime version: {runtime}'); raise SystemExit(0 if Version(actual) == Version(expected) and Version(runtime) == Version(expected) else f'ovphysx version mismatch: installed {actual}, import {runtime}, manifest {expected}')\"
             ;;
         esac
       fi
       if [ -n \"\${TEST_EXTRA_PIP_PACKAGES:-}\" ]; then
         echo \"Installing extra pip packages: \${TEST_EXTRA_PIP_PACKAGES}\"
-        bash /with-python-package-retries.sh ./isaaclab.sh -p -m pip install \${TEST_EXTRA_PIP_PACKAGES}
+        bash /with-python-package-retries.sh uv pip install --python \"\${VIRTUAL_ENV}/bin/python\" \${TEST_EXTRA_PIP_PACKAGES}
         case \" \${TEST_EXTRA_PIP_PACKAGES} \" in
           *\" leapp\"*)
             echo \"Resolved LEAPP package:\"
-            ./isaaclab.sh -p -m pip show leapp || true
+            uv pip show --python \"\${VIRTUAL_ENV}/bin/python\" leapp || true
             ;;
         esac
       fi
       if [ -n \"\${TEST_EXTRA_UV_PACKAGES:-}\" ]; then
         echo \"Installing extra packages with uv: \${TEST_EXTRA_UV_PACKAGES}\"
-        # isaaclab.sh prints an [INFO] banner on stdout around the command output, so the
-        # banner is filtered rather than positionally skipped.
-        isaac_python=\"\$(./isaaclab.sh -p -c 'import sys; print(sys.executable)' | grep -v '^\[INFO\]' | tail -n 1)\"
-        isaac_user_site=\"\$(./isaaclab.sh -p -c 'import site; print(site.getusersitepackages())' | grep -v '^\[INFO\]' | tail -n 1)\"
-        # The image ships uv on PATH. Fall back to the user base only for images that do
-        # not: pip installs into the venv, not the user base, when the interpreter is a venv,
-        # so the user-base path is never created there.
-        uv_executable=\"\$(command -v uv || true)\"
-        if [ -z \"\${uv_executable}\" ]; then
-          uv_executable=\"\$(./isaaclab.sh -p -c 'import pathlib, site; print(pathlib.Path(site.getuserbase()) / \"bin\" / \"uv\")' | grep -v '^\[INFO\]' | tail -n 1)\"
-          if [ ! -x \"\${uv_executable}\" ]; then
-            bash /with-python-package-retries.sh ./isaaclab.sh -p -m pip install uv
-          fi
-        fi
+        isaac_python=\"\${VIRTUAL_ENV}/bin/python\"
+        isaac_user_site=\"\$(uv run --no-sync python -c 'import site; print(site.getusersitepackages())')\"
+        uv_executable=\"\$(command -v uv)\"
         bash /with-python-package-retries.sh \"\${uv_executable}\" pip install --python \"\${isaac_python}\" --target \"\${isaac_user_site}\" \${TEST_EXTRA_UV_PACKAGES}
         # Isaac Sim puts bundled packages ahead of the user site. Overlay only
         # the explicitly requested packages so compatible direct pins win
@@ -442,7 +431,7 @@ run_tests() {
         export PYTHONPATH=\"\${isaac_uv_overlay}\${PYTHONPATH:+:\${PYTHONPATH}}\"
       fi
       echo \"Starting pytest with path: \${test_path}\"
-      ./isaaclab.sh -p -m pytest --ignore=tools/conftest.py \"\${test_path}\" \"\$@\" -v --junitxml=\"tests/\${result_file}\"
+      uv run --no-sync isaaclab -p -m pytest --ignore=tools/conftest.py \"\${test_path}\" \"\$@\" -v --junitxml=\"tests/\${result_file}\"
     " bash "$test_path" "$result_file" "${pytest_args[@]}"
 
   # Stream container logs in background.
