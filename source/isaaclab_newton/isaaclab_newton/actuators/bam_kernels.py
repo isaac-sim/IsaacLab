@@ -11,7 +11,7 @@ import warp as wp
 
 
 @wp.kernel
-def _bam_delay_kernel(
+def bam_delay_kernel(
     target_pos: wp.array[float],
     target_pos_indices: wp.array[wp.uint32],
     delay_ring: wp.array2d[float],
@@ -72,7 +72,7 @@ def _bam_delay_kernel(
 
 
 @wp.kernel
-def _bam_motor_kernel(
+def bam_motor_kernel(
     positions: wp.array[float],
     velocities: wp.array[float],
     delayed_target: wp.array[float],
@@ -125,7 +125,7 @@ def _bam_motor_kernel(
 
 
 @wp.kernel
-def _bam_friction_kernel(
+def bam_friction_kernel(
     velocities: wp.array[float],
     vel_indices: wp.array[wp.uint32],
     motor_torque: wp.array[float],
@@ -184,8 +184,7 @@ def _bam_friction_kernel(
 
     friction_budget[i] = budget
 
-    # BAM owns its effort clamp so a registered clamping schema cannot hide its
-    # unregistered controller token from Newton's USD component discovery.
+    # BAM owns its effort clamp; see DriveBam.
     forces[i] = wp.clamp(motor_tau, -max_effort[i], max_effort[i])
 
     next_prev_motor[i] = motor_tau
@@ -193,7 +192,7 @@ def _bam_friction_kernel(
 
 
 @wp.kernel
-def _bam_state_reset_kernel(
+def bam_state_reset_kernel(
     mask: wp.array[wp.bool],
     prev_motor_torque: wp.array[float],
     prev_applied_torque: wp.array[float],

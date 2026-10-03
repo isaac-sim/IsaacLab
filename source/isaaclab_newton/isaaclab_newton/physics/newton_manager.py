@@ -53,6 +53,7 @@ from isaaclab.utils.timer import Timer
 from isaaclab.utils.version import has_kit
 from isaaclab.utils.warp.index_kernel import IndexKernelDispatcher
 
+from isaaclab_newton.actuators.bam import DriveBam
 from isaaclab_newton.physics.featherstone_manager_cfg import FeatherstoneSolverCfg
 from isaaclab_newton.physics.mjwarp_manager_cfg import MJWarpSolverCfg
 from isaaclab_newton.physics.newton_manager_cfg import (
@@ -509,12 +510,9 @@ class NewtonManager(PhysicsManager):
 
     # Newton actuator adapter (owns actuators and double-buffered states)
     _adapter: NewtonActuatorAdapter | None = None
-    # One-shot hooks invoked once the solver exists and before any graph capture,
-    # in registration order. Consumed (cleared) by the dispatch.
+    # One-shot hooks invoked once the solver exists, before any graph capture.
     _solver_init_callbacks: list[Callable[[], None]] = []
     # In-graph hooks invoked before the actuator step, in registration order.
-    # Used to publish solver quantities of the previous substep into the arrays
-    # the actuators read on this iteration.
     _pre_actuator_callbacks: list[Callable[[], None]] = []
     # In-graph hooks invoked after the actuator step and before the solver
     # substeps, in registration order. Multiple articulations register their
@@ -1621,7 +1619,6 @@ class NewtonManager(PhysicsManager):
                 )
             cls._initialize_contacts()
 
-        # One-shot consumers of the concrete solver (index mappings, device model handles).
         pending_solver_init, NewtonManager._solver_init_callbacks = cls._solver_init_callbacks, []
         for cb in pending_solver_init:
             cb()
@@ -1884,6 +1881,10 @@ class NewtonManager(PhysicsManager):
         from isaaclab.actuators.newton import NewtonActuatorAdapter  # noqa: PLC0415
 
         dofs_per_env = cls.backend.model.joint_dof_count // cls._num_envs
+        # BAM sums supply sag and shares command delays over each environment's DOFs.
+        for actuator in cls.backend.model.actuators:
+            if isinstance(actuator.drive, DriveBam):
+                actuator.drive.env_dof_stride = len(actuator.indices) // cls._num_envs
         NewtonManager._adapter = NewtonActuatorAdapter(
             actuators=list(cls.backend.model.actuators),
             num_envs=cls._num_envs,
@@ -1895,27 +1896,15 @@ class NewtonManager(PhysicsManager):
 
     @classmethod
     def register_solver_init_callback(cls, callback: Callable[[], None]) -> None:
-        """Append a one-shot hook invoked once the solver exists.
+        """Append a one-shot hook invoked once the solver exists, before any CUDA graph capture.
 
-        Assets initialize while the model is being built, before
-        :meth:`initialize_solver` runs, so anything that needs the concrete
-        solver -- its device model, its index mappings -- has to be deferred to
-        this hook. It fires before the first step and therefore before any CUDA
-        graph capture, which is what lets a deferred binding still register
-        in-graph callbacks. The list is consumed by the dispatch.
+        Assets initialize before the solver is created, so bindings that need it register here.
         """
         cls._solver_init_callbacks.append(callback)
 
     @classmethod
     def register_pre_actuator_callback(cls, callback: Callable[[], None]) -> None:
-        """Append a hook to the list invoked before the actuator step on every iteration.
-
-        Runs in the same captured region as
-        :meth:`register_post_actuator_callback`, one position earlier in the
-        decimation loop. Use it to publish solver quantities that the actuators
-        consume on the *same* iteration; a hook registered on the post-actuator
-        list would instead be read one solver step later.
-        """
+        """Append a hook invoked before the actuator step on every iteration, inside the captured graph."""
         cls._pre_actuator_callbacks.append(callback)
 
     @classmethod

@@ -151,6 +151,7 @@ The following modules are available in the ``isaaclab_newton`` extension:
 .. autosummary::
    :toctree: lab_newton
 
+   actuators
    assets
    cloner
    controllers

@@ -21,6 +21,7 @@ side effect of asset construction.
 from __future__ import annotations
 
 import json
+import math
 import re
 import tempfile
 from typing import Any
@@ -243,7 +244,7 @@ def author_actuator_prims(
             covered_joint_paths.add(joint_inventory[jname])
 
     from ...actuators import DCMotorCfg, DelayedPDActuatorCfg  # noqa: PLC0415
-    from ...actuators.actuator_bam_cfg import BamActuatorCfg  # noqa: PLC0415
+    from ...actuators.actuator_bam_cfg import BAM_DRIVE_API, BamActuatorCfg  # noqa: PLC0415
     from ...actuators.actuator_net_cfg import ActuatorNetLSTMCfg, ActuatorNetMLPCfg  # noqa: PLC0415
     from ...actuators.actuator_pd_cfg import RemotizedPDActuatorCfg  # noqa: PLC0415
 
@@ -260,11 +261,9 @@ def author_actuator_prims(
         is_bam = isinstance(cfg, BamActuatorCfg)
         configured_effort_limit = cfg.actuator_effort_limit
         if is_bam:
-            from ...actuators.newton.bam_component import BAM_DRIVE_API, DriveBam  # noqa: PLC0415
-
             validate(cfg)
             bam_attrs = to_dict(cfg.motor)
-            # Passive damping is initialized through the articulation's joint properties.
+            # Viscous friction is applied as passive joint damping, not by the drive.
             bam_attrs.pop("friction_viscous")
             model = bam_attrs.pop("model")
             bam_attrs.update(
@@ -277,11 +276,15 @@ def author_actuator_prims(
                 max_delay=cfg.max_delay,
                 delay_hold_prob=cfg.delay_hold_prob,
                 delay_update_period=cfg.delay_update_period,
+                vin_min=cfg.vin_min if cfg.vin_min is not None else -math.inf,
+                # Reset runtime parameters so values on a weaker USD layer do not survive replacement.
+                kp_scale=1.0,
+                kd_scale=1.0,
+                friction_scale=1.0,
+                sag_gain=0.0,
+                delay_seed=0,
             )
-            if cfg.vin_min is not None:
-                bam_attrs["vin_min"] = cfg.vin_min
-            bam_attrs = DriveBam.resolve_arguments(bam_attrs)
-            # Match BAM's stall-torque ceiling before any per-environment voltage sampling.
+            # Default to the stall torque at the highest sampled voltage.
             voltage = max(cfg.vin_range) if cfg.vin_range is not None else cfg.vin
             configured_effort_limit = (
                 voltage * cfg.motor.kt / cfg.motor.resistance
@@ -343,9 +346,7 @@ def author_actuator_prims(
                 attrs["kd"] = damping_map.get(jname, 0.0)
 
             if is_bam:
-                # No clamping component: BAM applies its own effort limit. Authoring a
-                # USD-registered token beside the unregistered ``NewtonBamDriveAPI`` would
-                # hide the controller from Newton's schema discovery entirely.
+                # No clamping schema: it would hide the unregistered BAM token from Newton.
                 if jname in effort_map:
                     attrs["max_effort"] = effort_map[jname]
             elif is_dc_motor:
