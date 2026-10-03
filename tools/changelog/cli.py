@@ -11,7 +11,7 @@ entry. An empty ``<slug>.minor`` or ``<slug>.major`` raises the version bump abo
 
 Usage::
 
-    cli.py check [<base-branch>] [--include-worktree]   # PR gate, run by pre-commit and CI
+    cli.py check [<base-ref>] [--include-worktree]      # PR gate, run by pre-commit and CI
     cli.py compile                                      # nightly: bump, build CHANGELOG.rst, re-lock
 """
 
@@ -192,7 +192,16 @@ def check_lock_pins() -> list[str]:
 
 def cmd_check(args: argparse.Namespace) -> int:
     """PR gate: check the fragments added since the merge base, the release-notes markers and the lock pins."""
-    base = run("git", "merge-base", f"origin/{args.base_ref}", "HEAD").strip()
+    for ref in (f"origin/{args.base_ref}", args.base_ref):
+        try:
+            base_commit = run("git", "rev-parse", "--verify", "--end-of-options", f"{ref}^{{commit}}").strip()
+            break
+        except subprocess.CalledProcessError:
+            continue
+    else:
+        print(f"::error::Cannot resolve changelog base {args.base_ref!r}; fetch the base or pass an existing Git ref.")
+        return 1
+    base = run("git", "merge-base", base_commit, "HEAD").strip()
     target = [] if args.include_worktree else ["HEAD"]
     changed = run("git", "diff", "--name-only", "--no-renames", base, *target).splitlines()
     added = run("git", "diff", "--name-only", "--no-renames", "--diff-filter=A", base, *target).splitlines()
@@ -314,7 +323,12 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="cmd", required=True)
     check = sub.add_parser("check", help="PR gate: every changed package adds a valid fragment.")
-    check.add_argument("base_ref", nargs="?", default=os.environ.get("ISAACLAB_CHANGELOG_BASE_REF", "develop"))
+    check.add_argument(
+        "base_ref",
+        nargs="?",
+        default=os.environ.get("ISAACLAB_CHANGELOG_BASE_REF", "develop"),
+        help="Git ref or commit; branch shorthand prefers origin/<branch>.",
+    )
     check.add_argument("--include-worktree", action="store_true", help="Include uncommitted tracked changes.")
     check.set_defaults(func=cmd_check)
     compile_parser = sub.add_parser("compile", help="Bump versions, build CHANGELOG.rst entries and re-lock.")

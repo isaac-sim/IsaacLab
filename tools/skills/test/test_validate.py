@@ -86,6 +86,19 @@ def test_validate_current_repo_skills():
     assert cli.validate_all() == []
 
 
+def test_validate_catalog_requires_every_discovered_skill(tmp_path, monkeypatch):
+    _write_skill(tmp_path)
+    monkeypatch.setattr(cli, "SKILLS_ROOT", tmp_path)
+    # Native aliases have their own tests; this fixture exercises fallback discovery.
+    monkeypatch.setattr(cli, "validate_native_discovery", lambda skills: [])
+    catalog = tmp_path / "README.md"
+    assert cli.validate_all(tmp_path)
+    catalog.write_text("# Skills\n", encoding="utf-8")
+    assert any("missing skill catalog entry 'user/example'" in error for error in cli.validate_all(tmp_path))
+    catalog.write_text("# Skills\n\n- `user/example/`: example workflow.\n", encoding="utf-8")
+    assert cli.validate_all(tmp_path) == []
+
+
 def test_validate_accepts_well_formed_user_skill(tmp_path):
     skill = _write_skill(tmp_path)
     assert cli.Skill(skill).validate() == []

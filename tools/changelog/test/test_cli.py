@@ -106,6 +106,29 @@ def test_check_ignores_changes_outside_packages(repo):
     assert check(include_worktree=True) == 0
 
 
+@pytest.mark.parametrize("base_ref", ["upstream/develop", "refs/heads/develop", "commit"])
+def test_check_accepts_explicit_git_bases(repo, base_ref, capsys):
+    """Explicit refs and SHAs must inspect the requested base, not the current HEAD."""
+    base = git(repo, "rev-parse", "HEAD").strip()
+    git(repo, "update-ref", "refs/remotes/upstream/develop", base)
+    git(repo, "switch", "-qc", "feature")
+    write(repo, {"source/pkg/code.py": "x = 1\n"})
+    commit(repo, "missing fragment")
+    if base_ref == "commit":
+        base_ref = base
+    args = argparse.Namespace(base_ref=base_ref, include_worktree=False)
+    assert cli.cmd_check(args) == 1
+    assert "changed without a changelog fragment" in capsys.readouterr().out
+    write(repo, {FRAGMENTS + "a.skip": ""})
+    commit(repo, "fragment")
+    assert cli.cmd_check(args) == 0
+
+
+def test_check_reports_a_missing_base(repo, capsys):
+    assert cli.cmd_check(argparse.Namespace(base_ref="missing", include_worktree=False)) == 1
+    assert "Cannot resolve changelog base 'missing'" in capsys.readouterr().out
+
+
 @pytest.mark.parametrize(
     "files",
     [

@@ -5,15 +5,56 @@
 
 """Tests for miscellaneous Isaac Lab CLI commands."""
 
+import json
+import shlex
+import subprocess
 import sys
 from unittest import mock
 
 import pytest
 
 import isaaclab.cli as cli
+import isaaclab.cli.commands.format as formatter
 import isaaclab.cli.commands.misc as misc
 
 pytestmark = pytest.mark.unit
+
+
+@pytest.mark.parametrize("files", [[], ["first.txt"]], ids=["all-files", "selected-file"])
+def test_format_checks_the_requested_files(tmp_path, monkeypatch, files):
+    """The public CLI formats the requested scope and returns hook failures without retrying."""
+    pytest.importorskip("pre_commit")
+    monkeypatch.setattr(cli, "ISAACLAB_ROOT", tmp_path)
+    monkeypatch.setattr(formatter, "ISAACLAB_ROOT", tmp_path)
+    monkeypatch.setattr(sys, "argv", ["isaaclab", "--format", *files])
+    (tmp_path / "pyproject.toml").touch()
+    (tmp_path / "hook.py").write_text(
+        "import sys\n"
+        "from pathlib import Path\n"
+        "with Path('runs.log').open('a') as log:\n"
+        "    log.write('run\\n')\n"
+        "for name in sys.argv[1:]:\n"
+        "    Path(name).write_text('formatted\\n')\n",
+        encoding="utf-8",
+    )
+    (tmp_path / ".pre-commit-config.yaml").write_text(
+        "repos:\n- repo: local\n  hooks:\n  - id: format-text\n    name: format text\n"
+        f"    entry: {json.dumps(shlex.join([sys.executable, 'hook.py']))}\n"
+        "    language: system\n    files: '\\.txt$'\n",
+        encoding="utf-8",
+    )
+    for name in ("first.txt", "second.txt"):
+        (tmp_path / name).write_text("unformatted\n", encoding="utf-8")
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    subprocess.run(["git", "-C", str(tmp_path), "add", "."], check=True)
+    with pytest.raises(SystemExit) as error:
+        cli.cli()
+    assert error.value.code == 1
+    assert (tmp_path / "runs.log").read_text(encoding="utf-8") == "run\n"
+    assert (tmp_path / "first.txt").read_text(encoding="utf-8") == "formatted\n"
+    assert (tmp_path / "second.txt").read_text(encoding="utf-8") == ("unformatted\n" if files else "formatted\n")
+    cli.cli()
+    assert (tmp_path / "runs.log").read_text(encoding="utf-8") == "run\nrun\n"
 
 
 def test_checkout_command_rejects_wheel_installation(tmp_path, monkeypatch, capsys):
