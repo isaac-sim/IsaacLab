@@ -151,7 +151,7 @@ class SO101LiftRewardCfg(lift.RewardsCfg):
     """Shared lift rewards with the SO-101 jaw contact binding."""
 
     action_l2 = None
-    action_rate = RewTerm(func=mdp.action_rate_l2, weight=-0.05)
+    action_rate = RewTerm(func=mdp.action_rate_l2, weight=-2.0)
     orientation_tracking = None
     early_termination = None
     # One moving jaw provides the grasp-contact signal; a second contact-count term duplicates it.
