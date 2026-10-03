@@ -923,8 +923,8 @@ class StackResetStateTable(ManagerTermBase):
         arm_upper = arm_positions.new_tensor(self._ARM_WORKSPACE_UPPER)
         arm_positions.clamp_(min=arm_lower, max=arm_upper)
         joint_positions[:, self._arm_joint_ids] = arm_positions
-        self._robot.set_joint_position_target_index(target=joint_positions, env_ids=env_ids)
-        self._robot.set_joint_velocity_target_index(target=joint_velocities, env_ids=env_ids)
+        self._robot.actuators.target_command.set_position_index(value=joint_positions, env_ids=env_ids)
+        self._robot.actuators.target_command.set_velocity_index(value=joint_velocities, env_ids=env_ids)
         self._robot.write_joint_position_to_sim_index(position=joint_positions, env_ids=env_ids)
         self._robot.write_joint_velocity_to_sim_index(velocity=joint_velocities, env_ids=env_ids)
 
