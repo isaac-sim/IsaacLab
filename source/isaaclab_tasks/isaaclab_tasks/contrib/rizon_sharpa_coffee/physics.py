@@ -181,7 +181,7 @@ def configure_spoon_rim_margin(solver: CoffeeMPMSolver, scale: float) -> None:
 class CoffeeCouplerCfg(CouplerProxyCfg):
     """Task-local MJWarp/MPM coupling with mounted and contact-grasp modes."""
 
-    class_type: type = NewtonCoffeeCouplerManager
+    class_type: type | str = "{DIR}.physics:NewtonCoffeeCouplerManager"
 
 
 def make_grasp_solver_cfg() -> MJWarpSolverCfg:

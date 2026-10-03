@@ -178,7 +178,7 @@ class CoffeeScoopDemo:
                 (f"recover_{cycle}", 3.0, pose((cup_x, pour_y, transfer_z)), 0.007),
             ]
         if self._env.cfg.water_enabled:
-            # An inclined spoon keeps the original flat handle above the glass
+            # An inclined spoon keeps the original flat handle above the cup
             # rim while its front is immersed. Lift before leveling again.
             pitch = math.radians(65.0)
             # Face along +Y to keep the arm away from its wrist limit.

@@ -93,7 +93,7 @@ def bowl_mesh() -> trimesh.Trimesh:
 
 
 def cup_mesh() -> trimesh.Trimesh:
-    """Return a watertight glass wall and bottom, without capping its mouth."""
+    """Return a watertight cup wall and bottom, without capping its mouth."""
     return _lathe(
         [
             (0.0, CUP_BOTTOM_THICKNESS),
@@ -143,8 +143,8 @@ def build_coffee_assets(cache_dir: str | Path | None = None) -> dict[str, str]:
     """Build cached bowl, cup, spoon and tabletop USD files and return their paths.
 
     USD roots for the bowl, cup and table are static; the spoon is a kinematic
-    rigid body. All collision meshes retain exact triangles. The glass includes
-    an OmniGlass material and a transparent USD Preview Surface fallback.
+    rigid body. All collision meshes retain exact triangles. The cup has an
+    opaque sage exterior and an ivory interior.
 
     Args:
         cache_dir: Parent cache directory. Defaults to the Isaac Lab user cache.

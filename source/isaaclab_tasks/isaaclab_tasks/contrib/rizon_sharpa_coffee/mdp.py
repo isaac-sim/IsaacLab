@@ -79,7 +79,7 @@ def particle_fractions(env: CoffeeEnv) -> torch.Tensor:
 
 
 def delivery(env: CoffeeEnv) -> torch.Tensor:
-    """Reward the fraction actually inside the glass, excluding the spoon."""
+    """Reward the fraction actually inside the cup, excluding the spoon."""
     return env.particle_fractions()[:, 2]
 
 
@@ -95,7 +95,7 @@ def spill(env: CoffeeEnv) -> torch.Tensor:
 
 
 def success(env: CoffeeEnv) -> torch.Tensor:
-    """Require the configured delivered fraction to remain in the glass."""
+    """Require the configured delivered fraction to remain in the cup."""
     env.particle_fractions()
     return env.delivery_dwell >= env.cfg.success_dwell_s
 

@@ -90,7 +90,7 @@ class CoffeeKitVisualizer(KitVisualizer):
             self._coffee_attributes_ready = True
 
     def update_water(self, points, indices, normals, colors: np.ndarray | None, opacity: float) -> None:
-        """Publish the reconstructed liquid and spatial face colours without tinting the whole cup."""
+        """Publish shared liquid vertices with smoothly interpolated local colours."""
         if points is None or colors is None:
             self._water.MakeInvisible()
             return

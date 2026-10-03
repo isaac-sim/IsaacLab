@@ -73,6 +73,12 @@ def _parse_args():
     )
     parser.add_argument("--grains_per_particle", type=int, choices=(0, 1, 5, 10, 20), default=5)
     parser.add_argument("--render_samples", type=int, default=4)
+    parser.add_argument(
+        "--surface_smoothing_time",
+        type=float,
+        default=0.06,
+        help="Liquid render-field smoothing time [s]; zero disables.",
+    )
     parser.add_argument("--max_steps", type=int, default=8000)
     parser.add_argument("--camera", choices=("follow", "fixed"), default="follow")
     parser.add_argument("--video", action="store_true", help="Record an MP4 at 1x simulation speed.")
@@ -104,6 +110,8 @@ def _parse_args():
         parser.error("--keep_open requires a desktop viewer.")
     if args.render_samples < 1:
         parser.error("--render_samples must be positive.")
+    if not math.isfinite(args.surface_smoothing_time) or args.surface_smoothing_time < 0:
+        parser.error("--surface_smoothing_time must be finite and nonnegative.")
     if args.mpm_substeps is not None and args.mpm_substeps < 1:
         parser.error("--mpm_substeps must be positive.")
     if args.mpm_iterations is not None and args.mpm_iterations < 1:
@@ -185,7 +193,9 @@ def main() -> None:
         env.reset()
         coffee_mass_g = len(cfg.scene.coffee.spawn.positions) * cfg.scene.coffee.spawn.mass * 1000.0
         if visualizers and cfg.grains_per_particle:
-            env.presentation = CoffeePresentation(env, voxel_size=cfg.voxel_size)
+            env.presentation = CoffeePresentation(
+                env, voxel_size=cfg.voxel_size, surface_smoothing_time=args.surface_smoothing_time
+            )
         if visualizers:
             env.sim.render()
         controller = CoffeeScoopDemo(env) if args.mode == "scripted" else None
@@ -254,6 +264,7 @@ def main() -> None:
                 coffee_wetting_time_s=cfg.coffee_wetting_time if cfg.water_enabled else None,
                 grains_per_particle=cfg.grains_per_particle,
                 render_samples=args.render_samples,
+                surface_smoothing_time_s=args.surface_smoothing_time,
                 camera=args.camera,
                 camera_cup_reveal=cfg.water_enabled and args.camera == "follow",
                 render_interval_physics_steps=cfg.sim.render_interval,
@@ -362,7 +373,7 @@ def main() -> None:
                 previous_phase = phase
                 if controller is not None and controller.finished:
                     if env.particle_fractions()[0, 2] < cfg.success_fraction:
-                        raise RuntimeError("The arm completed its path, but insufficient coffee reached the glass.")
+                        raise RuntimeError("The arm completed its path, but insufficient coffee reached the cup.")
                     _finish_capture(output, metrics, video)
                     # Capture the complete sequence; desktop Reset can replay it independently.
                     output, video, metrics = None, None, []
@@ -376,7 +387,7 @@ def main() -> None:
                     previous_phase = None
                 step += 1
         _finish_capture(output, metrics, video)
-        print("Final coffee fractions [bowl, spoon, glass, spill]:", env.particle_fractions()[0].tolist(), flush=True)
+        print("Final coffee fractions [bowl, spoon, cup, spill]:", env.particle_fractions()[0].tolist(), flush=True)
         if args.keep_open:
             while env.sim.is_running():
                 env.sim.render()

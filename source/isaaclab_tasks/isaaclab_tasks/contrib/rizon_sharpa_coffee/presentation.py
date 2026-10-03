@@ -20,6 +20,7 @@ from newton.geometry import ParticleSurface
 from newton.viewer import ViewerRTX
 
 from .physics import CoffeeMPMSolver
+from .surface import SurfaceHistory
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
@@ -112,6 +113,7 @@ class CoffeePresentation:
         color_mass_scale: Uniformly mixed tracer mass [kg] producing 63% of the final tint.
             This is an adjustable display normalization, not a physical calibration.
         diffusion_rate: Phenomenological colour mixing rate [1/s].
+        surface_smoothing_time: Render-field filter time constant [s]; zero disables filtering.
     """
 
     def __init__(
@@ -121,6 +123,7 @@ class CoffeePresentation:
         voxel_size: float = 0.0025,
         color_mass_scale: float = 0.0015,
         diffusion_rate: float = 18.0,
+        surface_smoothing_time: float = 0.06,
     ):
         if env.num_envs != 1:
             raise ValueError("CoffeePresentation supports one demo scene; disable presentation for batched RL.")
@@ -160,21 +163,27 @@ class CoffeePresentation:
         self._colors = wp.empty(count, dtype=wp.vec3, device=device)
         self._color_mass_scale = color_mass_scale
         self._water = env.scene["water"] if "water" in env.scene.keys() else None
-        self._water_ids = None
+        self._liquid_ids = None
         self._liquid_flags = None
-        self._water_points = None
-        self._water_radii = None
+        self._liquid_points = None
+        self._liquid_radii = None
         self._surface = None
+        self._surface_history = SurfaceHistory(surface_smoothing_time)
+        self._surface_step = -1
+        self._surface_time = None
+        self._surface_mesh = None
+        self._surface_cache = None
         self._surface_ids = None
         self._surface_ids_host = None
         self._surface_points = None
         self._surface_radii = None
         self._hash_grid = None
-        self._contact_radius = 2.0 * voxel_size
+        self._mixing_radius = 2.0 * voxel_size
         self._diffusion_rate = diffusion_rate
         self._tint_elapsed = 0.0
-        self._face_colors = None
-        self._mesh_points = None
+        self._gl_face_colors = None
+        self._vertex_colors = None
+        self._gl_points = None
         self._empty_points = wp.empty(0, dtype=wp.vec3, device=device)
         self._empty_indices = wp.empty(0, dtype=wp.int32, device=device)
         if self._water is not None:
@@ -182,21 +191,23 @@ class CoffeePresentation:
                 raise ValueError("Water presentation requires physics-owned coffee dissolution.")
             # Fixed capacity lets newly converted particles join without moving
             # buffers. Inactive dry coffee is excluded by the liquid mask.
-            self._water_ids = self._dissolution.liquid_ids
+            self._liquid_ids = self._dissolution.liquid_ids
             self._liquid_flags = self._dissolution.liquid_flags
-            self._water_points = wp.empty(self._water_ids.size, dtype=wp.vec3, device=device)
-            self._water_radii = wp.empty(self._water_ids.size, dtype=float, device=device)
-            water_masses = self._model.particle_mass.numpy()[self._water_ids.numpy()]
-            self._water_mass = wp.array(water_masses, dtype=float, device=device)
-            self._concentration_scale = color_mass_scale / float(water_masses[: self._dissolution.water_ids.size].sum())
-            self._dye_mass = wp.zeros(self._water_ids.size, dtype=float, device=device)
+            self._liquid_points = wp.empty(self._liquid_ids.size, dtype=wp.vec3, device=device)
+            self._liquid_radii = wp.empty(self._liquid_ids.size, dtype=float, device=device)
+            liquid_masses = self._model.particle_mass.numpy()[self._liquid_ids.numpy()]
+            self._liquid_mass = wp.array(liquid_masses, dtype=float, device=device)
+            self._concentration_scale = color_mass_scale / float(
+                liquid_masses[: self._dissolution.water_ids.size].sum()
+            )
+            self._dye_mass = wp.zeros(self._liquid_ids.size, dtype=float, device=device)
             self._color_released = wp.zeros(self._coffee_ids.size, dtype=int, device=device)
             self._next_dye_mass = wp.zeros_like(self._dye_mass)
             self._diffusion_support = wp.empty_like(self._dye_mass)
             self._hash_grid = wp.HashGrid(64, 64, 64, device=device)
-            self._hash_grid.reserve(self._water_ids.size)
-            self._surface_points = wp.empty_like(self._water_points)
-            self._surface_radii = wp.empty_like(self._water_radii)
+            self._hash_grid.reserve(self._liquid_ids.size)
+            self._surface_points = wp.empty_like(self._liquid_points)
+            self._surface_radii = wp.empty_like(self._liquid_radii)
             self._surface = ParticleSurface(
                 voxel_size=0.3 * voxel_size,
                 # USD transfer already synchronizes. Exact render allocation
@@ -211,7 +222,7 @@ class CoffeePresentation:
                 anisotropy_ratio=4.0,
                 anisotropy_scale=1.0,
                 anisotropy_min_neighbors=12,
-                anisotropy_binning=True,
+                anisotropy_binning=False,
                 anisotropy_strength=0.8,
                 field_smooth_iterations=2,
                 field_smooth_radius=2,
@@ -219,7 +230,6 @@ class CoffeePresentation:
                 mesh_smooth_lambda=0.5,
                 device=device,
             )
-        self._water_color = WATER_COLOR
         self._rtx_water_shaders: dict[int, str] = {}
         self._rtx_static_grain_views: weakref.WeakSet[ViewerRTX] = weakref.WeakSet()
         for visualizer in self._visualizers:
@@ -233,24 +243,26 @@ class CoffeePresentation:
         """Coffee-origin liquid mass [kg] supplying the colour tracer; host synchronized."""
         return 0.0 if self._dissolution is None else self._dissolution.converted_mass_kg
 
-    def update(self, dt: float):
+    def update(self, dt: float) -> None:
         """Update appearance after advancing the environment by ``dt`` [s]."""
+        if dt > 0.0:
+            self._surface_cache = None
         state = NewtonManager.get_state_0()
         if self._water is not None:
             wp.launch(
                 _gather_water,
-                dim=self._water_ids.size,
+                dim=self._liquid_ids.size,
                 # Coupled entries own projected material/radius arrays. Read
                 # MPM's view so converted coffee contributes its actual volume.
-                inputs=[self._water_ids, state.particle_q, self._solver.model.particle_radius],
-                outputs=[self._water_points, self._water_radii],
+                inputs=[self._liquid_ids, state.particle_q, self._solver.model.particle_radius],
+                outputs=[self._liquid_points, self._liquid_radii],
                 device=self._model.device,
             )
             wp.launch(
                 _release_converted_color,
                 dim=self._coffee_ids.size,
                 inputs=[
-                    self._water_ids,
+                    self._liquid_ids,
                     self._model.particle_mass,
                     self._dissolution.water_ids.size,
                     self._liquid_flags,
@@ -264,29 +276,29 @@ class CoffeePresentation:
             # the 100 Hz control rate. Physical MPM motion keeps its own rate.
             if self._tint_elapsed >= 0.04 - 1.0e-8:
                 tint_dt, self._tint_elapsed = self._tint_elapsed, 0.0
-                self._hash_grid.build(self._water_points, self._contact_radius)
+                self._hash_grid.build(self._liquid_points, self._mixing_radius)
                 wp.launch(
                     _water_diffusion_support,
-                    dim=self._water_ids.size,
+                    dim=self._liquid_ids.size,
                     inputs=[
-                        self._water_points,
-                        self._water_mass,
+                        self._liquid_points,
+                        self._liquid_mass,
                         self._liquid_flags,
                         self._hash_grid.id,
-                        self._contact_radius,
+                        self._mixing_radius,
                     ],
                     outputs=[self._diffusion_support],
                     device=self._model.device,
                 )
                 wp.launch(
                     _diffuse_water_color,
-                    dim=self._water_ids.size,
+                    dim=self._liquid_ids.size,
                     inputs=[
-                        self._water_points,
-                        self._water_mass,
+                        self._liquid_points,
+                        self._liquid_mass,
                         self._liquid_flags,
                         self._hash_grid.id,
-                        self._contact_radius,
+                        self._mixing_radius,
                         -math.expm1(-self._diffusion_rate * tint_dt),
                         self._diffusion_support,
                         self._dye_mass,
@@ -310,7 +322,7 @@ class CoffeePresentation:
             device=self._model.device,
         )
 
-    def draw(self, viewer):
+    def draw(self, viewer) -> None:
         """Publish geometry while a Newton viewer frame is active."""
         self.update(0.0)
         # Dry demos retain the positions-only RTX update. Wet demos publish
@@ -329,13 +341,26 @@ class CoffeePresentation:
             return
         points, indices, normals, colors, fraction = self._water_surface_arrays()
         hidden = points is None
-        face_count = 0 if hidden else len(colors)
+        face_count = 0 if hidden else indices.size // 3
         uvs, texture = None, None
         if face_count and not isinstance(viewer, ViewerRTX):
             width, height = 256, math.ceil(face_count / 256)
-            points, normals = self._mesh_points[: 3 * face_count], self._mesh_normals[: 3 * face_count]
-            indices, uvs = self._mesh_indices[: 3 * face_count], self._mesh_uvs[: 3 * face_count]
-            texture = self._face_colors[: width * height].numpy().reshape(height, width, 3)
+            if self._gl_face_colors is None or self._gl_face_colors.size < width * height:
+                self._gl_face_colors = wp.full(width * height, wp.vec3(WATER_COLOR), device=self._model.device)
+                self._gl_points = wp.empty(3 * width * height, dtype=wp.vec3, device=self._model.device)
+                self._gl_normals = wp.empty_like(self._gl_points)
+                self._gl_uvs = wp.empty(3 * width * height, dtype=wp.vec2, device=self._model.device)
+                self._gl_indices = wp.array(np.arange(3 * width * height, dtype=np.int32), device=self._model.device)
+            wp.launch(
+                _color_water_faces,
+                dim=face_count,
+                inputs=[points, indices, normals, self._vertex_colors, width, height],
+                outputs=[self._gl_face_colors, self._gl_points, self._gl_normals, self._gl_uvs],
+                device=self._model.device,
+            )
+            points, normals = self._gl_points[: 3 * face_count], self._gl_normals[: 3 * face_count]
+            indices, uvs = self._gl_indices[: 3 * face_count], self._gl_uvs[: 3 * face_count]
+            texture = self._gl_face_colors[: width * height].numpy().reshape(height, width, 3)
         viewer.log_mesh(
             "/coffee_water_surface",
             self._empty_points if hidden else points,
@@ -359,79 +384,71 @@ class CoffeePresentation:
         if isinstance(viewer, ViewerRTX) and colors is not None:
             self._update_rtx_water_appearance(viewer, 0.42 + 0.40 * fraction, colors)
 
-    def draw_kit(self, visualizer):
+    def draw_kit(self, visualizer) -> None:
         """Publish the same grains and local liquid colours to Kit's USD stage."""
         self.update(0.0)
         visualizer.update_coffee(self._points, self._radii, self._colors, dynamic_radii=self._water is not None)
         if self._surface is not None:
             points, indices, normals, colors, fraction = self._water_surface_arrays()
-            if colors is not None:
-                # Kit consumes vertex colour streams for dynamic USD geometry.
-                count = 3 * len(colors)
-                points, indices = self._mesh_points[:count], self._mesh_indices[:count]
-                normals, colors = self._mesh_normals[:count], np.repeat(colors, 3, axis=0)
             visualizer.update_water(points, indices, normals, colors, 0.42 + 0.40 * fraction)
 
     def _water_surface_arrays(self):
-        """Extract native water geometry and sample the transported concentration."""
-        fraction = 1.0 - math.exp(-self.tracer_mass_kg / self._color_mass_scale)
-        self._water_color = tuple((1.0 - fraction) * a + fraction * b for a, b in zip(WATER_COLOR, BREW_COLOR))
-        # Rendering can compact its input after the host transfer. Keep dry
-        # coffee out of the surface's hash grid; physics/colour buffers stay fixed.
-        ids = np.flatnonzero(self._liquid_flags.numpy()).astype(np.int32)
-        if self._surface_ids_host is None or not np.array_equal(ids, self._surface_ids_host):
-            self._surface_ids_host = ids
-            self._surface_ids = wp.array(ids, dtype=int, device=self._model.device)
-        wp.launch(
-            _gather_water,
-            dim=ids.size,
-            inputs=[self._surface_ids, self._water_points, self._water_radii],
-            outputs=[self._surface_points, self._surface_radii],
-            device=self._model.device,
-        )
-        mesh = self._surface.extract(self._surface_points[: ids.size], self._surface_radii[: ids.size])
-        points, indices, normals = mesh.to_arrays()
-        hidden = points is None
-        face_count = 0 if hidden else indices.size // 3
-        colors = None
-        if face_count:
-            # One texel per face avoids interpolating across unrelated atlas
-            # entries. Smooth surface normals retain the liquid appearance.
-            width, height = 256, math.ceil(face_count / 256)
-            if self._face_colors is None or self._face_colors.size < width * height:
-                self._face_colors = wp.full(width * height, wp.vec3(WATER_COLOR), device=self._model.device)
-                self._mesh_points = wp.empty(3 * width * height, dtype=wp.vec3, device=self._model.device)
-                self._mesh_normals = wp.empty_like(self._mesh_points)
-                self._mesh_uvs = wp.empty(3 * width * height, dtype=wp.vec2, device=self._model.device)
-                self._mesh_indices = wp.array(np.arange(3 * width * height, dtype=np.int32), device=self._model.device)
-            self._hash_grid.build(self._water_points, self._contact_radius)
+        """Reconstruct once per physics state and interpolate tint on shared vertices."""
+        step = self._env.sim.get_physics_step_count()
+        if step != self._surface_step:
+            now = self._env.sim.physics_manager.get_simulation_time()
+            dt = 0.0 if self._surface_time is None else max(now - self._surface_time, 0.0)
+            # Compact only liquid carriers; physical buffers remain fixed for capture.
+            ids = np.flatnonzero(self._liquid_flags.numpy()).astype(np.int32)
+            if self._surface_ids_host is None or not np.array_equal(ids, self._surface_ids_host):
+                self._surface_ids_host = ids
+                self._surface_ids = wp.array(ids, dtype=int, device=self._model.device)
             wp.launch(
-                _color_water_faces,
-                dim=face_count,
+                _gather_water,
+                dim=ids.size,
+                inputs=[self._surface_ids, self._liquid_points, self._liquid_radii],
+                outputs=[self._surface_points, self._surface_radii],
+                device=self._model.device,
+            )
+            field = self._surface.update_field(self._surface_points[: ids.size], self._surface_radii[: ids.size])
+            self._surface_history.apply(field, dt)
+            self._surface_mesh = self._surface.resurface().to_arrays()
+            self._surface_step, self._surface_time = step, now
+            self._surface_cache = None
+        if self._surface_cache is not None:
+            return self._surface_cache
+        fraction = 1.0 - math.exp(-self.tracer_mass_kg / self._color_mass_scale)
+        points, indices, normals = self._surface_mesh
+        hidden = points is None
+        colors = None
+        if not hidden and indices.size:
+            if self._vertex_colors is None or self._vertex_colors.size < points.size:
+                self._vertex_colors = wp.empty(points.size, dtype=wp.vec3, device=self._model.device)
+            self._hash_grid.build(self._liquid_points, self._mixing_radius)
+            wp.launch(
+                _color_water_vertices,
+                dim=points.size,
                 inputs=[
                     points,
-                    indices,
-                    normals,
-                    self._water_points,
-                    self._water_mass,
+                    self._liquid_points,
+                    self._liquid_mass,
                     self._liquid_flags,
                     self._dye_mass,
                     self._hash_grid.id,
-                    1.5 * self._contact_radius,
+                    1.5 * self._mixing_radius,
                     self._concentration_scale,
-                    width,
-                    height,
                     wp.vec3(WATER_COLOR),
                     wp.vec3(BREW_COLOR),
                 ],
-                outputs=[self._face_colors, self._mesh_points, self._mesh_normals, self._mesh_uvs],
+                outputs=[self._vertex_colors],
                 device=self._model.device,
             )
-            colors = self._face_colors[:face_count].numpy()
-        return points, indices, normals, colors, fraction
+            colors = self._vertex_colors[: points.size].numpy()
+        self._surface_cache = points, indices, normals, colors, fraction
+        return self._surface_cache
 
     def _update_rtx_water_appearance(self, viewer: ViewerRTX, opacity: float, colors: np.ndarray) -> None:
-        """Bind local face colours and update the live RTX primvar and opacity."""
+        """Bind interpolated vertex colours and update the live RTX primvar and opacity."""
         from pxr import Sdf, UsdGeom, UsdShade, Vt
 
         key = id(viewer)
@@ -448,7 +465,7 @@ class CoffeePresentation:
             reader.CreateOutput("result", Sdf.ValueTypeNames.Float3)
             shader.GetInput("diffuseColor").ConnectToSource(reader.ConnectableAPI(), "result")
             primvar = UsdGeom.PrimvarsAPI(viewer.stage.GetPrimAtPath(mesh_path)).CreatePrimvar(
-                "displayColor", Sdf.ValueTypeNames.Color3fArray, UsdGeom.Tokens.uniform
+                "displayColor", Sdf.ValueTypeNames.Color3fArray, UsdGeom.Tokens.vertex
             )
             primvar.Set(Vt.Vec3fArray.FromNumpy(colors))
             if viewer._rtx is not None:
@@ -468,19 +485,24 @@ class CoffeePresentation:
             np.asarray([viewer._preview_surface_opacity_value(opacity)], dtype=np.float32),
         )
 
-    def reset(self, env_ids=None):
+    def reset(self, env_ids=None) -> None:
         """Clear appearance after the single demo world is reset."""
         if env_ids is not None and not isinstance(env_ids, slice) and len(env_ids) == 0:
             return
         self._rtx_static_grain_views.clear()
         self._tint_elapsed = 0.0
+        self._surface_history.reset()
+        self._surface_step = -1
+        self._surface_time = None
+        self._surface_mesh = None
+        self._surface_cache = None
         if self._water is not None:
             self._dye_mass.zero_()
             self._next_dye_mass.zero_()
             self._color_released.zero_()
         self.update(0.0)
 
-    def close(self):
+    def close(self) -> None:
         """Detach presentation from viewers before environment teardown."""
         for visualizer in self._visualizers:
             visualizer.presentation = None
@@ -488,6 +510,9 @@ class CoffeePresentation:
         self._kit_visualizers.clear()
         self._rtx_water_shaders.clear()
         self._rtx_static_grain_views.clear()
+        self._surface_history.reset()
+        self._surface_mesh = None
+        self._surface_cache = None
 
 
 @wp.kernel
@@ -573,10 +598,8 @@ def _diffuse_water_color(
 
 
 @wp.kernel
-def _color_water_faces(
+def _color_water_vertices(
     points: wp.array[wp.vec3],
-    indices: wp.array[int],
-    normals: wp.array[wp.vec3],
     water: wp.array[wp.vec3],
     mass: wp.array[float],
     flags: wp.array[int],
@@ -584,17 +607,12 @@ def _color_water_faces(
     grid: wp.uint64,
     radius: float,
     concentration_scale: float,
-    width: int,
-    height: int,
     clear_color: wp.vec3,
     brown_color: wp.vec3,
     colors: wp.array[wp.vec3],
-    expanded_points: wp.array[wp.vec3],
-    expanded_normals: wp.array[wp.vec3],
-    expanded_uvs: wp.array[wp.vec2],
 ):
-    face = wp.tid()
-    center = (points[indices[3 * face]] + points[indices[3 * face + 1]] + points[indices[3 * face + 2]]) / 3.0
+    vertex = wp.tid()
+    center = points[vertex]
     tracer = float(0.0)
     carrier = float(0.0)
     for j in wp.hash_grid_query(grid, center, radius):
@@ -604,7 +622,26 @@ def _color_water_faces(
             carrier += weight * mass[j]
     concentration = tracer / wp.max(carrier, 1.0e-20)
     fraction = 1.0 - wp.exp(-concentration / concentration_scale)
-    colors[face] = wp.lerp(clear_color, brown_color, fraction)
+    colors[vertex] = wp.lerp(clear_color, brown_color, fraction)
+
+
+@wp.kernel
+def _color_water_faces(
+    points: wp.array[wp.vec3],
+    indices: wp.array[int],
+    normals: wp.array[wp.vec3],
+    vertex_colors: wp.array[wp.vec3],
+    width: int,
+    height: int,
+    colors: wp.array[wp.vec3],
+    expanded_points: wp.array[wp.vec3],
+    expanded_normals: wp.array[wp.vec3],
+    expanded_uvs: wp.array[wp.vec2],
+):
+    face = wp.tid()
+    colors[face] = (
+        vertex_colors[indices[3 * face]] + vertex_colors[indices[3 * face + 1]] + vertex_colors[indices[3 * face + 2]]
+    ) / 3.0
     # Newton's GL image upload flips texture rows vertically.
     uv = wp.vec2((float(face % width) + 0.5) / float(width), 1.0 - (float(face // width) + 0.5) / float(height))
     for corner in range(3):

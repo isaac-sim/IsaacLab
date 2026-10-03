@@ -12,6 +12,7 @@ import numpy as np
 import pytest
 import warp as wp
 from newton._src.utils.texture import normalize_texture
+from newton.geometry import ParticleSurface
 from newton.solvers import SolverImplicitMPM
 
 from isaaclab.test.utils import DeviceScope, test_devices
@@ -19,10 +20,12 @@ from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab_tasks.contrib.rizon_sharpa_coffee.physics import CoffeeMPMSolver
 from isaaclab_tasks.contrib.rizon_sharpa_coffee.presentation import (
     _color_water_faces,
+    _color_water_vertices,
     _diffuse_water_color,
     _release_converted_color,
     _water_diffusion_support,
 )
+from isaaclab_tasks.contrib.rizon_sharpa_coffee.surface import SurfaceHistory
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
@@ -172,6 +175,14 @@ def test_gl_surface_tint_stays_on_the_wet_faces_after_texture_upload():
     colors = wp.full(512, clear, device=device)
     expanded = wp.empty(771, dtype=wp.vec3, device=device)
     normals, uvs = wp.empty_like(expanded), wp.empty(771, dtype=wp.vec2, device=device)
+    vertex_colors = wp.empty(6, dtype=wp.vec3, device=device)
+    wp.launch(
+        _color_water_vertices,
+        dim=6,
+        inputs=[points, water, mass, wp.ones(2, dtype=int, device=device), dye, grid.id, 0.1, 0.1, clear, brown],
+        outputs=[vertex_colors],
+        device=device,
+    )
     wp.launch(
         _color_water_faces,
         dim=257,
@@ -179,17 +190,9 @@ def test_gl_surface_tint_stays_on_the_wet_faces_after_texture_upload():
             points,
             indices,
             wp.zeros(6, dtype=wp.vec3, device=device),
-            water,
-            mass,
-            wp.ones(2, dtype=int, device=device),
-            dye,
-            grid.id,
-            0.1,
-            0.1,
+            vertex_colors,
             256,
             2,
-            clear,
-            brown,
         ],
         outputs=[colors, expanded, normals, uvs],
         device=device,
@@ -204,6 +207,62 @@ def test_gl_surface_tint_stays_on_the_wet_faces_after_texture_upload():
     coordinates = uvs.numpy()[[0, 768]]
     pixels = uploaded[(coordinates[:, 1] * 2).astype(int), (coordinates[:, 0] * 256).astype(int)]
     np.testing.assert_allclose(pixels / 255.0, [list(clear), list(brown)], atol=1.0 / 255.0)
+
+
+@wp.kernel
+def _write_density(coordinates: wp.array[wp.vec3i], values: wp.array[float], grid: wp.uint64, density: wp.array[float]):
+    i = wp.tid()
+    c = coordinates[i]
+    density[wp.volume_lookup_index(grid, c[0], c[1], c[2])] = values[i]
+
+
+@wp.kernel
+def _read_density(coordinates: wp.array[wp.vec3i], grid: wp.uint64, density: wp.array[float], values: wp.array[float]):
+    i = wp.tid()
+    c = coordinates[i]
+    values[i] = density[wp.volume_lookup_index(grid, c[0], c[1], c[2])]
+
+
+def test_surface_history_matches_spatial_voxels_and_clears_on_reset():
+    """An existing voxel filters a step; new topology and an episode reset stay fresh."""
+
+    def field(coordinates, values):
+        coordinates = wp.array(coordinates, dtype=wp.vec3i, device="cpu")
+        volume = wp.Volume.allocate_by_voxels(coordinates, voxel_size=1.0, device="cpu")
+        data = wp.zeros(volume.get_voxel_count(), device="cpu")
+        wp.launch(
+            _write_density,
+            dim=coordinates.size,
+            inputs=[coordinates, wp.array(values, dtype=float, device="cpu"), volume.id, data],
+            device="cpu",
+        )
+        return ParticleSurface.SparseField(
+            volume, data, 0.0, wp.zeros(1, dtype=wp.vec3i, device="cpu"), wp.zeros(1, dtype=int, device="cpu")
+        ), coordinates
+
+    history = SurfaceHistory(0.06)
+    old, _ = field([(0, 0, 0), (8, 0, 0)], [0.0, 0.8])
+    old_values = old.voxel_data.numpy().copy()
+    history.apply(old, 0.0)
+    current, coordinates = field([(-8, 0, 0), (0, 0, 0)], [0.3, 1.0])
+    history.apply(current, 0.06 * math.log(2.0))
+    samples = wp.empty(2, device="cpu")
+    wp.launch(
+        _read_density,
+        dim=2,
+        inputs=[coordinates, current.volume.id, current.voxel_data],
+        outputs=[samples],
+        device="cpu",
+    )
+    np.testing.assert_allclose(samples.numpy(), [0.3, 0.5], atol=1.0e-6)
+    np.testing.assert_array_equal(old.voxel_data.numpy(), old_values)
+    history.reset()
+    fresh, coordinates = field([(0, 0, 0)], [0.9])
+    history.apply(fresh, 0.06 * math.log(2.0))
+    wp.launch(
+        _read_density, dim=1, inputs=[coordinates, fresh.volume.id, fresh.voxel_data], outputs=[samples], device="cpu"
+    )
+    assert samples.numpy()[0] == pytest.approx(0.9, abs=1.0e-6)
 
 
 def test_mounted_spoon_transfers_com_twist_to_both_state_buffers():
