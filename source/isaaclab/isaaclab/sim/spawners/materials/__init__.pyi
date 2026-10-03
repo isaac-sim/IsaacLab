@@ -23,6 +23,7 @@ __all__ = [
     "SurfaceDeformableBodyMaterialCfg",
     "spawn_from_mdl_file",
     "spawn_preview_surface",
+    "modify_visual_material",
     "GlassMdlCfg",
     "MdlFileCfg",
     "PbrMdlCfg",
@@ -55,5 +56,5 @@ from .physics_materials_cfg import (
     SurfaceDeformableBodyMaterialCfg,
     UsdPhysicsRigidBodyMaterialCfg,
 )
-from .visual_materials import spawn_from_mdl_file, spawn_preview_surface
+from .visual_materials import modify_visual_material, spawn_from_mdl_file, spawn_preview_surface
 from .visual_materials_cfg import GlassMdlCfg, MdlFileCfg, PbrMdlCfg, PreviewSurfaceCfg, VisualMaterialCfg

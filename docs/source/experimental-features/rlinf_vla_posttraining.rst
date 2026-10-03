@@ -153,11 +153,34 @@ these entries belong under ``env.train.isaaclab``:
      language: annotation.human.task_description
      # Keep the checkpoint's video and state mappings here as well.
    action_mapping:
-     keys: [action.left_arm, action.right_arm, action.left_hand, action.right_hand]
+     keys: [left_arm, right_arm, left_hand, right_hand]
 
 Without these entries, the language key remains ``annotation.human.action.task_description``
 and actions retain the model's dictionary order. When set, ``keys`` must list every action part
 to emit, in environment order. Use ``uv run --no-sync`` to preserve the pins.
+
+H2 + Sharpa checkpoints and assets
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The H2 examples use N1.7. Download the checkpoint for either task and the shared Cosmos backbone:
+
+.. code-block:: bash
+
+   uv run --no-sync hf download LiFanxing/pnp_apple --include "gen_data_SFT_l40s-2/checkpoint-30000/*" \
+       --local-dir .pretrained_checkpoints/rlinf/pnp_apple
+   uv run --no-sync hf download LiFanxing/pack_agx --include "pack_agx_mimicgen_sft_l40s-1/checkpoint-40000/*" \
+       --local-dir .pretrained_checkpoints/rlinf/pack_agx
+   uv run --no-sync hf download nvidia/Cosmos-Reason2-2B --local-dir .pretrained_checkpoints/rlinf/Cosmos-Reason2-2B
+
+Authenticate with ``uv run --no-sync hf auth login`` if required, using an account with access to the
+selected repositories. The tasks also require access to the
+`scene assets <https://huggingface.co/datasets/LiFanxing/IsaacLabRLinfDemo>`__. To use a local mirror,
+configure both roots before launching:
+
+.. code-block:: bash
+
+   export ISAACLAB_RLINF_DEMO_ASSET_ROOT=/path/to/mirror/assets
+   export ISAACLAB_H2_SHARPA_ASSET_ROOT=/path/to/mirror/assets/Robots/UnitreeH2
 
 .. _rlinf-decord-aarch64:
 
@@ -233,6 +256,19 @@ RLinf requires Ray for worker scheduling in both training and evaluation, includ
    The ``--config_path`` flag is optional. When omitted, the scripts automatically
    search the ``isaaclab_tasks`` package for the matching YAML configuration file.
 
+For H2 + Sharpa, use ``PPO_GR00T_PnPApple`` or ``PPO_GR00T_PackAGX`` as the configuration name.
+Their model paths default to the download locations above:
+
+.. code-block:: bash
+
+   uv run --no-sync isaaclab train --rl_library rlinf --config_name PPO_GR00T_PnPApple
+   uv run --no-sync isaaclab play --rl_library rlinf --config_name PPO_GR00T_PnPApple --video
+
+Changing ``--num_envs`` alone can break RLinf's batch arithmetic:
+``total_num_envs * max_steps_per_rollout_epoch / num_action_chunks`` must remain a multiple of
+``actor.global_batch_size``. For a smaller smoke run, copy the YAML, reduce its batch sizes too,
+and select it with ``--config_path``.
+
 Checkpoints
 -----------
 
@@ -305,3 +341,34 @@ Key Files
 
 For detailed configuration options, CLI arguments, and how to add new tasks,
 use the unified ``uv run isaaclab train --rl_library rlinf`` and ``uv run isaaclab play --rl_library rlinf`` commands.
+
+Attribution and Citation
+------------------------
+
+SimReady Assets
+~~~~~~~~~~~~~~~
+
+The SimReady scene assets used by the post-training tasks are powered by
+`Lightwheel <https://lightwheel.ai/>`__.
+
+.. attention::
+
+   These assets are licensed under the `Creative Commons Attribution-NonCommercial 4.0 International
+   License <https://creativecommons.org/licenses/by-nc/4.0/>`__, whose terms are collected in
+   ``docs/licenses/assets/lightwheel-license.txt``. Commercial use is not granted. The per-asset
+   terms are served next to each USD, as ``LICENSE.txt`` in place of the file's base name.
+
+RL Training Framework
+~~~~~~~~~~~~~~~~~~~~~
+
+The RL training framework is powered by `RLinf <https://github.com/RLinf/RLinf>`__. If you find the
+RL capabilities helpful, please cite:
+
+.. code-block:: text
+
+   @article{yu2025rlinf,
+     title={RLinf: Flexible and Efficient Large-scale Reinforcement Learning via Macro-to-Micro Flexibility},
+     author={Yu, Chao and Wang, Yuanqing and Guo, Zhen and Lin, Hao and Xu, Si and Zang, Hongzhi},
+     journal={arXiv preprint arXiv:2509.15965},
+     year={2025}
+   }
