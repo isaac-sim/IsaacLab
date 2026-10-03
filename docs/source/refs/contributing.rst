@@ -79,6 +79,10 @@ We use `Sphinx <https://www.sphinx-doc.org/en/master/>`__ with the
 `Book Theme <https://sphinx-book-theme.readthedocs.io/en/stable/>`__
 for maintaining the documentation.
 
+API ``[source]`` links open the implementation on GitHub, using the published documentation's
+branch or tag (``develop`` for a current-checkout build by default). We do not generate local
+Python source pages; viewing the implementation requires internet access.
+
 Sending a pull request for the documentation is the same as sending a pull request for the codebase.
 Please follow the steps mentioned in the `Contributing Code`_ section.
 
@@ -89,39 +93,46 @@ the externally hosted file from the documentation.
 .. caution::
 
   Install `uv <https://docs.astral.sh/uv/getting-started/installation/>`__ before building
-  the documentation. The build command creates a temporary environment for the
-  ``dev`` extra, which includes documentation requirements, leaving the
-  repository's ``.venv`` unchanged.
+  the documentation. The build command syncs the ``dev`` extra, which includes
+  documentation requirements, into the repository's ``.venv``.
 
 
-To build the documentation, run the following command from the repository root. It installs
+Choose documentation validation according to the changed behavior:
+
+* Skip Sphinx when rendered docs are unaffected, including standalone ``AGENTS.md`` and ``skills/``
+  edits. Run the relevant code or skill checks instead.
+* Use the incremental HTML preview while editing documentation pages.
+* Use a clean build for API signatures or docstrings, Sphinx configuration or extensions, and
+  theme changes. Sphinx's cache does not reliably detect Python source changes.
+* Run one clean, warning-free build of final documentation-affecting changes before submitting
+  a PR. Repeat it only after further relevant changes or a failure. CI also runs the clean build.
+
+For an incremental HTML preview, run this command from the repository root on Linux or Windows:
+
+.. code:: bash
+
+   uv run --extra dev --directory docs python -m sphinx -W --keep-going -j auto . _build/incremental
+
+On systems with Make, the equivalent command is:
+
+.. code:: bash
+
+   uv run --extra dev make -C docs incremental-docs
+
+Open ``docs/_build/incremental/index.html`` to inspect the preview. Subsequent runs reuse the cache
+and treat new warnings as errors, but can omit old warnings and retain deleted pages. Use a clean
+build for final validation, and avoid concurrent builds in the same output directory.
+
+For the final clean build, run the following command from the repository root. It installs
 the documentation packages and builds the current version:
 
 .. code:: bash
 
-   uv run isaaclab --docs
+   uv run --extra dev isaaclab --docs
 
-The documentation is generated in the ``docs/_build`` directory. To view the documentation, open
-the ``index.html`` file in ``docs/_build/current``. This can be done by running the following command
-in the terminal:
-
-.. code:: bash
-
-   xdg-open docs/_build/current/index.html
-
-.. hint::
-
-   The ``xdg-open`` command is used to open the ``index.html`` file in the default browser. If you are
-   using a different operating system, you can use the appropriate command to open the file in the browser.
-
-
-For PR validation, remove the generated HTML before building so deleted pages cannot leave stale output.
-Run these commands from the repository root; they preserve the Sphinx cache:
-
-.. code:: bash
-
-   uv run python -c "import shutil; shutil.rmtree('docs/_build/current', ignore_errors=True)"
-   uv run isaaclab --docs
+The documentation is generated in ``docs/_build/current``. Open
+``docs/_build/current/index.html`` in a browser to view it. Each build clears the current
+HTML output and its Sphinx cache so deleted pages and cached warnings cannot be carried over.
 
 
 Contributing assets
@@ -160,15 +171,16 @@ package version.
 
 .. note::
 
-   ``CHANGELOG.rst`` and the package version in ``pyproject.toml`` are compiled by CI from per-PR **fragment
-   files** — contributors do not edit them directly. For every package your PR touches
-   in ``source/<pkg>/`` (outside ``changelog.d/``), add one fragment under
-   ``source/<pkg>/changelog.d/<slug>.<tier>.rst``:
+   ``CHANGELOG.rst`` and the package version in ``pyproject.toml`` are compiled nightly by CI from
+   per-PR `towncrier <https://towncrier.readthedocs.io/>`__ **fragment files** — contributors do not
+   edit them directly. For every package your PR touches in ``source/<pkg>/`` (outside
+   ``changelog.d/``), add fragments under ``source/<pkg>/changelog.d/``:
 
-   * ``<slug>.rst`` — patch bump
-   * ``<slug>.minor.rst`` — minor bump (new public API)
-   * ``<slug>.major.rst`` — major bump (breaking change)
-   * ``<slug>.skip`` — no entry, no bump (CI / docs / test-only PRs)
+   * ``<slug>.<type>.rst`` — one file per entry type, where ``<type>`` is ``added``, ``changed``,
+     ``deprecated``, ``removed`` or ``fixed``; the file holds that section's bullets.
+   * ``<slug>.minor`` or ``<slug>.major`` — an empty file that raises the version bump from patch
+     to minor (new public API) or major (breaking change).
+   * ``<slug>.skip`` — an empty file for no entry and no bump (CI / docs / test-only PRs).
 
    ``<slug>`` is any short, unique name; your branch name with ``/`` replaced by ``-``
    is the recommended default. Within a batch the highest tier wins for the package.
@@ -181,15 +193,15 @@ been made between each release of a package. This is a *MUST* for every release-
 
 For each fragment, please follow the following guidelines:
 
-* Each fragment is divided into subsections based on the type of changes made.
+* Each fragment's ``<type>`` names the changelog section its bullets appear under.
 
-  * ``Added``: For new features.
-  * ``Changed``: For changes in existing functionality.
-  * ``Deprecated``: For soon-to-be removed features.
-  * ``Removed``: For now removed features.
-  * ``Fixed``: For any bug fixes.
+  * ``added``: For new features.
+  * ``changed``: For changes in existing functionality.
+  * ``deprecated``: For soon-to-be removed features.
+  * ``removed``: For now removed features.
+  * ``fixed``: For any bug fixes.
 
-* Each change is described in its corresponding sub-section with a bullet point.
+* Each change is described with a ``*`` bullet point; continuation lines are indented.
 * Prefix breaking changes with **Breaking:** and provide migration guidance for deprecated, changed,
   or removed behavior that requires callers to adapt.
 * The bullet points are written in the **past tense**.
@@ -203,12 +215,9 @@ For each fragment, please follow the following guidelines:
 
    When in doubt, please check the style in the existing changelog files and follow the same style.
 
-For example, ``source/isaaclab/changelog.d/fix-partial-reset.rst``:
+For example, ``source/isaaclab/changelog.d/fix-partial-reset.fixed.rst``:
 
 .. code:: rst
-
-    Fixed
-    ^^^^^
 
     * Fixed contact sensor reset behavior when only a subset of environments was reset.
 
@@ -676,6 +685,73 @@ and constraints in docstrings without repeating the annotated types:
 
 * Annotate functions that return no value with ``-> None``. Omit an unnecessary ``Returns:`` section
   from their docstrings.
+
+Warnings and Logging
+^^^^^^^^^^^^^^^^^^^^
+
+Choose the mechanism by who has to act on the message, following the Python
+`logging HOWTO <https://docs.python.org/3/howto/logging.html#when-to-use-logging>`__:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 50 50
+
+   * - Situation
+     - Mechanism
+   * - The **caller should change their code or config**: a deprecated API or parameter, an ignored or
+       conflicting setting, or misuse.
+     - ``warnings.warn(message, <Category>, stacklevel=...)``
+   * - A **runtime event** that the caller cannot avoid by changing their code: a fallback was taken, an
+       optional dependency or feature is unavailable, or performance is degraded.
+     - ``logger.warning(message)`` with a module-level ``logger = logging.getLogger(__name__)``
+   * - User-facing notices in scripts and command-line tools.
+     - ``logger.warning(message)``, as above
+   * - **Progress and status** from library code and entry points: the parsed task configuration, the log
+       directory, environment and manager summaries.
+     - ``logger.info(message)``
+   * - A **failure reported before exiting** a command-line tool.
+     - ``logger.error(message)``
+
+* Always pass an explicit category to ``warnings.warn``:
+
+  * ``DeprecationWarning`` for deprecated Python APIs that callers use from their own code.
+  * ``FutureWarning`` for deprecated configuration values, presets, or command-line options that end users
+    reach through Isaac Lab entry points. Python shows these by default even when they are raised from
+    library code.
+  * ``UserWarning`` for misuse or for settings that are ignored.
+
+* Set ``stacklevel`` so that the warning points at the caller's line, not at Isaac Lab internals.
+* Do not use ``print`` for warnings or status messages, and do not add ``[WARNING]``, ``[WARN]``,
+  ``[INFO]``, or ``[ERROR]`` prefixes. Printed messages ignore ``--verbose`` / ``--info`` and log handlers,
+  and tests cannot capture them reliably. The logging record already carries the level. ``print`` remains
+  the right tool for a program's actual output, such as command results, a ``--dry_run`` command line, or
+  the tables a tutorial walks through.
+* Isaac Lab entry points and :func:`~isaaclab.app.launch_simulation` call
+  ``isaaclab.app.logging_utils.configure_console_logging``, which prints INFO records from ``isaaclab*``
+  loggers on stdout as ``[INFO]: <message>`` and warnings on stderr. Call it first in a new command-line
+  entry point so that messages logged before the simulation runtime starts are shown.
+* In tests, assert ``warnings.warn`` with ``pytest.warns`` and ``logger.warning`` with ``caplog``.
+
+.. code:: python
+
+   import logging
+   import warnings
+
+   logger = logging.getLogger(__name__)
+
+
+   def set_gains(stiffness: float, damping: float | None = None, kd: float | None = None) -> None:
+       if kd is not None:
+           warnings.warn("'kd' is deprecated. Use 'damping' instead.", DeprecationWarning, stacklevel=2)
+           damping = kd
+       ...
+
+
+   def capture_graph() -> None:
+       try:
+           ...
+       except RuntimeError as exc:
+           logger.warning(f"CUDA graph capture failed; falling back to eager launches. Reason: {exc}")
 
 Documenting the code
 ^^^^^^^^^^^^^^^^^^^^

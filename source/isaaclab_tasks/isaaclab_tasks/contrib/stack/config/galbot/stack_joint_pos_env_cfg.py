@@ -42,7 +42,7 @@ from isaaclab_assets.robots.galbot import GALBOT_ONE_CHARLIE_CFG  # isort: skip
 
 
 def _build_se3_abs_gripper_pipeline(hand_side="left"):
-    """Build an IsaacTeleop Se3Abs + Gripper pipeline for single-arm manipulator teleoperation.
+    """Build an Isaac Capture Se3Abs + Gripper pipeline for single-arm manipulator teleoperation.
 
     Creates a Se3AbsRetargeter for end-effector absolute pose tracking and
     a GripperRetargeter for pinch-based gripper control from hand tracking data.
@@ -334,7 +334,7 @@ class GalbotLeftArmCubeStackEnvCfg(StackEnvCfg):
             ],
         )
 
-        # IsaacTeleop-based teleoperation pipeline (left hand)
+        # Isaac Capture-based teleoperation pipeline (left hand)
         self.isaac_teleop = IsaacTeleopCfg(
             pipeline_builder=lambda: _build_se3_abs_gripper_pipeline(hand_side="left"),
             sim_device=self.sim.device,
@@ -383,7 +383,7 @@ class GalbotRightArmCubeStackEnvCfg(GalbotLeftArmCubeStackEnvCfg):
 
         self.scene.ee_frame.target_frames[0].prim_path = "{ENV_REGEX_NS}/Robot/right_suction_cup_tcp_link"
 
-        # IsaacTeleop-based teleoperation pipeline (right hand)
+        # Isaac Capture-based teleoperation pipeline (right hand)
         self.isaac_teleop = IsaacTeleopCfg(
             pipeline_builder=lambda: _build_se3_abs_gripper_pipeline(hand_side="right"),
             sim_device=self.sim.device,

@@ -26,6 +26,21 @@ the Galbot Right Arm Suction stacking task, and its relative and absolute Mimic 
 Pass ``--device cpu`` when running teleoperation. Zero and random agents preserve these tasks'
 CPU defaults when ``--device`` is omitted; an explicit GPU override is unsupported.
 
+GPU articulation solver partition aliasing
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Affects:** ``physics=isaacsim_physx`` on CUDA when
+``PhysxCfg.gpu_max_num_partitions > 1``.
+
+The PhysX GPU articulation solver can corrupt articulation state when a scene contains
+more than 32 articulation instances and at least one articulation has more than 64 links.
+The corruption can appear as runaway joint velocities or NaNs in otherwise separate
+environments. See `Isaac Lab issue #8121`_ for the reported repro.
+
+As a workaround, set ``PhysxCfg(gpu_max_num_partitions=1)`` until the underlying PhysX
+issue is fixed. Isaac Lab logs a warning for managed PhysX
+:class:`~isaaclab.assets.Articulation` assets when the known conditions are detected.
+
 Sensor readings are stale immediately after a reset
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -192,6 +207,7 @@ This is then replicated across other references of the same asset since physics 
 are stored in the instanceable asset's USD file and not in its stage reference's USD file.
 
 .. _instanceable assets: https://docs.isaacsim.omniverse.nvidia.com/latest/isaac_lab_tutorials/tutorial_instanceable_assets.html
+.. _Isaac Lab issue #8121: https://github.com/isaac-sim/IsaacLab/issues/8121
 .. _Omniverse Isaac Sim documentation: https://docs.isaacsim.omniverse.nvidia.com/latest/overview/known_issues.html#
 .. _OpenUSD PR #4002: https://github.com/PixarAnimationStudios/OpenUSD/pull/4002
 
@@ -210,18 +226,3 @@ those links are treated as full bodies rather than zero-mass reference frames.
 However, the USD importer currently raises ``ReportError`` warnings showing unresolved references for such links
 when they lack visuals or colliders. This is a known bug in the importer; it creates references to visuals
 that do not exist. The warnings can be safely ignored until the importer is updated.
-
-
-Environment and setup
----------------------
-
-GLIBCXX errors in conda environments
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-**Affects:** conda-based installations, independent of the physics backend.
-
-Some workflows exit with an ``OSError`` indicating ``version 'GLIBCXX_3.4.30' not found``
-when running from a conda environment. The issue appears to stem from importing torch or
-torch-related packages, such as tensorboard, before Isaac Sim starts. As a workaround, ensure
-that all torch imports happen inside :func:`~isaaclab.app.launch_simulation`, after the runtime has
-started, which should resolve the error.

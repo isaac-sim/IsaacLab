@@ -11,11 +11,11 @@ the Newton Warp or Isaac RTX renderer.
 
     # Run a finite smoke with the default Newton Warp renderer and save comparison images.
     uvx --from 'isaaclab[isaacsim]' isaaclab example ppisp-camera \
-        --input_scene /path/to/scene.usd --renderer newton_renderer --visualizer none --max_steps 60
+        --input_scene /path/to/scene.usd --renderer newton_renderer --max_steps 60
 
     # Run the same saved-image workflow with Isaac RTX.
     uvx --from 'isaaclab[isaacsim]' isaaclab example ppisp-camera \
-        --input_scene /path/to/scene.usd --renderer isaac_rtx --visualizer none --max_steps 60
+        --input_scene /path/to/scene.usd --renderer isaac_rtx --max_steps 60
 
 """
 
