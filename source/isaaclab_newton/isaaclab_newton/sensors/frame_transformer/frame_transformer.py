@@ -12,11 +12,12 @@ import warp as wp
 
 from isaaclab.sensors.frame_transformer.base_frame_transformer import BaseFrameTransformer
 from isaaclab.sim.utils.queries import split_path_expr
+from isaaclab.utils.version import has_kit
 
-from isaaclab_newton.physics import NewtonManager
+from isaaclab_newton.physics import NewtonManager, NewtonQueries
 
 from .frame_transformer_data import FrameTransformerData
-from .frame_transformer_kernels import compose_target_world_kernel, copy_from_newton_kernel
+from .frame_transformer_kernels import copy_from_newton_kernel
 
 if TYPE_CHECKING:
     from isaaclab.sensors.frame_transformer.frame_transformer_cfg import FrameTransformerCfg
@@ -59,6 +60,7 @@ class FrameTransformer(BaseFrameTransformer):
         super().__init__(cfg)
 
         self._data: FrameTransformerData = FrameTransformerData()
+        self._update_graph = None
         self._newton_sensor = None
         self._newton_transforms = None
         self._stride: int = 0
@@ -310,24 +312,26 @@ class FrameTransformer(BaseFrameTransformer):
         """Samples current frame transforms into owned buffers."""
         if self._newton_transforms is None:
             raise RuntimeError(f"FrameTransformer '{self.cfg.prim_path}': sensor is not initialized")
-        self._newton_sensor.update(NewtonManager.get_state_0())
+        state = NewtonManager.get_state_0()
+        device = state.body_q.device
+        if device.is_cuda and not device.is_capturing:
+            pointers = state.body_q.ptr, env_mask.ptr
+            if self._update_graph is None or self._update_graph[0] != pointers:
+                graph = NewtonQueries.capture_graph(
+                    self._device, lambda: self._update_buffers_impl(env_mask), relaxed=has_kit()
+                )
+                self._update_graph = pointers, graph
+            wp.capture_launch(self._update_graph[1])
+            return
+
+        self._newton_sensor.update(state)
         wp.launch(
             copy_from_newton_kernel,
             dim=(self._num_envs, 1 + self._num_targets),
             inputs=[env_mask, self._newton_transforms, self._stride],
-            outputs=[self._data._source_transforms, self._data._target_transforms],
+            outputs=[self._data._source_transforms, self._data._target_transforms, self._data._target_transforms_w],
             device=self._device,
         )
-
-        # Compose target world transforms: source_world * target_relative
-        if self._num_targets > 0:
-            wp.launch(
-                compose_target_world_kernel,
-                dim=(self._num_envs, self._num_targets),
-                inputs=[env_mask, self._data._source_transforms, self._data._target_transforms],
-                outputs=[self._data._target_transforms_w],
-                device=self._device,
-            )
 
     """
     Internal simulation callbacks.
@@ -341,6 +345,7 @@ class FrameTransformer(BaseFrameTransformer):
         stale registrations from old sensors cannot leak into the next context.
         """
         super()._invalidate_initialize_callback(event)
+        self._update_graph = None
         self._newton_sensor = None
         self._newton_transforms = None
         self._sensor_index = None

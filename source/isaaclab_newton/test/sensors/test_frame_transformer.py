@@ -324,6 +324,17 @@ def test_frame_transformer_sources_and_targets(sim):
             data.target_quat_source.torch,
         )
 
+    # A cached update must honor changes to the reset mask.
+    sensor = scene.sensors["ft_cube"]
+    previous_frames = sensor.data.target_pos_w.torch.clone()
+    cube_pose = cube.data.root_pose_w.torch.clone()
+    cube_pose[1, 0] += 1.0
+    cube.write_root_pose_to_sim_index(root_pose=cube_pose[1:2], env_ids=[1])
+    sim.forward()
+    sensor.reset(env_ids=[1])
+    torch.testing.assert_close(sensor.data.target_pos_w.torch[1, 0], cube_pose[1, :3])
+    torch.testing.assert_close(sensor.data.target_pos_w.torch[0], previous_frames[0])
+
 
 # Each source robot and each path prefix is covered once; the axes select independent branches.
 @pytest.mark.parametrize(("source_robot", "path_prefix"), [("Robot", "{ENV_REGEX_NS}"), ("Robot_1", "/World")])
