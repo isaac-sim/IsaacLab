@@ -105,11 +105,37 @@ jobs:
           echo "isaacsim_image_name=$(yq -r .isaacsim_image_name "$f")" >> "$GITHUB_OUTPUT"
           echo "isaacsim_image_tag=$(yq -r .isaacsim_image_tag "$f")" >> "$GITHUB_OUTPUT"
 
+  build:
+    name: Build / cache image
+    needs: [config, changes]
+    # One builder for the image both the unit shards and the Kit smoke run, so a dependency
+    # change builds it once instead of in both jobs racing to push the same tag.
+    if: needs.changes.outputs.unit == 'true' || needs.changes.outputs.smoke == 'true'
+    # Must run on the SAME pool as the test jobs. The ECR cache repo is resolved
+    # per runner pool (single-GPU `gpu` runners -> gitci-docker-cache; multi-GPU
+    # runners -> multigpu-docker-cache), so an image built on `[self-hosted, gpu]`
+    # would be invisible to the multi-GPU test jobs.
+    runs-on: [self-hosted, linux, x64, multi-gpu]
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+        with:
+          fetch-depth: 1
+          lfs: true
+
+      # Pushes the exact-commit tag: built on a miss, aliased registry-side on a deps-cache hit.
+      - uses: ./.github/actions/ecr-build-push-pull
+        env:
+          NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
+        with:
+          image-tag: ${{ env.CI_IMAGE_TAG }}
+          isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+          isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
+          dockerfile-path: docker/Dockerfile.base
+          cache-tag: cache-base
+
   test-multi-gpu-pytest:
     name: Multi-GPU unit tests
-    needs: [config, changes]
-    # Resolves its own image (the pull step below), so it needs no separate build job: that job
-    # cost a second runner acquisition and often handed the tests to a different, cold runner.
+    needs: [config, build, changes]
     if: needs.changes.outputs.unit == 'true'
     # The ``multi-gpu`` label is the multi-GPU pool. Do NOT add ``gpu`` here:
     # in this fleet ``gpu`` tags single-GPU runners, so requiring it routes the
@@ -170,10 +196,10 @@ jobs:
           echo "::notice::Discovered ${#discovered[@]} opt-in test files"
           printf '  %s\n' "${discovered[@]}"
 
-      - name: Build or pull image from ECR
-        # ecr-build-push-pull handles ECR auth via the EC2 IAM role and leaves the
-        # image locally as ``$CI_IMAGE_TAG`` for the ``docker run`` block below:
-        # pulled on an exact or deps-cache hit, built and pushed on a miss.
+      - name: Pull image from ECR
+        # Pulls the per-commit image the build job pushed. ecr-build-push-pull
+        # handles ECR auth via the EC2 IAM role and, on the exact-tag hit, leaves
+        # the image locally as ``$CI_IMAGE_TAG`` for the ``docker run`` block below.
         uses: ./.github/actions/ecr-build-push-pull
         env:
           NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
@@ -183,15 +209,12 @@ jobs:
           isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
           dockerfile-path: docker/Dockerfile.base
           cache-tag: cache-base
-          pull-on-deps-hit: 'true'
 
       - name: Resolve Warp cache key
-        if: needs.changes.outputs.unit == 'true'
         id: warp-cache-key
         uses: ./.github/actions/warp-cache-key
 
       - name: Restore Warp kernel cache
-        if: needs.changes.outputs.unit == 'true'
         uses: actions/cache/restore@v4
         with:
           path: ${{ steps.warp-cache-key.outputs.host-dir }}
@@ -211,7 +234,6 @@ jobs:
           # Files per shard at once, as the package jobs in build.yaml run them.
           TEST_JOBS: "4"
           WARP_CACHE_HOST_DIR: ${{ steps.warp-cache-key.outputs.host-dir }}
-        if: needs.changes.outputs.unit == 'true'
         run: bash .github/actions/multi-gpu/multi_gpu_host_launcher.sh
 
       - name: Aggregated test summary
@@ -224,7 +246,7 @@ jobs:
 
   test-multi-gpu-smoke-kit:
     name: Multi-GPU training smoke (Kit)
-    needs: [config, changes]
+    needs: [config, build, changes]
     # Its own job so it runs beside the shards instead of after them.
     if: needs.changes.outputs.smoke == 'true'
     runs-on: [self-hosted, linux, x64, multi-gpu]
@@ -238,7 +260,8 @@ jobs:
           fetch-depth: 1
           lfs: true
 
-      - name: Build or pull image from ECR
+      - name: Pull image from ECR
+        # The per-commit image the build job pushed; see the unit-test job.
         uses: ./.github/actions/ecr-build-push-pull
         env:
           NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
@@ -248,7 +271,6 @@ jobs:
           isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
           dockerfile-path: docker/Dockerfile.base
           cache-tag: cache-base
-          pull-on-deps-hit: 'true'
 
       - name: Multi-GPU training smoke (Kit renderer)
         # Real multi-rank training runs, outside the sharded device-parametrized
@@ -349,9 +371,16 @@ jobs:
           KIT_SKIPS: ${{ needs.test-multi-gpu-smoke-kit.outputs.smoke_device_skips }}
           KITLESS_SKIPS: ${{ needs.test-multi-gpu-smoke-kitless.outputs.smoke_device_skips }}
         run: |
-          total=$(( ${KIT_SKIPS:-0} + ${KITLESS_SKIPS:-0} ))
+          # Empty = the lane never reached its count step; ``unknown`` = it ran without a report.
+          for lane in "Kit:$KIT_SKIPS" "kit-less:$KITLESS_SKIPS"; do
+            if ! [[ "${lane#*:}" =~ ^[0-9]+$ ]]; then
+              echo "::error::multi-GPU training smoke coverage unknown: the ${lane%%:*} lane produced no report"
+              exit 1
+            fi
+          done
+          total=$(( KIT_SKIPS + KITLESS_SKIPS ))
           if [ "$total" -gt 0 ]; then
-            echo "::error::$total multi-GPU training smoke case(s) did not run: the runner has too few GPUs (Kit lane ${KIT_SKIPS:-0}, kit-less lane ${KITLESS_SKIPS:-0})"
+            echo "::error::$total multi-GPU training smoke case(s) did not run: the runner has too few GPUs (Kit lane $KIT_SKIPS, kit-less lane $KITLESS_SKIPS)"
             exit 1
           fi
           echo "No multi-GPU training smoke case was skipped for lack of GPUs."
