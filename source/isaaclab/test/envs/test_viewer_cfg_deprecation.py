@@ -10,11 +10,13 @@ No simulation context or Kit app required — pure Python.
 
 from __future__ import annotations
 
+import logging
 import warnings
+from types import SimpleNamespace
 
 import pytest
 
-from isaaclab.envs.common import ViewerCfg
+from isaaclab.envs.common import ViewerCfg, _apply_deprecated_viewer_cfg
 
 
 def test_viewer_cfg_default_no_warning():
@@ -37,3 +39,31 @@ def test_viewer_cfg_default_eye_no_warning():
     with warnings.catch_warnings():
         warnings.simplefilter("error", DeprecationWarning)
         ViewerCfg(eye=(7.5, 7.5, 7.5))
+
+
+def test_viewer_cfg_warning_is_deprecation_warning_subclass():
+    """The emitted warning must be a DeprecationWarning (not just a UserWarning)."""
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        ViewerCfg(eye=(0.0, 0.0, 1.0))
+
+    assert any(issubclass(w.category, DeprecationWarning) for w in caught)
+
+
+def test_viewer_cfg_cam_prim_path_only_change_emits_migration_warning(caplog):
+    """A legacy camera-path override should warn without forwarding unrelated viewer defaults."""
+
+    class EnvCfg:
+        sim = SimpleNamespace(default_visualizer_cfg=None)
+
+    env_cfg = EnvCfg()
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", DeprecationWarning)
+        env_cfg.viewer = ViewerCfg(cam_prim_path="/World/CustomCamera")
+
+    with caplog.at_level(logging.WARNING, logger="isaaclab.envs.common"):
+        _apply_deprecated_viewer_cfg(env_cfg)
+
+    assert "cam_prim_path='/World/CustomCamera' cannot be automatically forwarded" in caplog.text
+    assert "viewer values have been automatically forwarded" not in caplog.text
+    assert env_cfg.sim.default_visualizer_cfg is None
