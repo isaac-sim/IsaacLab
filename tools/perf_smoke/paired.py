@@ -337,14 +337,8 @@ def capture_context(root: Path, output_dir: Path, image_ref: str, role: str, eve
             "expected_legs": [line.split("|", 1)[0] for line in legs.read_text().splitlines() if line.strip()],
             "benchmark_protocol": _benchmark_protocol(legs),
         },
-        "metric_definition": {
-            "total_fps": "aggregate_frames_over_measured_seconds",
-            "producer_commit": commit,
-            "provenance": "ci_producer_source",
-        },
+        "metric_definition": {**metric_definition(root), "producer_commit": commit},
     }
-    if pr:
-        context["metric_definition"] = {**metric_definition(root), "producer_commit": commit}
     _write(output_dir / "build-context.json", context)
     _write(output_dir / "source-manifest.json", prepare_manifest(root))
     return context

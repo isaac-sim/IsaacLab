@@ -46,7 +46,7 @@ def bundle(fps, task="Task", *, seed=42):
     }
 
 
-def evidence(samples=None, *, expected=3, formula="aggregate_frames_over_measured_seconds", statuses=None):
+def evidence(samples=None, *, expected=3, formula="source-fps-v2:" + "a" * 64, statuses=None):
     samples = {"leg": [bundle(90), bundle(100), bundle(110)]} if samples is None else samples
     return Evidence(
         identity={"run_id": 1, "run_attempt": 1, "source_commit": "a" * 40},
@@ -402,6 +402,7 @@ class BuildComparisonTests(unittest.TestCase):
         for formula, expected in (
             (None, "unknown"),
             ("unknown", "unknown"),
+            (" AGGREGATE_FRAMES_OVER_MEASURED_SECONDS ", "unknown"),
             ("mean_instantaneous_fps", "incompatible"),
         ):
             with self.subTest(formula=formula):
@@ -409,6 +410,31 @@ class BuildComparisonTests(unittest.TestCase):
                 self.assertEqual(row["status"], expected)
                 self.assertEqual(row["candidate"]["median"], 100)
                 self.assertIsNone(row["absolute_change"])
+
+    def test_legacy_formula_labels_do_not_establish_a_comparable_identity(self):
+        legacy = "aggregate_frames_over_measured_seconds"
+        for side in ("baseline", "candidate", "both"):
+            with self.subTest(side=side):
+                a, b = evidence(), evidence({"leg": [bundle(110) for _ in range(3)]})
+                for selection in [a, b] if side == "both" else [a if side == "baseline" else b]:
+                    selection.context["metric_definition"]["total_fps"] = legacy
+                row = compare_evidence(a, b)["rows"][0]
+                self.assertEqual(row["status"], "unknown")
+                self.assertEqual((row["baseline"]["median"], row["candidate"]["median"]), (100, 110))
+                self.assertIsNone(row["absolute_change"])
+                self.assertIsNone(row["change_pct"])
+                self.assertIn("FPS formula identity is unknown for one or both selections.", row["reasons"])
+
+    def test_verified_baseline_definition_can_replace_a_legacy_recorded_label(self):
+        a = evidence(formula="aggregate_frames_over_measured_seconds")
+        b = evidence({"leg": [bundle(110) for _ in range(3)]})
+        original_definition = copy.deepcopy(a.context["metric_definition"])
+        report = compare_evidence(a, b, baseline_metric_definition={"definition": b.context["metric_definition"]})
+        row = report["rows"][0]
+        self.assertEqual(row["status"], "compared")
+        self.assertEqual(row["change_pct"], 10)
+        self.assertEqual(a.context["metric_definition"], original_definition)
+        self.assertTrue(any("re-derived from its verified checkout" in note for note in report["notes"]))
 
     def test_protocol_changes_and_missing_values_are_explicit(self):
         for field, value in (
@@ -503,13 +529,58 @@ class BuildComparisonTests(unittest.TestCase):
         self.assertEqual(row["status"], "incompatible")
         self.assertIsNone(row["change_pct"])
 
-    def test_missing_hardware_fields_retain_existing_diagnostic_behavior(self):
-        b = evidence()
-        for sample in b.samples["leg"]:
-            sample["bundle"].pop("hardware")
-        row = compare_evidence(evidence(), b)["rows"][0]
-        self.assertEqual(row["status"], "compared")
-        self.assertTrue(row["context_differences"])
+    def test_unavailable_hardware_identity_preserves_fps_without_a_delta(self):
+        cases = (
+            ("baseline", None, None, None),
+            ("candidate", None, None, None),
+            ("both", None, None, None),
+            ("baseline", "cpu_name", None, None),
+            ("candidate", "cpu_count", None, None),
+            ("both", "gpu_devices", None, None),
+            ("candidate", "cpu_name", " unknown ", None),
+            ("baseline", "cpu_name", 7, None),
+            ("baseline", "cpu_count", True, None),
+            ("candidate", "cpu_count", 0, None),
+            ("candidate", "gpu_devices", [], None),
+            ("baseline", "gpu_devices", "GPU", None),
+            ("both", "gpu_devices", [{"name": "unknown"}], None),
+            ("candidate", "gpu_devices", [None], None),
+            ("baseline", "cpu_count", None, 1),
+            ("candidate", "gpu_devices", [], 1),
+        )
+        for side, field, value, sample_index in cases:
+            with self.subTest(side=side, field=field, value=value, sample_index=sample_index):
+                a, b = evidence(), evidence({"leg": [bundle(110) for _ in range(3)]})
+                for selection in [a, b] if side == "both" else [a if side == "baseline" else b]:
+                    samples = selection.samples["leg"]
+                    for sample in samples if sample_index is None else [samples[sample_index]]:
+                        raw = sample["bundle"]
+                        if field is None:
+                            raw.pop("hardware")
+                        elif value is None:
+                            raw["hardware"].pop(field)
+                        else:
+                            raw["hardware"][field] = value
+                report = compare_evidence(a, b)
+                row = report["rows"][0]
+                self.assertEqual(row["status"], "unknown")
+                self.assertEqual((row["baseline"]["median"], row["candidate"]["median"]), (100, 110))
+                self.assertIsNone(row["absolute_change"])
+                self.assertIsNone(row["change_pct"])
+                self.assertTrue(any("hardware" in reason for reason in row["reasons"]))
+                primary = render_build_comparison(report).split("<details>", 1)[0]
+                self.assertIn("| ⚪ Not comparable | leg | 100 | 110 | — |", primary)
+
+    def test_unavailable_hardware_preserves_missing_and_partial_sample_status(self):
+        for missing in (True, False):
+            with self.subTest(missing=missing):
+                b = evidence({"leg": [] if missing else [bundle(110)]})
+                for sample in b.samples["leg"]:
+                    sample["bundle"].pop("hardware")
+                row = compare_evidence(evidence(), b)["rows"][0]
+                self.assertEqual(row["status"], "missing" if missing else "partial")
+                self.assertEqual(row["candidate"]["median"], None if missing else 110)
+                self.assertIsNone(row["change_pct"])
 
     def test_presets_and_environment_count_use_validated_workload_identity(self):
         for field, value in (("num_envs", 1024), ("presets", ["new_preset"])):

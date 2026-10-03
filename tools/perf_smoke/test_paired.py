@@ -18,6 +18,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from . import baseline, build_compare, paired, source_revision
+from . import test_metric_identity as metric_fixtures
 from .test_baseline import HEAD, REPO, FixtureClient, bundle, stamp
 
 RUNTIME = "source/isaaclab/isaaclab/benchmark/entrypoints/runtime.py"
@@ -226,6 +227,65 @@ class PairedTests(unittest.TestCase):
                 if role == "current":
                     self.assertEqual(source["commit_parents"], [base, head])
 
+    def test_push_and_dispatch_capture_source_formula_changes_and_unknown_producers(self):
+        package = self.checkout / metric_fixtures.PACKAGE
+        (package / "builders.py").write_text(metric_fixtures.BUILDERS)
+        (package / "metrics.py").write_text(metric_fixtures.METRICS)
+        original_run = subprocess.run
+
+        def inspect_or_run(command, **kwargs):
+            if command[:3] == ["docker", "image", "inspect"]:
+                return subprocess.CompletedProcess(command, 0, '[{"Id":"same-image","RepoDigests":[]}]', "")
+            return original_run(command, **kwargs)
+
+        definitions = {event_name: {} for event_name in ("push", "workflow_dispatch")}
+        for variant, runtime, stepping in (
+            ("original", metric_fixtures.RUNTIME, metric_fixtures.STEPPING),
+            (
+                "changed",
+                metric_fixtures.RUNTIME,
+                metric_fixtures.STEPPING.replace("time.perf_counter() - start", "(time.perf_counter() - start) / 1000"),
+            ),
+            (
+                "unsupported",
+                metric_fixtures.RUNTIME.replace("builders.build_runtime", "other.build_runtime"),
+                metric_fixtures.STEPPING,
+            ),
+        ):
+            (package / "stepping.py").write_text(stepping)
+            commit = self._commit_file(RUNTIME, runtime)
+            for event_name in definitions:
+                with (
+                    self.subTest(event=event_name, source=variant),
+                    patch.dict(
+                        os.environ,
+                        {
+                            "GITHUB_SHA": commit,
+                            "GITHUB_EVENT_NAME": event_name,
+                            "GITHUB_REF_NAME": "develop",
+                            "GITHUB_RUN_ID": "20",
+                            "GITHUB_RUN_ATTEMPT": "1",
+                            "GITHUB_JOB": "performance-smoke-benchmarks",
+                        },
+                    ),
+                    patch.object(paired.subprocess, "run", side_effect=inspect_or_run),
+                ):
+                    output = self.root / event_name / variant
+                    context = paired.capture_context(self.checkout, output, "same-image", "current", {}, self.legs)
+                    definition = context["metric_definition"]
+                    definitions[event_name][variant] = definition["total_fps"]
+                    self.assertEqual(definition["producer_commit"], commit)
+                    saved = json.loads((output / "build-context.json").read_text())
+                    self.assertEqual(saved["metric_definition"], definition)
+                    if variant == "unsupported":
+                        self.assertIsNone(definition["total_fps"])
+                        self.assertIn("unknown:", definition["reason"])
+                    else:
+                        self.assertTrue(definition["total_fps"].startswith("source-fps-v2:"))
+        for event_name, observed in definitions.items():
+            with self.subTest(event=event_name):
+                self.assertNotEqual(observed["original"], observed["changed"])
+
     def test_capture_failure_preserves_actual_identity_and_does_not_fall_back_to_event_base(self):
         base, head, merge, _ = self._moving_merge()
         for resolved in ("", self.commit):
@@ -348,7 +408,7 @@ class PairedTests(unittest.TestCase):
                         "runner_name": "fixture-gpu-runner",
                         "hostname": "fixture-gpu-host",
                     },
-                    "metric_definition": {"total_fps": "aggregate_frames_over_measured_seconds"},
+                    "metric_definition": {"total_fps": "source-fps-v2:fixture"},
                 }
             ),
         }
@@ -379,6 +439,11 @@ class PairedTests(unittest.TestCase):
                     steps_per_iteration=512,
                     environment_step_timing={"warmup_steps": 100, "measurement_mode": "host_return"},
                 )
+                value["hardware"] = {
+                    "cpu_name": "Intel(R) Xeon(R) 6975P-C",
+                    "cpu_count": 16,
+                    "gpu_devices": [{"name": "NVIDIA RTX PRO 4500 Blackwell Server Edition"}],
+                }
                 data = encoded(value)
                 files[path] = data
                 files[f"{leg}/sample-{sample}/source-revision.json"] = encoded(

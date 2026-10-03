@@ -35,7 +35,13 @@ def _formula(evidence: Evidence | None, definition: dict | None = None) -> str |
     if definition is None:
         definition = _object(evidence.context.get("metric_definition")) if evidence else {}
     value = definition.get("total_fps")
-    return value if isinstance(value, str) and value.strip() and value.lower() != "unknown" else None
+    return (
+        value
+        if isinstance(value, str)
+        and value.strip()
+        and value.strip().lower() not in ("unknown", "aggregate_frames_over_measured_seconds")
+        else None
+    )
 
 
 def _groups(evidence: Evidence | None, aliases: dict[str, set[str]]) -> dict:
@@ -186,7 +192,7 @@ def _context(evidence: Evidence | None, group: dict | None) -> dict:
 def _hardware(bundle: dict) -> dict:
     """Identify recorded CPU/GPU hardware without treating host metadata as hardware."""
     hardware = _object(bundle.get("hardware"))
-    identity = {}
+    identity = {"cpu_name": None, "cpu_count": None, "gpu_devices": None}
     cpu = hardware.get("cpu_name")
     if isinstance(cpu, str) and cpu.strip() and cpu.strip().lower() != "unknown":
         identity["cpu_name"] = cpu.strip().casefold()
@@ -227,11 +233,7 @@ def _row(
     protocol_differences = _differences(pa, pb, missing=True)
     context_differences = _differences(_context(a, left), _context(b, right))
     ha, hb = _observations(left, _hardware), _observations(right, _hardware)
-    # Missing hardware remains diagnostic context; compare only recorded fields.
-    shared_hardware = ha.keys() & hb.keys()
-    hardware_differences = _differences(
-        {field: ha[field] for field in shared_hardware}, {field: hb[field] for field in shared_hardware}
-    )
+    hardware_differences = _differences(ha, hb, missing=True)
     status = "compared"
     if "missing" in (before["status"], after["status"]):
         status = "missing"
@@ -252,9 +254,14 @@ def _row(
         if status == "compared":
             status = "unknown" if any(None in values for values in (*pa.values(), *pb.values())) else "incompatible"
     if hardware_differences:
-        reasons.append("CPU/GPU hardware differs or varies within a selection.")
+        unavailable = any(None in values for values in (*ha.values(), *hb.values()))
+        reasons.append(
+            "CPU/GPU hardware identity is unavailable for one or more samples."
+            if unavailable
+            else "CPU/GPU hardware differs or varies within a selection."
+        )
         if status == "compared":
-            status = "incompatible"
+            status = "unknown" if unavailable else "incompatible"
     absolute_change = change_pct = None
     notes = []
     if status == "compared":

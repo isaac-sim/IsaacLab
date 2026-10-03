@@ -116,7 +116,7 @@ class FixtureClient:
                         "expected_samples": 3,
                         "measurement_not_before": start,
                     },
-                    "metric_definition": {"total_fps": "aggregate_frames_over_measured_seconds"},
+                    "metric_definition": {"total_fps": "source-fps-v2:" + "a" * 64},
                 }
             self.add_artifact(run_id, f"performance-smoke-{run_id}-{attempt}", files)
         return run
