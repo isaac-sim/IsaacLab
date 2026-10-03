@@ -293,8 +293,6 @@ def _assert_training_passed(
 ) -> None:
     """Assert a training subprocess actually trained, not merely exited cleanly."""
     where = f" on CUDA_VISIBLE_DEVICES={devices}" if devices is not None else " with no device mask"
-    # TEMP (revert before review): keep the NCCL probe lines, which the output tail can cut.
-    where += "\n" + "\n".join(line for line in output.splitlines() if "NCCL-PROBE" in line)
     assert outcome == "passed", (
         f"outcome={outcome}{where}\ngpus: {_gpu_state()}\nlast live placement: {gpu_processes}\n"
         f"{output[-_FAILURE_OUTPUT_CHARS:]}"

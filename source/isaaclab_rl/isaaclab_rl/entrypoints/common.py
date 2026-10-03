@@ -526,9 +526,6 @@ def create_isaaclab_env(
     Returns:
         The created Gymnasium environment.
     """
-    distributed = getattr(args_cli, "distributed", False)
-    if distributed:
-        _nccl_probe("before env")  # TEMP diagnostic (revert before review)
     if args_cli.frontend == "torch":
         env = gym.make(task, cfg=env_cfg)
     else:
@@ -541,27 +538,9 @@ def create_isaaclab_env(
         from isaaclab.envs import multi_agent_to_single_agent
 
         env = multi_agent_to_single_agent(env)
-    if distributed:
+    if getattr(args_cli, "distributed", False):
         _restore_rank_device(env.unwrapped.device)
-        _nccl_probe("after env")  # TEMP diagnostic (revert before review)
     return env
-
-
-def _nccl_probe(stage: str) -> None:
-    """TEMP diagnostic: all-reduce one element over a fresh NCCL group, then tear the group down."""
-    import torch.distributed as dist
-
-    try:
-        dist.init_process_group(backend="nccl")
-        value = torch.ones(1, device=f"cuda:{torch.cuda.current_device()}")
-        dist.all_reduce(value)
-        torch.cuda.synchronize()
-        print(f"[NCCL-PROBE] {stage}: ok (cuda:{torch.cuda.current_device()})", flush=True)
-    except Exception as err:  # noqa: BLE001 - diagnostic must not mask the run
-        print(f"[NCCL-PROBE] {stage}: FAILED {type(err).__name__}: {str(err).splitlines()[-1][:200]}", flush=True)
-    finally:
-        if dist.is_initialized():
-            dist.destroy_process_group()
 
 
 def _restore_rank_device(device: str) -> None:
