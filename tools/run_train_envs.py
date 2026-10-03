@@ -63,7 +63,12 @@ def main(args: argparse.Namespace):
         # run the training script
         subprocess.run(
             [
-                f"{ISAACLAB_PATH}/isaaclab.sh",
+                "uv",
+                "run",
+                "--project",
+                str(ISAACLAB_PATH),
+                "--no-sync",
+                "isaaclab",
                 "-p",
                 f"{ISAACLAB_PATH}/scripts/reinforcement_learning/train.py",
                 "--rl_library",

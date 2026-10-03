@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import argparse
+import logging
 import os
 from typing import TYPE_CHECKING
 
@@ -21,6 +22,8 @@ if TYPE_CHECKING:
     from rsl_rl.runners import DistillationRunner, OnPolicyRunner
 
     from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_SUCCESS_THRESHOLD = 0.3
 DEFAULT_SUCCESS_WINDOW = 20
@@ -71,8 +74,8 @@ class RslRlEarlyStopWrapper:
         self.env.step = self._orig_step
         if exc_type is EarlyStopConverged:
             self._runner_cleanup()
-            print(
-                f"[INFO] Early stop: success rate converged at iteration "
+            logger.info(
+                f"Early stop: success rate converged at iteration "
                 f"{self.tracker.current_iteration} (tail mean {self.tracker.tail_mean:.4f})"
             )
             return True
@@ -190,8 +193,8 @@ class RlGamesEarlyStopObserver:
         self.tracker.all_reduce_iteration(self.algo.ppo_device)
         self.tracker.end_iteration()
         if self.stop_on_convergence and self.tracker.converged and self.algo is not None:
-            print(
-                f"[INFO] Early stop: success rate converged at iteration "
+            logger.info(
+                f"Early stop: success rate converged at iteration "
                 f"{self.tracker.current_iteration} (tail mean {self.tracker.tail_mean:.4f})"
             )
             self.algo.max_epochs = self.tracker.current_iteration

@@ -144,11 +144,14 @@ class LaunchCase:
     def command(self) -> list[str]:
         """Build the repository launcher command for this case."""
         if self.spec.program is None:
-            command = [str(ROOT / "isaaclab.sh"), "-p", self.spec.relative_path, *self.spec.args]
+            command = ["uv", "run", "--no-sync", "isaaclab", "-p", self.spec.relative_path, *self.spec.args]
         else:
             program_command, program_name = self.spec.program
             command = [
-                str(ROOT / "isaaclab.sh"),
+                "uv",
+                "run",
+                "--no-sync",
+                "isaaclab",
                 "-p",
                 "-m",
                 "isaaclab",
@@ -212,8 +215,12 @@ OVERRIDES = {
         visualizers=("newton_gl",),
         required_modules=("isaaclab_contrib",),
     ),
-    "examples/demos/snowball_smash.py": ScriptOverride(fixed_physics_backend="newton_mpm"),
-    "examples/demos/teapot_fill.py": ScriptOverride(fixed_physics_backend="newton_mpm"),
+    # Smoke launches retain every robot family and MPM solver path with smaller scenes.
+    "examples/demos/zoo.py": ScriptOverride(args=("--num_envs", "1")),
+    "examples/demos/snowball_smash.py": ScriptOverride(
+        args=("--voxel_size", "0.1"), fixed_physics_backend="newton_mpm"
+    ),
+    "examples/demos/teapot_fill.py": ScriptOverride(args=("--voxel_size", "0.006"), fixed_physics_backend="newton_mpm"),
     "scripts/tutorials/08_mpm/material_parameters.py": ScriptOverride(
         args=("--max_steps", "2", "--variant_index", "0", "--voxel_size", "0.1"),
         fixed_physics_backend="newton_mpm",

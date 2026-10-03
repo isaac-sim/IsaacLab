@@ -32,6 +32,7 @@ import argparse
 import builtins
 import importlib
 import io
+import logging
 import statistics
 import sys
 import time
@@ -44,6 +45,8 @@ with warnings.catch_warnings():
     import isaaclab_tasks  # noqa: F401
 
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
+
+logger = logging.getLogger(__name__)
 
 _REPRESENTATIVE_TASKS = [
     "Isaac-Cartpole",
@@ -156,7 +159,7 @@ def main():
     valid = [t for t in tasks if t in gymnasium.registry]
     skipped = [t for t in tasks if t not in gymnasium.registry]
     if skipped:
-        print(f"[WARN] Skipping unregistered tasks: {skipped}")
+        logger.warning(f"Skipping unregistered tasks: {skipped}")
     tasks = valid
 
     if not tasks:

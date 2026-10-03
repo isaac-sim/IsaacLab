@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import argparse
+import logging
 import os
 import re
 from datetime import datetime
@@ -15,6 +16,8 @@ from pathlib import Path
 
 from ..common import write_run_manifest
 from . import cli_args_rlinf as cli_args
+
+logger = logging.getLogger(__name__)
 
 
 def _parse_args(argv: list[str]) -> argparse.Namespace:
@@ -76,19 +79,19 @@ def run(argv: list[str]) -> None:
 
     mp.set_start_method("spawn", force=True)
 
-    print(f"[INFO] Using config: {config_name}")
-    print(f"[INFO] Config path: {config_dir}")
+    logger.info(f"Using config: {config_name}")
+    logger.info(f"Config path: {config_dir}")
     GlobalHydra.instance().clear()
     initialize_config_dir(config_dir=config_dir, version_base="1.1")
     cfg = compose(config_name=config_name)
 
     task_id = cfg.env.train.init_params.id
-    print(f"[INFO] Task: {task_id}")
+    logger.info(f"Task: {task_id}")
     # hyphens instead of colons in the time stamp; colons are invalid in Windows paths
     timestamp = datetime.now().strftime("%Y%m%d-%H-%M-%S")
     log_dir = Path("logs") / "rlinf" / f"{timestamp}-{task_id.replace('/', '_')}"
     log_dir.mkdir(parents=True, exist_ok=True)
-    print(f"[INFO] Logging to: {log_dir}")
+    logger.info(f"Logging to: {log_dir}")
 
     with open_dict(cfg):
         cfg.runner.logger.log_path = str(log_dir)
