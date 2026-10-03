@@ -24,7 +24,7 @@ from isaaclab.test.utils.articulation_ordering import (
 )
 from isaaclab.utils import replace
 
-launch_test_simulation()
+launch_test_simulation(physics="isaacsim_physx")
 
 import logging
 import math
@@ -37,6 +37,7 @@ import numpy as np
 import pytest
 import torch
 import warp as wp
+from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.assets import Articulation
 from isaaclab_physx.assets.articulation.kernels import write_joint_state_data, write_joint_state_data_kernel
 
@@ -45,7 +46,7 @@ from pxr import Gf, PhysxSchema, UsdGeom, UsdPhysics
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg, get_articulation_name_ordering
-from isaaclab.sim import SimulationContext, build_simulation_context
+from isaaclab.sim import SimulationCfg, SimulationContext, build_simulation_context
 from isaaclab.utils.math import combine_frame_transforms, matrix_from_quat, quat_apply
 
 _FIXTURE = Path(__file__).parent / "data" / "articulation_ordering_branching.usda"
@@ -191,7 +192,7 @@ def sim(device: str) -> Iterator[SimulationContext]:
     """Create a function-scoped simulation context for tests that own their scene."""
     # A new context would replace the stage of a live composite scene, so these tests must run before it.
     assert SimulationContext.instance() is None, "define tests that own a simulation above the composite scene"
-    with build_simulation_context(device=device, auto_add_lighting=True) as sim:
+    with build_simulation_context(device=device, auto_add_lighting=True, sim_cfg=SimulationCfg(physics=PhysxCfg(), dt=0.01)) as sim:
         sim._app_control_on_stop_handle = None
         yield sim
 
@@ -342,7 +343,7 @@ def _spawn_island(name: str, y_offset: float, cfg: ArticulationCfg, **authoring)
 def articulation_scene(request) -> Iterator[_ArticulationScene]:
     """Initialize every composite-scene articulation once for this module."""
     device = request.param
-    with build_simulation_context(device=device, gravity_enabled=False) as sim:
+    with build_simulation_context(device=device, sim_cfg=SimulationCfg(physics=PhysxCfg(), dt=0.01, gravity=(0.0, 0.0, 0.0))) as sim:
         sim._app_control_on_stop_handle = None
         islands, origins, refcounts = {}, {}, {}
         island_specs = {

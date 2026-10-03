@@ -5,9 +5,10 @@
 
 from isaaclab.test.utils import launch_test_simulation
 
-launch_test_simulation()
+launch_test_simulation(physics="isaacsim_physx")
 
 import pytest
+from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.sim.schemas.schemas_cfg import PhysxDeformableBodyPropertiesCfg
 from isaaclab_physx.sim.spawners.materials.physics_materials_cfg import PhysxDeformableBodyMaterialCfg
 
@@ -25,7 +26,7 @@ def sim():
     # Simulation time-step
     dt = 0.1
     # Load kit helper
-    sim = SimulationContext(SimulationCfg(dt=dt))
+    sim = SimulationContext(SimulationCfg(physics=PhysxCfg(), dt=dt))
     yield sim
     # Cleanup
     sim._disable_app_control_on_stop_handle = True  # prevent timeout

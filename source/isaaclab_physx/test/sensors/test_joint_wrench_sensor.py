@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "isaaclab" / "test"
 
 from isaaclab.test.utils import launch_test_simulation
 
-launch_test_simulation()
+launch_test_simulation(physics="isaacsim_physx")
 
 from types import SimpleNamespace
 

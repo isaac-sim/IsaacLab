@@ -137,3 +137,8 @@ class MPMSolverCfg(NewtonSolverCfg):
     This is a manager-level stepping option and is intentionally **not** part of
     ``SolverImplicitMPM.Config``.
     """
+
+    @property
+    def physics_solvers(self) -> tuple[str, ...]:
+        """Return the stable identifiers of the active physics solvers."""
+        return ("newton_mpm",)

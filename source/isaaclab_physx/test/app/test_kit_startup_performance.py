@@ -24,7 +24,7 @@ _CI_STARTUP_TIME_LIMIT = 20.0
 def test_kit_start_up_time():
     """Test kit start-up time."""
     start_time = time.time()
-    launch_test_simulation()
+    launch_test_simulation(physics="isaacsim_physx")
     end_time = time.time()
     elapsed_time = end_time - start_time
     # GitHub Actions Docker jobs run with isolated writable runtime/cache mounts

@@ -8,13 +8,14 @@
 from isaaclab.assets import AssetBaseCfg
 from isaaclab.test.utils import DeviceScope, launch_test_simulation, test_devices
 
-launch_test_simulation()
+launch_test_simulation(physics="isaacsim_physx")
 
 import numpy as np
 import pytest
 import torch
 import warp as wp
 from isaaclab_physx.cloner import PhysxReplicateContext, physx_replicate
+from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
@@ -24,7 +25,7 @@ from isaaclab.cloner import (
     make_clone_plan,
     usd_replicate,
 )
-from isaaclab.sim import build_simulation_context
+from isaaclab.sim import SimulationCfg, build_simulation_context
 
 
 def _make_flat_clone_plan(num_variants: int, num_clones: int, destination: str):
@@ -45,7 +46,9 @@ pytestmark = pytest.mark.isaacsim_ci
 @pytest.fixture(params=["cpu", "cuda"])
 def sim(request):
     """Provide a fresh simulation context for each test on CPU and CUDA."""
-    with build_simulation_context(device=request.param, dt=0.01, add_lighting=False) as sim:
+    with build_simulation_context(
+        sim_cfg=SimulationCfg(physics=PhysxCfg(), dt=0.01), device=request.param, add_lighting=False
+    ) as sim:
         yield sim
 
 
@@ -461,10 +464,14 @@ def test_physx_replicate_vs_no_replicate(device):
     normal USD parsing; the resulting trajectory must match the USD-parsed baseline,
     and the replicated env_1 must match env_0.
     """
-    with build_simulation_context(device=device, dt=0.01, add_lighting=False) as sim_no_rep:
+    with build_simulation_context(
+        sim_cfg=SimulationCfg(physics=PhysxCfg(), dt=0.01), device=device, add_lighting=False
+    ) as sim_no_rep:
         baseline = _run_sphere_velocity_sim(sim_no_rep, use_physx_replicate=False)
 
-    with build_simulation_context(device=device, dt=0.01, add_lighting=False) as sim_rep:
+    with build_simulation_context(
+        sim_cfg=SimulationCfg(physics=PhysxCfg(), dt=0.01), device=device, add_lighting=False
+    ) as sim_rep:
         with_rep = _run_sphere_velocity_sim(sim_rep, use_physx_replicate=True)
 
     for idx in range(baseline.shape[0]):

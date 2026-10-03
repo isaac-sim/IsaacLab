@@ -7,7 +7,7 @@
 
 from isaaclab.test.utils import DeviceScope, launch_test_simulation, test_devices
 
-launch_test_simulation()
+launch_test_simulation(physics="isaacsim_physx")
 
 from dataclasses import MISSING
 from enum import Enum
@@ -17,6 +17,7 @@ import pytest
 import torch
 import warp as wp
 from flaky import flaky
+from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.sensors.contact_sensor import contact_sensor as contact_sensor_module
 from isaaclab_physx.sensors.contact_sensor.contact_sensor import ContactSensor as PhysxContactSensor
 from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
@@ -397,7 +398,9 @@ def test_first_transition_with_aged_clock(setup_simulation, device):
     poll_dt = decimation * sim_dt
     poll_steps = 16
 
-    with build_simulation_context(device=device, dt=sim_dt, add_lighting=True) as sim:
+    with build_simulation_context(
+        sim_cfg=SimulationCfg(physics=PhysxCfg(), dt=sim_dt), device=device, add_lighting=True
+    ) as sim:
         sim._app_control_on_stop_handle = None
 
         scene_cfg = ContactSensorSceneCfg(num_envs=1, env_spacing=1.0)
@@ -480,7 +483,9 @@ def test_cube_stack_contact_filtering(setup_simulation, device):
     """Checks contact sensor reporting for filtering stacked cube prims."""
     sim_dt, _, settings = setup_simulation
     num_envs = 6
-    with build_simulation_context(device=device, dt=sim_dt, add_lighting=True) as sim:
+    with build_simulation_context(
+        sim_cfg=SimulationCfg(physics=PhysxCfg(), dt=sim_dt), device=device, add_lighting=True
+    ) as sim:
         sim._app_control_on_stop_handle = None
         # Instance new scene for the current terrain and contact prim.
         scene_cfg = ContactSensorSceneCfg(num_envs=num_envs, env_spacing=1.0, lazy_sensor_update=False)
@@ -585,7 +590,9 @@ def test_nested_rigid_body_hierarchy(setup_simulation, device):
     sim_dt = setup_simulation[0]
     # several envs are needed to distinguish body-major from env-major ordering
     num_envs = 6
-    with build_simulation_context(device=device, dt=sim_dt, add_lighting=False) as sim:
+    with build_simulation_context(
+        sim_cfg=SimulationCfg(physics=PhysxCfg(), dt=sim_dt), device=device, add_lighting=False
+    ) as sim:
         sim._app_control_on_stop_handle = None
         stage = get_current_stage()
         env_origins = [(3.0 * env_id, 0.0, 0.0) for env_id in range(num_envs)]
@@ -634,7 +641,9 @@ def test_contact_sensor_no_stale_data_after_reset(setup_simulation, device):
     """
     sim_dt, _, settings = setup_simulation
     settings.set("/physics/disableContactProcessing", False)
-    with build_simulation_context(device=device, dt=sim_dt, add_lighting=True) as sim:
+    with build_simulation_context(
+        sim_cfg=SimulationCfg(physics=PhysxCfg(), dt=sim_dt), device=device, add_lighting=True
+    ) as sim:
         sim._app_control_on_stop_handle = None
         scene_cfg = ContactSensorSceneCfg(num_envs=1, env_spacing=2.0, lazy_sensor_update=False)
         scene_cfg.terrain = replace(FLAT_TERRAIN_CFG, prim_path="/World/ground")
@@ -693,7 +702,9 @@ def test_contact_history_updates_at_sensor_period(
     """
     sim_dt, _, settings = setup_simulation
     settings.set("/physics/disableContactProcessing", False)
-    with build_simulation_context(device=device, dt=sim_dt, add_lighting=False) as sim:
+    with build_simulation_context(
+        sim_cfg=SimulationCfg(physics=PhysxCfg(), dt=sim_dt), device=device, add_lighting=False
+    ) as sim:
         sim._app_control_on_stop_handle = None
         scene_cfg = ContactSensorSceneCfg(num_envs=1, env_spacing=2.0, lazy_sensor_update=True)
         scene_cfg.terrain = replace(FLAT_TERRAIN_CFG, prim_path="/World/ground")
@@ -753,7 +764,9 @@ def test_lazy_sensor_reports_contact_loss(setup_simulation, device):
     """
     sim_dt, _, settings = setup_simulation
     settings.set("/physics/disableContactProcessing", False)
-    with build_simulation_context(device=device, dt=sim_dt, add_lighting=False) as sim:
+    with build_simulation_context(
+        sim_cfg=SimulationCfg(physics=PhysxCfg(), dt=sim_dt), device=device, add_lighting=False
+    ) as sim:
         sim._app_control_on_stop_handle = None
         scene_cfg = ContactSensorSceneCfg(num_envs=1, env_spacing=1.0, lazy_sensor_update=True)
         scene_cfg.terrain = FLAT_TERRAIN_CFG
@@ -816,7 +829,7 @@ def test_friction_reporting(setup_simulation):
     sim_dt, _, settings = setup_simulation
     settings.set("/physics/disableContactProcessing", True)
     device = "cuda:0"
-    sim_cfg = SimulationCfg(dt=sim_dt, device=device, gravity=grav_dir)
+    sim_cfg = SimulationCfg(physics=PhysxCfg(), dt=sim_dt, device=device, gravity=grav_dir)
     with build_simulation_context(sim_cfg=sim_cfg, add_lighting=False) as sim:
         sim._app_control_on_stop_handle = None
 
@@ -873,7 +886,7 @@ def test_invalid_contact_data_config(setup_simulation, use_filter, max_contact_d
     sim_dt, _, settings = setup_simulation
     settings.set("/physics/disableContactProcessing", True)
     device = "cuda:0"
-    sim_cfg = SimulationCfg(dt=sim_dt, device=device)
+    sim_cfg = SimulationCfg(physics=PhysxCfg(), dt=sim_dt, device=device)
     with build_simulation_context(sim_cfg=sim_cfg, add_lighting=False) as sim:
         sim._app_control_on_stop_handle = None
 
@@ -917,7 +930,9 @@ def _run_contact_sensor_test(
     Contact points and friction forces are only checked for the sphere on the flat plane, where the
     expected contact point is known analytically.
     """
-    with build_simulation_context(device=device, dt=sim_dt, add_lighting=True) as sim:
+    with build_simulation_context(
+        sim_cfg=SimulationCfg(physics=PhysxCfg(), dt=sim_dt), device=device, add_lighting=True
+    ) as sim:
         sim._app_control_on_stop_handle = None
 
         scene_cfg = ContactSensorSceneCfg(num_envs=1, env_spacing=1.0, lazy_sensor_update=False)

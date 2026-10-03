@@ -11,7 +11,9 @@ import pytest
 
 from isaaclab.test.utils import launch_test_simulation
 
-launch_test_simulation(experience="isaaclab.python.kit")
+launch_test_simulation(physics="isaacsim_physx", experience="isaaclab.python.kit")
+
+from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg
@@ -47,7 +49,7 @@ def run_simulator(
 @pytest.mark.isaacsim_ci
 def test_full_experience_launch_steps():
     # Initialize the simulation context
-    sim_cfg = sim_utils.SimulationCfg(dt=0.005)
+    sim_cfg = sim_utils.SimulationCfg(physics=PhysxCfg(), dt=0.005)
     sim = sim_utils.SimulationContext(sim_cfg)
     # design scene
     scene_cfg = SensorsSceneCfg(num_envs=1, env_spacing=2.0)

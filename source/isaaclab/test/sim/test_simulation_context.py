@@ -6,7 +6,7 @@
 from isaaclab.test.utils import launch_test_simulation, test_devices
 from isaaclab.utils import clone, replace
 
-launch_test_simulation()
+launch_test_simulation(physics="isaacsim_physx")
 
 from unittest.mock import Mock
 
@@ -55,6 +55,7 @@ def test_init(device, monkeypatch):
 
     monkeypatch.setattr(PhysxManager, "initialize", classmethod(initialize))
     cfg = SimulationCfg(
+        physics=PhysxCfg(),
         device=device,
         dt=0.005,
         physics_prim_path="/Physics/PhysX",
@@ -125,7 +126,7 @@ def test_stop_is_dispatched_for_lazy_class_type(physics_cfg):
 @pytest.mark.isaacsim_ci
 def test_singleton():
     """Construction creates a context; only instance() retrieves the live context."""
-    sim = SimulationContext(SimulationCfg(dt=0.01))
+    sim = SimulationContext(SimulationCfg(physics=PhysxCfg(), dt=0.01))
     live_device, live_dt = sim.cfg.device, sim.cfg.dt
     other_device = "cpu" if live_device.startswith("cuda") else "cuda:0"
     for args in (
@@ -144,7 +145,7 @@ def test_singleton():
 
     SimulationContext.clear_instance()
     assert SimulationContext.instance() is None
-    replacement = SimulationContext(SimulationCfg(dt=2.0 * live_dt))
+    replacement = SimulationContext(SimulationCfg(physics=PhysxCfg(), dt=2.0 * live_dt))
     assert replacement is not sim
     assert SimulationContext.instance() is replacement
     assert replacement.cfg.dt == 2.0 * live_dt
@@ -158,7 +159,7 @@ Property Tests.
 @pytest.mark.isaacsim_ci
 def test_carb_setting():
     """Test setting carb settings."""
-    sim = SimulationContext()
+    sim = SimulationContext(SimulationCfg(physics=PhysxCfg()))
     # known carb setting
     sim.set_setting("/physics/physxDispatcher", False)
     assert sim.get_setting("/physics/physxDispatcher") is False
@@ -170,7 +171,7 @@ def test_carb_setting():
 @pytest.mark.isaacsim_ci
 def test_headless_mode():
     """Test that render mode is headless since we are running in headless mode."""
-    sim = SimulationContext()
+    sim = SimulationContext(SimulationCfg(physics=PhysxCfg()))
     # check default render mode (no GUI and no offscreen rendering)
     assert not sim.has_gui and not sim.has_offscreen_render
 
@@ -183,7 +184,7 @@ Timeline Operations Tests.
 @pytest.mark.isaacsim_ci
 def test_timeline_pause():
     """Test timeline pause operation."""
-    sim = SimulationContext()
+    sim = SimulationContext(SimulationCfg(physics=PhysxCfg()))
 
     # start the simulation
     sim.play()
@@ -203,7 +204,7 @@ Reset and Step Tests
 @pytest.mark.isaacsim_ci
 def test_reset(monkeypatch):
     """Test simulation reset, then soft reset, forward, step, and render on the reset simulation."""
-    cfg = SimulationCfg(dt=0.01)
+    cfg = SimulationCfg(physics=PhysxCfg(), dt=0.01)
     sim = SimulationContext(cfg)
 
     # create a simple cube to test with
@@ -247,7 +248,7 @@ Stage Operations Tests
 @pytest.mark.isaacsim_ci
 def test_clear_stage():
     """Test clearing the stage."""
-    sim = SimulationContext()
+    sim = SimulationContext(SimulationCfg(physics=PhysxCfg()))
 
     # create some objects
     cube_cfg1 = sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1))
@@ -291,7 +292,7 @@ def test_solver_type(solver_type):
 @pytest.mark.parametrize("use_fabric", [True, False])
 def test_fabric_setting(use_fabric):
     """Test that fabric setting is properly set."""
-    cfg = SimulationCfg(use_fabric=use_fabric)
+    cfg = SimulationCfg(physics=PhysxCfg(), use_fabric=use_fabric)
     sim = SimulationContext(cfg)
 
     # check fabric is enabled via physics setting
@@ -303,7 +304,7 @@ def test_zero_gravity():
     """Test that zero gravity (no direction or magnitude) can be set; ``test_init`` covers a non-zero vector."""
     from pxr import UsdPhysics
 
-    cfg = SimulationCfg(gravity=(0.0, 0.0, 0.0))
+    cfg = SimulationCfg(physics=PhysxCfg(), gravity=(0.0, 0.0, 0.0))
     sim = SimulationContext(cfg)
 
     # obtain physics scene from USD
@@ -335,7 +336,7 @@ Isaac Events Callback Tests.
 )
 def test_isaac_event_triggered_on_reset(event_type):
     """Test that Isaac events are triggered during reset."""
-    cfg = SimulationCfg(dt=0.01)
+    cfg = SimulationCfg(physics=PhysxCfg(), dt=0.01)
     sim = SimulationContext(cfg)
 
     # create simple scene
@@ -370,7 +371,7 @@ def test_isaac_event_triggered_on_reset(event_type):
 @pytest.mark.isaacsim_ci
 def test_multiple_isaac_event_callbacks():
     """Test that multiple callbacks can be registered for the same Isaac event."""
-    cfg = SimulationCfg(dt=0.01)
+    cfg = SimulationCfg(physics=PhysxCfg(), dt=0.01)
     sim = SimulationContext(cfg)
 
     # create simple scene
@@ -424,7 +425,7 @@ Exception Handling in Callbacks Tests.
 @pytest.mark.isaacsim_ci
 def test_exception_in_callback_on_reset():
     """Test that exceptions stored during reset are raised."""
-    cfg = SimulationCfg(dt=0.01)
+    cfg = SimulationCfg(physics=PhysxCfg(), dt=0.01)
     sim = SimulationContext(cfg)
 
     # create simple scene
@@ -450,7 +451,7 @@ def test_exception_in_callback_on_reset():
 @pytest.mark.isaacsim_ci
 def test_exception_in_callback_on_step():
     """Test that exceptions stored during step are raised."""
-    cfg = SimulationCfg(dt=0.01)
+    cfg = SimulationCfg(physics=PhysxCfg(), dt=0.01)
     sim = SimulationContext(cfg)
 
     # create simple scene
@@ -485,7 +486,7 @@ def test_render_callback_is_invoked_on_render():
     """Callback registered via add_render_callback fires on every render() call."""
     from unittest.mock import MagicMock, patch
 
-    cfg = SimulationCfg(dt=0.01)
+    cfg = SimulationCfg(physics=PhysxCfg(), dt=0.01)
     sim = SimulationContext(cfg)
     sim.reset()
 
@@ -506,7 +507,7 @@ def test_render_callback_ordering():
     """Callbacks fire in ascending order value; lower order fires first."""
     from unittest.mock import patch
 
-    cfg = SimulationCfg(dt=0.01)
+    cfg = SimulationCfg(physics=PhysxCfg(), dt=0.01)
     sim = SimulationContext(cfg)
     sim.reset()
 
@@ -527,7 +528,7 @@ def test_render_callback_replace_on_same_name():
     """Re-registering with the same name silently replaces the old callback."""
     from unittest.mock import MagicMock, patch
 
-    cfg = SimulationCfg(dt=0.01)
+    cfg = SimulationCfg(physics=PhysxCfg(), dt=0.01)
     sim = SimulationContext(cfg)
     sim.reset()
 
@@ -549,7 +550,7 @@ def test_remove_render_callback_stops_invocation():
     """remove_render_callback prevents a registered callback from firing."""
     from unittest.mock import MagicMock, patch
 
-    cfg = SimulationCfg(dt=0.01)
+    cfg = SimulationCfg(physics=PhysxCfg(), dt=0.01)
     sim = SimulationContext(cfg)
     sim.reset()
 
@@ -574,7 +575,7 @@ def test_reset_callback_registered_before_construction_fires_on_reset():
     cb = MagicMock()
     SimulationContext.add_reset_callback("test_cb", cb)
     try:
-        sim = SimulationContext(SimulationCfg(dt=0.01))
+        sim = SimulationContext(SimulationCfg(physics=PhysxCfg(), dt=0.01))
         sim.reset()
         cb.assert_called_once_with(sim)
     finally:

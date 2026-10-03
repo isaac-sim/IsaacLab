@@ -23,6 +23,7 @@ from collections.abc import Iterator
 from datetime import datetime, timezone
 from typing import Any
 
+from ..physics import PhysicsCfg
 from .schema import (
     GpuDeviceInfo,
     GpuResources,
@@ -32,6 +33,8 @@ from .schema import (
     RunConfig,
     Versions,
 )
+
+_PRIMARY_SOLVER_PRIORITY = ("newton_kamino", "newton_mjwarp")
 
 
 def _find_value(measurements: Any, name: str, default: float = 0.0) -> float:
@@ -255,59 +258,6 @@ def _iter_config_nodes(root: object) -> Iterator[object]:
         )
 
 
-_PHYSICS_SOLVER_MARKERS = (
-    ("ovphysx", "ovphysx"),
-    ("kamino", "newton_kamino"),
-    ("mjwarp", "newton_mjwarp"),
-    ("featherstone", "newton_featherstone"),
-    ("xpbd", "newton_xpbd"),
-    ("vbd", "newton_vbd"),
-    ("mpm", "newton_mpm"),
-    ("physx", "physx"),
-)
-
-
-def _backends_from_env_cfg(env_cfg: object) -> tuple[str | None, list[str], str | None]:
-    """Return active backend and solver names from a concrete environment configuration."""
-    physics_cfg = getattr(getattr(env_cfg, "sim", None), "physics", None)
-    physics_descriptors = (
-        ["physx"]
-        if physics_cfg is None
-        else [
-            f"{type(node).__module__}.{type(node).__name__} {getattr(node, 'class_type', '')}".lower()
-            for node in _iter_config_nodes(physics_cfg)
-        ]
-    )
-    physics = next(
-        (
-            name
-            for marker, name in (
-                ("ovphysx", "ovphysx"),
-                ("kamino", "newton_kamino"),
-                ("mjwarp", "newton_mjwarp"),
-                ("physx", "physx"),
-            )
-            if any(marker in descriptor for descriptor in physics_descriptors)
-        ),
-        None,
-    )
-    solvers: set[str] = set()
-    for descriptor in physics_descriptors:
-        for marker, name in _PHYSICS_SOLVER_MARKERS:
-            if marker in descriptor:
-                solvers.add(name)
-                # Keep "ovphysx" from also matching "physx".
-                descriptor = descriptor.replace(marker, "")
-
-    renderer_names = {"isaac_rtx": "isaacsim_rtx", "ovrtx": "ovrtx", "newton_warp": "newton"}
-    rendering = None
-    for node in _iter_config_nodes(env_cfg):
-        rendering = renderer_names.get(getattr(node, "renderer_type", None))
-        if rendering is not None:
-            break
-    return physics, [name for _, name in _PHYSICS_SOLVER_MARKERS if name in solvers], rendering
-
-
 def run_config_from_env_cfg(env_cfg: object) -> RunConfig:
     """Build a :class:`~isaaclab.benchmark.RunConfig` from a concrete task config.
 
@@ -320,14 +270,30 @@ def run_config_from_env_cfg(env_cfg: object) -> RunConfig:
     Raises:
         ValueError: If the config does not contain a supported concrete physics backend.
     """
-    physics, solvers, rendering = _backends_from_env_cfg(env_cfg)
-    if physics is None:
-        physics_cfg = getattr(getattr(env_cfg, "sim", None), "physics", None)
+    physics_cfg = getattr(getattr(env_cfg, "sim", None), "physics", None)
+    if physics_cfg is None:
+        from isaaclab_newton.physics import NewtonCfg
+
+        physics_cfg = NewtonCfg()
+    if not isinstance(physics_cfg, PhysicsCfg):
         raise ValueError(f"Unsupported concrete physics config: {type(physics_cfg).__name__}.")
+    solvers = list(physics_cfg.physics_solvers)
+    if not solvers:
+        raise ValueError(f"Unsupported concrete physics config: {type(physics_cfg).__name__}.")
+    # Retain legacy grouping precedence for mixed Kamino/MJWarp configurations.
+    physics = next((name for name in _PRIMARY_SOLVER_PRIORITY if name in solvers), solvers[0])
+
+    renderer_names = {"isaac_rtx": "isaacsim_rtx", "ovrtx": "ovrtx", "newton_warp": "newton"}
+    rendering = None
+    for node in _iter_config_nodes(env_cfg):
+        rendering = renderer_names.get(getattr(node, "renderer_type", None))
+        if rendering is not None:
+            break
     return RunConfig(
         physics_backend=physics,
         rendering_backend=rendering or "none",
         physics_solvers=solvers,
+        physics_coupling=physics_cfg.physics_coupling,
     )
 
 

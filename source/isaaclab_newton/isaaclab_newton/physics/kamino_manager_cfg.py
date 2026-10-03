@@ -327,6 +327,11 @@ class _KaminoSolverCfgBase(NewtonSolverCfg):
     This field is applied by :class:`NewtonKaminoManager` and is not forwarded to Newton.
     """
 
+    @property
+    def physics_solvers(self) -> tuple[str, ...]:
+        """Return the stable identifiers of the active physics solvers."""
+        return ("newton_kamino",)
+
     def _get_dynamics_solver_config(self) -> tuple[Literal["padmm", "dvi"], dict[str, Any]]:
         """Return the selected Newton solver name and its configuration keyword arguments."""
         raise NotImplementedError

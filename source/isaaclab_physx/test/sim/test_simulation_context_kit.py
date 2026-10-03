@@ -7,11 +7,12 @@
 
 from isaaclab.test.utils import launch_test_simulation
 
-launch_test_simulation()
+launch_test_simulation(physics="isaacsim_physx")
 
 from unittest.mock import Mock
 
 import pytest
+from isaaclab_physx.physics import PhysxCfg
 
 import omni.physics.tensors
 import omni.timeline
@@ -39,7 +40,7 @@ def test_timeline_play_stop(monkeypatch):
     """Playing shares one native view; stopping releases it before the next play."""
     create_view = Mock(wraps=omni.physics.tensors.create_simulation_view)
     monkeypatch.setattr(omni.physics.tensors, "create_simulation_view", create_view)
-    sim = SimulationContext()
+    sim = SimulationContext(SimulationCfg(physics=PhysxCfg()))
     scene_data = sim.physics_manager.get_scene_data_backend()
     publication = scene_data.transforms
     cube_cfg = AssetBaseCfg(
@@ -107,7 +108,7 @@ def test_render_pumps_app_update_without_visualizer():
     """
     from unittest.mock import MagicMock, patch
 
-    cfg = SimulationCfg(dt=0.01)
+    cfg = SimulationCfg(physics=PhysxCfg(), dt=0.01)
     sim = SimulationContext(cfg)
     sim.reset()
 
@@ -142,7 +143,7 @@ def test_render_skips_app_update_when_visualizer_pumps_it():
 
     from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
-    cfg = SimulationCfg(dt=0.01)
+    cfg = SimulationCfg(physics=PhysxCfg(), dt=0.01)
     sim = SimulationContext(cfg)
     sim.reset()
 
@@ -175,7 +176,7 @@ def test_render_skips_app_update_when_visualizer_pumps_it():
 @pytest.mark.isaacsim_ci
 def test_timeline_callbacks_on_play():
     """Test that timeline callbacks are triggered on play, pause, and stop events."""
-    cfg = SimulationCfg(dt=0.01)
+    cfg = SimulationCfg(physics=PhysxCfg(), dt=0.01)
     sim = SimulationContext(cfg)
 
     # create a simple scene

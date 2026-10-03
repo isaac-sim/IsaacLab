@@ -143,6 +143,11 @@ class MJWarpSolverCfg(NewtonSolverCfg):
     Newton default is ``1e-6``.
     """
 
+    @property
+    def physics_solvers(self) -> tuple[str, ...]:
+        """Return the stable identifiers of the active physics solvers."""
+        return ("newton_mjwarp",)
+
     def __post_init__(self):
         if self.ls_parallel:
             warnings.warn(

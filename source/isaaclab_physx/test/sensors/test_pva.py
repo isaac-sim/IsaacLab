@@ -5,7 +5,7 @@
 
 from isaaclab.test.utils import launch_test_simulation
 
-launch_test_simulation(enable_cameras=True)
+launch_test_simulation(physics="isaacsim_physx", enable_cameras=True)
 
 import pathlib
 

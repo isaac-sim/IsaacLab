@@ -12,7 +12,7 @@ from isaaclab_physx.physics import PhysxCfg
 from isaaclab.test.utils import launch_test_simulation
 
 # Launch Kit only after importing the PhysX config to reproduce normal entry-point config resolution.
-launch_test_simulation()
+launch_test_simulation(physics="isaacsim_physx")
 
 import pytest
 from isaaclab_physx.physics import PhysxManager

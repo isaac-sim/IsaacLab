@@ -5,7 +5,7 @@
 
 from isaaclab.test.utils import launch_test_simulation
 
-launch_test_simulation()
+launch_test_simulation(require_kit=True)
 
 import pytest
 from isaaclab_newton.sim.schemas import NewtonMeshCollisionCfg, NewtonSDFCollisionCfg

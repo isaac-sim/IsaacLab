@@ -339,6 +339,10 @@ class ClassFunctionImplementedDemoCfg:
     def a_proxy(self) -> int:
         return self.a
 
+    @property
+    def twice_a(self) -> int:
+        return 2 * self.a
+
     @a_proxy.setter
     def a_proxy(self, value: int):
         self.a = value
@@ -840,6 +844,15 @@ def test_class_function_impl_config():
     cfg.a_proxy = 10
     assert cfg.a == 10
     assert cfg.a_proxy == 10
+
+    @configclass
+    class InheritedFunctionCfg(ClassFunctionImplementedDemoCfg):
+        pass
+
+    inherited = InheritedFunctionCfg(a=7)
+    assert inherited.twice_a == 14
+    assert inherited.a_proxy == 7
+    assert "twice_a" not in inherited.to_dict()
 
     # an instance method can mutate a field
     function_cfg = FunctionImplementedDemoCfg()

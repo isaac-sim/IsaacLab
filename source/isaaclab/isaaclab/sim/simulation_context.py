@@ -46,10 +46,9 @@ logger = logging.getLogger(__name__)
 def _resolve_physics_cfg(physics_cfg: PhysicsCfg | None, use_isaac_sim: bool) -> PhysicsCfg:
     """Resolve a simulation physics config to a concrete backend."""
     if physics_cfg is None:
-        # core must not import a backend package at module level
-        from isaaclab_physx.physics import PhysxCfg
+        from isaaclab_newton.physics import NewtonCfg
 
-        physics_cfg = PhysxCfg()
+        physics_cfg = NewtonCfg()
     elif not isinstance(physics_cfg, PhysicsCfg):
         raise TypeError(f"SimulationCfg.physics must be a concrete PhysicsCfg, got {type(physics_cfg).__name__}.")
 

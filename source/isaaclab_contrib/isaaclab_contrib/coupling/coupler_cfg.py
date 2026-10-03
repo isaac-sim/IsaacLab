@@ -142,6 +142,11 @@ class CouplerCfg(NewtonSolverCfg):
     entries: list[CouplerEntryCfg] = field(default_factory=list)
     """Ordered named sub-solver entries and their ownership selectors."""
 
+    @property
+    def physics_solvers(self) -> tuple[str, ...]:
+        """Return the distinct active sub-solvers in a deterministic order."""
+        return tuple(sorted({name for entry in self.entries for name in entry.solver_cfg.physics_solvers}))
+
 
 @configclass
 class CouplerProxyCfg(CouplerCfg):
@@ -155,6 +160,11 @@ class CouplerProxyCfg(CouplerCfg):
 
     iterations: int = 1
     """Number of proxy relaxation passes per coupled step."""
+
+    @property
+    def physics_coupling(self) -> str | None:
+        """Return the active coupling method."""
+        return "proxy"
 
 
 @configclass
@@ -226,3 +236,8 @@ class CouplerAdmmCfg(CouplerCfg):
 
     contact_matching_force_scale: float = 0.9
     """Scale applied to the previous ADMM dual when a rigid contact matches."""
+
+    @property
+    def physics_coupling(self) -> str | None:
+        """Return the active coupling method."""
+        return "admm"

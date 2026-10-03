@@ -112,10 +112,9 @@ class SimulationCfg:
     """
 
     physics: PhysicsCfg | None = None
-    """Physics manager configuration. Default is None (uses PhysxCfg()).
+    """Physics manager configuration. Default is None (uses NewtonCfg with MJWarp).
 
-    This configuration determines which physics manager to use. Override with
-    a different config (e.g., NewtonManagerCfg) to use a different physics backend.
+    Set an explicit physics configuration to select a different solver or backend.
     """
 
     create_stage_in_memory: bool = False

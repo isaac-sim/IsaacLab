@@ -9,7 +9,7 @@ import os
 
 from isaaclab.test.utils import DeviceScope, launch_test_simulation, test_devices
 
-launch_test_simulation()
+launch_test_simulation(physics="isaacsim_physx")
 
 from types import SimpleNamespace
 from unittest.mock import Mock
@@ -18,6 +18,7 @@ import numpy as np
 import pytest
 import torch
 import warp as wp
+from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.assets import SurfaceGripper, SurfaceGripperCfg
 
 from isaaclab.sim.utils import enable_extension
@@ -30,7 +31,7 @@ from isaacsim.robot.surface_gripper import create_surface_gripper
 from pxr import Gf, Sdf, UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
-from isaaclab.sim import build_simulation_context
+from isaaclab.sim import SimulationCfg, build_simulation_context
 
 _RUNNING_CI = bool(
     os.environ.get("CI") == "true" or os.environ.get("GITHUB_ACTIONS") == "true" or os.environ.get("GITLAB_CI")
@@ -104,7 +105,7 @@ def test_close_and_open_command() -> None:
     gripper out of the *open* state into a *closing* (or *closed*) state, and a subsequent ``open``
     command must bring it back to the *open* state.
     """
-    with build_simulation_context(device="cpu", gravity_enabled=False) as sim:
+    with build_simulation_context(device="cpu", sim_cfg=SimulationCfg(physics=PhysxCfg(), dt=0.01, gravity=(0.0, 0.0, 0.0))) as sim:
         sim._app_control_on_stop_handle = None
         surface_gripper = _author_surface_gripper()
 
@@ -142,7 +143,7 @@ def test_close_and_open_command() -> None:
 @pytest.mark.isaacsim_ci
 def test_raise_error_if_not_cpu(device) -> None:
     """Test that the SurfaceGripper raises an error if the device is not CPU."""
-    with build_simulation_context(device=device, gravity_enabled=False) as sim:
+    with build_simulation_context(device=device, sim_cfg=SimulationCfg(physics=PhysxCfg(), dt=0.01, gravity=(0.0, 0.0, 0.0))) as sim:
         sim._app_control_on_stop_handle = None
         surface_gripper = _author_surface_gripper()
         assert not surface_gripper.is_initialized

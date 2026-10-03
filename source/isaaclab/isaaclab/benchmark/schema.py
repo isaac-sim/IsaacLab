@@ -29,7 +29,16 @@ from typing import Literal
 SCHEMA_VERSION = "1.5"
 
 Framework = Literal["rsl_rl", "rl_games", "skrl", "sb3"]
-PhysicsBackend = Literal["physx", "newton_mjwarp", "newton_kamino", "ovphysx"]
+PhysicsBackend = Literal[
+    "physx",
+    "ovphysx",
+    "newton_mjwarp",
+    "newton_kamino",
+    "newton_featherstone",
+    "newton_xpbd",
+    "newton_vbd",
+    "newton_mpm",
+]
 # "newton" selects Newton's built-in Warp renderer.
 RenderingBackend = Literal["none", "isaacsim_rtx", "ovrtx", "newton"]
 RunStatus = Literal["completed", "interrupted", "crashed"]
@@ -149,12 +158,15 @@ class RunConfig:
         physics_solvers: Every physics solver in the concrete physics configuration
             (e.g. ``["newton_mjwarp", "newton_vbd"]`` for a coupled Newton run), so
             composite runs are distinguishable from single-solver runs.
+        physics_coupling: Coupling method (e.g. ``"proxy"`` or ``"admm"``), or
+            ``None`` for a single solver.
     """
 
     physics_backend: PhysicsBackend
     rendering_backend: RenderingBackend = "none"
     presets: list[str] = field(default_factory=list)
     physics_solvers: list[str] = field(default_factory=list)
+    physics_coupling: str | None = None
 
 
 @dataclass(frozen=True)

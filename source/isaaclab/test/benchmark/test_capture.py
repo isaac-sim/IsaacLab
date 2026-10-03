@@ -8,6 +8,18 @@
 from types import SimpleNamespace
 
 import pytest
+from isaaclab_newton.physics import (
+    FeatherstoneSolverCfg,
+    KaminoPADMMSolverCfg,
+    MJWarpSolverCfg,
+    MPMSolverCfg,
+    NewtonCfg,
+    NewtonSolverCfg,
+    VBDSolverCfg,
+    XPBDSolverCfg,
+)
+from isaaclab_ov.physics import OvPhysxCfg
+from isaaclab_physx.physics import PhysxCfg
 
 from isaaclab.benchmark.capture import (
     capture_hardware,
@@ -25,6 +37,9 @@ from isaaclab.benchmark.measurements import (
     StringMetadata,
 )
 from isaaclab.benchmark.schema import Hardware, Resources, Versions
+
+from isaaclab_contrib.coupling import CouplerAdmmCfg, CouplerEntryCfg, CouplerProxyCfg
+from isaaclab_contrib.custom_coupling.newton_manager_cfg import CoupledMJWarpVBDSolverCfg
 
 
 class _Rec:
@@ -212,58 +227,86 @@ def test_synth_run_id():
     assert synth_run_id(None, "physx", "Isaac-Ant-Direct-v0", 42, "20260612-150000").startswith("runtime_")
 
 
-def test_run_config_uses_concrete_backend_configuration():
+@pytest.mark.parametrize(
+    "physics_cfg, expected_backend, expected_solvers, expected_coupling",
+    [
+        (None, "newton_mjwarp", ["newton_mjwarp"], None),
+        (NewtonCfg(), "newton_mjwarp", ["newton_mjwarp"], None),
+        (PhysxCfg(), "physx", ["physx"], None),
+        (OvPhysxCfg(), "ovphysx", ["ovphysx"], None),
+        (NewtonCfg(solver_cfg=FeatherstoneSolverCfg()), "newton_featherstone", ["newton_featherstone"], None),
+        (NewtonCfg(solver_cfg=XPBDSolverCfg()), "newton_xpbd", ["newton_xpbd"], None),
+        (NewtonCfg(solver_cfg=VBDSolverCfg()), "newton_vbd", ["newton_vbd"], None),
+        (NewtonCfg(solver_cfg=MPMSolverCfg()), "newton_mpm", ["newton_mpm"], None),
+        (
+            NewtonCfg(
+                solver_cfg=CouplerProxyCfg(
+                    entries=[
+                        CouplerEntryCfg(name="rigid", solver_cfg=MJWarpSolverCfg()),
+                        CouplerEntryCfg(name="soft", solver_cfg=VBDSolverCfg()),
+                    ]
+                )
+            ),
+            "newton_mjwarp",
+            ["newton_mjwarp", "newton_vbd"],
+            "proxy",
+        ),
+        (
+            NewtonCfg(
+                solver_cfg=CouplerAdmmCfg(
+                    entries=[
+                        CouplerEntryCfg(name="second", solver_cfg=MJWarpSolverCfg()),
+                        CouplerEntryCfg(name="first", solver_cfg=KaminoPADMMSolverCfg()),
+                        CouplerEntryCfg(name="duplicate", solver_cfg=MJWarpSolverCfg()),
+                    ]
+                )
+            ),
+            "newton_kamino",
+            ["newton_kamino", "newton_mjwarp"],
+            "admm",
+        ),
+        (
+            NewtonCfg(solver_cfg=CoupledMJWarpVBDSolverCfg(coupling_mode="one_way")),
+            "newton_mjwarp",
+            ["newton_mjwarp", "newton_vbd"],
+            "custom_one_way",
+        ),
+    ],
+)
+def test_run_config_uses_concrete_backend_configuration(
+    physics_cfg, expected_backend, expected_solvers, expected_coupling
+):
     env_cfg = SimpleNamespace(
-        sim=SimpleNamespace(physics=SimpleNamespace(class_type="isaaclab_newton.physics:NewtonMJWarpManager")),
+        sim=SimpleNamespace(physics=physics_cfg),
         camera=SimpleNamespace(renderer_cfg=SimpleNamespace(renderer_type="isaac_rtx")),
     )
     cfg = run_config_from_env_cfg(env_cfg)
-    assert cfg.physics_backend == "newton_mjwarp"
+    assert cfg.physics_backend == expected_backend
+    assert cfg.physics_solvers == expected_solvers
+    assert cfg.physics_coupling == expected_coupling
     assert cfg.rendering_backend == "isaacsim_rtx"
     assert cfg.presets == []
-    assert cfg.physics_solvers == ["newton_mjwarp"]
 
-    physx_env_cfg = SimpleNamespace(sim=SimpleNamespace(physics=SimpleNamespace(class_type="PhysXManager")))
-    cfg = run_config_from_env_cfg(physx_env_cfg)
-    assert cfg.physics_backend == "physx"
-    assert cfg.physics_solvers == ["physx"]
+    if physics_cfg is not None:
+        # Runtime-class resolution and incidental configuration nodes do not define solver identity.
+        physics_cfg.class_type = "unrelated.module:RenamedManager"
+        physics_cfg.inactive_alternative = PhysxCfg()
+        assert run_config_from_env_cfg(env_cfg) == cfg
 
-    ovphysx_env_cfg = SimpleNamespace(sim=SimpleNamespace(physics=SimpleNamespace(class_type="OvPhysxManager")))
-    assert run_config_from_env_cfg(ovphysx_env_cfg).physics_solvers == ["ovphysx"]
 
-    default_env_cfg = SimpleNamespace(sim=SimpleNamespace(physics=None))
-    assert run_config_from_env_cfg(default_env_cfg).physics_backend == "physx"
-
-    class NewtonCfg(SimpleNamespace):
-        pass
-
-    coupled_newton_env_cfg = SimpleNamespace(
-        sim=SimpleNamespace(
-            physics=NewtonCfg(
-                class_type="isaaclab_contrib.coupling.coupler:NewtonCouplerManager",
-                solver_cfg=SimpleNamespace(
-                    entries=[
-                        SimpleNamespace(
-                            solver_cfg=SimpleNamespace(
-                                class_type="isaaclab_newton.physics.mjwarp_manager:NewtonMJWarpManager"
-                            )
-                        ),
-                        SimpleNamespace(
-                            solver_cfg=SimpleNamespace(
-                                class_type="isaaclab_newton.physics.vbd_manager:NewtonVBDManager"
-                            )
-                        ),
-                    ]
-                ),
-            )
-        )
-    )
-    cfg = run_config_from_env_cfg(coupled_newton_env_cfg)
-    assert cfg.physics_backend == "newton_mjwarp"
-    assert cfg.physics_solvers == ["newton_mjwarp", "newton_vbd"]
-
+def test_run_config_rejects_unknown_physics():
     with pytest.raises(ValueError, match="Unsupported concrete physics config"):
         run_config_from_env_cfg(SimpleNamespace(sim=SimpleNamespace(physics=object())))
+    incomplete = NewtonCfg(
+        solver_cfg=CouplerProxyCfg(
+            entries=[
+                CouplerEntryCfg(name="known", solver_cfg=MJWarpSolverCfg()),
+                CouplerEntryCfg(name="unknown", solver_cfg=NewtonSolverCfg()),
+            ]
+        )
+    )
+    with pytest.raises(ValueError, match="Unsupported Newton solver config"):
+        run_config_from_env_cfg(SimpleNamespace(sim=SimpleNamespace(physics=incomplete)))
 
 
 def test_capture_resources_peak_clamped_to_mean_when_peak_row_absent():

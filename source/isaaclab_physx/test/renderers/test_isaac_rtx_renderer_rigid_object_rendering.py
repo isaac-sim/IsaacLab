@@ -10,7 +10,7 @@ from pathlib import Path
 
 from isaaclab.test.utils import launch_test_simulation
 
-launch_test_simulation(enable_cameras=True)
+launch_test_simulation(physics="isaacsim_physx", enable_cameras=True)
 
 import pytest
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
@@ -21,10 +21,13 @@ _CONTRACT_DIR = Path(__file__).resolve().parents[3] / "isaaclab" / "test" / "ren
 if str(_CONTRACT_DIR) not in sys.path:
     sys.path.insert(0, str(_CONTRACT_DIR))
 
+from isaaclab_physx.physics import PhysxCfg
 from rigid_object_rendering_contract import (  # noqa: E402
     RigidObjectRenderingBackend,
     run_rigid_object_scale_and_pose_rendering_contract,
 )
+
+from isaaclab.sim import SimulationCfg
 
 pytestmark = [pytest.mark.integration, pytest.mark.rendering, pytest.mark.isaacsim_ci]
 
@@ -36,7 +39,9 @@ def test_kinematic_rigid_object_scale_and_pose_are_rendered(device: str, with_ar
     run_rigid_object_scale_and_pose_rendering_contract(
         RigidObjectRenderingBackend(
             name="isaac_rtx",
-            simulation_context_factory=lambda: build_simulation_context(device=device, gravity_enabled=False),
+            simulation_context_factory=lambda: build_simulation_context(
+                sim_cfg=SimulationCfg(physics=PhysxCfg(), gravity=(0.0, 0.0, 0.0)), device=device
+            ),
             renderer_cfg=IsaacRtxRendererCfg(),
             with_articulation=with_articulation,
         )

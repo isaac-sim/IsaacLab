@@ -285,6 +285,8 @@ def scan(cfg, launcher_args: argparse.Namespace | dict | None = None) -> Scan:
     _resolve_launcher_args(args)
 
     physics_str = args.get("physics")
+    if cfg is None:
+        cfg = SimulationCfg()
     physics_cfgs: list[PhysicsCfg] = []
     concrete_physics_cfgs: list[PhysicsCfg] = []
     effective_cfg: Any = cfg
@@ -329,6 +331,8 @@ def scan(cfg, launcher_args: argparse.Namespace | dict | None = None) -> Scan:
                 concrete_physics_cfgs.append(node)
         elif isinstance(node, SimulationCfg):
             sim_cfg = sim_cfg or node
+            if node.physics is None:
+                node.physics = _make_physics_cfg(physics_str or "newton_mjwarp")
         elif isinstance(node, RendererCfg) and node.renderer_type == "ovrtx":
             has_ovrtx = True
         elif _is_kit_camera(node):

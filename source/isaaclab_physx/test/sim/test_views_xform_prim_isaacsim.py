@@ -7,7 +7,7 @@
 
 from isaaclab.test.utils import launch_test_simulation
 
-launch_test_simulation()
+launch_test_simulation(physics="isaacsim_physx")
 
 import pytest
 import torch

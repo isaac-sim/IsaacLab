@@ -244,3 +244,8 @@ class PhysxCfg(PhysicsCfg):
 
     gpu_max_particle_contacts: int = 2**20
     """Size of particle contacts stream buffer allocated in pinned host memory. Default is 2 ** 20."""
+
+    @property
+    def physics_solvers(self) -> tuple[str, ...]:
+        """Return the stable identifiers of the active physics solvers."""
+        return ("physx",)

@@ -93,3 +93,8 @@ class OvPhysxCfg(PhysicsCfg):
 
     gpu_collision_stack_size: int = 2**26
     """GPU collision stack size in bytes."""
+
+    @property
+    def physics_solvers(self) -> tuple[str, ...]:
+        """Return the stable identifiers of the active physics solvers."""
+        return ("ovphysx",)

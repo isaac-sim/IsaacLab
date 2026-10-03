@@ -8,6 +8,7 @@ from isaaclab.test.utils import launch_test_simulation
 launch_test_simulation()
 
 import pytest
+from isaaclab_newton.physics import NewtonCfg
 
 from isaaclab.sim.simulation_cfg import SimulationCfg
 from isaaclab.sim.simulation_context import build_simulation_context
@@ -26,6 +27,8 @@ def test_build_simulation_context_no_cfg(gravity_enabled, device, dt):
         else:
             assert sim.cfg.gravity == (0.0, 0.0, 0.0)
 
+        assert isinstance(sim.cfg.physics, NewtonCfg)
+        assert sim.cfg.physics.physics_solvers == ("newton_mjwarp",)
         assert sim.cfg.device == device
         assert sim.cfg.dt == dt
 
