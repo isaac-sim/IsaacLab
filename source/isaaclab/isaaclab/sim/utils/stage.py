@@ -14,8 +14,6 @@ import threading
 from collections.abc import Callable, Generator
 from typing import TYPE_CHECKING
 
-from ...utils.version import get_isaac_sim_version, has_kit
-
 if TYPE_CHECKING:
     from pxr import Sdf, Usd, UsdUtils  # noqa: F401
 
@@ -196,7 +194,7 @@ def open_stage(usd_path: str) -> Usd.Stage:
 
 @contextlib.contextmanager
 def use_stage(stage: Usd.Stage) -> Generator[None, None, None]:
-    """Context manager that sets a thread-local stage, if supported.
+    """Context manager that sets a thread-local stage.
 
     This function binds the stage to the thread-local context for the duration of the context manager.
     During the context manager, any call to :func:`get_current_stage` will return the stage specified
@@ -204,8 +202,6 @@ def use_stage(stage: Usd.Stage) -> Generator[None, None, None]:
     stage attached to the USD context.
 
     .. versionadded:: 2.3.0
-        This function is available in Isaac Sim 5.0 and later. For backwards
-        compatibility, it falls back to a no-op context manager in Isaac Sim < 5.0.
 
     Args:
         stage: The stage to set in the context.
@@ -228,25 +224,19 @@ def use_stage(stage: Usd.Stage) -> Generator[None, None, None]:
     """
     from pxr import Usd  # noqa: PLC0415
 
-    if has_kit() and get_isaac_sim_version().major < 5:
-        logger.warning("Isaac Sim < 5.0 does not support thread-local stage contexts. Skipping use_stage().")
-        yield  # no-op
-    else:
-        # check stage
-        if not isinstance(stage, Usd.Stage):
-            raise TypeError(f"Expected a USD stage instance, got: {type(stage)}")
-        # store previous context value if it exists
-        previous_stage = getattr(_context, "stage", None)
-        # set new context value
-        try:
-            _context.stage = stage
-            yield
-        # remove context value or restore previous one if it exists
-        finally:
-            if previous_stage is None:
-                delattr(_context, "stage")
-            else:
-                _context.stage = previous_stage
+    if not isinstance(stage, Usd.Stage):
+        raise TypeError(f"Expected a USD stage instance, got: {type(stage)}")
+    # store previous context value if it exists
+    previous_stage = getattr(_context, "stage", None)
+    try:
+        _context.stage = stage
+        yield
+    # remove context value or restore previous one if it exists
+    finally:
+        if previous_stage is None:
+            delattr(_context, "stage")
+        else:
+            _context.stage = previous_stage
 
 
 def save_stage(usd_path: str, save_and_reload_in_place: bool = True) -> bool:
@@ -276,8 +266,7 @@ def save_stage(usd_path: str, save_and_reload_in_place: bool = True) -> bool:
 
     root_layer = get_current_stage().GetRootLayer()
     layer.TransferContent(root_layer)
-
-    # resolve paths so asset references remain valid from the new location
+    # re-anchor asset references so they stay valid from the new location
     resolve_paths(root_layer.identifier, layer.identifier)
 
     result = layer.Save()
@@ -334,18 +323,13 @@ def _is_prim_deletable(prim: Usd.Prim) -> bool:
         True if the prim can be deleted, False otherwise.
     """
     prim_path = prim.GetPath().pathString
-    if prim_path == "/":
-        return False
-    if prim_path.startswith("/Render"):
-        return False
-    if prim.GetMetadata("no_delete"):
-        return False
-    if prim.GetMetadata("hide_in_stage_window"):
-        return False
-    # Check ancestral prims (from USD references) using pure USD helper
-    if _check_ancestral(prim):
-        return False
-    return True
+    return not (
+        prim_path == "/"
+        or prim_path.startswith("/Render")
+        or prim.GetMetadata("no_delete")
+        or prim.GetMetadata("hide_in_stage_window")
+        or _check_ancestral(prim)
+    )
 
 
 def clear_stage(predicate: Callable[[Usd.Prim], bool] | None = None) -> None:
@@ -377,16 +361,11 @@ def clear_stage(predicate: Callable[[Usd.Prim], bool] | None = None) -> None:
     from .queries import get_all_matching_child_prims
 
     def _predicate_from_path(prim: Usd.Prim) -> bool:
-        if predicate is None:
-            return _is_prim_deletable(prim)
-        # Custom predicate must also pass the deletable check
-        return predicate(prim) and _is_prim_deletable(prim)
+        # a custom predicate must also pass the deletable check
+        return (predicate is None or predicate(prim)) and _is_prim_deletable(prim)
 
     prims = get_all_matching_child_prims("/", _predicate_from_path)
-    # convert prims to prim paths
-    prim_paths_to_delete = [prim.GetPath().pathString for prim in prims]
-    # delete prims
-    delete_prim(prim_paths_to_delete)
+    delete_prim([prim.GetPath().pathString for prim in prims])
 
 
 def get_current_stage(fabric: bool = False) -> Usd.Stage:
@@ -408,15 +387,10 @@ def get_current_stage(fabric: bool = False) -> Usd.Stage:
     """
     # First check thread-local context for an in-memory stage
     stage = getattr(_context, "stage", None)
-    if stage is not None:
-        if fabric:
-            import usdrt
+    if fabric and stage is not None:
+        import usdrt
 
-            # Get stage ID and attach to Fabric stage
-            stage_id = get_current_stage_id()
-            return usdrt.Usd.Stage.Attach(stage_id)
-        return stage
-
+        return usdrt.Usd.Stage.Attach(get_current_stage_id())
     return stage
 
 
@@ -438,12 +412,10 @@ def get_current_stage_id() -> int:
     if stage is None:
         raise RuntimeError("No current stage available. Did you create a stage?")
 
-    # retrieve stage ID from stage cache
+    # stages not yet in the cache are inserted so they get an ID
     stage_cache = UsdUtils.StageCache.Get()
     stage_id = stage_cache.GetId(stage).ToLongInt()
-    # if stage ID is not found, insert it into the stage cache
     if stage_id < 0:
-        # Ensure stage has a valid root layer before inserting
         if not stage.GetRootLayer():
             raise RuntimeError("Stage has no root layer - cannot cache an incomplete stage.")
         stage_id = stage_cache.Insert(stage).ToLongInt()

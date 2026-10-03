@@ -25,7 +25,7 @@ def setup_environment():
     # test on many environments.
     from isaaclab.app.settings_manager import get_settings_manager
 
-    get_settings_manager().set_bool("/physics/cooking/ujitsoCollisionCooking", False)
+    get_settings_manager().set("/physics/cooking/ujitsoCollisionCooking", False)
 
 
 @pytest.mark.parametrize(

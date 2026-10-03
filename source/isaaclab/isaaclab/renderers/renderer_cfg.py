@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 from ..sim.simulation_cfg import BackendCfg
 from ..utils import configclass
@@ -25,6 +25,9 @@ class RendererCfg(BackendCfg):
     """Renderer implementation class. Concrete configs must set this field."""
 
     renderer_type: str = "default"
+
+    launcher_type: ClassVar[str | None] = None
+    """The launcher that starts the runtime this renderer needs, as ``"module:Class"``, or None if none is needed."""
 
     cloning_contexts: tuple[type | str, ...] = ()
     """Clone contexts that build this renderer's scene representation from the asset plan."""

@@ -19,9 +19,10 @@ Do not use this skill to bypass repository checks or to push to `origin`.
 
 1. Inspect the changed files and identify touched packages.
 2. Confirm the branch is focused on one logical change.
-3. Run targeted tests for the touched behavior.
+3. Run targeted tests for the touched behavior. For added, changed, or removed tests, apply
+   [the test-audit skill](../test-audit/SKILL.md) and record the focused evidence it requires.
 4. For skill changes, inspect the changed skill's adjacent `evaluations.md` when present, plus directly linked `examples.md` or `reference.md`, and confirm the representative scenarios still match the skill guidance.
-5. If the PR changes documentation, run `uv run --isolated --extra test -- make -C docs current-docs` and require a successful build with no warnings or errors. This keeps validation in a temporary combined test and documentation environment, and the target treats Sphinx warnings as errors.
+5. Follow the contribution guide's documentation validation scope: skip Sphinx when rendered docs are unaffected, use incremental previews during editing, and require one clean, warning-free build for the final documentation-affecting changes.
 6. Run formatting and lint checks with `uv run isaaclab -f`.
 7. Add package changelog fragments when `source/<package>/` code changes.
 8. Check whether `CONTRIBUTORS.md` needs an update for a new contributor.
@@ -42,11 +43,7 @@ For targeted tests, use:
 uv run python -m pytest PATH_TO_TEST
 ```
 
-If documentation changed, require a warning-free build:
-
-```bash
-uv run --isolated --extra test -- make -C docs current-docs
-```
+Use the [contribution guide's documentation validation guidance](../../../docs/source/refs/contributing.rst#contributing-documentation) to decide whether Sphinx is needed and which build to run. Reuse a successful clean build of the final changes; do not repeat it for unrelated edits.
 
 If skills changed, run:
 

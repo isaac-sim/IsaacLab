@@ -8,6 +8,7 @@
 
 from collections import namedtuple
 from collections.abc import Sequence
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
@@ -47,6 +48,7 @@ def increment_dummy2_by_one(env, env_ids: torch.Tensor):
 class reset_dummy2_to_zero_class(ManagerTermBase):
     def __init__(self, cfg: ManagerTermBaseCfg, env: ManagerBasedEnv):
         super().__init__(cfg, env)
+        self.initial_value = cfg.params["value"]
 
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
         pass
@@ -55,8 +57,9 @@ class reset_dummy2_to_zero_class(ManagerTermBase):
         self,
         env: ManagerBasedEnv,
         env_ids: torch.Tensor,
+        value: float = 0.0,
     ) -> None:
-        env.dummy2[env_ids] = 0
+        env.dummy2[env_ids] = value
 
 
 class increment_dummy2_by_one_class(ManagerTermBase):
@@ -169,10 +172,13 @@ def test_class_terms(env):
     assert len(event_man._mode_class_term_cfgs["reset"]) == 1
 
 
-def test_class_terms_created_while_playing_are_reset(env, monkeypatch):
-    """Class terms instantiated while the simulation is playing are reset with the manager."""
-    monkeypatch.setattr(env.sim, "is_playing", lambda: True)
-    event_man = EventManager({"term": EventTermCfg(func=reset_dummy2_to_zero_class, mode="reset")}, env)
+@pytest.mark.parametrize("mode,playing", [("reset", True), ("prestartup", False)])
+def test_class_terms_are_initialized_with_defaults_and_reset(env, monkeypatch, mode, playing):
+    """Both construction paths populate defaults and register class terms for reset."""
+    monkeypatch.setattr(env.sim, "is_playing", lambda: playing)
+    env = SimpleNamespace(**env._asdict(), scene=SimpleNamespace(cfg=SimpleNamespace(replicate_physics=False)))
+    event_man = EventManager({"term": EventTermCfg(func=reset_dummy2_to_zero_class, mode=mode)}, env)
+    assert event_man.get_term_cfg("term").func.initial_value == 0.0
     reset_calls = []
     monkeypatch.setattr(event_man.get_term_cfg("term").func, "reset", lambda env_ids=None: reset_calls.append(env_ids))
 

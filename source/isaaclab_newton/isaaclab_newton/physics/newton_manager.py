@@ -430,6 +430,39 @@ class NewtonManager(PhysicsManager):
         shadowing the base attributes on a concrete solver subclass.
     """
 
+    @classmethod
+    def provides_implicit_damping(cls) -> bool:
+        # Newton's symplectic integrator has no implicit damping.
+        return False
+
+    @classmethod
+    def setup_deformable_body(cls, prim: Any, deformable_type: str, sim_mesh_prim: Any, vis_mesh_prim: Any) -> None:
+        """Apply Newton's token deformable anchor schemas and sync the visual mesh geometry."""
+        sim_mesh_path = sim_mesh_prim.GetPath().pathString
+        token = "PhysicsVolumeDeformableSimAPI" if deformable_type == "volume" else "PhysicsSurfaceDeformableSimAPI"
+        if not sim_mesh_prim.AddAppliedSchema(token):
+            raise RuntimeError(f"Failed to set {deformable_type} deformable sim API on prim '{sim_mesh_path}'.")
+        # Newton renders the simulation mesh directly: overwrite the visual mesh geometry until
+        # separate visual/simulation meshes are supported.
+        vis_mesh = UsdGeom.Mesh(vis_mesh_prim)
+        if deformable_type == "volume":
+            tet_mesh = UsdGeom.TetMesh(sim_mesh_prim)
+            surface_indices = tet_mesh.GetSurfaceFaceVertexIndicesAttr().Get()
+            if surface_indices is None or len(surface_indices) == 0:
+                raise ValueError(
+                    f"Deformable body at '{prim.GetPath().pathString}' has no surface indices on its TetMesh"
+                    " prim; cannot sync to visual mesh."
+                )
+            vis_mesh.GetPointsAttr().Set(tet_mesh.GetPointsAttr().Get())
+            vis_mesh.GetFaceVertexIndicesAttr().Set(np.asarray(surface_indices).flatten())
+            vis_mesh.GetFaceVertexCountsAttr().Set([3] * len(surface_indices))
+        else:
+            sim_mesh = UsdGeom.Mesh(sim_mesh_prim)
+            vis_mesh.GetFaceVertexIndicesAttr().Set(sim_mesh.GetFaceVertexIndicesAttr().Get())
+            vis_mesh.GetFaceVertexCountsAttr().Set(sim_mesh.GetFaceVertexCountsAttr().Get())
+        if not prim.AddAppliedSchema("PhysicsDeformableBodyAPI"):
+            raise RuntimeError(f"Failed to set deformable body API on prim '{prim.GetPath().pathString}'.")
+
     _solver_dt: float = 1.0 / 200.0
     _num_substeps: int = 1
     _decimation: int = 1
@@ -681,8 +714,6 @@ class NewtonManager(PhysicsManager):
         if sim is None or not sim.is_playing():
             return
 
-        cls._reset_solver_internals_delegate(cls._world_reset_mask)
-
         # Notify solver of model changes
         if cls._model_changes:
             with wp.ScopedDevice(PhysicsManager._device):
@@ -694,6 +725,7 @@ class NewtonManager(PhysicsManager):
                 NewtonManager._model_changes = set()
 
         # Reset-authored state and persistent solver resources must be ready before capture.
+        # forward() also resets solver internals for the worlds flagged since the last boundary.
         cls.forward()
         cfg = PhysicsManager._cfg
         device = PhysicsManager._device
@@ -1665,9 +1697,7 @@ class NewtonManager(PhysicsManager):
 
     @classmethod
     def _update_sensors(cls, contacts) -> None:
-        """Push latest state to all registered Newton sensors."""
-        for sensor in cls._newton_frame_transform_sensors:
-            sensor.update(cls.backend.state_0)
+        """Push latest state to registered IMU and contact sensors."""
         for sensor in cls._newton_imu_sensors:
             sensor.update(cls.backend.state_0)
         if cls._report_contacts:

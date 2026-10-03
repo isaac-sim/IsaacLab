@@ -15,6 +15,7 @@ is the signal that the Kit branch was taken. No Kit/GPU required.
 """
 
 import argparse
+import signal
 import sys
 import types
 
@@ -22,7 +23,6 @@ import isaaclab_physx.app as physx_app
 import pytest
 
 import isaaclab.app.sim_launcher as sim_launcher
-import isaaclab.utils.assets as assets_utils
 from isaaclab.app import SimulationLauncher, launch_simulation
 from isaaclab.physics import PhysicsCfg
 from isaaclab.renderers import RendererCfg
@@ -51,7 +51,7 @@ def test_default_stays_kitless_for_a_kitless_config(kit_branch_taken):
 def test_kitless_launch_configures_storage_before_user_code(kit_branch_taken, monkeypatch: pytest.MonkeyPatch):
     """A direct OmniClient read inside a kitless runtime must see profile routing."""
     events = []
-    monkeypatch.setattr(assets_utils, "configure_storage_profile", lambda: events.append("configured"))
+    monkeypatch.setattr(sim_launcher, "configure_storage_profile", lambda: events.append("configured"))
 
     with launch_simulation(cfg=PhysicsCfg(), launcher_args={}):
         events.append("user-code")
@@ -72,7 +72,7 @@ def test_storage_profile_failure_closes_started_kit(monkeypatch: pytest.MonkeyPa
         raise RuntimeError("profile rejected")
 
     monkeypatch.setattr(physx_app, "KitLauncher", FakeKitLauncher)
-    monkeypatch.setattr(assets_utils, "configure_storage_profile", reject_profile)
+    monkeypatch.setattr(sim_launcher, "configure_storage_profile", reject_profile)
 
     with pytest.raises(RuntimeError, match="profile rejected"):
         with launch_simulation(cfg=PhysicsCfg(), launcher_args={"require_kit": True}):
@@ -100,14 +100,18 @@ def test_require_kit_rejects_ovrtx_runtime(monkeypatch: pytest.MonkeyPatch):
     config_scan = sim_launcher.Scan(
         resolved_physics_cfg=None,
         effective_cfg=object(),
-        visualizer_intent={"has_kit_visualizer": False},
+        sim_cfg=None,
         has_ovrtx=True,
         has_kit_camera=False,
         has_kit_physics=False,
         has_ovphysx_physics=False,
         needs_kit=False,
     )
-    monkeypatch.setattr(sim_launcher, "scan", lambda _cfg, _launcher_args: config_scan)
+    monkeypatch.setattr(
+        sim_launcher,
+        "scan",
+        lambda _cfg, launcher_args: sim_launcher._resolve_launcher_args(launcher_args) or config_scan,
+    )
 
     with pytest.raises(ValueError, match="OVRTX runtime"):
         with launch_simulation(cfg=object(), launcher_args={"require_kit": True}):
@@ -132,20 +136,16 @@ def test_kitless_ovrtx_registers_before_user_code(monkeypatch: pytest.MonkeyPatc
     monkeypatch.setitem(
         sys.modules, "ovrtx", types.SimpleNamespace(register_schema_paths=lambda: calls.append("register"))
     )
-    monkeypatch.setattr(assets_utils, "configure_storage_profile", lambda: calls.append("storage"))
-    cfg = argparse.Namespace(
-        physics=sim_launcher.NewtonCfg(),
-        visualizer_cfgs=argparse.Namespace(visualizer_type="newton_rtx"),
-    )
-
-    with launch_simulation(cfg):
+    monkeypatch.setattr(sim_launcher, "configure_storage_profile", lambda: calls.append("storage"))
+    with launch_simulation(sim_launcher.NewtonCfg(), {"visualizer": ["newton_rtx"]}):
         calls.append("user")
 
     assert calls == ["register", "storage", "user"]
 
 
-def test_config_named_launcher_starts_and_closes(monkeypatch: pytest.MonkeyPatch):
-    """A launcher named by a config's ``launcher_type`` starts with the simulation and closes after it."""
+@pytest.mark.parametrize("interrupt", [False, True])
+def test_config_named_launcher_starts_and_closes(monkeypatch: pytest.MonkeyPatch, interrupt):
+    """A config-selected launcher closes on success or interruption with the correct exit status."""
     events = []
 
     class FakeLauncher(SimulationLauncher):
@@ -153,7 +153,7 @@ def test_config_named_launcher_starts_and_closes(monkeypatch: pytest.MonkeyPatch
             events.append("start")
 
         def close(self, exit_code=0):
-            events.append("close")
+            events.append(exit_code)
 
     class CustomRendererCfg(RendererCfg):
         launcher_type = "fake_runtime:FakeLauncher"
@@ -161,15 +161,22 @@ def test_config_named_launcher_starts_and_closes(monkeypatch: pytest.MonkeyPatch
     monkeypatch.setitem(sys.modules, "fake_runtime", types.SimpleNamespace(FakeLauncher=FakeLauncher))
     cfg = argparse.Namespace(physics=sim_launcher.NewtonCfg(), renderer=CustomRendererCfg())
 
-    with launch_simulation(cfg):
-        events.append("user")
+    try:
+        with launch_simulation(cfg):
+            events.append("user")
+            if interrupt:
+                signal.raise_signal(signal.SIGINT)
+    except KeyboardInterrupt:
+        assert interrupt
+    else:
+        assert not interrupt
 
-    assert events == ["start", "user", "close"]
+    assert events == ["start", "user", 130 if interrupt else 0]
 
 
 def test_require_kit_false_does_not_suppress_a_kit_config(kit_branch_taken):
     # '--viz kit' requires Kit on its own; require_kit=False must not override that
-    launcher_args = {"visualizer": ["kit"], "visualizer_explicit": True, "require_kit": False}
+    launcher_args = {"visualizer": ["kit"], "require_kit": False}
 
     with launch_simulation(cfg=PhysicsCfg(), launcher_args=launcher_args):
         pass

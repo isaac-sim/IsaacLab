@@ -10,9 +10,6 @@
     # Usage with Newton physics and camera rendering
     uvx isaaclab example camera
 
-    # Usage in headless mode
-    uvx isaaclab example camera --viz none --max_steps 20
-
 """
 
 import argparse

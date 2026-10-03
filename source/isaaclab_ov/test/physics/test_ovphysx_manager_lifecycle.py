@@ -16,7 +16,12 @@ from types import ModuleType, SimpleNamespace
 
 import pytest
 
+from isaaclab.test.utils import DeviceScope, test_devices
+
 pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
+
+_CPU_DEVICES = test_devices(DeviceScope.CPU)
+_CUDA_DEVICES = test_devices(DeviceScope.CUDA)
 
 
 class _FakePhysXConfig:
@@ -27,10 +32,6 @@ class _FakePhysXConfig:
 
 
 class _FakePhysX:
-    @classmethod
-    def set_cpu_mode(cls, enabled):
-        pass
-
     def __init__(self, active_cuda_gpus=None, config=None):
         self.active_cuda_gpus = active_cuda_gpus
         self.config = config
@@ -63,9 +64,7 @@ def manager_module(monkeypatch):
         "_next_control_ordinal": 2,
         "_warmup_done": False,
         "_requires_full_stage": False,
-        "_locked_device": None,
-        "_active_clone_recipes": [],
-        "_pending_clones": [],
+        "_clone_recipes": [],
         "_atexit_registered": False,
         "_scene_data_backend": None,
         "_physx_schemas_registered": False,
@@ -156,11 +155,18 @@ def test_schema_registration_skips_providers_already_supplied_by_host(
     # A None entry makes importing OVStage raise ModuleNotFoundError.
     monkeypatch.setitem(sys.modules, "ovstage", fake_ovstage if has_registration_api is not None else None)
     monkeypatch.setitem(sys.modules, "pxr", fake_pxr)
+    newton_schema_root = "/schemas/newton"
+    monkeypatch.setattr(manager_module, "_newton_schema_root", lambda: newton_schema_root, raising=False)
 
     manager._ensure_physx_schemas_registered()
     manager._ensure_physx_schemas_registered()
 
-    assert ovstage_registrations == ([schema_root] if schema_root is not None and has_registration_api else [])
+    expected_ovstage_registrations = []
+    if has_registration_api:
+        if schema_root is not None:
+            expected_ovstage_registrations.append(schema_root)
+        expected_ovstage_registrations.append(newton_schema_root)
+    assert ovstage_registrations == expected_ovstage_registrations
     assert host_registrations == ([expected_paths] if expected_paths else [])
 
 
@@ -453,6 +459,66 @@ def _retained_binding_script() -> str:
     )
 
 
+def _device_sequence_script(devices: tuple[str, ...]) -> str:
+    return f"DEVICES = {devices!r}\n" + textwrap.dedent(
+        """
+        import torch
+        from ovphysx.dlpack import DLDeviceType
+
+        import isaaclab.sim as sim_utils
+        from isaaclab.assets import RigidObjectCfg
+        from isaaclab.sim import SimulationCfg, build_simulation_context
+        from isaaclab_ov import tensor_types as TT
+        from isaaclab_ov.assets import RigidObject
+        from isaaclab_ov.physics import OvPhysxCfg
+
+        def drop_cube(device):
+            sim_cfg = SimulationCfg(physics=OvPhysxCfg(), device=device, dt=1.0 / 60.0)
+            with build_simulation_context(device=device, sim_cfg=sim_cfg) as sim:
+                cube = RigidObject(
+                    RigidObjectCfg(
+                        prim_path="/World/Cube",
+                        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 2.0)),
+                        spawn=sim_utils.CuboidCfg(
+                            size=(0.5, 0.5, 0.5),
+                            rigid_props=sim_utils.RigidBodyBaseCfg(),
+                            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+                            collision_props=sim_utils.CollisionBaseCfg(),
+                        ),
+                    )
+                )
+                sim.reset()
+
+                # A CPU scene after a CUDA scene must not inherit its DirectGPU state bindings.
+                native_device = cube.root_view.binding_for(TT.RIGID_BODY_POSE).native_device
+                expected_type = DLDeviceType.kDLCUDA if device.startswith("cuda") else DLDeviceType.kDLCPU
+                assert native_device.device_type.value == expected_type, (device, str(native_device))
+
+                root_pose = cube.data.root_link_pose_w.torch.clone()
+                assert root_pose.device == torch.device(device)
+                root_pose[:, 0] = 0.25
+                cube.write_root_link_pose_to_sim_index(root_pose=root_pose)
+                cube.update(sim.get_physics_dt())
+                torch.testing.assert_close(cube.data.root_link_pose_w.torch, root_pose)
+
+                heights = []
+                for _ in range(10):
+                    sim.step()
+                    cube.update(sim.get_physics_dt())
+                    heights.append(cube.data.root_link_pose_w.torch[0, 2].item())
+                return heights
+
+        trajectories = {}
+        for device in DEVICES:
+            heights = drop_cube(device)
+            assert all(later < earlier for earlier, later in zip([2.0] + heights, heights)), (device, heights)
+            # A device's scene is reproducible regardless of the scenes that ran before it.
+            assert trajectories.setdefault(device, heights) == heights, (device, trajectories[device], heights)
+        print("DEVICE_SEQUENCE_OK", flush=True)
+        """
+    )
+
+
 def _run_child(script: str) -> tuple[subprocess.CompletedProcess[str], str]:
     completed = subprocess.run(
         [sys.executable, "-c", script],
@@ -480,6 +546,53 @@ def test_retained_binding_preserves_uncaught_failure_exit_status():
     assert "NORMAL_ATEXIT" in output, output[-8000:]
     assert "OVPHYSX_STOP" in output, output[-8000:]
     _assert_no_atexit_errors(output)
+
+
+@pytest.mark.parametrize(("device", "rate"), [("cpu", 60), ("gpu", 120)])
+@pytest.mark.parametrize(("override", "expected"), [(None, True), (False, False), (True, True)])
+def test_scene_settings(monkeypatch, manager_module, device, rate, override, expected):
+    """The simulation timestep, scene queries, and TGS force settings reach the native scene."""
+    from isaaclab_ov.physics.ovphysx_manager_cfg import OvPhysxCfg
+
+    from pxr import Usd
+
+    from isaaclab.physics import PhysicsManager
+
+    cfg = OvPhysxCfg() if override is None else OvPhysxCfg(enable_external_forces_every_iteration=override)
+    assert cfg.enable_external_forces_every_iteration is expected
+    sim_cfg = SimpleNamespace(dt=1.0 / rate, enable_scene_query_support=device == "gpu")
+    monkeypatch.setattr(PhysicsManager, "_sim", SimpleNamespace(cfg=sim_cfg))
+    stage = Usd.Stage.CreateInMemory()
+    prim = stage.DefinePrim("/World/PhysicsScene", "PhysicsScene")
+    manager_module.OvPhysxManager._configure_physx_scene_prim(prim, cfg, device)
+    assert prim.GetAttribute("physxScene:enableExternalForcesEveryIteration").Get() is expected
+    assert prim.GetAttribute("physxScene:timeStepsPerSecond").Get() == rate
+    assert prim.GetAttribute("physxScene:enableSceneQuerySupport").Get() is sim_cfg.enable_scene_query_support
+
+
+@pytest.mark.parametrize(("device", "gpu_dynamics", "broadphase"), [("cpu", False, "MBP"), ("gpu", True, "GPU")])
+def test_scenes_author_device_dynamics_and_broadphase(monkeypatch, manager_module, device, gpu_dynamics, broadphase):
+    """Every physics scene selects the simulation device, since CPU and GPU scenes share one process."""
+    from isaaclab_ov.physics.ovphysx_manager_cfg import OvPhysxCfg
+
+    from pxr import Sdf, Usd, UsdPhysics
+
+    from isaaclab.physics import PhysicsManager
+
+    monkeypatch.setattr(
+        PhysicsManager, "_sim", SimpleNamespace(cfg=SimpleNamespace(dt=1.0 / 60.0, enable_scene_query_support=False))
+    )
+    stage = Usd.Stage.CreateInMemory()
+    UsdPhysics.Scene.Define(stage, "/World/PhysicsScene")
+    # An asset's own scene, authored for the other device.
+    asset_scene = UsdPhysics.Scene.Define(stage, "/World/Asset/PhysicsScene").GetPrim()
+    asset_scene.CreateAttribute("physxScene:enableGPUDynamics", Sdf.ValueTypeNames.Bool).Set(not gpu_dynamics)
+    manager_module.OvPhysxManager._configure_physics_scenes(stage, "/World/PhysicsScene", OvPhysxCfg(), device)
+    for path in ("/World/PhysicsScene", "/World/Asset/PhysicsScene"):
+        prim = stage.GetPrimAtPath(path)
+        assert "PhysxSceneAPI" in prim.GetMetadata("apiSchemas").GetAddedOrExplicitItems()
+        assert prim.GetAttribute("physxScene:enableGPUDynamics").Get() is gpu_dynamics
+        assert prim.GetAttribute("physxScene:broadphaseType").Get() == broadphase
 
 
 def test_construct_physx_forwards_cooked_collider_cache_dir(monkeypatch, manager_module, tmp_path):
@@ -531,3 +644,13 @@ def test_default_cache_dir_rejects_a_directory_owned_by_another_user(manager_mod
 
     with pytest.raises(RuntimeError, match="owned"):
         manager_module._prepare_default_cache_dir(str(target))
+
+
+@pytest.mark.skipif(not (_CPU_DEVICES and _CUDA_DEVICES), reason="The device sequence requires a CPU and a CUDA device")
+def test_cpu_and_cuda_scenes_run_sequentially_in_one_process():
+    """A CPU scene must not prevent a later CUDA scene in the same process, or the reverse."""
+    cpu, cuda = _CPU_DEVICES[0], _CUDA_DEVICES[0]
+    completed, output = _run_child(_device_sequence_script((cpu, cuda, cpu)))
+
+    assert completed.returncode == 0, output[-8000:]
+    assert "DEVICE_SEQUENCE_OK" in output, output[-8000:]

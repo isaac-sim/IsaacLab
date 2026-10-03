@@ -11,7 +11,7 @@ controllers).
 
 This script supports two teleoperation stacks:
 1. Native Isaac Lab teleop stack (via teleop_devices in env_cfg)
-2. IsaacTeleop-based stack (via isaac_teleop in env_cfg)
+2. Isaac Capture-based stack (via isaac_teleop in env_cfg)
 
 The script automatically detects which stack to use based on the environment config.
 """
@@ -42,7 +42,7 @@ parser.add_argument(
     type=str,
     default=None,
     help=(
-        "Legacy teleop device name. When omitted, the IsaacTeleop pipeline is used if configured in the env,"
+        "Legacy teleop device name. When omitted, the Isaac Capture pipeline is used if configured in the env,"
         " otherwise keyboard is used as fallback. When explicitly provided, the script uses the legacy"
         " teleop_devices path and looks up this name in env_cfg.teleop_devices.devices."
     ),
@@ -69,7 +69,7 @@ parser.add_argument(
     "--enable_debug_visualization",
     action="store_true",
     default=False,
-    help="Enable hand joint and controller aim debug visualization at session start (IsaacTeleop only).",
+    help="Enable hand joint and controller aim debug visualization at session start (Isaac Capture only).",
 )
 parser.add_argument(
     "--external_callback",
@@ -189,7 +189,7 @@ def _make_haptic_io(env, teleop_interface, env_cfg, use_isaac_teleop: bool):
     """Return ``(update, stop)`` callables driving controller haptics, or no-ops.
 
     Keeps haptics opt-in without branching in the main loop: both callables are
-    no-ops unless the active device is an IsaacTeleop device and the env declares
+    no-ops unless the active device is an Isaac Capture device and the env declares
     a ``haptic_feedback`` config. ``update`` renders the current contact force;
     ``stop`` zeroes it so a stale pulse does not persist while teleop is paused.
     """
@@ -205,11 +205,11 @@ def _make_haptic_io(env, teleop_interface, env_cfg, use_isaac_teleop: bool):
 
 
 def _make_control_keyboard(teleop_interface, use_isaac_teleop: bool, has_window: bool):
-    """Create an optional keyboard for headset-free IsaacTeleop control.
+    """Create an optional keyboard for headset-free Isaac Capture control.
 
     Binds ``B`` / ``P`` / ``R`` to start-resume / pause / reset so a user can drive
     the teleop state machine without an XR headset. Keys are captured through the app
-    window, so this returns ``None`` when there is no window or when IsaacTeleop is
+    window, so this returns ``None`` when there is no window or when Isaac Capture is
     not the active stack (a windowless run still auto-starts teleop). ``R`` is an operator
     reset: :meth:`~isaaclab_teleop.IsaacTeleopDevice.reset` with ``pause=True`` injects a
     single RESET pulse (the loop's control-event handler turns it into one environment
@@ -226,7 +226,7 @@ def _make_control_keyboard(teleop_interface, use_isaac_teleop: bool, has_window:
         keyboard.add_callback("B", teleop_interface.request_start)
         keyboard.add_callback("P", teleop_interface.request_stop)
         keyboard.add_callback("R", lambda: teleop_interface.reset(pause=True))
-        print("IsaacTeleop control keys: [B] start/resume  [P] pause  [R] reset")
+        print("Isaac Capture control keys: [B] start/resume  [P] pause  [R] reset")
         return keyboard
     except Exception as e:
         logger.warning(f"Control keyboard unavailable ({e}); teleop still auto-starts without --xr")
@@ -269,7 +269,7 @@ def main() -> None:  # noqa: C901
     )
 
     # XR-rendering setup (camera removal + DLSS) is only needed for the Kit XR
-    # path. Without --xr, IsaacTeleop runs standalone (I/O only) and renders
+    # path. Without --xr, Isaac Capture runs standalone (I/O only) and renders
     # normally, so gate on --xr alone.
     if args_cli.xr:
         # Keep camera configs when external cameras are enabled (defaulted on); otherwise
@@ -376,7 +376,7 @@ def run_teleoperation(env_cfg: ManagerBasedRLEnvCfg, use_isaac_teleop: bool, cle
         "RESET": reset_recording_instance,
     }
 
-    # For XR devices (hand tracking or IsaacTeleop), default to inactive. Without
+    # For XR devices (hand tracking or Isaac Capture), default to inactive. Without
     # --xr, teleop is started locally (see ``request_start`` below) rather than by
     # a headset, so it still begins running -- but it flows through the same state
     # machine, so keyboard/host pause/resume keeps working.
@@ -416,7 +416,7 @@ def run_teleoperation(env_cfg: ManagerBasedRLEnvCfg, use_isaac_teleop: bool, cle
                     logger.error(
                         f"--teleop_device={device_name} was passed but no matching entry exists in"
                         " env_cfg.teleop_devices and it is not a built-in device name. Either remove"
-                        " --teleop_device to use the IsaacTeleop pipeline, or add a"
+                        " --teleop_device to use the Isaac Capture pipeline, or add a"
                         f" '{device_name}' entry under teleop_devices in the environment config."
                         " Built-in devices: keyboard, spacemouse, gamepad."
                     )
@@ -451,10 +451,10 @@ def run_teleoperation(env_cfg: ManagerBasedRLEnvCfg, use_isaac_teleop: bool, cle
     print(f"Using teleop device: {teleop_interface}")
 
     # Optional controller haptics: no-ops unless the env declares a
-    # ``haptic_feedback`` config and the device can render it (IsaacTeleop).
+    # ``haptic_feedback`` config and the device can render it (Isaac Capture).
     haptic_update, haptic_stop = _make_haptic_io(env, teleop_interface, env_cfg, use_isaac_teleop)
 
-    # Optional keyboard for headset-free IsaacTeleop control. Kept in a local so its
+    # Optional keyboard for headset-free Isaac Capture control. Kept in a local so its
     # carb input subscription is not garbage-collected; a headless run auto-starts
     # (in ``run_loop``) without it.
     # a local window exists (GUI or livestream) unless XR runs headless without a viewport
@@ -475,7 +475,7 @@ def run_teleoperation(env_cfg: ManagerBasedRLEnvCfg, use_isaac_teleop: bool, cle
         if use_isaac_teleop and not args_cli.xr:
             teleop_interface.request_start()
 
-        stack_name = "IsaacTeleop" if use_isaac_teleop else "native"
+        stack_name = "Isaac Capture" if use_isaac_teleop else "native"
         print(f"{stack_name} teleoperation started. Press 'R' to reset the environment.")
 
         # simulate environment
@@ -493,7 +493,7 @@ def run_teleoperation(env_cfg: ManagerBasedRLEnvCfg, use_isaac_teleop: bool, cle
                         if ctrl.should_reset:
                             should_reset_recording_instance = True
 
-                    # action is None when IsaacTeleop session hasn't started yet
+                    # action is None when Isaac Capture session hasn't started yet
                     # (e.g. waiting for user to click "Start AR")
                     if action is None:
                         env.sim.render()
@@ -521,7 +521,7 @@ def run_teleoperation(env_cfg: ManagerBasedRLEnvCfg, use_isaac_teleop: bool, cle
                 break
 
     # Run the teleoperation loop
-    # IsaacTeleop requires a context manager, native devices don't
+    # Isaac Capture requires a context manager, native devices don't
     if use_isaac_teleop:
         with teleop_interface, camera_feed_session.bind(env):
             run_loop()

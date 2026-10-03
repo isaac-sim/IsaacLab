@@ -140,12 +140,14 @@ class ManagerBasedEnv:
             torch.cuda.set_device(self.device)
 
         # print useful information
-        print("[INFO]: Base environment:")
-        print(f"\tEnvironment device    : {self.device}")
-        print(f"\tEnvironment seed      : {self.cfg.seed}")
-        print(f"\tPhysics step-size     : {self.physics_dt}")
-        print(f"\tRendering step-size   : {self.physics_dt * self.cfg.sim.render_interval}")
-        print(f"\tEnvironment step-size : {self.step_dt}")
+        logger.info(
+            "Base environment:\n"
+            f"\tEnvironment device    : {self.device}\n"
+            f"\tEnvironment seed      : {self.cfg.seed}\n"
+            f"\tPhysics step-size     : {self.physics_dt}\n"
+            f"\tRendering step-size   : {self.physics_dt * self.cfg.sim.render_interval}\n"
+            f"\tEnvironment step-size : {self.step_dt}"
+        )
         if self.cfg.sim.render_interval < self.cfg.decimation:
             msg = (
                 f"The render interval ({self.cfg.sim.render_interval}) is smaller than the decimation "
@@ -174,7 +176,7 @@ class ManagerBasedEnv:
             with use_stage(self.sim.stage):
                 self.scene = InteractiveScene(self.cfg.scene)
             self.sim.register_interactive_scene(self.scene)
-        print("[INFO]: Scene manager: ", self.scene)
+        logger.info(f"Scene manager: {self.scene}")
 
         # create event manager
         # note: this is needed here (rather than after simulation play) to allow USD-related randomization events
@@ -330,7 +332,7 @@ class ManagerBasedEnv:
             os.makedirs(output_dir, exist_ok=True)
 
         with open(os.path.join(output_dir, "IO_descriptors.yaml"), "w") as f:
-            print(f"[INFO]: Exporting IO descriptors to {os.path.join(output_dir, 'IO_descriptors.yaml')}")
+            logger.info(f"Exporting IO descriptors to {os.path.join(output_dir, 'IO_descriptors.yaml')}")
             yaml.safe_dump(IO_descriptors, f)
 
     """
@@ -355,16 +357,16 @@ class ManagerBasedEnv:
         """
         # prepare the managers
         # -- event manager (we print it here to make the logging consistent)
-        print("[INFO] Event Manager: ", self.event_manager)
+        logger.info(f"Event Manager: {self.event_manager}")
         # -- recorder manager
         self.recorder_manager = RecorderManager(self.cfg.recorders, self)
-        print("[INFO] Recorder Manager: ", self.recorder_manager)
+        logger.info(f"Recorder Manager: {self.recorder_manager}")
         # -- action manager
         self.action_manager = ActionManager(self.cfg.actions, self)
-        print("[INFO] Action Manager: ", self.action_manager)
+        logger.info(f"Action Manager: {self.action_manager}")
         # -- observation manager
         self.observation_manager = ObservationManager(self.cfg.observations, self)
-        print("[INFO] Observation Manager:", self.observation_manager)
+        logger.info(f"Observation Manager: {self.observation_manager}")
 
         # perform events at the start of the simulation
         # in-case a child implementation creates other managers, the randomization should happen
@@ -546,7 +548,7 @@ class ManagerBasedEnv:
         self.recorder_manager.record_pre_step()
 
         # check if we need to do rendering within the physics loop
-        # note: uses cached property to avoid settings lookup every step
+        # note: evaluated once per step rather than once per physics substep
         is_rendering = self.sim.is_rendering
 
         # physics-owned decimation covers all substeps in one call
@@ -562,7 +564,7 @@ class ManagerBasedEnv:
             self.scene.update(dt=self.physics_dt * steps_per_call)
 
         # post-step: step interval event
-        if "interval" in self.event_manager.available_modes:
+        if "interval" in self.event_manager.active_terms:
             self.event_manager.apply(mode="interval", dt=self.step_dt)
 
         # advance video recorders (after render, before obs)
@@ -631,7 +633,7 @@ class ManagerBasedEnv:
         self.scene.reset(env_ids)
 
         # apply events such as randomization for environments that need a reset
-        if "reset" in self.event_manager.available_modes:
+        if "reset" in self.event_manager.active_terms:
             env_step_count = self._sim_step_counter // self.cfg.decimation
             self.event_manager.apply(mode="reset", env_ids=env_ids, global_env_step_count=env_step_count)
 

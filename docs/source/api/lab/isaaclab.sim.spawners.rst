@@ -301,7 +301,9 @@ Materials
     RigidBodyMaterialBaseCfg
     RigidBodyMaterialFragment
     UsdPhysicsRigidBodyMaterialCfg
-    RigidBodyMaterialCfg
+    DeformableMaterialFragment
+    OmniPhysicsDeformableMaterialCfg
+    OmniPhysicsSurfaceDeformableMaterialCfg
     DeformableBodyMaterialBaseCfg
     SurfaceDeformableBodyMaterialBaseCfg
     DeformableBodyMaterialCfg
@@ -354,6 +356,8 @@ Physical Materials
     :show-inheritance:
     :exclude-members: __init__, func
 
+.. autofunction:: spawn_physics_material_from_fragments
+
 .. autofunction:: spawn_rigid_body_material_from_fragments
 
 .. autoclass:: RigidBodyMaterialFragment
@@ -366,8 +370,25 @@ Physical Materials
     :show-inheritance:
     :exclude-members: __init__, func
 
-.. autoclass:: RigidBodyMaterialCfg
+.. deprecated:: 3.0.0
+
+    ``RigidBodyMaterialCfg`` is an alias for
+    :class:`~isaaclab_physx.sim.spawners.materials.PhysxRigidBodyMaterialCfg`.
+    Use the PhysX configuration directly.
+
+.. autoclass:: DeformableMaterialFragment
     :members:
+    :show-inheritance:
+    :exclude-members: __init__, func
+
+.. autoclass:: OmniPhysicsDeformableMaterialCfg
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__, func
+
+.. autoclass:: OmniPhysicsSurfaceDeformableMaterialCfg
+    :members:
+    :show-inheritance:
     :exclude-members: __init__, func
 
 .. autofunction:: spawn_deformable_body_material

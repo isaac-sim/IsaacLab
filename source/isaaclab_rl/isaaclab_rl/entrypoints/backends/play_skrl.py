@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import logging
 import os
 
 import skrl
@@ -36,6 +37,7 @@ from ..common import (
     add_common_play_args,
     apply_env_overrides,
     apply_video_recording,
+    close_env,
     create_isaaclab_env,
     enable_cameras_for_video,
     normalize_task_name,
@@ -50,6 +52,8 @@ from ..common import (
     startup_screen,
 )
 from . import cli_args_skrl as cli_args
+
+logger = logging.getLogger(__name__)
 
 # PLACEHOLDER: Extension template (do not remove this comment)
 with contextlib.suppress(ImportError):
@@ -116,9 +120,9 @@ def _run(args_cli: argparse.Namespace) -> None:
         )
         algorithm = resolve_skrl_algorithm(agent_cfg, args_cli.algorithm)
         pre_launch_video_config(env_cfg, args_cli)
-        show_run_summary(screen, args_cli, env_cfg, library="skrl", action="play")
         screen.stage("Launching simulation")
-        with launch_simulation(env_cfg, args_cli):
+        with launch_simulation(env_cfg, args_cli), contextlib.ExitStack() as cleanup:
+            show_run_summary(screen, args_cli, env_cfg, library="skrl", action="play")
             runner_cls = import_skrl_runner(args_cli.ml_framework)
             apply_env_overrides(args_cli, env_cfg)
             args_cli.seed = resolve_seed(args_cli.seed)
@@ -128,7 +132,7 @@ def _run(args_cli: argparse.Namespace) -> None:
 
             experiment_cfg = agent_cfg["agent"]["experiment"]
             log_root_path = os.path.abspath(os.path.join("logs", "skrl", experiment_cfg["directory"]))
-            print(f"[INFO] Loading experiment from directory: {log_root_path}")
+            logger.info(f"Loading experiment from directory: {log_root_path}")
             manifest_metadata = {
                 "agent": agent_cfg_entry_point,
                 "algorithm": algorithm,
@@ -148,6 +152,7 @@ def _run(args_cli: argparse.Namespace) -> None:
                 args_cli,
                 convert_marl_to_single_agent=isinstance(env_cfg, DirectMARLEnvCfg) and algorithm == "ppo",
             )
+            cleanup.callback(lambda: close_env(env))
             dt = env.unwrapped.step_dt
 
             screen.stage("Loading policy")
@@ -159,7 +164,7 @@ def _run(args_cli: argparse.Namespace) -> None:
             # configure_seed must run after Runner() so torch determinism does not disturb its initialization
             if args_cli.deterministic:
                 configure_seed(env_cfg.seed, torch_deterministic=True)
-            print(f"[INFO] Loading model checkpoint from: {resume_path}")
+            logger.info(f"Loading model checkpoint from: {resume_path}")
             runner.agent.load(resume_path)
             runner.agent.enable_training_mode(False, apply_to_models=True)
 
@@ -178,4 +183,3 @@ def _run(args_cli: argparse.Namespace) -> None:
 
             screen.close()
             run_playback(step, dt=dt, args_cli=args_cli, env_cfg=env_cfg)
-            env.close()
