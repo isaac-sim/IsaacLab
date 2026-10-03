@@ -151,20 +151,20 @@ def test_from_usd_groups_by_structure_and_preserves_per_dof_values():
     assert len(actuators) == 4
 
     pd = next(actuator for actuator in actuators if [type(c) for c in actuator.clamping] == [ClampingMaxEffort])
-    assert type(pd.controller) is DrivePD
+    assert type(pd.drive) is DrivePD
     np.testing.assert_array_equal(pd.indices.numpy(), [0, 1, 6, 7])
-    np.testing.assert_allclose(pd.controller.kp.numpy(), [11.0, 22.0, 11.0, 22.0])
-    np.testing.assert_allclose(pd.controller.kd.numpy(), [1.5, 2.5, 1.5, 2.5])
+    np.testing.assert_allclose(pd.drive.kp.numpy(), [11.0, 22.0, 11.0, 22.0])
+    np.testing.assert_allclose(pd.drive.kd.numpy(), [1.5, 2.5, 1.5, 2.5])
     np.testing.assert_allclose(pd.clamping[0].max_effort.numpy(), [21.0, 32.0, 21.0, 32.0])
     np.testing.assert_array_equal(pd.delay.delay_steps.numpy(), [2, 4, 2, 4])
     assert pd.delay.buf_depth == 4
 
     dc = next(actuator for actuator in actuators if [type(c) for c in actuator.clamping] == [ClampingDCMotor])
-    assert type(dc.controller) is DrivePD
+    assert type(dc.drive) is DrivePD
     assert dc.delay is None
     np.testing.assert_array_equal(dc.indices.numpy(), [2, 3, 8, 9])
-    np.testing.assert_allclose(dc.controller.kp.numpy(), [33.0, 44.0, 33.0, 44.0])
-    np.testing.assert_allclose(dc.controller.kd.numpy(), [3.5, 4.5, 3.5, 4.5])
+    np.testing.assert_allclose(dc.drive.kp.numpy(), [33.0, 44.0, 33.0, 44.0])
+    np.testing.assert_allclose(dc.drive.kd.numpy(), [3.5, 4.5, 3.5, 4.5])
     np.testing.assert_allclose(dc.clamping[0].saturation_effort.numpy(), [53.0, 64.0, 53.0, 64.0])
     np.testing.assert_allclose(dc.clamping[0].velocity_limit.numpy(), [7.0, 8.0, 7.0, 8.0])
     np.testing.assert_allclose(dc.clamping[0].max_motor_effort.numpy(), [43.0, 54.0, 43.0, 54.0])

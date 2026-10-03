@@ -116,8 +116,8 @@ class ArticulationCfg(AssetBaseCfg):
         Invoked by :class:`~isaaclab.assets.Asset` once the articulation's prims
         exist on the stage. Delegates to
         :func:`~isaaclab.sim.schemas.define_actuator_properties`, which gates itself
-        on ``sim_cfg.use_newton_actuators`` and silently no-ops when the simulation
-        is not configured for Newton-native actuators.
+        on ``sim_cfg.use_newton_actuators``. BAM requires native Newton execution;
+        other actuator configurations no-op when native execution is disabled.
         """
         if self.actuators is MISSING:
             return
