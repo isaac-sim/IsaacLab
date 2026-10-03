@@ -129,78 +129,54 @@ def test_initialization(sim, num_envs, num_cubes, device):
 
 @pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("gravity_enabled", [False])
-def test_subset_write_reaches_selected_view_entry(sim, device, gravity_enabled):
-    """A write to one (env, body) cell must move only that object in the simulation."""
+def test_subset_writes_reach_selected_view_entries(sim, device, gravity_enabled):
+    """Subset pose, COM, and inertia writes must update the selected PhysX entries and cached properties."""
     object_collection, _ = generate_cubes_scene(num_envs=2, num_cubes=3, device=device)
-
-    # Play sim
     sim.reset()
+
+    def read_view(values: wp.array, data_dim: int) -> torch.Tensor:
+        return wp.to_torch(values).reshape(3, 2, data_dim).transpose(0, 1).cpu()
+
+    # Write before the first COM cache read, with distinct values in non-sorted env order.
+    env_ids, body_ids = [1, 0], [2]
+    expected_coms = read_view(object_collection.root_view.get_coms().view(wp.float32), 7).clone()
+    coms = expected_coms[env_ids][:, body_ids].clone()
+    coms[:, 0, :3] = torch.tensor([[0.02, 0.03, 0.04], [-0.01, 0.01, 0.02]])
+    object_collection.set_coms_index(coms=coms.to(device), env_ids=env_ids, body_ids=body_ids)
+    expected_coms[env_ids, 2] = coms[:, 0]
+    torch.testing.assert_close(read_view(object_collection.root_view.get_coms().view(wp.float32), 7), expected_coms)
+    torch.testing.assert_close(object_collection.data.body_com_pose_b.torch.cpu(), expected_coms)
+
+    # Off-diagonal inertia changes principal axes; both COM caches must refresh at the same timestamp.
+    expected_com_pose_w = object_collection.data.body_com_pose_w.torch.cpu().clone()
+    expected_inertias = read_view(object_collection.root_view.get_inertias(), 9).clone()
+    inertias = torch.tensor([[[3.0, 1.0, 0.0, 1.0, 3.0, 0.0, 0.0, 0.0, 5.0]]], device=device).repeat(2, 1, 1)
+    inertias[1] *= 2.0
+    object_collection.set_inertias_index(inertias=inertias, env_ids=env_ids, body_ids=body_ids)
+    expected_inertias[env_ids, 2] = inertias[:, 0].cpu()
+    torch.testing.assert_close(read_view(object_collection.root_view.get_inertias(), 9), expected_inertias)
+    torch.testing.assert_close(object_collection.data.body_inertia.torch.cpu(), expected_inertias)
+    updated_coms = read_view(object_collection.root_view.get_coms().view(wp.float32), 7)
+    assert not torch.allclose(updated_coms[0, 2, 3:], expected_coms[0, 2, 3:])
+    expected_coms[env_ids, 2, 3:] = updated_coms[env_ids, 2, 3:]
+    torch.testing.assert_close(updated_coms, expected_coms)
+    torch.testing.assert_close(object_collection.data.body_com_pose_b.torch.cpu(), updated_coms)
+    expected_com_pose_w[..., 3:] = quat_mul(object_collection.data.body_link_quat_w.torch.cpu(), updated_coms[..., 3:])
+    torch.testing.assert_close(object_collection.data.body_com_pose_w.torch.cpu(), expected_com_pose_w)
+
     sim.step()
     object_collection.update(sim.cfg.dt)
-
     initial_pose = object_collection.data.body_link_pose_w.torch.clone()
     new_pose = initial_pose[1:2, 2:3].clone()
     new_pose[..., 2] += 0.5
     object_collection.write_body_link_pose_to_sim_index(body_poses=new_pose, env_ids=[1], body_ids=[2])
 
-    # Read the pose back from the simulation so that a wrong view index cannot hide in the data buffer
+    # Read back from simulation so a wrong view index cannot hide in the data buffer.
     sim.step()
     object_collection.update(sim.cfg.dt)
-
     expected_pose = initial_pose.clone()
     expected_pose[1, 2] = new_pose[0, 0]
     torch.testing.assert_close(object_collection.data.body_link_pose_w.torch, expected_pose)
-
-
-@pytest.mark.parametrize("device", test_devices())
-def test_inertial_property_subset_writes_reach_selected_view_entries(sim, device):
-    """COM and inertia writes to a subset of (env, body) cells must reach only those PhysX view entries."""
-    num_envs, num_cubes = 2, 3
-    object_collection, _ = generate_cubes_scene(num_envs=num_envs, num_cubes=num_cubes, device=device)
-    sim.reset()
-
-    def read_view(values: wp.array, data_dim: int) -> torch.Tensor:
-        # The view is body-major, (num_cubes * num_envs, data_dim); return it as (num_envs, num_cubes, data_dim)
-        return wp.to_torch(values).reshape(num_cubes, num_envs, data_dim).transpose(0, 1).cpu()
-
-    # Write in non-sorted env order so that a wrong env/body to view index mapping cannot pass
-    env_ids = [1, 0]
-    body_ids = [2]
-
-    initial_coms = read_view(object_collection.root_view.get_coms().view(wp.float32), 7)
-    coms = initial_coms[env_ids][:, body_ids].clone()
-    coms[0, 0, :3] = torch.tensor([0.02, 0.03, 0.04])
-    coms[1, 0, :3] = torch.tensor([-0.01, 0.01, 0.02])
-    object_collection.set_coms_index(coms=coms.to(device), env_ids=env_ids, body_ids=body_ids)
-    expected_coms = initial_coms.clone()
-    expected_coms[env_ids, 2] = coms[:, 0]
-    torch.testing.assert_close(read_view(object_collection.root_view.get_coms().view(wp.float32), 7), expected_coms)
-    torch.testing.assert_close(object_collection.data.body_com_pose_b.torch.cpu(), expected_coms)
-
-    initial_inertias = read_view(object_collection.root_view.get_inertias(), 9)
-    inertias = initial_inertias[env_ids][:, body_ids].clone()
-    inertias[0, 0, [0, 4, 8]] *= 1.5
-    inertias[1, 0, [0, 4, 8]] *= 2.0
-    object_collection.set_inertias_index(inertias=inertias.to(device), env_ids=env_ids, body_ids=body_ids)
-    expected_inertias = initial_inertias.clone()
-    expected_inertias[env_ids, 2] = inertias[:, 0]
-    torch.testing.assert_close(read_view(object_collection.root_view.get_inertias(), 9), expected_inertias)
-    torch.testing.assert_close(object_collection.data.body_inertia.torch.cpu(), expected_inertias)
-
-    # An inertia write can rotate the COM frame, including poses already cached at this timestamp.
-    initial_com_pose_w = object_collection.data.body_com_pose_w.torch.cpu().clone()
-    inertias = torch.tensor([[[3.0, 1.0, 0.0, 1.0, 3.0, 0.0, 0.0, 0.0, 5.0]]], device=device)
-    object_collection.set_inertias_index(inertias=inertias, env_ids=[0], body_ids=[0])
-    updated_coms = read_view(object_collection.root_view.get_coms().view(wp.float32), 7)
-    assert not torch.allclose(updated_coms[0, 0, 3:], expected_coms[0, 0, 3:])
-    torch.testing.assert_close(object_collection.data.body_com_pose_b.torch.cpu(), updated_coms)
-    link_pose = object_collection.data.body_link_pose_w.torch.cpu()
-    expected_com_pos, expected_com_quat = combine_frame_transforms(
-        link_pose[..., :3], link_pose[..., 3:], updated_coms[..., :3], updated_coms[..., 3:]
-    )
-    expected_com_pose_w = torch.cat((expected_com_pos, expected_com_quat), dim=-1)
-    assert not torch.allclose(expected_com_pose_w[0, 0], initial_com_pose_w[0, 0])
-    torch.testing.assert_close(object_collection.data.body_com_pose_w.torch.cpu(), expected_com_pose_w)
 
 
 @pytest.mark.parametrize("num_envs", [2])
