@@ -28,7 +28,7 @@ _READY_MARKER = "SIGTERM_TEST_READY"
 def _idle_after_kit_launch() -> None:
     from isaaclab.test.utils import launch_test_simulation
 
-    launch_test_simulation(physics="isaacsim_physx", device="cpu")
+    launch_test_simulation(device="cpu")
     print(_READY_MARKER, flush=True)
     while True:
         time.sleep(0.5)
@@ -37,7 +37,7 @@ def _idle_after_kit_launch() -> None:
 def _raise_after_kit_launch() -> None:
     from isaaclab.test.utils import launch_test_simulation
 
-    launch_test_simulation(physics="isaacsim_physx", device="cpu")
+    launch_test_simulation(device="cpu")
     raise RuntimeError("intentional Kit process failure")
 
 

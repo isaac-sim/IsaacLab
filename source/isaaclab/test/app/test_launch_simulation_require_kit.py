@@ -21,13 +21,11 @@ import types
 
 import isaaclab_physx.app as physx_app
 import pytest
-from isaaclab_newton.physics import NewtonCfg
 
 import isaaclab.app.sim_launcher as sim_launcher
 from isaaclab.app import SimulationLauncher, launch_simulation
 from isaaclab.physics import PhysicsCfg
 from isaaclab.renderers import RendererCfg
-from isaaclab.sim import SimulationCfg
 
 
 @pytest.fixture
@@ -46,12 +44,6 @@ def kit_branch_taken(monkeypatch: pytest.MonkeyPatch):
 def test_default_stays_kitless_for_a_kitless_config(kit_branch_taken):
     with launch_simulation(cfg=PhysicsCfg(), launcher_args={}):
         pass
-
-    cfg = SimulationCfg()
-    with launch_simulation(cfg=cfg, launcher_args={}) as physics_cfg:
-        assert isinstance(physics_cfg, NewtonCfg)
-        assert cfg.physics is physics_cfg
-        assert physics_cfg.physics_solvers == ("newton_mjwarp",)
 
     assert kit_branch_taken == []
 

@@ -8,12 +8,11 @@
 # FIXME (mmittal): Stage in memory requires cameras to be enabled.
 from isaaclab.test.utils import launch_test_simulation
 
-launch_test_simulation(physics="isaacsim_physx", enable_cameras=True)
+launch_test_simulation(enable_cameras=True)
 
 import numpy as np
 import pytest
 from isaaclab_newton.sim.schemas import NewtonArticulationCfg
-from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxRigidBodyCfg
 
 import omni.physx
@@ -32,7 +31,7 @@ pytestmark = pytest.mark.integration
 @pytest.fixture
 def sim():
     """Create a simulation context."""
-    cfg = SimulationCfg(physics=PhysxCfg(), create_stage_in_memory=True)
+    cfg = SimulationCfg(create_stage_in_memory=True)
     sim = SimulationContext(cfg=cfg)
     yield sim
     omni.physx.get_physx_simulation_interface().detach_stage()

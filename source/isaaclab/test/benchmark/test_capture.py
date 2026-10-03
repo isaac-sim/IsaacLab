@@ -230,7 +230,7 @@ def test_synth_run_id():
 @pytest.mark.parametrize(
     "physics_cfg, expected_backend, expected_solvers, expected_coupling",
     [
-        (None, "newton_mjwarp", ["newton_mjwarp"], None),
+        (None, "physx", ["physx"], None),
         (NewtonCfg(), "newton_mjwarp", ["newton_mjwarp"], None),
         (PhysxCfg(), "physx", ["physx"], None),
         (OvPhysxCfg(), "ovphysx", ["ovphysx"], None),

@@ -53,8 +53,3 @@ class FeatherstoneSolverCfg(NewtonSolverCfg):
 
     fuse_cholesky: bool = True
     """Whether to fuse the Cholesky decomposition."""
-
-    @property
-    def physics_solvers(self) -> tuple[str, ...]:
-        """Return the stable identifiers of the active physics solvers."""
-        return ("newton_featherstone",)

@@ -70,8 +70,3 @@ class XPBDSolverCfg(NewtonSolverCfg):
 
     enable_restitution: bool = False
     """Whether to enable restitution for rigid contact simulation."""
-
-    @property
-    def physics_solvers(self) -> tuple[str, ...]:
-        """Return the stable identifiers of the active physics solvers."""
-        return ("newton_xpbd",)

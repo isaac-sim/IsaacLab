@@ -7,7 +7,7 @@
 
 from isaaclab.test.utils import DeviceScope, launch_test_simulation, test_devices
 
-launch_test_simulation(physics="isaacsim_physx")
+launch_test_simulation()
 
 from collections.abc import Iterator
 from pathlib import Path
@@ -15,7 +15,6 @@ from pathlib import Path
 import pytest
 import torch
 import warp as wp
-from isaaclab_physx.physics import PhysxCfg
 
 from pxr import PhysxSchema, UsdGeom, UsdPhysics
 
@@ -85,7 +84,7 @@ def env(request: pytest.FixtureRequest) -> Iterator[ManagerBasedEnv]:
     observations.joint_pos = ObservationTermCfg(func=mdp.joint_pos, params={"asset_cfg": SceneEntityCfg("identity")})
     cfg = ManagerBasedEnvCfg(
         scene=scene,
-        sim=sim_utils.SimulationCfg(physics=PhysxCfg(), device=request.param),
+        sim=sim_utils.SimulationCfg(device=request.param),
         decimation=1,
         actions=ActionsCfg(),
         seed=0,

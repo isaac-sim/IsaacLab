@@ -50,16 +50,6 @@ class PhysicsCfg:
     Deterministic execution can increase memory use and reduce simulation performance.
     """
 
-    @property
-    def physics_solvers(self) -> tuple[str, ...]:
-        """Stable identifiers of the active solvers, excluding inactive configuration alternatives."""
-        return ()
-
-    @property
-    def physics_coupling(self) -> str | None:
-        """Coupling method, or ``None`` for a single solver."""
-        return None
-
 
 @configclass
 class PhysxAutoCfg(PhysicsCfg):

@@ -18,7 +18,7 @@ the composite stage.
 
 from isaaclab.test.utils import DeviceScope, launch_test_simulation, test_devices
 
-launch_test_simulation(physics="isaacsim_physx")
+launch_test_simulation()
 
 import math
 import sys
@@ -31,7 +31,6 @@ import pytest
 import torch
 import warp as wp
 from isaaclab_physx.assets import RigidObject, RigidObjectCollection
-from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxRigidBodyCfg
 
 import omni.kit.app
@@ -40,7 +39,7 @@ from pxr import UsdPhysics
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg, RigidObjectCollectionCfg
-from isaaclab.sim import SimulationCfg, SimulationContext, build_simulation_context
+from isaaclab.sim import SimulationContext, build_simulation_context
 from isaaclab.sim.schemas import apply_articulation_root_properties
 from isaaclab.utils.math import combine_frame_transforms, quat_apply, quat_apply_inverse, quat_mul
 
@@ -115,9 +114,7 @@ def sim(device: str) -> Iterator[SimulationContext]:
     """Create a function-scoped simulation context for tests that own their scene."""
     # A new context would replace the stage of a live composite scene, so these tests must run before it.
     assert SimulationContext.instance() is None, "define tests that own a simulation above the composite scene"
-    with build_simulation_context(
-        device=device, auto_add_lighting=True, sim_cfg=SimulationCfg(physics=PhysxCfg(), dt=0.01)
-    ) as sim:
+    with build_simulation_context(device=device, auto_add_lighting=True) as sim:
         sim._app_control_on_stop_handle = None
         yield sim
 
@@ -136,14 +133,14 @@ def test_collection_without_rigid_bodies_fails_without_leaking_into_the_next_cpu
 
     The failure only reproduces before any CUDA simulation ran in the process, so this test comes first.
     """
-    with build_simulation_context(device="cpu", sim_cfg=SimulationCfg(physics=PhysxCfg(), dt=0.01)) as sim:
+    with build_simulation_context(device="cpu") as sim:
         sim._app_control_on_stop_handle = None
         invalid_collection, _ = _collection("/World", 1, 2, _STATIC_COLLIDER)
         # Check that the framework doesn't hold excessive strong references.
         assert sys.getrefcount(invalid_collection) < 10
         with pytest.raises(RuntimeError):
             sim.reset()
-    with build_simulation_context(device="cpu", sim_cfg=SimulationCfg(physics=PhysxCfg(), dt=0.01)) as sim:
+    with build_simulation_context(device="cpu") as sim:
         sim._app_control_on_stop_handle = None
         kinematic, origins = _collection("/World", 1, 1, _cube_spawn(kinematic=True))
         sim.reset()
@@ -299,7 +296,7 @@ class _Scene:
 def scene(request) -> Iterator[_Scene]:
     """Initialize the composite scene once."""
     device = request.param
-    with build_simulation_context(device=device, sim_cfg=SimulationCfg(physics=PhysxCfg(), dt=0.01)) as sim:
+    with build_simulation_context(device=device, gravity_enabled=True) as sim:
         sim._app_control_on_stop_handle = None
         origins = {
             "cubes": _spawn_envs("/World/Cubes"),

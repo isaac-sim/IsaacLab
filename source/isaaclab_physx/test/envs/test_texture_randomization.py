@@ -7,7 +7,7 @@
 
 from isaaclab.test.utils import DeviceScope, launch_test_simulation, test_devices
 
-launch_test_simulation(physics="isaacsim_physx", enable_cameras=True)
+launch_test_simulation(enable_cameras=True)
 
 import math
 

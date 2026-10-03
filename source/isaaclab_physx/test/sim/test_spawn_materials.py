@@ -5,10 +5,9 @@
 
 from isaaclab.test.utils import launch_test_simulation
 
-launch_test_simulation(physics="isaacsim_physx")
+launch_test_simulation()
 
 import pytest
-from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.sim.spawners.materials.physics_materials_cfg import (
     PhysxDeformableBodyMaterialCfg,
     PhysxSurfaceDeformableBodyMaterialCfg,
@@ -25,7 +24,7 @@ def sim():
     """Create a simulation context."""
     sim_utils.create_new_stage()
     dt = 0.1
-    sim = SimulationContext(SimulationCfg(physics=PhysxCfg(), dt=dt))
+    sim = SimulationContext(SimulationCfg(dt=dt))
     yield sim
     sim.stop()
     sim.clear_instance()

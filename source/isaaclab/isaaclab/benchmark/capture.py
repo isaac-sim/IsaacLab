@@ -23,7 +23,6 @@ from collections.abc import Iterator
 from datetime import datetime, timezone
 from typing import Any
 
-from ..physics import PhysicsCfg
 from .schema import (
     GpuDeviceInfo,
     GpuResources,
@@ -33,8 +32,6 @@ from .schema import (
     RunConfig,
     Versions,
 )
-
-_PRIMARY_SOLVER_PRIORITY = ("newton_kamino", "newton_mjwarp")
 
 
 def _find_value(measurements: Any, name: str, default: float = 0.0) -> float:
@@ -270,18 +267,60 @@ def run_config_from_env_cfg(env_cfg: object) -> RunConfig:
     Raises:
         ValueError: If the config does not contain a supported concrete physics backend.
     """
+    # Config identities keep this lookup independent of optional simulator imports.
+    # Ordering preserves the existing Kamino-before-MJWarp primary backend label.
+    physics_names = {
+        "isaaclab_newton.physics.kamino_manager_cfg._KaminoSolverCfgBase": "newton_kamino",
+        "isaaclab_newton.physics.mjwarp_manager_cfg.MJWarpSolverCfg": "newton_mjwarp",
+        "isaaclab_physx.physics.physx_manager_cfg.PhysxCfg": "physx",
+        "isaaclab_ov.physics.ovphysx_manager_cfg.OvPhysxCfg": "ovphysx",
+        "isaaclab_newton.physics.featherstone_manager_cfg.FeatherstoneSolverCfg": "newton_featherstone",
+        "isaaclab_newton.physics.xpbd_manager_cfg.XPBDSolverCfg": "newton_xpbd",
+        "isaaclab_newton.physics.vbd_manager_cfg.VBDSolverCfg": "newton_vbd",
+        "isaaclab_newton.physics.mpm_manager_cfg.MPMSolverCfg": "newton_mpm",
+        "isaaclab_newton.physics.newton_manager_cfg.NewtonCfg": "newton",
+        "isaaclab_contrib.coupling.coupler_cfg.CouplerProxyCfg": "proxy",
+        "isaaclab_contrib.coupling.coupler_cfg.CouplerAdmmCfg": "admm",
+        "isaaclab_contrib.custom_coupling.newton_manager_cfg.CoupledMJWarpVBDSolverCfg": "custom",
+    }
     physics_cfg = getattr(getattr(env_cfg, "sim", None), "physics", None)
-    if physics_cfg is None:
-        from isaaclab_newton.physics import NewtonCfg
-
-        physics_cfg = NewtonCfg()
-    if not isinstance(physics_cfg, PhysicsCfg):
-        raise ValueError(f"Unsupported concrete physics config: {type(physics_cfg).__name__}.")
-    solvers = list(physics_cfg.physics_solvers)
+    solvers = set()
+    coupling = None
+    stack = [physics_cfg]
+    visited = set()
+    while stack:
+        node = stack.pop()
+        if node is None and physics_cfg is None:
+            # Match SimulationContext's existing default without importing PhysX.
+            solvers.add("physx")
+            continue
+        if id(node) in visited:
+            continue
+        visited.add(id(node))
+        name = next(
+            (
+                physics_names[key]
+                for cls in type(node).__mro__
+                if (key := f"{cls.__module__}.{cls.__name__}") in physics_names
+            ),
+            None,
+        )
+        if name == "newton":
+            stack.append(node.solver_cfg)
+        elif name in ("proxy", "admm"):
+            coupling = name
+            stack.extend(entry.solver_cfg for entry in node.entries)
+        elif name == "custom":
+            coupling = f"custom_{node.coupling_mode}"
+            stack.extend((node.rigid_solver_cfg, node.soft_solver_cfg))
+        elif name is not None:
+            solvers.add(name)
+        else:
+            kind = "concrete physics" if node is physics_cfg else "Newton solver"
+            raise ValueError(f"Unsupported {kind} config: {type(node).__name__}.")
     if not solvers:
         raise ValueError(f"Unsupported concrete physics config: {type(physics_cfg).__name__}.")
-    # Retain legacy grouping precedence for mixed Kamino/MJWarp configurations.
-    physics = next((name for name in _PRIMARY_SOLVER_PRIORITY if name in solvers), solvers[0])
+    physics = next(name for name in physics_names.values() if name in solvers)
 
     renderer_names = {"isaac_rtx": "isaacsim_rtx", "ovrtx": "ovrtx", "newton_warp": "newton"}
     rendering = None
@@ -292,8 +331,8 @@ def run_config_from_env_cfg(env_cfg: object) -> RunConfig:
     return RunConfig(
         physics_backend=physics,
         rendering_backend=rendering or "none",
-        physics_solvers=solvers,
-        physics_coupling=physics_cfg.physics_coupling,
+        physics_solvers=sorted(solvers),
+        physics_coupling=coupling,
     )
 
 

@@ -79,16 +79,6 @@ class NewtonSolverCfg:
         ``solver_type`` in new code.
     """
 
-    @property
-    def physics_solvers(self) -> tuple[str, ...]:
-        """Stable identifiers of the solvers this configuration constructs."""
-        raise ValueError(f"Unsupported Newton solver config: {type(self).__name__}.")
-
-    @property
-    def physics_coupling(self) -> str | None:
-        """Coupling method, or ``None`` for a single solver."""
-        return None
-
 
 @configclass
 class NewtonSoftContactCfg:
@@ -301,16 +291,6 @@ class NewtonCfg(PhysicsCfg):
     :attr:`ModelBuilder.BvhConfig`. See :attr:`bvh_constructor_geometry` for the
     ``"lbvh"`` / ``"sah"`` / ``"cubql"`` trade-off.
     """
-
-    @property
-    def physics_solvers(self) -> tuple[str, ...]:
-        """Return the active solver identifiers without resolving runtime implementation classes."""
-        return self.solver_cfg.physics_solvers
-
-    @property
-    def physics_coupling(self) -> str | None:
-        """Return the active solver coupling method."""
-        return self.solver_cfg.physics_coupling
 
     def __post_init__(self):
         # NewtonCfg.class_type is auto-derived from solver_cfg.class_type.

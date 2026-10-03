@@ -486,15 +486,11 @@ adding a new runner or timing convention.
 Physics identity
 ----------------
 
-When simulation physics is unspecified, Newton with MJWarp is used. Select
-``SimulationCfg.physics=PhysxCfg()`` explicitly to use Isaac Sim PhysX.
-
-Benchmark capture reads ``physics_solvers`` and ``physics_coupling`` from the
-concrete physics configuration. These read-only properties identify the active
-solvers without importing their runtime implementation classes. Custom physics
-or Newton solver configurations must expose their stable solver identifiers;
-composite configurations aggregate their active sub-solvers and report their
-coupling method.
+Benchmark capture uses a local lookup of concrete configuration types to identify
+active solvers and their coupling method. It follows only the selected Newton
+solver and coupler entries, so incidental or inactive configurations do not affect
+the recorded identity. Runtime implementation classes are not imported. When
+simulation physics is unspecified, capture records the existing PhysX default.
 
 Schema 1.5 stores both fields in ``run.config``. For example, a proxy-coupled
 MJWarp/VBD configuration records ``["newton_mjwarp", "newton_vbd"]`` and

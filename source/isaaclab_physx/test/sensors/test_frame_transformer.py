@@ -5,7 +5,7 @@
 
 from isaaclab.test.utils import launch_test_simulation
 
-launch_test_simulation(physics="isaacsim_physx")
+launch_test_simulation()
 
 import math
 from types import SimpleNamespace
@@ -32,9 +32,7 @@ from isaaclab.utils import configclass, replace
 # Pre-defined configs
 ##
 from isaaclab_assets.robots.anymal import ANYMAL_C_CFG  # isort:skip
-from isaaclab_assets.robots.franka import FRANKA_PANDA_CFG
-
-from isaaclab_physx.physics import PhysxCfg  # isort:skip
+from isaaclab_assets.robots.franka import FRANKA_PANDA_CFG  # isort:skip
 
 
 def quat_from_euler_rpy(roll, pitch, yaw, degrees=False):
@@ -80,7 +78,7 @@ class MySceneCfg(InteractiveSceneCfg):
 def sim(request):
     """Create a simulation context, on CPU unless a device is passed via indirect parametrization."""
     device = getattr(request, "param", "cpu")
-    sim_cfg = sim_utils.SimulationCfg(physics=PhysxCfg(), device=device, dt=0.005)
+    sim_cfg = sim_utils.SimulationCfg(device=device, dt=0.005)
     with sim_utils.build_simulation_context(sim_cfg=sim_cfg) as sim:
         sim._app_control_on_stop_handle = None
         # Set main camera

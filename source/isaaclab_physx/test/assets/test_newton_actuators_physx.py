@@ -17,7 +17,7 @@ heterogeneous robots, per-environment resets, gain randomization, network actuat
 from isaaclab.test.utils import DeviceScope, launch_test_simulation, test_devices
 from isaaclab.utils import replace
 
-launch_test_simulation(physics="isaacsim_physx")
+launch_test_simulation()
 
 import os
 from collections.abc import Iterator

@@ -27,14 +27,13 @@ Launch Isaac Sim Simulator first.
 # Cameras are required to read back per-env RGB tiles.
 from isaaclab.test.utils import launch_test_simulation
 
-launch_test_simulation(physics="isaacsim_physx", enable_cameras=True)
+launch_test_simulation(enable_cameras=True)
 
 import os
 
 import pytest
 import torch
 import warp as wp
-from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.renderers.isaac_rtx_renderer import IsaacRtxRenderer, IsaacRtxRendererCfg
 from isaaclab_physx.renderers.isaac_rtx_renderer_cfg import IsaacRtxRendererGlobalSettingsCfg
 from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
@@ -44,7 +43,7 @@ from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors.camera import CameraCfg
-from isaaclab.sim import SimulationCfg, build_simulation_context
+from isaaclab.sim import build_simulation_context
 from isaaclab.utils import configclass, replace
 
 from isaaclab_assets.robots.kuka_allegro import KUKA_ALLEGRO_CFG
@@ -131,7 +130,7 @@ def test_partitioning_isolates_rigid_object(monkeypatch: pytest.MonkeyPatch):
             offset=CameraCfg.OffsetCfg(pos=(0.0, 0.0, 1.0), rot=(0.0, 0.0, 0.0, 1.0), convention="world"),
         )
 
-    with build_simulation_context(sim_cfg=SimulationCfg(physics=PhysxCfg(), dt=1.0 / 60.0), device="cuda:0") as sim:
+    with build_simulation_context(device="cuda:0", dt=1.0 / 60.0) as sim:
         sim._app_control_on_stop_handle = None
         scene = InteractiveScene(_Scene(num_envs=4, env_spacing=0.0, replicate_physics=False))
         sim.reset()
@@ -255,7 +254,7 @@ def test_partitioning_isolates_articulation(monkeypatch: pytest.MonkeyPatch):
             offset=CameraCfg.OffsetCfg(pos=(-1.5, 0.0, 0.7), rot=(0.0, 0.0, 0.0, 1.0), convention="world"),
         )
 
-    with build_simulation_context(sim_cfg=SimulationCfg(physics=PhysxCfg(), dt=1.0 / 60.0), device="cuda:0") as sim:
+    with build_simulation_context(device="cuda:0", dt=1.0 / 60.0) as sim:
         sim._app_control_on_stop_handle = None
         scene = InteractiveScene(_Scene(num_envs=4, env_spacing=0.0, replicate_physics=False))
         sim.reset()

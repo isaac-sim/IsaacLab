@@ -18,7 +18,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "isaaclab" / "test"
 
 from isaaclab.test.utils import DeviceScope, launch_test_simulation, test_devices
 
-launch_test_simulation(physics="isaacsim_physx")
+launch_test_simulation()
 
 import pytest  # noqa: E402
 import torch  # noqa: E402
@@ -106,9 +106,7 @@ def view_factory(request):
             sim_utils.create_prim(f"/World/Parent_{i}", "Xform", translation=PARENT_POS, stage=stage)
             sim_utils.create_prim(f"/World/Parent_{i}/Child", "Camera", translation=CHILD_OFFSET, stage=stage)
 
-        sim_utils.SimulationContext(
-            sim_utils.SimulationCfg(physics=PhysxCfg(), dt=0.01, device=device, use_fabric=True)
-        )
+        sim_utils.SimulationContext(sim_utils.SimulationCfg(dt=0.01, device=device, use_fabric=True))
         view = FrameView("/World/Parent_[^/]*/Child", device=device)
         # close() is idempotent, so this is safe even for tests that close (or
         # tear down) themselves; it keeps views from being reaped by garbage
@@ -348,7 +346,7 @@ def test_garbage_collection_removes_index_attributes_and_warns(device, caplog):
     for i in range(2):
         sim_utils.create_prim(f"/World/Parent_{i}", "Xform", translation=PARENT_POS, stage=stage_usd)
         sim_utils.create_prim(f"/World/Parent_{i}/Child", "Camera", translation=CHILD_OFFSET, stage=stage_usd)
-    sim_utils.SimulationContext(sim_utils.SimulationCfg(physics=PhysxCfg(), dt=0.01, device=device, use_fabric=True))
+    sim_utils.SimulationContext(sim_utils.SimulationCfg(dt=0.01, device=device, use_fabric=True))
     view = FrameView("/World/Parent_[^/]*/Child", device=device)
     view.get_world_poses()
 
@@ -397,7 +395,7 @@ def test_initial_seed_with_scaled_parent(device):
         scale=(3.0, 1.0, 1.0),
         stage=stage,
     )
-    sim_utils.SimulationContext(sim_utils.SimulationCfg(physics=PhysxCfg(), dt=0.01, device=device, use_fabric=True))
+    sim_utils.SimulationContext(sim_utils.SimulationCfg(dt=0.01, device=device, use_fabric=True))
     view = FrameView("/World/Parent_[^/]*/Child", device=device)
 
     world_pos, _ = view.get_world_poses()
@@ -441,7 +439,7 @@ def test_multi_view_writer_isolation(device):
     sim_utils.create_prim("/World/EnvB_0", "Xform", translation=(0.0, 0.0, 2.0), stage=stage)
     sim_utils.create_prim("/World/EnvB_0/ChildB", "Camera", translation=(0.2, 0.0, 0.0), stage=stage)
 
-    sim_utils.SimulationContext(sim_utils.SimulationCfg(physics=PhysxCfg(), dt=0.01, device=device, use_fabric=True))
+    sim_utils.SimulationContext(sim_utils.SimulationCfg(dt=0.01, device=device, use_fabric=True))
     view_a = FrameView("/World/EnvA_[^/]*/ChildA", device=device)
     view_b = FrameView("/World/EnvB_[^/]*/ChildB", device=device)
 
@@ -614,7 +612,7 @@ def _build_two_child_view(device: str) -> "FrameView":
             stage=stage,
         )
         sim_utils.create_prim(f"/World/Parent_{i}/Child", "Camera", translation=(0.0, 0.0, 0.0), stage=stage)
-    sim_utils.SimulationContext(sim_utils.SimulationCfg(physics=PhysxCfg(), dt=0.01, device=device, use_fabric=True))
+    sim_utils.SimulationContext(sim_utils.SimulationCfg(dt=0.01, device=device, use_fabric=True))
     view = FrameView("/World/Parent_[^/]*/Child", device=device)
     view.get_world_poses()  # force init
     return view
@@ -800,7 +798,7 @@ def test_view_getter_inside_scope_raises(device, view_factory):
 def test_zero_match_view_is_usable(device):
     """A pattern that matches no prim yields an empty but fully usable view."""
     _skip_if_unavailable(device)
-    sim_utils.SimulationContext(sim_utils.SimulationCfg(physics=PhysxCfg(), dt=0.01, device=device, use_fabric=True))
+    sim_utils.SimulationContext(sim_utils.SimulationCfg(dt=0.01, device=device, use_fabric=True))
     view = FrameView("/World/NoSuchParent_[^/]*/Child", device=device)
     try:
         assert view.count == 0

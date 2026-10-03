@@ -65,8 +65,3 @@ class VBDSolverCfg(NewtonSolverCfg):
 
     rigid_body_particle_contact_buffer_size: int = 256
     """Per-body particle, edge, and face soft-contact capacity when VBD integrates rigid bodies."""
-
-    @property
-    def physics_solvers(self) -> tuple[str, ...]:
-        """Return the stable identifiers of the active physics solvers."""
-        return ("newton_vbd",)

@@ -32,13 +32,3 @@ class CoupledMJWarpVBDSolverCfg(NewtonSolverCfg):
 
     coupling_mode: Literal["one_way", "two_way"] = "two_way"
     """Coupling direction between the rigid and deformable solvers."""
-
-    @property
-    def physics_solvers(self) -> tuple[str, ...]:
-        """Return the active rigid and deformable solver identifiers."""
-        return tuple(sorted(set(self.rigid_solver_cfg.physics_solvers + self.soft_solver_cfg.physics_solvers)))
-
-    @property
-    def physics_coupling(self) -> str:
-        """Return the custom coupling method and direction."""
-        return f"custom_{self.coupling_mode}"

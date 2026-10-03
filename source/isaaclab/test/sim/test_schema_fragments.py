@@ -5,7 +5,7 @@
 
 from isaaclab.test.utils import launch_test_simulation
 
-launch_test_simulation(require_kit=True)
+launch_test_simulation()
 
 import pytest
 
