@@ -11,10 +11,12 @@ from dataclasses import field
 
 import warp as wp
 
+import omni.kit.app
 import usdrt
 import usdrt.hierarchy
 from pxr import Usd, UsdGeom, UsdUtils
 
+from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.scene_data import SceneDataFormat, SceneDataProvider
 from isaaclab.sim import BackendCfg
 from isaaclab.utils import configclass
@@ -156,6 +158,13 @@ class FabricBackend:
         """Bind declared destinations by device and cadence; SDP owns all data movement."""
         # Foreign physics publishes world points. Author the sink once so Kit's USD refresh agrees.
         groups = {}
+        kit_version = tuple(map(int, omni.kit.app.get_app().get_kit_version_short().split(".")))
+        settings = get_settings_manager()
+        streamed_types = (settings.get("/UJITSO/geometryTypes") or "Points").split(",")
+        points_streaming = settings.get("/UJITSO/geometry", False) or any(
+            value.strip() in {"All", "Points", "StaticPoints", "AnimatedPoints"} for value in streamed_types
+        )
+        gpu_points = kit_version >= (110, 4) and not points_streaming
         for path in paths:
             geometry = UsdGeom.Xformable(self.usd_stage.GetPrimAtPath(path))
             geometry.ClearXformOpOrder()
@@ -164,8 +173,9 @@ class FabricBackend:
             if prim_type == "Mesh":
                 device, frequency = self.device, 1
             elif prim_type in {"BasisCurves", "Points"}:
-                # RTX Hydra reads these points from CPU Fabric (BasisCurves: NVBug 6502662).
-                device = "cpu"
+                # Kit 110.4's streamed Points ignore GPU edits; its procedural path renders them.
+                # Curves require CPU storage (NVBug 6502662).
+                device = self.device if prim_type == "Points" and gpu_points else "cpu"
                 frequency = geometry.GetPrim().GetAttribute("isaaclab:pointsUpdateFrequency").Get() or 1
             else:
                 raise TypeError(f"Unsupported Fabric point destination {path}: {prim_type}.")
