@@ -108,6 +108,30 @@ def _effective_joint_gains(real_asset) -> tuple[torch.Tensor | None, torch.Tenso
     return kp, kd
 
 
+class _ImageRgbExportProxy(_ManagerTermProxy):
+    """Run RGB observation preprocessing through traceable Torch operations during export."""
+
+    def __call__(self, *args, **kwargs):
+        """Compute the wrapped RGB observation without its runtime-only Warp fast path."""
+        out = kwargs.pop("out", None)
+        normalize = kwargs.get("normalize", True)
+        mean = kwargs.get("mean")
+        channel_first = kwargs.get("channel_first", False)
+        kwargs["normalize"] = False
+
+        image = super().__call__(*args, **kwargs)
+        if normalize:
+            channel_dim = 1 if channel_first else image.ndim - 1
+            spatial_dims = tuple(dim for dim in range(1, image.ndim) if dim != channel_dim)
+            image = image.float() / 255.0
+            image = image - (torch.mean(image, dim=spatial_dims, keepdim=True) if mean is None else mean)
+
+        if out is None:
+            return image
+        out.copy_(image)
+        return out
+
+
 # ══════════════════════════════════════════════════════════════════
 # ExportPatcher
 # ══════════════════════════════════════════════════════════════════
@@ -346,6 +370,8 @@ class ExportPatcher:
                     term_cfg.func = self._wrap_last_action(original_func)
                 elif func_name == "generated_commands":
                     term_cfg.func = self._wrap_generated_commands(original_func, term_cfg)
+                elif func_name == "image_rgb":
+                    term_cfg.func = _ImageRgbExportProxy(original_func, proxy_env)
                 elif func_name == "projected_gravity":
                     term_cfg.func = self._wrap_projected_gravity(original_func, proxy_env)
                 else:

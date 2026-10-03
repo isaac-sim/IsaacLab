@@ -4,16 +4,20 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import math
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 import torch
 import warp as wp
 
-pytest.importorskip("leapp")
+leapp = pytest.importorskip("leapp")
 
 from isaaclab.assets.articulation import BaseArticulationData
 from isaaclab.envs import mdp
+from isaaclab.envs.leapp_deployment_env import LeappDeploymentEnv, StateInputSpec
+from isaaclab.managers import ObservationTermCfg, SceneEntityCfg
+from isaaclab.sensors.camera import CameraData
 from isaaclab.utils import math as math_utils
 from isaaclab.utils.leapp import utils as leapp_utils
 from isaaclab.utils.leapp.export_annotator import ExportPatcher
@@ -131,6 +135,128 @@ def test_projected_gravity_observation_exports_root_quat_w_input(monkeypatch: py
     assert semantics.name == "robot_root_quat_w"
     assert semantics.kind == InputKindEnum.BODY_ROTATION
     assert semantics.extra == {"isaaclab_connection": "state:robot:root_quat_w"}
+
+
+def test_deformable_nodal_positions_use_inherited_semantics(monkeypatch: pytest.MonkeyPatch):
+    """Test PhysX nodal positions are registered with inherited input semantics."""
+    from isaaclab_physx.assets.deformable_object.deformable_object_data import DeformableObjectData
+
+    annotated_inputs = _capture_leapp_inputs(monkeypatch)
+    nodal_pos_w = torch.arange(24, dtype=torch.float32).reshape(2, 4, 3)
+
+    class DeformableView:
+        count, max_simulation_nodes_per_body = nodal_pos_w.shape[:2]
+        max_simulation_elements_per_body = 1
+        max_collision_elements_per_body = 1
+
+        def get_simulation_nodal_positions(self):
+            return wp.from_torch(nodal_pos_w)
+
+    root_view = DeformableView()
+    data = DeformableObjectData(root_view, "cpu")
+    proxy = _DataProxy(
+        data,
+        entity_name="deformable",
+        task_name="Isaac-Lift-Soft-Franka",
+        property_resolution_cache={},
+        cache={},
+        input_name_resolver=lambda property_name: f"deformable_{property_name}",
+    )
+
+    assert torch.equal(proxy.nodal_pos_w.torch, nodal_pos_w)
+
+    assert len(annotated_inputs) == 1
+    task_name, semantics = annotated_inputs[0]
+    assert task_name == "Isaac-Lift-Soft-Franka"
+    assert semantics.name == "deformable_nodal_pos_w"
+    assert semantics.kind == InputKindEnum.BODY_POSITION
+    assert semantics.element_names == [["x", "y", "z"]]
+    assert semantics.extra == {"isaaclab_connection": "state:deformable:nodal_pos_w"}
+
+
+def test_camera_output_mapping_round_trips_through_deployment(monkeypatch: pytest.MonkeyPatch):
+    """Test camera buffers are independently wired and resolved during deployment."""
+    annotated_inputs = _capture_leapp_inputs(monkeypatch)
+    camera_data = CameraData()
+    camera_data._output = {
+        "rgb": ProxyArray(wp.from_torch(torch.zeros(1, 4, 4, 4, dtype=torch.uint8))),
+        "depth": ProxyArray(wp.from_torch(torch.ones(1, 4, 4, 1, dtype=torch.float32))),
+    }
+    proxy = _DataProxy(
+        camera_data,
+        entity_name="camera",
+        task_name="camera-task",
+        property_resolution_cache={},
+        cache={},
+        input_name_resolver=lambda property_name: f"camera_{property_name}",
+    )
+
+    assert proxy.output["rgb"].torch.shape == (1, 4, 4, 4)
+    assert proxy.output["depth"].torch.shape == (1, 4, 4, 1)
+    _ = proxy.output["rgb"].torch  # Re-reading a buffer must not add another graph input.
+    assert len(annotated_inputs) == 2
+    assert set(semantics.name for _, semantics in annotated_inputs) == {"camera_output_rgb", "camera_output_depth"}
+    assert {semantics.extra["isaaclab_connection"] for _, semantics in annotated_inputs} == {
+        "state:camera:output.rgb",
+        "state:camera:output.depth",
+    }
+
+    rgb_semantics = next(semantics for _, semantics in annotated_inputs if semantics.name == "camera_output_rgb")
+    _, entity_name, property_name = rgb_semantics.extra["isaaclab_connection"].split(":", 2)
+    env = object.__new__(LeappDeploymentEnv)
+    env.scene = {entity_name: SimpleNamespace(data=camera_data)}
+    env._input_mapping = {
+        "camera-task/camera_output_rgb": StateInputSpec(entity_name=entity_name, property_name=property_name)
+    }
+    assert env._read_inputs() == {"camera-task/camera_output_rgb": camera_data.output["rgb"].torch}
+
+
+def test_rgb_observation_export_keeps_live_camera_input(tmp_path: Path):
+    """Test exported RGB preprocessing responds to runtime camera input changes."""
+    from leapp import InferenceManager, annotate
+
+    rgb = torch.arange(48, dtype=torch.uint8).reshape(1, 4, 4, 3)
+    camera_buffer = rgb.clone()
+    changed_rgb = rgb.clone()
+    changed_rgb[:, :2] = 0
+    camera_data = CameraData()
+    camera_data._output = {"rgb": ProxyArray(wp.from_torch(camera_buffer))}
+    camera = SimpleNamespace(data=camera_data)
+    scene = _TestScene()
+    scene.sensors = {"base_camera": camera}
+    env = SimpleNamespace(num_envs=1, device="cpu", scene=scene)
+    params = {
+        "sensor_cfg": SceneEntityCfg("base_camera"),
+        "normalize": True,
+        "channel_first": True,
+    }
+    cfg = ObservationTermCfg(func=mdp.image_rgb, params=params)
+    term_cfg = SimpleNamespace(func=mdp.image_rgb(cfg, env), params=params, noise=None)
+    obs_manager = SimpleNamespace(_group_obs_term_cfgs={"policy": [term_cfg]}, compute=lambda *args, **kwargs: None)
+    proxy_env = _EnvProxy(env, "camera-task", {}, {})
+    patcher = ExportPatcher(export_method="onnx-dynamo", required_obs_groups={"policy"})
+    patcher.task_name = "camera-task"
+    patcher._patch_observation_manager(obs_manager, proxy_env)
+
+    leapp.start("camera-task", save_path=str(tmp_path))
+    try:
+        destination = torch.empty((1, 3, 4, 4), dtype=torch.float32)
+        observation = term_cfg.func(env, **params, out=destination)
+        assert observation is destination
+        downstream = observation.square().mean(dim=(1, 2, 3))
+        annotate.output_tensors("camera-task", {"downstream": downstream}, export_with="onnx-dynamo")
+    finally:
+        leapp.stop()
+    leapp.compile_graph(visualize=False, validate=True)
+
+    pipeline = tmp_path / "camera-task" / "camera-task.yaml"
+    manager = InferenceManager(str(pipeline))
+    input_name = "camera-task/base_camera_output_rgb"
+    output_name = "camera-task/downstream"
+    assert input_name in manager.inputs
+    baseline = manager.run_policy({input_name: rgb})[output_name]
+    perturbed = manager.run_policy({input_name: changed_rgb})[output_name]
+    assert not torch.allclose(baseline, perturbed)
 
 
 def test_named_last_action_observations_use_independent_feedback_states(monkeypatch: pytest.MonkeyPatch):
