@@ -3,6 +3,15 @@ Changelog
 
 .. towncrier release notes start
 
+2.0.11 (2026-10-02)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Excluded the robot subtree from cuRobo world obstacles even when custom world ignore substrings were configured.
+
+
 2.0.10 (2026-09-28)
 ~~~~~~~~~~~~~~~~~~~
 

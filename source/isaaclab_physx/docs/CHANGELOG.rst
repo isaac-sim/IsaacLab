@@ -3,6 +3,18 @@ Changelog
 
 .. towncrier release notes start
 
+7.3.2 (2026-10-02)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed frame-transformer path expressions that directly match a rigid body from also selecting
+  nested rigid-body descendants.
+* Added a PhysX warning and known-issues documentation for GPU articulation scenes that may hit the known solver
+  partition aliasing issue, and pointed users to ``PhysxCfg(gpu_max_num_partitions=1)`` as the workaround.
+
+
 7.3.1 (2026-10-01)
 ~~~~~~~~~~~~~~~~~~
 
