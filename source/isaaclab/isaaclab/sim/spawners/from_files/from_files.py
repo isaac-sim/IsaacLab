@@ -33,6 +33,7 @@ from ...utils import (
 )
 from ..materials import SurfaceDeformableBodyMaterialBaseCfg
 from ..materials.physics_materials import spawn_physics_material
+from ..materials.visual_materials import modify_visual_material
 from ..utils import (
     apply_schema_props,
     bare_fragments,
@@ -746,7 +747,9 @@ def spawn_from_usd_file(
 
     # apply visual material
     if cfg.visual_material is not None:
-        if not has_kit():
+        if cfg.visual_material_path is None:
+            modify_visual_material(stage.GetPrimAtPath(prim_path), cfg.visual_material)
+        elif not has_kit():
             logger.warning("Skipping visual material application for '%s' in kitless mode.", prim_path)
         else:
             material_path = (

@@ -45,15 +45,11 @@ import logging
 import os
 from enum import Enum
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 import numpy as np
 import torch
 import yaml
 from rlinf.models.embodiment.gr00t import embodiment_tags
-
-if TYPE_CHECKING:
-    import torch
 
 logger = logging.getLogger(__name__)
 
@@ -266,6 +262,30 @@ def _patch_gr00t_get_model(cfg: dict) -> None:
     logger.info(f"Patched get_model for data_config_class='{data_config_class}'")
 
 
+def _extract_states(policy_obs: dict, cfg: dict) -> torch.Tensor | None:
+    """Concatenate the state terms a task lists under ``states`` into one vector.
+
+    Args:
+        policy_obs: The environment's policy observation group.
+        cfg: The IsaacLab-specific configuration dictionary (``env.train.isaaclab``).
+
+    Returns:
+        The concatenated state of shape ``(B, D)``, or ``None`` when no listed term is present.
+    """
+    state_parts = []
+    for spec in cfg.get("states") or []:
+        if isinstance(spec, str):
+            state = policy_obs.get(spec)
+        else:
+            state = policy_obs.get(spec.get("key"))
+            slice_range = spec.get("slice") if state is not None else None
+            if slice_range:
+                state = state[:, slice_range[0] : slice_range[1]]
+        if state is not None:
+            state_parts.append(state)
+    return torch.cat(state_parts, dim=-1) if state_parts else None
+
+
 def _register_gr00t_converters(cfg: dict) -> None:
     """Register GR00T obs/action converters for IsaacLab tasks.
 
@@ -452,6 +472,10 @@ def _create_generic_env_wrapper(task_id: str) -> type:
             """
             super().__init__(cfg, num_envs, seed_offset, total_num_processes, worker_info)
 
+            self._hold_pose_on_midchunk_reset = _get_isaaclab_cfg().get("hold_pose_on_midchunk_reset", False)
+            self._chunk_done = None
+            self._hold_actions = None
+
         def _record_metrics(self, step_reward, terminations, infos):
             """Override to use terminations (task completion) for success_once."""
 
@@ -464,6 +488,24 @@ def _create_generic_env_wrapper(task_id: str) -> type:
             episode_info["reward"] = episode_info["return"] / episode_info["episode_len"]
             infos["episode"] = episode_info
             return infos
+
+        def chunk_step(self, chunk_actions):
+            """Retire actions predicted for an episode once that episode has reset."""
+            if self._hold_pose_on_midchunk_reset:
+                self._chunk_done = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
+            result = super().chunk_step(chunk_actions)
+            self._chunk_done = self._hold_actions = None
+            return result
+
+        def step(self, actions=None, auto_reset=True):
+            """Hold reset joints until the next chunk supplies actions for the new episode."""
+            if self._chunk_done is not None and self._hold_actions is not None:
+                actions = torch.where(self._chunk_done[:, None], self._hold_actions.to(actions), actions)
+            obs, reward, terminated, truncated, info = super().step(actions, auto_reset)
+            if self._chunk_done is not None:
+                self._chunk_done |= terminated | truncated
+                self._hold_actions = obs["states"]
+            return obs, reward, terminated, truncated, info
 
         def _make_env_function(self) -> collections.abc.Callable:
             """Create the environment factory function.
@@ -548,24 +590,9 @@ def _create_generic_env_wrapper(task_id: str) -> type:
                     rlinf_obs["extra_view_images"] = torch.stack(extra_imgs, dim=1)
 
             # states: list of state specs -> concatenate to (B, D)
-            # Each spec: string "key" or dict {"key": "...", "slice": [start, end]}
-            state_specs = cfg.get("states")
-            if state_specs:
-                state_parts = []
-                for spec in state_specs:
-                    if isinstance(spec, str):
-                        state = policy_obs.get(spec)
-                        if state is not None:
-                            state_parts.append(state)
-                    elif isinstance(spec, dict):
-                        state = policy_obs.get(spec.get("key"))
-                        if state is not None:
-                            slice_range = spec.get("slice")
-                            if slice_range:
-                                state = state[:, slice_range[0] : slice_range[1]]
-                            state_parts.append(state)
-                if state_parts:
-                    rlinf_obs["states"] = torch.cat(state_parts, dim=-1)
+            states = _extract_states(policy_obs, cfg)
+            if states is not None:
+                rlinf_obs["states"] = states
 
             return rlinf_obs
 

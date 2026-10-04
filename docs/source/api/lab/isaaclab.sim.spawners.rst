@@ -312,6 +312,12 @@ Materials
 Visual Materials
 ~~~~~~~~~~~~~~~~
 
+For USD assets, setting ``visual_material_path=None`` applies the supplied material inputs to
+authored shaders without replacing their textures or bindings. Set inputs that should remain
+unchanged, such as ``PbrMdlCfg.diffuse_color_constant``, to ``None``.
+
+.. autofunction:: modify_visual_material
+
 .. autoclass:: VisualMaterialCfg
     :members:
     :exclude-members: __init__, func
