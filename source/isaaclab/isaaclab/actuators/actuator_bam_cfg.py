@@ -133,15 +133,12 @@ class BamActuatorCfg(ActuatorBaseCfg):
     delay_update_period: int = 0
     """Physics steps between lag resamples, with a random per-environment phase. Zero resamples every step."""
 
+    backlash_joint_template: str | None = None
+    """Name of each servo's passive gearbox-play hinge, formatted with the servo joint name.
+
+    For example ``"passive_{}_backlash"``. When set, the firmware reads servo plus play angle, while back-EMF,
+    friction, and applied torque stay on the servo joint. None disables backlash.
+    """
+
     stiff_frictionloss: bool = True
     """Use a stiff friction-constraint solver reference, since MJWarp has no noslip solver."""
-
-
-@configclass
-class BamBacklashActuatorCfg(BamActuatorCfg):
-    """BAM servo whose encoder reads through a passive gearbox-play hinge.
-
-    Each driven revolute joint needs a sibling revolute joint named ``passive_<joint>_backlash``
-    in the USD. The firmware reads the sum of both angles; back-EMF, friction, and applied torque
-    stay on the driven joint.
-    """

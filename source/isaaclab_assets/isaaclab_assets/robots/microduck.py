@@ -16,14 +16,12 @@ The following configurations are available:
 Reference: https://github.com/pollen-robotics/microduck_rl
 """
 
-from dataclasses import fields
-
 from isaaclab_newton.sim.schemas import NewtonArticulationCfg
 
 import isaaclab.sim as sim_utils
-from isaaclab.actuators import BamActuatorCfg, BamBacklashActuatorCfg, BamMotorCfg
+from isaaclab.actuators import BamActuatorCfg, BamMotorCfg
 from isaaclab.assets import ArticulationCfg
-from isaaclab.utils import clone
+from isaaclab.utils import clone, replace
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 _XL330_MOTOR_CFG = BamMotorCfg(
@@ -108,23 +106,22 @@ The initial root height [m] provides clearance for the wheels, which extend belo
 """
 
 
-def _with_backlash(cfg: ArticulationCfg) -> ArticulationCfg:
-    """Use the corresponding USD with passive play hinges and output-side encoder feedback."""
+def _with_backlash(cfg: ArticulationCfg, usd_name: str) -> ArticulationCfg:
+    """Use the USD with a passive gearbox-play hinge in series with each servo."""
     cfg = clone(cfg)
-    cfg.spawn.usd_path = cfg.spawn.usd_path.removesuffix(".usd") + "_backlash.usd"
-    servos = cfg.actuators["servos"]
-    cfg.actuators["servos"] = BamBacklashActuatorCfg(
-        **{field.name: getattr(servos, field.name) for field in fields(servos)}
-    )
+    cfg.spawn.usd_path = f"{ISAACLAB_NUCLEUS_DIR}/Robots/PollenRobotics/MicroDuck/{usd_name}"
+    cfg.actuators["servos"] = replace(cfg.actuators["servos"], backlash_joint_template="passive_{}_backlash")
     cfg.init_state.joint_pos["passive_.*"] = 0.0
     return cfg
 
 
-MICRODUCK_BACKLASH_CFG = _with_backlash(MICRODUCK_CFG)
+MICRODUCK_BACKLASH_CFG = _with_backlash(MICRODUCK_CFG, "microduck_walk_backlash.usd")
 """Walking MicroDuck with 14 servos and 14 passive gearbox-play hinges spanning ±1°."""
 
-MICRODUCK_ALLCOLLISIONS_BACKLASH_CFG = _with_backlash(MICRODUCK_ALLCOLLISIONS_CFG)
+MICRODUCK_ALLCOLLISIONS_BACKLASH_CFG = _with_backlash(
+    MICRODUCK_ALLCOLLISIONS_CFG, "microduck_allcollisions_backlash.usd"
+)
 """MicroDuck with additional body collisions and passive gearbox-play hinges."""
 
-MICRODUCK_ROLLERS_BACKLASH_CFG = _with_backlash(MICRODUCK_ROLLERS_CFG)
+MICRODUCK_ROLLERS_BACKLASH_CFG = _with_backlash(MICRODUCK_ROLLERS_CFG, "microduck_rollers_backlash.usd")
 """MicroDuck with 14 servos, 14 passive gearbox-play hinges, and four passive wheels."""
