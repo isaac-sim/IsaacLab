@@ -386,11 +386,6 @@ url = "https://pypi.org/simple"
 explicit = true
 
 [[tool.uv.index]]
-name = "isaacsim-internal"
-url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi/simple"
-explicit = false
-
-[[tool.uv.index]]
 name = "omniverse-internal"
 url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/ct-omniverse-pypi-local/simple"
 explicit = true
@@ -424,8 +419,6 @@ override-dependencies = [
     "mujoco-warp~=3.12.0",
     "newton[sim] @ git+https://github.com/newton-physics/newton.git@release-1.6",
     # QA-only nightly ranges replace the release branch's published package pins.
-    "isaacsim[all,extscache]>=6.2.0.dev0,<6.2.0rc0",
-    "isaacsim-asset-isolated>=6.2.0.dev0,<6.2.0rc0",
     "ovrtx>=0.5.1,<0.6",
     "ovstage>=0.2.1,<0.3",
     # Force the Newton-matched schemas over isaacsim's ==0.2.0 pin.
@@ -448,8 +441,6 @@ egl-probe = { CMAKE_POLICY_VERSION_MINIMUM = "3.5" }
 
 [tool.uv.sources]
 omniverseclient = { index = "pypi-public" }
-isaacsim = { index = "isaacsim-internal" }
-isaacsim-asset-isolated = { index = "isaacsim-internal" }
 ovphysx = { index = "pypi-public" }
 ovrtx = { index = "omniverse-internal" }
 ovstage = { index = "omniverse-internal" }

@@ -1,7 +1,8 @@
 # Release 3.0.0 Internal Package QA
 
-This branch prepares Isaac Lab `release/3.0.0` for QA with unreleased Isaac Sim,
-OVRTX, and OVStage packages from NVIDIA's internal Python registries. It is a
+This branch prepares Isaac Lab `release/3.0.0` for QA with unreleased OVRTX and
+OVStage packages from NVIDIA's internal Python registries. Isaac Sim is not
+overridden and keeps the release branch's published pin. It is a
 temporary QA branch and is not intended to merge while those internal package
 sources are required.
 
@@ -28,11 +29,10 @@ The Linux x86_64 resolution below was last verified on October 1, 2026.
 
 | Package | QA override | Registry | Last verified resolution |
 | --- | --- | --- | --- |
-| Isaac Sim | `>=6.2.0.dev0,<6.2.0rc0` | Internal Isaac Sim | `6.2.0a17+develop.52068.0910c4bd.gl` |
-| Isaac Sim asset importer | `>=6.2.0.dev0,<6.2.0rc0` | Internal Isaac Sim | `6.2.0a17+develop.52068.0910c4bd.gl` |
 | OVRTX | `>=0.5.1,<0.6` | Internal Omniverse | `0.5.1.385274` |
 | OVStage | `>=0.2.1,<0.3` | Internal Omniverse | `0.2.1.385274` |
 | OVPhysX | unchanged at `==0.6.3` | Public PyPI | `0.6.3` |
+| Isaac Sim and asset importer | unchanged (release pin) | Public | Per `release/3.0.0` |
 
 The UV override for OVStage intentionally replaces OVPhysX 0.6.3's dependency
 on the older `ovstage==0.2.0.377349` build.
@@ -54,8 +54,6 @@ UV_HTTP_TIMEOUT=120 uv sync \
   --extra isaacsim \
   --extra importers \
   --extra ov \
-  -P isaacsim \
-  -P isaacsim-asset-isolated \
   -P ovrtx \
   -P ovstage
 ```
