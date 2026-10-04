@@ -247,11 +247,11 @@ def test_gravity_compensation_holds_static_equilibrium(sim, device) -> None:
     articulation = Articulation(
         _branching_cfg(
             actuators={"joints": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=0.0, damping=0.0)},
-            joint_ordering="mjwarp",
+            joint_ordering=BRANCHING_MJWARP_JOINT_NAMES,
             init_state=ArticulationCfg.InitialStateCfg(rot=(math.sqrt(0.5), 0.0, 0.0, math.sqrt(0.5))),
         )
     )
-    _author_branching_robot("/World/Robot", fixed_base=True)
+    _author_branching_robot("/World/Robot", fixed_base=True, reversed_left_elbow=True)
     # Offset the tip centers of mass from the elbow axes so that gravity also loads the elbows.
     for tip in ("left_tip", "right_tip"):
         UsdPhysics.MassAPI(sim.stage.GetPrimAtPath(f"/World/Robot/{tip}")).CreateCenterOfMassAttr(Gf.Vec3f(0.2, 0, 0))
