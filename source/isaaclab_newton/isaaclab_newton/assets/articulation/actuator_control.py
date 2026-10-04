@@ -249,11 +249,15 @@ class NewtonActuatorControl(ArticulationActuatorControl):
             ValueError: If BAM groups sharing a Newton actuator disagree on settings that Newton
                 does not use to group actuators.
         """
-        settings = {(cfg.vin_range, cfg.vin_drop_gain_range, cfg.stiff_frictionloss) for cfg in self._bam_cfgs.values()}
+        settings = {
+            (cfg.vin_range, cfg.vin_drop_gain_range, cfg.stiff_frictionloss, cfg.backlash_joint_template)
+            for cfg in self._bam_cfgs.values()
+        }
         if len(settings) > 1:
             raise ValueError(
-                "BAM groups on one articulation must agree on 'vin_range', 'vin_drop_gain_range' and"
-                " 'stiff_frictionloss', because one Newton actuator may cover several groups."
+                "BAM groups on one articulation must agree on 'vin_range', 'vin_drop_gain_range',"
+                " 'stiff_frictionloss' and 'backlash_joint_template', because one Newton actuator may cover"
+                " several groups."
             )
         (setting,) = settings
         cfg = next(iter(self._bam_cfgs.values()))
@@ -264,15 +268,15 @@ class NewtonActuatorControl(ArticulationActuatorControl):
                 apply_bam_startup_sampling(drive, cfg)
             elif drive.startup_settings != setting:
                 raise ValueError(
-                    "Articulations sharing a Newton BAM actuator must agree on 'vin_range',"
-                    f" 'vin_drop_gain_range' and 'stiff_frictionloss' (got {drive.startup_settings} and {setting})."
+                    "Articulations sharing a Newton BAM actuator must agree on 'vin_range', 'vin_drop_gain_range',"
+                    f" 'stiff_frictionloss' and 'backlash_joint_template' (got {drive.startup_settings} and {setting})."
                 )
 
-    def _bind_bam_backlash(self, actuator) -> None:
+    def _bind_bam_backlash(self, actuator, template: str) -> None:
         """Resolve each servo's sibling play hinge to its model coordinate index.
 
         Raises:
-            ValueError: If a servo or its ``passive_<joint>_backlash`` sibling is missing or not revolute.
+            ValueError: If a servo or its play-hinge sibling is missing or not revolute.
         """
         model = SimulationManager.backend.model
         q_start = model.joint_q_start.numpy()
@@ -285,7 +289,7 @@ class NewtonActuatorControl(ArticulationActuatorControl):
         for dof in actuator.indices.numpy():
             joint = dof_to_joint[int(dof)]
             parent, _, name = model.joint_label[joint].rpartition("/")
-            twin_label = f"{parent}/passive_{name}_backlash"
+            twin_label = f"{parent}/{template.format(name)}"
             twin = joints.get((int(worlds[joint]), twin_label))
             if twin is None or joint_types[joint] != JointType.REVOLUTE or joint_types[twin] != JointType.REVOLUTE:
                 raise ValueError(f"BAM backlash requires a revolute servo and sibling play hinge: {twin_label}")
@@ -304,17 +308,17 @@ class NewtonActuatorControl(ArticulationActuatorControl):
         solver = SimulationManager._solver
         if not MjWarpActuatorBridge.is_available(solver):
             raise ValueError("BAM actuators require Newton's MJWarp solver (MJWarpSolverCfg).")
-        stiff_frictionloss = next(iter(self._bam_cfgs.values())).stiff_frictionloss
+        cfg = next(iter(self._bam_cfgs.values()))
         model = SimulationManager.backend.model
         for actuator in self._bam_actuators():
             drive = actuator.drive
             if drive.external_torque is not None:
                 continue
             if drive.has_backlash:
-                self._bind_bam_backlash(actuator)
+                self._bind_bam_backlash(actuator, cfg.backlash_joint_template)
             bridge = MjWarpActuatorBridge(solver, model, actuator.indices, self.device)
             drive.external_torque = wp.zeros(actuator.num_actuators, dtype=wp.float32, device=self.device)
-            if stiff_frictionloss:
+            if cfg.stiff_frictionloss:
                 bridge.stiffen_friction_constraint()
             SimulationManager.register_pre_actuator_callback(
                 lambda bridge=bridge, out=drive.external_torque: bridge.gather_external_torque(out)

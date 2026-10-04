@@ -244,7 +244,7 @@ def author_actuator_prims(
             covered_joint_paths.add(joint_inventory[jname])
 
     from ...actuators import DCMotorCfg, DelayedPDActuatorCfg  # noqa: PLC0415
-    from ...actuators.actuator_bam_cfg import BAM_DRIVE_API, BamActuatorCfg, BamBacklashActuatorCfg  # noqa: PLC0415
+    from ...actuators.actuator_bam_cfg import BAM_DRIVE_API, BamActuatorCfg  # noqa: PLC0415
     from ...actuators.actuator_net_cfg import ActuatorNetLSTMCfg, ActuatorNetMLPCfg  # noqa: PLC0415
     from ...actuators.actuator_pd_cfg import RemotizedPDActuatorCfg  # noqa: PLC0415
 
@@ -267,7 +267,7 @@ def author_actuator_prims(
             bam_attrs.pop("friction_viscous")
             model = bam_attrs.pop("model")
             bam_attrs.update(
-                has_backlash=int(isinstance(cfg, BamBacklashActuatorCfg)),
+                has_backlash=int(cfg.backlash_joint_template is not None),
                 stribeck=int(model != "m1"),
                 load_dependent=int(model in ("m5", "m6")),
                 quadratic=int(model == "m6"),
