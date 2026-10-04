@@ -24,9 +24,9 @@ import warp as wp
 
 from isaaclab.envs.common import VecEnvStepReturn
 from isaaclab.envs.manager_based_rl_env_cfg import ManagerBasedRLEnvCfg
-from isaaclab.managers import CommandManager, CurriculumManager
+from isaaclab.managers import CurriculumManager
 
-from isaaclab_experimental.managers import RewardManager, TerminationManager
+from isaaclab_experimental.managers import CommandManager, RewardManager, TerminationManager
 
 from .manager_based_env_warp import ManagerBasedEnvWarp
 
@@ -143,7 +143,7 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
     def load_managers(self):
         # note: this order is important since observation manager needs to know the command and action managers
         # and the reward manager needs to know the termination manager
-        # -- command manager (stable implementation)
+        # -- command manager
         self.command_manager = CommandManager(self.cfg.commands, self)
         logger.info(f"Command Manager: {self.command_manager}")
 
@@ -391,12 +391,10 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
         if env_mask is not self.reset_mask_wp:
             wp.copy(self.reset_mask_wp, env_mask)
         env_mask = self.reset_mask_wp
-        # the stable command, curriculum and recorder managers reset by index
+        # the stable curriculum and recorder managers reset by index
         env_ids = (
             wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1)
-            if self.command_manager.active_terms
-            or self.curriculum_manager.active_terms
-            or self.recorder_manager.active_terms
+            if self.curriculum_manager.active_terms or self.recorder_manager.active_terms
             else None
         )
 
@@ -424,7 +422,7 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
         curriculum_info = self.curriculum_manager.reset(env_ids=env_ids)
 
         # -- command + event + termination managers
-        command_info = self.command_manager.reset(env_ids=env_ids)
+        command_info = self.command_manager.reset(env_mask=env_mask)
         event_info = self.event_manager.reset(env_mask=env_mask)
         termination_info = self.termination_manager.reset(env_mask=env_mask)
 

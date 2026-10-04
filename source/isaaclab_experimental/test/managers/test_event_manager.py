@@ -34,6 +34,12 @@ def device_term(env, env_mask: wp.array):
     CALLS["device_term"] += 1
 
 
+def select(env, env_mask: wp.array):
+    """Event term that stores which environments it was applied to."""
+    CALLS["select"] += 1
+    wp.copy(env.selected, env_mask)
+
+
 @WarpCapturable(False, reason="synchronizes with the host")
 class host_call_term(ManagerTermBase):
     """Class event term whose call cannot be recorded but whose reset can."""
@@ -97,3 +103,36 @@ def test_class_annotation_does_not_keep_the_reset_eager(monkeypatch):
 
     assert CALLS["host_call_term.reset"] == 1, "the second reset must replay the recorded reset"
     assert CALLS["host_reset_term.reset"] == 2, "an annotated reset must run on every reset"
+
+
+def test_set_term_cfg_records_the_reset_events_again_only_when_the_trigger_changes(monkeypatch):
+    """A curriculum sets its event term on every reset; only a changed trigger spacing records the stage again.
+
+    The spacing is a kernel argument of the recorded stage, so the changed spacing applies only after a new
+    recording. Every recording runs the term's Python once.
+    """
+    monkeypatch.setattr(CapturedStage, "enabled", True)
+    env = SimpleNamespace(
+        num_envs=NUM_ENVS,
+        device=DEVICE,
+        sim=SimpleNamespace(is_playing=lambda: True),
+        selected=wp.zeros(NUM_ENVS, dtype=wp.bool, device=DEVICE),
+    )
+    manager = EventManager({"select": EventTermCfg(func=select, mode="reset")}, env)
+    env_mask = wp.ones(NUM_ENVS, dtype=wp.bool, device=DEVICE)
+    step_count = wp.zeros(1, dtype=wp.int32, device=DEVICE)
+    term_cfg = manager.get_term_cfg("select")
+    CALLS.clear()
+
+    def apply_reset(step: int, min_step_count_between_reset: int) -> list[bool]:
+        term_cfg.min_step_count_between_reset = min_step_count_between_reset
+        manager.set_term_cfg("select", term_cfg)
+        step_count.fill_(step)
+        manager.apply(mode="reset", env_mask_wp=env_mask, global_env_step_count=step_count)
+        return env.selected.numpy().tolist()
+
+    assert apply_reset(step=5, min_step_count_between_reset=0) == [True] * NUM_ENVS
+    assert apply_reset(step=6, min_step_count_between_reset=0) == [True] * NUM_ENVS
+    assert CALLS["select"] == 1
+    assert apply_reset(step=7, min_step_count_between_reset=10) == [False] * NUM_ENVS
+    assert CALLS["select"] == 2

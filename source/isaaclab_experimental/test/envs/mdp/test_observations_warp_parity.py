@@ -53,10 +53,6 @@ import isaaclab.envs.mdp.observations as stable_obs
 def _clear_caches():
     yield
     WarpRng.state = None
-    for fn in [warp_obs.generated_commands]:
-        for attr in list(vars(fn)):
-            if attr.startswith("_"):
-                delattr(fn, attr)
 
 
 @pytest.fixture()
@@ -316,7 +312,7 @@ class TestObservationParityNewTerms:
         actual = run_warp_obs(warp_obs.generated_commands, warp_env_bodies, (NUM_ENVS, CMD_DIM), command_name="vel")
         assert_close(actual, expected)
 
-        # Mutate the command tensor in-place: the cached zero-copy view must pick it up on replay.
+        # Mutate the command tensor in-place: the replay must read the updated command.
         def mutate():
             cmd_tensor[:] = torch.randn_like(cmd_tensor)
 

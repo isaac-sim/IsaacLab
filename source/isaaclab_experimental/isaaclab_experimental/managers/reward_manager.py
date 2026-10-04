@@ -11,8 +11,8 @@ This file is a copy of `isaaclab.managers.reward_manager` placed under
 
 from __future__ import annotations
 
-from collections.abc import Sequence
-from typing import TYPE_CHECKING
+from collections.abc import Iterable, Sequence
+from typing import TYPE_CHECKING, Any
 
 import torch
 import warp as wp
@@ -22,7 +22,7 @@ from isaaclab.managers.manager_term_cfg import RewardTermCfg
 
 from isaaclab_experimental.utils.warp import is_warp_capturable
 from isaaclab_experimental.utils.warp.kernels import compute_reset_scale, count_masked
-from isaaclab_experimental.utils.warp_capture import captured, eager, reset_captured_stages
+from isaaclab_experimental.utils.warp_capture import captured, eager
 
 from .manager_base import ManagerBase, ManagerTermBase, split_resets, split_terms
 
@@ -303,6 +303,9 @@ class RewardManager(ManagerBase):
     def set_term_cfg(self, term_name: str, cfg: RewardTermCfg):
         """Sets the configuration of the specified term into the manager.
 
+        Recorded reward stages read the weights on the device on every call. They record again on their next call
+        only when the term's function, parameters or capturability change, or its weight turns zero or nonzero.
+
         Args:
             term_name: The name of the reward term.
             cfg: The configuration for the reward term.
@@ -317,13 +320,17 @@ class RewardManager(ManagerBase):
         # set the configuration (preserve the pre-allocated output view)
         term_idx = self._term_names.index(term_name)
         cfg.out = self._term_out_views_wp[term_idx]
+        changed = self._term_cfg_changed(term_name, cfg)
         self._term_cfgs[term_idx] = cfg
         # keep on-device weights in sync (call this to update weights used in compute)
         self._term_weights_tensor_view[term_idx] = float(cfg.weight)
-        # recorded compute graphs hold the replaced term, which may also differ in capturability
         cfg.capturable = is_warp_capturable(cfg.func, cfg.params)
         self._term_split = split_terms([term_cfg for term_cfg in self._term_cfgs if term_cfg.weight != 0.0])
-        reset_captured_stages(self)
+        self._class_term_cfgs = [term_cfg for term_cfg in self._term_cfgs if isinstance(term_cfg.func, ManagerTermBase)]
+        self._class_term_split = split_resets(self._class_term_cfgs)
+        # recorded stages hold the replaced term, which may also differ in capturability or in whether it runs
+        if changed:
+            self._record_term_again(term_name, cfg)
 
     def get_term_cfg(self, term_name: str) -> RewardTermCfg:
         """Gets the configuration for the specified term.
@@ -362,6 +369,13 @@ class RewardManager(ManagerBase):
     """
     Helper functions.
     """
+
+    def _named_term_cfgs(self) -> Iterable[tuple[str, RewardTermCfg]]:
+        return zip(self._term_names, self._term_cfgs)
+
+    def _term_signature(self, term_cfg: RewardTermCfg) -> Any:
+        # a zero weight leaves the term out of the recorded stage
+        return super()._term_signature(term_cfg), term_cfg.weight == 0.0
 
     def _prepare_terms(self):
         # check if config is dict already

@@ -137,6 +137,8 @@ EXPECTED_NON_CAPTURABLE = {
     ("isaaclab_experimental/envs/mdp/events.py", "randomize_rigid_body_com"),
     ("isaaclab_experimental/envs/mdp/events.py", "randomize_rigid_body_mass"),
     ("isaaclab_experimental/envs/mdp/events.py", "randomize_rigid_body_material"),
+    ("isaaclab_experimental/envs/mdp/observations.py", "height_scan"),
+    ("isaaclab_experimental/envs/mdp/rewards.py", "base_height_l2"),
 }
 
 NON_CAPTURABLE_SCAN_ROOTS = [
