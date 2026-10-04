@@ -20,8 +20,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.actuators import BamActuatorCfg, BamMotorCfg
 from isaaclab.assets import ArticulationCfg
 from isaaclab.utils import clone
-
-from isaaclab_assets import ISAACLAB_ASSETS_DATA_DIR
+from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 _XL330_MOTOR_CFG = BamMotorCfg(
     model="m6",
@@ -46,7 +45,7 @@ _XL330_MOTOR_CFG = BamMotorCfg(
 
 MICRODUCK_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{ISAACLAB_ASSETS_DATA_DIR}/Robots/PollenRobotics/MicroDuck/microduck_walk.usd",
+        usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/PollenRobotics/MicroDuck/microduck_walk.usd",
         activate_contact_sensors=True,
         articulation_props=NewtonArticulationCfg(self_collision_enabled=True),
     ),
@@ -87,22 +86,16 @@ MICRODUCK_CFG = ArticulationCfg(
 """MicroDuck with BAM voltage control, battery sag, and a 3--6-step command delay.
 
 Requires Newton's MJWarp solver and ``SimulationCfg.use_newton_actuators=True``.
-The USD carries BAM actuator prims, passive damping, joint armature, and effort limits.
-As with other explicit actuators, Lab replaces the USD actuators with this configuration's
-matching parameters when spawning. Per-episode friction randomization
-belongs in the task's reset events, using :func:`~isaaclab.actuators.newton.write_group_parameter`.
 """
 
 MICRODUCK_ALLCOLLISIONS_CFG = clone(MICRODUCK_CFG)
 MICRODUCK_ALLCOLLISIONS_CFG.spawn.usd_path = (
-    f"{ISAACLAB_ASSETS_DATA_DIR}/Robots/PollenRobotics/MicroDuck/microduck_allcollisions.usd"
+    f"{ISAACLAB_NUCLEUS_DIR}/Robots/PollenRobotics/MicroDuck/microduck_allcollisions.usd"
 )
 """MicroDuck with additional trunk, hip, and head collision geometry for whole-body contact."""
 
 MICRODUCK_ROLLERS_CFG = clone(MICRODUCK_CFG)
-MICRODUCK_ROLLERS_CFG.spawn.usd_path = (
-    f"{ISAACLAB_ASSETS_DATA_DIR}/Robots/PollenRobotics/MicroDuck/microduck_rollers.usd"
-)
+MICRODUCK_ROLLERS_CFG.spawn.usd_path = f"{ISAACLAB_NUCLEUS_DIR}/Robots/PollenRobotics/MicroDuck/microduck_rollers.usd"
 MICRODUCK_ROLLERS_CFG.init_state.pos = (0.0, 0.0, 0.145)
 MICRODUCK_ROLLERS_CFG.init_state.joint_pos["passive_.*"] = 0.0
 """MicroDuck with 14 BAM servos and four passive wheel joints.
