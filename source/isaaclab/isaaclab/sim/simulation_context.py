@@ -447,9 +447,6 @@ class SimulationContext:
                 requires_stage, requires_model = REQUIRES_STAGE_AND_MODEL[cfg.visualizer_type]
                 self.requires_usd_stage |= requires_stage
                 self.requires_newton_model |= requires_model
-                # a model visualizer draws visual-only shapes even when headless, where it is not rendering
-                if requires_model:
-                    self.require_visual_shapes()
             self._render_context.clone_contexts.update(cfg.cloning_contexts)
             self._pending_visualizers.append(instantiate(cfg))
 
