@@ -107,3 +107,4 @@ def test_modify_term_cfg_applies_to_the_recorded_command_stage(monkeypatch):
 
     command = env.command_manager.get_command("base_velocity")
     assert torch.equal(command[:, 0], torch.full((NUM_ENVS,), 1.5, device=DEVICE))
+    assert env.recordings == 2

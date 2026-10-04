@@ -69,3 +69,46 @@ def test_capturability_is_decided_per_term_from_its_parameters(monkeypatch):
     # each eager term splits the recording, so it holds one graph before each of the two eager terms and one after
     assert manager._captured_stages[RewardManager.compute].num_graphs == 3
     assert torch.equal(reward, torch.full((NUM_ENVS,), (1.0 + 2.0 + 4.0) * 0.5, device=DEVICE))
+
+
+def test_set_term_cfg_records_the_reward_stage_again_only_when_it_runs_a_different_term(monkeypatch):
+    """``modify_reward_weight`` sets its term on every reset past its threshold, changing the weight in place.
+
+    The replayed reward matches the eager reward after every setting. A weight change needs no new recording, since
+    the stage reads the weights on the device; a weight turning zero or nonzero, or a parameter change, records the
+    stage again once. Every recording runs the always-on term's Python once, so its call count is the number of
+    recordings.
+    """
+    env = SimpleNamespace(
+        num_envs=NUM_ENVS, device=DEVICE, sim=SimpleNamespace(is_playing=lambda: True), max_episode_length_s=1.0
+    )
+    manager = RewardManager(
+        {
+            "always": RewardTermCfg(func=constant_reward, weight=1.0, params={"value": 1.0}),
+            "late": RewardTermCfg(func=constant_reward, weight=0.0, params={"value": 3.0}),
+        },
+        env,
+    )
+    settings = [(0.0, 3.0), (2.0, 3.0), (2.0, 3.0), (4.0, 3.0), (4.0, 5.0), (0.0, 5.0)]
+    late = manager.get_term_cfg("late")
+
+    def run() -> tuple[list[torch.Tensor], list[int]]:
+        rewards, calls = [], []
+        for weight, value in settings:
+            late.weight = weight
+            late.params["value"] = value
+            manager.set_term_cfg("late", late)
+            rewards.append(manager.compute(dt=0.5).clone())
+            calls.append(CALLS[1.0])
+        return rewards, calls
+
+    monkeypatch.setattr(CapturedStage, "enabled", True)
+    CALLS.clear()
+    replayed, recordings = run()
+    monkeypatch.setattr(CapturedStage, "enabled", False)
+    eager, _ = run()
+
+    assert recordings == [1, 2, 2, 2, 3, 4]
+    for (weight, value), replayed_reward, eager_reward in zip(settings, replayed, eager):
+        assert torch.equal(replayed_reward, eager_reward)
+        assert torch.equal(replayed_reward, torch.full((NUM_ENVS,), (1.0 + weight * value) * 0.5, device=DEVICE))

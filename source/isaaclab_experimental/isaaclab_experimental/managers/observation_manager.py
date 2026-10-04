@@ -47,7 +47,7 @@ Experimental (Warp-first) note:
 from __future__ import annotations
 
 import inspect
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
@@ -62,9 +62,10 @@ from isaaclab.utils import instantiate, to_dict
 from isaaclab_experimental.utils import modifiers, noise
 from isaaclab_experimental.utils.buffers import CircularBuffer
 from isaaclab_experimental.utils.torch_utils import clone_obs_buffer
-from isaaclab_experimental.utils.warp_capture import captured, eager, reset_captured_stages
+from isaaclab_experimental.utils.warp import is_warp_capturable
+from isaaclab_experimental.utils.warp_capture import captured, eager
 
-from .manager_base import ManagerBase, ManagerTermBase, split_resets, split_terms
+from .manager_base import ManagerBase, ManagerTermBase, _config_key, split_resets, split_terms
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
@@ -584,7 +585,8 @@ class ObservationManager(ManagerBase):
         """Sets the configuration of the specified term into the manager.
 
         Recorded observation stages read the term's configuration, such as its noise, when they record, so they
-        record again on their next call. The term keeps writing into its slice of the group's observation.
+        record again on their next call when the configuration changes. The term keeps writing into its slice of
+        the group's observation.
 
         Args:
             term_name: The name of the observation term, in the form ``"<group>/<term>"``.
@@ -595,23 +597,27 @@ class ObservationManager(ManagerBase):
         """
         group_name, index = self._find_term(term_name)
         old_cfg = self._group_obs_term_cfgs[group_name][index]
-        group_cfg = self.cfg[group_name] if isinstance(self.cfg, dict) else getattr(self.cfg, group_name)
-        term_dim = self._prepare_term(group_name, self._group_obs_term_names[group_name][index], cfg, group_cfg)
-        if term_dim != old_cfg._term_dim:
-            raise ValueError(
-                f"Observation term '{term_name}' must keep its output width {old_cfg._term_dim}, got {term_dim}."
-            )
-        cfg.out_wp, cfg.out_torch = old_cfg.out_wp, old_cfg.out_torch
-        if cfg is not old_cfg and isinstance(cfg.func, ManagerTermBase):
-            cfg.func.reset()
+        # an unchanged configuration was prepared already; preparing it again reallocates its Warp buffers
+        changed = self._term_cfg_changed(term_name, cfg)
+        if changed:
+            group_cfg = self.cfg[group_name] if isinstance(self.cfg, dict) else getattr(self.cfg, group_name)
+            term_dim = self._prepare_term(group_name, self._group_obs_term_names[group_name][index], cfg, group_cfg)
+            if term_dim != old_cfg._term_dim:
+                raise ValueError(
+                    f"Observation term '{term_name}' must keep its output width {old_cfg._term_dim}, got {term_dim}."
+                )
+            cfg.out_wp, cfg.out_torch = old_cfg.out_wp, old_cfg.out_torch
+            if cfg is not old_cfg and isinstance(cfg.func, ManagerTermBase):
+                cfg.func.reset()
         self._group_obs_term_cfgs[group_name][index] = cfg
         self._group_obs_class_term_cfgs[group_name] = [
             term_cfg for term_cfg in self._group_obs_term_cfgs[group_name] if isinstance(term_cfg.func, ManagerTermBase)
         ]
         self._group_obs_class_instances = self._collect_class_instances()
-        # recorded stages hold the replaced term, which may also differ in capturability
         self._split_terms()
-        reset_captured_stages(self)
+        # recorded stages hold the replaced term, which may also differ in capturability
+        if changed:
+            self._record_term_again(term_name, cfg)
 
     def get_term_cfg(self, term_name: str) -> ObservationTermCfg:
         """Gets the configuration for the specified term.
@@ -661,6 +667,15 @@ class ObservationManager(ManagerBase):
     """
     Helper functions.
     """
+
+    def _named_term_cfgs(self) -> Iterable[tuple[str, ObservationTermCfg]]:
+        for group_name, term_names in self._group_obs_term_names.items():
+            for term_name, term_cfg in zip(term_names, self._group_obs_term_cfgs[group_name]):
+                yield f"{group_name}/{term_name}", term_cfg
+
+    def _term_signature(self, term_cfg: ObservationTermCfg) -> Any:
+        # noise, clip, scale, modifiers and history are read while the stage records
+        return _config_key(term_cfg), is_warp_capturable(term_cfg.func, term_cfg.params)
 
     def _split_terms(self) -> None:
         """Split the terms, as (group, index) pairs, and the class term resets by whether they can be recorded."""

@@ -23,7 +23,8 @@ from __future__ import annotations
 
 import inspect
 import logging
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
+from typing import Any
 
 import torch
 import warp as wp
@@ -33,7 +34,7 @@ from isaaclab.managers.manager_term_cfg import EventTermCfg
 from isaaclab.utils.seed import WarpRng
 
 from isaaclab_experimental.utils.warp import is_warp_capturable
-from isaaclab_experimental.utils.warp_capture import captured, eager, reset_captured_stages
+from isaaclab_experimental.utils.warp_capture import captured, eager
 
 from .manager_base import ManagerBase, ManagerTermBase, split_resets
 
@@ -232,6 +233,9 @@ class EventManager(ManagerBase):
         The method finds the term by name by searching through all the modes.
         It then updates the configuration of the term with the first matching name.
 
+        Recorded event stages record again on their next call only when the term's function, parameters,
+        capturability or trigger settings change.
+
         Args:
             term_name: The name of the event term.
             cfg: The configuration for the event term.
@@ -242,6 +246,7 @@ class EventManager(ManagerBase):
         term_found = False
         for mode, terms in self._mode_term_names.items():
             if term_name in terms:
+                changed = self._term_cfg_changed(term_name, cfg)
                 cfg.capturable = is_warp_capturable(cfg.func, cfg.params)
                 self._mode_term_cfgs[mode][terms.index(term_name)] = cfg
                 term_found = True
@@ -250,7 +255,8 @@ class EventManager(ManagerBase):
             raise ValueError(f"Event term '{term_name}' not found.")
         # the class terms derive from the term configurations, and the recorded stages hold the replaced term
         self._split_terms()
-        reset_captured_stages(self)
+        if changed:
+            self._record_term_again(term_name, cfg)
 
     def get_term_cfg(self, term_name: str) -> EventTermCfg:
         for mode, terms in self._mode_term_names.items():
@@ -404,6 +410,20 @@ class EventManager(ManagerBase):
                 term_cfg.func(self._env, self._scratch_term_mask_wp, **term_cfg.params)
             else:
                 eager(term_cfg.func, self._env, self._scratch_term_mask_wp, **term_cfg.params)
+
+    def _named_term_cfgs(self) -> Iterable[tuple[str, EventTermCfg]]:
+        for mode, names in self._mode_term_names.items():
+            yield from zip(names, self._mode_term_cfgs[mode])
+
+    def _term_signature(self, term_cfg: EventTermCfg) -> Any:
+        # the trigger settings are kernel arguments and decide which interval timers reset
+        trigger = (
+            term_cfg.interval_range_s,
+            term_cfg.is_global_time,
+            term_cfg.min_step_count_between_reset,
+            term_cfg.resample_interval_on_reset,
+        )
+        return super()._term_signature(term_cfg), trigger
 
     def _split_terms(self) -> None:
         """Collect the class terms of every mode and split them by whether their resets can be recorded."""

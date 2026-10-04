@@ -15,7 +15,7 @@ CUDA-graph-friendly implementation:
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from typing import TYPE_CHECKING
 
 import torch
@@ -25,7 +25,7 @@ from prettytable import PrettyTable
 from isaaclab.managers.manager_term_cfg import TerminationTermCfg
 
 from isaaclab_experimental.utils.warp import is_warp_capturable
-from isaaclab_experimental.utils.warp_capture import captured, eager, reset_captured_stages
+from isaaclab_experimental.utils.warp_capture import captured, eager
 
 from .manager_base import ManagerBase, ManagerTermBase, split_resets, split_terms
 
@@ -294,7 +294,7 @@ class TerminationManager(ManagerBase):
         """Sets the configuration of the specified term into the manager.
 
         Recorded termination stages read whether the term is a time-out on every call. They record again on their
-        next call, since they hold the replaced term.
+        next call only when the term's function, parameters or capturability change.
 
         Args:
             term_name: The name of the termination term.
@@ -308,14 +308,16 @@ class TerminationManager(ManagerBase):
         term_idx = self._term_name_to_term_idx[term_name]
         # the term keeps writing into its column of the done buffer
         cfg.out = self._term_out_views_wp[term_idx]
+        changed = self._term_cfg_changed(term_name, cfg)
         cfg.capturable = is_warp_capturable(cfg.func, cfg.params)
         self._term_cfgs[term_idx] = cfg
         wp.to_torch(self._term_is_time_out_wp)[term_idx] = bool(cfg.time_out)
-        # recorded stages hold the replaced term, which may also differ in capturability
         self._class_term_cfgs = [term_cfg for term_cfg in self._term_cfgs if isinstance(term_cfg.func, ManagerTermBase)]
         self._term_split = split_terms(self._term_cfgs)
         self._class_term_split = split_resets(self._class_term_cfgs)
-        reset_captured_stages(self)
+        # recorded stages hold the replaced term, which may also differ in capturability
+        if changed:
+            self._record_term_again(term_name, cfg)
 
     def get_term_cfg(self, term_name: str) -> TerminationTermCfg:
         """Gets the configuration for the specified term.
@@ -351,6 +353,9 @@ class TerminationManager(ManagerBase):
     """
     Helper functions.
     """
+
+    def _named_term_cfgs(self) -> Iterable[tuple[str, TerminationTermCfg]]:
+        return zip(self._term_names, self._term_cfgs)
 
     def _prepare_terms(self):
         # check if config is dict already

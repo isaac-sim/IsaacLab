@@ -92,3 +92,4 @@ def test_modify_term_cfg_applies_noise_to_the_recorded_observation_stage(monkeyp
     wp.synchronize()
 
     assert torch.equal(obs["policy"], torch.full((4, 2), 1.5, device="cuda:0"))
+    assert env.recordings == 2
