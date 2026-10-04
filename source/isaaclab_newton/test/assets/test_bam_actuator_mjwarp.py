@@ -238,7 +238,7 @@ def test_backlash_requires_a_play_hinge(native_sim, device, pendulum_usd):
     cfg = _make_cfg()
     cfg = BamBacklashActuatorCfg(**{field.name: getattr(cfg, field.name) for field in fields(cfg)})
     with pytest.raises(ValueError, match="BAM backlash requires.*passive_joint_backlash"):
-        _build_native_pendulum(native_sim, pendulum_usd, cfg)
+        _spawn_pendulums(native_sim, pendulum_usd, {"Robot": cfg})
 
 
 def test_bam_rejects_a_non_mjwarp_solver(pendulum_usd):
