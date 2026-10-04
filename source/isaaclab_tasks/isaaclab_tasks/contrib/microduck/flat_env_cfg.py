@@ -83,11 +83,6 @@ _FOOT_SWING_HEIGHT_WEIGHT = -0.25 * (MICRODUCK_FOOT_TARGET_HEIGHT / 0.02) ** 2
 MICRODUCK_STEPS_PER_ITERATION = 24
 
 
-def _iterations(count: int) -> int:
-    """Convert an upstream iteration count into the global environment-step count."""
-    return count * MICRODUCK_STEPS_PER_ITERATION
-
-
 @configclass
 class MicroDuckSceneCfg(InteractiveSceneCfg):
     """Scene with the MicroDuck robot on a ground plane."""
@@ -123,11 +118,8 @@ class CommandsCfg:
         asset_name="robot",
         resampling_time_range=(3.0, 8.0),
         rel_standing_envs=0.02,
-        rel_heading_envs=0.0,
         rel_forward_envs=0.2,
         rel_turn_in_place_envs=0.15,
-        heading_command=True,
-        heading_control_stiffness=0.5,
         debug_vis=True,
         ranges=mdp.MicroDuckVelocityCommandCfg.Ranges(
             lin_vel_x=(-0.4, 0.4), lin_vel_y=(-0.3, 0.3), ang_vel_z=(-1.0, 1.0), heading=(-math.pi, math.pi)
@@ -186,15 +178,11 @@ class ObservationsCfg:
             noise=Unoise(n_min=-0.001, n_max=0.001),
         )
         joint_vel = ObsTerm(
-            func=mdp.delayed_observation,
-            params={
-                "term_func": mdp.joint_vel_rel,
-                "term_params": {"asset_cfg": _SERVO_JOINT_CFG},
-                "min_lag": 1,
-                "max_lag": 1,
-                "update_period": 0,
-            },
+            func=mdp.joint_vel_rel,
+            params={"asset_cfg": _SERVO_JOINT_CFG},
             noise=Unoise(n_min=-0.25, n_max=0.25),
+            delay_min_lag=1,
+            delay_max_lag=1,
         )
         actions = ObsTerm(func=mdp.last_action)
         velocity_commands = ObsTerm(func=mdp.generated_commands, params={"command_name": "base_velocity"})
@@ -408,7 +396,9 @@ def _schedule(address: str, *stages: tuple[int, object]) -> CurrTerm:
         params={
             "address": address,
             "modify_fn": mdp.staged_value,
-            "modify_params": {"stages": [(_iterations(iteration), value) for iteration, value in stages]},
+            "modify_params": {
+                "stages": [(iteration * MICRODUCK_STEPS_PER_ITERATION, value) for iteration, value in stages]
+            },
         },
     )
 
@@ -425,7 +415,7 @@ class CurriculumCfg:
     action_rate_weight = _schedule(
         "rewards.action_rate_l2.weight", (500, -0.2), (750, -0.4), (1000, -0.6), (1250, -0.8), (1500, -1.0)
     )
-    head_pose_bias_weight = _schedule("rewards.head_pose_bias.weight", (600, 1.0), (1000, 2.0), (1500, 3.0))
+    head_pose_bias_weight = _schedule("rewards.head_pose_bias.weight", (600, -1.0), (1000, -2.0), (1500, -3.0))
     standing_envs = _schedule(
         "commands.base_velocity.rel_standing_envs", (500, 0.05), (750, 0.1), (1000, 0.15), (1500, 0.2), (2000, 0.25)
     )

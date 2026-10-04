@@ -129,15 +129,14 @@ class head_pose_bias_penalty(ManagerTermBase):
     def __call__(
         self, env: ManagerBasedRLEnv, command_name: str, tau_s: float, asset_cfg: SceneEntityCfg
     ) -> torch.Tensor:
-        """Return the negative absolute error averaged with time constant ``tau_s`` [s]."""
+        """Return the absolute error averaged with time constant ``tau_s`` [s]."""
         asset: Articulation = env.scene[asset_cfg.name]
         command = env.command_manager.get_command(command_name)
         measured = asset.data.joint_pos.torch[:, asset_cfg.joint_ids]
         error = measured - asset.data.default_joint_pos.torch[:, asset_cfg.joint_ids] - command
-        alpha = min(1.0, float(env.step_dt) / max(tau_s, 1e-06))
+        alpha = min(1.0, env.step_dt / tau_s)
         self._error_ema = (1.0 - alpha) * self._error_ema + alpha * error
-        penalty = -self._error_ema.abs().mean(dim=-1)
-        return penalty
+        return self._error_ema.abs().mean(dim=-1)
 
 
 def feet_air_time_windowed(

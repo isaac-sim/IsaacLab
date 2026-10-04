@@ -70,11 +70,6 @@ class MicroDuckVelocityCommand(UniformVelocityCommand):
     cfg: MicroDuckVelocityCommandCfg
     """Configuration for the command term."""
 
-    def __init__(self, cfg: MicroDuckVelocityCommandCfg, env: ManagerBasedRLEnv):
-        """Initialize the command term."""
-        super().__init__(cfg, env)
-        self.is_forward_env = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
-
     def _resample_command(self, env_ids: Sequence[int] | slice):
         if isinstance(env_ids, slice):
             env_ids = torch.arange(self.num_envs, device=self.device)[env_ids]
@@ -82,8 +77,7 @@ class MicroDuckVelocityCommand(UniformVelocityCommand):
             env_ids = torch.as_tensor(env_ids, dtype=torch.long, device=self.device)
         super()._resample_command(env_ids)
         r = torch.empty(len(env_ids), device=self.device)
-        self.is_forward_env[env_ids] = r.uniform_(0.0, 1.0) <= self.cfg.rel_forward_envs
-        forward_ids = env_ids[self.is_forward_env[env_ids]]
+        forward_ids = env_ids[r.uniform_(0.0, 1.0) <= self.cfg.rel_forward_envs]
         if len(forward_ids) > 0:
             self.vel_command_b[forward_ids, 0] = (
                 self.vel_command_b[forward_ids, 0].abs().clamp(min=self.cfg.forward_min_speed)

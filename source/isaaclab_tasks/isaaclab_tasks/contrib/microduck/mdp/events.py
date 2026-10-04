@@ -62,10 +62,10 @@ def randomize_bam_friction(
         env_ids = torch.arange(env.num_envs, device=env.device)
     elif isinstance(env_ids, slice):
         env_ids = torch.arange(env.num_envs, device=env.device)[env_ids]
+    scales = torch.empty(len(env_ids), 1, device=env.device).uniform_(*scale_range)
     for name, actuator_cfg in asset.cfg.actuators.items():
         if not isinstance(actuator_cfg, BamActuatorCfg):
             continue
-        scales = torch.empty(len(env_ids), 1, device=env.device).uniform_(*scale_range)
         num_group_joints = read_group_parameter(asset.actuators, name, "drive", "friction_scale").shape[1]
         write_group_parameter(
             asset.actuators,
