@@ -5,6 +5,8 @@
 
 """State-only SO-101 cube lifting with fresh tabletop resets and full gravity."""
 
+from isaaclab_newton.sim.schemas import MujocoCollisionCfg, NewtonCollisionCfg
+
 from isaaclab.assets import ArticulationCfg, RigidObjectCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg, mdp
 from isaaclab.managers import EventTermCfg as EventTerm
@@ -15,7 +17,7 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.sensors import ContactSensorCfg, FrameTransformerCfg
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
-from isaaclab.sim import MassCfg
+from isaaclab.sim import MassCfg, UsdPhysicsCollisionCfg
 from isaaclab.utils import configclass
 from isaaclab.visualizers import VisualizerCfg
 
@@ -37,6 +39,11 @@ class SO101SceneCfg(lift.SceneCfg):
         prim_path="{ENV_REGEX_NS}/Robot",
         spawn=SO101_CFG.spawn.replace(
             activate_contact_sensors=True,
+            # Allow overrides on the asset's instanced finger collision meshes.
+            make_uninstanceable=True,
+            collision_props={
+                "/(gripper|moving_jaw_so101_v1)/collisions/.*": [NewtonCollisionCfg(contact_margin=0.0015)],
+            },
             variants={
                 "Robot": "robot",
                 "Sensor": "sensors",
@@ -62,7 +69,14 @@ class SO101SceneCfg(lift.SceneCfg):
     object: RigidObjectCfg = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/Object",
         spawn=lift.ObjectCfg().cube.replace(
-            size=(0.03, 0.03, 0.03), mass_props=MassCfg(mass=0.05), activate_contact_sensors=True
+            size=(0.03, 0.03, 0.03),
+            mass_props=MassCfg(mass=0.05),
+            activate_contact_sensors=True,
+            collision_props=[
+                UsdPhysicsCollisionCfg(),
+                # Override the gripper's softer defaults to limit cube penetration under jaw torque.
+                MujocoCollisionCfg(priority=1, solref=(0.01, 1.0)),
+            ],
         ),
         # Start 2 mm above the resting center height to avoid penetration on reset.
         init_state=RigidObjectCfg.InitialStateCfg(pos=(-0.43, 0.2, 0.272)),
