@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 
 import torch
 
+from isaaclab.envs.mdp import body_projected_gravity_b
 from isaaclab.managers import ManagerTermBase, RewardTermCfg, SceneEntityCfg
 from isaaclab.utils import math as math_utils
 from isaaclab.utils.string import resolve_matching_names_values
@@ -20,21 +21,6 @@ if TYPE_CHECKING:
     from isaaclab.assets import Articulation
     from isaaclab.envs import ManagerBasedRLEnv
     from isaaclab.sensors import ContactSensor
-
-
-def _required_entity_cfg(cfg: RewardTermCfg, key: str, term_name: str) -> SceneEntityCfg:
-    """Fetch a scene entity configuration that a stateful term needs at construction time."""
-    entity_cfg = cfg.params.get(key)
-    if not isinstance(entity_cfg, SceneEntityCfg):
-        raise ValueError(f"{term_name} requires a SceneEntityCfg under {key!r}, received {entity_cfg!r}.")
-    return entity_cfg
-
-
-def _required_joint_ids(entity_cfg: SceneEntityCfg, key: str, term_name: str) -> list[int]:
-    """Fetch an explicit joint selection from a resolved scene entity configuration."""
-    if isinstance(entity_cfg.joint_ids, slice):
-        raise ValueError(f"{term_name} requires {key!r} to select joint names with preserve_order=True.")
-    return entity_cfg.joint_ids
 
 
 def _command_magnitude(env: ManagerBasedRLEnv, command_name: str) -> torch.Tensor:
@@ -74,17 +60,9 @@ def track_angular_velocity(
     return torch.exp(-(z_error + xy_error) / std**2)
 
 
-def upright(env: ManagerBasedRLEnv, std: float, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
-    """Reward keeping a body's frame aligned with gravity, using a Gaussian kernel."""
-    asset: Articulation = env.scene[asset_cfg.name]
-    if asset_cfg.body_names is None:
-        projected_gravity_b = asset.data.projected_gravity_b.torch
-    else:
-        if len(asset_cfg.body_ids) != 1:
-            raise ValueError(f"upright requires one body, received {asset_cfg.body_names}.")
-        body_quat_w = asset.data.body_link_quat_w.torch[:, asset_cfg.body_ids]
-        gravity_dir_w = torch.nn.functional.normalize(asset.data.GRAVITY_VEC_W.torch, dim=-1).unsqueeze(1)
-        projected_gravity_b = math_utils.quat_apply_inverse(body_quat_w, gravity_dir_w).squeeze(1)
+def upright(env: ManagerBasedRLEnv, std: float, asset_cfg: SceneEntityCfg) -> torch.Tensor:
+    """Reward keeping one body's frame aligned with gravity, using a Gaussian kernel."""
+    projected_gravity_b = body_projected_gravity_b(env, asset_cfg)
     xy_squared = torch.sum(torch.square(projected_gravity_b[:, :2]), dim=1)
     xy_squared = torch.nan_to_num(xy_squared, nan=1.0, posinf=1.0, neginf=1.0)
     return torch.exp(-xy_squared / std**2)
@@ -94,16 +72,12 @@ class pose_mode_switch(ManagerTermBase):
     """Reward holding the stand pose, with a per-joint tolerance that widens once the robot moves."""
 
     def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
-        """Resolve the three per-joint standard-deviation vectors."""
+        """Resolve the standing and walking per-joint standard deviations."""
         super().__init__(cfg, env)
-        asset_cfg = _required_entity_cfg(cfg, "asset_cfg", self.__name__)
-        joint_ids = _required_joint_ids(asset_cfg, "asset_cfg", self.__name__)
-        asset: Articulation = env.scene[asset_cfg.name]
-        joint_names = [asset.joint_names[index] for index in joint_ids]
+        asset_cfg: SceneEntityCfg = cfg.params["asset_cfg"]
+        joint_names = [env.scene[asset_cfg.name].joint_names[index] for index in asset_cfg.joint_ids]
         self._std = {}
-        for key in ("std_standing", "std_walking", "std_running"):
-            if key not in cfg.params:
-                raise ValueError(f"{self.__name__} requires {key!r} to map joint names to standard deviations.")
+        for key in ("std_standing", "std_walking"):
             _, _, values = resolve_matching_names_values(cfg.params[key], joint_names)
             self._std[key] = torch.tensor(values, dtype=torch.float32, device=env.device).unsqueeze(0)
 
@@ -113,22 +87,13 @@ class pose_mode_switch(ManagerTermBase):
         command_name: str,
         std_standing: dict[str, float],
         std_walking: dict[str, float],
-        std_running: dict[str, float],
         walking_threshold: float,
-        running_threshold: float,
         asset_cfg: SceneEntityCfg,
     ) -> torch.Tensor:
         """Compute the posture reward."""
         asset: Articulation = env.scene[asset_cfg.name]
-        total_speed = _command_magnitude(env, command_name)
-        standing_mask = (total_speed < walking_threshold).float().unsqueeze(1)
-        walking_mask = ((total_speed >= walking_threshold) & (total_speed < running_threshold)).float().unsqueeze(1)
-        running_mask = (total_speed >= running_threshold).float().unsqueeze(1)
-        std = (
-            self._std["std_standing"] * standing_mask
-            + self._std["std_walking"] * walking_mask
-            + self._std["std_running"] * running_mask
-        )
+        standing = (_command_magnitude(env, command_name) < walking_threshold).unsqueeze(1)
+        std = torch.where(standing, self._std["std_standing"], self._std["std_walking"])
         joint_pos = asset.data.joint_pos.torch[:, asset_cfg.joint_ids]
         default_joint_pos = asset.data.default_joint_pos.torch[:, asset_cfg.joint_ids]
         error_squared = torch.square(joint_pos - default_joint_pos)
@@ -152,9 +117,7 @@ class head_pose_bias_penalty(ManagerTermBase):
     def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
         """Allocate the per-environment moving average."""
         super().__init__(cfg, env)
-        asset_cfg = _required_entity_cfg(cfg, "asset_cfg", self.__name__)
-        joint_ids = _required_joint_ids(asset_cfg, "asset_cfg", self.__name__)
-        self._error_ema = torch.zeros(env.num_envs, len(joint_ids), device=env.device)
+        self._error_ema = torch.zeros(env.num_envs, len(cfg.params["asset_cfg"].joint_ids), device=env.device)
 
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
         """Forget the average for the environments that restarted."""
@@ -211,9 +174,7 @@ class foot_swing_height(ManagerTermBase):
     def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
         """Allocate the per-foot peak heights."""
         super().__init__(cfg, env)
-        sensor_cfg = _required_entity_cfg(cfg, "sensor_cfg", self.__name__)
-        contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
-        num_feet = len(contact_sensor.data.current_contact_time.torch[0, sensor_cfg.body_ids])
+        num_feet = len(cfg.params["sensor_cfg"].body_ids)
         self._peak_heights = torch.zeros(env.num_envs, num_feet, device=env.device)
 
     def reset(self, env_ids: Sequence[int] | None = None) -> None:

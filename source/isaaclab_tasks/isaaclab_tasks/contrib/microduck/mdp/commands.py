@@ -33,12 +33,6 @@ class UniformPoseDeltaCommand(CommandTerm):
         self.dim = len(cfg.ranges)
         self._command = torch.zeros(self.num_envs, self.dim, device=self.device)
 
-    def __str__(self) -> str:
-        msg = "UniformPoseDeltaCommand:\n"
-        msg += f"\tCommand dimension: {tuple(self.command.shape[1:])}\n"
-        msg += f"\tResampling time range: {self.cfg.resampling_time_range}\n"
-        return msg
-
     @property
     def command(self) -> torch.Tensor:
         """Pose deltas [m or rad, depending on dimension], shape (num_envs, dim)."""
@@ -56,7 +50,6 @@ class UniformPoseDeltaCommand(CommandTerm):
         num_envs = len(env_ids)
         if num_envs == 0:
             return
-        assert len(self.cfg.ranges) == self.dim, f"Expected {self.dim} command ranges, received {len(self.cfg.ranges)}."
         r = torch.empty(num_envs, device=self.device)
         for dim, (low, high) in enumerate(self.cfg.ranges):
             self._command[env_ids, dim] = r.uniform_(low, high)
@@ -82,12 +75,6 @@ class MicroDuckVelocityCommand(UniformVelocityCommand):
         super().__init__(cfg, env)
         self.is_forward_env = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
 
-    def __str__(self) -> str:
-        msg = super().__str__().replace("UniformVelocityCommand:", "MicroDuckVelocityCommand:", 1)
-        msg += f"\n\tForward-only probability: {self.cfg.rel_forward_envs}"
-        msg += f"\n\tTurn-in-place probability: {self.cfg.rel_turn_in_place_envs}"
-        return msg
-
     def _resample_command(self, env_ids: Sequence[int] | slice):
         if isinstance(env_ids, slice):
             env_ids = torch.arange(self.num_envs, device=self.device)[env_ids]
@@ -98,7 +85,9 @@ class MicroDuckVelocityCommand(UniformVelocityCommand):
         self.is_forward_env[env_ids] = r.uniform_(0.0, 1.0) <= self.cfg.rel_forward_envs
         forward_ids = env_ids[self.is_forward_env[env_ids]]
         if len(forward_ids) > 0:
-            self.vel_command_b[forward_ids, 0] = self.vel_command_b[forward_ids, 0].abs().clamp(min=0.3)
+            self.vel_command_b[forward_ids, 0] = (
+                self.vel_command_b[forward_ids, 0].abs().clamp(min=self.cfg.forward_min_speed)
+            )
             self.vel_command_b[forward_ids, 1] = 0.0
             self.vel_command_b[forward_ids, 2] = 0.0
         if self.cfg.rel_turn_in_place_envs <= 0.0:
@@ -111,7 +100,7 @@ class MicroDuckVelocityCommand(UniformVelocityCommand):
         max_rate = max(abs(low), abs(high))
         turn_r = torch.empty(len(turn_ids), device=self.device)
         sign = torch.where(turn_r.uniform_(0.0, 1.0) < 0.5, -1.0, 1.0)
-        magnitude = turn_r.uniform_(0.4 * max_rate, max_rate)
+        magnitude = turn_r.uniform_(self.cfg.turn_in_place_min_fraction * max_rate, max_rate)
         self.vel_command_b[turn_ids, 2] = sign * magnitude
         self.is_standing_env[turn_ids] = False
 
@@ -125,3 +114,7 @@ class MicroDuckVelocityCommandCfg(UniformVelocityCommandCfg):
     """Probability that an environment is commanded to walk straight forward. Defaults to 0.0."""
     rel_turn_in_place_envs: float = 0.0
     """Probability that an environment is commanded to turn on the spot. Defaults to 0.0."""
+    forward_min_speed: float = 0.3
+    """Minimum forward speed of forward-only commands [m/s]."""
+    turn_in_place_min_fraction: float = 0.4
+    """Minimum turn-in-place yaw rate, as a fraction of the largest ``ang_vel_z`` bound [-]."""

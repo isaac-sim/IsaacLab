@@ -7,49 +7,47 @@
 
 from __future__ import annotations
 
+import math
 from typing import TYPE_CHECKING
 
 import torch
 
-from isaaclab.managers import SceneEntityCfg
+from isaaclab.actuators import BamActuatorCfg
+from isaaclab.actuators.newton import read_group_parameter, write_group_parameter
+from isaaclab.managers import EventTermCfg, ManagerTermBase, SceneEntityCfg
+from isaaclab.utils.math import quat_from_angle_axis
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation
     from isaaclab.envs import ManagerBasedEnv
-_ENCODER_BIAS_ATTR = "_microduck_encoder_bias"
-
-
-def encoder_bias(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
-    """The per-environment, per-joint encoder bias [rad] of an articulation."""
-    store: dict[str, torch.Tensor] | None = getattr(env, _ENCODER_BIAS_ATTR, None)
-    if store is None:
-        store = {}
-        setattr(env, _ENCODER_BIAS_ATTR, store)
-    bias = store.get(asset_cfg.name)
-    if bias is None:
-        asset: Articulation = env.scene[asset_cfg.name]
-        bias = torch.zeros(env.num_envs, asset.num_joints, device=env.device)
-        store[asset_cfg.name] = bias
-    return bias
 
 
 def randomize_encoder_bias(
-    env: ManagerBasedEnv,
-    env_ids: torch.Tensor | None,
-    bias_range: tuple[float, float],
-    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    env: ManagerBasedEnv, env_ids: torch.Tensor | None, bias_range: tuple[float, float], action_name: str = "joint_pos"
 ) -> None:
-    """Sample joint-encoder calibration errors uniformly within ``bias_range`` [rad]."""
-    bias = encoder_bias(env, asset_cfg)
-    if env_ids is None:
-        env_ids = torch.arange(env.num_envs, device=env.device)
-    joint_ids = asset_cfg.joint_ids
-    num_joints = bias.shape[1] if isinstance(joint_ids, slice) else len(joint_ids)
-    samples = torch.empty(len(env_ids), num_joints, device=env.device).uniform_(*bias_range)
-    if isinstance(joint_ids, slice):
-        bias[env_ids] = samples
-    else:
-        bias[env_ids[:, None], torch.as_tensor(joint_ids, device=env.device)] = samples
+    """Sample joint-encoder calibration errors [rad] into the biased joint-position action term."""
+    bias = env.action_manager.get_term(action_name).encoder_bias
+    rows = slice(None) if env_ids is None else env_ids
+    bias[rows] = torch.empty_like(bias[rows]).uniform_(*bias_range)
+
+
+class randomize_imu_misalignment(ManagerTermBase):
+    """Sample a fixed IMU mounting misalignment per environment.
+
+    The misaligned IMU observations read :attr:`quat` through the event manager.
+    """
+
+    def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv):
+        super().__init__(cfg, env)
+        self.quat = torch.zeros(env.num_envs, 4, device=env.device)
+        self.quat[:, 0] = 1.0
+
+    def __call__(self, env: ManagerBasedEnv, env_ids: torch.Tensor | None, max_angle_deg: float) -> None:
+        """Draw a uniformly random axis and an angle in ``[0, max_angle_deg]`` [deg]."""
+        num = env.num_envs if env_ids is None else len(env_ids)
+        axis = torch.nn.functional.normalize(torch.randn(num, 3, device=env.device), dim=-1)
+        angles = torch.rand(num, device=env.device) * math.radians(max_angle_deg)
+        self.quat[slice(None) if env_ids is None else env_ids] = quat_from_angle_axis(angles, axis)
 
 
 def randomize_bam_friction(
@@ -59,9 +57,6 @@ def randomize_bam_friction(
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
 ) -> None:
     """Sample one friction-budget multiplier per environment and broadcast it to all BAM servos."""
-    from isaaclab.actuators import BamActuatorCfg
-    from isaaclab.actuators.newton import read_group_parameter, write_group_parameter
-
     asset: Articulation = env.scene[asset_cfg.name]
     if env_ids is None:
         env_ids = torch.arange(env.num_envs, device=env.device)

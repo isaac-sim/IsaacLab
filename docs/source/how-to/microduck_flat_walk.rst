@@ -8,14 +8,9 @@
 MicroDuck Flat Walking
 ========================
 
-``IsaacContrib-Velocity-Flat-MicroDuck`` trains the standard walking MicroDuck on a plane with
-Newton MJWarp and :ref:`BAM servos <actuators-bam>`. It ports the walking recipe from
-`microduck_rl <https://github.com/pollen-robotics/microduck_rl>`_ through the original Isaac Lab
-MicroDuck branch. This task uses the regular walking asset; roller and backlash tasks are not registered.
-
-The walking USD is currently loaded from
-``source/isaaclab_assets/data/Robots/PollenRobotics/MicroDuck/microduck_walk.usd``.
-Place the authored asset there before running. It is kept outside Git while asset-server publication is pending.
+``IsaacContrib-Velocity-Flat-MicroDuck`` trains the walking MicroDuck on a plane with Newton MJWarp and
+:ref:`BAM servos <actuators-bam>`, porting the recipe from
+`microduck_rl <https://github.com/pollen-robotics/microduck_rl>`_.
 
 Train with RSL-RL:
 
@@ -35,23 +30,12 @@ Play an RSL-RL checkpoint:
 Policy interface
 ----------------
 
-The control period is 0.02 s: four physics steps of 0.005 s. The 14 actions are joint-position
-offsets [rad] from the standing pose, ordered left leg, neck/head, then right leg. The explicit
-joint order in ``flat_env_cfg.py`` is used even when USD joint ordering differs.
+The policy runs at 50 Hz (four 0.005 s physics steps). Its 14 actions are joint-position offsets [rad]
+from the standing pose, ordered left leg, neck and head, then right leg, independent of the USD joint order.
 
-The actor reads 61 values in this order: base angular velocity (3), projected gravity (3),
-joint-position offsets (14), joint velocities (14), previous actions (14), velocity commands (3),
-head-pose commands (4), and body-pose commands (6). The body command remains in the interface
-although its reward is disabled. The critic receives 76 values including privileged foot state.
+The actor reads 61 values: base angular velocity (3), projected gravity (3), joint-position offsets (14),
+joint velocities (14), previous actions (14), velocity commands (3), head-pose commands (4), and body-pose
+commands (6). The critic reads 76 values, including privileged foot state.
 
-Training retains the previous Lab task's encoder bias, shared IMU misalignment, observation delays,
-velocity/head command sampling, rewards, and staged curricula. BAM friction is resampled on every
-episode reset through the native drive; battery voltage and sag gain are sampled at construction.
-The line-search budget is 50 iterations because the original budget of 20 exhausted the current solver.
-Playback disables additive observation noise and interval pushes; encoder bias, IMU misalignment,
-latency, and reset randomization remain active.
-
-This is not an exact reproduction of mjlab physics. Foot heights use ankle frames with a sole-height
-offset, and the walking USD's self-contact signal covers sole against sole. Its disabled shin and
-battery-holder colliders cannot reproduce mjlab's self-collision-only geometry. A compatible policy
-layout therefore still requires a rollout check on the current assets and actuators.
+Training randomizes encoder bias, IMU misalignment, observation delay, BAM friction, mass, center of mass,
+and armature. Playback disables observation noise and pushes.
