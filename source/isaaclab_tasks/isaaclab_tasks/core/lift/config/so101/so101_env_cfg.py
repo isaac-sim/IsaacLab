@@ -56,14 +56,6 @@ class SO101SceneCfg(lift.SceneCfg):
             # The asset root is 3.008 cm above the clamp foot; the tabletop is at z=0.255 m.
             pos=(-0.16, 0.2, 0.22492),
             rot=(0.0, 0.0, -0.70710678, 0.70710678),
-            joint_pos={
-                "shoulder_pan": 0.15,
-                "shoulder_lift": -0.5,
-                "elbow_flex": 0.6,
-                "wrist_flex": 1.3,
-                "wrist_roll": 0.0,
-                "gripper": 0.8,
-            },
         ),
     )
     object: RigidObjectCfg = RigidObjectCfg(
@@ -146,7 +138,7 @@ class SO101JointPosActionCfg:
 
 @configclass
 class SO101EventCfg:
-    """Reset to a safe home pose and sample the cube on the tabletop."""
+    """Reset to the canonical asset pose and sample the cube on the tabletop."""
 
     reset = EventTerm(func=mdp.reset_scene_to_default, mode="reset", params={"reset_joint_targets": True})
     object = EventTerm(
@@ -207,7 +199,7 @@ class SO101LiftEnvCfg(ManagerBasedRLEnvCfg):
 
     Episodes last 12 s. Each reset samples the cube within a 5 cm square centered
     27 cm in front of the robot base, with yaw in
-    [-45, 45] degrees and returns the arm to an open-gripper home pose. Actor and critic
+    [-45, 45] degrees and returns the arm to the canonical asset pose. Actor and critic
     receive the same 39 state and command values; there are no cameras, point clouds, or history.
 
     Five actions command arm targets within joint limits, and one commands the jaw angle.
