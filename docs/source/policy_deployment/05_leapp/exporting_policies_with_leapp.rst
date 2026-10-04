@@ -32,7 +32,7 @@ or build your own deployment orchestration by parsing the YAML.
    :align: center
    :alt: Side-by-side UR10 reaching motions in Isaac Lab on the left and on a physical robot on the right.
 
-   A LEAPP-exported UR10e reaching policy deployed on a physical robot.
+   A LEAPP-exported ``Isaac-Reach-UR10`` policy deployed on a physical robot.
 
 Supported Workflows
 -------------------
