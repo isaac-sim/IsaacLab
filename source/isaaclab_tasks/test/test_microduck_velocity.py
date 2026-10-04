@@ -192,7 +192,7 @@ def test_microduck_reset_and_step(device, task):
             torch.testing.assert_close(head.func(env, **head.params), expected)
             head_bias = env.reward_manager.get_term_cfg("head_pose_bias")
             head_bias.func.reset()
-            expected = -play[:, 5:9].abs().mean(dim=-1) * env.step_dt / head_bias.params["tau_s"]
+            expected = play[:, 5:9].abs().mean(dim=-1) * env.step_dt / head_bias.params["tau_s"]
             torch.testing.assert_close(head_bias.func(env, **head_bias.params), expected)
             # Riding the play stops must not incur a servo soft-limit penalty.
             q[:, play_ids] = robot.data.soft_joint_pos_limits.torch[:, play_ids, 1] + 0.001
