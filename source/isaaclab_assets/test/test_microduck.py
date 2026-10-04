@@ -10,6 +10,8 @@ import pytest
 import torch
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonManager
 
+from pxr import Usd
+
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation, AssetBaseCfg
 from isaaclab.cloner import CloneCfg, clone_plan_from_env_0, replicate
@@ -45,6 +47,7 @@ pytestmark = [pytest.mark.integration, pytest.mark.kitless]
 def test_microduck_native_bam(asset_cfg, num_joints, device):
     """All variants drive 14 servos; play hinges affect feedback and passive joints stay undriven."""
     has_backlash = num_joints >= 28
+    servo_cfg = asset_cfg.actuators["servos"]
     sim_cfg = SimulationCfg(
         dt=0.005,
         device=device,
@@ -76,6 +79,7 @@ def test_microduck_native_bam(asset_cfg, num_joints, device):
         assert (robot.data.joint_armature.torch[:, servo_ids] > 0.0).all()
         assert (robot.data.joint_friction_coeff.torch[:, servo_ids] > 0.0).all()
         if has_backlash:
+            stage = Usd.Stage.Open(asset_cfg.spawn.usd_path)
             solver = NewtonManager._solver
             play_prims = {p.GetName(): p for p in stage.Traverse() if p.GetName().endswith("_backlash")}
             properties = ("jnt_range", "jnt_solref", "jnt_solimp", "dof_armature", "dof_damping")
