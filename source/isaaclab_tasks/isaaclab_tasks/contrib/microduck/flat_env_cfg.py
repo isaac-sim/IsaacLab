@@ -164,7 +164,6 @@ class ObservationsCfg:
             func=mdp.delayed_observation,
             params={
                 "term_func": mdp.base_ang_vel_imu_misaligned,
-                "term_params": {"max_angle_deg": _IMU_MISALIGNMENT_DEG},
                 "min_lag": 0,
                 "max_lag": 1,
                 "update_period": _IMU_DELAY_UPDATE_PERIOD,
@@ -175,7 +174,6 @@ class ObservationsCfg:
             func=mdp.delayed_observation,
             params={
                 "term_func": mdp.projected_gravity_imu_misaligned,
-                "term_params": {"max_angle_deg": _IMU_MISALIGNMENT_DEG},
                 "min_lag": 0,
                 "max_lag": 1,
                 "update_period": _IMU_DELAY_UPDATE_PERIOD,
@@ -249,6 +247,9 @@ class EventsCfg:
         },
     )
     encoder_bias = EventTerm(func=mdp.randomize_encoder_bias, mode="startup", params={"bias_range": (-0.015, 0.015)})
+    imu_misalignment = EventTerm(
+        func=mdp.randomize_imu_misalignment, mode="startup", params={"max_angle_deg": _IMU_MISALIGNMENT_DEG}
+    )
     mass_inertia = EventTerm(
         func=mdp.randomize_rigid_body_mass,
         mode="startup",
@@ -326,9 +327,7 @@ class RewardsCfg:
             "command_name": "base_velocity",
             "std_standing": {".*hip_yaw": 0.1, ".*hip_roll": 0.05, ".*hip_pitch": 0.15, ".*knee": 0.15, ".*ankle": 0.1},
             "std_walking": {".*hip_yaw": 0.3, ".*hip_roll": 0.05, ".*hip_pitch": 0.4, ".*knee": 0.4, ".*ankle": 0.25},
-            "std_running": {".*hip_yaw": 0.3, ".*hip_roll": 0.05, ".*hip_pitch": 0.4, ".*knee": 0.4, ".*ankle": 0.25},
             "walking_threshold": 0.01,
-            "running_threshold": 1.5,
             "asset_cfg": _LEG_JOINT_CFG,
         },
     )
@@ -402,85 +401,49 @@ class TerminationsCfg:
     nan_state = DoneTerm(func=mdp.robot_state_is_nan, time_out=False, params={"sensor_names": ("contact_forces",)})
 
 
+def _schedule(address: str, *stages: tuple[int, object]) -> CurrTerm:
+    """Step ``address`` through ``(upstream_iteration, value)`` stages after its configured value."""
+    return CurrTerm(
+        func=mdp.modify_term_cfg,
+        params={
+            "address": address,
+            "modify_fn": mdp.staged_value,
+            "modify_params": {"stages": [(_iterations(iteration), value) for iteration, value in stages]},
+        },
+    )
+
+
+def _com_range(half_width: float) -> dict[str, tuple[float, float]]:
+    """Symmetric per-axis center-of-mass offset range [m]."""
+    return {axis: (-half_width, half_width) for axis in ("x", "y", "z")}
+
+
 @configclass
 class CurriculumCfg:
     """Curriculum terms for the MDP."""
 
-    action_rate_weight = CurrTerm(
-        func=mdp.reward_weight_stages,
-        params={
-            "reward_name": "action_rate_l2",
-            "weight_stages": [
-                {"step": _iterations(0), "weight": -0.1},
-                {"step": _iterations(500), "weight": -0.2},
-                {"step": _iterations(750), "weight": -0.4},
-                {"step": _iterations(1000), "weight": -0.6},
-                {"step": _iterations(1250), "weight": -0.8},
-                {"step": _iterations(1500), "weight": -1.0},
-            ],
-        },
+    action_rate_weight = _schedule(
+        "rewards.action_rate_l2.weight", (500, -0.2), (750, -0.4), (1000, -0.6), (1250, -0.8), (1500, -1.0)
     )
-    head_pose_bias_weight = CurrTerm(
-        func=mdp.reward_weight_stages,
-        params={
-            "reward_name": "head_pose_bias",
-            "weight_stages": [
-                {"step": _iterations(0), "weight": 0.0},
-                {"step": _iterations(600), "weight": 1.0},
-                {"step": _iterations(1000), "weight": 2.0},
-                {"step": _iterations(1500), "weight": 3.0},
-            ],
-        },
+    head_pose_bias_weight = _schedule("rewards.head_pose_bias.weight", (600, 1.0), (1000, 2.0), (1500, 3.0))
+    standing_envs = _schedule(
+        "commands.base_velocity.rel_standing_envs", (500, 0.05), (750, 0.1), (1000, 0.15), (1500, 0.2), (2000, 0.25)
     )
-    standing_envs = CurrTerm(
-        func=mdp.standing_envs_stages,
-        params={
-            "command_name": "base_velocity",
-            "standing_stages": [
-                {"step": _iterations(0), "rel_standing_envs": 0.02},
-                {"step": _iterations(500), "rel_standing_envs": 0.05},
-                {"step": _iterations(750), "rel_standing_envs": 0.1},
-                {"step": _iterations(1000), "rel_standing_envs": 0.15},
-                {"step": _iterations(1500), "rel_standing_envs": 0.2},
-                {"step": _iterations(2000), "rel_standing_envs": 0.25},
-            ],
-        },
+    head_pose_range = _schedule(
+        "commands.head_pose.ranges",
+        (500, ((-0.17, 0.17), (-0.17, 0.17), (-0.21, 0.21), (-0.047, 0.047))),
+        (1000, ((-0.39, 0.39), (-0.39, 0.39), (-0.49, 0.49), (-0.11, 0.11))),
+        (1500, ((-0.72, 0.72), (-0.72, 0.72), (-0.91, 0.91), (-0.2, 0.2))),
+        (2000, ((-1.1, 1.1), (-1.1, 1.1), (-1.4, 1.4), (-0.31, 0.31))),
     )
-    head_pose_range = CurrTerm(
-        func=mdp.command_range_stages,
-        params={
-            "command_name": "head_pose",
-            "range_stages": [
-                {"step": _iterations(0), "ranges": ((-0.05, 0.05), (-0.05, 0.05), (-0.07, 0.07), (-0.015, 0.015))},
-                {"step": _iterations(500), "ranges": ((-0.17, 0.17), (-0.17, 0.17), (-0.21, 0.21), (-0.047, 0.047))},
-                {"step": _iterations(1000), "ranges": ((-0.39, 0.39), (-0.39, 0.39), (-0.49, 0.49), (-0.11, 0.11))},
-                {"step": _iterations(1500), "ranges": ((-0.72, 0.72), (-0.72, 0.72), (-0.91, 0.91), (-0.2, 0.2))},
-                {"step": _iterations(2000), "ranges": ((-1.1, 1.1), (-1.1, 1.1), (-1.4, 1.4), (-0.31, 0.31))},
-            ],
-        },
+    com_range = _schedule(
+        "events.randomize_com.params.com_range",
+        (500, _com_range(0.005)),
+        (1000, _com_range(0.01)),
+        (1500, _com_range(0.015)),
     )
-    com_range = CurrTerm(
-        func=mdp.event_range_stages,
-        params={
-            "event_name": "randomize_com",
-            "range_stages": [
-                {"step": _iterations(0), "range": 0.003},
-                {"step": _iterations(500), "range": 0.005},
-                {"step": _iterations(1000), "range": 0.01},
-                {"step": _iterations(1500), "range": 0.015},
-            ],
-        },
-    )
-    head_com_range = CurrTerm(
-        func=mdp.event_range_stages,
-        params={
-            "event_name": "randomize_head_com",
-            "range_stages": [
-                {"step": _iterations(0), "range": 0.003},
-                {"step": _iterations(500), "range": 0.005},
-                {"step": _iterations(1000), "range": 0.01},
-            ],
-        },
+    head_com_range = _schedule(
+        "events.randomize_head_com.params.com_range", (500, _com_range(0.005)), (1000, _com_range(0.01))
     )
 
 

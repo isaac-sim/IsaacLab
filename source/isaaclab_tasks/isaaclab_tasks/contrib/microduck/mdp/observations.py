@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-import math
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
@@ -16,9 +15,7 @@ import torch
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers.manager_base import ManagerTermBase
 from isaaclab.utils.buffers import CircularBuffer
-from isaaclab.utils.math import quat_apply, quat_from_angle_axis
-
-from .events import encoder_bias
+from isaaclab.utils.math import quat_apply
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -27,51 +24,40 @@ if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
     from isaaclab.managers import ObservationTermCfg
     from isaaclab.sensors import ContactSensor
-_IMU_MISALIGNMENT_ATTR = "_microduck_imu_misalignment"
 
 
 def joint_pos_rel_biased(
-    env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"), biased: bool = True
+    env: ManagerBasedEnv,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    biased: bool = True,
+    action_name: str = "joint_pos",
 ) -> torch.Tensor:
-    """Encoder joint offsets from the default pose [rad], in the selected joint order."""
+    """Encoder joint offsets from the default pose [rad].
+
+    ``asset_cfg`` must select the joints of the ``action_name`` action term, in the same order.
+    """
     asset: Articulation = env.scene[asset_cfg.name]
     joint_pos = asset.data.joint_pos.torch[:, asset_cfg.joint_ids]
     if biased:
-        joint_pos = joint_pos + encoder_bias(env, asset_cfg)[:, asset_cfg.joint_ids]
+        joint_pos = joint_pos + env.action_manager.get_term(action_name).encoder_bias
     return joint_pos - asset.data.default_joint_pos.torch[:, asset_cfg.joint_ids]
 
 
-def _imu_misalignment_quat(env: ManagerBasedEnv, max_angle_rad: float) -> torch.Tensor:
-    """The per-environment IMU mounting-misalignment rotation, sampled once per run."""
-    cached: tuple[float, torch.Tensor] | None = getattr(env, _IMU_MISALIGNMENT_ATTR, None)
-    if cached is not None:
-        angle, quat = cached
-        if angle != max_angle_rad:
-            raise ValueError("IMU observations must use the same maximum misalignment angle.")
-        return quat
-    axis = torch.randn(env.num_envs, 3, device=env.device)
-    axis = axis / (axis.norm(dim=-1, keepdim=True) + 1e-08)
-    angles = torch.rand(env.num_envs, device=env.device) * max_angle_rad
-    quat = quat_from_angle_axis(angles, axis)
-    setattr(env, _IMU_MISALIGNMENT_ATTR, (max_angle_rad, quat))
-    return quat
-
-
 def projected_gravity_imu_misaligned(
-    env: ManagerBasedEnv, max_angle_deg: float, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
+    env: ManagerBasedEnv, event_name: str = "imu_misalignment", asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
 ) -> torch.Tensor:
-    """Gravity projected on the root frame, seen through a misaligned IMU."""
+    """Gravity projected on the root frame, seen through the misaligned IMU of event ``event_name``."""
     asset: Articulation = env.scene[asset_cfg.name]
-    quat = _imu_misalignment_quat(env, math.radians(max_angle_deg))
+    quat = env.event_manager.get_term_cfg(event_name).func.quat
     return quat_apply(quat, asset.data.projected_gravity_b.torch)
 
 
 def base_ang_vel_imu_misaligned(
-    env: ManagerBasedEnv, max_angle_deg: float, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
+    env: ManagerBasedEnv, event_name: str = "imu_misalignment", asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
 ) -> torch.Tensor:
-    """Root angular velocity [rad/s], rotated by the same IMU misalignment as gravity."""
+    """Root angular velocity [rad/s], seen through the misaligned IMU of event ``event_name``."""
     asset: Articulation = env.scene[asset_cfg.name]
-    quat = _imu_misalignment_quat(env, math.radians(max_angle_deg))
+    quat = env.event_manager.get_term_cfg(event_name).func.quat
     return quat_apply(quat, asset.data.root_ang_vel_b.torch)
 
 
@@ -180,10 +166,7 @@ def foot_contact_forces_safe(env: ManagerBasedEnv, sensor_cfg: SceneEntityCfg) -
 def foot_air_time_safe(env: ManagerBasedEnv, sensor_cfg: SceneEntityCfg) -> torch.Tensor:
     """Air time [s] per foot, with non-finite values replaced by zero."""
     sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
-    air_time = sensor.data.current_air_time
-    if air_time is None:
-        raise RuntimeError(f"The contact sensor '{sensor_cfg.name}' does not track air time.")
-    return _finite(air_time.torch[:, sensor_cfg.body_ids])
+    return _finite(sensor.data.current_air_time.torch[:, sensor_cfg.body_ids])
 
 
 def foot_height_safe(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:

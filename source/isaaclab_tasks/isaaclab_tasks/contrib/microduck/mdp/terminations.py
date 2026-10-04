@@ -32,10 +32,6 @@ def robot_state_is_nan(
     is_broken |= ~torch.isfinite(data.root_link_lin_vel_w.torch).all(dim=1)
     is_broken |= ~torch.isfinite(data.root_link_ang_vel_w.torch).all(dim=1)
     for name in sensor_names:
-        if name not in env.scene.sensors:
-            continue
-        net_forces_w = env.scene.sensors[name].data.net_forces_w
-        if net_forces_w is None:
-            continue
-        is_broken |= ~torch.isfinite(net_forces_w.torch).flatten(start_dim=1).all(dim=1)
+        net_forces_w = env.scene.sensors[name].data.net_forces_w.torch
+        is_broken |= ~torch.isfinite(net_forces_w).flatten(start_dim=1).all(dim=1)
     return is_broken
