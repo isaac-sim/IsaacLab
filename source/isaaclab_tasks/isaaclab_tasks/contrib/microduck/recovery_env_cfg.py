@@ -15,9 +15,9 @@ from isaaclab.managers import (
 )
 from isaaclab.utils import configclass
 
-from isaaclab_assets import MICRODUCK_ALLCOLLISIONS_BACKLASH_CFG
-
 from isaaclab_tasks.utils import resolve_presets
+
+from isaaclab_assets import MICRODUCK_ALLCOLLISIONS_BACKLASH_CFG
 
 from .flat_env_cfg import MICRODUCK_JOINT_NAMES, MicroDuckVelocityFlatEnvCfg
 from .mdp import recovery as recovery_mdp
