@@ -5,7 +5,9 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+import inspect
+from collections.abc import Callable, Sequence
+from typing import Any
 
 import torch
 import warp as wp
@@ -113,17 +115,24 @@ def warp_capturable(capturable: bool):
     return decorator
 
 
-def is_warp_capturable(func) -> bool:
-    """Check if a term function is CUDA-graph-capturable.
+def is_warp_capturable(func, params: dict[str, Any] | None = None) -> bool:
+    """Check if a term is CUDA-graph-capturable.
 
-    Checks ``_warp_capturable`` on the function and its ``__wrapped__`` target.
-    Returns True (capturable) by default if no annotation is found.
+    Checks ``_warp_capturable`` on the term function or class (the class of an instance) and on its
+    ``__wrapped__`` target. The annotation is a bool, or a predicate that decides from the term's
+    parameters (see :class:`WarpCapturable`). Returns True (capturable) if no annotation is found.
+
+    Args:
+        func: The term function, class, or class instance.
+        params: The term's parameters, passed to a predicate annotation. Defaults to None (no parameters).
     """
+    if not (isinstance(func, type) or inspect.isroutine(func)):
+        func = type(func)
     for f in (func, getattr(func, "__wrapped__", None)):
         if f is not None:
             val = getattr(f, "_warp_capturable", None)
             if val is not None:
-                return val
+                return val if isinstance(val, bool) else bool(val(params or {}))
     return True
 
 
@@ -146,53 +155,67 @@ class WarpCapturable:
         def reset_root_state_uniform(env, env_mask, ...):
             ...
 
-        @WarpCapturable(False, reason="calls write_root_pose_to_sim")
-        def push_by_setting_velocity(env, env_mask, ...):
+        @WarpCapturable(False, reason="notifies the solver of a model change")
+        class randomize_rigid_body_com(ManagerTermBase):
+            ...
+
+        @WarpCapturable(lambda params: params.get("sensor_cfg") is None, reason="refreshes the sensor on the host")
+        def base_height_l2(env, out, target_height, asset_cfg=..., sensor_cfg=None):
             ...
 
     - ``@WarpCapturable(True)`` or no decorator: capturable, returned unwrapped.
-    - ``@WarpCapturable(False)``: sets ``func._warp_capturable = False``, wraps with
+    - ``@WarpCapturable(False)`` on a function: sets ``func._warp_capturable = False`` and wraps it with a
       runtime guard that raises if ``wp.get_device().is_capturing`` is ``True``.
+    - ``@WarpCapturable(False)`` on a class term: annotates the class and guards its ``__call__``. The term's
+      ``reset`` is still recorded; decorate the ``reset`` method itself to keep it out of the recording.
+    - ``@WarpCapturable(predicate)``: the term is capturable for the parameters the predicate accepts. The
+      predicate receives the term's parameters as a dict, and the guard raises only for rejected ones.
     """
 
-    def __init__(self, capturable: bool, *, reason: str | None = None):
+    def __init__(self, capturable: bool | Callable[[dict[str, Any]], bool], *, reason: str | None = None):
         self._capturable = capturable
         self._reason = reason
 
-    def __call__(self, func):
-        """Decorate *func* with capture safety annotation and optional runtime guard."""
+    def __call__(self, target):
+        """Decorate a term function or class with the capture safety annotation and runtime guard."""
+        if isinstance(self._capturable, bool):
+            target._warp_capturable = self._capturable
+            if self._capturable:
+                return target
+        else:
+            # a plain function stored on a class would bind to instances
+            target._warp_capturable = staticmethod(self._capturable) if isinstance(target, type) else self._capturable
+        if isinstance(target, type):
+            target.__call__ = self._guarded(target.__call__)
+            return target
+        return self._guarded(target)
+
+    def _guarded(self, func):
+        """Wrap *func* so that calling it during CUDA graph capture with rejected parameters raises."""
         import functools
 
-        func._warp_capturable = self._capturable
-        if self._capturable:
-            return func
-
+        capturable = self._capturable
         reason = self._reason
 
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
-            if wp.get_device().is_capturing:
-                msg = f"'{func.__qualname__}' is marked @WarpCapturable(False) but called during CUDA graph capture."
+            if wp.get_device().is_capturing and (isinstance(capturable, bool) or not capturable(kwargs)):
+                msg = (
+                    f"'{func.__qualname__}' is not capturable with these parameters but was called during CUDA"
+                    " graph capture."
+                )
                 if reason:
                     msg = f"{msg} {reason}"
                 raise RuntimeError(msg)
             return func(*args, **kwargs)
 
-        wrapper._warp_capturable = False
+        wrapper._warp_capturable = capturable
         return wrapper
 
     @staticmethod
-    def is_capturable(func) -> bool:
-        """Check capturability annotation. Default: ``True``.
-
-        Checks ``__wrapped__`` for decorated functions to handle stacked decorators.
-        """
-        for f in (func, getattr(func, "__wrapped__", None)):
-            if f is not None:
-                val = getattr(f, "_warp_capturable", None)
-                if val is not None:
-                    return val
-        return True
+    def is_capturable(func, params: dict[str, Any] | None = None) -> bool:
+        """Check the capturability annotation. See :func:`is_warp_capturable`."""
+        return is_warp_capturable(func, params)
 
 
 @wp.kernel

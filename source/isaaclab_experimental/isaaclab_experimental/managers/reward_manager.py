@@ -20,9 +20,11 @@ from prettytable import PrettyTable
 
 from isaaclab.managers.manager_term_cfg import RewardTermCfg
 
+from isaaclab_experimental.utils.warp import is_warp_capturable
 from isaaclab_experimental.utils.warp.kernels import compute_reset_scale, count_masked
+from isaaclab_experimental.utils.warp_capture import captured, eager, reset_captured_stages
 
-from .manager_base import ManagerBase, ManagerTermBase
+from .manager_base import ManagerBase, ManagerTermBase, split_resets, split_terms
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
@@ -68,27 +70,10 @@ def _reward_finalize(
             val = weighted * dt
             total += val
             episode_sums[term_idx, env_id] += val
+        else:
+            step_reward[env_id, term_idx] = 0.0
 
     reward_buf[env_id] = total
-
-
-@wp.kernel
-def _reward_pre_compute_reset(
-    # output
-    reward_buf: wp.array(dtype=wp.float32),
-    step_reward: wp.array(dtype=wp.float32, ndim=2),
-    term_outs: wp.array(dtype=wp.float32, ndim=2),
-):
-    """Reset per-step reward buffers.
-
-    Launched with dim = (num_envs,) to reset `reward_buf` and clear the corresponding row in `step_reward`.
-    This works even when `step_reward.shape[1] == 0` (no terms).
-    """
-    env_id = wp.tid()
-    reward_buf[env_id] = 0.0
-    for term_idx in range(term_outs.shape[0]):
-        step_reward[env_id, term_idx] = 0.0
-        term_outs[term_idx, env_id] = 0.0
 
 
 class RewardManager(ManagerBase):
@@ -128,6 +113,9 @@ class RewardManager(ManagerBase):
         # call the base class constructor (this will parse the terms config)
         super().__init__(cfg, env)
         self._term_name_to_term_idx = {name: i for i, name in enumerate(self._term_names)}
+        # skip terms with zero weight (kind of a micro-optimization)
+        self._term_split = split_terms([term_cfg for term_cfg in self._term_cfgs if term_cfg.weight != 0.0])
+        self._class_term_split = split_resets(self._class_term_cfgs)
 
         num_terms = len(self._term_names)
         self._num_terms = num_terms
@@ -226,32 +214,16 @@ class RewardManager(ManagerBase):
     Operations.
     """
 
-    def reset(
-        self,
-        env_ids: Sequence[int] | torch.Tensor | None = None,
-        *,
-        env_mask: wp.array | None = None,
-    ) -> dict[str, torch.Tensor]:
+    @captured
+    def _reset(self, env_mask: wp.array) -> dict[str, torch.Tensor]:
         """Computes/reset episodic reward sums for masked envs (capturable core).
 
         Args:
-            env_ids: The specific environment indices to reset.
-                If None, all environments are considered.
             env_mask: Boolean Warp mask of shape (num_envs,) selecting reset environments.
-                If provided, takes precedence over ``env_ids``.
 
         Returns:
             A dictionary containing the information to log under the "Reward/{term_name}" key.
         """
-        # Mask-first path: captured callers must provide env_mask.
-        if env_mask is None or not isinstance(env_mask, wp.array):
-            if wp.get_device().is_capturing:
-                raise RuntimeError(
-                    "RewardManager.reset requires env_mask(wp.array[bool]) during capture. "
-                    "Do not pass env_ids on captured paths."
-                )
-            env_mask = self._env.resolve_env_mask(env_ids=env_ids, env_mask=env_mask)
-
         self._episode_sum_avg_wp.zero_()
         self._reset_count_wp.zero_()
         self._reset_scale_wp.zero_()
@@ -276,13 +248,18 @@ class RewardManager(ManagerBase):
         # persistent tensor views (see :meth:`ManagerTermBase.reset`), which are
         # merged into the manager's reset extras. Merging the same views again on
         # subsequent resets is a no-op, so this stays capture-safe.
-        for term_cfg in self._class_term_cfgs:
+        for term_cfg in self._class_term_split.eager:
+            term_extras = eager(term_cfg.func.reset, env_mask=env_mask)
+            if term_extras:
+                self._reset_extras.update(term_extras)
+        for term_cfg in self._class_term_split.captured:
             term_extras = term_cfg.func.reset(env_mask=env_mask)
             if term_extras:
                 self._reset_extras.update(term_extras)
 
         return self._reset_extras
 
+    @captured
     def compute(self, dt: float) -> torch.Tensor:
         """Computes the reward signal as a weighted sum of individual terms.
 
@@ -295,21 +272,11 @@ class RewardManager(ManagerBase):
         Returns:
             The net reward signal of shape (num_envs,).
         """
-        # TODO: Investigate performance diff between two .fill_ and kernel launch
-        # reset computation (Warp buffers) in a single kernel launch
-        wp.launch(
-            kernel=_reward_pre_compute_reset,
-            dim=self.num_envs,
-            inputs=[self._reward_wp, self._step_reward_wp, self._term_outs_wp],
-            device=self.device,
-        )
         # iterate over all the reward terms (Python loop; per-term math is warp)
-        for term_cfg in self._term_cfgs:
-            # skip if weight is zero (kind of a micro-optimization)
-            if term_cfg.weight == 0.0:
-                continue
-            # compute term into the persistent warp buffer (raw, unweighted)
-            # NOTE: `out` is pre-zeroed every step by `_reward_pre_compute_reset`.
+        # compute each term into the persistent warp buffer (raw, unweighted)
+        for term_cfg in self._term_split.eager:
+            eager(term_cfg.func, self._env, term_cfg.out, **term_cfg.params)
+        for term_cfg in self._term_split.captured:
             term_cfg.func(self._env, term_cfg.out, **term_cfg.params)
 
         # update total reward, episodic sums and step rewards in a single kernel launch
@@ -353,6 +320,10 @@ class RewardManager(ManagerBase):
         self._term_cfgs[term_idx] = cfg
         # keep on-device weights in sync (call this to update weights used in compute)
         self._term_weights_tensor_view[term_idx] = float(cfg.weight)
+        # recorded compute graphs hold the replaced term, which may also differ in capturability
+        cfg.capturable = is_warp_capturable(cfg.func, cfg.params)
+        self._term_split = split_terms([term_cfg for term_cfg in self._term_cfgs if term_cfg.weight != 0.0])
+        reset_captured_stages(self)
 
     def get_term_cfg(self, term_name: str) -> RewardTermCfg:
         """Gets the configuration for the specified term.
