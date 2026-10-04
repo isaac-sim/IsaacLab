@@ -183,7 +183,8 @@ Command Terms
 
 Command terms subclass :class:`isaaclab_experimental.managers.CommandTerm`. They keep their command and
 metrics in persistent ``wp.array`` buffers and resample the environments selected by a mask with
-``env.rng_state_wp``; the command manager records ``compute`` and ``reset`` like the other stages.
+:attr:`WarpRng.state <isaaclab.utils.seed.WarpRng.state>`; the command manager records ``compute`` and
+``reset`` like the other managers.
 Warp terms read a command with ``env.command_manager.get_command_wp(name)`` on every call instead of
 caching it, so a term never holds another environment's buffer.
 
@@ -191,12 +192,12 @@ caching it, so a term never holds another environment's buffer.
 Capture Safety
 ^^^^^^^^^^^^^^
 
-Each manager stage of a Warp environment (for example ``RewardManager_compute`` or
-``CommandManager_reset``) is recorded into a CUDA graph on its first call after the first
-``step`` and replayed afterwards. That first call is the recording itself; there is no eager
-warm-up. A stage records again when it receives a different array or scalar argument, and every
-graph is dropped when the physics backend rebinds its buffers or stops. Only device work is
-replayed: Python in a term runs once, while the stage records.
+Each manager method decorated with :func:`~isaaclab_experimental.utils.captured` is a stage (for example
+``RewardManager.compute``, or the ``_reset`` that ``CommandManager.reset`` calls with the reset mask): its
+first call records it into CUDA graphs and later calls replay them. That first call is the recording
+itself; there is no eager warm-up. A stage records again when it receives a different array or scalar
+argument, and every graph is dropped when the physics backend rebinds its buffers or stops. Only device
+work is replayed: Python in a recorded term runs once, while the stage records.
 
 Keeping a term safe to record is the author's contract; a synchronization check catches only
 part of it:
@@ -216,22 +217,26 @@ part of it:
   a rebind points at freed memory.
 - **Change settings through the managers** — a scalar read in Python, such as a configuration value
   or ``env.common_step_counter``, is frozen into the graph when the stage records. The managers'
-  ``set_term_cfg`` records their stages again when it changes a term's configuration (observation terms
-  are named ``"<group>/<term>"``), and the ``modify_reward_weight`` and ``modify_term_cfg`` curricula go
-  through it, so an observation noise curriculum applies to recorded observations. Setting an unchanged
-  configuration keeps the recorded stages, and reward weights are read on the device, so a weight change
-  applies without recording again (before CUDA 12.4, a weight set to or from zero records again). A value
-  that changes every step belongs in a device buffer that the kernel reads. Writing a term configuration
-  directly, bypassing ``set_term_cfg``, is not supported while stages are recorded.
+  ``set_term_cfg`` records their stages again when it changes what they read from a term's configuration
+  (observation terms are named ``"<group>/<term>"``), and the ``modify_reward_weight`` and
+  ``modify_term_cfg`` curricula go through it, so an observation noise curriculum applies to recorded
+  observations. Setting an unchanged configuration keeps the recorded stages. Reward weights are read on
+  the device, so a weight change applies without recording again, unless the weight turns zero or nonzero,
+  which takes the term out of the stage or puts it back. A value that changes every step belongs in a
+  device buffer that the kernel reads. Writing a term configuration directly, bypassing ``set_term_cfg``,
+  is not supported while stages are recorded.
 - **Mark host-dependent terms** — a term that relies on host-side work, such as a sensor whose
-  refresh is decided on the host, is decorated with ``@WarpCapturable(False, reason=...)``. It runs
-  eagerly between the recorded parts of its stage and raises if it is ever called while a stage
-  records. When only some configurations need the host, pass a predicate over the term's parameters,
-  e.g. ``@WarpCapturable(lambda params: params.get("sensor_cfg") is None, reason=...)``; a class term
-  may instead set ``self._warp_capturable`` in ``__init__``. ``height_scan``, ``base_height_l2`` with a
-  height scanner and the rigid-body randomization events are examples.
+  refresh is decided on the host, is decorated with ``@WarpCapturable(False, reason=...)``. Its stage
+  calls it through :func:`~isaaclab_experimental.utils.eager`, between recorded graphs, on every call,
+  and it raises if it is ever called while a stage records. When only some configurations need the host,
+  pass a predicate over the term's parameters, e.g.
+  ``@WarpCapturable(lambda params: params.get("sensor_cfg") is None, reason=...)``. On a class term the
+  annotation covers its call; decorate its ``reset`` method to keep the reset out of the recording. A
+  command term's class annotation covers both its ``compute`` and its ``reset``. ``height_scan``,
+  ``base_height_l2`` with a height scanner and the rigid-body randomization events are examples.
 
-``ISAACLAB_WARP_CAPTURE=0`` runs every stage eagerly, and ``ISAACLAB_SYNC_DEBUG=1`` makes a hidden
+Setting :attr:`CapturedStage.enabled <isaaclab_experimental.utils.CapturedStage.enabled>` to ``False``
+after the environment is built runs every stage eagerly, and ``ISAACLAB_SYNC_DEBUG=1`` makes a hidden
 device-to-host synchronization inside an eager stage raise. Comparing an eager and a captured
 rollout of the same seeded task is the end-to-end check.
 

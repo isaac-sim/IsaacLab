@@ -267,10 +267,9 @@ specific to warp envs; for Newton physics maturity and specialist guides see
   through torch. They participate in the step but are not yet captured into the graph; they
   set the lower bound on observed step time.
 - A term marked ``@WarpCapturable(False)``, or rejected by its parameter predicate, runs eagerly
-  between the recorded runs of its stage. Observation and event terms, which draw from the shared
-  per-environment random state, and action terms keep their configured order, so an eager term there
-  splits the stage into several graphs. A non-capturable command term keeps the whole command stage
-  eager.
+  between the recorded graphs of its stage. Observation, reward, termination, command and action
+  stages run their eager terms before the recorded ones; event stages keep the configured order, so
+  an eager event term splits its stage into several graphs.
 - Sensors that depend on the Kit RTX renderer (camera-based observations) cannot be combined
   with the warp env path — they need Kit, which the warp runtime does not initialise.
 
