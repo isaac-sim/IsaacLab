@@ -24,7 +24,8 @@ from prettytable import PrettyTable
 
 from isaaclab.managers.manager_term_cfg import TerminationTermCfg
 
-from isaaclab_experimental.utils.warp_capture import captured, eager
+from isaaclab_experimental.utils.warp import is_warp_capturable
+from isaaclab_experimental.utils.warp_capture import captured, eager, reset_captured_stages
 
 from .manager_base import ManagerBase, ManagerTermBase, split_resets, split_terms
 
@@ -284,6 +285,53 @@ class TerminationManager(ManagerBase):
         )
 
         return self._dones_tensor_view
+
+    """
+    Operations - Term settings.
+    """
+
+    def set_term_cfg(self, term_name: str, cfg: TerminationTermCfg):
+        """Sets the configuration of the specified term into the manager.
+
+        Recorded termination stages read whether the term is a time-out on every call. They record again on their
+        next call, since they hold the replaced term.
+
+        Args:
+            term_name: The name of the termination term.
+            cfg: The configuration for the termination term.
+
+        Raises:
+            ValueError: If the term name is not found.
+        """
+        if term_name not in self._term_names:
+            raise ValueError(f"Termination term '{term_name}' not found.")
+        term_idx = self._term_name_to_term_idx[term_name]
+        # the term keeps writing into its column of the done buffer
+        cfg.out = self._term_out_views_wp[term_idx]
+        cfg.capturable = is_warp_capturable(cfg.func, cfg.params)
+        self._term_cfgs[term_idx] = cfg
+        wp.to_torch(self._term_is_time_out_wp)[term_idx] = bool(cfg.time_out)
+        # recorded stages hold the replaced term, which may also differ in capturability
+        self._class_term_cfgs = [term_cfg for term_cfg in self._term_cfgs if isinstance(term_cfg.func, ManagerTermBase)]
+        self._term_split = split_terms(self._term_cfgs)
+        self._class_term_split = split_resets(self._class_term_cfgs)
+        reset_captured_stages(self)
+
+    def get_term_cfg(self, term_name: str) -> TerminationTermCfg:
+        """Gets the configuration for the specified term.
+
+        Args:
+            term_name: The name of the termination term.
+
+        Returns:
+            The configuration of the termination term.
+
+        Raises:
+            ValueError: If the term name is not found.
+        """
+        if term_name not in self._term_names:
+            raise ValueError(f"Termination term '{term_name}' not found.")
+        return self._term_cfgs[self._term_name_to_term_idx[term_name]]
 
     def get_term(self, name: str) -> torch.Tensor:
         """Returns the termination term value at current step with the specified name.

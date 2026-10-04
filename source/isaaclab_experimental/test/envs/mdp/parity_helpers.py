@@ -547,6 +547,9 @@ class MockCommandManager:
     def get_command(self, name: str) -> torch.Tensor:
         return self._cmd
 
+    def get_command_wp(self, name: str) -> wp.array:
+        return wp.from_torch(self._cmd)
+
     def get_term(self, name: str):
         return self._term
 
@@ -646,6 +649,9 @@ class MockPoseCommandManager:
 
     def get_command(self, name: str) -> torch.Tensor:
         return self._term.pose_command_b
+
+    def get_command_wp(self, name: str) -> wp.array:
+        return wp.from_torch(self._term.pose_command_b)
 
     def get_term(self, name: str):
         return self._term

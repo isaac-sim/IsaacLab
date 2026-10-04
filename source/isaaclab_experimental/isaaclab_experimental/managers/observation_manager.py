@@ -62,7 +62,7 @@ from isaaclab.utils import instantiate, to_dict
 from isaaclab_experimental.utils import modifiers, noise
 from isaaclab_experimental.utils.buffers import CircularBuffer
 from isaaclab_experimental.utils.torch_utils import clone_obs_buffer
-from isaaclab_experimental.utils.warp_capture import captured, eager
+from isaaclab_experimental.utils.warp_capture import captured, eager, reset_captured_stages
 
 from .manager_base import ManagerBase, ManagerTermBase, split_resets, split_terms
 
@@ -195,14 +195,7 @@ class ObservationManager(ManagerBase):
 
         # Stores the latest observations.
         self._obs_buffer: dict[str, torch.Tensor | dict[str, torch.Tensor]] | None = None
-        # (group, index) of every term, and the class terms, split by capturability
-        terms = [
-            (group_name, index) for group_name, cfgs in self._group_obs_term_cfgs.items() for index in range(len(cfgs))
-        ]
-        self._term_split = split_terms(terms, lambda term: self._group_obs_term_cfgs[term[0]][term[1]].capturable)
-        self._class_term_split = split_resets(
-            [cfg for cfgs in self._group_obs_class_term_cfgs.values() for cfg in cfgs]
-        )
+        self._split_terms()
         # Note: Persistent Warp output buffers (`_group_out_wp` / `_group_out_torch`) and per-term post-processing
         # buffers are allocated during `_prepare_terms()` since they are per-term/per-group setup.
 
@@ -583,6 +576,65 @@ class ObservationManager(ManagerBase):
             else:
                 group_obs[term_name] = circular_buffer.buffer
 
+    """
+    Operations - Term settings.
+    """
+
+    def set_term_cfg(self, term_name: str, cfg: ObservationTermCfg):
+        """Sets the configuration of the specified term into the manager.
+
+        Recorded observation stages read the term's configuration, such as its noise, when they record, so they
+        record again on their next call. The term keeps writing into its slice of the group's observation.
+
+        Args:
+            term_name: The name of the observation term, in the form ``"<group>/<term>"``.
+            cfg: The configuration for the observation term.
+
+        Raises:
+            ValueError: If the term name is not found, or if the configuration changes the term's output width.
+        """
+        group_name, index = self._find_term(term_name)
+        old_cfg = self._group_obs_term_cfgs[group_name][index]
+        group_cfg = self.cfg[group_name] if isinstance(self.cfg, dict) else getattr(self.cfg, group_name)
+        term_dim = self._prepare_term(group_name, self._group_obs_term_names[group_name][index], cfg, group_cfg)
+        if term_dim != old_cfg._term_dim:
+            raise ValueError(
+                f"Observation term '{term_name}' must keep its output width {old_cfg._term_dim}, got {term_dim}."
+            )
+        cfg.out_wp, cfg.out_torch = old_cfg.out_wp, old_cfg.out_torch
+        if cfg is not old_cfg and isinstance(cfg.func, ManagerTermBase):
+            cfg.func.reset()
+        self._group_obs_term_cfgs[group_name][index] = cfg
+        self._group_obs_class_term_cfgs[group_name] = [
+            term_cfg for term_cfg in self._group_obs_term_cfgs[group_name] if isinstance(term_cfg.func, ManagerTermBase)
+        ]
+        self._group_obs_class_instances = self._collect_class_instances()
+        # recorded stages hold the replaced term, which may also differ in capturability
+        self._split_terms()
+        reset_captured_stages(self)
+
+    def get_term_cfg(self, term_name: str) -> ObservationTermCfg:
+        """Gets the configuration for the specified term.
+
+        Args:
+            term_name: The name of the observation term, in the form ``"<group>/<term>"``.
+
+        Returns:
+            The configuration of the observation term.
+
+        Raises:
+            ValueError: If the term name is not found.
+        """
+        group_name, index = self._find_term(term_name)
+        return self._group_obs_term_cfgs[group_name][index]
+
+    def _find_term(self, term_name: str) -> tuple[str, int]:
+        """Return the group and the index within the group of a ``"<group>/<term>"`` name."""
+        group_name, _, name = term_name.partition("/")
+        if name not in self._group_obs_term_names.get(group_name, ()):
+            raise ValueError(f"Observation term '{term_name}' not found.")
+        return group_name, self._group_obs_term_names[group_name].index(name)
+
     def serialize(self) -> dict:
         """Serialize the observation term configurations for all active groups.
 
@@ -609,6 +661,16 @@ class ObservationManager(ManagerBase):
     """
     Helper functions.
     """
+
+    def _split_terms(self) -> None:
+        """Split the terms, as (group, index) pairs, and the class term resets by whether they can be recorded."""
+        terms = [
+            (group_name, index) for group_name, cfgs in self._group_obs_term_cfgs.items() for index in range(len(cfgs))
+        ]
+        self._term_split = split_terms(terms, lambda term: self._group_obs_term_cfgs[term[0]][term[1]].capturable)
+        self._class_term_split = split_resets(
+            [cfg for cfgs in self._group_obs_class_term_cfgs.values() for cfg in cfgs]
+        )
 
     def _prepare_terms(self):  # noqa: C901
         """Prepares a list of observation terms functions."""
@@ -699,119 +761,13 @@ class ObservationManager(ManagerBase):
                         f"Configuration for the term '{term_name}' is not of type ObservationTermCfg."
                         f" Received: '{type(term_cfg)}'."
                     )
-                # resolve common terms in the config
-                # Warp-first signature is (env, out, **params)
-                self._resolve_common_term_cfg(f"{group_name}/{term_name}", term_cfg, min_argc=2)
-
-                # check noise settings
-                if not group_cfg.enable_corruption:
-                    term_cfg.noise = None
-                elif term_cfg.noise is not None and not type(term_cfg.noise).__module__.startswith(
-                    "isaaclab_experimental."
-                ):
-                    raise TypeError(
-                        f"Observation term '{term_name}' uses noise cfg"
-                        f" '{type(term_cfg.noise).__module__}.{type(term_cfg.noise).__name__}', which the Warp"
-                        " observation manager would silently ignore. Use the warp-native noise cfgs from"
-                        " isaaclab_experimental.utils.noise (the warp frontend converts stable cfgs"
-                        " automatically)."
-                    )
-                # check group history params and override terms
-                if group_cfg.history_length is not None:
-                    term_cfg.history_length = group_cfg.history_length
-                    term_cfg.flatten_history_dim = group_cfg.flatten_history_dim
-                # history buffers are not capture-safe yet
-                term_cfg.capturable = term_cfg.capturable and term_cfg.history_length == 0
+                term_dim = self._prepare_term(group_name, term_name, term_cfg, group_cfg)
                 # add term config to list
                 self._group_obs_term_names[group_name].append(term_name)
                 self._group_obs_term_cfgs[group_name].append(term_cfg)
-
-                # infer dimensions (Warp-first: terms write to out; we infer dim from resolved scene info)
-                term_dim = self._infer_term_dim_scalar(term_cfg)
-                # Cache the "raw" term output dimension (before history reshaping) for Warp buffer allocation.
-                # This matches the tensor shape produced directly by the term into `out`: (num_envs, term_dim).
-                term_cfg._term_dim = int(term_dim)
                 group_term_cfgs.append(term_cfg)
-                group_term_raw_dims.append(int(term_dim))
+                group_term_raw_dims.append(term_dim)
                 obs_dims = (self._env.num_envs, term_dim)
-
-                # if scale is set, check if single float or tuple
-                if term_cfg.scale is not None:
-                    if not isinstance(term_cfg.scale, (float, int, tuple)):
-                        raise TypeError(
-                            f"Scale for observation term '{term_name}' in group '{group_name}'"
-                            f" is not of type float, int or tuple. Received: '{type(term_cfg.scale)}'."
-                        )
-                    if isinstance(term_cfg.scale, tuple) and len(term_cfg.scale) != obs_dims[1]:
-                        raise ValueError(
-                            f"Scale for observation term '{term_name}' in group '{group_name}'"
-                            f" does not match the dimensions of the observation. Expected: {obs_dims[1]}"
-                            f" but received: {len(term_cfg.scale)}."
-                        )
-
-                    scale_vals = (
-                        term_cfg.scale if isinstance(term_cfg.scale, tuple) else [float(term_cfg.scale)] * obs_dims[1]
-                    )
-                    term_cfg.scale_wp = wp.array(scale_vals, dtype=wp.float32, device=self._env.device)
-
-                # prepare modifiers for each observation
-                if term_cfg.modifiers is not None:
-                    # initialize list of modifiers for term
-                    for mod_cfg in term_cfg.modifiers:
-                        # check if class modifier and initialize with observation size when adding
-                        if isinstance(mod_cfg, modifiers.ModifierCfg):
-                            # to list of modifiers
-                            if inspect.isclass(mod_cfg.func):
-                                if not issubclass(mod_cfg.func, modifiers.ModifierBase):
-                                    raise TypeError(
-                                        f"Modifier function '{mod_cfg.func}' for observation term '{term_name}'"
-                                        f" is not a subclass of 'ModifierBase'. Received: '{type(mod_cfg.func)}'."
-                                    )
-                                mod_cfg.func = mod_cfg.func(cfg=mod_cfg, data_dim=obs_dims, device=self._env.device)
-
-                                # add to list of class modifiers
-                                self._group_obs_class_instances.append(mod_cfg.func)
-                        else:
-                            raise TypeError(
-                                f"Modifier configuration '{mod_cfg}' of observation term '{term_name}' is not of"
-                                f" required type ModifierCfg, Received: '{type(mod_cfg)}'"
-                            )
-
-                        # check if function is callable
-                        if not callable(mod_cfg.func):
-                            raise AttributeError(
-                                f"Modifier '{mod_cfg}' of observation term '{term_name}' is not callable."
-                                f" Received: {mod_cfg.func}"
-                            )
-
-                        # check if term's arguments are matched by params
-                        term_params = list(mod_cfg.params.keys())
-                        args = inspect.signature(mod_cfg.func).parameters
-                        args_with_defaults = [arg for arg in args if args[arg].default is not inspect.Parameter.empty]
-                        args_without_defaults = [arg for arg in args if args[arg].default is inspect.Parameter.empty]
-                        args = args_without_defaults + args_with_defaults
-                        # ignore first argument for data
-                        if len(args) > 1:
-                            if set(args[1:]) != set(term_params + args_with_defaults):
-                                raise ValueError(
-                                    f"Modifier '{mod_cfg}' of observation term '{term_name}' expects"
-                                    f" mandatory parameters: {args_without_defaults[1:]}"
-                                    f" and optional parameters: {args_with_defaults}, but received: {term_params}."
-                                )
-
-                # prepare noise model classes
-                if term_cfg.noise is not None and isinstance(term_cfg.noise, noise.NoiseModelCfg):
-                    noise_model_cls = term_cfg.noise.class_type
-                    if not issubclass(noise_model_cls, noise.NoiseModel):
-                        raise TypeError(
-                            f"Class type for observation term '{term_name}' NoiseModelCfg"
-                            f" is not a subclass of 'NoiseModel'. Received: '{type(noise_model_cls)}'."
-                        )
-                    # initialize func to be the noise model class instance
-                    term_cfg.noise.func = instantiate(
-                        term_cfg.noise, num_envs=self._env.num_envs, device=self._env.device
-                    )
-                    self._group_obs_class_instances.append(term_cfg.noise.func)
 
                 # create history buffers and calculate history term dimensions
                 if term_cfg.history_length > 0:
@@ -886,6 +842,136 @@ class ObservationManager(ManagerBase):
             # add history buffers for each group
             self._group_obs_term_history_buffer[group_name] = group_entry_history_buffer
 
+        self._group_obs_class_instances = self._collect_class_instances()
+
+    def _prepare_term(
+        self, group_name: str, term_name: str, term_cfg: ObservationTermCfg, group_cfg: ObservationGroupCfg
+    ) -> int:
+        """Resolve a term configuration and prepare its scale, modifiers and noise.
+
+        Args:
+            group_name: Name of the term's group.
+            term_name: Name of the term within its group.
+            term_cfg: The term configuration.
+            group_cfg: The group configuration.
+
+        Returns:
+            The width of the term's output.
+        """
+        # resolve common terms in the config
+        # Warp-first signature is (env, out, **params)
+        self._resolve_common_term_cfg(f"{group_name}/{term_name}", term_cfg, min_argc=2)
+
+        # check noise settings
+        if not group_cfg.enable_corruption:
+            term_cfg.noise = None
+        elif term_cfg.noise is not None and not type(term_cfg.noise).__module__.startswith("isaaclab_experimental."):
+            raise TypeError(
+                f"Observation term '{term_name}' uses noise cfg"
+                f" '{type(term_cfg.noise).__module__}.{type(term_cfg.noise).__name__}', which the Warp"
+                " observation manager would silently ignore. Use the warp-native noise cfgs from"
+                " isaaclab_experimental.utils.noise (the warp frontend converts stable cfgs"
+                " automatically)."
+            )
+        # check group history params and override terms
+        if group_cfg.history_length is not None:
+            term_cfg.history_length = group_cfg.history_length
+            term_cfg.flatten_history_dim = group_cfg.flatten_history_dim
+        # history buffers are not capture-safe yet
+        term_cfg.capturable = term_cfg.capturable and term_cfg.history_length == 0
+
+        # infer dimensions (Warp-first: terms write to out; we infer dim from resolved scene info)
+        term_dim = int(self._infer_term_dim_scalar(term_cfg))
+        # Cache the "raw" term output dimension (before history reshaping) for Warp buffer allocation.
+        # This matches the tensor shape produced directly by the term into `out`: (num_envs, term_dim).
+        term_cfg._term_dim = term_dim
+        obs_dims = (self._env.num_envs, term_dim)
+
+        # if scale is set, check if single float or tuple
+        if term_cfg.scale is not None:
+            if not isinstance(term_cfg.scale, (float, int, tuple)):
+                raise TypeError(
+                    f"Scale for observation term '{term_name}' in group '{group_name}'"
+                    f" is not of type float, int or tuple. Received: '{type(term_cfg.scale)}'."
+                )
+            if isinstance(term_cfg.scale, tuple) and len(term_cfg.scale) != obs_dims[1]:
+                raise ValueError(
+                    f"Scale for observation term '{term_name}' in group '{group_name}'"
+                    f" does not match the dimensions of the observation. Expected: {obs_dims[1]}"
+                    f" but received: {len(term_cfg.scale)}."
+                )
+
+            scale_vals = term_cfg.scale if isinstance(term_cfg.scale, tuple) else [float(term_cfg.scale)] * obs_dims[1]
+            term_cfg.scale_wp = wp.array(scale_vals, dtype=wp.float32, device=self._env.device)
+
+        # prepare modifiers for each observation
+        if term_cfg.modifiers is not None:
+            # initialize list of modifiers for term
+            for mod_cfg in term_cfg.modifiers:
+                # check if class modifier and initialize with observation size when adding
+                if isinstance(mod_cfg, modifiers.ModifierCfg):
+                    # to list of modifiers
+                    if inspect.isclass(mod_cfg.func):
+                        if not issubclass(mod_cfg.func, modifiers.ModifierBase):
+                            raise TypeError(
+                                f"Modifier function '{mod_cfg.func}' for observation term '{term_name}'"
+                                f" is not a subclass of 'ModifierBase'. Received: '{type(mod_cfg.func)}'."
+                            )
+                        mod_cfg.func = mod_cfg.func(cfg=mod_cfg, data_dim=obs_dims, device=self._env.device)
+                else:
+                    raise TypeError(
+                        f"Modifier configuration '{mod_cfg}' of observation term '{term_name}' is not of"
+                        f" required type ModifierCfg, Received: '{type(mod_cfg)}'"
+                    )
+
+                # check if function is callable
+                if not callable(mod_cfg.func):
+                    raise AttributeError(
+                        f"Modifier '{mod_cfg}' of observation term '{term_name}' is not callable."
+                        f" Received: {mod_cfg.func}"
+                    )
+
+                # check if term's arguments are matched by params
+                term_params = list(mod_cfg.params.keys())
+                args = inspect.signature(mod_cfg.func).parameters
+                args_with_defaults = [arg for arg in args if args[arg].default is not inspect.Parameter.empty]
+                args_without_defaults = [arg for arg in args if args[arg].default is inspect.Parameter.empty]
+                args = args_without_defaults + args_with_defaults
+                # ignore first argument for data
+                if len(args) > 1:
+                    if set(args[1:]) != set(term_params + args_with_defaults):
+                        raise ValueError(
+                            f"Modifier '{mod_cfg}' of observation term '{term_name}' expects"
+                            f" mandatory parameters: {args_without_defaults[1:]}"
+                            f" and optional parameters: {args_with_defaults}, but received: {term_params}."
+                        )
+
+        # prepare noise model classes
+        if term_cfg.noise is not None and isinstance(term_cfg.noise, noise.NoiseModelCfg):
+            noise_model_cls = term_cfg.noise.class_type
+            if not issubclass(noise_model_cls, noise.NoiseModel):
+                raise TypeError(
+                    f"Class type for observation term '{term_name}' NoiseModelCfg"
+                    f" is not a subclass of 'NoiseModel'. Received: '{type(noise_model_cls)}'."
+                )
+            # initialize func to be the noise model class instance, keeping an existing one and its state
+            if not isinstance(term_cfg.noise.func, noise.NoiseModel):
+                term_cfg.noise.func = instantiate(term_cfg.noise, num_envs=self._env.num_envs, device=self._env.device)
+
+        return term_dim
+
+    def _collect_class_instances(self) -> list[modifiers.ModifierBase | noise.NoiseModel]:
+        """Return the class modifiers and noise models of every term, which are reset with the manager."""
+        instances = []
+        for term_cfgs in self._group_obs_term_cfgs.values():
+            for term_cfg in term_cfgs:
+                for mod_cfg in term_cfg.modifiers or ():
+                    if isinstance(mod_cfg.func, modifiers.ModifierBase):
+                        instances.append(mod_cfg.func)
+                if isinstance(term_cfg.noise, noise.NoiseModelCfg):
+                    instances.append(term_cfg.noise.func)
+        return instances
+
     def _infer_term_dim_scalar(self, term_cfg: ObservationTermCfg) -> int:
         """Infer observation output dimension (D,) using decorator metadata, scene info, or manager state.
 
@@ -893,7 +979,8 @@ class ObservationManager(ManagerBase):
         1. ``out_dim`` on the function's ``@generic_io_descriptor_warp`` decorator.
         2. ``axes`` on the decorator (e.g. ``axes=["X","Y","Z"]`` → dim 3).
         3. Explicit ``term_dim`` / ``out_dim`` / ``obs_dim`` in ``term_cfg.params`` (legacy).
-        4. ``asset_cfg.joint_ids`` count (joint-based observations).
+        4. Number of rays of the ray-caster sensor in ``sensor_cfg`` (one value per ray).
+        5. ``asset_cfg.joint_ids`` count (joint-based observations).
         """
         # --- 1-2. Decorator metadata (preferred) ---
         func = term_cfg.func
@@ -917,7 +1004,14 @@ class ObservationManager(ManagerBase):
             if k in term_cfg.params:
                 return int(term_cfg.params[k])
 
-        # --- 3. Joint-based fallback via asset_cfg ---
+        # --- 4. Ray-based fallback via sensor_cfg ---
+        sensor_cfg = term_cfg.params.get("sensor_cfg")
+        if sensor_cfg is not None:
+            num_rays = getattr(self._env.scene.sensors[sensor_cfg.name], "num_rays", None)
+            if num_rays is not None:
+                return int(num_rays)
+
+        # --- 5. Joint-based fallback via asset_cfg ---
         asset_cfg = term_cfg.params.get("asset_cfg")
         if asset_cfg is None:
             raise ValueError(

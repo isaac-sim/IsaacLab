@@ -3,14 +3,19 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Tests for the Warp observation manager configuration parsing."""
+"""Tests for the Warp observation manager."""
 
 from types import SimpleNamespace
 
+import pytest
+import torch
 import warp as wp
 from isaaclab_experimental.managers import ObservationManager
+from isaaclab_experimental.utils import CapturedStage
+from isaaclab_experimental.utils.noise import ConstantNoiseCfg
 
-from isaaclab.managers import ObservationGroupCfg, ObservationTermCfg
+import isaaclab.envs.mdp as mdp
+from isaaclab.managers import CurriculumTermCfg, ObservationGroupCfg, ObservationTermCfg
 from isaaclab.utils import configclass
 
 
@@ -35,3 +40,55 @@ def test_group_settings_are_not_parsed_as_terms():
 
     assert manager.active_terms["policy"] == ["first", "second"]
     assert manager.group_obs_dim["policy"] == (5,)
+
+
+def counted_constant_obs(env, out: wp.array, out_dim: int):
+    """``constant_obs`` counting the runs of its Python; a recorded stage runs it once per recording."""
+    env.recordings += 1
+    out.fill_(1.0)
+
+
+@configclass
+class NoisyPolicyCfg(ObservationGroupCfg):
+    """Group with one term corrupted by a constant bias."""
+
+    value = ObservationTermCfg(func=counted_constant_obs, params={"out_dim": 2}, noise=ConstantNoiseCfg(bias=0.0))
+
+    def __post_init__(self):
+        self.enable_corruption = True
+
+
+@configclass
+class ObservationsCfg:
+    policy: NoisyPolicyCfg = NoisyPolicyCfg()
+
+
+def _override(env, env_ids, data, value):
+    return value
+
+
+@pytest.mark.skipif(not wp.is_cuda_available(), reason="CUDA device required")
+def test_modify_term_cfg_applies_noise_to_the_recorded_observation_stage(monkeypatch):
+    """An observation noise curriculum changes the observations of a recorded stage, as noise ADR expects.
+
+    The noise parameters are kernel arguments read while the stage records, so a replay without recording again
+    keeps applying the old noise. Writing the same bias again, as a curriculum does on every reset past its
+    threshold, records nothing new.
+    """
+    monkeypatch.setattr(CapturedStage, "enabled", True)
+    env = SimpleNamespace(num_envs=4, device="cuda:0", sim=SimpleNamespace(is_playing=lambda: True), recordings=0)
+    env.observation_manager = ObservationManager(ObservationsCfg(), env)
+    params = {
+        "address": "observations.policy.value.noise.bias",
+        "modify_fn": _override,
+        "modify_params": {"value": 0.5},
+    }
+    curriculum = mdp.modify_term_cfg(CurriculumTermCfg(func=mdp.modify_term_cfg, params=params), env)
+    env.observation_manager.compute(return_cloned_output=False)
+
+    for _ in range(3):
+        curriculum(env, None, **params)
+        obs = env.observation_manager.compute(return_cloned_output=False)
+    wp.synchronize()
+
+    assert torch.equal(obs["policy"], torch.full((4, 2), 1.5, device="cuda:0"))
