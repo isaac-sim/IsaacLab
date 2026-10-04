@@ -1,4 +1,4 @@
 * Added ``IsaacContrib-Velocity-Rough-MicroDuck`` with gentle terrain, a terrain curriculum,
-  terrain-relative foot clearance, and the flat walking task's RSL-RL PPO interface.
-* Added flat and rough MicroDuck walking variants using the backlash asset, output-side encoder
-  observations, and head-tracking rewards that account for gearbox play.
+  and terrain-relative foot clearance.
+* Added a ``backlash`` preset to the MicroDuck walking tasks for the robot with gearbox play,
+  with output-side encoder observations and head-pose rewards.
