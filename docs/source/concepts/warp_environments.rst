@@ -107,9 +107,8 @@ Stable-Baselines3.
 
 .. note::
 
-   ``--video`` is rejected on the warp path, for both ``train`` and ``play``: video
-   recording requires the standard torch frontend. To record a rollout, replay the same
-   checkpoint with ``--frontend torch``; see :ref:`how_to_record_video`.
+   ``--video`` records on the warp path, for both ``train`` and ``play``. Without ``--viz``,
+   a headless Newton GL visualizer is created to record from; see :ref:`how_to_record_video`.
 
 
 Performance Comparison
