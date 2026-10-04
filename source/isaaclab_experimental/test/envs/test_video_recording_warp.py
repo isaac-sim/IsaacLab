@@ -60,7 +60,7 @@ def test_warp_env_records_and_flushes_clip(cfg_class: type, task_id: str):
     with tempfile.TemporaryDirectory() as output_dir:
         env_cfg.video_recorders = [
             VideoRecorderCfg(
-                source="visualizer:newton_gl", output_dir=output_dir, video_length=_CLIP, video_interval=0, fps=10
+                source="viz:newton_gl", output_dir=output_dir, video_length=_CLIP, video_interval=0, fps=10
             )
         ]
         sim_utils.create_new_stage()

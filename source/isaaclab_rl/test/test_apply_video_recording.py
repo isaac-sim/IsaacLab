@@ -106,9 +106,10 @@ def launches(monkeypatch: pytest.MonkeyPatch) -> dict:
         (dict(video="kit"), ("viz:kit", [("kit", True)])),
         # a scene sensor needs no visualizer
         (dict(video="sensor:wrist_camera:depth"), ("sensor:wrist_camera:depth", [])),
-        # streaming visualizers have no frame capture, and recording needs the torch frontend
+        # the warp frontend records the same way
+        (dict(frontend="warp"), ("viz:newton_gl", [("newton_gl", True)])),
+        # streaming visualizers have no frame capture
         (dict(video="viser", visualizer=["viser"]), "has no frame capture"),
-        (dict(frontend="warp"), "--frontend 'warp'"),
     ],
     ids=[
         "viz-selected",
@@ -118,8 +119,8 @@ def launches(monkeypatch: pytest.MonkeyPatch) -> dict:
         "type-added",
         "kit-added",
         "sensor",
+        "warp-frontend",
         "streaming-rejected",
-        "warp-frontend-rejected",
     ],
 )
 def test_video_source_resolves_against_the_visualizer_selection(launches, cli, expected):
