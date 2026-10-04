@@ -17,6 +17,9 @@ Added
   physics, world-local material resets and conservative colour transport.
   Optional GL, RTX and Kit presentation includes native rendering grains,
   reconstructed liquid, a following camera and simulation-time MP4 capture.
+* Consolidated joint calibration and tracking validation, reused the task's
+  measured spoon pose, and gave streamed recording one resource owner.
+  Recording metadata now includes resolved simulation settings and CLI options.
 
 Fixed
 ^^^^^

@@ -148,24 +148,25 @@ def build_teleop_pipeline() -> OutputCombiner:
     from isaacteleop.retargeting_engine.interface import OutputCombiner, ValueInput
     from isaacteleop.retargeting_engine.tensor_types import HandInputIndex, HandJointIndex, TransformMatrix
 
+    def valid_tracking(tracked, indices) -> bool:
+        if tracked.is_none:
+            return False
+        flags = np.from_dlpack(tracked[HandInputIndex.JOINT_VALID])
+        positions = np.from_dlpack(tracked[HandInputIndex.JOINT_POSITIONS])
+        wrist_rotation = np.from_dlpack(tracked[HandInputIndex.JOINT_ORIENTATIONS])[HandJointIndex.WRIST]
+        return bool(
+            np.all(flags[indices] > 0)
+            and np.isfinite(positions[indices]).all()
+            and np.isfinite(wrist_rotation).all()
+            and np.linalg.norm(wrist_rotation) > 1.0e-6
+        )
+
     class TrackedPalmRetargeter(Se3AbsRetargeter):
         """Expose tracking loss instead of retaining a pre-reset wrist target."""
 
         def _compute_fn(self, inputs, outputs, context) -> None:
             tracked = inputs[self._config.input_device]
-            valid = not tracked.is_none
-            if valid:
-                flags = np.from_dlpack(tracked[HandInputIndex.JOINT_VALID])
-                positions = np.from_dlpack(tracked[HandInputIndex.JOINT_POSITIONS])
-                rotations = np.from_dlpack(tracked[HandInputIndex.JOINT_ORIENTATIONS])
-                wrist = HandJointIndex.WRIST
-                valid = (
-                    bool(flags[wrist])
-                    and np.isfinite(positions[wrist]).all()
-                    and np.isfinite(rotations[wrist]).all()
-                    and np.linalg.norm(rotations[wrist]) > 1.0e-6
-                )
-            if not valid:
+            if not valid_tracking(tracked, [HandJointIndex.WRIST]):
                 outputs["ee_pose"][0] = np.array([0, 0, 0, 0, 0, 0, 1], dtype=np.float32)
                 return
             super()._compute_fn(inputs, outputs, context)
@@ -182,19 +183,7 @@ def build_teleop_pipeline() -> OutputCombiner:
             if context.execution_events.reset:
                 self._held_command[:] = HAND_HOLD_POSITIONS
             tracked = inputs[HandsSource.RIGHT]
-            valid = not tracked.is_none
-            if valid:
-                indices = np.asarray(self._hand_joints_index, dtype=np.int64)
-                flags = np.from_dlpack(tracked[HandInputIndex.JOINT_VALID])
-                positions = np.from_dlpack(tracked[HandInputIndex.JOINT_POSITIONS])
-                rotations = np.from_dlpack(tracked[HandInputIndex.JOINT_ORIENTATIONS])
-                valid = (
-                    np.all(flags[indices] > 0)
-                    and np.isfinite(positions[indices]).all()
-                    and np.isfinite(rotations[HandJointIndex.WRIST]).all()
-                    and np.linalg.norm(rotations[HandJointIndex.WRIST]) > 1.0e-6
-                )
-            if valid:
+            if valid_tracking(tracked, np.asarray(self._hand_joints_index, dtype=np.int64)):
                 super()._compute_fn(inputs, outputs, context)
                 candidate = np.asarray([outputs["hand_joints"][i] for i in range(len(HAND_JOINT_NAMES))])
                 if np.isfinite(candidate).all():

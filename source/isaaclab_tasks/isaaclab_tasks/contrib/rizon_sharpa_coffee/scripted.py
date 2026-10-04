@@ -16,6 +16,7 @@ from isaaclab.utils import math as math_utils
 
 from .assets import BOWL_POSITION, CUP_HEIGHT, CUP_POSITION, SPOON_BOWL_WIDTH
 from .grasp_reset import configured_hand_targets
+from .mdp import spoon_pose
 
 if TYPE_CHECKING:
     from .coffee_env import CoffeeEnv
@@ -45,27 +46,13 @@ class CoffeeScoopDemo:
         return "complete" if self.finished else self._phases[self._phase_index][0]
 
     @property
-    def phase_kind(self) -> str:
-        """Motion kind without the cycle suffix, for example ``pour_height``."""
-        name, _, suffix = self.phase.rpartition("_")
-        return name if suffix.isdecimal() else self.phase
-
-    @property
-    def cycle_index(self) -> int:
-        """Zero-based scoop cycle; initial positioning belongs to the first."""
-        if self.finished:
-            return len(self._scoop_lanes) - 1
-        suffix = self.phase.rpartition("_")[2]
-        return int(suffix) - 1 if suffix.isdecimal() else 0
-
-    @property
     def finished(self) -> bool:
         """Whether all waypoints were reached with the measured physical spoon."""
         return self._phase_index >= len(self._phases)
 
     def reset(self) -> None:
         """Restart from the current physical spoon pose after an environment reset."""
-        initial = self._spoon_pose()
+        initial = spoon_pose(self._env)
         source_x, source_y, source_z = BOWL_POSITION
         cup_x, cup_y, cup_z = CUP_POSITION
         level = (0.0, 0.0, 0.0, 1.0)
@@ -95,53 +82,25 @@ class CoffeeScoopDemo:
         # forward draw. Keep the lateral position fixed until the level lift.
         # Nonzero interior velocities keep the motion continuous;
         # zero knot accelerations make the quintic segments C2 continuous.
-        # Coordinates are X/Y/Z, pitch and roll, followed by derivatives per s.
+        # Coordinates are X/Y/Z and pitch, followed by derivatives per s.
         self._scoop_knots = [
-            (
-                0.0,
-                (source_x - 0.030, source_y - 0.010, transfer_z, 0.0, 0.0),
-                (0.0, 0.0, 0.0, 0.0, 0.0),
-            ),
-            (
-                2.5,
-                (source_x - 0.030, source_y - 0.010, source_z + 0.070, math.radians(60.0), 0.0),
-                (0.0, 0.0, -0.015, 0.0, 0.0),
-            ),
+            (0.0, (source_x - 0.030, source_y - 0.010, transfer_z, 0.0), (0.0, 0.0, 0.0, 0.0)),
+            (2.5, (source_x - 0.030, source_y - 0.010, source_z + 0.070, math.radians(60)), (0.0, 0.0, -0.015, 0.0)),
             (
                 3.8,
-                (source_x - 0.030, source_y - 0.010, source_z + 0.030, math.radians(60.0), 0.0),
-                (0.001, 0.0, -0.002, math.radians(-5.0), 0.0),
+                (source_x - 0.030, source_y - 0.010, source_z + 0.030, math.radians(60)),
+                (0.001, 0.0, -0.002, math.radians(-5)),
             ),
             (
                 5.2,
-                (source_x - 0.025, source_y - 0.010, source_z + 0.030, math.radians(40.0), 0.0),
-                (0.0025, 0.0, 0.001, math.radians(-12.0), 0.0),
+                (source_x - 0.025, source_y - 0.010, source_z + 0.030, math.radians(40)),
+                (0.0025, 0.0, 0.001, math.radians(-12)),
             ),
-            (
-                8.2,
-                (source_x - 0.015, source_y - 0.010, scoop_z, 0.0, 0.0),
-                (0.001, 0.0, 0.0, 0.0, 0.0),
-            ),
-            (
-                9.2,
-                (source_x - 0.014, source_y - 0.010, scoop_z + 0.012, 0.0, 0.0),
-                (0.001, 0.0, 0.024, 0.0, 0.0),
-            ),
-            (
-                10.4,
-                (source_x - 0.014, source_y - 0.010, source_z + 0.105, 0.0, 0.0),
-                (0.0, 0.0, 0.055, 0.0, 0.0),
-            ),
-            (
-                11.7,
-                (source_x - 0.014, source_y - 0.010, source_z + 0.165, 0.0, 0.0),
-                (0.0, 0.0, 0.045, 0.0, 0.0),
-            ),
-            (
-                13.2,
-                (source_x - 0.014, source_y - 0.010, transfer_z, 0.0, 0.0),
-                (0.0, 0.0, 0.0, 0.0, 0.0),
-            ),
+            (8.2, (source_x - 0.015, source_y - 0.010, scoop_z, 0.0), (0.001, 0.0, 0.0, 0.0)),
+            (9.2, (source_x - 0.014, source_y - 0.010, scoop_z + 0.012, 0.0), (0.001, 0.0, 0.024, 0.0)),
+            (10.4, (source_x - 0.014, source_y - 0.010, source_z + 0.105, 0.0), (0.0, 0.0, 0.055, 0.0)),
+            (11.7, (source_x - 0.014, source_y - 0.010, source_z + 0.165, 0.0), (0.0, 0.0, 0.045, 0.0)),
+            (13.2, (source_x - 0.014, source_y - 0.010, transfer_z, 0.0), (0.0, 0.0, 0.0, 0.0)),
         ]
         ready_distance = torch.linalg.vector_norm(initial[:, :3] - approach[:, :3], dim=-1)
         ready_angle = math_utils.quat_error_magnitude(initial[:, 3:], approach[:, 3:])
@@ -216,7 +175,7 @@ class CoffeeScoopDemo:
                 six additional seconds, its state becomes invalid, or the
                 contact grasp exceeds the allowed slip/rotation bounds.
         """
-        actual = self._spoon_pose()
+        actual = spoon_pose(self._env)
         if not torch.isfinite(actual).all():
             raise RuntimeError(f"Coffee demo has an invalid spoon pose in phase {self.phase!r}.")
         if not self.finished:
@@ -272,23 +231,9 @@ class CoffeeScoopDemo:
                 ]
                 coordinates[0] += lane_offset * lane_blend
                 coordinates[1] = BOWL_POSITION[1] + (coordinates[1] - BOWL_POSITION[1]) * direction
-                pitch, roll = coordinates[3], coordinates[4] * direction
-                sin_pitch, cos_pitch = math.sin(pitch / 2.0), math.cos(pitch / 2.0)
-                sin_roll, cos_roll = math.sin(roll / 2.0), math.cos(roll / 2.0)
-                pose = (
-                    *coordinates[:3],
-                    sin_roll * cos_pitch,
-                    cos_roll * sin_pitch,
-                    -sin_roll * sin_pitch,
-                    cos_roll * cos_pitch,
-                )
+                pose = (*coordinates[:3], 0.0, math.sin(coordinates[3] / 2.0), 0.0, math.cos(coordinates[3] / 2.0))
                 return torch.tensor(pose, dtype=torch.float32, device=self._env.device).expand(self._env.num_envs, -1)
         raise RuntimeError("The coffee scoop path has no endpoint.")
-
-    def _spoon_pose(self) -> torch.Tensor:
-        pose = self._env.scene["spoon"].data.root_link_pose_w.torch.clone()
-        pose[:, :3] -= self._env.scene.env_origins
-        return pose
 
     def _palm_action(self, spoon_pose: torch.Tensor) -> torch.Tensor:
         # T_world_palm = T_world_spoon * inverse(T_palm_spoon).

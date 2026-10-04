@@ -29,6 +29,125 @@ from isaaclab.app import add_launcher_args, launch_simulation
 wp.config.enable_backward = False
 
 
+def main() -> None:
+    args, parser, ffmpeg = _parse_args()
+    video_stride = 4
+    cfg, visualizers = _make_env_cfg(args, parser, video_stride)
+    with launch_simulation(cfg, args), ExitStack() as stack:
+        from isaaclab_tasks.contrib.rizon_sharpa_coffee.coffee_env import CoffeeEnv
+        from isaaclab_tasks.contrib.rizon_sharpa_coffee.presentation import CoffeePresentation
+        from isaaclab_tasks.contrib.rizon_sharpa_coffee.scripted import CoffeeScoopDemo
+
+        env = CoffeeEnv(cfg)
+        stack.callback(env.close)
+        env.reset()
+        if visualizers and cfg.grains_per_particle:
+            env.presentation = CoffeePresentation(
+                env, voxel_size=cfg.voxel_size, surface_smoothing_time=args.surface_smoothing_time
+            )
+        if visualizers:
+            env.sim.render()
+        controller = CoffeeScoopDemo(env) if args.mode == "scripted" else None
+        camera = (
+            _SpoonCamera(env.sim.visualizers, show_cup=cfg.water_enabled)
+            if visualizers and args.camera == "follow"
+            else None
+        )
+        device = None
+        if args.mode == "avp":
+            from isaaclab_teleop import CLOUDXR_AVP_ENV, IsaacTeleopCfg, create_isaac_teleop_device, poll_control_events
+
+            from isaaclab.devices.openxr import XrCfg
+
+            from isaaclab_tasks.contrib.rizon_sharpa_coffee.teleop import CoffeeTeleopController, build_teleop_pipeline
+
+            device = stack.enter_context(
+                create_isaac_teleop_device(
+                    IsaacTeleopCfg(
+                        pipeline_builder=build_teleop_pipeline,
+                        xr_cfg=XrCfg(anchor_pos=tuple(args.anchor_pos)),
+                        sim_device=env.device,
+                    ),
+                    cloudxr_env_file=args.cloudxr_env or CLOUDXR_AVP_ENV,
+                    use_kit_xr_bridge=False,
+                )
+            )
+            device.reset()
+            device.request_start()
+            teleop_controller = CoffeeTeleopController(env)
+        recording = stack.enter_context(_DemoRecording(env, args, ffmpeg, video_stride))
+        step = 0
+        with torch.inference_mode():
+            while step < args.max_steps:
+                if not env.sim.is_running():
+                    break
+                if device is not None:
+                    action = device.advance()
+                    events = poll_control_events(device)
+                    if events.should_reset:
+                        env.reset()
+                        device.reset()
+                        teleop_controller.reset()
+                        if camera is not None:
+                            camera.reset()
+                    if action is None or events.is_active is False:
+                        env.sim.render()
+                        continue
+                    action = teleop_controller.compute(action)
+                else:
+                    action = controller.compute()
+                if camera is not None:
+                    camera.update(
+                        env.scene["spoon"].data.root_link_pos_w.torch[0].tolist(),
+                        controller.phase if controller is not None else "teleoperation",
+                        env.step_dt,
+                    )
+                observations, reward, terminated, truncated, _ = env.step(env.actions_from_targets(action))
+                if not torch.isfinite(observations["policy"]).all() or not torch.isfinite(reward).all():
+                    raise RuntimeError("Coffee rollout produced a nonfinite observation or reward.")
+                if bool(terminated.any()) or bool(truncated.any()):
+                    if controller is not None:
+                        reasons = [
+                            name
+                            for name in env.termination_manager.active_terms
+                            if bool(env.termination_manager.get_term(name).any())
+                        ]
+                        if not reasons:
+                            # Desktop Reset is an episode boundary, not a failed simulation.
+                            controller.reset()
+                            if camera is not None:
+                                camera.reset()
+                            recording.previous_phase = None
+                            step += 1
+                            continue
+                        raise RuntimeError(f"Scripted rollout ended at step {step}: {', '.join(reasons)}.")
+                    device.reset()
+                    teleop_controller.reset()
+                if env.presentation is not None:
+                    env.presentation.update(env.step_dt)
+                phase = str(controller.phase) if controller is not None else "teleoperation"
+                recording.update(step, phase)
+                if controller is not None and controller.finished:
+                    if env.particle_fractions()[0, 2] < cfg.success_fraction:
+                        raise RuntimeError("The arm completed its path, but insufficient coffee reached the cup.")
+                    recording.close()
+                    # Capture the complete sequence; desktop Reset can replay it independently.
+                    if not args.keep_open:
+                        break
+                    print("Scoop sequence complete. Use the viewer Reset control to run it again.", flush=True)
+                    if not _wait_for_reset(env, controller):
+                        break
+                    if camera is not None:
+                        camera.reset()
+                    recording.previous_phase = None
+                step += 1
+        recording.close()
+        print("Final coffee fractions [bowl, spoon, cup, spill]:", env.particle_fractions()[0].tolist(), flush=True)
+        if args.keep_open:
+            while env.sim.is_running():
+                env.sim.render()
+
+
 def _parse_args():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--mode", choices=("scripted", "avp"), default="scripted")
@@ -190,222 +309,108 @@ def _make_env_cfg(args, parser, video_stride):
     return cfg, visualizers
 
 
-def main() -> None:
-    args, parser, ffmpeg = _parse_args()
-    video_stride = 4
-    cfg, visualizers = _make_env_cfg(args, parser, video_stride)
-    with launch_simulation(cfg, args), ExitStack() as stack:
-        from isaaclab_tasks.contrib.rizon_sharpa_coffee.coffee_env import CoffeeEnv
-        from isaaclab_tasks.contrib.rizon_sharpa_coffee.presentation import CoffeePresentation
-        from isaaclab_tasks.contrib.rizon_sharpa_coffee.scripted import CoffeeScoopDemo
+def _make_visualizers(args, parser):
+    from isaaclab_physx.renderers import IsaacRtxRendererCfg, IsaacRtxRendererGlobalSettingsCfg
+    from isaaclab_visualizers.kit import KitVisualizerCfg
+    from isaaclab_visualizers.newton import NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg
 
-        env = CoffeeEnv(cfg)
-        stack.callback(env.close)
-        env.reset()
-        coffee_mass_g = len(cfg.scene.coffee.spawn.positions) * cfg.scene.coffee.spawn.mass * 1000.0
-        if visualizers and cfg.grains_per_particle:
-            env.presentation = CoffeePresentation(
-                env, voxel_size=cfg.voxel_size, surface_smoothing_time=args.surface_smoothing_time
-            )
-        if visualizers:
-            env.sim.render()
-        controller = CoffeeScoopDemo(env) if args.mode == "scripted" else None
-        camera = (
-            _SpoonCamera(env.sim.visualizers, show_cup=cfg.water_enabled)
-            if visualizers and args.camera == "follow"
-            else None
-        )
-        device = None
-        if args.mode == "avp":
-            from isaaclab_teleop import CLOUDXR_AVP_ENV, IsaacTeleopCfg, create_isaac_teleop_device, poll_control_events
+    from isaaclab_tasks.contrib.rizon_sharpa_coffee.presentation import CoffeeGLVisualizer, CoffeeRTXVisualizer
 
-            from isaaclab.devices.openxr import XrCfg
-
-            from isaaclab_tasks.contrib.rizon_sharpa_coffee.teleop import CoffeeTeleopController, build_teleop_pipeline
-
-            device = stack.enter_context(
-                create_isaac_teleop_device(
-                    IsaacTeleopCfg(
-                        pipeline_builder=build_teleop_pipeline,
-                        xr_cfg=XrCfg(anchor_pos=tuple(args.anchor_pos)),
-                        sim_device=env.device,
+    visualizers = []
+    camera_cfg = dict(
+        headless=args.headless,
+        window_width=args.width,
+        window_height=args.height,
+        eye=(0.95, -0.65, 0.66),
+        lookat=(0.52, 0.02, 0.15),
+        focal_length=24.0,
+        background_color=(0.008, 0.014, 0.022),
+    )
+    for name in args.visualizer or []:
+        if name == "none":
+            continue
+        if name not in ("newton_gl", "newton_rtx", "kit"):
+            parser.error("This demo's grain/surface presentation supports newton_gl, newton_rtx or kit.")
+        if name == "kit":
+            visualizers.append(
+                KitVisualizerCfg(
+                    class_type="isaaclab_tasks.contrib.rizon_sharpa_coffee.kit_presentation:CoffeeKitVisualizer",
+                    streaming_cam_renderer_cfg=IsaacRtxRendererCfg(
+                        global_settings=IsaacRtxRendererGlobalSettingsCfg(
+                            enable_translucency=True,
+                            max_bounces=12,
+                            split_glass=False,
+                            carb_settings={
+                                "/rtx/rtpt/spp": args.render_samples,
+                                "/rtx/rtpt/extraSpecularAndTransmissiveBounces": 8,
+                            },
+                        )
                     ),
-                    cloudxr_env_file=args.cloudxr_env or CLOUDXR_AVP_ENV,
-                    use_kit_xr_bridge=False,
+                    enable_markers=False,
+                    enable_live_plots=False,
+                    **camera_cfg,
                 )
             )
-            device.reset()
-            device.request_start()
-            teleop_controller = CoffeeTeleopController(env)
-        metrics = []
-        output = args.output_dir
-        video_fps = 1.0 / (video_stride * env.step_dt)
-        if output is not None:
-            output.mkdir(parents=True, exist_ok=True)
-            pose_log = stack.enter_context((output / "spoon_poses.jsonl").open("w", buffering=1))
-            metadata = dict(
-                task="IsaacContrib-Rizon-Sharpa-Coffee",
-                mode=args.mode,
-                voxel_size_m=cfg.voxel_size,
-                spoon_margin_m=cfg.voxel_size * cfg.spoon_margin_voxels,
-                spoon_rim_margin_m=cfg.voxel_size * cfg.spoon_margin_voxels * cfg.spoon_rim_margin_scale,
-                spoon_proxy_mass_scale=(
-                    cfg.sim.physics.solver_cfg.proxies[0].mass_scale if cfg.grasp_mode == "contact" else None
-                ),
-                coffee_fill_height_m=cfg.coffee_fill_height,
-                physics_dt_s=cfg.sim.dt,
-                rigid_substeps=cfg.sim.physics.solver_cfg.entries[0].substeps,
-                mpm_substeps=cfg.sim.physics.solver_cfg.entries[1].substeps,
-                control_dt_s=env.step_dt,
-                policy_actions=env.action_manager.total_action_dim,
-                control_targets="absolute robot-base palm XYZ/XYZW and 22 hand angles",
-                solver_iterations=cfg.sim.physics.solver_cfg.entries[1].solver_cfg.max_iterations,
-                rheology_solver=cfg.sim.physics.solver_cfg.entries[1].solver_cfg.solver,
-                collider_basis=cfg.sim.physics.solver_cfg.entries[1].solver_cfg.collider_basis,
-                strain_basis=cfg.sim.physics.solver_cfg.entries[1].solver_cfg.strain_basis,
-                collider_velocity_mode=cfg.sim.physics.solver_cfg.entries[1].solver_cfg.collider_velocity_mode,
-                project_outside_colliders=cfg.sim.physics.solver_cfg.entries[1].solver_cfg.project_outside_colliders,
-                background_air_drag=cfg.sim.physics.solver_cfg.entries[1].solver_cfg.air_drag,
-                grid_capacity=dict(
-                    active_cells=cfg.sim.physics.solver_cfg.entries[1].solver_cfg.max_active_cell_count,
-                    lower_nodes=cfg.sim.physics.solver_cfg.entries[1].solver_cfg.max_lower_node_count,
-                    upper_nodes=cfg.sim.physics.solver_cfg.entries[1].solver_cfg.max_upper_node_count,
-                ),
-                coffee_particles=len(cfg.scene.coffee.spawn.positions),
-                coffee_mass_g=coffee_mass_g,
-                coffee_particle_mass_g=cfg.scene.coffee.spawn.mass * 1000.0,
-                water_particles=len(cfg.scene.water.spawn.positions) if cfg.water_enabled else 0,
-                water_fill_height_m=cfg.water_fill_height if cfg.water_enabled else None,
-                coffee_wetting_time_s=cfg.coffee_wetting_time if cfg.water_enabled else None,
-                grains_per_particle=cfg.grains_per_particle,
-                render_samples=args.render_samples,
-                surface_smoothing_time_s=args.surface_smoothing_time,
-                camera=args.camera,
-                camera_cup_reveal=cfg.water_enabled and args.camera == "follow",
-                render_interval_physics_steps=cfg.sim.render_interval,
-                video_fps=video_fps,
-                video_stride_steps=video_stride,
-                video_timebase="simulation",
-                visualizers=[visualizer.visualizer_type for visualizer in visualizers],
-                grasp_reset=cfg.grasp_reset_path,
-                grasp_mode=cfg.grasp_mode,
-                seed=cfg.seed,
+            continue
+        common = dict(
+            show_particles=args.grains_per_particle == 0,
+            particle_color=(0.095, 0.029, 0.010) if not args.water else None,
+            enable_picking=False,
+            enable_sky=False,
+            **camera_cfg,
+        )
+        visualizers.append(
+            NewtonRTXVisualizerCfg(
+                class_type=CoffeeRTXVisualizer,
+                rtx_environment="studio",
+                render_settings={
+                    "omni:rtx:rtpt:spp": ("Int", args.render_samples),
+                    "omni:rtx:rtpt:maxBounces": ("UInt", 8),
+                    "omni:rtx:rtpt:extraSpecularAndTransmissiveBounces": ("UInt", 4),
+                    "omni:rtx:directLighting:sampledLighting:denoisingTechnique": ("Token", "NRD ReLAX"),
+                    "omni:rtx:reflections:denoiser:enabled": ("Bool", True),
+                    "omni:rtx:indirectDiffuse:denoiser:enabled": ("Bool", True),
+                },
+                **common,
             )
-            (output / "run.json").write_text(json.dumps(metadata, indent=2) + "\n")
-            stack.callback(_write_metrics, output, metrics)
-        video = None
-        previous_phase = None
-        step = 0
-        with torch.inference_mode():
-            while step < args.max_steps:
-                if not env.sim.is_running():
-                    break
-                if device is not None:
-                    action = device.advance()
-                    events = poll_control_events(device)
-                    if events.should_reset:
-                        env.reset()
-                        device.reset()
-                        teleop_controller.reset()
-                        if camera is not None:
-                            camera.reset()
-                    if action is None or events.is_active is False:
-                        env.sim.render()
-                        continue
-                    action = teleop_controller.compute(action)
-                else:
-                    action = controller.compute()
-                if camera is not None:
-                    camera.update(
-                        env.scene["spoon"].data.root_link_pos_w.torch[0].tolist(),
-                        controller.phase if controller is not None else "teleoperation",
-                        env.step_dt,
-                    )
-                observations, reward, terminated, truncated, _ = env.step(env.actions_from_targets(action))
-                if not torch.isfinite(observations["policy"]).all() or not torch.isfinite(reward).all():
-                    raise RuntimeError("Coffee rollout produced a nonfinite observation or reward.")
-                if bool(terminated.any()) or bool(truncated.any()):
-                    if controller is not None:
-                        reasons = [
-                            name
-                            for name in env.termination_manager.active_terms
-                            if bool(env.termination_manager.get_term(name).any())
-                        ]
-                        if not reasons:
-                            # Desktop Reset is an episode boundary, not a failed simulation.
-                            controller.reset()
-                            if camera is not None:
-                                camera.reset()
-                            previous_phase = None
-                            step += 1
-                            continue
-                        raise RuntimeError(f"Scripted rollout ended at step {step}: {', '.join(reasons)}.")
-                    device.reset()
-                    teleop_controller.reset()
-                if env.presentation is not None:
-                    env.presentation.update(env.step_dt)
-                phase = str(controller.phase) if controller is not None else "teleoperation"
-                if output is not None and step % 5 == 0:
-                    pose_log.write(
-                        json.dumps(
-                            dict(step=step, phase=phase, pose=env.scene["spoon"].data.root_link_pose_w.torch.tolist())
-                        )
-                        + "\n"
-                    )
-                if step % 100 == 0 or phase != previous_phase:
-                    fractions = env.particle_fractions()[0].tolist()
-                    row = dict(
-                        step=step,
-                        time=(step + 1) * env.step_dt,
-                        phase=phase,
-                        source=fractions[0],
-                        spoon=fractions[1],
-                        cup=fractions[2],
-                        spill=fractions[3],
-                        carried_g=fractions[1] * coffee_mass_g,
-                        delivered_g=fractions[2] * coffee_mass_g,
-                    )
-                    if cfg.water_enabled:
-                        row["dissolved_coffee_g"] = 1000.0 * env.dissolution.converted_mass_kg
-                        if env.presentation is not None:
-                            row["visual_tracer_g"] = 1000.0 * env.presentation.tracer_mass_kg
-                    metrics.append(row)
-                    print(json.dumps(row), flush=True)
-                if output is not None and visualizers and (step % video_stride == 0 or phase != previous_phase):
-                    video = _capture_frame(
-                        env.sim.visualizers[0],
-                        output,
-                        phase,
-                        step,
-                        phase != previous_phase,
-                        video,
-                        ffmpeg,
-                        stack,
-                        ((args.width + 1) // 2 * 2, (args.height + 1) // 2 * 2),
-                        video_fps,
-                        step % video_stride == 0,
-                    )
-                previous_phase = phase
-                if controller is not None and controller.finished:
-                    if env.particle_fractions()[0, 2] < cfg.success_fraction:
-                        raise RuntimeError("The arm completed its path, but insufficient coffee reached the cup.")
-                    _finish_capture(output, metrics, video)
-                    # Capture the complete sequence; desktop Reset can replay it independently.
-                    output, video, metrics = None, None, []
-                    if not args.keep_open:
-                        break
-                    print("Scoop sequence complete. Use the viewer Reset control to run it again.", flush=True)
-                    if not _wait_for_reset(env, controller):
-                        break
-                    if camera is not None:
-                        camera.reset()
-                    previous_phase = None
-                step += 1
-        _finish_capture(output, metrics, video)
-        print("Final coffee fractions [bowl, spoon, cup, spill]:", env.particle_fractions()[0].tolist(), flush=True)
-        if args.keep_open:
-            while env.sim.is_running():
-                env.sim.render()
+            if name == "newton_rtx"
+            else NewtonGLVisualizerCfg(class_type=CoffeeGLVisualizer, **common)
+        )
+    return visualizers
+
+
+def _find_encoder(output):
+    ffmpeg = shutil.which("ffmpeg")
+    if output is not None and ffmpeg is None:
+        try:
+            from imageio_ffmpeg import get_ffmpeg_exe
+
+            ffmpeg = get_ffmpeg_exe()
+        except ImportError:
+            print("Video encoding needs the video extra; saving PNG captures and metrics.", flush=True)
+    return ffmpeg
+
+
+def _wait_for_reset(env, controller) -> bool:
+    """Keep the finished scene visible and rearm its controller on desktop Reset."""
+    while env.sim.is_running():
+        env.sim.render()
+        if env.sim.consume_reset_request():
+            env.reset()
+            controller.reset()
+            return True
+    return False
+
+
+def _close_video(video: subprocess.Popen) -> None:
+    if not video.stdin.closed:
+        video.stdin.close()
+    if video.wait() != 0:
+        raise RuntimeError("ffmpeg failed while encoding the coffee demo.")
+
+
+def _write_metrics(output: Path, metrics: list) -> None:
+    (output / "metrics.json").write_text(json.dumps(metrics, indent=2) + "\n")
 
 
 class _SpoonCamera:
@@ -467,103 +472,99 @@ class _SpoonCamera:
             visualizer.set_camera_view(self._eye, self._target)
 
 
-def _make_visualizers(args, parser):
-    from isaaclab_physx.renderers import IsaacRtxRendererCfg, IsaacRtxRendererGlobalSettingsCfg
-    from isaaclab_visualizers.kit import KitVisualizerCfg
-    from isaaclab_visualizers.newton import NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg
+class _DemoRecording(ExitStack):
+    """Own streamed video, snapshots and rollout logs, including partial failures."""
 
-    from isaaclab_tasks.contrib.rizon_sharpa_coffee.presentation import CoffeeGLVisualizer, CoffeeRTXVisualizer
-
-    visualizers = []
-    for name in args.visualizer or []:
-        if name == "none":
-            continue
-        if name not in ("newton_gl", "newton_rtx", "kit"):
-            parser.error("This demo's grain/surface presentation supports newton_gl, newton_rtx or kit.")
-        if name == "kit":
-            visualizers.append(
-                KitVisualizerCfg(
-                    class_type="isaaclab_tasks.contrib.rizon_sharpa_coffee.kit_presentation:CoffeeKitVisualizer",
-                    streaming_cam_renderer_cfg=IsaacRtxRendererCfg(
-                        global_settings=IsaacRtxRendererGlobalSettingsCfg(
-                            enable_translucency=True,
-                            max_bounces=12,
-                            split_glass=False,
-                            carb_settings={
-                                "/rtx/rtpt/spp": args.render_samples,
-                                "/rtx/rtpt/extraSpecularAndTransmissiveBounces": 8,
-                            },
-                        )
-                    ),
-                    headless=args.headless,
-                    window_width=args.width,
-                    window_height=args.height,
-                    eye=(0.95, -0.65, 0.66),
-                    lookat=(0.52, 0.02, 0.15),
-                    focal_length=24.0,
-                    enable_markers=False,
-                    enable_live_plots=False,
-                    background_color=(0.008, 0.014, 0.022),
-                )
+    def __init__(self, env, args, ffmpeg: str | None, stride: int):
+        super().__init__()
+        self._env = env
+        self._output = args.output_dir
+        self._ffmpeg = ffmpeg
+        self._stride = stride
+        self._size = tuple((size + 1) // 2 * 2 for size in (args.width, args.height))
+        self._fps = 1.0 / (stride * env.step_dt)
+        self._video = None
+        self._metrics = []
+        self.previous_phase = None
+        cfg = env.cfg
+        self._coffee_mass_g = len(cfg.scene.coffee.spawn.positions) * cfg.scene.coffee.spawn.mass * 1000.0
+        if self._output is not None:
+            self._output.mkdir(parents=True, exist_ok=True)
+            metadata = dict(
+                schema_version=2,
+                task="IsaacContrib-Rizon-Sharpa-Coffee",
+                arguments=vars(args),
+                simulation=cfg.sim.to_dict(),
+                seed=cfg.seed,
+                voxel_size_m=cfg.voxel_size,
+                spoon_margin_m=cfg.voxel_size * cfg.spoon_margin_voxels,
+                spoon_rim_margin_m=cfg.voxel_size * cfg.spoon_margin_voxels * cfg.spoon_rim_margin_scale,
+                coffee_fill_height_m=cfg.coffee_fill_height,
+                coffee_particles=len(cfg.scene.coffee.spawn.positions),
+                coffee_mass_g=self._coffee_mass_g,
+                water_particles=len(cfg.scene.water.spawn.positions) if cfg.water_enabled else 0,
+                water_fill_height_m=cfg.water_fill_height if cfg.water_enabled else None,
+                control_dt_s=env.step_dt,
+                policy_actions=env.action_manager.total_action_dim,
+                video_fps=self._fps,
+                video_stride_steps=stride,
+                video_timebase="simulation",
             )
-            continue
-        common = dict(
-            headless=args.headless,
-            window_width=args.width,
-            window_height=args.height,
-            eye=(0.95, -0.65, 0.66),
-            lookat=(0.52, 0.02, 0.15),
-            focal_length=24.0,
-            show_particles=args.grains_per_particle == 0,
-            particle_color=(0.095, 0.029, 0.010) if not args.water else None,
-            enable_picking=False,
-            enable_sky=False,
-            background_color=(0.008, 0.014, 0.022),
-        )
-        visualizers.append(
-            NewtonRTXVisualizerCfg(
-                class_type=CoffeeRTXVisualizer,
-                rtx_environment="studio",
-                render_settings={
-                    "omni:rtx:rtpt:spp": ("Int", args.render_samples),
-                    "omni:rtx:rtpt:maxBounces": ("UInt", 8),
-                    "omni:rtx:rtpt:extraSpecularAndTransmissiveBounces": ("UInt", 4),
-                    "omni:rtx:directLighting:sampledLighting:denoisingTechnique": ("Token", "NRD ReLAX"),
-                    "omni:rtx:reflections:denoiser:enabled": ("Bool", True),
-                    "omni:rtx:indirectDiffuse:denoiser:enabled": ("Bool", True),
-                },
-                **common,
-            )
-            if name == "newton_rtx"
-            else NewtonGLVisualizerCfg(class_type=CoffeeGLVisualizer, **common)
-        )
-    return visualizers
+            (self._output / "run.json").write_text(json.dumps(metadata, indent=2, default=str) + "\n")
+            self._poses = self.enter_context((self._output / "spoon_poses.jsonl").open("w", buffering=1))
+            self.callback(_write_metrics, self._output, self._metrics)
 
-
-def _find_encoder(output):
-    ffmpeg = shutil.which("ffmpeg")
-    if output is not None and ffmpeg is None:
+    def __exit__(self, *exc_info):
+        """Flush captures once; a desktop replay can continue without overwriting them."""
         try:
-            from imageio_ffmpeg import get_ffmpeg_exe
+            return super().__exit__(*exc_info)
+        finally:
+            self._output = None
+            self._video = None
 
-            ffmpeg = get_ffmpeg_exe()
-        except ImportError:
-            print("Video encoding needs the video extra; saving PNG captures and metrics.", flush=True)
-    return ffmpeg
+    def update(self, step: int, phase: str) -> None:
+        """Log measured progress and capture only at the recording cadence."""
+        env, output = self._env, self._output
+        new_phase = phase != self.previous_phase
+        if output is not None and step % 5 == 0:
+            pose = env.scene["spoon"].data.root_link_pose_w.torch.tolist()
+            self._poses.write(json.dumps(dict(step=step, phase=phase, pose=pose)) + "\n")
+        if step % 100 == 0 or new_phase:
+            fractions = env.particle_fractions()[0].tolist()
+            row = dict(
+                step=step,
+                time=(step + 1) * env.step_dt,
+                phase=phase,
+                source=fractions[0],
+                spoon=fractions[1],
+                cup=fractions[2],
+                spill=fractions[3],
+                carried_g=fractions[1] * self._coffee_mass_g,
+                delivered_g=fractions[2] * self._coffee_mass_g,
+            )
+            if env.cfg.water_enabled:
+                row["dissolved_coffee_g"] = 1000.0 * env.dissolution.converted_mass_kg
+                if env.presentation is not None:
+                    row["visual_tracer_g"] = 1000.0 * env.presentation.tracer_mass_kg
+            if output is not None:
+                self._metrics.append(row)
+            print(json.dumps(row), flush=True)
+        if output is not None and env.sim.visualizers and (step % self._stride == 0 or new_phase):
+            self._capture_frame(step, phase, new_phase)
+        self.previous_phase = phase
 
+    def _capture_frame(self, step: int, phase: str, new_phase: bool) -> None:
+        from PIL import Image
 
-def _capture_frame(
-    visualizer, output, phase, step, new_phase, video, ffmpeg, stack, video_size, video_fps, encode_frame
-):
-    from PIL import Image
-
-    frame = visualizer.render_rgb_array()
-    if frame is not None:
-        frame = frame[..., :3]
-        if video is None and ffmpeg is not None and encode_frame:
-            video = subprocess.Popen(
+        frame = self._env.sim.visualizers[0].render_rgb_array()
+        if frame is None:
+            return
+        image = Image.fromarray(frame[..., :3])
+        encode_frame = step % self._stride == 0
+        if self._video is None and self._ffmpeg is not None and encode_frame:
+            self._video = subprocess.Popen(
                 [
-                    ffmpeg,
+                    self._ffmpeg,
                     "-loglevel",
                     "error",
                     "-y",
@@ -572,9 +573,9 @@ def _capture_frame(
                     "-pix_fmt",
                     "rgb24",
                     "-s",
-                    f"{video_size[0]}x{video_size[1]}",
+                    f"{self._size[0]}x{self._size[1]}",
                     "-r",
-                    str(video_fps),
+                    str(self._fps),
                     "-i",
                     "-",
                     "-c:v",
@@ -585,53 +586,21 @@ def _capture_frame(
                     "yuv420p",
                     "-movflags",
                     "+faststart",
-                    str(output / "coffee.mp4"),
+                    str(self._output / "coffee.mp4"),
                 ],
                 stdin=subprocess.PIPE,
             )
-            stack.callback(_close_video, video)
-        if video is not None and encode_frame:
+            self.callback(_close_video, self._video)
+        if self._video is not None and encode_frame:
             # Desktop resizing must not change the raw stream's declared dimensions.
-            video_frame = Image.fromarray(frame)
-            if video_frame.size != video_size:
-                video_frame = video_frame.resize(video_size, Image.Resampling.LANCZOS)
-            video.stdin.write(video_frame.tobytes())
+            video_frame = image if image.size == self._size else image.resize(self._size, Image.Resampling.LANCZOS)
+            self._video.stdin.write(video_frame.tobytes())
         if new_phase:
-            Image.fromarray(frame).save(output / f"{step:04d}_{phase}.png")
+            image.save(self._output / f"{step:04d}_{phase}.png")
         if new_phase or step % 100 == 0:
-            preview = output / "latest.tmp.png"
-            Image.fromarray(frame).save(preview)
-            preview.replace(output / "latest.png")
-    return video
-
-
-def _wait_for_reset(env, controller) -> bool:
-    """Keep the finished scene visible and rearm its controller on desktop Reset."""
-    while env.sim.is_running():
-        env.sim.render()
-        if env.sim.consume_reset_request():
-            env.reset()
-            controller.reset()
-            return True
-    return False
-
-
-def _close_video(video: subprocess.Popen) -> None:
-    if not video.stdin.closed:
-        video.stdin.close()
-    if video.wait() != 0:
-        raise RuntimeError("ffmpeg failed while encoding the coffee demo.")
-
-
-def _write_metrics(output: Path, metrics: list) -> None:
-    (output / "metrics.json").write_text(json.dumps(metrics, indent=2) + "\n")
-
-
-def _finish_capture(output, metrics, video) -> None:
-    if output is not None:
-        _write_metrics(output, metrics)
-    if video is not None:
-        _close_video(video)
+            preview = self._output / "latest.tmp.png"
+            image.save(preview)
+            preview.replace(self._output / "latest.png")
 
 
 if __name__ == "__main__":

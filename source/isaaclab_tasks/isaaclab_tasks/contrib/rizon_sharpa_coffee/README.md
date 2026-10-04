@@ -94,6 +94,11 @@ FFmpeg and writes `coffee.mp4`, phase images, `run.json`, `metrics.json` and
 wall time required to render. Failed runs finalize the partial video. Do not
 reuse an output directory whose recording needs to be retained.
 
+`run.json` stores the resolved simulation configuration under `simulation` and
+the CLI options under `arguments` (metadata schema 2). Particle counts, fill
+heights, spoon margins and video timing remain explicit. The recorder streams
+frames to FFmpeg and flushes video and rollout logs when a run ends or fails.
+
 Kit requires its own USD libraries. When a separately installed USD SDK takes
 precedence, run with the Kit USD directory first on `PYTHONPATH` and its `bin`
 directory plus the Kit runtime directory first on `LD_LIBRARY_PATH`:

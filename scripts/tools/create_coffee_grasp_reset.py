@@ -111,17 +111,15 @@ def validate_retention(candidate: CoffeeGraspReset, duration_s: float = 2.0) -> 
         spoon_names = [native_model.geom(index).name for index in spoon_geoms]
         if not all(any(f"/{part}" in name for name in spoon_names) for part in ("BowlCollision", "HandleCollision")):
             raise ValueError("The spoon bowl and handle must remain separate collision meshes.")
-        finger_clearance = min(
-            mujoco.mj_geomDistance(native_model, native_data, a, b, 0.1, None)
-            for a in finger_geoms
-            for b in finger_geoms
-            if a < b and finger_geoms[a] != finger_geoms[b]
-        )
-        tool_clearance = min(
-            mujoco.mj_geomDistance(native_model, native_data, a, b, 0.1, None)
-            for a in finger_geoms
-            for b in spoon_geoms
-        )
+        finger_pairs = [
+            (a, b) for a in finger_geoms for b in finger_geoms if a < b and finger_geoms[a] != finger_geoms[b]
+        ]
+        tool_pairs = [(a, b) for a in finger_geoms for b in spoon_geoms]
+
+        def clearance(pairs):
+            return min(mujoco.mj_geomDistance(native_model, native_data, a, b, 0.1, None) for a, b in pairs)
+
+        finger_clearance, tool_clearance = clearance(finger_pairs), clearance(tool_pairs)
         max_distance = max_angle = 0.0
         minimum_finger_clearance = finger_clearance
         minimum_tool_clearance = tool_clearance
@@ -141,23 +139,8 @@ def validate_retention(candidate: CoffeeGraspReset, duration_s: float = 2.0) -> 
             angle = 2.0 * math.acos(min(cosine, 1.0))
             finite = bool(np.isfinite(poses).all())
             max_distance, max_angle = max(max_distance, distance), max(max_angle, angle)
-            minimum_finger_clearance = min(
-                minimum_finger_clearance,
-                min(
-                    mujoco.mj_geomDistance(native_model, native_data, a, b, 0.1, None)
-                    for a in finger_geoms
-                    for b in finger_geoms
-                    if a < b and finger_geoms[a] != finger_geoms[b]
-                ),
-            )
-            minimum_tool_clearance = min(
-                minimum_tool_clearance,
-                min(
-                    mujoco.mj_geomDistance(native_model, native_data, a, b, 0.1, None)
-                    for a in finger_geoms
-                    for b in spoon_geoms
-                ),
-            )
+            minimum_finger_clearance = min(minimum_finger_clearance, clearance(finger_pairs))
+            minimum_tool_clearance = min(minimum_tool_clearance, clearance(tool_pairs))
             if step * dt >= 0.2:
                 normals = []
                 for contact_id, contact in enumerate(native_data.contact[: native_data.ncon]):
