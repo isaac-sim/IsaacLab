@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 
 import warp as wp
 from newton import JointType
+from newton.actuators import Actuator
 
 from isaaclab.actuators import ActuatorCollection
 from isaaclab.actuators.actuator_bam_cfg import BamActuatorCfg
@@ -272,7 +273,7 @@ class NewtonActuatorControl(ArticulationActuatorControl):
                     f" 'stiff_frictionloss' and 'backlash_joint_template' (got {drive.startup_settings} and {setting})."
                 )
 
-    def _bind_bam_backlash(self, actuator, template: str) -> None:
+    def _bind_bam_backlash(self, actuator: Actuator, template: str) -> None:
         """Resolve each servo's sibling play hinge to its model coordinate index.
 
         Raises:
@@ -291,8 +292,10 @@ class NewtonActuatorControl(ArticulationActuatorControl):
             parent, _, name = model.joint_label[joint].rpartition("/")
             twin_label = f"{parent}/{template.format(name)}"
             twin = joints.get((int(worlds[joint]), twin_label))
-            if twin is None or joint_types[joint] != JointType.REVOLUTE or joint_types[twin] != JointType.REVOLUTE:
-                raise ValueError(f"BAM backlash requires a revolute servo and sibling play hinge: {twin_label}")
+            if joint_types[joint] != JointType.REVOLUTE:
+                raise ValueError(f"BAM backlash requires a revolute servo joint: {model.joint_label[joint]}")
+            if twin is None or joint_types[twin] != JointType.REVOLUTE:
+                raise ValueError(f"BAM backlash requires a revolute sibling play hinge: {twin_label}")
             indices.append(int(q_start[twin]))
         actuator.drive.backlash_pos_indices = wp.array(indices, dtype=wp.uint32, device=self.device)
 
