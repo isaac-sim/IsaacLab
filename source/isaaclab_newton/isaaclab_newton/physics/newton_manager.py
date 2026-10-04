@@ -53,7 +53,6 @@ from isaaclab.utils.timer import Timer
 from isaaclab.utils.version import has_kit
 from isaaclab.utils.warp.index_kernel import IndexKernelDispatcher
 
-from isaaclab_newton.actuators.bam import DriveBam
 from isaaclab_newton.physics.featherstone_manager_cfg import FeatherstoneSolverCfg
 from isaaclab_newton.physics.mjwarp_manager_cfg import MJWarpSolverCfg
 from isaaclab_newton.physics.newton_manager_cfg import (
@@ -1879,10 +1878,6 @@ class NewtonManager(PhysicsManager):
         from isaaclab.actuators.newton import NewtonActuatorAdapter  # noqa: PLC0415
 
         dofs_per_env = cls.backend.model.joint_dof_count // cls._num_envs
-        # BAM sums supply sag and shares command delays over each environment's DOFs.
-        for actuator in cls.backend.model.actuators:
-            if isinstance(actuator.drive, DriveBam):
-                actuator.drive.env_dof_stride = len(actuator.indices) // cls._num_envs
         NewtonManager._adapter = NewtonActuatorAdapter(
             actuators=list(cls.backend.model.actuators),
             num_envs=cls._num_envs,

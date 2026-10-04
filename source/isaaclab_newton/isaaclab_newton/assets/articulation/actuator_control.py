@@ -65,6 +65,12 @@ class NewtonActuatorControl(ArticulationActuatorControl):
         self._bam_cfgs = {name: cfg for name, cfg in actuator_cfgs.items() if isinstance(cfg, BamActuatorCfg)}
         self._native_actuator_path_active = True
         articulation._has_newton_actuators = True
+        # BAM shares supply sag and command delay over an environment's DOFs. The first articulation to
+        # activate the path creates every drive's state, so the stride is set for all BAM drives here.
+        model_actuators = SimulationManager.backend.model.actuators if SimulationManager.backend is not None else []
+        for actuator in model_actuators:
+            if isinstance(actuator.drive, DriveBam):
+                actuator.drive.env_dof_stride = len(actuator.indices) // self.num_instances
         SimulationManager.activate_newton_actuator_path()
 
         return native_group_names

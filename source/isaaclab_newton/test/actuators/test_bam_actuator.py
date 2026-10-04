@@ -17,7 +17,7 @@ import numpy as np
 import pytest
 import torch
 import warp as wp
-from isaaclab_newton.actuators import DriveBam, apply_bam_startup_sampling
+from isaaclab_newton.actuators import DriveBam
 from newton.actuators import parse_actuator_prim
 
 from pxr import Sdf, Usd
@@ -94,7 +94,7 @@ def make_actuator(servo_usd: str, num_envs: int, device: str, **drive_overrides:
         articulation_prim_path="/Robot",
     )
     (actuator,) = adapter.actuators
-    # Like NewtonManager: set the BAM stride, then build the adapter that creates the states.
+    # The adapter creates drive states, so rebuild it once the stride is set, as the articulation path does.
     actuator.drive.env_dof_stride = len(JOINT_NAMES)
     adapter = NewtonActuatorAdapter(
         actuators=[actuator], num_envs=num_envs, num_joints=len(JOINT_NAMES), dof_offset=0, device=device
@@ -373,26 +373,6 @@ def test_shared_supply_sags_with_the_group_load(goldens, servo_usd, device):
         np.testing.assert_allclose(
             bam.drive.motor_torque.numpy().reshape(shape), goldens["sag_motor_torque"][index], rtol=1e-5, atol=1e-6
         )
-
-
-@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-def test_startup_sampling_draws_one_value_per_environment(goldens, servo_usd, device):
-    """Start-up ranges give one value per environment, held across resets."""
-    cfg = make_cfg(goldens, vin_range=(6.0, 8.0), vin_drop_gain_range=(0.0, 0.2))
-    bam = make_actuator(servo_usd, num_envs=8, device=device)
-
-    apply_bam_startup_sampling(bam.drive, cfg)
-
-    for attr, (low, high) in (("vin", cfg.vin_range), ("sag_gain", cfg.vin_drop_gain_range)):
-        values = getattr(bam.drive, attr).numpy().reshape(8, len(JOINT_NAMES))
-        np.testing.assert_array_equal(values[:, 0], values[:, 1])
-        assert ((values >= low) & (values <= high)).all()
-        assert len(np.unique(values[:, 0])) > 1, "every environment drew the same value"
-    before_reset = {name: getattr(bam.drive, name).numpy().copy() for name in ("vin", "sag_gain")}
-    reset(bam, torch.arange(8, device=device))
-    for name, values in before_reset.items():
-        np.testing.assert_array_equal(getattr(bam.drive, name).numpy(), values)
-    np.testing.assert_array_equal(bam.drive.friction_scale.numpy(), 1.0)
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))

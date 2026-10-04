@@ -110,29 +110,25 @@ def _make_cfg(**overrides) -> BamActuatorCfg:
     return BamActuatorCfg(**kwargs)
 
 
-def _build_native_pendulum(sim, pendulum_usd: str, actuator_cfg: BamActuatorCfg | None = None) -> Articulation:
-    """Spawn :data:`NUM_ENVS` BAM-driven pendulums on the Newton-native actuator path.
-
-    Args:
-        sim: Simulation context to spawn into.
-        pendulum_usd: Path of the pendulum asset.
-        actuator_cfg: Servo group to drive them with. Defaults to the plain BAM configuration.
-    """
+def _spawn_pendulums(sim, pendulum_usd: str, cfgs: dict[str, BamActuatorCfg]) -> list[Articulation]:
+    """Spawn one BAM pendulum per entry of *cfgs* in each of :data:`NUM_ENVS` environments and reset."""
     for index in range(NUM_ENVS):
         sim_utils.create_prim(f"/World/Env_{index}", "Xform", translation=(index * 1.0, 0.0, 1.0))
-    robot = Articulation(
-        ArticulationCfg(
-            prim_path="/World/Env_[^/]*/Robot",
-            spawn=sim_utils.UsdFileCfg(usd_path=pendulum_usd),
-            init_state=ArticulationCfg.InitialStateCfg(joint_pos={"joint": INITIAL_ANGLE}),
-            actuators={"servo": actuator_cfg or _make_cfg()},
+    robots = [
+        Articulation(
+            ArticulationCfg(
+                prim_path=f"/World/Env_[^/]*/{name}",
+                spawn=sim_utils.UsdFileCfg(usd_path=pendulum_usd),
+                init_state=ArticulationCfg.InitialStateCfg(joint_pos={"joint": INITIAL_ANGLE}),
+                actuators={"servo": cfg},
+            )
         )
-    )
-    clone_plan_from_env_0(CloneCfg(clone_template="/World/Env_{}"), [robot.cfg], NUM_ENVS, 1.0)
+        for name, cfg in cfgs.items()
+    ]
+    clone_plan_from_env_0(CloneCfg(clone_template="/World/Env_{}"), [robot.cfg for robot in robots], NUM_ENVS, 1.0)
     replicate(sim.get_clone_plan())
     sim.reset()
-    assert robot.is_initialized
-    return robot
+    return robots
 
 
 @pytest.mark.parametrize(
@@ -149,7 +145,7 @@ def test_native_pendulum_matches_recorded_trajectory(native_sim, device, pendulu
     On CUDA the friction scales change after graph capture, so live parameter updates are
     exercised with both state-buffer parities.
     """
-    robot = _build_native_pendulum(native_sim, pendulum_usd)
+    (robot,) = _spawn_pendulums(native_sim, pendulum_usd, {"Robot": _make_cfg()})
     drive = robot.actuators["servo"].drive
     np.testing.assert_allclose(
         robot.data.joint_viscous_friction_coeff.torch.cpu().numpy(), _make_cfg().motor.friction_viscous, rtol=1e-6
@@ -186,35 +182,10 @@ def test_native_pendulum_matches_recorded_trajectory(native_sim, device, pendulu
             )
 
 
-def _build_two_native_pendulums(sim, pendulum_usd: str, second_cfg: BamActuatorCfg) -> tuple:
-    """Spawn two BAM pendulums per environment; Newton merges them when their grouping keys agree."""
-    for index in range(NUM_ENVS):
-        sim_utils.create_prim(f"/World/Env_{index}", "Xform", translation=(index * 1.0, 0.0, 1.0))
-    robots = []
-    for name, cfg in (
-        ("RobotA", _make_cfg()),
-        ("RobotB", second_cfg),
-    ):
-        robots.append(
-            Articulation(
-                ArticulationCfg(
-                    prim_path=f"/World/Env_[^/]*/{name}",
-                    spawn=sim_utils.UsdFileCfg(usd_path=pendulum_usd),
-                    init_state=ArticulationCfg.InitialStateCfg(joint_pos={"joint": INITIAL_ANGLE}),
-                    actuators={"servo": cfg},
-                )
-            )
-        )
-    clone_plan_from_env_0(CloneCfg(clone_template="/World/Env_{}"), [robot.cfg for robot in robots], NUM_ENVS, 1.0)
-    replicate(sim.get_clone_plan())
-    sim.reset()
-    return tuple(robots)
-
-
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-def test_articulations_sharing_one_actuator_bind_once_and_must_agree(native_sim, device, pendulum_usd):
-    """Merged robots share one bound drive; settings outside Newton's grouping key must match."""
-    robot_a, robot_b = _build_two_native_pendulums(native_sim, pendulum_usd, _make_cfg())
+def test_articulations_sharing_one_actuator_bind_once(native_sim, device, pendulum_usd):
+    """Identical robots merge into one Newton actuator whose drive is bound to the solver."""
+    robot_a, robot_b = _spawn_pendulums(native_sim, pendulum_usd, {"RobotA": _make_cfg(), "RobotB": _make_cfg()})
     assert robot_a.actuators["servo"] is robot_b.actuators["servo"], "identical robots must merge"
     assert robot_a.actuators["servo"].drive.external_torque is not None
 
@@ -222,40 +193,26 @@ def test_articulations_sharing_one_actuator_bind_once_and_must_agree(native_sim,
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_articulations_sharing_one_actuator_reject_conflicting_settings(native_sim, device, pendulum_usd):
     """Differing start-up ranges cannot be applied to one shared drive."""
+    cfgs = {"RobotA": _make_cfg(), "RobotB": _make_cfg(vin_drop_gain_range=(0.0, 0.2))}
     with pytest.raises(ValueError, match="sharing a Newton BAM actuator"):
-        _build_two_native_pendulums(native_sim, pendulum_usd, _make_cfg(vin_drop_gain_range=(0.0, 0.2)))
+        _spawn_pendulums(native_sim, pendulum_usd, cfgs)
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-def test_startup_ranges_are_sampled_per_environment(native_sim, device, pendulum_usd):
-    """Apply startup ranges per environment and preserve an unset parameter's nominal value."""
-    for index in range(NUM_ENVS):
-        sim_utils.create_prim(f"/World/Env_{index}", "Xform", translation=(index * 1.0, 0.0, 1.0))
-    robot = Articulation(
-        ArticulationCfg(
-            prim_path="/World/Env_[^/]*/Robot",
-            spawn=sim_utils.UsdFileCfg(usd_path=pendulum_usd),
-            init_state=ArticulationCfg.InitialStateCfg(joint_pos={"joint": INITIAL_ANGLE}),
-            actuators={
-                "servo": _make_cfg(
-                    joint_names_expr=[".*"],
-                    kp_fw=KP_FW,
-                    vin_range=(6.0, 8.0),
-                    vin_drop_gain_range=(0.0, 0.2),
-                )
-            },
-        )
-    )
-    clone_plan_from_env_0(CloneCfg(clone_template="/World/Env_{}"), [robot.cfg], NUM_ENVS, 1.0)
-    replicate(native_sim.get_clone_plan())
-    native_sim.reset()
-    assert robot.is_initialized
+def test_startup_ranges_are_sampled_per_environment_and_kept_on_reset(native_sim, device, pendulum_usd):
+    """Start-up ranges give one value per environment, held across resets; friction stays unscaled."""
+    cfg = _make_cfg(vin_range=(6.0, 8.0), vin_drop_gain_range=(0.0, 0.2))
+    (robot,) = _spawn_pendulums(native_sim, pendulum_usd, {"Robot": cfg})
 
-    for attr, (low, high) in (("vin", (6.0, 8.0)), ("sag_gain", (0.0, 0.2))):
+    sampled = {}
+    for attr, (low, high) in (("vin", cfg.vin_range), ("sag_gain", cfg.vin_drop_gain_range)):
         values = read_group_parameter(robot.actuators, "servo", "drive", attr)
         assert bool(((values >= low) & (values <= high)).all()), f"{attr} outside its configured range"
         assert len(torch.unique(values)) > 1, f"{attr} drew the same value for every environment"
-    # Friction remains unscaled until a task event writes it.
+        sampled[attr] = values.clone()
+    robot.actuators.reset()
+    for attr, values in sampled.items():
+        torch.testing.assert_close(read_group_parameter(robot.actuators, "servo", "drive", attr), values)
     torch.testing.assert_close(
         read_group_parameter(robot.actuators, "servo", "drive", "friction_scale"),
         torch.ones(NUM_ENVS, robot.num_joints, device=robot.device),
@@ -265,8 +222,8 @@ def test_startup_ranges_are_sampled_per_environment(native_sim, device, pendulum
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_each_articulation_configures_only_its_own_actuator(native_sim, device, pendulum_usd):
     """Robots in separate Newton actuators each get their own start-up configuration."""
-    delayed = _make_cfg(max_delay=2, vin_range=(6.5, 6.5))
-    robot_a, robot_b = _build_two_native_pendulums(native_sim, pendulum_usd, delayed)
+    cfgs = {"RobotA": _make_cfg(), "RobotB": _make_cfg(max_delay=2, vin_range=(6.5, 6.5))}
+    robot_a, robot_b = _spawn_pendulums(native_sim, pendulum_usd, cfgs)
     assert robot_a.actuators["servo"] is not robot_b.actuators["servo"], "differing max_delay must not merge"
 
     # robot_a keeps the nominal supply; robot_b uses its configured start-up range.
@@ -288,24 +245,12 @@ def test_bam_rejects_a_non_mjwarp_solver(pendulum_usd):
         device=device, gravity_enabled=True, add_ground_plane=False, sim_cfg=sim_cfg
     ) as sim_ctx:
         sim_ctx._app_control_on_stop_handle = None  # noqa: SLF001
-        for index in range(NUM_ENVS):
-            sim_utils.create_prim(f"/World/Env_{index}", "Xform", translation=(index * 1.0, 0.0, 1.0))
-        robot = Articulation(
-            ArticulationCfg(
-                prim_path="/World/Env_[^/]*/Robot",
-                spawn=sim_utils.UsdFileCfg(usd_path=pendulum_usd),
-                init_state=ArticulationCfg.InitialStateCfg(joint_pos={"joint": INITIAL_ANGLE}),
-                actuators={"servo": _make_cfg(vin_range=(6.0, 8.0))},
-            )
-        )
-        clone_plan_from_env_0(CloneCfg(clone_template="/World/Env_{}"), [robot.cfg], NUM_ENVS, 1.0)
-        replicate(sim_ctx.get_clone_plan())
         with pytest.raises(ValueError, match="BAM actuators require.*MJWarp"):
-            sim_ctx.reset()
+            _spawn_pendulums(sim_ctx, pendulum_usd, {"Robot": _make_cfg(vin_range=(6.0, 8.0))})
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_bam_cfg_is_refused_on_the_isaac_lab_executed_path(sim, device, pendulum_usd):
     """BAM requires the native actuator loop."""
     with pytest.raises(ValueError, match="use_newton_actuators"):
-        _build_native_pendulum(sim, pendulum_usd, _make_cfg())
+        _spawn_pendulums(sim, pendulum_usd, {"Robot": _make_cfg()})

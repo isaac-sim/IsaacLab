@@ -269,7 +269,7 @@ raise an error. Its drive, :class:`~isaaclab_newton.actuators.DriveBam`, runs as
 every physics step:
 
 * the position command is delayed by a randomly resampled lag;
-* the supply sags with the summed torque of the environment's joints,
+* the supply sags with the summed torque of the drive's joints in that environment,
   ``vin_eff = max(vin - sag_gain * sum_j |tau_j|, vin_min)``;
 * the firmware law ``duty = (q_des - q) * kp_fw * error_gain`` is clipped by the current limiter
   and the PWM range;
@@ -422,9 +422,10 @@ episode, add a reset event:
 Known constraints
 ^^^^^^^^^^^^^^^^^
 
-* **Merged robots share one drive.** Newton merges structurally identical joints into one actuator.
-  Articulations that merge must use the same start-up ranges and ``stiff_frictionloss``, and their
-  joints in one environment share one supply and one command delay.
+* **Supply and delay are per drive, not per robot.** Newton builds one drive per set of structurally
+  identical BAM joints. Groups with different motor fits get separate drives, so each sags and delays
+  independently even on one robot. Robots that merge into one drive share its supply and delay within
+  an environment, and must use the same start-up ranges and ``stiff_frictionloss``.
 * **Friction feedback ignores extra clipping.** If a tighter solver joint limit clips the drive
   output, the load-dependent friction does not see it.
 
