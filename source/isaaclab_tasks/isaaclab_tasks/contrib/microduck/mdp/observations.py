@@ -21,7 +21,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
     from isaaclab.assets import Articulation
-    from isaaclab.envs import ManagerBasedEnv
+    from isaaclab.envs import ManagerBasedEnv, ManagerBasedRLEnv
     from isaaclab.managers import ObservationTermCfg
     from isaaclab.sensors import ContactSensor
 
@@ -62,22 +62,16 @@ def base_ang_vel_imu_misaligned(
 
 
 class delayed_observation(ManagerTermBase):
-    """Wraps another observation term in the stochastic bus latency upstream models."""
+    """Wraps another observation term in a lag redrawn on a fixed period with a per-environment phase.
 
-    def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedEnv):
+    This matches upstream's IMU bus latency; constant lags use :attr:`ObservationTermCfg.delay_min_lag`.
+    """
+
+    def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedRLEnv):
         super().__init__(cfg, env)
-        self._min_lag = int(cfg.params.get("min_lag", 0))
-        self._max_lag = int(cfg.params.get("max_lag", 0))
-        self._update_period = int(cfg.params.get("update_period", 0))
-        self._hold_prob = float(cfg.params.get("hold_prob", 0.0))
-        if self._max_lag < 1:
-            raise ValueError(f"A delayed observation needs 'max_lag' >= 1, got {self._max_lag}.")
-        if not 0 <= self._min_lag <= self._max_lag:
-            raise ValueError(f"Expected 0 <= min_lag <= max_lag, got ({self._min_lag}, {self._max_lag}).")
-        if self._update_period < 0:
-            raise ValueError(f"A delayed observation needs 'update_period' >= 0, got {self._update_period}.")
-        if not 0.0 <= self._hold_prob <= 1.0:
-            raise ValueError(f"Expected 'hold_prob' in [0, 1], got {self._hold_prob}.")
+        self._min_lag = cfg.params["min_lag"]
+        self._max_lag = cfg.params["max_lag"]
+        self._update_period = cfg.params["update_period"]
         self._buffer = CircularBuffer(max_len=self._max_lag + 1, batch_size=self.num_envs, device=self.device)
         self._lags = torch.zeros(self.num_envs, dtype=torch.long, device=self.device)
         self._step_count = torch.zeros(self.num_envs, dtype=torch.long, device=self.device)
@@ -92,54 +86,40 @@ class delayed_observation(ManagerTermBase):
         resolved = slice(None) if env_ids is None else env_ids
         self._lags[resolved] = 0
         self._step_count[resolved] = 0
-        if self._update_period > 0:
-            phases = torch.randint(0, self._update_period, (self.num_envs,), device=self.device)
-            self._phase_offsets[resolved] = phases[resolved]
+        phases = torch.randint(0, self._update_period, (self.num_envs,), device=self.device)
+        self._phase_offsets[resolved] = phases[resolved]
         self._pending_reset[resolved] = True
         self._has_pending_reset = True
 
     def __call__(
         self,
-        env: ManagerBasedEnv,
-        term_func: Callable[..., torch.Tensor],
-        term_params: dict | None = None,
-        min_lag: int = 0,
-        max_lag: int = 0,
-        update_period: int = 0,
-        hold_prob: float = 0.0,
+        env: ManagerBasedRLEnv,
+        term_func: Callable[[ManagerBasedRLEnv], torch.Tensor],
+        min_lag: int,
+        max_lag: int,
+        update_period: int,
     ) -> torch.Tensor:
         """Compute the wrapped term and return a stale copy of it."""
-        step = getattr(env, "common_step_counter", None)
-        if step is not None and step == self._last_step and (self._output is not None):
+        # Repeated reads within one step return the same sample, except for freshly reset environments.
+        if env.common_step_counter == self._last_step and self._output is not None:
             if not self._has_pending_reset:
                 return self._output
-            fresh = term_func(env, **term_params or {})
+            fresh = term_func(env)
             mask = self._pending_reset.view(-1, *[1] * (fresh.dim() - 1))
             return torch.where(mask, fresh, self._output)
-        obs = term_func(env, **term_params or {})
+        obs = term_func(env)
         if self._has_pending_reset:
             self._buffer.reset(self._pending_reset)
             self._pending_reset.fill_(False)
             self._has_pending_reset = False
-        self._last_step = step
+        self._last_step = env.common_step_counter
         self._buffer.append(obs)
-        self._update_lags()
-        self._output = self._buffer[self._lags]
-        return self._output
-
-    def _update_lags(self) -> None:
-        """Draw new lags for the environments whose update period has come round."""
-        if self._update_period > 0:
-            should_update = (self._step_count + self._phase_offsets) % self._update_period == 0
-        else:
-            should_update = torch.ones(self.num_envs, dtype=torch.bool, device=self.device)
-        if self._hold_prob > 0.0:
-            should_update &= torch.rand(self.num_envs, device=self.device) >= self._hold_prob
-        candidates = torch.randint(
-            self._min_lag, self._max_lag + 1, (self.num_envs,), dtype=torch.long, device=self.device
-        )
+        should_update = (self._step_count + self._phase_offsets) % self._update_period == 0
+        candidates = torch.randint(min_lag, max_lag + 1, (self.num_envs,), device=self.device)
         self._lags = torch.where(should_update, candidates, self._lags)
         self._step_count += 1
+        self._output = self._buffer[self._lags]
+        return self._output
 
 
 def _finite(value: torch.Tensor) -> torch.Tensor:
