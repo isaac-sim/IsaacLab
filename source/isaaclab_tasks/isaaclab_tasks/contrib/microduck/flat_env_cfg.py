@@ -28,7 +28,9 @@ from isaaclab.utils.configclass import configclass
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 from isaaclab.visualizers import VisualizerCfg
 
-from isaaclab_assets import MICRODUCK_CFG
+from isaaclab_tasks.utils import preset
+
+from isaaclab_assets import MICRODUCK_BACKLASH_CFG, MICRODUCK_CFG
 
 from . import mdp
 
@@ -74,6 +76,12 @@ _FOOT_SENSOR_CFG = SceneEntityCfg("contact_forces", body_names=MICRODUCK_FOOT_BO
 _FOOT_BODY_CFG = SceneEntityCfg("robot", body_names=MICRODUCK_FOOT_BODY_NAMES, preserve_order=True)
 _FOOT_MATERIAL_CFG = SceneEntityCfg("robot", body_names=MICRODUCK_FOOT_BODY_NAMES)
 _SELF_COLLISION_SENSOR_CFG = SceneEntityCfg("self_collision")
+_PLAY_JOINT_CFG = SceneEntityCfg(
+    "robot", joint_names=[f"passive_{name}_backlash" for name in MICRODUCK_JOINT_NAMES], preserve_order=True
+)
+_HEAD_PLAY_JOINT_CFG = SceneEntityCfg(
+    "robot", joint_names=[f"passive_{name}_backlash" for name in MICRODUCK_HEAD_JOINT_NAMES], preserve_order=True
+)
 _IMU_MISALIGNMENT_DEG = 6.0
 _IMU_DELAY_UPDATE_PERIOD = 64
 MICRODUCK_SOLE_TO_ANKLE_OFFSET = 0.0225
@@ -81,6 +89,14 @@ MICRODUCK_SOLE_TO_ANKLE_OFFSET = 0.0225
 MICRODUCK_FOOT_TARGET_HEIGHT = 0.02 + MICRODUCK_SOLE_TO_ANKLE_OFFSET
 _FOOT_SWING_HEIGHT_WEIGHT = -0.25 * (MICRODUCK_FOOT_TARGET_HEIGHT / 0.02) ** 2
 MICRODUCK_STEPS_PER_ITERATION = 24
+
+
+def _backlash_preset(term, func=None, **params):
+    """Use ``term`` as is, or with ``func`` and ``params`` for the backlash robot under ``presets=backlash``."""
+    backlash = term.replace(params={**term.params, **params})
+    if func is not None:
+        backlash.func = func
+    return preset(default=term, backlash=backlash)
 
 
 @configclass
@@ -94,7 +110,10 @@ class MicroDuckSceneCfg(InteractiveSceneCfg):
         physics_material=RigidBodyMaterialBaseCfg(static_friction=1.0, dynamic_friction=1.0),
         debug_vis=False,
     )
-    robot = MICRODUCK_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    robot = preset(
+        default=MICRODUCK_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot"),
+        backlash=MICRODUCK_BACKLASH_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot"),
+    )
     contact_forces = ContactSensorCfg(
         prim_path="{ENV_REGEX_NS}/Robot/Geometry/trunk_base(/.*/(ankle_left|ankle_right))?",
         history_length=3,
@@ -172,17 +191,25 @@ class ObservationsCfg:
             },
             noise=Unoise(n_min=-0.01, n_max=0.01),
         )
-        joint_pos = ObsTerm(
-            func=mdp.joint_pos_rel_biased,
-            params={"asset_cfg": _SERVO_JOINT_CFG, "biased": True},
-            noise=Unoise(n_min=-0.001, n_max=0.001),
+        # With backlash, encoders measure servo plus play angle.
+        joint_pos = _backlash_preset(
+            ObsTerm(
+                func=mdp.joint_pos_rel_biased,
+                params={"asset_cfg": _SERVO_JOINT_CFG, "biased": True},
+                noise=Unoise(n_min=-0.001, n_max=0.001),
+            ),
+            backlash_cfg=_PLAY_JOINT_CFG,
         )
-        joint_vel = ObsTerm(
-            func=mdp.joint_vel_rel,
-            params={"asset_cfg": _SERVO_JOINT_CFG},
-            noise=Unoise(n_min=-0.25, n_max=0.25),
-            delay_min_lag=1,
-            delay_max_lag=1,
+        joint_vel = _backlash_preset(
+            ObsTerm(
+                func=mdp.joint_vel_rel,
+                params={"asset_cfg": _SERVO_JOINT_CFG},
+                noise=Unoise(n_min=-0.25, n_max=0.25),
+                delay_min_lag=1,
+                delay_max_lag=1,
+            ),
+            func=mdp.joint_vel_rel_backlash,
+            backlash_cfg=_PLAY_JOINT_CFG,
         )
         actions = ObsTerm(func=mdp.last_action)
         velocity_commands = ObsTerm(func=mdp.generated_commands, params={"command_name": "base_velocity"})
@@ -200,8 +227,15 @@ class ObservationsCfg:
         base_lin_vel = ObsTerm(func=mdp.base_lin_vel)
         base_ang_vel = ObsTerm(func=mdp.base_ang_vel)
         projected_gravity = ObsTerm(func=mdp.projected_gravity)
-        joint_pos = ObsTerm(func=mdp.joint_pos_rel_biased, params={"asset_cfg": _SERVO_JOINT_CFG, "biased": False})
-        joint_vel = ObsTerm(func=mdp.joint_vel_rel, params={"asset_cfg": _SERVO_JOINT_CFG})
+        joint_pos = _backlash_preset(
+            ObsTerm(func=mdp.joint_pos_rel_biased, params={"asset_cfg": _SERVO_JOINT_CFG, "biased": False}),
+            backlash_cfg=_PLAY_JOINT_CFG,
+        )
+        joint_vel = _backlash_preset(
+            ObsTerm(func=mdp.joint_vel_rel, params={"asset_cfg": _SERVO_JOINT_CFG}),
+            func=mdp.joint_vel_rel_backlash,
+            backlash_cfg=_PLAY_JOINT_CFG,
+        )
         actions = ObsTerm(func=mdp.last_action)
         velocity_commands = ObsTerm(func=mdp.generated_commands, params={"command_name": "base_velocity"})
         foot_height = ObsTerm(func=mdp.foot_height_safe, params={"asset_cfg": _FOOT_BODY_CFG})
@@ -321,7 +355,8 @@ class RewardsCfg:
     )
     body_ang_vel = RewTerm(func=mdp.body_ang_vel_xy_l2, weight=-0.05, params={"asset_cfg": _TRUNK_BODY_CFG})
     angular_momentum = RewTerm(func=mdp.angular_momentum_l2, weight=-0.02)
-    dof_pos_limits = RewTerm(func=mdp.joint_pos_limits, weight=-1.0)
+    # Play hinges rest against their stops, so only servos incur the soft-limit penalty with backlash.
+    dof_pos_limits = _backlash_preset(RewTerm(func=mdp.joint_pos_limits, weight=-1.0), asset_cfg=_SERVO_JOINT_CFG)
     action_rate_l2 = RewTerm(func=mdp.action_rate_l2, weight=-0.1)
     air_time = RewTerm(
         func=mdp.feet_air_time_windowed,
@@ -368,15 +403,21 @@ class RewardsCfg:
     self_collisions = RewTerm(
         func=mdp.self_collision_cost, weight=-1.0, params={"sensor_cfg": _SELF_COLLISION_SENSOR_CFG}
     )
-    head_pose_tracking = RewTerm(
-        func=mdp.head_pose_tracking,
-        weight=2.0,
-        params={"command_name": "head_pose", "std": 0.5, "asset_cfg": _HEAD_JOINT_CFG},
+    head_pose_tracking = _backlash_preset(
+        RewTerm(
+            func=mdp.head_pose_tracking,
+            weight=2.0,
+            params={"command_name": "head_pose", "std": 0.5, "asset_cfg": _HEAD_JOINT_CFG},
+        ),
+        backlash_cfg=_HEAD_PLAY_JOINT_CFG,
     )
-    head_pose_bias = RewTerm(
-        func=mdp.head_pose_bias_penalty,
-        weight=0.0,
-        params={"command_name": "head_pose", "tau_s": 1.0, "asset_cfg": _HEAD_JOINT_CFG},
+    head_pose_bias = _backlash_preset(
+        RewTerm(
+            func=mdp.head_pose_bias_penalty,
+            weight=0.0,
+            params={"command_name": "head_pose", "tau_s": 1.0, "asset_cfg": _HEAD_JOINT_CFG},
+        ),
+        backlash_cfg=_HEAD_PLAY_JOINT_CFG,
     )
 
 
@@ -446,7 +487,8 @@ class MicroDuckVelocityFlatEnvCfg(ManagerBasedRLEnvCfg):
             solver_cfg=MJWarpSolverCfg(
                 njmax=96,
                 nconmax=16,
-                iterations=10,
+                # Gearbox limit contacts exhaust 10 iterations at training scale.
+                iterations=preset(default=10, backlash=100),
                 # The original 20-step budget exhausts line search with the current MJWarp solver.
                 ls_iterations=50,
                 cone="pyramidal",

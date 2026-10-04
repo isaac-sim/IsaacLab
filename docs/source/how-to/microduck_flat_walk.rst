@@ -8,14 +8,9 @@
 MicroDuck Walking
 =================
 
-``IsaacContrib-Velocity-Flat-MicroDuck`` trains the standard walking MicroDuck on a plane with
-Newton MJWarp and :ref:`BAM servos <actuators-bam>`. It ports the walking recipe from
-`microduck_rl <https://github.com/pollen-robotics/microduck_rl>`_ through the original Isaac Lab
-MicroDuck branch. The flat and rough tasks each support the regular and backlash walking assets.
-
-The walking USD is currently loaded from
-``source/isaaclab_assets/data/Robots/PollenRobotics/MicroDuck/microduck_walk.usd``.
-Place the authored asset there before running. It is kept outside Git while asset-server publication is pending.
+``IsaacContrib-Velocity-Flat-MicroDuck`` trains the walking MicroDuck on a plane with Newton MJWarp and
+:ref:`BAM servos <actuators-bam>`, porting the recipe from
+`microduck_rl <https://github.com/pollen-robotics/microduck_rl>`_.
 
 Train with RSL-RL:
 
@@ -35,82 +30,34 @@ Play an RSL-RL checkpoint:
 Policy interface
 ----------------
 
-The control period is 0.02 s: four physics steps of 0.005 s. The 14 actions are joint-position
-offsets [rad] from the standing pose, ordered left leg, neck/head, then right leg. The explicit
-joint order in ``flat_env_cfg.py`` is used even when USD joint ordering differs.
+The policy runs at 50 Hz (four 0.005 s physics steps). Its 14 actions are joint-position offsets [rad]
+from the standing pose, ordered left leg, neck and head, then right leg, independent of the USD joint order.
 
-The actor reads 61 values in this order: base angular velocity (3), projected gravity (3),
-joint-position offsets (14), joint velocities (14), previous actions (14), velocity commands (3),
-head-pose commands (4), and body-pose commands (6). The body command remains in the interface
-although its reward is disabled. The critic receives 76 values including privileged foot state.
+The actor reads 61 values: base angular velocity (3), projected gravity (3), joint-position offsets (14),
+joint velocities (14), previous actions (14), velocity commands (3), head-pose commands (4), and body-pose
+commands (6). The critic reads 76 values, including privileged foot state.
 
-Training retains the previous Lab task's encoder bias, shared IMU misalignment, observation delays,
-velocity/head command sampling, rewards, and staged curricula. BAM friction is resampled on every
-episode reset through the native drive; battery voltage and sag gain are sampled at construction.
-The line-search budget is 50 iterations because the original budget of 20 exhausted the current solver.
-Playback disables additive observation noise and interval pushes; encoder bias, IMU misalignment,
-latency, and reset randomization remain active.
-
-This is not an exact reproduction of mjlab physics. Foot heights use ankle frames with a sole-height
-offset, and the walking USD's self-contact signal covers sole against sole. Its disabled shin and
-battery-holder colliders cannot reproduce mjlab's self-collision-only geometry. A compatible policy
-layout therefore still requires a rollout check on the current assets and actuators.
+Training randomizes encoder bias, IMU misalignment, observation delay, BAM friction, mass, center of mass,
+and armature. Playback disables observation noise and pushes.
 
 Rough terrain
 -------------
 
-``IsaacContrib-Velocity-Rough-MicroDuck`` adds the gentle terrain recipe from
-`microduck_rl's velocity task <https://github.com/pollen-robotics/microduck_rl/blob/8d0db74916a4f833d1d9b95d6a1d7f4d13b9d5ec/src/mjlab_microduck/tasks/microduck_velocity_env_cfg.py>`_.
-It uses the same walking USD, BAM settings, rewards, randomization, and PPO configuration as the flat task.
-No additional assets or teacher policies are required.
+``IsaacContrib-Velocity-Rough-MicroDuck`` uses
+`microduck_rl's gentle terrain mix <https://github.com/pollen-robotics/microduck_rl/blob/8d0db74916a4f833d1d9b95d6a1d7f4d13b9d5ec/src/mjlab_microduck/tasks/microduck_velocity_env_cfg.py>`_:
+flat ground, stairs up to 1.5 cm, random grids up to 1 cm, and gentle slopes in ten difficulty levels, advanced by
+distance walked. The actor stays blind to terrain; two downward rays per foot give the critic and the foot-clearance
+rewards the ground height.
+
+Backlash
+--------
+
+Add ``presets=backlash`` to either task to train the robot with ±1° of gearbox play in series with each servo:
 
 .. code-block:: bash
 
    uv run --extra rsl-rl isaaclab train --rl_library rsl_rl \
-     --task IsaacContrib-Velocity-Rough-MicroDuck --num_envs 4096
+     --task IsaacContrib-Velocity-Flat-MicroDuck --num_envs 4096 presets=backlash
 
-The terrain contains 8 m square tiles in ten difficulty levels: 25% flat, 25% stairs with steps
-up to 1.5 cm high, 30% random grids with height offsets up to 1 cm, and 20% slopes with a rise/run
-of 0.03--0.10. The distance walked controls progression through terrain levels. Initial resets sample
-levels 0--5. Playback uses a smaller, randomly generated map without terrain progression.
-
-The actor remains blind to terrain, with the same 61 observations and 14 actions. Two downward rays
-per foot, 4 cm ahead and behind its frame, measure the closest ground for the clearance and swing-height
-rewards and the critic's foot-height observations. The critic still receives 76 values. Rays query only
-the shared terrain. If both rays miss, clearance falls back to the tile origin and is bounded by the
-sensor's 1 m range.
-
-Lab generates a triangle mesh instead of mjlab's box geometry, so contact behavior is not identical.
-The terrain importer authors MuJoCo contact parameters ``solref=(0.04, 1.0)`` and
-``solimp=(0.85, 0.95, 0.001, 0.5, 2.0)`` before Newton parses the scene. The task allows 200 contacts
-and 1024 constraint rows per environment and uses 100 solver iterations with 50 line-search iterations.
-This keeps the current flat training run's solver budget rather than mjlab's 30-iteration rough setting.
-
-Backlash variants
------------------
-
-Use ``IsaacContrib-Velocity-Flat-Backlash-MicroDuck`` or
-``IsaacContrib-Velocity-Rough-Backlash-MicroDuck`` to train the corresponding task with gearbox play:
-
-.. code-block:: bash
-
-   uv run --extra rsl-rl isaaclab train --rl_library rsl_rl \
-     --task IsaacContrib-Velocity-Flat-Backlash-MicroDuck --num_envs 4096
-
-   uv run --extra rsl-rl isaaclab train --rl_library rsl_rl \
-     --task IsaacContrib-Velocity-Rough-Backlash-MicroDuck --num_envs 4096
-
-Both load ``source/isaaclab_assets/data/Robots/PollenRobotics/MicroDuck/microduck_walk_backlash.usd``.
-This local asset adds a passive hinge with ±1° of play to each servo, for 28 joints and 14 actions.
-The actor and critic retain their 61- and 76-value layouts. Joint observations and head-tracking
-rewards measure the output-side encoder: servo angle or velocity plus the corresponding play hinge.
-Encoder bias is applied once per servo, and the actor's existing velocity observation delay is retained.
-BAM firmware uses output-side position feedback while motor back-EMF remains motor-side.
-
-Only servo joints incur the soft-limit penalty, since passive hinges normally touch their stops.
-Reset centers the play hinges; the existing armature randomization includes them, as in the reference.
-Both backlash tasks use 100 solver iterations; the flat task's 10-iteration budget was exhausted
-at 4096 environments with play hinges. The variants inherit their respective terrain, reward, and PPO settings, with separate
-``microduck_velocity_flat_backlash`` and ``microduck_velocity_rough_backlash`` experiment directories.
-The observation layout permits loading existing walking policies, but the changed dynamics still
-require rollout validation.
+Encoders and head-pose rewards then measure servo plus play angle, only servo joints incur the soft-limit penalty,
+and the policy interface is unchanged, so existing walking policies load.

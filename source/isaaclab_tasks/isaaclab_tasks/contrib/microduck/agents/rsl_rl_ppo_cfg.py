@@ -9,6 +9,8 @@ from isaaclab.utils.configclass import configclass
 
 from isaaclab_rl.rsl_rl import RslRlMLPModelCfg, RslRlOnPolicyRunnerCfg, RslRlPpoAlgorithmCfg
 
+from isaaclab_tasks.utils import preset
+
 from ..flat_env_cfg import MICRODUCK_STEPS_PER_ITERATION
 
 
@@ -19,7 +21,7 @@ class MicroDuckPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     num_steps_per_env = MICRODUCK_STEPS_PER_ITERATION
     max_iterations = 50000
     save_interval = 250
-    experiment_name = "microduck_velocity_flat"
+    experiment_name = preset(default="microduck_velocity_flat", backlash="microduck_velocity_flat_backlash")
     obs_groups = {"actor": ["policy"], "critic": ["critic"]}
     actor = RslRlMLPModelCfg(
         hidden_dims=[512, 256, 128],
@@ -48,18 +50,4 @@ class MicroDuckPPORunnerCfg(RslRlOnPolicyRunnerCfg):
 class MicroDuckRoughPPORunnerCfg(MicroDuckPPORunnerCfg):
     """The same PPO recipe with a separate experiment directory for rough terrain."""
 
-    experiment_name = "microduck_velocity_rough"
-
-
-@configclass
-class MicroDuckBacklashFlatPPORunnerCfg(MicroDuckPPORunnerCfg):
-    """Flat walking PPO with separate logs for the backlash robot."""
-
-    experiment_name = "microduck_velocity_flat_backlash"
-
-
-@configclass
-class MicroDuckBacklashRoughPPORunnerCfg(MicroDuckRoughPPORunnerCfg):
-    """Rough walking PPO with separate logs for the backlash robot."""
-
-    experiment_name = "microduck_velocity_rough_backlash"
+    experiment_name = preset(default="microduck_velocity_rough", backlash="microduck_velocity_rough_backlash")
