@@ -978,6 +978,13 @@ def test_floating_articulation_root_writes_and_wrenches(articulation_scene: _Art
         wp.to_torch(floating.root_view.get_root_velocities()).to(device),
     )
     torch.testing.assert_close(reordered.data.root_com_vel_w.torch, floating.data.root_com_vel_w.torch)
+    # PhysX holds the center-of-mass velocity: the link velocity plus the angular velocity crossed with the
+    # world-frame center-of-mass offset (the center-of-mass frame has identity orientation, so it shares the link's).
+    expected_com_velocity = root_link_velocity.clone()
+    expected_com_velocity[:, :3] += torch.linalg.cross(
+        root_link_velocity[:, 3:], quat_apply(root_com_pose[:, 3:], backend_coms[:, 0, :3])
+    )
+    torch.testing.assert_close(wp.to_torch(floating.root_view.get_root_velocities()).to(device), expected_com_velocity)
     # The derived root link pose carries the written center-of-mass pose at the root's center-of-mass offset.
     for articulation, offset in ((floating, 0.0), (reordered, island_offset)):
         link_pose = articulation.data.root_link_pose_w.torch

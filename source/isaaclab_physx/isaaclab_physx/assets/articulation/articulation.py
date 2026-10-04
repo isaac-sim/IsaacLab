@@ -944,7 +944,7 @@ class Articulation(BaseArticulation):
         if not skip_forward:
             self.data._reset_velocity(from_com=False)
         # set into simulation
-        self.root_view.set_root_velocities(self.data._root_link_vel_w.data.view(wp.float32), indices=sim_env_ids)
+        self.root_view.set_root_velocities(self.data._root_com_vel_w.data.view(wp.float32), indices=sim_env_ids)
 
     def write_root_link_velocity_to_sim_mask(
         self,
