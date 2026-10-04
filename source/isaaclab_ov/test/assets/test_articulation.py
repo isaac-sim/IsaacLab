@@ -1668,6 +1668,13 @@ def test_native_actuator_reset_and_gain_event_are_environment_selective(scene: _
     # The delay state is flattened environment-major over the group's joints.
     assert stateful_pairs[0].delay_state.num_pushes.numpy().tolist() == [0] * num_joints + [1] * num_joints
 
+    scene.step(articulation)
+    articulation.reset(env_mask=wp.array([False, True], dtype=wp.bool, device=device))
+    stateful_pairs = [
+        state for state in adapter._states_a if state is not None and getattr(state, "delay_state", None) is not None
+    ]
+    assert stateful_pairs[0].delay_state.num_pushes.numpy().tolist() == [1] * num_joints + [0] * num_joints
+
     env = Env(articulation)
     asset_cfg = SceneEntityCfg("robot")
     event_params = {

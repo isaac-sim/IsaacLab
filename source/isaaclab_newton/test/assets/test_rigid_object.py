@@ -11,8 +11,9 @@
 Every environment holds a rigid-object cube and a three-cube collection, all locally spawned shapes. The cube
 also stands beside the collection as an unrelated rigid body, so the collection view must select exactly its
 configured bodies. Scene gravity is off; a test that needs gravity applies it to every world for its own duration.
-Configurations that fail initialization and the single-instance cases build their own scenes. Only one simulation
-context can be alive, so those tests come first and fail if selected after a shared-scene test.
+Configurations that fail initialization, the single-instance cases, and the CUDA-graph check of the collection
+mask writers build their own scenes. Only one simulation context can be alive, so those tests come first and fail
+if selected after a shared-scene test.
 """
 
 from isaaclab_newton.physics import NewtonCfg
@@ -186,6 +187,46 @@ def test_collection_single_instance_initialization(device: str) -> None:
         assert object_collection.data.body_inertia.torch.shape == (1, 1, 9)
 
 
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_collection_mask_writes_replay_from_cuda_graph_on_selected_cells(device: str) -> None:
+    """Mask writers record into a CUDA graph and, on replay, write only the selected environment-body cells.
+
+    The mask variants are the documented graph-capturable write path. The replay reads the input buffer's
+    contents at launch time, so the input is filled only after capture.
+    """
+    with build_simulation_context(sim_cfg=newton_sim_cfg(device)) as sim:
+        collection = spawn_assets({"collection": _collection_cfg(2)})["collection"]
+        sim.reset()
+        sim.step()
+        collection.update(sim.cfg.dt)
+
+        env_mask = wp.array([False, True], dtype=wp.bool, device=device)
+        body_mask = wp.array([True, False], dtype=wp.bool, device=device)
+        selected = torch.zeros(collection.num_instances, collection.num_bodies, 1, dtype=torch.bool, device=device)
+        selected[1, 0] = True
+        identity_pose = torch.tensor([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0], device=device)
+        writers = (
+            ("write_body_link_pose_to_sim_mask", "body_poses", "body_link_pose_w"),
+            ("write_body_com_pose_to_sim_mask", "body_poses", "body_com_pose_w"),
+            ("write_body_com_velocity_to_sim_mask", "body_velocities", "body_com_vel_w"),
+            ("write_body_link_velocity_to_sim_mask", "body_velocities", "body_link_vel_w"),
+        )
+        for writer, data_arg, buffer_name in writers:
+            before = getattr(collection.data, buffer_name).torch.clone()
+            target = torch.zeros_like(before)
+            with wp.ScopedCapture(device) as capture:
+                getattr(collection, writer)(**{data_arg: target}, env_mask=env_mask, body_mask=body_mask)
+            if data_arg == "body_poses":
+                target.copy_(identity_pose.expand_as(target))
+                target[..., :3] = torch.rand_like(target[..., :3]) + 2.0
+            else:
+                target.copy_(torch.rand_like(target) + 1.0)
+            wp.capture_launch(capture.graph)
+
+            written = getattr(collection.data, buffer_name).torch
+            torch.testing.assert_close(written, torch.where(selected, target, before), msg=writer)
+
+
 ##
 # Shared scene.
 ##
@@ -281,7 +322,8 @@ def test_external_force_on_single_body(scene: _Scene) -> None:
     """A permanent wrench reaches the solver in the local and the global frame, and a reset clears it.
 
     Cube 0 receives a force equal to its weight and hovers while cube 1 falls. Cube 0 then receives a force set
-    and added 1 m off its center along y and must turn about x while cube 1 keeps falling.
+    and added 1 m off its center along y and must turn about x while cube 1 keeps falling. A masked reset clears
+    the wrench of the selected environment only.
     """
     cube = scene.cube
     composer = cube.permanent_wrench_composer
@@ -309,6 +351,12 @@ def test_external_force_on_single_body(scene: _Scene) -> None:
                 else:
                     assert cube.data.root_ang_vel_b.torch[0, 0].abs() > 0.1
                 assert cube.data.root_pos_w.torch[1, 2] < 1.0
+
+    ones = torch.ones_like(zeros)
+    composer.set_forces_and_torques_index(forces=ones, torques=ones)
+    cube.reset(env_mask=wp.from_torch(torch.arange(cube.num_instances, device=scene.device) == 0))
+    assert torch.count_nonzero(composer.out_force_b.torch[0]) == 0
+    assert torch.count_nonzero(composer.out_force_b.torch[1:]) == composer.out_force_b.torch[1:].numel()
 
 
 @pytest.mark.isaacsim_ci
@@ -796,7 +844,8 @@ def test_collection_external_force_on_single_body(scene: _Scene) -> None:
     """A permanent wrench reaches the solver in the local and the global frame, and a reset clears it.
 
     Every other cube receives a force equal to its weight and hovers while the rest fall. Those cubes then
-    receive a force set and added 1 m off their centers along y and must turn about x.
+    receive a force set and added 1 m off their centers along y and must turn about x. A masked reset clears the
+    wrenches of the selected environment only.
     """
     collection = scene.collection
     composer = collection.permanent_wrench_composer
@@ -824,6 +873,12 @@ def test_collection_external_force_on_single_body(scene: _Scene) -> None:
                 else:
                     assert torch.all(collection.data.body_com_ang_vel_b.torch[:, 0::2, 0] > 0.1)
                 assert torch.all(height[:, 1::2] < 1.0)
+
+    ones = torch.ones_like(zeros)
+    composer.set_forces_and_torques_index(forces=ones, torques=ones)
+    collection.reset(env_mask=wp.from_torch(torch.arange(collection.num_instances, device=scene.device) == 0))
+    assert torch.count_nonzero(composer.out_force_b.torch[0]) == 0
+    assert torch.count_nonzero(composer.out_force_b.torch[1:]) == composer.out_force_b.torch[1:].numel()
 
 
 @pytest.mark.isaacsim_ci

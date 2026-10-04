@@ -546,11 +546,6 @@ def test_writer(monkeypatch, backend, device, selection, writer, kwarg, axis, tr
 
 
 @requires("newton")
-@pytest.mark.xfail(
-    raises=pytest.fail.Exception,
-    strict=True,
-    reason="Newton fixed-tendon mask setters slice full data without validating its shape",
-)
 def test_newton_fixed_tendon_mask_setters_reject_extra_environments(monkeypatch):
     art, _ = _articulation("newton", "cpu", monkeypatch)
     with pytest.raises((AssertionError, RuntimeError)):

@@ -1076,9 +1076,9 @@ def test_floating_articulation_root_writes_and_wrenches(articulation_scene: _Art
     actuator_reset = actuator.reset
     reset_env_ids = []
 
-    def record_actuator_reset(env_ids=None) -> None:
+    def record_actuator_reset(env_ids=None, env_mask=None) -> None:
         reset_env_ids.append(env_ids)
-        actuator_reset(env_ids)
+        actuator_reset(env_ids, env_mask=env_mask)
 
     monkeypatch.setattr(actuator, "reset", record_actuator_reset)
     composers = (floating.instantaneous_wrench_composer, floating.permanent_wrench_composer)

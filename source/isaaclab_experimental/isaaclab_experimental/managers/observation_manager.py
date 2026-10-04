@@ -670,6 +670,7 @@ class ObservationManager(ManagerBase):
                     "concatenate_terms",
                     "history_length",
                     "flatten_history_dim",
+                    "history_order",
                     "concatenate_dim",
                 ]:
                     continue
@@ -779,14 +780,8 @@ class ObservationManager(ManagerBase):
                                     f" and optional parameters: {args_with_defaults}, but received: {term_params}."
                                 )
 
-                # plumb the shared per-env RNG state so Warp noise kernels can consume it
-                # (function-style NoiseCfg kernels read it off the cfg at call time)
-                if term_cfg.noise is not None and isinstance(term_cfg.noise, noise.NoiseCfg):
-                    term_cfg.noise.rng_state_wp = self._env.rng_state_wp
                 # prepare noise model classes
                 if term_cfg.noise is not None and isinstance(term_cfg.noise, noise.NoiseModelCfg):
-                    # plumb the shared per-env RNG state so Warp noise kernels can consume it
-                    term_cfg.noise.rng_state_wp = self._env.rng_state_wp
                     noise_model_cls = term_cfg.noise.class_type
                     if not issubclass(noise_model_cls, noise.NoiseModel):
                         raise TypeError(
