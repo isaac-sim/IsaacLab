@@ -170,8 +170,6 @@ def test_microduck_reset_and_step(device, task):
             )
         if task == BACKLASH_TASK:
             # Distinct play values catch pairing/order mistakes in the policy's encoder view.
-            from isaaclab_tasks.contrib.microduck.mdp.events import encoder_bias
-
             play_ids = [robot.joint_names.index(f"passive_{name}_backlash") for name in JOINT_NAMES]
             play = torch.linspace(-0.014, 0.014, 8 * 14, device=env.device).reshape(8, 14)
             q = robot.data.default_joint_pos.torch.clone()
@@ -181,7 +179,8 @@ def test_microduck_reset_and_step(device, task):
             robot.write_joint_state_to_sim_index(position=q, velocity=qd)
             for group in (env.observation_manager.cfg.policy, env.observation_manager.cfg.critic):
                 term = group.joint_pos
-                expected = play + (encoder_bias(env)[:, ids] if term.params["biased"] else 0.0)
+                bias = env.action_manager.get_term("joint_pos").encoder_bias
+                expected = play + (bias if term.params["biased"] else 0.0)
                 torch.testing.assert_close(term.func(env, **term.params), expected)
             term = env.observation_manager.cfg.policy.joint_vel
             torch.testing.assert_close(term.func(env, **term.params), play * 10.0)
