@@ -85,7 +85,8 @@ From the Isaac Lab root directory:
    uv sync --inexact --extra rlinf --extra video
 
    # Step 2: Install packages with conflicting constraints (--no-deps to bypass resolver)
-   uv pip install rlinf==0.2.0dev2 transformers==4.51.3 "tokenizers>=0.21,<0.22" --no-deps
+   uv pip install rlinf==0.2.0dev2 transformers==4.51.3 \
+       "tokenizers>=0.21,<0.22" "huggingface-hub>=0.30,<1.0" --no-deps
    # Use the official PyTorch3D v0.7.9 tag instead of the older pipablepytorch3d package.
    # GR00T only uses pytorch3d.transforms, so skip the compiled extension.
    PYTORCH3D_NO_EXTENSION=1 uv pip install --no-build-isolation \
