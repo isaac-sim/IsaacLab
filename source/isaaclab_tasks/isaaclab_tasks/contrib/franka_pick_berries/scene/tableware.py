@@ -190,35 +190,74 @@ def _add_punnet(stage: Usd.Stage) -> None:
 
 
 def _lathe(
-    stage: Usd.Stage, path: str, profile: list[tuple[float, float]], center: tuple[float, float]
+    stage: Usd.Stage,
+    path: str,
+    profile: list[tuple[float, float]],
+    center: tuple[float, float],
+    smooth_corners: tuple[int, ...] = (),
 ) -> UsdGeom.Mesh:
-    """Revolve a closed (radius, height) outline [m], preserving an open mouth."""
+    """Revolve a closed (radius, height) outline [m], preserving an open mouth.
+
+    The normals are smooth around the axis, so that the polygonal revolution renders, and refracts, as a surface of
+    revolution rather than as facets. Along the outline they are sharp, except at the ``smooth_corners`` indices of
+    ``profile``, where they average the two adjoining sides.
+    """
     segments = 128
     points, rings = [], []
     for r, z in profile:
         # Weld each axis pole and use triangle fans instead of collapsed quads.
-        angles = [0.0] if r == 0 else np.linspace(0, 2 * math.pi, segments, endpoint=False)
-        rings.append(list(range(len(points), len(points) + len(angles))))
-        points.extend((center[0] + r * math.cos(a), center[1] + r * math.sin(a), z) for a in angles)
-    faces, counts = [], []
+        ring_angles = [0.0] if r == 0 else np.linspace(0, 2 * math.pi, segments, endpoint=False)
+        rings.append(list(range(len(points), len(points) + len(ring_angles))))
+        points.extend((center[0] + r * math.cos(a), center[1] + r * math.sin(a), z) for a in ring_angles)
+
+    def side_normal(i):
+        """Return the outward (radial, axial) unit normal of the outline side from point ``i``, or None on the axis."""
+        (r0, z0), (r1, z1) = profile[i], profile[(i + 1) % len(profile)]
+        if r0 == r1 == 0:
+            return None
+        normal = np.array([z1 - z0, r0 - r1])
+        return normal / np.linalg.norm(normal)
+
+    def corner_normal(i, side):
+        """Return the (radial, axial) normal of side ``side`` at its outline point ``i``."""
+        own = side_normal(side)
+        other = side_normal(i - 1 if side == i else i)
+        if i % len(profile) not in smooth_corners or other is None:
+            return own
+        blended = own + other
+        return blended / np.linalg.norm(blended)
+
+    def normal_3d(normal, angle):
+        return (normal[0] * math.cos(angle), normal[0] * math.sin(angle), normal[1])
+
+    faces, counts, normals = [], [], []
     for i, ring in enumerate(rings):
         following = rings[(i + 1) % len(rings)]
         if len(ring) == len(following) == 1:
             continue  # Revolving an axis segment creates no surface.
+        start, end = corner_normal(i, i), corner_normal((i + 1) % len(profile), i)
         for j in range(segments):
             k = (j + 1) % segments
+            # An axis pole takes the direction of its fan triangle's middle.
+            a_j, a_k, middle = (2 * math.pi * t / segments for t in (j, k, j + 0.5))
             if len(ring) == 1:
                 face = [ring[0], following[k], following[j]]
+                corners = [(start, middle), (end, a_k), (end, a_j)]
             elif len(following) == 1:
                 face = [ring[j], ring[k], following[0]]
+                corners = [(start, a_j), (start, a_k), (end, middle)]
             else:
                 face = [ring[j], ring[k], following[k], following[j]]
+                corners = [(start, a_j), (start, a_k), (end, a_k), (end, a_j)]
             faces.extend(face)
             counts.append(len(face))
+            normals.extend(normal_3d(normal, angle) for normal, angle in corners)
     mesh = UsdGeom.Mesh.Define(stage, path)
     mesh.CreatePointsAttr(Vt.Vec3fArray(points))
     mesh.CreateFaceVertexCountsAttr(counts)
     mesh.CreateFaceVertexIndicesAttr(faces)
+    mesh.CreateNormalsAttr(Vt.Vec3fArray(normals))
+    mesh.SetNormalsInterpolation(UsdGeom.Tokens.faceVarying)
     mesh.CreateSubdivisionSchemeAttr("none")
     return mesh
 
@@ -247,7 +286,9 @@ def add_tableware_visuals(stage: Usd.Stage) -> None:
             # A shallow recessed underside avoids coincident glass/table faces.
             # Only the outer foot ring touches the tabletop.
             profile[:1] = [(0, 0.0007), (outer - 0.004, 0.0007), (outer - 0.002, 0)]
-        mesh = _lathe(stage, f"/World/Tableware/{name}", profile, (x, y))
+        # Round the bowl's foot ring into its recess, and its 1 mm lip top into the lip bevels.
+        smooth_corners = (2, 6, 7) if name == "Bowl" else ()
+        mesh = _lathe(stage, f"/World/Tableware/{name}", profile, (x, y), smooth_corners)
         if name == "Bowl":
             # RTX shadow rays do not refract: solid glass would cast an opaque
             # shadow and leave the tabletop seen through its floor black.
