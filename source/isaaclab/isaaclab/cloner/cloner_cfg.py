@@ -73,13 +73,6 @@ class CloneCfg:
     ``clone_template.format("[^/]+")``, which confines the slot to one path segment.
     """
 
-    replicate_physics: bool = True
-    """Whether physics replication clones each environment. Default is True.
-
-    If False, cloning is USD-only: the physics engine parses the per-env USD prims directly
-    instead of replicating env_0's parsed structure. Applied by :func:`~isaaclab.cloner.replicate`.
-    """
-
 
 def add(this: CloneCfg, other: InclusionSet) -> CloneCfg:
     """Append one clone combination to ``this`` and return it.

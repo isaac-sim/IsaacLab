@@ -587,12 +587,10 @@ class TerminationsCfg:
 class FrankaSoftSceneCfg(PresetCfg):
     """Scene presets for soft-beam lifting."""
 
-    newton_mjwarp_vbd_proxy: FrankaSoftBaseSceneCfg = FrankaSoftBaseSceneCfg(
-        num_envs=2048, env_spacing=2.0, replicate_physics=True
-    )
+    newton_mjwarp_vbd_proxy: FrankaSoftBaseSceneCfg = FrankaSoftBaseSceneCfg(num_envs=2048, env_spacing=2.0)
 
     # Isaac Sim PhysX does not support replicating physics for deformable objects
-    physx: FrankaSoftBaseSceneCfg = FrankaSoftBaseSceneCfg(num_envs=2048, env_spacing=2.0, replicate_physics=False)
+    physx: FrankaSoftBaseSceneCfg = FrankaSoftBaseSceneCfg(num_envs=2048, env_spacing=2.0)
     isaacsim_physx = physx
 
     default = newton_mjwarp_vbd_proxy
@@ -602,12 +600,8 @@ class FrankaSoftSceneCfg(PresetCfg):
 class FrankaSoftCameraSceneCfg(PresetCfg):
     """Scene presets for visual Franka soft lifting."""
 
-    newton_mjwarp_vbd_proxy: FrankaSoftBaseCameraSceneCfg = FrankaSoftBaseCameraSceneCfg(
-        num_envs=128, env_spacing=2.0, replicate_physics=True
-    )
-    physx: FrankaSoftBaseCameraSceneCfg = FrankaSoftBaseCameraSceneCfg(
-        num_envs=128, env_spacing=2.0, replicate_physics=False
-    )
+    newton_mjwarp_vbd_proxy: FrankaSoftBaseCameraSceneCfg = FrankaSoftBaseCameraSceneCfg(num_envs=128, env_spacing=2.0)
+    physx: FrankaSoftBaseCameraSceneCfg = FrankaSoftBaseCameraSceneCfg(num_envs=128, env_spacing=2.0)
     isaacsim_physx = physx
     default = newton_mjwarp_vbd_proxy
 
