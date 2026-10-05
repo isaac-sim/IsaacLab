@@ -1,6 +1,43 @@
 Changelog
 ---------
 
+.. towncrier release notes start
+
+2.0.1 (2026-10-03)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the Disney Research legs and four-bar pole configurations to load their USD over HTTPS when spawned,
+  instead of cloning the Newton asset repository on import.
+
+
+2.0.0 (2026-10-02)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``FRANKA_MINIMAL_CFG`` using the same USD and actuator settings as ``FRANKA_PANDA_CFG`` with only
+  hand and fingertip colliders for applications that do not need arm contacts.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Enabled full primitive arm and gripper collisions in ``FRANKA_PANDA_CFG`` and its high-PD
+  derivative. Use ``FRANKA_MINIMAL_CFG`` or select ``Colliders=gripper_only`` to retain the previous reduced
+  collision scope. Requalify policies against the chosen robot configuration.
+* **Breaking:** changed ``FRANKA_PANDA_CFG`` and ``FRANKA_PANDA_HIGH_PD_CFG`` to use the shared
+  flat Franka asset with gripper-only collisions, a single ``panda_arm`` actuator group,
+  and a driven leader finger with a passive mimic follower.
+  Use ``FRANKA_PANDA_LEGACY_CFG`` and ``FRANKA_PANDA_LEGACY_HIGH_PD_CFG`` to retain the
+  original USD path, shoulder/forearm actuator groups, gains, and collision settings.
+  Select the ``Physics`` variant for the backend when using the main configs.
+* **Breaking:** the published ``franka_panda.usda`` now contains the flat asset. Consumers
+  needing the former nested hierarchy can explicitly select ``franka_panda_nestedInstance.usda``.
+
+
 1.0.0 (2026-09-20)
 ~~~~~~~~~~~~~~~~~~
 

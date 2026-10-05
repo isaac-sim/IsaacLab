@@ -25,6 +25,7 @@ from isaaclab_physx.renderers import IsaacRtxRendererCfg
 from isaaclab.app import SimulationLauncher, scan
 from isaaclab.app.sim_launcher import _get_kit_runtime_sources, _validate_runtime, launch_simulation
 from isaaclab.physics import PhysxAutoCfg
+from isaaclab.visualizers import VisualizerCfg
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import resolve_task_config
@@ -34,8 +35,9 @@ _CAMERA_PRESETS_TASK = "Isaac-Cartpole-Camera-Direct"
 
 def validate_runtime_compatibility(env_cfg, launcher_args=None):
     """Run the single-scan runtime validation for *env_cfg* (test adapter)."""
-    config_scan = scan(env_cfg, launcher_args)
-    kit_sources = _get_kit_runtime_sources(config_scan, launcher_args)
+    args = vars(launcher_args) if isinstance(launcher_args, argparse.Namespace) else launcher_args or {}
+    config_scan = scan(env_cfg, args)
+    kit_sources = _get_kit_runtime_sources(config_scan, args)
     _validate_runtime(config_scan, kit_sources)
     return config_scan
 
@@ -219,19 +221,22 @@ def test_physx_plus_isaacsim_rtx_is_valid():
     assert config_scan.needs_kit is True
 
 
-def test_auto_physx_configured_kit_visualizer_resolves_to_isaac_sim_backends():
-    """Config-declared Kit visualizers should drive automatic PhysX and RTX resolution."""
-
-    class KitVisualizerCfg:
-        visualizer_type = "kit"
-
+@pytest.mark.parametrize(
+    "visualizer, expected_physics, expected_renderer",
+    [(None, OvPhysxCfg, OVRTXRendererCfg), ("kit", PhysxCfg, IsaacRtxRendererCfg)],
+    ids=["unselected", "selected"],
+)
+def test_auto_physx_configured_kit_visualizer_counts_only_when_selected(
+    visualizer, expected_physics, expected_renderer
+):
+    """A configured Kit visualizer drives automatic PhysX and RTX resolution only when ``--viz`` selects it."""
     env_cfg = _resolve_with_args("physics=physx", "renderer=rtx")
-    env_cfg.sim.visualizer_cfgs = KitVisualizerCfg()
-    config_scan = validate_runtime_compatibility(env_cfg)
+    env_cfg.sim.visualizer_cfgs = VisualizerCfg(visualizer_type="kit")
+    config_scan = validate_runtime_compatibility(env_cfg, {"visualizer": visualizer})
 
-    assert isinstance(env_cfg.sim.physics, PhysxCfg)
-    assert isinstance(env_cfg.scene.tiled_camera.renderer_cfg, IsaacRtxRendererCfg)
-    assert config_scan.needs_kit is True
+    assert isinstance(env_cfg.sim.physics, expected_physics)
+    assert isinstance(env_cfg.scene.tiled_camera.renderer_cfg, expected_renderer)
+    assert config_scan.needs_kit is (visualizer == "kit")
 
 
 def test_auto_physx_livestream_without_launcher_args_resolves_to_isaac_sim_backends(
@@ -342,7 +347,7 @@ def test_rtx_with_kit_visualizer_is_valid_and_resolves_to_isaac_rtx():
 def test_livestream_rtx_injects_kit_before_auto_rtx_resolution(monkeypatch: pytest.MonkeyPatch):
     """Livestreaming should make ``presets=newton_mjwarp,rtx`` choose Isaac RTX."""
     env_cfg = _resolve_with_presets("newton_mjwarp,rtx")
-    launcher_args = argparse.Namespace(livestream=2, visualizer=None, visualizer_explicit=False)
+    launcher_args = argparse.Namespace(livestream=2, visualizer=None)
     monkeypatch.setattr(physx_app, "KitLauncher", SimulationLauncher)
 
     with launch_simulation(env_cfg, launcher_args) as physics_cfg:

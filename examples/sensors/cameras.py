@@ -10,9 +10,6 @@
     # Usage
     uvx --from 'isaaclab[isaacsim]' isaaclab example camera
 
-    # Usage without a visualizer window
-    uvx --from 'isaaclab[isaacsim]' isaaclab example camera --viz none
-
 """
 
 import argparse

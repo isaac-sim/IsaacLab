@@ -131,3 +131,27 @@ def subtree_carries_api(prim_path: str, api_type, stage) -> bool:
         if candidate.HasAPI(api_type):
             return True
     return False
+
+
+def resolve_deformable_slot(cfg) -> tuple[str, dict] | None:
+    """Select one deformable family; convenience forms target only the spawn prim.
+
+    Unlike rigid-body tuning, deformable creation must not expand to every mesh in a file.
+    Setting an empty slot still requests a deformable body with default properties.
+    """
+    active = [
+        (kind, value)
+        for kind, value in (("volume", cfg.volume_deformable_props), ("surface", cfg.surface_deformable_props))
+        if value is not None
+    ]
+    if len(active) + (cfg.deformable_props is not None) > 1:
+        raise ValueError(
+            "Set only one deformable slot: volume_deformable_props, surface_deformable_props, or deformable_props."
+        )
+    if not active:
+        return None
+    kind, value = active[0]
+    mapping = fragment_mapping(value)
+    if mapping is None:
+        raise TypeError(f"{kind}_deformable_props requires a fragment, fragment sequence, or target mapping.")
+    return kind, mapping or {"": []}

@@ -55,14 +55,17 @@ Usage:
 """
 
 import argparse
+import logging
 import os
 import time
 from concurrent.futures import ThreadPoolExecutor
 
 from ray import job_submission
 
+logger = logging.getLogger(__name__)
+
 script_directory = os.path.dirname(os.path.abspath(__file__))
-CONFIG = {"working_dir": script_directory, "executable": "/workspace/isaaclab/isaaclab.sh -p"}
+CONFIG = {"working_dir": script_directory, "executable": "uv run --project /workspace/isaaclab --no-sync isaaclab -p"}
 
 
 def read_cluster_spec(fn: str | None = None) -> list[dict]:
@@ -150,7 +153,7 @@ if __name__ == "__main__":
         jobs = " ".join(args.aggregate_jobs)
         formatted_jobs = jobs.split("*")
         if len(formatted_jobs) > 1:
-            print("Warning; Split jobs by cluster with the * delimiter")
+            logger.warning("Split jobs by cluster with the * delimiter")
     else:
         formatted_jobs = []
     print(f"[INFO]: Isaac Ray Wrapper received jobs {formatted_jobs=}")

@@ -31,13 +31,15 @@ from ...utils import (
     select_usd_variants,
     set_prim_visibility,
 )
-from ..materials import SurfaceDeformableBodyMaterialBaseCfg
+from ..materials import PreviewSurfaceCfg, SurfaceDeformableBodyMaterialBaseCfg
 from ..materials.physics_materials import spawn_physics_material
+from ..materials.visual_materials import _author_material_inputs
 from ..utils import (
     apply_schema_props,
     bare_fragments,
     fragment_mapping,
     props_expr,
+    resolve_deformable_slot,
     subtree_carries_api,
 )
 
@@ -710,6 +712,18 @@ def spawn_from_usd_file(
         if cfg.make_uninstanceable:
             make_uninstanceable(prim_path, stage=stage)
 
+    # author the deformable dict slot first so any collision_props keyed to the created sim mesh
+    # (e.g. {"/sim_mesh": [...]}) can match it in _apply_body_schema_properties below
+    deformable_slot = resolve_deformable_slot(cfg)
+    if deformable_slot is not None:
+        kind, mapping = deformable_slot
+        writer = (
+            schemas.apply_volume_deformable_properties
+            if kind == "volume"
+            else schemas.apply_surface_deformable_properties
+        )
+        for pattern, fragments in mapping.items():
+            writer(props_expr(prim_path, pattern), fragments, create_if_missing=True, stage=stage)
     # modify rigid body, collision, and mass properties
     _apply_body_schema_properties(prim_path, cfg)
     # modify articulation root, tendon, and joint drive properties
@@ -733,9 +747,17 @@ def spawn_from_usd_file(
 
     # apply visual material
     if cfg.visual_material is not None:
-        if not has_kit():
-            logger.warning("Skipping visual material application for '%s' in kitless mode.", prim_path)
-        else:
+        if cfg.visual_material_path is None:
+            from pxr import Usd, UsdShade  # noqa: PLC0415
+
+            # Author existing surface inputs with or without Kit, before cloning the prototype.
+            context = "" if isinstance(cfg.visual_material, PreviewSurfaceCfg) else "mdl"
+            for prim in Usd.PrimRange(stage.GetPrimAtPath(prim_path)):
+                if prim.IsA(UsdShade.Material) and UsdShade.Material(prim).GetSurfaceOutput(context):
+                    shader, _, _ = UsdShade.Material(prim).ComputeSurfaceSource(context)
+                    if shader:
+                        _author_material_inputs(shader.GetPrim(), cfg.visual_material)
+        elif has_kit():
             material_path = (
                 cfg.visual_material_path
                 if cfg.visual_material_path.startswith("/")
@@ -743,6 +765,8 @@ def spawn_from_usd_file(
             )
             cfg.visual_material.func(material_path, cfg.visual_material)
             bind_visual_material(prim_path, material_path, stage=stage)
+        else:
+            logger.warning("Skipping visual material application for '%s' in kitless mode.", prim_path)
 
     for part_path, material_path in cfg.visual_material_bindings.items():
         from pxr import UsdShade  # noqa: PLC0415

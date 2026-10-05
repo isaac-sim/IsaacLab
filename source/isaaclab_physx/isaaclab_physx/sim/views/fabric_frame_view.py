@@ -16,7 +16,7 @@ import warp as wp
 
 from pxr import Gf, Usd, UsdGeom
 
-from isaaclab.app.settings_manager import SettingsManager
+from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.sim.views.base_frame_view import BaseFrameView
 from isaaclab.sim.views.fabric_xform_selection import FabricXformSelection
 from isaaclab.sim.views.usd_frame_view import UsdFrameView
@@ -188,7 +188,7 @@ class FabricFrameView(BaseFrameView):
         self._usd_view = UsdFrameView(prim_path, device=device, validate_xform_ops=validate_xform_ops, stage=stage)
         self._device = device
 
-        settings = SettingsManager.instance()
+        settings = get_settings_manager()
         self._use_fabric = bool(settings.get("/physics/fabricEnabled", False))
 
         # TODO(pv): Misleading abstraction -- FabricFrameView can fall back to USD internally;

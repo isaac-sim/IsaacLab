@@ -206,8 +206,8 @@ class SensorBase(ABC):
             inputs=[self._is_outdated, self._timestamp, self._timestamp_last_update, dt, self.cfg.update_period],
             device=self._device,
         )
-        # Update the buffers
-        if force_recompute or self._is_visualizing:
+        # Update the buffers; debug visualization refreshes lazily from its callback.
+        if force_recompute:
             self._update_outdated_buffers(force_recompute=force_recompute)
 
     @staticmethod
@@ -316,6 +316,8 @@ class SensorBase(ABC):
         """Callback for debug visualization.
 
         This function calls the visualization objects and sets the data to visualize into them.
+        Sensor buffers are refreshed lazily, so implementations must refresh outdated buffers
+        (for example through :attr:`data`) before reading internal data.
         """
         raise NotImplementedError(f"Debug visualization is not implemented for {self.__class__.__name__}.")
 

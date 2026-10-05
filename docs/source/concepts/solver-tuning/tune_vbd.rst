@@ -30,11 +30,11 @@ Start from a Supported Deformable Task
    The ``Isaac-Lift-Soft-Franka`` task requires automatic tetrahedralization.
    The uv commands below select the ``tetrahedralization`` extra when needed.
 
-   With the legacy installer:
+   To install the optional dependencies explicitly:
 
    .. code-block:: bash
 
-      ./isaaclab.sh -i tetrahedralization
+      uv sync --extra tetrahedralization
 
 Before adding VBD to a new task, first run one of the Franka deformable tasks:
 
@@ -46,12 +46,6 @@ Before adding VBD to a new task, first run one of the Franka deformable tasks:
 
           uv run --extra tetrahedralization python scripts/environments/zero_agent.py --task Isaac-Lift-Soft-Franka --num_envs 1 --visualizer kit
 
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-          ./isaaclab.sh -p scripts/environments/zero_agent.py --task Isaac-Lift-Soft-Franka --num_envs 1 --visualizer kit
-
 For the surface-deformable cloth variant, use:
 
 .. tab-set::
@@ -61,12 +55,6 @@ For the surface-deformable cloth variant, use:
       .. code-block:: bash
 
           uv run python scripts/environments/zero_agent.py --task Isaac-Lift-Cloth-Franka --num_envs 1 --visualizer kit
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-          ./isaaclab.sh -p scripts/environments/zero_agent.py --task Isaac-Lift-Cloth-Franka --num_envs 1 --visualizer kit
 
 Both tasks configure MJWarp for the rigid Franka and VBD for the deformable
 object through
@@ -111,12 +99,6 @@ You can select the deformable Newton preset globally:
 
           uv run --extra tetrahedralization isaaclab train --rl_library rsl_rl --task=Isaac-Lift-Soft-Franka physics=newton_mjwarp_vbd_proxy
 
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-          ./isaaclab.sh train --rl_library rsl_rl --task=Isaac-Lift-Soft-Franka physics=newton_mjwarp_vbd_proxy
-
 or select the physics field directly:
 
 .. tab-set::
@@ -126,12 +108,6 @@ or select the physics field directly:
       .. code-block:: bash
 
           uv run --extra tetrahedralization isaaclab train --rl_library rsl_rl --task=Isaac-Lift-Soft-Franka env.sim.physics=newton_mjwarp_vbd_proxy
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-          ./isaaclab.sh train --rl_library rsl_rl --task=Isaac-Lift-Soft-Franka env.sim.physics=newton_mjwarp_vbd_proxy
 
 Use the direct path override when only one task field should use the VBD preset.
 Use ``physics=newton_mjwarp_vbd_proxy`` when you want every matching preset
@@ -416,18 +392,7 @@ Try the demo:
           uv run --extra tetrahedralization python scripts/environments/zero_agent.py --task Isaac-Lift-Soft-Franka --num_envs 1 --visualizer kit
 
           # scripted pick-and-lift via state machine
-          uv run --extra tetrahedralization python scripts/environments/state_machine/lift_franka_soft.py --num_envs 1
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-          # zero-agent visual smoke test
-          ./isaaclab.sh -p scripts/environments/zero_agent.py --task Isaac-Lift-Soft-Franka --num_envs 1 --visualizer kit
-
-          # scripted pick-and-lift via state machine
-          ./isaaclab.sh -p scripts/environments/state_machine/lift_franka_soft.py --num_envs 1
-
+          uv run --extra tetrahedralization python scripts/environments/state_machine/lift_franka_soft.py --num_envs 1 --visualizer newton_gl
 
 Contact and Material Parameters
 -------------------------------
