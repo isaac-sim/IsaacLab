@@ -190,8 +190,8 @@ def test_scene_publishes_plan_before_replicate(monkeypatch: pytest.MonkeyPatch):
 
     captured: list = []
 
-    def fake_replicate(plan, *, replicate_physics=True):
-        captured.append((plan, replicate_physics, sim_utils.SimulationContext.instance().get_clone_plan()))
+    def fake_replicate(plan):
+        captured.append((plan, sim_utils.SimulationContext.instance().get_clone_plan()))
 
     monkeypatch.setattr(replicate_session_module, "replicate", fake_replicate)
 
@@ -200,7 +200,7 @@ def test_scene_publishes_plan_before_replicate(monkeypatch: pytest.MonkeyPatch):
         InteractiveScene(MySceneCfg(num_envs=4, env_spacing=1.0))
 
     assert len(captured) == 1
-    plan, replicate_physics, published = captured[0]
+    plan, published = captured[0]
     assert published is plan
     sources = cloner.path.get_asset_prototype_paths(plan)
     templates, starts, worlds, world_starts = cloner.path.get_world_prototype_asset_templates(
@@ -212,7 +212,6 @@ def test_scene_publishes_plan_before_replicate(monkeypatch: pytest.MonkeyPatch):
     )
     assert templates[starts[1] :] == ("/World/envs/env_{}/Robot", "/World/envs/env_{}/RigidObj")
     np.testing.assert_array_equal(worlds[world_starts[1] : world_starts[2]], np.arange(4))
-    assert replicate_physics is True
 
 
 def test_scene_constructs_authoring_only_assets():
@@ -278,13 +277,8 @@ def test_empty_scene_leaves_clone_lifecycle_to_caller():
 
 
 @pytest.mark.parametrize("device", ["cuda:0"])
-@pytest.mark.parametrize("replicate_physics", [True, False])
-def test_replicate_physics_flag_controls_physx_replicator(device, replicate_physics, setup_scene, monkeypatch):
-    """replicate_physics=False must not register the PhysX replicator while envs still simulate.
-
-    The True case asserts the spy actually intercepts registration, so the False case
-    cannot pass vacuously.
-    """
+def test_scene_registers_physx_replicator(device, setup_scene, monkeypatch):
+    """Scenes always register the PhysX replicator, and all environments simulate correctly."""
     physx_replicate_module = pytest.importorskip("isaaclab_physx.cloner.replicate")
 
     register_calls: list = []
@@ -307,17 +301,13 @@ def test_replicate_physics_flag_controls_physx_replicator(device, replicate_phys
 
     make_scene, sim = setup_scene
     scene_cfg = make_scene(num_envs=3)
-    scene_cfg.replicate_physics = replicate_physics
     scene = InteractiveScene(scene_cfg)
     if not scene.physics_backend.startswith("physx"):
-        pytest.skip("PhysX replicator flag is only meaningful on a PhysX backend.")
+        pytest.skip("PhysX replicator registration is only meaningful on a PhysX backend.")
     sim.reset()
 
-    if replicate_physics:
-        assert len(register_calls) > 0
-    else:
-        assert register_calls == []
-    # all environments exist and simulate on both paths
+    assert len(register_calls) > 0
+    # all environments exist and simulate
     assert scene["rigid_obj"].data.root_pos_w.torch.shape[0] == 3
     assert scene["robot"].data.joint_pos.torch.shape[0] == 3
     for _ in range(2):

@@ -1,0 +1,2 @@
+Internal-only updates following the removal of ``InteractiveSceneCfg.replicate_physics`` in
+``isaaclab``; no change to this package's own public API.

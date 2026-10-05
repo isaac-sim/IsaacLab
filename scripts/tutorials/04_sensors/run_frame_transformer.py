@@ -150,7 +150,7 @@ def main():
         # Set main camera
         sim.set_camera_view(eye=[2.5, 2.5, 2.5], target=[0.0, 0.0, 0.0])
         # Design scene
-        scene_cfg = FrameTransformerSceneCfg(num_envs=1, env_spacing=0.0, replicate_physics=False)
+        scene_cfg = FrameTransformerSceneCfg(num_envs=1, env_spacing=0.0)
         scene = instantiate(scene_cfg)
         # Play the simulator
         sim.reset()

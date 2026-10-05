@@ -71,9 +71,7 @@ def test_replicator_event_rejects_kitless_runtime() -> None:
         mode="reset",
         params={"asset_cfg": SceneEntityCfg("robot"), "colors": [(0.0, 0.0, 0.0), (1.0, 1.0, 1.0)]},
     )
-    env = SimpleNamespace(
-        cfg=ManagerBasedEnvCfg(scene=InteractiveSceneCfg(num_envs=1, env_spacing=1.0, replicate_physics=False))
-    )
+    env = SimpleNamespace(cfg=ManagerBasedEnvCfg(scene=InteractiveSceneCfg(num_envs=1, env_spacing=1.0)))
     with pytest.raises(NotImplementedError, match="require Isaac Sim"):
         randomize_visual_color(cfg, env)
 

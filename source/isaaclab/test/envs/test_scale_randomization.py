@@ -259,8 +259,7 @@ class CubeEnvCfg(ManagerBasedEnvCfg):
     """Configuration for the locomotion velocity-tracking environment."""
 
     # Scene settings
-    # Note: replicate_physics=False is required for prestartup events (scale randomization)
-    scene: MySceneCfg = MySceneCfg(num_envs=10, env_spacing=2.5, replicate_physics=False)
+    scene: MySceneCfg = MySceneCfg(num_envs=10, env_spacing=2.5)
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
@@ -319,17 +318,3 @@ def test_scale_randomization(device):
         assert tuple(scale_spec.default) == (1.0, 1.0, 1.0)
 
     env.close()
-
-
-def test_scale_randomization_failure_replicate_physics():
-    """Test scale randomization failure when replicate physics is set to True."""
-    # create a new stage
-    sim_utils.create_new_stage()
-    # set the arguments
-    cfg_failure = CubeEnvCfg()
-    cfg_failure.scene.replicate_physics = True
-
-    # run the test
-    with pytest.raises(RuntimeError, match="Scene replication is enabled"):
-        env = ManagerBasedEnv(cfg_failure)
-        env.close()

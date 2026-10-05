@@ -202,7 +202,7 @@ class HandoverEnvCfg(DirectMARLEnvCfg):
     fingertip_body_names = FINGERTIP_NAMES
 
     # scene
-    scene: HandoverSceneCfg = HandoverSceneCfg(num_envs=2048, env_spacing=1.5, replicate_physics=True)
+    scene: HandoverSceneCfg = HandoverSceneCfg(num_envs=2048, env_spacing=1.5)
 
     # reset
     reset_position_noise = 0.01  # range of position at reset

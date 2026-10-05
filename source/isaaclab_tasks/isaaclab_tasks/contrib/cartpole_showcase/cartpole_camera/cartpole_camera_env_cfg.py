@@ -78,7 +78,7 @@ class CartpoleCameraEnvCfg(DirectRLEnvCfg):
     observation_space = list(_RGB_IMAGE_SHAPE)
 
     # scene
-    scene: CartpoleCameraSceneCfg = CartpoleCameraSceneCfg(num_envs=512, env_spacing=20.0, replicate_physics=True)
+    scene: CartpoleCameraSceneCfg = CartpoleCameraSceneCfg(num_envs=512, env_spacing=20.0)
 
     # reset
     max_cart_pos = 3.0  # the cart is reset if it exceeds that position [m]

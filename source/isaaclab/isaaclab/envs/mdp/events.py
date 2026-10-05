@@ -67,9 +67,10 @@ def randomize_rigid_body_scale(
         event mode named "usd". Using it at simulation time, may lead to unpredictable behaviors.
 
     .. note::
-        When randomizing the scale of individual assets, please make sure to set
-        :attr:`isaaclab.scene.InteractiveSceneCfg.replicate_physics` to False. This ensures that physics
-        parser will parse the individual asset properties separately.
+        Scenes always replicate physics now; to randomize the scale of individual assets, declare the
+        variants as separate per-environment prototypes via
+        :attr:`isaaclab.scene.InteractiveSceneCfg.clone_cfg` (:class:`~isaaclab.cloner.CloneCfg.clone_combinations`)
+        instead of relying on non-replicated USD parsing.
     """
     # check if sim is running
     if env.sim.is_playing():
@@ -1713,8 +1714,7 @@ class randomize_visual_texture_material(ManagerTermBase):
     The default prim pattern is ``{asset_prim_path}/{body_name}/visuals``; assets
     without that layout use all descendants of the asset root.
 
-    Requires Kit and ``InteractiveSceneCfg.replicate_physics=False``. All matched
-    prims are updated; ``env_ids`` does not restrict the update.
+    Requires Kit. All matched prims are updated; ``env_ids`` does not restrict the update.
     """
 
     def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv) -> None:
@@ -1766,8 +1766,7 @@ class randomize_visual_color(ManagerTermBase):
     ``mesh_name`` selects a path relative to the asset root. Otherwise, the term
     matches the selected bodies' ``visuals`` prims, falling back to all descendants.
 
-    Requires Kit and ``InteractiveSceneCfg.replicate_physics=False``. All matched
-    prims are updated; ``env_ids`` does not restrict the update.
+    Requires Kit. All matched prims are updated; ``env_ids`` does not restrict the update.
     """
 
     def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv) -> None:

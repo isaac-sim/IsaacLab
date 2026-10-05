@@ -60,23 +60,10 @@ class InteractiveScene:
 
     The interactive scene parses the :class:`InteractiveSceneCfg` class to create the scene.
     Based on the specified number of environments, it clones the entities and groups them into different
-    categories (e.g., articulations, sensors, etc.).
-
-    Cloning can be performed in two ways:
-
-    * For tasks where all environments contain the same assets, a more performant cloning paradigm
-      can be used to allow for faster environment creation. This is specified by the ``replicate_physics`` flag.
-
-      .. code-block:: python
-
-          scene = InteractiveScene(cfg=InteractiveSceneCfg(replicate_physics=True))
-
-    * For tasks that require having separate assets in the environments, ``replicate_physics`` would have to
-      be set to False, which will add some costs to the overall startup time.
-
-      .. code-block:: python
-
-          scene = InteractiveScene(cfg=InteractiveSceneCfg(replicate_physics=False))
+    categories (e.g., articulations, sensors, etc.). Physics is always replicated from one environment
+    across the rest; heterogeneous per-environment assets are declared through
+    :attr:`~isaaclab.scene.InteractiveSceneCfg.clone_cfg` (:class:`~isaaclab.cloner.CloneCfg.clone_combinations`)
+    instead of opting out of replication.
 
     Each entity is registered to scene based on its name in the configuration class. For example, if the user
     specifies a robot in the configuration class as follows:
@@ -141,7 +128,6 @@ class InteractiveScene:
         self.physics_backend = self.sim.physics_manager.__name__.lower()
         self._physics_scene_path = None
         clone_cfg = self.cloner_cfg = copy.deepcopy(self.cfg.clone_cfg)
-        clone_cfg.replicate_physics = self.cfg.replicate_physics
         # the template is authoritative; the regex form is the same namespace spelled for matching
         self._env_fmt = clone_cfg.clone_template
         self.env_prim_paths = [self._env_fmt.format(i) for i in range(self.cfg.num_envs)]
@@ -153,7 +139,7 @@ class InteractiveScene:
         scene_from_cfg = any(name not in cfg_fields and cfg is not None for name, cfg in vars(self.cfg).items())
         if scene_from_cfg:
             options = dict(env_template=self._env_fmt, world_prototypes=world_prototypes, weights=weights)
-            options.update(clone_strategy=clone_cfg.clone_strategy, replicate_physics=clone_cfg.replicate_physics)
+            options.update(clone_strategy=clone_cfg.clone_strategy)
             with cloner.ReplicateSession(asset_cfgs, self.num_envs, self.cfg.env_spacing, **options) as session:
                 positions = session.plan.positions
                 source, env_ids = self.env_prim_paths[0], np.arange(self.num_envs)
@@ -276,8 +262,7 @@ class InteractiveScene:
         msg += f"\tNumber of environments: {self.cfg.num_envs}\n"
         msg += f"\tEnvironment spacing   : {self.cfg.env_spacing}\n"
         msg += f"\tSource prim name      : {self.env_prim_paths[0]}\n"
-        msg += f"\tGlobal prim paths     : {self._global_prim_paths}\n"
-        msg += f"\tReplicate physics     : {self.cfg.replicate_physics}"
+        msg += f"\tGlobal prim paths     : {self._global_prim_paths}"
         return msg
 
     """

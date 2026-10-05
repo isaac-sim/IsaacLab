@@ -83,7 +83,7 @@ class PendulumMARLEnvCfg(DirectMARLEnvCfg):
     pendulum_dof_name = "pole_to_pendulum"
 
     # scene
-    scene: PendulumSceneCfg = PendulumSceneCfg(num_envs=4096, env_spacing=4.0, replicate_physics=True)
+    scene: PendulumSceneCfg = PendulumSceneCfg(num_envs=4096, env_spacing=4.0)
 
     # reset
     max_cart_pos = 3.0  # the cart is reset if it exceeds that position [m]

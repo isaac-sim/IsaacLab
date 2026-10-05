@@ -506,7 +506,7 @@ class FrankaPourResetDatasetEnvCfg(ManagerBasedRLEnvCfg):
 
     class_type: type | str = "{DIR}.pour_env:FrankaPourEnv"
 
-    scene: PourSceneCfg = PourSceneCfg(num_envs=2, env_spacing=2.5, replicate_physics=True)
+    scene: PourSceneCfg = PourSceneCfg(num_envs=2, env_spacing=2.5)
     observations: ResetDatasetObservationsCfg = ResetDatasetObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
     rewards: ResetDatasetRewardsCfg = ResetDatasetRewardsCfg()

@@ -43,9 +43,6 @@ ASSETS_DIR = os.path.join(CONFIG_DIR, "assets")
 class GearAssemblySceneCfg(InteractiveSceneCfg):
     """Configuration for the scene with a robotic arm."""
 
-    # Disable scene replication to allow USD-level randomization
-    replicate_physics = False
-
     # world
     ground = AssetBaseCfg(
         prim_path="/World/ground",

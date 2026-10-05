@@ -76,12 +76,11 @@ def make_valid_clone_combinations(
     return tuple(worlds), np.asarray(weights, dtype=np.float64)
 
 
-def replicate(plan: ClonePlan, *, replicate_physics: bool = True) -> None:
+def replicate(plan: ClonePlan) -> None:
     """Execute one topology through its declared clone contexts.
 
     Args:
         plan: The active simulation's topology.
-        replicate_physics: Whether the active physics context performs native replication.
     """
     sim = sim_utils.SimulationContext.instance()
     if sim.get_clone_plan() is not plan:
@@ -127,8 +126,7 @@ def replicate(plan: ClonePlan, *, replicate_physics: bool = True) -> None:
         if context not in sim.clone_contexts:
             sim.clone_contexts[context] = context(sim)
     for context in sorted(routing, key=lambda context: context.replicate_priority):
-        if replicate_physics or context is not physics_context:
-            sim.clone_contexts[context].replicate(plan, tuple(sorted(routing[context])))
+        sim.clone_contexts[context].replicate(plan, tuple(sorted(routing[context])))
 
 
 def clone_plan_from_env_0(
@@ -174,12 +172,10 @@ class ReplicateSession:
         clone_strategy: Callable[[np.ndarray, int], np.ndarray] = sequential,
         world_prototypes: Sequence[Sequence[int]] | None = None,
         weights: Sequence[float] | None = None,
-        replicate_physics: bool = True,
         env_template: str = DEFAULT_ENV_TEMPLATE,
     ):
         """Capture prototype declarations, composition choices, and USD authoring inputs."""
         self._args = cfgs, num_clones, env_spacing
-        self._replicate_physics = replicate_physics
         self._kwargs = dict(env_template=env_template, clone_strategy=clone_strategy)
         self._kwargs.update(world_prototypes=world_prototypes, weights=weights)
         self.plan: ClonePlan | None = None
@@ -190,7 +186,7 @@ class ReplicateSession:
 
     def __exit__(self, exc_type, exc_value, traceback) -> None:
         if exc_type is None:
-            replicate(self.plan, replicate_physics=self._replicate_physics)
+            replicate(self.plan)
         else:
             sim_utils.SimulationContext.instance().set_clone_plan(None)
 
