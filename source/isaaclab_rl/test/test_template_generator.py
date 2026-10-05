@@ -221,7 +221,7 @@ def test_generator_registers_single_agent_rl_config_entry_points_for_all_librari
 
 def test_generated_manager_amp_environment_preserves_terminal_observations():
     """AMP transitions must end with the terminal observation before same-step autoreset."""
-    env_source = generator.jinja_env.get_template("tasks/manager-based_single-agent/env").render(
+    env_source = generator.jinja_env.get_template("tasks/cartpole/manager-based_single-agent/env").render(
         task={"classname": "Test", "env_cfg_filename": "test_env_cfg"}
     )
     module = ast.parse(env_source)
