@@ -25,7 +25,6 @@ from __future__ import annotations
 import contextlib
 import os
 import signal
-import socket
 import subprocess
 import sys
 import time
@@ -102,18 +101,6 @@ _DEVICE_ORDERS = [
 
 def _repo_root() -> Path:
     return Path(__file__).resolve().parents[4]
-
-
-def _free_port() -> int:
-    """Return a port that is free right now, for this run's torchrun rendezvous.
-
-    Cases run back to back and concurrently, and a killed rank releases the port asynchronously,
-    so reusing torchrun's default 29500 makes another case abort with "The server socket has
-    failed to listen on any local network address".
-    """
-    with socket.socket() as probe:
-        probe.bind(("", 0))
-        return probe.getsockname()[1]
 
 
 def _gpu_state() -> str:
@@ -196,9 +183,13 @@ def _run_training(
         str(num_gpus),
         # Without this only rank 0 is printed; when another rank dies the log carries no evidence.
         "--log_all_ranks",
-        # Never torchrun's default 29500: see :func:`_free_port`.
-        "--master_port",
-        str(_free_port()),
+        # Let torchrun bind a free port atomically, so concurrent cases cannot race its reservation.
+        "--rdzv_backend",
+        "c10d",
+        "--rdzv_endpoint",
+        "localhost:0",
+        "--rdzv_id",
+        experiment,
         "--rl_library",
         "rsl_rl",
         "--task",
