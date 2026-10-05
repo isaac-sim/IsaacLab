@@ -11,7 +11,7 @@ device, dataset directory, and environment stepping rate through command-line ar
 
 This script supports two teleoperation stacks:
 1. Native Isaac Lab teleop stack (via teleop_devices in env_cfg)
-2. IsaacTeleop-based stack (via isaac_teleop in env_cfg)
+2. Isaac Capture-based stack (via isaac_teleop in env_cfg)
 
 The script automatically detects which stack to use based on the environment config.
 
@@ -20,7 +20,7 @@ required arguments:
 
 optional arguments:
     -h, --help                Show this help message and exit
-    --teleop_device           Legacy teleop device name. When omitted, IsaacTeleop is used if
+    --teleop_device           Legacy teleop device name. When omitted, Isaac Capture is used if
                               configured, otherwise keyboard. When set, forces the legacy path.
     --dataset_file            File path to export recorded demos. (default: "./datasets/dataset.hdf5")
     --step_hz                 Environment stepping rate in Hz. (default: 30)
@@ -63,7 +63,7 @@ parser.add_argument(
     type=str,
     default=None,
     help=(
-        "Legacy teleop device name. When omitted, the IsaacTeleop pipeline is used if configured in the env,"
+        "Legacy teleop device name. When omitted, the Isaac Capture pipeline is used if configured in the env,"
         " otherwise keyboard is used as fallback. When explicitly provided, the script uses the legacy"
         " teleop_devices path and looks up this name in env_cfg.teleop_devices.devices."
     ),
@@ -111,10 +111,10 @@ parser.add_argument(
     type=str,
     default=None,
     help=(
-        "Debug-only: write the live IsaacTeleop session to this MCAP file (one continuous file for the whole run)."
+        "Debug-only: write the live Isaac Capture session to this MCAP file (one continuous file for the whole run)."
         " Intended for pairing with teleop_replay_agent.py in CI -- NOT a data-generation format. MCAPs produced"
         " here lack per-episode segmentation, world-frame anchor state, env reset state, and have no public Python"
-        " decoder. For data-gen workflows use the HDF5 dataset path (default). Ignored when the IsaacTeleop stack"
+        " decoder. For data-gen workflows use the HDF5 dataset path (default). Ignored when the Isaac Capture stack"
         " is not in use."
     ),
 )
@@ -123,7 +123,7 @@ parser.add_argument(
     "--enable_debug_visualization",
     action="store_true",
     default=False,
-    help="Enable hand joint and controller aim debug visualization at session start (IsaacTeleop only).",
+    help="Enable hand joint and controller aim debug visualization at session start (Isaac Capture only).",
 )
 parser.add_argument("--external_callback", default=None, help="Fully qualified path to an externally defined callback.")
 parser.add_argument(
@@ -308,7 +308,7 @@ def create_environment_config(
         tuple[isaaclab_tasks.utils.parse_cfg.EnvCfg, Optional[object], bool]: A tuple containing:
             - env_cfg: The configured environment configuration
             - success_term: The success termination object or None if not available
-            - use_isaac_teleop: Whether IsaacTeleop stack should be used
+            - use_isaac_teleop: Whether Isaac Capture stack should be used
 
     Raises:
         Exception: If parsing the environment configuration fails
@@ -343,7 +343,7 @@ def create_environment_config(
         )
 
     # XR-rendering setup is only needed for the Kit XR path. Without --xr,
-    # IsaacTeleop runs standalone (I/O only) and renders normally.
+    # Isaac Capture runs standalone (I/O only) and renders normally.
     if args_cli.xr:
         # Strip camera configs only when external cameras are explicitly disabled; otherwise keep
         # them (defaulted on) so cameras render alongside the XR view.
@@ -409,7 +409,7 @@ def setup_teleop_device(callbacks: dict[str, Callable], use_isaac_teleop: bool =
     Args:
         callbacks: Dictionary mapping callback keys to functions that will be
                    attached to the teleop device
-        use_isaac_teleop: Whether to use IsaacTeleop stack instead of native stack
+        use_isaac_teleop: Whether to use Isaac Capture stack instead of native stack
 
     Returns:
         object: The configured teleoperation device interface
@@ -435,7 +435,7 @@ def setup_teleop_device(callbacks: dict[str, Callable], use_isaac_teleop: bool =
                 haptic_cfg=getattr(env_cfg, "haptic_feedback", None),
             )
             if args_cli.mcap_record_path is not None:
-                logger.info("Recording live IsaacTeleop session to MCAP (debug-only): %s", args_cli.mcap_record_path)
+                logger.info("Recording live Isaac Capture session to MCAP (debug-only): %s", args_cli.mcap_record_path)
 
         elif teleop_device_explicitly_set:
             device_name = args_cli.teleop_device
@@ -447,7 +447,7 @@ def setup_teleop_device(callbacks: dict[str, Callable], use_isaac_teleop: bool =
                     logger.error(
                         f"--teleop_device={device_name} was passed but no matching entry exists in"
                         " env_cfg.teleop_devices and it is not a built-in device name. Either remove"
-                        " --teleop_device to use the IsaacTeleop pipeline, or add a"
+                        " --teleop_device to use the Isaac Capture pipeline, or add a"
                         f" '{device_name}' entry under teleop_devices in the environment config."
                         " Built-in devices: keyboard, spacemouse."
                     )
@@ -592,7 +592,7 @@ def run_simulation_loop(  # noqa: C901
         success_term: The success termination object or None if not available
         rate_limiter: Optional rate limiter to control simulation speed
         camera_feed_session: Shared XR camera-feed lifecycle
-        use_isaac_teleop: Whether to use IsaacTeleop stack
+        use_isaac_teleop: Whether to use Isaac Capture stack
 
     Returns:
         int: Number of successful demonstrations recorded
@@ -600,7 +600,7 @@ def run_simulation_loop(  # noqa: C901
     current_recorded_demo_count = 0
     success_step_count = 0
     should_reset_recording_instance = False
-    # For IsaacTeleop or XR, default to inactive until START is triggered. Without
+    # For Isaac Capture or XR, default to inactive until START is triggered. Without
     # --xr, recording is started locally (see ``request_start`` below) instead of by
     # a headset; it flows through the same state machine so keyboard/host pause/resume
     # keeps working.
@@ -628,7 +628,7 @@ def run_simulation_loop(  # noqa: C901
         running_recording_instance = False
         print("Recording paused")
 
-    # Set up teleoperation callbacks.  For IsaacTeleop the primary control
+    # Set up teleoperation callbacks.  For Isaac Capture the primary control
     # path is poll_control_events(); these callbacks are bridged automatically
     # and also serve native (keyboard / spacemouse) devices.
     teleoperation_callbacks = {
@@ -641,7 +641,7 @@ def run_simulation_loop(  # noqa: C901
     teleop_interface = setup_teleop_device(teleoperation_callbacks, use_isaac_teleop)
 
     # Optional controller haptics: no-ops unless the env declares a
-    # ``haptic_feedback`` config and the device can render it (IsaacTeleop).
+    # ``haptic_feedback`` config and the device can render it (Isaac Capture).
     # ``haptic_update`` renders the current contact force; ``haptic_stop`` zeroes
     # it so a stale pulse does not persist while recording is paused.
     haptic_update, haptic_stop = (lambda: None), (lambda: None)
@@ -652,7 +652,7 @@ def run_simulation_loop(  # noqa: C901
         if _haptic_driver is not None:
             haptic_update, haptic_stop = _haptic_driver.update, _haptic_driver.stop
 
-    # Optional keyboard for headset-free IsaacTeleop control (start / pause / reset).
+    # Optional keyboard for headset-free Isaac Capture control (start / pause / reset).
     # Captured through the app window, so only wired when one is present; a
     # windowless run still auto-starts in ``inner_loop``. Kept in a local so its carb
     # input subscription is not garbage-collected. ``R`` is an operator reset:
@@ -670,7 +670,7 @@ def run_simulation_loop(  # noqa: C901
             control_keyboard.add_callback("B", teleop_interface.request_start)
             control_keyboard.add_callback("P", teleop_interface.request_stop)
             control_keyboard.add_callback("R", lambda: teleop_interface.reset(pause=True))
-            print("IsaacTeleop control keys: [B] start/resume  [P] pause  [R] reset")
+            print("Isaac Capture control keys: [B] start/resume  [P] pause  [R] reset")
         except Exception as e:
             logger.warning(f"Control keyboard unavailable ({e}); recording still auto-starts without --xr")
             control_keyboard = None
@@ -689,14 +689,14 @@ def run_simulation_loop(  # noqa: C901
         env.reset()
         teleop_interface.reset()
 
-        # Without --xr there is no headset to send START, so drive the IsaacTeleop
+        # Without --xr there is no headset to send START, so drive the Isaac Capture
         # state machine to RUNNING locally ([B]/[P] can still pause/resume). The reset()
         # above is a host reset (a pure pulse), so it does not cancel this start.
         if use_isaac_teleop and not args_cli.xr:
             teleop_interface.request_start()
 
         subtasks = {}
-        stack_name = "IsaacTeleop" if use_isaac_teleop else "native"
+        stack_name = "Isaac Capture" if use_isaac_teleop else "native"
         print(f"{stack_name} recording started.")
 
         if use_isaac_teleop:
@@ -845,7 +845,7 @@ def record_demos(success_term: object | None, use_isaac_teleop: bool, cleanup: c
         )
 
     # With --xr, rate limiting is achieved via OpenXR and the XR visualization
-    # manager is installed. Without --xr (including standalone IsaacTeleop I/O),
+    # manager is installed. Without --xr (including standalone Isaac Capture I/O),
     # fall back to the software rate limiter and skip the XR viz stack.
     if args_cli.xr:
         rate_limiter = None

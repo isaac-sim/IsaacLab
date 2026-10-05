@@ -127,7 +127,7 @@ class ExhaustPipeGR1T2PinkIKEnvCfg(ExhaustPipeGR1T2BaseEnvCfg):
         self.actions.gr1_action.controller.usd_path = self.scene.robot.spawn.usd_path
         self.actions.gr1_action.controller.urdf_output_dir = self.temp_urdf_dir
 
-        # IsaacTeleop-based teleoperation pipeline.
+        # Isaac Capture-based teleoperation pipeline.
         self.isaac_teleop = IsaacTeleopCfg(
             pipeline_builder=lambda: build_gr1t2_pickplace_pipeline()[0],
             sim_device=self.sim.device,

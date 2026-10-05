@@ -27,7 +27,6 @@ def _load_runner():
 def _docker_args(**overrides):
     args = {
         "base_image": "ubuntu:24.04",
-        "conda": False,
         "gpu": False,
         "no_cache": False,
         "no_pip_cache": True,

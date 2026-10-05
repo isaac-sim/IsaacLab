@@ -10,7 +10,7 @@ grid sensors. By default, one sensor casts against a plane and the other
 against deterministic rough terrain.
 
 Usage:
-    ./isaaclab.sh -p source/isaaclab_newton/benchmark/sensors/benchmark_ray_caster.py --num_envs 4096
+    uv run python source/isaaclab_newton/benchmark/sensors/benchmark_ray_caster.py --num_envs 4096
 """
 
 from __future__ import annotations

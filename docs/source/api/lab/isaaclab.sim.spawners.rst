@@ -301,7 +301,6 @@ Materials
     RigidBodyMaterialBaseCfg
     RigidBodyMaterialFragment
     UsdPhysicsRigidBodyMaterialCfg
-    RigidBodyMaterialCfg
     DeformableMaterialFragment
     OmniPhysicsDeformableMaterialCfg
     OmniPhysicsSurfaceDeformableMaterialCfg
@@ -312,6 +311,13 @@ Materials
 
 Visual Materials
 ~~~~~~~~~~~~~~~~
+
+For USD assets, setting ``visual_material_path=None`` applies the supplied material inputs to
+connected surface shaders without replacing textures or bindings, with or without Kit.
+Preview configs use the universal surface output; MDL configs use the MDL output. Choose a config
+that matches the authored shader and set inputs to ``None`` to leave them unchanged. For materials
+inside instances, set ``UsdFileCfg.make_uninstanceable=True``. A named ``visual_material_path``
+creates and binds a replacement material only when Kit is available.
 
 .. autoclass:: VisualMaterialCfg
     :members:
@@ -371,9 +377,11 @@ Physical Materials
     :show-inheritance:
     :exclude-members: __init__, func
 
-.. autoclass:: RigidBodyMaterialCfg
-    :members:
-    :exclude-members: __init__, func
+.. deprecated:: 3.0.0
+
+    ``RigidBodyMaterialCfg`` is an alias for
+    :class:`~isaaclab_physx.sim.spawners.materials.PhysxRigidBodyMaterialCfg`.
+    Use the PhysX configuration directly.
 
 .. autoclass:: DeformableMaterialFragment
     :members:

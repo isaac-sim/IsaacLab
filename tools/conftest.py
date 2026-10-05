@@ -27,7 +27,6 @@ import hang_dump  # isort: skip
 import ovrtx_log  # isort: skip
 import test_settings as test_settings  # isort: skip
 from crash_journal import JOURNAL_ENV_VAR, create_crash_report  # isort: skip
-from _device_split import DEVICE_SPLIT_PASSES, is_device_split_file  # isort: skip
 from _file_scheduler import JobContext, TestFileJob, run_test_files  # isort: skip
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
@@ -1510,13 +1509,6 @@ def _run_test_file(
 
     timeout = test_settings.PER_TEST_TIMEOUTS.get(file_name, test_settings.DEFAULT_TIMEOUT)
 
-    # Read the test file once for device-split detection.
-    try:
-        with open(test_file) as fh:
-            test_content = fh.read()
-    except OSError:
-        test_content = ""
-
     # The first renderer in a fresh container compiles shaders (~600 s).
     # Give it extra time so that doesn't look like a test timeout.
     is_cold_cache_test = context.renderer_cold
@@ -1539,18 +1531,7 @@ def _run_test_file(
         capture=_CaptureOptions(echo=echo, workers=workers, on_started=context.mark_started),
     )
 
-    # On a multi-GPU shard, test_devices() already resolves to this shard's single
-    # GPU and mgpu_shard_select drops every other variant, so the device_split
-    # CPU/GPU two-pass (which exists to dodge the process-global device lock when
-    # CPU and GPU share one container) is unnecessary here — the CPU pass would
-    # collect zero tests yet still pay full Kit-startup cost. Run once on a shard.
-    if _inject_shard_select:
-        passes = [("", None)]
-    elif is_device_split_file(test_file, source=test_content):
-        logger.info(f"⚙️  device_split detected — invoking {file_name} once per device (CPU then GPU)")
-        passes = DEVICE_SPLIT_PASSES
-    else:
-        passes = [("", None)]
+    passes = [("", None)]
 
     reports = []
     failed = False

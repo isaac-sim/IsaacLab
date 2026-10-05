@@ -49,6 +49,15 @@ x-default-isaac-lab-volumes: &default-isaac-lab-volumes
     source: ../scripts
     target: ${DOCKER_ISAACLAB_PATH}/scripts
   - type: bind
+    source: ../apps
+    target: ${DOCKER_ISAACLAB_PATH}/apps
+  - type: volume
+    source: isaac-cache-uv
+    target: ${DOCKER_USER_HOME}/.cache/uv
+  - type: volume
+    source: isaac-cache-warp
+    target: ${DOCKER_USER_HOME}/.cache/warp
+  - type: bind
     source: ../docs
     target: ${DOCKER_ISAACLAB_PATH}/docs
   - type: bind
@@ -124,6 +133,7 @@ x-default-isaac-lab-deploy: &default-isaac-lab-deploy
 services:
   # This service is the base Isaac Lab image
   isaac-lab-base:
+    init: true
     profiles: [ "base" ]
     env_file: .env.base
     build:
@@ -146,37 +156,9 @@ services:
     stdin_open: true
     tty: true
 
-  # This service adds a ROS2 Humble
-  # installation on top of the base image
-  isaac-lab-ros2:
-    profiles: [ "ros2" ]
-    env_file:
-      - .env.base
-      - .env.ros2
-    build:
-      context: ../
-      dockerfile: docker/Dockerfile.ros2
-      args:
-        # ROS2_APT_PACKAGE will default to NONE. This is to
-        # avoid a warning message when building only the base profile
-        # with the .env.base file
-        - ROS2_APT_PACKAGE=${ROS2_APT_PACKAGE:-NONE}
-        # Make sure that the correct Docker Name Suffix is being passed to the dockerfile, to know which base image to
-        # start from.
-        - DOCKER_NAME_SUFFIX=${DOCKER_NAME_SUFFIX-}
-    image: isaac-lab-ros2${DOCKER_NAME_SUFFIX-}
-    container_name: isaac-lab-ros2${DOCKER_NAME_SUFFIX-}
-    environment: *default-isaac-lab-environment
-    volumes: *default-isaac-lab-volumes
-    network_mode: host
-    deploy: *default-isaac-lab-deploy
-    # This is the entrypoint for the container
-    entrypoint: bash
-    stdin_open: true
-    tty: true
-
   # This standalone service provides the kit-less Isaac Lab image.
   isaac-lab-kitless:
+    init: true
     profiles: [ "kitless" ]
     env_file: .env.kitless
     build:

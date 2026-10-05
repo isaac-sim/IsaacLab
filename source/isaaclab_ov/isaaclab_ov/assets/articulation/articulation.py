@@ -40,7 +40,7 @@ from isaaclab_ov import tensor_types as TT
 from isaaclab_ov.assets import kernels as shared_kernels
 from isaaclab_ov.physics import OvPhysxManager
 from isaaclab_ov.physics.ovphysx_compat import OVPHYSX_VERSION, requires_legacy_joint_sign_correction
-from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView
+from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView, _expand_env_pattern
 
 from .actuator_control import OvPhysxActuatorControl
 from .articulation_data import ArticulationData
@@ -1518,7 +1518,10 @@ class Articulation(BaseArticulation):
             device=self._device,
         )
         # Clamp default_joint_pos to the new limits and refresh soft_joint_pos_limits.
-        clamped_count = wp.zeros(1, dtype=wp.int32, device=self._device)
+        log_level = logging.WARNING if warn_limit_violation else logging.INFO
+        report_clamping = logger.isEnabledFor(log_level)
+        if report_clamping:
+            self._clamped_default_count.zero_()
         wp.launch(
             clamp_default_joint_pos_and_update_soft_limits_index_kernel(env_ids, joint_ids),
             dim=(env_ids.shape[0], joint_ids.shape[0]),
@@ -1531,19 +1534,16 @@ class Articulation(BaseArticulation):
             outputs=[
                 self._data._default_joint_pos,
                 self._data._soft_joint_pos_limits,
-                clamped_count,
+                self._clamped_default_count,
             ],
             device=self._device,
         )
-        if clamped_count.numpy()[0] > 0:
+        if report_clamping and self._clamped_default_count.numpy()[0] > 0:
             violation_message = (
                 "Some default joint positions are outside of the range of the new joint limits. Default joint"
                 " positions will be clamped to be within the new joint limits."
             )
-            if warn_limit_violation:
-                logger.warning(violation_message)
-            else:
-                logger.info(violation_message)
+            logger.log(log_level, violation_message)
         # Stage to pinned-host CPU: flatten the vec2f buffer to float32 view.
         self._push_joint_property(
             TT.DOF_LIMIT,
@@ -1613,7 +1613,10 @@ class Articulation(BaseArticulation):
             device=self._device,
         )
         # Clamp default_joint_pos to the new limits and refresh soft_joint_pos_limits.
-        clamped_count = wp.zeros(1, dtype=wp.int32, device=self._device)
+        log_level = logging.WARNING if warn_limit_violation else logging.INFO
+        report_clamping = logger.isEnabledFor(log_level)
+        if report_clamping:
+            self._clamped_default_count.zero_()
         wp.launch(
             clamp_default_joint_pos_and_update_soft_limits_mask,
             dim=(self._num_instances, self._num_joints),
@@ -1626,19 +1629,16 @@ class Articulation(BaseArticulation):
             outputs=[
                 self._data._default_joint_pos,
                 self._data._soft_joint_pos_limits,
-                clamped_count,
+                self._clamped_default_count,
             ],
             device=self._device,
         )
-        if clamped_count.numpy()[0] > 0:
+        if report_clamping and self._clamped_default_count.numpy()[0] > 0:
             violation_message = (
                 "Some default joint positions are outside of the range of the new joint limits. Default joint"
                 " positions will be clamped to be within the new joint limits."
             )
-            if warn_limit_violation:
-                logger.warning(violation_message)
-            else:
-                logger.info(violation_message)
+            logger.log(log_level, violation_message)
         self._push_joint_property(
             TT.DOF_LIMIT,
             self._data._joint_pos_limits.data,
@@ -3952,7 +3952,8 @@ class Articulation(BaseArticulation):
             TT.BODY_COM_POSE,
             TT.BODY_INERTIA,
         ]
-        self._root_view = OvPhysxView(self._ovphysx, pattern=pattern, device=self._device)
+        paths = _expand_env_pattern(pattern, PhysicsManager._sim.get_clone_plan())
+        self._root_view = OvPhysxView(self._ovphysx, prim_paths=paths, device=self._device)
         # ``try_binding_for`` creates and caches each binding, returning ``None`` for tensor
         # types that do not apply to these prims (so a minimal articulation that lacks some
         # of these types is skipped rather than failing the whole init).
@@ -4080,6 +4081,7 @@ class Articulation(BaseArticulation):
         self._ALL_INDICES = wp.array(np.arange(N, dtype=np.int32), device=device)
         self._ALL_BODY_INDICES = wp.array(np.arange(B, dtype=np.int32), device=device)
         self._ALL_JOINT_INDICES = wp.array(np.arange(J, dtype=np.int32), device=device)
+        self._clamped_default_count = wp.zeros(1, dtype=wp.int32, device=self._device)
         self._ALL_FIXED_TENDON_INDICES = wp.array(np.arange(FT, dtype=np.int32), device=device)
         self._ALL_SPATIAL_TENDON_INDICES = wp.array(np.arange(ST, dtype=np.int32), device=device)
         self._sim_env_ids = wp.empty(N, dtype=wp.int32, device=device)

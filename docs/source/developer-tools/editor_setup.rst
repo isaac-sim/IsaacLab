@@ -47,37 +47,12 @@ that matches your installation from a terminal in that directory.
 
    .. tab-item:: Activated Python environment
 
-      Activate the uv, venv, or conda environment where Isaac Lab is installed,
+      Activate the uv environment where Isaac Lab is installed,
       then run:
 
       .. code-block:: bash
 
          isaaclab --editor
-
-   .. tab-item:: Downloaded Isaac Sim package
-
-      Run the setup command through the Isaac Lab launcher after completing the
-      :ref:`downloaded package installation <isaaclab-binaries-installation>`:
-
-      .. tab-set::
-         :sync-group: os
-
-         .. tab-item:: :icon:`fa-brands fa-linux` Linux
-            :sync: linux
-
-            .. code-block:: bash
-
-               ./isaaclab.sh --editor
-
-         .. tab-item:: :icon:`fa-brands fa-windows` Windows
-            :sync: windows
-
-            .. code-block:: batch
-
-               isaaclab.bat --editor
-
-      The ``setup_python_env`` task in the command palette runs the recommended
-      ``uv`` workflow.
 
 The command creates or updates these machine-local files:
 
@@ -157,12 +132,6 @@ To use it:
          .. code-block:: bash
 
             uv run python -m debugpy --listen 3000 --wait-for-client -c "from isaaclab.cli import cli; cli()" [cli_args]
-
-      .. tab-item:: isaaclab.sh / isaaclab.bat
-
-         .. code-block:: bash
-
-            ./isaaclab.sh -p -m debugpy --listen 3000 --wait-for-client -c "from isaaclab.cli import cli; cli()" [cli_args]
 
 3. In VS Code, select the ``Python: Debugger Attach`` configuration from the Run and Debug panel
    and press the green play button or ``F5``. VS Code will connect to the debugpy server

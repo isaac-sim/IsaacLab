@@ -54,11 +54,11 @@ class gear_shaft_pos_w(ManagerTermBase):
         super().__init__(cfg, env)
 
         # Cache asset
-        self.asset_cfg: SceneEntityCfg = cfg.params.get("asset_cfg", SceneEntityCfg("factory_gear_base"))
+        self.asset_cfg: SceneEntityCfg = cfg.params["asset_cfg"]
         self.asset: RigidObject = env.scene[self.asset_cfg.name]
 
         # Pre-cache gear offset tensors (required parameter)
-        if "gear_offsets" not in cfg.params:
+        if cfg.params["gear_offsets"] is None:
             raise ValueError(
                 "'gear_offsets' parameter is required in gear_shaft_pos_w configuration. "
                 "It should be a dict with keys 'gear_small', 'gear_medium', 'gear_large' mapping to [x, y, z] offsets."
@@ -163,7 +163,7 @@ class gear_shaft_quat_w(ManagerTermBase):
         super().__init__(cfg, env)
 
         # Cache asset
-        self.asset_cfg: SceneEntityCfg = cfg.params.get("asset_cfg", SceneEntityCfg("factory_gear_base"))
+        self.asset_cfg: SceneEntityCfg = cfg.params["asset_cfg"]
         self.asset: RigidObject = env.scene[self.asset_cfg.name]
 
     def __call__(

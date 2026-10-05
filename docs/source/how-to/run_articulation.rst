@@ -134,13 +134,6 @@ the Isaac Sim viewport shown below:
          uv run isaaclab -p scripts/tutorials/01_assets/run_articulation.py --viz kit
 
 
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         ./isaaclab.sh -p scripts/tutorials/01_assets/run_articulation.py --viz kit
-
-
 This command should open a stage with a ground plane, lights, and two cart-poles that are moving around randomly.
 Press ``Ctrl+C`` in the terminal to stop the simulation.
 
@@ -162,8 +155,3 @@ The packaged Zoo demo also animates several robot families in one scene:
       .. code-block:: bash
 
          uv run --extra isaacsim isaaclab demo zoo --viz kit
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         ./isaaclab.sh demo zoo --viz kit

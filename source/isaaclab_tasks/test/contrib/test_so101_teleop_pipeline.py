@@ -5,11 +5,11 @@
 
 """Sim-free tests for the SO-101 XR teleop pipeline wiring.
 
-These tests build the IsaacTeleop pipeline standalone (no ``gym.make``, USD, GPU, or XR
+These tests build the Isaac Capture pipeline standalone (no ``gym.make``, USD, GPU, or XR
 device) and verify the flattened action width and element order.
 
 The retargeter math itself (trigger -> closedness, clutch rebasing, orientation calibration) is
-unit tested in Isaac Teleop (``test_so101_retargeters.py``); this file guards only the Lab-side
+unit tested in Isaac Capture (``test_so101_retargeters.py``); this file guards only the Lab-side
 wiring:
 
 - The pose retargeter emits a fixed 7-element output; the flattened action passes the full pose

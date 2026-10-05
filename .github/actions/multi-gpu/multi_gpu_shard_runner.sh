@@ -103,7 +103,7 @@ for ((cuda = 1; cuda < DEV_COUNT; cuda++)); do  # C-style loop; start at 1 to sk
     # full $shard_log under a collapsible ``::group::shard cuda:N log``.
     # (tee = full output to the log file; stdbuf -oL = flush per line so the
     # filtered grep/sed stream appears live, not in delayed chunks.)
-    ./isaaclab.sh -p -m pytest \
+    uv run --no-sync isaaclab -p -m pytest \
       --ignore=tools/conftest.py \
       --ignore=source/isaaclab/test/install_ci \
       tools -v 2>&1 \

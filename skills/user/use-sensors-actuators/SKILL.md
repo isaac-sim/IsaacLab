@@ -59,6 +59,8 @@ renderers, update the docs or source examples first.
 - [Evaluations](evaluations.md)
 - [Examples](examples.md)
 - [Add sensors on robot tutorial](../../../docs/source/how-to/add_sensors_on_robot.rst)
+- [Camera docs](../../../docs/source/concepts/sensors/camera.rst)
+- [Renderers, including asynchronous rendering](../../../docs/source/concepts/renderers.rst)
 - [Contact sensor docs](../../../docs/source/concepts/sensors/contact_sensor.rst)
 - [Joint wrench sensor docs](../../../docs/source/concepts/sensors/joint_wrench_sensor.rst)
 - [Actuators docs](../../../docs/source/concepts/actuators.rst)

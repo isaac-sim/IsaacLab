@@ -905,6 +905,8 @@ class VisuoTactileSensor(SensorBase):
         # Safety check - return if not properly initialized
         if not hasattr(self, "_tactile_visualizer") or self._tactile_visualizer is None:
             return
+        if self._is_initialized:
+            self._update_outdated_buffers()
         vis_points = None
 
         if self.cfg.visualize_sdf_closest_pts and hasattr(self, "debug_closest_points_wolrd"):

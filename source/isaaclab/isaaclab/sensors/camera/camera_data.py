@@ -43,8 +43,10 @@ class CameraData:
         """The retrieved sensor info with sensor types as key.
 
         This contains extra information provided by the sensor such as semantic segmentation label mapping, prim paths.
-        For semantic-based data, this corresponds to the ``"info"`` key in the output of the sensor. For other sensor
-        types, the info is empty.
+        For semantic-based data, this corresponds to the ``"info"`` key in the output of the sensor.
+        Delayed OVRTX images also include ``"capture"``: snapshots of ``pos_w``, ``quat_w_world``,
+        ``intrinsic_matrices``, and per-environment ``frame`` indices matching the returned pixels.
+        Live pose and calibration fields are unchanged. Other outputs may have empty info.
         """
 
     ##

@@ -714,8 +714,6 @@ class NewtonManager(PhysicsManager):
         if sim is None or not sim.is_playing():
             return
 
-        cls._reset_solver_internals_delegate(cls._world_reset_mask)
-
         # Notify solver of model changes
         if cls._model_changes:
             with wp.ScopedDevice(PhysicsManager._device):
@@ -727,6 +725,7 @@ class NewtonManager(PhysicsManager):
                 NewtonManager._model_changes = set()
 
         # Reset-authored state and persistent solver resources must be ready before capture.
+        # forward() also resets solver internals for the worlds flagged since the last boundary.
         cls.forward()
         cfg = PhysicsManager._cfg
         device = PhysicsManager._device
@@ -1698,9 +1697,7 @@ class NewtonManager(PhysicsManager):
 
     @classmethod
     def _update_sensors(cls, contacts) -> None:
-        """Push latest state to all registered Newton sensors."""
-        for sensor in cls._newton_frame_transform_sensors:
-            sensor.update(cls.backend.state_0)
+        """Push latest state to registered IMU and contact sensors."""
         for sensor in cls._newton_imu_sensors:
             sensor.update(cls.backend.state_0)
         if cls._report_contacts:

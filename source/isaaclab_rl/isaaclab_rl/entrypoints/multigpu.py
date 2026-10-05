@@ -18,6 +18,8 @@ import warp as wp
 wp.config.enable_backward = False
 
 import argparse  # noqa: E402
+import sys  # noqa: E402
+from datetime import datetime  # noqa: E402
 from pathlib import Path  # noqa: E402
 
 from torch.distributed.elastic.multiprocessing.errors import record  # noqa: E402
@@ -75,6 +77,10 @@ def run_train_multigpu_cli(argv: list[str] | None = None) -> int:
     Returns:
         Process exit code.
     """
+    argv = list(sys.argv[1:] if argv is None else argv)
+    # every rank must name the same run folder, so forward one launch timestamp unless the user passed one
+    if not any(arg == "--run_timestamp" or arg.startswith("--run_timestamp=") for arg in argv):
+        argv.append(f"--run_timestamp={datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}")
     return run_multigpu_cli(argv, LAUNCHER_CFG)
 
 

@@ -43,7 +43,7 @@ Query: "My old RSL-RL training script fails after migrating to Isaac Lab 3.0."
 
 Expected behavior:
 
-- Checks maintained Isaac Lab RSL-RL scripts and compatibility helpers.
+- Checks maintained Isaac Lab RSL-RL entry points and model and runner configurations.
 - Identifies whether the downstream script can be replaced with or aligned to the maintained script.
 - Runs a small config or training smoke test.
 

@@ -23,7 +23,7 @@ from isaaclab.utils.string import string_to_callable
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import resolve_task_config
-from isaaclab_tasks.utils.hydra import collect_presets
+from isaaclab_tasks.utils.hydra import collect_presets, resolve_presets
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 from isaaclab_tasks.utils.preset_cli import enumerate_task_presets
 from isaaclab_tasks.utils.preset_target import PresetTarget
@@ -125,6 +125,16 @@ def test_registered_task_physx_presets_keep_auto_selection_explicit():
                 assert auto_cfg.ovphysx == physics_fields.get("ovphysx"), location
             elif has_auto_physx and "physx" in fields:
                 assert fields.get("isaacsim_physx") == fields["physx"], location
+
+
+@pytest.mark.parametrize(
+    "task_id", ["IsaacContrib-Open-Drawer-Franka-IK-Abs", "IsaacContrib-Open-Drawer-Franka-IK-Rel"]
+)
+def test_franka_cabinet_ik_preserves_newton_asset_variant(task_id):
+    """The IK robot override retains the cabinet task's backend-aware asset selection."""
+    cfg = resolve_presets(load_cfg_from_registry(task_id, "env_cfg_entry_point"), selected=("newton_mjwarp",))
+
+    assert cfg.scene.robot.spawn.variants["Physics"] == "mujoco"
 
 
 def test_registered_manager_based_configs_name_their_env_class():

@@ -1,6 +1,37 @@
 Changelog
 ---------
 
+.. towncrier release notes start
+
+0.2.6 (2026-10-03)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed ``[INFO]`` messages printed by the Warp environments and the manager call switch to
+  ``logger.info``.
+
+
+0.2.5 (2026-10-01)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Used resolved callable defaults when constructing manager terms instead of duplicating defaults in constructors.
+
+
+0.2.4 (2026-09-30)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Added the Warp implementation of ``base_height_l2``, restoring Warp frontend support for
+  Unitree Go2 tasks with the base-height reward enabled.
+
+
 0.2.3 (2026-09-28)
 ~~~~~~~~~~~~~~~~~~
 

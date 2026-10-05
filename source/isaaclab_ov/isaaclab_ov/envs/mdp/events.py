@@ -46,13 +46,13 @@ class randomize_rigid_body_material(ManagerTermBase):
         asset_cfg: SceneEntityCfg = cfg.params["asset_cfg"]
         asset: RigidObject | Articulation = env.scene[asset_cfg.name]
 
-        static_friction_range = cfg.params.get("static_friction_range", (1.0, 1.0))
-        dynamic_friction_range = cfg.params.get("dynamic_friction_range", (1.0, 1.0))
-        restitution_range = cfg.params.get("restitution_range", (0.0, 0.0))
-        num_buckets = int(cfg.params.get("num_buckets", 1))
+        static_friction_range = cfg.params["static_friction_range"]
+        dynamic_friction_range = cfg.params["dynamic_friction_range"]
+        restitution_range = cfg.params["restitution_range"]
+        num_buckets = int(cfg.params["num_buckets"])
         ranges = torch.tensor([static_friction_range, dynamic_friction_range, restitution_range], device="cpu")
         self.material_buckets = math_utils.sample_uniform(ranges[:, 0], ranges[:, 1], (num_buckets, 3), device="cpu")
-        if cfg.params.get("make_consistent", False):
+        if cfg.params["make_consistent"]:
             self.material_buckets[:, 1] = torch.min(self.material_buckets[:, 0], self.material_buckets[:, 1])
 
         self.asset = asset

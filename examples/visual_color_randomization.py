@@ -38,7 +38,9 @@ parser.add_argument(
 )
 parser.add_argument("--max_steps", type=int, default=-1, help="Stop after this many steps; negative runs forever.")
 add_launcher_args(parser)
-parser.set_defaults(visualizer=["newton_gl"])
+# a Newton viewer cannot build its model from this PhysX scene, so PhysX defaults to the Kit viewer
+physics_args, _ = parser.parse_known_args()
+parser.set_defaults(visualizer=["kit"] if physics_args.physics == "isaacsim_physx" else ["newton_gl"])
 args_cli = parser.parse_args()
 if args_cli.max_steps == 0 or args_cli.max_steps < -1:
     parser.error("--max_steps must be positive or -1.")

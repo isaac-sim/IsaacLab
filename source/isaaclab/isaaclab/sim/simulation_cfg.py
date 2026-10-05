@@ -138,10 +138,15 @@ class SimulationCfg:
     """
 
     visualizer_cfgs: list[VisualizerCfg] | VisualizerCfg = []
-    """The visualizer configuration(s). Default is an empty list."""
+    """The visualizer configuration(s). Default is an empty list.
+
+    A launch (:func:`~isaaclab.app.launch_simulation`) runs exactly the visualizer types ``--visualizer``
+    selects, none without it: each uses the configured visualizer of its type, with its settings, or else that
+    type's default config. A simulation built without a launch runs the configured visualizers as given.
+    """
 
     default_visualizer_cfg: VisualizerCfg | None = None
-    """Default visualizer settings applied to any visualizer that is selected at runtime.
+    """Default visualizer settings applied to any visualizer that is selected at runtime, e.g. with ``--visualizer``.
 
     This is a hint only — it does **not** add a visualizer to :attr:`visualizer_cfgs`.
     Fields such as :attr:`~isaaclab.visualizers.VisualizerCfg.eye` and

@@ -1,6 +1,88 @@
 Changelog
 ---------
 
+.. towncrier release notes start
+
+4.1.3 (2026-10-03)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed CPU simulations to select CPU dynamics through the attributes of every physics scene in the stage instead
+  of the OVPhysX process-wide CPU-only mode, which cannot be reverted. To keep OVPhysX off CUDA entirely, set
+  ``OVPHYSX_DISABLE_GPU``.
+* Update runtime installation guidance and launcher examples to use uv.
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_ov.physics.OvPhysxManager` refusing to start a CPU simulation after a CUDA simulation, or
+  the reverse, in the same process.
+
+
+4.1.2 (2026-10-02)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed OVRTX render-output reads and attribute writes skipping synchronization on Torch's
+  legacy default CUDA stream.
+* Fixed mapped-buffer release racing asynchronous render-output extraction.
+* Fixed frame-transformer path expressions that directly match a rigid body from also selecting
+  nested rigid-body descendants.
+
+
+4.1.1 (2026-10-01)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed OVPhysX PVA and frame-transformer debug visualization to refresh outdated sensor
+  buffers before drawing.
+* Changed the OVPhysX rigid-object ``body_com_acc_w`` finite difference to use the elapsed time since the
+  previous update, matching joint accelerations and the Newton backend.
+
+* Skipped the joint-limit clamping counter readback when its logging level is disabled and reused
+  the counter buffer across writes.
+
+Fixed
+^^^^^
+
+* Used resolved callable defaults when constructing manager terms instead of duplicating defaults in constructors.
+
+
+4.1.0 (2026-09-30)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added plan-driven OvPhysX cloning for heterogeneous rigid-body and articulation geometry variants. GPU cloning imported complete original worlds and assigned one native environment ID per copied world; CPU imported full USD copies with collision grouping.
+* Added an opt-in asynchronous OVRTX render path controlled by
+  :attr:`~isaaclab_ov.renderers.OVRTXRendererCfg.async_rendering`.
+  ``True`` returns each camera's previous capture while rendering the next image. The first
+  capture and the first capture after reset wait for a fresh image. Matching capture poses,
+  calibration, and frame indices are available in ``camera.data.info[output_name]["capture"]``;
+  the live camera fields remain current.
+
+Fixed
+^^^^^
+
+* Preserved numeric environment order in tensor bindings, including non-cloned multi-instance assets, so indexed state reads and writes address the intended instances.
+* Paired each cloned contact sensor with its own environment's filters and shared filters, and rejected missing filters that would silently remove sensor rows.
+* Preserved all active source variants and independently authored assets during physics export, including custom environment templates and scaled asset roots.
+* Preserved contacts with USD-only physics in each world composition and rejected incompatible active rotation-axis and tendon layouts before combining articulation variants.
+* Removed destination placeholders and empty exported environment roots that caused quadratic native binding lookup costs.
+* Registered Newton USD schemas before OVStage parsing. This affected all authored physics assets, including mimic-joint constraints, not only cloned assets.
+* Deferred scene-data tensor bindings until visualization requests them, avoiding unnecessary headless-training startup cost.
+* Matched the native scene's declared step rate to ``SimulationCfg.dt`` so automatic contact offsets used the actual simulation timestep instead of the 60 Hz default.
+* Unified retention of asynchronous OVRTX camera, transform, and geometry buffers until native writes completed,
+  isolated camera captures across resets, and avoided extracting priming images twice.
+
+
 4.0.0 (2026-09-29)
 ~~~~~~~~~~~~~~~~~~
 

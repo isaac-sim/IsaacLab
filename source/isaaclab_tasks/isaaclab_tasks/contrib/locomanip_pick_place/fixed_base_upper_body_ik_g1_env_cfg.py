@@ -31,7 +31,7 @@ from isaaclab_tasks.contrib.locomanip_pick_place.configs.pink_controller_cfg imp
 
 
 def _build_g1_upper_body_pipeline():
-    """Build an IsaacTeleop retargeting pipeline for G1 upper body teleoperation.
+    """Build an Isaac Capture retargeting pipeline for G1 upper body teleoperation.
 
     Creates two Se3AbsRetargeters for left and right wrist pose tracking
     and two TriHandMotionControllerRetargeters for left and right hand joint
@@ -404,7 +404,7 @@ class FixedBaseUpperBodyIKG1EnvCfg(ManagerBasedRLEnvCfg):
         # Defer Nucleus path resolution to controller initialization at runtime.
         self.actions.upper_body_ik.controller.urdf_path = urdf_omniverse_path
 
-        # IsaacTeleop-based teleoperation pipeline (resolved lazily at runtime).
+        # Isaac Capture-based teleoperation pipeline (resolved lazily at runtime).
         self.xr = XrCfg(
             anchor_pos=(0.0, 0.0, -0.30),
             anchor_rot=(0.0, 0.0, 0.0, 1.0),

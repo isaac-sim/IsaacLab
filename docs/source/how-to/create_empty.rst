@@ -161,9 +161,6 @@ selection:
 
    python scripts/tutorials/00_sim/create_empty.py
 
-If a config or command selects a visualizer, force-disable all visualizers with
-``--visualizer none`` or ``--viz none``.
-
 Now that we have a basic understanding of how to run a simulation, let's move on to the
 following tutorial where we will learn how to add assets to the stage.
 

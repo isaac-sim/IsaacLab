@@ -84,7 +84,7 @@ class joint_pos_limits_penalty_ratio(ManagerTermBase):
 
     def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
         super().__init__(cfg, env)
-        asset_cfg: SceneEntityCfg = cfg.params.get("asset_cfg", SceneEntityCfg("robot"))
+        asset_cfg: SceneEntityCfg = cfg.params["asset_cfg"]
         asset: Articulation = env.scene[asset_cfg.name]
         self.gear_ratio_scaled = _resolve_scaled_gear_ratio(cfg.params["gear_ratio"], asset, env.device)
 
@@ -121,7 +121,7 @@ class power_consumption(ManagerTermBase):
 
     def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
         super().__init__(cfg, env)
-        asset_cfg: SceneEntityCfg = cfg.params.get("asset_cfg", SceneEntityCfg("robot"))
+        asset_cfg: SceneEntityCfg = cfg.params["asset_cfg"]
         asset: Articulation = env.scene[asset_cfg.name]
         self.gear_ratio_scaled = _resolve_scaled_gear_ratio(cfg.params["gear_ratio"], asset, env.device)
 

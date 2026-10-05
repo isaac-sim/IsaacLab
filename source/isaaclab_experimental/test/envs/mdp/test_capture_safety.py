@@ -30,6 +30,7 @@ import importlib
 import inspect
 import pkgutil
 from collections.abc import Callable
+from functools import partial
 from types import SimpleNamespace
 
 import numpy as np
@@ -44,24 +45,31 @@ import isaaclab_experimental.envs.mdp.rewards as warp_rew
 import isaaclab_experimental.envs.mdp.terminations as warp_term
 import isaaclab_tasks_experimental.core as tasks_experimental_core
 import isaaclab_tasks_experimental.core.locomotion.mdp.rewards as warp_loco_rew
+import isaaclab_tasks_experimental.core.velocity.mdp.rewards as warp_velocity_rew
 from parity_helpers import (
     DEVICE,
     NUM_BODIES,
     NUM_ENVS,
     MockArticulation,
     MockArticulationData,
+    MockCommandManager,
     MockPoseCommandManager,
     MockScene,
+    MockSensorCfg,
     MockTerminationManager,
     assert_close,
     assert_equal,
+    copy_np_to_wp,
     make_pose_command_term,
     mutate_body_data,
+    proxy_array,
 )
 
 import isaaclab.envs.mdp.rewards as stable_rew
 import isaaclab.envs.mdp.terminations as stable_term
 from isaaclab.managers.manager_term_cfg import RewardTermCfg, TerminationTermCfg
+
+import isaaclab_tasks.core.velocity.mdp.rewards as stable_velocity_rew
 
 
 @dataclasses.dataclass(frozen=True)
@@ -236,6 +244,53 @@ def _build_survival_success_rate() -> CaptureCase:
     )
 
 
+def _build_base_height_l2(terrain: bool) -> CaptureCase:
+    art_data = MockArticulationData(num_bodies=NUM_BODIES)
+    hits = np.random.default_rng(17).normal(size=(NUM_ENVS, 4, 3)).astype(np.float32)
+    hits[::2, 0, 2] = np.inf
+    hits[::3, 1, 2] = -np.inf
+    hits[::5, :, 2] = np.nan  # No finite hits: use the flat-ground target.
+    ray_hits = proxy_array(hits, dtype=wp.vec3f, device=DEVICE)
+    scene = {
+        "robot": MockArticulation(art_data),
+        "height_scanner": SimpleNamespace(data=SimpleNamespace(ray_hits_w=ray_hits)),
+    }
+    env = SimpleNamespace(scene=scene, num_envs=NUM_ENVS, device=DEVICE)
+    params = dict(target_height=0.35, sensor_cfg=MockSensorCfg("height_scanner") if terrain else None)
+
+    def mutate():
+        mutate_body_data(art_data)
+        copy_np_to_wp(ray_hits, hits + 0.3)
+
+    return CaptureCase(warp_rew.base_height_l2, stable_rew.base_height_l2, env, env, params, mutate)
+
+
+def _build_feet_air_time_variance(body_ids=(0, 2)) -> CaptureCase:
+    rng = np.random.default_rng(23)
+    air = rng.uniform(0.0, 1.0, (NUM_ENVS, NUM_BODIES)).astype(np.float32)
+    contact = rng.uniform(0.0, 1.0, air.shape).astype(np.float32)
+    data = SimpleNamespace(
+        last_air_time=proxy_array(air, device=DEVICE), last_contact_time=proxy_array(contact, device=DEVICE)
+    )
+    scene = SimpleNamespace(sensors={"contact_sensor": SimpleNamespace(data=data)})
+    command = torch.tensor(rng.normal(size=(NUM_ENVS, 3)), dtype=torch.float32, device=DEVICE)
+    command[::2, :2] = 0.0  # Yaw-only commands must not incur this penalty.
+    command[1, :2] = torch.tensor([0.06, 0.07], device=DEVICE)
+    env = SimpleNamespace(
+        scene=scene, command_manager=MockCommandManager(command, None), num_envs=NUM_ENVS, device=DEVICE
+    )
+    params = dict(command_name="vel", sensor_cfg=MockSensorCfg(body_ids=list(body_ids)), max_time=0.5)
+
+    def mutate():
+        copy_np_to_wp(data.last_air_time, 1.0 - air)
+        copy_np_to_wp(data.last_contact_time, 1.0 - contact)
+        command.copy_(command.roll(1, dims=0))
+
+    return CaptureCase(
+        warp_velocity_rew.feet_air_time_variance, stable_velocity_rew.feet_air_time_variance, env, env, params, mutate
+    )
+
+
 _SHARED_REW = "isaaclab_experimental.envs.mdp.rewards"
 _SHARED_TERM = "isaaclab_experimental.envs.mdp.terminations"
 _LOCO_REW = "isaaclab_tasks_experimental.core.locomotion.mdp.rewards"
@@ -245,6 +300,14 @@ CAPTURE_SPECS: list[CaptureSpec] = [
     CaptureSpec(_SHARED_TERM, "pose_command_success", "termination", _build_pose_command_success),
     CaptureSpec(_LOCO_REW, "terminated_penalty", "reward", _build_terminated_penalty),
     CaptureSpec(_LOCO_REW, "survival_success_rate", "reward", _build_survival_success_rate, expect_nonzero=False),
+    CaptureSpec(_SHARED_REW, "base_height_l2", "reward", partial(_build_base_height_l2, terrain=False)),
+    CaptureSpec(_SHARED_REW, "base_height_l2", "reward", partial(_build_base_height_l2, terrain=True)),
+    CaptureSpec(
+        "isaaclab_tasks_experimental.core.velocity.mdp.rewards",
+        "feet_air_time_variance",
+        "reward",
+        _build_feet_air_time_variance,
+    ),
 ]
 
 
@@ -456,6 +519,14 @@ def test_term_is_capture_safe(spec: CaptureSpec):
         assert_equal(actual, expected)
     if spec.expect_nonzero:
         assert expected.any(), "mutated inputs produced a degenerate expectation; the replay proves little"
+
+
+def test_feet_air_time_variance_requires_two_feet():
+    case = _build_feet_air_time_variance(body_ids=[0])
+    with pytest.raises(RuntimeError, match="at least two bodies"):
+        case.stable_fn(case.stable_env, **case.params)
+    with pytest.raises(RuntimeError, match="at least two bodies"):
+        case.warp_fn(case.warp_env, wp.empty(NUM_ENVS, dtype=wp.float32, device=DEVICE), **case.params)
 
 
 def test_survival_success_rate_reset_is_capture_safe():

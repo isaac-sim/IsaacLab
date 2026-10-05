@@ -371,6 +371,8 @@ class PhysxManager(PhysicsManager):
     _fabric: ClassVar[Any] = None
     _anim_recorder: ClassVar[AnimationRecorder | None] = None
     _callback_exception: ClassVar[Exception | None] = None
+    _gpu_articulation_aliasing_tally: ClassVar[dict[int, dict[str, tuple[int, int]]]] = {}
+    _gpu_articulation_aliasing_warning_logged: ClassVar[set[int]] = set()
 
     class _SimManagerStub:
         """No-op stub for Isaac Sim APIs expecting simulation_manager_interface."""
@@ -1048,6 +1050,8 @@ class PhysxManager(PhysicsManager):
         """Invalidate and clear simulation views."""
         for key in [key for key in cls.views if key[0] is cls]:
             del cls.views[key]
+        cls._gpu_articulation_aliasing_tally.clear()
+        cls._gpu_articulation_aliasing_warning_logged.clear()
         if cls._scene_data_backend is not None:
             cls._scene_data_backend.clear()
         if cls.backend is not None:

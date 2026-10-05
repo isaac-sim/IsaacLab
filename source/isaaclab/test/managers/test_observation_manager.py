@@ -371,6 +371,45 @@ def test_compute_preserves_shared_scratch_outputs(setup_env):
     torch.testing.assert_close(result[:, 3:], torch.full_like(env.data.pos_w, 2.0))
 
 
+def custom_noise(data: torch.Tensor, cfg: noise.NoiseCfg) -> torch.Tensor:
+    """Custom noise owns any storage it modifies; absolute mode returns an unchanged view."""
+    return data.view_as(data) if cfg.operation == "abs" else data.clone().add_(0.2)
+
+
+@pytest.mark.parametrize(
+    ("noise_cfg", "expected_delta"),
+    [
+        (noise.UniformNoiseCfg(n_min=-0.1, n_max=0.1), None),
+        (noise.NoiseCfg(func=custom_noise), 0.2),
+        (noise.NoiseCfg(func=custom_noise, operation="abs"), 0.0),
+        (noise.NoiseModelCfg(noise_cfg=noise.NoiseCfg(func=custom_noise, operation="abs")), 0.0),
+    ],
+    ids=["out_of_place", "custom", "view", "model_view"],
+)
+def test_noise_preserves_source_and_rng_stream(setup_env, noise_cfg, expected_delta):
+    """Noise ownership paths preserve source storage, clipping, scaling, and random samples."""
+    env = setup_env
+    cfg = ObservationGroupCfg(enable_corruption=True)
+    cfg.position = ObservationTermCfg(func=pos_w_data, noise=noise_cfg, clip=(0.0, 0.5), scale=2.0)
+    manager = ObservationManager({"policy": cfg}, env)
+    source = torch.clone(env.data.pos_w)
+    torch.manual_seed(0)
+    if expected_delta is None:
+        expected_delta = torch.rand_like(source) * 0.2 - 0.1
+    expected = (source + expected_delta).clip(0.0, 0.5) * 2.0
+    torch.manual_seed(0)
+    result = manager.compute()["policy"]
+    torch.testing.assert_close(env.data.pos_w, source)
+    torch.testing.assert_close(result, expected)
+
+    # Without post-processing, the returned observation must still own its storage.
+    manager.cfg["policy"].position.clip = None
+    manager.cfg["policy"].position.scale = None
+    result = manager.compute()["policy"]
+    result.zero_()
+    torch.testing.assert_close(env.data.pos_w, source)
+
+
 def test_compute_with_2d_history(setup_env):
     env = setup_env
     """Test the observation computation with history buffers for 2D observations."""

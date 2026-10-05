@@ -8,8 +8,10 @@
 # needed to import for allowing type-hinting: torch.Tensor | np.ndarray
 from __future__ import annotations
 
+import functools
 import logging
 import math
+from collections.abc import Sequence
 from typing import Literal
 
 import numpy as np
@@ -1400,6 +1402,40 @@ def sample_uniform(
     return torch.rand(*size, device=device) * (upper - lower) + lower
 
 
+def sample_uniform_from_ranges(
+    ranges: dict[str, tuple[float, float]],
+    keys: Sequence[str],
+    size: int | tuple[int, ...],
+    device: str | torch.device,
+) -> torch.Tensor:
+    """Sample independent components uniformly from named ranges.
+
+    Missing keys use zero bounds. Device bounds are cached by value, so edits to
+    ``ranges`` take effect on the next call without repeated uploads of unchanged bounds.
+    Only bounds are cached; each call draws fresh samples in the order given by ``keys``.
+
+    Args:
+        ranges: Lower and upper bounds for each named component.
+        keys: Component names, in output order.
+        size: Batch shape, excluding the component dimension.
+        device: Device to create the samples on.
+
+    Returns:
+        Sampled tensor of shape ``(*size, len(keys))`` using the default floating-point dtype.
+    """
+    if isinstance(size, int):
+        size = (size,)
+    device = torch.device(device)
+    if device.type == "cuda" and device.index is None:
+        device = torch.device("cuda", torch.cuda.current_device())
+    bounds = []
+    for key in keys:
+        lower, upper = ranges.get(key, (0.0, 0.0))
+        bounds.append((float(lower), float(upper)))
+    limits = _cached_uniform_bounds(tuple(bounds), device, torch.get_default_dtype())
+    return sample_uniform(limits[:, 0], limits[:, 1], (*size, len(keys)), device)
+
+
 def sample_log_uniform(
     lower: torch.Tensor | float, upper: torch.Tensor | float, size: int | tuple[int, ...], device: str
 ) -> torch.Tensor:
@@ -1975,3 +2011,11 @@ def generate_random_transformation_matrix(pos_boundary: float = 1, rot_boundary:
     T[:3, 3] = translation
 
     return T
+
+
+@functools.lru_cache(maxsize=128)
+def _cached_uniform_bounds(
+    bounds: tuple[tuple[float, float], ...], device: torch.device, dtype: torch.dtype
+) -> torch.Tensor:
+    """Keep shared device bounds private so callers cannot mutate cached tensors."""
+    return torch.tensor(bounds, dtype=dtype, device=device).reshape(-1, 2)

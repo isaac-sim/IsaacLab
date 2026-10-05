@@ -9,6 +9,9 @@ This script demonstrates how to use the differential inverse kinematics controll
 The differential IK controller can be configured in different modes. It uses the Jacobians computed by
 PhysX. This helps perform parallelized computation of the inverse kinematics.
 
+The Franka high-PD preset uses the same USD and effort limits as the base preset, with stiffer gains
+for tracking IK targets. Other tasks can retain their calibrated actuator gains.
+
 .. code-block:: bash
 
     # Usage
@@ -83,6 +86,7 @@ class TableTopSceneCfg(InteractiveSceneCfg):
     # articulation
     if args_cli.robot == "franka_panda":
         robot = replace(FRANKA_PANDA_HIGH_PD_CFG, prim_path="{ENV_REGEX_NS}/Robot")
+        robot.spawn.variants["Physics"] = "physx"
     elif args_cli.robot == "ur10":
         robot = replace(UR10_CFG, prim_path="{ENV_REGEX_NS}/Robot")
     else:

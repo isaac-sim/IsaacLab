@@ -325,8 +325,6 @@ def _make_env_cfg(args, parser, video_stride):
         args.enable_cameras = True
     cfg.sim.physics.load_visual_shapes = bool(visualizers)
     cfg.grains_per_particle = args.grains_per_particle if visualizers else 0
-    # Preserve these configured visualizer subclasses through launcher resolution.
-    args.visualizer = None
     return cfg, visualizers
 
 

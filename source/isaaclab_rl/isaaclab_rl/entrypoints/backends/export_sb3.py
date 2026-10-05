@@ -8,11 +8,14 @@
 from __future__ import annotations
 
 import argparse
+import logging
 import os
 from pathlib import Path
 from typing import Any
 
 import torch
+
+logger = logging.getLogger(__name__)
 
 # LEAPP traces Isaac Lab's Python tensor operations, so TorchScript is disabled before importing task
 # or environment modules that compile decorated helpers at import time.
@@ -180,13 +183,11 @@ def export_sb3_agent(args_cli: argparse.Namespace, env_cfg: Any, agent_cfg: dict
 
     checkpoint_path = _resolve_checkpoint(args_cli, env_cfg)
     if not checkpoint_path:
-        print(f"[INFO] No checkpoint found for task: {args_cli.task}")
+        logger.info(f"No checkpoint found for task: {args_cli.task}")
         return False
 
     env_cfg.scene.num_envs = 1
     env_cfg.seed = agent_cfg["seed"]
-    if args_cli.device is not None:
-        env_cfg.sim.device = args_cli.device
     log_dir = os.path.dirname(checkpoint_path)
     env_cfg.log_dir = log_dir
 
@@ -202,11 +203,11 @@ def export_sb3_agent(args_cli: argparse.Namespace, env_cfg: Any, agent_cfg: dict
         if not isinstance(env.unwrapped, ManagerBasedRLEnv):
             raise NotImplementedError("SB3 LEAPP export currently supports manager-based environments only.")
 
-        print(f"[INFO] Loading model checkpoint from: {checkpoint_path}")
+        logger.info(f"Loading model checkpoint from: {checkpoint_path}")
         policy = _load_agent(checkpoint_path, device=env.unwrapped.device).policy
         vec_normalize_path = _vec_normalize_path(checkpoint_path)
         if vec_normalize_path.exists():
-            print(f"[INFO] Loading saved normalization: {vec_normalize_path}")
+            logger.info(f"Loading saved normalization: {vec_normalize_path}")
             vec_normalize = load_from_pkl(vec_normalize_path)
         elif agent_cfg.get("normalize_input", False):
             raise FileNotFoundError(

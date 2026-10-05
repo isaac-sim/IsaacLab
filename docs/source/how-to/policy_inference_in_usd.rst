@@ -60,12 +60,6 @@ First, we need to train the ``Isaac-Velocity-Rough-H1`` task by running the foll
 
         uv run isaaclab train --rl_library rsl_rl --task Isaac-Velocity-Rough-H1 physics=newton_mjwarp
 
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-        ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Velocity-Rough-H1 physics=newton_mjwarp
-
 When the training is finished, we can visualize the result with the following command.
 To stop the simulation, you can either close the window, or press ``Ctrl+C`` in the terminal
 where you started the simulation.
@@ -77,13 +71,6 @@ where you started the simulation.
       .. code-block:: bash
 
         uv run isaaclab play --rl_library rsl_rl --task Isaac-Velocity-Rough-H1 physics=newton_mjwarp --num_envs 64 --checkpoint logs/rsl_rl/h1_rough/EXPERIMENT_NAME/POLICY_FILE.pt --viz newton_gl
-
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-        ./isaaclab.sh play --rl_library rsl_rl --task Isaac-Velocity-Rough-H1 physics=newton_mjwarp --num_envs 64 --checkpoint logs/rsl_rl/h1_rough/EXPERIMENT_NAME/POLICY_FILE.pt --viz newton_gl
 
 
 After running the play script, the policy will be exported to jit and onnx files under the experiment logs directory.
@@ -101,13 +88,6 @@ We can then load the warehouse asset and run inference on the H1 robot using the
       .. code-block:: bash
 
         uv run python scripts/tutorials/03_envs/policy_inference_in_usd.py --checkpoint logs/rsl_rl/h1_rough/EXPERIMENT_NAME/exported/policy.pt physics=newton_mjwarp --viz newton_gl
-
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-        ./isaaclab.sh -p scripts/tutorials/03_envs/policy_inference_in_usd.py --checkpoint logs/rsl_rl/h1_rough/EXPERIMENT_NAME/exported/policy.pt physics=newton_mjwarp --viz newton_gl
 
 
 .. figure:: ../_static/tutorials/tutorial_policy_inference_in_usd.jpg

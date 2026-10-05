@@ -219,7 +219,7 @@ jobs:
             echo "Docker and GPU tests run on demand. This workflow comments \`run-ci\` after opening the pull request or updating its commit."
             echo
             echo '- [ ] I have read and understood the [contribution guidelines](https://isaac-sim.github.io/IsaacLab/main/source/refs/contributing.html)'
-            echo '- [ ] I have run the [`pre-commit` checks](https://pre-commit.com/) with `./isaaclab.sh --format`'
+            echo '- [ ] I have run the [`pre-commit` checks](https://pre-commit.com/) with `uv run isaaclab --format`'
             echo '- [ ] I have made corresponding changes to the documentation'
             echo '- [ ] My changes generate no new warnings'
             echo '- [ ] I have added tests that prove my fix is effective or that my feature works'

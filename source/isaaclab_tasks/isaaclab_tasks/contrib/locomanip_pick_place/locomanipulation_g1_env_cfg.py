@@ -42,7 +42,7 @@ from isaaclab_tasks.contrib.robot_pov_camera_cfg import g1_robot_pov_camera_cfg 
 
 
 def _build_g1_locomanipulation_pipeline():
-    """Build an IsaacTeleop retargeting pipeline for G1 locomanipulation teleoperation.
+    """Build an Isaac Capture retargeting pipeline for G1 locomanipulation teleoperation.
 
     Creates two Se3AbsRetargeters for left and right wrist pose tracking,
     two TriHandMotionControllerRetargeters for left and right hand joint

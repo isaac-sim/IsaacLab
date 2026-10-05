@@ -58,11 +58,6 @@ one set of environment files, and one image name:
      - ``Dockerfile.base``
      - ``.env.base``
      - the Isaac Sim image
-   * - ``ros2``
-     - ``isaac-lab-ros2``
-     - ``Dockerfile.ros2``
-     - ``.env.base`` + ``.env.ros2``
-     - the ``base`` image, built first
    * - ``kitless``
      - ``isaac-lab-kitless``
      - ``Dockerfile.kitless``
@@ -96,7 +91,7 @@ Inside the container, run the logging example without a visualizer:
 
 .. code-block:: bash
 
-    uv run isaaclab -p scripts/tutorials/00_sim/log_time.py --viz none
+    uv run isaaclab -p scripts/tutorials/00_sim/log_time.py
 
 The script writes simulation time at each step to
 ``/workspace/isaaclab/logs/docker_tutorial/log.txt``. Stop the script with ``Ctrl+C``
@@ -109,8 +104,14 @@ the container:
     ./docker/container.py stop
 
 The log is now at ``docker/artifacts/logs/docker_tutorial/log.txt`` on the host.
-The ``stop`` command removes the container and its Compose-managed volumes, including logs
-and caches; copy out anything you need first. The image remains. To remove it after stopping, run ``docker image rm isaac-lab-base``; the next ``start`` rebuilds it. See
+The ``stop`` command removes the container and preserves its named volumes, including logs
+and caches. Older versions deleted volumes on every stop. Pass ``--remove-volumes`` to delete
+them explicitly; this is project-wide cleanup, requires the selected container to exist, and
+refuses to run while other project containers remain (including stopped ones). Copy results
+and remove those containers without volume cleanup first (``docker rm <name>`` for stopped
+containers). See :ref:`docker-images` for the
+one-time migration from root-owned volumes. The image remains. To remove
+it after stopping, run ``docker image rm isaac-lab-base``; the next ``start`` rebuilds it. See
 `Docker pruning <https://docs.docker.com/engine/manage-resources/pruning/>`__ for other cleanup options.
 
 .. dropdown:: Code for log_time.py
@@ -124,7 +125,7 @@ and caches; copy out anything you need first. The image remains. To remove it af
 
     The image copies the repository to ``/workspace/isaaclab`` at build time, so edits made after the
     build are not picked up automatically. To keep the development loop fast, the compose file
-    bind-mounts ``source``, ``scripts``, ``docs``, and ``tools`` from the host, so changes to those
+    bind-mounts ``source``, ``scripts``, ``apps``, ``docs``, and ``tools`` from the host, so changes to those
     directories appear inside the container immediately. Everything else requires a rebuild.
 
 ``container.py`` command reference
@@ -140,7 +141,7 @@ Run ``./docker/container.py --help`` to list commands and
    * - Command
      - Description
    * - ``build``
-     - Build the image without creating a container.
+     - Build the image without creating a container. Use ``--pull`` to refresh its parent images.
    * - ``start``
      - Build the image and start the container in the background.
    * - ``enter``
@@ -150,7 +151,8 @@ Run ``./docker/container.py --help`` to list commands and
    * - ``copy``
      - Copy logs, data, and built documentation to ``docker/artifacts`` on the host.
    * - ``stop``
-     - Stop and remove the container and its Compose-managed volumes.
+     - Stop and remove the container, preserving caches, logs, and data.
+       Use ``--remove-volumes`` to delete its Compose-managed volumes explicitly.
 
 Every command accepts the following arguments:
 
@@ -161,7 +163,7 @@ Every command accepts the following arguments:
    * - Argument
      - Description
    * - ``profile``
-     - Optional profile name; defaults to ``base``. Other profiles are ``ros2`` and ``kitless``.
+     - Optional profile name; defaults to ``base``. The other profile is ``kitless``.
    * - ``--files [FILE ...]``
      - Merge additional Compose YAML files after ``docker-compose.yaml``, in the supplied order.
    * - ``--env-files [FILE ...]``
@@ -193,21 +195,16 @@ What persists between runs
 --------------------------
 
 The compose file declares named volumes for Isaac Sim caches, logs, and your own data. They
-remain available while reusing a container, but ``container.py stop`` runs ``docker compose down
---volumes`` and removes them. Run ``container.py copy`` before ``stop`` to preserve your results
+remain available across ``container.py stop`` calls. Explicit ``container.py stop --remove-volumes``
+deletes them project-wide. Run ``container.py copy`` before volume cleanup to preserve your results
 on the host.
 
 ``container.py copy`` extracts the three volumes you are most likely to want on the host --
 ``logs``, ``data_storage``, and ``docs/_build`` -- into ``docker/artifacts``. For anything else, use
 ``docker cp``, for example ``docker cp isaac-lab-base:/workspace/isaaclab/logs .``.
 
-If you are upgrading from an Isaac Lab image that ran as ``root``, the existing volumes still hold
-root-owned files that the current uid/gid 1000 runtime user cannot write. Copy out anything worth
-keeping, then recreate them from the ``docker`` directory:
-
-.. code:: bash
-
-    docker compose --file docker-compose.yaml --profile base --env-file .env.base down --volumes
+For volumes inherited from an image that ran as ``root``, follow the one-time cleanup
+and ownership migration in :ref:`docker-images` before reusing them.
 
 .. dropdown:: All named volumes and their container paths
    :icon: file-directory

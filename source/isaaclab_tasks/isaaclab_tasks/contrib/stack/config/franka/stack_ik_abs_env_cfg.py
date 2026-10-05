@@ -22,7 +22,7 @@ from isaaclab_assets.robots.franka import FRANKA_PANDA_HIGH_PD_CFG  # isort: ski
 
 
 def _build_franka_stack_pipeline():
-    """Build a IsaacTeleop retargeting pipeline for Franka cube stacking.
+    """Build an Isaac Capture retargeting pipeline for Franka cube stacking.
 
     Creates an Se3AbsRetargeter for right-hand pose tracking and a GripperRetargeter
     for right-hand gripper control, flattened into a single action tensor via
@@ -114,7 +114,9 @@ class FrankaCubeStackEnvCfg(stack_joint_pos_env_cfg.FrankaCubeStackEnvCfg):
 
         # Set Franka as robot
         # We switch here to a stiffer PD controller for IK tracking to be better.
+        robot_variants = self.scene.robot.spawn.variants
         self.scene.robot = replace(FRANKA_PANDA_HIGH_PD_CFG, prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot.spawn.variants = robot_variants
 
         # Set actions for the specific robot type (franka)
         self.actions.arm_action = DifferentialInverseKinematicsActionCfg(
@@ -124,7 +126,7 @@ class FrankaCubeStackEnvCfg(stack_joint_pos_env_cfg.FrankaCubeStackEnvCfg):
             controller=DifferentialIKControllerCfg(command_type="pose", use_relative_mode=False, ik_method="dls"),
         )
 
-        # IsaacTeleop-based teleoperation pipeline
+        # Isaac Capture-based teleoperation pipeline
         self.isaac_teleop = IsaacTeleopCfg(
             pipeline_builder=_build_franka_stack_pipeline,
             sim_device=self.sim.device,

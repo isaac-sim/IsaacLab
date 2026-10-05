@@ -6,6 +6,7 @@
 __all__ = [
     "feet_air_time",
     "feet_air_time_positive_biped",
+    "feet_air_time_variance",
     "feet_slide",
     "stand_still_joint_deviation_l1",
     "terrain_levels_vel",
@@ -18,6 +19,7 @@ from .curriculums import terrain_levels_vel
 from .rewards import (
     feet_air_time,
     feet_air_time_positive_biped,
+    feet_air_time_variance,
     feet_slide,
     stand_still_joint_deviation_l1,
     track_ang_vel_z_world_exp,

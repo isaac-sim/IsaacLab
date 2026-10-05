@@ -158,7 +158,10 @@ def test_training_and_play_write_bundles(
 
     _run(
         [
-            str(ROOT / "isaaclab.sh"),
+            "uv",
+            "run",
+            "--no-sync",
+            "isaaclab",
             "-p",
             "scripts/benchmarks/training.py",
             *common_args[:6],
@@ -200,7 +203,10 @@ def test_training_and_play_write_bundles(
 
     _run(
         [
-            str(ROOT / "isaaclab.sh"),
+            "uv",
+            "run",
+            "--no-sync",
+            "isaaclab",
             "-p",
             "scripts/benchmarks/play.py",
             *common_args,
@@ -232,7 +238,10 @@ def test_training_and_play_write_bundles(
         synchronized_play_output = tmp_path / "play_synchronized"
         _run(
             [
-                str(ROOT / "isaaclab.sh"),
+                "uv",
+                "run",
+                "--no-sync",
+                "isaaclab",
                 "-p",
                 "scripts/benchmarks/play.py",
                 *common_args[:6],

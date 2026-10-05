@@ -23,7 +23,7 @@ Input: a PR modifies `docs/source/overview/`.
 
 Expected workflow:
 
-1. Follow the contribution guide's PR validation commands to clear generated HTML and build without warnings or errors.
+1. Use the contribution guide's incremental preview during editing, then run one clean, warning-free build of the final documentation changes.
 2. Run `uv run isaaclab -f`.
 3. Do not add a package changelog fragment unless `source/<package>/` changed.
 
@@ -36,3 +36,4 @@ Expected workflow:
 1. Run `uv run --no-project python tools/skills/cli.py check`.
 2. Inspect `skills/user/domain-randomization-events/evaluations.md` when present, and directly linked `examples.md` or `reference.md` to confirm scenarios, examples, and source references still match the changed guidance.
 3. Let the path-scoped skills CI gate validate the change on the PR.
+4. Skip Sphinx because standalone skill Markdown is not rendered in the documentation site.

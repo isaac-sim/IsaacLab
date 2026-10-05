@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Haptic feedback (device output) for IsaacTeleop teleoperation.
+"""Haptic feedback (device output) for Isaac Capture teleoperation.
 
 This module adds an *output* path to the otherwise input-only teleop stack: a
 sim-side signal (contact force on a gripper, per-finger grip force on an object,
@@ -300,7 +300,7 @@ class GloveHapticFeedbackCfg(HapticFeedbackCfg):
     smoothing: float = 0.5
     """EMA new-sample weight in ``[0, 1]`` (1.0 = no smoothing) applied to each finger power."""
     collection_id: str = "manus_glove_haptic"
-    """Push-tensor collection id pairing Isaac Teleop with the glove plugin process
+    """Push-tensor collection id pairing Isaac Capture with the glove plugin process
     (the Manus plugin's default). Change it to target a different glove vendor."""
     finger_order: list[str] = ["thumb", "index", "middle", "ring", "pinky"]
     """Per-channel finger substrings, in glove channel order, matched against the

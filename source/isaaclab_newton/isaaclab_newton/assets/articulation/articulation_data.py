@@ -819,6 +819,8 @@ class ArticulationData(BaseArticulationData):
         All values are relative to the world.
         """
         if self._body_com_acc_w.timestamp < self._sim_timestamp:
+            # Finite-difference over the elapsed time, which spans the decimation when Newton owns it.
+            time_elapsed = self._sim_timestamp - self._body_com_acc_w.timestamp
             body_ordering = self.body_ordering
             wp.launch(
                 articulation_kernels.get_body_com_acc_from_body_com_vel_ordered,
@@ -829,7 +831,7 @@ class ArticulationData(BaseArticulationData):
                     self._previous_body_com_vel,
                     body_ordering.user_to_backend if body_ordering is not None else None,
                     body_ordering is not None,
-                    SimulationManager.get_dt(),
+                    time_elapsed,
                 ],
                 outputs=[self._body_com_acc_w.data],
             )

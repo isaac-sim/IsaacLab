@@ -28,7 +28,7 @@ from isaaclab_ov import tensor_types as TT
 from isaaclab_ov.assets import kernels as shared_kernels
 from isaaclab_ov.assets.kernels import _body_wrench_to_world
 from isaaclab_ov.physics import OvPhysxManager
-from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView
+from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView, _expand_env_pattern
 
 from .rigid_object_data import RigidObjectData
 
@@ -957,7 +957,8 @@ class RigidObject(BaseRigidObject):
         # Eagerly create every binding the data container reads at init, so failures
         # surface here with a helpful message rather than as a raw wheel exception
         # (or a KeyError) at first writer call.
-        self._root_view = OvPhysxView(self._ovphysx, pattern=pattern, device=self._device)
+        paths = _expand_env_pattern(pattern, OvPhysxManager._sim.get_clone_plan())
+        self._root_view = OvPhysxView(self._ovphysx, prim_paths=paths, device=self._device)
         for tt in (
             TT.RIGID_BODY_POSE,
             TT.RIGID_BODY_VELOCITY,

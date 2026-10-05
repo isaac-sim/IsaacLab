@@ -107,8 +107,8 @@ Teleoperation, Mimic & Policy Deployment
 
 Teleoperation and imitation-learning workflows were updated for the 3.0 stack:
 
-* Adds Isaac Teleop MCAP record/replay support and a non-interactive ``teleop_replay_agent.py`` for CI replay.
-* Defers optional ``isaacteleop`` imports so task configs can be parsed without the Isaac Teleop runtime installed.
+* Adds Isaac Capture MCAP record/replay support and a non-interactive ``teleop_replay_agent.py`` for CI replay.
+* Defers optional ``isaacteleop`` imports so task configs can be parsed without the Isaac Capture runtime installed.
 * Improves CloudXR defaults, XR performance guidance, native keyboard/gamepad/SpaceMouse mappings, and RMPFlow
   teleoperation behavior.
 * Updates Mimic installation to include ``isaaclab_teleop`` and removes the obsolete
@@ -193,7 +193,7 @@ Teleoperation Replay
 ~~~~~~~~~~~~~~~~~~~~
 
 The transitional ``isaaclab_teleop.automation`` package, including ``XcrReplayConfig`` and ``start_xcr_replay``, has
-been removed. Replay workflows now use Isaac Teleop MCAP replay through
+been removed. Replay workflows now use Isaac Capture MCAP replay through
 ``scripts/environments/teleoperation/teleop_replay_agent.py``.
 
 The legacy lazy ``teleop_devices`` accessor on GR1T2 pick-place environment configs has also been removed. Use
@@ -289,7 +289,7 @@ Migration Notes
 * Move deformable imports to backend-neutral ``isaaclab.assets`` and ``isaaclab.sim`` APIs where possible.
 * Migrate tiled-camera code toward ``Camera`` / ``CameraCfg``.
 * Use ``ProxyArray.torch`` or ``ProxyArray.warp`` explicitly when crossing between Torch and Warp code.
-* Use Isaac Teleop MCAP replay and ``teleop_replay_agent.py`` for replay automation instead of the removed XCR
+* Use Isaac Capture MCAP replay and ``teleop_replay_agent.py`` for replay automation instead of the removed XCR
   automation helpers.
 
 v3.0.0-beta
@@ -447,10 +447,10 @@ All packages now use lazy exporting with ``.pyi`` stubs, so importing a top-leve
 store references as resolvable strings that are resolved only after ``SimulationApp`` is initialized, enabling
 automatic physics-backend selection.
 
-Isaac Teleop Integration
-~~~~~~~~~~~~~~~~~~~~~~~~
+Isaac Capture Integration
+~~~~~~~~~~~~~~~~~~~~~~~~~
 
-XR teleoperation is now powered by Isaac Teleop via the new ``isaaclab_teleop`` extension, replacing the previous
+XR teleoperation is now powered by Isaac Capture via the new ``isaaclab_teleop`` extension, replacing the previous
 ``isaaclab.devices.openxr`` stack. The new system provides a unified teleoperation interface with pipeline-based
 retargeting configuration.
 

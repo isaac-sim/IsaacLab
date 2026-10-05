@@ -169,8 +169,8 @@ def define_actuator_properties(
 
     Args:
         prim_path: Root prim path of the articulation (e.g.
-            ``"/World/Env_0/Robot"``). May contain a regex pattern; the
-            first matching prim is used.
+            ``"/World/Env_0/Robot"``). May contain a regex pattern; every matching prim is
+            authored, because a multi-asset spawner creates a distinct articulation per match.
         actuator_cfgs: Mapping of group name to
             :class:`~isaaclab.actuators.ActuatorBaseCfg`.
         stage: USD stage to author on. When ``None``, the current stage
@@ -186,18 +186,16 @@ def define_actuator_properties(
     if sim_cfg is None or not sim_cfg.use_newton_actuators:
         return
 
-    from ..utils.queries import find_first_matching_prim  # noqa: PLC0415
+    from ..utils.queries import find_matching_prims  # noqa: PLC0415
     from ..utils.stage import get_current_stage  # noqa: PLC0415
 
     if stage is None:
         stage = get_current_stage()
 
-    first_prim = find_first_matching_prim(prim_path)
-    if first_prim is None:
-        return
-    articulation_prim_path = str(first_prim.GetPath())
-
-    author_actuator_prims(stage, articulation_prim_path, actuator_cfgs)
+    # Each match is a separately spawned articulation. A multi-asset spawner creates one per asset
+    # before cloning, and the Newton builder only sees actuators authored on the prim it imports.
+    for prim in find_matching_prims(prim_path, stage):
+        author_actuator_prims(stage, str(prim.GetPath()), actuator_cfgs)
 
 
 def author_actuator_prims(

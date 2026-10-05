@@ -91,10 +91,10 @@ These are starting budgets, not fidelity guarantees. Use MuJoCo contacts by defa
 ### Task-Level Smoke And Reset Validation
 
 ```bash
-uv run --extra isaacsim python scripts/environments/zero_agent.py --task TASK --num_envs 4 --viz none physics=physx
-uv run --extra isaacsim python scripts/environments/zero_agent.py --task TASK --num_envs 4 --viz none physics=newton_mjwarp
-uv run --extra isaacsim python scripts/environments/random_agent.py --task TASK --num_envs 4 --viz none physics=physx
-uv run --extra isaacsim python scripts/environments/random_agent.py --task TASK --num_envs 4 --viz none physics=newton_mjwarp
+uv run --extra isaacsim python scripts/environments/zero_agent.py --task TASK --num_envs 4 physics=physx
+uv run --extra isaacsim python scripts/environments/zero_agent.py --task TASK --num_envs 4 physics=newton_mjwarp
+uv run --extra isaacsim python scripts/environments/random_agent.py --task TASK --num_envs 4 physics=physx
+uv run --extra isaacsim python scripts/environments/random_agent.py --task TASK --num_envs 4 physics=newton_mjwarp
 ```
 
 Let each agent run through multiple resets. Reject robot-object and robot-support penetration, impossible mimic states, and invalid geometry before stepping. For cached valid states, inspect explicit colliders, cover each heterogeneous group, exclude fixed bases from ground-clearance tests, use positions relative to environment origins, and rebuild after topology or geometry changes.

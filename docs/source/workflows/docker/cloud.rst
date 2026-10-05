@@ -155,7 +155,7 @@ To run Isaac Lab commands, open a terminal on the workstation:
 
 .. code-block:: bash
 
-   ~/IsaacLab/isaaclab.sh train --rl_library rsl_rl \
+   uv run --project ~/IsaacLab isaaclab train --rl_library rsl_rl \
      --task=Isaac-Cartpole-Direct
 
 

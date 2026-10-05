@@ -21,9 +21,6 @@ Choosing an image
    * - ``base``
      - Isaac Lab on the NVIDIA Isaac Sim image, with Kit and RTX rendering
      - You want the default environment, GUI rendering, or anything that needs Isaac Sim
-   * - ``ros2``
-     - The ``base`` image plus ROS 2 Humble
-     - You are bridging Isaac Lab to ROS 2 nodes
    * - ``kitless``
      - Ubuntu 24.04, Python 3.12, Newton and OVPhysX physics, OVRTX rendering, four RL libraries
      - You are training with Newton and want the smallest image; also the only one with no Isaac Sim EULA
@@ -36,20 +33,47 @@ Kit, RTX rendering, and the Isaac Sim asset pipeline. The Isaac Sim version it b
 by ``ISAACSIM_VERSION`` in ``.env.base``; the other variables in that file control paths inside the
 container.
 
-ROS 2 image
------------
+Direct builds use the same default paths as Compose:
 
-``Dockerfile.ros2`` installs ROS 2 Humble from an `apt package`_ and sources it in the runtime
-user's ``.bashrc``. ``ROS2_APT_PACKAGE`` in ``.env.ros2`` selects the package set, defaulting to
-``ros-base``. The image defaults to the ``FastRTPS`` middleware; ``CycloneDDS`` is also supported, and
-both can be `tuned`_ through their ``.xml`` files under ``docker/.ros``. See `various middleware`_
-for the trade-offs.
+.. code:: bash
 
-.. dropdown:: Parameters in .env.ros2
-   :icon: code
+    docker build --pull --file docker/Dockerfile.base --tag isaac-lab-base .
 
-   .. literalinclude:: ../../../../docker/.env.ros2
-      :language: bash
+Dependencies are installed from ``uv.lock`` with frozen resolution. To update the development
+container after pulling repository changes, rebuild it and recreate the service:
+
+.. code:: bash
+
+    ./docker/container.py stop base
+    ./docker/container.py build base --pull
+    ./docker/container.py start base
+
+Stopping now preserves named volumes; older versions deleted them on every stop. Compose
+caches, logs, and data use named volumes, whose existing ownership is unchanged by rebuilding.
+For a one-time upgrade from a root-run image, copy any results you need, stop other profiles
+without ``--remove-volumes`` (use ``docker rm <name>`` for already-stopped containers),
+then run ``./docker/container.py stop base --remove-volumes``
+before rebuilding and starting base. This deletes the project's caches, logs, and data so
+new volumes inherit uid/gid 1000 ownership. Cleanup requires the selected container to still
+exist and refuses to run while another container remains in the Compose project.
+
+If the selected container was already removed, start it again before requesting cleanup.
+For custom host bind-mounted caches, fix ownership on the host to uid/gid 1000 instead.
+
+With X11 forwarding enabled, launch the standalone Isaac Sim GUI from its installation directory:
+
+.. code:: bash
+
+    cd /isaac-sim
+    ./runapp.sh
+
+The image redirects shared Python packages, including the direct ``omni.warp.core`` package,
+to the locked environment. Missing ``packaging/__init__.py`` or ``warp/_src/apic/__init__.py``
+errors indicate broken shared package files; recreating a container from a newly built image
+restores the package tree. An installer error about a whole-namespace NVIDIA symlink likewise
+requires restoring a clean Isaac Sim installation or rebuilding the image before retrying;
+removing the link alone does not restore Kit's CUDA 12 libraries. Cache-permission errors
+require the named-volume migration above or fixing ownership on custom host bind mounts.
 
 Kit-less image
 --------------
@@ -73,7 +97,7 @@ No visualizer is selected by default, so
 training runs headless unless you ask for one. The ``kit`` visualizer is the exception: it comes from
 Omniverse Kit, which this image does not contain.
 
-Unlike the other two, it bind-mounts ``apps`` in addition to ``source``, ``scripts``, ``tools``, and
+Unlike the base image, it bind-mounts ``apps`` in addition to ``source``, ``scripts``, ``tools``, and
 ``docs``, and it keeps a uv cache and a Warp cache of its own.
 
 You do not have to build it locally. It is published alongside each Isaac Lab release in the same
@@ -167,7 +191,7 @@ not require X11. Follow the graphics-driver requirements above for GL or RTX.
 Runtime user
 ------------
 
-The base, ROS 2, cuRobo, and kit-less images all run as a non-root user with uid/gid 1000, which
+The base, cuRobo, and kit-less images all run as a non-root user with uid/gid 1000, which
 keeps bind-mounted workspaces writable on GitHub runners. When running one of these images directly
 with ``docker run`` from a host account whose uid differs, pass ``--user "$(id -u):1000"`` so that
 new files on bind mounts belong to your host user while the runtime home stays accessible.
@@ -178,9 +202,5 @@ Python interpreter
 Every image installs from ``uv.lock`` into a Python 3.12 virtual environment at
 ``/opt/isaaclab-venv``. On the Isaac Sim-based images the environment is built on Isaac Sim's own
 interpreter, and Isaac Sim itself stays outside it, reached through the ``_isaac_sim`` symlink;
-``isaaclab.sh`` puts it on the path. In either case ``python`` on the container's ``PATH`` resolves
+``uv run isaaclab`` puts it on the path. In either case ``python`` on the container's ``PATH`` resolves
 to the right one, so scripts are run the same way regardless of image.
-
-.. _`apt package`: https://docs.ros.org/en/humble/Installation/Ubuntu-Install-Debians.html#install-ros-2-packages
-.. _`various middleware`: https://docs.ros.org/en/humble/How-To-Guides/Working-with-multiple-RMW-implementations.html
-.. _`tuned`: https://docs.ros.org/en/foxy/How-To-Guides/DDS-tuning.html

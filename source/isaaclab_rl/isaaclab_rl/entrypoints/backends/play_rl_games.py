@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import logging
 import os
 import re
 
@@ -43,6 +44,8 @@ from ..common import (
     show_run_summary,
     startup_screen,
 )
+
+logger = logging.getLogger(__name__)
 
 # PLACEHOLDER: Extension template (do not remove this comment)
 with contextlib.suppress(ImportError):
@@ -105,9 +108,9 @@ def run(argv: list[str]) -> None:
                 " --agent rl_games_cfg_entry_point, or use --rl_library rsl_rl for RSL-RL runner configurations."
             )
         pre_launch_video_config(env_cfg, args_cli)
-        show_run_summary(screen, args_cli, env_cfg, library="rl_games", action="play")
         screen.stage("Launching simulation")
         with launch_simulation(env_cfg, args_cli), contextlib.ExitStack() as cleanup:
+            show_run_summary(screen, args_cli, env_cfg, library="rl_games", action="play")
             apply_env_overrides(args_cli, env_cfg)
             params = agent_cfg["params"]
             args_cli.seed = resolve_seed(args_cli.seed)
@@ -116,7 +119,7 @@ def run(argv: list[str]) -> None:
             env_cfg.seed = params["seed"]
 
             log_root_path = os.path.abspath(os.path.join("logs", "rl_games", params["config"]["name"]))
-            print(f"[INFO] Loading experiment from directory: {log_root_path}")
+            logger.info(f"Loading experiment from directory: {log_root_path}")
             resume_path = _resolve_checkpoint(args_cli, agent_cfg, env_cfg, log_root_path)
             if resume_path is None:
                 return
@@ -139,7 +142,7 @@ def run(argv: list[str]) -> None:
             params["load_checkpoint"] = True
             params["load_path"] = resume_path
             params["config"]["num_actors"] = env.unwrapped.num_envs
-            print(f"[INFO]: Loading model checkpoint from: {resume_path}")
+            logger.info(f"Loading model checkpoint from: {resume_path}")
             runner = Runner()
             # configure_seed must run after Runner() so torch determinism does not disturb its initialization
             if args_cli.deterministic:

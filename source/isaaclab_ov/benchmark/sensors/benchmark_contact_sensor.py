@@ -10,7 +10,7 @@ runs kitless against the OVPhysX backend. Also times the blocking native
 ``read_net_forces`` fetch in isolation.
 
 Usage:
-    ./isaaclab.sh -p source/isaaclab_ov/benchmark/sensors/benchmark_contact_sensor.py --num_envs 4096
+    uv run python source/isaaclab_ov/benchmark/sensors/benchmark_contact_sensor.py --num_envs 4096
 """
 
 from __future__ import annotations

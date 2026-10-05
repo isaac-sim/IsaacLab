@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import logging
 import re
-import warnings
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
@@ -684,13 +683,10 @@ class ContactSensor(BaseContactSensor):
             # set their visibility to true
             self.contact_visualizer.set_visibility(True)
             self.normal_force_visualizer.set_visibility(True)
-            if not getattr(self, "_warned_missing_net_friction_vis", False):
-                warnings.warn(
-                    "PhysX contact sensor visualization cannot display net friction forces because the backend"
-                    " only reports friction for configured filter objects.",
-                    stacklevel=2,
-                )
-                self._warned_missing_net_friction_vis = True
+            logger.warning(
+                "PhysX contact sensor visualization cannot display net friction forces because the backend"
+                " only reports friction for configured filter objects."
+            )
         else:
             if hasattr(self, "contact_visualizer"):
                 self.contact_visualizer.set_visibility(False)
@@ -701,6 +697,7 @@ class ContactSensor(BaseContactSensor):
         # note: this invalidity happens because of isaac sim view callbacks
         if self.body_physx_view is None:
             return
+        self._update_outdated_buffers()
         # Convert warp data to torch at the boundary for visualization
         net_forces_torch = self._data.net_normal_forces_w.torch  # (N, B, 3)
         net_contact_force_w = torch.linalg.norm(net_forces_torch, dim=-1)

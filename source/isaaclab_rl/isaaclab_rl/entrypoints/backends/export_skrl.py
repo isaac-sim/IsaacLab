@@ -8,10 +8,13 @@
 from __future__ import annotations
 
 import argparse
+import logging
 import os
 from typing import Any
 
 import torch
+
+logger = logging.getLogger(__name__)
 
 # LEAPP traces Isaac Lab's Python tensor operations, so TorchScript is disabled before importing task
 # or environment modules that compile decorated helpers at import time.
@@ -19,7 +22,7 @@ torch.jit._state.disable()
 
 import gymnasium as gym
 
-from isaaclab.envs import DirectMARLEnvCfg
+from isaaclab.envs import DirectMARLEnvCfg, multi_agent_to_single_agent
 from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.seed import configure_seed
 
@@ -90,26 +93,22 @@ def _resolve_checkpoint(args_cli: argparse.Namespace, env_cfg: Any, log_root_pat
 
 def export_skrl_agent(args_cli: argparse.Namespace, env_cfg: Any, agent_cfg: dict) -> bool:
     """Export a skrl agent; returns whether a graph was written."""
-    # concrete environment classes and the LEAPP runtime load simulation modules, so import them
-    # only after launch_simulation has initialized the selected backend
+    # the LEAPP runtime loads simulation modules, so import it only after launch_simulation has
+    # initialized the selected backend
     from leapp import annotate
-
-    from isaaclab.envs import multi_agent_to_single_agent
 
     check_skrl_version()
     runner_cls = import_skrl_runner("torch")
     algorithm = resolve_skrl_algorithm(agent_cfg)
     env_cfg.scene.num_envs = 1
     env_cfg.seed = agent_cfg["seed"]
-    if args_cli.device is not None:
-        env_cfg.sim.device = args_cli.device
 
     experiment_cfg = agent_cfg["agent"]["experiment"]
     log_root_path = os.path.abspath(os.path.join("logs", "skrl", experiment_cfg["directory"]))
-    print(f"[INFO] Loading checkpoint search path from directory: {log_root_path}")
+    logger.info(f"Loading checkpoint search path from directory: {log_root_path}")
     resume_path = _resolve_checkpoint(args_cli, env_cfg, log_root_path, algorithm)
     if not resume_path:
-        print(f"[INFO] No checkpoint found for task: {args_cli.task} in directory: {log_root_path}")
+        logger.info(f"No checkpoint found for task: {args_cli.task} in directory: {log_root_path}")
         return False
     log_dir = os.path.dirname(os.path.dirname(resume_path))
     env_cfg.log_dir = log_dir
@@ -128,7 +127,7 @@ def export_skrl_agent(args_cli: argparse.Namespace, env_cfg: Any, agent_cfg: dic
         # configure_seed must run after Runner() so torch determinism does not disturb its initialization
         if args_cli.deterministic:
             configure_seed(env_cfg.seed, torch_deterministic=True)
-        print(f"[INFO] Loading model checkpoint from: {resume_path}")
+        logger.info(f"Loading model checkpoint from: {resume_path}")
         agent = runner.agent
         agent.load(resume_path)
         agent.enable_training_mode(False, apply_to_models=True)

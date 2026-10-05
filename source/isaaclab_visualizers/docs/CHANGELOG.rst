@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+.. towncrier release notes start
+
+2.0.1 (2026-10-03)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the Newton visualizer "no display found" notice to use ``logger.warning`` instead of ``print``.
+
+
 2.0.0 (2026-09-28)
 ~~~~~~~~~~~~~~~~~~
 

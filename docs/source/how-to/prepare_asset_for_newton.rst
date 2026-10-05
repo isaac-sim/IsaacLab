@@ -127,8 +127,8 @@ Run the same fixed task state through both backends before training or transfer:
 
 .. code-block:: bash
 
-   uv run --extra isaacsim python scripts/environments/zero_agent.py --task TASK --num_envs 4 --viz none physics=physx
-   uv run --extra isaacsim python scripts/environments/zero_agent.py --task TASK --num_envs 4 --viz none physics=newton_mjwarp
+   uv run --extra isaacsim python scripts/environments/zero_agent.py --task TASK --num_envs 4 physics=physx
+   uv run --extra isaacsim python scripts/environments/zero_agent.py --task TASK --num_envs 4 physics=newton_mjwarp
 
 Let each run cross multiple resets. Record object displacement, contact count, gripper effort,
 penetration, and success rate for the same fixed grasp. Also check for non-finite state, first-step

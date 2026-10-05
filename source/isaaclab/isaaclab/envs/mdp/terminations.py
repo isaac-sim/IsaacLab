@@ -128,7 +128,7 @@ class joint_vel_out_of_limit(ManagerTermBase):
 
     def __init__(self, cfg: TerminationTermCfg, env: ManagerBasedRLEnv):
         super().__init__(cfg, env)
-        asset_cfg: SceneEntityCfg = cfg.params.get("asset_cfg", SceneEntityCfg("robot"))
+        asset_cfg: SceneEntityCfg = cfg.params["asset_cfg"]
         self._asset: Articulation = env.scene[asset_cfg.name]
         joint_ids = asset_cfg.joint_ids
         if isinstance(joint_ids, list):

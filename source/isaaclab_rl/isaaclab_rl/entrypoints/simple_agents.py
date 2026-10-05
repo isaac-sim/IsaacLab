@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import logging
 import os
 import sys
 from collections.abc import Callable
@@ -36,8 +37,11 @@ from .common import (
     close_env,
     enable_cameras_for_video,
     normalize_task_name,
+    pre_launch_video_config,
     video_playback_steps,
 )
+
+logger = logging.getLogger(__name__)
 
 # PLACEHOLDER: Extension template (do not remove this comment)
 with contextlib.suppress(ImportError):
@@ -72,11 +76,7 @@ def run(argv: list[str] | None = None, *, policy: PolicyName) -> None:
 
     env_cfg, _ = resolve_task_config(args_cli.task, "")
     apply_env_overrides(args_cli, env_cfg)
-    # pass the resolved task device through to the launcher
-    args_cli.device = env_cfg.sim.device
-    # configure recorders before validation so invalid clip settings fail before the launch
-    log_dir = os.path.abspath(os.path.join("logs", f"{policy}_agent", normalize_task_name(args_cli.task)))
-    apply_video_recording(env_cfg, log_dir, args_cli, subdir="play")
+    pre_launch_video_config(env_cfg, args_cli)
     # reject unsupported configurations before launching Kit or initializing a native physics backend
     try:
         validate(env_cfg)
@@ -84,16 +84,18 @@ def run(argv: list[str] | None = None, *, policy: PolicyName) -> None:
         raise SystemExit(f"Invalid environment configuration: {exc}") from None
 
     with launch_simulation(env_cfg, args_cli), contextlib.ExitStack() as cleanup:
+        log_dir = os.path.abspath(os.path.join("logs", f"{policy}_agent", normalize_task_name(args_cli.task)))
+        apply_video_recording(env_cfg, log_dir, args_cli, subdir="play")
         env = gym.make(args_cli.task, cfg=env_cfg)
         cleanup.callback(lambda: close_env(env))
-        print(f"[INFO]: Gym observation space: {env.observation_space}")
-        print(f"[INFO]: Gym action space: {env.action_space}")
+        logger.info(f"Gym observation space: {env.observation_space}")
+        logger.info(f"Gym action space: {env.action_space}")
         env.reset()
         if policy == "zero":
             action_policy = create_zero_action_policy(env)
         else:
             action_policy = create_random_action_policy(env)
-        print(f"[INFO] {policy.capitalize()} agent is running, press Ctrl+C to exit...")
+        logger.info(f"{policy.capitalize()} agent is running, press Ctrl+C to exit...")
 
         budgets = [n for n in (args_cli.max_steps, video_playback_steps(args_cli, env_cfg)) if n is not None]
         max_steps = min(budgets, default=None)
@@ -193,7 +195,7 @@ def _create_action_term_zero_policy(term: Any, env: Any) -> Callable[[], torch.T
         def differential_ik_policy() -> torch.Tensor:
             ee_pos, ee_quat = term._compute_frame_pose()
             command = ee_pos if term.cfg.controller.command_type == "position" else torch.cat((ee_pos, ee_quat), dim=-1)
-            return _unscale_action(command, term._scale)
+            return _unscale_action(command - term._offset, term._scale)
 
         return differential_ik_policy
 
@@ -253,8 +255,8 @@ def _parse_args(argv: list[str] | None, policy: PolicyName) -> argparse.Namespac
     )
     add_video_args(parser, action=f"the {policy} agent run")
     add_launcher_args(parser)
-    # let task configs select the simulation device and keep checkpoint-free agents on the kitless default path
-    parser.set_defaults(device=None, visualizer=["newton_gl"])
+    # let task configs select the simulation device
+    parser.set_defaults(device=None)
     args_cli, hydra_args = setup_preset_cli(parser, argv)
     enable_cameras_for_video(args_cli)
     sys.argv = [sys.argv[0]] + hydra_args

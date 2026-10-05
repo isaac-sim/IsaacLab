@@ -35,11 +35,11 @@ commands to the mesh nodes to move the soft body.
 
       uv run --extra isaacsim --extra tetrahedralization python scripts/tutorials/01_assets/run_deformable_object.py --visualizer kit
 
-   With the legacy installer, install the optional dependencies first:
+   To install the optional dependencies explicitly:
 
    .. code-block:: bash
 
-      ./isaaclab.sh -i tetrahedralization
+      uv sync --extra tetrahedralization
 
 
 The Code
@@ -189,12 +189,6 @@ Now that we have gone through the code, let's run the script and see the result:
 
          uv run --extra isaacsim --extra tetrahedralization python scripts/tutorials/01_assets/run_deformable_object.py --visualizer kit
 
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         ./isaaclab.sh -p scripts/tutorials/01_assets/run_deformable_object.py --visualizer kit
-
 To run the same tutorial with the experimental Newton deformable backend:
 
 .. tab-set::
@@ -204,13 +198,6 @@ To run the same tutorial with the experimental Newton deformable backend:
       .. code-block:: bash
 
          uv run --extra isaacsim --extra tetrahedralization python scripts/tutorials/01_assets/run_deformable_object.py --backend newton_vbd --visualizer kit
-
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         ./isaaclab.sh -p scripts/tutorials/01_assets/run_deformable_object.py --backend newton_vbd --visualizer kit
 
 
 This should open a stage with a ground plane, lights, and several cubes. Two of the four cubes must be dropping

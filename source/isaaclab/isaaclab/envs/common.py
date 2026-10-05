@@ -33,7 +33,8 @@ class ViewerCfg:
     .. deprecated::
         :class:`ViewerCfg` is deprecated and will be removed in a future release.
         Configure the viewport camera via :class:`~isaaclab_visualizers.kit.KitVisualizerCfg`
-        and add it to :attr:`~isaaclab.sim.SimulationCfg.visualizer_cfgs` instead::
+        and add it to :attr:`~isaaclab.sim.SimulationCfg.visualizer_cfgs` instead, which applies when
+        ``--visualizer kit`` selects the Kit visualizer::
 
             from isaaclab.sim import SimulationCfg
             from isaaclab_visualizers.kit import KitVisualizerCfg

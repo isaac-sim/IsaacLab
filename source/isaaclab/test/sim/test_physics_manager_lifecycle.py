@@ -268,15 +268,24 @@ def test_clear_instance_closes_renderers_before_native_backends(monkeypatch, ren
 
     class Manager:
         @classmethod
+        def stop(cls):
+            events.append("stop")
+            if fail_cleanup:
+                raise RuntimeError("STOP failed")
+
+        @classmethod
         def close(cls):
             events.append("physics")
             if fail_cleanup:
-                raise RuntimeError("STOP failed")
+                raise RuntimeError("physics close failed")
 
     class Resource:
         def __init__(self, name, error=None):
             self.name = name
             self.error = error
+
+        def stop(self):
+            events.append(f"{self.name}_stop")
 
         def close(self):
             events.append(self.name)
@@ -307,12 +316,12 @@ def test_clear_instance_closes_renderers_before_native_backends(monkeypatch, ren
     monkeypatch.setattr(context_module.gc, "collect", lambda: events.append("gc"))
 
     if fail_cleanup:
-        with pytest.raises(RuntimeError, match=r"4 error\(s\) occurred during teardown") as exc_info:
+        with pytest.raises(RuntimeError, match=r"5 error\(s\) occurred during teardown") as exc_info:
             SimulationContext.clear_instance()
         assert str(exc_info.value) == (
-            "SimulationContext.clear_instance(): 4 error(s) occurred during teardown: "
-            "RuntimeError: STOP failed; OSError: renderer failed; ValueError: visualizer failed; "
-            "LookupError: backend failed"
+            "SimulationContext.clear_instance(): 5 error(s) occurred during teardown: "
+            "RuntimeError: STOP failed; RuntimeError: physics close failed; OSError: renderer failed; "
+            "ValueError: visualizer failed; LookupError: backend failed"
         )
         assert str(exc_info.value.__cause__) == "STOP failed"
     else:
@@ -320,6 +329,8 @@ def test_clear_instance_closes_renderers_before_native_backends(monkeypatch, ren
 
     SimulationContext.clear_instance()
     assert events == [
+        "stop",
+        *([] if fail_cleanup else ["visualizer_failed_stop", "visualizer_last_stop"]),
         "physics",
         "writers",
         "renderer_failed",
@@ -356,7 +367,8 @@ def test_clear_instance_drops_owned_context_references_before_garbage_collection
             pass
 
     class Context:
-        pass
+        def stop(self):
+            pass
 
     context = Context()
     context.physics_manager = Manager

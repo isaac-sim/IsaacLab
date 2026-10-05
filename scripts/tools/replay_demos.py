@@ -71,6 +71,7 @@ hydra_args = list_intersection(hydra_args, remaining_args_env_registration)
 sys.argv = [sys.argv[0]] + hydra_args
 
 import contextlib
+import logging
 import os
 
 import gymnasium as gym
@@ -80,6 +81,8 @@ from isaaclab.utils.datasets import EpisodeData, HDF5DatasetFileHandler
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import resolve_task_config
+
+logger = logging.getLogger(__name__)
 
 is_paused = False
 
@@ -323,7 +326,7 @@ def replay_dataset(
     if args_cli.validate_states and num_envs == 1:
         state_validation_enabled = True
     elif args_cli.validate_states and num_envs > 1:
-        print("Warning: State validation is only supported with a single environment. Skipping state validation.")
+        logger.warning("State validation is only supported with a single environment. Skipping state validation.")
 
     # Get idle action (idle actions are applied to envs without next action)
     if hasattr(env_cfg, "idle_action"):

@@ -7,7 +7,8 @@
 This script shows how to use a teleoperation device with Isaac Sim.
 
 The teleoperation device is a keyboard device that allows the user to control the robot.
-It is possible to add additional callbacks to it for user-defined operations.
+It is possible to add additional callbacks to it for user-defined operations. Keyboard input needs the Kit
+window, so run it with ``--viz kit``.
 """
 
 import argparse
@@ -16,8 +17,6 @@ from isaaclab.app import add_launcher_args, launch_simulation
 
 parser = argparse.ArgumentParser(description="Check the keyboard teleoperation device.")
 add_launcher_args(parser)
-# keyboard input needs the Kit window, so open the Kit visualizer by default
-parser.set_defaults(visualizer=["kit"])
 args_cli = parser.parse_args()
 
 import sys

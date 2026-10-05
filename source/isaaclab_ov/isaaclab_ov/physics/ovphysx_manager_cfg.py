@@ -33,7 +33,7 @@ class OvPhysxBackendCfg(BackendCfg):
     class_type: type[OvPhysxBackend] | str = "{DIR}.ovphysx_manager:OvPhysxBackend"
 
     device: str = MISSING
-    """Normalized device: ``cpu`` or ``cuda:<index>``. CPU-only mode is process-wide."""
+    """Normalized device: ``cpu`` or ``cuda:<index>``."""
 
     cooked_collider_cache_dir: str | None = DEFAULT_COOKED_COLLIDER_CACHE_DIR
     """Cooked-collider cache location, fixed by the first runtime created in the process."""

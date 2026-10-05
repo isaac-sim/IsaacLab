@@ -4,7 +4,7 @@
 
 Use these as starting points, then confirm the task's registered agent config exists.
 
-Training runs headless by default; omit any visualizer option for fastest training. To watch a run, pass `--viz kit` (or `--viz rerun,newton,viser`); use `--viz none` to force-disable configured visualizers. Use suffixless task names, for example `Isaac-Cartpole` instead of `Isaac-Cartpole-v0`.
+Training runs headless by default; omit any visualizer option for fastest training. To watch a run, pass `--viz kit` (or `--viz rerun,newton,viser`). Use suffixless task names, for example `Isaac-Cartpole` instead of `Isaac-Cartpole-v0`.
 
 RSL-RL:
 

@@ -58,8 +58,8 @@ class ObstacleDensityCurriculum(ManagerTermBase):
         # Extract parameters from config
         self._min_difficulty = cfg.params["min_difficulty"]
         self._max_difficulty = cfg.params["max_difficulty"]
-        self._asset_cfg = cfg.params.get("asset_cfg", SceneEntityCfg("robot"))
-        self._command_name = cfg.params.get("command_name", "target_pose")
+        self._asset_cfg = cfg.params["asset_cfg"]
+        self._command_name = cfg.params["command_name"]
 
         # Initialize difficulty levels for all environments
         self._difficulty_levels = torch.ones(env.num_envs, device=env.device) * self._min_difficulty

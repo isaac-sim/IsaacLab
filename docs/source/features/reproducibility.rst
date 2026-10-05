@@ -75,13 +75,6 @@ only.
         uv run --extra rl-games isaaclab train --rl_library rl_games \
           --task Isaac-Cartpole-Camera --deterministic
 
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-        ./isaaclab.sh train --rl_library rl_games \
-          --task Isaac-Cartpole-Camera --deterministic
-
 Newton physics determinism
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 

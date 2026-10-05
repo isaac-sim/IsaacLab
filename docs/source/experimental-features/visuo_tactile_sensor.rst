@@ -120,12 +120,6 @@ To use the tactile sensor in a simulation environment, run the example:
 
           uv run --extra isaacsim isaaclab example tactile-sensor --use_tactile_rgb --use_tactile_ff --tactile_compliance_stiffness 100.0 --tactile_compliant_damping 1.0 --contact_object_type nut --num_envs 16 --save_viz --viz kit
 
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-          ./isaaclab.sh example tactile-sensor --use_tactile_rgb --use_tactile_ff --tactile_compliance_stiffness 100.0 --tactile_compliant_damping 1.0 --contact_object_type nut --num_envs 16 --save_viz --viz kit
-
 Available command-line options include:
 
 * ``--use_tactile_rgb``: Enable camera-based tactile sensing
@@ -160,12 +154,6 @@ For a complete list of available options:
       .. code-block:: bash
 
           uv run --extra isaacsim isaaclab example tactile-sensor -h
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-          ./isaaclab.sh example tactile-sensor -h
 
 .. note::
    The examples are based on the Gelsight R1.5, which is a prototype sensor that is now discontinued. The same procedure can be adapted for other visuotactile sensors.

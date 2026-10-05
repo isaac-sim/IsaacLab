@@ -52,18 +52,6 @@ The following command shows how to capture a profile for the ``Isaac-Cartpole`` 
                  --task=Isaac-Cartpole \
                  --max_iterations=3
 
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         nsys profile \
-             -t nvtx,cuda \
-             --python-functions-trace=scripts/benchmarks/nsys_trace.json \
-             -o my_profile \
-             ./isaaclab.sh train --rl_library rsl_rl \
-                 --task=Isaac-Cartpole \
-                 --max_iterations=3
-
 Flags:
 
 - ``-t nvtx,cuda`` - capture NVTX ranges (CPU swim-lanes) and CUDA activity (GPU row).
