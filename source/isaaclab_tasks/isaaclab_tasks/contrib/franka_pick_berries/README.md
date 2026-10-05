@@ -57,7 +57,9 @@ hangs from them and deforms as MPM tissue. Moving the fingers releases them: clo
 damage, the berry through contact alone, and opening lets go of it. A held berry therefore does not slip, and the
 robot does not feel its weight. Its damage is a weak, qualitative signal: the velocity gradients it integrates are
 noisy, and damage must grow slowly (`DamageConfig.max_rate`) for its softening not to make the solve diverge, so a
-full squash crushes the berry but marks it far less than the explicit solver does.
+full squash crushes the berry but marks it far less than the explicit solver does. The tissue uses the static
+tableware colliders, which a shape can belong to one coupled entry only, so with this solver the arm itself does not
+collide with the punnet, bowl and reject dish; with the explicit solver it does.
 
 ## Follow-up work
 

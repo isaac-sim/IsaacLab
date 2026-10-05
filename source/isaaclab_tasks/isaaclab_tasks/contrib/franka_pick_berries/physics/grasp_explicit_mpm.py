@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import math
 import re
+import warnings
 from dataclasses import dataclass
 
 import numpy as np
@@ -262,6 +263,7 @@ def pad_adhesion(
     peak: wp.array[float],
     age: wp.array[float],
     impulse: wp.array[wp.vec3],
+    moment: wp.array[wp.vec3],
 ):
     """Bond damaged (wet) tissue that touches a pad to it, with a traction that softens as the bond opens or ages."""
     p = wp.tid()
@@ -313,6 +315,7 @@ def pad_adhesion(
     force = -strength_p * envelope * delta / wp.max(distance, 1.0e-12)
     v[p] = v[p] + dt / mass[p] * force
     wp.atomic_add(impulse, pad, dt * force)
+    wp.atomic_add(moment, pad, wp.cross(x[p] - pads.body_com[pad], dt * force))
 
 
 @wp.kernel
@@ -328,6 +331,7 @@ def pad_contact(
     dt: float,
     tangential: wp.array2d[wp.vec3],
     impulse: wp.array[wp.vec3],
+    moment: wp.array[wp.vec3],
 ):
     """Push particles out of the pads with a spring-damper and hold them by Coulomb-capped tangential springs."""
     p = wp.tid()
@@ -370,6 +374,7 @@ def pad_contact(
         change = normal_impulse * normal + dt * tangent_force
         velocity += change / mass[p]
         wp.atomic_add(impulse, pad, change)
+        wp.atomic_add(moment, pad, wp.cross(x[p] - pads.body_com[pad], change))
     v[p] = velocity
 
 
@@ -706,6 +711,7 @@ def particle_boundaries(
     x: wp.array[wp.vec3],
     v: wp.array[wp.vec3],
     impulse: wp.array[wp.vec3],
+    moment: wp.array[wp.vec3],
 ):
     """Project particles out of the pads (without friction, already applied at the surface) and the static
     boundaries."""
@@ -725,7 +731,9 @@ def particle_boundaries(
             speed = pad_point_velocity(pads, pad, position)
             before = velocity
             velocity = speed + coulomb_velocity(velocity - speed, normal, 0.0)
-            wp.atomic_add(impulse, pad, mass[p] * (velocity - before))
+            change = mass[p] * (velocity - before)
+            wp.atomic_add(impulse, pad, change)
+            wp.atomic_add(moment, pad, wp.cross(position - pads.body_com[pad], change))
     if position[2] < ground + radius:
         position[2] = ground + radius
         velocity = coulomb_velocity(velocity, wp.vec3(0.0, 0.0, 1.0), ground_friction)
@@ -742,16 +750,18 @@ def particle_boundaries(
 @wp.kernel
 def pad_reaction(
     impulse: wp.array[wp.vec3],
+    moment: wp.array[wp.vec3],
     pad_body: wp.array[int],
     body_local_to_proxy_global: wp.array[int],
     dt: float,
     out_body_f: wp.array[wp.spatial_vector],
 ):
-    """Return the momentum the pads gave the tissue as an opposite force at each pad's body [N]."""
+    """Return the momentum the pads gave the tissue as an opposite wrench at each pad's body: force [N] and torque
+    [N m] about its center of mass, in the world frame."""
     i = wp.tid()
     target = body_local_to_proxy_global[pad_body[i]]
     if target >= 0:
-        wp.atomic_add(out_body_f, target, wp.spatial_vector(-impulse[i] / dt, wp.vec3(0.0)))
+        wp.atomic_add(out_body_f, target, wp.spatial_vector(-impulse[i] / dt, -moment[i] / dt))
 
 
 @wp.kernel
@@ -892,6 +902,8 @@ class SolverGraspExplicitMPM(SolverBase, CouplingInterface):
             self.pads.linear = wp.zeros(len(pad_bodies), dtype=wp.vec3)
             self.pads.angular = wp.zeros(len(pad_bodies), dtype=wp.vec3)
             self.pad_impulse = wp.zeros(len(pad_bodies), dtype=wp.vec3)
+            # Angular impulse about each pad body's center of mass [N m s].
+            self.pad_moment = wp.zeros(len(pad_bodies), dtype=wp.vec3)
             vessels = np.asarray(config.vessels, np.float32).reshape(-1, 6)
             self.vessel_center = wp.array(vessels[:, :3], dtype=wp.vec3)
             self.vessel_size = wp.array(vessels[:, 3:], dtype=wp.vec3)
@@ -993,6 +1005,7 @@ class SolverGraspExplicitMPM(SolverBase, CouplingInterface):
             array.zero_()
         self.attached.fill_(_FREE)
         self.errors.zero_()
+        self._reported_errors = (0, 0)
 
     def reset(self, state, world_mask=None, flags=None):
         # The tissue's position and velocity come from the reset state; its deformation and damage start over.
@@ -1024,6 +1037,7 @@ class SolverGraspExplicitMPM(SolverBase, CouplingInterface):
         young = model.mpm.young_modulus
         with wp.ScopedDevice(model.device):
             self.pad_impulse.zero_()
+            self.pad_moment.zero_()
             for substep in range(substeps):
                 wp.launch(
                     clear_grid,
@@ -1069,7 +1083,15 @@ class SolverGraspExplicitMPM(SolverBase, CouplingInterface):
                             config.adhesion_lifetime,
                             h,
                         ],
-                        outputs=[self.attached, self.anchor, self.anchor_normal, self.peak, self.age, self.pad_impulse],
+                        outputs=[
+                            self.attached,
+                            self.anchor,
+                            self.anchor_normal,
+                            self.peak,
+                            self.age,
+                            self.pad_impulse,
+                            self.pad_moment,
+                        ],
                     )
                     wp.launch(
                         pad_contact,
@@ -1085,7 +1107,7 @@ class SolverGraspExplicitMPM(SolverBase, CouplingInterface):
                             config.pad_friction,
                             h,
                         ],
-                        outputs=[self.tangential, self.pad_impulse],
+                        outputs=[self.tangential, self.pad_impulse, self.pad_moment],
                     )
                 wp.launch(
                     particle_stress,
@@ -1182,7 +1204,7 @@ class SolverGraspExplicitMPM(SolverBase, CouplingInterface):
                     particle_boundaries,
                     dim=count,
                     inputs=[model.particle_mass, self.spacing, self.pads, self.pad_half, *vessels],
-                    outputs=[x, v, self.pad_impulse],
+                    outputs=[x, v, self.pad_impulse, self.pad_moment],
                 )
 
     def coupling_harvest_proxy_wrenches(
@@ -1193,16 +1215,33 @@ class SolverGraspExplicitMPM(SolverBase, CouplingInterface):
             wp.launch(
                 pad_reaction,
                 dim=len(self.pad_body),
-                inputs=[self.pad_impulse, self.pad_body, body_local_to_proxy_global, dt],
+                inputs=[self.pad_impulse, self.pad_moment, self.pad_body, body_local_to_proxy_global, dt],
                 outputs=[out_body_f],
                 device=self.model.device,
             )
 
     def check(self) -> None:
-        """Raise if a particle inverted, left the grid or overflowed the active-node list since the last reset."""
-        errors = self.errors.numpy()
-        if errors.any():
-            raise RuntimeError(f"Explicit MPM errors [inverted, outside grid, active overflow]: {errors.tolist()}")
+        """Raise if the active-node list overflowed since the last reset, and warn when more particles inverted or
+        left the grid.
+
+        An overflowing node is never queued, so it is never cleared and its grid values accumulate; inverted particles
+        and particles outside the grid are clamped or skipped, and only reported. Reading the counters synchronizes
+        with the device.
+        """
+        inverted, outside, overflow = (int(count) for count in self.errors.numpy())
+        if overflow:
+            raise RuntimeError(
+                f"Explicit MPM active-node list overflowed {overflow} times since the last reset; "
+                f"increase Config.max_active_nodes (currently {self.config.max_active_nodes})"
+            )
+        if (inverted, outside) != getattr(self, "_reported_errors", (0, 0)):
+            self._reported_errors = (inverted, outside)
+            warnings.warn(
+                f"Explicit MPM since the last reset: {inverted} inverted particle updates, "
+                f"{outside} particle transfers outside the grid",
+                RuntimeWarning,
+                stacklevel=2,
+            )
 
 
 # --------------------------------------------------------------------------------------------------------------------

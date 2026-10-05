@@ -35,11 +35,14 @@ _FINGER = {side: rf"/World/envs/env_.*/Robot/panda_{side}finger" for side in ("l
 _TABLE = r"/World/envs/env_.*/Table"
 
 
-def _arm_entry(substeps: int) -> CouplerEntryCfg:
+def _arm_entry(substeps: int, static_shapes: bool) -> CouplerEntryCfg:
+    """Return the arm entry; with ``static_shapes``, the arm also collides with the static colliders (the punnet,
+    bowl and reject dish), which a shape can belong to one entry only."""
     return CouplerEntryCfg(
         name=ARM_ENTRY,
         solver_cfg=MJWarpSolverCfg(use_mujoco_contacts=False, integrator="implicitfast", njmax=512, nconmax=256),
         bodies=[r"/World/envs/env_.*/Robot", _TABLE],
+        include_static_shapes=static_shapes,
         substeps=substeps,
     )
 
@@ -73,7 +76,8 @@ def berry_physics_cfg(solver: str = "explicit") -> NewtonCfg:
             mode="staggered",
             collision_pipeline=None,
         )
-        arm_substeps, coupled_substeps = 2, 2
+        # The tissue owns the static colliders, so the arm passes through the tableware with this solver.
+        arm_substeps, coupled_substeps, arm_static_shapes = 2, 2, False
     elif solver == "explicit":
         # The explicit solver substeps internally and exchanges the pad reaction once per 120 Hz physics step; it
         # handles the table analytically, so only the fingers are proxies.
@@ -87,11 +91,14 @@ def berry_physics_cfg(solver: str = "explicit") -> NewtonCfg:
         proxies = CouplerProxyMappingCfg(
             source=ARM_ENTRY, destination=TISSUE_ENTRY, bodies=[_FINGERS], mode="staggered", collision_pipeline=None
         )
-        arm_substeps, coupled_substeps = 4, 1
+        # The explicit solver handles the tableware analytically; the arm collides with its static colliders.
+        arm_substeps, coupled_substeps, arm_static_shapes = 4, 1, True
     else:
         raise ValueError(f"Unknown tissue solver: {solver!r}")
     return NewtonCfg(
-        solver_cfg=CouplerProxyCfg(entries=[_arm_entry(arm_substeps), tissue], proxies=[proxies], iterations=1),
+        solver_cfg=CouplerProxyCfg(
+            entries=[_arm_entry(arm_substeps, arm_static_shapes), tissue], proxies=[proxies], iterations=1
+        ),
         collision_cfg=NewtonCollisionPipelineCfg(soft_contact_max=0),
         num_substeps=coupled_substeps,
         use_cuda_graph=True,
@@ -159,6 +166,13 @@ def set_grasping(grasping: wp.array) -> None:
     solver = tissue_solver()[0]
     if isinstance(solver, SolverGraspImplicitMPM):
         wp.copy(solver.grasping, grasping)
+
+
+def check_tissue() -> None:
+    """Raise if the explicit tissue solver's grid overflowed; see :meth:`.SolverGraspExplicitMPM.check`."""
+    solver = tissue_solver()[0]
+    if isinstance(solver, SolverGraspExplicitMPM):
+        solver.check()
 
 
 def reset_tissue() -> None:

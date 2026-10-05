@@ -13,7 +13,9 @@ def physics_resolution(proxy: dict, parameters: dict, preset: str) -> tuple[dict
 
     The half preset retains alternating sites of a regular cubic lattice, not
     alternating array entries. Contact spacing represents the new volume per
-    particle. Grid spacing and integration rate remain unchanged.
+    particle. The explicit solver keeps its grid spacing and integration rate,
+    which come from the material; the implicit solver sizes its grid from the
+    contact spacing, so its grid coarsens too.
     """
     if preset not in ("full", "half"):
         raise ValueError(f"Unknown physics resolution: {preset}")

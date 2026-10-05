@@ -61,7 +61,9 @@ parser.add_argument(
     choices=["gamepad", "keyboard", "idle", "pick", "place", "squash"],
     default="gamepad",
 )
-parser.add_argument("--steps", type=int, default=0, help="0 runs until the window closes")
+parser.add_argument(
+    "--steps", type=int, default=0, help="0 runs until the window closes, or a headless scripted run ends"
+)
 parser.add_argument("--loop", action="store_true", help="Reset and repeat scripted pick/place/squash demonstrations")
 parser.add_argument(
     "--motion_speed",
@@ -279,7 +281,7 @@ with launch_simulation(cfg, args), ExitStack() as resources:
         resources.callback(viewer.close)
     controller = BerryGamepad(BerryGamepadCfg(device=args.gamepad_device)) if args.mode == "gamepad" else None
     if controller is not None:
-        resources.callback(controller.__exit__)
+        resources.callback(controller.close)
         print(controller, flush=True)
         controller.add_callback("R", lambda: (env.reset(), controller.reset()))
     action = torch.zeros((1, 7))
@@ -332,6 +334,14 @@ with launch_simulation(cfg, args), ExitStack() as resources:
             started = time.perf_counter()
             script_time = scripted_motion_time(script_step / 30, args.mode, args.motion_speed)
             finished = script_time >= (32 if args.mode == "place" else 18)
+            if (
+                finished
+                and viewer is None
+                and not args.steps
+                and not args.loop
+                and args.mode in ("pick", "place", "squash")
+            ):
+                break  # Without a window or a step count, a scripted run ends with its script.
             if args.loop and finished:
                 env.reset()
                 script_step = 0
