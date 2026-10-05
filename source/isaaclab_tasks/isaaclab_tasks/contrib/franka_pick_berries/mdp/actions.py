@@ -35,7 +35,9 @@ class BerryIKAction(DifferentialInverseKinematicsAction):
         # Keep carried tissue inside the explicitly allocated MPM work volume.
         offset = torch.tensor(env.cfg.berry_position, device=self.device)
         # All local grids must cover the commanded workspace, including edge berries.
-        reach = 0.065 if env.cfg.berry == "all" or env.cfg.berry_count > 1 else 0.09
+        # Several berries of one species stay inside the explicit grid at full reach, which the sort mode needs
+        # to bring a berry to the reject dish.
+        reach = 0.065 if env.cfg.berry == "all" else 0.09
         upper_y = 0.205 if env.cfg.background == "ebc" else reach
         self._lower = offset + torch.tensor([-reach, -reach, 0.005], device=self.device)
         self._upper = offset + torch.tensor([reach, upper_y, 0.18], device=self.device)
