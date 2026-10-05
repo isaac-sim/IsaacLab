@@ -5,8 +5,9 @@
 
 """Deployment environment that runs LEAPP-exported policies in simulation.
 
-This wrapper reuses a registered manager-based environment. It wires scene state and commands to a LEAPP
-``InferenceManager`` and writes outputs back through YAML ``isaaclab_connection`` metadata.
+This wrapper retains a registered manager-based environment as the owner of the simulation, scene, managers, and
+task-specific state. LEAPP reads inputs from that environment and writes policy outputs back through the
+``isaaclab_connection`` metadata in the exported YAML.
 """
 
 from __future__ import annotations
@@ -158,8 +159,10 @@ def _first_param_name(method: Any) -> str:
 class LeappDeploymentEnv:
     """Runs a LEAPP-exported policy in an Isaac Lab scene.
 
-    The environment reuses a registered manager-based environment while LEAPP replaces its policy inference and
-    action application.
+    The registered environment retains ownership of simulation resources and task state. This wrapper owns the
+    LEAPP inference pipeline and replaces only policy inference and action application. Attributes not defined by
+    the wrapper are delegated to the registered environment so task-specific manager terms retain their normal
+    environment interface.
 
     I/O wiring is driven entirely by the ``isaaclab_connection`` metadata field
     in the LEAPP YAML. Each connection string encodes the type of access, the
@@ -181,15 +184,8 @@ class LeappDeploymentEnv:
             leapp_yaml_path: Path to the LEAPP ``.yaml`` pipeline description.
         """
         self._env = env
-        self.cfg = env.cfg
         self._is_closed = False
         self._leapp_yaml_path = leapp_yaml_path
-        self.extras = env.extras
-        self.sim = env.sim
-        self.scene = env.scene
-        self.event_manager = env.event_manager
-        self.command_manager = env.command_manager
-        self.has_rtx_sensors = env.has_rtx_sensors
 
         # ── LEAPP InferenceManager ────────────────────────────────
         self.inference = InferenceManager(leapp_yaml_path)
@@ -390,8 +386,6 @@ class LeappDeploymentEnv:
         Returns:
             The dict of pipeline outputs from ``InferenceManager.run_policy()``.
         """
-        self._env.common_step_counter += 1
-
         # 1. Update commands
         if self.command_manager is not None:
             self.command_manager.compute(dt=self.step_dt)
@@ -419,6 +413,7 @@ class LeappDeploymentEnv:
             if self._env._sim_step_counter % self.cfg.sim.render_interval == 0 and is_rendering:
                 self.sim.render()
             self.scene.update(dt=self.physics_dt)
+        self._env.common_step_counter += 1
 
         return outputs
 
