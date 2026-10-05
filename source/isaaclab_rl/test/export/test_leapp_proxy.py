@@ -182,3 +182,40 @@ def test_named_last_action_observations_use_independent_feedback_states(monkeypa
     assert set(state_updates[0]) == set(state_payloads)
     assert torch.equal(state_updates[0]["last_action_arm"], state_payloads["last_action_arm"])
     assert torch.equal(state_updates[0]["last_action_hand"], state_payloads["last_action_hand"])
+
+
+def test_deformable_nodal_positions_use_inherited_semantics(monkeypatch: pytest.MonkeyPatch):
+    """Test PhysX nodal positions are registered with inherited input semantics."""
+    from isaaclab_physx.assets.deformable_object.deformable_object_data import DeformableObjectData
+
+    annotated_inputs = _capture_leapp_inputs(monkeypatch)
+    nodal_pos_w = torch.arange(24, dtype=torch.float32).reshape(2, 4, 3)
+
+    class DeformableView:
+        count, max_simulation_nodes_per_body = nodal_pos_w.shape[:2]
+        max_simulation_elements_per_body = 1
+        max_collision_elements_per_body = 1
+
+        def get_simulation_nodal_positions(self):
+            return wp.from_torch(nodal_pos_w)
+
+    root_view = DeformableView()
+    data = DeformableObjectData(root_view, "cpu")
+    proxy = _DataProxy(
+        data,
+        entity_name="deformable",
+        task_name="Isaac-Lift-Soft-Franka",
+        property_resolution_cache={},
+        cache={},
+        input_name_resolver=lambda property_name: f"deformable_{property_name}",
+    )
+
+    assert torch.equal(proxy.nodal_pos_w.torch, nodal_pos_w)
+
+    assert len(annotated_inputs) == 1
+    task_name, semantics = annotated_inputs[0]
+    assert task_name == "Isaac-Lift-Soft-Franka"
+    assert semantics.name == "deformable_nodal_pos_w"
+    assert semantics.kind == InputKindEnum.BODY_POSITION
+    assert semantics.element_names == [["x", "y", "z"]]
+    assert semantics.extra == {"isaaclab_connection": "state:deformable:nodal_pos_w"}
