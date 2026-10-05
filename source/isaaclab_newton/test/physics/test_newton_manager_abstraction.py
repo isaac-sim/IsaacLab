@@ -25,6 +25,7 @@ import contextlib
 import logging
 from types import SimpleNamespace
 
+import isaaclab_newton.physics.mjwarp_manager as mjwarp_manager_module
 import isaaclab_newton.physics.newton_manager as newton_manager_module
 import numpy as np
 import pytest
@@ -198,6 +199,29 @@ def test_solver_kwargs_include_newton_deterministic_mode(monkeypatch: pytest.Mon
     kwargs = NewtonManager._filter_solver_kwargs(SolverXPBD, XPBDSolverCfg())
 
     assert kwargs["deterministic"] == wp.DeterministicMode.GPU_TO_GPU
+
+
+@pytest.mark.parametrize("block_dim", [None, 32, 128])
+def test_mjwarp_cholesky_launch_override(monkeypatch, block_dim):
+    """The optional launch override is applied before returning the constructed solver."""
+    original = object()
+    solver = SimpleNamespace(mjw_model=SimpleNamespace(block_dim=SimpleNamespace(cholesky_solve=original)))
+    monkeypatch.setattr(mjwarp_manager_module, "SolverMuJoCo", lambda model: solver)
+    cfg = MJWarpSolverCfg(cholesky_solve_block_dim=block_dim)
+
+    assert NewtonMJWarpManager._create_solver(None, cfg) is solver
+    assert solver.mjw_model.block_dim.cholesky_solve == (original if block_dim is None else block_dim)
+
+
+@pytest.mark.parametrize("block_dim, use_cpu", [(0, False), (48, False), (2048, False), (32.0, False), (32, True)])
+def test_mjwarp_cholesky_launch_override_rejects_invalid_config(block_dim, use_cpu):
+    """Invalid or CPU-only launch settings fail before solver construction, even after config mutation."""
+    cfg = MJWarpSolverCfg()
+    cfg.cholesky_solve_block_dim = block_dim
+    cfg.use_mujoco_cpu = use_cpu
+
+    with pytest.raises(ValueError, match="cholesky_solve_block_dim"):
+        NewtonMJWarpManager._create_solver(None, cfg)
 
 
 @pytest.mark.parametrize(
@@ -1318,6 +1342,47 @@ def test_initialize_solver_populates_canonical_state(
         sim.step(render=False)
 
 
+def test_step_combines_pending_model_changes(monkeypatch, caplog):
+    """Queued property changes reach the solver together, once before the next step."""
+    sim_cfg = SimulationCfg(
+        device="cuda:0",
+        physics=NewtonCfg(solver_cfg=MJWarpSolverCfg(), use_cuda_graph=False),
+    )
+    with build_simulation_context(sim_cfg=sim_cfg) as sim:
+        builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics))
+        body = builder.add_link()
+        builder.add_shape_sphere(body, radius=0.05)
+        joint = builder.add_joint_revolute(parent=-1, child=body, axis=(0, 0, 1))
+        builder.add_articulation([joint])
+        sim.reset()
+        solver = NewtonManager._solver
+        notify = solver.notify_model_changed
+        calls = []
+
+        def record_notification(flags):
+            calls.append(flags)
+            notify(flags)
+
+        monkeypatch.setattr(solver, "notify_model_changed", record_notification)
+        ignored = ModelFlags.BODY_INERTIAL_PROPERTIES
+        monkeypatch.setattr(NewtonManager, "_ignored_model_changes", {ignored: "Test ignored model change"})
+        monkeypatch.setattr(NewtonManager, "_warned_model_changes", set())
+        flags = (ignored, ModelFlags.JOINT_DOF_PROPERTIES, ignored)
+        for flag in flags:
+            NewtonManager.add_model_change(flag)
+        assert calls == []
+
+        with caplog.at_level(logging.WARNING, logger="isaaclab_newton.physics.newton_manager"):
+            sim.step(render=False)
+            sim.step(render=False)
+            assert calls == [ignored | ModelFlags.JOINT_DOF_PROPERTIES]
+            NewtonManager.add_model_change(ignored)
+            sim.step(render=False)
+
+        assert calls == [ignored | ModelFlags.JOINT_DOF_PROPERTIES, ignored]
+        assert sum(record.message == "Test ignored model change" for record in caplog.records) == 1
+
+
 def test_mjwarp_internal_contacts_with_collision_cfg_raises():
     """Combining ``use_mujoco_contacts=True`` with a ``collision_cfg`` is rejected.
 
@@ -1533,7 +1598,7 @@ def _count_physics_steps(counter: wp.array(dtype=wp.int32)):
 
 @pytest.mark.parametrize(
     ("solver_cfg", "rtx_capture"),
-    [(MJWarpSolverCfg(use_mujoco_contacts=True), True), (KaminoPADMMSolverCfg(), False)],
+    [(MJWarpSolverCfg(use_mujoco_contacts=True, cholesky_solve_block_dim=32), True), (KaminoPADMMSolverCfg(), False)],
     ids=["mjwarp_rtx", "kamino_standard"],
 )
 def test_graph_capture_preserves_first_step_and_recapture(monkeypatch, solver_cfg, rtx_capture):
@@ -1550,6 +1615,7 @@ def test_graph_capture_preserves_first_step_and_recapture(monkeypatch, solver_cf
         builder.joint_q[-7:] = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
         sim.reset()
         if rtx_capture:
+            assert NewtonManager._solver.mjw_model.block_dim.cholesky_solve == 32
             monkeypatch.setattr(newton_manager_module, "has_kit", lambda: True)
             monkeypatch.setattr(sim, "_has_offscreen_render", True)
         NewtonManager.activate_newton_actuator_path()

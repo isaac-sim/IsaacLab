@@ -34,6 +34,15 @@ class MJWarpSolverCfg(NewtonSolverCfg):
     solver_type: str = "mujoco_warp"
     """Solver type. Can be "mujoco_warp"."""
 
+    cholesky_solve_block_dim: int | None = None
+    """Optional thread-block size for MJWarp's tiled mass-matrix solves.
+
+    ``None`` preserves MJWarp's default. An override must be a power of two from 32 through
+    1024 and requires ``use_mujoco_cpu=False``. It is applied when constructing the solver,
+    before CUDA graph capture. Benchmark the target GPU, model, and environment count before
+    choosing a value. MJWarp may use fixed launch sizes for some matrix sizes or other solve paths.
+    """
+
     njmax: int = 300
     """Number of constraints per environment (world)."""
 
