@@ -18,6 +18,10 @@ BOWL = (0.48, 0.16, 0.060, 0.057, 0.004, 0.045)
 # Punnet: (x, y, half width, half depth, corner radius, wall, floor, height).
 PUNNET = (0.48, 0.0, 0.055, 0.070, 0.010, 0.001, 0.004, 0.028)
 REJECT = (0.40, -0.085, 0.028, 0.026, 0.004, 0.018)
+PUNNET_FLOOR_OPACITY = 0.6
+"""Opacity of the punnet floor, which must catch the berries' shadows."""
+PUNNET_FLOOR_COLOR = (0.12, 0.125, 0.13)
+"""Color [linear RGB] of the punnet floor: close to the table it shows, so that it still reads as clear plastic."""
 # The spawner replaces (rather than composes with) the asset root pose. Retain
 # its authored 55 cm translation and quarter turn. The table's visible top lies
 # 1.42 mm above its collision box, whose authored top is at -3 mm: place the
@@ -145,14 +149,16 @@ def _punnet_mesh(stage: Usd.Stage) -> UsdGeom.Mesh:
     return mesh
 
 
-def _punnet_material(stage: Usd.Stage, name: str, opacity: float) -> UsdShade.Material:
+def _punnet_material(
+    stage: Usd.Stage, name: str, opacity: float, color: tuple[float, float, float] = (0.95, 0.98, 1.0)
+) -> UsdShade.Material:
     material = UsdShade.Material.Define(stage, f"/World/Tableware/{name}")
     shader = UsdShade.Shader.Define(stage, f"{material.GetPath()}/Shader")
     # Thin clear packaging approximation avoids dark multi-bounce solid-glass
     # reflections on the table. The receiving bowl retains its refractive MDL.
     shader.SetSourceAsset(Sdf.AssetPath("OmniPBR_Opacity.mdl"), "mdl")
     shader.SetSourceAssetSubIdentifier("OmniPBR_Opacity", "mdl")
-    shader.CreateInput("diffuse_color_constant", Sdf.ValueTypeNames.Color3f).Set(Gf.Vec3f(0.95, 0.98, 1.0))
+    shader.CreateInput("diffuse_color_constant", Sdf.ValueTypeNames.Color3f).Set(Gf.Vec3f(*color))
     shader.CreateInput("reflection_roughness_constant", Sdf.ValueTypeNames.Float).Set(0.15)
     shader.CreateInput("enable_opacity", Sdf.ValueTypeNames.Bool).Set(True)
     shader.CreateInput("opacity_constant", Sdf.ValueTypeNames.Float).Set(opacity)
@@ -174,6 +180,16 @@ def _add_punnet(stage: Usd.Stage) -> None:
     lip.CreateFamilyNameAttr("materialBind")
     lip.CreateIndicesAttr(list(range(2 * n, 5 * n)))
     UsdShade.MaterialBindingAPI.Apply(lip.GetPrim()).Bind(accent)
+    # A nearly invisible floor lets the berries' shadows fall through onto the table below, so that berries resting
+    # on it look afloat; a milky floor catches them. The six wall and rim bands come first, then the bottom and the
+    # inner floor.
+    floor = UsdGeom.Subset.Define(stage, "/World/Tableware/Punnet/Floor")
+    floor.CreateElementTypeAttr("face")
+    floor.CreateFamilyNameAttr("materialBind")
+    floor.CreateIndicesAttr(list(range(6 * n, 8 * n)))
+    UsdShade.MaterialBindingAPI.Apply(floor.GetPrim()).Bind(
+        _punnet_material(stage, "PunnetFloor", PUNNET_FLOOR_OPACITY, PUNNET_FLOOR_COLOR)
+    )
     # Molded ribs are appearance-only, outside the smooth collision envelope.
     for axis, half, other in ((0, hx, hy), (1, hy, hx)):
         for side in (-1, 1):

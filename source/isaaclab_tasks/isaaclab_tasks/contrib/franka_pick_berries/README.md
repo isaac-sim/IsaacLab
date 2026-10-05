@@ -278,6 +278,8 @@ mesh refracts as a round bowl rather than as facets; along its outline they stay
 sharp except at the rounded foot and lip. The bowl stands just above the table's visible top, so no glass
 face is buried in or coincident with it, and casts no shadow: RTX shadow rays do
 not refract, so solid glass would otherwise leave the table under it black.
+The punnet floor is tinted and partly opaque (`PUNNET_FLOOR_OPACITY`) so that it catches the berries'
+shadows: on a nearly invisible floor they fall through onto the table below and the berries look afloat.
 These changes do not affect studio lighting or fruit physics.
 
 The table, punnet, bowl and reject dish are static colliders for both the robot and the
