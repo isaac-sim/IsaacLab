@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import errno
-import fcntl
 import os
 import struct
 from collections.abc import Callable
@@ -20,6 +19,13 @@ import numpy as np
 import torch
 
 from isaaclab.devices.device_base import DeviceBase
+
+
+def ioctl(fd: int, request: int, buffer: bytearray) -> None:
+    """Run a joystick ioctl; ``fcntl`` is imported here because it exists on Linux only."""
+    import fcntl
+
+    fcntl.ioctl(fd, request, buffer)
 
 
 class Se3LinuxGamepad(DeviceBase):
@@ -76,7 +82,7 @@ class Se3LinuxGamepad(DeviceBase):
         """Read the kernel-provided joystick name when available."""
         name = bytearray(128)
         try:
-            fcntl.ioctl(self._fd, self._JSIOCGNAME, name)
+            ioctl(self._fd, self._JSIOCGNAME, name)
             return bytes(name).split(b"\0", 1)[0].decode(errors="replace") or str(self._device_path)
         except OSError:
             return str(self._device_path)
@@ -85,17 +91,21 @@ class Se3LinuxGamepad(DeviceBase):
         """Read the number of joystick axes, falling back to the common four-axis layout."""
         count = bytearray(1)
         try:
-            fcntl.ioctl(self._fd, self._JSIOCGAXES, count)
+            ioctl(self._fd, self._JSIOCGAXES, count)
             return int(count[0])
         except OSError:
             return 4
 
-    def __del__(self) -> None:
+    def close(self) -> None:
         """Close the joystick file descriptor."""
         fd = getattr(self, "_fd", None)
+        self._fd = None
         if fd is not None:
             with suppress(OSError):
                 os.close(fd)
+
+    def __del__(self) -> None:
+        self.close()
 
     def __str__(self) -> str:
         """Return the controller mapping."""

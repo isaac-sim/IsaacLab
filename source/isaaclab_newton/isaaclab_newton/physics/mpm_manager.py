@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import re
 import warnings
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 import warp as wp
 from newton import (
@@ -185,7 +185,7 @@ class NewtonMPMManager(NewtonManager):
     _implicit_mpm_solver_root: object | None = None
     _implicit_mpm_solver_cache: tuple[SolverImplicitMPM, ...] = ()
 
-    solver_class: type[SolverImplicitMPM] = SolverImplicitMPM
+    solver_class: ClassVar[type[SolverImplicitMPM]] = SolverImplicitMPM
     """Solver class built by :meth:`_create_solver`.
 
     Subclasses may set a :class:`SolverImplicitMPM` subclass that extends the implicit MPM step.

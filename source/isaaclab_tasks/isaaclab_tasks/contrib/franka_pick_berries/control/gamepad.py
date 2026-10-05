@@ -5,7 +5,6 @@
 
 """Deadman-enabled incremental aperture control using Linux axis identities."""
 
-import fcntl
 import os
 import struct
 
@@ -14,7 +13,7 @@ import numpy as np
 from isaaclab.devices.device_base import DeviceCfg
 from isaaclab.utils.configclass import configclass
 
-from .linux_gamepad import Se3LinuxGamepad
+from .linux_gamepad import Se3LinuxGamepad, ioctl
 
 
 class BerryGamepad(Se3LinuxGamepad):
@@ -34,13 +33,13 @@ class BerryGamepad(Se3LinuxGamepad):
         self._enabled = False
         self._require_enable_release = False
         codes = bytearray(1024)
-        fcntl.ioctl(self._fd, 0x84006A34, codes)
+        ioctl(self._fd, 0x84006A34, codes)
         self._button_codes = dict(enumerate(struct.unpack("=512H", codes)))
         self.aperture = 0.08
         self._seen_axes = set()
         codes = bytearray(64)
         try:
-            fcntl.ioctl(self._fd, 0x80406A32, codes)  # JSIOCGAXMAP
+            ioctl(self._fd, 0x80406A32, codes)  # JSIOCGAXMAP
         except OSError as exc:
             raise RuntimeError("Cannot identify analog triggers on this joystick") from exc
         self._axis_ids = {code: i for i, code in enumerate(codes[: self._axis_count])}
@@ -128,11 +127,6 @@ class BerryGamepad(Se3LinuxGamepad):
             )
         command[6] = self.aperture / 0.04 - 1
         return command
-
-    def __exit__(self, *args):
-        if self._fd is not None:
-            os.close(self._fd)
-            self._fd = None
 
 
 @configclass

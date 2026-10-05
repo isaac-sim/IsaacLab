@@ -7,7 +7,7 @@
 
 from isaaclab.envs import ManagerBasedRLEnv
 
-from .physics.coupling import berry_physics_cfg, bind_tissues, configure_tissue_solver, reset_tissue
+from .physics.coupling import berry_physics_cfg, bind_tissues, check_tissue, configure_tissue_solver, reset_tissue
 from .physics.tissue import BerryTissue, berry_layout, load_tissue, place_tissue, random_punnet_poses, tissue_object_cfg
 
 
@@ -39,6 +39,13 @@ class BerryPickEnv(ManagerBasedRLEnv):
         bind_tissues(self.berries.values())
         # Scripted modes and the close-up handle one berry: the selected species, or the first of several.
         self.berry = self.berries[cfg.target_berry] if cfg.berry == "all" else next(iter(self.berries.values()))
+
+    def step(self, action):
+        result = super().step(action)
+        # Reading the solver's error counters synchronizes with the device: check once a second.
+        if self.common_step_counter % 30 == 0:
+            check_tissue()
+        return result
 
     def _reset_idx(self, env_ids):
         super()._reset_idx(env_ids)
