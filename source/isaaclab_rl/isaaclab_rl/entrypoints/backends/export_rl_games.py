@@ -32,6 +32,7 @@ import isaaclab_tasks  # noqa: F401
 
 from ...rl_games import RlGamesVecEnvWrapper, register_rl_games_env
 from ..common import resolve_published_checkpoint
+from . import cli_args_rl_games as cli_args
 from .export_common import (
     add_common_export_args,
     finalize_export_args,
@@ -105,9 +106,8 @@ def export_rl_games_agent(args_cli: argparse.Namespace, env_cfg: Any, agent_cfg:
     # initialized the selected backend
     from leapp import annotate
 
+    agent_cfg = cli_args.update_rl_games_cfg(agent_cfg, args_cli)
     params = agent_cfg["params"]
-    # the agent runs on the device launch_simulation resolved for the simulation
-    params["config"]["device"] = params["config"]["device_name"] = env_cfg.sim.device
     env_cfg.scene.num_envs = 1
     env_cfg.seed = params["seed"]
 

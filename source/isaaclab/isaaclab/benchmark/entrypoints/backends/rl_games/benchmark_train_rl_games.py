@@ -129,7 +129,6 @@ def run(argv: list[str]) -> BenchmarkResult | None:
     import contextlib
     import math
     import os
-    import random
     from datetime import datetime
 
     from rl_games.common import env_configurations, vecenv
@@ -150,6 +149,7 @@ def run(argv: list[str]) -> BenchmarkResult | None:
     from isaaclab.benchmark.metrics import RL_LIBRARY_DESCRIPTORS, parse_tf_logs
     from isaaclab.benchmark.schema import StartupTime
 
+    from isaaclab_rl.entrypoints.backends import cli_args_rl_games as cli_args
     from isaaclab_rl.rl_games import RlGamesGpuEnv, RlGamesVecEnvWrapper
 
     import isaaclab_tasks  # noqa: F401
@@ -194,20 +194,7 @@ def run(argv: list[str]) -> BenchmarkResult | None:
 
             apply_env_overrides(args_cli, env_cfg)
 
-            if args_cli.seed == -1:
-                args_cli.seed = random.randint(0, 10000)
-            agent_cfg["params"]["seed"] = args_cli.seed if args_cli.seed is not None else agent_cfg["params"]["seed"]
-
-            if args_cli.max_iterations is not None:
-                agent_cfg["params"]["config"]["max_epochs"] = args_cli.max_iterations
-
-            # the agent runs on the device launch_simulation resolved for the simulation
-            agent_cfg["params"]["config"]["device"] = agent_cfg["params"]["config"]["device_name"] = env_cfg.sim.device
-            if distributed.enabled:
-                # Mirror the regular training entrypoint: offsetting the seed by the rank decorrelates
-                # exploration across ranks.
-                agent_cfg["params"]["seed"] += distributed.rank
-                agent_cfg["params"]["config"]["multi_gpu"] = True
+            agent_cfg = cli_args.update_rl_games_cfg(agent_cfg, args_cli)
             env_cfg.seed = agent_cfg["params"]["seed"]
             horizon_length = agent_cfg["params"]["config"].get("horizon_length", 16)
             reported_num_envs, _ = distributed.global_work(env_cfg.scene.num_envs, horizon_length)

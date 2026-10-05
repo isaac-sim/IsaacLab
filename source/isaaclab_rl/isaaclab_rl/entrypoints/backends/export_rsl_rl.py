@@ -30,7 +30,8 @@ from isaaclab.utils.assets import retrieve_file_path
 import isaaclab_tasks  # noqa: F401
 
 from ...rsl_rl import RslRlBaseRunnerCfg, RslRlVecEnvWrapper
-from ..common import resolve_published_checkpoint, resolve_seed
+from ..common import resolve_published_checkpoint
+from . import cli_args_rsl_rl as cli_args
 from .export_common import (
     add_common_export_args,
     finalize_export_args,
@@ -131,14 +132,7 @@ def export_rsl_rl_agent(args_cli: argparse.Namespace, env_cfg: Any, agent_cfg: R
     # the LEAPP runtime loads simulation modules, so import it only after the launch
     from leapp import annotate
 
-    if args_cli.seed is not None:
-        agent_cfg.seed = resolve_seed(args_cli.seed)
-    if args_cli.checkpoint is not None:
-        agent_cfg.load_checkpoint = args_cli.checkpoint
-    if args_cli.experiment_name is not None:
-        agent_cfg.experiment_name = args_cli.experiment_name
-    # the agent runs on the device launch_simulation resolved for the simulation
-    agent_cfg.device = env_cfg.sim.device
+    agent_cfg = cli_args.update_rsl_rl_cfg(agent_cfg, args_cli)
 
     env_cfg.scene.num_envs = 1
     # certain randomizations occur in the environment initialization so we set the seed here

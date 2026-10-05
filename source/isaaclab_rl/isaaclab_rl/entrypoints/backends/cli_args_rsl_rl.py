@@ -87,6 +87,9 @@ def parse_rsl_rl_cfg(task_name: str, args_cli: argparse.Namespace) -> RslRlBaseR
 def update_rsl_rl_cfg(agent_cfg: RslRlBaseRunnerCfg, args_cli: argparse.Namespace) -> RslRlBaseRunnerCfg:
     """Override an RSL-RL agent configuration with the command-line arguments.
 
+    Call it inside :func:`~isaaclab.app.launch_simulation`, which resolves ``args_cli.device``: the agent runs on
+    the simulation's device.
+
     Args:
         agent_cfg: The configuration for RSL-RL agent.
         args_cli: The command line arguments.
@@ -94,18 +97,19 @@ def update_rsl_rl_cfg(agent_cfg: RslRlBaseRunnerCfg, args_cli: argparse.Namespac
     Returns:
         The updated RSL-RL agent configuration.
     """
+    agent_cfg.device = args_cli.device
     if getattr(args_cli, "seed", None) is not None:
         args_cli.seed = resolve_seed(args_cli.seed)
         agent_cfg.seed = args_cli.seed
-    if args_cli.checkpoint is not None:
+    if getattr(args_cli, "checkpoint", None) is not None:
         agent_cfg.load_checkpoint = args_cli.checkpoint
-    if args_cli.experiment_name is not None:
+    if getattr(args_cli, "experiment_name", None) is not None:
         agent_cfg.experiment_name = args_cli.experiment_name
-    if args_cli.run_name is not None:
+    if getattr(args_cli, "run_name", None) is not None:
         agent_cfg.run_name = args_cli.run_name
-    if args_cli.logger is not None:
+    if getattr(args_cli, "logger", None) is not None:
         agent_cfg.logger = args_cli.logger
-    if agent_cfg.logger in {"wandb", "neptune"} and args_cli.log_project_name:
+    if agent_cfg.logger in {"wandb", "neptune"} and getattr(args_cli, "log_project_name", None):
         agent_cfg.wandb_project = args_cli.log_project_name
         agent_cfg.neptune_project = args_cli.log_project_name
     return agent_cfg

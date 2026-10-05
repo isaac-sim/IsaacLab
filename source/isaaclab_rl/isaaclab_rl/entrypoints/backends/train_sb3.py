@@ -42,13 +42,13 @@ from ..common import (
     enable_cameras_for_video,
     pre_launch_video_config,
     resolve_checkpoint_selector,
-    resolve_seed,
     set_hydra_args,
     show_run_summary,
     startup_screen,
     wrap_sensor_capture,
     write_run_manifest,
 )
+from . import cli_args_sb3 as cli_args
 
 logger = logging.getLogger(__name__)
 
@@ -115,14 +115,10 @@ def run(argv: list[str]) -> None:
         with launch_simulation(env_cfg, args_cli), contextlib.ExitStack() as cleanup:
             show_run_summary(screen, args_cli, env_cfg, library="sb3", action="train")
             apply_env_overrides(args_cli, env_cfg)
-            args_cli.seed = resolve_seed(args_cli.seed)
-            if args_cli.seed is not None:
-                agent_cfg["seed"] = args_cli.seed
+            agent_cfg = cli_args.update_sb3_cfg(agent_cfg, args_cli)
             if args_cli.max_iterations is not None:
                 agent_cfg["n_timesteps"] = args_cli.max_iterations * agent_cfg["n_steps"] * env_cfg.scene.num_envs
             env_cfg.seed = agent_cfg["seed"]
-            # the agent runs on the device launch_simulation resolved for the simulation
-            agent_cfg["device"] = env_cfg.sim.device
 
             log_root_path = os.path.abspath(os.path.join("logs", "sb3", args_cli.task))
             logger.info(f"Logging experiment in directory: {log_root_path}")

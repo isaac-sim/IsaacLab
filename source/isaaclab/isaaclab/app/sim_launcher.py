@@ -503,15 +503,16 @@ def _resolve_device(sim_cfg, args: dict, launchers: list[SimulationLauncher]) ->
     """Write the run's device to ``sim_cfg.device`` and the ``device`` launcher argument, once.
 
     Starts from the ``device`` launcher argument resolved before launch; a started runtime may refine it
-    (e.g. XR selects the CPU), a CUDA device falls back to the CPU when CUDA is unavailable (e.g. on macOS),
-    and a bare ``"cuda"`` is pinned to the physics GPU index.
+    (e.g. XR selects the CPU), and a bare ``"cuda"`` is pinned to the physics GPU index.
+
+    Raises:
+        RuntimeError: When the device is a CUDA device and CUDA is unavailable (e.g. on macOS).
     """
     device = args.get("device")
     for launcher in launchers:
         device = launcher.device or device
     if device is not None and device.startswith("cuda") and not torch.cuda.is_available():
-        logger.warning("Device '%s' is unavailable because CUDA is not available; using 'cpu' instead.", device)
-        device = "cpu"
+        raise RuntimeError(f"Device '{device}' requires CUDA, which is not available; pass --device cpu.")
     if device == "cuda":
         cuda_device = get_settings_manager().get("/physics/cudaDevice")
         device = f"cuda:{max(0, int(cuda_device) if cuda_device is not None else 0)}"

@@ -1,2 +1,2 @@
-* Changed the RSL-RL, RL-Games, and Stable-Baselines3 benchmark workflows to run the agent on the device
-  :func:`~isaaclab.app.launch_simulation` resolved for the simulation, matching the training workflows.
+* Changed the RSL-RL, RL-Games, and Stable-Baselines3 benchmark workflows to set up their agent configuration with
+  the same shared overrides as the training and play workflows, including the device the simulation runs on.

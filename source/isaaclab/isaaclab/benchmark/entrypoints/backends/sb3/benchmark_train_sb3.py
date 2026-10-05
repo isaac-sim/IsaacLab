@@ -204,6 +204,7 @@ def run(argv: list[str]) -> BenchmarkResult:
     from isaaclab.benchmark.metrics import RL_LIBRARY_DESCRIPTORS, parse_tf_logs
     from isaaclab.benchmark.schema import StartupTime
 
+    from isaaclab_rl.entrypoints.backends import cli_args_sb3 as cli_args
     from isaaclab_rl.sb3 import Sb3VecEnvWrapper, process_sb3_cfg
 
     import isaaclab_tasks  # noqa: F401
@@ -240,10 +241,8 @@ def run(argv: list[str]) -> BenchmarkResult:
 
             apply_env_overrides(args_cli, env_cfg)
 
-            agent_cfg["seed"] = args_cli.seed if args_cli.seed is not None else agent_cfg.get("seed", 0)
+            agent_cfg = cli_args.update_sb3_cfg(agent_cfg, args_cli)
             env_cfg.seed = agent_cfg["seed"]
-            # the agent runs on the device launch_simulation resolved for the simulation
-            agent_cfg["device"] = env_cfg.sim.device
 
             # Convert the iteration override to SB3 total timesteps.
             n_steps_cfg = agent_cfg.get("n_steps", 2048)

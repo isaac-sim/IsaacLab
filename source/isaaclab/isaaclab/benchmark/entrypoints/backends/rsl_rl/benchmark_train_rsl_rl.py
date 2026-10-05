@@ -191,8 +191,6 @@ def run(argv: list[str]) -> BenchmarkResult | None:
             )
             env_cfg.seed = agent_cfg.seed
 
-            # the agent runs on the device launch_simulation resolved for the simulation
-            agent_cfg.device = env_cfg.sim.device
             if distributed.enabled:
                 # Mirror the regular training entrypoint: offsetting the seed by the rank decorrelates
                 # exploration across ranks.

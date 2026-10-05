@@ -38,12 +38,12 @@ from ..common import (
     pre_launch_video_config,
     resolve_checkpoint_selector,
     resolve_published_checkpoint,
-    resolve_seed,
     run_playback,
     set_hydra_args,
     show_run_summary,
     startup_screen,
 )
+from . import cli_args_rl_games as cli_args
 
 logger = logging.getLogger(__name__)
 
@@ -112,12 +112,8 @@ def run(argv: list[str]) -> None:
         with launch_simulation(env_cfg, args_cli), contextlib.ExitStack() as cleanup:
             show_run_summary(screen, args_cli, env_cfg, library="rl_games", action="play")
             apply_env_overrides(args_cli, env_cfg)
+            agent_cfg = cli_args.update_rl_games_cfg(agent_cfg, args_cli)
             params = agent_cfg["params"]
-            # the agent runs on the device launch_simulation resolved for the simulation
-            params["config"]["device"] = params["config"]["device_name"] = env_cfg.sim.device
-            args_cli.seed = resolve_seed(args_cli.seed)
-            if args_cli.seed is not None:
-                params["seed"] = args_cli.seed
             env_cfg.seed = params["seed"]
 
             log_root_path = os.path.abspath(os.path.join("logs", "rl_games", params["config"]["name"]))

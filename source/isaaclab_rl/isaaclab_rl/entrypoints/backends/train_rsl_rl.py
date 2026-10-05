@@ -124,8 +124,6 @@ def _run(args_cli: argparse.Namespace) -> None:
             apply_env_overrides(args_cli, env_cfg)
             if args_cli.max_iterations is not None:
                 agent_cfg.max_iterations = args_cli.max_iterations
-            # the agent runs on the device launch_simulation resolved for the simulation
-            agent_cfg.device = env_cfg.sim.device
             rank = int(os.getenv("RANK", "0")) if args_cli.distributed else None
             if rank is not None:
                 agent_cfg.seed += rank
