@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import re
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -137,38 +138,44 @@ def test_newton_visualizer_log_mesh_requires_initialized_viewer():
         visualizer.log_mesh("/surface", points, indices)
 
 
-def test_newton_marker_registry_lifecycle(monkeypatch: pytest.MonkeyPatch):
-    """Construction caches the registry; close survives context teardown and is idempotent."""
+class _MarkerRegistry:
+    def __init__(self) -> None:
+        self.groups: dict[str, object] = {}
 
-    class _Registry:
-        def __init__(self) -> None:
-            self.groups: dict[str, object] = {}
+    def set_group(self, group_id: str, marker) -> None:
+        self.groups[group_id] = marker
 
-        def set_group(self, group_id: str, marker) -> None:
-            self.groups[group_id] = marker
+    def remove_group(self, group_id: str) -> None:
+        self.groups.pop(group_id)
 
-        def remove_group(self, group_id: str) -> None:
-            self.groups.pop(group_id)
+    def get_groups(self) -> dict[str, object]:
+        return self.groups
 
-    class _FakeContext:
-        def __init__(self, registry: _Registry) -> None:
-            self.vis_marker_registry = registry
 
-    class _FakeSimulationContext:
-        current: object | None = None
+class _FakeSimulationContext:
+    current: object | None = None
 
-        @classmethod
-        def instance(cls):
-            return cls.current
+    @classmethod
+    def instance(cls):
+        return cls.current
 
-    registry = _Registry()
+
+@pytest.fixture
+def marker_registry(monkeypatch: pytest.MonkeyPatch):
+    """Marker registry that ``NewtonVisualizationMarkers`` finds through a fake simulation context."""
+    registry = _MarkerRegistry()
     monkeypatch.setattr(newton_markers.sim_utils, "SimulationContext", _FakeSimulationContext)
-    _FakeSimulationContext.current = _FakeContext(registry)
+    _FakeSimulationContext.current = SimpleNamespace(vis_marker_registry=registry)
+    yield registry
+    _FakeSimulationContext.current = None
 
+
+def test_newton_marker_registry_lifecycle(marker_registry: _MarkerRegistry):
+    """Construction caches the registry; close survives context teardown and is idempotent."""
     marker = newton_markers.NewtonVisualizationMarkers(
         newton_markers.VisualizationMarkersCfg(prim_path="/Visuals/test", markers={}), visible=False
     )
-    assert registry.groups == {marker.group_id: marker}
+    assert marker_registry.groups == {marker.group_id: marker}
 
     # the context is torn down before markers close during interpreter shutdown
     _FakeSimulationContext.current = None
@@ -177,7 +184,63 @@ def test_newton_marker_registry_lifecycle(monkeypatch: pytest.MonkeyPatch):
     marker.close()
 
     assert marker._registry is None
-    assert registry.groups == {}
+    assert marker_registry.groups == {}
+
+
+def test_newton_rtx_viewer_aliases_ldr_color_when_render_vars_use_prim_paths():
+    """ovrtx 0.5 keys render vars by prim path, but Newton's ViewerRTX looks up ``LdrColor``."""
+    by_path = SimpleNamespace(render_vars={"/Render/Vars/LdrColor": "ldr"})
+    by_name = SimpleNamespace(render_vars={"LdrColor": "legacy"})
+    by_both = SimpleNamespace(render_vars={"LdrColor": "short", "/Render/Vars/LdrColor": "path"})
+    other = SimpleNamespace(render_vars={"/Render/Vars/Depth": "depth"})
+    viewer = NewtonViewerRTX.__new__(NewtonViewerRTX)
+
+    viewer._render_products = {"/Render/Product": SimpleNamespace(frames=[by_path, by_name, by_both, other])}
+
+    assert by_path.render_vars["LdrColor"] == "ldr"
+    assert by_name.render_vars == {"LdrColor": "legacy"}
+    assert by_both.render_vars["LdrColor"] == "short"  # an existing short name is never overwritten
+    assert "LdrColor" not in other.render_vars
+
+    # ovrtx hands back new frame objects every step, and ViewerRTX reassigns them each time
+    next_frame = SimpleNamespace(render_vars={"/Render/Vars/LdrColor": "next"})
+    viewer._render_products = {"/Render/Product": SimpleNamespace(frames=[next_frame])}
+    assert next_frame.render_vars["LdrColor"] == "next"
+
+    viewer._render_products = None
+    assert viewer._render_products is None
+
+
+def test_sanitize_newton_marker_group_id_rewrites_invalid_chars_into_usd_path():
+    """The registry ``prim_path::id`` key is rewritten into a USD-safe prim path."""
+    # The ``::`` the registry key carries is what the RTX USD stage rejects.
+    assert newton_markers._sanitize_newton_marker_group_id("/Visuals/test::140") == "/Visuals/test_140"
+    # A key without a leading slash is anchored to one so it is a valid prim path.
+    assert newton_markers._sanitize_newton_marker_group_id("Visuals/test::140") == "/Visuals/test_140"
+    # A run of invalid characters collapses into a single underscore.
+    assert newton_markers._sanitize_newton_marker_group_id("/a b::c") == "/a_b_c"
+
+
+@pytest.mark.parametrize("sanitize", [True, False])
+def test_render_newton_visualization_markers_sanitizes_render_id_only_for_rtx(
+    marker_registry: _MarkerRegistry, sanitize: bool
+):
+    """RTX logs markers under a USD-safe id; the GL path keeps the raw registry key."""
+    marker = newton_markers.NewtonVisualizationMarkers(
+        newton_markers.VisualizationMarkersCfg(prim_path="/Visuals/test", markers={}), visible=False
+    )
+    marker.render = Mock()
+
+    newton_markers.render_newton_visualization_markers(
+        viewer=Mock(), visible_env_ids=None, num_envs=1, sanitize_group_ids=sanitize
+    )
+
+    marker.render.assert_called_once()
+    render_id = marker.render.call_args.kwargs["render_id"]
+    if sanitize:
+        assert re.fullmatch(r"/Visuals/test_\d+", render_id)  # the raw key is "/Visuals/test::<id>"
+    else:
+        assert render_id is None
 
 
 def test_newton_visualizer_set_camera_view_updates_cfg_without_viewer():
@@ -813,7 +876,8 @@ def test_newton_visualizer_headless_renders_frame_on_demand(monkeypatch, cfg_typ
     assert visualizer.render_rgb_array().shape == (4, 6, 3)
     assert viewer.logged_state is state
     assert viewer.events == ["begin_frame", "log_state", "end_frame"]
-    assert markers.call_count == (0 if is_rtx else 1)
+    assert markers.call_count == 1
+    assert markers.call_args.kwargs["sanitize_group_ids"] is is_rtx
     provider.get_geometry_points.assert_called_once_with(output=state.particle_q, offsets={"/Cloth": 0})
 
     viewer.paused = True
