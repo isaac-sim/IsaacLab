@@ -60,12 +60,13 @@ class CommandInputSpec:
 
 @dataclass
 class WriteOutputSpec:
-    """Write a tensor to a scene entity method, optionally indexed by joint."""
+    """Write a tensor to a scene entity method, optionally indexed by named elements."""
 
     entity_name: str
     method_name: str
     value_param: str
-    joint_ids: list[int] | None = None
+    selector_param: str | None = None
+    selector_ids: list[int] | None = None
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -112,6 +113,29 @@ def _resolve_joint_ids(element_names: list | None, entity: Any) -> list[int] | N
         return None
     joint_ids, _ = entity.find_joints(joint_names, preserve_order=True)
     return joint_ids
+
+
+def _resolve_write_selector(
+    element_names: list | None, entity: Any, method: Any
+) -> tuple[str | None, list[int] | None]:
+    """Resolve named output elements to the selector accepted by a write method."""
+    parameters = inspect.signature(method).parameters
+    if "joint_ids" in parameters:
+        return "joint_ids", _resolve_joint_ids(element_names, entity)
+    if "fixed_tendon_ids" not in parameters or element_names is None:
+        return None, None
+
+    tendon_names = element_names[0]
+    if not isinstance(tendon_names, list) or not tendon_names:
+        return None, None
+    entity_tendon_names = list(entity.fixed_tendon_names)
+    matching_names = [name for name in tendon_names if name in entity_tendon_names]
+    if len(matching_names) != len(tendon_names):
+        raise ValueError(f"LEAPP element names contain unknown fixed tendons: {tendon_names}")
+    if tendon_names == entity_tendon_names:
+        return None, None
+    tendon_ids, _ = entity.find_fixed_tendons(tendon_names, preserve_order=True)
+    return "fixed_tendon_ids", tendon_ids
 
 
 def _first_param_name(method: Any) -> str:
@@ -293,13 +317,15 @@ class LeappDeploymentEnv:
                 if conn_type == "write":
                     entity_name, method_name = parts[1], parts[2]
                     entity = self.scene[entity_name]
-                    jids = _resolve_joint_ids(desc.get("element_names"), entity)
-                    value_param = _first_param_name(getattr(entity, method_name))
+                    method = getattr(entity, method_name)
+                    selector_param, selector_ids = _resolve_write_selector(desc.get("element_names"), entity, method)
+                    value_param = _first_param_name(method)
                     self._output_mapping[key] = WriteOutputSpec(
                         entity_name=entity_name,
                         method_name=method_name,
                         value_param=value_param,
-                        joint_ids=jids,
+                        selector_param=selector_param,
+                        selector_ids=selector_ids,
                     )
                 else:
                     logger.warning("Unknown connection type '%s' for output '%s'", conn_type, key)
@@ -343,10 +369,10 @@ class LeappDeploymentEnv:
                 continue
             entity = self.scene[spec.entity_name]
             method = getattr(entity, spec.method_name)
-            if spec.joint_ids is not None:
-                method(**{spec.value_param: tensor, "joint_ids": spec.joint_ids})
-            else:
-                method(**{spec.value_param: tensor})
+            kwargs = {spec.value_param: tensor}
+            if spec.selector_param is not None and spec.selector_ids is not None:
+                kwargs[spec.selector_param] = spec.selector_ids
+            method(**kwargs)
 
     # ── Public API ────────────────────────────────────────────────
 
