@@ -90,8 +90,8 @@ class _FakeVisualizer(BaseVisualizer):
         self.step_calls = []
         self.close_calls = 0
 
-    def initialize(self, provider):
-        self._set_scene_data_provider(provider)
+    def initialize(self, provider, *, stage=None, clone_plan=None):
+        super().initialize(provider, stage=stage, clone_plan=clone_plan)
         self._is_initialized = True
 
     @property
@@ -271,7 +271,7 @@ def test_newton_visualizer_is_initialized_and_rebound_before_capture():
 
         def _construct(self, cfg):
             viz = _FakeVisualizer(cfg)
-            viz.initialize = lambda _provider: created.append(cfg.visualizer_type)
+            viz.initialize = lambda _provider, **_scene: created.append(cfg.visualizer_type)
             viz.reset = lambda soft: reset_calls.append((cfg.visualizer_type, soft))
             viz.set_camera_view = lambda eye, target: camera_calls.append((cfg.visualizer_type, eye, target))
             return viz
@@ -726,7 +726,7 @@ class _FakeVisualizerCfg(VisualizerCfg):
 
 
 class _FailingInitVisualizer(_FakeVisualizer):
-    def initialize(self, provider):
+    def initialize(self, provider, *, stage=None, clone_plan=None):
         raise RuntimeError("init failed")
 
 
@@ -767,8 +767,12 @@ def test_visualizer_construction_precedes_initialization_and_happens_once(monkey
 
     visualizer = ctx._pending_visualizers[0]
     if not fail_construct:
+        plan = object()
+        ctx._clone_plan = plan
         ctx.initialize_visualizers()
         ctx.initialize_visualizers()
+        assert visualizer._clone_plan is plan
+        assert visualizer._scene_stage is ctx.stage
         assert seen == [cfg]
         assert ctx._visualizers == [visualizer]
     assert visualizer.close_calls == 0
@@ -816,6 +820,7 @@ def _make_context_with_settings(
     ctx.requires_usd_stage = False
     ctx.requires_newton_model = False
     ctx._clone_plan = None
+    ctx.stage = None
     ctx._viz_dt = 0.01
     ctx.get_setting = lambda name: settings.get(name)
     return ctx

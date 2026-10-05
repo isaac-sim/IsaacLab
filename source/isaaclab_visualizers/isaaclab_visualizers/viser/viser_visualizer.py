@@ -38,6 +38,9 @@ logger = logging.getLogger(__name__)
 
 
 if TYPE_CHECKING:
+    from pxr import Usd
+
+    from isaaclab.cloner import ClonePlan
     from isaaclab.scene_data import SceneDataProvider
 
 
@@ -350,17 +353,25 @@ class ViserVisualizer(BaseVisualizer):
         self._paused_rendering = False
         self._paused_simulation = False
 
-    def initialize(self, scene_data_provider: SceneDataProvider) -> None:
+    def initialize(
+        self,
+        scene_data_provider: SceneDataProvider,
+        *,
+        stage: Usd.Stage | None = None,
+        clone_plan: ClonePlan | None = None,
+    ) -> None:
         """Initialize viewer resources and bind scene data provider.
 
         Args:
             scene_data_provider: Scene data provider used to fetch model/state data.
+            stage: Authored scene stage, when available.
+            clone_plan: Scene topology and environment namespace, when available.
         """
         if self._is_initialized:
             logger.debug("[ViserVisualizer] initialize() called while already initialized.")
             return
 
-        scene_data_provider = self._set_scene_data_provider(scene_data_provider)
+        super().initialize(scene_data_provider, stage=stage, clone_plan=clone_plan)
         num_envs = scene_data_provider.num_envs
         metadata = {"num_envs": num_envs}
         self._env_ids = self._compute_visualized_env_ids()
@@ -499,12 +510,10 @@ class ViserVisualizer(BaseVisualizer):
         except Exception as exc:
             logger.warning("[ViserVisualizer] Error during close: %s", exc)
 
-        self._camera_sensor = None
-
         self._viewer = None
         self._is_initialized = False
-        self.backend = self._scene_data_provider = self._transform_mapping = None
-        self._is_closed = True
+        self.backend = self._transform_mapping = None
+        super().close()
         self._active_record_path = None
         self._pending_camera_pose = None
 

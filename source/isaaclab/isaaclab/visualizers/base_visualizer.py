@@ -13,10 +13,12 @@ import os
 import random
 import re
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 
-from .. import sim as sim_utils
+import numpy as np
+
 from ..cloner import expand_env_regex_ns
 from ..envs.utils.camera_colorizer import CameraFrameColorizer, sensor_key_for_gt_type
 from ..envs.utils.camera_view import (
@@ -26,12 +28,12 @@ from ..envs.utils.camera_view import (
     resolve_streaming_envs,
 )
 from ..utils.buffers import TimestampedBuffer
+from .visualizer_cfg import PerspectiveCameraCfg, SceneCameraCfg
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from pxr import Usd
 
-    import numpy as np
-
+    from ..cloner import ClonePlan
     from ..managers import ManagerBase
     from ..renderers.base_renderer import VisualMaterialBatch
     from ..scene_data import SceneDataProvider
@@ -59,6 +61,9 @@ class BaseVisualizer(ABC):
         """
         self.cfg = cfg
         self._scene_data_provider = None
+        self._scene_stage = None
+        self._clone_plan = None
+        self._camera_choices: list[PerspectiveCameraCfg | Camera] = []
         self._is_initialized = False
         self._is_closed = False
         self._env_ids: list[int] | None = None
@@ -82,21 +87,25 @@ class BaseVisualizer(ABC):
         """
         return None
 
-    @abstractmethod
-    def initialize(self, scene_data_provider: SceneDataProvider) -> None:
-        """Initialize visualizer resources.
+    def initialize(
+        self,
+        scene_data_provider: SceneDataProvider,
+        *,
+        stage: Usd.Stage | None = None,
+        clone_plan: ClonePlan | None = None,
+    ) -> None:
+        """Bind the scene dependencies supplied by SimulationContext.
 
         Args:
-            scene_data_provider: Scene data provider used by the visualizer.
+            scene_data_provider: Scene data and scene-owned sensors.
+            stage: Authored scene stage, when the visualizer consumes USD.
+            clone_plan: Scene topology and environment namespace, when environments are cloned.
         """
-        raise NotImplementedError
-
-    def _set_scene_data_provider(self, scene_data_provider: SceneDataProvider) -> SceneDataProvider:
-        """Store the scene data provider shared by all visualizer backends."""
         if scene_data_provider is None:
             raise RuntimeError(f"{self.__class__.__name__} requires a scene_data_provider.")
         self._scene_data_provider = scene_data_provider
-        return scene_data_provider
+        self._scene_stage = stage
+        self._clone_plan = clone_plan
 
     def _setup_streaming_view(
         self,
@@ -107,34 +116,46 @@ class BaseVisualizer(ABC):
         select_camera: bool = True,
     ) -> None:
         """Configure tiles and optionally select a camera; interactive selectors can defer binding."""
+        self._camera_choices = list(
+            self.cfg.cameras
+            or [PerspectiveCameraCfg(eye=self.cfg.eye, lookat=self.cfg.lookat, focal_length=self.cfg.focal_length)]
+        )
         if not self.cfg.streaming_view:
             return
-        # Validate display channels even when the scene has no camera.
         for gt_type in self.cfg.streaming_gt_types:
             sensor_key_for_gt_type(gt_type)
         self._streaming_aspect = target_aspect
         self._camera_sensor_indices = resolve_streaming_envs(
             num_envs, self.cfg.streaming_envs, sample_from=visible_env_ids
         )
-        if not select_camera:
-            return
         cameras = self._scene_data_provider.get_camera_sensors()
-        path = self.cfg.streaming_sensor_prim_path
-        if path is None:
-            camera = next(iter(cameras.values()), None)
-        else:
-            plan = sim_utils.SimulationContext.instance().get_clone_plan()
-            path = expand_env_regex_ns(path, plan.env_template)
-            camera = find_camera_by_prim_path(cameras, path, self._camera_sensor_indices)
-        if camera is not None:
-            self._select_streaming_camera(camera)
-
-    def _select_streaming_camera(self, camera: Camera) -> None:
-        """Bind display channels to a borrowed camera and discard the previous composite."""
-        for gt_type in self.cfg.streaming_gt_types:
-            sensor_key_for_gt_type(gt_type, frozenset(camera.cfg.data_types))
-        self._camera_sensor = camera
-        self._streaming_frame = TimestampedBuffer()
+        if self.cfg.cameras is None:
+            if self.cfg.streaming_sensor_prim_path is not None:
+                self._camera_choices.append(SceneCameraCfg(prim_path=self.cfg.streaming_sensor_prim_path))
+            else:
+                self._camera_choices.extend(
+                    camera
+                    for camera in cameras.values()
+                    if all(
+                        sensor_key_for_gt_type(gt, frozenset(camera.cfg.data_types), required=False) is not None
+                        for gt in self.cfg.streaming_gt_types
+                    )
+                )
+        for index, source in enumerate(self._camera_choices):
+            if isinstance(source, SceneCameraCfg):
+                path = (
+                    expand_env_regex_ns(source.prim_path, self._clone_plan.env_template)
+                    if self._clone_plan is not None
+                    else expand_env_regex_ns(source.prim_path)
+                )
+                camera = find_camera_by_prim_path(cameras, path, self._camera_sensor_indices)
+                for gt_type in self.cfg.streaming_gt_types:
+                    sensor_key_for_gt_type(gt_type, frozenset(camera.cfg.data_types))
+                self._camera_choices[index] = camera
+        if select_camera:
+            self._camera_sensor = next(
+                (camera for camera in self._camera_choices if not isinstance(camera, PerspectiveCameraCfg)), None
+            )
 
     def render_tiled_rgb_array(self) -> np.ndarray | None:
         """Read the scene camera and return its colorized, tiled display image.
@@ -176,8 +197,15 @@ class BaseVisualizer(ABC):
 
     @abstractmethod
     def close(self) -> None:
-        """Clean up resources."""
-        raise NotImplementedError
+        """Release borrowed scene references after the backend releases its native resources.
+
+        Subclasses must call ``super().close()`` when their resource teardown finishes, including on failure.
+        """
+        self._camera_sensor = None
+        self._camera_choices.clear()
+        self._streaming_frame = TimestampedBuffer()
+        self._scene_data_provider = self._scene_stage = self._clone_plan = None
+        self._is_closed = True
 
     @abstractmethod
     def is_running(self) -> bool:

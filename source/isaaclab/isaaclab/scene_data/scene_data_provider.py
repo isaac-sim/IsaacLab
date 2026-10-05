@@ -175,15 +175,9 @@ class SceneDataProvider:
         """Return Isaac Lab camera sensors keyed by scene sensor name."""
         if self._interactive_scene is None:
             return {}
-        try:
-            from isaaclab.sensors.camera import Camera
-        except ImportError:
-            return {}
-        return {
-            name: sensor
-            for name, sensor in getattr(self._interactive_scene, "sensors", {}).items()
-            if isinstance(sensor, Camera)
-        }
+        from ..sensors.camera import Camera
+
+        return {name: sensor for name, sensor in self._interactive_scene.sensors.items() if isinstance(sensor, Camera)}
 
     def get_contact_sensors(self) -> dict[str, Any]:
         """Return Isaac Lab contact sensors keyed by scene sensor name."""
@@ -193,7 +187,7 @@ class SceneDataProvider:
 
         return {
             name: sensor
-            for name, sensor in getattr(self._interactive_scene, "sensors", {}).items()
+            for name, sensor in self._interactive_scene.sensors.items()
             if isinstance(sensor, BaseContactSensor)
         }
 

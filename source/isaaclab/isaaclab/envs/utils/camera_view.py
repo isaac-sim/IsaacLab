@@ -70,26 +70,18 @@ def env_path_from_template(path_template: str, env_id: int) -> str:
     return _ENV_SLOT_WILDCARD.sub(f"env_{env_id}", path)
 
 
-def _camera_concrete_paths(camera: Camera) -> list[str]:
-    view = getattr(camera, "_view", None)
-    prims = getattr(view, "prims", None)
-    if not prims:
-        return []
-    return [prim.GetPath().pathString for prim in prims]
-
-
 def find_camera_by_prim_path(camera_sensors: dict[str, Camera], cam_prim_path: str, env_indices: list[int]) -> Camera:
     """Find a scene-owned Camera by config template or concrete camera prim paths."""
     wanted = {env_path_from_template(cam_prim_path, env_id) for env_id in env_indices}
     for camera in camera_sensors.values():
-        if getattr(camera.cfg, "prim_path", None) == cam_prim_path:
+        if camera.cfg.prim_path == cam_prim_path:
             return camera
-        concrete = set(_camera_concrete_paths(camera))
+        concrete = {str(prim.GetPath()) for prim in camera._view.prims} if camera._view is not None else set()
         if wanted and wanted.issubset(concrete):
             return camera
     available_paths = sorted(camera.cfg.prim_path for camera in camera_sensors.values())
     raise ValueError(
-        f"No scene Camera matches streaming_sensor_prim_path={cam_prim_path!r}. "
+        f"No scene Camera matches prim_path={cam_prim_path!r}. "
         f"Declare a CameraCfg in the scene; available paths: {available_paths}."
     )
 

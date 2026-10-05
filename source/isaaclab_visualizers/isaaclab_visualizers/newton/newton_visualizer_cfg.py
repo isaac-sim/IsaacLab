@@ -11,7 +11,7 @@ import warnings
 from typing import TYPE_CHECKING, Any
 
 from isaaclab.utils import configclass
-from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg, SceneCameraCfg, VisualizerCfg
+from isaaclab.visualizers.visualizer_cfg import SceneCameraCfg, VisualizerCfg
 
 if TYPE_CHECKING:
     from .newton_visualizer import NewtonGLVisualizer, NewtonRTXVisualizer
@@ -130,36 +130,11 @@ class NewtonGLVisualizerCfg(NewtonVisualizerCfg):
     visualizer_type: str = "newton_gl"
     """Visualizer selector identifier. Do not change."""
 
-    camera: PerspectiveCameraCfg | SceneCameraCfg | list[PerspectiveCameraCfg | SceneCameraCfg] | None = None
-    """Display source, or selectable sources with the first initially active.
-
-    SceneCameraCfg opens the tiled sensor output directly, without a perspective render behind it.
-    PerspectiveCameraCfg supplies an interactive pose and optics. Only the selected source is displayed.
-    Navigation moves every copy of the selected scene camera by the same camera-local motion.
-    These sensor pose changes are also visible to policies and other viewers using that camera.
-    None preserves the eye/lookat/focal_length settings and lists compatible scene cameras when streaming_view
-    is enabled. Every explicit scene-camera choice must provide the requested streaming_gt_types channels.
-    """
-
     streaming_view: bool = True
     """Make scene cameras available in the view selector.
 
     A SceneCameraCfg selection enables this automatically. Otherwise the viewer starts in perspective.
     """
-
-    def __post_init__(self) -> None:
-        super().__post_init__()
-        if self.camera is None:
-            return
-        cameras = self.camera if isinstance(self.camera, list) else [self.camera]
-        if not cameras:
-            raise ValueError("camera must contain at least one display source.")
-        scene_camera = next((camera for camera in cameras if isinstance(camera, SceneCameraCfg)), None)
-        self.streaming_view = scene_camera is not None
-        if scene_camera is not None:
-            self.streaming_sensor_prim_path = scene_camera.prim_path
-        if isinstance(camera := cameras[0], PerspectiveCameraCfg):
-            self.eye, self.lookat, self.focal_length = camera.eye, camera.lookat, camera.focal_length
 
 
 @configclass
@@ -197,3 +172,8 @@ class NewtonRTXVisualizerCfg(NewtonVisualizerCfg):
     copyable. For example, ``{"omni:rtx:quality": ("Int", 100)}`` re-enables the path tracer's
     quality convergence loop, which ``ViewerRTX`` otherwise disables to keep interactive latency
     down."""
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        if any(isinstance(camera, SceneCameraCfg) for camera in self.cameras or ()):
+            raise ValueError("Newton RTX has no scene-camera image display. Use a perspective source or Newton GL.")

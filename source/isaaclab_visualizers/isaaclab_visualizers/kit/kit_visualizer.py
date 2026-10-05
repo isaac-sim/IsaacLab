@@ -30,6 +30,7 @@ from .kit_visualizer_cfg import KitVisualizerCfg
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
+    from isaaclab.cloner import ClonePlan
     from isaaclab.scene_data import SceneDataProvider
 
 _DEFAULT_VIEWPORT_NAME = "Visualizer Viewport"
@@ -94,18 +95,26 @@ class KitVisualizer(BaseVisualizer):
 
         return FabricVisualMaterialWriter
 
-    def initialize(self, scene_data_provider: SceneDataProvider) -> None:
+    def initialize(
+        self,
+        scene_data_provider: SceneDataProvider,
+        *,
+        stage: Usd.Stage | None = None,
+        clone_plan: ClonePlan | None = None,
+    ) -> None:
         """Initialize viewport resources and bind scene data provider.
 
         Args:
             scene_data_provider: Scene data provider used by the visualizer.
+            stage: Authored scene stage, when available.
+            clone_plan: Scene topology and environment namespace, when available.
         """
         if self._is_initialized:
             logger.debug("[KitVisualizer] initialize() called while already initialized.")
             return
 
-        scene_data_provider = self._set_scene_data_provider(scene_data_provider)
-        usd_stage = SimulationContext.instance().stage
+        super().initialize(scene_data_provider, stage=stage, clone_plan=clone_plan)
+        usd_stage = self._scene_stage
         num_envs = scene_data_provider.num_envs
 
         self._ensure_simulation_app()
@@ -195,7 +204,6 @@ class KitVisualizer(BaseVisualizer):
             return
         self._teardown_backend_menubar_label()
         self._restore_env_visibility()
-        self._camera_sensor = None
         self._viewport_camera_xform_ops.clear()
         self._viewport_camera_pose_cache.clear()
         self._camera_image_provider = None
@@ -214,7 +222,7 @@ class KitVisualizer(BaseVisualizer):
         self._rgb_annotator = None
         self._rgb_render_product = None
         self._is_initialized = False
-        self._is_closed = True
+        super().close()
 
     def render_rgb_array(self) -> np.ndarray:
         """Return an RGB frame captured from the Kit viewport camera.
@@ -241,7 +249,7 @@ class KitVisualizer(BaseVisualizer):
         # captured frame contains real rendered output, not empty/blank data.
         if self._rgb_annotator is None:
             self._rgb_render_product = rep.create.render_product(camera_path, (w, h))
-            self._apply_render_product_background(SimulationContext.instance().stage, self._rgb_render_product.path)
+            self._apply_render_product_background(self._scene_stage, self._rgb_render_product.path)
             self._rgb_annotator = rep.AnnotatorRegistry.get_annotator("rgb", device="cpu")
             self._rgb_annotator.attach([self._rgb_render_product])
         elif self._runtime_headless and self._rgb_render_product is not None:
@@ -800,7 +808,7 @@ class KitVisualizer(BaseVisualizer):
             ``True`` when authored values changed, otherwise ``False``.
         """
         # TODO: Remove this USD-side pose path once Fabric-backed camera transforms propagate reliably to Kit.
-        usd_stage = SimulationContext.instance().stage
+        usd_stage = self._scene_stage
 
         eye = torch.as_tensor(position, dtype=torch.float32, device="cpu").reshape(1, 3)
         lookat = torch.as_tensor(target, dtype=torch.float32, device="cpu").reshape(1, 3)
@@ -864,7 +872,7 @@ class KitVisualizer(BaseVisualizer):
         """
         if self._viewport_api is None:
             return False
-        usd_stage = SimulationContext.instance().stage
+        usd_stage = self._scene_stage
         camera_prim = usd_stage.GetPrimAtPath(camera_path)
         if not camera_prim.IsValid():
             return False
@@ -898,7 +906,7 @@ class KitVisualizer(BaseVisualizer):
         """Re-apply ``invisibleIds`` for env-scaled `/Visuals` instancers (handles lazy marker creation)."""
         if self._resolved_visible_env_ids is None or self._scene_data_provider is None:
             return
-        usd_stage = SimulationContext.instance().stage
+        usd_stage = self._scene_stage
         num_envs = self._scene_data_provider.num_envs
         if num_envs <= 0:
             return
@@ -947,7 +955,7 @@ class KitVisualizer(BaseVisualizer):
 
     def _restore_env_visibility(self) -> None:
         """Restore environment visibilities and PointInstancer ``invisibleIds`` from partial viz."""
-        usd_stage = SimulationContext.instance().stage
+        usd_stage = self._scene_stage
         for env_path, prev in self._hidden_env_visibilities.items():
             prim = usd_stage.GetPrimAtPath(env_path)
             if not prim.IsValid():
@@ -976,7 +984,7 @@ class KitVisualizer(BaseVisualizer):
         camera is positioned immediately. For asset-tracking origins the first update is deferred
         to :meth:`step` because asset state is not yet available at initialization time.
         """
-        self._interactive_scene = getattr(SimulationContext.instance(), "_interactive_scene", None)
+        self._interactive_scene = self._scene_data_provider.get_interactive_scene()
 
         if self.cfg.origin_type == "world":
             self._viewer_origin = torch.zeros(3)

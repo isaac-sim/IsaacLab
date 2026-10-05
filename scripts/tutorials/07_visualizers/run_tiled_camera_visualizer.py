@@ -40,6 +40,7 @@ from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.sensors import CameraCfg
 from isaaclab.sim import PinholeCameraCfg
 from isaaclab.utils.math import create_rotation_matrix_from_view, quat_from_matrix
+from isaaclab.visualizers import SceneCameraCfg
 
 from isaaclab_tasks.utils import resolve_task_config, setup_preset_cli
 
@@ -47,31 +48,14 @@ logger = logging.getLogger(__name__)
 
 KIT_DEFAULT_TASK = "Isaac-Velocity-Rough-AnymalD"
 NEWTON_DEFAULT_TASK = "IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor"
-SUPPORTED_TILED_VISUALIZERS = {"kit", "newton", "newton_gl", "newton_rtx"}
-UNSUPPORTED_TILED_VISUALIZERS = {"rerun", "viser"}
-
-
-def _requested_visualizers(args_cli: argparse.Namespace) -> list[str]:
-    """Return the requested visualizers (Kit by default); without any, the tiled camera panel is skipped."""
-    visualizers = [str(visualizer).lower() for visualizer in args_cli.visualizer or []]
-
-    unsupported = sorted(set(visualizers) & UNSUPPORTED_TILED_VISUALIZERS)
-    if unsupported:
-        raise ValueError(
-            "The visualizer tiled camera panel is only implemented for Kit and Newton. "
-            f"Unsupported selection: {unsupported}."
-        )
-    unknown = sorted(set(visualizers) - SUPPORTED_TILED_VISUALIZERS)
-    if unknown:
-        raise ValueError(f"Unknown visualizer selection for this demo: {unknown}.")
-    return visualizers
 
 
 def _configure_visualizers(env_cfg, args_cli: argparse.Namespace) -> None:
     """Declare a scene camera before launch; every viewer borrows the same sensor."""
-    visualizers = _requested_visualizers(args_cli)
-    args_cli.visualizer = visualizers
-    camera_cfg = getattr(env_cfg.scene, "ego_cam", None)
+    visualizers = args_cli.visualizer
+    if any(kind not in ("kit", "newton_gl") for kind in visualizers):
+        raise ValueError("This tutorial supports --viz kit or --viz newton_gl.")
+    camera_cfg = next((cfg for cfg in vars(env_cfg.scene).values() if isinstance(cfg, CameraCfg)), None)
     if camera_cfg is None:
         eye, target = torch.tensor([[3.0, 3.0, 3.0]]), torch.zeros((1, 3))
         rotation = quat_from_matrix(create_rotation_matrix_from_view(eye, target, device="cpu"))[0]
@@ -90,7 +74,7 @@ def _configure_visualizers(env_cfg, args_cli: argparse.Namespace) -> None:
         (KitVisualizerCfg if kind == "kit" else NewtonGLVisualizerCfg)(
             streaming_view=True,
             streaming_envs=36 if kind == "kit" else 12,
-            streaming_sensor_prim_path=camera_cfg.prim_path,
+            cameras=[SceneCameraCfg(prim_path=camera_cfg.prim_path)],
         )
         for kind in visualizers
     ]
@@ -100,7 +84,7 @@ def _resolve_task(args_cli: argparse.Namespace) -> str:
     """Resolve the task for the selected visualizer."""
     if args_cli.task is not None:
         return args_cli.task
-    if "newton" in _requested_visualizers(args_cli):
+    if "newton_gl" in args_cli.visualizer:
         return NEWTON_DEFAULT_TASK
     return KIT_DEFAULT_TASK
 

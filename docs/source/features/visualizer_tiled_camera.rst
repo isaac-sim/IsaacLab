@@ -57,14 +57,14 @@ for dual monitoring.
 its tiled output in the main viewport instead of rendering a perspective view behind it.
 Selecting a perspective camera restores normal interactive rendering and picking.
 
-Without an explicit ``camera`` list, the viewer starts in perspective and offers scene cameras
+Without an explicit ``cameras`` list, the viewer starts in perspective and offers scene cameras
 that provide every requested ``streaming_gt_types`` channel. For example, set
 ``streaming_gt_types=("depth",)`` to offer depth-only cameras. The RGB view accepts RGB or RGBA
 outputs; the existing colorizer drops the alpha channel. No images are captured to
 build the selector. Explicitly configured scene-camera choices must support the requested channels;
 incompatible choices raise a configuration error during initialization, including inactive choices.
 
-Use ``camera`` to declare one view or a list of selectable views; the first starts active:
+Use ``cameras`` to declare a list of selectable views; the first starts active:
 
 .. code-block:: python
 
@@ -72,13 +72,20 @@ Use ``camera`` to declare one view or a list of selectable views; the first star
    from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
 
    viewer_cfg = NewtonGLVisualizerCfg(
-       camera=[
+       cameras=[
            SceneCameraCfg(prim_path="{ENV_REGEX_NS}/Robot/FrontCamera"),
            SceneCameraCfg(prim_path="{ENV_REGEX_NS}/Robot/BackCamera"),
            PerspectiveCameraCfg(eye=(4.0, -4.0, 3.0)),
        ],
        streaming_envs=list(range(16)),
    )
+
+The ``cameras`` field is shared across visualizers. Kit, Rerun, and Viser use the first scene
+camera for their image panel; Newton GL provides the source dropdown shown above. Newton RTX
+accepts perspective cameras only because its native viewer has no sensor-image display.
+``SceneCameraCfg`` selects an existing sensor; ``PerspectiveCameraCfg`` configures the viewer's
+own interactive camera. Neither creates a camera sensor. Only the perspective camera follows
+the viewer's window size; sensor resolution stays controlled by the scene's ``CameraCfg``.
 
 Both scene cameras must already be declared as ``CameraCfg`` entries in the scene. Keyboard
 and mouse navigation moves the selected sensor's copies by the same camera-local translation
@@ -191,7 +198,7 @@ Visualizers no longer create or destroy camera sensors. Replace
 ``streaming_cam_target_prim_path``, ``streaming_cam_eye``, and ``streaming_cam_renderer_cfg``
 with a scene ``CameraCfg``: place its ``prim_path`` under the desired parent, set its
 ``offset``, and supply ``renderer_cfg`` there. Select that camera through
-``streaming_sensor_prim_path``, or ``camera=SceneCameraCfg(...)`` in Newton GL. This puts the camera
+``streaming_sensor_prim_path``, or ``cameras=[SceneCameraCfg(...)]``. This puts the camera
 in the clone plan and the normal sensor initialization, update, and teardown lifecycle.
 
 Closing a visualizer does not affect the camera or other visualizers reading it.

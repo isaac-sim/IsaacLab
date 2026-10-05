@@ -2586,13 +2586,19 @@ The :class:`~isaaclab.envs.ui.ViewportCameraController` class is also deprecated
 tracking is handled directly by :class:`~isaaclab_visualizers.kit.KitVisualizer`.
 
 
+Custom visualizers now receive ``stage`` and ``clone_plan`` keyword arguments in ``initialize()``.
+Accept these arguments and forward them to ``super().initialize(scene_data_provider, stage=stage,
+clone_plan=clone_plan)``. Use the supplied scene dependencies instead of retrieving the simulation
+singleton to resolve camera sources or read authored scene lights.
+Call ``super().close()`` after releasing native viewer resources to drop borrowed scene references.
+
+
 .. rubric:: Streaming Camera View (``tiled_cam_*`` fields removed)
 
 The ``tiled_cam_*`` configuration fields on visualizer configs (e.g. ``tiled_cam_view``,
 ``tiled_cam_num``, ``tiled_cam_prim_path``) have been removed and replaced by the unified
-``streaming_*`` API available on all four visualizer backends.  A one-release deprecation
-shim forwards the old fields except renderer selection to their ``streaming_*`` equivalents and emits
-:class:`DeprecationWarning`; the shim will be removed in the next major release.
+``streaming_*`` API and shared ``cameras`` source list. The deprecated forwarding shim has also
+been removed; update old field names using the table below.
 Renderer selection now takes a configuration directly, without a nickname compatibility path.
 
 .. list-table:: Field rename reference

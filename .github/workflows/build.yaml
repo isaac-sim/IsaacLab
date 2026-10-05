@@ -1055,7 +1055,7 @@ jobs:
             --entrypoint bash "$CI_IMAGE_TAG" -lc \
             "set -euo pipefail
             mkdir -p /tmp/benchmark-output
-            uv run --no-sync isaaclab -p -m isaaclab benchmark runtime \
+            uv run --no-sync isaaclab benchmark runtime \
               --task '$task' \
               --num_envs '$num_envs' \
               --num_steps 200 \

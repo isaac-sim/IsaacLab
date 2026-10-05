@@ -15,7 +15,6 @@ import numpy as np
 import pytest
 import torch
 import warp as wp
-from isaaclab_visualizers.kit import KitVisualizerCfg
 from isaaclab_visualizers.newton import (
     NewtonGLVisualizer,
     NewtonGLVisualizerCfg,
@@ -32,8 +31,6 @@ from isaaclab_visualizers.newton_adapter import (
     log_geo_with_expanded_plane_scale,
     resolve_visible_env_indices,
 )
-from isaaclab_visualizers.rerun import RerunVisualizerCfg
-from isaaclab_visualizers.viser import ViserVisualizerCfg
 
 from pxr import Gf, Sdf, Usd, UsdGeom, UsdLux
 
@@ -43,6 +40,7 @@ from isaaclab.sim import SimulationContext
 from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils import instantiate
 from isaaclab.visualizers import PerspectiveCameraCfg, SceneCameraCfg
+from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
 
 @pytest.mark.parametrize(
@@ -223,17 +221,12 @@ def test_newton_visualizer_set_camera_view_updates_active_viewer():
     assert visualizer.cfg.lookat == (0.0, 0.0, 1.0)
 
 
-@pytest.mark.parametrize(
-    "cfg_type",
-    [KitVisualizerCfg, NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg, RerunVisualizerCfg, ViserVisualizerCfg],
-)
-def test_visualizers_borrow_scene_camera_outputs(monkeypatch, cfg_type):
-    """Viewers share one declared camera, select tiles, and never construct or drive a sensor."""
-    sim = Mock()
-    sim.get_clone_plan.return_value = SimpleNamespace(env_template="/Scenes/world_{}")
-    monkeypatch.setattr(SimulationContext, "instance", lambda: sim)
+def test_visualizers_borrow_scene_camera_outputs(monkeypatch):
+    """Camera binding uses supplied scene topology and only reads the borrowed sensor's lazy output."""
+    monkeypatch.setattr(SimulationContext, "instance", Mock(side_effect=AssertionError("No global scene lookup")))
     pixels = torch.arange(4, dtype=torch.uint8).reshape(4, 1, 1, 1).expand(4, 2, 3, 3).clone()
     camera = SimpleNamespace(
+        _view=None,
         cfg=SimpleNamespace(prim_path="/Scenes/world_[^/]+/Camera", data_types=["rgba"]),
         data=SimpleNamespace(output={"rgba": torch.cat((pixels, torch.full_like(pixels[..., :1], 255)), dim=-1)}),
         close=Mock(),
@@ -242,11 +235,9 @@ def test_visualizers_borrow_scene_camera_outputs(monkeypatch, cfg_type):
     provider = SimpleNamespace(get_camera_sensors=lambda: {"camera": camera})
     viewers = []
     for ids in ([0, 2], [1, 3]):
-        cfg = cfg_type(streaming_view=True, streaming_envs=ids, streaming_sensor_prim_path="{ENV_REGEX_NS}/Camera")
+        cfg = NewtonGLVisualizerCfg(streaming_envs=ids, cameras=[SceneCameraCfg(prim_path="{ENV_REGEX_NS}/Camera")])
         visualizer = instantiate(cfg)
-        visualizer._scene_data_provider = provider
-        if isinstance(cfg, KitVisualizerCfg):
-            visualizer._runtime_headless = True
+        BaseVisualizer.initialize(visualizer, provider, clone_plan=SimpleNamespace(env_template="/Scenes/world_{}"))
         visualizer._setup_streaming_view(4)
         assert visualizer._camera_sensor is camera
         image = visualizer.render_tiled_rgb_array()
@@ -262,16 +253,22 @@ def test_visualizers_borrow_scene_camera_outputs(monkeypatch, cfg_type):
     np.testing.assert_array_equal(np.unique(viewers[1].render_tiled_rgb_array()), [11, 13])
     camera.update.assert_not_called()
     camera.close.assert_not_called()
-    sim.get_or_create_backend.assert_not_called()
+    SimulationContext.instance.assert_not_called()
 
-    viewers[0].cfg.streaming_sensor_prim_path = "/Missing/Camera"
+    viewers[0].cfg.cameras = [SceneCameraCfg(prim_path="/Missing/Camera")]
     with pytest.raises(ValueError, match="No scene Camera matches"):
         viewers[0]._setup_streaming_view(4)
-    viewers[0].cfg.streaming_sensor_prim_path = None
+    viewers[0].cfg.cameras = None
     viewers[0]._setup_streaming_view(4)
     assert viewers[0]._camera_sensor is camera
     viewers[0].cfg.streaming_gt_types = ("depth",)
+    viewers[0]._setup_streaming_view(4)
+    assert viewers[0]._camera_sensor is None
+    viewers[0].cfg.cameras = [SceneCameraCfg(prim_path="{ENV_REGEX_NS}/Camera")]
     with pytest.raises(KeyError, match="No sensor output"):
+        viewers[0]._setup_streaming_view(4)
+    viewers[0].cfg.streaming_gt_types = ("optical_flow",)
+    with pytest.raises(ValueError, match="optical_flow"):
         viewers[0]._setup_streaming_view(4)
 
 
@@ -673,6 +670,8 @@ def test_newton_visualizer_hard_reset_rebinds_viewer_model(monkeypatch, picking)
     viewer = _Viewer()
     viewer.picking_enabled = False
     viewer.set_model = Mock()
+    viewer.renderer = SimpleNamespace()
+    viewer._coerce_color3 = tuple
     viewer._register_isaaclab_ui_callbacks = Mock()
     viewer.set_visible_worlds = Mock()
     viewer.set_world_offsets = Mock()
@@ -793,8 +792,9 @@ def test_newton_scene_camera_replaces_perspective_rendering(monkeypatch):
     """Image mode bypasses scene uploads, preserves pause, and can return to perspective."""
     viewer = _Viewer()
     cameras = [SceneCameraCfg(prim_path="/Camera"), PerspectiveCameraCfg()]
-    visualizer = _make_newton_visualizer(viewer, cfg=NewtonGLVisualizerCfg(camera=cameras, enable_markers=False))
+    visualizer = _make_newton_visualizer(viewer, cfg=NewtonGLVisualizerCfg(cameras=cameras, enable_markers=False))
     image = np.full((4, 6, 3), 127, dtype=np.uint8)
+    visualizer._camera_sensor = Mock()
     visualizer._streaming_frame.data = image
     visualizer.render_tiled_rgb_array = Mock(return_value=image)
     provider = visualizer._scene_data_provider
@@ -815,7 +815,7 @@ def test_newton_scene_camera_replaces_perspective_rendering(monkeypatch):
     markers.assert_not_called()
 
     viewer.paused = False
-    visualizer._camera_index = 1
+    visualizer._camera_sensor = None
     visualizer.step(0.1)
     assert viewer.events[-3:] == ["begin_frame", "log_state", "end_frame"]
     provider.get_transforms.assert_called_once()
@@ -869,7 +869,7 @@ def test_newton_scene_camera_controls_apply_uniformly_to_active_copies(monkeypat
             back_frame = back.frame.torch.clone()
             assert visualizer._camera_sensor is None
             assert isinstance(visualizer._camera_choices[0], PerspectiveCameraCfg)
-            assert [camera.prim_path for camera in visualizer._camera_choices[1:]] == [
+            assert [camera.cfg.prim_path for camera in visualizer._camera_choices[1:]] == [
                 color.cfg.prim_path,
                 back.cfg.prim_path,
             ]
@@ -1139,12 +1139,15 @@ def test_newton_rtx_uses_authored_lighting(tmp_path: Path) -> None:
     )
     plan = ClonePlan(topology, cfgs, "/Scenes/world_{}", positions=np.array([(10.0, 0, 0), (20.0, 0, 0), (30.0, 0, 0)]))
     viewer = object.__new__(NewtonViewerRTX)
-    viewer._scene_stage, viewer._clone_plan = stage, plan
     viewer.stage = Usd.Stage.CreateInMemory()
     viewer._visible_worlds = {0, 2}
     viewer.world_offsets = wp.array([(0.0, 0, 0), (0.0, 0, 0), (0.0, 5.0, 0)], dtype=wp.vec3, device="cpu")
 
-    viewer._add_default_lights()
+    visualizer = NewtonRTXVisualizer(NewtonRTXVisualizerCfg())
+    visualizer._scene_stage, visualizer._clone_plan = stage, plan
+    visualizer._viewer = viewer
+    visualizer._apply_viewer_post_init()
+    assert viewer._environment == "none"
 
     lights = [prim for prim in viewer.stage.Traverse() if prim.HasAPI(UsdLux.LightAPI)]
     assert len(lights) == 5  # One shared dome; two repeated asset instances in each visible world.
@@ -1194,9 +1197,11 @@ def test_newton_rtx_scene_sky_and_background_override(tmp_path: Path, monkeypatc
     for override, channel in ((None, 0), ((0.0, 0.0, 1.0), 2)):
         cfg = NewtonRTXVisualizerCfg(background_color=override, window_width=128, window_height=128)
         visualizer = NewtonRTXVisualizer(cfg)
-        viewer = visualizer._create_viewer(True, {})
+        BaseVisualizer.initialize(visualizer, Mock(), stage=stage, clone_plan=sim.get_clone_plan())
+        viewer = visualizer._viewer = visualizer._create_viewer(True, {})
         try:
             viewer.set_model(model)
+            visualizer._apply_viewer_post_init()
             viewer.set_camera(Vec3(0.0, -4.0, 0.0), 0.0, 90.0)
             for frame in range(8):
                 viewer.begin_frame(frame / 60)

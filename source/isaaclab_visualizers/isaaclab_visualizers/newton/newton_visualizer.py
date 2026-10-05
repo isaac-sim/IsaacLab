@@ -38,16 +38,14 @@ from pyglet.math import Vec3 as PygletVec3
 
 from pxr import Gf, Sdf, Usd, UsdGeom, UsdLux
 
-from isaaclab.cloner import ClonePlan, expand_env_regex_ns
+from isaaclab.cloner import ClonePlan
 from isaaclab.cloner import path as cloner_path
-from isaaclab.envs.utils.camera_colorizer import sensor_key_for_gt_type
-from isaaclab.envs.utils.camera_view import find_camera_by_prim_path
 from isaaclab.scene_data import SceneDataFormat
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.math import quat_apply, quat_from_matrix, quat_mul
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
-from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg, SceneCameraCfg
+from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg
 
 from isaaclab_visualizers.desktop_entry import write_desktop_entry
 from isaaclab_visualizers.newton.newton_visualization_markers import render_newton_visualization_markers
@@ -317,9 +315,6 @@ class _NewtonViewerUIMixin:
                 for callback in _g._ui_callbacks.get("side", []):
                     callback(imgui)
 
-            # --- Streaming View ---------------------------------------------
-            viewer._draw_streaming_view_controls()
-
             # --- Live Plots -------------------------------------------------
             live_plots_cb = getattr(viewer, "_live_plots_callback", None)
             if live_plots_cb is not None:
@@ -490,9 +485,6 @@ class _NewtonViewerUIMixin:
                 " training\nhigher values -> less responsive visualizer but faster training"
             )
 
-    def _draw_streaming_view_controls(self) -> None:
-        """GL visualizers bind scene-camera controls here after sensor initialization."""
-
     def _coerce_color3(self, color) -> tuple[float, float, float]:
         """Normalize color values from imgui/renderer into an RGB tuple."""
         if hasattr(color, "x") and hasattr(color, "y") and hasattr(color, "z"):
@@ -551,8 +543,6 @@ class NewtonViewerRTX(_NewtonViewerUIMixin, ViewerRTX):
     def __init__(
         self,
         *args,
-        scene_stage: Usd.Stage,
-        clone_plan: ClonePlan,
         metadata: dict | None = None,
         update_frequency: int = 1,
         background_color: tuple[float, float, float] | None = None,
@@ -563,8 +553,6 @@ class NewtonViewerRTX(_NewtonViewerUIMixin, ViewerRTX):
 
         Args:
             *args: Positional arguments forwarded to ``ViewerRTX``.
-            scene_stage: Authored scene supplying lighting, including HDR textures.
-            clone_plan: Scene topology and placement shared with geometry import.
             metadata: Optional metadata shown in viewer panels.
             update_frequency: Viewer refresh cadence in simulation frames.
             background_color: Optional solid background color RGB [0, 1].
@@ -572,10 +560,6 @@ class NewtonViewerRTX(_NewtonViewerUIMixin, ViewerRTX):
                 :attr:`~isaaclab_visualizers.newton.NewtonRTXVisualizerCfg.render_settings`.
             **kwargs: Keyword arguments forwarded to ``ViewerRTX``.
         """
-        self._scene_stage, self._clone_plan = scene_stage, clone_plan
-        # Assigned before super().__init__(): ViewerRTX reaches
-        # _add_camera_lights_and_render_product() during initialization, and the override reads
-        # these values. The render settings are copied so a caller cannot mutate them afterwards.
         self._background_color = (
             tuple(float(value) for value in background_color) if background_color is not None else None
         )
@@ -601,67 +585,6 @@ class NewtonViewerRTX(_NewtonViewerUIMixin, ViewerRTX):
         # exist.  Register the training controls now (they are buffered by ViewerRTX until
         # the GUI is available); the panel patch is applied in _init_window() below.
         self.register_ui_callback(self._render_training_controls, position="side")
-
-    def _add_default_lights(self) -> None:
-        """Use the scene's authored lighting with the same world selection as the geometry."""
-        plan, stage = self._clone_plan, self._scene_stage
-        sources = cloner_path.get_asset_prototype_paths(plan)
-        templates, starts, world_ids, world_starts = cloner_path.get_world_prototype_asset_templates(
-            plan, include_world_indices=True
-        )
-        xforms = UsdGeom.XformCache()
-        lights = {}
-        for source in dict.fromkeys(sources):
-            root = stage.GetPrimAtPath(source) if source is not None else None
-            if root:
-                prims = Usd.PrimRange(root, Usd.TraverseInstanceProxies())
-                lights[source] = [prim for prim in prims if prim.HasAPI(UsdLux.LightAPI)]
-        if not any(lights.values()):
-            super()._add_default_lights()
-            return
-
-        # Read prototypes once; only light instances are expanded, never the completed scene.
-        offsets = self.world_offsets.numpy() if self.world_offsets is not None else None
-        for group, (start, end) in enumerate(zip(starts[:-1], starts[1:], strict=True)):
-            worlds = world_ids[world_starts[group] : world_starts[group + 1]]
-            worlds = [world for world in worlds if self._should_render_world(int(world))]
-            if not worlds:
-                continue
-            for index in range(start, end):
-                source = sources[plan.topology.world_prototypes[index]]
-                for prim in lights.get(source, ()):
-                    properties = prim.GetAuthoredProperties()
-                    properties = [
-                        prop for prop in properties if not prop.GetName().startswith(("xformOp:", "xformOpOrder"))
-                    ]
-                    texture = prim.GetAttribute("inputs:texture:file")
-                    asset = texture.Get() if texture else None
-                    if asset and asset.path:
-                        asset = Sdf.AssetPath(retrieve_file_path(asset.resolvedPath or asset.path))
-                    transform = xforms.GetLocalToWorldTransform(prim)
-                    origin = Gf.Vec3d(0.0)
-                    matched = cloner_path.match(source, plan.env_template)
-                    if group and plan.positions is not None and matched is not None:
-                        env = stage.GetPrimAtPath(plan.env_template.format(matched.instance))
-                        origin = xforms.GetLocalToWorldTransform(env).ExtractTranslation()
-                    suffix = str(prim.GetPath())[len(source) :]
-                    for world in worlds:
-                        destination = "/root/scene_lights" + templates[index].format(int(world)) + suffix
-                        target = self.stage.DefinePrim(destination, prim.GetTypeName())
-                        target.SetMetadata("apiSchemas", Sdf.TokenListOp.CreateExplicit(prim.GetAppliedSchemas()))
-                        for prop in properties:
-                            prop.FlattenTo(target)
-                        if asset:
-                            target.GetAttribute("inputs:texture:file").Set(asset)
-                        UsdGeom.Imageable(target).GetVisibilityAttr().Set(UsdGeom.Imageable(prim).ComputeVisibility())
-                        position = transform.ExtractTranslation()
-                        if world >= 0:
-                            if offsets is not None:
-                                position += Gf.Vec3d(*map(float, offsets[world]))
-                            if plan.positions is not None:
-                                position += Gf.Vec3d(*map(float, plan.positions[world])) - origin
-                        pose = Gf.Matrix4d(transform).SetTranslateOnly(position)
-                        UsdGeom.Xformable(target).MakeMatrixXform().Set(pose)
 
     def log_points(self, name, points, radii=None, colors=None, hidden=False):
         """Apply the configured color to Newton's canonical particle batch."""
@@ -986,18 +909,26 @@ class NewtonVisualizer(BaseVisualizer):
     # Shared lifecycle
     # ------------------------------------------------------------------
 
-    def initialize(self, scene_data_provider: SceneDataProvider) -> None:
+    def initialize(
+        self,
+        scene_data_provider: SceneDataProvider,
+        *,
+        stage: Usd.Stage | None = None,
+        clone_plan: ClonePlan | None = None,
+    ) -> None:
         """Initialize viewer resources and bind scene data provider.
 
         Args:
             scene_data_provider: Scene data provider used to fetch model/state data.
+            stage: Authored scene stage, when available.
+            clone_plan: Scene topology and environment namespace, when available.
         """
 
         if self._is_initialized:
             logger.debug("[%s] initialize() called while already initialized.", type(self).__name__)
             return
 
-        scene_data_provider = self._set_scene_data_provider(scene_data_provider)
+        super().initialize(scene_data_provider, stage=stage, clone_plan=clone_plan)
         if isinstance(self, NewtonRTXVisualizer) and self.physics_backend in ("physx", "isaacsim_physx"):
             # OVRTX is a kitless renderer and cannot share a process with Kit. "physx" is the
             # runtime name FactoryBase._get_backend() reports for the resolved PhysxManager
@@ -1239,6 +1170,7 @@ class NewtonVisualizer(BaseVisualizer):
             self._viewer._register_isaaclab_ui_callbacks()
             self._viewer.set_visible_worlds(self._resolved_visible_env_ids)
             self._viewer.set_world_offsets(self.cfg.world_spacing)
+            self._apply_viewer_post_init()
             self._apply_model_visualization_options()
             self._viewer.picking_enabled = self._picking_enabled
             if self._picking_enabled:
@@ -1284,9 +1216,8 @@ class NewtonVisualizer(BaseVisualizer):
             self._release_viewer()
         finally:
             self._pending_mesh_submissions.clear()
-            self._camera_sensor = None
-            self.backend = self._scene_data_provider = self._transform_mapping = None
-            self._is_closed = True
+            self.backend = self._transform_mapping = None
+            super().close()
 
     def is_running(self) -> bool:
         """Return whether the visualizer should continue stepping."""
@@ -1656,50 +1587,34 @@ class NewtonGLVisualizer(NewtonVisualizer):
         """
         super().__init__(cfg)
         self.cfg: NewtonGLVisualizerCfg = cfg
-        self._camera_choices = cfg.camera if isinstance(cfg.camera, list) else [cfg.camera]
-        if cfg.camera is None:
-            self._camera_choices = [PerspectiveCameraCfg(eye=cfg.eye, lookat=cfg.lookat, focal_length=cfg.focal_length)]
         self._camera_index = 0
 
-    def initialize(self, scene_data_provider: SceneDataProvider) -> None:
+    def initialize(
+        self,
+        scene_data_provider: SceneDataProvider,
+        *,
+        stage: Usd.Stage | None = None,
+        clone_plan: ClonePlan | None = None,
+    ) -> None:
         """Initialize the GL visualizer and build the streaming camera dropdown.
 
         Args:
             scene_data_provider: Provider for scene data and camera sensors.
+            stage: Authored scene stage, when available.
+            clone_plan: Scene topology and environment namespace, when available.
         """
-        super().initialize(scene_data_provider)
-        if self.cfg.camera is None and self.cfg.streaming_view:
-            cameras = scene_data_provider.get_camera_sensors()
-            self._camera_choices[1:] = []
-            for camera in cameras.values():
-                available = frozenset(camera.cfg.data_types)
-                if all(
-                    sensor_key_for_gt_type(gt, available, required=False) is not None
-                    for gt in self.cfg.streaming_gt_types
-                ):
-                    self._camera_choices.append(SceneCameraCfg(prim_path=camera.cfg.prim_path))
-        else:
-            # Explicit choices are configuration contracts, including choices that start inactive.
-            for camera in self._camera_choices:
-                if isinstance(camera, SceneCameraCfg):
-                    plan = SimulationContext.instance().get_clone_plan()
-                    prim_path = expand_env_regex_ns(camera.prim_path, plan.env_template)
-                    sensors = scene_data_provider.get_camera_sensors()
-                    sensor = find_camera_by_prim_path(sensors, prim_path, self._camera_sensor_indices)
-                    for gt_type in self.cfg.streaming_gt_types:
-                        sensor_key_for_gt_type(gt_type, frozenset(sensor.cfg.data_types))
+        super().initialize(scene_data_provider, stage=stage, clone_plan=clone_plan)
         if self._viewer is not None:
-            self._viewer._draw_streaming_view_controls = self._draw_streaming_view_controls
+            self._viewer.register_ui_callback(self._draw_streaming_view_controls, position="side")
             self._select_camera(self._camera_index)
 
-    def _draw_streaming_view_controls(self) -> None:
+    def _draw_streaming_view_controls(self, imgui) -> None:
         """Choose one declared display source without reading the other sensors."""
-        imgui = self._viewer.ui.imgui
         imgui.set_next_item_open(True, imgui.Cond_.appearing)
         if not imgui.collapsing_header("Camera View"):
             return
         labels = [
-            camera.prim_path if isinstance(camera, SceneCameraCfg) else f"Perspective {i + 1}"
+            f"Perspective {i + 1}" if isinstance(camera, PerspectiveCameraCfg) else camera.cfg.prim_path
             for i, camera in enumerate(self._camera_choices)
         ]
         changed, index = imgui.combo("Camera", self._camera_index, labels)
@@ -1711,12 +1626,9 @@ class NewtonGLVisualizer(NewtonVisualizer):
     def _select_camera(self, index: int) -> None:
         """Bind the selected source; all scene cameras retain their normal lazy-data lifecycle."""
         camera = self._camera_choices[index]
-        if isinstance(camera, SceneCameraCfg):
-            plan = SimulationContext.instance().get_clone_plan()
-            prim_path = expand_env_regex_ns(camera.prim_path, plan.env_template)
-            sensors = self._scene_data_provider.get_camera_sensors()
-            self._select_streaming_camera(find_camera_by_prim_path(sensors, prim_path, self._camera_sensor_indices))
-        else:
+        self._camera_sensor = None if isinstance(camera, PerspectiveCameraCfg) else camera
+        self._streaming_frame.timestamp = -1.0
+        if isinstance(camera, PerspectiveCameraCfg):
             self.set_camera_view(camera.eye, camera.lookat)
             self.cfg.focal_length = camera.focal_length
             self._apply_camera_focal_length()
@@ -1726,7 +1638,7 @@ class NewtonGLVisualizer(NewtonVisualizer):
             self._viewer.picking.release()
 
     def _uses_streaming_view(self) -> bool:
-        return isinstance(self._camera_choices[self._camera_index], SceneCameraCfg)
+        return self._camera_sensor is not None
 
     def step(self, dt: float) -> None:
         """Display one camera and apply native navigation to all copies of the selected sensor.
@@ -1734,13 +1646,11 @@ class NewtonGLVisualizer(NewtonVisualizer):
         Args:
             dt: Simulation time step [s].
         """
-        if self._viewer is None or self._runtime_headless or not self._uses_streaming_view():
-            super().step(dt)
-            return
-        index, camera = self._camera_index, self._camera_sensor
-        before = self._viewer.camera.get_view_matrix().reshape(4, 4).T
+        camera = self._camera_sensor
+        navigating = self._viewer is not None and not self._runtime_headless and camera is not None
+        before = self._viewer.camera.get_view_matrix().reshape(4, 4).T if navigating else None
         super().step(dt)
-        if self._viewer is None or self._viewer.is_paused() or index != self._camera_index:
+        if not navigating or self._viewer is None or self._viewer.is_paused() or camera is not self._camera_sensor:
             return
         after = self._viewer.camera.get_view_matrix().reshape(4, 4).T
         if np.array_equal(before, after):
@@ -2008,10 +1918,7 @@ class NewtonRTXVisualizer(NewtonVisualizer):
             write_desktop_entry(
                 "isaaclab-newton-rtx-viewer", "Newton RTX Viewer", "Newton RTX Viewer", _NEWTON_ICON_DIR / "icon_64.png"
             )
-        sim = SimulationContext.instance()
         return NewtonViewerRTX(
-            scene_stage=sim.stage,
-            clone_plan=sim.get_clone_plan(),
             width=self.cfg.window_width,
             height=self.cfg.window_height,
             headless=runtime_headless,
@@ -2024,8 +1931,71 @@ class NewtonRTXVisualizer(NewtonVisualizer):
         )
 
     def _apply_viewer_post_init(self) -> None:
-        """Apply RTX-specific renderer settings after viewer construction."""
+        """Import authored lighting into the viewer's generated USD scene."""
         self._viewer.particle_color = self.cfg.particle_color
+        plan, stage = self._clone_plan, self._scene_stage
+        if self.cfg.rtx_environment != "default" or plan is None or stage is None:
+            return
+        viewer = self._viewer
+        viewer._environment = "default"
+        viewer.stage.RemovePrim("/root/scene_lights")
+        sources = cloner_path.get_asset_prototype_paths(plan)
+        templates, starts, world_ids, world_starts = cloner_path.get_world_prototype_asset_templates(
+            plan, include_world_indices=True
+        )
+        xforms = UsdGeom.XformCache()
+        lights = {}
+        for source in dict.fromkeys(sources):
+            root = stage.GetPrimAtPath(source) if source is not None else None
+            if root:
+                prims = Usd.PrimRange(root, Usd.TraverseInstanceProxies())
+                lights[source] = [prim for prim in prims if prim.HasAPI(UsdLux.LightAPI)]
+        if not any(lights.values()):
+            return
+
+        viewer._environment = "none"  # Authored lights replace the native fallback rig.
+        # Read prototypes once; only light instances are expanded, never the completed scene.
+        offsets = viewer.world_offsets.numpy() if viewer.world_offsets is not None else None
+        for group, (start, end) in enumerate(zip(starts[:-1], starts[1:], strict=True)):
+            worlds = world_ids[world_starts[group] : world_starts[group + 1]]
+            worlds = [world for world in worlds if viewer._should_render_world(int(world))]
+            if not worlds:
+                continue
+            for index in range(start, end):
+                source = sources[plan.topology.world_prototypes[index]]
+                for prim in lights.get(source, ()):
+                    properties = prim.GetAuthoredProperties()
+                    properties = [
+                        prop for prop in properties if not prop.GetName().startswith(("xformOp:", "xformOpOrder"))
+                    ]
+                    texture = prim.GetAttribute("inputs:texture:file")
+                    asset = texture.Get() if texture else None
+                    if asset and asset.path:
+                        asset = Sdf.AssetPath(retrieve_file_path(asset.resolvedPath or asset.path))
+                    transform = xforms.GetLocalToWorldTransform(prim)
+                    origin = Gf.Vec3d(0.0)
+                    matched = cloner_path.match(source, plan.env_template)
+                    if group and plan.positions is not None and matched is not None:
+                        env = stage.GetPrimAtPath(plan.env_template.format(matched.instance))
+                        origin = xforms.GetLocalToWorldTransform(env).ExtractTranslation()
+                    suffix = str(prim.GetPath())[len(source) :]
+                    for world in worlds:
+                        destination = "/root/scene_lights" + templates[index].format(int(world)) + suffix
+                        target = viewer.stage.DefinePrim(destination, prim.GetTypeName())
+                        target.SetMetadata("apiSchemas", Sdf.TokenListOp.CreateExplicit(prim.GetAppliedSchemas()))
+                        for prop in properties:
+                            prop.FlattenTo(target)
+                        if asset:
+                            target.GetAttribute("inputs:texture:file").Set(asset)
+                        UsdGeom.Imageable(target).GetVisibilityAttr().Set(UsdGeom.Imageable(prim).ComputeVisibility())
+                        position = transform.ExtractTranslation()
+                        if world >= 0:
+                            if offsets is not None:
+                                position += Gf.Vec3d(*map(float, offsets[world]))
+                            if plan.positions is not None:
+                                position += Gf.Vec3d(*map(float, plan.positions[world])) - origin
+                        pose = Gf.Matrix4d(transform).SetTranslateOnly(position)
+                        UsdGeom.Xformable(target).MakeMatrixXform().Set(pose)
 
     def _apply_camera_pose(
         self,

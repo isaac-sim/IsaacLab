@@ -460,7 +460,7 @@ class SimulationContext:
         for visualizer in tuple(self._pending_visualizers):
             if config_filter is not None and not config_filter(visualizer.cfg):
                 continue
-            visualizer.initialize(self._scene_data_provider)
+            visualizer.initialize(self._scene_data_provider, stage=self.stage, clone_plan=self._clone_plan)
             self._pending_visualizers.remove(visualizer)
             self._visualizers.append(visualizer)
             self._visualizers_started = True

@@ -20,7 +20,6 @@ from ... import sim as sim_utils
 from ...app.logging_utils import force_log_level
 from ...renderers import BaseRenderer, CameraRenderSpec
 from ...sim.views import FrameView
-from ...utils.array import index_fill_
 from ...utils.math import (
     convert_camera_frame_orientation_convention,
     create_rotation_matrix_from_view,
@@ -559,7 +558,7 @@ class Camera(SensorBase):
         # write through to the data buffers so explicitly set poses are never stale,
         # regardless of :attr:`CameraCfg.update_latest_camera_pose`
         self._update_poses(env_ids=idx_wp, frame_op=0)
-        index_fill_(wp.to_torch(self._is_outdated), None if idx_wp is None else wp.to_torch(idx_wp), True)
+        wp.indexedarray(self._is_outdated, idx_wp).fill_(True)
         self._data_dirty = True
 
     def set_world_poses_from_view(
@@ -619,7 +618,7 @@ class Camera(SensorBase):
         # write through to the data buffers so explicitly set poses are never stale,
         # regardless of :attr:`CameraCfg.update_latest_camera_pose`
         self._update_poses(env_ids=idx_wp, frame_op=0)
-        index_fill_(wp.to_torch(self._is_outdated), wp.to_torch(idx_wp), True)
+        wp.indexedarray(self._is_outdated, idx_wp).fill_(True)
         self._data_dirty = True
 
     """

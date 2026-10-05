@@ -15,7 +15,7 @@ import torch
 from isaaclab.envs.utils.camera_view import apply_camera_view_from_origins
 from isaaclab.utils.string import ResolvableString
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
-from isaaclab.visualizers.visualizer_cfg import VisualizerCfg
+from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg, SceneCameraCfg, VisualizerCfg
 
 pytestmark = [pytest.mark.integration, pytest.mark.rendering]
 
@@ -41,16 +41,25 @@ def test_visualizer_cfg_names_its_implementation(module_name, cfg_name, implemen
     assert isinstance(class_type, ResolvableString)
     assert class_type.__name__ == implementation
     assert cfg.streaming_sensor_prim_path is None
-    assert not any(name.startswith("streaming_cam_") for name in vars(cfg))
+    assert "cameras" in vars(cfg) and "camera" not in vars(cfg)
+    assert not any(name.startswith(("streaming_cam_", "tiled_cam_")) for name in vars(cfg))
 
 
-def test_visualizer_cfg_streaming_view_is_opt_in():
+def test_visualizer_cfg_camera_sources():
     cfg = VisualizerCfg()
     assert cfg.focal_length == 12.0
     assert cfg.background_color is None
     assert cfg.streaming_view is False
     assert cfg.streaming_envs == 32
     assert cfg.streaming_sensor_prim_path is None
+    cfg = VisualizerCfg(cameras=[SceneCameraCfg(prim_path="{ENV_REGEX_NS}/Camera")])
+    assert cfg.streaming_view
+    # Resolve the source at initialization instead of copying its path between config fields.
+    assert cfg.streaming_sensor_prim_path is None
+    cfg = VisualizerCfg(cameras=[PerspectiveCameraCfg(eye=(1.0, 2.0, 3.0), focal_length=24.0)])
+    assert (cfg.eye, cfg.focal_length, cfg.streaming_view) == ((1.0, 2.0, 3.0), 24.0, False)
+    with pytest.raises(ValueError, match="at least one display source"):
+        VisualizerCfg(cameras=[])
 
 
 def test_visualizer_cfg_validates_background_color():

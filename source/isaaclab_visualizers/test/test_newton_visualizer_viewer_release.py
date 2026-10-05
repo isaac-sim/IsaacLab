@@ -87,6 +87,7 @@ def _make_visualizer(viewer: _SpyRTXViewer | _SpyGLViewer | None) -> NewtonVisua
     visualizer._viewer_picking_binding = NewtonVisualizer._ViewerPickingBinding()
     visualizer._viewer = viewer
     visualizer._camera_sensor = None
+    visualizer._camera_choices = []
     visualizer._pending_mesh_submissions = {}
     if viewer is not None:
         viewer.owner = visualizer
@@ -152,6 +153,8 @@ def test_close_completes_cleanup_when_viewer_teardown_fails() -> None:
     visualizer = _make_visualizer(viewer)
     camera = SimpleNamespace(close=lambda: pytest.fail("A visualizer must not close a scene camera"))
     visualizer._camera_sensor = camera
+    visualizer._camera_choices = [camera]
+    visualizer._scene_stage = visualizer._clone_plan = object()
 
     with pytest.raises(RuntimeError, match="Failed to create window"):
         visualizer.close()
@@ -159,6 +162,8 @@ def test_close_completes_cleanup_when_viewer_teardown_fails() -> None:
     assert viewer.close_calls == 1
     assert visualizer._viewer is None
     assert visualizer._camera_sensor is None
+    assert not visualizer._camera_choices
+    assert visualizer._scene_stage is visualizer._clone_plan is None
     assert visualizer._is_closed is True
 
 

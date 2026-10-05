@@ -36,6 +36,9 @@ from isaaclab_visualizers.newton_adapter import (
 from .rerun_visualizer_cfg import RerunVisualizerCfg
 
 if TYPE_CHECKING:
+    from pxr import Usd
+
+    from isaaclab.cloner import ClonePlan
     from isaaclab.scene_data import SceneDataProvider
 
 logger = logging.getLogger(__name__)
@@ -279,16 +282,24 @@ class RerunVisualizer(BaseVisualizer):
         self._last_camera_pose: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
         self._resolved_visible_env_ids: list[int] | None = None
 
-    def initialize(self, scene_data_provider: SceneDataProvider) -> None:
+    def initialize(
+        self,
+        scene_data_provider: SceneDataProvider,
+        *,
+        stage: Usd.Stage | None = None,
+        clone_plan: ClonePlan | None = None,
+    ) -> None:
         """Initialize rerun viewer and bind scene data provider.
 
         Args:
             scene_data_provider: Scene data provider used to fetch model/state data.
+            stage: Authored scene stage, when available.
+            clone_plan: Scene topology and environment namespace, when available.
         """
         if self._is_initialized:
             return
 
-        scene_data_provider = self._set_scene_data_provider(scene_data_provider)
+        super().initialize(scene_data_provider, stage=stage, clone_plan=clone_plan)
         num_envs = scene_data_provider.num_envs
         self._env_ids = self._compute_visualized_env_ids()
         sim = SimulationContext.instance()
@@ -449,14 +460,12 @@ class RerunVisualizer(BaseVisualizer):
             finally:
                 self._viewer = None
 
-        self._camera_sensor = None
-
         try:
             rr.disconnect()
         except Exception as exc:
             logger.warning("[RerunVisualizer] Failed while disconnecting rerun: %s", exc)
-        self.backend = self._scene_data_provider = self._transform_mapping = None
-        self._is_closed = True
+        self.backend = self._transform_mapping = None
+        super().close()
 
     def is_running(self) -> bool:
         """Return whether the visualizer should continue stepping.
