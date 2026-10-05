@@ -140,6 +140,7 @@ def test_launch_simulation_kitless_applies_python_logging_level(monkeypatch):
 
     _force_kitless(monkeypatch)
     monkeypatch.setattr(sim_launcher, "apply_python_logging_level", fake_apply)
+    monkeypatch.setattr(sim_launcher, "ensure_console_handlers", lambda level: captured.update(handlers_level=level))
 
     env_cfg = _DummyEnvCfg(SimulationCfg(visualizer_cfgs=None))
     launcher_args = argparse.Namespace(visualizer=None, verbose=True)
@@ -147,3 +148,4 @@ def test_launch_simulation_kitless_applies_python_logging_level(monkeypatch):
         pass
 
     assert captured["applied_level"] == logging.DEBUG
+    assert captured["handlers_level"] == logging.DEBUG

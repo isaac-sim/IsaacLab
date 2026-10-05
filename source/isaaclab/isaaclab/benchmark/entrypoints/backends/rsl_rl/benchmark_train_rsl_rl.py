@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from isaaclab.benchmark import BenchmarkResult
 
+import logging
 import sys
 import time
 from typing import Any
@@ -19,6 +20,8 @@ from typing import Any
 from isaaclab.utils import to_dict
 
 from isaaclab_rl.entrypoints import common
+
+logger = logging.getLogger(__name__)
 
 
 def _disable_code_state_capture(runner: Any) -> None:
@@ -284,10 +287,9 @@ def run(argv: list[str]) -> BenchmarkResult | None:
             desc = RL_LIBRARY_DESCRIPTORS["rsl_rl"]
             log_data = parse_tf_logs(log_dir, desc.tfevents_pattern)
             if not log_data or (not log_data.get(desc.reward_tag) and agent_cfg.max_iterations >= 1):
-                print(
-                    f"[WARNING] No TensorBoard data parsed from {log_dir!r};"
-                    " the emitted bundle will report zero metrics. Check the log directory.",
-                    file=sys.stderr,
+                logger.warning(
+                    f"No TensorBoard data parsed from {log_dir!r};"
+                    " the emitted bundle will report zero metrics. Check the log directory."
                 )
 
             # RSL-RL reports collection and learning durations separately in seconds. Ranks train in

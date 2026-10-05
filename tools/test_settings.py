@@ -49,7 +49,6 @@ PER_TEST_TIMEOUTS = {
     "test_visualizer_golden_newton.py": 6000,
     "test_visuotactile_sensor.py": 1000,
     "test_visuotactile_render.py": 1000,
-    "test_rigid_object_collection.py": 1500,
     "test_outdated_sensor.py": 1000,
     "test_multi_tiled_camera.py": 1000,
     "test_multirotor.py": 1000,
@@ -83,6 +82,8 @@ PER_TEST_STARTUP_TIMEOUTS = {
 """Per-test startup timeouts for cold external asset downloads."""
 
 PYTEST_WORKERS = {
+    # Standalone launches already use independent subprocesses; overlap two simulator startups.
+    "test_standalone_scripts.py": 2,
     # 20 independent export round trips, ~18 min serially: the RL job's long pole.
     "test_leapp_export_flow.py": 4,
     # Contributed-environment smoke tests: environment runs of several seconds to 2 min each. The camera file
