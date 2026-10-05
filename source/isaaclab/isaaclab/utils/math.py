@@ -756,28 +756,6 @@ def skew_symmetric_matrix(vec: torch.Tensor) -> torch.Tensor:
     return skew_sym_mat
 
 
-@torch.jit.script
-def velocity_at_point(
-    linear_velocity: torch.Tensor, angular_velocity: torch.Tensor, point_offset: torch.Tensor, dim: int = -1
-) -> torch.Tensor:
-    """Return linear velocity at a displaced point: ``v_point = v_origin + ω × r``.
-
-    All inputs use the same reference frame. ``dim`` selects the size-3 vector axis; all other dimensions
-    follow PyTorch broadcasting. This also shifts each column of a batched Jacobian independently.
-    Angular velocity does not change under a point shift.
-
-    Args:
-        linear_velocity: Linear velocity at the original point.
-        angular_velocity: Angular velocity about the original point.
-        point_offset: Displacement from the original point, expressed in the same frame.
-        dim: Vector axis. Defaults to the last axis.
-
-    Returns:
-        Linear velocity at the displaced point.
-    """
-    return linear_velocity + torch.linalg.cross(angular_velocity, point_offset, dim=dim)
-
-
 """
 Transformations
 """

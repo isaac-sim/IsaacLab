@@ -488,14 +488,6 @@ def test_skew_symmetric_matrix(device, shape):
     torch.testing.assert_close(vec_rand_resized[:, 0], mat_value[:, 2, 1])
 
 
-def test_velocity_at_point():
-    """A point displaced perpendicular to an angular velocity gains the expected linear velocity."""
-    linear = torch.tensor([[1.0, 2.0, 3.0]])
-    angular = torch.tensor([[0.0, 0.0, 2.0]])
-    offset = torch.tensor([[0.0, 3.0, 0.0]])
-    torch.testing.assert_close(math_utils.velocity_at_point(linear, angular, offset), torch.tensor([[-5.0, 2.0, 3.0]]))
-
-
 @pytest.mark.parametrize("device", test_devices())
 def test_orthogonalize_perspective_depth(device):
     """Test for converting perspective depth to orthogonal depth."""

@@ -5,20 +5,13 @@
 
 """Kinematics of the target frame shared by the Newton task-space action terms."""
 
-import ast
-import inspect
 import math
-import textwrap
 from types import SimpleNamespace
 
 import pytest
 import torch
 from isaaclab_newton.envs.mdp.actions.newton_task_space_actions import _NewtonTaskSpaceAction
 
-from isaaclab.envs.mdp.actions.task_space_actions import (
-    DifferentialInverseKinematicsAction,
-    OperationalSpaceControllerAction,
-)
 from isaaclab.utils import math as math_utils
 
 pytestmark = pytest.mark.unit
@@ -27,7 +20,7 @@ _S = math.sin(math.pi / 4.0)
 
 
 def test_body_offset_jacobian_uses_offset_in_root_frame():
-    """The offset uses root axes, keeps angular rows unchanged, and shares the point-shift math."""
+    """The offset uses root axes, and a rigid offset rotation leaves angular rows unchanged."""
     # a tilted root, so that a body-frame or world-frame lever arm gives a different result
     root_quat_w = torch.tensor([[_S, 0.0, 0.0, _S]])
     # One revolute joint about the root z axis through the body origin; the body is yawed 90 degrees from the root.
@@ -56,15 +49,5 @@ def test_body_offset_jacobian_uses_offset_in_root_frame():
     expected = torch.tensor([[[-1.0], [0.0], [0.0], [0.0], [0.0], [1.0]]])
     torch.testing.assert_close(jacobian_b, expected, atol=1e-6, rtol=0.0)
 
-    # Keep the kinematic operation in math instead of recopying it into an action term.
-    methods = (
-        DifferentialInverseKinematicsAction._compute_frame_jacobian,
-        OperationalSpaceControllerAction._compute_ee_jacobian,
-        _NewtonTaskSpaceAction._compute_ee_jacobian,
-    )
-    for method in methods:
-        tree = ast.parse(textwrap.dedent(inspect.getsource(method)))
-        calls = [node.func for node in ast.walk(tree) if isinstance(node, ast.Call)]
-        names = [call.attr for call in calls if isinstance(call, ast.Attribute)]
-        assert names.count("velocity_at_point") == 1, method.__qualname__
-        assert not {"skew_symmetric_matrix", "cross"}.intersection(names), method.__qualname__
+    # The point-shift identity is one tensor operation, not another Isaac Lab math API.
+    assert not hasattr(math_utils, "velocity_at_point")
