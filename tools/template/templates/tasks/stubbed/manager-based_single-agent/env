@@ -1,0 +1,28 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+from __future__ import annotations
+
+import numpy as np
+import torch
+
+from isaaclab.envs import ManagerBasedRLEnv
+
+from .{{ task.env_cfg_filename }} import {{ task.classname }}EnvCfg
+
+
+class {{ task.classname }}Env(ManagerBasedRLEnv):
+    """Implement the manager-based AMP interface."""
+
+    cfg: {{ task.classname }}EnvCfg
+
+    def __init__(self, cfg: {{ task.classname }}EnvCfg, render_mode: str | None = None, **kwargs):
+        raise NotImplementedError("Initialize the environment and AMP observation buffers.")
+
+    def step(self, action: torch.Tensor):
+        raise NotImplementedError("Step the environment and update AMP observations.")
+
+    def collect_reference_motions(self, num_samples: int, current_times: np.ndarray | None = None) -> torch.Tensor:
+        raise NotImplementedError("Collect task-specific AMP reference motions.")

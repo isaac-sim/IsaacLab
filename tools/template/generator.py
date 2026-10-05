@@ -60,6 +60,7 @@ def _generate_task_per_workflow(task_dir: str, specification: dict) -> None:
         specification: The specification of the project/task.
     """
     task_spec = specification["task"]
+    task_template_dir = "tasks/stubbed" if specification.get("initial_content") == "stubbed" else "tasks"
     agents_dir = os.path.join(task_dir, "agents")
     os.makedirs(agents_dir, exist_ok=True)
     template = jinja_env.get_template("tasks/__init__task")
@@ -80,24 +81,24 @@ def _generate_task_per_workflow(task_dir: str, specification: dict) -> None:
                 ) from exc
             _write_file(os.path.join(agents_dir, file_name + file_ext), content=template.render(**specification))
     if task_spec["workflow"]["name"] == "direct":
-        template = jinja_env.get_template(f"tasks/direct_{task_spec['workflow']['type']}/env_cfg")
+        template = jinja_env.get_template(f"{task_template_dir}/direct_{task_spec['workflow']['type']}/env_cfg")
         _write_file(
             os.path.join(task_dir, f"{task_spec['env_cfg_filename']}.py"), content=template.render(**specification)
         )
-        template = jinja_env.get_template(f"tasks/direct_{task_spec['workflow']['type']}/env")
+        template = jinja_env.get_template(f"{task_template_dir}/direct_{task_spec['workflow']['type']}/env")
         _write_file(os.path.join(task_dir, f"{task_spec['env_filename']}.py"), content=template.render(**specification))
     elif task_spec["workflow"]["name"] == "manager-based":
-        template = jinja_env.get_template(f"tasks/manager-based_{task_spec['workflow']['type']}/env_cfg")
+        template = jinja_env.get_template(f"{task_template_dir}/manager-based_{task_spec['workflow']['type']}/env_cfg")
         _write_file(
             os.path.join(task_dir, f"{task_spec['env_cfg_filename']}.py"), content=template.render(**specification)
         )
         if task_spec["amp_selected"]:
-            template = jinja_env.get_template(f"tasks/manager-based_{task_spec['workflow']['type']}/env")
+            template = jinja_env.get_template(f"{task_template_dir}/manager-based_{task_spec['workflow']['type']}/env")
             _write_file(
                 os.path.join(task_dir, f"{task_spec['env_filename']}.py"), content=template.render(**specification)
             )
         shutil.copytree(
-            os.path.join(TEMPLATE_DIR, "tasks", f"manager-based_{task_spec['workflow']['type']}", "mdp"),
+            os.path.join(TEMPLATE_DIR, task_template_dir, f"manager-based_{task_spec['workflow']['type']}", "mdp"),
             os.path.join(task_spec["family_dir"], "mdp"),
             dirs_exist_ok=True,
         )
@@ -366,7 +367,7 @@ def generate(specification: dict) -> None:
             "At least one author is required"
         )
         specification["authors_toml"] = json.dumps(", ".join(specification["authors"]))[1:-1]
-        assert specification["initial_content"] in ("blank", "cartpole"), "Invalid initial project content"
+        assert specification["initial_content"] in ("blank", "cartpole", "stubbed"), "Invalid initial project content"
         assert specification["task_name"].isascii() and specification["task_name"].isidentifier(), (
             "Task family name must be an ASCII identifier"
         )

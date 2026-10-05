@@ -1,0 +1,59 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+from __future__ import annotations
+
+from collections.abc import Sequence
+from typing import TYPE_CHECKING
+
+{% if task.amp_selected %}
+import numpy as np
+{% endif %}
+import torch
+
+from isaaclab.envs import DirectMARLEnv
+
+if TYPE_CHECKING:
+    from .{{ task.env_cfg_filename }} import {{ task.classname }}EnvCfg
+
+
+class {{ task.classname }}Env(DirectMARLEnv):
+    """Implement the task's environment lifecycle."""
+
+    cfg: {{ task.classname }}EnvCfg
+
+    def __init__(self, cfg: {{ task.classname }}EnvCfg, render_mode: str | None = None, **kwargs):
+        raise NotImplementedError("Initialize the base environment and task buffers.")
+
+    def _setup_scene(self) -> None:
+        raise NotImplementedError("Create and configure task-specific scene objects.")
+
+    def _pre_physics_step(self, actions: dict[str, torch.Tensor]) -> None:
+        raise NotImplementedError("Process policy actions.")
+
+    def _apply_action(self) -> None:
+        raise NotImplementedError("Apply actions to the simulation.")
+
+    def _get_observations(self) -> dict[str, torch.Tensor]:
+        raise NotImplementedError("Compute policy observations.")
+
+    def _get_rewards(self) -> dict[str, torch.Tensor]:
+        raise NotImplementedError("Compute task rewards.")
+
+    def _get_dones(self) -> tuple[dict[str, torch.Tensor], dict[str, torch.Tensor]]:
+        raise NotImplementedError("Compute termination and timeout conditions.")
+
+    def _reset_idx(self, env_ids: Sequence[int] | None) -> None:
+        raise NotImplementedError("Reset selected environments.")
+{% if task.amp_selected %}
+
+    def collect_reference_motions(self, num_samples: int, current_times: np.ndarray | None = None) -> torch.Tensor:
+        raise NotImplementedError("Collect task-specific AMP reference motions.")
+{% endif %}
+
+
+def compute_rewards() -> dict[str, torch.Tensor]:
+    """Add task-specific reward inputs and compute rewards."""
+    raise NotImplementedError("Implement the reward function.")

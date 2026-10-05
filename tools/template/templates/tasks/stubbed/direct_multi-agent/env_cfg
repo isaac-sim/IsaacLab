@@ -1,0 +1,48 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+from dataclasses import MISSING
+
+from isaaclab.assets import ArticulationCfg
+from isaaclab.envs import DirectMARLEnvCfg
+from isaaclab.physics import PhysicsCfg
+from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.sim import SimulationCfg
+from isaaclab.utils import configclass
+
+from isaaclab_tasks.utils import PresetCfg
+
+
+@configclass
+class {{ task.classname }}PhysicsCfg(PresetCfg):
+    """Select and configure physics for your task."""
+
+    default: PhysicsCfg = MISSING
+
+
+@configclass
+class {{ task.classname }}SceneCfg(InteractiveSceneCfg):
+    """Define robot assets, ground, lighting, and other scene objects."""
+
+    robot: ArticulationCfg = MISSING
+
+
+@configclass
+class {{ task.classname }}EnvCfg(DirectMARLEnvCfg):
+    """Configure the task before constructing the environment."""
+
+    decimation: int = MISSING
+    episode_length_s: float = MISSING
+    possible_agents: list[str] = MISSING
+    action_spaces: dict[str, int] = MISSING
+    observation_spaces: dict[str, int] = MISSING
+    state_space: int = MISSING
+
+    sim: SimulationCfg = SimulationCfg(physics={{ task.classname }}PhysicsCfg())
+    scene: {{ task.classname }}SceneCfg = {{ task.classname }}SceneCfg(num_envs=1, env_spacing=4.0)
+
+    def __post_init__(self) -> None:
+        """Set simulation timing, physics, spaces, and task parameters."""
+        raise NotImplementedError("Configure simulation, scene, and task parameters.")

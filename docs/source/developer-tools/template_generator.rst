@@ -8,8 +8,8 @@ The template generator bootstraps the package structure and, when requested,
 task registration and agent configurations for an Isaac Lab task. Use it to
 create either a standalone project outside Isaac Lab or a task intended for
 contribution to the Isaac Lab repository. An external project can start with a
-working Cartpole example or an empty task package. Internal tasks start from the
-Cartpole example.
+working Cartpole example, a stubbed task, or an empty task package. Internal tasks
+start from the Cartpole example.
 
 Choose what to generate
 -----------------------
@@ -46,15 +46,24 @@ content:
    * - Cartpole
      - A runnable example with the selected workflows, task registration, and
        agent configurations.
+   * - Stubbed
+     - The same task structure and agent configurations, with task functions
+       raising ``NotImplementedError`` and required config values set to ``MISSING``.
    * - Blank
      - Package structure, project-owned asset paths, task discovery, tests, and
        development tooling without example task or agent files.
 
 The selected authors are written to ``pyproject.toml``, the project extension
 metadata when selected, and the BSD-3-Clause ``LICENSE`` used by Isaac Lab. A
-Blank project skips task family, robot, workflow, and RL prompts. A Cartpole
-project next asks for one or more task workflows. See :ref:`feature-workflows`
+Blank project skips task family, robot, workflow, and RL prompts. Cartpole and
+Stubbed projects next ask for one or more task workflows. See :ref:`feature-workflows`
 for the complete comparison.
+
+Before running a Stubbed task, implement its scene, physics and timing, actions,
+observations, rewards, termination conditions, and reset behavior. The generated
+README describes these implementation points. Manager-based tasks include
+placeholder terms in the family's ``mdp`` package; direct tasks include lifecycle
+methods in ``env.py``. AMP selections also include reference-motion placeholders.
 
 .. list-table::
    :widths: 30 70
@@ -139,6 +148,7 @@ external Cartpole command is:
 
 This uses the ``cartpole`` content, ``balance`` task family, ``cartpole`` robot
 configuration, manager-based single-agent workflow, RSL-RL, and PPO defaults.
+Create a Stubbed project by adding ``--initial_content stubbed``.
 Create a Blank project by adding ``--initial_content blank``. Blank projects do
 not accept task, workflow, library, or algorithm options because they contain no
 example task.
@@ -163,10 +173,10 @@ Use the following arguments to override the defaults:
    * - ``--author NAME``
      - External project author. Required; repeat the argument for multiple
        authors.
-   * - ``--initial_content blank|cartpole``
+   * - ``--initial_content blank|cartpole|stubbed``
      - External project content. The default is ``cartpole``.
    * - ``--task_name NAME`` and ``--robot_name NAME``
-     - Cartpole task family and robot/config names. The defaults are ``balance``
+     - Task family and robot/config names. The defaults are ``balance``
        and ``cartpole``.
    * - ``--include_ui_extension``
      - Include files for loading the project through the Isaac Sim Extension
