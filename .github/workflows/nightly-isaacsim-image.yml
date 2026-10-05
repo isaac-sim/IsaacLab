@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Resolve the moving Isaac Sim ``latest-develop`` tag to its immutable
+# Resolve the moving Isaac Sim ``latest-release-6-2`` tag to its immutable
 # manifest digest and open (or refresh) a draft PR against ``develop``.
 #
 # Scheduled workflows register only from the default branch, so this file
@@ -40,7 +40,7 @@ concurrency:
 env:
   CONFIG_PATH: .github/workflows/config.yaml
   SOURCE_IMAGE: nvcr.io/0947644777160149/internal/isaac-sim
-  SOURCE_TAG: latest-develop
+  SOURCE_TAG: latest-release-6-2
   TARGET_BRANCH: develop
   UPDATE_BRANCH: ci/nightly-isaacsim-image-update
 
@@ -189,7 +189,7 @@ jobs:
           {
             echo "# Description"
             echo
-            echo "This automated draft updates CI to the current Isaac Sim nightly image."
+            echo "This automated draft updates CI to the current Isaac Sim 6.2 release image."
             echo
             echo "| Field | Value |"
             echo "|---|---|"
