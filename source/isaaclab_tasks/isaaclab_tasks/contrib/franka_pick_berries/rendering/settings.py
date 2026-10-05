@@ -30,21 +30,15 @@ def require_live_gaussian_renderer():
         )
 
 
-def apply_sampling_settings(product: Usd.Prim, antialiasing: str = "default", rtpt_spp: int | None = None) -> dict:
-    """Author DLAA antialiasing tokens and/or RTPT samples on one render product.
+def apply_sampling_settings(product: Usd.Prim, rtpt_spp: int | None = None) -> dict:
+    """Author RTPT samples on one render product; antialiasing keeps the renderer's default.
 
-    ``default`` and ``None`` preserve the inherited settings. RTPT uses
-    ``rtpt:spp``, not the separate offline ``pt:samplesPerPixel`` attribute.
+    ``None`` preserves the inherited setting. RTPT uses ``rtpt:spp``, not the
+    separate offline ``pt:samplesPerPixel`` attribute.
     """
-    if antialiasing not in ("default", "dlaa"):
-        raise ValueError(f"Unsupported antialiasing mode: {antialiasing}")
     if rtpt_spp is not None and rtpt_spp < 1:
         raise ValueError("RTPT samples must be positive")
     authored = {}
-    if antialiasing == "dlaa":
-        for name in ("post:dlss:execMode", "post:aa:op"):
-            authored["omni:rtx:" + name] = "rtxaa"
-            product.CreateAttribute("omni:rtx:" + name, Sdf.ValueTypeNames.Token).Set("rtxaa")
     if rtpt_spp is not None:
         authored["omni:rtx:rtpt:spp"] = rtpt_spp
         product.CreateAttribute("omni:rtx:rtpt:spp", Sdf.ValueTypeNames.Int).Set(rtpt_spp)

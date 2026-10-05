@@ -341,8 +341,8 @@ uv run --no-sync python source/isaaclab_tasks/isaaclab_tasks/contrib/franka_pick
 
 Choose fresh output directories. Add `--window` for interactive scripted viewing,
 or `--video` to record (requires ffmpeg). Scripts without `--window` render offscreen.
-`--verify_render` checks native Gaussian publication; `--render_aa dlaa --rtpt_spp 4`
-are optional sampling overrides, not guaranteed appearance fixes.
+`--verify_render` checks native Gaussian publication; `--rtpt_spp 4` is an optional
+sampling override, not a guaranteed appearance fix. Antialiasing keeps the renderer's default.
 
 ## Profiling with Tracy
 
