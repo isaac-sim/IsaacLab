@@ -69,7 +69,8 @@ Prerequisites
 Installation
 ------------
 
-From the Isaac Lab root directory:
+For GR00T N1.5, run the following from the Isaac Lab root directory. For N1.7, use
+the alternative model dependencies below.
 
 .. code-block:: bash
 
@@ -77,17 +78,19 @@ From the Isaac Lab root directory:
    # (interactive sessions prompt automatically; headless mode requires this)
    export OMNI_KIT_ACCEPT_EULA=yes
 
-   # Step 1: Install safe dependencies via the rlinf and video extras
+   # Step 1: Install shared dependencies and RLinf for both GR00T generations
    # NOTE: On DGX Spark / aarch64 systems, build decord from source first
    # (see "Building decord on DGX Spark / aarch64" below), then run this step.
    # --inexact keeps the existing environment (e.g. Isaac Sim) untouched while
    # adding the rlinf and video dependencies from the root pyproject.
    uv sync --inexact --extra rlinf --extra video
+   uv pip install --no-deps \
+       "git+https://github.com/RLinf/RLinf.git@0f9ea98c7a6d9e3ade24e8f4846c64d3b135dbcc"
 
    # Step 2: Install packages with conflicting constraints (--no-deps to bypass resolver)
-   uv pip install rlinf==0.2.0dev2 transformers==4.51.3 "tokenizers>=0.21,<0.22" --no-deps
+   uv pip install transformers==4.51.3 "tokenizers>=0.21,<0.22" --no-deps
    # Use the official PyTorch3D v0.7.9 tag instead of the older pipablepytorch3d package.
-   # GR00T only uses pytorch3d.transforms, so skip the compiled extension.
+   # GR00T N1.5 only uses pytorch3d.transforms, so skip the compiled extension.
    PYTORCH3D_NO_EXTENSION=1 uv pip install --no-build-isolation \
        "git+https://github.com/facebookresearch/pytorch3d.git@v0.7.9" --no-deps
 
@@ -101,14 +104,17 @@ From the Isaac Lab root directory:
    # Step 4: Install flash-attn (see "Skipping flash-attn" below if this fails)
    pip install flash-attn==2.8.3 --no-build-isolation --no-deps
 
-The packages installed in Step 2 intentionally differ from the versions in the
+Existing RLinf 0.2 installations must rerun Step 1 to use the shared RLinf revision above.
+Both GR00T generations use its per-generation model packages and action registries.
+
+The packages installed above intentionally differ from the versions in the
 Isaac Lab lockfile. Use ``uv run --no-sync`` for the commands below so that
 ``uv`` does not replace these GR00T-compatible versions before launching.
 
 .. _rlinf-skipping-flash-attn:
 
-Skipping flash-attn
-~~~~~~~~~~~~~~~~~~~
+Skipping flash-attn for N1.5
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 If Step 4 fails, skip installation of flash-attn and apply this patch instead:
 
@@ -118,7 +124,40 @@ If Step 4 fails, skip installation of flash-attn and apply this patch instead:
    git apply /path/to/IsaacLab/scripts/imitation_learning/locomanipulation_sdg/gr00t/no_flash_attn.patch
 
 The patch switches GR00T to PyTorch SDPA, so flash-attn is no longer required.
-The training and evaluation commands below work unchanged.
+The training and evaluation commands below work unchanged. This patch does not apply to N1.7.
+
+GR00T N1.7
+~~~~~~~~~~
+
+Use a separate Python 3.12 Isaac Lab environment: N1.5 and N1.7 install the same ``gr00t``
+package with incompatible APIs. After Step 1 above, replace Steps 2–4 with:
+
+.. code-block:: bash
+
+   uv pip install --no-deps \
+       "git+https://github.com/NVIDIA/Isaac-GR00T.git@1a1837f20538b7d7e21f977a11a5aee14f99803c" \
+       "transformers==4.57.3" "tokenizers>=0.22,<0.23"
+   uv pip install --no-deps --no-build-isolation "flash-attn==2.8.3"
+
+Set ``actor.model.model_type: gr00t_n1d7`` in the task YAML. RLinf loads the model and
+processor from ``model_path``; ``data_config_class`` is only used for N1.5. The checkpoint
+must include ``processor_config.json``, ``statistics.json``, and ``embodiment_id.json``
+at its root or in a ``processor/`` subdirectory.
+
+Match the checkpoint's language key and the environment's action order explicitly. For example,
+these entries belong under ``env.train.isaaclab``:
+
+.. code-block:: yaml
+
+   gr00t_mapping:
+     language: annotation.human.task_description
+     # Keep the checkpoint's video and state mappings here as well.
+   action_mapping:
+     keys: [action.left_arm, action.right_arm, action.left_hand, action.right_hand]
+
+Without these entries, the language key remains ``annotation.human.action.task_description``
+and actions retain the model's dictionary order. When set, ``keys`` must list every action part
+to emit, in environment order. Use ``uv run --no-sync`` to preserve the pins.
 
 .. _rlinf-decord-aarch64:
 
@@ -249,6 +288,15 @@ are converted to GR00T format:
      action_mapping:
        prefix_pad: 15
        suffix_pad: 0
+
+Action chunks across resets
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Isaac Lab resets completed environments inside ``step()``. For absolute joint-position policies,
+set ``env.train.isaaclab.hold_pose_on_midchunk_reset: true`` to replace the remaining old-episode
+actions with the returned joint positions until the next chunk. The configured ``states`` vector
+must contain only those joint positions, in the same order and units as the environment actions.
+This option defaults to false and does not apply to delta-position, velocity, or torque actions.
 
 Key Files
 ---------
