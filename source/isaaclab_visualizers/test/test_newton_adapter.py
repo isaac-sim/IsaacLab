@@ -235,8 +235,7 @@ def test_visualizers_borrow_scene_camera_outputs(monkeypatch, cfg_type):
     pixels = torch.arange(4, dtype=torch.uint8).reshape(4, 1, 1, 1).expand(4, 2, 3, 3).clone()
     camera = SimpleNamespace(
         cfg=SimpleNamespace(prim_path="/Scenes/world_[^/]+/Camera", data_types=["rgba"]),
-        output_types=("rgb", "rgba"),
-        data=SimpleNamespace(output={"rgb": pixels}),
+        data=SimpleNamespace(output={"rgba": torch.cat((pixels, torch.full_like(pixels[..., :1], 255)), dim=-1)}),
         close=Mock(),
         update=Mock(),
     )
@@ -256,7 +255,7 @@ def test_visualizers_borrow_scene_camera_outputs(monkeypatch, cfg_type):
         viewers.append(visualizer)
 
     # A new step or reset refreshes the composite, not the sensor's lifetime.
-    pixels.add_(10)
+    camera.data.output["rgba"][..., :3].add_(10)
     viewers[0]._sim_time += 0.1
     np.testing.assert_array_equal(np.unique(viewers[0].render_tiled_rgb_array()), [10, 12])
     viewers[1].reset(soft=True)
@@ -823,70 +822,11 @@ def test_newton_scene_camera_replaces_perspective_rendering(monkeypatch):
     contacts.assert_called_once()
 
 
-def test_newton_scene_camera_controls_apply_uniformly_to_active_copies(monkeypatch):
-    """Selecting cameras is lazy; one local motion moves every copy, never an inactive sensor."""
-    sim = SimpleNamespace(get_clone_plan=lambda: SimpleNamespace(env_template="/World/env_{}"))
-    monkeypatch.setattr(SimulationContext, "instance", lambda: sim)
-    positions = torch.tensor([[0.0, 0.0, 0.0], [10.0, 20.0, 0.0]])
-    orientations = torch.tensor([[0.0, 0.0, 0.0, 1.0], [0.0, 0.0, 2**-0.5, 2**-0.5]])
-
-    class Camera:
-        def __init__(self, path):
-            self.cfg = SimpleNamespace(prim_path=path, data_types=["rgb"])
-            self.output_types = ("rgb",)
-            self.reads = 0
-            self.set_world_poses = Mock()
-            self.get_world_poses = Mock(return_value=(positions, orientations))
-
-        @property
-        def data(self):
-            self.reads += 1
-            return SimpleNamespace(
-                # Cached measurements precede the parent's latest motion.
-                pos_w=_Proxy(positions - 5.0),
-                quat_w_opengl=_Proxy(orientations),
-                output={"rgb": torch.zeros((2, 4, 6, 3), dtype=torch.uint8)},
-            )
-
-    sensors = {name: Camera(f"/World/env_[^/]+/{name}") for name in ("Front", "Back")}
-    choices = [SceneCameraCfg(prim_path=c.cfg.prim_path) for c in sensors.values()]
-    viewer = _Viewer()
-    visualizer = _make_newton_visualizer(viewer, cfg=NewtonGLVisualizerCfg(camera=choices, streaming_envs=[0, 1]))
-    visualizer._scene_data_provider.get_camera_sensors = lambda: sensors
-    visualizer._setup_streaming_view(2)
-    visualizer._select_camera(0)
-    assert all(camera.reads == 0 for camera in sensors.values())
-
-    # Native controls translate along camera +X and rotate 90 degrees about camera +Z.
-    delta = np.asarray([[0, -1, 0, 0.25], [1, 0, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]], dtype=np.float32)
-    before, after = np.eye(4, dtype=np.float32).ravel(), np.linalg.inv(delta).T.ravel()
-    viewer.camera.get_view_matrix = Mock(side_effect=[before, after])
-    visualizer.step(0.0)
-    pos, quat = sensors["Front"].set_world_poses.call_args.args
-    torch.testing.assert_close(pos, torch.tensor([[0.25, 0.0, 0.0], [10.0, 20.25, 0.0]]))
-    expected_quat = torch.tensor([[0.0, 0.0, 2**-0.5, 2**-0.5], [0.0, 0.0, 1.0, 0.0]])
-    torch.testing.assert_close(quat, expected_quat)
-    assert sensors["Front"].set_world_poses.call_args.kwargs == {"convention": "opengl"}
-    assert visualizer._streaming_frame.timestamp == -1.0
-    assert sensors["Back"].reads == 0
-    sensors["Back"].set_world_poses.assert_not_called()
-    sensors["Back"].get_world_poses.assert_not_called()
-
-    # Switching only binds; reading the selected view then captures that sensor alone.
-    reads = sensors["Front"].reads
-    visualizer._select_camera(1)
-    assert sensors["Back"].reads == 0
-    viewer.camera.get_view_matrix = Mock(side_effect=[before, before])
-    visualizer.step(0.0)
-    assert sensors["Back"].reads == 1 and sensors["Front"].reads == reads
-    sensors["Back"].set_world_poses.assert_not_called()
-
-
 @pytest.mark.rendering
 @pytest.mark.kitless
 @pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
-def test_newton_camera_selector_uses_available_outputs_without_capturing_inactive_sensors(device):
-    """Depth-only sensors do not prevent perspective startup; RGBA sensors offer their RGB alias."""
+def test_newton_scene_camera_controls_apply_uniformly_to_active_copies(monkeypatch, device):
+    """Only compatible cameras are offered; selection is lazy and navigation follows live parent poses."""
     import gymnasium as gym
     from isaaclab_newton.renderers import NewtonWarpRendererCfg
 
@@ -899,6 +839,7 @@ def test_newton_camera_selector_uses_available_outputs_without_capturing_inactiv
 
     cfg, _ = resolve_task_config("Isaac-Cartpole", "", overrides=("physics=newton_mjwarp",))
     cfg.scene.num_envs = 2
+    cfg.seed = 0
     cfg.scene.depth_camera = CameraCfg(
         prim_path="{ENV_REGEX_NS}/Robot/cart/DepthCamera",
         width=64,
@@ -911,6 +852,8 @@ def test_newton_camera_selector_uses_available_outputs_without_capturing_inactiv
     cfg.scene.color_camera = cfg.scene.depth_camera.copy()
     cfg.scene.color_camera.prim_path = "{ENV_REGEX_NS}/Robot/cart/ColorCamera"
     cfg.scene.color_camera.data_types = ["rgba"]
+    cfg.scene.back_camera = cfg.scene.color_camera.copy()
+    cfg.scene.back_camera.prim_path = "{ENV_REGEX_NS}/Robot/cart/BackCamera"
     cfg.sim.visualizer_cfgs = [
         NewtonGLVisualizerCfg(headless=True, window_width=128, window_height=128, streaming_envs=[0])
     ]
@@ -919,13 +862,17 @@ def test_newton_camera_selector_uses_available_outputs_without_capturing_inactiv
         try:
             env.reset()
             depth, color = env.unwrapped.scene["depth_camera"], env.unwrapped.scene["color_camera"]
+            back = env.unwrapped.scene["back_camera"]
             visualizer = env.unwrapped.sim.visualizers[0]
             depth_frame = depth.frame.torch.clone()
             color_frame = color.frame.torch.clone()
+            back_frame = back.frame.torch.clone()
             assert visualizer._camera_sensor is None
             assert isinstance(visualizer._camera_choices[0], PerspectiveCameraCfg)
-            assert [camera.prim_path for camera in visualizer._camera_choices[1:]] == [color.cfg.prim_path]
-            assert set(color.output_types) == {"rgb", "rgba"}
+            assert [camera.prim_path for camera in visualizer._camera_choices[1:]] == [
+                color.cfg.prim_path,
+                back.cfg.prim_path,
+            ]
 
             visualizer._select_camera(1)
             torch.testing.assert_close(color.frame.torch, color_frame)
@@ -934,21 +881,49 @@ def test_newton_camera_selector_uses_available_outputs_without_capturing_inactiv
             assert np.ptp(image) > 0
             torch.testing.assert_close(depth.frame.torch, depth_frame)
 
-            # Body motion must be visible to pose queries even when measurement poses stay cached.
-            robot = env.unwrapped.scene["robot"]
+            # Give the copies different orientations, then move their parent without refreshing measurements.
+            orientations = torch.tensor([[0.0, 0.0, 0.0, 1.0], [0.0, 0.0, 2**-0.5, 2**-0.5]], device=device)
+            color.set_world_poses(orientations=orientations, convention="opengl")
             cached = color.data.pos_w.torch.clone()
-            before, _ = color.get_world_poses(convention="opengl")
-            before = before.clone()
-            frame = color.frame.torch.clone()
+            robot = env.unwrapped.scene["robot"]
             joint_positions = robot.data.joint_pos.torch.clone()
             joint_positions[:, robot.find_joints("slider_to_cart")[0]] += 1.0
             robot.write_joint_state_to_sim_index(position=joint_positions, velocity=torch.zeros_like(joint_positions))
             env.unwrapped.sim.forward()
             env.unwrapped.sim.step(render=False)
-            positions, _ = color.get_world_poses(convention="opengl")
-            assert torch.all(torch.linalg.vector_norm(positions - before, dim=-1) > 0.5)
+            live = color._view.get_world_poses()[0].torch.clone()
+            assert torch.all(torch.linalg.vector_norm(live - cached, dim=-1) > 0.5)
             torch.testing.assert_close(color.data.pos_w.torch, cached)
-            torch.testing.assert_close(color.frame.torch, frame)
+            inactive = back._view.get_world_poses()[0].torch.clone()
+
+            # Supply a known mouse/keyboard delta; sensors, body motion, and camera writes remain real.
+            viewer = _Viewer()
+            delta = np.asarray([[0, -1, 0, 0.25], [1, 0, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]], dtype=np.float32)
+            before, after = np.eye(4, dtype=np.float32).ravel(), np.linalg.inv(delta).T.ravel()
+            viewer.camera.get_view_matrix = Mock(side_effect=[before, after])
+            with monkeypatch.context() as controls:
+                controls.setattr(visualizer, "_viewer", viewer)
+                controls.setattr(visualizer, "_runtime_headless", False)
+                visualizer.step(0.0)
+                pos, quat = color._view.get_world_poses()
+                expected_delta = torch.tensor([[0.25, 0.0, 0.0], [0.0, 0.25, 0.0]], device=device)
+                expected_quat = torch.tensor([[0.0, 0.0, 2**-0.5, 2**-0.5], [0.0, 0.0, 1.0, 0.0]], device=device)
+                torch.testing.assert_close(pos.torch, live + expected_delta)
+                torch.testing.assert_close(quat.torch, expected_quat, atol=1e-6, rtol=1e-6)
+                torch.testing.assert_close(back._view.get_world_poses()[0].torch, inactive)
+                torch.testing.assert_close(back.frame.torch, back_frame)
+
+                # Switching only binds; the next display captures the newly selected sensor alone.
+                color_frame = color.frame.torch.clone()
+                back.update(cfg.sim.dt)
+                visualizer._select_camera(2)
+                torch.testing.assert_close(back.frame.torch, back_frame)
+                viewer.camera.get_view_matrix = Mock(side_effect=[before, before])
+                visualizer.step(0.0)
+                assert torch.all(back.frame.torch > back_frame)
+                torch.testing.assert_close(color.frame.torch, color_frame)
+                torch.testing.assert_close(back._view.get_world_poses()[0].torch, inactive)
+                torch.testing.assert_close(depth.frame.torch, depth_frame)
         finally:
             env.close()
 

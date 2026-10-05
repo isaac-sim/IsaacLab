@@ -87,6 +87,8 @@ def test_colorize_unsupported_type_raises():
 
 def test_sensor_key_rgb():
     assert sensor_key_for_gt_type("rgb") == "rgb"
+    assert sensor_key_for_gt_type("rgb", frozenset({"rgba"}), required=False) == "rgba"
+    assert sensor_key_for_gt_type("rgb", frozenset({"rgb", "rgba"})) == "rgb"
 
 
 def test_sensor_key_depth_primary():
@@ -95,11 +97,16 @@ def test_sensor_key_depth_primary():
 
 def test_sensor_key_depth_fallback():
     assert sensor_key_for_gt_type("depth", frozenset({"rgb", "distance_to_image_plane"})) == "distance_to_image_plane"
+    assert (
+        sensor_key_for_gt_type("depth", frozenset({"distance_to_image_plane"}), required=False)
+        == "distance_to_image_plane"
+    )
 
 
 def test_sensor_key_depth_missing_raises():
     with pytest.raises(KeyError):
         sensor_key_for_gt_type("depth", frozenset({"rgb"}))
+    assert sensor_key_for_gt_type("depth", frozenset({"rgb"}), required=False) is None
 
 
 def test_sensor_key_segmentation():

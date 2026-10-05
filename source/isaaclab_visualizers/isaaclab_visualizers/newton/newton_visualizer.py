@@ -1672,13 +1672,12 @@ class NewtonGLVisualizer(NewtonVisualizer):
             cameras = scene_data_provider.get_camera_sensors()
             self._camera_choices[1:] = []
             for camera in cameras.values():
-                try:
-                    for gt_type in self.cfg.streaming_gt_types:
-                        sensor_key_for_gt_type(gt_type, frozenset(camera.output_types))
-                except KeyError:
-                    # An automatically offered source must support every requested display channel.
-                    continue
-                self._camera_choices.append(SceneCameraCfg(prim_path=camera.cfg.prim_path))
+                available = frozenset(camera.cfg.data_types)
+                if all(
+                    sensor_key_for_gt_type(gt, available, required=False) is not None
+                    for gt in self.cfg.streaming_gt_types
+                ):
+                    self._camera_choices.append(SceneCameraCfg(prim_path=camera.cfg.prim_path))
         else:
             # Explicit choices are configuration contracts, including choices that start inactive.
             for camera in self._camera_choices:
@@ -1688,7 +1687,7 @@ class NewtonGLVisualizer(NewtonVisualizer):
                     sensors = scene_data_provider.get_camera_sensors()
                     sensor = find_camera_by_prim_path(sensors, prim_path, self._camera_sensor_indices)
                     for gt_type in self.cfg.streaming_gt_types:
-                        sensor_key_for_gt_type(gt_type, frozenset(sensor.output_types))
+                        sensor_key_for_gt_type(gt_type, frozenset(sensor.cfg.data_types))
         if self._viewer is not None:
             self._viewer._draw_streaming_view_controls = self._draw_streaming_view_controls
             self._select_camera(self._camera_index)

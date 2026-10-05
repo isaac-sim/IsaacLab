@@ -1,1 +1,1 @@
-* Fixed visualizer channel validation to accept allocated output aliases, including RGB from RGBA cameras.
+* Fixed RGB view selection and rendering to accept RGBA camera outputs.

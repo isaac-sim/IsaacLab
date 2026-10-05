@@ -350,11 +350,6 @@ class Camera(SensorBase):
         return self._data
 
     @property
-    def output_types(self) -> tuple[str, ...]:
-        """Allocated output names, including aliases, available after initialization without capturing images."""
-        return tuple(self._data.output)
-
-    @property
     def frame(self) -> ProxyArray:
         """Frame number when the measurement took place."""
         return self._frame

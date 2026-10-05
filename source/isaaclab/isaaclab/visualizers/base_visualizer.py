@@ -132,7 +132,7 @@ class BaseVisualizer(ABC):
     def _select_streaming_camera(self, camera: Camera) -> None:
         """Bind display channels to a borrowed camera and discard the previous composite."""
         for gt_type in self.cfg.streaming_gt_types:
-            sensor_key_for_gt_type(gt_type, frozenset(camera.output_types))
+            sensor_key_for_gt_type(gt_type, frozenset(camera.cfg.data_types))
         self._camera_sensor = camera
         self._streaming_frame = TimestampedBuffer()
 
@@ -148,7 +148,7 @@ class BaseVisualizer(ABC):
         if self._streaming_frame.timestamp != self._sim_time:
             cfg = self.cfg
             gt_types = cfg.streaming_gt_types
-            available = frozenset(self._camera_sensor.output_types)
+            available = frozenset(self._camera_sensor.cfg.data_types)
             # Gather and transfer each channel once, not once per displayed environment.
             batches = []
             for gt in gt_types:

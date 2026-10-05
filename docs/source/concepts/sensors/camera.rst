@@ -101,9 +101,6 @@ configurations, including output types and backgrounds, remain per sensor.
 Read camera data
 ----------------
 
-After initialization, ``camera.output_types`` lists the allocated output names, including aliases,
-without capturing an image. Use this property to check whether a consumer's requested channels exist.
-
 ``camera.get_world_poses(convention="opengl")`` reads the current world poses without capturing images
 or changing cached measurement poses. This includes motion of the camera's parent body even when
 ``update_latest_camera_pose=False``. It accepts the same orientation conventions as

@@ -59,8 +59,8 @@ Selecting a perspective camera restores normal interactive rendering and picking
 
 Without an explicit ``camera`` list, the viewer starts in perspective and offers scene cameras
 that provide every requested ``streaming_gt_types`` channel. For example, set
-``streaming_gt_types=("depth",)`` to offer depth-only cameras. Output aliases count: a camera
-configured for RGBA that also publishes RGB can supply the RGB view. No images are captured to
+``streaming_gt_types=("depth",)`` to offer depth-only cameras. The RGB view accepts RGB or RGBA
+outputs; the existing colorizer drops the alpha channel. No images are captured to
 build the selector. Explicitly configured scene-camera choices must support the requested channels;
 incompatible choices raise a configuration error during initialization, including inactive choices.
 
