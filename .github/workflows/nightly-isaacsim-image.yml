@@ -189,7 +189,7 @@ jobs:
           {
             echo "# Description"
             echo
-            echo "This automated draft updates CI to the current Isaac Sim 6.2 release image."
+            echo "This automated draft updates CI to the current image from the configured Isaac Sim stream."
             echo
             echo "| Field | Value |"
             echo "|---|---|"
