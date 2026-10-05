@@ -260,7 +260,9 @@ The glass bowl remains 12 cm across and 4.5 cm tall. The metal reject dish is
 Smooth visual meshes are
 authored by task code; no extra asset files or uploads are required.
 EBC uses softer task lighting and eight total/specular-transmission bounces for
-the solid glass. The bowl stands just above the table's visible top, so no glass
+the solid glass. The bowl's normals are smooth around its axis, so its 128-sided
+mesh refracts as a round bowl rather than as facets; along its outline they stay
+sharp except at the rounded foot and lip. The bowl stands just above the table's visible top, so no glass
 face is buried in or coincident with it, and casts no shadow: RTX shadow rays do
 not refract, so solid glass would otherwise leave the table under it black.
 These changes do not affect studio lighting or fruit physics.
