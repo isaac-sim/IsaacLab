@@ -19,12 +19,7 @@ import warp as wp
 
 from ...sim import SimulationContext
 from ...utils.buffers import TimestampedBuffer
-from ...utils.leapp.leapp_semantics import (
-    OutputKindEnum,
-    fixed_tendon_names_resolver,
-    joint_names_resolver,
-    leapp_tensor_semantics,
-)
+from ...utils.leapp.leapp_semantics import OutputKindEnum, joint_names_resolver, leapp_tensor_semantics
 from ...utils.warp import ProxyArray
 from ..asset_base import AssetBase
 from . import ordering_kernels
@@ -2204,7 +2199,6 @@ class BaseArticulation(AssetBase):
         """
         raise NotImplementedError()
 
-    @leapp_tensor_semantics(kind="target/tendon/position", element_names_resolver=fixed_tendon_names_resolver)
     @abstractmethod
     def set_fixed_tendon_position_target_index(
         self,

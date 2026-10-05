@@ -751,8 +751,6 @@ class ExportPatcher:
         for term_name, term in action_manager._terms.items():
             if skip_terms and term_name in skip_terms:
                 continue
-            if not hasattr(term, "_joint_ids"):
-                continue
             osc = getattr(term, "_osc", None)
             if osc and hasattr(osc, "cfg") and osc.cfg.impedance_mode in VARIABLE_IMPEDANCE_MODES:
                 continue
