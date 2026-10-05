@@ -495,6 +495,30 @@ The observation manager takes its usual snapshot before applying modifiers, nois
 scaling, delay, and history. Code that calls the term directly should clone its result before modifying
 it or retaining it beyond the next rendered frame.
 
+Use without observations
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+``mdp.processed_image`` wraps a :class:`~sensors.CameraPostProcessingChain`, which owns the camera
+binding, new-frame tracking, and reset handling. Use the chain directly to post-process camera
+outputs outside an observation manager, for example in a direct workflow environment or a recorder.
+Create it after the camera is spawned and before simulation reset, so processors can request
+renderer inputs.
+
+.. code-block:: python
+
+   from isaaclab.sensors.post_processing import CameraPostProcessingChain
+
+   chain = CameraPostProcessingChain(
+       camera, [PpispProcessorCfg(isp_cfg=PpispCfg())], ["rgb"],
+       num_views=num_envs, device=device, stage=stage,
+   )
+   # after each render
+   if chain.update():
+       processed_rgb = chain.outputs["rgb"].torch
+   # on environment reset, and when done
+   chain.reset(env_ids)
+   chain.close()
+
 Preparation and ownership
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 

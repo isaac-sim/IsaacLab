@@ -38,6 +38,7 @@ __all__ = [
     "JointWrenchSensor",
     "JointWrenchSensorCfg",
     "JointWrenchSensorData",
+    "CameraPostProcessingChain",
     "CameraPostProcessorContext",
     "SensorPostProcessingPipeline",
     "SensorPostProcessor",
@@ -100,6 +101,7 @@ from .joint_wrench import (
     JointWrenchSensorData,
 )
 from .post_processing import (
+    CameraPostProcessingChain,
     CameraPostProcessorContext,
     SensorPostProcessingPipeline,
     SensorPostProcessor,

@@ -17,7 +17,7 @@ from isaaclab.envs.mdp import processed_image
 from isaaclab.managers import ObservationGroupCfg, ObservationManager, ObservationTermCfg, SceneEntityCfg
 from isaaclab.renderers import RenderBufferSpec
 from isaaclab.sensors.camera.camera_data import CameraData, RenderBufferKind
-from isaaclab.sensors.post_processing import SensorPostProcessor, SensorPostProcessorCfg
+from isaaclab.sensors.post_processing import CameraPostProcessingChain, SensorPostProcessor, SensorPostProcessorCfg
 from isaaclab.test.utils import test_devices
 from isaaclab.utils.warp import ProxyArray
 
@@ -266,3 +266,26 @@ def _check_reset_excludes_unconsumed_pre_reset_capture(env_ids, device):
     term(env, **cfg.params)
     np.testing.assert_array_equal(events[-1][1], [env_ids is None, True])
     term.close()
+
+
+def test_chain_processes_camera_outputs_without_an_observation_manager():
+    """Direct post-processing tracks captures and resets like the observation term."""
+    camera = CameraSource()
+    events = []
+    cfg, _ = make_term_cfg(events, increment=2)
+    chain = CameraPostProcessingChain(camera, cfg.params["processors"], ["rgb"], num_views=2, device="cpu", stage=None)
+    assert len(camera.requests) == 1 and chain.outputs is None
+
+    assert chain.update()
+    torch.testing.assert_close(chain.outputs["rgb"].torch, camera.render_outputs["rgb"].torch + 2)
+    assert not chain.update()
+
+    chain.reset([0])
+    camera.render_generation += 1
+    assert chain.update()
+    np.testing.assert_array_equal(events[-1][1], [True, False])
+
+    chain.close()
+    assert events[-1] == ("close", None)
+    with pytest.raises(RuntimeError, match="closed"):
+        chain.update()

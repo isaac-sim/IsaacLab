@@ -1,7 +1,9 @@
 * Added ``isaaclab.sensors.post_processing`` with :class:`~isaaclab.sensors.SensorPostProcessor`,
   :class:`~isaaclab.sensors.SensorPostProcessorCfg`, and
   :class:`~isaaclab.sensors.SensorPostProcessingPipeline` for ordered, renderer-independent
-  post-processing of camera image buffers.
+  post-processing of camera image buffers. Added :class:`~isaaclab.sensors.CameraPostProcessingChain`
+  to bind a chain to a camera, process each new capture once, and handle resets, with or without
+  observation terms.
 * Added ``mdp.processed_image`` for ordered image-processing chains owned by observation terms,
   with explicit buffer requirements, persistent intermediates, cached frame processing, and
   partial-reset and cleanup callbacks. Added early ``ManagerTermBase.prepare_scene`` preparation

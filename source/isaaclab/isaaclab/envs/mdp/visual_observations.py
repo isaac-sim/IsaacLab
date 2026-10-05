@@ -11,39 +11,12 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
-import warp as wp
 
 from ...managers import ManagerTermBase, ObservationTermCfg, SceneEntityCfg
-from ...sensors.post_processing import (
-    CameraPostProcessorContext,
-    SensorPostProcessingPipeline,
-    SensorPostProcessorCfg,
-)
+from ...sensors.post_processing import CameraPostProcessingChain, SensorPostProcessorCfg
 
 if TYPE_CHECKING:
-    from ...sensors import Camera
     from .. import ManagerBasedEnv
-
-
-@wp.kernel
-def _find_new_camera_frames(
-    current: wp.array(dtype=wp.int64),
-    previous: wp.array(dtype=wp.int64),
-    reset_generations: wp.array(dtype=wp.int64),
-    generation: wp.int64,
-    mask: wp.array(dtype=wp.bool),
-):
-    index = wp.tid()
-    mask[index] = generation > reset_generations[index] and current[index] != previous[index]
-
-
-@wp.kernel
-def _record_processed_camera_frames(
-    current: wp.array(dtype=wp.int64), previous: wp.array(dtype=wp.int64), mask: wp.array(dtype=wp.bool)
-):
-    index = wp.tid()
-    if mask[index]:
-        previous[index] = current[index]
 
 
 class processed_image(ManagerTermBase):
@@ -55,6 +28,8 @@ class processed_image(ManagerTermBase):
     owns its chain, intermediate buffers, and state, even when sharing a camera.
     Processed pixels are returned through this term; camera outputs retain their
     raw renderer buffers. Required renderer settings apply to the entire source camera.
+    Camera binding, new-frame tracking, and resets are handled by
+    :class:`~isaaclab.sensors.CameraPostProcessingChain`, which can also be used directly.
 
     Processor inputs are borrowed read-only. The returned tensor persists until the
     next rendered frame; the observation manager makes its usual snapshot copy
@@ -70,7 +45,6 @@ class processed_image(ManagerTermBase):
     def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedEnv):
         super().__init__(cfg, env)
         sensor_cfg: SceneEntityCfg = cfg.params["sensor_cfg"]
-        self._camera: Camera = env.scene[sensor_cfg.name]
         self._data_type = cfg.params.get("data_type", "rgb")
         self._normalize = cfg.params.get("normalize", False)
         self._permute = cfg.params.get("permute", False)
@@ -78,34 +52,18 @@ class processed_image(ManagerTermBase):
             raise ValueError(
                 "processed_image normalize=True supports 'rgb' and 'rgba'; use a processor for other outputs."
             )
-        self._pipeline: SensorPostProcessingPipeline | None = None
-        self._generation = -1
         self._result: torch.Tensor | None = None
         self._image: torch.Tensor | None = None
         self._normalized: torch.Tensor | None = None
         self._mean: torch.Tensor | None = None
-        self._reset_mask: wp.array | None = None
-        self._last_frames: wp.array | None = None
-        self._reset_generations: wp.array | None = None
-        self._process_mask: wp.array | None = None
-        try:
-            context = CameraPostProcessorContext(
-                stage=env.sim.stage,
-                camera_prim_paths=self._camera.camera_prim_paths,
-                num_views=env.num_envs,
-                height=self._camera.cfg.height,
-                width=self._camera.cfg.width,
-                device=env.device,
-            )
-            self._pipeline = SensorPostProcessingPipeline(
-                cfg.params["processors"], context, self._camera.render_buffer_specs, [self._data_type]
-            )
-            self._camera.request_render_inputs(self._pipeline.render_data_types)
-        except Exception as exc:
-            try:
-                self.close()
-            finally:
-                raise exc
+        self._chain: CameraPostProcessingChain | None = CameraPostProcessingChain(
+            env.scene[sensor_cfg.name],
+            cfg.params["processors"],
+            [self._data_type],
+            num_views=env.num_envs,
+            device=env.device,
+            stage=env.sim.stage,
+        )
 
     def __call__(
         self,
@@ -133,7 +91,7 @@ class processed_image(ManagerTermBase):
         Raises:
             ValueError: If ``data_type``, ``normalize``, or ``permute`` differs from the prepared value.
         """
-        if self._pipeline is None:
+        if self._chain is None:
             raise RuntimeError("Cannot read a closed processed_image observation term.")
         requested = (data_type, normalize, permute)
         prepared = (self._data_type, self._normalize, self._permute)
@@ -142,90 +100,31 @@ class processed_image(ManagerTermBase):
                 f"processed_image prepared (data_type, normalize, permute) = {prepared}, but was called with "
                 f"{requested}. Set these values in the observation term's params."
             )
-        # Render, Warp processing, and the manager's Torch snapshot share a stream.
-        # Enter/exit waits also cover a camera frame rendered outside this term.
-        stream = (
-            wp.stream_from_torch(torch.cuda.current_stream(self.device)) if self.device.startswith("cuda") else None
-        )
-        with wp.ScopedStream(stream, sync_enter=True, sync_exit=True):
-            raw = self._camera.render_outputs
-            if self._image is not None and any(
-                raw.get(name) is not buffer for name, buffer in self._pipeline.render_outputs.items()
-            ):
-                raise RuntimeError(
-                    "Camera render buffers were recreated. Recreate the environment to rebind its image observations."
+        processed = self._chain.update()
+        if self._image is None:
+            self._image = self._chain.outputs[self._data_type].torch
+            if self._normalize:
+                self._normalized = torch.empty(self._image.shape, dtype=torch.float32, device=self.device)
+                self._mean = torch.empty(
+                    (self.num_envs, 1, 1, self._image.shape[-1]), dtype=torch.float32, device=self.device
                 )
-            if self._image is None:
-                self._image = self._pipeline.allocate(raw)[self._data_type].torch
-                if self._reset_mask is None:
-                    self._reset_mask = wp.zeros(self.num_envs, dtype=wp.bool, device=self.device)
-                self._last_frames = wp.full(self.num_envs, -1, dtype=wp.int64, device=self.device)
-                if self._reset_generations is None:
-                    self._reset_generations = wp.full(self.num_envs, -1, dtype=wp.int64, device=self.device)
-                self._process_mask = wp.empty(self.num_envs, dtype=wp.bool, device=self.device)
-                if self._normalize:
-                    self._normalized = torch.empty(self._image.shape, dtype=torch.float32, device=self.device)
-                    self._mean = torch.empty(
-                        (self.num_envs, 1, 1, self._image.shape[-1]), dtype=torch.float32, device=self.device
-                    )
-                result = self._normalized if self._normalize else self._image
-                self._result = result.permute(0, 3, 1, 2) if self._permute else result
-            generation = self._camera.render_generation
-            if generation != self._generation:
-                # A group may skip several renders with different partial-view masks.
-                # Compare against this term's last consumed frames, not just the latest mask.
-                frames = self._camera.render_frame.warp
-                wp.launch(
-                    _find_new_camera_frames,
-                    dim=self.num_envs,
-                    inputs=[frames, self._last_frames, self._reset_generations, generation, self._process_mask],
-                    device=self.device,
-                )
-                self._pipeline.process(self._process_mask)
-                if self._normalize:
-                    self._normalized.copy_(self._image).div_(255.0)
-                    torch.mean(self._normalized, dim=(1, 2), keepdim=True, out=self._mean)
-                    self._normalized.sub_(self._mean)
-                # Retain reset sentinels until a post-reset capture is processed: episode frame
-                # numbers can repeat, and an unconsumed pre-reset capture must not consume them.
-                wp.launch(
-                    _record_processed_camera_frames,
-                    dim=self.num_envs,
-                    inputs=[frames, self._last_frames, self._process_mask],
-                    device=self.device,
-                )
-                self._generation = generation
-            return self._result
+            result = self._normalized if self._normalize else self._image
+            self._result = result.permute(0, 3, 1, 2) if self._permute else result
+        if processed and self._normalize:
+            # The chain finished on the current Torch stream, so these Torch operations follow it.
+            self._normalized.copy_(self._image).div_(255.0)
+            torch.mean(self._normalized, dim=(1, 2), keepdim=True, out=self._mean)
+            self._normalized.sub_(self._mean)
+        return self._result
 
     def reset(self, env_ids: Sequence[int] | torch.Tensor | None = None) -> None:
         """Reset processor state for selected environments without reprocessing a cached frame."""
-        if self._pipeline is None:
-            return
-        if self._reset_mask is None:
-            self._reset_mask = wp.zeros(self.num_envs, dtype=wp.bool, device=self.device)
-        stream = (
-            wp.stream_from_torch(torch.cuda.current_stream(self.device)) if self.device.startswith("cuda") else None
-        )
-        with wp.ScopedStream(stream, sync_enter=True, sync_exit=True):
-            if self._reset_generations is None:
-                self._reset_generations = wp.full(self.num_envs, -1, dtype=wp.int64, device=self.device)
-            indices = slice(None) if env_ids is None else env_ids
-            wp.to_torch(self._reset_generations)[indices] = self._camera.render_generation
-            if env_ids is None:
-                self._reset_mask.fill_(True)
-                if self._result is not None:
-                    self._generation = self._camera.render_generation
-            else:
-                self._reset_mask.zero_()
-                wp.to_torch(self._reset_mask)[env_ids] = True
-            if self._last_frames is not None:
-                wp.to_torch(self._last_frames)[indices] = -1
-            self._pipeline.reset(self._reset_mask)
+        if self._chain is not None:
+            self._chain.reset(env_ids)
 
     def close(self) -> None:
         """Release owned processor state and buffers. Repeated calls are safe."""
-        pipeline, self._pipeline = self._pipeline, None
-        self._image = self._result = self._normalized = self._mean = self._reset_mask = None
-        self._last_frames = self._reset_generations = self._process_mask = None
-        if pipeline is not None:
-            pipeline.close()
+        chain, self._chain = self._chain, None
+        self._image = self._result = self._normalized = self._mean = None
+        if chain is not None:
+            chain.close()

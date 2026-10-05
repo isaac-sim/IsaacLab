@@ -46,6 +46,7 @@
     SensorPostProcessorCfg
     SensorPostProcessingPipeline
     CameraPostProcessorContext
+    CameraPostProcessingChain
 
 Sensor Base
 -----------
@@ -273,6 +274,9 @@ buffers are currently supported. See :ref:`camera-post-processing` for usage.
 .. autoclass:: SensorPostProcessorCfg
     :members:
     :exclude-members: __init__
+
+.. autoclass:: CameraPostProcessingChain
+    :members:
 
 .. autoclass:: SensorPostProcessingPipeline
     :members:
