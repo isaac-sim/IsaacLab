@@ -87,6 +87,28 @@ uv run --no-sync python scripts/demos/rizon_sharpa_coffee.py \
     --output_dir logs/coffee_video
 ```
 
+For an experimental coarse Newton GL recording, keep the tool margin independent
+of the larger grid and use finer visual grains:
+
+```bash
+uv run --no-sync python scripts/demos/rizon_sharpa_coffee.py \
+    --water --visualizer newton_gl --headless --video \
+    --voxel_size 0.010 --physics_hz 100 --rigid_hz 400 \
+    --mpm_iterations 150 --mpm_grid_capacity 1536 --spoon_margin 0.0036 \
+    --grains_per_particle 128 --width 1280 --height 720 \
+    --output_dir logs/coffee_video_coarse
+```
+
+This profile seeds 4,530 physical particles at 5 mm spacing and displays coffee
+grains with approximately 0.45 mm radius. On an RTX 4090 it measured approximately
+0.42 times real time headlessly and 0.27 with GL rendering and MP4 encoding.
+Using 125 iterations and 64 visual grains reached 0.47 headlessly, but its
+liquid-level check had little headroom. The full 150-iteration demo retained the
+water with about 2 mm of surface-height loss after stirring. This is a speed experiment:
+fine rendering grains do not restore physical scoop resolution, and resampling
+reduces the seeded coffee and water mass near vessel boundaries. The finer
+profile remains the reference for liquid level and tool contact fidelity.
+
 `--video` defaults to Newton RTX unless `--visualizer` is explicit. It requires
 FFmpeg and writes `coffee.mp4`, phase images, `run.json`, `metrics.json` and
 `spoon_poses.jsonl` to the output directory. The MP4 uses H.264, CRF 18 and
@@ -124,9 +146,10 @@ first pour and moves closer for pouring and stirring. `--max_steps 8000` gives
 The environment configuration defaults to a 2 mm grid and 800 Hz physics. The
 demo selects 400 Hz for a dry mounted scripted run at 2 mm or a wet mounted
 script at 3 mm and above; other runs default to 800 Hz. `--physics_hz` selects
-200, 400 or 800 Hz, and `--mpm_substeps` multiplies the material step rate. Rigid
-integration remains at 800 Hz for the mounted spoon and 1,600 Hz for contact
-grasping through solver-entry substeps.
+100, 200, 400 or 800 Hz, and `--mpm_substeps` multiplies the material step rate.
+The control rate remains 100 Hz. Mounted robot integration defaults to 800 Hz;
+`--rigid_hz 400` reduces it independently when the coupling rate is at most
+400 Hz. Contact grasping keeps its 1,600 Hz solver-entry profile.
 
 The MPM profile uses sparse CUDA graph capture, `P1d` strain interpolation,
 `pic27` particle-sampled contacts, `backward` collider velocities and native
@@ -141,17 +164,20 @@ Broad spoon faces use a margin of 1.2 physics voxels; container margins are
 broad-face margin: **0.4 mm at a 3 mm grid**, or approximately 0.267 mm at 2 mm.
 Native per-face collider materials implement the taper before graph capture;
 the closed shell and handle retain their geometry. `CoffeeEnvCfg.spoon_margin_voxels`
-and `--spoon_rim_margin_scale` control these values. Reducing the timestep rate or
-margin requires checking loaded-tool containment as well as the complete path.
+and `--spoon_rim_margin_scale` control these values. `--spoon_margin` overrides the
+broad margin in metres, preserving a useful tool clearance on larger grids.
+Reducing the timestep rate or margin requires checking loaded-tool containment
+as well as the complete path.
 Particle speed is capped at half a physics voxel per MPM substep, up to 4 m/s.
 This keeps coarse-step advection within the native collider query band and
 limits fast pressure-driven outliers without projecting particles out of walls.
 
 At 2 mm, the default source contains 456,836 physical particles at 1 mm spacing,
-with 205.5762 g total mass and density 450 kg/m³. Coarser grids resample the fill
-at half-voxel spacing while retaining density. Grain rendering only decorates
+with 205.5762 g total mass and density 450 kg/m³. Supported grids span 1–10 mm.
+Coarser grids resample the fill at half-voxel spacing while retaining density.
+Grain rendering only decorates
 those physical particles. `--grains_per_particle 0` disables presentation for
-learning; factors 1, 5, 10 and 20 change visual sampling without increasing
+learning; factors 1, 5, 10, 20, 64 and 128 change visual sampling without increasing
 physical contact resolution.
 
 ## Water, dissolution and surface reconstruction
@@ -192,8 +218,9 @@ property diffusion.
 
 Surface reconstruction uses Newton's native `ParticleSurface` density field,
 anisotropic kernels, spatial field smoothing and mesh smoothing at 0.3 times
-the physics voxel size. A task-local **60 ms exponential filter** blends density
-at fixed spatial voxel coordinates before marching cubes. It does not blend
+the physics voxel size, capped at 1.5 mm for coarser physics grids. A task-local
+**60 ms exponential filter** blends density at fixed spatial voxel coordinates
+before marching cubes. It does not blend
 vertex indices, which change between meshes. New voxels use the current field;
 reset discards history. `--surface_smoothing_time 0` disables temporal filtering.
 The setting affects rendering only and introduces a short visual response lag.

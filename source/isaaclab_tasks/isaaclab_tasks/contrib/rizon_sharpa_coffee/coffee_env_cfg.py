@@ -179,8 +179,8 @@ def configure_scene(cfg: CoffeeEnvCfg) -> None:
     from .assets import build_coffee_assets
     from .robot import get_robot_cfg
 
-    if not math.isfinite(cfg.voxel_size) or not 0.001 <= cfg.voxel_size <= 0.006:
-        raise ValueError("voxel_size must be between 1 and 6 mm.")
+    if not math.isfinite(cfg.voxel_size) or not 0.001 <= cfg.voxel_size <= 0.010:
+        raise ValueError("voxel_size must be between 1 and 10 mm.")
     if not math.isfinite(cfg.spoon_margin_voxels) or cfg.spoon_margin_voxels < 0.0:
         raise ValueError("spoon_margin_voxels must be finite and nonnegative.")
     if not math.isfinite(cfg.spoon_rim_margin_scale) or not 0.0 <= cfg.spoon_rim_margin_scale <= 1.0:

@@ -20,6 +20,11 @@ Added
 * Consolidated joint calibration and tracking validation, reused the task's
   measured spoon pose, and gave streamed recording one resource owner.
   Recording metadata now includes resolved simulation settings and CLI options.
+* Added explicit coarse-grid experiments up to 10 mm with 100 Hz material
+  stepping, independently selectable mounted-robot integration, physical spoon
+  margin overrides and up to 128 native visual grains per physical particle.
+  Fine defaults were retained; the experimental wet profile trades contact
+  resolution and some liquid-level accuracy for higher throughput.
 
 Fixed
 ^^^^^
@@ -29,6 +34,7 @@ Fixed
 * Stabilized liquid presentation with a render-only temporal density filter,
   shared-vertex colour interpolation and reconstruction caching per physics state.
   These changes use existing Newton surface APIs without modifying Newton itself.
+  The liquid mesh resolution was capped at 1.5 mm when coarsening the physics grid.
 * Raised and widened the initial water fill and replaced the cup's tangential
   handle with a curved handle attached to the wall at both ends. Shared vessel
   glaze authoring and surface-cache invalidation removed repeated setup code.

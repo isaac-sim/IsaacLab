@@ -206,7 +206,8 @@ class CoffeePresentation:
             self._surface_points = wp.empty_like(self._liquid_points)
             self._surface_radii = wp.empty_like(self._liquid_radii)
             self._surface = ParticleSurface(
-                voxel_size=0.3 * voxel_size,
+                # Coarser physics should not coarsen the visible liquid mesh.
+                voxel_size=min(0.3 * voxel_size, 0.0015),
                 # USD transfer already synchronizes. Exact render allocation
                 # handles dispersed droplets without padding a captured buffer.
                 # Physics retains its separately bounded, captured sparse grid.

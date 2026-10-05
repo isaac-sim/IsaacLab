@@ -234,11 +234,19 @@ def _stir_spoon(pose: wp.array[wp.transform], tick: wp.array[int], dt: float):
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-def test_water_level_survives_stirring_with_native_profile(device):
+@pytest.mark.parametrize(
+    ("voxel_size", "physics_hz", "iterations", "capacity"),
+    ((0.003, 400, 500, 32768), (0.010, 100, 150, 2048)),
+    ids=("fine", "coarse"),
+)
+def test_water_level_survives_stirring_with_native_profile(device, voxel_size, physics_hz, iterations, capacity):
     """A full-size fill retains its settled level after three turns and tool withdrawal."""
-    cfg = CoffeeEnvCfg(water_enabled=True, voxel_size=0.003)
-    dt = 1.0 / 400.0
-    water = _particle_cfg("Water", (0.0, 0.0, 0.0), CUP_INNER_RADIUS - 0.002, cfg.water_fill_height, 0.0015, True)
+    cfg = CoffeeEnvCfg(water_enabled=True, voxel_size=voxel_size)
+    cfg.spoon_margin_voxels = 0.0036 / voxel_size
+    dt = 1.0 / physics_hz
+    water = _particle_cfg(
+        "Water", (0.0, 0.0, 0.0), CUP_INNER_RADIUS - 0.002, cfg.water_fill_height, voxel_size / 2.0, True
+    )
     prototype = newton.ModelBuilder()
     SolverImplicitMPM.register_custom_attributes(prototype)
     paths = build_coffee_assets()
@@ -279,9 +287,8 @@ def test_water_level_survives_stirring_with_native_profile(device):
     ):
         getattr(model.mpm, name).fill_(getattr(water.spawn.material, name))
     config = _make_solver_config(cfg.sim.physics.solver_cfg.entries[1].solver_cfg)
-    # Reserve the whole cup's 29^3 voxel bounding box plus splash headroom,
-    # rather than padding one voxel for each densely seeded particle.
-    config.max_active_cell_count = 32768
+    config.max_active_cell_count = capacity
+    config.max_iterations = iterations
     solver = CoffeeMPMSolver(model, config, grains_per_particle=0)
     configure_spoon_rim_margin(solver, cfg.spoon_rim_margin_scale)
     state = model.state()
@@ -292,9 +299,9 @@ def test_water_level_survives_stirring_with_native_profile(device):
             solver.step(state, state, None, None, dt)
 
     initial_level = None
-    for block in range(900):  # Four-second settle, immersion, eight-second stir, withdrawal and settle.
+    for block in range(round(18 * physics_hz / 8)):
         wp.capture_launch(capture.graph)
-        if block == 199:
+        if block + 1 == round(4 * physics_hz / 8):
             initial_level = np.quantile(state.particle_q.numpy()[:, 2], 0.999)
     positions = state.particle_q.numpy()
     assert np.isfinite(positions).all()

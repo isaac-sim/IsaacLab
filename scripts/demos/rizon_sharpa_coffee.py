@@ -161,6 +161,9 @@ def _parse_args():
     )
     parser.add_argument("--voxel_size", type=float, default=0.002)
     parser.add_argument(
+        "--spoon_margin", type=float, default=None, help="Override the broad spoon collision margin [m]."
+    )
+    parser.add_argument(
         "--spoon_rim_margin_scale", type=float, default=1.0 / 9.0, help="Rim margin relative to the broad spoon faces."
     )
     parser.add_argument(
@@ -172,9 +175,12 @@ def _parse_args():
     parser.add_argument(
         "--physics_hz",
         type=int,
-        choices=(200, 400, 800),
+        choices=(100, 200, 400, 800),
         default=None,
         help="Coupling rate; defaults to 400 Hz for dry 2 mm or wet 3+ mm mounted scripts, otherwise 800 Hz.",
+    )
+    parser.add_argument(
+        "--rigid_hz", type=int, choices=(400, 800), default=800, help="Mounted robot integration rate [Hz]."
     )
     parser.add_argument("--mpm_substeps", type=int, default=None, help="MPM substeps per physics tick.")
     parser.add_argument(
@@ -198,7 +204,7 @@ def _parse_args():
             " Zero uses the full particle budget."
         ),
     )
-    parser.add_argument("--grains_per_particle", type=int, choices=(0, 1, 5, 10, 20), default=5)
+    parser.add_argument("--grains_per_particle", type=int, choices=(0, 1, 5, 10, 20, 64, 128), default=5)
     parser.add_argument("--render_samples", type=int, default=4)
     parser.add_argument(
         "--surface_smoothing_time",
@@ -233,6 +239,12 @@ def _parse_args():
         args.physics_hz = 400 if fast_script else 800
     if args.visualizer is None:
         args.visualizer = ["newton_rtx" if args.video else "newton_gl"]
+    if args.grasp_mode == "mounted" and args.rigid_hz < args.physics_hz:
+        parser.error("--rigid_hz must be at least --physics_hz.")
+    if args.grasp_mode == "contact" and args.rigid_hz != 800:
+        parser.error("--rigid_hz applies only to mounted tools; contact grasping uses 1600 Hz.")
+    if args.spoon_margin is not None and (not math.isfinite(args.spoon_margin) or args.spoon_margin < 0.0):
+        parser.error("--spoon_margin must be finite and nonnegative.")
     if args.mpm_grid_capacity is not None and args.mpm_grid_capacity < 0:
         parser.error("--mpm_grid_capacity must be nonnegative.")
     if args.keep_open and args.headless:
@@ -264,12 +276,14 @@ def _make_env_cfg(args, parser, video_stride):
     cfg.seed = 7
     cfg.sim.device = args.device
     cfg.voxel_size = args.voxel_size
+    if args.spoon_margin is not None:
+        cfg.spoon_margin_voxels = args.spoon_margin / cfg.voxel_size
     cfg.spoon_rim_margin_scale = args.spoon_rim_margin_scale
     cfg.sim.dt = 1.0 / args.physics_hz
     cfg.decimation = args.physics_hz // 100
     cfg.sim.render_interval = 2 * cfg.decimation
-    # Preserve rigid integration accuracy while reducing the MPM tick rate.
-    cfg.sim.physics.solver_cfg.entries[0].substeps = 800 // args.physics_hz
+    # The robot and material keep independent integration rates.
+    cfg.sim.physics.solver_cfg.entries[0].substeps = args.rigid_hz // args.physics_hz
     if args.spoon_proxy_mass_scale is not None:
         cfg.spoon_proxy_mass_scale = args.spoon_proxy_mass_scale
     if args.water_fill_height is not None:
