@@ -173,7 +173,8 @@ class FabricBackend:
             if prim_type == "Mesh":
                 device, frequency = self.device, 1
             elif prim_type in {"BasisCurves", "Points"}:
-                # Kit 110.4's streamed Points ignore GPU edits; its procedural path renders them.
+                # Kit 110.4's streamed Points have GPU update and color regressions.
+                # Procedural Points render GPU position updates as analytic spheres.
                 # Curves require CPU storage (NVBug 6502662).
                 device = self.device if prim_type == "Points" and gpu_points else "cpu"
                 frequency = geometry.GetPrim().GetAttribute("isaaclab:pointsUpdateFrequency").Get() or 1
