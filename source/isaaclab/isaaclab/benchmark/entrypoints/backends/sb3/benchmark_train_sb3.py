@@ -241,7 +241,7 @@ def run(argv: list[str]) -> BenchmarkResult:
 
             apply_env_overrides(args_cli, env_cfg)
 
-            agent_cfg = cli_args.update_sb3_cfg(agent_cfg, args_cli.device, seed=args_cli.seed)
+            agent_cfg = cli_args.update_sb3_cfg(agent_cfg, args_cli)
             env_cfg.seed = agent_cfg["seed"]
 
             # Convert the iteration override to SB3 total timesteps.

@@ -105,7 +105,7 @@ def run(argv: list[str]) -> None:
         with launch_simulation(env_cfg, args_cli), contextlib.ExitStack() as cleanup:
             show_run_summary(screen, args_cli, env_cfg, library="sb3", action="play")
             apply_env_overrides(args_cli, env_cfg)
-            agent_cfg = cli_args.update_sb3_cfg(agent_cfg, args_cli.device, seed=args_cli.seed)
+            agent_cfg = cli_args.update_sb3_cfg(agent_cfg, args_cli)
             env_cfg.seed = agent_cfg["seed"]
 
             log_root_path = os.path.abspath(os.path.join("logs", "sb3", normalize_task_name(args_cli.task)))
