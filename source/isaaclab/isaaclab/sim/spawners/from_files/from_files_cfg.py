@@ -190,7 +190,12 @@ class FileCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
     """Path to the visual material to use for the prim. Defaults to "material".
 
     Relative paths are resolved below the spawned prim. None applies non-None inputs from
-    :attr:`visual_material` to existing shaders, preserving their textures and bindings.
+    :attr:`visual_material` to compatible, connected surface shaders with or without Kit, preserving
+    their textures and bindings. Preview configs target ``UsdPreviewSurface``; MDL configs target
+    shaders whose MDL subidentifier matches the configured filename. Other shader types and utility
+    nodes are unchanged; input names are not translated between shader types. Materials inside an
+    instance require :attr:`UsdFileCfg.make_uninstanceable` to be True, otherwise authoring raises
+    ValueError. Named paths create and bind a replacement material only when Kit is available.
     Ignored when :attr:`visual_material` is None.
     """
 
@@ -279,9 +284,9 @@ class UsdFileCfg(FileCfg):
     """Whether to disable USD instancing below the spawned prim before applying overrides. Defaults to False.
 
     Descendants of an instanceable prim are instance proxies, which cannot be edited. Enable this option
-    when a recursive override, such as :attr:`physics_material`, has to author properties on those
-    descendants. Disabling instancing makes them editable at the cost of stage memory, so leave this
-    option disabled unless an override requires it.
+    when a recursive override, such as :attr:`physics_material` or authored :attr:`visual_material`
+    inputs, has to author properties on those descendants. Disabling instancing makes them editable
+    at the cost of stage memory, so leave this option disabled unless an override requires it.
 
     Please check the :meth:`~isaaclab.sim.utils.make_uninstanceable` function for more information.
     """

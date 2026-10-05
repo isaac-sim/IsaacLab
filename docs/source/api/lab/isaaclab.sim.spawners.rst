@@ -313,10 +313,14 @@ Visual Materials
 ~~~~~~~~~~~~~~~~
 
 For USD assets, setting ``visual_material_path=None`` applies the supplied material inputs to
-authored shaders without replacing their textures or bindings. Set inputs that should remain
-unchanged, such as ``PbrMdlCfg.diffuse_color_constant``, to ``None``.
-
-.. autofunction:: modify_visual_material
+compatible, connected surface shaders without replacing their textures or bindings. This works with
+or without Kit. ``PreviewSurfaceCfg`` targets ``UsdPreviewSurface`` shaders; MDL configs target
+shaders whose MDL subidentifier matches the configured filename (for example, ``OmniPBR`` for
+``PbrMdlCfg``). Other shader types and texture or utility nodes are unchanged; inputs are not
+translated between shader types. Set inputs that should remain unchanged, such as
+``PbrMdlCfg.diffuse_color_constant``, to ``None``. For materials inside instanceable subtrees, set
+``UsdFileCfg.make_uninstanceable=True``; otherwise the override raises ``ValueError``. A named
+``visual_material_path`` creates and binds a replacement material only when Kit is available.
 
 .. autoclass:: VisualMaterialCfg
     :members:

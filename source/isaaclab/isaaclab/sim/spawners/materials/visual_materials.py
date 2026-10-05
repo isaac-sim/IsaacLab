@@ -63,7 +63,7 @@ def spawn_preview_surface(
     shader.CreateIdAttr("UsdPreviewSurface")
     material.CreateSurfaceOutput().ConnectToSource(shader.CreateOutput("surface", Sdf.ValueTypeNames.Token))
     material.CreateDisplacementOutput().ConnectToSource(shader.CreateOutput("displacement", Sdf.ValueTypeNames.Token))
-    modify_visual_material(shader.GetPrim(), cfg)
+    _author_material_inputs(material.GetPrim(), cfg)
     return shader.GetPrim()
 
 
@@ -114,24 +114,46 @@ def spawn_from_mdl_file(
     material.CreateSurfaceOutput("mdl").ConnectToSource(output)
     material.CreateDisplacementOutput("mdl").ConnectToSource(output)
     material.CreateVolumeOutput("mdl").ConnectToSource(output)
-    modify_visual_material(shader.GetPrim(), cfg)
+    _author_material_inputs(material.GetPrim(), cfg)
     return shader.GetPrim()
 
 
-def modify_visual_material(prim: Usd.Prim, cfg: visual_materials_cfg.VisualMaterialCfg) -> None:
-    """Apply non-None shader inputs without replacing shader networks or material bindings.
+def _author_material_inputs(prim: Usd.Prim, cfg: visual_materials_cfg.VisualMaterialCfg) -> None:
+    """Author non-None inputs on compatible surface shaders without changing networks or bindings.
+
+    Keep this writer private and restrict writes to connected surface shaders; texture and utility
+    nodes may have inputs with the same names but different meanings.
 
     Args:
-        prim: Shader or declared asset prototype whose descendant shaders are modified.
+        prim: Material or declared asset prototype containing the materials to update.
         cfg: Material inputs. Its spawner and MDL source are not applied.
+
+    Raises:
+        ValueError: If a compatible surface shader is an instance proxy.
     """
     ignored = ("func", "visible", "semantic_tags", "copy_from_source", "spawn_path", "mdl_path")
     inputs = {name: value for name, value in to_dict(cfg).items() if name not in ignored and value is not None}
+    if not inputs:
+        return
     camel_case = isinstance(cfg, PreviewSurfaceCfg)
-    for shader in Usd.PrimRange(prim):
-        if shader.IsA(UsdShade.Shader):
-            for name, value in inputs.items():
-                input_name = to_camel_case(name, to="cC") if camel_case else name
-                if name in {"diffuse_color", "emissive_color", "diffuse_color_constant", "glass_color"}:
-                    shader.CreateAttribute(f"inputs:{input_name}", Sdf.ValueTypeNames.Color3f)
-                safe_set_attribute_on_usd_prim(shader, f"inputs:{name}", value, camel_case=camel_case)
+    for descendant in Usd.PrimRange(prim, Usd.TraverseInstanceProxies()):
+        if not descendant.IsA(UsdShade.Material):
+            continue
+        shader, _, _ = UsdShade.Material(descendant).ComputeSurfaceSource("" if camel_case else "mdl")
+        if not shader:
+            continue
+        if camel_case:
+            if shader.GetIdAttr().Get() != "UsdPreviewSurface":
+                continue
+        elif shader.GetSourceAssetSubIdentifier("mdl") != cfg.mdl_path.rsplit("/", 1)[-1].removesuffix(".mdl"):
+            continue
+        if shader.GetPrim().IsInstanceProxy():
+            raise ValueError(
+                f"Cannot author material inputs on instance proxy '{shader.GetPath()}'."
+                " Set UsdFileCfg.make_uninstanceable=True to make its material editable."
+            )
+        for name, value in inputs.items():
+            input_name = to_camel_case(name, to="cC") if camel_case else name
+            if name in {"diffuse_color", "emissive_color", "diffuse_color_constant", "glass_color"}:
+                shader.GetPrim().CreateAttribute(f"inputs:{input_name}", Sdf.ValueTypeNames.Color3f)
+            safe_set_attribute_on_usd_prim(shader.GetPrim(), f"inputs:{name}", value, camel_case=camel_case)

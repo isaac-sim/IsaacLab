@@ -33,7 +33,7 @@ from ...utils import (
 )
 from ..materials import SurfaceDeformableBodyMaterialBaseCfg
 from ..materials.physics_materials import spawn_physics_material
-from ..materials.visual_materials import modify_visual_material
+from ..materials.visual_materials import _author_material_inputs
 from ..utils import (
     apply_schema_props,
     bare_fragments,
@@ -748,10 +748,9 @@ def spawn_from_usd_file(
     # apply visual material
     if cfg.visual_material is not None:
         if cfg.visual_material_path is None:
-            modify_visual_material(stage.GetPrimAtPath(prim_path), cfg.visual_material)
-        elif not has_kit():
-            logger.warning("Skipping visual material application for '%s' in kitless mode.", prim_path)
-        else:
+            # Author existing surface inputs with or without Kit, before cloning the prototype.
+            _author_material_inputs(stage.GetPrimAtPath(prim_path), cfg.visual_material)
+        elif has_kit():
             material_path = (
                 cfg.visual_material_path
                 if cfg.visual_material_path.startswith("/")
@@ -759,6 +758,8 @@ def spawn_from_usd_file(
             )
             cfg.visual_material.func(material_path, cfg.visual_material)
             bind_visual_material(prim_path, material_path, stage=stage)
+        else:
+            logger.warning("Skipping visual material application for '%s' in kitless mode.", prim_path)
 
     for part_path, material_path in cfg.visual_material_bindings.items():
         from pxr import UsdShade  # noqa: PLC0415
