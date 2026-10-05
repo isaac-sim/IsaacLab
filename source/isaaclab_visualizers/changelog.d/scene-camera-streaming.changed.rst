@@ -1,6 +1,3 @@
-Changed
-^^^^^^^
-
 * **Breaking:** Switched Kit, Newton, Rerun, and Viser streaming views to scene-owned camera sensors.
   Moved generated-camera settings to scene ``CameraCfg`` declarations; visualizers selected them with
   ``streaming_sensor_prim_path``. Removed late camera creation, follow-pose discovery, and camera teardown
@@ -12,8 +9,3 @@ Changed
   list. Scene-camera selection replaced the perspective viewport instead of drawing a floating panel
   over it. Navigation applied the same camera-local motion to every copy of the selected sensor;
   unselected sensors were neither read nor moved by the viewer.
-
-Fixed
-^^^^^
-
-* Fixed Newton RTX frame capture with OVRTX 0.5's RenderVar path keys.

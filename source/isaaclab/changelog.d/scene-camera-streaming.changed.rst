@@ -1,6 +1,3 @@
-Changed
-^^^^^^^
-
 * **Breaking:** Required visualizer streaming cameras to be declared in the scene before cloning.
   Moved camera pose, renderer, and lifetime ownership out of visualizers. Replaced
   ``streaming_cam_target_prim_path``, ``streaming_cam_eye``, and ``streaming_cam_renderer_cfg``
@@ -13,9 +10,3 @@ Changed
   Kit and Newton RTX or the procedural sky in Newton GL. Set ``background_color=(0.3, 0.55, 0.82)``
   to retain the previous solid sky-blue background.
 * Added ``PerspectiveCameraCfg`` and ``SceneCameraCfg`` for selecting visualizer display sources.
-
-Fixed
-^^^^^
-
-* Invalidated camera images after explicit pose writes so lazy reads refreshed pixels even without
-  advancing simulation time.
