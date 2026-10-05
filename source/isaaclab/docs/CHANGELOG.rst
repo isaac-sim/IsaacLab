@@ -3,6 +3,18 @@ Changelog
 
 .. towncrier release notes start
 
+35.1.0 (2026-10-05)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``FileCfg.visual_material_path=None`` to apply material inputs to connected surface shaders
+  without replacing textures or bindings. Fields set to ``None`` were left unchanged.
+* Added OmniPBR metallic and texture-influence settings to ``PbrMdlCfg`` and shared a private input
+  writer between material creation and prototype overrides.
+
+
 35.0.0 (2026-10-03)
 ~~~~~~~~~~~~~~~~~~~
 
