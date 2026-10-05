@@ -256,6 +256,17 @@ class BerryViewer(ViewerRTX):
         if getattr(self, "gui", None) is not None:
             self.gui.update_camera_from_keys = lambda *args: None
 
+    # Newton 1.6's RTX viewer builds multi-component arrays (overlay line batches such as joints, contacts and
+    # centers of mass, and deforming mesh points) with ``ovrtx._src.dlpack.DLTensor.from_dlpack``, which OVRTX 0.6
+    # removed. OVRTX 0.6 infers ``float3``/``half4`` elements from an (N, lanes) array instead.
+    @staticmethod
+    def _make_laned_array_dltensor(values_np, lanes):
+        return np.ascontiguousarray(values_np).reshape(-1, lanes)
+
+    @staticmethod
+    def _make_point3f_dltensor(points_np):
+        return np.ascontiguousarray(points_np, dtype=np.float32).reshape(-1, 3)
+
     def finish_frame(self):
         if self.pending_frame is not None:
             with profiling.zone("ovrtx: wait for frame"):
