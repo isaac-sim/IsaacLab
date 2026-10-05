@@ -290,7 +290,7 @@ are converted to GR00T format:
        suffix_pad: 0
 
 Action chunks across resets
-~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Isaac Lab resets completed environments inside ``step()``. For absolute joint-position policies,
 set ``env.train.isaaclab.hold_pose_on_midchunk_reset: true`` to replace the remaining old-episode

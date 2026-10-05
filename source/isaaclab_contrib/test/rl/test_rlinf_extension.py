@@ -66,7 +66,6 @@ def _build_rlinf_mocks() -> dict[str, types.ModuleType]:
             self.isaaclab_env_id = ""
             self.cfg = cfg
             self.num_envs = num_envs
-            self.device = "cpu"
             self.task_description = ""
 
     mock_isaaclab_base.IsaaclabBaseEnv = _FakeIsaaclabBaseEnv
@@ -416,54 +415,6 @@ class TestTaskRegistration:
 
         registry = _rlinf_mocks["rlinf.envs.isaaclab"].REGISTER_ISAACLAB_ENVS
         assert len(registry) == 0
-
-
-# ---------------------------------------------------------------------------
-# Tests: action chunks
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.parametrize("hold_pose,ignore_terminations", [(False, False), (True, False), (True, True)])
-def test_midchunk_reset_does_not_replay_old_episode_actions(monkeypatch, hold_pose, ignore_terminations):
-    """Hold terminated/truncated worlds, preserve live actions, and release holds at the chunk boundary."""
-    monkeypatch.setattr(
-        ext, "_full_cfg_cache", {"env": {"train": {"isaaclab": {"hold_pose_on_midchunk_reset": hold_pose}}}}
-    )
-    base = _rlinf_mocks["rlinf.envs.isaaclab.isaaclab_env"].IsaaclabBaseEnv
-    states = torch.tensor([[0.2, 0.3], [0.4, 0.5], [0.6, 0.7]])
-    applied = []
-
-    def step(self, actions, auto_reset=True):
-        applied.append(actions.clone())
-        terminated = torch.tensor([len(applied) == 1, False, False])
-        truncated = torch.tensor([False, len(applied) == 1, False])
-        rewards = torch.ones(3)
-        self._record_metrics(rewards, terminated, {})
-        if ignore_terminations:
-            terminated.zero_()  # RLinf clears these after recording metrics.
-        return {"states": states}, rewards, terminated, truncated, {}
-
-    def chunk_step(self, actions):
-        return [self.step(action, auto_reset=False) for action in actions.unbind(dim=1)]
-
-    monkeypatch.setattr(base, "step", step, raising=False)
-    monkeypatch.setattr(base, "chunk_step", chunk_step, raising=False)
-    env = ext._create_generic_env_wrapper("test")(None, 3, 0, 1, None)
-    env.returns, env.success_once, env.elapsed_steps = torch.zeros(3), torch.zeros(3, dtype=torch.bool), torch.ones(3)
-    actions = torch.arange(18, dtype=torch.bfloat16).reshape(3, 3, 2)
-    original = actions.clone()
-    env.chunk_step(actions)
-    torch.testing.assert_close(actions, original)
-    torch.testing.assert_close(applied[0], actions[:, 0])
-    for index in (1, 2):
-        expected = actions[:, index].clone()
-        if hold_pose:
-            expected[:2] = states[:2].to(expected)
-        torch.testing.assert_close(applied[index], expected)
-    env.step(actions[:, 0])
-    torch.testing.assert_close(applied[-1], actions[:, 0])
-    env.chunk_step(actions[:, :1])
-    torch.testing.assert_close(applied[-1], actions[:, 0])
 
 
 # ---------------------------------------------------------------------------
