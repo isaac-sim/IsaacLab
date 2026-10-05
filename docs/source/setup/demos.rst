@@ -120,3 +120,72 @@ Command Builder
 
 H1 locomotion uses a published policy. In the Newton viewer, press N to select a robot, I/J/L to walk
 forward or turn, K to stop, and C to toggle the follow camera. Pick and place requires Kit input. For autonomous H1 task playback, use ``isaaclab play``.
+
+QA with uvx
+-----------
+
+Give QA ``tools/qa_uvx.py`` from the source checkout. It is a standalone Python script and can be copied
+to a machine without Isaac Lab installed. The same commands work on Linux and Windows with uv on PATH:
+
+.. code-block:: bash
+
+   # Test the default published package, demo catalogs, installed resources, and demo help.
+   uv run --no-project python tools/qa_uvx.py
+
+   # Test the candidate wheel and also check example help.
+   uv run --no-project python tools/qa_uvx.py --package /path/to/isaaclab.whl --examples
+
+   # Run Zoo for 60 steps with its default interactive viewer.
+   uv run --no-project python tools/qa_uvx.py --package /path/to/isaaclab.whl --run --demo zoo
+
+   # Run a short simulation without a viewer on a GPU worker.
+   uv run --no-project python tools/qa_uvx.py --package /path/to/isaaclab.whl --run --demo zoo -- --viz none --device cuda:0
+
+``--package`` also accepts a pinned requirement such as ``isaaclab==<candidate-version>`` or
+``isaaclab[isaacsim]==<candidate-version>`` for Pick and Place. Add ``--index https://pypi.nvidia.com``
+when testing a release hosted on NVIDIA's index. The package must contain the redesigned ``demo`` command;
+older releases, including ``3.0.0rc1``, do not. Validate both the candidate wheel and the default published
+package before declaring the advertised ``uvx isaaclab demo <name>`` path ready.
+
+The script launches the real ``uvx`` executable with Python 3.12, ignores uv configuration files and
+already-installed tools, clears Python import overrides, and runs from a temporary directory outside the
+checkout. It checks that every catalog entry resolves to a file inside the installed package. Default checks
+do not simulate; ``--run`` launches the selected demos with ``--max_steps``. Repeat ``--demo`` to select
+several demos, use ``--steps`` to change their duration, and pass backend or viewer options after ``--``.
+Without a selection, all demos with their required modules available are checked. Missing optional modules
+are recorded as skips; explicitly selected demos fail when their dependencies are missing.
+
+Each run writes command logs and ``report.json`` in a new ``uvx-qa-<timestamp>`` directory; ``--output``
+can choose a different new directory. The report records the OS, architecture, Python and package versions,
+GPU/driver information when available, commands, exit codes, durations, and skips. Failures and timeouts
+return a nonzero exit status. ``--timeout`` sets the deadline per command, including the initial package
+installation (default: 1800 seconds). uv's download cache is reused; to test with a fresh cache, set
+``UV_CACHE_DIR`` to a new directory before running the script.
+
+Run the candidate on each supported QA platform, including Linux x86_64, Linux aarch64, and Windows x86_64.
+CLI checks need network access and disk space for the package dependencies. Simulation checks also need
+the selected backend's supported hardware; viewer checks need a desktop session. Exercise Zoo and H1 for
+rigid-body simulation, Block and Tackle for VBD, and Snowball Smash and Teapot Fill for CUDA MPM. Test
+Pick and Place separately with the Isaac Sim extra. A successful simulation check establishes startup,
+bounded execution, and shutdown; QA should also inspect rendering and keyboard/drag interactions in a
+longer interactive run. Attach the result directory and any visual observations to the QA report.
+
+Release publication
+^^^^^^^^^^^^^^^^^^^
+
+The bare ``uvx isaaclab`` command resolves the package from PyPI. Wheels uploaded only as GitHub artifacts
+or to NVIDIA's index do not make this command available. A Python 3.12 ABI error can mean the index still
+contains only the older Python 3.10/3.11 packages; changing demo arguments or GPU drivers cannot fix that.
+
+``.github/workflows/wheel.yml`` validates candidate wheels through this QA script. On a published GitHub
+release, it builds without the CI-only local version suffix and publishes the validated wheel to PyPI.
+The release tag must be ``v<VERSION>`` and match the repository's ``VERSION`` file. After publishing, it
+checks both the exact release requirement and the default ``uvx isaaclab`` path against the public index.
+
+Before enabling release publication, the PyPI ``isaaclab`` project owner must register the trusted publisher
+with owner ``isaac-sim``, repository ``IsaacLab``, workflow ``wheel.yml``, and environment ``pypi``. See
+`PyPI's trusted publisher setup <https://docs.pypi.org/trusted-publishers/adding-a-publisher/>`__.
+The workflow requires this registration and the GitHub ``pypi`` environment; it does not use a stored API
+token. Backport these changes to the release branch before tagging the release that supplies the corrected
+wheel. Until that wheel is published, QA should use the candidate wheel and report the public-index failure
+as unresolved.

@@ -6,6 +6,8 @@
 name: Build PIP Wheel
 
 on:
+  release:
+    types: [published]
   pull_request:
     types: [opened, synchronize, reopened]
   push:
@@ -27,6 +29,9 @@ jobs:
     name: Build Wheel
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    outputs:
+      artifact_name: ${{ steps.meta.outputs.artifact_name }}
+      version: ${{ steps.meta.outputs.version }}
 
     steps:
       - name: Detect wheel-relevant changes
@@ -49,6 +54,7 @@ jobs:
             $'^VERSION$\tPackage version'
             $'^source/\tPython packages'
             $'^tools/wheel_builder/\tWheel build tooling'
+            $'^tools/qa_uvx\.py$\tInstalled uvx validation'
             $'^\.github/workflows/wheel\.yml$\tThis workflow file'
           )
 
@@ -155,18 +161,45 @@ jobs:
       - name: Compute wheel metadata
         if: steps.changes.outputs.run_build == 'true'
         id: meta
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: |
           set -euo pipefail
           version=$(cat VERSION)
           sha_slug="${GITHUB_SHA:0:7}"
-          echo "artifact_name=isaaclab-${version}-build${{ github.run_number }}-${sha_slug}" >> "$GITHUB_OUTPUT"
+          if [ "$GITHUB_EVENT_NAME" = "release" ]; then
+            if [ "$RELEASE_TAG" != "v${version}" ]; then
+              echo "::error::Release tag must match VERSION (expected v${version}, got ${RELEASE_TAG})"
+              exit 1
+            fi
+            echo "artifact_name=isaaclab-${version}" >> "$GITHUB_OUTPUT"
+          else
+            echo "artifact_name=isaaclab-${version}-build${{ github.run_number }}-${sha_slug}" >> "$GITHUB_OUTPUT"
+          fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
 
       - name: Build wheel
         if: steps.changes.outputs.run_build == 'true'
         env:
-          WHEEL_BUILD_NUMBER: ${{ github.run_number }}
-          WHEEL_SHA: ${{ github.sha }}
+          # PyPI releases use VERSION without the local build suffix reserved for CI artifacts.
+          WHEEL_BUILD_NUMBER: ${{ github.event_name != 'release' && github.run_number || '' }}
+          WHEEL_SHA: ${{ github.event_name != 'release' && github.sha || '' }}
         run: bash tools/wheel_builder/build.sh
+
+      - name: Test wheel through uvx
+        if: steps.changes.outputs.run_build == 'true'
+        run: |
+          set -euo pipefail
+          wheels=(tools/wheel_builder/build/dist/isaaclab-*.whl)
+          uv run --no-project python tools/qa_uvx.py --package "${wheels[0]}" --examples --output /tmp/uvx-qa-wheel
+
+      - name: Upload uvx QA results
+        if: always() && steps.changes.outputs.run_build == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: uvx-qa-wheel
+          path: /tmp/uvx-qa-wheel
+          if-no-files-found: ignore
 
       - name: Upload wheel artifact
         if: steps.changes.outputs.run_build == 'true'
@@ -216,3 +249,58 @@ jobs:
             --extra-index-url https://pypi.nvidia.com \
             --index-strategy unsafe-best-match \
             "${wheel}[isaacsim]"
+
+  publish-wheel:
+    name: Publish release wheel to PyPI
+    needs: build-wheel
+    if: github.event_name == 'release' && github.repository == 'isaac-sim/IsaacLab'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: pypi
+      url: https://pypi.org/project/isaaclab/
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Set up uv
+        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e  # v6.8.0
+
+      - name: Download validated wheel
+        uses: actions/download-artifact@v7
+        with:
+          name: ${{ needs.build-wheel.outputs.artifact_name }}
+          path: dist
+
+      - name: Publish wheel
+        run: uv publish --trusted-publishing always --publish-url https://upload.pypi.org/legacy/ dist/isaaclab-*.whl
+
+  verify-release:
+    name: Verify PyPI release through uvx
+    needs: [build-wheel, publish-wheel]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout release
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e  # v6.8.0
+
+      - name: Verify published wheel through uvx
+        env:
+          RELEASE_VERSION: ${{ needs.build-wheel.outputs.version }}
+        run: |
+          uv run --no-project python tools/qa_uvx.py \
+            --package "isaaclab==${RELEASE_VERSION}" --examples --output /tmp/uvx-qa-pypi-release \
+            --uvx-arg=--default-index=https://pypi.org/simple
+          uv run --no-project python tools/qa_uvx.py --examples --output /tmp/uvx-qa-pypi-default \
+            --uvx-arg=--default-index=https://pypi.org/simple
+
+      - name: Upload published-package QA results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: uvx-qa-pypi
+          path: /tmp/uvx-qa-pypi-*
+          if-no-files-found: ignore
