@@ -101,7 +101,7 @@ uv run --no-sync python scripts/demos/rizon_sharpa_coffee.py \
 
 This profile seeds 4,530 physical particles at 5 mm spacing and displays coffee
 grains with approximately 0.45 mm radius. On an RTX 4090 it measured approximately
-0.42 times real time headlessly and 0.27 with GL rendering and MP4 encoding.
+0.42 times real time headlessly and 0.27 with GL rendering and 720p CRF 18 recording.
 Using 125 iterations and 64 visual grains reached 0.47 headlessly, but its
 liquid-level check had little headroom. The full 150-iteration demo retained the
 water with about 2 mm of surface-height loss after stirring. This is a speed experiment:
@@ -111,9 +111,13 @@ profile remains the reference for liquid level and tool contact fidelity.
 
 `--video` defaults to Newton RTX unless `--visualizer` is explicit. It requires
 FFmpeg and writes `coffee.mp4`, phase images, `run.json`, `metrics.json` and
-`spoon_poses.jsonl` to the output directory. The MP4 uses H.264, CRF 18 and
-`yuv420p`; its 25 fps timebase plays at simulation speed, independently of the
-wall time required to render. Failed runs finalize the partial video. Do not
+`spoon_poses.jsonl` to the output directory. The MP4 uses H.264, CRF 14, the
+`slow` preset, grain-preserving encoding and `yuv420p`. Its default 25 fps
+timebase plays at simulation speed, independently of the wall time required to
+render. `--video_fps 50` or `100` increases capture cadence; `--video_crf` selects
+compression quality, with lower values retaining more detail. Set
+`--width 1920 --height 1080 --video_render_scale 2` to render at 4K and downsample
+to 1080p with Lanczos filtering. Failed runs finalize the partial video. Do not
 reuse an output directory whose recording needs to be retained.
 
 `run.json` stores the resolved simulation configuration under `simulation` and

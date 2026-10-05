@@ -31,7 +31,7 @@ wp.config.enable_backward = False
 
 def main() -> None:
     args, parser, ffmpeg = _parse_args()
-    video_stride = 4
+    video_stride = 100 // args.video_fps
     cfg, visualizers = _make_env_cfg(args, parser, video_stride)
     with launch_simulation(cfg, args), ExitStack() as stack:
         from isaaclab_tasks.contrib.rizon_sharpa_coffee.coffee_env import CoffeeEnv
@@ -215,6 +215,11 @@ def _parse_args():
     parser.add_argument("--max_steps", type=int, default=8000)
     parser.add_argument("--camera", choices=("follow", "fixed"), default="follow")
     parser.add_argument("--video", action="store_true", help="Record an MP4 at 1x simulation speed.")
+    parser.add_argument("--video_fps", type=int, choices=(25, 50, 100), default=25)
+    parser.add_argument("--video_crf", type=int, default=14, help="H.264 quality from 0 to 51; lower is better.")
+    parser.add_argument(
+        "--video_render_scale", type=int, choices=(1, 2), default=1, help="Render scale before downsampling the MP4."
+    )
     parser.add_argument("--output_dir", type=Path, default=None)
     parser.add_argument("--disable_cuda_graph", action="store_true")
     parser.add_argument("--headless", action="store_true")
@@ -251,6 +256,8 @@ def _parse_args():
         parser.error("--keep_open requires a desktop viewer.")
     if args.render_samples < 1:
         parser.error("--render_samples must be positive.")
+    if not 0 <= args.video_crf <= 51:
+        parser.error("--video_crf must be between 0 and 51.")
     if not math.isfinite(args.surface_smoothing_time) or args.surface_smoothing_time < 0:
         parser.error("--surface_smoothing_time must be finite and nonnegative.")
     if args.mpm_substeps is not None and args.mpm_substeps < 1:
@@ -333,8 +340,8 @@ def _make_visualizers(args, parser):
     visualizers = []
     camera_cfg = dict(
         headless=args.headless,
-        window_width=args.width,
-        window_height=args.height,
+        window_width=args.width * (args.video_render_scale if args.video else 1),
+        window_height=args.height * (args.video_render_scale if args.video else 1),
         eye=(0.95, -0.65, 0.66),
         lookat=(0.52, 0.02, 0.15),
         focal_length=24.0,
@@ -494,6 +501,7 @@ class _DemoRecording(ExitStack):
         self._env = env
         self._output = args.output_dir
         self._ffmpeg = ffmpeg
+        self._crf = args.video_crf
         self._stride = stride
         self._size = tuple((size + 1) // 2 * 2 for size in (args.width, args.height))
         self._fps = 1.0 / (stride * env.step_dt)
@@ -594,8 +602,12 @@ class _DemoRecording(ExitStack):
                     "-",
                     "-c:v",
                     "libx264",
+                    "-preset",
+                    "slow",
+                    "-tune",
+                    "grain",
                     "-crf",
-                    "18",
+                    str(self._crf),
                     "-pix_fmt",
                     "yuv420p",
                     "-movflags",
