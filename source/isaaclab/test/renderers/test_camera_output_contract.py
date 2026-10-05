@@ -499,6 +499,27 @@ def test_visual_processor_cleanup_continues_after_callback_failure():
     assert closed == ["second", "first"]
 
 
+@pytest.mark.parametrize(
+    ("data_types", "message"),
+    [
+        (("rgb", "depth"), "does not support the following requested data types: \\['depth'\\]"),
+        (("rgb", "not_a_type"), "Unknown camera data types: \\['not_a_type'\\]"),
+    ],
+)
+def test_camera_buffers_reject_outputs_outside_a_deferred_renderer_contract(data_types, message):
+    """A renderer config may defer its contract; the created renderer still validates requested outputs."""
+    from isaaclab.sensors.camera import Camera
+
+    camera = Camera.__new__(Camera)
+    camera.cfg = SimpleNamespace(renderer_cfg=SimpleNamespace(supported_output_types=lambda: None))
+    camera._renderer = SimpleNamespace(
+        supported_output_types=lambda: {RenderBufferKind.RGB: RenderBufferSpec(3, wp.uint8, color_space="srgb")}
+    )
+    camera._render_data_types = data_types
+    with pytest.raises(ValueError, match=message):
+        camera._create_buffers()
+
+
 @pytest.mark.parametrize("fail_cleanup", [False, True])
 def test_camera_initialization_failure_releases_renderer_state(fail_cleanup):
     """A partial camera failure closes every resource and preserves the original diagnostic."""

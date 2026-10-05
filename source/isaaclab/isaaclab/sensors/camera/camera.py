@@ -891,6 +891,27 @@ class Camera(SensorBase):
 
     def _create_buffers(self):
         """Create buffers for storing data."""
+        # Validate against the created renderer: a renderer config may defer its contract until then.
+        specs = self.render_buffer_specs
+        unknown: list[str] = []
+        unsupported: list[str] = []
+        for name in self._render_data_types:
+            try:
+                if RenderBufferKind(name) not in specs:
+                    unsupported.append(name)
+            except ValueError:
+                unknown.append(name)
+        errors = []
+        if unknown:
+            errors.append(f"Unknown camera data types: {unknown}.")
+        if unsupported:
+            errors.append(
+                f"Renderer {type(self._renderer).__name__} does not support the following requested data types:"
+                f" {unsupported}."
+                f"\n\tSupported data types: {sorted(str(kind) for kind in specs)}"
+            )
+        if errors:
+            raise ValueError("\n".join(errors))
         device_str = self._device if isinstance(self._device, str) else str(self._device)
         allocated = CameraData.allocate(
             data_types=list(self._render_data_types),
