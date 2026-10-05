@@ -5,11 +5,8 @@
 
 """Deployment environment that runs LEAPP-exported policies in simulation.
 
-This environment bypasses all Isaac Lab managers (observation, action, reward, etc.)
-and instead wires scene entity data properties and ``CommandManager`` outputs directly
-to a LEAPP ``InferenceManager``, then writes the model outputs back to the
-corresponding scene entities.  All I/O resolution is driven by the
-``isaaclab_connection`` field in the LEAPP YAML.
+This wrapper reuses a registered manager-based environment. It wires scene state and commands to a LEAPP
+``InferenceManager`` and writes outputs back through YAML ``isaaclab_connection`` metadata.
 """
 
 from __future__ import annotations
@@ -18,7 +15,7 @@ import inspect
 import logging
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any, cast
+from typing import Any
 
 import torch
 import yaml
@@ -28,11 +25,7 @@ try:
 except ImportError as e:
     raise ImportError("LEAPP package is required for policy deployment testing. Install with: pip install leapp") from e
 
-from ..managers import CommandManager, EventManager
-from ..scene import InteractiveScene
-from ..sim import SimulationContext
-from ..sim.utils.stage import use_stage
-from ..utils import validate
+from .manager_based_rl_env import ManagerBasedRLEnv
 
 logger = logging.getLogger(__name__)
 
@@ -165,10 +158,8 @@ def _first_param_name(method: Any) -> str:
 class LeappDeploymentEnv:
     """Runs a LEAPP-exported policy in an Isaac Lab scene.
 
-    The environment sets up the simulation scene and physics from a standard
-    Isaac Lab config, then wires raw sensor/command data to a LEAPP
-    ``InferenceManager`` and writes the model outputs back to the corresponding
-    scene entities.
+    The environment reuses a registered manager-based environment while LEAPP replaces its policy inference and
+    action application.
 
     I/O wiring is driven entirely by the ``isaaclab_connection`` metadata field
     in the LEAPP YAML. Each connection string encodes the type of access, the
@@ -182,43 +173,23 @@ class LeappDeploymentEnv:
     The LEAPP model already contains all pre/post-processing.
     """
 
-    def __init__(self, cfg: Any, leapp_yaml_path: str):
+    def __init__(self, env: ManagerBasedRLEnv, leapp_yaml_path: str):
         """Initialize the deployment environment.
 
         Args:
-            cfg: A ``ManagerBasedRLEnvCfg`` (or compatible) task config.
+            env: Registered manager-based environment that owns the simulation.
             leapp_yaml_path: Path to the LEAPP ``.yaml`` pipeline description.
         """
-        cfg.scene.num_envs = 1
-        validate(cfg)
-        self.cfg = cfg
+        self._env = env
+        self.cfg = env.cfg
         self._is_closed = False
         self._leapp_yaml_path = leapp_yaml_path
-        self._step_count = 0
-        self._sim_step_counter = 0
-        self.extras: dict = {}
-
-        # ── Simulation + scene ────────────────────────────────────
-        self.sim = SimulationContext(cfg.sim)
-        if "cuda" in self.sim.device:
-            torch.cuda.set_device(self.sim.device)
-
-        with use_stage(self.sim.stage):
-            self.scene = InteractiveScene(cfg.scene)
-        with use_stage(self.sim.stage):
-            self.sim.reset()
-        self.scene.update(dt=self.physics_dt)
-        self.has_rtx_sensors = bool(self.sim.get_setting("/isaaclab/render/rtx_sensors"))
-
-        # ── EventManager (optional, for resets) ───────────────────
-        self.event_manager: EventManager | None = None
-        if hasattr(cfg, "events") and cfg.events is not None:
-            self.event_manager = EventManager(cfg.events, cast(Any, self))
-
-        # ── CommandManager (optional, for command/* inputs) ───────
-        self.command_manager: CommandManager | None = None
-        if hasattr(cfg, "commands") and cfg.commands is not None:
-            self.command_manager = CommandManager(cfg.commands, cast(Any, self))
+        self.extras = env.extras
+        self.sim = env.sim
+        self.scene = env.scene
+        self.event_manager = env.event_manager
+        self.command_manager = env.command_manager
+        self.has_rtx_sensors = env.has_rtx_sensors
 
         # ── LEAPP InferenceManager ────────────────────────────────
         self.inference = InferenceManager(leapp_yaml_path)
@@ -236,16 +207,15 @@ class LeappDeploymentEnv:
             len(self._output_mapping),
         )
 
-        if self.sim.has_gui and getattr(self.cfg, "ui_window_class_type", None) is not None:
-            self._window = self.cfg.ui_window_class_type(self, window_name="IsaacLab")
-        else:
-            self._window = None
+    def __getattr__(self, name: str) -> Any:
+        """Delegate task-specific attributes to the wrapped environment."""
+        return getattr(object.__getattribute__(self, "_env"), name)
 
     # ── Properties ────────────────────────────────────────────────
 
     @property
     def num_envs(self) -> int:
-        return 1
+        return self._env.num_envs
 
     @property
     def physics_dt(self) -> float:
@@ -387,7 +357,7 @@ class LeappDeploymentEnv:
         self.scene.reset(env_ids)
 
         if self.event_manager is not None and "reset" in self.event_manager.available_modes:
-            self.event_manager.apply(mode="reset", env_ids=env_ids, global_env_step_count=self._step_count)
+            self.event_manager.apply(mode="reset", env_ids=env_ids, global_env_step_count=self._env.common_step_counter)
         if self.command_manager is not None:
             self.command_manager.reset(env_ids)
 
@@ -420,7 +390,7 @@ class LeappDeploymentEnv:
         Returns:
             The dict of pipeline outputs from ``InferenceManager.run_policy()``.
         """
-        self._step_count += 1
+        self._env.common_step_counter += 1
 
         # 1. Update commands
         if self.command_manager is not None:
@@ -443,10 +413,10 @@ class LeappDeploymentEnv:
         # 6. Decimation loop
         is_rendering = self.sim.is_rendering
         for _ in range(self.cfg.decimation):
-            self._sim_step_counter += 1
+            self._env._sim_step_counter += 1
             self.scene.write_data_to_sim()
             self.sim.step(render=False)
-            if self._sim_step_counter % self.cfg.sim.render_interval == 0 and is_rendering:
+            if self._env._sim_step_counter % self.cfg.sim.render_interval == 0 and is_rendering:
                 self.sim.render()
             self.scene.update(dt=self.physics_dt)
 
@@ -455,13 +425,5 @@ class LeappDeploymentEnv:
     def close(self):
         """Clean up the environment and release simulator-owned resources."""
         if not self._is_closed:
-            self.sim.stop()
-            if self.command_manager is not None:
-                del self.command_manager
-            if self.event_manager is not None:
-                del self.event_manager
-            del self.scene
-            self.sim.clear_instance()
-            if self._window is not None:
-                self._window = None
+            self._env.close()
             self._is_closed = True

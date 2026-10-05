@@ -14,7 +14,7 @@ import warp as wp
 leapp = pytest.importorskip("leapp")
 
 from isaaclab.assets.articulation import BaseArticulation, BaseArticulationData
-from isaaclab.envs import mdp
+from isaaclab.envs import leapp_deployment_env, mdp
 from isaaclab.envs.leapp_deployment_env import LeappDeploymentEnv, StateInputSpec
 from isaaclab.managers import ObservationTermCfg, SceneEntityCfg
 from isaaclab.sensors.camera import CameraData
@@ -210,6 +210,35 @@ def test_camera_output_mapping_round_trips_through_deployment(monkeypatch: pytes
         "camera-task/camera_output_rgb": StateInputSpec(entity_name=entity_name, property_name=property_name)
     }
     assert env._read_inputs() == {"camera-task/camera_output_rgb": camera_data.output["rgb"].torch}
+
+
+def test_deployment_env_reuses_and_delegates_manager_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    """Test deployment reuses its registered environment and delegates task state."""
+    pipeline_path = tmp_path / "pipeline.yaml"
+    pipeline_path.write_text("pipeline:\n  inputs: {}\n  outputs: {}\n")
+    closed = []
+    base_env = SimpleNamespace(
+        cfg=SimpleNamespace(),
+        extras={},
+        sim=SimpleNamespace(),
+        scene={},
+        event_manager=SimpleNamespace(),
+        command_manager=SimpleNamespace(),
+        has_rtx_sensors=False,
+        num_envs=1,
+        reset_buf=torch.zeros(1, dtype=torch.bool),
+        close=lambda: closed.append(True),
+    )
+    monkeypatch.setattr(leapp_deployment_env, "InferenceManager", lambda _: SimpleNamespace(nodes={}))
+
+    env = LeappDeploymentEnv(base_env, str(pipeline_path))
+
+    assert env.scene is base_env.scene
+    assert env.command_manager is base_env.command_manager
+    assert env.reset_buf is base_env.reset_buf
+    env.close()
+    env.close()
+    assert closed == [True]
 
 
 def test_fixed_tendon_output_mapping_round_trips_through_deployment():
