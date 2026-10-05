@@ -88,7 +88,7 @@ class ObservationsCfg:
         feet_body_forces = ObsTerm(
             func=mdp.body_incoming_wrench,
             scale=0.1,
-            params={"sensor_cfg": SceneEntityCfg("joint_wrench", body_names=FEET_BODY_NAMES)},
+            params={"sensor_cfg": SceneEntityCfg("joint_wrench", body_names=FEET_BODY_NAMES, preserve_order=True)},
         )
         actions = ObsTerm(func=mdp.last_action)
 

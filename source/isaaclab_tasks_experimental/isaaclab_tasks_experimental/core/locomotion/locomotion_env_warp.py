@@ -453,8 +453,9 @@ class LocomotionWarpEnv(DirectRLEnvWarp):
         )
         self._joint_dof_idx, _ = self.robot.find_joints(".*")
         # resolve against the sensor's own body list: its ordering is backend-specific and does not
-        # necessarily match the articulation's body ordering
-        feet_body_ids, _ = self.joint_wrench.find_bodies(self.cfg.feet_body_names)
+        # necessarily match the articulation's body ordering. The names keep their configured order,
+        # so the feet-wrench block follows feet_body_names on every backend.
+        feet_body_ids, _ = self.joint_wrench.find_bodies(self.cfg.feet_body_names, preserve_order=True)
         self.feet_body_ids = wp.array(feet_body_ids, dtype=wp.int32, device=self.sim.device)
 
         # Simulation bindings
