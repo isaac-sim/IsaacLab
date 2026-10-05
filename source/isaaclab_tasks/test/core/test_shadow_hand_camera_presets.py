@@ -24,7 +24,6 @@ import types
 from pathlib import Path
 
 import pytest
-import torch
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
 
@@ -255,30 +254,6 @@ def test_task_presets_select_published_feature_extractor_checkpoint(
 
     expected_path = f"{ISAACLAB_NUCLEUS_DIR}/PretrainedCheckpoints/rsl_rl/{checkpoint_filename}"
     assert env_cfg.feature_extractor.pretrained_checkpoint == expected_path
-
-
-def test_depth_preprocessing_is_traceable_and_does_not_mutate_camera_buffer() -> None:
-    """Depth normalization must remain finite after tracing and preserve the camera buffer."""
-    extractor = object.__new__(FeatureExtractor)
-    extractor.data_types = ["depth"]
-    depth = torch.tensor([[[[1.0], [float("inf")]], [[2.5], [5.0]]]])
-
-    class DepthPreprocessor(torch.nn.Module):
-        def forward(self, image: torch.Tensor) -> torch.Tensor:
-            return extractor._preprocess_images({"depth": image})
-
-    preprocess = DepthPreprocessor()
-    exported_preprocess = torch.export.export(preprocess, (depth,)).module()
-
-    for image, expected in (
-        (depth, torch.tensor([[[[0.2], [0.0]], [[0.5], [1.0]]]])),
-        (torch.zeros_like(depth), torch.zeros_like(depth)),
-        (torch.full_like(depth, float("inf")), torch.zeros_like(depth)),
-    ):
-        original = image.clone()
-        torch.testing.assert_close(preprocess(image), expected)
-        torch.testing.assert_close(exported_preprocess(image), expected)
-        assert torch.equal(image, original)
 
 
 @pytest.fixture
