@@ -252,15 +252,6 @@ terminal or ``source`` step is needed. Launch a teleoperation session directly:
              --visualizer kit \
              --xr
 
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
-             --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
-             --visualizer kit \
-             --xr
-
 To verify that the headset and controller tracking poses are reaching Isaac Lab, add
 ``--enable_debug_visualization`` to the command. The visualization draws red markers at tracked
 hand joints and RGB axes at tracked controller aim poses. See
@@ -314,16 +305,6 @@ so pair it with a hand-tracking task such as
              --xr \
              --cloudxr_env avp
 
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
-             --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
-             --visualizer kit \
-             --xr \
-             --cloudxr_env avp
-
 For details on the shipped ``.env`` profiles and how to customise them, see
 :ref:`isaac-teleop-cloudxr-profiles` in the feature guide.
 
@@ -355,8 +336,7 @@ Isaac Lab is now ready to receive connections from a CloudXR client.
 
    **Running headless (no local UI).** The commands above use ``--visualizer kit`` to open the
    local Kit viewport, where you click **Start XR**. On a server or cloud instance without a
-   display, run headless instead: omit ``--visualizer`` (headless is the default) or pass
-   ``--visualizer none`` / ``--viz none``. In headless XR the AR session starts automatically --
+   display, run headless instead: omit ``--visualizer`` (headless is the default). In headless XR the AR session starts automatically --
    there is no viewport to click **Start XR** -- so Isaac Lab begins streaming as soon as a
    CloudXR client connects. The ``--headless`` flag was removed in Isaac Lab 3.0; ``HEADLESS=1``
    in the environment also forces headless.
@@ -472,15 +452,6 @@ choose the tab that matches your hardware.
                .. code-block:: bash
 
                   uv run --extra teleop,isaacsim isaaclab teleop run \
-                      --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
-                      --visualizer kit --xr \
-                      --cloudxr_env avp
-
-            .. tab-item:: isaaclab.sh / isaaclab.bat
-
-               .. code-block:: bash
-
-                  ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
                       --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
                       --visualizer kit --xr \
                       --cloudxr_env avp
@@ -727,14 +698,6 @@ Launch a teleoperation session paired with a hand-tracking task, as shown in
              --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
              --visualizer kit --xr
 
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
-             --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
-             --visualizer kit --xr
-
 .. important::
 
    Manus gloves and other external push-device peripherals require
@@ -754,19 +717,6 @@ Launch a teleoperation session paired with a hand-tracking task, as shown in
             sed -i 's/NV_CXR_ENABLE_PUSH_DEVICES=0/NV_CXR_ENABLE_PUSH_DEVICES=1/' ~/manus.env
 
             uv run --extra teleop,isaacsim isaaclab teleop run \
-                --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
-                --visualizer kit --xr \
-                --cloudxr_env ~/manus.env
-
-      .. tab-item:: isaaclab.sh / isaaclab.bat
-
-         .. code-block:: bash
-
-            # Copy a shipped profile and enable push devices
-            cp $(python -c "from isaaclab_teleop import CLOUDXR_JS_ENV; print(CLOUDXR_JS_ENV)") ~/manus.env
-            sed -i 's/NV_CXR_ENABLE_PUSH_DEVICES=0/NV_CXR_ENABLE_PUSH_DEVICES=1/' ~/manus.env
-
-            ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
                 --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
                 --visualizer kit --xr \
                 --cloudxr_env ~/manus.env
@@ -970,20 +920,9 @@ Run the teleop script (e.g. ``record_demos.py`` to record demonstrations):
            --dataset_file ./datasets/dataset.hdf5 \
            --xr --visualizer kit
 
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         ./isaaclab.sh -p scripts/tools/record_demos.py \
-           --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
-           --num_demos 5 \
-           --dataset_file ./datasets/dataset.hdf5 \
-           --xr --visualizer kit
-
 Then in the Isaac Sim UI, set the XR panel to **System OpenXR Runtime** and click **Start XR**.
 
-For a fully headless experience, replace ``--visualizer kit`` with ``--visualizer none`` or
-``--viz none`` and the XR teleop session will run automatically.
+For a fully headless experience, omit ``--visualizer kit`` and the XR teleop session will run automatically.
 
 .. admonition:: Next Steps
 

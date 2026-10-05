@@ -174,16 +174,6 @@ Enable the visualization when launching a teleoperation session:
              --xr \
              --enable_debug_visualization
 
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
-             --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
-             --visualizer kit \
-             --xr \
-             --enable_debug_visualization
-
 The ``--enable_debug_visualization`` flag is also available in ``scripts/tools/record_demos.py``
 and ``scripts/environments/teleoperation/teleop_replay_agent.py``. The option is applied when the
 Isaac Capture device is created and cannot be toggled during a running device session. The markers
@@ -491,16 +481,6 @@ on launch -- no headset connection is needed (see :ref:`isaac-teleop-standalone`
              --visualizer kit \
              physics=isaacsim_physx
 
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
-             --task IsaacContrib-Stack-Cube-SO101-Joint-Teleop-v0 \
-             --num_envs 1 \
-             --visualizer kit \
-             physics=isaacsim_physx
-
 **With a headset (immersive XR view)**
 
 Add ``--xr`` to stream the simulation to a Quest, Pico, or Apple Vision Pro headset while the
@@ -515,16 +495,6 @@ only controls whether the scene is rendered to the headset. Follow the connectio
       .. code-block:: bash
 
          uv run --extra teleop,isaacsim isaaclab teleop run \
-             --task IsaacContrib-Stack-Cube-SO101-Joint-Teleop-v0 \
-             --num_envs 1 \
-             --visualizer kit --xr \
-             physics=isaacsim_physx
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
              --task IsaacContrib-Stack-Cube-SO101-Joint-Teleop-v0 \
              --num_envs 1 \
              --visualizer kit --xr \
@@ -1208,16 +1178,6 @@ for the headless profile, or pass a full file path for a custom profile:
              --visualizer kit --xr \
              --cloudxr_env avp
 
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         # Use the AVP profile
-         ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
-             --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
-             --visualizer kit --xr \
-             --cloudxr_env avp
-
 Create a custom profile
 ~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -1260,22 +1220,6 @@ If you prefer to run the CloudXR runtime manually in a separate terminal
              --visualizer kit --xr
 
 
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         # Disable via CLI flag
-         ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
-             --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
-             --visualizer kit --xr \
-             --no-auto_launch_cloudxr
-
-         # Or disable via environment variable
-         ISAACLAB_CXR_SKIP_AUTOLAUNCH=1 ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
-             --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
-             --visualizer kit --xr
-
-
 Accept the CloudXR license non-interactively
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -1295,7 +1239,7 @@ works for the Omniverse license:
 
 .. code-block:: bash
 
-   ISAACLAB_CXR_ACCEPT_EULA=1 ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
+   ISAACLAB_CXR_ACCEPT_EULA=1 uv run python scripts/environments/teleoperation/teleop_se3_agent.py \
        --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
        --xr
 
@@ -1702,15 +1646,6 @@ uses ``create_isaac_teleop_device()`` -- no ``--teleop_device`` flag is needed:
              --visualizer kit \
              --xr
 
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         ./isaaclab.sh -p scripts/tools/record_demos.py \
-             --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
-             --visualizer kit \
-             --xr
-
 The ``run``, ``record``, and ``replay`` workflows accept task configuration selectors using
 Hydra-style ``key=value`` syntax (with no leading ``--``). For example, record the Franka reach
 task with the PhysX and differential IK presets as follows:
@@ -1747,15 +1682,6 @@ the input device:
       .. code-block:: bash
 
          uv run --extra teleop,isaacsim isaaclab teleop record \
-             --task IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-RmpFlow \
-             --visualizer kit \
-             --teleop_device keyboard
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         ./isaaclab.sh -p scripts/tools/record_demos.py \
              --task IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-RmpFlow \
              --visualizer kit \
              --teleop_device keyboard
@@ -2008,7 +1934,7 @@ Optimize XR Performance
 
       uv run --extra teleop,isaacsim isaaclab teleop run \
           --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
-          --viz none --xr
+          --xr
 
    In headless XR the OpenXR/AR session **starts automatically** -- there is no local viewport to
    click **Start XR**, so Isaac Lab begins streaming as soon as a CloudXR client connects.
@@ -2016,8 +1942,7 @@ Optimize XR Performance
    .. note::
 
       The ``--headless`` CLI flag was removed in Isaac Lab 3.0. Headless is now the **default**
-      (omit ``--visualizer``); pass ``--visualizer none`` / ``--viz none`` to force it when a
-      config might otherwise enable a visualizer, or set ``HEADLESS=1`` in the environment.
+      (omit ``--visualizer``), or set ``HEADLESS=1`` in the environment.
 
 .. dropdown:: Configure retargeting execution
    :open:

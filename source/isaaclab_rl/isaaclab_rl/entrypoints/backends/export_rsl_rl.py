@@ -8,29 +8,28 @@
 from __future__ import annotations
 
 import argparse
+import logging
 import os
 from collections.abc import Mapping
 from typing import Any
 
 import torch
 
+logger = logging.getLogger(__name__)
+
 # LEAPP traces Isaac Lab's Python tensor operations, so TorchScript is disabled before importing task
 # or environment modules that compile decorated helpers at import time.
 torch.jit._state.disable()
 
 import gymnasium as gym
+from rsl_rl.runners import DistillationRunner, OnPolicyRunner
 
+from isaaclab.utils import to_dict
 from isaaclab.utils.assets import retrieve_file_path
 
 import isaaclab_tasks  # noqa: F401
 
-from ...rsl_rl import (
-    RslRlBaseRunnerCfg,
-    RslRlVecEnvWrapper,
-    check_rsl_rl_version,
-    create_rsl_rl_runner,
-    handle_deprecated_rsl_rl_cfg,
-)
+from ...rsl_rl import RslRlBaseRunnerCfg, RslRlVecEnvWrapper
 from ..common import resolve_published_checkpoint, resolve_seed
 from .export_common import (
     add_common_export_args,
@@ -132,24 +131,22 @@ def export_rsl_rl_agent(args_cli: argparse.Namespace, env_cfg: Any, agent_cfg: R
     # the LEAPP runtime loads simulation modules, so import it only after the launch
     from leapp import annotate
 
-    installed_version = check_rsl_rl_version()
     if args_cli.seed is not None:
         agent_cfg.seed = resolve_seed(args_cli.seed)
     if args_cli.checkpoint is not None:
         agent_cfg.load_checkpoint = args_cli.checkpoint
     if args_cli.experiment_name is not None:
         agent_cfg.experiment_name = args_cli.experiment_name
-    agent_cfg = handle_deprecated_rsl_rl_cfg(agent_cfg, installed_version)
 
     env_cfg.scene.num_envs = 1
     # certain randomizations occur in the environment initialization so we set the seed here
     env_cfg.seed = agent_cfg.seed
 
     log_root_path = os.path.abspath(os.path.join("logs", "rsl_rl", agent_cfg.experiment_name))
-    print(f"[INFO] Loading checkpoint search path from directory: {log_root_path}")
+    logger.info(f"Loading checkpoint search path from directory: {log_root_path}")
     resume_path = _resolve_checkpoint(args_cli, agent_cfg, env_cfg, log_root_path)
     if not resume_path:
-        print(f"[INFO] No checkpoint found for task: {args_cli.task} in directory: {log_root_path}")
+        logger.info(f"No checkpoint found for task: {args_cli.task} in directory: {log_root_path}")
         return False
     log_dir = os.path.dirname(resume_path)
     env_cfg.log_dir = log_dir
@@ -165,8 +162,13 @@ def export_rsl_rl_agent(args_cli: argparse.Namespace, env_cfg: Any, agent_cfg: R
         policy_node_name = prepare_export_env(env, args_cli, required_obs_groups=required_obs_groups)
         env = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
 
-        print(f"[INFO]: Loading model checkpoint from: {resume_path}")
-        runner = create_rsl_rl_runner(env, agent_cfg)
+        logger.info(f"Loading model checkpoint from: {resume_path}")
+        if agent_cfg.class_name == "OnPolicyRunner":
+            runner = OnPolicyRunner(env, to_dict(agent_cfg), log_dir=None, device=agent_cfg.device)
+        elif agent_cfg.class_name == "DistillationRunner":
+            runner = DistillationRunner(env, to_dict(agent_cfg), log_dir=None, device=agent_cfg.device)
+        else:
+            raise ValueError(f"Unsupported runner class: {agent_cfg.class_name}")
         runner.load(resume_path)
         policy = runner.get_inference_policy(device=env.unwrapped.device)
         recurrent = is_actor_recurrent_policy(policy)
