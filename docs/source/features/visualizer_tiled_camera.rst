@@ -57,6 +57,13 @@ for dual monitoring.
 its tiled output in the main viewport instead of rendering a perspective view behind it.
 Selecting a perspective camera restores normal interactive rendering and picking.
 
+Without an explicit ``camera`` list, the viewer starts in perspective and offers scene cameras
+that provide every requested ``streaming_gt_types`` channel. For example, set
+``streaming_gt_types=("depth",)`` to offer depth-only cameras. Output aliases count: a camera
+configured for RGBA that also publishes RGB can supply the RGB view. No images are captured to
+build the selector. Explicitly configured scene-camera choices must support the requested channels;
+incompatible choices raise a configuration error during initialization, including inactive choices.
+
 Use ``camera`` to declare one view or a list of selectable views; the first starts active:
 
 .. code-block:: python
@@ -77,8 +84,9 @@ Both scene cameras must already be declared as ``CameraCfg`` entries in the scen
 and mouse navigation moves the selected sensor's copies by the same camera-local translation
 and rotation across all environments, including copies not displayed. It does not move other
 camera choices. These are real sensor pose changes, so policies and other viewers using that
-sensor observe the new viewpoint too. Pausing rendering freezes the displayed image and sensor
-navigation; pausing training alone does not.
+sensor observe the new viewpoint too. Navigation reads the live sensor pose, including parent-body
+motion, independently of ``CameraCfg.update_latest_camera_pose``. Pausing rendering freezes the
+displayed image and sensor navigation; pausing training alone does not.
 
 With ``InteractiveSceneCfg.lazy_sensor_update=True``, the viewer reads only the selected camera.
 Unselected cameras are still allocated and may render if another consumer reads them or the

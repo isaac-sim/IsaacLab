@@ -137,7 +137,8 @@ class NewtonGLVisualizerCfg(NewtonVisualizerCfg):
     PerspectiveCameraCfg supplies an interactive pose and optics. Only the selected source is displayed.
     Navigation moves every copy of the selected scene camera by the same camera-local motion.
     These sensor pose changes are also visible to policies and other viewers using that camera.
-    None preserves the eye/lookat/focal_length settings and lists scene cameras when streaming_view is enabled.
+    None preserves the eye/lookat/focal_length settings and lists compatible scene cameras when streaming_view
+    is enabled. Every explicit scene-camera choice must provide the requested streaming_gt_types channels.
     """
 
     streaming_view: bool = True

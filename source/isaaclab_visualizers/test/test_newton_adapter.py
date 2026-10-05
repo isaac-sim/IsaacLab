@@ -40,6 +40,7 @@ from pxr import Gf, Sdf, Usd, UsdGeom, UsdLux
 from isaaclab.assets import AssetBaseCfg
 from isaaclab.cloner import ClonePlan, PrototypeWorldTopology, make_clone_plan
 from isaaclab.sim import SimulationContext
+from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils import instantiate
 from isaaclab.visualizers import PerspectiveCameraCfg, SceneCameraCfg
 
@@ -233,7 +234,8 @@ def test_visualizers_borrow_scene_camera_outputs(monkeypatch, cfg_type):
     monkeypatch.setattr(SimulationContext, "instance", lambda: sim)
     pixels = torch.arange(4, dtype=torch.uint8).reshape(4, 1, 1, 1).expand(4, 2, 3, 3).clone()
     camera = SimpleNamespace(
-        cfg=SimpleNamespace(prim_path="/Scenes/world_[^/]+/Camera", data_types=["rgb"]),
+        cfg=SimpleNamespace(prim_path="/Scenes/world_[^/]+/Camera", data_types=["rgba"]),
+        output_types=("rgb", "rgba"),
         data=SimpleNamespace(output={"rgb": pixels}),
         close=Mock(),
         update=Mock(),
@@ -831,14 +833,17 @@ def test_newton_scene_camera_controls_apply_uniformly_to_active_copies(monkeypat
     class Camera:
         def __init__(self, path):
             self.cfg = SimpleNamespace(prim_path=path, data_types=["rgb"])
+            self.output_types = ("rgb",)
             self.reads = 0
             self.set_world_poses = Mock()
+            self.get_world_poses = Mock(return_value=(positions, orientations))
 
         @property
         def data(self):
             self.reads += 1
             return SimpleNamespace(
-                pos_w=_Proxy(positions),
+                # Cached measurements precede the parent's latest motion.
+                pos_w=_Proxy(positions - 5.0),
                 quat_w_opengl=_Proxy(orientations),
                 output={"rgb": torch.zeros((2, 4, 6, 3), dtype=torch.uint8)},
             )
@@ -865,6 +870,7 @@ def test_newton_scene_camera_controls_apply_uniformly_to_active_copies(monkeypat
     assert visualizer._streaming_frame.timestamp == -1.0
     assert sensors["Back"].reads == 0
     sensors["Back"].set_world_poses.assert_not_called()
+    sensors["Back"].get_world_poses.assert_not_called()
 
     # Switching only binds; reading the selected view then captures that sensor alone.
     reads = sensors["Front"].reads
@@ -874,6 +880,77 @@ def test_newton_scene_camera_controls_apply_uniformly_to_active_copies(monkeypat
     visualizer.step(0.0)
     assert sensors["Back"].reads == 1 and sensors["Front"].reads == reads
     sensors["Back"].set_world_poses.assert_not_called()
+
+
+@pytest.mark.rendering
+@pytest.mark.kitless
+@pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
+def test_newton_camera_selector_uses_available_outputs_without_capturing_inactive_sensors(device):
+    """Depth-only sensors do not prevent perspective startup; RGBA sensors offer their RGB alias."""
+    import gymnasium as gym
+    from isaaclab_newton.renderers import NewtonWarpRendererCfg
+
+    from isaaclab.app import launch_simulation
+    from isaaclab.sensors import CameraCfg
+    from isaaclab.sim import PinholeCameraCfg
+
+    import isaaclab_tasks  # noqa: F401
+    from isaaclab_tasks.utils import resolve_task_config
+
+    cfg, _ = resolve_task_config("Isaac-Cartpole", "", overrides=("physics=newton_mjwarp",))
+    cfg.scene.num_envs = 2
+    cfg.scene.depth_camera = CameraCfg(
+        prim_path="{ENV_REGEX_NS}/Robot/cart/DepthCamera",
+        width=64,
+        height=48,
+        data_types=["depth"],
+        renderer_cfg=NewtonWarpRendererCfg(),
+        spawn=PinholeCameraCfg(focal_length=24.0),
+        offset=CameraCfg.OffsetCfg(pos=(-5.0, 0.0, 0.0), convention="world"),
+    )
+    cfg.scene.color_camera = cfg.scene.depth_camera.copy()
+    cfg.scene.color_camera.prim_path = "{ENV_REGEX_NS}/Robot/cart/ColorCamera"
+    cfg.scene.color_camera.data_types = ["rgba"]
+    cfg.sim.visualizer_cfgs = [
+        NewtonGLVisualizerCfg(headless=True, window_width=128, window_height=128, streaming_envs=[0])
+    ]
+    with launch_simulation(cfg, {"visualizer": ["newton_gl"], "device": device}):
+        env = gym.make("Isaac-Cartpole", cfg=cfg)
+        try:
+            env.reset()
+            depth, color = env.unwrapped.scene["depth_camera"], env.unwrapped.scene["color_camera"]
+            visualizer = env.unwrapped.sim.visualizers[0]
+            depth_frame = depth.frame.torch.clone()
+            color_frame = color.frame.torch.clone()
+            assert visualizer._camera_sensor is None
+            assert isinstance(visualizer._camera_choices[0], PerspectiveCameraCfg)
+            assert [camera.prim_path for camera in visualizer._camera_choices[1:]] == [color.cfg.prim_path]
+            assert set(color.output_types) == {"rgb", "rgba"}
+
+            visualizer._select_camera(1)
+            torch.testing.assert_close(color.frame.torch, color_frame)
+            image = visualizer.render_tiled_rgb_array()
+            np.testing.assert_array_equal(image, color.data.output["rgb"].torch[0].cpu().numpy())
+            assert np.ptp(image) > 0
+            torch.testing.assert_close(depth.frame.torch, depth_frame)
+
+            # Body motion must be visible to pose queries even when measurement poses stay cached.
+            robot = env.unwrapped.scene["robot"]
+            cached = color.data.pos_w.torch.clone()
+            before, _ = color.get_world_poses(convention="opengl")
+            before = before.clone()
+            frame = color.frame.torch.clone()
+            joint_positions = robot.data.joint_pos.torch.clone()
+            joint_positions[:, robot.find_joints("slider_to_cart")[0]] += 1.0
+            robot.write_joint_state_to_sim_index(position=joint_positions, velocity=torch.zeros_like(joint_positions))
+            env.unwrapped.sim.forward()
+            env.unwrapped.sim.step(render=False)
+            positions, _ = color.get_world_poses(convention="opengl")
+            assert torch.all(torch.linalg.vector_norm(positions - before, dim=-1) > 0.5)
+            torch.testing.assert_close(color.data.pos_w.torch, cached)
+            torch.testing.assert_close(color.frame.torch, frame)
+        finally:
+            env.close()
 
 
 @pytest.mark.parametrize("cfg_type", [NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg])

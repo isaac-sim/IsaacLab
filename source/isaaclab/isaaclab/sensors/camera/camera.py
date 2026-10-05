@@ -350,6 +350,11 @@ class Camera(SensorBase):
         return self._data
 
     @property
+    def output_types(self) -> tuple[str, ...]:
+        """Allocated output names, including aliases, available after initialization without capturing images."""
+        return tuple(self._data.output)
+
+    @property
     def frame(self) -> ProxyArray:
         """Frame number when the measurement took place."""
         return self._frame
@@ -493,8 +498,26 @@ class Camera(SensorBase):
         wp.copy(self._intrinsic_parameters, self._intrinsic_parameters_pending)
 
     """
-    Operations - Set pose.
+    Operations - Pose.
     """
+
+    def get_world_poses(
+        self, env_ids: Sequence[int] | None = None, convention: Literal["opengl", "ros", "world"] = "ros"
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Read current camera poses without capturing images or updating cached measurement poses.
+
+        Args:
+            env_ids: Sensor indices to query. None selects all sensors.
+            convention: Camera orientation convention, as in :meth:`set_world_poses`.
+
+        Returns:
+            World positions [m], shape [N, 3], and orientation quaternions (x, y, z, w), shape [N, 4].
+        """
+        positions, orientations = self._view.get_world_poses(self._resolve_env_ids_wp(env_ids))
+        orientations = convert_camera_frame_orientation_convention(
+            orientations.torch, origin="opengl", target=convention
+        )
+        return positions.torch, orientations
 
     def set_world_poses(
         self,

@@ -40,6 +40,7 @@ from pxr import Gf, Sdf, Usd, UsdGeom, UsdLux
 
 from isaaclab.cloner import ClonePlan, expand_env_regex_ns
 from isaaclab.cloner import path as cloner_path
+from isaaclab.envs.utils.camera_colorizer import sensor_key_for_gt_type
 from isaaclab.envs.utils.camera_view import find_camera_by_prim_path
 from isaaclab.scene_data import SceneDataFormat
 from isaaclab.sim import SimulationContext
@@ -1074,6 +1075,8 @@ class NewtonVisualizer(BaseVisualizer):
             num_envs,
             visible_env_ids=self._resolved_visible_env_ids,
             target_aspect=self.cfg.window_width / self.cfg.window_height,
+            # GL binds its selected source after constructing the camera choices.
+            select_camera=not isinstance(self.cfg, NewtonGLVisualizerCfg),
         )
 
         num_visualized_envs = (
@@ -1667,7 +1670,25 @@ class NewtonGLVisualizer(NewtonVisualizer):
         super().initialize(scene_data_provider)
         if self.cfg.camera is None and self.cfg.streaming_view:
             cameras = scene_data_provider.get_camera_sensors()
-            self._camera_choices[1:] = [SceneCameraCfg(prim_path=c.cfg.prim_path) for c in cameras.values()]
+            self._camera_choices[1:] = []
+            for camera in cameras.values():
+                try:
+                    for gt_type in self.cfg.streaming_gt_types:
+                        sensor_key_for_gt_type(gt_type, frozenset(camera.output_types))
+                except KeyError:
+                    # An automatically offered source must support every requested display channel.
+                    continue
+                self._camera_choices.append(SceneCameraCfg(prim_path=camera.cfg.prim_path))
+        else:
+            # Explicit choices are configuration contracts, including choices that start inactive.
+            for camera in self._camera_choices:
+                if isinstance(camera, SceneCameraCfg):
+                    plan = SimulationContext.instance().get_clone_plan()
+                    prim_path = expand_env_regex_ns(camera.prim_path, plan.env_template)
+                    sensors = scene_data_provider.get_camera_sensors()
+                    sensor = find_camera_by_prim_path(sensors, prim_path, self._camera_sensor_indices)
+                    for gt_type in self.cfg.streaming_gt_types:
+                        sensor_key_for_gt_type(gt_type, frozenset(sensor.output_types))
         if self._viewer is not None:
             self._viewer._draw_streaming_view_controls = self._draw_streaming_view_controls
             self._select_camera(self._camera_index)
@@ -1727,8 +1748,7 @@ class NewtonGLVisualizer(NewtonVisualizer):
             return
 
         # Reuse native keyboard/mouse navigation as a camera-local delta for every sensor copy.
-        data = camera.data
-        positions, orientations = data.pos_w.torch, data.quat_w_opengl.torch
+        positions, orientations = camera.get_world_poses(convention="opengl")
         delta = torch.as_tensor(before @ np.linalg.inv(after), dtype=positions.dtype, device=positions.device)
         translation = quat_apply(orientations, delta[:3, 3].expand_as(positions))
         rotation = quat_from_matrix(delta[:3, :3]).expand_as(orientations)

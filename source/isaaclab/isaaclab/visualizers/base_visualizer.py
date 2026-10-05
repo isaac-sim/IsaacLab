@@ -99,9 +99,14 @@ class BaseVisualizer(ABC):
         return scene_data_provider
 
     def _setup_streaming_view(
-        self, num_envs: int, *, visible_env_ids: list[int] | None = None, target_aspect: float = 1.0
+        self,
+        num_envs: int,
+        *,
+        visible_env_ids: list[int] | None = None,
+        target_aspect: float = 1.0,
+        select_camera: bool = True,
     ) -> None:
-        """Select a scene-owned camera without constructing or updating sensor resources."""
+        """Configure tiles and optionally select a camera; interactive selectors can defer binding."""
         if not self.cfg.streaming_view:
             return
         # Validate display channels even when the scene has no camera.
@@ -111,6 +116,8 @@ class BaseVisualizer(ABC):
         self._camera_sensor_indices = resolve_streaming_envs(
             num_envs, self.cfg.streaming_envs, sample_from=visible_env_ids
         )
+        if not select_camera:
+            return
         cameras = self._scene_data_provider.get_camera_sensors()
         path = self.cfg.streaming_sensor_prim_path
         if path is None:
@@ -125,7 +132,7 @@ class BaseVisualizer(ABC):
     def _select_streaming_camera(self, camera: Camera) -> None:
         """Bind display channels to a borrowed camera and discard the previous composite."""
         for gt_type in self.cfg.streaming_gt_types:
-            sensor_key_for_gt_type(gt_type, frozenset(camera.cfg.data_types))
+            sensor_key_for_gt_type(gt_type, frozenset(camera.output_types))
         self._camera_sensor = camera
         self._streaming_frame = TimestampedBuffer()
 
@@ -141,7 +148,7 @@ class BaseVisualizer(ABC):
         if self._streaming_frame.timestamp != self._sim_time:
             cfg = self.cfg
             gt_types = cfg.streaming_gt_types
-            available = frozenset(self._camera_sensor.cfg.data_types)
+            available = frozenset(self._camera_sensor.output_types)
             # Gather and transfer each channel once, not once per displayed environment.
             batches = []
             for gt in gt_types:

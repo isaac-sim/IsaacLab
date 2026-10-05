@@ -528,9 +528,9 @@ updates every step.
 The streaming panel supports RGB, depth, segmentation, and surface normals, with a configurable
 number of environments shown.
 
-Streams can come from auto-created cameras that track and follow robot bodies, or from existing
-scene camera sensors, letting you toggle between different views, such as the Galbot task's
-wrist-mounted and ego cameras. Supported on Kit, Newton GL, Rerun, and Viser; not yet
+Streams come from camera sensors declared in the scene before cloning. Attach a camera to a robot
+body to follow its motion, and select between existing views such as the Galbot task's wrist-mounted
+and ego cameras. Supported on Kit, Newton GL, Rerun, and Viser; not yet
 supported on Newton RTX (experimental).
 
 See :doc:`/source/features/visualizer_tiled_camera` for the full guide and tutorial.
