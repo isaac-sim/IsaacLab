@@ -158,9 +158,13 @@ def test_version_single_source_matches_literal_pins(source_checkout_root: Path):
     for package in ("torch", "torchvision", "torchaudio"):
         assert f"{package}=={versions[package]}" in dependencies
 
-    # The Newton uv override is its single pin and may select a release or Git revision.
-    newton_spec = next(requirement for requirement in overrides if requirement.startswith("newton[sim]"))
-    assert newton_spec.endswith(f"newton.git@{versions['newton']}")
+    # Newton uses the same exact PyPI release for source and wheel installations.
+    newton_dependency = next(requirement for requirement in dependencies if requirement.startswith("newton[sim]"))
+    newton_override = next(requirement for requirement in overrides if requirement.startswith("newton[sim]"))
+    newton_requirement = Requirement(newton_override)
+    assert newton_dependency == newton_override
+    assert newton_requirement.url is None
+    assert str(newton_requirement.specifier).startswith("==")
 
     # warp-lang is a core dependency whose table value may be an exact pin
     # ("1.2.3" -> ``==``) or a range (">=1.2.3" -> mirrored verbatim).
