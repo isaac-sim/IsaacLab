@@ -721,11 +721,14 @@ class NewtonManager(PhysicsManager):
         # Notify solver of model changes
         if cls._model_changes:
             with wp.ScopedDevice(PhysicsManager._device):
+                flags = 0
                 for change in cls._model_changes:
                     if change in cls._ignored_model_changes and change not in cls._warned_model_changes:
                         logger.warning(cls._ignored_model_changes[change])
                         cls._warned_model_changes.add(change)
-                    cls._solver.notify_model_changed(change)
+                    flags |= change
+                # Refresh shared solver constants once after applying all pending property changes.
+                cls._solver.notify_model_changed(flags)
                 NewtonManager._model_changes = set()
 
         # Reset-authored state and persistent solver resources must be ready before capture.

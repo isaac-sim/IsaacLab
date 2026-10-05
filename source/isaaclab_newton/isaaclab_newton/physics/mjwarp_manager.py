@@ -37,10 +37,19 @@ class NewtonMJWarpManager(NewtonManager):
     @classmethod
     def _create_solver(cls, model: Model, solver_cfg: MJWarpSolverCfg) -> SolverMuJoCo:
         """Construct the configured MuJoCo Warp solver."""
+        block_dim = solver_cfg.cholesky_solve_block_dim
+        if block_dim is not None:
+            if not isinstance(block_dim, int) or block_dim not in (32, 64, 128, 256, 512, 1024):
+                raise ValueError("cholesky_solve_block_dim must be a power of two from 32 through 1024.")
+            if solver_cfg.use_mujoco_cpu:
+                raise ValueError("cholesky_solve_block_dim requires use_mujoco_cpu=False.")
         kwargs = cls._filter_solver_kwargs(SolverMuJoCo, solver_cfg)
         # ls_parallel is deprecated in newton; forwarding it (even as False) emits a warning.
         kwargs.pop("ls_parallel", None)
-        return SolverMuJoCo(model, **kwargs)
+        solver = SolverMuJoCo(model, **kwargs)
+        if block_dim is not None:
+            solver.mjw_model.block_dim.cholesky_solve = block_dim
+        return solver
 
     @classmethod
     def _build_solver(cls, model: Model, solver_cfg: MJWarpSolverCfg) -> None:

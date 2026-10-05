@@ -241,6 +241,14 @@ CPU configuration, consult the maintained upstream guides:
 For Newton-specific performance and solver parameters, see the
 :ref:`Newton physics documentation <physics-backends-newton>`.
 
+For MJWarp workloads dominated by tiled mass-matrix solves, the optional
+:attr:`~isaaclab_newton.physics.MJWarpSolverCfg.cholesky_solve_block_dim` setting controls their
+thread-block size. For example, ``env.sim.physics.solver_cfg.cholesky_solve_block_dim=32`` can be
+passed as a task override. The default, ``None``, preserves MJWarp's choice. The override is applied
+at solver construction, before CUDA graph capture, and is unavailable with CPU MuJoCo.
+Compare representative workloads on the target GPU: the best value depends on the matrix size
+and environment count, and MJWarp can use fixed launch sizes for some solve paths.
+
 
 Joints actuate in PhysX but not in a Newton-based backend
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
