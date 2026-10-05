@@ -58,13 +58,15 @@ parser.add_argument(
 )
 parser.add_argument(
     "--mode",
-    choices=["gamepad", "keyboard", "idle", "pick", "place", "squash"],
+    choices=["gamepad", "keyboard", "idle", "pick", "place", "squash", "sort"],
     default="gamepad",
 )
 parser.add_argument(
     "--steps", type=int, default=0, help="0 runs until the window closes, or a headless scripted run ends"
 )
-parser.add_argument("--loop", action="store_true", help="Reset and repeat scripted pick/place/squash demonstrations")
+parser.add_argument(
+    "--loop", action="store_true", help="Reset and repeat scripted pick/place/squash/sort demonstrations"
+)
 parser.add_argument(
     "--motion_speed",
     type=float,
@@ -80,9 +82,12 @@ parser.add_argument(
 )
 parser.add_argument(
     "--view",
-    choices=["auto", "berry", "workcell", "scene"],
+    choices=["auto", "berry", "workcell", "scene", "director"],
     default="auto",
-    help="Initial camera; auto shows the plate/bowl for EBC and a close-up for studio",
+    help=(
+        "Initial camera; auto shows the plate/bowl for EBC and a close-up for studio. director (sort mode) moves"
+        " between the workcell and a close-up of the berry being handled"
+    ),
 )
 parser.add_argument(
     "--physics_resolution",
@@ -186,8 +191,12 @@ if args.layout_seed < 0:
     parser.error("--layout_seed must be nonnegative")
 if args.mode == "place" and args.background != "ebc":
     parser.error("--mode place requires --background ebc (punnet and receiving bowl)")
-if args.loop and args.mode not in ("pick", "place", "squash"):
-    parser.error("--loop requires a scripted pick, place or squash mode")
+if args.mode == "sort" and (args.count != 3 or args.background != "ebc" or args.berry == "all"):
+    parser.error("--mode sort requires --count 3 berries of one species and --background ebc")
+if args.view == "director" and args.mode != "sort":
+    parser.error("--view director requires --mode sort")
+if args.loop and args.mode not in ("pick", "place", "squash", "sort"):
+    parser.error("--loop requires a scripted pick, place, squash or sort mode")
 if args.rtpt_spp is not None and args.rtpt_spp < 1:
     parser.error("--rtpt_spp must be positive")
 if args.pick_gap is not None and not 0 < args.pick_gap <= 0.08:
@@ -270,7 +279,7 @@ with launch_simulation(cfg, args), ExitStack() as resources:
             env,
             width=args.width,
             height=args.height,
-            headless=not args.window and args.mode in ("idle", "pick", "place", "squash"),
+            headless=not args.window and args.mode in ("idle", "pick", "place", "squash", "sort"),
             pipeline=not args.sync_render,
             partitions=args.partitions,
             rtpt_spp=args.rtpt_spp,
@@ -296,6 +305,11 @@ with launch_simulation(cfg, args), ExitStack() as resources:
     scripted_center = None
     scripted_gap = args.pick_gap
     scripted_opening = 0.08
+    sorter = sort_result = None
+    if args.mode == "sort":
+        from isaaclab_tasks.contrib.franka_pick_berries.control.sorting import BerrySortSequence, sorting_result
+
+        sorter = BerrySortSequence(args.motion_speed, args.pick_gap)
     if args.video:
         args.output.mkdir(parents=True, exist_ok=True)
         video = subprocess.Popen(
@@ -333,16 +347,19 @@ with launch_simulation(cfg, args), ExitStack() as resources:
         while (not args.steps or step < args.steps) and (viewer is None or viewer.is_running()):
             started = time.perf_counter()
             script_time = scripted_motion_time(script_step / 30, args.mode, args.motion_speed)
-            finished = script_time >= (32 if args.mode == "place" else 18)
+            finished = sorter.complete if sorter is not None else script_time >= (32 if args.mode == "place" else 18)
             if (
                 finished
                 and viewer is None
                 and not args.steps
                 and not args.loop
-                and args.mode in ("pick", "place", "squash")
+                and args.mode in ("pick", "place", "squash", "sort")
             ):
                 break  # Without a window or a step count, a scripted run ends with its script.
             if args.loop and finished:
+                if sorter is not None:
+                    sort_result = sorting_result(env.berries)
+                    sorter.reset()
                 env.reset()
                 script_step = 0
                 scripted_center = None
@@ -352,6 +369,9 @@ with launch_simulation(cfg, args), ExitStack() as resources:
                 reset_key = viewer.is_key_down("R")
                 if viewer.reset_requested or (reset_key and not reset_held):
                     env.reset()
+                    if sorter is not None:
+                        sorter.reset()
+                        sort_result = None
                     script_step = 0
                     scripted_center = None
                     scripted_gap = args.pick_gap
@@ -367,6 +387,29 @@ with launch_simulation(cfg, args), ExitStack() as resources:
                     continue
             if controller is not None:
                 action[0] = controller.advance()
+            elif sorter is not None:
+                arm = env.action_manager.get_term("arm_action")
+                pos, quat = arm._compute_frame_pose()
+                current = pos[0].cpu().numpy()
+                target, aperture = sorter.command(script_step / 30, env.berries, current)
+                # The viewer and the per-step metrics follow the berry being handled.
+                env.berry = list(env.berries.values())[sorter.index]
+                if viewer is not None:
+                    viewer.status = sorter.phase
+                    if viewer.director:
+                        # Close-ups of the grasps and releases, the workcell for approaches and carries. The close-up
+                        # moves on to the next berry only from the workcell, so that the camera never cuts.
+                        close_up = any(word in sorter.phase for word in ("Crush", "Gentle grasp", "Release"))
+                        if viewer.close_up == 0.0:
+                            viewer.follow(env.berry)
+                        viewer.direct(close_up, 1 / 30)
+                    else:
+                        viewer.follow(env.berry)
+                action[0, :3] = torch.from_numpy(np.clip((target - current) * 0.6, -0.008, 0.008))
+                current_rot = Rotation.from_quat(quat[0].cpu().numpy())
+                desired = Rotation.from_euler("x", np.pi)
+                action[0, 3:6] = torch.from_numpy(np.clip((desired * current_rot.inv()).as_rotvec() * 0.2, -0.03, 0.03))
+                action[0, 6] = aperture / 0.04 - 1
             elif args.mode in ("pick", "place", "squash"):
                 arm = env.action_manager.get_term("arm_action")
                 pos, quat = arm._compute_frame_pose()
@@ -446,6 +489,10 @@ with launch_simulation(cfg, args), ExitStack() as resources:
                 robot = env.scene["robot"]
                 fingers = robot.data.body_pos_w.torch[0, robot.find_bodies("panda_(left|right)finger")[0]]
                 row["finger_separation_m"] = float(torch.linalg.norm(fingers[0] - fingers[1]))
+                if sorter is not None:
+                    row["sort_phase"] = sorter.phase
+                    row["sort_grip_adjustment_m"] = sorter.grip_adjustment
+                    row["sort_holding"] = sorter.holding
                 if args.output:
                     row["berries"] = {name: berry.metrics() for name, berry in env.berries.items()}
                     rows.append(row)
@@ -464,6 +511,9 @@ with launch_simulation(cfg, args), ExitStack() as resources:
                 time.sleep(max(0, 1 / 30 - (time.perf_counter() - started)))
             profiling.frame_mark()
             step += 1
+        if sorter is not None and sorter.complete:
+            sort_result = sorting_result(env.berries)
+            print(f"Sorting {'passed' if sort_result['passed'] else 'failed'}", flush=True)
         if args.verify_render:
             render_verified = viewer.verify_geometry()
             print(
@@ -512,6 +562,7 @@ with launch_simulation(cfg, args), ExitStack() as resources:
                 "physics_resolution": args.physics_resolution,
                 "scripted_pick_gap_m": scripted_gap,
                 "mode": args.mode,
+                "sorting_result": sort_result,
                 "motion_speed": args.motion_speed,
                 "loop": args.loop,
                 "steps": step,

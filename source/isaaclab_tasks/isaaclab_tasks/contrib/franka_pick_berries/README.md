@@ -203,6 +203,17 @@ Teleop can handle any of the berries; scripted modes handle `raspberry_1`, for e
 --count 3` carries it to the bowl and leaves the others in the punnet, though the gripper can nudge a close
 neighbor. The same limitations as for all four berries apply.
 
+`--mode sort` handles all three in sequence on the EBC table: it crushes the first berry and drops it in the
+reject dish, then picks the other two gently, one after the other, and places them in the glass bowl. A grasp that
+slips is tightened slightly; one that loses the berry stops the sequence until reset (R). The report's
+`sorting_result` checks the outcome: the first berry damaged and in the reject dish, the others in the bowl and
+barely damaged.
+
+```bash
+uv run --no-sync python source/isaaclab_tasks/isaaclab_tasks/contrib/franka_pick_berries/scripts/teleop_berry.py \
+  --mode sort --count 3 --berry raspberry --asset_version v2 --physics_resolution half --background ebc --window --loop
+```
+
 ### Lower-resolution physics
 
 Add `--physics_resolution half` to keep roughly half the tissue particles while

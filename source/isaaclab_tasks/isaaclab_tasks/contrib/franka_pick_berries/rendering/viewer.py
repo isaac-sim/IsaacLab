@@ -47,6 +47,8 @@ class BerryViewer(ViewerRTX):
         self.follow_berry = True
         self.background_path = None
         self.reset_requested = False
+        # Phase of a scripted sequence, shown in the controls.
+        self.status = None
         self.last_center = self.berry.rest.mean(0).copy()
         self.streams = [
             BerryGaussianStream(
@@ -61,11 +63,39 @@ class BerryViewer(ViewerRTX):
         self.set_model(NewtonManager.get_model())
         if view == "auto":
             view = "workcell" if env.cfg.background == "ebc" or len(env.berries) > 1 else "berry"
-        self.set_view(view)
+        # A directed camera starts on the overview; the script then eases it with direct().
+        self.director = view == "director"
+        self.close_up = 0.0
+        self.set_view("workcell" if self.director else view)
         self.register_ui_callback(self.controls, position="side")
 
     def set_view(self, view: str) -> None:
         """Choose a fixed workcell overview or the close, following berry view."""
+        eye, target = self._view_pose(view)
+        self.follow_berry = view == "berry"
+        self._look(eye, target)
+
+    def follow(self, berry) -> None:
+        """Make ``berry`` the one the close-up follows and the controls describe."""
+        if berry is not self.berry:
+            self.berry = berry
+            self.last_center = berry.positions().mean(0)
+
+    def direct(self, close_up: bool, dt: float, transition: float = 1.5) -> None:
+        """Ease a directed camera toward the close-up of the current berry or the workcell overview.
+
+        Args:
+            close_up: Whether to move toward the close-up.
+            dt: Time since the last call [s].
+            transition: Duration of a full move between the two shots [s].
+        """
+        self.close_up = float(np.clip(self.close_up + (dt if close_up else -dt) / transition, 0.0, 1.0))
+        blend = self.close_up * self.close_up * (3.0 - 2.0 * self.close_up)
+        (wide_eye, wide_target), (close_eye, close_target) = self._view_pose("workcell"), self._view_pose("berry")
+        self._look(wide_eye + blend * (close_eye - wide_eye), wide_target + blend * (close_target - wide_target))
+
+    def _view_pose(self, view: str) -> tuple[np.ndarray, np.ndarray]:
+        """Return the camera eye and target [m] of a view."""
         if view == "scene":
             eye = np.array([1.5, -2.0, 1.1])
             target = np.array([0.25, 0.05, -0.18])
@@ -80,7 +110,9 @@ class BerryViewer(ViewerRTX):
             eye = target + np.array([0.08, -0.025, 0.027])
         else:
             raise ValueError(f"Unknown camera view: {view}")
-        self.follow_berry = view == "berry"
+        return eye, target
+
+    def _look(self, eye: np.ndarray, target: np.ndarray) -> None:
         delta = target - eye
         self.set_camera(
             wp.vec3(*eye),
@@ -97,6 +129,8 @@ class BerryViewer(ViewerRTX):
         else:
             title = f"{count} {self.env.cfg.berry}s" if count > 1 else self.env.cfg.berry.title()
         ui.text(f"{title} | continuous grasp")
+        if self.status:
+            ui.text(self.status)
         ui.text("LB enable | RT close | LT open | release to hold")
         ui.text("Keyboard: WASDQE / ZX TG CV; K close, J open; R reset")
         aperture = float(self.env.action_manager.get_term("gripper_action").processed_actions[0].sum())
