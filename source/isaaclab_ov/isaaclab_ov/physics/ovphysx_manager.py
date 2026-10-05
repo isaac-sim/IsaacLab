@@ -158,14 +158,12 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
             # Native output metadata names the actual bodies, not articulation-root aliases.
             # Keep these renderer-only bindings out of headless simulation startup.
             from ovphysx.types import SimObjectType
-            from ovstage import PathDictionary
 
             body_paths = []
-            with PathDictionary() as paths:
-                for kind in (SimObjectType.RIGID_BODY, SimObjectType.ARTICULATION_LINK):
-                    with backend.physx.read(kind, ["mass"]) as bodies:
-                        for group in bodies.groups:
-                            body_paths.extend(paths.get_path_strings(group.prim_list))
+            for kind in (SimObjectType.RIGID_BODY, SimObjectType.ARTICULATION_LINK):
+                with backend.physx.read_sync(kind, ["mass"]) as bodies:
+                    for group in bodies.groups:
+                        body_paths.extend(bodies.dictionary.get_path_strings(group.prim_list))
             if body_paths:
                 backend.rigid_body_view = backend.physx.create_tensor_binding(prim_paths=body_paths)
             self.setup(backend, device, entries)

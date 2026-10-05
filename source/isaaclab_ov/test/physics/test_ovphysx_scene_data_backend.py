@@ -506,7 +506,7 @@ def test_scene_data_binding_is_deferred_until_requested():
     calls = []
 
     class FakePhysX:
-        def read(self, kind, fields):
+        def read_sync(self, kind, fields):
             calls.append((kind, fields))
             return nullcontext(SimpleNamespace(groups=[]))
 
