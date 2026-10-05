@@ -5,13 +5,39 @@
 
 """Tests for miscellaneous Isaac Lab CLI commands."""
 
+import sys
 from unittest import mock
 
 import pytest
 
+import isaaclab.cli as cli
 import isaaclab.cli.commands.misc as misc
 
 pytestmark = pytest.mark.unit
+
+
+def test_checkout_command_rejects_wheel_installation(tmp_path, monkeypatch, capsys):
+    """Wheel users get checkout guidance before a development command launches or installs tools."""
+    monkeypatch.setattr(cli, "ISAACLAB_ROOT", tmp_path)
+    monkeypatch.setattr(sys, "argv", ["isaaclab", "--format"])
+
+    with mock.patch.object(cli, "command_format") as format_command, pytest.raises(SystemExit) as error:
+        cli.cli()
+
+    assert error.value.code == 2
+    assert "requires an Isaac Lab source checkout" in capsys.readouterr().err
+    format_command.assert_not_called()
+
+
+def test_sim_command_propagates_failure(monkeypatch):
+    """A failed simulator process must make the CLI fail with the same exit code."""
+    monkeypatch.setattr(sys, "argv", ["isaaclab", "--sim"])
+    monkeypatch.setattr(misc, "extract_isaacsim_exe", lambda: [sys.executable, "-c", "raise SystemExit(7)"])
+
+    with pytest.raises(SystemExit) as error:
+        cli.cli()
+
+    assert error.value.code == 7
 
 
 def test_python_subcommands_propagate_failures():
@@ -28,14 +54,26 @@ def test_python_subcommands_propagate_failures():
     ]
 
 
-def test_build_docs_runs_sphinx_with_the_uv_dev_extra():
+def test_build_docs_runs_sphinx_with_the_uv_dev_extra(tmp_path, monkeypatch):
     """The docs command must use the UV extra that provides Sphinx."""
-    docs_dir = misc.ISAACLAB_ROOT / "docs"
+    monkeypatch.setattr(misc, "ISAACLAB_ROOT", tmp_path)
+    docs_dir = tmp_path / "docs"
     output_dir = docs_dir / "_build" / "current"
+    output_dir.mkdir(parents=True)
+    (output_dir / "removed.html").touch()
+    (output_dir / ".doctrees").mkdir()
+    (output_dir / ".doctrees" / "environment.pickle").touch()
+    other_version = docs_dir / "_build" / "v3.0.0-EA"
+    other_version.mkdir()
+    (other_version / "index.html").touch()
+
+    def check_clean_output(*args, **kwargs):
+        assert not output_dir.exists()
+        assert (other_version / "index.html").is_file()
 
     with (
         mock.patch("shutil.which", return_value="/usr/bin/uv"),
-        mock.patch.object(misc, "run_command") as run_command,
+        mock.patch.object(misc, "run_command", side_effect=check_clean_output) as run_command,
     ):
         misc.command_build_docs()
 
@@ -43,7 +81,6 @@ def test_build_docs_runs_sphinx_with_the_uv_dev_extra():
         [
             "/usr/bin/uv",
             "run",
-            "--isolated",
             "--extra",
             "dev",
             "--",
@@ -57,12 +94,65 @@ def test_build_docs_runs_sphinx_with_the_uv_dev_extra():
             "-b",
             "html",
             "-d",
-            "_build/doctrees",
+            str(output_dir / ".doctrees"),
             ".",
             str(output_dir),
         ],
         cwd=docs_dir,
     )
+
+
+def test_build_docs_multi_redirects_to_selected_ref(tmp_path, monkeypatch):
+    """The CLI must write its root redirect to the selected built version."""
+    monkeypatch.setattr(misc, "ISAACLAB_ROOT", tmp_path)
+    monkeypatch.setenv("DOCS_DEFAULT_REF", "develop")
+    monkeypatch.setattr("sys.argv", ["isaaclab", "--docs_multi"])
+    docs_dir = tmp_path / "docs"
+    output_dir = docs_dir / "_build"
+    (output_dir / "develop").mkdir(parents=True)
+    (output_dir / "develop" / "index.html").write_text("built docs", encoding="utf-8")
+    (docs_dir / "_redirect").mkdir()
+    (docs_dir / "_redirect" / "index.html").write_text(
+        '<meta http-equiv="refresh" content="0; url=./__DOCS_DEFAULT_REF__/index.html">', encoding="utf-8"
+    )
+
+    with (
+        mock.patch("shutil.which", return_value="/usr/bin/uv"),
+        mock.patch.object(misc, "run_command") as run_command,
+    ):
+        cli.cli()
+
+    assert (output_dir / "index.html").read_text(encoding="utf-8") == (
+        '<meta http-equiv="refresh" content="0; url=./develop/index.html">'
+    )
+    assert (output_dir / "develop" / "index.html").read_text(encoding="utf-8") == "built docs"
+    run_command.assert_called_once_with(
+        ["/usr/bin/uv", "run", "--extra", "dev", "--", "sphinx-multiversion", ".", str(output_dir), "--jobs=auto"],
+        cwd=docs_dir,
+    )
+
+
+def test_build_docs_multi_rejects_missing_default_ref(tmp_path, monkeypatch):
+    """An unbuilt redirect target must fail with guidance and leave any redirect intact."""
+    monkeypatch.setattr(misc, "ISAACLAB_ROOT", tmp_path)
+    monkeypatch.delenv("DOCS_DEFAULT_REF", raising=False)
+    output_dir = tmp_path / "docs" / "_build"
+    output_dir.mkdir(parents=True)
+    redirect = output_dir / "index.html"
+    redirect.write_text("previous redirect", encoding="utf-8")
+
+    with (
+        mock.patch("shutil.which", return_value="/usr/bin/uv"),
+        mock.patch.object(misc, "run_command"),
+        mock.patch.object(misc, "print_error") as print_error,
+        pytest.raises(SystemExit, match="1"),
+    ):
+        misc.command_build_docs(multi_version=True)
+
+    print_error.assert_called_once_with(
+        "Default docs ref 'v3.0.0-EA' was not built. Fetch the Git refs or set DOCS_DEFAULT_REF."
+    )
+    assert redirect.read_text(encoding="utf-8") == "previous redirect"
 
 
 def test_build_docs_explains_how_to_install_uv():
@@ -96,7 +186,7 @@ def test_build_isaacsim_links_incremental_build_without_packaging(tmp_path):
     with (
         mock.patch.object(misc, "ISAACLAB_ROOT", workspace),
         mock.patch.object(misc, "run_command") as run_command,
-        mock.patch.object(misc, "_repoint_source_build_prebundles") as repoint_prebundles,
+        mock.patch.object(misc, "repoint_prebundle_packages") as repoint_prebundles,
         mock.patch.object(misc.sys, "platform", "linux"),
         mock.patch.object(misc.platform, "machine", return_value="x86_64"),
     ):

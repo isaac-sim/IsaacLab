@@ -9,7 +9,9 @@ from __future__ import annotations
 
 import sys
 
+from isaaclab.app.logging_utils import configure_console_logging
 from isaaclab.benchmark.entrypoints.startup import run
 
 if __name__ == "__main__":
+    configure_console_logging()
     run(sys.argv[1:])

@@ -1,6 +1,104 @@
 Changelog
 ---------
 
+.. towncrier release notes start
+
+25.0.0 (2026-10-03)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the "Parsing configuration from" messages of :func:`~isaaclab_tasks.utils.load_cfg_from_registry`
+  to ``logger.info``.
+* **Breaking:** Changed Franka Reach and Reach-OSC to continuous pose tracking: success remained a
+  reported metric but no longer ended the episode or awarded the terminal success bonus. Episodes
+  ran until timeout. Requalify existing checkpoints because reward totals and episode lengths changed.
+* Kept table colors static during training for lift and reorientation tasks, with success coloring in play.
+  Set the pose command's ``success_vis_material_name`` to ``"table_material"`` to enable it during training.
+* Updated the ARL drone navigation agent to use the current RSL-RL model configuration schema.
+* Launch AutoMate workflows with the active uv Python and update runtime installation guidance.
+
+Fixed
+^^^^^
+
+* **Breaking:** Corrected rigid Lift reset sampling and success-driven motion regularization without changing
+  Kuka-Allegro rewards. Requalify existing Franka Lift checkpoints because the reset distribution changed.
+  Training and play mode now propose aligned pre-grasps with probability 0.75 before bank rejection and
+  sampling. Reported success covers this mixed reset distribution. For table-only evaluation, set
+  ``env.events.conditional_reset.params.terms.reset_object_to_target.params.probability=0`` before startup.
+* Preserve linked Isaac Sim source-build runtime setup in AutoMate training and evaluation subprocesses.
+
+
+24.0.0 (2026-10-02)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``presets=minimal`` to Franka Reach and rigid Lift, selecting the ``FRANKA_MINIMAL_CFG``
+  gripper-only colliders while preserving task controls and independent physics backend selection.
+
+Changed
+^^^^^^^
+
+* **Breaking:** The UR10 particle-push task no longer opens a Newton GL visualizer in play mode. Pass
+  ``--visualizer newton_gl`` to open one.
+* :func:`~isaaclab_tasks.utils.setup_preset_cli` never takes a Hydra override as the value of an option whose
+  value is optional: ``--video presets=newton_mjwarp`` uses the ``--video`` default and passes the override on.
+* **Breaking:** Migrated maintained Franka Reach, Drawer, rigid and deformable Lift, and related
+  contributed tasks to the main ``FRANKA_PANDA_CFG`` with backend-specific physics and full arm and
+  gripper collisions. Existing checkpoints require requalification against the changed robot dynamics.
+
+Fixed
+^^^^^
+
+* Fixed Franka Pour startup with the shared Franka asset by selecting its MuJoCo physics payload
+  and removing the obsolete duplicate-mimic workaround.
+* Corrected the Reach action and controller contracts for the shared asset.
+
+
+23.1.0 (2026-10-01)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Stored the joint, body, and tendon indices of the Reorient, Cabinet, and locomotion direct tasks as
+  device tensors, and precomputed their static joint limits and default arm pose, removing host-to-device
+  index uploads and CUDA synchronizations from every physics substep. The public
+  ``actuated_dof_indices``, ``finger_bodies``, ``finger_wrench_bodies``, ``arm_joint_ids``, and
+  ``finger_joint_ids`` attributes, and the indices returned by
+  :func:`~isaaclab_tasks.core.reorient.utils.resolve_actuated_tendons`, are now ``torch.long`` tensors
+  instead of lists. Call ``.tolist()`` where a list is needed.
+* Switched the Reorient, Cabinet, and locomotion direct tasks from the deprecated articulation target
+  setters to ``articulation.actuators.target_command``.
+* Logged the Cabinet, locomotion direct, Lift deformable and cable, and Fourbar pole success metrics as
+  0-d device tensors instead of synchronizing with ``.item()`` on every reset. Call ``.item()`` where a
+  float is needed.
+* Changed :meth:`~isaaclab_tasks.core.reorient.utils.EpisodeErrorRecorder.reset` to compute its statistics
+  without a host synchronization. Once any error has been recorded, it returns NaN statistics instead of an
+  empty dictionary when none of the selected environments has a sample. Check the values with
+  :func:`torch.isnan` instead of testing for missing keys.
+* Stacked the Lift contact sensor forces so :func:`~isaaclab_tasks.core.lift.mdp.contacts` and
+  :func:`~isaaclab_tasks.core.lift.mdp.contact_count` take one norm per call instead of one per sensor.
+* Precomputed the ANYmal symmetry augmentation as one cached column permutation and sign tensor per
+  transform, removing the per-minibatch index and sign uploads (about 1.5 ms to 0.15 ms per call).
+* Cached the locomotion walk-target offset and sampled Lift reset offsets through the shared
+  :func:`~isaaclab.utils.math.sample_uniform_from_ranges` helper,
+  and read the Reorient goal directly
+  from the command buffers instead of concatenating the command on every access.
+
+Fixed
+^^^^^
+
+* Fixed the lift table missing from OVRTX and Newton Warp camera images. The table is now visible scene
+  geometry that the pose command tints by success through the optional ``success_vis_material_name`` and
+  ``success_vis_colors`` settings of :class:`~isaaclab_tasks.core.lift.mdp.ObjectUniformPoseCommandCfg`.
+* Used resolved callable defaults when constructing manager terms instead of duplicating defaults in constructors.
+* Fixed direct handover action application with device-resident tendon indices.
+
+
 23.0.0 (2026-09-30)
 ~~~~~~~~~~~~~~~~~~~
 

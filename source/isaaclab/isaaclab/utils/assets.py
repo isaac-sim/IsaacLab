@@ -21,7 +21,6 @@ import ntpath
 import os
 import posixpath
 import re
-import subprocess
 import tempfile
 import uuid
 from collections.abc import Iterator
@@ -213,14 +212,10 @@ ISAAC_NUCLEUS_DIR: str = f"{NUCLEUS_ASSET_ROOT_DIR}/Isaac"
 ISAACLAB_NUCLEUS_DIR: str = f"{ISAAC_NUCLEUS_DIR}/IsaacLab"
 """Path to the ``Isaac/IsaacLab`` directory on the NVIDIA Nucleus Server."""
 
-NEWTON_ASSET_REPO_URL: str = "https://github.com/newton-physics/newton-assets.git"
-"""URL of the Newton asset repository."""
-
-NEWTON_ASSET_DIR: str = os.environ.get("NEWTON_ASSET_DIR", NEWTON_ASSET_REPO_URL)
-"""Git repository URL or local checkout directory used for Newton assets."""
-
-GIT_ASSET_CACHE_DIR: str = os.path.join(tempfile.gettempdir(), "asset_cache")
-"""Default local directory where git asset repositories are cached."""
+NEWTON_ASSET_DIR: str = os.environ.get(
+    "NEWTON_ASSET_DIR", "https://raw.githubusercontent.com/newton-physics/newton-assets/main"
+)
+"""URL or local checkout directory of the Newton asset repository; resolve files with :func:`retrieve_file_path`."""
 
 _MIRROR_FINGERPRINT_SUFFIX = ".isaaclab-cache.json"
 """Suffix of the sidecar file recording the remote revision a locally cached asset came from."""
@@ -236,190 +231,6 @@ _ANNOUNCED_MIRRORS: set[str] = set()
 
 _ASSET_SOURCES: dict[str, tuple[str, str]] = {}
 """Original source and download directory of each managed copy."""
-
-_GIT_SSH_RE = re.compile(r"^[^@/:]+@[^:]+:.+")
-
-
-def retrieve_git_asset_path(
-    git_path: str, local_path: str, cache_dir: str | None = None, force_update: bool = False
-) -> str:
-    """Return a local path for an asset stored in a git repository.
-
-    Remote repositories are cached under :data:`GIT_ASSET_CACHE_DIR`. If the requested
-    asset is already cached, it is returned without running git. Cache population is
-    serialized, and new checkouts are published atomically so an interrupted clone cannot
-    leave an incomplete cache at the final path.
-
-    Args:
-        git_path: Git repository URL, SSH path, or existing local checkout directory.
-        local_path: Asset path relative to the git repository, or an absolute path inside it.
-        cache_dir: Directory where remote repositories are cached. Defaults to
-            :data:`GIT_ASSET_CACHE_DIR`.
-        force_update: Whether to run ``git pull --ff-only`` for an existing checkout.
-
-    Returns:
-        Local path to the requested asset.
-
-    Raises:
-        FileNotFoundError: When :paramref:`git_path` points to a missing local directory, or the asset is missing.
-        RuntimeError: When the git repository cannot be cloned or updated.
-        ValueError: When :paramref:`local_path` is a URL, resolves outside the git repository, or a cache directory
-            cannot be derived from :paramref:`git_path`.
-    """
-    if _is_git_remote_path(git_path):
-        git_asset_dir = _get_git_asset_cache_dir(git_path, cache_dir)
-        source_path = _resolve_git_asset_source_path(local_path, git_asset_dir)
-        if not force_update and os.path.exists(source_path):
-            return source_path
-
-    git_asset_dir = _get_git_asset_dir(git_path, cache_dir, force_update)
-    source_path = _resolve_git_asset_source_path(local_path, git_asset_dir)
-    if not os.path.exists(source_path):
-        raise FileNotFoundError(f"Unable to find git asset: {source_path}")
-    return source_path
-
-
-def _get_git_asset_dir(git_path: str, cache_dir: str | None = None, force_update: bool = False) -> str:
-    """Return a local checkout for a git asset repository.
-
-    Args:
-        git_path: Git repository URL, SSH path, or existing local checkout directory.
-        cache_dir: Directory where remote repositories are cached.
-        force_update: Whether to update an existing checkout.
-
-    Returns:
-        Path to a local repository checkout.
-
-    Raises:
-        FileNotFoundError: When a local :paramref:`git_path` does not exist.
-        RuntimeError: When a remote checkout cannot be prepared.
-    """
-    if not _is_git_remote_path(git_path):
-        git_asset_dir = os.path.abspath(os.path.expanduser(git_path))
-        if not os.path.isdir(git_asset_dir):
-            raise FileNotFoundError(f"Git asset path does not point to an existing directory: {git_asset_dir}")
-        if force_update and os.path.isdir(os.path.join(git_asset_dir, ".git")):
-            _run_git_command(["git", "-C", git_asset_dir, "pull", "--ff-only"])
-        return git_asset_dir
-
-    git_asset_dir = _get_git_asset_cache_dir(git_path, cache_dir)
-    with FileLock(git_asset_dir + ".lock"):
-        if os.path.isdir(os.path.join(git_asset_dir, ".git")):
-            if force_update:
-                _run_git_command(["git", "-C", git_asset_dir, "pull", "--ff-only"])
-        elif os.path.exists(git_asset_dir):
-            raise RuntimeError(f"Git asset cache exists but is not a git repository: {git_asset_dir}")
-        else:
-            cache_parent = os.path.dirname(git_asset_dir)
-            os.makedirs(cache_parent, exist_ok=True)
-            prefix = f".{os.path.basename(git_asset_dir)}."
-            with tempfile.TemporaryDirectory(prefix=prefix, dir=cache_parent) as temporary_dir:
-                temporary_path = os.path.join(temporary_dir, "checkout")
-                _run_git_command(["git", "clone", "--depth", "1", git_path, temporary_path])
-                os.replace(temporary_path, git_asset_dir)
-
-    return git_asset_dir
-
-
-def _get_git_asset_cache_dir(git_path: str, cache_dir: str | None = None) -> str:
-    """Return the cache directory for a remote git repository.
-
-    Args:
-        git_path: Git repository URL or SSH path.
-        cache_dir: Root cache directory. Defaults to :data:`GIT_ASSET_CACHE_DIR`.
-
-    Returns:
-        Cache checkout path for :paramref:`git_path`.
-    """
-    if cache_dir is None:
-        cache_dir = GIT_ASSET_CACHE_DIR
-    cache_dir = os.path.abspath(os.path.expanduser(cache_dir))
-    return os.path.join(cache_dir, _get_git_asset_repo_name(git_path))
-
-
-def _is_git_remote_path(git_path: str) -> bool:
-    """Return whether a git path is remote.
-
-    Args:
-        git_path: Git repository path.
-
-    Returns:
-        True if :paramref:`git_path` is a URL or SSH git path.
-    """
-    # ``urlparse`` reports a Windows drive letter as a scheme, so a local checkout such as
-    # ``C:\assets`` would otherwise be taken for a repository to clone. No URL scheme is a
-    # single character.
-    return len(urlparse(git_path).scheme) > 1 or _GIT_SSH_RE.match(git_path) is not None
-
-
-def _get_git_asset_repo_name(git_path: str) -> str:
-    """Return the cache directory name for a git repository.
-
-    Args:
-        git_path: Git repository URL or SSH path.
-
-    Returns:
-        Repository name without a trailing ``.git`` suffix.
-
-    Raises:
-        ValueError: When a repository name cannot be derived.
-    """
-    repo_path = urlparse(git_path).path
-    if not repo_path and _GIT_SSH_RE.match(git_path):
-        repo_path = git_path.rsplit(":", 1)[-1]
-    repo_name = os.path.basename(repo_path.rstrip("/"))
-    if repo_name.endswith(".git"):
-        repo_name = repo_name[:-4]
-    if not repo_name:
-        raise ValueError(f"Unable to determine git asset cache directory from git path: {git_path}")
-    return repo_name
-
-
-def _run_git_command(command: list[str]) -> None:
-    """Run a git command.
-
-    Args:
-        command: Git command and arguments.
-
-    Raises:
-        RuntimeError: When git is missing or the command fails.
-    """
-    try:
-        subprocess.run(command, check=True, capture_output=True)
-    except FileNotFoundError as exc:
-        raise RuntimeError("git is required to clone git asset repositories.") from exc
-    except subprocess.CalledProcessError as exc:
-        command_str = " ".join(command)
-        raise RuntimeError(f"Unable to run git asset repository command: {command_str}") from exc
-
-
-def _resolve_git_asset_source_path(local_path: str, git_asset_dir: str) -> str:
-    """Resolve an asset path inside a git checkout.
-
-    Args:
-        local_path: Asset path relative to :paramref:`git_asset_dir`, or an absolute path inside it.
-        git_asset_dir: Local git repository checkout directory.
-
-    Returns:
-        Absolute asset path.
-
-    Raises:
-        ValueError: When :paramref:`local_path` is a URL or escapes :paramref:`git_asset_dir`.
-    """
-    if urlparse(local_path).scheme and not os.path.isabs(local_path):
-        raise ValueError(f"Git asset paths must be local paths, got: {local_path}")
-
-    if os.path.isabs(local_path):
-        source_path = os.path.abspath(os.path.expanduser(local_path))
-    else:
-        source_path = os.path.abspath(os.path.join(git_asset_dir, os.path.expanduser(local_path)))
-
-    try:
-        if os.path.commonpath([git_asset_dir, source_path]) != git_asset_dir:
-            raise ValueError(f"Git asset path resolves outside git repository: {local_path}")
-    except ValueError as exc:
-        raise ValueError(f"Git asset path resolves outside git repository: {local_path}") from exc
-    return source_path
 
 
 def _mirror_path(url: str, download_dir: str) -> str:
