@@ -190,12 +190,10 @@ class FileCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
     """Path to the visual material to use for the prim. Defaults to "material".
 
     Relative paths are resolved below the spawned prim. None applies non-None inputs from
-    :attr:`visual_material` to compatible, connected surface shaders with or without Kit, preserving
-    their textures and bindings. Preview configs target ``UsdPreviewSurface``; MDL configs target
-    shaders whose MDL subidentifier matches the configured filename. Other shader types and utility
-    nodes are unchanged; input names are not translated between shader types. Materials inside an
-    instance require :attr:`UsdFileCfg.make_uninstanceable` to be True, otherwise authoring raises
-    ValueError. Named paths create and bind a replacement material only when Kit is available.
+    :attr:`visual_material` to connected surface shaders with or without Kit, preserving textures and
+    bindings. Preview configs use the universal surface output; MDL configs use the MDL output.
+    The config must match the authored shader. Enable :attr:`UsdFileCfg.make_uninstanceable` for
+    materials inside instances. Named paths create and bind a replacement material only with Kit.
     Ignored when :attr:`visual_material` is None.
     """
 
