@@ -11,6 +11,6 @@
 isaacsim_image_name: nvcr.io/0947644777160149/internal/isaac-sim
 # Isaac Sim 6.2.0-alpha.12+develop.51655.36d2fc9a.gl with Kit 110.4.0-384466.
 # Pin the multi-arch manifest list digest, not a per-architecture one: ARM CI pulls linux/arm64.
-isaacsim_image_tag: latest-develop@sha256:c4c3f28ee0fe2821a5b0b746b0ff4221785dc5cd7c79842505c1d8f89bb588f5
+isaacsim_image_tag: latest-develop@sha256:d639c59502116c6b1f511c6d89cdc96267ea4fec8924e1cf471a5bc1b64a6b06
 isaaclab_image_name: nvcr.io/0947644777160149/internal/isaac-lab
 ovphysx_wheelhouse_image: ""
