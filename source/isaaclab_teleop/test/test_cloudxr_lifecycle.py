@@ -66,6 +66,8 @@ _MODULES_TO_STUB = [
 
 _stubs_installed: dict[str, ModuleType | MagicMock] = {}
 
+_preloaded_teleop_modules = {name for name in sys.modules if name.split(".")[0] == "isaaclab_teleop"}
+
 
 def _install_stubs():
     """Insert MagicMock modules for all heavy dependencies."""
@@ -91,7 +93,10 @@ def _install_stubs():
 
 
 def _restore_stubs():
-    """Remove stubs installed for this test module from ``sys.modules``."""
+    """Remove stubs and the ``isaaclab_teleop`` modules bound to them from ``sys.modules``."""
+    for name in [n for n in sys.modules if n.split(".")[0] == "isaaclab_teleop"]:
+        if name not in _preloaded_teleop_modules:
+            del sys.modules[name]
     for name in reversed(_MODULES_TO_STUB):
         stub = _stubs_installed.get(name)
         if stub is None:
@@ -329,8 +334,9 @@ class TestCloudXREulaAcceptance:
     def test_exported_from_package_root(self):
         """``teleop_replay_agent.py`` imports the helper from the package root, not the submodule."""
         import isaaclab_teleop
+        from isaaclab_teleop.session_lifecycle import cloudxr_eula_accepted as session_cloudxr_eula_accepted
 
-        assert isaaclab_teleop.cloudxr_eula_accepted is cloudxr_eula_accepted
+        assert isaaclab_teleop.cloudxr_eula_accepted is session_cloudxr_eula_accepted
 
 
 # ============================================================================
