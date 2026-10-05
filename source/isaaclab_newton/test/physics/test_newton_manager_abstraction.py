@@ -234,37 +234,47 @@ def test_deterministic_mode_accepts_supported_solver_cfg_subclasses(solver_cfg_c
     )
 
 
-def test_deterministic_collision_pipeline_matches_expanded_contact_capacity(
-    monkeypatch: pytest.MonkeyPatch,
+@pytest.mark.parametrize(
+    "deterministic_mode, contact_matching",
+    [
+        pytest.param(wp.DeterministicMode.GPU_TO_GPU, "disabled", id="deterministic"),
+        pytest.param(wp.DeterministicMode.NOT_GUARANTEED, "latest", id="contact-matching"),
+    ],
+)
+def test_collision_pipeline_matches_expanded_contact_capacity(
+    monkeypatch: pytest.MonkeyPatch, deterministic_mode: wp.DeterministicMode, contact_matching: str
 ) -> None:
-    """Deterministic sorting buffers should grow with the solver contact buffer."""
-    pipeline_calls: list[dict] = []
-
-    class FakeCollisionPipeline:
-        def __init__(self, _model, **kwargs):
-            pipeline_calls.append(kwargs)
-            self._rigid_contact_max = kwargs.get("rigid_contact_max", 1)
-
-        def contacts(self):
-            return SimpleNamespace(rigid_contact_max=self._rigid_contact_max)
-
+    """Sorting and matching remain usable when the solver requires more contacts."""
+    builder = ModelBuilder(gravity=(0.0, 0.0, 0.0))
+    builder.add_ground_plane()
+    body = builder.add_body(xform=wp.transform(wp.vec3(0.0, 0.0, 0.1)))
+    builder.add_shape_sphere(body, radius=0.1)
+    model = builder.finalize(device="cpu")
     solver = SimpleNamespace(get_max_contact_count=lambda: 2)
-    monkeypatch.setattr(newton_manager_module, "CollisionPipeline", FakeCollisionPipeline)
     monkeypatch.setattr(NewtonManager, "_needs_collision_pipeline", True)
     monkeypatch.setattr(NewtonManager, "_collision_pipeline", None)
-    monkeypatch.setattr(NewtonManager, "_collision_cfg", None)
+    monkeypatch.setattr(
+        NewtonManager,
+        "_collision_cfg",
+        NewtonCollisionPipelineCfg(broad_phase="nxn", rigid_contact_max=1, contact_matching=contact_matching),
+    )
     monkeypatch.setattr(NewtonManager, "_contacts", None)
     monkeypatch.setattr(NewtonManager, "_solver", solver)
-    monkeypatch.setattr(NewtonManager, "backend", SimpleNamespace(model=SimpleNamespace()))
-    monkeypatch.setattr(NewtonManager, "_deterministic_mode", wp.DeterministicMode.GPU_TO_GPU)
+    monkeypatch.setattr(NewtonManager, "backend", SimpleNamespace(model=model))
+    monkeypatch.setattr(NewtonManager, "_deterministic_mode", deterministic_mode)
+    monkeypatch.setattr(PhysicsManager, "_device", "cpu")
 
     NewtonManager._initialize_contacts()
 
-    assert pipeline_calls == [
-        {"broad_phase": "explicit", "deterministic": True},
-        {"broad_phase": "explicit", "deterministic": True, "rigid_contact_max": 2},
-    ]
     assert NewtonManager._contacts.rigid_contact_max == 2
+    state = model.state()
+    for _ in range(2):
+        NewtonManager._contacts.clear()
+        NewtonManager._collision_pipeline.collide(state, NewtonManager._contacts)
+    contact_count = int(NewtonManager._contacts.rigid_contact_count.numpy()[0])
+    assert contact_count > 0
+    if contact_matching != "disabled":
+        assert (NewtonManager._contacts.rigid_contact_match_index.numpy()[:contact_count] >= 0).all()
 
 
 @pytest.mark.parametrize("cloth", [False, True])
@@ -1070,25 +1080,35 @@ def test_forward_consumes_existing_reset_masks(monkeypatch):
 
 
 def test_forward_dispatches_active_mpm_reset_hook_through_base_manager(monkeypatch):
-    """Base-class state reads must use the active MPM manager's reset behavior."""
+    """An active MPM reset hook preserves the shared collision-matching reset."""
     world_mask = wp.array([True, False], dtype=wp.bool, device="cpu")
     fk_mask = wp.array([], dtype=wp.bool, device="cpu")
+    matching_resets: list[list[bool]] = []
 
     class _RejectingSolver:
         def reset(self, state, world_mask=None, flags=0):
             raise AssertionError("the base reset hook must not run for implicit MPM")
+
+    class _RecordingPipeline:
+        contact_matching = "latest"
+
+        def reset_contact_matching(self, world_mask):
+            matching_resets.append(world_mask.numpy().tolist())
 
     monkeypatch.setattr(NewtonManager, "_world_reset_mask", world_mask, raising=False)
     monkeypatch.setattr(NewtonManager, "_fk_reset_mask", fk_mask, raising=False)
     monkeypatch.setattr(NewtonManager, "kinematics_dirty", True, raising=False)
     monkeypatch.setattr(NewtonManager, "_eval_fk", lambda worlds, articulations: None, raising=False)
     monkeypatch.setattr(NewtonManager, "_solver", _RejectingSolver(), raising=False)
+    monkeypatch.setattr(NewtonManager, "_collision_pipeline", _RecordingPipeline())
     monkeypatch.setattr(
         NewtonManager, "_reset_solver_internals_delegate", NewtonMPMManager._reset_solver_internals, raising=False
     )
 
     NewtonManager.forward()
+    NewtonManager.forward()
 
+    assert matching_resets == [[True, False]]
     assert world_mask.numpy().tolist() == [False, False]
 
 

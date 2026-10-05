@@ -68,7 +68,9 @@ class VBDSolverCfg(NewtonSolverCfg):
     """Whether to warm-start matched body-body contacts across steps.
 
     Standalone VBD requires :attr:`NewtonCfg.collision_cfg` with ``contact_matching="latest"``
-    or ``"sticky"`` when it integrates rigid bodies. Defaults to ``False`` (Newton's default).
+    or ``"sticky"`` when it integrates rigid bodies. Coupled entries that integrate rigid bodies
+    do not support this option. Newton ignores it with :attr:`integrate_with_external_rigid_solver`.
+    Defaults to ``False`` (Newton's default).
     """
 
     rigid_contact_k_start: float = 1.0e2

@@ -162,7 +162,7 @@ Core Solve
     * - ``rigid_avbd_contact_alpha``
       - Default: ``None``. Body-body contact C0 stabilization strength in [0, 1]. ``None`` uses Newton's mode default (``0.0`` for compliant ALM; ``0.95`` for legacy AVBD). Under ALM this does not set contact stiffness or multiplier retention.
     * - ``rigid_contact_history``
-      - Default: ``False``. Warm-starts matched body-body contacts across steps. Standalone VBD requires ``NewtonCfg.collision_cfg.contact_matching`` set to ``"latest"`` or ``"sticky"`` when it integrates rigid bodies.
+      - Default: ``False``. Warm-starts matched body-body contacts across steps. Standalone VBD requires ``NewtonCfg.collision_cfg.contact_matching`` set to ``"latest"`` or ``"sticky"`` when it integrates rigid bodies. Coupled entries that integrate rigid bodies do not support history; Newton ignores it with external rigid integration.
     * - ``rigid_body_contact_buffer_size``
       - Default: ``64``. Per-body capacity for body-body contacts when VBD integrates rigid bodies. Increase it if Newton reports a per-body body-body contact buffer overflow.
     * - ``rigid_body_particle_contact_buffer_size``
@@ -198,7 +198,10 @@ does not enable ALM.
 For standalone VBD, enable matching on the collision pipeline as well as
 history on VBD. ``"latest"`` matches the previous frame; ``"sticky"`` also
 retains friction anchors. Isaac Lab clears both histories for reset worlds.
-Coupled VBD entries use separate collision pipelines.
+``CouplerProxyCfg`` and ``CouplerAdmmCfg`` entries that integrate rigid bodies
+must leave ``rigid_contact_history=False``: their entry contact matching and
+history allocation are not yet supported. Matching for the coupler's own
+collision pipelines can still be configured separately.
 
 .. code-block:: python
 

@@ -19,6 +19,7 @@ from isaaclab_newton.physics import (
     MPMSolverCfg,
     NewtonCollisionPipelineCfg,
     NewtonSolverCfg,
+    VBDSolverCfg,
 )
 from isaaclab_newton.physics.mpm_manager import NewtonMPMManager
 from isaaclab_newton.physics.newton_manager import NewtonManager
@@ -157,6 +158,16 @@ class NewtonCouplerManager(NewtonVBDManager):
             if isinstance(nested_cfg, CouplerCfg):
                 raise ValueError(
                     f"CouplerEntryCfg {entry.name!r} contains a nested CouplerCfg; nested couplers are not supported."
+                )
+            if (
+                isinstance(nested_cfg, VBDSolverCfg)
+                and nested_cfg.rigid_contact_history
+                and not nested_cfg.integrate_with_external_rigid_solver
+            ):
+                raise NotImplementedError(
+                    f"CouplerEntryCfg {entry.name!r} enables VBDSolverCfg.rigid_contact_history, whose "
+                    "matching and history allocation are not yet supported for coupled entry contacts. "
+                    "Set rigid_contact_history=False or use standalone VBD."
                 )
             manager = nested_cfg.class_type
             factory = getattr(manager, "_create_solver", None)
