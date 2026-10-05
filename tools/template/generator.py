@@ -60,7 +60,7 @@ def _generate_task_per_workflow(task_dir: str, specification: dict) -> None:
         specification: The specification of the project/task.
     """
     task_spec = specification["task"]
-    task_template_dir = "tasks/stubbed" if specification.get("initial_content") == "stubbed" else "tasks"
+    task_template_dir = "tasks/stubbed" if specification.get("initial_content") == "stubbed" else "tasks/cartpole"
     agents_dir = os.path.join(task_dir, "agents")
     os.makedirs(agents_dir, exist_ok=True)
     template = jinja_env.get_template("tasks/__init__task")

@@ -17,8 +17,8 @@ _DIRECT_ROOTS = (
 _DIRECT_BASES = {"DirectRLEnv", "DirectMARLEnv", "DirectRLEnvWarp"}
 _FORBIDDEN_CALLS = {"clone_plan_from_env_0", "ReplicateSession", "replicate", "VisualizationMarkers"}
 _DIRECT_TEMPLATES = (
-    _REPO_ROOT / "tools/template/templates/tasks/direct_single-agent/env",
-    _REPO_ROOT / "tools/template/templates/tasks/direct_multi-agent/env",
+    _REPO_ROOT / "tools/template/templates/tasks/cartpole/direct_single-agent/env",
+    _REPO_ROOT / "tools/template/templates/tasks/cartpole/direct_multi-agent/env",
 )
 
 
