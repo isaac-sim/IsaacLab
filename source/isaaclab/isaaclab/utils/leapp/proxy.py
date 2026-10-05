@@ -93,14 +93,16 @@ def _resolve_annotated_method(
     return None
 
 
-class _WriteJointNameContext:
-    """Resolve runtime joint-name subsets for lazy write interception."""
+class _WriteElementNameContext:
+    """Resolve runtime joint or fixed-tendon subsets for lazy write interception."""
 
-    __slots__ = ("joint_names", "_joint_ids")
+    __slots__ = ("joint_names", "_joint_ids", "fixed_tendon_names", "_fixed_tendon_ids")
 
-    def __init__(self, joint_names: list[str], joint_ids):
-        self.joint_names = joint_names
+    def __init__(self, asset: Any, joint_ids: Any, fixed_tendon_ids: Any):
+        self.joint_names = getattr(asset, "joint_names", None)
         self._joint_ids = joint_ids
+        self.fixed_tendon_names = getattr(asset, "fixed_tendon_names", None)
+        self._fixed_tendon_ids = fixed_tendon_ids
 
 
 def _unique_output_name(term_name: str, method_name: str, output_cache: list[TensorSemantics]) -> str:
@@ -508,7 +510,6 @@ class _ArticulationWriteProxy:
             if not isinstance(target, torch.Tensor):
                 return result
 
-            joint_ids = bound_args.arguments.get("joint_ids")
             output_cache.append(
                 TensorSemantics(
                     name=_unique_output_name(term_name, name, output_cache),
@@ -516,7 +517,11 @@ class _ArticulationWriteProxy:
                     kind=semantics_meta.kind,
                     element_names=resolve_leapp_element_names(
                         semantics_meta,
-                        _WriteJointNameContext(real_asset.joint_names, joint_ids),
+                        _WriteElementNameContext(
+                            real_asset,
+                            bound_args.arguments.get("joint_ids"),
+                            bound_args.arguments.get("fixed_tendon_ids"),
+                        ),
                     ),
                     extra=build_write_connection(
                         object.__getattribute__(self, "_entity_name"),
