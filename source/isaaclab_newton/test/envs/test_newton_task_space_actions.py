@@ -5,13 +5,20 @@
 
 """Kinematics of the target frame shared by the Newton task-space action terms."""
 
+import ast
+import inspect
 import math
+import textwrap
 from types import SimpleNamespace
 
 import pytest
 import torch
 from isaaclab_newton.envs.mdp.actions.newton_task_space_actions import _NewtonTaskSpaceAction
 
+from isaaclab.envs.mdp.actions.task_space_actions import (
+    DifferentialInverseKinematicsAction,
+    OperationalSpaceControllerAction,
+)
 from isaaclab.utils import math as math_utils
 
 pytestmark = pytest.mark.unit
@@ -48,3 +55,18 @@ def test_body_offset_jacobian_uses_offset_in_root_frame():
     # The lever arm in root axes is (0, 1, 0), and z x (0, 1, 0) = (-1, 0, 0).
     expected = torch.tensor([[[-1.0], [0.0], [0.0], [0.0], [0.0], [1.0]]])
     torch.testing.assert_close(jacobian_b, expected, atol=1e-6, rtol=0.0)
+
+
+def test_task_space_actions_do_not_own_point_shift_math():
+    """All task-space actions must use the shared point shift instead of recopying its formula."""
+    methods = (
+        DifferentialInverseKinematicsAction._compute_frame_jacobian,
+        OperationalSpaceControllerAction._compute_ee_jacobian,
+        _NewtonTaskSpaceAction._compute_ee_jacobian,
+    )
+    for method in methods:
+        tree = ast.parse(textwrap.dedent(inspect.getsource(method)))
+        calls = [node.func for node in ast.walk(tree) if isinstance(node, ast.Call)]
+        names = [call.attr for call in calls if isinstance(call, ast.Attribute)]
+        assert names.count("velocity_at_point") == 1, method.__qualname__
+        assert not {"skew_symmetric_matrix", "cross"}.intersection(names), method.__qualname__

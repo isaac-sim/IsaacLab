@@ -1,3 +1,6 @@
+Fixed
+^^^^^
+
 * Fixed the body-offset Jacobian of
   :class:`~isaaclab_newton.envs.mdp.actions.NewtonDifferentialInverseKinematicsAction` and
   :class:`~isaaclab_newton.envs.mdp.actions.NewtonOperationalSpaceControllerAction`. The translational rows are now

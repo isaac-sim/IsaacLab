@@ -261,8 +261,8 @@ class DifferentialInverseKinematicsAction(ActionTerm):
                 self._asset.data.body_quat_w.torch[:, self._body_idx],
             )
             offset_pos_b = math_utils.quat_apply(body_quat_b, self._offset_pos)
-            self._jacobian_b[:, 0:3, :] += torch.bmm(
-                -math_utils.skew_symmetric_matrix(offset_pos_b), self._jacobian_b[:, 3:, :]
+            self._jacobian_b[:, :3] = math_utils.velocity_at_point(
+                self._jacobian_b[:, :3], self._jacobian_b[:, 3:], offset_pos_b[:, :, None], dim=1
             )
 
         return self._jacobian_b
@@ -676,8 +676,8 @@ class OperationalSpaceControllerAction(ActionTerm):
                 self._asset.data.body_quat_w.torch[:, self._ee_body_idx],
             )
             offset_pos_b = math_utils.quat_apply(body_quat_b, self._offset_pos)
-            self._jacobian_b[:, 0:3, :] += torch.bmm(
-                -math_utils.skew_symmetric_matrix(offset_pos_b), self._jacobian_b[:, 3:, :]
+            self._jacobian_b[:, :3] = math_utils.velocity_at_point(
+                self._jacobian_b[:, :3], self._jacobian_b[:, 3:], offset_pos_b[:, :, None], dim=1
             )
 
     def _compute_ee_pose(self):
