@@ -111,7 +111,6 @@ def run(argv: list[str]) -> BenchmarkResult:
     from isaaclab.benchmark import BaseIsaacLabBenchmark, BenchmarkMonitor, BenchmarkResult, builders, capture, stepping
     from isaaclab.benchmark.schema import StartupTime
 
-    from isaaclab_rl.entrypoints.backends import cli_args_rsl_rl as cli_args
     from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper
 
     # Importing the task packages registers their gym environments so the
@@ -138,7 +137,9 @@ def run(argv: list[str]) -> BenchmarkResult:
 
             if args.num_envs is not None:
                 env_cfg.scene.num_envs = args.num_envs
-            agent_cfg = cli_args.update_rsl_rl_cfg(agent_cfg, args.device, seed=args.seed)
+            if args.seed is not None:
+                agent_cfg.seed = args.seed
+            agent_cfg.device = args.device
             env_cfg.seed = agent_cfg.seed
 
             log_root_path = os.path.abspath(os.path.join("logs", "rsl_rl", agent_cfg.experiment_name))
