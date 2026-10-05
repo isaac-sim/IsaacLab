@@ -132,7 +132,13 @@ def export_rsl_rl_agent(args_cli: argparse.Namespace, env_cfg: Any, agent_cfg: R
     # the LEAPP runtime loads simulation modules, so import it only after the launch
     from leapp import annotate
 
-    agent_cfg = cli_args.update_rsl_rl_cfg(agent_cfg, args_cli)
+    agent_cfg = cli_args.update_rsl_rl_cfg(
+        agent_cfg,
+        args_cli.device,
+        seed=args_cli.seed,
+        checkpoint=args_cli.checkpoint,
+        experiment_name=args_cli.experiment_name,
+    )
 
     env_cfg.scene.num_envs = 1
     # certain randomizations occur in the environment initialization so we set the seed here

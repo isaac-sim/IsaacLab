@@ -194,7 +194,16 @@ def run(argv: list[str]) -> BenchmarkResult | None:
 
             apply_env_overrides(args_cli, env_cfg)
 
-            agent_cfg = cli_args.update_rl_games_cfg(agent_cfg, args_cli)
+            agent_cfg = cli_args.update_rl_games_cfg(agent_cfg, args_cli.device, seed=args_cli.seed)
+
+            if args_cli.max_iterations is not None:
+                agent_cfg["params"]["config"]["max_epochs"] = args_cli.max_iterations
+
+            if distributed.enabled:
+                # Mirror the regular training entrypoint: offsetting the seed by the rank decorrelates
+                # exploration across ranks.
+                agent_cfg["params"]["seed"] += distributed.rank
+                agent_cfg["params"]["config"]["multi_gpu"] = True
             env_cfg.seed = agent_cfg["params"]["seed"]
             horizon_length = agent_cfg["params"]["config"].get("horizon_length", 16)
             reported_num_envs, _ = distributed.global_work(env_cfg.scene.num_envs, horizon_length)

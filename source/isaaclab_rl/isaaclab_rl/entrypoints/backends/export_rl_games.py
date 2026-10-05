@@ -106,7 +106,7 @@ def export_rl_games_agent(args_cli: argparse.Namespace, env_cfg: Any, agent_cfg:
     # initialized the selected backend
     from leapp import annotate
 
-    agent_cfg = cli_args.update_rl_games_cfg(agent_cfg, args_cli)
+    agent_cfg = cli_args.update_rl_games_cfg(agent_cfg, args_cli.device)
     params = agent_cfg["params"]
     env_cfg.scene.num_envs = 1
     env_cfg.seed = params["seed"]

@@ -105,7 +105,7 @@ def run(argv: list[str]) -> None:
         with launch_simulation(env_cfg, args_cli), contextlib.ExitStack() as cleanup:
             show_run_summary(screen, args_cli, env_cfg, library="sb3", action="play")
             apply_env_overrides(args_cli, env_cfg)
-            agent_cfg = cli_args.update_sb3_cfg(agent_cfg, args_cli)
+            agent_cfg = cli_args.update_sb3_cfg(agent_cfg, args_cli.device, seed=args_cli.seed)
             env_cfg.seed = agent_cfg["seed"]
 
             log_root_path = os.path.abspath(os.path.join("logs", "sb3", normalize_task_name(args_cli.task)))
@@ -145,7 +145,7 @@ def run(argv: list[str]) -> None:
                 )
 
             print(f"Loading checkpoint from: {checkpoint_path}")
-            agent = PPO.load(checkpoint_path, env, device=env_cfg.sim.device, print_system_info=True)
+            agent = PPO.load(checkpoint_path, env, device=agent_cfg["device"], print_system_info=True)
             # configure_seed must run after PPO.load so torch determinism does not disturb SB3's initialization
             if args_cli.deterministic:
                 configure_seed(env_cfg.seed, torch_deterministic=True)

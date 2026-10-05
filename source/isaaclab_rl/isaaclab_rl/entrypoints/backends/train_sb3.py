@@ -115,7 +115,7 @@ def run(argv: list[str]) -> None:
         with launch_simulation(env_cfg, args_cli), contextlib.ExitStack() as cleanup:
             show_run_summary(screen, args_cli, env_cfg, library="sb3", action="train")
             apply_env_overrides(args_cli, env_cfg)
-            agent_cfg = cli_args.update_sb3_cfg(agent_cfg, args_cli)
+            agent_cfg = cli_args.update_sb3_cfg(agent_cfg, args_cli.device, seed=args_cli.seed)
             if args_cli.max_iterations is not None:
                 agent_cfg["n_timesteps"] = args_cli.max_iterations * agent_cfg["n_steps"] * env_cfg.scene.num_envs
             env_cfg.seed = agent_cfg["seed"]

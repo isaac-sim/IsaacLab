@@ -143,7 +143,7 @@ def run(argv: list[str]) -> BenchmarkResult:
 
             if args_cli.num_envs is not None:
                 env_cfg.scene.num_envs = args_cli.num_envs
-            agent_cfg = cli_args.update_sb3_cfg(agent_cfg, args_cli)
+            agent_cfg = cli_args.update_sb3_cfg(agent_cfg, args_cli.device, seed=args_cli.seed)
             env_cfg.seed = agent_cfg["seed"]
 
             log_root_path = os.path.abspath(os.path.join("logs", "sb3", args_cli.task))
@@ -213,7 +213,7 @@ def run(argv: list[str]) -> BenchmarkResult:
                 )
 
             # Load the trained policy.
-            agent = PPO.load(resume_path, env, device=env_cfg.sim.device, print_system_info=True)
+            agent = PPO.load(resume_path, env, device=agent_cfg["device"], print_system_info=True)
 
             def policy(obs):
                 """Map an observation batch to a deterministic action batch via the sb3 agent.

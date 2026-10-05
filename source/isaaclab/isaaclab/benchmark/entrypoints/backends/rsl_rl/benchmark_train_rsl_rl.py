@@ -185,7 +185,16 @@ def run(argv: list[str]) -> BenchmarkResult | None:
             app_t1 = time.perf_counter_ns()
 
             apply_env_overrides(args_cli, env_cfg)
-            agent_cfg = cli_args.update_rsl_rl_cfg(agent_cfg, args_cli)
+            agent_cfg = cli_args.update_rsl_rl_cfg(
+                agent_cfg,
+                args_cli.device,
+                seed=args_cli.seed,
+                checkpoint=args_cli.checkpoint,
+                experiment_name=args_cli.experiment_name,
+                run_name=args_cli.run_name,
+                logger=args_cli.logger,
+                log_project_name=args_cli.log_project_name,
+            )
             agent_cfg.max_iterations = (
                 args_cli.max_iterations if args_cli.max_iterations is not None else agent_cfg.max_iterations
             )

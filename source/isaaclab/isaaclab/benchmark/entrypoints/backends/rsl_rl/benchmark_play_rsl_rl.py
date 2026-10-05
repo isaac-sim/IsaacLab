@@ -138,7 +138,7 @@ def run(argv: list[str]) -> BenchmarkResult:
 
             if args.num_envs is not None:
                 env_cfg.scene.num_envs = args.num_envs
-            agent_cfg = cli_args.update_rsl_rl_cfg(agent_cfg, args)
+            agent_cfg = cli_args.update_rsl_rl_cfg(agent_cfg, args.device, seed=args.seed)
             env_cfg.seed = agent_cfg.seed
 
             log_root_path = os.path.abspath(os.path.join("logs", "rsl_rl", agent_cfg.experiment_name))

@@ -7,26 +7,22 @@
 
 from __future__ import annotations
 
-import argparse
-
 from ..common import resolve_seed
 
 
-def update_sb3_cfg(agent_cfg: dict, args_cli: argparse.Namespace) -> dict:
+def update_sb3_cfg(agent_cfg: dict, device: str, *, seed: int | None = None) -> dict:
     """Override a Stable-Baselines3 agent configuration with the command-line arguments.
-
-    Call it inside :func:`~isaaclab.app.launch_simulation`, which resolves ``args_cli.device``: the agent runs on
-    the simulation's device. Loading a checkpoint still needs that device passed to ``PPO.load``.
 
     Args:
         agent_cfg: The configuration for Stable-Baselines3 agent.
-        args_cli: The command line arguments.
+        device: Device the agent runs on, the simulation's device once :func:`~isaaclab.app.launch_simulation`
+            has resolved it. Pass ``agent_cfg["device"]`` to ``PPO.load`` as well.
+        seed: Seed override; ``-1`` draws a random seed.
 
     Returns:
         The updated Stable-Baselines3 agent configuration.
     """
-    agent_cfg["device"] = args_cli.device
-    if getattr(args_cli, "seed", None) is not None:
-        args_cli.seed = resolve_seed(args_cli.seed)
-        agent_cfg["seed"] = args_cli.seed
+    agent_cfg["device"] = device
+    if seed is not None:
+        agent_cfg["seed"] = resolve_seed(seed)
     return agent_cfg

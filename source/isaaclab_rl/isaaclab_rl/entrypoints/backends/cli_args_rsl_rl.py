@@ -81,35 +81,57 @@ def parse_rsl_rl_cfg(task_name: str, args_cli: argparse.Namespace) -> RslRlBaseR
     from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 
     agent_cfg: RslRlBaseRunnerCfg = load_cfg_from_registry(task_name, "rsl_rl_cfg_entry_point")
-    return update_rsl_rl_cfg(agent_cfg, args_cli)
+    return update_rsl_rl_cfg(
+        agent_cfg,
+        args_cli.device,
+        seed=args_cli.seed,
+        checkpoint=args_cli.checkpoint,
+        experiment_name=args_cli.experiment_name,
+        run_name=args_cli.run_name,
+        logger=args_cli.logger,
+        log_project_name=args_cli.log_project_name,
+    )
 
 
-def update_rsl_rl_cfg(agent_cfg: RslRlBaseRunnerCfg, args_cli: argparse.Namespace) -> RslRlBaseRunnerCfg:
+def update_rsl_rl_cfg(
+    agent_cfg: RslRlBaseRunnerCfg,
+    device: str,
+    *,
+    seed: int | None = None,
+    checkpoint: str | None = None,
+    experiment_name: str | None = None,
+    run_name: str | None = None,
+    logger: str | None = None,
+    log_project_name: str | None = None,
+) -> RslRlBaseRunnerCfg:
     """Override an RSL-RL agent configuration with the command-line arguments.
-
-    Call it inside :func:`~isaaclab.app.launch_simulation`, which resolves ``args_cli.device``: the agent runs on
-    the simulation's device.
 
     Args:
         agent_cfg: The configuration for RSL-RL agent.
-        args_cli: The command line arguments.
+        device: Device the agent runs on, the simulation's device once :func:`~isaaclab.app.launch_simulation`
+            has resolved it.
+        seed: Seed override; ``-1`` draws a random seed.
+        checkpoint: Checkpoint file to load.
+        experiment_name: Experiment folder name.
+        run_name: Run name suffix.
+        logger: Logger to use.
+        log_project_name: Project name for the ``wandb`` and ``neptune`` loggers.
 
     Returns:
         The updated RSL-RL agent configuration.
     """
-    agent_cfg.device = args_cli.device
-    if getattr(args_cli, "seed", None) is not None:
-        args_cli.seed = resolve_seed(args_cli.seed)
-        agent_cfg.seed = args_cli.seed
-    if getattr(args_cli, "checkpoint", None) is not None:
-        agent_cfg.load_checkpoint = args_cli.checkpoint
-    if getattr(args_cli, "experiment_name", None) is not None:
-        agent_cfg.experiment_name = args_cli.experiment_name
-    if getattr(args_cli, "run_name", None) is not None:
-        agent_cfg.run_name = args_cli.run_name
-    if getattr(args_cli, "logger", None) is not None:
-        agent_cfg.logger = args_cli.logger
-    if agent_cfg.logger in {"wandb", "neptune"} and getattr(args_cli, "log_project_name", None):
-        agent_cfg.wandb_project = args_cli.log_project_name
-        agent_cfg.neptune_project = args_cli.log_project_name
+    agent_cfg.device = device
+    if seed is not None:
+        agent_cfg.seed = resolve_seed(seed)
+    if checkpoint is not None:
+        agent_cfg.load_checkpoint = checkpoint
+    if experiment_name is not None:
+        agent_cfg.experiment_name = experiment_name
+    if run_name is not None:
+        agent_cfg.run_name = run_name
+    if logger is not None:
+        agent_cfg.logger = logger
+    if agent_cfg.logger in {"wandb", "neptune"} and log_project_name:
+        agent_cfg.wandb_project = log_project_name
+        agent_cfg.neptune_project = log_project_name
     return agent_cfg
