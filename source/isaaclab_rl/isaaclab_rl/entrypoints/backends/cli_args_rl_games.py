@@ -7,23 +7,24 @@
 
 from __future__ import annotations
 
+import argparse
+
 from ..common import resolve_seed
 
 
-def update_rl_games_cfg(agent_cfg: dict, device: str, *, seed: int | None = None) -> dict:
+def update_rl_games_cfg(agent_cfg: dict, args_cli: argparse.Namespace) -> dict:
     """Override an RL-Games agent configuration with the command-line arguments.
 
     Args:
         agent_cfg: The configuration for RL-Games agent.
-        device: Device the agent runs on, the simulation's device once :func:`~isaaclab.app.launch_simulation`
-            has resolved it.
-        seed: Seed override; ``-1`` draws a random seed.
+        args_cli: The command line arguments.
 
     Returns:
         The updated RL-Games agent configuration.
     """
     config = agent_cfg["params"]["config"]
-    config["device"] = config["device_name"] = device
-    if seed is not None:
-        agent_cfg["params"]["seed"] = resolve_seed(seed)
+    config["device"] = config["device_name"] = args_cli.device
+    if args_cli.seed is not None:
+        args_cli.seed = resolve_seed(args_cli.seed)
+        agent_cfg["params"]["seed"] = args_cli.seed
     return agent_cfg

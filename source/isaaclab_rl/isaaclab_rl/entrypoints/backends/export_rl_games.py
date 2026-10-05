@@ -51,6 +51,7 @@ def parse_export_args(argv: list[str] | None = None) -> tuple[argparse.Namespace
     """Parse export arguments and return the remaining Hydra overrides."""
     parser = argparse.ArgumentParser(description="Export an RL agent with RL-Games.")
     add_common_export_args(parser, agent_default="rl_games_cfg_entry_point")
+    parser.add_argument("--seed", type=int, default=None, help="Seed used for the environment.")
     parser.add_argument(
         "--use_last_checkpoint",
         action="store_true",
@@ -106,7 +107,7 @@ def export_rl_games_agent(args_cli: argparse.Namespace, env_cfg: Any, agent_cfg:
     # initialized the selected backend
     from leapp import annotate
 
-    agent_cfg = cli_args.update_rl_games_cfg(agent_cfg, args_cli.device)
+    agent_cfg = cli_args.update_rl_games_cfg(agent_cfg, args_cli)
     params = agent_cfg["params"]
     env_cfg.scene.num_envs = 1
     env_cfg.seed = params["seed"]

@@ -114,7 +114,7 @@ def run(argv: list[str]) -> None:
             show_run_summary(screen, args_cli, env_cfg, library="rl_games", action="train")
             apply_env_overrides(args_cli, env_cfg)
 
-            agent_cfg = cli_args.update_rl_games_cfg(agent_cfg, args_cli.device, seed=args_cli.seed)
+            agent_cfg = cli_args.update_rl_games_cfg(agent_cfg, args_cli)
             params = agent_cfg["params"]
             config = params["config"]
             if args_cli.max_iterations is not None:

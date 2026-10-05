@@ -194,7 +194,7 @@ def run(argv: list[str]) -> BenchmarkResult | None:
 
             apply_env_overrides(args_cli, env_cfg)
 
-            agent_cfg = cli_args.update_rl_games_cfg(agent_cfg, args_cli.device, seed=args_cli.seed)
+            agent_cfg = cli_args.update_rl_games_cfg(agent_cfg, args_cli)
 
             if args_cli.max_iterations is not None:
                 agent_cfg["params"]["config"]["max_epochs"] = args_cli.max_iterations

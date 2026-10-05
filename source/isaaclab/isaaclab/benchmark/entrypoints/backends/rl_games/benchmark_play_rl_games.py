@@ -140,7 +140,7 @@ def run(argv: list[str]) -> BenchmarkResult:
 
             if args_cli.num_envs is not None:
                 env_cfg.scene.num_envs = args_cli.num_envs
-            agent_cfg = cli_args.update_rl_games_cfg(agent_cfg, args_cli.device, seed=args_cli.seed)
+            agent_cfg = cli_args.update_rl_games_cfg(agent_cfg, args_cli)
             env_cfg.seed = agent_cfg["params"]["seed"]
 
             config_name = agent_cfg["params"]["config"]["name"]
