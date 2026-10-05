@@ -51,19 +51,16 @@ class SinglePushCurriculum(ManagerTermBase):
         env_ids: Sequence[int] | torch.Tensor | slice,
     ) -> dict[str, torch.Tensor]:
         """Credit completed outcomes, draw new reset levels, and return logging state."""
-        if isinstance(env_ids, slice):
-            env_ids = torch.arange(env.num_envs, device=env.device)[env_ids]
-        else:
-            env_ids = torch.as_tensor(env_ids, dtype=torch.long, device=env.device)
-        if env.common_step_counter > 0 and env_ids.numel() > 0:
+        num_envs = len(range(env.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
+        if env.common_step_counter > 0 and num_envs > 0:
             completed_levels = self._levels[env_ids]
             self._episode_count += torch.bincount(completed_levels, minlength=self._probabilities.numel())
             self._success_count += torch.bincount(
                 completed_levels[env.success_this_step[env_ids]],
                 minlength=self._probabilities.numel(),
             )
-        if env_ids.numel() > 0:
-            self._levels[env_ids] = self._sample_levels(env_ids.numel())
+        if num_envs > 0:
+            self._levels[env_ids] = self._sample_levels(num_envs)
 
         state = {
             "mean_level": self._levels.float().mean(),

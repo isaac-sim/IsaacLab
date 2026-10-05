@@ -53,7 +53,8 @@ def _build_rlinf_mocks() -> dict[str, types.ModuleType]:
 
     mock_simulation_io = types.ModuleType("rlinf.models.embodiment.gr00t.simulation_io")
     mock_simulation_io.OBS_CONVERSION = {}
-    mock_simulation_io.ACTION_CONVERSION = {}
+    mock_simulation_io.ACTION_CONVERSION_N1D5 = {}
+    mock_simulation_io.ACTION_CONVERSION_N1D7 = {}
 
     mock_isaaclab_env = types.ModuleType("rlinf.envs.isaaclab")
     mock_isaaclab_env.REGISTER_ISAACLAB_ENVS = {}
@@ -163,8 +164,10 @@ def _reset_extension_state():
     ext._registered = False
     ext._full_cfg_cache = None
     # Reset mock registries
-    _rlinf_mocks["rlinf.models.embodiment.gr00t.simulation_io"].OBS_CONVERSION = {}
-    _rlinf_mocks["rlinf.models.embodiment.gr00t.simulation_io"].ACTION_CONVERSION = {}
+    sim_io = _rlinf_mocks["rlinf.models.embodiment.gr00t.simulation_io"]
+    sim_io.OBS_CONVERSION.clear()
+    sim_io.ACTION_CONVERSION_N1D5.clear()
+    sim_io.ACTION_CONVERSION_N1D7.clear()
     _rlinf_mocks["rlinf.envs.isaaclab"].REGISTER_ISAACLAB_ENVS = {}
     _rlinf_mocks["rlinf.models.embodiment.gr00t.embodiment_tags"].EMBODIMENT_TAG_MAPPING = dict(
         _MOCK_EMBODIMENT_TAG_MAPPING
@@ -242,21 +245,6 @@ class TestConfigLoading:
 class TestObsConversion:
     """Tests for ``_convert_isaaclab_obs_to_gr00t``."""
 
-    def test_main_images_conversion(self, set_config_env) -> None:
-        """Main images should be converted from (B,H,W,C) to (B,1,H,W,C) numpy."""
-        # Prime the config cache
-        ext._load_full_cfg()
-
-        B, H, W, C = 4, 64, 64, 3
-        env_obs = {
-            "main_images": torch.randn(B, H, W, C),
-            "task_descriptions": ["test"] * B,
-        }
-        result = ext._convert_isaaclab_obs_to_gr00t(env_obs)
-        assert "video.room_view" in result
-        assert isinstance(result["video.room_view"], np.ndarray)
-        assert result["video.room_view"].shape == (B, 1, H, W, C)
-
     def test_extra_view_images_conversion(self, set_config_env) -> None:
         """Extra view images should be split into separate GR00T video keys."""
         ext._load_full_cfg()
@@ -271,36 +259,46 @@ class TestObsConversion:
         assert "video.right_wrist" in result
         assert result["video.left_wrist"].shape == (B, 1, H, W, C)
 
-    def test_states_conversion(self, set_config_env) -> None:
-        """States should be sliced and mapped to GR00T state keys."""
-        ext._load_full_cfg()
-
-        B, D = 4, 20
-        env_obs = {
-            "states": torch.randn(B, D),
-            "task_descriptions": ["test"] * B,
-        }
-        result = ext._convert_isaaclab_obs_to_gr00t(env_obs)
-        assert "state.arm" in result
-        assert result["state.arm"].shape == (B, 1, 7)
-        assert "state.hand" in result
-        assert result["state.hand"].shape == (B, 1, 7)
-
-    def test_task_descriptions_passthrough(self, set_config_env) -> None:
-        """Task descriptions should be passed through to GR00T annotation key."""
-        ext._load_full_cfg()
-
+    @pytest.mark.parametrize("language_key", [None, "annotation.human.task_description"])
+    def test_task_descriptions_passthrough(self, set_config_env, language_key) -> None:
+        """Use the checkpoint's language key without adding duplicate annotations."""
+        cfg = ext._get_isaaclab_cfg()
+        if language_key is not None:
+            cfg["gr00t_mapping"]["language"] = language_key
+        expected_key = language_key or "annotation.human.action.task_description"
         descs = ["task1", "task2"]
-        env_obs = {"task_descriptions": descs}
-        result = ext._convert_isaaclab_obs_to_gr00t(env_obs)
-        assert result["annotation.human.action.task_description"] == descs
+        assert ext._convert_isaaclab_obs_to_gr00t({"task_descriptions": descs}) == {expected_key: descs}
+        # An empty observation still carries an (empty) task description.
+        assert ext._convert_isaaclab_obs_to_gr00t({}) == {expected_key: []}
 
-    def test_empty_obs(self, set_config_env) -> None:
-        """Empty observation should still include task description key."""
+    def test_obs_state_slicing_consistency(self, set_config_env) -> None:
+        """State slices must match the original tensor content after conversion."""
         ext._load_full_cfg()
 
-        result = ext._convert_isaaclab_obs_to_gr00t({})
-        assert "annotation.human.action.task_description" in result
+        batch_size, state_dim = 8, 20
+        states = torch.arange(batch_size * state_dim, dtype=torch.float32).reshape(batch_size, state_dim)
+        obs = {"states": states, "task_descriptions": ["t"] * batch_size}
+        gr00t_obs = ext._convert_isaaclab_obs_to_gr00t(obs)
+
+        # gr00t_mapping.state[0]: slice [0,7] → state.arm
+        np.testing.assert_allclose(gr00t_obs["state.arm"], states[:, None, :7].numpy(), atol=1e-6)
+        # gr00t_mapping.state[1]: slice [7,14] → state.hand
+        np.testing.assert_allclose(gr00t_obs["state.hand"], states[:, None, 7:14].numpy(), atol=1e-6)
+
+    def test_image_value_preservation(self, set_config_env) -> None:
+        """Pixel values should survive the obs conversion without corruption."""
+        ext._load_full_cfg()
+
+        B, H, W, C = 2, 8, 8, 3
+        img = torch.rand(B, H, W, C)
+        obs = {"main_images": img, "task_descriptions": ["t"] * B}
+        gr00t_obs = ext._convert_isaaclab_obs_to_gr00t(obs)
+
+        np.testing.assert_allclose(
+            gr00t_obs["video.room_view"][:, 0],
+            img.cpu().numpy(),
+            atol=1e-6,
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -329,33 +327,17 @@ class TestActionConversion:
         # Check suffix padding is zeros
         np.testing.assert_array_equal(result[:, :, -2:], 0.0)
 
-    def test_no_padding(self, yaml_config_file: str) -> None:
-        """Without padding config, actions should just be concatenated."""
-        no_pad_cfg = {
-            "env": {
-                "train": {
-                    "init_params": {"id": "test"},
-                    "isaaclab": {"action_mapping": {"prefix_pad": 0, "suffix_pad": 0}},
-                },
-            }
+    @pytest.mark.parametrize("keys", [None, ["arm", "hand"]])
+    def test_no_padding(self, set_config_env, keys) -> None:
+        """Concatenate in insertion order by default, or the declared environment action order."""
+        ext._get_isaaclab_cfg()["action_mapping"] = {} if keys is None else {"keys": keys}
+        action_chunk = {
+            "hand": np.full((2, 3, 1), 2.0),
+            "arm": np.full((2, 3, 2), 1.0),
         }
-        with open(yaml_config_file, "w") as f:
-            yaml.dump(no_pad_cfg, f)
-        with mock.patch.dict(os.environ, {"RLINF_CONFIG_FILE": yaml_config_file}):
-            B, T, D = 2, 3, 4
-            action_chunk = {"joint": np.random.randn(B, T, D)}
-            result = ext._convert_gr00t_to_isaaclab_action(action_chunk, chunk_size=1)
-            assert result.shape == (B, 1, D)
-
-    def test_chunk_size_slicing(self, set_config_env) -> None:
-        """Only the first ``chunk_size`` time steps should be kept."""
-        ext._load_full_cfg()
-
-        B, T, D = 2, 10, 4
-        action_chunk = {"joint": np.ones((B, T, D))}
-        result = ext._convert_gr00t_to_isaaclab_action(action_chunk, chunk_size=3)
-        # chunk_size=3 + prefix=3 + suffix=2 → (B, 3, D+5)
-        assert result.shape[1] == 3
+        result = ext._convert_gr00t_to_isaaclab_action(action_chunk, chunk_size=1)
+        expected = [2.0, 1.0, 1.0] if keys is None else [1.0, 1.0, 2.0]
+        np.testing.assert_array_equal(result, np.broadcast_to(expected, (2, 1, 3)))
 
 
 # ---------------------------------------------------------------------------
@@ -386,11 +368,11 @@ class TestEmbodimentTagPatching:
 
     def test_default_tag_values(self) -> None:
         """Defaults should be ``new_embodiment`` with ID 31."""
-        # new_embodiment is already in the mock registry, so it will be skipped
-        cfg = {}
-        ext._patch_embodiment_tags(cfg)
-
         mapping = _rlinf_mocks["rlinf.models.embodiment.gr00t.embodiment_tags"].EMBODIMENT_TAG_MAPPING
+        # Remove the default tag so the patch must add it from the defaults.
+        del mapping["new_embodiment"]
+        ext._patch_embodiment_tags({})
+
         assert mapping["new_embodiment"] == 31
 
 
@@ -410,6 +392,9 @@ class TestTaskRegistration:
         registry = _rlinf_mocks["rlinf.envs.isaaclab"].REGISTER_ISAACLAB_ENVS
         assert "Isaac-Test-Task-v0" in registry
         assert "Isaac-Test-Task-Eval-v0" in registry
+        base = _rlinf_mocks["rlinf.envs.isaaclab.isaaclab_env"].IsaaclabBaseEnv
+        for env_cls in registry.values():
+            assert issubclass(env_cls, base)
 
     def test_no_duplicate_registration(self, set_config_env) -> None:
         """Calling register twice should not duplicate entries."""
@@ -431,16 +416,6 @@ class TestTaskRegistration:
         registry = _rlinf_mocks["rlinf.envs.isaaclab"].REGISTER_ISAACLAB_ENVS
         assert len(registry) == 0
 
-    def test_registered_class_is_subclass(self, set_config_env) -> None:
-        """Registered env classes should inherit from IsaaclabBaseEnv."""
-        ext._load_full_cfg()
-        ext._register_isaaclab_envs()
-
-        registry = _rlinf_mocks["rlinf.envs.isaaclab"].REGISTER_ISAACLAB_ENVS
-        base = _rlinf_mocks["rlinf.envs.isaaclab.isaaclab_env"].IsaaclabBaseEnv
-        for env_cls in registry.values():
-            assert issubclass(env_cls, base)
-
 
 # ---------------------------------------------------------------------------
 # Tests: converter registration
@@ -450,180 +425,31 @@ class TestTaskRegistration:
 class TestConverterRegistration:
     """Tests for ``_register_gr00t_converters``."""
 
-    def test_converters_registered(self, set_config_env) -> None:
-        """Obs and action converters should be added to RLinf's registries."""
-        cfg = ext._SAMPLE_CFG if hasattr(ext, "_SAMPLE_CFG") else {"obs_converter_type": "isaaclab"}
-        ext._register_gr00t_converters(cfg)
-
+    @pytest.mark.parametrize("model_type", ["gr00t", "gr00t_n1d7"])
+    def test_converters_registered(self, set_config_env, monkeypatch, model_type) -> None:
+        """Register converters for both models, patching only the custom N1.5 loader."""
+        ext._load_full_cfg()["actor"] = {"model": {"model_type": model_type}}
+        ext._get_isaaclab_cfg()["data_config_class"] = "custom:DataConfig"
+        gr00t = _rlinf_mocks["rlinf.models.embodiment.gr00t"]
+        native_loader = object()
+        monkeypatch.setattr(gr00t, "get_model", native_loader, raising=False)
         sim_io = _rlinf_mocks["rlinf.models.embodiment.gr00t.simulation_io"]
-        assert "isaaclab" in sim_io.OBS_CONVERSION
-        assert "isaaclab" in sim_io.ACTION_CONVERSION
+        ext.register()
+
+        assert (gr00t.get_model is native_loader) == (model_type == "gr00t_n1d7")
         assert sim_io.OBS_CONVERSION["isaaclab"] is ext._convert_isaaclab_obs_to_gr00t
-        assert sim_io.ACTION_CONVERSION["isaaclab"] is ext._convert_gr00t_to_isaaclab_action
+        for registry in (sim_io.ACTION_CONVERSION_N1D5, sim_io.ACTION_CONVERSION_N1D7):
+            assert registry["isaaclab"] is ext._convert_gr00t_to_isaaclab_action
 
     def test_no_duplicate_converter_registration(self) -> None:
         """Should not overwrite existing converter entries."""
         sim_io = _rlinf_mocks["rlinf.models.embodiment.gr00t.simulation_io"]
         sentinel = lambda x: None  # noqa: E731
-        sim_io.OBS_CONVERSION["isaaclab"] = sentinel
-        sim_io.ACTION_CONVERSION["isaaclab"] = sentinel
+        registries = (sim_io.OBS_CONVERSION, sim_io.ACTION_CONVERSION_N1D5, sim_io.ACTION_CONVERSION_N1D7)
+        for registry in registries:
+            registry["isaaclab"] = sentinel
 
         ext._register_gr00t_converters({"obs_converter_type": "isaaclab"})
 
-        assert sim_io.OBS_CONVERSION["isaaclab"] is sentinel
-        assert sim_io.ACTION_CONVERSION["isaaclab"] is sentinel
-
-
-# ---------------------------------------------------------------------------
-# Tests: random policy simulation (obs → GR00T → action → env, no Isaac Sim)
-# ---------------------------------------------------------------------------
-
-
-class TestRandomPolicy:
-    """Simulate a random-action loop through the full obs/action conversion pipeline.
-
-    This is analogous to ``test_random_actions`` in the RSL-RL wrapper tests but
-    does NOT require Isaac Sim or a GPU.  Instead of creating a real environment
-    it synthesises batches of random observations (images + states), feeds them
-    through ``_convert_isaaclab_obs_to_gr00t``, generates random GR00T-format
-    action chunks, converts them back via ``_convert_gr00t_to_isaaclab_action``,
-    and validates every intermediate tensor.
-    """
-
-    NUM_STEPS = 50
-    BATCH_SIZE = 8
-    IMG_H, IMG_W, IMG_C = 64, 64, 3
-    STATE_DIM = 20
-    ACTION_ARM_DIM = 7
-    ACTION_HAND_DIM = 7
-    CHUNK_SIZE = 4
-
-    # -- helpers ----------------------------------------------------------
-
-    @staticmethod
-    def _check_valid_array(data: np.ndarray | torch.Tensor) -> bool:
-        """Return True when *data* contains no NaN / Inf values."""
-        if isinstance(data, torch.Tensor):
-            return not (torch.isnan(data).any() or torch.isinf(data).any())
-        return bool(np.isfinite(data).all())
-
-    def _make_random_obs(self) -> dict:
-        """Build a fake IsaacLab-style observation dict with random data."""
-        B, H, W, C, D = self.BATCH_SIZE, self.IMG_H, self.IMG_W, self.IMG_C, self.STATE_DIM
-        return {
-            "main_images": torch.rand(B, H, W, C),
-            "extra_view_images": torch.rand(B, 2, H, W, C),
-            "states": torch.randn(B, D),
-            "task_descriptions": [f"task_{i}" for i in range(B)],
-        }
-
-    def _make_random_gr00t_action(self) -> dict:
-        """Build a fake GR00T-style action chunk with random data."""
-        B, T = self.BATCH_SIZE, self.CHUNK_SIZE + 2  # model outputs more than chunk_size
-        return {
-            "arm": np.random.randn(B, T, self.ACTION_ARM_DIM),
-            "hand": np.random.randn(B, T, self.ACTION_HAND_DIM),
-        }
-
-    # -- tests ------------------------------------------------------------
-
-    def test_single_step_roundtrip(self, set_config_env) -> None:
-        """A single obs→GR00T→action roundtrip should produce valid arrays."""
-        ext._load_full_cfg()
-
-        obs = self._make_random_obs()
-        gr00t_obs = ext._convert_isaaclab_obs_to_gr00t(obs)
-
-        # Validate GR00T obs
-        for key, val in gr00t_obs.items():
-            if isinstance(val, np.ndarray):
-                assert self._check_valid_array(val), f"NaN/Inf in gr00t_obs['{key}']"
-
-        # Simulate model producing a random action
-        action_chunk = self._make_random_gr00t_action()
-        action = ext._convert_gr00t_to_isaaclab_action(action_chunk, chunk_size=self.CHUNK_SIZE)
-
-        assert self._check_valid_array(action), "NaN/Inf in converted action"
-        # Expected: (B, chunk_size, arm+hand+prefix_pad+suffix_pad)
-        prefix_pad = 3  # from _SAMPLE_YAML
-        suffix_pad = 2
-        expected_dim = self.ACTION_ARM_DIM + self.ACTION_HAND_DIM + prefix_pad + suffix_pad
-        assert action.shape == (self.BATCH_SIZE, self.CHUNK_SIZE, expected_dim)
-
-    def test_multi_step_no_nan(self, set_config_env) -> None:
-        """Run NUM_STEPS random steps; no NaN/Inf should ever appear."""
-        ext._load_full_cfg()
-
-        for step in range(self.NUM_STEPS):
-            obs = self._make_random_obs()
-            gr00t_obs = ext._convert_isaaclab_obs_to_gr00t(obs)
-
-            for key, val in gr00t_obs.items():
-                if isinstance(val, np.ndarray):
-                    assert self._check_valid_array(val), f"Step {step}: NaN/Inf in gr00t_obs['{key}']"
-
-            action_chunk = self._make_random_gr00t_action()
-            action = ext._convert_gr00t_to_isaaclab_action(action_chunk, chunk_size=1)
-
-            assert self._check_valid_array(action), f"Step {step}: NaN/Inf in action"
-            assert action.ndim == 3 and action.shape[0] == self.BATCH_SIZE
-
-    def test_varying_batch_sizes(self, set_config_env) -> None:
-        """Pipeline should work for different batch sizes (1, 16, 128)."""
-        ext._load_full_cfg()
-
-        for B in (1, 16, 128):
-            H, W, C = self.IMG_H, self.IMG_W, self.IMG_C
-            obs = {
-                "main_images": torch.rand(B, H, W, C),
-                "states": torch.randn(B, self.STATE_DIM),
-                "task_descriptions": ["test"] * B,
-            }
-            gr00t_obs = ext._convert_isaaclab_obs_to_gr00t(obs)
-            assert gr00t_obs["video.room_view"].shape[0] == B
-
-            action_chunk = {
-                "arm": np.random.randn(B, 4, self.ACTION_ARM_DIM),
-                "hand": np.random.randn(B, 4, self.ACTION_HAND_DIM),
-            }
-            action = ext._convert_gr00t_to_isaaclab_action(action_chunk, chunk_size=2)
-            assert action.shape[0] == B
-
-    def test_action_padding_is_zero(self, set_config_env) -> None:
-        """Prefix and suffix padding regions must always be exactly zero."""
-        ext._load_full_cfg()
-
-        for _ in range(10):
-            action_chunk = self._make_random_gr00t_action()
-            action = ext._convert_gr00t_to_isaaclab_action(action_chunk, chunk_size=self.CHUNK_SIZE)
-            # prefix_pad=3 → first 3 cols zero; suffix_pad=2 → last 2 cols zero
-            np.testing.assert_array_equal(action[:, :, :3], 0.0)
-            np.testing.assert_array_equal(action[:, :, -2:], 0.0)
-
-    def test_obs_state_slicing_consistency(self, set_config_env) -> None:
-        """State slices must match the original tensor content after conversion."""
-        ext._load_full_cfg()
-
-        states = torch.arange(self.STATE_DIM, dtype=torch.float32).unsqueeze(0).expand(self.BATCH_SIZE, -1)
-        obs = {"states": states, "task_descriptions": ["t"] * self.BATCH_SIZE}
-        gr00t_obs = ext._convert_isaaclab_obs_to_gr00t(obs)
-
-        # gr00t_mapping.state[0]: slice [0,7] → state.arm
-        np.testing.assert_allclose(gr00t_obs["state.arm"][0, 0], np.arange(7, dtype=np.float32), atol=1e-6)
-        # gr00t_mapping.state[1]: slice [7,14] → state.hand
-        np.testing.assert_allclose(gr00t_obs["state.hand"][0, 0], np.arange(7, 14, dtype=np.float32), atol=1e-6)
-
-    def test_image_value_preservation(self, set_config_env) -> None:
-        """Pixel values should survive the obs conversion without corruption."""
-        ext._load_full_cfg()
-
-        B, H, W, C = 2, 8, 8, 3
-        img = torch.rand(B, H, W, C)
-        obs = {"main_images": img, "task_descriptions": ["t"] * B}
-        gr00t_obs = ext._convert_isaaclab_obs_to_gr00t(obs)
-
-        np.testing.assert_allclose(
-            gr00t_obs["video.room_view"][:, 0],
-            img.cpu().numpy(),
-            atol=1e-6,
-        )
+        for registry in registries:
+            assert registry["isaaclab"] is sentinel

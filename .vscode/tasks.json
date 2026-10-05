@@ -18,12 +18,7 @@
             // run formatter
             "label": "run_formatter",
             "type": "shell",
-            "linux": {
-                "command": "${workspaceFolder}/isaaclab.sh --format"
-            },
-            "windows": {
-                "command": "${workspaceFolder}/isaaclab.bat --format"
-            }
+            "command": "uv run isaaclab --format"
         }
     ]
 }

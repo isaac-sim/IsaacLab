@@ -56,6 +56,7 @@
         const frame = viewer.querySelector("[data-guide-frame]");
         const groups = [...guideList.querySelectorAll(".guide-group")];
         const entries = [...guideList.querySelectorAll(".guide-entry")];
+        const canEmbedGuides = window.location.protocol !== "file:";
         let selectedEntry = null;
         let frameObserver = null;
 
@@ -191,6 +192,10 @@
             }
             link.addEventListener("click", (event) => {
                 if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+                    return;
+                }
+                // Browsers isolate file URLs, so local previews must use direct navigation.
+                if (!canEmbedGuides) {
                     return;
                 }
                 event.preventDefault();

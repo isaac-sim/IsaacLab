@@ -236,3 +236,5 @@ class TrackPositionNoObstaclesEnvCfg(ManagerBasedRLEnvCfg):
             dynamic_friction=1.0,
         )
         self.sim.physics = PhysxCfg(gpu_max_rigid_patch_count=10 * 2**15)
+        # ThrusterCfg is implemented in Isaac Lab and has no Newton-native execution path.
+        self.sim.use_newton_actuators = False

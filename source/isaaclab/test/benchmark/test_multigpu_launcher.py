@@ -79,11 +79,14 @@ def test_multi_node_rendezvous_options_reach_torchrun():
 
 def test_dry_run_prints_a_shell_parsable_command(capsys: pytest.CaptureFixture[str]):
     """``--dry_run`` reports the exact command instead of launching workers."""
-    status = multigpu.run_multigpu_benchmark_cli("startup", ["--dry_run", "--num_gpus", "2", "--task", "X"])
+    # A spaced value must be quoted so the printed command splits back into the same tokens.
+    argv = ["--num_gpus", "2", "--task", "X", "--kit_args", "--foo=/bar --baz=1"]
+    status = multigpu.run_multigpu_benchmark_cli("startup", ["--dry_run", *argv])
 
     assert status == 0
     tokens = shlex.split(capsys.readouterr().out)
-    assert tokens == _command("startup", ["--num_gpus", "2", "--task", "X"])
+    assert tokens == _command("startup", argv)
+    assert "--foo=/bar --baz=1" in tokens
 
 
 def test_underscore_workflow_dispatches_to_multigpu_launcher(monkeypatch: pytest.MonkeyPatch):
@@ -99,7 +102,7 @@ def test_underscore_workflow_dispatches_to_multigpu_launcher(monkeypatch: pytest
     assert received == [("runtime", ["--task", "X"])]
 
 
-def test_hyphenated_workflow_warns_and_dispatches(monkeypatch: pytest.MonkeyPatch, capsys):
+def test_hyphenated_workflow_warns_and_dispatches(monkeypatch: pytest.MonkeyPatch):
     """The former hyphen suffix remains available as a deprecated compatibility alias."""
     received: list[tuple[str, list[str]]] = []
     monkeypatch.setattr(
@@ -108,6 +111,6 @@ def test_hyphenated_workflow_warns_and_dispatches(monkeypatch: pytest.MonkeyPatc
         lambda workflow, argv: received.append((workflow, argv)) or 0,
     )
 
-    assert dispatch.run_benchmark_cli(["runtime-multigpu", "--task", "X"]) == 0
+    with pytest.warns(FutureWarning, match="'runtime-multigpu' is deprecated. Use 'runtime_multigpu' instead."):
+        assert dispatch.run_benchmark_cli(["runtime-multigpu", "--task", "X"]) == 0
     assert received == [("runtime", ["--task", "X"])]
-    assert "'runtime-multigpu' is deprecated. Use 'runtime_multigpu' instead." in capsys.readouterr().err

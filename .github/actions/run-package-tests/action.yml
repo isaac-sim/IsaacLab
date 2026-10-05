@@ -44,7 +44,14 @@ inputs:
   test-k-expr:
     description: >-
       Global pytest -k expression applied inside every per-file pytest run
-      spawned by tools/conftest.py (combined with device-split selectors).
+      spawned by tools/conftest.py.
+    default: ''
+    required: false
+  test-jobs:
+    description: >-
+      Number of test-file slots tools/conftest.py runs at once. Each file still runs in
+      its own pytest process; files listed in tools/test_settings.py PYTEST_WORKERS split
+      across several slots with pytest-xdist. Empty or 1 runs files one by one.
     default: ''
     required: false
   shard-index:
@@ -125,8 +132,8 @@ inputs:
     default: ''
     required: false
   standalone-script-visualizer:
-    description: 'Visualizer slice used when standalone-script-scope is set'
-    default: 'none'
+    description: 'Visualizer slice used when standalone-script-scope is set; default launches without --viz'
+    default: 'default'
     required: false
   standalone-script-runtime-group:
     description: 'Run Kit-dependent or non-Kit standalone script cases'
@@ -166,10 +173,14 @@ runs:
 
     - name: Prepare Docker disk space
       shell: bash
+      env:
+        CONTAINER_NAME: ${{ inputs.container-name }}
+        ISAACSIM_BASE_IMAGE: ${{ inputs.isaacsim-base-image }}
+        ISAACSIM_VERSION: ${{ inputs.isaacsim-version }}
       run: |
         bash .github/actions/run-package-tests/cleanup_docker_storage.sh \
-          "${{ inputs.isaacsim-base-image }}:${{ inputs.isaacsim-version }}" \
-          "isaacsim-pin-${{ inputs.container-name }}-${{ github.run_id }}-${{ github.run_attempt }}-pre" \
+          "${ISAACSIM_BASE_IMAGE}:${ISAACSIM_VERSION}" \
+          "isaacsim-pin-${CONTAINER_NAME}-${{ github.run_id }}-${{ github.run_attempt }}-pre" \
           "pre-test-cleanup" \
           "true"
 
@@ -329,6 +340,7 @@ runs:
         filter-pattern: ${{ inputs.filter-pattern }}
         exclude-pattern: ${{ inputs.exclude-pattern }}
         test-k-expr: ${{ inputs.test-k-expr }}
+        test-jobs: ${{ inputs.test-jobs }}
         shard-index: ${{ inputs.shard-index }}
         shard-count: ${{ inputs.shard-count }}
         curobo-only: ${{ inputs.curobo-only }}
@@ -463,8 +475,10 @@ runs:
     - name: Kill container on cancellation
       if: cancelled()
       shell: bash
+      env:
+        CONTAINER_NAME: ${{ inputs.container-name }}
       run: |
-        CONTAINER="${{ inputs.container-name }}-${{ github.run_id }}-${{ github.run_attempt }}"
+        CONTAINER="${CONTAINER_NAME}-${{ github.run_id }}-${{ github.run_attempt }}"
         echo "🟠 Workflow cancelled, force-killing container ${CONTAINER}..."
         docker kill "${CONTAINER}" 2>/dev/null || true
         docker rm -f "${CONTAINER}" 2>/dev/null || true
@@ -472,9 +486,13 @@ runs:
     - name: Cleanup old Docker images
       if: always()
       shell: bash
+      env:
+        CONTAINER_NAME: ${{ inputs.container-name }}
+        ISAACSIM_BASE_IMAGE: ${{ inputs.isaacsim-base-image }}
+        ISAACSIM_VERSION: ${{ inputs.isaacsim-version }}
       run: |
         bash .github/actions/run-package-tests/cleanup_docker_storage.sh \
-          "${{ inputs.isaacsim-base-image }}:${{ inputs.isaacsim-version }}" \
-          "isaacsim-pin-${{ inputs.container-name }}-${{ github.run_id }}-${{ github.run_attempt }}-post" \
+          "${ISAACSIM_BASE_IMAGE}:${ISAACSIM_VERSION}" \
+          "isaacsim-pin-${CONTAINER_NAME}-${{ github.run_id }}-${{ github.run_attempt }}-post" \
           "post-job-cleanup" \
           "false"

@@ -10,6 +10,7 @@ from __future__ import annotations
 import importlib
 import importlib.util
 import inspect
+import logging
 import os
 import re
 import warnings
@@ -19,10 +20,12 @@ from typing import TYPE_CHECKING
 import gymnasium as gym
 import yaml
 
-from isaaclab_tasks.utils.hydra import _user_stacklevel, resolve_task_config
+from isaaclab_tasks.utils.hydra import resolve_task_config, user_stacklevel
 
 if TYPE_CHECKING:
     from isaaclab.envs import DirectRLEnvCfg, ManagerBasedRLEnvCfg
+
+logger = logging.getLogger(__name__)
 
 
 def load_cfg_from_registry(task_name: str, entry_point_key: str) -> dict | object:
@@ -80,7 +83,7 @@ def load_cfg_from_registry(task_name: str, entry_point_key: str) -> dict | objec
             warnings.warn(
                 f"Task '{spec.id}' is deprecated and will be removed in a future release. Use '{new_command}'.",
                 FutureWarning,
-                stacklevel=_user_stacklevel(),
+                stacklevel=user_stacklevel(),
             )
     # obtain the configuration entry point
     cfg_entry_point = spec.kwargs.get(entry_point_key)
@@ -110,7 +113,7 @@ def load_cfg_from_registry(task_name: str, entry_point_key: str) -> dict | objec
             # obtain the configuration file path
             config_file = os.path.join(mod_path, file_name)
         # load the configuration
-        print(f"[INFO]: Parsing configuration from: {config_file}")
+        logger.info(f"Parsing configuration from: {config_file}")
         with open(config_file, encoding="utf-8") as f:
             cfg = yaml.full_load(f)
     else:
@@ -128,7 +131,7 @@ def load_cfg_from_registry(task_name: str, entry_point_key: str) -> dict | objec
             else:
                 cfg_cls = cfg_entry_point
             # load the configuration
-            print(f"[INFO]: Parsing configuration from: {cfg_entry_point}")
+            logger.info(f"Parsing configuration from: {cfg_entry_point}")
             if callable(cfg_cls):
                 cfg = cfg_cls()
             else:
@@ -254,7 +257,7 @@ def get_checkpoint_path(
     """
     # check if runs present in directory
     try:
-        # find all runs in the directory that math the regex expression
+        # find all runs in the directory that match the regex expression
         runs = [
             os.path.join(log_path, run) for run in os.scandir(log_path) if run.is_dir() and re.match(run_dir, run.name)
         ]

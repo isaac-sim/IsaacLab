@@ -18,13 +18,6 @@ from isaaclab_tasks.contrib.stack.stack_env_cfg import mdp
 
 from . import stack_joint_pos_env_cfg
 
-##
-# Pre-defined configs
-##
-from isaaclab_assets.robots.franka import (  # isort: skip
-    FRANKA_PANDA_HIGH_PD_CFG,
-)
-
 
 @configclass
 class FrankaCubeStackEnvCfg(stack_joint_pos_env_cfg.FrankaCubeStackEnvCfg):
@@ -32,14 +25,10 @@ class FrankaCubeStackEnvCfg(stack_joint_pos_env_cfg.FrankaCubeStackEnvCfg):
         # post init of parent
         super().__post_init__()
 
-        # Set Franka as robot
-        # Use a stiffer PD controller for better IK tracking.
-        robot_init_state = self.scene.robot.init_state
-        robot_semantic_tags = self.scene.robot.spawn.semantic_tags
-        self.scene.robot = FRANKA_PANDA_HIGH_PD_CFG.replace(
-            prim_path="{ENV_REGEX_NS}/Robot", init_state=robot_init_state
-        )
-        self.scene.robot.spawn.semantic_tags = robot_semantic_tags
+        # Use stiffer arm gains for IK without replacing the task's robot configuration.
+        self.scene.robot.spawn.rigid_props.disable_gravity = True
+        self.scene.robot.actuators["panda_arm"].stiffness = 400.0
+        self.scene.robot.actuators["panda_arm"].damping = 80.0
 
         # Set actions for the specific robot type (franka)
         self.actions.arm_action = DifferentialInverseKinematicsActionCfg(

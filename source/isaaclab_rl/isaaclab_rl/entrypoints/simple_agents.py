@@ -13,6 +13,8 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import logging
+import os
 import sys
 from collections.abc import Callable
 from typing import Any, Literal
@@ -23,13 +25,25 @@ import torch
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.envs.utils.spaces import sample_space
 from isaaclab.utils import math as math_utils
+from isaaclab.utils import validate
 
 import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.utils import (
-    resolve_task_config,
-    setup_preset_cli,
+from isaaclab_tasks.utils import resolve_task_config, setup_preset_cli
+
+from .common import (
+    add_video_args,
+    apply_env_overrides,
+    apply_video_recording,
+    close_env,
+    enable_cameras_for_video,
+    normalize_task_name,
+    pre_launch_video_config,
+    video_playback_steps,
 )
 
+logger = logging.getLogger(__name__)
+
+# PLACEHOLDER: Extension template (do not remove this comment)
 with contextlib.suppress(ImportError):
     import isaaclab_tasks_experimental  # noqa: F401
 
@@ -58,63 +72,46 @@ def run(argv: list[str] | None = None, *, policy: PolicyName) -> None:
         raise ValueError(f"Unsupported policy {policy!r}. Expected one of: {sorted(_DESCRIPTIONS)}.")
 
     args_cli = _parse_args(argv, policy)
-
     torch.manual_seed(_SEED)
 
-    # parse configuration via Hydra (supports preset selection, e.g. env.sim.physics=newton_mjwarp)
     env_cfg, _ = resolve_task_config(args_cli.task, "")
-
-    # override with CLI arguments and reject unsupported configurations before
-    # launching Kit or initializing a native physics backend.
-    env_cfg.scene.num_envs = args_cli.num_envs if args_cli.num_envs is not None else env_cfg.scene.num_envs
-    if args_cli.device is not None:
-        env_cfg.sim.device = args_cli.device
-    # Pass the resolved task device through to AppLauncher.
-    args_cli.device = env_cfg.sim.device
-    if args_cli.disable_fabric:
-        env_cfg.sim.use_fabric = False
+    apply_env_overrides(args_cli, env_cfg)
+    pre_launch_video_config(env_cfg, args_cli)
+    # reject unsupported configurations before launching Kit or initializing a native physics backend
     try:
-        env_cfg.validate()
+        validate(env_cfg)
     except (TypeError, ValueError) as exc:
         raise SystemExit(f"Invalid environment configuration: {exc}") from None
 
-    with launch_simulation(env_cfg, args_cli):
-        # create environment
+    with launch_simulation(env_cfg, args_cli), contextlib.ExitStack() as cleanup:
+        log_dir = os.path.abspath(os.path.join("logs", f"{policy}_agent", normalize_task_name(args_cli.task)))
+        apply_video_recording(env_cfg, log_dir, args_cli, subdir="play")
         env = gym.make(args_cli.task, cfg=env_cfg)
-
-        # print info (this is vectorized environment)
-        print(f"[INFO]: Gym observation space: {env.observation_space}")
-        print(f"[INFO]: Gym action space: {env.action_space}")
-        # reset environment
+        cleanup.callback(lambda: close_env(env))
+        logger.info(f"Gym observation space: {env.observation_space}")
+        logger.info(f"Gym action space: {env.action_space}")
         env.reset()
-        zero_action_policy = _create_zero_action_policy(env) if policy == "zero" else None
         if policy == "zero":
-            print("[INFO] Zero agent is running, press Ctrl+C to exit...")
+            action_policy = create_zero_action_policy(env)
         else:
-            print("[INFO] Random agent is running, press Ctrl+C to exit...")
-        # simulate environment
-        # keep running while any visualizer is open, and until the step budget is exhausted
+            action_policy = create_random_action_policy(env)
+        logger.info(f"{policy.capitalize()} agent is running, press Ctrl+C to exit...")
+
+        budgets = [n for n in (args_cli.max_steps, video_playback_steps(args_cli, env_cfg)) if n is not None]
+        max_steps = min(budgets, default=None)
+
+        # keep running while any visualizer is open and the step budget is not exhausted
         sim = env.unwrapped.sim
-        device = env.unwrapped.device
         step = 0
-        while sim.is_headless_or_exist_active_visualizer():
-            if args_cli.max_steps is not None and step >= args_cli.max_steps:
+        while sim.is_running():
+            if max_steps is not None and step >= max_steps:
                 break
             step += 1
-            # run everything in inference mode
             with torch.inference_mode():
-                if policy == "zero":
-                    actions = zero_action_policy()
-                else:
-                    # sample actions from -1 to 1
-                    actions = 2 * torch.rand(env.action_space.shape, device=device) - 1
-                # apply actions
-                env.step(actions)
-        # close the simulator
-        env.close()
+                env.step(action_policy())
 
 
-def _create_zero_action_policy(env: gym.Env) -> Callable[[], Any]:
+def create_zero_action_policy(env: gym.Env) -> Callable[[], Any]:
     """Create a policy that emits finite actions for passive environment playback.
 
     Manager-based environments infer hold commands for absolute task-space action terms and use literal zeros for all
@@ -135,6 +132,12 @@ def _create_zero_action_policy(env: gym.Env) -> Callable[[], Any]:
 
     actions = sample_space(unwrapped.single_action_space, unwrapped.device, batch_size=unwrapped.num_envs, fill_value=0)
     return lambda: actions
+
+
+def create_random_action_policy(env: gym.Env) -> Callable[[], torch.Tensor]:
+    """Create a policy that samples uniform random actions in ``[-1, 1]``."""
+    device = env.unwrapped.device
+    return lambda: 2 * torch.rand(env.action_space.shape, device=device) - 1
 
 
 def _create_manager_zero_action_policy(action_manager: Any, env: Any) -> Callable[[], torch.Tensor]:
@@ -192,7 +195,7 @@ def _create_action_term_zero_policy(term: Any, env: Any) -> Callable[[], torch.T
         def differential_ik_policy() -> torch.Tensor:
             ee_pos, ee_quat = term._compute_frame_pose()
             command = ee_pos if term.cfg.controller.command_type == "position" else torch.cat((ee_pos, ee_quat), dim=-1)
-            return _unscale_action(command, term._scale)
+            return _unscale_action(command - term._offset, term._scale)
 
         return differential_ik_policy
 
@@ -250,10 +253,11 @@ def _parse_args(argv: list[str] | None, policy: PolicyName) -> argparse.Namespac
     parser.add_argument(
         "--max_steps", type=int, default=None, help="Number of environment steps to run. Runs unbounded when omitted."
     )
-    # append AppLauncher cli args
+    add_video_args(parser, action=f"the {policy} agent run")
     add_launcher_args(parser)
-    # Let task configs select the simulation device and keep checkpoint-free agents on the kitless default path.
-    parser.set_defaults(device=None, visualizer=["newton_gl"])
+    # let task configs select the simulation device
+    parser.set_defaults(device=None)
     args_cli, hydra_args = setup_preset_cli(parser, argv)
+    enable_cameras_for_video(args_cli)
     sys.argv = [sys.argv[0]] + hydra_args
     return args_cli

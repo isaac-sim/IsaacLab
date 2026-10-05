@@ -17,7 +17,7 @@ import time
 
 from isaaclab.benchmark.entrypoints.training import _resolve_training_checkpoint_path
 
-from isaaclab_rl.entrypoints import common as _common
+from isaaclab_rl.entrypoints import common
 
 
 def _build_benchmark_trainer_class():
@@ -130,12 +130,12 @@ def _parse_args(argv: list[str]):
     import argparse
 
     from isaaclab.app import add_launcher_args
-    from isaaclab.benchmark._cli import parse_non_negative_int, parse_positive_int
+    from isaaclab.benchmark.cli import parse_non_negative_int, parse_positive_int
 
     from isaaclab_tasks.utils import setup_preset_cli
 
-    add_common_train_args = _common.add_common_train_args
-    enable_cameras_for_video = _common.enable_cameras_for_video
+    add_common_train_args = common.add_common_train_args
+    enable_cameras_for_video = common.enable_cameras_for_video
 
     parser = argparse.ArgumentParser(description="Benchmark RL training with SKRL.")
     add_common_train_args(
@@ -245,7 +245,7 @@ def run(argv: list[str]) -> BenchmarkResult | None:
 
     from isaaclab_tasks.utils import resolve_task_config
 
-    apply_env_overrides = _common.apply_env_overrides
+    apply_env_overrides = common.apply_env_overrides
     from isaaclab.benchmark.entrypoints.early_stop import (
         SuccessRateTrackerWrapper,
         build_success_kwargs,
@@ -264,6 +264,7 @@ def run(argv: list[str]) -> BenchmarkResult | None:
     env_cfg, agent_cfg = resolve_task_config(args_cli.task, agent_cfg_entry_point)
     algorithm = resolve_skrl_algorithm(agent_cfg, args_cli.algorithm)
     config_t1 = time.perf_counter_ns()
+    common.pre_launch_video_config(env_cfg, args_cli)
 
     start_utc = capture.now_utc_iso()
     app_t0 = time.perf_counter_ns()
@@ -271,7 +272,7 @@ def run(argv: list[str]) -> BenchmarkResult | None:
     with launch_simulation(env_cfg, args_cli):
         with contextlib.ExitStack() as cleanup:
             cleanup.enter_context(
-                _common.scoped_torch_backend_flags(
+                common.scoped_torch_backend_flags(
                     cuda_matmul_allow_tf32=True,
                     cudnn_allow_tf32=True,
                     cudnn_deterministic=False,
@@ -289,7 +290,6 @@ def run(argv: list[str]) -> BenchmarkResult | None:
             agent_cfg["trainer"]["close_environment_at_exit"] = False
 
             agent_cfg["seed"] = args_cli.seed if args_cli.seed is not None else agent_cfg.get("seed", 0)
-            _common.validate_distributed_device(args_cli)
             if distributed.enabled:
                 # skrl reads the rank environment itself and pins the device; offsetting the seed by
                 # the rank decorrelates exploration across ranks, as in regular skrl training.
@@ -309,7 +309,7 @@ def run(argv: list[str]) -> BenchmarkResult | None:
             # skrl silences experiment logging on every rank but global rank 0, so only that rank
             # has a populated run directory to describe.
             if distributed.is_main:
-                _common.write_run_manifest(
+                common.write_run_manifest(
                     log_dir,
                     library="skrl",
                     task=args_cli.task,
@@ -349,10 +349,10 @@ def run(argv: list[str]) -> BenchmarkResult | None:
             )
 
             env_cfg.log_dir = log_dir
-            _common.apply_video_recording(env_cfg, log_dir, args_cli, subdir="benchmark")
+            common.apply_video_recording(env_cfg, log_dir, args_cli, subdir="benchmark")
 
             env_t0 = time.perf_counter_ns()
-            env = _common.create_isaaclab_env(
+            env = common.create_isaaclab_env(
                 args_cli.task, env_cfg, args_cli, convert_marl_to_single_agent=algorithm == "ppo"
             )
             cleanup.callback(lambda: env.close())

@@ -3,9 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-x-default-isaac-lab-template-environment: &default-isaac-lab-template-environment
-  - OMNI_KIT_ALLOW_ROOT=1
-
 x-default-isaac-lab-template-deploy: &default-isaac-lab-template-deploy
   resources:
     reservations:
@@ -16,6 +13,7 @@ x-default-isaac-lab-template-deploy: &default-isaac-lab-template-deploy
 
 services:
   isaac-lab-template:
+    init: true
     env_file: .env.base
     build:
       context: ../
@@ -30,7 +28,6 @@ services:
         source: ../
         target: ${DOCKER_ISAACLAB_EXTENSION_TEMPLATE_PATH}
     network_mode: host
-    environment: *default-isaac-lab-template-environment
     deploy: *default-isaac-lab-template-deploy
     # This is the entrypoint for the container
     entrypoint: bash

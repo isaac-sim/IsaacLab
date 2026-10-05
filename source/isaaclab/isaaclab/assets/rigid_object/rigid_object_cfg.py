@@ -5,8 +5,7 @@
 
 from typing import TYPE_CHECKING
 
-from isaaclab.utils import configclass
-
+from ...utils import configclass
 from ..asset_base_cfg import AssetBaseCfg
 
 if TYPE_CHECKING:

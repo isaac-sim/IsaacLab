@@ -18,6 +18,8 @@ class RmpFlowAgibotPlaceUprightMugMimicEnvCfg(RmpFlowAgibotPlaceUprightMugEnvCfg
     Isaac Lab Mimic environment config class for Agibot Place Upright Mug env.
     """
 
+    class_type: type | str = "{DIR}.pick_place_mimic_env:PickPlaceRelMimicEnv"
+
     def __post_init__(self):
         # post init of parents
         super().__post_init__()

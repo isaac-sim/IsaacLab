@@ -31,15 +31,9 @@ def class_to_dict(obj: object) -> dict[str, Any]:
     Args:
         obj: An instance of a class to convert.
 
-    Raises:
-        ValueError: When input argument is not an object.
-
     Returns:
         Converted dictionary mapping.
     """
-    # check that input data is class instance
-    if not hasattr(obj, "__class__"):
-        raise ValueError(f"Expected a class instance. Received: {type(obj)}.")
     # ResolvableString is a str subclass — serialize as plain str so OmegaConf accepts it.
     if isinstance(obj, ResolvableString):
         return str(obj)
@@ -60,7 +54,7 @@ def class_to_dict(obj: object) -> dict[str, Any]:
         return obj
 
     # convert to dictionary
-    data = dict()
+    data = {}
     for key, value in obj_dict.items():
         # disregard builtin attributes
         if key.startswith("__"):
@@ -68,7 +62,6 @@ def class_to_dict(obj: object) -> dict[str, Any]:
         # Keep lazy callable references as strings; don't force callable introspection.
         if isinstance(value, ResolvableString):
             data[key] = str(value)
-        # check if attribute is callable -- function
         # check if attribute is callable -- function
         elif callable(value):
             data[key] = callable_to_string(value)
@@ -87,6 +80,12 @@ def update_class_from_dict(obj, data: dict[str, Any], _ns: str = "") -> None:
     """Reads a dictionary and sets object variables recursively.
 
     This function performs in-place update of the class member attributes.
+    Sequences containing mappings are merged element by element, preserving existing nested
+    objects and the destination list or tuple type. Other elements are replaced. Such sequences
+    must match the existing length; sequences without mappings may replace a different-length value.
+    Scalar replacements are not checked against the stored value's type or field annotations.
+    For configclasses, enforce domain constraints in ``validate_config`` hooks and call ``validate``
+    after updating; annotations are not validated automatically.
 
     Args:
         obj: An instance of a class to update.
@@ -96,7 +95,8 @@ def update_class_from_dict(obj, data: dict[str, Any], _ns: str = "") -> None:
 
     Raises:
         TypeError: When input is not a dictionary.
-        ValueError: When dictionary has a value that does not match default config type.
+        ValueError: When a sequence cannot be merged, a callable replacement is invalid,
+            or an enum value is invalid.
         KeyError: When dictionary has a key that does not exist in the default config type.
     """
     for key, value in data.items():
@@ -144,19 +144,16 @@ def update_class_from_dict(obj, data: dict[str, Any], _ns: str = "") -> None:
                         f" Expected: {len(obj_mem)}, Received: {len(value)}."
                     )
 
-                # ---- 2d) keep tuple/list parity & recurse ----------
-                if isinstance(obj_mem, tuple):
-                    value = tuple(value)
-                else:
-                    set_obj = True
-                    # recursively call if iterable contains Mappings
-                    for i in range(len(obj_mem)):
-                        if isinstance(value[i], Mapping):
-                            update_class_from_dict(obj_mem[i], value[i], _ns=key_ns)
-                            set_obj = False
-                    # do not set value to obj, otherwise it overwrites the cfg class with the dict
-                    if not set_obj:
-                        continue
+                # Keep nested objects while also applying non-mapping replacements.
+                merged_value = list(value)
+                for i, item in enumerate(merged_value):
+                    if isinstance(item, Mapping):
+                        update_class_from_dict(obj_mem[i], item, _ns=f"{key_ns}/{i}")
+                        merged_value[i] = obj_mem[i]
+                if isinstance(obj_mem, list):
+                    obj_mem[:] = merged_value
+                    continue
+                value = tuple(merged_value) if isinstance(obj_mem, tuple) else merged_value
 
             # -- 3) callable attribute → keep string lazily resolvable --------------
             elif callable(obj_mem):
@@ -174,18 +171,7 @@ def update_class_from_dict(obj, data: dict[str, Any], _ns: str = "") -> None:
                 # class_to_dict serializes members as their value, so restore the member here
                 value = type(obj_mem)(value)
 
-            # -- 4) simple scalar / explicit None ---------------------
-            elif value is None or isinstance(value, type(obj_mem)):
-                pass
-
-            # -- 5) type mismatch → abort -----------------------------
-            else:
-                raise ValueError(
-                    f"[Config]: Incorrect type under namespace: {key_ns}."
-                    f" Expected: {type(obj_mem)}, Received: {type(value)}."
-                )
-
-            # -- 6) final assignment ---------------------------------
+            # -- 4) final assignment ---------------------------------
             if isinstance(obj, dict):
                 obj[key] = value
             else:
@@ -194,6 +180,11 @@ def update_class_from_dict(obj, data: dict[str, Any], _ns: str = "") -> None:
         # -- B) if key is not present ------------------------------------
         else:
             raise KeyError(f"[Config]: Key not found under namespace: {key_ns}.")
+
+
+# Keep callable identity unchanged for existing serialized configuration references.
+to_dict = class_to_dict
+update_from_dict = update_class_from_dict
 
 
 """
@@ -210,16 +201,9 @@ def dict_to_md5_hash(data: object) -> str:
     Returns:
         A string object of double length containing only hexadecimal digits.
     """
-    # convert to dictionary
-    if isinstance(data, dict):
-        encoded_buffer = json.dumps(data, sort_keys=True).encode()
-    else:
-        encoded_buffer = json.dumps(class_to_dict(data), sort_keys=True).encode()
-    # compute hash using MD5
-    data_hash = hashlib.md5()
-    data_hash.update(encoded_buffer)
-    # return the hash key
-    return data_hash.hexdigest()
+    if not isinstance(data, dict):
+        data = class_to_dict(data)
+    return hashlib.md5(json.dumps(data, sort_keys=True).encode()).hexdigest()
 
 
 """
@@ -263,7 +247,7 @@ def convert_dict_to_backend(
     tensor_type_conversions = TENSOR_TYPE_CONVERSIONS[backend]
 
     # Parse the array types and convert them to the corresponding types: "numpy" -> np.ndarray, etc.
-    parsed_types = list()
+    parsed_types = []
     for t in array_types:
         # Check type is valid.
         if t not in TENSOR_TYPES:
@@ -275,7 +259,7 @@ def convert_dict_to_backend(
         parsed_types.append(TENSOR_TYPES[t])
 
     # Convert the data to the desired backend.
-    output_dict = dict()
+    output_dict = {}
     for key, value in data.items():
         # Obtain the data type of the current value.
         data_type = type(value)
@@ -287,7 +271,7 @@ def convert_dict_to_backend(
             # convert the data to the desired backend.
             output_dict[key] = tensor_type_conversions[data_type](value)
         # -- nested dictionaries
-        elif isinstance(data[key], dict):
+        elif isinstance(value, dict):
             output_dict[key] = convert_dict_to_backend(value, backend=backend, array_types=array_types)
         # -- everything else
         else:

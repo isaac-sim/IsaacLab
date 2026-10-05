@@ -7,12 +7,18 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import MISSING
+from typing import TYPE_CHECKING
 
-from isaaclab.sim import converters, schemas
-from isaaclab.sim.spawners import materials
-from isaaclab.sim.spawners.spawner_cfg import DeformableObjectSpawnerCfg, RigidObjectSpawnerCfg, SpawnerCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
+
+from ... import converters, schemas
+from .. import materials
+from ..spawner_cfg import DeformableObjectSpawnerCfg, RigidObjectSpawnerCfg, SpawnerCfg
+
+if TYPE_CHECKING:
+    import numpy as np
+    import trimesh
 
 _DEFAULT_GROUND_PLANE_USD = (
     f"{ISAACLAB_NUCLEUS_DIR}/Environments/Grid/default_ground_plane_checker_v1/default_ground_plane.usda"
@@ -180,18 +186,23 @@ class FileCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
     ``ensure_drives_exist`` field.
     """
 
-    visual_material_path: str = "material"
+    visual_material_path: str | None = "material"
     """Path to the visual material to use for the prim. Defaults to "material".
 
-    If the path is relative, then it will be relative to the prim's path.
-    This parameter is ignored if `visual_material` is not None.
+    Relative paths are resolved below the spawned prim. None applies non-None inputs from
+    :attr:`visual_material` to connected surface shaders with or without Kit, preserving textures and
+    bindings. Preview configs use the universal surface output; MDL configs use the MDL output.
+    The config must match the authored shader. Enable :attr:`UsdFileCfg.make_uninstanceable` for
+    materials inside instances. Named paths create and bind a replacement material only with Kit.
+    Ignored when :attr:`visual_material` is None.
     """
 
     visual_material: materials.VisualMaterialCfg | None = None
-    """Visual material properties to override the visual material properties in the URDF file.
+    """Visual material to create and bind, or inputs to apply to the asset's authored shaders.
 
     Note:
-        If None, then no visual material will be added.
+        If None, materials are unchanged. Set :attr:`visual_material_path` to None to update
+        existing shader inputs without replacing materials. Config fields set to None are not applied.
     """
 
     visual_material_bindings: dict[str, str] = {}
@@ -212,14 +223,16 @@ class FileCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
     physics_material: (
         materials.PhysicsMaterialCfg
         | materials.RigidBodyMaterialFragment
-        | list[materials.RigidBodyMaterialFragment]
+        | materials.DeformableMaterialFragment
+        | list[materials.RigidBodyMaterialFragment | materials.DeformableMaterialFragment]
         | None
     ) = None
     """Physics material properties.
 
     Accepts either a legacy material cfg, a single
-    :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialFragment`, or a list of such
-    single-namespace fragments.
+    :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialFragment` or
+    :class:`~isaaclab.sim.spawners.materials.DeformableMaterialFragment`, or a list of such
+    single-namespace fragments (rigid and deformable fragments may be mixed in one list).
 
     Note:
         If None, then no custom physics material will be added.
@@ -269,9 +282,9 @@ class UsdFileCfg(FileCfg):
     """Whether to disable USD instancing below the spawned prim before applying overrides. Defaults to False.
 
     Descendants of an instanceable prim are instance proxies, which cannot be edited. Enable this option
-    when a recursive override, such as :attr:`physics_material`, has to author properties on those
-    descendants. Disabling instancing makes them editable at the cost of stage memory, so leave this
-    option disabled unless an override requires it.
+    when a recursive override, such as :attr:`physics_material` or authored :attr:`visual_material`
+    inputs, has to author properties on those descendants. Disabling instancing makes them editable
+    at the cost of stage memory, so leave this option disabled unless an override requires it.
 
     Please check the :meth:`~isaaclab.sim.utils.make_uninstanceable` function for more information.
     """
@@ -394,4 +407,88 @@ class GroundPlaneCfg(SpawnerCfg):
     legacy :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialBaseCfg`, a single
     :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialFragment`, or a list of such
     single-namespace fragments.
+    """
+
+
+@configclass
+class MeshFileCfg(RigidObjectSpawnerCfg):
+    """Spawn a mesh from a mesh file or from in-memory triangle data.
+
+    A mesh file path (e.g. ``.obj``, ``.stl``, or ``.fbx``) is converted to USD with
+    :class:`~isaaclab.sim.converters.MeshConverter` and referenced. In-memory meshes are authored
+    directly as a USD mesh prim at ``{prim_path}/mesh``.
+
+    The mesh is visual-only by default. Set :attr:`collision_props` to enable collision and
+    :attr:`mesh_collision_props` to choose the collision approximation, e.g. triangle mesh for
+    terrain or convex hull for dynamic objects.
+    """
+
+    @configclass
+    class TriangleMeshCfg:
+        """Triangle mesh data to author directly as a USD mesh prim."""
+
+        vertices: np.ndarray | list[tuple[float, float, float]] = MISSING
+        """Mesh vertices [m], shape ``(num_vertices, 3)``."""
+
+        faces: np.ndarray | list[tuple[int, int, int]] = MISSING
+        """Triangle vertex indices, shape ``(num_faces, 3)``."""
+
+        vertex_colors: np.ndarray | list[tuple[float, ...]] | None = None
+        """RGB or RGBA vertex colors in ``[0, 1]`` or ``[0, 255]``, shape ``(num_vertices, 3 or 4)``.
+
+        Defaults to None, in which case no vertex colors are authored.
+        """
+
+    @configclass
+    class TrimeshObjectCfg:
+        """In-memory :class:`trimesh.Trimesh` to author directly as a USD mesh prim.
+
+        Its vertex colors, if any, are authored as display colors.
+        """
+
+        mesh: trimesh.Trimesh = MISSING
+        """The triangle mesh."""
+
+    func: Callable | str = "{DIR}.from_files:spawn_from_mesh"
+
+    mesh: str | TriangleMeshCfg | TrimeshObjectCfg = MISSING
+    """Mesh source to spawn: a mesh file path, :class:`TriangleMeshCfg`, or :class:`TrimeshObjectCfg`."""
+
+    scale: tuple[float, float, float] | None = None
+    """Scale of the mesh root prim. Defaults to None, in which case the scale is not modified."""
+
+    mesh_collision_props: (
+        schemas.MeshCollisionBaseCfg | schemas.MeshCollisionFragment | list[schemas.MeshCollisionFragment] | None
+    ) = None
+    """Mesh collision approximation to apply to the mesh prim. Defaults to None.
+
+    Only used when :attr:`collision_props` is set. Accepts the same values as
+    :attr:`~isaaclab.sim.converters.MeshConverterCfg.mesh_collision_props`.
+    """
+
+    visual_material_path: str = "visualMaterial"
+    """Path to the visual material to use for the mesh. Defaults to "visualMaterial".
+
+    If the path is relative, then it will be relative to the prim's path.
+    """
+
+    visual_material: materials.VisualMaterialCfg | None = None
+    """Visual material properties. Defaults to None, in which case no visual material is added."""
+
+    physics_material_path: str = "physicsMaterial"
+    """Path to the physics material to use for the mesh. Defaults to "physicsMaterial".
+
+    If the path is relative, then it will be relative to the prim's path.
+    """
+
+    physics_material: (
+        materials.PhysicsMaterialCfg
+        | materials.RigidBodyMaterialFragment
+        | list[materials.RigidBodyMaterialFragment]
+        | None
+    ) = None
+    """Physics material properties. Defaults to None, in which case no physics material is added.
+
+    Accepts a legacy material cfg, a single
+    :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialFragment`, or a list of such fragments.
     """

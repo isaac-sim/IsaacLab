@@ -68,15 +68,19 @@ jobs:
 
     - name: Run Link Checker
       if: steps.check_docs.outputs.run_job == 'true' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
-      uses: lycheeverse/lychee-action@v2
+      uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8  # v2.9.0
       with:
         # Check all markdown files and documentation
         # Excluded are known crawl blockers
+        # 502/503/504 are often transient (GitHub throttles runners) and lychee does not retry them.
+        # PR and push runs accept them like 429; the weekly and manual runs stay strict so a persistent
+        # gateway failure still fails. They are kept out of the shared cache so later runs re-check.
         args: >-
           --verbose
           --no-progress
           --cache
           --max-cache-age 1d
+          --cache-exclude-status 429,502,503,504
           --exclude-path './docs/_build'
           --exclude-path './apps/warp-*'
           --exclude-path './logs'
@@ -104,12 +108,12 @@ jobs:
           --exclude 'openusd\.org'
           --exclude 'ubuntu\.com/server/docs'
           --exclude 'docs\.ray\.io'
-          --exclude 'docs\.conda\.io'
           --exclude 'stackoverflow\.com'
           --exclude 'docs\.isaacsim\.omniverse\.nvidia\.com'
           --exclude 'download\.isaacsim\.omniverse\.nvidia\.com/isaaclab/images'
           --exclude 'dx\.doi\.org/10\.1109/JRA\.1987\.1087068'
           --exclude 'andrew\.cmu\.edu/course/10-703/textbook/BartoSutton\.pdf'
+          --exclude 'ethz\.ch/content/dam/ethz/.*/RD_HS2017script\.pdf'
           --exclude 'www\.nvidia\.com/en-us/security'
           --exclude 'bostondynamics\.com/reinforcement-learning-researcher-kit'
           --exclude 'opensource\.org'
@@ -117,7 +121,7 @@ jobs:
           --retry-wait-time 10
           --timeout 20
           --user-agent 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-          --accept 200,201,202,203,204,206,301,302,303,307,308,429
+          --accept 200,201,202,203,204,206,301,302,303,307,308,429${{ (github.event_name == 'pull_request' || github.event_name == 'push') && ',502,503,504' || '' }}
           --scheme https
           --scheme http
           '*.md'

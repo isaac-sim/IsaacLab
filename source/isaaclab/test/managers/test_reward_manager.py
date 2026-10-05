@@ -3,25 +3,17 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Launch Isaac Sim Simulator first."""
-
-from isaaclab.app import AppLauncher
-
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
-
-"""Rest everything follows."""
-
 from collections import namedtuple
+from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 import pytest
 import torch
 
 from isaaclab.managers import RewardManager, RewardTermCfg
-from isaaclab.sim import SimulationContext
 from isaaclab.utils import configclass
 
-pytestmark = pytest.mark.integration
+pytestmark = pytest.mark.unit
 
 
 def grilled_chicken(env):
@@ -42,26 +34,10 @@ def grilled_chicken_with_yoghurt(env, hot: bool, bland: float):
 
 @pytest.fixture
 def env():
-    sim = SimulationContext()
+    # simulation double that has not started playing
+    sim = MagicMock()
+    sim.is_playing.return_value = False
     return namedtuple("ManagerBasedRLEnv", ["num_envs", "dt", "device", "sim"])(20, 0.1, "cpu", sim)
-
-
-def test_str(env):
-    """Test the string representation of the reward manager."""
-    cfg = {
-        "term_1": RewardTermCfg(func=grilled_chicken, weight=10),
-        "term_2": RewardTermCfg(func=grilled_chicken_with_bbq, weight=5, params={"bbq": True}),
-        "term_3": RewardTermCfg(
-            func=grilled_chicken_with_yoghurt,
-            weight=1.0,
-            params={"hot": False, "bland": 2.0},
-        ),
-    }
-    rew_man = RewardManager(cfg, env)
-    assert len(rew_man.active_terms) == 3
-    # print the expected string
-    print()
-    print(rew_man)
 
 
 def test_config_equivalence(env):
@@ -115,30 +91,39 @@ def test_config_equivalence(env):
     assert rew_man_from_dict._term_cfgs == rew_man_from_cfg._term_cfgs
 
 
-def test_compute(env):
-    """Test the computation of reward."""
+def test_compute():
+    """A partial reset reports each term's accumulated reward and preserves other environments."""
+    num_envs, dt, max_episode_length_s = 3, 0.25, 2.0
+    sim = MagicMock()
+    sim.is_playing.return_value = False
+    env = SimpleNamespace(num_envs=num_envs, device="cpu", sim=sim, max_episode_length_s=max_episode_length_s, step=0)
     cfg = {
-        "term_1": RewardTermCfg(func=grilled_chicken, weight=10),
-        "term_2": RewardTermCfg(func=grilled_chicken_with_curry, weight=0.0, params={"hot": False}),
+        "scaled": RewardTermCfg(func=env_index_scaled, weight=-2.0, params={"factor": 1.0}),
+        "scalar": RewardTermCfg(func=grilled_chicken, weight=4.0),
+        "disabled": RewardTermCfg(func=grilled_chicken_with_bbq, weight=0.0, params={"bbq": True}),
     }
     rew_man = RewardManager(cfg, env)
-    # compute expected reward
-    expected_reward = cfg["term_1"].weight * env.dt
-    # compute reward using manager
-    rewards = rew_man.compute(dt=env.dt)
-    # check the reward for environment index 0
-    assert float(rewards[0]) == expected_reward
-    assert tuple(rewards.shape) == (env.num_envs,)
+
+    for step, expected in ((1, [1.0, 0.5, 0.0]), (2, [1.0, 0.0, -1.0])):
+        env.step = step
+        torch.testing.assert_close(rew_man.compute(dt=dt), torch.tensor(expected))
+
+    reset_env_2 = rew_man.reset(torch.tensor([2]))
+    assert {name: value.item() for name, value in reset_env_2.items()} == {
+        "Episode_Reward/scaled": -1.5,
+        "Episode_Reward/scalar": 1.0,
+        "Episode_Reward/disabled": 0.0,
+    }
+    reset_env_1 = rew_man.reset(torch.tensor([1]))
+    assert reset_env_1["Episode_Reward/scaled"].item() == -0.75
+    assert reset_env_1["Episode_Reward/scalar"].item() == 1.0
+    assert all(value.item() == 0.0 for value in rew_man.reset(torch.tensor([2])).values())
 
 
 def test_config_empty(env):
     """Test the creation of reward manager with empty config."""
     rew_man = RewardManager(None, env)
     assert len(rew_man.active_terms) == 0
-
-    # print the expected string
-    print()
-    print(rew_man)
 
     # compute reward
     rewards = rew_man.compute(dt=env.dt)
@@ -157,6 +142,8 @@ def test_active_terms(env):
     rew_man = RewardManager(cfg, env)
 
     assert len(rew_man.active_terms) == 3
+    # the string representation lists every active term
+    assert "term_3" in str(rew_man)
 
 
 def test_missing_weight(env):
@@ -189,3 +176,7 @@ def test_invalid_reward_config(env):
     }
     with pytest.raises(ValueError):
         RewardManager(cfg, env)
+
+
+def env_index_scaled(env, factor: float):
+    return factor * env.step * torch.arange(env.num_envs, dtype=torch.float, device=env.device)

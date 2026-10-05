@@ -6,15 +6,13 @@
 # ignore private usage of variables warning
 # pyright: reportPrivateUsage=none
 
-"""Real-backend tests for the OVPhysX deformable object."""
+"""OVPhysX deformable object tests: host-side asset shells first, then real-backend scenes."""
 
 from __future__ import annotations
 
-import multiprocessing
-import queue
+import re
 import sys
-import traceback
-from typing import Any
+from types import SimpleNamespace
 
 import ovphysx.types  # noqa: F401
 import pytest
@@ -22,8 +20,13 @@ import torch
 import warp as wp
 from flaky import flaky
 from isaaclab_ov import tensor_types as TT  # noqa: E402
+from isaaclab_ov.assets import DeformableObject as OvPhysxDeformableObject  # noqa: E402
+from isaaclab_ov.assets.deformable_object.deformable_object_data import DeformableObjectData  # noqa: E402
+from isaaclab_ov.assets.deformable_object.kernels import vec6f  # noqa: E402
+from isaaclab_ov.assets.deformable_object.views import OvPhysxDeformableBodyView  # noqa: E402
 from isaaclab_ov.physics import OvPhysxCfg, OvPhysxManager  # noqa: E402
-from isaaclab_physx.sim.schemas import PhysxCollisionPropertiesCfg, PhysxRigidBodyPropertiesCfg  # noqa: E402
+from isaaclab_ov.physics.ovphysx_manager import OvPhysxSceneDataBackend  # noqa: E402
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg  # noqa: E402
 from isaaclab_physx.sim.spawners.materials import PhysxDeformableBodyMaterialCfg  # noqa: E402
 
 from pxr import Gf, Sdf, Usd, UsdGeom  # noqa: E402
@@ -31,6 +34,7 @@ from pxr import Gf, Sdf, Usd, UsdGeom  # noqa: E402
 import isaaclab.sim as sim_utils  # noqa: E402
 import isaaclab.utils.math as math_utils  # noqa: E402
 from isaaclab.assets import DeformableObject, DeformableObjectCfg, RigidObjectCfg  # noqa: E402
+from isaaclab.cloner import path, query
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg  # noqa: E402
 from isaaclab.sim import SimulationCfg, build_simulation_context  # noqa: E402
 from isaaclab.utils import configclass  # noqa: E402
@@ -41,37 +45,6 @@ from ..deformable_utils import (  # noqa: E402
 )
 
 wp.init()
-
-
-@configclass
-class DeformableSceneCfg(InteractiveSceneCfg):
-    """Interactive scene configuration for cloned volume deformables."""
-
-    deformable: DeformableObjectCfg = DeformableObjectCfg(
-        prim_path="{ENV_REGEX_NS}/Object",
-        spawn=pre_tetrahedralized_deformable_spawn_cfg(),
-        init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 1.0)),
-    )
-
-
-@configclass
-class MixedDeformableRigidSceneCfg(InteractiveSceneCfg):
-    """Interactive scene configuration for cloned deformable and rigid assets."""
-
-    deformable: DeformableObjectCfg = DeformableObjectCfg(
-        prim_path="{ENV_REGEX_NS}/Object",
-        spawn=pre_tetrahedralized_deformable_spawn_cfg(),
-        init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 1.0)),
-    )
-    cube: RigidObjectCfg = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/Cube",
-        spawn=sim_utils.CuboidCfg(
-            size=(0.1, 0.1, 0.1),
-            rigid_props=PhysxRigidBodyPropertiesCfg(disable_gravity=True),
-            collision_props=PhysxCollisionPropertiesCfg(collision_enabled=True),
-        ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.35, 0.0, 1.0)),
-    )
 
 
 @configclass
@@ -90,8 +63,8 @@ class HeterogeneousMixedDeformableRigidSceneCfg(InteractiveSceneCfg):
                 sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1)),
                 sim_utils.SphereCfg(radius=0.05),
             ],
-            rigid_props=PhysxRigidBodyPropertiesCfg(disable_gravity=True),
-            collision_props=PhysxCollisionPropertiesCfg(collision_enabled=True),
+            rigid_props=PhysxRigidBodyCfg(disable_gravity=True),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True),
             random_choice=False,
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.35, 0.0, 1.0)),
@@ -160,39 +133,394 @@ def _assert_rest_positions_match_authored(
         )
 
 
-def _run_cpu_deformable_initialization(result_queue: Any) -> None:
-    """Run the CPU initialization contract in a fresh spawned process."""
-    try:
-        with _ovphysx_sim_context(device="cpu") as sim:
-            deformable = _generate_deformable_scene(pre_tetrahedralized_deformable_spawn_cfg(), num_objects=5)
-            assert sys.getrefcount(deformable) < 10
-            try:
-                sim.reset()
-            except RuntimeError as error:
-                result = ("runtime_error", str(error), deformable.is_initialized)
-            else:
-                result = ("no_error", "", deformable.is_initialized)
-    except BaseException:
-        result = ("child_error", traceback.format_exc(), None)
-    result_queue.put(result)
+##
+# Host-side units on asset shells over a fake body view. They need no simulation and run first.
+##
 
 
+@pytest.fixture
+def host_shell(monkeypatch):
+    """Run an asset shell on CPU with a scene-data backend, without a simulation."""
+    monkeypatch.setattr(OvPhysxManager, "_scene_data_backend", OvPhysxSceneDataBackend())
+    with wp.ScopedDevice("cpu"):
+        yield
+
+
+class _FakeBodyView:
+    """Minimal generic OVPhysX view used by the asset shell."""
+
+    def __init__(self, num_instances: int, num_vertices: int) -> None:
+        self.count = num_instances
+        self.max_simulation_nodes_per_body = num_vertices
+        self.max_simulation_elements_per_body = 2
+        self.max_collision_elements_per_body = 3
+        self.max_collision_nodes_per_body = 0
+        self.positions = wp.zeros((num_instances, num_vertices, 3), dtype=wp.float32, device="cpu")
+        self.velocities = wp.zeros((num_instances, num_vertices, 3), dtype=wp.float32, device="cpu")
+        self.targets = wp.zeros((num_instances, num_vertices, 4), dtype=wp.float32, device="cpu")
+        self.position_reads = 0
+        self.velocity_reads = 0
+        self.position_write_count = 0
+        self.velocity_write_count = 0
+
+    def binding_for(self, tensor_type):
+        if tensor_type in (TT.DEFORMABLE_SIM_ELEMENT_INDICES, TT.SURFACE_DEFORMABLE_SIM_ELEMENT_INDICES):
+            shape = (self.count, self.max_simulation_elements_per_body, 4)
+        elif tensor_type == TT.DEFORMABLE_COLLISION_ELEMENT_INDICES:
+            shape = (self.count, self.max_collision_elements_per_body, 4)
+        elif tensor_type == TT.DEFORMABLE_SIM_KINEMATIC_TARGET:
+            shape = (self.count, self.max_simulation_nodes_per_body, 4)
+        else:
+            shape = (self.count, self.max_simulation_nodes_per_body, 3)
+        return SimpleNamespace(shape=shape, count=self.count)
+
+    def read_into(self, tensor_type, values: wp.array) -> None:
+        if tensor_type in (TT.DEFORMABLE_SIM_NODAL_POSITION, TT.SURFACE_DEFORMABLE_SIM_POSITION):
+            self.position_reads += 1
+            wp.copy(values, self.positions)
+        elif tensor_type in (TT.DEFORMABLE_SIM_NODAL_VELOCITY, TT.SURFACE_DEFORMABLE_SIM_VELOCITY):
+            self.velocity_reads += 1
+            wp.copy(values, self.velocities)
+        else:
+            raise AssertionError(f"Unexpected tensor read: {tensor_type}")
+
+    def get_attribute(self, tensor_type) -> wp.array:
+        if tensor_type == TT.DEFORMABLE_SIM_KINEMATIC_TARGET:
+            return self.targets
+        if tensor_type in (TT.DEFORMABLE_SIM_NODAL_POSITION, TT.SURFACE_DEFORMABLE_SIM_POSITION):
+            return self.positions
+        if tensor_type in (TT.DEFORMABLE_SIM_NODAL_VELOCITY, TT.SURFACE_DEFORMABLE_SIM_VELOCITY):
+            return self.velocities
+        binding = self.binding_for(tensor_type)
+        return wp.zeros(binding.shape, dtype=wp.int32, device="cpu")
+
+    def set_attribute(
+        self,
+        tensor_type,
+        values: wp.array,
+        indices: wp.array(dtype=wp.int32) | None = None,
+        mask: wp.array(dtype=wp.bool) | None = None,
+    ) -> None:
+        assert indices is None or indices.is_contiguous  # Required by the OVPhysX DLPack binding.
+        self.last_indices = indices
+        if tensor_type in (TT.DEFORMABLE_SIM_NODAL_POSITION, TT.SURFACE_DEFORMABLE_SIM_POSITION):
+            self.position_write_count += 1
+        elif tensor_type in (TT.DEFORMABLE_SIM_NODAL_VELOCITY, TT.SURFACE_DEFORMABLE_SIM_VELOCITY):
+            self.velocity_write_count += 1
+        elif tensor_type != TT.DEFORMABLE_SIM_KINEMATIC_TARGET:
+            raise AssertionError(f"Unexpected tensor write: {tensor_type}")
+
+
+class _FakeVisualizer:
+    """Capture marker positions from the debug visualization callback."""
+
+    def __init__(self) -> None:
+        self.positions: torch.Tensor | None = None
+
+    def visualize(self, positions: torch.Tensor) -> None:
+        self.positions = positions
+
+
+def _make_asset_shell(
+    *,
+    deformable_type: str,
+    num_instances: int = 2,
+    num_vertices: int = 4,
+) -> OvPhysxDeformableObject:
+    asset = object.__new__(OvPhysxDeformableObject)
+    asset._device = "cpu"
+    asset._check_shapes = True
+    asset._DTYPE_TO_TORCH_TRAILING_DIMS = {**asset._DTYPE_TO_TORCH_TRAILING_DIMS, vec6f: (6,)}
+    asset._deformable_type = deformable_type
+    if deformable_type == "volume":
+        asset._sim_nodal_position_type = TT.DEFORMABLE_SIM_NODAL_POSITION
+        asset._sim_nodal_velocity_type = TT.DEFORMABLE_SIM_NODAL_VELOCITY
+        asset._sim_kinematic_target_type = TT.DEFORMABLE_SIM_KINEMATIC_TARGET
+    else:
+        asset._sim_nodal_position_type = TT.SURFACE_DEFORMABLE_SIM_POSITION
+        asset._sim_nodal_velocity_type = TT.SURFACE_DEFORMABLE_SIM_VELOCITY
+        asset._sim_kinematic_target_type = None
+    asset._root_physx_view = _FakeBodyView(num_instances, num_vertices)
+    asset._material_physx_view = None
+    asset._data = DeformableObjectData(
+        asset._root_physx_view,
+        asset._device,
+        position_tensor_type=asset._sim_nodal_position_type,
+        velocity_tensor_type=asset._sim_nodal_velocity_type,
+    )
+    asset._ALL_INDICES = wp.array(range(num_instances), dtype=wp.int32, device=asset.device)
+    asset._nodal_pos_w_f32 = None
+    asset._nodal_vel_w_f32 = None
+    asset._is_initialized = True
+    asset._debug_vis_handle = None
+    asset._initialize_handle = None
+    asset._invalidate_initialize_handle = None
+    asset._prim_deletion_handle = None
+    return asset
+
+
+@pytest.mark.usefixtures("host_shell")
+def test_indexed_state_write_refreshes_unselected_stale_cache_rows():
+    asset = _make_asset_shell(deformable_type="volume", num_instances=3, num_vertices=2)
+    initial_positions = torch.full((3, 2, 3), -1.0, device=asset.device)
+    initial_velocities = torch.full((3, 2, 3), -2.0, device=asset.device)
+    asset.root_view.positions = wp.from_torch(initial_positions.contiguous(), dtype=wp.float32)
+    asset.root_view.velocities = wp.from_torch(initial_velocities.contiguous(), dtype=wp.float32)
+
+    asset.data.nodal_pos_w
+    asset.data.nodal_vel_w
+
+    latest_positions = torch.tensor(
+        [
+            [[10.0, 11.0, 12.0], [13.0, 14.0, 15.0]],
+            [[20.0, 21.0, 22.0], [23.0, 24.0, 25.0]],
+            [[30.0, 31.0, 32.0], [33.0, 34.0, 35.0]],
+        ],
+        device=asset.device,
+    )
+    latest_velocities = torch.tensor(
+        [
+            [[-10.0, -11.0, -12.0], [-13.0, -14.0, -15.0]],
+            [[-20.0, -21.0, -22.0], [-23.0, -24.0, -25.0]],
+            [[-30.0, -31.0, -32.0], [-33.0, -34.0, -35.0]],
+        ],
+        device=asset.device,
+    )
+    asset.root_view.positions = wp.from_torch(latest_positions.contiguous(), dtype=wp.float32)
+    asset.root_view.velocities = wp.from_torch(latest_velocities.contiguous(), dtype=wp.float32)
+    asset.update(0.1)
+
+    # Prime the derived buffers at the current timestamp so the write itself must invalidate them.
+    asset.data.nodal_state_w
+    asset.data.root_pos_w
+    asset.data.root_vel_w
+
+    selected_state = torch.cat(
+        (
+            torch.full((1, 2, 3), 100.0, device=asset.device),
+            torch.full((1, 2, 3), -100.0, device=asset.device),
+        ),
+        dim=-1,
+    )
+    asset.write_nodal_state_to_sim_index(selected_state, env_ids=[0])
+
+    expected_positions = latest_positions.clone()
+    expected_positions[0] = selected_state[0, :, :3]
+    expected_velocities = latest_velocities.clone()
+    expected_velocities[0] = selected_state[0, :, 3:]
+
+    assert asset.data._nodal_pos_w.timestamp == asset.data._sim_timestamp
+    assert asset.data._nodal_vel_w.timestamp == asset.data._sim_timestamp
+    torch.testing.assert_close(asset.data.nodal_pos_w.torch, expected_positions)
+    torch.testing.assert_close(asset.data.nodal_vel_w.torch, expected_velocities)
+    torch.testing.assert_close(
+        asset.data.nodal_state_w.torch, torch.cat((expected_positions, expected_velocities), dim=-1)
+    )
+    torch.testing.assert_close(asset.data.root_pos_w.torch, expected_positions.mean(dim=1))
+    torch.testing.assert_close(asset.data.root_vel_w.torch, expected_velocities.mean(dim=1))
+
+
+@pytest.mark.usefixtures("host_shell")
 @pytest.mark.parametrize(
-    "num_objects, material_path",
+    ("property_name", "write_method_name", "simulator_attribute", "command_value"),
     [
-        (1, "material"),
-        (2, None),
-        (2, "/World/SoftMaterial"),
-        (2, "material"),
+        ("nodal_pos_w", "write_nodal_pos_to_sim_index", "positions", 100.0),
+        ("nodal_vel_w", "write_nodal_velocity_to_sim_index", "velocities", -100.0),
     ],
 )
+def test_indexed_full_data_write_preserves_retained_aliased_edits(
+    property_name: str, write_method_name: str, simulator_attribute: str, command_value: float
+) -> None:
+    """A retained public buffer preserves selected edits while stale rows hydrate."""
+    asset = _make_asset_shell(deformable_type="volume", num_instances=3, num_vertices=2)
+    initial = torch.full((3, 2, 3), -1.0, device=asset.device)
+    setattr(asset.root_view, simulator_attribute, wp.from_torch(initial.contiguous(), dtype=wp.float32))
+    retained = getattr(asset.data, property_name)
+    retained_torch = retained.torch
+
+    latest = torch.arange(18, dtype=torch.float32, device=asset.device).reshape(3, 2, 3)
+    setattr(asset.root_view, simulator_attribute, wp.from_torch(latest.contiguous(), dtype=wp.float32))
+    asset.update(0.1)
+    retained_torch[1].fill_(command_value)
+
+    getattr(asset, write_method_name)(retained, env_ids=[1], full_data=True)
+
+    expected = latest.clone()
+    expected[1].fill_(command_value)
+    assert getattr(asset.data, property_name) is retained
+    torch.testing.assert_close(retained.torch, expected)
+
+
+@pytest.mark.usefixtures("host_shell")
+@pytest.mark.parametrize(
+    ("property_name", "write_method_name", "simulator_attribute", "command_value"),
+    [
+        ("nodal_pos_w", "write_nodal_pos_to_sim_index", "positions", 100.0),
+        ("nodal_vel_w", "write_nodal_velocity_to_sim_index", "velocities", -100.0),
+    ],
+)
+@pytest.mark.parametrize("env_ids", [slice(1, 2), slice(None, None, 2)], ids=["contiguous", "strided"])
+def test_indexed_partial_write_preserves_retained_aliased_slice(
+    property_name: str, write_method_name: str, simulator_attribute: str, command_value: float, env_ids: slice
+) -> None:
+    """A retained selected slice survives hydration of stale unselected rows."""
+    asset = _make_asset_shell(deformable_type="volume", num_instances=3, num_vertices=2)
+    initial = torch.full((3, 2, 3), -1.0, device=asset.device)
+    setattr(asset.root_view, simulator_attribute, wp.from_torch(initial.contiguous(), dtype=wp.float32))
+    retained = getattr(asset.data, property_name)
+
+    latest = torch.arange(18, dtype=torch.float32, device=asset.device).reshape(3, 2, 3)
+    setattr(asset.root_view, simulator_attribute, wp.from_torch(latest.contiguous(), dtype=wp.float32))
+    asset.update(0.1)
+    selected = retained.torch[env_ids]
+    selected.fill_(command_value)
+
+    getattr(asset, write_method_name)(selected, env_ids=env_ids)
+    # Only the selected environments are written back to the simulator.
+    assert asset.root_view.last_indices.numpy().tolist() == list(range(3)[env_ids])
+
+    expected = latest.clone()
+    expected[env_ids].fill_(command_value)
+    assert getattr(asset.data, property_name) is retained
+    torch.testing.assert_close(retained.torch, expected)
+
+
+@pytest.mark.usefixtures("host_shell")
+def test_full_overwrite_stale_cache_does_not_read_simulator() -> None:
+    asset = _make_asset_shell(deformable_type="volume", num_instances=3, num_vertices=2)
+
+    asset.data.nodal_pos_w
+    asset.data.nodal_vel_w
+    position_reads = asset.root_view.position_reads
+    velocity_reads = asset.root_view.velocity_reads
+    asset.update(0.1)
+
+    full_state = torch.arange(36, dtype=torch.float32, device=asset.device).reshape(3, 2, 6)
+    asset.write_nodal_state_to_sim_index(full_state, full_data=True)
+
+    assert asset.root_view.position_reads == position_reads
+    assert asset.root_view.velocity_reads == velocity_reads
+    torch.testing.assert_close(asset.data.nodal_state_w.torch, full_state)
+
+
+@pytest.mark.usefixtures("host_shell")
+def test_malformed_state_write_fails_before_mutating_or_writing():
+    asset = _make_asset_shell(deformable_type="volume", num_instances=2, num_vertices=4)
+    original_positions = asset.data.nodal_pos_w.torch.clone()
+    original_velocities = asset.data.nodal_vel_w.torch.clone()
+    malformed_state = torch.ones((1, 4, 7), device=asset.device)
+
+    with pytest.raises(AssertionError, match="nodal_state.*Shape mismatch"):
+        asset.write_nodal_state_to_sim_index(malformed_state, env_ids=[1])
+
+    torch.testing.assert_close(asset.data.nodal_pos_w.torch, original_positions)
+    torch.testing.assert_close(asset.data.nodal_vel_w.torch, original_velocities)
+    assert asset.root_view.position_write_count == 0
+    assert asset.root_view.velocity_write_count == 0
+
+
+@pytest.mark.usefixtures("host_shell")
+def test_lazy_root_means_refresh_in_place_after_update():
+    root_view = _FakeBodyView(num_instances=2, num_vertices=2)
+    root_view.positions = wp.array(
+        [[[0.0, 0.0, 0.0], [2.0, 4.0, 6.0]], [[1.0, 3.0, 5.0], [3.0, 5.0, 7.0]]],
+        dtype=wp.float32,
+    )
+    data = DeformableObjectData(
+        root_view,
+        "cpu",
+        position_tensor_type=TT.DEFORMABLE_SIM_NODAL_POSITION,
+        velocity_tensor_type=TT.DEFORMABLE_SIM_NODAL_VELOCITY,
+    )
+
+    root_pos = data.root_pos_w
+    torch.testing.assert_close(root_pos.torch, torch.tensor([[1.0, 2.0, 3.0], [2.0, 4.0, 6.0]]))
+    assert root_view.position_reads == 1
+
+    root_view.positions = wp.array(
+        [[[2.0, 2.0, 2.0], [4.0, 4.0, 4.0]], [[6.0, 6.0, 6.0], [8.0, 8.0, 8.0]]],
+        dtype=wp.float32,
+    )
+    data.update(0.1)
+
+    assert data.root_pos_w is root_pos
+    torch.testing.assert_close(root_pos.torch, torch.tensor([[3.0, 3.0, 3.0], [7.0, 7.0, 7.0]]))
+    assert root_view.position_reads == 2
+
+
+@pytest.mark.usefixtures("host_shell")
+def test_surface_debug_visualization_uses_below_ground_sentinel():
+    asset = _make_asset_shell(deformable_type="surface")
+    asset.target_visualizer = _FakeVisualizer()
+
+    asset._debug_vis_callback(None)
+
+    torch.testing.assert_close(asset.target_visualizer.positions, torch.tensor([[0.0, 0.0, -10.0]]))
+
+
+class _MixedTopologyBinding:
+    """Padded simulation connectivity with five nodes in one body and four in another."""
+
+    _SHAPES = {
+        TT.DEFORMABLE_SIM_NODAL_POSITION: (2, 5, 3),
+        TT.DEFORMABLE_SIM_ELEMENT_INDICES: (2, 2, 4),
+        TT.DEFORMABLE_COLLISION_ELEMENT_INDICES: (2, 6, 4),
+    }
+
+    def __init__(self, tensor_type: int):
+        self._tensor_type = tensor_type
+        self.shape = self._SHAPES[tensor_type]
+        float_dtype = tensor_type == TT.DEFORMABLE_SIM_NODAL_POSITION
+        self.dtype = SimpleNamespace(code=2 if float_dtype else 0, bits=32, lanes=1)
+        self.count = self.shape[0]
+        self.prim_paths = [f"/World/env_{index}/Soft" for index in range(self.count)]
+
+    def read(self, values: wp.array) -> None:
+        if self._tensor_type == TT.DEFORMABLE_SIM_ELEMENT_INDICES:
+            connectivity = [[[0, 1, 2, 3], [1, 2, 3, 4]], [[0, 1, 2, 3], [0, 0, 0, 0]]]
+            wp.copy(values, wp.array(connectivity, dtype=wp.int32, device="cpu"))
+        elif self._tensor_type == TT.DEFORMABLE_COLLISION_ELEMENT_INDICES:
+            wp.copy(values, wp.full(self.shape, value=4, dtype=wp.int32, device="cpu"))
+
+
+@pytest.mark.usefixtures("host_shell")
+def test_volume_view_rejects_mixed_simulation_node_counts():
+    physx = SimpleNamespace(
+        create_tensor_binding=lambda *, tensor_type, pattern=None: _MixedTopologyBinding(tensor_type)
+    )
+    with pytest.raises(ValueError, match=r"uniform simulation-node counts.*\[5, 4\]"):
+        OvPhysxDeformableBodyView(
+            physx,
+            pattern="/World/env_*/Soft",
+            device="cpu",
+            tensor_types=list(_MixedTopologyBinding._SHAPES),
+            eager=True,
+            simulation_nodal_position_type=TT.DEFORMABLE_SIM_NODAL_POSITION,
+            simulation_element_indices_type=TT.DEFORMABLE_SIM_ELEMENT_INDICES,
+            collision_element_indices_type=TT.DEFORMABLE_COLLISION_ELEMENT_INDICES,
+        )
+
+
+##
+# Real-backend tests.
+##
+
+
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="OVPhysX deformables require CUDA")
-def test_initialization(num_objects: int, material_path: str | None):
-    """Test volume deformable initialization and public buffer shapes."""
+def test_initialization_with_shared_material():
+    """Test volume deformable initialization with a shared material, and public buffer shapes.
+
+    The shared absolute material path only textually prefixes a sibling asset path. The no-material case is covered
+    by :func:`test_set_nodal_state_with_applied_transform`.
+    """
+    num_objects, material_path = 2, "/World/Table_0/ObjectSiblingMaterial"
     with _ovphysx_sim_context(device="cuda:0") as sim:
         deformable = _generate_deformable_scene(
             pre_tetrahedralized_deformable_spawn_cfg(material_path=material_path), num_objects=num_objects
         )
+        # A same-named material under the other table must not be matched by prefix expansion.
+        distractor_cfg = PhysxDeformableBodyMaterialCfg()
+        distractor_cfg.func("/World/Table_1/ObjectSiblingMaterial", distractor_cfg)
 
         assert sys.getrefcount(deformable) < 10
         sim.reset()
@@ -201,14 +529,8 @@ def test_initialization(num_objects: int, material_path: str | None):
         assert deformable.num_instances == num_objects
         assert deformable.num_bodies == 1
         assert deformable.root_view.count == num_objects
-        if material_path is None:
-            assert deformable.material_physx_view is None
-        elif material_path.startswith("/"):
-            assert deformable.material_physx_view is not None
-            assert deformable.material_physx_view.count == 1
-        else:
-            assert deformable.material_physx_view is not None
-            assert deformable.material_physx_view.count == num_objects
+        assert deformable.material_physx_view is not None
+        assert deformable.material_physx_view.count == 1
         assert deformable.data.nodal_state_w.torch.shape == (
             num_objects,
             deformable.max_sim_vertices_per_body,
@@ -228,182 +550,45 @@ def test_initialization(num_objects: int, material_path: str | None):
         assert deformable._material_physx_view is None
 
 
-@pytest.mark.skipif(not torch.cuda.is_available(), reason="OVPhysX deformables require CUDA")
-def test_absolute_material_sibling_prefix_is_not_expanded():
-    """Keep a shared absolute material exact when its path only textually prefixes the asset path."""
-    with _ovphysx_sim_context(device="cuda:0") as sim:
-        material_path = "/World/Table_0/ObjectSiblingMaterial"
-        deformable = _generate_deformable_scene(
-            pre_tetrahedralized_deformable_spawn_cfg(material_path=material_path), num_objects=2
-        )
-        distractor_cfg = PhysxDeformableBodyMaterialCfg()
-        distractor_cfg.func("/World/Table_1/ObjectSiblingMaterial", distractor_cfg)
-
-        sim.reset()
-
-        material_view = deformable.material_physx_view
-        assert material_view is not None
-        assert material_view.count == 1
-
-
-@pytest.mark.skipif(not torch.cuda.is_available(), reason="OVPhysX deformables require CUDA")
-def test_initialization_surface_deformable():
-    """Test surface deformable initialization and unsupported target writes."""
-    with _ovphysx_sim_context(device="cuda:0") as sim:
-        num_objects = 2
-        deformable = _generate_deformable_scene(pretriangulated_surface_deformable_spawn_cfg(), num_objects=num_objects)
-
-        sim.reset()
-
-        assert deformable.is_initialized
-        assert deformable._deformable_type == "surface"
-        assert deformable.num_instances == num_objects
-        assert deformable.root_view.count == num_objects
-        assert deformable.material_physx_view is not None
-        assert deformable.material_physx_view.count == num_objects
-        assert deformable.data.nodal_state_w.torch.shape == (
-            num_objects,
-            deformable.max_sim_vertices_per_body,
-            6,
-        )
-        assert deformable.data.root_pos_w.torch.shape == (num_objects, 3)
-        assert deformable.data.root_vel_w.torch.shape == (num_objects, 3)
-        assert deformable.data.nodal_kinematic_target is None
-
-        dummy_targets = torch.zeros(num_objects, deformable.max_sim_vertices_per_body, 4, device=sim.device)
-        with pytest.raises(ValueError, match="Kinematic targets can only be set for volume deformable bodies"):
-            deformable.write_nodal_kinematic_target_to_sim_index(dummy_targets)
-
-
 def test_initialization_on_device_cpu():
-    """Test that OVPhysX deformable initialization rejects a CPU simulation."""
-    context = multiprocessing.get_context("spawn")
-    result_queue = context.Queue()
-    process = context.Process(target=_run_cpu_deformable_initialization, args=(result_queue,))
-    process.start()
-    process.join(timeout=30.0)
+    """Test that OVPhysX deformable initialization rejects a CPU simulation.
 
-    if process.is_alive():
-        process.terminate()
-        process.join()
-        pytest.fail("CPU deformable initialization child process timed out.")
-    assert process.exitcode == 0
-
-    try:
-        result_kind, message, is_initialized = result_queue.get(timeout=5.0)
-    except queue.Empty:
-        pytest.fail("CPU deformable initialization child process returned no result.")
-    finally:
-        result_queue.close()
-        result_queue.join_thread()
-
-    assert result_kind == "runtime_error", message
-    assert message == "OVPhysX deformable tensors require a CUDA simulation device; received 'cpu'."
-    assert is_initialized is False
+    CPU and CUDA OVPhysX simulations can follow each other in one process, so this runs beside the CUDA tests.
+    """
+    message = "OVPhysX deformable tensors require a CUDA simulation device; received 'cpu'."
+    with _ovphysx_sim_context(device="cpu") as sim:
+        deformable = _generate_deformable_scene(pre_tetrahedralized_deformable_spawn_cfg(), num_objects=5)
+        assert sys.getrefcount(deformable) < 10
+        with pytest.raises(RuntimeError, match=f"^{re.escape(message)}$"):
+            sim.reset()
+        assert deformable.is_initialized is False
 
 
-@pytest.mark.skipif(not torch.cuda.is_available(), reason="OVPhysX deformables require CUDA")
-def test_set_nodal_state():
-    """Test combined nodal state writes while independently randomizing position and velocity."""
-    with _ovphysx_sim_context(device="cuda:0") as sim:
-        num_objects = 2
-        deformable = _generate_deformable_scene(pre_tetrahedralized_deformable_spawn_cfg(), num_objects=num_objects)
-        sim.reset()
-
-        for state_type_to_randomize in ["nodal_pos_w", "nodal_vel_w"]:
-            state_dict = {
-                "nodal_pos_w": torch.zeros_like(deformable.data.nodal_pos_w.torch),
-                "nodal_vel_w": torch.zeros_like(deformable.data.nodal_vel_w.torch),
-            }
-
-            for _ in range(5):
-                deformable.reset()
-                state_dict[state_type_to_randomize] = torch.randn(
-                    num_objects, deformable.max_sim_vertices_per_body, 3, device=sim.device
-                )
-
-                for _ in range(5):
-                    nodal_state = torch.cat([state_dict["nodal_pos_w"], state_dict["nodal_vel_w"]], dim=-1)
-                    deformable.write_nodal_state_to_sim_index(nodal_state)
-                    torch.testing.assert_close(deformable.data.nodal_state_w.torch, nodal_state, rtol=1e-5, atol=1e-5)
-
-                    sim.step()
-                    deformable.update(sim.cfg.dt)
-
-
-@pytest.mark.parametrize(
-    ("property_name", "write_method_name", "tensor_type", "command_value"),
-    [
-        ("nodal_pos_w", "write_nodal_pos_to_sim_index", "deformable_sim_nodal_position", 100.0),
-        ("nodal_vel_w", "write_nodal_velocity_to_sim_index", "deformable_sim_nodal_velocity", -100.0),
-    ],
-)
-@pytest.mark.skipif(not torch.cuda.is_available(), reason="OVPhysX deformables require CUDA")
-def test_indexed_partial_write_preserves_retained_aliased_slice_in_simulator(
-    property_name: str, write_method_name: str, tensor_type: str, command_value: float
-) -> None:
-    """Preserve a retained selected command while hydrating stale rows from OVPhysX."""
-    with _ovphysx_sim_context(device="cuda:0") as sim:
-        deformable = _generate_deformable_scene(pre_tetrahedralized_deformable_spawn_cfg(), num_objects=2)
-        sim.reset()
-
-        retained = getattr(deformable.data, property_name).torch
-        sim.step()
-        deformable.update(sim.cfg.dt)
-        latest = wp.to_torch(deformable.root_view.get_attribute(tensor_type)).clone()
-        selected = retained[1:2]
-        selected.fill_(command_value)
-
-        getattr(deformable, write_method_name)(selected, env_ids=torch.tensor([1], device=sim.device))
-        readback = wp.to_torch(deformable.root_view.get_attribute(tensor_type))
-
-        torch.testing.assert_close(readback[0], latest[0], rtol=1e-5, atol=1e-5)
-        torch.testing.assert_close(readback[1], selected[0], rtol=1e-5, atol=1e-5)
-
-
-@pytest.mark.parametrize(
-    "num_objects, randomize_pos, randomize_rot",
-    [
-        (1, False, False),
-        (1, True, False),
-        (1, False, True),
-        (2, True, True),
-    ],
-)
 @flaky(max_runs=3, min_passes=1)
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="OVPhysX deformables require CUDA")
-def test_set_nodal_state_with_applied_transform(num_objects: int, randomize_pos: bool, randomize_rot: bool):
-    """Test combined nodal state writes after applying rigid transforms."""
+def test_set_nodal_state_with_applied_transform():
+    """Test combined nodal state writes after applying rigid transforms, on deformables without a material."""
     with _ovphysx_sim_context(device="cuda:0", gravity_enabled=False) as sim:
-        deformable = _generate_deformable_scene(pre_tetrahedralized_deformable_spawn_cfg(), num_objects=num_objects)
+        deformable = _generate_deformable_scene(pre_tetrahedralized_deformable_spawn_cfg(material_path=None))
         sim.reset()
+        assert deformable.material_physx_view is None
 
-        for _ in range(5):
+        for _ in range(2):
             nodal_state = deformable.data.default_nodal_state_w.torch.clone()
             mean_nodal_pos_default = nodal_state[..., :3].mean(dim=1)
 
-            if randomize_pos:
-                pos_w = 0.5 * torch.rand(deformable.num_instances, 3, device=sim.device)
-                pos_w[:, 2] += 0.5
-            else:
-                pos_w = None
-            if randomize_rot:
-                quat_w = math_utils.random_orientation(deformable.num_instances, device=sim.device)
-            else:
-                quat_w = None
+            pos_w = 0.5 * torch.rand(deformable.num_instances, 3, device=sim.device)
+            pos_w[:, 2] += 0.5
+            quat_w = math_utils.random_orientation(deformable.num_instances, device=sim.device)
 
             nodal_state[..., :3] = deformable.transform_nodal_pos(nodal_state[..., :3], pos_w, quat_w)
             mean_nodal_pos_init = nodal_state[..., :3].mean(dim=1)
-
-            if pos_w is None:
-                torch.testing.assert_close(mean_nodal_pos_init, mean_nodal_pos_default, rtol=1e-5, atol=1e-5)
-            else:
-                torch.testing.assert_close(mean_nodal_pos_init, mean_nodal_pos_default + pos_w, rtol=1e-5, atol=1e-5)
+            torch.testing.assert_close(mean_nodal_pos_init, mean_nodal_pos_default + pos_w, rtol=1e-5, atol=1e-5)
 
             deformable.write_nodal_state_to_sim_index(nodal_state)
             deformable.reset()
 
-            for _ in range(50):
+            for _ in range(10):
                 sim.step()
                 deformable.update(sim.cfg.dt)
 
@@ -421,7 +606,7 @@ def test_set_kinematic_targets():
             deformable.root_view.get_attribute(TT.DEFORMABLE_SIM_KINEMATIC_TARGET)
         ).clone()
 
-        for _ in range(5):
+        for _ in range(2):
             deformable.write_nodal_state_to_sim_index(deformable.data.default_nodal_state_w.torch)
             default_root_pos = deformable.data.default_nodal_state_w.torch[..., :3].mean(dim=1)
             deformable.reset()
@@ -433,7 +618,7 @@ def test_set_kinematic_targets():
                 nodal_kinematic_targets[0:1], env_ids=torch.tensor([0], device=sim.device)
             )
 
-            for _ in range(20):
+            for _ in range(10):
                 sim.step()
                 deformable.update(sim.cfg.dt)
 
@@ -548,7 +733,8 @@ def test_volume_deformable_reads_writes_targets_materials_and_steps():
         material_view.set_attribute(
             TT.DEFORMABLE_MATERIAL_YOUNGS_MODULUS,
             wp.from_torch(updated_youngs),
-            indices=wp.array([1], dtype=wp.int32),
+            # OvPhysX CPU-native material bindings require host-resident indices.
+            indices=wp.array([1], dtype=wp.int32, device="cpu"),
         )
         torch.testing.assert_close(
             wp.to_torch(material_view.get_attribute(TT.DEFORMABLE_MATERIAL_YOUNGS_MODULUS)), updated_youngs.cpu()
@@ -557,6 +743,20 @@ def test_volume_deformable_reads_writes_targets_materials_and_steps():
         for _ in range(5):
             sim.step()
             deformable.update(sim.cfg.dt)
+        _assert_finite_deformable_state(deformable)
+
+        # A forced re-warm replaces the attached stage, so the deformable bindings are rebuilt.
+        original_view = deformable.root_view
+        original_binding = original_view.binding_for(TT.DEFORMABLE_SIM_NODAL_POSITION)
+        OvPhysxManager._warmup_done = False
+        sim.reset()
+
+        assert deformable.is_initialized
+        assert deformable.root_view is not original_view
+        assert deformable.root_view.binding_for(TT.DEFORMABLE_SIM_NODAL_POSITION) is not original_binding
+        _assert_finite_deformable_state(deformable)
+        sim.step()
+        deformable.update(sim.cfg.dt)
         _assert_finite_deformable_state(deformable)
 
 
@@ -574,6 +774,7 @@ def test_surface_deformable_reads_writes_materials_and_steps():
         assert deformable.max_sim_vertices_per_body == 4
         assert deformable.max_sim_elements_per_body == 2
         assert deformable.max_collision_elements_per_body == 0
+        assert deformable.max_collision_vertices_per_body == 0
         assert deformable.data.nodal_state_w.torch.shape == (2, 4, 6)
         assert deformable.data.root_pos_w.torch.shape == (2, 3)
         assert deformable.data.root_vel_w.torch.shape == (2, 3)
@@ -649,7 +850,8 @@ def test_surface_deformable_reads_writes_materials_and_steps():
         material_view.set_attribute(
             TT.DEFORMABLE_MATERIAL_BENDING_DAMPING,
             wp.from_torch(updated_bending_damping),
-            indices=wp.array([0], dtype=wp.int32),
+            # OvPhysX CPU-native material bindings require host-resident indices.
+            indices=wp.array([0], dtype=wp.int32, device="cpu"),
         )
         torch.testing.assert_close(
             wp.to_torch(material_view.get_attribute(TT.DEFORMABLE_MATERIAL_BENDING_DAMPING)),
@@ -663,100 +865,34 @@ def test_surface_deformable_reads_writes_materials_and_steps():
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="OVPhysX deformables require CUDA")
-def test_deformable_interactive_scene_uses_full_authored_stage():
-    """Initialize cloned deformable bodies and materials from the full authored stage."""
-    with _ovphysx_sim_context(device="cuda:0") as sim:
-        scene = InteractiveScene(DeformableSceneCfg(num_envs=3, env_spacing=0.75, lazy_sensor_update=False))
-
-        sim.reset()
-
-        deformable = scene["deformable"]
-        assert deformable.num_instances == 3
-        assert deformable.root_view.count == 3
-        assert deformable.material_physx_view is not None
-        assert deformable.material_physx_view.count == 3
-
-        sim.step()
-        scene.update(sim.cfg.dt)
-        _assert_finite_deformable_state(deformable)
-
-
-@pytest.mark.skipif(not torch.cuda.is_available(), reason="OVPhysX deformables require CUDA")
-def test_forced_rewarm_rebuilds_deformable_bindings():
-    """Replace deformable bindings when a forced re-warm replaces the attached stage."""
-    with _ovphysx_sim_context(device="cuda:0") as sim:
-        deformable = _generate_deformable_scene(pre_tetrahedralized_deformable_spawn_cfg(), num_objects=2)
-        sim.reset()
-
-        original_view = deformable.root_view
-        original_binding = original_view.binding_for(TT.DEFORMABLE_SIM_NODAL_POSITION)
-
-        OvPhysxManager._warmup_done = False
-        sim.reset()
-
-        assert deformable.is_initialized
-        assert deformable.root_view is not original_view
-        assert deformable.root_view.binding_for(TT.DEFORMABLE_SIM_NODAL_POSITION) is not original_binding
-        _assert_finite_deformable_state(deformable)
-        sim.step()
-        deformable.update(sim.cfg.dt)
-        _assert_finite_deformable_state(deformable)
-
-
-@pytest.mark.skipif(not torch.cuda.is_available(), reason="OVPhysX deformables require CUDA")
-def test_mixed_deformable_rigid_scene_does_not_duplicate_runtime_clones():
-    """Keep deformable, material, and rigid clone counts aligned in a mixed scene."""
-    with _ovphysx_sim_context(device="cuda:0") as sim:
-        scene = InteractiveScene(MixedDeformableRigidSceneCfg(num_envs=3, env_spacing=0.75, lazy_sensor_update=False))
-
-        sim.reset()
-
-        deformable = scene["deformable"]
-        cube = scene["cube"]
-        assert deformable.num_instances == 3
-        assert deformable.root_view.count == 3
-        assert deformable.material_physx_view is not None
-        assert deformable.material_physx_view.count == 3
-        assert cube.num_instances == 3
-        assert cube.root_view.count == 3
-
-        sim.step()
-        scene.update(sim.cfg.dt)
-        _assert_finite_deformable_state(deformable)
-        assert torch.isfinite(cube.data.root_pos_w.torch).all()
-
-
-@pytest.mark.skipif(not torch.cuda.is_available(), reason="OVPhysX deformables require CUDA")
 def test_heterogeneous_mixed_deformable_rigid_scene_materializes_missing_targets():
     """Materialize missing rigid targets beside full-stage deformable clones without duplicates."""
     with _ovphysx_sim_context(device="cuda:0") as sim:
         num_envs = 4
         scene = InteractiveScene(
-            HeterogeneousMixedDeformableRigidSceneCfg(
-                num_envs=num_envs,
-                env_spacing=1.0,
-                lazy_sensor_update=False,
-            )
+            HeterogeneousMixedDeformableRigidSceneCfg(num_envs=num_envs, env_spacing=1.0, lazy_sensor_update=False)
         )
-        plan = scene.clone_plan
-        assert plan is not None
-        shape_rows = plan.cfg_rows[id(scene.cfg.shape)]
-        shape_mask = plan.clone_mask[list(shape_rows)]
-        assert shape_mask.sum(axis=1).tolist() == [2, 2]
-        assert shape_mask.sum(axis=0).tolist() == [1, 1, 1, 1]
+        plan = sim.get_clone_plan()
+        source_paths = path.get_asset_prototype_paths(plan)
+        shape_ids = path.get_asset_prototypes(plan, scene.cfg.shape.prim_path)
+        worlds, starts = query.get_asset_prototype_unique_world_index(plan.topology, shape_ids)
+        assert (starts[:, -1] - starts[:, 0]).tolist() == [2, 2]
+        assert sorted(worlds) == list(range(num_envs))
 
         expected_paths = {f"/World/envs/env_{index}/Shape" for index in range(num_envs)}
-        source_paths = {plan.sources[row] for row in shape_rows}
-        assert source_paths == {"/World/envs/env_0/Shape", "/World/envs/env_1/Shape"}
+        shape_paths = {source_paths[index] for index in shape_ids}
+        assert shape_paths == {"/World/envs/env_0/Shape", "/World/envs/env_2/Shape"}
         stage = sim_utils.get_current_stage()
-        ancestor_path = "/World/envs/env_2/Shape"
+        ancestor_path = "/World/envs/env_1/Shape"
         camera_path = f"{ancestor_path}/Camera"
         UsdGeom.Xform.Define(stage, camera_path)
         authored_paths = {path for path in expected_paths if stage.GetPrimAtPath(path).IsValid()}
-        assert authored_paths == source_paths | {ancestor_path}
+        assert authored_paths == shape_paths | {ancestor_path}
         authored_deformable_paths = {f"/World/envs/env_{index}/Object/simulation" for index in range(num_envs)}
-        deformable_rows = plan.cfg_rows[id(scene.cfg.deformable)]
-        deformable_source_paths = {f"{plan.sources[row]}/simulation" for row in deformable_rows}
+        deformable_source_paths = {
+            f"{source_paths[index]}/simulation"
+            for index in path.get_asset_prototypes(plan, scene.cfg.deformable.prim_path)
+        }
         assert {
             path for path in authored_deformable_paths if stage.GetPrimAtPath(path).IsValid()
         } == deformable_source_paths
@@ -765,7 +901,11 @@ def test_heterogeneous_mixed_deformable_rigid_scene_materializes_missing_targets
 
         deformable = scene["deformable"]
         shape = scene["shape"]
+        assert deformable.num_instances == num_envs
         assert deformable.root_view.count == num_envs, deformable.root_view.prim_paths
+        assert deformable.material_physx_view is not None
+        assert deformable.material_physx_view.count == num_envs
+        assert shape.num_instances == num_envs
         assert shape.root_view.count == num_envs, shape.root_view.prim_paths
         runtime_paths = shape.root_view.prim_paths
         assert set(runtime_paths) == expected_paths

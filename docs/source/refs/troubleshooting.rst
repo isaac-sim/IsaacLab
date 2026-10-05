@@ -40,15 +40,13 @@ install time. Most packages cannot be deselected at all.
        ``isaaclab_ov``, ``isaaclab_newton``, ``isaaclab_rl``, ``isaaclab_visualizers``,
        ``isaaclab_contrib``, ``isaaclab_experimental``, ``isaaclab_ppisp``,
        ``isaaclab_tasks_experimental``
-     - Core packages. Every ``isaaclab install`` run installs them as editable packages and
-       there is no way to opt out, so the error points at the environment rather than at the
-       install command.
+     - Core packages installed by ``uv sync``. Check that your command uses the
+       checkout's uv environment.
    * - ``isaaclab_mimic``, ``isaaclab_teleop``
-     - Optional packages. ``isaaclab install`` (equivalently ``isaaclab install all``)
-       includes them; ``isaaclab install core`` does not.
+     - Optional integrations. Select the ``mimic`` or ``teleop`` extra for your workflow.
    * - ``rsl_rl``, ``rl_games``, ``skrl``, ``stable_baselines3``
-     - Reinforcement learning frameworks, installed by the ``rl`` feature. They are part of
-       the default install; ``isaaclab install 'rl[rsl-rl]'`` installs a single framework.
+     - ``rsl_rl`` is installed by default. Select ``rl-games``, ``skrl``, or ``sb3``
+       for the other frameworks, for example ``uv run --extra skrl isaaclab train ...``.
    * - ``isaacsim``
      - Isaac Sim itself, which is never installed implicitly. See
        :ref:`troubleshooting-isaacsim-missing`.
@@ -72,9 +70,8 @@ environment for your workflow.
 
 .. note::
 
-   The ``ov``, ``contrib`` and ``tetrahedralization`` features are deliberately excluded
-   from the default install and must be requested explicitly, for example
-   ``isaaclab install 'ov[ovrtx]'``.
+   Optional dependencies such as ``ovrtx``, ``rlinf``, and ``tetrahedralization`` require
+   an explicit extra, for example ``uv run --extra ovrtx isaaclab train ...``.
 
 .. _troubleshooting-isaacsim-missing:
 
@@ -86,7 +83,7 @@ was launched without it. Either install Isaac Sim:
 
 .. code-block:: bash
 
-   ./isaaclab.sh -i isaacsim
+   uv sync --extra isaacsim
 
 or run a Newton-based task, which does not need Kit:
 
@@ -156,14 +153,8 @@ prompt when launching an Isaac Lab process:
 
       .. code:: bash
 
-          uv run --extra isaacsim python scripts/demos/bipeds.py --kit_args "--/persistent/physics/omniPvdOvdRecordingDirectory=/tmp/ --/physics/omniPvdOutputEnabled=true"
+          uv run --extra isaacsim isaaclab demo zoo --physics isaacsim_physx --viz kit --kit_args "--/persistent/physics/omniPvdOvdRecordingDirectory=/tmp/ --/physics/omniPvdOutputEnabled=true"
 
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code:: bash
-
-          ./isaaclab.sh -p scripts/demos/bipeds.py --kit_args "--/persistent/physics/omniPvdOvdRecordingDirectory=/tmp/ --/physics/omniPvdOutputEnabled=true"
 
 GPU buffer capacity errors
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -230,8 +221,8 @@ in physics, rendering, environment code, and policy inference.
 
 For PhysX workloads, check the following common causes:
 
-* **Unneeded visualization:** Commands that do not select a visualizer launch without a viewer by
-  default. If a configuration would otherwise launch one, pass ``--viz none`` to disable it.
+* **Unneeded visualization:** Commands that do not select a visualizer with ``--viz`` launch without a
+  viewer, even if a configuration lists visualizers in ``SimulationCfg.visualizer_cfgs``. Drop ``--viz``.
 * **Excessive collision work:** Avoid duplicated or overlapping collision geometry and use the
   simplest collider that provides the required fidelity.
 * **GPU collider fallbacks:** A warning that a convex mesh failed to cook as GPU-compatible means
@@ -281,7 +272,7 @@ If you see a crash involving ``libusd_tf-*.so`` and conflicting USD versions
 (e.g. ``pxrInternal_v0_25_5`` vs ``pxrInternal_v0_25_11``):
 
 1. Ensure ``LD_PRELOAD`` is set to ovrtx's ``libcarb.so`` and install the OVRTX
-   runtime with ``./isaaclab.sh -i 'ov[ovrtx]'`` (see :ref:`modularized installation <installation-selective-install>`)
+   runtime with ``uv sync --extra ovrtx`` (see :ref:`modularized installation <installation-optional-extras>`)
 2. Ensure ``isaacsim`` / ``omniverse-kit`` is **not** installed in the same
    environment — their bundled USD libraries conflict with ovrtx's
 
@@ -312,7 +303,7 @@ Livestreaming and WebRTC
 ``NVST_R_BUSY`` / ``NVST_R_INTERNAL_ERROR`` on ``LIVESTREAM=1`` or ``LIVESTREAM=2``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:class:`~isaaclab.app.AppLauncher` pins TCP port ``49100`` for WebRTC signaling whenever
+:class:`~isaaclab_physx.app.KitLauncher` pins TCP port ``49100`` for WebRTC signaling whenever
 ``LIVESTREAM=1`` (public network) or ``LIVESTREAM=2`` (private network) is set. If a
 previous livestream process is still bound to that port, the new session fails to start
 with:
@@ -402,13 +393,6 @@ For instance, to run a standalone script with verbose logging, you can use the f
 
           # Run the standalone script with info logging
           uv run python scripts/tutorials/00_sim/create_empty.py --info
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-          # Run the standalone script with info logging
-          ./isaaclab.sh -p scripts/tutorials/00_sim/create_empty.py --info
 
 For more fine-grained control, you can modify the logging channels through the ``logger`` module.
 For more information, please refer to its `documentation <https://docs.python.org/3/library/logging.html>`__.

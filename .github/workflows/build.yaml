@@ -46,7 +46,7 @@
 #      -e TEST_FILTER_PATTERN="isaaclab_physx" \
 #      -e TEST_INCLUDE_FILES="test_rigid_object_collection.py" \
 #      -v "$PWD":/workspace/isaaclab isaac-lab-base:latest \
-#      -c 'cd /workspace/isaaclab && ./isaaclab.sh -p -m pytest tools -v'
+#      -c 'cd /workspace/isaaclab && uv run --no-sync isaaclab -p -m pytest tools -v'
 #
 # Remember to REVERT all temporary changes before merging!
 # =============================================================================
@@ -114,9 +114,8 @@ jobs:
           ^scripts/ :: Standalone scripts
           ^\.dockerignore$ :: Docker build context filter
           ^conftest\.py$ :: Root pytest configuration
+          ^uv\.lock$ :: Dependency lockfile
           ^pyproject\.toml$ :: Root Python project (Docker copy)
-          ^environment\.yml$ :: Conda env (Docker copy)
-          ^isaaclab\. :: isaaclab.sh/.bat entrypoints (Docker copy)
           ^\.github/workflows/build\.yaml$ :: This workflow file
           ^\.github/workflows/config\.yaml$ :: Shared CI config
           ^\.github/actions/ :: CI actions
@@ -177,7 +176,7 @@ jobs:
     - uses: actions/checkout@v6
 
     - name: Set up uv
-      uses: astral-sh/setup-uv@v6
+      uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e  # v6.8.0
       with:
         enable-cache: true
 
@@ -185,8 +184,13 @@ jobs:
       shell: bash
       run: |
         set -euo pipefail
-        uv run --no-project --with pytest \
-          python -m pytest -q docker/test/test_dockerfile_nonroot.py
+        contract_env="$(mktemp -d "${RUNNER_TEMP}/isaaclab-contract.XXXXXX")"
+        uv venv --python 3.12 "${contract_env}"
+        uv pip sync --require-hashes --only-binary :all: \
+          --python "${contract_env}/bin/python" docker/test/requirements.txt
+        uv pip check --python "${contract_env}/bin/python"
+        "${contract_env}/bin/python" -m pytest -q \
+          docker/test/test_dockerfile_nonroot.py docker/test/test_security_dependencies.py
 
   #region build jobs
   build:
@@ -203,7 +207,7 @@ jobs:
 
     # The GPU runners have no uv on PATH; the invariant check below needs it.
     - name: Set up uv
-      uses: astral-sh/setup-uv@v6
+      uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e  # v6.8.0
       with:
         enable-cache: true
 
@@ -267,10 +271,11 @@ jobs:
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_tasks"
         exclude-pattern: "test_rendering_,test_video_recording.py"
-        extra-pip-packages: "pytetwild[all]>=0.3.0,<0.4"
         shard-index: "0"
         shard-count: "3"
         warp-cache: restore
+        ovrtx-shader-cache: restore
+        test-jobs: "4"
         container-name: isaac-lab-tasks-1-test
 
   test-isaaclab-tasks-2:
@@ -294,10 +299,11 @@ jobs:
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_tasks"
         exclude-pattern: "test_rendering_,test_video_recording.py"
-        extra-pip-packages: "pytetwild[all]>=0.3.0,<0.4"
         shard-index: "1"
         shard-count: "3"
         warp-cache: restore
+        ovrtx-shader-cache: restore
+        test-jobs: "4"
         container-name: isaac-lab-tasks-2-test
 
   test-isaaclab-tasks-3:
@@ -321,10 +327,11 @@ jobs:
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_tasks"
         exclude-pattern: "test_rendering_,test_video_recording.py"
-        extra-pip-packages: "pytetwild[all]>=0.3.0,<0.4"
         shard-index: "2"
         shard-count: "3"
         warp-cache: restore
+        ovrtx-shader-cache: restore
+        test-jobs: "4"
         container-name: isaac-lab-tasks-3-test
 
   test-isaaclab-core:
@@ -350,6 +357,8 @@ jobs:
         shard-index: "0"
         shard-count: "3"
         warp-cache: restore
+        ovrtx-shader-cache: restore
+        test-jobs: "4"
         container-name: isaac-lab-core-1-test
 
   test-isaaclab-core-2:
@@ -375,6 +384,8 @@ jobs:
         shard-index: "1"
         shard-count: "3"
         warp-cache: restore
+        ovrtx-shader-cache: restore
+        test-jobs: "4"
         container-name: isaac-lab-core-2-test
 
   test-isaaclab-core-3:
@@ -400,6 +411,8 @@ jobs:
         shard-index: "2"
         shard-count: "3"
         warp-cache: restore
+        ovrtx-shader-cache: restore
+        test-jobs: "4"
         container-name: isaac-lab-core-3-test
 
   # Kit and non-Kit are written out rather than expressed as a matrix: these job
@@ -424,12 +437,15 @@ jobs:
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
-        # deformables.py tetrahedralizes its volume meshes at startup
-        extra-pip-packages: "pytetwild[all]>=0.3.0,<0.4"
         include-files: "test_standalone_scripts.py"
         standalone-script-scope: "demos"
-        standalone-script-visualizer: "none"
+        standalone-script-visualizer: "default"
         standalone-script-runtime-group: kit
+        # Dedicated sensor tests cover raycasting; keep these example launches available for manual runs.
+        test-k-expr: "not (multi_mesh_raycaster or newton_raycast or raycaster_sensor)"
+        warp-cache: restore
+        ovrtx-shader-cache: restore
+        test-jobs: "2"
         result-file: "test-standalone-demos-kit-report.xml"
         container-name: isaac-lab-standalone-demos-kit-test
         omni-github-test-type: standalone-demo
@@ -455,14 +471,15 @@ jobs:
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
-        # deformables.py tetrahedralizes its volume meshes at startup
-        extra-pip-packages: >-
-          pytetwild[all]>=0.3.0,<0.4
-          ${{ steps.ov_pins.outputs.ovphysx }}
+        extra-pip-packages: "${{ steps.ov_pins.outputs.ovphysx }}"
         include-files: "test_standalone_scripts.py"
         standalone-script-scope: "demos"
-        standalone-script-visualizer: "none"
+        standalone-script-visualizer: "default"
         standalone-script-runtime-group: non-kit
+        test-k-expr: "not (multi_mesh_raycaster or newton_raycast or raycaster_sensor)"
+        warp-cache: restore
+        ovrtx-shader-cache: restore
+        test-jobs: "2"
         result-file: "test-standalone-demos-non-kit-report.xml"
         container-name: isaac-lab-standalone-demos-non-kit-test
         omni-github-test-type: standalone-demo
@@ -486,7 +503,9 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_rl"
-        extra-pip-packages: "leapp==0.6.1"
+        extra-pip-packages: "leapp==0.6.1 torchrl>=0.13"
+        warp-cache: restore
+        test-jobs: "4"
         container-name: isaac-lab-rl-test
 
   test-isaaclab-mimic:
@@ -508,6 +527,8 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_mimic"
+        warp-cache: restore
+        test-jobs: "4"
         container-name: isaac-lab-mimic-test
 
   test-isaaclab-contrib:
@@ -529,7 +550,9 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_contrib"
-        extra-pip-packages: "pytetwild[all]>=0.3.0,<0.4"
+        warp-cache: restore
+        ovrtx-shader-cache: restore
+        test-jobs: "4"
         container-name: isaac-lab-contrib-test
 
   test-isaaclab-teleop:
@@ -551,6 +574,9 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_teleop"
+        warp-cache: restore
+        ovrtx-shader-cache: restore
+        test-jobs: "4"
         container-name: isaac-lab-teleop-test
 
   test-isaaclab-visualizers:
@@ -572,6 +598,9 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_visualizers"
+        warp-cache: restore
+        ovrtx-shader-cache: restore
+        test-jobs: "4"
         container-name: isaac-lab-visualizers-test
 
   test-isaaclab-assets:
@@ -593,6 +622,8 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_assets"
+        warp-cache: restore
+        test-jobs: "4"
         container-name: isaac-lab-assets-test
 
   test-isaaclab-experimental:
@@ -614,6 +645,8 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_experimental"
+        warp-cache: restore
+        test-jobs: "4"
         container-name: isaac-lab-experimental-test
 
   test-isaaclab-newton:
@@ -636,6 +669,8 @@ jobs:
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_newton"
         warp-cache: restore
+        ovrtx-shader-cache: restore
+        test-jobs: "4"
         container-name: isaac-lab-newton-test
 
   test-isaaclab-physx:
@@ -657,7 +692,9 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_physx"
-        extra-pip-packages: "pytetwild[all]>=0.3.0,<0.4"
+        warp-cache: restore
+        ovrtx-shader-cache: restore
+        test-jobs: "4"
         container-name: isaac-lab-physx-test
 
   test-isaaclab-ov:
@@ -684,10 +721,12 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_ov"
-        # Volume deformable tests tetrahedralize their meshes at startup.
-        extra-pip-packages: pytetwild[all]>=0.3.0,<0.4 ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && steps.ov_pins.outputs.ovrtx || format('{0} {1}', steps.ov_pins.outputs.ovrtx, steps.ov_pins.outputs.ovphysx) }}
+        extra-pip-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && steps.ov_pins.outputs.ovrtx || format('{0} {1}', steps.ov_pins.outputs.ovrtx, steps.ov_pins.outputs.ovphysx) }}
         wheelhouse-image: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && needs.config.outputs.ovphysx_wheelhouse_image || '' }}
         wheelhouse-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && 'ovphysx' || '' }}
+        warp-cache: restore
+        ovrtx-shader-cache: restore
+        test-jobs: "4"
         container-name: isaac-lab-ov-test
 
     # Folded from the former standalone verify-base-non-root job: reuses the
@@ -727,6 +766,7 @@ jobs:
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         dockerfile-path: docker/Dockerfile.curobo
         cache-tag: cache-curobo
+        # SkillGen's simulator-driven dataset test remains available for manual runs.
         include-files: "test_curobo_planner_franka.py,test_curobo_planner_cube_stack.py,test_pink_ik.py"
         container-name: isaac-lab-curobo-test
 
@@ -767,7 +807,15 @@ jobs:
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         dockerfile-path: docker/Dockerfile.curobo
         cache-tag: cache-curobo
-        include-files: "test_generate_dataset_skillgen.py,test_contrib_environments.py"
+        include-files: >-
+          test_contrib_environments_kitless.py,
+          test_contrib_environments_kit.py,
+          test_contrib_environments_kit_cameras.py
+        warp-cache: restore
+        ovrtx-shader-cache: restore
+        ovrtx-shader-cache-trees: kit
+        # The three files run side by side; the kit and kitless files split across two workers each.
+        test-jobs: "5"
         container-name: isaac-lab-contrib-environments-test
 
   test-record-video:
@@ -813,13 +861,11 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_tasks"
-        extra-pip-packages: "pytetwild[all]>=0.3.0,<0.4"
         include-files: >-
           test_rendering_cartpole.py,
           test_rendering_lift_kuka_hetero.py,
           test_rendering_lift_kuka_homo.py,
           test_rendering_franka_cloth.py,
-          test_rendering_franka_soft.py,
           test_rendering_franka_cable.py,
           test_rendering_registered_tasks.py,
           test_rendering_shadow_hand.py
@@ -860,7 +906,6 @@ jobs:
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_tasks"
         extra-pip-packages: >-
-          pytetwild[all]>=0.3.0,<0.4
           ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && steps.ov_pins.outputs.ovrtx || format('{0} {1}', steps.ov_pins.outputs.ovrtx, steps.ov_pins.outputs.ovphysx) }}
         wheelhouse-image: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && needs.config.outputs.ovphysx_wheelhouse_image || '' }}
         wheelhouse-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && 'ovphysx' || '' }}
@@ -908,7 +953,6 @@ jobs:
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_tasks"
         extra-pip-packages: >-
-          pytetwild[all]>=0.3.0,<0.4
           ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && steps.ov_pins.outputs.ovrtx || format('{0} {1}', steps.ov_pins.outputs.ovrtx, steps.ov_pins.outputs.ovphysx) }}
         wheelhouse-image: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && needs.config.outputs.ovphysx_wheelhouse_image || '' }}
         wheelhouse-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && 'ovphysx' || '' }}
@@ -927,6 +971,272 @@ jobs:
         ovrtx-shader-cache-trees: kitless
         container-name: "isaac-lab-rendering-correctness-kitless-ovstage-test"
         omni-github-test-type: "rendering-correctness-kitless-ovstage"
+
+  performance-smoke:
+    name: performance-smoke-benchmarks
+    runs-on: [self-hosted, gpu]
+    # Four legs x three samples, including one retry each: 372 minutes + setup/comparison buffer.
+    timeout-minutes: 450
+    needs: [build, config]
+    # Pull requests and manual dispatches run in gate mode. A push runs only on develop,
+    # where it also records a baseline; pushes to main and release/** skip this job.
+    if: >-
+      (github.event_name != 'push' || github.ref == 'refs/heads/develop') &&
+      needs.build.result == 'success'
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+    - name: Pull pull-request image
+      uses: ./.github/actions/ecr-build-push-pull
+      with:
+        image-tag: ${{ needs.config.outputs.ci_image_tag }}
+        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
+        dockerfile-path: docker/Dockerfile.base
+        cache-tag: cache-base
+
+    # Kit-free combinations only: name|task|num_envs|bench_timeout_s|args
+    - name: Define benchmark matrix
+      run: |
+        cat > benchmark-legs.tsv <<'EOF'
+        cartpole-newton|Isaac-Cartpole-Direct|4096|600|physics=newton_mjwarp
+        shadow-camera-newton-renderer|IsaacContrib-Reorient-Cube-Shadow-Camera-Benchmark-Direct|512|1200|physics=newton_mjwarp renderer=newton_renderer
+        shadow-camera-ovphysx-newton|IsaacContrib-Reorient-Cube-Shadow-Camera-Benchmark-Direct|512|1200|physics=ovphysx renderer=newton_renderer
+        g1-newton|Isaac-Velocity-Flat-G1|512|720|physics=newton_mjwarp
+        EOF
+
+    - name: Resolve Warp version for the JIT cache key
+      id: warp_version
+      run: |
+        set -euo pipefail
+        version="$(sed -n 's/.*warp-lang[^0-9]*\([0-9][0-9A-Za-z.\-]*\).*/\1/p' pyproject.toml | head -n1)"
+        if [ -z "$version" ]; then
+          echo "::error::Could not resolve the warp-lang pin from pyproject.toml; the JIT cache key would stop tracking Warp"
+          exit 1
+        fi
+        echo "value=$version" >> "$GITHUB_OUTPUT"
+
+    - name: Restore warm JIT cache
+      uses: actions/cache/restore@v4
+      with:
+        path: ${{ github.workspace }}/jit-cache
+        key: perf-jit-warp${{ steps.warp_version.outputs.value }}-${{ github.run_id }}
+        restore-keys: |
+          perf-jit-warp${{ steps.warp_version.outputs.value }}-
+
+    - name: Run runtime benchmarks
+      env:
+        CI_IMAGE_TAG: ${{ needs.config.outputs.ci_image_tag }}
+      run: |
+        set -uo pipefail
+        install -d -m 0777 "${GITHUB_WORKSPACE}/jit-cache/warp" "${GITHUB_WORKSPACE}/jit-cache/nv"
+        # Restored version directories and kernels must also be writable by the container user.
+        chmod -R a+rwX "${GITHUB_WORKSPACE}/jit-cache" || exit 1
+
+        container=""
+        cleanup_container() {
+          if [ -n "$container" ]; then
+            docker rm -f "$container" >/dev/null 2>&1 || true
+          fi
+        }
+        trap cleanup_container EXIT
+        trap 'exit 130' INT
+        trap 'exit 143' TERM
+
+        run_attempt() {
+          local attempt="$1"
+          container="performance-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${leg}-${sample}-${attempt}"
+          cleanup_container
+          timeout "${bench_timeout_s}" docker run --name "$container" --gpus all --network=host --ipc=host \
+            -e WARP_CACHE_PATH=/tmp/jit-cache/warp \
+            -e CUDA_CACHE_PATH=/tmp/jit-cache/nv \
+            -v "${GITHUB_WORKSPACE}/jit-cache:/tmp/jit-cache" \
+            --entrypoint bash "$CI_IMAGE_TAG" -lc \
+            "set -euo pipefail
+            mkdir -p /tmp/benchmark-output
+            uv run --no-sync isaaclab benchmark runtime \
+              --task '$task' \
+              --num_envs '$num_envs' \
+              --num_steps 200 \
+              --warmup_steps 100 \
+              --seed 42 \
+              --benchmark_formatter schema \
+              --output_path /tmp/benchmark-output \
+              $args"
+          local status=$?
+          docker cp "$container:/tmp/benchmark-output/." "benchmark-output/${leg}/sample-${sample}/" 2>/dev/null || true
+          cleanup_container
+          container=""
+          local -a bundles
+          mapfile -t bundles < <(find "benchmark-output/${leg}/sample-${sample}" -maxdepth 1 -type f -name 'benchmark_runtime_*.json')
+          if [ "$status" -eq 0 ] && [ "${#bundles[@]}" -ne 1 ]; then
+            echo "::error::${leg} exited 0 but did not produce exactly one benchmark JSON"
+            return 1
+          fi
+          return $status
+        }
+
+        failed_legs=()
+        while IFS='|' read -r leg task num_envs bench_timeout_s args; do
+          echo "::group::performance-smoke: ${leg}"
+          install -d -m 0777 "benchmark-output/${leg}"
+          leg_ok=true
+          # ASV needs repeated independent runs on both sides for significance tests.
+          # Per-frame samples within one simulation are not independent CI runs.
+          for sample in 1 2 3; do
+            mkdir -p "benchmark-output/${leg}/sample-${sample}"
+            if ! run_attempt 1; then
+              echo "::warning::${leg} sample ${sample} failed; retrying once"
+              rm -f "benchmark-output/${leg}/sample-${sample}/"benchmark_runtime_*.json
+              if ! run_attempt 2; then
+                echo "::error::${leg} sample ${sample} failed on both attempts"
+                leg_ok=false
+                break
+              fi
+            fi
+          done
+          if [ "$leg_ok" = true ]; then
+            echo ok > "benchmark-output/${leg}/status"
+          else
+            echo failed > "benchmark-output/${leg}/status"
+            failed_legs+=("$leg")
+          fi
+          echo "::endgroup::"
+        done < benchmark-legs.tsv
+
+        if [ "${#failed_legs[@]}" -gt 0 ]; then
+          echo "::error::performance-smoke: failed combination(s): ${failed_legs[*]}"
+          exit 1
+        fi
+
+    - name: Save warm JIT cache
+      if: always() && github.event_name == 'push' && github.ref == 'refs/heads/develop'
+      uses: actions/cache/save@v4
+      with:
+        path: ${{ github.workspace }}/jit-cache
+        key: perf-jit-warp${{ steps.warp_version.outputs.value }}-${{ github.run_id }}
+
+    - name: Set up uv for performance comparisons
+      if: always()
+      uses: astral-sh/setup-uv@v6
+      with:
+        enable-cache: false
+
+    # The gate runs on the runner host, not inside the Isaac Sim container, so
+    # ASV and the baseline store's SDK go in a throwaway uv environment.
+    - name: Set up ASV and the baseline store client
+      if: always()
+      # Job status answers "did the benchmarks run", the check answers "did they regress".
+      # A transient PyPI failure means the gate could not run, degrading to ERROR instead of a failure.
+      continue-on-error: true
+      id: store_venv
+      run: |
+        set -euo pipefail
+        venv="${RUNNER_TEMP}/perf-smoke-venv"
+        uv venv --python 3.12 "$venv"
+        uv pip install --python "$venv/bin/python" \
+          -r tools/perf_smoke/requirements.txt
+        echo "python=$venv/bin/python" >> "$GITHUB_OUTPUT"
+
+    # Read-only. Runs PR-checkout code (tools.perf_smoke), so it must use a separate
+    # list/read-only SAS, never the write-capable credential below
+    - name: Compare against baseline history
+      # The exit code carries the verdict to the summary job through the uploaded
+      # artifact, so it must not also redden this job: job status answers "did the
+      # benchmarks run", the check answers "did performance regress". Each leg is
+      # compared independently, so one leg's fault does not skip the rest.
+      continue-on-error: true
+      if: always()
+      timeout-minutes: 30
+      env:
+        # The SAS URL is strictly only read from the environment for security.
+        ISAACLAB_BLOB_URL: ${{ secrets.ISAACLAB_BLOB_READ_URL }}
+        PERF_PYTHON: ${{ steps.store_venv.outputs.python }}
+      run: |
+        set -uo pipefail
+        while IFS='|' read -r leg task num_envs bench_timeout_s args; do
+          mapfile -t results < <(find "benchmark-output/${leg}" -type f -name 'benchmark_runtime_*.json' | sort)
+          if [ "$(cat "benchmark-output/${leg}/status" 2>/dev/null)" != "ok" ] || [ "${#results[@]}" -ne 3 ]; then
+            echo "::warning::${leg}: expected three runtime benchmark JSONs, found ${#results[@]}"
+            results=("benchmark-output/${leg}/benchmark_runtime_MISSING.json")
+          fi
+          # A missing credential yields SKIP, a gate fault yields ERROR; neither fails.
+          uv run --no-project --python "${PERF_PYTHON:-python3}" python -m tools.perf_smoke.cli compare \
+            --benchmark_result "${results[@]}" \
+            --label "$leg" \
+            --output_json "benchmark-output/${leg}/comparison.json" \
+            | tee -a "$GITHUB_STEP_SUMMARY"
+        done < benchmark-legs.tsv
+
+    # Only develop records baselines, so the gate always compares a pull request
+    # against the branch it will merge into rather than against a stale snapshot.
+    # Writes are create-only under a name derived from the commit and run id. Each
+    # leg is gated on its own status, so one leg's fault does not skip the rest.
+    - name: Record baseline
+      if: ${{ always() && github.event_name == 'push' && github.ref == 'refs/heads/develop' }}
+      timeout-minutes: 30
+      env:
+        ISAACLAB_BLOB_URL: ${{ secrets.ISAACLAB_BLOB_URL }}
+        PERF_PYTHON: ${{ steps.store_venv.outputs.python }}
+      run: |
+        set -uo pipefail
+        if [ -z "${ISAACLAB_BLOB_URL:-}" ]; then
+          echo "::warning::ISAACLAB_BLOB_URL is not set; no baselines recorded"
+          exit 0
+        fi
+        while IFS='|' read -r leg task num_envs bench_timeout_s args; do
+          if [ "$(cat "benchmark-output/${leg}/status" 2>/dev/null)" != "ok" ]; then
+            echo "::warning::${leg}: benchmark did not succeed; no baseline recorded"
+            continue
+          fi
+          mapfile -t results < <(find "benchmark-output/${leg}" -type f -name 'benchmark_runtime_*.json' | sort)
+          if [ "${#results[@]}" -ne 3 ]; then
+            echo "::error::${leg}: expected three runtime benchmark JSONs, found ${#results[@]}; no baseline recorded"
+            continue
+          fi
+          for index in "${!results[@]}"; do
+            uv run --no-project --python "${PERF_PYTHON:-python3}" python -m tools.perf_smoke.cli write \
+              --benchmark_result "${results[$index]}" \
+              --commit "$GITHUB_SHA" \
+              --timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+              --run_id "${GITHUB_RUN_ID}-${leg}-sample-${index}"
+          done
+        done < benchmark-legs.tsv
+    - name: Upload performance results
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: performance-smoke-${{ github.run_id }}-${{ github.run_attempt }}
+        path: benchmark-output/
+        if-no-files-found: warn
+        retention-days: 7
+
+  # Centralized summary; the performance-smoke job itself already fails on any
+  # leg whose benchmark could not be run at all.
+  performance-smoke-summary:
+    name: performance-smoke
+    runs-on: ubuntu-latest
+    needs: [performance-smoke]
+    if: always() && needs.performance-smoke.result != 'skipped'
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+    - uses: astral-sh/setup-uv@v6
+      with:
+        enable-cache: false
+    - uses: actions/download-artifact@v7
+      with:
+        name: performance-smoke-${{ github.run_id }}-${{ github.run_attempt }}
+        path: comparisons
+      continue-on-error: true
+    - name: Summarise performance comparisons
+      run: |
+        set -euo pipefail
+        uv run --no-project python -m tools.perf_smoke.cli aggregate \
+          --comparison_dir comparisons \
+          | tee -a "$GITHUB_STEP_SUMMARY"
 
   # Publishes the shared Warp kernel cache the test jobs restore. Needed as its
   # own job because a cache written from a PR is readable only by that PR, and
@@ -974,8 +1284,7 @@ jobs:
         include-files: >-
           test_environments_newton.py,
           test_multi_agent_environments.py
-        # Deformable tasks need optional dependencies that are not installed in
-        # this image.
+        # Keep this warmer focused on rigid environments.
         test-k-expr: "test_environments and not (Soft or Cloth or Cable)"
         warp-cache: ${{ env.PUBLISHES_WARP_CACHE == 'true' && 'save' || 'restore' }}
         container-name: isaac-lab-warp-cache-warm

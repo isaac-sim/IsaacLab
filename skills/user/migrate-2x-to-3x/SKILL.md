@@ -29,7 +29,7 @@ Do not copy migration tables into answers from memory. Read the official migrati
    - For custom `.kit` files, either list every direct Isaac Sim extension dependency explicitly or enable each extension before importing its Python module.
    - Do not add extension enables to plain Python modules that can be imported before Kit starts unless the code is guarded so it runs only inside a launched Kit app.
 5. Apply the smallest focused migration change.
-6. Run a targeted smoke test or import test. For direct Isaac Sim imports, ensure the test or script starts `AppLauncher` before enabling extensions. For example, run an app-launching test with `uv run --extra isaacsim --with pytest python -m pytest PATH_TO_TEST`.
+6. Run a targeted smoke test or import test. For direct Isaac Sim imports, ensure the script enters `isaaclab.app.launch_simulation` (tests: `isaaclab.test.utils.launch_test_simulation`) before enabling extensions. For example, run an app-launching test with `uv run --extra isaacsim --with pytest python -m pytest PATH_TO_TEST`.
 7. If the official docs are missing a recurring migration issue, update `docs/source/migration/migrating_to_isaaclab_3-0.rst` instead of expanding this skill with standalone documentation.
 
 ## Validation
@@ -50,7 +50,7 @@ uv run --no-project python tools/skills/cli.py check
 
 ## Maintenance
 
-Keep this skill synchronized with `docs/source/migration/migrating_to_isaaclab_3-0.rst`, `docs/source/setup/installation/index.rst`, `source/isaaclab_rl/isaaclab_rl/rsl_rl/utils.py`, and the uv-based `train` and `play` entry points. If code changes invalidate migration guidance, update the official migration document first and keep this skill as a router plus checklist.
+Keep this skill synchronized with `docs/source/migration/migrating_to_isaaclab_3-0.rst`, `docs/source/setup/installation/index.rst`, `source/isaaclab_rl/isaaclab_rl/rsl_rl/rl_cfg.py`, and the uv-based `train` and `play` entry points. If code changes invalidate migration guidance, update the official migration document first and keep this skill as a router plus checklist.
 
 ## References
 
@@ -59,4 +59,5 @@ Keep this skill synchronized with `docs/source/migration/migrating_to_isaaclab_3
 - [Examples](examples.md)
 - [Evaluations](evaluations.md)
 - [Official migration guide](../../../docs/source/migration/migrating_to_isaaclab_3-0.rst)
-- [RSL-RL compatibility helper](../../../source/isaaclab_rl/isaaclab_rl/rsl_rl/utils.py)
+- [RSL-RL configuration](../../../source/isaaclab_rl/isaaclab_rl/rsl_rl/rl_cfg.py)
+- [RSL-RL training entry point](../../../source/isaaclab_rl/isaaclab_rl/entrypoints/backends/train_rsl_rl.py)

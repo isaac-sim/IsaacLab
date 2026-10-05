@@ -52,11 +52,20 @@ Run the file through the Isaac Lab Python wrapper:
 
 .. code-block:: bash
 
-   ./isaaclab.sh -p runtime_benchmark.py
+   uv run python runtime_benchmark.py
 
 The command prints the summary report. The paths in ``result.output_paths``
 identify the schema and summary JSON files that were written. Use these paths in
 automation instead of reconstructing the timestamped names.
+
+With a non-``None`` task ``benchmark_mode`` and ``ISAACLAB_RENDER_PROFILE=1`` or
+``ISAACLAB_PHYSICS_PROFILE=1``, the runtime workflow also includes scalar profiling
+summaries in ``result.bundle.extra``: ``physics_mean_ms``, ``physics_std_ms``,
+``physics_max_ms``, ``physics_calls``, and the corresponding ``render_*`` keys.
+These report mean, standard deviation, maximum time per call [ms], and call count
+over the captured samples. Disabled scopes contribute no keys. The summaries are
+included in schema and OmniPerf output in addition to the solver metadata in schema version 1.5.
+Raw ordered samples remain in ``<output_path>/profile_timings.json`` for local analysis.
 
 Choose a request
 ----------------
@@ -459,7 +468,7 @@ training throughput. The command matrices and extension protocol are in
 Troubleshooting
 ---------------
 
-Run scripts through ``./isaaclab.sh -p`` so the Isaac Lab and simulator Python
+Run scripts through ``uv run python`` so the Isaac Lab and simulator Python
 environment is active. If output is missing, inspect returned ``output_paths``
 and make sure custom producers call ``finalize()``. Formatter names are lowercase
 and case-sensitive. Valid names are ``schema``, ``summary``, ``json``, ``osmo``,
@@ -473,3 +482,22 @@ For a new supported end-to-end workflow, keep typed request construction,
 dispatch, schema output, summary output, and CLI behavior aligned. For an
 isolated operation, follow :ref:`developer_tools_benchmarking_micro` before
 adding a new runner or timing convention.
+
+Physics identity
+----------------
+
+Benchmark capture uses a local lookup of concrete configuration types to identify
+active solvers and their coupling method. It follows only the selected Newton
+solver and coupler entries, so incidental or inactive configurations do not affect
+the recorded identity. Runtime implementation classes are not imported. When
+simulation physics is unspecified, capture records the existing PhysX default.
+
+Schema 1.5 stores both fields in ``run.config``. For example, a proxy-coupled
+MJWarp/VBD configuration records ``["newton_mjwarp", "newton_vbd"]`` and
+``"proxy"``. ``physics_backend`` retains the existing Kamino-before-MJWarp
+precedence for mixed configurations.
+
+The performance smoke gate includes solver and coupling identity in composite
+workload contracts. Single-solver contracts retain their existing shape, so
+older single-solver baselines remain comparable. Older composite bundles lack
+the additional identity and cannot be pooled with the new composite contracts.

@@ -12,10 +12,13 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from isaaclab.benchmark import BenchmarkResult
 
+import logging
 import sys
 import time
 
-from isaaclab_rl.entrypoints import common as _common
+from isaaclab_rl.entrypoints import common
+
+logger = logging.getLogger(__name__)
 
 
 def _build_benchmark_callback_class():
@@ -98,12 +101,12 @@ def _parse_args(argv: list[str]):
     import argparse
 
     from isaaclab.app import add_launcher_args
-    from isaaclab.benchmark._cli import parse_non_negative_int, parse_positive_int
+    from isaaclab.benchmark.cli import parse_non_negative_int, parse_positive_int
 
     from isaaclab_tasks.utils import setup_preset_cli
 
-    add_common_train_args = _common.add_common_train_args
-    enable_cameras_for_video = _common.enable_cameras_for_video
+    add_common_train_args = common.add_common_train_args
+    enable_cameras_for_video = common.enable_cameras_for_video
 
     parser = argparse.ArgumentParser(description="Benchmark RL training with Stable-Baselines3.")
     add_common_train_args(
@@ -210,7 +213,7 @@ def run(argv: list[str]) -> BenchmarkResult:
 
     from isaaclab_tasks.utils import resolve_task_config
 
-    apply_env_overrides = _common.apply_env_overrides
+    apply_env_overrides = common.apply_env_overrides
 
     from isaaclab.benchmark.entrypoints.early_stop import (
         SuccessRateTrackerWrapper,
@@ -226,6 +229,7 @@ def run(argv: list[str]) -> BenchmarkResult:
     config_t0 = time.perf_counter_ns()
     env_cfg, agent_cfg = resolve_task_config(args_cli.task, args_cli.agent)
     config_t1 = time.perf_counter_ns()
+    common.pre_launch_video_config(env_cfg, args_cli)
 
     start_utc = capture.now_utc_iso()
     app_t0 = time.perf_counter_ns()
@@ -275,16 +279,16 @@ def run(argv: list[str]) -> BenchmarkResult:
             run_info = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
             log_root_path = os.path.abspath(os.path.join("logs", "sb3", args_cli.task))
             log_dir = os.path.join(log_root_path, run_info)
-            _common.write_run_manifest(log_dir, library="sb3", task=args_cli.task, metadata={"agent": args_cli.agent})
+            common.write_run_manifest(log_dir, library="sb3", task=args_cli.task, metadata={"agent": args_cli.agent})
             env_cfg.log_dir = log_dir
-            _common.apply_video_recording(env_cfg, log_dir, args_cli, subdir="benchmark")
+            common.apply_video_recording(env_cfg, log_dir, args_cli, subdir="benchmark")
 
             agent_cfg = process_sb3_cfg(agent_cfg, env_cfg.scene.num_envs)
             policy_arch = agent_cfg.pop("policy")
             n_timesteps = agent_cfg.pop("n_timesteps")
 
             env_t0 = time.perf_counter_ns()
-            env = _common.create_isaaclab_env(args_cli.task, env_cfg, args_cli, convert_marl_to_single_agent=True)
+            env = common.create_isaaclab_env(args_cli.task, env_cfg, args_cli, convert_marl_to_single_agent=True)
             cleanup.callback(lambda: env.close())
             env_t1 = time.perf_counter_ns()
             success_kwargs = build_success_kwargs(args_cli)
@@ -353,10 +357,9 @@ def run(argv: list[str]) -> BenchmarkResult:
             reward_series = [v for v in cb.ep_rew_mean if v == v]  # NaN != NaN
             ep_len_series = [v for v in cb.ep_len_mean if v == v]
             if not reward_series and iteration_times_s:
-                print(
-                    "[WARNING] sb3: no episodes completed during the benchmarked rollouts;"
-                    " reward/episode-length curves are empty.",
-                    file=sys.stderr,
+                logger.warning(
+                    "sb3: no episodes completed during the benchmarked rollouts;"
+                    " reward/episode-length curves are empty."
                 )
 
             startup = StartupTime(

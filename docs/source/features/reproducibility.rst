@@ -23,8 +23,8 @@ depending on the manager-based or direct environment implementation respectively
 The ``--deterministic`` flag
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The ``--deterministic`` flag is provided by :meth:`isaaclab.app.AppLauncher.add_app_launcher_args`.
-:class:`~isaaclab.app.app_launcher.AppLauncher` publishes ``/isaaclab/render/deterministic``.
+The ``--deterministic`` flag is provided by :func:`isaaclab.app.add_launcher_args`.
+:class:`~isaaclab_physx.app.KitLauncher` publishes ``/isaaclab/render/deterministic``.
 The Isaac RTX backend reads it on init and applies
 :func:`isaaclab_physx.renderers.isaac_rtx_renderer_utils.apply_isaac_rtx_determinism_settings`.
 
@@ -73,13 +73,6 @@ only.
       .. code-block:: bash
 
         uv run --extra rl-games isaaclab train --rl_library rl_games \
-          --task Isaac-Cartpole-Camera --deterministic
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-        ./isaaclab.sh train --rl_library rl_games \
           --task Isaac-Cartpole-Camera --deterministic
 
 Newton physics determinism

@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 import torch
 
 from isaaclab.managers import ManagerTermBase, RewardTermCfg, SceneEntityCfg
+from isaaclab.utils import index_fill_
 from isaaclab.utils.math import combine_frame_transforms
 
 if TYPE_CHECKING:
@@ -59,7 +60,7 @@ class object_goal_distance(ManagerTermBase):
 
     def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
         super().__init__(cfg, env)
-        self._track_success = cfg.params.get("success_threshold") is not None
+        self._track_success = cfg.params["success_threshold"] is not None
         if self._track_success:
             self._succeeded = torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)
 
@@ -68,7 +69,7 @@ class object_goal_distance(ManagerTermBase):
             self._env.extras.setdefault("log", {})["Metrics/success_rate"] = (
                 self._succeeded[env_ids].float().mean().item()
             )
-            self._succeeded[env_ids] = False
+            index_fill_(self._succeeded, env_ids, False)
 
     def __call__(
         self,

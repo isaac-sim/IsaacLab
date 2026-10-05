@@ -3,13 +3,16 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Franka Reach environment configuration."""
+"""Configuration for the Franka reach environment."""
 
 import math
 
+from isaaclab_newton.controllers.ik.newton_ik_objectives_cfg import (
+    NewtonIKJointLimitObjectiveCfg,
+    NewtonIKPoseObjectiveCfg,
+)
+from isaaclab_newton.controllers.ik.newton_ik_solver_cfg import NewtonIKSolverCfg
 from isaaclab_newton.envs.mdp.actions.newton_ik_actions_cfg import NewtonInverseKinematicsActionCfg
-from isaaclab_newton.ik.newton_ik_objectives_cfg import NewtonIKJointLimitObjectiveCfg, NewtonIKPoseObjectiveCfg
-from isaaclab_newton.ik.newton_ik_solver_cfg import NewtonIKSolverCfg
 from isaaclab_newton.physics import NewtonCfg
 from isaaclab_newton.sim.schemas import MujocoRigidBodyCfg
 from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
@@ -21,17 +24,18 @@ from isaaclab.devices.gamepad import Se3GamepadCfg
 from isaaclab.devices.keyboard import Se3KeyboardCfg
 from isaaclab.devices.spacemouse import Se3SpaceMouseCfg
 from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
-from isaaclab.sim.schemas import UsdPhysicsCollisionCfg
-from isaaclab.utils import configclass
+from isaaclab.managers import RewardTermCfg as RewTerm
+from isaaclab.managers import SceneEntityCfg
+from isaaclab.utils import configclass, replace
 
-from isaaclab_tasks.core.reach.reach_env_cfg import ReachEnvCfg
 from isaaclab_tasks.utils import PresetCfg, preset
 
 ##
 # Pre-defined configs
 ##
-from isaaclab_assets import FRANKA_PANDA_MENAGERIE_CFG  # isort: skip
+from isaaclab_assets import FRANKA_MINIMAL_CFG, FRANKA_PANDA_CFG  # isort: skip
 
+from ...reach_env_cfg import ReachEnvCfg, RewardsCfg, TerminationsCfg
 
 ##
 # Environment configuration
@@ -58,13 +62,13 @@ class FrankaArmActionCfg(PresetCfg):
         scale=(0.05, 0.05, 0.05, 0.5, 0.5, 0.5),
         body_offset=DifferentialInverseKinematicsActionCfg.OffsetCfg(pos=[0.0, 0.0, 0.107]),
     )
-    diffik_abs: DifferentialInverseKinematicsActionCfg = diffik.replace(
-        controller=diffik.controller.replace(
-            use_relative_mode=False,
-            ik_params={"lambda_val": 0.45},
-        ),
+    diffik_abs: DifferentialInverseKinematicsActionCfg = replace(
+        diffik,
+        controller=replace(diffik.controller, use_relative_mode=False, ik_params={"lambda_val": 0.45}),
         body_offset=None,
-        scale=1.0,
+        # Normalize position actions around the center and half-spans of the commanded workspace.
+        scale=(0.15, 0.2, 0.175, 1.0, 1.0, 1.0, 1.0),
+        offset=(0.5, 0.0, 0.325, 0.0, 0.0, 0.0, 0.0),
     )
     newton_ik: NewtonInverseKinematicsActionCfg = NewtonInverseKinematicsActionCfg(
         asset_name="robot",
@@ -86,23 +90,43 @@ class FrankaArmActionCfg(PresetCfg):
 
 
 @configclass
+class FrankaReachRewardsCfg(RewardsCfg):
+    """Keep continuous pose-tracking rewards specific to Franka Reach."""
+
+    end_effector_position_tracking_fine_grained = RewTerm(
+        func=mdp.position_command_error_tanh,
+        weight=0.1,
+        params={"asset_cfg": SceneEntityCfg("robot", body_names="panda_hand"), "std": 0.1, "command_name": "ee_pose"},
+    )
+    success: RewTerm | None = None
+
+
+@configclass
 class FrankaReachEnvCfg(ReachEnvCfg):
     """Franka Reach configuration with selectable arm and physics presets."""
 
+    rewards: FrankaReachRewardsCfg = FrankaReachRewardsCfg()
+    # Report success while continuing to track poses until timeout.
+    terminations: TerminationsCfg = replace(TerminationsCfg(), success=None)
+
     def validate_config(self) -> None:
         """Validate the selected controller and physics backend."""
-
         if isinstance(self.actions.arm_action, NewtonInverseKinematicsActionCfg) and not isinstance(
             self.sim.physics, NewtonCfg
         ):
             raise ValueError("The 'newton_ik' action preset requires a Newton physics preset.")
 
-    def __post_init__(self) -> None:
-        # post init of parent
+    def __post_init__(self):
         super().__post_init__()
 
-        # switch robot to franka
-        self.scene.robot = FRANKA_PANDA_MENAGERIE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot = replace(FRANKA_PANDA_CFG, prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot.spawn.variants["Physics"] = preset(
+            default="mujoco", isaacsim_physx="physx", physx="physx", ovphysx="physx"
+        )
+        self.scene.robot.spawn.variants["Colliders"] = preset(
+            default=FRANKA_PANDA_CFG.spawn.variants["Colliders"],
+            minimal=FRANKA_MINIMAL_CFG.spawn.variants["Colliders"],
+        )
         # IK targets need backend-native gravity control to hold steady between commands.
         self.scene.robot.spawn.rigid_props = [
             PhysxRigidBodyCfg(
@@ -111,17 +135,6 @@ class FrankaReachEnvCfg(ReachEnvCfg):
             ),
             MujocoRigidBodyCfg(gravcomp=preset(default=None, diffik=1.0, diffik_abs=1.0, newton_ik=1.0)),
         ]
-        # The Menagerie asset ships its designated convex link-collision meshes disabled.
-        physx_collision_props = {"/Geometry/.*_c.*": [UsdPhysicsCollisionCfg(collision_enabled=True)]}
-        self.scene.robot.spawn.make_uninstanceable = preset(
-            default=False, isaacsim_physx=True, physx=True, ovphysx=True
-        )
-        self.scene.robot.spawn.collision_props = preset(
-            default=None,
-            isaacsim_physx=physx_collision_props,
-            physx=physx_collision_props,
-            ovphysx=physx_collision_props,
-        )
         # override rewards
         self.rewards.end_effector_position_tracking.params["asset_cfg"].body_names = ["panda_hand"]
         self.rewards.end_effector_orientation_tracking.params["asset_cfg"].body_names = ["panda_hand"]

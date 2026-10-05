@@ -99,11 +99,10 @@ def _get_input_value(shader: UsdShade.Shader, name: str) -> tuple[float, float, 
     inp = shader.GetInput(name)
     if inp is not None:
         attrs = UsdShade.Utils.GetValueProducingAttributes(inp)
-        if attrs and len(attrs) > 0:
+        if attrs:
             value = attrs[0].Get()
             if value is not None:
                 return _coerce_color(value)
-
     return None
 
 
@@ -251,7 +250,7 @@ def replace_newton_builder_shape_colors(builder: Any, stage: Usd.Stage) -> int:
             f"Mismatching length of shape_label and shape_color: {len(shape_labels)} != {len(shape_colors)}"
         )
 
-    from isaaclab.utils.timer import Timer
+    from ...utils.timer import Timer
 
     with Timer(
         f"[INFO]: Time taken for replace_newton_builder_shape_colors for {len(shape_labels)} shapes", enable=False

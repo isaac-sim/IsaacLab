@@ -17,8 +17,9 @@ from typing import Any, Literal
 
 from isaaclab_newton.assets import MPMObjectCfg
 from isaaclab_newton.physics import MJWarpSolverCfg, MPMSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg
-from isaaclab_newton.sim.schemas import MujocoJointCfg
+from isaaclab_newton.sim.schemas import MujocoJointCfg, NewtonArticulationCfg
 from isaaclab_newton.sim.spawners.mpm import MPMParticleMaterialCfg
+from isaaclab_physx.sim.schemas import PhysxArticulationCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
@@ -34,7 +35,7 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim.schemas import MassCfg, UsdPhysicsRigidBodyCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
 from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 
 from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
@@ -97,7 +98,7 @@ _TARGET_CUP_FRICTION = 0.8
 _MEDIA_FILL_LEVEL = 0.70
 _MEDIA_FILL_RESOLUTION = 0.005
 _MPM_VOXEL_SIZE = 0.015
-_MPM_PARTICLES_PER_CELL = 3.0
+_MPM_PARTICLES_PER_CELL = 2.5
 
 
 def _source_cup_asset_cfg() -> RigidObjectCfg:
@@ -182,7 +183,7 @@ def spawn_franka_with_arm_collisions(
     orientation: tuple[float, float, float, float] | None = None,
     **kwargs,
 ):
-    """Spawn the canonical Franka with the intended mimic and arm-collision schemas."""
+    """Spawn the canonical Franka with writable convex-hull arm colliders."""
     from pxr import Usd, UsdPhysics  # noqa: PLC0415
 
     robot_prim = sim_utils.spawn_from_usd(prim_path, cfg, translation, orientation, **kwargs)
@@ -190,29 +191,6 @@ def spawn_franka_with_arm_collisions(
         self_collision = root_prim.GetAttribute("newton:selfCollisionEnabled")
         if not self_collision or not self_collision.Set(True):
             raise RuntimeError(f"Franka asset at {root_prim.GetPath()} has no writable Newton self-collision flag.")
-
-        finger_joints = {
-            prim.GetName(): prim
-            for prim in Usd.PrimRange(root_prim, Usd.TraverseInstanceProxies())
-            if prim.GetName() in {"panda_finger_joint1", "panda_finger_joint2"}
-        }
-        if finger_joints.keys() != {"panda_finger_joint1", "panda_finger_joint2"}:
-            missing = sorted({"panda_finger_joint1", "panda_finger_joint2"}.difference(finger_joints))
-            raise RuntimeError(f"Franka asset at {root_prim.GetPath()} is missing finger joints: {missing}.")
-
-        leader_schemas = finger_joints["panda_finger_joint1"].GetMetadata("apiSchemas")
-        follower_schemas = finger_joints["panda_finger_joint2"].GetMetadata("apiSchemas")
-        leader_schema_names = [] if leader_schemas is None else list(leader_schemas.GetAppliedItems())
-        follower_schema_names = [] if follower_schemas is None else list(follower_schemas.GetAppliedItems())
-        if "NewtonMimicAPI" not in leader_schema_names or "PhysxMimicJointAPI:linear" not in follower_schema_names:
-            raise RuntimeError(
-                "The pinned Franka physics payload no longer has the expected duplicate finger-mimic schemas. "
-                "Update the asset hash and task-side override together."
-            )
-        if not finger_joints["panda_finger_joint1"].RemoveAppliedSchema("NewtonMimicAPI"):
-            raise RuntimeError("Failed to remove the redundant Franka Newton finger-mimic schema.")
-        if finger_joints["panda_finger_joint1"].HasAPI("NewtonMimicAPI"):
-            raise RuntimeError("The redundant Franka Newton finger-mimic schema is still composed after removal.")
 
         proxy_roots = {
             prim.GetName(): prim.GetParent().GetPath()
@@ -228,6 +206,24 @@ def spawn_franka_with_arm_collisions(
             collision_prim = root_prim.GetStage().GetPrimAtPath(proxy_root.AppendChild(proxy_root.name))
             UsdPhysics.CollisionAPI(collision_prim).GetCollisionEnabledAttr().Set(True)
     return robot_prim
+
+
+def spawn_static_table(
+    prim_path: str,
+    cfg: UsdFileCfg,
+    translation: tuple[float, float, float] | None = None,
+    orientation: tuple[float, float, float, float] | None = None,
+    **kwargs,
+):
+    """Keep the stationary table's colliders without a rigid-body simulation state."""
+    from pxr import Usd, UsdPhysics  # noqa: PLC0415
+
+    table_prim = sim_utils.spawn_from_usd(prim_path, cfg, translation, orientation, **kwargs)
+    for root_prim in sim_utils.find_matching_prims(prim_path, stage=table_prim.GetStage()):
+        for prim in Usd.PrimRange(root_prim):
+            if prim.HasAPI(UsdPhysics.RigidBodyAPI):
+                prim.RemoveAPI(UsdPhysics.RigidBodyAPI)
+    return table_prim
 
 
 @dataclass(frozen=True)
@@ -283,6 +279,7 @@ def _resolve_mpm_cell_cap(cfg: FrankaPourResetDatasetEnvCfg) -> int:
         if alignment <= 0:
             raise ValueError("mpm_cell_capacity_alignment must be positive.")
         particle_count = media_particle_count(cfg.scene.media)
+        # Newton activates at most one sparse voxel per particle; guard cells remain empty.
         per_world = ((particle_count + alignment - 1) // alignment) * alignment
         capacity = per_world * int(cfg.scene.num_envs)
     else:
@@ -292,7 +289,7 @@ def _resolve_mpm_cell_cap(cfg: FrankaPourResetDatasetEnvCfg) -> int:
     return capacity
 
 
-def _configure_mpm_capacities(cfg: FrankaPourResetDatasetEnvCfg) -> None:
+def configure_mpm_capacities(cfg: FrankaPourResetDatasetEnvCfg) -> None:
     """Resolve world-count-dependent MPM capacities after command-line overrides."""
     _configure_media_fill(cfg)
     solver_cfg = _mpm_solver_cfg(cfg)
@@ -325,7 +322,8 @@ class PourSceneCfg(InteractiveSceneCfg):
         init_state=AssetBaseCfg.InitialStateCfg(pos=[0.5, 0, 0], rot=[0, 0, 0.707, 0.707]),
         spawn=UsdFileCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd",
-            rigid_props=UsdPhysicsRigidBodyCfg(rigid_body_enabled=True, kinematic_enabled=True),
+            func=spawn_static_table,
+            make_uninstanceable=True,
         ),
     )
     plane = AssetBaseCfg(
@@ -337,31 +335,21 @@ class PourSceneCfg(InteractiveSceneCfg):
         prim_path="/World/light",
         spawn=sim_utils.DomeLightCfg(color=(0.75, 0.75, 0.75), intensity=3000.0),
     )
-    robot = FRANKA_PANDA_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    robot = replace(FRANKA_PANDA_CFG, prim_path="{ENV_REGEX_NS}/Robot")
     robot.spawn.usd_path = FRANKA_POUR_ROBOT_USD_PATH
+    robot.spawn.variants = {"Physics": "mujoco", "Colliders": "convex_hulls"}
     robot.spawn.func = spawn_franka_with_arm_collisions
-    robot.spawn.articulation_props.enabled_self_collisions = True
-    robot.actuators = {
-        name: actuator_cfg.replace(
-            effort_limit_sim=None,
-            velocity_limit_sim=None,
-            stiffness=None,
-            damping=None,
-            armature=None,
-        )
-        for name, actuator_cfg in robot.actuators.items()
-    }
-    robot.actuators["panda_shoulder"].stiffness = {
-        key: FRANKA_POUR_ARM_DRIVE_STIFFNESS[key] for key in ("panda_joint[1-2]", "panda_joint[3-4]")
-    }
-    robot.actuators["panda_shoulder"].damping = {
-        key: FRANKA_POUR_ARM_DRIVE_DAMPING[key] for key in ("panda_joint[1-2]", "panda_joint[3-4]")
-    }
-    robot.actuators["panda_forearm"].stiffness = {
-        "panda_joint[5-7]": FRANKA_POUR_ARM_DRIVE_STIFFNESS["panda_joint[5-7]"]
-    }
-    robot.actuators["panda_forearm"].damping = {"panda_joint[5-7]": FRANKA_POUR_ARM_DRIVE_DAMPING["panda_joint[5-7]"]}
-    robot.spawn.joint_drive_props = [MujocoJointCfg(actuatorgravcomp=True)]
+    # The pouring asset relies on arm self-collision; author it in both namespaces so whichever
+    # backend resolves the articulation sees the flag.
+    next(
+        frag for frag in robot.spawn.articulation_props if isinstance(frag, PhysxArticulationCfg)
+    ).enabled_self_collisions = True
+    next(
+        frag for frag in robot.spawn.articulation_props if isinstance(frag, NewtonArticulationCfg)
+    ).self_collision_enabled = True
+    robot.actuators["panda_arm"].stiffness = dict(FRANKA_POUR_ARM_DRIVE_STIFFNESS)
+    robot.actuators["panda_arm"].damping = dict(FRANKA_POUR_ARM_DRIVE_DAMPING)
+    robot.spawn.joint_drive_props = MujocoJointCfg(actuatorgravcomp=True)
     robot.init_state.joint_pos.update(dict(zip(_ARM_JOINT_NAMES, _ARM_HOME, strict=True)))
     robot.init_state.joint_pos["panda_finger_joint.*"] = _GRIPPER_OPEN_POSITION
 
@@ -537,6 +525,8 @@ class ResetDatasetCurriculumCfg:
 class FrankaPourResetDatasetEnvCfg(ManagerBasedRLEnvCfg):
     """Registered Franka Pour task using an externally generated reset dataset."""
 
+    class_type: type | str = "{DIR}.pour_env:FrankaPourEnv"
+
     scene: PourSceneCfg = PourSceneCfg(num_envs=2, env_spacing=2.5, replicate_physics=True)
     observations: ResetDatasetObservationsCfg = ResetDatasetObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
@@ -569,7 +559,7 @@ class FrankaPourResetDatasetEnvCfg(ManagerBasedRLEnvCfg):
     state_bound_max_joint_velocity: float = 20.0
     state_bound_max_cup_linear_velocity: float = 10.0
     state_bound_max_cup_angular_velocity: float = 50.0
-    particle_workspace_lower_bound: tuple[float, float, float] = (-1.0, -1.0, -0.5)
+    particle_workspace_lower_bound: tuple[float, float, float] = (-1.0, -1.0, -1.10)
     particle_workspace_upper_bound: tuple[float, float, float] = (1.5, 1.0, 1.5)
 
     particle_max_velocity: float = 10.0
@@ -621,7 +611,6 @@ class FrankaPourResetDatasetEnvCfg(ManagerBasedRLEnvCfg):
                         ),
                         bodies=[
                             r"/World/envs/env_.*/Robot",
-                            r"/World/envs/env_.*/Table",
                             r"/World/envs/env_.*/SourceCup",
                             r"/World/envs/env_.*/TargetCup",
                         ],
@@ -646,8 +635,8 @@ class FrankaPourResetDatasetEnvCfg(ManagerBasedRLEnvCfg):
                             solver="jacobi",
                             separate_worlds=True,
                         ),
-                        all_particles=True,
                         bodies=[SPILL_FLOOR_LABEL_PATTERN],
+                        all_particles=True,
                         include_static_shapes=False,
                         include_child_joints=False,
                         # The tall source payload needs a smaller MPM step than the coupled rigid solve.

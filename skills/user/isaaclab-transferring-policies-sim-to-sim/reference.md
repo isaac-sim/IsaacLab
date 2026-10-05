@@ -9,7 +9,7 @@
 - [Introducing domain randomization](#introducing-domain-randomization)
 - [Validate the full matrix](#validate-the-full-matrix)
 
-This reference follows the sections in the [sim-to-sim guide](../../../docs/source/concepts/transfer_policies_between_physx_and_newton.rst).
+This reference follows the sections in the [sim-to-sim guide](../../../docs/source/how-to/transfer_policies_between_physx_and_newton.rst).
 
 ## Task Readiness And Checkpoint Compatibility
 
