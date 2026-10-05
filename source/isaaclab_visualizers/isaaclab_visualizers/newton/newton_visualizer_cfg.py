@@ -120,8 +120,7 @@ class NewtonGLVisualizerCfg(NewtonVisualizerCfg):
     Selects Newton's OpenGL backend — fast local window with the full Isaac Lab
     feature set: scene-camera display, particle color override, and live scalar/array plots.
 
-    A scene-camera view replaces perspective rendering. With no explicit camera selection,
-    the viewer starts in perspective mode and the sidebar can switch to a scene camera.
+    Scene cameras are displayed in a floating streaming panel.
     """
 
     class_type: type[NewtonGLVisualizer] | str = "{DIR}.newton_visualizer:NewtonGLVisualizer"
@@ -131,10 +130,7 @@ class NewtonGLVisualizerCfg(NewtonVisualizerCfg):
     """Visualizer selector identifier. Do not change."""
 
     streaming_view: bool = True
-    """Make scene cameras available in the view selector.
-
-    A SceneCameraCfg selection enables this automatically. Otherwise the viewer starts in perspective.
-    """
+    """Enable the streaming camera panel by default."""
 
 
 @configclass
@@ -144,7 +140,8 @@ class NewtonRTXVisualizerCfg(NewtonVisualizerCfg):
     Selects Newton's OVRTX backend — photorealistic rendering using the same
     ``begin_frame / log_state / end_frame`` step interface as the GL backend.
 
-    Lighting comes from the scene's authored USD lights by default, including HDR dome textures.
+    .. note::
+        Lighting environment and denoiser settings use ``ViewerRTX`` defaults.
 
     ``render_rgb_array()`` captures the path-traced LDR framebuffer at
     :attr:`window_width` by :attr:`window_height`. The tiled camera panel remains
@@ -158,12 +155,8 @@ class NewtonRTXVisualizerCfg(NewtonVisualizerCfg):
     """Visualizer selector identifier. Do not change."""
 
     rtx_environment: str = "default"
-    """Lighting selection: ``"default"`` uses scene lights, ``"studio"`` uses Newton's three-point rig,
-    and ``"none"`` disables lighting. Without authored lights, ``"default"`` uses Newton's default rig.
-
-    Scene lights retain their authored initial transforms and visibility. Later source-USD edits
-    and body-attached light motion are not synchronized by the native RTX viewer.
-    """
+    """OVRTX lighting environment.  One of ``"default"`` (dome + distant light),
+    ``"studio"`` (three-point rig for cleaner highlights), or ``"none"``."""
 
     render_settings: dict[str, Any] = dict()
     """RTX attributes to author on the OVRTX render product, as ``{name: (usd_type_name, value)}``.

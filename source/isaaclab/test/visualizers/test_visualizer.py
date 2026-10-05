@@ -48,7 +48,7 @@ def test_visualizer_cfg_names_its_implementation(module_name, cfg_name, implemen
 def test_visualizer_cfg_camera_sources():
     cfg = VisualizerCfg()
     assert cfg.focal_length == 12.0
-    assert cfg.background_color is None
+    assert cfg.background_color == (0.30, 0.55, 0.82)
     assert cfg.streaming_view is False
     assert cfg.streaming_envs == 32
     assert cfg.streaming_sensor_prim_path is None

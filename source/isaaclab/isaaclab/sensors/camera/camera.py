@@ -492,26 +492,8 @@ class Camera(SensorBase):
         wp.copy(self._intrinsic_parameters, self._intrinsic_parameters_pending)
 
     """
-    Operations - Pose.
+    Operations - Set pose.
     """
-
-    def get_world_poses(
-        self, env_ids: Sequence[int] | None = None, convention: Literal["opengl", "ros", "world"] = "ros"
-    ) -> tuple[torch.Tensor, torch.Tensor]:
-        """Read current camera poses without capturing images or updating cached measurement poses.
-
-        Args:
-            env_ids: Sensor indices to query. None selects all sensors.
-            convention: Camera orientation convention, as in :meth:`set_world_poses`.
-
-        Returns:
-            World positions [m], shape [N, 3], and orientation quaternions (x, y, z, w), shape [N, 4].
-        """
-        positions, orientations = self._view.get_world_poses(self._resolve_env_ids_wp(env_ids))
-        orientations = convert_camera_frame_orientation_convention(
-            orientations.torch, origin="opengl", target=convention
-        )
-        return positions.torch, orientations
 
     def set_world_poses(
         self,
@@ -558,8 +540,6 @@ class Camera(SensorBase):
         # write through to the data buffers so explicitly set poses are never stale,
         # regardless of :attr:`CameraCfg.update_latest_camera_pose`
         self._update_poses(env_ids=idx_wp, frame_op=0)
-        wp.indexedarray(self._is_outdated, idx_wp).fill_(True)
-        self._data_dirty = True
 
     def set_world_poses_from_view(
         self, eyes: torch.Tensor, targets: torch.Tensor, env_ids: Sequence[int] | None = None
@@ -618,8 +598,6 @@ class Camera(SensorBase):
         # write through to the data buffers so explicitly set poses are never stale,
         # regardless of :attr:`CameraCfg.update_latest_camera_pose`
         self._update_poses(env_ids=idx_wp, frame_op=0)
-        wp.indexedarray(self._is_outdated, idx_wp).fill_(True)
-        self._data_dirty = True
 
     """
     Operations

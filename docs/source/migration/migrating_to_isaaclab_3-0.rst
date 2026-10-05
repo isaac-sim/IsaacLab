@@ -2589,7 +2589,7 @@ tracking is handled directly by :class:`~isaaclab_visualizers.kit.KitVisualizer`
 Custom visualizers now receive ``stage`` and ``clone_plan`` keyword arguments in ``initialize()``.
 Accept these arguments and forward them to ``super().initialize(scene_data_provider, stage=stage,
 clone_plan=clone_plan)``. Use the supplied scene dependencies instead of retrieving the simulation
-singleton to resolve camera sources or read authored scene lights.
+singleton to resolve camera sources.
 Call ``super().close()`` after releasing native viewer resources to drop borrowed scene references.
 
 

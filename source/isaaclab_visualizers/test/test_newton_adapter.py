@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -32,14 +31,9 @@ from isaaclab_visualizers.newton_adapter import (
     resolve_visible_env_indices,
 )
 
-from pxr import Gf, Sdf, Usd, UsdGeom, UsdLux
-
-from isaaclab.assets import AssetBaseCfg
-from isaaclab.cloner import ClonePlan, PrototypeWorldTopology, make_clone_plan
 from isaaclab.sim import SimulationContext
-from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils import instantiate
-from isaaclab.visualizers import PerspectiveCameraCfg, SceneCameraCfg
+from isaaclab.visualizers import SceneCameraCfg
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
 
@@ -788,146 +782,6 @@ def test_newton_gl_visualizer_logs_staged_mesh_while_paused(monkeypatch):
     assert viewer.logged_state is None
 
 
-def test_newton_scene_camera_replaces_perspective_rendering(monkeypatch):
-    """Image mode bypasses scene uploads, preserves pause, and can return to perspective."""
-    viewer = _Viewer()
-    cameras = [SceneCameraCfg(prim_path="/Camera"), PerspectiveCameraCfg()]
-    visualizer = _make_newton_visualizer(viewer, cfg=NewtonGLVisualizerCfg(cameras=cameras, enable_markers=False))
-    image = np.full((4, 6, 3), 127, dtype=np.uint8)
-    visualizer._camera_sensor = Mock()
-    visualizer._streaming_frame.data = image
-    visualizer.render_tiled_rgb_array = Mock(return_value=image)
-    provider = visualizer._scene_data_provider
-    provider.get_transforms = Mock(wraps=provider.get_transforms)
-    contacts, markers = Mock(return_value=None), Mock()
-    monkeypatch.setattr(newton_visualizer_module.NewtonManager, "get_contacts", contacts)
-    monkeypatch.setattr(newton_visualizer_module, "render_newton_visualization_markers", markers)
-
-    visualizer.step(0.1)
-    viewer.paused = True
-    visualizer.step(0.1)
-    assert viewer.events == ["begin_frame", "log_image", "end_frame"] * 2
-    name, displayed, fullscreen = viewer.logged_image
-    assert name == "Streaming View" and displayed is image and fullscreen
-    visualizer.render_tiled_rgb_array.assert_called_once()
-    provider.get_transforms.assert_not_called()
-    contacts.assert_not_called()
-    markers.assert_not_called()
-
-    viewer.paused = False
-    visualizer._camera_sensor = None
-    visualizer.step(0.1)
-    assert viewer.events[-3:] == ["begin_frame", "log_state", "end_frame"]
-    provider.get_transforms.assert_called_once()
-    contacts.assert_called_once()
-
-
-@pytest.mark.rendering
-@pytest.mark.kitless
-@pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
-def test_newton_scene_camera_controls_apply_uniformly_to_active_copies(monkeypatch, device):
-    """Only compatible cameras are offered; selection is lazy and navigation follows live parent poses."""
-    import gymnasium as gym
-    from isaaclab_newton.renderers import NewtonWarpRendererCfg
-
-    from isaaclab.app import launch_simulation
-    from isaaclab.sensors import CameraCfg
-    from isaaclab.sim import PinholeCameraCfg
-
-    import isaaclab_tasks  # noqa: F401
-    from isaaclab_tasks.utils import resolve_task_config
-
-    cfg, _ = resolve_task_config("Isaac-Cartpole", "", overrides=("physics=newton_mjwarp",))
-    cfg.scene.num_envs = 2
-    cfg.seed = 0
-    cfg.scene.depth_camera = CameraCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/cart/DepthCamera",
-        width=64,
-        height=48,
-        data_types=["depth"],
-        renderer_cfg=NewtonWarpRendererCfg(),
-        spawn=PinholeCameraCfg(focal_length=24.0),
-        offset=CameraCfg.OffsetCfg(pos=(-5.0, 0.0, 0.0), convention="world"),
-    )
-    cfg.scene.color_camera = cfg.scene.depth_camera.copy()
-    cfg.scene.color_camera.prim_path = "{ENV_REGEX_NS}/Robot/cart/ColorCamera"
-    cfg.scene.color_camera.data_types = ["rgba"]
-    cfg.scene.back_camera = cfg.scene.color_camera.copy()
-    cfg.scene.back_camera.prim_path = "{ENV_REGEX_NS}/Robot/cart/BackCamera"
-    cfg.sim.visualizer_cfgs = [
-        NewtonGLVisualizerCfg(headless=True, window_width=128, window_height=128, streaming_envs=[0])
-    ]
-    with launch_simulation(cfg, {"visualizer": ["newton_gl"], "device": device}):
-        env = gym.make("Isaac-Cartpole", cfg=cfg)
-        try:
-            env.reset()
-            depth, color = env.unwrapped.scene["depth_camera"], env.unwrapped.scene["color_camera"]
-            back = env.unwrapped.scene["back_camera"]
-            visualizer = env.unwrapped.sim.visualizers[0]
-            depth_frame = depth.frame.torch.clone()
-            color_frame = color.frame.torch.clone()
-            back_frame = back.frame.torch.clone()
-            assert visualizer._camera_sensor is None
-            assert isinstance(visualizer._camera_choices[0], PerspectiveCameraCfg)
-            assert [camera.cfg.prim_path for camera in visualizer._camera_choices[1:]] == [
-                color.cfg.prim_path,
-                back.cfg.prim_path,
-            ]
-
-            visualizer._select_camera(1)
-            torch.testing.assert_close(color.frame.torch, color_frame)
-            image = visualizer.render_tiled_rgb_array()
-            np.testing.assert_array_equal(image, color.data.output["rgb"].torch[0].cpu().numpy())
-            assert np.ptp(image) > 0
-            torch.testing.assert_close(depth.frame.torch, depth_frame)
-
-            # Give the copies different orientations, then move their parent without refreshing measurements.
-            orientations = torch.tensor([[0.0, 0.0, 0.0, 1.0], [0.0, 0.0, 2**-0.5, 2**-0.5]], device=device)
-            color.set_world_poses(orientations=orientations, convention="opengl")
-            cached = color.data.pos_w.torch.clone()
-            robot = env.unwrapped.scene["robot"]
-            joint_positions = robot.data.joint_pos.torch.clone()
-            joint_positions[:, robot.find_joints("slider_to_cart")[0]] += 1.0
-            robot.write_joint_state_to_sim_index(position=joint_positions, velocity=torch.zeros_like(joint_positions))
-            env.unwrapped.sim.forward()
-            env.unwrapped.sim.step(render=False)
-            live = color._view.get_world_poses()[0].torch.clone()
-            assert torch.all(torch.linalg.vector_norm(live - cached, dim=-1) > 0.5)
-            torch.testing.assert_close(color.data.pos_w.torch, cached)
-            inactive = back._view.get_world_poses()[0].torch.clone()
-
-            # Supply a known mouse/keyboard delta; sensors, body motion, and camera writes remain real.
-            viewer = _Viewer()
-            delta = np.asarray([[0, -1, 0, 0.25], [1, 0, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]], dtype=np.float32)
-            before, after = np.eye(4, dtype=np.float32).ravel(), np.linalg.inv(delta).T.ravel()
-            viewer.camera.get_view_matrix = Mock(side_effect=[before, after])
-            with monkeypatch.context() as controls:
-                controls.setattr(visualizer, "_viewer", viewer)
-                controls.setattr(visualizer, "_runtime_headless", False)
-                visualizer.step(0.0)
-                pos, quat = color._view.get_world_poses()
-                expected_delta = torch.tensor([[0.25, 0.0, 0.0], [0.0, 0.25, 0.0]], device=device)
-                expected_quat = torch.tensor([[0.0, 0.0, 2**-0.5, 2**-0.5], [0.0, 0.0, 1.0, 0.0]], device=device)
-                torch.testing.assert_close(pos.torch, live + expected_delta)
-                torch.testing.assert_close(quat.torch, expected_quat, atol=1e-6, rtol=1e-6)
-                torch.testing.assert_close(back._view.get_world_poses()[0].torch, inactive)
-                torch.testing.assert_close(back.frame.torch, back_frame)
-
-                # Switching only binds; the next display captures the newly selected sensor alone.
-                color_frame = color.frame.torch.clone()
-                back.update(cfg.sim.dt)
-                visualizer._select_camera(2)
-                torch.testing.assert_close(back.frame.torch, back_frame)
-                viewer.camera.get_view_matrix = Mock(side_effect=[before, before])
-                visualizer.step(0.0)
-                assert torch.all(back.frame.torch > back_frame)
-                torch.testing.assert_close(color.frame.torch, color_frame)
-                torch.testing.assert_close(back._view.get_world_poses()[0].torch, inactive)
-                torch.testing.assert_close(depth.frame.torch, depth_frame)
-        finally:
-            env.close()
-
-
 @pytest.mark.parametrize("cfg_type", [NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg])
 def test_newton_visualizer_headless_renders_frame_on_demand(monkeypatch, cfg_type):
     """Headless viewers share on-demand binding, preserve pause, and close frames even on errors."""
@@ -1119,103 +973,20 @@ def test_newton_gl_background_color(color: tuple[float, float, float] | None) ->
     assert visualizer._viewer.renderer.sky_lower == expected_lower
 
 
-def test_newton_rtx_uses_authored_lighting(tmp_path: Path) -> None:
-    """Shared HDR and prototype lights retain authored values, placement, and world selection."""
-    (tmp_path / "sky.hdr").write_bytes(b"")
-    stage = Usd.Stage.CreateNew(str(tmp_path / "scene.usda"))
-    UsdGeom.Xform.Define(stage, "/Lighting").AddRotateZOp().Set(35.0)
-    dome = UsdLux.DomeLight.Define(stage, "/Lighting/Sky")
-    dome.GetTextureFileAttr().Set(Sdf.AssetPath("./sky.hdr"))
-    dome.GetIntensityAttr().Set(750.0)
-    dome.GetExposureAttr().Set(1.5)
-    UsdGeom.Xform.Define(stage, "/Scenes/world_0").AddTranslateOp().Set((10.0, 0.0, 0.0))
-    key = UsdLux.SphereLight.Define(stage, "/Scenes/world_0/Rig/Key")
-    UsdGeom.Xformable(key).AddTranslateOp().Set((1.0, 2.0, 3.0))
-    key.GetIntensityAttr().Set(125.0)
-    UsdLux.DistantLight.Define(stage, "/Unused/Light")
-    cfgs = tuple(AssetBaseCfg(prim_path=path) for path in ("/Lighting", "/Scenes/world_[^/]+/Rig", "/Unused"))
-    topology = PrototypeWorldTopology(
-        3, np.array([0, 1, 1, 2], dtype=np.int32), np.array([0, 1, 3, 4]), np.array([0, 0, 0], dtype=np.int32)
+@pytest.mark.parametrize("color", [(0.1, 0.2, 0.3), None])
+def test_newton_rtx_receives_background_color(
+    monkeypatch: pytest.MonkeyPatch, color: tuple[float, float, float] | None
+) -> None:
+    kwargs = {}
+    monkeypatch.setattr(
+        newton_visualizer_module,
+        "NewtonViewerRTX",
+        lambda **viewer_kwargs: kwargs.update(viewer_kwargs) or object(),
     )
-    plan = ClonePlan(topology, cfgs, "/Scenes/world_{}", positions=np.array([(10.0, 0, 0), (20.0, 0, 0), (30.0, 0, 0)]))
-    viewer = object.__new__(NewtonViewerRTX)
-    viewer.stage = Usd.Stage.CreateInMemory()
-    viewer._visible_worlds = {0, 2}
-    viewer.world_offsets = wp.array([(0.0, 0, 0), (0.0, 0, 0), (0.0, 5.0, 0)], dtype=wp.vec3, device="cpu")
 
-    visualizer = NewtonRTXVisualizer(NewtonRTXVisualizerCfg())
-    visualizer._scene_stage, visualizer._clone_plan = stage, plan
-    visualizer._viewer = viewer
-    visualizer._apply_viewer_post_init()
-    assert viewer._environment == "none"
+    NewtonRTXVisualizer(NewtonRTXVisualizerCfg(background_color=color))._create_viewer(False, {})
 
-    lights = [prim for prim in viewer.stage.Traverse() if prim.HasAPI(UsdLux.LightAPI)]
-    assert len(lights) == 5  # One shared dome; two repeated asset instances in each visible world.
-    imported = UsdLux.DomeLight(viewer.stage.GetPrimAtPath("/root/scene_lights/Lighting/Sky"))
-    assert imported.GetTextureFileAttr().Get().path == str(tmp_path / "sky.hdr")
-    assert imported.GetIntensityAttr().Get() == 750.0
-    assert imported.GetExposureAttr().Get() == 1.5
-    np.testing.assert_allclose(
-        UsdGeom.XformCache().GetLocalToWorldTransform(imported.GetPrim()),
-        Gf.Matrix4d().SetRotate(Gf.Rotation((0, 0, 1), 35)),
-    )
-    for world, position in ((0, (11.0, 2.0, 3.0)), (2, (31.0, 7.0, 3.0))):
-        for name in ("Rig", "Rig_1"):
-            light = viewer.stage.GetPrimAtPath(f"/root/scene_lights/Scenes/world_{world}/{name}/Key")
-            assert light.GetAttribute("inputs:intensity").Get() == 125.0
-            assert UsdGeom.XformCache().GetLocalToWorldTransform(light).ExtractTranslation() == Gf.Vec3d(*position)
-
-
-@pytest.mark.rendering
-@pytest.mark.kitless
-def test_newton_rtx_scene_sky_and_background_override(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Scene-only HDR lights the cube; a solid override changes the background, not illumination."""
-    import newton
-    from pyglet.math import Vec3
-
-    import isaaclab.sim as sim_utils
-
-    texture = tmp_path / "red.hdr"
-    # A 4x2 Radiance image uses raw RGBE pixels; (128, 0, 0, 129) encodes linear RGB (1, 0, 0).
-    texture.write_bytes(b"#?RADIANCE\nFORMAT=32-bit_rle_rgbe\n\n-Y 2 +X 4\n" + bytes((128, 0, 0, 129)) * 8)
-    stage = Usd.Stage.CreateInMemory()
-    UsdGeom.SetStageUpAxis(stage, "Z")
-    UsdGeom.SetStageMetersPerUnit(stage, 1.0)
-    with sim_utils.use_stage(stage):
-        sim_utils.spawn_light("/World/Sky", sim_utils.DomeLightCfg(texture_file=str(texture), intensity=750.0))
-    UsdGeom.Cube.Define(stage, "/World/Cube").GetSizeAttr().Set(1.0)
-    plan = make_clone_plan((AssetBaseCfg(prim_path="/World"),), ((),), 0, shared_assets=(0,))
-    sim = SimpleNamespace(
-        stage=stage, get_clone_plan=lambda: plan, physics_manager=newton_visualizer_module.NewtonManager
-    )
-    monkeypatch.setattr(SimulationContext, "instance", lambda: sim)
-    builder = newton.ModelBuilder()
-    builder.add_usd(stage)
-    model = builder.finalize("cuda:0")
-    state = model.state()
-    object_colors = []
-    for override, channel in ((None, 0), ((0.0, 0.0, 1.0), 2)):
-        cfg = NewtonRTXVisualizerCfg(background_color=override, window_width=128, window_height=128)
-        visualizer = NewtonRTXVisualizer(cfg)
-        BaseVisualizer.initialize(visualizer, Mock(), stage=stage, clone_plan=sim.get_clone_plan())
-        viewer = visualizer._viewer = visualizer._create_viewer(True, {})
-        try:
-            viewer.set_model(model)
-            visualizer._apply_viewer_post_init()
-            viewer.set_camera(Vec3(0.0, -4.0, 0.0), 0.0, 90.0)
-            for frame in range(8):
-                viewer.begin_frame(frame / 60)
-                viewer.log_state(state)
-                viewer.end_frame()
-            pixels = viewer.get_frame()
-            background = pixels[8:24, 8:24].mean(axis=(0, 1))
-            color = pixels[56:72, 56:72].mean(axis=(0, 1))
-            assert background[channel] > 180 and np.delete(background, channel).max() < 10, background
-            assert color[0] > 80 and color[1:].max() < 10, color
-            object_colors.append(color)
-        finally:
-            viewer.close()
-    np.testing.assert_allclose(*object_colors, atol=12, rtol=0)
+    assert kwargs["background_color"] == color
 
 
 def test_eye_lookat_to_pitch_yaw_looking_up():

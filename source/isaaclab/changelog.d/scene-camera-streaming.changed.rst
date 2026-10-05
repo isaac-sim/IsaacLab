@@ -6,9 +6,6 @@
   ``isaaclab.envs.utils.camera_view``. Declared streaming channels must exist on the selected camera.
 * Shared streaming-image composition across visualizers and batched selected camera tiles before
   transferring each channel to the host.
-* Changed ``VisualizerCfg.background_color`` to default to ``None``, preserving the scene HDR in
-  Kit and Newton RTX or the procedural sky in Newton GL. Set ``background_color=(0.3, 0.55, 0.82)``
-  to retain the previous solid sky-blue background.
 * Added ``PerspectiveCameraCfg`` and ``SceneCameraCfg`` for selecting visualizer display sources.
 * **Breaking:** Shared ``VisualizerCfg.cameras`` across visualizers, retaining ``SceneCameraCfg`` as a reference
   to an existing sensor. Passed the source USD stage and clone plan into visualizer initialization;

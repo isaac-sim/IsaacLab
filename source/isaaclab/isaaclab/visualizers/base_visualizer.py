@@ -113,9 +113,8 @@ class BaseVisualizer(ABC):
         *,
         visible_env_ids: list[int] | None = None,
         target_aspect: float = 1.0,
-        select_camera: bool = True,
     ) -> None:
-        """Configure tiles and optionally select a camera; interactive selectors can defer binding."""
+        """Resolve camera sources and displayed environment tiles once at initialization."""
         self._camera_choices = list(
             self.cfg.cameras
             or [PerspectiveCameraCfg(eye=self.cfg.eye, lookat=self.cfg.lookat, focal_length=self.cfg.focal_length)]
@@ -152,10 +151,9 @@ class BaseVisualizer(ABC):
                 for gt_type in self.cfg.streaming_gt_types:
                     sensor_key_for_gt_type(gt_type, frozenset(camera.cfg.data_types))
                 self._camera_choices[index] = camera
-        if select_camera:
-            self._camera_sensor = next(
-                (camera for camera in self._camera_choices if not isinstance(camera, PerspectiveCameraCfg)), None
-            )
+        self._camera_sensor = next(
+            (camera for camera in self._camera_choices if not isinstance(camera, PerspectiveCameraCfg)), None
+        )
 
     def render_tiled_rgb_array(self) -> np.ndarray | None:
         """Read the scene camera and return its colorized, tiled display image.

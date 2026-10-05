@@ -141,7 +141,7 @@ class PerspectiveCameraCfg:
 
 @configclass
 class SceneCameraCfg:
-    """Select an existing scene camera's output as the visualizer's main view.
+    """Select an existing scene camera's output for display in the visualizer.
 
     This does not create a sensor. Declare its pose, optics, and renderer in the scene's CameraCfg.
     """
@@ -172,9 +172,8 @@ class VisualizerCfg:
     """Camera sources available to the visualizer.
 
     PerspectiveCameraCfg configures the interactive view; SceneCameraCfg refers to an existing scene
-    sensor. Newton GL displays the first source and offers a dropdown for switching sources. Kit,
-    Rerun, and Viser display the first scene source in their camera panel. Newton RTX supports only
-    perspective sources. None uses eye/lookat/focal_length and the streaming settings below.
+    sensor. Kit, Newton GL, Rerun, and Viser display the first scene source in their camera panel.
+    Newton RTX supports only perspective sources. None uses eye/lookat/focal_length and the streaming settings below.
     Every explicit scene source must provide all requested streaming_gt_types channels.
     """
 
@@ -187,11 +186,11 @@ class VisualizerCfg:
     focal_length: float = 12.0
     """Camera focal length in millimeters for visualizer camera views."""
 
-    background_color: tuple[float, float, float] | None = None
+    background_color: tuple[float, float, float] | None = (0.30, 0.55, 0.82)
     """Solid background color as normalized RGB values in ``[0, 1]``.
 
-    None preserves the scene HDR background in Kit and Newton RTX, or Newton GL's procedural sky.
-    An explicit color changes only the visible background, not scene lighting or reflections.
+    Kit, Newton GL, and Newton RTX honor this field. Set it to ``None`` to preserve the
+    backend's native background. Scene lighting remains independent of the visible background.
     """
 
     # ── Streaming view ────────────────────────────────────────────────────────

@@ -310,12 +310,10 @@ def _cartpole_integration_visualizer_camera_kwargs(
         return {
             "eye": _CARTPOLE_ALL_ENVS_VISUALIZER_EYE,
             "lookat": _CARTPOLE_ALL_ENVS_VISUALIZER_LOOKAT,
-            "background_color": (0.3, 0.55, 0.82),
         }
     return {
         "eye": _CARTPOLE_INTEGRATION_VISUALIZER_EYE,
         "lookat": _CARTPOLE_INTEGRATION_VISUALIZER_LOOKAT,
-        "background_color": (0.3, 0.55, 0.82),
     }
 
 
@@ -1434,7 +1432,6 @@ def _make_shadow_hand_env(
     env_cfg.viewer.lookat = _SHADOW_HAND_INTEGRATION_VISUALIZER_LOOKAT
     env_cfg.seed = None
     cam = {"eye": _SHADOW_HAND_INTEGRATION_VISUALIZER_EYE, "lookat": _SHADOW_HAND_INTEGRATION_VISUALIZER_LOOKAT}
-    cam["background_color"] = (0.3, 0.55, 0.82)  # Preserve the existing golden's explicit background.
     tiled_cam = (
         {
             "streaming_view": True,
@@ -1501,7 +1498,6 @@ def _make_anymal_d_env(visualizer_kind: str | tuple[str, ...], backend_kind: str
     env_cfg.viewer.lookat = _ANYMAL_D_INTEGRATION_VISUALIZER_LOOKAT
     env_cfg.seed = None
     cam = {"eye": _ANYMAL_D_INTEGRATION_VISUALIZER_EYE, "lookat": _ANYMAL_D_INTEGRATION_VISUALIZER_LOOKAT}
-    cam["background_color"] = (0.3, 0.55, 0.82)
     tiled_cam = (
         {
             "streaming_view": True,
