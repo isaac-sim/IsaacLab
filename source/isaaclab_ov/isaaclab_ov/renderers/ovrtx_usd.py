@@ -197,6 +197,11 @@ def build_render_product_as_string(
             f"bool omni:rtx:minimal:castShadows = {'true' if enable_shadows else 'false'}",
         ]
 
+    # RTX eco mode (on by default) pauses rendering after 500 frames without a detected scene change.
+    # OVRTX does not detect transform-only updates read from GPU (``read_gpu_transforms``), so camera
+    # outputs would silently freeze. A sensor renderer must render every requested frame.
+    render_mode_lines.append("bool omni:rtx:rt:ecoMode:enabled = false")
+
     render_mode_block = "\n        ".join(render_mode_lines)
     ordered_vars = ", ".join(f"<{path}>" for path, _, _ in render_var_configs)
     render_var_defs = "\n".join(
