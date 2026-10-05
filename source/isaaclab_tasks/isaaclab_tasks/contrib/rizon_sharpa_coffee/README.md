@@ -23,7 +23,8 @@ terminations, scene resets and coupled physics. `mdp.py` defines its manager
 terms; `dissolution.py` performs physical material conversion independently of
 rendering. A registered RSL-RL PPO configuration uses this same environment.
 
-`scripts/demos/rizon_sharpa_coffee.py` is the demonstration runner. It selects
+`examples/demos/rizon_sharpa_coffee.py` is the demonstration runner, launched with
+`uv run isaaclab demo rizon-sharpa-coffee`. It selects
 scripted IK or AVP input, configures optional presentation, follows the spoon
 with a camera and records video. Both controllers send actions through the same
 task interface. Grain rendering, colour transport and surface reconstruction
@@ -70,16 +71,19 @@ Scripted operation and PPO require only the robot USD bundle.
 
 ## Run and record
 
+List available demos with `uv run --no-sync isaaclab demo list`. The earlier
+`python scripts/demos/rizon_sharpa_coffee.py` invocation remains supported.
+
 Start the dry Newton GL preview with five visual grains per physical particle:
 
 ```bash
-uv run --no-sync python scripts/demos/rizon_sharpa_coffee.py --keep_open
+uv run --no-sync isaaclab demo rizon-sharpa-coffee --keep_open
 ```
 
 For the wet Kit demonstration and a video, use the following liquid pressure profile:
 
 ```bash
-uv run --no-sync python scripts/demos/rizon_sharpa_coffee.py \
+uv run --no-sync isaaclab demo rizon-sharpa-coffee \
     --mode scripted --water --visualizer kit --headless --video \
     --voxel_size 0.003 --physics_hz 400 --mpm_iterations 500 \
     --mpm_grid_capacity 49152 --grains_per_particle 5 \
@@ -91,7 +95,7 @@ For an experimental coarse Newton GL recording, keep the tool margin independent
 of the larger grid and use finer visual grains:
 
 ```bash
-uv run --no-sync python scripts/demos/rizon_sharpa_coffee.py \
+uv run --no-sync isaaclab demo rizon-sharpa-coffee \
     --water --visualizer newton_gl --headless --video \
     --voxel_size 0.010 --physics_hz 100 --rigid_hz 400 \
     --mpm_iterations 150 --mpm_grid_capacity 1536 --spoon_margin 0.0036 \
@@ -135,7 +139,7 @@ COFFEE_KIT_USD="$(uv run --no-sync python -c 'from pathlib import Path; from imp
 env OMNI_KIT_ACCEPT_EULA=YES \
     PYTHONPATH="$COFFEE_KIT_USD${PYTHONPATH:+:$PYTHONPATH}" \
     LD_LIBRARY_PATH="$COFFEE_KIT_USD/bin:$COFFEE_KIT_ROOT/kit${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
-    uv run --no-sync python scripts/demos/rizon_sharpa_coffee.py \
+    uv run --no-sync isaaclab demo rizon-sharpa-coffee \
     --water --visualizer kit --headless --video --output_dir logs/coffee_video
 ```
 
@@ -239,7 +243,7 @@ physics grid. No Newton source modification is required.
 ## Teleoperation and grasp resets
 
 ```bash
-uv run --no-sync python scripts/demos/rizon_sharpa_coffee.py \
+uv run --no-sync isaaclab demo rizon-sharpa-coffee \
     --mode avp --water --visualizer newton_rtx \
     --cloudxr_env /path/to/cloudxr.env --keep_open
 ```
@@ -275,7 +279,7 @@ uv run --no-sync python scripts/tools/create_coffee_grasp_reset.py \
     --output /tmp/coffee_grasp.json
 uv run --no-sync python scripts/tools/create_coffee_grasp_reset.py \
     --input /tmp/coffee_grasp.json --output /tmp/coffee_grasp.json --validate
-uv run --no-sync python scripts/demos/rizon_sharpa_coffee.py \
+uv run --no-sync isaaclab demo rizon-sharpa-coffee \
     --grasp_reset /tmp/coffee_grasp.json
 ```
 
