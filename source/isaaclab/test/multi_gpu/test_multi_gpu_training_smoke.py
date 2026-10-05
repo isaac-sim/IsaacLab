@@ -72,10 +72,8 @@ _CAMERA_TASK = "Isaac-Cartpole-Camera-Direct"
 # Fewest ranks a multi-GPU case can launch; below this every case skips (fails in multi-GPU CI).
 _MIN_RANKS = 2
 
-# Any RTX renderer (Kit RTX or OVRTX): NCCL setup fails with "Cuda failure 'invalid argument'" on
-# the 2x RTX PRO 4500 (sm_120) CI runners. Once an RTX renderer is up, the driver counts 1 KB more
-# static shared memory than an NCCL kernel declares, so NCCL's per-kernel limit is rejected. Every
-# Newton-renderer stack trains on the same runners. Not run: each case spends minutes failing.
+# RTX + NCCL setup fails on the two-GPU RTX PRO 4500 CI runners with the PyTorch 2.12 stack.
+# PR #8280 updates the setup and restores these eight cases.
 _RTX_NCCL_XFAIL = pytest.mark.xfail(run=False, reason="NCCL 'invalid argument' after an RTX renderer starts")
 
 # The backend grid is 3 physics x 3 renderers; two of the nine cells cannot run at all, rejected
