@@ -126,12 +126,6 @@ parser.add_argument(
 parser.add_argument("--window", action="store_true", help="Show the scripted benchmark in a real window")
 parser.add_argument("--partitions", type=int, choices=[1, 4], default=1)
 parser.add_argument(
-    "--render_aa",
-    choices=["default", "dlaa"],
-    default="default",
-    help="Optional DLAA antialiasing; default preserves the current viewer",
-)
-parser.add_argument(
     "--rtpt_spp",
     type=int,
     help="Explicit realtime path-tracing samples per pixel (e.g. 4 for captures)",
@@ -277,7 +271,6 @@ with launch_simulation(cfg, args), ExitStack() as resources:
             headless=not args.window and args.mode in ("idle", "pick", "place", "squash"),
             pipeline=not args.sync_render,
             partitions=args.partitions,
-            antialiasing=args.render_aa,
             rtpt_spp=args.rtpt_spp,
             hide_interior=args.hide_interior,
             sh_rotation=args.sh_rotation == "on",
@@ -524,7 +517,6 @@ with launch_simulation(cfg, args), ExitStack() as resources:
                 "pipeline": not args.sync_render,
                 "window": args.window or args.mode in ("gamepad", "keyboard"),
                 "partitions": args.partitions,
-                "render_aa": args.render_aa,
                 "rtpt_spp_override": args.rtpt_spp,
                 "sampling_overrides": viewer.sampling_overrides if viewer is not None else {},
                 "video": args.video,

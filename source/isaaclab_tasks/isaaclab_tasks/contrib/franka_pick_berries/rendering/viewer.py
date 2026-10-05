@@ -29,7 +29,6 @@ class BerryViewer(ViewerRTX):
         env,
         pipeline=True,
         partitions=1,
-        antialiasing="default",
         rtpt_spp=None,
         hide_interior=False,
         sh_rotation=True,
@@ -42,7 +41,6 @@ class BerryViewer(ViewerRTX):
         self.aperture = 0.08
         self.pipeline = pipeline
         self.sh_rotation = sh_rotation
-        self.antialiasing = antialiasing
         self.rtpt_spp = rtpt_spp
         self.sampling_overrides = {}
         self.pending_frame = None
@@ -154,7 +152,7 @@ class BerryViewer(ViewerRTX):
         product.CreateAttribute("omni:rtx:dlss:frameGeneration", Sdf.ValueTypeNames.Bool).Set(False)
         product.RemoveProperty("omni:rtx:quality")
         product.RemoveProperty("omni:rtx:waitForEvents")
-        self.sampling_overrides = apply_sampling_settings(product, self.antialiasing, self.rtpt_spp)
+        self.sampling_overrides = apply_sampling_settings(product, self.rtpt_spp)
         if self.env.cfg.background == "ebc":
             # Rays through the bowl can cross both walls and its solid glass base.
             product.CreateAttribute("omni:rtx:rtpt:maxBounces", Sdf.ValueTypeNames.Int).Set(8)
