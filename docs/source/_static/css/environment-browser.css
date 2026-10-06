@@ -324,7 +324,7 @@ html[data-theme="dark"] .environment-browser {
 }
 
 .has-interactive-preview .environment-preview-details {
-    grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
 }
 
 .environment-preview-stage isaaclab-browser-demo {

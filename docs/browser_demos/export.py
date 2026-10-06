@@ -1600,6 +1600,7 @@ def main() -> None:
     manifest["build"]["isaacLabExporter"] = build_versions
     manifest["isaacLabDemo"] = json.loads((bundle / "manifest.json").read_text())["isaacLabDemo"]
     wasm_path = deployment / manifest["wasm"]
+    wasm_path.chmod(0o644)
     if wasm_path.stat().st_size > 2_000_000:
         compressed_path = wasm_path.with_suffix(wasm_path.suffix + ".gz")
         with wasm_path.open("rb") as source, gzip.open(compressed_path, "wb", compresslevel=9) as destination:
