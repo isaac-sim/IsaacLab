@@ -103,9 +103,9 @@ class PhysicsManager(ABC):
     def fix_articulation_root(cls, articulation_prim: Any, stage: Any = None) -> Any:
         """Ensure that an articulation root has one enabled world fixed joint.
 
-        An articulation rooted at a fixed joint that attaches it to the world, as UsdPhysics roots fixed-base
-        articulations, is fixed by that joint. The base implementation leaves the root in place. Backends whose
-        parser requires a different root topology may relocate it and return the resulting root prim.
+        An articulation rooted at a fixed joint that attaches it to the world, a layout that UsdPhysics allows, is
+        fixed by that joint. The base implementation leaves the root in place. Backends whose parser requires a
+        different root topology may relocate it and return the resulting root prim.
 
         Args:
             articulation_prim: The articulation-root prim to fix.

@@ -529,7 +529,7 @@ def _author_fixed_joint_root_robot(usd_path: str) -> None:
         body = UsdGeom.Xform.Define(stage, f"/Robot/{name}").GetPrim()
         UsdPhysics.RigidBodyAPI.Apply(body)
         UsdPhysics.MassAPI.Apply(body).CreateMassAttr(1.0)
-    # body0 is the asset prim, which UsdPhysics resolves to the world
+    # body0 targets the asset prim, neither a rigid body nor a collider, so the joint attaches the base to the world
     root_joint = UsdPhysics.FixedJoint.Define(stage, "/Robot/root_joint")
     root_joint.CreateBody0Rel().SetTargets(["/Robot"])
     root_joint.CreateBody1Rel().SetTargets(["/Robot/base"])

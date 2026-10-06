@@ -167,12 +167,12 @@ before the backend imports the articulation.
 
       UsdPhysics also allows the articulation root properties on the fixed joint that connects the root link to the
       world. The articulation is parsed as a fixed-base system rooted at that joint. Setting
-      :attr:`~sim.schemas.ArticulationRootBaseCfg.fix_root_link` to True enables the joint. Setting it to False does
-      not make such an articulation floating. It is ignored when the joint sets both ``body0`` and ``body1``, for
-      example when ``body0`` targets the asset prim. A joint with an empty ``body0``, such as the joint that the MJCF
-      importer adds for a free root body, is disabled: PhysX then cannot create the articulation, while Newton
-      simulates a floating base. To obtain a floating base, author the asset without the world joint, or convert it
-      with ``fix_base=False``.
+      :attr:`~sim.schemas.ArticulationRootBaseCfg.fix_root_link` to True enables the joint. Setting it to False is not
+      supported for such an articulation and logs a warning. It is ignored when the joint sets both ``body0`` and
+      ``body1``, for example when ``body0`` targets the asset prim. A joint with an empty ``body0``, such as the
+      ``fix_base_joint`` that the URDF and MJCF importers add to a free root body with ``fix_base=True``, is disabled:
+      PhysX then cannot create the articulation, while Newton simulates a floating base. To obtain a floating base,
+      author the asset without the world joint, or convert it with ``fix_base=False``.
 
       .. code-block:: text
 
