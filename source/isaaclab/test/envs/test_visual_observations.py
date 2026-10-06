@@ -231,6 +231,25 @@ def test_manager_prepares_defaulted_and_shared_nested_image_terms(source):
     assert sum(kind == "close" for kind, _ in events) == 1
 
 
+def _ones_with_out(env, *, out=None):
+    """Term that writes into a manager-supplied destination when one is given."""
+    ones = torch.ones(env.num_envs, 2, device=env.device)
+    return ones if out is None else out.copy_(ones)
+
+
+def test_prepare_scene_leaves_the_reserved_out_parameter_to_the_manager():
+    """Preparing defaults must not add the manager-reserved ``out`` parameter to a term's params."""
+    env = make_env(CameraSource())
+    group = ObservationGroupCfg(concatenate_terms=False, enable_corruption=False)
+    group.ones = ObservationTermCfg(func=_ones_with_out)
+    cfg = {"policy": group}
+    prepared = ObservationManager.prepare_scene(cfg, env)
+    assert "out" not in group.ones.params
+    manager = ObservationManager(cfg, env, prepared_terms=prepared)
+    torch.testing.assert_close(manager.compute()["policy"]["ones"], torch.ones(2, 2))
+    manager.close()
+
+
 def test_normalized_permuted_output_reuses_storage_and_matches_image_math():
     """Strided RGB input normalizes into a persistent float32 output and BCHW view."""
     camera = CameraSource()

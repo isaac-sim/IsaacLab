@@ -63,7 +63,11 @@ def _prepare_term(
     if top_level and not callable(func):
         raise TypeError(f"Observation term {name!r} is not callable: {func!r}.")
     if callable(func) and isinstance(term_cfg.params, dict):
+        manager_reserved_out = top_level and "out" not in term_cfg.params
         _populate_term_defaults(func, term_cfg.params)
+        if manager_reserved_out:
+            # Like runtime resolution, keep the manager-supplied output destination out of the params.
+            term_cfg.params.pop("out", None)
     for field in fields(term_cfg):
         _prepare_nested_terms(name, field.name, getattr(term_cfg, field.name), env, prepared, seen)
     if not inspect.isclass(func):
