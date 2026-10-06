@@ -3,6 +3,15 @@ Changelog
 
 .. towncrier release notes start
 
+1.3.4 (2026-10-06)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Applied task play-mode configuration during LEAPP exports so inference-only resources are initialized correctly.
+
+
 1.3.3 (2026-10-02)
 ~~~~~~~~~~~~~~~~~~
 
