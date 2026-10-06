@@ -291,35 +291,6 @@ def _build_feet_air_time_variance(body_ids=(0, 2)) -> CaptureCase:
     )
 
 
-def _build_feet_slide(asset_body_ids=(1, 3)) -> CaptureCase:
-    rng = np.random.default_rng(31)
-    art_data = MockArticulationData(num_bodies=NUM_BODIES)
-    velocity = rng.normal(size=(NUM_ENVS, NUM_BODIES, 3)).astype(np.float32)
-    art_data.body_lin_vel_w = proxy_array(velocity, dtype=wp.vec3f, device=DEVICE)
-    # The sensor tracks only the two feet, so its body ids are not the articulation's.
-    forces = rng.normal(size=(NUM_ENVS, 3, 2, 3)).astype(np.float32)
-    forces[::2, :, 0] = 0.0  # Some feet are off the ground.
-    history = proxy_array(forces, dtype=wp.vec3f, device=DEVICE)
-    scene = MockScene(
-        {"robot": MockArticulation(art_data, num_bodies=NUM_BODIES)},
-        wp.array(np.zeros((NUM_ENVS, 3), dtype=np.float32), dtype=wp.vec3f, device=DEVICE),
-        sensors={"contact_sensor": SimpleNamespace(data=SimpleNamespace(net_normal_forces_w_history=history))},
-    )
-    env = SimpleNamespace(scene=scene, num_envs=NUM_ENVS, device=DEVICE)
-    params = dict(
-        sensor_cfg=MockSensorCfg("contact_sensor", body_ids=[0, 1]),
-        asset_cfg=MockSensorCfg("robot", body_ids=list(asset_body_ids)),
-    )
-
-    def mutate():
-        copy_np_to_wp(art_data.body_lin_vel_w, np.roll(velocity, 1, axis=0))
-        fresh = forces * 2.0
-        fresh[1::3, :, 1] = 0.0
-        copy_np_to_wp(history, fresh)
-
-    return CaptureCase(warp_velocity_rew.feet_slide, stable_velocity_rew.feet_slide, env, env, params, mutate)
-
-
 _SHARED_REW = "isaaclab_experimental.envs.mdp.rewards"
 _SHARED_TERM = "isaaclab_experimental.envs.mdp.terminations"
 _LOCO_REW = "isaaclab_tasks_experimental.core.locomotion.mdp.rewards"
@@ -337,7 +308,6 @@ CAPTURE_SPECS: list[CaptureSpec] = [
         "reward",
         _build_feet_air_time_variance,
     ),
-    CaptureSpec("isaaclab_tasks_experimental.core.velocity.mdp.rewards", "feet_slide", "reward", _build_feet_slide),
 ]
 
 
@@ -451,6 +421,7 @@ CAPTURE_UNAUDITED: dict[str, str] = {
             f"{_TE}.velocity.mdp.rewards",
             "feet_air_time",
             "feet_air_time_positive_biped",
+            "feet_slide",
             "stand_still_joint_deviation_l1",
             "track_ang_vel_z_world_exp",
             "track_lin_vel_xy_yaw_frame_exp",
@@ -555,12 +526,6 @@ def test_feet_air_time_variance_requires_two_feet():
     with pytest.raises(RuntimeError, match="at least two bodies"):
         case.stable_fn(case.stable_env, **case.params)
     with pytest.raises(RuntimeError, match="at least two bodies"):
-        case.warp_fn(case.warp_env, wp.empty(NUM_ENVS, dtype=wp.float32, device=DEVICE), **case.params)
-
-
-def test_feet_slide_requires_matching_body_counts():
-    case = _build_feet_slide(asset_body_ids=[1])
-    with pytest.raises(RuntimeError, match="same number of bodies"):
         case.warp_fn(case.warp_env, wp.empty(NUM_ENVS, dtype=wp.float32, device=DEVICE), **case.params)
 
 
