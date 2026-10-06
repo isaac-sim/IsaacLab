@@ -65,6 +65,9 @@ class _FakeViz:
         self.render_calls += 1
         return self._frame
 
+    def supports_markers(self) -> bool:
+        return True
+
 
 def _make_env(visualizers=(), sensors: dict | None = None):
     env = MagicMock()
@@ -208,23 +211,19 @@ def test_step_schedule_writes_expected_clips(tmp_path, schedule, num_steps, expe
 # ---------------------------------------------------------------------------
 
 
-def test_visualizer_source_refreshes_physics_before_on_demand_capture():
-    """On-demand capture reads a frame after physics transforms are synchronized."""
-    synchronized = False
+def test_visualizer_source_refreshes_physics_and_markers_before_on_demand_capture():
+    """On-demand capture reads a frame after physics transforms and debug markers are updated."""
+    updated = set()
 
     class _FreshFrameViz(_FakeViz):
         def render_rgb_array(self) -> np.ndarray:
-            return np.full_like(self._frame, 255 if synchronized else 0)
+            return np.full_like(self._frame, 255 if updated == {"physics", "markers"} else 0)
 
     viz = _FreshFrameViz("kit")
     env = _make_env(visualizers=[viz])
     env.sim.is_rendering = False
-
-    def synchronize_physics() -> None:
-        nonlocal synchronized
-        synchronized = True
-
-    env.sim.forward.side_effect = synchronize_physics
+    env.sim.forward.side_effect = lambda: updated.add("physics")
+    env.sim.vis_marker_registry.dispatch_callbacks.side_effect = lambda: updated.add("markers")
     recorder = VideoRecorder(_cfg(source="viz:kit"), env)
 
     frame = recorder._get_frame()
