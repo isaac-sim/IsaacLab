@@ -991,6 +991,9 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
     The function samples random values from the given distribution parameters and applies the operation to
     the tendon properties. It then sets the values into the physics simulation. If the distribution parameters
     are not provided for a particular property, the function does not modify the property.
+
+    The operation applies to the tendon properties read when the term is created, so repeated calls do not
+    compound and values written afterwards by other code are ignored.
     """
 
     def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv):
@@ -1009,8 +1012,6 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
 
         self.asset_cfg: SceneEntityCfg = cfg.params["asset_cfg"]
         self.asset: RigidObject | Articulation = env.scene[self.asset_cfg.name]
-        # initial values, so repeated calls do not compound
-        self._defaults: dict[str, torch.Tensor] = {}
         _validate_randomization_params(cfg, "stiffness_distribution_params", allow_zero=False)
         for name in (
             "damping_distribution_params",
@@ -1025,11 +1026,18 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
         ):
             _validate_randomization_params(cfg, name, allow_negative=True)
 
-    def _default(self, prop: str) -> torch.Tensor:
-        """Initial value of ``prop``, read on first use since not every backend exposes every tendon property."""
-        if prop not in self._defaults:
-            self._defaults[prop] = getattr(self.asset.data, prop).torch.clone()
-        return self._defaults[prop].clone()
+        # cache default values
+        self.default_fixed_tendon_stiffness = self.asset.data.fixed_tendon_stiffness.torch.clone()
+        self.default_fixed_tendon_damping = self.asset.data.fixed_tendon_damping.torch.clone()
+        self.default_fixed_tendon_pos_limits = self.asset.data.fixed_tendon_pos_limits.torch.clone()
+        # read only when randomized: Newton raises NotImplementedError for these
+        params = cfg.params
+        if params.get("limit_stiffness_distribution_params") is not None:
+            self.default_fixed_tendon_limit_stiffness = self.asset.data.fixed_tendon_limit_stiffness.torch.clone()
+        if params.get("rest_length_distribution_params") is not None:
+            self.default_fixed_tendon_rest_length = self.asset.data.fixed_tendon_rest_length.torch.clone()
+        if params.get("offset_distribution_params") is not None:
+            self.default_fixed_tendon_offset = self.asset.data.fixed_tendon_offset.torch.clone()
 
     def __call__(
         self,
@@ -1061,7 +1069,7 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
         # stiffness
         if stiffness_distribution_params is not None:
             stiffness = _randomize_prop_by_op(
-                self._default("fixed_tendon_stiffness"),
+                self.default_fixed_tendon_stiffness.clone(),
                 stiffness_distribution_params,
                 env_ids,
                 tendon_ids,
@@ -1074,7 +1082,7 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
 
         if damping_distribution_params is not None:
             damping = _randomize_prop_by_op(
-                self._default("fixed_tendon_damping"),
+                self.default_fixed_tendon_damping.clone(),
                 damping_distribution_params,
                 env_ids,
                 tendon_ids,
@@ -1088,7 +1096,7 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
         # limit stiffness
         if limit_stiffness_distribution_params is not None:
             limit_stiffness = _randomize_prop_by_op(
-                self._default("fixed_tendon_limit_stiffness"),
+                self.default_fixed_tendon_limit_stiffness.clone(),
                 limit_stiffness_distribution_params,
                 env_ids,
                 tendon_ids,
@@ -1102,7 +1110,7 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
             )
 
         if lower_limit_distribution_params is not None or upper_limit_distribution_params is not None:
-            limit = self._default("fixed_tendon_pos_limits")
+            limit = self.default_fixed_tendon_pos_limits.clone()
             # -- lower limit
             if lower_limit_distribution_params is not None:
                 limit[..., 0] = _randomize_prop_by_op(
@@ -1137,7 +1145,7 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
 
         if rest_length_distribution_params is not None:
             rest_length = _randomize_prop_by_op(
-                self._default("fixed_tendon_rest_length"),
+                self.default_fixed_tendon_rest_length.clone(),
                 rest_length_distribution_params,
                 env_ids,
                 tendon_ids,
@@ -1150,7 +1158,7 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
         # offset
         if offset_distribution_params is not None:
             offset = _randomize_prop_by_op(
-                self._default("fixed_tendon_offset"),
+                self.default_fixed_tendon_offset.clone(),
                 offset_distribution_params,
                 env_ids,
                 tendon_ids,
