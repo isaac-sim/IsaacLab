@@ -120,3 +120,17 @@ Command Builder
 
 H1 locomotion uses a published policy. In the Newton viewer, press N to select a robot, I/J/L to walk
 forward or turn, K to stop, and C to toggle the follow camera. Pick and place requires Kit input. For autonomous H1 task playback, use ``isaaclab play``.
+
+
+Bin packing
+-----------
+
+The ``bin-packing`` focused example uses the PhysX cloner to create heterogeneous, randomized bin
+layouts with different numbers of YCB grocery objects. Run it from a source checkout with:
+
+.. code-block:: bash
+
+   uv run --extra isaacsim isaaclab example bin-packing
+
+The program is an example rather than a curated demo, so it uses the ``example`` subcommand. From an
+installed release, run ``uvx --from 'isaaclab[isaacsim]' isaaclab example bin-packing`` instead.
