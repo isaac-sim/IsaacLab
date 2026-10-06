@@ -68,6 +68,54 @@ as described in `Unit Testing`_ and `Tools`_.
 More details on the code style and testing can be found in the `Coding Style`_ and `Unit Testing`_ sections.
 
 
+Agent Development
+-----------------
+
+Read the contribution sections and skills that apply to the current task. Reuse guidance already
+loaded in the conversation while it remains current; reread when relevant files change or needed
+context is lost. Native skill discovery already supplies descriptions, so do not load the whole
+catalog or every linked reference. Load PR preparation guidance when preparing the final change.
+
+Before editing, identify the behavior's owner, the closest reusable implementation, and the smallest
+change that fixes the problem. For changes that span packages or add work to a hot path, briefly
+state the affected boundaries and runtime cost. Distinguish requested scope changes from unrelated
+improvements and record the latter as follow-ups.
+
+Use bounded searches and read relevant functions and callers instead of dumping unrelated files or
+tool inventories. Batch independent reads, keeping their combined output small enough to inspect.
+When delegation is requested or an applicable workflow calls for it, give each agent a bounded
+question and clear file ownership; serialize edits to shared infrastructure.
+
+Worktrees and environments
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Use a separate worktree when the current checkout has unrelated changes. Run commands from the
+worktree and give it its own uv environment; uv can reuse downloaded packages from its cache.
+If an existing environment must be reused, verify the interpreter and imported source paths before
+validation. The CLI resolves its repository root from the imported package, not the shell's working
+directory. Check that root with:
+
+.. code-block:: bash
+
+   uv run python -c "import sys; from isaaclab.paths import ISAACLAB_ROOT; print(sys.executable); print(ISAACLAB_ROOT)"
+
+Also verify the imported locations of packages touched by the change. Avoid concurrent environment
+synchronization or documentation builds against the same environment or output directory.
+
+Validation and long-running jobs
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Run the narrowest relevant checks during editing, then the required final checks. Record the tested
+revision or relevant diff, command, and result in the task notes. Reuse successful results until a
+relevant source, dependency, configuration, or test change invalidates them. Diagnose failed checks
+before retrying; keep environmental failures distinct from regressions introduced by the change.
+
+Launch long-running checks once and retain their process or CI run IDs and logs. Use a local watch
+command or longer polling intervals while continuing independent work, and report meaningful state
+changes rather than repeatedly reading unchanged logs. If the request only requires starting CI,
+hand off the run link after confirming it started. Await completion when the result is required.
+
+
 Contributing Documentation
 --------------------------
 
@@ -78,6 +126,10 @@ for the documentation are located in the ``IsaacLab/docs`` directory. The docume
 We use `Sphinx <https://www.sphinx-doc.org/en/master/>`__ with the
 `Book Theme <https://sphinx-book-theme.readthedocs.io/en/stable/>`__
 for maintaining the documentation.
+
+API ``[source]`` links open the implementation on GitHub, using the published documentation's
+branch or tag (``develop`` for a current-checkout build by default). We do not generate local
+Python source pages; viewing the implementation requires internet access.
 
 Sending a pull request for the documentation is the same as sending a pull request for the codebase.
 Please follow the steps mentioned in the `Contributing Code`_ section.
@@ -93,7 +145,33 @@ the externally hosted file from the documentation.
   documentation requirements, into the repository's ``.venv``.
 
 
-To build the documentation, run the following command from the repository root. It installs
+Choose documentation validation according to the changed behavior:
+
+* Skip Sphinx when rendered docs are unaffected, including standalone ``AGENTS.md`` and ``skills/``
+  edits. Run the relevant code or skill checks instead.
+* Use the incremental HTML preview while editing documentation pages.
+* Use a clean build for API signatures or docstrings, Sphinx configuration or extensions, and
+  theme changes. Sphinx's cache does not reliably detect Python source changes.
+* Run one clean, warning-free build of final documentation-affecting changes before submitting
+  a PR. Repeat it only after further relevant changes or a failure. CI also runs the clean build.
+
+For an incremental HTML preview, run this command from the repository root on Linux or Windows:
+
+.. code:: bash
+
+   uv run --extra dev --directory docs python -m sphinx -W --keep-going -j auto . _build/incremental
+
+On systems with Make, the equivalent command is:
+
+.. code:: bash
+
+   uv run --extra dev make -C docs incremental-docs
+
+Open ``docs/_build/incremental/index.html`` to inspect the preview. Subsequent runs reuse the cache
+and treat new warnings as errors, but can omit old warnings and retain deleted pages. Use a clean
+build for final validation, and avoid concurrent builds in the same output directory.
+
+For the final clean build, run the following command from the repository root. It installs
 the documentation packages and builds the current version:
 
 .. code:: bash
@@ -190,6 +268,17 @@ For example, ``source/isaaclab/changelog.d/fix-partial-reset.fixed.rst``:
 .. code:: rst
 
     * Fixed contact sensor reset behavior when only a subset of environments was reset.
+
+Validate against the PR's base without creating temporary remote-tracking refs:
+
+.. code-block:: bash
+
+   uv run python tools/changelog/cli.py check upstream/develop --include-worktree
+
+The checker accepts remote-qualified refs, full refs, and commit SHAs. Branch shorthand such as
+``develop`` continues to prefer ``origin/develop`` when it exists; use ``refs/heads/develop`` to
+select a local branch explicitly. The pre-commit hook uses ``ISAACLAB_CHANGELOG_BASE_REF`` when
+set, otherwise ``develop``. Fetch the intended base before validation.
 
 
 Coding Style
@@ -656,6 +745,73 @@ and constraints in docstrings without repeating the annotated types:
 * Annotate functions that return no value with ``-> None``. Omit an unnecessary ``Returns:`` section
   from their docstrings.
 
+Warnings and Logging
+^^^^^^^^^^^^^^^^^^^^
+
+Choose the mechanism by who has to act on the message, following the Python
+`logging HOWTO <https://docs.python.org/3/howto/logging.html#when-to-use-logging>`__:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 50 50
+
+   * - Situation
+     - Mechanism
+   * - The **caller should change their code or config**: a deprecated API or parameter, an ignored or
+       conflicting setting, or misuse.
+     - ``warnings.warn(message, <Category>, stacklevel=...)``
+   * - A **runtime event** that the caller cannot avoid by changing their code: a fallback was taken, an
+       optional dependency or feature is unavailable, or performance is degraded.
+     - ``logger.warning(message)`` with a module-level ``logger = logging.getLogger(__name__)``
+   * - User-facing notices in scripts and command-line tools.
+     - ``logger.warning(message)``, as above
+   * - **Progress and status** from library code and entry points: the parsed task configuration, the log
+       directory, environment and manager summaries.
+     - ``logger.info(message)``
+   * - A **failure reported before exiting** a command-line tool.
+     - ``logger.error(message)``
+
+* Always pass an explicit category to ``warnings.warn``:
+
+  * ``DeprecationWarning`` for deprecated Python APIs that callers use from their own code.
+  * ``FutureWarning`` for deprecated configuration values, presets, or command-line options that end users
+    reach through Isaac Lab entry points. Python shows these by default even when they are raised from
+    library code.
+  * ``UserWarning`` for misuse or for settings that are ignored.
+
+* Set ``stacklevel`` so that the warning points at the caller's line, not at Isaac Lab internals.
+* Do not use ``print`` for warnings or status messages, and do not add ``[WARNING]``, ``[WARN]``,
+  ``[INFO]``, or ``[ERROR]`` prefixes. Printed messages ignore ``--verbose`` / ``--info`` and log handlers,
+  and tests cannot capture them reliably. The logging record already carries the level. ``print`` remains
+  the right tool for a program's actual output, such as command results, a ``--dry_run`` command line, or
+  the tables a tutorial walks through.
+* Isaac Lab entry points and :func:`~isaaclab.app.launch_simulation` call
+  ``isaaclab.app.logging_utils.configure_console_logging``, which prints INFO records from ``isaaclab*``
+  loggers on stdout as ``[INFO]: <message>`` and warnings on stderr. Call it first in a new command-line
+  entry point so that messages logged before the simulation runtime starts are shown.
+* In tests, assert ``warnings.warn`` with ``pytest.warns`` and ``logger.warning`` with ``caplog``.
+
+.. code:: python
+
+   import logging
+   import warnings
+
+   logger = logging.getLogger(__name__)
+
+
+   def set_gains(stiffness: float, damping: float | None = None, kd: float | None = None) -> None:
+       if kd is not None:
+           warnings.warn("'kd' is deprecated. Use 'damping' instead.", DeprecationWarning, stacklevel=2)
+           damping = kd
+       ...
+
+
+   def capture_graph() -> None:
+       try:
+           ...
+       except RuntimeError as exc:
+           logger.warning(f"CUDA graph capture failed; falling back to eager launches. Reason: {exc}")
+
 Documenting the code
 ^^^^^^^^^^^^^^^^^^^^
 
@@ -735,3 +891,14 @@ Run the repository formatting and lint checks from the uv-managed environment on
 .. code-block:: bash
 
    uv run isaaclab --format
+
+During editing, pass repository-relative file paths to restrict file-based hooks:
+
+.. code-block:: bash
+
+   uv run isaaclab --format source/isaaclab/isaaclab/cli/commands/format.py
+
+Repository-wide hooks such as the changelog gate still run. The command runs pre-commit once and
+returns its failure status, including when hooks modify files. Inspect those edits and rerun after
+resolving failures; it does not automatically replay all hooks. Run the full command on the final
+changes before committing.

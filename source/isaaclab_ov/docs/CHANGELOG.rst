@@ -3,6 +3,37 @@ Changelog
 
 .. towncrier release notes start
 
+4.1.3 (2026-10-03)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed CPU simulations to select CPU dynamics through the attributes of every physics scene in the stage instead
+  of the OVPhysX process-wide CPU-only mode, which cannot be reverted. To keep OVPhysX off CUDA entirely, set
+  ``OVPHYSX_DISABLE_GPU``.
+* Update runtime installation guidance and launcher examples to use uv.
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_ov.physics.OvPhysxManager` refusing to start a CPU simulation after a CUDA simulation, or
+  the reverse, in the same process.
+
+
+4.1.2 (2026-10-02)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed OVRTX render-output reads and attribute writes skipping synchronization on Torch's
+  legacy default CUDA stream.
+* Fixed mapped-buffer release racing asynchronous render-output extraction.
+* Fixed frame-transformer path expressions that directly match a rigid body from also selecting
+  nested rigid-body descendants.
+
+
 4.1.1 (2026-10-01)
 ~~~~~~~~~~~~~~~~~~
 

@@ -194,13 +194,6 @@ Now that we have gone through the code, let's run the script and see the result:
          uv run python scripts/tutorials/04_sensors/add_sensors_on_robot.py --num_envs 2 --viz kit
 
 
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         ./isaaclab.sh -p scripts/tutorials/04_sensors/add_sensors_on_robot.py --num_envs 2 --viz kit
-
-
 This command should open a stage with a ground plane, lights, and two quadrupedal robots.
 Around the robots, you should see red spheres that indicate the points where the rays hit the mesh.
 Additionally, you can switch the viewport to the camera view to see the RGB image captured by the
@@ -236,18 +229,3 @@ following commands:
 
          # USD Camera
          uv run python scripts/tutorials/04_sensors/run_usd_camera.py --viz kit
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         # Frame Transformer
-         ./isaaclab.sh -p scripts/tutorials/04_sensors/run_frame_transformer.py --viz kit
-
-         # Ray Caster
-         ./isaaclab.sh -p scripts/tutorials/04_sensors/run_ray_caster.py --viz kit
-
-         # Ray Caster Camera
-         ./isaaclab.sh -p scripts/tutorials/04_sensors/run_ray_caster_camera.py --viz kit
-
-         # USD Camera
-         ./isaaclab.sh -p scripts/tutorials/04_sensors/run_usd_camera.py --viz kit

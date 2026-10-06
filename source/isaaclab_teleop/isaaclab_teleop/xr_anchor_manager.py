@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""XR anchor management for IsaacTeleop-based teleoperation."""
+"""XR anchor management for Isaac Capture-based teleoperation."""
 
 from __future__ import annotations
 
@@ -160,7 +160,7 @@ class XrAnchorManager:
         """Build the combined 4x4 transform from OpenXR local space to Isaac Lab world.
 
         This matrix performs two operations on every pose that comes out of
-        IsaacTeleop's DeviceIO pipeline:
+        Isaac Capture's DeviceIO pipeline:
 
         1. **Axis conversion** -- rotates from the OpenXR coordinate convention
            (Y-up, +X right, +Z back) to the Isaac Lab convention

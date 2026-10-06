@@ -68,7 +68,6 @@ from isaaclab_assets.robots.anymal import ANYMAL_C_CFG  # noqa: E402
 
 wp.init()
 
-pytestmark = pytest.mark.device_split
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -180,33 +179,6 @@ class _StaleResetSceneCfg(InteractiveSceneCfg):
         ),
     )
     imu_cube: ImuCfg = ImuCfg(prim_path="{ENV_REGEX_NS}/cube")
-
-
-# ---------------------------------------------------------------------------
-# Process-global device-mode lock (matches the rigid-object and contact-sensor
-# tests). The ovphysx wheel can only run one device per process; parametrized
-# tests skip on the unlocked device so single-device runs finish cleanly.
-# ---------------------------------------------------------------------------
-
-_LOCKED_DEVICE: list[str | None] = [None]
-
-
-@pytest.fixture(autouse=True)
-def _ovphysx_skip_other_device(request):
-    """Skip parametrized tests on the device the session is not pinned to."""
-    callspec = getattr(request.node, "callspec", None)
-    device = callspec.params.get("device") if callspec is not None else None
-    if device is None:
-        return
-    locked = _LOCKED_DEVICE[0]
-    if locked is None:
-        _LOCKED_DEVICE[0] = device
-        return
-    if device != locked:
-        pytest.skip(
-            f"ovphysx process-global device lock is held by '{locked}'; cannot run '{device}' "
-            "tests in the same session.  Run pytest twice (once per device) for full coverage."
-        )
 
 
 # ---------------------------------------------------------------------------

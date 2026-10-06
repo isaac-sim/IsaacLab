@@ -23,7 +23,7 @@ environment logic, policy inference, learning, or application startup.
 Choose a suite and backend
 --------------------------
 
-Run commands from the repository root through ``./isaaclab.sh``. The active
+Run commands from the repository root through ``uv run isaaclab``. The active
 Python environment must contain the backend being measured. PhysX and Newton
 asset benchmarks run kitless with mock views. PhysX sensor benchmarks launch
 Isaac Sim. Newton sensor benchmarks run kitless with the installed Newton
@@ -128,7 +128,7 @@ For example, run the complete PhysX articulation workload:
 
 .. code-block:: bash
 
-   ./isaaclab.sh microbenchmark --component articulation physics=physx \
+   uv run isaaclab microbenchmark --component articulation physics=physx \
        --num_instances 4096 \
        --num_bodies 12 \
        --num_joints 11 \
@@ -145,17 +145,17 @@ components. Other backends use these commands:
 
    .. code-block:: bash
 
-      ./isaaclab.sh microbenchmark --component articulation physics=newton_mjwarp \
+      uv run isaaclab microbenchmark --component articulation physics=newton_mjwarp \
           --num_instances 4096 --warmup_steps 10 --num_iterations 1000
 
    .. code-block:: bash
 
-      ./isaaclab.sh microbenchmark --component articulation physics=newton_kamino \
+      uv run isaaclab microbenchmark --component articulation physics=newton_kamino \
           --num_instances 4096 --warmup_steps 10 --num_iterations 1000
 
    .. code-block:: bash
 
-      ./isaaclab.sh microbenchmark --component articulation physics=ovphysx \
+      uv run isaaclab microbenchmark --component articulation physics=ovphysx \
           --num_instances 4096 --warmup_steps 10 --num_iterations 1000
 
 Run a sensor benchmark
@@ -170,7 +170,7 @@ For example, run the complete PhysX contact-sensor workload:
 
 .. code-block:: bash
 
-   ./isaaclab.sh microbenchmark --component contact_sensor physics=physx \
+   uv run isaaclab microbenchmark --component contact_sensor physics=physx \
        --num_envs 4096 --warmup_steps 50 --num_steps 500 \
        --decimation 4 --history_length 0
 
@@ -182,39 +182,39 @@ components are ``frame_transformer``, ``imu``, ``pva``, ``joint_wrench``, and
 
    .. code-block:: bash
 
-      ./isaaclab.sh microbenchmark --component contact_sensor physics=newton_mjwarp \
+      uv run isaaclab microbenchmark --component contact_sensor physics=newton_mjwarp \
           --num_envs 4096 --warmup_steps 50 --num_steps 500 \
           --decimation 4 --history_length 0
 
    .. code-block:: bash
 
-      ./isaaclab.sh microbenchmark --component contact_sensor physics=ovphysx \
+      uv run isaaclab microbenchmark --component contact_sensor physics=ovphysx \
           --num_envs 4096 --warmup_steps 50 --num_steps 500
 
    .. code-block:: bash
 
-      ./isaaclab.sh microbenchmark --component frame_transformer physics=newton_mjwarp \
+      uv run isaaclab microbenchmark --component frame_transformer physics=newton_mjwarp \
           --num_envs 4096 --num_target_frames 4 --warmup_steps 50 --num_steps 500
 
    .. code-block:: bash
 
-      ./isaaclab.sh microbenchmark --component imu physics=newton_kamino \
+      uv run isaaclab microbenchmark --component imu physics=newton_kamino \
           --num_envs 4096 --warmup_steps 50 --num_steps 500
 
    .. code-block:: bash
 
-      ./isaaclab.sh microbenchmark --component pva physics=physx \
+      uv run isaaclab microbenchmark --component pva physics=physx \
           --num_envs 4096 --warmup_steps 50 --num_steps 500
 
    .. code-block:: bash
 
-      ./isaaclab.sh microbenchmark --component joint_wrench physics=ovphysx \
+      uv run isaaclab microbenchmark --component joint_wrench physics=ovphysx \
           --num_envs 4096 --warmup_steps 50 --num_steps 500 \
           --benchmark_formatter summary --output_path results/sensors
 
    .. code-block:: bash
 
-      ./isaaclab.sh microbenchmark --component ray_caster physics=newton_mjwarp \
+      uv run isaaclab microbenchmark --component ray_caster physics=newton_mjwarp \
           --num_envs 4096 --grid_size 1.0 --grid_resolution 0.25 \
           --warmup_steps 50 --num_steps 500
 
@@ -269,7 +269,7 @@ To isolate one selector representation, name its exact mode:
 
 .. code-block:: bash
 
-   ./isaaclab.sh microbenchmark --component articulation physics=physx \
+   uv run isaaclab microbenchmark --component articulation physics=physx \
        --mode torch_tensor_int64
 
 Methods indexed only by ``env_ids`` support five selector modes:
@@ -556,7 +556,7 @@ Import or backend errors
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
 Confirm the backend is installed in the Python environment selected by
-``./isaaclab.sh``. OVPhysX requires its optional runtime wheel. PhysX sensor
+``uv run isaaclab``. OVPhysX requires its optional runtime wheel. PhysX sensor
 benchmarks require Isaac Sim.
 
 CUDA out of memory

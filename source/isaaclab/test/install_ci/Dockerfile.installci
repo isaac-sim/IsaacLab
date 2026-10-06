@@ -5,8 +5,7 @@
 
 # Container for Isaac Lab installation CI tests.
 #
-# Ships both uv and conda so a single image can run every installation
-# scenario.  Image is large but build is cached across runs.
+# Installs into isolated uv environments; caches are shared across runs.
 #
 # Usage:
 #   docker build --build-arg BASE_IMAGE=ubuntu:24.04 -t isaaclab-installci .
@@ -51,9 +50,7 @@ RUN apt-get update && \
       libxt6 \
       python3 \
       python3-dev \
-      python3-pip \
       python3-venv \
-      sudo \
     && rm -rf /var/lib/apt/lists/*
 
 # Fail the image build if a base-image or apt change leaves the native runtime
@@ -63,41 +60,18 @@ RUN set -euo pipefail; \
       ldconfig -p | grep -Fq "${library}"; \
     done
 
-# ARM-specific GL/X11 dev headers are intentionally NOT pre-installed here.
-# ``./isaaclab.sh -i`` auto-installs them via apt when missing, so install_ci
-# exercises the real user-visible install path on ARM.
+# Build prerequisites for packages without ARM wheels.
+RUN if [ "$(dpkg --print-architecture)" = "arm64" ]; then \
+      apt-get update && apt-get install -y --no-install-recommends \
+        libgl1-mesa-dev libopengl-dev libglx-dev libx11-dev libxcursor-dev \
+        libxi-dev libxinerama-dev libxrandr-dev && rm -rf /var/lib/apt/lists/*; \
+    fi
 
-# Make python3 the default python
-RUN ln -sf /usr/bin/python3 /usr/bin/python
-
-# Install test runner dependencies into the system Python
-RUN pip install --break-system-packages \
-    pytest>=8.0 \
-    pytest-timeout>=2.0
-
-# Install uv system-wide so non-root users can invoke it without PATH trickery
-RUN curl -LsSf --proto '=https' --proto-redir '=https' https://astral.sh/uv/install.sh | \
-    UV_INSTALL_DIR=/usr/local/bin sh
-
-# Install Miniconda into the isaaclab user's home directory so the runtime user
-# has full write access for creating environments and caching packages.
-ARG MINICONDA_VERSION=latest
-RUN ARCH=$(case "$(uname -m)" in \
-      aarch64|arm64) echo "aarch64" ;; \
-      *) echo "x86_64" ;; \
-    esac) \
-    && curl -fsSL --proto '=https' --proto-redir '=https' \
-      "https://repo.anaconda.com/miniconda/Miniconda3-${MINICONDA_VERSION}-Linux-${ARCH}.sh" \
-      -o /tmp/miniconda.sh \
-    && bash /tmp/miniconda.sh -b -p /home/isaaclab/miniconda3 \
-    && rm /tmp/miniconda.sh \
-    && chown -R 1000:1000 /home/isaaclab/miniconda3
-
-# Add the conda wrapper (condabin/) to PATH but NOT miniconda3/bin/, so the
-# system Python remains the default `python` and only `conda` itself becomes
-# globally available.  Tests that need conda's Python activate envs explicitly
-# via `conda run -n <env>`.
-ENV PATH="/home/isaaclab/miniconda3/condabin:${PATH}"
+COPY --from=ghcr.io/astral-sh/uv:0.12.9@sha256:8b940d3a9d65bed080436972241af2e21c84b5e8c9193f7014ed71479ee795ff /uv /uvx /usr/local/bin/
+ENV UV_PYTHON_INSTALL_DIR=/opt/uv-python
+RUN uv venv --python 3.12 /opt/tests && \
+    uv pip install --python /opt/tests/bin/python 'pytest>=8'
+ENV PATH="/opt/tests/bin:${PATH}"
 
 # Copy the repo
 ARG ISAACLAB_PATH=/workspace/isaaclab
@@ -106,7 +80,6 @@ COPY . ${ISAACLAB_PATH}
 
 # Fix line endings in .sh files (Win git may add \r)
 RUN find ${ISAACLAB_PATH} -type f -name "*.sh" -exec sed -i 's/\r$//' {} +
-RUN chmod +x ${ISAACLAB_PATH}/isaaclab.sh
 
 # Create non-root runtime user and transfer workspace ownership.
 # uid/gid 1000 match the GitHub runner bind-mounts used by Docker-based tests.
@@ -122,18 +95,7 @@ RUN if getent passwd ubuntu >/dev/null; then userdel -r ubuntu; fi \
  && chown -R isaaclab:isaaclab /home/isaaclab/.cache \
  && chown -R isaaclab:isaaclab ${ISAACLAB_PATH}
 
-# Passwordless sudo for the runtime user so ``./isaaclab.sh -i`` can apt-get
-# install missing GL/X11 build deps without prompting at test time.
-RUN echo "isaaclab ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/isaaclab \
- && chmod 0440 /etc/sudoers.d/isaaclab
-
 USER isaaclab
-
-# Accept Miniconda default-channel Terms of Service non-interactively so that
-# `conda create` works without user prompts inside the container.
-# Runs as isaaclab so the acceptance is written to /home/isaaclab/.condarc.
-RUN conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main && \
-    conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r
 
 WORKDIR ${ISAACLAB_PATH}
 

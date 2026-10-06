@@ -27,12 +27,6 @@ This guide is accompanied by the packaged ``markers`` example.
 
           uv run --extra isaacsim isaaclab example markers
 
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-          ./isaaclab.sh example markers
-
 Pass ``--visualizer newton_gl`` (or another supported backend) to switch visualizers; defaults
 to ``kit``.
 

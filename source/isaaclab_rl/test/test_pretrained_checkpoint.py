@@ -12,6 +12,7 @@ from isaaclab_newton.physics import KaminoPADMMSolverCfg, MJWarpSolverCfg, Newto
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
 from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
+from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
 
 from isaaclab.renderers import RendererCfg
 from isaaclab.sim import SimulationCfg
@@ -95,9 +96,10 @@ def test_get_pretrained_checkpoint_filename_requires_both_backends():
         )
 
 
-def test_get_pretrained_checkpoint_backend_names_identifies_physx_without_renderer():
-    """Test backend discovery for a state-only PhysX task."""
-    env_cfg = _EnvCfg(camera=None)
+@pytest.mark.parametrize("visualizer_cfgs", [[], [NewtonGLVisualizerCfg()]], ids=["no-visualizer", "visualizer"])
+def test_get_pretrained_checkpoint_backend_names_identifies_physx_without_renderer(visualizer_cfgs):
+    """Test backend discovery for a state-only PhysX task; a visualizer's renderer does not count."""
+    env_cfg = _EnvCfg(sim=SimulationCfg(physics=PhysxCfg(), visualizer_cfgs=visualizer_cfgs))
 
     assert pretrained_checkpoint.get_pretrained_checkpoint_backend_names(env_cfg) == ("physx", "none")
 

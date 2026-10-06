@@ -28,13 +28,13 @@ goal pose:
 Lift a deformable object
 ------------------------
 
-This example uses the Newton backend to grasp and lift a soft object. The
-Newton visualizer opens by default:
+This example uses the Newton backend to grasp and lift a soft object. Pass
+``--viz newton_gl`` to open the Newton visualizer:
 
 .. code-block:: bash
 
    uv run --extra tetrahedralization python scripts/environments/state_machine/lift_franka_soft.py \
-      --num_envs 1
+      --num_envs 1 --viz newton_gl
 
 Open a cabinet drawer
 ---------------------

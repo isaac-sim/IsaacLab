@@ -493,9 +493,9 @@ _HERO_SKY_LOWER_COLOR = (0.15, 0.80, 0.65)
 # Kit/Newton GL/Newton RTX sources for the standard VideoRecorderCfg path (see
 # _hero_configure_capture); Rerun/Viser are captured separately via headless-browser recording.
 _HERO_SOURCE_BY_VISUALIZER = {
-    "kit": "visualizer:kit:streaming_view",
-    "newton_gl": "visualizer:newton_gl",
-    "newton_rtx": "visualizer:newton_rtx",
+    "kit": "viz:kit:streaming_view",
+    "newton_gl": "viz:newton_gl",
+    "newton_rtx": "viz:newton_rtx",
 }
 
 # Driven by the per-step _follow_camera event rather than streaming_cam_target_prim_path.
@@ -1473,9 +1473,9 @@ _SHOWCASE_VISUALIZER_BUILDERS = {
 }
 
 _SHOWCASE_SOURCE_BY_VISUALIZER = {
-    "kit": "visualizer:kit",
-    "newton_gl": "visualizer:newton_gl",
-    "newton_rtx": "visualizer:newton_rtx",
+    "kit": "viz:kit",
+    "newton_gl": "viz:newton_gl",
+    "newton_rtx": "viz:newton_rtx",
 }
 
 

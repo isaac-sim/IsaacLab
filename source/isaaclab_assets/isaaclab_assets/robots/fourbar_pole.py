@@ -11,9 +11,9 @@ from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxRigidBodyCfg
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg
-from isaaclab.utils.assets import NEWTON_ASSET_DIR, retrieve_git_asset_path
+from isaaclab.utils.assets import NEWTON_ASSET_DIR
 
-_FOURBAR_POLE_USD = retrieve_git_asset_path(NEWTON_ASSET_DIR, "fourbar_pole/usd/fourbar_pole.usda")
+_FOURBAR_POLE_USD = f"{NEWTON_ASSET_DIR}/fourbar_pole/usd/fourbar_pole.usda"
 
 ##
 # Configuration
