@@ -708,12 +708,10 @@ class NewtonViewerRTX(_NewtonViewerUIMixin, ViewerRTX):
         # the GUI is available); the panel patch is applied in _init_window() below.
         self.register_ui_callback(self._render_training_controls, position="side")
 
-        # TODO: Remove once Newton's ViewerRTX creates its ovstage.Stage with an explicit hierarchy
-        # computation model (Newton issue pending). Until then OVStage 0.2 leaves the default stage's
-        # world transforms stale, so the render freezes after the first frames. OVStage applies the
-        # hierarchy model process-wide when the first stage is created, so hold a stage configured by
-        # Isaac Lab for the lifetime of this viewer; ViewerRTX creates its own stage lazily on the
-        # first end_frame(). Acquired last so a failed construction cannot pin the process-wide model.
+        # TODO: Move this into Newton's ViewerRTX, which should create its ovstage.Stage with an explicit
+        # hierarchy computation model. With the default, OVStage 0.2 renders stale transforms. The model
+        # is process-wide and set by the first stage, so hold one for the viewer's lifetime. Acquired
+        # last so a failed construction cannot pin it.
         with contextlib.suppress(ImportError):
             from isaaclab_ov.stage import create_ovstage
 
