@@ -7,12 +7,10 @@
 
 import hashlib
 import json
-import marshal
 import os
 import subprocess
 import sys
 import tempfile
-import types
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -390,11 +388,6 @@ class PairedTests(unittest.TestCase):
                 }
             ),
         }
-        runtime_code = next(
-            value
-            for value in compile((self.checkout / RUNTIME).read_bytes(), RUNTIME, "exec").co_consts
-            if isinstance(value, types.CodeType) and value.co_name == "run"
-        )
         modules = [
             {
                 "name": "isaaclab.benchmark.entrypoints.runtime" if path == RUNTIME else "isaaclab",
@@ -436,9 +429,6 @@ class PairedTests(unittest.TestCase):
                         "modules": modules,
                         "runtime_entrypoint": {
                             "module": "isaaclab.benchmark.entrypoints.runtime",
-                            "function": "run",
-                            "code_sha256": hashlib.sha256(marshal.dumps(runtime_code)).hexdigest(),
-                            "doc_sha256": hashlib.sha256(b"Selected base runtime.").hexdigest(),
                             "source_code_matches": True,
                         },
                         "outputs": [
