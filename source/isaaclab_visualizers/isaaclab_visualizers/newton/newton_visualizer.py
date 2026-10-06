@@ -687,6 +687,17 @@ class NewtonViewerRTX(_NewtonViewerUIMixin, ViewerRTX):
         self._render_settings = dict(render_settings or {})
 
         super().__init__(*args, **kwargs)
+        # TODO: Remove once Newton's ViewerRTX creates its ovstage.Stage with an explicit hierarchy
+        # computation model (Newton issue pending). Until then OVStage 0.2 leaves the default stage's
+        # world transforms stale, so the render freezes after the first frames. OVStage applies the
+        # hierarchy model process-wide when the first stage is created, so hold a stage configured by
+        # Isaac Lab for the lifetime of this viewer; ViewerRTX creates its own stage lazily on the
+        # first end_frame(). The import fails when ovstage is absent, where ViewerRTX does not use it.
+        self._ovstage_hierarchy_holder = None
+        with contextlib.suppress(ImportError):
+            from isaaclab_ov.stage import create_ovstage
+
+            self._ovstage_hierarchy_holder = create_ovstage("isaaclab.newton_rtx_hierarchy_model")
         self._paused_training = False
         self._paused_rendering = False
         self._reset_requested = False
@@ -706,6 +717,15 @@ class NewtonViewerRTX(_NewtonViewerUIMixin, ViewerRTX):
         # exist.  Register the training controls now (they are buffered by ViewerRTX until
         # the GUI is available); the panel patch is applied in _init_window() below.
         self.register_ui_callback(self._render_training_controls, position="side")
+
+    def close(self) -> None:
+        """Close the viewer, then release the stage held for the OVStage hierarchy model."""
+        try:
+            super().close()
+        finally:
+            holder, self._ovstage_hierarchy_holder = self._ovstage_hierarchy_holder, None
+            if holder is not None:
+                holder.destroy()
 
     def log_points(self, name, points, radii=None, colors=None, hidden=False):
         """Apply the configured color to Newton's canonical particle batch."""
