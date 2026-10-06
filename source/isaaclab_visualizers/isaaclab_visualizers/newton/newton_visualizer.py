@@ -30,6 +30,16 @@ if __import__("sys").platform not in ("win32", "darwin") and not __import__("os"
 
     _pyglet_headless_init.options["headless"] = True
     del _pyglet_headless_init
+elif sys.platform not in ("win32", "darwin"):
+    # A monitor-free X server (e.g. a GPU-backed virtual display) makes pyglet fall back to a plain
+    # XlibScreen, which lacks the ``is_primary`` its default-screen lookup reads, so no window opens.
+    # Defaulting to non-primary makes pyglet use its first screen.
+    with contextlib.suppress(ImportError, AttributeError):  # best effort; skip if pyglet's Xlib layout differs
+        from pyglet.display import xlib as _pyglet_xlib
+
+        if not hasattr(_pyglet_xlib.XlibScreen, "is_primary"):
+            _pyglet_xlib.XlibScreen.is_primary = False
+        del _pyglet_xlib
 
 import newton
 from isaaclab_newton.physics import NewtonBackendCfg, NewtonManager
@@ -687,6 +697,7 @@ class NewtonViewerRTX(_NewtonViewerUIMixin, ViewerRTX):
         self._render_settings = dict(render_settings or {})
 
         super().__init__(*args, **kwargs)
+        self._ovstage_hierarchy_holder = None
         self._paused_training = False
         self._paused_rendering = False
         self._reset_requested = False
@@ -706,6 +717,24 @@ class NewtonViewerRTX(_NewtonViewerUIMixin, ViewerRTX):
         # exist.  Register the training controls now (they are buffered by ViewerRTX until
         # the GUI is available); the panel patch is applied in _init_window() below.
         self.register_ui_callback(self._render_training_controls, position="side")
+
+        # TODO: Move this into Newton's ViewerRTX, which should create its ovstage.Stage with an explicit
+        # hierarchy computation model. With the default, OVStage 0.2 renders stale transforms. The model
+        # is process-wide and set by the first stage, so hold one for the viewer's lifetime. Acquired
+        # last so a failed construction cannot pin it.
+        with contextlib.suppress(ImportError):
+            from isaaclab_ov.stage import create_ovstage
+
+            self._ovstage_hierarchy_holder = create_ovstage("isaaclab.newton_rtx_hierarchy_model")
+
+    def close(self) -> None:
+        """Close the viewer, then release the stage held for the OVStage hierarchy model."""
+        try:
+            super().close()
+        finally:
+            holder, self._ovstage_hierarchy_holder = self._ovstage_hierarchy_holder, None
+            if holder is not None:
+                holder.destroy()
 
     def log_points(self, name, points, radii=None, colors=None, hidden=False):
         """Apply the configured color to Newton's canonical particle batch."""
@@ -736,10 +765,34 @@ class NewtonViewerRTX(_NewtonViewerUIMixin, ViewerRTX):
                 raise ValueError(f"Render setting {name!r} names unknown USD type {type_name!r}.")
             prim.CreateAttribute(name, value_type).Set(value)
 
+    _ovrtx_render_products: dict | None = None
+
+    @property
+    def _render_products(self):
+        return self._ovrtx_render_products
+
+    @_render_products.setter
+    def _render_products(self, products) -> None:
+        # TODO: Workaround until Newton's ViewerRTX accepts both keys. ovrtx 0.5 keys render vars by
+        # prim path ("/Render/Vars/LdrColor"), but ViewerRTX looks up "LdrColor" and silently skips
+        # the blit and capture otherwise, leaving the window black.
+        if products:
+            for product in products.values():
+                for frame in product.frames:
+                    if "/Render/Vars/LdrColor" in frame.render_vars:
+                        frame.render_vars.setdefault("LdrColor", frame.render_vars["/Render/Vars/LdrColor"])
+        self._ovrtx_render_products = products
+
     def get_frame(self) -> np.ndarray:
         """Return the latest OVRTX LDR framebuffer as contiguous RGB pixels."""
         # TODO: Use Newton's public RGB capture API when one becomes available.
         return np.ascontiguousarray(self._capture_screenshot_pixels()[..., :3])
+
+    def _capture_screenshot_pixels(self) -> np.ndarray:
+        """Normalize the first asynchronous result before Newton reads its color output."""
+        if self._render_products is None and self._render_result is not None:
+            self._render_products = self._render_result.wait().fetch()
+        return super()._capture_screenshot_pixels()
 
     def _init_window(self) -> None:
         """Create the viewer window and immediately apply Isaac Lab UI patches."""
@@ -1253,11 +1306,7 @@ class NewtonVisualizer(BaseVisualizer):
                         self._viewer.log_contacts(contacts, state)
                     else:
                         self._log_scene_contact_sensor_arrows(num_envs)
-                    if self.cfg.enable_markers and not isinstance(self._viewer, NewtonViewerRTX):
-                        # RTX's USD scene does not support the GL marker overlays.
-                        render_newton_visualization_markers(
-                            self._viewer, self._resolved_visible_env_ids, num_envs=num_envs
-                        )
+                    self._render_markers(num_envs)
                     self._log_streaming_image()
                     self._render_live_plots()
                     self._log_pending_meshes()
@@ -1558,6 +1607,16 @@ class NewtonVisualizer(BaseVisualizer):
         """Return the latest RGB frame as a uint8 array with shape ``(H, W, 3)``."""
         raise NotImplementedError
 
+    def _render_markers(self, num_envs: int) -> None:
+        """Log visualization markers; the RTX viewer needs USD-safe group ids, the GL viewer takes them raw."""
+        if self.cfg.enable_markers:
+            render_newton_visualization_markers(
+                self._viewer,
+                self._resolved_visible_env_ids,
+                num_envs=num_envs,
+                sanitize_group_ids=isinstance(self._viewer, NewtonViewerRTX),
+            )
+
     def _render_headless_frame(self) -> None:
         """Render on demand, borrowing current SDP arrays and preserving paused frames."""
         if not self._runtime_headless or self._viewer.is_paused():
@@ -1572,11 +1631,7 @@ class NewtonVisualizer(BaseVisualizer):
         self._viewer.begin_frame(self._sim_time)
         try:
             self._viewer.log_state(backend.state_0)
-            # RTX's USD scene does not support the GL marker overlays.
-            if self.cfg.enable_markers and not isinstance(self._viewer, NewtonViewerRTX):
-                render_newton_visualization_markers(
-                    self._viewer, self._resolved_visible_env_ids, num_envs=backend.model.num_envs
-                )
+            self._render_markers(backend.model.num_envs)
             self._log_pending_meshes()
         finally:
             self._viewer.end_frame()
