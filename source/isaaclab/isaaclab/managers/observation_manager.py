@@ -20,7 +20,7 @@ from prettytable import PrettyTable
 from ..envs.utils.io_descriptors import _warn_io_descriptors_deprecated
 from ..utils import clone, instantiate, modifiers, noise, string_to_callable, to_dict
 from ..utils.buffers import CircularBuffer, DelayBuffer
-from .manager_base import ManagerBase, ManagerTermBase
+from .manager_base import ManagerBase, ManagerTermBase, _populate_term_defaults
 from .manager_term_cfg import ManagerTermBaseCfg, ObservationGroupCfg, ObservationTermCfg
 
 if TYPE_CHECKING:
@@ -45,6 +45,7 @@ def _prepare_term(
     term_cfg: ManagerTermBaseCfg,
     env: ManagerBasedEnv,
     prepared: dict[str, ManagerTermBase],
+    seen: set[int],
     *,
     top_level: bool,
 ) -> None:
@@ -52,12 +53,19 @@ def _prepare_term(
 
     Nested terms are visited first and named like :meth:`ManagerBase._resolve_param_value` names them at
     simulation start, so :meth:`ObservationManager._process_term_cfg_at_play` adopts each prepared instance.
+    Omitted keyword defaults are populated as at simulation start, so terms supplied as defaults are found.
+    A configuration referenced from several places is prepared once; runtime resolution shares its instance.
     """
-    for field in fields(term_cfg):
-        _prepare_nested_terms(name, field.name, getattr(term_cfg, field.name), env, prepared)
+    if id(term_cfg) in seen:
+        return
+    seen.add(id(term_cfg))
     func = string_to_callable(term_cfg.func) if isinstance(term_cfg.func, str) else term_cfg.func
     if top_level and not callable(func):
         raise TypeError(f"Observation term {name!r} is not callable: {func!r}.")
+    if callable(func) and isinstance(term_cfg.params, dict):
+        _populate_term_defaults(func, term_cfg.params)
+    for field in fields(term_cfg):
+        _prepare_nested_terms(name, field.name, getattr(term_cfg, field.name), env, prepared, seen)
     if not inspect.isclass(func):
         return
     if not issubclass(func, ManagerTermBase):
@@ -73,20 +81,25 @@ def _prepare_term(
 
 
 def _prepare_nested_terms(
-    term_name: str, key: str | int, value: object, env: ManagerBasedEnv, prepared: dict[str, ManagerTermBase]
+    term_name: str,
+    key: str | int,
+    value: object,
+    env: ManagerBasedEnv,
+    prepared: dict[str, ManagerTermBase],
+    seen: set[int],
 ) -> None:
     """Visit configuration values in the same order and with the same names as runtime term resolution."""
     if isinstance(value, ManagerTermBaseCfg):
-        _prepare_term(f"{term_name}.{key}", value, env, prepared, top_level=False)
+        _prepare_term(f"{term_name}.{key}", value, env, prepared, seen, top_level=False)
     elif isinstance(value, modifiers.ModifierCfg):
         for field in fields(value):
-            _prepare_nested_terms(f"{term_name}.{key}", field.name, getattr(value, field.name), env, prepared)
+            _prepare_nested_terms(f"{term_name}.{key}", field.name, getattr(value, field.name), env, prepared, seen)
     elif isinstance(value, dict):
         for sub_key, sub_value in value.items():
-            _prepare_nested_terms(f"{term_name}.{key}", sub_key, sub_value, env, prepared)
+            _prepare_nested_terms(f"{term_name}.{key}", sub_key, sub_value, env, prepared, seen)
     elif isinstance(value, (list, tuple)):
         for index, item in enumerate(value):
-            _prepare_nested_terms(f"{term_name}.{key}", index, item, env, prepared)
+            _prepare_nested_terms(f"{term_name}.{key}", index, item, env, prepared, seen)
 
 
 class ObservationManager(ManagerBase):
@@ -219,6 +232,7 @@ class ObservationManager(ManagerBase):
         if cfg is None:
             raise ValueError("Observation manager configuration is None. Please provide a valid configuration.")
         prepared: dict[str, ManagerTermBase] = {}
+        seen: set[int] = set()
         try:
             groups = cfg.items() if isinstance(cfg, dict) else vars(cfg).items()
             for group_name, group in groups:
@@ -232,7 +246,7 @@ class ObservationManager(ManagerBase):
                     name = f"{group_name}/{term_name}"
                     if not isinstance(term_cfg, ObservationTermCfg):
                         raise TypeError(f"Observation term {name!r} must be an ObservationTermCfg.")
-                    _prepare_term(name, term_cfg, env, prepared, top_level=True)
+                    _prepare_term(name, term_cfg, env, prepared, seen, top_level=True)
         except Exception:
             # Preserve preparation diagnostics after attempting every cleanup.
             with suppress(Exception):
@@ -468,10 +482,10 @@ class ObservationManager(ManagerBase):
     """
 
     def reset(self, env_ids: Sequence[int] | None = None) -> dict[str, float]:
-        # call all terms that are classes
-        for group_name, group_cfg in self._group_obs_class_term_cfgs.items():
-            for term_cfg in group_cfg:
-                term_cfg.func.reset(env_ids=env_ids)
+        # reset every class-based term once, including terms nested in another term's configuration
+        for term in self._owned_terms.values():
+            term.reset(env_ids=env_ids)
+        for group_name in self._group_obs_class_term_cfgs:
             # reset delay and observation histories for the selected environments
             for term_name in self._group_obs_term_names[group_name]:
                 if term_name in self._group_obs_term_delay_buffer[group_name]:

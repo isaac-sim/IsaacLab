@@ -189,6 +189,44 @@ def test_manager_prepares_nested_image_terms_before_startup():
     assert manager.cfg["policy"].encoded.params["image"].func is instance
     manager.compute()
     assert sum(kind == "process" for kind, _ in events) == 1
+    manager.reset([1])
+    resets = [mask for kind, mask in events if kind == "reset"]
+    assert len(resets) == 1
+    np.testing.assert_array_equal(resets[0], [False, True])
+    manager.close()
+    assert sum(kind == "close" for kind, _ in events) == 1
+
+
+@pytest.mark.parametrize("source", ["default", "shared"])
+def test_manager_prepares_defaulted_and_shared_nested_image_terms(source):
+    """Nested image terms supplied as defaults, or referenced twice, are prepared once before startup."""
+    camera = CameraSource()
+    env = make_env(camera)
+    events = []
+    image_cfg, _ = make_term_cfg(events)
+    image_cfg.func = "isaaclab.envs.mdp:processed_image"
+    if source == "default":
+
+        def encode(env, image=image_cfg):
+            return image.func(env, **image.params)
+
+        term_cfg, expected = ObservationTermCfg(func=encode), "policy/encoded.params.image"
+    else:
+
+        def encode(env, images):
+            return torch.cat([image.func(env, **image.params) for image in images], dim=-1)
+
+        term_cfg = ObservationTermCfg(func=encode, params={"images": (image_cfg, image_cfg)})
+        expected = "policy/encoded.params.images.0"
+    group = ObservationGroupCfg(concatenate_terms=False, enable_corruption=False)
+    group.encoded = term_cfg
+    cfg = {"policy": group}
+    prepared = ObservationManager.prepare_scene(cfg, env)
+    assert list(prepared) == [expected]
+    assert camera.requests == [("rgb", "rgba")]
+    manager = ObservationManager(cfg, env, prepared_terms=prepared)
+    manager.compute()
+    assert sum(kind == "process" for kind, _ in events) == 1
     manager.close()
     assert sum(kind == "close" for kind, _ in events) == 1
 
