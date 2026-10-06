@@ -276,6 +276,12 @@ How-to Guides
 
          Diagnose bottlenecks and improve simulation throughput.
 
+      .. container:: guide-entry
+
+         :doc:`Tuning physics solvers </source/how-to/solver-tuning/index>`
+
+         Diagnose stability, contacts, convergence, and runtime for PhysX, MJWarp, Kamino, VBD, and MPM.
+
    .. container:: guide-group
 
       .. rubric:: Teleoperation
@@ -320,3 +326,8 @@ How-to Guides
 
       This collection is a work in progress. If a question is not answered here, open an issue on the
       `Isaac Lab GitHub repository <https://github.com/isaac-sim/IsaacLab>`_.
+
+.. toctree::
+   :hidden:
+
+   solver-tuning/index

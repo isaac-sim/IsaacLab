@@ -82,7 +82,7 @@ Newton's self-collision setting:
    robot_cfg = clone(CARTPOLE_CFG)
    robot_cfg.spawn.articulation_props = NewtonArticulationRootPropertiesCfg(self_collision_enabled=False)
 
-See :doc:`../concepts/solver-tuning/tune_mjwarp` for solver settings,
+See :doc:`solver-tuning/tune_mjwarp` for solver settings,
 :doc:`prepare_asset_for_newton`
 for asset tuning, and :ref:`import-new-asset-multi-backend` for converted USD variants.
 

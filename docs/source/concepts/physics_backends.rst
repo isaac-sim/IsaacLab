@@ -96,23 +96,9 @@ Newton
 ------
 
 Newton is a Warp-native backend that can run without Isaac Sim. Its Isaac Lab
-integration is beta and supports multiple solver families rather than one
-fixed solver. Configure the backend with
-:class:`~isaaclab_newton.physics.NewtonCfg` and select a solver configuration
-such as :class:`~isaaclab_newton.physics.MJWarpSolverCfg`.
-
-Task and component coverage is narrower and task-specific. Check task
-``--help`` and :doc:`the environment catalog </source/setup/environments>`
-for current presets, the generated configuration APIs for available symbols,
-and the specialist guides below for solver-specific workflows and limitations.
-
-Start with :doc:`/source/how-to/prepare_asset_for_newton`, then use
-:doc:`/source/concepts/solver-tuning/tune_mjwarp` for the primary validated solver path or
-:doc:`/source/concepts/solver-tuning/tune_kamino` for the beta Kamino path. Experimental
-specialist guides cover :ref:`newton-using-vbd`, :ref:`newton-using-mpm`,
-:ref:`deformables`, :ref:`warp-environments`, and
-:ref:`warp-env-migration`. Backend developers can also read
-:doc:`/source/developer-tools/extending_newton_solvers`.
+integration is beta, with MJWarp as the primary validated solver path. See
+:doc:`the Newton backend page </source/concepts/physics-backends/newton>` for
+solver options, task support, and links to Newton's own solver documentation.
 
 
 .. _physics-backends-ovphysx:
@@ -155,6 +141,7 @@ follow the generated API links for :class:`~isaaclab_physx.physics.PhysxCfg`,
 .. toctree::
    :hidden:
 
+   /source/concepts/physics-backends/newton
    /source/concepts/joint_and_body_ordering
    /source/concepts/ovphysx
    /source/concepts/using_mpm

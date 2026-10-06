@@ -326,5 +326,5 @@ See also
 * :doc:`/source/concepts/reinforcement_learning`
 * :doc:`/source/features/hydra`
 * :doc:`/source/concepts/joint_and_body_ordering`
-* :doc:`/source/concepts/solver-tuning/tune_mjwarp`
+* :doc:`/source/how-to/solver-tuning/tune_mjwarp`
 * :ref:`physics-backends-newton`

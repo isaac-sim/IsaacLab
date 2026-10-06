@@ -10,7 +10,7 @@ manager owns, when its hooks run, and what a subclass must provide.
 
 If you only need to select and configure a shipped solver, use the user-facing
 pages instead: :doc:`/source/concepts/backends_and_presets` for backend and
-preset selection, :doc:`/source/concepts/solver-tuning/index` for the per-solver guides, and
+preset selection, :doc:`/source/how-to/solver-tuning/index` for the per-solver guides, and
 :ref:`newton-coupled-solvers` for choosing a coupling approach.
 
 

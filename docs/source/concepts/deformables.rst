@@ -80,7 +80,7 @@ Backend support
 On Newton, deformables of every kind are simulated by the VBD solver, so a scene containing them
 must select a physics cfg whose solver is VBD. For the solver parameters, for running a rigid robot
 and a deformable in one scene, and for the tuning workflow, see
-:doc:`/source/concepts/solver-tuning/tune_vbd` and :doc:`/source/concepts/coupled_solvers`.
+:doc:`/source/how-to/solver-tuning/tune_vbd` and :doc:`/source/concepts/coupled_solvers`.
 
 OvPhysX deformables carry further restrictions on node counts and startup cost. See
 :doc:`/source/concepts/ovphysx`.
@@ -165,7 +165,7 @@ A surface deformable is authored the same way, with a 2D mesh spawner and a surf
 
 The material values above are the tuned ones from ``Isaac-Lift-Cloth-Franka`` rather than the
 defaults. For what each parameter does and what it defaults to, see
-:doc:`/source/concepts/solver-tuning/tune_vbd`, which also covers cloth self-contact. Self-contact
+:doc:`/source/how-to/solver-tuning/tune_vbd`, which also covers cloth self-contact. Self-contact
 is off by default, so cloth passes through itself until it is enabled.
 
 ``edge_refinement`` sets the simulation resolution for both kinds: the maximum surface edge length
@@ -607,7 +607,7 @@ Related
 -------
 
 * :ref:`tutorial-interact-deformable-object` walks through a volume deformable step by step.
-* :doc:`/source/concepts/solver-tuning/tune_vbd` covers the VBD solver parameters, the Newton
+* :doc:`/source/how-to/solver-tuning/tune_vbd` covers the VBD solver parameters, the Newton
   material tables, cloth self-contact, and the tuning workflow.
 * :doc:`/source/concepts/coupled_solvers` covers running a rigid robot and a deformable in one
   scene.
