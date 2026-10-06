@@ -16,7 +16,7 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,collection_sta
 2026-08-23,Isaac-Cartpole,8192,newton_mjwarp,none,covered,covered,,"4096,16384",158715,2026-08-24
 2026-08-23,Isaac-Cartpole,8192,ovphysx,none,covered,covered,,16384,159465,2026-08-24
 2026-08-23,Isaac-Cartpole-Camera-Direct,8192,isaacsim_physx,isaacsim_rtx,covered,covered,,,158402,2026-08-24
-2026-08-23,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,newton_renderer,missing,missing,no eligible successful WARM RSL-RL measurement at fixed profile,,,
+2026-08-23,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,newton_renderer,covered,covered,,,158372,2026-08-24
 2026-08-23,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,ovrtx,covered,covered,,,158386,2026-08-24
 2026-08-23,Isaac-Cartpole-Camera-Direct,8192,ovphysx,ovrtx,covered,covered,,,159197,2026-08-24
 2026-08-23,Isaac-Cartpole-Camera,8192,isaacsim_physx,isaacsim_rtx,missing,missing,no eligible successful WARM RSL-RL measurement at fixed profile,,,
@@ -45,7 +45,7 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,collection_sta
 2026-08-23,Isaac-Lift-KukaAllegro,8192,newton_mjwarp,none,covered,covered,,"4096,16384",158724,2026-08-24
 2026-08-23,Isaac-Lift-KukaAllegro,8192,ovphysx,none,covered,covered,,16384,159502,2026-08-24
 2026-08-23,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,covered,covered,,16384,157416,2026-08-24
-2026-08-23,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,missing,missing,no eligible successful WARM RSL-RL measurement at fixed profile,,,
+2026-08-23,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,covered,covered,,16384,157309,2026-08-24
 2026-08-23,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,covered,covered,,16384,157382,2026-08-24
 2026-08-23,Isaac-Lift-KukaAllegro-Camera,8192,ovphysx,ovrtx,covered,covered,,,157402,2026-08-24
 2026-08-23,Isaac-Lift-Soft-Franka,8192,isaacsim_physx,none,missing,missing,no eligible successful WARM RSL-RL measurement at fixed profile,,,
@@ -85,18 +85,18 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,collection_sta
 2026-08-23,Isaac-Reorient-Cube-Shadow,8192,newton_mjwarp,none,covered,covered,,16384,158754,2026-08-24
 2026-08-23,Isaac-Reorient-Cube-Shadow,8192,ovphysx,none,covered,covered,,16384,159525,2026-08-24
 2026-08-23,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,isaacsim_physx,isaacsim_rtx,covered,covered,,16384,157418,2026-08-24
-2026-08-23,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,newton_renderer,missing,missing,no eligible successful WARM RSL-RL measurement at fixed profile,,,
+2026-08-23,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,newton_renderer,covered,covered,,16384,158323,2026-08-24
 2026-08-23,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,ovrtx,covered,covered,,16384,157393,2026-08-24
 2026-08-23,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,ovphysx,ovrtx,covered,covered,,,157426,2026-08-24
 2026-08-23,Isaac-Reorient-Cube-Shadow-Camera,8192,isaacsim_physx,isaacsim_rtx,covered,covered,,16384,157418,2026-08-24
-2026-08-23,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,newton_renderer,missing,missing,no eligible successful WARM RSL-RL measurement at fixed profile,,,
+2026-08-23,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,newton_renderer,covered,covered,,16384,157329,2026-08-24
 2026-08-23,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,ovrtx,covered,covered,,16384,157393,2026-08-24
 2026-08-23,Isaac-Reorient-Cube-Shadow-Camera,8192,ovphysx,ovrtx,covered,covered,,,157426,2026-08-24
 2026-08-23,Isaac-Reorient-KukaAllegro,8192,isaacsim_physx,none,covered,covered,,"4096,16384",158027,2026-08-24
 2026-08-23,Isaac-Reorient-KukaAllegro,8192,newton_mjwarp,none,covered,covered,,"4096,16384",158739,2026-08-24
 2026-08-23,Isaac-Reorient-KukaAllegro,8192,ovphysx,none,covered,covered,,16384,159522,2026-08-24
 2026-08-23,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,covered,covered,,16384,159745,2026-08-24
-2026-08-23,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,missing,missing,no eligible successful WARM RSL-RL measurement at fixed profile,,,
+2026-08-23,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,covered,covered,,16384,159624,2026-08-24
 2026-08-23,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,covered,covered,,16384,159714,2026-08-24
 2026-08-23,Isaac-Reorient-KukaAllegro-Camera,8192,ovphysx,ovrtx,covered,covered,,,159727,2026-08-24
 2026-08-23,Isaac-Shadow-Handover-Direct,8192,isaacsim_physx,none,covered,covered,,"2048,16384",158001,2026-08-24
@@ -162,11 +162,11 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,collection_sta
 2026-08-30,Isaac-Cartpole,8192,newton_mjwarp,none,covered,covered,,"4096,16384",184571,2026-08-31
 2026-08-30,Isaac-Cartpole,8192,ovphysx,none,covered,covered,,16384,184721,2026-08-31
 2026-08-30,Isaac-Cartpole-Camera-Direct,8192,isaacsim_physx,isaacsim_rtx,covered,covered,,,184958,2026-08-31
-2026-08-30,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,newton_renderer,missing,missing,no eligible successful WARM RSL-RL measurement at fixed profile,,,
+2026-08-30,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,newton_renderer,covered,covered,,,184904,2026-08-31
 2026-08-30,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,ovrtx,covered,covered,,,185008,2026-08-31
 2026-08-30,Isaac-Cartpole-Camera-Direct,8192,ovphysx,ovrtx,covered,covered,,,183902,2026-08-31
 2026-08-30,Isaac-Cartpole-Camera,8192,isaacsim_physx,isaacsim_rtx,covered,covered,,,184958,2026-08-31
-2026-08-30,Isaac-Cartpole-Camera,8192,newton_mjwarp,newton_renderer,missing,missing,no eligible successful WARM RSL-RL measurement at fixed profile,,,
+2026-08-30,Isaac-Cartpole-Camera,8192,newton_mjwarp,newton_renderer,covered,covered,,,184904,2026-08-31
 2026-08-30,Isaac-Cartpole-Camera,8192,newton_mjwarp,ovrtx,covered,covered,,,185008,2026-08-31
 2026-08-30,Isaac-Cartpole-Camera,8192,ovphysx,ovrtx,covered,covered,,,183902,2026-08-31
 2026-08-30,Isaac-Fourbar-Pole-Swingup,8192,newton_kamino,none,missing,missing,no eligible successful WARM RSL-RL measurement at fixed profile,,,
@@ -191,7 +191,7 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,collection_sta
 2026-08-30,Isaac-Lift-KukaAllegro,8192,newton_mjwarp,none,covered,covered,,"4096,16384",184585,2026-08-31
 2026-08-30,Isaac-Lift-KukaAllegro,8192,ovphysx,none,covered,covered,,16384,184728,2026-08-31
 2026-08-30,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,covered,covered,,16384,184975,2026-08-31
-2026-08-30,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,missing,missing,no eligible successful WARM RSL-RL measurement at fixed profile,,,
+2026-08-30,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,covered,covered,,16384,184889,2026-08-31
 2026-08-30,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,covered,covered,,16384,184988,2026-08-31
 2026-08-30,Isaac-Lift-KukaAllegro-Camera,8192,ovphysx,ovrtx,covered,covered,,,183898,2026-08-31
 2026-08-30,Isaac-Lift-Soft-Franka,8192,isaacsim_physx,none,missing,missing,no eligible successful WARM RSL-RL measurement at fixed profile,,,
@@ -231,18 +231,18 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,collection_sta
 2026-08-30,Isaac-Reorient-Cube-Shadow,8192,newton_mjwarp,none,covered,covered,,16384,184642,2026-08-31
 2026-08-30,Isaac-Reorient-Cube-Shadow,8192,ovphysx,none,covered,covered,,16384,184753,2026-08-31
 2026-08-30,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,isaacsim_physx,isaacsim_rtx,covered,covered,,16384,183932,2026-08-31
-2026-08-30,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,newton_renderer,missing,missing,no eligible successful WARM RSL-RL measurement at fixed profile,,,
+2026-08-30,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,newton_renderer,covered,covered,,16384,184914,2026-08-31
 2026-08-30,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,ovrtx,covered,covered,,16384,183901,2026-08-31
 2026-08-30,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,ovphysx,ovrtx,covered,covered,,,183927,2026-08-31
 2026-08-30,Isaac-Reorient-Cube-Shadow-Camera,8192,isaacsim_physx,isaacsim_rtx,covered,covered,,16384,183932,2026-08-31
-2026-08-30,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,newton_renderer,missing,missing,no eligible successful WARM RSL-RL measurement at fixed profile,,,
+2026-08-30,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,newton_renderer,covered,covered,,16384,184914,2026-08-31
 2026-08-30,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,ovrtx,covered,covered,,16384,183901,2026-08-31
 2026-08-30,Isaac-Reorient-Cube-Shadow-Camera,8192,ovphysx,ovrtx,covered,covered,,,183927,2026-08-31
 2026-08-30,Isaac-Reorient-KukaAllegro,8192,isaacsim_physx,none,covered,covered,,"4096,16384",184513,2026-08-31
 2026-08-30,Isaac-Reorient-KukaAllegro,8192,newton_mjwarp,none,covered,covered,,"4096,16384",184636,2026-08-31
 2026-08-30,Isaac-Reorient-KukaAllegro,8192,ovphysx,none,covered,covered,,16384,184755,2026-08-31
 2026-08-30,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,covered,covered,,16384,184991,2026-08-31
-2026-08-30,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,missing,missing,no eligible successful WARM RSL-RL measurement at fixed profile,,,
+2026-08-30,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,covered,covered,,16384,184897,2026-08-31
 2026-08-30,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,covered,covered,,16384,185000,2026-08-31
 2026-08-30,Isaac-Reorient-KukaAllegro-Camera,8192,ovphysx,ovrtx,covered,covered,,,183905,2026-08-31
 2026-08-30,Isaac-Shadow-Handover-Direct,8192,isaacsim_physx,none,covered,covered,,"2048,16384",184520,2026-08-31
@@ -308,11 +308,11 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,collection_sta
 2026-09-06,Isaac-Cartpole,8192,newton_mjwarp,none,covered,covered,,"4096,16384",201360,2026-09-07
 2026-09-06,Isaac-Cartpole,8192,ovphysx,none,covered,covered,,16384,201477,2026-09-07
 2026-09-06,Isaac-Cartpole-Camera-Direct,8192,isaacsim_physx,isaacsim_rtx,covered,covered,,,201723,2026-09-07
-2026-09-06,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,newton_renderer,missing,missing,no eligible successful WARM RSL-RL measurement at fixed profile,,,
+2026-09-06,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,newton_renderer,covered,covered,,,201666,2026-09-07
 2026-09-06,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,ovrtx,covered,covered,,,201791,2026-09-07
 2026-09-06,Isaac-Cartpole-Camera-Direct,8192,ovphysx,ovrtx,covered,covered,,,200611,2026-09-07
 2026-09-06,Isaac-Cartpole-Camera,8192,isaacsim_physx,isaacsim_rtx,covered,covered,,,201723,2026-09-07
-2026-09-06,Isaac-Cartpole-Camera,8192,newton_mjwarp,newton_renderer,missing,missing,no eligible successful WARM RSL-RL measurement at fixed profile,,,
+2026-09-06,Isaac-Cartpole-Camera,8192,newton_mjwarp,newton_renderer,covered,covered,,,201666,2026-09-07
 2026-09-06,Isaac-Cartpole-Camera,8192,newton_mjwarp,ovrtx,covered,covered,,,201791,2026-09-07
 2026-09-06,Isaac-Cartpole-Camera,8192,ovphysx,ovrtx,covered,covered,,,200611,2026-09-07
 2026-09-06,Isaac-Fourbar-Pole-Swingup,8192,newton_kamino,none,missing,missing,no eligible successful WARM RSL-RL measurement at fixed profile,,,
@@ -337,7 +337,7 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,collection_sta
 2026-09-06,Isaac-Lift-KukaAllegro,8192,newton_mjwarp,none,covered,covered,,"4096,16384",201403,2026-09-07
 2026-09-06,Isaac-Lift-KukaAllegro,8192,ovphysx,none,covered,covered,,16384,201490,2026-09-07
 2026-09-06,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,covered,covered,,16384,201728,2026-09-07
-2026-09-06,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,missing,missing,no eligible successful WARM RSL-RL measurement at fixed profile,,,
+2026-09-06,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,covered,covered,,16384,201659,2026-09-07
 2026-09-06,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,covered,covered,,16384,201784,2026-09-07
 2026-09-06,Isaac-Lift-KukaAllegro-Camera,8192,ovphysx,ovrtx,covered,covered,,,200625,2026-09-07
 2026-09-06,Isaac-Lift-Soft-Franka,8192,isaacsim_physx,none,missing,missing,no eligible successful WARM RSL-RL measurement at fixed profile,,,
@@ -377,18 +377,18 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,collection_sta
 2026-09-06,Isaac-Reorient-Cube-Shadow,8192,newton_mjwarp,none,covered,covered,,16384,201430,2026-09-07
 2026-09-06,Isaac-Reorient-Cube-Shadow,8192,ovphysx,none,covered,covered,,16384,201516,2026-09-07
 2026-09-06,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,isaacsim_physx,isaacsim_rtx,covered,covered,,16384,200678,2026-09-07
-2026-09-06,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,newton_renderer,missing,missing,no eligible successful WARM RSL-RL measurement at fixed profile,,,
+2026-09-06,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,newton_renderer,covered,covered,,16384,201682,2026-09-07
 2026-09-06,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,ovrtx,covered,covered,,16384,200612,2026-09-07
 2026-09-06,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,ovphysx,ovrtx,covered,covered,,,200655,2026-09-07
 2026-09-06,Isaac-Reorient-Cube-Shadow-Camera,8192,isaacsim_physx,isaacsim_rtx,covered,covered,,16384,200678,2026-09-07
-2026-09-06,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,newton_renderer,missing,missing,no eligible successful WARM RSL-RL measurement at fixed profile,,,
+2026-09-06,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,newton_renderer,covered,covered,,16384,201682,2026-09-07
 2026-09-06,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,ovrtx,covered,covered,,16384,200612,2026-09-07
 2026-09-06,Isaac-Reorient-Cube-Shadow-Camera,8192,ovphysx,ovrtx,covered,covered,,,200655,2026-09-07
 2026-09-06,Isaac-Reorient-KukaAllegro,8192,isaacsim_physx,none,covered,covered,,"4096,16384",201302,2026-09-07
 2026-09-06,Isaac-Reorient-KukaAllegro,8192,newton_mjwarp,none,covered,covered,,"4096,16384",201417,2026-09-07
 2026-09-06,Isaac-Reorient-KukaAllegro,8192,ovphysx,none,covered,covered,,16384,201507,2026-09-07
 2026-09-06,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,covered,covered,,16384,201734,2026-09-07
-2026-09-06,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,missing,missing,no eligible successful WARM RSL-RL measurement at fixed profile,,,
+2026-09-06,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,covered,covered,,16384,201667,2026-09-07
 2026-09-06,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,covered,covered,,16384,201797,2026-09-07
 2026-09-06,Isaac-Reorient-KukaAllegro-Camera,8192,ovphysx,ovrtx,covered,covered,,,200621,2026-09-07
 2026-09-06,Isaac-Shadow-Handover-Direct,8192,isaacsim_physx,none,covered,covered,,"2048,16384",201315,2026-09-07
@@ -454,11 +454,11 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,collection_sta
 2026-09-13,Isaac-Cartpole,8192,newton_mjwarp,none,covered,covered,,"4096,16384",214768,2026-09-13
 2026-09-13,Isaac-Cartpole,8192,ovphysx,none,covered,covered,,16384,214880,2026-09-13
 2026-09-13,Isaac-Cartpole-Camera-Direct,8192,isaacsim_physx,isaacsim_rtx,covered,covered,,,215112,2026-09-13
-2026-09-13,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,newton_renderer,missing,missing,no eligible successful WARM RSL-RL measurement at fixed profile,,,
+2026-09-13,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,newton_renderer,covered,covered,,,215061,2026-09-13
 2026-09-13,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,ovrtx,covered,covered,,,215146,2026-09-13
 2026-09-13,Isaac-Cartpole-Camera-Direct,8192,ovphysx,ovrtx,covered,covered,,,213975,2026-09-13
 2026-09-13,Isaac-Cartpole-Camera,8192,isaacsim_physx,isaacsim_rtx,covered,covered,,,215112,2026-09-13
-2026-09-13,Isaac-Cartpole-Camera,8192,newton_mjwarp,newton_renderer,missing,missing,no eligible successful WARM RSL-RL measurement at fixed profile,,,
+2026-09-13,Isaac-Cartpole-Camera,8192,newton_mjwarp,newton_renderer,covered,covered,,,215061,2026-09-13
 2026-09-13,Isaac-Cartpole-Camera,8192,newton_mjwarp,ovrtx,covered,covered,,,215146,2026-09-13
 2026-09-13,Isaac-Cartpole-Camera,8192,ovphysx,ovrtx,covered,covered,,,213975,2026-09-13
 2026-09-13,Isaac-Fourbar-Pole-Swingup,8192,newton_kamino,none,missing,missing,no eligible successful WARM RSL-RL measurement at fixed profile,,,
@@ -483,7 +483,7 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,collection_sta
 2026-09-13,Isaac-Lift-KukaAllegro,8192,newton_mjwarp,none,covered,covered,,"4096,16384",214776,2026-09-13
 2026-09-13,Isaac-Lift-KukaAllegro,8192,ovphysx,none,covered,covered,,16384,214894,2026-09-13
 2026-09-13,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,covered,covered,,16384,215136,2026-09-13
-2026-09-13,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,missing,missing,no eligible successful WARM RSL-RL measurement at fixed profile,,,
+2026-09-13,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,covered,covered,,16384,215059,2026-09-13
 2026-09-13,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,covered,covered,,16384,215126,2026-09-13
 2026-09-13,Isaac-Lift-KukaAllegro-Camera,8192,ovphysx,ovrtx,covered,covered,,,213988,2026-09-13
 2026-09-13,Isaac-Lift-Soft-Franka,8192,isaacsim_physx,none,missing,missing,no eligible successful WARM RSL-RL measurement at fixed profile,,,
@@ -523,18 +523,18 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,collection_sta
 2026-09-13,Isaac-Reorient-Cube-Shadow,8192,newton_mjwarp,none,covered,covered,,16384,214806,2026-09-13
 2026-09-13,Isaac-Reorient-Cube-Shadow,8192,ovphysx,none,covered,covered,,16384,214922,2026-09-13
 2026-09-13,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,isaacsim_physx,isaacsim_rtx,covered,covered,,16384,214023,2026-09-13
-2026-09-13,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,newton_renderer,missing,missing,no eligible successful WARM RSL-RL measurement at fixed profile,,,
+2026-09-13,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,newton_renderer,covered,covered,,16384,215070,2026-09-13
 2026-09-13,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,ovrtx,covered,covered,,16384,213941,2026-09-13
 2026-09-13,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,ovphysx,ovrtx,covered,covered,,,214007,2026-09-13
 2026-09-13,Isaac-Reorient-Cube-Shadow-Camera,8192,isaacsim_physx,isaacsim_rtx,covered,covered,,16384,214023,2026-09-13
-2026-09-13,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,newton_renderer,missing,missing,no eligible successful WARM RSL-RL measurement at fixed profile,,,
+2026-09-13,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,newton_renderer,covered,covered,,16384,215070,2026-09-13
 2026-09-13,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,ovrtx,covered,covered,,16384,213941,2026-09-13
 2026-09-13,Isaac-Reorient-Cube-Shadow-Camera,8192,ovphysx,ovrtx,covered,covered,,,214007,2026-09-13
 2026-09-13,Isaac-Reorient-KukaAllegro,8192,isaacsim_physx,none,covered,covered,,"4096,16384",214692,2026-09-13
 2026-09-13,Isaac-Reorient-KukaAllegro,8192,newton_mjwarp,none,covered,covered,,"4096,16384",214817,2026-09-13
 2026-09-13,Isaac-Reorient-KukaAllegro,8192,ovphysx,none,covered,covered,,16384,214906,2026-09-13
 2026-09-13,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,covered,covered,,16384,215134,2026-09-13
-2026-09-13,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,missing,missing,no eligible successful WARM RSL-RL measurement at fixed profile,,,
+2026-09-13,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,covered,covered,,16384,215056,2026-09-13
 2026-09-13,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,covered,covered,,16384,215150,2026-09-13
 2026-09-13,Isaac-Reorient-KukaAllegro-Camera,8192,ovphysx,ovrtx,covered,covered,,,213991,2026-09-13
 2026-09-13,Isaac-Shadow-Handover-Direct,8192,isaacsim_physx,none,covered,covered,,"2048,16384",214710,2026-09-13
@@ -600,11 +600,11 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,collection_sta
 2026-09-20,Isaac-Cartpole,8192,newton_mjwarp,none,covered,covered,,"4096,16384",229749,2026-09-21
 2026-09-20,Isaac-Cartpole,8192,ovphysx,none,covered,covered,,16384,229902,2026-09-21
 2026-09-20,Isaac-Cartpole-Camera-Direct,8192,isaacsim_physx,isaacsim_rtx,covered,covered,,,230154,2026-09-21
-2026-09-20,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,newton_renderer,missing,missing,no eligible successful WARM RSL-RL measurement at fixed profile,,,
+2026-09-20,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,newton_renderer,covered,covered,,,230112,2026-09-21
 2026-09-20,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,ovrtx,covered,covered,,,230144,2026-09-21
 2026-09-20,Isaac-Cartpole-Camera-Direct,8192,ovphysx,ovrtx,covered,covered,,,228869,2026-09-21
 2026-09-20,Isaac-Cartpole-Camera,8192,isaacsim_physx,isaacsim_rtx,covered,covered,,,230154,2026-09-21
-2026-09-20,Isaac-Cartpole-Camera,8192,newton_mjwarp,newton_renderer,missing,missing,no eligible successful WARM RSL-RL measurement at fixed profile,,,
+2026-09-20,Isaac-Cartpole-Camera,8192,newton_mjwarp,newton_renderer,covered,covered,,,228092,2026-09-21
 2026-09-20,Isaac-Cartpole-Camera,8192,newton_mjwarp,ovrtx,covered,covered,,,230144,2026-09-21
 2026-09-20,Isaac-Cartpole-Camera,8192,ovphysx,ovrtx,covered,covered,,,228869,2026-09-21
 2026-09-20,Isaac-Fourbar-Pole-Swingup,8192,newton_kamino,none,missing,missing,no eligible successful WARM RSL-RL measurement at fixed profile,,,
@@ -629,7 +629,7 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,collection_sta
 2026-09-20,Isaac-Lift-KukaAllegro,8192,newton_mjwarp,none,covered,covered,,"4096,16384",229793,2026-09-21
 2026-09-20,Isaac-Lift-KukaAllegro,8192,ovphysx,none,covered,covered,,16384,229928,2026-09-21
 2026-09-20,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,covered,covered,,16384,230172,2026-09-21
-2026-09-20,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,missing,missing,no eligible successful WARM RSL-RL measurement at fixed profile,,,
+2026-09-20,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,covered,covered,,16384,228212,2026-09-21
 2026-09-20,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,covered,covered,,16384,230135,2026-09-21
 2026-09-20,Isaac-Lift-KukaAllegro-Camera,8192,ovphysx,ovrtx,covered,covered,,,228863,2026-09-21
 2026-09-20,Isaac-Lift-Soft-Franka,8192,isaacsim_physx,none,missing,missing,no eligible successful WARM RSL-RL measurement at fixed profile,,,
@@ -669,18 +669,18 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,collection_sta
 2026-09-20,Isaac-Reorient-Cube-Shadow,8192,newton_mjwarp,none,covered,covered,,16384,229814,2026-09-21
 2026-09-20,Isaac-Reorient-Cube-Shadow,8192,ovphysx,none,covered,covered,,16384,229940,2026-09-21
 2026-09-20,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,isaacsim_physx,isaacsim_rtx,covered,covered,,16384,228908,2026-09-21
-2026-09-20,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,newton_renderer,missing,missing,no eligible successful WARM RSL-RL measurement at fixed profile,,,
+2026-09-20,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,newton_renderer,covered,covered,,16384,230115,2026-09-21
 2026-09-20,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,ovrtx,covered,covered,,16384,228849,2026-09-21
 2026-09-20,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,ovphysx,ovrtx,covered,covered,,,228894,2026-09-21
 2026-09-20,Isaac-Reorient-Cube-Shadow-Camera,8192,isaacsim_physx,isaacsim_rtx,covered,covered,,16384,228908,2026-09-21
-2026-09-20,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,newton_renderer,missing,missing,no eligible successful WARM RSL-RL measurement at fixed profile,,,
+2026-09-20,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,newton_renderer,covered,covered,,16384,228095,2026-09-21
 2026-09-20,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,ovrtx,covered,covered,,16384,228849,2026-09-21
 2026-09-20,Isaac-Reorient-Cube-Shadow-Camera,8192,ovphysx,ovrtx,covered,covered,,,228894,2026-09-21
 2026-09-20,Isaac-Reorient-KukaAllegro,8192,isaacsim_physx,none,covered,covered,,"4096,16384",229688,2026-09-21
 2026-09-20,Isaac-Reorient-KukaAllegro,8192,newton_mjwarp,none,covered,covered,,"4096,16384",229812,2026-09-21
 2026-09-20,Isaac-Reorient-KukaAllegro,8192,ovphysx,none,covered,covered,,16384,229935,2026-09-21
 2026-09-20,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,covered,covered,,16384,230168,2026-09-21
-2026-09-20,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,missing,missing,no eligible successful WARM RSL-RL measurement at fixed profile,,,
+2026-09-20,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,covered,covered,,16384,228093,2026-09-21
 2026-09-20,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,covered,covered,,16384,230141,2026-09-21
 2026-09-20,Isaac-Reorient-KukaAllegro-Camera,8192,ovphysx,ovrtx,covered,covered,,,228871,2026-09-21
 2026-09-20,Isaac-Shadow-Handover-Direct,8192,isaacsim_physx,none,covered,covered,,"2048,16384",229686,2026-09-21
@@ -746,11 +746,11 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,collection_sta
 2026-09-27,Isaac-Cartpole,8192,newton_mjwarp,none,covered,covered,,"4096,16384",245922,2026-09-28
 2026-09-27,Isaac-Cartpole,8192,ovphysx,none,covered,covered,,16384,246014,2026-09-28
 2026-09-27,Isaac-Cartpole-Camera-Direct,8192,isaacsim_physx,isaacsim_rtx,covered,covered,,,246381,2026-09-28
-2026-09-27,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,newton_renderer,missing,missing,no eligible successful WARM RSL-RL measurement at fixed profile,,,
+2026-09-27,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,newton_renderer,covered,covered,,,246282,2026-09-28
 2026-09-27,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,ovrtx,covered,covered,,,246377,2026-09-28
 2026-09-27,Isaac-Cartpole-Camera-Direct,8192,ovphysx,ovrtx,covered,covered,,,244782,2026-09-28
 2026-09-27,Isaac-Cartpole-Camera,8192,isaacsim_physx,isaacsim_rtx,covered,covered,,,246381,2026-09-28
-2026-09-27,Isaac-Cartpole-Camera,8192,newton_mjwarp,newton_renderer,missing,missing,no eligible successful WARM RSL-RL measurement at fixed profile,,,
+2026-09-27,Isaac-Cartpole-Camera,8192,newton_mjwarp,newton_renderer,covered,covered,,,246282,2026-09-28
 2026-09-27,Isaac-Cartpole-Camera,8192,newton_mjwarp,ovrtx,covered,covered,,,246377,2026-09-28
 2026-09-27,Isaac-Cartpole-Camera,8192,ovphysx,ovrtx,covered,covered,,,244782,2026-09-28
 2026-09-27,Isaac-Fourbar-Pole-Swingup,8192,newton_kamino,none,missing,missing,no eligible successful WARM RSL-RL measurement at fixed profile,,,
@@ -775,7 +775,7 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,collection_sta
 2026-09-27,Isaac-Lift-KukaAllegro,8192,newton_mjwarp,none,covered,covered,,"4096,16384",245909,2026-09-28
 2026-09-27,Isaac-Lift-KukaAllegro,8192,ovphysx,none,covered,covered,,16384,246035,2026-09-28
 2026-09-27,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,covered,covered,,16384,246338,2026-09-28
-2026-09-27,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,missing,missing,no eligible successful WARM RSL-RL measurement at fixed profile,,,
+2026-09-27,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,covered,covered,,16384,246272,2026-09-28
 2026-09-27,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,covered,covered,,16384,246340,2026-09-28
 2026-09-27,Isaac-Lift-KukaAllegro-Camera,8192,ovphysx,ovrtx,covered,covered,,,244798,2026-09-28
 2026-09-27,Isaac-Lift-Soft-Franka,8192,isaacsim_physx,none,missing,missing,no eligible successful WARM RSL-RL measurement at fixed profile,,,
@@ -815,18 +815,18 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,collection_sta
 2026-09-27,Isaac-Reorient-Cube-Shadow,8192,newton_mjwarp,none,covered,covered,,16384,245944,2026-09-28
 2026-09-27,Isaac-Reorient-Cube-Shadow,8192,ovphysx,none,covered,covered,,16384,246079,2026-09-28
 2026-09-27,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,isaacsim_physx,isaacsim_rtx,covered,covered,,16384,246570,2026-09-28
-2026-09-27,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,newton_renderer,missing,missing,no eligible successful WARM RSL-RL measurement at fixed profile,,,
+2026-09-27,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,newton_renderer,covered,covered,,16384,246288,2026-09-28
 2026-09-27,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,ovrtx,covered,covered,,16384,244748,2026-09-28
 2026-09-27,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,ovphysx,ovrtx,covered,covered,,,244828,2026-09-28
 2026-09-27,Isaac-Reorient-Cube-Shadow-Camera,8192,isaacsim_physx,isaacsim_rtx,covered,covered,,16384,246570,2026-09-28
-2026-09-27,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,newton_renderer,missing,missing,no eligible successful WARM RSL-RL measurement at fixed profile,,,
+2026-09-27,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,newton_renderer,covered,covered,,16384,246288,2026-09-28
 2026-09-27,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,ovrtx,covered,covered,,16384,244748,2026-09-28
 2026-09-27,Isaac-Reorient-Cube-Shadow-Camera,8192,ovphysx,ovrtx,covered,covered,,,244828,2026-09-28
 2026-09-27,Isaac-Reorient-KukaAllegro,8192,isaacsim_physx,none,covered,covered,,"4096,16384",245812,2026-09-28
 2026-09-27,Isaac-Reorient-KukaAllegro,8192,newton_mjwarp,none,covered,covered,,"4096,16384",245945,2026-09-28
 2026-09-27,Isaac-Reorient-KukaAllegro,8192,ovphysx,none,covered,covered,,16384,246070,2026-09-28
 2026-09-27,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,covered,covered,,16384,246353,2026-09-28
-2026-09-27,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,missing,missing,no eligible successful WARM RSL-RL measurement at fixed profile,,,
+2026-09-27,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,covered,covered,,16384,246283,2026-09-28
 2026-09-27,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,covered,covered,,16384,246368,2026-09-28
 2026-09-27,Isaac-Reorient-KukaAllegro-Camera,8192,ovphysx,ovrtx,covered,covered,,,244807,2026-09-28
 2026-09-27,Isaac-Shadow-Handover-Direct,8192,isaacsim_physx,none,covered,covered,,"2048,16384",245800,2026-09-28
@@ -892,11 +892,11 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,collection_sta
 2026-10-04,Isaac-Cartpole,8192,newton_mjwarp,none,covered,covered,,"4096,16384",261034,2026-10-05
 2026-10-04,Isaac-Cartpole,8192,ovphysx,none,covered,covered,,16384,261136,2026-10-05
 2026-10-04,Isaac-Cartpole-Camera-Direct,8192,isaacsim_physx,isaacsim_rtx,covered,covered,,,261491,2026-10-05
-2026-10-04,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,newton_renderer,missing,missing,no eligible successful WARM RSL-RL measurement at fixed profile,,,
+2026-10-04,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,newton_renderer,covered,covered,,,261435,2026-10-05
 2026-10-04,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,ovrtx,covered,covered,,,261556,2026-10-05
 2026-10-04,Isaac-Cartpole-Camera-Direct,8192,ovphysx,ovrtx,covered,covered,,,260272,2026-10-05
 2026-10-04,Isaac-Cartpole-Camera,8192,isaacsim_physx,isaacsim_rtx,covered,covered,,,261491,2026-10-05
-2026-10-04,Isaac-Cartpole-Camera,8192,newton_mjwarp,newton_renderer,missing,missing,no eligible successful WARM RSL-RL measurement at fixed profile,,,
+2026-10-04,Isaac-Cartpole-Camera,8192,newton_mjwarp,newton_renderer,covered,covered,,,261435,2026-10-05
 2026-10-04,Isaac-Cartpole-Camera,8192,newton_mjwarp,ovrtx,covered,covered,,,261556,2026-10-05
 2026-10-04,Isaac-Cartpole-Camera,8192,ovphysx,ovrtx,covered,covered,,,260272,2026-10-05
 2026-10-04,Isaac-Fourbar-Pole-Swingup,8192,newton_kamino,none,missing,missing,no eligible successful WARM RSL-RL measurement at fixed profile,,,
@@ -921,7 +921,7 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,collection_sta
 2026-10-04,Isaac-Lift-KukaAllegro,8192,newton_mjwarp,none,covered,covered,,"4096,16384",261080,2026-10-05
 2026-10-04,Isaac-Lift-KukaAllegro,8192,ovphysx,none,covered,covered,,16384,261156,2026-10-05
 2026-10-04,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,covered,covered,,16384,261498,2026-10-05
-2026-10-04,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,missing,missing,no eligible successful WARM RSL-RL measurement at fixed profile,,,
+2026-10-04,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,covered,covered,,16384,261425,2026-10-05
 2026-10-04,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,covered,covered,,16384,261548,2026-10-05
 2026-10-04,Isaac-Lift-KukaAllegro-Camera,8192,ovphysx,ovrtx,covered,covered,,,260281,2026-10-05
 2026-10-04,Isaac-Lift-Soft-Franka,8192,isaacsim_physx,none,missing,missing,no eligible successful WARM RSL-RL measurement at fixed profile,,,
@@ -961,18 +961,18 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,collection_sta
 2026-10-04,Isaac-Reorient-Cube-Shadow,8192,newton_mjwarp,none,covered,covered,,16384,261076,2026-10-05
 2026-10-04,Isaac-Reorient-Cube-Shadow,8192,ovphysx,none,covered,covered,,16384,261178,2026-10-05
 2026-10-04,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,isaacsim_physx,isaacsim_rtx,covered,covered,,16384,260289,2026-10-05
-2026-10-04,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,newton_renderer,missing,missing,no eligible successful WARM RSL-RL measurement at fixed profile,,,
+2026-10-04,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,newton_renderer,covered,covered,,16384,261438,2026-10-05
 2026-10-04,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,ovrtx,covered,covered,,16384,260243,2026-10-05
 2026-10-04,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,ovphysx,ovrtx,covered,covered,,,260313,2026-10-05
 2026-10-04,Isaac-Reorient-Cube-Shadow-Camera,8192,isaacsim_physx,isaacsim_rtx,covered,covered,,16384,260289,2026-10-05
-2026-10-04,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,newton_renderer,missing,missing,no eligible successful WARM RSL-RL measurement at fixed profile,,,
+2026-10-04,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,newton_renderer,covered,covered,,16384,261438,2026-10-05
 2026-10-04,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,ovrtx,covered,covered,,16384,260243,2026-10-05
 2026-10-04,Isaac-Reorient-Cube-Shadow-Camera,8192,ovphysx,ovrtx,covered,covered,,,260313,2026-10-05
 2026-10-04,Isaac-Reorient-KukaAllegro,8192,isaacsim_physx,none,covered,covered,,"4096,16384",260976,2026-10-05
 2026-10-04,Isaac-Reorient-KukaAllegro,8192,newton_mjwarp,none,covered,covered,,"4096,16384",261078,2026-10-05
 2026-10-04,Isaac-Reorient-KukaAllegro,8192,ovphysx,none,covered,covered,,16384,261181,2026-10-05
 2026-10-04,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,covered,covered,,16384,261522,2026-10-05
-2026-10-04,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,missing,missing,no eligible successful WARM RSL-RL measurement at fixed profile,,,
+2026-10-04,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,covered,covered,,16384,261432,2026-10-05
 2026-10-04,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,covered,covered,,16384,261560,2026-10-05
 2026-10-04,Isaac-Reorient-KukaAllegro-Camera,8192,ovphysx,ovrtx,covered,covered,,,260287,2026-10-05
 2026-10-04,Isaac-Shadow-Handover-Direct,8192,isaacsim_physx,none,covered,covered,,"2048,16384",260964,2026-10-05
