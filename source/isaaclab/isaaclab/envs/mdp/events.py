@@ -1009,7 +1009,7 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
 
         self.asset_cfg: SceneEntityCfg = cfg.params["asset_cfg"]
         self.asset: RigidObject | Articulation = env.scene[self.asset_cfg.name]
-        # randomize from the initial values so repeated calls do not compound earlier samples
+        # initial values, so repeated calls do not compound
         self._defaults: dict[str, torch.Tensor] = {}
         _validate_randomization_params(cfg, "stiffness_distribution_params", allow_zero=False)
         for name in (
@@ -1026,10 +1026,7 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
             _validate_randomization_params(cfg, name, allow_negative=True)
 
     def _default(self, prop: str) -> torch.Tensor:
-        """Copy of the tendon data property ``prop`` as it was before this term first wrote it.
-
-        Read on first use, so only randomized properties are read: not every backend exposes every tendon property.
-        """
+        """Initial value of ``prop``, read on first use since not every backend exposes every tendon property."""
         if prop not in self._defaults:
             self._defaults[prop] = getattr(self.asset.data, prop).torch.clone()
         return self._defaults[prop].clone()
