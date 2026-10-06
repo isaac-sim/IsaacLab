@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 import inspect
-from collections.abc import Iterable, Sequence
+from collections.abc import Sequence
 from contextlib import suppress
 from dataclasses import fields
 from typing import TYPE_CHECKING
@@ -18,7 +18,7 @@ import torch
 from prettytable import PrettyTable
 
 from ..envs.utils.io_descriptors import _warn_io_descriptors_deprecated
-from ..utils import clone, instantiate, modifiers, noise, string_to_callable, to_dict
+from ..utils import instantiate, modifiers, noise, to_dict
 from ..utils.buffers import CircularBuffer, DelayBuffer
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import ManagerTermBaseCfg, ObservationGroupCfg, ObservationTermCfg
@@ -27,69 +27,21 @@ if TYPE_CHECKING:
     from ..envs import ManagerBasedEnv
 
 
-def _close_terms(terms: Iterable[ManagerTermBase]) -> None:
-    """Attempt each distinct term's cleanup before reporting the first failure."""
-    error = None
-    for term in reversed(list({id(term): term for term in terms}.values())):
-        try:
-            term.close()
-        except Exception as exc:
-            if error is None:
-                error = exc
-    if error is not None:
-        raise RuntimeError("Failed to close an observation term.") from error
-
-
-def _prepare_term(
-    name: str,
-    term_cfg: ManagerTermBaseCfg,
-    env: ManagerBasedEnv,
-    prepared: dict[str, ManagerTermBase],
-    *,
-    top_level: bool,
-) -> None:
-    """Prepare a term and the terms nested in its configuration before simulation startup.
-
-    Nested terms are visited first and named like :meth:`ManagerBase._resolve_param_value` names them at
-    simulation start, so :meth:`ObservationManager._process_term_cfg_at_play` adopts each prepared instance.
-    """
-    for field in fields(term_cfg):
-        _prepare_nested_terms(name, field.name, getattr(term_cfg, field.name), env, prepared)
-    func = string_to_callable(term_cfg.func) if isinstance(term_cfg.func, str) else term_cfg.func
-    if top_level and not callable(func):
-        raise TypeError(f"Observation term {name!r} is not callable: {func!r}.")
-    if not inspect.isclass(func):
-        return
-    if not issubclass(func, ManagerTermBase):
-        if top_level:
-            raise TypeError(f"Observation term {name!r} must inherit from ManagerTermBase.")
-        return
-    instance = func.prepare_scene(clone(term_cfg), env)
-    if instance is not None:
-        if isinstance(instance, ManagerTermBase):
-            prepared[name] = instance
-        if not isinstance(instance, func):
-            raise TypeError(f"Observation term {name!r} prepare_scene must return {func.__name__} or None.")
-
-
-def _prepare_nested_terms(
-    term_name: str, key: str | int, value: object, env: ManagerBasedEnv, prepared: dict[str, ManagerTermBase]
-) -> None:
-    """Visit configuration values in the same order and with the same names as runtime term resolution."""
-    if isinstance(value, ManagerTermBaseCfg):
-        _prepare_term(f"{term_name}.{key}", value, env, prepared, top_level=False)
-    elif isinstance(value, modifiers.ModifierCfg):
+def _prepare_modifiers(value: object, env: ManagerBasedEnv) -> None:
+    """Prepare modifier configs within an observation term before simulation startup."""
+    if isinstance(value, modifiers.ModifierCfg):
         prepare_scene = getattr(value, "prepare_scene", None)
         if prepare_scene is not None:
             prepare_scene(env)
+    if isinstance(value, (ManagerTermBaseCfg, modifiers.ModifierCfg)):
         for field in fields(value):
-            _prepare_nested_terms(f"{term_name}.{key}", field.name, getattr(value, field.name), env, prepared)
+            _prepare_modifiers(getattr(value, field.name), env)
     elif isinstance(value, dict):
-        for sub_key, sub_value in value.items():
-            _prepare_nested_terms(f"{term_name}.{key}", sub_key, sub_value, env, prepared)
+        for item in value.values():
+            _prepare_modifiers(item, env)
     elif isinstance(value, (list, tuple)):
-        for index, item in enumerate(value):
-            _prepare_nested_terms(f"{term_name}.{key}", index, item, env, prepared)
+        for item in value:
+            _prepare_modifiers(item, env)
 
 
 class ObservationManager(ManagerBase):
@@ -136,24 +88,18 @@ class ObservationManager(ManagerBase):
     independent storage when needed, allowing subsequent processing to reuse that storage.
     """
 
-    def __init__(self, cfg: object, env: ManagerBasedEnv, prepared_terms: dict[str, ManagerTermBase] | None = None):
+    def __init__(self, cfg: object, env: ManagerBasedEnv):
         """Initialize observation manager.
 
         Args:
             cfg: The configuration object or dictionary (``dict[str, ObservationGroupCfg]``).
             env: The environment instance.
-            prepared_terms: Instances returned by :meth:`prepare_scene`. Ownership
-                transfers to this manager; the supplied dictionary is cleared.
-
         Raises:
             ValueError: If the configuration is None.
             RuntimeError: If the shapes of the observation terms in a group are not compatible for concatenation
                 and the :attr:`~ObservationGroupCfg.concatenate_terms` attribute is set to True.
         """
-        self._prepared_terms = dict(prepared_terms or {})
-        if prepared_terms is not None:
-            prepared_terms.clear()
-        self._owned_terms = {id(term): term for term in self._prepared_terms.values()}
+        self._owned_terms: dict[int, ManagerTermBase] = {}
         self._resolve_terms_handle = None
         try:
             self._initialize(cfg, env)
@@ -168,9 +114,6 @@ class ObservationManager(ManagerBase):
             raise ValueError("Observation manager configuration is None. Please provide a valid configuration.")
         # call the base class constructor (this will parse the terms config)
         super().__init__(cfg, env)
-        if self._prepared_terms:
-            raise ValueError(f"Prepared observation terms do not match the configuration: {list(self._prepared_terms)}")
-
         # compute combined vector for obs group
         self._group_obs_dim: dict[str, tuple[int, ...] | list[tuple[int, ...]]] = {}
         for group_name, group_term_dims in self._group_obs_term_dim.items():
@@ -204,57 +147,38 @@ class ObservationManager(ManagerBase):
         self._obs_buffer: dict[str, torch.Tensor | dict[str, torch.Tensor]] | None = None
 
     @staticmethod
-    def prepare_scene(cfg: object, env: ManagerBasedEnv) -> dict[str, ManagerTermBase]:
-        """Prepare observation sources after scene creation and before simulation startup.
+    def prepare_scene(cfg: object, env: ManagerBasedEnv) -> None:
+        """Prepare observation modifiers after scene creation and before simulation startup.
 
         Args:
             cfg: Observation group configuration or dictionary of groups.
             env: Environment whose scene has been authored.
 
-        Terms nested in another term's configuration (for example in its ``params``) are prepared too,
-        keyed by the same names used when terms are resolved at simulation start, such as
-        ``"group/term.params.image"``.
-
-        Returns:
-            Prepared instances keyed by ``"group/term"`` or their nested resolution name. The caller owns
-            them until passing the dictionary to the observation manager.
+        Modifier configs nested in term parameters are visited as well.
         """
         if cfg is None:
             raise ValueError("Observation manager configuration is None. Please provide a valid configuration.")
-        prepared: dict[str, ManagerTermBase] = {}
-        try:
-            groups = cfg.items() if isinstance(cfg, dict) else vars(cfg).items()
-            for group_name, group in groups:
-                if group is None:
+        groups = cfg.items() if isinstance(cfg, dict) else vars(cfg).items()
+        for group_name, group in groups:
+            if group is None:
+                continue
+            if not isinstance(group, ObservationGroupCfg):
+                raise TypeError(f"Observation group {group_name!r} must be an ObservationGroupCfg.")
+            for term_name, term_cfg in vars(group).items():
+                if term_name in ObservationGroupCfg.__dataclass_fields__ or term_cfg is None:
                     continue
-                if not isinstance(group, ObservationGroupCfg):
-                    raise TypeError(f"Observation group {group_name!r} must be an ObservationGroupCfg.")
-                for term_name, term_cfg in vars(group).items():
-                    if term_name in ObservationGroupCfg.__dataclass_fields__ or term_cfg is None:
-                        continue
-                    name = f"{group_name}/{term_name}"
-                    if not isinstance(term_cfg, ObservationTermCfg):
-                        raise TypeError(f"Observation term {name!r} must be an ObservationTermCfg.")
-                    _prepare_term(name, term_cfg, env, prepared, top_level=True)
-        except Exception:
-            # Preserve preparation diagnostics after attempting every cleanup.
-            with suppress(Exception):
-                _close_terms(prepared.values())
-            raise
-        return prepared
+                name = f"{group_name}/{term_name}"
+                if not isinstance(term_cfg, ObservationTermCfg):
+                    raise TypeError(f"Observation term {name!r} must be an ObservationTermCfg.")
+                _prepare_modifiers(term_cfg, env)
 
     def close(self) -> None:
-        """Close stateful terms once, including partially initialized terms."""
+        """Close stateful terms and modifiers once, including partially initialized ones."""
         terms, self._owned_terms = getattr(self, "_owned_terms", {}), {}
         instances, self._group_obs_class_instances = getattr(self, "_group_obs_class_instances", []), []
-        self._prepared_terms = {}
         self._obs_buffer = None
         error = None
-        try:
-            _close_terms(terms.values())
-        except Exception as exc:
-            error = exc
-        for instance in reversed(instances):
+        for instance in reversed((*terms.values(), *instances)):
             close = getattr(instance, "close", None)
             if close is not None:
                 try:
@@ -266,16 +190,8 @@ class ObservationManager(ManagerBase):
             raise RuntimeError("Failed to close an observation term or modifier.") from error
 
     def _process_term_cfg_at_play(self, term_name: str, term_cfg: ObservationTermCfg):
-        prepared = self._prepared_terms.pop(term_name, None)
-        if prepared is not None:
-            # Nested term functions may still be import strings when their parent is resolved.
-            func = string_to_callable(term_cfg.func) if isinstance(term_cfg.func, str) else term_cfg.func
-            if not inspect.isclass(func) or not isinstance(prepared, func):
-                raise TypeError(f"Prepared observation term {term_name!r} does not match its configured class.")
-            term_cfg.func = prepared
         super()._process_term_cfg_at_play(term_name, term_cfg)
         if isinstance(term_cfg.func, ManagerTermBase):
-            term_cfg.func.cfg = term_cfg
             self._owned_terms[id(term_cfg.func)] = term_cfg.func
 
     def __str__(self) -> str:
@@ -604,9 +520,6 @@ class ObservationManager(ManagerBase):
                         obs = modifier.func(self._env, obs)
                     else:
                         obs = modifier.func(self._env, obs, **modifier.params)
-            if isinstance(obs, modifiers.ModifierOutput):
-                obs = obs.data.clone()
-                owned = True
             # Noise callbacks must not modify their input, but may return borrowed storage.
             if isinstance(term_cfg.noise, noise.NoiseCfg):
                 obs = term_cfg.noise.func(obs, term_cfg.noise)

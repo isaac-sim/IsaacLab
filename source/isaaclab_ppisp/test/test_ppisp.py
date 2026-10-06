@@ -82,7 +82,7 @@ def test_ppisp_modifier_discovery_resolves_before_requesting_radiance():
     _author_camera(stage)
     _author_ppisp_camera(stage, inherits=None, attrs={"exposureOffset": 1.5})
     requests = []
-    camera = SimpleNamespace(camera_prim_paths=("/World/Camera",), request_render_inputs=requests.append)
+    camera = SimpleNamespace(cfg=SimpleNamespace(prim_path="/World/Camera"), request_render_inputs=requests.append)
     env = SimpleNamespace(scene={"camera": camera}, sim=SimpleNamespace(stage=stage))
 
     cfg = PpispModifierCfg()

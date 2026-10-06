@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 import torch
 
 from ..array import index_fill_
-from .modifier_base import ModifierBase, ModifierOutput
+from .modifier_base import ModifierBase
 
 if TYPE_CHECKING:
     from ...envs import ManagerBasedEnv
@@ -22,17 +22,7 @@ if TYPE_CHECKING:
 ##
 
 
-def _value(data: torch.Tensor | ModifierOutput) -> torch.Tensor:
-    return data.data if isinstance(data, ModifierOutput) else data
-
-
-def _result(source: torch.Tensor | ModifierOutput, value: torch.Tensor) -> torch.Tensor | ModifierOutput:
-    return source.with_data(value) if isinstance(source, ModifierOutput) else value
-
-
-def scale(
-    env: ManagerBasedEnv, data: torch.Tensor | ModifierOutput, multiplier: float
-) -> torch.Tensor | ModifierOutput:
+def scale(env: ManagerBasedEnv, data: torch.Tensor, multiplier: float) -> torch.Tensor:
     """Scales input data by a multiplier.
 
     Args:
@@ -43,12 +33,10 @@ def scale(
     Returns:
         Scaled data. Shape is the same as data.
     """
-    return _result(data, _value(data) * multiplier)
+    return data * multiplier
 
 
-def clip(
-    env: ManagerBasedEnv, data: torch.Tensor | ModifierOutput, bounds: tuple[float | None, float | None]
-) -> torch.Tensor | ModifierOutput:
+def clip(env: ManagerBasedEnv, data: torch.Tensor, bounds: tuple[float | None, float | None]) -> torch.Tensor:
     """Clips the data to a minimum and maximum value.
 
     Args:
@@ -60,10 +48,10 @@ def clip(
     Returns:
         Clipped data. Shape is the same as data.
     """
-    return _result(data, _value(data).clip(min=bounds[0], max=bounds[1]))
+    return data.clip(min=bounds[0], max=bounds[1])
 
 
-def bias(env: ManagerBasedEnv, data: torch.Tensor | ModifierOutput, value: float) -> torch.Tensor | ModifierOutput:
+def bias(env: ManagerBasedEnv, data: torch.Tensor, value: float) -> torch.Tensor:
     """Adds a uniform bias to the data.
 
     Args:
@@ -74,7 +62,7 @@ def bias(env: ManagerBasedEnv, data: torch.Tensor | ModifierOutput, value: float
     Returns:
         Biased data. Shape is the same as data.
     """
-    return _result(data, _value(data) + value)
+    return data + value
 
 
 ##
@@ -185,7 +173,7 @@ class DigitalFilter(ModifierBase):
         index_fill_(self.x_n, env_ids, 0.0)
         index_fill_(self.y_n, env_ids, 0.0)
 
-    def __call__(self, env: ManagerBasedEnv, data: torch.Tensor | ModifierOutput) -> torch.Tensor | ModifierOutput:
+    def __call__(self, env: ManagerBasedEnv, data: torch.Tensor) -> torch.Tensor:
         """Applies digital filter modification with a rolling history window inputs and outputs.
 
         Args:
@@ -197,7 +185,7 @@ class DigitalFilter(ModifierBase):
         """
         # move history window for input
         self.x_n = torch.roll(self.x_n, shifts=1, dims=-1)
-        self.x_n[..., 0] = _value(data)
+        self.x_n[..., 0] = data
 
         # calculate current filter value: y[i] = Y*A - X*B
         y_i = torch.matmul(self.x_n, self.B) - torch.matmul(self.y_n, self.A)
@@ -207,7 +195,7 @@ class DigitalFilter(ModifierBase):
         self.y_n = torch.roll(self.y_n, shifts=1, dims=-1)
         self.y_n[..., 0] = y_i
 
-        return _result(data, y_i)
+        return y_i
 
 
 class Integrator(ModifierBase):
@@ -261,7 +249,7 @@ class Integrator(ModifierBase):
         index_fill_(self.integral, env_ids, 0.0)
         index_fill_(self.y_prev, env_ids, 0.0)
 
-    def __call__(self, env: ManagerBasedEnv, data: torch.Tensor | ModifierOutput) -> torch.Tensor | ModifierOutput:
+    def __call__(self, env: ManagerBasedEnv, data: torch.Tensor) -> torch.Tensor:
         """Applies integral modification to input data.
 
         Args:
@@ -272,8 +260,8 @@ class Integrator(ModifierBase):
             Integral of input signal. Shape is the same as data.
         """
         # integrate using middle Riemann sum
-        self.integral += (_value(data) + self.y_prev) / 2 * self._cfg.dt
+        self.integral += (data + self.y_prev) / 2 * self._cfg.dt
         # update previous value
-        self.y_prev[:] = _value(data)
+        self.y_prev[:] = data
 
-        return _result(data, self.integral)
+        return self.integral

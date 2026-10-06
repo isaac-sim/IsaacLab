@@ -22,7 +22,6 @@ from isaaclab.managers import (
     ObservationManager,
     ObservationTermCfg,
     RewardTermCfg,
-    SceneEntityCfg,
 )
 from isaaclab.utils import DelayBuffer, configclass, modifiers, noise, to_dict, update_from_dict, validate
 
@@ -657,8 +656,8 @@ def test_modifier_compute(setup_env, position_term):
     torch.testing.assert_close(first, expected)
 
 
-def test_modifier_receives_env_and_can_publish_named_outputs(setup_env):
-    """The manager keeps named intermediates between modifiers and reports the final shape."""
+def test_modifier_receives_env_and_can_change_shape(setup_env):
+    """The manager passes one tensor through modifiers and reports its final shape."""
     env = setup_env
     closed = []
 
@@ -670,7 +669,7 @@ def test_modifier_receives_env_and_can_publish_named_outputs(setup_env):
         def __call__(self, owner, data):
             assert owner is env
             rgba = torch.cat((data, torch.ones_like(data[..., :1])), dim=-1)
-            return modifiers.ModifierOutput(rgba, {"rgb": data, "rgba": rgba}, "rgba")
+            return rgba
 
         def close(self):
             closed.append(self)
@@ -725,6 +724,13 @@ def test_observation_modifiers_have_one_processing_owner():
     from isaaclab.envs import mdp
 
     assert not hasattr(mdp, "processed_image")
+    assert not hasattr(ManagerTermBase, "prepare_scene")
+    assert not hasattr(ManagerTermBase, "close")
+    assert not hasattr(modifiers, "ModifierOutput")
+    from isaaclab.utils.modifiers import modifier as modifier_module
+
+    assert not hasattr(modifier_module, "_value")
+    assert not hasattr(modifier_module, "_result")
 
 
 def test_serialize(setup_env):
@@ -1085,99 +1091,54 @@ def test_positional_out_does_not_enable_destination_writes(setup_env):
     torch.testing.assert_close(result, expected)
 
 
-class PreparedObservation(ManagerTermBase):
-    """Prepared term that records cleanup calls."""
+class TrackedObservation(ManagerTermBase):
+    """Observation term that records cleanup calls."""
 
     def __init__(self, cfg, env):
         super().__init__(cfg, env)
         self.close_count = 0
-        env.prepared.append(self)
+        env.owned_terms.append(self)
 
-    @classmethod
-    def prepare_scene(cls, cfg, env):
-        assert not env.sim.is_playing()
-        return cls(cfg, env)
-
-    def __call__(self, env, sensor_cfg, gain=1.0):
-        return env.observation * gain
+    def __call__(self, env):
+        return env.observation
 
     def close(self):
         self.close_count += 1
 
 
-@pytest.mark.parametrize("failure", ["prepare", "signature", "initialize"])
-def test_prepared_observations_close_after_startup_failure(failure):
+def test_observation_terms_close_after_initialization_failure():
     class FailingObservation(ManagerTermBase):
-        @classmethod
-        def prepare_scene(cls, cfg, env):
-            if failure == "prepare":
-                raise RuntimeError("preparation failed")
-            return
-
         def __call__(self, env):
             raise RuntimeError("initialization failed")
 
     cfg = HistoryObservationsCfg()
     cfg.policy.history_length = None
-    cfg.policy.dummy = ObservationTermCfg(func=PreparedObservation, params={"sensor_cfg": SceneEntityCfg("camera")})
-    cfg.policy.failing = ObservationTermCfg(
-        func=dummy_observation if failure == "signature" else FailingObservation,
-        params={"unexpected": True} if failure == "signature" else {},
-    )
+    cfg.policy.dummy = ObservationTermCfg(func=TrackedObservation)
+    cfg.policy.failing = ObservationTermCfg(func=FailingObservation)
     env = DummyEnv()
-    env.sim.playing = False
-    env.scene = {"camera": object()}
-    env.prepared = []
+    env.owned_terms = []
 
-    with pytest.raises((RuntimeError, ValueError, TypeError)):
-        prepared = ObservationManager.prepare_scene(cfg, env)
-        env.sim.playing = True
-        ObservationManager(cfg, env, prepared_terms=prepared)
-    assert len(env.prepared) == 1
-    assert env.prepared[0].close_count == 1
+    with pytest.raises(RuntimeError, match="initialization failed"):
+        ObservationManager(cfg, env)
+    assert len(env.owned_terms) == 1
+    assert env.owned_terms[0].close_count == 1
 
 
 def test_observation_close_continues_after_term_error():
-    class FailingCloseObservation(PreparedObservation):
+    class FailingCloseObservation(TrackedObservation):
         def close(self):
             super().close()
             raise RuntimeError("close failed")
 
     cfg = HistoryObservationsCfg()
     cfg.policy.history_length = None
-    cfg.policy.dummy = ObservationTermCfg(func=PreparedObservation, params={"sensor_cfg": SceneEntityCfg("camera")})
-    cfg.policy.failing = ObservationTermCfg(
-        func=FailingCloseObservation, params={"sensor_cfg": SceneEntityCfg("camera")}
-    )
+    cfg.policy.dummy = ObservationTermCfg(func=TrackedObservation)
+    cfg.policy.failing = ObservationTermCfg(func=FailingCloseObservation)
     env = DummyEnv()
-    env.sim.playing = False
-    env.scene = {"camera": object()}
-    env.prepared = []
-    prepared = ObservationManager.prepare_scene(cfg, env)
-    env.sim.playing = True
-    manager = ObservationManager(cfg, env, prepared_terms=prepared)
+    env.owned_terms = []
+    manager = ObservationManager(cfg, env)
 
     with pytest.raises(RuntimeError, match="close an observation term"):
         manager.close()
     manager.close()
-    assert [term.close_count for term in env.prepared] == [1, 1]
-
-
-def test_scene_preparation_does_not_mutate_user_configuration():
-    class NormalizingObservation(PreparedObservation):
-        @classmethod
-        def prepare_scene(cls, cfg, env):
-            cfg.params["gain"] = 3.0
-            return super().prepare_scene(cfg, env)
-
-    cfg = HistoryObservationsCfg()
-    cfg.policy.dummy = ObservationTermCfg(
-        func=NormalizingObservation, params={"sensor_cfg": SceneEntityCfg("camera"), "gain": 1.0}
-    )
-    env = DummyEnv()
-    env.sim.playing = False
-    env.prepared = []
-    prepared = ObservationManager.prepare_scene(cfg, env)
-    assert cfg.policy.dummy.params["gain"] == 1.0
-    assert prepared["policy/dummy"].cfg.params["gain"] == 3.0
-    prepared["policy/dummy"].close()
+    assert [term.close_count for term in env.owned_terms] == [1, 1]

@@ -19,9 +19,9 @@ camera_image = ObservationTermCfg(
 )
 ```
 
-The observation manager resolves USD attributes and requests private radiance before simulation reset. The modifier owns its output buffers, runs once for each published camera capture, and exposes both `rgb` and `rgba` in `ModifierOutput.named` for later modifiers. Set `output="rgba"` to select RGBA. `normalize=True` divides by 255 and subtracts each image's spatial mean; `permute=True` returns NCHW. Each observation term owns independent state and cleanup. An upstream modifier can provide `rgb_radiance` in its named output by setting `input_source="previous"` on PPISP.
+The observation manager resolves USD attributes and requests private radiance before simulation reset. The modifier owns its output buffers and runs once for each published camera capture. Set `output="rgba"` to select RGBA, or use separate observation terms for RGB and RGBA. `normalize=True` divides by 255 and subtracts each image's spatial mean; `permute=True` returns NCHW. Each observation term owns independent state and cleanup. With `input_source="previous"`, PPISP consumes scene-linear radiance returned as a tensor by an upstream modifier.
 
-For use outside observations, create a `PpispModifierCfg`, call `prepare_scene(env)` before `sim.reset()`, then create `modifier = cfg.func(cfg, (num_envs, height, width, 3), device, env=env)`. After rendering, call `modifier(env, camera.data.output["rgb"].torch).data`. Call `modifier.close()` when done. The result uses reusable storage; clone it to retain a frame.
+For use outside observations, create a `PpispModifierCfg`, call `prepare_scene(env)` before `sim.reset()`, then create `modifier = cfg.func(cfg, (num_envs, height, width, 3), device, env=env)`. After rendering, call `modifier(env, camera.data.output["rgb"].torch)`. Call `modifier.close()` when done. The result uses reusable storage; clone it to retain a frame.
 
 `CameraCfg.isp_cfg` and `CameraISPMode` were removed. Use `PpispModifierCfg` and `PpispDiscoveryMode` instead. `AUTO_CAMERA` reads the camera's PPISP attributes; `AUTO_ANY` may find attributes elsewhere on the stage. When discovery finds none, the modifier passes through raw camera RGB/RGBA. Camera `data.output` remains the raw renderer output.
 

@@ -348,6 +348,9 @@ def test_all_camera_signals_prepare_before_shared_stage_export(monkeypatch, supp
     from isaaclab.sensors.sensor_base import SensorBase
     from isaaclab.sim import SimulationContext
 
+    assert not hasattr(Camera, "camera_prim_paths")
+    assert not hasattr(Camera, "render_buffer_specs")
+
     original_import = builtins.__import__
 
     def without_ppisp(name, *args, **kwargs):

@@ -299,9 +299,8 @@ Process camera observations
 
 Camera processing uses the same :class:`~isaaclab.utils.modifiers.ModifierCfg` list as other
 observations. The observation manager passes ``(env, data)`` to each modifier in order. A stateful
-modifier can own buffers, implement ``reset(env_ids)`` and ``close()``, and publish named intermediate
-outputs with :class:`~isaaclab.utils.modifiers.ModifierOutput`. The manager remains independent of
-camera types and the number of cameras in a scene.
+modifier can own buffers and implement ``reset(env_ids)`` and ``close()``. Each modifier takes and
+returns one tensor; the manager remains independent of camera types and the number of cameras.
 
 PPISP
 ~~~~~
@@ -327,9 +326,9 @@ camera, producing uint8 ``rgb`` and ``rgba``. Add it to an image observation's m
 The modifier discovers USD ``ppisp:*`` attributes during observation preparation, before simulation
 reset, and requests private ``rgb_radiance`` from the camera when needed. ``AUTO_CAMERA`` reads the
 first matching camera prim; ``AUTO_ANY`` also searches the stage. Discovery without a match passes
-through the camera's raw RGB/RGBA. With ``input_source="previous"``, an earlier modifier can supply
-``rgb_radiance`` through ``ModifierOutput.named``; PPISP then makes no renderer request. Its named
-results include both ``rgb`` and ``rgba``, so later modifiers can select either. Separate observation
+through the camera's raw RGB/RGBA. With ``input_source="previous"``, an earlier modifier supplies
+scene-linear radiance as its output tensor; PPISP then makes no renderer request. Set ``output="rgba"``
+to select RGBA, or use a separate observation term for each color output. Separate observation
 terms own separate PPISP buffers. ``normalize=True`` divides by 255 and subtracts the per-image spatial
 mean, and ``permute=True`` returns NCHW instead of NHWC.
 
@@ -340,7 +339,7 @@ the frame metadata that belongs to their image. Partial environment resets reach
 
 For use outside observations, create ``PpispModifierCfg``, call ``prepare_scene(env)`` after camera
 spawning and before ``sim.reset()``, then construct ``cfg.func(cfg, image_shape, device, env=env)``. Call the
-modifier with ``(env, camera.data.output["rgb"].torch)``, read the selected tensor from ``result.data``,
+modifier with ``(env, camera.data.output["rgb"].torch)``, read its returned tensor,
 and call ``close()`` when done. The returned buffer is reused on a later capture; clone it if a caller
 must retain the previous image.
 

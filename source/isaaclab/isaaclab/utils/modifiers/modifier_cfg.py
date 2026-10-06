@@ -15,14 +15,14 @@ from .. import configclass
 
 if TYPE_CHECKING:
     from .modifier import DigitalFilter, Integrator
-    from .modifier_base import ModifierBase, ModifierOutput
+    from .modifier_base import ModifierBase
 
 
 @configclass
 class ModifierCfg:
     """Configuration parameters for function and class modifiers."""
 
-    func: Callable[..., torch.Tensor | ModifierOutput] | type[ModifierBase] | str = MISSING
+    func: Callable[..., torch.Tensor] | type[ModifierBase] | str = MISSING
     """Function or :class:`ModifierBase` class used by the modifier.
 
     Functions receive ``(env, data)``. Classes must inherit from :class:`ModifierBase`; the

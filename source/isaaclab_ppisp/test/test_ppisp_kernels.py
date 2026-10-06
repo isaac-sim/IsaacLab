@@ -44,7 +44,6 @@ from isaaclab_ppisp.kernels import (
 
 from isaaclab.managers import ObservationGroupCfg, ObservationManager, ObservationTermCfg, SceneEntityCfg
 from isaaclab.utils import clone
-from isaaclab.utils.modifiers import ModifierOutput
 from isaaclab.utils.warp import ProxyArray
 
 wp.init()
@@ -335,7 +334,7 @@ def test_ppisp_warp_crf_extreme_centers_match_reference():
 
 
 @pytest.mark.parametrize("controller,from_previous", [(False, False), (False, True), (True, False)])
-def test_ppisp_modifier_uses_published_capture_and_named_inputs(controller, from_previous):
+def test_ppisp_modifier_uses_published_capture_and_tensor_inputs(controller, from_previous):
     """The same modifier works in observations and direct use, including an upstream HDR producer."""
     import numpy as np
 
@@ -356,7 +355,6 @@ def test_ppisp_modifier_uses_published_capture_and_named_inputs(controller, from
     capture = object()
     requests = []
     camera = SimpleNamespace(
-        camera_prim_paths=("/World/Camera",),
         render_outputs={"rgb_radiance": hdr},
         data=SimpleNamespace(info={"rgb": {"capture": {"frame": capture}}}),
         request_render_inputs=requests.append,
@@ -369,20 +367,19 @@ def test_ppisp_modifier_uses_published_capture_and_named_inputs(controller, from
     expected = wp.empty((2, 4, 4, 4), dtype=wp.uint8, device=device)
     source = torch.zeros((2, 4, 4, 3), dtype=torch.uint8, device=device)
     if from_previous:
-        source = ModifierOutput(source, {"rgb_radiance": hdr.torch}, "rgb")
+        source = hdr.torch
     try:
         for fill in (0.25, 0.5):
             hdr.warp.fill_(fill)
             camera.data.info["rgb"]["capture"]["frame"] = object()
             result = modifier(env, source)
             reference.apply(hdr.warp, expected)
-            np.testing.assert_array_equal(result.data.cpu().numpy(), expected.numpy())
-            assert result.named["rgb"].shape[-1] == 3
-            assert result.named["rgba"].data_ptr() == result.data.data_ptr()
-            assert modifier(env, source).data.data_ptr() == result.data.data_ptr()
+            np.testing.assert_array_equal(result.cpu().numpy(), expected.numpy())
+            assert modifier(env, source).data_ptr() == result.data_ptr()
             if from_previous:
-                changed = ModifierOutput(source.data, {**source.named, "fresh": hdr.torch}, "rgb")
-                assert modifier(env, changed).named["fresh"] is changed.named["fresh"]
+                snapshot = result.clone()
+                hdr.warp.fill_(0.75)
+                assert not torch.equal(modifier(env, source), snapshot)
         camera.render_outputs["rgb_radiance"] = ProxyArray(wp.clone(hdr.warp))
         camera.data.info["rgb"]["capture"]["frame"] = object()
         if not from_previous:
@@ -401,7 +398,6 @@ def test_ppisp_modifier_normalizes_and_permutes_persistent_output():
     device = "cuda:0" if wp.is_cuda_available() else "cpu"
     hdr = ProxyArray(wp.full((1, 3, 4, 3), 0.25, dtype=wp.float32, device=device))
     camera = SimpleNamespace(
-        camera_prim_paths=(),
         render_outputs={"rgb_radiance": hdr},
         data=SimpleNamespace(info={"rgb": {"capture": {"frame": object()}}}),
         request_render_inputs=lambda names: None,
@@ -412,10 +408,18 @@ def test_ppisp_modifier_normalizes_and_permutes_persistent_output():
     modifier = cfg.func(cfg, hdr.shape, device, env=env)
     assert modifier.output_dim == (1, 3, 3, 4)
     result = modifier(env, torch.zeros_like(hdr.torch))
-    rgb = result.named["rgba"][..., :3].float() / 255.0
+    rgb = wp.to_torch(modifier._rgba)[..., :3].float() / 255.0
     expected = (rgb - rgb.mean(dim=(1, 2), keepdim=True)).permute(0, 3, 1, 2)
-    torch.testing.assert_close(result.data, expected)
+    torch.testing.assert_close(result, expected)
     modifier.close()
+
+    # Pass-through may use a privately requested output absent from CameraData.output.
+    camera.render_outputs["rgba"] = ProxyArray(wp.full((1, 3, 4, 4), 255, dtype=wp.uint8, device=device))
+    passthrough_cfg = PpispModifierCfg(isp_cfg=None, output="rgba")
+    passthrough_cfg.prepare_scene(env)
+    passthrough = passthrough_cfg.func(passthrough_cfg, hdr.shape, device, env=env)
+    assert passthrough(env, hdr.torch).data_ptr() == camera.render_outputs["rgba"].torch.data_ptr()
+    passthrough.close()
 
 
 def test_ppisp_modifier_prepares_and_snapshots_in_observation_manager():
@@ -425,7 +429,6 @@ def test_ppisp_modifier_prepares_and_snapshots_in_observation_manager():
     rgb = ProxyArray(wp.zeros((1, 3, 4, 3), dtype=wp.uint8, device=device))
     requests = []
     camera = SimpleNamespace(
-        camera_prim_paths=(),
         render_outputs={"rgb_radiance": hdr},
         data=SimpleNamespace(output={"rgb": rgb}, info={"rgb": {"capture": {"frame": object()}}}),
         request_render_inputs=requests.append,
@@ -439,9 +442,9 @@ def test_ppisp_modifier_prepares_and_snapshots_in_observation_manager():
         modifiers=[PpispModifierCfg(isp_cfg=PpispCfg(inputs={"exposureOffset": 0.5}))],
     )
     cfg = {"policy": group}
-    prepared = ObservationManager.prepare_scene(cfg, env)
+    ObservationManager.prepare_scene(cfg, env)
     assert requests == [("rgb_radiance",)]
-    manager = ObservationManager(cfg, env, prepared_terms=prepared)
+    manager = ObservationManager(cfg, env)
     try:
         first = manager.compute()["policy"]["image"]
         hdr.warp.fill_(0.5)

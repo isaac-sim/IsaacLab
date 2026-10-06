@@ -831,7 +831,7 @@ def _render_synthetic_gaussian_camera(
         for _ in range(stabilisation_steps):
             sim.step()
         camera.update(sim_dt)
-        rgba = modifier(env, camera.data.output["rgb"].torch).data
+        rgba = modifier(env, camera.data.output["rgb"].torch)
         frames = {name: output.torch for name, output in camera.data.output.items()}
         if "rgb" in frames:
             frames["rgb"] = rgba[..., :3]

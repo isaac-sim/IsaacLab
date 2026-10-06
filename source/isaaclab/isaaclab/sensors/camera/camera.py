@@ -20,7 +20,7 @@ from pxr import Usd, UsdGeom, UsdPhysics
 from ... import sim as sim_utils
 from ...app.logging_utils import force_log_level
 from ...physics import PhysicsEvent, PhysicsManager
-from ...renderers import BaseRenderer, CameraRenderSpec, RenderBufferKind, RenderBufferSpec
+from ...renderers import BaseRenderer, CameraRenderSpec, RenderBufferKind
 from ...sim.views import FrameView
 from ...utils.math import (
     convert_camera_frame_orientation_convention,
@@ -337,24 +337,6 @@ class Camera(SensorBase):
         return self._frame
 
     @property
-    def camera_prim_paths(self) -> tuple[str, ...]:
-        """Authored camera prim paths, available before sensor initialization.
-
-        Renderer-side cloning may expand one authored prototype into multiple logical views.
-        """
-        return tuple(str(prim.GetPath()) for prim in sim_utils.find_matching_prims(self.cfg.prim_path, self.stage))
-
-    @property
-    def render_buffer_specs(self) -> dict[RenderBufferKind, RenderBufferSpec]:
-        """Raw buffer contracts supported by the renderer, available before sensor initialization."""
-        if self._renderer is not None:
-            return self._renderer.supported_output_types()
-        specs = self.cfg.renderer_cfg.supported_output_types()
-        if specs is None:
-            raise RuntimeError("The camera renderer must be created before querying its buffer contracts.")
-        return specs
-
-    @property
     def render_outputs(self) -> dict[str, ProxyArray]:
         """Raw persistent renderer buffers, refreshed lazily using the sensor update period.
 
@@ -391,7 +373,14 @@ class Camera(SensorBase):
         """
         if self._is_initialized:
             raise RuntimeError("Request camera render inputs before sensor initialization (before sim.reset()).")
-        unsupported = set(data_types) - self.render_buffer_specs.keys()
+        specs = (
+            self._renderer.supported_output_types()
+            if self._renderer
+            else self.cfg.renderer_cfg.supported_output_types()
+        )
+        if specs is None:
+            raise RuntimeError("The camera renderer must be created before requesting render inputs.")
+        unsupported = set(data_types) - specs.keys()
         if unsupported:
             raise ValueError(f"Camera renderer does not support requested inputs: {sorted(unsupported)}.")
         self._requested_render_inputs = tuple(dict.fromkeys((*self._requested_render_inputs, *data_types)))
@@ -758,7 +747,7 @@ class Camera(SensorBase):
         if self._renderer is None:
             self._renderer = sim_ctx.get_or_create_backend(self.cfg.renderer_cfg)
 
-        cam_paths = self.camera_prim_paths
+        cam_paths = tuple(str(prim.GetPath()) for prim in sim_utils.find_matching_prims(self.cfg.prim_path, self.stage))
         clone_plan = sim_ctx.get_clone_plan()
         num_views = len(clone_plan.topology.world_prototype_layout) if clone_plan is not None else len(cam_paths)
         device_str = str(sim_ctx.device)
@@ -897,7 +886,7 @@ class Camera(SensorBase):
     def _create_buffers(self):
         """Create buffers for storing data."""
         # Validate against the created renderer: a renderer config may defer its contract until then.
-        specs = self.render_buffer_specs
+        specs = self._renderer.supported_output_types()
         unknown: list[str] = []
         unsupported: list[str] = []
         for name in self._render_data_types:
@@ -924,7 +913,7 @@ class Camera(SensorBase):
             width=self.cfg.width,
             num_views=self._view.count,
             device=device_str,
-            supported_specs=self.render_buffer_specs,
+            supported_specs=specs,
         )
         render_outputs = allocated.output
         public_names = set(self.cfg.data_types)

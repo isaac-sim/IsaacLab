@@ -469,7 +469,7 @@ def run_simulator(env: SimpleNamespace, camera: Camera, ppisp_modifier: PpispMod
         count += 1
 
         if count % args_cli.save_interval == 0:
-            ppisp = ppisp_modifier(env, camera.data.output["rgb"].torch).data
+            ppisp = ppisp_modifier(env, camera.data.output["rgb"].torch)
             # The baseline shares the PPISP camera prim. On Isaac RTX, PPISP's rgb_radiance input
             # neutralizes that prim's exposure, so this is the renderer's color at neutral exposure.
             baseline = camera.data.output["rgb"].torch[..., :3]
