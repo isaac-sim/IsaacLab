@@ -596,7 +596,7 @@ class ContactSensor(BaseContactSensor):
                 self._history_length,
                 self.cfg.force_threshold,
                 self._timestamp,
-                self._timestamp_last_update,
+                self._elapsed_since_update,
             ],
             outputs=[
                 self._data._net_normal_forces_w,

@@ -68,6 +68,54 @@ as described in `Unit Testing`_ and `Tools`_.
 More details on the code style and testing can be found in the `Coding Style`_ and `Unit Testing`_ sections.
 
 
+Agent Development
+-----------------
+
+Read the contribution sections and skills that apply to the current task. Reuse guidance already
+loaded in the conversation while it remains current; reread when relevant files change or needed
+context is lost. Native skill discovery already supplies descriptions, so do not load the whole
+catalog or every linked reference. Load PR preparation guidance when preparing the final change.
+
+Before editing, identify the behavior's owner, the closest reusable implementation, and the smallest
+change that fixes the problem. For changes that span packages or add work to a hot path, briefly
+state the affected boundaries and runtime cost. Distinguish requested scope changes from unrelated
+improvements and record the latter as follow-ups.
+
+Use bounded searches and read relevant functions and callers instead of dumping unrelated files or
+tool inventories. Batch independent reads, keeping their combined output small enough to inspect.
+When delegation is requested or an applicable workflow calls for it, give each agent a bounded
+question and clear file ownership; serialize edits to shared infrastructure.
+
+Worktrees and environments
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Use a separate worktree when the current checkout has unrelated changes. Run commands from the
+worktree and give it its own uv environment; uv can reuse downloaded packages from its cache.
+If an existing environment must be reused, verify the interpreter and imported source paths before
+validation. The CLI resolves its repository root from the imported package, not the shell's working
+directory. Check that root with:
+
+.. code-block:: bash
+
+   uv run python -c "import sys; from isaaclab.paths import ISAACLAB_ROOT; print(sys.executable); print(ISAACLAB_ROOT)"
+
+Also verify the imported locations of packages touched by the change. Avoid concurrent environment
+synchronization or documentation builds against the same environment or output directory.
+
+Validation and long-running jobs
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Run the narrowest relevant checks during editing, then the required final checks. Record the tested
+revision or relevant diff, command, and result in the task notes. Reuse successful results until a
+relevant source, dependency, configuration, or test change invalidates them. Diagnose failed checks
+before retrying; keep environmental failures distinct from regressions introduced by the change.
+
+Launch long-running checks once and retain their process or CI run IDs and logs. Use a local watch
+command or longer polling intervals while continuing independent work, and report meaningful state
+changes rather than repeatedly reading unchanged logs. If the request only requires starting CI,
+hand off the run link after confirming it started. Await completion when the result is required.
+
+
 Contributing Documentation
 --------------------------
 
@@ -220,6 +268,17 @@ For example, ``source/isaaclab/changelog.d/fix-partial-reset.fixed.rst``:
 .. code:: rst
 
     * Fixed contact sensor reset behavior when only a subset of environments was reset.
+
+Validate against the PR's base without creating temporary remote-tracking refs:
+
+.. code-block:: bash
+
+   uv run python tools/changelog/cli.py check upstream/develop --include-worktree
+
+The checker accepts remote-qualified refs, full refs, and commit SHAs. Branch shorthand such as
+``develop`` continues to prefer ``origin/develop`` when it exists; use ``refs/heads/develop`` to
+select a local branch explicitly. The pre-commit hook uses ``ISAACLAB_CHANGELOG_BASE_REF`` when
+set, otherwise ``develop``. Fetch the intended base before validation.
 
 
 Coding Style
@@ -832,3 +891,14 @@ Run the repository formatting and lint checks from the uv-managed environment on
 .. code-block:: bash
 
    uv run isaaclab --format
+
+During editing, pass repository-relative file paths to restrict file-based hooks:
+
+.. code-block:: bash
+
+   uv run isaaclab --format source/isaaclab/isaaclab/cli/commands/format.py
+
+Repository-wide hooks such as the changelog gate still run. The command runs pre-commit once and
+returns its failure status, including when hooks modify files. Inspect those edits and rerun after
+resolving failures; it does not automatically replay all hooks. Run the full command on the final
+changes before committing.
