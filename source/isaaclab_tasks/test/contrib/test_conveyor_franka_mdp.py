@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Racetrack policy contracts exercised through real CPU managers and assets."""
+"""Conveyor policy and sorting contracts exercised through real CPU managers and assets."""
 
 from contextlib import closing
 
@@ -29,6 +29,7 @@ from isaaclab_tasks.contrib.conveyor_franka.mdp.curriculums import (
     deployment_probability_from_progress,
     reset_sampling_probabilities,
 )
+from isaaclab_tasks.contrib.conveyor_franka.mdp.kinematics import end_effector_pose
 from isaaclab_tasks.contrib.conveyor_franka.mdp.reset_events import (
     CUBE_COUNT,
     ConveyorResetRecipe,
@@ -42,6 +43,7 @@ from isaaclab_tasks.contrib.conveyor_franka.mdp.rewards import transfer_potentia
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry, parse_env_cfg
 
 _BASE = "IsaacContrib-Conveyor-Racetrack-Transfer-v0"
+_SORTER = "IsaacContrib-Conveyor-Warehouse-Sorting-v0"
 
 
 def _environment(task):
@@ -76,24 +78,63 @@ def _place(env, positions):
     env.scene.update(env.step_dt)
 
 
-def test_checkpoint_interface_and_invalid_action_recovery():
-    """The real racetrack preserves learned feature order, finite rewards and independent resets."""
-    with closing(_environment(_BASE)) as env:
+@pytest.mark.parametrize("task", [_BASE, _SORTER])
+def test_checkpoint_interface_and_invalid_action_recovery(task):
+    """Both real tasks preserve learned feature ordering, finite rewards and independent reset flags."""
+    with closing(_environment(task)) as env:
         obs, _ = env.reset()
         assert obs["policy"].shape == (2, 123)
         assert env.action_manager.total_action_dim == 8
         assert env.physics_dt == 1 / 120 and env.step_dt == 1 / 60
         result = env.step(torch.zeros(2, 8))
         assert torch.isfinite(result[0]["policy"]).all() and torch.isfinite(result[1]).all()
+        pool = getattr(env, "conveyor_cube_pool", None)
+        if pool is not None:
+            assert not env.curriculum_manager.active_terms, "Warehouse training must not use phase reset rows."
+            env.command_manager.get_term("transfer").has_target[:] = torch.tensor([False, True])
+            env.step(torch.full((2, 8), 0.5))
+            torch.testing.assert_close(env.action_manager.action, torch.full((2, 8), 0.5))
+            env.command_manager.get_term("transfer").has_target[:] = torch.tensor([False, True])
+            env.cfg.park_when_idle = True
+            env.step(torch.full((2, 8), 0.5))
+            torch.testing.assert_close(env.action_manager.action[1], torch.full((8,), 0.5))
+            assert env.action_manager.action[0, :7].abs().max() <= 0.25
+            assert env.action_manager.action[0, 7] == 0
         positions = _waiting_positions(env)
         positions[:, :4] = torch.tensor([[0.4, 0.27, 0.06], [0.6, -0.27, 0.06], [0.8, 0, 0.2], [0.9, -0.27, 0.06]])
         positions[1, 2] = torch.tensor([0.8, -0.27, 0.2])
+        if pool is not None:
+            pool.slot_ids[:] = torch.tensor([[4, 1, 2, 3], [0, 5, 2, 3]])
+            positions[0, 4] = torch.tensor([0.52, 0.27, 0.06])
+            positions[1, 5] = torch.tensor([0.72, -0.27, 0.06])
         _place(env, positions)
+        if pool is not None:
+            env.sim.step(render=False)
+            model = env.sim.physics_manager.get_model()
+            contacts = env.sim.physics_manager.get_contacts()
+            count = int(contacts.rigid_contact_count.numpy()[0])
+            assert count > 0
+            bodies = model.shape_body.numpy()
+            first = bodies[contacts.rigid_contact_shape0.numpy()[:count]]
+            second = bodies[contacts.rigid_contact_shape1.numpy()[:count]]
+            assert ((first >= 0) | (second >= 0)).all()
+            _place(env, positions)
         command = env.command_manager.get_term("transfer")
         env.episode_length_buf[:] = torch.tensor([11, 19])
         command.set_goal(2)
+        if pool is not None:
+            command.has_target.fill_(True)
+        if pool is not None:
+            pose = pool.assets[4].data.root_pose_w.torch.clone()
+            pose[0, 3:] = torch.tensor([2**-0.5, 0, 0, 2**-0.5])
+            velocity = torch.zeros(2, 6)
+            velocity[0] = torch.tensor([0.1, 0.2, 0.3, 0.4, 0.5, 0.6])
+            pool.assets[4].write_root_pose_to_sim_index(root_pose=pose, skip_forward=True)
+            pool.assets[4].write_root_velocity_to_sim_index(root_velocity=velocity, skip_forward=True)
+            env.sim.forward()
+            env.scene.update(env.step_dt)
         policy = env.observation_manager.compute()["policy"]
-        expected = positions[:, :4]
+        expected = positions[:, :4] if pool is None else positions[torch.arange(2)[:, None], pool.slot_ids]
         torch.testing.assert_close(policy[:, 16:28], expected.flatten(1))
         torch.testing.assert_close(policy[:, 76:79], positions[:, 2])
         torch.testing.assert_close(policy[:, 85:89], torch.tensor([[0, 0, 1, 0]] * 2).float())
@@ -102,15 +143,29 @@ def test_checkpoint_interface_and_invalid_action_recovery():
             policy[:, 89:101],
             torch.tensor([[1, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1], [1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1]]).float(),
         )
+        if pool is not None:
+            torch.testing.assert_close(policy[0, 40:43], torch.tensor([0.0, -1.0, 0.0]), atol=1e-6, rtol=0)
+            torch.testing.assert_close(policy[0, 52:58], velocity[0])
+            remote = positions.clone()
+            remote[:, 2:4] = torch.tensor([[2.8, 0.1, 0.56], [1.2, -0.59, 0.16]])
+            _place(env, remote)
+            adapted = env.observation_manager.compute()["policy"][:, 16:28].reshape(2, 4, 3)
+            torch.testing.assert_close(adapted[:, 2:, 1:], torch.tensor([[[0.75, 0.06], [-0.75, 0.06]]] * 2))
+            physical = (
+                torch.stack([p.data.root_pos_w.torch for p in pool.assets], dim=1) - env.scene.env_origins[:, None]
+            )
+            torch.testing.assert_close(physical, remote)
+            _place(env, positions)
         assert command.held_cube_ids.tolist() == [-1, -1]
         assert command.subgoal_start_steps.tolist() == [11, 19]
-        command.subgoal_start_steps[:] = env.episode_length_buf - torch.tensor([1199, 1200])
-        assert mdp.subgoal_time_out(env, timeout_s=20).tolist() == [False, True]
-        command.pending_success[1] = True
-        assert not mdp.subgoal_time_out(env, timeout_s=20).any()
-        command.transfer_counts[:] = torch.tensor([7, 8])
-        assert mdp.transfer_sequence_time_out(env, maximum_transfers=8).tolist() == [False, True]
-        command.pending_success.zero_()
+        if pool is None:
+            command.subgoal_start_steps[:] = env.episode_length_buf - torch.tensor([1199, 1200])
+            assert mdp.subgoal_time_out(env, timeout_s=20).tolist() == [False, True]
+            command.pending_success[1] = True
+            assert not mdp.subgoal_time_out(env, timeout_s=20).any()
+            command.transfer_counts[:] = torch.tensor([7, 8])
+            assert mdp.transfer_sequence_time_out(env, maximum_transfers=8).tolist() == [False, True]
+            command.pending_success.zero_()
         arm = env.action_manager.get_term("arm_action")
         gripper = env.action_manager.get_term("gripper_action")
         previous = torch.tensor([[0.1] * 7 + [-1.0], [-0.2] * 7 + [1.0]])
@@ -124,6 +179,7 @@ def test_checkpoint_interface_and_invalid_action_recovery():
         robot = env.scene["robot"]
         joint_ids, _ = robot.find_joints("panda_joint[1-7]", preserve_order=True)
         joints = robot.data.joint_pos.torch.clone()
+        # Interior joint positions make the learned 0.12-rad residual independently observable.
         initial = torch.tensor([0.05, 0.2, -0.1, -2.25, 0, 2.45, 0.775]).repeat(2, 1)
         joints[:, joint_ids] = initial
         robot.write_joint_position_to_sim_index(position=joints)
@@ -138,6 +194,7 @@ def test_checkpoint_interface_and_invalid_action_recovery():
         torch.testing.assert_close(gripper.processed_actions, torch.tensor([[0.0, 0.0], [0.04, 0.04]]))
         assert torch.isfinite(arm.processed_actions).all() and torch.isfinite(gripper.processed_actions).all()
         assert torch.isfinite(mdp.finite_action_rate_l2(env)).all()
+        # Isolate an arm-only failure from a gripper-only failure.
         bad[0, 7] = -1
         env.action_manager.process_action(bad)
         assert mdp.invalid_action(env).tolist() == [True, True]
@@ -145,6 +202,8 @@ def test_checkpoint_interface_and_invalid_action_recovery():
         assert mdp.invalid_action(env).tolist() == [False, True]
         env.action_manager.reset()
         assert not mdp.invalid_action(env).any()
+        if pool is not None:
+            command.has_target.zero_()
         terminated = env.step(bad)
         assert terminated[2].tolist() == [True, True]
         assert torch.isfinite(terminated[0]["policy"]).all() and torch.isfinite(terminated[1]).all()
@@ -152,6 +211,141 @@ def test_checkpoint_interface_and_invalid_action_recovery():
         cfg.actions.arm_action.preserve_order = False
         with pytest.raises(ValueError, match="preserve"):
             cfg.validate()
+
+
+def test_sorter_dispatch_inventory_and_selected_resets():
+    """Actual parcels are shuffled, individually dispatched, pinned while grasped, and left sorted."""
+    from isaaclab_tasks.contrib.conveyor_franka.conveyor_warehouse_geometry import warehouse_parcel_positions
+
+    with closing(_environment(_SORTER)) as env:
+        env.reset()
+        pool = env.conveyor_cube_pool
+        before_assignments = pool.assignment_counts.clone()
+        before_transfers = pool.transfer_counts.clone()
+        before_slots = pool.slot_ids[0].clone()
+        before_velocity = torch.stack([p.data.root_vel_w.torch.clone() for p in pool.assets], dim=1)
+        before = torch.stack([p.data.root_pose_w.torch.clone() for p in pool.assets], dim=1)
+        repeated = None
+        for ids in (torch.tensor([1]), slice(1, 2)):
+            pool.assignment_counts.fill_(7)
+            pool.transfer_counts.fill_(3)
+            velocity = pool.assets[-1].data.root_vel_w.torch.clone()
+            velocity[1].fill_(0.2)
+            pool.assets[-1].write_root_velocity_to_sim_index(root_velocity=velocity)
+            torch.manual_seed(42)
+            env._reset_idx(ids)
+            assert not pool.assets[-1].data.root_vel_w.torch[1].any()
+            torch.testing.assert_close(
+                pool.assignment_counts[1], torch.tensor([1] * CUBE_COUNT + [0] * (len(pool.assets) - CUBE_COUNT))
+            )
+            assert not pool.transfer_counts[1].any()
+            assert (pool.assignment_counts[0] == 7).all() and (pool.transfer_counts[0] == 3).all()
+            actual = torch.stack([p.data.root_pose_w.torch.clone() for p in pool.assets], dim=1)
+            torch.testing.assert_close(actual[0], before[0])
+            torch.testing.assert_close(pool.slot_ids[0], before_slots)
+            torch.testing.assert_close(pool.slot_ids[1], torch.arange(4))
+            torch.testing.assert_close(
+                torch.stack([p.data.root_vel_w.torch[0] for p in pool.assets]), before_velocity[0]
+            )
+            local = actual[1, :, :3] - env.scene.env_origins[1]
+            destinations = torch.tensor(warehouse_parcel_positions())
+            distance = torch.linalg.vector_norm(local[:, None] - destinations[None], dim=-1)
+            assert distance.min(1).values.max() < 1e-5
+            assert distance.argmin(1).unique().numel() == len(pool.assets)
+            assert not torch.allclose(local, destinations)
+            if repeated is not None:
+                torch.testing.assert_close(actual, repeated)
+            repeated = actual.clone()
+        pool.assignment_counts.copy_(before_assignments)
+        pool.transfer_counts.copy_(before_transfers)
+        positions = _waiting_positions(env)
+        positions[:, 0] = torch.tensor([0.7, 0.27, 0.06])  # Correct class, so leave it alone.
+        positions[0, 2:4] = torch.tensor([[0.6, 0.27, 0.06], [0.6, -0.27, 0.06]])
+        positions[0, 7] = torch.tensor([0.9, 0.27, 0.06])
+        pool.assignment_counts[0, 7] = 100  # A repeatedly assigned, nearer arrival must not starve a new one.
+        positions[0, 5] = torch.tensor([0.8, 0.27, 0.06])  # Arrival outside the initial four policy slots.
+        _place(env, positions)
+        command = env.command_manager.get_term("transfer")
+        command.has_target.zero_()
+        command._update_command()
+        assert command.has_target.tolist() == [True, False]
+        slot = int(command.target_cube_ids[0])
+        assert pool.slot_ids[0, slot] == 5
+        assert command.command[0, -2:].tolist() == [0, 1]
+        assert pool.slot_ids[0, 0] == 0
+        assert command.metrics["sorted_parcels"].tolist() == [3, 1]
+        torch.testing.assert_close(pool.assets[5].data.root_pos_w.torch[0] - env.scene.env_origins[0], positions[0, 5])
+        # Move the assigned parcel into a real closed-gripper grasp, even outside the pickup lane.
+        robot = env.scene["robot"]
+        fingers, _ = robot.find_joints("panda_finger_joint[1-2]", preserve_order=True)
+        joints = robot.data.joint_pos.torch.clone()
+        joints[:, fingers] = 0.019
+        robot.write_joint_position_to_sim_index(position=joints)
+        arms, _ = robot.find_joints("panda_joint[1-7]", preserve_order=True)
+        lift = next(
+            r
+            for r in build_reset_rows()
+            if r.recipe == ConveyorResetRecipe.LIFT
+            and r.variant_id == 3
+            and r.target_cube_id == 0
+            and r.source_side_id == 0
+        )
+        joints[:, arms] = torch.tensor(lift.arm_positions)
+        robot.write_joint_position_to_sim_index(position=joints)
+        env.sim.forward()
+        env.scene.update(env.step_dt)
+        tool, _ = end_effector_pose(env)
+        positions[0, 5] = tool[0] - env.scene.env_origins[0]
+        _place(env, positions)
+        assert mdp.physical_cube_acquisition_mask(env)[0]
+        command._update_command()
+        assert pool.slot_ids[0, slot] == 5 and command.has_target[0]
+        positions[0, 5] = torch.tensor([0.8, 0.27, 0.06])
+        joints[:, fingers] = 0.04
+        robot.write_joint_position_to_sim_index(position=joints)
+        _place(env, positions)
+        env.episode_length_buf += command.cfg.minimum_subgoal_steps
+        command.evaluate()
+        assert not command.pending_success[0]
+        positions[0, 5] = torch.tensor([0.8, -0.27, 0.06])
+        joints[:, fingers] = 0.04
+        robot.write_joint_position_to_sim_index(position=joints)
+        _place(env, positions)
+        env.episode_length_buf += command.cfg.minimum_subgoal_steps
+        for _ in range(command.cfg.hold_steps):
+            env.episode_length_buf += 1
+            command.evaluate()
+        assert pool.transfer_counts[0, 5] == 1 and pool.transfer_counts[1].sum() == 0
+        # Completed classes stay circulating and cannot keep paying a previous success reward.
+        positions[:, :, 0] = 0.6
+        positions[:, :, 1] = torch.tensor([0.27, -0.27] * (len(pool.assets) // 2))
+        positions[:, :, 2] = 0.06
+        _place(env, positions)
+        command._update_command()
+        assert not command.has_target.any()
+        assert command.metrics["batch_complete"].tolist() == [1, 1]
+        command.new_success.fill_(True)
+        command.is_success.fill_(True)
+        command.evaluate()
+        assert not command.new_success.any() and not command.is_success.any()
+        assert not mdp.cube_out_of_workspace(env, **env.cfg.terminations.cube_out_of_workspace.params).any()
+        # Present every identity as a separate arrival and let the real dispatcher refill its slots.
+        for parcel_id in range(len(pool.assets)):
+            positions[0] = _waiting_positions(env)[0]
+            source_y = -0.27 if command.parcel_destinations[parcel_id] == 0 else 0.27
+            positions[0, parcel_id] = torch.tensor([0.8, source_y, 0.06])
+            _place(env, positions)
+            command.pending_success[0] = True
+            command._update_command()
+            assert pool.slot_ids[0, command.target_cube_ids[0]] == parcel_id
+        assert (pool.assignment_counts[0] > 0).all()
+        unassigned = next(i for i in range(len(pool.assets)) if i not in pool.slot_ids[0])
+        positions[0, unassigned, 2] = -1
+        _place(env, positions)
+        assert mdp.cube_out_of_workspace(env, **env.cfg.terminations.cube_out_of_workspace.params).tolist() == [
+            True,
+            False,
+        ]
 
 
 def test_curriculum_checkpoint_restores_progress_and_deployment_outcomes(tmp_path):

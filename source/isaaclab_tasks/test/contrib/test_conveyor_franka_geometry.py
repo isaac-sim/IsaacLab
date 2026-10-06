@@ -7,6 +7,8 @@
 
 from collections import Counter
 
+import pytest
+
 from isaaclab_tasks.contrib.conveyor_franka.conveyor_franka_env_cfg import _collision_properties, _cube
 from isaaclab_tasks.contrib.conveyor_franka.conveyor_geometry import (
     MeshSpec,
@@ -24,10 +26,22 @@ def _edge_use_counts(spec: MeshSpec) -> Counter[tuple[int, int]]:
     return edges
 
 
-def test_belt_top_faces_point_upward():
+@pytest.mark.parametrize("warehouse", [False, True])
+def test_belt_top_faces_point_upward(warehouse):
     """One-sided triangle-mesh surfaces support parcels from above."""
     for side in ("Left", "Right"):
-        specs = [belt_mesh_spec(side), *guard_mesh_specs(side)]
+        if warehouse:
+            from isaaclab_tasks.contrib.conveyor_franka.conveyor_warehouse_geometry import (
+                warehouse_belt_sections,
+                warehouse_guard_meshes,
+            )
+
+            specs = [
+                section.geometry for section in warehouse_belt_sections(side) if isinstance(section.geometry, MeshSpec)
+            ]
+            specs.extend(warehouse_guard_meshes(side))
+        else:
+            specs = [belt_mesh_spec(side), *guard_mesh_specs(side)]
         for spec in specs:
             assert set(_edge_use_counts(spec).values()) == {2}
             _assert_top_faces_point_upward(spec)
@@ -53,3 +67,23 @@ def test_contact_configuration_uses_one_mujoco_parameterization():
     assert cube_material.contact_damping is None
     assert cube_material.torsional_friction is None
     assert cube_material.rolling_friction is None
+
+
+def test_elevated_belt_normals_accept_contacts_on_every_ramp_panel():
+    """Inclined parcels receive traction instead of sliding into the bottom transition."""
+    import numpy as np
+
+    from isaaclab_tasks.contrib.conveyor_franka.conveyor_warehouse_geometry import warehouse_belt_sections
+
+    for side in ("Left", "Right"):
+        for section in warehouse_belt_sections(side):
+            if section.belt.curved or abs(section.belt.direction[2]) < 1e-6:
+                continue
+            vertices = np.asarray(section.geometry.vertices)
+            triangles = vertices[np.asarray(section.geometry.faces)]
+            normals = np.cross(triangles[:, 1] - triangles[:, 0], triangles[:, 2] - triangles[:, 0])
+            top = normals[normals[:, 2] > 1e-8]
+            top /= np.linalg.norm(top, axis=1, keepdims=True)
+            assert len(top) > 0
+            assert np.all(top @ section.belt.surface_normal >= section.belt.contact_threshold)
+            assert abs(np.dot(section.belt.direction, section.belt.surface_normal)) < 1e-6

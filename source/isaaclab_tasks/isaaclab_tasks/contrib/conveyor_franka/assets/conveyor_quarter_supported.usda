@@ -1,0 +1,21 @@
+#usda 1.0
+(
+    defaultPrim = "Conveyor"
+)
+
+def Xform "Conveyor" (
+    prepend references = @https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.1/Isaac/Props/Conveyors/ConveyorBelt_A03.usd@
+)
+{
+    over "SM_ConveyorBelt_A03"
+    {
+        custom double conveyor:supportAnchor = 24.452552917378103
+        custom double conveyor:supportScale = 3.448973206624863
+    }
+
+    over "SM_ConveyorBelt_A03_Decal"
+    {
+        custom double conveyor:supportAnchor = 140.0000003367605
+        custom double conveyor:supportScale = 3.448973193849789
+    }
+}

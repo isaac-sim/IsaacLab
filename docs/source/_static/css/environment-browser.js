@@ -63,6 +63,7 @@
             ["IsaacContrib-Cartpole-Showcase-Direct", "skrl", "isaacsim_physx,newton_kamino,newton_mjwarp,ovphysx", "", "box_box,box_discrete,box_multidiscrete,dict_box,dict_discrete,dict_multidiscrete,discrete_box,discrete_discrete,discrete_multidiscrete,multidiscrete_box,multidiscrete_discrete,multidiscrete_multidiscrete,tuple_box,tuple_discrete,tuple_multidiscrete"],
             ["IsaacContrib-Conveyor-Racetrack-Transfer-PhysX-CPU-v0", "rsl_rl", "", "", "", "./tasks/conveyor/racetrack_transfer.jpg"],
             ["IsaacContrib-Conveyor-Racetrack-Transfer-v0", "rsl_rl", "", "", "", "./tasks/conveyor/racetrack_transfer.jpg"],
+            ["IsaacContrib-Conveyor-Warehouse-Sorting-v0", "rsl_rl", "", "", "", "./tasks/conveyor/warehouse_sorting.jpg"],
             ["IsaacContrib-Deploy-GearAssembly-Rizon4s-Grav", "rsl_rl", "", "", ""],
             ["IsaacContrib-Deploy-GearAssembly-Rizon4s-Grav-ROS-Inference", "rsl_rl", "", "", ""],
             ["IsaacContrib-Deploy-GearAssembly-UR10e-2F140", "rsl_rl", "", "", ""],
