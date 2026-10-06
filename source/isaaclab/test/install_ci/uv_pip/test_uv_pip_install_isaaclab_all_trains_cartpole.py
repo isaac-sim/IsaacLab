@@ -27,7 +27,6 @@ from __future__ import annotations
 import shutil
 
 import pytest
-import tomllib
 from utils import UV_Mixin, cuda_torch_index_url, pinned_torch_specs
 
 
@@ -48,6 +47,8 @@ class Test_Uv_Pip_Install_Isaaclab_All_Trains_Cartpole(UV_Mixin):
     @pytest.mark.timeout(4800)
     def test_uv_pip_install_isaaclab_all_trains_cartpole(self, isaaclab_root, wheel, cartpole_smoke_script):
         """Install the runner-supplied wheel with ``[all]`` via ``uv pip``, then train."""
+        import tomllib  # Host collection can use Python 3.10; this test runs in Python 3.12.
+
         try:
             self.create_uv_env(isaaclab_root)
 
