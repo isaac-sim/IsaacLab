@@ -642,32 +642,6 @@
         updateSelection();
     };
 
-    const parseCsv = (contents) => {
-        const parseLine = (line) => {
-            const values = [];
-            let value = "";
-            let quoted = false;
-            for (let index = 0; index < line.length; index += 1) {
-                const character = line[index];
-                if (character === '"' && quoted && line[index + 1] === '"') {
-                    value += '"';
-                    index += 1;
-                } else if (character === '"') {
-                    quoted = !quoted;
-                } else if (character === "," && !quoted) {
-                    values.push(value);
-                    value = "";
-                } else {
-                    value += character;
-                }
-            }
-            values.push(value);
-            return values;
-        };
-        const [header, ...lines] = contents.trim().split(/\r?\n/).map(parseLine);
-        return lines.map((line) => Object.fromEntries(header.map((name, index) => [name, line[index]])));
-    };
-
     const formatFps = (value) => {
         if (value >= 1_000_000) {
             return `${Number((value / 1_000_000).toFixed(2))}M`;
@@ -936,18 +910,14 @@
         chart.replaceChildren(...(rows.length ? [renderBenchmarkChart(rows, maximum)] : []));
     };
 
-    const renderBenchmarks = async () => {
+    const renderBenchmarks = () => {
         if (!benchmarks) {
             return;
         }
-        benchmarkRows = (await Promise.all(["release", "develop"].map(async (channel) => {
+        const snapshots = JSON.parse(document.querySelector("[data-environment-benchmark-rows]").textContent);
+        benchmarkRows = ["release", "develop"].flatMap((channel) => {
             try {
-                const source = new URL(benchmarks.getAttribute(`data-benchmark-${channel}-source`), window.location.href);
-                const response = await fetch(source);
-                if (!response.ok) {
-                    throw new Error(`Benchmark request failed with ${response.status}`);
-                }
-                return parseCsv(await response.text())
+                return snapshots[channel]
                     .filter((row) => row.data_origin === "measured" && row.workload === "training")
                     .filter((row) => [row.collection_fps_mean, row.total_fps_mean]
                         .every((value) => Number.isFinite(Number(value)) && Number(value) > 0))
@@ -959,7 +929,7 @@
                 console.error(error);
                 return [];
             }
-        }))).flat();
+        });
         updatePreview();
     };
 

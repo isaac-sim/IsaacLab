@@ -17,8 +17,7 @@ Camera tasks include only PhysX/Isaac Sim RTX, Newton/Newton renderer,
 OV PhysX/OV RTX and Newton/OV RTX, intersected with supported task selectors.
 Missing data is never zeroed, interpolated or copied across windows.
 
-See [COVERAGE.md](COVERAGE.md) for selection rules, query scope, per-week counts,
-current missing pairs and export columns. Source database:
+Source database:
 `omni_runtime_isaac_lab_v3` in `ov-runtime-performance` on
 `omniperf-trace.nvidia.com:5432`. Credentials are not stored here.
 

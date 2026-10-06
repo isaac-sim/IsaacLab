@@ -102,21 +102,11 @@ Task Preview
 Benchmarks
 ----------
 
-Develop snapshots are spaced weekly on Sundays, with measurements selected through
-Monday. The latest snapshot includes October 5; the preceding one includes
-September 28. Actual measurement dates remain in tooltips and CSV exports.
-All runs use 8,192 environments. Camera comparisons use single-camera simple shading;
-state tasks show every supported physics backend, and camera tasks show PhysX +
-Isaac Sim RTX, Newton + Newton renderer, OV PhysX + OV RTX, and Newton + OV RTX.
-
-See the :download:`coverage report <../_static/benchmarks/COVERAGE.md>` for
-selection details.
+.. isaaclab-benchmark-data::
 
 .. raw:: html
 
    <div class="environment-browser" data-environment-benchmarks
-        data-benchmark-release-source="../../_static/benchmarks/environment-performance-release.csv"
-        data-benchmark-develop-source="../../_static/benchmarks/environment-performance-develop.csv"
         data-benchmark-release-dates="2026-09-09"
         data-benchmark-develop-dates="2026-08-23,2026-08-30,2026-09-06,2026-09-13,2026-09-20,2026-09-27,2026-10-04">
      <section class="environment-benchmark-panel">
