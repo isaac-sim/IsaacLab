@@ -76,7 +76,7 @@ PPISP_DEFAULT_INPUTS: dict[str, float | tuple[float, float]] = {
 
 
 class PpispDiscoveryMode(StrEnum):
-    """Discover PPISP camera attributes for :class:`~isaaclab_ppisp.PpispProcessorCfg`.
+    """Discover PPISP camera attributes for :class:`~isaaclab_ppisp.PpispModifierCfg`.
 
     The processor uses the first matched source camera as the lookup target and
     applies the discovered configuration to the whole image batch. Without a
@@ -342,7 +342,7 @@ def resolve_and_normalize(
 ) -> PpispCfg | None:
     """Resolve a PPISP processor's configuration to a normalised cfg or ``None``.
 
-    Handles all three forms of :attr:`~isaaclab_ppisp.PpispProcessorCfg.isp_cfg`:
+    Handles all three forms of :attr:`~isaaclab_ppisp.PpispModifierCfg.isp_cfg`:
 
     * ``None`` → returns ``None``.
     * :class:`PpispDiscoveryMode` sentinel — checks the

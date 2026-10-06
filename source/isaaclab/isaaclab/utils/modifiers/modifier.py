@@ -11,9 +11,10 @@ from typing import TYPE_CHECKING
 import torch
 
 from ..array import index_fill_
-from .modifier_base import ModifierBase
+from .modifier_base import ModifierBase, ModifierOutput
 
 if TYPE_CHECKING:
+    from ...envs import ManagerBasedEnv
     from . import modifier_cfg
 
 ##
@@ -21,23 +22,37 @@ if TYPE_CHECKING:
 ##
 
 
-def scale(data: torch.Tensor, multiplier: float) -> torch.Tensor:
+def _value(data: torch.Tensor | ModifierOutput) -> torch.Tensor:
+    return data.data if isinstance(data, ModifierOutput) else data
+
+
+def _result(source: torch.Tensor | ModifierOutput, value: torch.Tensor) -> torch.Tensor | ModifierOutput:
+    return source.with_data(value) if isinstance(source, ModifierOutput) else value
+
+
+def scale(
+    env: ManagerBasedEnv, data: torch.Tensor | ModifierOutput, multiplier: float
+) -> torch.Tensor | ModifierOutput:
     """Scales input data by a multiplier.
 
     Args:
+        env: The environment that owns the observation.
         data: The data to apply the scale to.
         multiplier: Value to scale input by.
 
     Returns:
         Scaled data. Shape is the same as data.
     """
-    return data * multiplier
+    return _result(data, _value(data) * multiplier)
 
 
-def clip(data: torch.Tensor, bounds: tuple[float | None, float | None]) -> torch.Tensor:
+def clip(
+    env: ManagerBasedEnv, data: torch.Tensor | ModifierOutput, bounds: tuple[float | None, float | None]
+) -> torch.Tensor | ModifierOutput:
     """Clips the data to a minimum and maximum value.
 
     Args:
+        env: The environment that owns the observation.
         data: The data to apply the clip to.
         bounds: A tuple containing the minimum and maximum values to clip data to.
             If the value is None, that bound is not applied.
@@ -45,20 +60,21 @@ def clip(data: torch.Tensor, bounds: tuple[float | None, float | None]) -> torch
     Returns:
         Clipped data. Shape is the same as data.
     """
-    return data.clip(min=bounds[0], max=bounds[1])
+    return _result(data, _value(data).clip(min=bounds[0], max=bounds[1]))
 
 
-def bias(data: torch.Tensor, value: float) -> torch.Tensor:
+def bias(env: ManagerBasedEnv, data: torch.Tensor | ModifierOutput, value: float) -> torch.Tensor | ModifierOutput:
     """Adds a uniform bias to the data.
 
     Args:
+        env: The environment that owns the observation.
         data: The data to add bias to.
         value: Value of bias to add to data.
 
     Returns:
         Biased data. Shape is the same as data.
     """
-    return data + value
+    return _result(data, _value(data) + value)
 
 
 ##
@@ -167,10 +183,11 @@ class DigitalFilter(ModifierBase):
         index_fill_(self.x_n, env_ids, 0.0)
         index_fill_(self.y_n, env_ids, 0.0)
 
-    def __call__(self, data: torch.Tensor) -> torch.Tensor:
+    def __call__(self, env: ManagerBasedEnv, data: torch.Tensor | ModifierOutput) -> torch.Tensor | ModifierOutput:
         """Applies digital filter modification with a rolling history window inputs and outputs.
 
         Args:
+            env: The environment that owns the observation.
             data: The data to apply filter to.
 
         Returns:
@@ -178,7 +195,7 @@ class DigitalFilter(ModifierBase):
         """
         # move history window for input
         self.x_n = torch.roll(self.x_n, shifts=1, dims=-1)
-        self.x_n[..., 0] = data
+        self.x_n[..., 0] = _value(data)
 
         # calculate current filter value: y[i] = Y*A - X*B
         y_i = torch.matmul(self.x_n, self.B) - torch.matmul(self.y_n, self.A)
@@ -188,7 +205,7 @@ class DigitalFilter(ModifierBase):
         self.y_n = torch.roll(self.y_n, shifts=1, dims=-1)
         self.y_n[..., 0] = y_i
 
-        return y_i
+        return _result(data, y_i)
 
 
 class Integrator(ModifierBase):
@@ -240,18 +257,19 @@ class Integrator(ModifierBase):
         index_fill_(self.integral, env_ids, 0.0)
         index_fill_(self.y_prev, env_ids, 0.0)
 
-    def __call__(self, data: torch.Tensor) -> torch.Tensor:
+    def __call__(self, env: ManagerBasedEnv, data: torch.Tensor | ModifierOutput) -> torch.Tensor | ModifierOutput:
         """Applies integral modification to input data.
 
         Args:
+            env: The environment that owns the observation.
             data: The data to integrate.
 
         Returns:
             Integral of input signal. Shape is the same as data.
         """
         # integrate using middle Riemann sum
-        self.integral += (data + self.y_prev) / 2 * self._cfg.dt
+        self.integral += (_value(data) + self.y_prev) / 2 * self._cfg.dt
         # update previous value
-        self.y_prev[:] = data
+        self.y_prev[:] = _value(data)
 
-        return self.integral
+        return _result(data, self.integral)

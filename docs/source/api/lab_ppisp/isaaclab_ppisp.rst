@@ -16,7 +16,7 @@ The following classes are part of the public :mod:`isaaclab_ppisp` API.
    PpispCfg
    PpispDiscoveryMode
    PpispPipeline
-   PpispProcessorCfg
+   PpispModifierCfg
 
 .. autoclass:: PpispCfg
    :show-inheritance:
@@ -28,8 +28,7 @@ The following classes are part of the public :mod:`isaaclab_ppisp` API.
 .. autoclass:: PpispPipeline
    :show-inheritance:
 
-.. autoclass:: PpispProcessorCfg
+.. autoclass:: PpispModifierCfg
    :show-inheritance:
 
-See :ref:`camera-post-processing` for observation configuration, migration from ``CameraCfg.isp_cfg``,
-and composing PPISP with additional processors.
+See :ref:`camera-post-processing` for observation configuration and composing PPISP with modifiers.

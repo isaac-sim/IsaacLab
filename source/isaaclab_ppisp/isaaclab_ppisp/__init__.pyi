@@ -9,7 +9,8 @@ __all__ = [
     "PpispCfg",
     "PpispDiscoveryMode",
     "PpispPipeline",
-    "PpispProcessorCfg",
+    "PpispModifier",
+    "PpispModifierCfg",
     "apply_ppisp_to_rgba",
     "apply_ppisp_to_rgba_with_controller_params",
     "apply_rtx_exposure_overrides",
@@ -22,7 +23,6 @@ __all__ = [
     "ppisp_cfg_from_usd_camera",
     "ppisp_cfg_from_usd_stage",
     "resolve_and_normalize",
-    "resolve_ppisp_processor",
 ]
 
 from .cfg import (
@@ -41,5 +41,5 @@ from .cfg import (
 )
 from .kernels import apply_ppisp_to_rgba, apply_ppisp_to_rgba_with_controller_params, compute_ppisp_controller_params
 from .pipeline import PpispPipeline
-from .processor import PpispProcessorCfg, resolve_ppisp_processor
+from .modifier import PpispModifier, PpispModifierCfg
 from .rtx_camera_overrides import apply_rtx_exposure_overrides

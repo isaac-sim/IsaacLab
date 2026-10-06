@@ -25,14 +25,13 @@ from types import SimpleNamespace
 from typing import TYPE_CHECKING
 
 import torch
-from isaaclab_ppisp import PpispCfg, PpispDiscoveryMode, PpispProcessorCfg, normalize_ppisp_cfg
+from isaaclab_ppisp import PpispCfg, PpispDiscoveryMode, PpispModifierCfg, normalize_ppisp_cfg
 
 from pxr import Gf, Sdf, Usd, UsdGeom, Vt
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
-from isaaclab.envs.mdp import processed_image
-from isaaclab.managers import ObservationTermCfg, SceneEntityCfg
+from isaaclab.managers import SceneEntityCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors.camera import Camera, CameraCfg
 from isaaclab.terrains import TerrainImporterCfg
@@ -822,21 +821,15 @@ def _render_synthetic_gaussian_camera(
     )
     camera = Camera(cfg)
     env = SimpleNamespace(scene={"camera": camera}, sim=sim, num_envs=num_envs, device=sim.device)
-    observation_cfg = ObservationTermCfg(
-        func=processed_image,
-        params={
-            "sensor_cfg": SceneEntityCfg("camera"),
-            "processors": [PpispProcessorCfg(isp_cfg=isp_cfg)],
-            "data_type": "rgba",
-        },
-    )
-    # Prepare before reset so the renderer sees the observation's radiance requirement.
-    with contextlib.closing(processed_image.prepare_scene(observation_cfg, env)) as observation:
+    modifier_cfg = PpispModifierCfg(sensor_cfg=SceneEntityCfg("camera"), isp_cfg=isp_cfg, output="rgba")
+    # Prepare before reset so the renderer sees the modifier's radiance requirement.
+    modifier_cfg.prepare_scene(env)
+    with contextlib.closing(modifier_cfg.func(modifier_cfg, (num_envs, height, width, 3), env.device)) as modifier:
         sim.reset()
         for _ in range(stabilisation_steps):
             sim.step()
         camera.update(sim_dt)
-        rgba = observation(env, **observation_cfg.params)
+        rgba = modifier(env, camera.data.output["rgb"].torch).data
         frames = {name: output.torch for name, output in camera.data.output.items()}
         if "rgb" in frames:
             frames["rgb"] = rgba[..., :3]

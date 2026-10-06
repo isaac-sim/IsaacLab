@@ -23,8 +23,7 @@ class PpispPipeline:
     """Post-render PPISP kernel applier.
 
     Owns the normalised :class:`PpispCfg` and dispatches the PPISP Warp kernel
-    via :meth:`apply`. The sensor's PPISP processor binds its input and output
-    buffers and owns this pipeline independently of the renderer.
+    via :meth:`apply`. The PPISP modifier owns this pipeline independently of the renderer.
 
     One pipeline instance applies to the whole Camera sensor batch. The PPISP
     Warp kernel takes scalar coefficients, so every cloned view in a tiled
@@ -41,7 +40,7 @@ class PpispPipeline:
 
         Normalises ``cfg`` on construction (validates input keys, fills
         defaults).
-        Camera-bound USD configuration is resolved by the PPISP processor
+        Camera-bound USD configuration is resolved by the PPISP modifier
         before constructing this pipeline.
 
         Args:

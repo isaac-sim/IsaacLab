@@ -1,18 +1,2 @@
-* Added ``isaaclab.sensors.post_processing`` with :class:`~isaaclab.sensors.SensorPostProcessor`,
-  :class:`~isaaclab.sensors.SensorPostProcessorCfg`, and
-  :class:`~isaaclab.sensors.SensorPostProcessingPipeline` for ordered, renderer-independent
-  post-processing of camera image buffers. Added :class:`~isaaclab.sensors.CameraPostProcessingChain`
-  to bind a chain to a camera, process each new capture once, and handle resets, with or without
-  observation terms.
-* Added ``mdp.processed_image`` for ordered image-processing chains owned by observation terms,
-  with explicit buffer requirements, persistent intermediates, cached frame processing, and
-  partial-reset and cleanup callbacks. Added early ``ManagerTermBase.prepare_scene`` preparation
-  so terms could resolve renderer inputs before setup. Added ``rgb_radiance`` for scene-linear RGB
-  before exposure and camera response, in renderer-relative intensity units. Preserved existing
-  ``rgb_hdr`` settings when radiance was not requested. Prepared all cameras' renderer inputs before
-  shared stage export, including public outputs and private processor inputs. Added the
-  ``Camera.render_generation`` attribute to track completed render batches without advancing on cached reads.
-  Added ``Camera.render_frame`` to match processing state to published asynchronous captures;
-  repeated priming frames and resets before a new delayed capture did not republish earlier images.
-  Excluded unconsumed pre-reset captures from reset observation state while preserving updates
-  for other environments and accepting repeated episode-local frame numbers after reset.
+* Added environment-aware observation modifiers with named intermediate outputs and pre-reset scene preparation. Camera processing can use the existing modifier list; observation terms own modifier state, partial resets, and cleanup.
+* Added ``rgb_radiance`` for scene-linear RGB before exposure and camera response. Cameras prepare public and privately requested renderer inputs before shared stage export. Published capture frames are available in ``CameraData.info`` for cached processing, including delayed captures.

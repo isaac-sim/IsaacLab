@@ -1,79 +1,28 @@
 # Isaac Lab PPISP
 
-This extension provides a renderer-backend-agnostic PPISP (Physically Plausible
-Image Signal Processing) pipeline for Isaac Lab camera outputs.
+This extension applies Physically Plausible Image Signal Processing to Isaac Lab camera images. PPISP consumes scene-linear `rgb_radiance` from Isaac RTX, OVRTX, or Newton Warp and produces uint8 RGB and RGBA.
 
-PPISP consumes `rgb_radiance`: scene-linear RGB before exposure and camera response,
-in renderer-relative intensity units. Isaac RTX, OVRTX, and Newton Warp supply this
-signal. PPISP writes LDR `rgb` / `rgba` through an observation term's ordered
-processing chain. Each term owns its processor state, including controller weights
-and scratch buffers.
+Use `PpispModifierCfg` in an observation term's existing modifier list:
 
 ```python
 from isaaclab.envs import mdp
 from isaaclab.managers import ObservationTermCfg, SceneEntityCfg
-from isaaclab_ppisp import PpispCfg, PpispProcessorCfg
+from isaaclab_ppisp import PpispCfg, PpispModifierCfg
 
 camera_image = ObservationTermCfg(
-    func=mdp.processed_image,
-    params={
-        "sensor_cfg": SceneEntityCfg("camera"),
-        "processors": [PpispProcessorCfg(isp_cfg=PpispCfg())],
-        "data_type": "rgb",
-    },
+    func=mdp.image_rgb,
+    params={"sensor_cfg": SceneEntityCfg("camera"), "normalize": False},
+    modifiers=[PpispModifierCfg(
+        sensor_cfg=SceneEntityCfg("camera"),
+        isp_cfg=PpispCfg(),
+    )],
 )
 ```
 
-Add the term to an observation group in a manager-based environment whose scene
-contains a camera named `camera`. Append additional processor configurations to
-`processors` to consume PPISP's RGB result. Processor factories and buffer
-declarations live in `isaaclab.sensors.post_processing`; no renderer changes
-are required to add a stage.
+The observation manager resolves USD attributes and requests private radiance before simulation reset. The modifier owns its output buffers, runs once for each published camera capture, and exposes both `rgb` and `rgba` in `ModifierOutput.named` for later modifiers. Set `output="rgba"` to select RGBA. `normalize=True` divides by 255 and subtracts each image's spatial mean; `permute=True` returns NCHW. Each observation term owns independent state and cleanup. An upstream modifier can provide `rgb_radiance` in its named output by setting `input_source="previous"` on PPISP.
 
-`normalize=False` returns persistent `uint8` output by default. For RGB/RGBA,
-`normalize=True` returns reusable `float32` output with the same division by 255
-and spatial mean subtraction as `mdp.image`. `permute=True` selects an `NCHW`
-view instead of the default `NHWC` layout.
+For use outside observations, create a `PpispModifierCfg`, call `prepare_scene(env)` before `sim.reset()`, then create `modifier = cfg.func(cfg, (num_envs, height, width, 3), device)`. After rendering, call `modifier(env, camera.data.output["rgb"].torch).data`. Call `modifier.close()` when done. The result uses reusable storage; clone it to retain a frame.
 
-**Breaking change:** `CameraCfg.isp_cfg` was removed. Remove the `isp_cfg`
-argument from your camera configuration and pass
-`processors=[PpispProcessorCfg(isp_cfg=existing_cfg)]` in the `params` of an
-`ObservationTermCfg(func=mdp.processed_image, ...)`, as shown above. Read the
-processed image from the environment's observations instead of
-`camera.data.output`, which now contains only raw renderer outputs. Set an
-observation group's `concatenate_terms=False` to access the image by term name.
+`CameraCfg.isp_cfg` and `CameraISPMode` were removed. Use `PpispModifierCfg` and `PpispDiscoveryMode` instead. `AUTO_CAMERA` reads the camera's PPISP attributes; `AUTO_ANY` may find attributes elsewhere on the stage. When discovery finds none, the modifier passes through raw camera RGB/RGBA. Camera `data.output` remains the raw renderer output.
 
-`isaaclab.sensors.camera.CameraISPMode` was also removed. Replace its imports
-with `from isaaclab_ppisp import PpispDiscoveryMode`; `AUTO_CAMERA` and `AUTO_ANY`
-retain their discovery behavior.
-
-`PpispProcessorCfg()` discovers attributes on the camera itself. Pass
-`isp_cfg=PpispDiscoveryMode.AUTO_ANY` to allow stage-wide discovery, or
-`isp_cfg=PpispCfg(camera_prim_path="/World/ReferenceCamera")` to import a
-particular camera's attributes. Discovery that finds no matching attributes
-disables the processor. Explicit values and exported controller weights remain
-supported through `PpispCfg`.
-
-The term prepares the chain after scene spawning, before the first simulation
-reset, and resolves PPISP's `rgb_radiance` input. An earlier processor can supply
-that signal; otherwise the term requests it from the camera and the renderer
-prepares the required exposure setup. Radiance and RGBA intermediate buffers
-are allocated even when absent from camera
-`data_types`; RGB aliases RGBA. Repeated observation reads of the same camera
-frame reuse the processed result. The observation manager forwards partial
-resets and closes processor state with the environment. The PPISP controller
-computes parameters from the current image and has no temporal state to reset.
-
-Plain `rgb_hdr` retains the existing camera settings. On Isaac RTX and OVRTX,
-`rgb_radiance` is not a native renderer output: requesting it authors neutral
-exposure on the source camera prim, as the previous PPISP integration did. Every
-output from that prim, including `rgb`, `rgba`, and `rgb_hdr`, then loses the
-authored exposure, including outputs of other camera sensors on the same prim.
-When both raw names are requested they alias the same active HDR source. Use a
-separate camera prim when authored-exposure color is also required. Newton Warp
-is not affected.
-
-`PpispPipeline` remains available to callers that apply PPISP kernels directly.
-Calling `initialize(hdr)` preallocates its controller buffers; `apply(hdr,
-rgba)` also supports the existing lazy allocation behavior. Call `close()` to
-release cached controller buffers.
+On Isaac RTX and OVRTX, requesting `rgb_radiance` neutralizes exposure for all outputs from that camera prim. Use a separate prim if the authored-exposure image is also needed. `PpispPipeline` remains available for callers that apply PPISP Warp kernels directly.

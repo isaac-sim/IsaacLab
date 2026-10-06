@@ -6,8 +6,7 @@
 """Post-render PPISP (Physically Plausible Image Signal Processing) for IsaacLab.
 
 Provides the ISP processor that converts rendered scene-linear HDR to LDR
-RGB/RGBA. Configure :class:`PpispProcessorCfg` in a
-:class:`~isaaclab.envs.mdp.visual_observations.processed_image` observation term,
+RGB/RGBA. Configure :class:`PpispModifierCfg` in an observation term's modifier list,
 or apply :class:`PpispPipeline` directly to radiance buffers.
 """
 

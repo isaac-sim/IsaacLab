@@ -293,10 +293,11 @@ class _CpuCamera(Camera):
         self._render_data = SimpleNamespace(name=name, pose=None)
         self._data = CameraData()
         self._data.create_buffers(2, "cpu")
-        self._data.info = {"pose": None}
+        self._data._output = {"rgb": ProxyArray(wp.zeros((2, 1, 1, 3), dtype=wp.uint8, device="cpu"))}
+        self._data.info = {"pose": None, "rgb": None}
         self._render_camera_data = CameraData()
-        self._render_camera_data.info = {"pose": None}
-        self.render_generation = 0
+        self._render_camera_data._output = self._data.output
+        self._render_camera_data.info = {"pose": None, "rgb": None}
         self._published_frame = None
         self._frame = ProxyArray(wp.zeros(2, dtype=wp.int64, device="cpu"))
         self._ALL_INDICES = wp.array([0, 1], dtype=wp.int32, device="cpu")
@@ -421,7 +422,8 @@ def test_camera_eager_updates_render_shared_batch_with_current_poses(camera_batc
     assert cameras[1].data.info["pose"] == 2.0
     assert batches == [[("wide", 1.0), ("tele", 2.0)]]
     for camera in cameras:
-        assert camera.render_generation == 1
+        assert camera._published_frame is not None
+        assert camera.data.info["rgb"]["capture"]["frame"] is camera._published_frame
         np.testing.assert_array_equal(camera.frame.warp.numpy(), [1, 1])
         np.testing.assert_allclose(camera._timestamp_last_update.numpy(), [0.01, 0.01])
     np.testing.assert_array_equal(uninitialized.frame.warp.numpy(), [0, 0])
@@ -446,7 +448,7 @@ def test_camera_lazy_reads_leave_peer_cameras_outdated(camera_batch_context):
     assert cameras[1].data.info["pose"] == 2.0
     for camera in cameras:
         assert camera.data.info["pose"] == camera.pose
-        assert camera.render_generation == 1
+        assert camera._published_frame is not None
         np.testing.assert_array_equal(camera.frame.warp.numpy(), [1, 1])
         np.testing.assert_allclose(camera._timestamp_last_update.numpy(), [0.01, 0.01])
     assert batches == [[("wide", 1.0)], [("tele", 2.0)]]
@@ -462,15 +464,13 @@ def test_delayed_capture_publishes_each_frame_once(camera_batch_context):
     camera._finish_capture()
     camera._frame.warp.fill_(2)
     camera._finish_capture()
-    assert camera.render_generation == 1
-    assert camera.render_frame is first
+    assert camera._published_frame is first
 
     second = ProxyArray(wp.array([2, 1], dtype=wp.int64, device="cpu"))
     camera._render_camera_data.info["pose"] = {"capture": {"frame": second}}
     camera._finish_capture()
-    assert camera.render_generation == 2
-    np.testing.assert_array_equal(camera.render_frame.warp.numpy(), [2, 1])
-    assert camera.render_frame is second
+    np.testing.assert_array_equal(camera._published_frame.warp.numpy(), [2, 1])
+    assert camera._published_frame is second
 
 
 def test_reset_does_not_republish_a_retained_capture(camera_batch_context):
@@ -480,19 +480,15 @@ def test_reset_does_not_republish_a_retained_capture(camera_batch_context):
     first = ProxyArray(wp.array([1, 1], dtype=wp.int64, device="cpu"))
     camera._render_camera_data.info["pose"] = {"capture": {"frame": first}}
     camera._finish_capture()
-    generation = camera.render_generation
-
     camera.reset()
     # The renderer leaves the pre-reset capture in place until a new one is ready.
     camera._finish_capture()
-    assert camera.render_generation == generation
-    assert camera.render_frame is first
+    assert camera._published_frame is first
 
     second = ProxyArray(wp.array([2, 2], dtype=wp.int64, device="cpu"))
     camera._render_camera_data.info["pose"] = {"capture": {"frame": second}}
     camera._finish_capture()
-    assert camera.render_generation == generation + 1
-    assert camera.render_frame is second
+    assert camera._published_frame is second
 
 
 def test_eager_scene_batches_multiple_sensor_families(camera_batch_context):
@@ -623,7 +619,8 @@ def test_camera_batch_respects_period_partial_reset_and_updated_pose(camera_batc
     InteractiveScene.update(scene, 0.2)
     assert batches == [[("fast", 0.0), ("slow", 0.0)], [("fast", 0.0)]]
     np.testing.assert_array_equal(slow.frame.warp.numpy(), [1, 1])
-    assert (fast.render_generation, slow.render_generation) == (2, 1)
+    np.testing.assert_array_equal(fast._published_frame.warp.numpy(), [2, 2])
+    np.testing.assert_array_equal(slow._published_frame.warp.numpy(), [1, 1])
     np.testing.assert_allclose(slow._timestamp_last_update.numpy(), [0.1, 0.1])
     assert renderer.prepare_capture.call_args_list == [
         call(camera._render_data, camera._data, camera._frame) for camera in (fast, slow, fast)
@@ -635,7 +632,7 @@ def test_camera_batch_respects_period_partial_reset_and_updated_pose(camera_batc
     InteractiveScene.update(scene, 0.1)
     assert batches[-1] == [("fast", 0.0), ("slow", 3.0)]
     assert slow.data.info["pose"] == 3.0
-    assert slow.render_generation == 2
+    assert slow._published_frame is not None
     np.testing.assert_array_equal(slow.frame.warp.numpy(), [1, 1])
     np.testing.assert_allclose(slow._timestamp.numpy(), [0.4, 0.1])
     np.testing.assert_allclose(slow._timestamp_last_update.numpy(), [0.1, 0.1])

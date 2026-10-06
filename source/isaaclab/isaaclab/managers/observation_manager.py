@@ -79,6 +79,9 @@ def _prepare_nested_terms(
     if isinstance(value, ManagerTermBaseCfg):
         _prepare_term(f"{term_name}.{key}", value, env, prepared, top_level=False)
     elif isinstance(value, modifiers.ModifierCfg):
+        prepare_scene = getattr(value, "prepare_scene", None)
+        if prepare_scene is not None:
+            prepare_scene(env)
         for field in fields(value):
             _prepare_nested_terms(f"{term_name}.{key}", field.name, getattr(value, field.name), env, prepared)
     elif isinstance(value, dict):
@@ -243,9 +246,24 @@ class ObservationManager(ManagerBase):
     def close(self) -> None:
         """Close stateful terms once, including partially initialized terms."""
         terms, self._owned_terms = getattr(self, "_owned_terms", {}), {}
+        instances, self._group_obs_class_instances = getattr(self, "_group_obs_class_instances", []), []
         self._prepared_terms = {}
         self._obs_buffer = None
-        _close_terms(terms.values())
+        error = None
+        try:
+            _close_terms(terms.values())
+        except Exception as exc:
+            error = exc
+        for instance in reversed(instances):
+            close = getattr(instance, "close", None)
+            if close is not None:
+                try:
+                    close()
+                except Exception as exc:
+                    if error is None:
+                        error = exc
+        if error is not None:
+            raise RuntimeError("Failed to close an observation term or modifier.") from error
 
     def _process_term_cfg_at_play(self, term_name: str, term_cfg: ObservationTermCfg):
         prepared = self._prepared_terms.pop(term_name, None)
@@ -480,7 +498,9 @@ class ObservationManager(ManagerBase):
                     self._group_obs_term_history_buffer[group_name][term_name].reset(batch_ids=env_ids)
         # call all modifiers that are classes
         for mod in self._group_obs_class_instances:
-            mod.reset(env_ids=env_ids)
+            reset = getattr(mod, "reset", None)
+            if reset is not None:
+                reset(env_ids=env_ids)
 
         # nothing to log here
         return {}
@@ -576,12 +596,17 @@ class ObservationManager(ManagerBase):
             if term_cfg.modifiers is not None:
                 for modifier in term_cfg.modifiers:
                     owned = False
-                    # Custom callbacks may modify or retain their input.
-                    obs = obs.clone()
+                    # Custom callbacks may modify or retain their input. Read-only processors
+                    # can borrow the camera buffer and let the manager snapshot the result.
+                    if not getattr(modifier.func, "borrows_input", False):
+                        obs = obs.clone()
                     if isinstance(modifier.func, modifiers.ModifierBase):
-                        obs = modifier.func(obs)
+                        obs = modifier.func(self._env, obs)
                     else:
-                        obs = modifier.func(obs, **modifier.params)
+                        obs = modifier.func(self._env, obs, **modifier.params)
+            if isinstance(obs, modifiers.ModifierOutput):
+                obs = obs.data.clone()
+                owned = True
             # Noise callbacks must not modify their input, but may return borrowed storage.
             if isinstance(term_cfg.noise, noise.NoiseCfg):
                 obs = term_cfg.noise.func(obs, term_cfg.noise)
@@ -792,23 +817,6 @@ class ObservationManager(ManagerBase):
                 # call function the first time to fill up dimensions
                 obs_dims = self._prepare_term_output(group_name, term_name, term_cfg)
 
-                # if scale is set, check if single float or tuple
-                if term_cfg.scale is not None:
-                    if not isinstance(term_cfg.scale, (float, int, tuple)):
-                        raise TypeError(
-                            f"Scale for observation term '{term_name}' in group '{group_name}'"
-                            f" is not of type float, int or tuple. Received: '{type(term_cfg.scale)}'."
-                        )
-                    if isinstance(term_cfg.scale, tuple) and len(term_cfg.scale) != obs_dims[1]:
-                        raise ValueError(
-                            f"Scale for observation term '{term_name}' in group '{group_name}'"
-                            f" does not match the dimensions of the observation. Expected: {obs_dims[1]}"
-                            f" but received: {len(term_cfg.scale)}."
-                        )
-
-                    # cast the scale into torch tensor
-                    term_cfg.scale = torch.tensor(term_cfg.scale, dtype=torch.float, device=self._env.device)
-
                 # prepare modifiers for each observation
                 if term_cfg.modifiers is not None:
                     # initialize list of modifiers for term
@@ -828,6 +836,7 @@ class ObservationManager(ManagerBase):
                                     f" is not an instance of 'ModifierBase'. Received: '{type(mod_cfg.func)}'."
                                 )
                             self._group_obs_class_instances.append(mod_cfg.func)
+                            obs_dims = getattr(mod_cfg.func, "output_dim", obs_dims)
 
                         # check if function is callable
                         if not callable(mod_cfg.func):
@@ -845,15 +854,30 @@ class ObservationManager(ManagerBase):
                         args_with_defaults = [arg for arg in args if args[arg].default is not inspect.Parameter.empty]
                         args_without_defaults = [arg for arg in args if args[arg].default is inspect.Parameter.empty]
                         args = args_without_defaults + args_with_defaults
-                        # ignore first two arguments for env and env_ids
+                        # The manager supplies the environment and observation.
                         # Think: Check for cases when kwargs are set inside the function?
-                        if len(args) > 1:
-                            if set(args[1:]) != set(term_params + args_with_defaults):
+                        if len(args) > 2:
+                            if set(args[2:]) != set(term_params + args_with_defaults):
                                 raise ValueError(
                                     f"Modifier '{mod_cfg}' of observation term '{term_name}' expects"
-                                    f" mandatory parameters: {args_without_defaults[1:]}"
+                                    f" mandatory parameters: {args_without_defaults[2:]}"
                                     f" and optional parameters: {args_with_defaults}, but received: {term_params}."
                                 )
+
+                # Modifiers may change the observation shape, so validate scale afterward.
+                if term_cfg.scale is not None:
+                    if not isinstance(term_cfg.scale, (float, int, tuple)):
+                        raise TypeError(
+                            f"Scale for observation term '{term_name}' in group '{group_name}'"
+                            f" is not of type float, int or tuple. Received: '{type(term_cfg.scale)}'."
+                        )
+                    if isinstance(term_cfg.scale, tuple) and len(term_cfg.scale) != obs_dims[1]:
+                        raise ValueError(
+                            f"Scale for observation term '{term_name}' in group '{group_name}'"
+                            f" does not match the dimensions of the observation. Expected: {obs_dims[1]}"
+                            f" but received: {len(term_cfg.scale)}."
+                        )
+                    term_cfg.scale = torch.tensor(term_cfg.scale, dtype=torch.float, device=self._env.device)
 
                 # prepare noise model classes
                 if term_cfg.noise is not None and isinstance(term_cfg.noise, noise.NoiseModelCfg):

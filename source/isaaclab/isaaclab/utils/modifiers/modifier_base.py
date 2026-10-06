@@ -6,13 +6,35 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from collections.abc import Sequence
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import torch
 
 if TYPE_CHECKING:
+    from ...envs import ManagerBasedEnv
     from .modifier_cfg import ModifierCfg
+
+
+@dataclass(frozen=True)
+class ModifierOutput:
+    """One observation value plus named intermediate results for later modifiers.
+
+    Named tensors are borrowed read-only. The observation manager returns ``data`` after
+    the final modifier, while modifiers can consume any named result in between.
+    """
+
+    data: torch.Tensor
+    named: dict[str, torch.Tensor]
+    name: str
+
+    def clone(self) -> ModifierOutput:
+        """Give a modifier an independent primary value without copying intermediates."""
+        return self.with_data(self.data.clone())
+
+    def with_data(self, data: torch.Tensor) -> ModifierOutput:
+        """Replace the selected value while retaining other named intermediates."""
+        return ModifierOutput(data, {**self.named, self.name: data}, self.name)
 
 
 class ModifierBase(ABC):
@@ -57,23 +79,14 @@ class ModifierBase(ABC):
         self._device = device
 
     @abstractmethod
-    def reset(self, env_ids: Sequence[int] | None = None):
-        """Resets the Modifier.
-
-        Args:
-            env_ids: The environment ids. Defaults to None, in which case
-                all environments are considered.
-        """
-        raise NotImplementedError
-
-    @abstractmethod
-    def __call__(self, data: torch.Tensor) -> torch.Tensor:
+    def __call__(self, env: ManagerBasedEnv, data: torch.Tensor | ModifierOutput) -> torch.Tensor | ModifierOutput:
         """Abstract method for defining the modification function.
 
         Args:
-            data: The data to be modified. Shape should match the data_dim passed during initialization.
+            env: The environment that owns the observation.
+            data: The observation or named output to modify.
 
         Returns:
-            Modified data. Shape is the same as the input data.
+            Modified data, normally with the same shape as the input.
         """
         raise NotImplementedError

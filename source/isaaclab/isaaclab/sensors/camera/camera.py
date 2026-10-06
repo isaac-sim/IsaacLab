@@ -187,9 +187,6 @@ class Camera(SensorBase):
     cfg: CameraCfg
     """The configuration parameters."""
 
-    render_generation: int
-    """Monotonic generation of the last rendered batch; cached reads do not advance it."""
-
     UNSUPPORTED_TYPES: set[str] = {
         "instance_id_segmentation",
         "bounding_box_2d_tight",
@@ -216,7 +213,6 @@ class Camera(SensorBase):
         # initialize base class
         super().__init__(cfg)
         self._requested_render_inputs: tuple[str, ...] = ()
-        self.render_generation = 0
         self._published_frame: ProxyArray | None = None
 
         # Compute camera orientation (convention conversion) and spawn.
@@ -340,11 +336,6 @@ class Camera(SensorBase):
     def frame(self) -> ProxyArray:
         """Frame number when the measurement took place."""
         return self._frame
-
-    @property
-    def render_frame(self) -> ProxyArray:
-        """Read-only frame numbers matching the published images, including delayed captures."""
-        return self._published_frame if self._published_frame is not None else self._frame
 
     @property
     def camera_prim_paths(self) -> tuple[str, ...]:
@@ -816,19 +807,27 @@ class Camera(SensorBase):
 
     def _finish_capture(self) -> None:
         """Publish a new capture and its frame metadata once, including delayed captures."""
-        frame = next(
+        capture = next(
             (
-                info["capture"]["frame"]
+                info["capture"]
                 for info in self._render_camera_data.info.values()
                 if isinstance(info, dict) and "frame" in info.get("capture", {})
             ),
             None,
         )
+        frame = capture["frame"] if capture is not None else None
         previous_frame = self._published_frame
-        if frame is not None and frame is previous_frame:
+        if frame is not None and frame is previous_frame and not capture.get("camera_generated", False):
             return
+        if frame is None or capture.get("camera_generated", False):
+            frame = ProxyArray(wp.clone(self._frame.warp))
+            for name in self._render_camera_data.output or ():
+                info = self._render_camera_data.info[name]
+                self._render_camera_data.info[name] = {
+                    **(info if isinstance(info, dict) else {}),
+                    "capture": {"frame": frame, "camera_generated": True},
+                }
         self._published_frame = frame
-        self.render_generation += 1
         for name in self._data.info:
             if name in self._render_camera_data.info:
                 self._data.info[name] = self._render_camera_data.info[name]

@@ -657,6 +657,76 @@ def test_modifier_compute(setup_env, position_term):
     torch.testing.assert_close(first, expected)
 
 
+def test_modifier_receives_env_and_can_publish_named_outputs(setup_env):
+    """The manager keeps named intermediates between modifiers and reports the final shape."""
+    env = setup_env
+    closed = []
+
+    class AddAlpha(modifiers.ModifierBase):
+        @property
+        def output_dim(self):
+            return (*self._data_dim[:-1], self._data_dim[-1] + 1)
+
+        def __call__(self, owner, data):
+            assert owner is env
+            rgba = torch.cat((data, torch.ones_like(data[..., :1])), dim=-1)
+            return modifiers.ModifierOutput(rgba, {"rgb": data, "rgba": rgba}, "rgba")
+
+        def close(self):
+            closed.append(self)
+
+    group = ObservationGroupCfg(concatenate_terms=False, enable_corruption=False)
+    group.image = ObservationTermCfg(
+        func=pos_w_data,
+        modifiers=[
+            modifiers.ModifierCfg(func=AddAlpha),
+            modifiers.ModifierCfg(func=modifiers.bias, params={"value": 1}),
+        ],
+    )
+    manager = ObservationManager({"policy": group}, env)
+    assert manager.group_obs_dim["policy"] == [(4,)]
+    result = manager.compute()["policy"]["image"]
+    torch.testing.assert_close(result[..., :3], env.data.pos_w + 1)
+    torch.testing.assert_close(result[..., 3], torch.full((env.num_envs,), 2.0))
+    manager.reset([1])
+    manager.close()
+    manager.close()
+    assert len(closed) == 1
+
+
+def test_modifier_scene_preparation_uses_observation_composition_root(setup_env):
+    """Pre-reset renderer requirements are discovered through the modifier config."""
+    prepared = []
+
+    @configclass
+    class PreparedModifierCfg(modifiers.ModifierCfg):
+        func = modifiers.scale
+        params = {"multiplier": 2.0}
+
+        def prepare_scene(self, env):
+            prepared.append(env)
+
+    group = ObservationGroupCfg(concatenate_terms=False, enable_corruption=False)
+    group.position = ObservationTermCfg(func=pos_w_data, modifiers=[PreparedModifierCfg()])
+    cfg = {"policy": group}
+    ObservationManager.prepare_scene(cfg, setup_env)
+    assert prepared == [setup_env]
+    manager = ObservationManager(cfg, setup_env)
+    torch.testing.assert_close(manager.compute()["policy"]["position"], setup_env.data.pos_w * 2)
+    manager.close()
+
+
+def test_observation_modifiers_have_one_processing_owner():
+    """The removed sensor chain must not reappear beside observation modifiers."""
+    from pathlib import Path
+
+    sensors = Path(__file__).parents[2] / "isaaclab" / "sensors"
+    assert not list((sensors / "post_processing").glob("*.py"))
+    from isaaclab.envs import mdp
+
+    assert not hasattr(mdp, "processed_image")
+
+
 def test_serialize(setup_env):
     """Test serialize call for ManagerTermBase terms."""
     env = setup_env
@@ -814,7 +884,7 @@ class StatefulBiasModifier(modifiers.ModifierBase):
     def reset(self, env_ids=None) -> None:
         self.reset_count += 1
 
-    def __call__(self, data: torch.Tensor) -> torch.Tensor:
+    def __call__(self, env, data: torch.Tensor) -> torch.Tensor:
         return data + self.value
 
 

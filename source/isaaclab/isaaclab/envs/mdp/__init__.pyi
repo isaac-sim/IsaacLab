@@ -89,7 +89,6 @@ __all__ = [
     "image_normals",
     "image_rgb",
     "image_segmentation",
-    "processed_image",
     "imu_ang_vel",
     "imu_lin_acc",
     "pva_orientation",
@@ -328,4 +327,3 @@ from .terminations import (
     root_height_below_minimum,
     time_out,
 )
-from .visual_observations import processed_image

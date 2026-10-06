@@ -1,6 +1,2 @@
-* Added ``PpispProcessorCfg``, a sensor post-processor for ordered camera image processing,
-  including USD configuration discovery and controller buffer initialization. Declared
-  ``rgb_radiance`` as its input so either the renderer or an earlier processor could supply
-  scene-linear RGB before exposure and camera response.
-* Added ``PpispDiscoveryMode`` in ``isaaclab_ppisp`` with the existing ``AUTO_CAMERA`` and
-  ``AUTO_ANY`` discovery modes.
+* Added ``PpispModifierCfg`` for observation modifiers and direct use. It discovers USD camera settings before reset, consumes camera or upstream ``rgb_radiance``, and publishes RGB and RGBA.
+* Added ``PpispDiscoveryMode`` with ``AUTO_CAMERA`` and ``AUTO_ANY`` discovery modes.

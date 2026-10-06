@@ -9,11 +9,7 @@ Observations
 .. automodule:: isaaclab.envs.mdp.observations
     :members:
 
-.. automodule:: isaaclab.envs.mdp.visual_observations
-    :members:
-
-See :ref:`camera-post-processing` for configuring ``processed_image`` and composing image
-processors such as PPISP in an observation term.
+See :ref:`camera-post-processing` for applying PPISP through observation modifiers.
 
 Actions
 -------

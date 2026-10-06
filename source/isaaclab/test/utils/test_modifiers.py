@@ -39,7 +39,7 @@ class ModifierTestCfg:
 def test_stateless_modifiers(func, params, result):
     """Test the stateless scale, bias, and clip modifiers."""
     cfg = modifiers.ModifierCfg(func=func, params=params)
-    output = cfg.func(torch.tensor([1.0, 2.0, 3.0]), **cfg.params)
+    output = cfg.func(None, torch.tensor([1.0, 2.0, 3.0]), **cfg.params)
     assert torch.allclose(output, torch.tensor(result))
 
 
@@ -71,7 +71,7 @@ def test_digital_filter(device):
         # apply the modifier multiple times
         for i in range(test_cfg.num_iter):
             data = torch.sin(theta + i * delta)
-            processed_data = modifier_obj(data)
+            processed_data = modifier_obj(None, data)
 
             assert data.shape == processed_data.shape, "Modified data shape does not equal original"
 
@@ -109,7 +109,7 @@ def test_integral(device):
         data = test_cfg.init_data.clone()
         # apply the modifier multiple times
         for _ in range(test_cfg.num_iter):
-            processed_data = modifier_obj(data)
+            processed_data = modifier_obj(None, data)
             data = data + delta
 
             assert data.shape == processed_data.shape, "Modified data shape does not equal original"
