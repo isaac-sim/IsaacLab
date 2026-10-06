@@ -490,7 +490,7 @@ def test_task_space_allocation_and_capture(monkeypatch, device, first_property):
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CPU))
 def test_world_hinged_root_has_no_base_dofs(monkeypatch, device):
-    """A root link hinged to the world adds no floating-base DoF columns to the Jacobian."""
+    """A root link hinged to the world adds no floating-base DoF columns to the Jacobian or mass matrix."""
     builder = ModelBuilder()
     builder.begin_world()
     base = builder.add_link(mass=1.0, inertia=wp.mat33(np.eye(3)), label="Robot/base")
@@ -513,6 +513,7 @@ def test_world_hinged_root_has_no_base_dofs(monkeypatch, device):
     data._apply_ordering_maps_after_resolve()
 
     assert data.body_link_jacobian_w.torch.shape[-1] == view.joint_dof_count == 2
+    assert data.mass_matrix.torch.shape[-1] == 2
 
 
 ##

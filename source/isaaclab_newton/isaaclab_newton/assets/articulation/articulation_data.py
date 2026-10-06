@@ -903,7 +903,7 @@ class ArticulationData(BaseArticulationData):
         jacobian = self._body_com_jacobian_w_ta.warp
         # eval_jacobian writes every articulation in the model; gather kernel extracts this
         # view's rows. ``link_offset`` skips Newton's fixed-root row for fixed-base; the DoF
-        # axis is preserved in full (free-root joint's 6 columns up front for floating-base),
+        # axis is preserved in full (a free root joint's 6 columns up front),
         # matching the PhysX layout and the cross-library industry convention.
         self._root_view.eval_jacobian(
             SimulationManager.get_state_0(), J=self._jacobian_buf_flat, joint_S_s=self._joint_S_s_buf
