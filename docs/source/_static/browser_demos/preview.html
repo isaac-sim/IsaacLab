@@ -23,7 +23,7 @@ SPDX-License-Identifier: BSD-3-Clause
   <p>This preview runs the compiled Newton simulation in your browser. The documentation places it beside its related guide.</p>
   <script>
     const demo = new URLSearchParams(location.search).get('demo');
-    const supported = new Set(['stiffness', 'cloth_bending', 'mpm', 'rigid_friction', 'joint_pd', 'cartpole', 'g1', 'anymal']);
+    const supported = new Set(['stiffness', 'cloth_bending', 'mpm', 'rigid_friction', 'joint_pd', 'cartpole', 'g1', 'anymal', 'franka_reach', 'franka_lift', 'franka_drawer']);
     if (supported.has(demo)) {
       const widget = document.createElement('isaaclab-browser-demo');
       widget.setAttribute('src', `./${demo}/manifest.json`);

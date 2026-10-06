@@ -82,9 +82,14 @@ function rotateInverse(q, v) {
 
 class DensePolicy {
   static async load(url, description) {
-    const response = await fetch(new URL(description.file, url));
-    if (!response.ok) throw new Error(`Policy request failed (${response.status})`);
-    const weights = new Float32Array(await response.arrayBuffer());
+    const chunks = await Promise.all((description.files || [description.file]).map(async (file) => {
+      const response = await fetch(new URL(file, url));
+      if (!response.ok) throw new Error(`Policy request failed (${response.status})`);
+      return new Float32Array(await response.arrayBuffer());
+    }));
+    const weights = new Float32Array(chunks.reduce((sum, chunk) => sum + chunk.length, 0));
+    let cursor = 0;
+    for (const chunk of chunks) { weights.set(chunk, cursor); cursor += chunk.length; }
     const final = description.layers.at(-1);
     if (weights.length !== final.offset + final.rows * (final.columns + 1)) {
       throw new Error('Policy weight size does not match its manifest');
@@ -165,7 +170,8 @@ class IsaacLabBrowserDemo extends HTMLElement {
       }
       this.simulation = simulation;
       this.demo = this.simulation.manifest.isaacLabDemo;
-      if (!this.demo || !['stiffness', 'cloth_bending', 'mpm', 'rigid_friction', 'joint_pd', 'cartpole', 'g1', 'anymal'].includes(this.demo.kind)) throw new Error('Unknown Isaac Lab demo');
+      if (!this.demo || !['stiffness', 'cloth_bending', 'mpm', 'rigid_friction', 'joint_pd', 'cartpole', 'g1', 'anymal', 'franka_reach', 'franka_lift', 'franka_drawer'].includes(this.demo.kind)) throw new Error('Unknown Isaac Lab demo');
+      this.isManipulation = this.demo.kind.startsWith('franka_');
       this.querySelector('.browser-demo').classList.add(`browser-demo-${this.demo.kind}`);
       const title = this.getAttribute('demo-title') || this.demo.title;
       this.querySelector('.browser-demo-head strong').textContent = title;
@@ -196,19 +202,21 @@ class IsaacLabBrowserDemo extends HTMLElement {
         }
         this.viewer = viewer;
       } else if (!['stiffness', 'cloth_bending', 'mpm'].includes(this.demo.kind)) {
-        const [{ LocomotionViewer }, policy] = await Promise.all([
-          import('./locomotion-viewer.js'), DensePolicy.load(this.simulation.url, this.demo.policy),
+        const [{ RobotViewer }, policy] = await Promise.all([
+          import('./robot-viewer.js'), DensePolicy.load(this.simulation.url, this.demo.policy),
         ]);
         if (this.generation !== generation) return;
         this.policy = policy;
-        const viewer = await LocomotionViewer.load(this.canvas, this.simulation);
+        const viewer = await RobotViewer.load(this.canvas, this.simulation);
         if (this.generation !== generation) {
           viewer.dispose();
           return;
         }
         this.viewer = viewer;
-        this.command = new Float32Array(3);
-        this.previousAction = new Float32Array(this.demo.actionIndices?.length || this.demo.jointNames.length);
+        if (!this.isManipulation) {
+          this.command = new Float32Array(3);
+          this.previousAction = new Float32Array(this.demo.actionIndices?.length || this.demo.jointNames.length);
+        }
       } else {
         const { StiffnessViewer } = await import('./stiffness-viewer.js');
         const viewer = await StiffnessViewer.load(this.canvas, this.simulation);
@@ -375,6 +383,18 @@ class IsaacLabBrowserDemo extends HTMLElement {
       hint.textContent = 'Hold to perturb the cart. Release to see the policy respond.';
       forceCard.append(hint);
       panel.append(forceCard);
+    } else if (this.isManipulation) {
+      if (this.demo.commandRange) {
+        const command = this.simulation.binding('command');
+        for (const [axis, label] of ['Target x [m]', 'Target y [m]', 'Target height [m]'].entries()) {
+          const [min, max] = this.demo.commandRange[axis];
+          this.addSlider(panel, label, min, max, 0.01, command[axis],
+            (value) => { this.simulation.binding('command')[axis] = value; this.render(); });
+        }
+      }
+      this.policyReadout = document.createElement('small');
+      this.policyReadout.className = 'browser-demo-material-hint';
+      panel.append(this.policyReadout);
     } else {
       this.addVelocityControls(panel);
     }
@@ -597,6 +617,12 @@ class IsaacLabBrowserDemo extends HTMLElement {
   }
 
   applyPolicy() {
+    if (this.isManipulation) {
+      const action = this.policy.run(this.simulation.binding('observation'));
+      if (!action.every(Number.isFinite)) throw new Error('Policy produced a non-finite action');
+      this.simulation.binding('action').set(action);
+      return;
+    }
     if (this.demo.policyType === 'wbc_agile_g1') {
       this.applyAgileG1Policy();
       return;
@@ -724,6 +750,18 @@ class IsaacLabBrowserDemo extends HTMLElement {
   render() {
     this.viewer.render();
     this.plot?.draw();
+    if (this.policyReadout) {
+      if (this.demo.kind === 'franka_drawer') {
+        const opening = this.simulation.binding('joint_q')[this.demo.drawerCoordinate];
+        this.policyReadout.textContent = `Drawer opening · ${(opening * 100).toFixed(1)} cm`;
+      } else {
+        const body = (this.demo.objectBody ?? this.demo.handBody) * 7;
+        const pose = this.simulation.binding('body_q');
+        const goal = this.viewer.goal.position;
+        const distance = Math.hypot(pose[body] - goal.x, pose[body + 1] - goal.y, pose[body + 2] - goal.z);
+        this.policyReadout.textContent = `${this.demo.kind === 'franka_lift' ? 'Object' : 'Hand'} distance to target · ${(distance * 100).toFixed(1)} cm`;
+      }
+    }
   }
 
 }

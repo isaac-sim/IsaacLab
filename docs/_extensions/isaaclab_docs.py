@@ -142,8 +142,17 @@ class IsaacLabBrowserDemo(SphinxDirective):
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
             if manifest["bundleVersion"] != 1 or manifest["abiVersion"] != 1:
                 raise ValueError("unsupported bundle or runtime ABI version")
-            for field in ("module", "wasm"):
-                asset = manifest_path.parent / manifest[field]
+            assets = [(field, manifest[field]) for field in ("module", "wasm")]
+            demo = manifest.get("isaacLabDemo", {})
+            policy = demo.get("policy")
+            if policy:
+                assets.extend(("policy", file) for file in policy.get("files", [policy.get("file")]))
+            visuals = demo.get("visuals", [])
+            if isinstance(visuals, dict):
+                visuals = [visuals]
+            assets.extend(("visual", visual["file"]) for visual in visuals)
+            for field, file in assets:
+                asset = manifest_path.parent / file
                 if not asset.is_file():
                     raise ValueError(f"missing {field} asset: {asset.name}")
                 self.env.note_dependency(str(asset))

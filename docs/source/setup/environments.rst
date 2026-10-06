@@ -74,11 +74,39 @@ Command Builder
 Task Preview
 ------------
 
+Franka reach, lift, and drawer opening have interactive Newton policy previews.
+Select ``rsl_rl`` and ``newton_mjwarp`` to play, pause, or reset them, with the
+``joint_pos`` preset for reach and ``cube`` for lift. Reach and lift also expose
+target position controls. Lift begins from a native pregrasp reset. Other
+objects, controllers, and robot variants retain their image or video previews.
+
 .. raw:: html
 
    <div class="environment-browser" data-environment-preview>
      <section class="environment-preview-panel" aria-live="polite">
        <div class="environment-preview-stage">
+         <div data-policy-preview="Isaac-Reach-Franka" data-policy-preset="joint_pos" aria-live="off" hidden>
+
+.. isaaclab-browser-demo:: franka_reach
+
+.. raw:: html
+
+         </div>
+         <div data-policy-preview="Isaac-Lift-Franka" data-policy-preset="cube" aria-live="off" hidden>
+
+.. isaaclab-browser-demo:: franka_lift
+   :title: Franka lift policy · cube
+
+.. raw:: html
+
+         </div>
+         <div data-policy-preview="Isaac-Open-Drawer-Franka" aria-live="off" hidden>
+
+.. isaaclab-browser-demo:: franka_drawer
+
+.. raw:: html
+
+         </div>
          <video data-preview-video muted autoplay loop playsinline preload="metadata" hidden></video>
          <img data-preview-image
               src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/tasks/classic/cartpole.jpg"

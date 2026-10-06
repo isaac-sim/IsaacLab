@@ -7,7 +7,7 @@ import * as THREE from '../vendor/three.module.min.js';
 
 const assetRoot = new URL('../browser_demos/shared/', import.meta.url);
 
-export async function addIsaacLabGround(scene) {
+export async function addIsaacLabGround(scene, height = 0) {
   const loader = new THREE.TextureLoader();
   const [albedo, roughness] = await Promise.all([
     loader.loadAsync(new URL('default_ground_plane_albedo.png', assetRoot).href),
@@ -30,6 +30,7 @@ export async function addIsaacLabGround(scene) {
   });
   const ground = new THREE.Mesh(new THREE.PlaneGeometry(size, size), material);
   ground.rotation.x = -Math.PI / 2;
+  ground.position.y = height;
   ground.receiveShadow = true;
   scene.add(ground);
   return () => {

@@ -54,7 +54,7 @@ Place the widget in the concept or tutorial that explains it:
       :title: VBD material tuning
 
 The optional title changes the heading. The directive checks the manifest's
-bundle/runtime ABI versions and required module/binary files, calculates paths
+bundle/runtime ABI versions and required module, binary, policy, and mesh files, calculates paths
 for the HTML builder, and loads the shared stylesheet and module once per page.
 Missing bundles fail a documentation build with warnings treated as errors.
 Non-HTML builders omit the widget; keep the lesson and native commands in the
@@ -126,6 +126,11 @@ Current bundles and manual adaptations
    * - ``anymal``
      - ``Isaac-Velocity-Flat-AnymalD`` configuration and checkpoint
      - Package visuals and actor inference. Replacing the LSTM actuator with PD changes dynamics.
+   * - ``franka_reach``, ``franka_lift``, ``franka_drawer``
+     - Native core task configurations and published Newton RSL-RL checkpoints
+     - Port action/observation packing, lift history/normalization, and fixed episode reset.
+       Reuse native scene and actuators; reduce lift's batched contact capacity for one world.
+       Share Franka visuals and the policy viewer. Target controls use the robot's root frame.
    * - ``mpm``
      - Newton implicit MPM and the granular material lesson
      - Analytic boundaries, a scalar strain-basis path, and allocation-alias capture handling.
@@ -161,7 +166,7 @@ They are source-review assessments; their WASM exports have not been validated.
      - Native session initially; selected small scenes in WASM
      - Asset selection/packaging, scene size, terrain/BVH serialization, and control loops.
        Resolve each selected physics backend explicitly.
-   * - Locomotion policies; Ant, Humanoid, Allegro and reaching tasks
+   * - Other locomotion/manipulation policies; Ant, Humanoid, Allegro, and reaching robots
      - Native session initially; WASM subsets after actuator/controller work
      - Match actor contracts, recurrent state, actuator limits/delays, resets/events,
        and sensors. Warp frontend coverage alone is insufficient.

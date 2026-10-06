@@ -1,0 +1,16 @@
+Franka Emika Panda visual geometry
+
+Source: Isaac Lab's FrankaEmika/franka_panda.usda (Isaac 6.2 asset collection),
+a MuJoCo USD conversion of the Menagerie MJX Panda model.
+https://github.com/google-deepmind/mujoco_menagerie/tree/main/franka_emika_panda
+https://github.com/frankaemika/franka_ros/tree/develop/franka_description
+
+The Menagerie Panda description and its meshes are released under Apache-2.0.
+A copy is included in franka_visuals.LICENSE.txt.
+
+Browser modifications: welded vertices, reduced large meshes to 1,600 faces,
+transformed vertices into native link frames, omitted textures, and packed
+float32 vertices / uint16 indices into franka_visuals.bin.
+
+Source USD SHA-256:
+eaf27723ba1934d792c6876679eb75491bdff944ad108d4e59734fa07dc65809

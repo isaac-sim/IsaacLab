@@ -12,7 +12,8 @@ SPDX-License-Identifier: BSD-3-Clause
 [MJWarp tuning](../source/concepts/solver-tuning/tune_mjwarp.rst),
 [MPM](../source/concepts/using_mpm.rst),
 [actuator](../source/concepts/actuators.rst), and
-[reinforcement learning](../source/concepts/reinforcement_learning.rst) guides. Each demo is an
+[reinforcement learning](../source/concepts/reinforcement_learning.rst) guides and
+the [environment browser](../source/setup/environments.rst). Each demo is an
 independent manifest, WebAssembly module, and optional policy and visual files. The shared
 documentation widget lazy loads the bundle when it enters the viewport. To add
 another physics example, export another bundle and add a view in `browser-demo.js`. The
@@ -107,15 +108,18 @@ with its MIT license.
 
 ## Rebuild
 
-From the Isaac Lab root, install `newton-web` into the uv environment and use
+From the Isaac Lab root, create a separate uv environment for the reviewed
+export toolchain. Develop uses Newton 1.6.1; this compiler still requires 1.6.0.
+Install `newton-web` into that environment and use
 `uv run --no-sync` for the following commands so uv does not remove that
 build-only package:
 
 ```bash
+export UV_PROJECT_ENVIRONMENT=/tmp/isaaclab-browser-env
 uv sync --frozen
 git clone https://gitlab-master.nvidia.com/lgulich/newton-web /tmp/newton-web
 git -C /tmp/newton-web checkout b0795fbe6b46e08a1fea2425699421415ca4cdf1
-uv pip install --python .venv/bin/python -e /tmp/newton-web
+uv pip install --python "$UV_PROJECT_ENVIRONMENT/bin/python" -e /tmp/newton-web "mujoco-warp==3.12.0"
 ```
 
 Install Emscripten 5.0.3 using its
@@ -228,6 +232,63 @@ binary with its BSD 3-Clause license. Visual meshes are separate from the
 exported collision graph.
 
 ## Policy contract
+
+### Native manipulation tasks
+
+`manipulation.py` resolves the native `Isaac-Reach-Franka`, `Isaac-Lift-Franka`
+(`cube` preset), and `Isaac-Open-Drawer-Franka` Newton configurations and builds
+one CPU environment. It retains their scene, implicit actuator gains, mimic
+joint behavior, collision pipeline, substeps, and policy frequency. A captured
+step includes every physics call in one policy decision. The Warp adapter packs
+the checkpoint observations, previous actions, and lift's five-frame history
+and empirical normalization. The browser evaluates the published float32 MLP
+using the shared evaluator; it does not run the Python managers or Torch.
+
+Reach and lift retain a fixed target between resets and expose its position.
+Reset restores the authored physical/controller state and retains the target.
+Episodes repeat after eight seconds. Lift uses the native reset-bank grasp
+and a 512-contact capacity instead of the training configuration's four million
+contacts. This is a capacity reduction for one world, not a contact-model change.
+The exporter checks its observations against native manager output over 180
+learned-policy steps. It writes native and captured CPU trajectory references
+to the temporary build directory for browser comparisons; these are not deployed.
+CPU/WASM floating-point differences can lead to different policy trajectories,
+especially at contacts. Browser playback repeats one captured reset rather than
+running the native reset bank, command sampling, or episode managers. These previews
+illustrate learned behavior and do not replace evaluation of a policy in Isaac Lab.
+
+All three tasks share `shared/franka_visuals.bin`, packed from the native
+Franka asset's Menagerie-derived visuals. Meshes are welded and decimated for
+display; the native collision geometry is retained. The cabinet is drawn with
+procedural boxes around its individual colliders; its visual USD meshes are
+not packaged. Actor files above 1.9 MB
+are split into float-aligned chunks for static preview hosting, with no
+quantization. Playback, camera controls, and the robot viewer are shared with
+the existing policy examples.
+
+```bash
+for demo in franka_reach franka_lift franka_drawer; do
+    case "$demo" in
+        franka_reach) task=Isaac-Reach-Franka ;;
+        franka_lift) task=Isaac-Lift-Franka ;;
+        franka_drawer) task=Isaac-Open-Drawer-Franka ;;
+    esac
+    curl -fL -o "/tmp/$task.pt" \
+        "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.2/Isaac/IsaacLab/PretrainedCheckpoints/rsl_rl/${task}_newtonmjwarp_none_rsl_rl.pt"
+    uv run --no-sync python docs/browser_demos/export.py "$demo" \
+        --checkpoint "/tmp/$task.pt" --output /tmp/isaaclab-browser-build \
+        --emxx /path/to/emsdk/upstream/emscripten/em++
+done
+```
+
+Copy the three `<demo>-web/` bundles and `shared/franka_visuals.bin` into the
+matching static directories. Retain the shared license/notice. Native asset
+references are fetched by Isaac Lab during export. The exporter checks the
+published checkpoint hashes and policy/joint contracts before capturing.
+After exporting, `unset UV_PROJECT_ENVIRONMENT` restores the usual project
+environment selection.
+
+### Existing policy examples
 
 Published WASM bundles are independent of the Python environment's Warp version.
 Rebuilding requires the reviewed Newton/Warp/MJWarp pins and Newton Web checkout;

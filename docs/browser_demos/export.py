@@ -26,10 +26,10 @@ from pathlib import Path
 import newton
 import newton_web
 import numpy as np
-import torch
 import trimesh
 import warp as wp
 import warp.fem as fem
+from manipulation import MANIPULATION_TASKS, export_manipulation
 from mujoco_warp._src.types import DisableBit
 from newton._src.solvers.implicit_mpm.contact_solver_kernels import solve_coulomb_isotropic
 from newton._src.solvers.implicit_mpm.implicit_mpm_solver_kernels import integrate_fraction
@@ -37,6 +37,7 @@ from newton._src.solvers.implicit_mpm.rasterized_collisions import world_positio
 from newton._src.solvers.implicit_mpm.rheology_solver_kernels import YieldParamVec
 from newton._src.solvers.implicit_mpm.solver_implicit_mpm import ImplicitMPMScratchpad, LastStepData
 from newton_web import Parameter, export_graph
+from policy import write_policy
 
 NEWTON_WEB_REVISION = "b0795fbe6b46e08a1fea2425699421415ca4cdf1"
 BROWSER_BUILD_VERSIONS = {"newton": "1.6.0", "warp-lang": "1.17.0", "mujoco-warp": "3.12.0"}
@@ -953,7 +954,7 @@ def export_cartpole(output: Path, usd: Path, checkpoint: Path) -> None:
             "task": "Isaac-Cartpole-Direct",
             "assetSha256": CARTPOLE_USD_SHA256,
             "shapes": shapes,
-            "policy": _write_policy(checkpoint, output, (4, 32, 32, 1)),
+            "policy": write_policy(checkpoint, output, (4, 32, 32, 1)),
             "decimation": task_cfg.decimation,
             "actionScale": task_cfg.action_scale,
             "perturbationLimit": 300.0,
@@ -1015,24 +1016,6 @@ def _configure_g1(
         [names.index(name) for name in observation_names],
         [names.index(name) for name in action_names],
     )
-
-
-def _write_policy(checkpoint: Path, output: Path, widths: tuple[int, ...]) -> dict[str, object]:
-    weights = torch.load(checkpoint, map_location="cpu", weights_only=True)["actor_state_dict"]
-    shapes = tuple(zip(widths[1:], widths[:-1], strict=True))
-    chunks = []
-    layers = []
-    offset = 0
-    for layer, (rows, columns) in enumerate(shapes):
-        weight = weights[f"mlp.{layer * 2}.weight"].detach().numpy().astype("<f4", copy=False)
-        bias = weights[f"mlp.{layer * 2}.bias"].detach().numpy().astype("<f4", copy=False)
-        if weight.shape != (rows, columns) or bias.shape != (rows,):
-            raise ValueError(f"Unexpected checkpoint layer {layer}: {weight.shape}, {bias.shape}")
-        chunks.extend((weight.tobytes(), bias.tobytes()))
-        layers.append({"rows": rows, "columns": columns, "offset": offset})
-        offset += rows * (columns + 1)
-    (output / "policy.bin").write_bytes(b"".join(chunks))
-    return {"file": "policy.bin", "layers": layers, "sha256": hashlib.sha256(checkpoint.read_bytes()).hexdigest()}
 
 
 def _write_agile_g1_policy(checkpoint: Path, output: Path) -> dict[str, object]:
@@ -1483,7 +1466,7 @@ def export_anymal(output: Path, usd: Path, checkpoint: Path) -> None:
         output=output,
         timestep=float(task_cfg.sim.dt),
     )
-    policy = _write_policy(checkpoint, output, (12 + 3 * ANYMAL_D_DOF, 128, 128, 128, ANYMAL_D_DOF))
+    policy = write_policy(checkpoint, output, (12 + 3 * ANYMAL_D_DOF, 128, 128, 128, ANYMAL_D_DOF))
     visuals = _write_anymal_visuals(usd, builder.body_label, output)
     (output / "visuals.LICENSE.txt").write_bytes(Path(__file__).with_name("anymal.LICENSE.txt").read_bytes())
     _write_manifest(
@@ -1549,7 +1532,17 @@ def main() -> None:
     parser.add_argument(
         "demo",
         nargs="?",
-        choices=("stiffness", "cloth_bending", "mpm", "rigid_friction", "joint_pd", "cartpole", "g1", "anymal"),
+        choices=(
+            "stiffness",
+            "cloth_bending",
+            "mpm",
+            "rigid_friction",
+            "joint_pd",
+            "cartpole",
+            "g1",
+            "anymal",
+            *MANIPULATION_TASKS,
+        ),
     )
     parser.add_argument("--output", type=Path)
     parser.add_argument("--check-toolchain", action="store_true", help="Check the pinned export dependencies and exit")
@@ -1589,6 +1582,10 @@ def main() -> None:
         ):
             parser.error("G1 requires --checkpoint, --policy-description, --policy-license, and --visual-source")
         export_g1(bundle, args.checkpoint, args.policy_description, args.policy_license, args.visual_source)
+    elif args.demo in MANIPULATION_TASKS:
+        if args.checkpoint is None:
+            parser.error("Manipulation examples require --checkpoint")
+        export_manipulation(args.demo, bundle, args.checkpoint)
     else:
         if args.usd is None or args.checkpoint is None:
             parser.error("ANYmal-D requires --usd and --checkpoint")
@@ -1610,13 +1607,19 @@ def main() -> None:
         wasm_path.unlink()
         manifest["wasm"] = compressed_path.name
     manifest_path.write_text(json.dumps(manifest, separators=(",", ":")) + "\n")
-    if args.demo in ("cartpole", "g1", "anymal"):
-        (deployment / "policy.bin").write_bytes((bundle / "policy.bin").read_bytes())
+    if args.demo in ("cartpole", "g1", "anymal", *MANIPULATION_TASKS):
+        for path in bundle.glob("policy*.bin"):
+            (deployment / path.name).write_bytes(path.read_bytes())
     if args.demo in ("g1", "anymal"):
         (deployment / "visuals.bin").write_bytes((bundle / "visuals.bin").read_bytes())
         (deployment / "visuals.LICENSE.txt").write_bytes((bundle / "visuals.LICENSE.txt").read_bytes())
     if args.demo == "g1":
         (deployment / "policy.LICENSE.txt").write_bytes((bundle / "policy.LICENSE.txt").read_bytes())
+    if args.demo in MANIPULATION_TASKS:
+        shared = args.output / "shared"
+        shared.mkdir(exist_ok=True)
+        (shared / "franka_visuals.bin").write_bytes((bundle / "visuals.bin").read_bytes())
+        (deployment / "scene.bin").write_bytes((bundle / "scene.bin").read_bytes())
     print(f"Built {args.demo}: {deployment}")
 
 

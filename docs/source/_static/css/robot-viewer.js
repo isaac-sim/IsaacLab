@@ -7,16 +7,19 @@ import * as THREE from '../vendor/three.module.min.js';
 import { addIsaacLabGround } from './browser-ground.js';
 import { OrbitCamera } from './browser-orbit.js';
 
-export class LocomotionViewer {
+export class RobotViewer {
   static async load(canvas, simulation) {
     const { visuals } = simulation.manifest.isaacLabDemo;
-    const response = await fetch(new URL(visuals.file, simulation.url));
-    if (!response.ok) throw new Error(`Robot visual request failed (${response.status})`);
-    const data = await response.arrayBuffer();
-    if (data.byteLength !== visuals.byteLength) throw new Error('Robot visual bundle size does not match its manifest');
-    const viewer = new LocomotionViewer(canvas, simulation, data);
+    const assets = await Promise.all((Array.isArray(visuals) ? visuals : [visuals]).map(async (description) => {
+      const response = await fetch(new URL(description.file, simulation.url));
+      if (!response.ok) throw new Error(`Robot visual request failed (${response.status})`);
+      const data = await response.arrayBuffer();
+      if (data.byteLength !== description.byteLength) throw new Error('Robot visual bundle size does not match its manifest');
+      return { description, data };
+    }));
+    const viewer = new RobotViewer(canvas, simulation, assets);
     try {
-      viewer.disposeGround = await addIsaacLabGround(viewer.scene);
+      viewer.disposeGround = await addIsaacLabGround(viewer.scene, simulation.manifest.isaacLabDemo.groundHeight || 0);
       return viewer;
     } catch (error) {
       viewer.dispose();
@@ -24,10 +27,12 @@ export class LocomotionViewer {
     }
   }
 
-  constructor(canvas, simulation, data) {
+  constructor(canvas, simulation, assets) {
     this.canvas = canvas;
     this.simulation = simulation;
     this.isAnymal = simulation.manifest.isaacLabDemo.kind === 'anymal';
+    this.demo = simulation.manifest.isaacLabDemo;
+    this.isManipulation = this.demo.kind.startsWith('franka_');
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'low-power' });
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -39,7 +44,8 @@ export class LocomotionViewer {
     this.scene.fog = new THREE.Fog('#f3f6f7', 7, 15);
     this.camera = new THREE.PerspectiveCamera(42, 1, 0.05, 50);
     this.target = new THREE.Vector3();
-    this.orbit = new OrbitCamera(canvas, this.camera, Math.PI, 0.28, this.isAnymal ? 2.4 : 3.0);
+    this.orbit = new OrbitCamera(canvas, this.camera, this.isManipulation ? -2.2 : Math.PI,
+      this.isManipulation ? 0.45 : 0.28, this.demo.cameraRadius || (this.isAnymal ? 2.4 : 3.0));
 
     this.scene.add(new THREE.HemisphereLight('#ffffff', '#acb9be', 2.2));
     const key = new THREE.DirectionalLight('#ffffff', 3.0);
@@ -76,18 +82,37 @@ export class LocomotionViewer {
       return group;
     });
     this.geometries = [];
-    for (const visual of simulation.manifest.isaacLabDemo.visuals.meshes) {
+    for (const { description, data } of assets) for (const visual of description.meshes) {
       const vertices = new Float32Array(data, visual.vertexOffset, visual.vertexCount * 3);
       const indices = new Uint16Array(data, visual.indexOffset, visual.indexCount);
       const geometry = new THREE.BufferGeometry();
       geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
       geometry.setIndex(new THREE.BufferAttribute(indices, 1));
       geometry.computeVertexNormals();
-      const mesh = new THREE.Mesh(geometry, materials[visual.material]);
+      let material = materials[visual.material];
+      if (visual.color) {
+        const name = visual.color.join(',');
+        if (!materials[name]) {
+          materials[name] = new THREE.MeshStandardMaterial({
+            color: new THREE.Color().setRGB(...visual.color), roughness: 0.6, metalness: 0.05,
+          });
+          this.materials.push(materials[name]);
+        }
+        material = materials[name];
+      }
+      const mesh = new THREE.Mesh(geometry, material);
       mesh.castShadow = !/_(zero|one|two|three|four|five|six)_link$/.test(visual.name);
       mesh.receiveShadow = true;
-      this.bodies[visual.body].add(mesh);
+      (visual.body < 0 ? this.robot : this.bodies[visual.body]).add(mesh);
       this.geometries.push(geometry);
+    }
+    if (this.demo.commandRange) {
+      const geometry = new THREE.SphereGeometry(0.025, 20, 12);
+      const material = new THREE.MeshStandardMaterial({ color: '#76b900', emissive: '#3a6000', transparent: true, opacity: 0.8 });
+      this.goal = new THREE.Mesh(geometry, material);
+      this.robot.add(this.goal);
+      this.geometries.push(geometry);
+      this.materials.push(material);
     }
   }
 
@@ -111,7 +136,15 @@ export class LocomotionViewer {
       this.bodies[index].quaternion.set(values[3], values[4], values[5], values[6]);
     }
     const root = this.simulation.manifest.isaacLabDemo.rootBody * 7;
-    this.target.set(pose[root], this.isAnymal ? 0.6 : 0.71, -pose[root + 1]);
+    if (this.isManipulation) {
+      this.target.fromArray(this.demo.cameraTarget);
+      if (this.goal) {
+        const command = this.simulation.binding('command');
+        this.goal.position.set(command[0], command[1], command[2]);
+        this.goal.position.applyQuaternion(this.bodies[this.demo.rootBody].quaternion);
+        this.goal.position.add(this.bodies[this.demo.rootBody].position);
+      }
+    } else this.target.set(pose[root], this.isAnymal ? 0.6 : 0.71, -pose[root + 1]);
     this.key.position.set(pose[root] + 3, 5, -pose[root + 1] + 4);
     this.key.target.position.set(pose[root], 0, -pose[root + 1]);
     this.key.target.updateMatrixWorld();

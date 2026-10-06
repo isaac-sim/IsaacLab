@@ -309,8 +309,26 @@ html[data-theme="dark"] .environment-browser {
 
 .environment-preview-stage img[hidden],
 .environment-preview-stage video[hidden],
+.environment-preview-stage [data-policy-preview][hidden],
 .environment-benchmark-toolbar[hidden] {
     display: none;
+}
+
+.has-interactive-preview .environment-preview-panel {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.has-interactive-preview .environment-preview-stage {
+    border-right: 0;
+    background: transparent;
+}
+
+.has-interactive-preview .environment-preview-details {
+    grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+}
+
+.environment-preview-stage isaaclab-browser-demo {
+    margin: 0;
 }
 
 .environment-preview-caption {

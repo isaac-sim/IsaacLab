@@ -52,11 +52,27 @@ def docs_source(tmp_path: Path) -> Path:
         encoding="utf-8",
     )
     (bundle / "manifest.json").write_text(
-        json.dumps({"bundleVersion": 1, "abiVersion": 1, "module": "simulation.mjs", "wasm": "simulation.wasm"}),
+        json.dumps(
+            {
+                "bundleVersion": 1,
+                "abiVersion": 1,
+                "module": "simulation.mjs",
+                "wasm": "simulation.wasm",
+                "isaacLabDemo": {
+                    "policy": {"files": ["policy-0.bin", "policy-1.bin"]},
+                    "visuals": [{"file": "../shared/robot.bin"}],
+                },
+            }
+        ),
         encoding="utf-8",
     )
     (bundle / "simulation.mjs").write_text("export default () => {};\n", encoding="utf-8")
     (bundle / "simulation.wasm").write_bytes(b"\x00asm\x01\x00\x00\x00")
+    for name in ("policy-0.bin", "policy-1.bin"):
+        (bundle / name).write_bytes(bytes(4))
+    shared = bundle.parent / "shared"
+    shared.mkdir()
+    (shared / "robot.bin").write_bytes(bytes(4))
     css = bundle.parents[1] / "css"
     css.mkdir()
     (css / "browser-demo.css").write_text("", encoding="utf-8")
@@ -98,13 +114,19 @@ def test_browser_embeds_resolve_assets_and_load_widget_once(docs_source: Path, b
     assert _PageAssets((output / "index.html").read_text(encoding="utf-8")).assets == []
 
 
-@pytest.mark.parametrize("problem", ["unknown-demo", "missing-binary", "future-abi"])
+@pytest.mark.parametrize(
+    "problem", ["unknown-demo", "missing-binary", "missing-policy-chunk", "missing-shared-visual", "future-abi"]
+)
 def test_browser_embeds_reject_unusable_bundles(docs_source: Path, problem: str):
     bundle = docs_source / "source/_static/browser_demos/example"
     if problem == "unknown-demo":
         (bundle / "manifest.json").unlink()
     elif problem == "missing-binary":
         (bundle / "simulation.wasm").unlink()
+    elif problem == "missing-policy-chunk":
+        (bundle / "policy-1.bin").unlink()
+    elif problem == "missing-shared-visual":
+        (bundle.parent / "shared/robot.bin").unlink()
     else:
         manifest = json.loads((bundle / "manifest.json").read_text())
         manifest["abiVersion"] = 2
