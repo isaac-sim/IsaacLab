@@ -463,7 +463,8 @@ class MeshFileCfg(RigidObjectSpawnerCfg):
     """Mesh collision approximation to apply to the mesh prim. Defaults to None.
 
     Only used when :attr:`collision_props` is set. Accepts the same values as
-    :attr:`~isaaclab.sim.converters.MeshConverterCfg.mesh_collision_props`.
+    :attr:`~isaaclab.sim.converters.MeshConverterCfg.mesh_collision_props`; unlike the other spawners,
+    the target-pattern mapping form is not accepted, since the mesh prim is the only collider.
     """
 
     visual_material_path: str = "visualMaterial"

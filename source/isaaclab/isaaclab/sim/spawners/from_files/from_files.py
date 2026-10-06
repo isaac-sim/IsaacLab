@@ -35,6 +35,7 @@ from ..materials import PreviewSurfaceCfg, SurfaceDeformableBodyMaterialBaseCfg
 from ..materials.physics_materials import spawn_physics_material
 from ..materials.visual_materials import _author_material_inputs
 from ..utils import (
+    apply_mesh_collision_props,
     apply_schema_props,
     bare_fragments,
     fragment_mapping,
@@ -366,7 +367,7 @@ def _body_family_targeting(value, prim_path: str, api_type) -> tuple[dict | None
 
 
 def _apply_body_schema_properties(prim_path: str, cfg: from_files_cfg.FileCfg) -> None:
-    """Author the rigid-body, collision, and mass schema families on the spawned asset.
+    """Author the rigid-body, collision, mesh-collision, and mass schema families on the spawned asset.
 
     Fragment mappings apply one writer call per entry, in insertion order (later entries override
     earlier ones per attribute); legacy single cfgs route to the legacy nested writers.
@@ -401,6 +402,9 @@ def _apply_body_schema_properties(prim_path: str, cfg: from_files_cfg.FileCfg) -
                 )
         else:
             schemas.modify_collision_properties(prim_path, cfg.collision_props)
+    # modify mesh-collision properties on the colliders, including any created by collision_props above
+    if cfg.mesh_collision_props is not None:
+        apply_mesh_collision_props(cfg.mesh_collision_props, prim_path, "(/.*)?", get_current_stage())
     # modify mass properties
     if cfg.mass_props is not None:
         mass_props_mapping, mass_props_create = _body_family_targeting(cfg.mass_props, prim_path, UsdPhysics.MassAPI)

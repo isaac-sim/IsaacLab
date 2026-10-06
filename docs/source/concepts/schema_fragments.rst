@@ -46,6 +46,9 @@ imports a backend:
    * - ``collision_props``
      - :func:`~isaaclab.sim.schemas.apply_collision_properties`
      - prims with ``UsdPhysics.CollisionAPI``
+   * - ``mesh_collision_props``
+     - :func:`~isaaclab.sim.schemas.apply_mesh_collision_properties`, once per collider
+     - prims with ``UsdPhysics.CollisionAPI`` (colliders)
    * - ``mass_props``
      - :func:`~isaaclab.sim.schemas.apply_mass_properties`
      - prims with ``UsdPhysics.MassAPI``
@@ -67,6 +70,15 @@ imports a backend:
    * - ``surface_deformable_props``
      - :func:`~isaaclab.sim.schemas.apply_surface_deformable_properties`
      - surface deformable-body prims (triangle-mesh simulation mesh)
+
+The mesh-collision family tunes how a collider is cooked. Its fragments
+(:class:`~isaaclab.sim.schemas.UsdPhysicsMeshCollisionCfg` for the ``physics:approximation`` token,
+the ``Physx*Cfg`` cooking fragments, and the Newton cooking fragments
+:class:`~isaaclab_newton.sim.schemas.NewtonMeshCollisionCfg` /
+:class:`~isaaclab_newton.sim.schemas.NewtonSDFCollisionCfg`) only reach colliders: matched prims
+without ``UsdPhysics.CollisionAPI`` are ignored, and every collider receives
+``UsdPhysics.MeshCollisionAPI`` together with the fragments. A PhysX cooking fragment sets the
+approximation token it implies; the Newton fragments set none.
 
 The tendon families are *tune-not-apply*: the tendon topology is authored in the source
 asset, so their writers only tune existing instances and never create them. The deformable
@@ -132,7 +144,7 @@ to the legacy writers), or ``None``.
 
 Mapping keys are regular-expression suffixes appended to *the prim the spawner authors
 that family on*: the spawn prim for USD, URDF, and MJCF assets; for shape and mesh
-spawners, the geometry prim for the collision family and the container prim for the
+spawners, the geometry prim for the collision and mesh-collision families and the container prim for the
 rigid-body and mass families. A key therefore carries its own leading ``/`` when it
 targets descendants: ``""`` selects the anchor prim itself, ``"/[^/]+"`` its direct
 children, and ``"/.*"`` everything beneath it. Prefer ``"/.*"`` for a whole-subtree
@@ -148,7 +160,24 @@ prim those spawners author. On the file spawners it targets the spawn prim toget
 its descendants, so it reaches the schema carriers wherever the asset puts them; and when
 the subtree carries no prim with the family's defining API at all — the usual shape of an
 art asset shipped without physics schemas — the file spawners apply that API to the spawn
-prim and author there, turning the asset into a single body.
+prim and author there, turning the asset into a single body. The mesh-collision family
+never creates colliders, so its shorthand only ever reaches the colliders that exist.
+
+The mesh-collision family anchors like the collision family. For example, to cook every
+collider of a USD asset as a convex hull with a PhysX vertex limit:
+
+.. code-block:: python
+
+   import isaaclab.sim as sim_utils
+   from isaaclab_physx.sim.schemas import PhysxConvexHullCfg
+
+   spawn = sim_utils.UsdFileCfg(
+       usd_path="/path/to/asset.usd",
+       mesh_collision_props=[
+           sim_utils.UsdPhysicsMeshCollisionCfg(mesh_approximation_name="convexHull"),
+           PhysxConvexHullCfg(hull_vertex_limit=32),
+       ],
+   )
 
 A robot spawned from USD, with a broad rule and a narrowing override:
 

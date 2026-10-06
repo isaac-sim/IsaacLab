@@ -162,6 +162,31 @@ class RigidObjectSpawnerCfg(SpawnerCfg):
     i.e. the anchor prim itself.
     """
 
+    mesh_collision_props: (
+        dict[str, list[schemas.MeshCollisionFragment]]
+        | schemas.MeshCollisionFragment
+        | list[schemas.MeshCollisionFragment]
+        | schemas.MeshCollisionBaseCfg
+        | None
+    ) = None
+    """Mesh-collision (cooking) properties to apply to the colliders. Defaults to None.
+
+    Accepts either a mapping from target pattern to a list of
+    :class:`~isaaclab.sim.schemas.MeshCollisionFragment` fragments
+    (e.g. ``{"/.*": [UsdPhysicsMeshCollisionCfg(...), PhysxConvexHullCfg(...)]}``) or a single legacy
+    cfg (e.g. :class:`~isaaclab.sim.schemas.MeshCollisionBaseCfg`). Each fragment list is written by
+    :func:`~isaaclab.sim.schemas.apply_mesh_collision_properties`, which applies
+    ``UsdPhysics.MeshCollisionAPI`` and the ``physics:approximation`` token implied by the fragments.
+
+    The family only targets colliders: matched prims that carry ``UsdPhysics.CollisionAPI`` (after
+    :attr:`collision_props` is applied). Other matched prims are ignored, and a pattern that matches no
+    collider authors nothing and logs a warning. Keys are anchored like :attr:`collision_props` (for USD
+    assets: the spawn prim; for shapes and meshes: the geometry prim the spawner authors). As a shorthand,
+    a bare fragment or a list of fragments targets every collider under a USD asset (``"(/.*)?"``) and the
+    geometry prim on the shape and mesh spawners (``""``), which is the reach of the legacy
+    ``CollisionBaseCfg.mesh_collision_property`` field this slot replaces.
+    """
+
     activate_contact_sensors: bool = False
     """Activate contact reporting on all rigid bodies. Defaults to False.
 
