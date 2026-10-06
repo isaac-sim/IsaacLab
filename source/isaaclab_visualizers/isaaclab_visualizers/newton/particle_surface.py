@@ -5,6 +5,8 @@
 
 """Publish a Newton particle surface through the GL and RTX visualizers."""
 
+# TODO: Extend surface mesh submission to Viser, Kit, and Rerun.
+
 from __future__ import annotations
 
 from collections.abc import Iterable

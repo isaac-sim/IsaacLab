@@ -29,14 +29,10 @@ material models.
 Running the tutorials
 ---------------------
 
-Run the tutorial scripts from the root of an Isaac Lab source checkout. Each
-script accepts ``--help`` to list its options and ``--max_steps`` to limit the
-simulation length. Press ``Ctrl+C`` in the terminal to stop a running scene.
-
-The material and rigid-body tutorials use Kit by default and require the
-``isaacsim`` extra. You can also select ``--visualizer newton_gl``. Surface
-reconstruction uses Newton GL by default; for Newton RTX, add ``--extra ovrtx``
-to ``uv run`` and select ``--visualizer newton_rtx``.
+The material and rigid-body tutorials launch Kit by default, requiring the
+``isaacsim`` extra. The surface-reconstruction tutorial launches Newton GL by
+default. Use ``--viz`` to select another visualizer; Newton RTX also requires
+``uv run --extra ovrtx``.
 
 
 Comparing material parameters
@@ -47,12 +43,20 @@ material's response to impact. The stiffness and compressibility presets drop
 spheres onto plates. The other presets drop blocks onto horizontal cylinders,
 where you can observe spreading, fragmentation, and the shape left after impact.
 
+Elastic stiffness with ``--press_spheres``:
+
+.. raw:: html
+
+   <video autoplay loop muted playsinline preload="metadata" aria-label="MPM elastic stiffness comparison under compression" style="width:100%; max-width:960px;">
+     <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/videos/mpm_elastic_stiffness.mp4" type="video/mp4">
+   </video>
+
 Start with the elastic stiffness comparison:
 
 .. code-block:: bash
 
    uv run --extra isaacsim python scripts/tutorials/08_mpm/material_parameters.py \
-     --preset young_modulus --visualizer kit
+     --preset young_modulus --viz kit
 
 The three specimens share the same geometry, initial velocities, particle
 mass, solver settings, and seeded particle layout. Their Young's moduli are
@@ -109,7 +113,7 @@ To apply sustained compression, add ``--press_spheres`` to either sphere preset:
 .. code-block:: bash
 
    uv run --extra isaacsim python scripts/tutorials/08_mpm/material_parameters.py \
-     --preset poisson_ratio --press_spheres --visualizer kit
+     --preset poisson_ratio --press_spheres --viz kit
 
 The plates descend after a two-second settling period and hold the spheres
 under compression. Compare the lateral expansion and volume response while
@@ -129,10 +133,16 @@ MPM simulates particle versions on the right. Corresponding objects share
 their color, initial placement relative to the ramp, outer dimensions, and
 total mass.
 
+.. raw:: html
+
+   <video autoplay loop muted playsinline preload="metadata" aria-label="Rigid bodies and MPM objects descending identical inclines" style="width:100%; max-width:960px;">
+     <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/videos/mpm_rigid_limit.mp4" type="video/mp4">
+   </video>
+
 .. code-block:: bash
 
    uv run --extra isaacsim python scripts/tutorials/08_mpm/rigid_body_equivalence.py \
-     --visualizer kit
+     --viz kit
 
 The MPM objects use a large finite stiffness and pressure-yield threshold to
 approximate a rigid material. Compare their rolling, sliding, and shape
@@ -153,10 +163,16 @@ The ``surface_reconstruction.py`` tutorial drops a water blob into a shallow
 pool. It shows how to turn the particle positions into a continuous surface
 for rendering, while leaving the particle simulation unchanged.
 
+.. raw:: html
+
+   <video autoplay loop muted playsinline preload="metadata" aria-label="Reconstructed water surface falling into a shallow pool" style="width:100%; max-width:960px;">
+     <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/videos/mpm_surface_reconstruction.mp4" type="video/mp4">
+   </video>
+
 .. code-block:: bash
 
    uv run python scripts/tutorials/08_mpm/surface_reconstruction.py \
-     --surface_preset balanced --visualizer newton_gl
+     --surface_preset balanced --viz newton_gl
 
 Run the same scene again with another ``--surface_preset``:
 
@@ -185,9 +201,13 @@ The tutorial constructs ``newton.geometry.ParticleSurface`` after
 ``sim.reset()`` and passes it to ``ParticleSurfaceRenderer``. The simulation
 loop calls the renderer's ``update()`` before ``sim.render()`` so the viewers
 receive the mesh for the current particle state. See
-:ref:`newton-using-mpm` for this integration pattern. Reconstructed surfaces
-are supported by Newton GL and Newton RTX; select ``--fluid_render_mode particles``
-to view the particle baseline in Kit.
+:ref:`newton-using-mpm` for this integration pattern.
+
+.. note::
+
+   Surface reconstruction supports Newton GL and Newton RTX only, not Kit,
+   Viser, or Rerun. Select ``--fluid_render_mode particles`` to use these
+   visualizers without surface reconstruction.
 
 
 Comparing one-way and two-way coupling
@@ -203,7 +223,7 @@ Run the two-way comparison from a source checkout:
 .. code-block:: bash
 
    uv run --extra isaacsim --extra rsl-rl isaaclab example mpm-g1-coupling \
-     --coupling two_way --visualizer kit
+     --coupling two_way --viz kit
 
 Then repeat it with ``--coupling one_way``. Both modes let the robot displace
 particles. Two-way coupling returns particle reaction forces to the robot;
@@ -225,4 +245,4 @@ available in the installed package:
 .. code-block:: bash
 
    uvx --from 'isaaclab[isaacsim,rsl-rl]' isaaclab example mpm-g1-coupling \
-     --coupling two_way --visualizer kit
+     --coupling two_way --viz kit
