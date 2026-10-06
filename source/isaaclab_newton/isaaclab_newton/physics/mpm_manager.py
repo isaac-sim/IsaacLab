@@ -296,9 +296,7 @@ class NewtonMPMManager(NewtonManager):
 
     @classmethod
     def _check_solver_status(cls) -> None:
-        """Raise asynchronous sparse-grid rebuild failures after graph replay."""
-        if NewtonManager._graph is None:
-            return
+        """Raise sparse-grid rebuild failures after each eager or replayed dispatch."""
         for solver in cls._implicit_mpm_solvers():
             solver.check_sparse_grid_rebuild_status()
 

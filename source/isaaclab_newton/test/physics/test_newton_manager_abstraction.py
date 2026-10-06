@@ -858,8 +858,8 @@ def test_mpm_cuda_graph_capture_supports_static_topology(monkeypatch, overrides,
     assert NewtonMPMManager._supports_cuda_graph_capture() is expected
 
 
-def test_mpm_status_check_runs_only_after_graph_capture(monkeypatch):
-    """Sparse-grid asynchronous failures are queried only after graph replay."""
+def test_mpm_status_check_runs_with_and_without_a_captured_graph(monkeypatch):
+    """Sparse-grid failures are queried after eager dispatches and after graph replay."""
     calls = []
     solver = SimpleNamespace(check_sparse_grid_rebuild_status=lambda: calls.append("check"))
     monkeypatch.setattr(NewtonMPMManager, "_implicit_mpm_solvers", classmethod(lambda cls: (solver,)))
@@ -869,7 +869,7 @@ def test_mpm_status_check_runs_only_after_graph_capture(monkeypatch):
     monkeypatch.setattr(NewtonManager, "_graph", object())
     NewtonMPMManager._check_solver_status()
 
-    assert calls == ["check"]
+    assert calls == ["check", "check"]
 
 
 def test_nested_mpm_solver_discovery_is_cached(monkeypatch):
