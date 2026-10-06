@@ -214,6 +214,19 @@ uv run --no-sync python source/isaaclab_tasks/isaaclab_tasks/contrib/franka_pick
   --mode sort --count 3 --berry raspberry --asset_version v2 --physics_resolution half --background ebc --window --loop
 ```
 
+For a demonstration video, `--view director` films the sequence shot by shot (`rendering/cinematography.py`):
+an establishing view of the room, macro views of the crush and the first gentle grasp (which keep the gripper's
+original closing pace), tracking views of the carries with the room behind, close-ups of the releases and a final
+orbit of the glass bowl. `--f_stop 64` adds a subtle depth of field to the close shots only. Recording runs at
+simulation time, so render quality does not change the pace:
+
+```bash
+uv run --no-sync python source/isaaclab_tasks/isaaclab_tasks/contrib/franka_pick_berries/scripts/teleop_berry.py \
+  --mode sort --count 3 --berry raspberry --asset_version v2 --physics_resolution half --background ebc \
+  --motion_speed 6 --view director --f_stop 64 --width 1920 --height 1080 --rtpt_spp 16 \
+  --video --capture_every 0 --steps 1515 --output /tmp/berry-sort-video
+```
+
 ### Lower-resolution physics
 
 Add `--physics_resolution half` to keep roughly half the tissue particles while
@@ -310,9 +323,14 @@ uv run --no-sync python source/isaaclab_tasks/isaaclab_tasks/contrib/franka_pick
 Arm travel is 2× faster by default. `--motion_speed 1` restores the previous
 speed; `--motion_speed 3`, `4` or `5` requests the corresponding arm speed multiplier.
 Any finite positive multiplier is accepted. This applies to gamepad/keyboard
-translation and rotation and scripted arm travel, not gripper opening/closing,
-settling waits, or the physics timestep. Actual speed depends on robot tracking
-and simulation performance; higher speeds can disturb a grasp.
+translation and rotation and scripted arm travel, not to closing the gripper or
+the physics timestep. The scripted arm's per-step command limits scale with it,
+so that the arm keeps up; above the default 2, the place and sort pauses
+(settling, holds, gripper opening and the final wait) also shorten by
+`motion_speed / 2`, while closing the gripper keeps its gentle pace. Actual speed
+depends on robot tracking and simulation performance; higher speeds can disturb
+a grasp. `--mode sort --motion_speed 6` runs the whole sequence in about 43
+simulated seconds, against about 87 at the default speed, with the same outcome.
 
 At the default speed, `--loop` resets pick every 15 simulated seconds, squash
 every 16.5 seconds, and place every 23 seconds. With `--motion_speed 1`, these

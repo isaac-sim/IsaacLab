@@ -8,7 +8,7 @@
 import numpy as np
 
 from ..scene.tableware import BOWL, REJECT
-from .motion import scripted_motion_time
+from .motion import pause_speed, scripted_duration, scripted_motion_time
 
 # Task-frame center and usable radius [m] of the reject dish.
 DISCARD = REJECT[:2]
@@ -23,18 +23,39 @@ def _ramp(t: float, start: float, duration: float) -> float:
 class BerrySortSequence:
     """Crush the first berry and discard it in the reject dish, then gently place the other two in the glass bowl."""
 
-    def __init__(self, speed: float, pick_gap: float | None = None):
-        """Configure the arm speed multiplier and an optional grasp aperture [m] for the accepted berries."""
+    def __init__(
+        self,
+        speed: float,
+        pick_gap: float | None = None,
+        start_delay: float = 0.0,
+        slow_closing: tuple[int, ...] = (),
+    ):
+        """Configure the sequence.
+
+        Args:
+            speed: Arm speed multiplier.
+            pick_gap: Optional grasp aperture [m] for the accepted berries.
+            start_delay: Time [s] the arm waits above the first berry before the sequence starts, for example for
+                an establishing shot.
+            slow_closing: Indices of the berries whose grasps keep the gripper's original closing pace, which shows
+                their deformation longer.
+        """
         self.speed = speed
+        self.pauses = pause_speed(speed)
         self.pick_gap = pick_gap
-        # Each berry follows the place script, which contains 18 seconds of arm travel.
-        self.cycle_seconds = 14 + 18 / speed
+        self.start_delay = start_delay
+        # Each berry follows the place script.
+        self.closing = [1.0 if index in slow_closing else None for index in range(3)]
+        self.cycle_ends = np.cumsum(
+            [scripted_duration(32.0, "place", speed, self.pauses, closing) for closing in self.closing]
+        )
         self.reset()
 
     def reset(self) -> None:
         """Restart the command sequence without resetting any physical state."""
         self.index = -1
         self.center = None
+        self.script_time = 0.0
         self.phase = "Settling in punnet"
         self.delay = 0.0
         self.last_elapsed = 0.0
@@ -54,9 +75,12 @@ class BerrySortSequence:
         """
         dt = max(0.0, elapsed - self.last_elapsed)
         self.last_elapsed = elapsed
-        sequence_time = elapsed - self.delay
-        index = min(int(sequence_time / self.cycle_seconds), 2)
-        t = scripted_motion_time(sequence_time - index * self.cycle_seconds, "place", self.speed)
+        sequence_time = max(0.0, elapsed - self.start_delay - self.delay)
+        index = min(int(np.searchsorted(self.cycle_ends, sequence_time, side="right")), 2)
+        cycle_start = self.cycle_ends[index - 1] if index else 0.0
+        t = scripted_motion_time(sequence_time - cycle_start, "place", self.speed, self.pauses, self.closing[index])
+        # Script time [s] of the current berry, for observers such as a camera.
+        self.script_time = t
         berry = list(berries.values())[index]
         if index != self.index:
             self.index = index
@@ -83,8 +107,16 @@ class BerrySortSequence:
         if tcp is not None:
             # Freeze the clock at each arm-arrival boundary, especially before
             # release. A high speed multiplier must not open fingers in transit.
-            gated = t < 1 or any(start <= t < start + 1 for start in (4, 12, 19, 23))
-            self.holding = bool(gated and np.linalg.norm(tcp - target) > 0.003)
+            # The grasp (4 s) and the release (23 s) need the arm in place; the start and the transit checkpoints
+            # after lifting (12 s) and over the destination (19 s) only need it close.
+            tolerance = None
+            if t < 1:
+                tolerance = 0.006
+            elif any(start <= t < start + 1 for start in (4, 23)):
+                tolerance = 0.003
+            elif any(start <= t < start + 1 for start in (12, 19)):
+                tolerance = 0.010
+            self.holding = bool(tolerance is not None and np.linalg.norm(tcp - target) > tolerance)
             if index > 0 and 8 <= t < 24:
                 center_z = float(berry.positions()[:, 2].mean() + berry.offset[2])
                 offset = center_z - tcp[2]
@@ -102,7 +134,7 @@ class BerrySortSequence:
             if self.failed:
                 self.holding = True
                 target = tcp.copy()
-            if self.holding:
+            if self.holding and elapsed >= self.start_delay:
                 self.delay += dt
         gap = self.gap - self.grip_adjustment
         aperture = self.opening + (gap - self.opening) * np.clip((t - 4) / 4, 0, 1)
@@ -119,7 +151,9 @@ class BerrySortSequence:
             self.phase += " (waiting for arm / grip)"
         if self.failed:
             self.phase = f"Berry {index + 1}/3: grasp lost; press R to retry"
-        self.complete = sequence_time >= 3 * self.cycle_seconds
+        if elapsed < self.start_delay:
+            self.phase = "Opening"
+        self.complete = sequence_time >= self.cycle_ends[-1]
         if self.complete:
             self.phase = "Sequence complete"
         return target, float(aperture)

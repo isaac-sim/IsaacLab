@@ -33,6 +33,7 @@ class BerryViewer(ViewerRTX):
         hide_interior=False,
         sh_rotation=True,
         view="auto",
+        f_stop=None,
         **kwargs,
     ):
         require_live_gaussian_renderer()
@@ -42,6 +43,8 @@ class BerryViewer(ViewerRTX):
         self.pipeline = pipeline
         self.sh_rotation = sh_rotation
         self.rtpt_spp = rtpt_spp
+        # Depth of field when set: the camera's f-number, with the focus distance set by place_camera().
+        self.f_stop = f_stop
         self.sampling_overrides = {}
         self.pending_frame = None
         self.follow_berry = True
@@ -63,9 +66,8 @@ class BerryViewer(ViewerRTX):
         self.set_model(NewtonManager.get_model())
         if view == "auto":
             view = "workcell" if env.cfg.background == "ebc" or len(env.berries) > 1 else "berry"
-        # A directed camera starts on the overview; the script then eases it with direct().
+        # A directed camera starts on the overview; a camera director then moves it with place_camera().
         self.director = view == "director"
-        self.close_up = 0.0
         self.set_view("workcell" if self.director else view)
         self.register_ui_callback(self.controls, position="side")
 
@@ -81,18 +83,40 @@ class BerryViewer(ViewerRTX):
             self.berry = berry
             self.last_center = berry.positions().mean(0)
 
-    def direct(self, close_up: bool, dt: float, transition: float = 1.5) -> None:
-        """Ease a directed camera toward the close-up of the current berry or the workcell overview.
+    def place_camera(
+        self,
+        eye: np.ndarray,
+        target: np.ndarray,
+        fov: float | None = None,
+        focus: float | None = None,
+        depth_of_field: bool = True,
+    ) -> None:
+        """Place the camera at ``eye`` looking at ``target`` [m], for example from a camera director.
 
         Args:
-            close_up: Whether to move toward the close-up.
-            dt: Time since the last call [s].
-            transition: Duration of a full move between the two shots [s].
+            eye: Camera position [m].
+            target: Point the camera looks at [m].
+            fov: Vertical field of view [deg]; None keeps it.
+            focus: Focus distance [m] for depth of field (see ``f_stop``); None keeps it.
+            depth_of_field: Whether this view uses the depth of field of ``f_stop``, or is sharp throughout.
         """
-        self.close_up = float(np.clip(self.close_up + (dt if close_up else -dt) / transition, 0.0, 1.0))
-        blend = self.close_up * self.close_up * (3.0 - 2.0 * self.close_up)
-        (wide_eye, wide_target), (close_eye, close_target) = self._view_pose("workcell"), self._view_pose("berry")
-        self._look(wide_eye + blend * (close_eye - wide_eye), wide_target + blend * (close_target - wide_target))
+        self._look(np.asarray(eye, float), np.asarray(target, float))
+        if fov is not None:
+            self.camera.fov = fov
+            # As in Newton's viewer: the vertical aperture is 20.955 mm.
+            self._write_camera("focalLength", 20.955 / (2.0 * math.tan(math.radians(fov) / 2.0)))
+        if self.f_stop:
+            # An f-number of 0 turns depth of field off.
+            self._write_camera("fStop", float(self.f_stop) if depth_of_field else 0.0)
+            if focus is not None:
+                self._write_camera("focusDistance", focus)
+
+    def _write_camera(self, attribute: str, value: float) -> None:
+        """Write a camera attribute to the running renderer; before it starts, the authored camera applies."""
+        if self._rtx is not None:
+            self._rtx.write_attribute(
+                prim_paths=[self._camera_prim_path], attribute_name=attribute, tensor=np.array([value], np.float32)
+            )
 
     def _view_pose(self, view: str) -> tuple[np.ndarray, np.ndarray]:
         """Return the camera eye and target [m] of a view."""
@@ -181,7 +205,11 @@ class BerryViewer(ViewerRTX):
         super()._add_camera_lights_and_render_product()
         for prim in self.stage.Traverse():
             if prim.IsA(UsdGeom.Camera):
-                UsdGeom.Camera(prim).CreateClippingRangeAttr(Gf.Vec2f(0.0001, 100))
+                camera = UsdGeom.Camera(prim)
+                camera.CreateClippingRangeAttr(Gf.Vec2f(0.0001, 100))
+                if self.f_stop:
+                    camera.CreateFStopAttr(float(self.f_stop))
+                    camera.CreateFocusDistanceAttr(0.5)
         product = self.stage.GetPrimAtPath(self._render_product_path)
         product.CreateAttribute("omni:rtx:dlss:frameGeneration", Sdf.ValueTypeNames.Bool).Set(False)
         product.RemoveProperty("omni:rtx:quality")

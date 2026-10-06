@@ -159,6 +159,11 @@ parser.add_argument(
     action="store_true",
     help="Read back and check all native Gaussian attributes after the run",
 )
+parser.add_argument(
+    "--f_stop",
+    type=float,
+    help="Depth of field with this camera f-number in --view director close shots (e.g. 64; smaller blurs more)",
+)
 parser.add_argument("--width", type=int, default=1280)
 parser.add_argument("--height", type=int, default=720)
 parser.add_argument(
@@ -261,7 +266,7 @@ with launch_simulation(cfg, args), ExitStack() as resources:
     from scipy.spatial.transform import Rotation
 
     from isaaclab_tasks.contrib.franka_pick_berries.control.gamepad import BerryGamepad, BerryGamepadCfg
-    from isaaclab_tasks.contrib.franka_pick_berries.control.motion import scripted_motion_time
+    from isaaclab_tasks.contrib.franka_pick_berries.control.motion import pause_speed, scripted_motion_time
     from isaaclab_tasks.contrib.franka_pick_berries.physics.coupling import coupled_solver
     from isaaclab_tasks.contrib.franka_pick_berries.scene.tableware import BOWL
 
@@ -286,6 +291,7 @@ with launch_simulation(cfg, args), ExitStack() as resources:
             hide_interior=args.hide_interior,
             sh_rotation=args.sh_rotation == "on",
             view=args.view,
+            f_stop=args.f_stop,
         )
         resources.callback(viewer.close)
     controller = BerryGamepad(BerryGamepadCfg(device=args.gamepad_device)) if args.mode == "gamepad" else None
@@ -305,11 +311,23 @@ with launch_simulation(cfg, args), ExitStack() as resources:
     scripted_center = None
     scripted_gap = args.pick_gap
     scripted_opening = 0.08
-    sorter = sort_result = None
+    # Scripted arm commands per control step: 8 mm and 0.03 rad at the default speed 2, scaled with it so that the
+    # arm keeps up with faster plans; above it, pauses shorten too.
+    step_limit, turn_limit = 0.004 * args.motion_speed, 0.015 * args.motion_speed
+    pauses = pause_speed(args.motion_speed)
+    sorter = sort_result = director = None
     if args.mode == "sort":
         from isaaclab_tasks.contrib.franka_pick_berries.control.sorting import BerrySortSequence, sorting_result
 
-        sorter = BerrySortSequence(args.motion_speed, args.pick_gap)
+        if args.view == "director":
+            from isaaclab_tasks.contrib.franka_pick_berries.rendering.cinematography import SortCinematography
+
+            # For a video: an establishing shot before the sequence, and the crush and the first gentle grasp at
+            # the gripper's original pace, which shows their deformation longer.
+            sorter = BerrySortSequence(args.motion_speed, args.pick_gap, start_delay=3.0, slow_closing=(0, 1))
+            director = SortCinematography()
+        else:
+            sorter = BerrySortSequence(args.motion_speed, args.pick_gap)
     if args.video:
         args.output.mkdir(parents=True, exist_ok=True)
         video = subprocess.Popen(
@@ -346,7 +364,7 @@ with launch_simulation(cfg, args), ExitStack() as resources:
     try:
         while (not args.steps or step < args.steps) and (viewer is None or viewer.is_running()):
             started = time.perf_counter()
-            script_time = scripted_motion_time(script_step / 30, args.mode, args.motion_speed)
+            script_time = scripted_motion_time(script_step / 30, args.mode, args.motion_speed, pauses)
             finished = sorter.complete if sorter is not None else script_time >= (32 if args.mode == "place" else 18)
             if (
                 finished
@@ -360,6 +378,8 @@ with launch_simulation(cfg, args), ExitStack() as resources:
                 if sorter is not None:
                     sort_result = sorting_result(env.berries)
                     sorter.reset()
+                    if director is not None:
+                        director.reset()
                 env.reset()
                 script_step = 0
                 scripted_center = None
@@ -372,6 +392,8 @@ with launch_simulation(cfg, args), ExitStack() as resources:
                     if sorter is not None:
                         sorter.reset()
                         sort_result = None
+                    if director is not None:
+                        director.reset()
                     script_step = 0
                     scripted_center = None
                     scripted_gap = args.pick_gap
@@ -396,24 +418,21 @@ with launch_simulation(cfg, args), ExitStack() as resources:
                 env.berry = list(env.berries.values())[sorter.index]
                 if viewer is not None:
                     viewer.status = sorter.phase
-                    if viewer.director:
-                        # Close-ups of the grasps and releases, the workcell for approaches and carries. The close-up
-                        # moves on to the next berry only from the workcell, so that the camera never cuts.
-                        close_up = any(word in sorter.phase for word in ("Crush", "Gentle grasp", "Release"))
-                        if viewer.close_up == 0.0:
-                            viewer.follow(env.berry)
-                        viewer.direct(close_up, 1 / 30)
+                    if director is not None:
+                        director.update(viewer, sorter, env.berries, current, 1 / 30)
                     else:
                         viewer.follow(env.berry)
-                action[0, :3] = torch.from_numpy(np.clip((target - current) * 0.6, -0.008, 0.008))
+                action[0, :3] = torch.from_numpy(np.clip((target - current) * 0.6, -step_limit, step_limit))
                 current_rot = Rotation.from_quat(quat[0].cpu().numpy())
                 desired = Rotation.from_euler("x", np.pi)
-                action[0, 3:6] = torch.from_numpy(np.clip((desired * current_rot.inv()).as_rotvec() * 0.2, -0.03, 0.03))
+                action[0, 3:6] = torch.from_numpy(
+                    np.clip((desired * current_rot.inv()).as_rotvec() * 0.2, -turn_limit, turn_limit)
+                )
                 action[0, 6] = aperture / 0.04 - 1
             elif args.mode in ("pick", "place", "squash"):
                 arm = env.action_manager.get_term("arm_action")
                 pos, quat = arm._compute_frame_pose()
-                t = scripted_motion_time(script_step / 30, args.mode, args.motion_speed)
+                t = scripted_motion_time(script_step / 30, args.mode, args.motion_speed, pauses)
                 if scripted_center is None and t >= 1:
                     tissue = env.berry.positions()
                     scripted_center = (tissue.min(0) + tissue.max(0)) / 2 + env.berry.offset
@@ -437,10 +456,12 @@ with launch_simulation(cfg, args), ExitStack() as resources:
                     if t > 26:
                         target[2] += 0.08 * np.clip((t - 26) / 3, 0, 1)
                 current = pos[0].cpu().numpy()
-                action[0, :3] = torch.from_numpy(np.clip((target - current) * 0.6, -0.008, 0.008))
+                action[0, :3] = torch.from_numpy(np.clip((target - current) * 0.6, -step_limit, step_limit))
                 current_rot = Rotation.from_quat(quat[0].cpu().numpy())
                 desired = Rotation.from_euler("x", np.pi)
-                action[0, 3:6] = torch.from_numpy(np.clip((desired * current_rot.inv()).as_rotvec() * 0.2, -0.03, 0.03))
+                action[0, 3:6] = torch.from_numpy(
+                    np.clip((desired * current_rot.inv()).as_rotvec() * 0.2, -turn_limit, turn_limit)
+                )
                 gap = (scripted_gap if scripted_gap is not None else 0.02) if args.mode in ("pick", "place") else 0.001
                 aperture = scripted_opening + (gap - scripted_opening) * np.clip((t - 4) / 4, 0, 1)
                 release = {"pick": 14, "place": 24, "squash": 12}[args.mode]
