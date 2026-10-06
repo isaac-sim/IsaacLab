@@ -53,6 +53,7 @@ run_attempt() {
     mkdir -p /tmp/benchmark-output /tmp/isaaclab-ci-home/.cache /tmp/isaaclab-ci-home/.local/share
     id
     stat -c 'Source owner: %u:%g; permissions: %a' /workspace/isaaclab/source
+    # Set up Isaac Sim first so source verification and the benchmark run in the same process.
     uv run --no-sync isaaclab -p /tmp/source_revision.py run \
       --manifest /tmp/source-manifest.json \
       --checkout-root /workspace/isaaclab \

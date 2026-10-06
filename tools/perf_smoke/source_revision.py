@@ -11,7 +11,6 @@ import argparse
 import hashlib
 import importlib
 import json
-import marshal
 import os
 import subprocess
 import sys
@@ -43,16 +42,16 @@ def prepare_manifest(root: Path) -> dict:
         if not entry:
             continue
         metadata, path_bytes = entry.split(b"\t", 1)
-        mode, kind, oid = metadata.decode().split()
+        _, kind, oid = metadata.decode().split()
         path = path_bytes.decode()
         if kind == "blob" and path.endswith(".py"):
-            entries.append((mode, oid, path))
+            entries.append((oid, path))
     if not entries:
         raise ValueError("The selected commit contains no Python source under source/ or scripts/.")
-    batch = _git(root, "cat-file", "--batch", data="".join(f"{oid}\n" for _, oid, _ in entries).encode())
-    files, lfs_files = {}, {}
+    batch = _git(root, "cat-file", "--batch", data="".join(f"{oid}\n" for oid, _ in entries).encode())
+    files = {}
     cursor = 0
-    for mode, oid, path in entries:
+    for oid, path in entries:
         header_end = batch.index(b"\n", cursor)
         actual_oid, kind, size = batch[cursor:header_end].decode().split()
         if actual_oid != oid or kind != "blob":
@@ -61,17 +60,6 @@ def prepare_manifest(root: Path) -> dict:
         blob = batch[cursor : cursor + int(size)]
         cursor += int(size) + 1
         expected = _sha256(blob)
-        if blob.startswith(b"version https://git-lfs.github.com/spec/v1\n"):
-            pointer = dict(line.split(" ", 1) for line in blob.decode().splitlines() if " " in line)
-            algorithm, expected = pointer.get("oid", "").split(":", 1)
-            if algorithm != "sha256" or len(expected) != 64:
-                raise ValueError(f"Unrecognized Git LFS Python content identity for {path}.")
-            lfs_files[path] = {"sha256": expected, "bytes": int(pointer["size"])}
-        if mode == "120000":
-            # Git symlink blobs contain link text, so hash the tracked target's contents.
-            target = (PurePosixPath(path).parent / blob.decode()).as_posix()
-            target_blob = _git(root, "show", f"{commit}:{target}")
-            expected = _sha256(target_blob)
         try:
             actual = (root / path).read_bytes()
         except OSError as exc:
@@ -91,7 +79,6 @@ def prepare_manifest(root: Path) -> dict:
         "commit": commit,
         "files": files,
         "namespaces": {name: sorted(paths) for name, paths in sorted(namespaces.items())},
-        "lfs_files": lfs_files,
     }
 
 
@@ -152,14 +139,7 @@ def _inspect_runtime() -> tuple[dict | None, list[dict]]:
     code = getattr(function, "__code__", None)
     if not isinstance(code, types.CodeType):
         return None, [{"module": RUNTIME_MODULE, "reason": "Runtime entrypoint was not imported as a Python function."}]
-    record = {
-        "module": RUNTIME_MODULE,
-        "function": "run",
-        "code_filename": code.co_filename,
-        "code_sha256": _sha256(marshal.dumps(code)),
-        "doc_sha256": _sha256(function.__doc__.encode()) if function.__doc__ is not None else None,
-        "source_code_matches": False,
-    }
+    record = {"module": RUNTIME_MODULE, "source_code_matches": False}
     mismatches = []
     try:
         source = Path(module.__file__).read_bytes()
@@ -167,8 +147,8 @@ def _inspect_runtime() -> tuple[dict | None, list[dict]]:
         expected = next(
             item for item in compiled.co_consts if isinstance(item, types.CodeType) and item.co_name == "run"
         )
+        # Check that the loaded benchmark function matches its source file.
         record["source_code_matches"] = code == expected
-        record["compiled_source_code_sha256"] = _sha256(marshal.dumps(expected))
         if not record["source_code_matches"]:
             mismatches.append(
                 {"module": RUNTIME_MODULE, "reason": "Live runtime function code differs from its source."}
@@ -230,9 +210,7 @@ def run_benchmark(manifest: dict, root: Path, output_dir: Path, argv: list[str])
             "status": "verified" if verified else "failed",
             "commit": manifest["commit"],
             "pid": os.getpid(),
-            "executable": sys.executable,
             "bytecode_policy": "fresh_process_cache",
-            "pycache_prefix": pycache,
             "benchmark_exit_code": exit_code,
             "exception": exception,
             "modules": modules,
