@@ -469,7 +469,7 @@ def run_simulator(env: SimpleNamespace, camera: Camera, ppisp_modifier: PpispMod
         count += 1
 
         if count % args_cli.save_interval == 0:
-            ppisp = ppisp_modifier(env, camera.data.output["rgb"].torch)
+            ppisp = ppisp_modifier(env, camera.render_outputs["rgb_radiance"].torch)
             # The baseline shares the PPISP camera prim. On Isaac RTX, PPISP's rgb_radiance input
             # neutralizes that prim's exposure, so this is the renderer's color at neutral exposure.
             baseline = camera.data.output["rgb"].torch[..., :3]
@@ -560,8 +560,8 @@ def main() -> None:
         # Standalone scripts supply the context normally provided by ManagerBasedEnv.
         env = SimpleNamespace(sim=sim, scene={"camera": camera}, num_envs=args_cli.num_envs, device=str(sim.device))
         modifier_cfg = PpispModifierCfg(sensor_cfg=SceneEntityCfg("camera"), isp_cfg=ppisp_cfg)
-        modifier_cfg.prepare_scene(env)
-        ppisp_modifier = modifier_cfg.func(modifier_cfg, (args_cli.num_envs, height, width, 3), env.device, env=env)
+        modifier_cfg.func.prepare_scene(modifier_cfg, env)
+        ppisp_modifier = modifier_cfg.func(modifier_cfg, (args_cli.num_envs, height, width, 3), env=env)
         print(f"[INFO] Duplicated-env camera regex: {camera_prim_path}", flush=True)
         print(f"[INFO] Rendering {width}x{height} from source camera {source_camera_prim_path}.", flush=True)
 

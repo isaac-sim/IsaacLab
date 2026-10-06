@@ -5,23 +5,20 @@ This extension applies Physically Plausible Image Signal Processing to Isaac Lab
 Use `PpispModifierCfg` in an observation term's existing modifier list:
 
 ```python
-from isaaclab.envs import mdp
 from isaaclab.managers import ObservationTermCfg, SceneEntityCfg
-from isaaclab_ppisp import PpispCfg, PpispModifierCfg
+from isaaclab_ppisp import PpispCfg, PpispModifierCfg, ppisp_camera_input
 
+ppisp = PpispModifierCfg(sensor_cfg=SceneEntityCfg("camera"), isp_cfg=PpispCfg())
 camera_image = ObservationTermCfg(
-    func=mdp.image_rgb,
-    params={"sensor_cfg": SceneEntityCfg("camera"), "normalize": False},
-    modifiers=[PpispModifierCfg(
-        sensor_cfg=SceneEntityCfg("camera"),
-        isp_cfg=PpispCfg(),
-    )],
+    func=ppisp_camera_input,
+    params={"modifier_cfg": ppisp},
+    modifiers=[ppisp],
 )
 ```
 
-The observation manager resolves USD attributes and requests private radiance before simulation reset. The modifier owns its output buffers and runs once for each published camera capture. Set `output="rgba"` to select RGBA, or use separate observation terms for RGB and RGBA. `normalize=True` divides by 255 and subtracts each image's spatial mean; `permute=True` returns NCHW. Each observation term owns independent state and cleanup. With `input_source="previous"`, PPISP consumes scene-linear radiance returned as a tensor by an upstream modifier.
+The environment resolves USD attributes and requests private radiance before simulation reset. The modifier owns its output buffers and runs once for each published camera capture. Set `output="rgba"` to select RGBA, or use separate observation terms for RGB and RGBA. `normalize=True` divides by 255 and subtracts each image's spatial mean; `permute=True` returns NCHW. Each observation term owns independent state and cleanup. With `input_source="previous"`, supply an observation source and earlier modifier that produce scene-linear radiance instead of using `ppisp_camera_input`.
 
-For use outside observations, create a `PpispModifierCfg`, call `prepare_scene(env)` before `sim.reset()`, then create `modifier = cfg.func(cfg, (num_envs, height, width, 3), device, env=env)`. After rendering, call `modifier(env, camera.data.output["rgb"].torch)`. Call `modifier.close()` when done. The result uses reusable storage; clone it to retain a frame.
+For use outside observations, create a `PpispModifierCfg`, call `cfg.func.prepare_scene(cfg, env)` before `sim.reset()`, then create `modifier = cfg.func(cfg, (num_envs, height, width, 3), env=env)`. After rendering, call `modifier(env, ppisp_camera_input(env, cfg))`. Call `modifier.close()` when done. The result uses reusable storage; clone it to retain a frame.
 
 `CameraCfg.isp_cfg` and `CameraISPMode` were removed. Use `PpispModifierCfg` and `PpispDiscoveryMode` instead. `AUTO_CAMERA` reads the camera's PPISP attributes; `AUTO_ANY` may find attributes elsewhere on the stage. When discovery finds none, the modifier passes through raw camera RGB/RGBA. Camera `data.output` remains the raw renderer output.
 

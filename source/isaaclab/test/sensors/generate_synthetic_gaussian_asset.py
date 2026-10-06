@@ -823,15 +823,13 @@ def _render_synthetic_gaussian_camera(
     env = SimpleNamespace(scene={"camera": camera}, sim=sim, num_envs=num_envs, device=sim.device)
     modifier_cfg = PpispModifierCfg(sensor_cfg=SceneEntityCfg("camera"), isp_cfg=isp_cfg, output="rgba")
     # Prepare before reset so the renderer sees the modifier's radiance requirement.
-    modifier_cfg.prepare_scene(env)
-    with contextlib.closing(
-        modifier_cfg.func(modifier_cfg, (num_envs, height, width, 3), env.device, env=env)
-    ) as modifier:
+    modifier_cfg.func.prepare_scene(modifier_cfg, env)
+    with contextlib.closing(modifier_cfg.func(modifier_cfg, (num_envs, height, width, 3), env=env)) as modifier:
         sim.reset()
         for _ in range(stabilisation_steps):
             sim.step()
         camera.update(sim_dt)
-        rgba = modifier(env, camera.data.output["rgb"].torch)
+        rgba = modifier(env, camera.render_outputs["rgb_radiance"].torch)
         frames = {name: output.torch for name, output in camera.data.output.items()}
         if "rgb" in frames:
             frames["rgb"] = rgba[..., :3]

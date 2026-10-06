@@ -693,28 +693,6 @@ def test_modifier_receives_env_and_can_change_shape(setup_env):
     assert len(closed) == 1
 
 
-def test_modifier_scene_preparation_uses_observation_composition_root(setup_env):
-    """Pre-reset renderer requirements are discovered through the modifier config."""
-    prepared = []
-
-    @configclass
-    class PreparedModifierCfg(modifiers.ModifierCfg):
-        func = modifiers.scale
-        params = {"multiplier": 2.0}
-
-        def prepare_scene(self, env):
-            prepared.append(env)
-
-    group = ObservationGroupCfg(concatenate_terms=False, enable_corruption=False)
-    group.position = ObservationTermCfg(func=pos_w_data, modifiers=[PreparedModifierCfg()])
-    cfg = {"policy": group}
-    ObservationManager.prepare_scene(cfg, setup_env)
-    assert prepared == [setup_env]
-    manager = ObservationManager(cfg, setup_env)
-    torch.testing.assert_close(manager.compute()["policy"]["position"], setup_env.data.pos_w * 2)
-    manager.close()
-
-
 def test_observation_modifiers_have_one_processing_owner():
     """The removed sensor chain must not reappear beside observation modifiers."""
     from pathlib import Path
@@ -724,8 +702,10 @@ def test_observation_modifiers_have_one_processing_owner():
     from isaaclab.envs import ManagerBasedEnv, mdp
 
     assert not hasattr(mdp, "processed_image")
+    assert not hasattr(mdp, "camera_render_output")
     assert not hasattr(ManagerTermBase, "prepare_scene")
     assert not hasattr(ManagerTermBase, "close")
+    assert not hasattr(ObservationManager, "prepare_scene")
     assert not hasattr(ManagerBasedEnv, "_close_observation_terms")
     assert not hasattr(modifiers, "ModifierOutput")
     from isaaclab.utils.modifiers import modifier as modifier_module
@@ -883,8 +863,8 @@ class DummyEnv:
 class StatefulBiasModifier(modifiers.ModifierBase):
     """Stateful modifier used to verify lazy callable resolution."""
 
-    def __init__(self, cfg: modifiers.ModifierCfg, data_dim: tuple[int, ...], device: str, *, env) -> None:
-        super().__init__(cfg, data_dim, device, env=env)
+    def __init__(self, cfg: modifiers.ModifierCfg, data_dim: tuple[int, ...], *, env) -> None:
+        super().__init__(cfg, data_dim, env=env)
         self.value = cfg.params["value"]
         self.reset_count = 0
 
@@ -898,7 +878,7 @@ class StatefulBiasModifier(modifiers.ModifierBase):
 class InvalidModifier:
     """Class with the modifier constructor contract but the wrong base type."""
 
-    def __init__(self, cfg, data_dim, device, *, env):
+    def __init__(self, cfg, data_dim, *, env):
         pass
 
 
@@ -1090,56 +1070,3 @@ def test_positional_out_does_not_enable_destination_writes(setup_env):
     result = manager.compute()["policy"]
     setup_env.data.pos_w.zero_()
     torch.testing.assert_close(result, expected)
-
-
-class TrackedObservation(ManagerTermBase):
-    """Observation term that records cleanup calls."""
-
-    def __init__(self, cfg, env):
-        super().__init__(cfg, env)
-        self.close_count = 0
-        env.owned_terms.append(self)
-
-    def __call__(self, env):
-        return env.observation
-
-    def close(self):
-        self.close_count += 1
-
-
-def test_observation_terms_close_after_initialization_failure():
-    class FailingObservation(ManagerTermBase):
-        def __call__(self, env):
-            raise RuntimeError("initialization failed")
-
-    cfg = HistoryObservationsCfg()
-    cfg.policy.history_length = None
-    cfg.policy.dummy = ObservationTermCfg(func=TrackedObservation)
-    cfg.policy.failing = ObservationTermCfg(func=FailingObservation)
-    env = DummyEnv()
-    env.owned_terms = []
-
-    with pytest.raises(RuntimeError, match="initialization failed"):
-        ObservationManager(cfg, env)
-    assert len(env.owned_terms) == 1
-    assert env.owned_terms[0].close_count == 1
-
-
-def test_observation_close_continues_after_term_error():
-    class FailingCloseObservation(TrackedObservation):
-        def close(self):
-            super().close()
-            raise RuntimeError("close failed")
-
-    cfg = HistoryObservationsCfg()
-    cfg.policy.history_length = None
-    cfg.policy.dummy = ObservationTermCfg(func=TrackedObservation)
-    cfg.policy.failing = ObservationTermCfg(func=FailingCloseObservation)
-    env = DummyEnv()
-    env.owned_terms = []
-    manager = ObservationManager(cfg, env)
-
-    with pytest.raises(RuntimeError, match="close an observation term"):
-        manager.close()
-    manager.close()
-    assert [term.close_count for term in env.owned_terms] == [1, 1]

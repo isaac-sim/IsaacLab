@@ -75,9 +75,6 @@ def _controller_weights() -> list[float]:
 
 
 def test_ppisp_modifier_discovery_resolves_before_requesting_radiance():
-    import isaaclab_ppisp
-
-    assert not hasattr(isaaclab_ppisp, "PpispProcessorCfg")
     stage = Usd.Stage.CreateInMemory()
     _author_camera(stage)
     _author_ppisp_camera(stage, inherits=None, attrs={"exposureOffset": 1.5})
@@ -86,12 +83,12 @@ def test_ppisp_modifier_discovery_resolves_before_requesting_radiance():
     env = SimpleNamespace(scene={"camera": camera}, sim=SimpleNamespace(stage=stage))
 
     cfg = PpispModifierCfg()
-    cfg.prepare_scene(env)
+    cfg.func.prepare_scene(cfg, env)
     assert cfg.isp_cfg is None
     assert requests == [("rgb",)]
 
     cfg = PpispModifierCfg(isp_cfg=PpispDiscoveryMode.AUTO_ANY)
-    cfg.prepare_scene(env)
+    cfg.func.prepare_scene(cfg, env)
     assert isinstance(cfg.isp_cfg, PpispCfg)
     assert requests[-1] == ("rgb_radiance",)
 

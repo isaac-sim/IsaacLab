@@ -9,8 +9,6 @@ from __future__ import annotations
 
 import inspect
 from collections.abc import Sequence
-from contextlib import suppress
-from dataclasses import fields
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -21,27 +19,10 @@ from ..envs.utils.io_descriptors import _warn_io_descriptors_deprecated
 from ..utils import instantiate, modifiers, noise, to_dict
 from ..utils.buffers import CircularBuffer, DelayBuffer
 from .manager_base import ManagerBase, ManagerTermBase
-from .manager_term_cfg import ManagerTermBaseCfg, ObservationGroupCfg, ObservationTermCfg
+from .manager_term_cfg import ObservationGroupCfg, ObservationTermCfg
 
 if TYPE_CHECKING:
     from ..envs import ManagerBasedEnv
-
-
-def _prepare_modifiers(value: object, env: ManagerBasedEnv) -> None:
-    """Prepare modifier configs within an observation term before simulation startup."""
-    if isinstance(value, modifiers.ModifierCfg):
-        prepare_scene = getattr(value, "prepare_scene", None)
-        if prepare_scene is not None:
-            prepare_scene(env)
-    if isinstance(value, (ManagerTermBaseCfg, modifiers.ModifierCfg)):
-        for field in fields(value):
-            _prepare_modifiers(getattr(value, field.name), env)
-    elif isinstance(value, dict):
-        for item in value.values():
-            _prepare_modifiers(item, env)
-    elif isinstance(value, (list, tuple)):
-        for item in value:
-            _prepare_modifiers(item, env)
 
 
 class ObservationManager(ManagerBase):
@@ -99,17 +80,6 @@ class ObservationManager(ManagerBase):
             RuntimeError: If the shapes of the observation terms in a group are not compatible for concatenation
                 and the :attr:`~ObservationGroupCfg.concatenate_terms` attribute is set to True.
         """
-        self._owned_terms: dict[int, ManagerTermBase] = {}
-        self._resolve_terms_handle = None
-        try:
-            self._initialize(cfg, env)
-        except Exception:
-            # Preserve initialization diagnostics after attempting every cleanup.
-            with suppress(Exception):
-                self.close()
-            raise
-
-    def _initialize(self, cfg: object, env: ManagerBasedEnv) -> None:
         if cfg is None:
             raise ValueError("Observation manager configuration is None. Please provide a valid configuration.")
         # call the base class constructor (this will parse the terms config)
@@ -146,53 +116,14 @@ class ObservationManager(ManagerBase):
         # Stores the latest observations.
         self._obs_buffer: dict[str, torch.Tensor | dict[str, torch.Tensor]] | None = None
 
-    @staticmethod
-    def prepare_scene(cfg: object, env: ManagerBasedEnv) -> None:
-        """Prepare observation modifiers after scene creation and before simulation startup.
-
-        Args:
-            cfg: Observation group configuration or dictionary of groups.
-            env: Environment whose scene has been authored.
-
-        Modifier configs nested in term parameters are visited as well.
-        """
-        if cfg is None:
-            raise ValueError("Observation manager configuration is None. Please provide a valid configuration.")
-        groups = cfg.items() if isinstance(cfg, dict) else vars(cfg).items()
-        for group_name, group in groups:
-            if group is None:
-                continue
-            if not isinstance(group, ObservationGroupCfg):
-                raise TypeError(f"Observation group {group_name!r} must be an ObservationGroupCfg.")
-            for term_name, term_cfg in vars(group).items():
-                if term_name in ObservationGroupCfg.__dataclass_fields__ or term_cfg is None:
-                    continue
-                name = f"{group_name}/{term_name}"
-                if not isinstance(term_cfg, ObservationTermCfg):
-                    raise TypeError(f"Observation term {name!r} must be an ObservationTermCfg.")
-                _prepare_modifiers(term_cfg, env)
-
     def close(self) -> None:
-        """Close stateful terms and modifiers once, including partially initialized ones."""
-        terms, self._owned_terms = getattr(self, "_owned_terms", {}), {}
-        instances, self._group_obs_class_instances = getattr(self, "_group_obs_class_instances", []), []
+        """Release resources owned by stateful observation modifiers."""
+        instances, self._group_obs_class_instances = self._group_obs_class_instances, []
         self._obs_buffer = None
-        error = None
-        for instance in reversed((*terms.values(), *instances)):
+        for instance in reversed(instances):
             close = getattr(instance, "close", None)
             if close is not None:
-                try:
-                    close()
-                except Exception as exc:
-                    if error is None:
-                        error = exc
-        if error is not None:
-            raise RuntimeError("Failed to close an observation term or modifier.") from error
-
-    def _process_term_cfg_at_play(self, term_name: str, term_cfg: ObservationTermCfg):
-        super()._process_term_cfg_at_play(term_name, term_cfg)
-        if isinstance(term_cfg.func, ManagerTermBase):
-            self._owned_terms[id(term_cfg.func)] = term_cfg.func
+                close()
 
     def __str__(self) -> str:
         """Returns: A string representation for the observation manager."""
@@ -512,10 +443,8 @@ class ObservationManager(ManagerBase):
             if term_cfg.modifiers is not None:
                 for modifier in term_cfg.modifiers:
                     owned = False
-                    # Custom callbacks may modify or retain their input. Read-only processors
-                    # can borrow the camera buffer and let the manager snapshot the result.
-                    if not getattr(modifier.func, "borrows_input", False):
-                        obs = obs.clone()
+                    # Custom callbacks may modify or retain their input.
+                    obs = obs.clone()
                     if isinstance(modifier.func, modifiers.ModifierBase):
                         obs = modifier.func(self._env, obs)
                     else:
@@ -742,9 +671,7 @@ class ObservationManager(ManagerBase):
 
                         # construct stateful modifiers with the observation size
                         if inspect.isclass(mod_cfg.func):
-                            mod_cfg.func = mod_cfg.func(
-                                cfg=mod_cfg, data_dim=obs_dims, device=self._env.device, env=self._env
-                            )
+                            mod_cfg.func = mod_cfg.func(cfg=mod_cfg, data_dim=obs_dims, env=self._env)
                             if not isinstance(mod_cfg.func, modifiers.ModifierBase):
                                 raise TypeError(
                                     f"Modifier function '{mod_cfg.func}' for observation term '{term_name}'"

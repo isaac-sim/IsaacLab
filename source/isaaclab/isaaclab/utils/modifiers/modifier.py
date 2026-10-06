@@ -133,16 +133,14 @@ class DigitalFilter(ModifierBase):
     :math:`B = [1 - \alpha]`.
     """
 
-    def __init__(
-        self, cfg: modifier_cfg.DigitalFilterCfg, data_dim: tuple[int, ...], device: str, *, env: ManagerBasedEnv
-    ):
+    def __init__(self, cfg: modifier_cfg.DigitalFilterCfg, data_dim: tuple[int, ...], *, env: ManagerBasedEnv):
         """Initializes digital filter.
 
         Args:
             cfg: Configuration parameters.
             data_dim: The dimensions of the data to be modified. First element is the batch size
                 which usually corresponds to number of environments in the simulation.
-            device: The device to run the modifier on.
+            env: The environment that owns the modifier.
 
         Raises:
             ValueError: If filter coefficients are None.
@@ -152,15 +150,15 @@ class DigitalFilter(ModifierBase):
             raise ValueError("Digital filter coefficients A and B must not be None. Please provide valid coefficients.")
 
         # initialize parent class
-        super().__init__(cfg, data_dim, device, env=env)
+        super().__init__(cfg, data_dim, env=env)
 
         # assign filter coefficients and make sure they are column vectors
-        self.A = torch.tensor(self._cfg.A, device=self._device).unsqueeze(1)
-        self.B = torch.tensor(self._cfg.B, device=self._device).unsqueeze(1)
+        self.A = torch.tensor(self._cfg.A, device=env.device).unsqueeze(1)
+        self.B = torch.tensor(self._cfg.B, device=env.device).unsqueeze(1)
 
         # create buffer for input and output history
-        self.x_n = torch.zeros(self._data_dim + (self.B.shape[0],), device=self._device)
-        self.y_n = torch.zeros(self._data_dim + (self.A.shape[0],), device=self._device)
+        self.x_n = torch.zeros(self._data_dim + (self.B.shape[0],), device=env.device)
+        self.y_n = torch.zeros(self._data_dim + (self.A.shape[0],), device=env.device)
 
     def reset(self, env_ids: Sequence[int] | None = None):
         """Resets digital filter history.
@@ -220,23 +218,21 @@ class Integrator(ModifierBase):
     :math:`\Delta t` is the time step between samples.
     """
 
-    def __init__(
-        self, cfg: modifier_cfg.IntegratorCfg, data_dim: tuple[int, ...], device: str, *, env: ManagerBasedEnv
-    ):
+    def __init__(self, cfg: modifier_cfg.IntegratorCfg, data_dim: tuple[int, ...], *, env: ManagerBasedEnv):
         """Initializes the integrator configuration and state.
 
         Args:
             cfg: Integral parameters.
             data_dim: The dimensions of the data to be modified. First element is the batch size
                 which usually corresponds to number of environments in the simulation.
-            device: The device to run the modifier on.
+            env: The environment that owns the modifier.
         """
         # initialize parent class
-        super().__init__(cfg, data_dim, device, env=env)
+        super().__init__(cfg, data_dim, env=env)
 
         # assign buffer for integral and previous value
-        self.integral = torch.zeros(self._data_dim, device=self._device)
-        self.y_prev = torch.zeros(self._data_dim, device=self._device)
+        self.integral = torch.zeros(self._data_dim, device=env.device)
+        self.y_prev = torch.zeros(self._data_dim, device=env.device)
 
     def reset(self, env_ids: Sequence[int] | None = None):
         """Resets integrator state to zero.

@@ -21,22 +21,20 @@ class ModifierBase(ABC):
     A class modifier receives the environment and observation on each call. It may keep state
     between calls and implement ``reset(env_ids)`` and ``close()`` when it owns resources.
     The observation manager constructs it from :class:`ModifierCfg` with the input dimensions
-    and device. A modifier that changes shape may expose ``output_dim`` for the next modifier.
+    and environment. A modifier that changes shape may expose ``output_dim`` for the next modifier.
     """
 
-    def __init__(self, cfg: ModifierCfg, data_dim: tuple[int, ...], device: str, *, env: ManagerBasedEnv) -> None:
+    def __init__(self, cfg: ModifierCfg, data_dim: tuple[int, ...], *, env: ManagerBasedEnv) -> None:
         """Initializes the modifier class.
 
         Args:
             cfg: Configuration parameters.
             data_dim: The dimensions of the data to be modified. First element is the batch size
                 which usually corresponds to number of environments in the simulation.
-            device: The device to run the modifier on.
             env: The environment that owns the modifier.
         """
         self._cfg = cfg
         self._data_dim = data_dim
-        self._device = device
 
     @abstractmethod
     def __call__(self, env: ManagerBasedEnv, data: torch.Tensor) -> torch.Tensor:

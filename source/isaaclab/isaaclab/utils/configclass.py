@@ -52,7 +52,8 @@ def configclass(cls, **kwargs):
 
     Fields declared with ``field(metadata={"copy": False})`` retain their supplied value by reference
     during construction, :func:`clone`, and :func:`replace`. Use this for borrowed native inputs that
-    must not be duplicated; ordinary configuration fields remain independently copied.
+    must not be duplicated. Ordinary fields are copied together so references shared between fields
+    remain shared within the new configuration.
 
     Usage:
 
@@ -142,7 +143,7 @@ def instantiate(cfg: Any, *args: Any, **kwargs: Any) -> Any:
 def replace(cfg: _ConfigT, /, **changes: Any) -> _ConfigT:
     """Copy a configuration with selected fields replaced.
 
-    Ordinary fields are independently copied by :func:`configclass`. Fields with
+    Ordinary fields are copied together by :func:`configclass`. Fields with
     ``metadata={"copy": False}`` retain their supplied values by reference.
 
     Args:
@@ -208,7 +209,7 @@ def _field_module_dir(obj: Any, key: str | None = None) -> str | None:
     return module_name.rsplit(".", 1)[0] if "." in module_name else (module_name or None)
 
 
-def _wrap_resolvable_strings(value: Any, module_dir: str | None = None, _seen: set[int] | None = None) -> Any:
+def _wrap_resolvable_strings(value: Any, module_dir: str | None = None, _memo: dict[int, Any] | None = None) -> Any:
     """Recursively wrap callable-like strings with :class:`ResolvableString`."""
     if isinstance(value, str) and (_CALLABLE_STR_RE.match(value) or _CALLABLE_STR_WITH_DIR_RE.match(value)):
         if "{DIR}" in value:
@@ -219,29 +220,32 @@ def _wrap_resolvable_strings(value: Any, module_dir: str | None = None, _seen: s
     is_dataclass_instance = hasattr(value, "__dataclass_fields__") and hasattr(value, "__dict__")
     is_container = isinstance(value, (list, tuple, dict))
     if is_dataclass_instance or is_container:
-        if _seen is None:
-            _seen = set()
+        if _memo is None:
+            _memo = {}
         value_id = id(value)
-        if value_id in _seen:
-            return value
-        _seen.add(value_id)
+        if value_id in _memo:
+            return _memo[value_id]
+        _memo[value_id] = value
     # containers are rebuilt only when one of their items was wrapped, so untouched values keep their identity
     if isinstance(value, (list, tuple)):
-        wrapped = [_wrap_resolvable_strings(item, module_dir=module_dir, _seen=_seen) for item in value]
+        wrapped = [_wrap_resolvable_strings(item, module_dir=module_dir, _memo=_memo) for item in value]
         if all(new_item is old_item for new_item, old_item in zip(wrapped, value)):
             return value
-        return wrapped if isinstance(value, list) else tuple(wrapped)
+        result = wrapped if isinstance(value, list) else tuple(wrapped)
+        _memo[value_id] = result
+        return result
     if isinstance(value, dict):
         wrapped = {
-            key: _wrap_resolvable_strings(item, module_dir=module_dir, _seen=_seen) for key, item in value.items()
+            key: _wrap_resolvable_strings(item, module_dir=module_dir, _memo=_memo) for key, item in value.items()
         }
         if all(wrapped[key] is value[key] for key in value):
             return value
+        _memo[value_id] = wrapped
         return wrapped
     if is_dataclass_instance:
         for key, item in value.__dict__.items():
             nested_module_dir = _field_module_dir(value, key)
-            wrapped = _wrap_resolvable_strings(item, module_dir=nested_module_dir, _seen=_seen)
+            wrapped = _wrap_resolvable_strings(item, module_dir=nested_module_dir, _memo=_memo)
             # Immutable value dataclasses need no mutation when none of their fields resolve.
             if wrapped is not item:
                 setattr(value, key, wrapped)
@@ -484,13 +488,15 @@ def _process_mutable_types(cls):
 
 
 def _custom_post_init(obj):
-    """Deepcopy all elements to avoid shared memory issues for mutable objects in dataclasses initialization.
+    """Deepcopy mutable elements while preserving references shared between fields.
 
     This function is called explicitly instead of as a part of :func:`_process_mutable_types()` to prevent mapping
     proxy type i.e. a read only proxy for mapping objects. The error is thrown when using hierarchical data-classes
     for configuration.
     """
     borrowed = {name for name, field in obj.__dataclass_fields__.items() if field.metadata.get("copy") is False}
+    memo = {}
+    wrapped = {}
     for key in dir(obj):
         # skip dunder members
         if key.startswith("__") or key in borrowed:
@@ -501,8 +507,10 @@ def _custom_post_init(obj):
         ann = obj.__class__.__dict__.get(key)
         # duplicate data members that are mutable
         if not callable(value) and not isinstance(ann, property):
-            copied_value = deepcopy(value)
-            setattr(obj, key, _wrap_resolvable_strings(copied_value, module_dir=_field_module_dir(obj, key)))
+            copied_value = deepcopy(value, memo)
+            setattr(
+                obj, key, _wrap_resolvable_strings(copied_value, module_dir=_field_module_dir(obj, key), _memo=wrapped)
+            )
 
 
 def _combined_function(f1: Callable, f2: Callable) -> Callable:

@@ -7,15 +7,13 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING
 
 import torch
 import warp as wp
 
 from isaaclab import sim as sim_utils
-from isaaclab.managers import SceneEntityCfg
-from isaaclab.utils import configclass
-from isaaclab.utils.modifiers import ModifierBase, ModifierCfg
+from isaaclab.utils.modifiers import ModifierBase
 
 from .cfg import PpispCfg, PpispDiscoveryMode, resolve_and_normalize
 from .pipeline import PpispPipeline
@@ -24,20 +22,35 @@ if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
     from isaaclab.sensors import Camera
 
+    from .modifier_cfg import PpispModifierCfg
+
 
 class PpispModifier(ModifierBase):
     """Apply PPISP once per published camera image and return the selected color output."""
 
-    borrows_input = True
+    @staticmethod
+    def prepare_scene(cfg: PpispModifierCfg, env: ManagerBasedEnv) -> None:
+        """Resolve USD settings and request render inputs before camera initialization."""
+        camera = env.scene[cfg.sensor_cfg.name] if cfg.input_source == "camera" else None
+        camera_path = None
+        if camera is not None and isinstance(cfg.isp_cfg, PpispDiscoveryMode):
+            camera_path = next(
+                (str(prim.GetPath()) for prim in sim_utils.find_matching_prims(camera.cfg.prim_path, env.sim.stage)),
+                None,
+            )
+        cfg.isp_cfg = resolve_and_normalize(cfg.isp_cfg, env.sim.stage, camera_path)
+        if cfg.isp_cfg is None and camera is not None:
+            camera.request_render_inputs((cfg.output,))
+        elif camera is not None:
+            camera.request_render_inputs(("rgb_radiance",))
 
-    def __init__(self, cfg: PpispModifierCfg, data_dim: tuple[int, ...], device: str, *, env: ManagerBasedEnv):
-        super().__init__(cfg, data_dim, device, env=env)
-        self._camera: Camera = env.scene[cfg.sensor_cfg.name]
+    def __init__(self, cfg: PpispModifierCfg, data_dim: tuple[int, ...], *, env: ManagerBasedEnv):
+        super().__init__(cfg, data_dim, env=env)
+        self._camera: Camera | None = env.scene[cfg.sensor_cfg.name] if cfg.input_source == "camera" else None
         self._pipeline: PpispPipeline | None = None
         self._rgba: wp.array | None = None
         self._last_capture: object | None = None
         self._cached: torch.Tensor | None = None
-        self._radiance: torch.Tensor | None = None
         self._normalized: torch.Tensor | None = None
         self._closed = False
 
@@ -50,49 +63,34 @@ class PpispModifier(ModifierBase):
     def __call__(self, env: ManagerBasedEnv, data: torch.Tensor) -> torch.Tensor:
         if self._closed:
             raise RuntimeError("Cannot read a closed PPISP modifier.")
-        camera = self._camera
         if self._cfg.isp_cfg is None:
-            image = camera.render_outputs[self._cfg.output].torch
-            return self._format_output(image)
+            return self._format_output(data)
         if self._pipeline is None:
             if not isinstance(self._cfg.isp_cfg, PpispCfg):
-                raise RuntimeError("Call PpispModifierCfg.prepare_scene before simulation reset.")
+                raise RuntimeError("Call PpispModifier.prepare_scene before simulation reset.")
             self._pipeline = PpispPipeline(self._cfg.isp_cfg)
-        if self._cfg.input_source == "previous":
-            radiance = data
-        else:
-            radiance = camera.render_outputs["rgb_radiance"].torch
+        radiance = data
         if radiance.ndim != 4 or radiance.shape[-1] != 3 or radiance.dtype != torch.float32:
             raise ValueError("PPISP requires NHWC float32 rgb_radiance with three channels.")
-        if radiance.device != torch.device(self._device):
-            raise ValueError(f"PPISP radiance is on {radiance.device}, expected {self._device}.")
-        same_radiance = self._radiance is not None and radiance.data_ptr() == self._radiance.data_ptr()
-        if self._radiance is not None and self._cfg.input_source == "camera" and not same_radiance:
-            raise RuntimeError("Camera render buffers were recreated. Recreate the PPISP modifier to rebind them.")
-        if self._radiance is not None and radiance.shape != self._radiance.shape:
+        if radiance.device != torch.device(env.device):
+            raise ValueError(f"PPISP radiance is on {radiance.device}, expected {env.device}.")
+        if self._rgba is not None and radiance.shape[:-1] != self._rgba.shape[:-1]:
             raise ValueError("PPISP radiance shape changed after output buffers were allocated.")
-        self._radiance = radiance
         capture = None
-        if self._cfg.input_source == "camera":
+        if self._camera is not None:
             capture = next(
                 (
                     info["capture"]["frame"]
-                    for info in camera.data.info.values()
+                    for info in self._camera.data.info.values()
                     if isinstance(info, dict) and "frame" in info.get("capture", {})
                 ),
                 None,
             )
-        if (
-            self._cfg.input_source == "camera"
-            and self._cached is not None
-            and capture is not None
-            and capture is self._last_capture
-            and same_radiance
-        ):
+        if self._cached is not None and capture is not None and capture is self._last_capture:
             return self._cached
         if self._rgba is None:
-            self._rgba = wp.empty((*radiance.shape[:-1], 4), dtype=wp.uint8, device=self._device)
-        stream = wp.stream_from_torch(torch.cuda.current_stream(self._device)) if radiance.is_cuda else None
+            self._rgba = wp.empty((*radiance.shape[:-1], 4), dtype=wp.uint8, device=env.device)
+        stream = wp.stream_from_torch(torch.cuda.current_stream(env.device)) if radiance.is_cuda else None
         with wp.ScopedStream(stream, sync_enter=True, sync_exit=True):
             hdr = wp.from_torch(radiance, dtype=wp.float32)
             self._pipeline.apply(hdr, self._rgba)
@@ -122,32 +120,13 @@ class PpispModifier(ModifierBase):
         self._rgba = None
         self._last_capture = None
         self._cached = None
-        self._radiance = self._normalized = None
+        self._normalized = None
 
 
-@configclass
-class PpispModifierCfg(ModifierCfg):
-    """Configure PPISP in :attr:`ObservationTermCfg.modifiers`."""
-
-    func: type[PpispModifier] = PpispModifier
-    sensor_cfg: SceneEntityCfg = SceneEntityCfg("camera")
-    isp_cfg: PpispCfg | PpispDiscoveryMode | None = PpispDiscoveryMode.AUTO_CAMERA
-    output: Literal["rgb", "rgba"] = "rgb"
-    input_source: Literal["camera", "previous"] = "camera"
-    normalize: bool = False
-    permute: bool = False
-
-    def prepare_scene(self, env: ManagerBasedEnv) -> None:
-        """Resolve USD settings and request private radiance before camera initialization."""
-        camera = env.scene[self.sensor_cfg.name]
-        camera_path = None
-        if isinstance(self.isp_cfg, PpispDiscoveryMode):
-            camera_path = next(
-                (str(prim.GetPath()) for prim in sim_utils.find_matching_prims(camera.cfg.prim_path, env.sim.stage)),
-                None,
-            )
-        self.isp_cfg = resolve_and_normalize(self.isp_cfg, env.sim.stage, camera_path)
-        if self.isp_cfg is None:
-            camera.request_render_inputs((self.output,))
-        elif self.input_source == "camera":
-            camera.request_render_inputs(("rgb_radiance",))
+def ppisp_camera_input(env: ManagerBasedEnv, modifier_cfg: PpispModifierCfg) -> torch.Tensor:
+    """Read the render buffer selected by a PPISP modifier's prepared configuration."""
+    if isinstance(modifier_cfg.isp_cfg, PpispDiscoveryMode):
+        raise RuntimeError("Call PpispModifier.prepare_scene before reading its camera input.")
+    camera = env.scene[modifier_cfg.sensor_cfg.name]
+    data_type = "rgb_radiance" if modifier_cfg.isp_cfg is not None else modifier_cfg.output
+    return camera.render_outputs[data_type].torch

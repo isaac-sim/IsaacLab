@@ -1,1 +1,2 @@
-* **Breaking:** Passed ``env`` to observation modifier functions on each call and to class modifiers during construction. Custom modifiers should accept ``(env, data, ...)``; class constructors should accept ``env`` as a keyword argument alongside ``cfg``, ``data_dim``, and ``device``.
+* **Breaking:** Passed ``env`` to observation modifier functions on each call and to class modifiers during construction. Custom modifiers should accept ``(env, data, ...)``; class constructors should accept ``(cfg, data_dim, *, env)`` and derive the device from ``env.device``.
+* Preserve references shared between fields when copying a ``configclass`` instance, while still isolating the copy from its source.

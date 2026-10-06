@@ -68,7 +68,7 @@ Manager Base
 .. autoclass:: ManagerTermBase
     :members:
 
-Observation modifier configurations can implement ``prepare_scene(env)`` to request scene inputs
+Observation modifier classes can implement ``prepare_scene(cfg, env)`` to request scene inputs
 after spawning and prestartup events, before simulation reset. Stateful modifiers are constructed
 after startup and can implement ``close()`` to release resources. See :ref:`camera-post-processing`
 for image processing that uses this lifecycle.

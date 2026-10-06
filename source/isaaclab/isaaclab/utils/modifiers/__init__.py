@@ -28,7 +28,7 @@ Usage with a function modifier:
     cfg = modifiers.ModifierCfg(func=modifiers.clip, params={"bounds": (0.0, torch.inf)})
 
     # apply the modifier
-    my_modified_tensor = cfg.func(my_tensor, cfg)
+    my_modified_tensor = cfg.func(env, my_tensor, **cfg.params)
 
 
 Usage with a class modifier:
@@ -46,10 +46,10 @@ Usage with a class modifier:
     cfg = modifiers.DigitalFilterCfg(A=[0.0], B=[0.0, 1.0])
 
     # create the modifier instance
-    my_modifier = modifiers.DigitalFilter(cfg, my_tensor.shape, "cuda")
+    my_modifier = modifiers.DigitalFilter(cfg, my_tensor.shape, env=env)
 
     # apply the modifier as a callable object
-    my_modified_tensor = my_modifier(my_tensor)
+    my_modified_tensor = my_modifier(env, my_tensor)
 
 """
 

@@ -310,24 +310,23 @@ camera, producing uint8 ``rgb`` and ``rgba``. Add it to an image observation's m
 
 .. code-block:: python
 
-   from isaaclab.envs import mdp
    from isaaclab.managers import ObservationTermCfg, SceneEntityCfg
-   from isaaclab_ppisp import PpispCfg, PpispModifierCfg
+   from isaaclab_ppisp import PpispCfg, PpispModifierCfg, ppisp_camera_input
 
+   ppisp = PpispModifierCfg(sensor_cfg=SceneEntityCfg("front_camera"),
+                            isp_cfg=PpispCfg(inputs={"exposureOffset": 1.5}))
    camera_image = ObservationTermCfg(
-       func=mdp.image_rgb,
-       params={"sensor_cfg": SceneEntityCfg("front_camera"), "normalize": False},
-       modifiers=[PpispModifierCfg(
-           sensor_cfg=SceneEntityCfg("front_camera"),
-           isp_cfg=PpispCfg(inputs={"exposureOffset": 1.5}),
-       )],
+       func=ppisp_camera_input,
+       params={"modifier_cfg": ppisp},
+       modifiers=[ppisp],
    )
 
 The modifier discovers USD ``ppisp:*`` attributes during observation preparation, before simulation
 reset, and requests private ``rgb_radiance`` from the camera when needed. ``AUTO_CAMERA`` reads the
 first matching camera prim; ``AUTO_ANY`` also searches the stage. Discovery without a match passes
-through the camera's raw RGB/RGBA. With ``input_source="previous"``, an earlier modifier supplies
-scene-linear radiance as its output tensor; PPISP then makes no renderer request. Set ``output="rgba"``
+through the camera's raw RGB/RGBA. With ``input_source="previous"``, supply an observation source and
+earlier modifier that produce scene-linear radiance instead of using ``ppisp_camera_input``; PPISP then
+makes no renderer request. Set ``output="rgba"``
 to select RGBA, or use a separate observation term for each color output. Separate observation
 terms own separate PPISP buffers. ``normalize=True`` divides by 255 and subtracts the per-image spatial
 mean, and ``permute=True`` returns NCHW instead of NHWC.
@@ -337,9 +336,9 @@ the published frame object to reuse its result on repeated observation reads. De
 the frame metadata that belongs to their image. Partial environment resets reach the modifier through
 ``reset(env_ids)``; PPISP itself has no temporal state.
 
-For use outside observations, create ``PpispModifierCfg``, call ``prepare_scene(env)`` after camera
-spawning and before ``sim.reset()``, then construct ``cfg.func(cfg, image_shape, device, env=env)``. Call the
-modifier with ``(env, camera.data.output["rgb"].torch)``, read its returned tensor,
+For use outside observations, create ``PpispModifierCfg``, call ``cfg.func.prepare_scene(cfg, env)`` after camera
+spawning and before ``sim.reset()``, then construct ``cfg.func(cfg, image_shape, env=env)``. Call the
+modifier with ``(env, ppisp_camera_input(env, cfg))``, read its returned tensor,
 and call ``close()`` when done. The returned buffer is reused on a later capture; clone it if a caller
 must retain the previous image.
 

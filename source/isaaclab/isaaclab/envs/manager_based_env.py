@@ -14,7 +14,14 @@ from typing import Any
 import torch
 
 from ..app.loading_screen import report_activity
-from ..managers import ActionManager, EventManager, ObservationManager, RecorderManager
+from ..managers import (
+    ActionManager,
+    EventManager,
+    ObservationGroupCfg,
+    ObservationManager,
+    ObservationTermCfg,
+    RecorderManager,
+)
 from ..scene import InteractiveScene
 from ..sim import SimulationContext
 from ..sim.utils.stage import use_stage
@@ -124,12 +131,8 @@ class ManagerBasedEnv:
         try:
             self._init_sim()
         except Exception:
-            try:
-                if hasattr(self, "observation_manager"):
-                    self.observation_manager.close()
-            finally:
-                if created_sim:
-                    self.sim.clear_instance()
+            if created_sim:
+                self.sim.clear_instance()
             raise
         self._is_closed = False
 
@@ -191,7 +194,20 @@ class ManagerBasedEnv:
         if "prestartup" in self.event_manager.available_modes:
             self.event_manager.apply(mode="prestartup")
 
-        ObservationManager.prepare_scene(self.cfg.observations, self)
+        # Observation modifiers can request renderer inputs while the scene is authored but before reset.
+        groups = (
+            self.cfg.observations.values()
+            if isinstance(self.cfg.observations, dict)
+            else vars(self.cfg.observations).values()
+        )
+        for group in groups:
+            if isinstance(group, ObservationGroupCfg):
+                for term in vars(group).values():
+                    if isinstance(term, ObservationTermCfg):
+                        for modifier_cfg in term.modifiers or ():
+                            prepare_scene = getattr(modifier_cfg.func, "prepare_scene", None)
+                            if prepare_scene is not None:
+                                prepare_scene(modifier_cfg, self)
 
         self.video_recorders: list[VideoRecorder] = [VideoRecorder(cfg, self) for cfg in self.cfg.video_recorders]
 
@@ -597,36 +613,34 @@ class ManagerBasedEnv:
     def close(self):
         """Cleanup for the environment."""
         if not self._is_closed:
-            try:
-                self.observation_manager.close()
-            finally:
-                # Stop simulation first to allow physics to clean up properly
-                self.sim.stop()
+            self.observation_manager.close()
+            # Stop simulation first to allow physics to clean up properly
+            self.sim.stop()
 
-                # Drop cached observation tensors so they don't survive close via
-                # gymnasium's wrapper chain.
-                if isinstance(getattr(self, "obs_buf", None), dict):
-                    self.obs_buf.clear()
+            # Drop cached observation tensors so they don't survive close via
+            # gymnasium's wrapper chain.
+            if isinstance(getattr(self, "obs_buf", None), dict):
+                self.obs_buf.clear()
 
-                # flush any buffered video frames
-                for recorder in getattr(self, "video_recorders", []):
-                    recorder.close()
+            # flush any buffered video frames
+            for recorder in getattr(self, "video_recorders", []):
+                recorder.close()
 
-                # destructor is order-sensitive
-                del self.action_manager
-                del self.observation_manager
-                del self.event_manager
-                del self.recorder_manager
-                del self.scene
+            # destructor is order-sensitive
+            del self.action_manager
+            del self.observation_manager
+            del self.event_manager
+            del self.recorder_manager
+            del self.scene
 
-                # clear callbacks and instance
-                self.sim.clear_instance()
+            # clear callbacks and instance
+            self.sim.clear_instance()
 
-                # destroy the window
-                if self._window is not None:
-                    self._window = None
-                # update closing status
-                self._is_closed = True
+            # destroy the window
+            if self._window is not None:
+                self._window = None
+            # update closing status
+            self._is_closed = True
 
     """
     Helper functions.
