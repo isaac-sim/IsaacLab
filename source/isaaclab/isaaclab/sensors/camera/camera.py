@@ -718,8 +718,8 @@ class Camera(SensorBase):
         render_spec = self._prepare_rendering()
         if render_spec.num_instances != self._num_envs:
             raise RuntimeError(
-                f"Prepared camera view count ({render_spec.num_instances}) does not match"
-                f" the initialized environment count ({self._num_envs})."
+                f"Number of prepared camera prims ({render_spec.num_instances}) does not match"
+                f" the number of environments ({self._num_envs})."
             )
         cam_paths = render_spec.camera_prim_paths
 
