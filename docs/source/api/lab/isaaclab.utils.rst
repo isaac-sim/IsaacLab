@@ -169,7 +169,7 @@ String operations
 Image composition
 ~~~~~~~~~~~~~~~~~
 
-.. automodule:: isaaclab.utils.image_view
+.. automodule:: isaaclab.utils.image_composition
    :members:
 
 Timer operations

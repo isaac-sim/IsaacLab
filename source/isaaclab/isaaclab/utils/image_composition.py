@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Plan image layouts on the host and compose published pixels on their device."""
+"""Prepare image composition parameters on the host and compose pixels on their device."""
 
 from __future__ import annotations
 
@@ -16,14 +16,18 @@ import warp as wp
 
 
 @dataclass(frozen=True)
-class ImageViewPlan:
-    """Resolved selection, layout, and color mapping; no camera or renderer references."""
+class ImageCompositionParams:
+    """Cached grid dimensions, channel modes, and device arrays for tiled image composition.
+
+    Created by :func:`prepare_image_composition` and reused by :func:`compose_image`.
+    The caller owns the output image and rebuilds these parameters when display settings or source layout change.
+    """
 
     env_ids: wp.array
-    modes: tuple[int, ...]
-    layout: tuple[tuple, ...]
+    channel_modes: tuple[int, ...]
+    source_layout: tuple[tuple, ...]
     columns: int
-    shape: tuple[int, int, int]
+    output_shape: tuple[int, int, int]
     depth_min: float
     depth_span: float
     depth_colors: wp.array
@@ -44,7 +48,7 @@ def image_grid_columns(n_envs: int, n_gt: int, height: int, width: int, target_a
     return best_cols
 
 
-def compile_image_view(
+def prepare_image_composition(
     sources: tuple[wp.array, ...],
     gt_types: tuple[str, ...],
     env_ids: list[int],
@@ -52,8 +56,8 @@ def compile_image_view(
     target_aspect: float = 1.0,
     depth_min: float = 0.1,
     depth_max: float = 10.0,
-) -> ImageViewPlan:
-    """Resolve a view using array metadata, uploading indices and color tables once.
+) -> ImageCompositionParams:
+    """Prepare grid dimensions and channel modes, uploading indices and color tables once.
 
     Args:
         sources: Published arrays of shape [N, H, W, C], all on the same device.
@@ -64,10 +68,11 @@ def compile_image_view(
         depth_max: Far end of the depth color scale [m].
 
     Returns:
-        Plan for an opaque uint8 RGBA image. Recompile when selection, layout, or color settings change.
+        Cached parameters for composing an opaque uint8 RGBA image.
+        Prepare them again when selection, source layout, or color settings change.
     """
     if not sources or len(sources) != len(gt_types) or not env_ids:
-        raise ValueError("An image view requires matching sources and channels and at least one selected row.")
+        raise ValueError("Image composition requires matching sources and channels and at least one selected row.")
     for source, gt in zip(sources, gt_types, strict=True):
         channels = 3 if gt in ("rgb", "normals") else 1
         if source.ndim != 4 or min(source.shape) < 1 or source.shape[3] < channels:
@@ -86,12 +91,12 @@ def compile_image_view(
         from matplotlib import colormaps
 
         colors = (colormaps["turbo"](np.arange(256) / 255.0)[..., :3] * 255).astype(np.uint8)
-    return ImageViewPlan(
+    return ImageCompositionParams(
         env_ids=wp.array(env_ids, dtype=wp.int32, device=device),
-        modes=modes,
-        layout=tuple((source.shape, source.dtype, source.device) for source in sources),
+        channel_modes=modes,
+        source_layout=tuple((source.shape, source.dtype, source.device) for source in sources),
         columns=columns,
-        shape=(rows * height, columns * len(sources) * width, 4),
+        output_shape=(rows * height, columns * len(sources) * width, 4),
         depth_min=depth_min,
         depth_span=max(depth_max - depth_min, 1e-6),
         depth_colors=wp.array(colors, dtype=wp.uint8, device=device),
@@ -164,34 +169,34 @@ def _compose_image_channel(
     output[dst_y, dst_x, 3] = wp.uint8(255)
 
 
-def compose_image_view(output: wp.array, sources: tuple[wp.array, ...], plan: ImageViewPlan) -> None:
+def compose_image(output: wp.array, sources: tuple[wp.array, ...], params: ImageCompositionParams) -> None:
     """Write selected, colorized tiles into caller-owned RGBA storage on the source device.
 
-    Arrays must match the compiled plan. This operation allocates no pixel buffers, reads no
+    Arrays must match the prepared parameters. This operation allocates no pixel buffers, reads no
     pixels on the host, and never accesses a camera or renderer. The caller owns stream ordering
     and must keep source and output storage alive until the queued kernels complete.
 
     Args:
-        output: Contiguous uint8 array with the plan's shape and device.
-        sources: Published channel arrays, in the order used to compile the plan.
-        plan: Resolved image layout and color settings.
+        output: Contiguous uint8 array with ``params.output_shape`` on the source device.
+        sources: Published channel arrays, in the order used to prepare the parameters.
+        params: Resolved image layout and color settings.
     """
     height, width = sources[0].shape[1:3]
-    tile_count = plan.shape[0] // height * plan.columns
-    for channel, (source, mode) in enumerate(zip(sources, plan.modes, strict=True)):
+    tile_count = params.output_shape[0] // height * params.columns
+    for channel, (source, mode) in enumerate(zip(sources, params.channel_modes, strict=True)):
         wp.launch(
             _compose_image_channel,
             dim=(tile_count, height, width),
             inputs=[
                 source,
-                plan.env_ids,
-                plan.depth_colors,
+                params.env_ids,
+                params.depth_colors,
                 mode,
                 channel,
                 len(sources),
-                plan.columns,
-                plan.depth_min,
-                plan.depth_span,
+                params.columns,
+                params.depth_min,
+                params.depth_span,
                 output,
             ],
             device=output.device,

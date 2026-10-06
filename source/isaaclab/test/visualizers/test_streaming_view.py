@@ -16,7 +16,7 @@ import warp as wp
 from isaaclab.envs.utils.camera_colorizer import CameraFrameColorizer, sensor_key_for_gt_type, sensor_keys_for_gt_types
 from isaaclab.envs.utils.camera_view import compose_streaming_grid
 from isaaclab.test.utils import DeviceScope, test_devices
-from isaaclab.utils.image_view import compile_image_view, compose_image_view
+from isaaclab.utils.image_composition import compose_image, prepare_image_composition
 
 
 def test_colorize_rgb_drops_alpha_channel():
@@ -107,9 +107,9 @@ def test_compose_grid_pixels_placed_correctly(envs, channels, aspect, columns, d
         for row, env in enumerate(selected):
             batch[env, ..., :3] = frames[row * channels + channel]
         sources.append(wp.array(batch, device=device))
-    plan = compile_image_view(tuple(sources), ("rgb",) * channels, selected, target_aspect=aspect)
-    output = wp.empty(plan.shape, dtype=wp.uint8, device=device)
-    compose_image_view(output, tuple(sources), plan)
+    params = prepare_image_composition(tuple(sources), ("rgb",) * channels, selected, target_aspect=aspect)
+    output = wp.empty(params.output_shape, dtype=wp.uint8, device=device)
+    compose_image(output, tuple(sources), params)
     np.testing.assert_array_equal(output.numpy()[..., :3], composite)
     assert np.all(output.numpy()[..., 3] == 255)
 
@@ -130,12 +130,12 @@ def test_device_colorization_matches_recording_and_reuses_storage(device, monkey
     packed = np.concatenate([ids % 256, (ids // 256) % 256, ids // 65536], axis=-1).astype(np.uint8)
     host = (rgb.cpu().numpy(), depth, normals, ids, packed)
     sources = (wp.from_torch(rgb), *(wp.array(array, device=device) for array in host[1:]))
-    # Reject an incompatible layout during planning, before a kernel can read past its channels.
+    # Reject an incompatible layout during preparation, before a kernel can read past its channels.
     with pytest.raises(ValueError, match="channels"):
-        compile_image_view((sources[1],), ("rgb",), [0])
+        prepare_image_composition((sources[1],), ("rgb",), [0])
     channels = ("rgb", "depth", "normals", "segmentation", "segmentation")
-    plan = compile_image_view(sources, channels, [1, 0])
-    output = wp.empty(plan.shape, dtype=wp.uint8, device=device)
+    params = prepare_image_composition(sources, channels, [1, 0])
+    output = wp.empty(params.output_shape, dtype=wp.uint8, device=device)
     pointer = output.ptr
     for _ in range(2):
         with monkeypatch.context() as execution:
@@ -146,7 +146,7 @@ def test_device_colorization_matches_recording_and_reuses_storage(device, monkey
             execution.setattr(wp.array, "numpy", forbidden)
             execution.setattr(torch.Tensor, "cpu", forbidden)
             execution.setattr(wp, "empty", forbidden)
-            compose_image_view(output, sources, plan)
+            compose_image(output, sources, params)
         frames = [CameraFrameColorizer.colorize(array[env], gt) for env in (1, 0) for array, gt in zip(host, channels)]
         expected = compose_streaming_grid(frames, 2, len(channels))
         np.testing.assert_array_equal(output.numpy()[..., :3], expected)

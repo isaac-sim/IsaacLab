@@ -17,7 +17,7 @@ import torch
 import warp as wp
 
 from ...cloner.cloner_cfg import DEFAULT_ENV_TEMPLATE, expand_env_regex_ns
-from ...utils.image_view import image_grid_columns
+from ...utils.image_composition import image_grid_columns
 from ...visualizers.visualizer_cfg import PerspectiveCameraCfg, SceneCameraCfg
 from .camera_colorizer import sensor_key_for_gt_type
 

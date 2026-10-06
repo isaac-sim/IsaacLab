@@ -24,7 +24,7 @@ from ..envs.utils.camera_colorizer import sensor_key_for_gt_type
 from ..envs.utils.camera_view import resolve_streaming_envs
 from ..utils import validate
 from ..utils.buffers import TimestampedBuffer
-from ..utils.image_view import ImageViewPlan, compile_image_view, compose_image_view
+from ..utils.image_composition import ImageCompositionParams, compose_image, prepare_image_composition
 from .visualizer_cfg import PerspectiveCameraCfg
 
 if TYPE_CHECKING:
@@ -74,7 +74,7 @@ class BaseVisualizer(ABC):
         self._streaming_aspect = 1.0
         self._streaming_frame = TimestampedBuffer()
         self._streaming_host_frame = TimestampedBuffer()
-        self._streaming_plan: ImageViewPlan | None = None
+        self._streaming_params: ImageCompositionParams | None = None
         self._streaming_view_key: tuple | None = None
         self._streaming_keys: tuple[str, ...] = ()
 
@@ -144,7 +144,7 @@ class BaseVisualizer(ABC):
         if view_key != self._streaming_view_key:
             available = frozenset(camera.cfg.data_types)
             self._streaming_keys = tuple(sensor_key_for_gt_type(gt, available) for gt in gt_types)
-            self._streaming_plan = None
+            self._streaming_params = None
             self._streaming_view_key = view_key
             frame.timestamp = -1.0
         if frame.timestamp == self._sim_time:
@@ -153,8 +153,8 @@ class BaseVisualizer(ABC):
         outputs = camera.data.output
         sources = tuple(outputs[key].warp for key in self._streaming_keys)
         layout = tuple((source.shape, source.dtype, source.device) for source in sources)
-        if self._streaming_plan is None or self._streaming_plan.layout != layout:
-            self._streaming_plan = compile_image_view(
+        if self._streaming_params is None or self._streaming_params.source_layout != layout:
+            self._streaming_params = prepare_image_composition(
                 sources,
                 gt_types,
                 env_ids,
@@ -162,8 +162,8 @@ class BaseVisualizer(ABC):
                 depth_min=depth_min,
                 depth_max=depth_max,
             )
-            frame.data = wp.empty(self._streaming_plan.shape, dtype=wp.uint8, device=sources[0].device)
-        compose_image_view(frame.data, sources, self._streaming_plan)
+            frame.data = wp.empty(self._streaming_params.output_shape, dtype=wp.uint8, device=sources[0].device)
+        compose_image(frame.data, sources, self._streaming_params)
         frame.timestamp = self._sim_time
         self._streaming_host_frame.timestamp = -1.0
         return frame.data
@@ -202,7 +202,7 @@ class BaseVisualizer(ABC):
         self._camera_choices.clear()
         self._streaming_frame = TimestampedBuffer()
         self._streaming_host_frame = TimestampedBuffer()
-        self._streaming_plan = self._streaming_view_key = None
+        self._streaming_params = self._streaming_view_key = None
         self._streaming_keys = ()
         self._scene_data_provider = self._scene_stage = None
         self._is_closed = True
