@@ -447,7 +447,7 @@ isaaclab = { path = "source/isaaclab", editable = true }
 "isaaclab-teleop" = { path = "source/isaaclab_teleop", editable = true }
 "isaaclab-visualizers" = { path = "source/isaaclab_visualizers", editable = true }
 # Draft-only: FeatherPGS is not in a Newton release yet.
-newton = { git = "https://github.com/dylanturpin/newton-collab.git", rev = "eeb2cb08a48d5b8ac86ac60ec4bf7aaa6b10d04a" }
+newton = { git = "https://github.com/dylanturpin/newton-collab.git", rev = "37ce4d5fd7d5399a6512dcfe0796e1dbf7b136ea" }
 torch = { index = "pytorch-cu130" }
 torchaudio = { index = "pytorch-cu130" }
 torchvision = { index = "pytorch-cu130" }
