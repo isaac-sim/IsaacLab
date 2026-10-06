@@ -97,7 +97,7 @@ def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
 
 @pytest.fixture(autouse=True)
 def _simulation_registry(monkeypatch):
-    sim = types.SimpleNamespace(_backend_registry=[])
+    sim = types.SimpleNamespace(_backend_registry=[], device="cpu")
     sim.get_scene_data_provider = lambda: types.SimpleNamespace(
         backend=types.SimpleNamespace(transform_paths=[]), get_geometry_points=lambda: {}
     )
@@ -106,8 +106,10 @@ def _simulation_registry(monkeypatch):
     monkeypatch.setattr(SimulationContext, "_instance", sim)
 
 
-@pytest.mark.parametrize("use_ovstage", [False, True])
-def test_ovrtx_renderer_config_enables_supported_runtime_options(monkeypatch, tmp_path, use_ovstage):
+@pytest.mark.parametrize(("use_ovstage", "device", "active_cuda_gpus"), [(False, "cpu", None), (True, "cuda:1", "1")])
+def test_ovrtx_renderer_config_enables_supported_runtime_options(
+    monkeypatch, tmp_path, use_ovstage, device, active_cuda_gpus
+):
     """Equal cfgs share one native resource; closing borrowers leaves it owned by the registry."""
     config_kwargs: dict[str, object] = {}
     destroyed, redirected = [], []
@@ -133,6 +135,12 @@ def test_ovrtx_renderer_config_enables_supported_runtime_options(monkeypatch, tm
     monkeypatch.setattr(ovrtx_renderer_module, "ovrtx_use_ovstage_enabled", lambda: use_ovstage)
     monkeypatch.setattr(ovrtx_renderer_module, "create_ovstage", lambda _name: contextlib.nullcontext(object()))
     monkeypatch.setattr(ovrtx_renderer_module.ovstage, "PathDictionary", lambda _: contextlib.nullcontext(object()))
+    SimulationContext.instance().device = device
+    devices = {
+        "cpu": types.SimpleNamespace(is_cuda=False),
+        "cuda:1": types.SimpleNamespace(is_cuda=True, ordinal=1),
+    }
+    monkeypatch.setattr(ovrtx_renderer_module.wp, "get_device", devices.__getitem__)
 
     renderer = OVRTXRenderer(OVRTXRendererCfg())
     shared = OVRTXRenderer(renderer.cfg)
@@ -141,6 +149,7 @@ def test_ovrtx_renderer_config_enables_supported_runtime_options(monkeypatch, tm
     assert loaded == [str(dependency)]
     assert len(redirected) == 1
     assert renderer.backend.renderer is not None
+    assert config_kwargs.get("active_cuda_gpus") == active_cuda_gpus
     assert config_kwargs["suppress_deprecation_warnings"] is True
     assert config_kwargs["texture_streaming_mode"] is ovrtx_renderer_module.TextureStreamingMode.SYNCHRONOUS
     assert len(SimulationContext.instance()._backend_registry) == 1
@@ -268,6 +277,7 @@ def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, use_ovstag
 
     if not torch.cuda.is_available():
         pytest.skip("OVRTX rendering requires CUDA")
+    SimulationContext.instance().device = "cuda:0"
     monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", str(int(use_ovstage)))
     stage = Usd.Stage.CreateInMemory()
     UsdGeom.SetStageUpAxis(stage, UsdGeom.Tokens.z)

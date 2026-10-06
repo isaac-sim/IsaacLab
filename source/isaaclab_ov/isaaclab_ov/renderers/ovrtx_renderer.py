@@ -281,7 +281,10 @@ class OVRTXBackend:
         if dependency.exists():
             with contextlib.suppress(OSError):
                 ctypes.CDLL(str(dependency))
+        # Select the simulation's CUDA device for rendering, matching Kit's ``activeCudaGpus`` setting.
+        sim_device = wp.get_device(SimulationContext.instance().device)
         native_cfg = RendererConfig(
+            active_cuda_gpus=str(sim_device.ordinal) if sim_device.is_cuda else None,
             log_file_path=cfg.renderer_cfg.log_file_path,
             log_level=cfg.renderer_cfg.log_level,
             read_gpu_transforms=cfg.read_gpu_transforms,
