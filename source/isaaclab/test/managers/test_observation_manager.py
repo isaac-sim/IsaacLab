@@ -721,11 +721,12 @@ def test_observation_modifiers_have_one_processing_owner():
 
     sensors = Path(__file__).parents[2] / "isaaclab" / "sensors"
     assert not list((sensors / "post_processing").glob("*.py"))
-    from isaaclab.envs import mdp
+    from isaaclab.envs import ManagerBasedEnv, mdp
 
     assert not hasattr(mdp, "processed_image")
     assert not hasattr(ManagerTermBase, "prepare_scene")
     assert not hasattr(ManagerTermBase, "close")
+    assert not hasattr(ManagerBasedEnv, "_close_observation_terms")
     assert not hasattr(modifiers, "ModifierOutput")
     from isaaclab.utils.modifiers import modifier as modifier_module
 

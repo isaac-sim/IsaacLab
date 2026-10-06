@@ -125,11 +125,11 @@ class ManagerBasedEnv:
             self._init_sim()
         except Exception:
             try:
-                self._close_observation_terms()
-            except Exception:
-                logger.exception("Failed to close observation terms after environment initialization failed.")
-            if created_sim:
-                self.sim.clear_instance()
+                if hasattr(self, "observation_manager"):
+                    self.observation_manager.close()
+            finally:
+                if created_sim:
+                    self.sim.clear_instance()
             raise
         self._is_closed = False
 
@@ -597,46 +597,36 @@ class ManagerBasedEnv:
     def close(self):
         """Cleanup for the environment."""
         if not self._is_closed:
-            close_error = None
             try:
-                self._close_observation_terms()
-            except Exception as exc:
-                close_error = exc
-            # Stop simulation first to allow physics to clean up properly
-            self.sim.stop()
+                self.observation_manager.close()
+            finally:
+                # Stop simulation first to allow physics to clean up properly
+                self.sim.stop()
 
-            # Drop cached observation tensors so they don't survive close via
-            # gymnasium's wrapper chain.
-            if isinstance(getattr(self, "obs_buf", None), dict):
-                self.obs_buf.clear()
+                # Drop cached observation tensors so they don't survive close via
+                # gymnasium's wrapper chain.
+                if isinstance(getattr(self, "obs_buf", None), dict):
+                    self.obs_buf.clear()
 
-            # flush any buffered video frames
-            for recorder in getattr(self, "video_recorders", []):
-                recorder.close()
+                # flush any buffered video frames
+                for recorder in getattr(self, "video_recorders", []):
+                    recorder.close()
 
-            # destructor is order-sensitive
-            del self.action_manager
-            del self.observation_manager
-            del self.event_manager
-            del self.recorder_manager
-            del self.scene
+                # destructor is order-sensitive
+                del self.action_manager
+                del self.observation_manager
+                del self.event_manager
+                del self.recorder_manager
+                del self.scene
 
-            # clear callbacks and instance
-            self.sim.clear_instance()
+                # clear callbacks and instance
+                self.sim.clear_instance()
 
-            # destroy the window
-            if self._window is not None:
-                self._window = None
-            # update closing status
-            self._is_closed = True
-            if close_error is not None:
-                raise close_error
-
-    def _close_observation_terms(self) -> None:
-        """Close observation terms and modifiers while their scene inputs remain available."""
-        manager = getattr(self, "observation_manager", None)
-        if manager is not None:
-            manager.close()
+                # destroy the window
+                if self._window is not None:
+                    self._window = None
+                # update closing status
+                self._is_closed = True
 
     """
     Helper functions.
