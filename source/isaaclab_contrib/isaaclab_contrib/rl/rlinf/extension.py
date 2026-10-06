@@ -452,9 +452,16 @@ def _create_generic_env_wrapper(task_id: str) -> type:
             """
             super().__init__(cfg, num_envs, seed_offset, total_num_processes, worker_info)
 
+            self._hold_pose_on_midchunk_reset = _get_isaaclab_cfg().get("hold_pose_on_midchunk_reset", False)
+            self._chunk_done = None
+            self._hold_actions = None
+
         def _record_metrics(self, step_reward, terminations, infos):
             """Override to use terminations (task completion) for success_once."""
 
+            # RLinf may suppress terminations after this callback; Isaac Lab has already reset.
+            if self._chunk_done is not None:
+                self._chunk_done |= terminations
             episode_info = {}
             self.returns += step_reward
             self.success_once = self.success_once | terminations.bool()
@@ -464,6 +471,24 @@ def _create_generic_env_wrapper(task_id: str) -> type:
             episode_info["reward"] = episode_info["return"] / episode_info["episode_len"]
             infos["episode"] = episode_info
             return infos
+
+        def chunk_step(self, chunk_actions):
+            """Retire actions predicted for an episode once that episode has reset."""
+            if self._hold_pose_on_midchunk_reset:
+                self._chunk_done = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
+            result = super().chunk_step(chunk_actions)
+            self._chunk_done = self._hold_actions = None
+            return result
+
+        def step(self, actions=None, auto_reset=True):
+            """Hold reset joints until the next chunk supplies actions for the new episode."""
+            if self._chunk_done is not None and self._hold_actions is not None:
+                actions = torch.where(self._chunk_done[:, None], self._hold_actions.to(actions), actions)
+            obs, reward, terminated, truncated, info = super().step(actions, auto_reset)
+            if self._chunk_done is not None:
+                self._chunk_done |= truncated
+                self._hold_actions = obs["states"]
+            return obs, reward, terminated, truncated, info
 
         def _make_env_function(self) -> collections.abc.Callable:
             """Create the environment factory function.

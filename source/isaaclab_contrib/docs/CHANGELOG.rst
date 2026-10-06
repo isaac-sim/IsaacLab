@@ -3,6 +3,16 @@ Changelog
 
 .. towncrier release notes start
 
+4.0.1 (2026-10-05)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed stale action chunks driving freshly reset environments when
+  ``hold_pose_on_midchunk_reset`` was enabled for absolute joint-position policies.
+
+
 4.0.0 (2026-10-03)
 ~~~~~~~~~~~~~~~~~~
 
