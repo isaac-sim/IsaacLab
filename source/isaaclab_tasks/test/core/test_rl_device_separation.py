@@ -66,7 +66,7 @@ def _create_env(sim_device: str):
     # Reset the rtx sensors setting to False
     from isaaclab.app.settings_manager import get_settings_manager
 
-    get_settings_manager().set_bool("/isaaclab/render/rtx_sensors", False)
+    get_settings_manager().set("/isaaclab/render/rtx_sensors", False)
 
     try:
         env_cfg = parse_env_cfg(TEST_ENV, device=sim_device, num_envs=NUM_ENVS)

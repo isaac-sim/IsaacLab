@@ -260,15 +260,15 @@ class Camera(SensorBase):
             from ...app.settings_manager import get_settings_manager
 
             settings = get_settings_manager()
-            settings.set_bool("/isaaclab/render/rtx_sensors", True)
-            settings.set_bool("/physics/fabricUpdateTransformations", True)
+            settings.set("/isaaclab/render/rtx_sensors", True)
+            settings.set("/physics/fabricUpdateTransformations", True)
             if require_hdr_output:
-                settings.set_bool("/rtx/rtpt/gaussian/skipTonemapping/enabled", False)
+                settings.set("/rtx/rtpt/gaussian/skipTonemapping/enabled", False)
         elif renderer_type == "ovrtx" and require_hdr_output:
             from ...app.settings_manager import get_settings_manager
 
-            get_settings_manager().set_bool("/rtx/rtpt/gaussian/skipTonemapping/enabled", False)
-            # FIXME: settings set_bool is a no-op for ovrtx
+            get_settings_manager().set("/rtx/rtpt/gaussian/skipTonemapping/enabled", False)
+            # FIXME: settings.set is a no-op for ovrtx
             # warning only since it affects only ParticleField3DGaussianSplat scene
             logger.warning(
                 "OVRTX backend with PPISP/HDR requires /rtx/rtpt/gaussian/skipTonemapping/enabled to be false."
@@ -606,6 +606,11 @@ class Camera(SensorBase):
     def reset(self, env_ids: Sequence[int] | slice | None = None, env_mask: wp.array | None = None):
         if not self._is_initialized:
             raise RuntimeError("Camera could not be initialized. Check the renderer and simulation logs for details.")
+        # The hook takes plain id sequences, so a slice resolves to its range. A mask-only call
+        # passes None, which means all environments: the hook permits resetting more than asked.
+        if isinstance(env_ids, slice):
+            env_ids = range(*env_ids.indices(self._num_envs))
+        self._renderer.reset(self._render_data, env_ids)
         # reset the timestamps
         super().reset(env_ids, env_mask)
         # reset the data
@@ -704,6 +709,7 @@ class Camera(SensorBase):
             self._update_poses(env_mask=env_mask, frame_op=1)
         else:
             self._update_camera_state(env_mask=env_mask, frame_op=1)
+        self._renderer.prepare_capture(self._render_data, self._data, self._frame)
 
     def _update_buffers_impl(self, env_mask: wp.array):
         if not self._env_mask_has_any(env_mask):

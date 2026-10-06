@@ -1,6 +1,135 @@
 Changelog
 ---------
 
+.. towncrier release notes start
+
+7.4.4 (2026-10-06)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the ``--device`` default to ``cpu`` on macOS, which has no CUDA, so commands run without passing
+  ``--device cpu``. Other platforms still default to ``cuda:0``.
+
+
+7.4.3 (2026-10-03)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the contact sensor debug-visualization notice and the surface gripper stage-attribute fallbacks
+  to use ``logger.warning`` instead of ``warnings.warn``, since they report runtime conditions that the
+  caller cannot fix.
+* Changed :class:`~isaaclab_physx.app.KitLauncher` to reuse the console logging handlers from
+  ``isaaclab.app.logging_utils``, removing the stderr warning handler once Kit's log bridge is active.
+* Missing-runtime diagnostics direct users to uv installation and source-build launch commands.
+
+Fixed
+^^^^^
+
+* Fixed :meth:`~isaaclab_physx.assets.RigidObjectCollection.set_coms_index` and
+  :meth:`~isaaclab_physx.assets.RigidObjectCollection.set_coms_mask` raising a ``KeyError`` because the
+  center-of-mass poses were passed to the PhysX tensor API as ``wp.transformf`` instead of ``float32``.
+* Fixed :meth:`~isaaclab_physx.assets.RigidObjectCollection.set_coms_index` and
+  :meth:`~isaaclab_physx.assets.RigidObjectCollection.set_coms_mask` leaving the unselected entries of
+  :attr:`~isaaclab_physx.assets.RigidObjectCollectionData.body_com_pose_b` zeroed when they were called for a
+  subset of bodies or environments before the property was first read.
+* Fixed :meth:`~isaaclab_physx.assets.RigidObjectCollection.set_inertias_index` and
+  :meth:`~isaaclab_physx.assets.RigidObjectCollection.set_inertias_mask` failing in the PhysX backend because the
+  inertias were passed to the PhysX tensor API with the wrong layout.
+* Fixed inertia writes leaving cached center-of-mass poses and their derived states stale when PhysX
+  recomputed the principal-axis rotation.
+* Report the source-build launch hint without requiring the ``ISAACLAB_PATH`` environment variable.
+
+
+7.4.2 (2026-10-02)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* :class:`~isaaclab_physx.app.KitLauncher` reads whether the run has the Kit visualizer from the ``visualizer``
+  selection (``--visualizer kit``) instead of the removed ``kit_visualizer`` launcher argument.
+* **Breaking:** :class:`~isaaclab_physx.app.KitLauncher` no longer reads a ``headless`` launcher argument: it opens
+  a window exactly when ``--visualizer`` selects ``kit`` and neither ``HEADLESS=1`` nor livestreaming is set, so a
+  Kit visualizer only a video records from (``--video viz:kit``) runs headless. XR auto-starts under the same
+  rule, when ``--visualizer`` does not select ``kit``.
+
+Fixed
+^^^^^
+
+* Fixed frame-transformer path expressions that directly match a rigid body from also selecting
+  nested rigid-body descendants.
+* Added a PhysX warning and known-issues documentation for GPU articulation scenes that may hit the known solver
+  partition aliasing issue, and pointed users to ``PhysxCfg(gpu_max_num_partitions=1)`` as the workaround.
+
+
+7.4.1 (2026-10-01)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* :class:`~isaaclab_physx.app.KitLauncher` auto-starts XR only when the run has no Kit visualizer, whether it comes
+  from the config or ``--visualizer``, so a Kit visualizer declared in the config keeps its window with ``--xr``
+  instead of being forced headless.
+* Removed the per-frame channel-compacting copies for normals, motion vectors, HDR color, and
+  simple-shading outputs in :class:`~isaaclab_physx.renderers.IsaacRtxRenderer`.
+* Changed PhysX contact, PVA, and frame-transformer debug visualization to refresh outdated
+  sensor buffers before drawing.
+
+* Skipped the joint-limit clamping counter readback when its logging level is disabled and reused
+  the counter buffer across writes.
+
+Fixed
+^^^^^
+
+* Used resolved callable defaults when constructing manager terms instead of duplicating defaults in constructors.
+
+
+7.4.0 (2026-09-29)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :func:`~isaaclab_physx.renderers.isaac_rtx_renderer_utils.wait_for_stage_load` to run Kit app updates
+  until the USD stage has no assets left to load.
+* Added the PhysX deformable-body fragments :class:`~isaaclab_physx.sim.schemas.PhysxDeformableBodyCfg`
+  and :class:`~isaaclab_physx.sim.schemas.PhysxSurfaceDeformableBodyCfg`, covering the solver,
+  damping, and self-collision attributes from ``PhysxBaseDeformableBodyAPI`` and the
+  surface-only collision attributes from ``PhysxSurfaceDeformableBodyAPI``.
+* Added the PhysX deformable material fragments
+  :class:`~isaaclab_physx.sim.spawners.materials.PhysxDeformableMaterialCfg` and
+  :class:`~isaaclab_physx.sim.spawners.materials.PhysxSurfaceDeformableMaterialCfg`, authoring
+  ``physxDeformableMaterial:*`` attributes from ``PhysxDeformableMaterialAPI`` and
+  ``PhysxSurfaceDeformableMaterialAPI``.
+* Added :meth:`~isaaclab_physx.physics.PhysxManager.setup_deformable_body`, applying the
+  OmniPhysics deformable sim and body anchor APIs, rest state, and visual bind pose to a prepared
+  deformable mesh.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Renamed ``KitLauncher.add_app_launcher_args`` to
+  :meth:`~isaaclab_physx.app.KitLauncher.add_launcher_args`, matching :func:`~isaaclab.app.add_launcher_args`.
+  Replace the calls, or call :func:`~isaaclab.app.add_launcher_args`.
+
+Removed
+^^^^^^^
+
+* Removed ``isaaclab_physx.app.show_stage_in_viewport``. Preview a USD file by spawning it into a scene and
+  rendering it with the visualizer selected with ``--viz``, as the ``convert_*`` tools do.
+
+Fixed
+^^^^^
+
+* Prevented repeated Ctrl+C presses from interrupting Kit shutdown, restoring the previous signal
+  handler when shutdown returned.
+
+
 7.3.0 (2026-09-28)
 ~~~~~~~~~~~~~~~~~~
 

@@ -94,6 +94,7 @@ CURRENT_CORE_FRAGMENTS = [
     "UsdPhysicsCollisionCfg",
     "UsdPhysicsDriveCfg",
     "UsdPhysicsMeshCollisionCfg",
+    "OmniPhysicsDeformableBodyCfg",
 ]
 
 CURRENT_PHYSX_FRAGMENTS = [
@@ -106,6 +107,8 @@ CURRENT_PHYSX_FRAGMENTS = [
     "PhysxTriangleMeshCfg",
     "PhysxTriangleMeshSimplificationCfg",
     "PhysxSDFMeshCfg",
+    "PhysxDeformableBodyCfg",
+    "PhysxSurfaceDeformableBodyCfg",
 ]
 
 CURRENT_NEWTON_FRAGMENTS = [

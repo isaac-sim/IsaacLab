@@ -222,9 +222,6 @@ contain a ``UsdGeom.TetMesh``, Isaac Lab generates one, which requires the optio
 
     uv sync --inexact --extra tetrahedralization
 
-    # With the legacy installer.
-    ./isaaclab.sh -i tetrahedralization
-
 Surface deformables never need it, and neither do volume deformables loaded from a USD that already
 ships a pre-tetrahedralized ``UsdGeom.TetMesh`` under the deformable prim.
 
@@ -475,8 +472,6 @@ Cable limitations
   and end fittings that must transfer orientation are not representable.
 * **No damping knobs.** The four stiffness moduli are exposed; their damping counterparts are not.
 * **CPU-only render sync** (NVBug 6502662); periodic curves are not synced.
-* **Culled by Isaac RTX scene partitioning** once the cable deforms beyond its initial extent
-  (OMPE-105749). See :ref:`known-issues-animated-curve-scene-partition`.
 
 .. note::
     An attachment joint is created only when the attachment stiffness is unauthored or infinite. A
@@ -601,8 +596,8 @@ Run an example first to confirm that the spawner, solver, and visualizer all wor
     # A pile of cables that collide and settle. Newton VBD only.
     uv run isaaclab example cables
 
-    # A larger cable pile, without a visualizer, stopping after a fixed number of steps.
-    uv run isaaclab example cables --visualizer none --num_cables 40 --num_segments 15 --max_steps 500
+    # A larger cable pile, stopping after a fixed number of steps.
+    uv run isaaclab example cables --num_cables 40 --num_segments 15 --max_steps 500
 
 ``scripts/environments/state_machine/lift_franka_soft.py`` drives ``Isaac-Lift-Soft-Franka`` with a
 scripted state machine, which is a useful starting point for a deformable manipulation task.

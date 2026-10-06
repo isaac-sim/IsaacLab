@@ -32,7 +32,7 @@ class NewtonVisualizerCfg(VisualizerCfg):
     class_type: type[NewtonGLVisualizer] | str = "{DIR}.newton_visualizer:NewtonGLVisualizer"
     """Deprecated alias for the Newton GL visualizer implementation."""
 
-    # Deprecated alias: "newton" routes to the GL backend via simulation_context._VISUALIZER_ALIASES.
+    # Deprecated alias: "newton" routes to the GL backend via visualizer_cfg.VISUALIZER_ALIASES.
     visualizer_type: str = "newton_gl"
 
     cloning_contexts: tuple[type | str, ...] = ("isaaclab_newton.cloner:NewtonReplicateContext",)

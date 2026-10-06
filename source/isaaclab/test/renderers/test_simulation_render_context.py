@@ -297,9 +297,7 @@ class _CpuCamera(Camera):
         self._frame = ProxyArray(wp.zeros(2, dtype=wp.int64, device="cpu"))
         self._ALL_INDICES = wp.array([0, 1], dtype=wp.int32, device="cpu")
         self._ALL_ENV_MASK = wp.ones(2, dtype=wp.bool, device="cpu")
-        self._is_outdated = wp.ones(2, dtype=wp.bool, device="cpu")
-        self._timestamp = wp.zeros(2, device="cpu")
-        self._timestamp_last_update = wp.zeros(2, device="cpu")
+        self._create_timing_buffers()
         self._data_dirty = True
         self.pose = 0.0
         self._view = SimpleNamespace(count=2, xform_world_space_writer=self._pose_writer)
@@ -329,9 +327,7 @@ class _CpuSensor(SensorBase):
         self._num_envs = 2
         self._is_initialized = True
         self._is_visualizing = False
-        self._is_outdated = wp.ones(2, dtype=wp.bool, device="cpu")
-        self._timestamp = wp.zeros(2, device="cpu")
-        self._timestamp_last_update = wp.zeros(2, device="cpu")
+        self._create_timing_buffers()
         self._data_dirty = True
         self._data = np.zeros(2, dtype=int)
         self.name = name
@@ -576,9 +572,13 @@ def test_camera_batch_respects_period_partial_reset_and_updated_pose(camera_batc
     assert batches == [[("fast", 0.0), ("slow", 0.0)], [("fast", 0.0)]]
     np.testing.assert_array_equal(slow.frame.warp.numpy(), [1, 1])
     np.testing.assert_allclose(slow._timestamp_last_update.numpy(), [0.1, 0.1])
+    assert renderer.prepare_capture.call_args_list == [
+        call(camera._render_data, camera._data, camera._frame) for camera in (fast, slow, fast)
+    ]
 
     slow.pose = 3.0
     slow.reset(env_mask=wp.array([False, True], dtype=wp.bool, device="cpu"))
+    renderer.reset.assert_called_once_with(slow._render_data, None)
     InteractiveScene.update(scene, 0.1)
     assert batches[-1] == [("fast", 0.0), ("slow", 3.0)]
     assert slow.data.info["pose"] == 3.0

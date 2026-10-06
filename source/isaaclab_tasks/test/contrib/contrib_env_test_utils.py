@@ -36,9 +36,6 @@ _SKIPPED_TASKS = {
     "IsaacContrib-AutoMate-Disassembly-Direct": "Requires CUDA support outside the standard environment test runner.",
 }
 _SKIPPED_TASK_SUBSTRINGS = {
-    # The DR Legs solver intermittently produces NaN robot state under random actions.
-    # Re-enable the family once the tracked solver instability is resolved.
-    "DrLegs": "Kamino solver intermittently produces NaN robot state under random actions.",
     "RmpFlow": "Uses SingleArticulation, which requires an update.",
     "Skillgen": "Requires cuRobo-specific coverage.",
     "Suction": "Requires CPU simulation.",
@@ -109,4 +106,6 @@ def contrib_environment_params(runtime: Runtime) -> list:
 
 def num_envs(task_name: str) -> int:
     """Return how many environments the smoke test steps for a task."""
+    if task_name in ("IsaacContrib-Franka-Pour", "IsaacContrib-UR10-Particle-Push"):
+        return 1
     return 3 if task_name == "IsaacContrib-Multitask-Manipulation" else 2

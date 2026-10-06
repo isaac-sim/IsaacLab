@@ -119,7 +119,7 @@ extensions = [
     "sphinx.ext.intersphinx",
     "sphinx.ext.mathjax",
     "sphinx.ext.todo",
-    "sphinx.ext.viewcode",
+    "sphinx.ext.linkcode",
     "sphinxcontrib.bibtex",
     "sphinxcontrib.icon",
     "sphinx_copybutton",
@@ -192,7 +192,10 @@ intersphinx_mapping = {
     # pinned to the release version because /docs/stable/objects.inv currently 404s
     "torch": (f"https://docs.pytorch.org/docs/{torch_docs_version}/", None),
     # Versioned documentation can lag a newly published Isaac Sim package release.
-    "isaacsim": ("https://docs.isaacsim.omniverse.nvidia.com/latest/py/", None),
+    "isaacsim": (
+        "https://docs.isaacsim.omniverse.nvidia.com/latest/py/",
+        "https://docs.isaacsim.omniverse.nvidia.com/latest/py/objects.inv",
+    ),
     "gymnasium": ("https://gymnasium.farama.org/", None),
     # NOTE: pinned to /stable/ because /objects.inv at the root currently 404s
     "warp": ("https://nvidia.github.io/warp/stable/", None),

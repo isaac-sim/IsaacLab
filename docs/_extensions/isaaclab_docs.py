@@ -7,16 +7,19 @@
 
 from __future__ import annotations
 
+import inspect
 import json
 import posixpath
 from html import escape
 import re
+import sys
 from pathlib import Path
 
 from docutils import nodes
 from docutils.parsers.rst import directives
 from docutils.statemachine import StringList
 from sphinx.application import Sphinx
+from sphinx.config import Config
 from sphinx.util.docutils import SphinxDirective, SphinxRole
 from sphinx.util.nodes import split_explicit_title
 from sphinx.util.osutil import relative_uri
@@ -38,6 +41,39 @@ def _source_branch(config) -> str:
     if _UPSTREAM_SOURCE_REF_PATTERN.match(branch):
         return branch
     return getattr(config, "isaaclab_latest_branch", "develop")
+
+
+def _configure_source_links(app: Sphinx, config: Config) -> None:
+    """Link API objects to their implementation in the documented Git ref."""
+    root = Path(app.srcdir).resolve().parent
+    branch = _source_branch(config)
+
+    def resolve(domain: str, info: dict[str, str]) -> str | None:
+        if domain != "py":
+            return None
+        try:
+            name, *members = info["fullname"].split(".")
+            obj = getattr(sys.modules[info["module"]], name)
+            for member in members:
+                obj = inspect.getattr_static(obj, member)
+            if isinstance(obj, property):
+                obj = obj.fget
+            elif isinstance(obj, (classmethod, staticmethod)):
+                obj = obj.__func__
+            obj = inspect.unwrap(obj)
+            filename = inspect.getsourcefile(obj)
+            if filename is None:
+                return None
+            path = Path(filename).resolve().relative_to(root)
+            if path.parts[0] != "source":
+                return None
+            lines, start = inspect.getsourcelines(obj)
+        except (AttributeError, KeyError, OSError, TypeError, ValueError):
+            # External, mocked, or generated objects may have no repository source.
+            return None
+        return f"https://github.com/isaac-sim/IsaacLab/blob/{branch}/{path.as_posix()}#L{start}-L{start + len(lines) - 1}"
+
+    config.linkcode_resolve = resolve
 
 
 def _parse_rst(directive: SphinxDirective, content: str) -> list[nodes.Node]:
@@ -161,109 +197,6 @@ class IsaacLabCloneHttps(SphinxDirective):
         return _parse_rst(self, content)
 
 
-class IsaacLabKitlessInstallSnippet(SphinxDirective):
-    """Render the kit-less clone + install commands from the installation index."""
-
-    has_content = False
-
-    def run(self) -> list[nodes.Node]:
-        branch = _branch(self.config)
-        content = f"""\
-.. code-block:: bash
-
-   git clone https://github.com/isaac-sim/IsaacLab.git --branch {branch}
-   cd IsaacLab
-   ./isaaclab.sh --install   # or ./isaaclab.sh -i
-"""
-        return _parse_rst(self, content)
-
-
-class IsaacLabQuickstartInstall(SphinxDirective):
-    """Render quickstart install snippets with the pinned release branch."""
-
-    option_spec = {
-        "kitless": directives.flag,
-        "isaacsim": directives.flag,
-        "platform": directives.unchanged_required,
-    }
-
-    def run(self) -> list[nodes.Node]:
-        branch = _branch(self.config)
-        platform = self.options["platform"].strip().lower()
-        if platform not in {"linux", "windows"}:
-            raise self.error(f"Unsupported platform '{platform}'. Use 'linux' or 'windows'.")
-
-        if "kitless" in self.options and "isaacsim" in self.options:
-            raise self.error("Specify only one of :kitless: or :isaacsim:.")
-
-        if "kitless" in self.options:
-            content = _quickstart_kitless(branch, platform)
-        elif "isaacsim" in self.options:
-            content = _quickstart_isaacsim(
-                branch,
-                platform,
-                self.config.isaacsim_version,
-                self.config.torch_version,
-                self.config.torchvision_version,
-            )
-        else:
-            raise self.error("Specify either :kitless: or :isaacsim:.")
-
-        return _parse_rst(self, content)
-
-
-def _quickstart_kitless(branch: str, platform: str) -> str:
-    """Return quickstart reST for kit-less installation."""
-    if platform == "linux":
-        return f"""\
-.. code-block:: bash
-
-   # Install uv (https://docs.astral.sh/uv/getting-started/installation/)
-   curl -LsSf https://astral.sh/uv/install.sh | sh
-
-   git clone https://github.com/isaac-sim/IsaacLab.git --branch {branch}
-   cd IsaacLab
-
-   uv venv --python 3.12 --seed env_isaaclab
-   source env_isaaclab/bin/activate
-   ./isaaclab.sh -i
-"""
-    return f"""\
-.. code-block:: batch
-
-   :: Install uv: https://docs.astral.sh/uv/getting-started/installation/
-
-   git clone https://github.com/isaac-sim/IsaacLab.git --branch {branch}
-   cd IsaacLab
-
-   uv venv --python 3.12 --seed env_isaaclab
-   env_isaaclab\\Scripts\\activate
-   isaaclab.bat -i
-"""
-
-
-class IsaacLabIsaacSimInstall(SphinxDirective):
-    """Render the Isaac Sim install command pinned to the pyproject version."""
-
-    optional_arguments = 1  # installer: "pip" (default is "uv pip")
-
-    def run(self) -> list[nodes.Node]:
-        version = self.config.isaacsim_version
-        if self.arguments and self.arguments[0] == "pip":
-            content = f"""\
-.. code-block:: bash
-
-   python -m pip install "isaacsim[all,extscache]=={version}" --extra-index-url https://pypi.nvidia.com
-"""
-        else:
-            content = f"""\
-.. code-block:: bash
-
-   uv pip install "isaacsim[all,extscache]=={version}" --extra-index-url https://pypi.nvidia.com --index-strategy unsafe-best-match --prerelease=allow
-"""
-        return _parse_rst(self, content)
-
-
 class IsaacLabUvIsaacSimWheelInstall(SphinxDirective):
     """Render the Isaac Lab wheel command for the current Isaac Sim version."""
 
@@ -314,22 +247,19 @@ class IsaacLabTorchInstall(SphinxDirective):
 
     Usage::
 
-        .. isaaclab-torch-install:: cu128
-        .. isaaclab-torch-install:: cu130 pip
+        .. isaaclab-torch-install:: cu130
     """
 
     required_arguments = 1  # CUDA build tag, e.g. "cu128"
-    optional_arguments = 1  # installer: "pip" (default is "uv pip")
 
     def run(self) -> list[nodes.Node]:
         cuda_tag = self.arguments[0]
-        installer = "python -m pip" if len(self.arguments) > 1 and self.arguments[1] == "pip" else "uv pip"
         torch_version = self.config.torch_version
         torchvision_version = self.config.torchvision_version
         content = f"""\
 .. code-block:: bash
 
-   {installer} install -U torch=={torch_version} torchvision=={torchvision_version} --index-url https://download.pytorch.org/whl/{cuda_tag}
+   uv pip install -U torch=={torch_version} torchvision=={torchvision_version} --index-url https://download.pytorch.org/whl/{cuda_tag}
 """
         return _parse_rst(self, content)
 
@@ -348,48 +278,9 @@ class IsaacLabOvrtxInstall(SphinxDirective):
         content = f"""\
 .. code-block:: bash
 
-   pip install "ovrtx{spec}"
+   uv pip install "ovrtx{spec}"
 """
         return _parse_rst(self, content)
-
-
-def _quickstart_isaacsim(branch: str, platform: str, isaacsim_version: str, torch_version: str, torchvision_version: str) -> str:
-    """Return quickstart reST for full Isaac Sim installation."""
-    if platform == "linux":
-        return f"""\
-.. code-block:: bash
-
-   git clone https://github.com/isaac-sim/IsaacLab.git --branch {branch}
-   cd IsaacLab
-
-   uv venv --python 3.12 --seed env_isaaclab
-   source env_isaaclab/bin/activate
-   uv pip install --upgrade pip
-   uv pip install "isaacsim[all,extscache]=={isaacsim_version}" \\
-     --extra-index-url https://pypi.nvidia.com \\
-     --index-strategy unsafe-best-match --prerelease=allow
-   uv pip install -U torch=={torch_version} torchvision=={torchvision_version} \\
-     --index-url https://download.pytorch.org/whl/cu128
-   ./isaaclab.sh -i
-"""
-    return f"""\
-.. code-block:: batch
-
-   :: Install uv: https://docs.astral.sh/uv/getting-started/installation/
-
-   git clone https://github.com/isaac-sim/IsaacLab.git --branch {branch}
-   cd IsaacLab
-
-   uv venv --python 3.12 --seed env_isaaclab
-   env_isaaclab\\Scripts\\activate
-   uv pip install --upgrade pip
-   uv pip install "isaacsim[all,extscache]=={isaacsim_version}" ^
-     --extra-index-url https://pypi.nvidia.com ^
-     --index-strategy unsafe-best-match --prerelease=allow
-   uv pip install -U torch=={torch_version} torchvision=={torchvision_version} ^
-     --index-url https://download.pytorch.org/whl/cu128
-   isaaclab.bat -i
-"""
 
 
 def _write_doc_redirects(app: Sphinx, exception: Exception | None) -> None:
@@ -434,6 +325,7 @@ def setup(app):
     app.add_config_value("isaaclab_doc_redirect_fragments", {}, "html")
     app.connect("build-finished", _write_doc_redirects)
     app.connect("html-page-context", _add_browser_demo_assets)
+    app.connect("config-inited", _configure_source_links)
     app.add_config_value("isaaclab_latest_branch", "develop", "env")
     app.add_config_value("isaaclab_wheel_version", "", "env")
     app.add_config_value("isaaclab_wheel_source_tag", "", "env")
@@ -445,9 +337,6 @@ def setup(app):
     app.add_directive("isaaclab-browser-demo", IsaacLabBrowserDemo)
     app.add_directive("isaaclab-clone-commands", IsaacLabCloneCommands)
     app.add_directive("isaaclab-clone-https", IsaacLabCloneHttps)
-    app.add_directive("isaaclab-kitless-install-snippet", IsaacLabKitlessInstallSnippet)
-    app.add_directive("isaaclab-quickstart-install", IsaacLabQuickstartInstall)
-    app.add_directive("isaaclab-isaacsim-install", IsaacLabIsaacSimInstall)
     app.add_directive("isaaclab-uv-isaacsim-wheel-install", IsaacLabUvIsaacSimWheelInstall)
     app.add_directive("isaaclab-uv-importers-wheel-install", IsaacLabUvImportersWheelInstall)
     app.add_directive("isaaclab-torch-install", IsaacLabTorchInstall)

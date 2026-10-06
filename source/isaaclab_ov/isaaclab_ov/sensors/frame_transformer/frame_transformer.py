@@ -172,16 +172,20 @@ class FrameTransformer(BaseFrameTransformer):
         for frame, prim_path, offset, frame_type in zip(frames, frame_prim_paths, frame_offsets, frame_types):
             # Resolve source-side env prims and destination expressions. This keeps discovery plan-aware when
             # the active clone plan has physics clones without authored USD prims for every environment.
-            def has_rigid_body_api(prim) -> bool:
-                return bool(prim.HasAPI(UsdPhysics.RigidBodyAPI))
-
-            matches = resolve_matching_prims_from_source(
-                prim_path, predicate=has_rigid_body_api, raise_if_no_matches=False
-            )
+            matches = [
+                (prim, destination)
+                for prim, destination in resolve_matching_prims_from_source(prim_path, raise_if_no_matches=False)
+                if prim.HasAPI(UsdPhysics.RigidBodyAPI)
+            ]
             if not matches:
                 raise ValueError(
                     f"Failed to create frame transformer for frame '{frame}' with path '{prim_path}'."
                     " No matching rigid-body prims were found."
+                )
+            if frame_type == "source" and len(matches) != 1:
+                raise ValueError(
+                    f"Expected one source rigid-body prim for frame '{frame}' with path '{prim_path}',"
+                    f" found {len(matches)}."
                 )
             for prim, matching_prim_path in matches:
                 # Get the name of the body: use relative prim path for unique identification
@@ -269,9 +273,7 @@ class FrameTransformer(BaseFrameTransformer):
                 self._ALL_ENV_MASK = wp.ones((self._num_envs,), dtype=wp.bool, device=self._device)
                 self._reset_mask = wp.zeros((self._num_envs,), dtype=wp.bool, device=self._device)
                 self._reset_mask_torch = wp.to_torch(self._reset_mask)
-                self._is_outdated = wp.ones(self._num_envs, dtype=wp.bool, device=self._device)
-                self._timestamp = wp.zeros(self._num_envs, dtype=wp.float32, device=self._device)
-                self._timestamp_last_update = wp.zeros_like(self._timestamp)
+                self._create_timing_buffers()
 
             read_buf = wp.zeros(self._num_envs, dtype=wp.transformf, device=self._device)
             dst_torch = torch.tensor(
@@ -296,8 +298,8 @@ class FrameTransformer(BaseFrameTransformer):
         # -- target frames: use relative prim path for unique identification
         self._target_frame_body_names = [self._get_relative_body_path(prim_path) for prim_path in sorted_prim_paths]
 
-        # -- source frame: use relative prim path for unique identification
-        self._source_frame_body_name = self._get_relative_body_path(self.cfg.prim_path)
+        # -- source frame: retain the concrete body resolved from the configured expression
+        self._source_frame_body_name = tracked_body_names[0]
         source_frame_index = self._target_frame_body_names.index(self._source_frame_body_name)
 
         # Only remove source frame from tracked bodies if it is not also a target frame
@@ -477,6 +479,7 @@ class FrameTransformer(BaseFrameTransformer):
     def _debug_vis_callback(self, event) -> None:
         if not self.is_initialized or self._raw_transforms is None or not hasattr(self, "frame_visualizer"):
             return
+        self._update_outdated_buffers()
 
         # Convert warp -> torch at the boundary for visualization
         source_pos_w = wp.to_torch(self._data._source_pos_w)

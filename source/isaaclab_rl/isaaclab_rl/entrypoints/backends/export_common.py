@@ -94,20 +94,17 @@ def add_common_export_args(parser: argparse.ArgumentParser, *, agent_default: st
         help="Disable LEAPP graph visualization during compile_graph().",
     )
     add_launcher_args(parser)
-    parser.add_argument("--limit_cpu_threads", type=int, default=argparse.SUPPRESS, help=argparse.SUPPRESS)
 
 
 def finalize_export_args(
     parser: argparse.ArgumentParser, argv: list[str] | None = None
 ) -> tuple[argparse.Namespace, list[str]]:
-    """Parse export arguments with preset support and force headless mode.
+    """Parse export arguments with preset support.
 
-    The remainder carries the typed preset selectors (``physics=``, ``renderer=``, ``presets=``) verbatim
-    for Hydra.
+    Export runs headless, as no ``--viz`` opens a window. The remainder carries the typed preset selectors
+    (``physics=``, ``renderer=``, ``presets=``) verbatim for Hydra.
     """
-    args_cli, hydra_args = setup_preset_cli(parser, argv)
-    args_cli.headless = True
-    return args_cli, hydra_args
+    return setup_preset_cli(parser, argv)
 
 
 def run_export(
@@ -129,7 +126,7 @@ def run_export(
     original_argv = sys.argv
     sys.argv = [sys.argv[0]] + hydra_args
     try:
-        env_cfg, agent_cfg = resolve_task_config(args_cli.task, args_cli.agent)
+        env_cfg, agent_cfg = resolve_task_config(args_cli.task, args_cli.agent, play_mode=True)
         with launch_simulation(env_cfg, args_cli):
             exported = export_agent(args_cli, env_cfg, agent_cfg)
     finally:

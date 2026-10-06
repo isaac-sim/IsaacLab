@@ -186,18 +186,23 @@ class FileCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
     ``ensure_drives_exist`` field.
     """
 
-    visual_material_path: str = "material"
+    visual_material_path: str | None = "material"
     """Path to the visual material to use for the prim. Defaults to "material".
 
-    If the path is relative, then it will be relative to the prim's path.
-    This parameter is ignored if `visual_material` is not None.
+    Relative paths are resolved below the spawned prim. None applies non-None inputs from
+    :attr:`visual_material` to connected surface shaders with or without Kit, preserving textures and
+    bindings. Preview configs use the universal surface output; MDL configs use the MDL output.
+    The config must match the authored shader. Enable :attr:`UsdFileCfg.make_uninstanceable` for
+    materials inside instances. Named paths create and bind a replacement material only with Kit.
+    Ignored when :attr:`visual_material` is None.
     """
 
     visual_material: materials.VisualMaterialCfg | None = None
-    """Visual material properties to override the visual material properties in the URDF file.
+    """Visual material to create and bind, or inputs to apply to the asset's authored shaders.
 
     Note:
-        If None, then no visual material will be added.
+        If None, materials are unchanged. Set :attr:`visual_material_path` to None to update
+        existing shader inputs without replacing materials. Config fields set to None are not applied.
     """
 
     visual_material_bindings: dict[str, str] = {}
@@ -218,14 +223,16 @@ class FileCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
     physics_material: (
         materials.PhysicsMaterialCfg
         | materials.RigidBodyMaterialFragment
-        | list[materials.RigidBodyMaterialFragment]
+        | materials.DeformableMaterialFragment
+        | list[materials.RigidBodyMaterialFragment | materials.DeformableMaterialFragment]
         | None
     ) = None
     """Physics material properties.
 
     Accepts either a legacy material cfg, a single
-    :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialFragment`, or a list of such
-    single-namespace fragments.
+    :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialFragment` or
+    :class:`~isaaclab.sim.spawners.materials.DeformableMaterialFragment`, or a list of such
+    single-namespace fragments (rigid and deformable fragments may be mixed in one list).
 
     Note:
         If None, then no custom physics material will be added.
@@ -275,9 +282,9 @@ class UsdFileCfg(FileCfg):
     """Whether to disable USD instancing below the spawned prim before applying overrides. Defaults to False.
 
     Descendants of an instanceable prim are instance proxies, which cannot be edited. Enable this option
-    when a recursive override, such as :attr:`physics_material`, has to author properties on those
-    descendants. Disabling instancing makes them editable at the cost of stage memory, so leave this
-    option disabled unless an override requires it.
+    when a recursive override, such as :attr:`physics_material` or authored :attr:`visual_material`
+    inputs, has to author properties on those descendants. Disabling instancing makes them editable
+    at the cost of stage memory, so leave this option disabled unless an override requires it.
 
     Please check the :meth:`~isaaclab.sim.utils.make_uninstanceable` function for more information.
     """
