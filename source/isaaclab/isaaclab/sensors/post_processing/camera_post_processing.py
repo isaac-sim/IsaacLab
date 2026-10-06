@@ -110,8 +110,9 @@ class CameraPostProcessingChain:
         """Bind camera buffers on first use and process views with a new capture.
 
         Processing runs once per published camera capture, on the current Torch stream for CUDA
-        devices. Views reset since their last capture keep their previous output until a capture
-        published after the reset is available.
+        devices. Views reset since their last capture are excluded from the processor mask until a
+        capture published after the reset is available, so their processor state does not advance on
+        pre-reset pixels. Processors may still refresh the full image batch, including those views.
 
         Returns:
             Whether a new capture was processed.
