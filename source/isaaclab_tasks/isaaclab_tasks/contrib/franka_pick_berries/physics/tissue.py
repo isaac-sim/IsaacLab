@@ -145,9 +145,9 @@ def place_tissue(spec: TissueSpec, rotation: np.ndarray, shift: np.ndarray, offs
 
 def load_tissue(cfg: BerryPickEnvCfg, name: str, species: str, offset: tuple[float, float, float]) -> TissueSpec:
     """Load one berry's asset and select its tissue particles and material."""
-    if cfg.berry_asset_version not in ("v1", "v2"):
+    if cfg.berry_asset_version not in ("v1", "v2", "v3"):
         raise ValueError(f"Unknown berry asset version: {cfg.berry_asset_version}")
-    suffix = "_v2" if cfg.berry_asset_version == "v2" else ""
+    suffix = "" if cfg.berry_asset_version == "v1" else f"_{cfg.berry_asset_version}"
     path = cfg.berry_asset_path or f"{cfg.asset_root}/{species}/{species}{suffix}.usdz"
     stage, asset, proxy, profile = load_berry(path)
     if profile["berry"] != species:

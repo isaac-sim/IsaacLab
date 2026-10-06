@@ -104,9 +104,9 @@ asset_selection.add_argument(
 )
 asset_selection.add_argument(
     "--asset_version",
-    choices=["v1", "v2"],
+    choices=["v1", "v2", "v3"],
     default="v1",
-    help="v1: original <berry>.usdz (default); v2: repaired <berry>_v2.usdz",
+    help="v1: original <berry>.usdz (default); v2: repaired <berry>_v2.usdz; v3: <berry>_v3.usdz",
 )
 parser.add_argument(
     "--sh_rotation",
