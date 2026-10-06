@@ -135,6 +135,16 @@ class IsaacRtxRendererCfg(RendererCfg):
     global_settings: IsaacRtxRendererGlobalSettingsCfg = IsaacRtxRendererGlobalSettingsCfg()
     """Global Kit/RTX quality settings applied before RTX Hydra attach."""
 
+    render_mode: str | None = None
+    """Optional Isaac RTX render-mode override for generated render products.
+
+    When ``None``, a render product with simple-shading outputs and no
+    regular color output (``rgb``, ``rgba``, ``rgb_hdr``) is switched to RTX Minimal, and any other
+    product uses Kit's process-wide ``/rtx/rendermode``. An explicit value is authored on each camera's
+    render product instead. ``"Minimal"`` requires a simple-shading output so its minimal mode can be
+    determined; ``"RealTimePathTracing"`` and ``"PathTracing"`` are valid for color outputs.
+    """
+
     enable_scene_partitioning: bool = field(default_factory=isaac_rtx_per_env_scene_partition_enabled)
     """Enable per-environment scene-partition authoring.
 
