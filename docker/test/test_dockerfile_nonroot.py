@@ -89,7 +89,8 @@ def test_kitless_dockerfile_installs_newton_rl_ov_and_visualizers_without_isaac_
     assert "ENV UV_PYTHON_PREFERENCE=only-system" in dockerfile_text
     assert "'isaacsim' not in names" in dockerfile_text
     assert "'isaacsim-asset-isolated' in names" in dockerfile_text
-    assert "'ovphysx' in names" in dockerfile_text
+    # DRAFT: ovphysx is out of the OV extras for the OVRTX 0.5.1 / OVStage 0.2.1 sanity check.
+    # assert "'ovphysx' in names" in dockerfile_text
     assert "'ovrtx' in names" in dockerfile_text
     assert "'viser' in names" in dockerfile_text
     assert "'rerun-sdk' in names" in dockerfile_text

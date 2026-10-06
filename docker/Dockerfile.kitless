@@ -69,6 +69,7 @@ COPY source/ source/
 # would silently defeat the point of installing from it. ``--inexact`` keeps the seeded pip, which
 # is not a lock entry. ``uv sync`` reuses the venv only because UV_PYTHON pins the same interpreter
 # it was created with; otherwise it deletes and rebuilds it.
+# DRAFT: ovphysx is out of the OV extras for the OVRTX 0.5.1 / OVStage 0.2.1 sanity check.
 RUN uv venv --seed "${VIRTUAL_ENV}" \
  && uv sync --frozen --inexact --extra all --extra importers --extra test \
  && chmod -R a+rwX "${VIRTUAL_ENV}"/lib/python3.*/site-packages/ovrtx \
@@ -76,7 +77,6 @@ RUN uv venv --seed "${VIRTUAL_ENV}" \
       names = {d.metadata['Name'].lower() for d in m.distributions()}; \
       assert 'isaacsim' not in names; \
       assert 'isaacsim-asset-isolated' in names; \
-      assert 'ovphysx' in names; \
       assert 'ovrtx' in names; \
       assert 'viser' in names; \
       assert 'rerun-sdk' in names" \
