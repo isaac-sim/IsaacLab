@@ -20,34 +20,16 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 try:
-    from moviepy.editor import ImageSequenceClip
+    from moviepy.video.io.ImageSequenceClip import ImageSequenceClip
 except ImportError:
     ImageSequenceClip = None  # type: ignore[assignment,misc]
+
+from .video_recorder_cfg import parse_video_source
 
 if TYPE_CHECKING:
     from .video_recorder_cfg import VideoRecorderCfg
 
 logger = logging.getLogger(__name__)
-
-_VALID_SOURCE_KINDS = ("visualizer", "sensor")
-
-
-def _parse_source(source: str) -> tuple[str, str, str]:
-    """Parse a source string into (kind, type_or_name, sub).
-
-    Source strings use ``:`` as the sole delimiter: ``"<kind>:<type>:<sub>"``.
-
-    Returns:
-        ``(kind, type_or_name, sub)`` where ``kind`` is ``"visualizer"`` or
-        ``"sensor"``, ``type_or_name`` is the visualizer type or sensor name,
-        and ``sub`` is the sub-channel (e.g. ``"tiled"``).
-    """
-    # Only lowercase the kind (parts[0]); preserve original casing for sensor names and visualizer types.
-    parts = source.strip().split(":")
-    kind = parts[0].lower() if parts else ""
-    type_or_name = parts[1] if len(parts) > 1 else ""
-    sub = parts[2].lower() if len(parts) > 2 else ""
-    return kind, type_or_name, sub
 
 
 class VideoRecorder:
@@ -58,18 +40,13 @@ class VideoRecorder:
 
     Raises:
         ImportError: If ``moviepy`` is not installed.
-        ValueError: If :attr:`~VideoRecorderCfg.source` has an unrecognized kind.
+        ValueError: If :attr:`~VideoRecorderCfg.source` does not follow the source grammar.
         RuntimeError: On the first recording step if the requested visualizer or
             sensor cannot be found or does not support frame capture.
     """
 
     def __init__(self, cfg: VideoRecorderCfg, env: object):
-        kind, _, _ = _parse_source(cfg.source)
-        if kind not in _VALID_SOURCE_KINDS:
-            raise ValueError(
-                f"[VideoRecorder] Unrecognized source kind '{kind}' in source='{cfg.source}'. "
-                f"Expected one of: {_VALID_SOURCE_KINDS}."
-            )
+        self._source = parse_video_source(cfg.source)
 
         if ImageSequenceClip is None:
             raise ImportError("moviepy is required for video recording. Install it with: pip install 'moviepy<2'")
@@ -133,13 +110,10 @@ class VideoRecorder:
         if self._frame_error_logged:
             return None
         try:
-            kind, type_or_name, sub = _parse_source(self.cfg.source)
-            if kind == "visualizer":
+            kind, type_or_name, sub = self._source
+            if kind == "viz":
                 return self._frame_from_visualizer(type_or_name, sub)
-            if kind == "sensor":
-                return self._frame_from_sensor(type_or_name, gt_type=sub)
-            # Unreachable: kind was validated in __init__, but keeps type checkers happy.
-            return None  # pragma: no cover
+            return self._frame_from_sensor(type_or_name, gt_type=sub)
         except RuntimeError as exc:
             logger.error(
                 "[VideoRecorder] Frame capture failed for source=%r: %s  "
@@ -160,20 +134,14 @@ class VideoRecorder:
         visualizers = getattr(sim, "visualizers", [])
 
         if viz_type:
-            # "newton" is a backward-compatible alias for the newton_gl visualizer type.
-            # The canonical visualizer_type on NewtonGLVisualizerCfg is "newton_gl", but
-            # source strings in tutorials and docs use the shorter "newton" form.
-            _newton_aliases = ("newton_gl",)
-            if viz_type == "newton":
-                candidates = [v for v in visualizers if getattr(v.cfg, "visualizer_type", None) in _newton_aliases]
-            else:
-                candidates = [v for v in visualizers if getattr(v.cfg, "visualizer_type", None) == viz_type]
+            candidates = [v for v in visualizers if getattr(v.cfg, "visualizer_type", None) == viz_type]
             if not candidates:
                 active = [getattr(v.cfg, "visualizer_type", "unknown") for v in visualizers]
                 raise RuntimeError(
-                    f"[VideoRecorder] source='visualizer:{viz_type}' requested but no '{viz_type}' "
+                    f"[VideoRecorder] source='viz:{viz_type}' requested but no '{viz_type}' "
                     f"visualizer is active (active: {active or ['none']}). "
-                    f"Pass --viz {viz_type} or add the corresponding VisualizerCfg to sim.visualizer_cfgs."
+                    "Launch the simulation with isaaclab.app.launch_simulation, which adds the visualizer a "
+                    "recorder needs."
                 )
         else:
             # Auto: pick the first active visualizer that supports frame capture.
@@ -181,7 +149,7 @@ class VideoRecorder:
             if not candidates:
                 active = [getattr(v.cfg, "visualizer_type", "unknown") for v in visualizers]
                 raise RuntimeError(
-                    "[VideoRecorder] source='visualizer' found no recording-capable visualizer "
+                    "[VideoRecorder] source='viz' found no recording-capable visualizer "
                     f"(active: {active or ['none']}). "
                     "Pass --viz kit, --viz newton_gl, or --viz newton_rtx, or use "
                     "source='sensor:<name>' to record from a scene sensor."
@@ -195,9 +163,9 @@ class VideoRecorder:
             if physics_backend == "newton_gl":
                 self._cubric_warning_logged = True
                 logger.warning(
-                    "[VideoRecorder] source='visualizer:kit' with Newton physics requires cubric "
+                    "[VideoRecorder] source='viz:kit' with Newton physics requires cubric "
                     "to propagate Fabric transforms to RTX. Frames may be black if cubric is "
-                    "unavailable. Use source='visualizer:newton' for guaranteed capture."
+                    "unavailable. Use source='viz:newton_gl' for guaranteed capture."
                 )
 
         viz = candidates[0]
@@ -206,17 +174,15 @@ class VideoRecorder:
         if sub == "streaming_view":
             if not hasattr(viz, "render_tiled_rgb_array"):
                 raise RuntimeError(
-                    f"[VideoRecorder] source='visualizer:{viz_type}:streaming_view' requested but the "
+                    f"[VideoRecorder] source='viz:{viz_type}:streaming_view' requested but the "
                     f"'{viz_type}' visualizer does not support streaming view capture."
                 )
             if not getattr(getattr(viz, "cfg", None), "streaming_view", False):
-                cfg_name = {
-                    "kit": "KitVisualizerCfg",
-                    "newton_gl": "NewtonGLVisualizerCfg",
-                    "newton": "NewtonGLVisualizerCfg",
-                }.get(viz_type or "", "VisualizerCfg")
+                cfg_name = {"kit": "KitVisualizerCfg", "newton_gl": "NewtonGLVisualizerCfg"}.get(
+                    viz_type, "VisualizerCfg"
+                )
                 raise RuntimeError(
-                    f"[VideoRecorder] source='visualizer:{viz_type}:streaming_view' requested but "
+                    f"[VideoRecorder] source='viz:{viz_type}:streaming_view' requested but "
                     f"streaming_view is not enabled on the '{viz_type}' visualizer. "
                     f"Enable it by setting streaming_view=True on the visualizer config:\n\n"
                     f"    {cfg_name}(streaming_view=True, ...)\n\n"
@@ -227,7 +193,7 @@ class VideoRecorder:
 
         if not hasattr(viz, "render_rgb_array"):
             raise RuntimeError(
-                f"[VideoRecorder] source='visualizer:{viz_type or '<auto>'}' does not support frame "
+                f"[VideoRecorder] source='viz:{viz_type or '<auto>'}' does not support frame "
                 "capture: the visualizer has no render_rgb_array() implementation."
             )
 
@@ -347,7 +313,7 @@ class VideoRecorder:
                     "[VideoRecorder] source=%r: sampled frame appears mostly black "
                     "(mean pixel value %.1f/255). For Kit+Newton, ensure cubric is available "
                     "to propagate Fabric transforms to the RTX renderer, or switch to "
-                    "source='visualizer:newton_gl' for guaranteed capture.",
+                    "source='viz:newton_gl' for guaranteed capture.",
                     self.cfg.source,
                     mean_pixel,
                 )

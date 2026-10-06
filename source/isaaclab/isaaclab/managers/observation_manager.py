@@ -530,10 +530,15 @@ class ObservationManager(ManagerBase):
     Helper functions.
     """
 
+    def _resolve_common_term_cfg(self, term_name: str, term_cfg: ObservationTermCfg, min_argc: int = 1):
+        if "out" in term_cfg.params:
+            raise ValueError(f"Observation term '{term_name}': 'out' is reserved for the manager.")
+        super()._resolve_common_term_cfg(term_name, term_cfg, min_argc)
+        # The destination is supplied by the manager, not by the term configuration.
+        term_cfg.params.pop("out", None)
+
     def _prepare_term_output(self, group_name: str, term_name: str, term_cfg: ObservationTermCfg) -> tuple[int, ...]:
         """Probe output dimensions and cache destination specifications for explicitly supported terms."""
-        if "out" in term_cfg.params:
-            raise ValueError(f"Observation term '{group_name}/{term_name}': 'out' is reserved for the manager.")
         out_param = inspect.signature(term_cfg.func).parameters.get("out")
         writes_output = out_param is not None and out_param.kind is inspect.Parameter.KEYWORD_ONLY
         if writes_output and out_param.default is not None:

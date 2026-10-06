@@ -3,6 +3,131 @@ Changelog
 
 .. towncrier release notes start
 
+4.0.1 (2026-10-06)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Applied task play-mode configuration during LEAPP exports so inference-only resources are initialized correctly.
+
+
+4.0.0 (2026-10-03)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed ``[INFO]`` messages printed by the training, playback, export, and simple-agent entry points
+  and the Weights & Biases helpers to ``logger.info``. They still print as ``[INFO]: <message>`` by default.
+
+Removed
+^^^^^^^
+
+* **Breaking:** Removed the legacy RSL-RL policy configuration classes, deprecated model fields,
+  and automatic configuration migration. Define ``actor`` and ``critic`` or ``student`` and
+  ``teacher`` model configurations directly, and use ``distribution_cfg`` for stochastic models.
+* **Breaking:** Removed ``export_policy_as_jit`` and ``export_policy_as_onnx`` from
+  ``isaaclab_rl.rsl_rl``. Use the RSL-RL runner methods ``export_policy_to_jit`` and
+  ``export_policy_to_onnx`` instead.
+* Removed obsolete runtime RSL-RL minimum-version checks; the project dependency provides
+  the supported version.
+
+
+3.0.0 (2026-10-02)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** The zero and random agents no longer open the Newton GL visualizer by default. Pass
+  ``--visualizer newton_gl`` to open it.
+* **Breaking:** ``--video`` takes an optional source, ``--video [SOURCE]``, and ``--visualizer`` still decides
+  which visualizers open a window:
+
+  * ``--video`` (``--video viz``): the first capture-capable visualizer ``--visualizer`` selects, else a headless
+    ``newton_gl``, also when only streaming visualizers such as ``viser`` or ``rerun`` are selected.
+  * ``--video viz:<type>`` (``kit``, ``newton_gl``, ``newton_rtx``): the selected visualizer of that type, else an
+    extra headless one, e.g. ``--video viz:newton_gl --visualizer viser``.
+  * ``--video sensor:<name>[:<channel>]``: that scene sensor; no visualizer is added.
+
+  A Hydra override is never taken as the source: ``--video presets=newton_mjwarp`` records from ``viz`` and
+  applies the preset. ``--video`` without ``--visualizer`` now records from a headless ``newton_gl`` instead of a
+  headless Kit; pass ``--video viz:kit`` for the previous behavior.
+* Accepted bare visualizer types in ``--video``, so ``--video newton_gl`` is equivalent to
+  ``--video viz:newton_gl``.
+* **Breaking:** :func:`~isaaclab_rl.entrypoints.common.pre_launch_video_config`, called before
+  :func:`~isaaclab.app.launch_simulation`, adds a recorder for the ``--video`` source unless the environment config
+  declares recorders, and no longer selects ``--visualizer kit`` or sets ``headless``; the launch resolves the
+  source. :func:`~isaaclab_rl.entrypoints.common.apply_video_recording`, called inside the launch, only applies the
+  output directory, ``--video_length`` and ``--video_interval``. The zero and random agents now configure
+  recording after the launch.
+* :func:`~isaaclab_rl.entrypoints.common.enable_cameras_for_video` only enables cameras for
+  ``--capture_env_sensors``; the launch enables the rendering a video source needs.
+* The ``video`` field of the :mod:`isaaclab_rl.entrypoints.api` requests takes a ``--video`` source string as
+  well as a bool.
+* ``get_pretrained_checkpoint_backend_names`` ignores the renderers of visualizer configs, so a published
+  checkpoint lookup with a visualizer selected, e.g. ``--visualizer newton_gl`` or ``--visualizer kit``, no longer
+  asks for a ``newton`` or ``rtx`` render-backend checkpoint.
+
+Fixed
+^^^^^
+
+* Fixed Isaac Sim crashing at startup in OpenBLAS's at-fork handler when ``moviepy`` is installed: the
+  reinforcement learning entry points imported the environment runtime, and with it the video recorder's
+  ``moviepy`` and SciPy, before the launch.
+* Corrected zero-agent hold actions for absolute differential IK configured with a nonzero action offset.
+* Fixed RLinf playback ignoring ``--checkpoint`` and training resume selecting a directory below
+  ``global_step_<N>``. Checkpoint files, directories containing one ``full_weights.pt``, and the existing
+  ``latest``/``best`` selectors remained supported.
+* Resolved RLinf model and checkpoint paths before launching Ray workers and merged actor-model settings
+  into rollout settings while preserving explicit rollout overrides.
+
+
+2.0.0 (2026-10-01)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* The run summary of the reinforcement learning workflows is printed after the launch and reports the resolved
+  backends, visualizers, and device, so ``--viz none`` shows no visualizer and distributed runs show each
+  rank's device. Automatic backend selectors are no longer shown next to the backend they resolved to.
+* **Breaking:** Call :func:`~isaaclab_rl.entrypoints.common.apply_video_recording` inside
+  :func:`~isaaclab.app.launch_simulation`: without declared recorders it records from the first capture-capable
+  visualizer the launch resolved into ``env_cfg.sim.visualizer_cfgs`` and raises when there is none. Only
+  :func:`~isaaclab_rl.entrypoints.common.pre_launch_video_config`, called before the launch, adds a headless Kit
+  visualizer for ``--video``. The zero and random agents now configure recording after the launch.
+* Computed the Stable-Baselines3 wrapper's done flags from the host copies of the termination and
+  truncation flags, saving one device-to-host transfer per step.
+
+Removed
+^^^^^^^
+
+* **Breaking:** Removed the ``apply_device`` argument of :func:`~isaaclab_rl.entrypoints.common.apply_env_overrides`,
+  which no longer writes ``--device``; :func:`~isaaclab.app.launch_simulation` writes it to
+  ``env_cfg.sim.device``. Call :func:`~isaaclab_rl.entrypoints.common.show_run_summary` inside
+  :func:`~isaaclab.app.launch_simulation`.
+* **Breaking:** Removed :func:`~isaaclab_rl.entrypoints.common.validate_distributed_device`: with ``--distributed``,
+  :func:`~isaaclab.app.launch_simulation` always assigns each rank a ``cuda:N`` device, so the check could not fail.
+
+Fixed
+^^^^^
+
+* Fixed multi-GPU training saving ``params/env.yaml`` and ``params/agent.yaml`` with the seed of
+  whichever rank wrote last, and leaving extra settings-only folders when ranks started in different
+  seconds. All ranks of a ``train_multigpu`` launch now shared one run folder: rank 0 wrote its settings,
+  videos, and sensor captures where a single-GPU run does, and every other rank wrote its own ``params/``,
+  videos, and sensor captures to ``rank_<rank>/``. For multi-node jobs on shared storage, pass the same
+  ``--run_timestamp`` to ``train_multigpu`` on every node.
+* Fixed skrl multi-GPU training saving the final checkpoint from every rank to the same file.
+* Fixed multi-GPU training ending with a ``destroy_process_group() was not called`` warning after a
+  successful run.
+* Fixed resumed RSL-RL multi-GPU training loading the checkpoint onto the GPU that saved it in every
+  process instead of the process's own GPU, which could make the first update fail with
+  ``normal expects all elements of std >= 0.0``.
+
+
 1.3.1 (2026-09-29)
 ~~~~~~~~~~~~~~~~~~
 

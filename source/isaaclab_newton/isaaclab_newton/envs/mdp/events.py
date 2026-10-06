@@ -55,22 +55,19 @@ class randomize_rigid_body_material(ManagerTermBase):
         self._kamino_group_inverse: torch.Tensor | None = None
         self._kamino_num_groups = 0
 
-        self._static_friction_range = cfg.params.get("static_friction_range", (1.0, 1.0))
-        self._restitution_range = cfg.params.get("restitution_range", (0.0, 0.0))
+        self._static_friction_range = cfg.params["static_friction_range"]
+        self._restitution_range = cfg.params["restitution_range"]
 
         model = self._newton_manager.get_model()
         self._friction_binding = asset._root_view.get_attribute("shape_material_mu", model)[:, 0]  # type: ignore
         self._restitution_binding = asset._root_view.get_attribute("shape_material_restitution", model)[:, 0]  # type: ignore
 
         if isinstance(asset, assets.Articulation) and asset_cfg.body_ids != slice(None):
-            # Shape counts use backend body order.
-            num_shapes_per_body = asset.backend_num_shapes_per_body
-            shape_indices_list = []
+            # The view's shape axis follows the model's shape order, which is not grouped by body,
+            # so select each backend body's own shape indices.
+            body_shapes = asset._root_view.body_shapes  # type: ignore
             backend_body_ids = asset.map_body_ids_to_backend(asset_cfg.body_ids)
-            for body_id in backend_body_ids:
-                start_idx = sum(num_shapes_per_body[:body_id])
-                end_idx = start_idx + num_shapes_per_body[body_id]
-                shape_indices_list.extend(range(start_idx, end_idx))
+            shape_indices_list = [shape_id for body_id in backend_body_ids for shape_id in body_shapes[body_id]]
             self._shape_indices = torch.tensor(shape_indices_list, dtype=torch.long)
         else:
             self._shape_indices = torch.arange(self._friction_binding.shape[1], dtype=torch.long)

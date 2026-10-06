@@ -47,44 +47,13 @@ from isaaclab.scene import InteractiveScene, InteractiveSceneCfg  # noqa: E402
 from isaaclab.sensors import BaseFrameTransformer, FrameTransformerCfg, OffsetCfg  # noqa: E402
 from isaaclab.sim import SimulationCfg, build_simulation_context  # noqa: E402
 from isaaclab.terrains import TerrainImporterCfg  # noqa: E402
+from isaaclab.test.utils import DeviceScope, test_devices  # noqa: E402
 from isaaclab.utils import configclass, replace  # noqa: E402
 
 from isaaclab_assets.robots.anymal import ANYMAL_C_CFG  # noqa: E402
+from isaaclab_assets.robots.franka import FRANKA_PANDA_CFG  # noqa: E402
 
 wp.init()
-
-pytestmark = pytest.mark.device_split
-
-
-# ---------------------------------------------------------------------------
-# Device-lock autouse fixture (mirrors test_contact_sensor.py)                #
-# ---------------------------------------------------------------------------
-
-_LOCKED_DEVICE: list[str | None] = [None]
-"""Device the session pins to on the first parametrized test that runs."""
-
-
-@pytest.fixture(autouse=True)
-def _ovphysx_skip_other_device(request):
-    """Skip parametrized tests on the device the session is not pinned to.
-
-    The OVPhysX runtime fixes device mode when the process creates its first
-    ``ovphysx.PhysX`` instance and cannot switch modes without a process
-    restart. Pin the session to whichever device is first used.
-    """
-    callspec = getattr(request.node, "callspec", None)
-    device = callspec.params.get("device") if callspec is not None else None
-    if device is None:
-        return
-    locked = _LOCKED_DEVICE[0]
-    if locked is None:
-        _LOCKED_DEVICE[0] = device
-        return
-    if device != locked:
-        pytest.skip(
-            f"ovphysx process-global device lock is held by '{locked}'; cannot run '{device}' "
-            "tests in the same session.  Run pytest twice (once per device) for full coverage."
-        )
 
 
 # ---------------------------------------------------------------------------
@@ -668,3 +637,33 @@ def test_frame_transformer_duplicate_body_names(device, source_robot, path_prefi
                 assert any(torch.allclose(rf_pos, expected, atol=1e-5) for expected in expected_rf_positions), (
                     f"RF_SHANK position {rf_pos} doesn't match either configured body offset"
                 )
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
+def test_frame_transformer_nested_rigid_bodies(device):
+    """Test that a matched rigid body does not include nested rigid-body descendants."""
+    with _ovphysx_sim_context(device=device) as sim:
+        sim._app_control_on_stop_handle = None
+        scene_cfg = _SceneCfg(num_envs=2, env_spacing=5.0, lazy_sensor_update=False)
+        scene_cfg.robot = replace(FRANKA_PANDA_CFG, prim_path="{ENV_REGEX_NS}/Robot")
+        scene_cfg.frame_transformer = FrameTransformerCfg(
+            prim_path="{ENV_REGEX_NS}/Robot/(Geometry/)?panda_link0",
+            target_frames=[
+                FrameTransformerCfg.FrameCfg(prim_path="{ENV_REGEX_NS}/Robot/(Geometry/.*/)?panda_(hand|.*finger)"),
+            ],
+        )
+        scene = InteractiveScene(scene_cfg)
+
+        sim.reset()
+        scene.update(sim.get_physics_dt())
+
+        robot = scene.articulations["robot"]
+        source_id = robot.find_bodies("panda_link0")[0][0]
+        target_ids = robot.find_bodies(["panda_hand", "panda_leftfinger", "panda_rightfinger"])[0]
+        frame_data = scene.sensors["frame_transformer"].data
+
+        assert frame_data.target_frame_names == ["panda_hand", "panda_leftfinger", "panda_rightfinger"]
+        torch.testing.assert_close(frame_data.source_pos_w.torch, robot.data.body_pos_w.torch[:, source_id])
+        torch.testing.assert_close(frame_data.source_quat_w.torch, robot.data.body_quat_w.torch[:, source_id])
+        torch.testing.assert_close(frame_data.target_pos_w.torch, robot.data.body_pos_w.torch[:, target_ids])
+        torch.testing.assert_close(frame_data.target_quat_w.torch, robot.data.body_quat_w.torch[:, target_ids])

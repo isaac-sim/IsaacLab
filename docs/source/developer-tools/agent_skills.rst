@@ -192,7 +192,13 @@ Validate skills locally with:
 
    uv run --no-project python tools/skills/cli.py check
 
-The validator checks frontmatter, required sections, unique names, audience/path consistency, link validity, reference depth, portable paths, native Codex and Claude aliases, required user evaluations, minimum evaluation scenario counts, and per-scenario evaluation details such as sample queries, expected behavior, and known failure modes or pass/fail criteria.
+The validator checks frontmatter, required sections, unique names, audience/path consistency, link validity, reference depth, portable paths, catalog completeness, native Codex and Claude aliases, required user evaluations, minimum evaluation scenario counts, and per-scenario evaluation details such as sample queries, expected behavior, and known failure modes or pass/fail criteria.
+
+Structural validation does not establish whether a skill improves agent behavior. When changing a
+workflow, exercise representative requests and inspect the resulting actions and artifacts. Include
+cases that should not activate the skill. Compare correctness, completion, unnecessary scope changes,
+tool calls, uncached input and output tokens, and validation time. Keep cached input separate from
+uncached input, and compare similar tasks before claiming an efficiency improvement.
 
 Run the validator tests with:
 
