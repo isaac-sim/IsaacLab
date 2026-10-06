@@ -442,7 +442,8 @@ adjust material damping and gravity. Press **Reset** after changing a value to
 compare the same drop. The first and third cubes keep their original material
 settings as visual references. This small scene illustrates material response.
 The browser simulation source and rebuild instructions are in
-`docs/browser_demos <https://github.com/isaac-sim/IsaacLab/tree/develop/docs/browser_demos>`_.
+``docs/browser_demos/``. See the :doc:`interactive examples guide
+</source/developer-tools/interactive_examples>` for the export workflow.
 
 .. isaaclab-browser-demo:: stiffness
    :title: VBD material tuning
