@@ -14,7 +14,7 @@ Setup:
         (per docs/source/setup/installation/index.rst; reinstall after the wheel install to select the CUDA build.)
     - (aarch64 only) export LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1
 Tests:
-    - python -c "import importlib.metadata as m; assert m.version('newton') == '1.6.0'"
+    - python -c "import importlib.metadata as m; assert m.version('newton') == '1.6.1'"
         -> verify the wheel resolves the pinned Newton release
     - uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Direct --num_envs 16
         presets=newton_mjwarp --max_iterations 5; uv run isaaclab train --rl_library rsl_rl
@@ -27,6 +27,7 @@ from __future__ import annotations
 import shutil
 
 import pytest
+import tomllib
 from utils import UV_Mixin, cuda_torch_index_url, pinned_torch_specs
 
 
@@ -65,8 +66,15 @@ class Test_Uv_Pip_Install_Isaaclab_All_Trains_Cartpole(UV_Mixin):
             )
             assert result.returncode == 0, f"uv pip install {wheel}[all] failed:\n{result.stdout}\n{result.stderr}"
 
+            with (isaaclab_root / "pyproject.toml").open("rb") as file:
+                newton_version = tomllib.load(file)["tool"]["isaaclab"]["versions"]["newton"]
             result = self.run_in_uv_env(
-                ["python", "-c", "import importlib.metadata as m; assert m.version('newton') == '1.6.1rc1'"],
+                [
+                    "python",
+                    "-c",
+                    f"import importlib.metadata as m; actual = m.version('newton'); "
+                    f"assert actual == {newton_version!r}, actual",
+                ],
                 cwd=isaaclab_root,
             )
             assert result.returncode == 0, (
