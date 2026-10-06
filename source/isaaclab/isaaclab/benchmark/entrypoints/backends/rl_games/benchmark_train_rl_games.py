@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from isaaclab.benchmark import BenchmarkResult
 
+import logging
 import sys
 import time
 
@@ -19,6 +20,8 @@ from isaaclab.benchmark.entrypoints.backends.rl_games.registry import register_s
 from isaaclab.benchmark.entrypoints.training import _resolve_training_checkpoint_path
 
 from isaaclab_rl.entrypoints import common
+
+logger = logging.getLogger(__name__)
 
 
 def _close_rl_games_writer(observer: Any) -> None:
@@ -30,7 +33,7 @@ def _close_rl_games_writer(observer: Any) -> None:
         writer.flush()
         writer.close()
     except Exception as exc:  # noqa: BLE001
-        print(f"[WARNING] rl_games TensorBoard writer cleanup failed: {exc!r}", file=sys.stderr)
+        logger.warning(f"rl_games TensorBoard writer cleanup failed: {exc!r}")
 
 
 def _parse_args(argv: list[str]):
@@ -307,10 +310,9 @@ def run(argv: list[str]) -> BenchmarkResult | None:
             log_data = parse_tf_logs(tb_dir, desc.tfevents_pattern)
             max_epochs = agent_cfg["params"]["config"].get("max_epochs", 1)
             if not log_data or (not log_data.get(desc.reward_tag) and max_epochs >= 1):
-                print(
-                    f"[WARNING] No TensorBoard data parsed from {tb_dir!r};"
-                    " the emitted bundle will report zero metrics. Check the log directory.",
-                    file=sys.stderr,
+                logger.warning(
+                    f"No TensorBoard data parsed from {tb_dir!r};"
+                    " the emitted bundle will report zero metrics. Check the log directory."
                 )
 
             # RL-Games logs FPS directly; iteration time is steps divided by total FPS. Under

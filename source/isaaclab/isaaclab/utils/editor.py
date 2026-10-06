@@ -8,11 +8,14 @@
 import importlib.metadata
 import importlib.util
 import json
+import logging
 import os
 import pathlib
 import re
 import subprocess
 import sys
+
+logger = logging.getLogger(__name__)
 
 _DEFAULT_VSCODE_SETTINGS_TEMPLATE = """
 {
@@ -121,18 +124,18 @@ def read_isaacsim_extra_paths(isaacsim_dir: pathlib.Path | None) -> list[pathlib
         Absolute extension search paths.
     """
     if isaacsim_dir is None:
-        print("[WARN] Isaac Sim was not found; simulator extension paths were not added.")
+        logger.warning("Isaac Sim was not found; simulator extension paths were not added.")
         return []
 
     settings_file = isaacsim_dir / ".vscode" / "settings.json"
     if not settings_file.is_file():
-        print(f"[WARN] Isaac Sim VS Code settings were not found: {settings_file}")
+        logger.warning(f"Isaac Sim VS Code settings were not found: {settings_file}")
         return []
 
     settings = settings_file.read_text(encoding="utf-8")
     match = re.search(r'"python\.analysis\.extraPaths"\s*:\s*\[(.*?)\]', settings, flags=re.DOTALL)
     if match is None:
-        print(f"[WARN] python.analysis.extraPaths was not found in {settings_file}")
+        logger.warning(f"python.analysis.extraPaths was not found in {settings_file}")
         return []
 
     paths = []

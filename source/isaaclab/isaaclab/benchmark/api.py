@@ -45,8 +45,7 @@ class BenchmarkLauncherConfig:
     Args:
         device: Simulation device identifier, such as ``"cpu"`` or ``"cuda:0"``.
         enable_cameras: Whether to enable camera rendering.
-        visualizers: Visualizers to enable. An empty tuple explicitly disables all visualizers;
-            ``None`` preserves task and environment defaults.
+        visualizers: Visualizers to run, passed as ``--visualizer``. ``None`` or an empty tuple runs none.
         max_visible_envs: Maximum number of environments shown by visualizers.
         experience: Isaac Sim experience file.
         deterministic: Whether to request deterministic rendering and backend behavior.

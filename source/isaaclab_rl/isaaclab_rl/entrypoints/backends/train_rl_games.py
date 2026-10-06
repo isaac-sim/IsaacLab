@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import logging
 import os
 import re
 import time
@@ -47,6 +48,8 @@ from ..common import (
     wrap_sensor_capture,
     write_run_manifest,
 )
+
+logger = logging.getLogger(__name__)
 
 # PLACEHOLDER: Extension template (do not remove this comment)
 with contextlib.suppress(ImportError):
@@ -132,13 +135,13 @@ def run(argv: list[str]) -> None:
                 log_root_path = os.path.join(agent_cfg["pbt"]["directory"], log_root_path)
             else:
                 log_root_path = os.path.abspath(log_root_path)
-            print(f"[INFO] Logging experiment in directory: {log_root_path}")
+            logger.info(f"Logging experiment in directory: {log_root_path}")
 
             resume_path = _resolve_checkpoint(args_cli, agent_cfg, log_root_path)
             if resume_path is not None:
                 params["load_checkpoint"] = True
                 params["load_path"] = resume_path
-                print(f"[INFO]: Loading model checkpoint from: {resume_path}")
+                logger.info(f"Loading model checkpoint from: {resume_path}")
 
             run_name = config.get(
                 "full_experiment_name", args_cli.run_timestamp or datetime.now().strftime("%Y-%m-%d_%H-%M-%S")

@@ -358,6 +358,7 @@ class CuroboPlanner(MotionPlannerBase):
 
         self._static_world_config = self.usd_helper.get_obstacles_from_stage(
             only_paths=[env_prim_path],
+            ignore_paths=[robot_prim_path],
             reference_prim_path=robot_prim_path,
             ignore_substring=ignore_list,
         )

@@ -150,7 +150,6 @@ class CommandsCfg:
             pitch=(0.0, 0.0),
             yaw=(0.0, 0.0),
         ),
-        success_vis_material_name="table_material",
         success_vis_colors=((0.8, 0.5, 0.5), (0.5, 0.8, 0.5)),
     )
 

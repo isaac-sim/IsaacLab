@@ -148,14 +148,14 @@ class ManagerBasedEnvCfg:
     """Configuration for teleoperation devices."""
 
     isaac_teleop: object | None = None
-    """Configuration for IsaacTeleop-based teleoperation.
+    """Configuration for Isaac Capture-based teleoperation.
 
-    When set, the environment uses the IsaacTeleop stack for XR teleoperation instead
+    When set, the environment uses the Isaac Capture stack for XR teleoperation instead
     of the native Isaac Lab teleop devices. This should be a IsaacTeleopCfg instance
     from the isaaclab_teleop package.
 
     The teleop scripts will automatically detect this configuration and use the
-    IsaacTeleop stack when present.
+    Isaac Capture stack when present.
     """
 
     export_io_descriptors: bool = False

@@ -52,6 +52,7 @@ Guidelines for modifications:
 * Alessandro Assirelli
 * Alex Omar
 * Alexander Millane
+* Alexander Temirov
 * Alice Zhou
 * alltheseas
 * Amr Mousa

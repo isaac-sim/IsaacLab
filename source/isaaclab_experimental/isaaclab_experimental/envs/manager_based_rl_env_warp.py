@@ -13,6 +13,7 @@ so it can diverge (Warp-first / graph-friendly) without inheriting from the stab
 # needed to import for allowing type-hinting: np.ndarray | None
 from __future__ import annotations
 
+import logging
 import math
 import os
 from collections.abc import Sequence
@@ -33,6 +34,8 @@ from isaaclab_experimental.utils.manager_call_switch import ManagerCallMode
 from isaaclab_experimental.utils.torch_utils import clone_obs_buffer
 
 from .manager_based_env_warp import ManagerBasedEnvWarp
+
+logger = logging.getLogger(__name__)
 
 DEBUG_TIMERS = os.environ.get("DEBUG_TIMERS", "0") == "1"
 """Enable outer step() timer. Set DEBUG_TIMERS=1 env var to enable."""
@@ -130,7 +133,7 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
         self.metadata["render_fps"] = 1 / self.step_dt
         self.has_rtx_sensors = self.sim.get_setting("/isaaclab/render/rtx_sensors")
 
-        print("[INFO]: Completed setting up the environment...")
+        logger.info("Completed setting up the environment...")
 
     """
     Properties.
@@ -165,7 +168,7 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
         # and the reward manager needs to know the termination manager
         # -- command manager (stable impl — not routed through ManagerCallSwitch)
         self.command_manager = CommandManager(self.cfg.commands, self)
-        print("[INFO] Command Manager: ", self.command_manager)
+        logger.info(f"Command Manager: {self.command_manager}")
 
         # call the parent class to load the managers for observations and actions.
         super().load_managers()
@@ -175,15 +178,15 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
         self.termination_manager = self._manager_call_switch.resolve_manager_class("TerminationManager")(
             self.cfg.terminations, self
         )
-        print("[INFO] Termination Manager: ", self.termination_manager)
+        logger.info(f"Termination Manager: {self.termination_manager}")
         # -- reward manager (experimental fork; Warp-compatible rewards)
         self.reward_manager = self._manager_call_switch.resolve_manager_class("RewardManager")(self.cfg.rewards, self)
-        print("[INFO] Reward Manager: ", self.reward_manager)
+        logger.info(f"Reward Manager: {self.reward_manager}")
         # -- curriculum manager
         self.curriculum_manager = self._manager_call_switch.resolve_manager_class("CurriculumManager")(
             self.cfg.curriculum, self
         )
-        print("[INFO] Curriculum Manager: ", self.curriculum_manager)
+        logger.info(f"Curriculum Manager: {self.curriculum_manager}")
 
         # setup the action and observation spaces for Gym
         self._configure_gym_env_spaces()

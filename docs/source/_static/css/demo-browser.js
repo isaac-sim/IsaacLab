@@ -78,8 +78,8 @@
 
         const updateVisualizer = () => {
             const preferredVisualizers = fields.physics.value.startsWith("newton")
-                ? ["newton_gl", "kit", "none"]
-                : fields.physics.value === "ovphysx" ? ["none"] : ["kit", "none"];
+                ? ["newton_gl", "kit"]
+                : ["kit"];
             populateSelect(fields.visualizer, compatibleVisualizers(), preferredVisualizers);
             updateCommand();
         };
