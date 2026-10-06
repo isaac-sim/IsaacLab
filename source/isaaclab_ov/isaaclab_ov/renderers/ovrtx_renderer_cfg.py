@@ -131,6 +131,7 @@ class OVRTXRendererCfg(RendererCfg):
             RenderBufferKind.RGBA: RenderBufferSpec(4, wp.uint8),
             RenderBufferKind.RGB: RenderBufferSpec(3, wp.uint8),
             RenderBufferKind.RGB_HDR: RenderBufferSpec(3, wp.float32),
+            RenderBufferKind.RGB_RADIANCE: RenderBufferSpec(3, wp.float32),
             RenderBufferKind.ALBEDO: RenderBufferSpec(4, wp.uint8),
             RenderBufferKind.SIMPLE_SHADING_CONSTANT_DIFFUSE: RenderBufferSpec(3, wp.uint8),
             RenderBufferKind.SIMPLE_SHADING_DIFFUSE_MDL: RenderBufferSpec(3, wp.uint8),

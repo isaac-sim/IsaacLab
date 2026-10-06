@@ -32,6 +32,7 @@ _RENDER_VAR_BY_DATA_TYPE: dict[str, tuple[str, str]] = {
     "simple_shading_diffuse_mdl": ("LdrColor", "LdrColor"),
     "simple_shading_full_mdl": ("LdrColor", "LdrColor"),
     "rgb_hdr": ("HdrColor", "HdrColor"),
+    "rgb_radiance": ("HdrColor", "HdrColor"),
     "albedo": ("albedo", "DiffuseAlbedoSD"),
     "depth": ("depth", "DistanceToImagePlaneSD"),
     "distance_to_image_plane": ("depth", "DistanceToImagePlaneSD"),
@@ -197,6 +198,12 @@ def build_render_product_as_string(
             f"bool omni:rtx:minimal:castShadows = {'true' if enable_shadows else 'false'}",
         ]
 
+    api_schemas = ["OmniRtxSettingsCommonAdvancedAPI_1"]
+    if not {"rgb_hdr", "rgb_radiance"}.isdisjoint(data_types):
+        # OVRTX 0.5 reads this per product. Its default bypasses HdrColor for Gaussian pixels.
+        api_schemas.append("OmniRtxSettingsParticleFieldAPI_1")
+        render_mode_lines.append("bool omni:rtx:rtpt:gaussian:skipTonemapping:enabled = false")
+    api_schemas_block = ", ".join(f'"{schema}"' for schema in api_schemas)
     render_mode_block = "\n        ".join(render_mode_lines)
     ordered_vars = ", ".join(f"<{path}>" for path, _, _ in render_var_configs)
     render_var_defs = "\n".join(
@@ -213,7 +220,7 @@ def build_render_product_as_string(
 def Scope "{render_data.render_scope_name}"
 {{
     def RenderProduct "RenderProduct" (
-        prepend apiSchemas = ["OmniRtxSettingsCommonAdvancedAPI_1"]
+        prepend apiSchemas = [{api_schemas_block}]
     ) {{
         rel camera = [<{render_data.camera_paths[0]}>]
         uint[] deviceIds = [{device_id}]
