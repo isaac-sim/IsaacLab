@@ -282,12 +282,17 @@ class PairedTests(unittest.TestCase):
             with self.subTest(event=event_name):
                 self.assertNotEqual(observed["original"], observed["changed"])
 
-    def test_capture_failure_preserves_actual_identity_and_does_not_fall_back_to_event_base(self):
+    def test_capture_rejects_invalid_current_source_even_without_base_metadata(self):
         base, head, merge, _ = self._moving_merge()
-        reason = "Tested PR merge does not have the event's head commit as its second parent."
-        for resolved in ("", self.commit):
-            with self.subTest(resolved=resolved):
-                output = self.root / (resolved or "unresolved")
+        for mismatch in ("checkout", "head", "nonmerge", "invalid_sha"):
+            with self.subTest(mismatch=mismatch):
+                commit = base if mismatch == "nonmerge" else merge
+                tested = base if mismatch in ("checkout", "nonmerge") else merge
+                if mismatch == "invalid_sha":
+                    tested = "invalid"
+                self._git("checkout", "--quiet", "--detach", commit)
+                self.event["pull_request"]["head"]["sha"] = HEAD if mismatch == "head" else head
+                output = self.root / mismatch
                 result = self._cli(
                     [
                         "capture",
@@ -302,32 +307,31 @@ class PairedTests(unittest.TestCase):
                         "--legs",
                         str(self.root / "unused.tsv"),
                     ],
-                    GITHUB_SHA=merge,
-                    PERF_BASE_COMMIT=resolved,
-                    PERF_PAIR_ERROR=reason,
+                    GITHUB_SHA=tested,
+                    PERF_BASE_COMMIT="",
                 )
                 self.assertNotEqual(result.returncode, 0)
                 failure_path = output / "paired-failure.json"
                 failure = json.loads(failure_path.read_text())
                 self.assertEqual(failure["stage"], "capture_current")
-                if not resolved:
-                    self.assertEqual(failure["reason"], reason)
-                self.assertEqual(failure["source"]["commit"], merge)
-                self.assertEqual(failure["source"]["intended_commit"], merge)
-                self.assertEqual(failure["source"]["tested_commit"], merge)
-                self.assertEqual(failure["source"]["commit_parents"], [base, head])
+                expected_reason = "GITHUB_SHA" if mismatch in ("checkout", "invalid_sha") else "second parent"
+                self.assertIn(expected_reason, failure["reason"])
+                self.assertEqual(failure["source"]["commit"], commit)
+                self.assertEqual(failure["source"]["intended_commit"], tested)
+                self.assertEqual(failure["source"]["tested_commit"], tested)
+                self.assertEqual(failure["source"]["commit_parents"], [self.commit] if commit == base else [base, head])
                 self.assertEqual(failure["source"]["event_base_commit"], self.commit)
                 self.assertEqual(failure["execution"], {"run_id": 20, "run_attempt": 1})
                 self.assertFalse((output / "source-manifest.json").exists())
                 previous = failure_path.read_bytes()
                 self._cli(
                     ["bind", "--selection", str(self.selection_path), "--output-dir", str(output)],
-                    GITHUB_SHA=merge,
+                    GITHUB_SHA=tested,
                     PERF_BASE_COMMIT="",
                 )
                 self.assertEqual(failure_path.read_bytes(), previous)
 
-    def test_bind_failure_is_enriched_by_later_capture_without_replacing_primary_reason(self):
+    def test_current_capture_survives_missing_or_stale_base_metadata_and_keeps_bind_failure(self):
         base, head, merge, _ = self._moving_merge()
         reason = "CPU could not resolve the tested PR merge."
         env = {"GITHUB_SHA": merge, "PERF_BASE_COMMIT": "", "PERF_PAIR_ERROR": reason}
@@ -338,26 +342,72 @@ class PairedTests(unittest.TestCase):
         self.assertEqual(original["stage"], "bind")
         self.assertEqual(original["reason"], reason)
         self.assertIsNone(original["source"]["commit"])
-        captured = self._cli(
-            [
-                "capture",
-                "--checkout-root",
-                str(self.checkout),
-                "--output-dir",
-                str(self.output),
-                "--image",
-                "unused",
-                "--role",
-                "current",
-                "--legs",
-                str(self.root / "unused.tsv"),
-            ],
-            **env,
-        )
-        self.assertNotEqual(captured.returncode, 0)
-        expected = json.loads(encoded(original))
-        expected["source"].update(commit=merge, commit_parents=[base, head])
-        self.assertEqual(json.loads(path.read_text()), expected)
+        original_run = subprocess.run
+
+        def inspect_or_run(command, **kwargs):
+            if command[:3] == ["docker", "image", "inspect"]:
+                return subprocess.CompletedProcess(command, 0, '[{"Id":"same-image","RepoDigests":[]}]', "")
+            return original_run(command, **kwargs)
+
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    **env,
+                    "GITHUB_EVENT_PATH": str(self.root / "event.json"),
+                    "GITHUB_EVENT_NAME": "pull_request",
+                    "GITHUB_RUN_ID": "20",
+                    "GITHUB_RUN_ATTEMPT": "1",
+                    "GITHUB_JOB": "performance-smoke-benchmarks",
+                },
+            ),
+            patch.object(paired.subprocess, "run", side_effect=inspect_or_run),
+        ):
+            for resolved in ("", self.commit):
+                with self.subTest(resolved=resolved), patch.dict(os.environ, {"PERF_BASE_COMMIT": resolved}):
+                    context = paired.capture_context(
+                        self.checkout, self.output, "same-image", "current", self.event, self.legs
+                    )
+                    self.assertEqual(context["source"]["commit"], merge)
+                    self.assertEqual(context["source"]["reference_commit"], base)
+                    self.assertEqual(context["source"]["commit_parents"], [base, head])
+                    self.assertEqual(context["source"]["event_base_commit"], self.commit)
+                    manifest = json.loads((self.output / "source-manifest.json").read_text())
+                    self.assertEqual(manifest["commit"], merge)
+                    for name, content in (("pr.py", b"VALUE = 'PR'\n"), ("base.py", b"VALUE = 'Advanced base'\n")):
+                        self.assertEqual(
+                            manifest["files"][f"source/isaaclab/isaaclab/{name}"], hashlib.sha256(content).hexdigest()
+                        )
+                    self.assertEqual(json.loads(path.read_text()), original)
+                    self.assertFalse((self.output / "pr-comparison.json").exists())
+                    with self.assertRaises(ValueError):
+                        paired.capture_context(
+                            self.checkout, self.output, "same-image", "baseline", self.event, self.legs
+                        )
+            (self.checkout / RUNTIME).write_text("def run(argv): return 'modified'\n")
+            invalid = self.root / "modified-source"
+            with self.assertRaisesRegex(ValueError, "Checked-out Python source differs"):
+                paired.capture_context(self.checkout, invalid, "same-image", "current", self.event, self.legs)
+            self.assertFalse((invalid / "source-manifest.json").exists())
+            captured = paired.main(
+                [
+                    "capture",
+                    "--checkout-root",
+                    str(self.checkout),
+                    "--output-dir",
+                    str(self.output),
+                    "--image",
+                    "same-image",
+                    "--role",
+                    "current",
+                    "--legs",
+                    str(self.legs),
+                ]
+            )
+            self.assertNotEqual(captured, 0)
+            expected = json.loads(encoded(original))
+            expected["source"].update(commit=merge, commit_parents=[base, head])
+            self.assertEqual(json.loads(path.read_text()), expected)
 
     def _files(self, run_id=10, attempt=1):
         files = {

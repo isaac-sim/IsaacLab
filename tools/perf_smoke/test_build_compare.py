@@ -628,7 +628,12 @@ class AutomaticReportTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             status, result, markdown = self.run_report(Path(directory))
         self.assertEqual(status, 0)
-        self.assertEqual(result["selection"]["reason_code"], "expired")
+        self.assertIsNone(result["baseline"])
+        self.assertIn("No available measured target-branch ancestor", result["selection"]["reason"])
+        self.assertIn(
+            {"artifact_id": self.client.run_artifacts[10][0]["id"], "reason": "Selected artifact has expired"},
+            result["selection"]["issues"],
+        )
         self.assertFalse(result["selection"]["pinned"])
         self.assertEqual(result["rows"][0]["candidate"]["median"], 80)
         self.assertIsNone(result["rows"][0]["change_pct"])

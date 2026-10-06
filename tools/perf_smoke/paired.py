@@ -300,13 +300,12 @@ def capture_context(root: Path, output_dir: Path, image_ref: str, role: str, eve
     """Record the selected checkout, image and runner before its measurement."""
     commit, parents = _checkout_source(root)
     pr = event.get("pull_request", {})
-    reference_commit = _resolved_base() if pr else (parents[0] if parents else None)
-    if pr:
-        intended = reference_commit if role == "baseline" else os.environ["GITHUB_SHA"]
-        if commit != intended:
-            raise ValueError(f"{role} checkout does not match its intended source revision.")
-        if role == "current" and parents != [reference_commit, pr["head"]["sha"]]:
-            raise ValueError("Tested PR merge parents do not match the resolved first parent and event head commit.")
+    if pr and role == "current":
+        reference_commit = resolve_base(root, event)["base_commit"]
+    else:
+        reference_commit = _resolved_base() if pr else (parents[0] if parents else None)
+        if pr and commit != reference_commit:
+            raise ValueError("baseline checkout does not match its intended source revision.")
     inspected = subprocess.run(["docker", "image", "inspect", image_ref], capture_output=True, text=True)
     image = json.loads(inspected.stdout)[0] if inspected.returncode == 0 else {}
     context = {
