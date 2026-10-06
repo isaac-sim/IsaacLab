@@ -102,11 +102,11 @@ Task Preview
 Benchmarks
 ----------
 
+.. isaaclab-benchmark-data::
+
 .. raw:: html
 
    <div class="environment-browser" data-environment-benchmarks
-        data-benchmark-release-source="../../_static/benchmarks/environment-performance-release.csv"
-        data-benchmark-develop-source="../../_static/benchmarks/environment-performance-develop.csv"
         data-benchmark-release-dates="2026-09-09"
         data-benchmark-develop-dates="2026-08-28,2026-09-09">
      <section class="environment-benchmark-panel">
