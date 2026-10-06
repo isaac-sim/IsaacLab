@@ -70,7 +70,7 @@ def command_list_envs(args: list[str] | None = None) -> None:
         libraries = [
             library
             for library in ("rl_games", "rlinf", "rsl_rl", "sb3", "skrl", "torchrl")
-            if spec.kwargs.get(f"{library}_cfg_entry_point") is not None or spec.kwargs.get("default_agent") == library
+            if spec.kwargs.get(f"{library}_cfg_entry_point") is not None
         ]
         row = [index, spec.id, spec.entry_point, spec.kwargs["env_cfg_entry_point"], ", ".join(libraries) or "(none)"]
         if parsed_args.show_presets:
