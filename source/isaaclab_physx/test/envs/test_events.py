@@ -208,3 +208,23 @@ def test_fixed_tendon_parameters(env: ManagerBasedEnv) -> None:
     expected_length[1] = 0.5
     torch.testing.assert_close(wp.to_torch(asset.root_view.get_fixed_tendon_limit_stiffnesses()), expected_stiffness)
     torch.testing.assert_close(wp.to_torch(asset.root_view.get_fixed_tendon_rest_lengths()), expected_length)
+
+
+def test_fixed_tendon_parameters_do_not_compound(env: ManagerBasedEnv) -> None:
+    """Repeated randomization samples around the initial values, not around the previous sample."""
+    asset = env.scene["identity"]
+    tendon_params = dict(
+        asset_cfg=SceneEntityCfg("identity"),
+        stiffness_distribution_params=(0.5, 0.5),
+        damping_distribution_params=(0.25, 0.25),
+        operation="add",
+    )
+    tendon = mdp.randomize_fixed_tendon_parameters(
+        EventTermCfg(func=mdp.randomize_fixed_tendon_parameters, params=tendon_params), env
+    )
+    expected_stiffness = wp.to_torch(asset.root_view.get_fixed_tendon_stiffnesses()).clone() + 0.5
+    expected_damping = wp.to_torch(asset.root_view.get_fixed_tendon_dampings()).clone() + 0.25
+    for _ in range(3):
+        tendon(env, None, **tendon_params)
+    torch.testing.assert_close(wp.to_torch(asset.root_view.get_fixed_tendon_stiffnesses()), expected_stiffness)
+    torch.testing.assert_close(wp.to_torch(asset.root_view.get_fixed_tendon_dampings()), expected_damping)

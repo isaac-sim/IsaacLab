@@ -1009,6 +1009,8 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
 
         self.asset_cfg: SceneEntityCfg = cfg.params["asset_cfg"]
         self.asset: RigidObject | Articulation = env.scene[self.asset_cfg.name]
+        # randomize from the initial values so repeated calls do not compound earlier samples
+        self._defaults: dict[str, torch.Tensor] = {}
         _validate_randomization_params(cfg, "stiffness_distribution_params", allow_zero=False)
         for name in (
             "damping_distribution_params",
@@ -1022,6 +1024,15 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
             "offset_distribution_params",
         ):
             _validate_randomization_params(cfg, name, allow_negative=True)
+
+    def _default(self, prop: str) -> torch.Tensor:
+        """Copy of the tendon data property ``prop`` as it was before this term first wrote it.
+
+        Read on first use, so only randomized properties are read: not every backend exposes every tendon property.
+        """
+        if prop not in self._defaults:
+            self._defaults[prop] = getattr(self.asset.data, prop).torch.clone()
+        return self._defaults[prop].clone()
 
     def __call__(
         self,
@@ -1053,7 +1064,7 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
         # stiffness
         if stiffness_distribution_params is not None:
             stiffness = _randomize_prop_by_op(
-                self.asset.data.fixed_tendon_stiffness.torch.clone(),
+                self._default("fixed_tendon_stiffness"),
                 stiffness_distribution_params,
                 env_ids,
                 tendon_ids,
@@ -1066,7 +1077,7 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
 
         if damping_distribution_params is not None:
             damping = _randomize_prop_by_op(
-                self.asset.data.fixed_tendon_damping.torch.clone(),
+                self._default("fixed_tendon_damping"),
                 damping_distribution_params,
                 env_ids,
                 tendon_ids,
@@ -1080,7 +1091,7 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
         # limit stiffness
         if limit_stiffness_distribution_params is not None:
             limit_stiffness = _randomize_prop_by_op(
-                self.asset.data.fixed_tendon_limit_stiffness.torch.clone(),
+                self._default("fixed_tendon_limit_stiffness"),
                 limit_stiffness_distribution_params,
                 env_ids,
                 tendon_ids,
@@ -1094,7 +1105,7 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
             )
 
         if lower_limit_distribution_params is not None or upper_limit_distribution_params is not None:
-            limit = self.asset.data.fixed_tendon_pos_limits.torch.clone()
+            limit = self._default("fixed_tendon_pos_limits")
             # -- lower limit
             if lower_limit_distribution_params is not None:
                 limit[..., 0] = _randomize_prop_by_op(
@@ -1129,7 +1140,7 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
 
         if rest_length_distribution_params is not None:
             rest_length = _randomize_prop_by_op(
-                self.asset.data.fixed_tendon_rest_length.torch.clone(),
+                self._default("fixed_tendon_rest_length"),
                 rest_length_distribution_params,
                 env_ids,
                 tendon_ids,
@@ -1142,7 +1153,7 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
         # offset
         if offset_distribution_params is not None:
             offset = _randomize_prop_by_op(
-                self.asset.data.fixed_tendon_offset.torch.clone(),
+                self._default("fixed_tendon_offset"),
                 offset_distribution_params,
                 env_ids,
                 tendon_ids,
