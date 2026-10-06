@@ -127,6 +127,13 @@ class NewtonCollisionPipelineCfg:
     Defaults to ``None`` (auto-estimate, same as Newton's default).
     """
 
+    rigid_contacts_per_world: int | None = None
+    """Rigid-contact capacity per simulation world.
+
+    Used when :attr:`rigid_contact_max` is ``None``; the buffer then holds this many contacts for each world of
+    the model the pipeline is built for. Defaults to ``None`` (Newton estimates the capacity).
+    """
+
     max_triangle_pairs: int = 1_000_000
     """Maximum number of triangle pairs allocated by narrow phase for mesh and heightfield collisions.
 
@@ -178,12 +185,48 @@ class NewtonCollisionPipelineCfg:
     Defaults to ``None`` (hydroelastic disabled, same as Newton's default).
     """
 
-    def to_pipeline_args(self) -> dict[str, Any]:
+    deterministic: bool = False
+    """Whether collision results are independent of GPU thread scheduling.
+
+    Contacts are sorted, and hydroelastic contacts are accumulated and allocated deterministically. The
+    pipeline is also deterministic when :attr:`~isaaclab_newton.physics.NewtonCfg.deterministic_mode` requests
+    determinism; this flag covers collision only and makes no guarantee for the solver.
+
+    Defaults to ``False`` (same as Newton's default).
+    """
+
+    contact_matching: Literal["disabled", "latest", "sticky"] = "disabled"
+    """Frame-to-frame rigid-contact matching mode.
+
+    Any mode other than ``"disabled"`` sorts contacts deterministically and fills
+    ``Contacts.rigid_contact_match_index``. ``"sticky"`` also replays the saved contact points and normals of
+    matched contacts, so it changes contact geometry. The matching history of reset environments is cleared.
+
+    Defaults to ``"disabled"`` (same as Newton's default).
+    """
+
+    contact_matching_pos_threshold: float = 0.0005
+    """Distance [m] a contact midpoint may move between frames and still match.
+
+    Defaults to ``0.0005`` (same as Newton's default).
+    """
+
+    contact_matching_normal_dot_threshold: float = 0.995
+    """Minimum dot product between the previous and current contact normals for a match.
+
+    Defaults to ``0.995`` (same as Newton's default).
+    """
+
+    def to_pipeline_args(self, world_count: int | None = None) -> dict[str, Any]:
         """Build keyword arguments for :class:`newton.CollisionPipeline`.
 
         Converts this configuration into the dict expected by
         ``CollisionPipeline.__init__``, handling nested config conversion
-        (e.g. :class:`HydroelasticSDFCfg` → ``HydroelasticSDF.Config``).
+        (e.g. :class:`HydroelasticSDFCfg` → ``HydroelasticSDF.Config``) and
+        resolving the rigid-contact capacity with :meth:`resolve_rigid_contact_max`.
+
+        Args:
+            world_count: Number of simulation worlds of the model the pipeline is built for.
 
         Returns:
             Keyword arguments suitable for ``CollisionPipeline(model, **args)``.
@@ -191,7 +234,32 @@ class NewtonCollisionPipelineCfg:
         from newton.geometry import HydroelasticSDF
 
         cfg_dict = to_dict(self)
+        del cfg_dict["rigid_contacts_per_world"]
+        cfg_dict["rigid_contact_max"] = self.resolve_rigid_contact_max(world_count)
         hydro_cfg = cfg_dict.pop("sdf_hydroelastic_config", None)
         if hydro_cfg is not None:
             cfg_dict["sdf_hydroelastic_config"] = HydroelasticSDF.Config(**hydro_cfg)
         return cfg_dict
+
+    def resolve_rigid_contact_max(self, world_count: int | None) -> int | None:
+        """Return the rigid-contact capacity for a model, or ``None`` to let Newton estimate it.
+
+        :attr:`rigid_contact_max` takes precedence over :attr:`rigid_contacts_per_world`.
+
+        Args:
+            world_count: Number of simulation worlds of the model.
+
+        Raises:
+            ValueError: If :attr:`rigid_contacts_per_world` sets the capacity and is not positive, or
+                ``world_count`` is ``None``.
+        """
+        if self.rigid_contact_max is not None:
+            return self.rigid_contact_max
+        per_world = self.rigid_contacts_per_world
+        if per_world is None:
+            return None
+        if per_world <= 0:
+            raise ValueError(f"rigid_contacts_per_world must be positive, got {per_world}.")
+        if world_count is None:
+            raise ValueError("rigid_contacts_per_world needs the world count of the model.")
+        return per_world * world_count
