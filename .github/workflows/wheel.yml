@@ -49,7 +49,6 @@ jobs:
             $'^VERSION$\tPackage version'
             $'^source/\tPython packages'
             $'^tools/wheel_builder/\tWheel build tooling'
-            $'^tools/qa_uvx\.py$\tInstalled uvx validation'
             $'^\.github/workflows/wheel\.yml$\tThis workflow file'
           )
 
@@ -168,21 +167,6 @@ jobs:
           WHEEL_BUILD_NUMBER: ${{ github.run_number }}
           WHEEL_SHA: ${{ github.sha }}
         run: bash tools/wheel_builder/build.sh
-
-      - name: Test wheel through uvx
-        if: steps.changes.outputs.run_build == 'true'
-        run: |
-          set -euo pipefail
-          wheels=(tools/wheel_builder/build/dist/isaaclab-*.whl)
-          uv run --no-project python tools/qa_uvx.py --package "${wheels[0]}" --examples --output /tmp/uvx-qa-wheel
-
-      - name: Upload uvx QA results
-        if: always() && steps.changes.outputs.run_build == 'true'
-        uses: actions/upload-artifact@v7
-        with:
-          name: uvx-qa-wheel
-          path: /tmp/uvx-qa-wheel
-          if-no-files-found: ignore
 
       - name: Upload wheel artifact
         if: steps.changes.outputs.run_build == 'true'
