@@ -1,24 +1,13 @@
 Exporting Policies with LEAPP
-===============================
+=============================
 
 .. currentmodule:: isaaclab
-
-.. role:: leapp-export-benefit
-
-.. raw:: html
-
-   <style>
-   .leapp-export-benefit {
-       text-decoration: underline #76b900 0.12em;
-       text-underline-offset: 0.2em;
-   }
-   </style>
 
 This guide covers how to export and deploy trained reinforcement learning policies from Isaac Lab using
 `LEAPP <https://nvidia-isaac.github.io/leapp/>`__ (Lightweight Export Annotations for Policy Pipelines).
 The main goal of the LEAPP export path is to package a policy together with the input and output
-semantics needed for deployment, :leapp-export-benefit:`so downstream users do not need to reimplement Isaac Lab
-observation preprocessing, action postprocessing, or recurrent-state handling by hand.`
+semantics needed for deployment, so downstream users do not need to reimplement Isaac Lab
+observation preprocessing, action postprocessing, or recurrent-state handling by hand.
 
 The Isaac Lab LEAPP exporter traces the data flowing between the policy and the simulation,
 capturing the operations applied along the way. It also embeds semantic metadata for the exported
