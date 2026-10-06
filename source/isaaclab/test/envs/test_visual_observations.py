@@ -166,6 +166,33 @@ def test_manager_adopts_prepared_image_and_snapshots_its_output():
     assert sum(kind == "close" for kind, _ in events) == 1
 
 
+def _encode_image(env, image: ObservationTermCfg):
+    """Wrapper observation that reads a nested image term."""
+    return image.func(env, **image.params)
+
+
+def test_manager_prepares_nested_image_terms_before_startup():
+    """An image term nested in another term's params requests renderer inputs before startup."""
+    camera = CameraSource()
+    env = make_env(camera)
+    events = []
+    image_cfg, bindings = make_term_cfg(events)
+    image_cfg.func = "isaaclab.envs.mdp:processed_image"
+    group = ObservationGroupCfg(concatenate_terms=False, enable_corruption=False)
+    group.encoded = ObservationTermCfg(func=_encode_image, params={"image": image_cfg})
+    cfg = {"policy": group}
+    prepared = ObservationManager.prepare_scene(cfg, env)
+    instance = prepared["policy/encoded.params.image"]
+    assert camera.requests == [("rgb", "rgba")]
+    assert not bindings
+    manager = ObservationManager(cfg, env, prepared_terms=prepared)
+    assert manager.cfg["policy"].encoded.params["image"].func is instance
+    manager.compute()
+    assert sum(kind == "process" for kind, _ in events) == 1
+    manager.close()
+    assert sum(kind == "close" for kind, _ in events) == 1
+
+
 def test_normalized_permuted_output_reuses_storage_and_matches_image_math():
     """Strided RGB input normalizes into a persistent float32 output and BCHW view."""
     camera = CameraSource()

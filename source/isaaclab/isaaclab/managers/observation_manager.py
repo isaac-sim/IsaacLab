@@ -10,6 +10,7 @@ from __future__ import annotations
 import inspect
 from collections.abc import Iterable, Sequence
 from contextlib import suppress
+from dataclasses import fields
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -20,7 +21,7 @@ from ..envs.utils.io_descriptors import _warn_io_descriptors_deprecated
 from ..utils import clone, instantiate, modifiers, noise, string_to_callable, to_dict
 from ..utils.buffers import CircularBuffer, DelayBuffer
 from .manager_base import ManagerBase, ManagerTermBase
-from .manager_term_cfg import ObservationGroupCfg, ObservationTermCfg
+from .manager_term_cfg import ManagerTermBaseCfg, ObservationGroupCfg, ObservationTermCfg
 
 if TYPE_CHECKING:
     from ..envs import ManagerBasedEnv
@@ -37,6 +38,55 @@ def _close_terms(terms: Iterable[ManagerTermBase]) -> None:
                 error = exc
     if error is not None:
         raise RuntimeError("Failed to close an observation term.") from error
+
+
+def _prepare_term(
+    name: str,
+    term_cfg: ManagerTermBaseCfg,
+    env: ManagerBasedEnv,
+    prepared: dict[str, ManagerTermBase],
+    *,
+    top_level: bool,
+) -> None:
+    """Prepare a term and the terms nested in its configuration before simulation startup.
+
+    Nested terms are visited first and named like :meth:`ManagerBase._resolve_param_value` names them at
+    simulation start, so :meth:`ObservationManager._process_term_cfg_at_play` adopts each prepared instance.
+    """
+    for field in fields(term_cfg):
+        _prepare_nested_terms(name, field.name, getattr(term_cfg, field.name), env, prepared)
+    func = string_to_callable(term_cfg.func) if isinstance(term_cfg.func, str) else term_cfg.func
+    if top_level and not callable(func):
+        raise TypeError(f"Observation term {name!r} is not callable: {func!r}.")
+    if not inspect.isclass(func):
+        return
+    if not issubclass(func, ManagerTermBase):
+        if top_level:
+            raise TypeError(f"Observation term {name!r} must inherit from ManagerTermBase.")
+        return
+    instance = func.prepare_scene(clone(term_cfg), env)
+    if instance is not None:
+        if isinstance(instance, ManagerTermBase):
+            prepared[name] = instance
+        if not isinstance(instance, func):
+            raise TypeError(f"Observation term {name!r} prepare_scene must return {func.__name__} or None.")
+
+
+def _prepare_nested_terms(
+    term_name: str, key: str | int, value: object, env: ManagerBasedEnv, prepared: dict[str, ManagerTermBase]
+) -> None:
+    """Visit configuration values in the same order and with the same names as runtime term resolution."""
+    if isinstance(value, ManagerTermBaseCfg):
+        _prepare_term(f"{term_name}.{key}", value, env, prepared, top_level=False)
+    elif isinstance(value, modifiers.ModifierCfg):
+        for field in fields(value):
+            _prepare_nested_terms(f"{term_name}.{key}", field.name, getattr(value, field.name), env, prepared)
+    elif isinstance(value, dict):
+        for sub_key, sub_value in value.items():
+            _prepare_nested_terms(f"{term_name}.{key}", sub_key, sub_value, env, prepared)
+    elif isinstance(value, (list, tuple)):
+        for index, item in enumerate(value):
+            _prepare_nested_terms(f"{term_name}.{key}", index, item, env, prepared)
 
 
 class ObservationManager(ManagerBase):
@@ -158,9 +208,13 @@ class ObservationManager(ManagerBase):
             cfg: Observation group configuration or dictionary of groups.
             env: Environment whose scene has been authored.
 
+        Terms nested in another term's configuration (for example in its ``params``) are prepared too,
+        keyed by the same names used when terms are resolved at simulation start, such as
+        ``"group/term.params.image"``.
+
         Returns:
-            Prepared instances keyed by ``"group/term"``. The caller owns them
-            until passing the dictionary to the observation manager.
+            Prepared instances keyed by ``"group/term"`` or their nested resolution name. The caller owns
+            them until passing the dictionary to the observation manager.
         """
         if cfg is None:
             raise ValueError("Observation manager configuration is None. Please provide a valid configuration.")
@@ -178,20 +232,7 @@ class ObservationManager(ManagerBase):
                     name = f"{group_name}/{term_name}"
                     if not isinstance(term_cfg, ObservationTermCfg):
                         raise TypeError(f"Observation term {name!r} must be an ObservationTermCfg.")
-                    func = string_to_callable(term_cfg.func) if isinstance(term_cfg.func, str) else term_cfg.func
-                    if not callable(func):
-                        raise TypeError(f"Observation term {name!r} is not callable: {func!r}.")
-                    if inspect.isclass(func):
-                        if not issubclass(func, ManagerTermBase):
-                            raise TypeError(f"Observation term {name!r} must inherit from ManagerTermBase.")
-                        instance = func.prepare_scene(clone(term_cfg), env)
-                        if instance is not None:
-                            if isinstance(instance, ManagerTermBase):
-                                prepared[name] = instance
-                            if not isinstance(instance, func):
-                                raise TypeError(
-                                    f"Observation term {name!r} prepare_scene must return {func.__name__} or None."
-                                )
+                    _prepare_term(name, term_cfg, env, prepared, top_level=True)
         except Exception:
             # Preserve preparation diagnostics after attempting every cleanup.
             with suppress(Exception):
@@ -209,7 +250,9 @@ class ObservationManager(ManagerBase):
     def _process_term_cfg_at_play(self, term_name: str, term_cfg: ObservationTermCfg):
         prepared = self._prepared_terms.pop(term_name, None)
         if prepared is not None:
-            if not inspect.isclass(term_cfg.func) or not isinstance(prepared, term_cfg.func):
+            # Nested term functions may still be import strings when their parent is resolved.
+            func = string_to_callable(term_cfg.func) if isinstance(term_cfg.func, str) else term_cfg.func
+            if not inspect.isclass(func) or not isinstance(prepared, func):
                 raise TypeError(f"Prepared observation term {term_name!r} does not match its configured class.")
             term_cfg.func = prepared
         super()._process_term_cfg_at_play(term_name, term_cfg)
