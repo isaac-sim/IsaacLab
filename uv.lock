@@ -1700,12 +1700,12 @@ wheels = [
 
 [[package]]
 name = "isaaclab"
-version = "33.0.0"
+version = "35.1.0"
 source = { editable = "source/isaaclab" }
 
 [[package]]
 name = "isaaclab-assets"
-version = "1.0.0"
+version = "2.0.1"
 source = { editable = "source/isaaclab_assets" }
 dependencies = [
     { name = "isaaclab" },
@@ -1724,7 +1724,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-contrib"
-version = "3.1.1"
+version = "4.0.1"
 source = { editable = "source/isaaclab_contrib" }
 dependencies = [
     { name = "isaaclab" },
@@ -1981,7 +1981,7 @@ requires-dist = [
     { name = "isaaclab-visualizers", editable = "source/isaaclab_visualizers" },
     { name = "isaacsim", extras = ["all", "extscache"], marker = "extra == 'isaacsim'", specifier = "==6.1.0.0" },
     { name = "isaacsim-asset-isolated", marker = "extra == 'importers'", specifier = "==6.1.0.0" },
-    { name = "isaacteleop", extras = ["retargeters", "ui", "cloudxr"], marker = "platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'teleop'", specifier = "~=1.4.0" },
+    { name = "isaacteleop", extras = ["retargeters", "ui", "cloudxr"], marker = "platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'teleop'", specifier = "~=1.4.145" },
     { name = "jinja2" },
     { name = "junitparser", marker = "extra == 'test'" },
     { name = "lazy-loader", specifier = ">=0.4" },
@@ -2068,7 +2068,7 @@ provides-extras = ["tetrahedralization", "video", "importers", "test", "dev", "s
 
 [[package]]
 name = "isaaclab-experimental"
-version = "0.2.5"
+version = "0.2.6"
 source = { editable = "source/isaaclab_experimental" }
 dependencies = [
     { name = "isaaclab" },
@@ -2079,7 +2079,7 @@ requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
 
 [[package]]
 name = "isaaclab-mimic"
-version = "2.1.0"
+version = "2.1.2"
 source = { editable = "source/isaaclab_mimic" }
 dependencies = [
     { name = "isaaclab" },
@@ -2096,7 +2096,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-newton"
-version = "9.1.2"
+version = "9.1.4"
 source = { editable = "source/isaaclab_newton" }
 dependencies = [
     { name = "isaaclab" },
@@ -2107,7 +2107,7 @@ requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
 
 [[package]]
 name = "isaaclab-ov"
-version = "4.1.1"
+version = "4.1.3"
 source = { editable = "source/isaaclab_ov" }
 dependencies = [
     { name = "isaaclab" },
@@ -2122,7 +2122,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-physx"
-version = "7.4.1"
+version = "7.4.3"
 source = { editable = "source/isaaclab_physx" }
 dependencies = [
     { name = "isaaclab" },
@@ -2144,7 +2144,7 @@ requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
 
 [[package]]
 name = "isaaclab-rl"
-version = "2.0.0"
+version = "4.0.0"
 source = { editable = "source/isaaclab_rl" }
 dependencies = [
     { name = "isaaclab" },
@@ -2161,7 +2161,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-tasks"
-version = "23.1.0"
+version = "25.0.0"
 source = { editable = "source/isaaclab_tasks" }
 dependencies = [
     { name = "isaaclab" },
@@ -2191,7 +2191,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-teleop"
-version = "0.10.1"
+version = "0.10.2"
 source = { editable = "source/isaaclab_teleop" }
 dependencies = [
     { name = "isaaclab" },
@@ -2202,7 +2202,7 @@ requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
 
 [[package]]
 name = "isaaclab-visualizers"
-version = "2.0.0"
+version = "2.0.1"
 source = { editable = "source/isaaclab_visualizers" }
 dependencies = [
     { name = "isaaclab" },
@@ -2700,18 +2700,19 @@ wheels = [
 
 [[package]]
 name = "isaacteleop"
-version = "1.4.98rc1"
+version = "1.4.145"
 source = { registry = "https://pypi.nvidia.com/" }
 dependencies = [
     { name = "numpy" },
     { name = "pyyaml" },
 ]
 wheels = [
-    { url = "https://pypi.nvidia.com/isaacteleop/isaacteleop-1.4.98rc1-cp312-cp312-manylinux_2_35_x86_64.whl", hash = "sha256:d2b36e21c0c690d1e6624d022d9bf5c661f7f7bf71e7f5c9b22a41b3640ea53f" },
+    { url = "https://pypi.nvidia.com/isaacteleop/isaacteleop-1.4.145-cp312-cp312-manylinux_2_35_x86_64.whl", hash = "sha256:b18b210535b28516593bb6e85ffb70a6e8265d9547365c818e38920184ee7b40" },
 ]
 
 [package.optional-dependencies]
 cloudxr = [
+    { name = "cryptography" },
     { name = "websockets" },
 ]
 retargeters = [

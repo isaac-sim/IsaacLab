@@ -20,3 +20,8 @@ multi-docs:
 current-docs:
 	@rm -rf "$(BUILDDIR)/current"
 	@$(SPHINXBUILD) -W --keep-going -j auto "$(SOURCEDIR)" "$(BUILDDIR)/current" $(SPHINXOPTS)
+
+# Keep the preview cache separate from the clean PR/CI build.
+.PHONY: incremental-docs
+incremental-docs:
+	@$(SPHINXBUILD) -W --keep-going -j auto "$(SOURCEDIR)" "$(BUILDDIR)/incremental" $(SPHINXOPTS)
