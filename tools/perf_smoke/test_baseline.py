@@ -290,22 +290,39 @@ class TestSelection(unittest.TestCase):
             self.candidate(2)
         self.assertEqual(raised.exception.code, "ambiguous_attempt")
 
-    def test_expired_potential_baseline_is_not_silently_replaced(self):
+    def test_expired_candidates_are_skipped_but_pinned_baseline_is_not_replaced(self):
         self.client.add(10, PARENT)
         self.client.add(11, GRANDPARENT)
-        self.client.run_artifacts[10][0]["expired"] = True
+        previous, _ = self.select()
+        self.client.add(12, PARENT)
+        for expired_run, expected_run in ((10, 12), (12, 11), (11, None)):
+            with self.subTest(expired_run=expired_run):
+                artifact = self.client.run_artifacts[expired_run][0]
+                artifact["expired"] = True
+                evidence, metadata = self.select()
+                self.assertEqual(evidence.identity["run_id"] if evidence else None, expected_run)
+                self.assertIn(
+                    {"artifact_id": artifact["id"], "reason": "Selected artifact has expired"}, metadata["issues"]
+                )
+        self.client.run_artifacts[12][0]["expired"] = False
         with self.assertRaises(baseline.EvidenceError) as raised:
-            self.select()
+            baseline.select_baseline(self.client, self.candidate(), previous.identity)
         self.assertEqual(raised.exception.code, "expired")
+        self.assertEqual(raised.exception.identity["artifact_id"], previous.identity["artifact_id"])
+        self.client.run_artifacts[10][0].update(expired=False, digest="sha256:" + "0" * 64)
+        with self.assertRaisesRegex(baseline.EvidenceError, "digest does not match") as raised:
+            self.select()
+        self.assertEqual(raised.exception.code, "corrupt")
 
     def test_corrupt_digest_and_zip_report_explicit_errors(self):
         artifact = self.client.run_artifacts[20][0]
-        self.client.contents[artifact["id"]] = b"not a zip"
-        with self.assertRaises(baseline.EvidenceError) as raised:
+        artifact["digest"] = "sha256:" + "0" * 64
+        with self.assertRaisesRegex(baseline.EvidenceError, "digest does not match") as raised:
             self.candidate()
         self.assertEqual(raised.exception.code, "corrupt")
         artifact.pop("digest")
-        with self.assertRaises(baseline.EvidenceError) as raised:
+        self.client.contents[artifact["id"]] = b"not a zip"
+        with self.assertRaisesRegex(baseline.EvidenceError, "ZIP could not be read") as raised:
             self.candidate()
         self.assertEqual(raised.exception.code, "corrupt")
 

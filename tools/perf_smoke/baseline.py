@@ -584,7 +584,13 @@ def select_baseline(
                     attempt_start = parse_timestamp(run.get("run_started_at"))
                     if attempt_start and attempt_start >= cutoff:
                         continue
-                    baseline = read_evidence(client, run, artifact, attempt)
+                    try:
+                        baseline = read_evidence(client, run, artifact, attempt)
+                    except EvidenceError as exc:
+                        if exc.code != "expired":
+                            raise
+                        metadata["issues"].append({"artifact_id": artifact["id"], "reason": str(exc)})
+                        continue
                     if baseline.identity["source_commit"] != anchor:
                         metadata["issues"].append(
                             {
