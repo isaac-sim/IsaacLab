@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 import inspect
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from typing import Any
 
 import torch
@@ -125,8 +125,8 @@ class _DataProxy:
     concrete backend overrides reuse semantic metadata authored on abstract base
     properties without copying decorators onto every implementation.
 
-    When a semantic property returns a :class:`~isaaclab.utils.warp.ProxyArray`,
-    the result is wrapped in a ``TracedProxyArray`` and cached for
+    When a semantic property returns a ProxyArray or a mapping of proxy arrays,
+    each proxy array is wrapped in a ``TracedProxyArray`` and cached for
     deduplication. Non-proxy results and ordinary attributes are forwarded
     transparently.
 
@@ -165,19 +165,38 @@ class _DataProxy:
 
         execution_fget, semantics_meta = resolution
         result = execution_fget(real_data)
-        if not isinstance(result, ProxyArray):
+        input_name = object.__getattribute__(self, "_input_name_resolver")(name)
+        entity_name = object.__getattribute__(self, "_entity_name")
+        task_name = object.__getattribute__(self, "_task_name")
+
+        if isinstance(result, Mapping):
+            traced = {
+                key: TracedProxyArray(
+                    value,
+                    input_name=f"{input_name}_{key}",
+                    semantics_meta=semantics_meta,
+                    real_data=real_data,
+                    entity_name=entity_name,
+                    property_name=f"{name}.{key}",
+                    task_name=task_name,
+                )
+                if isinstance(value, ProxyArray)
+                else value
+                for key, value in result.items()
+            }
+        elif isinstance(result, ProxyArray):
+            traced = TracedProxyArray(
+                result,
+                input_name=input_name,
+                semantics_meta=semantics_meta,
+                real_data=real_data,
+                entity_name=entity_name,
+                property_name=name,
+                task_name=task_name,
+            )
+        else:
             return result
 
-        input_name = object.__getattribute__(self, "_input_name_resolver")(name)
-        traced = TracedProxyArray(
-            result,
-            input_name=input_name,
-            semantics_meta=semantics_meta,
-            real_data=real_data,
-            entity_name=object.__getattribute__(self, "_entity_name"),
-            property_name=name,
-            task_name=object.__getattribute__(self, "_task_name"),
-        )
         cache[cache_key] = traced
         return traced
 

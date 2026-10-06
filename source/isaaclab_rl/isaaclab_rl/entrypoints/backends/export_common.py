@@ -126,7 +126,7 @@ def run_export(
     original_argv = sys.argv
     sys.argv = [sys.argv[0]] + hydra_args
     try:
-        env_cfg, agent_cfg = resolve_task_config(args_cli.task, args_cli.agent)
+        env_cfg, agent_cfg = resolve_task_config(args_cli.task, args_cli.agent, play_mode=True)
         with launch_simulation(env_cfg, args_cli):
             exported = export_agent(args_cli, env_cfg, agent_cfg)
     finally:
