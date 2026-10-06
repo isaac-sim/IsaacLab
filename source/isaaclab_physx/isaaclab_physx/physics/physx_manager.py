@@ -292,7 +292,14 @@ class PhysxSceneDataBackend(SceneDataBackend):
         PhysxManager.pre_render()
         timestamp = (self.transforms_timestamp, self.geometry_timestamp)
         if self._fabric_timestamp != timestamp:
+            # On-demand capture disables continuous Fabric transform writes, which also gates this refresh.
+            sim = PhysicsManager._sim
+            continuous = bool(sim.get_setting("/physics/fabricUpdateTransformations"))
+            if not continuous:
+                sim.set_setting("/physics/fabricUpdateTransformations", True)
             PhysxManager._fabric.force_update(0.0, 0.0)
+            if not continuous:
+                sim.set_setting("/physics/fabricUpdateTransformations", False)
             self._fabric_timestamp = timestamp
 
     @property
