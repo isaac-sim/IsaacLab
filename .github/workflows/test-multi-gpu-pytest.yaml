@@ -372,6 +372,7 @@ jobs:
           result-file: multi-gpu-smoke-kitless-report.xml
           container-name: isaac-lab-mgpu-smoke-kitless-${{ github.run_id }}-${{ github.run_attempt }}
           image-tag: ${{ env.CI_KITLESS_IMAGE_TAG }}
-          pytest-options: -m kitless -n 4
+          # DRAFT: OvPhysX is not installed for the OVRTX 0.5.1 / OVStage 0.2.1 sanity check.
+          pytest-options: -m kitless -k "not ovphysx" -n 4
           # Same reason as the Kit lane.
           volume-mount-source: ${{ github.workspace }}
