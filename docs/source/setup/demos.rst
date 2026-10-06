@@ -59,6 +59,16 @@ Command Builder
            </button>
          </div>
        </div>
+       <aside class="admonition note demo-command-note" data-demo-note="h1-locomotion" hidden>
+         <p class="admonition-title">H1 locomotion</p>
+         <p>H1 locomotion uses a published policy. For autonomous H1 task playback, use <code>isaaclab play</code>.</p>
+         <p data-demo-note-visualizers="newton_gl,newton_rtx" hidden>In the Newton viewer, press <kbd>N</kbd> to select a robot,
+           <kbd>I</kbd>/<kbd>J</kbd>/<kbd>L</kbd> to walk forward or turn, <kbd>K</kbd> to stop, and <kbd>C</kbd> to toggle the follow camera.</p>
+       </aside>
+       <aside class="admonition note demo-command-note" data-demo-note="pick-and-place" hidden>
+         <p class="admonition-title">Pick and place</p>
+         <p>Pick and place requires Kit input.</p>
+       </aside>
      </section>
 
      <div class="demo-card-grid" data-demo-list>
@@ -117,6 +127,3 @@ Command Builder
        </button>
      </div>
    </div>
-
-H1 locomotion uses a published policy. In the Newton viewer, press N to select a robot, I/J/L to walk
-forward or turn, K to stop, and C to toggle the follow camera. Pick and place requires Kit input. For autonomous H1 task playback, use ``isaaclab play``.
