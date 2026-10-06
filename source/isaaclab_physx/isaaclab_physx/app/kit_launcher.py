@@ -84,8 +84,8 @@ def _sanitize_sys_argv_for_kit(argv: list[str]) -> list[str]:
 class _StoreAndMarkExplicit(argparse.Action):
     """Store the value and set ``<dest>_explicit``, for options whose default must stay a real value.
 
-    ``--device`` defaults to ``"cuda:0"`` because scripts read ``args_cli.device`` before launch, yet XR
-    needs to know whether it was passed (see :meth:`KitLauncher._resolve_device_settings`).
+    ``--device`` defaults to ``"cuda:0"`` (``"cpu"`` on macOS) because scripts read ``args_cli.device`` before
+    launch, yet XR needs to know whether it was passed (see :meth:`KitLauncher._resolve_device_settings`).
     """
 
     def __call__(self, parser, namespace, values, option_string=None):
@@ -341,8 +341,12 @@ class KitLauncher(SimulationLauncher):
             "--device",
             type=str,
             action=_StoreAndMarkExplicit,
-            default="cuda:0",
-            help='The device to run the simulation on. Can be "cpu", "cuda", "cuda:N", where N is the device ID',
+            # macOS has no CUDA; checked without importing torch, which must load after Kit
+            default="cpu" if sys.platform == "darwin" else "cuda:0",
+            help=(
+                'The device to run the simulation on. Can be "cpu", "cuda", "cuda:N", where N is the device ID.'
+                ' Defaults to "cuda:0", or "cpu" on macOS.'
+            ),
         )
         arg_group.add_argument(
             "--visualizer",
