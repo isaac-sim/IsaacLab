@@ -28,6 +28,29 @@ if TYPE_CHECKING:
     from isaaclab.sensors import Camera
 
 
+def ee_to_object_b(
+    env: ManagerBasedRLEnv,
+    robot_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    object_cfg: SceneEntityCfg = SceneEntityCfg("object"),
+    ee_frame_cfg: SceneEntityCfg = SceneEntityCfg("ee_frame"),
+) -> torch.Tensor:
+    """Return end-effector-to-object displacement in the robot root frame [m].
+
+    Args:
+        env: The environment.
+        robot_cfg: Robot providing the reference orientation.
+        object_cfg: Object whose root position is observed.
+        ee_frame_cfg: Frame transformer whose first target defines the end effector.
+
+    Returns:
+        Displacement [m], shape [N, 3].
+    """
+    return quat_apply_inverse(
+        env.scene[robot_cfg.name].data.root_quat_w.torch,
+        env.scene[object_cfg.name].data.root_pos_w.torch - env.scene[ee_frame_cfg.name].data.target_pos_w.torch[:, 0],
+    )
+
+
 def object_quat_b(
     env: ManagerBasedRLEnv,
     robot_cfg: SceneEntityCfg = SceneEntityCfg("robot"),

@@ -96,6 +96,8 @@ class success_reward(ManagerTermBase):
 
     Maintains a sticky ``succeeded`` boolean tensor per environment that flips to ``True`` once
     the success condition is met during an episode and resets to ``False`` on environment reset.
+    Resampling a command does not clear this flag: it measures reaching at least one target,
+    not reaching every target or remaining at the target until the episode ends.
     """
 
     def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
