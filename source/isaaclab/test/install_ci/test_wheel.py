@@ -22,6 +22,7 @@ def test_installed_wheel(installed_wheel: tuple[str, Path, Path], wheel: Path, r
         "-c",
         """
 import importlib.util
+import sysconfig
 from pathlib import Path
 import isaaclab
 from isaaclab import _deprioritize_prebundle_paths
@@ -35,6 +36,7 @@ import isaaclab_rl
 import isaaclab_tasks
 
 assert list(isaaclab.__path__) == [str(Path(isaaclab.__file__).parent)]
+assert Path(isaaclab.__file__).is_relative_to(Path(sysconfig.get_path('purelib')))
 assert all(program.path.is_file() for program in (*DEMOS, *EXAMPLES))
 assert (ISAACLAB_ROOT / 'tools/template/cli.py').is_file()
 assert all((ISAACLAB_ROOT / script).is_file() for script in (

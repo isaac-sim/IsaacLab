@@ -238,6 +238,22 @@ To create a project built on Isaac Lab, see :ref:`template-generator`.
 
    Isaac Lab wheels are published for major releases, not every patch release.
 
+.. warning::
+
+   The NCCL workaround in this source revision excludes ``nvidia-nccl-cu13`` and selects
+   ``nvidia-nccl-cu12==2.29.7`` on Linux. Wheel metadata cannot carry this exclusion.
+   For a standalone install of this revision, add ``--project /path/to/IsaacLab`` to
+   **every** ``uv pip install`` command below, including the PyTorch command. Point it
+   at a checkout of the same revision so uv applies its tested overrides and exclusion.
+   This does not install the checkout as an editable package.
+
+   For an external uv project, copy the matching checkout's ``[tool.uv]``
+   ``override-dependencies`` and ``exclude-dependencies`` policies into that project's
+   ``pyproject.toml`` before resolving it. Ordinary pip does not apply these uv policies.
+   Projects generated from this checkout already carry the matching exclusion.
+   The commands below otherwise describe the published release, which does not include
+   this source revision's workaround.
+
 Installing an unreleased Git revision
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

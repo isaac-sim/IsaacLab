@@ -51,6 +51,13 @@ override-dependencies = [
 {% endfor %}
 ]
 {% endif %}
+{% if isaaclab_excludes %}
+exclude-dependencies = [
+{% for dependency in isaaclab_excludes %}
+    "{{ dependency }}",
+{% endfor %}
+]
+{% endif %}
 {% if isaaclab_sources %}
 
 [tool.uv.sources]

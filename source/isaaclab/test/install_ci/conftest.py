@@ -111,9 +111,11 @@ def installed_wheel(
     python = directory / "venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
     run("uv", "venv", "--python", "3.12", str(directory / "venv"), cwd=directory)
     requirement = str(wheel) + ("[isaacsim]" if request.param == "isaacsim" else "")
+    # Use the documented wheel-install policy; the target environment and import probes remain outside the checkout.
     run(
         "uv",
-        "--no-config",
+        "--project",
+        str(checkout),
         "pip",
         "install",
         "--python",
@@ -133,17 +135,21 @@ def installed_wheel(
         versions = tomllib.load(file)["tool"]["isaaclab"]["versions"]
     run(
         "uv",
-        "--no-config",
+        "--project",
+        str(checkout),
         "pip",
         "install",
         "--python",
         str(python),
         f"torch=={versions['torch']}",
         f"torchvision=={versions['torchvision']}",
+        f"torchaudio=={versions['torchaudio']}",
         "--reinstall-package",
         "torch",
         "--reinstall-package",
         "torchvision",
+        "--reinstall-package",
+        "torchaudio",
         "--index-url",
         "https://download.pytorch.org/whl/cu130",
         cwd=directory,

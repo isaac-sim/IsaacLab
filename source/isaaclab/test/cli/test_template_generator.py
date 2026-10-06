@@ -297,6 +297,7 @@ def test_generated_project_uses_active_source_checkout(tmp_path):
     assert sources["isaaclab-dev"]["editable"] is True
     assert sources["isaaclab"]["editable"] is True
     assert project_config["tool"]["uv"]["override-dependencies"] == source_config["tool"]["uv"]["override-dependencies"]
+    assert project_config["tool"]["uv"]["exclude-dependencies"] == source_config["tool"]["uv"]["exclude-dependencies"]
     assert project_config["tool"]["uv"]["environments"] == source_config["tool"]["uv"]["environments"]
     assert sources["torch"] == source_config["tool"]["uv"]["sources"]["torch"]
     assert "uses editable relative paths" in (project_dir / "README.md").read_text()

@@ -259,6 +259,7 @@ def _prepare_external_dependencies(specification: dict, project_dir: str) -> dic
         specification["isaaclab_environments"] = []
         specification["isaaclab_indexes"] = []
         specification["isaaclab_overrides"] = []
+        specification["isaaclab_excludes"] = []
         specification["isaaclab_sources"] = []
         optional_extras = specification.get("isaaclab_optional_extras")
         if optional_extras is None:
@@ -294,6 +295,7 @@ def _prepare_external_dependencies(specification: dict, project_dir: str) -> dic
     specification["isaaclab_environments"] = uv_config.get("environments", [])
     specification["isaaclab_indexes"] = uv_config.get("index", [])
     specification["isaaclab_overrides"] = uv_config.get("override-dependencies", [])
+    specification["isaaclab_excludes"] = uv_config.get("exclude-dependencies", [])
     specification["isaaclab_sources"] = sorted(sources, key=lambda source: source["name"])
     return specification
 
