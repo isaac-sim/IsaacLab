@@ -6,13 +6,17 @@
 """Streaming display channel, colorization, and pixel layout contracts."""
 
 import math
+from unittest.mock import Mock
 
 import numpy as np
 import pytest
 import torch
+import warp as wp
 
 from isaaclab.envs.utils.camera_colorizer import CameraFrameColorizer, sensor_key_for_gt_type, sensor_keys_for_gt_types
 from isaaclab.envs.utils.camera_view import compose_streaming_grid
+from isaaclab.test.utils import DeviceScope, test_devices
+from isaaclab.utils.image_view import compile_image_view, compose_image_view
 
 
 def test_colorize_rgb_drops_alpha_channel():
@@ -84,7 +88,8 @@ def test_sensor_keys_for_gt_types_deduplication():
         (6, 1, 16 / 9, 3),
     ],
 )
-def test_compose_grid_pixels_placed_correctly(envs, channels, aspect, columns):
+@pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
+def test_compose_grid_pixels_placed_correctly(envs, channels, aspect, columns, device):
     height, width = 6, 8
     frames = [np.full((height, width, 3), i + 1, dtype=np.uint8) for i in range(envs * channels)]
     composite = compose_streaming_grid(frames, envs, channels, target_aspect=aspect)
@@ -93,6 +98,62 @@ def test_compose_grid_pixels_placed_correctly(envs, channels, aspect, columns):
     tiles = composite.reshape(-1, height, columns * channels, width, 3).transpose(0, 2, 1, 3, 4)
     np.testing.assert_array_equal(tiles.reshape(-1, height, width, 3)[: len(frames)], frames)
     assert not tiles.reshape(-1, height, width, 3)[len(frames) :].any()
+
+    # Use non-consecutive source rows to catch a composer that ignores the selection.
+    selected = list(range(envs * 2 - 1, 0, -2))
+    sources = []
+    for channel in range(channels):
+        batch = np.full((envs * 2, height, width, 4), 255, dtype=np.uint8)
+        for row, env in enumerate(selected):
+            batch[env, ..., :3] = frames[row * channels + channel]
+        sources.append(wp.array(batch, device=device))
+    plan = compile_image_view(tuple(sources), ("rgb",) * channels, selected, target_aspect=aspect)
+    output = wp.empty(plan.shape, dtype=wp.uint8, device=device)
+    compose_image_view(output, tuple(sources), plan)
+    np.testing.assert_array_equal(output.numpy()[..., :3], composite)
+    assert np.all(output.numpy()[..., 3] == 255)
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
+def test_device_colorization_matches_recording_and_reuses_storage(device, monkeypatch):
+    """Mixed sensor outputs compose on their device, including strides, invalid depth, and packed/raw IDs."""
+    wp.init()
+    rng = np.random.default_rng(3)
+    shape = (2, 16, 16)
+    rgb = torch.from_numpy(rng.integers(0, 256, (*shape, 4), dtype=np.uint8)).to(device)[..., :3]
+    depth = rng.uniform(-1, 15, (*shape, 1)).astype(np.float32)
+    depth[0, 0, :3, 0] = (np.nan, np.inf, -np.inf)
+    depth[1, ..., 0] = (0.1 + np.arange(256).reshape(16, 16) / 256 * 9.9).astype(np.float32)
+    normals = rng.uniform(-1.5, 1.5, (*shape, 3)).astype(np.float32)
+    ids = rng.integers(0, 2**24, (*shape, 1), dtype=np.int32)
+    ids[0, 0, :5, 0] = (0, 1, 2**24 - 1, -1, 2**31 - 1)
+    packed = np.concatenate([ids % 256, (ids // 256) % 256, ids // 65536], axis=-1).astype(np.uint8)
+    host = (rgb.cpu().numpy(), depth, normals, ids, packed)
+    sources = (wp.from_torch(rgb), *(wp.array(array, device=device) for array in host[1:]))
+    # Reject an incompatible layout during planning, before a kernel can read past its channels.
+    with pytest.raises(ValueError, match="channels"):
+        compile_image_view((sources[1],), ("rgb",), [0])
+    channels = ("rgb", "depth", "normals", "segmentation", "segmentation")
+    plan = compile_image_view(sources, channels, [1, 0])
+    output = wp.empty(plan.shape, dtype=wp.uint8, device=device)
+    pointer = output.ptr
+    for _ in range(2):
+        with monkeypatch.context() as execution:
+            from isaaclab.sim import SimulationContext
+
+            forbidden = Mock(side_effect=AssertionError("Composition must only read arrays and write its output"))
+            execution.setattr(SimulationContext, "instance", forbidden)
+            execution.setattr(wp.array, "numpy", forbidden)
+            execution.setattr(torch.Tensor, "cpu", forbidden)
+            execution.setattr(wp, "empty", forbidden)
+            compose_image_view(output, sources, plan)
+        frames = [CameraFrameColorizer.colorize(array[env], gt) for env in (1, 0) for array, gt in zip(host, channels)]
+        expected = compose_streaming_grid(frames, 2, len(channels))
+        np.testing.assert_array_equal(output.numpy()[..., :3], expected)
+        assert output.ptr == pointer
+        assert np.all(output.numpy()[..., 3] == 255)
+        depth.fill(2.0)
+        sources[1].assign(depth)
 
 
 def test_colorize_normals_maps_xyz_to_rgb():

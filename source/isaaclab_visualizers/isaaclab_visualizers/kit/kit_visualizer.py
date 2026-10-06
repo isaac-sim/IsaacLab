@@ -75,8 +75,6 @@ class KitVisualizer(BaseVisualizer):
         self._viewport_camera_pose_cache: dict[str, tuple[float, ...]] = {}
         self._camera_image_provider = None
         self._camera_image_window = None
-        self._camera_gpu_upload_tensor = None
-        self._warned_gpu_upload_failure = False
         self._backend_menubar_label = None
         self._hid_simulation_menu = False
         # Guard flag: True once app.update() has been called in the current step() invocation.
@@ -654,39 +652,19 @@ class KitVisualizer(BaseVisualizer):
             image_window.dock_in(main_viewport, dock_position, 0.5)
 
     def _update_camera_image_panel(self) -> None:
-        """Display the scene camera's current frame without driving its capture lifecycle."""
-        composite = self._streaming_frame.data if self.is_training_paused() else self.render_tiled_rgb_array()
-        if composite is not None and self._camera_image_provider is not None:
-            self._upload_camera_image_to_panel(composite)
+        """Present device pixels; CPU images are uploaded only for CPU-backed sources."""
+        image = self._streaming_frame.data if self.is_training_paused() else self.render_tiled_rgba()
+        if image is None or self._camera_image_provider is None:
+            return
+        height, width = image.shape[:2]
+        if image.device.is_cuda:
+            import omni.gpu_foundation_factory as gf
 
-    def _upload_camera_image_to_panel(self, image: np.ndarray | torch.Tensor) -> None:
-        """Upload an RGB/RGBA image to the Kit image provider."""
-        if isinstance(image, torch.Tensor):
-            if image.is_cuda:
-                try:
-                    import omni.gpu_foundation_factory as gf
-
-                    if image.ndim == 3 and image.shape[2] == 3:
-                        alpha = torch.full((*image.shape[:2], 1), 255, dtype=torch.uint8, device=image.device)
-                        image = torch.cat((image, alpha), dim=2)
-                    image = image.to(dtype=torch.uint8).contiguous()
-                    self._camera_gpu_upload_tensor = image
-                    self._camera_image_provider.set_bytes_data_from_gpu(
-                        int(image.data_ptr()), [int(image.shape[1]), int(image.shape[0])], gf.TextureFormat.RGBA8_UNORM
-                    )
-                    return
-                except Exception as exc:
-                    if not self._warned_gpu_upload_failure:
-                        logger.warning("[KitVisualizer] GPU image upload failed; falling back to CPU upload: %s", exc)
-                        self._warned_gpu_upload_failure = True
-            image = image.detach().contiguous().cpu().numpy()
-
-        image = image.astype("uint8", copy=False)
-        if image.ndim == 3 and image.shape[2] == 3:
-            alpha = np.full((*image.shape[:2], 1), 255, dtype=np.uint8)
-            image = np.concatenate((image, alpha), axis=2)
-        image = np.ascontiguousarray(image)
-        self._camera_image_provider.set_bytes_data(image.flatten().data, [image.shape[1], image.shape[0]])
+            self._camera_image_provider.set_bytes_data_from_gpu(
+                image.ptr, [width, height], gf.TextureFormat.RGBA8_UNORM
+            )
+        else:
+            self._camera_image_provider.set_bytes_data(image.numpy().data, [width, height])
 
     def _refresh_controlled_camera_path(self) -> None:
         """Cache :attr:`_controlled_camera_path` from the active viewport (or default persp)."""

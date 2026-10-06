@@ -33,6 +33,7 @@ from isaaclab_visualizers.newton_adapter import (
 
 from isaaclab.sim import SimulationContext
 from isaaclab.utils import instantiate
+from isaaclab.utils.warp import ProxyArray
 from isaaclab.visualizers import SceneCameraCfg
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
@@ -222,7 +223,11 @@ def test_visualizers_borrow_scene_camera_outputs(monkeypatch):
     camera = SimpleNamespace(
         _view=None,
         cfg=SimpleNamespace(prim_path="/Scenes/world_[^/]+/Camera", data_types=["rgba"]),
-        data=SimpleNamespace(output={"rgba": torch.cat((pixels, torch.full_like(pixels[..., :1], 255)), dim=-1)}),
+        data=SimpleNamespace(
+            output={
+                "rgba": ProxyArray(wp.from_torch(torch.cat((pixels, torch.full_like(pixels[..., :1], 255)), dim=-1)))
+            }
+        ),
         close=Mock(),
         update=Mock(),
     )
@@ -240,7 +245,7 @@ def test_visualizers_borrow_scene_camera_outputs(monkeypatch):
         viewers.append(visualizer)
 
     # A new step or reset refreshes the composite, not the sensor's lifetime.
-    camera.data.output["rgba"][..., :3].add_(10)
+    camera.data.output["rgba"].torch[..., :3].add_(10)
     viewers[0]._sim_time += 0.1
     np.testing.assert_array_equal(np.unique(viewers[0].render_tiled_rgb_array()), [10, 12])
     viewers[1].reset(soft=True)

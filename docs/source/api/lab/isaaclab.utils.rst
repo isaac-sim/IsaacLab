@@ -166,6 +166,12 @@ String operations
    :members:
    :show-inheritance:
 
+Image composition
+~~~~~~~~~~~~~~~~~
+
+.. automodule:: isaaclab.utils.image_view
+   :members:
+
 Timer operations
 ~~~~~~~~~~~~~~~~
 

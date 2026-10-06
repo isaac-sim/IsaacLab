@@ -16,6 +16,8 @@ import numpy as np
 import torch
 import warp as wp
 
+from ...utils.image_view import image_grid_columns
+
 if TYPE_CHECKING:
     from ...sensors.camera import Camera
 
@@ -165,10 +167,8 @@ def compose_streaming_grid(
     """
     if not frames:
         return np.zeros((1, 1, 3), dtype=np.uint8)
-    if not (math.isfinite(target_aspect) and target_aspect > 0):
-        target_aspect = 1.0
     h, w = frames[0].shape[:2]
-    env_cols = _best_streaming_cols(n_envs, n_gt, h, w, target_aspect=target_aspect)
+    env_cols = image_grid_columns(n_envs, n_gt, h, w, target_aspect)
     env_rows = math.ceil(n_envs / env_cols)
     canvas = np.zeros((env_rows * h, env_cols * n_gt * w, 3), dtype=np.uint8)
     for env_idx in range(n_envs):
@@ -179,35 +179,6 @@ def compose_streaming_grid(
             y0, x0 = er * h, (ec * n_gt + gt_idx) * w
             canvas[y0 : y0 + h, x0 : x0 + w] = frame[..., :3]
     return canvas
-
-
-def _best_streaming_cols(n_envs: int, n_gt: int, frame_h: int, frame_w: int, target_aspect: float = 1.0) -> int:
-    """Env-column count that best matches the target composite aspect ratio.
-
-    Prioritises complete rows (fewest empty cells) first, then minimises
-    ``|log(composite_W/composite_H / target_aspect)|`` to match the window,
-    with more columns as a final tiebreaker.
-
-    Args:
-        n_envs: Number of environment tiles.
-        n_gt: Number of GT types per tile (columns per env).
-        frame_h: Height of each tile in pixels.
-        frame_w: Width of each tile in pixels.
-        target_aspect: Desired composite width/height ratio (default: 1.0 square).
-    """
-    best_cols, best_score = 1, float("inf")
-    for cols in range(1, n_envs + 1):
-        rows = math.ceil(n_envs / cols)
-        empty_cells = rows * cols - n_envs
-        composite_w = cols * n_gt * frame_w
-        composite_h = rows * frame_h
-        # Distance from target aspect ratio: 0 is a perfect match.
-        aspect_score = abs(math.log(composite_w / composite_h / target_aspect))
-        # Strong penalty for ragged rows; break ties by aspect then prefer more cols.
-        score = empty_cells * 10.0 + aspect_score - cols * 1e-6
-        if score < best_score:
-            best_score, best_cols = score, cols
-    return best_cols
 
 
 def camera_rgb_batch(camera: Camera, env_indices: list[int]) -> torch.Tensor:

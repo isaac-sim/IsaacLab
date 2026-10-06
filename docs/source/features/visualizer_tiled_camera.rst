@@ -12,6 +12,11 @@ ground-truth camera frames from multiple environments (RGB, depth, segmentation,
 normals) into a single panel. Cameras are declared in the scene before cloning; visualizers only
 read their output. Multiple visualizers can display the same sensor with different tile selections.
 
+Image layouts and color tables are prepared when the selection or layout changes. Colorization
+and tiling run on the source device and reuse the output buffer. Kit presents CUDA images
+directly; recording and web consumers read back the composed RGB image through
+``render_tiled_rgb_array()``.
+
 .. note::
 
    The streaming camera view is supported in the Kit, Newton GL, Rerun, and Viser visualizers.

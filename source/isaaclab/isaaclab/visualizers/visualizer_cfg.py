@@ -211,10 +211,10 @@ class VisualizerCfg:
 
     # Shared settings
     streaming_envs: int | list[int] = 32
-    """Environments to capture.
+    """Environments to display.
 
     * ``int`` — sample this many envs once at initialization (from all visible envs).
-    * ``list[int]`` — capture exactly these env indices.
+    * ``list[int]`` — display exactly these env indices.
     """
 
     streaming_gt_types: tuple[str, ...] = ("rgb",)

@@ -18,16 +18,14 @@ from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 
 import numpy as np
+import warp as wp
 
 from ..cloner import expand_env_regex_ns
-from ..envs.utils.camera_colorizer import CameraFrameColorizer, sensor_key_for_gt_type
-from ..envs.utils.camera_view import (
-    camera_gt_batch,
-    compose_streaming_grid,
-    find_camera_by_prim_path,
-    resolve_streaming_envs,
-)
+from ..envs.utils.camera_colorizer import sensor_key_for_gt_type
+from ..envs.utils.camera_view import find_camera_by_prim_path, resolve_streaming_envs
+from ..utils import validate
 from ..utils.buffers import TimestampedBuffer
+from ..utils.image_view import ImageViewPlan, compile_image_view, compose_image_view
 from .visualizer_cfg import PerspectiveCameraCfg, SceneCameraCfg
 
 if TYPE_CHECKING:
@@ -59,6 +57,7 @@ class BaseVisualizer(ABC):
         Args:
             cfg: Visualizer configuration.
         """
+        validate(cfg)
         self.cfg = cfg
         self._scene_data_provider = None
         self._scene_stage = None
@@ -77,6 +76,10 @@ class BaseVisualizer(ABC):
         self._camera_sensor_indices: list[int] = []
         self._streaming_aspect = 1.0
         self._streaming_frame = TimestampedBuffer()
+        self._streaming_host_frame = TimestampedBuffer()
+        self._streaming_plan: ImageViewPlan | None = None
+        self._streaming_view_key: tuple | None = None
+        self._streaming_keys: tuple[str, ...] = ()
 
     @property
     def visual_material_writer(self) -> Callable[[tuple[VisualMaterialBatch, ...]], Any] | None:
@@ -113,76 +116,102 @@ class BaseVisualizer(ABC):
         *,
         visible_env_ids: list[int] | None = None,
         target_aspect: float = 1.0,
+        select_camera: bool = True,
     ) -> None:
-        """Resolve camera sources and displayed environment tiles once at initialization."""
+        """Configure tiles and optionally select a camera; interactive selectors can defer binding."""
+        cfg = self.cfg
+        gt_types = cfg.streaming_gt_types
         self._camera_choices = list(
-            self.cfg.cameras
-            or [PerspectiveCameraCfg(eye=self.cfg.eye, lookat=self.cfg.lookat, focal_length=self.cfg.focal_length)]
+            cfg.cameras or [PerspectiveCameraCfg(eye=cfg.eye, lookat=cfg.lookat, focal_length=cfg.focal_length)]
         )
-        if not self.cfg.streaming_view:
+        if not cfg.streaming_view:
             return
-        for gt_type in self.cfg.streaming_gt_types:
+        for gt_type in gt_types:
             sensor_key_for_gt_type(gt_type)
         self._streaming_aspect = target_aspect
-        self._camera_sensor_indices = resolve_streaming_envs(
-            num_envs, self.cfg.streaming_envs, sample_from=visible_env_ids
-        )
+        self._camera_sensor_indices = resolve_streaming_envs(num_envs, cfg.streaming_envs, sample_from=visible_env_ids)
         cameras = self._scene_data_provider.get_camera_sensors()
-        if self.cfg.cameras is None:
-            if self.cfg.streaming_sensor_prim_path is not None:
-                self._camera_choices.append(SceneCameraCfg(prim_path=self.cfg.streaming_sensor_prim_path))
+        if cfg.cameras is None:
+            if cfg.streaming_sensor_prim_path is not None:
+                self._camera_choices.insert(0, SceneCameraCfg(prim_path=cfg.streaming_sensor_prim_path))
             else:
-                self._camera_choices.extend(
-                    camera
-                    for camera in cameras.values()
-                    if all(
-                        sensor_key_for_gt_type(gt, frozenset(camera.cfg.data_types), required=False) is not None
-                        for gt in self.cfg.streaming_gt_types
-                    )
-                )
+                for camera in cameras.values():
+                    available = frozenset(camera.cfg.data_types)
+                    if all(sensor_key_for_gt_type(gt, available, required=False) is not None for gt in gt_types):
+                        self._camera_choices.append(camera)
         for index, source in enumerate(self._camera_choices):
-            if isinstance(source, SceneCameraCfg):
-                path = (
-                    expand_env_regex_ns(source.prim_path, self._clone_plan.env_template)
-                    if self._clone_plan is not None
-                    else expand_env_regex_ns(source.prim_path)
-                )
-                camera = find_camera_by_prim_path(cameras, path, self._camera_sensor_indices)
-                for gt_type in self.cfg.streaming_gt_types:
-                    sensor_key_for_gt_type(gt_type, frozenset(camera.cfg.data_types))
-                self._camera_choices[index] = camera
-        self._camera_sensor = next(
-            (camera for camera in self._camera_choices if not isinstance(camera, PerspectiveCameraCfg)), None
-        )
+            if not isinstance(source, SceneCameraCfg):
+                continue
+            path = (
+                expand_env_regex_ns(source.prim_path, self._clone_plan.env_template)
+                if self._clone_plan is not None
+                else expand_env_regex_ns(source.prim_path)
+            )
+            camera = find_camera_by_prim_path(cameras, path, self._camera_sensor_indices)
+            available = frozenset(camera.cfg.data_types)
+            for gt_type in gt_types:
+                sensor_key_for_gt_type(gt_type, available)
+            self._camera_choices[index] = camera
+        if select_camera:
+            self._camera_sensor = next(
+                (camera for camera in self._camera_choices if not isinstance(camera, PerspectiveCameraCfg)), None
+            )
 
-    def render_tiled_rgb_array(self) -> np.ndarray | None:
-        """Read the scene camera and return its colorized, tiled display image.
+    def render_tiled_rgba(self) -> wp.array | None:
+        """Acquire the selected camera frame and compose a device-resident display image.
 
         Returns:
-            Cached uint8 image of shape [H, W, 3], or None when no camera is selected.
-            Reading the camera uses its normal lazy update; the visualizer never forces a capture.
+            Reused uint8 RGBA storage of shape [H, W, 4], or None without a selected camera.
+            Acquisition uses the sensor's normal lazy update. Composition itself only reads published arrays.
         """
-        if self._camera_sensor is None or not self._camera_sensor_indices:
+        camera, env_ids, cfg = self._camera_sensor, self._camera_sensor_indices, self.cfg
+        if camera is None or not env_ids:
             return None
-        if self._streaming_frame.timestamp != self._sim_time:
-            cfg = self.cfg
-            gt_types = cfg.streaming_gt_types
-            available = frozenset(self._camera_sensor.cfg.data_types)
-            # Gather and transfer each channel once, not once per displayed environment.
-            batches = []
-            for gt in gt_types:
-                key = sensor_key_for_gt_type(gt, available)
-                batches.append(camera_gt_batch(self._camera_sensor, self._camera_sensor_indices, key).cpu())
-            depth_range = dict(depth_min=cfg.streaming_depth_min, depth_max=cfg.streaming_depth_max)
-            frames = []
-            for env_id in range(len(self._camera_sensor_indices)):
-                for gt, batch in zip(gt_types, batches, strict=True):
-                    frames.append(CameraFrameColorizer.colorize(batch[env_id], gt, **depth_range))
-            self._streaming_frame.data = compose_streaming_grid(
-                frames, len(self._camera_sensor_indices), len(gt_types), target_aspect=self._streaming_aspect
+        gt_types = tuple(cfg.streaming_gt_types)
+        aspect, depth_min, depth_max = self._streaming_aspect, cfg.streaming_depth_min, cfg.streaming_depth_max
+        view_key = (camera, tuple(env_ids), gt_types, aspect, depth_min, depth_max)
+        frame = self._streaming_frame
+        if view_key != self._streaming_view_key:
+            available = frozenset(camera.cfg.data_types)
+            self._streaming_keys = tuple(sensor_key_for_gt_type(gt, available) for gt in gt_types)
+            self._streaming_plan = None
+            self._streaming_view_key = view_key
+            frame.timestamp = -1.0
+        if frame.timestamp == self._sim_time:
+            return frame.data
+
+        outputs = camera.data.output
+        sources = tuple(outputs[key].warp for key in self._streaming_keys)
+        layout = tuple((source.shape, source.dtype, source.device) for source in sources)
+        if self._streaming_plan is None or self._streaming_plan.layout != layout:
+            self._streaming_plan = compile_image_view(
+                sources,
+                gt_types,
+                env_ids,
+                target_aspect=aspect,
+                depth_min=depth_min,
+                depth_max=depth_max,
             )
-            self._streaming_frame.timestamp = self._sim_time
-        return self._streaming_frame.data
+            frame.data = wp.empty(self._streaming_plan.shape, dtype=wp.uint8, device=sources[0].device)
+        compose_image_view(frame.data, sources, self._streaming_plan)
+        frame.timestamp = self._sim_time
+        self._streaming_host_frame.timestamp = -1.0
+        return frame.data
+
+    def render_tiled_rgb_array(self) -> np.ndarray | None:
+        """Read back the tiled image for CPU consumers such as recording and web transports.
+
+        Returns:
+            Cached contiguous uint8 RGB image of shape [H, W, 3], or None without a selected camera.
+        """
+        image = self.render_tiled_rgba()
+        if image is None:
+            return None
+        frame = self._streaming_host_frame
+        if frame.timestamp != self._streaming_frame.timestamp:
+            frame.data = np.ascontiguousarray(image.numpy()[..., :3])
+            frame.timestamp = self._streaming_frame.timestamp
+        return frame.data
 
     @abstractmethod
     def step(self, dt: float) -> None:
@@ -202,6 +231,9 @@ class BaseVisualizer(ABC):
         self._camera_sensor = None
         self._camera_choices.clear()
         self._streaming_frame = TimestampedBuffer()
+        self._streaming_host_frame = TimestampedBuffer()
+        self._streaming_plan = self._streaming_view_key = None
+        self._streaming_keys = ()
         self._scene_data_provider = self._scene_stage = self._clone_plan = None
         self._is_closed = True
 
@@ -389,9 +421,9 @@ class BaseVisualizer(ABC):
         if cfg.visible_env_indices is not None:
             return [i for i in cfg.visible_env_indices if 0 <= i < num_envs]
 
-        max_visible = getattr(cfg, "max_visible_envs", None)
+        max_visible = cfg.max_visible_envs
         # Random subset only for cap-only mode: needs a cap and no explicit indices (see VisualizerCfg).
-        if max_visible is not None and getattr(cfg, "randomly_sample_visible_envs", True) and int(max_visible) >= 0:
+        if max_visible is not None and cfg.randomly_sample_visible_envs and int(max_visible) >= 0:
             k = min(int(max_visible), num_envs)
             # k == 0: sample(range(n), 0) is []; contiguous resolver used the same convention.
             return sorted(random.sample(range(num_envs), k))
@@ -529,7 +561,8 @@ class BaseVisualizer(ABC):
         Args:
             soft: Whether to perform a soft reset.
         """
-        self._streaming_frame = TimestampedBuffer()
+        self._streaming_frame.timestamp = -1.0
+        self._streaming_host_frame.timestamp = -1.0
 
     def _log_initialization_table(self, logger: logging.Logger, title: str, rows: list[tuple[str, Any]]) -> None:
         """Log a compact initialization table for a visualizer.
