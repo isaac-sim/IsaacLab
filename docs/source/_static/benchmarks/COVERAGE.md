@@ -1,124 +1,128 @@
-# Benchmark coverage — 8,192 environments
+# Weekly benchmark coverage — 8,192 environments
 
-All plotted Collection and Training benchmarks use **num_envs = 8192**.
-Camera rows use only `simple_shading_full_mdl`, with 64×64 images and a single
-camera (Kuka uses the equivalent `simple_shading_full_mdl64` preset). RGB, dual-camera,
-and unspecified camera profiles are excluded. Non-camera tasks use headless runs.
-All selected runs use RSL-RL. Select the latest eligible run per task/physics/renderer
-and snapshot; full source presets remain in the CSV and tooltips. These fixed
-profiles give exactly one series and one table row per physics/renderer pair.
+The environment browser compares paired Collection FPS (rollouts and inference)
+and Training FPS (including policy updates) from successful WARM training entries.
+Both metrics always come from the same source record and entry.
 
-## Snapshot coverage
+## Weekly history
 
-| Snapshot | Paired records | Tasks | Backend/renderer pairs |
+Sunday graph positions identify weekly snapshots with a Monday cutoff. Each full
+selection window runs Tuesday through Monday inclusive; select the latest eligible
+run within that window, never carry a measurement from an earlier window.
+This includes September 28 and October 5 measurements at September 27 and October 4
+positions. The first snapshot contains only August 24 because the export starts on
+that date. The current snapshot is partial as October 5 collection is ongoing.
+Ingestion timestamps and original measurement timestamps remain unchanged.
+
+| Sunday position | Selected pairs | Tasks | Expected pairs |
 | --- | ---: | ---: | ---: |
-| August 28 | 114 | 36 / 44 | 114 / 156 |
-| Current (September 9 baseline) | 114 | 36 / 44 | 114 / 156 |
+| 2026-08-23 | 101 | 34 / 44 | 146 |
+| 2026-08-30 | 105 | 35 / 44 | 146 |
+| 2026-09-06 | 105 | 35 / 44 | 146 |
+| 2026-09-13 | 105 | 35 / 44 | 146 |
+| 2026-09-20 | 105 | 35 / 44 | 146 |
+| 2026-09-27 | 105 | 35 / 44 | 146 |
+| 2026-10-04 | 105 | 35 / 44 | 146 |
 
-Release contains 114 current records. Develop contains 228 records: August 28
-plus the identical current records. Each record supplies both Collection FPS
-(`Mean Collection FPS`, stepping plus inference) and Training FPS (`Mean Total FPS`,
-including policy updates). Their coverage is identical; separate runtime runs are
-not required. Standard deviation and peak values remain in the data.
+Develop contains 731 paired measurements. Release retains its September 9 EA 3.0
+baseline, restricted to the requested matrix (105 measurements). EA 3.0 is a
+snapshot label, not verification that the source commits are release tags.
 
-The figure labels the environment count beside Release/Develop. The compact table shows only the latest
-available FPS per physics + renderer pair, rounded to an integer. Full configurations and
-measurement dates remain in tooltips, and the legend appears above the graph.
-Missing supported combinations retain “Not available”; entirely absent tasks use
-the benchmark-data-unavailable placeholder.
+## Supported matrix
 
-August 28 requires an exact ingestion-date match. Current selects the latest
-eligible record per physics/renderer pair through September 9. All 114 current
-records are from September 9; there are no older fallbacks under this profile.
-August 14 remains omitted as requested.
+State tasks retain every physics backend supported by their registered task,
+including Kamino and Newton MJWarp/VBD where applicable. Camera tasks retain only:
 
-## Why 8,192
+- Isaac Sim PhysX + Isaac Sim RTX.
+- Newton MJWarp (or the task's MJWarp/VBD variant) + Newton renderer.
+- OV PhysX + OV RTX.
+- Newton MJWarp (or MJWarp/VBD) + OV RTX.
 
-Before restricting camera profiles, the same hardware, validity, and date filters
-gave this current coverage across all recorded camera variants:
+Intersect these pairs with each task's registered selectors; unsupported pairs
+are not reported as missing. There are 146 expected pairs across 44 browser tasks.
+Other camera combinations are removed from both channels and the coverage matrix.
 
-| Count policy | Tasks | Backend/renderer pairs | Recorded configurations |
-| --- | ---: | ---: | ---: |
-| Task defaults | 36 | 70 | 87 |
-| 4,096 | 27 | 52 | 61 |
-| **8,192** | **36** | **126** | **209** |
-| 16,384 | 34 | 110 | 149 |
+## Selection and provenance
 
-Combining all measured counts also covers only 126 distinct pairs before the
-camera-profile restriction. Using 8,192 adds 56 pairs over task defaults without
-losing any task. Restricting to simple shading now selects 114 pairs, including
-36 ovphysx pairs at each date. The omitted 12 pairs had RGB Newton-renderer runs
-but no matching simple-shading measurement in the queried data.
+Read-only export from `omni_runtime_isaac_lab_v3` in `ov-runtime-performance`
+on `omniperf-trace.nvidia.com:5432`: 43,570 records on
+`XEON_GOLD_5512U_1XRTXPRO6000_BW_SV`, ingested August 24 through October 5.
+Only successful single-GPU, world-size-one WARM RSL-RL training entries with finite,
+positive paired FPS and matching configured, task-metadata and measured environment
+counts are eligible. Plotted counts must be 8,192.
 
-## Missing data
+Non-camera tasks use the headless profile. Camera tasks require explicit
+`simple_shading_full_mdl` (Kuka: `simple_shading_full_mdl64`) and exclude dual-camera
+runs. RGB and other counts are not substituted. Missing resolved camera dimensions
+are flagged; preset names alone do not establish verified sensor dimensions.
 
-There are **42 missing backend/renderer pairs out of 156** at each snapshot,
-for both metrics. Of these, 24 pairs belong to eight entirely absent tasks and
-18 are Newton-renderer camera pairs without matching simple-shading runs.
-Six of those 18 were already unavailable before the profile restriction;
-the restriction removes 12 additional RGB-only pairs.
-The latter retain “Not available”; RGB measurements are not substituted.
-No WARM runtime/training entries for the eight absent task names were found on
-any queried machine in the August 14–September 9 window. Kamino, the Kamino-only
-Fourbar task, and incompatible physx/ovrtx and ovphysx/Isaac Sim RTX pairs are excluded.
+Match successful WARM task metadata by task, workflow and entry-key variant.
+Prefer database backend columns, then explicit per-entry preset selectors, then
+matching successful WARM task presets. Normalize historical `physx`/`newton` physics
+and renderer aliases. Group names and implicit defaults never establish identity.
+Strip backend selectors and preserve sorted domain presets. Break ingestion-time
+ties by the largest source record ID. Retain full numeric precision, standard
+deviations, peaks, hardware, commits, original timestamps and identity sources.
+Quality notes flag dirty source trees and FPS coefficients of variation above 25%.
 
-| Task | Missing backend/renderer combinations |
+## Current missing measurements
+
+There are 41 missing pairs, including 16 Kamino state pairs and six Newton-renderer
+camera pairs without the required simple-shading profile. RGB results exist for
+those six camera pairs; the review CSV records alternative source IDs, counts and
+presets. They remain missing under the fixed comparison profile.
+
+| Task | Missing physics / renderer |
 | --- | --- |
-| Isaac-Cartpole-Camera | isaacsim_physx/newton_renderer, newton_mjwarp/newton_renderer, ovphysx/newton_renderer |
-| Isaac-Cartpole-Camera-Direct | isaacsim_physx/newton_renderer, newton_mjwarp/newton_renderer, ovphysx/newton_renderer |
-| Isaac-Lift-Cable-Franka | newton_mjwarp_vbd_proxy |
-| Isaac-Lift-Cable-Franka-Camera | newton_mjwarp_vbd_proxy/isaacsim_rtx, newton_mjwarp_vbd_proxy/newton_renderer, newton_mjwarp_vbd_proxy/ovrtx |
-| Isaac-Lift-Cloth-Franka | isaacsim_physx, newton_mjwarp_vbd_proxy |
-| Isaac-Lift-Cloth-Franka-Camera | isaacsim_physx/isaacsim_rtx, isaacsim_physx/newton_renderer, newton_mjwarp_vbd_proxy/isaacsim_rtx, newton_mjwarp_vbd_proxy/newton_renderer, newton_mjwarp_vbd_proxy/ovrtx |
-| Isaac-Lift-KukaAllegro-Camera | isaacsim_physx/newton_renderer, newton_mjwarp/newton_renderer, ovphysx/newton_renderer |
-| Isaac-Lift-Soft-Franka | isaacsim_physx, newton_mjwarp_vbd_proxy |
-| Isaac-Lift-Soft-Franka-Camera | isaacsim_physx/isaacsim_rtx, isaacsim_physx/newton_renderer, newton_mjwarp_vbd_proxy/isaacsim_rtx, newton_mjwarp_vbd_proxy/newton_renderer, newton_mjwarp_vbd_proxy/ovrtx |
-| Isaac-Pendulum-MARL-Direct | isaacsim_physx, newton_mjwarp, ovphysx |
-| Isaac-Reorient-Cube-Shadow-Camera | isaacsim_physx/newton_renderer, newton_mjwarp/newton_renderer, ovphysx/newton_renderer |
-| Isaac-Reorient-Cube-Shadow-Camera-Direct | isaacsim_physx/newton_renderer, newton_mjwarp/newton_renderer, ovphysx/newton_renderer |
-| Isaac-Reorient-KukaAllegro-Camera | isaacsim_physx/newton_renderer, newton_mjwarp/newton_renderer, ovphysx/newton_renderer |
-| Isaac-Shadow-Handover | isaacsim_physx, newton_mjwarp, ovphysx |
+| Isaac-Ant | newton_kamino/none |
+| Isaac-Ant-Direct | newton_kamino/none |
+| Isaac-Cartpole | newton_kamino/none |
+| Isaac-Cartpole-Camera | newton_mjwarp/newton_renderer |
+| Isaac-Cartpole-Camera-Direct | newton_mjwarp/newton_renderer |
+| Isaac-Cartpole-Direct | newton_kamino/none |
+| Isaac-Fourbar-Pole-Swingup | newton_kamino/none |
+| Isaac-Lift-Cable-Franka | newton_mjwarp_vbd_proxy/none |
+| Isaac-Lift-Cable-Franka-Camera | newton_mjwarp_vbd_proxy/newton_renderer, newton_mjwarp_vbd_proxy/ovrtx |
+| Isaac-Lift-Cloth-Franka | isaacsim_physx/none, newton_mjwarp_vbd_proxy/none |
+| Isaac-Lift-Cloth-Franka-Camera | isaacsim_physx/isaacsim_rtx, newton_mjwarp_vbd_proxy/newton_renderer, newton_mjwarp_vbd_proxy/ovrtx |
+| Isaac-Lift-KukaAllegro-Camera | newton_mjwarp/newton_renderer |
+| Isaac-Lift-Soft-Franka | isaacsim_physx/none, newton_mjwarp_vbd_proxy/none |
+| Isaac-Lift-Soft-Franka-Camera | isaacsim_physx/isaacsim_rtx, newton_mjwarp_vbd_proxy/newton_renderer, newton_mjwarp_vbd_proxy/ovrtx |
+| Isaac-Pendulum-MARL-Direct | isaacsim_physx/none, newton_kamino/none, newton_mjwarp/none, ovphysx/none |
+| Isaac-Reorient-Cube-Shadow-Camera | newton_mjwarp/newton_renderer |
+| Isaac-Reorient-Cube-Shadow-Camera-Direct | newton_mjwarp/newton_renderer |
+| Isaac-Reorient-KukaAllegro-Camera | newton_mjwarp/newton_renderer |
+| Isaac-Shadow-Handover | isaacsim_physx/none, newton_mjwarp/none, ovphysx/none |
+| Isaac-Velocity-Flat-AnymalD | newton_kamino/none |
+| Isaac-Velocity-Flat-Cassie | newton_kamino/none |
+| Isaac-Velocity-Flat-G1 | newton_kamino/none |
+| Isaac-Velocity-Flat-H1 | newton_kamino/none |
+| Isaac-Velocity-Flat-UnitreeGo2 | newton_kamino/none |
+| Isaac-Velocity-Rough-AnymalD | newton_kamino/none |
+| Isaac-Velocity-Rough-Cassie | newton_kamino/none |
+| Isaac-Velocity-Rough-G1 | newton_kamino/none |
+| Isaac-Velocity-Rough-H1 | newton_kamino/none |
+| Isaac-Velocity-Rough-UnitreeGo2 | newton_kamino/none |
 
-[Configuration matrix](coverage-configurations.csv) lists all 156 pairs for each
-snapshot, statuses for both metrics, selected source IDs/dates, and other counts.
-[Environment coverage](coverage-environments.csv) flags missing 8,192 runs per task.
-[Observed profiles](coverage-observed-profiles.csv) preserves full configurations.
-[Preset selectors](coverage-preset-selectors.csv) flags explicitly recorded domain
-selectors; it does not assert that every Cartesian combination is compatible.
-[Task-default audit](coverage-environment-defaults.csv) retains the earlier default-count
-flags for reference only; it does not describe the current plotted count policy.
+Pendulum MARL supports RL-Games/SKRL rather than RSL-RL; it needs a separately
+identified training-library comparison. Database `Isaac-Shadow-Handover-Direct`
+runs do not fill `Isaac-Shadow-Handover` gaps: these are separate registered tasks.
+Missing measurements are not zeros, interpolations or renamed-task substitutions.
 
-## Data quality and provenance
+## Review exports
 
-The query covers 63,631 database records from
-`2026-08-14 <= created_at < 2026-09-10`. Selected hardware is
-`XEON_GOLD_5512U_1XRTXPRO6000_BW_SV`: one RTX PRO 6000 Blackwell Server Edition GPU,
-world size 1. Only successful WARM training entries with positive finite paired
-FPS metrics, matching configured/measured counts of 8,192, supported backends,
-and unambiguous task metadata are selected.
+Import [benchmark-review.csv](benchmark-review.csv) into Google Sheets. Its 1,022
+rows cover all expected pairs at all seven positions, with paired coverage statuses,
+missing reasons, both FPS metrics, quality notes and complete source provenance.
+`other_measured_counts` lists valid matching-profile measurements at other counts.
+`other_profile_*` identifies the latest eligible training run at another camera
+profile in that window; those fields are evidence of availability, not plotted FPS.
+Filter `collection_status = missing` to inspect gaps, or `snapshot_date_utc` for a
+particular week. Empty FPS cells mean unavailable.
 
-The [data-issues audit](coverage-data-issues.csv) covers training entries on that
-hardware throughout the query window. Its counts overlap: 3,696 entries lack the
-database physics column, 1,598 camera entries lack the database renderer column,
-182 have misleading physics group labels, and 182 have misleading count labels.
-Explicit per-entry presets or matching successful WARM task presets can recover
-backend identity. The CSV records that evidence; group labels and implicit defaults
-are not used to invent identities. Unresolved camera renderers remain excluded.
-
-Per-record `quality_notes` flag dirty-source metadata, older fallbacks, missing
-camera dimensions/domain metadata, and FPS coefficients of variation above 25%.
-These observations are not guaranteed clean release-source reproductions.
-Original source IDs, commits, measured iterations, and timestamps remain in the CSV.
-Dates are ingestion dates interpreted as UTC; original measurement timestamps lack
-timezones and are preserved verbatim. EA 3.0 is the release display label, not an
-assertion that measured commits are release tags.
-
-## Remaining work
-
-1. Collect missing supported pairs at 8,192 environments and the fixed camera
-   profile where supported. Use each task's
-   supported training library. Pendulum MARL requires RL-Games or SKRL, not RSL-RL.
-2. Collect clean release-source runs and record resolved
-   physics, renderer, camera dimensions/types/count, domain presets, and dependencies.
-3. Repeat noisy runs with longer measurement windows. Keep unavailable placeholders
-   until valid paired measurements exist.
+[coverage-configurations.csv](coverage-configurations.csv) is the compact matrix;
+[coverage-environments.csv](coverage-environments.csv) summarizes expected and missing
+pairs per task; [coverage-observed-profiles.csv](coverage-observed-profiles.csv)
+contains the selected measurements. The older `coverage-data-issues.csv`,
+`coverage-preset-selectors.csv` and `coverage-environment-defaults.csv` are historical
+August 14–September 9 audits, not refreshed current coverage.

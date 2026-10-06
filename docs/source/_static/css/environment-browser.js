@@ -689,6 +689,7 @@
     const backendLabels = {
         isaacsim_physx: "physx",
         newton_mjwarp: "mjwarp",
+        newton_kamino: "kamino",
         newton_mjwarp_vbd_proxy: "mjwarp + vbd",
         ovphysx: "ovphysx",
     };
@@ -699,6 +700,11 @@
         newton_renderer: "newton",
         ovrtx: "ovrtx",
     };
+    const isBenchmarkPair = (physics, renderer) => renderer === "none"
+        || (physics === "isaacsim_physx" && renderer === "isaacsim_rtx")
+        || (physics === "ovphysx" && renderer === "ovrtx")
+        || (["newton_mjwarp", "newton_mjwarp_vbd_proxy"].includes(physics)
+            && ["newton_renderer", "ovrtx"].includes(renderer));
     // Snapshots contain one fixed camera profile per physics/renderer pair.
     const seriesKey = (row) => JSON.stringify([row.physics_backend, row.rendering_backend]);
     const configurationLabel = (row) => [
@@ -868,10 +874,9 @@
         }
         const body = table.createTBody();
         const configurations = benchmarkSeries(rows);
-        for (const physics of selectedTask().physics.filter((value) => value !== "newton_kamino")) {
+        for (const physics of selectedTask().physics) {
             for (const renderer of selectedTask().renderer.length ? selectedTask().renderer : ["none"]) {
-                if ((physics === "isaacsim_physx" && renderer === "ovrtx")
-                    || (physics === "ovphysx" && renderer === "isaacsim_rtx")) {
+                if (!isBenchmarkPair(physics, renderer)) {
                     continue;
                 }
                 if (!rows.some((row) => row.physics_backend === physics
@@ -946,9 +951,8 @@
                     .filter((row) => row.data_origin === "measured" && row.workload === "training")
                     .filter((row) => [row.collection_fps_mean, row.total_fps_mean]
                         .every((value) => Number.isFinite(Number(value)) && Number(value) > 0))
-                    .filter((row) => row.task.startsWith("Isaac-") && row.physics_backend !== "newton_kamino")
-                    .filter((row) => !(row.physics_backend === "isaacsim_physx" && row.rendering_backend === "ovrtx")
-                        && !(row.physics_backend === "ovphysx" && row.rendering_backend === "isaacsim_rtx"))
+                    .filter((row) => row.task.startsWith("Isaac-"))
+                    .filter((row) => isBenchmarkPair(row.physics_backend, row.rendering_backend))
                     .map((row) => ({...row, channel}));
             } catch (error) {
                 benchmarkErrors.add(channel);
