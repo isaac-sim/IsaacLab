@@ -139,7 +139,7 @@ class JointWrenchSensor(BaseJointWrenchSensor):
             raise RuntimeError(f"Joint wrench sensor matched zero bodies at '{self.cfg.prim_path}'.")
 
         self._num_bodies = self._wrench_binding.body_count
-        self._data._body_names = list(self._wrench_binding.body_names)
+        self._initialize_body_ordering(list(self._wrench_binding.body_names), root_prim_path_expr)
 
         # OVPhysX clone_usd=False means SensorBase's USD-glob count only saw env_0;
         # the binding's ``count`` reports the true number of articulation instances
@@ -210,6 +210,8 @@ class JointWrenchSensor(BaseJointWrenchSensor):
             inputs=[
                 env_mask,
                 self._wrench_buf,
+                self._body_ordering.user_to_backend if self._body_ordering is not None else None,
+                self._body_ordering is not None,
                 self._timestamp,
                 self._data._force,
                 self._data._torque,
@@ -235,5 +237,6 @@ class JointWrenchSensor(BaseJointWrenchSensor):
         self._data._force = None
         self._data._torque = None
         self._data._body_names = []
+        self._body_ordering = None
         self._data._force_ta = None
         self._data._torque_ta = None

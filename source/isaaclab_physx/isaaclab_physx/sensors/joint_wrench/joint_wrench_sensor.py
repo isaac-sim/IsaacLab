@@ -139,7 +139,7 @@ class JointWrenchSensor(BaseJointWrenchSensor):
         if self._num_bodies == 0:
             raise RuntimeError(f"Joint wrench sensor matched zero bodies at '{self.cfg.prim_path}'.")
 
-        self._data._body_names = list(self._root_view.shared_metatype.link_names)
+        self._initialize_body_ordering(list(self._root_view.shared_metatype.link_names), root_prim_path_expr)
         self._data.create_buffers(num_envs=self._num_envs, num_bodies=self._num_bodies, device=self._device)
         self._use_recorded_launch = wp.get_device(self._device).is_cuda
 
@@ -196,6 +196,8 @@ class JointWrenchSensor(BaseJointWrenchSensor):
             inputs=[
                 env_mask,
                 self._raw_incoming_joint_wrench,
+                self._body_ordering.user_to_backend if self._body_ordering is not None else None,
+                self._body_ordering is not None,
                 self._timestamp,
                 self._data._force,
                 self._data._torque,
@@ -218,5 +220,6 @@ class JointWrenchSensor(BaseJointWrenchSensor):
         self._data._force = None
         self._data._torque = None
         self._data._body_names = []
+        self._body_ordering = None
         self._data._force_ta = None
         self._data._torque_ta = None

@@ -11,11 +11,16 @@ from typing import TYPE_CHECKING
 
 import warp as wp
 
+from pxr import UsdPhysics
+
+from ...assets.articulation.ordering import ArticulationNameMap, build_articulation_name_map
+from ...sim.utils.queries import resolve_matching_prims_from_source
 from ...utils import string as string_utils
 from ..sensor_base import SensorBase
 from .base_joint_wrench_sensor_data import BaseJointWrenchSensorData
 
 if TYPE_CHECKING:
+    from ...assets.articulation import BaseArticulation
     from .joint_wrench_sensor_cfg import JointWrenchSensorCfg
 
 
@@ -26,7 +31,9 @@ class BaseJointWrenchSensor(SensorBase):
     split force [N] / torque [N·m] pairs expressed in the
     ``INCOMING_JOINT_FRAME`` convention (child-side joint frame, child-side
     joint anchor reference point). Backends convert from their native
-    representation to this convention internally. Use :attr:`body_names` or
+    representation to this convention internally. In an interactive scene,
+    entries follow the owning articulation's public body order, restricted to
+    reportable bodies. Standalone sensors retain native sensor order. Use :attr:`body_names` or
     :meth:`find_bodies` to map entries to articulation bodies.
     """
 
@@ -35,6 +42,11 @@ class BaseJointWrenchSensor(SensorBase):
 
     __backend_name__: str = "base"
     """The name of the backend for the joint wrench sensor."""
+
+    def __init__(self, cfg: JointWrenchSensorCfg):
+        super().__init__(cfg)
+        self._scene_articulations: tuple[BaseArticulation, ...] = ()
+        self._body_ordering: ArticulationNameMap | None = None
 
     """
     Properties
@@ -76,6 +88,31 @@ class BaseJointWrenchSensor(SensorBase):
     """
     Implementation - Abstract methods to be implemented by backend-specific subclasses.
     """
+
+    def _initialize_body_ordering(self, native_names: list[str], root_prim_path_expr: str) -> None:
+        """Order reportable bodies by the scene articulation at the same USD root."""
+        public_names = native_names
+        if self._scene_articulations:
+            sensor_root = resolve_matching_prims_from_source(root_prim_path_expr, expected_num_matches=1)[0][0]
+            for articulation in self._scene_articulations:
+                root_expr = articulation.cfg.prim_path
+                if articulation.cfg.articulation_root_prim_path is not None:
+                    root_expr += articulation.cfg.articulation_root_prim_path
+                root = resolve_matching_prims_from_source(
+                    root_expr,
+                    predicate=lambda prim: prim.HasAPI(UsdPhysics.ArticulationRootAPI),
+                    expected_num_matches=1,
+                )[0][0]
+                if root.GetPath() == sensor_root.GetPath():
+                    if not articulation.is_initialized:
+                        raise RuntimeError("The owning articulation must initialize before its joint-wrench sensor.")
+                    reportable_names = set(native_names)
+                    public_names = [name for name in articulation.body_names if name in reportable_names]
+                    break
+        self._body_ordering = build_articulation_name_map(
+            kind="body", backend_names=native_names, user_names=public_names, device=self._device
+        )
+        self._data._body_names = public_names
 
     @abstractmethod
     def _initialize_impl(self) -> None:

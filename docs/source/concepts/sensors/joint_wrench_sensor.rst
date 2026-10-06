@@ -42,6 +42,16 @@ the same number or order of entries:
    :start-at: joint_wrench = JointWrenchSensorCfg
    :end-at: joint_wrench = JointWrenchSensorCfg
 
+In an :class:`~scene.InteractiveScene`, the sensor automatically follows the public body order of
+the articulation at the same USD root, restricted to bodies with reported wrenches. Configure
+:attr:`~assets.ArticulationCfg.body_ordering` on that articulation to select a common ordering across
+backends. With the default ``body_ordering=None``, the articulation still uses backend-native order;
+standalone sensors and scene sensors without a matching articulation retain native sensor order.
+
+Sensor indices can differ from articulation indices because the sensor may omit bodies. Resolve
+selections against the sensor. Use ``find_bodies(["left_foot", "right_foot"], preserve_order=True)``
+when the selected entries must follow the requested name list rather than the public body order.
+
 Manager-based environments can select a body subset through
 :class:`~isaaclab.managers.SceneEntityCfg` and use
 :func:`~isaaclab.envs.mdp.body_incoming_wrench` as an observation term:

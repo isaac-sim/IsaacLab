@@ -182,7 +182,7 @@ class JointWrenchSensor(BaseJointWrenchSensor):
         self._joint_child = wp.array(joint_child_np, dtype=wp.int32, device=self._device)
 
         link_names = list(self._root_view.link_names)
-        self._data._body_names = [link_names[int(b)] for b in joint_child_np]
+        self._initialize_body_ordering([link_names[int(b)] for b in joint_child_np], root_prim_path_expr)
 
         self._data.create_buffers(num_envs=self._num_envs, num_joints=self._num_joints, device=self._device)
 
@@ -209,6 +209,8 @@ class JointWrenchSensor(BaseJointWrenchSensor):
                 self._sim_bind_body_com,
                 self._sim_bind_joint_X_c,
                 self._joint_child,
+                self._body_ordering.user_to_backend if self._body_ordering is not None else None,
+                self._body_ordering is not None,
                 self._timestamp,
             ],
             outputs=[self._data._force, self._data._torque],
@@ -232,6 +234,7 @@ class JointWrenchSensor(BaseJointWrenchSensor):
         self._data._force = None
         self._data._torque = None
         self._data._body_names = []
+        self._body_ordering = None
         self._data._force_ta = None
         self._data._torque_ta = None
         NewtonManager.request_extended_state_attribute("body_parent_f")

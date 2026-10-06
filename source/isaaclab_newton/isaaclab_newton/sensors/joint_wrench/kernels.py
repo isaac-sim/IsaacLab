@@ -5,6 +5,8 @@
 
 import warp as wp
 
+from isaaclab.assets.articulation.ordering_kernels import resolve_backend_index
+
 
 @wp.kernel
 def joint_wrench_to_incoming_joint_frame_kernel(
@@ -14,6 +16,8 @@ def joint_wrench_to_incoming_joint_frame_kernel(
     body_com: wp.array(dtype=wp.vec3f, ndim=2),
     joint_X_c: wp.array(dtype=wp.transformf, ndim=2),
     joint_child: wp.array(dtype=wp.int32),
+    public_to_native: wp.array(dtype=wp.int32),
+    has_ordering: bool,
     timestamp: wp.array(dtype=wp.float32),
     out_force: wp.array(dtype=wp.vec3f, ndim=2),
     out_torque: wp.array(dtype=wp.vec3f, ndim=2),
@@ -32,6 +36,8 @@ def joint_wrench_to_incoming_joint_frame_kernel(
         body_com: Newton model — COM offset in link-local frame ``(num_envs, num_bodies)``.
         joint_X_c: Newton model — child-side joint frame relative to child link ``(num_envs, num_joints)``.
         joint_child: Newton model — body index of each joint's child link ``(num_joints,)``.
+        public_to_native: Map from public sensor entries to native joint entries.
+        has_ordering: Whether a nonidentity sensor ordering is active.
         out_force: Output force in joint frame [N] ``(num_envs, num_joints)``.
         out_torque: Output torque in joint frame [N·m] ``(num_envs, num_joints)``.
     """
@@ -44,7 +50,8 @@ def joint_wrench_to_incoming_joint_frame_kernel(
     if timestamp[env] == 0.0:
         return
 
-    body_idx = joint_child[j]
+    native_j = resolve_backend_index(j, public_to_native, has_ordering)
+    body_idx = joint_child[native_j]
 
     # Source wrench in world frame.  Newton's body_parent_f stores (force, torque-about-COM).
     src = body_parent_f[env, body_idx]
@@ -58,7 +65,7 @@ def joint_wrench_to_incoming_joint_frame_kernel(
     com_world = link_pos + wp.quat_rotate(link_quat, body_com[env, body_idx])
 
     # Child-side joint frame in world = body link pose composed with joint_X_c.
-    joint_xform_world = link_xform * joint_X_c[env, j]
+    joint_xform_world = link_xform * joint_X_c[env, native_j]
     anchor_world = wp.transform_get_translation(joint_xform_world)
     joint_quat_world = wp.transform_get_rotation(joint_xform_world)
 

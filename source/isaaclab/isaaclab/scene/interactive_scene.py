@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import copy
 import logging
+import weakref
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
@@ -44,6 +45,7 @@ from ..assets import (
 )
 from ..markers import VisualizationMarkers, VisualizationMarkersCfg
 from ..sensors import CameraCfg, ContactSensorCfg, FrameTransformerCfg, RayCasterCfg, SensorBase, SensorBaseCfg
+from ..sensors.joint_wrench import BaseJointWrenchSensor
 from ..sim import SimulationContext
 from ..sim.utils.stage import get_current_stage, get_current_stage_id
 from ..utils import instantiate, validate
@@ -838,3 +840,8 @@ class InteractiveScene:
             if hasattr(asset_cfg, "collision_group") and asset_cfg.collision_group == -1:
                 asset_paths = sim_utils.find_matching_prim_paths(asset_cfg.prim_path)
                 self._global_prim_paths += asset_paths
+
+        articulations = tuple(weakref.proxy(articulation) for articulation in self._articulations.values())
+        for sensor in self._sensors.values():
+            if isinstance(sensor, BaseJointWrenchSensor):
+                sensor._scene_articulations = articulations

@@ -80,6 +80,8 @@ Once initialized, the articulation and its
       - Public order
     * - :class:`~isaaclab.assets.ArticulationData` joint and body properties
       - Public order
+    * - Scene joint-wrench sensor names and force/torque entries
+      - Owning articulation's public body order, restricted to reportable bodies
     * - Articulation command and property writers
       - Public input order
     * - ``backend_joint_names`` and ``backend_body_names``
