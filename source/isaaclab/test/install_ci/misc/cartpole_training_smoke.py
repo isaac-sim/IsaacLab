@@ -5,9 +5,8 @@
 
 """Shared state-training, camera-rendering, and camera-training Cartpole smoke probes.
 
-The caller owns environment preparation. Installation CI executes this file
-inside the environment it just installed, while the kit-less image validation
-runs the state-training probe inside that image.
+The caller owns environment preparation. Architecture CI executes all probes
+inside its prepared image, while kit-less image validation runs the state-training probe.
 """
 
 from __future__ import annotations

@@ -152,6 +152,10 @@ inputs:
     description: 'Optional JUnit result filename; defaults to the workflow job identifier'
     default: ''
     required: false
+  smoke-test-path:
+    description: 'Optional pytest smoke-test file to run after the package tests, before cache publication'
+    default: ''
+    required: false
   container-name:
     description: 'Docker container name prefix (run-id is appended automatically)'
     required: true
@@ -370,6 +374,19 @@ runs:
         standalone-script-scope: ${{ inputs.standalone-script-scope }}
         standalone-script-visualizer: ${{ inputs.standalone-script-visualizer }}
         standalone-script-runtime-group: ${{ inputs.standalone-script-runtime-group }}
+
+    - name: Run smoke tests
+      if: inputs.smoke-test-path != ''
+      uses: ./.github/actions/run-tests
+      with:
+        test-path: ${{ inputs.smoke-test-path }}
+        result-file: ${{ github.job }}-smoke-report.xml
+        container-name: ${{ inputs.container-name }}-smoke-${{ github.run_id }}-${{ github.run_attempt }}
+        image-tag: ${{ inputs.image-tag }}
+        volume-mount-source: ${{ github.workspace }}
+        warp-cache-host-dir: ${{ steps.warp-cache-key.outputs.host-dir }}
+        ovrtx-shader-cache-host-dir: ${{ steps.ovrtx-cache.outputs.host-dir }}
+        omni-github-test-type: ${{ inputs.omni-github-test-type }}
 
     - name: Check Test Results
       if: always()

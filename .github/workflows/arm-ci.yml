@@ -192,6 +192,7 @@ jobs:
         warp-cache: ${{ github.event_name == 'push' && 'save' || 'restore' }}
         ovrtx-shader-cache: ${{ github.event_name == 'push' && 'save' || 'restore' }}
         ovrtx-shader-cache-trees: kitless
+        smoke-test-path: source/isaaclab/test/install_ci/misc/cartpole_training_smoke.py
         result-file: arm-ci-report.xml
         container-name: isaac-lab-arm-ci
         omni-github-test-type: arm-ci
