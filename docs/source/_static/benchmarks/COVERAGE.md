@@ -69,8 +69,7 @@ Quality notes flag dirty source trees and FPS coefficients of variation above 25
 
 There are 41 missing pairs, including 16 Kamino state pairs and six Newton-renderer
 camera pairs without the required simple-shading profile. RGB results exist for
-those six camera pairs; the review CSV records alternative source IDs, counts and
-presets. They remain missing under the fixed comparison profile.
+those six camera pairs. They remain missing under the fixed comparison profile.
 
 | Task | Missing physics / renderer |
 | --- | --- |
@@ -109,20 +108,16 @@ identified training-library comparison. Database `Isaac-Shadow-Handover-Direct`
 runs do not fill `Isaac-Shadow-Handover` gaps: these are separate registered tasks.
 Missing measurements are not zeros, interpolations or renamed-task substitutions.
 
-## Review exports
+## Coverage exports
 
-Import [benchmark-review.csv](benchmark-review.csv) into Google Sheets. Its 1,022
-rows cover all expected pairs at all seven positions, with paired coverage statuses,
-missing reasons, both FPS metrics, quality notes and complete source provenance.
-`other_measured_counts` lists valid matching-profile measurements at other counts.
-`other_profile_*` identifies the latest eligible training run at another camera
-profile in that window; those fields are evidence of availability, not plotted FPS.
-Filter `collection_status = missing` to inspect gaps, or `snapshot_date_utc` for a
-particular week. Empty FPS cells mean unavailable.
+[coverage-configurations.csv](coverage-configurations.csv) lists all 1,022 expected
+weekly configurations with paired coverage statuses, missing reasons, selected
+source IDs and ingestion dates. `other_measured_counts` lists valid matching-profile
+measurements at other counts. Missing measurements are not represented as zero FPS.
 
-[coverage-configurations.csv](coverage-configurations.csv) is the compact matrix;
 [coverage-environments.csv](coverage-environments.csv) summarizes expected and missing
 pairs per task; [coverage-observed-profiles.csv](coverage-observed-profiles.csv)
-contains the selected measurements. The older `coverage-data-issues.csv`,
+contains the 731 selected measurements with both FPS metrics, quality notes and
+source provenance. The older `coverage-data-issues.csv`,
 `coverage-preset-selectors.csv` and `coverage-environment-defaults.csv` are historical
 August 14–September 9 audits, not refreshed current coverage.

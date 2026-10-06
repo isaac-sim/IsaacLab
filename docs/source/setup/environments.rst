@@ -109,10 +109,8 @@ All runs use 8,192 environments. Camera comparisons use single-camera simple sha
 state tasks show every supported physics backend, and camera tasks show PhysX +
 Isaac Sim RTX, Newton + Newton renderer, OV PhysX + OV RTX, and Newton + OV RTX.
 
-Download the :download:`benchmark review CSV <../_static/benchmarks/benchmark-review.csv>`
-for Google Sheets. It includes measured values, missing configurations, source IDs,
-and alternative camera profiles. See the
-:download:`coverage report <../_static/benchmarks/COVERAGE.md>` for selection details.
+See the :download:`coverage report <../_static/benchmarks/COVERAGE.md>` for
+selection details.
 
 .. raw:: html
 

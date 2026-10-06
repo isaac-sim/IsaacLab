@@ -9,9 +9,7 @@ standard deviations, peaks and provenance from the same successful WARM entry.
 - Develop: seven weekly Sunday positions from August 23 through October 4,
   731 measurements. Selection windows end Monday, including September 28 and
   October 5. Sunday positions are presentation dates; actual timestamps are retained.
-- Review: `benchmark-review.csv`, ready for Google Sheets, includes all 1,022
-  expected weekly configurations, explicitly missing values and alternative-profile
-  evidence. This is the combined measured/missing export for reviewers.
+
 
 All plotted runs use 8,192 environments, RSL-RL, the same single-GPU hardware and
 fixed camera profile. State tasks include every registered physics backend.
@@ -26,5 +24,5 @@ current missing pairs and export columns. Source database:
 
 `environment-performance.csv` is an unused legacy snapshot. The data-issues,
 preset-selectors and environment-defaults coverage files are historical audits;
-current coverage is in the review, configurations, environments and observed-profiles
+current coverage is in the configurations, environments and observed-profiles
 exports. The release display label does not verify release-tag source commits.
