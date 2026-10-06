@@ -1071,10 +1071,13 @@ class RigidObject(BaseRigidObject):
         resolve_kwargs = {"predicate": has_rigid_body_api, "expected_num_matches": 1}
         _, root_prim_path_expr = resolve_matching_prims_from_source(self.cfg.prim_path, **resolve_kwargs)[0]
         # -- object view
+        # Partial layouts let the colliders differ between worlds; shape access then goes through
+        # views of worlds with equal shape counts.
         self._root_view = ArticulationView(
             SimulationManager.get_model(),
             path_expr_to_glob(root_prim_path_expr),
             verbose=False,
+            allow_partial_layouts=True,
         )
         require_strided_joint_and_body_rows(self._root_view, self.cfg.prim_path)
 
