@@ -3,6 +3,37 @@ Changelog
 
 .. towncrier release notes start
 
+4.0.1 (2026-10-06)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Applied task play-mode configuration during LEAPP exports so inference-only resources are initialized correctly.
+
+
+4.0.0 (2026-10-03)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed ``[INFO]`` messages printed by the training, playback, export, and simple-agent entry points
+  and the Weights & Biases helpers to ``logger.info``. They still print as ``[INFO]: <message>`` by default.
+
+Removed
+^^^^^^^
+
+* **Breaking:** Removed the legacy RSL-RL policy configuration classes, deprecated model fields,
+  and automatic configuration migration. Define ``actor`` and ``critic`` or ``student`` and
+  ``teacher`` model configurations directly, and use ``distribution_cfg`` for stochastic models.
+* **Breaking:** Removed ``export_policy_as_jit`` and ``export_policy_as_onnx`` from
+  ``isaaclab_rl.rsl_rl``. Use the RSL-RL runner methods ``export_policy_to_jit`` and
+  ``export_policy_to_onnx`` instead.
+* Removed obsolete runtime RSL-RL minimum-version checks; the project dependency provides
+  the supported version.
+
+
 3.0.0 (2026-10-02)
 ~~~~~~~~~~~~~~~~~~
 

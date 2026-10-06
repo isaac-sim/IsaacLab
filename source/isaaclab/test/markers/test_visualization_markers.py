@@ -383,7 +383,7 @@ def test_visualizer_step_renders_markers_and_closes_frame(monkeypatch, caplog, m
         def end_frame(self):
             calls.append(("end_frame",))
 
-    def render_markers(viewer, visible_env_ids, num_envs):
+    def render_markers(viewer, visible_env_ids, num_envs, sanitize_group_ids=False):
         marker_calls.append((viewer, visible_env_ids, num_envs))
         if marker_error:
             raise RuntimeError("marker overlay failed")
