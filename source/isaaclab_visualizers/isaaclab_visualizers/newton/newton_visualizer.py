@@ -687,6 +687,7 @@ class NewtonViewerRTX(_NewtonViewerUIMixin, ViewerRTX):
         self._render_settings = dict(render_settings or {})
 
         super().__init__(*args, **kwargs)
+        self._ovstage_hierarchy_holder = None
         self._paused_training = False
         self._paused_rendering = False
         self._reset_requested = False
@@ -706,6 +707,24 @@ class NewtonViewerRTX(_NewtonViewerUIMixin, ViewerRTX):
         # exist.  Register the training controls now (they are buffered by ViewerRTX until
         # the GUI is available); the panel patch is applied in _init_window() below.
         self.register_ui_callback(self._render_training_controls, position="side")
+
+        # TODO: Move this into Newton's ViewerRTX, which should create its ovstage.Stage with an explicit
+        # hierarchy computation model. With the default, OVStage 0.2 renders stale transforms. The model
+        # is process-wide and set by the first stage, so hold one for the viewer's lifetime. Acquired
+        # last so a failed construction cannot pin it.
+        with contextlib.suppress(ImportError):
+            from isaaclab_ov.stage import create_ovstage
+
+            self._ovstage_hierarchy_holder = create_ovstage("isaaclab.newton_rtx_hierarchy_model")
+
+    def close(self) -> None:
+        """Close the viewer, then release the stage held for the OVStage hierarchy model."""
+        try:
+            super().close()
+        finally:
+            holder, self._ovstage_hierarchy_holder = self._ovstage_hierarchy_holder, None
+            if holder is not None:
+                holder.destroy()
 
     def log_points(self, name, points, radii=None, colors=None, hidden=False):
         """Apply the configured color to Newton's canonical particle batch."""
