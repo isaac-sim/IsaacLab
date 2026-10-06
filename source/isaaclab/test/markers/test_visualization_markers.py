@@ -267,6 +267,7 @@ def test_first_visualize_defaults_to_first_prototype_when_count_matches_prototyp
 
 def test_usd_marker(sim):
     """Test with marker from a USD."""
+    sim._has_offscreen_render = True
     # create a marker
     config = clone(FRAME_MARKER_CFG)
     config.prim_path = "/World/Visuals/test_frames"
@@ -291,6 +292,15 @@ def test_visualization_skips_updates_when_invisible(sim):
     config = clone(POSITION_GOAL_MARKER_CFG)
     config.prim_path = "/World/Visuals/test_protos"
     test_marker = VisualizationMarkers(config)
+    initial_count = test_marker.count
+    # Unused inputs are ignored until a backend becomes active.
+    test_marker.visualize(
+        translations=torch.zeros(3, 3, device=sim.device), orientations=torch.zeros(2, 4, device=sim.device)
+    )
+    assert test_marker.count == initial_count
+    sim._has_offscreen_render = True
+    test_marker.visualize(translations=torch.zeros(3, 3, device=sim.device))
+    assert test_marker.count == 3
 
     # play the simulation
     sim.reset()
@@ -373,7 +383,7 @@ def test_visualizer_step_renders_markers_and_closes_frame(monkeypatch, caplog, m
         def end_frame(self):
             calls.append(("end_frame",))
 
-    def render_markers(viewer, visible_env_ids, num_envs):
+    def render_markers(viewer, visible_env_ids, num_envs, sanitize_group_ids=False):
         marker_calls.append((viewer, visible_env_ids, num_envs))
         if marker_error:
             raise RuntimeError("marker overlay failed")

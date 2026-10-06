@@ -259,8 +259,12 @@ def test_load_torchscript_model_file_not_found():
 
 @pytest.mark.parametrize("content", [b"invalid torchscript content", b""])
 def test_load_torchscript_model_invalid_file(content, tmp_path):
-    """Invalid or empty TorchScript files are handled gracefully and return None."""
+    """Invalid or empty TorchScript files fail at the load site with context."""
     model_path = tmp_path / "model.pt"
     model_path.write_bytes(content)
 
-    assert load_torchscript_model(str(model_path)) is None
+    with pytest.raises(RuntimeError, match="Failed to load TorchScript model") as exc_info:
+        load_torchscript_model(str(model_path))
+
+    assert str(model_path) in str(exc_info.value)
+    assert isinstance(exc_info.value.__cause__, RuntimeError)

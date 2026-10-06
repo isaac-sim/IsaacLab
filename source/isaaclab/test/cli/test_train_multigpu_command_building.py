@@ -25,6 +25,8 @@ without a GPU or Isaac Sim installation.
 from __future__ import annotations
 
 import argparse
+import os
+import re
 import shlex
 import sys
 
@@ -109,6 +111,16 @@ class TestKitArgsForwarding:
         assert "skrl.utils.distributed.jax" in command
         kit_args = _parse_as_training_script(_forwarded_train_argv(command), monkeypatch)
         assert kit_args == "--foo=/bar"
+
+    def test_every_rank_receives_one_run_timestamp(self, capsys):
+        def forwarded_timestamps(argv: list[str]) -> list[str]:
+            assert train_multigpu.run_train_multigpu_cli(["--dry_run", "--task", "Isaac-Cartpole-Direct", *argv]) == 0
+            return [token for token in shlex.split(capsys.readouterr().out) if token.startswith("--run_timestamp")]
+
+        (generated,) = forwarded_timestamps([])
+        assert re.fullmatch(r"--run_timestamp=\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}", generated)
+        assert forwarded_timestamps(["--run_timestamp=2026-01-02_03-04-05"]) == ["--run_timestamp=2026-01-02_03-04-05"]
+        assert os.environ.get("ISAACLAB_RUN_TIMESTAMP") is None  # the launcher leaves no process state behind
 
     def test_dry_run_prints_shell_parsable_command(self, capsys):
         exit_code = train_multigpu.run_train_multigpu_cli(

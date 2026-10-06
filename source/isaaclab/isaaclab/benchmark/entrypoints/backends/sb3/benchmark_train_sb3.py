@@ -12,10 +12,13 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from isaaclab.benchmark import BenchmarkResult
 
+import logging
 import sys
 import time
 
 from isaaclab_rl.entrypoints import common
+
+logger = logging.getLogger(__name__)
 
 
 def _build_benchmark_callback_class():
@@ -226,6 +229,7 @@ def run(argv: list[str]) -> BenchmarkResult:
     config_t0 = time.perf_counter_ns()
     env_cfg, agent_cfg = resolve_task_config(args_cli.task, args_cli.agent)
     config_t1 = time.perf_counter_ns()
+    common.pre_launch_video_config(env_cfg, args_cli)
 
     start_utc = capture.now_utc_iso()
     app_t0 = time.perf_counter_ns()
@@ -353,10 +357,9 @@ def run(argv: list[str]) -> BenchmarkResult:
             reward_series = [v for v in cb.ep_rew_mean if v == v]  # NaN != NaN
             ep_len_series = [v for v in cb.ep_len_mean if v == v]
             if not reward_series and iteration_times_s:
-                print(
-                    "[WARNING] sb3: no episodes completed during the benchmarked rollouts;"
-                    " reward/episode-length curves are empty.",
-                    file=sys.stderr,
+                logger.warning(
+                    "sb3: no episodes completed during the benchmarked rollouts;"
+                    " reward/episode-length curves are empty."
                 )
 
             startup = StartupTime(

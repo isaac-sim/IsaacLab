@@ -46,7 +46,7 @@
 #      -e TEST_FILTER_PATTERN="isaaclab_physx" \
 #      -e TEST_INCLUDE_FILES="test_rigid_object_collection.py" \
 #      -v "$PWD":/workspace/isaaclab isaac-lab-base:latest \
-#      -c 'cd /workspace/isaaclab && ./isaaclab.sh -p -m pytest tools -v'
+#      -c 'cd /workspace/isaaclab && uv run --no-sync isaaclab -p -m pytest tools -v'
 #
 # Remember to REVERT all temporary changes before merging!
 # =============================================================================
@@ -114,9 +114,8 @@ jobs:
           ^scripts/ :: Standalone scripts
           ^\.dockerignore$ :: Docker build context filter
           ^conftest\.py$ :: Root pytest configuration
+          ^uv\.lock$ :: Dependency lockfile
           ^pyproject\.toml$ :: Root Python project (Docker copy)
-          ^environment\.yml$ :: Conda env (Docker copy)
-          ^isaaclab\. :: isaaclab.sh/.bat entrypoints (Docker copy)
           ^\.github/workflows/build\.yaml$ :: This workflow file
           ^\.github/workflows/config\.yaml$ :: Shared CI config
           ^\.github/actions/ :: CI actions
@@ -440,9 +439,13 @@ jobs:
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         include-files: "test_standalone_scripts.py"
         standalone-script-scope: "demos"
-        standalone-script-visualizer: "none"
+        standalone-script-visualizer: "default"
         standalone-script-runtime-group: kit
+        # Dedicated sensor tests cover raycasting; keep these example launches available for manual runs.
+        test-k-expr: "not (multi_mesh_raycaster or newton_raycast or raycaster_sensor)"
         warp-cache: restore
+        ovrtx-shader-cache: restore
+        test-jobs: "2"
         result-file: "test-standalone-demos-kit-report.xml"
         container-name: isaac-lab-standalone-demos-kit-test
         omni-github-test-type: standalone-demo
@@ -471,9 +474,12 @@ jobs:
         extra-pip-packages: "${{ steps.ov_pins.outputs.ovphysx }}"
         include-files: "test_standalone_scripts.py"
         standalone-script-scope: "demos"
-        standalone-script-visualizer: "none"
+        standalone-script-visualizer: "default"
         standalone-script-runtime-group: non-kit
+        test-k-expr: "not (multi_mesh_raycaster or newton_raycast or raycaster_sensor)"
         warp-cache: restore
+        ovrtx-shader-cache: restore
+        test-jobs: "2"
         result-file: "test-standalone-demos-non-kit-report.xml"
         container-name: isaac-lab-standalone-demos-non-kit-test
         omni-github-test-type: standalone-demo
@@ -808,8 +814,8 @@ jobs:
         warp-cache: restore
         ovrtx-shader-cache: restore
         ovrtx-shader-cache-trees: kit
-        # The three files run side by side; the kit and kitless files split across two workers each.
-        test-jobs: "5"
+        # Keep the shared GPU to one two-worker test file at a time.
+        test-jobs: "2"
         container-name: isaac-lab-contrib-environments-test
 
   test-record-video:
@@ -1025,6 +1031,8 @@ jobs:
       run: |
         set -uo pipefail
         install -d -m 0777 "${GITHUB_WORKSPACE}/jit-cache/warp" "${GITHUB_WORKSPACE}/jit-cache/nv"
+        # Restored version directories and kernels must also be writable by the container user.
+        chmod -R a+rwX "${GITHUB_WORKSPACE}/jit-cache" || exit 1
 
         container=""
         cleanup_container() {
@@ -1055,7 +1063,6 @@ jobs:
               --seed 42 \
               --benchmark_formatter schema \
               --output_path /tmp/benchmark-output \
-              --visualizer none \
               $args"
           local status=$?
           docker cp "$container:/tmp/benchmark-output/." "benchmark-output/${leg}/sample-${sample}/" 2>/dev/null || true
