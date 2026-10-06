@@ -199,16 +199,9 @@ class NewtonVisualizationMarkers:
         for proto_index, (name, marker_cfg) in enumerate(self.cfg.markers.items()):
             newton_cfg = self._marker_specs[name]
             batch_name = f"{render_id}/{name}"
-            if marker_indices is None:
-                if proto_index != 0:
-                    self._hide_batch(viewer, name, newton_cfg, render_id)
-                    continue
-                selected = slice(None)
-            else:
-                selected = marker_indices == proto_index
-                if not torch.any(selected):
-                    self._hide_batch(viewer, name, newton_cfg, render_id)
-                    continue
+            if marker_indices is None and proto_index != 0:
+                self._hide_batch(viewer, name, newton_cfg, render_id)
+                continue
 
             if newton_cfg.renderer == "none":
                 unsupported_key = f"{self.group_id}:{name}"
@@ -221,20 +214,24 @@ class NewtonVisualizationMarkers:
                     self._warned_unsupported.add(unsupported_key)
                 continue
 
-            selected_translations = translations[selected]
+            selected_translations = translations
             selected_count = selected_translations.shape[0]
             if orientations is None:
                 selected_orientations = selected_translations.new_tensor((0.0, 0.0, 0.0, 1.0)).expand(
                     selected_count, -1
                 )
             else:
-                selected_orientations = orientations[selected]
+                selected_orientations = orientations
             default_scale = newton_cfg.scale or _extract_scale_hint(marker_cfg)
             default_scale_tensor = selected_translations.new_tensor(default_scale)
             if scales is None:
                 selected_scales = default_scale_tensor.expand(selected_count, -1)
             else:
-                selected_scales = scales[selected] * default_scale_tensor
+                selected_scales = scales * default_scale_tensor
+            if marker_indices is not None:
+                # Log every marker in every prototype and zero-scale the others: the instance count stays
+                # fixed, since OVRTX cannot add instance geometry once rendering has started.
+                selected_scales = selected_scales * (marker_indices == proto_index).unsqueeze(-1)
 
             if newton_cfg.renderer == "mesh":
                 mesh_name = f"{render_id}/meshes/{name}"
@@ -256,7 +253,8 @@ class NewtonVisualizationMarkers:
                 )
             elif newton_cfg.renderer == "frame":
                 starts, ends, colors = _build_frame_lines(selected_translations, selected_orientations, selected_scales)
-                width = max(float(selected_scales.mean().item()) * 0.05, 0.0025)
+                # Zero-scaled markers of other prototypes must not thin the visible lines.
+                width = max(float(selected_scales.amax().item()) * 0.05, 0.0025)
                 viewer.log_lines(
                     batch_name,
                     wp.array(starts.detach().cpu().numpy().astype(np.float32), dtype=wp.vec3, device=device),

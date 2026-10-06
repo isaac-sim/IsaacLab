@@ -191,6 +191,34 @@ def test_newton_marker_registry_lifecycle(marker_registry: _MarkerRegistry):
     assert marker_registry.groups == {}
 
 
+def test_newton_markers_keep_instance_counts_when_prototypes_switch(marker_registry: _MarkerRegistry):
+    """Switching prototypes zero-scales markers rather than resizing or hiding batches, which OVRTX rejects mid-run."""
+    sphere = newton_markers.sim_utils.SphereCfg(radius=0.1)
+    marker = newton_markers.NewtonVisualizationMarkers(
+        newton_markers.VisualizationMarkersCfg(prim_path="/Visuals/test", markers={"far": sphere, "near": sphere})
+    )
+    logged = []
+    viewer = SimpleNamespace(
+        device="cpu",
+        world_offsets=wp.zeros(2, dtype=wp.vec3, device="cpu"),
+        log_mesh=lambda *args, **kwargs: None,
+        log_instances=lambda name, mesh, xforms, scales, colors, materials, hidden: logged.append(
+            (name.rsplit("/", 1)[-1], None if scales is None else (scales.numpy()[:, 0] > 0).tolist(), hidden)
+        ),
+    )
+
+    for indices in ([0, 0], [0, 1]):
+        marker.visualize(torch.zeros(2, 3), None, None, torch.tensor(indices))
+        marker.render(viewer, visible_env_ids=None, num_envs=2)
+
+    assert logged == [
+        ("far", [True, True], False),
+        ("near", [False, False], False),
+        ("far", [True, False], False),
+        ("near", [False, True], False),
+    ]
+
+
 def test_newton_rtx_viewer_aliases_ldr_color_when_render_vars_use_prim_paths():
     """ovrtx 0.5 keys render vars by prim path, but Newton's ViewerRTX looks up ``LdrColor``."""
     by_path = SimpleNamespace(render_vars={"/Render/Vars/LdrColor": "ldr"})
