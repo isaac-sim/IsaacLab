@@ -45,7 +45,7 @@ Basic Configuration Tests
 @pytest.mark.parametrize("device", test_devices())
 def test_init(device, monkeypatch):
     """Test the simulation context initialization."""
-    from isaaclab.sim.spawners.materials import RigidBodyMaterialCfg
+    from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
 
     original_initialize = PhysxManager.initialize.__func__
 
@@ -59,7 +59,7 @@ def test_init(device, monkeypatch):
         dt=0.005,
         physics_prim_path="/Physics/PhysX",
         gravity=(0.0, -0.5, -0.5),
-        physics_material=RigidBodyMaterialCfg(),
+        physics_material=RigidBodyMaterialBaseCfg(),
         render_interval=5,
     )
     # sim = SimulationContext(cfg)

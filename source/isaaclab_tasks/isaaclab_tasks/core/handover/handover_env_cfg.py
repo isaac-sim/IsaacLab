@@ -103,7 +103,7 @@ BALL_CFG = RigidObjectCfg(
     spawn=sim_utils.SphereCfg(
         radius=OBJECT_RADIUS,
         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.8, 1.0, 0.0)),
-        physics_material=sim_utils.RigidBodyMaterialCfg(static_friction=0.7),
+        physics_material=RigidBodyMaterialBaseCfg(static_friction=0.7),
         rigid_props=[
             sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=False),
             PhysxRigidBodyCfg(

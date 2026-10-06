@@ -13,7 +13,7 @@ from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from isaaclab.envs import DirectRLEnvCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
-from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialCfg
+from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialBaseCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
@@ -216,7 +216,7 @@ class AssemblyEnvCfg(DirectRLEnvCfg):
             gpu_collision_stack_size=2**27,
             gpu_max_num_partitions=1,  # Important for stable simulation.
         ),
-        physics_material=RigidBodyMaterialCfg(
+        physics_material=RigidBodyMaterialBaseCfg(
             static_friction=1.0,
             dynamic_friction=1.0,
         ),
