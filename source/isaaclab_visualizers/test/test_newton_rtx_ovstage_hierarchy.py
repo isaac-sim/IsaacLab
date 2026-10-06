@@ -56,8 +56,8 @@ def stages(monkeypatch: pytest.MonkeyPatch) -> list[_FakeStage]:
     return created
 
 
-def test_stage_is_held_from_construction_until_close(stages):
-    """The configured stage must exist before ViewerRTX creates its own and outlive the viewer's close()."""
+def test_stage_is_created_on_construction_and_released_once_on_close(stages):
+    """Construction creates one named stage; close() destroys it exactly once, even when called twice."""
     viewer = NewtonViewerRTX()
 
     assert [stage.name for stage in stages] == ["isaaclab.newton_rtx_hierarchy_model"]
@@ -82,6 +82,19 @@ def test_stage_is_released_when_viewer_close_fails(stages, monkeypatch):
     with pytest.raises(RuntimeError, match="teardown failed"):
         viewer.close()
     assert stages[0].destroy_calls == 1
+
+
+def test_no_stage_is_acquired_when_construction_fails(stages, monkeypatch):
+    """A constructor failure must not leave a stage pinning the process-wide hierarchy model."""
+
+    def failing_register(self, *args, **kwargs) -> None:
+        raise RuntimeError("ui registration failed")
+
+    monkeypatch.setattr(NewtonViewerRTX, "register_ui_callback", failing_register)
+
+    with pytest.raises(RuntimeError, match="ui registration failed"):
+        NewtonViewerRTX()
+    assert stages == []
 
 
 def test_no_stage_is_held_without_ovstage(stages, monkeypatch):
