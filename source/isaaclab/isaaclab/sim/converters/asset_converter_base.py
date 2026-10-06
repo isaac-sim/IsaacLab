@@ -4,13 +4,16 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import abc
+import contextlib
 import hashlib
 import json
 import logging
 import os
 import pathlib
 import random
+import re
 import tempfile
+import uuid
 from datetime import datetime
 
 from ...utils import to_dict, validate
@@ -29,14 +32,14 @@ class AssetConverterBase(abc.ABC):
     :meth:`_convert_asset` method to provide the actual conversion.
 
     The file conversion is lazy if the output directory (:obj:`AssetConverterBaseCfg.usd_dir`) is provided.
-    The output directory records its last conversion, and the USD file is re-generated only if:
-
-    * The asset file or the configuration parameters were modified since that conversion.
-    * The requested USD file name differs from that conversion.
-    * The USD file that the conversion generated does not exist.
+    The output directory records its conversions, and a lazy conversion reuses an earlier output of the same asset
+    file, configuration parameters and requested USD file name, as long as the output exists and no later
+    conversion wrote to its folder. Otherwise, the asset is converted again. The URDF and MJCF importers do not
+    overwrite earlier outputs and write a new configuration to a new numbered folder, so each of their outputs stays
+    reusable.
 
     To override this behavior to force conversion, the flag :obj:`AssetConverterBaseCfg.force_usd_conversion`
-    can be set to True.
+    can be set to True. Later lazy conversions with the same configuration reuse the forced output.
 
     When no output directory is defined, lazy conversion is deactivated and the generated USD file is
     stored in folder ``<tempdir>/IsaacLab/usd_{date}_{time}_{random}``, where ``<tempdir>`` is the system
@@ -86,33 +89,41 @@ class AssetConverterBase(abc.ABC):
         self._usd_file_name = usd_file_name
 
         os.makedirs(self.usd_dir, exist_ok=True)
-        # the record holds the hash of the asset and config, the requested USD file, and the file that the
-        # conversion generated, which differs when an importer does not overwrite an earlier output
-        self._dest_hash_path = os.path.join(self.usd_dir, ".asset_hash")
+        # the record lists the conversions in the output directory, see _read_record()
+        self._record_path = os.path.join(self.usd_dir, ".asset_hash")
         self._asset_hash = self._config_to_hash(cfg)
-        requested_usd_file_name = self._usd_file_name
-        try:
-            with open(self._dest_hash_path, encoding="utf-8") as f:
-                record = f.read().splitlines()
-        except FileNotFoundError:
-            record = []
-        self._is_same_asset = len(record) == 3 and record[:2] == [self._asset_hash, requested_usd_file_name]
-        cached_usd_file_name = record[2] if self._is_same_asset else requested_usd_file_name
-        self._usd_file_exists = os.path.isfile(os.path.join(self.usd_dir, cached_usd_file_name))
+        requested_usd_file_name = pathlib.PurePath(self._usd_file_name).as_posix()
 
-        # reuse the recorded USD file, or convert the asset if the hash differs or the file does not exist
-        if self._is_same_asset and self._usd_file_exists and not cfg.force_usd_conversion:
-            self._usd_file_name = cached_usd_file_name
+        # reuse an earlier output of the same asset file and configuration if it still exists
+        cached_usd_file_name = None
+        if not cfg.force_usd_conversion:
+            entries, legacy_hash = self._read_record()
+            cached_usd_file_name = next(
+                (
+                    entry["generated"]
+                    for entry in entries
+                    if (entry["hash"], entry["requested"]) == (self._asset_hash, requested_usd_file_name)
+                    and os.path.isfile(os.path.join(self.usd_dir, entry["generated"]))
+                ),
+                None,
+            )
+            if cached_usd_file_name is None and self._can_reuse_legacy_record(legacy_hash, requested_usd_file_name):
+                cached_usd_file_name = requested_usd_file_name
+                # a read-only output directory keeps the record of the earlier version
+                with contextlib.suppress(OSError):
+                    self._write_record(requested_usd_file_name, requested_usd_file_name)
+
+        if cached_usd_file_name is not None:
+            self._usd_file_name = str(pathlib.PurePath(cached_usd_file_name))
         else:
             # convert the asset to USD
             self._convert_asset(cfg)
             # importers put the physics payloads behind a "Physics" variant set and disagree on
             # which variant to select, so settle it here
             self._select_physics_variant(cfg.physics_variant)
-            # record the hash only now: writing it earlier would let a conversion that raised
+            # record the conversion only now: recording it earlier would let a conversion that raised
             # still count as cached, so an identical retry would skip it and return the asset
-            with open(self._dest_hash_path, "w", encoding="utf-8") as f:
-                f.write(f"{self._asset_hash}\n{requested_usd_file_name}\n{self._usd_file_name}")
+            self._write_record(requested_usd_file_name, pathlib.PurePath(self._usd_file_name).as_posix())
             # dump the configuration next to the asset, stamped with the converter that produced it
             config_path = os.path.join(self.usd_dir, "config.yaml")
             dump_yaml(config_path, to_dict(cfg))
@@ -204,15 +215,135 @@ class AssetConverterBase(abc.ABC):
         variant_set.SetVariantSelection(variant)
         stage.GetRootLayer().Save()
 
+    def _read_record(self) -> tuple[list[dict[str, str]], str | None]:
+        """Read the record of the conversions in the output directory.
+
+        The record is a JSON document with one entry per conversion. An entry holds the hash of the asset file
+        and configuration (see :meth:`_config_to_hash`), the requested USD file, and the USD file that the
+        conversion generated, both relative to the output directory with ``/`` separators. Entries that are
+        malformed or point outside the output directory are ignored. Earlier versions wrote only the hash of
+        the last conversion, on the first line.
+
+        Returns:
+            The valid entries, and the hash of a record written by an earlier version or None.
+        """
+        try:
+            with open(self._record_path, encoding="utf-8") as f:
+                content = f.read()
+        except (OSError, UnicodeDecodeError):
+            return [], None
+        try:
+            record = json.loads(content)
+        except ValueError:
+            record = None
+        # a hash of an earlier version can also parse as a JSON number
+        if not isinstance(record, dict) or record.get("version") != 1:
+            lines = content.splitlines()
+            return [], lines[0].strip() if lines else None
+        recorded_entries = record.get("entries")
+        if not isinstance(recorded_entries, list):
+            recorded_entries = []
+        keys = ("hash", "requested", "generated")
+        entries = []
+        for entry in recorded_entries:
+            if not isinstance(entry, dict) or not all(isinstance(entry.get(key), str) for key in keys):
+                continue
+            generated = pathlib.PurePath(entry["generated"])
+            # a record edited by hand must not point outside the output directory
+            if generated.anchor or ".." in generated.parts:
+                continue
+            entries.append({key: entry[key] for key in keys})
+        return entries, None
+
+    def _can_reuse_legacy_record(self, legacy_hash: str | None, requested_usd_file_name: str) -> bool:
+        """Check whether a record of an earlier version can be reused for the requested USD file.
+
+        Earlier versions recorded only the hash of the last conversion, not its USD file, and loaded the requested
+        USD file when the hash matched. The record is not reused while a numbered folder, such as ``<name>_1`` next
+        to ``<name>``, shows that a later conversion went elsewhere. As in earlier versions, the requested file may
+        still hold an earlier conversion if such a folder was deleted, or if the last conversion had this hash but
+        wrote another requested file.
+
+        Args:
+            legacy_hash: The hash of a record written by an earlier version, or None.
+            requested_usd_file_name: The requested USD file, relative to the output directory with ``/``
+                separators.
+
+        Returns:
+            True if the requested USD file exists, the record holds the hash of this asset file and configuration,
+            and nothing shows that the requested file holds another conversion.
+        """
+        if legacy_hash is None or not os.path.isfile(os.path.join(self.usd_dir, requested_usd_file_name)):
+            return False
+        folder = pathlib.PurePosixPath(requested_usd_file_name).parent
+        if folder.name:
+            parent_dir = os.path.join(self.usd_dir, folder.parent)
+            numbered_folder = re.compile(rf"{re.escape(folder.name)}_\d+")
+            try:
+                names = os.listdir(parent_dir)
+            except OSError:
+                # without a listing, a numbered folder cannot be ruled out
+                return False
+            for name in names:
+                if numbered_folder.fullmatch(name) and os.path.isdir(os.path.join(parent_dir, name)):
+                    return False
+        # only a lazy conversion could have recorded a hash that a lazy conversion matches
+        return legacy_hash == self._config_to_hash(self.cfg, legacy=True)
+
+    def _write_record(self, requested_usd_file_name: str, generated_usd_file_name: str) -> None:
+        """Add a conversion to the record of the output directory.
+
+        The record is read again right before writing, to keep the entries that another process added in the
+        meantime. Entries whose USD file no longer exists or that this conversion replaces are dropped, and so are
+        the entries in the folder this conversion wrote to: outputs in one folder can share files, such as the
+        ``Props/instanceable_meshes.usd`` that every output of the mesh converter references. The URDF and MJCF
+        importers give each conversion its own folder. The record is replaced in one step, so a crash cannot leave
+        it half written, but writes are not serialized: two concurrent writers can still lose an entry, or keep one
+        that the other writer dropped.
+
+        Args:
+            requested_usd_file_name: The requested USD file, relative to the output directory with ``/``
+                separators.
+            generated_usd_file_name: The generated USD file, relative to the output directory with ``/``
+                separators.
+        """
+        entries, _ = self._read_record()
+        folder = pathlib.PurePosixPath(generated_usd_file_name).parent
+        entries = [
+            entry
+            for entry in entries
+            if os.path.isfile(os.path.join(self.usd_dir, entry["generated"]))
+            and (entry["hash"], entry["requested"]) != (self._asset_hash, requested_usd_file_name)
+            and pathlib.PurePosixPath(entry["generated"]).parent != folder
+        ]
+        entries.append(
+            {"hash": self._asset_hash, "requested": requested_usd_file_name, "generated": generated_usd_file_name}
+        )
+        # unlike the tempfile module, open() honors the umask, so other users of the directory can read the record
+        temp_path = f"{self._record_path}.{uuid.uuid4().hex}.tmp"
+        try:
+            with open(temp_path, "x", encoding="utf-8") as f:
+                json.dump({"version": 1, "entries": entries}, f, indent=2)
+            os.replace(temp_path, self._record_path)
+        except BaseException:
+            with contextlib.suppress(OSError):
+                os.remove(temp_path)
+            raise
+
     @staticmethod
-    def _config_to_hash(cfg: AssetConverterBaseCfg) -> str:
+    def _config_to_hash(cfg: AssetConverterBaseCfg, legacy: bool = False) -> str:
         """Converts the configuration object and asset file to an MD5 hash of a string.
+
+        The hash leaves out :attr:`AssetConverterBaseCfg.force_usd_conversion`, which decides whether a
+        conversion runs, not what it produces.
 
         .. warning::
             It only checks the main asset file (:attr:`cfg.asset_path`).
 
         Args:
-            config : The asset converter configuration object.
+            cfg: The asset converter configuration object.
+            legacy: Whether to compute the hash that earlier versions recorded for a lazy conversion, which
+                included the flag.
 
         Returns:
             An MD5 hash of a string.
@@ -223,6 +354,11 @@ class AssetConverterBase(abc.ABC):
         _ = config_dic.pop("asset_path")
         _ = config_dic.pop("usd_dir")
         _ = config_dic.pop("usd_file_name")
+        if legacy:
+            # set the flag in place, which keeps the key order and so the hash of earlier versions
+            config_dic["force_usd_conversion"] = False
+        else:
+            _ = config_dic.pop("force_usd_conversion")
         # convert config dic to bytes
         config_bytes = json.dumps(config_dic).encode()
         # hash config

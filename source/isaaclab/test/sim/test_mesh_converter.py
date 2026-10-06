@@ -176,7 +176,10 @@ def test_no_change(assets):
 
 
 def test_config_change(assets):
-    """Call conversion twice but change the config in the second call. This should generate a new USD file."""
+    """Call conversion twice but change the config in the second call. This should generate a new USD file.
+
+    Changing the config back must generate the USD file again, since the second call overwrote it.
+    """
     # create an initial USD file from asset
     mesh_config = MeshConverterCfg(asset_path=assets["obj"])
     mesh_converter = MeshConverter(mesh_config)
@@ -192,6 +195,29 @@ def test_config_change(assets):
     new_time_usd_file_created = os.stat(new_mesh_converter.usd_path).st_mtime_ns
 
     assert time_usd_file_created != new_time_usd_file_created
+
+    # change the config back, which must generate the USD file again
+    new_config.make_instanceable = not new_config.make_instanceable
+    first_mesh_converter = MeshConverter(new_config)
+    assert os.stat(first_mesh_converter.usd_path).st_mtime_ns != new_time_usd_file_created
+
+
+def test_lazy_conversion_converts_again_after_another_output(assets, tmp_path):
+    """Convert again after another output was converted into the same directory.
+
+    Every output in the directory references the same ``Props/instanceable_meshes.usd``, which the other conversion
+    replaced.
+    """
+    usd_dir = str(tmp_path / "meshes")
+    mesh_config = MeshConverterCfg(asset_path=assets["obj"], usd_dir=usd_dir, usd_file_name="first.usd")
+    MeshConverter(mesh_config)
+    MeshConverter(
+        MeshConverterCfg(
+            asset_path=assets["obj"], usd_dir=usd_dir, usd_file_name="second.usd", translation=(1.0, 0.0, 0.0)
+        )
+    )
+
+    check_mesh_conversion(MeshConverter(mesh_config))
 
 
 def test_convert_obj(assets, tmp_path):

@@ -22,8 +22,11 @@ if _USE_RUNTIME:
             allow_module_level=True,
         )
 
+import hashlib
+import json
 import math
 import os
+import pathlib
 import shutil
 import warnings
 from types import SimpleNamespace
@@ -34,6 +37,7 @@ import isaaclab
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.sim.converters import UrdfConverter, UrdfConverterCfg
+from isaaclab.utils import to_dict
 
 # The Kit-less container mounts the checkout read-only, so ``usd_dir`` goes under ``tmp_path``.
 pytestmark = [pytest.mark.integration, pytest.mark.kitless]
@@ -100,8 +104,8 @@ def test_no_change(sim_config):
 def test_config_change(sim_config, tmp_path):
     """Call conversion twice but change the config in the second call. This should generate a new USD file.
 
-    A third call with the changed config must load that file, although the importer writes it next to the
-    first one instead of overwriting it.
+    The importer writes the new conversion next to the first one instead of overwriting it, so later calls with
+    either config must load their own file without generating another one.
     """
 
     sim, config = sim_config
@@ -110,6 +114,7 @@ def test_config_change(sim_config, tmp_path):
 
     config.usd_dir = output_dir
     urdf_converter = UrdfConverter(config)
+    time_usd_file_created = os.stat(urdf_converter.usd_path).st_mtime_ns
 
     # change the config
     new_config = config
@@ -128,33 +133,164 @@ def test_config_change(sim_config, tmp_path):
     assert lazy_urdf_converter.usd_path == new_urdf_converter.usd_path
     assert os.stat(lazy_urdf_converter.usd_path).st_mtime_ns == new_time_usd_file_created
 
+    # change the config back, which must load the first USD file instead of generating a third one
+    new_config.fix_base = not new_config.fix_base
+    first_urdf_converter = UrdfConverter(new_config)
+    assert first_urdf_converter.usd_path == urdf_converter.usd_path
+    assert os.stat(first_urdf_converter.usd_path).st_mtime_ns == time_usd_file_created
+    assert not os.path.exists(f"{os.path.dirname(urdf_converter.usd_path)}_2")
+
+
+def _write_legacy_record(config: UrdfConverterCfg):
+    """Replace the record in ``config.usd_dir`` with the one that earlier versions wrote for a lazy conversion.
+
+    It held only the MD5 of the configuration without its paths, followed by the asset file.
+    """
+    config_dict = to_dict(config)
+    for key in ("asset_path", "usd_dir", "usd_file_name"):
+        config_dict.pop(key)
+    md5 = hashlib.md5(json.dumps(config_dict).encode())
+    with open(config.asset_path, "rb") as f:
+        md5.update(f.read())
+    with open(os.path.join(config.usd_dir, ".asset_hash"), "w", encoding="utf-8") as f:
+        f.write(md5.hexdigest())
+
+
+def _recorded_conversions(usd_dir: str) -> list[tuple[str, str]]:
+    """Return the requested and the generated USD file of each conversion that ``usd_dir`` records."""
+    with open(os.path.join(usd_dir, ".asset_hash"), encoding="utf-8") as f:
+        record = json.load(f)
+    assert record["version"] == 1
+    return [(entry["requested"], entry["generated"]) for entry in record["entries"]]
+
 
 @pytest.mark.isaacsim_ci
-def test_lazy_conversion_converts_again_for_stale_record(sim_config, tmp_path):
-    """Convert again when the record comes from an earlier version or its generated file is missing.
+def test_lazy_conversion_reuses_forced_conversion(sim_config, tmp_path):
+    """Load the output of a forced conversion for later lazy conversions with the same config."""
+    sim, config = sim_config
+    config.usd_dir = os.path.join(str(tmp_path), "urdf_forced_conversion")
+    first_path = UrdfConverter(config).usd_path
+    config.force_usd_conversion = True
+    usd_path = UrdfConverter(config).usd_path
+    time_usd_file_created = os.stat(usd_path).st_mtime_ns
+    # the importer writes the forced conversion next to the first one
+    assert usd_path != first_path
 
-    Each new output is a numbered folder next to the earlier ones, and later lazy conversions reuse it.
+    config.force_usd_conversion = False
+    assert UrdfConverter(config).usd_path == usd_path
+    assert os.stat(usd_path).st_mtime_ns == time_usd_file_created
+
+
+@pytest.mark.isaacsim_ci
+def test_lazy_conversion_reuses_legacy_record(sim_config, tmp_path):
+    """Load the requested USD file for a matching record of an earlier version, and migrate the record.
+
+    Without a numbered folder next to the requested one, the importer wrote only one conversion to ``usd_dir``.
     """
     sim, config = sim_config
-    config.usd_dir = os.path.join(str(tmp_path), "urdf_stale_record")
-    first_path = UrdfConverter(config).usd_path
+    config.usd_dir = os.path.join(str(tmp_path), "urdf_legacy_record")
+    usd_path = UrdfConverter(config).usd_path
+    time_usd_file_created = os.stat(usd_path).st_mtime_ns
+    _write_legacy_record(config)
 
-    # a record of an earlier version holds only the hash
+    # the second call loads the file through the migrated record
+    for _ in range(2):
+        assert UrdfConverter(config).usd_path == usd_path
+    assert os.stat(usd_path).st_mtime_ns == time_usd_file_created
+    requested = pathlib.PurePath(os.path.relpath(usd_path, config.usd_dir)).as_posix()
+    assert _recorded_conversions(config.usd_dir) == [(requested, requested)]
+
+
+@pytest.mark.isaacsim_ci
+def test_lazy_conversion_converts_again_for_legacy_record_with_numbered_folder(sim_config, tmp_path):
+    """Convert again for a record of an earlier version when a numbered folder lies next to the requested one.
+
+    Earlier versions recorded only the last conversion, here the one the importer wrote to the numbered folder,
+    while the requested USD file holds the first conversion.
+    """
+    sim, config = sim_config
+    config.usd_dir = os.path.join(str(tmp_path), "urdf_legacy_record_numbered_folder")
+    first_path = UrdfConverter(config).usd_path
+    config.fix_base = not config.fix_base
+    UrdfConverter(config)
+    _write_legacy_record(config)
+
+    assert UrdfConverter(config).usd_path != first_path
+
+
+@pytest.mark.isaacsim_ci
+@pytest.mark.skipif(os.name == "nt" or os.geteuid() == 0, reason="Needs file permissions that bind the user.")
+def test_lazy_conversion_reuses_legacy_record_in_read_only_dir(sim_config, tmp_path):
+    """Load the requested USD file for a matching record of an earlier version that cannot be migrated."""
+    sim, config = sim_config
+    config.usd_dir = os.path.join(str(tmp_path), "urdf_legacy_record_read_only")
+    usd_path = UrdfConverter(config).usd_path
+    _write_legacy_record(config)
+    os.chmod(config.usd_dir, 0o555)
+    try:
+        assert UrdfConverter(config).usd_path == usd_path
+    finally:
+        # let pytest remove the directory
+        os.chmod(config.usd_dir, 0o755)
+
+
+@pytest.mark.isaacsim_ci
+@pytest.mark.parametrize("legacy", [False, True], ids=["record", "legacy_record"])
+def test_lazy_conversion_converts_again_for_deleted_output(sim_config, tmp_path, legacy):
+    """Convert again when the recorded USD file was deleted, also for a record of an earlier version, and drop
+    deleted files from the record."""
+    sim, config = sim_config
+    config.usd_dir = os.path.join(str(tmp_path), "urdf_deleted_output")
+    first_path = UrdfConverter(config).usd_path
+    config.fix_base = not config.fix_base
+    second_path = UrdfConverter(config).usd_path
+    for deleted_path in (first_path, second_path):
+        shutil.rmtree(os.path.dirname(deleted_path))
+
+    config.fix_base = not config.fix_base
+    if legacy:
+        _write_legacy_record(config)
+    usd_path = UrdfConverter(config).usd_path
+    assert os.path.isfile(usd_path)
+    generated = pathlib.PurePath(os.path.relpath(usd_path, config.usd_dir)).as_posix()
+    assert [conversion[1] for conversion in _recorded_conversions(config.usd_dir)] == [generated]
+
+
+@pytest.mark.isaacsim_ci
+def test_lazy_conversion_converts_again_for_corrupt_record(sim_config, tmp_path):
+    """Convert again when the record cannot be parsed, such as one cut short."""
+    sim, config = sim_config
+    config.usd_dir = os.path.join(str(tmp_path), "urdf_corrupt_record")
+    first_path = UrdfConverter(config).usd_path
     record_path = os.path.join(config.usd_dir, ".asset_hash")
     with open(record_path, encoding="utf-8") as f:
-        asset_hash = f.readline().strip()
+        record = f.read()
     with open(record_path, "w", encoding="utf-8") as f:
-        f.write(asset_hash)
-    second_path = UrdfConverter(config).usd_path
-    assert second_path != first_path
-    assert UrdfConverter(config).usd_path == second_path
+        f.write(record[: len(record) // 2])
 
-    # a missing generated file converts again, into a folder next to the first one
-    shutil.rmtree(os.path.dirname(second_path))
-    converter = UrdfConverter(config)
-    assert os.path.isfile(converter.usd_path)
-    assert converter.usd_path != first_path
-    assert os.path.dirname(os.path.dirname(converter.usd_path)) == converter.usd_dir
+    assert UrdfConverter(config).usd_path != first_path
+
+
+@pytest.mark.isaacsim_ci
+@pytest.mark.parametrize("outside", ["absolute", "parent"])
+def test_lazy_conversion_ignores_entry_outside_usd_dir(sim_config, tmp_path, outside):
+    """Convert again when a hand-edited record names the generated USD file by a path outside ``usd_dir``."""
+    sim, config = sim_config
+    config.usd_dir = os.path.join(str(tmp_path), "urdf_entry_outside")
+    first_path = UrdfConverter(config).usd_path
+    record_path = os.path.join(config.usd_dir, ".asset_hash")
+    with open(record_path, encoding="utf-8") as f:
+        record = json.load(f)
+    # name the same USD file by an absolute path, or by one that leaves usd_dir and enters it again
+    entry = record["entries"][0]
+    if outside == "absolute":
+        entry["generated"] = pathlib.PurePath(first_path).as_posix()
+    else:
+        entry["generated"] = f"../{os.path.basename(config.usd_dir)}/{entry['generated']}"
+    with open(record_path, "w", encoding="utf-8") as f:
+        json.dump(record, f)
+
+    assert not os.path.samefile(UrdfConverter(config).usd_path, first_path)
 
 
 @pytest.mark.isaacsim_ci
