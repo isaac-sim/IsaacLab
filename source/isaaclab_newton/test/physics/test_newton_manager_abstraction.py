@@ -33,6 +33,7 @@ from isaaclab_newton.assets.articulation import articulation as articulation_mod
 from isaaclab_newton.assets.rigid_object import rigid_object as rigid_object_module
 from isaaclab_newton.cloner import newton_physics_replicate
 from isaaclab_newton.physics import (
+    FeatherPGSSolverCfg,
     FeatherstoneSolverCfg,
     KaminoDVICfg,
     KaminoDVISolverCfg,
@@ -44,6 +45,7 @@ from isaaclab_newton.physics import (
     NewtonBuilderCfg,
     NewtonCfg,
     NewtonCollisionPipelineCfg,
+    NewtonFeatherPGSManager,
     NewtonFeatherstoneManager,
     NewtonKaminoManager,
     NewtonManager,
@@ -664,12 +666,13 @@ def test_mpm_prepare_builder_converts_convex_mesh_before_solver_construction():
     [
         pytest.param(NewtonMJWarpManager, MJWarpSolverCfg(), 0.11, 0.23, id="mjwarp"),
         pytest.param(NewtonFeatherstoneManager, FeatherstoneSolverCfg(), 0.0, 0.0, id="featherstone"),
+        pytest.param(NewtonFeatherPGSManager, FeatherPGSSolverCfg(), 0.11, 0.23, id="feather_pgs"),
     ],
 )
 def test_production_imports_scope_mujoco_joint_properties(
     monkeypatch, manager_cls, solver_cfg, expected_friction, expected_damping
 ):
-    """Only MJWarp imports MuJoCo joint properties through clone-plan construction."""
+    """Only MJWarp and FeatherPGS import MuJoCo joint properties through clone-plan construction."""
     from pxr import Sdf, Usd, UsdGeom, UsdPhysics
 
     stage = Usd.Stage.CreateInMemory()
@@ -732,6 +735,7 @@ def test_production_imports_scope_mujoco_joint_properties(
     [
         pytest.param(NewtonMJWarpManager, True, id="mjwarp"),
         pytest.param(NewtonFeatherstoneManager, False, id="featherstone"),
+        pytest.param(NewtonFeatherPGSManager, True, id="feather_pgs"),
     ],
 )
 def test_schema_resolver_policy_and_precedence(manager_cls, imports_mujoco):

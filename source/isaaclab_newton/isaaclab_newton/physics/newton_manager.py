@@ -1351,11 +1351,7 @@ class NewtonManager(PhysicsManager):
         """
         if not cls._needs_collision_pipeline:
             return
-        pipeline_args = {"broad_phase": "explicit"}
-        if cls._collision_cfg is not None:
-            pipeline_args = cls._collision_cfg.to_pipeline_args(world_count=cls.backend.model.world_count)
-        if cls._deterministic_mode != wp.DeterministicMode.NOT_GUARANTEED:
-            pipeline_args["deterministic"] = True
+        pipeline_args = cls._collision_pipeline_args()
         if cls._collision_pipeline is None:
             NewtonManager._collision_pipeline = CollisionPipeline(cls.backend.model, **pipeline_args)
         if cls._contacts is None:
@@ -1384,6 +1380,20 @@ class NewtonManager(PhysicsManager):
                             device=PhysicsManager._device,
                             requested_attributes=cls.backend.model.get_requested_contact_attributes(),
                         )
+
+    @classmethod
+    def _collision_pipeline_args(cls) -> dict[str, Any]:
+        """Return the keyword arguments of the :class:`CollisionPipeline` built for the model.
+
+        Solver managers extend this when the solver needs collision options that the collision configuration
+        does not own.
+        """
+        pipeline_args = {"broad_phase": "explicit"}
+        if cls._collision_cfg is not None:
+            pipeline_args = cls._collision_cfg.to_pipeline_args(world_count=cls.backend.model.world_count)
+        if cls._deterministic_mode != wp.DeterministicMode.NOT_GUARANTEED:
+            pipeline_args["deterministic"] = True
+        return pipeline_args
 
     # ----- Solver construction (subclass contract) ------------------------
 

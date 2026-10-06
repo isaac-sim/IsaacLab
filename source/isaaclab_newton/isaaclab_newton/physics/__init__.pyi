@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
+    "FeatherPGSSolverCfg",
     "FeatherstoneSolverCfg",
     "HydroelasticSDFCfg",
     "KaminoCollisionDetectorCfg",
@@ -21,6 +22,7 @@ __all__ = [
     "NewtonBackendCfg",
     "NewtonBuilderCfg",
     "NewtonCollisionPipelineCfg",
+    "NewtonFeatherPGSManager",
     "NewtonFeatherstoneManager",
     "NewtonKaminoManager",
     "NewtonMPMManager",
@@ -37,6 +39,8 @@ __all__ = [
     "create_newton_builder",
 ]
 
+from .feather_pgs_manager import NewtonFeatherPGSManager
+from .feather_pgs_manager_cfg import FeatherPGSSolverCfg
 from .featherstone_manager import NewtonFeatherstoneManager
 from .featherstone_manager_cfg import FeatherstoneSolverCfg
 from .kamino_manager import NewtonKaminoManager
