@@ -195,13 +195,8 @@ unset. Newton 1.6 defaults it to ``0.0`` for compliant ALM and ``0.95`` for lega
 AVBD, for both rigid joints and body-body contacts. Setting alpha to zero alone
 does not enable ALM.
 
-For standalone VBD, enable matching on the collision pipeline as well as
-history on VBD. ``"latest"`` matches the previous frame; ``"sticky"`` also
-retains friction anchors. Isaac Lab clears both histories for reset worlds.
-``CouplerProxyCfg`` and ``CouplerAdmmCfg`` entries that integrate rigid bodies
-must leave ``rigid_contact_history=False``: their entry contact matching and
-history allocation are not yet supported. Matching for the coupler's own
-collision pipelines can still be configured separately.
+Enable standalone contact history with collision matching as shown below;
+Isaac Lab clears both histories for reset worlds.
 
 .. code-block:: python
 

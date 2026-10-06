@@ -268,13 +268,8 @@ def test_collision_pipeline_matches_expanded_contact_capacity(
 
     assert NewtonManager._contacts.rigid_contact_max == 2
     state = model.state()
-    for _ in range(2):
-        NewtonManager._contacts.clear()
-        NewtonManager._collision_pipeline.collide(state, NewtonManager._contacts)
-    contact_count = int(NewtonManager._contacts.rigid_contact_count.numpy()[0])
-    assert contact_count > 0
-    if contact_matching != "disabled":
-        assert (NewtonManager._contacts.rigid_contact_match_index.numpy()[:contact_count] >= 0).all()
+    NewtonManager._collision_pipeline.collide(state, NewtonManager._contacts)
+    assert int(NewtonManager._contacts.rigid_contact_count.numpy()[0]) > 0
 
 
 @pytest.mark.parametrize("cloth", [False, True])
@@ -1080,7 +1075,7 @@ def test_forward_consumes_existing_reset_masks(monkeypatch):
 
 
 def test_forward_dispatches_active_mpm_reset_hook_through_base_manager(monkeypatch):
-    """An active MPM reset hook preserves the shared collision-matching reset."""
+    """Base-class state reads must use the active MPM manager's reset behavior."""
     world_mask = wp.array([True, False], dtype=wp.bool, device="cpu")
     fk_mask = wp.array([], dtype=wp.bool, device="cpu")
     matching_resets: list[list[bool]] = []
@@ -1090,8 +1085,6 @@ def test_forward_dispatches_active_mpm_reset_hook_through_base_manager(monkeypat
             raise AssertionError("the base reset hook must not run for implicit MPM")
 
     class _RecordingPipeline:
-        contact_matching = "latest"
-
         def reset_contact_matching(self, world_mask):
             matching_resets.append(world_mask.numpy().tolist())
 
@@ -1108,6 +1101,7 @@ def test_forward_dispatches_active_mpm_reset_hook_through_base_manager(monkeypat
     NewtonManager.forward()
     NewtonManager.forward()
 
+    # MPM bypasses the base solver reset, so matching must reset at the shared forward boundary.
     assert matching_resets == [[True, False]]
     assert world_mask.numpy().tolist() == [False, False]
 

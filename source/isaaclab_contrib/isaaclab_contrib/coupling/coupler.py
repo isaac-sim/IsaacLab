@@ -159,16 +159,6 @@ class NewtonCouplerManager(NewtonVBDManager):
                 raise ValueError(
                     f"CouplerEntryCfg {entry.name!r} contains a nested CouplerCfg; nested couplers are not supported."
                 )
-            if (
-                isinstance(nested_cfg, VBDSolverCfg)
-                and nested_cfg.rigid_contact_history
-                and not nested_cfg.integrate_with_external_rigid_solver
-            ):
-                raise NotImplementedError(
-                    f"CouplerEntryCfg {entry.name!r} enables VBDSolverCfg.rigid_contact_history, whose "
-                    "matching and history allocation are not yet supported for coupled entry contacts. "
-                    "Set rigid_contact_history=False or use standalone VBD."
-                )
             manager = nested_cfg.class_type
             factory = getattr(manager, "_create_solver", None)
             if not callable(factory) or getattr(factory, "__func__", factory) is NewtonManager._create_solver.__func__:
@@ -388,7 +378,19 @@ class NewtonCouplerManager(NewtonVBDManager):
         entry_cfg = entry.config
 
         def solver_factory(model_view):
-            return entry_cfg.solver_cfg.class_type._create_solver(model_view, entry_cfg.solver_cfg)
+            nested_cfg = entry_cfg.solver_cfg
+            if (
+                isinstance(nested_cfg, VBDSolverCfg)
+                and nested_cfg.rigid_contact_history
+                and model_view.body_count > 0
+                and not nested_cfg.integrate_with_external_rigid_solver
+            ):
+                raise NotImplementedError(
+                    f"CouplerEntryCfg {entry_cfg.name!r} enables VBDSolverCfg.rigid_contact_history, whose "
+                    "matching and history allocation are not yet supported for coupled entry contacts. "
+                    "Set rigid_contact_history=False or use standalone VBD."
+                )
+            return nested_cfg.class_type._create_solver(model_view, nested_cfg)
 
         return SolverCoupled.Entry(
             name=entry_cfg.name,

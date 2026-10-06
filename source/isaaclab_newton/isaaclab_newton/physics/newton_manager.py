@@ -652,11 +652,7 @@ class NewtonManager(PhysicsManager):
         if not (cls.kinematics_dirty or cls.transforms_may_change_on_graph_replay):
             return
         cls._reset_solver_internals_delegate(cls._world_reset_mask)
-        if (
-            cls._world_reset_mask is not None
-            and cls._collision_pipeline is not None
-            and cls._collision_pipeline.contact_matching != "disabled"
-        ):
+        if cls._world_reset_mask is not None and cls._collision_pipeline is not None:
             cls._collision_pipeline.reset_contact_matching(cls._world_reset_mask)
         cls._eval_fk(cls._world_reset_mask, cls._fk_reset_mask)
         if cls._fk_reset_mask is not None:

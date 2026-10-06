@@ -58,19 +58,12 @@ class VBDSolverCfg(NewtonSolverCfg):
     """Whether to use compliant ALM for rigid joints and contacts; ``None`` preserves Newton's default."""
 
     rigid_avbd_contact_alpha: float | None = None
-    """Body-body contact C0 stabilization strength [dimensionless], in [0, 1].
-
-    ``None`` uses Newton's mode default: ``0.0`` for compliant ALM or ``0.95`` for legacy AVBD.
-    Under compliant ALM this controls stabilization, not contact stiffness or multiplier retention.
-    """
+    """Body-body contact C0 stabilization strength [dimensionless], in [0, 1]; ``None`` uses Newton's mode default."""
 
     rigid_contact_history: bool = False
     """Whether to warm-start matched body-body contacts across steps.
 
-    Standalone VBD requires :attr:`NewtonCfg.collision_cfg` with ``contact_matching="latest"``
-    or ``"sticky"`` when it integrates rigid bodies. Coupled entries that integrate rigid bodies
-    do not support this option. Newton ignores it with :attr:`integrate_with_external_rigid_solver`.
-    Defaults to ``False`` (Newton's default).
+    Requires collision matching in standalone rigid VBD; coupled rigid entries are unsupported.
     """
 
     rigid_contact_k_start: float = 1.0e2

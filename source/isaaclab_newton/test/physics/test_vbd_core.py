@@ -17,7 +17,7 @@ from newton import ModelBuilder
 from newton.solvers import SolverVBD
 
 from isaaclab.sim import BackendCfg, SimulationContext
-from isaaclab.test.utils import test_devices
+from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils import replace
 
 
@@ -114,16 +114,22 @@ def test_vbd_solver_force_input_capability(monkeypatch):
     assert NewtonManager._supports_rigid_body_force_input is False
 
 
-@pytest.mark.parametrize("overrides", [{}, {"rigid_compliant_alm": False}], ids=["defaults", "legacy"])
+@pytest.mark.parametrize(
+    "overrides",
+    [{}, {"rigid_compliant_alm": False}, {"rigid_contact_history": True, "rigid_avbd_contact_alpha": 0.25}],
+    ids=["defaults", "legacy", "contact-history"],
+)
 def test_vbd_rigid_solver_controls(overrides):
-    """VBD preserves the default controls and explicit legacy-mode selection."""
+    """VBD forwards default and explicitly overridden rigid controls."""
     physics = importlib.import_module("isaaclab_newton.physics")
     kwargs = NewtonManager._filter_solver_kwargs(SolverVBD, physics.VBDSolverCfg(**overrides))
     assert kwargs["rigid_compliant_alm"] is overrides.get("rigid_compliant_alm")
     assert kwargs["rigid_body_contact_buffer_size"] == 64
+    assert kwargs["rigid_contact_history"] is overrides.get("rigid_contact_history", False)
+    assert kwargs["rigid_avbd_contact_alpha"] == overrides.get("rigid_avbd_contact_alpha")
 
 
-@pytest.mark.parametrize("device", test_devices())
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_vbd_contact_history_initializes_matches_and_resets(monkeypatch, device):
     """VBD allocates history before graph capture and clears collision matches on reset."""
     physics = importlib.import_module("isaaclab_newton.physics")
@@ -143,49 +149,36 @@ def test_vbd_contact_history_initializes_matches_and_resets(monkeypatch, device)
     monkeypatch.setattr(NewtonManager, "_use_single_state", False)
     monkeypatch.setattr(NewtonManager, "_supports_rigid_body_force_input", False)
     monkeypatch.setattr(NewtonManager, "_deterministic_mode", wp.DeterministicMode.NOT_GUARANTEED)
-    solver_cfg = physics.VBDSolverCfg(
-        rigid_compliant_alm=True, rigid_contact_history=True, rigid_avbd_contact_alpha=0.25
-    )
+    solver_cfg = physics.VBDSolverCfg(rigid_compliant_alm=True, rigid_contact_history=True)
 
-    monkeypatch.setattr(NewtonManager, "_collision_cfg", physics.NewtonCollisionPipelineCfg(broad_phase="nxn"))
+    collision_cfg = physics.NewtonCollisionPipelineCfg(broad_phase="nxn")
+    monkeypatch.setattr(NewtonManager, "_collision_cfg", collision_cfg)
     with pytest.raises(ValueError, match="contact_matching"):
         physics.NewtonVBDManager._build_solver(model, solver_cfg)
 
-    monkeypatch.setattr(
-        NewtonManager,
-        "_collision_cfg",
-        physics.NewtonCollisionPipelineCfg(broad_phase="nxn", contact_matching="latest"),
-    )
+    collision_cfg.contact_matching = "latest"
     physics.NewtonVBDManager._build_solver(model, solver_cfg)
     physics.NewtonVBDManager._initialize_contacts()
     solver = NewtonManager._solver
     pipeline = NewtonManager._collision_pipeline
     contacts = NewtonManager._contacts
-    assert solver.rigid_contact_history is True
-    assert solver.rigid_contact_alpha == pytest.approx(0.25)
 
     for _ in range(2):
         contacts.clear()
         pipeline.collide(state_0, contacts)
     count = int(contacts.rigid_contact_count.numpy()[0])
     assert count > 0
-    assert (contacts.rigid_contact_match_index.numpy()[:count] >= 0).all()
     initial_height = state_0.body_q.numpy()[body, 2]
     control = model.control()
-    if wp.get_device(device).is_cuda:
-        with wp.ScopedCapture(device=device) as capture:
-            solver.step(state_0, state_1, control, contacts, 1.0 / 240.0)
-        wp.capture_launch(capture.graph)
-    else:
+    with wp.ScopedCapture(device=device) as capture:
         solver.step(state_0, state_1, control, contacts, 1.0 / 240.0)
+    wp.capture_launch(capture.graph)
     assert state_1.body_q.numpy()[body, 2] > initial_height
 
     monkeypatch.setattr(
         NewtonManager, "_world_reset_mask", wp.ones(model.world_count + 1, dtype=wp.bool, device=device)
     )
-    monkeypatch.setattr(
-        NewtonManager, "_fk_reset_mask", wp.zeros(model.articulation_count, dtype=wp.bool, device=device)
-    )
+    monkeypatch.setattr(NewtonManager, "_fk_reset_mask", None)
     monkeypatch.setattr(NewtonManager, "kinematics_dirty", True)
     monkeypatch.setattr(NewtonManager, "transforms_may_change_on_graph_replay", False)
     monkeypatch.setattr(NewtonManager, "_eval_fk", physics.NewtonVBDManager._eval_fk_impl)

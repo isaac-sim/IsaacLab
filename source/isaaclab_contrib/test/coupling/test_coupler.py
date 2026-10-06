@@ -202,20 +202,10 @@ def test_config_validation_requires_newton_solver_config():
         ),
         (MPMSolverCfg(), {}, ValueError, "must set in_place=True"),
         (MJWarpSolverCfg(use_mujoco_cpu=True), {}, NotImplementedError, "reset-mask lifecycle"),
-        (VBDSolverCfg(rigid_contact_history=True), {}, NotImplementedError, "rigid_contact_history"),
-        (
-            VBDSolverCfg(rigid_contact_history=True, integrate_with_external_rigid_solver=True),
-            {},
-            None,
-            None,
-        ),
     ],
 )
-def test_config_validation_checks_nested_lifecycle(solver_cfg, entry_kwargs, error_type, match):
+def test_config_validation_rejects_unsupported_nested_lifecycle(solver_cfg, entry_kwargs, error_type, match):
     cfg = CouplerAdmmCfg(entries=[CouplerEntryCfg(name="entry", solver_cfg=solver_cfg, **entry_kwargs)])
-    if error_type is None:
-        NewtonCouplerManager._validate_config(cfg)
-        return
     with pytest.raises(error_type, match=match):
         NewtonCouplerManager._validate_config(cfg)
 
