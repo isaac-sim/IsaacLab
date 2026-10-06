@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import contextlib
 import importlib
+import os
 import signal
 import subprocess
 import sys
@@ -483,6 +484,16 @@ def test_rlinf_rejects_pretrained_checkpoint() -> None:
 
     with pytest.raises(ValueError, match="Pre-trained checkpoints are not available for RLinf"):
         resolve_rlinf_checkpoint("pretrained", log_root_path="logs/rlinf", task="Isaac-Task", config_name="ppo")
+
+
+def test_rlinf_environment_disables_ray_uv_upload(tmp_path: Path, monkeypatch) -> None:
+    """Shared RLinf setup, used by training and playback, disables Ray's ``uv run`` project upload."""
+    from isaaclab_rl.entrypoints.backends.cli_args_rlinf import configure_rlinf_environment
+
+    monkeypatch.setattr(os, "environ", {})
+    configure_rlinf_environment("ppo", str(tmp_path))
+
+    assert os.environ["RAY_ENABLE_UV_RUN_RUNTIME_ENV"] == "0"
 
 
 def test_run_backend_restores_sys_argv_after_training(monkeypatch) -> None:
