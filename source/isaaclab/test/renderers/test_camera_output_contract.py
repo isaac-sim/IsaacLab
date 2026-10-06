@@ -136,6 +136,7 @@ def test_newton_warp_supported_output_types_key_set():
         RenderBufferKind.RGB,
         RenderBufferKind.RGBA,
         RenderBufferKind.RGB_HDR,
+        RenderBufferKind.RGB_RADIANCE,
         RenderBufferKind.ALBEDO,
         RenderBufferKind.DEPTH,
         RenderBufferKind.DISTANCE_TO_CAMERA,
@@ -145,6 +146,7 @@ def test_newton_warp_supported_output_types_key_set():
         RenderBufferKind.INSTANCE_SEGMENTATION,
     }
     assert specs[RenderBufferKind.RGB_HDR] == RenderBufferSpec(3, wp.float32)
+    assert specs[RenderBufferKind.RGB_RADIANCE] == specs[RenderBufferKind.RGB_HDR]
 
 
 def test_camera_cfg_rejects_outputs_unsupported_by_renderer():
@@ -190,8 +192,9 @@ def test_newton_warp_segmentation_spec_follows_colorize_flags(colorize):
         assert specs[kind] == expected
 
 
-def test_newton_warp_wraps_requested_rgb_hdr_output():
-    """NewtonWarpRenderer wires requested RGB_HDR proxies to the Newton HDR output slot."""
+@pytest.mark.parametrize("data_type", [RenderBufferKind.RGB_HDR, RenderBufferKind.RGB_RADIANCE])
+def test_newton_warp_wraps_requested_hdr_output(data_type):
+    """Newton wires both linear color outputs to its HDR output slot."""
     pytest.importorskip("isaaclab_newton")
     pytest.importorskip("newton")
     wp.init()
@@ -205,10 +208,10 @@ def test_newton_warp_wraps_requested_rgb_hdr_output():
     render_data = RenderData(fake_sensor, SimpleNamespace(cfg=camera_cfg))
     hdr_proxy = ProxyArray(wp.zeros((2, 3, 4, 3), dtype=wp.float32, device="cpu"))
 
-    render_data.set_outputs({str(RenderBufferKind.RGB_HDR): hdr_proxy})
+    render_data.set_outputs({str(data_type): hdr_proxy})
 
     assert render_data.outputs.hdr_color_image is not None
-    assert render_data.get_output(RenderBufferKind.RGB_HDR) is render_data.outputs.hdr_color_image
+    assert render_data.get_output(data_type) is render_data.outputs.hdr_color_image
 
 
 def _make_camera_cfg(data_types: list[str]) -> CameraCfg:
@@ -221,12 +224,14 @@ def _make_camera_cfg(data_types: list[str]) -> CameraCfg:
     )
 
 
-def test_camera_data_allocates_supported_subset_and_aliases_rgb():
-    """CameraData allocates the intersection of requested + supported and aliases rgb into rgba."""
-    cfg = _make_camera_cfg(["rgb", "rgba", "depth", "instance_segmentation"])
+def test_camera_data_allocates_supported_subset_and_aliases_color():
+    """CameraData allocates requested + supported outputs, aliasing rgb into rgba and rgb_hdr into rgb_radiance."""
+    cfg = _make_camera_cfg(["rgb", "rgba", "rgb_hdr", "rgb_radiance", "depth", "instance_segmentation"])
     specs = {
         RenderBufferKind.RGBA: RenderBufferSpec(4, wp.uint8),
         RenderBufferKind.RGB: RenderBufferSpec(3, wp.uint8),
+        RenderBufferKind.RGB_HDR: RenderBufferSpec(3, wp.float32),
+        RenderBufferKind.RGB_RADIANCE: RenderBufferSpec(3, wp.float32),
         RenderBufferKind.DEPTH: RenderBufferSpec(1, wp.float32),
         RenderBufferKind.NORMALS: RenderBufferSpec(3, wp.float32),
     }
@@ -234,14 +239,17 @@ def test_camera_data_allocates_supported_subset_and_aliases_rgb():
         data_types=cfg.data_types, height=8, width=16, num_views=2, device="cpu", supported_specs=specs
     )
 
-    assert set(data.output.keys()) == {"rgba", "rgb", "depth"}
+    assert set(data.output.keys()) == {"rgba", "rgb", "rgb_hdr", "rgb_radiance", "depth"}
     assert data.output["rgba"].shape == (2, 8, 16, 4)
     assert data.output["rgba"].dtype == wp.uint8
     assert data.output["depth"].shape == (2, 8, 16, 1)
     assert data.output["depth"].dtype == wp.float32
     assert data.output["rgb"].warp.ptr == data.output["rgba"].warp.ptr
+    assert data.output["rgb_hdr"] is data.output["rgb_radiance"]
+    assert data.output["rgb_radiance"].shape == (2, 8, 16, 3)
+    assert data.output["rgb_radiance"].dtype == wp.float32
     assert data.image_shape == (8, 16)
-    assert data.info == {"rgba": None, "rgb": None, "depth": None}
+    assert data.info == dict.fromkeys(data.output)
 
 
 def test_camera_data_allocate_raises_on_unknown_name():

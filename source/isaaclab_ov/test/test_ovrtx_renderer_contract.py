@@ -531,6 +531,48 @@ def test_async_cameras_publish_independently_with_capture_metadata_and_reset(mon
     assert renderer._camera_render_data == []
 
 
+@pytest.mark.parametrize("data_types", [["rgb_hdr"], ["rgb_radiance"], ["rgb_hdr", "rgb_radiance"]])
+def test_ovrtx_hdr_color_fills_requested_hdr_outputs(monkeypatch, data_types):
+    """Radiance and HDR read one HdrColor var into the camera's own buffer."""
+    renderer = _make_ovrtx_renderer_without_backend()
+    renderer._device = "cpu"
+    cfg = _make_camera_cfg(data_types)
+    data = CameraData.allocate(
+        data_types=cfg.data_types,
+        height=8,
+        width=16,
+        num_views=2,
+        device="cpu",
+        supported_specs=renderer.supported_output_types(),
+    )
+    render_data = _make_ovrtx_camera_render_data()
+    renderer.set_outputs(render_data, data.output)
+
+    monkeypatch.setattr(renderer, "_map_render_var_to_dlpack", lambda source: contextlib.nullcontext(source))
+    source = wp.full((8, 32, 4), 2.0, dtype=wp.float32, device="cpu")
+    frame = types.SimpleNamespace(render_vars={render_data.render_var_keys["HdrColor"]: source})
+    renderer._process_render_frame(render_data, frame, render_data.warp_buffers)
+
+    for name in data_types:
+        np.testing.assert_array_equal(data.output[name].warp.numpy(), 2.0)
+
+
+@pytest.mark.parametrize("data_types", [["rgb_hdr"], ["rgb_radiance"]])
+def test_ovrtx_prepare_cameras_neutralizes_exposure_for_radiance(data_types):
+    """Radiance neutralizes camera exposure; standalone HDR keeps the authored camera settings."""
+    from pxr import Sdf, Usd, UsdGeom
+
+    stage = Usd.Stage.CreateInMemory()
+    camera = UsdGeom.Camera.Define(stage, "/World/Camera").GetPrim()
+    camera.CreateAttribute("exposure:iso", Sdf.ValueTypeNames.Float).Set(100.0)
+    spec = types.SimpleNamespace(
+        cfg=types.SimpleNamespace(data_types=data_types, isp_cfg=None), camera_prim_paths=("/World/Camera",)
+    )
+    _make_ovrtx_renderer_without_backend().prepare_cameras(stage, spec)
+
+    assert camera.GetAttribute("exposure:iso").Get() == (0.0 if "rgb_radiance" in data_types else 100.0)
+
+
 def test_ovrtx_set_outputs_wraps_caller_torch_zero_copy():
     """OVRTXRenderer.set_outputs publishes warp views over the caller's warp storage."""
     renderer = _make_ovrtx_renderer_without_backend()

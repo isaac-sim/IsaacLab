@@ -138,7 +138,10 @@ by its :class:`~isaaclab.renderers.RenderBufferSpec`.
      - Low-dynamic-range color
    * - ``rgb_hdr``
      - 3, ``float32``
-     - Scene-linear high-dynamic-range color
+     - High-dynamic-range RGB using the active camera settings
+   * - ``rgb_radiance``
+     - 3, ``float32``
+     - Scene-linear RGB before exposure and response, in renderer-relative intensity units
    * - ``albedo``
      - 4, ``uint8``
      - Material base color
@@ -167,6 +170,20 @@ by its :class:`~isaaclab.renderers.RenderBufferSpec`.
 ``depth`` is an alias of ``distance_to_image_plane``. Colorized segmentation uses RGBA ``uint8``;
 non-colorized segmentation uses one ``int32`` ID channel. Label and prim-path mappings are stored in
 ``camera_data.info[output_name]``.
+
+Requesting ``rgb_hdr`` alone preserves the renderer's existing camera settings. ``rgb_radiance`` is
+the input for image processing that applies its own exposure and camera response, such as PPISP.
+If both are requested, they share one buffer.
+
+.. note::
+
+   On Isaac RTX and OVRTX, ``rgb_radiance`` is not a native renderer output. These renderers derive
+   it from HDR color by authoring neutral exposure on the camera prim, so every output rendered from
+   that prim, including ``rgb``, ``rgba``, and ``rgb_hdr``, loses the authored exposure. This also
+   applies to other camera sensors that share the prim. A single render product cannot return both
+   authored-exposure color and ``rgb_radiance``; use a separate camera prim when both are required.
+   Newton Warp has no exposure model and is not affected. A native pre-exposure radiance output has
+   been requested from the RTX team (NVBug 6858736).
 
 .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-isaac-rtx.webp
    :align: center
@@ -200,7 +217,7 @@ current support matrix is:
      - Isaac RTX
      - OVRTX
      - Newton Warp
-   * - ``rgb``, ``rgba``, ``rgb_hdr``
+   * - ``rgb``, ``rgba``, ``rgb_hdr``, ``rgb_radiance``
      - Yes
      - Yes
      - Yes

@@ -246,9 +246,12 @@ class Camera(SensorBase):
             sim_ctx.require_visual_shapes()
 
         # An ISP (any ``isp_cfg`` other than ``None``) requires the HDR AOV;
-        # an explicit ``"rgb_hdr"`` in ``data_types`` also requires the
-        # HDR-routing flag flipped on the RTX-bearing backends.
-        require_hdr_output = "rgb_hdr" in self.cfg.data_types or self.cfg.isp_cfg is not None
+        # an explicit ``"rgb_hdr"`` or ``"rgb_radiance"`` in ``data_types`` also
+        # requires the HDR-routing flag flipped on Isaac RTX. OVRTX routes HDR
+        # on each render product instead.
+        require_hdr_output = (
+            not {"rgb_hdr", "rgb_radiance"}.isdisjoint(self.cfg.data_types) or self.cfg.isp_cfg is not None
+        )
 
         # TODO(follow-up PR): move this flag flip out of Camera. The cleanest path is
         # an apply_pre_reset_settings() hook on RendererCfg (default no-op) that
@@ -264,15 +267,6 @@ class Camera(SensorBase):
             settings.set("/physics/fabricUpdateTransformations", True)
             if require_hdr_output:
                 settings.set("/rtx/rtpt/gaussian/skipTonemapping/enabled", False)
-        elif renderer_type == "ovrtx" and require_hdr_output:
-            from ...app.settings_manager import get_settings_manager
-
-            get_settings_manager().set("/rtx/rtpt/gaussian/skipTonemapping/enabled", False)
-            # FIXME: settings.set is a no-op for ovrtx
-            # warning only since it affects only ParticleField3DGaussianSplat scene
-            logger.warning(
-                "OVRTX backend with PPISP/HDR requires /rtx/rtpt/gaussian/skipTonemapping/enabled to be false."
-            )
 
         # UsdGeom Camera prim for the sensor
         self._sensor_prims: list[UsdGeom.Camera] = []

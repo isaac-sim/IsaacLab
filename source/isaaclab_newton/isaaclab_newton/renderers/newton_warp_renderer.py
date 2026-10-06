@@ -89,6 +89,8 @@ class RenderData:
     _OUTPUT_MAP: dict[str, tuple[str, type]] = {
         str(RenderBufferKind.RGBA): ("color_image", wp.uint32),
         str(RenderBufferKind.RGB_HDR): ("hdr_color_image", wp.vec3f),
+        # Newton applies no camera exposure, so its HDR color is already pre-exposure radiance.
+        str(RenderBufferKind.RGB_RADIANCE): ("hdr_color_image", wp.vec3f),
         str(RenderBufferKind.ALBEDO): ("albedo_image", wp.uint32),
         str(RenderBufferKind.NORMALS): ("normals_image", wp.vec3f),
     }
@@ -272,6 +274,8 @@ class RenderData:
                     " Camera.cfg.data_types when isp_cfg is set."
                 )
             hdr_proxy = output_data.get(str(RenderBufferKind.RGB_HDR))
+            if hdr_proxy is None:
+                hdr_proxy = output_data.get(str(RenderBufferKind.RGB_RADIANCE))
             self._ppisp_hdr_source = hdr_proxy.warp if hdr_proxy is not None else self._hdr_scratch_wp
             self._ppisp_rgba_dest = output_data[str(RenderBufferKind.RGBA)].warp
 
@@ -282,7 +286,7 @@ class RenderData:
             return self._seg_dests[output_name][0]
         elif output_name == RenderBufferKind.RGBA:
             return self.outputs.color_image
-        elif output_name == RenderBufferKind.RGB_HDR:
+        elif output_name in (RenderBufferKind.RGB_HDR, RenderBufferKind.RGB_RADIANCE):
             return self.outputs.hdr_color_image
         elif output_name == RenderBufferKind.ALBEDO:
             return self.outputs.albedo_image
