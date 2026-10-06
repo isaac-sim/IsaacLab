@@ -18,6 +18,7 @@ on:
       - "tools/perf_smoke_thresholds.json"
       # Shared CI action helpers and their co-located tests.
       - ".github/actions/_lib/**"
+      - ".github/workflows/build.yaml"
       - ".github/workflows/tools-tests.yml"
   workflow_dispatch:
 
