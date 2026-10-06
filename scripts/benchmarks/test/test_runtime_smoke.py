@@ -108,6 +108,7 @@ from pathlib import Path
 
 from isaaclab.benchmark import BenchmarkOutputConfig, BenchmarkRuntimeRequest, run_runtime_benchmark
 from isaaclab.benchmark.stepping import PHYSICS_PROFILE_SCOPE, RENDER_PROFILE_SCOPE
+from isaaclab.benchmark.schema import SCHEMA_VERSION
 
 result = run_runtime_benchmark(BenchmarkRuntimeRequest(
     task="Isaac-RenderBenchmark-Franka-Cabinet",
@@ -124,7 +125,7 @@ assert len(result.output_paths) == 2
 schema_path = next(path for path in result.output_paths if path.name.endswith("_schema.json"))
 schema = json.loads(schema_path.read_text())
 assert schema == json.loads(json.dumps(asdict(result.bundle)))
-assert schema["schema_version"] == "1.4"
+assert schema["schema_version"] == SCHEMA_VERSION
 assert "scope_timings" not in schema["runtime"]
 omniperf_path = next(path for path in result.output_paths if path.name.endswith("_omniperf.json"))
 metrics = json.loads(omniperf_path.read_text())["runtime"]

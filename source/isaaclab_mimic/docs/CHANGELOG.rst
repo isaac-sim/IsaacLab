@@ -3,6 +3,16 @@ Changelog
 
 .. towncrier release notes start
 
+2.1.2 (2026-10-03)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed warnings in the locomanipulation SDG path utilities and the cuRobo planner helpers to use
+  :mod:`logging` instead of ``print``.
+
+
 2.1.1 (2026-10-02)
 ~~~~~~~~~~~~~~~~~~
 
