@@ -498,6 +498,23 @@ def projected_gravity_b_2D_kernel(
 
 
 @wp.kernel
+def gather_world_gravity(
+    model_gravity: wp.array(dtype=wp.vec3f),
+    world_ids: wp.array(dtype=wp.int32),
+    view_gravity: wp.array(dtype=wp.vec3f),
+):
+    """Gather the gravity of a view's worlds from the model's per-world gravity.
+
+    Args:
+        model_gravity: Gravity per model world [m/s^2]. Shape is (model_world_count + 1,).
+        world_ids: Model world of each view world. Shape is (view_world_count,).
+        view_gravity: Output gravity per view world [m/s^2]. Shape is (view_world_count,).
+    """
+    i = wp.tid()
+    view_gravity[i] = model_gravity[world_ids[i]]
+
+
+@wp.kernel
 def body_heading_w(
     forward_vec: wp.array2d(dtype=wp.vec3f),
     quat: wp.array2d(dtype=wp.quatf),

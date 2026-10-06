@@ -325,6 +325,11 @@ class MockNewtonArticulationView:
         return self._link_count
 
     @property
+    def is_sparse(self) -> bool:
+        """Whether the view covers only some model worlds. The mock covers every world."""
+        return False
+
+    @property
     def joint_dof_count(self) -> int:
         """Number of DOFs (joints) per instance."""
         return self._joint_dof_count

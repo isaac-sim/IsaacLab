@@ -128,12 +128,48 @@ def _scatter_reset_masks_from_ids(
     fk_mask[articulation_ids[world, arti]] = True
 
 
+@wp.kernel(enable_backward=False)
+def _or_reset_masks_from_view_mask(
+    env_mask: wp.array(dtype=wp.bool),
+    articulation_ids: wp.array2d(dtype=int),
+    world_ids: wp.array(dtype=int),
+    world_mask: wp.array(dtype=wp.bool),
+    fk_mask: wp.array(dtype=wp.bool),
+):
+    """OR a mask over a view's worlds into the model world_mask and fk_mask."""
+    view_world, arti = wp.tid()
+    if env_mask[view_world]:
+        world_mask[world_ids[view_world]] = True
+        fk_mask[articulation_ids[view_world, arti]] = True
+
+
+@wp.kernel(enable_backward=False)
+def _scatter_reset_masks_from_view_ids(
+    env_ids: wp.array(dtype=Any),
+    articulation_ids: wp.array2d(dtype=int),
+    world_ids: wp.array(dtype=int),
+    world_mask: wp.array(dtype=wp.bool),
+    fk_mask: wp.array(dtype=wp.bool),
+):
+    """Scatter-set the model world_mask and fk_mask from indices into a view's worlds."""
+    i, arti = wp.tid()
+    view_world = wp.int32(env_ids[i])
+    world_mask[world_ids[view_world]] = True
+    fk_mask[articulation_ids[view_world, arti]] = True
+
+
 _SCATTER_RESET_MASKS_FROM_IDS_DISPATCHER = IndexKernelDispatcher(_scatter_reset_masks_from_ids, ("env_ids",))
+_SCATTER_RESET_MASKS_FROM_VIEW_IDS_DISPATCHER = IndexKernelDispatcher(_scatter_reset_masks_from_view_ids, ("env_ids",))
 
 
 def _scatter_reset_masks_from_ids_kernel(env_ids: wp.array | torch.Tensor) -> wp.Kernel:
     """Select the reset-mask writer matching the environment selector dtype."""
     return _SCATTER_RESET_MASKS_FROM_IDS_DISPATCHER.select(env_ids)
+
+
+def _scatter_reset_masks_from_view_ids_kernel(env_ids: wp.array | torch.Tensor) -> wp.Kernel:
+    """Select the view reset-mask writer matching the environment selector dtype."""
+    return _SCATTER_RESET_MASKS_FROM_VIEW_IDS_DISPATCHER.select(env_ids)
 
 
 @wp.kernel(enable_backward=False)
@@ -1054,7 +1090,11 @@ class NewtonManager(PhysicsManager):
 
     @classmethod
     def invalidate_fk(
-        cls, env_mask: wp.array | None = None, env_ids: wp.array | None = None, articulation_ids: wp.array | None = None
+        cls,
+        env_mask: wp.array | None = None,
+        env_ids: wp.array | None = None,
+        articulation_ids: wp.array | None = None,
+        world_ids: wp.array | None = None,
     ) -> None:
         """Mark environments as needing FK recomputation and solver reset.
 
@@ -1070,6 +1110,9 @@ class NewtonManager(PhysicsManager):
             articulation_ids: Mapping from ``(world, arti)`` to model articulation
                 index. Shape ``(world_count, count_per_world)``. Obtained from
                 ``ArticulationView.articulation_ids``.
+            world_ids: Model world of each view world, for a view that covers only some worlds
+                (``ArticulationView.world_ids`` when ``is_sparse``). ``env_mask`` and ``env_ids``
+                then index the view's worlds. Shape ``(world_count,)``.
         """
         cls._mark_transforms_changed()
 
@@ -1077,7 +1120,23 @@ class NewtonManager(PhysicsManager):
             return
         NewtonManager.kinematics_dirty = True
 
-        if articulation_ids is not None and env_mask is not None:
+        if articulation_ids is not None and world_ids is not None and env_mask is not None:
+            wp.launch(
+                _or_reset_masks_from_view_mask,
+                dim=articulation_ids.shape,
+                inputs=[env_mask, articulation_ids, world_ids],
+                outputs=[NewtonManager._world_reset_mask, NewtonManager._fk_reset_mask],
+                device=PhysicsManager._device,
+            )
+        elif articulation_ids is not None and world_ids is not None and env_ids is not None:
+            wp.launch(
+                _scatter_reset_masks_from_view_ids_kernel(env_ids),
+                dim=(env_ids.shape[0], articulation_ids.shape[1]),
+                inputs=[env_ids, articulation_ids, world_ids],
+                outputs=[NewtonManager._world_reset_mask, NewtonManager._fk_reset_mask],
+                device=PhysicsManager._device,
+            )
+        elif articulation_ids is not None and env_mask is not None:
             wp.launch(
                 _or_reset_masks_from_mask,
                 dim=articulation_ids.shape,
@@ -1885,6 +1944,12 @@ class NewtonManager(PhysicsManager):
             return
         from isaaclab.actuators.newton import NewtonActuatorAdapter  # noqa: PLC0415
 
+        # The adapter lays the actuator buffers out with one DOF stride for every environment.
+        dof_counts = np.diff(cls.backend.model.joint_dof_world_start.numpy()[: cls._num_envs + 1])
+        if np.any(dof_counts != dof_counts[0]):
+            raise ValueError(
+                "Newton-native actuators need equal environment DOF counts; set use_newton_actuators=False."
+            )
         dofs_per_env = cls.backend.model.joint_dof_count // cls._num_envs
         NewtonManager._adapter = NewtonActuatorAdapter(
             actuators=list(cls.backend.model.actuators),

@@ -27,6 +27,7 @@ from isaaclab.utils.wrench_composer import WrenchComposer
 from isaaclab_newton.assets import kernels as shared_kernels
 from isaaclab_newton.physics import NewtonManager as SimulationManager
 
+from ..view_layout import require_strided_joint_and_body_rows
 from .rigid_object_data import RigidObjectData
 
 if TYPE_CHECKING:
@@ -1075,6 +1076,7 @@ class RigidObject(BaseRigidObject):
             path_expr_to_glob(root_prim_path_expr),
             verbose=False,
         )
+        require_strided_joint_and_body_rows(self._root_view, self.cfg.prim_path)
 
         # container for data access
         self._data = RigidObjectData(self.root_view, self.device)

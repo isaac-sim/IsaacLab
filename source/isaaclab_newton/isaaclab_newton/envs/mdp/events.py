@@ -59,8 +59,7 @@ class randomize_rigid_body_material(ManagerTermBase):
         self._restitution_range = cfg.params["restitution_range"]
 
         model = self._newton_manager.get_model()
-        self._friction_binding = asset._root_view.get_attribute("shape_material_mu", model)[:, 0]  # type: ignore
-        self._restitution_binding = asset._root_view.get_attribute("shape_material_restitution", model)[:, 0]  # type: ignore
+        num_view_shapes = asset._root_view.get_attribute("shape_material_mu", model).shape[2]  # type: ignore
 
         if isinstance(asset, assets.Articulation) and asset_cfg.body_ids != slice(None):
             # The view's shape axis follows the model's shape order, which is not grouped by body,
@@ -70,7 +69,7 @@ class randomize_rigid_body_material(ManagerTermBase):
             shape_indices_list = [shape_id for body_id in backend_body_ids for shape_id in body_shapes[body_id]]
             self._shape_indices = torch.tensor(shape_indices_list, dtype=torch.long)
         else:
-            self._shape_indices = torch.arange(self._friction_binding.shape[1], dtype=torch.long)
+            self._shape_indices = torch.arange(num_view_shapes, dtype=torch.long)
 
     def __call__(
         self,
@@ -106,8 +105,14 @@ class randomize_rigid_body_material(ManagerTermBase):
 
         friction_range = torch.tensor(self._static_friction_range, device=device)
         restitution_range_t = torch.tensor(self._restitution_range, device=device)
-        friction_view = wp.to_torch(self._friction_binding)
-        restitution_view = wp.to_torch(self._restitution_binding)
+        # Views of shapes that are not regularly spaced between worlds return gathered copies, which
+        # are read here and scattered back below.
+        view = self.asset._root_view
+        model = self._newton_manager.get_model()
+        friction = view.get_attribute("shape_material_mu", model)  # type: ignore
+        restitution = view.get_attribute("shape_material_restitution", model)  # type: ignore
+        friction_view = wp.to_torch(friction)[:, 0]
+        restitution_view = wp.to_torch(restitution)[:, 0]
 
         num_envs = len(range(env.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
         if isinstance(self._newton_manager._solver, SolverKamino):
@@ -136,6 +141,8 @@ class randomize_rigid_body_material(ManagerTermBase):
             friction_view[env_rows, shape_idx] = friction_samples
             restitution_view[env_rows, shape_idx] = restitution_samples
 
+        view.set_attribute("shape_material_mu", model, friction)  # type: ignore
+        view.set_attribute("shape_material_restitution", model, restitution)  # type: ignore
         self._newton_manager.add_model_change(ModelFlags.SHAPE_PROPERTIES)
 
 
@@ -167,11 +174,8 @@ class randomize_rigid_body_collider_offsets(ManagerTermBase):
         self._newton_manager = env.sim.physics_manager
 
         model = self._newton_manager.get_model()
-        self._sim_bind_shape_margin = asset._root_view.get_attribute("shape_margin", model)[:, 0]  # type: ignore
-        self._sim_bind_shape_gap = asset._root_view.get_attribute("shape_gap", model)[:, 0]  # type: ignore
-
-        self.default_margin = wp.to_torch(self._sim_bind_shape_margin).clone()
-        self.default_gap = wp.to_torch(self._sim_bind_shape_gap).clone()
+        self.default_margin = wp.to_torch(asset._root_view.get_attribute("shape_margin", model))[:, 0].clone()  # type: ignore
+        self.default_gap = wp.to_torch(asset._root_view.get_attribute("shape_gap", model))[:, 0].clone()  # type: ignore
 
     def __call__(
         self,
@@ -195,7 +199,10 @@ class randomize_rigid_body_collider_offsets(ManagerTermBase):
         if env_ids is None:
             env_ids = slice(None)
 
-        margin_view = wp.to_torch(self._sim_bind_shape_margin)
+        # Views of shapes that are not regularly spaced between worlds return gathered copies, which
+        # are read here and scattered back below.
+        view = self.asset._root_view
+        model = self._newton_manager.get_model()
 
         if rest_offset_distribution_params is not None:
             margin = self.default_margin.clone()
@@ -208,7 +215,9 @@ class randomize_rigid_body_collider_offsets(ManagerTermBase):
                 distribution=distribution,
             )
             self.default_margin[env_ids] = margin[env_ids]
-            margin_view[env_ids] = margin[env_ids]
+            margin_binding = view.get_attribute("shape_margin", model)  # type: ignore
+            wp.to_torch(margin_binding)[:, 0][env_ids] = margin[env_ids]
+            view.set_attribute("shape_margin", model, margin_binding)  # type: ignore
         if contact_offset_distribution_params is not None:
             current_margin = self.default_margin
             contact_offset = torch.zeros_like(self.default_gap)
@@ -222,8 +231,9 @@ class randomize_rigid_body_collider_offsets(ManagerTermBase):
             )
             gap = torch.clamp(contact_offset - current_margin, min=0.0)
             self.default_gap[env_ids] = gap[env_ids]
-            gap_view = wp.to_torch(self._sim_bind_shape_gap)
-            gap_view[env_ids] = gap[env_ids]
+            gap_binding = view.get_attribute("shape_gap", model)  # type: ignore
+            wp.to_torch(gap_binding)[:, 0][env_ids] = gap[env_ids]
+            view.set_attribute("shape_gap", model, gap_binding)  # type: ignore
         if rest_offset_distribution_params is not None or contact_offset_distribution_params is not None:
             self._newton_manager.add_model_change(ModelFlags.SHAPE_PROPERTIES)
 
