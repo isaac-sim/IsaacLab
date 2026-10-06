@@ -94,8 +94,7 @@ class ShadowHandRandomizationEventCfg:
             "asset_cfg": SceneEntityCfg("robot"),
             "static_friction_range": (0.7, 1.3),
             "dynamic_friction_range": (1.0, 1.0),
-            # absolute restitution; 1.0 bounced the cube off the hand on PhysX (MJWarp ignores it)
-            "restitution_range": (0.0, 0.0),
+            "restitution_range": (1.0, 1.0),
             "num_buckets": 250,
         },
     )
@@ -108,7 +107,7 @@ class ShadowHandRandomizationEventCfg:
             "asset_cfg": SceneEntityCfg("object"),
             "static_friction_range": (0.7, 1.3),
             "dynamic_friction_range": (1.0, 1.0),
-            "restitution_range": (0.0, 0.0),
+            "restitution_range": (1.0, 1.0),
             "num_buckets": 250,
         },
     )
