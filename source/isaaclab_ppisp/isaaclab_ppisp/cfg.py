@@ -78,9 +78,9 @@ PPISP_DEFAULT_INPUTS: dict[str, float | tuple[float, float]] = {
 class PpispDiscoveryMode(StrEnum):
     """Discover PPISP camera attributes for :class:`~isaaclab_ppisp.PpispModifierCfg`.
 
-    The processor uses the first matched source camera as the lookup target and
+    The modifier uses the first matched source camera as the lookup target and
     applies the discovered configuration to the whole image batch. Without a
-    source camera path, both modes search the stage. No match disables the processor.
+    source camera path, both modes search the stage. No match disables PPISP.
     """
 
     AUTO_CAMERA = "auto_camera"
@@ -340,7 +340,7 @@ def has_ppisp_camera_attrs(camera_prim: Any | None) -> bool:
 def resolve_and_normalize(
     isp_cfg: PpispCfg | PpispDiscoveryMode | None, stage: Any, camera_prim_path: str | None = None
 ) -> PpispCfg | None:
-    """Resolve a PPISP processor's configuration to a normalised cfg or ``None``.
+    """Resolve a PPISP modifier's configuration to a normalised cfg or ``None``.
 
     Handles all three forms of :attr:`~isaaclab_ppisp.PpispModifierCfg.isp_cfg`:
 
@@ -354,7 +354,7 @@ def resolve_and_normalize(
       fills defaults, and merges camera-authored USD values when
       ``camera_prim_path`` is set).
 
-    The PPISP processor calls this before the renderer prepares
+    The PPISP modifier calls this before the renderer prepares
     its cameras. The returned cfg applies to the whole
     Camera sensor batch; callers pass the first matched camera prim path for
     the camera-local discovery phase.

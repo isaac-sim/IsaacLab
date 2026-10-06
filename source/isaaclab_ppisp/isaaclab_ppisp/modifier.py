@@ -29,9 +29,9 @@ class PpispModifier(ModifierBase):
 
     borrows_input = True
 
-    def __init__(self, cfg: PpispModifierCfg, data_dim: tuple[int, ...], device: str):
-        super().__init__(cfg, data_dim, device)
-        self._camera: Camera | None = None
+    def __init__(self, cfg: PpispModifierCfg, data_dim: tuple[int, ...], device: str, *, env: ManagerBasedEnv):
+        super().__init__(cfg, data_dim, device, env=env)
+        self._camera: Camera = env.scene[cfg.sensor_cfg.name]
         self._pipeline: PpispPipeline | None = None
         self._rgba: wp.array | None = None
         self._last_capture: object | None = None
@@ -39,6 +39,7 @@ class PpispModifier(ModifierBase):
         self._cached: ModifierOutput | None = None
         self._radiance: torch.Tensor | None = None
         self._normalized: torch.Tensor | None = None
+        self._closed = False
 
     @property
     def output_dim(self) -> tuple[int, ...]:
@@ -46,25 +47,17 @@ class PpispModifier(ModifierBase):
         shape = (*self._data_dim[:-1], 4 if self._cfg.output == "rgba" else 3)
         return (shape[0], shape[3], shape[1], shape[2]) if self._cfg.permute else shape
 
-    @property
-    def outputs(self) -> dict[str, torch.Tensor]:
-        """The cached RGB and RGBA views, available after the first call."""
-        return self._outputs
-
     def __call__(self, env: ManagerBasedEnv, data: torch.Tensor | ModifierOutput) -> torch.Tensor | ModifierOutput:
-        if self._camera is None:
-            self._camera = env.scene[self._cfg.sensor_cfg.name]
+        if self._closed:
+            raise RuntimeError("Cannot read a closed PPISP modifier.")
         camera = self._camera
         if self._cfg.isp_cfg is None:
             image = camera.data.output[self._cfg.output].torch
             return self._format_output(image, data)
         if self._pipeline is None:
-            resolved = resolve_and_normalize(
-                self._cfg.isp_cfg, env.sim.stage, camera.camera_prim_paths[0] if camera.camera_prim_paths else None
-            )
-            if resolved is None:
-                return self._format_output(camera.data.output[self._cfg.output].torch, data)
-            self._pipeline = PpispPipeline(resolved)
+            if not isinstance(self._cfg.isp_cfg, PpispCfg):
+                raise RuntimeError("Call PpispModifierCfg.prepare_scene before simulation reset.")
+            self._pipeline = PpispPipeline(self._cfg.isp_cfg)
         if self._cfg.input_source == "previous":
             if not isinstance(data, ModifierOutput) or "rgb_radiance" not in data.named:
                 raise ValueError("PPISP requires a preceding modifier to produce 'rgb_radiance'.")
@@ -75,8 +68,11 @@ class PpispModifier(ModifierBase):
             raise ValueError("PPISP requires NHWC float32 rgb_radiance with three channels.")
         if radiance.device != torch.device(self._device):
             raise ValueError(f"PPISP radiance is on {radiance.device}, expected {self._device}.")
-        if self._radiance is not None and radiance.data_ptr() != self._radiance.data_ptr():
+        same_radiance = self._radiance is not None and radiance.data_ptr() == self._radiance.data_ptr()
+        if self._radiance is not None and self._cfg.input_source == "camera" and not same_radiance:
             raise RuntimeError("Camera render buffers were recreated. Recreate the PPISP modifier to rebind them.")
+        if self._radiance is not None and radiance.shape != self._radiance.shape:
+            raise ValueError("PPISP radiance shape changed after output buffers were allocated.")
         self._radiance = radiance
         capture = next(
             (
@@ -86,8 +82,11 @@ class PpispModifier(ModifierBase):
             ),
             None,
         )
-        if self._cached is not None and capture is not None and capture is self._last_capture:
-            return self._cached
+        if self._cached is not None and capture is not None and capture is self._last_capture and same_radiance:
+            named = {**(data.named if isinstance(data, ModifierOutput) else {}), **self._outputs}
+            named["rgb_radiance"] = radiance
+            named[self._cfg.output] = self._cached.data
+            return ModifierOutput(self._cached.data, named, self._cfg.output)
         if self._rgba is None:
             self._rgba = wp.empty((*radiance.shape[:-1], 4), dtype=wp.uint8, device=self._device)
             rgba = wp.to_torch(self._rgba)
@@ -119,10 +118,12 @@ class PpispModifier(ModifierBase):
         return ModifierOutput(image, named, self._cfg.output)
 
     def close(self) -> None:
+        if self._closed:
+            return
+        self._closed = True
         if self._pipeline is not None:
             self._pipeline.close()
         self._pipeline = None
-        self._camera = None
         self._rgba = None
         self._outputs = {}
         self._last_capture = None

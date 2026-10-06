@@ -339,7 +339,7 @@ the frame metadata that belongs to their image. Partial environment resets reach
 ``reset(env_ids)``; PPISP itself has no temporal state.
 
 For use outside observations, create ``PpispModifierCfg``, call ``prepare_scene(env)`` after camera
-spawning and before ``sim.reset()``, then construct ``cfg.func(cfg, image_shape, device)``. Call the
+spawning and before ``sim.reset()``, then construct ``cfg.func(cfg, image_shape, device, env=env)``. Call the
 modifier with ``(env, camera.data.output["rgb"].torch)``, read the selected tensor from ``result.data``,
 and call ``close()`` when done. The returned buffer is reused on a later capture; clone it if a caller
 must retain the previous image.

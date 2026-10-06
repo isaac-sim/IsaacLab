@@ -1,0 +1,1 @@
+* **Breaking:** Passed ``env`` to observation modifier functions on each call and to class modifiers during construction. Custom modifiers should accept ``(env, data, ...)``; class constructors should accept ``env`` as a keyword argument alongside ``cfg``, ``data_dim``, and ``device``.

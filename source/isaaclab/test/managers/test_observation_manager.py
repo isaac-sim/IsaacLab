@@ -876,8 +876,8 @@ class DummyEnv:
 class StatefulBiasModifier(modifiers.ModifierBase):
     """Stateful modifier used to verify lazy callable resolution."""
 
-    def __init__(self, cfg: modifiers.ModifierCfg, data_dim: tuple[int, ...], device: str) -> None:
-        super().__init__(cfg, data_dim, device)
+    def __init__(self, cfg: modifiers.ModifierCfg, data_dim: tuple[int, ...], device: str, *, env) -> None:
+        super().__init__(cfg, data_dim, device, env=env)
         self.value = cfg.params["value"]
         self.reset_count = 0
 
@@ -891,7 +891,7 @@ class StatefulBiasModifier(modifiers.ModifierBase):
 class InvalidModifier:
     """Class with the modifier constructor contract but the wrong base type."""
 
-    def __init__(self, cfg, data_dim, device):
+    def __init__(self, cfg, data_dim, device, *, env):
         pass
 
 

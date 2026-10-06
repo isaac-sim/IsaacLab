@@ -213,7 +213,6 @@ class Camera(SensorBase):
         # initialize base class
         super().__init__(cfg)
         self._requested_render_inputs: tuple[str, ...] = ()
-        self._published_frame: ProxyArray | None = None
 
         # Compute camera orientation (convention conversion) and spawn.
         rot = torch.tensor(self.cfg.offset.rot, dtype=torch.float32, device="cpu").unsqueeze(0)
@@ -816,7 +815,15 @@ class Camera(SensorBase):
             None,
         )
         frame = capture["frame"] if capture is not None else None
-        previous_frame = self._published_frame
+        previous_capture = next(
+            (
+                info["capture"]
+                for info in self._data.info.values()
+                if isinstance(info, dict) and "frame" in info.get("capture", {})
+            ),
+            None,
+        )
+        previous_frame = previous_capture["frame"] if previous_capture is not None else None
         if frame is not None and frame is previous_frame and not capture.get("camera_generated", False):
             return
         if frame is None or capture.get("camera_generated", False):
@@ -827,7 +834,6 @@ class Camera(SensorBase):
                     **(info if isinstance(info, dict) else {}),
                     "capture": {"frame": frame, "camera_generated": True},
                 }
-        self._published_frame = frame
         for name in self._data.info:
             if name in self._render_camera_data.info:
                 self._data.info[name] = self._render_camera_data.info[name]
@@ -934,7 +940,6 @@ class Camera(SensorBase):
         self._initialize_intrinsics()
         self._update_poses()
         self._render_camera_data = copy(self._data)
-        self._published_frame = None
         self._render_camera_data._output = render_outputs
         self._render_camera_data.info = dict.fromkeys(self._render_camera_data.output)
         self._renderer.set_outputs(self._render_data, self._render_camera_data.output)
@@ -1184,7 +1189,6 @@ class Camera(SensorBase):
         view = getattr(self, "_view", None)
         self._render_data = None
         self._render_camera_data = None
-        self._published_frame = None
         self._renderer = None
         self._view = None
         try:

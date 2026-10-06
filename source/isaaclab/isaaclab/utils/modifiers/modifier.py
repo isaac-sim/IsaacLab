@@ -145,7 +145,9 @@ class DigitalFilter(ModifierBase):
     :math:`B = [1 - \alpha]`.
     """
 
-    def __init__(self, cfg: modifier_cfg.DigitalFilterCfg, data_dim: tuple[int, ...], device: str):
+    def __init__(
+        self, cfg: modifier_cfg.DigitalFilterCfg, data_dim: tuple[int, ...], device: str, *, env: ManagerBasedEnv
+    ):
         """Initializes digital filter.
 
         Args:
@@ -162,7 +164,7 @@ class DigitalFilter(ModifierBase):
             raise ValueError("Digital filter coefficients A and B must not be None. Please provide valid coefficients.")
 
         # initialize parent class
-        super().__init__(cfg, data_dim, device)
+        super().__init__(cfg, data_dim, device, env=env)
 
         # assign filter coefficients and make sure they are column vectors
         self.A = torch.tensor(self._cfg.A, device=self._device).unsqueeze(1)
@@ -230,7 +232,9 @@ class Integrator(ModifierBase):
     :math:`\Delta t` is the time step between samples.
     """
 
-    def __init__(self, cfg: modifier_cfg.IntegratorCfg, data_dim: tuple[int, ...], device: str):
+    def __init__(
+        self, cfg: modifier_cfg.IntegratorCfg, data_dim: tuple[int, ...], device: str, *, env: ManagerBasedEnv
+    ):
         """Initializes the integrator configuration and state.
 
         Args:
@@ -240,7 +244,7 @@ class Integrator(ModifierBase):
             device: The device to run the modifier on.
         """
         # initialize parent class
-        super().__init__(cfg, data_dim, device)
+        super().__init__(cfg, data_dim, device, env=env)
 
         # assign buffer for integral and previous value
         self.integral = torch.zeros(self._data_dim, device=self._device)

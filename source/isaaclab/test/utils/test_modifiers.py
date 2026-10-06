@@ -58,7 +58,7 @@ def test_digital_filter(device):
     )
 
     # create a modifier instance
-    modifier_obj = test_cfg.cfg.func(test_cfg.cfg, test_cfg.init_data.shape, device=device)
+    modifier_obj = test_cfg.cfg.func(test_cfg.cfg, test_cfg.init_data.shape, device=device, env=None)
 
     # test the modifier
     theta = torch.tensor([0.0], device=device)
@@ -96,7 +96,7 @@ def test_integral(device):
     )
 
     # create a modifier instance
-    modifier_obj = test_cfg.cfg.func(test_cfg.cfg, test_cfg.init_data.shape, device=device)
+    modifier_obj = test_cfg.cfg.func(test_cfg.cfg, test_cfg.init_data.shape, device=device, env=None)
 
     # test the modifier
     delta = torch.tensor(1.0, device=device)

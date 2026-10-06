@@ -561,7 +561,7 @@ def main() -> None:
         env = SimpleNamespace(sim=sim, scene={"camera": camera}, num_envs=args_cli.num_envs, device=str(sim.device))
         modifier_cfg = PpispModifierCfg(sensor_cfg=SceneEntityCfg("camera"), isp_cfg=ppisp_cfg)
         modifier_cfg.prepare_scene(env)
-        ppisp_modifier = modifier_cfg.func(modifier_cfg, (args_cli.num_envs, height, width, 3), env.device)
+        ppisp_modifier = modifier_cfg.func(modifier_cfg, (args_cli.num_envs, height, width, 3), env.device, env=env)
         print(f"[INFO] Duplicated-env camera regex: {camera_prim_path}", flush=True)
         print(f"[INFO] Rendering {width}x{height} from source camera {source_camera_prim_path}.", flush=True)
 

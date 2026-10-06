@@ -39,7 +39,7 @@ Notes:
     and the PhysX backend requires Kit (``carb``) to bootstrap.
   * Requests ``"rgb_hdr"`` in ``data_types`` because the test asserts the raw
     HDR source with :func:`assert_ppisp_lifts_exposure`. The PPISP observation
-    term independently requests ``"rgb_radiance"`` before simulation reset;
+    modifier independently requests ``"rgb_radiance"`` before simulation reset;
     public HDR is optional and aliases that unexposed input when requested.
 """
 

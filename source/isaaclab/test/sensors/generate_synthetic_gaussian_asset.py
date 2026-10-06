@@ -824,7 +824,9 @@ def _render_synthetic_gaussian_camera(
     modifier_cfg = PpispModifierCfg(sensor_cfg=SceneEntityCfg("camera"), isp_cfg=isp_cfg, output="rgba")
     # Prepare before reset so the renderer sees the modifier's radiance requirement.
     modifier_cfg.prepare_scene(env)
-    with contextlib.closing(modifier_cfg.func(modifier_cfg, (num_envs, height, width, 3), env.device)) as modifier:
+    with contextlib.closing(
+        modifier_cfg.func(modifier_cfg, (num_envs, height, width, 3), env.device, env=env)
+    ) as modifier:
         sim.reset()
         for _ in range(stabilisation_steps):
             sim.step()

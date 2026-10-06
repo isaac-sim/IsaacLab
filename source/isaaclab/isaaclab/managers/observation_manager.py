@@ -829,7 +829,9 @@ class ObservationManager(ManagerBase):
 
                         # construct stateful modifiers with the observation size
                         if inspect.isclass(mod_cfg.func):
-                            mod_cfg.func = mod_cfg.func(cfg=mod_cfg, data_dim=obs_dims, device=self._env.device)
+                            mod_cfg.func = mod_cfg.func(
+                                cfg=mod_cfg, data_dim=obs_dims, device=self._env.device, env=self._env
+                            )
                             if not isinstance(mod_cfg.func, modifiers.ModifierBase):
                                 raise TypeError(
                                     f"Modifier function '{mod_cfg.func}' for observation term '{term_name}'"

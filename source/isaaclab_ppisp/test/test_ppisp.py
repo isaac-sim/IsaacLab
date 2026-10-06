@@ -75,6 +75,9 @@ def _controller_weights() -> list[float]:
 
 
 def test_ppisp_modifier_discovery_resolves_before_requesting_radiance():
+    import isaaclab_ppisp
+
+    assert not hasattr(isaaclab_ppisp, "PpispProcessorCfg")
     stage = Usd.Stage.CreateInMemory()
     _author_camera(stage)
     _author_ppisp_camera(stage, inherits=None, attrs={"exposureOffset": 1.5})
