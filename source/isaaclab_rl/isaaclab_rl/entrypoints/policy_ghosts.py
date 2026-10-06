@@ -7,7 +7,9 @@
 
 from __future__ import annotations
 
+import os
 import re
+import sys
 from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol
@@ -35,6 +37,62 @@ class PolicyGhostPolicy(Protocol):
 
     def reset(self, dones: torch.Tensor) -> None:
         """Reset recurrent state of the slot's environments that terminated."""
+
+
+class PolicyGhostRestart:
+    """A request from the viewer HUD to restart playback with Policy Ghosts switched on or off.
+
+    Policy Ghosts simulate several times the environments, which the simulation fixes when it starts, so the
+    process is relaunched with the changed command line instead of growing the running simulation.
+    """
+
+    def __init__(self) -> None:
+        self.requested = False
+        """Whether the HUD asked for a restart."""
+        self.enable = False
+        """Whether the restarted process should run with Policy Ghosts."""
+
+    def request(self, enable: bool) -> None:
+        """Ask for playback to restart with Policy Ghosts enabled or disabled."""
+        self.requested = True
+        self.enable = enable
+
+
+_POLICY_GHOST_VALUE_FLAGS = ("--policy_ghost_slots", "--policy_ghost_root")
+"""Policy Ghost options that take a value and are dropped when the feature is disabled."""
+
+
+def relaunch_argv(argv: list[str], enable: bool) -> list[str]:
+    """Return a command line that runs the same playback with Policy Ghosts switched on or off.
+
+    Args:
+        argv: Original command line, including the executable at index 0.
+        enable: Whether the new command line should enable Policy Ghosts.
+
+    Returns:
+        The command line with ``--policy_ghosts`` added or, with all Policy Ghost options, removed.
+    """
+    if enable:
+        return argv if "--policy_ghosts" in argv else [*argv, "--policy_ghosts"]
+    result, skip = [], False
+    for arg in argv:
+        if skip:
+            skip = False
+        elif arg == "--policy_ghosts" or any(arg.startswith(f"{flag}=") for flag in _POLICY_GHOST_VALUE_FLAGS):
+            continue
+        elif arg in _POLICY_GHOST_VALUE_FLAGS:
+            skip = True
+        else:
+            result.append(arg)
+    return result
+
+
+def relaunch(enable: bool) -> None:
+    """Replace the running process with the same command line and Policy Ghosts switched on or off."""
+    argv = relaunch_argv(list(sys.orig_argv), enable)
+    sys.stdout.flush()
+    sys.stderr.flush()
+    os.execv(sys.executable, [sys.executable, *argv[1:]])
 
 
 def discover_checkpoints(

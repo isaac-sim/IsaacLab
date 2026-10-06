@@ -65,7 +65,7 @@ from isaaclab_visualizers.desktop_entry import write_desktop_entry
 from isaaclab_visualizers.newton.newton_visualization_markers import render_newton_visualization_markers
 from isaaclab_visualizers.newton_adapter import resolve_visible_env_indices
 
-from .newton_policy_ghosts import NewtonPolicyGhostPanel
+from .newton_policy_ghosts import NewtonPolicyGhostPanel, draw_policy_ghost_launcher
 from .newton_visualizer_cfg import NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg, NewtonVisualizerCfg
 
 logger = logging.getLogger(__name__)
@@ -414,8 +414,11 @@ class _NewtonViewerUIMixin:
 
             # --- Policy Ghosts ----------------------------------------------
             ghost_panel = getattr(viewer, "_policy_ghost_panel", None)
+            ghost_restart = getattr(viewer, "_policy_ghost_restart", None)
             if ghost_panel is not None:
                 ghost_panel.draw(imgui)
+            elif ghost_restart is not None:
+                draw_policy_ghost_launcher(imgui, ghost_restart)
 
             # --- Streaming View ---------------------------------------------
             viewer._draw_streaming_view_controls()
@@ -2141,7 +2144,18 @@ class NewtonGLVisualizer(NewtonVisualizer):
             update_frequency=self.cfg.update_frequency,
         )
 
-    def attach_policy_ghosts(self, controller: PolicyGhostController) -> None:
+    def attach_policy_ghost_restart(self, restart: Callable[[bool], None]) -> None:
+        """Offer an Enable Policy Ghosts button in the HUD of a run that started without the feature.
+
+        Args:
+            restart: Callback that restarts playback with Policy Ghosts enabled (``True``) or disabled (``False``).
+        """
+        if self._viewer is not None:
+            self._viewer._policy_ghost_restart = restart
+
+    def attach_policy_ghosts(
+        self, controller: PolicyGhostController, restart: Callable[[bool], None] | None = None
+    ) -> None:
         """Show the Policy Ghosts HUD section for a playback loop that drives several checkpoints.
 
         Only environments of slots with a checkpoint are visible, and each ghost slot is tinted and overlaid on
@@ -2149,8 +2163,10 @@ class NewtonGLVisualizer(NewtonVisualizer):
 
         Args:
             controller: Playback-loop side of Policy Ghosts.
+            restart: Callback that restarts playback with Policy Ghosts enabled (``True``) or disabled (``False``).
+                When given, the HUD shows a Disable button.
         """
-        self._policy_ghost_panel = NewtonPolicyGhostPanel(controller)
+        self._policy_ghost_panel = NewtonPolicyGhostPanel(controller, restart)
         if self._viewer is not None:
             self._viewer._policy_ghost_panel = self._policy_ghost_panel
             self._apply_visible_worlds()

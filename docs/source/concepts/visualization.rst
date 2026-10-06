@@ -749,6 +749,11 @@ drift apart:
     uv run isaaclab play --rl_library rsl_rl --task Isaac-Velocity-Rough-AnymalD \
         --num_envs 4 --checkpoint latest --viz newton_gl --policy_ghosts
 
+You can also start from a normal ``play`` run: open **Policy Ghosts** in the viewer's left panel and choose
+**Enable Policy Ghosts (restarts)**. The command restarts with ``--policy_ghosts`` added, because the simulation
+fixes its environment count at startup; **Disable Policy Ghosts (restarts)** reverses it. Policy Ghosts stay off
+unless you ask for them, since they simulate several times the environments.
+
 Open **Policy Ghosts** in the viewer's left panel and choose **Add Checkpoint...** to list the
 checkpoints of runs of this task that were written by training (those with a ``run.json``) under the
 experiment's log directory; pass ``--policy_ghost_root`` to search another directory. Each loaded checkpoint has a checkbox that

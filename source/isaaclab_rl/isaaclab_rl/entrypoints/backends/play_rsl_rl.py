@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 import os
+from collections.abc import Callable
 from pathlib import Path
 
 from rsl_rl.runners import DistillationRunner, OnPolicyRunner
@@ -45,7 +46,7 @@ from ..common import (
     show_run_summary,
     startup_screen,
 )
-from ..policy_ghosts import MAX_POLICY_GHOST_SLOTS, PolicyGhostSession
+from ..policy_ghosts import MAX_POLICY_GHOST_SLOTS, PolicyGhostRestart, PolicyGhostSession, relaunch
 from . import cli_args_rsl_rl as cli_args
 
 # PLACEHOLDER: Extension template (do not remove this comment)
@@ -135,6 +136,7 @@ def run_policy_ghosts(
     reference_path: str,
     log_root_path: str,
     slice_size: int,
+    restart: PolicyGhostRestart,
 ) -> None:
     """Play the reference checkpoint with ghost slots that the Newton GL viewer HUD fills."""
 
@@ -161,14 +163,43 @@ def run_policy_ghosts(
     attached = False
     for visualizer in env.unwrapped.sim.visualizers:
         if hasattr(visualizer, "attach_policy_ghosts"):
-            visualizer.attach_policy_ghosts(session)
+            visualizer.attach_policy_ghosts(session, restart.request)
             attached = True
     if not attached:
         raise RuntimeError("--policy_ghosts needs an initialized Newton GL visualizer.")
     try:
-        run_playback(session.step, dt=env.unwrapped.step_dt, args_cli=args_cli, env_cfg=env.unwrapped.cfg)
+        run_playback(
+            _stop_on_restart(session.step, restart),
+            dt=env.unwrapped.step_dt,
+            args_cli=args_cli,
+            env_cfg=env.unwrapped.cfg,
+        )
     finally:
         session.close()
+
+
+def _stop_on_restart(step: Callable[[], None], restart: PolicyGhostRestart) -> Callable[[], None]:
+    """Wrap a playback step so that a restart request ends the playback loop.
+
+    The loop in :func:`~isaaclab_rl.entrypoints.common.run_playback` only ends on an interrupt, so the wrapper raises
+    :class:`KeyboardInterrupt`, and the caller relaunches once the simulation has shut down.
+    """
+
+    def wrapped() -> None:
+        if restart.requested:
+            raise KeyboardInterrupt
+        step()
+
+    return wrapped
+
+
+def _offer_policy_ghosts(env: RslRlVecEnvWrapper, env_cfg: object, restart: PolicyGhostRestart) -> None:
+    """Add an Enable Policy Ghosts button to the Newton GL HUD of a run that started without the feature."""
+    if not isinstance(env_cfg, ManagerBasedRLEnvCfg):
+        return
+    for visualizer in env.unwrapped.sim.visualizers:
+        if hasattr(visualizer, "attach_policy_ghost_restart"):
+            visualizer.attach_policy_ghost_restart(restart.request)
 
 
 def _validate_policy_ghosts(args_cli: argparse.Namespace, env_cfg: object) -> None:
@@ -182,6 +213,14 @@ def _validate_policy_ghosts(args_cli: argparse.Namespace, env_cfg: object) -> No
 
 
 def run(argv: list[str]) -> None:
+    """Play a checkpoint of an RSL-RL agent, restarting if the viewer HUD asks to toggle Policy Ghosts."""
+    restart = PolicyGhostRestart()
+    _run(argv, restart)
+    if restart.requested:
+        relaunch(restart.enable)
+
+
+def _run(argv: list[str], restart: PolicyGhostRestart) -> None:
     """Play a checkpoint of an RSL-RL agent."""
     args_cli = _parse_args(argv)
     with startup_screen(args_cli, num_stages=3) as screen:
@@ -224,7 +263,7 @@ def run(argv: list[str]) -> None:
             print(f"[INFO]: Loading model checkpoint from: {resume_path}")
             if args_cli.policy_ghosts:
                 screen.close()
-                run_policy_ghosts(env, args_cli, agent_cfg, resume_path, log_root_path, slice_size)
+                run_policy_ghosts(env, args_cli, agent_cfg, resume_path, log_root_path, slice_size, restart)
                 return
             runner = build_runner(env, agent_cfg)
             # configure_seed must run after runner construction so torch determinism does not disturb its initialization
@@ -246,4 +285,5 @@ def run(argv: list[str]) -> None:
                 policy.reset(dones)
 
             screen.close()
-            run_playback(step, dt=env.unwrapped.step_dt, args_cli=args_cli, env_cfg=env_cfg)
+            _offer_policy_ghosts(env, env_cfg, restart)
+            run_playback(_stop_on_restart(step, restart), dt=env.unwrapped.step_dt, args_cli=args_cli, env_cfg=env_cfg)

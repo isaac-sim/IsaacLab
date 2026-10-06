@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import time
+from collections.abc import Callable
 from typing import Any
 
 import numpy as np
@@ -33,13 +34,16 @@ class NewtonPolicyGhostPanel:
     mesh textures and metallic shading, so no native material color shows through.
     """
 
-    def __init__(self, controller: PolicyGhostController):
+    def __init__(self, controller: PolicyGhostController, restart: Callable[[bool], None] | None = None):
         """Create the panel.
 
         Args:
             controller: Playback-loop side of Policy Ghosts.
+            restart: Callback that restarts playback with Policy Ghosts enabled (``True``) or disabled (``False``).
+                When omitted, the panel has no Disable button.
         """
         self.controller = controller
+        self._restart = restart
         self._window_open = False
         self._discovered: list[PolicyGhostCheckpoint] = []
         self._message = ""
@@ -78,6 +82,12 @@ class NewtonPolicyGhostPanel:
                 imgui.end_disabled()
             if self._message:
                 imgui.text_wrapped(self._message)
+            if self._restart is not None:
+                imgui.separator()
+                if imgui.button("Disable Policy Ghosts (restarts)"):
+                    self._restart(False)
+                if imgui.is_item_hovered():
+                    imgui.set_tooltip("Restarts the viewer with only the reference environments")
         if self._window_open:
             self._draw_window(imgui)
 
@@ -207,3 +217,21 @@ class NewtonPolicyGhostPanel:
                                 self._window_open = False
                     imgui.tree_pop()
         imgui.end()
+
+
+def draw_policy_ghost_launcher(imgui: Any, restart: Callable[[bool], None]) -> None:
+    """Draw the collapsed Policy Ghosts section of a run that started without the feature.
+
+    Args:
+        imgui: The ``imgui`` module.
+        restart: Callback that restarts playback with Policy Ghosts enabled (``True``) or disabled (``False``).
+    """
+    imgui.set_next_item_open(False, imgui.Cond_.appearing)
+    if imgui.collapsing_header("Policy Ghosts"):
+        imgui.separator()
+        imgui.text_wrapped(
+            "Compare several checkpoints of this task side by side. Enabling restarts the viewer with several"
+            " times the environments, which lowers the step rate."
+        )
+        if imgui.button("Enable Policy Ghosts (restarts)"):
+            restart(True)
