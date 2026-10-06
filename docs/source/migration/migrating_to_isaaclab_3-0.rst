@@ -2586,10 +2586,13 @@ The :class:`~isaaclab.envs.ui.ViewportCameraController` class is also deprecated
 tracking is handled directly by :class:`~isaaclab_visualizers.kit.KitVisualizer`.
 
 
-Custom visualizers now receive ``stage`` and ``clone_plan`` keyword arguments in ``initialize()``.
-Accept these arguments and forward them to ``super().initialize(scene_data_provider, stage=stage,
-clone_plan=clone_plan)``. Use the supplied scene dependencies instead of retrieving the simulation
-singleton to resolve camera sources.
+Custom visualizers now receive resolved ``cameras`` and the optional USD ``stage`` in ``initialize()``.
+Accept these arguments and forward them to ``super().initialize(scene_data_provider, cameras=cameras,
+stage=stage)``. ``SimulationContext`` resolves scene-camera references before initialization;
+visualizers consume those borrowed sensors without a clone plan or a simulation lookup.
+Code that initializes a visualizer directly must supply ordered ``PerspectiveCameraCfg`` objects
+and existing ``Camera`` sensors through ``cameras``. Use ``resolve_camera_sources`` from
+``isaaclab.envs.utils.camera_view`` to bind configured path references against a camera registry.
 Call ``super().close()`` after releasing native viewer resources to drop borrowed scene references.
 
 

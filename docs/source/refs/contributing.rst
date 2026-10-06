@@ -270,7 +270,9 @@ before changing an interface. Apply these rules when adding code or cleaning up 
   invalidation are clear; do not expose mutable cached results for callers to modify accidentally.
 * Pass scene dependencies from the composition root into consumers. Do not retrieve the simulation
   singleton to resolve a dependency the caller already owns. Resolve references at initialization,
-  then retain the resolved objects instead of copying paths between configuration fields.
+  then retain the resolved objects instead of copying paths between configuration fields. Give consumers
+  resolved resources rather than a broader construction plan used only to discover those resources;
+  visualizers receive bound camera choices, while cloning and renderer scene preparation retain ``ClonePlan``.
 * Put common configuration in the shared owner and document backend capabilities explicitly. Name
   collections in the plural. Remove empty hooks and expired compatibility aliases during their
   announced removal release instead of maintaining unused extension points.

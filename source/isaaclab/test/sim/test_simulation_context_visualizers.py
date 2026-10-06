@@ -30,7 +30,7 @@ from isaaclab_visualizers.viser.viser_visualizer_cfg import ViserVisualizerCfg
 from isaaclab.markers.vis_marker_registry import VisMarkerRegistry
 from isaaclab.sim.simulation_context import SimulationContext
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
-from isaaclab.visualizers.visualizer_cfg import VisualizerCfg
+from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg, SceneCameraCfg, VisualizerCfg
 
 pytestmark = [pytest.mark.integration, pytest.mark.rendering]
 
@@ -90,8 +90,8 @@ class _FakeVisualizer(BaseVisualizer):
         self.step_calls = []
         self.close_calls = 0
 
-    def initialize(self, provider, *, stage=None, clone_plan=None):
-        super().initialize(provider, stage=stage, clone_plan=clone_plan)
+    def initialize(self, provider, *, cameras, stage=None):
+        super().initialize(provider, cameras=cameras, stage=stage)
         self._is_initialized = True
 
     @property
@@ -399,7 +399,7 @@ def test_viser_visualizer_reads_sdp_and_rebinds_native_resource(monkeypatch, web
 
     cfg = NewtonBackendCfg(physics_cfg=web_backend.cfg.physics, device=web_backend.device)
     visualizer = viser_visualizer.ViserVisualizer(ViserVisualizerCfg())
-    visualizer.initialize(cast(Any, provider))
+    visualizer.initialize(cast(Any, provider), cameras=[])
     visualizer.step(0.25)
 
     assert visualizer.is_initialized
@@ -547,7 +547,7 @@ def test_rerun_visualizer_initialize_applies_visible_worlds_and_world_offsets(
         randomly_sample_visible_envs=False,
     )
     visualizer = rerun_visualizer.RerunVisualizer(cfg)
-    visualizer.initialize(cast(Any, _DummyViserSceneDataProvider()))
+    visualizer.initialize(cast(Any, _DummyViserSceneDataProvider()), cameras=[])
 
     assert captured["streaming_view"] is False
     assert captured["set_model"] is web_backend.get_or_create_backend.return_value.model
@@ -726,7 +726,7 @@ class _FakeVisualizerCfg(VisualizerCfg):
 
 
 class _FailingInitVisualizer(_FakeVisualizer):
-    def initialize(self, provider, *, stage=None, clone_plan=None):
+    def initialize(self, provider, *, cameras, stage=None):
         raise RuntimeError("init failed")
 
 
@@ -767,11 +767,19 @@ def test_visualizer_construction_precedes_initialization_and_happens_once(monkey
 
     visualizer = ctx._pending_visualizers[0]
     if not fail_construct:
-        plan = object()
-        ctx._clone_plan = plan
+        ctx._clone_plan = SimpleNamespace(env_template="/Scenes/world_{}")
+        camera = SimpleNamespace(cfg=SimpleNamespace(prim_path="/Scenes/world_[^/]+/Camera", data_types=["rgb"]))
+        ctx._scene_data_provider.get_camera_sensors = Mock(return_value={"camera": camera})
+        source = SceneCameraCfg(prim_path="{ENV_REGEX_NS}/Camera")
+        perspective = PerspectiveCameraCfg(eye=(1.0, 2.0, 3.0))
+        cfg.cameras, cfg.streaming_view = [source, perspective], True
         ctx.initialize_visualizers()
         ctx.initialize_visualizers()
-        assert visualizer._clone_plan is plan
+        assert visualizer._camera_choices == [camera, perspective]
+        assert cfg.cameras == [source, perspective]
+        assert source.prim_path == "{ENV_REGEX_NS}/Camera"
+        assert not hasattr(visualizer, "_clone_plan")
+        ctx._scene_data_provider.get_camera_sensors.assert_called_once_with()
         assert visualizer._scene_stage is ctx.stage
         assert seen == [cfg]
         assert ctx._visualizers == [visualizer]

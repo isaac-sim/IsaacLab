@@ -18,6 +18,8 @@ import warp as wp
 
 from .. import sim as sim_utils
 from ..app.settings_manager import get_settings_manager
+from ..cloner.cloner_cfg import DEFAULT_ENV_TEMPLATE
+from ..envs.utils.camera_view import resolve_camera_sources
 from ..markers.vis_marker_registry import VisMarkerRegistry
 from ..physics import PhysicsCfg, PhysicsEvent, PhysicsManager
 from ..physics.physics_manager_cfg import _resolve_physx_auto_cfg
@@ -460,7 +462,10 @@ class SimulationContext:
         for visualizer in tuple(self._pending_visualizers):
             if config_filter is not None and not config_filter(visualizer.cfg):
                 continue
-            visualizer.initialize(self._scene_data_provider, stage=self.stage, clone_plan=self._clone_plan)
+            camera_sensors = self._scene_data_provider.get_camera_sensors() if visualizer.cfg.streaming_view else {}
+            env_template = self._clone_plan.env_template if self._clone_plan is not None else DEFAULT_ENV_TEMPLATE
+            cameras = resolve_camera_sources(visualizer.cfg, camera_sensors, env_template=env_template)
+            visualizer.initialize(self._scene_data_provider, cameras=cameras, stage=self.stage)
             self._pending_visualizers.remove(visualizer)
             self._visualizers.append(visualizer)
             self._visualizers_started = True

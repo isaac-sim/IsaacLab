@@ -75,7 +75,7 @@ def test_visualizer_cfg_validates_background_color():
 
 
 class _DummyVisualizer(BaseVisualizer):
-    def initialize(self, scene_data_provider) -> None:
+    def initialize(self, scene_data_provider, *, cameras, stage=None) -> None:
         self._scene_data_provider = scene_data_provider
         self._is_initialized = True
 

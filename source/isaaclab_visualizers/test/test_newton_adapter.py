@@ -31,6 +31,7 @@ from isaaclab_visualizers.newton_adapter import (
     resolve_visible_env_indices,
 )
 
+from isaaclab.envs.utils.camera_view import resolve_camera_sources
 from isaaclab.sim import SimulationContext
 from isaaclab.utils import instantiate
 from isaaclab.utils.warp import ProxyArray
@@ -217,7 +218,7 @@ def test_newton_visualizer_set_camera_view_updates_active_viewer():
 
 
 def test_visualizers_borrow_scene_camera_outputs(monkeypatch):
-    """Camera binding uses supplied scene topology and only reads the borrowed sensor's lazy output."""
+    """Resolved sources preserve selection and sensor ownership without visualizer scene discovery."""
     monkeypatch.setattr(SimulationContext, "instance", Mock(side_effect=AssertionError("No global scene lookup")))
     pixels = torch.arange(4, dtype=torch.uint8).reshape(4, 1, 1, 1).expand(4, 2, 3, 3).clone()
     camera = SimpleNamespace(
@@ -231,12 +232,15 @@ def test_visualizers_borrow_scene_camera_outputs(monkeypatch):
         close=Mock(),
         update=Mock(),
     )
-    provider = SimpleNamespace(get_camera_sensors=lambda: {"camera": camera})
+    provider = SimpleNamespace(get_camera_sensors=Mock(side_effect=AssertionError("Sources must already be bound")))
+    camera_sensors = {"camera": camera}
     viewers = []
     for ids in ([0, 2], [1, 3]):
         cfg = NewtonGLVisualizerCfg(streaming_envs=ids, cameras=[SceneCameraCfg(prim_path="{ENV_REGEX_NS}/Camera")])
         visualizer = instantiate(cfg)
-        BaseVisualizer.initialize(visualizer, provider, clone_plan=SimpleNamespace(env_template="/Scenes/world_{}"))
+        cameras = resolve_camera_sources(cfg, camera_sensors, env_template="/Scenes/world_{}")
+        BaseVisualizer.initialize(visualizer, provider, cameras=cameras)
+        assert not hasattr(visualizer, "_clone_plan")
         visualizer._setup_streaming_view(4)
         assert visualizer._camera_sensor is camera
         image = visualizer.render_tiled_rgb_array()
@@ -254,21 +258,34 @@ def test_visualizers_borrow_scene_camera_outputs(monkeypatch):
     camera.close.assert_not_called()
     SimulationContext.instance.assert_not_called()
 
-    viewers[0].cfg.cameras = [SceneCameraCfg(prim_path="/Missing/Camera")]
+    cfg = viewers[0].cfg
+    cfg.cameras = [SceneCameraCfg(prim_path="/Missing/Camera")]
     with pytest.raises(ValueError, match="No scene Camera matches"):
-        viewers[0]._setup_streaming_view(4)
-    viewers[0].cfg.cameras = None
-    viewers[0]._setup_streaming_view(4)
-    assert viewers[0]._camera_sensor is camera
-    viewers[0].cfg.streaming_gt_types = ("depth",)
-    viewers[0]._setup_streaming_view(4)
-    assert viewers[0]._camera_sensor is None
-    viewers[0].cfg.cameras = [SceneCameraCfg(prim_path="{ENV_REGEX_NS}/Camera")]
+        resolve_camera_sources(cfg, camera_sensors)
+    cfg.cameras = None
+    assert resolve_camera_sources(cfg, camera_sensors)[1:] == [camera]
+    cfg.streaming_gt_types = ("depth",)
+    assert len(resolve_camera_sources(cfg, camera_sensors)) == 1
+    cfg.cameras = [SceneCameraCfg(prim_path="{ENV_REGEX_NS}/Camera")]
     with pytest.raises(KeyError, match="No sensor output"):
-        viewers[0]._setup_streaming_view(4)
-    viewers[0].cfg.streaming_gt_types = ("optical_flow",)
+        resolve_camera_sources(cfg, camera_sensors, env_template="/Scenes/world_{}")
+    cfg.streaming_gt_types = ("optical_flow",)
     with pytest.raises(ValueError, match="optical_flow"):
-        viewers[0]._setup_streaming_view(4)
+        resolve_camera_sources(cfg, camera_sensors)
+
+    from pxr import Usd, UsdGeom
+
+    stage = Usd.Stage.CreateInMemory()
+    camera._view = SimpleNamespace(
+        prims=[UsdGeom.Camera.Define(stage, f"/Scenes/world_{i}/Camera").GetPrim() for i in range(4)]
+    )
+    cfg.streaming_gt_types = ("rgb",)
+    for path in ("/Scenes/world_2/Camera", "/Scenes/world_.*/Camera"):
+        cfg.cameras = [SceneCameraCfg(prim_path=path)]
+        assert resolve_camera_sources(cfg, camera_sensors) == [camera]
+    cfg.cameras = None
+    cfg.streaming_sensor_prim_path = "/Scenes/world_2/Camera"
+    assert resolve_camera_sources(cfg, camera_sensors)[0] is camera
 
 
 def test_newton_visualizer_render_rgb_array_returns_viewer_frame():
@@ -1114,7 +1131,7 @@ def test_newton_rtx_visualizer_rejects_kit_physics_backend(monkeypatch, backend)
     visualizer = NewtonRTXVisualizer(NewtonRTXVisualizerCfg())
 
     with pytest.raises(RuntimeError, match="Newton RTX"):
-        visualizer.initialize(Mock())
+        visualizer.initialize(Mock(), cameras=[])
 
 
 def test_newton_rtx_visualizer_allows_ovphysx_backend(monkeypatch):
@@ -1127,4 +1144,4 @@ def test_newton_rtx_visualizer_allows_ovphysx_backend(monkeypatch):
     # No RuntimeError from the guard; falls through to the next line, which needs a real
     # SimulationContext and fails differently -- proving the guard did not fire for ovphysx.
     with pytest.raises(AttributeError):
-        visualizer.initialize(Mock())
+        visualizer.initialize(Mock(), cameras=[])

@@ -25,6 +25,7 @@ from newton.viewer import ViewerRerun
 from isaaclab.scene_data import SceneDataFormat
 from isaaclab.sim import SimulationContext
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
+from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg
 
 from isaaclab_visualizers.newton.newton_visualization_markers import render_newton_visualization_markers
 from isaaclab_visualizers.newton_adapter import (
@@ -38,8 +39,8 @@ from .rerun_visualizer_cfg import RerunVisualizerCfg
 if TYPE_CHECKING:
     from pxr import Usd
 
-    from isaaclab.cloner import ClonePlan
     from isaaclab.scene_data import SceneDataProvider
+    from isaaclab.sensors.camera import Camera
 
 logger = logging.getLogger(__name__)
 
@@ -286,20 +287,20 @@ class RerunVisualizer(BaseVisualizer):
         self,
         scene_data_provider: SceneDataProvider,
         *,
+        cameras: list[PerspectiveCameraCfg | Camera],
         stage: Usd.Stage | None = None,
-        clone_plan: ClonePlan | None = None,
     ) -> None:
         """Initialize rerun viewer and bind scene data provider.
 
         Args:
             scene_data_provider: Scene data provider used to fetch model/state data.
+            cameras: Resolved perspective settings and borrowed scene sensors, in display order.
             stage: Authored scene stage, when available.
-            clone_plan: Scene topology and environment namespace, when available.
         """
         if self._is_initialized:
             return
 
-        super().initialize(scene_data_provider, stage=stage, clone_plan=clone_plan)
+        super().initialize(scene_data_provider, cameras=cameras, stage=stage)
         num_envs = scene_data_provider.num_envs
         self._env_ids = self._compute_visualized_env_ids()
         sim = SimulationContext.instance()

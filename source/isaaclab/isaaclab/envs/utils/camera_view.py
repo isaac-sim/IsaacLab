@@ -16,10 +16,14 @@ import numpy as np
 import torch
 import warp as wp
 
+from ...cloner.cloner_cfg import DEFAULT_ENV_TEMPLATE, expand_env_regex_ns
 from ...utils.image_view import image_grid_columns
+from ...visualizers.visualizer_cfg import PerspectiveCameraCfg, SceneCameraCfg
+from .camera_colorizer import sensor_key_for_gt_type
 
 if TYPE_CHECKING:
     from ...sensors.camera import Camera
+    from ...visualizers.visualizer_cfg import VisualizerCfg
 
 VISUALIZER_TILED_CAMERA_MAX_TILES = 100
 
@@ -72,20 +76,67 @@ def env_path_from_template(path_template: str, env_id: int) -> str:
     return _ENV_SLOT_WILDCARD.sub(f"env_{env_id}", path)
 
 
-def find_camera_by_prim_path(camera_sensors: dict[str, Camera], cam_prim_path: str, env_indices: list[int]) -> Camera:
-    """Find a scene-owned Camera by config template or concrete camera prim paths."""
-    wanted = {env_path_from_template(cam_prim_path, env_id) for env_id in env_indices}
+def find_camera_by_prim_path(
+    camera_sensors: dict[str, Camera], cam_prim_path: str, env_indices: list[int] | None = None
+) -> Camera:
+    """Find a scene camera by path expression, optionally requiring specific environment copies."""
+    wanted = None if env_indices is None else {env_path_from_template(cam_prim_path, i) for i in env_indices}
+    pattern = cam_prim_path.replace("%d", "[^/]+").replace("{}", "[^/]+")
+    pattern = pattern.replace("/World/envs/*", "/World/envs/env_[^/]+")
     for camera in camera_sensors.values():
         if camera.cfg.prim_path == cam_prim_path:
             return camera
         concrete = {str(prim.GetPath()) for prim in camera._view.prims} if camera._view is not None else set()
-        if wanted and wanted.issubset(concrete):
+        if wanted is None:
+            if any(re.fullmatch(pattern, path) for path in concrete):
+                return camera
+        elif wanted and wanted.issubset(concrete):
             return camera
     available_paths = sorted(camera.cfg.prim_path for camera in camera_sensors.values())
     raise ValueError(
         f"No scene Camera matches prim_path={cam_prim_path!r}. "
         f"Declare a CameraCfg in the scene; available paths: {available_paths}."
     )
+
+
+def resolve_camera_sources(
+    cfg: VisualizerCfg, cameras: dict[str, Camera], *, env_template: str = DEFAULT_ENV_TEMPLATE
+) -> list[PerspectiveCameraCfg | Camera]:
+    """Bind display sources before initializing a visualizer, without reading sensor frames.
+
+    Args:
+        cfg: Requested camera sources and display channels. The configuration is not modified.
+        cameras: Scene-owned sensors keyed by scene name.
+        env_template: Environment namespace used to expand ``{ENV_REGEX_NS}`` references.
+
+    Returns:
+        Ordered perspective settings and borrowed sensors. Explicit scene references must support
+        every requested channel; automatic discovery skips incompatible sensors.
+    """
+    sources = list(cfg.cameras or [PerspectiveCameraCfg(eye=cfg.eye, lookat=cfg.lookat, focal_length=cfg.focal_length)])
+    if not cfg.streaming_view:
+        return sources
+    gt_types = cfg.streaming_gt_types
+    for gt_type in gt_types:
+        sensor_key_for_gt_type(gt_type)
+    if cfg.cameras is None:
+        if cfg.streaming_sensor_prim_path is not None:
+            sources.insert(0, SceneCameraCfg(prim_path=cfg.streaming_sensor_prim_path))
+        else:
+            for camera in cameras.values():
+                available = frozenset(camera.cfg.data_types)
+                if all(sensor_key_for_gt_type(gt, available, required=False) is not None for gt in gt_types):
+                    sources.append(camera)
+    for index, source in enumerate(sources):
+        if not isinstance(source, SceneCameraCfg):
+            continue
+        path = expand_env_regex_ns(source.prim_path, env_template)
+        camera = find_camera_by_prim_path(cameras, path)
+        available = frozenset(camera.cfg.data_types)
+        for gt_type in gt_types:
+            sensor_key_for_gt_type(gt_type, available)
+        sources[index] = camera
+    return sources
 
 
 def resolve_streaming_envs(

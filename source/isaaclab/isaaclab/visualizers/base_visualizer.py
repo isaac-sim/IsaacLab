@@ -20,18 +20,16 @@ from urllib.parse import urlparse
 import numpy as np
 import warp as wp
 
-from ..cloner import expand_env_regex_ns
 from ..envs.utils.camera_colorizer import sensor_key_for_gt_type
-from ..envs.utils.camera_view import find_camera_by_prim_path, resolve_streaming_envs
+from ..envs.utils.camera_view import resolve_streaming_envs
 from ..utils import validate
 from ..utils.buffers import TimestampedBuffer
 from ..utils.image_view import ImageViewPlan, compile_image_view, compose_image_view
-from .visualizer_cfg import PerspectiveCameraCfg, SceneCameraCfg
+from .visualizer_cfg import PerspectiveCameraCfg
 
 if TYPE_CHECKING:
     from pxr import Usd
 
-    from ..cloner import ClonePlan
     from ..managers import ManagerBase
     from ..renderers.base_renderer import VisualMaterialBatch
     from ..scene_data import SceneDataProvider
@@ -61,7 +59,6 @@ class BaseVisualizer(ABC):
         self.cfg = cfg
         self._scene_data_provider = None
         self._scene_stage = None
-        self._clone_plan = None
         self._camera_choices: list[PerspectiveCameraCfg | Camera] = []
         self._is_initialized = False
         self._is_closed = False
@@ -94,21 +91,21 @@ class BaseVisualizer(ABC):
         self,
         scene_data_provider: SceneDataProvider,
         *,
+        cameras: list[PerspectiveCameraCfg | Camera],
         stage: Usd.Stage | None = None,
-        clone_plan: ClonePlan | None = None,
     ) -> None:
         """Bind the scene dependencies supplied by SimulationContext.
 
         Args:
             scene_data_provider: Scene data and scene-owned sensors.
+            cameras: Resolved perspective settings and borrowed scene sensors, in display order.
             stage: Authored scene stage, when the visualizer consumes USD.
-            clone_plan: Scene topology and environment namespace, when environments are cloned.
         """
         if scene_data_provider is None:
             raise RuntimeError(f"{self.__class__.__name__} requires a scene_data_provider.")
         self._scene_data_provider = scene_data_provider
         self._scene_stage = stage
-        self._clone_plan = clone_plan
+        self._camera_choices = list(cameras)
 
     def _setup_streaming_view(
         self,
@@ -119,39 +116,12 @@ class BaseVisualizer(ABC):
         select_camera: bool = True,
     ) -> None:
         """Configure tiles and optionally select a camera; interactive selectors can defer binding."""
-        cfg = self.cfg
-        gt_types = cfg.streaming_gt_types
-        self._camera_choices = list(
-            cfg.cameras or [PerspectiveCameraCfg(eye=cfg.eye, lookat=cfg.lookat, focal_length=cfg.focal_length)]
-        )
-        if not cfg.streaming_view:
+        if not self.cfg.streaming_view:
             return
-        for gt_type in gt_types:
-            sensor_key_for_gt_type(gt_type)
         self._streaming_aspect = target_aspect
-        self._camera_sensor_indices = resolve_streaming_envs(num_envs, cfg.streaming_envs, sample_from=visible_env_ids)
-        cameras = self._scene_data_provider.get_camera_sensors()
-        if cfg.cameras is None:
-            if cfg.streaming_sensor_prim_path is not None:
-                self._camera_choices.insert(0, SceneCameraCfg(prim_path=cfg.streaming_sensor_prim_path))
-            else:
-                for camera in cameras.values():
-                    available = frozenset(camera.cfg.data_types)
-                    if all(sensor_key_for_gt_type(gt, available, required=False) is not None for gt in gt_types):
-                        self._camera_choices.append(camera)
-        for index, source in enumerate(self._camera_choices):
-            if not isinstance(source, SceneCameraCfg):
-                continue
-            path = (
-                expand_env_regex_ns(source.prim_path, self._clone_plan.env_template)
-                if self._clone_plan is not None
-                else expand_env_regex_ns(source.prim_path)
-            )
-            camera = find_camera_by_prim_path(cameras, path, self._camera_sensor_indices)
-            available = frozenset(camera.cfg.data_types)
-            for gt_type in gt_types:
-                sensor_key_for_gt_type(gt_type, available)
-            self._camera_choices[index] = camera
+        self._camera_sensor_indices = resolve_streaming_envs(
+            num_envs, self.cfg.streaming_envs, sample_from=visible_env_ids
+        )
         if select_camera:
             self._camera_sensor = next(
                 (camera for camera in self._camera_choices if not isinstance(camera, PerspectiveCameraCfg)), None
@@ -234,7 +204,7 @@ class BaseVisualizer(ABC):
         self._streaming_host_frame = TimestampedBuffer()
         self._streaming_plan = self._streaming_view_key = None
         self._streaming_keys = ()
-        self._scene_data_provider = self._scene_stage = self._clone_plan = None
+        self._scene_data_provider = self._scene_stage = None
         self._is_closed = True
 
     @abstractmethod

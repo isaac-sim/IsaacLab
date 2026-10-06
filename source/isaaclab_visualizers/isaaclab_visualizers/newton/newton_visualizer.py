@@ -38,8 +38,8 @@ from pyglet.math import Vec3 as PygletVec3
 
 from pxr import Gf, Sdf, Usd
 
-from isaaclab.cloner import ClonePlan
 from isaaclab.scene_data import SceneDataFormat
+from isaaclab.sensors.camera import Camera
 from isaaclab.sim import SimulationContext
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg
@@ -1000,22 +1000,22 @@ class NewtonVisualizer(BaseVisualizer):
         self,
         scene_data_provider: SceneDataProvider,
         *,
+        cameras: list[PerspectiveCameraCfg | Camera],
         stage: Usd.Stage | None = None,
-        clone_plan: ClonePlan | None = None,
     ) -> None:
         """Initialize viewer resources and bind scene data provider.
 
         Args:
             scene_data_provider: Scene data provider used to fetch model/state data.
+            cameras: Resolved perspective settings and borrowed scene sensors, in display order.
             stage: Authored scene stage, when available.
-            clone_plan: Scene topology and environment namespace, when available.
         """
 
         if self._is_initialized:
             logger.debug("[%s] initialize() called while already initialized.", type(self).__name__)
             return
 
-        super().initialize(scene_data_provider, stage=stage, clone_plan=clone_plan)
+        super().initialize(scene_data_provider, cameras=cameras, stage=stage)
         if isinstance(self, NewtonRTXVisualizer) and self.physics_backend in ("physx", "isaacsim_physx"):
             # OVRTX is a kitless renderer and cannot share a process with Kit. "physx" is the
             # runtime name FactoryBase._get_backend() reports for the resolved PhysxManager
@@ -1662,17 +1662,17 @@ class NewtonGLVisualizer(NewtonVisualizer):
         self,
         scene_data_provider: SceneDataProvider,
         *,
+        cameras: list[PerspectiveCameraCfg | Camera],
         stage: Usd.Stage | None = None,
-        clone_plan: ClonePlan | None = None,
     ) -> None:
         """Initialize the GL visualizer and build the streaming camera dropdown.
 
         Args:
             scene_data_provider: Provider for scene data and camera sensors.
+            cameras: Resolved perspective settings and borrowed scene sensors, in display order.
             stage: Authored scene stage, when available.
-            clone_plan: Scene topology and environment namespace, when available.
         """
-        super().initialize(scene_data_provider, stage=stage, clone_plan=clone_plan)
+        super().initialize(scene_data_provider, cameras=cameras, stage=stage)
         self._camera_choices = [
             camera for camera in self._camera_choices if not isinstance(camera, PerspectiveCameraCfg)
         ]
