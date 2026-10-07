@@ -131,17 +131,18 @@ class FeatherPGSSolverCfg(NewtonSolverCfg):
     enable_contact_friction: bool = True
     """Whether contacts get friction rows.
 
-    ``False`` gives every contact a normal row only, which also disables friction patches and contact torsion.
-    Zero friction coefficients instead keep the rows.
+    ``False`` gives every contact a normal row only and disables friction patches; combined with a positive
+    :attr:`contact_torsion_radius` it raises at construction. Zero friction coefficients instead keep the rows.
     """
 
     contact_friction_scale: float = 1.0
     """Non-negative factor applied to every shape's friction coefficient in the solver; the model is unchanged."""
 
     contact_friction_position_iterations: int = -1
-    """Number of final position iterations that solve friction rows; ``-1`` solves them in every iteration.
+    """Number of final position iterations that solve tangential friction rows; ``-1`` solves them in every one.
 
-    Values other than ``-1`` require :attr:`pgs_warmstart` to be ``False``.
+    Earlier position iterations hold those impulses at zero. Velocity-only iterations always solve friction, and the
+    contact-torsion sweep is not delayed. Values other than ``-1`` require :attr:`pgs_warmstart` to be ``False``.
     """
 
     angular_damping: float | None = None
