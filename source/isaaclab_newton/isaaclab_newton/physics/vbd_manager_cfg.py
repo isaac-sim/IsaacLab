@@ -57,6 +57,12 @@ class VBDSolverCfg(NewtonSolverCfg):
     rigid_compliant_alm: bool | None = None
     """Whether to use compliant ALM for rigid joints and contacts; ``None`` preserves Newton's default."""
 
+    rigid_joint_linear_ke: float = 1.0e5
+    """Structural linear stiffness of non-rod rigid joints [N/m], separate from joint-drive gains."""
+
+    rigid_joint_angular_ke: float = 1.0e5
+    """Structural angular stiffness of non-rod rigid joints [N m/rad], separate from joint-drive gains."""
+
     rigid_contact_k_start: float = 1.0e2
     """Initial stiffness seed for rigid-body contacts [N/m]."""
 

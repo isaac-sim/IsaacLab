@@ -27,7 +27,9 @@ For example, run ``uvx isaaclab demo zoo --viz newton_gl`` to explore the catalo
 Programs whose required modules are unavailable, hardware-dependent teleoperation, and
 Kit-only demos are not shown.
 
-For particle-material comparisons and solver guidance, see :ref:`newton-tuning-mpm`.
+For cloth and rigid-soft contact examples, see :ref:`newton-using-vbd` and the
+:ref:`H1 tablecloth expert <tablecloth-h1-expert>`. For particle-material comparisons
+and solver guidance, see :ref:`newton-tuning-mpm`.
 
 Command Builder
 ---------------

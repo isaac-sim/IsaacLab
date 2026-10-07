@@ -231,6 +231,17 @@ OVERRIDES = {
         fixed_physics_backend="newton_xpbd",
         visualizers=("newton_gl",),
     ),
+    "examples/newton_tablecloth.py": ScriptOverride(
+        args=("--max_steps", "2"),
+        fixed_physics_backend="newton_vbd",
+        visualizers=("newton_gl",),
+    ),
+    "examples/tablecloth_h1.py": ScriptOverride(
+        args=("--max_steps", "2"),
+        fixed_physics_backend="newton_vbd",
+        visualizers=("newton_gl",),
+        required_modules=("isaacsim",),
+    ),
     "examples/sensors/cameras.py": ScriptOverride(args=("--num_envs", "1"), startup_timeout=900.0),
     "examples/sensors/multi_mesh_raycaster.py": ScriptOverride(
         args=("--flat_ground",),
