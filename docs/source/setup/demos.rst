@@ -15,8 +15,7 @@ without a source checkout. Start with Zoo to see several robot families and simu
 All programs live under the repository-level ``examples/`` directory: curated showcases in ``examples/demos/``,
 focused programs for learning an API or tuning a feature in directories such as ``examples/mpm/`` and
 ``examples/sensors/``, and shared data in ``examples/assets/``. List focused programs with
-``uvx isaaclab example list`` and run one with ``uvx isaaclab example <name>``. For example, run bin packing with
-``uvx --from 'isaaclab[isaacsim]' isaaclab example bin-packing``.
+``uvx isaaclab example list`` and run one with ``uvx isaaclab example <name>``.
 
 Demo and example commands show the same Isaac Lab startup screen as task playback while
 their simulation initializes. Pass ``--info`` to keep startup messages visible.
