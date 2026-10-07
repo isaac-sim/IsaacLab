@@ -345,7 +345,7 @@ before changing an interface. Apply these rules when adding code or cleaning up 
 * Keep backend selection at shared dispatch boundaries. Use established types, configuration, and
   capability contracts instead of inferring behavior from class-name strings.
 * Keep physics and rendering responsibilities separate and resolve construction requirements before
-  finalization. See :doc:`/source/developer-tools/scene_data_providers` for geometry ownership and
+  finalization. See :doc:`/source/concepts/native-physics-api/scene_data_providers` for geometry ownership and
   :doc:`/source/developer-tools/add_physics_backend` for backend integration.
 * Prefer existing project dependencies and the standard library. Do not add dependencies or compatibility
   layers for hypothetical future uses.

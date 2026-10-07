@@ -404,6 +404,8 @@ html_sidebars = {
 # Keep published links working after guide consolidation.
 isaaclab_doc_redirects = {
     "source/features/docker_cloud": "source/workflows/docker/index",
+    "source/concepts/scene_data_providers": "source/concepts/native-physics-api/scene_data_providers",
+    "source/developer-tools/scene_data_providers": "source/concepts/native-physics-api/scene_data_providers",
     "source/how-to/robots": "source/how-to/write_articulation_cfg",
     "source/tutorials/00_sim/create_empty": "source/how-to/create_empty",
     "source/tutorials/00_sim/launch_app": "source/how-to/launch_app",
