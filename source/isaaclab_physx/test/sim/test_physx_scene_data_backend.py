@@ -25,8 +25,12 @@ def test_pose_publication_refreshes_after_physics_but_reuses_clean_reads(monkeyp
     manager = physx_manager.PhysxManager
     # On-demand capture keeps continuous Fabric writes off; each refresh must enable them while it runs.
     settings = {"/physics/fabricUpdateTransformations": False}
-    fabric = Mock(force_update=Mock(side_effect=lambda *_: refreshes.append(settings["/physics/fabricUpdateTransformations"])))
     refreshes = []
+
+    def record_refresh(*_):
+        refreshes.append(settings["/physics/fabricUpdateTransformations"])
+
+    fabric = Mock(force_update=Mock(side_effect=record_refresh))
     monkeypatch.setattr(manager, "_fabric", fabric)
     backend = physx_manager.PhysxSceneDataBackend()
     transforms = wp.zeros(1, dtype=wp.transformf, device="cpu")
