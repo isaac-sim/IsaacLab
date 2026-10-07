@@ -109,7 +109,7 @@ and the specialist guides below for solver-specific workflows and limitations.
 Start with :doc:`/source/how-to/prepare_asset_for_newton`, then use
 :doc:`/source/concepts/solver-tuning/tune_mjwarp` for the primary validated solver path or
 :doc:`/source/concepts/solver-tuning/tune_kamino` for the beta Kamino path. Experimental
-specialist guides cover :ref:`newton-using-vbd`, :ref:`newton-using-mpm`,
+specialist guides cover :ref:`newton-feather-pgs-solver`, :ref:`newton-using-vbd`, :ref:`newton-using-mpm`,
 :ref:`deformables`, :ref:`warp-environments`, and
 :ref:`warp-env-migration`. Backend developers can also read
 :doc:`/source/developer-tools/extending_newton_solvers`.

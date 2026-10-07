@@ -5,7 +5,14 @@
 
 """Configurations shared by the direct and manager-based Ant environments."""
 
-from isaaclab_newton.physics import KaminoPADMMSolverCfg, MJWarpSolverCfg, NewtonCfg
+from isaaclab_newton.physics import (
+    FeatherPGSSolverCfg,
+    KaminoPADMMSolverCfg,
+    MJWarpSolverCfg,
+    NewtonCfg,
+    NewtonCollisionPipelineCfg,
+    NewtonShapeCfg,
+)
 from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 
@@ -61,6 +68,20 @@ class AntPhysicsCfg(PresetCfg):
     )
     newton_kamino: NewtonCfg = NewtonCfg(
         solver_cfg=KaminoPADMMSolverCfg(sparse_jacobian=True),
+        debug_mode=False,
+        use_cuda_graph=True,
+    )
+    feather_pgs: NewtonCfg = NewtonCfg(
+        solver_cfg=FeatherPGSSolverCfg(
+            enable_joint_limits=True,
+            joint_limit_activation_gap=0.2,
+            pgs_iterations=8,
+            mf_max_constraints=64,
+            pgs_beta=0.05,
+        ),
+        collision_cfg=NewtonCollisionPipelineCfg(rigid_contacts_per_world=8),
+        default_shape_cfg=NewtonShapeCfg(gap=0.003),
+        num_substeps=1,
         debug_mode=False,
         use_cuda_graph=True,
     )

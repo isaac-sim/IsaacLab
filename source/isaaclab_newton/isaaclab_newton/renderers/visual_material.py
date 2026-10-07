@@ -173,9 +173,8 @@ class VisualShapeColorWriter:
         return self._view.model
 
     def rebind(self, model: Model) -> None:
-        """Rebind the shape-color buffer after Newton replaces its model."""
+        """Rebind the view after Newton replaces its model."""
         self._view.model = model
-        self._shape_colors = self._view.get_attribute("shape_color", model)[:, 0]
 
     def __call__(self, colors: torch.Tensor, env_ids: torch.Tensor) -> None:
         """Write colors shaped ``[len(env_ids), body_count, 3]`` with one launch."""
@@ -184,6 +183,9 @@ class VisualShapeColorWriter:
                 wp.stream_from_torch(torch.cuda.current_stream(self.device)) if self.device.type == "cuda" else None
             )
             with wp.ScopedStream(stream, sync_enter=False):
+                # Views of shapes that are not regularly spaced between worlds return gathered copies, which
+                # are read here and scattered back after the write.
+                shape_colors = self._view.get_attribute("shape_color", self.model)
                 wp.launch(
                     _write_shape_colors,
                     dim=(env_ids.numel(), len(self._shape_ids)),
@@ -192,7 +194,8 @@ class VisualShapeColorWriter:
                         wp.from_torch(env_ids, dtype=wp.int32),
                         self._shape_ids,
                         self._body_rows,
-                        self._shape_colors,
+                        shape_colors[:, 0],
                     ],
                     device=self.model.device,
                 )
+                self._view.set_attribute("shape_color", self.model, shape_colors)

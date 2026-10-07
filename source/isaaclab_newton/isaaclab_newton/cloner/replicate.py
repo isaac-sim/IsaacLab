@@ -171,8 +171,6 @@ def _replicate_newton(
             native = source_builders[source]
             pose = dict(pos=wp.vec3(*entry.init_pos), rot=wp.quat(*entry.init_rot), scale=1.0, vel=wp.vec3())
             surface = entry.deformable_type == "surface" or entry.vis_mesh_path != entry.sim_mesh_path
-            particle_start, tri_start = native.particle_count, len(native.tri_indices)
-            edge_start, tet_start = len(native.edge_indices), len(native.tet_indices)
             if surface:
                 add_mesh = native.add_cloth_mesh
                 mesh = dict(vertices=entry.vis_vertices, indices=entry.vis_indices, density=1.0)
@@ -182,13 +180,6 @@ def _replicate_newton(
                 mesh = dict(vertices=entry.vertices, indices=entry.indices, density=1000.0)
                 mesh.update(k_mu=1e5, k_lambda=1e5, k_damp=0.0)
             add_mesh(label=entry.vis_mesh_path, **mesh, **pose)
-            # Remove private recording when the pinned Newton includes #3326.
-            particle_range = particle_start, native.particle_count
-            if surface:
-                tri_range, edge_range = (tri_start, len(native.tri_indices)), (edge_start, len(native.edge_indices))
-                native._record_cloth_group(entry.vis_mesh_path, particle_range, tri_range, edge_range)
-            else:
-                native._record_soft_group(entry.vis_mesh_path, particle_range, (tet_start, len(native.tet_indices)))
 
     # Resolve native capsule indices once per source, not by rediscovering labels after cloning.
     source_cables = {}
@@ -245,9 +236,9 @@ def _replicate_newton(
         geometry = expand_deformable_entries(entries, plan, env_ids, positions)
         ranges = {
             label: start
-            for family in ("cloth", "soft")
+            for family in ("surface", "volume")
             for label, start in zip(
-                getattr(builder, f"_{family}_label"), getattr(builder, f"_{family}_particle_start"), strict=True
+                getattr(builder, f"{family}_label"), getattr(builder, f"_{family}_particle_start"), strict=True
             )
         }
         offsets = [ranges[entry.root_path] for entry in geometry]

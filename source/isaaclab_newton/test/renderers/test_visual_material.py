@@ -5,6 +5,7 @@
 
 """Tests for Newton's compiled visual-material writers."""
 
+import numpy as np
 import torch
 import warp as wp
 from isaaclab_newton.physics import NewtonBackendCfg, NewtonBuilderCfg
@@ -123,6 +124,35 @@ def _articulation_model(num_envs: int = 3):
         scene.add_world(robot)
         paths.append(path)
     return scene.finalize(device="cpu"), tuple(paths)
+
+
+def test_shape_writer_reaches_shapes_that_are_irregularly_spaced() -> None:
+    """Colors reach the model when the view gathers the target's shapes, and other worlds and writers keep theirs."""
+    scene = ModelBuilder()
+    for world, distractor_shapes in enumerate((1, 3, 2, 4)):
+        builder = ModelBuilder()
+        for slot, shape_count in enumerate((2, distractor_shapes)):
+            label = f"/World/envs/env_{world}/Object_{slot}"
+            body = builder.add_link(label=label)
+            for _ in range(shape_count):
+                builder.add_shape_box(body, hx=0.1, hy=0.1, hz=0.1)
+            builder.add_articulation([builder.add_joint_free(child=body)], label=label)
+        scene.add_world(builder)
+    model = scene.finalize(device="cpu")
+    view = ArticulationView(model, "/World/envs/env_*/Object_0", verbose=False)
+    first = VisualShapeColorWriter(model, view, tuple(view.body_names))
+    second = VisualShapeColorWriter(model, view, tuple(view.body_names))
+    original = model.shape_color.numpy().copy()
+
+    first(torch.ones((1, 1, 3)), torch.tensor([2], dtype=torch.int32))
+    second(torch.zeros((1, 1, 3)), torch.tensor([0], dtype=torch.int32))
+    wp.synchronize()
+
+    shape_body = model.shape_body.numpy()
+    expected = original.copy()
+    for world, color in ((2, 1.0), (0, 0.0)):
+        expected[shape_body == model.body_label.index(f"/World/envs/env_{world}/Object_0")] = color
+    np.testing.assert_allclose(model.shape_color.numpy(), expected)
 
 
 def test_shape_writer_samples_each_body_and_selected_environment_independently() -> None:

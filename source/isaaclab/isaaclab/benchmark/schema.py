@@ -35,6 +35,7 @@ PhysicsBackend = Literal[
     "newton_mjwarp",
     "newton_kamino",
     "newton_featherstone",
+    "newton_feather_pgs",
     "newton_xpbd",
     "newton_vbd",
     "newton_mpm",

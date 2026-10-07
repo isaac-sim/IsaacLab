@@ -9,8 +9,10 @@ The pipeline is: resolve the scene config of every task in :data:`DEFAULT_TASKS`
 fold the scenes together with :func:`~isaaclab.scene.add` while skipping every
 task's own light and floor, add one Dome light and one shared ground plane, and
 clone the composition so each environment hosts one task's assets. No task
-environments or MDP managers are constructed; the example owns generic PhysX
-simulation settings.
+environments or MDP managers are constructed; the example owns generic simulation
+settings for the selected physics backend. On Newton, the composition runs on
+FeatherPGS, which accepts worlds that hold different assets, and composes the
+tasks that define a FeatherPGS physics preset.
 
 .. code-block:: bash
 
@@ -20,12 +22,17 @@ simulation settings.
     # Usage with a smaller composition.
     uvx --from 'isaaclab[isaacsim]' isaaclab example heterogeneous-scene --num_task 3 --num_envs 3
 
+    # Usage with Newton FeatherPGS.
+    uvx --from 'isaaclab[isaacsim]' isaaclab example heterogeneous-scene --physics newton_feather_pgs
+
 """
 
 from __future__ import annotations
 
 import argparse
 import sys
+
+from isaaclab_newton.physics import FeatherPGSSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg, NewtonShapeCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.app import add_launcher_args, launch_simulation
@@ -51,7 +58,9 @@ parser.add_argument(
     default=None,
     help="Number of tasks to use from the default order. Omit to use all tasks.",
 )
-parser.add_argument("--physics", default="isaacsim_physx", choices=["isaacsim_physx"], help="Physics backend.")
+parser.add_argument(
+    "--physics", default="isaacsim_physx", choices=["isaacsim_physx", "newton_feather_pgs"], help="Physics backend."
+)
 add_launcher_args(parser)
 parser.set_defaults(visualizer=["kit"])
 args_cli, hydra_args = parser.parse_known_args()
@@ -102,10 +111,14 @@ DEFAULT_TASKS = (
     "IsaacContrib-Open-Drawer-Franka-IK-Rel",
 )
 
+# Tasks composed by default on Newton FeatherPGS: the listed tasks that define a FeatherPGS physics preset.
+FEATHER_PGS_TASKS = ("Isaac-Cartpole", "Isaac-Ant", "Isaac-Velocity-Flat-UnitreeGo2")
+
 
 def _load_task_scenes() -> tuple[list[str], list[InteractiveSceneCfg]]:
     """Resolve the scene config of every selected task."""
-    task_ids = list(DEFAULT_TASKS if args_cli.num_task is None else DEFAULT_TASKS[: args_cli.num_task])
+    tasks = FEATHER_PGS_TASKS if args_cli.physics == "newton_feather_pgs" else DEFAULT_TASKS
+    task_ids = list(tasks if args_cli.num_task is None else tasks[: args_cli.num_task])
     if len(task_ids) < 2:
         raise ValueError("Select at least two task scenes.")
     scene_cfgs = []
@@ -140,10 +153,34 @@ def main() -> None:
     scene_cfg.num_envs = args_cli.num_envs
     scene_cfg.replicate_physics = True
 
-    with launch_simulation(cfg=PhysicsCfg(), launcher_args=args_cli) as physics_cfg:
-        sim = sim_utils.SimulationContext(
-            sim_utils.SimulationCfg(dt=args_cli.sim_dt, device=args_cli.device, physics=physics_cfg)
+    use_feather_pgs = args_cli.physics == "newton_feather_pgs"
+    if use_feather_pgs:
+        # One solver configuration serves every composed task, sized like the largest FeatherPGS preset.
+        physics_cfg = NewtonCfg(
+            solver_cfg=FeatherPGSSolverCfg(
+                pgs_mode="split" if args_cli.device == "cpu" else "matrix_free",
+                enable_joint_limits=True,
+                joint_limit_activation_gap=0.2,
+                pgs_iterations=8,
+                pgs_beta=0.05,
+                dense_max_constraints=96,
+                mf_max_constraints=64,
+            ),
+            collision_cfg=NewtonCollisionPipelineCfg(rigid_contacts_per_world=16),
+            default_shape_cfg=NewtonShapeCfg(gap=0.003),
+            num_substeps=1,
         )
+        # The launcher selects backends by name only among its own; this one is configured here.
+        args_cli.physics = None
+    else:
+        physics_cfg = PhysicsCfg()
+
+    with launch_simulation(cfg=physics_cfg, launcher_args=args_cli) as physics_cfg:
+        # Newton-native actuators need equal joint DOF counts in every environment, which the composition lacks.
+        sim_cfg = sim_utils.SimulationCfg(
+            dt=args_cli.sim_dt, device=args_cli.device, physics=physics_cfg, use_newton_actuators=not use_feather_pgs
+        )
+        sim = sim_utils.SimulationContext(sim_cfg)
         sim.set_camera_view(eye=[6.0, 6.0, 4.0], target=[0.0, 0.0, 0.5])
         scene = instantiate(scene_cfg)
         sim.reset()

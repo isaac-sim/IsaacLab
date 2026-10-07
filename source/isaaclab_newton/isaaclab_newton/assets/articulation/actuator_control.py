@@ -58,9 +58,9 @@ class NewtonActuatorControl(ArticulationActuatorControl):
         if not native_group_names:
             return set()
 
+        SimulationManager.activate_newton_actuator_path(articulation._root_view)
         self._native_actuator_path_active = True
         articulation._has_newton_actuators = True
-        SimulationManager.activate_newton_actuator_path()
 
         return native_group_names
 

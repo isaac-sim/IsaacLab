@@ -275,6 +275,7 @@ def run_config_from_env_cfg(env_cfg: object) -> RunConfig:
         "isaaclab_physx.physics.physx_manager_cfg.PhysxCfg": "physx",
         "isaaclab_ov.physics.ovphysx_manager_cfg.OvPhysxCfg": "ovphysx",
         "isaaclab_newton.physics.featherstone_manager_cfg.FeatherstoneSolverCfg": "newton_featherstone",
+        "isaaclab_newton.physics.feather_pgs_manager_cfg.FeatherPGSSolverCfg": "newton_feather_pgs",
         "isaaclab_newton.physics.xpbd_manager_cfg.XPBDSolverCfg": "newton_xpbd",
         "isaaclab_newton.physics.vbd_manager_cfg.VBDSolverCfg": "newton_vbd",
         "isaaclab_newton.physics.mpm_manager_cfg.MPMSolverCfg": "newton_mpm",

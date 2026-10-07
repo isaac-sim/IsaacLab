@@ -41,6 +41,7 @@ from isaaclab_newton.assets.articulation.joint_coordinates import scatter_joint_
 from isaaclab_newton.physics import NewtonBuilderCfg
 from isaaclab_newton.physics import NewtonManager as SimulationManager
 
+from ..view_layout import require_strided_joint_and_body_rows
 from .actuator_control import NewtonActuatorControl
 from .articulation_data import ArticulationData, _unsupported_fixed_tendon_property
 
@@ -3407,6 +3408,7 @@ class Articulation(BaseArticulation):
             verbose=False,
             exclude_joint_types=[JointType.FREE, JointType.FIXED],
         )
+        require_strided_joint_and_body_rows(self._root_view, self.cfg.prim_path)
 
         # container for data access
         self._data = ArticulationData(self.root_view, self.device)

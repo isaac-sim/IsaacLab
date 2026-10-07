@@ -128,12 +128,48 @@ def _scatter_reset_masks_from_ids(
     fk_mask[articulation_ids[world, arti]] = True
 
 
+@wp.kernel(enable_backward=False)
+def _or_reset_masks_from_view_mask(
+    env_mask: wp.array(dtype=wp.bool),
+    articulation_ids: wp.array2d(dtype=int),
+    world_ids: wp.array(dtype=int),
+    world_mask: wp.array(dtype=wp.bool),
+    fk_mask: wp.array(dtype=wp.bool),
+):
+    """OR a mask over a view's worlds into the model world_mask and fk_mask."""
+    view_world, arti = wp.tid()
+    if env_mask[view_world]:
+        world_mask[world_ids[view_world]] = True
+        fk_mask[articulation_ids[view_world, arti]] = True
+
+
+@wp.kernel(enable_backward=False)
+def _scatter_reset_masks_from_view_ids(
+    env_ids: wp.array(dtype=Any),
+    articulation_ids: wp.array2d(dtype=int),
+    world_ids: wp.array(dtype=int),
+    world_mask: wp.array(dtype=wp.bool),
+    fk_mask: wp.array(dtype=wp.bool),
+):
+    """Scatter-set the model world_mask and fk_mask from indices into a view's worlds."""
+    i, arti = wp.tid()
+    view_world = wp.int32(env_ids[i])
+    world_mask[world_ids[view_world]] = True
+    fk_mask[articulation_ids[view_world, arti]] = True
+
+
 _SCATTER_RESET_MASKS_FROM_IDS_DISPATCHER = IndexKernelDispatcher(_scatter_reset_masks_from_ids, ("env_ids",))
+_SCATTER_RESET_MASKS_FROM_VIEW_IDS_DISPATCHER = IndexKernelDispatcher(_scatter_reset_masks_from_view_ids, ("env_ids",))
 
 
 def _scatter_reset_masks_from_ids_kernel(env_ids: wp.array | torch.Tensor) -> wp.Kernel:
     """Select the reset-mask writer matching the environment selector dtype."""
     return _SCATTER_RESET_MASKS_FROM_IDS_DISPATCHER.select(env_ids)
+
+
+def _scatter_reset_masks_from_view_ids_kernel(env_ids: wp.array | torch.Tensor) -> wp.Kernel:
+    """Select the view reset-mask writer matching the environment selector dtype."""
+    return _SCATTER_RESET_MASKS_FROM_VIEW_IDS_DISPATCHER.select(env_ids)
 
 
 @wp.kernel(enable_backward=False)
@@ -171,15 +207,14 @@ class NewtonBackend:
         builder = SimulationContext.instance().get_or_create_backend(NewtonBuilderCfg(physics_cfg=cfg.physics_cfg))
         self.model = builder.finalize(device=cfg.device)
         self.particle_ranges: dict[str, tuple[int, int]] = {}
-        # Newton 1.6 preserves groups through builder replication but not finalization.
-        # Remove this snapshot when the pinned Newton includes newton-physics/newton#3326.
+        # Newton keeps deformable-object groups on the builder through replication but not on the model.
         self.deformable_ranges = {
             label: (start, end - start, kind)
-            for family, kind in (("cloth", "surface"), ("soft", "volume"))
+            for kind in ("surface", "volume")
             for label, start, end in zip(
-                getattr(builder, f"_{family}_label"),
-                getattr(builder, f"_{family}_particle_start"),
-                getattr(builder, f"_{family}_particle_end"),
+                getattr(builder, f"{kind}_label"),
+                getattr(builder, f"_{kind}_particle_start"),
+                getattr(builder, f"_{kind}_particle_end"),
                 strict=True,
             )
         }
@@ -652,6 +687,9 @@ class NewtonManager(PhysicsManager):
         if not (cls.kinematics_dirty or cls.transforms_may_change_on_graph_replay):
             return
         cls._reset_solver_internals_delegate(cls._world_reset_mask)
+        pipeline = cls._collision_pipeline
+        if pipeline is not None and pipeline.contact_matching != "disabled":
+            pipeline.reset_contact_matching(cls._world_reset_mask)
         cls._eval_fk(cls._world_reset_mask, cls._fk_reset_mask)
         if cls._fk_reset_mask is not None:
             cls._fk_reset_mask.zero_()
@@ -739,6 +777,7 @@ class NewtonManager(PhysicsManager):
             else:
                 with wp.ScopedDevice(device):
                     cls._simulate_full()
+            cls._check_solver_status()
             PhysicsManager._sim_time += physics_dt * cls._decimation
         else:
             # --- Some actuators not graph-safe: step them eagerly, graph solver only ---
@@ -752,6 +791,7 @@ class NewtonManager(PhysicsManager):
             else:
                 with wp.ScopedDevice(device):
                     cls._simulate_physics_only()
+            cls._check_solver_status()
             PhysicsManager._sim_time += physics_dt
 
         # Run the requested step eagerly before capture so lazy GPU allocations happen outside recording.
@@ -762,8 +802,6 @@ class NewtonManager(PhysicsManager):
             NewtonManager._graph_capture_pending = False
 
         cls._mark_transforms_changed()
-
-        cls._check_solver_status()
 
         # Launch solver-specific debug logging after stepping.
         cls._log_solver_debug()
@@ -1052,7 +1090,11 @@ class NewtonManager(PhysicsManager):
 
     @classmethod
     def invalidate_fk(
-        cls, env_mask: wp.array | None = None, env_ids: wp.array | None = None, articulation_ids: wp.array | None = None
+        cls,
+        env_mask: wp.array | None = None,
+        env_ids: wp.array | None = None,
+        articulation_ids: wp.array | None = None,
+        world_ids: wp.array | None = None,
     ) -> None:
         """Mark environments as needing FK recomputation and solver reset.
 
@@ -1068,6 +1110,9 @@ class NewtonManager(PhysicsManager):
             articulation_ids: Mapping from ``(world, arti)`` to model articulation
                 index. Shape ``(world_count, count_per_world)``. Obtained from
                 ``ArticulationView.articulation_ids``.
+            world_ids: Model world of each view world, for a view that covers only some worlds
+                (``ArticulationView.world_ids`` when ``is_sparse``). ``env_mask`` and ``env_ids``
+                then index the view's worlds. Shape ``(world_count,)``.
         """
         cls._mark_transforms_changed()
 
@@ -1075,7 +1120,23 @@ class NewtonManager(PhysicsManager):
             return
         NewtonManager.kinematics_dirty = True
 
-        if articulation_ids is not None and env_mask is not None:
+        if articulation_ids is not None and world_ids is not None and env_mask is not None:
+            wp.launch(
+                _or_reset_masks_from_view_mask,
+                dim=articulation_ids.shape,
+                inputs=[env_mask, articulation_ids, world_ids],
+                outputs=[NewtonManager._world_reset_mask, NewtonManager._fk_reset_mask],
+                device=PhysicsManager._device,
+            )
+        elif articulation_ids is not None and world_ids is not None and env_ids is not None:
+            wp.launch(
+                _scatter_reset_masks_from_view_ids_kernel(env_ids),
+                dim=(env_ids.shape[0], articulation_ids.shape[1]),
+                inputs=[env_ids, articulation_ids, world_ids],
+                outputs=[NewtonManager._world_reset_mask, NewtonManager._fk_reset_mask],
+                device=PhysicsManager._device,
+            )
+        elif articulation_ids is not None and env_mask is not None:
             wp.launch(
                 _or_reset_masks_from_mask,
                 dim=articulation_ids.shape,
@@ -1349,10 +1410,7 @@ class NewtonManager(PhysicsManager):
         """
         if not cls._needs_collision_pipeline:
             return
-        pipeline_args = {"broad_phase": "explicit"}
-        if cls._collision_cfg is not None:
-            pipeline_args = cls._collision_cfg.to_pipeline_args()
-        pipeline_args["deterministic"] = cls._deterministic_mode != wp.DeterministicMode.NOT_GUARANTEED
+        pipeline_args = cls._collision_pipeline_args()
         if cls._collision_pipeline is None:
             NewtonManager._collision_pipeline = CollisionPipeline(cls.backend.model, **pipeline_args)
         if cls._contacts is None:
@@ -1367,7 +1425,7 @@ class NewtonManager(PhysicsManager):
             if _solver is not None and hasattr(_solver, "get_max_contact_count"):
                 _need = _solver.get_max_contact_count()
                 if _need > NewtonManager._contacts.rigid_contact_max:
-                    if cls._deterministic_mode != wp.DeterministicMode.NOT_GUARANTEED:
+                    if cls._collision_pipeline.deterministic:
                         # In deterministic mode, CollisionPipeline sizes _sort_key_array from rigid_contact_max at
                         # construction. Rebuild so the sort and contact buffers retain matching capacity; replacing
                         # Contacts alone would leave the sorting buffer undersized.
@@ -1381,6 +1439,20 @@ class NewtonManager(PhysicsManager):
                             device=PhysicsManager._device,
                             requested_attributes=cls.backend.model.get_requested_contact_attributes(),
                         )
+
+    @classmethod
+    def _collision_pipeline_args(cls) -> dict[str, Any]:
+        """Return the keyword arguments of the :class:`CollisionPipeline` built for the model.
+
+        Solver managers extend this when the solver needs collision options that the collision configuration
+        does not own.
+        """
+        pipeline_args = {"broad_phase": "explicit"}
+        if cls._collision_cfg is not None:
+            pipeline_args = cls._collision_cfg.to_pipeline_args(world_count=cls.backend.model.world_count)
+        if cls._deterministic_mode != wp.DeterministicMode.NOT_GUARANTEED:
+            pipeline_args["deterministic"] = True
+        return pipeline_args
 
     # ----- Solver construction (subclass contract) ------------------------
 
@@ -1542,8 +1614,8 @@ class NewtonManager(PhysicsManager):
     def _check_solver_status(cls) -> None:
         """Raise solver-specific asynchronous failures after stepping.
 
-        Default no-op. Subclasses override when a solver requires a host-side
-        status check after CUDA graph replay.
+        Runs outside graph capture after each eager or replayed step dispatch, before the simulation time
+        advances. Default no-op; subclasses override when a solver reports failures through device-side status.
         """
 
     @classmethod
@@ -1665,6 +1737,14 @@ class NewtonManager(PhysicsManager):
     # ------------------------------------------------------------------
 
     @classmethod
+    def _collide(cls, state: State, contacts: Contacts) -> None:
+        """Generate contacts for ``state`` with the collision pipeline.
+
+        Solver managers override this when collision generation needs solver-specific timing.
+        """
+        cls._collision_pipeline.collide(state, contacts)
+
+    @classmethod
     def _run_solver_substeps(cls, contacts) -> None:
         """Run ``num_substeps`` solver iterations, handling double-buffered state swap."""
         backend = cls.backend
@@ -1680,7 +1760,7 @@ class NewtonManager(PhysicsManager):
                 cls._step_solver(backend.state_0, backend.state_0, backend.control, contacts, cls._solver_dt)
                 backend.state_0.clear_forces()
                 if collide_mid_loop and (i + 1) % collide_every == 0 and i + 1 < cls._num_substeps:
-                    cls._collision_pipeline.collide(backend.state_0, contacts)
+                    cls._collide(backend.state_0, contacts)
         else:
             cfg = PhysicsManager._cfg
             need_copy_on_last = cfg is not None and cls._num_substeps % 2 == 1
@@ -1694,7 +1774,7 @@ class NewtonManager(PhysicsManager):
                     backend.state_0, backend.state_1 = backend.state_1, backend.state_0
                 backend.state_0.clear_forces()
                 if collide_mid_loop and (i + 1) % collide_every == 0 and i + 1 < cls._num_substeps:
-                    cls._collision_pipeline.collide(backend.state_0, contacts)
+                    cls._collide(backend.state_0, contacts)
 
     @classmethod
     def _update_sensors(cls, contacts) -> None:
@@ -1723,7 +1803,7 @@ class NewtonManager(PhysicsManager):
 
         for i in range(cls._decimation):
             if cls._needs_collision_pipeline:
-                cls._collision_pipeline.collide(cls.backend.state_0, cls._contacts)
+                cls._collide(cls.backend.state_0, cls._contacts)
 
             if cls._adapter is not None:
                 cls._adapter.step(
@@ -1749,7 +1829,7 @@ class NewtonManager(PhysicsManager):
         there are no actuators at all.
         """
         if cls._needs_collision_pipeline:
-            cls._collision_pipeline.collide(cls.backend.state_0, cls._contacts)
+            cls._collide(cls.backend.state_0, cls._contacts)
             contacts = cls._contacts
         else:
             contacts = None
@@ -1840,7 +1920,7 @@ class NewtonManager(PhysicsManager):
         return cls._adapter is None or cls._adapter.is_all_graphable
 
     @classmethod
-    def activate_newton_actuator_path(cls) -> None:
+    def activate_newton_actuator_path(cls, view: ArticulationView | None = None) -> None:
         """Opt an articulation into the Newton actuator fast path.
 
         Idempotent — called by every Newton-fast-path articulation's
@@ -1852,7 +1932,15 @@ class NewtonManager(PhysicsManager):
         2. On first call, builds the single sim-level
            :class:`NewtonActuatorAdapter` over the full flat DOF layout;
            later calls reuse it.
+
+        Args:
+            view: View of the articulation taking the path. The adapter addresses every environment, so a
+                view that covers only some of them raises.
         """
+        if view is not None and view.is_sparse:
+            raise ValueError(
+                "Newton-native actuators need the articulation in every environment; set use_newton_actuators=False."
+            )
         # Shared state lives on the base class so all readers (including
         # framework code that imports ``NewtonManager`` directly) see the
         # same flag regardless of which solver subclass is active.
@@ -1864,6 +1952,12 @@ class NewtonManager(PhysicsManager):
             return
         from isaaclab.actuators.newton import NewtonActuatorAdapter  # noqa: PLC0415
 
+        # The adapter lays the actuator buffers out with one DOF stride for every environment.
+        dof_counts = np.diff(cls.backend.model.joint_dof_world_start.numpy()[: cls._num_envs + 1])
+        if np.any(dof_counts != dof_counts[0]):
+            raise ValueError(
+                "Newton-native actuators need equal environment DOF counts; set use_newton_actuators=False."
+            )
         dofs_per_env = cls.backend.model.joint_dof_count // cls._num_envs
         NewtonManager._adapter = NewtonActuatorAdapter(
             actuators=list(cls.backend.model.actuators),

@@ -84,7 +84,13 @@ class RigidObjectData(BaseRigidObjectData):
         # The final entry is reserved for Newton's global world and is not an
         # Isaac Lab environment.
         model = SimulationManager.get_model()
-        self.GRAVITY_VEC_W = ProxyArray(model.gravity[: model.world_count])
+        # A view of only some worlds reads their gravity through a copy that every update refreshes.
+        self._view_world_ids = self._root_view.world_ids if self._root_view.is_sparse else None
+        if self._view_world_ids is None:
+            self.GRAVITY_VEC_W = ProxyArray(model.gravity[: model.world_count])
+        else:
+            self.GRAVITY_VEC_W = ProxyArray(wp.empty(self._root_view.world_count, dtype=wp.vec3f, device=self.device))
+            self._gather_view_gravity()
         forward_vec = np.full((self._root_view.count, 3), (1.0, 0.0, 0.0), dtype=np.float32)
         self.FORWARD_VEC_B = ProxyArray(wp.array(forward_vec, dtype=wp.vec3f, device=self.device))
 
@@ -121,9 +127,22 @@ class RigidObjectData(BaseRigidObjectData):
         """
         # update the simulation timestamp
         self._sim_timestamp += dt
+        self._gather_view_gravity()
         # Trigger an update of the body com acceleration buffer at a higher frequency
         # since we do finite differencing.
         self.body_com_acc_w
+
+    def _gather_view_gravity(self) -> None:
+        """Copy the gravity of this view's worlds into :attr:`GRAVITY_VEC_W` for a view of only some worlds."""
+        if self._view_world_ids is None:
+            return
+        wp.launch(
+            shared_kernels.gather_world_gravity,
+            dim=self._root_view.world_count,
+            inputs=[SimulationManager.get_model().gravity, self._view_world_ids],
+            outputs=[self.GRAVITY_VEC_W.warp],
+            device=self.device,
+        )
 
     def _reset_pose(
         self,
@@ -159,7 +178,10 @@ class RigidObjectData(BaseRigidObjectData):
             ]
         )
         SimulationManager.invalidate_fk(
-            env_mask=env_mask, env_ids=env_ids, articulation_ids=self._root_view.articulation_ids
+            env_mask=env_mask,
+            env_ids=env_ids,
+            articulation_ids=self._root_view.articulation_ids,
+            world_ids=self._view_world_ids,
         )
 
     def _reset_velocity(
@@ -189,7 +211,10 @@ class RigidObjectData(BaseRigidObjectData):
             ]
         )
         SimulationManager.invalidate_fk(
-            env_mask=env_mask, env_ids=env_ids, articulation_ids=self._root_view.articulation_ids
+            env_mask=env_mask,
+            env_ids=env_ids,
+            articulation_ids=self._root_view.articulation_ids,
+            world_ids=self._view_world_ids,
         )
 
     def _reset_body_com_pose_b_dependents(self) -> None:

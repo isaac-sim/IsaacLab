@@ -33,6 +33,7 @@ from isaaclab_newton.assets.articulation import articulation as articulation_mod
 from isaaclab_newton.assets.rigid_object import rigid_object as rigid_object_module
 from isaaclab_newton.cloner import newton_physics_replicate
 from isaaclab_newton.physics import (
+    FeatherPGSSolverCfg,
     FeatherstoneSolverCfg,
     KaminoDVICfg,
     KaminoDVISolverCfg,
@@ -44,6 +45,7 @@ from isaaclab_newton.physics import (
     NewtonBuilderCfg,
     NewtonCfg,
     NewtonCollisionPipelineCfg,
+    NewtonFeatherPGSManager,
     NewtonFeatherstoneManager,
     NewtonKaminoManager,
     NewtonManager,
@@ -244,6 +246,7 @@ def test_deterministic_collision_pipeline_matches_expanded_contact_capacity(
         def __init__(self, _model, **kwargs):
             pipeline_calls.append(kwargs)
             self._rigid_contact_max = kwargs.get("rigid_contact_max", 1)
+            self.deterministic = kwargs["deterministic"]
 
         def contacts(self):
             return SimpleNamespace(rigid_contact_max=self._rigid_contact_max)
@@ -663,12 +666,13 @@ def test_mpm_prepare_builder_converts_convex_mesh_before_solver_construction():
     [
         pytest.param(NewtonMJWarpManager, MJWarpSolverCfg(), 0.11, 0.23, id="mjwarp"),
         pytest.param(NewtonFeatherstoneManager, FeatherstoneSolverCfg(), 0.0, 0.0, id="featherstone"),
+        pytest.param(NewtonFeatherPGSManager, FeatherPGSSolverCfg(), 0.11, 0.23, id="feather_pgs"),
     ],
 )
 def test_production_imports_scope_mujoco_joint_properties(
     monkeypatch, manager_cls, solver_cfg, expected_friction, expected_damping
 ):
-    """Only MJWarp imports MuJoCo joint properties through clone-plan construction."""
+    """Only MJWarp and FeatherPGS import MuJoCo joint properties through clone-plan construction."""
     from pxr import Sdf, Usd, UsdGeom, UsdPhysics
 
     stage = Usd.Stage.CreateInMemory()
@@ -731,6 +735,7 @@ def test_production_imports_scope_mujoco_joint_properties(
     [
         pytest.param(NewtonMJWarpManager, True, id="mjwarp"),
         pytest.param(NewtonFeatherstoneManager, False, id="featherstone"),
+        pytest.param(NewtonFeatherPGSManager, True, id="feather_pgs"),
     ],
 )
 def test_schema_resolver_policy_and_precedence(manager_cls, imports_mujoco):
@@ -858,8 +863,8 @@ def test_mpm_cuda_graph_capture_supports_static_topology(monkeypatch, overrides,
     assert NewtonMPMManager._supports_cuda_graph_capture() is expected
 
 
-def test_mpm_status_check_runs_only_after_graph_capture(monkeypatch):
-    """Sparse-grid asynchronous failures are queried only after graph replay."""
+def test_mpm_status_check_runs_with_and_without_a_captured_graph(monkeypatch):
+    """Sparse-grid failures are queried after eager dispatches and after graph replay."""
     calls = []
     solver = SimpleNamespace(check_sparse_grid_rebuild_status=lambda: calls.append("check"))
     monkeypatch.setattr(NewtonMPMManager, "_implicit_mpm_solvers", classmethod(lambda cls: (solver,)))
@@ -869,7 +874,7 @@ def test_mpm_status_check_runs_only_after_graph_capture(monkeypatch):
     monkeypatch.setattr(NewtonManager, "_graph", object())
     NewtonMPMManager._check_solver_status()
 
-    assert calls == ["check"]
+    assert calls == ["check", "check"]
 
 
 def test_nested_mpm_solver_discovery_is_cached(monkeypatch):

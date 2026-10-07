@@ -5,7 +5,7 @@
 
 """Configurations shared by the direct and manager-based cartpole environments."""
 
-from isaaclab_newton.physics import KaminoPADMMSolverCfg, MJWarpSolverCfg, NewtonCfg
+from isaaclab_newton.physics import FeatherPGSSolverCfg, KaminoPADMMSolverCfg, MJWarpSolverCfg, NewtonCfg
 from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 
@@ -47,6 +47,14 @@ class CartpolePhysicsCfg(PresetCfg):
     )
     newton_kamino: NewtonCfg = NewtonCfg(
         solver_cfg=KaminoPADMMSolverCfg(sparse_jacobian=True),
+        debug_mode=False,
+        use_cuda_graph=True,
+    )
+    feather_pgs: NewtonCfg = NewtonCfg(
+        solver_cfg=FeatherPGSSolverCfg(
+            enable_joint_limits=True, joint_limit_activation_gap=0.2, pgs_iterations=8, pgs_beta=0.05
+        ),
+        num_substeps=1,
         debug_mode=False,
         use_cuda_graph=True,
     )
