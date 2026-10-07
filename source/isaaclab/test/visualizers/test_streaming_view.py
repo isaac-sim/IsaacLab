@@ -14,7 +14,7 @@ import torch
 import warp as wp
 from matplotlib import colormaps
 
-from isaaclab.envs.utils.camera_colorizer import CameraFrameColorizer, sensor_key_for_gt_type, sensor_keys_for_gt_types
+from isaaclab.envs.utils.camera_colorizer import CameraFrameColorizer, sensor_key_for_gt_type
 from isaaclab.envs.utils.camera_view import compose_streaming_grid
 from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils.images import compose_image
@@ -71,10 +71,6 @@ def test_sensor_key_missing_or_unknown():
     assert sensor_key_for_gt_type("depth", frozenset({"rgb"}), required=False) is None
     with pytest.raises(ValueError):
         sensor_key_for_gt_type("optical_flow")
-
-
-def test_sensor_keys_for_gt_types_deduplication():
-    assert sensor_keys_for_gt_types(["rgb", "depth", "rgb"]) == ["rgb", "depth"]
 
 
 @pytest.mark.parametrize(

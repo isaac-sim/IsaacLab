@@ -63,26 +63,6 @@ def sensor_key_for_gt_type(
     )
 
 
-def sensor_keys_for_gt_types(gt_types: list[str]) -> list[str]:
-    """Return deduplicated ``CameraCfg.data_types`` list for the given GT types.
-
-    Args:
-        gt_types: List of streaming GT types (e.g. ``["rgb", "depth"]``).
-
-    Returns:
-        Ordered, deduplicated sensor data-type strings suitable for
-        ``CameraCfg(data_types=...)``.
-    """
-    seen: set[str] = set()
-    keys: list[str] = []
-    for gt in gt_types:
-        key = _GT_TO_SENSOR_KEY.get(gt)
-        if key and key not in seen:
-            keys.append(key)
-            seen.add(key)
-    return keys
-
-
 class CameraFrameColorizer:
     """Colorize raw camera sensor frames for streaming display.
 

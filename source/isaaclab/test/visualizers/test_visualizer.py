@@ -10,9 +10,7 @@ from __future__ import annotations
 import importlib.util
 
 import pytest
-import torch
 
-from isaaclab.envs.utils.camera_view import apply_camera_view_from_origins
 from isaaclab.utils.string import ResolvableString
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg, SceneCameraCfg, VisualizerCfg
@@ -104,9 +102,8 @@ _HAS_ISAACLAB_VIZ = importlib.util.find_spec("isaaclab_visualizers") is not None
 
 
 class _FakeProvider:
-    def __init__(self, num_envs: int = 0, transforms: dict | None = None):
+    def __init__(self, num_envs: int = 0):
         self._num_envs = num_envs
-        self._transforms = transforms
 
     @property
     def num_envs(self) -> int:
@@ -114,36 +111,6 @@ class _FakeProvider:
 
     def get_metadata(self) -> dict:
         return {"num_envs": self._num_envs}
-
-    def get_camera_transforms(self):
-        return self._transforms
-
-
-class _FakeCamera:
-    device = "cpu"
-
-    def __init__(self):
-        self.set_world_poses_from_view_calls = []
-        self.update_poses_calls = []
-
-    def set_world_poses_from_view(self, eyes, targets, env_ids=None):
-        self.set_world_poses_from_view_calls.append((eyes.clone(), targets.clone(), env_ids))
-
-    def _update_poses(self, dt):
-        self.update_poses_calls.append(dt)
-
-
-def test_apply_camera_view_from_origins_forwards_env_ids():
-    camera = _FakeCamera()
-    origins = torch.tensor([[1.0, 2.0, 3.0]])
-
-    apply_camera_view_from_origins(camera, origins, eye=(0.5, 0.0, 1.0), lookat=(0.0, 0.0, 0.0), env_ids=[2])
-
-    eyes, targets, env_ids = camera.set_world_poses_from_view_calls[0]
-    assert eyes.tolist() == [[1.5, 2.0, 4.0]]
-    assert targets.tolist() == [[1.0, 2.0, 3.0]]
-    assert env_ids == [2]
-    assert camera.update_poses_calls == [None]
 
 
 def test_compute_visualized_env_ids_cap_only_returns_none():
@@ -182,19 +149,6 @@ def test_compute_visualized_env_ids_random_cap_only_sorted_once():
     viz2 = _DummyVisualizer(cfg_explicit)
     viz2._scene_data_provider = _FakeProvider(num_envs=10)
     assert viz2._compute_visualized_env_ids() == [1, 5]
-
-
-def test_resolve_camera_pose_from_usd_path_uses_provider_transforms():
-    transforms = {
-        "order": ["/World/envs/env_%d/Camera"],
-        "positions": [[[1.0, 2.0, 3.0]]],
-        "orientations": [[[0.0, 0.0, 0.0, 1.0]]],
-    }
-    viz = _DummyVisualizer(_make_cfg())
-    viz._scene_data_provider = _FakeProvider(num_envs=1, transforms=transforms)
-    pos, target = viz._resolve_camera_pose_from_usd_path("/World/envs/env_0/Camera")
-    assert pos == (1.0, 2.0, 3.0)
-    assert target == pytest.approx((1.0, 2.0, 2.0))
 
 
 def test_physics_backend_returns_none_without_simulation_context():

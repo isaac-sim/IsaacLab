@@ -11,7 +11,6 @@ import logging
 import math
 import os
 import random
-import re
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
@@ -40,7 +39,6 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _USD_DEFAULT_VERTICAL_APERTURE_MM = 15.2908
-_ENV_CAMERA_PATH_PATTERN = re.compile(r"(?P<root>/World/envs/env_)(?P<id>\d+)(?P<path>/.*)")
 
 
 class BaseVisualizer(ABC):
@@ -443,9 +441,7 @@ class BaseVisualizer(ABC):
         """
         pass
 
-    def _resolve_cfg_camera_pose(
-        self, _visualizer_name: str
-    ) -> tuple[tuple[float, float, float], tuple[float, float, float]]:
+    def _resolve_initial_camera_pose(self) -> tuple[tuple[float, float, float], tuple[float, float, float]]:
         """Resolve camera pose from cfg eye/lookat fields."""
         eye = tuple(float(v) for v in self.cfg.eye)
         lookat = tuple(float(v) for v in self.cfg.lookat)
@@ -457,100 +453,6 @@ class BaseVisualizer(ABC):
         if focal_length <= 0.0:
             raise ValueError("VisualizerCfg.focal_length must be positive.")
         return math.degrees(2.0 * math.atan(_USD_DEFAULT_VERTICAL_APERTURE_MM / (2.0 * focal_length)))
-
-    def _resolve_camera_pose_from_usd_path(
-        self, usd_path: str
-    ) -> tuple[tuple[float, float, float], tuple[float, float, float]] | None:
-        """Resolve camera pose/target from provider camera transforms.
-
-        Args:
-            usd_path: Concrete USD camera path.
-
-        Returns:
-            Eye/target tuple when available, otherwise ``None``.
-        """
-        if self._scene_data_provider is None:
-            return None
-        transforms = self._scene_data_provider.get_camera_transforms()
-        if not transforms:
-            return None
-
-        env_id, template_path = self._resolve_template_camera_path(usd_path)
-        camera_transform = self._lookup_camera_transform(transforms, template_path, env_id)
-        if camera_transform is None:
-            return None
-        pos, ori = camera_transform
-
-        pos_t = (float(pos[0]), float(pos[1]), float(pos[2]))
-        ori_t = (float(ori[0]), float(ori[1]), float(ori[2]), float(ori[3]))
-        forward = self._quat_rotate_vec(ori_t, (0.0, 0.0, -1.0))
-        target = (pos_t[0] + forward[0], pos_t[1] + forward[1], pos_t[2] + forward[2])
-        return pos_t, target
-
-    def _resolve_template_camera_path(self, usd_path: str) -> tuple[int, str]:
-        """Normalize concrete env camera path to templated camera path.
-
-        Args:
-            usd_path: Concrete USD camera path.
-
-        Returns:
-            Tuple of environment id and templated camera path.
-        """
-        if match := _ENV_CAMERA_PATH_PATTERN.match(usd_path):
-            return int(match.group("id")), match.group("root") + "%d" + match.group("path")
-        return 0, usd_path
-
-    def _lookup_camera_transform(
-        self, transforms: dict[str, Any], template_path: str, env_id: int
-    ) -> tuple[list[float], list[float]] | None:
-        """Fetch camera position/orientation for a templated path and environment.
-
-        Args:
-            transforms: Camera transform dictionary from provider.
-            template_path: Templated camera path.
-            env_id: Environment id to query.
-
-        Returns:
-            Position/orientation tuple when available, otherwise ``None``.
-        """
-        order = transforms.get("order", [])
-        positions = transforms.get("positions", [])
-        orientations = transforms.get("orientations", [])
-
-        if template_path not in order:
-            return None
-        idx = order.index(template_path)
-        if idx >= len(positions) or idx >= len(orientations):
-            return None
-        if env_id < 0 or env_id >= len(positions[idx]):
-            return None
-        pos = positions[idx][env_id]
-        ori = orientations[idx][env_id]
-        if pos is None or ori is None:
-            return None
-        return pos, ori
-
-    @staticmethod
-    def _quat_rotate_vec(
-        quat_xyzw: tuple[float, float, float, float], vec: tuple[float, float, float]
-    ) -> tuple[float, float, float]:
-        """Rotate a vector by a quaternion.
-
-        Args:
-            quat_xyzw: Quaternion in xyzw order.
-            vec: Input vector.
-
-        Returns:
-            Rotated vector.
-        """
-        import torch
-
-        from ..utils.math import quat_apply
-
-        quat = torch.tensor(quat_xyzw, dtype=torch.float32).unsqueeze(0)
-        vector = torch.tensor(vec, dtype=torch.float32).unsqueeze(0)
-        rotated = quat_apply(quat, vector)[0]
-        return (float(rotated[0]), float(rotated[1]), float(rotated[2]))
 
     def reset(self, soft: bool = False) -> None:
         """Reset visualizer state.

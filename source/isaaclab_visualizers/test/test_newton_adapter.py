@@ -242,6 +242,7 @@ def test_visualizers_borrow_scene_camera_outputs(monkeypatch):
         cameras = resolve_camera_sources(cfg, camera_sensors, env_template="/Scenes/world_{}")
         BaseVisualizer.initialize(visualizer, provider, cameras=cameras)
         assert not hasattr(visualizer, "_clone_plan")
+        assert not hasattr(visualizer, "_resolve_camera_pose_from_usd_path")
         assert not hasattr(visualizer, "_streaming_params")
         visualizer._setup_streaming_view(4)
         assert visualizer._camera_sensor is camera

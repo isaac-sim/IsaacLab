@@ -350,7 +350,6 @@ class ViserVisualizer(BaseVisualizer):
         self._pending_camera_pose: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
         self._resolved_visible_env_ids: list[int] | None = None
         self._warned_marker_render_failure = False
-        self._live_plots_checkboxes: dict[str, Any] = {}  # unused; kept for subclass compatibility
         self._paused_rendering = False
         self._paused_simulation = False
 
@@ -712,10 +711,6 @@ class ViserVisualizer(BaseVisualizer):
             else:
                 logger.warning("[ViserVisualizer] Recording file not found: %s", self._active_record_path)
         self._viewer = None
-
-    def _resolve_initial_camera_pose(self) -> tuple[tuple[float, float, float], tuple[float, float, float]]:
-        """Resolve initial camera pose from config."""
-        return self._resolve_cfg_camera_pose("ViserVisualizer")
 
     def _try_apply_viser_camera_view(self, pose: tuple[tuple[float, float, float], tuple[float, float, float]]) -> bool:
         """Try applying camera pose to active viser clients.

@@ -422,16 +422,10 @@ class RerunVisualizer(BaseVisualizer):
             finally:
                 self._viewer.end_frame()
 
-        # Push streaming outside the pause-gate so it updates even when the
-        # Newton viewer is paused, and outside begin/end_frame so the rr.log
-        # call is not constrained to the viewer's internal time context.
-        # When paused, only compose (update _streaming_frame for any
-        # render_tiled_rgb_array() consumer) without re-logging to Rerun —
-        # the viewer already holds the last frame.
-        if self._viewer.is_paused():
-            self.render_tiled_rgb_array()
-        else:
-            self._push_streaming_frame()
+        # Compose outside the viewer frame context; paused viewers keep their last logged image.
+        composite = self.render_tiled_rgb_array()
+        if composite is not None and not self._viewer.is_paused():
+            rr.log("streaming/view", rr.Image(composite))
 
     def reset(self, soft: bool = False) -> None:
         """Rebind the viewer when a hard reset replaces the shared native model."""
@@ -479,20 +473,6 @@ class RerunVisualizer(BaseVisualizer):
         if self._viewer is None:
             return False
         return self._viewer.is_running()
-
-    # ------------------------------------------------------------------
-    # Streaming view
-    # ------------------------------------------------------------------
-
-    def _push_streaming_frame(self) -> None:
-        """Compose the streaming frame and log it to Rerun."""
-        composite = self.render_tiled_rgb_array()
-        if composite is not None:
-            rr.log("streaming/view", rr.Image(composite))
-
-    def _resolve_initial_camera_pose(self) -> tuple[tuple[float, float, float], tuple[float, float, float]]:
-        """Resolve initial camera pose from config."""
-        return self._resolve_cfg_camera_pose("RerunVisualizer")
 
     def _apply_camera_pose(self, pose: tuple[tuple[float, float, float], tuple[float, float, float]]) -> None:
         """Apply camera pose to rerun's 3D view controls.

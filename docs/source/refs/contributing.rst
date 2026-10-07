@@ -262,6 +262,7 @@ before changing an interface. Apply these rules when adding code or cleaning up 
   a one-line helper merely to rename an obvious operation. Introduce a helper when it removes meaningful
   duplication or gives a coherent, non-trivial operation a useful name; its benefit should outweigh the
   need to jump to another definition to understand the caller.
+  When retiring a workflow, remove its unused helper chains and tests that only preserve those helpers.
 * Prefer direct attribute access and assignment (``obj.value`` and ``obj.value = value``). Use ``getattr``
   and ``setattr`` only when dynamic attribute access is required, such as when the attribute name is
   determined at runtime. Do not use them for known attributes or use default values to hide a missing

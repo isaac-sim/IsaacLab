@@ -80,15 +80,6 @@ def _configure_visualizers(env_cfg, args_cli: argparse.Namespace) -> None:
     ]
 
 
-def _resolve_task(args_cli: argparse.Namespace) -> str:
-    """Resolve the task for the selected visualizer."""
-    if args_cli.task is not None:
-        return args_cli.task
-    if "newton_gl" in args_cli.visualizer:
-        return NEWTON_DEFAULT_TASK
-    return KIT_DEFAULT_TASK
-
-
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Showcase the Kit/Newton visualizer tiled camera panel.")
 parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
@@ -97,7 +88,8 @@ parser.add_argument("--task", type=str, default=None, help="Name of the task.")
 add_launcher_args(parser)
 parser.set_defaults(visualizer=["kit"])
 args_cli, hydra_args = setup_preset_cli(parser)
-args_cli.task = _resolve_task(args_cli)
+if args_cli.task is None:
+    args_cli.task = NEWTON_DEFAULT_TASK if "newton_gl" in args_cli.visualizer else KIT_DEFAULT_TASK
 sys.argv = [sys.argv[0]] + hydra_args
 
 

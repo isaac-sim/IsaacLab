@@ -2634,6 +2634,12 @@ The corresponding ``tiled_cam_eye`` and ``tiled_cam_target_prim_path`` aliases a
 Visualizers only display the selected sensor's output; they no longer create a renderer or
 camera, force a capture, or remove camera prims on close. See :doc:`/source/features/visualizer_tiled_camera`.
 
+The generated-camera helpers ``resolve_tiled_env_indices``, ``resolve_mono_env_index``,
+``compute_tile_resolution``, ``apply_camera_view_from_origins``, and ``sensor_keys_for_gt_types``
+have also been removed. Declare resolution, output channels, and initial pose in ``CameraCfg``.
+Use ``resolve_streaming_envs`` for display tile selection and ``Camera.set_world_poses_from_view``
+for explicit sensor pose updates.
+
 
 .. code-block:: python
 

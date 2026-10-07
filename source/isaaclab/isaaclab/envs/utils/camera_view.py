@@ -27,38 +27,6 @@ if TYPE_CHECKING:
 VISUALIZER_TILED_CAMERA_MAX_TILES = 100
 
 
-def resolve_tiled_env_indices(
-    num_envs: int,
-    streaming_envs: int | list[int],
-    env_indices: list[int] | None,
-    max_tiles: int | None = None,
-    sample_from: list[int] | None = None,
-) -> list[int]:
-    """Resolve env ids for streaming camera view once at visualizer initialization."""
-    if num_envs <= 0:
-        return []
-    _max_envs = len(streaming_envs) if isinstance(streaming_envs, list) else int(streaming_envs)
-    if env_indices is not None:
-        max_count = min(max(1, _max_envs), num_envs)
-        if max_tiles is not None:
-            max_count = min(max_count, max(1, int(max_tiles)))
-        return [idx for idx in env_indices if 0 <= int(idx) < num_envs][:max_count]
-    candidates = [
-        idx for idx in (sample_from if sample_from is not None else range(num_envs)) if 0 <= int(idx) < num_envs
-    ]
-    if not candidates:
-        return []
-    max_count = min(max(1, _max_envs), len(candidates))
-    if max_tiles is not None:
-        max_count = min(max_count, max(1, int(max_tiles)))
-    return sorted(random.sample(candidates, max_count))
-
-
-def resolve_mono_env_index(num_envs: int) -> list[int]:
-    """Return env_0 for mono sensor camera views."""
-    return [0] if num_envs > 0 else []
-
-
 def resolve_camera_sources(
     cfg: VisualizerCfg, cameras: dict[str, Camera], *, env_template: str = DEFAULT_ENV_TEMPLATE
 ) -> list[PerspectiveCameraCfg | Camera]:
@@ -245,41 +213,3 @@ def compose_rgb_grid_tensor(rgb_batch: torch.Tensor) -> torch.Tensor:
     if pad > 0:
         rgb = torch.cat([rgb, torch.zeros((pad, h, w, 3), dtype=rgb.dtype, device=rgb.device)], dim=0)
     return rgb.reshape(rows, cols, h, w, 3).permute(0, 2, 1, 3, 4).reshape(rows * h, cols * w, 3).contiguous()
-
-
-def compute_tile_resolution(window_width: int, window_height: int, num_tiles: int, n_gt: int = 1) -> tuple[int, int]:
-    """Derive a conservative per-tile resolution from the visualizer window.
-
-    Args:
-        window_width: Visualizer window width in pixels.
-        window_height: Visualizer window height in pixels.
-        num_tiles: Number of environment tiles (one per env).
-        n_gt: Number of GT data types per tile (e.g. 2 for rgb+depth).  The composite
-            image is ``env_cols * n_gt`` tiles wide, so each tile gets
-            ``window_width // (env_cols * n_gt)`` pixels of horizontal space.
-
-    Returns:
-        Per-tile ``(width, height)`` in pixels.
-    """
-    if window_width <= 0 or window_height <= 0:
-        raise ValueError(f"Window dimensions must be positive, got {window_width}x{window_height}.")
-    n_gt = max(1, int(n_gt))
-    cols = max(1, math.ceil(math.sqrt(max(1, num_tiles))))
-    rows = math.ceil(max(1, num_tiles) / cols)
-    return max(1, int(window_width) // (cols * n_gt)), max(1, int(window_height) // rows)
-
-
-def apply_camera_view_from_origins(
-    camera: Camera,
-    origins: torch.Tensor,
-    eye: tuple[float, float, float],
-    lookat: tuple[float, float, float],
-    env_ids: list[int] | None = None,
-) -> None:
-    """Set camera poses from origins plus relative eye/lookat offsets."""
-    device = camera.device
-    origins = origins.to(device=device)
-    eye_offset = torch.tensor(eye, dtype=torch.float32, device=device).unsqueeze(0)
-    lookat_offset = torch.tensor(lookat, dtype=torch.float32, device=device).unsqueeze(0)
-    camera.set_world_poses_from_view(origins + eye_offset, origins + lookat_offset, env_ids=env_ids)
-    camera._update_poses(None)

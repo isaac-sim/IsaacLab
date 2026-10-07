@@ -59,9 +59,7 @@ class KitVisualizer(BaseVisualizer):
         self._simulation_app = None
         self._viewport_window = None
         self._viewport_api = None
-        self._is_initialized = False
         self._step_counter = 0
-        self._env_ids = None
         self._resolved_visible_env_ids: list[int] | None = None
         self._hidden_env_visibilities: dict[str, str] = {}
         # PointInstancer prim path -> (had authored invisibleIds, previous value) for partial viz restore.
@@ -544,7 +542,7 @@ class KitVisualizer(BaseVisualizer):
             # (e.g. HEADLESS=1 without --video), so skip the import entirely.
             self._viewport_window = None
             self._viewport_api = None
-            if self._uses_streaming_view():
+            if self.cfg.streaming_view:
                 logger.debug("[KitVisualizer] Camera image view requested in headless mode; no UI panel is created.")
             else:
                 self._apply_cfg_camera_pose_if_configured()
@@ -588,22 +586,15 @@ class KitVisualizer(BaseVisualizer):
         if self._viewport_window is None:
             logger.warning("[KitVisualizer] No active viewport window found.")
             self._viewport_api = None
-            if not self._uses_streaming_view():
+            if not self.cfg.streaming_view:
                 self._apply_cfg_camera_pose_if_configured()
             self._refresh_controlled_camera_path()
             return
         self._viewport_api = self._viewport_window.viewport_api
-        if self._uses_streaming_view():
-            # Camera sensor image views are shown in a non-interactive image panel.
-            pass
-        else:
+        if not self.cfg.streaming_view:
             self._apply_cfg_camera_pose_if_configured()
         self._refresh_controlled_camera_path()
         asyncio.ensure_future(self._setup_backend_menubar_label_async())
-
-    def _uses_streaming_view(self) -> bool:
-        """Return whether Kit should display a streaming camera image panel."""
-        return bool(self.cfg.streaming_view)
 
     def _setup_streaming_view(self, num_envs: int) -> None:
         """Bind a scene camera and create its Kit display panel."""
@@ -612,11 +603,8 @@ class KitVisualizer(BaseVisualizer):
             visible_env_ids=self._resolved_visible_env_ids,
             target_aspect=self.cfg.window_width / self.cfg.window_height,
         )
-        if self._camera_sensor is not None and not self._runtime_headless:
-            self._setup_camera_image_window()
-
-    def _setup_camera_image_window(self) -> None:
-        """Create a dockable Kit UI image panel for streaming camera output."""
+        if self._camera_sensor is None or self._runtime_headless:
+            return
         import omni.ui
 
         title = self.cfg.viewport_name or "Streaming View"

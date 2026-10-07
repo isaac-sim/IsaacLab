@@ -1518,10 +1518,6 @@ class NewtonVisualizer(BaseVisualizer):
     # Shared internals
     # ------------------------------------------------------------------
 
-    def _resolve_initial_camera_pose(self) -> tuple[tuple[float, float, float], tuple[float, float, float]]:
-        """Resolve initial camera pose from config or USD camera path."""
-        return self._resolve_cfg_camera_pose(type(self).__name__)
-
     def _log_scene_contact_sensor_arrows(self, num_envs: int) -> None:
         """Render contact sensor data as Newton-style arrows when native contacts are unavailable."""
         if self._viewer is None:
