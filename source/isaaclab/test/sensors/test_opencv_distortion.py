@@ -192,6 +192,7 @@ def _camera_for_prims(prims, width=640, height=480, device="cpu"):
     fake._ALL_INDICES = wp.array(np.arange(len(prims)), dtype=wp.int32, device=device)
     fake._ALL_ENV_MASK = wp.ones(len(prims), dtype=wp.bool, device=device)
     # attributes touched by ``__del__``/``_clear_callbacks`` when the fake object is garbage collected
+    fake._prepare_initialize_handle = None
     fake._initialize_handle = None
     fake._invalidate_initialize_handle = None
     fake._prim_deletion_handle = None
