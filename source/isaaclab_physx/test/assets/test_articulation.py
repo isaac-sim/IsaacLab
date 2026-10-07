@@ -32,7 +32,7 @@ import warp as wp
 from isaaclab_physx.assets import Articulation
 from isaaclab_physx.sim.schemas import PhysxJointCfg
 
-from pxr import UsdPhysics
+from pxr import Gf, UsdPhysics
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
@@ -428,6 +428,48 @@ def test_reversed_joint_dynamics_use_public_joint_basis(sim, device, gravity_ena
         + torch.einsum("nbi,nbij,nbj->n", body_velocity[..., 3:], body_inertia, body_velocity[..., 3:])
     )
     torch.testing.assert_close(generalized_energy, body_energy, atol=1e-5, rtol=1e-5)
+
+
+@pytest.mark.parametrize("device", ["cpu"])
+def test_reversed_joint_gravity_compensation_holds_static_equilibrium(sim, device):
+    """Gravity compensation efforts hold a robot with a reversed joint still.
+
+    Setting ``tau = g(q)`` at rest gives zero joint acceleration, so a sign error on the reversed joint surfaces as
+    joint drift. The joint axes are turned horizontal and the link centers of mass are offset from them so that
+    gravity loads every joint.
+    """
+    articulation = Articulation(
+        ArticulationCfg(
+            prim_path="/World/Robot",
+            spawn=sim_utils.UsdFileCfg(
+                usd_path=str(Path(__file__).parent / "data" / "articulation_ordering_branching.usda")
+            ),
+            actuators={"joints": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=0.0, damping=0.0)},
+        )
+    )
+    UsdPhysics.FixedJoint.Define(sim.stage, "/World/Robot/fixed_root").GetBody1Rel().SetTargets(["/World/Robot/base"])
+    for joint_name in ("left_shoulder", "left_elbow", "right_shoulder", "right_elbow"):
+        UsdPhysics.RevoluteJoint.Get(sim.stage, f"/World/Robot/{joint_name}").GetAxisAttr().Set("X")
+    joint = UsdPhysics.RevoluteJoint.Get(sim.stage, "/World/Robot/left_elbow")
+    body0, body1 = joint.GetBody0Rel().GetTargets(), joint.GetBody1Rel().GetTargets()
+    joint.GetBody0Rel().SetTargets(body1)
+    joint.GetBody1Rel().SetTargets(body0)
+    for body_name in ("left_upper", "left_tip", "right_upper", "right_tip"):
+        UsdPhysics.MassAPI(sim.stage.GetPrimAtPath(f"/World/Robot/{body_name}")).CreateCenterOfMassAttr(
+            Gf.Vec3f(0.0, 0.2, 0.0)
+        )
+    sim.reset()
+    joint_pos = torch.tensor([[0.3, -0.5, 0.4, 0.6]], device=device)
+    articulation.write_joint_state_to_sim_index(position=joint_pos, velocity=torch.zeros_like(joint_pos))
+    assert articulation.data.gravity_compensation_forces.torch.abs().min() > 0.1, "every joint must carry a load"
+
+    for _ in range(100):
+        gravity_compensation = articulation.data.gravity_compensation_forces.torch[:, articulation.num_base_dofs :]
+        articulation.set_joint_effort_target_index(target=gravity_compensation)
+        articulation.write_data_to_sim()
+        sim.step()
+        articulation.update(sim.cfg.dt)
+    torch.testing.assert_close(articulation.data.joint_pos.torch, joint_pos, atol=5e-3, rtol=0.0)
 
 
 @pytest.mark.parametrize("device", test_devices())
