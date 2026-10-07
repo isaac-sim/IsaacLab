@@ -246,6 +246,23 @@ class MLSBinding:
         return tuple(a.numpy() for a in arrays) if host else arrays
 
 
+@wp.func
+def fracture_weight(
+    distance: float,
+    rest: wp.vec3,
+    current: wp.vec3,
+    rest_anchor: wp.vec3,
+    current_anchor: wp.vec3,
+    spacing: float,
+):
+    """Inverse-square weight of a neighbor, faded out as it separates from the anchor beyond its rest distance."""
+    weight = 1.0 / wp.max(distance * distance, 0.0008 * 0.0008)
+    original = wp.length(rest - rest_anchor)
+    separation = wp.length(current - current_anchor)
+    t = wp.clamp((separation - 1.5 * original - 0.25 * spacing) / (0.5 * original + 0.25 * spacing), 0.0, 1.0)
+    return weight * (1.0 - t * t * (3.0 - 2.0 * t))
+
+
 @wp.kernel
 def transport_fracture_mls(
     ids: wp.array2d[int],
@@ -259,7 +276,26 @@ def transport_fracture_mls(
     spacing: float,
 ):
     i = wp.tid()
+    # A lone particle left behind keeps almost none of its neighbors. Its Gaussians then anchor to whichever of their
+    # next nearest particles keeps the most, instead of following it. Across a tear, the nearest particle keeps its
+    # side's neighbors and stays the anchor, so that each Gaussian stays on its own side.
     anchor = ids[i, 0]
+    best = float(-1.0)
+    for c in range(wp.min(counts[i], 4)):
+        candidate = ids[i, c]
+        kept = float(0.0)
+        total = float(0.0)
+        for k in range(counts[i]):
+            j = ids[i, k]
+            if j != candidate:
+                distance = wp.length(rest[j] - source[i])
+                kept += fracture_weight(distance, rest[j], positions[j], rest[candidate], positions[candidate], spacing)
+                total += 1.0 / wp.max(distance * distance, 0.0008 * 0.0008)
+        if c == 0 and kept >= 0.25 * total:
+            break
+        if kept > best:
+            best = kept
+            anchor = candidate
     rest_anchor = rest[anchor]
     current_anchor = positions[anchor]
     weight_sum = float(0.0)
@@ -268,11 +304,7 @@ def transport_fracture_mls(
     for k in range(counts[i]):
         j = ids[i, k]
         distance = wp.length(rest[j] - source[i])
-        weight = 1.0 / wp.max(distance * distance, 0.0008 * 0.0008)
-        original = wp.length(rest[j] - rest_anchor)
-        current = wp.length(positions[j] - current_anchor)
-        t = wp.clamp((current - 1.5 * original - 0.25 * spacing) / (0.5 * original + 0.25 * spacing), 0.0, 1.0)
-        weight *= 1.0 - t * t * (3.0 - 2.0 * t)
+        weight = fracture_weight(distance, rest[j], positions[j], rest_anchor, current_anchor, spacing)
         weight_sum += weight
         rest_center += weight * rest[j]
         current_center += weight * positions[j]
@@ -283,11 +315,7 @@ def transport_fracture_mls(
     for k in range(counts[i]):
         j = ids[i, k]
         distance = wp.length(rest[j] - source[i])
-        weight = 1.0 / wp.max(distance * distance, 0.0008 * 0.0008) / weight_sum
-        original = wp.length(rest[j] - rest_anchor)
-        current = wp.length(positions[j] - current_anchor)
-        t = wp.clamp((current - 1.5 * original - 0.25 * spacing) / (0.5 * original + 0.25 * spacing), 0.0, 1.0)
-        weight *= 1.0 - t * t * (3.0 - 2.0 * t)
+        weight = fracture_weight(distance, rest[j], positions[j], rest_anchor, current_anchor, spacing) / weight_sum
         r = rest[j] - rest_center
         moment += weight * wp.outer(r, r)
         cross += weight * wp.outer(positions[j] - current_center, r)
