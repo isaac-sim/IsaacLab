@@ -125,6 +125,32 @@ class FeatherPGSSolverCfg(NewtonSolverCfg):
     restitution_velocity_threshold: float = 0.5
     """Minimum incident normal speed [m/s] for a rebound."""
 
+    enable_restitution: bool = True
+    """Whether contacts rebound. ``False`` turns restitution off regardless of the shapes' coefficients."""
+
+    enable_contact_friction: bool = True
+    """Whether contacts get friction rows.
+
+    ``False`` gives every contact a normal row only, which also disables friction patches and contact torsion.
+    Zero friction coefficients instead keep the rows.
+    """
+
+    contact_friction_scale: float = 1.0
+    """Non-negative factor applied to every shape's friction coefficient in the solver; the model is unchanged."""
+
+    contact_friction_position_iterations: int = -1
+    """Number of final position iterations that solve friction rows; ``-1`` solves them in every iteration.
+
+    Values other than ``-1`` require :attr:`pgs_warmstart` to be ``False``.
+    """
+
+    angular_damping: float | None = None
+    """Angular damping [1/s] of every free body and floating base.
+
+    ``None`` uses each body's ``rigid_body_angular_damping`` attribute, which USD assets can author through
+    ``physxRigidBody:angularDamping`` (Newton default 0.05). A value overrides it for all free roots.
+    """
+
     contact_speculative_scale: float = 1.0
     """Fraction of a positive contact gap that the contact may close during the step."""
 

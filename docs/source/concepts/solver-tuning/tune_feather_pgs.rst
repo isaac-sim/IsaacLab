@@ -57,6 +57,11 @@ predicts contacts over the full physics step.
 are raised after the step that produced them, before the simulation time advances. ``enable_sleeping`` freezes
 supported, quiet islands of articulations until a contact, force or reset wakes them.
 
+Free bodies and floating bases are damped by each body's ``physxRigidBody:angularDamping`` (default 0.05 1/s),
+so assets that author a different value behave differently; ``angular_damping`` overrides it for every free
+root. ``enable_restitution=False`` and ``enable_contact_friction=False`` switch off rebound and friction rows
+without editing materials, and ``contact_friction_scale`` scales every friction coefficient in the solver.
+
 Determinism and contact matching
 --------------------------------
 

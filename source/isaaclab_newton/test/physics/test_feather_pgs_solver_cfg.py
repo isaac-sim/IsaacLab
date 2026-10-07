@@ -94,6 +94,43 @@ def test_shared_anchor_options_configure_the_solver():
     assert solver.contact_friction_gap_threshold == 0.001
 
 
+def test_physics_overrides_configure_the_solver():
+    """Solver-wide restitution, friction and angular-damping overrides reach a constructed solver."""
+    cfg = FeatherPGSSolverCfg(
+        pgs_mode="split",
+        enable_restitution=False,
+        enable_contact_friction=False,
+        contact_friction_scale=0.5,
+        contact_friction_position_iterations=2,
+        angular_damping=0.0,
+    )
+
+    solver = NewtonFeatherPGSManager._create_solver(_slider_model("cpu"), cfg)
+
+    assert (solver.enable_restitution, solver.enable_contact_friction) == (False, False)
+    assert (solver.contact_friction_scale, solver.contact_friction_position_iterations) == (0.5, 2)
+    assert solver.angular_damping == 0.0
+
+
+@pytest.mark.parametrize(("angular_damping", "expected_spin"), [(None, 10.0 * (1.0 - 0.05 * 0.01)), (0.0, 10.0)])
+def test_angular_damping_override_replaces_the_per_body_damping(angular_damping, expected_spin):
+    """Without an override a free body keeps Newton's per-body damping; an override replaces it."""
+    builder = newton.ModelBuilder(gravity=(0.0, 0.0, 0.0))
+    SolverFeatherPGS.register_custom_attributes(builder)
+    body = builder.add_body(label="spinner")
+    builder.add_shape_box(body, hx=0.1, hy=0.1, hz=0.1)
+    model = builder.finalize(device="cpu")
+    state_0, state_1 = model.state(), model.state()
+    # Free-joint velocity is linear then angular; spin about z at 10 rad/s.
+    state_0.joint_qd.assign(np.array([0.0, 0.0, 0.0, 0.0, 0.0, 10.0], dtype=np.float32))
+    cfg = FeatherPGSSolverCfg(pgs_mode="split", angular_damping=angular_damping)
+
+    solver = NewtonFeatherPGSManager._create_solver(model, cfg)
+    solver.step(state_0, state_1, model.control(), None, 0.01)
+
+    np.testing.assert_allclose(np.abs(state_1.joint_qd.numpy()[3:6]).max(), expected_spin, rtol=1e-5)
+
+
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_contact_torsion_and_sleeping_options_configure_the_solver(device):
     """Contact-torsion and sleeping options reach a constructed solver."""
