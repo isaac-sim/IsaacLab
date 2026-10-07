@@ -1,0 +1,1 @@
+* **Breaking:** Moved PPISP execution and controller state from renderer instances to observation modifiers. Replace ``CameraCfg.isp_cfg`` with ``PpispModifierCfg(isp_cfg=existing_cfg)`` in ``ObservationTermCfg.modifiers``. Camera ``data.output`` now contains raw renderer output. Import discovery modes from ``isaaclab_ppisp.PpispDiscoveryMode``.

@@ -33,6 +33,7 @@ _RENDER_VAR_BY_DATA_TYPE: dict[str, tuple[str, str]] = {
     "simple_shading_diffuse_mdl": ("LdrColor", "LdrColor"),
     "simple_shading_full_mdl": ("LdrColor", "LdrColor"),
     "rgb_hdr": ("HdrColor", "HdrColor"),
+    "rgb_radiance": ("HdrColor", "HdrColor"),
     "albedo": ("albedo", "DiffuseAlbedoSD"),
     "depth": ("depth", "DistanceToImagePlaneSD"),
     "distance_to_image_plane": ("depth", "DistanceToImagePlaneSD"),
@@ -193,8 +194,7 @@ def build_render_scope_usd(
     trimmed stage. Multi-environment rendering rewrites it after runtime cloning.
 
     Args:
-        spec: Camera configuration, environment count, and camera paths. ISP configurations
-            automatically request the HDR render variable in addition to the configured outputs.
+        spec: Camera configuration, required render buffers, environment count, and camera paths.
         render_data: Camera's render scope and product identity.
         device_id: CUDA device index the render product is pinned to via ``deviceIds``. When ``None``,
             OVRTX assigns the device automatically.
@@ -204,9 +204,7 @@ def build_render_scope_usd(
     Returns:
         The USD snippet for the render scope, without a layer header or metadata.
     """
-    data_types = list(spec.cfg.data_types or ["rgb"])
-    if spec.cfg.isp_cfg is not None and "rgb_hdr" not in data_types:
-        data_types.append("rgb_hdr")
+    data_types = spec.data_types
     tiled_width, tiled_height = _tiled_resolution(spec.num_instances, spec.cfg.width, spec.cfg.height)
     camera_path = spec.camera_prim_paths[0]
     render_var_configs = get_render_var_configs(data_types, render_data.render_scope_name)
@@ -241,6 +239,13 @@ def build_render_scope_usd(
             f"bool omni:rtx:minimal:castShadows = {'true' if enable_shadows else 'false'}",
         ]
 
+    api_schemas = ["OmniRtxSettingsCommonAdvancedAPI_1"]
+    if {"rgb_hdr", "rgb_radiance"}.intersection(data_types):
+        # OVRTX 0.5 reads this per product. Its default bypasses HdrColor for Gaussian pixels.
+        # Use resolved inputs so private post-processing requirements also enable HDR routing.
+        api_schemas.append("OmniRtxSettingsParticleFieldAPI_1")
+        render_mode_lines.append("bool omni:rtx:rtpt:gaussian:skipTonemapping:enabled = false")
+    api_schemas_block = ", ".join(f'"{schema}"' for schema in api_schemas)
     render_mode_block = "\n        ".join(render_mode_lines)
     ordered_vars = ", ".join(f"<{path}>" for path, _, _ in render_var_configs)
     render_var_defs = "\n".join(
@@ -255,7 +260,7 @@ def build_render_scope_usd(
 def Scope "{render_data.render_scope_name}"
 {{
     def RenderProduct "{render_data.render_product_name}" (
-        prepend apiSchemas = ["OmniRtxSettingsCommonAdvancedAPI_1"]
+        prepend apiSchemas = [{api_schemas_block}]
     ) {{
         rel camera = [<{camera_path}>]{device_ids_line}
         {bg_type_line}

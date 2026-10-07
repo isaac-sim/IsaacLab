@@ -25,7 +25,7 @@ class ModifierCfg:
     func: Callable[..., torch.Tensor] | type[ModifierBase] | str = MISSING
     """Function or :class:`ModifierBase` class used by the modifier.
 
-    Functions must take a tensor as their first argument. Classes must inherit from :class:`ModifierBase`; the
+    Functions receive ``(env, data)``. Classes must inherit from :class:`ModifierBase`; the
     observation manager constructs them with the configuration, observation dimensions, and device.
     """
 

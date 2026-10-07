@@ -14,6 +14,7 @@ from ..array import index_fill_
 from .modifier_base import ModifierBase
 
 if TYPE_CHECKING:
+    from ...envs import ManagerBasedEnv
     from . import modifier_cfg
 
 ##
@@ -21,10 +22,11 @@ if TYPE_CHECKING:
 ##
 
 
-def scale(data: torch.Tensor, multiplier: float) -> torch.Tensor:
+def scale(env: ManagerBasedEnv, data: torch.Tensor, multiplier: float) -> torch.Tensor:
     """Scales input data by a multiplier.
 
     Args:
+        env: The environment that owns the observation.
         data: The data to apply the scale to.
         multiplier: Value to scale input by.
 
@@ -34,10 +36,11 @@ def scale(data: torch.Tensor, multiplier: float) -> torch.Tensor:
     return data * multiplier
 
 
-def clip(data: torch.Tensor, bounds: tuple[float | None, float | None]) -> torch.Tensor:
+def clip(env: ManagerBasedEnv, data: torch.Tensor, bounds: tuple[float | None, float | None]) -> torch.Tensor:
     """Clips the data to a minimum and maximum value.
 
     Args:
+        env: The environment that owns the observation.
         data: The data to apply the clip to.
         bounds: A tuple containing the minimum and maximum values to clip data to.
             If the value is None, that bound is not applied.
@@ -48,10 +51,11 @@ def clip(data: torch.Tensor, bounds: tuple[float | None, float | None]) -> torch
     return data.clip(min=bounds[0], max=bounds[1])
 
 
-def bias(data: torch.Tensor, value: float) -> torch.Tensor:
+def bias(env: ManagerBasedEnv, data: torch.Tensor, value: float) -> torch.Tensor:
     """Adds a uniform bias to the data.
 
     Args:
+        env: The environment that owns the observation.
         data: The data to add bias to.
         value: Value of bias to add to data.
 
@@ -129,14 +133,14 @@ class DigitalFilter(ModifierBase):
     :math:`B = [1 - \alpha]`.
     """
 
-    def __init__(self, cfg: modifier_cfg.DigitalFilterCfg, data_dim: tuple[int, ...], device: str):
+    def __init__(self, cfg: modifier_cfg.DigitalFilterCfg, data_dim: tuple[int, ...], *, env: ManagerBasedEnv):
         """Initializes digital filter.
 
         Args:
             cfg: Configuration parameters.
             data_dim: The dimensions of the data to be modified. First element is the batch size
                 which usually corresponds to number of environments in the simulation.
-            device: The device to run the modifier on.
+            env: The environment that owns the modifier.
 
         Raises:
             ValueError: If filter coefficients are None.
@@ -146,15 +150,15 @@ class DigitalFilter(ModifierBase):
             raise ValueError("Digital filter coefficients A and B must not be None. Please provide valid coefficients.")
 
         # initialize parent class
-        super().__init__(cfg, data_dim, device)
+        super().__init__(cfg, data_dim, env=env)
 
         # assign filter coefficients and make sure they are column vectors
-        self.A = torch.tensor(self._cfg.A, device=self._device).unsqueeze(1)
-        self.B = torch.tensor(self._cfg.B, device=self._device).unsqueeze(1)
+        self.A = torch.tensor(self._cfg.A, device=env.device).unsqueeze(1)
+        self.B = torch.tensor(self._cfg.B, device=env.device).unsqueeze(1)
 
         # create buffer for input and output history
-        self.x_n = torch.zeros(self._data_dim + (self.B.shape[0],), device=self._device)
-        self.y_n = torch.zeros(self._data_dim + (self.A.shape[0],), device=self._device)
+        self.x_n = torch.zeros(self._data_dim + (self.B.shape[0],), device=env.device)
+        self.y_n = torch.zeros(self._data_dim + (self.A.shape[0],), device=env.device)
 
     def reset(self, env_ids: Sequence[int] | None = None):
         """Resets digital filter history.
@@ -167,10 +171,11 @@ class DigitalFilter(ModifierBase):
         index_fill_(self.x_n, env_ids, 0.0)
         index_fill_(self.y_n, env_ids, 0.0)
 
-    def __call__(self, data: torch.Tensor) -> torch.Tensor:
+    def __call__(self, env: ManagerBasedEnv, data: torch.Tensor) -> torch.Tensor:
         """Applies digital filter modification with a rolling history window inputs and outputs.
 
         Args:
+            env: The environment that owns the observation.
             data: The data to apply filter to.
 
         Returns:
@@ -213,21 +218,21 @@ class Integrator(ModifierBase):
     :math:`\Delta t` is the time step between samples.
     """
 
-    def __init__(self, cfg: modifier_cfg.IntegratorCfg, data_dim: tuple[int, ...], device: str):
+    def __init__(self, cfg: modifier_cfg.IntegratorCfg, data_dim: tuple[int, ...], *, env: ManagerBasedEnv):
         """Initializes the integrator configuration and state.
 
         Args:
             cfg: Integral parameters.
             data_dim: The dimensions of the data to be modified. First element is the batch size
                 which usually corresponds to number of environments in the simulation.
-            device: The device to run the modifier on.
+            env: The environment that owns the modifier.
         """
         # initialize parent class
-        super().__init__(cfg, data_dim, device)
+        super().__init__(cfg, data_dim, env=env)
 
         # assign buffer for integral and previous value
-        self.integral = torch.zeros(self._data_dim, device=self._device)
-        self.y_prev = torch.zeros(self._data_dim, device=self._device)
+        self.integral = torch.zeros(self._data_dim, device=env.device)
+        self.y_prev = torch.zeros(self._data_dim, device=env.device)
 
     def reset(self, env_ids: Sequence[int] | None = None):
         """Resets integrator state to zero.
@@ -240,10 +245,11 @@ class Integrator(ModifierBase):
         index_fill_(self.integral, env_ids, 0.0)
         index_fill_(self.y_prev, env_ids, 0.0)
 
-    def __call__(self, data: torch.Tensor) -> torch.Tensor:
+    def __call__(self, env: ManagerBasedEnv, data: torch.Tensor) -> torch.Tensor:
         """Applies integral modification to input data.
 
         Args:
+            env: The environment that owns the observation.
             data: The data to integrate.
 
         Returns:

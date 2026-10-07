@@ -758,6 +758,22 @@ def test_borrowed_field_preserves_identity_without_changing_ordinary_copying():
     assert cfg.cfg == 0
 
 
+def test_copy_preserves_references_shared_between_configuration_fields():
+    @configclass
+    class SharedCfg:
+        source: list[int] = []
+        consumer: list[int] = []
+
+    for values in ([1], ["test_configclass:dummy_function1"]):
+        cfg = SharedCfg(source=values, consumer=values)
+        assert cfg.source is cfg.consumer
+        assert cfg.source is not values
+
+        copied = cfg.copy()
+        assert copied.source is copied.consumer
+        assert copied.source is not cfg.source
+
+
 @pytest.mark.parametrize(
     "copy_cfg", [replace, lambda cfg, **changes: cfg.replace(**changes)], ids=["function", "method"]
 )

@@ -312,7 +312,7 @@ def test_queries_share_native_bvhs_and_read_only_through_sdp(monkeypatch, cloth,
 
     monkeypatch.setattr(renderer, "_launch_render", read)
     for _ in range(2):
-        render_data = SimpleNamespace(graph=None, ppisp_pipeline=None)
+        render_data = SimpleNamespace(graph=None)
         renderer.render(render_data)
         assert render_data.graph is None
     assert len(refits) == 1

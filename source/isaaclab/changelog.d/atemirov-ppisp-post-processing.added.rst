@@ -1,0 +1,2 @@
+* Added environment-aware observation modifiers with named intermediate outputs and pre-reset scene preparation. Camera processing can use the existing modifier list; observation terms own modifier state, partial resets, and cleanup.
+* Added ``rgb_radiance`` for scene-linear RGB before exposure and camera response. Cameras prepare public and privately requested renderer inputs before shared stage export. Published capture frames are available in ``CameraData.info`` for cached processing, including delayed captures.

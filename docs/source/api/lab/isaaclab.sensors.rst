@@ -257,7 +257,6 @@ Joint Wrench Sensor
     :show-inheritance:
     :exclude-members: __init__, class_type
 
-
 Additional Public Classes
 -------------------------
 

@@ -75,7 +75,7 @@ def _make_camera_cfg(data_types: list[str]) -> CameraCfg:
 
 
 def _make_ovrtx_camera_render_data() -> OVRTXCameraRenderData:
-    spec = types.SimpleNamespace(cfg=_make_camera_cfg(["rgb"]), num_instances=2)
+    spec = types.SimpleNamespace(cfg=_make_camera_cfg(["rgb"]), num_instances=2, data_types=("rgb",))
     return OVRTXCameraRenderData(spec, "cpu", render_scope_name="RenderCamera_0")
 
 
@@ -184,13 +184,11 @@ def test_ovrtx_render_submits_every_product_and_routes_requested_outputs(
     cameras = [_make_ovrtx_camera_render_data() for _ in range(2 if batch else 1)]
     products = {}
     processed = []
-    postprocessed = []
     submissions = []
     published_ordinals = []
     for index, camera in enumerate(cameras):
         camera.render_product_path = f"/Render/Camera{index}"
         camera.warp_buffers = {str(RenderBufferKind.RGB_HDR): object(), str(RenderBufferKind.RGBA): object()}
-        camera.ppisp_pipeline = types.SimpleNamespace(apply=lambda *buffers: postprocessed.append(buffers))
         products[camera.render_product_path] = types.SimpleNamespace(frames=[object()])
     renderer._render_product_paths = [*products, "/Render/UnrequestedCamera"]
     if missing_output == "product":
@@ -217,15 +215,10 @@ def test_ovrtx_render_submits_every_product_and_routes_requested_outputs(
         assert processed == [
             (camera, products[camera.render_product_path].frames[0], camera.warp_buffers) for camera in cameras
         ]
-        assert postprocessed == [
-            (camera.warp_buffers[str(RenderBufferKind.RGB_HDR)], camera.warp_buffers[str(RenderBufferKind.RGBA)])
-            for camera in cameras
-        ]
     else:
         with pytest.raises(RuntimeError, match=cameras[-1].render_product_path):
             render(request)
         assert not processed
-        assert not postprocessed
 
     assert len(submissions) == 1
     # Unrequested products are submitted too, and only the requested cameras are read back.
@@ -531,41 +524,57 @@ def test_async_cameras_publish_independently_with_capture_metadata_and_reset(mon
     assert renderer._camera_render_data == []
 
 
-def test_ovrtx_set_outputs_wraps_caller_torch_zero_copy():
-    """OVRTXRenderer.set_outputs publishes warp views over the caller's warp storage."""
+@pytest.mark.parametrize("data_types", [["rgb_hdr"], ["rgb_radiance"], ["rgb_hdr", "rgb_radiance"]])
+def test_ovrtx_set_outputs_wraps_requested_hdr_outputs(monkeypatch, data_types):
+    """HDR aliases extract one native source into a persistent preallocated sensor buffer."""
     renderer = _make_ovrtx_renderer_without_backend()
+    renderer._device = "cpu"
 
-    if not torch.cuda.is_available():
-        pytest.skip("OVRTX zero-copy wrapping requires a CUDA device")
-    device = "cuda"
-
-    layouts = {
-        "rgba": RenderBufferSpec(4, wp.uint8),
-        "rgb_hdr": RenderBufferSpec(3, wp.float32),
-        "depth": RenderBufferSpec(1, wp.float32),
-        "motion_vectors": RenderBufferSpec(2, wp.float32),
-    }
-    cfg = _make_camera_cfg(["rgb", *layouts])
+    cfg = _make_camera_cfg(data_types)
     data = CameraData.allocate(
         data_types=cfg.data_types,
         height=8,
         width=16,
         num_views=2,
-        device=device,
+        device="cpu",
         supported_specs=renderer.supported_output_types(),
     )
     render_data = _make_ovrtx_camera_render_data()
     renderer.set_outputs(render_data, data.output)
 
-    for name, spec in layouts.items():
-        assert render_data.warp_buffers[name].ptr == data.output[name].warp.ptr
-        assert render_data.warp_buffers[name].shape == (2, 8, 16, spec.channels)
-        assert render_data.warp_buffers[name].dtype is spec.dtype
-    assert "rgb" not in render_data.warp_buffers
+    pointer = data.output[data_types[0]].warp.ptr
+    for name in data_types:
+        assert render_data.warp_buffers[name].ptr == data.output[name].warp.ptr == pointer
+    map_frame = MagicMock(side_effect=lambda source: contextlib.nullcontext(source))
+    launch = MagicMock(wraps=wp.launch)
+    monkeypatch.setattr(renderer, "_map_render_var_to_dlpack", map_frame)
+    monkeypatch.setattr(wp, "launch", launch)
+    for value in (2.0, 4.0):
+        source = wp.full((8, 32, 4), value, dtype=wp.float32, device="cpu")
+        frame = types.SimpleNamespace(render_vars={render_data.render_var_keys["HdrColor"]: source})
+        renderer._process_render_frame(render_data, frame, render_data.warp_buffers)
+        for name in data_types:
+            assert data.output[name].warp.ptr == pointer
+            np.testing.assert_array_equal(data.output[name].warp.numpy(), value)
+    assert map_frame.call_count == launch.call_count == 2
 
 
-def test_ovrtx_set_outputs_routes_ppisp_buffers_through_warp_buffers():
-    """OVRTXRenderer.set_outputs stores PPISP source/destination in warp_buffers."""
+@pytest.mark.parametrize("data_types", [("rgb_hdr",), ("rgb_radiance",)])
+def test_ovrtx_prepare_cameras_resolves_radiance_exposure(data_types):
+    """Radiance neutralizes exposure; standalone HDR retains authored camera settings."""
+    from pxr import Sdf, Usd, UsdGeom
+
+    stage = Usd.Stage.CreateInMemory()
+    camera = UsdGeom.Camera.Define(stage, "/World/Camera").GetPrim()
+    camera.CreateAttribute("exposure:iso", Sdf.ValueTypeNames.Float).Set(100.0)
+    spec = types.SimpleNamespace(data_types=data_types, camera_prim_paths=("/World/Camera",))
+    _make_ovrtx_renderer_without_backend().prepare_cameras(stage, spec)
+
+    assert camera.GetAttribute("exposure:iso").Get() == (0.0 if "rgb_radiance" in data_types else 100.0)
+
+
+def test_ovrtx_set_outputs_binds_only_sensor_provided_buffers():
+    """Sensor inputs are bound persistently without allocating extra rendering outputs."""
     renderer = _make_ovrtx_renderer_without_backend()
 
     cfg = _make_camera_cfg(["rgb"])
@@ -578,31 +587,27 @@ def test_ovrtx_set_outputs_routes_ppisp_buffers_through_warp_buffers():
         supported_specs=renderer.supported_output_types(),
     )
     render_data = _make_ovrtx_camera_render_data()
-    render_data.ppisp_pipeline = object()
     renderer.set_outputs(render_data, data.output)
 
     assert render_data.warp_buffers["rgba"].ptr == data.output["rgba"].warp.ptr
-    assert "rgb_hdr" in render_data.warp_buffers
-    assert render_data.warp_buffers["rgb_hdr"].shape == (2, 8, 16, 3)
-    assert render_data.warp_buffers["rgb_hdr"].dtype is wp.float32
+    assert set(render_data.warp_buffers) == {"rgba"}
 
 
-def test_ovrtx_process_frame_skips_ldr_rgba_when_ppisp_is_active():
-    """PPISP owns RGBA output, so OVRTX LdrColor should not pre-fill it."""
+def test_ovrtx_process_frame_skips_ldr_when_only_hdr_is_bound():
+    """Processor-owned outputs are not passed to the renderer for extraction."""
 
     class FailingRenderVar:
         def map(self, *args, **kwargs):
-            raise AssertionError("PPISP RGBA output must not read OVRTX LdrColor")
+            raise AssertionError("Unrequested OVRTX LdrColor must not be mapped")
 
     renderer = _make_ovrtx_renderer_without_backend()
     render_data = _make_ovrtx_camera_render_data()
-    render_data.ppisp_pipeline = object()
     key = "LdrColor"
     if ovrtx_renderer_module.uses_prim_path_render_vars(ovrtx_renderer_module.OVRTX_VERSION):
         key = f"/{render_data.render_scope_name}/Vars/{key}"
     frame = types.SimpleNamespace(render_vars={key: FailingRenderVar()})
 
-    renderer._process_render_frame(render_data, frame, {"rgba": object()})
+    renderer._process_render_frame(render_data, frame, {"rgb_hdr": object()})
 
 
 # Render-var keys depend only on the OVRTX version; ``use_ovstage`` only selects the registration path.
@@ -668,6 +673,7 @@ def test_ovrtx_process_frame_reads_authored_camera_render_vars(monkeypatch, use_
         render_data = renderer.create_render_data(
             types.SimpleNamespace(
                 cfg=cfg,
+                data_types=cfg.data_types,
                 device="cpu",
                 num_instances=2,
                 camera_prim_paths=[f"/World/envs/env_{i}/cam{camera_id}" for i in range(2)],
@@ -693,31 +699,38 @@ def test_ovrtx_process_frame_reads_authored_camera_render_vars(monkeypatch, use_
         render_data.cleanup()
 
 
-def test_ovrtx_ppisp_hdr_source_is_cloned_to_output_device(monkeypatch):
-    """PPISP HdrColor source is moved to the HDR output buffer device."""
+def test_ovrtx_hdr_transfer_reuses_storage_on_output_device(monkeypatch):
+    """A device fallback copies each frame into one persistent transfer buffer."""
 
     class FakeArray:
         device = "cuda:1"
+        shape = (8, 32, 4)
+        dtype = wp.float32
 
     class OutputArray:
         device = "cuda:0"
 
-    cloned = object()
-    clone_calls = []
-
-    def fake_clone(src, *, device):
-        clone_calls.append((src, device))
-        return cloned
-
-    monkeypatch.setattr(wp, "clone", fake_clone)
+    buffer = types.SimpleNamespace(shape=FakeArray.shape, dtype=FakeArray.dtype)
+    allocate = MagicMock(return_value=buffer)
+    copy = MagicMock()
+    stream = object()
+    monkeypatch.setattr(wp, "empty", allocate)
+    monkeypatch.setattr(wp, "copy", copy)
+    monkeypatch.setattr(wp, "get_stream", lambda device: stream)
 
     renderer = _make_ovrtx_renderer_without_backend()
     render_data = _make_ovrtx_camera_render_data()
-    render_data.ppisp_pipeline = object()
     source = FakeArray()
 
-    assert renderer._prepare_ppisp_hdr_source(render_data, source, {"rgb_hdr": OutputArray()}) is cloned
-    assert clone_calls == [(source, "cuda:0")]
+    for _ in range(2):
+        assert renderer._prepare_hdr_source(render_data, source, {"rgb_hdr": OutputArray()}) is buffer
+    allocate.assert_called_once_with(source.shape, dtype=source.dtype, device="cuda:0")
+    assert copy.call_count == 2
+    copy.assert_called_with(buffer, source, stream=stream)
+
+    source.device = "cuda:0"
+    assert renderer._prepare_hdr_source(render_data, source, {"rgb_hdr": OutputArray()}) is source
+    assert copy.call_count == 2
 
 
 def test_launch_extract_all_tiles_rejects_wider_output_channels():
@@ -862,7 +875,7 @@ def test_ovrtx_cleanup_releases_only_the_given_render_data(monkeypatch, cleanup_
     renderer._camera_render_data.append(render_data)
     render_data.warp_buffers = {"rgba": wp.zeros((8, 16, 4), dtype=wp.uint8, device="cpu")}
     render_data.renderer_info = {"semantic_segmentation": {"idToLabels": {}}}
-    render_data.ppisp_pipeline = object()
+    render_data._hdr_transfer_buffer = object()
     if use_ovstage:
         render_data.camera_xform_query = "to_remove"
         render_data.resources.callback(renderer.backend.paths.destroy_path_list, "to_remove")
@@ -909,8 +922,8 @@ def test_ovrtx_cleanup_releases_only_the_given_render_data(monkeypatch, cleanup_
     assert render_data.intrinsic_bindings == []
     assert render_data.warp_buffers == {}
     assert render_data.renderer_info == {}
-    assert render_data.ppisp_pipeline is None
     assert render_data.pending is render_data.ready is None
+    assert render_data._hdr_transfer_buffer is None
     assert renderer._render_product_paths == ["/RenderCamera_0/RenderProduct_camera"]
     assert renderer._initialized_scene is True
 
@@ -970,6 +983,7 @@ def test_intrinsic_updates_target_the_given_camera(monkeypatch, use_ovstage):
         renderer.create_render_data(
             types.SimpleNamespace(
                 cfg=_make_camera_cfg(["depth"]),
+                data_types=("depth",),
                 device="cpu",
                 num_instances=2,
                 camera_prim_paths=camera_paths,
@@ -1122,3 +1136,36 @@ def test_ovrtx_close_releases_ovstage_renderer_state():
     events.clear()
     renderer.close()
     assert events == []
+
+
+def test_ovrtx_set_outputs_wraps_caller_torch_zero_copy():
+    """OVRTXRenderer.set_outputs publishes warp views over the caller's warp storage."""
+    renderer = _make_ovrtx_renderer_without_backend()
+
+    if not torch.cuda.is_available():
+        pytest.skip("OVRTX zero-copy wrapping requires a CUDA device")
+    device = "cuda"
+
+    layouts = {
+        "rgba": RenderBufferSpec(4, wp.uint8),
+        "rgb_hdr": RenderBufferSpec(3, wp.float32),
+        "depth": RenderBufferSpec(1, wp.float32),
+        "motion_vectors": RenderBufferSpec(2, wp.float32),
+    }
+    cfg = _make_camera_cfg(["rgb", *layouts])
+    data = CameraData.allocate(
+        data_types=cfg.data_types,
+        height=8,
+        width=16,
+        num_views=2,
+        device=device,
+        supported_specs=renderer.supported_output_types(),
+    )
+    render_data = _make_ovrtx_camera_render_data()
+    renderer.set_outputs(render_data, data.output)
+
+    for name, spec in layouts.items():
+        assert render_data.warp_buffers[name].ptr == data.output[name].warp.ptr
+        assert render_data.warp_buffers[name].shape == (2, 8, 16, spec.channels)
+        assert render_data.warp_buffers[name].dtype is spec.dtype
+    assert "rgb" not in render_data.warp_buffers

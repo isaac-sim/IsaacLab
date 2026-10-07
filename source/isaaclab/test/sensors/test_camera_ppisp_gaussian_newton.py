@@ -3,12 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Validate the camera PPISP wrapper applied to a 3D Gaussian (NuRec /
+"""Validate the PPISP observation processor applied to a 3D Gaussian (NuRec /
 ParticleField) scene through the Newton (warp) renderer.
 
 The scene is synthesised at test time by :mod:`generate_synthetic_gaussian_asset`
 and rendered via :func:`generate_synthetic_gaussian_asset.render_synthetic_gaussian_scene`.
-The aggressive wrapper PPISP cfg
+The aggressive PPISP observation processor cfg
 (:func:`generate_synthetic_gaussian_asset.make_aggressive_ppisp_cfg`) engages every
 PPISP feature past its subtle-correction defaults so the integration test can
 check semantic invariants — Newton produces HDR, PPISP maps it to a
@@ -153,7 +153,7 @@ def test_camera_ppisp_controller_matches_static_attrs_on_synthetic_gaussians_new
 @pytest.mark.isaacsim_ci
 @_SKIP_MISSING_NEWTON
 def test_camera_ppisp_wrapper_signatures_on_synthetic_gaussians_newton_multitile(device):
-    """Multi-tile wrapper PPISP via ``newton_warp`` must hold the same invariants
+    """Multi-tile PPISP observation processor via ``newton_warp`` must hold the same invariants
     independently for every tile.
 
     Builds an :class:`InteractiveScene` with :data:`MULTI_TILE_COUNT` envs so

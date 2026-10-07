@@ -14,7 +14,14 @@ from typing import Any
 import torch
 
 from ..app.loading_screen import report_activity
-from ..managers import ActionManager, EventManager, ObservationManager, RecorderManager
+from ..managers import (
+    ActionManager,
+    EventManager,
+    ObservationGroupCfg,
+    ObservationManager,
+    ObservationTermCfg,
+    RecorderManager,
+)
 from ..scene import InteractiveScene
 from ..sim import SimulationContext
 from ..sim.utils.stage import use_stage
@@ -186,6 +193,21 @@ class ManagerBasedEnv:
         # apply USD-related randomization events
         if "prestartup" in self.event_manager.available_modes:
             self.event_manager.apply(mode="prestartup")
+
+        # Observation modifiers can request renderer inputs while the scene is authored but before reset.
+        groups = (
+            self.cfg.observations.values()
+            if isinstance(self.cfg.observations, dict)
+            else vars(self.cfg.observations).values()
+        )
+        for group in groups:
+            if isinstance(group, ObservationGroupCfg):
+                for term in vars(group).values():
+                    if isinstance(term, ObservationTermCfg):
+                        for modifier_cfg in term.modifiers or ():
+                            prepare_scene = getattr(modifier_cfg.func, "prepare_scene", None)
+                            if prepare_scene is not None:
+                                prepare_scene(modifier_cfg, self)
 
         self.video_recorders: list[VideoRecorder] = [VideoRecorder(cfg, self) for cfg in self.cfg.video_recorders]
 
@@ -591,6 +613,7 @@ class ManagerBasedEnv:
     def close(self):
         """Cleanup for the environment."""
         if not self._is_closed:
+            self.observation_manager.close()
             # Stop simulation first to allow physics to clean up properly
             self.sim.stop()
 

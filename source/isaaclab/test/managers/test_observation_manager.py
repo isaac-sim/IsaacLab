@@ -100,9 +100,11 @@ def lin_vel_w_data(env) -> torch.Tensor:
 class DummySimulation:
     """Minimal playing simulation double."""
 
+    playing = True
+
     def is_playing(self) -> bool:
         """Return whether the simulated timeline is playing."""
-        return True
+        return self.playing
 
 
 @pytest.fixture
@@ -654,6 +656,64 @@ def test_modifier_compute(setup_env, position_term):
     torch.testing.assert_close(first, expected)
 
 
+def test_modifier_receives_env_and_can_change_shape(setup_env):
+    """The manager passes one tensor through modifiers and reports its final shape."""
+    env = setup_env
+    closed = []
+
+    class AddAlpha(modifiers.ModifierBase):
+        @property
+        def output_dim(self):
+            return (*self._data_dim[:-1], self._data_dim[-1] + 1)
+
+        def __call__(self, owner, data):
+            assert owner is env
+            rgba = torch.cat((data, torch.ones_like(data[..., :1])), dim=-1)
+            return rgba
+
+        def close(self):
+            closed.append(self)
+
+    group = ObservationGroupCfg(concatenate_terms=False, enable_corruption=False)
+    group.image = ObservationTermCfg(
+        func=pos_w_data,
+        modifiers=[
+            modifiers.ModifierCfg(func=AddAlpha),
+            modifiers.ModifierCfg(func=modifiers.bias, params={"value": 1}),
+        ],
+    )
+    manager = ObservationManager({"policy": group}, env)
+    assert manager.group_obs_dim["policy"] == [(4,)]
+    result = manager.compute()["policy"]["image"]
+    torch.testing.assert_close(result[..., :3], env.data.pos_w + 1)
+    torch.testing.assert_close(result[..., 3], torch.full((env.num_envs,), 2.0))
+    manager.reset([1])
+    manager.close()
+    manager.close()
+    assert len(closed) == 1
+
+
+def test_observation_modifiers_have_one_processing_owner():
+    """The removed sensor chain must not reappear beside observation modifiers."""
+    from pathlib import Path
+
+    sensors = Path(__file__).parents[2] / "isaaclab" / "sensors"
+    assert not list((sensors / "post_processing").glob("*.py"))
+    from isaaclab.envs import ManagerBasedEnv, mdp
+
+    assert not hasattr(mdp, "processed_image")
+    assert not hasattr(mdp, "camera_render_output")
+    assert not hasattr(ManagerTermBase, "prepare_scene")
+    assert not hasattr(ManagerTermBase, "close")
+    assert not hasattr(ObservationManager, "prepare_scene")
+    assert not hasattr(ManagerBasedEnv, "_close_observation_terms")
+    assert not hasattr(modifiers, "ModifierOutput")
+    from isaaclab.utils.modifiers import modifier as modifier_module
+
+    assert not hasattr(modifier_module, "_value")
+    assert not hasattr(modifier_module, "_result")
+
+
 def test_serialize(setup_env):
     """Test serialize call for ManagerTermBase terms."""
     env = setup_env
@@ -803,22 +863,22 @@ class DummyEnv:
 class StatefulBiasModifier(modifiers.ModifierBase):
     """Stateful modifier used to verify lazy callable resolution."""
 
-    def __init__(self, cfg: modifiers.ModifierCfg, data_dim: tuple[int, ...], device: str) -> None:
-        super().__init__(cfg, data_dim, device)
+    def __init__(self, cfg: modifiers.ModifierCfg, data_dim: tuple[int, ...], *, env) -> None:
+        super().__init__(cfg, data_dim, env=env)
         self.value = cfg.params["value"]
         self.reset_count = 0
 
     def reset(self, env_ids=None) -> None:
         self.reset_count += 1
 
-    def __call__(self, data: torch.Tensor) -> torch.Tensor:
+    def __call__(self, env, data: torch.Tensor) -> torch.Tensor:
         return data + self.value
 
 
 class InvalidModifier:
     """Class with the modifier constructor contract but the wrong base type."""
 
-    def __init__(self, cfg, data_dim, device):
+    def __init__(self, cfg, data_dim, *, env):
         pass
 
 

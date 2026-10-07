@@ -9,6 +9,8 @@ Observations
 .. automodule:: isaaclab.envs.mdp.observations
     :members:
 
+See :ref:`camera-post-processing` for applying PPISP through observation modifiers.
+
 Actions
 -------
 

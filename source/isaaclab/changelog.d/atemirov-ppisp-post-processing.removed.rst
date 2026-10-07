@@ -1,0 +1,1 @@
+* **Breaking:** Removed ``CameraCfg.isp_cfg`` and ``isaaclab.sensors.camera.CameraISPMode``. Configure PPISP with ``PpispModifierCfg(isp_cfg=existing_cfg)`` in an observation term's ``modifiers`` list, and read the processed image from observations. Replace discovery mode imports with ``isaaclab_ppisp.PpispDiscoveryMode``.

@@ -7,9 +7,13 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import pytest
 from isaaclab_ppisp import (
     PpispCfg,
+    PpispDiscoveryMode,
+    PpispModifierCfg,
     auto_any_ppisp_cfg,
     auto_camera_ppisp_cfg,
     default_ppisp_inputs,
@@ -68,6 +72,25 @@ def _author_ppisp_camera(
 
 def _controller_weights() -> list[float]:
     return [0.0] * PPISP_CONTROLLER_EXPECTED_WEIGHTS_LEN
+
+
+def test_ppisp_modifier_discovery_resolves_before_requesting_radiance():
+    stage = Usd.Stage.CreateInMemory()
+    _author_camera(stage)
+    _author_ppisp_camera(stage, inherits=None, attrs={"exposureOffset": 1.5})
+    requests = []
+    camera = SimpleNamespace(cfg=SimpleNamespace(prim_path="/World/Camera"), request_render_inputs=requests.append)
+    env = SimpleNamespace(scene={"camera": camera}, sim=SimpleNamespace(stage=stage))
+
+    cfg = PpispModifierCfg()
+    cfg.func.prepare_scene(cfg, env)
+    assert cfg.isp_cfg is None
+    assert requests == [("rgb",)]
+
+    cfg = PpispModifierCfg(isp_cfg=PpispDiscoveryMode.AUTO_ANY)
+    cfg.func.prepare_scene(cfg, env)
+    assert isinstance(cfg.isp_cfg, PpispCfg)
+    assert requests[-1] == ("rgb_radiance",)
 
 
 def test_ppisp_camera_attr_import_uses_first_time_sample():
@@ -226,13 +249,11 @@ def test_auto_any_ppisp_cfg_reads_first_camera_with_ppisp_attrs():
 
 
 def test_resolve_and_normalize_without_camera_uses_first_ppisp_camera():
-    from isaaclab.sensors.camera.camera_isp import CameraISPMode
-
     stage = Usd.Stage.CreateInMemory()
     _author_camera(stage, "/World/CameraWithoutPpisp")
     _author_ppisp_camera(stage, "/World/Camera_ppisp", inherits=None, attrs={"exposureOffset": 2.0})
 
-    cfg = resolve_and_normalize(CameraISPMode.AUTO_CAMERA, stage)
+    cfg = resolve_and_normalize(PpispDiscoveryMode.AUTO_CAMERA, stage)
 
     assert cfg is not None
     assert cfg.camera_prim_path is None
