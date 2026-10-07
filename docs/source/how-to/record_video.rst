@@ -7,8 +7,7 @@ Recording video
 
 .. currentmodule:: isaaclab
 
-This guide shows how to record ``mp4`` clips from a visualizer or a scene sensor during a run. For
-how recording sources, clips, and visualizers fit together, see :doc:`/source/concepts/video_recording`.
+This guide shows how to record ``mp4`` clips from a visualizer or a scene sensor during a run.
 
 
 Quick Start
@@ -38,8 +37,9 @@ adds a single recorder; to record several sources at once, list one ``VideoRecor
           uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole --video
 
 ``--video`` records from the source it names, and ``--viz`` still decides which visualizers open a
-window. See :ref:`the --video sources <record_video_cli>` for every command-line form, and the
-:doc:`concept page </source/concepts/video_recording>` for source types and clip control.
+window. See :ref:`the --video sources <record_video_cli>` for every command-line form, and `Sources`_ and `Clip control`_
+below for the ``VideoRecorderCfg`` options. To record from a different camera angle than the
+interactive view, see :ref:`combining views with a headless recording <visualization-recording-angle>`.
 
 
 .. raw:: html
@@ -169,9 +169,145 @@ Four independent clips are written to ``videos/recording_tutorial/example_3/``:
    </div>
 
 
+Sources
+-------
+
+The ``source`` string selects what to capture:
+
+.. list-table::
+   :widths: 38 62
+   :header-rows: 1
+
+   * - Source string
+     - Captures from
+   * - ``"viz"`` (default)
+     - First capture-capable visualizer ``--viz`` selected, else a headless Newton GL visualizer
+   * - ``"viz:kit"``
+     - Kit visualizer viewport
+   * - ``"viz:kit:streaming_view"``
+     - Kit streaming camera panel, requires ``streaming_view=True``
+   * - ``"viz:newton_gl"``
+     - Newton GL visualizer viewport
+   * - ``"viz:newton_rtx"``
+     - Newton OVRTX path-traced viewport
+   * - ``"viz:newton_gl:streaming_view"``
+     - Newton GL streaming camera panel, requires ``streaming_view=True``
+   * - ``"sensor:<name>"``
+     - ``env.scene.sensors[name]``, RGB (default)
+   * - ``"sensor:<name>:rgb"``
+     - RGB channel
+   * - ``"sensor:<name>:depth"``
+     - Depth, turbo colormap, range ``depth_colormap_min`` … ``depth_colormap_max``
+   * - ``"sensor:<name>:segmentation"``
+     - Segmentation, colorized
+   * - ``"sensor:<name>:normals"``
+     - Surface normals, colorized
+
+The camera angle, resolution, and other visualizer settings are configured on the corresponding
+visualizer config, not on the recorder. A ``viz:<type>`` visualizer that ``--viz`` does not select runs
+headless, only for the recording, with the settings of its config in ``sim.visualizer_cfgs``.
+
+``visualizer`` is accepted as the long form of the ``viz`` prefix (``"visualizer:kit"`` is ``"viz:kit"``). The
+deprecated ``newton`` type (``"viz:newton"``) still works with a warning; use ``newton_gl``. Bare visualizer
+types are accepted here too, e.g. ``VideoRecorderCfg(source="newton_gl")`` is equivalent to
+``VideoRecorderCfg(source="viz:newton_gl")``.
+
+.. note::
+
+   The Newton RTX viewer framebuffer can be recorded with ``"viz:newton_rtx"``, but
+   recording its streaming view is not supported.
+
+
+Clip control
+------------
+
+.. list-table::
+   :widths: 30 15 55
+   :header-rows: 1
+
+   * - Field
+     - Default
+     - Meaning
+   * - ``video_length``
+     - ``200``
+     - Env steps per clip
+   * - ``video_interval``
+     - ``0``
+     - ``0`` = one clip starting at step 1; ``N > 0`` = new clip every N steps
+   * - ``fps``
+     - ``None``
+     - Output frame rate; ``None`` resolves from ``env.metadata["render_fps"]`` or ``1 / step_dt``
+   * - ``output_dir``
+     - ``"videos"``
+     - Directory for output files (created on demand)
+   * - ``output_filename_prefix``
+     - ``"clip"``
+     - File stem; output is ``<prefix>_NNNN.mp4``
+   * - ``keep_last_n_clips``
+     - ``None``
+     - Delete older clips; ``None`` keeps all
+
+For example, a 200-step clip every 1,000 steps, keeping only the latest:
+
+.. code-block:: python
+
+    VideoRecorderCfg(source="viz:kit", video_length=200, video_interval=1000, keep_last_n_clips=1)
+
+
+Limitations
+-----------
+
+* ``source="viz:kit"`` and ``source="viz:kit:streaming_view"`` require cubric
+  to propagate Newton Fabric scene transforms to the RTX renderer.  Without cubric, a warning
+  is logged and a black-frame warning is emitted at clip write time.  Use
+  ``source="viz:newton_gl"`` for guaranteed capture with Newton physics.
+
+* ``source="viz:newton_gl:streaming_view"`` and ``source="viz:kit:streaming_view"``
+  require ``streaming_view=True`` on the corresponding visualizer cfg.  A
+  :class:`~RuntimeError` is raised at the first capture attempt if it is not set.
+
+* For ``source="sensor:<name>"``, the named field must exist on the scene config with
+  ``"rgb"`` in its ``data_types``.
+
+.. list-table::
+   :widths: 18 10 72
+   :header-rows: 1
+
+   * - Visualizer
+     - ``--video``
+     - Notes
+   * - ``kit``
+     - ✓
+     - Launches Isaac Sim; the launch enables camera rendering for the recording.
+   * - ``newton_gl``
+     - ✓
+     - Uses pyglet's EGL backend when headless; the default for ``--video`` without a
+       capture-capable ``--viz``.
+   * - ``newton_rtx``
+     - ✓
+     - Starts the OVRTX runtime; capture performs a GPU-to-CPU readback of the path-traced
+       framebuffer.
+   * - ``rerun``
+     - ✗
+     - Remote streaming tool; no local frame-capture API. ``viz:rerun`` is an error;
+       ``--video --viz rerun`` records from a headless ``newton_gl``.
+   * - ``viser``
+     - ✗
+     - Browser streaming tool; no local frame-capture API. ``viz:viser`` is an error;
+       ``--video --viz viser`` records from a headless ``newton_gl``.
+
+To record video while streaming with Rerun or Viser, pass ``--video`` or name a capture-capable
+visualizer, e.g. ``--viz viser --video viz:kit``; it runs headless next to the streaming visualizer.
+Alternatively, record directly from a scene camera sensor without any visualizer:
+
+.. code-block:: python
+
+    VideoRecorderCfg(source="sensor:<name>")    # add to env_cfg.video_recorders
+
+
 See also
 --------
 
-* :doc:`/source/concepts/video_recording`: source types, clip control, and compatibility
-* :doc:`/source/concepts/visualization`: configuring interactive visualizers
+* :doc:`/source/concepts/visualization`: configuring interactive visualizers and recording from them
+* :doc:`/source/how-to/visualizer_streaming_camera_view`: tiled camera panel setup
 * :doc:`/source/how-to/capture_sensor_frames`: saving per-frame sensor outputs as images

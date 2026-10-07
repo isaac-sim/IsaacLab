@@ -706,6 +706,8 @@ streaming views, and renderer-based sensor data capture.
      </div>
    </div>
 
+.. _record_video_cli:
+
 Pass ``--video [SOURCE]`` on the command line for a quick recording, or define multiple
 ``VideoRecorderCfg`` entries to record multiple sources at once. ``--viz`` still decides which
 visualizers open a window; a visualizer that only records runs headless:
@@ -755,7 +757,9 @@ capture source, e.g. ``--video viz:kit``:
 
           uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole --video
 
-See :doc:`/source/concepts/video_recording` for clip length, interval, and multi-source options.
+See :doc:`/source/how-to/record_video` for clip length, interval, and multi-source options.
+
+.. _visualization-recording-angle:
 
 **Combining an interactive view with a headless recording source**
 
@@ -772,8 +776,8 @@ Watch training live in Kit while recording from a separate headless Newton GL an
         NewtonGLVisualizerCfg(eye=(12.0, 0.0, 6.0)),  # recorded headless, as --viz does not select it
     ]
 
-See the "Recording from an independent camera angle" section of
-:doc:`/source/how-to/record_video` for the full example.
+Alternatively, declare a :class:`~isaaclab.sensors.CameraCfg` in the scene and record it with
+``source="sensor:<name>"`` for full control of the viewpoint without a second visualizer.
 
 **Following a moving robot (Kit)**
 
@@ -1028,7 +1032,7 @@ See Also
 --------
 
 - :doc:`/source/how-to/visualizer_streaming_camera_view`: stream a camera view step by step
-- :doc:`/source/concepts/video_recording`: recording MP4 clips from a visualizer or sensor
+- :doc:`/source/how-to/record_video`: recording MP4 clips from a visualizer or sensor
 - :doc:`/source/how-to/create_visualization_markers`: creating and configuring custom visualization markers
 - :doc:`/source/how-to/capture_sensor_frames`: saving per-frame sensor outputs during training
 - :doc:`/source/concepts/renderers`: renderer backends (RTX, Newton Warp, OVRTX)

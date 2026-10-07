@@ -119,7 +119,6 @@ Table of Contents
    source/concepts/sensors/index
    source/concepts/coupled_solvers
    source/concepts/visualization
-   source/concepts/video_recording
    source/concepts/reinforcement_learning
    source/concepts/deformables
    source/concepts/schema_cfgs
