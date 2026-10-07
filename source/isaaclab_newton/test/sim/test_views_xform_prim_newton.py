@@ -27,7 +27,7 @@ from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_newton.physics.newton_manager import NewtonManager
 from isaaclab_newton.sim.views import NewtonSiteFrameView as FrameView
 
-from pxr import Sdf
+from pxr import Sdf, UsdPhysics
 
 import isaaclab.cloner as cloner
 import isaaclab.sim as sim_utils
@@ -280,3 +280,32 @@ def test_world_attached_pose_read_and_write(device):
     torch.testing.assert_close(ret_pos.torch, wp.to_torch(new_pos), atol=1e-5, rtol=0)
     torch.testing.assert_close(ret_quat.torch, wp.to_torch(new_quat), atol=1e-5, rtol=0)
     ctx.__exit__(None, None, None)
+
+
+# ==================================================================
+# Newton edge case: frame below a non-body articulation root
+# ==================================================================
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_frame_below_non_body_articulation_root_is_static(device):
+    """The non-body ``ArticulationRootAPI`` Xform and a frame below it outside every body are static frames."""
+    num_envs = 2
+    with _sim_context(device, num_envs=num_envs) as sim:
+        sim._app_control_on_stop_handle = None
+        UsdPhysics.ArticulationRootAPI.Apply(sim_utils.create_prim("/World/envs/env_0/Robot", "Xform"))
+        body_cfg = _SceneCfg(num_envs=num_envs, env_spacing=2.0).cube.spawn
+        body_cfg.func("/World/envs/env_0/Robot/base", body_cfg)
+        sim_utils.create_prim("/World/envs/env_0/Robot/Mount", translation=CHILD_OFFSET)
+        assets = [AssetBaseCfg(prim_path="/World/envs/env_.*/Robot")]
+        assets.append(AssetBaseCfg(prim_path="/World/defaultGroundPlane"))
+        plan = cloner.clone_plan_from_env_0(cloner.CloneCfg(), assets, num_envs, 2.0)
+        cloner.replicate(plan)
+        sim.reset()
+
+        origins = torch.as_tensor(plan.positions, device=device)
+        root_view = FrameView("/World/envs/env_[^/]+/Robot", device=device)
+        mount_view = FrameView("/World/envs/env_[^/]+/Robot/Mount", device=device)
+        torch.testing.assert_close(root_view.get_world_poses()[0].torch, origins, atol=1e-5, rtol=0)
+        expected = origins + torch.tensor(CHILD_OFFSET, device=device)
+        torch.testing.assert_close(mount_view.get_world_poses()[0].torch, expected, atol=1e-5, rtol=0)

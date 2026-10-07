@@ -289,7 +289,7 @@ generic commands above.
      - ``anymal_d_rough``
      - Branched topology: same ordering overrides as G1.
 
-
+.. _sim-to-sim-transfer-demonstrations:
 
 Transfer demonstrations
 ~~~~~~~~~~~~~~~~~~~~~~~
