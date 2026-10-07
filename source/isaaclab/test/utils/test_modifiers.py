@@ -116,3 +116,28 @@ def test_integral(device):
 
         # check if the modified data is close to the expected result
         torch.testing.assert_close(processed_data, test_cfg.result)
+
+
+def test_modifier_chain_builds_class_modifiers_from_the_tensor_they_receive():
+    """Class modifiers are built lazily with their input shape, after earlier modifiers change it."""
+    chain = modifiers.ModifierChain(
+        [
+            modifiers.ModifierCfg(func=lambda data, width: data[..., :width], params={"width": 2}),
+            modifiers.IntegratorCfg(dt=1.0),
+        ],
+        "cpu",
+    )
+    data = torch.ones(3, 4)
+
+    assert torch.equal(chain(data), torch.full((3, 2), 0.5))
+    assert torch.equal(chain(data), torch.full((3, 2), 1.5))
+    assert chain._instances[0]._data_dim == (3, 2)
+    assert torch.equal(data, torch.ones(3, 4))
+
+    chain.reset([1])
+    torch.testing.assert_close(chain(data)[:, 0], torch.tensor([2.5, 0.5, 2.5]))
+
+
+def test_modifier_chain_rejects_entries_that_are_not_modifier_configs():
+    with pytest.raises(TypeError, match="ModifierCfg"):
+        modifiers.ModifierChain([lambda data: data], "cpu")

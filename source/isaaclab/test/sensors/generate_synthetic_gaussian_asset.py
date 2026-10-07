@@ -24,7 +24,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 import torch
-from isaaclab_ppisp import PpispCfg, normalize_ppisp_cfg
+from isaaclab_ppisp import PpispCfg, PpispModifierCfg, normalize_ppisp_cfg
 
 from pxr import Gf, Sdf, Usd, UsdGeom, Vt
 
@@ -32,7 +32,6 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors.camera import Camera, CameraCfg
-from isaaclab.sensors.camera.camera_isp import CameraISPMode
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass
 
@@ -729,7 +728,7 @@ def render_synthetic_gaussian_scene(
             width=width,
             data_types=data_types,
             spawn=None,
-            isp_cfg=isp_cfg,
+            modifiers={"rgb_radiance": [PpispModifierCfg(isp_cfg=isp_cfg)]},
             renderer_cfg=renderer_cfg,
         )
         camera = Camera(cfg)
@@ -757,9 +756,7 @@ def render_synthetic_gaussian_scene_with_static_ppisp_attrs(
 ) -> dict[str, torch.Tensor]:
     """Render the synthesised gaussian asset through authored static PPISP camera attributes.
 
-    The camera uses :class:`CameraISPMode.AUTO_CAMERA`; renderer backends must
-    discover the camera-authored PPISP attributes and route them through their
-    PPISP workflow.
+    The camera's PPISP modifier discovers the camera-authored PPISP attributes.
     """
     with fresh_synthetic_gaussian_interactive_scene(usd_path, sim_cfg, num_envs=num_envs) as sim:
         author_static_ppisp_camera_attrs(sim.stage, ppisp_cfg=ppisp_cfg)
@@ -770,7 +767,7 @@ def render_synthetic_gaussian_scene_with_static_ppisp_attrs(
             width=width,
             sim_dt=sim_dt,
             stabilisation_steps=stabilisation_steps,
-            isp_cfg=CameraISPMode.AUTO_CAMERA,
+            modifiers={"rgb_radiance": [PpispModifierCfg()]},
             sim=sim,
         )
 
@@ -798,7 +795,7 @@ def render_synthetic_gaussian_scene_with_controller_ppisp_attrs(
             width=width,
             sim_dt=sim_dt,
             stabilisation_steps=stabilisation_steps,
-            isp_cfg=CameraISPMode.AUTO_CAMERA,
+            modifiers={"rgb_radiance": [PpispModifierCfg()]},
             sim=sim,
         )
 
@@ -811,7 +808,7 @@ def _render_synthetic_gaussian_camera(
     width: int,
     sim_dt: float,
     stabilisation_steps: int,
-    isp_cfg: PpispCfg | CameraISPMode | None,
+    modifiers: dict[str, list[PpispModifierCfg]],
     sim: SimulationContext,
 ) -> dict[str, torch.Tensor]:
     cfg = CameraCfg(
@@ -821,7 +818,7 @@ def _render_synthetic_gaussian_camera(
         width=width,
         data_types=data_types,
         spawn=None,
-        isp_cfg=isp_cfg,
+        modifiers=modifiers,
         renderer_cfg=renderer_cfg,
     )
     camera = Camera(cfg)

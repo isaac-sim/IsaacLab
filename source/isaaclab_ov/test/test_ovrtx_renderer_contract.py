@@ -184,13 +184,11 @@ def test_ovrtx_render_submits_every_product_and_routes_requested_outputs(
     cameras = [_make_ovrtx_camera_render_data() for _ in range(2 if batch else 1)]
     products = {}
     processed = []
-    postprocessed = []
     submissions = []
     published_ordinals = []
     for index, camera in enumerate(cameras):
         camera.render_product_path = f"/Render/Camera{index}"
         camera.warp_buffers = {str(RenderBufferKind.RGB_HDR): object(), str(RenderBufferKind.RGBA): object()}
-        camera.ppisp_pipeline = types.SimpleNamespace(apply=lambda *buffers: postprocessed.append(buffers))
         products[camera.render_product_path] = types.SimpleNamespace(frames=[object()])
     renderer._render_product_paths = [*products, "/Render/UnrequestedCamera"]
     if missing_output == "product":
@@ -217,15 +215,10 @@ def test_ovrtx_render_submits_every_product_and_routes_requested_outputs(
         assert processed == [
             (camera, products[camera.render_product_path].frames[0], camera.warp_buffers) for camera in cameras
         ]
-        assert postprocessed == [
-            (camera.warp_buffers[str(RenderBufferKind.RGB_HDR)], camera.warp_buffers[str(RenderBufferKind.RGBA)])
-            for camera in cameras
-        ]
     else:
         with pytest.raises(RuntimeError, match=cameras[-1].render_product_path):
             render(request)
         assert not processed
-        assert not postprocessed
 
     assert len(submissions) == 1
     # Unrequested products are submitted too, and only the requested cameras are read back.
@@ -565,9 +558,7 @@ def test_ovrtx_prepare_cameras_neutralizes_exposure_for_radiance(data_types):
     stage = Usd.Stage.CreateInMemory()
     camera = UsdGeom.Camera.Define(stage, "/World/Camera").GetPrim()
     camera.CreateAttribute("exposure:iso", Sdf.ValueTypeNames.Float).Set(100.0)
-    spec = types.SimpleNamespace(
-        cfg=types.SimpleNamespace(data_types=data_types, isp_cfg=None), camera_prim_paths=("/World/Camera",)
-    )
+    spec = types.SimpleNamespace(cfg=types.SimpleNamespace(data_types=data_types), camera_prim_paths=("/World/Camera",))
     _make_ovrtx_renderer_without_backend().prepare_cameras(stage, spec)
 
     assert camera.GetAttribute("exposure:iso").Get() == (0.0 if "rgb_radiance" in data_types else 100.0)
@@ -604,47 +595,6 @@ def test_ovrtx_set_outputs_wraps_caller_torch_zero_copy():
         assert render_data.warp_buffers[name].shape == (2, 8, 16, spec.channels)
         assert render_data.warp_buffers[name].dtype is spec.dtype
     assert "rgb" not in render_data.warp_buffers
-
-
-def test_ovrtx_set_outputs_routes_ppisp_buffers_through_warp_buffers():
-    """OVRTXRenderer.set_outputs stores PPISP source/destination in warp_buffers."""
-    renderer = _make_ovrtx_renderer_without_backend()
-
-    cfg = _make_camera_cfg(["rgb"])
-    data = CameraData.allocate(
-        data_types=cfg.data_types,
-        height=8,
-        width=16,
-        num_views=2,
-        device="cpu",
-        supported_specs=renderer.supported_output_types(),
-    )
-    render_data = _make_ovrtx_camera_render_data()
-    render_data.ppisp_pipeline = object()
-    renderer.set_outputs(render_data, data.output)
-
-    assert render_data.warp_buffers["rgba"].ptr == data.output["rgba"].warp.ptr
-    assert "rgb_hdr" in render_data.warp_buffers
-    assert render_data.warp_buffers["rgb_hdr"].shape == (2, 8, 16, 3)
-    assert render_data.warp_buffers["rgb_hdr"].dtype is wp.float32
-
-
-def test_ovrtx_process_frame_skips_ldr_rgba_when_ppisp_is_active():
-    """PPISP owns RGBA output, so OVRTX LdrColor should not pre-fill it."""
-
-    class FailingRenderVar:
-        def map(self, *args, **kwargs):
-            raise AssertionError("PPISP RGBA output must not read OVRTX LdrColor")
-
-    renderer = _make_ovrtx_renderer_without_backend()
-    render_data = _make_ovrtx_camera_render_data()
-    render_data.ppisp_pipeline = object()
-    key = "LdrColor"
-    if ovrtx_renderer_module.uses_prim_path_render_vars(ovrtx_renderer_module.OVRTX_VERSION):
-        key = f"/{render_data.render_scope_name}/Vars/{key}"
-    frame = types.SimpleNamespace(render_vars={key: FailingRenderVar()})
-
-    renderer._process_render_frame(render_data, frame, {"rgba": object()})
 
 
 # Render-var keys depend only on the OVRTX version; ``use_ovstage`` only selects the registration path.
@@ -733,33 +683,6 @@ def test_ovrtx_process_frame_reads_authored_camera_render_vars(monkeypatch, use_
         for index, output in enumerate(outputs, start=1):
             np.testing.assert_array_equal(buffers[output].numpy(), 10 * camera_id + index)
         render_data.cleanup()
-
-
-def test_ovrtx_ppisp_hdr_source_is_cloned_to_output_device(monkeypatch):
-    """PPISP HdrColor source is moved to the HDR output buffer device."""
-
-    class FakeArray:
-        device = "cuda:1"
-
-    class OutputArray:
-        device = "cuda:0"
-
-    cloned = object()
-    clone_calls = []
-
-    def fake_clone(src, *, device):
-        clone_calls.append((src, device))
-        return cloned
-
-    monkeypatch.setattr(wp, "clone", fake_clone)
-
-    renderer = _make_ovrtx_renderer_without_backend()
-    render_data = _make_ovrtx_camera_render_data()
-    render_data.ppisp_pipeline = object()
-    source = FakeArray()
-
-    assert renderer._prepare_ppisp_hdr_source(render_data, source, {"rgb_hdr": OutputArray()}) is cloned
-    assert clone_calls == [(source, "cuda:0")]
 
 
 def test_launch_extract_all_tiles_rejects_wider_output_channels():
@@ -904,7 +827,6 @@ def test_ovrtx_cleanup_releases_only_the_given_render_data(monkeypatch, cleanup_
     renderer._camera_render_data.append(render_data)
     render_data.warp_buffers = {"rgba": wp.zeros((8, 16, 4), dtype=wp.uint8, device="cpu")}
     render_data.renderer_info = {"semantic_segmentation": {"idToLabels": {}}}
-    render_data.ppisp_pipeline = object()
     if use_ovstage:
         render_data.camera_xform_query = "to_remove"
         render_data.resources.callback(renderer.backend.paths.destroy_path_list, "to_remove")
@@ -951,7 +873,6 @@ def test_ovrtx_cleanup_releases_only_the_given_render_data(monkeypatch, cleanup_
     assert render_data.intrinsic_bindings == []
     assert render_data.warp_buffers == {}
     assert render_data.renderer_info == {}
-    assert render_data.ppisp_pipeline is None
     assert render_data.pending is render_data.ready is None
     assert renderer._render_product_paths == ["/RenderCamera_0/RenderProduct_camera"]
     assert renderer._initialized_scene is True

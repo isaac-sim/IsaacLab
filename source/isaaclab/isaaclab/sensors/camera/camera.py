@@ -20,11 +20,13 @@ from ... import sim as sim_utils
 from ...app.logging_utils import force_log_level
 from ...renderers import BaseRenderer, CameraRenderSpec
 from ...sim.views import FrameView
+from ...utils import replace
 from ...utils.math import (
     convert_camera_frame_orientation_convention,
     create_rotation_matrix_from_view,
     quat_from_matrix,
 )
+from ...utils.modifiers import ModifierChain
 from ...utils.warp import ProxyArray
 from ..sensor_base import SensorBase
 from .camera_data import CameraData, RenderBufferKind
@@ -245,8 +247,18 @@ class Camera(SensorBase):
         if sim_ctx is not None:
             sim_ctx.require_visual_shapes()
 
+        # Renderers see the camera with its resolved outputs: requested outputs that no modifier
+        # produces, plus every modifier chain's input.
+        self._render_cfg = (
+            replace(self.cfg, data_types=self.cfg.render_data_types()) if self.cfg.modifiers else self.cfg
+        )
+        # Modifier chains by input, with their output names; built once the renderer buffers exist.
+        self._modifier_chains: dict[str, tuple[str, ModifierChain]] = {}
+        # Capture metadata last processed by the chains; delayed renderers may republish an older image.
+        self._modifier_capture: object | None = None
+
         # Simulation setup and environments read some renderer settings before the renderer exists.
-        self.cfg.renderer_cfg.apply_pre_reset_settings(self.cfg)
+        self.cfg.renderer_cfg.apply_pre_reset_settings(self._render_cfg)
 
         # UsdGeom Camera prim for the sensor
         self._sensor_prims: list[UsdGeom.Camera] = []
@@ -587,6 +599,11 @@ class Camera(SensorBase):
         self._renderer.reset(self._render_data, env_ids)
         # reset the timestamps
         super().reset(env_ids, env_mask)
+        modifier_env_ids = env_ids
+        if modifier_env_ids is None and env_mask is not None:
+            modifier_env_ids = wp.to_torch(env_mask).nonzero().squeeze(-1)
+        for _, chain in self._modifier_chains.values():
+            chain.reset(modifier_env_ids)
         # reset the data
         # note: this recomputation is useful if one performs events such as randomizations on the camera poses.
         if env_mask is not None:
@@ -628,7 +645,7 @@ class Camera(SensorBase):
         # it, and the prims are already authored at this point.
         cam_paths = tuple(str(p.GetPath()) for p in sim_utils.find_matching_prims(self.cfg.prim_path, self.stage))
         render_spec = CameraRenderSpec(
-            cfg=self.cfg,
+            cfg=self._render_cfg,
             device=str(self._device),
             num_instances=self._num_envs,
             camera_prim_paths=cam_paths,
@@ -703,6 +720,7 @@ class Camera(SensorBase):
         else:
             renderer.render(self._render_data)
             renderer.read_output(self._render_data, self._data)
+        self._apply_modifiers()
 
     @staticmethod
     def _update_buffers_batch_impl(sensors: Sequence[SensorBase]) -> None:
@@ -727,6 +745,34 @@ class Camera(SensorBase):
             [(camera._renderer, camera._render_data, camera._data) for camera in ready],
             sim_ctx.get_physics_step_count(),
         )
+        for camera in ready:
+            camera._apply_modifiers()
+
+    def _apply_modifiers(self) -> None:
+        """Run each modifier chain once per published capture and copy its result to the camera output."""
+        if not self._modifier_chains:
+            return
+        # Delayed renderers attach the published capture to the output info and keep it until the
+        # next image is ready. Synchronous renderers publish a new image on every render.
+        capture = next(
+            (info["capture"] for info in self._data.info.values() if isinstance(info, dict) and "capture" in info),
+            None,
+        )
+        if capture is not None and capture is self._modifier_capture:
+            return
+        self._modifier_capture = capture
+        outputs = self._data.output
+        for data_type, (output_name, chain) in self._modifier_chains.items():
+            result = chain(self._render_outputs[data_type].torch)
+            buffer = self._modifier_buffers.get(output_name)
+            if buffer is None:
+                # The chain defines its output layout, so its buffer is allocated from the first result.
+                buffer = ProxyArray(wp.from_torch(result.contiguous().clone()))
+                self._modifier_buffers[output_name] = buffer
+                outputs[output_name] = buffer
+                self._data.info.setdefault(output_name, None)
+            else:
+                buffer.torch.copy_(result)
 
     """
     Private Helpers
@@ -765,7 +811,7 @@ class Camera(SensorBase):
         known: list[str] = []
         unknown: list[str] = []
         unsupported: list[str] = []
-        for name in self.cfg.data_types:
+        for name in self._render_cfg.data_types:
             try:
                 if RenderBufferKind(name) in specs:
                     known.append(name)
@@ -797,7 +843,15 @@ class Camera(SensorBase):
         self._data.create_buffers(self._view.count, str(self._device))
         self._initialize_intrinsics()
         self._update_poses()
-        self._renderer.set_outputs(self._render_data, self._data.output)
+        # The renderer keeps writing these buffers; modifier chains publish their results separately.
+        self._render_outputs = dict(self._data.output)
+        self._renderer.set_outputs(self._render_data, self._render_outputs)
+        self._modifier_chains = {
+            data_type: (output_name, ModifierChain(self.cfg.modifiers[data_type], str(self._device)))
+            for data_type, output_name in self.cfg.modifier_outputs().items()
+        }
+        self._modifier_buffers: dict[str, ProxyArray] = {}
+        self._modifier_capture = None
 
     def _read_authored_opencv_intrinsics(
         self, prim: Usd.Prim, width: int, height: int, env_id: int
@@ -1015,6 +1069,7 @@ class Camera(SensorBase):
             self._renderer.cleanup(self._render_data)
         self._render_data = None
         self._renderer = None
+        self._modifier_chains = {}
         # call parent
         super()._invalidate_initialize_callback(event)
         # release backend state deterministically, then invalidate the view
