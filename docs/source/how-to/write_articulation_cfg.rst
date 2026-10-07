@@ -58,16 +58,20 @@ Choosing shared and backend-specific settings
 Use the shared :class:`~assets.ArticulationCfg` for the robot's initial state and actuators.
 The simulation selects the physics backend separately.
 
-For common USD properties, use classes from ``isaaclab.sim.schemas``, such as
-:class:`~sim.schemas.RigidBodyBaseCfg` and :class:`~sim.schemas.ArticulationRootBaseCfg`.
-Use ``isaaclab_physx.sim.schemas.Physx*Cfg`` for PhysX tuning and
+For common USD properties, use the solver-common fragments from ``isaaclab.sim.schemas``, such as
+:class:`~sim.schemas.UsdPhysicsRigidBodyCfg` and :class:`~sim.schemas.UsdPhysicsDriveCfg`. Pass
+a backend's fragments from ``isaaclab_physx.sim.schemas.Physx*Cfg`` for PhysX tuning and
 ``isaaclab_newton.sim.schemas.Newton*Cfg`` / ``Mujoco*Cfg`` for Newton and MJWarp-specific
-settings. The :ref:`schema-cfgs` guide explains the available classes and their USD namespaces;
-:doc:`../concepts/schema_fragments` shows how to author both backends' attributes
-in one spawn configuration.
+settings alongside them in the same spawner field, as a list. The :ref:`schema-cfgs` guide explains
+the available classes and their USD namespaces; :doc:`../concepts/schema_fragments` shows how to
+author both backends' attributes in one spawn configuration.
 
-The Cartpole below uses the compatibility names ``RigidBodyPropertiesCfg`` and
-``ArticulationRootPropertiesCfg``. Its PhysX solver iterations and sleep thresholds do not
+The Cartpole below passes a list of fragments to ``rigid_props`` and ``articulation_props``:
+``rigid_props`` carries a :class:`~sim.schemas.UsdPhysicsRigidBodyCfg` fragment next to a
+:class:`~isaaclab_physx.sim.schemas.PhysxRigidBodyCfg` fragment, and ``articulation_props`` carries
+a :class:`~isaaclab_physx.sim.schemas.PhysxArticulationCfg` fragment next to a
+:class:`~isaaclab_newton.sim.schemas.NewtonArticulationCfg` fragment, so each backend reads its own
+attributes from the same configuration. Its PhysX solver iterations and sleep thresholds do not
 configure Newton's solver. When adapting it to Newton, retain the shared initial-state and
 actuator configuration and configure the Newton solver separately. For example, to override
 Newton's self-collision setting:
@@ -75,12 +79,12 @@ Newton's self-collision setting:
 .. code-block:: python
 
    from isaaclab_assets import CARTPOLE_CFG
-   from isaaclab_newton.sim.schemas import NewtonArticulationRootPropertiesCfg
+   from isaaclab_newton.sim.schemas import NewtonArticulationCfg
 
    from isaaclab.utils import clone
 
    robot_cfg = clone(CARTPOLE_CFG)
-   robot_cfg.spawn.articulation_props = NewtonArticulationRootPropertiesCfg(self_collision_enabled=False)
+   robot_cfg.spawn.articulation_props = [NewtonArticulationCfg(self_collision_enabled=False)]
 
 See :doc:`solver_tuning_mjwarp` for solver settings,
 :doc:`prepare_asset_for_newton`
@@ -186,7 +190,7 @@ to combine them into a single actuator model.
    ``None`` retains the imported USD value; explicit actuator configurations use
    effort mode. Zero-gain USD drives therefore need no placeholder solely for a
    configured actuator. See :ref:`import-new-asset-ensure-drives-exist` for when
-   :attr:`~isaaclab.sim.schemas.JointDrivePropertiesCfg.ensure_drives_exist`
+   :attr:`~isaaclab.sim.spawners.from_files.FileCfg.ensure_drives_exist`
    remains useful.
 
 

@@ -291,33 +291,41 @@ Contact-rich manipulation requires careful solver tuning. These parameters were 
 
 .. code-block:: python
 
+    from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
+
     # Robot rigid body properties
-    rigid_props=sim_utils.RigidBodyPropertiesCfg(
-        disable_gravity=True,                    # Robot is mounted, no gravity
-        max_depenetration_velocity=5.0,          # Control interpenetration resolution
-        linear_damping=0.0,                      # No artificial damping
-        angular_damping=0.0,
-        max_linear_velocity=1000.0,
-        max_angular_velocity=3666.0,
-        enable_gyroscopic_forces=True,           # Important for accurate dynamics
-        solver_position_iteration_count=4,       # Balance accuracy vs performance
-        solver_velocity_iteration_count=1,
-        max_contact_impulse=1e32,               # Allow large contact forces
-    ),
+    rigid_props=[
+        PhysxRigidBodyCfg(
+            disable_gravity=True,                    # Robot is mounted, no gravity
+            max_depenetration_velocity=5.0,          # Control interpenetration resolution
+            linear_damping=0.0,                      # No artificial damping
+            angular_damping=0.0,
+            max_linear_velocity=1000.0,
+            max_angular_velocity=3666.0,
+            enable_gyroscopic_forces=True,           # Important for accurate dynamics
+            solver_position_iteration_count=4,       # Balance accuracy vs performance
+            solver_velocity_iteration_count=1,
+            max_contact_impulse=1e32,               # Allow large contact forces
+        ),
+    ],
 
 **Important**: The ``solver_position_iteration_count`` is a critical parameter for contact-rich tasks. Increasing this value improves collision simulation stability and reduces penetration issues, but it also increases simulation and training time. For the gear assembly task, we use ``solver_position_iteration_count=4`` as a balance between physics accuracy and computational performance. If you observe penetration or unstable contacts, try increasing to 8 or 16, but expect slower training.
 
 .. code-block:: python
 
+    from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxCollisionCfg
+
     # Articulation properties
-    articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-        enabled_self_collisions=False,
-        solver_position_iteration_count=4,
-        solver_velocity_iteration_count=1,
-    ),
+    articulation_props=[
+        PhysxArticulationCfg(
+            enabled_self_collisions=False,
+            solver_position_iteration_count=4,
+            solver_velocity_iteration_count=1,
+        ),
+    ],
 
     # Contact properties
-    collision_props=sim_utils.CollisionPropertiesCfg(
+    collision_props=PhysxCollisionCfg(
         contact_offset=0.005,                    # 5mm contact detection distance
         rest_offset=0.0,                         # Objects touch at 0 distance
     ),
@@ -873,15 +881,19 @@ CUDA Out of Memory
 
    .. code-block:: python
 
-       rigid_props=sim_utils.RigidBodyPropertiesCfg(
-           solver_position_iteration_count=4,  # Use default value
-           # ... other parameters
-       ),
+       rigid_props=[
+           PhysxRigidBodyCfg(
+               solver_position_iteration_count=4,  # Use default value
+               # ... other parameters
+           ),
+       ],
 
-       articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-           solver_position_iteration_count=4,  # Use default value
-           # ... other parameters
-       ),
+       articulation_props=[
+           PhysxArticulationCfg(
+               solver_position_iteration_count=4,  # Use default value
+               # ... other parameters
+           ),
+       ],
 
    **Trade-off:** Lower solver iteration counts may result in less realistic contact dynamics and more penetration issues. The default value of 4 provides a good balance for most use cases.
 
