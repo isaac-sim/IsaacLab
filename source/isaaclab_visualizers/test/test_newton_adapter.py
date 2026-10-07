@@ -207,8 +207,8 @@ def test_newton_markers_keep_instance_counts_when_prototypes_switch(marker_regis
         ),
     )
 
-    for indices in ([0, 0], [0, 1]):
-        marker.visualize(torch.zeros(2, 3), None, None, torch.tensor(indices))
+    for indices in (None, [0, 1]):
+        marker.visualize(torch.zeros(2, 3), None, None, None if indices is None else torch.tensor(indices))
         marker.render(viewer, visible_env_ids=None, num_envs=2)
 
     assert logged == [
