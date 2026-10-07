@@ -173,14 +173,25 @@ The H2 examples use N1.7. Download the checkpoint for either task and the shared
    uv run --no-sync hf download nvidia/Cosmos-Reason2-2B --local-dir .pretrained_checkpoints/rlinf/Cosmos-Reason2-2B
 
 Authenticate with ``uv run --no-sync hf auth login`` if required, using an account with access to the
-selected repositories. The tasks also require access to the
-`scene assets <https://huggingface.co/datasets/LiFanxing/IsaacLabRLinfDemo>`__. To use a local mirror,
-configure both roots before launching:
+selected checkpoint repositories.
+
+The H2 + Sharpa robot, NuRec capture, and scene objects are hosted on the official Isaac asset server
+under :attr:`~isaaclab.utils.assets.ISAACLAB_NUCLEUS_DIR`. To use a local mirror, configure the shared
+Isaac asset root before launching:
 
 .. code-block:: bash
 
-   export ISAACLAB_RLINF_DEMO_ASSET_ROOT=/path/to/mirror/assets
-   export ISAACLAB_H2_SHARPA_ASSET_ROOT=/path/to/mirror/assets/Robots/UnitreeH2
+   export ISAACSIM_ASSET_ROOT=/path/to/mirror
+
+The mirror must retain the ``Isaac/IsaacLab`` subtree, including ``Robots/Unitree/H2``,
+``Environments/NuRec``, and ``Objects``. For example, the robot USD must be located at
+``/path/to/mirror/Isaac/IsaacLab/Robots/Unitree/H2/H2_with_sharpa_flat.usd``.
+Replace the former ``ISAACLAB_RLINF_DEMO_ASSET_ROOT`` and ``ISAACLAB_H2_SHARPA_ASSET_ROOT`` settings
+with this shared root. The ``assemble_trocar`` scene continues to use the Isaac Healthcare asset bundle.
+
+The apple task uses ``Objects/Plate001/plate001.usd`` under ``ISAACLAB_NUCLEUS_DIR``. This rectangular
+plate replaces the round plate from the temporary asset bundle. Reevaluate existing apple-task policies
+with the updated scene before comparing results or resuming training.
 
 .. _rlinf-decord-aarch64:
 
@@ -355,8 +366,7 @@ The SimReady scene assets used by the post-training tasks are powered by
 
    These assets are licensed under the `Creative Commons Attribution-NonCommercial 4.0 International
    License <https://creativecommons.org/licenses/by-nc/4.0/>`__, whose terms are collected in
-   ``docs/licenses/assets/lightwheel-license.txt``. Commercial use is not granted. The per-asset
-   terms are served next to each USD, as ``LICENSE.txt`` in place of the file's base name.
+   ``docs/licenses/assets/lightwheel-license.txt``. Commercial use is not granted.
 
 RL Training Framework
 ~~~~~~~~~~~~~~~~~~~~~

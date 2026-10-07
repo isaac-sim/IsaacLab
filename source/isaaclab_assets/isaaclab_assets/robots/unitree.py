@@ -20,8 +20,6 @@ The following configurations are available:
 Reference: https://github.com/unitreerobotics/unitree_ros
 """
 
-import os
-
 from isaaclab_newton.sim.schemas import NewtonArticulationCfg
 from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxRigidBodyCfg
 
@@ -844,17 +842,8 @@ This configuration is designed for high-precision manipulation tasks such as tro
 
 """Configuration for the Unitree H2 humanoid with Sharpa Wave hands."""
 
-# Root of the Unitree H2 + Sharpa USDs. Point ``ISAACLAB_H2_SHARPA_ASSET_ROOT`` at a mirror
-# keeping the same subtree to serve them from disk.
-# TODO: switch the default to ISAACLAB_NUCLEUS_DIR once H2 + Sharpa ships on the official Isaac Nucleus server.
-# Then remove the Hugging Face fallback and os import.
-
-H2_SHARPA_ASSET_ROOT: str = os.environ.get(
-    "ISAACLAB_H2_SHARPA_ASSET_ROOT",
-    "https://huggingface.co/datasets/LiFanxing/IsaacLabRLinfDemo/resolve/main/assets/Robots/UnitreeH2",
-)
-
-H2_SHARPA_USD_PATH: str = f"{H2_SHARPA_ASSET_ROOT}/h2_with_sharpa/H2_with_sharpa_flat.usd"
+H2_SHARPA_ASSET_ROOT: str = f"{ISAACLAB_NUCLEUS_DIR}/Robots/Unitree/H2"
+H2_SHARPA_USD_PATH: str = f"{H2_SHARPA_ASSET_ROOT}/H2_with_sharpa_flat.usd"
 
 H2_SHARPA_CFG: ArticulationCfg = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(

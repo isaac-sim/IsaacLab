@@ -78,9 +78,8 @@ offset_dict = {
     "right_elbow_joint": -0.3,
 }
 
-from isaaclab_tasks.contrib.rlinf_assets import PROP_ASSET_ROOT
-
-USD_ROOT = PROP_ASSET_ROOT
+HEALTHCARE_S3 = "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/Healthcare/0.5.0/132c82d"
+USD_ROOT = f"{HEALTHCARE_S3}/Props/LightWheel"
 
 
 @configclass
