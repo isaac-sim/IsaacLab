@@ -72,6 +72,15 @@ def test_finalize_moves_resolved_selections_to_device(scene, device):
         assert values[copied.body_ids].tolist() == [3, 1]
 
 
+def test_body_name_selection_can_preserve_caller_order(scene):
+    """Policy-facing observation order must not depend on backend body order."""
+    cfg = SceneEntityCfg("robot", body_names=["part_2", "part_0"], preserve_order=True)
+
+    cfg.resolve(scene)
+
+    assert cfg.body_ids == [2, 0]
+
+
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_finalized_indices_do_not_upload_or_read_back(scene, device):
     """A real MDP consumer and a device gather for one selected joint run without CUDA synchronization."""
