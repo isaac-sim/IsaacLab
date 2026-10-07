@@ -77,7 +77,7 @@ class _FakeMarkerVisualizer:
         (False, False, False, True, [], ["kit"]),
         (False, False, False, False, [], []),
         (False, False, False, False, [KitVisualizer(KitVisualizerCfg())], ["kit"]),
-        (False, False, False, False, [newton_visualizer.NewtonVisualizer(NewtonGLVisualizerCfg())], ["newton"]),
+        (False, False, False, False, [newton_visualizer.NewtonGLVisualizer(NewtonGLVisualizerCfg())], ["newton"]),
         (False, False, False, False, [rerun_visualizer.RerunVisualizer(RerunVisualizerCfg())], ["newton"]),
         (False, False, False, False, [viser_visualizer.ViserVisualizer(ViserVisualizerCfg())], ["newton"]),
     ],

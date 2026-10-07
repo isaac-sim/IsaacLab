@@ -450,7 +450,12 @@ class SimulationContext:
                 self.requires_usd_stage |= requires_stage
                 self.requires_newton_model |= requires_model
             self._render_context.clone_contexts.update(cfg.cloning_contexts)
-            self._pending_visualizers.append(instantiate(cfg))
+            if cfg.renderer_cfg is None:
+                visualizer = instantiate(cfg)
+            else:
+                renderer = self.get_or_create_backend(cfg.renderer_cfg)
+                visualizer = instantiate(cfg, renderer=renderer)
+            self._pending_visualizers.append(visualizer)
 
     def initialize_visualizers(self, config_filter: Callable[[Any], bool] | None = None) -> None:
         """Initialize the constructed visualizers after their shared scene has been cloned.
@@ -462,6 +467,8 @@ class SimulationContext:
         for visualizer in tuple(self._pending_visualizers):
             if config_filter is not None and not config_filter(visualizer.cfg):
                 continue
+            if visualizer.cfg.renderer_cfg is not None:
+                self._render_context.ensure_prepare_stage(self.stage, self._scene_data_provider.num_envs)
             camera_sensors = self._scene_data_provider.get_camera_sensors() if visualizer.cfg.streaming_view else {}
             env_template = self._clone_plan.env_template if self._clone_plan is not None else DEFAULT_ENV_TEMPLATE
             cameras = resolve_camera_sources(visualizer.cfg, camera_sensors, env_template=env_template)
@@ -549,7 +556,7 @@ class SimulationContext:
     def _requires_pre_capture_newton_init(cfg: Any) -> bool:
         """Return whether a config contributes Newton picking inputs to capture."""
         return (
-            cfg.visualizer_type in {"newton_gl", "newton_rtx"}
+            cfg.visualizer_type == "newton_gl"
             and bool(getattr(cfg, "enable_picking", False))
             and not bool(getattr(cfg, "headless", False))
         )

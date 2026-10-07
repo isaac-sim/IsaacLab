@@ -16,6 +16,7 @@ from ..utils import configclass
 from ..utils.string import string_to_callable
 
 if TYPE_CHECKING:
+    from ..renderers.renderer_cfg import RendererCfg
     from .base_visualizer import BaseVisualizer
 
 
@@ -141,7 +142,7 @@ class PerspectiveCameraCfg:
 
 @configclass
 class SceneCameraCfg:
-    """Select an existing scene camera's output for display in the visualizer.
+    """Select an existing scene camera's output as the visualizer's main view.
 
     This does not create a sensor. Declare its pose, optics, and renderer in the scene's CameraCfg.
     """
@@ -167,13 +168,17 @@ class VisualizerCfg:
     cloning_contexts: tuple[type | str, ...] = ()
     """Clone contexts that build this visualizer's scene representation from the asset plan."""
 
+    renderer_cfg: RendererCfg | None = None
+    """Shared renderer for a visualizer-owned render product. None uses the backend's native presentation path."""
+
     # Primary interactive camera settings
     cameras: list[PerspectiveCameraCfg | SceneCameraCfg] | None = None
     """Camera sources available to the visualizer.
 
     PerspectiveCameraCfg configures the interactive view; SceneCameraCfg refers to an existing scene
-    sensor. Kit, Newton GL, Rerun, and Viser display the first scene source in their camera panel.
-    Newton RTX supports only perspective sources. None uses eye/lookat/focal_length and the streaming settings below.
+    sensor. Newton GL and RTX display the first source and offer a dropdown for switching sources.
+    Kit, Rerun, and Viser display the first scene source in their camera panel.
+    None uses eye/lookat/focal_length and the streaming settings below.
     Every explicit scene source must provide all requested streaming_gt_types channels.
     """
 
@@ -186,11 +191,11 @@ class VisualizerCfg:
     focal_length: float = 12.0
     """Camera focal length in millimeters for visualizer camera views."""
 
-    background_color: tuple[float, float, float] | None = (0.30, 0.55, 0.82)
+    background_color: tuple[float, float, float] | None = None
     """Solid background color as normalized RGB values in ``[0, 1]``.
 
-    Kit, Newton GL, and Newton RTX honor this field. Set it to ``None`` to preserve the
-    backend's native background. Scene lighting remains independent of the visible background.
+    None preserves the scene HDR background in Kit and Newton RTX, or Newton GL's procedural sky.
+    An explicit color changes only the visible background, not scene lighting or reflections.
     """
 
     # ── Streaming view ────────────────────────────────────────────────────────

@@ -283,7 +283,7 @@ def test_newton_visualizer_is_initialized_and_rebound_before_capture():
     eye, target = (1.0, 2.0, 3.0), (0.0, 0.0, 0.0)
     ctx.set_camera_view(eye, target)
     ctx._prepare_newton_visualizer_for_capture()
-    assert created == ["newton_gl", "newton_rtx"]
+    assert created == ["newton_gl"]
 
     ctx.initialize_visualizers()
     ctx._prepare_newton_visualizer_for_capture()
@@ -294,9 +294,7 @@ def test_newton_visualizer_is_initialized_and_rebound_before_capture():
     assert ctx._pending_camera_view is None
     assert reset_calls == [
         ("newton_gl", False),
-        ("newton_rtx", False),
         ("newton_gl", False),
-        ("newton_rtx", False),
     ]
 
 
