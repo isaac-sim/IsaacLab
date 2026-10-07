@@ -57,8 +57,7 @@ html[data-theme="dark"] .coupling-diagram {
     background: var(--pst-color-surface);
 }
 
-.coupling-diagram-title,
-.coupling-diagram-selection {
+.coupling-diagram-title {
     font-weight: 650;
 }
 
@@ -99,6 +98,46 @@ html[data-theme="dark"] .coupling-diagram {
 
 .coupling-diagram-cloth path {
     fill: none;
+}
+
+.coupling-diagram-legend {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem 1rem;
+    margin: 1rem 0 0;
+    padding: 0;
+    list-style: none;
+    font-size: 0.9rem;
+}
+
+.coupling-diagram-legend li {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+}
+
+.coupling-diagram-swatch {
+    flex: 0 0 1.8rem;
+    height: 1rem;
+    border-radius: 3px;
+}
+
+.coupling-diagram-swatch-arm {
+    height: 0.3rem;
+    background: var(--coupling-robot);
+}
+
+.coupling-diagram-swatch-hand {
+    border: 2px solid var(--coupling-proxy);
+    background: color-mix(in srgb, var(--coupling-proxy) 18%, var(--pst-color-surface));
+}
+
+.coupling-diagram-swatch-proxy {
+    border: 2px dashed var(--coupling-proxy);
+}
+
+.coupling-diagram-swatch-cloth {
+    background: radial-gradient(circle, var(--coupling-cloth) 2px, transparent 3px) 0 50% / 0.6rem 100%;
 }
 
 .coupling-diagram-exchange {
@@ -148,6 +187,10 @@ html[data-theme="dark"] .coupling-diagram {
     .coupling-diagram-exchange {
         grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 1rem;
+    }
+
+    .coupling-diagram-legend {
+        grid-template-columns: minmax(0, 1fr);
     }
 
     .coupling-diagram-state-arrow::before {

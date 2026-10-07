@@ -36,7 +36,7 @@ A coupled simulation starts from one Newton model. Instead of giving the whole
 model to one solver, Isaac Lab partitions it into named entries. Each entry
 selects a solver and owns a disjoint part of the model.
 
-The proxy example below shows how the hand and fingers of an MJWarp-owned
+The proxy example below shows how the Franka hand and fingers of an MJWarp-owned
 robot interact with VBD-owned cloth through two views of that same model:
 
 .. raw:: html
@@ -52,23 +52,23 @@ robot interact with VBD-owned cloth through two views of that same model:
          <p class="coupling-diagram-title"><code>rigid</code> · MJWarp</p>
          <p>Owns robot bodies, joints, and shapes</p>
          <svg viewBox="0 0 300 215" role="img" aria-labelledby="coupling-source-title coupling-source-desc">
-           <title id="coupling-source-title">Robot with selected hand and fingers</title>
-           <desc id="coupling-source-desc">A solid robot arm belongs to MJWarp. The hand and fingers at its tip are highlighted as the bodies selected for the proxy mapping.</desc>
+           <title id="coupling-source-title">Robot with a selected Franka hand and fingers</title>
+           <desc id="coupling-source-desc">A solid blue robot arm belongs to MJWarp. Its amber Franka hand has a wide housing, inward-sloping finger stems, and parallel fingertip pads. The hand and fingers are selected for the proxy mapping.</desc>
            <g class="coupling-diagram-arm">
-             <path d="M40 184 V145 L91 111 L144 54 H205 V74"/>
+             <path d="M40 184 V145 L91 111 L144 54 H205 V82"/>
              <circle cx="40" cy="145" r="9"/>
              <circle cx="91" cy="111" r="9"/>
              <circle cx="144" cy="54" r="9"/>
              <path d="M22 190 H58"/>
            </g>
            <g class="coupling-diagram-hand">
-             <rect x="175" y="74" width="60" height="24" rx="4"/>
-             <path d="M175 98 H187 V135 H198 V147 H175 Z"/>
-             <path d="M223 98 H235 V147 H212 V135 H223 Z"/>
+             <path d="M171 76 H191 V82 H219 V76 H239 Q249 76 252 90 L255 107 Q256 113 249 113 H161 Q154 113 155 107 L158 90 Q161 76 171 76 Z"/>
+             <path d="M174 113 H184 V120 L193 128 H185 L174 121 Z"/>
+             <path d="M236 113 H226 V120 L217 128 H225 L236 121 Z"/>
+             <rect x="185" y="128" width="10" height="12"/>
+             <rect x="215" y="128" width="10" height="12"/>
            </g>
          </svg>
-         <p class="coupling-diagram-selection">Selected: hand + fingers</p>
-         <p class="coupling-diagram-detail">Solid shapes: owned robot</p>
        </div>
        <div class="coupling-diagram-exchange">
          <div class="coupling-diagram-transfer">
@@ -88,23 +88,30 @@ robot interact with VBD-owned cloth through two views of that same model:
          <p>Owns cloth particles and static shapes</p>
          <svg viewBox="0 0 300 215" role="img" aria-labelledby="coupling-destination-title coupling-destination-desc">
            <title id="coupling-destination-title">Cloth contacting the proxy hand and fingers</title>
-           <desc id="coupling-destination-desc">Dashed outlines represent the same selected hand and fingers in VBD's view. Solid cloth particles contact the fingers. The rest of the robot is not exposed as a proxy.</desc>
+           <desc id="coupling-destination-desc">Dashed amber outlines represent the same selected Franka hand and fingers in VBD's view. Purple cloth particles contact the parallel fingertip pads. The rest of the robot is not exposed as a proxy.</desc>
            <g class="coupling-diagram-cloth">
-             <path d="M85 160 L110 147 L135 140 L160 147 L185 160 M85 178 L110 165 L135 158 L160 165 L185 178 M85 196 L110 183 L135 176 L160 183 L185 196 M85 160 V196 M110 147 V183 M135 140 V176 M160 147 V183 M185 160 V196"/>
-             <circle cx="85" cy="160" r="4"/><circle cx="110" cy="147" r="4"/><circle cx="135" cy="140" r="4"/><circle cx="160" cy="147" r="4"/><circle cx="185" cy="160" r="4"/>
-             <circle cx="85" cy="178" r="4"/><circle cx="110" cy="165" r="4"/><circle cx="135" cy="158" r="4"/><circle cx="160" cy="165" r="4"/><circle cx="185" cy="178" r="4"/>
-             <circle cx="85" cy="196" r="4"/><circle cx="110" cy="183" r="4"/><circle cx="135" cy="176" r="4"/><circle cx="160" cy="183" r="4"/><circle cx="185" cy="196" r="4"/>
+             <path d="M85 156 L125 136 L135 132 L145 136 L185 156 M85 174 L125 154 L135 150 L145 154 L185 174 M85 192 L125 172 L135 168 L145 172 L185 192 M85 156 V192 M125 136 V172 M135 132 V168 M145 136 V172 M185 156 V192"/>
+             <circle cx="85" cy="156" r="4"/><circle cx="125" cy="136" r="4"/><circle cx="135" cy="132" r="4"/><circle cx="145" cy="136" r="4"/><circle cx="185" cy="156" r="4"/>
+             <circle cx="85" cy="174" r="4"/><circle cx="125" cy="154" r="4"/><circle cx="135" cy="150" r="4"/><circle cx="145" cy="154" r="4"/><circle cx="185" cy="174" r="4"/>
+             <circle cx="85" cy="192" r="4"/><circle cx="125" cy="172" r="4"/><circle cx="135" cy="168" r="4"/><circle cx="145" cy="172" r="4"/><circle cx="185" cy="192" r="4"/>
            </g>
            <g class="coupling-diagram-hand coupling-diagram-proxy" transform="translate(-70 0)">
-             <rect x="175" y="74" width="60" height="24" rx="4"/>
-             <path d="M175 98 H187 V135 H198 V147 H175 Z"/>
-             <path d="M223 98 H235 V147 H212 V135 H223 Z"/>
+             <path d="M171 76 H191 V82 H219 V76 H239 Q249 76 252 90 L255 107 Q256 113 249 113 H161 Q154 113 155 107 L158 90 Q161 76 171 76 Z"/>
+             <path d="M174 113 H184 V120 L193 128 H185 L174 121 Z"/>
+             <path d="M236 113 H226 V120 L217 128 H225 L236 121 Z"/>
+             <rect x="185" y="128" width="10" height="12"/>
+             <rect x="215" y="128" width="10" height="12"/>
            </g>
          </svg>
-         <p class="coupling-diagram-selection">Dashed shapes: the same selected bodies as proxies</p>
          <p class="coupling-diagram-detail">Solve local contacts with the cloth</p>
        </div>
      </div>
+     <ul class="coupling-diagram-legend" aria-label="Diagram legend">
+       <li><span class="coupling-diagram-swatch coupling-diagram-swatch-arm" aria-hidden="true"></span>Robot arm</li>
+       <li><span class="coupling-diagram-swatch coupling-diagram-swatch-hand" aria-hidden="true"></span>Selected hand + fingers</li>
+       <li><span class="coupling-diagram-swatch coupling-diagram-swatch-proxy" aria-hidden="true"></span>Same bodies as proxies</li>
+       <li><span class="coupling-diagram-swatch coupling-diagram-swatch-cloth" aria-hidden="true"></span>Cloth particles</li>
+     </ul>
      <figcaption id="coupling-diagram-caption">
        MJWarp owns the robot; VBD sees the selected hand and fingers as virtual colliders alongside its cloth particles.
        VBD solves contact using destination-local virtual inertia and returns force and torque feedback for a later source pass.
