@@ -38,6 +38,7 @@ def apply_rtx_exposure_overrides(stage: Any, prim_paths: list[str]) -> None:
     """
     from pxr import Sdf
 
+    value_types = {"Bool": Sdf.ValueTypeNames.Bool, "Float": Sdf.ValueTypeNames.Float}
     for prim_path in prim_paths:
         prim = stage.GetPrimAtPath(prim_path)
         if not prim or not prim.IsValid():
@@ -50,5 +51,5 @@ def apply_rtx_exposure_overrides(stage: Any, prim_paths: list[str]) -> None:
         for attr_name, sdf_type_name, value in _NEUTRAL_CAMERA_EXPOSURE:
             attr = prim.GetAttribute(attr_name)
             if not attr:
-                attr = prim.CreateAttribute(attr_name, getattr(Sdf.ValueTypeNames, sdf_type_name), custom=False)
+                attr = prim.CreateAttribute(attr_name, value_types[sdf_type_name], custom=False)
             attr.Set(value)

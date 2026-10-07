@@ -130,14 +130,6 @@ def test_render_product_solid_background_color(camera_spec, render_data):
     assert 'token omni:rtx:background:source:type = "domeLight"' not in render_scope
 
 
-@pytest.mark.parametrize("data_types", [["rgb_hdr"], ["rgb_radiance"], ["rgb_hdr", "rgb_radiance"]])
-def test_ovrtx_hdr_outputs_use_one_hdr_color_render_var(data_types):
-    """HDR and radiance share one HdrColor native source."""
-    assert get_render_var_configs(data_types, render_scope_name="RenderCamera_0") == [
-        ("/RenderCamera_0/Vars/HdrColor", "HdrColor", "HdrColor"),
-    ]
-
-
 def test_render_var_prim_names_are_read_only():
     with pytest.raises(TypeError):
         render_var_prim_names_by_source()["LdrColor"] = "mutated"  # type: ignore[index]
@@ -227,14 +219,17 @@ def test_ovrtx_authors_one_render_var_per_requested_data_type():
 
 
 def test_ovrtx_data_types_sharing_a_source_author_one_render_var():
-    """``rgb``/``rgba`` and ``depth``/``distance_to_image_plane`` collapse onto one render var each."""
+    """``rgb``/``rgba``, ``depth``/``distance_to_image_plane``, and ``rgb_hdr``/``rgb_radiance`` collapse onto one
+    render var each."""
     render_var_configs = get_render_var_configs(
-        ["rgb", "rgba", "depth", "distance_to_image_plane"], render_scope_name="RenderCamera_0"
+        ["rgb", "rgba", "depth", "distance_to_image_plane", "rgb_hdr", "rgb_radiance"],
+        render_scope_name="RenderCamera_0",
     )
 
     assert render_var_configs == [
         ("/RenderCamera_0/Vars/LdrColor", "LdrColor", "LdrColor"),
         ("/RenderCamera_0/Vars/depth", "depth", "DistanceToImagePlaneSD"),
+        ("/RenderCamera_0/Vars/HdrColor", "HdrColor", "HdrColor"),
     ]
 
 
