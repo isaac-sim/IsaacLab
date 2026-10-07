@@ -452,12 +452,6 @@ isaaclab = { path = "source/isaaclab", editable = true }
 "isaaclab-tasks-experimental" = { path = "source/isaaclab_tasks_experimental", editable = true }
 "isaaclab-teleop" = { path = "source/isaaclab_teleop", editable = true }
 "isaaclab-visualizers" = { path = "source/isaaclab_visualizers", editable = true }
-# Retain the exact develop-locked prerelease artifacts absent from the current registry listing.
-rerun-sdk = [
-    { url = "https://files.pythonhosted.org/packages/06/9d/84170e6722a09294b57d578fc1d01266c6e78408a544876f5271ecfa66a9/rerun_sdk-0.32.0a1-cp310-abi3-manylinux_2_28_x86_64.whl", marker = "sys_platform == 'linux' and platform_machine == 'x86_64'" },
-    { url = "https://files.pythonhosted.org/packages/ab/97/1daa4751a281bdb6cda3473229b2746779093ffaba70dd868a3074ef3392/rerun_sdk-0.32.0a1-cp310-abi3-manylinux_2_28_aarch64.whl", marker = "sys_platform == 'linux' and platform_machine == 'aarch64'" },
-    { url = "https://files.pythonhosted.org/packages/ba/2f/09845dcdf14047cc8118566572628c533f57f6a232ee0b3fd61283b153e8/rerun_sdk-0.32.0a1-cp310-abi3-win_amd64.whl", marker = "sys_platform == 'win32' and platform_machine == 'AMD64'" },
-]
 torch = [
     { index = "pytorch-cu129", marker = "sys_platform == 'linux' and platform_machine == 'x86_64'" },
     { index = "pytorch-cu130", marker = "sys_platform != 'linux' or platform_machine != 'x86_64'" },

@@ -1885,9 +1885,7 @@ all = [
     { name = "ovrtx" },
     { name = "ovstage" },
     { name = "pyarrow" },
-    { name = "rerun-sdk", version = "0.32.0a1", source = { url = "https://files.pythonhosted.org/packages/06/9d/84170e6722a09294b57d578fc1d01266c6e78408a544876f5271ecfa66a9/rerun_sdk-0.32.0a1-cp310-abi3-manylinux_2_28_x86_64.whl" }, marker = "platform_machine == 'x86_64' and sys_platform != 'win32'" },
-    { name = "rerun-sdk", version = "0.32.0a1", source = { url = "https://files.pythonhosted.org/packages/ab/97/1daa4751a281bdb6cda3473229b2746779093ffaba70dd868a3074ef3392/rerun_sdk-0.32.0a1-cp310-abi3-manylinux_2_28_aarch64.whl" }, marker = "platform_machine != 'x86_64' and sys_platform != 'win32'" },
-    { name = "rerun-sdk", version = "0.32.0a1", source = { url = "https://files.pythonhosted.org/packages/ba/2f/09845dcdf14047cc8118566572628c533f57f6a232ee0b3fd61283b153e8/rerun_sdk-0.32.0a1-cp310-abi3-win_amd64.whl" }, marker = "sys_platform == 'win32'" },
+    { name = "rerun-sdk" },
     { name = "rich" },
     { name = "rl-games" },
     { name = "rsl-rl-lib" },
@@ -1948,9 +1946,7 @@ ovrtx = [
 ]
 rerun = [
     { name = "pyarrow" },
-    { name = "rerun-sdk", version = "0.32.0a1", source = { url = "https://files.pythonhosted.org/packages/06/9d/84170e6722a09294b57d578fc1d01266c6e78408a544876f5271ecfa66a9/rerun_sdk-0.32.0a1-cp310-abi3-manylinux_2_28_x86_64.whl" }, marker = "platform_machine == 'x86_64' and sys_platform != 'win32'" },
-    { name = "rerun-sdk", version = "0.32.0a1", source = { url = "https://files.pythonhosted.org/packages/ab/97/1daa4751a281bdb6cda3473229b2746779093ffaba70dd868a3074ef3392/rerun_sdk-0.32.0a1-cp310-abi3-manylinux_2_28_aarch64.whl" }, marker = "platform_machine != 'x86_64' and sys_platform != 'win32'" },
-    { name = "rerun-sdk", version = "0.32.0a1", source = { url = "https://files.pythonhosted.org/packages/ba/2f/09845dcdf14047cc8118566572628c533f57f6a232ee0b3fd61283b153e8/rerun_sdk-0.32.0a1-cp310-abi3-win_amd64.whl" }, marker = "sys_platform == 'win32'" },
+    { name = "rerun-sdk" },
 ]
 rl-games = [
     { name = "aiohttp" },
@@ -2102,10 +2098,7 @@ requires-dist = [
     { name = "pytetwild", extras = ["all"], marker = "extra == 'tetrahedralization'", specifier = ">=0.3.0,<0.4" },
     { name = "ray", extras = ["default"], marker = "extra == 'rlinf'", specifier = ">=2.47.0" },
     { name = "requests", specifier = ">=2.25.0" },
-    { name = "rerun-sdk", marker = "platform_machine == 'aarch64' and sys_platform == 'linux' and extra == 'rerun'", url = "https://files.pythonhosted.org/packages/ab/97/1daa4751a281bdb6cda3473229b2746779093ffaba70dd868a3074ef3392/rerun_sdk-0.32.0a1-cp310-abi3-manylinux_2_28_aarch64.whl" },
-    { name = "rerun-sdk", marker = "platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'rerun'", url = "https://files.pythonhosted.org/packages/06/9d/84170e6722a09294b57d578fc1d01266c6e78408a544876f5271ecfa66a9/rerun_sdk-0.32.0a1-cp310-abi3-manylinux_2_28_x86_64.whl" },
-    { name = "rerun-sdk", marker = "(platform_machine != 'aarch64' and platform_machine != 'x86_64' and sys_platform == 'linux' and extra == 'rerun') or (platform_machine != 'AMD64' and sys_platform == 'win32' and extra == 'rerun') or (sys_platform != 'linux' and sys_platform != 'win32' and extra == 'rerun')", specifier = ">=0.29.0" },
-    { name = "rerun-sdk", marker = "platform_machine == 'AMD64' and sys_platform == 'win32' and extra == 'rerun'", url = "https://files.pythonhosted.org/packages/ba/2f/09845dcdf14047cc8118566572628c533f57f6a232ee0b3fd61283b153e8/rerun_sdk-0.32.0a1-cp310-abi3-win_amd64.whl" },
+    { name = "rerun-sdk", marker = "extra == 'rerun'", specifier = ">=0.29.0" },
     { name = "resolve-robotics-uri-py", specifier = ">=0.4.0" },
     { name = "rich" },
     { name = "rich", marker = "extra == 'sb3'" },
@@ -4917,10 +4910,7 @@ wheels = [
 [[package]]
 name = "rerun-sdk"
 version = "0.32.0a1"
-source = { url = "https://files.pythonhosted.org/packages/06/9d/84170e6722a09294b57d578fc1d01266c6e78408a544876f5271ecfa66a9/rerun_sdk-0.32.0a1-cp310-abi3-manylinux_2_28_x86_64.whl" }
-resolution-markers = [
-    "platform_machine == 'x86_64' and sys_platform == 'linux'",
-]
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "attrs" },
     { name = "numpy" },
@@ -4929,155 +4919,10 @@ dependencies = [
     { name = "typing-extensions" },
 ]
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/06/9d/84170e6722a09294b57d578fc1d01266c6e78408a544876f5271ecfa66a9/rerun_sdk-0.32.0a1-cp310-abi3-manylinux_2_28_x86_64.whl", hash = "sha256:8045beb820372e092a6cf100fb87091fa804168e5cf8a0c29f97cdee56b134d8" },
+    { url = "https://files.pythonhosted.org/packages/ab/97/1daa4751a281bdb6cda3473229b2746779093ffaba70dd868a3074ef3392/rerun_sdk-0.32.0a1-cp310-abi3-manylinux_2_28_aarch64.whl", hash = "sha256:0a821b30f287dabbf694aa1715e4dad0e31990cf4b612757c895f096885512e9", size = 133447478, upload-time = "2026-04-29T18:59:49.946Z" },
+    { url = "https://files.pythonhosted.org/packages/06/9d/84170e6722a09294b57d578fc1d01266c6e78408a544876f5271ecfa66a9/rerun_sdk-0.32.0a1-cp310-abi3-manylinux_2_28_x86_64.whl", hash = "sha256:8045beb820372e092a6cf100fb87091fa804168e5cf8a0c29f97cdee56b134d8", size = 137724590, upload-time = "2026-04-29T18:59:55.238Z" },
+    { url = "https://files.pythonhosted.org/packages/ba/2f/09845dcdf14047cc8118566572628c533f57f6a232ee0b3fd61283b153e8/rerun_sdk-0.32.0a1-cp310-abi3-win_amd64.whl", hash = "sha256:1d6f8c3d50699ae075551a62e971730870a685cb74189b550a348561f37f9fe5", size = 118766780, upload-time = "2026-04-29T19:00:00.121Z" },
 ]
-
-[package.metadata]
-requires-dist = [
-    { name = "attrs", specifier = ">=23.1.0" },
-    { name = "av", marker = "extra == 'dataloader'" },
-    { name = "av", marker = "extra == 'tests'", specifier = ">=14.2.0" },
-    { name = "datafusion", marker = "extra == 'all'", specifier = "==52.3.0" },
-    { name = "datafusion", marker = "extra == 'datafusion'", specifier = "==52.3.0" },
-    { name = "datafusion", marker = "extra == 'dataplatform'", specifier = "==52.3.0" },
-    { name = "datafusion", marker = "extra == 'tests'", specifier = "==52.3.0" },
-    { name = "inline-snapshot", marker = "extra == 'tests'", specifier = "==0.31.1" },
-    { name = "numpy", specifier = ">=2" },
-    { name = "opencv-python", marker = "extra == 'tests'", specifier = ">4.6" },
-    { name = "opentelemetry-api", marker = "extra == 'tracing'" },
-    { name = "opentelemetry-exporter-otlp-proto-grpc", marker = "extra == 'tracing'" },
-    { name = "opentelemetry-sdk", marker = "extra == 'tracing'" },
-    { name = "pandas", marker = "extra == 'all'", specifier = ">=2" },
-    { name = "pandas", marker = "extra == 'datafusion'", specifier = ">=2" },
-    { name = "pandas", marker = "extra == 'dataplatform'", specifier = ">=2" },
-    { name = "pandas", marker = "extra == 'tests'", specifier = ">=2" },
-    { name = "pillow", specifier = ">=8.0.0" },
-    { name = "pillow", marker = "extra == 'dataloader'", specifier = ">=8.0.0" },
-    { name = "polars", marker = "extra == 'tests'", specifier = "==1.36.1" },
-    { name = "pyarrow", specifier = ">=18.0.0" },
-    { name = "pytest", marker = "extra == 'tests'", specifier = "==8.4.2" },
-    { name = "rerun-notebook", marker = "extra == 'all'", specifier = "==0.32.0a1" },
-    { name = "rerun-notebook", marker = "extra == 'notebook'", specifier = "==0.32.0a1" },
-    { name = "semver", marker = "extra == 'tests'", specifier = ">=3.0,<3.1" },
-    { name = "syrupy", marker = "extra == 'tests'", specifier = "==5.0.0" },
-    { name = "tomli", marker = "extra == 'tests'", specifier = "==2.0.1" },
-    { name = "torch", marker = "extra == 'dataloader'", specifier = ">=2.5" },
-    { name = "torch", marker = "extra == 'tests'", specifier = ">=2.5" },
-    { name = "torchvision", marker = "extra == 'dataloader'" },
-    { name = "torchvision", marker = "extra == 'tests'" },
-    { name = "typing-extensions", specifier = ">=4.5" },
-]
-provides-extras = ["tests", "notebook", "datafusion", "dataplatform", "dataloader", "tracing", "all"]
-
-[[package]]
-name = "rerun-sdk"
-version = "0.32.0a1"
-source = { url = "https://files.pythonhosted.org/packages/ab/97/1daa4751a281bdb6cda3473229b2746779093ffaba70dd868a3074ef3392/rerun_sdk-0.32.0a1-cp310-abi3-manylinux_2_28_aarch64.whl" }
-resolution-markers = [
-    "platform_machine == 'aarch64' and sys_platform == 'linux'",
-]
-dependencies = [
-    { name = "attrs" },
-    { name = "numpy" },
-    { name = "pillow" },
-    { name = "pyarrow" },
-    { name = "typing-extensions" },
-]
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/ab/97/1daa4751a281bdb6cda3473229b2746779093ffaba70dd868a3074ef3392/rerun_sdk-0.32.0a1-cp310-abi3-manylinux_2_28_aarch64.whl", hash = "sha256:0a821b30f287dabbf694aa1715e4dad0e31990cf4b612757c895f096885512e9" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "attrs", specifier = ">=23.1.0" },
-    { name = "av", marker = "extra == 'dataloader'" },
-    { name = "av", marker = "extra == 'tests'", specifier = ">=14.2.0" },
-    { name = "datafusion", marker = "extra == 'all'", specifier = "==52.3.0" },
-    { name = "datafusion", marker = "extra == 'datafusion'", specifier = "==52.3.0" },
-    { name = "datafusion", marker = "extra == 'dataplatform'", specifier = "==52.3.0" },
-    { name = "datafusion", marker = "extra == 'tests'", specifier = "==52.3.0" },
-    { name = "inline-snapshot", marker = "extra == 'tests'", specifier = "==0.31.1" },
-    { name = "numpy", specifier = ">=2" },
-    { name = "opencv-python", marker = "extra == 'tests'", specifier = ">4.6" },
-    { name = "opentelemetry-api", marker = "extra == 'tracing'" },
-    { name = "opentelemetry-exporter-otlp-proto-grpc", marker = "extra == 'tracing'" },
-    { name = "opentelemetry-sdk", marker = "extra == 'tracing'" },
-    { name = "pandas", marker = "extra == 'all'", specifier = ">=2" },
-    { name = "pandas", marker = "extra == 'datafusion'", specifier = ">=2" },
-    { name = "pandas", marker = "extra == 'dataplatform'", specifier = ">=2" },
-    { name = "pandas", marker = "extra == 'tests'", specifier = ">=2" },
-    { name = "pillow", specifier = ">=8.0.0" },
-    { name = "pillow", marker = "extra == 'dataloader'", specifier = ">=8.0.0" },
-    { name = "polars", marker = "extra == 'tests'", specifier = "==1.36.1" },
-    { name = "pyarrow", specifier = ">=18.0.0" },
-    { name = "pytest", marker = "extra == 'tests'", specifier = "==8.4.2" },
-    { name = "rerun-notebook", marker = "extra == 'all'", specifier = "==0.32.0a1" },
-    { name = "rerun-notebook", marker = "extra == 'notebook'", specifier = "==0.32.0a1" },
-    { name = "semver", marker = "extra == 'tests'", specifier = ">=3.0,<3.1" },
-    { name = "syrupy", marker = "extra == 'tests'", specifier = "==5.0.0" },
-    { name = "tomli", marker = "extra == 'tests'", specifier = "==2.0.1" },
-    { name = "torch", marker = "extra == 'dataloader'", specifier = ">=2.5" },
-    { name = "torch", marker = "extra == 'tests'", specifier = ">=2.5" },
-    { name = "torchvision", marker = "extra == 'dataloader'" },
-    { name = "torchvision", marker = "extra == 'tests'" },
-    { name = "typing-extensions", specifier = ">=4.5" },
-]
-provides-extras = ["tests", "notebook", "datafusion", "dataplatform", "dataloader", "tracing", "all"]
-
-[[package]]
-name = "rerun-sdk"
-version = "0.32.0a1"
-source = { url = "https://files.pythonhosted.org/packages/ba/2f/09845dcdf14047cc8118566572628c533f57f6a232ee0b3fd61283b153e8/rerun_sdk-0.32.0a1-cp310-abi3-win_amd64.whl" }
-resolution-markers = [
-    "platform_machine == 'AMD64' and sys_platform == 'win32'",
-]
-dependencies = [
-    { name = "attrs" },
-    { name = "numpy" },
-    { name = "pillow" },
-    { name = "pyarrow" },
-    { name = "typing-extensions" },
-]
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/ba/2f/09845dcdf14047cc8118566572628c533f57f6a232ee0b3fd61283b153e8/rerun_sdk-0.32.0a1-cp310-abi3-win_amd64.whl", hash = "sha256:1d6f8c3d50699ae075551a62e971730870a685cb74189b550a348561f37f9fe5" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "attrs", specifier = ">=23.1.0" },
-    { name = "av", marker = "extra == 'dataloader'" },
-    { name = "av", marker = "extra == 'tests'", specifier = ">=14.2.0" },
-    { name = "datafusion", marker = "extra == 'all'", specifier = "==52.3.0" },
-    { name = "datafusion", marker = "extra == 'datafusion'", specifier = "==52.3.0" },
-    { name = "datafusion", marker = "extra == 'dataplatform'", specifier = "==52.3.0" },
-    { name = "datafusion", marker = "extra == 'tests'", specifier = "==52.3.0" },
-    { name = "inline-snapshot", marker = "extra == 'tests'", specifier = "==0.31.1" },
-    { name = "numpy", specifier = ">=2" },
-    { name = "opencv-python", marker = "extra == 'tests'", specifier = ">4.6" },
-    { name = "opentelemetry-api", marker = "extra == 'tracing'" },
-    { name = "opentelemetry-exporter-otlp-proto-grpc", marker = "extra == 'tracing'" },
-    { name = "opentelemetry-sdk", marker = "extra == 'tracing'" },
-    { name = "pandas", marker = "extra == 'all'", specifier = ">=2" },
-    { name = "pandas", marker = "extra == 'datafusion'", specifier = ">=2" },
-    { name = "pandas", marker = "extra == 'dataplatform'", specifier = ">=2" },
-    { name = "pandas", marker = "extra == 'tests'", specifier = ">=2" },
-    { name = "pillow", specifier = ">=8.0.0" },
-    { name = "pillow", marker = "extra == 'dataloader'", specifier = ">=8.0.0" },
-    { name = "polars", marker = "extra == 'tests'", specifier = "==1.36.1" },
-    { name = "pyarrow", specifier = ">=18.0.0" },
-    { name = "pytest", marker = "extra == 'tests'", specifier = "==8.4.2" },
-    { name = "rerun-notebook", marker = "extra == 'all'", specifier = "==0.32.0a1" },
-    { name = "rerun-notebook", marker = "extra == 'notebook'", specifier = "==0.32.0a1" },
-    { name = "semver", marker = "extra == 'tests'", specifier = ">=3.0,<3.1" },
-    { name = "syrupy", marker = "extra == 'tests'", specifier = "==5.0.0" },
-    { name = "tomli", marker = "extra == 'tests'", specifier = "==2.0.1" },
-    { name = "torch", marker = "extra == 'dataloader'", specifier = ">=2.5" },
-    { name = "torch", marker = "extra == 'tests'", specifier = ">=2.5" },
-    { name = "torchvision", marker = "extra == 'dataloader'" },
-    { name = "torchvision", marker = "extra == 'tests'" },
-    { name = "typing-extensions", specifier = ">=4.5" },
-]
-provides-extras = ["tests", "notebook", "datafusion", "dataplatform", "dataloader", "tracing", "all"]
 
 [[package]]
 name = "resolve-robotics-uri-py"
