@@ -13,7 +13,7 @@ from collections.abc import Mapping
 from types import MappingProxyType
 from typing import TYPE_CHECKING
 
-from pxr import Sdf, Usd, UsdGeom
+from pxr import Gf, Sdf, Usd, UsdGeom
 
 if TYPE_CHECKING:
     from isaaclab.renderers.camera_render_spec import CameraRenderSpec
@@ -208,7 +208,7 @@ def build_render_scope_usd(
     if spec.cfg.isp_cfg is not None and "rgb_hdr" not in data_types:
         data_types.append("rgb_hdr")
     tiled_width, tiled_height = _tiled_resolution(spec.num_instances, spec.cfg.width, spec.cfg.height)
-    camera_path = spec.camera_prim_paths[0]
+    camera_path = spec.camera_prim_paths[0] if spec.camera_prim_paths else f"/{render_data.render_scope_name}/Camera"
     render_var_configs = get_render_var_configs(data_types, render_data.render_scope_name)
     minimal_mode = next(
         (_RTX_MINIMAL_MODES[data_type] for data_type in data_types if data_type in _RTX_MINIMAL_MODES), None
@@ -219,7 +219,7 @@ def build_render_scope_usd(
     # consuming Warp kernels run on -- an illegal access without peer access, silent garbage with it.
     device_ids_line = "" if device_id is None else f"\n        uint[] deviceIds = [{device_id}]"
 
-    background_color = getattr(spec.cfg, "background_color", None)
+    background_color = spec.cfg.background_color
     if background_color is None:
         bg_type_line = 'token omni:rtx:background:source:type = "domeLight"'
     else:
@@ -259,7 +259,6 @@ def Scope "{render_data.render_scope_name}"
     ) {{
         rel camera = [<{camera_path}>]{device_ids_line}
         {bg_type_line}
-        float omni:rtx:rt:ambientLight:intensity = 1.0
         {render_mode_block}
         token[] omni:rtx:waitForEvents = ["AllLoadingFinished", "OnlyOnFirstRequest"]
         rel orderedVars = [{ordered_vars}]
@@ -309,7 +308,26 @@ def build_render_product_as_string(
         Render product USD layer, including the USDA header and default prim metadata.
     """
     camera_content = build_render_scope_usd(spec, render_data, device_id=device_id, enable_shadows=enable_shadows)
-    return f'#usda 1.0\n(defaultPrim = "{render_data.render_scope_name}")\n' + camera_content
+    layer = f'#usda 1.0\n(defaultPrim = "{render_data.render_scope_name}")\n' + camera_content
+    if spec.camera_prim_paths and not spec.render_settings:
+        return layer
+    stage = Usd.Stage.CreateInMemory()
+    stage.GetRootLayer().ImportFromString(layer)
+    if not spec.camera_prim_paths:
+        if spec.num_instances != 1:
+            raise ValueError("A renderer-owned perspective camera requires exactly one view.")
+        camera = UsdGeom.Camera.Define(stage, render_data.camera_paths[0])
+        camera.CreateHorizontalApertureAttr(20.955)
+        camera.CreateVerticalApertureAttr(20.955 * spec.cfg.height / spec.cfg.width)
+        camera.CreateFocalLengthAttr(24.0)
+        camera.CreateHorizontalApertureOffsetAttr(0.0)
+        camera.CreateVerticalApertureOffsetAttr(0.0)
+        camera.CreateClippingRangeAttr((0.01, 1.0e6))
+        camera.AddTransformOp().Set(Gf.Matrix4d(1.0))
+    product = stage.GetPrimAtPath(render_data.render_product_path)
+    for name, (type_name, value) in spec.render_settings.items():
+        product.CreateAttribute(name, getattr(Sdf.ValueTypeNames, type_name)).Set(value)
+    return stage.GetRootLayer().ExportToString()
 
 
 def create_scene_partition_attributes(

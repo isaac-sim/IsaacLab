@@ -312,7 +312,7 @@ class OVRTXBackend:
 
 
 class OVRTXCameraRenderData:
-    """Owns one camera sensor's native resources and Warp output buffers."""
+    """Owns one sensor or perspective view's native resources and Warp output buffers."""
 
     def __init__(self, spec: CameraRenderSpec, device, render_scope_name: str):
         """Create render data for a camera in its assigned render scope.
@@ -325,6 +325,11 @@ class OVRTXCameraRenderData:
         self.render_scope_name = render_scope_name
         self.render_product_name = "RenderProduct"
         self.render_product_path = f"/{render_scope_name}/{self.render_product_name}"
+        self.camera_paths = (
+            _get_cloned_camera_paths(spec.camera_prim_paths[0], spec.num_instances)
+            if spec.camera_prim_paths
+            else [f"/{render_scope_name}/Camera"]
+        )
         self.render_var_keys: dict[str, str] = (
             {source: f"/{render_scope_name}/Vars/{name}" for source, name in _RENDER_VAR_PRIM_NAMES.items()}
             if uses_prim_path_render_vars(OVRTX_VERSION)
@@ -443,8 +448,8 @@ class OVRTXRenderer(BaseRenderer):
 
     @property
     def visual_material_writer(self):
-        """Return the detached-scene material-writer factory."""
-        return self._create_visual_material_writer
+        """Return a writer factory once this renderer has a scene consumer."""
+        return self._create_visual_material_writer if self._initialized_scene else None
 
     def prepare_cameras(self, stage: Any, spec: CameraRenderSpec) -> None:
         """Resolve the camera's PPISP cfg and apply OVRTX-specific USD overrides.
@@ -500,6 +505,19 @@ class OVRTXRenderer(BaseRenderer):
         self._exported_usd_string = export_stage_to_string(
             stage, num_envs, source_paths=sources, keep_env_roots=keep_env_roots
         )
+        # Unpartitioned perspective cameras see the complete scene; sensor cameras keep their own partition.
+        from pxr import Sdf, Usd, UsdRender
+
+        render_stage = Usd.Stage.CreateInMemory()
+        render_stage.GetRootLayer().ImportFromString(self._exported_usd_string)
+        settings_path = render_stage.GetMetadata("renderSettingsPrimPath") or "/Render/IsaacLabSettings"
+        settings = UsdRender.Settings.Define(render_stage, settings_path)
+        settings.GetPrim().AddAppliedSchema("OmniRtxSettingsGlobalCommonAPI_1")
+        settings.GetPrim().CreateAttribute(
+            "omni:rtx:scenePartitioning:showAllPartitionsByDefault", Sdf.ValueTypeNames.Bool
+        ).Set(True)
+        render_stage.SetMetadata("renderSettingsPrimPath", settings_path)
+        self._exported_usd_string = render_stage.GetRootLayer().ExportToString()
 
     def _capture_object_scales(self, stage: Any) -> None:
         """Record composed world scales beneath the plan's prototypes and shared roots before export.
@@ -601,10 +619,10 @@ class OVRTXRenderer(BaseRenderer):
         render_data.resources.callback(self.backend.renderer.remove_usd, reference)
         logger.info("OVRTX loaded USD from string successfully")
 
-        camera_paths = _get_cloned_camera_paths(spec.camera_prim_paths[0], num_envs)
-        if num_envs > 1:
+        camera_paths = render_data.camera_paths
+        if len(self._clone_plan.topology.world_prototype_layout) > 1:
             self._clone_sources()
-            self._update_scene_partitions_after_clone(camera_paths)
+            self._update_scene_partitions_after_clone(camera_paths if spec.camera_prim_paths else ())
         # References drop external camera targets; restore them after all cameras have been cloned.
         self.backend.renderer.write_array_attribute(
             prim_paths=[render_product_path],
@@ -693,12 +711,14 @@ class OVRTXRenderer(BaseRenderer):
 
     def _update_scene_partitions_after_clone(self, camera_paths: Sequence[str]) -> None:
         """Assign environment partitions to cloned roots and the declared camera batch."""
-        num_envs = len(camera_paths)
+        num_envs = len(self._clone_plan.topology.world_prototype_layout)
         env_paths = [self._clone_plan.env_template.format(i) for i in range(num_envs)]
-        tokens = [f"env_{i}" for i in range(num_envs)]
-        if self._use_ovstage:
-            tokens = np.array([self.backend.paths.intern_token(token) for token in tokens], dtype=np.uint64)
         for paths, attribute in ((env_paths, "primvars:omni:scenePartition"), (camera_paths, "omni:scenePartition")):
+            if not paths:
+                continue
+            tokens = [f"env_{i}" for i in range(len(paths))]
+            if self._use_ovstage:
+                tokens = np.array([self.backend.paths.intern_token(token) for token in tokens], dtype=np.uint64)
             if self._use_ovstage:
                 path_list = self.backend.paths.create_path_list_from_strings(paths)
                 with self.backend.stage.query_from_path_list(path_list) as query:
@@ -782,7 +802,6 @@ class OVRTXRenderer(BaseRenderer):
         Performs OVRTX initialization (stage export, USD load, bindings) on first call,
         matching the interface of Isaac RTX and Newton Warp which need no separate initialize().
         """
-        camera_paths = _get_cloned_camera_paths(spec.camera_prim_paths[0], spec.num_instances)
         # Normalize aliases such as "cuda" before comparing cameras sharing this renderer.
         warp_device = wp.get_device(spec.device)
         if self._initialized_scene and str(warp_device) != self._device:
@@ -792,6 +811,7 @@ class OVRTXRenderer(BaseRenderer):
         render_data = OVRTXCameraRenderData(
             spec, self._device, render_scope_name=f"RenderCamera_{self._next_camera_id}"
         )
+        camera_paths = render_data.camera_paths
         try:
             if not self._initialized_scene:
                 self._initialize_camera_render_data_from_spec(spec, render_data)
@@ -835,9 +855,7 @@ class OVRTXRenderer(BaseRenderer):
         errors = self.drain_pending_renders()
         if errors:
             raise ExceptionGroup("OVRTX renders failed before camera registration", errors)
-        camera_paths = _get_cloned_camera_paths(spec.camera_prim_paths[0], spec.num_instances)
-        if not camera_paths:
-            raise ValueError("OVRTX cameras must be under /World/envs/env_0/.")
+        camera_paths = render_data.camera_paths
         scope = render_data.render_scope_name
         product_path = render_data.render_product_path
         usd = build_render_product_as_string(
@@ -876,16 +894,18 @@ class OVRTXRenderer(BaseRenderer):
                 tensors=np.full(spec.num_instances, True, dtype=np.bool_),
                 is_array=False,
             ).wait()
-            self.backend.stage.write_attribute(
-                render_data.camera_xform_query,
-                "omni:scenePartition",
-                ordinal=self._current_ordinal,
-                tensors=np.array(
-                    [self.backend.paths.intern_token(f"env_{i}") for i in range(spec.num_instances)], dtype=np.uint64
-                ),
-                is_array=False,
-                semantic=ovstage.AttributeSemantic.TOKEN_ID,
-            ).wait()
+            if spec.camera_prim_paths:
+                self.backend.stage.write_attribute(
+                    render_data.camera_xform_query,
+                    "omni:scenePartition",
+                    ordinal=self._current_ordinal,
+                    tensors=np.array(
+                        [self.backend.paths.intern_token(f"env_{i}") for i in range(spec.num_instances)],
+                        dtype=np.uint64,
+                    ),
+                    is_array=False,
+                    semantic=ovstage.AttributeSemantic.TOKEN_ID,
+                ).wait()
         else:
             reference = self.backend.renderer.add_usd_reference_from_string(usd, f"/{scope}")
             render_data.resources.callback(self.backend.renderer.remove_usd, reference)
@@ -906,13 +926,35 @@ class OVRTXRenderer(BaseRenderer):
                 attribute_name="omni:resetXformStack",
                 tensor=np.full(spec.num_instances, True, dtype=np.bool_),
             )
-            self.backend.renderer.write_attribute(
-                camera_paths,
-                "omni:scenePartition",
-                [f"env_{i}" for i in range(spec.num_instances)],
-                semantic=Semantic.TOKEN_STRING,
-            )
+            if spec.camera_prim_paths:
+                self.backend.renderer.write_attribute(
+                    camera_paths,
+                    "omni:scenePartition",
+                    [f"env_{i}" for i in range(spec.num_instances)],
+                    semantic=Semantic.TOKEN_STRING,
+                )
         self._render_product_paths.append(product_path)
+
+    def resize_render_product(self, render_data: OVRTXCameraRenderData, *, width: int, height: int) -> None:
+        """Resize one perspective product while preserving its camera and native bindings."""
+        if render_data.camera_paths != [f"/{render_data.render_scope_name}/Camera"] or width < 1 or height < 1:
+            raise ValueError("Only renderer-owned perspective products support resizing to positive dimensions.")
+        self.reset(render_data)
+        resolution = np.array([[width, height]], dtype=np.int32)
+        if self._use_ovstage:
+            paths = self.backend.paths.create_path_list_from_strings([render_data.render_product_path])
+            try:
+                with self.backend.stage.query_from_path_list(paths) as query:
+                    self.backend.stage.write_attribute(
+                        query, "resolution", ordinal=self._current_ordinal, tensors=resolution, is_array=False
+                    ).wait()
+            finally:
+                self.backend.paths.destroy_path_list(paths)
+        else:
+            self.backend.renderer.write_attribute(
+                [render_data.render_product_path], "resolution", resolution, prim_mode=PrimMode.MUST_EXIST
+            )
+        render_data.width, render_data.height = width, height
 
     def set_outputs(self, render_data: OVRTXCameraRenderData, output_data: dict[str, ProxyArray]) -> None:
         """Register pre-allocated warp output buffers for rendering.
@@ -1727,10 +1769,10 @@ class OVRTXRenderer(BaseRenderer):
         render_data.resources.callback(self._remove_camera_reference, reference)
         ovstage.population.apply_usd_changes(self.backend.stage, ordinal=self._current_ordinal)
 
-        camera_paths = _get_cloned_camera_paths(spec.camera_prim_paths[0], num_envs)
-        if num_envs > 1:
+        camera_paths = render_data.camera_paths
+        if len(self._clone_plan.topology.world_prototype_layout) > 1:
             self._clone_sources()
-            self._update_scene_partitions_after_clone(camera_paths)
+            self._update_scene_partitions_after_clone(camera_paths if spec.camera_prim_paths else ())
 
         self._initialized_scene = True
 
