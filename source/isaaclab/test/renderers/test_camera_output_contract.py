@@ -266,3 +266,86 @@ def test_camera_data_allocate_raises_on_unknown_name():
         )
     assert "not_a_real_type" in str(exc_info.value)
     assert "RenderBufferKind" in str(exc_info.value)
+
+
+def test_every_camera_prepares_before_the_shared_stage_export(monkeypatch):
+    """A renderer that snapshots the stage at the first camera's initialization sees every camera's overrides."""
+    import numpy as np
+
+    from pxr import Sdf, Usd, UsdGeom
+
+    from isaaclab.physics import PhysicsEvent, PhysicsManager
+    from isaaclab.renderers.rtx_camera_overrides import apply_rtx_exposure_overrides
+    from isaaclab.sensors.camera import Camera
+    from isaaclab.sensors.camera import camera as camera_module
+    from isaaclab.sensors.sensor_base import SensorBase
+    from isaaclab.sim import SimulationContext
+
+    class CameraPhysicsManager(PhysicsManager):
+        _callbacks = {}
+
+    stage = Usd.Stage.CreateInMemory()
+    prims = [UsdGeom.Camera.Define(stage, path).GetPrim() for path in ("/World/First", "/World/Second")]
+    prims[1].CreateAttribute("exposure:iso", Sdf.ValueTypeNames.Float).Set(100.0)
+    specs = {
+        RenderBufferKind.RGB: RenderBufferSpec(3, wp.uint8),
+        RenderBufferKind.RGBA: RenderBufferSpec(4, wp.uint8),
+        RenderBufferKind.RGB_RADIANCE: RenderBufferSpec(3, wp.float32),
+    }
+    exported_iso = []
+
+    def prepare_cameras(stage, spec):
+        if "rgb_radiance" in spec.cfg.data_types:
+            apply_rtx_exposure_overrides(stage, list(spec.camera_prim_paths))
+
+    def export_stage(stage, num_envs):
+        if not exported_iso:
+            exported_iso.append(prims[1].GetAttribute("exposure:iso").Get())
+
+    renderer = SimpleNamespace(
+        supported_output_types=lambda: specs,
+        prepare_cameras=prepare_cameras,
+        create_render_data=lambda spec: SimpleNamespace(spec=spec),
+        set_outputs=lambda data, outputs: None,
+        cleanup=lambda data: None,
+    )
+    sim = SimpleNamespace(
+        device="cpu",
+        physics_manager=CameraPhysicsManager,
+        get_clone_plan=lambda: SimpleNamespace(topology=SimpleNamespace(world_prototype_layout=np.zeros(2))),
+        render_context=SimpleNamespace(ensure_prepare_stage=export_stage),
+        vis_marker_registry=SimpleNamespace(clear_debug_vis_callback=lambda sensor: None),
+    )
+    monkeypatch.setattr(SimulationContext, "instance", staticmethod(lambda: sim))
+    monkeypatch.setattr(SensorBase, "_initialize_impl", lambda self: None)
+    monkeypatch.setattr(Camera, "_initialize_intrinsics", lambda self: None)
+    monkeypatch.setattr(Camera, "_update_poses", lambda self: None)
+    monkeypatch.setattr(
+        camera_module,
+        "FrameView",
+        lambda path, **kwargs: SimpleNamespace(count=2, prims=[stage.GetPrimAtPath(path)] * 2, close=lambda: None),
+    )
+    cameras = []
+    for prim, data_types in zip(prims, (["rgb"], ["rgb_radiance"])):
+        camera = Camera.__new__(Camera)
+        camera.cfg = SimpleNamespace(prim_path=str(prim.GetPath()), data_types=data_types, height=2, width=3)
+        camera.stage = stage
+        camera._device = "cpu"
+        camera._num_envs = 2
+        camera._is_initialized = False
+        camera._sensor_prims = []
+        camera._renderer = renderer
+        camera._render_data = None
+        camera._view = None
+        camera._register_callbacks()
+        cameras.append(camera)
+
+    try:
+        CameraPhysicsManager.dispatch_event(PhysicsEvent.PHYSICS_READY)
+
+        assert all(camera.is_initialized for camera in cameras)
+        assert exported_iso == [0.0]
+    finally:
+        for camera in cameras:
+            camera.__del__()
+    assert not CameraPhysicsManager._callbacks

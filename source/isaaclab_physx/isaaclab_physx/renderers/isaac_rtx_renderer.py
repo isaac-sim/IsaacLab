@@ -200,7 +200,8 @@ class IsaacRtxRenderer(BaseRenderer):
         if settings.get("/isaaclab/render/deterministic", False):
             apply_isaac_rtx_determinism_settings(settings)
         ensure_rtx_hydra_engine_attached()
-        # ``/isaaclab/render/rtx_sensors`` is owned by ``Camera.__init__`` (must be set pre-``sim.reset()``).
+        # ``/isaaclab/render/rtx_sensors`` is set pre-``sim.reset()`` by
+        # ``IsaacRtxRendererCfg.apply_pre_reset_settings``.
 
     def initialize(self) -> None:
         """Bind shared Fabric destinations after scene creation."""
