@@ -1,23 +1,27 @@
-Creating Visualization Markers
+:orphan:
+
+.. _how-to-create-visualization-markers:
+
+Creating visualization markers
 ==============================
 
 .. currentmodule:: isaaclab
 
-Visualization markers render debug geometry (frames, arrows, spheres, custom meshes) over the
-scene through :class:`markers.VisualizationMarkers`. Markers are display-only: they carry no
-physics and do not affect the simulation.
+This guide shows how to draw visualization markers: debug geometry (frames, arrows, spheres,
+custom meshes) rendered over the scene through :class:`markers.VisualizationMarkers`. Markers are
+display-only: they carry no physics and do not affect the simulation.
 
 For plain points, lines, and splines, Isaac Sim's own :mod:`isaacsim.util.debug_draw` extension
 is lighter-weight. Use ``VisualizationMarkers`` when you need more complex shapes.
 
-Supported on Kit, Newton GL, Rerun, and Viser; not yet on Newton RTX. See
-:doc:`/source/concepts/visualization` for enabling markers on a given visualizer.
+Markers are supported on Kit, Newton GL, Rerun, and Viser, but not yet on Newton RTX. See
+:doc:`/source/concepts/visualization` for how to enable them on a given visualizer.
 
 
 Quick Start
 -----------
 
-This guide is accompanied by the packaged ``markers`` example.
+Run the packaged ``markers`` example:
 
 .. tab-set::
 
