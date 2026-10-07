@@ -652,6 +652,8 @@ class NewtonManager(PhysicsManager):
         if not (cls.kinematics_dirty or cls.transforms_may_change_on_graph_replay):
             return
         cls._reset_solver_internals_delegate(cls._world_reset_mask)
+        if cls._world_reset_mask is not None and cls._collision_pipeline is not None:
+            cls._collision_pipeline.reset_contact_matching(cls._world_reset_mask)
         cls._eval_fk(cls._world_reset_mask, cls._fk_reset_mask)
         if cls._fk_reset_mask is not None:
             cls._fk_reset_mask.zero_()
@@ -1367,10 +1369,12 @@ class NewtonManager(PhysicsManager):
             if _solver is not None and hasattr(_solver, "get_max_contact_count"):
                 _need = _solver.get_max_contact_count()
                 if _need > NewtonManager._contacts.rigid_contact_max:
-                    if cls._deterministic_mode != wp.DeterministicMode.NOT_GUARANTEED:
-                        # In deterministic mode, CollisionPipeline sizes _sort_key_array from rigid_contact_max at
-                        # construction. Rebuild so the sort and contact buffers retain matching capacity; replacing
-                        # Contacts alone would leave the sorting buffer undersized.
+                    if (
+                        cls._deterministic_mode != wp.DeterministicMode.NOT_GUARANTEED
+                        or cls._collision_pipeline.contact_matching != "disabled"
+                    ):
+                        # Determinism and matching size sorting buffers at construction. Rebuild the pipeline
+                        # so sorting and matching storage grow with the solver's contact capacity.
                         pipeline_args["rigid_contact_max"] = _need
                         NewtonManager._collision_pipeline = CollisionPipeline(cls.backend.model, **pipeline_args)
                         NewtonManager._contacts = cls._collision_pipeline.contacts()

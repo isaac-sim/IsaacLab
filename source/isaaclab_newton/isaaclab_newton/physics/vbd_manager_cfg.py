@@ -57,6 +57,15 @@ class VBDSolverCfg(NewtonSolverCfg):
     rigid_compliant_alm: bool | None = None
     """Whether to use compliant ALM for rigid joints and contacts; ``None`` preserves Newton's default."""
 
+    rigid_avbd_contact_alpha: float | None = None
+    """Body-body contact C0 stabilization strength [dimensionless], in [0, 1]; ``None`` uses Newton's mode default."""
+
+    rigid_contact_history: bool = False
+    """Whether to warm-start matched body-body contacts across steps.
+
+    Requires collision matching in standalone rigid VBD; coupled rigid entries are unsupported.
+    """
+
     rigid_contact_k_start: float = 1.0e2
     """Initial stiffness seed for rigid-body contacts [N/m]."""
 
