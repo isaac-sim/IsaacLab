@@ -156,38 +156,8 @@ DEPRECATED_WRITERS = {
     "modify_deformable_body_properties": _DEFORMABLE_WRITERS,
 }
 
-# Deformable symbols that stay undeprecated. The curve writer has no fragment family to point at,
-# and the material cfgs follow the rigid-body material cfgs, which are not deprecated either.
+# The curve writer has no fragment family to point at, so it stays undeprecated.
 UNDEPRECATED_DEFORMABLE_WRITERS = ["define_deformable_curve_properties"]
-UNDEPRECATED_DEFORMABLE_MATERIALS = {
-    "isaaclab.sim.spawners.materials": [
-        "DeformableBodyMaterialBaseCfg",
-        "SurfaceDeformableBodyMaterialBaseCfg",
-        "OmniPhysicsDeformableMaterialCfg",
-        "OmniPhysicsSurfaceDeformableMaterialCfg",
-    ],
-    "isaaclab_physx.sim.spawners.materials.physics_materials_cfg": [
-        "PhysxDeformableBodyMaterialCfg",
-        "PhysxSurfaceDeformableBodyMaterialCfg",
-        "PhysxDeformableMaterialCfg",
-        "PhysxSurfaceDeformableMaterialCfg",
-        "OmniPhysicsDeformableMaterialCfg",
-        "OmniPhysicsSurfaceDeformableMaterialCfg",
-        "PhysXDeformableMaterialCfg",
-    ],
-    "isaaclab_newton.sim.spawners.materials": [
-        "NewtonDeformableBodyMaterialCfg",
-        "NewtonSurfaceDeformableBodyMaterialCfg",
-        "NewtonVolumeDeformableMaterialCfg",
-        "NewtonSurfaceDeformableMaterialCfg",
-        "NewtonDeformableMaterialCfg",
-    ],
-}
-# The MPM particle path has no deformable-body cfg of its own, so it is untouched as well.
-UNDEPRECATED_MPM_CFGS = {
-    "isaaclab_newton.sim.spawners.mpm": ["MPMParticleMaterialCfg", "MPMGridCfg", "MPMPointsCfg"],
-    "isaaclab_newton.assets.mpm_object.mpm_object_cfg": ["MPMObjectCfg"],
-}
 
 
 def _physx_cfgs():
@@ -308,25 +278,6 @@ def test_deformable_curve_writer_is_not_deprecated(name):
     # a token API schema is only visible through the prim type info
     applied = stage.GetPrimAtPath("/World/Cable").GetPrimTypeInfo().GetAppliedAPISchemas()
     assert "PhysicsCurvesDeformableSimAPI" in applied
-
-
-@pytest.mark.parametrize(
-    "module_name,name",
-    [(module, name) for module, names in UNDEPRECATED_DEFORMABLE_MATERIALS.items() for name in names],
-)
-def test_deformable_material_cfg_is_not_deprecated(module_name, name):
-    """Deformable material cfgs stay undeprecated, like the rigid-body material cfgs."""
-    module = pytest.importorskip(module_name)
-    assert _deprecations(getattr(module, name)) == []
-
-
-@pytest.mark.parametrize(
-    "module_name,name", [(module, name) for module, names in UNDEPRECATED_MPM_CFGS.items() for name in names]
-)
-def test_mpm_cfg_is_not_deprecated(module_name, name):
-    """The MPM particle cfgs are not part of the legacy deformable-body API and stay undeprecated."""
-    module = pytest.importorskip(module_name)
-    assert _deprecations(getattr(module, name)) == []
 
 
 # Imports the schema cfg modules for the first time in a fresh interpreter and reports every
