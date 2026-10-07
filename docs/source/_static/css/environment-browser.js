@@ -28,8 +28,8 @@
             ["Isaac-Lift-Franka", "rsl_rl", "isaacsim_physx,newton_mjwarp,ovphysx", "", "cube,minimal,shapes", "", false, {"*": ["shapes"]}],
             ["Isaac-Lift-KukaAllegro", "rsl_rl", "isaacsim_physx,newton_mjwarp,ovphysx", "", "cube,shapes", "tasks/manipulation/kuka_allegro_lift.jpg", false, {"*": ["shapes"]}],
             ["Isaac-Lift-KukaAllegro-Camera", "rsl_rl", "isaacsim_physx,newton_mjwarp,ovphysx", "isaacsim_rtx,newton_renderer,ovrtx", "albedo128,albedo256,albedo64,cube,depth128,depth256,depth64,duo_camera,raycaster_depth128,raycaster_depth256,raycaster_depth64,rgb128,rgb256,rgb64,semantic_segmentation128,semantic_segmentation256,semantic_segmentation64,shapes,simple_shading_constant_diffuse128,simple_shading_constant_diffuse256,simple_shading_constant_diffuse64,simple_shading_diffuse_mdl128,simple_shading_diffuse_mdl256,simple_shading_diffuse_mdl64,simple_shading_full_mdl128,simple_shading_full_mdl256,simple_shading_full_mdl64,single_camera", "tasks/manipulation/kuka_allegro_lift.jpg", false, {"*": ["rgb64", "shapes", "single_camera"]}],
-            ["Isaac-Lift-Soft-Franka", "rsl_rl", "isaacsim_physx,newton_mjwarp_vbd_proxy", "", "ik,joint", "tasks/manipulation/franka_lift_soft.jpg", false, {"*": ["joint"]}, {}, "tetrahedralization"],
-            ["Isaac-Lift-Soft-Franka-Camera", "rsl_rl", "isaacsim_physx,newton_mjwarp_vbd_proxy", "isaacsim_rtx,newton_renderer,ovrtx", "ik,joint", "tasks/manipulation/franka_lift_soft.jpg", false, {"*": ["joint"]}, {}, "tetrahedralization"],
+            ["Isaac-Lift-Soft-Franka", "rsl_rl", "isaacsim_physx,newton_mjwarp_vbd_proxy", "", "ik,joint", "tasks/franka_lift_soft.jpg", false, {"*": ["joint"]}, {}, "tetrahedralization"],
+            ["Isaac-Lift-Soft-Franka-Camera", "rsl_rl", "isaacsim_physx,newton_mjwarp_vbd_proxy", "isaacsim_rtx,newton_renderer,ovrtx", "ik,joint", "tasks/franka_lift_soft.jpg", false, {"*": ["joint"]}, {}, "tetrahedralization"],
             ["Isaac-Open-Drawer-Franka-Direct", "rl_games,rsl_rl,skrl", "isaacsim_physx,newton_mjwarp,ovphysx", "", "", "tasks/manipulation/franka_open_drawer.jpg"],
             ["Isaac-Open-Drawer-Franka", "rl_games,rsl_rl,skrl", "isaacsim_physx,newton_mjwarp,ovphysx", "", "", "tasks/manipulation/franka_open_drawer.jpg"],
             ["Isaac-Pendulum-MARL-Direct", "rl_games,skrl", "isaacsim_physx,newton_kamino,newton_mjwarp,ovphysx", "", "", "tasks/classic/cart_double_pendulum.jpg", false, {}, {"skrl": "MAPPO"}],
@@ -47,12 +47,12 @@
             ["Isaac-Shadow-Handover-Direct", "rl_games,rsl_rl,skrl", "isaacsim_physx,newton_mjwarp,ovphysx", "", "", "tasks/manipulation/shadow_hand_over.jpg", false, {}, {"skrl": "MAPPO"}],
             ["Isaac-Shadow-Handover", "rsl_rl", "isaacsim_physx,newton_mjwarp,ovphysx", "", "randomized"],
             ["Isaac-Velocity-Flat-AnymalD", "rsl_rl,skrl", "isaacsim_physx,newton_kamino,newton_mjwarp,ovphysx", "", "", "tasks/locomotion/anymal_d_flat.jpg", true],
-            ["Isaac-Velocity-Flat-Cassie", "rsl_rl,skrl", "isaacsim_physx,newton_kamino,newton_mjwarp,ovphysx", "", "", "tasks/locomotion/cassie_flat.jpg", true],
+            ["Isaac-Velocity-Flat-Cassie", "rsl_rl,skrl", "isaacsim_physx,newton_kamino,newton_mjwarp,ovphysx", "", "", "tasks/cassie_flat.jpg", true],
             ["Isaac-Velocity-Flat-G1", "rsl_rl,skrl", "isaacsim_physx,newton_kamino,newton_mjwarp,ovphysx", "", "", "tasks/locomotion/g1_flat.jpg", true],
             ["Isaac-Velocity-Flat-H1", "rsl_rl,skrl", "isaacsim_physx,newton_kamino,newton_mjwarp,ovphysx", "", "", "tasks/locomotion/h1_flat.jpg", true],
             ["Isaac-Velocity-Flat-UnitreeGo2", "rsl_rl,skrl", "isaacsim_physx,newton_kamino,newton_mjwarp,ovphysx", "", "", "tasks/locomotion/go2_flat.jpg", true],
             ["Isaac-Velocity-Rough-AnymalD", "rsl_rl,skrl", "isaacsim_physx,newton_kamino,newton_mjwarp,ovphysx", "", "", "tasks/locomotion/anymal_d_rough.jpg"],
-            ["Isaac-Velocity-Rough-Cassie", "rsl_rl,skrl", "isaacsim_physx,newton_kamino,newton_mjwarp,ovphysx", "", "", "tasks/locomotion/cassie_rough.jpg"],
+            ["Isaac-Velocity-Rough-Cassie", "rsl_rl,skrl", "isaacsim_physx,newton_kamino,newton_mjwarp,ovphysx", "", "", "tasks/cassie_rough.jpg"],
             ["Isaac-Velocity-Rough-G1", "rsl_rl,skrl", "isaacsim_physx,newton_kamino,newton_mjwarp,ovphysx", "", "", "tasks/locomotion/g1_rough.jpg"],
             ["Isaac-Velocity-Rough-H1", "rsl_rl,skrl", "isaacsim_physx,newton_kamino,newton_mjwarp,ovphysx", "", "", "tasks/locomotion/h1_rough.jpg"],
             ["Isaac-Velocity-Rough-UnitreeGo2", "rsl_rl,skrl", "isaacsim_physx,newton_kamino,newton_mjwarp,ovphysx", "", "", "tasks/locomotion/go2_rough.jpg"],
@@ -326,7 +326,7 @@
             [/^Isaac-Humanoid/, "tasks/classic/humanoid.jpg"],
             [/Lift-Cable-Franka/, "tasks/manipulation/franka_lift_cable.jpg"],
             [/Lift-Cloth-Franka/, "tasks/manipulation/franka_lift_cloth.jpg"],
-            [/Lift-Soft-Franka/, "tasks/manipulation/franka_lift_soft.jpg"],
+            [/Lift-Soft-Franka/, "tasks/franka_lift_soft.jpg"],
             [/Lift-(Cube-)?Franka/, "tasks/manipulation/franka_lift.jpg"],
             [/Lift-KukaAllegro/, "tasks/manipulation/kuka_allegro_lift.jpg"],
             [/Open-Drawer-Franka/, "tasks/manipulation/franka_open_drawer.jpg"],
@@ -339,7 +339,7 @@
             [/AnymalB/, "tasks/locomotion/anymal_b_flat.jpg"],
             [/AnymalC/, "tasks/locomotion/anymal_c_flat.jpg"],
             [/AnymalD/, "tasks/locomotion/anymal_d_flat.jpg"],
-            [/Cassie/, "tasks/locomotion/cassie_flat.jpg"],
+            [/Cassie/, "tasks/cassie_flat.jpg"],
             [/Digit/, "tasks/locomotion/agility_digit_flat.jpg"],
             [/Velocity-Flat-G1/, "tasks/locomotion/g1_flat.jpg"],
             [/Velocity-Rough-G1/, "tasks/locomotion/g1_rough.jpg"],
@@ -354,14 +354,14 @@
     };
 
     const previewImageBaseUrl = "https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/";
-    const previewVideoBaseUrl = "https://download.isaacsim.omniverse.nvidia.com/isaaclab/videos/";
+    const previewVideoBaseUrl = "https://download.isaacsim.omniverse.nvidia.com/isaaclab/videos/tasks/";
     const failedPreviewVideos = new Set();
 
     const previewImageUrl = (task) => new URL(previewImageFor(task), previewImageBaseUrl).href;
 
-    // Each preview video shares its image's path, so tasks without an uploaded clip fall back to the image.
+    // Each preview video shares its image's file name, so tasks without an uploaded clip fall back to the image.
     const previewVideoUrl = (task) => (
-        new URL(previewImageFor(task).replace(/\.[^.]+$/, ".mp4"), previewVideoBaseUrl).href
+        new URL(previewImageFor(task).split("/").pop().replace(/\.[^.]+$/, ".mp4"), previewVideoBaseUrl).href
     );
 
     const updateTaskControls = () => {
