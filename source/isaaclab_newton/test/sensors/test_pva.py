@@ -131,7 +131,6 @@ class OffsetRotatedSceneCfg(InteractiveSceneCfg):
             rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
             mass_props=sim_utils.MassCfg(mass=1.0),
             collision_props=sim_utils.UsdPhysicsCollisionCfg(),
-            physics_material=sim_utils.RigidBodyMaterialBaseCfg(),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.5, 0.0, 0.0)),
         ),
         init_state=RigidObjectCfg.InitialStateCfg(
