@@ -3,13 +3,20 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Tests for PPISP USD parsing helpers."""
+"""Tests for PPISP USD parsing helpers and the PPISP modifier."""
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import pytest
+import torch
+import warp as wp
 from isaaclab_ppisp import (
     PpispCfg,
+    PpispModifier,
+    PpispModifierCfg,
+    PpispPipeline,
     auto_any_ppisp_cfg,
     auto_camera_ppisp_cfg,
     default_ppisp_inputs,
@@ -17,7 +24,8 @@ from isaaclab_ppisp import (
     normalize_ppisp_cfg,
     ppisp_cfg_from_usd_camera,
 )
-from isaaclab_ppisp.cfg import PPISP_CONTROLLER_EXPECTED_WEIGHTS_LEN, resolve_and_normalize
+from isaaclab_ppisp import modifier as modifier_module
+from isaaclab_ppisp.cfg import PPISP_CONTROLLER_EXPECTED_WEIGHTS_LEN
 
 from pxr import Gf, Sdf, Usd, Vt
 
@@ -225,18 +233,54 @@ def test_auto_any_ppisp_cfg_reads_first_camera_with_ppisp_attrs():
     assert cfg.inputs["exposureOffset"] == pytest.approx(2.0)
 
 
-def test_resolve_and_normalize_without_camera_uses_first_ppisp_camera():
-    from isaaclab.sensors.camera.camera_isp import CameraISPMode
-
+def test_ppisp_modifier_discovers_camera_attrs_and_requests_one_shared_pipeline(monkeypatch):
+    """Modifiers resolve USD-authored settings without changing their configuration and share equal pipelines."""
     stage = Usd.Stage.CreateInMemory()
     _author_camera(stage, "/World/CameraWithoutPpisp")
     _author_ppisp_camera(stage, "/World/Camera_ppisp", inherits=None, attrs={"exposureOffset": 2.0})
+    pipelines = []
 
-    cfg = resolve_and_normalize(CameraISPMode.AUTO_CAMERA, stage)
+    def get_or_create_backend(cfg):
+        match = next((pipeline for pipeline in pipelines if pipeline.cfg == cfg), None)
+        if match is None:
+            match = PpispPipeline(cfg)
+            pipelines.append(match)
+        return match
 
-    assert cfg is not None
-    assert cfg.camera_prim_path is None
-    assert cfg.inputs["exposureOffset"] == pytest.approx(2.0)
+    sim = SimpleNamespace(stage=stage, get_or_create_backend=get_or_create_backend)
+    monkeypatch.setattr(modifier_module, "SimulationContext", SimpleNamespace(instance=lambda: sim))
+    cfg = PpispModifierCfg()
+
+    first = PpispModifier(cfg, (2, 4, 5, 3), "cpu")
+    second = PpispModifier(cfg, (2, 4, 5, 3), "cpu")
+
+    assert cfg.isp_cfg is None
+    assert first._pipeline is second._pipeline
+    assert first._pipeline.cfg.inputs["exposureOffset"] == pytest.approx(2.0)
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="The PPISP kernel runs on CUDA devices.")
+@pytest.mark.parametrize("output", ["rgb", "rgba"])
+def test_ppisp_modifier_matches_the_pipeline(monkeypatch, output):
+    """The modifier writes the pipeline's 8-bit output for the requested channels."""
+    monkeypatch.setattr(modifier_module, "SimulationContext", SimpleNamespace(instance=lambda: None))
+    isp_cfg = PpispCfg(inputs={"exposureOffset": 1.0})
+    modifier = PpispModifier(PpispModifierCfg(isp_cfg=isp_cfg, output=output), (2, 4, 5, 3), "cuda:0")
+    radiance = torch.rand(2, 4, 5, 3, device="cuda:0")
+
+    result = modifier(radiance)
+
+    expected = wp.zeros((2, 4, 5, 4), dtype=wp.uint8, device="cuda:0")
+    PpispPipeline(normalize_ppisp_cfg(isp_cfg.copy())).apply(wp.from_torch(radiance), expected)
+    torch.testing.assert_close(result, wp.to_torch(expected)[..., : 3 if output == "rgb" else 4])
+    with pytest.raises(ValueError, match="float32"):
+        modifier(radiance.double())
+
+
+def test_ppisp_modifier_rejects_inputs_that_are_not_rgb_radiance(monkeypatch):
+    monkeypatch.setattr(modifier_module, "SimulationContext", SimpleNamespace(instance=lambda: None))
+    with pytest.raises(ValueError, match=r"\(N, H, W, 3\)"):
+        PpispModifier(PpispModifierCfg(), (2, 4, 5, 4), "cpu")
 
 
 def test_ppisp_cfg_from_usd_camera_reads_controller_weights_from_camera_attrs():

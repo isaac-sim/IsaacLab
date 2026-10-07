@@ -88,16 +88,15 @@ def test_native_fabric_geometry_needs_no_separate_publication(monkeypatch):
 
 
 @pytest.mark.parametrize(
-    ("data_types", "isp_cfg", "routes_hdr"),
-    [(["rgb"], None, False), (["rgb_hdr"], None, True), (["rgb_radiance"], None, True), (["rgb"], object(), True)],
+    ("data_types", "routes_hdr"), [(["rgb"], False), (["rgb_hdr"], True), (["rgb_radiance"], True)]
 )
-def test_pre_reset_settings_mark_rtx_sensors_and_route_hdr(data_types, isp_cfg, routes_hdr):
+def test_pre_reset_settings_mark_rtx_sensors_and_route_hdr(data_types, routes_hdr):
     """Isaac RTX cameras flag RTX sensors before reset and route Gaussian HDR only when linear color is used."""
     from isaaclab_physx.renderers.isaac_rtx_renderer_cfg import IsaacRtxRendererCfg
 
     settings = MagicMock()
     with patch("isaaclab.app.settings_manager.get_settings_manager", return_value=settings):
-        IsaacRtxRendererCfg().apply_pre_reset_settings(SimpleNamespace(data_types=data_types, isp_cfg=isp_cfg))
+        IsaacRtxRendererCfg().apply_pre_reset_settings(SimpleNamespace(data_types=data_types))
 
     settings.set.assert_any_call("/isaaclab/render/rtx_sensors", True)
     settings.set.assert_any_call("/physics/fabricUpdateTransformations", True)
@@ -116,9 +115,7 @@ def test_prepare_cameras_neutralizes_exposure_for_radiance(monkeypatch, data_typ
     stage = Usd.Stage.CreateInMemory()
     camera = UsdGeom.Camera.Define(stage, "/World/Camera").GetPrim()
     camera.CreateAttribute("exposure:iso", Sdf.ValueTypeNames.Float).Set(100.0)
-    spec = SimpleNamespace(
-        cfg=SimpleNamespace(data_types=data_types, isp_cfg=None), camera_prim_paths=("/World/Camera",)
-    )
+    spec = SimpleNamespace(cfg=SimpleNamespace(data_types=data_types), camera_prim_paths=("/World/Camera",))
     IsaacRtxRenderer.__new__(IsaacRtxRenderer).prepare_cameras(stage, spec)
 
     assert camera.GetAttribute("exposure:iso").Get() == (0.0 if "rgb_radiance" in data_types else 100.0)
@@ -153,7 +150,7 @@ def test_radiance_reads_the_hdr_annotator_into_its_output(monkeypatch, data_type
         camera_prim_paths=("/World/Camera",),
         device="cpu",
         view_count=1,
-        cfg=SimpleNamespace(data_types=data_types, width=3, height=2, isp_cfg=None),
+        cfg=SimpleNamespace(data_types=data_types, width=3, height=2),
     )
     renderer = rtx_renderer.IsaacRtxRenderer.__new__(rtx_renderer.IsaacRtxRenderer)
     renderer.cfg = IsaacRtxRendererCfg()
@@ -222,7 +219,6 @@ def test_create_render_data_uses_unique_sdf_safe_render_product_name(monkeypatch
             data_types=["rgb"],
             width=64,
             height=64,
-            isp_cfg=None,
             colorize_semantic_segmentation=False,
             colorize_instance_segmentation=False,
             colorize_instance_id_segmentation=False,
@@ -339,7 +335,6 @@ def test_simple_shading_configures_its_render_product(
             data_types=data_types,
             width=64,
             height=64,
-            isp_cfg=None,
             colorize_semantic_segmentation=False,
             colorize_instance_segmentation=False,
             colorize_instance_id_segmentation=False,
@@ -557,8 +552,6 @@ def test_render_treats_empty_annotator_frame_as_not_ready(monkeypatch, data_type
             cfg=SimpleNamespace(width=64, height=64),
         ),
         renderer_info={},
-        ppisp_pipeline=None,
-        _hdr_scratch_wp=None,
     )
     renderer = rtx_renderer.IsaacRtxRenderer.__new__(rtx_renderer.IsaacRtxRenderer)
     renderer.cfg = IsaacRtxRendererCfg()
@@ -598,8 +591,6 @@ def test_render_keeps_leading_channels_of_padded_annotator_tiles(monkeypatch, da
         output_data={data_type: SimpleNamespace(warp=output_buffer)},
         spec=SimpleNamespace(view_count=view_count, device="cpu", cfg=SimpleNamespace(width=width, height=height)),
         renderer_info={},
-        ppisp_pipeline=None,
-        _hdr_scratch_wp=None,
     )
     renderer = rtx_renderer.IsaacRtxRenderer.__new__(rtx_renderer.IsaacRtxRenderer)
     renderer.cfg = IsaacRtxRendererCfg()
@@ -651,8 +642,6 @@ def test_render_batch_updates_once_before_extracting_ready_cameras(monkeypatch, 
                     else SimpleNamespace(view_count=1, device="cpu", cfg=SimpleNamespace(width=1, height=1))
                 ),
                 renderer_info={},
-                ppisp_pipeline=None,
-                _hdr_scratch_wp=None,
             )
         )
         if state == "ready":

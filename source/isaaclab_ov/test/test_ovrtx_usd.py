@@ -315,22 +315,24 @@ def test_render_product_pins_device_ids_to_the_requested_cuda_device(camera_spec
 
 
 @pytest.mark.parametrize(
-    ("data_types", "use_isp", "expected_vars"),
+    ("data_types", "expected_vars"),
     [
-        (["rgb"], True, ("LdrColor", "HdrColor")),
-        (["rgb", "rgb_hdr"], True, ("LdrColor", "HdrColor")),
-        (["rgb", "rgb_hdr"], False, ("LdrColor", "HdrColor")),
-        (["rgb", "rgb_radiance"], False, ("LdrColor", "HdrColor")),
-        ([], True, ("HdrColor",)),
-        (["rgb"], False, ("LdrColor",)),
+        (["rgb"], ("LdrColor",)),
+        (["rgb_hdr"], ("HdrColor",)),
+        (["rgb_radiance"], ("HdrColor",)),
+        (["rgb", "rgb_hdr"], ("LdrColor", "HdrColor")),
+        (["rgb", "rgb_radiance"], ("LdrColor", "HdrColor")),
+        ([], ()),
     ],
 )
-def test_render_product_hdr_requests_preserve_camera_outputs(
-    camera_spec, render_data, data_types, use_isp, expected_vars
-):
-    """Route Gaussian HDR for explicit or ISP inputs without changing public outputs."""
+def test_render_product_routes_gaussian_hdr_only_for_hdr_outputs(camera_spec, render_data, data_types, expected_vars):
+    """Render only the resolved source outputs and route Gaussian HDR without mutating the request."""
     camera_spec.cfg.data_types = data_types.copy()
-    camera_spec.cfg.isp_cfg = object() if use_isp else None
+    if not data_types:
+        with pytest.raises(ValueError, match="at least one output"):
+            build_render_product_as_string(camera_spec, render_data, device_id=0)
+        assert camera_spec.cfg.data_types == data_types
+        return
     render_product = build_render_product_as_string(camera_spec, render_data, device_id=0)
     layer = Sdf.Layer.CreateAnonymous(".usda")
     assert layer.ImportFromString(render_product)

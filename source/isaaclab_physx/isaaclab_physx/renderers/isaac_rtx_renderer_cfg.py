@@ -223,8 +223,7 @@ class IsaacRtxRendererCfg(RendererCfg):
         settings = get_settings_manager()
         settings.set("/isaaclab/render/rtx_sensors", True)
         settings.set("/physics/fabricUpdateTransformations", True)
-        needs_hdr = camera_cfg.isp_cfg is not None or not {"rgb_hdr", "rgb_radiance"}.isdisjoint(camera_cfg.data_types)
-        if needs_hdr:
+        if not {"rgb_hdr", "rgb_radiance"}.isdisjoint(camera_cfg.data_types):
             # Gaussian splats otherwise skip tonemapping and never reach the HdrColor AOV.
             settings.set("/rtx/rtpt/gaussian/skipTonemapping/enabled", False)
 

@@ -204,7 +204,7 @@ def test_newton_warp_wraps_requested_hdr_output(data_type):
 
     fake_sensor = SimpleNamespace(model=SimpleNamespace(world_count=2, device="cpu"))
     spawn = SimpleNamespace(distortion=None)
-    camera_cfg = SimpleNamespace(width=4, height=3, spawn=spawn, isp_cfg=None)
+    camera_cfg = SimpleNamespace(width=4, height=3, spawn=spawn)
     render_data = RenderData(fake_sensor, SimpleNamespace(cfg=camera_cfg))
     hdr_proxy = ProxyArray(wp.zeros((2, 3, 4, 3), dtype=wp.float32, device="cpu"))
 
