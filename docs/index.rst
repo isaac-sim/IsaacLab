@@ -43,6 +43,11 @@ Isaac lab is developed with specific robot assets that are now **Batteries-inclu
 The platform is also designed so that you can add your own robots! Please refer to the
 :ref:`how-to` section for details.
 
+.. tip::
+
+   Working with a coding agent? Isaac Lab ships a library of agent skills for installation, environment
+   creation, RL training, migration, and more. See :doc:`source/developer-tools/agent_skills`.
+
 For more information about the framework, please refer to the `technical report <https://arxiv.org/abs/2511.04831>`_
 :cite:`mittal2025isaaclab`. For clarifications on NVIDIA Isaac ecosystem, please check out the
 :ref:`isaac-lab-ecosystem` section.

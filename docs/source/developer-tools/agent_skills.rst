@@ -3,6 +3,35 @@ Agent Skills
 
 Isaac Lab agent skills are repository-owned instructions that help coding agents follow Isaac Lab workflows. They are markdown guidance assets, not runtime Python packages.
 
+Isaac Lab ships a library of agent skills for installing, building environments, training, debugging,
+migrating, and contributing. Codex and Claude discover them automatically from a repository checkout
+(see `Discovery`_). The full catalog is in ``skills/README.md``.
+
+Skill categories
+----------------
+
+Skills are either invoked by you or applied automatically by the agent. The audience directory
+(``user/`` or ``developer/``) says who a skill is for.
+
+User-invoked skills
+  Ask for these by task or by name, for example ``/isaaclab-installing-isaac-lab`` in Claude Code.
+  They cover work you start yourself: installing Isaac Lab, creating and converting environments,
+  training and debugging RL, choosing backends and presets, preparing assets for Newton, migrating from
+  Isaac Gym or Isaac Lab 2.x, and troubleshooting setup. They live under ``skills/user/``. Some
+  maintainer tasks under ``skills/developer/`` are also run on request: ``issue-audit`` and
+  ``issue-backlog-triage``.
+
+Agent-automated skills
+  The agent loads these on its own when a task matches the skill description, following ``AGENTS.md``.
+  They cover contribution conventions: coding style, test audits, changelog fragments, environment
+  docs synchronization, and PR preparation. They live under ``skills/developer/``.
+
+User skills also trigger automatically when a request matches their description, so naming a skill is
+optional. Name it when you want to be sure it is used.
+
+Layout
+------
+
 Skills live under the repository-level ``skills/`` directory:
 
 .. code-block:: text
@@ -18,12 +47,6 @@ Skills live under the repository-level ``skills/`` directory:
            ├── evaluations.md
            ├── reference.md       # optional, recommended for longer guidance
            └── examples.md        # optional, recommended for concrete workflows
-
-Developer skills
-  Help contributors and maintainers follow Isaac Lab workflows such as PR preparation, changelog fragments, testing, and documentation rules.
-
-User skills
-  Ship with the repository as supported guidance for users building on top of Isaac Lab. Some user skills are intentionally router-only and may only need ``SKILL.md`` plus ``evaluations.md`` when the official docs and source examples already contain the details.
 
 Skill files
 -----------
