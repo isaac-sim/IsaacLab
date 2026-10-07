@@ -79,7 +79,6 @@ streaming visualizers is unsupported because they have no frame capture.
 See `Source types`_ for the full list of recordable sources and `Clip control`_ for length and
 interval options.
 
-
 Overview
 --------
 
@@ -314,6 +313,32 @@ Clip control
 
     VideoRecorderCfg(source="viz:kit", video_length=200, video_interval=1000,
                      keep_last_n_clips=1)
+
+
+Task camera views
+~~~~~~~~~~~~~~~~~
+
+Tasks set their recording view in ``sim.default_visualizer_cfg``; every visualizer uses it unless its own
+config sets the field. ``eye`` and ``lookat`` are offsets from ``origin_type``: ``"world"``, a fixed
+environment (``"env"``), or a tracked asset or body (``"asset"``, e.g. ``"robot"`` or ``"robot/base"``):
+
+.. code-block:: python
+
+    from isaaclab.visualizers import VisualizerCfg
+
+    self.sim.default_visualizer_cfg = VisualizerCfg(
+        eye=(1.8, -3.0, 1.1),
+        lookat=(0.15, 0.0, 0.0),
+        origin_type="asset",
+        origin_env_index="center",
+        origin_track_path="robot",
+        origin_follow_heading=True,
+        origin_heading_smoothing_time_constant=0.2,
+    )
+
+``origin_env_index="center"`` follows the visible environment nearest the middle of the grid.
+``origin_follow_heading`` rotates the offsets with the asset's yaw, smoothed over
+``origin_heading_smoothing_time_constant`` seconds.
 
 
 Recording from an independent camera angle

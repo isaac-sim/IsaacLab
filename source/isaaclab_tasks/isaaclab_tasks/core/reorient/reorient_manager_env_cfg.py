@@ -25,11 +25,11 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
 from isaaclab.utils import configclass
-from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_tasks.utils import PresetCfg
 
 from . import mdp
+from .utils import GOAL_MARKER_POS, VISUALIZER_CFG
 
 ##
 # Scene definition
@@ -67,7 +67,7 @@ class CommandsCfg:
         update_goal_on_success=True,
         orientation_success_threshold=MISSING,
         make_quat_unique=False,
-        fixed_marker_pos=(-0.2, -0.45, 0.68),
+        fixed_marker_pos=GOAL_MARKER_POS,
         debug_vis=True,
     )
 
@@ -232,7 +232,4 @@ class ReorientManagerEnvBaseCfg(ManagerBasedRLEnvCfg):
         self.commands.object_pose.orientation_success_threshold = self.goal_orientation_threshold
         self.commands.object_pose.goal_pose_visualizer_cfg = self.goal_marker_cfg
         self.sim.render_interval = self.decimation
-        # visualizer settings: frame the hand, which lies horizontal around (0, -0.25, 0.51)
-        self.sim.default_visualizer_cfg = VisualizerCfg(
-            eye=(0.62, -0.80, 0.85), lookat=(0.0, -0.28, 0.53), focal_length=35.0
-        )
+        self.sim.default_visualizer_cfg = VISUALIZER_CFG

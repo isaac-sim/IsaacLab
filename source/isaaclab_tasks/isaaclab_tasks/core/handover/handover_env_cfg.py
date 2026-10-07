@@ -22,7 +22,6 @@ from isaaclab.sim import SimulationCfg
 from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
 from isaaclab.utils import configclass, replace
 from isaaclab.utils import math as math_utils
-from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_tasks.utils import PresetCfg
 
@@ -35,7 +34,7 @@ from isaaclab_assets.robots.shadow_hand import (
     TENDON_POSITION_LIMITS,
 )
 
-from .handover_common import GOAL_MARKER_CFG, OBJECT_RADIUS
+from .handover_common import GOAL_MARKER_CFG, OBJECT_RADIUS, VISUALIZER_CFG
 
 
 def _hand_cfg(
@@ -191,9 +190,7 @@ class HandoverEnvCfg(DirectMARLEnvCfg):
         render_interval=decimation,
         physics_material=RigidBodyMaterialBaseCfg(static_friction=1.0, dynamic_friction=1.0),
         physics=PhysicsCfg(),
-        # Frame both hands and the object between them. Without this the visualizer looks at the
-        # origin from its default 4 m away, which renders the pair a few pixels wide.
-        default_visualizer_cfg=VisualizerCfg(eye=(1.15, -1.65, 1.15), lookat=(0.0, -0.5, 0.55), focal_length=35.0),
+        default_visualizer_cfg=VISUALIZER_CFG,
     )
 
     actuated_joint_names = JOINT_NAMES

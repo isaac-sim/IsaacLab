@@ -14,13 +14,24 @@ marker templates) stay module-level constants.
 
 import isaaclab.sim as sim_utils
 from isaaclab.markers import VisualizationMarkersCfg
+from isaaclab.visualizers import VisualizerCfg
 
 __all__ = [
     "GOAL_MARKER_CFG",
     "GOAL_POSITION_OFFSET",
     "OBJECT_RADIUS",
+    "VISUALIZER_CFG",
 ]
 
+
+VISUALIZER_CFG = VisualizerCfg(
+    eye=(1.15, -1.65, 1.15),
+    lookat=(0.0, -0.5, 0.55),
+    focal_length=35.0,
+    origin_type="env",
+    origin_env_index="center",
+)
+"""Recording view framing both hands and the object between them."""
 
 OBJECT_RADIUS: float = 0.0335
 """Hand-over object sphere radius [m], also used for the goal marker."""
