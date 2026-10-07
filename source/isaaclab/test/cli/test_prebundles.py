@@ -136,21 +136,45 @@ class TestRePointPrebundlePackages:
         assert (prebundle / "nvidia").is_dir(), "Original nvidia directory must be preserved"
 
     def test_local_build_repoints_nvidia_when_cudnn_present_venv(self, tmp_path):
-        """Repoint the nvidia namespace when the environment provides CUDA libraries."""
+        """CUDA 12 redirects keep Kit namespace packages and legacy NVTX header links reachable."""
         isaacsim_path, prebundle = self._sim_with_prebundle(tmp_path / "sim", ["nvidia"])
+        shared_files = [
+            prebundle / "nvidia" / "nvtx" / "include" / "nvToolsExt.h",
+            prebundle / "nvidia" / "omniverse" / "storage" / "service_pb2.py",
+        ]
+        shared_links = []
+        for source in shared_files:
+            source.parent.mkdir(parents=True, exist_ok=True)
+            source.write_bytes(b"Kit shared file")
+            link = isaacsim_path / "extscache" / "consumer" / source.name
+            link.parent.mkdir(parents=True, exist_ok=True)
+            link.symlink_to(source)
+            shared_links.append(link)
         site_pkgs = _make_site_packages(
             tmp_path / "env",
             ["nvidia"],
-            subdirs={"nvidia": ["cudnn", "cublas"]},
+            subdirs={"nvidia": ["cudnn", "cublas", "cuda_nvrtc", "nccl", "nvtx/lib", "nvtx/include/nvtx3"]},
         )
+        for directory, filename in (
+            ("cublas", "libcublas.so.12"),
+            ("cuda_nvrtc", "libnvrtc.so.12"),
+            ("nccl", "libnccl.so.2"),
+        ):
+            library = site_pkgs / "nvidia" / directory / "lib" / filename
+            library.parent.mkdir(parents=True, exist_ok=True)
+            library.write_bytes(b"Locked CUDA 12 library")
+        (site_pkgs / "nvidia" / "nvtx" / "lib" / "libnvtx3interop.so.1").write_bytes(b"Locked NVTX library")
+        (site_pkgs / "nvidia" / "nvtx" / "include" / "nvtx3" / "nvToolsExt.h").write_bytes(b"NVTX 3 header")
         py = str(tmp_path / "env" / "bin" / "python")
 
         with self._patch(isaacsim_path, site_pkgs, py):
             repoint_prebundle_packages()
+            repoint_prebundle_packages()
 
-        symlink = prebundle / "nvidia"
-        assert symlink.is_symlink(), "nvidia should be repointed when cudnn is present"
-        assert symlink.resolve() == (site_pkgs / "nvidia").resolve()
+        for link in shared_links:
+            assert link.read_bytes() == b"Kit shared file"
+        for directory in ("cudnn", "cublas", "cuda_nvrtc", "nccl", "nvtx/lib", "nvtx/include/nvtx3"):
+            assert (prebundle / "nvidia" / directory).resolve() == (site_pkgs / "nvidia" / directory).resolve()
 
     def test_idempotent_when_symlink_already_correct(self, tmp_path):
         """Calling repoint_prebundle_packages twice does not break the symlinks."""
@@ -288,11 +312,15 @@ class TestRePointPrebundlePackages:
         assert (prebundle / "nvidia" / "cu13" / "lib" / cuda13.name).read_bytes() == b"Environment CUDA 13 library"
         assert old_nccl.read_bytes() == b"Locked NCCL"
 
-    @pytest.mark.parametrize("target_state", ["current", "stale", "missing"])
-    def test_cuda13_rejects_whole_namespace_links(self, tmp_path, target_state):
+    @pytest.mark.parametrize(
+        "cuda13, target_state", [(True, "current"), (True, "stale"), (True, "missing"), (False, "current")]
+    )
+    def test_cuda_rejects_whole_namespace_links(self, tmp_path, cuda13, target_state):
         """Legacy namespace links require restoring Kit libraries, even with a current target."""
         isaacsim_path, prebundle = self._sim_with_prebundle(tmp_path / "sim", [])
-        site_pkgs = _make_site_packages(tmp_path / "env", ["nvidia"], {"nvidia": ["cu13", "cudnn"]})
+        site_pkgs = _make_site_packages(
+            tmp_path / "env", ["nvidia"], {"nvidia": ["cu13", "cudnn"] if cuda13 else ["cudnn"]}
+        )
         target = site_pkgs / "nvidia" if target_state == "current" else tmp_path / "old-env" / "nvidia"
         if target_state == "stale":
             target.mkdir(parents=True)
