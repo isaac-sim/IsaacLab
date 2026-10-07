@@ -1,3 +1,5 @@
+:orphan:
+
 .. _newton-using-vbd:
 
 VBD Solver
@@ -249,7 +251,7 @@ runs MJWarp and VBD over one shared model. Import
 
 MJWarp ``nconmax`` and ``njmax`` must cover the rigid contacts and constraints
 in the scene. ``ccd_iterations`` can affect fast rigid contacts near
-deformables. See :doc:`/source/concepts/solver-tuning/tune_mjwarp` for the rigid-solver
+deformables. See :doc:`/source/how-to/solver_tuning_mjwarp` for the rigid-solver
 parameters.
 
 Use the custom manager for direct shared-model substep ordering. Use proxy
@@ -281,7 +283,7 @@ coupling before choosing an approach.
 
 The core Franka soft-body task demonstrates the proxy configuration:
 
-.. literalinclude:: ../../../../source/isaaclab_tasks/isaaclab_tasks/core/lift/config/franka_soft/franka_soft_env_cfg.py
+.. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/core/lift/config/franka_soft/franka_soft_env_cfg.py
     :language: python
     :start-at: newton_mjwarp_vbd_proxy: NewtonCfg
     :end-before: isaacsim_physx: PhysxCfg = PhysxCfg(

@@ -1,3 +1,5 @@
+:orphan:
+
 .. Copyright (c) 2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 .. All rights reserved.
 ..
@@ -97,7 +99,7 @@ Optimize only after validation
 Disable diagnostics before performance measurements. Retain only changes that
 improve the recorded metrics, and separately measure sparse Jacobian, CUDA
 graph, collision, substep, and iteration costs when each applies to the
-selected solver and workload. For the parallel workflow, see :doc:`tune_mjwarp`;
+selected solver and workload. For the parallel workflow, see :doc:`solver_tuning_mjwarp`;
 it does not replace Kamino-specific validation or tuning.
 
 The diagnose-first order is: validate the baseline, reset state, and collision
