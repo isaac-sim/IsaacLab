@@ -339,6 +339,7 @@ html_css_files = [
     "css/environment-browser.css",
     "css/demo-browser.css",
     "css/guide-browser.css",
+    "css/coupled-solvers.css",
 ]
 html_js_files = [
     "css/environment-browser.js",

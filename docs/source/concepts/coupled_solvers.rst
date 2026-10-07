@@ -34,19 +34,87 @@ The coupling model
 
 A coupled simulation starts from one Newton model. Instead of giving the whole
 model to one solver, Isaac Lab partitions it into named entries. Each entry
-selects a solver and owns a disjoint part of the model:
+selects a solver and owns a disjoint part of the model.
 
-.. code-block:: text
+The proxy example below shows how the hand and fingers of an MJWarp-owned
+robot interact with VBD-owned cloth through two views of that same model:
 
-   Shared Newton model
-   ├── "rigid" entry → MJWarp owns robot bodies, joints, and shapes
-   ├── "soft" entry  → VBD owns deformable particles and static shapes
-   └── interface     → proxy or ADMM coupling connects the entries
+.. raw:: html
 
-Each solver receives a view of the shared model and advances only the elements
-owned by its entry. An element can belong to at most one entry; unassigned
-elements remain outside the nested solvers. Keep each articulation in a single
-entry.
+   <figure class="coupling-diagram" aria-labelledby="coupling-diagram-caption">
+     <div class="coupling-diagram-heading">
+       <strong>One shared Newton model</strong>
+       <span>MJWarp–VBD proxy example</span>
+     </div>
+     <div class="coupling-diagram-views">
+       <div class="coupling-diagram-view coupling-diagram-source">
+         <p class="coupling-diagram-role">Source view</p>
+         <p class="coupling-diagram-title"><code>rigid</code> · MJWarp</p>
+         <p>Owns robot bodies, joints, and shapes</p>
+         <svg viewBox="0 0 300 215" role="img" aria-labelledby="coupling-source-title coupling-source-desc">
+           <title id="coupling-source-title">Robot with selected hand and fingers</title>
+           <desc id="coupling-source-desc">A solid robot arm belongs to MJWarp. The hand and fingers at its tip are highlighted as the bodies selected for the proxy mapping.</desc>
+           <g class="coupling-diagram-arm">
+             <path d="M40 184 V145 L91 111 L144 54 H205 V74"/>
+             <circle cx="40" cy="145" r="9"/>
+             <circle cx="91" cy="111" r="9"/>
+             <circle cx="144" cy="54" r="9"/>
+             <path d="M22 190 H58"/>
+           </g>
+           <g class="coupling-diagram-hand">
+             <rect x="175" y="74" width="60" height="24" rx="4"/>
+             <path d="M175 98 H187 V135 H198 V147 H175 Z"/>
+             <path d="M223 98 H235 V147 H212 V135 H223 Z"/>
+           </g>
+         </svg>
+         <p class="coupling-diagram-selection">Selected: hand + fingers</p>
+         <p class="coupling-diagram-detail">Solid shapes: owned robot</p>
+       </div>
+       <div class="coupling-diagram-exchange">
+         <div class="coupling-diagram-transfer">
+           <p>Pose + velocity</p>
+           <span class="coupling-diagram-arrow coupling-diagram-state-arrow" aria-hidden="true"></span>
+           <p class="coupling-diagram-detail">Synchronize the proxy before the destination solve</p>
+         </div>
+         <div class="coupling-diagram-feedback">
+           <p>Forces + torques</p>
+           <span class="coupling-diagram-arrow coupling-diagram-feedback-arrow" aria-hidden="true"></span>
+           <p class="coupling-diagram-detail">Return feedback for the next source pass or iteration</p>
+         </div>
+       </div>
+       <div class="coupling-diagram-view coupling-diagram-destination">
+         <p class="coupling-diagram-role">Destination view</p>
+         <p class="coupling-diagram-title"><code>soft</code> · VBD</p>
+         <p>Owns cloth particles and static shapes</p>
+         <svg viewBox="0 0 300 215" role="img" aria-labelledby="coupling-destination-title coupling-destination-desc">
+           <title id="coupling-destination-title">Cloth contacting the proxy hand and fingers</title>
+           <desc id="coupling-destination-desc">Dashed outlines represent the same selected hand and fingers in VBD's view. Solid cloth particles contact the fingers. The rest of the robot is not exposed as a proxy.</desc>
+           <g class="coupling-diagram-cloth">
+             <path d="M85 160 L110 147 L135 140 L160 147 L185 160 M85 178 L110 165 L135 158 L160 165 L185 178 M85 196 L110 183 L135 176 L160 183 L185 196 M85 160 V196 M110 147 V183 M135 140 V176 M160 147 V183 M185 160 V196"/>
+             <circle cx="85" cy="160" r="4"/><circle cx="110" cy="147" r="4"/><circle cx="135" cy="140" r="4"/><circle cx="160" cy="147" r="4"/><circle cx="185" cy="160" r="4"/>
+             <circle cx="85" cy="178" r="4"/><circle cx="110" cy="165" r="4"/><circle cx="135" cy="158" r="4"/><circle cx="160" cy="165" r="4"/><circle cx="185" cy="178" r="4"/>
+             <circle cx="85" cy="196" r="4"/><circle cx="110" cy="183" r="4"/><circle cx="135" cy="176" r="4"/><circle cx="160" cy="183" r="4"/><circle cx="185" cy="196" r="4"/>
+           </g>
+           <g class="coupling-diagram-hand coupling-diagram-proxy" transform="translate(-70 0)">
+             <rect x="175" y="74" width="60" height="24" rx="4"/>
+             <path d="M175 98 H187 V135 H198 V147 H175 Z"/>
+             <path d="M223 98 H235 V147 H212 V135 H223 Z"/>
+           </g>
+         </svg>
+         <p class="coupling-diagram-selection">Dashed shapes: the same selected bodies as proxies</p>
+         <p class="coupling-diagram-detail">Solve local contacts with the cloth</p>
+       </div>
+     </div>
+     <figcaption id="coupling-diagram-caption">
+       MJWarp owns the robot; VBD sees the selected hand and fingers as virtual colliders alongside its cloth particles.
+       VBD solves contact using destination-local virtual inertia and returns force and torque feedback for a later source pass.
+     </figcaption>
+   </figure>
+
+Each solver receives a view of the shared model. Only the elements owned by
+its entry are reconciled into the final shared state. An element can belong to
+at most one entry; unassigned elements remain outside the nested solvers.
+Keep each articulation in a single entry.
 
 Isaac Lab resolves ownership selectors, constructs the Newton entry views, and
 runs the coupled solver through the normal Newton backend lifecycle. Newton

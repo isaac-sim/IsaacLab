@@ -1,0 +1,160 @@
+/*
+ * Copyright (c) 2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+ * All rights reserved.
+ *
+ * SPDX-License-Identifier: BSD-3-Clause
+ */
+
+.coupling-diagram {
+    --coupling-robot: #2563eb;
+    --coupling-proxy: #a15c00;
+    --coupling-cloth: #7c3aed;
+    container-type: inline-size;
+    margin: 1.5rem 0;
+    padding: 1rem;
+    border: 1px solid var(--pst-color-border);
+    border-radius: 12px;
+    background: var(--pst-color-background);
+}
+
+html[data-theme="dark"] .coupling-diagram {
+    --coupling-robot: #93c5fd;
+    --coupling-proxy: #fbbf24;
+    --coupling-cloth: #c4b5fd;
+}
+
+.coupling-diagram p {
+    margin: 0;
+}
+
+.coupling-diagram-heading {
+    display: grid;
+    gap: 0.25rem;
+    margin-bottom: 1rem;
+    text-align: center;
+}
+
+.coupling-diagram-heading span,
+.coupling-diagram-detail,
+.coupling-diagram-role {
+    color: var(--pst-color-text-muted);
+    font-size: 0.9rem;
+}
+
+.coupling-diagram-views {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(8rem, 0.65fr) minmax(0, 1fr);
+    gap: 0.8rem;
+}
+
+.coupling-diagram-view {
+    display: grid;
+    align-content: start;
+    gap: 0.45rem;
+    padding: 0.8rem;
+    border: 1px solid var(--pst-color-border);
+    border-radius: 8px;
+    background: var(--pst-color-surface);
+}
+
+.coupling-diagram-title,
+.coupling-diagram-selection {
+    font-weight: 650;
+}
+
+.coupling-diagram-view svg {
+    width: 100%;
+    height: auto;
+}
+
+.coupling-diagram-arm {
+    fill: var(--pst-color-surface);
+    stroke: var(--coupling-robot);
+    stroke-width: 12;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.coupling-diagram-arm circle {
+    stroke-width: 4;
+}
+
+.coupling-diagram-hand {
+    fill: color-mix(in srgb, var(--coupling-proxy) 18%, var(--pst-color-surface));
+    stroke: var(--coupling-proxy);
+    stroke-width: 3;
+    stroke-linejoin: round;
+}
+
+.coupling-diagram-proxy {
+    fill: none;
+    stroke-dasharray: 5 4;
+}
+
+.coupling-diagram-cloth {
+    fill: var(--coupling-cloth);
+    stroke: var(--coupling-cloth);
+    stroke-width: 1.5;
+}
+
+.coupling-diagram-cloth path {
+    fill: none;
+}
+
+.coupling-diagram-exchange {
+    display: grid;
+    align-content: center;
+    gap: 2rem;
+    text-align: center;
+}
+
+.coupling-diagram-transfer {
+    color: var(--coupling-robot);
+}
+
+.coupling-diagram-feedback {
+    color: var(--coupling-cloth);
+}
+
+.coupling-diagram-arrow {
+    display: block;
+    font-size: 2.5rem;
+    line-height: 1.4;
+}
+
+.coupling-diagram-state-arrow::before {
+    content: "→";
+}
+
+.coupling-diagram-feedback-arrow::before {
+    content: "←";
+}
+
+.coupling-diagram figcaption {
+    margin-top: 1rem;
+    font-size: 0.9rem;
+    line-height: 1.5;
+}
+
+@container (max-width: 600px) {
+    .coupling-diagram-views {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .coupling-diagram-view svg {
+        max-height: 13rem;
+    }
+
+    .coupling-diagram-exchange {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 1rem;
+    }
+
+    .coupling-diagram-state-arrow::before {
+        content: "↓";
+    }
+
+    .coupling-diagram-feedback-arrow::before {
+        content: "↑";
+    }
+}
