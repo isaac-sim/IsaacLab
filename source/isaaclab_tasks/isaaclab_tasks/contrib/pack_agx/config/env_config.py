@@ -20,6 +20,7 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
 
 from isaaclab_tasks.contrib.h2_sharpa import (
@@ -30,7 +31,6 @@ from isaaclab_tasks.contrib.h2_sharpa import (
     phase_reward,
     warm_rgb_image,
 )
-from isaaclab_tasks.contrib.rlinf_assets import NUREC_ASSET_ROOT, PROP_ASSET_ROOT
 
 from isaaclab_assets.robots.unitree import H2_SHARPA_CFG
 from isaaclab_assets.sensors.unitree import H2_HEAD_CAMERA_CFG
@@ -109,10 +109,10 @@ CUSTOM_JOINT_POS["head_pitch_joint"] = 0.6
 INIT_POS: tuple[float, float, float] = (-0.95, 0.0, 1.05)
 INIT_ROT: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 1.0)
 
-TABLE_USD = f"{PROP_ASSET_ROOT}/Assets/Table256/Table256.usd"
-AGX_ORIN_USD = f"{PROP_ASSET_ROOT}/Assets/MiniPc001/MiniPc001.usd"
-PROTECTIVE_BOX_USD = f"{PROP_ASSET_ROOT}/Assets/ProtectiveBox001/ProtectiveBox001.usd"
-BACKGROUND_USD = f"{NUREC_ASSET_ROOT}/IMG_6246_nurec_aligned_scaled.usdz"
+TABLE_USD = f"{ISAACLAB_NUCLEUS_DIR}/Objects/Lightwheel/Table256/Table256.usd"
+AGX_ORIN_USD = f"{ISAACLAB_NUCLEUS_DIR}/Objects/Lightwheel/MiniPc001/MiniPc001.usd"
+PROTECTIVE_BOX_USD = f"{ISAACLAB_NUCLEUS_DIR}/Objects/Lightwheel/ProtectiveBox001/ProtectiveBox001.usd"
+BACKGROUND_USD = f"{ISAACLAB_NUCLEUS_DIR}/Environments/NuRec/IMG_6246_nurec_aligned_scaled.usdz"
 
 
 # Reset-pose randomization half-ranges. PACK_AGX_XY_RANGE (metres) drives the x
