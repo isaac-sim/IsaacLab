@@ -24,7 +24,7 @@ from pxr import Sdf, Usd, UsdGeom
 from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
 from isaaclab.renderers.camera_render_spec import CameraRenderSpec
-from isaaclab.renderers.rtx_camera_overrides import apply_rtx_exposure_overrides
+from isaaclab.renderers.rtx_camera_overrides import _apply_rtx_exposure_overrides
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils import enable_extension
 from isaaclab.utils.version import get_isaac_sim_version
@@ -250,7 +250,7 @@ class IsaacRtxRenderer(BaseRenderer):
             spec.cfg.isp_cfg = resolve_and_normalize(spec.cfg.isp_cfg, stage, camera_prim_path)
         needs_neutral_exposure = spec.cfg.isp_cfg is not None or "rgb_radiance" in spec.cfg.data_types
         if needs_neutral_exposure and spec.camera_prim_paths:
-            apply_rtx_exposure_overrides(stage, list(spec.camera_prim_paths))
+            _apply_rtx_exposure_overrides(stage, list(spec.camera_prim_paths))
 
     def supported_output_types(self) -> dict[RenderBufferKind, RenderBufferSpec]:
         """Publish the per-output Replicator layout this RTX backend writes.

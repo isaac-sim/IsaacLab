@@ -3,11 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Shared RTX camera exposure overrides for scene-linear sensor inputs.
+"""Internal RTX camera exposure overrides for scene-linear sensor inputs.
 
 RTX has no native pre-exposure radiance output, so ``rgb_radiance`` is derived by authoring neutral
-exposure on the camera prim, which affects every output rendered from it. These overrides can be
-removed once RTX provides a native radiance output (NVBug 6858736).
+exposure on the camera prim, which affects every output rendered from it. This is a temporary
+workaround shared by the Isaac RTX and OVRTX renderers, not public API. Remove it once RTX provides
+a native radiance output (NVBug 6858736).
 """
 
 from __future__ import annotations
@@ -26,7 +27,7 @@ _NEUTRAL_CAMERA_EXPOSURE: tuple[tuple[str, str, Any], ...] = (
 )
 
 
-def apply_rtx_exposure_overrides(stage: Any, prim_paths: list[str]) -> None:
+def _apply_rtx_exposure_overrides(stage: Any, prim_paths: list[str]) -> None:
     """Disable RTX camera exposure so downstream processors receive scene-linear HDR.
 
     Existing API schemas are preserved. Schema metadata is authored directly so the RTX schema
