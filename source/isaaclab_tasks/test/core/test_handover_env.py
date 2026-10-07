@@ -16,34 +16,52 @@ import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 
 
+@pytest.mark.parametrize("task_name", ("Isaac-Shadow-Handover-Direct", "Isaac-Shadow-Handover"))
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-def test_handover_alternates_after_cumulative_dwell_and_resets_one_episode(device):
+def test_handover_alternates_after_cumulative_dwell_and_resets_one_episode(task_name, device):
     """A completed transfer changes the observed goal; drops reset only the affected episode."""
-    cfg = parse_env_cfg("Isaac-Shadow-Handover-Direct", device=device, num_envs=2)
-    cfg.success_dwell_steps = 3
-    cfg.reset_position_noise = 0.0
-    cfg.reset_dof_pos_noise = 0.0
+    direct = task_name.endswith("-Direct")
+    cfg = parse_env_cfg(task_name, device=device, num_envs=2)
+    goal_cfg = cfg if direct else cfg.commands.object_pose
+    goal_cfg.success_dwell_steps = 3
+    if direct:
+        cfg.reset_position_noise = 0.0
+        cfg.reset_dof_pos_noise = 0.0
+    else:
+        cfg.events.reset_object.params["pose_range"] = {}
+        cfg.events.reset_right_hand.params["joint_position_noise"] = 0.0
+        cfg.events.reset_left_hand.params["joint_position_noise"] = 0.0
     cfg.sim.gravity = (0.0, 0.0, 0.0)
 
     with (
         launch_simulation(cfg, {"device": device, "headless": True}),
-        gym.make("Isaac-Shadow-Handover-Direct", cfg=cfg) as wrapped,
+        gym.make(task_name, cfg=cfg) as wrapped,
     ):
         env = wrapped.unwrapped
+        goal_cfg = env.cfg if direct else env.command_manager.get_term("object_pose").cfg
         observations, _ = env.reset(seed=42)
+        observations = observations["right_hand" if direct else "policy"]
+        object_asset = env.scene["object"]
         # These points independently specify the task geometry in the environment frame.
         left = torch.tensor([0.0, -0.64, 0.54], device=device)
         right = torch.tensor([0.0, -0.36, 0.54], device=device)
         targets = left.repeat(2, 1)
-        torch.testing.assert_close(observations["right_hand"][:, 146:149], targets)
-        actions = {agent: torch.zeros((2, 20), device=device) for agent in env.possible_agents}
+        torch.testing.assert_close(observations[:, 146:149], targets)
+        actions = (
+            {agent: torch.zeros((2, 20), device=device) for agent in env.possible_agents}
+            if direct
+            else torch.zeros((2, 40), device=device)
+        )
 
         def step_at(positions):
-            pose = env.object.data.default_root_pose.torch.clone()
+            pose = object_asset.data.default_root_pose.torch.clone()
             pose[:, :3] = positions + env.scene.env_origins
-            env.object.write_root_pose_to_sim_index(root_pose=pose)
-            env.object.write_root_velocity_to_sim_index(root_velocity=torch.zeros((2, 6), device=device))
-            return env.step(actions)
+            object_asset.write_root_pose_to_sim_index(root_pose=pose)
+            object_asset.write_root_velocity_to_sim_index(root_velocity=torch.zeros((2, 6), device=device))
+            obs, rewards, terminated, truncated, extras = env.step(actions)
+            if direct:
+                return obs["right_hand"], rewards, terminated["right_hand"], truncated["right_hand"], extras
+            return obs["policy"], rewards, terminated, truncated, extras
 
         # A brief exit keeps the earned dwell, but does not itself earn another step.
         step_at(targets)
@@ -51,20 +69,20 @@ def test_handover_alternates_after_cumulative_dwell_and_resets_one_episode(devic
         outside[:, 0] += 0.2
         step_at(outside)
         observations, _, _, _, _ = step_at(targets)
-        torch.testing.assert_close(observations["left_hand"][:, 146:149], targets)
+        torch.testing.assert_close(observations[:, 146:149], targets)
         observations, _, terminated, truncated, _ = step_at(targets)
-        assert not any(value.any() for value in (*terminated.values(), *truncated.values()))
-        torch.testing.assert_close(observations["left_hand"][:, 146:149], right.repeat(2, 1))
+        assert not terminated.any() and not truncated.any()
+        torch.testing.assert_close(observations[:, 146:149], right.repeat(2, 1))
 
         # Complete the return trip, then drop only environment 0.
         targets[:] = right
         for _ in range(3):
             observations, _, _, _, _ = step_at(targets)
-        torch.testing.assert_close(observations["right_hand"][:, 146:149], left.repeat(2, 1))
+        torch.testing.assert_close(observations[:, 146:149], left.repeat(2, 1))
         targets[0] = torch.tensor([0.0, -0.5, 0.1], device=device)
         targets[1] = left
         observations, _, terminated, _, extras = step_at(targets)
-        assert terminated["right_hand"].tolist() == [True, False]
+        assert terminated.tolist() == [True, False]
         assert extras["log"]["Metrics/consecutive_success"].item() == 2.0
         assert extras["log"]["Metrics/success_rate"].item() == pytest.approx(2.0 / 3.0)
 
@@ -73,9 +91,9 @@ def test_handover_alternates_after_cumulative_dwell_and_resets_one_episode(devic
         step_at(targets)
         observations, _, _, _, _ = step_at(targets)
         expected = torch.stack((left, right))
-        torch.testing.assert_close(observations["right_hand"][:, 146:149], expected)
+        torch.testing.assert_close(observations[:, 146:149], expected)
         observations, _, _, _, _ = step_at(targets)
-        torch.testing.assert_close(observations["right_hand"][:, 146:149], right.repeat(2, 1))
+        torch.testing.assert_close(observations[:, 146:149], right.repeat(2, 1))
 
         targets[0] = torch.tensor([0.0, -0.5, 0.1], device=device)
         targets[1] = right
@@ -84,10 +102,12 @@ def test_handover_alternates_after_cumulative_dwell_and_resets_one_episode(devic
         assert extras["log"]["Metrics/success_rate"].item() == 0.5
 
         # With a one-step dwell, the first full physics step after autoreset must count.
-        cfg.success_dwell_steps = 1
+        goal_cfg.success_dwell_steps = 1
+        goal_cfg.success_distance_threshold = 10.0
         env.reset()
         targets[0] = torch.tensor([0.0, -0.5, 0.1], device=device)
-        step_at(targets)
+        observations, _, _, _, _ = step_at(targets)
+        torch.testing.assert_close(observations[0, 146:149], left)
         targets[0] = left
         observations, _, _, _, _ = step_at(targets)
-        torch.testing.assert_close(observations["right_hand"][0, 146:149], right)
+        torch.testing.assert_close(observations[0, 146:149], right)

@@ -35,7 +35,7 @@ from isaaclab_assets.robots.shadow_hand import (
     TENDON_POSITION_LIMITS,
 )
 
-from .handover_common import GOAL_MARKER_CFG, OBJECT_RADIUS
+from .handover_common import GOAL_MARKER_CFG, GOAL_POSITION_OFFSET, OBJECT_RADIUS
 
 
 def _hand_cfg(
@@ -216,19 +216,8 @@ class HandoverEnvCfg(DirectMARLEnvCfg):
     success_distance_threshold: float = 0.1
     """Object-to-goal distance below which the handover is considered successful [m]."""
     success_dwell_steps: int = 20
-    """Steps within :attr:`success_distance_threshold` required to bank a goal.
-
-    Counted cumulatively over the goal attempt, so brief exits do not reset the tally.
-    Requiring dwell rather than a single touch rejects an object that is brushed past
-    the goal or squeezed out of the receiving hand.
-    """
-    goal_position_offset: tuple[float, float, float] = (0.36, 0.0, 0.04)
-    """Goal offset from a hand's root, expressed in that hand's own frame [m].
-
-    Applied to each hand in turn so both goals sit at the same place relative to their own
-    hand; resolved once at startup, not per reset. The two hands face each other, so this
-    puts the left hand's goal on the point the single fixed goal used to occupy and the
-    right hand's 3 cm from where the object spawns -- the task is a mirror of itself.
-    """
+    """Cumulative steps inside the success distance required to switch goals; must be positive."""
+    goal_position_offset: tuple[float, float, float] = GOAL_POSITION_OFFSET
+    """Shared goal offset in each hand's local root frame [m], resolved once at initialization."""
     # reward-related scales
     dist_reward_scale = 20.0
