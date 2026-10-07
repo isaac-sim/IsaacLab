@@ -13,6 +13,7 @@ import dataclasses
 import importlib
 import inspect
 import logging
+import pkgutil
 import re
 import warnings
 
@@ -92,10 +93,6 @@ def _authored(stage, root: str) -> dict:
     return out
 
 
-def _spawn(cfg, path: str):
-    cfg.func(path, cfg)
-
-
 """
 USD file spawners.
 """
@@ -107,7 +104,7 @@ def test_usd_file_bare_fragment_reaches_every_collider(stage, asset_path):
         usd_path=asset_path,
         mesh_collision_props=sim_utils.UsdPhysicsMeshCollisionCfg(mesh_approximation_name="convexDecomposition"),
     )
-    _spawn(cfg, "/World/Robot")
+    cfg.func("/World/Robot", cfg)
 
     assert _approximation(stage, "/World/Robot/link0/collisions") == "convexDecomposition"
     assert _approximation(stage, "/World/Robot/link1/collisions") == "convexDecomposition"
@@ -123,7 +120,7 @@ def test_usd_file_mapping_narrows_the_colliders(stage, asset_path):
             "/link1/.*": [sim_utils.UsdPhysicsMeshCollisionCfg(mesh_approximation_name="boundingSphere")]
         },
     )
-    _spawn(cfg, "/World/Robot")
+    cfg.func("/World/Robot", cfg)
 
     assert _approximation(stage, "/World/Robot/link0/collisions") == "convexHull"
     assert _approximation(stage, "/World/Robot/link1/collisions") == "boundingSphere"
@@ -136,7 +133,7 @@ def test_usd_file_pattern_without_colliders_warns_and_authors_nothing(stage, ass
         mesh_collision_props={"/link0/visuals": [sim_utils.UsdPhysicsMeshCollisionCfg(mesh_approximation_name="none")]},
     )
     with caplog.at_level(logging.WARNING):
-        _spawn(cfg, "/World/Robot")
+        cfg.func("/World/Robot", cfg)
 
     assert _approximation(stage, "/World/Robot/link0/visuals") is None
     assert "No mesh-collision targets" in caplog.text
@@ -164,10 +161,12 @@ def test_usd_file_slot_matches_the_legacy_nested_field(stage, asset_path, make_l
             usd_path=asset_path,
             collision_props=sim_utils.CollisionBaseCfg(mesh_collision_property=make_legacy_mesh_cfg()),
         )
-        _spawn(legacy, "/World/Legacy")
-    _spawn(sim_utils.UsdFileCfg(usd_path=asset_path, mesh_collision_props=make_fragments()), "/World/Fragment")
+        legacy.func("/World/Legacy", legacy)
+    fragment = sim_utils.UsdFileCfg(usd_path=asset_path, mesh_collision_props=make_fragments())
+    fragment.func("/World/Fragment", fragment)
     # negative control: the comparison must see a missing slot
-    _spawn(sim_utils.UsdFileCfg(usd_path=asset_path), "/World/Untouched")
+    untouched = sim_utils.UsdFileCfg(usd_path=asset_path)
+    untouched.func("/World/Untouched", untouched)
 
     assert _authored(stage, "/World/Fragment") == _authored(stage, "/World/Legacy")
     assert _authored(stage, "/World/Untouched") != _authored(stage, "/World/Legacy")
@@ -181,7 +180,7 @@ def test_usd_file_slot_accepts_a_legacy_mesh_collision_cfg(stage, asset_path):
             usd_path=asset_path,
             mesh_collision_props=sim_utils.schemas.MeshCollisionBaseCfg(mesh_approximation_name="boundingCube"),
         )
-        _spawn(cfg, "/World/Robot")
+        cfg.func("/World/Robot", cfg)
 
     assert _approximation(stage, "/World/Robot/link0/collisions") == "boundingCube"
     assert _approximation(stage, "/World/Robot/link1/collisions") == "boundingCube"
@@ -200,7 +199,7 @@ def test_shape_slot_targets_the_geometry_collider(stage):
         collision_props=sim_utils.UsdPhysicsCollisionCfg(),
         mesh_collision_props=sim_utils.UsdPhysicsMeshCollisionCfg(mesh_approximation_name="convexHull"),
     )
-    _spawn(cfg, "/World/Cube")
+    cfg.func("/World/Cube", cfg)
 
     assert _approximation(stage, "/World/Cube/geometry/mesh") == "convexHull"
     assert _approximation(stage, "/World/Cube") is None
@@ -212,7 +211,7 @@ def test_shape_slot_without_collider_authors_nothing(stage):
         size=(0.1, 0.1, 0.1),
         mesh_collision_props=sim_utils.UsdPhysicsMeshCollisionCfg(mesh_approximation_name="convexHull"),
     )
-    _spawn(cfg, "/World/Cube")
+    cfg.func("/World/Cube", cfg)
 
     assert _approximation(stage, "/World/Cube/geometry/mesh") is None
 
@@ -220,13 +219,13 @@ def test_shape_slot_without_collider_authors_nothing(stage):
 def test_mesh_slot_overrides_the_default_approximation(stage):
     """On a mesh spawner the slot overrides the approximation the spawner picks for the shape."""
     default = sim_utils.MeshSphereCfg(radius=0.1, collision_props=sim_utils.UsdPhysicsCollisionCfg())
-    _spawn(default, "/World/Default")
+    default.func("/World/Default", default)
     tuned = sim_utils.MeshSphereCfg(
         radius=0.1,
         collision_props=sim_utils.UsdPhysicsCollisionCfg(),
         mesh_collision_props={"": [sim_utils.UsdPhysicsMeshCollisionCfg(mesh_approximation_name="convexHull")]},
     )
-    _spawn(tuned, "/World/Tuned")
+    tuned.func("/World/Tuned", tuned)
 
     assert _approximation(stage, "/World/Default/geometry/mesh") == "boundingSphere"
     assert _approximation(stage, "/World/Tuned/geometry/mesh") == "convexHull"
@@ -240,7 +239,7 @@ def test_mesh_slot_is_rejected_for_deformable_bodies(stage):
         mesh_collision_props=sim_utils.UsdPhysicsMeshCollisionCfg(mesh_approximation_name="convexHull"),
     )
     with pytest.raises(ValueError, match="mesh_collision_props"):
-        _spawn(cfg, "/World/Deformable")
+        cfg.func("/World/Deformable", cfg)
 
 
 """
@@ -253,28 +252,20 @@ _RIGID_FAMILY_BASES = ("CollisionBaseCfg", "MeshCollisionBaseCfg", "RigidBodyBas
 _SLOT_PATTERN = re.compile(r"`{0,2}\b([a-z_]+_props)\b`{0,2}\s+slot")
 
 
-def _rigid_object_spawner_cfgs() -> list[type]:
-    return [
-        sim_utils.UsdFileCfg,
-        sim_utils.UrdfFileCfg,
-        sim_utils.MjcfFileCfg,
-        sim_utils.MeshFileCfg,
-        sim_utils.SphereCfg,
-        sim_utils.CuboidCfg,
-        sim_utils.CylinderCfg,
-        sim_utils.CapsuleCfg,
-        sim_utils.ConeCfg,
-        sim_utils.MeshSphereCfg,
-        sim_utils.MeshCuboidCfg,
-        sim_utils.MeshCylinderCfg,
-        sim_utils.MeshCapsuleCfg,
-        sim_utils.MeshConeCfg,
-        sim_utils.MeshRectangleCfg,
-    ]
+def _spawner_cfgs(owner: type) -> list[type]:
+    """The slot-owning base spawner cfg and every subclass of it defined in :mod:`isaaclab.sim.spawners`."""
+    import isaaclab.sim.spawners as spawners
 
-
-def _file_spawner_cfgs() -> list[type]:
-    return [sim_utils.UsdFileCfg, sim_utils.UrdfFileCfg, sim_utils.MjcfFileCfg]
+    for module in pkgutil.walk_packages(spawners.__path__, spawners.__name__ + "."):
+        if module.name.endswith("_cfg"):
+            importlib.import_module(module.name)
+    found, pending = [owner], [owner]
+    while pending:
+        for subclass in pending.pop().__subclasses__():
+            if subclass not in found:
+                found.append(subclass)
+                pending.append(subclass)
+    return found
 
 
 def _deprecated_schema_cfgs() -> list[type]:
@@ -292,6 +283,11 @@ def _deprecated_schema_cfgs() -> list[type]:
 
 def test_deprecation_guidance_names_only_existing_spawner_slots():
     """Every spawner slot a deprecated schema cfg points to (warning or docstring) exists on its spawners."""
+    from isaaclab.sim.spawners.from_files.from_files_cfg import FileCfg
+    from isaaclab.sim.spawners.spawner_cfg import RigidObjectSpawnerCfg
+
+    rigid_spawners, file_spawners = _spawner_cfgs(RigidObjectSpawnerCfg), _spawner_cfgs(FileCfg)
+    assert sim_utils.CuboidCfg in rigid_spawners and sim_utils.UrdfFileCfg in file_spawners
     checked = 0
     missing = []
     for cls in _deprecated_schema_cfgs():
@@ -301,7 +297,7 @@ def test_deprecation_guidance_names_only_existing_spawner_slots():
         messages = [str(w.message) for w in caught if issubclass(w.category, DeprecationWarning)]
         guidance = " ".join(messages) + " " + (cls.__doc__ or "").split(".. deprecated::", 1)[1]
         rigid_family = any(base.__name__ in _RIGID_FAMILY_BASES for base in cls.__mro__)
-        spawners = _rigid_object_spawner_cfgs() if rigid_family else _file_spawner_cfgs()
+        spawners = rigid_spawners if rigid_family else file_spawners
         for slot in set(_SLOT_PATTERN.findall(guidance)):
             checked += 1
             for spawner in spawners:

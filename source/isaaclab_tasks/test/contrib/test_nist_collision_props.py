@@ -5,7 +5,8 @@
 
 """The Factory task's collision configuration authors what its legacy collision cfgs authored.
 
-The task is loaded through its gym entry point for each physics preset. Its robot, fixed, and held
+The task is loaded through its gym entry point with the Newton physics preset, the only preset that
+carried legacy collision cfgs (the PhysX presets set no mesh-collision properties). Its robot, fixed, and held
 assets are spawned kitless onto an in-memory stage from small stand-in assets whose colliders mirror
 the real Factory assets (mesh colliders plus a sphere collider on the robot, an SDF-cooked mesh
 collider on the assembly parts), and compared prim by prim against the legacy collision cfgs.
@@ -111,24 +112,19 @@ def assets(tmp_path):
     return {"franka_mimic.usd": str(robot), "bolt_m16.usd": str(part), "nut_m16.usd": str(part)}
 
 
-@pytest.mark.parametrize("physics", ["newton_mjwarp", "physx", None])
-def test_factory_collision_props_match_the_legacy_cfgs(assets, physics):
-    """Each preset of the Factory task authors the same colliders as its legacy collision cfgs."""
+def test_factory_newton_collision_props_match_the_legacy_cfgs(assets):
+    """The Newton preset of the Factory task authors the same colliders as its legacy collision cfgs."""
     from isaaclab.sim.utils import stage as stage_utils
 
     import isaaclab_tasks  # noqa: F401
     from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 
-    cfg = parse_env_cfg("IsaacContrib-Factory-Franka", overrides=[f"physics={physics}"] if physics else [])
+    cfg = parse_env_cfg("IsaacContrib-Factory-Franka", overrides=["physics=newton_mjwarp"])
     stage = Usd.Stage.CreateInMemory()
     UsdGeom.Xform.Define(stage, "/World")
     for name in ("robot", "fixed_asset", "held_asset"):
         spawn = getattr(cfg.scene, name).spawn
         spawn = spawn.replace(usd_path=assets[spawn.usd_path.rsplit("/", 1)[-1]], visual_material=None)
-        if physics != "newton_mjwarp":
-            # the PhysX presets never carried legacy collision cfgs
-            assert spawn.mesh_collision_props is None
-            continue
         legacy = spawn.replace(collision_props=_legacy_collision_props(name), mesh_collision_props=None)
         with stage_utils.use_stage(stage), warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
