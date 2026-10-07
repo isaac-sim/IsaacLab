@@ -149,8 +149,6 @@ class NewtonGLVisualizer(_NewtonCameraControls, BaseVisualizer):
         self._step_counter = 0
         self._runtime_headless: bool = False
         self.backend = None
-        self._last_camera_pose: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
-        self._headless_no_viewer = False
         self._viewer_picking_binding = self._ViewerPickingBinding()
         self._picking_enabled = False
         self._live_plots_manager_visible: dict[str, bool] = {}
@@ -216,24 +214,29 @@ class NewtonGLVisualizer(_NewtonCameraControls, BaseVisualizer):
             pyglet.options["headless"] = True
 
         self._picking_enabled = self.cfg.enable_picking and picking_supported and not runtime_headless
-        self._viewer = self._create_viewer(runtime_headless, metadata)
-
-        if self._viewer is not None:
-            self._viewer.marker_groups = sim.vis_marker_registry.get_groups().values()
-            self._viewer.set_model(self.backend.model)
-            if self._picking_enabled:
-                # Keep Newton's public force path scoped to picking for this integration.
-                self._viewer.wind = None
-            self._viewer.set_visible_worlds(self._env_ids)
-            self._viewer.set_world_offsets(self.cfg.world_spacing)
-            self._apply_camera_focal_length()
-            self._apply_camera_pose((self.cfg.eye, self.cfg.lookat))
-            self._viewer._paused = False
-
-            self._apply_model_visualization_options()
-            self._viewer.picking_enabled = self._picking_enabled
-
-            self._apply_viewer_post_init()
+        if not runtime_headless:
+            # pyglet sets WM_CLASS from the window caption, which ViewerGL defaults to "Newton".
+            write_desktop_entry("isaaclab-newton-gl-viewer", "Newton", "Newton", _NEWTON_ICON_DIR / "icon_64.png")
+        self._viewer = NewtonViewerGL(
+            width=self.cfg.window_width,
+            height=self.cfg.window_height,
+            headless=runtime_headless,
+            metadata=metadata,
+            update_frequency=self.cfg.update_frequency,
+        )
+        self._viewer.marker_groups = sim.vis_marker_registry.get_groups().values()
+        self._viewer.set_model(self.backend.model)
+        if self._picking_enabled:
+            # Keep Newton's public force path scoped to picking for this integration.
+            self._viewer.wind = None
+        self._viewer.set_visible_worlds(self._env_ids)
+        self._viewer.set_world_offsets(self.cfg.world_spacing)
+        self._viewer.camera.fov = self._focal_length_to_vertical_fov_degrees()
+        self.set_camera_view(self.cfg.eye, self.cfg.lookat)
+        self._viewer._paused = False
+        self._apply_model_visualization_options()
+        self._viewer.picking_enabled = self._picking_enabled
+        self._apply_viewer_post_init()
 
         self._setup_streaming_view(
             num_envs,
@@ -241,21 +244,16 @@ class NewtonGLVisualizer(_NewtonCameraControls, BaseVisualizer):
             target_aspect=self.cfg.window_width / self.cfg.window_height,
         )
 
-        if self._viewer is not None:
-            self._viewer.register_ui_callback(self._draw_streaming_view_controls, position="side")
-            self._select_camera(self._camera_index)
+        self._viewer.register_ui_callback(self._draw_streaming_view_controls, position="side")
+        self._select_camera(self._camera_index)
 
         num_visualized_envs = len(self._env_ids) if self._env_ids is not None else num_envs
-        try:
-            current_eye = tuple(float(x) for x in self._viewer.camera.pos) if self._viewer is not None else self.cfg.eye
-        except AttributeError:
-            current_eye = self.cfg.eye
         self._log_initialization_table(
             logger=logger,
             title=f"{type(self).__name__} Configuration",
             rows=[
-                ("eye", current_eye),
-                ("lookat", self._last_camera_pose[1] if self._last_camera_pose else self.cfg.lookat),
+                ("eye", self.cfg.eye),
+                ("lookat", self.cfg.lookat),
                 ("focal_length", self.cfg.focal_length),
                 ("background_color", self.cfg.background_color),
                 ("streaming_view", self.cfg.streaming_view),
@@ -266,10 +264,10 @@ class NewtonGLVisualizer(_NewtonCameraControls, BaseVisualizer):
                 ("enable_picking", self._picking_enabled),
             ],
         )
-        if self._viewer is not None and self._picking_enabled:
+        if self._picking_enabled:
             self._viewer_picking_binding.bind(self._viewer)
             NewtonManager.register_state_force_callback(self._viewer_picking_binding.apply)
-        if self._viewer is not None and self.cfg.enable_picking and not picking_supported:
+        if self.cfg.enable_picking and not picking_supported:
             logger.info(
                 "[NewtonVisualizer] Object dragging is disabled because the active physics solver does not support"
                 " rigid-body force input."
@@ -278,9 +276,7 @@ class NewtonGLVisualizer(_NewtonCameraControls, BaseVisualizer):
         # Inform the viewer whether contact data is available so the UI can grey
         # out "Show Contacts" when neither native Newton contacts nor a ContactSensor
         # exists in the scene.
-        if self._viewer is not None:
-            contact_sensors = self._scene_data_provider.get_contact_sensors() if self._scene_data_provider else {}
-            self._viewer._contacts_available = newton_backend_active or bool(contact_sensors)
+        self._viewer._contacts_available = newton_backend_active or bool(scene_data_provider.get_contact_sensors())
 
     def _apply_model_visualization_options(self) -> None:
         """Apply configured options reset by Newton model changes."""
@@ -317,38 +313,36 @@ class NewtonGLVisualizer(_NewtonCameraControls, BaseVisualizer):
         num_envs = self.backend.model.num_envs
 
         try:
-            if not self._viewer.is_paused():
-                self._viewer.begin_frame(self._sim_time)
-                try:
-                    if self._uses_streaming_view():
-                        self._log_streaming_image()
-                    else:
-                        backend, provider = self.backend, self._scene_data_provider
-                        state, count = backend.state_0, backend.model.body_count
-                        poses = SceneDataFormat.Transform()
-                        if provider.get_transforms(poses, mapping=self._transform_mapping, count=count):
-                            state.body_q = poses.transforms
-                        if backend.geometry_offsets:
-                            provider.get_geometry_points(output=state.particle_q, offsets=backend.geometry_offsets)
-                        if state.body_q is not None and state.body_q.shape[0] == 0:
-                            self._log_pending_meshes()
-                            return
-                        self._viewer.log_state(state)
-                        contacts = NewtonManager.get_contacts()
-                        if contacts is not None:
-                            self._viewer.log_contacts(contacts, state)
-                        else:
-                            self._log_scene_contact_sensor_arrows(num_envs)
-                        if self.cfg.enable_markers:
-                            render_newton_visualization_markers(self._viewer, self._env_ids, num_envs=num_envs)
+            self._viewer.begin_frame(self._sim_time)
+            try:
+                if self._camera_sensor is not None:
+                    self._log_streaming_image()
+                elif self._viewer.is_paused():
+                    self._log_pending_meshes()
+                else:
+                    backend, provider = self.backend, self._scene_data_provider
+                    state, count = backend.state_0, backend.model.body_count
+                    poses = SceneDataFormat.Transform()
+                    if provider.get_transforms(poses, mapping=self._transform_mapping, count=count):
+                        state.body_q = poses.transforms
+                    if backend.geometry_offsets:
+                        provider.get_geometry_points(output=state.particle_q, offsets=backend.geometry_offsets)
+                    if state.body_q is not None and state.body_q.shape[0] == 0:
                         self._log_pending_meshes()
+                        return
+                    self._viewer.log_state(state)
+                    contacts = NewtonManager.get_contacts()
+                    if contacts is not None:
+                        self._viewer.log_contacts(contacts, state)
+                    else:
+                        self._log_scene_contact_sensor_arrows(num_envs)
+                    if self.cfg.enable_markers:
+                        render_newton_visualization_markers(self._viewer, self._env_ids, num_envs=num_envs)
+                    self._log_pending_meshes()
+                if not self._viewer.is_paused():
                     self._render_live_plots()
-                finally:
-                    self._viewer.end_frame()
-                    if not self._viewer.is_running():
-                        self._viewer_picking_binding.deactivate()
-            else:
-                self._pump_paused()
+            finally:
+                self._viewer.end_frame()
                 if not self._viewer.is_running():
                     self._viewer_picking_binding.deactivate()
         except Exception:
@@ -420,8 +414,6 @@ class NewtonGLVisualizer(_NewtonCameraControls, BaseVisualizer):
         """Return whether the visualizer should continue stepping."""
         if not self._is_initialized or self._is_closed:
             return False
-        if self._headless_no_viewer and self._viewer is None:
-            return True
         if self._viewer is None:
             return False
         return self._viewer.is_running()
@@ -454,21 +446,6 @@ class NewtonGLVisualizer(_NewtonCameraControls, BaseVisualizer):
         if not self._is_initialized or self._viewer is None:
             return False
         return bool(self._viewer.is_key_down(key))
-
-    def set_camera_view(
-        self, eye: tuple[float, float, float] | list[float], target: tuple[float, float, float] | list[float]
-    ) -> None:
-        """Set active viewer camera eye/target.
-
-        Args:
-            eye: Camera eye position.
-            target: Camera look-at target.
-        """
-        eye_t = (float(eye[0]), float(eye[1]), float(eye[2]))
-        target_t = (float(target[0]), float(target[1]), float(target[2]))
-        self.cfg.eye = eye_t
-        self.cfg.lookat = target_t
-        self._apply_camera_pose((eye_t, target_t))
 
     def log_mesh(
         self,
@@ -551,47 +528,6 @@ class NewtonGLVisualizer(_NewtonCameraControls, BaseVisualizer):
                 dynamic=mesh.dynamic,
                 opacity=mesh.opacity,
             )
-
-    # ------------------------------------------------------------------
-    # Hook methods — override in subclasses
-    # ------------------------------------------------------------------
-
-    def _pump_paused(self) -> None:
-        """Keep the event loop alive while simulation is paused without advancing state."""
-        self._viewer.begin_frame(self._sim_time)
-        try:
-            if self._uses_streaming_view():
-                self._log_streaming_image()
-            else:
-                self._log_pending_meshes()
-        finally:
-            self._viewer.end_frame()
-
-    def _render_headless_frame(self) -> None:
-        """Render on demand, borrowing current SDP arrays and preserving paused frames."""
-        if not self._runtime_headless or self._viewer.is_paused():
-            return
-        if self._uses_streaming_view():
-            self._viewer.begin_frame(self._sim_time)
-            try:
-                self._log_streaming_image()
-            finally:
-                self._viewer.end_frame()
-            return
-        backend, provider = self.backend, self._scene_data_provider
-        poses = SceneDataFormat.Transform()
-        if provider.get_transforms(poses, mapping=self._transform_mapping, count=backend.model.body_count):
-            backend.state_0.body_q = poses.transforms
-        if backend.geometry_offsets:
-            provider.get_geometry_points(output=backend.state_0.particle_q, offsets=backend.geometry_offsets)
-        self._viewer.begin_frame(self._sim_time)
-        try:
-            self._viewer.log_state(backend.state_0)
-            if self.cfg.enable_markers:
-                render_newton_visualization_markers(self._viewer, self._env_ids, num_envs=backend.model.num_envs)
-            self._log_pending_meshes()
-        finally:
-            self._viewer.end_frame()
 
     # ------------------------------------------------------------------
     # Shared internals
@@ -706,21 +642,6 @@ class NewtonGLVisualizer(_NewtonCameraControls, BaseVisualizer):
             return tensor
         ids = torch.as_tensor(self._env_ids, dtype=torch.long, device=tensor.device)
         return tensor.index_select(0, ids)
-
-    def _uses_streaming_view(self) -> bool:
-        return self._camera_sensor is not None
-
-    def _create_viewer(self, runtime_headless: bool, metadata: dict) -> NewtonViewerGL:
-        if not runtime_headless:
-            # pyglet sets WM_CLASS from the window caption, which ViewerGL defaults to "Newton".
-            write_desktop_entry("isaaclab-newton-gl-viewer", "Newton", "Newton", _NEWTON_ICON_DIR / "icon_64.png")
-        return NewtonViewerGL(
-            width=self.cfg.window_width,
-            height=self.cfg.window_height,
-            headless=runtime_headless,
-            metadata=metadata,
-            update_frequency=self.cfg.update_frequency,
-        )
 
     def register_ui_callback(self, callback: Callable[[Any], None], position: str = "side") -> None:
         """Add a panel to the viewer's ImGui interface.
@@ -886,10 +807,29 @@ class NewtonGLVisualizer(_NewtonCameraControls, BaseVisualizer):
         Raises:
             RuntimeError: If the visualizer has not been initialized.
         """
-        if self._viewer is None:
+        viewer = self._viewer
+        if viewer is None:
             raise RuntimeError("NewtonGLVisualizer must be initialized before capturing an RGB frame.")
-        self._render_headless_frame()
-        return self._viewer.get_frame().numpy()
+        if self._runtime_headless and not viewer.is_paused():
+            if self._camera_sensor is None:
+                backend, provider = self.backend, self._scene_data_provider
+                poses = SceneDataFormat.Transform()
+                if provider.get_transforms(poses, mapping=self._transform_mapping, count=backend.model.body_count):
+                    backend.state_0.body_q = poses.transforms
+                if backend.geometry_offsets:
+                    provider.get_geometry_points(output=backend.state_0.particle_q, offsets=backend.geometry_offsets)
+            viewer.begin_frame(self._sim_time)
+            try:
+                if self._camera_sensor is not None:
+                    self._log_streaming_image()
+                else:
+                    viewer.log_state(backend.state_0)
+                    if self.cfg.enable_markers:
+                        render_newton_visualization_markers(viewer, self._env_ids, num_envs=backend.model.num_envs)
+                    self._log_pending_meshes()
+            finally:
+                viewer.end_frame()
+        return viewer.get_frame().numpy()
 
     def _log_streaming_image(self) -> None:
         """Present sensor pixels directly; paused rendering retains the last displayed image."""

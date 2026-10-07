@@ -370,7 +370,7 @@ class NewtonViewerGL(ViewerGL):
         backend = self._metadata.get("physics_backend", "Unknown")
         self._backend_display = _BACKEND_DISPLAY_NAMES.get(backend, backend)
 
-        with contextlib.suppress(AttributeError):
+        if self.gui is not None:
             self._patch_scalar_plot_width()
             self._patch_viewer_panel()
 
@@ -522,30 +522,13 @@ class _NewtonCameraControls:
         if isinstance(camera, PerspectiveCameraCfg):
             self.set_camera_view(camera.eye, camera.lookat)
             self.cfg.focal_length = camera.focal_length
-            self._apply_camera_focal_length()
+            self._viewer.camera.fov = self._focal_length_to_vertical_fov_degrees()
         self._camera_index = index
         if self._viewer.picking is not None:
             # Release an existing drag without replacing any graph-captured picking buffers.
             self._viewer.picking.release()
 
         self._navigation_view = self._viewer.camera.get_view_matrix().reshape(4, 4).T.copy()
-
-    def _apply_camera_pose(
-        self,
-        pose: tuple[tuple[float, float, float], tuple[float, float, float]],
-    ) -> None:
-        if self._viewer is None:
-            return
-        cam_pos, cam_target = pose
-        # Match Newton's Camera native pos type: PygletVec3, not wp.vec3.
-        self._viewer.camera.pos = PygletVec3(*cam_pos)
-        self._viewer.camera.look_at(cam_target)
-        self._last_camera_pose = (cam_pos, cam_target)
-
-    def _apply_camera_focal_length(self) -> None:
-        if self._viewer is None:
-            return
-        self._viewer.camera.fov = self._focal_length_to_vertical_fov_degrees()
 
     def _navigate_scene_camera(self) -> None:
         camera, viewer = self._camera_sensor, self._viewer
@@ -567,6 +550,11 @@ class _NewtonCameraControls:
         camera.set_world_poses(positions + translation, quat_mul(orientations, rotation), convention="opengl")
         self._streaming_frame.timestamp = -1.0
 
-    def set_camera_view(self, eye, target) -> None:
-        self.cfg.eye, self.cfg.lookat = tuple(eye), tuple(target)
-        self._apply_camera_pose((self.cfg.eye, self.cfg.lookat))
+    def set_camera_view(
+        self, eye: tuple[float, float, float] | list[float], target: tuple[float, float, float] | list[float]
+    ) -> None:
+        """Set the configured and active camera eye and target positions [m]."""
+        self.cfg.eye, self.cfg.lookat = tuple(float(v) for v in eye), tuple(float(v) for v in target)
+        if self._viewer is not None:
+            self._viewer.camera.pos = PygletVec3(*self.cfg.eye)
+            self._viewer.camera.look_at(self.cfg.lookat)

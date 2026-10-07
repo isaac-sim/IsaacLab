@@ -8,6 +8,7 @@
 * Replaced the separate Newton RTX scene importer with simulation-owned OVRTX rendering.
   Added scene-camera selection and device-image presentation to RTX; resizing and closing the
   perspective view left shared sensor products unchanged.
+  Direct construction required ``renderer=``; normal SimulationContext setup supplied it automatically.
 * Preserved RTX debug markers and visibility controls through shared renderer-owned geometry and GPU pose updates.
 * Presented Newton GL and RTX camera views directly from composed device images. Recording and web
   transports read back only the composed image.

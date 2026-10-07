@@ -1137,7 +1137,7 @@ def test_newton_visualizer_cfg():
     with pytest.raises(ValueError, match="OVRTXRendererCfg"):
         validate(cfg)
     with pytest.raises(ValueError, match="OVRTXRendererCfg"):
-        NewtonRTXVisualizer(cfg)
+        NewtonRTXVisualizer(cfg, renderer=Mock())
 
 
 @pytest.mark.parametrize("color", [(0.1, 0.2, 0.3), None])
@@ -1274,7 +1274,7 @@ def test_newton_rtx_scene_sky_and_background_override(tmp_path, monkeypatch, lig
 
 
 def test_newton_rtx_visualizer_render_rgb_array_returns_none_when_viewer_unavailable():
-    visualizer = NewtonRTXVisualizer(NewtonRTXVisualizerCfg())
+    visualizer = NewtonRTXVisualizer(NewtonRTXVisualizerCfg(), renderer=Mock())
 
     assert visualizer.render_rgb_array() is None
 
@@ -1291,7 +1291,7 @@ def test_newton_rtx_visualizer_rejects_kit_physics_backend(monkeypatch, backend)
     from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
     monkeypatch.setattr(BaseVisualizer, "physics_backend", property(lambda self: backend))
-    visualizer = NewtonRTXVisualizer(NewtonRTXVisualizerCfg())
+    visualizer = NewtonRTXVisualizer(NewtonRTXVisualizerCfg(), renderer=Mock())
 
     with pytest.raises(RuntimeError, match="Newton RTX"):
         visualizer.initialize(SimpleNamespace(num_envs=1), cameras=[])

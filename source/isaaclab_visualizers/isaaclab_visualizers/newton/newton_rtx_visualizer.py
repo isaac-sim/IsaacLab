@@ -45,7 +45,7 @@ class NewtonRTXVisualizer(_NewtonCameraControls, BaseVisualizer):
     selections borrow published sensor pixels without changing sensor resolution or lifetime.
     """
 
-    def __init__(self, cfg: NewtonRTXVisualizerCfg, *, renderer: OVRTXRenderer | None = None):
+    def __init__(self, cfg: NewtonRTXVisualizerCfg, *, renderer: OVRTXRenderer):
         """Create a window consumer with the renderer supplied by the simulation registry."""
         super().__init__(cfg)
         self._renderer = renderer
@@ -74,8 +74,6 @@ class NewtonRTXVisualizer(_NewtonCameraControls, BaseVisualizer):
             raise RuntimeError(
                 "Newton RTX is kitless and cannot share a process with Kit physics; use Newton or OVPhysX."
             )
-        if self._renderer is None:
-            raise ValueError("Newton RTX requires a renderer supplied by SimulationContext.")
         super().initialize(scene_data_provider, cameras=cameras, stage=stage)
         cfg = self.cfg
         self._runtime_headless = cfg.headless or (
@@ -133,8 +131,14 @@ class NewtonRTXVisualizer(_NewtonCameraControls, BaseVisualizer):
             self._intrinsic_parameters = wp.empty((5, 1), dtype=wp.float32, device=viewer.device)
             self._projection = self._view_matrix = None
 
-    def _render_perspective(self) -> wp.array:
-        """Resolve camera controls, then render directly into this product's device output."""
+    def _render_image(self) -> wp.array | None:
+        """Acquire the selected GPU image, retaining the displayed frame while paused."""
+        self._navigate_scene_camera()
+        if self._viewer.is_paused() and self._display_image is not None:
+            return self._display_image
+        if self._camera_sensor is not None:
+            self._display_image = self.render_tiled_rgba()
+            return self._display_image
         self._update_render_product()
         viewer, renderer = self._viewer, self._renderer
         data, render_data = self._camera_data, self._render_data
@@ -173,7 +177,8 @@ class NewtonRTXVisualizer(_NewtonCameraControls, BaseVisualizer):
         renderer.prepare_capture(render_data, data, self._capture_frame)
         renderer.render(render_data)
         renderer.read_output(render_data, data)
-        return data.output["rgba"].warp.reshape((height, width, 4))
+        self._display_image = data.output["rgba"].warp.reshape((height, width, 4))
+        return self._display_image
 
     def step(self, dt: float) -> None:
         """Resolve controls, render on the GPU, and present one image."""
@@ -184,15 +189,11 @@ class NewtonRTXVisualizer(_NewtonCameraControls, BaseVisualizer):
         viewer = self._viewer
         if self._runtime_headless or self._step_counter % viewer._update_frequency:
             return
-        self._navigate_scene_camera()
-        if not viewer.is_paused() or self._display_image is None:
-            self._display_image = (
-                self.render_tiled_rgba() if self._camera_sensor is not None else self._render_perspective()
-            )
+        image = self._render_image()
         viewer.begin_frame(self._sim_time)
         try:
-            if self._display_image is not None:
-                viewer.log_image("RTX View", self._display_image, fullscreen=True)
+            if image is not None:
+                viewer.log_image("RTX View", image, fullscreen=True)
         finally:
             viewer.end_frame()
 
@@ -200,12 +201,7 @@ class NewtonRTXVisualizer(_NewtonCameraControls, BaseVisualizer):
         """Capture the selected view and explicitly download an RGB image for recording."""
         if self._viewer is None:
             return None
-        self._navigate_scene_camera()
-        if not self._viewer.is_paused() or self._display_image is None:
-            self._display_image = (
-                self.render_tiled_rgba() if self._camera_sensor is not None else self._render_perspective()
-            )
-        image = self._display_image
+        image = self._render_image()
         return None if image is None else np.ascontiguousarray(image.numpy()[..., :3])
 
     def is_running(self) -> bool:
