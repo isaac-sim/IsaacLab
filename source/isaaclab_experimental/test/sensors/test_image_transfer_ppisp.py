@@ -9,13 +9,12 @@ from types import SimpleNamespace
 
 import pytest
 import torch
+from isaaclab_experimental.image_transfer import ImageTransferModifierCfg, depth_to_control, srgb_to_linear
+from isaaclab_experimental.image_transfer import modifier as modifier_module
 
 from isaaclab.sim import BackendCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.modifiers import ModifierCfg, ModifierChain
-
-from isaaclab_contrib.image_transfer import ImageTransferModifierCfg, depth_to_control, srgb_to_linear
-from isaaclab_contrib.image_transfer import modifier as modifier_module
 
 ppisp = pytest.importorskip("isaaclab_ppisp")
 from isaaclab_ppisp import modifier as ppisp_modifier_module  # noqa: E402

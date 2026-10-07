@@ -13,7 +13,7 @@ try:
 except importlib.metadata.PackageNotFoundError:
     __version__ = "0.0.0"
 
-_SUBMODULES = frozenset({"envs", "managers", "utils"})
+_SUBMODULES = frozenset({"envs", "image_transfer", "managers", "utils"})
 
 
 def __getattr__(name: str):

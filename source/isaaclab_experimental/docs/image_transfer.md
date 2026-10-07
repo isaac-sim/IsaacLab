@@ -1,6 +1,6 @@
 # Image transfer for camera images
 
-`isaaclab_contrib.image_transfer` connects an application-owned image-generation
+`isaaclab_experimental.image_transfer` connects an application-owned image-generation
 model to cameras through modifiers. It does not load models, download assets, or
 select a network transport.
 
@@ -13,7 +13,7 @@ images under `"rgb"`:
 
 ```python
 from isaaclab.utils.modifiers import ModifierCfg
-from isaaclab_contrib.image_transfer import ImageTransferModifierCfg, depth_to_control
+from isaaclab_experimental.image_transfer import ImageTransferModifierCfg, depth_to_control
 
 wrist_camera = CameraCfg(
     ...,
@@ -86,5 +86,5 @@ illustrative tint model. It requires no model or remote service:
 
 ```bash
 uv run python examples/sensors/depth_image_processor.py --output output/image-transfer-demo.npz
-uv run python -m pytest source/isaaclab_contrib/test/sensors/test_image_transfer.py
+uv run python -m pytest source/isaaclab_experimental/test/sensors/test_image_transfer.py
 ```

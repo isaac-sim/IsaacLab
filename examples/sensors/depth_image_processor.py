@@ -10,12 +10,11 @@ from pathlib import Path
 
 import numpy as np
 import torch
+from isaaclab_experimental.image_transfer import ImageTransferModifierCfg, depth_to_control
 
 from isaaclab.sim import BackendCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.modifiers import ModifierCfg, ModifierChain
-
-from isaaclab_contrib.image_transfer import ImageTransferModifierCfg, depth_to_control
 
 
 class TintStream:
