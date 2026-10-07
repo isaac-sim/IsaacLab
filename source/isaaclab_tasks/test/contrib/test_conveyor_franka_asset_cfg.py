@@ -167,6 +167,8 @@ def test_asset_transforms_preserve_the_original_workcell() -> None:
 
 def test_warehouse_animation_uses_active_kit_viewer_and_policy_time(tmp_path, monkeypatch) -> None:
     """A CLI-selected Kit viewer animates and loops authored parcels without changing task state."""
+    import torch
+
     from pxr import Usd, UsdGeom
 
     from isaaclab_tasks.contrib.conveyor_franka.conveyor_franka_env import ConveyorFrankaEnv
@@ -186,7 +188,6 @@ def test_warehouse_animation_uses_active_kit_viewer_and_policy_time(tmp_path, mo
     source.GetRootLayer().Save()
     stage = Usd.Stage.CreateInMemory()
     stage.DefinePrim("/World/envs/env_0/WarehouseVisual").GetReferences().AddReference(path)
-    callbacks = {}
 
     def initialize(env, cfg, **kwargs):
         env.cfg = cfg
@@ -196,28 +197,30 @@ def test_warehouse_animation_uses_active_kit_viewer_and_policy_time(tmp_path, mo
             stage=stage,
             visualizers=[SimpleNamespace(cfg=SimpleNamespace(visualizer_type="kit"))],
             set_setting=lambda name, value: None,
-            add_render_callback=lambda name, callback: callbacks.update({name: callback}),
-            remove_render_callback=lambda name: callbacks.pop(name, None),
+            add_render_callback=lambda name, callback: None,
+            remove_render_callback=lambda name: None,
         )
 
     monkeypatch.setattr(ConveyorFrankaEnv, "__init__", initialize)
     monkeypatch.setattr(ConveyorFrankaEnv, "close", lambda env: None)
+    monkeypatch.setattr(ConveyorFrankaEnv, "step", lambda env, action: None)
     cfg = ConveyorFrankaA09A12EnvCfg()
     # CLI viewer selection is resolved by SimulationContext, not written back into this list.
     cfg.sim.visualizer_cfgs = []
     cfg.scene.warehouse_visual.spawn.usd_path = path
     env = ConveyorFrankaWarehouseEnv(cfg)
+    action = torch.zeros(1, 8)
     try:
-        callback = callbacks["conveyor_warehouse_animation"]
-        callback(None)
+        # Headless Kit recording captures on demand, without invoking render callbacks.
+        env.step(action)
         position = stage.GetPrimAtPath("/World/envs/env_0/WarehouseVisual/Parcels/Parcel00").GetAttribute(
             "xformOp:translate"
         )
         assert tuple(position.Get()) == pytest.approx((1, 0, 1))
         env.common_step_counter = 180
-        callback(None)
+        env.step(action)
         assert tuple(position.Get()) == pytest.approx((1, 0, 1))
     finally:
         env.close()
         _presentation_layer.cache_clear()
-    assert not callbacks
+    assert not env._warehouse_animation

@@ -1,1 +1,1 @@
-* Added warehouse parcel sorting with four dynamically assigned policy slots, colored batches, circulating conveyors, and referenced USD presentation assets.
+* Added warehouse parcel sorting with four dynamically assigned policy slots, colored batches, circulating conveyors, and referenced USD presentation assets. Background parcel motion follows simulation steps in both interactive Kit playback and headless recordings.

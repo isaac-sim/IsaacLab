@@ -58,7 +58,6 @@ class ConveyorFrankaWarehouseEnv(ConveyorFrankaEnv):
                 target = self.sim.stage.GetPrimAtPath(f"{env_path}/WarehouseVisual/Parcels/{source.GetName()}")
                 for name in ("xformOp:translate", "xformOp:rotateXYZ"):
                     self._warehouse_animation.append((source.GetAttribute(name), target.GetAttribute(name)))
-        self.sim.add_render_callback("conveyor_warehouse_animation", self._animate_warehouse)
 
     def load_managers(self) -> None:
         """Create slot identities before command, reward, and observation terms inspect cubes."""
@@ -98,7 +97,9 @@ class ConveyorFrankaWarehouseEnv(ConveyorFrankaEnv):
         )
 
     def step(self, action: torch.Tensor) -> VecEnvStepReturn:
-        """Pass training actions through; optionally park during idle policy playback."""
+        """Advance presentation motion; pass training actions through or park during idle playback."""
+        if self._warehouse_animation:
+            self._animate_warehouse()
         if not self.cfg.park_when_idle:
             return super().step(action)
         command = self.command_manager.get_term("transfer")
@@ -117,7 +118,7 @@ class ConveyorFrankaWarehouseEnv(ConveyorFrankaEnv):
         use_policy = command.has_target | ~torch.isfinite(action).all(dim=1)
         return super().step(torch.where(use_policy[:, None], action, parked))
 
-    def _animate_warehouse(self, _event) -> None:
+    def _animate_warehouse(self) -> None:
         """Sample USD motion using policy time, independently of render frame rate."""
         from pxr import Sdf
 
@@ -148,8 +149,6 @@ class ConveyorFrankaWarehouseEnv(ConveyorFrankaEnv):
             cube.write_root_velocity_to_sim_index(root_velocity=pose.new_zeros((len(env_ids), 6)), env_ids=env_ids)
 
     def close(self) -> None:
-        """Remove the presentation callback before releasing the shared task resources."""
-        if getattr(self, "sim", None) is not None:
-            self.sim.remove_render_callback("conveyor_warehouse_animation")
+        """Release presentation attributes before closing the shared task resources."""
         self._warehouse_animation.clear()
         super().close()
