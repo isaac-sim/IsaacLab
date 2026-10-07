@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from types import SimpleNamespace
 
@@ -79,21 +80,23 @@ def test_resolves_wandb_entity_in_precedence_order(monkeypatch: pytest.MonkeyPat
     assert wandb_utils.resolve_wandb_entity() is None
 
 
-def test_announces_new_and_existing_runs(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]):
+def test_announces_new_and_existing_runs(monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture):
     """Announce a generated run id without replacing an existing one."""
     monkeypatch.delenv("WANDB_RUN_ID", raising=False)
     monkeypatch.setattr(
         wandb_utils, "wandb", SimpleNamespace(util=SimpleNamespace(generate_id=lambda: "new-id")), raising=False
     )
+    caplog.set_level(logging.INFO, logger=wandb_utils.__name__)
 
     wandb_utils.announce_new_run("project", "entity")
     assert os.environ["WANDB_RUN_ID"] == "new-id"
-    assert "wandb:entity/project/new-id" in capsys.readouterr().out
+    assert "wandb:entity/project/new-id" in caplog.text
 
+    caplog.clear()
     monkeypatch.setenv("WANDB_RUN_ID", "existing-id")
     wandb_utils.announce_new_run("project")
     assert os.environ["WANDB_RUN_ID"] == "existing-id"
-    assert "wandb:<entity>/project/existing-id" in capsys.readouterr().out
+    assert "wandb:<entity>/project/existing-id" in caplog.text
 
 
 def test_get_model_checkpoint_uses_environment_entity(monkeypatch: pytest.MonkeyPatch, tmp_path):

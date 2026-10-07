@@ -31,6 +31,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 import io
+import logging
 import os
 import statistics
 import sys
@@ -58,6 +59,8 @@ class Case:
     agent_entry: str | None = None
     args: tuple[str, ...] = ()
 
+
+logger = logging.getLogger(__name__)
 
 QUICK_CASES = (
     Case("cartpole_manager", "Isaac-Cartpole"),
@@ -216,7 +219,7 @@ def main() -> int:
     valid_cases = tuple(case for case in cases if case.task in gymnasium.registry)
     skipped = [case.task for case in cases if case.task not in gymnasium.registry]
     if skipped:
-        print(f"[WARN] Skipping unregistered task(s): {skipped}")
+        logger.warning(f"Skipping unregistered task(s): {skipped}")
     if not valid_cases:
         print("[ERROR] No valid benchmark cases.")
         return 1

@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import logging
 import sys
 
 import gymnasium as gym
@@ -34,6 +35,8 @@ with contextlib.suppress(ImportError):
 from isaaclab.app import add_launcher_args, launch_simulation
 
 from isaaclab_tasks.utils import resolve_task_config, setup_preset_cli
+
+logger = logging.getLogger(__name__)
 
 KIT_DEFAULT_TASK = "Isaac-Velocity-Rough-AnymalD"
 NEWTON_DEFAULT_TASK = "IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor"
@@ -160,7 +163,7 @@ def main():
         # keep stepping until all visualizer windows have been closed
         sim = env.unwrapped.sim
         if not sim.visualizers:
-            print("[WARN]: No visualizers found. Exiting.")
+            logger.warning("No visualizers found. Exiting.")
             env.close()
             return
 

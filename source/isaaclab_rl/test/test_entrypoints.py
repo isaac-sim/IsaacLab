@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import contextlib
 import importlib
+import os
 import signal
 import subprocess
 import sys
@@ -521,6 +522,7 @@ def test_rlinf_launch_passes_checkpoint_and_model_config_to_workers(tmp_path: Pa
     with pytest.raises(RuntimeError, match="worker boundary"):
         backend.run(args)
     GlobalHydra.instance().clear()
+    assert os.environ["RAY_ENABLE_UV_RUN_RUNTIME_ENV"] == "0"
     resolved = validate.call_args.args[0]
     assert resolved.runner["resume_dir" if backend is train_rlinf else "ckpt_path"] == str(checkpoint)
     assert resolved.actor.model.model_path == str(tmp_path / "base")

@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 import argparse
 import importlib.util
+import logging
 import os
 import random
 import shlex
@@ -19,6 +20,8 @@ from ray.tune.progress_reporter import ProgressReporter
 from ray.tune.search.optuna import OptunaSearch
 from ray.tune.search.repeater import Repeater
 from ray.tune.stopper import CombinedStopper
+
+logger = logging.getLogger(__name__)
 
 """
 This script breaks down an aggregate tuning job, as defined by a hyperparameter sweep configuration,
@@ -151,7 +154,7 @@ class IsaacLabTuneTrainable(tune.Trainable):
                         break
                     if self.time_since_last_proc_response > PROCESS_RESPONSE_TIMEOUT:
                         self.time_since_last_proc_response = 0.0
-                        print("[WARNING]: Training workflow process is not responding, terminating...")
+                        logger.warning("Training workflow process is not responding, terminating...")
                         self.proc.terminate()
                         try:
                             self.proc.wait(timeout=20)
@@ -173,7 +176,7 @@ class IsaacLabTuneTrainable(tune.Trainable):
         and that each trainable is meant for one node, where it uses all available resources."""
         resources = util.get_gpu_node_resources(one_node_only=True)
         if NUM_WORKERS_PER_NODE != 1:
-            print("[WARNING]: Splitting node into more than one worker")
+            logger.warning("Splitting node into more than one worker")
         return tune.PlacementGroupFactory(
             [{"CPU": resources["CPU"] / NUM_WORKERS_PER_NODE, "GPU": resources["GPU"] / NUM_WORKERS_PER_NODE}],
             strategy="STRICT_PACK",
@@ -251,9 +254,9 @@ def invoke_tuning_run(
     # Allow for early exit
     os.environ["TUNE_DISABLE_STRICT_METRIC_CHECKING"] = "1"
 
-    print("[WARNING]: Not saving checkpoints, just running experiment...")
+    logger.warning("Not saving checkpoints, just running experiment...")
     print("[INFO]: Model parameters and metrics will be preserved.")
-    print("[WARNING]: For homogeneous cluster resources only...")
+    logger.warning("For homogeneous cluster resources only...")
 
     # Initialize Ray
     util.ray_init(

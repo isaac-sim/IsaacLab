@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import logging
 import os
 import re
 
@@ -43,6 +44,8 @@ from ..common import (
     show_run_summary,
     startup_screen,
 )
+
+logger = logging.getLogger(__name__)
 
 # PLACEHOLDER: Extension template (do not remove this comment)
 with contextlib.suppress(ImportError):
@@ -116,7 +119,7 @@ def run(argv: list[str]) -> None:
             env_cfg.seed = params["seed"]
 
             log_root_path = os.path.abspath(os.path.join("logs", "rl_games", params["config"]["name"]))
-            print(f"[INFO] Loading experiment from directory: {log_root_path}")
+            logger.info(f"Loading experiment from directory: {log_root_path}")
             resume_path = _resolve_checkpoint(args_cli, agent_cfg, env_cfg, log_root_path)
             if resume_path is None:
                 return
@@ -139,7 +142,7 @@ def run(argv: list[str]) -> None:
             params["load_checkpoint"] = True
             params["load_path"] = resume_path
             params["config"]["num_actors"] = env.unwrapped.num_envs
-            print(f"[INFO]: Loading model checkpoint from: {resume_path}")
+            logger.info(f"Loading model checkpoint from: {resume_path}")
             runner = Runner()
             # configure_seed must run after Runner() so torch determinism does not disturb its initialization
             if args_cli.deterministic:

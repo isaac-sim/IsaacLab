@@ -19,6 +19,7 @@ are never imported here.
 from __future__ import annotations
 
 import socket
+from collections.abc import Iterator
 from datetime import datetime, timezone
 from typing import Any
 
@@ -228,39 +229,16 @@ def capture_hardware(bm: Any) -> Hardware:
     )
 
 
-def _backends_from_env_cfg(env_cfg: object) -> tuple[str | None, str | None]:
-    """Return active backend names from a concrete environment configuration."""
-    physics_cfg = getattr(getattr(env_cfg, "sim", None), "physics", None)
-    physics_type = type(physics_cfg)
-    physics_descriptor = (
-        "physx"
-        if physics_cfg is None
-        else f"{physics_type.__module__}.{physics_type.__name__} {getattr(physics_cfg, 'class_type', '')}".lower()
-    )
-    physics = next(
-        (
-            name
-            for marker, name in (
-                ("ovphysx", "ovphysx"),
-                ("kamino", "newton_kamino"),
-                ("mjwarp", "newton_mjwarp"),
-                ("physx", "physx"),
-            )
-            if marker in physics_descriptor
-        ),
-        None,
-    )
-
-    renderer_names = {"isaac_rtx": "isaacsim_rtx", "ovrtx": "ovrtx", "newton_warp": "newton"}
-    rendering = None
-    stack = [env_cfg]
+def _iter_config_nodes(root: object) -> Iterator[object]:
+    """Yield non-scalar nodes from a concrete configuration tree."""
+    stack = [root]
     visited: set[int] = set()
-    while stack and rendering is None:
+    while stack:
         node = stack.pop()
         if id(node) in visited:
             continue
         visited.add(id(node))
-        rendering = renderer_names.get(getattr(node, "renderer_type", None))
+        yield node
         if isinstance(node, dict):
             children = node.values()
         elif isinstance(node, (list, tuple)):
@@ -275,7 +253,6 @@ def _backends_from_env_cfg(env_cfg: object) -> tuple[str | None, str | None]:
             for child in children
             if child is not None and not isinstance(child, (str, bytes, int, float, bool, type))
         )
-    return physics, rendering
 
 
 def run_config_from_env_cfg(env_cfg: object) -> RunConfig:
@@ -290,13 +267,72 @@ def run_config_from_env_cfg(env_cfg: object) -> RunConfig:
     Raises:
         ValueError: If the config does not contain a supported concrete physics backend.
     """
-    physics, rendering = _backends_from_env_cfg(env_cfg)
-    if physics is None:
-        physics_cfg = getattr(getattr(env_cfg, "sim", None), "physics", None)
+    # Config identities keep this lookup independent of optional simulator imports.
+    # Ordering preserves the existing Kamino-before-MJWarp primary backend label.
+    physics_names = {
+        "isaaclab_newton.physics.kamino_manager_cfg._KaminoSolverCfgBase": "newton_kamino",
+        "isaaclab_newton.physics.mjwarp_manager_cfg.MJWarpSolverCfg": "newton_mjwarp",
+        "isaaclab_physx.physics.physx_manager_cfg.PhysxCfg": "physx",
+        "isaaclab_ov.physics.ovphysx_manager_cfg.OvPhysxCfg": "ovphysx",
+        "isaaclab_newton.physics.featherstone_manager_cfg.FeatherstoneSolverCfg": "newton_featherstone",
+        "isaaclab_newton.physics.xpbd_manager_cfg.XPBDSolverCfg": "newton_xpbd",
+        "isaaclab_newton.physics.vbd_manager_cfg.VBDSolverCfg": "newton_vbd",
+        "isaaclab_newton.physics.mpm_manager_cfg.MPMSolverCfg": "newton_mpm",
+        "isaaclab_newton.physics.newton_manager_cfg.NewtonCfg": "newton",
+        "isaaclab_contrib.coupling.coupler_cfg.CouplerProxyCfg": "proxy",
+        "isaaclab_contrib.coupling.coupler_cfg.CouplerAdmmCfg": "admm",
+        "isaaclab_contrib.custom_coupling.newton_manager_cfg.CoupledMJWarpVBDSolverCfg": "custom",
+    }
+    physics_cfg = getattr(getattr(env_cfg, "sim", None), "physics", None)
+    solvers = set()
+    coupling = None
+    stack = [physics_cfg]
+    visited = set()
+    while stack:
+        node = stack.pop()
+        if node is None and physics_cfg is None:
+            # Match SimulationContext's existing default without importing PhysX.
+            solvers.add("physx")
+            continue
+        if id(node) in visited:
+            continue
+        visited.add(id(node))
+        name = next(
+            (
+                physics_names[key]
+                for cls in type(node).__mro__
+                if (key := f"{cls.__module__}.{cls.__name__}") in physics_names
+            ),
+            None,
+        )
+        if name == "newton":
+            stack.append(node.solver_cfg)
+        elif name in ("proxy", "admm"):
+            coupling = name
+            stack.extend(entry.solver_cfg for entry in node.entries)
+        elif name == "custom":
+            coupling = f"custom_{node.coupling_mode}"
+            stack.extend((node.rigid_solver_cfg, node.soft_solver_cfg))
+        elif name is not None:
+            solvers.add(name)
+        else:
+            kind = "concrete physics" if node is physics_cfg else "Newton solver"
+            raise ValueError(f"Unsupported {kind} config: {type(node).__name__}.")
+    if not solvers:
         raise ValueError(f"Unsupported concrete physics config: {type(physics_cfg).__name__}.")
+    physics = next(name for name in physics_names.values() if name in solvers)
+
+    renderer_names = {"isaac_rtx": "isaacsim_rtx", "ovrtx": "ovrtx", "newton_warp": "newton"}
+    rendering = None
+    for node in _iter_config_nodes(env_cfg):
+        rendering = renderer_names.get(getattr(node, "renderer_type", None))
+        if rendering is not None:
+            break
     return RunConfig(
         physics_backend=physics,
         rendering_backend=rendering or "none",
+        physics_solvers=sorted(solvers),
+        physics_coupling=coupling,
     )
 
 

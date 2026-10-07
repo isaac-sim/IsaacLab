@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import logging
 import os
 from collections.abc import Callable
 from pathlib import Path
@@ -48,6 +49,8 @@ from ..common import (
 )
 from ..policy_ghosts import MAX_POLICY_GHOST_SLOTS, PolicyGhostRestart, PolicyGhostSession, relaunch
 from . import cli_args_rsl_rl as cli_args
+
+logger = logging.getLogger(__name__)
 
 # PLACEHOLDER: Extension template (do not remove this comment)
 with contextlib.suppress(ImportError):
@@ -237,7 +240,7 @@ def _run(argv: list[str], restart: PolicyGhostRestart) -> None:
             env_cfg.seed = agent_cfg.seed
 
             log_root_path = os.path.abspath(os.path.join("logs", "rsl_rl", agent_cfg.experiment_name))
-            print(f"[INFO] Loading experiment from directory: {log_root_path}")
+            logger.info(f"Loading experiment from directory: {log_root_path}")
             resume_path = _resolve_checkpoint(args_cli, agent_cfg, env_cfg, log_root_path)
             if resume_path is None:
                 return
@@ -260,7 +263,7 @@ def _run(argv: list[str], restart: PolicyGhostRestart) -> None:
 
             screen.stage("Loading policy")
             env = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
-            print(f"[INFO]: Loading model checkpoint from: {resume_path}")
+            logger.info(f"Loading model checkpoint from: {resume_path}")
             if args_cli.policy_ghosts:
                 screen.close()
                 run_policy_ghosts(env, args_cli, agent_cfg, resume_path, log_root_path, slice_size, restart)

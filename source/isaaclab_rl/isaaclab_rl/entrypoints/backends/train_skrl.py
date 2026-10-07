@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import logging
 import os
 import time
 from datetime import datetime
@@ -51,6 +52,8 @@ from ..common import (
     write_run_manifest,
 )
 from . import cli_args_skrl as cli_args
+
+logger = logging.getLogger(__name__)
 
 # PLACEHOLDER: Extension template (do not remove this comment)
 with contextlib.suppress(ImportError):
@@ -112,11 +115,11 @@ def _run(args_cli: argparse.Namespace) -> None:
 
             experiment_cfg = agent_cfg["agent"]["experiment"]
             log_root_path = os.path.abspath(os.path.join("logs", "skrl", experiment_cfg["directory"]))
-            print(f"[INFO] Logging experiment in directory: {log_root_path}")
+            logger.info(f"Logging experiment in directory: {log_root_path}")
             run_name = (
                 args_cli.run_timestamp or datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
             ) + f"_{algorithm}_{args_cli.ml_framework}"
-            print(f"Exact experiment name requested from command line: {run_name}")
+            logger.info(f"Exact experiment name requested from command line: {run_name}")
             if experiment_cfg["experiment_name"]:
                 run_name += f"_{experiment_cfg['experiment_name']}"
             experiment_cfg["directory"] = log_root_path
@@ -173,7 +176,7 @@ def _run(args_cli: argparse.Namespace) -> None:
             if args_cli.deterministic:
                 configure_seed(env_cfg.seed, torch_deterministic=True)
             if resume_path:
-                print(f"[INFO] Loading model checkpoint from: {resume_path}")
+                logger.info(f"Loading model checkpoint from: {resume_path}")
                 runner.agent.load(resume_path)
 
             screen.close()
@@ -184,7 +187,7 @@ def _run(args_cli: argparse.Namespace) -> None:
                     total_timesteps = agent_cfg["trainer"]["timesteps"]
                     os.makedirs(os.path.join(log_dir, "checkpoints"), exist_ok=True)
                     runner.agent.write_checkpoint(timestep=total_timesteps, timesteps=total_timesteps)
-                    print(f"[INFO] Saved final agent checkpoint to: {log_dir}/checkpoints")
+                    logger.info(f"Saved final agent checkpoint to: {log_dir}/checkpoints")
                 # the RL library creates the process group but never destroys it, which torch warns about at exit
                 if dist.is_initialized():
                     dist.destroy_process_group()

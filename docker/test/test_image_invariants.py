@@ -50,5 +50,43 @@ def test_no_prebundled_package_lost_its_entry_point():
     ``.pyi`` stubs that no extension imports - 41 of them, against develop's 48 - mostly
     generated protobuf stubs inside an Omniverse extension's own prebundle.
     """
-    broken = _in_image('find / -path "*pip_prebundle*" -xtype l -name "__init__.py" 2>/dev/null || true').strip()
+    broken = _in_image(
+        'find /isaac-sim \\( -path "*pip_prebundle*" -o -path "*/omni.warp.core*/*" \\) '
+        '-xtype l -name "__init__.py" -print'
+    ).strip()
     assert not broken, "prebundled packages lost their entry point:\n" + broken
+
+
+def test_kit_links_into_nvidia_prebundle_resolve():
+    """Kit's shared CUDA 12 files stay reachable after the CUDA 13 redirect."""
+    dangling = _in_image('find /isaac-sim -xtype l -lname "*pip_prebundle/nvidia/*" -print').strip()
+    assert not dangling, "Kit links into the NVIDIA prebundle are dangling:\n" + dangling
+
+
+def test_kit_nvrtc_builtins_can_be_loaded():
+    """RTX's CUDA 12 library remains loadable after installing the CUDA 13 Torch stack."""
+    _in_image(
+        "${VIRTUAL_ENV}/bin/python - <<'PY'\n"
+        "import ctypes\n"
+        "from pathlib import Path\n"
+        "libraries = list(Path('/isaac-sim/extscache').glob('omni.hydra.rtx-*/bin/deps/libnvrtc-builtins.so'))\n"
+        "assert libraries, 'Kit NVRTC builtins library not found'\n"
+        "for library in libraries:\n"
+        "    ctypes.CDLL(str(library))\n"
+        "PY"
+    )
+
+
+def test_kit_prebundle_loads_the_environments_torch():
+    """Kit's import paths expose the installed Torch and its matching native dependencies."""
+    _in_image(
+        "/isaac-sim/python.sh - <<'PY'\n"
+        "import os\n"
+        "import sys\n"
+        "from pathlib import Path\n"
+        "sys.path[:0] = ['/isaac-sim/extsDeprecated/omni.isaac.ml_archive/pip_prebundle',\n"
+        "                 '/isaac-sim/exts/isaacsim.pip.nv/pip_prebundle']\n"
+        "import torch\n"
+        "assert Path(torch.__file__).resolve().is_relative_to(Path(os.environ['VIRTUAL_ENV']))\n"
+        "PY"
+    )

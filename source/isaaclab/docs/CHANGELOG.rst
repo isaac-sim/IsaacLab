@@ -3,6 +3,113 @@ Changelog
 
 .. towncrier release notes start
 
+35.2.0 (2026-10-06)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added LEAPP input semantics and deployment wiring for individual camera output buffers.
+* Added traceable Torch preprocessing for RGB observations during LEAPP export.
+* Added optional file paths to ``isaaclab --format`` for focused formatting and lint checks.
+
+Changed
+^^^^^^^
+
+* Changed :func:`~isaaclab.app.launch_simulation` to warn when it runs on the CPU because ``--device`` was not
+  given on macOS.
+* Reduced task-space body-offset Jacobian overhead by using batched cross products instead of skew matrices.
+* **Breaking:** ``isaaclab --format`` now runs pre-commit once and returns a nonzero exit status when hooks fail or modify files.
+  Callers that relied on automatic retries must inspect and accept the edits, then explicitly rerun the command.
+* Changed the Newton dependency from the ``release-1.6`` Git branch to the ``1.6.1`` PyPI release.
+
+Fixed
+^^^^^
+
+* Fixed :func:`~isaaclab.app.launch_simulation` failing while resolving the default simulation device.
+* Fixed LEAPP export of camera frame stacks and observation history with configured storage layouts, including first-frame backfill.
+
+
+35.1.0 (2026-10-05)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``FileCfg.visual_material_path=None`` to apply material inputs to connected surface shaders
+  without replacing textures or bindings. Fields set to ``None`` were left unchanged.
+* Added OmniPBR metallic and texture-influence settings to ``PbrMdlCfg`` and shared a private input
+  writer between material creation and prototype overrides.
+
+
+35.0.0 (2026-10-03)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``configure_console_logging``, ``ensure_console_handlers``, and ``resolve_python_logging_level`` to
+  ``isaaclab.app.logging_utils`` so command-line entry points and kitless launches print Isaac Lab INFO
+  records and warnings the same way as Kit launches.
+* Added active solver and coupling metadata to benchmark schema 1.5 and the run configuration builder.
+
+Changed
+^^^^^^^
+
+* Changed warnings from the multi-GPU launcher, ``deploy`` command, editor setup, and benchmark entry points
+  to use :mod:`logging` instead of ``print``, so they follow ``--verbose`` / ``--info`` and log handlers.
+* Changed ``[INFO]`` and ``[ERROR]`` messages printed by environments, the command-line interface, and
+  benchmark entry points to ``logger.info`` and ``logger.error``. They still print as ``[INFO]: <message>``
+  by default.
+* Changed the deprecation notice for legacy ``<workflow>-multigpu`` benchmark workflow names to a ``FutureWarning``.
+* Changed the deprecated ``max_height_noise`` warning of
+  :class:`~isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedObjectsTerrainCfg` to a ``FutureWarning``.
+* Installation CI uses isolated uv environments shared by import and runtime probes, with
+  GPU training enabled explicitly. Source builds and containers retain local Kit runtime setup.
+
+Removed
+^^^^^^^
+
+* **Breaking:** Removed :func:`~isaaclab.utils.assets.retrieve_git_asset_path`,
+  ``isaaclab.utils.assets.NEWTON_ASSET_REPO_URL``, and ``isaaclab.utils.assets.GIT_ASSET_CACHE_DIR``. Pass
+  ``f"{NEWTON_ASSET_DIR}/<path>"`` to :func:`~isaaclab.utils.assets.retrieve_file_path` or to a spawner's
+  ``usd_path`` instead: :data:`~isaaclab.utils.assets.NEWTON_ASSET_DIR` now points at the Newton asset
+  repository over HTTPS, which downloads only the files an asset references instead of cloning the repository.
+* Removed Unique Set Size (USS) collection from :class:`~isaaclab.benchmark.recorders.MemoryInfoRecorder`.
+  ``psutil.Process.memory_full_info()`` walks the process page tables on every call, and the recorder ran it
+  once per second from the :class:`~isaaclab.benchmark.BenchmarkMonitor` thread while the benchmark was being
+  timed, perturbing the workload being measured. The ``System Memory USS``, ``System Memory USS std``,
+  ``System Memory USS peak`` and ``System Memory USS n`` measurements are no longer emitted. Resident Set Size
+  and Virtual Memory Size are unchanged and are read from cheap kernel counters.
+* **Breaking:** Removed the shell and batch launchers, the install CLI, and environment-creation
+  commands and their unused retry support. Use ``uv sync`` to install a checkout,
+  ``uv run --extra <name> isaaclab ...`` to select integrations, and ``uv pip install``
+  for released wheels. uv now owns Python and
+  dependency selection; conda and downloaded Isaac Sim installation guides are removed.
+
+Fixed
+^^^^^
+
+* Fixed benchmark metadata capture for composite Newton physics configurations such as
+  ``newton_mjwarp_vbd_proxy``.
+* Fixed standalone Isaac Sim launches loading the bundled Warp instead of the active environment's
+  version by redirecting the ``omni.warp.core`` package alongside the pip prebundles.
+* Preserved Kit's shared CUDA 12 libraries while redirecting CUDA 13, cuDNN, and NCCL dependencies
+  to the active environment, preventing standalone RTX and Torch startup failures.
+* Rejected legacy whole-namespace NVIDIA links with recovery guidance to prevent stale libraries
+  and missing Kit CUDA 12 libraries during CUDA 13 upgrades.
+* Fixed manager term configuration type annotations to accept class-based terms derived from
+  :class:`~isaaclab.managers.ManagerTermBase`.
+* Stopped simulations and released their resources before shutting down the enclosing runtime,
+  preserving failure exit codes and contexts owned by an outer launch scope.
+* Fixed ``NoiseModelWithAdditiveBias`` broadcasting environment bias along the wrong axis for multidimensional
+  observations, allowing scalar and per-component bias to preserve arbitrary observation shapes.
+* Fixed the simulator CLI command to propagate simulator process failures.
+* Updated CLI help and Isaac Sim discovery errors for the uv installation workflow.
+* Added source-checkout guidance for development commands invoked from a wheel installation.
+* Included teleoperation scripts and short Python command aliases in aggregate wheels.
+
+
 34.0.0 (2026-10-02)
 ~~~~~~~~~~~~~~~~~~~
 

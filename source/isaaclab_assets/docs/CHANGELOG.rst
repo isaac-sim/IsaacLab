@@ -3,6 +3,16 @@ Changelog
 
 .. towncrier release notes start
 
+2.0.1 (2026-10-03)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the Disney Research legs and four-bar pole configurations to load their USD over HTTPS when spawned,
+  instead of cloning the Newton asset repository on import.
+
+
 2.0.0 (2026-10-02)
 ~~~~~~~~~~~~~~~~~~
 

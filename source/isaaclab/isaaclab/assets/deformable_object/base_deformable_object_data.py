@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
+from ...utils.leapp import XYZ_ELEMENT_NAMES, InputKindEnum, leapp_tensor_semantics
 from ...utils.warp import ProxyArray
 
 
@@ -76,6 +77,7 @@ class BaseDeformableObjectData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSITION, element_names=XYZ_ELEMENT_NAMES)
     def nodal_pos_w(self) -> ProxyArray:
         """Nodal positions in simulation world frame [m].
 
@@ -87,6 +89,7 @@ class BaseDeformableObjectData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_VELOCITY, element_names=XYZ_ELEMENT_NAMES)
     def nodal_vel_w(self) -> ProxyArray:
         """Nodal velocities in simulation world frame [m/s].
 
@@ -98,8 +101,9 @@ class BaseDeformableObjectData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(kind="state/deformable/nodal_state")
     def nodal_state_w(self) -> ProxyArray:
-        """Nodal state ``[nodal_pos, nodal_vel]`` in simulation world frame [m, m/s].
+        """Nodal state in simulation world frame, ordered ``[x, y, z, vx, vy, vz]`` per mesh node [m, m/s].
 
         Shape is (num_instances, max_sim_vertices_per_body), dtype ``vec6f``.
         Use :attr:`ProxyArray.warp` for the underlying :class:`warp.array` or
@@ -113,6 +117,7 @@ class BaseDeformableObjectData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSITION, element_names=XYZ_ELEMENT_NAMES)
     def root_pos_w(self) -> ProxyArray:
         """Root position from nodal positions of the simulation mesh for the deformable bodies
         in simulation world frame [m]. Shape is (num_instances,) vec3f.
@@ -125,6 +130,7 @@ class BaseDeformableObjectData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_VELOCITY, element_names=XYZ_ELEMENT_NAMES)
     def root_vel_w(self) -> ProxyArray:
         """Root velocity from vertex velocities for the deformable bodies in simulation
         world frame [m/s]. Shape is (num_instances,) vec3f.

@@ -63,7 +63,15 @@ def _resources():
 
 
 def test_run_config_presets_default_empty():
-    assert builders.build_run_config("physx").presets == []
+    cfg = builders.build_run_config("physx")
+    assert cfg.presets == []
+    assert cfg.physics_solvers == ["physx"]
+    assert cfg.physics_coupling is None
+    cfg = builders.build_run_config(
+        "newton_mjwarp", physics_solvers=["newton_mjwarp", "newton_vbd"], physics_coupling="proxy"
+    )
+    assert cfg.physics_solvers == ["newton_mjwarp", "newton_vbd"]
+    assert cfg.physics_coupling == "proxy"
     assert builders.build_run_config("newton_mjwarp", presets=["rgb"]).presets == ["rgb"]
 
 

@@ -44,7 +44,7 @@ inputs:
   test-k-expr:
     description: >-
       Global pytest -k expression applied inside every per-file pytest run
-      spawned by tools/conftest.py (combined with device-split selectors).
+      spawned by tools/conftest.py.
       Unlike pytest-options, this reaches the individual test processes, so it
       can deselect parametrized cases (e.g. "not ovphysx").
     default: ''

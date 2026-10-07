@@ -27,8 +27,6 @@ from isaaclab.sim.views import FrameView  # noqa: E402
 
 OVPHYSX_SIM_CFG = SimulationCfg(physics=OvPhysxCfg())
 
-pytestmark = pytest.mark.device_split
-
 
 def test_view_raises_before_physics_ready():
     """A view constructed before PHYSICS_READY raises a clear error on pose-method calls."""

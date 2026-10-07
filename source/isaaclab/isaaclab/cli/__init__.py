@@ -240,8 +240,9 @@ def cli() -> None:
     parser.add_argument(
         "-f",
         "--format",
-        action="store_true",
-        help="Run pre-commit to format the code and check lints.",
+        nargs="*",
+        metavar="FILE",
+        help="Run pre-commit on selected files, or on all tracked files when none are supplied.",
     )
     parser.add_argument(
         "-p",
@@ -301,7 +302,7 @@ def cli() -> None:
     args = parser.parse_args()
 
     if (
-        args.format
+        args.format is not None
         or args.docs
         or args.docs_multi
         or args.docker is not None
@@ -310,8 +311,8 @@ def cli() -> None:
     ) and not (ISAACLAB_ROOT / "pyproject.toml").is_file():
         parser.error("This command requires an Isaac Lab source checkout. Run it with uv run isaaclab from that checkout.")
 
-    if args.format:
-        command_format()
+    if args.format is not None:
+        command_format(args.format)
 
     elif args.isaacsim_source:
         command_build_isaacsim(args.isaacsim_source)

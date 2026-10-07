@@ -1,3 +1,5 @@
+# syntax=docker/dockerfile:1
+
 # Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
@@ -17,21 +19,23 @@ ARG ISAACSIM_VERSION_ARG
 ENV ISAACSIM_VERSION=${ISAACSIM_VERSION_ARG}
 
 # Set default RUN shell to bash
-SHELL ["/bin/bash", "-c"]
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 # Adds labels to the Dockerfile
-LABEL version="2.1.1"
+LABEL org.opencontainers.image.title="Isaac Lab" \
+      org.opencontainers.image.source="https://github.com/isaac-sim/IsaacLab" \
+      org.opencontainers.image.licenses="BSD-3-Clause"
 LABEL description="Dockerfile for building and running the Isaac Lab framework inside Isaac Sim container image."
 
 # Arguments
 # Path to Isaac Sim root folder
-ARG ISAACSIM_ROOT_PATH_ARG
+ARG ISAACSIM_ROOT_PATH_ARG=/isaac-sim
 ENV ISAACSIM_ROOT_PATH=${ISAACSIM_ROOT_PATH_ARG}
 # Path to the Isaac Lab directory
-ARG ISAACLAB_PATH_ARG
+ARG ISAACLAB_PATH_ARG=/workspace/isaaclab
 ENV ISAACLAB_PATH=${ISAACLAB_PATH_ARG}
 # Home dir of the runtime docker user, typically '/root'
-ARG DOCKER_USER_HOME_ARG
+ARG DOCKER_USER_HOME_ARG=/root
 ENV DOCKER_USER_HOME=${DOCKER_USER_HOME_ARG}
 ENV HOME=${DOCKER_USER_HOME}
 
@@ -62,7 +66,11 @@ RUN apt-get update && \
     cmake \
     git \
     curl \
-    wget
+    wget \
+ && rm -rf /var/lib/apt/lists/*
+
+COPY docker/scripts/install_git_lfs.sh /tmp/install_git_lfs.sh
+RUN /bin/bash /tmp/install_git_lfs.sh && rm /tmp/install_git_lfs.sh
 
 # Install the Carbonite environment shim that serializes glibc environment
 # access across Kit worker threads. Use /etc/ld.so.preload because Isaac Sim's
@@ -103,7 +111,6 @@ RUN set -euo pipefail && \
     apt-get install -y --no-install-recommends cuda-toolkit-13-0 && \
     apt-get -y autoremove && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-
 ENV CUDA_HOME=/usr/local/cuda-13.0
 ENV PATH=${CUDA_HOME}/bin:${PATH}
 ENV TORCH_CUDA_ARCH_LIST=8.0+PTX
@@ -140,18 +147,13 @@ RUN groupadd --non-unique --gid 1000 isaaclab \
 # copy files necessary for installing Isaac Lab and its dependencies
 # this way we minimize the chance of cache invalidation on file edits
 COPY --from=uv /uv /uvx /usr/local/bin/
-COPY ../pyproject.toml ../uv.lock ${ISAACLAB_PATH}/
-COPY ../tools/ ${ISAACLAB_PATH}/tools/
+COPY pyproject.toml uv.lock ${ISAACLAB_PATH}/
 
 # Normalize shell scripts copied from Windows checkouts.
 RUN find ${ISAACLAB_PATH} -type f -name "*.sh" -exec sed -i 's/\r$//' {} +
 
 # Set up a symbolic link between the installed Isaac Sim root folder and _isaac_sim in the Isaac Lab directory
 RUN ln -sf ${ISAACSIM_ROOT_PATH} ${ISAACLAB_PATH}/_isaac_sim
-
-
-
-
 
 # The image's package set. Kit ships in the base image, so the teleop stack comes without the
 # ``isaacsim`` wheel; ``teleop`` itself is left exactly as tuned.
@@ -160,7 +162,7 @@ ARG IMAGE_EXTRAS="--extra sb3 --extra skrl --extra rl-games --extra rsl-rl --ext
 # Workspace manifests only: ``uv sync --no-install-workspace`` needs every member's
 # pyproject.toml to build an installation plan, but not their sources. Resolving the
 # third-party packages here means a source edit re-runs only the workspace install below.
-COPY --parents ../source/*/pyproject.toml ${ISAACLAB_PATH}/
+COPY --parents source/*/pyproject.toml ${ISAACLAB_PATH}/
 
 # Resolving into a venv leaves Isaac Sim's site-packages untouched, so the pre-bundled torch
 # no longer has to be deleted to get a fresh one (which corrupted pip's vendored
@@ -175,10 +177,11 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     chown -R isaaclab:isaaclab ${VIRTUAL_ENV} && \
     chmod -R a+rwX ${VIRTUAL_ENV}/lib ${VIRTUAL_ENV}/bin
 
-COPY ../source/ ${ISAACLAB_PATH}/source/
+COPY source/ ${ISAACLAB_PATH}/source/
+COPY tools/ ${ISAACLAB_PATH}/tools/
 
 # Fix the line endings of the scripts the COPY above just wrote.
-RUN find ${ISAACLAB_PATH}/source -type f -name "*.sh" -exec sed -i 's/\r$//' {} +
+RUN find ${ISAACLAB_PATH} -type f -name "*.sh" -exec sed -i 's/\r$//' {} +
 
 # Install apt dependencies for extensions that declare them in their extension.toml,
 RUN uv run --project ${ISAACLAB_PATH} --no-sync python ${ISAACLAB_PATH}/tools/install_deps.py apt ${ISAACLAB_PATH}/source && \
@@ -204,6 +207,9 @@ RUN uv run --project ${ISAACLAB_PATH} --no-sync python -c \
 # uv venv/uv sync above needed Kit's interpreter as the venv base; from here on ``uv pip``
 # should target the venv, including the interactive ``pip`` alias below.
 ENV UV_PYTHON=${VENV_PATH_ARG}/bin/python
+ENV PATH=${VENV_PATH_ARG}/bin:${PATH}
+ENV UV_NO_SYNC=1
+ENV PYTHONUNBUFFERED=1
 
 # cuRobo builds CUDA extensions against the torch already in the venv, so build isolation
 # stays off; it is pinned to a commit rather than a release. PyTorch 2.12 builds extensions as
@@ -233,7 +239,6 @@ RUN echo "export ISAACLAB_PATH=${ISAACLAB_PATH}" >> ${DOCKER_USER_HOME}/.bashrc 
     echo "alias pip='uv pip'" >> ${DOCKER_USER_HOME}/.bashrc && \
     echo "alias pip3='uv pip'" >> ${DOCKER_USER_HOME}/.bashrc && \
     echo "alias tensorboard='${VIRTUAL_ENV}/bin/tensorboard'" >> ${DOCKER_USER_HOME}/.bashrc && \
-    echo "export TZ=$(date +%Z)" >> ${DOCKER_USER_HOME}/.bashrc && \
     echo "shopt -s histappend" >> ${DOCKER_USER_HOME}/.bashrc && \
     echo "PROMPT_COMMAND='history -a'" >> ${DOCKER_USER_HOME}/.bashrc
 
@@ -257,7 +262,7 @@ RUN chmod 755 \
         ${DOCKER_USER_HOME}
 
 # copy the rest of the files
-COPY --chown=isaaclab:isaaclab ../ ${ISAACLAB_PATH}/
+COPY --chown=isaaclab:isaaclab . ${ISAACLAB_PATH}/
 
 # Pre-create every docker-compose named-volume mount point and hand it to the
 # non-root runtime user. docker-compose.yaml is the single source of truth for
@@ -283,3 +288,6 @@ USER isaaclab
 # make working directory as the Isaac Lab directory
 # this is the default directory when the container is run
 WORKDIR ${ISAACLAB_PATH}
+
+ENTRYPOINT []
+CMD ["bash"]

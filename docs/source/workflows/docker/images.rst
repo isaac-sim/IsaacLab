@@ -33,6 +33,48 @@ Kit, RTX rendering, and the Isaac Sim asset pipeline. The Isaac Sim version it b
 by ``ISAACSIM_VERSION`` in ``.env.base``; the other variables in that file control paths inside the
 container.
 
+Direct builds use the same default paths as Compose:
+
+.. code:: bash
+
+    docker build --pull --file docker/Dockerfile.base --tag isaac-lab-base .
+
+Dependencies are installed from ``uv.lock`` with frozen resolution. To update the development
+container after pulling repository changes, rebuild it and recreate the service:
+
+.. code:: bash
+
+    ./docker/container.py stop base
+    ./docker/container.py build base --pull
+    ./docker/container.py start base
+
+Stopping now preserves named volumes; older versions deleted them on every stop. Compose
+caches, logs, and data use named volumes, whose existing ownership is unchanged by rebuilding.
+For a one-time upgrade from a root-run image, copy any results you need, stop other profiles
+without ``--remove-volumes`` (use ``docker rm <name>`` for already-stopped containers),
+then run ``./docker/container.py stop base --remove-volumes``
+before rebuilding and starting base. This deletes the project's caches, logs, and data so
+new volumes inherit uid/gid 1000 ownership. Cleanup requires the selected container to still
+exist and refuses to run while another container remains in the Compose project.
+
+If the selected container was already removed, start it again before requesting cleanup.
+For custom host bind-mounted caches, fix ownership on the host to uid/gid 1000 instead.
+
+With X11 forwarding enabled, launch the standalone Isaac Sim GUI from its installation directory:
+
+.. code:: bash
+
+    cd /isaac-sim
+    ./runapp.sh
+
+The image redirects shared Python packages, including the direct ``omni.warp.core`` package,
+to the locked environment. Missing ``packaging/__init__.py`` or ``warp/_src/apic/__init__.py``
+errors indicate broken shared package files; recreating a container from a newly built image
+restores the package tree. An installer error about a whole-namespace NVIDIA symlink likewise
+requires restoring a clean Isaac Sim installation or rebuilding the image before retrying;
+removing the link alone does not restore Kit's CUDA 12 libraries. Cache-permission errors
+require the named-volume migration above or fixing ownership on custom host bind mounts.
+
 Kit-less image
 --------------
 

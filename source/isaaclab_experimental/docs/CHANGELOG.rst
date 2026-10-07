@@ -3,6 +3,16 @@ Changelog
 
 .. towncrier release notes start
 
+0.2.6 (2026-10-03)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed ``[INFO]`` messages printed by the Warp environments and the manager call switch to
+  ``logger.info``.
+
+
 0.2.5 (2026-10-01)
 ~~~~~~~~~~~~~~~~~~
 

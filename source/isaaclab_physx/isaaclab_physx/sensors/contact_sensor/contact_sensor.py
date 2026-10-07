@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import logging
 import re
-import warnings
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
@@ -597,7 +596,7 @@ class ContactSensor(BaseContactSensor):
                 self._history_length,
                 self.cfg.force_threshold,
                 self._timestamp,
-                self._timestamp_last_update,
+                self._elapsed_since_update,
             ],
             outputs=[
                 self._data._net_normal_forces_w,
@@ -684,13 +683,10 @@ class ContactSensor(BaseContactSensor):
             # set their visibility to true
             self.contact_visualizer.set_visibility(True)
             self.normal_force_visualizer.set_visibility(True)
-            if not getattr(self, "_warned_missing_net_friction_vis", False):
-                warnings.warn(
-                    "PhysX contact sensor visualization cannot display net friction forces because the backend"
-                    " only reports friction for configured filter objects.",
-                    stacklevel=2,
-                )
-                self._warned_missing_net_friction_vis = True
+            logger.warning(
+                "PhysX contact sensor visualization cannot display net friction forces because the backend"
+                " only reports friction for configured filter objects."
+            )
         else:
             if hasattr(self, "contact_visualizer"):
                 self.contact_visualizer.set_visibility(False)

@@ -38,7 +38,7 @@ from ..utils.assets import configure_storage_profile
 from ..utils.device import set_cuda_device
 from ..utils.string import string_to_callable
 from ..visualizers.visualizer_cfg import parse_visualizer_csv, resolve_visualizer_cfgs
-from .logging_utils import apply_python_logging_level
+from .logging_utils import apply_python_logging_level, ensure_console_handlers, resolve_python_logging_level
 from .settings_manager import get_settings_manager
 
 logger = logging.getLogger(__name__)
@@ -193,16 +193,6 @@ def _resolve_launcher_args(args: dict) -> None:
         visualizers = [*visualizers, "kit"]
     args["livestream"] = livestream
     args["visualizer"] = visualizers
-
-
-def _resolve_python_logging_level(args: dict) -> int:
-    """Return the level for ``--verbose`` / ``--info`` (also read from ``sys.argv``), else the current root level."""
-    if args.get("verbose", False) or "--verbose" in sys.argv:
-        return logging.DEBUG
-    if args.get("info", False) or "--info" in sys.argv:
-        return logging.INFO
-    level = logging.getLogger().getEffectiveLevel()
-    return logging.WARNING if level == logging.NOTSET else level
 
 
 def _resolve_video_sources(video_recorders: list[VideoRecorderCfg], visualizers: list[str]) -> list[str]:
@@ -588,7 +578,9 @@ def launch_simulation(
     needs_kit = bool(kit_sources)
 
     # Honor --verbose / --info; the Kit launcher re-applies this level once Kit has started.
-    apply_python_logging_level(_resolve_python_logging_level(args))
+    python_logging_level = resolve_python_logging_level(args)
+    apply_python_logging_level(python_logging_level)
+    ensure_console_handlers(python_logging_level)
 
     # The SimulationCfg the simulation is built from, e.g. an env config's ``sim``; a physics config or None
     # holds none.
@@ -612,6 +604,9 @@ def launch_simulation(
 
     # Resolve the device before any launcher or physics init: --device, else this rank's GPU, else the config's.
     _resolve_distributed_device(args)
+    if sys.platform == "darwin" and args.get("device") == "cpu" and not args.get("device_explicit", False):
+        # the --device default on macOS, which has no CUDA
+        logger.warning("No --device given; using 'cpu' because macOS has no CUDA.")
     if sim_cfg is not None:
         args["device"] = args.get("device") or sim_cfg.device
 
