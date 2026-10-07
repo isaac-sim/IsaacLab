@@ -226,8 +226,9 @@ schema on the bound physics material, falling back to mesh topology when that is
 Newton uses topology alone, treating a ``UsdGeom.TetMesh`` under the prim as volume and a plain
 ``UsdGeom.Mesh`` as surface.
 
-So the material cfg is load-bearing: pairing a volume material with a cloth-shaped mesh authors a
-tetrahedralized solid, not a sheet.
+With the legacy ``deformable_props`` field the material cfg is therefore load-bearing: pairing a
+volume material with a cloth-shaped mesh authors a tetrahedralized solid, not a sheet. The slots do
+not depend on the material for the kind.
 
 Tetrahedralization
 ^^^^^^^^^^^^^^^^^^
