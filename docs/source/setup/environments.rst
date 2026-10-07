@@ -81,7 +81,7 @@ Task Preview
        <div class="environment-preview-stage">
          <video data-preview-video muted autoplay loop playsinline preload="metadata" hidden></video>
          <img data-preview-image
-              src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/tasks/classic/cartpole.jpg"
+              src="../../_static/environment-previews/cartpole.jpg"
               alt="Isaac-Cartpole preview">
          <div class="environment-preview-caption">
            <span class="environment-preview-label">Selected task</span>
