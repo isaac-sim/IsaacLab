@@ -245,28 +245,8 @@ class Camera(SensorBase):
         if sim_ctx is not None:
             sim_ctx.require_visual_shapes()
 
-        # An ISP (any ``isp_cfg`` other than ``None``) requires the HDR AOV;
-        # an explicit ``"rgb_hdr"`` or ``"rgb_radiance"`` in ``data_types`` also
-        # requires the HDR-routing flag flipped on Isaac RTX. OVRTX routes HDR
-        # on each render product instead.
-        require_hdr_output = (
-            not {"rgb_hdr", "rgb_radiance"}.isdisjoint(self.cfg.data_types) or self.cfg.isp_cfg is not None
-        )
-
-        # TODO(follow-up PR): move this flag flip out of Camera. The cleanest path is
-        # an apply_pre_reset_settings() hook on RendererCfg (default no-op) that
-        # IsaacRtxRendererCfg overrides to flip /isaaclab/render/rtx_sensors. The
-        # flag must be set pre-sim.reset() because SimulationContext.is_rendering
-        # and several env classes read it before the renderer's __init__ runs.
-        renderer_type = getattr(self.cfg.renderer_cfg, "renderer_type", None)
-        if renderer_type == "isaac_rtx":
-            from ...app.settings_manager import get_settings_manager
-
-            settings = get_settings_manager()
-            settings.set("/isaaclab/render/rtx_sensors", True)
-            settings.set("/physics/fabricUpdateTransformations", True)
-            if require_hdr_output:
-                settings.set("/rtx/rtpt/gaussian/skipTonemapping/enabled", False)
+        # Simulation setup and environments read some renderer settings before the renderer exists.
+        self.cfg.renderer_cfg.apply_pre_reset_settings(self.cfg)
 
         # UsdGeom Camera prim for the sensor
         self._sensor_prims: list[UsdGeom.Camera] = []

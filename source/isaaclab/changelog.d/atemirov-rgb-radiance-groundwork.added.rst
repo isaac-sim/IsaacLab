@@ -3,3 +3,5 @@
   they share one buffer.
 * Added :func:`isaaclab.renderers.rtx_camera_overrides.apply_rtx_exposure_overrides`, shared by the
   RTX renderers to author neutral camera exposure.
+* Added :meth:`~isaaclab.renderers.RendererCfg.apply_pre_reset_settings` so renderer configurations
+  apply the process-wide settings their cameras need before ``sim.reset()``.
