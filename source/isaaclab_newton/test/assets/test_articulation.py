@@ -16,11 +16,11 @@ rest and restores the properties it changes. Scene gravity is off; a test that n
 world for its own duration.
 
 Configurations that fail initialization, the rebind scenario, which swaps the live Newton state, and the
-CUDA-graph check build their own small scenes. Only one simulation context can be alive, so these tests come
+CUDA-graph checks build their own small scenes. Only one simulation context can be alive, so these tests come
 first and fail if selected after a composite-scene test.
 
-The composite scene runs on the CPU without CUDA-graph capture. On CUDA, one own-scene test covers the
-ordered-state republish recorded into a captured graph.
+The composite scene runs on the CPU without CUDA-graph capture. On CUDA, own-scene tests cover the ordered-state
+republish and the fixed-tendon mask writes and targets recorded into a captured graph.
 """
 
 from isaaclab_newton.physics import NewtonCfg
@@ -48,6 +48,7 @@ from isaaclab_newton.assets import Articulation
 from isaaclab_newton.assets.articulation import kernels as articulation_kernels
 from isaaclab_newton.assets.articulation.articulation_data import ArticulationData
 from isaaclab_newton.physics import NewtonManager as SimulationManager
+from isaaclab_newton.physics.mjwarp_tendon_control import resolve_fixed_tendon_actuator_columns
 from isaaclab_physx.sim.schemas import PhysxJointCfg
 from newton import JointType, Model, ModelBuilder, ModelFlags, ShapeFlags, State
 from newton.selection import ArticulationView
@@ -873,6 +874,73 @@ def test_newton_ordered_state_publishes_inside_captured_cuda_graph(device: str) 
         )
 
 
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_fixed_tendon_mask_writes_and_targets_replay_from_cuda_graph(device: str) -> None:
+    """Fixed-tendon mask setters, the mask writer, and tendon targets recorded into a CUDA graph act on every replay.
+
+    The mask variants are the documented graph-capturable path. The inputs are filled only after capture, so the
+    replay must read them at launch time: property writes reach only the selected cells, and a tendon target
+    reaches MuJoCo's controls on every replay, not only at capture.
+    """
+    with build_simulation_context(sim_cfg=newton_sim_cfg(device, use_newton_actuators=False)) as sim:
+        articulation = spawn_assets({"tendon": _island_cfgs()["tendon"]})["tendon"]
+        sim.reset()
+        num_envs, num_tendons = articulation.num_instances, articulation.num_fixed_tendons
+        actuator_columns, _ = resolve_fixed_tendon_actuator_columns(
+            articulation.root_view, SimulationManager.get_model()
+        )
+
+        target = torch.zeros(num_envs, num_tendons, device=device)
+        with wp.ScopedCapture(device) as capture:
+            articulation.set_fixed_tendon_position_target_mask(target=target)
+        articulation.write_data_to_sim()
+        for value in (0.3, 0.6):
+            target.fill_(value)
+            wp.capture_launch(capture.graph)
+            articulation.write_data_to_sim()
+            ctrl = wp.to_torch(articulation.root_view.get_attribute("mujoco.ctrl", SimulationManager.get_control()))
+            tendon_ctrl = ctrl[:, 0, actuator_columns]
+            torch.testing.assert_close(tendon_ctrl, torch.full_like(tendon_ctrl, value))
+
+        env_mask = wp.array([False, True], dtype=wp.bool, device=device)
+        tendon_mask = wp.array([False, True], dtype=wp.bool, device=device)
+        selected = torch.zeros(num_envs, num_tendons, 1, dtype=torch.bool, device=device)
+        selected[1, 1] = True
+        stiffness = torch.zeros(num_envs, num_tendons, device=device)
+        damping = torch.zeros_like(stiffness)
+        limits = torch.zeros(num_envs, num_tendons, 2, device=device)
+        data = articulation.data
+        before = {
+            "stiffness": data.fixed_tendon_stiffness.torch.clone(),
+            "damping": data.fixed_tendon_damping.torch.clone(),
+            "pos_limits": data.fixed_tendon_pos_limits.torch.clone(),
+        }
+        with wp.ScopedCapture(device) as capture:
+            articulation.set_fixed_tendon_stiffness_mask(
+                stiffness=stiffness, fixed_tendon_mask=tendon_mask, env_mask=env_mask
+            )
+            articulation.set_fixed_tendon_damping_mask(
+                damping=damping, fixed_tendon_mask=tendon_mask, env_mask=env_mask
+            )
+            articulation.set_fixed_tendon_position_limit_mask(
+                limit=limits, fixed_tendon_mask=tendon_mask, env_mask=env_mask
+            )
+            articulation.write_fixed_tendon_properties_to_sim_mask(fixed_tendon_mask=tendon_mask, env_mask=env_mask)
+        stiffness.fill_(12.0)
+        damping.fill_(3.0)
+        limits[..., 0] = -0.1
+        limits[..., 1] = 0.2
+        wp.capture_launch(capture.graph)
+
+        written = {"stiffness": stiffness, "damping": damping, "pos_limits": limits}
+        for name, value in written.items():
+            after = getattr(data, f"fixed_tendon_{name}").torch
+            expected = torch.where(
+                selected, value.view(*selected.shape[:2], -1), before[name].view(*selected.shape[:2], -1)
+            )
+            torch.testing.assert_close(after.view_as(expected), expected, msg=name)
+
+
 ##
 # Composite scene.
 ##
@@ -1420,9 +1488,9 @@ def test_floating_articulation_root_and_wrench_response(scene: _Scene, monkeypat
     actuator_reset = actuator.reset
     reset_env_ids = []
 
-    def record_actuator_reset(env_ids: torch.Tensor | None = None) -> None:
+    def record_actuator_reset(env_ids: torch.Tensor | None = None, env_mask: torch.Tensor | None = None) -> None:
         reset_env_ids.append(env_ids)
-        actuator_reset(env_ids)
+        actuator_reset(env_ids, env_mask=env_mask)
 
     monkeypatch.setattr(actuator, "reset", record_actuator_reset)
     articulation.reset()

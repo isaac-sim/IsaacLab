@@ -61,13 +61,14 @@ class CableObject(BaseCableObject):
         """Articulation view for the cable."""
         return self._root_view
 
-    def reset(self, env_ids: Sequence[int] | None = None) -> None:
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> None:
         """Reset the cable object's internal buffers.
 
         Args:
             env_ids: Environment indices. Defaults to all instances.
+            env_mask: Environment mask. Defaults to all instances. Shape is (num_instances,).
         """
-        del env_ids
+        del env_ids, env_mask
 
     def write_data_to_sim(self) -> None:
         """Write buffered commands to the simulation."""

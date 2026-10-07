@@ -47,6 +47,7 @@ implementation:
 - ``Isaac-Ant-Direct`` — Ant locomotion
 - ``Isaac-Humanoid-Direct`` — Humanoid locomotion
 - ``Isaac-Reorient-Cube-Allegro-Direct`` — Allegro hand cube reorient
+- ``Isaac-Reorient-Cube-Shadow-Direct`` — Shadow hand cube reorient
 
 
 Manager-Based Warp Execution (``--frontend warp``)
