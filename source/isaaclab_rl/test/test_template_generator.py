@@ -219,11 +219,17 @@ def test_generator_registers_single_agent_rl_config_entry_points_for_all_librari
         _unregister(task_id)
 
 
-def test_generated_manager_amp_environment_preserves_terminal_observations():
+def test_generated_manager_amp_environment_preserves_terminal_observations(tmp_path):
     """AMP transitions must end with the terminal observation before same-step autoreset."""
-    env_source = generator.jinja_env.get_template("tasks/cartpole/manager-based_single-agent/env").render(
-        task={"classname": "Test", "env_cfg_filename": "test_env_cfg"}
-    )
+    specification = {
+        "external": False,
+        "name": "test",
+        "workflows": [{"name": "manager-based", "type": "single-agent"}],
+        "rl_libraries": [{"name": "skrl", "algorithms": ["amp"]}],
+    }
+    generated = generator._generate_tasks(specification, str(tmp_path))
+    task = generated[0]["task"]
+    env_source = (Path(task["dir"]) / f"{task['env_filename']}.py").read_text()
     module = ast.parse(env_source)
     env_class_node = next(node for node in module.body if isinstance(node, ast.ClassDef))
 

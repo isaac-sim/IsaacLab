@@ -60,7 +60,6 @@ def _generate_task_per_workflow(task_dir: str, specification: dict) -> None:
         specification: The specification of the project/task.
     """
     task_spec = specification["task"]
-    task_template_dir = "tasks/stubbed" if specification.get("initial_content") == "stubbed" else "tasks/cartpole"
     agents_dir = os.path.join(task_dir, "agents")
     os.makedirs(agents_dir, exist_ok=True)
     template = jinja_env.get_template("tasks/__init__task")
@@ -80,28 +79,13 @@ def _generate_task_per_workflow(task_dir: str, specification: dict) -> None:
                     f" algorithm '{algorithm}'. Add the template or drop the algorithm from the selection."
                 ) from exc
             _write_file(os.path.join(agents_dir, file_name + file_ext), content=template.render(**specification))
-    if task_spec["workflow"]["name"] == "direct":
-        template = jinja_env.get_template(f"{task_template_dir}/direct_{task_spec['workflow']['type']}/env_cfg")
-        _write_file(
-            os.path.join(task_dir, f"{task_spec['env_cfg_filename']}.py"), content=template.render(**specification)
-        )
-        template = jinja_env.get_template(f"{task_template_dir}/direct_{task_spec['workflow']['type']}/env")
-        _write_file(os.path.join(task_dir, f"{task_spec['env_filename']}.py"), content=template.render(**specification))
-    elif task_spec["workflow"]["name"] == "manager-based":
-        template = jinja_env.get_template(f"{task_template_dir}/manager-based_{task_spec['workflow']['type']}/env_cfg")
-        _write_file(
-            os.path.join(task_dir, f"{task_spec['env_cfg_filename']}.py"), content=template.render(**specification)
-        )
-        if task_spec["amp_selected"]:
-            template = jinja_env.get_template(f"{task_template_dir}/manager-based_{task_spec['workflow']['type']}/env")
-            _write_file(
-                os.path.join(task_dir, f"{task_spec['env_filename']}.py"), content=template.render(**specification)
-            )
-        shutil.copytree(
-            os.path.join(TEMPLATE_DIR, task_template_dir, f"manager-based_{task_spec['workflow']['type']}", "mdp"),
-            os.path.join(task_spec["family_dir"], "mdp"),
-            dirs_exist_ok=True,
-        )
+    initial_content = specification.get("initial_content", "cartpole")
+    template = jinja_env.get_template(f"tasks/{initial_content}.jinja")
+    task_files = template.make_module(specification).files
+    for filename, content in task_files.items():
+        destination = os.path.join(task_spec["family_dir"], filename)
+        os.makedirs(os.path.dirname(destination), exist_ok=True)
+        _write_file(destination, content=content)
 
 
 def _generate_tasks(specification: dict, task_dir: str) -> list[dict]:

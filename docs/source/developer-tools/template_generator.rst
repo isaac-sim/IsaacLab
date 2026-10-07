@@ -132,6 +132,21 @@ selections when more than one choice is allowed. The generator creates the
 project under ``<parent-directory>/<project-name>`` and initializes a Git
 repository there.
 
+Task template sources
+~~~~~~~~~~~~~~~~~~~~~
+
+Each initial-content type keeps its task modules in one Jinja template:
+``tools/template/templates/tasks/cartpole.jinja`` or
+``tools/template/templates/tasks/stubbed.jinja``. Each file contains the
+environment, configuration, and manager-based MDP modules for all supported
+workflows, including AMP variants. Jinja macros render the modules, and a
+``files`` mapping associates relative task-family paths with their contents.
+The generator writes these files into the generated package structure.
+
+Shared project infrastructure, task registrations, and agent configurations
+remain separate templates. Blank projects use the shared infrastructure without
+generating task modules.
+
 Automate project generation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
