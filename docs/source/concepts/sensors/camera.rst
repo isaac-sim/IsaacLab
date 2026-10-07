@@ -61,10 +61,8 @@ the scene configuration:
          uv run isaaclab train --rl_library rsl_rl ^
              --task Isaac-Cartpole-Camera-Direct renderer=newton_renderer
 
-This training command uses camera frames as policy observations and does not write images to disk by
-default. Add ``env.write_image_to_file=true`` to write the latest frame grid as
-``cartpole_<data_type>.png`` in the current working directory. The file is overwritten on each camera
-update; use :doc:`/source/how-to/save_camera_output` or a video recorder for persistent sequences.
+Images are not written to disk by default. Set ``env.write_image_to_file=true`` to write
+``cartpole_<data_type>.png`` in the current working directory.
 
 See :doc:`/source/concepts/backends_and_presets` for preset discovery and
 :ref:`renderer-visual-comparison` for a same-scene comparison of the renderer outputs.
@@ -357,9 +355,8 @@ Run the ``ppisp-camera`` example for a complete PPISP workflow:
          uv run --extra isaacsim isaaclab example ppisp-camera ^
              --renderer newton_renderer --max_steps 60
 
-The example saves a combined comparison and separate baseline, PPISP, and difference image grids every
-20 simulation steps. By default, it writes them under ``output/ppisp_camera`` in the current working
-directory; pass ``--output_dir <path>`` to choose another location.
+Images are written to ``output/ppisp_camera`` in the current working directory by default. Pass
+``--output_dir <path>`` to choose another location.
 
 Performance and validation
 --------------------------
