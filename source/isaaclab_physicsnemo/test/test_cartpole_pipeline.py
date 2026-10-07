@@ -269,13 +269,13 @@ def test_memorized_trajectories_track_the_teacher(device: str, tmp_path: Path):
         env.reset(seed=3)
         binding = NewtonBinding(env.sim.physics_manager)
         codec = newton_state_codec(binding.model, "joint")
-        learned = [codec.read(binding.state).clone()]
-        run(env, lambda dones: learned.append(codec.read(binding.state).clone()))
+        learned_states = [codec.read(binding.state).clone()]
+        run(env, lambda dones: learned_states.append(codec.read(binding.state).clone()))
     finally:
         env.close()
     SimulationContext.clear_instance()
 
-    learned = torch.stack(learned, dim=1)
+    learned = torch.stack(learned_states, dim=1)
     q_errors, qd_errors = [], []
     for world, recorded in teacher.items():
         length = min(recorded.shape[0], steps)

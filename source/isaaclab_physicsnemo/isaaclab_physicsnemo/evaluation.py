@@ -116,8 +116,17 @@ def evaluate_rollout_nrmse(
     """
     operator = artifact.as_operator(codec=codec, features=features, device=device)
     history = operator.history
-    trajectories = [reader[index][0] for index in evaluation_indices]
-    reference = torch.cat([reader[index][0]["state"] for index in reference_indices]).to(device)
+
+    def read(index: int, *, controls: bool = True) -> dict[str, torch.Tensor]:
+        """Read the state timeline and, optionally, the one-shorter transition timeline of a trajectory."""
+        length = reader.trajectory_length(index)
+        fields = reader.read_slice(index, 0, length, ("state",))
+        if controls:
+            fields |= reader.read_slice(index, 0, length - 1, (CONTROL_KEY,))
+        return fields
+
+    trajectories = [read(index) for index in evaluation_indices]
+    reference = torch.cat([read(index, controls=False)["state"] for index in reference_indices]).to(device)
     anchor = reference[:1].expand_as(reference)
     spread = codec.state_to_delta(anchor, reference).std(dim=0)
     spread = torch.where(spread > 1.0e-8, spread, torch.ones_like(spread))
