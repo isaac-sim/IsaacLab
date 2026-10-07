@@ -143,6 +143,11 @@ alias.
    add ``--extra isaacsim`` to the ``uv run`` commands above; see
    :ref:`installation-optional-extras` for details.
 
+.. note::
+
+   ``train`` and ``play`` run without a visualizer unless ``--viz`` is passed, while packaged demos and
+   examples open their own default visualizer. ``--viz none`` turns it off, but is planned for deprecation.
+
 For combining visualizers, running headless, and other common use cases, see `Usage`_ below.
 
 
