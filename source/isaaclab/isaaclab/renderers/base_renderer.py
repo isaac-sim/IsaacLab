@@ -20,6 +20,7 @@ if TYPE_CHECKING:
     import torch
     import warp as wp
 
+    from ..markers.visualization_markers_cfg import VisualizationMarkersCfg
     from ..sensors.camera.camera_data import CameraData
     from ..utils.warp import ProxyArray
 
@@ -41,6 +42,19 @@ class BaseRenderer(ABC):
     def initialize(self) -> None:
         """Post-physics one-time initialization hook. Called only once."""
         return
+
+    def create_markers(self, cfg: VisualizationMarkersCfg, *, visible: bool = True) -> Any:
+        """Create a marker group shared by this renderer's views.
+
+        Marker-capable visualizers with a ``renderer_cfg`` use this backend instead of creating
+        viewer-local geometry. The returned group implements the ``VisualizationMarkers`` update,
+        visibility, and cleanup methods; it must also tolerate renderer shutdown before cleanup.
+
+        Args:
+            cfg: Marker prototypes and their scene path.
+            visible: Initial group visibility.
+        """
+        raise NotImplementedError(f"{type(self).__name__} does not support visualization markers.")
 
     @property
     def visual_material_writer(self) -> Callable[[tuple[VisualMaterialBatch, ...]], Any] | None:

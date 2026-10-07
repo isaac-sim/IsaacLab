@@ -13,6 +13,25 @@ import warp as wp
 from isaaclab.renderers.segmentation_colors import random_color_from_id_wp
 
 
+@wp.kernel(enable_backward=False)
+def create_marker_transforms_kernel(
+    positions: wp.array(dtype=wp.vec3),
+    orientations: wp.array(dtype=wp.quat),
+    scales: wp.array(dtype=wp.vec3),
+    local_transforms: wp.array(dtype=wp.mat44d),
+    transforms: wp.array(dtype=wp.mat44d),
+):
+    """Compose marker poses and scales in the native renderer's matrix layout."""
+    i = wp.tid()
+    position, orientation, scale = positions[i], orientations[i], scales[i]
+    p = wp.vec3d(wp.float64(position[0]), wp.float64(position[1]), wp.float64(position[2]))
+    q = wp.quatd(
+        wp.float64(orientation[0]), wp.float64(orientation[1]), wp.float64(orientation[2]), wp.float64(orientation[3])
+    )
+    s = wp.vec3d(wp.float64(scale[0]), wp.float64(scale[1]), wp.float64(scale[2]))
+    transforms[i] = local_transforms[i] * wp.transpose(wp.transform_compose(p, q, s))
+
+
 @wp.kernel
 def create_camera_transforms_kernel(
     positions: wp.array(dtype=wp.vec3),  # type: ignore

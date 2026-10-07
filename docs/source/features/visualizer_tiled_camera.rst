@@ -108,6 +108,10 @@ use their sensor's renderer, including Newton Warp. The viewer makes no separate
 capture request in this mode. OVRTX currently submits all registered products together, even
 when only one consumer requests an image.
 
+RTX debug markers also belong to the shared renderer. Changes to marker counts, prototypes, or
+environment ownership rebuild the group's USD instances; pose and scale updates stay on the GPU.
+Their visibility applies to every perspective and sensor product sharing that renderer.
+
 Display layout and channel mappings are compiled when the source, selection, resolution, or
 color settings change. Composition writes into reusable device RGBA storage. Newton GL, Newton
 RTX, and Kit present CUDA images without downloading pixels. Recording through
@@ -227,7 +231,9 @@ Then choose what to display in ``VisualizerCfg``:
 
 * ``streaming_sensor_prim_path`` selects a scene :class:`~isaaclab.sensors.Camera` by its configured
   prim path. The ``{ENV_REGEX_NS}`` macro uses the scene's environment template.
-  If omitted, the first scene camera is selected; without cameras the panel stays empty.
+  If omitted, Newton GL and RTX start in perspective mode and offer compatible scene cameras
+  in the Camera View dropdown. Other viewers select the first compatible scene camera;
+  without one, their panel stays empty.
 * ``streaming_envs`` controls how many environment tiles are shown. Pass an ``int`` to randomly
   sample that many environments, or a ``list[int]`` to pin specific environment indices.
 * ``streaming_gt_types`` selects which ground-truth types are shown, e.g.
@@ -241,7 +247,8 @@ Troubleshooting
 * If a view reports no matching camera, declare a ``CameraCfg`` in the scene and set
   ``streaming_sensor_prim_path`` to its prim path.
 * Each ``streaming_gt_types`` entry must have a corresponding output in the selected
-  camera's ``data_types``. Missing channels raise an error rather than silently changing the view.
+  camera's ``data_types``; ``rgba`` also satisfies an ``rgb`` request. Automatically offered
+  cameras support every requested channel. Explicitly selecting an incompatible camera raises an error.
 * If the depth panel shows a flat color, adjust ``streaming_depth_min`` and
   ``streaming_depth_max`` to bracket the expected depth range in your scene.
 * If the view is too expensive, reduce ``streaming_envs``, ``--num_envs``, or the camera

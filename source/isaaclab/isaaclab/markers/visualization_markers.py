@@ -112,7 +112,7 @@ class VisualizationMarkers:
         self._count = len(cfg.markers)
         self._is_visible = True
         self._has_visualized = False
-        self._backends: list[object] = []
+        self._backends: dict[object, object] = {}
         self._ensure_backends_initialized()
 
     def __str__(self) -> str:
@@ -139,13 +139,13 @@ class VisualizationMarkers:
         """Set marker visibility for all initialized backends."""
         self._is_visible = visible
         self._ensure_backends_initialized()
-        for backend in self._backends:
+        for backend in self._backends.values():
             backend.set_visibility(visible)
 
     def is_visible(self) -> bool:
         """Return whether the marker group is visible."""
         if self._backends:
-            return any(backend.is_visible() for backend in self._backends)
+            return any(backend.is_visible() for backend in self._backends.values())
         return self._is_visible
 
     def visualize(
@@ -249,7 +249,7 @@ class VisualizationMarkers:
                 f"Received {norm_environment_ids.shape[0]} indices for {num_markers} markers."
             )
 
-        for backend in self._backends:
+        for backend in self._backends.values():
             backend.visualize(
                 norm_translations, norm_orientations, norm_scales, norm_marker_indices, norm_environment_ids
             )
@@ -259,7 +259,7 @@ class VisualizationMarkers:
             self._has_visualized = True
 
     def __del__(self):
-        for backend in getattr(self, "_backends", []):
+        for backend in getattr(self, "_backends", {}).values():
             if hasattr(backend, "close"):
                 backend.close()
 
@@ -288,30 +288,35 @@ class VisualizationMarkers:
         )
         if needs_kit_backend:
             self._ensure_kit_backend()
-        if any(
-            viz.supports_markers() and not viz.pumps_app_update() and viz.cfg.enable_markers for viz in sim.visualizers
-        ):
-            self._ensure_newton_backend()
+        for viz in sim.visualizers:
+            if not viz.supports_markers() or not viz.cfg.enable_markers:
+                continue
+            if viz.cfg.renderer_cfg is not None:
+                renderer = sim.get_or_create_backend(viz.cfg.renderer_cfg)
+                if renderer not in self._backends:
+                    self._backends[renderer] = renderer.create_markers(self.cfg, visible=self._is_visible)
+            elif not viz.pumps_app_update():
+                self._ensure_newton_backend()
 
     def _ensure_kit_backend(self) -> None:
         """Create the Kit marker backend if it is not already active."""
         from isaaclab_visualizers.kit.kit_visualization_markers import KitVisualizationMarkers
 
-        if not any(isinstance(backend, KitVisualizationMarkers) for backend in self._backends):
-            self._backends.append(KitVisualizationMarkers(self.cfg, visible=self._is_visible))
+        if KitVisualizationMarkers not in self._backends:
+            self._backends[KitVisualizationMarkers] = KitVisualizationMarkers(self.cfg, visible=self._is_visible)
 
     def _ensure_newton_backend(self) -> None:
         """Create the Newton-family marker backend if it is not already active."""
         from isaaclab_visualizers.newton.newton_visualization_markers import NewtonVisualizationMarkers
 
-        if not any(isinstance(backend, NewtonVisualizationMarkers) for backend in self._backends):
-            self._backends.append(NewtonVisualizationMarkers(self.cfg, visible=self._is_visible))
+        if NewtonVisualizationMarkers not in self._backends:
+            self._backends[NewtonVisualizationMarkers] = NewtonVisualizationMarkers(self.cfg, visible=self._is_visible)
 
     def _resolve_target_device(self, *values: torch.Tensor | None) -> torch.device:
         for value in values:
             if value is not None:
                 return value.device
-        for backend in self._backends:
+        for backend in self._backends.values():
             if hasattr(backend, "infer_device"):
                 return backend.infer_device()
         return torch.device("cpu")

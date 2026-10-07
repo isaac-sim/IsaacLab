@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import os
-import re
 import subprocess
 import sys
 import textwrap
@@ -154,38 +153,6 @@ def test_newton_marker_registry_lifecycle(marker_registry: _MarkerRegistry):
 
     assert marker._registry is None
     assert marker_registry.groups == {}
-
-
-def test_sanitize_newton_marker_group_id_rewrites_invalid_chars_into_usd_path():
-    """The registry ``prim_path::id`` key is rewritten into a USD-safe prim path."""
-    # The ``::`` the registry key carries is what the RTX USD stage rejects.
-    assert newton_markers._sanitize_newton_marker_group_id("/Visuals/test::140") == "/Visuals/test_140"
-    # A key without a leading slash is anchored to one so it is a valid prim path.
-    assert newton_markers._sanitize_newton_marker_group_id("Visuals/test::140") == "/Visuals/test_140"
-    # A run of invalid characters collapses into a single underscore.
-    assert newton_markers._sanitize_newton_marker_group_id("/a b::c") == "/a_b_c"
-
-
-@pytest.mark.parametrize("sanitize", [True, False])
-def test_render_newton_visualization_markers_sanitizes_render_id_only_for_rtx(
-    marker_registry: _MarkerRegistry, sanitize: bool
-):
-    """RTX logs markers under a USD-safe id; the GL path keeps the raw registry key."""
-    marker = newton_markers.NewtonVisualizationMarkers(
-        newton_markers.VisualizationMarkersCfg(prim_path="/Visuals/test", markers={}), visible=False
-    )
-    marker.render = Mock()
-
-    newton_markers.render_newton_visualization_markers(
-        viewer=Mock(), visible_env_ids=None, num_envs=1, sanitize_group_ids=sanitize
-    )
-
-    marker.render.assert_called_once()
-    render_id = marker.render.call_args.kwargs["render_id"]
-    if sanitize:
-        assert re.fullmatch(r"/Visuals/test_\d+", render_id)  # the raw key is "/Visuals/test::<id>"
-    else:
-        assert render_id is None
 
 
 def test_importing_newton_visualizer_lets_pyglet_resolve_a_screen_without_monitors():
@@ -724,7 +691,6 @@ def test_newton_visualizer_hard_reset_rebinds_viewer_model(monkeypatch, picking)
     viewer.picking_enabled = False
     viewer.set_model = Mock()
     viewer.renderer = SimpleNamespace()
-    viewer._coerce_color3 = tuple
     viewer.register_ui_callback = Mock()
     viewer._render_training_controls = Mock()
     viewer.set_visible_worlds = Mock()
@@ -981,6 +947,7 @@ def test_newton_scene_camera_controls_apply_uniformly_to_active_copies(monkeypat
                 # Switching only binds; the next display captures the newly selected sensor alone.
                 color_frame = color.frame.torch.clone()
                 back.update(cfg.sim.dt)
+                viewer.paused = True
                 visualizer._select_camera(2)
                 torch.testing.assert_close(back.frame.torch, back_frame)
                 viewer.camera.get_view_matrix = Mock(return_value=after)
@@ -1179,7 +1146,6 @@ def test_newton_gl_background_color(color: tuple[float, float, float] | None) ->
     visualizer = NewtonGLVisualizer(cfg)
     visualizer._viewer = SimpleNamespace(
         renderer=SimpleNamespace(),
-        _coerce_color3=lambda value: tuple(value),
     )
 
     visualizer._apply_viewer_post_init()

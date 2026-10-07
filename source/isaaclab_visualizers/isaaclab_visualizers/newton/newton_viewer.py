@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import contextlib
-import logging
 import math
 import os
 import sys
@@ -37,7 +36,6 @@ from pyglet.math import Vec3 as PygletVec3
 from isaaclab.utils.math import quat_apply, quat_from_matrix, quat_mul
 from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg
 
-logger = logging.getLogger(__name__)
 _BACKEND_DISPLAY_NAMES = {"physx": "PhysX", "ovphysx": "OVPhysX", "newton": "Newton MJWarp"}
 
 
@@ -48,11 +46,8 @@ def _imgui_optional_checkbox(imgui, label: str, value: bool, available: bool, ti
     _, new_val = imgui.checkbox(label, value)
     if not available:
         imgui.end_disabled()
-        try:
-            if imgui.is_item_hovered(imgui.HoveredFlags_.allow_when_disabled):
-                imgui.set_tooltip(tip)
-        except Exception:
-            pass
+        if imgui.is_item_hovered(imgui.HoveredFlags_.allow_when_disabled):
+            imgui.set_tooltip(tip)
         return value
     return new_val
 
@@ -135,7 +130,7 @@ class NewtonViewerGL(ViewerGL):
         1. **Isaac Lab** (open) — physics backend, model info, training controls.
         2. **Live Plots** (closed) — injected when :meth:`~NewtonGLVisualizer.add_live_plots`
            is called.
-        3. **Visualization Markers** (open) — Newton's debug overlays, renamed.
+        3. **Model Overlays** and **Visualization Markers** (closed) — debug visibility controls.
         4. **Rendering Options** (open) — VSync and renderer-specific options.
         5. **Wind** (closed) — only shown when ``viewer.wind`` is set.
         6. **Controls** (closed) — camera keyboard reference.
@@ -201,11 +196,11 @@ class NewtonViewerGL(ViewerGL):
             # --- Model overlays ---------------------------------------------
             if viewer.model is not None and viewer._main_image_name is None:
                 imgui.set_next_item_open(False, imgui.Cond_.appearing)
-                if imgui.collapsing_header("Visualization Markers"):
+                if imgui.collapsing_header("Model Overlays"):
                     imgui.separator()
-                    renderer = getattr(viewer, "renderer", None)
+                    renderer = viewer.renderer
                     _c, viewer.show_joints = imgui.checkbox("Show Joints", viewer.show_joints)
-                    if viewer.show_joints and renderer is not None and hasattr(renderer, "joint_scale"):
+                    if viewer.show_joints:
                         _, renderer.joint_scale = imgui.slider_float("Joint Scale", renderer.joint_scale, 0.25, 5.0)
                     _contacts_available = viewer._contacts_available
                     viewer.show_contacts = _imgui_optional_checkbox(
@@ -215,19 +210,15 @@ class NewtonViewerGL(ViewerGL):
                         _contacts_available,
                         "No contact sensors in this environment",
                     )
-                    if viewer.show_contacts and _contacts_available and renderer is not None:
-                        if hasattr(renderer, "arrow_length_scale"):
-                            _, renderer.arrow_length_scale = imgui.slider_float(
-                                "Contact Length", renderer.arrow_length_scale, 0.25, 5.0
-                            )
-                        if hasattr(renderer, "arrow_scale"):
-                            _, renderer.arrow_scale = imgui.slider_float(
-                                "Contact Width", renderer.arrow_scale, 0.25, 5.0
-                            )
+                    if viewer.show_contacts and _contacts_available:
+                        _, renderer.arrow_length_scale = imgui.slider_float(
+                            "Contact Length", renderer.arrow_length_scale, 0.25, 5.0
+                        )
+                        _, renderer.arrow_scale = imgui.slider_float("Contact Width", renderer.arrow_scale, 0.25, 5.0)
                     _model = viewer.model
-                    _has_particles = _model is not None and int(getattr(_model, "particle_count", 0)) > 0
-                    _has_springs = _model is not None and int(getattr(_model, "spring_count", 0)) > 0
-                    _has_cloth = _model is not None and int(getattr(_model, "tri_count", 0)) > 0
+                    _has_particles = _model.particle_count > 0
+                    _has_springs = _model.spring_count > 0
+                    _has_cloth = _model.tri_count > 0
                     viewer.show_particles = _imgui_optional_checkbox(
                         imgui,
                         "Show Particles",
@@ -243,7 +234,7 @@ class NewtonViewerGL(ViewerGL):
                         "No spring constraints in this environment",
                     )
                     _c, viewer.show_com = imgui.checkbox("Show Center of Mass", viewer.show_com)
-                    if viewer.show_com and renderer is not None and hasattr(renderer, "com_scale"):
+                    if viewer.show_com:
                         _, renderer.com_scale = imgui.slider_float("COM Scale", renderer.com_scale, 0.25, 5.0)
                     viewer.show_triangles = _imgui_optional_checkbox(
                         imgui,
@@ -253,25 +244,22 @@ class NewtonViewerGL(ViewerGL):
                         "No cloth/triangle meshes in this environment",
                     )
                     _c, viewer.show_collision = imgui.checkbox("Show Collision", viewer.show_collision)
-                    if renderer is not None and hasattr(renderer, "draw_edges"):
-                        _c, renderer.draw_edges = imgui.checkbox("Show Edges", renderer.draw_edges)
-                    sdf_margin_mode = getattr(viewer, "sdf_margin_mode", None)
-                    SDFMarginMode = getattr(type(viewer), "SDFMarginMode", None)
-                    if sdf_margin_mode is not None and SDFMarginMode is not None:
-                        _sdf_labels = ["Off", "Margin", "Margin + Gap"]
-                        _, new_sdf_idx = imgui.combo("Gap + Margin", int(sdf_margin_mode), _sdf_labels)
-                        viewer.sdf_margin_mode = SDFMarginMode(new_sdf_idx)
-                        if viewer.sdf_margin_mode != SDFMarginMode.OFF and renderer is not None:
-                            _, renderer.wireframe_line_width = imgui.slider_float(
-                                "Wireframe Width (px)", renderer.wireframe_line_width, 0.5, 5.0
-                            )
+                    _c, renderer.draw_edges = imgui.checkbox("Show Edges", renderer.draw_edges)
+                    _sdf_labels = ["Off", "Margin", "Margin + Gap"]
+                    _, new_sdf_idx = imgui.combo("Gap + Margin", int(viewer.sdf_margin_mode), _sdf_labels)
+                    viewer.sdf_margin_mode = viewer.SDFMarginMode(new_sdf_idx)
+                    if viewer.sdf_margin_mode != viewer.SDFMarginMode.OFF:
+                        _, renderer.wireframe_line_width = imgui.slider_float(
+                            "Wireframe Width (px)", renderer.wireframe_line_width, 0.5, 5.0
+                        )
                     _c, viewer.show_visual = imgui.checkbox("Show Visual", viewer.show_visual)
                     _c, viewer.show_inertia_boxes = imgui.checkbox("Show Inertia Boxes", viewer.show_inertia_boxes)
-                    registry = viewer.marker_registry
-                    marker_groups = () if registry is None else registry.get_groups().values()
-                    for marker in marker_groups:
+            if viewer.marker_groups:
+                imgui.set_next_item_open(False, imgui.Cond_.appearing)
+                if imgui.collapsing_header("Visualization Markers"):
+                    for marker in viewer.marker_groups:
                         name = marker.cfg.prim_path.rsplit("/", 1)[-1].replace("_", " ")
-                        changed, visible = imgui.checkbox(f"Show {name}##{marker.group_id}", marker.is_visible())
+                        changed, visible = imgui.checkbox(f"Show {name}##{id(marker)}", marker.is_visible())
                         if changed:
                             marker.set_visibility(visible)
 
@@ -357,41 +345,6 @@ class NewtonViewerGL(ViewerGL):
                 " training\nhigher values -> less responsive visualizer but faster training"
             )
 
-    def _coerce_color3(self, color) -> tuple[float, float, float]:
-        """Normalize color values from imgui/renderer into an RGB tuple."""
-        if hasattr(color, "x") and hasattr(color, "y") and hasattr(color, "z"):
-            return (float(color.x), float(color.y), float(color.z))
-        return (float(color[0]), float(color[1]), float(color[2]))
-
-    def _color_edit3_compat(self, imgui, label: str, color):
-        """Handle imgui.color_edit3 API differences between bindings.
-
-        Some require vector-like objects, others require a Sequence[float].
-        This method tries both approaches, caching the one that works to avoid
-        repeated exceptions.
-
-        .. note::
-            This is a compatibility workaround; it can be removed once the
-            imgui_bundle binding API stabilises.
-        """
-        color_tuple = self._coerce_color3(color)
-        sequence_color = [color_tuple[0], color_tuple[1], color_tuple[2]]
-        if self._color_edit3_prefers_sequence is not True:
-            try:
-                imvec4 = imgui.ImVec4(sequence_color[0], sequence_color[1], sequence_color[2], 1.0)
-                changed, edited = imgui.color_edit3(label, imvec4)
-                self._color_edit3_prefers_sequence = False
-                return changed, self._coerce_color3(edited)
-            except Exception:
-                self._color_edit3_prefers_sequence = True
-
-        try:
-            changed, edited = imgui.color_edit3(label, sequence_color)
-            return changed, self._coerce_color3(edited)
-        except Exception as exc:
-            logger.debug("[NewtonGLVisualizer] color_edit3 failed for '%s': %s", label, exc)
-            return False, color_tuple
-
     def __init__(self, *args, metadata: dict | None = None, update_frequency: int = 1, **kwargs):
         """Initialize Newton viewer wrapper state.
 
@@ -406,7 +359,6 @@ class NewtonViewerGL(ViewerGL):
         self._reset_requested = False
         self._metadata = metadata or {}
         self._update_frequency = update_frequency
-        self._color_edit3_prefers_sequence: bool | None = None
         self.particle_color: tuple[float, float, float] | None = None
         self._particle_color_buffer: wp.array | None = None
         self._particle_color_buffer_count = 0
@@ -414,7 +366,7 @@ class NewtonViewerGL(ViewerGL):
         self._mpm_particle_flags_cache_key: tuple[int, int, int] | None = None
         self._mpm_particles_all_active = False
         self._live_plots_callback = None
-        self.marker_registry = None
+        self.marker_groups = ()
         backend = self._metadata.get("physics_backend", "Unknown")
         self._backend_display = _BACKEND_DISPLAY_NAMES.get(backend, backend)
 
@@ -460,7 +412,7 @@ class NewtonViewerGL(ViewerGL):
 
     def _particle_color_array(self, count: int) -> wp.array:
         """Return a cached Warp color array for Newton's particle point batch."""
-        color = self._coerce_color3(self.particle_color)
+        color = tuple(self.particle_color)
         if (
             self._particle_color_buffer is None
             or self._particle_color_buffer_count != count
@@ -480,11 +432,7 @@ class NewtonViewerGL(ViewerGL):
         """Return particle colors only when Newton needs the GL color buffer refreshed."""
         obj = self.objects.get(name)
         capacity = obj.num_instances if obj is not None else 0
-        if (
-            obj is None
-            or count > capacity
-            or self._particle_color_buffer_value != self._coerce_color3(self.particle_color)
-        ):
+        if obj is None or count > capacity or self._particle_color_buffer_value != tuple(self.particle_color):
             return self._particle_color_array(max(count, capacity))
         return None
 

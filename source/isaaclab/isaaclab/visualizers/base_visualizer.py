@@ -125,19 +125,17 @@ class BaseVisualizer(ABC):
         *,
         visible_env_ids: list[int] | None = None,
         target_aspect: float = 1.0,
-        select_camera: bool = True,
     ) -> None:
-        """Configure tiles and optionally select a camera; interactive selectors can defer binding."""
+        """Configure tiles and bind the first scene camera for display."""
         if not self.cfg.streaming_view:
             return
         self._streaming_aspect = target_aspect
         self._camera_sensor_indices = resolve_streaming_envs(
             num_envs, self.cfg.streaming_envs, sample_from=visible_env_ids
         )
-        if select_camera:
-            self._camera_sensor = next(
-                (camera for camera in self._camera_choices if not isinstance(camera, PerspectiveCameraCfg)), None
-            )
+        self._camera_sensor = next(
+            (camera for camera in self._camera_choices if not isinstance(camera, PerspectiveCameraCfg)), None
+        )
 
     def render_tiled_rgba(self) -> wp.array | None:
         """Acquire the selected camera frame and compose a device-resident display image.

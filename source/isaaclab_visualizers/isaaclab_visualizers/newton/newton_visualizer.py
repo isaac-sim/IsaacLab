@@ -219,7 +219,7 @@ class NewtonGLVisualizer(_NewtonCameraControls, BaseVisualizer):
         self._viewer = self._create_viewer(runtime_headless, metadata)
 
         if self._viewer is not None:
-            self._viewer.marker_registry = sim.vis_marker_registry
+            self._viewer.marker_groups = sim.vis_marker_registry.get_groups().values()
             self._viewer.set_model(self.backend.model)
             if self._picking_enabled:
                 # Keep Newton's public force path scoped to picking for this integration.
@@ -239,8 +239,6 @@ class NewtonGLVisualizer(_NewtonCameraControls, BaseVisualizer):
             num_envs,
             visible_env_ids=self._env_ids,
             target_aspect=self.cfg.window_width / self.cfg.window_height,
-            # GL binds its selected source after constructing the camera choices.
-            select_camera=False,
         )
 
         if self._viewer is not None:
@@ -872,9 +870,9 @@ class NewtonGLVisualizer(_NewtonCameraControls, BaseVisualizer):
         else:
             self._viewer.renderer.draw_sky = False
             upper_color = lower_color = self.cfg.background_color
-        self._viewer.renderer.sky_upper = self._viewer._coerce_color3(upper_color)
-        self._viewer.renderer.sky_lower = self._viewer._coerce_color3(lower_color)
-        self._viewer.renderer._light_color = self._viewer._coerce_color3(self.cfg.light_color)
+        self._viewer.renderer.sky_upper = tuple(upper_color)
+        self._viewer.renderer.sky_lower = tuple(lower_color)
+        self._viewer.renderer._light_color = tuple(self.cfg.light_color)
 
     def render_rgb_array(self) -> np.ndarray:
         """Return the latest RGB frame rendered by the Newton GL viewer.

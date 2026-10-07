@@ -47,6 +47,8 @@ from isaaclab_visualizers.newton import (
 
 import isaaclab.sim as sim_utils
 from isaaclab.envs.utils.camera_view import camera_rgb_batch, compose_rgb_grid_tensor
+from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
+from isaaclab.markers.config import GREEN_ARROW_X_MARKER_CFG
 from isaaclab.sensors import CameraCfg
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.math import (
@@ -1025,15 +1027,18 @@ def _flush_newton_render_for_motion_capture(visualizer) -> None:
 
 def _assert_newton_rtx_markers_drawn(env, visualizer: NewtonRTXVisualizer, *, case_label: str) -> None:
     """Fail unless a visualization marker shows up in the Newton RTX capture when it is made visible."""
-    from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
-
     markers = VisualizationMarkers(
         VisualizationMarkersCfg(
             prim_path="/Visuals/rtx_marker_check",
             markers={
                 "sphere": sim_utils.SphereCfg(
                     radius=0.4, visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0))
-                )
+                ),
+                "bar": sim_utils.CuboidCfg(
+                    size=(1.0, 0.3, 0.3),
+                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 0.0)),
+                ),
+                "arrow": GREEN_ARROW_X_MARKER_CFG.markers["arrow"],
             },
         )
     )
@@ -1048,6 +1053,35 @@ def _assert_newton_rtx_markers_drawn(env, visualizer: NewtonRTXVisualizer, *, ca
     shown_frame = _capture(True)
     _assert_frames_differ(
         hidden_frame, shown_frame, case_label=case_label, phase="marker visible", debug_phase="marker"
+    )
+    red = (shown_frame[..., 0] > 50) & (shown_frame[..., 0] > 1.5 * shown_frame[..., 1])
+    red &= shown_frame[..., 0] > 1.5 * shown_frame[..., 2]
+    assert not red[3 * shown_frame.shape[0] // 4 :].any(), "Marker prototypes must not appear at the origin."
+    markers.visualize(marker_indices=[1])
+    bar_frame = _capture(True)
+    _assert_frames_differ(
+        shown_frame, bar_frame, case_label=case_label, phase="marker prototype changed", debug_phase="marker"
+    )
+    markers.visualize(
+        orientations=torch.tensor([[0.0, 0.0, 2**-0.5, 2**-0.5]], device=env.device),
+        scales=torch.tensor([[2.0, 1.0, 1.0]], device=env.device),
+    )
+    rotated_frame = _capture(True)
+    widths = []
+    for image in (bar_frame, rotated_frame):
+        green = (image[..., 1] > 50) & (image[..., 1] > 1.5 * image[..., 0])
+        green &= image[..., 1] > 1.5 * image[..., 2]
+        columns = np.nonzero(green)[1]
+        assert columns.size, "The green marker must remain visible."
+        widths.append(np.ptp(columns))
+    assert widths[1] > 2 * widths[0], "Rotating the bar into the image plane must change its visible extent."
+    position = torch.tensor(_CARTPOLE_INTEGRATION_VISUALIZER_LOOKAT, device=env.device)
+    positions = position.repeat(2, 1)
+    positions[1, 1] += 0.7
+    markers.visualize(translations=positions, marker_indices=[0, 2], environment_ids=[0, 0])
+    resized_frame = _capture(True)
+    _assert_frames_differ(
+        rotated_frame, resized_frame, case_label=case_label, phase="marker count changed", debug_phase="marker"
     )
 
 

@@ -29,9 +29,10 @@ from .newton_viewer import NewtonViewerGL, _NewtonCameraControls
 from .newton_visualizer_cfg import NewtonRTXVisualizerCfg
 
 if TYPE_CHECKING:
+    from isaaclab_ov.renderers.ovrtx_renderer import OVRTXRenderer
+
     from pxr import Usd
 
-    from isaaclab.renderers import BaseRenderer
     from isaaclab.scene_data import SceneDataProvider
     from isaaclab.sensors.camera import Camera
 
@@ -44,7 +45,7 @@ class NewtonRTXVisualizer(_NewtonCameraControls, BaseVisualizer):
     selections borrow published sensor pixels without changing sensor resolution or lifetime.
     """
 
-    def __init__(self, cfg: NewtonRTXVisualizerCfg, *, renderer: BaseRenderer | None = None):
+    def __init__(self, cfg: NewtonRTXVisualizerCfg, *, renderer: OVRTXRenderer | None = None):
         """Create a window consumer with the renderer supplied by the simulation registry."""
         super().__init__(cfg)
         self._renderer = renderer
@@ -88,11 +89,11 @@ class NewtonRTXVisualizer(_NewtonCameraControls, BaseVisualizer):
             update_frequency=cfg.update_frequency,
         )
         self._viewer.renderer.set_title("Isaac Lab RTX")
+        self._viewer.marker_groups = self._renderer.markers
         self._setup_streaming_view(
             scene_data_provider.num_envs,
             visible_env_ids=self._env_ids,
             target_aspect=cfg.window_width / cfg.window_height,
-            select_camera=False,
         )
         self._viewer.register_ui_callback(self._draw_streaming_view_controls, position="side")
         self._select_camera(self._camera_index)
@@ -210,6 +211,10 @@ class NewtonRTXVisualizer(_NewtonCameraControls, BaseVisualizer):
     def is_running(self) -> bool:
         """Return whether the presentation window is open."""
         return self._viewer is not None and not self._is_closed and self._viewer.is_running()
+
+    def supports_markers(self) -> bool:
+        """Display marker groups owned by the shared renderer."""
+        return True
 
     def is_training_paused(self) -> bool:
         """Return the window's training pause state."""
