@@ -36,86 +36,27 @@ A coupled simulation starts from one Newton model. Instead of giving the whole
 model to one solver, Isaac Lab partitions it into named entries. Each entry
 selects a solver and owns a disjoint part of the model.
 
-The proxy example below shows how the Franka hand and fingers of an MJWarp-owned
-robot interact with VBD-owned cloth through two views of that same model:
+The animation below shows how source-owned gripper bodies interact with
+material owned by a destination solver through local proxies:
 
 .. raw:: html
 
-   <figure class="coupling-diagram" aria-labelledby="coupling-diagram-caption">
-     <div class="coupling-diagram-heading">
-       <strong>One shared Newton model</strong>
-       <span>MJWarp–VBD proxy example</span>
-     </div>
-     <div class="coupling-diagram-views">
-       <div class="coupling-diagram-view coupling-diagram-source">
-         <p class="coupling-diagram-role">Source view</p>
-         <p class="coupling-diagram-title"><code>rigid</code> · MJWarp</p>
-         <p>Owns robot bodies, joints, and shapes</p>
-         <svg viewBox="0 0 300 215" role="img" aria-labelledby="coupling-source-title coupling-source-desc">
-           <title id="coupling-source-title">Robot with a selected Franka hand and fingers</title>
-           <desc id="coupling-source-desc">A solid blue robot arm belongs to MJWarp. Its amber Franka hand has a wide housing, inward-sloping finger stems, and parallel fingertip pads. The hand and fingers are selected for the proxy mapping.</desc>
-           <g class="coupling-diagram-arm">
-             <path d="M40 184 V145 L91 111 L144 54 H205 V82"/>
-             <circle cx="40" cy="145" r="9"/>
-             <circle cx="91" cy="111" r="9"/>
-             <circle cx="144" cy="54" r="9"/>
-             <path d="M22 190 H58"/>
-           </g>
-           <g class="coupling-diagram-hand">
-             <path d="M171 76 H191 V82 H219 V76 H239 Q249 76 252 90 L255 107 Q256 113 249 113 H161 Q154 113 155 107 L158 90 Q161 76 171 76 Z"/>
-             <path d="M174 113 H184 V120 L193 128 H185 L174 121 Z"/>
-             <path d="M236 113 H226 V120 L217 128 H225 L236 121 Z"/>
-             <rect x="185" y="128" width="10" height="12"/>
-             <rect x="215" y="128" width="10" height="12"/>
-           </g>
-         </svg>
-         <ul class="coupling-diagram-legend" aria-label="Source view legend">
-           <li><span class="coupling-diagram-swatch coupling-diagram-swatch-arm" aria-hidden="true"></span>Robot arm</li>
-           <li><span class="coupling-diagram-swatch coupling-diagram-swatch-hand" aria-hidden="true"></span>Selected hand + fingers</li>
-         </ul>
-       </div>
-       <div class="coupling-diagram-exchange">
-         <div class="coupling-diagram-transfer">
-           <p>Pose + velocity</p>
-           <span class="coupling-diagram-arrow coupling-diagram-state-arrow" aria-hidden="true"></span>
-           <p class="coupling-diagram-detail">Synchronize the proxy before the destination solve</p>
-         </div>
-         <div class="coupling-diagram-feedback">
-           <p>Forces + torques</p>
-           <span class="coupling-diagram-arrow coupling-diagram-feedback-arrow" aria-hidden="true"></span>
-           <p class="coupling-diagram-detail">Return feedback for the next source pass or iteration</p>
-         </div>
-       </div>
-       <div class="coupling-diagram-view coupling-diagram-destination">
-         <p class="coupling-diagram-role">Destination view</p>
-         <p class="coupling-diagram-title"><code>soft</code> · VBD</p>
-         <p>Owns cloth particles and static shapes</p>
-         <svg viewBox="0 0 300 215" role="img" aria-labelledby="coupling-destination-title coupling-destination-desc">
-           <title id="coupling-destination-title">Cloth contacting the proxy hand and fingers</title>
-           <desc id="coupling-destination-desc">Dashed amber outlines represent the same selected Franka hand and fingers in VBD's view. Purple cloth particles contact the parallel fingertip pads. The rest of the robot is not exposed as a proxy.</desc>
-           <g class="coupling-diagram-cloth">
-             <path d="M85 156 L125 136 L135 132 L145 136 L185 156 M85 174 L125 154 L135 150 L145 154 L185 174 M85 192 L125 172 L135 168 L145 172 L185 192 M85 156 V192 M125 136 V172 M135 132 V168 M145 136 V172 M185 156 V192"/>
-             <circle cx="85" cy="156" r="4"/><circle cx="125" cy="136" r="4"/><circle cx="135" cy="132" r="4"/><circle cx="145" cy="136" r="4"/><circle cx="185" cy="156" r="4"/>
-             <circle cx="85" cy="174" r="4"/><circle cx="125" cy="154" r="4"/><circle cx="135" cy="150" r="4"/><circle cx="145" cy="154" r="4"/><circle cx="185" cy="174" r="4"/>
-             <circle cx="85" cy="192" r="4"/><circle cx="125" cy="172" r="4"/><circle cx="135" cy="168" r="4"/><circle cx="145" cy="172" r="4"/><circle cx="185" cy="192" r="4"/>
-           </g>
-           <g class="coupling-diagram-hand coupling-diagram-proxy" transform="translate(-70 0)">
-             <path d="M171 76 H191 V82 H219 V76 H239 Q249 76 252 90 L255 107 Q256 113 249 113 H161 Q154 113 155 107 L158 90 Q161 76 171 76 Z"/>
-             <path d="M174 113 H184 V120 L193 128 H185 L174 121 Z"/>
-             <path d="M236 113 H226 V120 L217 128 H225 L236 121 Z"/>
-             <rect x="185" y="128" width="10" height="12"/>
-             <rect x="215" y="128" width="10" height="12"/>
-           </g>
-         </svg>
-         <ul class="coupling-diagram-legend" aria-label="Destination view legend">
-           <li><span class="coupling-diagram-swatch coupling-diagram-swatch-proxy" aria-hidden="true"></span>Same bodies as proxies</li>
-           <li><span class="coupling-diagram-swatch coupling-diagram-swatch-cloth" aria-hidden="true"></span>Cloth particles</li>
-         </ul>
-       </div>
-     </div>
-     <figcaption id="coupling-diagram-caption">
-       MJWarp owns the robot; VBD sees the selected hand and fingers as virtual colliders alongside its cloth particles.
-       VBD solves contact using destination-local virtual inertia and returns force and torque feedback for a later source pass.
+   <figure class="coupling-animation">
+     <video controls playsinline preload="none" width="1280" height="866"
+            poster="../../_static/newton/proxy-coupling.jpg"
+            aria-label="Proxy coupling between source and destination solvers"
+            aria-describedby="coupling-animation-caption">
+       <source src="https://github.com/user-attachments/assets/388995b0-0845-46f9-aa4e-a52607243d12" type="video/mp4">
+       <a href="https://github.com/user-attachments/assets/388995b0-0845-46f9-aa4e-a52607243d12">Watch the proxy coupling animation.</a>
+     </video>
+     <figcaption id="coupling-animation-caption">
+       <p>Filled teal fingers belong to the source solver; outlined blue fingers are
+         destination-local proxies of those same bodies. The blue object represents
+         material owned by the destination solver.</p>
+       <p>The upper arrow synchronizes source state with the proxies, including pose
+         and velocity. Contact produces the force and torque feedback shown by the
+         lower arrow, which returns to a later source solve or coupling iteration.</p>
+       <p><a href="https://github.com/user-attachments/assets/388995b0-0845-46f9-aa4e-a52607243d12">Open the animation</a> to pause or scrub through the exchange.</p>
      </figcaption>
    </figure>
 
