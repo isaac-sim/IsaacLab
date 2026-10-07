@@ -1,0 +1,56 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""Configuration of the PhysicsNeMo learned-dynamics Newton solver."""
+
+from __future__ import annotations
+
+from collections.abc import Callable
+from dataclasses import MISSING
+from typing import TYPE_CHECKING, Literal
+
+from isaaclab_newton.physics import NewtonSolverCfg
+
+from isaaclab.utils import configclass
+
+if TYPE_CHECKING:
+    from .physicsnemo_manager import NewtonPhysicsNeMoManager
+
+
+@configclass
+class PhysicsNeMoSolverCfg(NewtonSolverCfg):
+    """Run a saved PhysicsNeMo Robotics dynamics artifact as the Newton solver.
+
+    Select it through :attr:`~isaaclab_newton.physics.NewtonCfg.solver_cfg`. The artifact replaces the
+    complete Newton state transition, so the environment must use ``num_substeps = 1``, a physics step
+    equal to the artifact frame duration, and ``use_cuda_graph = False``.
+    :func:`~isaaclab_physicsnemo.apply_learned_physics` applies these settings to a recording
+    configuration.
+    """
+
+    class_type: type[NewtonPhysicsNeMoManager] | str = "{DIR}.physicsnemo_manager:NewtonPhysicsNeMoManager"
+    """Manager class for this solver."""
+
+    solver_type: str = "physicsnemo"
+    """Solver type metadata for logging."""
+
+    artifact_path: str = MISSING
+    """Directory of a saved :class:`~physicsnemo_robotics.dynamics.DynamicsArtifact`."""
+
+    continuity: Literal["verify", "refill", "off"] = "verify"
+    """Response to Newton state rewrites that were not reported as environment resets.
+
+    ``"verify"`` rejects them, ``"refill"`` restarts the affected histories, and ``"off"`` trusts the
+    reset masks Isaac Lab forwards.
+    """
+
+    model_factory: Callable | str | None = None
+    """Factory returning the network module, required only for artifacts storing a plain Torch module."""
+
+    codec_factory: Callable | str | None = None
+    """Factory building a custom state codec, required only for artifacts with one."""
+
+    feature_factory: Callable | str | None = None
+    """Factory building a custom feature encoder, required only for artifacts with one."""

@@ -1,0 +1,140 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""Record Isaac Lab Newton episodes as PhysicsNeMo trajectory datasets."""
+
+from __future__ import annotations
+
+import math
+from pathlib import Path
+from typing import TYPE_CHECKING, Literal
+
+import torch
+from physicsnemo_robotics.data import NewtonTrajectoryWriter, TrajectoryRecorder
+from physicsnemo_robotics.dynamics import TrajectoryFieldSpec, TrajectorySchema, newton_state_codec
+from physicsnemo_robotics.newton import field_to_torch
+
+from .binding import NewtonBinding
+from .physics import validate_effort_control
+
+if TYPE_CHECKING:
+    from isaaclab.envs import DirectRLEnv, ManagerBasedEnv
+
+CONTROL_KEY = "control/joint_f"
+"""Trajectory field holding the joint efforts that Isaac Lab applied during each transition."""
+
+
+class TrajectoryDatasetRecorder:
+    """Write the episodes of a running Isaac Lab environment to a Zarr trajectory dataset.
+
+    The recorder reads the generalized joint state of every environment after each
+    :meth:`~isaaclab.envs.DirectRLEnv.step` and stores the applied joint efforts
+    (:data:`CONTROL_KEY`) as the transition between consecutive states. One environment step must
+    equal one physics step, so the environment must use ``decimation = 1``. Isaac Lab resets finished
+    environments before ``step`` returns, so each finished episode drops its last observed frame and a
+    new episode starts from the returned reset state.
+
+    The applied joint efforts must be the only actuation and external input of the scene: implicit
+    position drives are rejected, and the environment must not apply external body wrenches, whose
+    effect would be recorded without its cause.
+
+    Use it as a context manager so that pending episodes are written and the dataset is published.
+    """
+
+    def __init__(
+        self,
+        env: DirectRLEnv | ManagerBasedEnv,
+        path: str | Path,
+        *,
+        scenario_id: str,
+        remove_root_translation: bool | Literal["planar"] = False,
+        seed: int = 0,
+        replace: bool = False,
+    ) -> None:
+        """Bind the initialized environment and create the dataset.
+
+        Args:
+            env: Environment after its first reset, running a Newton teacher solver.
+            path: Output dataset directory.
+            scenario_id: Stable name of the data-collection scenario stored with every episode.
+            remove_root_translation: Root translation removed from model inputs. Use ``"planar"`` for
+                floating-base robots so that per-environment origins do not reach the model.
+            seed: Seed stored with every episode.
+            replace: Whether to replace an existing dataset at ``path``.
+
+        Raises:
+            ValueError: If one environment step spans more than one physics step, or a joint uses an
+                implicit position drive.
+        """
+        manager = env.sim.physics_manager
+        if not math.isclose(env.step_dt, manager.get_dt(), rel_tol=1e-9):
+            raise ValueError(
+                f"Recording requires one physics step per environment step, got step_dt={env.step_dt} and"
+                f" physics dt={manager.get_dt()}. Set decimation to 1."
+            )
+        self.binding = NewtonBinding(manager)
+        validate_effort_control(self.binding.model)
+        self.codec = newton_state_codec(
+            self.binding.model, "joint", joint_remove_root_translation=remove_root_translation
+        )
+        self.schema = TrajectorySchema.from_specs(
+            self.binding.spec,
+            self.binding.execution_spec,
+            self.codec,
+            fields=(
+                TrajectoryFieldSpec(
+                    CONTROL_KEY, "transition", dtype="float32", trailing_shape=(self._applied_joint_f().shape[-1],)
+                ),
+            ),
+        )
+        self._recorder = TrajectoryRecorder(
+            self.schema,
+            worlds=self.binding.worlds,
+            seed=seed,
+            scenario_id=scenario_id,
+            metadata={"decimation": 1, "physics_dt": manager.get_dt()},
+        )
+        self._writer = NewtonTrajectoryWriter(path, self.schema, mode="replace" if replace else "create")
+        self._recorder.begin(self.codec.read(self.binding.state))
+        self.episodes_written = 0
+        """Number of episodes written to the dataset."""
+
+    def __enter__(self) -> TrajectoryDatasetRecorder:
+        return self
+
+    def __exit__(self, exc_type: object, exc: object, traceback: object) -> None:
+        if exc_type is None:
+            self.close()
+        else:
+            # Discard a partially written replacement dataset instead of publishing it.
+            self._writer.__exit__(exc_type, exc, traceback)
+
+    def record(self, dones: torch.Tensor) -> None:
+        """Record the transition produced by the latest environment step.
+
+        Args:
+            dones: Terminated or truncated environments returned by the step, shape [num_envs].
+        """
+        self._recorder.record(self.codec.read(self.binding.state), transitions={CONTROL_KEY: self._applied_joint_f()})
+        if bool(dones.any()):
+            self._write(self._recorder.finalize(dones, drop_last=1))
+            self._recorder.begin(self.codec.read(self.binding.state), worlds_mask=dones)
+
+    def close(self) -> Path:
+        """Write the open episodes and publish the dataset.
+
+        Returns:
+            The dataset directory.
+        """
+        self._write(self._recorder.finalize())
+        return self._writer.close()
+
+    def _applied_joint_f(self) -> torch.Tensor:
+        return field_to_torch(self.binding.control.joint_f, clone=True).reshape(self.binding.worlds, -1)
+
+    def _write(self, episodes) -> None:
+        for episode in episodes:
+            self._writer.append(episode.data, episode.metadata)
+            self.episodes_written += 1
