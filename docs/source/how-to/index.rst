@@ -276,39 +276,35 @@ How-to Guides
 
          Diagnose bottlenecks and improve simulation throughput.
 
-      .. container:: guide-entry
-
-         :doc:`Tuning physics solvers </source/how-to/solver-tuning/index>`
-
-         Diagnose stability, contacts, convergence, and runtime for PhysX, MJWarp, Kamino, VBD, and MPM.
+      .. _solver-tuning:
 
       .. container:: guide-entry
 
-         :doc:`Tuning the PhysX solver </source/how-to/solver-tuning/tune_physx>`
+         :doc:`Tuning the PhysX solver </source/how-to/solver_tuning_physx>`
 
          Tune timestep, iterations, and contacts to diagnose PhysX solver stability.
 
       .. container:: guide-entry
 
-         :doc:`Tuning the MJWarp solver </source/how-to/solver-tuning/tune_mjwarp>`
+         :doc:`Tuning the MJWarp solver </source/how-to/solver_tuning_mjwarp>`
 
          Tune Newton MuJoCo-Warp contact capacity, timestep, friction, and convergence.
 
       .. container:: guide-entry
 
-         :doc:`Tuning the Kamino solver </source/how-to/solver-tuning/tune_kamino>`
+         :doc:`Tuning the Kamino solver </source/how-to/solver_tuning_kamino>`
 
          Tune Newton Kamino PADMM or DVI convergence, stabilization, timestep, and substeps.
 
       .. container:: guide-entry
 
-         :doc:`Tuning the VBD solver </source/how-to/solver-tuning/tune_vbd>`
+         :doc:`Tuning the VBD solver </source/how-to/solver_tuning_vbd>`
 
          Tune Newton Vertex Block Descent (VBD) materials, contacts, cloth, soft bodies, and proxy or ADMM coupling.
 
       .. container:: guide-entry
 
-         :doc:`Tuning the MPM solver </source/how-to/solver-tuning/tune_mpm>`
+         :doc:`Tuning the MPM solver </source/how-to/solver_tuning_mpm>`
 
          Tune Newton Material Point Method (MPM) resolution, timestep, convergence, and material parameters.
 
