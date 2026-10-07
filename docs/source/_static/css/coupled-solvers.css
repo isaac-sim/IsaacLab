@@ -102,9 +102,9 @@ html[data-theme="dark"] .coupling-diagram {
 
 .coupling-diagram-legend {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.5rem 1rem;
-    margin: 1rem 0 0;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.5rem;
+    margin: 0.25rem 0 0;
     padding: 0;
     list-style: none;
     font-size: 0.9rem;
@@ -187,10 +187,6 @@ html[data-theme="dark"] .coupling-diagram {
     .coupling-diagram-exchange {
         grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 1rem;
-    }
-
-    .coupling-diagram-legend {
-        grid-template-columns: minmax(0, 1fr);
     }
 
     .coupling-diagram-state-arrow::before {

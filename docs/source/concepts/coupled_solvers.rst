@@ -69,6 +69,10 @@ robot interact with VBD-owned cloth through two views of that same model:
              <rect x="215" y="128" width="10" height="12"/>
            </g>
          </svg>
+         <ul class="coupling-diagram-legend" aria-label="Source view legend">
+           <li><span class="coupling-diagram-swatch coupling-diagram-swatch-arm" aria-hidden="true"></span>Robot arm</li>
+           <li><span class="coupling-diagram-swatch coupling-diagram-swatch-hand" aria-hidden="true"></span>Selected hand + fingers</li>
+         </ul>
        </div>
        <div class="coupling-diagram-exchange">
          <div class="coupling-diagram-transfer">
@@ -103,15 +107,12 @@ robot interact with VBD-owned cloth through two views of that same model:
              <rect x="215" y="128" width="10" height="12"/>
            </g>
          </svg>
-         <p class="coupling-diagram-detail">Solve local contacts with the cloth</p>
+         <ul class="coupling-diagram-legend" aria-label="Destination view legend">
+           <li><span class="coupling-diagram-swatch coupling-diagram-swatch-proxy" aria-hidden="true"></span>Same bodies as proxies</li>
+           <li><span class="coupling-diagram-swatch coupling-diagram-swatch-cloth" aria-hidden="true"></span>Cloth particles</li>
+         </ul>
        </div>
      </div>
-     <ul class="coupling-diagram-legend" aria-label="Diagram legend">
-       <li><span class="coupling-diagram-swatch coupling-diagram-swatch-arm" aria-hidden="true"></span>Robot arm</li>
-       <li><span class="coupling-diagram-swatch coupling-diagram-swatch-hand" aria-hidden="true"></span>Selected hand + fingers</li>
-       <li><span class="coupling-diagram-swatch coupling-diagram-swatch-proxy" aria-hidden="true"></span>Same bodies as proxies</li>
-       <li><span class="coupling-diagram-swatch coupling-diagram-swatch-cloth" aria-hidden="true"></span>Cloth particles</li>
-     </ul>
      <figcaption id="coupling-diagram-caption">
        MJWarp owns the robot; VBD sees the selected hand and fingers as virtual colliders alongside its cloth particles.
        VBD solves contact using destination-local virtual inertia and returns force and torque feedback for a later source pass.
