@@ -7,8 +7,8 @@ from __future__ import annotations
 
 import functools
 import inspect
-from collections.abc import Callable, Sequence
-from typing import TYPE_CHECKING
+from collections.abc import Callable, Iterable, Sequence
+from typing import TYPE_CHECKING, Any
 
 import torch
 
@@ -75,11 +75,15 @@ class ModifierChain:
             modifier.reset(env_ids=env_ids)
 
     def close(self) -> None:
-        """Close constructed class modifiers. The chain rebuilds them if it is called again."""
+        """Close constructed class modifiers. The chain rebuilds them if it is called again.
+
+        Raises:
+            Exception: The error of the only modifier that failed to close, or an :class:`ExceptionGroup` of
+                several. Every modifier is closed first.
+        """
         instances, self._instances = self._instances, []
         self._stages = [None] * len(self._cfgs)
-        for modifier in instances:
-            modifier.close()
+        close_all(instances)
 
     def _build(self, cfg: ModifierCfg, data: torch.Tensor) -> Callable[[torch.Tensor], torch.Tensor]:
         func = string_to_callable(str(cfg.func)) if isinstance(cfg.func, str) else cfg.func
@@ -94,3 +98,24 @@ class ModifierChain:
         if not callable(func):
             raise TypeError(f"Modifier function must be callable, received '{func}'.")
         return functools.partial(func, **cfg.params)
+
+
+def close_all(resources: Iterable[Any]) -> None:
+    """Call ``close()`` on every resource, then raise any errors.
+
+    Args:
+        resources: Objects with a ``close()`` method, such as modifiers or modifier chains.
+
+    Raises:
+        Exception: The only error raised while closing, or an :class:`ExceptionGroup` of several.
+    """
+    errors = []
+    for resource in resources:
+        try:
+            resource.close()
+        except Exception as error:
+            errors.append(error)
+    if len(errors) == 1:
+        raise errors[0]
+    if errors:
+        raise ExceptionGroup("Failed to close modifiers.", errors)

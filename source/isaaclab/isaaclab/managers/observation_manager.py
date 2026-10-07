@@ -18,6 +18,7 @@ from prettytable import PrettyTable
 from ..envs.utils.io_descriptors import _warn_io_descriptors_deprecated
 from ..utils import instantiate, modifiers, noise, to_dict
 from ..utils.buffers import CircularBuffer, DelayBuffer
+from ..utils.modifiers.modifier_chain import close_all
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import ObservationGroupCfg, ObservationTermCfg
 
@@ -346,11 +347,14 @@ class ObservationManager(ManagerBase):
         return {}
 
     def close(self) -> None:
-        """Release resources held by class modifiers. Repeated calls are safe."""
+        """Release resources held by class modifiers. Repeated calls are safe.
+
+        Raises:
+            Exception: The error of the only modifier that failed to close, or an :class:`ExceptionGroup` of
+                several. Every modifier is closed first.
+        """
         instances, self._group_obs_class_instances = self._group_obs_class_instances, []
-        for instance in instances:
-            if isinstance(instance, modifiers.ModifierBase):
-                instance.close()
+        close_all(instance for instance in instances if isinstance(instance, modifiers.ModifierBase))
 
     def compute(self, update_history: bool = False) -> dict[str, torch.Tensor | dict[str, torch.Tensor]]:
         """Compute the observations per group for all groups.
