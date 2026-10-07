@@ -282,6 +282,36 @@ How-to Guides
 
          Diagnose stability, contacts, convergence, and runtime for PhysX, MJWarp, Kamino, VBD, and MPM.
 
+      .. container:: guide-entry
+
+         :doc:`Tuning the PhysX solver </source/how-to/solver-tuning/tune_physx>`
+
+         Tune timestep, iterations, and contacts to diagnose PhysX solver stability.
+
+      .. container:: guide-entry
+
+         :doc:`Tuning the MJWarp solver </source/how-to/solver-tuning/tune_mjwarp>`
+
+         Tune Newton MuJoCo-Warp contact capacity, timestep, friction, and convergence.
+
+      .. container:: guide-entry
+
+         :doc:`Tuning the Kamino solver </source/how-to/solver-tuning/tune_kamino>`
+
+         Tune Newton Kamino PADMM or DVI convergence, stabilization, timestep, and substeps.
+
+      .. container:: guide-entry
+
+         :doc:`Tuning the VBD solver </source/how-to/solver-tuning/tune_vbd>`
+
+         Tune Newton Vertex Block Descent (VBD) materials, contacts, cloth, soft bodies, and proxy or ADMM coupling.
+
+      .. container:: guide-entry
+
+         :doc:`Tuning the MPM solver </source/how-to/solver-tuning/tune_mpm>`
+
+         Tune Newton Material Point Method (MPM) resolution, timestep, convergence, and material parameters.
+
    .. container:: guide-group
 
       .. rubric:: Teleoperation
@@ -326,8 +356,3 @@ How-to Guides
 
       This collection is a work in progress. If a question is not answered here, open an issue on the
       `Isaac Lab GitHub repository <https://github.com/isaac-sim/IsaacLab>`_.
-
-.. toctree::
-   :hidden:
-
-   solver-tuning/index

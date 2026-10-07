@@ -1,3 +1,5 @@
+:orphan:
+
 .. _newton-using-vbd:
 
 VBD Solver
