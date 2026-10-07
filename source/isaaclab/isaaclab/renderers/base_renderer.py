@@ -20,6 +20,7 @@ if TYPE_CHECKING:
     import torch
     import warp as wp
 
+    from ..sensors.camera.camera_cfg import CameraCfg
     from ..sensors.camera.camera_data import CameraData
     from ..utils.warp import ProxyArray
 
@@ -50,6 +51,17 @@ class BaseRenderer(ABC):
         one environment-id device array for partial writes, and provides an idempotent ``close()``.
         """
         return None
+
+    def apply_camera_settings(self, camera_cfg: CameraCfg) -> None:
+        """Apply process-wide settings that a camera rendered by this renderer needs.
+
+        Cameras call this when constructed, before ``sim.reset()``, because the simulation and
+        environments read some of these settings during setup. The default applies no settings.
+
+        Args:
+            camera_cfg: Configuration of the camera being constructed.
+        """
+        return
 
     def prepare_cameras(self, stage: Any, spec: CameraRenderSpec) -> None:
         """Pre-render per-camera setup the backend needs.

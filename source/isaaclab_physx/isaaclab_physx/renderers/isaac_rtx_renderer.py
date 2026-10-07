@@ -47,6 +47,7 @@ if TYPE_CHECKING:
 
     from omni.replicator.core.scripts.utils.viewport_manager import HydraTexture
 
+    from isaaclab.sensors.camera import CameraCfg
     from isaaclab.sensors.camera.camera_data import CameraData
     from isaaclab.utils.warp import ProxyArray
 
@@ -200,8 +201,19 @@ class IsaacRtxRenderer(BaseRenderer):
         if settings.get("/isaaclab/render/deterministic", False):
             apply_isaac_rtx_determinism_settings(settings)
         ensure_rtx_hydra_engine_attached()
-        # ``/isaaclab/render/rtx_sensors`` is set pre-``sim.reset()`` by
-        # ``IsaacRtxRendererCfg.apply_pre_reset_settings``.
+
+    def apply_camera_settings(self, camera_cfg: CameraCfg) -> None:
+        """Mark the run as rendering RTX sensors and route HDR color for linear camera outputs.
+
+        See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.apply_camera_settings`.
+        """
+        settings = get_settings_manager()
+        settings.set("/isaaclab/render/rtx_sensors", True)
+        settings.set("/physics/fabricUpdateTransformations", True)
+        needs_hdr = camera_cfg.isp_cfg is not None or not {"rgb_hdr", "rgb_radiance"}.isdisjoint(camera_cfg.data_types)
+        if needs_hdr:
+            # Gaussian splats otherwise skip tonemapping and never reach the HdrColor AOV.
+            settings.set("/rtx/rtpt/gaussian/skipTonemapping/enabled", False)
 
     def initialize(self) -> None:
         """Bind shared Fabric destinations after scene creation."""
