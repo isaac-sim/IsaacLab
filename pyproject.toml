@@ -417,7 +417,8 @@ override-dependencies = [
     "numpy>=2",
     "mujoco~=3.12.0",
     "mujoco-warp~=3.12.0",
-    # QA-only nightly ranges replace the release branch's published package pins.
+    # QA-only package overrides replace the release branch's published OV pins.
+    "ovphysx==0.6.4.72118723",
     "ovrtx>=0.5.1,<0.6",
     "ovstage>=0.2.1,<0.3",
     "newton[sim]==1.6.1",
@@ -441,7 +442,7 @@ egl-probe = { CMAKE_POLICY_VERSION_MINIMUM = "3.5" }
 
 [tool.uv.sources]
 omniverseclient = { index = "pypi-public" }
-ovphysx = { index = "pypi-public" }
+ovphysx = { index = "omniverse-internal" }
 ovrtx = { index = "omniverse-internal" }
 ovstage = { index = "omniverse-internal" }
 isaaclab = { path = "source/isaaclab", editable = true }
