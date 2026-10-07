@@ -240,6 +240,12 @@ How-to Guides
 
       .. container:: guide-entry
 
+         :doc:`Streaming a camera view in a visualizer </source/how-to/visualizer_streaming_camera_view>`
+
+         Show tiled ground-truth camera feeds from many environments in a live visualizer panel.
+
+      .. container:: guide-entry
+
          :doc:`Capturing sensor frames during training </source/how-to/capture_sensor_frames>`
 
          Record selected sensor outputs from a running training job.

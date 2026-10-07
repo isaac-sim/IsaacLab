@@ -502,11 +502,15 @@ Visualizer Overview
 Shared Features
 ---------------
 
+.. _visualization-streaming-camera-view:
+
 Streaming Camera View
 ~~~~~~~~~~~~~~~~~~~~~
 
-The streaming camera view composites per-environment sensor data into a tiled panel that
-updates every step.
+The streaming camera view is a live monitoring and debugging tool. It combines ground-truth camera
+frames from multiple environments (RGB, depth, segmentation, or surface normals) into a single
+panel. Cameras are declared in the scene before cloning; visualizers only read their output.
+Multiple visualizers can display the same sensor with different tile selections.
 
 .. raw:: html
 
@@ -526,14 +530,79 @@ updates every step.
    </div>
 
 The streaming panel supports RGB, depth, segmentation, and surface normals, with a configurable
-number of environments shown.
+number of environments shown. Attach a camera to a robot body to follow its motion, or select an
+existing view such as the Galbot task's wrist-mounted and ego cameras.
 
-Streams come from camera sensors declared in the scene before cloning. Attach a camera to a robot
-body to follow its motion, and select between existing views such as the Galbot task's wrist-mounted
-and ego cameras. Supported on Kit, Newton GL, Rerun, and Viser; not yet
-supported on Newton RTX (experimental).
+Image layouts and color tables are prepared when the selection or layout changes. Colorization and
+tiling run on the source device and reuse the output buffer. Kit presents CUDA images directly;
+recording and web consumers read back the composed RGB image through ``render_tiled_rgb_array()``.
 
-See :doc:`/source/features/visualizer_tiled_camera` for the full guide and tutorial.
+.. note::
+
+   The streaming camera view is supported in the Kit, Newton GL, Rerun, and Viser visualizers.
+   Newton RTX supports perspective views only and rejects explicit scene-camera sources
+   (experimental).
+
+**Kit** launches the streaming view as a separate **Streaming View** viewport, selectable from
+the Viewport tabs; it can also be placed side by side with the default interactive viewport
+for dual monitoring.
+
+**Newton GL** shows a **Streaming View** section in the HUD sidebar with a **Hide** / **Open**
+toggle to show or hide the panel, and a source dropdown to select between different camera
+sensors.
+
+Configuration
+^^^^^^^^^^^^^
+
+Declare camera resolution, pose, renderer, and output types on ``CameraCfg`` in the scene.
+Then choose what to display in ``VisualizerCfg``:
+
+* ``streaming_sensor_prim_path`` selects a scene :class:`~isaaclab.sensors.Camera` by its configured
+  prim path. The ``{ENV_REGEX_NS}`` macro uses the scene's environment template.
+  If omitted, the first camera supporting the requested channels is selected; without a compatible
+  camera the panel stays empty.
+* ``streaming_envs`` controls how many environment tiles are shown. Pass an ``int`` to randomly
+  sample that many environments, or a ``list[int]`` to pin specific environment indices.
+* ``streaming_gt_types`` selects which ground-truth types are shown, e.g.
+  ``["rgb", "depth", "segmentation", "normals"]``.
+* ``streaming_depth_min`` / ``streaming_depth_max`` set the depth colormap range in metres.
+
+Display sources
+^^^^^^^^^^^^^^^
+
+``VisualizerCfg.cameras`` accepts ``PerspectiveCameraCfg`` for the interactive view and
+``SceneCameraCfg(prim_path=...)`` for a camera sensor already declared in the scene.
+Kit, Newton GL, Rerun, and Viser display scene-camera output in a streaming panel.
+Newton RTX accepts perspective sources only. Every explicit scene source must provide
+the requested ``streaming_gt_types`` channels.
+
+Troubleshooting
+^^^^^^^^^^^^^^^
+
+* If a view reports no matching camera, declare a ``CameraCfg`` in the scene and set
+  ``streaming_sensor_prim_path`` to its prim path.
+* Each ``streaming_gt_types`` entry must have a corresponding output in the selected
+  camera's ``data_types``. An explicit incompatible source raises an error. Automatic selection
+  skips incompatible sources, and RGB display accepts a camera's RGBA output.
+* If the depth panel shows a flat color, adjust ``streaming_depth_min`` and
+  ``streaming_depth_max`` to bracket the expected depth range in your scene.
+* If the view is too expensive, reduce ``streaming_envs``, ``--num_envs``, or the camera
+  resolution.
+
+Migrating from generated cameras
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Visualizers no longer create, move, or destroy camera sensors. Replace
+``streaming_cam_target_prim_path``, ``streaming_cam_eye``, and ``streaming_cam_renderer_cfg``
+with a scene ``CameraCfg``: place its ``prim_path`` under the desired parent, set its
+``offset``, and supply ``renderer_cfg`` there. Select that camera through
+``streaming_sensor_prim_path``. This puts the camera in the clone plan and the normal sensor
+initialization, update, and teardown lifecycle.
+
+Closing a visualizer does not affect the camera or other visualizers reading it.
+``streaming_envs`` selects displayed tiles, not camera allocation or capture resolution.
+
+See :doc:`/source/how-to/visualizer_streaming_camera_view` for a step-by-step guide.
 
 
 Visualization Markers
@@ -958,7 +1027,7 @@ or omit ``--viz newton_gl`` for headless execution.
 See Also
 --------
 
-- :doc:`/source/features/visualizer_tiled_camera`: full streaming camera panel guide and tutorial
+- :doc:`/source/how-to/visualizer_streaming_camera_view`: stream a camera view step by step
 - :doc:`/source/concepts/video_recording`: recording MP4 clips from a visualizer or sensor
 - :doc:`/source/how-to/create_visualization_markers`: creating and configuring custom visualization markers
 - :doc:`/source/how-to/capture_sensor_frames`: saving per-frame sensor outputs during training

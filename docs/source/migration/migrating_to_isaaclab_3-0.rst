@@ -2636,7 +2636,7 @@ Streaming cameras must now be declared in the scene before cloning. Move
 ``streaming_cam_eye`` / ``streaming_cam_target_prim_path`` with its ``offset`` and parent prim path.
 The corresponding ``tiled_cam_eye`` and ``tiled_cam_target_prim_path`` aliases are also removed.
 Visualizers only display the selected sensor's output; they no longer create a renderer or
-camera, force a capture, or remove camera prims on close. See :doc:`/source/features/visualizer_tiled_camera`.
+camera, force a capture, or remove camera prims on close. See :ref:`visualization-streaming-camera-view`.
 
 The generated-camera helpers ``resolve_tiled_env_indices``, ``resolve_mono_env_index``,
 ``compute_tile_resolution``, ``apply_camera_view_from_origins``, and ``sensor_keys_for_gt_types``
