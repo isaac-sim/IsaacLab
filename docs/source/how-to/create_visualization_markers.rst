@@ -111,4 +111,4 @@ See also
 
 - :doc:`/source/concepts/visualization`: enabling markers per visualizer, and other visualizer
   features
-- :doc:`/source/features/record_video`: recording a marker-annotated scene to video
+- :doc:`/source/how-to/record_video`: recording a marker-annotated scene to video

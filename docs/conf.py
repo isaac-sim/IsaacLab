@@ -407,6 +407,7 @@ isaaclab_doc_redirects = {
     "source/concepts/scene_data_providers": "source/concepts/native-physics-api/scene_data_providers",
     "source/developer-tools/scene_data_providers": "source/concepts/native-physics-api/scene_data_providers",
     "source/features/draw_markers": "source/how-to/create_visualization_markers",
+    "source/features/record_video": "source/concepts/video_recording",
     "source/how-to/robots": "source/how-to/write_articulation_cfg",
     "source/tutorials/00_sim/create_empty": "source/how-to/create_empty",
     "source/tutorials/00_sim/launch_app": "source/how-to/launch_app",

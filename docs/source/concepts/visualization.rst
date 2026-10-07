@@ -662,7 +662,7 @@ visualizers open a window; a visualizer that only records runs headless:
 Kit, Newton GL, and Newton RTX visualizers can be recorded from; the web-based visualizers Viser and
 Rerun cannot.
 
-See :doc:`/source/features/record_video` for the full guide and tutorial.
+See :doc:`/source/how-to/record_video` for the full guide and tutorial.
 
 
 .. _visualization-configuration:
@@ -686,7 +686,7 @@ capture source, e.g. ``--video viz:kit``:
 
           uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole --video
 
-See :doc:`/source/features/record_video` for clip length, interval, and multi-source options.
+See :doc:`/source/concepts/video_recording` for clip length, interval, and multi-source options.
 
 **Combining an interactive view with a headless recording source**
 
@@ -704,7 +704,7 @@ Watch training live in Kit while recording from a separate headless Newton GL an
     ]
 
 See the "Recording from an independent camera angle" section of
-:doc:`/source/features/record_video` for the full example.
+:doc:`/source/how-to/record_video` for the full example.
 
 **Following a moving robot (Kit)**
 
@@ -959,7 +959,7 @@ See Also
 --------
 
 - :doc:`/source/features/visualizer_tiled_camera`: full streaming camera panel guide and tutorial
-- :doc:`/source/features/record_video`: recording MP4 clips from a visualizer or sensor
+- :doc:`/source/concepts/video_recording`: recording MP4 clips from a visualizer or sensor
 - :doc:`/source/how-to/create_visualization_markers`: creating and configuring custom visualization markers
 - :doc:`/source/how-to/capture_sensor_frames`: saving per-frame sensor outputs during training
 - :doc:`/source/concepts/renderers`: renderer backends (RTX, Newton Warp, OVRTX)

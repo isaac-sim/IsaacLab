@@ -246,6 +246,12 @@ How-to Guides
 
       .. container:: guide-entry
 
+         :doc:`Recording video </source/how-to/record_video>`
+
+         Record mp4 clips from a visualizer or scene sensor, from the CLI or an environment config.
+
+      .. container:: guide-entry
+
          :doc:`Creating visualization markers </source/how-to/create_visualization_markers>`
 
          Draw frames, arrows, and custom shapes over the scene to debug per-environment state.

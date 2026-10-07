@@ -114,6 +114,7 @@ Table of Contents
    source/concepts/sensors/index
    source/concepts/coupled_solvers
    source/concepts/visualization
+   source/concepts/video_recording
    source/concepts/reinforcement_learning
    source/concepts/deformables
    source/concepts/schema_cfgs
@@ -132,7 +133,6 @@ Table of Contents
    source/features/multi_gpu
    source/features/population_based_training
    source/features/reproducibility
-   source/features/record_video
    source/features/visualizer_tiled_camera
 
 
