@@ -213,9 +213,9 @@ class NewtonVisualizationMarkers:
                     self._warned_unsupported.add(unsupported_key)
                 continue
 
-            # TODO(newton-physics/newton#4539): Hide unused markers per instance once log_instances supports it.
-            # Until then every prototype batch logs all markers and zero-scales the ones it does not show, since
-            # changing a batch's instance count rebuilds it in ViewerRTX.
+            # TODO(newton-physics/newton#4539): Log only the shown markers once ViewerRTX batches resize or hide
+            # instances in place. Until then every prototype batch logs all markers and zero-scales the ones it does
+            # not show, since changing a batch's instance count rebuilds it in ViewerRTX.
             if marker_indices is None:
                 shown = torch.full((num_markers,), proto_index == 0, dtype=torch.bool, device=translations.device)
             else:
