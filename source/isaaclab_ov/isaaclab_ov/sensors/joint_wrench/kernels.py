@@ -13,7 +13,7 @@ def joint_wrench_split_kernel(
     # inputs
     env_mask: wp.array(dtype=wp.bool),
     incoming_joint_wrench: wp.array(dtype=wp.spatial_vectorf, ndim=2),
-    public_to_native: wp.array(dtype=wp.int32),
+    user_to_backend: wp.array(dtype=wp.int32),
     has_ordering: bool,
     timestamp: wp.array(dtype=wp.float32),
     # outputs
@@ -26,7 +26,7 @@ def joint_wrench_split_kernel(
         env_mask: Boolean mask selecting which environments to update.
         incoming_joint_wrench: Incoming joint spatial wrenches in the child-side joint frame, referenced at the
             joint anchor ``(num_envs, num_bodies)``.
-        public_to_native: Map from public sensor entries to native sensor entries.
+        user_to_backend: Map from public sensor entries to backend sensor entries ``(num_bodies,)``.
         has_ordering: Whether a nonidentity sensor ordering is active.
         timestamp: Current sensor timestamp per environment [s] ``(num_envs,)``.
         out_force: Output force in child-side joint frame [N] ``(num_envs, num_bodies)``.
@@ -41,8 +41,8 @@ def joint_wrench_split_kernel(
     if timestamp[env] == 0.0:
         return
 
-    native_body = resolve_backend_index(body, public_to_native, has_ordering)
-    wrench = incoming_joint_wrench[env, native_body]
+    backend_body = resolve_backend_index(body, user_to_backend, has_ordering)
+    wrench = incoming_joint_wrench[env, backend_body]
     out_force[env, body] = wp.spatial_top(wrench)
     out_torque[env, body] = wp.spatial_bottom(wrench)
 

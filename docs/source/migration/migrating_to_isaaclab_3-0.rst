@@ -1614,6 +1614,9 @@ Use :attr:`~isaaclab.sensors.BaseJointWrenchSensor.body_names` or
 :meth:`~isaaclab.sensors.BaseJointWrenchSensor.find_bodies` to map sensor entries to
 articulation body names. PhysX reports one entry for every link, including the articulation
 root link. Newton reports the child bodies of reportable incoming joints.
+In an :class:`~isaaclab.scene.InteractiveScene`, sensor entries follow the
+:attr:`~isaaclab.assets.ArticulationCfg.body_ordering` of the articulation at the same root,
+so set ``body_ordering`` to get the same relative entry order on every backend.
 
 For manager-based environments, update observations that used the articulation data property to
 depend on the joint-wrench sensor instead:

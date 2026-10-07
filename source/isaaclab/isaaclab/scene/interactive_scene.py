@@ -844,4 +844,4 @@ class InteractiveScene:
         articulations = tuple(weakref.proxy(articulation) for articulation in self._articulations.values())
         for sensor in self._sensors.values():
             if isinstance(sensor, BaseJointWrenchSensor):
-                sensor._scene_articulations = articulations
+                sensor.set_scene_articulations(articulations)

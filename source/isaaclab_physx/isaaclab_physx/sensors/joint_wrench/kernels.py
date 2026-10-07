@@ -12,7 +12,7 @@ from isaaclab.assets.articulation.ordering_kernels import resolve_backend_index
 def joint_wrench_split_kernel(
     env_mask: wp.array(dtype=wp.bool),
     incoming_joint_wrench: wp.array(dtype=wp.spatial_vectorf, ndim=2),
-    public_to_native: wp.array(dtype=wp.int32),
+    user_to_backend: wp.array(dtype=wp.int32),
     has_ordering: bool,
     timestamp: wp.array(dtype=wp.float32),
     out_force: wp.array(dtype=wp.vec3f, ndim=2),
@@ -28,8 +28,8 @@ def joint_wrench_split_kernel(
     if timestamp[env] == 0.0:
         return
 
-    native_body = resolve_backend_index(body, public_to_native, has_ordering)
-    wrench = incoming_joint_wrench[env, native_body]
+    backend_body = resolve_backend_index(body, user_to_backend, has_ordering)
+    wrench = incoming_joint_wrench[env, backend_body]
     out_force[env, body] = wp.spatial_top(wrench)
     out_torque[env, body] = wp.spatial_bottom(wrench)
 
