@@ -47,7 +47,6 @@ if TYPE_CHECKING:
 
     from omni.replicator.core.scripts.utils.viewport_manager import HydraTexture
 
-    from isaaclab.sensors.camera import CameraCfg
     from isaaclab.sensors.camera.camera_data import CameraData
     from isaaclab.utils.warp import ProxyArray
 
@@ -200,20 +199,11 @@ class IsaacRtxRenderer(BaseRenderer):
         apply_isaac_rtx_global_settings(self.cfg.global_settings, settings)
         if settings.get("/isaaclab/render/deterministic", False):
             apply_isaac_rtx_determinism_settings(settings)
-        ensure_rtx_hydra_engine_attached()
-
-    def apply_camera_settings(self, camera_cfg: CameraCfg) -> None:
-        """Mark the run as rendering RTX sensors and route HDR color for linear camera outputs.
-
-        See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.apply_camera_settings`.
-        """
-        settings = get_settings_manager()
+        # Cameras create this renderer during scene construction, before the simulation and
+        # environments read whether RTX sensors are rendered.
         settings.set("/isaaclab/render/rtx_sensors", True)
         settings.set("/physics/fabricUpdateTransformations", True)
-        needs_hdr = camera_cfg.isp_cfg is not None or not {"rgb_hdr", "rgb_radiance"}.isdisjoint(camera_cfg.data_types)
-        if needs_hdr:
-            # Gaussian splats otherwise skip tonemapping and never reach the HdrColor AOV.
-            settings.set("/rtx/rtpt/gaussian/skipTonemapping/enabled", False)
+        ensure_rtx_hydra_engine_attached()
 
     def initialize(self) -> None:
         """Bind shared Fabric destinations after scene creation."""
@@ -248,6 +238,9 @@ class IsaacRtxRenderer(BaseRenderer):
 
             camera_prim_path = spec.camera_prim_paths[0] if spec.camera_prim_paths else None
             spec.cfg.isp_cfg = resolve_and_normalize(spec.cfg.isp_cfg, stage, camera_prim_path)
+        if spec.cfg.isp_cfg is not None or not _HDR_DATA_TYPES.isdisjoint(spec.cfg.data_types):
+            # Gaussian splats otherwise skip tonemapping and never reach the HdrColor AOV.
+            get_settings_manager().set("/rtx/rtpt/gaussian/skipTonemapping/enabled", False)
         needs_neutral_exposure = spec.cfg.isp_cfg is not None or "rgb_radiance" in spec.cfg.data_types
         if needs_neutral_exposure and spec.camera_prim_paths:
             _apply_rtx_exposure_overrides(stage, list(spec.camera_prim_paths))

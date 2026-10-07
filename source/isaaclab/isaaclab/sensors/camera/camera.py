@@ -255,8 +255,6 @@ class Camera(SensorBase):
         self._renderer: BaseRenderer | None = None
         if sim_ctx is not None:
             self._renderer = sim_ctx.get_or_create_backend(self.cfg.renderer_cfg)
-            # The simulation and environments read some renderer settings during setup.
-            self._renderer.apply_camera_settings(self.cfg)
             with force_log_level(logging.INFO):
                 logger.info("Using renderer: %s", type(self._renderer).__name__)
         # Render data — assigned in _initialize_impl.
