@@ -130,3 +130,7 @@ The ``bin-packing`` example demonstrates heterogeneous, randomized bin layouts:
 .. code-block:: bash
 
    uv run --extra isaacsim isaaclab example bin-packing
+
+.. image:: ../_static/demos/bin_packing.jpg
+   :width: 100%
+   :alt: Randomized objects in bin-packing environments
