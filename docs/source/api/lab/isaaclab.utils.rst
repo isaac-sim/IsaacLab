@@ -166,6 +166,11 @@ String operations
    :members:
    :show-inheritance:
 
+Image operations
+~~~~~~~~~~~~~~~~
+
+.. autofunction:: isaaclab.utils.images.compose_image
+
 Timer operations
 ~~~~~~~~~~~~~~~~
 

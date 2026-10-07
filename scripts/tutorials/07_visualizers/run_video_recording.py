@@ -153,7 +153,7 @@ def _build_env_cfg_example_3(num_envs: int):
         lookat=_SHADOW_LOOKAT,
         streaming_view=True,
         streaming_envs=min(num_envs, 16),
-        # No streaming_sensor_prim_path/streaming_cam_target_prim_path: adopts the existing
+        # No streaming_sensor_prim_path: selects the existing
         # tiled_camera sensor automatically, so the streaming panel shows the same
         # RTX-rendered views as source="sensor:tiled_camera".
     )
