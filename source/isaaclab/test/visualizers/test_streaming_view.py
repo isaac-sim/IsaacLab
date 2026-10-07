@@ -17,7 +17,7 @@ from matplotlib import colormaps
 from isaaclab.envs.utils.camera_colorizer import CameraFrameColorizer, sensor_key_for_gt_type, sensor_keys_for_gt_types
 from isaaclab.envs.utils.camera_view import compose_streaming_grid
 from isaaclab.test.utils import DeviceScope, test_devices
-from isaaclab.utils.image_composition import compose_image
+from isaaclab.utils.images import compose_image
 
 
 def test_colorize_rgb_drops_alpha_channel():

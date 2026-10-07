@@ -21,10 +21,10 @@ import numpy as np
 import warp as wp
 
 from ..envs.utils.camera_colorizer import sensor_key_for_gt_type
-from ..envs.utils.camera_view import resolve_streaming_envs
+from ..envs.utils.camera_view import image_grid_columns, resolve_streaming_envs
 from ..utils import validate
 from ..utils.buffers import TimestampedBuffer
-from ..utils.image_composition import compose_image, image_grid_columns
+from ..utils.images import compose_image
 from .visualizer_cfg import PerspectiveCameraCfg
 
 if TYPE_CHECKING:

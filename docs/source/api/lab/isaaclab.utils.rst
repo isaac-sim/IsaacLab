@@ -166,11 +166,10 @@ String operations
    :members:
    :show-inheritance:
 
-Image composition
-~~~~~~~~~~~~~~~~~
+Image operations
+~~~~~~~~~~~~~~~~
 
-.. automodule:: isaaclab.utils.image_composition
-   :members:
+.. autofunction:: isaaclab.utils.images.compose_image
 
 Timer operations
 ~~~~~~~~~~~~~~~~

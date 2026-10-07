@@ -17,7 +17,6 @@ import torch
 import warp as wp
 
 from ...cloner.cloner_cfg import DEFAULT_ENV_TEMPLATE, expand_env_regex_ns
-from ...utils.image_composition import image_grid_columns
 from ...visualizers.visualizer_cfg import PerspectiveCameraCfg, SceneCameraCfg
 from .camera_colorizer import sensor_key_for_gt_type
 
@@ -188,6 +187,21 @@ def camera_gt_batch(camera: Camera, env_indices: list[int], sensor_key: str) -> 
         idx = torch.tensor(env_indices, dtype=torch.long, device=raw.device)
         return raw.index_select(0, idx)
     return raw
+
+
+def image_grid_columns(n_envs: int, n_gt: int, height: int, width: int, target_aspect: float = 1.0) -> int:
+    """Choose complete environment rows first, then the closest display aspect ratio."""
+    if not (math.isfinite(target_aspect) and target_aspect > 0):
+        target_aspect = 1.0
+    best_cols, best_score = 1, float("inf")
+    for columns in range(1, n_envs + 1):
+        rows = math.ceil(n_envs / columns)
+        empty = rows * columns - n_envs
+        aspect = columns * n_gt * width / (rows * height)
+        score = empty * 10.0 + abs(math.log(aspect / target_aspect)) - columns * 1e-6
+        if score < best_score:
+            best_cols, best_score = columns, score
+    return best_cols
 
 
 def compose_streaming_grid(
