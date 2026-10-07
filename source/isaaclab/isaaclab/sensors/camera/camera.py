@@ -777,9 +777,13 @@ class Camera(SensorBase):
                 buffer = ProxyArray(wp.from_torch(result.contiguous().clone()))
                 self._modifier_buffers[output_name] = buffer
                 outputs[output_name] = buffer
-                self._data.info.setdefault(output_name, None)
             else:
                 buffer.torch.copy_(result)
+            if output_name != data_type:
+                # The output shows the input's capture; other input metadata does not describe it.
+                source = self._data.info.get(data_type)
+                capture = source.get("capture") if isinstance(source, dict) else None
+                self._data.info[output_name] = None if capture is None else {"capture": capture}
 
     """
     Private Helpers
@@ -855,7 +859,7 @@ class Camera(SensorBase):
         self._renderer.set_outputs(self._render_data, self._render_outputs)
         self._close_modifiers()
         self._modifier_chains = {
-            data_type: (output_name, ModifierChain(self.cfg.modifiers[data_type], str(self._device)))
+            data_type: (output_name, ModifierChain(self.cfg.modifiers[data_type], str(self._device), sensor=self))
             for data_type, output_name in self.cfg.modifier_outputs().items()
         }
         self._modifier_buffers: dict[str, ProxyArray] = {}

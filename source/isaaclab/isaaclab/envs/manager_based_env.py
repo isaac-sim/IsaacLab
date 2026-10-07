@@ -603,6 +603,8 @@ class ManagerBasedEnv:
             for recorder in getattr(self, "video_recorders", []):
                 recorder.close()
 
+            # observation modifiers may own resources outside the managers
+            self.observation_manager.close()
             # destructor is order-sensitive
             del self.action_manager
             del self.observation_manager

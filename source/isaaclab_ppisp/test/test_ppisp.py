@@ -233,11 +233,12 @@ def test_auto_any_ppisp_cfg_reads_first_camera_with_ppisp_attrs():
     assert cfg.inputs["exposureOffset"] == pytest.approx(2.0)
 
 
-def test_ppisp_modifier_discovers_camera_attrs_and_requests_one_shared_pipeline(monkeypatch):
-    """Modifiers resolve USD-authored settings without changing their configuration and share equal pipelines."""
+def test_ppisp_modifier_reads_its_camera_and_shares_equal_pipelines(monkeypatch):
+    """A camera-bound modifier reads its own camera; an unbound one the first PPISP camera; equal settings share."""
     stage = Usd.Stage.CreateInMemory()
     _author_camera(stage, "/World/CameraWithoutPpisp")
-    _author_ppisp_camera(stage, "/World/Camera_ppisp", inherits=None, attrs={"exposureOffset": 2.0})
+    _author_ppisp_camera(stage, "/World/FrontCamera", inherits=None, attrs={"exposureOffset": 2.0})
+    _author_ppisp_camera(stage, "/World/WristCamera", inherits=None, attrs={"exposureOffset": -1.0})
     pipelines = []
 
     def get_or_create_backend(cfg):
@@ -250,13 +251,24 @@ def test_ppisp_modifier_discovers_camera_attrs_and_requests_one_shared_pipeline(
     sim = SimpleNamespace(stage=stage, get_or_create_backend=get_or_create_backend)
     monkeypatch.setattr(modifier_module, "SimulationContext", SimpleNamespace(instance=lambda: sim))
     cfg = PpispModifierCfg()
+    wrist_camera = SimpleNamespace(cfg=SimpleNamespace(prim_path="/World/Wrist.*"))
+    modifiers = [PpispModifier(cfg, (2, 4, 5, 3), "cpu") for _ in range(3)]
+    modifiers[1].bind_sensor(wrist_camera)
+    modifiers[2].bind_sensor(wrist_camera)
 
-    first = PpispModifier(cfg, (2, 4, 5, 3), "cpu")
-    second = PpispModifier(cfg, (2, 4, 5, 3), "cpu")
+    unbound, wrist, other_wrist = (modifier._create_pipeline() for modifier in modifiers)
 
     assert cfg.isp_cfg is None
-    assert first._pipeline is second._pipeline
-    assert first._pipeline.cfg.inputs["exposureOffset"] == pytest.approx(2.0)
+    assert unbound.cfg.inputs["exposureOffset"] == pytest.approx(2.0)
+    assert wrist.cfg.inputs["exposureOffset"] == pytest.approx(-1.0)
+    assert other_wrist is wrist and len(pipelines) == 2
+
+
+def test_ppisp_modifier_reports_its_output_shape(monkeypatch):
+    monkeypatch.setattr(modifier_module, "SimulationContext", SimpleNamespace(instance=lambda: None))
+
+    assert PpispModifier(PpispModifierCfg(), (2, 4, 5, 3), "cpu").output_dim == (2, 4, 5, 3)
+    assert PpispModifier(PpispModifierCfg(output="rgba"), (2, 4, 5, 3), "cpu").output_dim == (2, 4, 5, 4)
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="The PPISP kernel runs on CUDA devices.")

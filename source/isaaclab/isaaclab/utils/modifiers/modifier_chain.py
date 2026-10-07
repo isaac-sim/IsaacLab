@@ -8,12 +8,16 @@ from __future__ import annotations
 import functools
 import inspect
 from collections.abc import Callable, Sequence
+from typing import TYPE_CHECKING
 
 import torch
 
 from ..string import string_to_callable
 from .modifier_base import ModifierBase
 from .modifier_cfg import ModifierCfg
+
+if TYPE_CHECKING:
+    from ...sensors import SensorBase
 
 
 class ModifierChain:
@@ -24,12 +28,14 @@ class ModifierChain:
     the next one. Function modifiers receive their :attr:`ModifierCfg.params` on every call.
     """
 
-    def __init__(self, cfgs: Sequence[ModifierCfg], device: str):
+    def __init__(self, cfgs: Sequence[ModifierCfg], device: str, sensor: SensorBase | None = None):
         """Initialize the chain.
 
         Args:
             cfgs: Modifier configurations, applied in order.
             device: Device passed to class modifiers.
+            sensor: Sensor that owns the chain, passed to :meth:`ModifierBase.bind_sensor` of each class
+                modifier. Defaults to None, which binds no sensor.
 
         Raises:
             TypeError: If an entry is not a :class:`ModifierCfg`.
@@ -39,6 +45,7 @@ class ModifierChain:
                 raise TypeError(f"Modifier configuration must be a ModifierCfg, received '{type(cfg)}'.")
         self._cfgs = tuple(cfgs)
         self._device = device
+        self._sensor = sensor
         self._stages: list[Callable[[torch.Tensor], torch.Tensor] | None] = [None] * len(self._cfgs)
         self._instances: list[ModifierBase] = []
 
@@ -80,6 +87,8 @@ class ModifierChain:
             modifier = func(cfg=cfg, data_dim=tuple(data.shape), device=self._device)
             if not isinstance(modifier, ModifierBase):
                 raise TypeError(f"Modifier class '{func.__name__}' must inherit from ModifierBase.")
+            if self._sensor is not None:
+                modifier.bind_sensor(self._sensor)
             self._instances.append(modifier)
             return modifier
         if not callable(func):

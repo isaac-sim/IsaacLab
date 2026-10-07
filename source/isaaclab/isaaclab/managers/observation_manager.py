@@ -345,6 +345,13 @@ class ObservationManager(ManagerBase):
         # nothing to log here
         return {}
 
+    def close(self) -> None:
+        """Release resources held by class modifiers. Repeated calls are safe."""
+        instances, self._group_obs_class_instances = self._group_obs_class_instances, []
+        for instance in instances:
+            if isinstance(instance, modifiers.ModifierBase):
+                instance.close()
+
     def compute(self, update_history: bool = False) -> dict[str, torch.Tensor | dict[str, torch.Tensor]]:
         """Compute the observations per group for all groups.
 
@@ -659,23 +666,6 @@ class ObservationManager(ManagerBase):
                 # call function the first time to fill up dimensions
                 obs_dims = self._prepare_term_output(group_name, term_name, term_cfg)
 
-                # if scale is set, check if single float or tuple
-                if term_cfg.scale is not None:
-                    if not isinstance(term_cfg.scale, (float, int, tuple)):
-                        raise TypeError(
-                            f"Scale for observation term '{term_name}' in group '{group_name}'"
-                            f" is not of type float, int or tuple. Received: '{type(term_cfg.scale)}'."
-                        )
-                    if isinstance(term_cfg.scale, tuple) and len(term_cfg.scale) != obs_dims[1]:
-                        raise ValueError(
-                            f"Scale for observation term '{term_name}' in group '{group_name}'"
-                            f" does not match the dimensions of the observation. Expected: {obs_dims[1]}"
-                            f" but received: {len(term_cfg.scale)}."
-                        )
-
-                    # cast the scale into torch tensor
-                    term_cfg.scale = torch.tensor(term_cfg.scale, dtype=torch.float, device=self._env.device)
-
                 # prepare modifiers for each observation
                 if term_cfg.modifiers is not None:
                     # initialize list of modifiers for term
@@ -686,7 +676,7 @@ class ObservationManager(ManagerBase):
                                 f" required type ModifierCfg, Received: '{type(mod_cfg)}'"
                             )
 
-                        # construct stateful modifiers with the observation size
+                        # construct stateful modifiers with the shape they receive; function modifiers keep it
                         if inspect.isclass(mod_cfg.func):
                             mod_cfg.func = mod_cfg.func(cfg=mod_cfg, data_dim=obs_dims, device=self._env.device)
                             if not isinstance(mod_cfg.func, modifiers.ModifierBase):
@@ -695,6 +685,7 @@ class ObservationManager(ManagerBase):
                                     f" is not an instance of 'ModifierBase'. Received: '{type(mod_cfg.func)}'."
                                 )
                             self._group_obs_class_instances.append(mod_cfg.func)
+                            obs_dims = tuple(mod_cfg.func.output_dim)
 
                         # check if function is callable
                         if not callable(mod_cfg.func):
@@ -721,6 +712,23 @@ class ObservationManager(ManagerBase):
                                     f" mandatory parameters: {args_without_defaults[1:]}"
                                     f" and optional parameters: {args_with_defaults}, but received: {term_params}."
                                 )
+
+                # if scale is set, check if single float or tuple; it applies after the modifiers
+                if term_cfg.scale is not None:
+                    if not isinstance(term_cfg.scale, (float, int, tuple)):
+                        raise TypeError(
+                            f"Scale for observation term '{term_name}' in group '{group_name}'"
+                            f" is not of type float, int or tuple. Received: '{type(term_cfg.scale)}'."
+                        )
+                    if isinstance(term_cfg.scale, tuple) and len(term_cfg.scale) != obs_dims[1]:
+                        raise ValueError(
+                            f"Scale for observation term '{term_name}' in group '{group_name}'"
+                            f" does not match the dimensions of the observation. Expected: {obs_dims[1]}"
+                            f" but received: {len(term_cfg.scale)}."
+                        )
+
+                    # cast the scale into torch tensor
+                    term_cfg.scale = torch.tensor(term_cfg.scale, dtype=torch.float, device=self._env.device)
 
                 # prepare noise model classes
                 if term_cfg.noise is not None and isinstance(term_cfg.noise, noise.NoiseModelCfg):
