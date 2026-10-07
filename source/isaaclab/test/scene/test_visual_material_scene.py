@@ -87,7 +87,7 @@ def Xform "Robot"
     with build_simulation_context(
         device="cuda:0", gravity_enabled=False, add_ground_plane=False, auto_add_lighting=False
     ) as sim:
-        cfg = _VisualMaterialSceneCfg(num_envs=12, env_spacing=1.0, replicate_physics=False, filter_collisions=False)
+        cfg = _VisualMaterialSceneCfg(num_envs=12, env_spacing=1.0, filter_collisions=False)
         for variant in cfg.robot.spawn.assets_cfg:
             variant.usd_path = str(asset_path)
 

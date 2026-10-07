@@ -223,7 +223,7 @@ def main() -> None:
         )
         camera_scale = math.ceil(math.sqrt(args_cli.num_envs))
         sim.set_camera_view(eye=(6.0 * camera_scale, -7.5 * camera_scale, 4.5 * camera_scale), target=(0.0, 0.0, 0.7))
-        scene_cfg = ZooSceneCfg(num_envs=args_cli.num_envs, env_spacing=6.0, replicate_physics=True)
+        scene_cfg = ZooSceneCfg(num_envs=args_cli.num_envs, env_spacing=6.0)
         scene = instantiate(scene_cfg)
         sim.reset()
         print("[INFO]: Robot zoo ready.")

@@ -189,7 +189,7 @@ configuration connects one scene configuration and one configuration for each MD
 
    @configclass
    class SO101VialEnvCfg(ManagerBasedRLEnvCfg):
-       scene = SO101SceneCfg(num_envs=4096, env_spacing=0.9, replicate_physics=True)
+       scene = SO101SceneCfg(num_envs=4096, env_spacing=0.9)
        actions = ActionsCfg()
        observations = ObservationsCfg()
        events = DatasetEventsCfg()
@@ -203,7 +203,7 @@ configuration connects one scene configuration and one configuration for each MD
            self.sim.dt = 1.0 / 120.0
            self.sim.physics = PhysicsCfg()
 
-The 120 Hz simulation and decimation of four give the policy a 30 Hz control rate. ``replicate_physics=True``
+The 120 Hz simulation and decimation of four give the policy a 30 Hz control rate. Physics replication
 allows the same scene to scale across thousands of environments.
 
 Scene and control

@@ -1,0 +1,3 @@
+Removed the ``replicate_physics`` ``"prestartup"`` validation check in ``EventManager``, following
+the removal of ``InteractiveSceneCfg.replicate_physics`` in ``isaaclab``; this package is experimental
+and not yet covered by the stable changelog.

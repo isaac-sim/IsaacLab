@@ -261,14 +261,6 @@ class randomize_visual_color(ManagerTermBase):
         asset_cfg: SceneEntityCfg = cfg.params["asset_cfg"]
         mesh_name: str = cfg.params["mesh_name"]  # type: ignore
 
-        # EventManager checks replication only for prestartup terms.
-        if env.cfg.scene.replicate_physics:
-            raise RuntimeError(
-                "Unable to randomize visual color with scene replication enabled."
-                " For stable USD-level randomization, please disable scene replication"
-                " by setting 'replicate_physics' to False in 'InteractiveSceneCfg'."
-            )
-
         asset = env.scene[asset_cfg.name]
 
         # Binding materials on the articulation root invalidates its PhysX view.
@@ -371,14 +363,6 @@ class randomize_visual_texture_material(ManagerTermBase):
             env: The environment instance.
         """
         super().__init__(cfg, env)
-
-        # EventManager checks replication only for prestartup terms.
-        if env.cfg.scene.replicate_physics:
-            raise RuntimeError(
-                "Unable to randomize visual texture material with scene replication enabled."
-                " For stable USD-level randomization, please disable scene replication"
-                " by setting 'replicate_physics' to False in 'InteractiveSceneCfg'."
-            )
 
         self._rep = rep = _get_replicator()
         # this term draws from Replicator's random streams, so they follow the environment seed

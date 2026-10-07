@@ -537,7 +537,7 @@ class ReorientEnvCfg(ManagerBasedRLEnvCfg):
     """Object reorientation environment, also the base of the lift environment."""
 
     # Scene settings
-    scene: SceneCfg = SceneCfg(num_envs=4096, env_spacing=3, replicate_physics=True)
+    scene: SceneCfg = SceneCfg(num_envs=4096, env_spacing=3)
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()

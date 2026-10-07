@@ -31,7 +31,6 @@ class ShadowHandSceneCfg(InteractiveSceneCfg):
 
     num_envs = 8192
     env_spacing = 0.75
-    replicate_physics = True
     ground = AssetBaseCfg(prim_path="/World/ground", collision_group=-1, spawn=sim_utils.GroundPlaneCfg())
     robot: ShadowHandRobotCfg = ShadowHandRobotCfg()
     object: RigidObjectCfg = CUBE_CFG

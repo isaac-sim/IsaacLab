@@ -106,7 +106,7 @@ class PickAndPlaceEnvCfg(DirectRLEnvCfg):
     )
     debug_vis = True
 
-    scene: PickAndPlaceSceneCfg = PickAndPlaceSceneCfg(num_envs=1, env_spacing=12.0, replicate_physics=True)
+    scene: PickAndPlaceSceneCfg = PickAndPlaceSceneCfg(num_envs=1, env_spacing=12.0)
 
     x_dof_name = "x_axis"
     y_dof_name = "y_axis"

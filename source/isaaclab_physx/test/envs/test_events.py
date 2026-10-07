@@ -54,7 +54,7 @@ def configure_articulations(env: ManagerBasedEnv, env_ids: torch.Tensor | None) 
 
 @pytest.fixture(scope="module", params=test_devices(DeviceScope.CUDA))
 def env(request: pytest.FixtureRequest) -> Iterator[ManagerBasedEnv]:
-    scene = InteractiveSceneCfg(num_envs=2, env_spacing=5.0, replicate_physics=False)
+    scene = InteractiveSceneCfg(num_envs=2, env_spacing=5.0)
     robot = ArticulationCfg(
         prim_path="{ENV_REGEX_NS}/identity",
         spawn=sim_utils.UsdFileCfg(

@@ -58,18 +58,17 @@ def simulation(monkeypatch):
 
 
 @pytest.mark.parametrize("override", [None, (), (_RenderContext,)])
-@pytest.mark.parametrize("replicate_physics", [True, False])
-def test_asset_routing_preserves_explicit_overrides(simulation, override, replicate_physics):
-    """Rendering requirements augment asset policy; disabling physics leaves rendering active."""
+def test_asset_routing_preserves_explicit_overrides(simulation, override):
+    """Rendering requirements augment asset policy; physics replication is always active."""
     simulation.render_context.clone_contexts.add(_RenderContext)
     cfg = AssetBaseCfg(prim_path="{ENV_REGEX_NS}/Robot", spawn=CuboidCfg(size=(1, 1, 1)), cloning_contexts=override)
     cfg.spawn.spawn_path = "/Previous/Robot"
-    with ReplicateSession((cfg,), 2, 1.0, replicate_physics=replicate_physics) as session:
+    with ReplicateSession((cfg,), 2, 1.0) as session:
         assert simulation.plan is session.plan
         assert cfg.spawn.spawn_path == "/World/envs/env_0/Robot"
         assert not simulation.calls
     expected = {_RenderContext}
-    if override is None and replicate_physics:
+    if override is None:
         expected.add(_Context)
     assert {context for context, _, _ in simulation.calls} == expected
     assert all(plan is session.plan and ids == (0,) for _, plan, ids in simulation.calls)

@@ -303,10 +303,6 @@ def randomize_visual_texture_material(
         which the texture is applied. This is the default prim ordering when importing assets
         from the asset converters in Isaac Lab.
 
-    .. note::
-        When randomizing the texture of individual assets, please make sure to set
-        :attr:`isaaclab.scene.InteractiveSceneCfg.replicate_physics` to False. This ensures that physics
-        parser will parse the individual asset properties separately.
     """
     if hasattr(env.cfg, "eval_mode") and (
         not env.cfg.eval_mode or env.cfg.eval_type not in [f"{asset_cfg.name}_texture", "all"]
@@ -322,16 +318,6 @@ def randomize_visual_texture_material(
 
     if env.cfg.seed is not None:
         rep.set_global_seed(env.cfg.seed)
-
-    # check to make sure replicate_physics is set to False, else raise error
-    # note: We add an explicit check here since texture randomization can happen outside of 'prestartup' mode
-    #   and the event manager doesn't check in that case.
-    if env.cfg.scene.replicate_physics:
-        raise RuntimeError(
-            "Unable to randomize visual texture material with scene replication enabled."
-            " For stable USD-level randomization, please disable scene replication"
-            " by setting 'replicate_physics' to False in 'InteractiveSceneCfg'."
-        )
 
     # convert from radians to degrees
     texture_rotation = tuple(math.degrees(angle) for angle in texture_rotation)

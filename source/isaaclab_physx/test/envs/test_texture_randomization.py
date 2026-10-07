@@ -142,7 +142,6 @@ def test_texture_randomization(device):
     try:
         env_cfg = CartpoleEnvCfg()
         env_cfg.scene.num_envs = 2
-        env_cfg.scene.replicate_physics = False
         env_cfg.sim.device = device
 
         env = ManagerBasedEnv(cfg=env_cfg)
@@ -175,24 +174,6 @@ def test_texture_randomization(device):
                 assert tuple(color) == pytest.approx((0.25, 0.5, 0.75))
             env.step(torch.zeros_like(env.action_manager.action))
         finally:
-            env.close()
-    finally:
-        sim_utils.close_stage()
-
-
-@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-def test_texture_randomization_failure_replicate_physics(device):
-    """Test texture randomization failure when replicate physics is set to True."""
-    sim_utils.create_new_stage()
-
-    try:
-        cfg_failure = CartpoleEnvCfg()
-        cfg_failure.scene.num_envs = 2
-        cfg_failure.scene.replicate_physics = True
-        cfg_failure.sim.device = device
-
-        with pytest.raises(RuntimeError, match="Scene replication is enabled"):
-            env = ManagerBasedEnv(cfg_failure)
             env.close()
     finally:
         sim_utils.close_stage()

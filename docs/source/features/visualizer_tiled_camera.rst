@@ -157,10 +157,10 @@ Troubleshooting
 
 .. warning::
 
-   **Newton MJWarp with** ``replicate_physics=True`` **and auto-created cameras**
+   **Newton MJWarp with auto-created cameras**
 
-   With ``replicate_physics=True``, only ``env_0`` has a USD prim after physics
-   initialization. Cameras for the remaining environments (``env_1`` through ``env_{N-1}``)
+   Only ``env_0`` has a USD prim after physics initialization (physics is always
+   replicated). Cameras for the remaining environments (``env_1`` through ``env_{N-1}``)
    are dropped, causing initialization to fail::
 
        RuntimeError: Number of camera prims in the view (1) does not match

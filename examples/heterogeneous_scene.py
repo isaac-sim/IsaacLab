@@ -138,8 +138,6 @@ def main() -> None:
     scene_cfg.ground = AssetBaseCfg(prim_path="/World/ground", spawn=sim_utils.GroundPlaneCfg())
 
     scene_cfg.num_envs = args_cli.num_envs
-    scene_cfg.replicate_physics = True
-
     with launch_simulation(cfg=PhysicsCfg(), launcher_args=args_cli) as physics_cfg:
         sim = sim_utils.SimulationContext(
             sim_utils.SimulationCfg(dt=args_cli.sim_dt, device=args_cli.device, physics=physics_cfg)
