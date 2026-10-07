@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import functools
 import inspect
+from builtins import ExceptionGroup
 from collections.abc import Callable, Iterable, Sequence
 from typing import TYPE_CHECKING, Any
 
