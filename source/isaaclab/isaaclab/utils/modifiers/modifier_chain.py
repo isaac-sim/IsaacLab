@@ -67,6 +67,13 @@ class ModifierChain:
         for modifier in self._instances:
             modifier.reset(env_ids=env_ids)
 
+    def close(self) -> None:
+        """Close constructed class modifiers. The chain rebuilds them if it is called again."""
+        instances, self._instances = self._instances, []
+        self._stages = [None] * len(self._cfgs)
+        for modifier in instances:
+            modifier.close()
+
     def _build(self, cfg: ModifierCfg, data: torch.Tensor) -> Callable[[torch.Tensor], torch.Tensor]:
         func = string_to_callable(str(cfg.func)) if isinstance(cfg.func, str) else cfg.func
         if inspect.isclass(func):

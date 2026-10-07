@@ -4,3 +4,5 @@
   publishes the result in :attr:`~isaaclab.sensors.camera.CameraData.output`.
 * Added :class:`~isaaclab.utils.modifiers.ModifierChain` to apply modifiers to one tensor outside the
   observation manager, constructing class modifiers from the shape of their first input.
+* Added :meth:`~isaaclab.utils.modifiers.ModifierBase.close` so modifiers can release resources. Cameras
+  close their modifiers when they are released or re-initialized.
