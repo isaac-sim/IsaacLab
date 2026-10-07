@@ -98,7 +98,7 @@ _TARGET_CUP_FRICTION = 0.8
 _MEDIA_FILL_LEVEL = 0.70
 _MEDIA_FILL_RESOLUTION = 0.005
 _MPM_VOXEL_SIZE = 0.015
-_MPM_PARTICLES_PER_CELL = 3.0
+_MPM_PARTICLES_PER_CELL = 2.5
 
 
 def _source_cup_asset_cfg() -> RigidObjectCfg:
@@ -173,6 +173,7 @@ FRANKA_POUR_ARM_COLLISION_PROXIES = frozenset(
         "link7_c",
     }
 )
+SPILL_FLOOR_LABEL_PATTERN = r".*/SpillFloor$"
 
 
 def spawn_franka_with_arm_collisions(
@@ -205,6 +206,24 @@ def spawn_franka_with_arm_collisions(
             collision_prim = root_prim.GetStage().GetPrimAtPath(proxy_root.AppendChild(proxy_root.name))
             UsdPhysics.CollisionAPI(collision_prim).GetCollisionEnabledAttr().Set(True)
     return robot_prim
+
+
+def spawn_static_table(
+    prim_path: str,
+    cfg: UsdFileCfg,
+    translation: tuple[float, float, float] | None = None,
+    orientation: tuple[float, float, float, float] | None = None,
+    **kwargs,
+):
+    """Keep the stationary table's colliders without a rigid-body simulation state."""
+    from pxr import Usd, UsdPhysics  # noqa: PLC0415
+
+    table_prim = sim_utils.spawn_from_usd(prim_path, cfg, translation, orientation, **kwargs)
+    for root_prim in sim_utils.find_matching_prims(prim_path, stage=table_prim.GetStage()):
+        for prim in Usd.PrimRange(root_prim):
+            if prim.HasAPI(UsdPhysics.RigidBodyAPI):
+                prim.RemoveAPI(UsdPhysics.RigidBodyAPI)
+    return table_prim
 
 
 @dataclass(frozen=True)
@@ -260,6 +279,7 @@ def _resolve_mpm_cell_cap(cfg: FrankaPourResetDatasetEnvCfg) -> int:
         if alignment <= 0:
             raise ValueError("mpm_cell_capacity_alignment must be positive.")
         particle_count = media_particle_count(cfg.scene.media)
+        # Newton activates at most one sparse voxel per particle; guard cells remain empty.
         per_world = ((particle_count + alignment - 1) // alignment) * alignment
         capacity = per_world * int(cfg.scene.num_envs)
     else:
@@ -302,7 +322,8 @@ class PourSceneCfg(InteractiveSceneCfg):
         init_state=AssetBaseCfg.InitialStateCfg(pos=[0.5, 0, 0], rot=[0, 0, 0.707, 0.707]),
         spawn=UsdFileCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd",
-            rigid_props=UsdPhysicsRigidBodyCfg(rigid_body_enabled=True, kinematic_enabled=True),
+            func=spawn_static_table,
+            make_uninstanceable=True,
         ),
     )
     plane = AssetBaseCfg(
@@ -538,7 +559,7 @@ class FrankaPourResetDatasetEnvCfg(ManagerBasedRLEnvCfg):
     state_bound_max_joint_velocity: float = 20.0
     state_bound_max_cup_linear_velocity: float = 10.0
     state_bound_max_cup_angular_velocity: float = 50.0
-    particle_workspace_lower_bound: tuple[float, float, float] = (-1.0, -1.0, -0.5)
+    particle_workspace_lower_bound: tuple[float, float, float] = (-1.0, -1.0, -1.10)
     particle_workspace_upper_bound: tuple[float, float, float] = (1.5, 1.0, 1.5)
 
     particle_max_velocity: float = 10.0
@@ -590,7 +611,6 @@ class FrankaPourResetDatasetEnvCfg(ManagerBasedRLEnvCfg):
                         ),
                         bodies=[
                             r"/World/envs/env_.*/Robot",
-                            r"/World/envs/env_.*/Table",
                             r"/World/envs/env_.*/SourceCup",
                             r"/World/envs/env_.*/TargetCup",
                         ],
@@ -615,7 +635,10 @@ class FrankaPourResetDatasetEnvCfg(ManagerBasedRLEnvCfg):
                             solver="jacobi",
                             separate_worlds=True,
                         ),
+                        bodies=[SPILL_FLOOR_LABEL_PATTERN],
                         all_particles=True,
+                        include_static_shapes=False,
+                        include_child_joints=False,
                         # The tall source payload needs a smaller MPM step than the coupled rigid solve.
                         substeps=2,
                         in_place=True,

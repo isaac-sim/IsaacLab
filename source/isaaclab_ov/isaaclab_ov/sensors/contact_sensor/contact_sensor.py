@@ -288,9 +288,7 @@ class ContactSensor(BaseContactSensor):
             self._ALL_ENV_MASK = wp.ones((self._num_envs,), dtype=wp.bool, device=self._device)
             self._reset_mask = wp.zeros((self._num_envs,), dtype=wp.bool, device=self._device)
             self._reset_mask_torch = wp.to_torch(self._reset_mask)
-            self._is_outdated = wp.ones(self._num_envs, dtype=wp.bool, device=self._device)
-            self._timestamp = wp.zeros(self._num_envs, dtype=wp.float32, device=self._device)
-            self._timestamp_last_update = wp.zeros_like(self._timestamp)
+            self._create_timing_buffers()
 
         # Optional: pose tracking via a RIGID_BODY_POSE tensor binding.
         # ovphysx fnmatch does not brace-expand, so we cannot match multiple
@@ -424,7 +422,7 @@ class ContactSensor(BaseContactSensor):
                 self._history_length,
                 self.cfg.force_threshold,
                 self._timestamp,
-                self._timestamp_last_update,
+                self._elapsed_since_update,
             ],
             outputs=[
                 self._data._net_normal_forces_w,

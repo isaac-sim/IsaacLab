@@ -3,6 +3,45 @@ Changelog
 
 .. towncrier release notes start
 
+35.2.0 (2026-10-06)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added LEAPP input semantics and deployment wiring for individual camera output buffers.
+* Added traceable Torch preprocessing for RGB observations during LEAPP export.
+* Added optional file paths to ``isaaclab --format`` for focused formatting and lint checks.
+
+Changed
+^^^^^^^
+
+* Changed :func:`~isaaclab.app.launch_simulation` to warn when it runs on the CPU because ``--device`` was not
+  given on macOS.
+* Reduced task-space body-offset Jacobian overhead by using batched cross products instead of skew matrices.
+* **Breaking:** ``isaaclab --format`` now runs pre-commit once and returns a nonzero exit status when hooks fail or modify files.
+  Callers that relied on automatic retries must inspect and accept the edits, then explicitly rerun the command.
+* Changed the Newton dependency from the ``release-1.6`` Git branch to the ``1.6.1`` PyPI release.
+
+Fixed
+^^^^^
+
+* Fixed :func:`~isaaclab.app.launch_simulation` failing while resolving the default simulation device.
+* Fixed LEAPP export of camera frame stacks and observation history with configured storage layouts, including first-frame backfill.
+
+
+35.1.0 (2026-10-05)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``FileCfg.visual_material_path=None`` to apply material inputs to connected surface shaders
+  without replacing textures or bindings. Fields set to ``None`` were left unchanged.
+* Added OmniPBR metallic and texture-influence settings to ``PbrMdlCfg`` and shared a private input
+  writer between material creation and prototype overrides.
+
+
 35.0.0 (2026-10-03)
 ~~~~~~~~~~~~~~~~~~~
 

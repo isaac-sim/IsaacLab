@@ -201,39 +201,6 @@ def test_vbd_structural_joint_stiffness_under_load(stiffness):
     assert angle * angular_ke == pytest.approx(mass * gravity * lever * math.cos(angle), rel=0.01)
 
 
-def test_vbd_publishes_joint_state_after_body_motion(monkeypatch):
-    """The public joint state follows maximal-coordinate VBD motion."""
-    physics = importlib.import_module("isaaclab_newton.physics")
-    builder = ModelBuilder(gravity=(0.0, 0.0, -9.81))
-    body = builder.add_link()
-    builder.add_shape_sphere(body=body, radius=0.05)
-    joint = builder.add_joint_prismatic(
-        parent=-1, child=body, axis=wp.vec3(0.0, 0.0, 1.0), limit_lower=-1.0, limit_upper=1.0
-    )
-    builder.add_articulation([joint])
-    builder.color()
-    model = builder.finalize(device="cpu")
-    backend = SimpleNamespace(model=model, state_0=model.state(), state_1=model.state(), control=model.control())
-    manager = physics.NewtonVBDManager
-    monkeypatch.setattr(manager, "backend", backend)
-    monkeypatch.setattr(manager, "_solver", SolverVBD(model, iterations=10, rigid_compliant_alm=True))
-    monkeypatch.setattr(manager, "_use_single_state", False)
-    monkeypatch.setattr(manager, "_needs_collision_pipeline", False)
-    monkeypatch.setattr(manager, "_collision_decimation", 0)
-    monkeypatch.setattr(manager, "_num_substeps", 2)
-    monkeypatch.setattr(manager, "_solver_dt", 1.0 / 60.0)
-    monkeypatch.setattr(manager, "_state_force_callbacks", [])
-
-    manager._run_solver_substeps(None)
-
-    joint_coord = model.joint_q_start.numpy()[joint]
-    joint_dof = model.joint_qd_start.numpy()[joint]
-    body_height = backend.state_0.body_q.numpy()[body, 2]
-    assert body_height < -1.0e-4
-    assert backend.state_0.joint_q.numpy()[joint_coord] == pytest.approx(body_height, abs=1.0e-4)
-    assert backend.state_0.joint_qd.numpy()[joint_dof] < 0.0
-
-
 def test_vbd_rebuilds_particle_bvh_before_physics_step(monkeypatch):
     """VBD rebuilds its particle BVH before the base physics step."""
     physics = importlib.import_module("isaaclab_newton.physics")

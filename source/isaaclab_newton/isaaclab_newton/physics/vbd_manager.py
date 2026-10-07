@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+from typing import ClassVar
 from newton import Model, ModelBuilder, eval_ik
 from newton.solvers import SolverVBD
 
@@ -16,6 +17,8 @@ from .vbd_manager_cfg import VBDSolverCfg
 
 class NewtonVBDManager(NewtonManager):
     """Newton manager specialization for the VBD solver."""
+
+    _update_joint_state: ClassVar[bool] = True
 
     @classmethod
     def _prepare_builder_for_finalize(cls, builder: ModelBuilder) -> None:
@@ -34,6 +37,19 @@ class NewtonVBDManager(NewtonManager):
         NewtonManager._use_single_state = False
         NewtonManager._needs_collision_pipeline = True
         NewtonManager._supports_rigid_body_force_input = not solver_cfg.integrate_with_external_rigid_solver
+        cls._update_joint_state = solver_cfg.update_joint_state and not solver_cfg.integrate_with_external_rigid_solver
+
+    @classmethod
+    def _run_solver_substeps(cls, contacts) -> None:
+        """Synchronize generalized joint state from VBD's maximal-coordinate body state."""
+        super()._run_solver_substeps(contacts)
+        if (
+            cls._update_joint_state
+            and cls.backend.model.articulation_count > 0
+            and cls.backend.model.joint_coord_count > 0
+        ):
+            state = cls.backend.state_0
+            eval_ik(cls.backend.model, state, state.joint_q, state.joint_qd)
 
     @classmethod
     def _run_solver_substeps(cls, contacts) -> None:

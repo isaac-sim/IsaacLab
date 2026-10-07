@@ -30,6 +30,13 @@ class VBDSolverCfg(NewtonSolverCfg):
     integrate_with_external_rigid_solver: bool = False
     """Whether an external solver integrates rigid bodies."""
 
+    update_joint_state: bool = True
+    """Derive joint positions and velocities from VBD-integrated body motion after each physics tick.
+
+    Disable only when consumers use body state exclusively. External rigid integration always skips
+    this synchronization so the external solver retains ownership of its generalized joint state.
+    """
+
     particle_enable_self_contact: bool = False
     """Whether to enable particle self-contact."""
 

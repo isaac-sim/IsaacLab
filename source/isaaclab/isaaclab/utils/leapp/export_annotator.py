@@ -36,16 +36,18 @@ import inspect
 import logging
 from collections.abc import Callable
 from contextlib import suppress
+from functools import wraps
 from typing import TYPE_CHECKING, Any
 
 import torch
-from leapp import annotate
+from leapp import ExportManager, annotate
 from leapp.utils.tensor_description import TensorSemantics
 
 from ...actuators import IdealPDActuator, ImplicitActuator
 from ...assets.articulation.base_articulation import BaseArticulation
 from ...managers import ManagerTermBase
 from ..array import convert_to_torch
+from ..images import CameraFrameStack
 from .leapp_semantics import select_element_names
 from .proxy import _ArticulationWriteProxy, _DataProxy, _EnvProxy, _ManagerTermProxy
 from .utils import (
@@ -106,6 +108,83 @@ def _effective_joint_gains(real_asset) -> tuple[torch.Tensor | None, torch.Tenso
         if kd is not None:
             kd[:, actuator.joint_indices] = actuator.damping
     return kp, kd
+
+
+def _leapp_history_buffer_append(circular_buffer, task_name: str, state_name: str):
+    """Decorate a buffer's bound append method with LEAPP state capture.
+
+    During capture, a functional shift replaces in-place writes that the tracer
+    cannot see. The push counter is feedback state so first-frame backfill is
+    evaluated at inference time. Outside capture, the original method runs.
+
+    Args:
+        circular_buffer: Circular buffer whose state should be captured.
+        task_name: LEAPP node that owns the buffer state.
+        state_name: LEAPP state tensor name for the buffer contents.
+
+    Returns:
+        Decorator for the buffer's bound append method.
+    """
+
+    def decorate(original_append):
+        @wraps(original_append)
+        def wrapped(data: torch.Tensor) -> None:
+            if not ExportManager.is_interpret_graph_enabled():
+                original_append(data)
+                return
+
+            if data.shape[0] != circular_buffer.batch_size:
+                raise ValueError(
+                    f"The input data has '{data.shape[0]}' batch size while expecting '{circular_buffer.batch_size}'"
+                )
+            data = data.to(circular_buffer._device)
+
+            if circular_buffer._buffer is None:
+                circular_buffer._allocate_buffer(data)
+                circular_buffer._buffer.zero_()
+
+            buffer, num_pushes = annotate.state_tensors(
+                task_name,
+                {state_name: circular_buffer._buffer, f"{state_name}_num_pushes": circular_buffer._num_pushes},
+            )
+            k_pos = 0 if circular_buffer._stack_dim_internal is None else circular_buffer._stack_dim_internal
+            frame = data.unsqueeze(k_pos)
+            buffer = torch.cat((buffer.narrow(k_pos, 1, circular_buffer.max_length - 1), frame), dim=k_pos)
+            mask_shape = [1] * buffer.ndim
+            mask_shape[1 if circular_buffer._stack_dim_internal is None else 0] = circular_buffer.batch_size
+            buffer = torch.where((num_pushes == 0).view(mask_shape), frame, buffer)
+            circular_buffer._buffer, circular_buffer._num_pushes = annotate.update_state(
+                task_name, {state_name: buffer, f"{state_name}_num_pushes": num_pushes + 1}
+            )
+            circular_buffer._need_reset = False
+
+        return wrapped
+
+    return decorate
+
+
+class _ImageRgbExportProxy(_ManagerTermProxy):
+    """Run RGB observation preprocessing through traceable Torch operations during export."""
+
+    def __call__(self, *args, **kwargs):
+        """Compute the wrapped RGB observation without its runtime-only Warp fast path."""
+        out = kwargs.pop("out", None)
+        normalize = kwargs.get("normalize", True)
+        mean = kwargs.get("mean")
+        channel_first = kwargs.get("channel_first", False)
+        kwargs["normalize"] = False
+
+        image = super().__call__(*args, **kwargs)
+        if normalize:
+            channel_dim = 1 if channel_first else image.ndim - 1
+            spatial_dims = tuple(dim for dim in range(1, image.ndim) if dim != channel_dim)
+            image = image.float() / 255.0
+            image = image - (torch.mean(image, dim=spatial_dims, keepdim=True) if mean is None else mean)
+
+        if out is None:
+            return image
+        out.copy_(image)
+        return out
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -253,7 +332,7 @@ class ExportPatcher:
     # ── Observation manager patches ───────────────────────────────
 
     def _patch_history_buffers(self, obs_manager):
-        """Patch history-enabled observation buffers to export as LEAPP state.
+        """Patch observation history and camera frame buffers to export as LEAPP state.
 
         Args:
             obs_manager: Observation manager whose history buffers should be
@@ -269,29 +348,20 @@ class ExportPatcher:
             group_term_names = term_names_by_group.get(group_name, [])
 
             for index, term_cfg in enumerate(term_cfgs):
-                history_length = getattr(term_cfg, "history_length", 0) or 0
-                if history_length <= 0:
-                    continue
-
                 if index >= len(group_term_names):
                     continue
 
                 term_name = group_term_names[index]
                 circular_buffer = group_buffers.get(term_name)
-                if circular_buffer is None:
-                    continue
+                if circular_buffer is not None:
+                    self._patch_history_buffer_append(circular_buffer, f"h_{group_name}_{term_name}")
 
-                state_name = f"h_{group_name}_{term_name}"
-                self._patch_history_buffer_append(circular_buffer, state_name)
+                frames = getattr(term_cfg.func, "_frames", None)
+                if isinstance(frames, CameraFrameStack) and frames._buffer is not None:
+                    self._patch_history_buffer_append(frames._buffer, f"frames_{group_name}_{term_name}")
 
     def _patch_history_buffer_append(self, circular_buffer, state_name: str):
-        """Replace ``append`` with a functional shift so history is LEAPP state.
-
-        Production :meth:`~isaaclab.utils.buffers.CircularBuffer.append` shifts
-        with in-place ``copy_``, which the tracer cannot see. During export the
-        same oldest→newest layout is produced with ``torch.cat`` so the
-        recurrence appears in the graph. Observation-manager buffers use the
-        legacy ``(K, B, ...)`` layout (no ``stack_dim``).
+        """Install the LEAPP state decorator once on a buffer's append method.
 
         Args:
             circular_buffer: Circular buffer instance to patch.
@@ -300,33 +370,10 @@ class ExportPatcher:
         if hasattr(circular_buffer, "_leapp_original_append"):
             return
 
-        task_name = self.task_name
         circular_buffer._leapp_original_append = circular_buffer.append
-
-        def patched_append(data: torch.Tensor) -> None:
-            """Shift history with ``torch.cat`` and annotate as LEAPP state.
-
-            Args:
-                data: New observation slice appended to the buffer.
-            """
-            if data.shape[0] != circular_buffer.batch_size:
-                raise ValueError(
-                    f"The input data has '{data.shape[0]}' batch size while expecting '{circular_buffer.batch_size}'"
-                )
-            data = data.to(circular_buffer._device)
-
-            if circular_buffer._buffer is None:
-                # Match first-push backfill: broadcast into all K slots.
-                circular_buffer._buffer = data.unsqueeze(0).expand(circular_buffer._max_len_int, *data.shape).clone()
-            else:
-                buffer = annotate.state_tensors(task_name, {state_name: circular_buffer._buffer})
-                circular_buffer._buffer = torch.cat([buffer[1:], data.unsqueeze(0)], dim=0)
-
-            circular_buffer._buffer = annotate.update_state(task_name, {state_name: circular_buffer._buffer})
-            circular_buffer._num_pushes += 1
-            circular_buffer._need_reset = False
-
-        circular_buffer.append = patched_append
+        circular_buffer.append = _leapp_history_buffer_append(circular_buffer, self.task_name, state_name)(
+            circular_buffer.append
+        )
 
     def _patch_observation_manager(self, obs_manager, proxy_env):
         """Patch observation terms to use annotating proxies and disable noise.
@@ -346,6 +393,8 @@ class ExportPatcher:
                     term_cfg.func = self._wrap_last_action(original_func)
                 elif func_name == "generated_commands":
                     term_cfg.func = self._wrap_generated_commands(original_func, term_cfg)
+                elif func_name == "image_rgb":
+                    term_cfg.func = _ImageRgbExportProxy(original_func, proxy_env)
                 elif func_name == "projected_gravity":
                     term_cfg.func = self._wrap_projected_gravity(original_func, proxy_env)
                 else:

@@ -14,6 +14,7 @@ import numpy as np
 import warp as wp
 
 from .. import sim as sim_utils
+from ..sensors import camera, contact_sensor
 from ..utils.buffers import TimestampedBuffer
 from .geometry_points import convert_geometry_fabric_kernel, convert_geometry_points_kernel
 from .scene_data_backend import SceneDataBackend, SceneDataFormat
@@ -171,30 +172,24 @@ class SceneDataProvider:
         """Return the registered interactive scene, if available."""
         return self._interactive_scene
 
-    def get_camera_sensors(self) -> dict[str, Any]:
+    def get_camera_sensors(self) -> dict[str, camera.Camera]:
         """Return Isaac Lab camera sensors keyed by scene sensor name."""
         if self._interactive_scene is None:
             return {}
-        try:
-            from isaaclab.sensors.camera import Camera
-        except ImportError:
-            return {}
         return {
             name: sensor
-            for name, sensor in getattr(self._interactive_scene, "sensors", {}).items()
-            if isinstance(sensor, Camera)
+            for name, sensor in self._interactive_scene.sensors.items()
+            if isinstance(sensor, camera.Camera)
         }
 
-    def get_contact_sensors(self) -> dict[str, Any]:
+    def get_contact_sensors(self) -> dict[str, contact_sensor.BaseContactSensor]:
         """Return Isaac Lab contact sensors keyed by scene sensor name."""
         if self._interactive_scene is None:
             return {}
-        from isaaclab.sensors.contact_sensor import BaseContactSensor
-
         return {
             name: sensor
-            for name, sensor in getattr(self._interactive_scene, "sensors", {}).items()
-            if isinstance(sensor, BaseContactSensor)
+            for name, sensor in self._interactive_scene.sensors.items()
+            if isinstance(sensor, contact_sensor.BaseContactSensor)
         }
 
     @property
