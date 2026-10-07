@@ -132,7 +132,6 @@ Table of Contents
    source/features/multi_gpu
    source/features/population_based_training
    source/features/reproducibility
-   source/features/draw_markers
    source/features/record_video
    source/features/visualizer_tiled_camera
 

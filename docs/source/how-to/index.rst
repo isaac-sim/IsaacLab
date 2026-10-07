@@ -244,6 +244,12 @@ How-to Guides
 
          Record selected sensor outputs from a running training job.
 
+      .. container:: guide-entry
+
+         :doc:`Creating visualization markers </source/how-to/create_visualization_markers>`
+
+         Draw frames, arrows, and custom shapes over the scene to debug per-environment state.
+
    .. container:: guide-group
 
       .. rubric:: Controllers

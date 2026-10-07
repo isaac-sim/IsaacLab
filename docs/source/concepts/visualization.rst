@@ -555,7 +555,7 @@ Visualization markers draw debug geometry over the scene via
      </div>
    </div>
 
-See :doc:`/source/features/draw_markers` for creating and configuring custom markers.
+See :doc:`/source/how-to/create_visualization_markers` for creating and configuring custom markers.
 
 There are 2 types of visualization markers:
 
@@ -960,7 +960,7 @@ See Also
 
 - :doc:`/source/features/visualizer_tiled_camera`: full streaming camera panel guide and tutorial
 - :doc:`/source/features/record_video`: recording MP4 clips from a visualizer or sensor
-- :doc:`/source/features/draw_markers`: creating and configuring custom visualization markers
+- :doc:`/source/how-to/create_visualization_markers`: creating and configuring custom visualization markers
 - :doc:`/source/how-to/capture_sensor_frames`: saving per-frame sensor outputs during training
 - :doc:`/source/concepts/renderers`: renderer backends (RTX, Newton Warp, OVRTX)
 - :doc:`/source/concepts/native-physics-api/scene_data_providers`: how scene data flows to visualizers
