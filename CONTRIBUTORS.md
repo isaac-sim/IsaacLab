@@ -105,6 +105,7 @@ Guidelines for modifications:
 * Harsh Patel
 * Henry Hu
 * HoJin Jeon
+* Hong Wang
 * Hongwei Xiong
 * Hongyu Li
 * Hougant Chen
