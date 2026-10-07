@@ -1054,11 +1054,6 @@ class UR10ParticlePushEnvCfg(ManagerBasedRLEnvCfg):
         self.reset_cycle = True
         self.reset_level_probabilities = (0.0,) * (len(self.reset_randomization_scales) - 1) + (1.0,)
         camera_cfg = self.sim.default_visualizer_cfg
-        self.sim.default_visualizer_cfg = NewtonRTXVisualizerCfg(
-            eye=camera_cfg.eye,
-            lookat=camera_cfg.lookat,
-            show_particles=True,
-            particle_color=MPM_VISUAL_COLOR,
-        )
+        self.sim.default_visualizer_cfg = NewtonRTXVisualizerCfg(eye=camera_cfg.eye, lookat=camera_cfg.lookat)
         self.heightmap_visualizer_cfg = HEIGHTMAP_VISUALIZER_CFG
         configure_sparse_mpm_capacities(self)
