@@ -28,11 +28,7 @@ from isaaclab.visualizers.base_visualizer import BaseVisualizer
 from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg
 
 from isaaclab_visualizers.newton.newton_visualization_markers import render_newton_visualization_markers
-from isaaclab_visualizers.newton_adapter import (
-    apply_viewer_visible_worlds,
-    log_geo_with_expanded_plane_scale,
-    resolve_visible_env_indices,
-)
+from isaaclab_visualizers.newton_adapter import log_geo_with_expanded_plane_scale
 
 from .rerun_visualizer_cfg import RerunVisualizerCfg
 
@@ -281,7 +277,6 @@ class RerunVisualizer(BaseVisualizer):
         self._step_counter = 0
         self.backend = None
         self._last_camera_pose: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
-        self._resolved_visible_env_ids: list[int] | None = None
 
     def initialize(
         self,
@@ -302,14 +297,12 @@ class RerunVisualizer(BaseVisualizer):
 
         super().initialize(scene_data_provider, cameras=cameras, stage=stage)
         num_envs = scene_data_provider.num_envs
-        self._env_ids = self._compute_visualized_env_ids()
         sim = SimulationContext.instance()
         self.newton_cfg = NewtonBackendCfg(physics_cfg=sim.cfg.physics, device=sim.device)
         self.backend = sim.get_or_create_backend(self.newton_cfg)
         self._transform_mapping = scene_data_provider.create_mapping(list(self.backend.model.body_label))
 
-        self._resolved_visible_env_ids = resolve_visible_env_indices(self._env_ids, self.cfg.max_visible_envs, num_envs)
-        self._setup_streaming_view(num_envs, visible_env_ids=self._resolved_visible_env_ids)
+        self._setup_streaming_view(num_envs, visible_env_ids=self._env_ids)
         grpc_port = int(self.cfg.grpc_port)
         web_port = int(self.cfg.web_port)
         bind_address = self.cfg.bind_address or "0.0.0.0"
@@ -345,25 +338,17 @@ class RerunVisualizer(BaseVisualizer):
             _open_rerun_web_viewer(viewer_host, web_port, rerun_address)
         self._viewer.set_model(self.backend.model)
         self._viewer.show_particles = self.cfg.show_particles
-        apply_viewer_visible_worlds(
-            self._viewer,
-            env_ids=self._env_ids,
-            max_visible_envs=self.cfg.max_visible_envs,
-            num_envs=num_envs,
-        )
+        self._viewer.set_visible_worlds(self._env_ids)
         # Preserve simulation world positions (env_spacing) rather than adding viewer-side offsets.
         self._viewer.set_world_offsets((0.0, 0.0, 0.0))
         backend = self.physics_backend or "unknown"
         self._backend_display = _BACKEND_DISPLAY_NAMES.get(backend, backend)
-        initial_pose = self._resolve_initial_camera_pose()
-        self._apply_camera_pose(initial_pose)
+        self._apply_camera_pose((self.cfg.eye, self.cfg.lookat))
         self._viewer.up_axis = 2
         self._viewer.scaling = 1.0
         self._viewer._paused = False
 
-        num_visualized_envs = (
-            len(self._resolved_visible_env_ids) if self._resolved_visible_env_ids is not None else num_envs
-        )
+        num_visualized_envs = len(self._env_ids) if self._env_ids is not None else num_envs
         self._log_initialization_table(
             logger=logger,
             title="RerunVisualizer Configuration",
@@ -415,9 +400,7 @@ class RerunVisualizer(BaseVisualizer):
                 if body_q is None or body_q.shape[0]:
                     self._viewer.log_state(backend.state_0)
                     if self.cfg.enable_markers:
-                        render_newton_visualization_markers(
-                            self._viewer, self._resolved_visible_env_ids, num_envs=num_envs
-                        )
+                        render_newton_visualization_markers(self._viewer, self._env_ids, num_envs=num_envs)
                 self._render_live_plots()
             finally:
                 self._viewer.end_frame()
@@ -439,7 +422,7 @@ class RerunVisualizer(BaseVisualizer):
         self.backend = backend
         self._transform_mapping = self._scene_data_provider.create_mapping(list(backend.model.body_label))
         self._viewer.set_model(backend.model)
-        self._viewer.set_visible_worlds(self._resolved_visible_env_ids)
+        self._viewer.set_visible_worlds(self._env_ids)
         self._viewer.set_world_offsets((0.0, 0.0, 0.0))
 
     def close(self) -> None:

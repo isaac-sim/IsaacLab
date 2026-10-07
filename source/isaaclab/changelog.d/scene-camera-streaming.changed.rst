@@ -12,6 +12,8 @@
   to an existing sensor. Resolved camera references before visualizer initialization;
   custom visualizers must accept the ``cameras`` and ``stage`` keyword arguments and pass them
   to ``super().initialize()``. Passed borrowed camera objects rather than cloning plans.
+* Resolved the final visible environment selection in ``BaseVisualizer.initialize()`` so
+  ``get_visualized_env_ids()`` returned the same selection used by viewers, markers, and camera tiles.
 * **Breaking:** Removed the deprecated ``tiled_cam_view``, ``tiled_cam_num``, ``tiled_cam_env_indices``, and
   ``tiled_cam_prim_path`` aliases. Use ``streaming_view``, ``streaming_envs`` (count or list), and
   ``streaming_sensor_prim_path`` or ``cameras=[SceneCameraCfg(...)]`` instead.

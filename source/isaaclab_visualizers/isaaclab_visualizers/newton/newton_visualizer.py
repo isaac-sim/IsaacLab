@@ -46,7 +46,6 @@ from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg
 
 from isaaclab_visualizers.desktop_entry import write_desktop_entry
 from isaaclab_visualizers.newton.newton_visualization_markers import render_newton_visualization_markers
-from isaaclab_visualizers.newton_adapter import resolve_visible_env_indices
 
 from .newton_visualizer_cfg import NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg, NewtonVisualizerCfg
 
@@ -986,7 +985,6 @@ class NewtonVisualizer(BaseVisualizer):
         self.backend = None
         self._last_camera_pose: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
         self._headless_no_viewer = False
-        self._resolved_visible_env_ids: list[int] | None = None
         self._viewer_picking_binding = self._ViewerPickingBinding()
         self._picking_enabled = False
         self._live_plots_manager_visible: dict[str, bool] = {}
@@ -1040,8 +1038,6 @@ class NewtonVisualizer(BaseVisualizer):
         )
         num_envs = scene_data_provider.num_envs
         metadata = {"num_envs": num_envs}
-        self._env_ids = self._compute_visualized_env_ids()
-        self._resolved_visible_env_ids = resolve_visible_env_indices(self._env_ids, self.cfg.max_visible_envs, num_envs)
         self.newton_cfg = NewtonBackendCfg(physics_cfg=sim.cfg.physics, device=sim.device)
         self.backend = sim.get_or_create_backend(self.newton_cfg)
         self._transform_mapping = scene_data_provider.create_mapping(list(self.backend.model.body_label))
@@ -1077,11 +1073,10 @@ class NewtonVisualizer(BaseVisualizer):
             if self._picking_enabled:
                 # Keep Newton's public force path scoped to picking for this integration.
                 self._viewer.wind = None
-            self._viewer.set_visible_worlds(self._resolved_visible_env_ids)
+            self._viewer.set_visible_worlds(self._env_ids)
             self._viewer.set_world_offsets(self.cfg.world_spacing)
             self._apply_camera_focal_length()
-            initial_pose = self._resolve_initial_camera_pose()
-            self._apply_camera_pose(initial_pose)
+            self._apply_camera_pose((self.cfg.eye, self.cfg.lookat))
             self._viewer._paused = False
 
             self._apply_model_visualization_options()
@@ -1091,13 +1086,11 @@ class NewtonVisualizer(BaseVisualizer):
 
         self._setup_streaming_view(
             num_envs,
-            visible_env_ids=self._resolved_visible_env_ids,
+            visible_env_ids=self._env_ids,
             target_aspect=self.cfg.window_width / self.cfg.window_height,
         )
 
-        num_visualized_envs = (
-            len(self._resolved_visible_env_ids) if self._resolved_visible_env_ids is not None else num_envs
-        )
+        num_visualized_envs = len(self._env_ids) if self._env_ids is not None else num_envs
         try:
             current_eye = tuple(float(x) for x in self._viewer.camera.pos) if self._viewer is not None else self.cfg.eye
         except AttributeError:
@@ -1190,9 +1183,7 @@ class NewtonVisualizer(BaseVisualizer):
                         self._log_scene_contact_sensor_arrows(num_envs)
                     if self.cfg.enable_markers and not isinstance(self._viewer, NewtonViewerRTX):
                         # RTX's USD scene does not support the GL marker overlays.
-                        render_newton_visualization_markers(
-                            self._viewer, self._resolved_visible_env_ids, num_envs=num_envs
-                        )
+                        render_newton_visualization_markers(self._viewer, self._env_ids, num_envs=num_envs)
                     self._log_streaming_image()
                     self._render_live_plots()
                     self._log_pending_meshes()
@@ -1251,7 +1242,7 @@ class NewtonVisualizer(BaseVisualizer):
             if self._picking_enabled:
                 self._viewer.wind = None
             self._viewer._register_isaaclab_ui_callbacks()
-            self._viewer.set_visible_worlds(self._resolved_visible_env_ids)
+            self._viewer.set_visible_worlds(self._env_ids)
             self._viewer.set_world_offsets(self.cfg.world_spacing)
             self._apply_viewer_post_init()
             self._apply_model_visualization_options()
@@ -1504,9 +1495,7 @@ class NewtonVisualizer(BaseVisualizer):
             self._viewer.log_state(backend.state_0)
             # RTX's USD scene does not support the GL marker overlays.
             if self.cfg.enable_markers and not isinstance(self._viewer, NewtonViewerRTX):
-                render_newton_visualization_markers(
-                    self._viewer, self._resolved_visible_env_ids, num_envs=backend.model.num_envs
-                )
+                render_newton_visualization_markers(self._viewer, self._env_ids, num_envs=backend.model.num_envs)
             self._log_pending_meshes()
         finally:
             self._viewer.end_frame()
@@ -1623,9 +1612,9 @@ class NewtonVisualizer(BaseVisualizer):
 
     def _filter_visible_env_tensor(self, tensor: torch.Tensor, num_envs: int) -> torch.Tensor:
         """Apply Newton visualizer visible-world filtering to a sensor tensor."""
-        if self._resolved_visible_env_ids is None or tensor.ndim == 0 or tensor.shape[0] != num_envs:
+        if self._env_ids is None or tensor.ndim == 0 or tensor.shape[0] != num_envs:
             return tensor
-        ids = torch.as_tensor(self._resolved_visible_env_ids, dtype=torch.long, device=tensor.device)
+        ids = torch.as_tensor(self._env_ids, dtype=torch.long, device=tensor.device)
         return tensor.index_select(0, ids)
 
 

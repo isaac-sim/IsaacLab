@@ -474,12 +474,8 @@ def test_viser_visualizer_create_viewer_applies_visible_worlds(
             return None
 
     monkeypatch.setattr(viser_visualizer, "NewtonViewerViser", _FakeNewtonViewerViser)
-    monkeypatch.setattr(
-        viser_visualizer.ViserVisualizer,
-        "_resolve_initial_camera_pose",
-        lambda self: ((1.0, 2.0, 3.0), (0.0, 0.0, 0.0)),
-    )
-    monkeypatch.setattr(viser_visualizer.ViserVisualizer, "_set_viser_camera_view", lambda self, pose: None)
+    apply_pose = Mock()
+    monkeypatch.setattr(viser_visualizer.ViserVisualizer, "_set_viser_camera_view", apply_pose)
 
     cfg = ViserVisualizerCfg(
         max_visible_envs=cfg_max_visible_envs,
@@ -488,13 +484,14 @@ def test_viser_visualizer_create_viewer_applies_visible_worlds(
     )
     visualizer = viser_visualizer.ViserVisualizer(cfg)
     visualizer.backend = SimpleNamespace(model="dummy-model")
-    visualizer._env_ids = None  # normally set by initialize() -> _compute_visualized_env_ids()
+    BaseVisualizer.initialize(visualizer, SimpleNamespace(num_envs=8), cameras=[])
     visualizer._create_viewer(record_to_viser="record.viser", metadata={"num_envs": 8})
 
     assert captured["set_model"] == "dummy-model"
     assert captured["init"]["bind_address"] == cfg.bind_address
     assert captured["visible_worlds"] == expected_visible
     assert captured["set_world_offsets"] == (0.0, 0.0, 0.0)
+    apply_pose.assert_called_once_with((cfg.eye, cfg.lookat))
 
 
 @pytest.mark.parametrize(
@@ -534,12 +531,8 @@ def test_rerun_visualizer_initialize_applies_visible_worlds_and_world_offsets(
         rerun_visualizer, "_ensure_rerun_server", lambda **kwargs: ("rerun+http://127.0.0.1:9876/proxy", False)
     )
     monkeypatch.setattr(rerun_visualizer, "_open_rerun_web_viewer", lambda *args, **kwargs: None)
-    monkeypatch.setattr(
-        rerun_visualizer.RerunVisualizer,
-        "_resolve_initial_camera_pose",
-        lambda self: ((1.0, 2.0, 3.0), (0.0, 0.0, 0.0)),
-    )
-    monkeypatch.setattr(rerun_visualizer.RerunVisualizer, "_apply_camera_pose", lambda self, pose: None)
+    apply_pose = Mock()
+    monkeypatch.setattr(rerun_visualizer.RerunVisualizer, "_apply_camera_pose", apply_pose)
 
     cfg = RerunVisualizerCfg(
         open_browser=False,
@@ -553,6 +546,7 @@ def test_rerun_visualizer_initialize_applies_visible_worlds_and_world_offsets(
     assert captured["set_model"] is web_backend.get_or_create_backend.return_value.model
     assert captured["visible_worlds"] == expected_visible
     assert captured["set_world_offsets"] == (0.0, 0.0, 0.0)
+    apply_pose.assert_called_once_with((cfg.eye, cfg.lookat))
     replacement = SimpleNamespace(model=SimpleNamespace(body_label=["/Replacement"]))
     web_backend.get_or_create_backend.return_value = replacement
     visualizer.reset()

@@ -2594,6 +2594,10 @@ Code that initializes a visualizer directly must supply ordered ``PerspectiveCam
 and existing ``Camera`` sensors through ``cameras``. Use ``resolve_camera_sources`` from
 ``isaaclab.envs.utils.camera_view`` to bind configured path references against a camera registry.
 Call ``super().close()`` after releasing native viewer resources to drop borrowed scene references.
+The base ``initialize()`` also selects visible environments once. Pass ``get_visualized_env_ids()``
+to the viewer instead of calling ``newton_adapter.resolve_visible_env_indices`` or
+``apply_viewer_visible_worlds``; both helpers have been removed. The returned selection already
+applies bounds, duplicate removal, the visibility cap, and optional sampling.
 
 
 .. rubric:: Streaming Camera View (``tiled_cam_*`` fields removed)

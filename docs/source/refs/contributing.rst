@@ -270,6 +270,8 @@ before changing an interface. Apply these rules when adding code or cleaning up 
 * Give each piece of state and validation one owner. Consumers should use the owner's contract instead
   of repairing results or maintaining duplicate state. Cache derived values only when their lifetime and
   invalidation are clear; do not expose mutable cached results for callers to modify accidentally.
+  Resolve selections once at initialization; backends should consume the final selection without a second
+  filtering pass or cache.
   Before adding a parameter record and preparation helper for one consumer, check which values already
   exist in its configuration or array metadata. Keep the remaining setup with that owner and cache only
   the buffers or calculations that need reuse.

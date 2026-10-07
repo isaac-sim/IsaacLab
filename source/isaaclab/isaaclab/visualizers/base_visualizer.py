@@ -107,6 +107,18 @@ class BaseVisualizer(ABC):
         self._scene_stage = stage
         self._camera_choices = list(cameras)
 
+        cfg = self.cfg
+        num_envs = scene_data_provider.num_envs
+        self._env_ids = None
+        if num_envs > 0:
+            count = num_envs if cfg.max_visible_envs is None else max(0, min(int(cfg.max_visible_envs), num_envs))
+            if cfg.visible_env_indices is not None:
+                self._env_ids = list(dict.fromkeys(i for i in cfg.visible_env_indices if 0 <= i < num_envs))[:count]
+            elif cfg.max_visible_envs is not None and cfg.randomly_sample_visible_envs:
+                self._env_ids = sorted(random.sample(range(num_envs), count))
+            elif cfg.max_visible_envs is not None:
+                self._env_ids = list(range(count))
+
     def _setup_streaming_view(
         self,
         num_envs: int,
@@ -394,31 +406,6 @@ class BaseVisualizer(ABC):
         """
         return self._env_ids
 
-    def _compute_visualized_env_ids(self) -> list[int] | None:
-        """Compute which environment indices to visualize from config.
-
-        Returns:
-            Selected environment ids, or ``None`` to visualize all environments.
-        """
-        if self._scene_data_provider is None:
-            return None
-        cfg = self.cfg
-        num_envs = self._scene_data_provider.num_envs
-        if num_envs <= 0:
-            logger.debug("[Visualizer] num_envs is 0 or missing from provider; env selection disabled.")
-            return None
-        # Explicit list wins; never combine with random cap-only mode.
-        if cfg.visible_env_indices is not None:
-            return [i for i in cfg.visible_env_indices if 0 <= i < num_envs]
-
-        max_visible = cfg.max_visible_envs
-        # Random subset only for cap-only mode: needs a cap and no explicit indices (see VisualizerCfg).
-        if max_visible is not None and cfg.randomly_sample_visible_envs and int(max_visible) >= 0:
-            k = min(int(max_visible), num_envs)
-            # k == 0: sample(range(n), 0) is []; contiguous resolver used the same convention.
-            return sorted(random.sample(range(num_envs), k))
-        return None
-
     def get_rendering_dt(self) -> float | None:
         """Get rendering time step.
 
@@ -435,12 +422,6 @@ class BaseVisualizer(ABC):
             target: Camera target position.
         """
         pass
-
-    def _resolve_initial_camera_pose(self) -> tuple[tuple[float, float, float], tuple[float, float, float]]:
-        """Resolve camera pose from cfg eye/lookat fields."""
-        eye = tuple(float(v) for v in self.cfg.eye)
-        lookat = tuple(float(v) for v in self.cfg.lookat)
-        return eye, lookat
 
     def _focal_length_to_vertical_fov_degrees(self) -> float:
         """Convert cfg focal length to vertical FOV using USD's default aperture."""

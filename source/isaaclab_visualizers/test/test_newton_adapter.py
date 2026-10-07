@@ -25,10 +25,8 @@ from isaaclab_visualizers.newton import newton_visualizer as newton_visualizer_m
 from isaaclab_visualizers.newton.newton_visualizer import NewtonViewerGL, NewtonViewerRTX, _eye_lookat_to_pitch_yaw
 from isaaclab_visualizers.newton_adapter import (
     VISUALIZER_INFINITE_PLANE_SIZE,
-    apply_viewer_visible_worlds,
     expand_infinite_plane_scale,
     log_geo_with_expanded_plane_scale,
-    resolve_visible_env_indices,
 )
 
 from isaaclab.envs.utils.camera_colorizer import CameraFrameColorizer
@@ -75,42 +73,6 @@ def test_log_geo_with_expanded_plane_scale_preserves_non_plane_scale():
 
     log_geo_with_expanded_plane_scale(_log_geo, 1, "box", 2, (0.0, 25.0), 0.0, True, hidden=True)
     assert calls == [("box", 2, (0.0, 25.0), 0.0, True, None, True)]
-
-
-@pytest.mark.parametrize(
-    ("env_ids", "max_visible_envs", "num_envs", "expected"),
-    [
-        ([1, 3, 5], 2, 10, [1, 3]),
-        ([1, 3], 1, 10, [1]),
-        # Deduplicates before truncating.
-        ([1, 1, 3, 5], 2, 10, [1, 3]),
-        ([1, 3], None, 10, [1, 3]),
-        # Without a filter, the cap selects the first envs.
-        (None, 3, 10, [0, 1, 2]),
-        (None, None, 10, None),
-        # Zero envs falls through like Newton.
-        (None, 5, 0, None),
-    ],
-)
-def test_resolve_visible_env_indices(env_ids, max_visible_envs, num_envs, expected):
-    assert resolve_visible_env_indices(env_ids, max_visible_envs, num_envs) == expected
-
-
-def test_apply_viewer_visible_worlds_delegates_to_resolved():
-    calls: list = []
-
-    class _V:
-        def set_visible_worlds(self, worlds):
-            calls.append(worlds)
-
-    apply_viewer_visible_worlds(_V(), env_ids=None, max_visible_envs=2, num_envs=5)
-    assert calls == [[0, 1]]
-
-    apply_viewer_visible_worlds(_V(), env_ids=[2], max_visible_envs=99, num_envs=5)
-    assert calls[-1] == [2]
-
-    apply_viewer_visible_worlds(_V(), env_ids=None, max_visible_envs=None, num_envs=3)
-    assert calls[-1] is None
 
 
 def test_newton_visualizer_log_mesh_keeps_latest_submission_per_name():
@@ -188,7 +150,6 @@ def test_newton_visualizer_set_camera_view_updates_cfg_without_viewer():
 
     assert visualizer.cfg.eye == (1.0, 2.0, 3.0)
     assert visualizer.cfg.lookat == (0.0, 0.0, 1.0)
-    assert visualizer._resolve_initial_camera_pose() == ((1.0, 2.0, 3.0), (0.0, 0.0, 1.0))
 
 
 def test_newton_visualizer_set_camera_view_updates_active_viewer():
@@ -233,7 +194,9 @@ def test_visualizers_borrow_scene_camera_outputs(monkeypatch):
         close=Mock(),
         update=Mock(),
     )
-    provider = SimpleNamespace(get_camera_sensors=Mock(side_effect=AssertionError("Sources must already be bound")))
+    provider = SimpleNamespace(
+        num_envs=4, get_camera_sensors=Mock(side_effect=AssertionError("Sources must already be bound"))
+    )
     camera_sensors = {"camera": camera}
     viewers = []
     for ids in ([0, 2], [1, 3]):
@@ -244,6 +207,8 @@ def test_visualizers_borrow_scene_camera_outputs(monkeypatch):
         assert not hasattr(visualizer, "_clone_plan")
         assert not hasattr(visualizer, "_resolve_camera_pose_from_usd_path")
         assert not hasattr(visualizer, "_streaming_params")
+        assert not hasattr(visualizer, "_resolved_visible_env_ids")
+        assert not hasattr(visualizer, "_resolve_initial_camera_pose")
         visualizer._setup_streaming_view(4)
         assert visualizer._camera_sensor is camera
         image = visualizer.render_tiled_rgb_array()
@@ -668,7 +633,6 @@ def _make_newton_visualizer(viewer, scene_data_provider=None, state=None, *, cfg
     visualizer._scene_data_provider = scene_data_provider or _SceneDataProvider()
     visualizer._scene_data_provider.poses = state.body_q
     visualizer._transform_mapping = None
-    visualizer._resolved_visible_env_ids = None
     visualizer._live_plot_sources = []
     if viewer is not None:
         visualizer._viewer_picking_binding.bind(viewer)
@@ -720,7 +684,7 @@ def test_newton_visualizer_hard_reset_rebinds_viewer_model(monkeypatch, picking)
     viewer.set_world_offsets = Mock()
     visualizer = _make_newton_visualizer(viewer)
     cfg = visualizer.newton_cfg = NewtonBackendCfg(physics_cfg=object(), device="cpu")
-    visualizer._resolved_visible_env_ids = [1, 3]
+    visualizer._env_ids = [1, 3]
     visualizer._picking_enabled = picking
     visualizer.cfg.world_spacing = (2.0, 0.0, 0.0)
     visualizer.cfg.show_contacts = True
@@ -1158,7 +1122,7 @@ def test_newton_rtx_visualizer_rejects_kit_physics_backend(monkeypatch, backend)
     visualizer = NewtonRTXVisualizer(NewtonRTXVisualizerCfg())
 
     with pytest.raises(RuntimeError, match="Newton RTX"):
-        visualizer.initialize(Mock(), cameras=[])
+        visualizer.initialize(SimpleNamespace(num_envs=1), cameras=[])
 
 
 def test_newton_rtx_visualizer_allows_ovphysx_backend(monkeypatch):
@@ -1171,4 +1135,4 @@ def test_newton_rtx_visualizer_allows_ovphysx_backend(monkeypatch):
     # No RuntimeError from the guard; falls through to the next line, which needs a real
     # SimulationContext and fails differently -- proving the guard did not fire for ovphysx.
     with pytest.raises(AttributeError):
-        visualizer.initialize(Mock(), cameras=[])
+        visualizer.initialize(SimpleNamespace(num_envs=1), cameras=[])

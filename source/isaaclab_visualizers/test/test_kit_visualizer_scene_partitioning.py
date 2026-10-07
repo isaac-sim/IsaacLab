@@ -79,7 +79,7 @@ def test_viewport_camera_partition_follows_global_view_setting(
 
     visualizer = object.__new__(KitVisualizer)
     visualizer._controlled_camera_path = "/OmniverseKit_Persp"
-    visualizer._resolved_visible_env_ids = [2]
+    visualizer._env_ids = [2]
     settings = MagicMock()
     settings.get.return_value = show_global_view
     monkeypatch.setattr(kit_visualizer_module, "get_settings_manager", lambda: settings)

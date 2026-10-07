@@ -24,7 +24,6 @@ from isaaclab.visualizers.base_visualizer import BaseVisualizer
 from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg
 
 from isaaclab_visualizers.desktop_entry import write_desktop_entry
-from isaaclab_visualizers.newton_adapter import resolve_visible_env_indices
 
 from .kit_visualizer_cfg import KitVisualizerCfg
 
@@ -60,7 +59,6 @@ class KitVisualizer(BaseVisualizer):
         self._viewport_window = None
         self._viewport_api = None
         self._step_counter = 0
-        self._resolved_visible_env_ids: list[int] | None = None
         self._hidden_env_visibilities: dict[str, str] = {}
         # PointInstancer prim path -> (had authored invisibleIds, previous value) for partial viz restore.
         self._point_instancer_invisible_ids_backup: dict[str, tuple[bool, object]] = {}
@@ -118,17 +116,13 @@ class KitVisualizer(BaseVisualizer):
         if self._viewport_api is not None:
             self._apply_render_product_background(self._scene_stage, self._viewport_api.render_product_path)
 
-        self._env_ids = self._compute_visualized_env_ids()
-        self._resolved_visible_env_ids = resolve_visible_env_indices(self._env_ids, self.cfg.max_visible_envs, num_envs)
-        if self._resolved_visible_env_ids is not None:
+        if self._env_ids is not None:
             logger.warning(
                 "[KitVisualizer] Partial visualization in Kit uses visibility only; unselected env prims are hidden."
             )
-            self._apply_env_visibility(self._scene_stage, num_envs, self._resolved_visible_env_ids)
+            self._apply_env_visibility(self._scene_stage, num_envs, self._env_ids)
         self._apply_viewport_camera_scene_partition(self._scene_stage, num_envs)
-        num_visualized_envs = (
-            len(self._resolved_visible_env_ids) if self._resolved_visible_env_ids is not None else num_envs
-        )
+        num_visualized_envs = len(self._env_ids) if self._env_ids is not None else num_envs
         self._log_initialization_table(
             logger=logger,
             title="KitVisualizer Configuration",
@@ -600,7 +594,7 @@ class KitVisualizer(BaseVisualizer):
         """Bind a scene camera and create its Kit display panel."""
         super()._setup_streaming_view(
             num_envs,
-            visible_env_ids=self._resolved_visible_env_ids,
+            visible_env_ids=self._env_ids,
             target_aspect=self.cfg.window_width / self.cfg.window_height,
         )
         if self._camera_sensor is None or self._runtime_headless:
@@ -698,7 +692,7 @@ class KitVisualizer(BaseVisualizer):
             )
             return
 
-        env_id = self._resolved_visible_env_ids[0] if self._resolved_visible_env_ids else 0
+        env_id = self._env_ids[0] if self._env_ids else 0
         logger.debug(
             "[KitVisualizer] Assigning viewport camera '%s' to scene partition env_%d.",
             self._controlled_camera_path,
@@ -867,12 +861,12 @@ class KitVisualizer(BaseVisualizer):
 
     def _refresh_partial_viz_point_instancers_if_needed(self) -> None:
         """Re-apply ``invisibleIds`` for env-scaled `/Visuals` instancers (handles lazy marker creation)."""
-        if self._resolved_visible_env_ids is None or self._scene_data_provider is None:
+        if self._env_ids is None or self._scene_data_provider is None:
             return
         num_envs = self._scene_data_provider.num_envs
         if num_envs <= 0:
             return
-        self._apply_visual_point_instancer_visibility(self._scene_stage, num_envs, set(self._resolved_visible_env_ids))
+        self._apply_visual_point_instancer_visibility(self._scene_stage, num_envs, set(self._env_ids))
 
     def _apply_visual_point_instancer_visibility(self, usd_stage, num_envs: int, visible_env_ids: set[int]) -> None:
         """Set ``PointInstancer.invisibleIds`` for per-env `/Visuals` markers (e.g. velocity arrows)."""

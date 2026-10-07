@@ -6,3 +6,6 @@
 * Bound scene camera references before backend initialization and consumed the supplied camera
   objects without cloning-plan dependencies. Custom visualizers must forward ``cameras`` and
   ``stage`` to ``super().initialize()``.
+* **Breaking:** Removed ``newton_adapter.resolve_visible_env_indices`` and ``apply_viewer_visible_worlds``.
+  Backends consumed the base visualizer's final selection directly; custom visualizers should pass
+  ``get_visualized_env_ids()`` to their viewer after calling ``super().initialize()``.

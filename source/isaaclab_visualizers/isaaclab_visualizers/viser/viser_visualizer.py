@@ -27,11 +27,7 @@ from isaaclab.visualizers.base_visualizer import BaseVisualizer
 from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg
 
 from isaaclab_visualizers.newton.newton_visualization_markers import render_newton_visualization_markers
-from isaaclab_visualizers.newton_adapter import (
-    apply_viewer_visible_worlds,
-    log_geo_with_expanded_plane_scale,
-    resolve_visible_env_indices,
-)
+from isaaclab_visualizers.newton_adapter import log_geo_with_expanded_plane_scale
 
 from .viser_visualizer_cfg import ViserVisualizerCfg
 
@@ -348,7 +344,6 @@ class ViserVisualizer(BaseVisualizer):
         self._active_record_path: str | None = None
         self._last_camera_pose: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
         self._pending_camera_pose: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
-        self._resolved_visible_env_ids: list[int] | None = None
         self._warned_marker_render_failure = False
         self._paused_rendering = False
         self._paused_simulation = False
@@ -374,7 +369,6 @@ class ViserVisualizer(BaseVisualizer):
         super().initialize(scene_data_provider, cameras=cameras, stage=stage)
         num_envs = scene_data_provider.num_envs
         metadata = {"num_envs": num_envs}
-        self._env_ids = self._compute_visualized_env_ids()
         sim = SimulationContext.instance()
         self.newton_cfg = NewtonBackendCfg(physics_cfg=sim.cfg.physics, device=sim.device)
         self.backend = sim.get_or_create_backend(self.newton_cfg)
@@ -382,10 +376,7 @@ class ViserVisualizer(BaseVisualizer):
 
         self._active_record_path = self.cfg.record_to_viser
         self._create_viewer(record_to_viser=self.cfg.record_to_viser, metadata=metadata)
-        self._resolved_visible_env_ids = resolve_visible_env_indices(self._env_ids, self.cfg.max_visible_envs, num_envs)
-        num_visualized_envs = (
-            len(self._resolved_visible_env_ids) if self._resolved_visible_env_ids is not None else num_envs
-        )
+        num_visualized_envs = len(self._env_ids) if self._env_ids is not None else num_envs
         self._log_initialization_table(
             logger=logger,
             title="ViserVisualizer Configuration",
@@ -400,7 +391,7 @@ class ViserVisualizer(BaseVisualizer):
                 ("record_to_viser", self.cfg.record_to_viser or "<none>"),
             ],
         )
-        self._setup_streaming_view(num_envs, visible_env_ids=self._resolved_visible_env_ids)
+        self._setup_streaming_view(num_envs, visible_env_ids=self._env_ids)
         self._is_initialized = True
 
     def step(self, dt: float) -> None:
@@ -477,7 +468,7 @@ class ViserVisualizer(BaseVisualizer):
     def _render_markers(self, num_envs: int) -> None:
         """Render marker overlays without letting them interrupt Viser body updates."""
         try:
-            render_newton_visualization_markers(self._viewer, self._resolved_visible_env_ids, num_envs=num_envs)
+            render_newton_visualization_markers(self._viewer, self._env_ids, num_envs=num_envs)
         except Exception as exc:
             if not self._warned_marker_render_failure:
                 logger.warning("[ViserVisualizer] Marker rendering failed; continuing body updates: %s", exc)
@@ -498,7 +489,7 @@ class ViserVisualizer(BaseVisualizer):
         self._transform_mapping = self._scene_data_provider.create_mapping(list(backend.model.body_label))
         self._viewer.set_model(backend.model)
         self._setup_isaaclab_sidebar(self._viewer._server)
-        self._viewer.set_visible_worlds(self._resolved_visible_env_ids)
+        self._viewer.set_visible_worlds(self._env_ids)
         self._viewer.set_world_offsets((0.0, 0.0, 0.0))
 
     def close(self) -> None:
@@ -616,25 +607,18 @@ class ViserVisualizer(BaseVisualizer):
                 "ViserVisualizer",
                 viewer_url,
             )
-        num_envs = int((metadata or {}).get("num_envs", 0))
         self._viewer.set_model(self.backend.model)
         self._viewer.show_particles = self.cfg.show_particles
         # Set up sidebar AFTER set_model() — set_model calls clear_model() internally,
         # which would destroy any GUI elements created before it.
         if server is not None:
             self._setup_isaaclab_sidebar(server)
-        apply_viewer_visible_worlds(
-            self._viewer,
-            env_ids=self._env_ids,
-            max_visible_envs=self.cfg.max_visible_envs,
-            num_envs=num_envs,
-        )
+        self._viewer.set_visible_worlds(self._env_ids)
         # Preserve simulation world positions (env_spacing) rather than adding viewer-side offsets.
         self._viewer.set_world_offsets((0.0, 0.0, 0.0))
         if self.cfg.open_browser:
             _open_viser_web_viewer(viewer_url)
-        initial_pose = self._resolve_initial_camera_pose()
-        self._set_viser_camera_view(initial_pose)
+        self._set_viser_camera_view((self.cfg.eye, self.cfg.lookat))
 
     def _setup_isaaclab_sidebar(self, server) -> None:
         """Configure the Viser sidebar as the Isaac Lab panel.

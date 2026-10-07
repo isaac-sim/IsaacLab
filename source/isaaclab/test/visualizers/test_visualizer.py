@@ -7,7 +7,9 @@
 
 from __future__ import annotations
 
-import importlib.util
+import random
+from types import SimpleNamespace
+from unittest.mock import Mock
 
 import pytest
 
@@ -74,7 +76,7 @@ def test_visualizer_cfg_validates_background_color():
 
 class _DummyVisualizer(BaseVisualizer):
     def initialize(self, scene_data_provider, *, cameras, stage=None) -> None:
-        self._scene_data_provider = scene_data_provider
+        super().initialize(scene_data_provider, cameras=cameras, stage=stage)
         self._is_initialized = True
 
     def step(self, dt: float) -> None:
@@ -87,71 +89,50 @@ class _DummyVisualizer(BaseVisualizer):
         return True
 
 
-def _make_cfg(**kwargs):
-    cfg = {
-        "max_visible_envs": None,
-        "visible_env_indices": None,
-        # Default off in tests: contiguous cap-only path matches historical assertions.
-        "randomly_sample_visible_envs": False,
-    }
-    cfg.update(kwargs)
-    return VisualizerCfg(**cfg)
-
-
-_HAS_ISAACLAB_VIZ = importlib.util.find_spec("isaaclab_visualizers") is not None
-
-
-class _FakeProvider:
-    def __init__(self, num_envs: int = 0):
-        self._num_envs = num_envs
-
-    @property
-    def num_envs(self) -> int:
-        return self._num_envs
-
-    def get_metadata(self) -> dict:
-        return {"num_envs": self._num_envs}
-
-
-def test_compute_visualized_env_ids_cap_only_returns_none():
-    """Cap-only path: :meth:`_compute_visualized_env_ids` is ``None``.
-
-    The cap is applied later by ``resolve_visible_env_indices``.
-    """
-    viz = _DummyVisualizer(_make_cfg(max_visible_envs=3, visible_env_indices=None))
-    viz._scene_data_provider = _FakeProvider(num_envs=10)
-    assert viz._compute_visualized_env_ids() is None
-
-
-def test_compute_visualized_env_ids_from_visible_indices_filters_out_of_range():
-    viz = _DummyVisualizer(_make_cfg(visible_env_indices=[-1, 0, 3, 99]))
-    viz._scene_data_provider = _FakeProvider(num_envs=4)
-    assert viz._compute_visualized_env_ids() == [0, 3]
-
-
-@pytest.mark.skipif(not _HAS_ISAACLAB_VIZ, reason="isaaclab_visualizers not installed")
-def test_compute_visualized_env_ids_random_cap_only_sorted_once():
-    """Cap-only random mode returns a sorted sample; explicit indices ignore the flag."""
-    cfg = _make_cfg(max_visible_envs=3, visible_env_indices=None, randomly_sample_visible_envs=True)
+@pytest.mark.parametrize(
+    "env_ids, cap, num_envs, expected",
+    [
+        (None, None, 10, None),
+        (None, 3, 10, [0, 1, 2]),
+        (None, 0, 10, []),
+        (None, -1, 10, []),
+        (None, 20, 3, [0, 1, 2]),
+        (None, 5, 0, None),
+        ([], 2, 10, []),
+        ([5, -1, 3, 3, 99, 1], 3, 10, [5, 3, 1]),
+        ([1, 3, 5], 2, 10, [1, 3]),
+        ([1, 3], None, 10, [1, 3]),
+    ],
+)
+def test_visualizer_initialization_resolves_visible_envs(env_ids, cap, num_envs, expected):
+    cfg = VisualizerCfg(visible_env_indices=env_ids, max_visible_envs=cap, randomly_sample_visible_envs=False)
     viz = _DummyVisualizer(cfg)
-    viz._scene_data_provider = _FakeProvider(num_envs=10)
-    sampled = viz._compute_visualized_env_ids()
+    viz.initialize(SimpleNamespace(num_envs=num_envs), cameras=[])
+    assert viz.get_visualized_env_ids() == expected
+
+
+def test_visualizer_initialization_samples_visible_envs_once(monkeypatch):
+    sample = Mock(wraps=random.sample)
+    monkeypatch.setattr(random, "sample", sample)
+    cfg = VisualizerCfg(max_visible_envs=3, randomly_sample_visible_envs=True)
+    viz = _DummyVisualizer(cfg)
+    viz.initialize(SimpleNamespace(num_envs=10), cameras=[])
+    sampled = viz.get_visualized_env_ids()
     assert sampled is not None and len(sampled) == 3
     assert sampled == sorted(sampled)
     assert len(set(sampled)) == 3
     assert all(0 <= i < 10 for i in sampled)
 
-    cfg_explicit = _make_cfg(
-        visible_env_indices=[1, 5],
-        max_visible_envs=1,
-        randomly_sample_visible_envs=True,
-    )
-    viz2 = _DummyVisualizer(cfg_explicit)
-    viz2._scene_data_provider = _FakeProvider(num_envs=10)
-    assert viz2._compute_visualized_env_ids() == [1, 5]
+    viz.reset(soft=True)
+    assert viz.get_visualized_env_ids() == sampled
+
+    cfg.visible_env_indices, cfg.max_visible_envs = [1, 5], 1
+    viz.initialize(SimpleNamespace(num_envs=10), cameras=[])
+    assert viz.get_visualized_env_ids() == [1]
+    assert sample.call_count == 1
 
 
 def test_physics_backend_returns_none_without_simulation_context():
     """physics_backend is None when no SimulationContext is active."""
-    viz = _DummyVisualizer(_make_cfg())
+    viz = _DummyVisualizer(VisualizerCfg())
     assert viz.physics_backend is None
