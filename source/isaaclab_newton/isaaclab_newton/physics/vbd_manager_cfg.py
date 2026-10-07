@@ -30,6 +30,13 @@ class VBDSolverCfg(NewtonSolverCfg):
     integrate_with_external_rigid_solver: bool = False
     """Whether an external solver integrates rigid bodies."""
 
+    update_joint_state: bool = True
+    """Derive joint positions and velocities from VBD-integrated body motion after each physics tick.
+
+    Disable only when consumers use body state exclusively. External rigid integration always skips
+    this synchronization so the external solver retains ownership of its generalized joint state.
+    """
+
     particle_enable_self_contact: bool = False
     """Whether to enable particle self-contact."""
 
@@ -56,6 +63,12 @@ class VBDSolverCfg(NewtonSolverCfg):
 
     rigid_compliant_alm: bool | None = None
     """Whether to use compliant ALM for rigid joints and contacts; ``None`` preserves Newton's default."""
+
+    rigid_joint_linear_ke: float = 1.0e5
+    """Structural linear stiffness of non-rod rigid joints [N/m], separate from joint-drive gains."""
+
+    rigid_joint_angular_ke: float = 1.0e5
+    """Structural angular stiffness of non-rod rigid joints [N m/rad], separate from joint-drive gains."""
 
     rigid_contact_k_start: float = 1.0e2
     """Initial stiffness seed for rigid-body contacts [N/m]."""

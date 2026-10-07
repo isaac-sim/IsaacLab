@@ -159,6 +159,12 @@ Core Solve
       - Default: ``10``. Number of VBD iterations per substep. Increasing this value improves deformation and contact convergence, especially for stiff materials or rigid gripper contacts, but increases runtime.
     * - ``rigid_compliant_alm``
       - Default: ``None``. Preserves Newton's rigid solver mode. In Newton 1.6, ``None`` selects deprecated legacy AVBD. Set to ``True`` to use compliant ALM for rigid joints and body-body contacts, or ``False`` to explicitly retain legacy AVBD.
+    * - ``rigid_joint_linear_ke``
+      - Default: ``1.0e5`` [N/m]. Structural linear stiffness for non-rod rigid joints, separate from actuator gains.
+    * - ``rigid_joint_angular_ke``
+      - Default: ``1.0e5`` [N m/rad]. Structural angular stiffness for non-rod rigid joints, separate from actuator gains.
+    * - ``update_joint_state``
+      - Default: ``True``. Derives joint positions and velocities from VBD-integrated body motion each tick. Disable only for body-state-only consumers. External rigid integration always skips this update, preserving the external solver's joint state.
     * - ``rigid_body_contact_buffer_size``
       - Default: ``64``. Per-body capacity for body-body contacts when VBD integrates rigid bodies. Increase it if Newton reports a per-body body-body contact buffer overflow.
     * - ``rigid_body_particle_contact_buffer_size``
