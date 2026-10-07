@@ -3,6 +3,26 @@ Changelog
 
 .. towncrier release notes start
 
+27.0.2 (2026-10-06)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added LEAPP input semantics and deployment wiring for individual camera output buffers.
+* Added traceable Torch preprocessing for RGB observations during LEAPP export.
+
+Changed
+^^^^^^^
+
+* Changed the Newton dependency from the ``release-1.6`` Git branch to the ``1.6.1`` PyPI release.
+
+Fixed
+^^^^^
+
+* Fixed LEAPP export of camera frame stacks and observation history with configured storage layouts, including first-frame backfill.
+
+
 27.0.1 (2026-10-03)
 ~~~~~~~~~~~~~~~~~~~
 

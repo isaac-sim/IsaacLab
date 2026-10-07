@@ -808,8 +808,8 @@ jobs:
         warp-cache: restore
         ovrtx-shader-cache: restore
         ovrtx-shader-cache-trees: kit
-        # The three files run side by side; the kit and kitless files split across two workers each.
-        test-jobs: "5"
+        # Keep the shared GPU to one two-worker test file at a time.
+        test-jobs: "2"
         container-name: isaac-lab-contrib-environments-test
 
   test-record-video:
