@@ -27,6 +27,7 @@ from ...utils.math import (
     quat_from_matrix,
 )
 from ...utils.modifiers import ModifierChain
+from ...utils.modifiers.modifier_chain import close_all
 from ...utils.warp import ProxyArray
 from ..sensor_base import SensorBase
 from .camera_data import CameraData, RenderBufferKind
@@ -752,8 +753,7 @@ class Camera(SensorBase):
     def _close_modifiers(self) -> None:
         """Release the modifier chains and the resources their modifiers hold."""
         chains, self._modifier_chains = getattr(self, "_modifier_chains", {}), {}
-        for _, chain in chains.values():
-            chain.close()
+        close_all(chain for _, chain in chains.values())
 
     def _apply_modifiers(self) -> None:
         """Run each modifier chain once per published capture and copy its result to the camera output."""
@@ -1081,10 +1081,12 @@ class Camera(SensorBase):
             self._renderer.cleanup(self._render_data)
         self._render_data = None
         self._renderer = None
-        self._close_modifiers()
-        # call parent
-        super()._invalidate_initialize_callback(event)
-        # release backend state deterministically, then invalidate the view
-        if self._view is not None:
-            self._view.close()
-            self._view = None
+        try:
+            self._close_modifiers()
+        finally:
+            # call parent
+            super()._invalidate_initialize_callback(event)
+            # release backend state deterministically, then invalidate the view
+            if self._view is not None:
+                self._view.close()
+                self._view = None

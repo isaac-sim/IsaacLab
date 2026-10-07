@@ -187,3 +187,37 @@ def test_modifier_chain_binds_its_sensor_before_the_first_call():
     modifiers.ModifierChain([modifiers.ModifierCfg(func=Bound)], "cpu", sensor=sensor)(torch.ones(2, 3))
 
     assert calls == [("bind", sensor), ("call", None)]
+
+
+class _Closer(modifiers.ModifierBase):
+    """Class modifier that records closing and can fail to close."""
+
+    def __init__(self, cfg, data_dim, device):
+        super().__init__(cfg, data_dim, device)
+        self.closed = 0
+
+    def reset(self, env_ids=None):
+        pass
+
+    def close(self):
+        self.closed += 1
+        if self._cfg.params.get("fail"):
+            raise RuntimeError("close failed")
+
+    def __call__(self, data):
+        return data
+
+
+def test_modifier_chain_closes_every_modifier_before_raising():
+    """A failing close does not keep later modifiers open; retrying does not close them twice."""
+    chain = modifiers.ModifierChain(
+        [modifiers.ModifierCfg(func=_Closer, params={"fail": True}), modifiers.ModifierCfg(func=_Closer)], "cpu"
+    )
+    chain(torch.ones(2, 3))
+    failing, owner = chain._instances
+
+    with pytest.raises(RuntimeError, match="close failed"):
+        chain.close()
+    chain.close()
+
+    assert failing.closed == 1 and owner.closed == 1

@@ -1059,3 +1059,63 @@ def test_class_modifiers_propagate_their_output_shape_and_close(setup_env):
     obs_man.close()
     obs_man.close()
     assert AppendOnesModifier.closed == 1
+
+
+class FailingCloseModifier(AppendOnesModifier):
+    """Resource owner whose release fails."""
+
+    def close(self) -> None:
+        super().close()
+        raise RuntimeError("close failed")
+
+    @property
+    def output_dim(self) -> tuple[int, ...]:
+        return self._data_dim
+
+    def __call__(self, data: torch.Tensor) -> torch.Tensor:
+        return data
+
+
+def test_close_releases_every_modifier_and_env_teardown_completes(setup_env):
+    """A failing modifier close neither skips later modifiers nor stops environment teardown."""
+    from types import SimpleNamespace
+    from unittest.mock import MagicMock
+
+    from isaaclab.envs import ManagerBasedEnv
+
+    AppendOnesModifier.closed = 0
+
+    @configclass
+    class MyObservationManagerCfg:
+        @configclass
+        class PolicyCfg(ObservationGroupCfg):
+            concatenate_terms = False
+            term = ObservationTermCfg(
+                func=pos_w_data,
+                modifiers=[
+                    modifiers.ModifierCfg(func=FailingCloseModifier),
+                    modifiers.ModifierCfg(func=AppendOnesModifier),
+                ],
+            )
+
+        policy: ObservationGroupCfg = PolicyCfg()
+
+    obs_man = ObservationManager(MyObservationManagerCfg(), setup_env)
+    sim = MagicMock()
+    env = SimpleNamespace(
+        _is_closed=False,
+        sim=sim,
+        observation_manager=obs_man,
+        action_manager=None,
+        event_manager=None,
+        recorder_manager=None,
+        scene=None,
+        _window=None,
+    )
+
+    with pytest.raises(RuntimeError, match="close failed"):
+        ManagerBasedEnv.close(env)
+
+    assert AppendOnesModifier.closed == 2
+    sim.clear_instance.assert_called_once_with()
+    assert env._is_closed
