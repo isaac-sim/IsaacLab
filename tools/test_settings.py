@@ -23,9 +23,10 @@ PER_TEST_TIMEOUTS = {
     "test_environments_isaacsim_physx.py": 10000,
     "test_environments_newton.py": 10000,
     "test_environments_ovphysx.py": 10000,
-    "test_contrib_environments_kit.py": 10000,
-    "test_contrib_environments_kit_cameras.py": 10000,
-    "test_contrib_environments_kitless.py": 10000,
+    # Bound contrib hangs before the 120-minute CI job timeout so the orchestrator can collect diagnostics.
+    "test_contrib_environments_kit.py": 1200,
+    "test_contrib_environments_kit_cameras.py": 1200,
+    "test_contrib_environments_kitless.py": 1200,
     "test_environment_determinism.py": 1000,  # This test runs through many the environments for 100 steps each
     "test_multi_agent_environments.py": 800,  # This test runs through multi-agent environments for 100 steps each
     "test_generate_dataset_franka_state.py": 3200,  # Annotation and generation each have a 1500 s subprocess cap

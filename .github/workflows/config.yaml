@@ -9,8 +9,8 @@
 # (frozen at 6.1.0-alpha.2). Both images use Isaac Sim's NGC org, which is current and
 # which the CI credential can reach.
 isaacsim_image_name: nvcr.io/0947644777160149/internal/isaac-sim
-# Isaac Sim 6.2.0-alpha.12+develop.51655.36d2fc9a.gl with Kit 110.4.0-384466.
+# Follow the Isaac Sim 6.2 release stream.
 # Pin the multi-arch manifest list digest, not a per-architecture one: ARM CI pulls linux/arm64.
-isaacsim_image_tag: latest-develop@sha256:c4c3f28ee0fe2821a5b0b746b0ff4221785dc5cd7c79842505c1d8f89bb588f5
+isaacsim_image_tag: latest-release-6-2@sha256:dcbd43bb75e9a654baf583b9a10ee082894f1cfd95c6766ab86005aed0566795
 isaaclab_image_name: nvcr.io/0947644777160149/internal/isaac-lab
 ovphysx_wheelhouse_image: ""

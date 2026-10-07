@@ -3,6 +3,16 @@ Changelog
 
 .. towncrier release notes start
 
+7.4.4 (2026-10-06)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the ``--device`` default to ``cpu`` on macOS, which has no CUDA, so commands run without passing
+  ``--device cpu``. Other platforms still default to ``cuda:0``.
+
+
 7.4.3 (2026-10-03)
 ~~~~~~~~~~~~~~~~~~
 

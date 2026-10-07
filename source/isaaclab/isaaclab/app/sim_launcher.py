@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import logging
 import os
+import sys
 import traceback
 from collections.abc import Generator
 from contextlib import contextmanager
@@ -603,6 +604,9 @@ def launch_simulation(
 
     # Resolve the device before any launcher or physics init: --device, else this rank's GPU, else the config's.
     _resolve_distributed_device(args)
+    if sys.platform == "darwin" and args.get("device") == "cpu" and not args.get("device_explicit", False):
+        # the --device default on macOS, which has no CUDA
+        logger.warning("No --device given; using 'cpu' because macOS has no CUDA.")
     if sim_cfg is not None:
         args["device"] = args.get("device") or sim_cfg.device
 
