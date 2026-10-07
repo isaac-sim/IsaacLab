@@ -170,9 +170,7 @@ def test_space_serialization_deserialization():
 
 def test_deserialize_legacy_gym_space_payloads():
     """Gymnasium payloads created before metadata fields were added should retain previous defaults."""
-    box_payload = json.dumps(
-        {"type": "gymnasium", "space": "Box", "low": [-1.0], "high": [1.0], "shape": [1]}
-    )
+    box_payload = json.dumps({"type": "gymnasium", "space": "Box", "low": [-1.0], "high": [1.0], "shape": [1]})
     assert deserialize_space(box_payload).dtype == np.dtype("float32")
 
     discrete_payload = json.dumps({"type": "gymnasium", "space": "Discrete", "n": 3})
