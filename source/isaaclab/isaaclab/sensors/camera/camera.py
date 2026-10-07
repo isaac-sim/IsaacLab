@@ -245,35 +245,6 @@ class Camera(SensorBase):
         if sim_ctx is not None:
             sim_ctx.require_visual_shapes()
 
-        # An ISP (any ``isp_cfg`` other than ``None``) requires the HDR AOV;
-        # an explicit ``"rgb_hdr"`` in ``data_types`` also requires the
-        # HDR-routing flag flipped on the RTX-bearing backends.
-        require_hdr_output = "rgb_hdr" in self.cfg.data_types or self.cfg.isp_cfg is not None
-
-        # TODO(follow-up PR): move this flag flip out of Camera. The cleanest path is
-        # an apply_pre_reset_settings() hook on RendererCfg (default no-op) that
-        # IsaacRtxRendererCfg overrides to flip /isaaclab/render/rtx_sensors. The
-        # flag must be set pre-sim.reset() because SimulationContext.is_rendering
-        # and several env classes read it before the renderer's __init__ runs.
-        renderer_type = getattr(self.cfg.renderer_cfg, "renderer_type", None)
-        if renderer_type == "isaac_rtx":
-            from ...app.settings_manager import get_settings_manager
-
-            settings = get_settings_manager()
-            settings.set("/isaaclab/render/rtx_sensors", True)
-            settings.set("/physics/fabricUpdateTransformations", True)
-            if require_hdr_output:
-                settings.set("/rtx/rtpt/gaussian/skipTonemapping/enabled", False)
-        elif renderer_type == "ovrtx" and require_hdr_output:
-            from ...app.settings_manager import get_settings_manager
-
-            get_settings_manager().set("/rtx/rtpt/gaussian/skipTonemapping/enabled", False)
-            # FIXME: settings.set is a no-op for ovrtx
-            # warning only since it affects only ParticleField3DGaussianSplat scene
-            logger.warning(
-                "OVRTX backend with PPISP/HDR requires /rtx/rtpt/gaussian/skipTonemapping/enabled to be false."
-            )
-
         # UsdGeom Camera prim for the sensor
         self._sensor_prims: list[UsdGeom.Camera] = []
         # Allocated in :meth:`_create_buffers` once the renderer's output contract is known.
@@ -649,22 +620,12 @@ class Camera(SensorBase):
         if self._renderer is None:
             self._renderer = sim_ctx.get_or_create_backend(self.cfg.renderer_cfg)
 
-        # Build the render spec early — both the wrapper ISP (which delegates
-        # any renderer-side per-camera setup) and ``create_render_data`` consume
-        # it, and the prims are already authored at this point.
-        cam_paths = tuple(str(p.GetPath()) for p in sim_utils.find_matching_prims(self.cfg.prim_path, self.stage))
-        render_spec = CameraRenderSpec(
-            cfg=self.cfg,
-            device=str(self._device),
-            num_instances=self._num_envs,
-            camera_prim_paths=cam_paths,
-            view_count=self._num_envs,
-        )
-
-        # Delegate per-camera USD setup to the renderer — must run **before**
-        # ``ensure_prepare_stage`` so renderers that snapshot the stage
-        # (ovrtx's ``stage.Export``) capture the resulting overrides in their
-        # exported USD.
+        # Per-camera USD setup must run **before** ``ensure_prepare_stage`` so renderers that snapshot
+        # the stage (ovrtx's ``stage.Export``) capture the overrides in their exported USD. Every camera
+        # already did this in :meth:`_prepare_initialize_impl`; repeating it is harmless and covers
+        # cameras initialized without that callback.
+        render_spec = self._make_render_spec(self._num_envs)
+        cam_paths = render_spec.camera_prim_paths
         self._renderer.prepare_cameras(self.stage, render_spec)
 
         # Stage preprocessing must happen before creating the view because the view keeps
@@ -702,6 +663,17 @@ class Camera(SensorBase):
 
         # Create internal buffers (includes intrinsic matrix and pose init)
         self._create_buffers()
+
+    def _make_render_spec(self, num_views: int) -> CameraRenderSpec:
+        """Describe this camera's prims and requested outputs to the renderer."""
+        cam_paths = tuple(str(p.GetPath()) for p in sim_utils.find_matching_prims(self.cfg.prim_path, self.stage))
+        return CameraRenderSpec(
+            cfg=self.cfg,
+            device=str(sim_utils.SimulationContext.instance().device),
+            num_instances=num_views,
+            camera_prim_paths=cam_paths,
+            view_count=num_views,
+        )
 
     def _prepare_camera(self, env_mask: wp.array) -> None:
         """Advance capture frames and refresh requested poses before rendering."""
@@ -1034,6 +1006,23 @@ class Camera(SensorBase):
     """
     Internal simulation callbacks.
     """
+
+    def _prepare_initialize_impl(self):
+        """Apply this camera's renderer USD overrides before any camera initializes.
+
+        A renderer that exports the stage when the first camera initializes, such as OVRTX, then sees
+        the overrides of every camera.
+        """
+        sim_ctx = sim_utils.SimulationContext.instance()
+        if self._renderer is None:
+            self._renderer = sim_ctx.get_or_create_backend(self.cfg.renderer_cfg)
+        # Matches the environment count that sensor initialization derives next.
+        clone_plan = sim_ctx.get_clone_plan()
+        if clone_plan is not None:
+            num_views = len(clone_plan.topology.world_prototype_layout)
+        else:
+            num_views = len(sim_utils.find_matching_prims(self.cfg.prim_path, self.stage))
+        self._renderer.prepare_cameras(self.stage, self._make_render_spec(num_views))
 
     def _invalidate_initialize_callback(self, event):
         """Invalidates the scene elements."""

@@ -74,6 +74,7 @@ except ModuleNotFoundError as exc:
 from isaaclab.cloner import ClonePlan
 from isaaclab.cloner import path as cloner_path
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
+from isaaclab.renderers.rtx_camera_overrides import _apply_rtx_exposure_overrides
 from isaaclab.scene_data import SceneDataFormat
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.warp import ProxyArray
@@ -454,20 +455,20 @@ class OVRTXRenderer(BaseRenderer):
         :mod:`isaaclab` does not need to know about PPISP. Then pins
         ``exposure:*`` to neutral and applies ``OmniRtxCameraExposureAPI_1`` so
         the RTX exposure model OVRTX embeds does not compound on top of the
-        ISP. Without an ISP, the camera prim's authored exposure is left alone.
+        ISP. Exposure is also neutralized when ``rgb_radiance`` is requested. Otherwise, the
+        camera prim's authored exposure is left alone.
         """
-        if spec.cfg.isp_cfg is None:
-            return
-        try:
-            from isaaclab_ppisp import apply_rtx_exposure_overrides, resolve_and_normalize
-        except ModuleNotFoundError as exc:
-            _raise_missing_ppisp_error(exc)
+        if spec.cfg.isp_cfg is not None:
+            try:
+                from isaaclab_ppisp import resolve_and_normalize
+            except ModuleNotFoundError as exc:
+                _raise_missing_ppisp_error(exc)
 
-        camera_prim_path = spec.camera_prim_paths[0] if spec.camera_prim_paths else None
-        spec.cfg.isp_cfg = resolve_and_normalize(spec.cfg.isp_cfg, stage, camera_prim_path)
-        if spec.cfg.isp_cfg is None or not spec.camera_prim_paths:
-            return
-        apply_rtx_exposure_overrides(stage, list(spec.camera_prim_paths))
+            camera_prim_path = spec.camera_prim_paths[0] if spec.camera_prim_paths else None
+            spec.cfg.isp_cfg = resolve_and_normalize(spec.cfg.isp_cfg, stage, camera_prim_path)
+        needs_neutral_exposure = spec.cfg.isp_cfg is not None or "rgb_radiance" in spec.cfg.data_types
+        if needs_neutral_exposure and spec.camera_prim_paths:
+            _apply_rtx_exposure_overrides(stage, list(spec.camera_prim_paths))
 
     def prepare_stage(self, stage: Any, num_envs: int) -> None:
         """Prepare the USD stage for OVRTX before :meth:`create_render_data`.
@@ -927,6 +928,10 @@ class OVRTXRenderer(BaseRenderer):
         render_data.warp_buffers = {
             name: proxy.warp for name, proxy in output_data.items() if name != str(RenderBufferKind.RGB)
         }
+        # Radiance reads the same HdrColor var; exposure is neutralized in :meth:`prepare_cameras`.
+        radiance = render_data.warp_buffers.get(str(RenderBufferKind.RGB_RADIANCE))
+        if radiance is not None:
+            render_data.warp_buffers.setdefault(str(RenderBufferKind.RGB_HDR), radiance)
         # When PPISP is composed but the user did not request the raw HDR AOV,
         # allocate an internal HDR scratch buffer under "rgb_hdr" so both the
         # HdrColor extractor and PPISP dispatch can use the same buffer map.

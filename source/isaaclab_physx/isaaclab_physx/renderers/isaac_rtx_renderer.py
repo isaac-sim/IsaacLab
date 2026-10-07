@@ -24,6 +24,7 @@ from pxr import Sdf, Usd, UsdGeom
 from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
 from isaaclab.renderers.camera_render_spec import CameraRenderSpec
+from isaaclab.renderers.rtx_camera_overrides import _apply_rtx_exposure_overrides
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils import enable_extension
 from isaaclab.utils.version import get_isaac_sim_version
@@ -65,6 +66,9 @@ def _raise_missing_ppisp_error(exc: ModuleNotFoundError) -> NoReturn:
         raise exc
     raise ModuleNotFoundError(_PPISP_IMPORT_ERROR_MESSAGE, name="isaaclab_ppisp") from exc
 
+
+# Outputs read from the HdrColor AOV. Radiance differs only by the neutral camera exposure.
+_HDR_DATA_TYPES = frozenset({str(RenderBufferKind.RGB_HDR), str(RenderBufferKind.RGB_RADIANCE)})
 
 # RTX simple-shading constants.
 #
@@ -195,8 +199,11 @@ class IsaacRtxRenderer(BaseRenderer):
         apply_isaac_rtx_global_settings(self.cfg.global_settings, settings)
         if settings.get("/isaaclab/render/deterministic", False):
             apply_isaac_rtx_determinism_settings(settings)
+        # Cameras create this renderer during scene construction, before the simulation and
+        # environments read whether RTX sensors are rendered.
+        settings.set("/isaaclab/render/rtx_sensors", True)
+        settings.set("/physics/fabricUpdateTransformations", True)
         ensure_rtx_hydra_engine_attached()
-        # ``/isaaclab/render/rtx_sensors`` is owned by ``Camera.__init__`` (must be set pre-``sim.reset()``).
 
     def initialize(self) -> None:
         """Bind shared Fabric destinations after scene creation."""
@@ -217,23 +224,26 @@ class IsaacRtxRenderer(BaseRenderer):
         :mod:`isaaclab` does not need to know about PPISP. Then pins
         ``exposure:*`` to neutral and applies ``OmniRtxCameraExposureAPI_1`` so
         RTX's physical-camera exposure model does not compound on top of the
-        ISP. Without an ISP, the camera prim's authored exposure is left alone.
+        ISP. Exposure is also neutralized when ``rgb_radiance`` is requested. Otherwise, the
+        camera prim's authored exposure is left alone.
 
         :attr:`~isaaclab.sensors.camera.CameraCfg.background_color` is applied
         per-render-product in :meth:`create_render_data` via USD attributes.
         """
-        if spec.cfg.isp_cfg is None:
-            return
-        try:
-            from isaaclab_ppisp import apply_rtx_exposure_overrides, resolve_and_normalize
-        except ModuleNotFoundError as exc:
-            _raise_missing_ppisp_error(exc)
+        if spec.cfg.isp_cfg is not None:
+            try:
+                from isaaclab_ppisp import resolve_and_normalize
+            except ModuleNotFoundError as exc:
+                _raise_missing_ppisp_error(exc)
 
-        camera_prim_path = spec.camera_prim_paths[0] if spec.camera_prim_paths else None
-        spec.cfg.isp_cfg = resolve_and_normalize(spec.cfg.isp_cfg, stage, camera_prim_path)
-        if spec.cfg.isp_cfg is None or not spec.camera_prim_paths:
-            return
-        apply_rtx_exposure_overrides(stage, list(spec.camera_prim_paths))
+            camera_prim_path = spec.camera_prim_paths[0] if spec.camera_prim_paths else None
+            spec.cfg.isp_cfg = resolve_and_normalize(spec.cfg.isp_cfg, stage, camera_prim_path)
+        if spec.cfg.isp_cfg is not None or not _HDR_DATA_TYPES.isdisjoint(spec.cfg.data_types):
+            # Gaussian splats otherwise skip tonemapping and never reach the HdrColor AOV.
+            get_settings_manager().set("/rtx/rtpt/gaussian/skipTonemapping/enabled", False)
+        needs_neutral_exposure = spec.cfg.isp_cfg is not None or "rgb_radiance" in spec.cfg.data_types
+        if needs_neutral_exposure and spec.camera_prim_paths:
+            _apply_rtx_exposure_overrides(stage, list(spec.camera_prim_paths))
 
     def supported_output_types(self) -> dict[RenderBufferKind, RenderBufferSpec]:
         """Publish the per-output Replicator layout this RTX backend writes.
@@ -319,7 +329,8 @@ class IsaacRtxRenderer(BaseRenderer):
         if isaac_sim_version.major >= 6:
             simple_shading_mode = self._resolve_simple_shading_mode(spec)
             needs_color_render = any(
-                data_type in spec.cfg.data_types for data_type in ("rgb", "rgba", str(RenderBufferKind.RGB_HDR))
+                data_type in spec.cfg.data_types
+                for data_type in ("rgb", "rgba", str(RenderBufferKind.RGB_HDR), str(RenderBufferKind.RGB_RADIANCE))
             )
             has_gui = settings.get("/isaaclab/has_gui")
             if simple_shading_mode is None and (not needs_color_render or has_gui):
@@ -399,7 +410,7 @@ class IsaacRtxRenderer(BaseRenderer):
                 aov=SIMPLE_SHADING_AOV, output_data_type=np.uint8, output_channels=4
             )
 
-        needs_hdr_color = str(RenderBufferKind.RGB_HDR) in spec.cfg.data_types or (
+        needs_hdr_color = not _HDR_DATA_TYPES.isdisjoint(spec.cfg.data_types) or (
             spec.cfg.isp_cfg is not None and any(data_type in ("rgb", "rgba") for data_type in spec.cfg.data_types)
         )
         if needs_hdr_color:
@@ -420,7 +431,9 @@ class IsaacRtxRenderer(BaseRenderer):
                 else:
                     annotator = rep.AnnotatorRegistry.get_annotator("rgb", device=spec.device, do_array_copy=False)
                     annotators["rgba"] = annotator
-            elif annotator_type == str(RenderBufferKind.RGB_HDR):
+            elif annotator_type in _HDR_DATA_TYPES:
+                # Radiance reads the same HdrColor AOV through the ``rgb_hdr`` alias set in
+                # :meth:`set_outputs`; exposure is neutralized in :meth:`prepare_cameras`.
                 if str(RenderBufferKind.RGB_HDR) not in annotators:
                     annotator = rep.AnnotatorRegistry.get_annotator("HdrColor", device=spec.device, do_array_copy=False)
                     annotators[str(RenderBufferKind.RGB_HDR)] = annotator
@@ -563,6 +576,9 @@ class IsaacRtxRenderer(BaseRenderer):
                 " LDR output destination, but neither was provided. Add 'rgb' or 'rgba' to"
                 " Camera.cfg.data_types when isp_cfg is set."
             )
+        radiance = output_data.get(str(RenderBufferKind.RGB_RADIANCE))
+        if radiance is not None and str(RenderBufferKind.RGB_HDR) not in output_data:
+            output_data = {**output_data, str(RenderBufferKind.RGB_HDR): radiance}
         render_data.output_data = output_data
         # Allocate an internal HDR scratch buffer when PPISP is composed but
         # the user did not request the raw HDR AOV in ``data_types`` — the
