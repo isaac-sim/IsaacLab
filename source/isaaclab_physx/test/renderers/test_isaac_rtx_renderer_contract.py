@@ -90,13 +90,16 @@ def test_native_fabric_geometry_needs_no_separate_publication(monkeypatch):
 @pytest.mark.parametrize(
     ("data_types", "routes_hdr"), [(["rgb"], False), (["rgb_hdr"], True), (["rgb_radiance"], True)]
 )
-def test_pre_reset_settings_mark_rtx_sensors_and_route_hdr(data_types, routes_hdr):
+def test_camera_settings_mark_rtx_sensors_and_route_hdr(monkeypatch, data_types, routes_hdr):
     """Isaac RTX cameras flag RTX sensors before reset and route Gaussian HDR only when linear color is used."""
-    from isaaclab_physx.renderers.isaac_rtx_renderer_cfg import IsaacRtxRendererCfg
+    _install_omni_stubs(monkeypatch)
+    import isaaclab_physx.renderers.isaac_rtx_renderer as rtx_renderer
 
     settings = MagicMock()
-    with patch("isaaclab.app.settings_manager.get_settings_manager", return_value=settings):
-        IsaacRtxRendererCfg().apply_pre_reset_settings(SimpleNamespace(data_types=data_types))
+    with patch.object(rtx_renderer, "get_settings_manager", return_value=settings):
+        rtx_renderer.IsaacRtxRenderer.__new__(rtx_renderer.IsaacRtxRenderer).apply_camera_settings(
+            SimpleNamespace(data_types=data_types)
+        )
 
     settings.set.assert_any_call("/isaaclab/render/rtx_sensors", True)
     settings.set.assert_any_call("/physics/fabricUpdateTransformations", True)

@@ -18,8 +18,6 @@ from isaaclab.utils import configclass
 from isaaclab.utils.renderers import isaac_rtx_per_env_scene_partition_enabled
 
 if TYPE_CHECKING:
-    from isaaclab.sensors.camera import CameraCfg
-
     from .isaac_rtx_renderer import IsaacRtxRenderer
 
 
@@ -212,20 +210,6 @@ class IsaacRtxRendererCfg(RendererCfg):
     - ``"zero"``: Values are clipped to zero.
     - ``"none"``: No clipping is applied. Values will be returned as ``inf``.
     """
-
-    def apply_pre_reset_settings(self, camera_cfg: CameraCfg) -> None:
-        """Mark the run as rendering RTX sensors and route HDR color for linear camera outputs.
-
-        See :meth:`~isaaclab.renderers.renderer_cfg.RendererCfg.apply_pre_reset_settings`.
-        """
-        from isaaclab.app.settings_manager import get_settings_manager
-
-        settings = get_settings_manager()
-        settings.set("/isaaclab/render/rtx_sensors", True)
-        settings.set("/physics/fabricUpdateTransformations", True)
-        if not {"rgb_hdr", "rgb_radiance"}.isdisjoint(camera_cfg.data_types):
-            # Gaussian splats otherwise skip tonemapping and never reach the HdrColor AOV.
-            settings.set("/rtx/rtpt/gaussian/skipTonemapping/enabled", False)
 
     def supported_output_types(self) -> dict[RenderBufferKind, RenderBufferSpec]:
         """Return the per-output layouts supported by current Isaac RTX releases."""
