@@ -141,3 +141,29 @@ def test_modifier_chain_builds_class_modifiers_from_the_tensor_they_receive():
 def test_modifier_chain_rejects_entries_that_are_not_modifier_configs():
     with pytest.raises(TypeError, match="ModifierCfg"):
         modifiers.ModifierChain([lambda data: data], "cpu")
+
+
+def test_modifier_chain_close_releases_constructed_modifiers():
+    """Closing releases each constructed class modifier once; a later call builds fresh ones."""
+    closed = []
+
+    class Recording(modifiers.ModifierBase):
+        def reset(self, env_ids=None):
+            pass
+
+        def close(self):
+            closed.append(self)
+
+        def __call__(self, data):
+            return data
+
+    chain = modifiers.ModifierChain([modifiers.ModifierCfg(func=Recording)], "cpu")
+    chain(torch.ones(2, 3))
+    first = chain._instances[0]
+
+    chain.close()
+    chain.close()
+    chain(torch.ones(2, 3))
+
+    assert closed == [first]
+    assert chain._instances[0] is not first

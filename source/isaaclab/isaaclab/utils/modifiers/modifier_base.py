@@ -66,6 +66,13 @@ class ModifierBase(ABC):
         """
         raise NotImplementedError
 
+    def close(self) -> None:
+        """Release resources held by the modifier. Repeated calls must be safe.
+
+        The default holds no resources. Owners such as a camera call this when they release the modifier.
+        """
+        pass
+
     @abstractmethod
     def __call__(self, data: torch.Tensor) -> torch.Tensor:
         """Abstract method for defining the modification function.

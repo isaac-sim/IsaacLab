@@ -295,6 +295,7 @@ class Camera(SensorBase):
         # cleanup render resources (renderer may be None if never initialized)
         if getattr(self, "_renderer", None) is not None:
             self._renderer.cleanup(getattr(self, "_render_data", None))
+        self._close_modifiers()
 
     def __str__(self) -> str:
         """Returns: A string containing information about the instance."""
@@ -748,6 +749,12 @@ class Camera(SensorBase):
         for camera in ready:
             camera._apply_modifiers()
 
+    def _close_modifiers(self) -> None:
+        """Release the modifier chains and the resources their modifiers hold."""
+        chains, self._modifier_chains = getattr(self, "_modifier_chains", {}), {}
+        for _, chain in chains.values():
+            chain.close()
+
     def _apply_modifiers(self) -> None:
         """Run each modifier chain once per published capture and copy its result to the camera output."""
         if not self._modifier_chains:
@@ -846,6 +853,7 @@ class Camera(SensorBase):
         # The renderer keeps writing these buffers; modifier chains publish their results separately.
         self._render_outputs = dict(self._data.output)
         self._renderer.set_outputs(self._render_data, self._render_outputs)
+        self._close_modifiers()
         self._modifier_chains = {
             data_type: (output_name, ModifierChain(self.cfg.modifiers[data_type], str(self._device)))
             for data_type, output_name in self.cfg.modifier_outputs().items()
@@ -1069,7 +1077,7 @@ class Camera(SensorBase):
             self._renderer.cleanup(self._render_data)
         self._render_data = None
         self._renderer = None
-        self._modifier_chains = {}
+        self._close_modifiers()
         # call parent
         super()._invalidate_initialize_callback(event)
         # release backend state deterministically, then invalidate the view
