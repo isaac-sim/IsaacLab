@@ -45,7 +45,6 @@ logger = logging.getLogger(__name__)
 if TYPE_CHECKING:
     from omni.replicator.core.scripts.utils.viewport_manager import HydraTexture
 
-    from isaaclab.sensors.camera import CameraCfg
     from isaaclab.sensors.camera.camera_data import CameraData
     from isaaclab.utils.warp import ProxyArray
 
@@ -177,19 +176,11 @@ class IsaacRtxRenderer(BaseRenderer):
         apply_isaac_rtx_global_settings(self.cfg.global_settings, settings)
         if settings.get("/isaaclab/render/deterministic", False):
             apply_isaac_rtx_determinism_settings(settings)
-        ensure_rtx_hydra_engine_attached()
-
-    def apply_camera_settings(self, camera_cfg: CameraCfg) -> None:
-        """Mark the run as rendering RTX sensors and route HDR color for linear camera outputs.
-
-        See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.apply_camera_settings`.
-        """
-        settings = get_settings_manager()
+        # Cameras create this renderer during scene construction, before the simulation and
+        # environments read whether RTX sensors are rendered.
         settings.set("/isaaclab/render/rtx_sensors", True)
         settings.set("/physics/fabricUpdateTransformations", True)
-        if not {"rgb_hdr", "rgb_radiance"}.isdisjoint(camera_cfg.data_types):
-            # Gaussian splats otherwise skip tonemapping and never reach the HdrColor AOV.
-            settings.set("/rtx/rtpt/gaussian/skipTonemapping/enabled", False)
+        ensure_rtx_hydra_engine_attached()
 
     def initialize(self) -> None:
         """Bind shared Fabric destinations after scene creation."""
@@ -203,7 +194,7 @@ class IsaacRtxRenderer(BaseRenderer):
         return FabricVisualMaterialWriter
 
     def prepare_cameras(self, stage: Any, spec: CameraRenderSpec) -> None:
-        """Neutralize camera exposure when ``rgb_radiance`` is requested.
+        """Configure HDR color routing and neutralize exposure for ``rgb_radiance``.
 
         RTX has no pre-exposure radiance output, so neutral ``exposure:*`` values and
         ``OmniRtxCameraExposureAPI_1`` are authored on the camera prims. Otherwise, the
@@ -212,6 +203,9 @@ class IsaacRtxRenderer(BaseRenderer):
         :attr:`~isaaclab.sensors.camera.CameraCfg.background_color` is applied
         per-render-product in :meth:`create_render_data` via USD attributes.
         """
+        if not _HDR_DATA_TYPES.isdisjoint(spec.cfg.data_types):
+            # Gaussian splats otherwise skip tonemapping and never reach the HdrColor AOV.
+            get_settings_manager().set("/rtx/rtpt/gaussian/skipTonemapping/enabled", False)
         if "rgb_radiance" in spec.cfg.data_types and spec.camera_prim_paths:
             _apply_rtx_exposure_overrides(stage, list(spec.camera_prim_paths))
 

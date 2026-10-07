@@ -87,22 +87,39 @@ def test_native_fabric_geometry_needs_no_separate_publication(monkeypatch):
     provider.get_geometry_points.assert_not_called()
 
 
+def test_renderer_marks_rtx_sensor_rendering_when_created(monkeypatch):
+    """Creating the renderer, which cameras do during scene construction, marks RTX sensor rendering."""
+    _install_omni_stubs(monkeypatch)
+    import isaaclab_physx.renderers.isaac_rtx_renderer as rtx_renderer
+    from isaaclab_physx.renderers.isaac_rtx_renderer_cfg import IsaacRtxRendererCfg
+
+    settings = MagicMock()
+    settings.get.return_value = False
+    with (
+        patch.object(rtx_renderer, "get_settings_manager", return_value=settings),
+        patch.object(rtx_renderer, "enable_extension"),
+        patch.object(rtx_renderer, "apply_isaac_rtx_global_settings"),
+        patch.object(rtx_renderer, "ensure_rtx_hydra_engine_attached"),
+    ):
+        rtx_renderer.IsaacRtxRenderer(IsaacRtxRendererCfg())
+
+    settings.set.assert_any_call("/isaaclab/render/rtx_sensors", True)
+    settings.set.assert_any_call("/physics/fabricUpdateTransformations", True)
+
+
 @pytest.mark.parametrize(
     ("data_types", "routes_hdr"), [(["rgb"], False), (["rgb_hdr"], True), (["rgb_radiance"], True)]
 )
-def test_camera_settings_mark_rtx_sensors_and_route_hdr(monkeypatch, data_types, routes_hdr):
-    """Isaac RTX cameras flag RTX sensors before reset and route Gaussian HDR only when linear color is used."""
+def test_prepare_cameras_routes_gaussian_hdr_for_hdr_cameras(monkeypatch, data_types, routes_hdr):
+    """Gaussian HDR routing is enabled only for cameras that read HDR color."""
     _install_omni_stubs(monkeypatch)
     import isaaclab_physx.renderers.isaac_rtx_renderer as rtx_renderer
 
     settings = MagicMock()
+    spec = SimpleNamespace(cfg=SimpleNamespace(data_types=data_types), camera_prim_paths=())
     with patch.object(rtx_renderer, "get_settings_manager", return_value=settings):
-        rtx_renderer.IsaacRtxRenderer.__new__(rtx_renderer.IsaacRtxRenderer).apply_camera_settings(
-            SimpleNamespace(data_types=data_types)
-        )
+        rtx_renderer.IsaacRtxRenderer.__new__(rtx_renderer.IsaacRtxRenderer).prepare_cameras(None, spec)
 
-    settings.set.assert_any_call("/isaaclab/render/rtx_sensors", True)
-    settings.set.assert_any_call("/physics/fabricUpdateTransformations", True)
     hdr_call = call("/rtx/rtpt/gaussian/skipTonemapping/enabled", False)
     assert (hdr_call in settings.set.call_args_list) is routes_hdr
 
