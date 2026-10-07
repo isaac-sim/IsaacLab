@@ -89,8 +89,6 @@ else:
 class DeformableSceneCfg(InteractiveSceneCfg):
     """Soft cubes on a shared ground plane."""
 
-    # PhysX deformables must be parsed from each USD clone.
-    replicate_physics = args_cli.backend != "physx"
     filter_collisions = False
     clone_cfg = CloneCfg(clone_template="/World/env_{}")
 
@@ -102,6 +100,8 @@ class DeformableSceneCfg(InteractiveSceneCfg):
     # 3D Deformable Object
     cube_object = DeformableObjectCfg(
         prim_path="{ENV_REGEX_NS}/Cube",
+        # PhysX deformables must be parsed from USD while other assets retain native replication.
+        cloning_contexts=("isaaclab.cloner:UsdReplicateContext",) if args_cli.backend == "physx" else None,
         spawn=sim_utils.MeshCuboidCfg(
             size=(0.2, 0.2, 0.2),
             deformable_props=deformable_props,
