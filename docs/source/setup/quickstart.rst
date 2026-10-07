@@ -27,7 +27,7 @@ visualizer:
 
 .. code-block:: bash
 
-   uv run isaaclab train --task Isaac-Cartpole --num_envs 16 --viz newton
+   uv run isaaclab train --task Isaac-Cartpole --num_envs 16 --viz newton physics=newton_mjwarp
 
 Training outputs, including checkpoints, are saved under ``logs/``. Add
 ``--help`` to any command to see its available arguments:
