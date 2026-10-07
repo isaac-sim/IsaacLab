@@ -51,6 +51,7 @@ try:
         BindingFlag,
         DataAccess,
         Device,
+        FilterKind,
         PrimMode,
         Renderer,
         RendererConfig,
@@ -970,9 +971,42 @@ class OVRTXRenderer(BaseRenderer):
 
     def _register_camera(self, spec: CameraRenderSpec, render_data: OVRTXCameraRenderData) -> None:
         """Add another tiled product and camera binding without reloading the shared scene."""
-        camera_paths = list(spec.camera_prim_paths)
-        if not camera_paths or not camera_paths[0].startswith("/World/envs/env_0/"):
-            raise ValueError("OVRTX cameras must be under /World/envs/env_0/.")
+        if not spec.camera_prim_paths or not spec.camera_prim_paths[0].startswith("/World/envs/env_0/"):
+            raise ValueError(f"OVRTX cameras must be under /World/envs/env_0/: paths={spec.camera_prim_paths!r}")
+        if spec.view_count != spec.num_instances:
+            raise ValueError(f"OVRTX view_count={spec.view_count} must match num_instances={spec.num_instances}")
+        prototype_camera_path = f"/World/envs/env_0/{spec.camera_path_relative_to_env_0}"
+        if prototype_camera_path != spec.camera_prim_paths[0]:
+            raise ValueError(
+                "OVRTX camera path metadata disagrees with its prototype: "
+                f"derived={prototype_camera_path!r}, supplied={spec.camera_prim_paths[0]!r}"
+            )
+        if len(spec.camera_prim_paths) == spec.num_instances:
+            camera_paths = list(spec.camera_prim_paths)
+        elif len(spec.camera_prim_paths) == 1:
+            camera_paths = [
+                f"/World/envs/env_{env_id}/{spec.camera_path_relative_to_env_0}" for env_id in range(spec.num_instances)
+            ]
+        else:
+            raise ValueError(
+                "OVRTX camera paths must contain either one prototype or one path per instance: "
+                f"paths={list(spec.camera_prim_paths)!r}, num_instances={spec.num_instances}"
+            )
+        existing_camera_paths = self.backend.renderer.query_prims(require_all=[(FilterKind.PRIM_TYPE, "Camera")])
+        if prototype_camera_path not in existing_camera_paths:
+            raise RuntimeError(
+                "Camera prototype is absent: "
+                f"expected={prototype_camera_path!r}, actual={list(existing_camera_paths)!r}"
+            )
+        missing_camera_paths = [path for path in camera_paths[1:] if path not in existing_camera_paths]
+        if missing_camera_paths:
+            logger.info(f"Cloning {len(missing_camera_paths)} missing camera prim(s) from {prototype_camera_path}")
+            if self._use_ovstage:
+                self.backend.stage.clone(prototype_camera_path, missing_camera_paths, ordinal=self._current_ordinal)
+            else:
+                self.backend.renderer.clone_usd(prototype_camera_path, missing_camera_paths)
+        else:
+            logger.info(f"All camera prims are already registered for {prototype_camera_path}")
         scope = f"RenderCamera_{self._next_camera_id}"
         data_types = list(spec.cfg.data_types or ["rgb"])
         if spec.cfg.isp_cfg is not None and "rgb_hdr" not in data_types:

@@ -266,7 +266,11 @@ def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, use_ovstag
                 cfg=cfg,
                 device="cuda:0",
                 num_instances=2,
-                camera_prim_paths=tuple(f"/World/envs/env_{i}/cam{index}" for i in range(2)),
+                camera_prim_paths=(
+                    tuple(f"/World/envs/env_{i}/cam{index}" for i in range(2))
+                    if index == 0
+                    else (f"/World/envs/env_0/cam{index}",)
+                ),
                 view_count=2,
                 camera_path_relative_to_env_0=f"cam{index}",
             )
