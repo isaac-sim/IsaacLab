@@ -29,6 +29,7 @@ from isaaclab_ov.renderers import OVRTXRendererCfg
 from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
 
+from ..envs.utils.video_recorder_cfg import CAPTURE_VISUALIZER_TYPES, VideoRecorderCfg, parse_video_source
 from ..physics.physics_manager_cfg import PhysicsCfg, PhysxAutoCfg, _resolve_physx_auto_cfg
 from ..renderers.renderer_cfg import RendererCfg
 from ..sensors.camera.camera_cfg import CameraCfg
@@ -36,8 +37,8 @@ from ..sim.simulation_cfg import SimulationCfg
 from ..utils.assets import configure_storage_profile
 from ..utils.device import set_cuda_device
 from ..utils.string import string_to_callable
-from ..visualizers.visualizer_cfg import VisualizerCfg, parse_visualizer_csv, resolve_visualizer_cfgs
-from .logging_utils import apply_python_logging_level
+from ..visualizers.visualizer_cfg import parse_visualizer_csv, resolve_visualizer_cfgs
+from .logging_utils import apply_python_logging_level, ensure_console_handlers, resolve_python_logging_level
 from .settings_manager import get_settings_manager
 
 logger = logging.getLogger(__name__)
@@ -171,9 +172,9 @@ def _resolve_launcher_args(args: dict) -> None:
     """Resolve the livestream mode and the visualizer selection in place, once for every consumer.
 
     Writes ``livestream`` (the effective mode: ``--livestream`` when set (>= 0), else the ``LIVESTREAM``
-    environment variable) and ``visualizer``: canonical names, an empty list when ``--viz none`` disabled
-    all visualizers, or None when no visualizer was requested. Livestreaming adds the Kit visualizer, whose
-    viewport produces the stream. Resolving twice gives the same result.
+    environment variable) and ``visualizer``: the canonical names of the visualizers that run, empty when none
+    was requested. Livestreaming adds the Kit visualizer, whose viewport produces the stream. Resolving twice
+    gives the same result.
     """
     livestream = args.get("livestream", -1)
     if livestream is None or int(livestream) < 0:
@@ -184,49 +185,43 @@ def _resolve_launcher_args(args: dict) -> None:
     max_visible_envs = args.get("max_visible_envs")
     if max_visible_envs is not None and int(max_visible_envs) < 0:
         raise ValueError(f"Invalid value for --max_visible_envs: {max_visible_envs}. Expected non-negative int.")
-    visualizers = args.get("visualizer")
-    if visualizers:
-        try:
-            visualizers = parse_visualizer_csv(visualizers)
-        except argparse.ArgumentTypeError as error:
-            raise ValueError(str(error)) from error
-    if livestream > 0:
-        if visualizers == []:
-            raise ValueError("Livestreaming requires the Kit visualizer. Remove '--viz none' or pass '--viz kit'.")
-        if "kit" not in (visualizers or []):
-            visualizers = [*(visualizers or []), "kit"]
+    try:
+        visualizers = parse_visualizer_csv(args.get("visualizer") or [])
+    except argparse.ArgumentTypeError as error:
+        raise ValueError(str(error)) from error
+    if livestream > 0 and "kit" not in visualizers:
+        visualizers = [*visualizers, "kit"]
     args["livestream"] = livestream
     args["visualizer"] = visualizers
 
 
-def _resolve_python_logging_level(args: dict) -> int:
-    """Return the level for ``--verbose`` / ``--info`` (also read from ``sys.argv``), else the current root level."""
-    if args.get("verbose", False) or "--verbose" in sys.argv:
-        return logging.DEBUG
-    if args.get("info", False) or "--info" in sys.argv:
-        return logging.INFO
-    level = logging.getLogger().getEffectiveLevel()
-    return logging.WARNING if level == logging.NOTSET else level
+def _resolve_video_sources(video_recorders: list[VideoRecorderCfg], visualizers: list[str]) -> list[str]:
+    """Rewrite each visualizer source of *video_recorders* to the concrete ``viz:<type>[:streaming_view]``.
 
+    A bare ``viz`` records from the first capture-capable type of the *visualizers* selection, else from
+    ``newton_gl``. Rewriting is idempotent, so a second scan resolves the same sources.
 
-def _get_visualizer_intent(visualizer_cfgs: list[VisualizerCfg], args: dict) -> dict[str, bool]:
-    """Compute the intent of the config's visualizers, OR-ed with a caller's ``visualizer_intent``.
+    Returns:
+        The visualizer types the recorders record from, in canonical names.
 
-    An explicit ``--visualizer`` selection overrides whether the config's Kit visualizer, and its streaming
-    view, is used.
+    Raises:
+        ValueError: If a recorder names a streaming visualizer, which cannot be recorded from.
     """
-    kit_cfgs = [cfg for cfg in visualizer_cfgs if cfg.visualizer_type == "kit"]
-    if args["visualizer"] is not None:
-        has_kit_visualizer = "kit" in args["visualizer"]
-        # the selection drops a configured Kit visualizer it does not name
-        kit_cfgs = kit_cfgs if has_kit_visualizer else []
-    else:
-        caller_intent = args.get("visualizer_intent") or {}
-        has_kit_visualizer = bool(kit_cfgs) or bool(caller_intent.get("has_kit_visualizer"))
-    return {
-        "has_kit_visualizer": has_kit_visualizer,
-        "has_kit_streaming_view": any(cfg.streaming_view for cfg in kit_cfgs),
-    }
+    video_visualizers = []
+    for recorder in video_recorders:
+        kind, name, sub = parse_video_source(recorder.source)
+        if kind == "sensor":
+            continue
+        name = name or next((v for v in visualizers if v in CAPTURE_VISUALIZER_TYPES), "newton_gl")
+        if name not in CAPTURE_VISUALIZER_TYPES:
+            raise ValueError(
+                f"Cannot record video source {recorder.source!r}: the {name!r} visualizer streams to a viewer and"
+                " has no frame capture. Record from 'viz:kit', 'viz:newton_gl' or 'viz:newton_rtx', which run"
+                " headless when --viz does not select them, or from a scene camera with 'sensor:<name>'."
+            )
+        recorder.source = f"viz:{name}:{sub}" if sub else f"viz:{name}"
+        video_visualizers.append(name)
+    return list(dict.fromkeys(video_visualizers))
 
 
 """
@@ -244,19 +239,22 @@ class Scan:
     without traversing the config tree again. ``needs_kit`` is the headline launch
     decision after automatic selections are resolved: a Kit-renderer camera or Isaac
     Sim PhysX requires Kit (the launcher additionally forces Kit when
-    ``--visualizer kit`` is requested).
+    ``--visualizer kit`` is requested). Visualizer-derived signals come from the ``--visualizer``
+    selection and the visualizers video recorders record from, since configured visualizers only run
+    when selected or recorded from.
     """
 
     resolved_physics_cfg: PhysicsCfg | None  # first physics config in walk order (post --physics override)
     effective_cfg: Any  # the input config, or its replacement when the config itself was an overridden physics config
     sim_cfg: SimulationCfg | None  # first simulation config in walk order, e.g. an env config's ``sim``
-    visualizer_intent: dict[str, bool]
     has_ovrtx: bool
     has_kit_camera: bool
     has_kit_physics: bool  # PhysX (Kit-based)
     has_ovphysx_physics: bool
     needs_kit: bool
     launcher_types: list[str] = field(default_factory=list)  # named by the physics and renderer configs
+    # visualizer types the video recorders record from; the ones --visualizer did not select run headless
+    video_visualizers: list[str] = field(default_factory=list)
 
 
 def _refresh_physics_scan_flags(config_scan: Scan, concrete_physics_cfgs: list[PhysicsCfg], has_physics: bool) -> None:
@@ -275,7 +273,8 @@ def scan(cfg, launcher_args: argparse.Namespace | dict | None = None) -> Scan:
     in place, a root config via :attr:`Scan.effective_cfg` (it cannot be mutated in
     place). Automatic PhysX configurations and RTX
     renderer placeholders (``renderer_type="auto_rtx"``) are also resolved
-    at this stage using the full *launcher_args* context.
+    at this stage using the full *launcher_args* context, and so are the visualizer
+    sources of video recorders (see :func:`_resolve_video_sources`).
 
     The walk mutates *cfg* in place, and resolving a placeholder consumes it, so
     a second walk of the same config observes the same signals and reaches the
@@ -291,14 +290,14 @@ def scan(cfg, launcher_args: argparse.Namespace | dict | None = None) -> Scan:
     concrete_physics_cfgs: list[PhysicsCfg] = []
     effective_cfg: Any = cfg
     sim_cfg: SimulationCfg | None = None
-    has_ovrtx = "newton_rtx" in (args["visualizer"] or ())
+    has_ovrtx = "newton_rtx" in args["visualizer"]
     has_auto_rtx = False
     has_auto_physx = False
     has_kit_camera = False
     auto_rtx_locations: list[tuple[Any, Any, bool]] = []  # (parent, key, is_cam_renderer) for each auto RTX placeholder
     auto_physx_locations: list[tuple[PhysicsCfg, Any, Any, bool]] = []  # (node, parent, key, is_first_physics)
     launcher_types: list[str] = []
-    visualizer_cfgs: list[VisualizerCfg] = []
+    video_recorders: list[VideoRecorderCfg] = []
     visited: set[int] = set()
 
     def add_launcher_type(node: PhysicsCfg | RendererCfg):
@@ -329,8 +328,6 @@ def scan(cfg, launcher_args: argparse.Namespace | dict | None = None) -> Scan:
                 return
             else:
                 concrete_physics_cfgs.append(node)
-        elif isinstance(node, VisualizerCfg):
-            visualizer_cfgs.append(node)
         elif isinstance(node, SimulationCfg):
             sim_cfg = sim_cfg or node
         elif isinstance(node, RendererCfg) and node.renderer_type == "ovrtx":
@@ -345,31 +342,28 @@ def scan(cfg, launcher_args: argparse.Namespace | dict | None = None) -> Scan:
         except TypeError:
             return
         for name, child in children.items():
-            if child is None or isinstance(child, (int, float, str, bool)):
-                continue
-            if isinstance(child, (list, tuple)):
-                # sequences are not walked, except to collect visualizers, e.g. ``SimulationCfg.visualizer_cfgs``
-                visualizer_cfgs.extend(item for item in child if isinstance(item, VisualizerCfg))
+            if isinstance(child, list):
+                video_recorders.extend(item for item in child if isinstance(item, VideoRecorderCfg))
+            # sequences, e.g. ``SimulationCfg.visualizer_cfgs``, are not walked
+            if child is None or isinstance(child, (int, float, str, bool, list, tuple)):
                 continue
             visit(child, node, name)
 
     visit(cfg, None, None)
-    if args["visualizer"] is None:
-        # an explicit --visualizer selection drops configured visualizers it does not name, as for Kit
-        has_ovrtx = has_ovrtx or any(cfg.visualizer_type == "newton_rtx" for cfg in visualizer_cfgs)
 
+    video_visualizers = _resolve_video_sources(video_recorders, args["visualizer"])
     has_physics = bool(physics_cfgs)
     config_scan = Scan(
         resolved_physics_cfg=physics_cfgs[0] if physics_cfgs else None,
         effective_cfg=effective_cfg,
         sim_cfg=sim_cfg,
-        visualizer_intent=_get_visualizer_intent(visualizer_cfgs, args),
-        has_ovrtx=has_ovrtx,
+        has_ovrtx=has_ovrtx or "newton_rtx" in video_visualizers,
         has_kit_camera=has_kit_camera,
         has_kit_physics=False,
         has_ovphysx_physics=False,
         needs_kit=False,
         launcher_types=launcher_types,
+        video_visualizers=video_visualizers,
     )
     _refresh_physics_scan_flags(config_scan, concrete_physics_cfgs, has_physics)
 
@@ -429,8 +423,10 @@ def _get_kit_runtime_sources(config_scan: Scan, args: dict) -> tuple[str, ...]:
         kit_sources.append("Isaac Sim PhysX physics (`PhysxCfg`)")
     if config_scan.has_kit_camera:
         kit_sources.append('a Kit-based renderer (`IsaacRtxRendererCfg`, `renderer_type="isaac_rtx"`)')
-    if config_scan.visualizer_intent["has_kit_visualizer"]:
-        kit_sources.append('the Kit visualizer (`--visualizer kit` / `visualizer_type="kit"`)')
+    if "kit" in args["visualizer"]:
+        kit_sources.append("the Kit visualizer (`--visualizer kit`)")
+    elif "kit" in config_scan.video_visualizers:
+        kit_sources.append("a headless Kit visualizer recording video (`viz:kit`)")
     if args.get("experience", ""):
         kit_sources.append("an explicit Kit experience")
     if args.get("livestream", 0) > 0:
@@ -535,9 +531,16 @@ def launch_simulation(
     needed), then starts the launcher each required runtime's config names (closed on exit) or
     does nothing for kitless ones. Cameras are auto-enabled for Kit-renderer sensors.
 
+    On exit, stops and releases a simulation context created inside the scope before closing
+    its runtimes. An existing context owned by the caller is preserved.
+
     The run's visualizers and device are decided here, once: they are written to the
     :class:`~isaaclab.sim.SimulationCfg` in *cfg* (``visualizer_cfgs`` and ``device``), which
-    every later consumer reads.
+    every later consumer reads. ``--visualizer`` selects the visualizers that run, none without it;
+    the configured ``visualizer_cfgs`` only supply the settings of the selected types. The
+    :class:`~isaaclab.envs.utils.video_recorder_cfg.VideoRecorderCfg` sources in *cfg* are resolved
+    here too: a bare ``viz`` becomes the first capture-capable selected type, else ``newton_gl``, and a
+    recorded type ``--visualizer`` did not select runs headless, only for the recording.
 
     Yields the resolved physics config, so a script can pass a bare placeholder and
     pick the backend from the command line::
@@ -560,8 +563,6 @@ def launch_simulation(
               a tool that reaches a Kit-only extension API. This is additive -- it can only turn a
               kitless launch into a Kit one, never the reverse, so a config that already needs Kit
               still launches it when the key is absent or ``False``.
-            * ``visualizer_intent``: ``{"has_kit_visualizer": True}`` requests the Kit visualizer when *cfg*
-              configures none and no ``visualizer`` selection is given.
     """
     # writes to ``args`` reach the caller's namespace or dict
     args = vars(launcher_args) if isinstance(launcher_args, argparse.Namespace) else launcher_args
@@ -575,31 +576,39 @@ def launch_simulation(
     kit_sources = _get_kit_runtime_sources(config_scan, args)
     _validate_runtime(config_scan, kit_sources)
     needs_kit = bool(kit_sources)
-    args["kit_visualizer"] = config_scan.visualizer_intent["has_kit_visualizer"]
 
     # Honor --verbose / --info; the Kit launcher re-applies this level once Kit has started.
-    apply_python_logging_level(_resolve_python_logging_level(args))
-
-    if needs_kit and (config_scan.has_kit_camera or config_scan.visualizer_intent.get("has_kit_streaming_view")):
-        if not args.get("enable_cameras", False):
-            logger.info(
-                "Auto-enabling camera rendering because the scene contains Kit camera sensors "
-                "or a Kit visualizer with streaming_view=True."
-            )
-            args["enable_cameras"] = True
+    python_logging_level = resolve_python_logging_level(args)
+    apply_python_logging_level(python_logging_level)
+    ensure_console_handlers(python_logging_level)
 
     # The SimulationCfg the simulation is built from, e.g. an env config's ``sim``; a physics config or None
     # holds none.
     sim_cfg = config_scan.sim_cfg
+    if sim_cfg is not None:
+        # Decide the visualizers once, into the SimulationCfg.
+        sim_cfg.visualizer_cfgs = resolve_visualizer_cfgs(
+            sim_cfg.visualizer_cfgs, args["visualizer"], args.get("max_visible_envs"), config_scan.video_visualizers
+        )
+    has_kit_streaming_view = sim_cfg is not None and any(
+        cfg.visualizer_type == "kit" and cfg.streaming_view for cfg in sim_cfg.visualizer_cfgs
+    )
+
+    if needs_kit and (config_scan.has_kit_camera or has_kit_streaming_view or "kit" in config_scan.video_visualizers):
+        if not args.get("enable_cameras", False):
+            logger.info(
+                "Auto-enabling camera rendering because the scene contains Kit camera sensors, "
+                "a Kit visualizer with streaming_view=True, or a video recorded from the Kit visualizer."
+            )
+            args["enable_cameras"] = True
 
     # Resolve the device before any launcher or physics init: --device, else this rank's GPU, else the config's.
     _resolve_distributed_device(args)
+    if sys.platform == "darwin" and args.get("device") == "cpu" and not args.get("device_explicit", False):
+        # the --device default on macOS, which has no CUDA
+        logger.warning("No --device given; using 'cpu' because macOS has no CUDA.")
     if sim_cfg is not None:
         args["device"] = args.get("device") or sim_cfg.device
-        # Decide the visualizers once, into the SimulationCfg.
-        sim_cfg.visualizer_cfgs = resolve_visualizer_cfgs(
-            sim_cfg.visualizer_cfgs, args["visualizer"], args.get("max_visible_envs")
-        )
 
     # Start the launchers the resolved config names, plus Kit and OVRTX for needs that no config names
     # (e.g. a default-renderer camera, ``--viz kit`` or ``--viz newton_rtx``); Kit starts first.
@@ -611,21 +620,28 @@ def launch_simulation(
     launchers = [string_to_callable(launcher_type)(args) for launcher_type in dict.fromkeys(launcher_types)]
     # after the launchers, so a started Kit already backs the settings
     _resolve_device(sim_cfg, args, launchers)
-    # A config without a SimulationCfg (e.g. a bare physics config) leaves the selection for the
-    # SimulationContext built after launch; otherwise clear one left by an earlier launch. ``none``
-    # round-trips through ``parse_visualizer_csv`` as ``--viz none``; empty means no selection.
-    visualizers = None if sim_cfg is not None else args.get("visualizer")
-    max_visible_envs = None if sim_cfg is not None else args.get("max_visible_envs")
+    # A launch without a SimulationCfg (e.g. a bare physics config) hands its selection to the config built
+    # afterwards; any other launch resolved it above and clears a selection an earlier launch left.
+    max_visible_envs = args.get("max_visible_envs") if sim_cfg is None else None
     settings = get_settings_manager()
-    settings.set("/isaaclab/visualizer/types", "" if visualizers is None else ",".join(visualizers) or "none")
+    settings.set("/isaaclab/visualizer/types", ",".join(args["visualizer"]) if sim_cfg is None else "")
     settings.set("/isaaclab/visualizer/max_visible_envs", -1 if max_visible_envs is None else int(max_visible_envs))
 
+    from ..sim.simulation_context import SimulationContext
+
+    previous_context = SimulationContext.instance()
     exit_code = 0
     try:
         # With no selected profile this is a no-op; with one, it installs process-wide OmniClient
         # routing before user code runs.
-        configure_storage_profile()
-        yield physics_cfg
+        try:
+            configure_storage_profile()
+            yield physics_cfg
+        finally:
+            # Release runtime consumers before a launcher can terminate the process.
+            context = SimulationContext.instance()
+            if context is not None and context is not previous_context:
+                SimulationContext.clear_instance()
     except KeyboardInterrupt:
         exit_code = 130
         raise

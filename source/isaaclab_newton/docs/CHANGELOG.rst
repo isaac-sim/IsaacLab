@@ -3,6 +3,40 @@ Changelog
 
 .. towncrier release notes start
 
+9.1.5 (2026-10-06)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the body-offset Jacobian of
+  :class:`~isaaclab_newton.envs.mdp.actions.NewtonDifferentialInverseKinematicsAction` and
+  :class:`~isaaclab_newton.envs.mdp.actions.NewtonOperationalSpaceControllerAction`. The translational rows are now
+  shifted by the offset rotated with the body orientation, and the angular rows are no longer rotated by the offset
+  rotation, matching the target frame's pose and velocity.
+
+
+9.1.4 (2026-10-04)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed Newton frame-transform sensors returning stale poses immediately after initialization
+  and reset forward kinematics. Sampled current transforms when sensor buffers were updated instead of
+  eagerly refreshing every frame sensor on each physics step.
+  Combined copying and world-pose composition in one kernel and reused cached CUDA graphs.
+
+
+9.1.3 (2026-10-03)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Update runtime installation guidance and launcher examples to use uv.
+
+
 9.1.2 (2026-10-01)
 ~~~~~~~~~~~~~~~~~~
 

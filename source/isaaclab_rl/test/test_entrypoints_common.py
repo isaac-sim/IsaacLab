@@ -292,14 +292,12 @@ def test_run_summary_reports_concrete_backends(
 
 
 def test_run_summary_reports_the_launch_resolved_visualizers_and_device() -> None:
-    """``--viz none`` shows no visualizer, and the device is the one the launch resolved (e.g. per rank)."""
-    from isaaclab_visualizers.kit import KitVisualizerCfg
-
+    """A run without visualizers shows headless, and the device is the one the launch resolved (e.g. per rank)."""
     from isaaclab.app import launch_simulation
 
-    sim_cfg = SimulationCfg(physics=NewtonCfg(), visualizer_cfgs=[KitVisualizerCfg()], device="cuda:0")
+    sim_cfg = SimulationCfg(physics=NewtonCfg(), device="cuda:0")
     env_cfg = SimpleNamespace(sim=sim_cfg, scene=SimpleNamespace(num_envs=4))
-    args_cli = argparse.Namespace(task="Isaac-Test", device="cuda:0", num_envs=None, visualizer=["none"])
+    args_cli = argparse.Namespace(task="Isaac-Test", device="cuda:0", num_envs=None, visualizer=None)
     screen = _RecordingScreen()
 
     with launch_simulation(env_cfg, args_cli):
@@ -307,7 +305,7 @@ def test_run_summary_reports_the_launch_resolved_visualizers_and_device() -> Non
         sim_cfg.device = "cuda:1"
         rl_common.show_run_summary(screen, args_cli, env_cfg, library="rsl_rl", action="train")
 
-    assert screen.fields["Visualizer"] == "none (headless)"
+    assert screen.fields["Visualizer"] == "headless"
     assert screen.fields["Device"] == "cuda:1"
 
 

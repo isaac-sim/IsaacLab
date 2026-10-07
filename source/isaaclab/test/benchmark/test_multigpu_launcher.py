@@ -102,7 +102,7 @@ def test_underscore_workflow_dispatches_to_multigpu_launcher(monkeypatch: pytest
     assert received == [("runtime", ["--task", "X"])]
 
 
-def test_hyphenated_workflow_warns_and_dispatches(monkeypatch: pytest.MonkeyPatch, capsys):
+def test_hyphenated_workflow_warns_and_dispatches(monkeypatch: pytest.MonkeyPatch):
     """The former hyphen suffix remains available as a deprecated compatibility alias."""
     received: list[tuple[str, list[str]]] = []
     monkeypatch.setattr(
@@ -111,6 +111,6 @@ def test_hyphenated_workflow_warns_and_dispatches(monkeypatch: pytest.MonkeyPatc
         lambda workflow, argv: received.append((workflow, argv)) or 0,
     )
 
-    assert dispatch.run_benchmark_cli(["runtime-multigpu", "--task", "X"]) == 0
+    with pytest.warns(FutureWarning, match="'runtime-multigpu' is deprecated. Use 'runtime_multigpu' instead."):
+        assert dispatch.run_benchmark_cli(["runtime-multigpu", "--task", "X"]) == 0
     assert received == [("runtime", ["--task", "X"])]
-    assert "'runtime-multigpu' is deprecated. Use 'runtime_multigpu' instead." in capsys.readouterr().err

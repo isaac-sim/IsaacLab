@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from isaaclab.benchmark import BenchmarkResult
 
+import logging
 import sys
 import time
 from typing import Any
@@ -19,6 +20,8 @@ from typing import Any
 from isaaclab.utils import to_dict
 
 from isaaclab_rl.entrypoints import common
+
+logger = logging.getLogger(__name__)
 
 
 def _disable_code_state_capture(runner: Any) -> None:
@@ -119,7 +122,6 @@ def run(argv: list[str]) -> BenchmarkResult | None:
     imports_t0 = time.perf_counter_ns()
 
     import contextlib
-    import importlib.metadata as metadata
     import os
     import re
     from datetime import datetime
@@ -140,7 +142,7 @@ def run(argv: list[str]) -> BenchmarkResult | None:
     from isaaclab.benchmark.metrics import RL_LIBRARY_DESCRIPTORS, parse_tf_logs
     from isaaclab.benchmark.schema import StartupTime
 
-    from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper, handle_deprecated_rsl_rl_cfg
+    from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper
 
     import isaaclab_tasks  # noqa: F401
 
@@ -187,8 +189,6 @@ def run(argv: list[str]) -> BenchmarkResult | None:
             agent_cfg.max_iterations = (
                 args_cli.max_iterations if args_cli.max_iterations is not None else agent_cfg.max_iterations
             )
-            installed_rsl_rl = metadata.version("rsl-rl-lib")
-            agent_cfg = handle_deprecated_rsl_rl_cfg(agent_cfg, installed_rsl_rl)
             env_cfg.seed = agent_cfg.seed
 
             if distributed.enabled:
@@ -286,10 +286,9 @@ def run(argv: list[str]) -> BenchmarkResult | None:
             desc = RL_LIBRARY_DESCRIPTORS["rsl_rl"]
             log_data = parse_tf_logs(log_dir, desc.tfevents_pattern)
             if not log_data or (not log_data.get(desc.reward_tag) and agent_cfg.max_iterations >= 1):
-                print(
-                    f"[WARNING] No TensorBoard data parsed from {log_dir!r};"
-                    " the emitted bundle will report zero metrics. Check the log directory.",
-                    file=sys.stderr,
+                logger.warning(
+                    f"No TensorBoard data parsed from {log_dir!r};"
+                    " the emitted bundle will report zero metrics. Check the log directory."
                 )
 
             # RSL-RL reports collection and learning durations separately in seconds. Ranks train in

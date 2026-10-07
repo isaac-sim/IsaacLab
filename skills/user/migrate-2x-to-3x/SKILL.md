@@ -50,7 +50,7 @@ uv run --no-project python tools/skills/cli.py check
 
 ## Maintenance
 
-Keep this skill synchronized with `docs/source/migration/migrating_to_isaaclab_3-0.rst`, `docs/source/setup/installation/index.rst`, `source/isaaclab_rl/isaaclab_rl/rsl_rl/utils.py`, and the uv-based `train` and `play` entry points. If code changes invalidate migration guidance, update the official migration document first and keep this skill as a router plus checklist.
+Keep this skill synchronized with `docs/source/migration/migrating_to_isaaclab_3-0.rst`, `docs/source/setup/installation/index.rst`, `source/isaaclab_rl/isaaclab_rl/rsl_rl/rl_cfg.py`, and the uv-based `train` and `play` entry points. If code changes invalidate migration guidance, update the official migration document first and keep this skill as a router plus checklist.
 
 ## References
 
@@ -59,4 +59,5 @@ Keep this skill synchronized with `docs/source/migration/migrating_to_isaaclab_3
 - [Examples](examples.md)
 - [Evaluations](evaluations.md)
 - [Official migration guide](../../../docs/source/migration/migrating_to_isaaclab_3-0.rst)
-- [RSL-RL compatibility helper](../../../source/isaaclab_rl/isaaclab_rl/rsl_rl/utils.py)
+- [RSL-RL configuration](../../../source/isaaclab_rl/isaaclab_rl/rsl_rl/rl_cfg.py)
+- [RSL-RL training entry point](../../../source/isaaclab_rl/isaaclab_rl/entrypoints/backends/train_rsl_rl.py)

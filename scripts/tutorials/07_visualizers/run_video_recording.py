@@ -15,7 +15,7 @@ Example 1 — Kit viewport (simplest)
     .. code-block:: bash
 
         uv run python scripts/tutorials/07_visualizers/run_video_recording.py \
-            --example 1 --num_envs 4
+            --example 1 --num_envs 4 --viz kit
 
 Example 2 — scene sensor only, headless
     One clip captured directly from the scene's tiled-camera sensor.
@@ -32,10 +32,11 @@ Example 3 — Kit viewport + Kit tiled grid + Newton viewport + scene sensor
     .. code-block:: bash
 
         uv run python scripts/tutorials/07_visualizers/run_video_recording.py \
-            --example 3 --num_envs 4
+            --example 3 --num_envs 4 --viz kit,newton_gl
 
 Clips are written to ``videos/recording_tutorial/example_<N>/`` in the working directory.
 Examples 1 and 2 each demonstrate one recording source; Example 3 combines all of them.
+``--viz`` selects the visualizers to record from; the configs below only set their camera and panels.
 """
 
 from __future__ import annotations
@@ -107,7 +108,7 @@ def _build_env_cfg_example_1(num_envs: int):
     out = _output_dir(1)
     env_cfg.video_recorders = [
         VideoRecorderCfg(
-            source="visualizer:kit",
+            source="viz:kit",
             output_dir=out,
             output_filename_prefix="kit_viewport",
             video_length=_VIDEO_LENGTH,
@@ -121,7 +122,6 @@ def _build_env_cfg_example_1(num_envs: int):
 def _build_env_cfg_example_2(num_envs: int):
     """Shadow Hand + headless: scene tiled-camera sensor clip only."""
     env_cfg = _shadow_env_cfg(num_envs, env_spacing=2.0)
-    env_cfg.sim.visualizer_cfgs = []  # no interactive visualizer
 
     out = _output_dir(2)
     env_cfg.video_recorders = [
@@ -139,7 +139,7 @@ def _build_env_cfg_example_2(num_envs: int):
 def _build_env_cfg_example_3(num_envs: int):
     """Shadow Hand + Kit viewport + Kit tiled grid + Newton viewport + sensor: four simultaneous streams.
 
-    Note: ``source='visualizer:newton'`` captures the full Newton GL window. When
+    Note: ``source='viz:newton_gl'`` captures the full Newton GL window. When
     ``streaming_view=True`` is set on :class:`~isaaclab_visualizers.newton.NewtonGLVisualizerCfg`,
     the GL window displays the per-environment camera panel, so this effectively records
     a Newton streaming view without a separate ``render_tiled_rgb_array()`` call.
@@ -153,7 +153,7 @@ def _build_env_cfg_example_3(num_envs: int):
         lookat=_SHADOW_LOOKAT,
         streaming_view=True,
         streaming_envs=min(num_envs, 16),
-        # No streaming_sensor_prim_path/streaming_cam_target_prim_path: adopts the existing
+        # No streaming_sensor_prim_path: selects the existing
         # tiled_camera sensor automatically, so the streaming panel shows the same
         # RTX-rendered views as source="sensor:tiled_camera".
     )
@@ -169,7 +169,7 @@ def _build_env_cfg_example_3(num_envs: int):
     out = _output_dir(3)
     env_cfg.video_recorders = [
         VideoRecorderCfg(
-            source="visualizer:kit",
+            source="viz:kit",
             output_dir=out,
             output_filename_prefix="kit_viewport",
             video_length=_VIDEO_LENGTH,
@@ -177,7 +177,7 @@ def _build_env_cfg_example_3(num_envs: int):
             step_offset=_KIT_STEP_OFFSET,
         ),
         VideoRecorderCfg(
-            source="visualizer:kit:streaming_view",
+            source="viz:kit:streaming_view",
             output_dir=out,
             output_filename_prefix="tiled_kit_viewport",
             video_length=_VIDEO_LENGTH,
@@ -185,7 +185,7 @@ def _build_env_cfg_example_3(num_envs: int):
             step_offset=_KIT_STEP_OFFSET,
         ),
         VideoRecorderCfg(
-            source="visualizer:newton",
+            source="viz:newton_gl",
             output_dir=out,
             output_filename_prefix="newton_viewport",
             video_length=_VIDEO_LENGTH,

@@ -729,12 +729,6 @@ class NewtonManager(PhysicsManager):
         cls.forward()
         cfg = PhysicsManager._cfg
         device = PhysicsManager._device
-        if cls._graph_capture_pending and cfg is not None and cfg.use_cuda_graph:
-            simulate = cls._simulate_full if cls._is_all_graphable() else cls._simulate_physics_only
-            with Timer(name="newton_cuda_graph", msg="CUDA graph took:"):
-                NewtonManager._graph = cls._capture_graph(simulate)
-            NewtonManager._graph_capture_pending = False
-
         physics_dt = cls._solver_dt * cls._num_substeps
         use_graph = cfg is not None and cfg.use_cuda_graph and cls._graph is not None and "cuda" in device  # type: ignore[union-attr]
 
@@ -759,6 +753,13 @@ class NewtonManager(PhysicsManager):
                 with wp.ScopedDevice(device):
                     cls._simulate_physics_only()
             PhysicsManager._sim_time += physics_dt
+
+        # Run the requested step eagerly before capture so lazy GPU allocations happen outside recording.
+        if cls._graph_capture_pending and cfg is not None and cfg.use_cuda_graph:
+            simulate = cls._simulate_full if cls._is_all_graphable() else cls._simulate_physics_only
+            with Timer(name="newton_cuda_graph", msg="CUDA graph took:"):
+                NewtonManager._graph = cls._capture_graph(simulate)
+            NewtonManager._graph_capture_pending = False
 
         cls._mark_transforms_changed()
 
@@ -1697,9 +1698,7 @@ class NewtonManager(PhysicsManager):
 
     @classmethod
     def _update_sensors(cls, contacts) -> None:
-        """Push latest state to all registered Newton sensors."""
-        for sensor in cls._newton_frame_transform_sensors:
-            sensor.update(cls.backend.state_0)
+        """Push latest state to registered IMU and contact sensors."""
         for sensor in cls._newton_imu_sensors:
             sensor.update(cls.backend.state_0)
         if cls._report_contacts:
@@ -1970,7 +1969,7 @@ class NewtonManager(PhysicsManager):
         is captured as a single CUDA graph.
 
         Invalidate the existing graph when the loop changes. Its replacement is captured
-        immediately before the next requested step, after authored state is reconciled.
+        immediately after the next requested step runs eagerly.
         """
         cls._decimation = max(1, decimation)
         if cls._is_all_graphable():

@@ -49,6 +49,15 @@ x-default-isaac-lab-volumes: &default-isaac-lab-volumes
     source: ../scripts
     target: ${DOCKER_ISAACLAB_PATH}/scripts
   - type: bind
+    source: ../apps
+    target: ${DOCKER_ISAACLAB_PATH}/apps
+  - type: volume
+    source: isaac-cache-uv
+    target: ${DOCKER_USER_HOME}/.cache/uv
+  - type: volume
+    source: isaac-cache-warp
+    target: ${DOCKER_USER_HOME}/.cache/warp
+  - type: bind
     source: ../docs
     target: ${DOCKER_ISAACLAB_PATH}/docs
   - type: bind
@@ -124,6 +133,7 @@ x-default-isaac-lab-deploy: &default-isaac-lab-deploy
 services:
   # This service is the base Isaac Lab image
   isaac-lab-base:
+    init: true
     profiles: [ "base" ]
     env_file: .env.base
     build:
@@ -148,6 +158,7 @@ services:
 
   # This standalone service provides the kit-less Isaac Lab image.
   isaac-lab-kitless:
+    init: true
     profiles: [ "kitless" ]
     env_file: .env.kitless
     build:
