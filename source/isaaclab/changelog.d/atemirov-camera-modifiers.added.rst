@@ -1,7 +1,8 @@
 * Added :attr:`~isaaclab.sensors.camera.CameraCfg.modifiers` to process camera images with
   :class:`~isaaclab.utils.modifiers.ModifierCfg` chains keyed by camera output. The camera requests each
   chain input from its renderer, runs the chain once per captured image, resets it with the camera, and
-  publishes the result in :attr:`~isaaclab.sensors.camera.CameraData.output`.
+  publishes the result in :attr:`~isaaclab.sensors.camera.CameraData.output`. Inputs that only modifiers
+  read stay private unless listed in :attr:`~isaaclab.sensors.camera.CameraCfg.data_types`.
 * Added :class:`~isaaclab.utils.modifiers.ModifierChain` to apply modifiers to one tensor outside the
   observation manager, constructing class modifiers from the shape of their first input.
 * Added :meth:`~isaaclab.utils.modifiers.ModifierBase.close` so modifiers can release resources. Cameras

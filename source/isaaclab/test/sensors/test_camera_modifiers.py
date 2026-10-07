@@ -6,6 +6,7 @@
 """Camera modifier chains: renderer input resolution and once-per-capture processing."""
 
 from collections.abc import Callable
+from types import SimpleNamespace
 
 import pytest
 import torch
@@ -15,7 +16,7 @@ from isaaclab.renderers import RenderBufferKind, RenderBufferSpec
 from isaaclab.sensors.camera import Camera, CameraCfg
 from isaaclab.sensors.camera.camera_data import CameraData
 from isaaclab.sim import PinholeCameraCfg
-from isaaclab.utils import configclass, modifiers
+from isaaclab.utils import configclass, modifiers, replace
 
 pytestmark = pytest.mark.unit
 
@@ -105,7 +106,6 @@ def test_camera_publishes_the_chain_output_without_changing_the_rendered_input()
     assert rgb.torch.dtype == torch.uint8
     assert torch.equal(rgb.torch, torch.full((2, 2, 3, 3), 255, dtype=torch.uint8))
     assert torch.equal(radiance.torch, torch.ones(2, 2, 3, 3))
-    assert "rgb" in camera._data.info
 
 
 def test_camera_runs_chains_once_per_published_capture():
@@ -124,12 +124,37 @@ def test_camera_runs_chains_once_per_published_capture():
     assert len(calls) == 2
 
 
-def test_camera_outputs_carry_the_capture_of_their_input():
-    """A generated output reports the capture its input pixels came from, from the first frame on."""
-    camera = _camera_with_chain([])
-    capture = {"frame": object()}
-    camera._data.info["rgb_radiance"] = {"capture": capture, "idToLabels": {}}
+def test_modifier_inputs_stay_private_and_outputs_receive_renderer_metadata(monkeypatch):
+    """Only requested outputs and modifier results are published; renderers attach capture metadata to them."""
+    cfg = _camera_cfg(["rgb"], {"rgb_radiance": [_ToRgbCfg()]})
+    specs = {
+        RenderBufferKind.RGB: RenderBufferSpec(3, wp.uint8),
+        RenderBufferKind.RGBA: RenderBufferSpec(4, wp.uint8),
+        RenderBufferKind.RGB_RADIANCE: RenderBufferSpec(3, wp.float32),
+    }
+    bound = {}
+    monkeypatch.setattr(Camera, "_initialize_intrinsics", lambda self: None)
+    monkeypatch.setattr(Camera, "_update_poses", lambda self: None)
+    camera = _UninitializedCamera.__new__(_UninitializedCamera)
+    camera.cfg = cfg
+    camera._render_cfg = replace(cfg, data_types=cfg.render_data_types())
+    camera._device = "cpu"
+    camera._view = SimpleNamespace(count=2)
+    camera._render_data = None
+    camera._renderer = SimpleNamespace(
+        supported_output_types=lambda: specs, set_outputs=lambda data, outputs: bound.update(outputs)
+    )
 
+    camera._create_buffers()
+
+    assert set(bound) == {"rgb_radiance"}
+    assert set(camera._data.output) == set()
+    assert set(camera._data.info) == {"rgb"}
+
+    capture = {"frame": object()}
+    camera._data.info["rgb"] = {"capture": capture}
+    bound["rgb_radiance"].torch.fill_(0.5)
     camera._apply_modifiers()
 
-    assert camera._data.info["rgb"] == {"capture": capture}
+    assert set(camera._data.output) == {"rgb"}
+    assert camera._data.info["rgb"]["capture"] is capture

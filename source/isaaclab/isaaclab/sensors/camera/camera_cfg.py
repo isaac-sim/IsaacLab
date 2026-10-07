@@ -211,8 +211,9 @@ class CameraCfg(SensorBaseCfg):
 
         CameraCfg(data_types=["rgb"], modifiers={"rgb_radiance": [PpispModifierCfg()]}, ...)
 
-    Chain inputs are camera buffers, so modifiers must not change their input in place. Class
-    modifiers are constructed on the first capture and reset with the camera.
+    Chain inputs are camera buffers, so modifiers must not change their input in place. Inputs that only
+    modifiers read are not published in :attr:`CameraData.output` unless listed in :attr:`data_types`.
+    Class modifiers are constructed on the first capture and reset with the camera.
     """
 
     def modifier_outputs(self) -> dict[str, str]:

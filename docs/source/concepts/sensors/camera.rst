@@ -320,9 +320,11 @@ the same processed image, computed once.
        modifiers={"rgb_radiance": [PpispModifierCfg(isp_cfg=PpispCfg(inputs={"exposureOffset": 1.5}))]},
    )
 
-Modifiers receive the camera's buffers and must not change their input in place. Class modifiers are
-constructed on the first capture, with the shape of their input, and reset with the camera. A
-delayed renderer that republishes an earlier capture does not rerun the modifiers.
+Modifiers receive the camera's buffers and must not change their input in place. An input that only
+modifiers read, such as ``rgb_radiance`` for PPISP above, is not published in
+:attr:`~sensors.CameraData.output` unless it is also listed in :attr:`~sensors.CameraCfg.data_types`.
+Class modifiers are constructed on the first capture, with the shape of their input, and reset with
+the camera. A delayed renderer that republishes an earlier capture does not rerun the modifiers.
 
 The same modifier can be applied to an observation term instead, where it runs on every observation
 computation. Request the input from the camera with :attr:`~sensors.CameraCfg.data_types`:
@@ -345,16 +347,18 @@ correction, and a camera response function to ``rgb_radiance`` and produces ``rg
 When :attr:`~isaaclab_ppisp.PpispModifierCfg.isp_cfg` is ``None``, :class:`~isaaclab_ppisp.PpispModifierCfg`
 reads ``ppisp:*`` attributes from the camera's first prim, or from the first camera on the stage that
 has them, and uses default coefficients when there are none. On an observation term the modifier does
-not know its camera: set :attr:`~isaaclab_ppisp.PpispCfg.camera_prim_path` to read a specific camera. Modifiers with equal resolved settings share one
-:class:`~isaaclab_ppisp.PpispPipeline` through the simulation context.
+not know its camera: set :attr:`~isaaclab_ppisp.PpispCfg.camera_prim_path` to read a specific camera.
+Modifiers with equal resolved settings share one :class:`~isaaclab_ppisp.PpispPipeline` through the
+simulation context.
 
 A static configuration is shared by all cloned views in one camera batch; controller weights may
 predict per-view exposure and color parameters, while the remaining coefficients stay shared.
 
 .. important::
 
-   On Isaac RTX and OVRTX, ``rgb_radiance`` neutralizes the exposure of the camera prim, so every
-   color output rendered from that prim loses its authored exposure. See :ref:`camera-output-types`.
+   On Isaac RTX and OVRTX, PPISP replaces the camera's own exposure: authored exposure and
+   auto-exposure are disabled for every color output of that camera prim, including cameras that
+   share the prim. Use a separate camera prim for images that need the authored exposure.
 
 Run the ``ppisp-camera`` example for a complete PPISP workflow:
 

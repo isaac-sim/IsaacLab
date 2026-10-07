@@ -779,11 +779,6 @@ class Camera(SensorBase):
                 outputs[output_name] = buffer
             else:
                 buffer.torch.copy_(result)
-            if output_name != data_type:
-                # The output shows the input's capture; other input metadata does not describe it.
-                source = self._data.info.get(data_type)
-                capture = source.get("capture") if isinstance(source, dict) else None
-                self._data.info[output_name] = None if capture is None else {"capture": capture}
 
     """
     Private Helpers
@@ -864,6 +859,15 @@ class Camera(SensorBase):
         }
         self._modifier_buffers: dict[str, ProxyArray] = {}
         self._modifier_capture = None
+        # Inputs that only modifiers read stay private: publish the requested outputs and the modifier results.
+        public = set(self.cfg.data_types)
+        if not public.isdisjoint({"rgb", "rgba"}):
+            public.update({"rgb", "rgba"})
+        outputs = self._data.output
+        for name in [name for name in outputs if name not in public]:
+            del outputs[name]
+        # Renderers attach per-capture metadata, such as a delayed capture's pose, to each info entry.
+        self._data.info = dict.fromkeys([*outputs, *(output_name for output_name, _ in self._modifier_chains.values())])
 
     def _read_authored_opencv_intrinsics(
         self, prim: Usd.Prim, width: int, height: int, env_id: int
