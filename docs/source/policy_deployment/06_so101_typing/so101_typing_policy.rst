@@ -15,9 +15,8 @@ requires alignment evidence for your robot and the policy's trained scene.
 
 .. note::
 
-   **Runtime compatibility and publication status.** This page is a draft for the
-   Isaac Lab 3.0 GA deployment guide. The commands below use the task repository's
-   pinned Docker runtime, which fetches an Isaac Lab source ancestor and applies
+   **Runtime compatibility.** The commands below use the task repository's pinned
+   Docker runtime, which fetches an Isaac Lab source ancestor and applies
    ``runtime/benchmark-runtime.patch``. They do not establish compatibility with
    an unmodified Isaac Lab 3.0.0 installation. See :ref:`so101_typing_ga_integration`
    for the checks needed before documenting a native GA installation.
@@ -93,8 +92,10 @@ typing jaw, Logitech MX Keys keyboard, serial and evdev device access, and
 CPU PyTorch, LeRobot/Feetech support and evdev. Hardware inference does not require
 Isaac Sim or a GPU.
 
-Clone the repository you have access to, then run all following commands from
-its root:
+The task repository, its linked documentation, runtime dependencies and checkpoint
+downloads are public. Clone over HTTPS without a GitHub account or authentication.
+
+Clone the repository, then run all following commands from its root:
 
 .. code-block:: bash
 
