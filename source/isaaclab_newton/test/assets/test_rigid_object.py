@@ -33,6 +33,7 @@ import torch
 import warp as wp
 from isaaclab_newton.assets import RigidObject, RigidObjectCollection
 from isaaclab_newton.physics import NewtonManager as SimulationManager
+from isaaclab_newton.physics import VBDSolverCfg
 from newton import ModelFlags
 from newton_test_utils import env_origins, local_usd, newton_sim_cfg, spawn_assets, world_gravity
 
@@ -109,6 +110,49 @@ def _collection_cfg(
 ##
 # Own scenes. These tests run before the shared scene exists: only one simulation context can be alive.
 ##
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+@pytest.mark.parametrize("state_owner", ["vbd", "body-only", "external"])
+def test_vbd_root_state_tracks_integrated_body(device: str, state_owner: str) -> None:
+    """Publish VBD body motion unless joint-state ownership is explicitly delegated."""
+    sim_cfg = SimulationCfg(
+        device=device,
+        physics=NewtonCfg(
+            solver_cfg=VBDSolverCfg(
+                iterations=5,
+                rigid_compliant_alm=True,
+                update_joint_state=state_owner != "body-only",
+                integrate_with_external_rigid_solver=state_owner == "external",
+            )
+        ),
+    )
+    with build_simulation_context(sim_cfg=sim_cfg) as sim:
+        cube_object = spawn_assets({"cube": _cube_cfg()}, num_envs=1)["cube"]
+        sim.reset()
+
+        initial_height = cube_object.data.root_link_pose_w.torch[0, 2].item()
+        if state_owner == "external":
+            # An external rigid solver owns these generalized velocities, not VBD's body buffers.
+            SimulationManager.get_state_0().joint_qd.fill_(0.125)
+            SimulationManager.get_state_1().joint_qd.fill_(0.125)
+        sim.step()
+        cube_object.update(sim.cfg.dt)
+
+        body_pose = cube_object.data.body_link_pose_w.torch[:, 0]
+        body_velocity = cube_object.data.body_com_vel_w.torch[:, 0]
+        if state_owner == "external":
+            assert body_pose[0, 2].item() == initial_height
+            torch.testing.assert_close(cube_object.data.root_com_vel_w.torch, torch.full_like(body_velocity, 0.125))
+            return
+        assert body_pose[0, 2] < initial_height
+        assert body_velocity[0, 2] < 0.0
+        if state_owner == "vbd":
+            torch.testing.assert_close(cube_object.data.root_link_pose_w.torch, body_pose)
+            torch.testing.assert_close(cube_object.data.root_com_vel_w.torch, body_velocity)
+        else:
+            assert cube_object.data.root_link_pose_w.torch[0, 2].item() == initial_height
+            assert torch.count_nonzero(cube_object.data.root_com_vel_w.torch) == 0
 
 
 @pytest.mark.isaacsim_ci
