@@ -87,6 +87,24 @@ def test_native_fabric_geometry_needs_no_separate_publication(monkeypatch):
     provider.get_geometry_points.assert_not_called()
 
 
+@pytest.mark.parametrize(
+    ("data_types", "isp_cfg", "routes_hdr"),
+    [(["rgb"], None, False), (["rgb_hdr"], None, True), (["rgb_radiance"], None, True), (["rgb"], object(), True)],
+)
+def test_pre_reset_settings_mark_rtx_sensors_and_route_hdr(data_types, isp_cfg, routes_hdr):
+    """Isaac RTX cameras flag RTX sensors before reset and route Gaussian HDR only when linear color is used."""
+    from isaaclab_physx.renderers.isaac_rtx_renderer_cfg import IsaacRtxRendererCfg
+
+    settings = MagicMock()
+    with patch("isaaclab.app.settings_manager.get_settings_manager", return_value=settings):
+        IsaacRtxRendererCfg().apply_pre_reset_settings(SimpleNamespace(data_types=data_types, isp_cfg=isp_cfg))
+
+    settings.set.assert_any_call("/isaaclab/render/rtx_sensors", True)
+    settings.set.assert_any_call("/physics/fabricUpdateTransformations", True)
+    hdr_call = call("/rtx/rtpt/gaussian/skipTonemapping/enabled", False)
+    assert (hdr_call in settings.set.call_args_list) is routes_hdr
+
+
 @pytest.mark.parametrize("data_types", [["rgb_hdr"], ["rgb_radiance"]])
 def test_prepare_cameras_neutralizes_exposure_for_radiance(monkeypatch, data_types):
     """Radiance neutralizes camera exposure; standalone HDR keeps the authored camera settings."""
