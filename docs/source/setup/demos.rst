@@ -15,7 +15,8 @@ without a source checkout. Start with Zoo to see several robot families and simu
 All programs live under the repository-level ``examples/`` directory: curated showcases in ``examples/demos/``,
 focused programs for learning an API or tuning a feature in directories such as ``examples/mpm/`` and
 ``examples/sensors/``, and shared data in ``examples/assets/``. List focused programs with
-``uvx isaaclab example list`` and run one with ``uvx isaaclab example <name>``.
+``uvx isaaclab example list`` and run one with ``uvx isaaclab example <name>``. For example, run bin packing with
+``uvx --from 'isaaclab[isaacsim]' isaaclab example bin-packing``.
 
 Demo and example commands show the same Isaac Lab startup screen as task playback while
 their simulation initializes. Pass ``--info`` to keep startup messages visible.
@@ -120,17 +121,3 @@ Command Builder
 
 H1 locomotion uses a published policy. In the Newton viewer, press N to select a robot, I/J/L to walk
 forward or turn, K to stop, and C to toggle the follow camera. Pick and place requires Kit input. For autonomous H1 task playback, use ``isaaclab play``.
-
-
-Bin packing
------------
-
-The ``bin-packing`` example demonstrates heterogeneous, randomized bin layouts:
-
-.. code-block:: bash
-
-   uv run --extra isaacsim isaaclab example bin-packing
-
-.. image:: ../_static/demos/bin_packing.jpg
-   :width: 100%
-   :alt: Randomized objects in bin-packing environments
