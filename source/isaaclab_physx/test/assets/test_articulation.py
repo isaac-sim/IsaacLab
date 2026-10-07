@@ -487,6 +487,13 @@ def test_live_floating_root_writers_match_identity_after_body_reordering(sim, de
         _to_device_tensor(identity.root_view.get_root_velocities(), device),
     )
     torch.testing.assert_close(ordered.data.root_com_vel_w.torch, identity.data.root_com_vel_w.torch)
+    # PhysX holds the center-of-mass velocity: the link velocity plus the angular velocity crossed with the
+    # world-frame center-of-mass offset (the center-of-mass frame has identity orientation, so it shares the link's).
+    expected_com_velocity = root_link_velocity.clone()
+    expected_com_velocity[:, :3] += torch.linalg.cross(
+        root_link_velocity[:, 3:], math_utils.quat_apply(root_com_pose[:, 3:], backend_coms[:, 0, :3])
+    )
+    torch.testing.assert_close(_to_device_tensor(identity.root_view.get_root_velocities(), device), expected_com_velocity)
     for articulation in (identity, ordered):
         torch.testing.assert_close(articulation.data.root_com_pose_w.torch, root_com_pose)
         torch.testing.assert_close(articulation.data.root_link_vel_w.torch, root_link_velocity)
