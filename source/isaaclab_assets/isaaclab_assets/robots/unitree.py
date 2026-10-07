@@ -23,8 +23,6 @@ Reference: https://github.com/unitreerobotics/unitree_ros
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 from isaaclab_newton.sim.schemas import NewtonArticulationCfg
 from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxRigidBodyCfg
 
@@ -32,10 +30,6 @@ import isaaclab.sim as sim_utils
 from isaaclab.actuators import ActuatorNetMLPCfg, DCMotorCfg, IdealPDActuatorCfg, ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
-
-if TYPE_CHECKING:
-    from pxr import Usd
-
 
 HEALTHCARE_S3 = "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/Healthcare/0.5.0/132c82d"
 
@@ -418,48 +412,6 @@ This configuration removes most collision meshes to speed up simulation.
 """
 
 
-@sim_utils.clone
-def spawn_g1_with_sole_plates(
-    prim_path: str,
-    cfg: sim_utils.UsdFileCfg,
-    translation: tuple[float, float, float] | None = None,
-    orientation: tuple[float, float, float, float] | None = None,
-    **kwargs,
-) -> Usd.Prim:
-    """Load G1 with sole collision boxes before cloning.
-
-    Only foot collision geometry is replaced; other USD properties are preserved.
-
-    Args:
-        prim_path: Robot prim path or expression matching multiple environment parents.
-        cfg: USD spawn configuration for the 29-body-DoF G1 asset.
-        translation: Root translation relative to its parent [m].
-        orientation: Root quaternion in (x, y, z, w) order, matching :func:`~isaaclab.sim.spawn_from_usd`.
-        **kwargs: Additional USD spawner arguments.
-
-    Returns:
-        The spawned source prim, with both sole plates installed.
-    """
-    from pxr import Gf, UsdGeom, UsdPhysics
-
-    prim = sim_utils.spawn_from_usd(prim_path, cfg, translation, orientation, **kwargs)
-    stage = prim.GetStage()
-    paths = [prim.GetPath().AppendPath(f"{side}_ankle_roll_link") for side in ("left", "right")]
-    if any(not stage.GetPrimAtPath(path.AppendPath("collisions")) for path in paths):
-        raise ValueError("G1 sole plates require left/right ankle_roll_link/collisions in the supplied USD")
-    for path in paths:
-        stage.GetPrimAtPath(path.AppendPath("collisions")).SetActive(False)
-        plate = UsdGeom.Cube.Define(stage, path.AppendPath("foot_plate"))
-        plate.CreateSizeAttr(1.0)
-        UsdPhysics.CollisionAPI.Apply(plate.GetPrim())
-        plate.ClearXformOpOrder()
-        plate.AddTranslateOp(precision=UsdGeom.XformOp.PrecisionFloat).Set(
-            Gf.Vec3f(0.0359170487, 2.22044605e-16, -0.0251700647)
-        )
-        plate.AddScaleOp(precision=UsdGeom.XformOp.PrecisionFloat).Set(Gf.Vec3f(0.203109218, 0.065469244, 0.0185078794))
-    return prim
-
-
 G1_29DOF_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/Unitree/G1/g1.usd",
@@ -636,7 +588,7 @@ Usage examples:
 
 G1_29DOF_LOCOMOTION_CFG = G1_29DOF_CFG.replace(
     spawn=G1_29DOF_CFG.spawn.replace(
-        func=spawn_g1_with_sole_plates,
+        usd_path="omniverse://isaac-dev.ov.nvidia.com/Isaac/IsaacLab/Robots/Unitree/G1/g1_29dof.usd",
         activate_contact_sensors=True,
         fix_root_link=None,
     ),
@@ -701,9 +653,9 @@ G1_29DOF_LOCOMOTION_CFG = G1_29DOF_CFG.replace(
 )
 """G1 29-DoF locomotion configuration derived from :obj:`G1_29DOF_CFG`.
 
-It keeps the USD, rigid-body, and articulation properties of :obj:`G1_29DOF_CFG`, and changes:
+It keeps the rigid-body and articulation properties of :obj:`G1_29DOF_CFG`, and changes:
 
-* sole collision boxes (:func:`spawn_g1_with_sole_plates`) and contact sensors,
+* a locomotion USD with authored sole collision boxes and enabled contact sensors,
 * an upright standing pose without the 90 degree yaw,
 * implicit PD walking gains on the 29 body joints, with ``waist_yaw_joint`` grouped with the legs,
 * passive Dex3 fingers (zero stiffness, light damping).
