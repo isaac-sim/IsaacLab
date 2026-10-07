@@ -180,14 +180,9 @@ class BaseVisualizer(ABC):
             frame.data = wp.empty(shape, dtype=wp.uint8, device=device)
             self._streaming_layout = layout
         compose_image(
-            frame.data,
-            sources,
-            self._streaming_env_ids,
-            gt_types,
-            self._streaming_depth_colors,
-            depth_min=depth_min,
-            depth_max=depth_max,
-        )
+            frame.data, sources, self._streaming_env_ids, gt_types, self._streaming_depth_colors,
+            depth_min=depth_min, depth_max=depth_max,
+        )  # fmt: skip
         frame.timestamp = self._sim_time
         self._streaming_host_frame.timestamp = -1.0
         return frame.data
