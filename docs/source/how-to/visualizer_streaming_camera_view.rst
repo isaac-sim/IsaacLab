@@ -1,28 +1,20 @@
-.. _how-to-visualizer-tiled-camera:
+:orphan:
 
-Visualizer Streaming Camera View
-=================================
+.. _how-to-visualizer-streaming-camera-view:
+
+Streaming a camera view in a visualizer
+=======================================
 
 .. currentmodule:: isaaclab
 
-For general visualizer documentation, see :doc:`/source/concepts/visualization`.
-
-The visualizer streaming camera view is a live monitoring and debugging tool. It combines
-ground-truth camera frames from multiple environments (RGB, depth, segmentation, or surface
-normals) into a single panel that updates every step, either following robots automatically or
-streaming from existing scene camera sensors.
-
-.. note::
-
-   The streaming camera view is supported in the Kit, Newton GL, Rerun, and Viser visualizers.
-   The Newton RTX visualizer accepts the configuration but does not display the panel (experimental).
-
+This guide shows how to show ground-truth camera frames from many environments in one live
+panel of a visualizer. For how the view works and which visualizers support it, see
+:ref:`visualization-streaming-camera-view`.
 
 Quick Start
 -----------
 
-This guide is accompanied by the ``run_tiled_camera_visualizer.py`` script in
-``IsaacLab/scripts/tutorials/07_visualizers``:
+Run the ``run_tiled_camera_visualizer.py`` script in ``IsaacLab/scripts/tutorials/07_visualizers``:
 
 .. tab-set::
    :sync-group: os
@@ -51,27 +43,15 @@ This guide is accompanied by the ``run_tiled_camera_visualizer.py`` script in
       :emphasize-lines: 72-78,81-83,93-99,107-109
       :linenos:
 
-See `Examples`_ below for the two ways the script can be run, and `Usage`_ for the
-``VisualizerCfg`` fields that customize streaming behavior.
+See `Examples`_ below for the two ways to run the script. For the ``VisualizerCfg`` fields that
+customize streaming, sources, and troubleshooting, see :ref:`visualization-streaming-camera-view`.
 
-
-Overview
---------
 
 .. raw:: html
 
    <style>
    .viz-cap { text-align:center; font-style:italic; margin-top:0.4em; font-size:0.9em; }
    </style>
-
-**Kit** launches the streaming view as a separate **Streaming View** viewport, selectable from
-the Viewport tabs; it can also be placed side by side with the default interactive viewport
-for dual monitoring.
-
-**Newton GL** shows a **Streaming View** section in the HUD sidebar with a **Hide** / **Open**
-toggle to show or hide the panel, and a source dropdown to select between different camera
-sensors.
-
 
 Examples
 --------
@@ -216,5 +196,7 @@ Troubleshooting
 See also
 --------
 
+* :ref:`visualization-streaming-camera-view`: configuration, display sources, and troubleshooting
 * :doc:`/source/concepts/visualization`: visualizer configuration and UI controls
+* :doc:`/source/how-to/record_video`: recording the streaming view to video
 * :doc:`/source/how-to/configure_rendering`: customizing RTX rendering settings
