@@ -603,6 +603,13 @@ class ManagerBasedEnv:
             for recorder in getattr(self, "video_recorders", []):
                 recorder.close()
 
+            # observation modifiers may own resources outside the managers; finish teardown before
+            # reporting a failure to release them
+            close_error = None
+            try:
+                self.observation_manager.close()
+            except Exception as error:
+                close_error = error
             # destructor is order-sensitive
             del self.action_manager
             del self.observation_manager
@@ -618,6 +625,8 @@ class ManagerBasedEnv:
                 self._window = None
             # update closing status
             self._is_closed = True
+            if close_error is not None:
+                raise close_error
 
     """
     Helper functions.
