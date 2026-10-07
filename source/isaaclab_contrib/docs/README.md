@@ -507,3 +507,8 @@ For more information, see the [Isaac Lab Contributing Guide](https://isaac-sim.g
 ## License
 
 This extension follows the same BSD-3-Clause license as Isaac Lab. See the LICENSE file for details.
+
+## Experimental camera processing
+
+See [Image transfer](image_transfer.md) for application-owned image generation from
+camera outputs, applied as camera modifiers, with optional PPISP composition.
