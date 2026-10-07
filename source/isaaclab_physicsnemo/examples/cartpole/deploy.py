@@ -27,7 +27,7 @@ def main() -> None:
     parser.add_argument("--artifact", type=Path, required=True, help="Artifact directory written by train.py.")
     parser.add_argument("--num-envs", type=int, default=64)
     parser.add_argument("--steps", type=int, default=120, help="Environment steps of each rollout.")
-    parser.add_argument("--action-scale", type=float, default=1.0)
+    parser.add_argument("--action-scale", type=float, default=0.5, help="Must match the recorded action scale.")
     parser.add_argument("--seed", type=int, default=11)
     parser.add_argument("--device", default="cuda:0")
     args = parser.parse_args()

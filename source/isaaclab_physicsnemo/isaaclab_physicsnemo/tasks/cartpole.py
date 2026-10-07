@@ -3,7 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Cartpole teacher configuration for learned-dynamics data collection and deployment."""
+"""Cartpole teacher configurations for learned-dynamics data collection and deployment."""
+
+import math
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 
@@ -36,3 +38,22 @@ class CartpoleTeacherEnvCfg(CartpoleEnvCfg):
             use_cuda_graph=False,
             deterministic_mode="not_guaranteed",
         )
+
+
+@configclass
+class CartpoleExplorationEnvCfg(CartpoleTeacherEnvCfg):
+    """Cartpole teacher that starts episodes from task-independent states for dynamics data collection.
+
+    Following the task-independent data of NeRD and FlashNeRD, episodes start anywhere on the cart track,
+    at every pole angle, and with large velocities, and they last long enough for 200-frame rollout
+    evaluation. The Newton model equals that of :class:`CartpoleTeacherEnvCfg`, so artifacts trained on
+    this data deploy to every Cartpole configuration built on it.
+    """
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.episode_length_s = 2.0
+        self.initial_cart_position_range = (-2.0, 2.0)
+        self.initial_cart_velocity_range = (-2.0, 2.0)
+        self.initial_pole_angle_range = (-math.pi, math.pi)
+        self.initial_pole_velocity_range = (-2.0 * math.pi, 2.0 * math.pi)

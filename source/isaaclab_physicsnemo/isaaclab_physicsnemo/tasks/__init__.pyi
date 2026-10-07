@@ -8,8 +8,9 @@ __all__ = [
     "ANYMAL_D_REMOVE_ROOT_TRANSLATION",
     "AnymalDFlatTeacherEnvCfg",
     "CARTPOLE_REMOVE_ROOT_TRANSLATION",
+    "CartpoleExplorationEnvCfg",
     "CartpoleTeacherEnvCfg",
 ]
 
 from .anymal_d import ANYMAL_D_CONTINUITY, ANYMAL_D_REMOVE_ROOT_TRANSLATION, AnymalDFlatTeacherEnvCfg
-from .cartpole import CARTPOLE_REMOVE_ROOT_TRANSLATION, CartpoleTeacherEnvCfg
+from .cartpole import CARTPOLE_REMOVE_ROOT_TRANSLATION, CartpoleExplorationEnvCfg, CartpoleTeacherEnvCfg
