@@ -102,7 +102,7 @@ Install ``uv``, clone Isaac Lab, and start a workflow:
             --task Isaac-Cartpole-Direct physics=isaacsim_physx
 
          # Play a policy
-         uv run isaaclab play --rl_library rsl_rl --task Isaac-Cartpole-Direct --viz newton
+         uv run isaaclab play --rl_library rsl_rl --task Isaac-Cartpole-Direct --viz newton_gl
 
    .. tab-item:: :icon:`fa-brands fa-linux` Linux aarch64 (DGX Spark)
       :sync: linux-aarch64
@@ -128,7 +128,7 @@ Install ``uv``, clone Isaac Lab, and start a workflow:
             --task Isaac-Cartpole-Direct physics=isaacsim_physx
 
          # Play a policy
-         uv run isaaclab play --rl_library rsl_rl --task Isaac-Cartpole-Direct --viz newton
+         uv run isaaclab play --rl_library rsl_rl --task Isaac-Cartpole-Direct --viz newton_gl
 
       .. note::
 
@@ -167,7 +167,7 @@ Install ``uv``, clone Isaac Lab, and start a workflow:
             --task Isaac-Cartpole-Direct physics=isaacsim_physx
 
          :: Play a policy
-         uv run isaaclab play --rl_library rsl_rl --task Isaac-Cartpole-Direct --viz newton
+         uv run isaaclab play --rl_library rsl_rl --task Isaac-Cartpole-Direct --viz newton_gl
 
 ``uv run`` installs the core dependencies automatically. The ``--extra <name>``
 option includes the selected optional integration in the command's environment. Place it

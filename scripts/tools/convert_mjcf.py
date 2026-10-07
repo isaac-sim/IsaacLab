@@ -28,7 +28,7 @@ optional arguments:
   --import_physics_scene    Import the physics scene from the MJCF file. (default: False)
 
 The standard launcher arguments are also accepted. In particular, ``--viz`` previews the converted
-asset: ``--viz kit`` opens it in the Isaac Sim viewport, while ``--viz newton`` (or ``rerun`` /
+asset: ``--viz kit`` opens it in the Isaac Sim viewport, while ``--viz newton_gl`` (or ``rerun`` /
 ``viser``) opens it kitlessly. Run with ``--help`` for the full list.
 
 """

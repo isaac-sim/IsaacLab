@@ -346,7 +346,7 @@ Play the trained teacher from the canonical home phase:
    uv run isaaclab play --rl_library rsl_rl \
      --task IsaacTutorial-Place-Vial-SO101 \
      --num_envs 1 --checkpoint /path/to/state_model.pt --deterministic \
-     --visualizer newton presets=newton_mjwarp
+     --visualizer newton_gl presets=newton_mjwarp
 
 The rollout should start from the canonical home phase, pick up the horizontal vial, turn it upright, move it over
 the target hole, insert it, and open the jaw so gravity seats it in the rack.
@@ -378,7 +378,7 @@ Play the distilled student with the same task ID used for training:
    uv run isaaclab play --rl_library rsl_rl \
      --task IsaacTutorial-Place-Vial-SO101-Camera-Distillation \
      --num_envs 1 --checkpoint /path/to/distilled_model.pt --deterministic \
-     --visualizer newton presets=newton_mjwarp,newton_renderer
+     --visualizer newton_gl presets=newton_mjwarp,newton_renderer
 
 Measure the policies
 ~~~~~~~~~~~~~~~~~~~~
@@ -422,7 +422,7 @@ The checked-in reset dataset is ready for training. Generate or inspect a separa
 
    uv run view-so101-resets \
      --dataset checkpoints/reset_poses.pt --device cuda:0 \
-     --visualizer newton presets=newton_mjwarp
+     --visualizer newton_gl presets=newton_mjwarp
 
 .. _tutorial-so101-extend:
 

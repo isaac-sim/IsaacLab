@@ -14,7 +14,7 @@ This script demonstrates the visualizer tiled camera panel.
 
     # Newton visualizer tiled camera panel
     uv run python scripts/tutorials/07_visualizers/run_tiled_camera_visualizer.py \
-        --task IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor --num_envs 25 --viz newton
+        --task IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor --num_envs 25 --viz newton_gl
 
 """
 
