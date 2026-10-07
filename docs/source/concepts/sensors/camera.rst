@@ -338,10 +338,10 @@ PPISP
 
 PPISP (Physically Plausible Image Signal Processing) applies responsivity, exposure, vignetting, color
 correction, and a camera response function to ``rgb_radiance`` and produces ``rgb`` or ``rgba``.
-:class:`~isaaclab_ppisp.PpispModifierCfg` reads the first USD camera on the stage with ``ppisp:*``
-attributes when :attr:`~isaaclab_ppisp.PpispModifierCfg.isp_cfg` is ``None``, and uses default
-coefficients when there is none. Set :attr:`~isaaclab_ppisp.PpispCfg.camera_prim_path` to read a
-specific camera. Modifiers with equal resolved settings share one
+When :attr:`~isaaclab_ppisp.PpispModifierCfg.isp_cfg` is ``None``, :class:`~isaaclab_ppisp.PpispModifierCfg`
+reads ``ppisp:*`` attributes from the camera's first prim, or from the first camera on the stage that
+has them, and uses default coefficients when there are none. On an observation term the modifier does
+not know its camera: set :attr:`~isaaclab_ppisp.PpispCfg.camera_prim_path` to read a specific camera. Modifiers with equal resolved settings share one
 :class:`~isaaclab_ppisp.PpispPipeline` through the simulation context.
 
 A static configuration is shared by all cloned views in one camera batch; controller weights may

@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 import torch
 
 if TYPE_CHECKING:
+    from ...sensors import SensorBase
     from .modifier_cfg import ModifierCfg
 
 
@@ -56,6 +57,22 @@ class ModifierBase(ABC):
         self._data_dim = data_dim
         self._device = device
 
+    @property
+    def output_dim(self) -> tuple[int, ...]:
+        """Shape of the modified data. Defaults to the input shape; override when the modifier changes it."""
+        return self._data_dim
+
+    def bind_sensor(self, sensor: SensorBase) -> None:
+        """Receive the sensor that owns this modifier, before the first call.
+
+        Sensors such as a camera call this for the modifiers they apply to their own outputs. Modifiers on
+        observation terms are not bound. The default ignores the sensor.
+
+        Args:
+            sensor: The owning sensor.
+        """
+        pass
+
     @abstractmethod
     def reset(self, env_ids: Sequence[int] | None = None):
         """Resets the Modifier.
@@ -81,6 +98,6 @@ class ModifierBase(ABC):
             data: The data to be modified. Shape should match the data_dim passed during initialization.
 
         Returns:
-            Modified data. Shape is the same as the input data.
+            Modified data, with shape :attr:`output_dim`.
         """
         raise NotImplementedError

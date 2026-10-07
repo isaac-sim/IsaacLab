@@ -6,3 +6,8 @@
   observation manager, constructing class modifiers from the shape of their first input.
 * Added :meth:`~isaaclab.utils.modifiers.ModifierBase.close` so modifiers can release resources. Cameras
   close their modifiers when they are released or re-initialized.
+* Added :attr:`~isaaclab.utils.modifiers.ModifierBase.output_dim` for modifiers that change the shape of their
+  data, and :meth:`~isaaclab.utils.modifiers.ModifierBase.bind_sensor`, through which a camera passes itself to
+  the modifiers it applies.
+* Added :meth:`~isaaclab.managers.ObservationManager.close`, which closes class modifiers when the environment
+  closes.

@@ -160,10 +160,11 @@ class PpispModifierCfg(ModifierCfg):
     """PPISP modifier class."""
 
     isp_cfg: PpispCfg | None = None
-    """PPISP settings. Defaults to None, which reads the first USD camera on the stage with
-    ``ppisp:*`` attributes and falls back to :class:`PpispCfg` defaults when there is none.
+    """PPISP settings. Defaults to None, which reads ``ppisp:*`` attributes from USD: on a camera, from the
+    camera's first prim; otherwise, or when that prim has none, from the first camera on the stage that has
+    them. Without any, :class:`PpispCfg` defaults apply.
 
-    Set :attr:`PpispCfg.camera_prim_path` to read a specific camera's attributes.
+    On an observation term, set :attr:`PpispCfg.camera_prim_path` to read a specific camera's attributes.
     """
 
     output: Literal["rgb", "rgba"] = "rgb"

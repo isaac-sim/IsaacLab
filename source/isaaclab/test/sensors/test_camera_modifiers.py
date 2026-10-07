@@ -122,3 +122,14 @@ def test_camera_runs_chains_once_per_published_capture():
     camera._data.info["rgb_radiance"] = {"capture": {"frame": object()}}
     camera._apply_modifiers()
     assert len(calls) == 2
+
+
+def test_camera_outputs_carry_the_capture_of_their_input():
+    """A generated output reports the capture its input pixels came from, from the first frame on."""
+    camera = _camera_with_chain([])
+    capture = {"frame": object()}
+    camera._data.info["rgb_radiance"] = {"capture": capture, "idToLabels": {}}
+
+    camera._apply_modifiers()
+
+    assert camera._data.info["rgb"] == {"capture": capture}

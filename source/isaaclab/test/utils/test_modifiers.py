@@ -167,3 +167,23 @@ def test_modifier_chain_close_releases_constructed_modifiers():
 
     assert closed == [first]
     assert chain._instances[0] is not first
+
+
+def test_modifier_chain_binds_its_sensor_before_the_first_call():
+    calls = []
+
+    class Bound(modifiers.ModifierBase):
+        def bind_sensor(self, sensor):
+            calls.append(("bind", sensor))
+
+        def reset(self, env_ids=None):
+            pass
+
+        def __call__(self, data):
+            calls.append(("call", None))
+            return data
+
+    sensor = object()
+    modifiers.ModifierChain([modifiers.ModifierCfg(func=Bound)], "cpu", sensor=sensor)(torch.ones(2, 3))
+
+    assert calls == [("bind", sensor), ("call", None)]
