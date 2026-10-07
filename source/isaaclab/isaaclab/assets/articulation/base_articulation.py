@@ -1711,7 +1711,7 @@ class BaseArticulation(AssetBase):
             write_group_parameter(
                 self.actuators,
                 group_name,
-                "controller",
+                "drive",
                 gain_name,
                 values[:, in_group],
                 env_ids=env_ids,
