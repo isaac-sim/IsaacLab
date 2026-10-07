@@ -27,7 +27,7 @@ from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_newton.physics.newton_manager import NewtonManager
 from isaaclab_newton.sim.views import NewtonSiteFrameView as FrameView
 
-from pxr import Sdf
+from pxr import Sdf, UsdPhysics
 
 import isaaclab.cloner as cloner
 import isaaclab.sim as sim_utils
@@ -202,6 +202,54 @@ def test_close_before_reset_cancels_deferred_initialization(device):
     ctx.__exit__(None, None, None)
 
 
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+@pytest.mark.parametrize(
+    "parent, envs, created",
+    [
+        ("Prop", "env_[^/]+", "before_reset"),
+        ("Prop", "env_1", "before_replication"),
+        ("Cube", "env_1", "before_reset"),
+    ],
+)
+def test_frame_created_before_model_covers_selected_envs(device, parent, envs, created):
+    """A view created before the Newton model exists has one frame per selected env, at that env's pose.
+
+    ``Prop`` is a non-physics Xform (static frame), ``Cube`` a rigid body (body-local frame). Each frame is
+    paired with its own env's destination prim.
+    """
+    num_envs, prop_pos = 3, (0.3, 0.2, 0.0)
+    with _sim_context(device, num_envs=num_envs) as sim:
+        sim._app_control_on_stop_handle = None
+        sim_utils.create_prim("/World/envs/env_0", "Xform")
+        cube_cfg = _SceneCfg(num_envs=num_envs, env_spacing=2.0).cube.spawn
+        cube_cfg.func("/World/envs/env_0/Cube", cube_cfg, translation=(0.0, 0.0, 1.0))
+        sim_utils.create_prim("/World/envs/env_0/Prop", "Xform", translation=prop_pos)
+        sim_utils.create_prim(f"/World/envs/env_0/{parent}/Mount", translation=CHILD_OFFSET)
+        assets = [AssetBaseCfg(prim_path=f"/World/envs/env_.*/{name}") for name in ("Cube", "Prop")]
+        assets.append(AssetBaseCfg(prim_path="/World/defaultGroundPlane"))
+        plan = cloner.clone_plan_from_env_0(cloner.CloneCfg(), assets, num_envs, 2.0)
+        path = f"/World/envs/{envs}/{parent}/Mount"
+
+        if created == "before_replication":
+            view = FrameView(path, device=device)
+        cloner.replicate(plan)
+        if created == "before_reset":
+            view = FrameView(path, device=device)
+        sim.reset()
+
+        env_ids = list(range(num_envs)) if envs == "env_[^/]+" else [1]
+        if parent == "Cube":
+            parent_pos = _get_body_positions(num_envs, device)[env_ids]
+        else:
+            parent_pos = torch.as_tensor(plan.positions, device=device)[env_ids] + torch.tensor(prop_pos, device=device)
+        assert view.count == len(env_ids)
+        expected = parent_pos + torch.tensor(CHILD_OFFSET, device=device)
+        torch.testing.assert_close(view.get_world_poses()[0].torch, expected, atol=1e-5, rtol=0)
+        # each frame is paired with its own env's prim, in view order; the private pairing list is read
+        # because nothing public exposes which prims receive the mirrored poses
+        assert view._site_prim_paths == [f"/World/envs/env_{i}/{parent}/Mount" for i in env_ids]
+
+
 # ==================================================================
 # Newton edge case: world-attached prim (body=-1)
 # ==================================================================
@@ -232,3 +280,32 @@ def test_world_attached_pose_read_and_write(device):
     torch.testing.assert_close(ret_pos.torch, wp.to_torch(new_pos), atol=1e-5, rtol=0)
     torch.testing.assert_close(ret_quat.torch, wp.to_torch(new_quat), atol=1e-5, rtol=0)
     ctx.__exit__(None, None, None)
+
+
+# ==================================================================
+# Newton edge case: frame below a non-body articulation root
+# ==================================================================
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_frame_below_non_body_articulation_root_is_static(device):
+    """The non-body ``ArticulationRootAPI`` Xform and a frame below it outside every body are static frames."""
+    num_envs = 2
+    with _sim_context(device, num_envs=num_envs) as sim:
+        sim._app_control_on_stop_handle = None
+        UsdPhysics.ArticulationRootAPI.Apply(sim_utils.create_prim("/World/envs/env_0/Robot", "Xform"))
+        body_cfg = _SceneCfg(num_envs=num_envs, env_spacing=2.0).cube.spawn
+        body_cfg.func("/World/envs/env_0/Robot/base", body_cfg)
+        sim_utils.create_prim("/World/envs/env_0/Robot/Mount", translation=CHILD_OFFSET)
+        assets = [AssetBaseCfg(prim_path="/World/envs/env_.*/Robot")]
+        assets.append(AssetBaseCfg(prim_path="/World/defaultGroundPlane"))
+        plan = cloner.clone_plan_from_env_0(cloner.CloneCfg(), assets, num_envs, 2.0)
+        cloner.replicate(plan)
+        sim.reset()
+
+        origins = torch.as_tensor(plan.positions, device=device)
+        root_view = FrameView("/World/envs/env_[^/]+/Robot", device=device)
+        mount_view = FrameView("/World/envs/env_[^/]+/Robot/Mount", device=device)
+        torch.testing.assert_close(root_view.get_world_poses()[0].torch, origins, atol=1e-5, rtol=0)
+        expected = origins + torch.tensor(CHILD_OFFSET, device=device)
+        torch.testing.assert_close(mount_view.get_world_poses()[0].torch, expected, atol=1e-5, rtol=0)
