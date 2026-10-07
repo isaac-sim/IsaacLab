@@ -14,17 +14,24 @@ import torch
 
 from isaaclab.assets import Articulation
 from isaaclab.envs import DirectMARLEnv
-from isaaclab.utils import index_fill_
-from isaaclab.utils.math import quat_conjugate, quat_mul, sample_uniform, saturate, scale_transform, unscale_transform
+from isaaclab.utils.math import (
+    quat_apply,
+    quat_conjugate,
+    quat_mul,
+    sample_uniform,
+    saturate,
+    scale_transform,
+    unscale_transform,
+)
 
 from isaaclab_tasks.core.reorient.utils import (
     EpisodeErrorRecorder,
+    SuccessTracker,
     randomize_rotation,
     resolve_actuated_tendons,
     sample_joint_positions_within_limits,
 )
 
-from .handover_common import GOAL_POSITION_OFFSET
 from .mdp.rewards import evaluate_handover_success, handover_reward
 
 if TYPE_CHECKING:
@@ -32,7 +39,7 @@ if TYPE_CHECKING:
 
 
 class HandoverEnv(DirectMARLEnv):
-    """Two Shadow Hands hand a ball over to a fixed goal position.
+    """Two Shadow Hands repeatedly hand a ball between alternating goal positions.
 
     Both agents observe their own hand plus the object and goal, and share one distance reward.
     """
@@ -96,15 +103,28 @@ class HandoverEnv(DirectMARLEnv):
         # default goal positions
         self.goal_rot = torch.zeros((self.num_envs, 4), dtype=torch.float, device=self.device)
         self.goal_rot[:, 3] = 1.0  # identity quaternion in (x, y, z, w) layout
-        self.goal_pos = torch.zeros((self.num_envs, 3), dtype=torch.float, device=self.device)
-        # goal = object default position + shared offset (mirrors HandoverCommand.__init__)
-        self.goal_pos[:, :] = self.object.data.default_root_pose.torch[:, :3] + torch.tensor(
-            GOAL_POSITION_OFFSET, dtype=torch.float, device=self.device
-        )
-        # Sticky per-env flag: True once the object reached the goal within threshold.
-        self._episode_succeeded = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
-        # Goal distance from the most recent reward step, read at reset as the episode's final value.
-        self._last_goal_dist = torch.full((self.num_envs,), float("inf"), device=self.device)
+
+        # One goal per hand, each the same offset in its OWN hand's frame, so the two are
+        # mirror images. Resolved once here from the hands' default poses: the hands are
+        # fixed bases, so re-deriving this per reset would recompute a constant.
+        offset = torch.tensor(self.cfg.goal_position_offset, dtype=torch.float, device=self.device)
+        offset = offset.unsqueeze(0).expand(self.num_envs, 3)
+        goals = []
+        for hand in (self.right_hand, self.left_hand):
+            root_pose = hand.data.default_root_pose.torch
+            goals.append(root_pose[:, :3] + quat_apply(root_pose[:, 3:7], offset))
+        # [2, num_envs, 3] -- index 0 is the right hand's goal, 1 is the left hand's
+        self._goal_pos_per_side = torch.stack(goals, dim=0)
+        # Which hand the object is being delivered TO. The object spawns at the right
+        # hand, so the first goal is the left hand's.
+        self._goal_side = torch.ones(self.num_envs, dtype=torch.long, device=self.device)
+        self._env_arange = torch.arange(self.num_envs, device=self.device)
+        self.goal_pos = self._goal_pos_per_side[self._goal_side, self._env_arange]
+        # Cumulative steps inside the threshold for the current goal attempt.
+        self._dwell = torch.zeros(self.num_envs, dtype=torch.long, device=self.device)
+        # Counts banked goals per episode and turns them into goals/(goals+1).
+        self._success = SuccessTracker(self.num_envs, self.device)
+
         self._goal_distance = EpisodeErrorRecorder(self.num_envs, self.device)
 
         # unit tensors for sampling goal/object rotations about the x and y axes
@@ -227,12 +247,35 @@ class HandoverEnv(DirectMARLEnv):
         self.extras["log"]["dist_reward"] = rew_dist.mean()
         self.extras["log"]["dist_goal"] = goal_dist_mean
         self.extras["log"]["Metrics/goal_distance"] = goal_dist_mean
-        # Reaching the goal is necessary but not sufficient; the object must still be there when
-        # the episode ends. ``_reset_idx`` combines this with the final distance.
-        self._episode_succeeded |= succeeded
-        self._last_goal_dist = goal_dist
+
+        # A goal is banked only after the object has spent ``success_dwell_steps`` inside the
+        # threshold. The tally is cumulative over the attempt, so a momentary exit does not
+        # erase the progress, but a single touch in passing is not enough either.
+        self._dwell += succeeded.long()
+        # ``earned`` drops the goal a reset handed out and releases its own guard, so it
+        # has to run every step, not only when something banked.
+        banked = self._success.earned(self._dwell >= self.cfg.success_dwell_steps)
+        banked_ids = banked.nonzero(as_tuple=False).squeeze(-1)
+        if banked_ids.numel() > 0:
+            # Hand the object back: the goal moves to the other hand, so the receiver of this
+            # goal becomes the thrower for the next one.
+            self._success.record_goal_reached(banked_ids)
+            self._goal_side[banked_ids] = 1 - self._goal_side[banked_ids]
+            self._dwell[banked_ids] = 0
+            self._refresh_goal_pos()
+
+        self.extras["log"]["Diagnostics/dwell_steps"] = self._dwell.float().mean()
 
         return {"right_hand": rew_dist, "left_hand": rew_dist}
+
+    def _refresh_goal_pos(self) -> None:
+        """Point ``goal_pos`` at the currently targeted hand and redraw the marker."""
+        self.goal_pos = self._goal_pos_per_side[self._goal_side, self._env_arange]
+        self.goal_markers.visualize(
+            self.goal_pos + self.scene.env_origins,
+            self.goal_rot,
+            environment_ids=self.scene._ALL_INDICES,
+        )
 
     def _get_dones(self) -> tuple[dict[str, torch.Tensor], dict[str, torch.Tensor]]:
         self._compute_intermediate_values()
@@ -249,15 +292,14 @@ class HandoverEnv(DirectMARLEnv):
     def _reset_idx(self, env_ids: Sequence[int] | torch.Tensor | None):
         if env_ids is None:
             env_ids = self.right_hand._ALL_INDICES
-        # flush the per-episode success: the object is at the goal as the episode ends, not merely
-        # passed through it. Logged as a 0-dim device tensor to avoid a host sync.
-        succeeded = (self._last_goal_dist[env_ids] < self.cfg.success_distance_threshold) & self._episode_succeeded[
-            env_ids
-        ]
-        self.extras.setdefault("log", {})["Metrics/success_rate"] = succeeded.float().mean()
+        # Goals are banked during the episode, so success is the count the episode reached
+        # rather than where the object sits at the final step. Snapshot BEFORE the reset
+        # below re-points the goal, or the new episode's goal is credited to the old one.
+        goals = self._success.snapshot(env_ids)
+        self.extras.setdefault("log", {})["Metrics/success_rate"] = (goals / (goals + 1.0)).mean()
+        self.extras["log"]["Metrics/consecutive_success"] = goals.mean()
         for statistic, value in self._goal_distance.reset(env_ids).items():
             self.extras["log"][f"Diagnostics/episode_min_goal_distance_{statistic}"] = value
-        index_fill_(self._episode_succeeded, env_ids, False)
         # reset articulation and rigid body attributes
         super()._reset_idx(env_ids)
 
@@ -321,14 +363,16 @@ class HandoverEnv(DirectMARLEnv):
             rand_floats[:, 0], rand_floats[:, 1], self.x_unit_tensor[env_ids], self.y_unit_tensor[env_ids]
         )
 
+        # A new episode starts with the object at the right hand, so it is delivered to the
+        # left first; the alternation then runs from there. Dwell restarts with it.
+        self._goal_side[env_ids] = 1
+        self._dwell[env_ids] = 0
+        # Rewards are evaluated before autoreset, so the next physics step can earn a goal.
+        self._success.clear(env_ids, skip_next_update=torch.zeros(len(env_ids), dtype=torch.bool, device=self.device))
+
         # update goal pose and markers
         self.goal_rot[env_ids] = new_rot
-        goal_pos = self.goal_pos + self.scene.env_origins
-        self.goal_markers.visualize(
-            goal_pos,
-            self.goal_rot,
-            environment_ids=self.scene._ALL_INDICES,
-        )
+        self._refresh_goal_pos()
 
     def _compute_intermediate_values(self) -> None:
         env_origins = self.scene.env_origins.unsqueeze(1)
