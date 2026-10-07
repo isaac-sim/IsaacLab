@@ -9,7 +9,7 @@ Newton
 ======
 
 Newton is a Warp-native backend that can run without Isaac Sim. Its Isaac Lab
-integration is beta and supports multiple solver families. Configure the
+integration supports multiple solver families. Configure the
 backend with :class:`~isaaclab_newton.physics.NewtonCfg` and choose a solver
 configuration through its ``solver_cfg`` field.
 
