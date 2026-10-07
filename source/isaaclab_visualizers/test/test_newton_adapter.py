@@ -31,6 +31,7 @@ from isaaclab_visualizers.newton_adapter import (
     resolve_visible_env_indices,
 )
 
+from isaaclab.envs.utils.camera_colorizer import CameraFrameColorizer
 from isaaclab.envs.utils.camera_view import resolve_camera_sources
 from isaaclab.sim import SimulationContext
 from isaaclab.utils import instantiate
@@ -241,6 +242,7 @@ def test_visualizers_borrow_scene_camera_outputs(monkeypatch):
         cameras = resolve_camera_sources(cfg, camera_sensors, env_template="/Scenes/world_{}")
         BaseVisualizer.initialize(visualizer, provider, cameras=cameras)
         assert not hasattr(visualizer, "_clone_plan")
+        assert not hasattr(visualizer, "_streaming_params")
         visualizer._setup_streaming_view(4)
         assert visualizer._camera_sensor is camera
         image = visualizer.render_tiled_rgb_array()
@@ -249,16 +251,40 @@ def test_visualizers_borrow_scene_camera_outputs(monkeypatch):
         viewers.append(visualizer)
 
     # A new step or reset refreshes the composite, not the sensor's lifetime.
+    frame = viewers[0].render_tiled_rgba()
     camera.data.output["rgba"].torch[..., :3].add_(10)
     viewers[0]._sim_time += 0.1
     np.testing.assert_array_equal(np.unique(viewers[0].render_tiled_rgb_array()), [10, 12])
+    assert viewers[0].render_tiled_rgba() is frame
     viewers[1].reset(soft=True)
     np.testing.assert_array_equal(np.unique(viewers[1].render_tiled_rgb_array()), [11, 13])
     camera.update.assert_not_called()
     camera.close.assert_not_called()
     SimulationContext.instance.assert_not_called()
 
-    cfg = viewers[0].cfg
+    visualizer = viewers[0]
+    cfg = visualizer.cfg
+    rgba = camera.data.output["rgba"]
+    camera.data.output["rgba"] = ProxyArray(rgba.warp[:, :, :, :1])
+    visualizer._sim_time += 0.1
+    with pytest.raises(ValueError, match="channels"):
+        visualizer.render_tiled_rgba()
+    camera.data.output["rgba"] = rgba
+
+    # Channel and color-range changes rebuild the display buffers at their owner.
+    camera.cfg.data_types.append("depth")
+    camera.data.output["depth"] = ProxyArray(wp.full((4, 2, 3, 1), 2.0, dtype=wp.float32, device=rgba.warp.device))
+    cfg.streaming_gt_types = ("depth",)
+    cfg.streaming_depth_min = 1.0
+    for depth_max in (5.0, 3.0):
+        cfg.streaming_depth_max = depth_max
+        image = visualizer.render_tiled_rgb_array()
+        expected = CameraFrameColorizer.colorize(np.array([[[2.0]]]), "depth", depth_min=1.0, depth_max=depth_max)
+        np.testing.assert_array_equal(image, np.broadcast_to(expected, image.shape))
+    camera.cfg.data_types.remove("depth")
+    del camera.data.output["depth"]
+    cfg.streaming_gt_types = ("rgb",)
+
     cfg.cameras = [SceneCameraCfg(prim_path="/Missing/Camera")]
     with pytest.raises(ValueError, match="No scene Camera matches"):
         resolve_camera_sources(cfg, camera_sensors)

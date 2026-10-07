@@ -24,7 +24,7 @@ from ..envs.utils.camera_colorizer import sensor_key_for_gt_type
 from ..envs.utils.camera_view import resolve_streaming_envs
 from ..utils import validate
 from ..utils.buffers import TimestampedBuffer
-from ..utils.image_composition import ImageCompositionParams, compose_image, prepare_image_composition
+from ..utils.image_composition import compose_image, image_grid_columns
 from .visualizer_cfg import PerspectiveCameraCfg
 
 if TYPE_CHECKING:
@@ -74,7 +74,9 @@ class BaseVisualizer(ABC):
         self._streaming_aspect = 1.0
         self._streaming_frame = TimestampedBuffer()
         self._streaming_host_frame = TimestampedBuffer()
-        self._streaming_params: ImageCompositionParams | None = None
+        self._streaming_env_ids: wp.array | None = None
+        self._streaming_depth_colors: wp.array | None = None
+        self._streaming_layout: tuple | None = None
         self._streaming_view_key: tuple | None = None
         self._streaming_keys: tuple[str, ...] = ()
 
@@ -144,7 +146,7 @@ class BaseVisualizer(ABC):
         if view_key != self._streaming_view_key:
             available = frozenset(camera.cfg.data_types)
             self._streaming_keys = tuple(sensor_key_for_gt_type(gt, available) for gt in gt_types)
-            self._streaming_params = None
+            self._streaming_layout = None
             self._streaming_view_key = view_key
             frame.timestamp = -1.0
         if frame.timestamp == self._sim_time:
@@ -153,17 +155,41 @@ class BaseVisualizer(ABC):
         outputs = camera.data.output
         sources = tuple(outputs[key].warp for key in self._streaming_keys)
         layout = tuple((source.shape, source.dtype, source.device) for source in sources)
-        if self._streaming_params is None or self._streaming_params.source_layout != layout:
-            self._streaming_params = prepare_image_composition(
-                sources,
-                gt_types,
-                env_ids,
-                target_aspect=aspect,
-                depth_min=depth_min,
-                depth_max=depth_max,
-            )
-            frame.data = wp.empty(self._streaming_params.output_shape, dtype=wp.uint8, device=sources[0].device)
-        compose_image(frame.data, sources, self._streaming_params)
+        if self._streaming_layout != layout:
+            if not sources:
+                raise ValueError("Image composition requires at least one display channel.")
+            for source, gt in zip(sources, gt_types, strict=True):
+                channels = 3 if gt in ("rgb", "normals") else 1
+                if source.ndim != 4 or min(source.shape) < 1 or source.shape[3] < channels:
+                    raise ValueError(
+                        f"Channel {gt!r} requires nonempty [N, H, W, C] arrays with at least {channels} channels."
+                    )
+            device = sources[0].device
+            n, height, width, _ = sources[0].shape
+            if any(source.device != device or source.shape[:3] != (n, height, width) for source in sources):
+                raise ValueError("Image channels must have the same batch size, resolution, and device.")
+            if min(env_ids) < 0 or max(env_ids) >= n:
+                raise ValueError(f"Image row selection is outside the source batch of {n} rows.")
+            columns = image_grid_columns(len(env_ids), len(sources), height, width, aspect)
+            shape = (math.ceil(len(env_ids) / columns) * height, columns * len(sources) * width, 4)
+            colors = np.empty((0, 3), dtype=np.uint8)
+            if "depth" in gt_types:
+                from matplotlib import colormaps
+
+                colors = (colormaps["turbo"](np.arange(256) / 255.0)[..., :3] * 255).astype(np.uint8)
+            self._streaming_env_ids = wp.array(env_ids, dtype=wp.int32, device=device)
+            self._streaming_depth_colors = wp.array(colors, dtype=wp.uint8, device=device)
+            frame.data = wp.empty(shape, dtype=wp.uint8, device=device)
+            self._streaming_layout = layout
+        compose_image(
+            frame.data,
+            sources,
+            self._streaming_env_ids,
+            gt_types,
+            self._streaming_depth_colors,
+            depth_min=depth_min,
+            depth_max=depth_max,
+        )
         frame.timestamp = self._sim_time
         self._streaming_host_frame.timestamp = -1.0
         return frame.data
@@ -202,7 +228,8 @@ class BaseVisualizer(ABC):
         self._camera_choices.clear()
         self._streaming_frame = TimestampedBuffer()
         self._streaming_host_frame = TimestampedBuffer()
-        self._streaming_params = self._streaming_view_key = None
+        self._streaming_env_ids = self._streaming_depth_colors = None
+        self._streaming_layout = self._streaming_view_key = None
         self._streaming_keys = ()
         self._scene_data_provider = self._scene_stage = None
         self._is_closed = True

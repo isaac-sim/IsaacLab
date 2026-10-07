@@ -3,34 +3,14 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Prepare image composition parameters on the host and compose pixels on their device."""
+"""Choose image grids and compose explicit pixel arrays on their device."""
 
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
 from typing import Any
 
-import numpy as np
 import warp as wp
-
-
-@dataclass(frozen=True)
-class ImageCompositionParams:
-    """Cached grid dimensions, channel modes, and device arrays for tiled image composition.
-
-    Created by :func:`prepare_image_composition` and reused by :func:`compose_image`.
-    The caller owns the output image and rebuilds these parameters when display settings or source layout change.
-    """
-
-    env_ids: wp.array
-    channel_modes: tuple[int, ...]
-    source_layout: tuple[tuple, ...]
-    columns: int
-    output_shape: tuple[int, int, int]
-    depth_min: float
-    depth_span: float
-    depth_colors: wp.array
 
 
 def image_grid_columns(n_envs: int, n_gt: int, height: int, width: int, target_aspect: float = 1.0) -> int:
@@ -46,61 +26,6 @@ def image_grid_columns(n_envs: int, n_gt: int, height: int, width: int, target_a
         if score < best_score:
             best_cols, best_score = columns, score
     return best_cols
-
-
-def prepare_image_composition(
-    sources: tuple[wp.array, ...],
-    gt_types: tuple[str, ...],
-    env_ids: list[int],
-    *,
-    target_aspect: float = 1.0,
-    depth_min: float = 0.1,
-    depth_max: float = 10.0,
-) -> ImageCompositionParams:
-    """Prepare grid dimensions and channel modes, uploading indices and color tables once.
-
-    Args:
-        sources: Published arrays of shape [N, H, W, C], all on the same device.
-        gt_types: Display channels corresponding to the arrays: rgb, depth, normals, or segmentation.
-        env_ids: Ordered source rows to display.
-        target_aspect: Desired output width divided by height.
-        depth_min: Near end of the depth color scale [m].
-        depth_max: Far end of the depth color scale [m].
-
-    Returns:
-        Cached parameters for composing an opaque uint8 RGBA image.
-        Prepare them again when selection, source layout, or color settings change.
-    """
-    if not sources or len(sources) != len(gt_types) or not env_ids:
-        raise ValueError("Image composition requires matching sources and channels and at least one selected row.")
-    for source, gt in zip(sources, gt_types, strict=True):
-        channels = 3 if gt in ("rgb", "normals") else 1
-        if source.ndim != 4 or min(source.shape) < 1 or source.shape[3] < channels:
-            raise ValueError(f"Channel {gt!r} requires nonempty [N, H, W, C] arrays with at least {channels} channels.")
-    device = sources[0].device
-    n, height, width, _ = sources[0].shape
-    if any(source.device != device or source.shape[:3] != (n, height, width) for source in sources):
-        raise ValueError("Image channels must have the same batch size, resolution, and device.")
-    if min(env_ids) < 0 or max(env_ids) >= n:
-        raise ValueError(f"Image row selection is outside the source batch of {n} rows.")
-    modes = tuple(("rgb", "depth", "normals", "segmentation").index(gt) for gt in gt_types)
-    columns = image_grid_columns(len(env_ids), len(sources), height, width, target_aspect)
-    rows = math.ceil(len(env_ids) / columns)
-    colors = np.empty((0, 3), dtype=np.uint8)
-    if "depth" in gt_types:
-        from matplotlib import colormaps
-
-        colors = (colormaps["turbo"](np.arange(256) / 255.0)[..., :3] * 255).astype(np.uint8)
-    return ImageCompositionParams(
-        env_ids=wp.array(env_ids, dtype=wp.int32, device=device),
-        channel_modes=modes,
-        source_layout=tuple((source.shape, source.dtype, source.device) for source in sources),
-        columns=columns,
-        output_shape=(rows * height, columns * len(sources) * width, 4),
-        depth_min=depth_min,
-        depth_span=max(depth_max - depth_min, 1e-6),
-        depth_colors=wp.array(colors, dtype=wp.uint8, device=device),
-    )
 
 
 @wp.kernel(enable_backward=False)
@@ -169,35 +94,40 @@ def _compose_image_channel(
     output[dst_y, dst_x, 3] = wp.uint8(255)
 
 
-def compose_image(output: wp.array, sources: tuple[wp.array, ...], params: ImageCompositionParams) -> None:
+def compose_image(
+    output: wp.array,
+    sources: tuple[wp.array, ...],
+    env_ids: wp.array,
+    gt_types: tuple[str, ...],
+    depth_colors: wp.array,
+    *,
+    depth_min: float = 0.1,
+    depth_max: float = 10.0,
+) -> None:
     """Write selected, colorized tiles into caller-owned RGBA storage on the source device.
 
-    Arrays must match the prepared parameters. This operation allocates no pixel buffers, reads no
-    pixels on the host, and never accesses a camera or renderer. The caller owns stream ordering
-    and must keep source and output storage alive until the queued kernels complete.
+    This operation allocates no pixel buffers, reads no pixels on the host, and never accesses a camera
+    or renderer. The caller validates array layouts, owns stream ordering, and keeps source and output
+    storage alive until the queued kernels complete.
 
     Args:
-        output: Contiguous uint8 array with ``params.output_shape`` on the source device.
-        sources: Published channel arrays, in the order used to prepare the parameters.
-        params: Resolved image layout and color settings.
+        output: Contiguous uint8 RGBA array sized for complete environment/channel tiles, shape [H, W, 4].
+        sources: Published channel arrays with matching [N, H, W] dimensions, all on the output device.
+        env_ids: Selected source rows, as an int32 array on the output device.
+        gt_types: Display channels corresponding to sources: rgb, depth, normals, or segmentation.
+        depth_colors: Uint8 color table on the output device, shape [256, 3] for depth or [0, 3] otherwise.
+        depth_min: Near end of the depth color scale [m].
+        depth_max: Far end of the depth color scale [m].
     """
     height, width = sources[0].shape[1:3]
-    tile_count = params.output_shape[0] // height * params.columns
-    for channel, (source, mode) in enumerate(zip(sources, params.channel_modes, strict=True)):
+    columns = output.shape[1] // (width * len(sources))
+    tile_count = output.shape[0] // height * columns
+    depth_span = max(depth_max - depth_min, 1e-6)
+    for channel, (source, gt) in enumerate(zip(sources, gt_types, strict=True)):
+        mode = ("rgb", "depth", "normals", "segmentation").index(gt)
         wp.launch(
             _compose_image_channel,
             dim=(tile_count, height, width),
-            inputs=[
-                source,
-                params.env_ids,
-                params.depth_colors,
-                mode,
-                channel,
-                len(sources),
-                params.columns,
-                params.depth_min,
-                params.depth_span,
-                output,
-            ],
+            inputs=[source, env_ids, depth_colors, mode, channel, len(sources), columns, depth_min, depth_span, output],
             device=output.device,
         )
