@@ -326,7 +326,7 @@
             [/^Isaac-Humanoid/, "tasks/classic/humanoid.jpg"],
             [/Lift-Cable-Franka/, "tasks/manipulation/franka_lift_cable.jpg"],
             [/Lift-Cloth-Franka/, "tasks/manipulation/franka_lift_cloth.jpg"],
-            [/Lift-Soft-Franka/, "newton/franka-mjwarp-vbd-coupling.png"],
+            [/Lift-Soft-Franka/, "environment-previews/franka_lift_soft.jpg"],
             [/Lift-(Cube-)?Franka/, "tasks/manipulation/franka_lift.jpg"],
             [/Lift-KukaAllegro/, "tasks/manipulation/kuka_allegro_lift.jpg"],
             [/Open-Drawer-Franka/, "tasks/manipulation/franka_open_drawer.jpg"],
