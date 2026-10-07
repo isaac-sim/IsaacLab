@@ -382,12 +382,6 @@ choose the tab that matches your hardware.
 
          Pico 4 Ultra requires Pico OS 15.4.4U or later and must use HTTPS mode.
 
-      .. note::
-
-         For hand-tracking tasks such as the GR1T2 pick-and-place tasks, set the CloudXR.js client's
-         **Device Profile** to **Quest 3** (use **Load defaults**) before connecting. The default
-         **Custom** profile connects but forwards no hand input, so the robot does not move.
-
       #. Launch the teleop script as shown in
          :ref:`run-isaac-lab-with-the-cloudxr-runtime`. The CloudXR runtime and WSS proxy
          start automatically.
