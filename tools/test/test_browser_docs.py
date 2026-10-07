@@ -36,12 +36,14 @@ class _PageAssets(HTMLParser):
 @pytest.fixture
 def docs_source(tmp_path: Path) -> Path:
     root = tmp_path / "docs"
-    bundle = root / "source/_static/browser_demos/example"
+    bundle = root.parent / "contrib/browser_demos/static/browser_demos/example"
     bundle.mkdir(parents=True)
+    (root / "source/_static").mkdir(parents=True)
     extension_dir = Path(__file__).resolve().parents[2] / "docs/_extensions"
     (root / "conf.py").write_text(
         f"import sys\nsys.path.insert(0, {str(extension_dir)!r})\n"
-        "extensions = ['isaaclab_docs']\nhtml_static_path = ['source/_static']\n",
+        "extensions = ['isaaclab_docs']\n"
+        "html_static_path = ['source/_static', '../contrib/browser_demos/static']\n",
         encoding="utf-8",
     )
     (root / "index.rst").write_text("Examples\n========\n\n.. toctree::\n\n   guide/nested\n", encoding="utf-8")
@@ -118,7 +120,7 @@ def test_browser_embeds_resolve_assets_and_load_widget_once(docs_source: Path, b
     "problem", ["unknown-demo", "missing-binary", "missing-policy-chunk", "missing-shared-visual", "future-abi"]
 )
 def test_browser_embeds_reject_unusable_bundles(docs_source: Path, problem: str):
-    bundle = docs_source / "source/_static/browser_demos/example"
+    bundle = docs_source.parent / "contrib/browser_demos/static/browser_demos/example"
     if problem == "unknown-demo":
         (bundle / "manifest.json").unlink()
     elif problem == "missing-binary":

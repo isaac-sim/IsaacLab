@@ -137,7 +137,13 @@ class IsaacLabBrowserDemo(SphinxDirective):
         name = self.arguments[0]
         if not re.fullmatch(r"[a-z][a-z0-9_]*", name):
             raise self.error("Browser demo names must contain lowercase letters, digits, or underscores.")
-        manifest_path = Path(self.env.srcdir) / "source/_static/browser_demos" / name / "manifest.json"
+        # Sphinx copies later static directories over earlier ones.
+        for static_path in reversed(self.config.html_static_path):
+            manifest_path = Path(self.env.srcdir) / static_path / "browser_demos" / name / "manifest.json"
+            if manifest_path.is_file():
+                break
+        else:
+            raise self.error(f"Cannot embed browser demo '{name}': missing manifest in html_static_path")
         try:
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
             if manifest["bundleVersion"] != 1 or manifest["abiVersion"] != 1:

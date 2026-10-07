@@ -47,7 +47,7 @@ These compact Newton MJWarp scenes run locally as WebAssembly when scrolled into
 view. They let you perturb a trained controller or set velocity commands. For
 task evaluation and metrics, use ``isaaclab play`` with the corresponding task.
 The exporter and rebuild instructions live in
-``docs/browser_demos/``. See the :doc:`interactive examples guide
+``contrib/browser_demos/``. See the :doc:`interactive examples guide
 </source/developer-tools/interactive_examples>` for the export workflow.
 
 .. _browser-demo-cartpole:

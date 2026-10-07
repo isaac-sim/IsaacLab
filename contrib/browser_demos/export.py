@@ -1514,7 +1514,7 @@ def _validate_browser_toolchain() -> dict[str, str]:
         ).stdout.strip()
     except subprocess.CalledProcessError as error:
         raise RuntimeError(
-            "Install the pinned Newton Web source checkout from docs/browser_demos/README.md."
+            "Install the pinned Newton Web source checkout from contrib/browser_demos/README.md."
         ) from error
     if revision != NEWTON_WEB_REVISION:
         mismatches.append(f"newton-web: expected {NEWTON_WEB_REVISION}, found {revision}")
@@ -1522,7 +1522,7 @@ def _validate_browser_toolchain() -> dict[str, str]:
         raise RuntimeError(
             "Browser export requires the reviewed toolchain:\n"
             + "\n".join(mismatches)
-            + "\nFollow docs/browser_demos/README.md; review and validate upgrades before changing these pins."
+            + "\nFollow contrib/browser_demos/README.md; review and validate upgrades before changing these pins."
         )
     return {**versions, "newton-web": revision}
 

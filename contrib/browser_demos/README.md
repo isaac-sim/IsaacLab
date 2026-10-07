@@ -7,13 +7,18 @@ SPDX-License-Identifier: BSD-3-Clause
 
 # Browser simulations
 
+This checkout-only contrib collection owns the exporters, browser viewer, and
+reviewed bundles. It is outside the Python packages and wheel staging inputs.
+The docs contain the teaching text and embed directive; `html_static_path` copies
+this collection's `static/` directory into the site's `_static/` directory.
+
 `export.py` is the source for the interactive examples in the
-[VBD tuning](../source/concepts/solver-tuning/tune_vbd.rst),
-[MJWarp tuning](../source/concepts/solver-tuning/tune_mjwarp.rst),
-[MPM](../source/concepts/using_mpm.rst),
-[actuator](../source/concepts/actuators.rst), and
-[reinforcement learning](../source/concepts/reinforcement_learning.rst) guides and
-the [environment browser](../source/setup/environments.rst). Each demo is an
+[VBD tuning](../../docs/source/concepts/solver-tuning/tune_vbd.rst),
+[MJWarp tuning](../../docs/source/concepts/solver-tuning/tune_mjwarp.rst),
+[MPM](../../docs/source/concepts/using_mpm.rst),
+[actuator](../../docs/source/concepts/actuators.rst), and
+[reinforcement learning](../../docs/source/concepts/reinforcement_learning.rst) guides and
+the [environment browser](../../docs/source/setup/environments.rst). Each demo is an
 independent manifest, WebAssembly module, and optional policy and visual files. The shared
 documentation widget lazy loads the bundle when it enters the viewport. To add
 another physics example, export another bundle and add a view in `browser-demo.js`. The
@@ -21,7 +26,7 @@ another physics example, export another bundle and add a view in `browser-demo.j
 Each widget appears beside the guidance it illustrates.
 Use `.. isaaclab-browser-demo:: <name>` to embed a bundle; the shared Sphinx
 directive checks its files and ABI and loads the widget assets once per page.
-The [contributor guide](../source/developer-tools/interactive_examples.rst)
+The [contributor guide](../../docs/source/developer-tools/interactive_examples.rst)
 describes the capture boundary, current manual adaptations, candidate examples,
 native browser sessions, and version maintenance.
 All 3D views use the albedo and roughness textures from Isaac Lab's
@@ -30,11 +35,36 @@ default USD asset. Its 2 m repeat gives 1 m checker cells and green landmarks
 at each tile corner. The browser's Newton collision plane remains separate from
 the visual texture.
 
+## Files and hosting
+
+The browser needs each demo's `manifest.json`, `simulation.mjs`, and
+`simulation.wasm` (or its gzip file), plus any policy/mesh files named in the
+manifest. It also loads the shared viewer, Three.js, and ground textures from
+`static/`. The manifest describes the step, buffer bindings, controls, and visual
+assets; the WASM contains the captured Newton simulation and reset state.
+
+GitHub serves these checked-in files for the PR's standalone play links. Those
+links do not create an independent hosted copy. Published documentation serves
+its own copied assets and does not depend on the PR preview host. Exporter Python
+files are used only when rebuilding; `preview.html`, GIFs, and screenshots are
+review aids and are not required by the documentation embeds.
+
+To preview the collection without a documentation build, run from the repo root:
+
+```bash
+uv run --no-project python -m http.server 8000 --bind 127.0.0.1 --directory contrib/browser_demos/static
+```
+
+Open [the stiffness preview](http://127.0.0.1:8000/browser_demos/preview.html?demo=stiffness),
+or change the `demo` query parameter to another bundle name.
+
+## Toolchain and scenes
+
 The exporter uses Newton 1.6.0, Warp 1.17.0, MuJoCo Warp 3.12.0, and the
 internal `newton-web` export/compiler
 at commit `b0795fbe6b46e08a1fea2425699421415ca4cdf1` (an NVIDIA internal build
 tool). It requires Emscripten 5.0.3. The compiled assets are checked into
-`docs/source/_static/browser_demos/` so ordinary Sphinx builds do not need the
+`contrib/browser_demos/static/browser_demos/` so ordinary Sphinx builds do not need the
 compiler or external robot and policy assets.
 Bundles larger than 2 MB are stored as gzip files. The shared browser widget
 decompresses them with `DecompressionStream` before initializing WebAssembly.
@@ -101,9 +131,9 @@ Density is fixed at 1,000 kg/m³ and the elastic damping relaxation time at
 runs per animation frame, keeping controls responsive on slower CPUs. Playback
 speed depends on the device. The finite grid is intended for this compact comparison.
 The viewer renders the 1,728 moving particles with one instanced draw.
-The ground textures are checked into `docs/source/_static/browser_demos/shared/`
+The ground textures are checked into `contrib/browser_demos/static/browser_demos/shared/`
 from the same hosted asset selected by `GroundPlaneCfg`. The Three.js r170 module
-is minified with Terser 5.44.1 and checked into `docs/source/_static/vendor/`
+is minified with Terser 5.44.1 and checked into `static/vendor/`
 with its MIT license.
 
 ## Rebuild
@@ -127,16 +157,16 @@ Install Emscripten 5.0.3 using its
 Then build the physics-only examples:
 
 ```bash
-uv run --no-sync python docs/browser_demos/export.py --check-toolchain
-uv run --no-sync python docs/browser_demos/export.py stiffness \
+uv run --no-sync python contrib/browser_demos/export.py --check-toolchain
+uv run --no-sync python contrib/browser_demos/export.py stiffness \
     --output /tmp/isaaclab-browser-build --emxx /path/to/emsdk/upstream/emscripten/em++
-uv run --no-sync python docs/browser_demos/export.py cloth_bending \
+uv run --no-sync python contrib/browser_demos/export.py cloth_bending \
     --output /tmp/isaaclab-browser-build --emxx /path/to/emsdk/upstream/emscripten/em++
-uv run --no-sync python docs/browser_demos/export.py mpm \
+uv run --no-sync python contrib/browser_demos/export.py mpm \
     --output /tmp/isaaclab-browser-build --emxx /path/to/emsdk/upstream/emscripten/em++
-uv run --no-sync python docs/browser_demos/export.py rigid_friction \
+uv run --no-sync python contrib/browser_demos/export.py rigid_friction \
     --output /tmp/isaaclab-browser-build --emxx /path/to/emsdk/upstream/emscripten/em++
-uv run --no-sync python docs/browser_demos/export.py joint_pd \
+uv run --no-sync python contrib/browser_demos/export.py joint_pd \
     --output /tmp/isaaclab-browser-build --emxx /path/to/emsdk/upstream/emscripten/em++
 ```
 
@@ -160,7 +190,7 @@ curl -fL -o /tmp/isaaclab-cartpole-source/Props/instanceable_meshes.usd \
     https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.1/Isaac/IsaacLab/Robots/Classic/Cartpole/Props/instanceable_meshes.usd
 curl -fL -o /tmp/isaaclab-cartpole-direct-newton.pt \
     https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.1/Isaac/IsaacLab/PretrainedCheckpoints/rsl_rl/Isaac-Cartpole-Direct_newtonmjwarp_none_rsl_rl.pt
-uv run --no-sync python docs/browser_demos/export.py cartpole \
+uv run --no-sync python contrib/browser_demos/export.py cartpole \
     --usd /tmp/isaaclab-cartpole-source/cartpole.usd \
     --checkpoint /tmp/isaaclab-cartpole-direct-newton.pt \
     --output /tmp/isaaclab-browser-build --emxx /path/to/emsdk/upstream/emscripten/em++
@@ -182,7 +212,7 @@ git clone --branch v1.3.1 --depth 1 --filter=blob:none --sparse \
     https://github.com/nvidia-isaac/WBC-AGILE.git /tmp/wbc-agile
 git -C /tmp/wbc-agile sparse-checkout set agile/data/policy/velocity_g1/leapp/Velocity-G1-v0
 git -C /tmp/wbc-agile lfs pull
-uv run --no-sync --with onnx python docs/browser_demos/export.py g1 \
+uv run --no-sync --with onnx python contrib/browser_demos/export.py g1 \
     --checkpoint /tmp/wbc-agile/agile/data/policy/velocity_g1/leapp/Velocity-G1-v0/Velocity-G1-v0.onnx \
     --policy-description /tmp/wbc-agile/agile/data/policy/velocity_g1/leapp/Velocity-G1-v0/Velocity-G1-v0.yaml \
     --policy-license /tmp/wbc-agile/LICENCE \
@@ -203,7 +233,7 @@ curl -fL -o /tmp/isaaclab-anymal-source/Props/instanceable_meshes.usd \
     https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.1/Isaac/IsaacLab/Robots/ANYbotics/ANYmal-D/Props/instanceable_meshes.usd
 curl -fL -o /tmp/isaaclab-anymal-flat.pt \
     https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.1/Isaac/IsaacLab/PretrainedCheckpoints/rsl_rl/Isaac-Velocity-Flat-AnymalD_newtonmjwarp_none_rsl_rl.pt
-uv run --no-sync python docs/browser_demos/export.py anymal \
+uv run --no-sync python contrib/browser_demos/export.py anymal \
     --usd /tmp/isaaclab-anymal-source/anymal_d.usd \
     --checkpoint /tmp/isaaclab-anymal-flat.pt \
     --output /tmp/isaaclab-browser-build --emxx /path/to/emsdk/upstream/emscripten/em++
@@ -223,7 +253,7 @@ Expected input SHA-256 values for this build:
 | ANYmal-D flat Newton checkpoint | `0654295241696cdc7855f517a8d94a4951a243f6b21d73152225162ea01aeaaa` |
 
 Copy the contents of `stiffness-web/`, `cloth_bending-web/`, `mpm-web/`, `rigid_friction-web/`, `joint_pd-web/`, `cartpole-web/`, `g1-web/`, and `anymal-web/` into the corresponding
-`docs/source/_static/browser_demos/` directories. Verify the widgets through
+`contrib/browser_demos/static/browser_demos/` directories. Verify the widgets through
 an HTTP server, since `file://` URLs cannot load the WebAssembly modules. The
 G1 bundle contains compiled Newton code, the actor weights, and decimated
 visual meshes in one 1.5 MB binary with the required Unitree and WBC-AGILE licenses.
@@ -275,7 +305,7 @@ for demo in franka_reach franka_lift franka_drawer; do
     esac
     curl -fL -o "/tmp/$task.pt" \
         "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.2/Isaac/IsaacLab/PretrainedCheckpoints/rsl_rl/${task}_newtonmjwarp_none_rsl_rl.pt"
-    uv run --no-sync python docs/browser_demos/export.py "$demo" \
+    uv run --no-sync python contrib/browser_demos/export.py "$demo" \
         --checkpoint "/tmp/$task.pt" --output /tmp/isaaclab-browser-build \
         --emxx /path/to/emsdk/upstream/emscripten/em++
 done

@@ -11,7 +11,12 @@ Adding Interactive Documentation Examples
 Browser examples let readers change a small scene's inputs beside the guidance
 they are learning. The existing examples run compiled Newton physics on the
 browser CPU, render through Three.js, and load only when visible. Their sources
-and rebuild commands live in ``docs/browser_demos/``.
+and rebuild commands live in ``contrib/browser_demos/``.
+
+The contrib collection owns the exporters, viewer, and static bundles. It is
+outside the simulator's Python packages and wheel inputs. Documentation keeps
+the lessons and embed directive; Sphinx's ``html_static_path`` copies the contrib
+static directory into the built site's ``_static/`` directory.
 
 Choose the execution mode
 -------------------------
@@ -42,9 +47,15 @@ Embed a checked bundle
 ----------------------
 
 Put a compiled bundle under
-``docs/source/_static/browser_demos/<name>/``. Its ``manifest.json`` names the
+``contrib/browser_demos/static/browser_demos/<name>/``. Its ``manifest.json`` names the
 JavaScript module, WebAssembly binary, bindings, parameters, and visualization.
 Policy weights, robot meshes, and licenses stay beside that manifest.
+
+The manifest, JavaScript bootstrap, WASM, and referenced policy/mesh files are
+required at runtime, along with the shared viewer and visual assets. GitHub hosts
+these checked-in files for PR play links; published docs serve their own copied
+files. Exporter Python is needed only to rebuild. The standalone preview page
+and its GIFs/screenshots are review aids.
 
 Place the widget in the concept or tutorial that explains it:
 
@@ -91,7 +102,7 @@ Prepare the export boundary
    establish policy or physical fidelity.
 
 The ``export_stiffness`` and ``export_rigid_friction`` functions in
-``docs/browser_demos/export.py`` are small capture examples. The policy examples
+``contrib/browser_demos/export.py`` are small capture examples. The policy examples
 show asset/checkpoint mapping. MPM currently includes adaptations to private
 Newton and Warp interfaces; review them when either dependency changes.
 
@@ -202,11 +213,11 @@ without importing Newton Web or running the compiler.
 MJWarp pins and the Newton Web checkout revision before capture. Newton Web
 checks its Emscripten version. New exports record the checked dependencies in
 ``manifest.build.isaacLabExporter``; older bundles retain their existing metadata.
-Use the pinned installation steps in ``docs/browser_demos/README.md``, then check:
+Use the pinned installation steps in ``contrib/browser_demos/README.md``, then check:
 
 .. code-block:: bash
 
-   uv run --no-sync python docs/browser_demos/export.py --check-toolchain
+   uv run --no-sync python contrib/browser_demos/export.py --check-toolchain
 
 Warp graph layouts, generated C++, CPU runtime operations, and private solver
 interfaces can change on upgrades. Review the compiler and affected adapters,
