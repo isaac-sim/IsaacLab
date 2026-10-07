@@ -353,7 +353,7 @@ def test_gain_randomization_reaches_only_the_selected_articulation(rollouts: _Ro
 
     def read_gains() -> dict[tuple[str, str], torch.Tensor]:
         return {
-            (name, gain): read_group_parameter(articulation.actuators, group, "controller", gain).clone()
+            (name, gain): read_group_parameter(articulation.actuators, group, "drive", gain).clone()
             for name, (articulation, group) in groups.items()
             for gain in ("kp", "kd")
         }
