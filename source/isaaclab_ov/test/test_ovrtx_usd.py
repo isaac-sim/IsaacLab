@@ -126,14 +126,6 @@ def test_render_product_solid_background_color(camera_spec, render_data):
     assert 'token omni:rtx:background:source:type = "domeLight"' not in render_scope
 
 
-@pytest.mark.parametrize("data_types", [["rgb_hdr"], ["rgb_radiance"], ["rgb_hdr", "rgb_radiance"]])
-def test_ovrtx_hdr_outputs_use_one_hdr_color_render_var(data_types):
-    """HDR and radiance share one HdrColor native source."""
-    assert get_render_var_configs(data_types, render_scope_name="RenderCamera_0") == [
-        ("/RenderCamera_0/Vars/HdrColor", "HdrColor", "HdrColor"),
-    ]
-
-
 def test_render_var_prim_names_are_read_only():
     with pytest.raises(TypeError):
         render_var_prim_names_by_source()["LdrColor"] = "mutated"  # type: ignore[index]
@@ -223,14 +215,17 @@ def test_ovrtx_authors_one_render_var_per_requested_data_type():
 
 
 def test_ovrtx_data_types_sharing_a_source_author_one_render_var():
-    """``rgb``/``rgba`` and ``depth``/``distance_to_image_plane`` collapse onto one render var each."""
+    """``rgb``/``rgba``, ``depth``/``distance_to_image_plane``, and ``rgb_hdr``/``rgb_radiance`` collapse onto one
+    render var each."""
     render_var_configs = get_render_var_configs(
-        ["rgb", "rgba", "depth", "distance_to_image_plane"], render_scope_name="RenderCamera_0"
+        ["rgb", "rgba", "depth", "distance_to_image_plane", "rgb_hdr", "rgb_radiance"],
+        render_scope_name="RenderCamera_0",
     )
 
     assert render_var_configs == [
         ("/RenderCamera_0/Vars/LdrColor", "LdrColor", "LdrColor"),
         ("/RenderCamera_0/Vars/depth", "depth", "DistanceToImagePlaneSD"),
+        ("/RenderCamera_0/Vars/HdrColor", "HdrColor", "HdrColor"),
     ]
 
 
@@ -320,8 +315,11 @@ def test_render_product_omits_device_ids_when_no_device_is_given(camera_spec, re
     assert "deviceIds" not in render_product
 
 
-@pytest.mark.parametrize("data_types", [["rgb"], ["rgb", "rgb_hdr"], ["rgb", "rgb_radiance"], []])
-def test_render_product_routes_gaussian_hdr_only_for_hdr_outputs(camera_spec, render_data, data_types):
+@pytest.mark.parametrize(
+    ("data_types", "routes_hdr"),
+    [(["rgb"], False), (["rgb", "rgb_hdr"], True), (["rgb", "rgb_radiance"], True), ([], False)],
+)
+def test_render_product_routes_gaussian_hdr_only_for_hdr_outputs(camera_spec, render_data, data_types, routes_hdr):
     """Route Gaussian HDR when an HDR output is requested, without changing the camera outputs."""
     camera_spec.cfg.data_types = data_types.copy()
     render_product = build_render_product_as_string(camera_spec, render_data)
@@ -330,18 +328,16 @@ def test_render_product_routes_gaussian_hdr_only_for_hdr_outputs(camera_spec, re
     product_path = "/RenderCamera_0/RenderProduct"
     ordered_vars = layer.GetRelationshipAtPath(product_path + ".orderedVars")
     expected_vars = [Sdf.Path("/RenderCamera_0/Vars/LdrColor")]
-    needs_hdr = not {"rgb_hdr", "rgb_radiance"}.isdisjoint(data_types)
-    if needs_hdr:
+    if routes_hdr:
         expected_vars.append(Sdf.Path("/RenderCamera_0/Vars/HdrColor"))
     assert list(ordered_vars.targetPathList.explicitItems) == expected_vars
     assert camera_spec.cfg.data_types == data_types
     schemas = layer.GetPrimAtPath(product_path).GetInfo("apiSchemas").prependedItems
     gaussian_setting = layer.GetAttributeAtPath(product_path + ".omni:rtx:rtpt:gaussian:skipTonemapping:enabled")
-    if needs_hdr:
-        assert "OmniRtxSettingsParticleFieldAPI_1" in schemas
+    assert ("OmniRtxSettingsParticleFieldAPI_1" in schemas) is routes_hdr
+    if routes_hdr:
         assert gaussian_setting.default is False
     else:
-        assert "OmniRtxSettingsParticleFieldAPI_1" not in schemas
         assert gaussian_setting is None
 
 
