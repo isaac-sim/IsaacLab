@@ -132,3 +132,25 @@ def test_usd_file_deformable_targets_only_spawn_prim(stage, tmp_path):
     assert stage.GetPrimAtPath("/World/Soft/tet").HasAPI(UsdPhysics.CollisionAPI)
     assert not stage.GetPrimAtPath("/World/Soft/sim_mesh")
     assert not sim_utils.has_deformable_body_api(stage.GetPrimAtPath("/World/Soft/tet"))
+
+
+@pytest.mark.parametrize("slot", ["volume_deformable_props", "deformable_props"])
+def test_usd_file_deformable_rejects_mesh_collision_props(stage, tmp_path, slot):
+    """The mesh-collision slot is rejected rather than cooking the deformable's simulation mesh."""
+    asset = Usd.Stage.CreateNew(str(tmp_path / "tet.usda"))
+    asset.SetDefaultPrim(_volume_asset(asset, "/Asset"))
+    asset.Save()
+    deformable = (
+        OmniPhysicsDeformableBodyCfg()
+        if slot == "volume_deformable_props"
+        else sim_utils.DeformableBodyPropertiesBaseCfg()
+    )
+    cfg = sim_utils.UsdFileCfg(
+        usd_path=asset.GetRootLayer().identifier,
+        mesh_collision_props=sim_utils.UsdPhysicsMeshCollisionCfg(mesh_approximation_name="convexHull"),
+        **{slot: deformable},
+    )
+    with pytest.raises(ValueError, match="mesh_collision_props"):
+        cfg.func("/World/Soft", cfg)
+    # rejected before anything is authored
+    assert not stage.GetPrimAtPath("/World/Soft")

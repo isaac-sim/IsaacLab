@@ -681,7 +681,12 @@ def spawn_from_usd_file(
 
     Raises:
         FileNotFoundError: If the USD file does not exist at the given path.
+        ValueError: If deformable properties are used with mesh-collision properties.
     """
+    # deformable bodies collide through their simulation mesh, which the mesh-collision slot would cook
+    deformable_values = (cfg.deformable_props, cfg.volume_deformable_props, cfg.surface_deformable_props)
+    if cfg.mesh_collision_props is not None and any(value is not None for value in deformable_values):
+        raise ValueError("Deformable bodies collide through their simulation mesh and take no 'mesh_collision_props'.")
     # In distributed training, serialize asset download and USD stage composition
     # across ranks to prevent file I/O races. Concurrent mmap reads/writes on
     # the same cached USD files cause segfaults in Sdf_CrateFile::_MmapStream::Read.

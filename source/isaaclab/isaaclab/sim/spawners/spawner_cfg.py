@@ -185,6 +185,9 @@ class RigidObjectSpawnerCfg(SpawnerCfg):
     a bare fragment or a list of fragments targets every collider under a USD asset (``"(/.*)?"``) and the
     geometry prim on the shape and mesh spawners (``""``), which is the reach of the legacy
     ``CollisionBaseCfg.mesh_collision_property`` field this slot replaces.
+
+    Deformable bodies collide through their simulation mesh, so spawners that also create a deformable
+    body raise ``ValueError`` when this slot is set.
     """
 
     activate_contact_sensors: bool = False

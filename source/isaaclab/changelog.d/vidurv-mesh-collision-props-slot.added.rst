@@ -4,3 +4,5 @@
   like the mesh-file spawner already did. The slot tunes only colliders: a bare fragment reaches every
   collider under a USD asset and the geometry prim of a shape or mesh spawner, matching the legacy
   ``CollisionBaseCfg.mesh_collision_property`` field it replaces.
+  Spawners that also create a deformable body reject the slot with ``ValueError``, since a deformable
+  collides through its simulation mesh.
