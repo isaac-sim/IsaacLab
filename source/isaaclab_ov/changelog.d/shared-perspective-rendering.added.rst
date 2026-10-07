@@ -4,3 +4,5 @@
   sensor cameras retained per-environment isolation.
 * **Breaking:** Removed implicit ambient illumination from OVRTX products. Scenes without authored lights remained unlit;
   add scene lights to illuminate their geometry.
+* **Breaking:** Removed implicit RGB output and unsupported-output skipping in OVRTX product authoring.
+  Request supported outputs explicitly through ``CameraCfg.data_types``; invalid requests now raised ``ValueError``.

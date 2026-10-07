@@ -217,30 +217,6 @@ def _gpu_side_render_var_sync_enabled() -> bool:
     return value == "1"
 
 
-def _get_cloned_camera_paths(camera_prim_path: str, num_instances: int) -> list[str]:
-    """Return paths for the source camera in env_0 and its clones in every other environment.
-
-    Cloned cameras may be absent from the authored USD. OVRTX still needs one path per
-    environment; these can be synthesized because :meth:`OVRTXRenderer.prepare_stage`
-    requires environment ids ordered from zero.
-
-    Args:
-        camera_prim_path: Absolute path of the source camera under ``/World/envs/env_0/``.
-        num_instances: Number of environments the camera is replicated into.
-
-    Returns:
-        One absolute camera prim path per environment, in environment id order.
-
-    Raises:
-        ValueError: If the source camera does not live under ``/World/envs/env_0/``.
-    """
-    env_0_prefix = "/World/envs/env_0/"
-    camera_rel_path = camera_prim_path.removeprefix(env_0_prefix)
-    if not camera_prim_path.startswith(env_0_prefix) or not camera_rel_path:
-        raise ValueError(f"OVRTX cameras must be under {env_0_prefix}, got {camera_prim_path!r}.")
-    return [f"/World/envs/env_{i}/{camera_rel_path}" for i in range(num_instances)]
-
-
 def _write_file(output_dir: Path, file_name: str, content: str) -> None:
     """Write ``content`` to ``output_dir / file_name``.
 
@@ -323,13 +299,18 @@ class OVRTXCameraRenderData:
             render_scope_name: Root scope containing this camera's render product and RenderVars.
         """
         self.render_scope_name = render_scope_name
-        self.render_product_name = "RenderProduct"
-        self.render_product_path = f"/{render_scope_name}/{self.render_product_name}"
-        self.camera_paths = (
-            _get_cloned_camera_paths(spec.camera_prim_paths[0], spec.num_instances)
-            if spec.camera_prim_paths
-            else [f"/{render_scope_name}/Camera"]
-        )
+        self.render_product_path = f"/{render_scope_name}/RenderProduct"
+        if spec.camera_prim_paths:
+            source = spec.camera_prim_paths[0]
+            prefix = "/World/envs/env_0/"
+            if not source.startswith(prefix) or source == prefix:
+                raise ValueError(f"OVRTX cameras must be under {prefix}, got {source!r}.")
+            # The renderer creates these clones after loading the prototype scene.
+            self.camera_paths = [f"/World/envs/env_{i}/{source[len(prefix) :]}" for i in range(spec.num_instances)]
+        else:
+            if spec.num_instances != 1:
+                raise ValueError("A renderer-owned perspective camera requires exactly one view.")
+            self.camera_paths = [f"/{render_scope_name}/Camera"]
         self.render_var_keys: dict[str, str] = (
             {source: f"/{render_scope_name}/Vars/{name}" for source, name in _RENDER_VAR_PRIM_NAMES.items()}
             if uses_prim_path_render_vars(OVRTX_VERSION)
@@ -341,7 +322,7 @@ class OVRTXCameraRenderData:
         self.width = spec.cfg.width
         self.height = spec.cfg.height
         self.num_envs = spec.num_instances
-        self.data_types = spec.cfg.data_types if spec.cfg.data_types else ["rgb"]
+        self.data_types = spec.cfg.data_types
         self.num_cols = math.ceil(math.sqrt(self.num_envs))
         self.num_rows = math.ceil(self.num_envs / self.num_cols)
         self.warp_buffers: dict[str, wp.array] = {}
@@ -505,19 +486,6 @@ class OVRTXRenderer(BaseRenderer):
         self._exported_usd_string = export_stage_to_string(
             stage, num_envs, source_paths=sources, keep_env_roots=keep_env_roots
         )
-        # Unpartitioned perspective cameras see the complete scene; sensor cameras keep their own partition.
-        from pxr import Sdf, Usd, UsdRender
-
-        render_stage = Usd.Stage.CreateInMemory()
-        render_stage.GetRootLayer().ImportFromString(self._exported_usd_string)
-        settings_path = render_stage.GetMetadata("renderSettingsPrimPath") or "/Render/IsaacLabSettings"
-        settings = UsdRender.Settings.Define(render_stage, settings_path)
-        settings.GetPrim().AddAppliedSchema("OmniRtxSettingsGlobalCommonAPI_1")
-        settings.GetPrim().CreateAttribute(
-            "omni:rtx:scenePartitioning:showAllPartitionsByDefault", Sdf.ValueTypeNames.Bool
-        ).Set(True)
-        render_stage.SetMetadata("renderSettingsPrimPath", settings_path)
-        self._exported_usd_string = render_stage.GetRootLayer().ExportToString()
 
     def _capture_object_scales(self, stage: Any) -> None:
         """Record composed world scales beneath the plan's prototypes and shared roots before export.
@@ -601,10 +569,7 @@ class OVRTXRenderer(BaseRenderer):
         scope = render_data.render_scope_name
         render_product_path = render_data.render_product_path
         render_product_string = build_render_product_as_string(
-            spec,
-            render_data,
-            device_id=self._warp_device.ordinal,
-            enable_shadows=self.cfg.enable_shadows,
+            spec, render_data, device_id=self._warp_device.ordinal, enable_shadows=self.cfg.enable_shadows
         )
         self._render_product_paths.append(render_product_path)
 
@@ -719,7 +684,6 @@ class OVRTXRenderer(BaseRenderer):
             tokens = [f"env_{i}" for i in range(len(paths))]
             if self._use_ovstage:
                 tokens = np.array([self.backend.paths.intern_token(token) for token in tokens], dtype=np.uint64)
-            if self._use_ovstage:
                 path_list = self.backend.paths.create_path_list_from_strings(paths)
                 with self.backend.stage.query_from_path_list(path_list) as query:
                     self.backend.stage.write_attribute(
@@ -859,10 +823,7 @@ class OVRTXRenderer(BaseRenderer):
         scope = render_data.render_scope_name
         product_path = render_data.render_product_path
         usd = build_render_product_as_string(
-            spec,
-            render_data,
-            device_id=self._warp_device.ordinal,
-            enable_shadows=self.cfg.enable_shadows,
+            spec, render_data, device_id=self._warp_device.ordinal, enable_shadows=self.cfg.enable_shadows
         )
         if self._use_ovstage:
             reference = ovstage.population.add_usd_reference_from_string(self.backend.stage, usd, f"/{scope}")
@@ -1742,10 +1703,7 @@ class OVRTXRenderer(BaseRenderer):
         scope = render_data.render_scope_name
         render_product_path = render_data.render_product_path
         render_product_string = build_render_product_as_string(
-            spec,
-            render_data,
-            device_id=self._warp_device.ordinal,
-            enable_shadows=self.cfg.enable_shadows,
+            spec, render_data, device_id=self._warp_device.ordinal, enable_shadows=self.cfg.enable_shadows
         )
         self._render_product_paths.append(render_product_path)
 
