@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import logging
 import sys
-import weakref
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any, Literal, cast
 
@@ -19,7 +18,6 @@ from pxr import Usd, UsdGeom, UsdPhysics
 
 from ... import sim as sim_utils
 from ...app.logging_utils import force_log_level
-from ...physics import PhysicsEvent, PhysicsManager
 from ...renderers import BaseRenderer, CameraRenderSpec
 from ...sim.views import FrameView
 from ...utils.math import (
@@ -627,7 +625,7 @@ class Camera(SensorBase):
 
         # Per-camera USD setup must run **before** ``ensure_prepare_stage`` so renderers that snapshot
         # the stage (ovrtx's ``stage.Export``) capture the overrides in their exported USD. Every camera
-        # already did this in :meth:`_prepare_cameras_callback`; repeating it is harmless and covers
+        # already did this in :meth:`_prepare_initialize_impl`; repeating it is harmless and covers
         # cameras initialized without that callback.
         render_spec = self._make_render_spec(self._num_envs)
         cam_paths = render_spec.camera_prim_paths
@@ -1012,33 +1010,12 @@ class Camera(SensorBase):
     Internal simulation callbacks.
     """
 
-    def _register_callbacks(self):
-        super()._register_callbacks()
-        physics_mgr_cls = sim_utils.SimulationContext.instance().physics_manager
-        obj_ref = weakref.proxy(self)
+    def _prepare_initialize_impl(self):
+        """Apply this camera's renderer USD overrides before any camera initializes.
 
-        def _invoke(event):
-            obj_ref._prepare_cameras_callback(event)
-
-        # Runs before every sensor's initialization (order 10), so a renderer that snapshots the stage
-        # when the first camera initializes sees the overrides of all cameras.
-        self._prepare_cameras_handle = physics_mgr_cls.register_callback(
-            lambda payload: PhysicsManager.safe_callback_invoke(_invoke, payload, physics_manager=physics_mgr_cls),
-            PhysicsEvent.PHYSICS_READY,
-            order=9,
-        )
-
-    def _clear_callbacks(self) -> None:
-        handle = getattr(self, "_prepare_cameras_handle", None)
-        if handle is not None:
-            handle.deregister()
-            self._prepare_cameras_handle = None
-        super()._clear_callbacks()
-
-    def _prepare_cameras_callback(self, event):
-        """Apply this camera's renderer USD overrides before any camera initializes."""
-        if self._is_initialized:
-            return
+        A renderer that exports the stage when the first camera initializes, such as OVRTX, then sees
+        the overrides of every camera.
+        """
         sim_ctx = sim_utils.SimulationContext.instance()
         if self._renderer is None:
             self._renderer = sim_ctx.get_or_create_backend(self.cfg.renderer_cfg)

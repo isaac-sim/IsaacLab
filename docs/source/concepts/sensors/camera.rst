@@ -175,16 +175,6 @@ Requesting ``rgb_hdr`` alone preserves the renderer's existing camera settings. 
 the input for image processing that applies its own exposure and camera response, such as PPISP.
 If both are requested, they share one buffer.
 
-.. note::
-
-   On Isaac RTX and OVRTX, ``rgb_radiance`` is not a native renderer output. These renderers derive
-   it from HDR color by authoring neutral exposure on the camera prim, so every output rendered from
-   that prim, including ``rgb``, ``rgba``, and ``rgb_hdr``, loses the authored exposure. This also
-   applies to other camera sensors that share the prim. A single render product cannot return both
-   authored-exposure color and ``rgb_radiance``; use a separate camera prim when both are required.
-   Newton Warp has no exposure model and is not affected. A native pre-exposure radiance output has
-   been requested from the RTX team (NVBug 6858736).
-
 .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-isaac-rtx.webp
    :align: center
    :figwidth: 100%
@@ -217,9 +207,13 @@ current support matrix is:
      - Isaac RTX
      - OVRTX
      - Newton Warp
-   * - ``rgb``, ``rgba``, ``rgb_hdr``, ``rgb_radiance``
+   * - ``rgb``, ``rgba``, ``rgb_hdr``
      - Yes
      - Yes
+     - Yes
+   * - ``rgb_radiance``
+     - Derived (see below)
+     - Derived (see below)
      - Yes
    * - ``depth`` and both distance outputs
      - Yes
@@ -249,6 +243,16 @@ current support matrix is:
      - Isaac Sim 6.0+
      - Yes
      - No
+
+.. note::
+
+   On Isaac RTX and OVRTX, ``rgb_radiance`` is not a native renderer output. These renderers derive
+   it from HDR color by authoring neutral exposure on the camera prim, so every output rendered from
+   that prim, including ``rgb``, ``rgba``, and ``rgb_hdr``, loses the authored exposure. This also
+   applies to other camera sensors that share the prim. A single render product cannot return both
+   authored-exposure color and ``rgb_radiance``; use a separate camera prim when both are required.
+   Newton Warp has no exposure model and is not affected. A native pre-exposure radiance output has
+   been requested from the RTX team (NVBug 6858736).
 
 Querying an unsupported output fails during camera initialization. Renderer configuration controls
 semantic filters, segmentation colorization, and depth clipping where those options are

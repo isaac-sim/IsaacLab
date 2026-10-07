@@ -55,6 +55,7 @@ class SensorBase(ABC):
             cfg: The configuration parameters for the sensor.
         """
         # start with unset callback handles so cleanup is safe if construction fails part way
+        self._prepare_initialize_handle = None
         self._initialize_handle = None
         self._invalidate_initialize_handle = None
         self._prim_deletion_handle = None
@@ -343,7 +344,15 @@ class SensorBase(ABC):
         def _invoke(callback_name, event):
             getattr(obj_ref, callback_name)(event)
 
-        # Backend-agnostic: PHYSICS_READY (init) and STOP (invalidate)
+        # Backend-agnostic: PHYSICS_READY (prepare, then init) and STOP (invalidate). Every sensor prepares
+        # before any sensor initializes, so sensors can set up shared state, such as a renderer's stage, together.
+        self._prepare_initialize_handle = physics_mgr_cls.register_callback(
+            lambda payload: PhysicsManager.safe_callback_invoke(
+                _invoke, "_prepare_initialize_callback", payload, physics_manager=physics_mgr_cls
+            ),
+            PhysicsEvent.PHYSICS_READY,
+            order=9,
+        )
         self._initialize_handle = physics_mgr_cls.register_callback(
             lambda payload: PhysicsManager.safe_callback_invoke(
                 _invoke, "_initialize_callback", payload, physics_manager=physics_mgr_cls
@@ -371,6 +380,19 @@ class SensorBase(ABC):
                 ),
                 IsaacEvents.PRIM_DELETION,
             )
+
+    def _prepare_initialize_callback(self, event):
+        """Prepares the sensor before any sensor initializes."""
+        if not self._is_initialized:
+            self._prepare_initialize_impl()
+
+    def _prepare_initialize_impl(self):
+        """Prepare state that the initialization of other sensors depends on.
+
+        Runs for every sensor on :attr:`PhysicsEvent.PHYSICS_READY`, before any sensor's
+        :meth:`_initialize_impl`. The default does nothing.
+        """
+        pass
 
     def _initialize_callback(self, event):
         """Initializes the scene elements.
@@ -403,6 +425,9 @@ class SensorBase(ABC):
 
     def _clear_callbacks(self) -> None:
         """Clears the callbacks."""
+        if self._prepare_initialize_handle is not None:
+            self._prepare_initialize_handle.deregister()
+            self._prepare_initialize_handle = None
         if self._initialize_handle is not None:
             self._initialize_handle.deregister()
             self._initialize_handle = None
