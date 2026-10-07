@@ -225,8 +225,9 @@ class DeformableObjectSpawnerCfg(SpawnerCfg):
     never widens to the spawn prim's subtree: the deformable writers create a whole simulation-mesh
     setup on each target, so a subtree default would tetrahedralize every mesh under the asset.
 
-    At most one of :attr:`volume_deformable_props`, :attr:`surface_deformable_props`, and the
-    legacy :attr:`deformable_props` may be set. ``UsdPhysics.MassAPI`` is ignored for deformable
+    At most one of :attr:`volume_deformable_props` and :attr:`surface_deformable_props` may be set.
+    While the deprecated :attr:`deformable_props` field is set, it takes precedence and the slot is
+    ignored with a warning. ``UsdPhysics.MassAPI`` is ignored for deformable
     bodies; set mass through :class:`~isaaclab.sim.schemas.OmniPhysicsDeformableBodyCfg`.
     """
 

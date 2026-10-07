@@ -7,11 +7,14 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from pxr import Usd
+
+logger = logging.getLogger(__name__)
 
 
 def props_expr(prim_path: str, pattern: str) -> str:
@@ -138,17 +141,27 @@ def resolve_deformable_slot(cfg) -> tuple[str, dict] | None:
 
     Unlike rigid-body tuning, deformable creation must not expand to every mesh in a file.
     Setting an empty slot still requests a deformable body with default properties.
+
+    The deprecated ``deformable_props`` field takes precedence over a single slot, so a config
+    that overrides it on a preset whose slot is already filled keeps spawning through the legacy
+    writers (which emit their own deprecation warning) instead of failing. Returns ``None`` then.
     """
     active = [
         (kind, value)
         for kind, value in (("volume", cfg.volume_deformable_props), ("surface", cfg.surface_deformable_props))
         if value is not None
     ]
-    if len(active) + (cfg.deformable_props is not None) > 1:
-        raise ValueError(
-            "Set only one deformable slot: volume_deformable_props, surface_deformable_props, or deformable_props."
-        )
+    if len(active) > 1:
+        raise ValueError("Set only one deformable slot: volume_deformable_props or surface_deformable_props.")
     if not active:
+        return None
+    if cfg.deformable_props is not None:
+        kind = active[0][0]
+        logger.warning(
+            f"Both the deprecated 'deformable_props' field and '{kind}_deformable_props' are set; the"
+            f" '{kind}_deformable_props' slot is ignored. Move the legacy settings into"
+            f" '{kind}_deformable_props' as deformable-body fragments and unset 'deformable_props'."
+        )
         return None
     kind, value = active[0]
     mapping = fragment_mapping(value)

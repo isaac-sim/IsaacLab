@@ -10,6 +10,8 @@ from isaaclab.test.utils import launch_test_simulation
 launch_test_simulation()
 
 import pytest
+from isaaclab_physx.sim.schemas import PhysxDeformableBodyCfg, PhysxDeformableBodyPropertiesCfg
+from isaaclab_physx.sim.spawners.materials import PhysxSurfaceDeformableBodyMaterialCfg
 
 from pxr import Usd, UsdGeom, UsdPhysics
 
@@ -106,7 +108,6 @@ def test_mesh_surface_deformable_spawn(stage, props):
     "kwargs, message",
     [
         ({"volume_deformable_props": []}, "one deformable"),
-        ({"deformable_props": sim_utils.DeformableBodyPropertiesBaseCfg()}, "one deformable"),
         ({"rigid_props": sim_utils.UsdPhysicsRigidBodyCfg()}, "both deformable and rigid"),
         ({"collision_props": sim_utils.CollisionBaseCfg()}, "collision fragments"),
     ],
@@ -115,6 +116,29 @@ def test_mesh_rejects_conflicting_deformable_properties(stage, kwargs, message):
     cfg = sim_utils.MeshRectangleCfg(size=(0.1, 0.1), surface_deformable_props=[], **kwargs)
     with pytest.raises(ValueError, match=message):
         cfg.func("/World/Bad", cfg)
+
+
+@pytest.mark.filterwarnings("ignore::DeprecationWarning")
+def test_mesh_legacy_deformable_props_overrides_filled_slot(stage, caplog):
+    """A legacy ``deformable_props`` override on a cfg whose slot is already filled spawns through it.
+
+    Mirrors a downstream override of the Franka cloth PhysX preset, which fills the surface slot.
+    """
+    cfg = sim_utils.MeshRectangleCfg(
+        size=(0.1, 0.1),
+        surface_deformable_props=[
+            OmniPhysicsDeformableBodyCfg(kinematic_enabled=False),
+            PhysxDeformableBodyCfg(solver_position_iteration_count=16),
+        ],
+        physics_material=PhysxSurfaceDeformableBodyMaterialCfg(surface_thickness=0.01),
+    )
+    # a downstream config overriding the deprecated field after the preset was built
+    cfg.deformable_props = PhysxDeformableBodyPropertiesCfg(solver_position_iteration_count=32)
+    cfg.func("/World/Cloth", cfg)
+    body = stage.GetPrimAtPath("/World/Cloth")
+    assert sim_utils.has_deformable_body_api(body)
+    assert body.GetAttribute("physxDeformableBody:solverPositionIterationCount").Get() == 32
+    assert "surface_deformable_props' slot is ignored" in caplog.text
 
 
 def test_usd_file_deformable_targets_only_spawn_prim(stage, tmp_path):
