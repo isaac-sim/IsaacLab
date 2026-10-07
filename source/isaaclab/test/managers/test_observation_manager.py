@@ -22,6 +22,7 @@ from isaaclab.managers import (
     ObservationManager,
     ObservationTermCfg,
     RewardTermCfg,
+    SceneEntityCfg,
 )
 from isaaclab.utils import DelayBuffer, configclass, modifiers, noise, to_dict, update_from_dict, validate
 
@@ -100,9 +101,11 @@ def lin_vel_w_data(env) -> torch.Tensor:
 class DummySimulation:
     """Minimal playing simulation double."""
 
+    playing = True
+
     def is_playing(self) -> bool:
         """Return whether the simulated timeline is playing."""
-        return True
+        return self.playing
 
 
 @pytest.fixture
@@ -1010,3 +1013,101 @@ def test_positional_out_does_not_enable_destination_writes(setup_env):
     result = manager.compute()["policy"]
     setup_env.data.pos_w.zero_()
     torch.testing.assert_close(result, expected)
+
+
+class PreparedObservation(ManagerTermBase):
+    """Prepared term that records cleanup calls."""
+
+    def __init__(self, cfg, env):
+        super().__init__(cfg, env)
+        self.close_count = 0
+        env.prepared.append(self)
+
+    @classmethod
+    def prepare_scene(cls, cfg, env):
+        assert not env.sim.is_playing()
+        return cls(cfg, env)
+
+    def __call__(self, env, sensor_cfg, gain=1.0):
+        return env.observation * gain
+
+    def close(self):
+        self.close_count += 1
+
+
+@pytest.mark.parametrize("failure", ["prepare", "signature", "initialize"])
+def test_prepared_observations_close_after_startup_failure(failure):
+    class FailingObservation(ManagerTermBase):
+        @classmethod
+        def prepare_scene(cls, cfg, env):
+            if failure == "prepare":
+                raise RuntimeError("preparation failed")
+            return
+
+        def __call__(self, env):
+            raise RuntimeError("initialization failed")
+
+    cfg = HistoryObservationsCfg()
+    cfg.policy.history_length = None
+    cfg.policy.dummy = ObservationTermCfg(func=PreparedObservation, params={"sensor_cfg": SceneEntityCfg("camera")})
+    cfg.policy.failing = ObservationTermCfg(
+        func=dummy_observation if failure == "signature" else FailingObservation,
+        params={"unexpected": True} if failure == "signature" else {},
+    )
+    env = DummyEnv()
+    env.sim.playing = False
+    env.scene = {"camera": object()}
+    env.prepared = []
+
+    with pytest.raises((RuntimeError, ValueError, TypeError)):
+        prepared = ObservationManager.prepare_scene(cfg, env)
+        env.sim.playing = True
+        ObservationManager(cfg, env, prepared_terms=prepared)
+    assert len(env.prepared) == 1
+    assert env.prepared[0].close_count == 1
+
+
+def test_observation_close_continues_after_term_error():
+    class FailingCloseObservation(PreparedObservation):
+        def close(self):
+            super().close()
+            raise RuntimeError("close failed")
+
+    cfg = HistoryObservationsCfg()
+    cfg.policy.history_length = None
+    cfg.policy.dummy = ObservationTermCfg(func=PreparedObservation, params={"sensor_cfg": SceneEntityCfg("camera")})
+    cfg.policy.failing = ObservationTermCfg(
+        func=FailingCloseObservation, params={"sensor_cfg": SceneEntityCfg("camera")}
+    )
+    env = DummyEnv()
+    env.sim.playing = False
+    env.scene = {"camera": object()}
+    env.prepared = []
+    prepared = ObservationManager.prepare_scene(cfg, env)
+    env.sim.playing = True
+    manager = ObservationManager(cfg, env, prepared_terms=prepared)
+
+    with pytest.raises(RuntimeError, match="close an observation term"):
+        manager.close()
+    manager.close()
+    assert [term.close_count for term in env.prepared] == [1, 1]
+
+
+def test_scene_preparation_does_not_mutate_user_configuration():
+    class NormalizingObservation(PreparedObservation):
+        @classmethod
+        def prepare_scene(cls, cfg, env):
+            cfg.params["gain"] = 3.0
+            return super().prepare_scene(cfg, env)
+
+    cfg = HistoryObservationsCfg()
+    cfg.policy.dummy = ObservationTermCfg(
+        func=NormalizingObservation, params={"sensor_cfg": SceneEntityCfg("camera"), "gain": 1.0}
+    )
+    env = DummyEnv()
+    env.sim.playing = False
+    env.prepared = []
+    prepared = ObservationManager.prepare_scene(cfg, env)
+    assert cfg.policy.dummy.params["gain"] == 1.0
+    assert prepared["policy/dummy"].cfg.params["gain"] == 3.0
+    prepared["policy/dummy"].close()

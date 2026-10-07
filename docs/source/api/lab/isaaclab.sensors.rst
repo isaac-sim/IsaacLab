@@ -42,6 +42,11 @@
     JointWrenchSensor
     JointWrenchSensorData
     JointWrenchSensorCfg
+    SensorPostProcessor
+    SensorPostProcessorCfg
+    SensorPostProcessingPipeline
+    CameraPostProcessorContext
+    CameraPostProcessingChain
 
 Sensor Base
 -----------
@@ -256,6 +261,28 @@ Joint Wrench Sensor
     :inherited-members:
     :show-inheritance:
     :exclude-members: __init__, class_type
+
+Sensor Post-Processing
+----------------------
+
+Renderer-independent operations applied to sensor outputs after each new frame. Only camera image
+buffers are currently supported. See :ref:`camera-post-processing` for usage.
+
+.. autoclass:: SensorPostProcessor
+    :members:
+
+.. autoclass:: SensorPostProcessorCfg
+    :members:
+    :exclude-members: __init__
+
+.. autoclass:: CameraPostProcessingChain
+    :members:
+
+.. autoclass:: SensorPostProcessingPipeline
+    :members:
+
+.. autoclass:: CameraPostProcessorContext
+    :members:
 
 
 Additional Public Classes
