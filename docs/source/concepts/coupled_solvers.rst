@@ -41,8 +41,9 @@ material owned by a destination solver through local proxies:
 
 .. raw:: html
 
-   <figure class="coupling-animation">
+   <figure>
      <video controls playsinline preload="none" width="1280" height="866"
+            style="width:100%;height:auto;"
             poster="../../_static/newton/proxy-coupling.jpg"
             aria-label="Proxy coupling between source and destination solvers"
             aria-describedby="coupling-animation-caption">
