@@ -493,7 +493,9 @@ def test_live_floating_root_writers_match_identity_after_body_reordering(sim, de
     expected_com_velocity[:, :3] += torch.linalg.cross(
         root_link_velocity[:, 3:], math_utils.quat_apply(root_com_pose[:, 3:], backend_coms[:, 0, :3])
     )
-    torch.testing.assert_close(_to_device_tensor(identity.root_view.get_root_velocities(), device), expected_com_velocity)
+    torch.testing.assert_close(
+        _to_device_tensor(identity.root_view.get_root_velocities(), device), expected_com_velocity
+    )
     for articulation in (identity, ordered):
         torch.testing.assert_close(articulation.data.root_com_pose_w.torch, root_com_pose)
         torch.testing.assert_close(articulation.data.root_link_vel_w.torch, root_link_velocity)
