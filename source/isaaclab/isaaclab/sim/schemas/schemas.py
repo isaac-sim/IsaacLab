@@ -2375,53 +2375,14 @@ def define_deformable_body_properties(
         root_prim, deformable_type, sim_mesh_prim_path, stage, tetrahedralization_edge_length_fac
     )
 
-    # apply the simulation API and rest state on the simulation mesh (backend-specific)
-    if deformable_type == "surface":
-        if use_omni_physics_apis:
-            if not sim_mesh_prim.ApplyAPI("OmniPhysicsSurfaceDeformableSimAPI"):
-                raise RuntimeError(f"Failed to set surface deformable body API on prim '{sim_mesh_prim_path}'.")
-            # set rest-shape attributes required by OmniPhysicsSurfaceDeformableSimAPI
-            sim_mesh_prim.GetAttribute("omniphysics:restShapePoints").Set(sim_mesh_prim.GetAttribute("points").Get())
-            # flatten through numpy so USD coerces the flat index run into the Vec3i array the
-            # schema declares; a ``Vt.IntArray`` read straight back is rejected as a type mismatch
-            sim_mesh_prim.GetAttribute("omniphysics:restTriVtxIndices").Set(
-                np.asarray(sim_mesh_prim.GetAttribute("faceVertexIndices").Get()).flatten()
-            )
-        else:
-            if not sim_mesh_prim.AddAppliedSchema("PhysicsSurfaceDeformableSimAPI"):
-                raise RuntimeError(f"Failed to set surface deformable body API on prim '{sim_mesh_prim_path}'.")
-    else:
-        if use_omni_physics_apis:
-            if not sim_mesh_prim.ApplyAPI("OmniPhysicsVolumeDeformableSimAPI"):
-                raise RuntimeError(f"Failed to set volume deformable body API on prim '{sim_mesh_prim_path}'.")
-            # set rest-shape attributes required by OmniPhysicsVolumeDeformableSimAPI
-            sim_mesh_prim.GetAttribute("omniphysics:restShapePoints").Set(sim_mesh_prim.GetAttribute("points").Get())
-            sim_mesh_prim.GetAttribute("omniphysics:restTetVtxIndices").Set(
-                sim_mesh_prim.GetAttribute("tetVertexIndices").Get()
-            )
-        else:
-            if not sim_mesh_prim.AddAppliedSchema("PhysicsVolumeDeformableSimAPI"):
-                raise RuntimeError(f"Failed to set volume deformable body API on prim '{sim_mesh_prim_path}'.")
-
     if use_omni_physics_apis:
-        # PhysX binds the visual mesh to the simulation mesh through the bind-pose deformable pose API
-        purposes = ["bindPose"]
-        vis_mesh_prim.ApplyAPI("OmniPhysicsDeformablePoseAPI", "default")
-        vis_mesh_prim.CreateAttribute("deformablePose:default:omniphysics:purposes", Sdf.ValueTypeNames.TokenArray).Set(
-            purposes
-        )
-        points = UsdGeom.PointBased(vis_mesh_prim).GetPointsAttr().Get()
-        vis_mesh_prim.CreateAttribute("deformablePose:default:omniphysics:points", Sdf.ValueTypeNames.Point3fArray).Set(
-            points
-        )
-
-        sim_mesh_prim.ApplyAPI("OmniPhysicsDeformablePoseAPI", "default")
-        sim_mesh_prim.CreateAttribute("deformablePose:default:omniphysics:purposes", Sdf.ValueTypeNames.TokenArray).Set(
-            purposes
-        )
-        if not root_prim.ApplyAPI("OmniPhysicsDeformableBodyAPI"):
-            raise RuntimeError(f"Failed to set deformable body API on prim '{prim_path}'.")
+        # PhysX-based backends: simulation API, rest state, bind pose, and body API
+        _setup_omniphysics_deformable_body(root_prim, deformable_type, sim_mesh_prim, vis_mesh_prim)
     else:
+        # apply the backend-neutral simulation API on the simulation mesh
+        sim_api = "PhysicsSurfaceDeformableSimAPI" if deformable_type == "surface" else "PhysicsVolumeDeformableSimAPI"
+        if not sim_mesh_prim.AddAppliedSchema(sim_api):
+            raise RuntimeError(f"Failed to set {deformable_type} deformable body API on prim '{sim_mesh_prim_path}'.")
         # TODO: Temporary solution for Newton: Overwrite visual mesh with tet mesh surface points or copy
         # surface sim mesh to vis mesh. In the future we can have separate visual from simulation mesh.
         # This currently does not work if an asset is loaded where the visual mesh is not the simulation mesh surface.
