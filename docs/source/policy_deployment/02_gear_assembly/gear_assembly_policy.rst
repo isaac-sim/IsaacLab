@@ -325,10 +325,12 @@ Contact-rich manipulation requires careful solver tuning. These parameters were 
     ],
 
     # Contact properties
-    collision_props=PhysxCollisionCfg(
-        contact_offset=0.005,                    # 5mm contact detection distance
-        rest_offset=0.0,                         # Objects touch at 0 distance
-    ),
+    collision_props=[
+        PhysxCollisionCfg(
+            contact_offset=0.005,                # 5mm contact detection distance
+            rest_offset=0.0,                     # Objects touch at 0 distance
+        ),
+    ],
 
 Actuator Modeling
 ~~~~~~~~~~~~~~~~~

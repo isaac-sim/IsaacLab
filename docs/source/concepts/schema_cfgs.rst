@@ -389,11 +389,20 @@ through fragments (:class:`~isaaclab_newton.sim.schemas.MujocoRigidBodyCfg` /
   so it counts against ``actuatorfrcrange``; otherwise it goes to ``qfrc_passive``.
 
 ``actuatorgravcomp=True`` alone is a no-op — without body-level ``gravcomp``
-there are no forces to route. To prevent this footgun, the spawner
-**auto-enables** body-level ``gravcomp=1.0`` whenever ``joint_drive_props``
-requests ``actuatorgravcomp=True`` and ``rigid_props`` does not already set a
-Mujoco ``gravcomp`` value. If you want a different ``gravcomp`` value (or want
-to disable the auto-enable), pass an explicit ``gravcomp`` on ``rigid_props``.
+there are no forces to route. To prevent this footgun, Isaac Lab
+**auto-enables** body-level ``gravcomp=1.0`` whenever a joint requests
+``actuatorgravcomp=True``. The two authoring paths differ in when they do so:
+
+* **Fragments** (:class:`~isaaclab_newton.sim.schemas.MujocoJointCfg`): the joint
+  fragment sets ``mjc:gravcomp = 1.0`` on the joint's child body when that body's
+  ``gravcomp`` is unauthored **or equal to** ``0.0``. A non-zero ``gravcomp`` on the body
+  is preserved, so use it to pick a different compensation factor. An explicit
+  ``MujocoRigidBodyCfg(gravcomp=0.0)`` does **not** opt out: it is replaced with
+  ``1.0``. To avoid gravity compensation on a body, leave ``actuatorgravcomp`` unset
+  (or ``False``) on its joint.
+* **Deprecated single cfg** (:class:`~isaaclab_newton.sim.schemas.MujocoJointDrivePropertiesCfg`):
+  the spawner auto-enables ``gravcomp=1.0`` only when ``rigid_props`` does not set
+  ``gravcomp`` at all, so any explicit value, including ``0.0``, is preserved.
 
 Naming convention
 -----------------

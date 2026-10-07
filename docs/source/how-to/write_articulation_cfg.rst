@@ -73,8 +73,8 @@ a :class:`~isaaclab_physx.sim.schemas.PhysxArticulationCfg` fragment next to a
 :class:`~isaaclab_newton.sim.schemas.NewtonArticulationCfg` fragment, so each backend reads its own
 attributes from the same configuration. Its PhysX solver iterations and sleep thresholds do not
 configure Newton's solver. When adapting it to Newton, retain the shared initial-state and
-actuator configuration and configure the Newton solver separately. For example, to override
-Newton's self-collision setting:
+actuator configuration and configure the Newton solver separately. For example, to keep the
+PhysX fragment and add Newton's self-collision setting:
 
 .. code-block:: python
 
@@ -84,7 +84,10 @@ Newton's self-collision setting:
    from isaaclab.utils import clone
 
    robot_cfg = clone(CARTPOLE_CFG)
-   robot_cfg.spawn.articulation_props = [NewtonArticulationCfg(self_collision_enabled=False)]
+   robot_cfg.spawn.articulation_props = [
+       *robot_cfg.spawn.articulation_props,
+       NewtonArticulationCfg(self_collision_enabled=False),
+   ]
 
 See :doc:`solver_tuning_mjwarp` for solver settings,
 :doc:`prepare_asset_for_newton`

@@ -78,13 +78,6 @@ import os
 from isaaclab.sim.converters import MeshConverterCfg, UrdfConverterCfg
 from isaaclab.sim.schemas import schemas_cfg
 
-# Mesh-collision approximation token authored for each collision approximation choice.
-collision_approximation_map = {
-    "convexDecomposition": "convexDecomposition",
-    "convexHull": "convexHull",
-    "none": None,
-}
-
 
 def main():
     # the mesh converter imports Kit modules, so load it after Kit starts
@@ -138,10 +131,9 @@ def main():
                     collision_enabled=args_cli.collision_approximation != "none"
                 )
                 # Mesh collision approximation properties
-                approximation_name = collision_approximation_map.get(args_cli.collision_approximation)
                 mesh_collision_props = (
-                    schemas_cfg.UsdPhysicsMeshCollisionCfg(mesh_approximation_name=approximation_name)
-                    if approximation_name is not None
+                    schemas_cfg.UsdPhysicsMeshCollisionCfg(mesh_approximation_name=args_cli.collision_approximation)
+                    if args_cli.collision_approximation != "none"
                     else None
                 )
                 # Mesh converter call

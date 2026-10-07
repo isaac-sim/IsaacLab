@@ -5,7 +5,7 @@ This reference follows the sections in the [asset migration guide](../../../docs
 ## Contents
 
 - Multi-Backend Asset Importing Pipeline
-- Use Per-Solver Asset Configuration Classes
+- Use Per-Solver Schema Fragments
 - Audit The Authored Mechanical Model
 - Match Contact And Friction Behavior
 - Velocity Limits Distinction
