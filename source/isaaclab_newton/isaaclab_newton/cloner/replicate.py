@@ -139,7 +139,22 @@ def _replicate_newton(
     builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=cfg))
     builder.up_axis = Axis.from_string(up_axis)
     import_paths = (sim.cfg.physics_prim_path, *global_paths) if simulation else global_paths
-    source_paths = list(dict.fromkeys(sources[index] for index in asset_prototype_ids if sources[index] is not None))
+    # Attached sensors select their owner's subtree; importing them separately would exclude that
+    # subtree (including its joints) from the owning asset. Standalone sensor sources remain independent.
+    asset_sources = {
+        sources[index]
+        for index in asset_prototype_ids
+        if sources[index] is not None and not isinstance(plan.asset_cfgs[index], SensorBaseCfg)
+    }
+    source_paths = list(
+        dict.fromkeys(
+            sources[index]
+            for index in asset_prototype_ids
+            if sources[index] is not None
+            if not isinstance(plan.asset_cfgs[index], SensorBaseCfg)
+            or not any(cloner_path.relative_to(sources[index], parent) is not None for parent in asset_sources)
+        )
+    )
     if simulation:
         deformable_paths = []
         for source in source_paths:

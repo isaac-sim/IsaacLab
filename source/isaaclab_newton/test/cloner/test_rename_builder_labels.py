@@ -20,12 +20,14 @@ from isaaclab_newton.physics import NewtonBackendCfg
 
 from pxr import Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
 
+from isaaclab.actuators import IdealPDActuatorCfg
 from isaaclab.assets import AssetBaseCfg
 from isaaclab.cloner import ClonePlan, PrototypeWorldTopology, make_clone_plan
 from isaaclab.cloner import path as cloner_path
-from isaaclab.sensors import SensorBaseCfg
+from isaaclab.sensors import RayCasterCfg, SensorBaseCfg
 from isaaclab.sim import SimulationContext, SpawnerCfg
 from isaaclab.sim.schemas import define_deformable_curve_properties
+from isaaclab.sim.schemas.schemas_actuators import author_actuator_prims
 
 
 class TestReplicateBuilderMapping(unittest.TestCase):
@@ -216,7 +218,8 @@ class TestVisualizationClonePlan(unittest.TestCase):
         self.assertFalse(any("OtherRope" in path for path in builder.shape_label))
         self.assertFalse(stage.GetPrimAtPath("/Scene/copy_1/Rope"))
 
-    def test_visualization_builder_disables_collision_pairs(self):
+    def test_visualization_builder_preserves_articulation_with_attached_sensors(self):
+        """Sensor selections keep their owner's joints; separate child assets retain their own copies."""
         stage = Usd.Stage.CreateInMemory()
         self.sim.stage = stage
         robot_path = "/World/envs/env_0/Robot"
@@ -235,21 +238,56 @@ class TestVisualizationClonePlan(unittest.TestCase):
             collision = UsdGeom.Cube.Define(stage, f"{body_path}/Collision")
             collision.CreateSizeAttr(0.2)
             UsdPhysics.CollisionAPI.Apply(collision.GetPrim())
-        joint = UsdPhysics.RevoluteJoint.Define(stage, f"{robot_path}/Joint")
+        joint_path = f"{robot_path}/A/Joint"
+        joint = UsdPhysics.RevoluteJoint.Define(stage, joint_path)
         joint.CreateBody0Rel().SetTargets([Sdf.Path(f"{robot_path}/A")])
         joint.CreateBody1Rel().SetTargets([Sdf.Path(f"{robot_path}/B")])
+        author_actuator_prims(
+            stage,
+            robot_path,
+            {"drive": IdealPDActuatorCfg(joint_names_expr=["Joint"], stiffness=40.0, damping=5.0)},
+        )
+
+        # A separately declared child body must still be imported independently, without duplication.
+        payload_path = f"{robot_path}/Payload"
+        payload = UsdGeom.Cube.Define(stage, payload_path)
+        payload.CreateSizeAttr(0.2)
+        UsdPhysics.RigidBodyAPI.Apply(payload.GetPrim())
+        UsdPhysics.CollisionAPI.Apply(payload.GetPrim())
+        # A sensor source outside the robot has no owning asset to supply its visual geometry.
+        UsdGeom.Cube.Define(stage, "/World/envs/env_0/StandaloneFrame").CreateSizeAttr(0.2)
 
         asset = AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Robot", spawn=SpawnerCfg(spawn_path=robot_path))
-        plan = make_clone_plan((asset,), ((0,),), 2, positions=np.asarray(((0, 0, 0), (2, 0, 0)), dtype=np.float32))
-        builder, _, _ = NewtonReplicateContext(self.sim).replicate(plan, (0,))
+        cfgs = (
+            asset,
+            RayCasterCfg(prim_path="/World/envs/env_[^/]+/Robot/A"),
+            AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Robot/Payload", spawn=SpawnerCfg(spawn_path=payload_path)),
+            RayCasterCfg(prim_path="/World/envs/env_[^/]+/StandaloneFrame"),
+        )
+        plan = make_clone_plan(
+            cfgs, ((0, 1, 2, 3), (0, 1, 3)), 2, positions=np.asarray(((0, 0, 0), (2, 0, 0)), dtype=np.float32)
+        )
+        builder, _, _ = NewtonReplicateContext(self.sim).replicate(plan, (0, 1, 2, 3))
         model = builder.finalize(device="cpu")
 
-        self.assertEqual(model.shape_count, 4)
+        self.assertEqual(model.shape_count, 7)
         self.assertEqual(len(model.shape_collision_filter_pairs), 0)
         self.assertEqual(
-            model.body_label, [f"/World/envs/env_{env}/Robot/{body}" for env in range(2) for body in ("A", "B")]
+            model.body_label,
+            [
+                f"/World/envs/env_{env}/Robot/{body}"
+                for env, body in ((0, "A"), (0, "B"), (0, "Payload"), (1, "A"), (1, "B"))
+            ],
         )
         self.assertEqual(model.shape_contact_pair_count, 0)
+        joint_ids = [model.joint_label.index(f"/World/envs/env_{env}/Robot/A/Joint") for env in range(2)]
+        self.assertCountEqual(
+            [index for actuator in model.actuators for index in actuator.indices.numpy()],
+            model.joint_qd_start.numpy()[joint_ids],
+        )
+        for env, joint_id in enumerate(joint_ids):
+            self.assertEqual(model.body_label[model.joint_parent.numpy()[joint_id]], f"/World/envs/env_{env}/Robot/A")
+            self.assertEqual(model.body_label[model.joint_child.numpy()[joint_id]], f"/World/envs/env_{env}/Robot/B")
 
     def test_visualization_builder_uses_clone_plan_sources_and_rewrites_labels(self):
         stage = Usd.Stage.CreateInMemory()
