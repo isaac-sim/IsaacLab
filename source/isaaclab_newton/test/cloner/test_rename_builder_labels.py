@@ -219,7 +219,7 @@ class TestVisualizationClonePlan(unittest.TestCase):
         self.assertFalse(stage.GetPrimAtPath("/Scene/copy_1/Rope"))
 
     def test_visualization_builder_preserves_articulation_with_attached_sensors(self):
-        """Sensor selections keep their owner's joints; separate child assets retain their own copies."""
+        """Keep joints and sensor-only geometry without duplicate bodies, collision filters, or contact pairs."""
         stage = Usd.Stage.CreateInMemory()
         self.sim.stage = stage
         robot_path = "/World/envs/env_0/Robot"
@@ -227,6 +227,7 @@ class TestVisualizationClonePlan(unittest.TestCase):
         self._define_xform(stage, "/World/envs")
         self._define_xform(stage, "/World/envs/env_0")
         self._define_xform(stage, "/World/envs/env_1", (2.0, 0.0, 0.0))
+        self._define_xform(stage, "/World/envs/env_2", (4.0, 0.0, 0.0))
         robot = UsdGeom.Xform.Define(stage, robot_path).GetPrim()
         UsdPhysics.ArticulationRootAPI.Apply(robot)
         robot.CreateAttribute("physxArticulation:enabledSelfCollisions", Sdf.ValueTypeNames.Bool).Set(False)
@@ -256,6 +257,8 @@ class TestVisualizationClonePlan(unittest.TestCase):
         UsdPhysics.CollisionAPI.Apply(payload.GetPrim())
         # A sensor source outside the robot has no owning asset to supply its visual geometry.
         UsdGeom.Cube.Define(stage, "/World/envs/env_0/StandaloneFrame").CreateSizeAttr(0.2)
+        # This sensor-selected geometry must also survive in a world without its owning robot.
+        UsdGeom.Cube.Define(stage, f"{robot_path}/SensorFrame").CreateSizeAttr(0.2)
 
         asset = AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Robot", spawn=SpawnerCfg(spawn_path=robot_path))
         cfgs = (
@@ -263,14 +266,24 @@ class TestVisualizationClonePlan(unittest.TestCase):
             RayCasterCfg(prim_path="/World/envs/env_[^/]+/Robot/A"),
             AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Robot/Payload", spawn=SpawnerCfg(spawn_path=payload_path)),
             RayCasterCfg(prim_path="/World/envs/env_[^/]+/StandaloneFrame"),
+            RayCasterCfg(prim_path="/World/envs/env_[^/]+/Robot/SensorFrame"),
         )
         plan = make_clone_plan(
-            cfgs, ((0, 1, 2, 3), (0, 1, 3)), 2, positions=np.asarray(((0, 0, 0), (2, 0, 0)), dtype=np.float32)
+            cfgs,
+            ((0, 1, 2, 3, 4), (0, 1, 3, 4), (3, 4)),
+            3,
+            positions=np.asarray(((0, 0, 0), (2, 0, 0), (4, 0, 0)), dtype=np.float32),
         )
-        builder, _, _ = NewtonReplicateContext(self.sim).replicate(plan, (0, 1, 2, 3))
+        builder, _, _ = NewtonReplicateContext(self.sim).replicate(plan, (0, 1, 2, 3, 4))
         model = builder.finalize(device="cpu")
 
-        self.assertEqual(model.shape_count, 7)
+        self.assertEqual(model.shape_count, 11)
+        for env in range(3):
+            label = f"/World/envs/env_{env}/Robot/SensorFrame"
+            self.assertEqual(model.shape_label.count(label), 1)
+            np.testing.assert_allclose(
+                model.shape_transform.numpy()[model.shape_label.index(label), :3], (2 * env, 0, 0)
+            )
         self.assertEqual(len(model.shape_collision_filter_pairs), 0)
         self.assertEqual(
             model.body_label,

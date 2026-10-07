@@ -116,12 +116,13 @@ def _replicate_newton(
     global_paths = tuple(
         root for root, parent in zip(shared, cloner_path.get_parent_indices(shared), strict=True) if parent == -1
     )
+    asset_prototypes = {index for index, cfg in enumerate(plan.asset_cfgs) if not isinstance(cfg, SensorBaseCfg)}
     # A sensor selects an existing body; opting out of cloning must not remove that body from its owner.
     exclude_paths = tuple(
         source
         for index, source in enumerate(sources)
         if source is not None and index not in asset_prototype_ids
-        if not isinstance(plan.asset_cfgs[index], SensorBaseCfg)
+        if index in asset_prototypes
     )
     simulation = isinstance(cfg, NewtonCfg)
     if positions is None:
@@ -139,22 +140,30 @@ def _replicate_newton(
     builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=cfg))
     builder.up_axis = Axis.from_string(up_axis)
     import_paths = (sim.cfg.physics_prim_path, *global_paths) if simulation else global_paths
-    # Attached sensors select their owner's subtree; importing them separately would exclude that
-    # subtree (including its joints) from the owning asset. Standalone sensor sources remain independent.
+    # Sensors select existing geometry. Fold them into a containing source only in compositions
+    # where that source supplies the same destination subtree; other worlds still need their import.
     asset_sources = {
-        sources[index]
-        for index in asset_prototype_ids
-        if sources[index] is not None and not isinstance(plan.asset_cfgs[index], SensorBaseCfg)
+        sources[index] for index in asset_prototype_ids if sources[index] is not None and index in asset_prototypes
     }
-    source_paths = list(
-        dict.fromkeys(
-            sources[index]
-            for index in asset_prototype_ids
-            if sources[index] is not None
-            if not isinstance(plan.asset_cfgs[index], SensorBaseCfg)
-            or not any(cloner_path.relative_to(sources[index], parent) is not None for parent in asset_sources)
-        )
-    )
+    source_components = {}
+    for prototype, (start, end) in enumerate(zip(starts[:-1], starts[1:], strict=True), start=-1):
+        references = [
+            (index, sources[index], template)
+            for index, template in zip(plan.topology.world_prototypes[start:end], templates[start:end], strict=True)
+            if index in asset_prototype_ids and sources[index] is not None
+        ]
+        source_components[prototype] = [
+            (source, destination)
+            for index, source, destination in references
+            if index in asset_prototypes
+            or not any(
+                (parent, target) != (source, destination)
+                and (suffix := cloner_path.relative_to(source, parent)) is not None
+                and cloner_path.relative_to(destination, target) == suffix
+                for _, parent, target in references
+            )
+        ]
+    source_paths = list(dict.fromkeys(source for components in source_components.values() for source, _ in components))
     if simulation:
         deformable_paths = []
         for source in source_paths:
@@ -173,7 +182,9 @@ def _replicate_newton(
         stage_info = builder.add_usd(stage, root_path=sim.cfg.physics_prim_path, schema_resolvers=schema_resolvers)
 
     import_results: dict[str, dict[str, Any]] = {}
-    options = dict(ignore_paths=ignore_paths, load_visual_shapes=load_visual_shapes)
+    options = dict(
+        ignore_paths=ignore_paths, load_visual_shapes=load_visual_shapes, exclude_nested_sources=asset_sources
+    )
     options.update(skip_mesh_approximation=not simulation, import_results_out=import_results)
     source_builders = build_source_builders(stage, source_paths, create_builder, schema_resolvers, **options)
     if simulation:
@@ -246,7 +257,12 @@ def _replicate_newton(
             if path in particle_visual_paths:
                 visual_ranges[cloner_path.rebase(particle_visual_paths[path], source, destination)] = native_range
 
-    options = dict(env_ids=env_ids, source_site_indices=source_sites, env_root_sites=root_sites)
+    options = dict(
+        env_ids=env_ids,
+        source_site_indices=source_sites,
+        env_root_sites=root_sites,
+        source_components=source_components,
+    )
     options["per_world_builder_hooks"] = NewtonManager._per_world_builder_hooks if simulation else ()
     has_geometry = any(source_cables.values()) or any(result["path_particle_map"] for result in import_results.values())
     options["source_builder_added"] = record_geometry if has_geometry else None

@@ -1,1 +1,1 @@
-* Fixed attached sensor sources excluding robot links and joints from Newton imports, which prevented native actuators from resolving their targets when using additional visualizers.
+* Fixed Newton imports of attached sensors to preserve robot joints and native actuator targets with additional visualizers, including sensor geometry in world compositions without its owner.

@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Collection, Mapping, Sequence
 from typing import Any
 
 import numpy as np
@@ -93,6 +93,7 @@ def build_source_builders(
     schema_resolvers: Sequence[Any],
     *,
     ignore_paths: Sequence[str] | None = None,
+    exclude_nested_sources: Collection[str] | None = None,
     load_visual_shapes: bool = True,
     skip_mesh_approximation: bool = False,
     import_results_out: dict[str, dict[str, Any]] | None = None,
@@ -109,6 +110,8 @@ def build_source_builders(
         create_builder: Factory returning a fresh :class:`ModelBuilder`.
         schema_resolvers: Schema resolvers forwarded to Newton's USD importer.
         ignore_paths: Prim paths skipped during import.
+        exclude_nested_sources: Sources imported independently and excluded from ancestor imports.
+            Defaults to all sources. Sensor selections can be omitted to retain their geometry in owners.
         load_visual_shapes: Whether to import visual-only geometry. Importing it costs
             USD parse time and memory that only pays off when the shapes are rendered
             or ray cast.
@@ -118,6 +121,7 @@ def build_source_builders(
     """
     builders = {}
     sources = tuple(dict.fromkeys(sources))
+    exclude_nested_sources = set(sources if exclude_nested_sources is None else exclude_nested_sources)
     for source in sources:
         builder = create_builder()
         import_result = builder.add_usd(
@@ -129,7 +133,12 @@ def build_source_builders(
             schema_resolvers=schema_resolvers,
             ignore_paths=[
                 *(ignore_paths or ()),
-                *(path for path in sources if path != source and clone_path.relative_to(path, source) is not None),
+                *(
+                    path
+                    for path in sources
+                    if path in exclude_nested_sources and path != source
+                    if clone_path.relative_to(path, source) is not None
+                ),
             ],
             return_deformable_results=True,
         )
@@ -281,12 +290,17 @@ def replicate_builder_mapping(
     source_builders: dict[str, ModelBuilder],
     *,
     env_ids: np.ndarray,
+    source_components: Mapping[int, Sequence[tuple[str, str]]] | None = None,
     source_site_indices: dict[int, dict[str, list[int]]] | None = None,
     env_root_sites: dict[str, wp.transform] | None = None,
     per_world_builder_hooks: Sequence[Callable[[ModelBuilder, int, np.ndarray, np.ndarray], None]] = (),
     source_builder_added: Callable[[str, str, int, int], None] | None = None,
 ) -> tuple[dict[str, list[list[int]]], list[wp.transform]]:
-    """Compose routed source builders once per world prototype, then batch their selected worlds."""
+    """Compose routed source builders once per world prototype, then batch their selected worlds.
+
+    ``source_components`` optionally selects source/destination pairs per world prototype (shared world -1
+    included). This lets a sensor use its owner's geometry in one composition and its own import in another.
+    """
     topology, env_template = plan.topology, plan.env_template
     layout = topology.world_prototype_layout
     source_site_indices = source_site_indices or {}
@@ -304,17 +318,20 @@ def replicate_builder_mapping(
     for prototype_id, first_world in zip((-1, *prototype_ids), (-1, *first_world_ids), strict=True):
         start, end = starts[prototype_id + 1 : prototype_id + 3]
         reference_paths = [(sources[topology.world_prototypes[index]], templates[index]) for index in range(start, end)]
-        components = [(source, template) for source, template in reference_paths if source in source_builders]
-        prototype = builder if prototype_id == -1 else ModelBuilder(up_axis=builder.up_axis)
-        sites, asset_offsets = {}, []
-        for source, destination in components:
-            # Remove the source world's placement before composing assets into other world prototypes.
-            if source not in source_inverse:
+        # Resolve placement from the source's first occurrence, even when its owner supplies that
+        # occurrence and the separate source builder is only used in a later composition.
+        for source, _ in reference_paths:
+            if source in source_builders and source not in source_inverse:
                 source_inverse[source] = (
                     np.asarray(wp.transform(), dtype=np.float32)
                     if first_world == -1 or clone_path.match(source, env_template) is None
                     else np.asarray(wp.transform_inverse(world_xforms[first_world]), dtype=np.float32)
                 )
+        selected = reference_paths if source_components is None else source_components[prototype_id]
+        components = [(source, template) for source, template in selected if source in source_builders]
+        prototype = builder if prototype_id == -1 else ModelBuilder(up_axis=builder.up_axis)
+        sites, asset_offsets = {}, []
+        for source, destination in components:
             asset = source_builders[source]
             asset_offsets.append((prototype.shape_count, prototype.particle_count))
             for label, indices in source_site_indices.get(id(asset), {}).items():
