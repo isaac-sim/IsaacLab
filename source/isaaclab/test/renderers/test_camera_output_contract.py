@@ -275,7 +275,7 @@ def test_every_camera_prepares_before_the_shared_stage_export(monkeypatch):
     from pxr import Sdf, Usd, UsdGeom
 
     from isaaclab.physics import PhysicsEvent, PhysicsManager
-    from isaaclab.renderers.rtx_camera_overrides import apply_rtx_exposure_overrides
+    from isaaclab.renderers.rtx_camera_overrides import _apply_rtx_exposure_overrides
     from isaaclab.sensors.camera import Camera
     from isaaclab.sensors.camera import camera as camera_module
     from isaaclab.sensors.sensor_base import SensorBase
@@ -296,7 +296,7 @@ def test_every_camera_prepares_before_the_shared_stage_export(monkeypatch):
 
     def prepare_cameras(stage, spec):
         if "rgb_radiance" in spec.cfg.data_types:
-            apply_rtx_exposure_overrides(stage, list(spec.camera_prim_paths))
+            _apply_rtx_exposure_overrides(stage, list(spec.camera_prim_paths))
 
     def export_stage(stage, num_envs):
         if not exported_iso:

@@ -7,7 +7,7 @@
 
 from pxr import Sdf, Usd, UsdGeom
 
-from isaaclab.renderers.rtx_camera_overrides import apply_rtx_exposure_overrides
+from isaaclab.renderers.rtx_camera_overrides import _apply_rtx_exposure_overrides
 
 
 def test_apply_rtx_exposure_overrides_resets_authored_exposure_values():
@@ -23,7 +23,7 @@ def test_apply_rtx_exposure_overrides_resets_authored_exposure_values():
     prim.CreateAttribute("exposure:time", Sdf.ValueTypeNames.Float).Set(1.0 / 60.0)
     prim.CreateAttribute("omni:rtx:autoExposure:enabled", Sdf.ValueTypeNames.Bool).Set(True)
 
-    apply_rtx_exposure_overrides(stage, ["/World/Camera"])
+    _apply_rtx_exposure_overrides(stage, ["/World/Camera"])
 
     assert prim.GetAttribute("exposure").Get() == 0.0
     assert prim.GetAttribute("exposure:fStop").Get() == 1.0
