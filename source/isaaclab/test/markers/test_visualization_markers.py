@@ -402,7 +402,7 @@ def test_visualizer_step_renders_markers_and_closes_frame(monkeypatch, caplog, m
     visualizer._viewer = viewer = Viewer()
     visualizer._scene_data_provider = provider
     visualizer._transform_mapping = None
-    visualizer._resolved_visible_env_ids = [1, 3]
+    visualizer._env_ids = [1, 3]
 
     with caplog.at_level("WARNING"):
         if module is rerun_visualizer:

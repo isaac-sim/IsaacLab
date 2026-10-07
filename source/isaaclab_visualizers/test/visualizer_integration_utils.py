@@ -35,6 +35,8 @@ import numpy as np
 import pytest
 import torch
 import warp as wp
+from isaaclab_newton.renderers import NewtonWarpRendererCfg
+from isaaclab_physx.renderers import IsaacRtxRendererCfg
 from isaaclab_visualizers.kit import KitVisualizer, KitVisualizerCfg
 from isaaclab_visualizers.newton import (
     NewtonGLVisualizerCfg,
@@ -45,7 +47,15 @@ from isaaclab_visualizers.newton import (
 
 import isaaclab.sim as sim_utils
 from isaaclab.envs.utils.camera_view import camera_rgb_batch, compose_rgb_grid_tensor
+from isaaclab.sensors import CameraCfg
 from isaaclab.sim import SimulationContext
+from isaaclab.utils.math import (
+    create_rotation_matrix_from_view,
+    quat_apply_inverse,
+    quat_conjugate,
+    quat_from_matrix,
+    quat_mul,
+)
 
 from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env import CartpoleCameraEnv
 from isaaclab_tasks.core.reorient.reorient_direct_env import ReorientDirectEnv
@@ -71,7 +81,7 @@ _CARTPOLE_INTEGRATION_NUM_ENVS = 1
 """Vectorized env count for cartpole + visualizer integration tests."""
 
 _CARTPOLE_TILED_CAMERA_INTEGRATION_NUM_ENVS = 4
-"""Vectorized env count for generated visualizer tiled-camera integration tests."""
+"""Vectorized env count for scene-camera streaming integration tests."""
 
 _CARTPOLE_ALL_ENVS_INTEGRATION_NUM_ENVS = 4
 """Vectorized env count for the all-environment perspective-camera golden test."""
@@ -94,7 +104,7 @@ _CARTPOLE_ALL_ENVS_VISUALIZER_LOOKAT: tuple[float, float, float] = (0.0, 0.0, 2.
 _CARTPOLE_INTEGRATION_TILED_CAMERA_EYE_OFFSET: tuple[float, float, float] = tuple(
     eye - lookat for eye, lookat in zip(_CARTPOLE_INTEGRATION_VISUALIZER_EYE, _CARTPOLE_INTEGRATION_VISUALIZER_LOOKAT)
 )
-"""Generated tiled-camera target-relative eye offset matching the shared visualizer viewing direction."""
+"""Scene-camera offset matching the shared visualizer viewing direction."""
 
 # Resolution overrides for this test module (cartpole preset defaults: tiled camera 96×96; Kit helper was 320×240).
 _CARTPOLE_KIT_INTEGRATION_RENDER_RESOLUTION: tuple[int, int] = (400, 400)
@@ -107,10 +117,7 @@ _CARTPOLE_TILED_CAMERA_INTEGRATION_WH: tuple[int, int] = (400, 400)
 """Tiled camera per-env tile width/height (preset default is 96×96); keeps ``observation_space`` consistent."""
 
 _CARTPOLE_VISUALIZER_TILED_CAMERA_NUM_TILES = 4
-"""Number of generated visualizer camera tiles exercised by tiled-camera integration tests."""
-
-_CARTPOLE_VISUALIZER_TILED_CAMERA_TARGET_PRIM_PATH = "/World/envs/*/Robot"
-"""Cartpole articulation root prim followed by generated visualizer tiled cameras."""
+"""Number of scene-camera tiles exercised by streaming integration tests."""
 
 _START_BUFFER_STEPS = 20
 """Warmup physics steps before capturing the first debug frame."""
@@ -125,13 +132,7 @@ _NEWTON_VIEWER_WARMUP_FRAMES = 20
 """Viewer-only updates after physics warmup before sampling Newton RGB."""
 
 _TILED_CAMERA_SENSOR_WARMUP_UPDATES = 20
-"""Extra ``camera_sensor.update()`` calls before reading tiled RGB.
-
-NewtonVisualizer.step() skips ``_log_camera_sensor_image()`` when the Newton state
-is unavailable (e.g. PhysX backend), so owned tiled cameras may have received zero
-renderer updates during physics warmup.  Repeating the update here gives every tile
-enough frames to produce a valid image before sampling.
-"""
+"""Extra scene-camera captures for renderer convergence before comparing streamed RGB."""
 
 _VISUALIZER_STARTUP_DRAIN_UPDATES = 20
 """Kit app updates before each flaky retry to let the GPU sync pending Fabric work."""
@@ -322,6 +323,35 @@ def _cartpole_integration_visualizer_camera_kwargs(
     }
 
 
+def _declare_streaming_cameras(
+    scene_cfg, cfgs, robot_cfg, body: str, eye: tuple[float, float, float], *, body_rotation=(0.0, 0.0, 0.0, 1.0)
+) -> None:
+    """Declare matching Kit/Newton camera views before the scene builds its clone plan."""
+    eye = torch.tensor([eye])
+    orientation = quat_from_matrix(create_rotation_matrix_from_view(eye, torch.zeros_like(eye)))
+    parent_orientation = quat_mul(torch.tensor([robot_cfg.init_state.rot]), torch.tensor([body_rotation]))
+    offset = CameraCfg.OffsetCfg(
+        pos=tuple(quat_apply_inverse(parent_orientation, eye)[0].tolist()),
+        rot=tuple(quat_mul(quat_conjugate(parent_orientation), orientation)[0].tolist()),
+        convention="opengl",
+    )
+    for cfg in cfgs:
+        name = f"streaming_{cfg.visualizer_type}"
+        camera = CameraCfg(
+            prim_path=f"{robot_cfg.prim_path}/{body}/{name}",
+            width=200,
+            height=200,
+            data_types=["rgb"],
+            offset=offset,
+            spawn=sim_utils.PinholeCameraCfg(
+                focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 1.0e5)
+            ),
+            renderer_cfg=IsaacRtxRendererCfg() if isinstance(cfg, KitVisualizerCfg) else NewtonWarpRendererCfg(),
+        )
+        setattr(scene_cfg, name, camera)
+        cfg.streaming_sensor_prim_path = camera.prim_path
+
+
 def _get_visualizer_cfg(visualizer_kind: str, *, tiled_camera: bool = False, all_envs_perspective: bool = False):
     """Return (visualizer_cfg, expected_visualizer_cls) for the given visualizer kind."""
     if tiled_camera and all_envs_perspective:
@@ -331,9 +361,6 @@ def _get_visualizer_cfg(visualizer_kind: str, *, tiled_camera: bool = False, all
         {
             "streaming_view": True,
             "streaming_envs": _CARTPOLE_VISUALIZER_TILED_CAMERA_NUM_TILES,
-            "streaming_sensor_prim_path": None,
-            "streaming_cam_eye": _CARTPOLE_INTEGRATION_TILED_CAMERA_EYE_OFFSET,
-            "streaming_cam_target_prim_path": _CARTPOLE_VISUALIZER_TILED_CAMERA_TARGET_PRIM_PATH,
         }
         if tiled_camera
         else {}
@@ -1279,12 +1306,11 @@ def _pump_tiled_until_stable(camera_sensor, camera_indices: list[int]) -> np.nda
 def _capture_visualizer_tiled_camera_rgb(
     visualizer, *, label: str = "capture", force_recompute: bool = True, paused: bool = False
 ) -> np.ndarray:
-    """Return the visualizer-owned/generated tiled camera RGB frame as an HxWx3 array."""
+    """Capture the declared scene camera used by the visualizer."""
     camera_sensor = visualizer._camera_sensor
-    assert camera_sensor is not None, "Visualizer did not create a tiled camera sensor."
+    assert camera_sensor is not None, "Visualizer did not bind its declared scene camera."
     camera_indices = [int(index) for index in (visualizer._camera_sensor_indices or [0])]
-    if force_recompute and getattr(visualizer, "_camera_is_owned", False):
-        visualizer._update_owned_camera_poses()
+    if force_recompute:
         if isinstance(visualizer, KitVisualizer):
             _update_active_simulation_app()
         return _pump_tiled_until_stable(camera_sensor, camera_indices)
@@ -1296,7 +1322,7 @@ def _capture_visualizer_tiled_camera_rgb(
 
 
 def _run_visualizer_tiled_camera_motion_test(env, visualizer, *, physics_kind: str, viz_kind: str) -> None:
-    """Check generated visualizer tiled-camera RGB moves, pauses, and resumes."""
+    """Check streamed scene-camera RGB moves, pauses, and resumes."""
     _clear_visualizer_debug_frames()
     case_label = f"{_visualizer_case_label(viz_kind, physics_kind)} tiled camera"
     actions = torch.zeros((env.num_envs, env.action_space.shape[-1]), device=env.device)
@@ -1411,7 +1437,7 @@ _SHADOW_HAND_INTEGRATION_TILED_CAMERA_EYE_OFFSET: tuple[float, float, float] = t
     eye - lookat
     for eye, lookat in zip(_SHADOW_HAND_INTEGRATION_VISUALIZER_EYE, _SHADOW_HAND_INTEGRATION_VISUALIZER_LOOKAT)
 )
-"""Target-relative eye offset for shadow hand generated tiled cameras."""
+"""Root-relative eye offset for the shadow hand scene cameras."""
 
 _SHADOW_HAND_KIT_INTEGRATION_RENDER_RESOLUTION: tuple[int, int] = (400, 400)
 """Kit render product resolution for shadow hand viewport golden tests."""
@@ -1420,10 +1446,7 @@ _SHADOW_HAND_NEWTON_INTEGRATION_WINDOW_SIZE: tuple[int, int] = (400, 400)
 """Newton viewer framebuffer size for shadow hand golden tests."""
 
 _SHADOW_HAND_VISUALIZER_TILED_CAMERA_NUM_TILES = 4
-"""Number of generated tiled camera tiles for shadow hand golden tests."""
-
-_SHADOW_HAND_VISUALIZER_TILED_CAMERA_TARGET_PRIM_PATH = "/World/envs/*/Robot"
-"""Shadow hand articulation root prim followed by generated tiled cameras."""
+"""Number of scene-camera tiles for shadow hand golden tests."""
 
 _ANYMAL_D_INTEGRATION_NUM_ENVS = 1
 """Vectorized env count for AnymalD + visualizer golden-image tests (viewport mode)."""
@@ -1440,7 +1463,7 @@ _ANYMAL_D_INTEGRATION_VISUALIZER_LOOKAT: tuple[float, float, float] = (0.0, 0.0,
 _ANYMAL_D_INTEGRATION_TILED_CAMERA_EYE_OFFSET: tuple[float, float, float] = tuple(  # type: ignore[assignment]
     eye - lookat for eye, lookat in zip(_ANYMAL_D_INTEGRATION_VISUALIZER_EYE, _ANYMAL_D_INTEGRATION_VISUALIZER_LOOKAT)
 )
-"""Target-relative eye offset for AnymalD generated tiled cameras."""
+"""Root-relative eye offset for the AnymalD scene cameras."""
 
 _ANYMAL_D_KIT_INTEGRATION_RENDER_RESOLUTION: tuple[int, int] = (400, 400)
 """Kit render product resolution for AnymalD viewport golden tests."""
@@ -1449,10 +1472,7 @@ _ANYMAL_D_NEWTON_INTEGRATION_WINDOW_SIZE: tuple[int, int] = (400, 400)
 """Newton viewer framebuffer size for AnymalD golden tests."""
 
 _ANYMAL_D_VISUALIZER_TILED_CAMERA_NUM_TILES = 4
-"""Number of generated tiled camera tiles for AnymalD golden tests."""
-
-_ANYMAL_D_VISUALIZER_TILED_CAMERA_TARGET_PRIM_PATH = "/World/envs/*/Robot"
-"""AnymalD articulation root prim followed by generated tiled cameras."""
+"""Number of scene-camera tiles for AnymalD golden tests."""
 
 
 def _make_shadow_hand_env(
@@ -1472,9 +1492,6 @@ def _make_shadow_hand_env(
         {
             "streaming_view": True,
             "streaming_envs": _SHADOW_HAND_VISUALIZER_TILED_CAMERA_NUM_TILES,
-            "streaming_sensor_prim_path": None,
-            "streaming_cam_eye": _SHADOW_HAND_INTEGRATION_TILED_CAMERA_EYE_OFFSET,
-            "streaming_cam_target_prim_path": _SHADOW_HAND_VISUALIZER_TILED_CAMERA_TARGET_PRIM_PATH,
         }
         if tiled_camera
         else {}
@@ -1506,6 +1523,16 @@ def _make_shadow_hand_env(
                 )
             )
     env_cfg.sim.visualizer_cfgs = visualizer_cfgs[0] if len(visualizer_cfgs) == 1 else visualizer_cfgs
+    if tiled_camera:
+        _declare_streaming_cameras(
+            env_cfg.scene,
+            visualizer_cfgs,
+            env_cfg.scene.robot,
+            "Geometry/rh_forearm",
+            _SHADOW_HAND_INTEGRATION_TILED_CAMERA_EYE_OFFSET,
+            # The forearm's authored frame is rotated relative to the asset root.
+            body_rotation=(2**-0.5, 0.0, 2**-0.5, 0.0),
+        )
     return ReorientDirectEnv(env_cfg)
 
 
@@ -1531,9 +1558,6 @@ def _make_anymal_d_env(visualizer_kind: str | tuple[str, ...], backend_kind: str
         {
             "streaming_view": True,
             "streaming_envs": _ANYMAL_D_VISUALIZER_TILED_CAMERA_NUM_TILES,
-            "streaming_sensor_prim_path": None,
-            "streaming_cam_eye": _ANYMAL_D_INTEGRATION_TILED_CAMERA_EYE_OFFSET,
-            "streaming_cam_target_prim_path": _ANYMAL_D_VISUALIZER_TILED_CAMERA_TARGET_PRIM_PATH,
         }
         if tiled_camera
         else {}
@@ -1575,6 +1599,10 @@ def _make_anymal_d_env(visualizer_kind: str | tuple[str, ...], backend_kind: str
         env_cfg.rewards.undesired_contacts = None
         env_cfg.terminations.base_contact = None
 
+    if tiled_camera:
+        _declare_streaming_cameras(
+            env_cfg.scene, visualizer_cfgs, env_cfg.scene.robot, "base", _ANYMAL_D_INTEGRATION_TILED_CAMERA_EYE_OFFSET
+        )
     return ManagerBasedRLEnv(env_cfg)
 
 
@@ -1626,6 +1654,9 @@ def _make_cartpole_camera_env(
         for kind in visualizer_kinds
     ]
     env_cfg.sim.visualizer_cfgs = visualizer_cfgs[0] if len(visualizer_cfgs) == 1 else visualizer_cfgs
+    if tiled_camera:
+        eye = _CARTPOLE_INTEGRATION_TILED_CAMERA_EYE_OFFSET
+        _declare_streaming_cameras(env_cfg.scene, visualizer_cfgs, env_cfg.scene.cartpole, "slider", eye)
     return CartpoleCameraEnv(env_cfg)
 
 
