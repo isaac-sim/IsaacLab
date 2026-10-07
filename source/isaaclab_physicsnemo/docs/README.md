@@ -55,7 +55,8 @@ Warp 1.17.0, Torch 2.12, and PhysicsNeMo 2.1.1 on one CUDA GPU.
 
 ## Examples
 
-Each task has three scripts under [`examples/`](../examples). Run them from the repository root.
+Each task has record, train, and deploy scripts under [`examples/`](../examples). Run them from the
+repository root.
 
 ### Cartpole
 
@@ -64,6 +65,19 @@ python source/isaaclab_physicsnemo/examples/cartpole/record.py --output /tmp/car
 python source/isaaclab_physicsnemo/examples/cartpole/train.py \
   --dataset /tmp/cartpole-data --output /tmp/cartpole-train
 python source/isaaclab_physicsnemo/examples/cartpole/deploy.py --artifact /tmp/cartpole-train/artifact
+```
+
+The Cartpole recording follows the task-independent data of NeRD and FlashNeRD
+(`tasks.CartpoleExplorationEnvCfg`): episodes start anywhere on the track, at every pole angle, and with
+large velocities. The model therefore deploys to the standard Cartpole task, whose states it covers.
+
+`train_policy.py` is the downstream test. It trains the Isaac Lab Cartpole PPO policy either with MuJoCo
+Warp or in the learned environment, then evaluates the policy with MuJoCo Warp:
+
+```bash
+python source/isaaclab_physicsnemo/examples/cartpole/train_policy.py --output /tmp/ppo-mjwarp
+python source/isaaclab_physicsnemo/examples/cartpole/train_policy.py --output /tmp/ppo-learned \
+  --artifact /tmp/cartpole-train/artifact
 ```
 
 ### ANYmal-D on flat ground
@@ -84,20 +98,48 @@ joint targets alone rarely reach.
 - `record.py` steps the teacher configuration with smooth random actions and writes every episode,
   including asynchronous per-environment resets.
 - `train.py` trains a vector NeRD for a fixed number of updates and packages a hash-verified
-  artifact. It prints the held-out one-step error.
+  artifact. It prints the held-out one-step error and the recursive-rollout error `E_H` of the
+  FlashNeRD evaluation (`evaluate_rollout_nrmse`) for `H` = 1, 15, 100, and 200.
 - `deploy.py` runs a MuJoCo Warp rollout and a learned rollout from the same seed and actions,
   checks the learned environment with `preflight_learned_physics`, and prints the open-loop joint
   error of every environment that has not been reset.
 
-Default settings complete in a few minutes per stage on one GPU. Use more environments, steps, and
-updates for useful models.
+Default settings complete in a few minutes per stage on one GPU and only demonstrate the workflow.
 
-Reference results with the default settings:
+### A usable Cartpole model
 
-| Task | Dataset | Validation normalized one-step RMSE | Open-loop error after 0.5 s |
-| --- | --- | --- | --- |
-| Cartpole | 480 episodes, 64 envs | 0.028 | joint position 0.09, joint velocity 0.58 |
-| ANYmal-D | 598 episodes, 128 envs | 0.36 | joint position 0.84, joint velocity 19, base height 0.07 m |
+With FlashNeRD-scale data and a longer fit, the Cartpole model is accurate enough to train a policy
+that transfers to MuJoCo Warp:
+
+```bash
+python source/isaaclab_physicsnemo/examples/cartpole/record.py --output /tmp/cartpole-data \
+  --num-envs 1024 --steps 1500
+python source/isaaclab_physicsnemo/examples/cartpole/train.py \
+  --dataset /tmp/cartpole-data --output /tmp/cartpole-train --max-updates 30000 --batch-size 1024
+```
+
+The dataset holds about 10,800 episodes and 1.5 million frames; recording takes about 11 minutes and
+training about 70 minutes on one GPU. Reference results:
+
+| Held-out rollout error | E1 | E15 | E100 | E200 |
+| --- | --- | --- | --- | --- |
+| This model, 30,000 updates | 1.5e-4 | 8.5e-4 | 1.3e-2 | 8.4e-2 |
+| FlashNeRD paper, 5,000,000 updates | 4.4e-5 | 1.7e-4 | 3.2e-3 | 6.0e-2 |
+
+The deployed model stays within 0.016 m or rad of MuJoCo Warp joint positions after 0.5 s of open-loop
+random actions. A PPO policy trained only in the learned environment (`train_policy.py --artifact`)
+balances the MuJoCo Warp Cartpole in every evaluation episode, with the same return (4.95) as a policy
+trained in MuJoCo Warp, for two seeds.
+
+The per-episode action-scale range matters. With a fixed scale of 0.5 (about 50 N) the model reached a
+lower E200 of 0.023, but the PPO policy learned to exploit its errors at larger efforts and succeeded in
+only 55 % of MuJoCo Warp episodes. Recorded data must cover the command range that controllers use.
+
+### ANYmal-D
+
+Reference results with the default settings: validation normalized one-step RMSE 0.36, and after
+0.5 s of open-loop random actions joint position error 0.84, joint velocity error 19, and base height
+error 0.07 m.
 
 The ANYmal-D model conditions only on joint state and applied efforts. Ground contact is learned
 implicitly from random exploration, which limits its accuracy. Recording with a walking policy, more
@@ -112,6 +154,7 @@ probes are the next steps for a useful legged-robot model.
 | `physics.validate_state_ownership` | Check that a codec owns every dynamic Newton state row |
 | `physics.validate_effort_control` | Check that applied joint efforts carry every actuation command |
 | `tasks.CartpoleTeacherEnvCfg`, `tasks.AnymalDFlatTeacherEnvCfg` | Teacher configurations whose physics an artifact can replace |
+| `tasks.CartpoleExplorationEnvCfg` | Cartpole teacher with task-independent initial states for data collection |
 | `TrajectoryDatasetRecorder` | Write the episodes of a running environment to a Zarr dataset |
 | `SmoothRandomActions` | Temporally correlated exploration actions |
 | `train_dynamics_artifact`, `TrainingSettings` | Train and package a control-conditioned vector NeRD |
@@ -119,6 +162,7 @@ probes are the next steps for a useful legged-robot model.
 | `preflight_learned_physics` | Check a live environment against the deployment contract |
 | `NewtonBinding`, `execution_spec_from_manager` | Simulation identity and live buffers of an environment |
 | `record_joint_rollout`, `compare_rollouts` | Measure the open-loop error of a learned rollout |
+| `evaluate_rollout_nrmse`, `HorizonError` | Prefix-averaged recursive-rollout error on recorded trajectories |
 | `isaaclab_model_signature` | Solver-independent model identity |
 
 Deploy a recorded task with the same configuration it was recorded with:
@@ -197,5 +241,15 @@ last two rows work around PhysicsNeMo Robotics behavior and can be removed when 
 .venv/bin/python -m pytest source/isaaclab_physicsnemo/test
 ```
 
-Tests skip when PhysicsNeMo Robotics is not installed. The Cartpole round trip records, trains, and
-deploys a small model on CUDA in about 15 seconds; the remaining tests run on CPU.
+Tests skip when PhysicsNeMo Robotics is not installed. The CPU tests cover model identity, state
+ownership, effort control, rollout comparison, and exploration. The CUDA Cartpole tests check that every
+stage keeps the data semantics, independently of model accuracy:
+
+| Test | Contract |
+| --- | --- |
+| `test_learned_cartpole_round_trip` | Record, train, and deploy through `NewtonCfg` with a different environment count; preflight passes; a mismatched physics step is rejected |
+| `test_recorded_transitions_replay_on_the_teacher` | A recorded state and effort stepped by MuJoCo Warp reproduce the recorded next state, which pins the recording time alignment |
+| `test_deployed_solver_matches_the_offline_operator` | Every deployed learned step equals the offline artifact operator on the same states, efforts, and resets, which pins state, effort, history, and reset handling |
+| `test_memorized_trajectories_track_the_teacher` | A model fitted to a few episodes tracks them after deployment, which pins how training pairs states with efforts |
+
+The CUDA tests take about two minutes, most of it in the memorization fit.
