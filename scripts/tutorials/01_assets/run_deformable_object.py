@@ -89,6 +89,8 @@ else:
 class DeformableSceneCfg(InteractiveSceneCfg):
     """Soft cubes on a shared ground plane."""
 
+    # PhysX deformables must be parsed from each USD clone.
+    replicate_physics = args_cli.backend != "physx"
     filter_collisions = False
     clone_cfg = CloneCfg(clone_template="/World/env_{}")
 
