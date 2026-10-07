@@ -59,45 +59,6 @@ def resolve_mono_env_index(num_envs: int) -> list[int]:
     return [0] if num_envs > 0 else []
 
 
-_ENV_SLOT_WILDCARD = re.compile(r"env_(?:\[\^/\][*+]|\.\*)")
-
-
-def env_path_from_template(path_template: str, env_id: int) -> str:
-    """Resolve common env wildcard/template spellings to a concrete env path."""
-    path = path_template
-    if "%d" in path:
-        return path % env_id
-    if "{}" in path:
-        return path.format(env_id)
-    path = path.replace("/World/envs/*", f"/World/envs/env_{env_id}")
-    # the env slot is a segment wildcard; match every spelling rather than one, so a namespace
-    # written with a different quantifier still resolves to a concrete env.
-    return _ENV_SLOT_WILDCARD.sub(f"env_{env_id}", path)
-
-
-def find_camera_by_prim_path(
-    camera_sensors: dict[str, Camera], cam_prim_path: str, env_indices: list[int] | None = None
-) -> Camera:
-    """Find a scene camera by path expression, optionally requiring specific environment copies."""
-    wanted = None if env_indices is None else {env_path_from_template(cam_prim_path, i) for i in env_indices}
-    pattern = cam_prim_path.replace("%d", "[^/]+").replace("{}", "[^/]+")
-    pattern = pattern.replace("/World/envs/*", "/World/envs/env_[^/]+")
-    for camera in camera_sensors.values():
-        if camera.cfg.prim_path == cam_prim_path:
-            return camera
-        concrete = {str(prim.GetPath()) for prim in camera._view.prims} if camera._view is not None else set()
-        if wanted is None:
-            if any(re.fullmatch(pattern, path) for path in concrete):
-                return camera
-        elif wanted and wanted.issubset(concrete):
-            return camera
-    available_paths = sorted(camera.cfg.prim_path for camera in camera_sensors.values())
-    raise ValueError(
-        f"No scene Camera matches prim_path={cam_prim_path!r}. "
-        f"Declare a CameraCfg in the scene; available paths: {available_paths}."
-    )
-
-
 def resolve_camera_sources(
     cfg: VisualizerCfg, cameras: dict[str, Camera], *, env_template: str = DEFAULT_ENV_TEMPLATE
 ) -> list[PerspectiveCameraCfg | Camera]:
@@ -130,7 +91,20 @@ def resolve_camera_sources(
         if not isinstance(source, SceneCameraCfg):
             continue
         path = expand_env_regex_ns(source.prim_path, env_template)
-        camera = find_camera_by_prim_path(cameras, path)
+        pattern = path.replace("%d", "[^/]+").replace("{}", "[^/]+")
+        pattern = pattern.replace("/World/envs/*", "/World/envs/env_[^/]+")
+        for camera in cameras.values():
+            if camera.cfg.prim_path == path or (
+                camera._view is not None
+                and any(re.fullmatch(pattern, str(prim.GetPath())) for prim in camera._view.prims)
+            ):
+                break
+        else:
+            available_paths = sorted(camera.cfg.prim_path for camera in cameras.values())
+            raise ValueError(
+                f"No scene Camera matches prim_path={path!r}. "
+                f"Declare a CameraCfg in the scene; available paths: {available_paths}."
+            )
         available = frozenset(camera.cfg.data_types)
         for gt_type in gt_types:
             sensor_key_for_gt_type(gt_type, available)
