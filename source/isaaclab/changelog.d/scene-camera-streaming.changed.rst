@@ -7,6 +7,8 @@
 * Shared device-image composition across visualizers and restricted host transfers to consumers
   requesting the composed RGB image. Cached environment indices and depth colors directly in the visualizer
   and composed explicit device arrays with ``isaaclab.utils.images.compose_image``.
+  Specialized RGB, depth, normals, and segmentation kernels at compilation instead of branching on the
+  display channel inside each kernel launch.
 * Added ``PerspectiveCameraCfg`` and ``SceneCameraCfg`` for selecting visualizer display sources.
 * **Breaking:** Shared ``VisualizerCfg.cameras`` across visualizers, retaining ``SceneCameraCfg`` as a reference
   to an existing sensor. Resolved camera references before visualizer initialization;

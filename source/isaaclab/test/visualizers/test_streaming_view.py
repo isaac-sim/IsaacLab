@@ -135,6 +135,7 @@ def test_device_colorization_matches_recording_and_reuses_storage(device, monkey
     output = wp.empty((shape[0] * shape[1], len(channels) * shape[2], 4), dtype=wp.uint8, device=device)
     pointer = output.ptr
     for _ in range(2):
+        launch = Mock(wraps=wp.launch)
         with monkeypatch.context() as execution:
             from isaaclab.sim import SimulationContext
 
@@ -143,7 +144,10 @@ def test_device_colorization_matches_recording_and_reuses_storage(device, monkey
             execution.setattr(wp.array, "numpy", forbidden)
             execution.setattr(torch.Tensor, "cpu", forbidden)
             execution.setattr(wp, "empty", forbidden)
+            execution.setattr(wp, "launch", launch)
             compose_image(output, sources, env_ids, channels, depth_colors)
+        # Different display channels must not share a runtime-switched kernel.
+        assert len({call.args[0] for call in launch.call_args_list}) == len(set(channels))
         frames = [CameraFrameColorizer.colorize(array[env], gt) for env in (1, 0) for array, gt in zip(host, channels)]
         expected = compose_streaming_grid(frames, 2, len(channels))
         np.testing.assert_array_equal(output.numpy()[..., :3], expected)

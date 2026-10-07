@@ -556,76 +556,84 @@ def compose_image(
     tile_count = output.shape[0] // height * columns
     depth_span = max(depth_max - depth_min, 1e-6)
     for channel, (source, gt) in enumerate(zip(sources, gt_types, strict=True)):
-        mode = ("rgb", "depth", "normals", "segmentation").index(gt)
         wp.launch(
-            _compose_image_channel,
+            _IMAGE_COMPOSITION_KERNELS[gt],
             dim=(tile_count, height, width),
-            inputs=[source, env_ids, depth_colors, mode, channel, len(sources), columns, depth_min, depth_span, output],
+            inputs=[source, env_ids, depth_colors, channel, len(sources), columns, depth_min, depth_span, output],
             device=output.device,
         )
 
 
-@wp.kernel(enable_backward=False)
-def _compose_image_channel(
-    source: wp.array(dtype=Any, ndim=4),
-    env_ids: wp.array(dtype=wp.int32),
-    colors: wp.array(dtype=wp.uint8, ndim=2),
-    mode: int,
-    channel: int,
-    num_channels: int,
-    columns: int,
-    depth_min: float,
-    depth_span: float,
-    output: wp.array(dtype=wp.uint8, ndim=3),
-):
-    tile, y, x = wp.tid()
-    dst_y = tile // columns * source.shape[1] + y
-    dst_x = (tile % columns * num_channels + channel) * source.shape[2] + x
-    rgb = wp.vec3(0.0)
-    if tile < env_ids.shape[0]:
-        env = env_ids[tile]
-        if mode == 0:
-            rgb = wp.vec3(float(source[env, y, x, 0]), float(source[env, y, x, 1]), float(source[env, y, x, 2]))
-        elif mode == 1:
-            value = float(source[env, y, x, 0])
-            if not wp.isnan(value):
-                normalized = wp.clamp((value - depth_min) / depth_span, 0.0, 1.0)
-                index = wp.min(int(normalized * 256.0), 255)
-                rgb = wp.vec3(float(colors[index, 0]), float(colors[index, 1]), float(colors[index, 2]))
-        elif mode == 2:
-            for c in range(3):
-                value = float(source[env, y, x, c])
+def _make_image_composition_kernel(gt_type: str):
+    """Specialize channel colorization at compilation; share only the tiling implementation."""
+
+    @wp.kernel(enable_backward=False)
+    def compose(
+        source: wp.array(dtype=Any, ndim=4),
+        env_ids: wp.array(dtype=wp.int32),
+        colors: wp.array(dtype=wp.uint8, ndim=2),
+        channel: int,
+        num_channels: int,
+        columns: int,
+        depth_min: float,
+        depth_span: float,
+        output: wp.array(dtype=wp.uint8, ndim=3),
+    ):
+        tile, y, x = wp.tid()
+        dst_y = tile // columns * source.shape[1] + y
+        dst_x = (tile % columns * num_channels + channel) * source.shape[2] + x
+        rgb = wp.vec3(0.0)
+        if tile < env_ids.shape[0]:
+            env = env_ids[tile]
+            if wp.static(gt_type == "rgb"):
+                rgb = wp.vec3(float(source[env, y, x, 0]), float(source[env, y, x, 1]), float(source[env, y, x, 2]))
+            elif wp.static(gt_type == "depth"):
+                value = float(source[env, y, x, 0])
                 if not wp.isnan(value):
-                    rgb[c] = wp.clamp((value + 1.0) * 127.5, 0.0, 255.0)
-        else:
-            identifier = wp.int32(source[env, y, x, 0])
-            if source.shape[3] >= 3:
-                identifier += wp.int32(source[env, y, x, 1]) * 256
-                identifier += wp.int32(source[env, y, x, 2]) * 65536
-            rgb = wp.vec3(40.0)
-            if identifier != 0:
-                # Match the established ID palette without enumerating IDs on the host.
-                hue = wp.float64(identifier) * wp.float64(0.6180339887)
-                h6 = (hue - wp.floor(hue)) * wp.float64(6.0)
-                sector = int(h6) % 6
-                fraction = h6 - wp.floor(h6)
-                v = wp.float64(0.90)
-                p = v * wp.float64(0.25)
-                q = v * (wp.float64(1.0) - wp.float64(0.75) * fraction)
-                t = v * (wp.float64(1.0) - wp.float64(0.75) * (wp.float64(1.0) - fraction))
-                hsv = wp.vec3d(v, t, p)
-                if sector == 1:
-                    hsv = wp.vec3d(q, v, p)
-                elif sector == 2:
-                    hsv = wp.vec3d(p, v, t)
-                elif sector == 3:
-                    hsv = wp.vec3d(p, q, v)
-                elif sector == 4:
-                    hsv = wp.vec3d(t, p, v)
-                elif sector == 5:
-                    hsv = wp.vec3d(v, p, q)
+                    normalized = wp.clamp((value - depth_min) / depth_span, 0.0, 1.0)
+                    index = wp.min(int(normalized * 256.0), 255)
+                    rgb = wp.vec3(float(colors[index, 0]), float(colors[index, 1]), float(colors[index, 2]))
+            elif wp.static(gt_type == "normals"):
                 for c in range(3):
-                    rgb[c] = float(int(hsv[c] * wp.float64(255.0)))
-    for c in range(3):
-        output[dst_y, dst_x, c] = wp.uint8(rgb[c])
-    output[dst_y, dst_x, 3] = wp.uint8(255)
+                    value = float(source[env, y, x, c])
+                    if not wp.isnan(value):
+                        rgb[c] = wp.clamp((value + 1.0) * 127.5, 0.0, 255.0)
+            else:
+                identifier = wp.int32(source[env, y, x, 0])
+                if source.shape[3] >= 3:
+                    identifier += wp.int32(source[env, y, x, 1]) * 256
+                    identifier += wp.int32(source[env, y, x, 2]) * 65536
+                rgb = wp.vec3(40.0)
+                if identifier != 0:
+                    # Match the established ID palette without enumerating IDs on the host.
+                    hue = wp.float64(identifier) * wp.float64(0.6180339887)
+                    h6 = (hue - wp.floor(hue)) * wp.float64(6.0)
+                    sector = int(h6) % 6
+                    fraction = h6 - wp.floor(h6)
+                    v = wp.float64(0.90)
+                    p = v * wp.float64(0.25)
+                    q = v * (wp.float64(1.0) - wp.float64(0.75) * fraction)
+                    t = v * (wp.float64(1.0) - wp.float64(0.75) * (wp.float64(1.0) - fraction))
+                    hsv = wp.vec3d(v, t, p)
+                    if sector == 1:
+                        hsv = wp.vec3d(q, v, p)
+                    elif sector == 2:
+                        hsv = wp.vec3d(p, v, t)
+                    elif sector == 3:
+                        hsv = wp.vec3d(p, q, v)
+                    elif sector == 4:
+                        hsv = wp.vec3d(t, p, v)
+                    elif sector == 5:
+                        hsv = wp.vec3d(v, p, q)
+                    for c in range(3):
+                        rgb[c] = float(int(hsv[c] * wp.float64(255.0)))
+        for c in range(3):
+            output[dst_y, dst_x, c] = wp.uint8(rgb[c])
+        output[dst_y, dst_x, 3] = wp.uint8(255)
+
+    return compose
+
+
+_IMAGE_COMPOSITION_KERNELS = {
+    gt: _make_image_composition_kernel(gt) for gt in ("rgb", "depth", "normals", "segmentation")
+}
