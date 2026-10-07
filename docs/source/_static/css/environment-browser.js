@@ -508,19 +508,18 @@
         preview.querySelector("[data-preview-physics]").textContent = fields.physics.value || "Default";
         preview.querySelector("[data-preview-renderer]").textContent = fields.renderer.value || "Default";
         preview.querySelector("[data-preview-presets]").textContent = fields.presets.value || "Default";
-        const latestVramRows = benchmarkRows
-            .filter((row) => row.channel === state.benchmarkChannel)
+        const latestVramRow = benchmarkRows
             .filter((row) => row.task === state.task && row.physics_backend === fields.physics.value)
             .filter((row) => !selectedTask().renderer.length || row.rendering_backend === fields.renderer.value)
             .filter((row) => row.rl_library === fields.rl.value)
-            .sort((left, right) => right.recorded_at_utc.localeCompare(left.recorded_at_utc));
-        const latestTraining = latestVramRows.find((row) => row.workload === "training");
+            .filter((row) => Number.isFinite(Number(row.vram_mean_gb)) && Number(row.vram_mean_gb) > 0)
+            .sort((left, right) => right.recorded_at_utc.localeCompare(left.recorded_at_utc))[0];
         const vram = preview.querySelector("[data-preview-vram]");
-        vram.textContent = latestTraining
-            ? `${Number(latestTraining.vram_mean_gb).toFixed(2)} GB`
+        vram.textContent = latestVramRow
+            ? `${Number(latestVramRow.vram_mean_gb).toFixed(1)}GB (${latestVramRow.num_envs} envs)`
             : "Not available";
-        vram.title = latestTraining
-            ? `Peak VRAM: ${Number(latestTraining.vram_peak_gb).toFixed(2)} GB`
+        vram.title = latestVramRow
+            ? `Peak VRAM: ${Number(latestVramRow.vram_peak_gb).toFixed(2)} GB · measured ${(latestVramRow.measurement_timestamp || latestVramRow.recorded_at_utc).slice(0, 10)}`
             : "";
         updateBenchmark();
     };
@@ -642,32 +641,6 @@
         updateSelection();
     };
 
-    const parseCsv = (contents) => {
-        const parseLine = (line) => {
-            const values = [];
-            let value = "";
-            let quoted = false;
-            for (let index = 0; index < line.length; index += 1) {
-                const character = line[index];
-                if (character === '"' && quoted && line[index + 1] === '"') {
-                    value += '"';
-                    index += 1;
-                } else if (character === '"') {
-                    quoted = !quoted;
-                } else if (character === "," && !quoted) {
-                    values.push(value);
-                    value = "";
-                } else {
-                    value += character;
-                }
-            }
-            values.push(value);
-            return values;
-        };
-        const [header, ...lines] = contents.trim().split(/\r?\n/).map(parseLine);
-        return lines.map((line) => Object.fromEntries(header.map((name, index) => [name, line[index]])));
-    };
-
     const formatFps = (value) => {
         if (value >= 1_000_000) {
             return `${Number((value / 1_000_000).toFixed(2))}M`;
@@ -689,6 +662,7 @@
     const backendLabels = {
         isaacsim_physx: "physx",
         newton_mjwarp: "mjwarp",
+        newton_kamino: "kamino",
         newton_mjwarp_vbd_proxy: "mjwarp + vbd",
         ovphysx: "ovphysx",
     };
@@ -699,6 +673,11 @@
         newton_renderer: "newton",
         ovrtx: "ovrtx",
     };
+    const isBenchmarkPair = (physics, renderer) => renderer === "none"
+        || (physics === "isaacsim_physx" && renderer === "isaacsim_rtx")
+        || (physics === "ovphysx" && renderer === "ovrtx")
+        || (["newton_mjwarp", "newton_mjwarp_vbd_proxy"].includes(physics)
+            && ["newton_renderer", "ovrtx"].includes(renderer));
     // Snapshots contain one fixed camera profile per physics/renderer pair.
     const seriesKey = (row) => JSON.stringify([row.physics_backend, row.rendering_backend]);
     const configurationLabel = (row) => [
@@ -839,21 +818,6 @@
         return svg;
     };
 
-    const renderBenchmarkLegend = (rows) => {
-        const legend = benchmarks.querySelector(".environment-benchmark-legend");
-        const entries = benchmarkSeries(rows).map((row) => {
-            const entry = document.createElement("span");
-            const swatch = document.createElement("i");
-            swatch.className = `environment-legend-swatch ${backendClass(row.physics_backend)}`;
-            swatch.style.setProperty("--environment-series-color", seriesColor(row, rows));
-            swatch.setAttribute("aria-hidden", "true");
-            entry.title = seriesLabel(row);
-            entry.append(swatch, configurationLabel(row));
-            return entry;
-        });
-        legend.replaceChildren(...entries);
-    };
-
     const renderBenchmarkTable = (rows) => {
         const container = benchmarks.querySelector("[data-benchmark-table]");
         container.hidden = rows.length === 0;
@@ -868,10 +832,9 @@
         }
         const body = table.createTBody();
         const configurations = benchmarkSeries(rows);
-        for (const physics of selectedTask().physics.filter((value) => value !== "newton_kamino")) {
+        for (const physics of selectedTask().physics) {
             for (const renderer of selectedTask().renderer.length ? selectedTask().renderer : ["none"]) {
-                if ((physics === "isaacsim_physx" && renderer === "ovrtx")
-                    || (physics === "ovphysx" && renderer === "isaacsim_rtx")) {
+                if (!isBenchmarkPair(physics, renderer)) {
                     continue;
                 }
                 if (!rows.some((row) => row.physics_backend === physics
@@ -926,36 +889,30 @@
         chart.hidden = rows.length === 0;
         empty.hidden = rows.length !== 0 || failed;
         benchmarks.querySelector("[data-benchmark-error]").hidden = !failed;
-        renderBenchmarkLegend(rows);
         renderBenchmarkTable(rows);
         chart.replaceChildren(...(rows.length ? [renderBenchmarkChart(rows, maximum)] : []));
     };
 
-    const renderBenchmarks = async () => {
+    const renderBenchmarks = () => {
         if (!benchmarks) {
             return;
         }
-        benchmarkRows = (await Promise.all(["release", "develop"].map(async (channel) => {
+        const snapshots = JSON.parse(document.querySelector("[data-environment-benchmark-rows]").textContent);
+        benchmarkRows = ["release", "develop"].flatMap((channel) => {
             try {
-                const source = new URL(benchmarks.getAttribute(`data-benchmark-${channel}-source`), window.location.href);
-                const response = await fetch(source);
-                if (!response.ok) {
-                    throw new Error(`Benchmark request failed with ${response.status}`);
-                }
-                return parseCsv(await response.text())
+                return snapshots[channel]
                     .filter((row) => row.data_origin === "measured" && row.workload === "training")
                     .filter((row) => [row.collection_fps_mean, row.total_fps_mean]
                         .every((value) => Number.isFinite(Number(value)) && Number(value) > 0))
-                    .filter((row) => row.task.startsWith("Isaac-") && row.physics_backend !== "newton_kamino")
-                    .filter((row) => !(row.physics_backend === "isaacsim_physx" && row.rendering_backend === "ovrtx")
-                        && !(row.physics_backend === "ovphysx" && row.rendering_backend === "isaacsim_rtx"))
+                    .filter((row) => row.task.startsWith("Isaac-"))
+                    .filter((row) => isBenchmarkPair(row.physics_backend, row.rendering_backend))
                     .map((row) => ({...row, channel}));
             } catch (error) {
                 benchmarkErrors.add(channel);
                 console.error(error);
                 return [];
             }
-        }))).flat();
+        });
         updatePreview();
     };
 
