@@ -177,7 +177,7 @@ class VisualShapeColorWriter:
         self._view.model = model
 
     def __call__(self, colors: torch.Tensor, env_ids: torch.Tensor) -> None:
-        """Write colors shaped ``[len(env_ids), body_count, 3]`` with one launch."""
+        """Write colors shaped ``[len(env_ids), body_count, 3]`` for the selected environments."""
         if len(self._shape_ids) and env_ids.numel():
             stream = (
                 wp.stream_from_torch(torch.cuda.current_stream(self.device)) if self.device.type == "cuda" else None
