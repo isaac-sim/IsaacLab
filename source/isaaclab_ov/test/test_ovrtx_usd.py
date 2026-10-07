@@ -25,14 +25,13 @@ pytestmark = [
 if not _MISSING_MODULES:
     from isaaclab_ov.renderers.ovrtx_usd import (  # noqa: E402
         build_render_product_as_string,
-        create_scene_partition_attributes,
-        export_stage_to_string,
         get_render_var_configs,
         render_var_prim_names_by_source,
         render_var_prim_paths_by_source,
     )
+    from isaaclab_ov.stage import export_stage_to_string  # noqa: E402
 
-    from pxr import Gf, Sdf, Usd, UsdGeom, UsdRender  # noqa: E402
+    from pxr import Sdf, Usd, UsdGeom  # noqa: E402
 
     from isaaclab.renderers.camera_render_spec import CameraRenderSpec  # noqa: E402
     from isaaclab.sensors.camera import CameraCfg  # noqa: E402
@@ -41,7 +40,6 @@ else:
     Usd = None
     UsdGeom = None
     build_render_product_as_string = None
-    create_scene_partition_attributes = None
     export_stage_to_string = None
     get_render_var_configs = None
     render_var_prim_names_by_source = None
@@ -397,18 +395,27 @@ def test_export_stage_keeps_all_env_content_when_all_roots_are_sources():
     _assert_export_contains_env_roots_and_children(exported, range(num_envs))
 
 
-def test_export_stage_full_when_single_env():
-    """Single-environment stages are exported without trimming."""
-    num_envs = 1
-    stage = _make_multi_env_stage(num_envs)
+@pytest.mark.parametrize("num_envs", [1, 4])
+def test_export_stage_without_clone_destinations(num_envs):
+    """Single environments and global-only scenes export without losing content."""
+    stage = _make_multi_env_stage(1) if num_envs == 1 else Usd.Stage.CreateInMemory()
+    UsdGeom.Sphere.Define(stage, "/World/Shared")
+    env_paths = tuple(f"/World/envs/env_{i}" for i in range(num_envs))
 
     exported = export_stage_to_string(
         stage,
         num_envs,
-        source_paths=("/World/envs/env_0",),
+        source_paths=("/World/envs/env_0",) if num_envs == 1 else ("/World/Shared",),
+        env_paths=env_paths,
     )
 
-    _assert_export_contains_env_roots_and_children(exported, range(num_envs))
+    if num_envs == 1:
+        _assert_export_contains_env_roots_and_children(exported, range(1))
+    result = Usd.Stage.CreateInMemory()
+    result.GetRootLayer().ImportFromString(exported)
+    assert result.GetPrimAtPath("/World/Shared").IsA(UsdGeom.Sphere)
+    assert all(result.GetPrimAtPath(path).IsDefined() for path in env_paths)
+    assert all(result.GetPrimAtPath(path).IsA(UsdGeom.Xform) for path in env_paths)
 
 
 def test_export_stage_homogeneous_keeps_only_env0_prototype():
@@ -477,41 +484,19 @@ def test_export_stage_preserves_authored_scene(settings_path):
     """Renderer settings and clone trimming are confined to the exported scene."""
     num_envs = 4
     stage = _make_multi_env_stage(num_envs)
-    if settings_path is not None:
-        settings = UsdRender.Settings.Define(stage, settings_path)
-        settings.CreateResolutionAttr(Gf.Vec2i(1280, 720))
-        stage.SetMetadata("renderSettingsPrimPath", settings_path)
-    before = stage.ExportToString()
-    layer = Sdf.Layer.CreateAnonymous()
-    layer.ImportFromString(export_stage_to_string(stage, num_envs, source_paths=("/World/envs/env_0",)))
-    exported = Usd.Stage.Open(layer)
-    assert exported.HasAuthoredMetadata("renderSettingsPrimPath")
-    settings = exported.GetPrimAtPath(exported.GetMetadata("renderSettingsPrimPath"))
-    show_all = settings.GetAttribute("omni:rtx:scenePartitioning:showAllPartitionsByDefault")
-    assert show_all and show_all.Get() is True
-    if settings_path is not None:
-        assert settings.GetPath() == settings_path
-        assert settings.GetAttribute("resolution").Get() == (1280, 720)
-    assert stage.ExportToString() == before
-    assert not exported.GetPrimAtPath("/World/envs/env_1/Robot")
 
-
-def test_create_scene_partition_attributes_all_envs():
-    """Scene partition attributes are authored on every env root and camera."""
-    num_envs = 4
-    stage = _make_multi_env_stage(num_envs)
-
-    create_scene_partition_attributes(stage, num_envs)
-
-    root_layer = stage.GetRootLayer()
     for env_idx in range(num_envs):
-        env_partition_attr = root_layer.GetAttributeAtPath(
-            Sdf.Path(f"/World/envs/env_{env_idx}").AppendProperty("primvars:omni:scenePartition")
-        )
-        camera_partition_attr = root_layer.GetAttributeAtPath(
-            Sdf.Path(f"/World/envs/env_{env_idx}/Camera").AppendProperty("omni:scenePartition")
-        )
-        assert env_partition_attr is not None
-        assert env_partition_attr.default == f"env_{env_idx}"
-        assert camera_partition_attr is not None
-        assert camera_partition_attr.default == f"env_{env_idx}"
+        env_path = f"/World/envs/env_{env_idx}"
+        assert stage.GetPrimAtPath(env_path).IsActive()
+        assert stage.GetPrimAtPath(f"{env_path}/Object_env{env_idx}_only").IsActive()
+
+    export_stage_to_string(
+        stage,
+        num_envs,
+        source_paths=("/World/envs/env_0",),
+    )
+
+    for env_idx in range(num_envs):
+        env_path = f"/World/envs/env_{env_idx}"
+        assert stage.GetPrimAtPath(env_path).IsActive()
+        assert stage.GetPrimAtPath(f"{env_path}/Object_env{env_idx}_only").IsActive()

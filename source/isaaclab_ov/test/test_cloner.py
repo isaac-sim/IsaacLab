@@ -101,7 +101,6 @@ def test_nested_clone_uses_final_target_pose(monkeypatch):
 def test_ovphysx_context_consumes_plan():
     """The registered context publishes the rows routed to it by one clone plan."""
     stage = Usd.Stage.CreateInMemory()
-    UsdGeom.Xform.Define(stage, "/World/envs/env_0").AddTranslateOp().Set((2, 0, 0))
     UsdGeom.Xform.Define(stage, "/World/envs/env_0/Robot").AddTranslateOp().Set((0.25, 0, 0))
     recipes = []
     manager = SimpleNamespace(_clone_recipes=recipes)
@@ -117,6 +116,15 @@ def test_ovphysx_context_consumes_plan():
     np.testing.assert_allclose(recipes[1][2], [(2.25, 0, 0, 0, 0, 0, 1), (5.25, 2, 3, 0, 0, 0, 1)])
     assert recipes[0][3] == [0, 1, 2]
     assert recipes[1][3] == [0, 1]
+    before = stage.ExportToString()
+    serialized, _ = _serialize_stage(stage, recipes, full_stage=True, plan=plan)
+    exported = Usd.Stage.CreateInMemory()
+    exported.GetRootLayer().ImportFromString(serialized)
+    for env_id, position in enumerate(positions):
+        root = exported.GetPrimAtPath(f"/World/envs/env_{env_id}/Robot")
+        actual = UsdGeom.XformCache().GetLocalToWorldTransform(root).ExtractTranslation()
+        np.testing.assert_allclose(actual, position + (0.25, 0, 0))
+    assert stage.ExportToString() == before
 
 
 def test_ovphysx_context_preserves_heterogeneous_world_prototypes():

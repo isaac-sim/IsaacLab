@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING, Any, ClassVar
 from ..sim.utils.stage import get_current_stage
 
 if TYPE_CHECKING:
+    from ..cloner import ReplicateContext
     from ..scene_data import SceneDataBackend
     from ..sim.simulation_context import SimulationContext
 
@@ -86,7 +87,7 @@ class PhysicsManager(ABC):
     _callbacks: ClassVar[dict[int, tuple[Any, Callable, int, str | None, Any]]] = {}
     _callback_id: ClassVar[int] = 0
     views: ClassVar[dict[tuple[type, str], Any]] = {}
-    clone_context_type: ClassVar[type[object] | None] = None
+    clone_context_type: ClassVar[type[ReplicateContext] | None] = None
 
     supports_anim_recording: ClassVar[bool] = False
     """Whether this backend can service ``--anim_recording_enabled`` (OVD Recorder).
