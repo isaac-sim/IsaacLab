@@ -104,15 +104,11 @@ class CoffeeRTXVisualizer(NewtonRTXVisualizer):
                 usd = stage.GetRootLayer().ExportToString()
                 renderer.geometry_resources.callback(self._geometry_queries.pop, renderer, None)
                 if renderer._use_ovstage:
-                    reference = ovstage.population.add_usd_reference_from_string(renderer.backend.stage, usd, root)
+                    reference = ovstage.population.add_usd_reference_from_string(renderer.scene.stage, usd, root)
                     renderer.geometry_resources.callback(renderer._remove_usd_reference, reference)
-                    ovstage.population.apply_usd_changes(renderer.backend.stage, ordinal=renderer._current_ordinal)
+                    ovstage.population.apply_usd_changes(renderer.scene.stage, ordinal=renderer.scene.ordinal)
                     for path in attributes:
-                        paths = renderer.backend.paths.create_path_list_from_strings([path])
-                        renderer.geometry_resources.callback(renderer.backend.paths.destroy_path_list, paths)
-                        queries[path] = renderer.geometry_resources.enter_context(
-                            renderer.backend.stage.query_from_path_list(paths)
-                        )
+                        queries[path] = renderer.geometry_resources.enter_context(renderer.scene.query([path]))
                 else:
                     reference = renderer.backend.renderer.add_usd_reference_from_string(usd, root)
                     renderer.geometry_resources.callback(renderer.backend.renderer.remove_usd, reference)
@@ -122,8 +118,8 @@ class CoffeeRTXVisualizer(NewtonRTXVisualizer):
             for path, values in attributes.items():
                 for name, array in values.items():
                     if renderer._use_ovstage:
-                        renderer.backend.stage.write_attribute(
-                            queries[path], name, ordinal=renderer._current_ordinal,
+                        renderer.scene.stage.write_attribute(
+                            queries[path], name, ordinal=renderer.scene.ordinal,
                             tensors=[ovstage.make_dltensor(array, dtype=OVSTAGE_POINT_DTYPE)
                                      if name in ("points", "normals", "primvars:displayColor") else array],
                             is_array=True, semantic=semantics.get(name, ovstage.AttributeSemantic.NONE),
