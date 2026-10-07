@@ -88,7 +88,7 @@ RUN if [ "$(dpkg --print-architecture)" = "arm64" ]; then \
         libx11-dev libxcursor-dev libxi-dev libxinerama-dev libxrandr-dev; \
     fi
 
-# Match the compiler toolkit to Torch's CUDA 13.0 build. Torch's runtime libraries
+# Match the compiler toolkit to Torch's Linux x86_64 CUDA 12.9 build. Torch's runtime libraries
 # come from uv.lock; extra system cuDNN/NCCL packages would compete with those and Kit.
 RUN set -euo pipefail && \
     . /etc/os-release && \
@@ -108,10 +108,10 @@ RUN set -euo pipefail && \
     wget -q --max-redirect=0 https://developer.download.nvidia.com/compute/cuda/repos/${cuda_repo}/x86_64/cuda-${cuda_repo}.pin && \
     mv cuda-${cuda_repo}.pin /etc/apt/preferences.d/cuda-repository-pin-600 && \
     apt-get update && \
-    apt-get install -y --no-install-recommends cuda-toolkit-13-0 && \
+    apt-get install -y --no-install-recommends cuda-toolkit-12-9 && \
     apt-get -y autoremove && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-ENV CUDA_HOME=/usr/local/cuda-13.0
+ENV CUDA_HOME=/usr/local/cuda-12.9
 ENV PATH=${CUDA_HOME}/bin:${PATH}
 ENV TORCH_CUDA_ARCH_LIST=8.0+PTX
 

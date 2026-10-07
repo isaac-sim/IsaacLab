@@ -12,20 +12,35 @@ from pathlib import Path
 
 import pytest
 import tomllib
+from packaging.markers import Marker
 
 pytestmark = pytest.mark.unit
 
 
 @pytest.mark.parametrize("name", ["torch", "torchvision", "torchaudio"])
 def test_resolved_torch_stack_supports_blackwell(source_checkout_root: Path, name: str):
-    """All supported platforms need CUDA 13 wheels; PyTorch 2.12's cu126 excludes Blackwell."""
+    """The Linux x86_64 CUDA 12.9 build retains Blackwell support; ARM/Windows retain CUDA 13."""
     with (source_checkout_root / "uv.lock").open("rb") as f:
         lock = tomllib.load(f)
 
     packages = [package for package in lock["package"] if package["name"] == name]
     assert packages
-    assert all(package["version"].endswith("+cu130") for package in packages)
-    assert all(package["source"]["registry"] == "https://download.pytorch.org/whl/cu130" for package in packages)
+    for environment, cuda_tag in (
+        ({"sys_platform": "linux", "platform_machine": "x86_64"}, "cu129"),
+        ({"sys_platform": "linux", "platform_machine": "aarch64"}, "cu130"),
+        ({"sys_platform": "win32", "platform_machine": "AMD64"}, "cu130"),
+    ):
+        selected = [
+            package
+            for package in packages
+            if any(
+                Marker(marker).evaluate(environment)
+                for marker in package.get("resolution-markers", ["python_version >= '3.12'"])
+            )
+        ]
+        assert len(selected) == 1
+        assert selected[0]["version"].endswith(f"+{cuda_tag}")
+        assert selected[0]["source"]["registry"] == f"https://download.pytorch.org/whl/{cuda_tag}"
 
 
 def _requirement_name(requirement: str) -> str:

@@ -26,6 +26,7 @@ def stage_package(repo_root: Path, stage_dir: Path, version: str) -> None:
     shutil.copytree(repo_root / "examples", package_dir / "examples")
     shutil.copytree(repo_root / "source", package_dir / "source")
     shutil.copytree(repo_root / "tools" / "template", package_dir / "tools" / "template")
+    shutil.copy2(repo_root / "pyproject.toml", package_dir / "pyproject.toml")
     for script in (
         "scripts/reinforcement_learning/train.py",
         "scripts/reinforcement_learning/train_multigpu.py",

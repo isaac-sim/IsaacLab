@@ -238,6 +238,15 @@ To create a project built on Isaac Lab, see :ref:`template-generator`.
 
    Isaac Lab wheels are published for major releases, not every patch release.
 
+.. note::
+
+   Install the platform-specific PyTorch build below before installing Isaac Lab wheels.
+   Linux x86_64 uses the official CUDA 12.9 Torch stack and its own NCCL dependency;
+   Linux aarch64 and Windows retain CUDA 13.0. Wheel metadata does not select package indexes.
+   Generated uv projects carry the matching platform sources and resolver overrides.
+   Other simulation and rendering components provide their own CUDA runtimes, so this policy
+   describes the Torch stack rather than a process-wide CUDA version.
+
 Installing an unreleased Git revision
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -396,7 +405,7 @@ Add other extras inside the brackets when needed; for example, use
 Installing CUDA-enabled PyTorch
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Install the CUDA 13.0 PyTorch build using the commands for your platform:
+Install the PyTorch CUDA build selected for your platform:
 
 .. tab-set::
    :sync-group: pip-platform
@@ -404,7 +413,7 @@ Install the CUDA 13.0 PyTorch build using the commands for your platform:
    .. tab-item:: :icon:`fa-brands fa-linux` Linux (x86_64)
       :sync: linux-x86_64
 
-      .. isaaclab-torch-install:: cu130
+      .. isaaclab-torch-install:: cu129
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows (x86_64)
       :sync: windows-x86_64

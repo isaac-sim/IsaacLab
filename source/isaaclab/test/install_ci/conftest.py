@@ -9,6 +9,7 @@ import os
 import platform
 import shutil
 import subprocess
+import sys
 from collections.abc import Callable, Iterator
 from pathlib import Path
 
@@ -131,6 +132,8 @@ def installed_wheel(
     # Wheel consumers select their CUDA index explicitly; project sources do not propagate.
     with (checkout / "pyproject.toml").open("rb") as file:
         versions = tomllib.load(file)["tool"]["isaaclab"]["versions"]
+    cuda_tag = "cu129" if sys.platform == "linux" and platform.machine() == "x86_64" else "cu130"
+    version_suffix = "_cu130" if cuda_tag == "cu130" else ""
     run(
         "uv",
         "--no-config",
@@ -138,14 +141,17 @@ def installed_wheel(
         "install",
         "--python",
         str(python),
-        f"torch=={versions['torch']}",
-        f"torchvision=={versions['torchvision']}",
+        f"torch=={versions[f'torch{version_suffix}']}",
+        f"torchvision=={versions[f'torchvision{version_suffix}']}",
+        f"torchaudio=={versions['torchaudio']}",
         "--reinstall-package",
         "torch",
         "--reinstall-package",
         "torchvision",
+        "--reinstall-package",
+        "torchaudio",
         "--index-url",
-        "https://download.pytorch.org/whl/cu130",
+        f"https://download.pytorch.org/whl/{cuda_tag}",
         cwd=directory,
         timeout=4500,
     )

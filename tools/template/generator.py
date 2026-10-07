@@ -14,7 +14,7 @@ from typing import Any
 
 import jinja2
 import tomllib
-from common import MULTI_AGENT_ALGORITHMS, SINGLE_AGENT_ALGORITHMS, TASKS_DIR, TEMPLATE_DIR
+from common import MULTI_AGENT_ALGORITHMS, ROOT_DIR, SINGLE_AGENT_ALGORITHMS, TASKS_DIR, TEMPLATE_DIR
 
 jinja_env = jinja2.Environment(
     loader=jinja2.FileSystemLoader(TEMPLATE_DIR),
@@ -255,11 +255,18 @@ def _prepare_external_dependencies(specification: dict, project_dir: str) -> dic
     specification = specification.copy()
     source_path = specification.get("isaaclab_source_path")
     if not source_path:
+        # The installed wheel carries the same resolver policy as its source checkout.
+        with open(os.path.join(ROOT_DIR, "pyproject.toml"), "rb") as file:
+            uv_config = tomllib.load(file)["tool"]["uv"]
         specification["isaaclab_dependency"] = "isaaclab"
-        specification["isaaclab_environments"] = []
-        specification["isaaclab_indexes"] = []
-        specification["isaaclab_overrides"] = []
-        specification["isaaclab_sources"] = []
+        specification["isaaclab_environments"] = uv_config.get("environments", [])
+        specification["isaaclab_indexes"] = uv_config.get("index", [])
+        specification["isaaclab_overrides"] = uv_config.get("override-dependencies", [])
+        specification["isaaclab_sources"] = [
+            {"name": name, "value": _format_toml_value(source)}
+            for name, source in uv_config.get("sources", {}).items()
+            if not isinstance(source, dict) or "path" not in source
+        ]
         optional_extras = specification.get("isaaclab_optional_extras")
         if optional_extras is None:
             optional_extras = importlib.metadata.distribution("isaaclab").metadata.get_all("Provides-Extra") or []

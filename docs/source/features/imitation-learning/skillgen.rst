@@ -44,7 +44,7 @@ Follow :ref:`installation-method-python-env` in the official Isaac Sim and Isaac
 Step 2: Install cuRobo
 ^^^^^^^^^^^^^^^^^^^^^^
 
-cuRobo provides the motion planning capabilities for SkillGen. Compile it with the CUDA 13.0 toolkit
+cuRobo provides the motion planning capabilities for SkillGen. Compile it with the CUDA 12.9 toolkit
 (``nvcc``) to match Isaac Lab's PyTorch build. The toolkit is needed at build time; PyTorch and Isaac Sim
 supply their runtime libraries. Select the compiler through ``CUDA_HOME`` and ``PATH`` without adding
 toolkit libraries to ``LD_LIBRARY_PATH``.
@@ -63,7 +63,7 @@ overload while preserving its vector overloads, matching the cuRobo Docker image
 
    .. tab-item:: uv
 
-      Install CUDA 13.0 from the NVIDIA repository (the toolkit package leaves the driver unchanged;
+      Install CUDA 12.9 from the NVIDIA repository (the toolkit package leaves the driver unchanged;
       replace ``ubuntu2404`` with ``ubuntu2204`` on Ubuntu 22.04):
 
       .. code:: bash
@@ -71,7 +71,7 @@ overload while preserving its vector overloads, matching the cuRobo Docker image
          wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/cuda-keyring_1.1-1_all.deb
          sudo dpkg -i cuda-keyring_1.1-1_all.deb
          sudo apt-get update
-         sudo apt-get -y install cuda-toolkit-13-0
+         sudo apt-get -y install cuda-toolkit-12-9
 
       Then build and install cuRobo into the Isaac Lab environment. Run this from the root of your Isaac Lab repository. The ``uv sync`` step creates the project's virtual environment (``.venv``) if it does not already exist and makes PyTorch available for the build; the cuRobo repository is cloned first because ``uv pip`` does not support editable installs from Git URLs:
 
@@ -79,7 +79,7 @@ overload while preserving its vector overloads, matching the cuRobo Docker image
 
          uv sync --extra isaacsim --extra mimic && \
          uv pip install setuptools wheel && \
-         export CUDA_HOME=/usr/local/cuda-13.0 && \
+         export CUDA_HOME=/usr/local/cuda-12.9 && \
          export PATH="$CUDA_HOME/bin:$PATH" && \
          export TORCH_CUDA_ARCH_LIST="8.0+PTX" && \
          git clone https://github.com/NVlabs/curobo.git src/nvidia-curobo && \
@@ -93,10 +93,10 @@ overload while preserving its vector overloads, matching the cuRobo Docker image
 .. note::
    * The commit hash ``ebb71702f3f70e767f40fd8e050674af0288abe8`` is tested with Isaac Lab - using other versions may cause compatibility issues. This commit has the support for quad face mesh triangulation, required for cuRobo to parse usds as collision objects.
 
-   * Use GCC 10–15 for CUDA 13.0 C++20 compilation, as specified by NVIDIA's `host compiler support policy
-     <https://docs.nvidia.com/cuda/archive/13.0.0/cuda-installation-guide-linux/index.html#host-compiler-support-policy>`__
+   * Use GCC 10–14 for CUDA 12.9 C++20 compilation, as specified by NVIDIA's `host compiler support policy
+     <https://docs.nvidia.com/cuda/archive/12.9.0/cuda-installation-guide-linux/index.html#host-compiler-support-policy>`__
      and `C++ dialect requirements
-     <https://docs.nvidia.com/cuda/archive/13.0.0/cuda-installation-guide-linux/index.html#supported-c-dialects>`__.
+     <https://docs.nvidia.com/cuda/archive/12.9.0/cuda-installation-guide-linux/index.html#supported-c-dialects>`__.
      The system GCC on Ubuntu 22.04 and 24.04 is compatible.
 
    * cuRobo is installed from source and is editable installed. This means that the cuRobo source code will be cloned in the current directory under ``src/nvidia-curobo``. Users can choose their working directory to install cuRobo.

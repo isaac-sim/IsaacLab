@@ -85,6 +85,9 @@ def test_wheel_builder_includes_template_generator_dependencies(generated_wheel_
     dependencies = set(generated_wheel_project["dependencies"])
 
     assert {"Jinja2", "rich"} <= dependencies
+    torch_pins = {dependency for dependency in dependencies if dependency.startswith(("torch==", "torchvision=="))}
+    assert len(torch_pins) == 4
+
     assert "InquirerPy" not in dependencies
 
 

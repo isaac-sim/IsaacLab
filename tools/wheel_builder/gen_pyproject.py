@@ -81,11 +81,11 @@ def _expand_self_refs(requirements: list[str], seen: set[str] | None = None) -> 
 
 
 def _dedup(requirements: list[str]) -> list[str]:
-    """Drop duplicate requirements by distribution name, preserving order."""
+    """Drop duplicate requirements by distribution name and platform marker, preserving order."""
     seen = set()
     result = []
     for requirement in requirements:
-        key = _requirement_name(requirement)
+        key = (_requirement_name(requirement), requirement.partition(";")[2].strip())
         if key not in seen:
             seen.add(key)
             result.append(requirement)
@@ -129,7 +129,7 @@ lines.append('where = ["src"]')
 lines.append("")
 lines.append("# Include all non-.py files (kit apps, toml configs, usd, yaml, etc.)")
 lines.append("[tool.setuptools.package-data]")
-lines.append('"*" = ["**/*"]')
+lines.append('"*" = ["**/*", "**/.*", "**/.vscode/**/*", "**/.vscode/**/.*"]')
 lines.append("")
 lines.append("[project]")
 lines.append('name = "isaaclab"')

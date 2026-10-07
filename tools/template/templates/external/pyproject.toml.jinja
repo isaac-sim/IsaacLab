@@ -20,7 +20,7 @@ authors = [
 ]
 requires-python = ">=3.12,<3.13"
 dependencies = [
-    "{{ isaaclab_dependency }}{% if rl_libraries %}[{% for rl_library in rl_libraries %}{% if not loop.first %},{% endif %}{{ rl_library.name | replace('_', '-') }}{% endfor %}]{% endif %}{% if not isaaclab_sources and isaaclab_version %}=={{ isaaclab_version }}{% endif %}",
+    "{{ isaaclab_dependency }}{% if rl_libraries %}[{% for rl_library in rl_libraries %}{% if not loop.first %},{% endif %}{{ rl_library.name | replace('_', '-') }}{% endfor %}]{% endif %}{% if not isaaclab_source_path and isaaclab_version %}=={{ isaaclab_version }}{% endif %}",
 ]
 
 [project.entry-points."isaaclab.tasks"]
@@ -28,7 +28,7 @@ dependencies = [
 
 [project.optional-dependencies]
 {% for extra in isaaclab_optional_extras %}
-{{ extra }} = ["{{ isaaclab_dependency }}[{{ extra }}]{% if not isaaclab_sources and isaaclab_version %}=={{ isaaclab_version }}{% endif %}"]
+{{ extra }} = ["{{ isaaclab_dependency }}[{{ extra }}]{% if not isaaclab_source_path and isaaclab_version %}=={{ isaaclab_version }}{% endif %}"]
 {% endfor %}
 
 [dependency-groups]

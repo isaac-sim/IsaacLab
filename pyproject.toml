@@ -35,8 +35,10 @@ dependencies = [
     "isaaclab-visualizers",
     # ----- generic -----
     "numpy>=2",
-    "torch==2.12.0",
-    "torchvision==0.27.0",
+    "torch==2.12.1 ; sys_platform == 'linux' and platform_machine == 'x86_64'",
+    "torch==2.12.0 ; sys_platform != 'linux' or platform_machine != 'x86_64'",
+    "torchvision==0.27.1 ; sys_platform == 'linux' and platform_machine == 'x86_64'",
+    "torchvision==0.27.0 ; sys_platform != 'linux' or platform_machine != 'x86_64'",
     "torchaudio==2.11.0",
     "onnx>=1.18.0",
     "prettytable>=3.3.0",
@@ -220,8 +222,10 @@ all = [
 [tool.isaaclab.versions]
 isaacsim = "6.1.0.0"
 usd_exchange = "3.0.0"
-torch = "2.12.0"
-torchvision = "0.27.0"
+torch = "2.12.1"
+torch_cu130 = "2.12.0"
+torchvision = "0.27.1"
+torchvision_cu130 = "0.27.0"
 torchaudio = "2.11.0"
 ovphysx = "0.6.3"
 ovrtx = "0.5.0.377615"
@@ -382,6 +386,11 @@ url = "https://pypi.org/simple"
 explicit = true
 
 [[tool.uv.index]]
+name = "pytorch-cu129"
+url = "https://download.pytorch.org/whl/cu129"
+explicit = true
+
+[[tool.uv.index]]
 name = "pytorch-cu130"
 url = "https://download.pytorch.org/whl/cu130"
 explicit = true
@@ -415,8 +424,11 @@ override-dependencies = [
     "usd-exchange==3.0.0",
     # usd-optimize must share usd-exchange's OpenUSD build (26.08); bump the two together.
     "usd-optimize~=1.3.0",
-    "torch==2.12.0",
-    "torchvision==0.27.0",
+    "torch==2.12.1 ; sys_platform == 'linux' and platform_machine == 'x86_64'",
+    "torch==2.12.0 ; sys_platform != 'linux' or platform_machine != 'x86_64'",
+    "torchvision==0.27.1 ; sys_platform == 'linux' and platform_machine == 'x86_64'",
+    "torchvision==0.27.0 ; sys_platform != 'linux' or platform_machine != 'x86_64'",
+    "torchaudio==2.11.0",
     # ovphysx caps packaging at <24 and isaacsim-core pins ==26.0; both caps are
     # stricter than the code needs, so widening lets them resolve together at 26.0.
     "packaging>=20,<27",
@@ -446,9 +458,24 @@ isaaclab = { path = "source/isaaclab", editable = true }
 "isaaclab-tasks-experimental" = { path = "source/isaaclab_tasks_experimental", editable = true }
 "isaaclab-teleop" = { path = "source/isaaclab_teleop", editable = true }
 "isaaclab-visualizers" = { path = "source/isaaclab_visualizers", editable = true }
-torch = { index = "pytorch-cu130" }
-torchaudio = { index = "pytorch-cu130" }
-torchvision = { index = "pytorch-cu130" }
+# Retain the exact develop-locked prerelease artifacts absent from the current registry listing.
+rerun-sdk = [
+    { url = "https://files.pythonhosted.org/packages/06/9d/84170e6722a09294b57d578fc1d01266c6e78408a544876f5271ecfa66a9/rerun_sdk-0.32.0a1-cp310-abi3-manylinux_2_28_x86_64.whl", marker = "sys_platform == 'linux' and platform_machine == 'x86_64'" },
+    { url = "https://files.pythonhosted.org/packages/ab/97/1daa4751a281bdb6cda3473229b2746779093ffaba70dd868a3074ef3392/rerun_sdk-0.32.0a1-cp310-abi3-manylinux_2_28_aarch64.whl", marker = "sys_platform == 'linux' and platform_machine == 'aarch64'" },
+    { url = "https://files.pythonhosted.org/packages/ba/2f/09845dcdf14047cc8118566572628c533f57f6a232ee0b3fd61283b153e8/rerun_sdk-0.32.0a1-cp310-abi3-win_amd64.whl", marker = "sys_platform == 'win32' and platform_machine == 'AMD64'" },
+]
+torch = [
+    { index = "pytorch-cu129", marker = "sys_platform == 'linux' and platform_machine == 'x86_64'" },
+    { index = "pytorch-cu130", marker = "sys_platform != 'linux' or platform_machine != 'x86_64'" },
+]
+torchaudio = [
+    { index = "pytorch-cu129", marker = "sys_platform == 'linux' and platform_machine == 'x86_64'" },
+    { index = "pytorch-cu130", marker = "sys_platform != 'linux' or platform_machine != 'x86_64'" },
+]
+torchvision = [
+    { index = "pytorch-cu129", marker = "sys_platform == 'linux' and platform_machine == 'x86_64'" },
+    { index = "pytorch-cu130", marker = "sys_platform != 'linux' or platform_machine != 'x86_64'" },
+]
 
 [tool.uv.pip]
 index-strategy = "unsafe-best-match"

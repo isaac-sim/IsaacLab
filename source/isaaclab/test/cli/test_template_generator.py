@@ -223,6 +223,13 @@ def test_generated_project_matches_canonical_uv_layout(tmp_path):
         "build-backend": "uv_build",
     }
     assert project_config["project"]["dependencies"] == ["isaaclab[rsl-rl]==3.0.0"]
+    with (Path(_MODULE.ROOT_DIR) / "pyproject.toml").open("rb") as file:
+        policy = tomllib.load(file)["tool"]["uv"]
+    uv_config = project_config["tool"]["uv"]
+    assert uv_config["sources"]["torch"] == policy["sources"]["torch"]
+    assert uv_config["index"] == policy["index"]
+    assert uv_config["override-dependencies"] == policy["override-dependencies"]
+    assert not any(isinstance(source, dict) and "path" in source for source in uv_config["sources"].values())
     assert project_config["project"]["authors"] == [
         {"name": "Test Author"},
         {"name": "Example Organization"},

@@ -156,7 +156,12 @@ def test_version_single_source_matches_literal_pins(source_checkout_root: Path):
 
     # Direct torch-stack pins apply to both source and wheel installations.
     for package in ("torch", "torchvision", "torchaudio"):
-        assert f"{package}=={versions[package]}" in dependencies
+        pins = [
+            dependency.split(";")[0].strip() for dependency in dependencies if dependency.startswith(f"{package}==")
+        ]
+        assert f"{package}=={versions[package]}" in pins
+        if f"{package}_cu130" in versions:
+            assert f"{package}=={versions[f'{package}_cu130']}" in pins
 
     # Newton uses the same exact PyPI release for source and wheel installations.
     newton_spec = f"newton[sim]=={versions['newton']}"
