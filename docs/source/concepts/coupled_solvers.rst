@@ -46,8 +46,8 @@ material owned by a destination solver through local proxies:
             poster="../../_static/newton/proxy-coupling.jpg"
             aria-label="Proxy coupling between source and destination solvers"
             aria-describedby="coupling-animation-caption">
-       <source src="https://github.com/user-attachments/assets/388995b0-0845-46f9-aa4e-a52607243d12" type="video/mp4">
-       <a href="https://github.com/user-attachments/assets/388995b0-0845-46f9-aa4e-a52607243d12">Watch the proxy coupling animation.</a>
+       <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/videos/proxy-coupling-explainer.mp4" type="video/mp4">
+       <a href="https://download.isaacsim.omniverse.nvidia.com/isaaclab/videos/proxy-coupling-explainer.mp4">Watch the proxy coupling animation.</a>
      </video>
      <figcaption id="coupling-animation-caption">
        <p>Filled teal fingers belong to the source solver; outlined blue fingers are
@@ -56,7 +56,7 @@ material owned by a destination solver through local proxies:
        <p>The upper arrow synchronizes source state with the proxies, including pose
          and velocity. Contact produces the force and torque feedback shown by the
          lower arrow, which returns to a later source solve or coupling iteration.</p>
-       <p><a href="https://github.com/user-attachments/assets/388995b0-0845-46f9-aa4e-a52607243d12">Open the animation</a> to pause or scrub through the exchange.</p>
+       <p><a href="https://download.isaacsim.omniverse.nvidia.com/isaaclab/videos/proxy-coupling-explainer.mp4">Open the animation</a> to pause or scrub through the exchange.</p>
      </figcaption>
    </figure>
 
