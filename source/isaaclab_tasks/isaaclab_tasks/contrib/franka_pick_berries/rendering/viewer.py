@@ -14,11 +14,14 @@ from newton.viewer import ViewerRTX
 
 from pxr import Gf, Sdf, UsdGeom, UsdLux, UsdShade
 
+from isaaclab.sim import get_current_stage
+
 from .. import profiling
 from ..scene.background import add_ebc_background
 from ..scene.tableware import add_tableware_visuals
 from .gaussian_stream import BerryGaussianStream
 from .settings import apply_sampling_settings, require_live_gaussian_renderer
+from .workcell_materials import restore_workcell_materials
 
 
 class BerryViewer(ViewerRTX):
@@ -177,6 +180,15 @@ class BerryViewer(ViewerRTX):
             self.reset_requested = True
 
     def _init_ovrtx(self):
+        restore_workcell_materials(
+            self.stage,
+            get_current_stage(),
+            (
+                (f"{self._get_path(batch.name)}/instance_{index}", self.model.shape_label[shape])
+                for batch in self._shape_instances.values()
+                for index, shape in enumerate(batch.model_shapes)
+            ),
+        )
         for stream in self.streams:
             stream.author(self.stage)
         if self.env.cfg.background == "ebc":
@@ -189,17 +201,29 @@ class BerryViewer(ViewerRTX):
             stream.bind(self._rtx)
 
     def _add_studio_lights(self):
-        super()._add_studio_lights()
-        if self.env.cfg.background == "ebc":
-            # A soft overhead task light keeps the transparent receiving bowl legible.
-            key = UsdLux.DistantLight.Get(self.stage, "/root/_RTXDistantLight/_RTXDistantLight")
-            key.GetIntensityAttr().Set(1500)
-            key.GetAngleAttr().Set(8)
-            light = UsdLux.RectLight.Define(self.stage, "/World/TablewareLight")
-            light.CreateWidthAttr(0.6)
-            light.CreateHeightAttr(0.5)
-            light.CreateIntensityAttr(1500)
-            UsdGeom.Xformable(light).AddTranslateOp().Set(Gf.Vec3d(0.48, 0.12, 0.65))
+        if self.env.cfg.background != "ebc":
+            super()._add_studio_lights()
+            return
+        # The scan already contains the room's illumination. Light the meshes with broad indoor
+        # sources: the studio's warm distant key and blue fill give them a different visual treatment.
+        dome = UsdLux.DomeLight.Define(self.stage, "/World/RoomAmbient")
+        dome.CreateColorAttr(Gf.Vec3f(1.0, 0.97, 0.93))
+        dome.CreateIntensityAttr(350.0)
+        for name, position, size, intensity in (
+            ("RoomKey", (-0.8, -0.6, 2.4), (2.0, 1.5), 4800.0),
+            ("RoomFill", (0.5, 1.0, 2.6), (2.0, 2.0), 1400.0),
+        ):
+            light = UsdLux.RectLight.Define(self.stage, f"/World/{name}")
+            light.CreateWidthAttr(size[0])
+            light.CreateHeightAttr(size[1])
+            light.CreateColorAttr(Gf.Vec3f(1.0, 0.97, 0.93))
+            light.CreateIntensityAttr(intensity)
+            # USD area lights emit along local -Z; aim at the work surface.
+            transform = Gf.Matrix4d().SetRotate(
+                Gf.Rotation(Gf.Vec3d(0, 0, -1), Gf.Vec3d(0.45, 0, 0) - Gf.Vec3d(*position))
+            )
+            transform.SetTranslateOnly(Gf.Vec3d(*position))
+            UsdGeom.Xformable(light).AddTransformOp().Set(transform)
 
     def _add_camera_lights_and_render_product(self):
         super()._add_camera_lights_and_render_product()
