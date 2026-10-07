@@ -1920,7 +1920,7 @@ class NewtonManager(PhysicsManager):
         return cls._adapter is None or cls._adapter.is_all_graphable
 
     @classmethod
-    def activate_newton_actuator_path(cls) -> None:
+    def activate_newton_actuator_path(cls, view: ArticulationView | None = None) -> None:
         """Opt an articulation into the Newton actuator fast path.
 
         Idempotent — called by every Newton-fast-path articulation's
@@ -1932,7 +1932,15 @@ class NewtonManager(PhysicsManager):
         2. On first call, builds the single sim-level
            :class:`NewtonActuatorAdapter` over the full flat DOF layout;
            later calls reuse it.
+
+        Args:
+            view: View of the articulation taking the path. The adapter addresses every environment, so a
+                view that covers only some of them raises.
         """
+        if view is not None and view.is_sparse:
+            raise ValueError(
+                "Newton-native actuators need the articulation in every environment; set use_newton_actuators=False."
+            )
         # Shared state lives on the base class so all readers (including
         # framework code that imports ``NewtonManager`` directly) see the
         # same flag regardless of which solver subclass is active.

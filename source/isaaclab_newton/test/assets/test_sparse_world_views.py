@@ -177,6 +177,37 @@ def test_native_actuators_need_equal_dofs_per_world(monkeypatch: pytest.MonkeyPa
             NewtonManager.activate_newton_actuator_path()
 
 
+@pytest.mark.parametrize("selected_worlds", [(0, 1, 2, 3), (0, 2), (2, 3)])
+def test_native_actuators_need_the_articulation_in_every_world(
+    monkeypatch: pytest.MonkeyPatch, selected_worlds: tuple[int, ...]
+):
+    """The native actuator adapter addresses every world, so a view of only some worlds is rejected before binding."""
+    scene = newton.ModelBuilder()
+    for world in range(4):
+        builder = newton.ModelBuilder()
+        label = f"/World/envs/env_{world}/{'Arm' if world in selected_worlds else 'Other'}"
+        link = builder.add_link(label=f"{label}/link")
+        joint = builder.add_joint_revolute(parent=-1, child=link)
+        builder.add_articulation([joint], label=label)
+        builder.add_actuator(DrivePD, index=builder.joint_qd_start[joint], kp=1.0, kd=0.1, delay_steps=2)
+        scene.add_world(builder)
+    model = scene.finalize(device="cpu")
+    view = ArticulationView(model, "/World/envs/env_*/Arm", verbose=False)
+    monkeypatch.setattr(NewtonManager, "backend", SimpleNamespace(model=model, control=model.control()))
+    monkeypatch.setattr(NewtonManager, "_num_envs", 4)
+    monkeypatch.setattr(NewtonManager, "_adapter", None)
+    monkeypatch.setattr(NewtonManager, "_use_newton_actuators_active", False, raising=False)
+    monkeypatch.setattr(PhysicsManager, "_device", "cpu")
+
+    if view.is_sparse:
+        with pytest.raises(ValueError, match="articulation in every environment"):
+            NewtonManager.activate_newton_actuator_path(view)
+        assert NewtonManager._adapter is None
+    else:
+        NewtonManager.activate_newton_actuator_path(view)
+        assert NewtonManager._adapter is not None
+
+
 def _object_shapes(model: newton.Model, world: int) -> list[int]:
     """Model shape indices of ``Object_0`` in a world."""
     body = model.body_label.index(f"/World/envs/env_{world}/Object_0")

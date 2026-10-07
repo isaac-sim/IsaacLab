@@ -545,12 +545,13 @@ def test_prepare_native_actuators_activates_only_explicit_groups(monkeypatch, ac
     gain_writes = []
     articulation = SimpleNamespace(
         _sim_cfg=SimpleNamespace(use_newton_actuators=True),
+        _root_view=None,
         device="cpu",
         find_joints=lambda _: ([0], ["joint"]),
         write_joint_stiffness_to_sim_index=lambda **_: gain_writes.append("stiffness"),
         write_joint_damping_to_sim_index=lambda **_: gain_writes.append("damping"),
     )
-    monkeypatch.setattr(SimulationManager, "activate_newton_actuator_path", lambda: activation_calls.append(True))
+    monkeypatch.setattr(SimulationManager, "activate_newton_actuator_path", lambda view: activation_calls.append(True))
 
     control = NewtonActuatorControl(articulation)
     group_name = "explicit" if expected_native_groups else "implicit"
