@@ -38,6 +38,7 @@ from physicsnemo_robotics.training import (
     package_dynamics_artifact,
 )
 
+from .evaluation import HorizonError, evaluate_rollout_nrmse
 from .recording import CONTROL_KEY
 
 
@@ -75,6 +76,9 @@ class TrainingSettings:
     model_kwargs: dict[str, Any] = field(default_factory=dict)
     """Keyword overrides of :class:`~physicsnemo_robotics.models.NewtonNeRDVectorTransformer`."""
 
+    rollout_horizons: tuple[int, ...] = (1, 15, 100, 200)
+    """Horizons of the held-out recursive-rollout evaluation after training."""
+
 
 @dataclass(frozen=True)
 class TrainingSummary:
@@ -86,14 +90,17 @@ class TrainingSummary:
     parameter_updates: int
     """Completed parameter updates."""
 
-    train_trajectories: int
-    """Number of training trajectories."""
+    train_trajectory_ids: tuple[str, ...]
+    """Trajectory identifiers of the training split."""
 
-    validation_trajectories: int
-    """Number of validation trajectories."""
+    validation_trajectory_ids: tuple[str, ...]
+    """Trajectory identifiers of the held-out validation split."""
 
     validation: dict[str, float]
     """Final held-out one-step metrics, keyed by metric name."""
+
+    rollout_nrmse: tuple[HorizonError, ...]
+    """Held-out recursive-rollout errors, see :func:`~isaaclab_physicsnemo.evaluate_rollout_nrmse`."""
 
 
 def train_dynamics_artifact(
@@ -220,11 +227,24 @@ def train_dynamics_artifact(
         normalizer=normalizer,
         epoch=result.parameter_updates,
     )
-    DynamicsArtifact.load(artifact_path).assert_compatible(reader.schema)
+    artifact = DynamicsArtifact.load(artifact_path)
+    artifact.assert_compatible(reader.schema)
+    indices = {reader.trajectory_metadata(index).trajectory_id: index for index in range(len(reader))}
+    rollout_nrmse = evaluate_rollout_nrmse(
+        artifact,
+        reader,
+        codec,
+        features,
+        evaluation_indices=[indices[trajectory_id] for trajectory_id in split.validation],
+        reference_indices=[indices[trajectory_id] for trajectory_id in split.train],
+        horizons=settings.rollout_horizons,
+        device=device,
+    )
     return TrainingSummary(
         artifact_path=Path(artifact_path),
         parameter_updates=result.parameter_updates,
-        train_trajectories=len(split.train),
-        validation_trajectories=len(split.validation),
+        train_trajectory_ids=tuple(split.train),
+        validation_trajectory_ids=tuple(split.validation),
         validation=dict(result.validation),
+        rollout_nrmse=rollout_nrmse,
     )

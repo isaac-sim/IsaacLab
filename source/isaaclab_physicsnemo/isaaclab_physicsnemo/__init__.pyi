@@ -5,6 +5,7 @@
 
 __all__ = [
     "CONTROL_KEY",
+    "HorizonError",
     "JointRollout",
     "NewtonBinding",
     "PreflightCheck",
@@ -19,6 +20,7 @@ __all__ = [
     "TrajectoryDatasetRecorder",
     "apply_learned_physics",
     "compare_rollouts",
+    "evaluate_rollout_nrmse",
     "execution_spec_from_manager",
     "isaaclab_model_signature",
     "preflight_learned_physics",
@@ -28,7 +30,14 @@ __all__ = [
 
 from .binding import NewtonBinding, execution_spec_from_manager
 from .deployment import apply_learned_physics
-from .evaluation import JointRollout, RolloutError, compare_rollouts, record_joint_rollout
+from .evaluation import (
+    HorizonError,
+    JointRollout,
+    RolloutError,
+    compare_rollouts,
+    evaluate_rollout_nrmse,
+    record_joint_rollout,
+)
 from .exploration import SmoothRandomActions
 from .preflight import PreflightCheck, PreflightReport, preflight_learned_physics
 from .recording import CONTROL_KEY, TrajectoryDatasetRecorder

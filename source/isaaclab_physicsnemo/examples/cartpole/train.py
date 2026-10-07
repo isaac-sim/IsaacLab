@@ -46,11 +46,13 @@ def main() -> None:
     finally:
         env.close()
     print(
-        f"Trained {summary.parameter_updates} updates on {summary.train_trajectories} trajectories,"
-        f" validated on {summary.validation_trajectories}"
+        f"Trained {summary.parameter_updates} updates on {len(summary.train_trajectory_ids)} trajectories,"
+        f" validated on {len(summary.validation_trajectory_ids)}"
     )
     for name, value in summary.validation.items():
         print(f"  validation {name}: {value:.6g}")
+    for error in summary.rollout_nrmse:
+        print(f"  rollout NRMSE E{error.horizon}: {error.nrmse:.4g} over {error.trajectories} trajectories")
     print(f"Artifact: {summary.artifact_path}")
 
 

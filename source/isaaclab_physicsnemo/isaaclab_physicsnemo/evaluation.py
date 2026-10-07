@@ -3,21 +3,40 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Compare learned and teacher Newton rollouts of the same Isaac Lab environment."""
+"""Evaluate learned dynamics against recorded data and against teacher rollouts."""
 
 from __future__ import annotations
 
 import math
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import newton
 import torch
 import warp as wp
+from physicsnemo_robotics.dynamics import DynamicsArtifact, DynamicsFrame, FeatureEncoder, StateCodec
+
+from .recording import CONTROL_KEY
 
 if TYPE_CHECKING:
+    from physicsnemo_robotics.data import TrajectoryReader
+
     from isaaclab.envs import DirectRLEnv, ManagerBasedRLEnv
+
+
+@dataclass(frozen=True)
+class HorizonError:
+    """Prefix-averaged rollout error of a dynamics artifact for one horizon."""
+
+    horizon: int
+    """Number of autoregressive predictions averaged into the error."""
+
+    nrmse: float
+    """Normalized root-mean-square error, averaged over state channels."""
+
+    trajectories: int
+    """Number of evaluated trajectories long enough for the horizon."""
 
 
 @dataclass(frozen=True)
@@ -56,6 +75,73 @@ class RolloutError:
 
     active_envs: torch.Tensor
     """Number of environments active in both rollouts per step, shape [steps + 1]."""
+
+
+def evaluate_rollout_nrmse(
+    artifact: DynamicsArtifact,
+    reader: TrajectoryReader,
+    codec: StateCodec,
+    features: FeatureEncoder,
+    *,
+    evaluation_indices: Sequence[int],
+    reference_indices: Sequence[int],
+    horizons: Sequence[int] = (1, 15, 100, 200),
+    max_trajectories: int = 2048,
+    device: str | torch.device = "cuda:0",
+) -> tuple[HorizonError, ...]:
+    """Measure recursive-rollout accuracy with the prefix-averaged NRMSE of the FlashNeRD evaluation.
+
+    Each evaluated trajectory starts from its first ``history`` recorded states and is rolled out
+    autoregressively with its recorded joint efforts, so predictions become inputs and errors compound.
+    The error of a predicted state is its codec transition from the recorded state, which wraps
+    continuous angles and expresses orientation errors as rotation vectors. Each channel is normalized
+    by the standard deviation of the reference states in the same coordinates. ``E_H`` is the mean over
+    channels of the root-mean-square normalized error over the first ``H`` predictions of every
+    trajectory with at least ``history + H`` states.
+
+    Args:
+        artifact: Artifact to evaluate.
+        reader: Recorded trajectories with ``state`` and :data:`~isaaclab_physicsnemo.CONTROL_KEY` fields.
+        codec: State codec of the artifact, rebuilt against the recording scene.
+        features: Feature encoder of the artifact, which reads the recorded joint efforts.
+        evaluation_indices: Reader indices of the held-out trajectories to roll out.
+        reference_indices: Reader indices of the trajectories that define the normalization, typically
+            the training trajectories.
+        horizons: Numbers of predictions to average over.
+        max_trajectories: Maximum number of trajectories evaluated per horizon.
+        device: Inference device.
+
+    Returns:
+        One error per horizon that at least one trajectory is long enough for.
+    """
+    operator = artifact.as_operator(codec=codec, features=features, device=device)
+    history = operator.history
+    trajectories = [reader[index][0] for index in evaluation_indices]
+    reference = torch.cat([reader[index][0]["state"] for index in reference_indices]).to(device)
+    anchor = reference[:1].expand_as(reference)
+    spread = codec.state_to_delta(anchor, reference).std(dim=0)
+    spread = torch.where(spread > 1.0e-8, spread, torch.ones_like(spread))
+
+    errors = []
+    for horizon in horizons:
+        selected = [data for data in trajectories if data["state"].shape[0] >= history + horizon][:max_trajectories]
+        if not selected:
+            continue
+        states = torch.stack([data["state"][: history + horizon] for data in selected]).to(device)
+        controls = torch.stack([data[CONTROL_KEY][: history + horizon - 1] for data in selected]).to(device)
+        controls = controls.flatten(start_dim=2)
+        rollout = operator.rollout(
+            initial_history=states[:, :history],
+            steps=horizon,
+            feature_history=controls[:, :history],
+            frame_factory=lambda current, index: DynamicsFrame(current, features=controls[:, history + index]),
+        )
+        recorded = states[:, history:].flatten(end_dim=1)
+        predicted = rollout.states[:, 1:].to(device).flatten(end_dim=1)
+        normalized = codec.state_to_delta(recorded, predicted) / spread
+        nrmse = normalized.square().mean(dim=0).sqrt().mean().item()
+        errors.append(HorizonError(horizon=horizon, nrmse=nrmse, trajectories=len(selected)))
+    return tuple(errors)
 
 
 def record_joint_rollout(
