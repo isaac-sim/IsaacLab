@@ -152,15 +152,16 @@ def add(
     source: InteractiveSceneCfg,
     *,
     asset_skip: Callable[[AssetBaseCfg], bool] | None = None,
+    share_equal_assets: bool = True,
 ) -> InteractiveSceneCfg:
     """Fold the source scene's environment assets into ``target`` as a new clone combination.
 
     ``target`` accumulates the fold: it keeps its execution settings and clone
     combinations, gains the source scene's assets, and is returned. Both scenes
     contribute spawned :class:`~isaaclab.assets.AssetBaseCfg` fields at literal
-    ``{ENV_REGEX_NS}/Leaf`` roots. An asset equal to an existing binding reuses
-    it (each binding at most once per call); other assets receive a unique field
-    name and prim path. Sensors, terrain importers, rigid-object collections,
+    ``{ENV_REGEX_NS}/Leaf`` roots. With :paramref:`share_equal_assets`, an asset
+    equal to an existing binding reuses it (each binding at most once per call);
+    other assets receive a unique field name and prim path. Sensors, terrain importers, rigid-object collections,
     and spawnless assets do not participate and are cleared from ``target``.
     Global assets are not composed: skip them with :paramref:`asset_skip` and
     attach shared world assets after the fold. Both operands are consumed.
@@ -172,6 +173,10 @@ def add(
         asset_skip: Optional predicate called with each spawned asset
             configuration. An asset is omitted when the predicate returns
             :data:`True`. The predicate must not mutate the configuration.
+        share_equal_assets: Whether an asset equal to an existing binding reuses it, so one asset spans the
+            environments of both scenes. Newton binds the joint and body data of an asset once and needs it
+            regularly spaced between environments, which an asset shared by scenes of different content is not;
+            set this to :data:`False` there to give each scene its own asset.
 
     Returns:
         ``target``, extended with the source scene's assets and one new clone combination.
@@ -207,7 +212,9 @@ def add(
     used_names = set(dir(target))
     paths = {cfg.prim_path for _, cfg in target_assets}
     for source_name, cfg in source_assets:
-        target_name = next((name for name, existing in available.items() if existing == cfg), None)
+        target_name = None
+        if share_equal_assets:
+            target_name = next((name for name, existing in available.items() if existing == cfg), None)
         if target_name is not None:
             del available[target_name]
         else:

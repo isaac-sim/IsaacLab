@@ -34,4 +34,7 @@ def require_strided_joint_and_body_rows(view: ArticulationView, prim_path: str) 
     for frequency in _BOUND_FREQUENCIES:
         layout = view.frequency_layouts.get(frequency)
         if layout is not None and layout.uses_explicit_model_indices:
-            raise ValueError(f"Newton {frequency.name} rows of '{prim_path}' are not regularly spaced between worlds.")
+            raise ValueError(
+                f"Newton {frequency.name} rows of '{prim_path}' are not regularly spaced between worlds; an asset"
+                " shared by environments of different content needs scene.add(..., share_equal_assets=False)."
+            )

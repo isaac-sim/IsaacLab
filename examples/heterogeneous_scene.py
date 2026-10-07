@@ -142,8 +142,13 @@ def main() -> None:
     def is_global_asset(a: AssetBaseCfg) -> bool:
         return isinstance(a.spawn, (sim_utils.LightCfg, sim_utils.GroundPlaneCfg))
 
+    # Newton needs each asset's joints and bodies regularly spaced between environments, which an asset
+    # shared by tasks of different content is not, so FeatherPGS gives each task its own assets.
+    share_equal_assets = args_cli.physics != "newton_feather_pgs"
     for task_scene_cfg in task_scene_cfgs[1:]:
-        scene_cfg = scene_add(scene_cfg, task_scene_cfg, asset_skip=is_global_asset)
+        scene_cfg = scene_add(
+            scene_cfg, task_scene_cfg, asset_skip=is_global_asset, share_equal_assets=share_equal_assets
+        )
     scene_cfg.light = AssetBaseCfg(
         prim_path="/World/light",
         spawn=sim_utils.DomeLightCfg(color=(0.75, 0.75, 0.75), intensity=3000.0),
