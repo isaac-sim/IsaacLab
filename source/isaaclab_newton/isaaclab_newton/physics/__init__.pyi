@@ -17,6 +17,7 @@ __all__ = [
     "KaminoPADMMSolverCfg",
     "MPMSolverCfg",
     "MJWarpSolverCfg",
+    "MjWarpActuatorBridge",
     "NewtonCfg",
     "NewtonBackendCfg",
     "NewtonBuilderCfg",
@@ -51,6 +52,7 @@ from .kamino_manager_cfg import (
     KaminoPADMMCfg,
     KaminoPADMMSolverCfg,
 )
+from .mjwarp_actuator_bridge import MjWarpActuatorBridge
 from .mjwarp_manager import NewtonMJWarpManager
 from .mjwarp_manager_cfg import MJWarpSolverCfg
 from .mpm_manager import NewtonMPMManager
