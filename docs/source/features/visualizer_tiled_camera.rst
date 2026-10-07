@@ -29,10 +29,24 @@ Quick Start
 This guide is accompanied by the ``run_tiled_camera_visualizer.py`` script in
 ``IsaacLab/scripts/tutorials/07_visualizers``:
 
-.. code-block:: bash
+.. tab-set::
+   :sync-group: os
 
-   uv run python scripts/tutorials/07_visualizers/run_tiled_camera_visualizer.py \
-       --task Isaac-Velocity-Rough-AnymalD --num_envs 256 --viz kit
+   .. tab-item:: :icon:`fa-brands fa-linux` Linux
+      :sync: linux
+
+      .. code-block:: bash
+
+         uv run python scripts/tutorials/07_visualizers/run_tiled_camera_visualizer.py \
+             --task Isaac-Velocity-Rough-AnymalD --num_envs 256 --viz kit
+
+   .. tab-item:: :icon:`fa-brands fa-windows` Windows
+      :sync: windows
+
+      .. code-block:: batch
+
+         uv run python scripts/tutorials/07_visualizers/run_tiled_camera_visualizer.py ^
+             --task Isaac-Velocity-Rough-AnymalD --num_envs 256 --viz kit
 
 .. dropdown:: Code for run_tiled_camera_visualizer.py
    :icon: code
@@ -76,10 +90,24 @@ view:
 Example 1: Following AnymalD Robots
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. code-block:: bash
+.. tab-set::
+   :sync-group: os
 
-   uv run python scripts/tutorials/07_visualizers/run_tiled_camera_visualizer.py \
-       --task Isaac-Velocity-Rough-AnymalD --num_envs 256 --viz kit
+   .. tab-item:: :icon:`fa-brands fa-linux` Linux
+      :sync: linux
+
+      .. code-block:: bash
+
+         uv run python scripts/tutorials/07_visualizers/run_tiled_camera_visualizer.py \
+             --task Isaac-Velocity-Rough-AnymalD --num_envs 256 --viz kit
+
+   .. tab-item:: :icon:`fa-brands fa-windows` Windows
+      :sync: windows
+
+      .. code-block:: batch
+
+         uv run python scripts/tutorials/07_visualizers/run_tiled_camera_visualizer.py ^
+             --task Isaac-Velocity-Rough-AnymalD --num_envs 256 --viz kit
 
 The script adds a ``CameraCfg`` beneath each robot's base before constructing the environment.
 Its offset defines the view relative to the base, so the camera follows the robot through the
@@ -100,10 +128,24 @@ normal sensor lifecycle. Of the 256 environments, 36 are sampled for display.
 Example 2: Streaming from Robot-Mounted Cameras
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. code-block:: bash
+.. tab-set::
+   :sync-group: os
 
-   uv run --extra teleop python scripts/tutorials/07_visualizers/run_tiled_camera_visualizer.py \
-       --task IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor --num_envs 25 --viz newton_gl
+   .. tab-item:: :icon:`fa-brands fa-linux` Linux
+      :sync: linux
+
+      .. code-block:: bash
+
+         uv run --extra teleop python scripts/tutorials/07_visualizers/run_tiled_camera_visualizer.py \
+             --task IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor --num_envs 25 --viz newton_gl
+
+   .. tab-item:: :icon:`fa-brands fa-windows` Windows
+      :sync: windows
+
+      .. code-block:: batch
+
+         uv run --extra teleop python scripts/tutorials/07_visualizers/run_tiled_camera_visualizer.py ^
+             --task IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor --num_envs 25 --viz newton_gl
 
 The Galbot cube-stacking environment ships with wrist-mounted cameras giving an egocentric
 view of the gripper, table, and cubes. The script's ``NewtonGLVisualizerCfg`` streams from the
