@@ -1,2 +1,3 @@
-* Changed :class:`~isaaclab_physx.renderers.IsaacRtxRenderer` to set the RTX sensor and HDR routing settings
-  for its cameras in :meth:`~isaaclab_physx.renderers.IsaacRtxRenderer.apply_camera_settings`.
+* Changed :class:`~isaaclab_physx.renderers.IsaacRtxRenderer` to mark RTX sensor rendering when it is created
+  and to route Gaussian HDR in :meth:`~isaaclab_physx.renderers.IsaacRtxRenderer.prepare_cameras` for cameras
+  that request HDR color, instead of :class:`~isaaclab.sensors.camera.Camera` setting them.
