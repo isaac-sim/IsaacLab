@@ -361,6 +361,8 @@ def generate(specification: dict) -> None:
     for workflow in specification["workflows"]:
         assert workflow["name"] in ["direct", "manager-based"], f"Invalid workflow: {workflow}"
         assert workflow["type"] in ["single-agent", "multi-agent"], f"Invalid workflow type: {workflow}"
+        if workflow["name"] == "manager-based" and workflow["type"] == "multi-agent":
+            raise ValueError("Manager-based workflows only support single-agent tasks")
     selected_workflow_types = {workflow["type"] for workflow in specification["workflows"]}
     allowed_algorithms = set()
     if "single-agent" in selected_workflow_types:

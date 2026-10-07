@@ -411,37 +411,3 @@ def test_internal_task_keeps_repository_layout(tmp_path):
     task_dir = tmp_path / "test_task" / "config" / "cartpole"
     assert task["id"] == "Isaac-Test-Task"
     assert (task_dir / "test_task_env_cfg.py").is_file()
-
-
-@pytest.mark.parametrize(
-    ("workflow", "library", "algorithm", "family"),
-    [
-        ("manager-based:single-agent", "rsl_rl", "ppo", "place_vial"),
-        ("manager-based:single-agent", "skrl", "amp", "place_vial"),
-        ("direct:single-agent", "skrl", "amp", "place_vial_direct"),
-        ("direct:single-agent", "rsl_rl", "ppo", "place_vial_direct"),
-        ("direct:multi-agent", "skrl", "mappo", "place_vial_marl_direct"),
-    ],
-)
-def test_generated_stubbed_task_contains_requested_modules(tmp_path, workflow, library, algorithm, family):
-    """Stubbed projects must generate valid modules for the selected workflow and agent."""
-    specification = _external_specification(tmp_path, initial_content="stubbed")
-    name, agent_type = workflow.split(":")
-    specification["workflows"] = [{"name": name, "type": agent_type}]
-    specification["rl_libraries"] = [{"name": library, "algorithms": [algorithm]}]
-    with mock.patch.object(_GENERATOR, "_setup_git_repo"):
-        _GENERATOR.generate(specification)
-
-    project_dir = tmp_path / "test_project"
-    task_dir = project_dir / "src" / "test_project" / "tasks" / family / "config" / "so101"
-    assert (task_dir / "__init__.py").is_file()
-    agent_suffix = "yaml" if library == "skrl" else "py"
-    assert (task_dir / "agents" / f"{library}_{algorithm}_cfg.{agent_suffix}").is_file()
-    assert (task_dir / "env_cfg.py").is_file()
-    assert (task_dir / "env.py").is_file() == (name == "direct" or algorithm == "amp")
-    if name == "manager-based":
-        mdp_dir = task_dir.parents[1] / "mdp"
-        assert all((mdp_dir / f"{term}.py").is_file() for term in ("observations", "events", "rewards", "terminations"))
-
-    for module_path in project_dir.rglob("*.py"):
-        compile(module_path.read_text(), str(module_path), "exec")

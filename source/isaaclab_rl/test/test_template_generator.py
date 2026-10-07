@@ -387,19 +387,28 @@ def test_generator_registers_sole_non_ppo_algorithm_as_canonical(
     _unregister(task_id)
 
 
-@pytest.mark.parametrize("algorithm", ["bogus", "ippo"])
-def test_generator_rejects_algorithms_unsupported_by_selected_workflows(tmp_path, monkeypatch, algorithm):
-    """Unknown and cross-workflow algorithms must not silently produce an agentless task."""
+@pytest.mark.parametrize(
+    ("workflow", "algorithm", "error"),
+    [
+        ("direct:single-agent", "bogus", "not supported by the selected workflows"),
+        ("direct:single-agent", "ippo", "not supported by the selected workflows"),
+        ("manager-based:multi-agent", "mappo", "Manager-based workflows only support single-agent tasks"),
+    ],
+)
+def test_generator_rejects_unsupported_workflows_and_algorithms(tmp_path, monkeypatch, workflow, algorithm, error):
+    """Unsupported selections must fail before generating unusable task files."""
     monkeypatch.setattr(generator, "TASKS_DIR", str(tmp_path))
-    with pytest.raises(ValueError, match="not supported by the selected workflows"):
+    workflow_name, workflow_type = workflow.split(":")
+    with pytest.raises(ValueError, match=error):
         generate(
             {
                 "external": False,
                 "name": "template_invalid_algorithm",
-                "workflows": [{"name": "direct", "type": "single-agent"}],
+                "workflows": [{"name": workflow_name, "type": workflow_type}],
                 "rl_libraries": [{"name": "skrl", "algorithms": [algorithm]}],
             }
         )
+    assert not list(tmp_path.iterdir())
 
 
 def test_external_project_uses_src_layout_and_installed_isaaclab_commands(tmp_path, monkeypatch):
@@ -537,11 +546,21 @@ def _top_level_imported_roots(source: str) -> set[str]:
     return roots
 
 
-@pytest.mark.parametrize("external", [True, False])
-def test_generated_files_cover_requested_agents_and_compile(tmp_path, monkeypatch, external):
+@pytest.mark.parametrize(
+    ("external", "initial_content", "amp_selected"),
+    [
+        (True, "cartpole", True),
+        (False, "cartpole", True),
+        (True, "stubbed", True),
+        (True, "stubbed", False),
+    ],
+)
+def test_generated_files_cover_requested_agents_and_compile(
+    tmp_path, monkeypatch, external, initial_content, amp_selected
+):
     """Generated workflows contain valid agent files and defer runtime imports.
 
-    External projects are also imported with ``omni``/``pxr`` blocked (NVBug 6251247): the generated package
+    The external Cartpole case is also imported with ``omni``/``pxr`` blocked (NVBug 6251247): the generated package
     ``__init__`` must stay passive, including when the omni-dependent example UI extension is generated.
     """
     project_name = f"template_imports_{'external' if external else 'internal'}"
@@ -550,18 +569,26 @@ def test_generated_files_cover_requested_agents_and_compile(tmp_path, monkeypatc
     if not external:
         monkeypatch.setattr(generator, "TASKS_DIR", str(root_dir))
 
+    robot_name = "so101" if initial_content == "stubbed" else "cartpole"
+    rl_libraries = _all_libraries()
+    if not amp_selected:
+        for library in rl_libraries:
+            library["algorithms"] = [algorithm for algorithm in library["algorithms"] if algorithm != "amp"]
+
     specification = {
         "external": external,
         "name": project_name,
+        "initial_content": initial_content,
         "workflows": [
             {"name": "direct", "type": "single-agent"},
             {"name": "manager-based", "type": "single-agent"},
             {"name": "direct", "type": "multi-agent"},
         ],
-        "rl_libraries": _all_libraries(),
+        "rl_libraries": rl_libraries,
     }
     if external:
         specification["path"] = str(root_dir)
+        specification["robot_name"] = robot_name
         specification["include_ui_extension"] = True
 
     generate(specification)
@@ -577,15 +604,29 @@ def test_generated_files_cover_requested_agents_and_compile(tmp_path, monkeypatc
 
     for workflow in specification["workflows"]:
         libraries = _MULTI_AGENT_RL_LIBRARIES if workflow["type"] == "multi-agent" else _SINGLE_AGENT_RL_LIBRARIES
-        agents_dir = _task_dir(root_dir, project_name, workflow["name"], workflow["type"], external) / "agents"
+        task_dir = _task_dir(root_dir, project_name, workflow["name"], workflow["type"], external).parent / robot_name
+        filename = _task_folder(project_name, workflow["type"], external)
+        env_cfg_filename = "env_cfg.py" if external else f"{filename}_env_cfg.py"
+        env_filename = "env.py" if external else f"{filename}_env.py"
+        assert (task_dir / "__init__.py").is_file()
+        assert (task_dir / env_cfg_filename).is_file()
+        assert (task_dir / env_filename).is_file() == (workflow["name"] == "direct" or amp_selected)
+        if initial_content == "stubbed" and workflow["name"] == "manager-based":
+            mdp_dir = task_dir.parents[1] / "mdp"
+            assert all(
+                (mdp_dir / f"{term}.py").is_file() for term in ("observations", "events", "rewards", "terminations")
+            )
+        agents_dir = task_dir / "agents"
         expected_files = set()
         for library in libraries:
             for algorithm in library["algorithms"]:
+                if algorithm == "amp" and not amp_selected:
+                    continue
                 extension = ".py" if library["name"] == "rsl_rl" else ".yaml"
                 expected_files.add(f"{library['name']}_{algorithm}_cfg{extension}")
         assert {path.name for path in agents_dir.glob("*_cfg.*")} == expected_files
 
-    if not external:
+    if not external or initial_content == "stubbed":
         return
 
     project_dir = root_dir / project_name
