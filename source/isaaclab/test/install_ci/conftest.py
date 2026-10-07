@@ -133,7 +133,6 @@ def installed_wheel(
     with (checkout / "pyproject.toml").open("rb") as file:
         versions = tomllib.load(file)["tool"]["isaaclab"]["versions"]
     cuda_tag = "cu129" if sys.platform == "linux" and platform.machine() == "x86_64" else "cu130"
-    version_suffix = "_cu130" if cuda_tag == "cu130" else ""
     run(
         "uv",
         "--no-config",
@@ -141,8 +140,8 @@ def installed_wheel(
         "install",
         "--python",
         str(python),
-        f"torch=={versions[f'torch{version_suffix}']}",
-        f"torchvision=={versions[f'torchvision{version_suffix}']}",
+        f"torch=={versions['torch']}",
+        f"torchvision=={versions['torchvision']}",
         f"torchaudio=={versions['torchaudio']}",
         "--reinstall-package",
         "torch",

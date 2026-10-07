@@ -193,7 +193,7 @@ class IsaacLabTorchInstall(SphinxDirective):
     """Render the pinned ``torch``/``torchvision`` install command for a CUDA build.
 
     Versions come from ``[tool.isaaclab.versions]`` (the single source of truth),
-    exposed through ``torch_build_versions`` for each platform's CUDA build.
+    exposed via the ``torch_version`` / ``torchvision_version`` / ``torchaudio_version`` config values.
 
     Usage::
 
@@ -204,10 +204,9 @@ class IsaacLabTorchInstall(SphinxDirective):
 
     def run(self) -> list[nodes.Node]:
         cuda_tag = self.arguments[0]
-        versions = self.config.torch_build_versions[cuda_tag]
-        torch_version = versions["torch"]
-        torchvision_version = versions["torchvision"]
-        torchaudio_version = versions["torchaudio"]
+        torch_version = self.config.torch_version
+        torchvision_version = self.config.torchvision_version
+        torchaudio_version = self.config.torchaudio_version
         content = f"""\
 .. code-block:: bash
 
@@ -283,7 +282,7 @@ def setup(app):
     app.add_config_value("isaacsim_version", "", "env")
     app.add_config_value("torch_version", "", "env")
     app.add_config_value("torchvision_version", "", "env")
-    app.add_config_value("torch_build_versions", {}, "env")
+    app.add_config_value("torchaudio_version", "", "env")
     app.add_config_value("ovrtx_spec", "", "env")
     app.add_role("isaaclab-source", IsaacLabSourceLink())
     app.add_directive("isaaclab-clone-commands", IsaacLabCloneCommands)

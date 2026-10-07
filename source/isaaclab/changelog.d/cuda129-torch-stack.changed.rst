@@ -1,2 +1,2 @@
-* Selected the official CUDA 12.9 PyTorch stack on Linux x86_64 while preserving the CUDA 13.0
-  builds on Linux aarch64 and Windows, and propagated that policy to generated projects.
+* Unified PyTorch 2.12.1, torchvision 0.27.1, and torchaudio 2.11.0 across platforms, using CUDA 12.9
+  on Linux x86_64 and CUDA 13.0 on Linux aarch64 and Windows, including generated projects.

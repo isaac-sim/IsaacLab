@@ -81,11 +81,11 @@ def _expand_self_refs(requirements: list[str], seen: set[str] | None = None) -> 
 
 
 def _dedup(requirements: list[str]) -> list[str]:
-    """Drop duplicate requirements by distribution name and platform marker, preserving order."""
+    """Drop duplicate requirements by distribution name, preserving order."""
     seen = set()
     result = []
     for requirement in requirements:
-        key = (_requirement_name(requirement), requirement.partition(";")[2].strip())
+        key = _requirement_name(requirement)
         if key not in seen:
             seen.add(key)
             result.append(requirement)
