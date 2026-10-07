@@ -65,26 +65,28 @@ def test_direct_tasks_leave_scene_construction_to_their_cfg(tmp_path) -> None:
                     if call in _FORBIDDEN_CALLS or manual_spawn:
                         offenders.append(f"{path.relative_to(_REPO_ROOT)}:{node.lineno}: {call}")
 
-    generated = generator._generate_tasks(
-        {
-            "external": False,
-            "name": "test",
-            "workflows": [
-                {"name": "direct", "type": "single-agent"},
-                {"name": "direct", "type": "multi-agent"},
-            ],
-            "rl_libraries": [],
-        },
-        str(tmp_path),
-    )
-    for specification in generated:
-        task = specification["task"]
-        path = Path(task["dir"]) / f"{task['env_filename']}.py"
-        source = path.read_text(encoding="utf-8")
-        offenders.extend(
-            f"generated/{path.relative_to(tmp_path)}: {pattern}"
-            for pattern in ("_setup_scene", "clone_plan_from_env_0", "ReplicateSession", "cloner.replicate")
-            if pattern in source
+    for initial_content in ("cartpole", "stubbed"):
+        generated = generator._generate_tasks(
+            {
+                "external": True,
+                "initial_content": initial_content,
+                "name": "test",
+                "workflows": [
+                    {"name": "direct", "type": "single-agent"},
+                    {"name": "direct", "type": "multi-agent"},
+                ],
+                "rl_libraries": [],
+            },
+            str(tmp_path / initial_content),
         )
+        for specification in generated:
+            task = specification["task"]
+            path = Path(task["dir"]) / f"{task['env_filename']}.py"
+            source = path.read_text(encoding="utf-8")
+            offenders.extend(
+                f"generated/{path.relative_to(tmp_path)}: {pattern}"
+                for pattern in ("_setup_scene", "clone_plan_from_env_0", "ReplicateSession", "cloner.replicate")
+                if pattern in source
+            )
 
     assert not offenders, "Direct tasks own scene construction or cloning:\n" + "\n".join(offenders)

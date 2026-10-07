@@ -59,12 +59,6 @@ Blank project skips task family, robot, workflow, and RL prompts. Cartpole and
 Stubbed projects next ask for one or more task workflows. See :ref:`feature-workflows`
 for the complete comparison.
 
-Before running a Stubbed task, implement its scene, physics and timing, actions,
-observations, rewards, termination conditions, and reset behavior. The generated
-README describes these implementation points. Manager-based tasks include
-placeholder terms in the family's ``mdp`` package; direct tasks include lifecycle
-methods in ``env.py``. AMP selections also include reference-motion placeholders.
-
 .. list-table::
    :widths: 30 70
    :header-rows: 1
@@ -81,7 +75,7 @@ methods in ``env.py``. AMP selections also include reference-motion placeholders
      - Tasks with multiple policies or agent-specific observation and action
        spaces.
 
-For Cartpole content, finally choose the RL libraries and algorithms whose
+For Cartpole and Stubbed content, finally choose the RL libraries and algorithms whose
 configuration files you want created. The prompt adapts the available choices
 to the selected workflow. See :ref:`rl-frameworks` for the framework comparison.
 

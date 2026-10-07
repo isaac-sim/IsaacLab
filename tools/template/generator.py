@@ -79,7 +79,7 @@ def _generate_task_per_workflow(task_dir: str, specification: dict) -> None:
                     f" algorithm '{algorithm}'. Add the template or drop the algorithm from the selection."
                 ) from exc
             _write_file(os.path.join(agents_dir, file_name + file_ext), content=template.render(**specification))
-    initial_content = specification.get("initial_content", "cartpole")
+    initial_content = specification.get("initial_content", "cartpole") if specification["external"] else "cartpole"
     template = jinja_env.get_template(f"tasks/{initial_content}.jinja")
     task_files = template.make_module(specification).files
     for filename, content in task_files.items():

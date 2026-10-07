@@ -15,7 +15,9 @@ An installable downstream Isaac Lab task package with a standard uv `src` layout
 This project contains task scaffolding. Before running or training, replace `MISSING` configuration values and
 implement functions that raise `NotImplementedError`. Define the scene and robot assets, physics and timing,
 action and observation spaces, rewards, termination conditions, and reset behavior. Manager-based task terms live
-in the family's `mdp` package. If AMP is selected, implement reference-motion collection as well.
+in the family's `mdp` package. Define assets in the scene configuration; direct environments inherit scene creation
+from the framework. If AMP is selected, implement reference-motion collection as well. Direct AMP tasks must also
+update observation history and supply `self.extras["amp_obs"]` on every step.
 
 Registrations and agent configurations are provided so you can build on the same structure as the runnable example.
 {% endif %}

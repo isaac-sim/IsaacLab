@@ -15,19 +15,9 @@ from dataclasses import MISSING
 
 from isaaclab.assets import ArticulationCfg
 from isaaclab.envs import DirectRLEnvCfg
-from isaaclab.physics import PhysicsCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass
-
-from isaaclab_tasks.utils import PresetCfg
-
-
-@configclass
-class {{ task.classname }}PhysicsCfg(PresetCfg):
-    """Select and configure physics for your task."""
-
-    default: PhysicsCfg = MISSING
 
 
 @configclass
@@ -51,7 +41,7 @@ class {{ task.classname }}EnvCfg(DirectRLEnvCfg):
     amp_observation_space: int = MISSING
 {% endif %}
 
-    sim: SimulationCfg = SimulationCfg(physics={{ task.classname }}PhysicsCfg())
+    sim: SimulationCfg = SimulationCfg()
     scene: {{ task.classname }}SceneCfg = {{ task.classname }}SceneCfg(num_envs=1, env_spacing=4.0)
 
     def __post_init__(self) -> None:
@@ -67,19 +57,9 @@ from dataclasses import MISSING
 
 from isaaclab.assets import ArticulationCfg
 from isaaclab.envs import DirectMARLEnvCfg
-from isaaclab.physics import PhysicsCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass
-
-from isaaclab_tasks.utils import PresetCfg
-
-
-@configclass
-class {{ task.classname }}PhysicsCfg(PresetCfg):
-    """Select and configure physics for your task."""
-
-    default: PhysicsCfg = MISSING
 
 
 @configclass
@@ -100,7 +80,7 @@ class {{ task.classname }}EnvCfg(DirectMARLEnvCfg):
     observation_spaces: dict[str, int] = MISSING
     state_space: int = MISSING
 
-    sim: SimulationCfg = SimulationCfg(physics={{ task.classname }}PhysicsCfg())
+    sim: SimulationCfg = SimulationCfg()
     scene: {{ task.classname }}SceneCfg = {{ task.classname }}SceneCfg(num_envs=1, env_spacing=4.0)
 
     def __post_init__(self) -> None:
@@ -122,20 +102,11 @@ from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import TerminationTermCfg as DoneTerm
-from isaaclab.physics import PhysicsCfg
 from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass
 
-from isaaclab_tasks.utils import PresetCfg
-
 from ... import mdp
-
-
-@configclass
-class {{ task.classname }}PhysicsCfg(PresetCfg):
-    """Select and configure physics for your task."""
-
-    default: PhysicsCfg = MISSING
 
 
 @configclass
@@ -191,6 +162,7 @@ class TerminationsCfg:
 class {{ task.classname }}EnvCfg(ManagerBasedRLEnvCfg):
     """Configure the manager-based task."""
 
+    sim: SimulationCfg = SimulationCfg()
     scene: {{ task.classname }}SceneCfg = {{ task.classname }}SceneCfg(num_envs=1, env_spacing=4.0)
     actions: ActionsCfg = ActionsCfg()
     observations: ObservationsCfg = ObservationsCfg()
@@ -222,6 +194,7 @@ from typing import TYPE_CHECKING
 
 {% if task.amp_selected %}
 import numpy as np
+from gymnasium import spaces
 {% endif %}
 import torch
 
@@ -235,12 +208,16 @@ class {{ task.classname }}Env(DirectRLEnv):
     """Implement the task's environment lifecycle."""
 
     cfg: {{ task.classname }}EnvCfg
+{% if task.amp_selected %}
 
     def __init__(self, cfg: {{ task.classname }}EnvCfg, render_mode: str | None = None, **kwargs):
-        raise NotImplementedError("Initialize the base environment and task buffers.")
-
-    def _setup_scene(self) -> None:
-        raise NotImplementedError("Create and configure task-specific scene objects.")
+        super().__init__(cfg, render_mode, **kwargs)
+        self.amp_observation_size = self.cfg.num_amp_observations * self.cfg.amp_observation_space
+        self.amp_observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(self.amp_observation_size,))
+        self.amp_observation_buffer = torch.zeros(
+            (self.num_envs, self.cfg.num_amp_observations, self.cfg.amp_observation_space), device=self.device
+        )
+{% endif %}
 
     def _pre_physics_step(self, actions: torch.Tensor) -> None:
         raise NotImplementedError("Process policy actions.")
@@ -249,6 +226,13 @@ class {{ task.classname }}Env(DirectRLEnv):
         raise NotImplementedError("Apply actions to the simulation.")
 
     def _get_observations(self) -> dict[str, torch.Tensor]:
+{% if task.amp_selected %}
+        """Compute policy observations and update AMP observation history.
+
+        Set self.extras["amp_obs"] to the flattened history with shape
+        (self.num_envs, self.amp_observation_size) on every step.
+        """
+{% endif %}
         raise NotImplementedError("Compute policy observations.")
 
     def _get_rewards(self) -> torch.Tensor:
@@ -264,11 +248,6 @@ class {{ task.classname }}Env(DirectRLEnv):
     def collect_reference_motions(self, num_samples: int, current_times: np.ndarray | None = None) -> torch.Tensor:
         raise NotImplementedError("Collect task-specific AMP reference motions.")
 {% endif %}
-
-
-def compute_rewards() -> torch.Tensor:
-    """Add task-specific reward inputs and compute rewards."""
-    raise NotImplementedError("Implement the reward function.")
 {% elif task.workflow.name == 'direct' and task.workflow.type == 'multi-agent' %}
 # Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
@@ -280,9 +259,6 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-{% if task.amp_selected %}
-import numpy as np
-{% endif %}
 import torch
 
 from isaaclab.envs import DirectMARLEnv
@@ -295,12 +271,6 @@ class {{ task.classname }}Env(DirectMARLEnv):
     """Implement the task's environment lifecycle."""
 
     cfg: {{ task.classname }}EnvCfg
-
-    def __init__(self, cfg: {{ task.classname }}EnvCfg, render_mode: str | None = None, **kwargs):
-        raise NotImplementedError("Initialize the base environment and task buffers.")
-
-    def _setup_scene(self) -> None:
-        raise NotImplementedError("Create and configure task-specific scene objects.")
 
     def _pre_physics_step(self, actions: dict[str, torch.Tensor]) -> None:
         raise NotImplementedError("Process policy actions.")
@@ -319,16 +289,6 @@ class {{ task.classname }}Env(DirectMARLEnv):
 
     def _reset_idx(self, env_ids: Sequence[int] | None) -> None:
         raise NotImplementedError("Reset selected environments.")
-{% if task.amp_selected %}
-
-    def collect_reference_motions(self, num_samples: int, current_times: np.ndarray | None = None) -> torch.Tensor:
-        raise NotImplementedError("Collect task-specific AMP reference motions.")
-{% endif %}
-
-
-def compute_rewards() -> dict[str, torch.Tensor]:
-    """Add task-specific reward inputs and compute rewards."""
-    raise NotImplementedError("Implement the reward function.")
 {% elif task.workflow.name == 'manager-based' and task.workflow.type == 'single-agent' %}
 # Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
@@ -339,6 +299,7 @@ from __future__ import annotations
 
 import numpy as np
 import torch
+from gymnasium import spaces
 
 from isaaclab.envs import ManagerBasedRLEnv
 
@@ -346,15 +307,37 @@ from .{{ task.env_cfg_filename }} import {{ task.classname }}EnvCfg
 
 
 class {{ task.classname }}Env(ManagerBasedRLEnv):
-    """Implement the manager-based AMP interface."""
+    """Manager-based environment with the interface required by skrl AMP."""
 
     cfg: {{ task.classname }}EnvCfg
 
     def __init__(self, cfg: {{ task.classname }}EnvCfg, render_mode: str | None = None, **kwargs):
-        raise NotImplementedError("Initialize the environment and AMP observation buffers.")
+        super().__init__(cfg, render_mode, **kwargs)
+
+        observation_size = spaces.flatdim(self.single_observation_space["policy"])
+        self.amp_observation_size = self.cfg.num_amp_observations * observation_size
+        self.amp_observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(self.amp_observation_size,))
+        self.amp_observation_buffer = torch.zeros(
+            (self.num_envs, self.cfg.num_amp_observations, observation_size), device=self.device
+        )
 
     def step(self, action: torch.Tensor):
-        raise NotImplementedError("Step the environment and update AMP observations.")
+        observations, rewards, terminated, truncated, extras = super().step(action)
+
+        for index in reversed(range(self.cfg.num_amp_observations - 1)):
+            self.amp_observation_buffer[:, index + 1] = self.amp_observation_buffer[:, index]
+        policy_observations = observations["policy"].reshape(self.num_envs, -1)
+        self.amp_observation_buffer[:, 0] = policy_observations
+        reset_env_ids = (terminated | truncated).nonzero(as_tuple=False).squeeze(-1)
+        if len(reset_env_ids) > 0:
+            final_policy_observations = extras["final_obs"]["policy"].reshape(self.num_envs, -1)
+            self.amp_observation_buffer[reset_env_ids, 0] = final_policy_observations[reset_env_ids]
+            amp_observations = self.amp_observation_buffer.view(-1, self.amp_observation_size).clone()
+            self.amp_observation_buffer[reset_env_ids] = policy_observations[reset_env_ids].unsqueeze(1)
+        else:
+            amp_observations = self.amp_observation_buffer.view(-1, self.amp_observation_size)
+        extras["amp_obs"] = amp_observations
+        return observations, rewards, terminated, truncated, extras
 
     def collect_reference_motions(self, num_samples: int, current_times: np.ndarray | None = None) -> torch.Tensor:
         raise NotImplementedError("Collect task-specific AMP reference motions.")
@@ -386,7 +369,6 @@ from .events import reset as reset
 from .observations import observation as observation
 from .rewards import reward as reward
 from .terminations import termination as termination
-from .terminations import time_out as time_out
 {% endmacro %}
 
 {% macro mdp_events() %}
@@ -471,11 +453,6 @@ if TYPE_CHECKING:
 def termination(env: ManagerBasedRLEnv) -> torch.Tensor:
     """Implement the task's termination term."""
     raise NotImplementedError("Implement the termination term.")
-
-
-def time_out(env: ManagerBasedRLEnv) -> torch.Tensor:
-    """Implement the task's episode timeout term."""
-    raise NotImplementedError("Implement the timeout term.")
 {% endmacro %}
 
 {% set config_dir = 'config/' ~ (robot_name | default('cartpole')) ~ '/' %}

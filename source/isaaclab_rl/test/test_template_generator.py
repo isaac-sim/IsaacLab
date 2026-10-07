@@ -219,11 +219,14 @@ def test_generator_registers_single_agent_rl_config_entry_points_for_all_librari
         _unregister(task_id)
 
 
-def test_generated_manager_amp_environment_preserves_terminal_observations(tmp_path):
+@pytest.mark.parametrize("initial_content", ["cartpole", "stubbed"])
+def test_generated_manager_amp_environment_preserves_terminal_observations(tmp_path, initial_content):
     """AMP transitions must end with the terminal observation before same-step autoreset."""
     specification = {
-        "external": False,
+        "external": True,
         "name": "test",
+        "task_name": "test",
+        "initial_content": initial_content,
         "workflows": [{"name": "manager-based", "type": "single-agent"}],
         "rl_libraries": [{"name": "skrl", "algorithms": ["amp"]}],
     }
@@ -674,7 +677,8 @@ def test_generated_manager_based_env_cfg_resolution_is_omni_and_pxr_free(tmp_pat
     )
 
 
-def test_generated_external_project_registers_tasks_on_tasks_import(tmp_path, monkeypatch):
+@pytest.mark.parametrize("initial_content", ["cartpole", "stubbed"])
+def test_generated_external_project_registers_tasks_on_tasks_import(tmp_path, monkeypatch, initial_content):
     """A freshly generated external project must register all tasks when its task package is imported.
 
     The project root is intentionally passive; importing its task entry point performs registration.
@@ -687,12 +691,13 @@ def test_generated_external_project_registers_tasks_on_tasks_import(tmp_path, mo
             "external": True,
             "path": str(root_dir),
             "name": project_name,
+            "initial_content": initial_content,
             "workflows": [
                 {"name": "manager-based", "type": "single-agent"},
                 {"name": "direct", "type": "single-agent"},
                 {"name": "direct", "type": "multi-agent"},
             ],
-            "rl_libraries": [{"name": "skrl", "algorithms": ["ppo", "ippo", "mappo"]}],
+            "rl_libraries": [{"name": "skrl", "algorithms": ["ppo", "amp", "ippo", "mappo"]}],
         }
     )
     source_dir = root_dir / project_name / "src"
@@ -711,16 +716,35 @@ def test_generated_external_project_registers_tasks_on_tasks_import(tmp_path, mo
         sys.path.insert(0, {str(source_dir)!r})
         import {project_name}.tasks  # noqa: F401  (registration runs through the task entry point)
         import gymnasium as gym
+        import importlib
+        import pytest
         from isaaclab_tasks.utils import load_cfg_from_registry
 
         want = {expected!r}
         missing = [task_id for task_id in want if task_id not in gym.registry]
         assert not missing, f"not registered on import: {{missing}}"
+        for task_id in want:
+            spec = gym.spec(task_id)
+            assert callable(gym.envs.registration.load_env_creator(spec.entry_point))
+            if {initial_content!r} == "stubbed":
+                with pytest.raises(NotImplementedError, match="Configure simulation"):
+                    load_cfg_from_registry(task_id, "env_cfg_entry_point")
+        if {initial_content!r} == "stubbed":
+            from {project_name}.tasks.balance import mdp
+            from isaaclab.envs.mdp import time_out
+
+            assert mdp.time_out is time_out
+            with pytest.raises(NotImplementedError, match="Implement the reward term"):
+                mdp.reward(None)
         assert load_cfg_from_registry({multi_task!r}, "skrl_cfg_entry_point")["agent"]["class"] == "MAPPO"
+        registration_tests = importlib.import_module("test_registration")
+        registration_tests.test_task_registrations()
         print("OK")
         """
     )
-    result = subprocess.run([sys.executable, "-c", program], capture_output=True, text=True)
+    result = subprocess.run(
+        [sys.executable, "-c", program], capture_output=True, text=True, cwd=root_dir / project_name / "tests"
+    )
     assert result.returncode == 0, (
         f"external project did not register tasks on import:\nSTDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
     )
