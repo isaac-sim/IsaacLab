@@ -119,5 +119,5 @@ echo "[diag] arm C: NCCL $(nccl_version)"
 train C-kit_rtx "$camera" isaacsim_physx,isaacsim_rtx
 train C-ovrtx "$camera" newton_mjwarp,ovrtx
 
-chown -R "${HOST_UID:-0}:${HOST_GID:-0}" "$out" 2>/dev/null || true
+chmod -R a+rwX "$out" 2>/dev/null || true
 exit 0
