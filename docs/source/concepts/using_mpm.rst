@@ -9,8 +9,8 @@ Newton solver configuration, a particle asset type, and an optional coupling
 with rigid-body solvers. MPM support and rigid--MPM coupling are experimental.
 
 This page explains how the integration works. For runnable scenes, see
-`Examples and tasks`_. For resolution, convergence, and material studies, see
-:ref:`newton-tuning-mpm`.
+`Examples and tasks`_. For resolution, convergence, and material studies, and
+the nearly rigid MPM limit, see :ref:`newton-tuning-mpm`.
 
 
 How MPM fits into the Newton backend
@@ -21,8 +21,8 @@ Selecting :class:`~isaaclab_newton.physics.MPMSolverCfg` as the ``solver_cfg`` o
 :class:`~isaaclab_newton.physics.NewtonMPMManager`, a specialization of the
 Newton manager that constructs Newton's ``SolverImplicitMPM``. The solver
 represents material as particles and solves its rheology implicitly on a
-background voxel grid. Compared with Newton's rigid-body solvers, the MPM
-manager differs in these ways:
+background voxel grid. The MPM manager configures the Newton manager as
+follows:
 
 * It advances particles in place on a single Newton state rather than double
   buffering state.
@@ -65,20 +65,20 @@ Configuration and USD
 An MPM material is a scene asset. :class:`~isaaclab_newton.assets.MPMObjectCfg`
 extends the deformable-object configuration and takes a particle spawner:
 
-* :class:`~isaaclab_newton.sim.MPMGridCfg` fills an axis-aligned local box with
+* :class:`~isaaclab_newton.sim.spawners.mpm.MPMGridCfg` fills an axis-aligned local box with
   a particle lattice whose resolution follows ``voxel_size`` and
   ``particles_per_cell``.
-* :class:`~isaaclab_newton.sim.MPMPointsCfg` places particles at explicit
+* :class:`~isaaclab_newton.sim.spawners.mpm.MPMPointsCfg` places particles at explicit
   local positions, with optional velocities, masses, and radii.
 
 Both spawners author schema-valid ``UsdGeom.Points`` simulation geometry. Grid
 configurations still generate the lattice in Isaac Lab before authoring
 explicit points, widths, velocities, and masses. Per-particle material values
-come from :class:`~isaaclab_newton.sim.MPMParticleMaterialCfg` and are authored
+come from :class:`~isaaclab_newton.sim.spawners.mpm.MPMParticleMaterialCfg` and are authored
 with ``NewtonMPMMaterialAPI``. Damping [s] is authored as
 ``damping * young_modulus`` [Pa·s]. Solver-wide settings, including
-``critical_fraction``, live on ``MPMSolverCfg`` and are authored with
-``NewtonMPMSceneAPI`` on the physics scene prim.
+``critical_fraction``, live on ``MPMSolverCfg``; the schema-representable ones
+are authored with ``NewtonMPMSceneAPI`` on the physics scene prim.
 
 MPM objects are cloned through Newton replication. Grid jitter is generated
 once in asset-local coordinates with a fixed seed, so USD clones share the same

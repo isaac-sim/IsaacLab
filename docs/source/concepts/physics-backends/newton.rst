@@ -42,7 +42,7 @@ source of truth for configuration fields and defaults.
    * - :class:`~isaaclab_newton.physics.VBDSolverCfg`
      - :ref:`newton-using-vbd` for cloth, soft bodies, and coupled scenes
    * - :class:`~isaaclab_newton.physics.MPMSolverCfg`
-     - :ref:`newton-using-mpm` for scene construction and
+     - :ref:`newton-using-mpm` for how the integration works and
        :ref:`newton-tuning-mpm` for parameter studies
 
 Additional solver configurations are
