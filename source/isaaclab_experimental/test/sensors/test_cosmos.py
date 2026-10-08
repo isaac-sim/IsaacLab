@@ -580,6 +580,14 @@ def test_small_messages_leave_in_one_write_and_tcp_sends_them_without_delay(cosm
             assert connection.getsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY)
 
 
+def test_a_missing_service_is_reported_with_its_endpoint():
+    with socket.socket() as reserved:
+        reserved.bind(("127.0.0.1", 0))
+        endpoint = f"tcp://127.0.0.1:{reserved.getsockname()[1]}"
+    with pytest.raises(ConnectionError, match=f"No Cosmos service at {endpoint}"):
+        _protocol.connect(endpoint, timeout=1)
+
+
 def test_endpoints_name_an_absolute_unix_socket_or_a_tcp_host_and_port():
     assert _protocol.parse_endpoint("tcp://127.0.0.1:5555") == (socket.AF_INET, ("127.0.0.1", 5555))
     for malformed in ("tcp://127.0.0.1", "http://127.0.0.1:5555", "127.0.0.1:5555"):

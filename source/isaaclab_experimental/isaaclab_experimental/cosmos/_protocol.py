@@ -56,18 +56,24 @@ def connect(endpoint: str, timeout: float = 600.0) -> socket.socket:
     family, address = parse_endpoint(endpoint)
     if not math.isfinite(timeout) or timeout <= 0:
         raise ValueError("Cosmos timeout must be finite and positive.")
-    if family == socket.AF_INET:
-        connection = socket.create_connection(address, timeout=timeout)
-        disable_nagle(connection)
-        return connection
-    connection = socket.socket(family, socket.SOCK_STREAM)
     try:
-        connection.settimeout(timeout)
-        connection.connect(address)
-    except BaseException:
-        connection.close()
-        raise
-    return connection
+        if family == socket.AF_INET:
+            connection = socket.create_connection(address, timeout=timeout)
+            disable_nagle(connection)
+            return connection
+        connection = socket.socket(family, socket.SOCK_STREAM)
+        try:
+            connection.settimeout(timeout)
+            connection.connect(address)
+        except BaseException:
+            connection.close()
+            raise
+        return connection
+    except OSError as error:
+        raise ConnectionError(
+            f"No Cosmos service at {endpoint} ({error.strerror or error}); start isaaclab-cosmos-server, or pass "
+            "the endpoint it serves."
+        ) from error
 
 
 def disable_nagle(connection: socket.socket) -> None:
