@@ -84,7 +84,7 @@ def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
     renderer = OVRTXRenderer.__new__(OVRTXRenderer)
     renderer.cfg = OVRTXRendererCfg()
     renderer.backend = OVRTXBackend.__new__(OVRTXBackend)
-    cfg = OVRTXBackendCfg(renderer_cfg=renderer.cfg, use_ovstage=False, read_gpu_transforms=True)
+    cfg = OVRTXBackendCfg(renderer_cfg=renderer.cfg, use_ovstage=False, read_gpu_transforms=True, device="cpu")
     renderer.backend.stage = renderer.backend.paths = None
     renderer.backend._resources = contextlib.ExitStack()
     SimulationContext.instance()._backend_registry.append((cfg, renderer.backend))
