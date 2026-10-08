@@ -79,7 +79,6 @@ from isaaclab.sim import SimulationContext
 from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.warp.warp_math import convert_camera_frame_orientation_convention_wp
 
-from isaaclab_ov.cloner.replicate import get_asset_copies
 from isaaclab_ov.renderers.ovrtx_annotator_utils import (
     build_instance_id_to_labels_and_semantics,
     build_semantic_id_to_labels,
@@ -630,7 +629,8 @@ class OVRTXRenderer(BaseRenderer):
         if self._use_ovstage:
             ovstage_replicate(self.backend.stage, plan, ordinal=self._current_ordinal)
             return
-        for source, targets in get_asset_copies(plan):
+        for source, template, worlds in cloner_path.get_asset_copies(plan):
+            targets = [target for target in map(template.format, worlds) if target != source]
             if targets:
                 self.backend.renderer.clone_usd(source, targets)
         xforms = np.tile(np.eye(4, dtype=np.float64), (num_envs, 1, 1))

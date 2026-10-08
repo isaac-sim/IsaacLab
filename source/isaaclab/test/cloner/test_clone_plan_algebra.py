@@ -106,12 +106,16 @@ def test_cloner_imports_without_kit():
 
     # Only cloning execution and its lifecycle owners may access context instances.
     for path in Path(__file__).resolve().parents[3].glob("*/isaaclab*/**/*.py"):
+        tree = ast.parse(path.read_text())
+        if path.name != "clone_plan.py":
+            assert not any(
+                isinstance(node, ast.FunctionDef) and node.name == "get_asset_copies" for node in ast.walk(tree)
+            ), f"{path} duplicated the core cloner's asset-copy planner"
         if "cloner" in path.parts or path.name in {"simulation_context.py", "render_context.py"}:
             continue
-        assert not any(
-            isinstance(node, ast.Attribute) and node.attr == "clone_contexts"
-            for node in ast.walk(ast.parse(path.read_text()))
-        ), f"{path} accessed clone contexts; consumers must use the plan and path/query utilities"
+        assert not any(isinstance(node, ast.Attribute) and node.attr == "clone_contexts" for node in ast.walk(tree)), (
+            f"{path} accessed clone contexts; consumers must use the plan and path/query utilities"
+        )
 
 
 @pytest.mark.parametrize("shared_assets", [(), (0,)])

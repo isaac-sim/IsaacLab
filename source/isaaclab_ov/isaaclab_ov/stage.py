@@ -23,7 +23,6 @@ from isaaclab.cloner.clone_plan import path as cloner_path
 from isaaclab.sim import BackendCfg
 from isaaclab.utils import configclass
 
-from isaaclab_ov.cloner.replicate import get_asset_copies
 from isaaclab_ov.ovstage_compat import HIERARCHY_COMPUTATION_MODEL
 from isaaclab_ov.renderers.ovrtx_usd import export_stage_to_string
 
@@ -133,7 +132,8 @@ def ovstage_replicate(stage: ovstage.Stage, plan: ClonePlan, *, ordinal: int) ->
         plan: Scene topology and environment positions [m].
         ordinal: Write ordinal for cloning and placement.
     """
-    for source, targets in get_asset_copies(plan):
+    for source, template, worlds in cloner_path.get_asset_copies(plan):
+        targets = [target for target in map(template.format, worlds) if target != source]
         if targets:
             stage.clone(source, targets, ordinal=ordinal)
     num_envs = len(plan.topology.world_prototype_layout)
