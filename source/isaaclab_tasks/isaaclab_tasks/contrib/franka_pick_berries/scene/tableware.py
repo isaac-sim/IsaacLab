@@ -3,13 +3,18 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Open plastic punnet, glass or porcelain receiving bowl and reject dish; dimensions in metres."""
+"""The lab table, the open plastic punnet, the glass or porcelain receiving bowl and the reject dish; dimensions in
+metres."""
 
 import math
 
 import numpy as np
 
 from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics, UsdShade, Vt
+
+import isaaclab.sim as sim_utils
+from isaaclab.sim.schemas import define_rigid_body_properties
+from isaaclab.sim.spawners.from_files import spawn_from_usd
 
 # (x, y, outer radius, inner radius, base thickness, total height), task frame.
 BOWL = (0.48, 0.16, 0.060, 0.057, 0.004, 0.030)
@@ -48,6 +53,16 @@ def tableware_solids() -> np.ndarray:
     x, y, hx, hy, _, _, base, height = PUNNET
     solids += [(x, y, base / 2, -hx, hy, base / 2), (x, y, (height + base) / 2, -hx, -hy, (height - base) / 2)]
     return np.asarray(solids, np.float32)
+
+
+def spawn_kinematic_usd(prim_path, cfg, translation=None, orientation=None, **kwargs):
+    """Spawn a USD asset and define a kinematic rigid body on its root prim.
+
+    The stock USD spawner only modifies rigid bodies that already exist, and the lab-table asset has none.
+    """
+    prim = spawn_from_usd(prim_path, cfg, translation, orientation, **kwargs)
+    define_rigid_body_properties(prim_path, sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True))
+    return prim
 
 
 def spawn_tableware(prim_path: str, cfg, translation=None, orientation=None, **kwargs) -> Usd.Prim:

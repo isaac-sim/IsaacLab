@@ -983,21 +983,6 @@ class SolverGraspExplicitMPM(SolverBase, CouplingInterface):
         )
         self.interface[start : start + len(flags)].assign(flags)
 
-    def damage_view(self, start: int, count: int) -> dict[str, wp.array]:
-        """Damage arrays of ``count`` particles from ``start``: ``damage``, ``tear``, ``history`` and ``dose``."""
-        span = slice(start, start + count)
-        return {
-            "damage": self.damage[span],
-            "tear": self.tear[span],
-            "history": self.history[span],
-            "dose": self.dose[span],
-        }
-
-    def elastic_strain(self, state, start: int, count: int) -> wp.array:
-        """Elastic deformation gradients of ``count`` particles from ``start``; the solver keeps them itself."""
-        del state
-        return self.elastic[start : start + count]
-
     def _reset_history(self):
         identity = np.broadcast_to(np.eye(3, dtype=np.float32), (self.model.particle_count, 3, 3))
         self.elastic.assign(identity)

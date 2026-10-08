@@ -34,7 +34,7 @@ class BerryPickEnv(ManagerBasedRLEnv):
         specs = [load_tissue(cfg, *berry) for berry in fixed_layout(cfg)]
         if cfg.num_berries > 1 and cfg.randomize_layout:
             # Scatter the berries in the punnet with random orientations; every berry shares the punnet frame.
-            rotations, shifts = random_punnet_poses(specs[0].proxy, len(specs), cfg.layout_seed)
+            rotations, shifts = random_punnet_poses(specs[0].particles, len(specs), cfg.layout_seed)
             specs = [
                 transform_tissue(spec, rotation, shift, cfg.berry_position)
                 for spec, rotation, shift in zip(specs, rotations, shifts)
@@ -50,7 +50,7 @@ class BerryPickEnv(ManagerBasedRLEnv):
         super().__init__(cfg, **kwargs)
         self.berries = {spec.name: BerryTissue(spec, self.scene[spec.scene_name]) for spec in specs}
         register_tissues(self.berries.values())
-        # The berry being handled, which the close-up follows; the scripted sorting moves on through the others.
+        # The berry being handled, which the close-up follows; the scripted demo moves on through the others.
         self.handled_berry = next(iter(self.berries.values()))
 
     def step(self, action):

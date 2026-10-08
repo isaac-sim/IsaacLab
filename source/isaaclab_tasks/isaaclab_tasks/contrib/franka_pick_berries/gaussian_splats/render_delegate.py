@@ -6,8 +6,8 @@
 """Publish one berry's deforming Gaussians to the RTX renderer on every frame, without leaving the GPU.
 
 The berry's Gaussians are authored once in the render stage, from its asset. On every frame
-:meth:`GaussianPublisher.deform` deforms and shades them from the tissue particles (:mod:`.binding`), and
-:meth:`GaussianPublisher.publish` hands the renderer the resulting GPU arrays, which it reads in place. Only the
+:meth:`GaussianRenderDelegate.deform` deforms and shades them from the tissue particles (:mod:`.mpm_binding`), and
+:meth:`GaussianRenderDelegate.publish` hands the renderer the resulting GPU arrays, which it reads in place. Only the
 per-frame attributes change: positions, scales, orientations and the shading quaternion; opacities and spherical
 harmonics stay as authored.
 """
@@ -17,7 +17,7 @@ import warp as wp
 
 from pxr import Sdf, Usd, UsdGeom, UsdShade, Vt
 
-from .binding import GaussianBinding
+from .mpm_binding import MPMBinding
 
 SHADING = "primvars:squishyShQuaternion"
 """Per-Gaussian SH rotation and bruise tint read by the berry's MDL shader."""
@@ -50,7 +50,7 @@ def _normalize(
     local_s[i] = s[i] / factor
 
 
-class GaussianPublisher:
+class GaussianRenderDelegate:
     """Author one berry's Gaussians in the render stage and publish their deformation on every frame.
 
     Args:
@@ -63,16 +63,15 @@ class GaussianPublisher:
         self.root_path = root_path
         self.path = f"{root_path}/Gaussians/Field"
         self._bindings = {}
-        asset = tissue.asset
-        device = tissue.particles.device
-        self.binding = GaussianBinding(asset, tissue.proxy["xyz"], tissue.proxy["regions"], device)
+        gaussians = tissue.gaussians
+        device = tissue.device
+        self.binding = MPMBinding(gaussians, tissue.particles["xyz"], tissue.particles["regions"], device)
         # The renderer keeps the Gaussians' bounds from their authored extent. The deformed Gaussians are therefore
         # published in a local frame that keeps them inside their rest bounds, with a transform that moves them back
         # into place.
-        self._rest_center = (asset["xyz"].min(0) + asset["xyz"].max(0)) / 2
-        self._rest_half = (asset["xyz"].max(0) - asset["xyz"].min(0)) / 2
-        self._transform = np.eye(4)
-        count = len(asset["xyz"])
+        self._rest_center = (gaussians["xyz"].min(0) + gaussians["xyz"].max(0)) / 2
+        self._rest_half = (gaussians["xyz"].max(0) - gaussians["xyz"].min(0)) / 2
+        count = len(gaussians["xyz"])
         with wp.ScopedDevice(device):
             self._extent = wp.empty((2, 3), dtype=float)
             # The renderer reads the published arrays in place, after the write returns. Two sets alternate: a set is
@@ -90,7 +89,7 @@ class GaussianPublisher:
 
     def author_in_stage(self, stage: Usd.Stage) -> None:
         """Copy the berry's Gaussians and material from its asset into the render stage."""
-        source = Usd.Stage.Open(self.tissue.usd_stage.GetRootLayer().identifier)
+        source = self.tissue.stage
         layer = source.Flatten()
         Sdf.CreatePrimInLayer(stage.GetRootLayer(), self.root_path)
         Sdf.CopySpec(layer, "/Berry", stage.GetRootLayer(), self.root_path)
@@ -116,7 +115,7 @@ class GaussianPublisher:
             ("opacities", "alpha", Vt.FloatArray),
             ("radiance:sphericalHarmonicsCoefficients", "sh", Vt.Vec3fArray),
         ):
-            array = self.tissue.asset[key].reshape(-1, 3) if key == "sh" else self.tissue.asset[key]
+            array = self.tissue.gaussians[key].reshape(-1, 3) if key == "sh" else self.tissue.gaussians[key]
             value = array_type.FromNumpy(np.ascontiguousarray(array, np.float32))
             attr = prim.GetAttribute(name)
             attr.Clear()
@@ -150,7 +149,7 @@ class GaussianPublisher:
     def deform(self) -> tuple[np.ndarray, dict]:
         """Deform and shade the Gaussians on the GPU; return their transform and the arrays to publish."""
         binding = self.binding
-        with wp.ScopedDevice(self.tissue.particles.device):
+        with wp.ScopedDevice(self.tissue.device):
             binding.deform(self.tissue.positions_warp(), self.tissue.damage)
             out = self._buffers[self._frame % 2]
             self._frame += 1
@@ -184,7 +183,7 @@ class GaussianPublisher:
         self._rtx.write_attribute(
             prim_paths=[self.path], attribute_name="omni:xform", tensor=transform[None], semantic=Semantic.XFORM_MAT4x4
         )
-        cuda_stream = wp.get_stream(self.tissue.particles.device).cuda_stream
+        cuda_stream = wp.get_stream(self.tissue.device).cuda_stream
         for name, array in values.items():
             # The renderer reads the GPU buffers in place, ordered after the kernels on their stream.
             self._bindings[name].write([array], data_access=DataAccess.ASYNC, cuda_stream=cuda_stream)

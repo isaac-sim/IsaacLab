@@ -3,4 +3,4 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Viewing helpers: the RTX viewer of the workcell, a camera director and a video writer for the demo film."""
+"""Viewing helpers: the RTX viewer of the workcell, and the scripted camera that films the demo."""

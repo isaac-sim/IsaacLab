@@ -3,10 +3,17 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Scripted sorting of three raspberries: crush the first and discard it, gently place the others in the bowl.
+"""The scripted demo: the robot crushes the first of three raspberries and drops it in the reject dish, then gently
+picks the two others and sets them down in the bowl.
 
-:class:`SortingSequence` drives the robot like an operator would, through the environment's actions only: it never
-edits the tissue. It watches the berries to aim the grasp, tightens a slipping grip and waits for the arm when it lags.
+:class:`ScriptedDemo` drives the robot like an operator would, through the environment's actions only: it
+never edits the tissue. It watches the berries to aim the grasp, tightens a slipping grip and waits for the arm when it
+lags.
+
+Each berry follows the same pick-and-place timeline, written at the original pace in script time [s]: approach
+(1-4 s), close (4-8 s), lift (9-12 s), carry (13-19 s), lower (20-23 s), open (24-26 s) and retreat (26-29 s), with
+pauses between them, up to 32 s. An arm speed multiplier shortens arm travel and, above 2, the pauses, while the
+gripper keeps closing gently.
 """
 
 import numpy as np
@@ -14,14 +21,74 @@ import torch
 from scipy.spatial.transform import Rotation
 
 from ..scene.tableware import BOWL, REJECT_DISH
-from .script_timing import elapsed_time, pause_speedup, script_time
 
-# Task-frame center and usable radius [m] of the reject dish.
+# Task-frame center [m] of the reject dish.
 REJECT_DISH_CENTER = REJECT_DISH[:2]
-REJECT_DISH_RADIUS = REJECT_DISH[3]
 # Task-frame spots [m] in the bowl where the accepted berries are set down, side by side across the fingers' opening
 # direction, so that the second is not lowered onto the first and the open fingers clear the bowl's wall.
 BOWL_SPOTS = ((BOWL[0] - 0.022, BOWL[1]), (BOWL[0] + 0.022, BOWL[1]))
+
+
+# --------------------------------------------------------------------------------------------------------------------
+# Timeline
+# --------------------------------------------------------------------------------------------------------------------
+
+
+def _pause_speedup(speed: float) -> float:
+    """Return the speed-up of pauses for an arm speed multiplier: none up to the default 2, then proportional."""
+    return max(1.0, speed / 2.0)
+
+
+def _timeline_intervals(speed: float, pauses: float, closing: float | None = None) -> list[tuple[float, float, float]]:
+    """Return the accelerated (start, end, multiplier) intervals of the script [s]."""
+    # Arm travel.
+    intervals = [
+        (start, end, speed) for start, end in ((1.0, 4.0), (9.0, 12.0), (13.0, 19.0), (20.0, 23.0), (26.0, 29.0))
+    ]
+    # Settling, holds, waypoint pauses, gripper opening and the final wait.
+    intervals.extend(
+        (start, end, pauses)
+        for start, end in ((0.0, 1.0), (8.0, 9.0), (12.0, 13.0), (19.0, 20.0), (23.0, 26.0), (29.0, 32.0))
+    )
+    # Closing the gripper (4 to 8 s) speeds up at most twofold, which keeps grasps gentle.
+    intervals.append((4.0, 8.0, min(pauses, 2.0) if closing is None else closing))
+    return sorted(intervals)
+
+
+def _script_time(elapsed: float, speed: float, pauses: float = 1.0, closing: float | None = None) -> float:
+    """Map elapsed simulation time [s] to script time [s], accelerating arm travel and pauses.
+
+    Args:
+        elapsed: Time since the script started [s].
+        speed: Positive arm travel speed multiplier.
+        pauses: Speed multiplier of the pauses; 1 keeps them.
+        closing: Speed multiplier of the gripper closing; by default, the pauses' up to 2.
+    """
+    saved = 0.0
+    for start, end, multiplier in _timeline_intervals(speed, pauses, closing):
+        actual_start = start - saved
+        if elapsed < actual_start:
+            break
+        duration = (end - start) / multiplier
+        if elapsed < actual_start + duration:
+            return start + (elapsed - actual_start) * multiplier
+        saved += end - start - duration
+    return elapsed + saved
+
+
+def _elapsed_time(script_time: float, speed: float, pauses: float = 1.0, closing: float | None = None) -> float:
+    """Return the elapsed simulation time [s] at which the script reaches ``script_time`` [s]."""
+    saved = sum(
+        (min(end, script_time) - start) * (1.0 - 1.0 / multiplier)
+        for start, end, multiplier in _timeline_intervals(speed, pauses, closing)
+        if start < script_time
+    )
+    return script_time - saved
+
+
+# --------------------------------------------------------------------------------------------------------------------
+# Sequence
+# --------------------------------------------------------------------------------------------------------------------
 
 
 def _ramp(t: float, start: float, duration: float) -> float:
@@ -29,7 +96,7 @@ def _ramp(t: float, start: float, duration: float) -> float:
     return u * u * (3 - 2 * u)
 
 
-class SortingSequence:
+class ScriptedDemo:
     """Crush the first berry and discard it in the reject dish, then gently place the other two in the bowl."""
 
     def __init__(
@@ -48,18 +115,17 @@ class SortingSequence:
                 their deformation longer.
         """
         self.arm_speed = arm_speed
-        self.pauses = pause_speedup(arm_speed)
+        self.pauses = _pause_speedup(arm_speed)
         self.start_delay = start_delay
         # Each berry follows the place script.
         self.closing = [1.0 if index in slow_closing else None for index in range(3)]
-        self.cycle_ends = np.cumsum([elapsed_time(32.0, arm_speed, self.pauses, closing) for closing in self.closing])
+        self.cycle_ends = np.cumsum([_elapsed_time(32.0, arm_speed, self.pauses, closing) for closing in self.closing])
         self.reset()
 
     def reset(self) -> None:
         """Restart the command sequence without resetting any physical state."""
         self.index = -1
         self.center = None
-        self.script_time = 0.0
         self.phase = "Settling in punnet"
         self.delay = 0.0
         self.last_elapsed = 0.0
@@ -96,7 +162,7 @@ class SortingSequence:
 
         Args:
             elapsed: Simulation time since the sequence reset [s].
-            berries: The three berries, in sorting order.
+            berries: The three berries, in the order the demo handles them.
             tcp: Measured TCP position [m]; omit only for offline trajectory inspection.
         """
         dt = max(0.0, elapsed - self.last_elapsed)
@@ -104,9 +170,7 @@ class SortingSequence:
         sequence_time = max(0.0, elapsed - self.start_delay - self.delay)
         index = min(int(np.searchsorted(self.cycle_ends, sequence_time, side="right")), 2)
         cycle_start = self.cycle_ends[index - 1] if index else 0.0
-        t = script_time(sequence_time - cycle_start, self.arm_speed, self.pauses, self.closing[index])
-        # Script time [s] of the current berry, for observers such as a camera.
-        self.script_time = t
+        t = _script_time(sequence_time - cycle_start, self.arm_speed, self.pauses, self.closing[index])
         berry = list(berries.values())[index]
         if index != self.index:
             self.index = index
@@ -197,43 +261,42 @@ class SortingSequence:
         return target, float(aperture)
 
 
-def evaluate_sorting(berries: dict) -> dict:
-    """Measure the final physical outcome, without changing state or assuming success."""
-    names = list(berries)
-    states = {name: berry.metrics() for name, berry in berries.items()}
-    rejected = berries[names[0]]
-    world = rejected.positions() + rejected.offset
-    fraction_rejected = float(
-        (
-            (np.linalg.norm(world[:, :2] - REJECT_DISH_CENTER, axis=1) < REJECT_DISH_RADIUS)
-            & (world[:, 2] >= REJECT_DISH[4] - 0.001)
-            & (world[:, 2] < REJECT_DISH[5])
-        ).mean()
+def _fraction_inside(world: np.ndarray, vessel: tuple, margin: float = 0.0) -> float:
+    """Fraction of particles [m] inside an open round vessel (x, y, outer radius, inner radius, base, height), up to
+    ``margin`` [m] above its rim."""
+    inside = (np.linalg.norm(world[:, :2] - np.asarray(vessel[:2]), axis=1) < vessel[3]) & (
+        (world[:, 2] >= vessel[4] - 0.001) & (world[:, 2] < vessel[5] + margin)
     )
-    damaged = states[names[0]]["mean_damage"] >= 0.02
-    accepted = all(
-        states[name]["fraction_in_bowl"] >= 0.95 and states[name]["mean_damage"] <= 0.01 for name in names[1:]
-    )
-    return dict(
-        passed=damaged and fraction_rejected >= 0.9 and accepted,
-        fraction_in_reject_dish=fraction_rejected,
-        berries=states,
-        criteria=dict(
-            min_reject_mean_damage=0.02,
-            min_reject_dish_fraction=0.9,
-            min_accepted_bowl_fraction=0.95,
-            max_accepted_mean_damage=0.01,
-        ),
-    )
+    return float(inside.mean())
 
 
-def sorting_summary(result: dict) -> str:
-    """Describe the outcome measured by :func:`evaluate_sorting` in one sentence."""
-    crushed, *picked = result["berries"].values()
+def evaluate_demo(berries: dict) -> dict:
+    """Measure where each berry ended and how damaged it is, without changing any state.
+
+    Returns:
+        For the crushed berry, then each picked one: ``fraction_in_reject_dish`` or ``fraction_in_bowl``, and
+        ``mean_damage`` from 0 (intact) to 1.
+    """
+    results = []
+    for index, berry in enumerate(berries.values()):
+        world = berry.positions() + berry.offset
+        # Up to 3 cm above the bowl's low rim, so that a large berry resting on its floor counts as in it.
+        place = (
+            ("fraction_in_reject_dish", _fraction_inside(world, REJECT_DISH))
+            if index == 0
+            else ("fraction_in_bowl", _fraction_inside(world, BOWL, margin=0.03))
+        )
+        results.append({place[0]: place[1], "mean_damage": float(berry.damage.numpy().mean())})
+    return {"crushed": results[0], "picked": results[1:]}
+
+
+def demo_summary(result: dict) -> str:
+    """Describe the outcome measured by :func:`evaluate_demo` in one sentence."""
+    crushed, picked = result["crushed"], result["picked"]
     in_bowl = " and ".join(f"{berry['fraction_in_bowl']:.0%}" for berry in picked)
     damage = " and ".join(f"{berry['mean_damage']:.1%}" for berry in picked)
     return (
-        f"Sorting done: the crushed berry ({crushed['mean_damage']:.1%} damaged) is "
-        f"{result['fraction_in_reject_dish']:.0%} in the reject dish; the two picked berries are {in_bowl} in the "
+        f"Demo done: the crushed berry ({crushed['mean_damage']:.1%} damaged) is "
+        f"{crushed['fraction_in_reject_dish']:.0%} in the reject dish; the two picked berries are {in_bowl} in the "
         f"bowl, {damage} damaged."
     )

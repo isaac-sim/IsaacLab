@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Pick deformable raspberries with a Franka: teleoperate it, or watch it sort three berries.
+"""Pick deformable raspberries with a Franka: teleoperate it, or watch the scripted demo.
 
 The berries' tissue is simulated with the material point method (MPM) on Newton, and rendered as 3D Gaussians that
 follow it. See the task README for the commands of the demo and of its video.
@@ -23,12 +23,12 @@ from isaaclab.app import add_launcher_args, launch_simulation  # noqa: E402
 parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
 parser.add_argument(
     "--mode",
-    choices=["teleop_gamepad", "teleop_keyboard", "scripted_sorting"],
+    choices=["teleop_gamepad", "teleop_keyboard", "scripted_demo"],
     default="teleop_keyboard",
-    help="Teleoperate the robot with a gamepad or the keyboard, or watch it sort three berries by itself",
+    help="Teleoperate the robot with a gamepad or the keyboard, or watch the scripted demo: crush one berry, place two",
 )
 parser.add_argument(
-    "--num_berries", type=int, choices=[1, 2, 3], help="Raspberries in the punnet (default: 1; scripted_sorting: 3)"
+    "--num_berries", type=int, choices=[1, 2, 3], help="Raspberries in the punnet (default: 1; scripted_demo: 3)"
 )
 parser.add_argument("--layout_seed", type=int, default=0, help="Seed of the random punnet layout; reset replays it")
 parser.add_argument("--fixed_layout", action="store_true", help="Place several berries side by side, unrotated")
@@ -49,43 +49,44 @@ parser.add_argument(
 )
 parser.add_argument(
     "--camera",
-    choices=["punnet_and_bowl", "berry_closeup", "room", "film_director"],
+    choices=["punnet_and_bowl", "berry_closeup", "room", "scripted_camera"],
     default="punnet_and_bowl",
-    help="Fixed views, a close-up that follows the handled berry, or (scripted_sorting) a shot-by-shot film director",
+    help="Fixed views, a close-up that follows the handled berry, or (scripted_demo) a shot-by-shot scripted camera",
 )
 parser.add_argument(
     "--bowl_material", choices=["glass", "porcelain"], default="glass", help="Material of the receiving bowl"
 )
-parser.add_argument("--repeat", action="store_true", help="scripted_sorting: reset and sort again when it ends")
+parser.add_argument("--repeat", action="store_true", help="scripted_demo: reset and run it again when it ends")
 parser.add_argument(
-    "--video", type=Path, help="scripted_sorting: record this MP4 file offscreen at 30 frames/s, then exit"
+    "--save_frames",
+    type=Path,
+    metavar="DIR",
+    help="scripted_demo: render offscreen and save each frame (1/30 s of simulated time) as DIR/NNNNN.png, then exit",
 )
 parser.add_argument("--width", type=int, default=1280, help="Image width [px]")
 parser.add_argument("--height", type=int, default=720, help="Image height [px]")
 parser.add_argument(
     "--samples_per_pixel", type=int, help="Path-tracing samples per pixel (the renderer's default if omitted)"
 )
-parser.add_argument("--f_stop", type=float, help="film_director: camera f-number of the close shots' depth of field")
+parser.add_argument("--f_stop", type=float, help="scripted_camera: camera f-number of the close shots' depth of field")
 parser.add_argument("--gamepad_device", help="Linux joystick path, e.g. /dev/input/js0")
 add_launcher_args(parser)
 parser.set_defaults(device="cuda:0", visualizer=[], headless=True)
 args = parser.parse_args()
-sorting = args.mode == "scripted_sorting"
-args.num_berries = args.num_berries or (3 if sorting else 1)
-if sorting and args.num_berries != 3:
-    parser.error("scripted_sorting sorts three berries: use --num_berries 3")
-if not sorting and (args.camera == "film_director" or args.video or args.repeat):
-    parser.error("--camera film_director, --video and --repeat apply to --mode scripted_sorting")
+scripted_demo = args.mode == "scripted_demo"
+args.num_berries = args.num_berries or (3 if scripted_demo else 1)
+if scripted_demo and args.num_berries != 3:
+    parser.error("scripted_demo handles three berries: use --num_berries 3")
+if not scripted_demo and (args.camera == "scripted_camera" or args.save_frames or args.repeat):
+    parser.error("--camera scripted_camera, --save_frames and --repeat apply to --mode scripted_demo")
+if args.save_frames and args.save_frames.exists() and any(args.save_frames.iterdir()):
+    parser.error(f"{args.save_frames} is not empty; choose a new directory for the frames")
 if not args.arm_speed > 0:
     parser.error("--arm_speed must be positive")
 if args.mode == "teleop_gamepad" and not any(
     p.exists() for p in ([Path(args.gamepad_device)] if args.gamepad_device else Path("/dev/input").glob("js*"))
 ):
     parser.error("No Linux joystick found. Connect a controller or use --mode teleop_keyboard")
-
-from isaaclab_tasks.contrib.franka_pick_berries.rendering.renderer_version import require_live_gaussian_renderer  # noqa
-
-require_live_gaussian_renderer()
 
 from isaaclab_tasks.contrib.franka_pick_berries.pick_berries_env_cfg import BerryPickEnvCfg  # noqa: E402
 
@@ -99,16 +100,19 @@ cfg.sim.device = args.device
 
 with launch_simulation(cfg, args), ExitStack() as resources:
     import gymnasium as gym
+    from PIL import Image
 
-    from isaaclab_tasks.contrib.franka_pick_berries.control.gamepad import BerryGamepad, BerryGamepadCfg
-    from isaaclab_tasks.contrib.franka_pick_berries.control.keyboard import keyboard_action
-    from isaaclab_tasks.contrib.franka_pick_berries.control.sorting_sequence import (
-        SortingSequence,
-        evaluate_sorting,
-        sorting_summary,
+    from isaaclab_tasks.contrib.franka_pick_berries.control.scripted_demo import (
+        ScriptedDemo,
+        demo_summary,
+        evaluate_demo,
     )
-    from isaaclab_tasks.contrib.franka_pick_berries.rendering.camera_director import SortingCameraDirector
-    from isaaclab_tasks.contrib.franka_pick_berries.rendering.video_writer import VideoWriter
+    from isaaclab_tasks.contrib.franka_pick_berries.control.teleop_devices import (
+        BerryGamepad,
+        BerryGamepadCfg,
+        keyboard_action,
+    )
+    from isaaclab_tasks.contrib.franka_pick_berries.rendering.scripted_camera_demo import ScriptedCameraDemo
     from isaaclab_tasks.contrib.franka_pick_berries.rendering.viewer import BerryViewer
 
     env = gym.make("IsaacContrib-Pick-Berry-Franka-IK-Rel-Newton", cfg=cfg).unwrapped
@@ -118,7 +122,7 @@ with launch_simulation(cfg, args), ExitStack() as resources:
         env,
         width=args.width,
         height=args.height,
-        headless=args.video is not None,
+        headless=args.save_frames is not None,
         samples_per_pixel=args.samples_per_pixel,
         camera=args.camera,
         f_stop=args.f_stop,
@@ -126,27 +130,26 @@ with launch_simulation(cfg, args), ExitStack() as resources:
     )
     resources.callback(viewer.close)
 
-    gamepad = sorter = director = video = None
+    gamepad = demo = scripted_camera = None
     if args.mode == "teleop_gamepad":
         gamepad = BerryGamepad(BerryGamepadCfg(device=args.gamepad_device))
         resources.callback(gamepad.close)
         print(gamepad, flush=True)
         gamepad.add_callback("R", lambda: setattr(viewer, "reset_requested", True))
-    elif sorting and args.camera == "film_director":
+    elif scripted_demo and args.camera == "scripted_camera":
         # A film opens on the room before the sequence starts, and shows the crush and the first gentle grasp at the
         # gripper's original closing pace, which shows their deformation longer.
-        sorter = SortingSequence(args.arm_speed, start_delay=3.0, slow_closing=(0, 1))
-        director = SortingCameraDirector()
-    elif sorting:
-        sorter = SortingSequence(args.arm_speed)
-    if args.video:
-        video = VideoWriter(args.video, args.width, args.height)
-        resources.callback(video.close)
+        demo = ScriptedDemo(args.arm_speed, start_delay=3.0, slow_closing=(0, 1))
+        scripted_camera = ScriptedCameraDemo()
+    elif scripted_demo:
+        demo = ScriptedDemo(args.arm_speed)
+    if args.save_frames:
+        args.save_frames.mkdir(parents=True, exist_ok=True)
 
     def reset():
         env.reset()
         viewer.keyboard_aperture = 0.08
-        for part in (sorter, director, gamepad):
+        for part in (demo, scripted_camera, gamepad):
             if part is not None:
                 part.reset()
 
@@ -163,17 +166,17 @@ with launch_simulation(cfg, args), ExitStack() as resources:
             time.sleep(1 / 30)
             continue
 
-        if sorter is not None:
-            if sorter.complete and args.repeat:
-                print(sorting_summary(evaluate_sorting(env.berries)), flush=True)
+        if demo is not None:
+            if demo.complete and args.repeat:
+                print(demo_summary(evaluate_demo(env.berries)), flush=True)
                 reset()
                 sequence_step = 0
-            action = sorter.action(env, sequence_step / 30)
-            # The close-up and the director follow the berry being handled.
-            env.handled_berry = list(env.berries.values())[sorter.index]
-            viewer.status_text = sorter.phase
-            if director is not None:
-                director.update(viewer, sorter, env.berries, sorter.tcp, 1 / 30)
+            action = demo.action(env, sequence_step / 30)
+            # The close-up and the scripted camera follow the berry being handled.
+            env.handled_berry = list(env.berries.values())[demo.index]
+            viewer.status_text = demo.phase
+            if scripted_camera is not None:
+                scripted_camera.update(viewer, demo, env.berries, demo.tcp, 1 / 30)
             else:
                 viewer.set_handled_berry(env.handled_berry)
         else:
@@ -185,14 +188,14 @@ with launch_simulation(cfg, args), ExitStack() as resources:
         step += 1
         sequence_step += 1
 
-        if video is not None:
-            video.write(viewer.capture_image())
-            # A film ends with the director's last shot; a plain recording with the sequence.
-            if director.finished if director is not None else sorter.complete:
+        if args.save_frames:
+            Image.fromarray(viewer.capture_image()[..., :3]).save(args.save_frames / f"{step:05d}.png")
+            # A film ends with the scripted camera's last shot; a plain recording with the sequence.
+            if scripted_camera.finished if scripted_camera is not None else demo.complete:
                 break
-        elif sorter is None:
+        elif demo is None:
             # Teleoperation runs in real time when the machine keeps up: 30 control steps per second.
             time.sleep(max(0.0, 1 / 30 - (time.perf_counter() - started)))
 
-    if sorter is not None and sorter.complete:
-        print(sorting_summary(evaluate_sorting(env.berries)), flush=True)
+    if demo is not None and demo.complete:
+        print(demo_summary(evaluate_demo(env.berries)), flush=True)

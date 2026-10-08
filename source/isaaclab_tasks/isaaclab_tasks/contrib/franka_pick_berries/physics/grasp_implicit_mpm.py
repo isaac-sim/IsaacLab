@@ -403,20 +403,6 @@ class SolverGraspImplicitMPM(SolverImplicitMPM):
             device=self.model.device,
         )
 
-    def damage_view(self, start: int, count: int) -> dict[str, wp.array]:
-        """Damage arrays of ``count`` particles from ``start``: ``damage``, ``tear``, ``history`` and ``dose``."""
-        span = slice(start, start + count)
-        return {
-            "damage": self.damage[span],
-            "tear": self.tear[span],
-            "history": self.history[span],
-            "dose": self.dose[span],
-        }
-
-    def elastic_strain(self, state: newton.State, start: int, count: int) -> wp.array:
-        """Elastic deformation gradients of ``count`` particles from ``start`` in ``state``."""
-        return state.mpm.particle_elastic_strain[start : start + count]
-
     def reset(self, state, world_mask=None, flags=None):
         super().reset(state, world_mask=world_mask, flags=flags)
         # Clamps and damage are part of the particles' history.

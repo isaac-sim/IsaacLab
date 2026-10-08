@@ -3,12 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Shot-by-shot camera for demonstration videos of the berry sorting sequence.
+"""Shot-by-shot camera for videos of the scripted demo.
 
-Each phase of :class:`~..control.sorting_sequence.SortingSequence` selects a shot: an establishing view of the room,
-macro views of the grasps, tracking views of the carries and close-ups of the releases, ending with an orbit of the
-bowl. Every shot moves slowly, and the camera blends from one shot to the next. Time is simulation time, so that a
-recording plays at the same pace however slowly it renders.
+Each phase of :class:`~..control.scripted_demo.ScriptedDemo` selects a shot: an establishing view of
+the room, macro views of the grasps, tracking views of the carries and close-ups of the releases, ending with an orbit
+of the bowl. Every shot moves slowly, and the camera blends from one shot to the next. Time is simulation time, so that
+a recording plays at the same pace however slowly it renders.
 """
 
 import math
@@ -39,8 +39,8 @@ def _around(subject: np.ndarray, distance: float, azimuth: float, elevation: flo
     return subject + distance * np.array([math.cos(e) * math.cos(a), math.cos(e) * math.sin(a), math.sin(e)])
 
 
-class SortingCameraDirector:
-    """Choose and move the camera for each phase of the sorting sequence."""
+class ScriptedCameraDemo:
+    """Choose and move the camera for each phase of the scripted demo."""
 
     def __init__(self, transition: float = 1.2):
         """Configure the blend duration [s] between consecutive shots."""
@@ -64,8 +64,8 @@ class SortingCameraDirector:
 
         Args:
             viewer: The berry viewer, whose camera this places.
-            sequence: The sorting sequence, after its command for this step.
-            berries: The berries, in sorting order.
+            sequence: The scripted demo sequence, after its command for this step.
+            berries: The berries, in the order the demo handles them.
             tcp: Gripper position [m].
             dt: Simulation time since the last update [s].
         """
