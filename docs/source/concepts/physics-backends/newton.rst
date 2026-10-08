@@ -106,7 +106,7 @@ Use the manager accessors to obtain the current Newton objects:
 
 :meth:`isaaclab_newton.physics.NewtonManager.get_model` returns the active Newton physics model, or
 ``None`` before the Newton backend has built it; render-only models used by visualizers are not
-returned here. The write semantics in this guide apply only when Newton is the active,
+returned here. The write semantics in this section apply only when Newton is the active,
 authoritative physics backend.
 
 Isaac Lab's Newton-backed assets expose the same generic
