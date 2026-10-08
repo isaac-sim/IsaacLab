@@ -88,6 +88,7 @@ schema configuration described in
 :doc:`/source/concepts/schema_cfgs`.
 For a diagnose-first workflow covering solver selection, iterations, contacts,
 stability, and GPU capacities, see :ref:`physx-solver-tuning`.
+For native PhysX Tensor API access, see :ref:`physx-native-access`.
 
 
 .. _physics-backends-newton:
