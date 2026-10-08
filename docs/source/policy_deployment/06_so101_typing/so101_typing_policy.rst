@@ -6,7 +6,7 @@ Training and Deploying an SO-101 Keyboard Typing Policy
 This walkthrough uses the `SO-101 typing task repository <https://github.com/NVIDIA/so101-typing-task>`_
 to train a reinforcement learning policy in Isaac Lab and deploy it to an SO-101
 follower through LeRobot. The robot presses letters on a fixed Logitech MX Keys
-keyboard with its fixed typing jaw. Training uses PPO with RSL-RL and Newton's
+keyboard with its typing jaw. Training uses PPO with RSL-RL and Newton's
 MJWarp solver; hardware inference runs in a separate CPU environment.
 
 The workflow has two entry points: play a released checkpoint in simulation, or
