@@ -511,6 +511,9 @@ class NewtonManager(PhysicsManager):
     _post_actuator_callbacks: list[Callable[[], None]] = []
     # In-graph hooks invoked immediately before every solver substep.
     _state_force_callbacks: list[Callable[[State], None]] = []
+    # Body forces written to ``state_0`` before a step. The substep loop clears
+    # the input state's forces, so every substep re-applies this copy.
+    _staged_body_f: wp.array | None = None
     # In-graph hooks invoked after the last solver substep and before sensors,
     # in registration order. Articulations with non-identity ordering register
     # their backend-to-user state republish kernels here so the reorders are
@@ -831,6 +834,7 @@ class NewtonManager(PhysicsManager):
         NewtonManager._adapter = None
         NewtonManager._post_actuator_callbacks = []
         NewtonManager._state_force_callbacks = []
+        NewtonManager._staged_body_f = None
         NewtonManager._post_step_callbacks = []
         # Set by an articulation that took the ``use_newton_actuators=True``
         # branch in ``_process_actuators_cfg``.  Together with the adapter
@@ -1616,6 +1620,8 @@ class NewtonManager(PhysicsManager):
                     "NewtonManager._supports_rigid_body_force_input."
                 )
             cls._initialize_contacts()
+            state_0 = cls.backend.state_0
+            NewtonManager._staged_body_f = wp.zeros_like(state_0.body_f) if state_0.body_count else None
 
         # Picking callbacks must be registered after the concrete solver has
         # published its force-input capability, but before CUDA graph capture.
@@ -1671,8 +1677,24 @@ class NewtonManager(PhysicsManager):
     # ------------------------------------------------------------------
 
     @classmethod
+    def _stage_body_forces(cls) -> None:
+        """Copy the body forces written to ``state_0`` before the step, so that every solver substep applies them."""
+        if cls._staged_body_f is not None:
+            wp.copy(cls._staged_body_f, cls.backend.state_0.body_f)
+
+    @classmethod
+    def _apply_staged_body_forces(cls, state: State) -> None:
+        """Write the staged body forces into the input state of a solver substep."""
+        if cls._staged_body_f is not None:
+            wp.copy(state.body_f, cls._staged_body_f)
+
+    @classmethod
     def _run_solver_substeps(cls, contacts) -> None:
-        """Run ``num_substeps`` solver iterations, handling double-buffered state swap."""
+        """Run ``num_substeps`` solver iterations, handling double-buffered state swap.
+
+        The staged body forces overwrite the input state's ``body_f``, so they are written before the state-force
+        callbacks, which add on top of them.
+        """
         backend = cls.backend
         collide_every = cls._collision_decimation
         # Last substep is skipped: its contact set would only feed the next tick's
@@ -1681,6 +1703,7 @@ class NewtonManager(PhysicsManager):
 
         if cls._use_single_state:
             for i in range(cls._num_substeps):
+                cls._apply_staged_body_forces(backend.state_0)
                 for callback in cls._state_force_callbacks:
                     callback(backend.state_0)
                 cls._step_solver(backend.state_0, backend.state_0, backend.control, contacts, cls._solver_dt)
@@ -1691,6 +1714,7 @@ class NewtonManager(PhysicsManager):
             cfg = PhysicsManager._cfg
             need_copy_on_last = cfg is not None and cls._num_substeps % 2 == 1
             for i in range(cls._num_substeps):
+                cls._apply_staged_body_forces(backend.state_0)
                 for callback in cls._state_force_callbacks:
                     callback(backend.state_0)
                 cls._step_solver(backend.state_0, backend.state_1, backend.control, contacts, cls._solver_dt)
@@ -1727,6 +1751,7 @@ class NewtonManager(PhysicsManager):
         physics_dt = cls._solver_dt * cls._num_substeps
         contacts = cls._contacts if cls._needs_collision_pipeline else None
 
+        cls._stage_body_forces()
         for i in range(cls._decimation):
             if cls._needs_collision_pipeline:
                 cls._collision_pipeline.collide(cls.backend.state_0, cls._contacts)
@@ -1754,6 +1779,7 @@ class NewtonManager(PhysicsManager):
         Used when actuators are stepped eagerly outside the graph, or when
         there are no actuators at all.
         """
+        cls._stage_body_forces()
         if cls._needs_collision_pipeline:
             cls._collision_pipeline.collide(cls.backend.state_0, cls._contacts)
             contacts = cls._contacts
