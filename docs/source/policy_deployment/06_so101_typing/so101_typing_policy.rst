@@ -22,12 +22,12 @@ requires alignment evidence for your robot and the policy's trained scene.
 Policy and deployment contract
 ------------------------------
 
-The policy uses a frozen A–Z key-position map in the robot-base frame. It has no
-camera input and does not estimate a moved keyboard. Each letter passes through
+The policy uses a frozen A–Z key-position map expressed in the robot-base frame. It has no
+camera input and cannot adjust for a moved keyboard. Each letter passes through
 three phases: seek the press, release the key, and lift clear before advancing.
 Simulation detects key actuation from the keyboard model; the hardware runner
 uses Linux evdev key-down/key-up events and computes tip clearance from measured
-joint angles using forward kinematics.
+joint angles.
 
 The actor receives 22 values in this exact order:
 
