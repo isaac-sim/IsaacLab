@@ -52,7 +52,7 @@ uv run isaaclab train --task Isaac-Reorient-KukaAllegro-Camera --rl_library rsl_
 | `--cosmos` | Put Cosmos on the task's rgb camera |
 | `--cosmos_prompt TEXT` | Scene description; repeat it for a different prompt per episode (one environment) or per environment (several) |
 | `--cosmos_camera NAME` | Scene camera to use, when the task has several rgb cameras |
-| `--cosmos_control depth\|edge` | Control prepared from the render (default `depth`) |
+| `--cosmos_control depth\|edge\|blur` | Control prepared from the render (default `depth`); see "Controls and prompts" |
 | `--cosmos_near M`, `--cosmos_far M` | Depth shown white and black (defaults 0.1 m and 2.0 m) |
 | `--cosmos_endpoint URL` | Service endpoint, `unix:///path` or `tcp://host:port` (default: the service's default) |
 | `--cosmos_transport auto\|cuda_ipc\|socket` | How images move to the service; see "Transports" (default `auto`) |
@@ -70,6 +70,22 @@ Limits of `--cosmos`:
   output keeps the original size. Direct tasks that size their observation space from the camera configuration,
   such as `Isaac-Cartpole-Camera-Direct`, are not supported; Isaac Lab warns for Direct tasks.
 - Without `--cosmos_prompt`, Cosmos runs without a scene description and Isaac Lab warns.
+
+### Controls and prompts
+
+The service follows the Sim-Transfer recipe of the Cosmos cookbook: 480p canvases, four distilled denoising steps,
+guidance 1.0, a 30-latent history window with three attention sinks, and one control per stream:
+
+| Control | Prepared by | How |
+|---|---|---|
+| `depth` | Isaac Lab | Metric depth mapped to white (near) through black (far) |
+| `edge` | Isaac Lab | Canny edges of the camera's RGB with thresholds 100 and 200, the recipe's medium preset |
+| `blur` | The service | The camera's RGB, blurred by the Framework's own filter with the recipe's medium preset |
+| `seg` | Isaac Lab | Segmentation colored with a fixed palette (`segmentation_processor`) |
+
+The prompt is used as given; like the recipe, the service does not append control instructions to it. The recipe
+uses detailed scene descriptions (a short sentence works, but a paragraph describing the scene, materials,
+lighting, and camera usually follows the control more closely).
 
 In code, `apply_cosmos(env_cfg, prompt=...)` does the same, and `cosmos_camera(camera_cfg, CosmosModelCfg(...))`
 returns a Cosmos version of one camera. Tasks that train an image encoder from a pretrained checkpoint may need
@@ -287,8 +303,8 @@ uv run isaaclab train --task Isaac-Reorient-KukaAllegro-Camera --rl_library rsl_
 - Reference (RTX PRO 6000 Blackwell MIG 2g.48gb, compiled, 640 x 640, `--kv-window 8`): one environment 917 ms per
   step, two 1596 ms (1.15x the throughput), with 39.7 GiB peak memory for two.
 
-Other control recipes are `edge_processor`, `regional_edge_processor`, and
-`segmentation_processor`, paired with modalities `"edge"` or `"seg"`. Edge
+Other control recipes are `edge_processor`, `blur_processor`, `regional_edge_processor`, and
+`segmentation_processor`, paired with modalities `"edge"`, `"blur"`, or `"seg"`. Edge
 extraction needs OpenCV in the Isaac Lab environment; the depth and segmentation
 recipes do not. Segmentation recipes require uncolorized semantic IDs and a fixed
 palette, while regional edges also require the camera's segmentation output and

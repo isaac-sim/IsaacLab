@@ -52,8 +52,8 @@ class CosmosModel:
                 raise ValueError("A Cosmos prompt list must be nonempty and contain nonempty strings.")
         elif cfg.prompt is not None and not isinstance(cfg.prompt, str):
             raise ValueError("Cosmos prompt must be a string, a list of strings, or None.")
-        if cfg.modality not in ("edge", "depth", "seg"):
-            raise ValueError("Cosmos modality must be edge, depth, or seg.")
+        if cfg.modality not in ("edge", "blur", "depth", "seg"):
+            raise ValueError("Cosmos modality must be edge, blur, depth, or seg.")
         if type(cfg.max_episode_frames) is not int or cfg.max_episode_frames <= 0:
             raise ValueError("Cosmos max_episode_frames must be a positive integer.")
         if cfg.transport not in ("auto", "cuda_ipc", "socket"):

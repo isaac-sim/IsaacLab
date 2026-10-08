@@ -413,8 +413,8 @@ def _open_arguments(metadata: dict) -> dict:
         text is not None and not isinstance(text, str) for text in prompts
     ):
         raise ValueError("Cosmos prompt must be a string or None, or one per view.")
-    if metadata["modality"] not in ("edge", "depth", "seg"):
-        raise ValueError("Cosmos modality must be edge, depth, or seg.")
+    if metadata["modality"] not in ("edge", "blur", "depth", "seg"):
+        raise ValueError("Cosmos modality must be edge, blur, depth, or seg.")
     seeds = _seeds(metadata["seeds"], num_views)
     return {
         name: (seeds if name == "seeds" else value) for name, value in metadata.items() if name not in ("op", "version")

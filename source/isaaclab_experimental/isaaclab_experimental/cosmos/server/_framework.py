@@ -174,7 +174,7 @@ class CosmosInferenceModel:
         self.capabilities: dict[str, Any] = {
             "num_views": max_views,
             "max_concurrent_streams": 1,
-            "modalities": ["edge", "depth", "seg"],
+            "modalities": ["edge", "blur", "depth", "seg"],
             "initial_frames": 1,
             "update_frames": 4,
             "canvases": [list(canvas) for canvas in _CANVASES],
@@ -209,7 +209,8 @@ class CosmosInferenceModel:
             seeds: One seed per view for its first episode.
             prompt: Appearance description, the same for every view or one per view. None uses empty text plus
                 native metadata. A view keeps its prompt across resets when the session has several views.
-            modality: Preprocessed control type: edge, depth, or seg.
+            modality: Control type: edge, depth, or seg prepared by the camera, or blur, which the service
+                derives from the camera's RGB with the Framework's own filter.
             height: Control image height [pixels].
             width: Control image width [pixels].
             max_episode_frames: Episode horizon; must be 1 + 4*k and within the service's cap.
@@ -232,7 +233,7 @@ class CosmosInferenceModel:
         if len(prompts) != num_views or any(text is not None and not isinstance(text, str) for text in prompts):
             raise ValueError("The Cosmos appearance prompt must be text or None, or one per camera view.")
         if modality not in self.capabilities["modalities"]:
-            raise ValueError("Cosmos controls must use edge, depth, or seg modality.")
+            raise ValueError("Cosmos controls must use edge, blur, depth, or seg modality.")
         if (height, width) not in _CANVASES:
             raise ValueError(f"Unsupported Cosmos canvas {(height, width)}; choose one of {list(_CANVASES)}.")
         if (
@@ -255,7 +256,7 @@ class CosmosInferenceModel:
             self._stream = _CosmosInferenceStream(self, data, seeds[0], height, width, max_episode_frames, modality)
         else:
             data = _merge_prompt_rows([rows[text] for text in prompts], self._pipeline.model.input_caption_key)
-            self._stream = _CosmosBatchStream(self, data, seeds, height, width, max_episode_frames)
+            self._stream = _CosmosBatchStream(self, data, seeds, height, width, max_episode_frames, modality)
         return self._stream
 
     def warmup(self, *, height: int = 480, width: int = 832) -> None:
@@ -325,15 +326,30 @@ class CosmosInferenceModel:
             **({"autoregressive": False} if "autoregressive" in OmniSampleOverrides.model_fields else {}),
         ).build_sample(model_config=model.config)
         data = _get_prompt_sample_data(sample, model, h=height, w=width, device="cuda")
-        # Native streaming transfer names the active hint in the caption; its
-        # transformer batch carries no separate modality identifier.
-        data[model.input_caption_key][0] = (
-            data[model.input_caption_key][0].rstrip()
-            + f" Follow the {modality} control video precisely: shape, contour, silhouette, position, and "
-            f"motion of every visible structure must align with the {modality} signal at every frame."
-        )
+        # Like the Sim-Transfer recipe (emphasize_control_in_prompt off), the caption does not name the control.
         data.update(dataset_name="video_transfer", system_prompt=_SYSTEM_PROMPT_TRANSFER, fps=[30.0])
         return data
+
+
+def _blur_controls(frames: np.ndarray | torch.Tensor) -> np.ndarray | torch.Tensor:
+    """Turn uint8 THWC RGB into the blur control with the Framework's own filter, as its Transfer inference does.
+
+    The recipe's medium preset has no random parameters, so filtering chunk by chunk matches filtering the video.
+    """
+    import torch
+    from cosmos_framework.inference.args import PresetBlurStrength, PresetEdgeThreshold, TransferHintKey
+    from cosmos_framework.inference.transfer import apply_transfer_control_augmentor
+
+    on_device = isinstance(frames, torch.Tensor)
+    array = frames.cpu().numpy() if on_device else frames
+    blurred = apply_transfer_control_augmentor(
+        torch.from_numpy(np.ascontiguousarray(array.transpose(3, 0, 1, 2))),  # [3,T,H,W]
+        hint_key=TransferHintKey.BLUR,
+        preset_edge_threshold=PresetEdgeThreshold.MEDIUM,
+        preset_blur_strength=PresetBlurStrength.MEDIUM,
+    )
+    control = torch.as_tensor(blurred).to(torch.uint8).permute(1, 2, 3, 0).contiguous()  # [T,H,W,3]
+    return control.to(frames.device) if on_device else control.numpy()
 
 
 def _merge_prompt_rows(rows: list[dict[str, Any]], caption_key: str) -> dict[str, Any]:
@@ -463,6 +479,8 @@ class _CosmosInferenceStream:
                     self._cache_scope = ExitStack()
                     self._cache_scope.enter_context(self._model.tokenizer_vision_gen.use_cached_encoder())
                     self._cache_scope.enter_context(self._model.tokenizer_vision_gen.use_cached_decoder())
+                if self._modality == "blur":
+                    control = _blur_controls(control)
                 pixels = control if on_device else torch.from_numpy(np.ascontiguousarray(control))
                 pixels = pixels.permute(3, 0, 1, 2).unsqueeze(0)
                 pixels = pixels.to(**self._model.tensor_kwargs).div(127.5).sub(1)
@@ -541,10 +559,12 @@ class _CosmosBatchStream(_CosmosInferenceStream):
         height: int,
         width: int,
         max_episode_frames: int,
+        modality: str = "depth",
     ):
         self._owner = owner
         self._model = owner._pipeline.model
         self._vae = _vae_cache_owner(self._model.tokenizer_vision_gen)
+        self._modality = modality
         self._data_batch = data_batch
         self._seeds = tuple(seeds)
         self._canvas = (height, width, 3)
@@ -628,6 +648,8 @@ class _CosmosBatchStream(_CosmosInferenceStream):
                     self._vae_states[row] = self._fresh_vae_state()
                 latents = []
                 for row, control in enumerate(controls):
+                    if self._modality == "blur":
+                        control = _blur_controls(control)
                     pixels = control if on_device else torch.from_numpy(np.ascontiguousarray(control))
                     pixels = pixels.permute(3, 0, 1, 2).unsqueeze(0).to(**self._model.tensor_kwargs).div(127.5).sub(1)
                     with self._view_vae(row):

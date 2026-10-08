@@ -20,7 +20,7 @@ from isaaclab.utils.modifiers import ModifierCfg
 from isaaclab_experimental.image_transfer import center_crop_resize
 
 from .._protocol import CANVAS_ASPECT_RATIOS, DEFAULT_ENDPOINT, request
-from .control_profiles import depth_processor, edge_processor
+from .control_profiles import blur_processor, depth_processor, edge_processor
 from .cosmos_model_cfg import CosmosModelCfg
 
 logger = logging.getLogger(__name__)
@@ -59,8 +59,8 @@ def cosmos_camera(
         ValueError: If the camera publishes outputs other than ``rgb``, already has modifiers, uses a fisheye lens,
             or the control type is unsupported.
     """
-    if model.modality not in ("depth", "edge"):
-        raise ValueError(f"Cosmos cameras support depth or edge control, got {model.modality!r}.")
+    if model.modality not in ("depth", "edge", "blur"):
+        raise ValueError(f"Cosmos cameras support depth, edge, or blur control, got {model.modality!r}.")
     if list(camera.data_types) != ["rgb"]:
         raise ValueError(
             f"A Cosmos camera publishes only 'rgb'; this camera requests {camera.data_types}. "
@@ -73,8 +73,10 @@ def cosmos_camera(
     )
     if model.modality == "depth":
         input_name, chain = depth_processor(model, near=near, far=far)
-    else:
+    elif model.modality == "edge":
         input_name, chain = edge_processor(model, lower=edge_thresholds[0], upper=edge_thresholds[1])
+    else:
+        input_name, chain = blur_processor(model)
     if (camera.height, camera.width) != (canvas_height, canvas_width):
         chain.append(ModifierCfg(func=center_crop_resize, params={"width": camera.width, "height": camera.height}))
     return replace(
@@ -129,7 +131,7 @@ def apply_cosmos(
     *,
     prompt: str | list[str] | None,
     camera: str | None = None,
-    control: Literal["depth", "edge"] = "depth",
+    control: Literal["depth", "edge", "blur"] = "depth",
     near: float = 0.1,
     far: float = 2.0,
     endpoint: str = DEFAULT_ENDPOINT,

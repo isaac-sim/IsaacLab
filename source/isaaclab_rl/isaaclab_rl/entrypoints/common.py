@@ -201,7 +201,9 @@ def add_cosmos_args(parser: argparse.ArgumentParser) -> None:
         help="Appearance prompt; repeat the option to cycle prompts per episode.",
     )
     group.add_argument("--cosmos_camera", default=None, help="Scene camera name; defaults to the only rgb camera.")
-    group.add_argument("--cosmos_control", choices=["depth", "edge"], default="depth", help="Cosmos control type.")
+    group.add_argument(
+        "--cosmos_control", choices=["depth", "edge", "blur"], default="depth", help="Cosmos control type."
+    )
     group.add_argument("--cosmos_near", type=float, default=0.1, help="Depth rendered white [m].")
     group.add_argument("--cosmos_far", type=float, default=2.0, help="Depth rendered black [m].")
     group.add_argument(

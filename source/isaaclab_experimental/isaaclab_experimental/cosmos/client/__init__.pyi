@@ -12,6 +12,7 @@ __all__ = [
     "RegionalEdgeControl",
     "RegionalEdgeControlCfg",
     "apply_cosmos",
+    "blur_processor",
     "cosmos_camera",
     "depth_processor",
     "edge_control",
@@ -28,6 +29,7 @@ from .camera import COSMOS_CANVASES, apply_cosmos, cosmos_camera, service_capabi
 from .control_profiles import (
     RegionalEdgeControl,
     RegionalEdgeControlCfg,
+    blur_processor,
     depth_processor,
     edge_control,
     edge_processor,

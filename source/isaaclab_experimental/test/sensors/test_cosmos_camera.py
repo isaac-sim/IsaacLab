@@ -57,9 +57,19 @@ def test_cosmos_camera_rejects_cameras_it_cannot_reproduce():
         cosmos_camera(_camera(64, 64).replace(data_types=["rgb", "depth"]), CosmosModelCfg(modality="depth"))
     with pytest.raises(ValueError, match="already has modifiers"):
         cosmos_camera(_camera(64, 64, modifiers={"rgb": []}), CosmosModelCfg(modality="depth"))
-    with pytest.raises(ValueError, match="depth or edge"):
+    with pytest.raises(ValueError, match="depth, edge, or blur"):
         cosmos_camera(_camera(64, 64), CosmosModelCfg(modality="seg"))
     with pytest.raises(ValueError, match="fisheye"):
         cosmos_camera(_camera(64, 64, spawn=sim_utils.FisheyeCameraCfg()), CosmosModelCfg(modality="depth"))
     with pytest.raises(ValueError, match="uint8"):
         center_crop_resize(torch.zeros(1, 8, 8, 3), width=4, height=4)
+
+
+def test_a_blur_camera_sends_its_rgb_for_the_service_to_blur():
+    """Blur control is the camera's RGB; the service applies the Framework's own blur filter."""
+    camera = cosmos_camera(_camera(640, 640), CosmosModelCfg(modality="blur"))
+    chain = camera.modifiers["rgb"]
+
+    assert camera.render_data_types() == ["rgb"]
+    assert camera.modifier_outputs() == {"rgb": "rgb"}
+    assert len(chain) == 1 and isinstance(chain[0], CosmosTransferModifierCfg)

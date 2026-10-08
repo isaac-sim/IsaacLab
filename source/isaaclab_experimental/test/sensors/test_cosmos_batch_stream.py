@@ -108,7 +108,7 @@ def batch(monkeypatch):
     module.StreamingTransferStep = StreamingTransferStep
     monkeypatch.setitem(sys.modules, module.__name__, module)
 
-    def make(views=2, partial=True, budget=13):
+    def make(views=2, partial=True, budget=13, modality="depth"):
         model = Model()
         owner = SimpleNamespace(
             _pipeline=SimpleNamespace(model=model),
@@ -116,7 +116,7 @@ def batch(monkeypatch):
             capabilities={"partial_resets": partial},
             _stream=None,
         )
-        stream = _framework._CosmosBatchStream(owner, {}, tuple(range(views)), HEIGHT, WIDTH, budget)
+        stream = _framework._CosmosBatchStream(owner, {}, tuple(range(views)), HEIGHT, WIDTH, budget, modality)
         return stream, model
 
     return make
@@ -194,3 +194,28 @@ def test_prompt_rows_merge_into_one_batch_with_a_caption_per_view():
     data = _framework._merge_prompt_rows(rows, "caption")
     assert data["caption"] == ["A lab.", "A kitchen."]
     assert data["neg_caption"] == ["", ""] and data["fps"] == [30.0, 30.0] and data["system_prompt"] == "S"
+
+
+def test_blur_views_are_blurred_by_the_framework_filter_before_encoding(batch, monkeypatch):
+    """The service turns each view's RGB into the blur control with the Framework's own augmentor (medium preset)."""
+    calls = []
+
+    def augment(frames, *, hint_key, preset_edge_threshold, preset_blur_strength):
+        calls.append((tuple(frames.shape), hint_key, preset_blur_strength))
+        return 255 - frames  # stands in for the blur; [3,T,H,W] uint8
+
+    args = types.ModuleType("cosmos_framework.inference.args")
+    args.TransferHintKey = SimpleNamespace(BLUR="blur")
+    args.PresetBlurStrength = SimpleNamespace(MEDIUM="medium")
+    args.PresetEdgeThreshold = SimpleNamespace(MEDIUM="medium")
+    transfer = types.ModuleType("cosmos_framework.inference.transfer")
+    transfer.apply_transfer_control_augmentor = augment
+    monkeypatch.setitem(sys.modules, args.__name__, args)
+    monkeypatch.setitem(sys.modules, transfer.__name__, transfer)
+
+    stream, _ = batch(modality="blur")
+    images = stream.step(_controls((1, 40), (1, 200)), (), ())
+
+    assert calls == [((3, 1, HEIGHT, WIDTH), "blur", "medium")] * 2
+    # The stand-in model echoes what it encoded: the blurred (here inverted) RGB of each view.
+    assert int(images[0].mean()) == 215 and int(images[1].mean()) == 55
