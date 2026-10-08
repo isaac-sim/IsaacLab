@@ -3,4 +3,5 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Asset helpers: where the raspberry package lives and how its USD data is read."""
+"""The berries' appearance: 3D Gaussians that follow the MPM tissue (:mod:`.binding`) and are published to the
+renderer on every frame (:mod:`.publisher`)."""

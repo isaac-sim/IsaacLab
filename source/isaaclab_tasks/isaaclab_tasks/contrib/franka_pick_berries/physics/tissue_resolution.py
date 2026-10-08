@@ -8,7 +8,7 @@
 import numpy as np
 
 
-def physics_resolution(proxy: dict, parameters: dict, preset: str) -> tuple[dict, dict, dict]:
+def select_tissue_particles(proxy: dict, parameters: dict, preset: str) -> tuple[dict, dict, dict]:
     """Select a tissue quadrature and preserve its total volume [m³] and mass [kg].
 
     The half preset retains alternating sites of a regular cubic lattice, not
@@ -28,9 +28,7 @@ def physics_resolution(proxy: dict, parameters: dict, preset: str) -> tuple[dict
         lattice = (xyz - xyz.min(0)) / spacing
         cells = np.rint(lattice).astype(np.int64)
         if not np.allclose(lattice, cells, atol=1e-3, rtol=0):
-            raise ValueError(
-                "Half resolution requires regular-lattice tissue; use --asset_version v2 or full resolution"
-            )
+            raise ValueError("Half resolution requires regular-lattice tissue; use full resolution")
         if len(np.unique(proxy["regions"])) != 1:
             raise ValueError("Half resolution currently requires a single tissue material region")
         keep = cells.sum(1) % 2 == 0
@@ -38,7 +36,7 @@ def physics_resolution(proxy: dict, parameters: dict, preset: str) -> tuple[dict
             raise ValueError("Not enough spatially distributed particles for half-resolution Gaussian binding")
         volume *= count / int(keep.sum())
         # Keep the asset and its arrays intact; Gaussian bindings are rebuilt
-        # against these positions by BerryGaussianStream at viewer creation.
+        # against these positions by GaussianPublisher at viewer creation.
         reduced = {
             "xyz": xyz[keep].copy(),
             "regions": np.asarray(proxy["regions"])[keep].copy(),

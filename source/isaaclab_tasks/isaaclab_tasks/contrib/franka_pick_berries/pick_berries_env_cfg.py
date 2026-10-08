@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""A Franka and a Gaussian berry on a studio surface or the EBC demo table."""
+"""A Franka at a lab table with a punnet of raspberries, a receiving bowl and a reject dish, in a scanned room."""
 
 from isaaclab_newton.sim.schemas import MujocoRigidBodyCfg
 from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
@@ -24,12 +24,12 @@ from isaaclab.utils.configclass import configclass
 from isaaclab_assets.robots.franka import FRANKA_PANDA_HIGH_PD_CFG
 
 from ..stack.config.franka.stack_joint_pos_env_cfg import FrankaCubeStackEnvCfg
-from .assets.asset_root import berry_root
+from .assets.asset_paths import raspberry_asset_path
 from .control.gamepad import BerryGamepadCfg
-from .mdp.actions import BerryGraspActionCfg, BerryIKAction
-from .physics.coupling import berry_physics_cfg
+from .mdp.actions import GripperApertureActionCfg, WorkspaceIKAction
+from .physics.coupling import coupled_physics_cfg
 from .scene.table import spawn_kinematic_usd
-from .scene.tableware import PLATE, TABLE_POSITION, TABLE_ROTATION, spawn_tableware
+from .scene.tableware import PUNNET, TABLE_POSITION, TABLE_ROTATION, spawn_tableware
 
 
 @configclass
@@ -61,27 +61,24 @@ class BerryTerminationsCfg:
 
 @configclass
 class BerryPickEnvCfg(FrankaCubeStackEnvCfg):
-    berry: str = "raspberry"
-    target_berry: str = "raspberry"
     tissue_solver: str = "explicit"
     """Tissue solver: ``explicit`` (explicit MLS-MPM with frictional finger pads, :mod:`.physics.grasp_explicit_mpm`)
     or ``implicit`` (Newton's implicit MPM with clamped grasping, :mod:`.physics.grasp_implicit_mpm`)."""
-    berry_count: int = 1
-    """Number of berries of the selected species (1 to 3); they share the punnet."""
+    num_berries: int = 1
+    """Number of raspberries in the punnet, 1 to 3."""
     randomize_layout: bool = True
-    """Scatter several berries in the EBC punnet with random orientations, instead of the fixed layout."""
+    """Scatter several berries in the punnet with random orientations, instead of the fixed layout."""
     layout_seed: int = 0
     """Seed of the random layout; reset replays the same layout."""
-    berry_asset_path: str | None = None
-    berry_asset_version: str = "v1"
-    physics_resolution: str = "full"
-    asset_root: str = berry_root()
-    berry_position: tuple[float, float, float] = (0.48, 0.0, 0.0)
-    background: str = "studio"
+    tissue_resolution: str = "full"
+    """Tissue particles: ``full``, or ``half`` of them for speed; the Gaussians are unchanged."""
+    berry_asset: str = raspberry_asset_path()
+    """Raspberry USDZ package: a Nucleus URL or a local path."""
+    berry_position: tuple[float, float, float] = (PUNNET[0], PUNNET[1], PUNNET[6])
+    """Center [m] of the berries' layout, on the punnet floor."""
 
     def __post_init__(self):
         super().__post_init__()
-        lab_table = self.scene.table.copy()
         self.scene.num_envs = 1
         # Inherited as False from the stack task's per-env cube randomization; a no-op with a
         # single environment, but the Newton backend's articulation/body pattern matching fails
@@ -107,33 +104,21 @@ class BerryPickEnvCfg(FrankaCubeStackEnvCfg):
         )
         self.scene.robot.init_state.joint_pos = {f"panda_joint{i}": q for i, q in enumerate(ready, 1)}
         self.scene.robot.init_state.joint_pos["panda_finger_joint.*"] = 0.04
-        self.scene.table.init_state.pos = (0.45, 0, -0.025)
-        self.scene.table.init_state.rot = (0, 0, 0, 1)
-        self.scene.table.spawn = sim_utils.CuboidCfg(
-            size=(0.8, 0.7, 0.05),
-            # A kinematic body, so the arm solver collides with it and the tissue solver sees it as a proxy.
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.22, 0.26, 0.29), roughness=0.65),
+        # The stack task's lab table, as a kinematic body: the arm solver collides with it and the tissue solver sees
+        # it as a proxy.
+        self.scene.table.spawn.func = spawn_kinematic_usd
+        self.scene.table.init_state.pos = TABLE_POSITION
+        self.scene.table.init_state.rot = TABLE_ROTATION
+        self.scene.plane.spawn.visible = False
+        self.scene.tableware = AssetBaseCfg(
+            prim_path="/World/TablewareCollisions",
+            spawn=sim_utils.SpawnerCfg(func=spawn_tableware),
         )
-        if self.background == "ebc":
-            self.scene.table = lab_table
-            self.scene.table.spawn.func = spawn_kinematic_usd
-            self.scene.table.init_state.pos = TABLE_POSITION
-            self.scene.table.init_state.rot = TABLE_ROTATION
-            self.scene.plane.spawn.visible = False
-            self.berry_position = (PLATE[0], PLATE[1], PLATE[4])
-            self.scene.tableware = AssetBaseCfg(
-                prim_path="/World/TablewareCollisions",
-                spawn=sim_utils.SpawnerCfg(func=spawn_tableware),
-            )
-        elif self.background != "studio":
-            raise ValueError(f"Unknown berry background: {self.background}")
         self.scene.robot.actuators["panda_hand"].stiffness = 400.0
         self.scene.robot.actuators["panda_hand"].damping = 20.0
         self.scene.robot.actuators["panda_hand"].joint_effort_limit = 10.0
         self.actions.arm_action = mdp.DifferentialInverseKinematicsActionCfg(
-            class_type=BerryIKAction,
+            class_type=WorkspaceIKAction,
             asset_name="robot",
             joint_names=["panda_joint.*"],
             body_name="panda_hand",
@@ -141,7 +126,7 @@ class BerryPickEnvCfg(FrankaCubeStackEnvCfg):
             scale=1.0,
             body_offset=mdp.DifferentialInverseKinematicsActionCfg.OffsetCfg(pos=(0, 0, 0.107)),
         )
-        self.actions.gripper_action = BerryGraspActionCfg(asset_name="robot")
+        self.actions.gripper_action = GripperApertureActionCfg(asset_name="robot")
         self.observations = BerryObservationsCfg()
         self.events = BerryEventsCfg()
         self.terminations = BerryTerminationsCfg()
@@ -149,6 +134,6 @@ class BerryPickEnvCfg(FrankaCubeStackEnvCfg):
         self.sim.dt = 1 / 120
         self.sim.render_interval = 4
         self.episode_length_s = 3600
-        self.sim.physics = berry_physics_cfg()
+        self.sim.physics = coupled_physics_cfg()
         self.sim.physics.default_shape_cfg.gap = 0.0
         self.teleop_devices = DevicesCfg(devices={"gamepad": BerryGamepadCfg(sim_device=self.sim.device)})

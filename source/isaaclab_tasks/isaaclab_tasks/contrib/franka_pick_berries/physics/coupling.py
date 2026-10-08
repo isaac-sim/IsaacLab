@@ -47,7 +47,7 @@ def _arm_entry(substeps: int, static_shapes: bool) -> CouplerEntryCfg:
     )
 
 
-def berry_physics_cfg(solver: str = "explicit") -> NewtonCfg:
+def coupled_physics_cfg(solver: str = "explicit") -> NewtonCfg:
     """Return the coupled arm and tissue physics configuration; fit it to the berries with
     :func:`configure_tissue_solver`.
 
@@ -107,8 +107,8 @@ def berry_physics_cfg(solver: str = "explicit") -> NewtonCfg:
     )
 
 
-def configure_tissue_solver(physics: NewtonCfg, specs, background: str) -> None:
-    """Fit the tissue solver of a configuration from :func:`berry_physics_cfg` to the berries.
+def configure_tissue_solver(physics: NewtonCfg, specs) -> None:
+    """Fit the tissue solver of a configuration from :func:`coupled_physics_cfg` to the berries.
 
     The implicit solver gets the grid spacing [m] of the coarsest berry, which keeps at least the required particles
     per cell for all of them, and active-cell room for each; the explicit solver gets its grid, rates, contacts and
@@ -117,7 +117,7 @@ def configure_tissue_solver(physics: NewtonCfg, specs, background: str) -> None:
     for entry in physics.solver_cfg.entries:
         if entry.name == TISSUE_ENTRY:
             if isinstance(entry.solver_cfg, GraspExplicitMPMSolverCfg):
-                entry.solver_cfg.solver_config = explicit_solver_config(specs, background, _FINGER)
+                entry.solver_cfg.solver_config = explicit_solver_config(specs, _FINGER)
             else:
                 entry.solver_cfg.voxel_size = max(spec.voxel_size for spec in specs)
                 entry.solver_cfg.max_active_cell_count = CELLS_PER_BERRY * len(specs)
@@ -141,7 +141,7 @@ def tissue_solver():
     return solver, coupled.entry_state(TISSUE_ENTRY), solver.model
 
 
-def bind_tissues(tissues) -> None:
+def register_tissues(tissues) -> None:
     """Set each berry's material on the tissue solver, and read its damage from the solver.
 
     Each berry is its own velocity field of the explicit solver, in frictional contact with the others; the implicit
@@ -156,7 +156,7 @@ def bind_tissues(tissues) -> None:
         tissue.bind_solver(solver)
 
 
-def set_grasping(grasping: wp.array) -> None:
+def set_implicit_grasp(grasping: wp.array) -> None:
     """Clamp the tissue that the fingers press to them, or release it, with the implicit solver.
 
     Args:
@@ -168,14 +168,14 @@ def set_grasping(grasping: wp.array) -> None:
         wp.copy(solver.grasping, grasping)
 
 
-def check_tissue() -> None:
+def check_tissue_solver() -> None:
     """Raise if the explicit tissue solver's grid overflowed; see :meth:`.SolverGraspExplicitMPM.check`."""
     solver = tissue_solver()[0]
     if isinstance(solver, SolverGraspExplicitMPM):
         solver.check()
 
 
-def reset_tissue() -> None:
+def reset_tissue_solver() -> None:
     """Reset the tissue solver's deformation and damage after the scene restored the particles."""
     if isinstance(tissue_solver()[0], SolverGraspExplicitMPM):
         # The coupled reset passes the restored particles to the entry, which restores its own solver state.

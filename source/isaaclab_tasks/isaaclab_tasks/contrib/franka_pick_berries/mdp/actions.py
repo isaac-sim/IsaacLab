@@ -5,6 +5,7 @@
 
 """Relative IK and a scalar, continuous gripper opening."""
 
+import numpy as np
 import torch
 import warp as wp
 
@@ -14,7 +15,7 @@ from isaaclab.envs.mdp.actions.task_space_actions import (
 from isaaclab.managers import ActionTerm, ActionTermCfg
 from isaaclab.utils.configclass import configclass
 
-from ..physics.coupling import set_grasping
+from ..physics.coupling import set_implicit_grasp
 
 HOLD_TOLERANCE = 0.0005
 """Distance [m] between commanded and current finger opening within which the fingers hold their aperture."""
@@ -26,7 +27,7 @@ HOLD_MAX_SPEED = 0.001
 """Finger speed [m/s] above which the fingers are moving, not holding."""
 
 
-class BerryIKAction(DifferentialInverseKinematicsAction):
+class WorkspaceIKAction(DifferentialInverseKinematicsAction):
     """Differential IK that holds each command's joint solution across the physics steps of one control step."""
 
     def __init__(self, cfg, env):
@@ -35,12 +36,14 @@ class BerryIKAction(DifferentialInverseKinematicsAction):
         # Keep carried tissue inside the explicitly allocated MPM work volume.
         offset = torch.tensor(env.cfg.berry_position, device=self.device)
         # All local grids must cover the commanded workspace, including edge berries.
-        # Several berries of one species stay inside the explicit grid at full reach, which the sort mode needs
-        # to bring a berry to the reject dish.
-        reach = 0.065 if env.cfg.berry == "all" else 0.09
-        upper_y = 0.205 if env.cfg.background == "ebc" else reach
-        self._lower = offset + torch.tensor([-reach, -reach, 0.005], device=self.device)
-        self._upper = offset + torch.tensor([reach, upper_y, 0.18], device=self.device)
+        # It reaches the bowl and the reject dish.
+        self._lower = offset + torch.tensor([-0.09, -0.09, 0.005], device=self.device)
+        self._upper = offset + torch.tensor([0.09, 0.205, 0.18], device=self.device)
+
+    def tcp_pose(self) -> tuple[np.ndarray, np.ndarray]:
+        """Return the gripper's tool center point position [m] and orientation (xyzw quaternion) on the host."""
+        position, orientation = self._compute_frame_pose()
+        return position[0].cpu().numpy(), orientation[0].cpu().numpy()
 
     def process_actions(self, actions):
         if not torch.isfinite(actions).all():
@@ -59,7 +62,7 @@ class BerryIKAction(DifferentialInverseKinematicsAction):
             self._ik_pending = False
 
 
-class BerryGraspAction(ActionTerm):
+class GripperApertureAction(ActionTerm):
     """Map [-1, 1] continuously to total finger aperture [0, 0.08 m], and grasp the tissue the fingers hold.
 
     The fingers hold an aperture while they are commanded close to their current opening, short of fully open, and
@@ -100,7 +103,7 @@ class BerryGraspAction(ActionTerm):
             & (self._target < HOLD_MAX_OPENING)
             & (speed.abs() <= HOLD_MAX_SPEED)
         )
-        set_grasping(wp.from_torch(holding.all().to(torch.int32).reshape(1)))
+        set_implicit_grasp(wp.from_torch(holding.all().to(torch.int32).reshape(1)))
 
     def apply_actions(self):
         self._asset.set_joint_position_target(self._target, joint_ids=self._joint_ids)
@@ -111,5 +114,5 @@ class BerryGraspAction(ActionTerm):
 
 
 @configclass
-class BerryGraspActionCfg(ActionTermCfg):
-    class_type: type = BerryGraspAction
+class GripperApertureActionCfg(ActionTermCfg):
+    class_type: type = GripperApertureAction

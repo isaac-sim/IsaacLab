@@ -3,13 +3,14 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Berry tissue stiffness and the particle material that spawns it, shared by the tissue solvers."""
+"""Raspberry tissue stiffness and the particle material that spawns it, shared by the tissue solvers."""
 
 from isaaclab_newton.sim.spawners.mpm import MPMParticleMaterialCfg
 
-# Empirical handling priors [Pa], not a force/displacement fit to measured fruit.
-YOUNG_MODULUS = {"raspberry": 12000.0, "blackberry": 13500.0, "blueberry": 15000.0, "strawberry": 18000.0}
+YOUNG_MODULUS = 12000.0
+"""Young's modulus [Pa] of raspberry tissue: an empirical handling prior, not a fit to measured fruit."""
 POISSON_RATIO = 0.4
+"""Poisson's ratio of raspberry tissue."""
 
 
 def particle_material(profile: dict) -> MPMParticleMaterialCfg:
@@ -23,7 +24,7 @@ def particle_material(profile: dict) -> MPMParticleMaterialCfg:
     source = profile["simulation"]
     return MPMParticleMaterialCfg(
         density=float(source["density"]),
-        young_modulus=YOUNG_MODULUS[profile["berry"]],
+        young_modulus=YOUNG_MODULUS,
         poisson_ratio=POISSON_RATIO,
         friction=float(source["friction"]),
     )

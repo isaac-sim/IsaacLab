@@ -3,4 +3,4 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Live Gaussian rendering: the interactive viewer, per-berry Gaussian streams and sampling settings."""
+"""Viewing helpers: the RTX viewer of the workcell, a camera director and a video writer for the demo film."""

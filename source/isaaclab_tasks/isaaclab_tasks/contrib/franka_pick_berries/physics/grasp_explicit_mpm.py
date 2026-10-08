@@ -1255,7 +1255,7 @@ _PAD_OFFSETS = {"left": (0.0, 0.0054, 0.045), "right": (0.0, -0.0054, 0.045)}
 
 @dataclass
 class TissueMaterial:
-    """Explicit-solver material of one berry species."""
+    """Explicit-solver material of the berry tissue."""
 
     yield_strain: float
     interface_yield_strain: float
@@ -1273,15 +1273,14 @@ class TissueMaterial:
 def tissue_material(profile: dict) -> TissueMaterial:
     """Return the explicit-solver material of a berry from its asset profile."""
     source = profile["simulation"]
-    berry = profile["berry"]
-    young = YOUNG_MODULUS[berry]
     density, spacing = float(source["density"]), float(source["grid"])
-    wave_speed = math.sqrt(young * (1 - POISSON_RATIO) / ((1 + POISSON_RATIO) * (1 - 2 * POISSON_RATIO) * density))
-    rate = 5040 if berry == "raspberry" else math.ceil(source["hz"] / 120) * 120
-    rate = max(rate, math.ceil(wave_speed / (spacing * 0.44 * 120)) * 120)
+    wave_speed = math.sqrt(
+        YOUNG_MODULUS * (1 - POISSON_RATIO) / ((1 + POISSON_RATIO) * (1 - 2 * POISSON_RATIO) * density)
+    )
+    rate = max(5040, math.ceil(wave_speed / (spacing * 0.44 * 120)) * 120)
     tears = source.get("tear_end", 0) > 0
     return TissueMaterial(
-        yield_strain=0.8 if berry == "raspberry" else 0.35,
+        yield_strain=0.8,
         interface_yield_strain=0.35,
         tear_onset=2.5 if tears else 0.0,
         tear_end=5.0 if tears else 0.0,
@@ -1293,32 +1292,29 @@ def tissue_material(profile: dict) -> TissueMaterial:
     )
 
 
-def workcell_grid(background: str, spacing: float, center) -> tuple[tuple[float, ...], tuple[int, int, int]]:
-    """Return the grid origin [m] and node counts covering the workcell around ``center``, and on the EBC table the
-    transfer to the bowl and the reject dish."""
-    origin = np.array([-0.12, -0.12, -0.016 if background == "ebc" else -0.008])
-    resolution = np.array([121, 191 if background == "ebc" else 121, 121])
-    if background == "ebc":
-        padding = math.ceil(0.04 / spacing)
-        origin[:2] -= padding * spacing
-        resolution[:2] += padding
+def workcell_grid(spacing: float, center) -> tuple[tuple[float, ...], tuple[int, int, int]]:
+    """Return the grid origin [m] and node counts covering the punnet around ``center``, the bowl and the reject
+    dish."""
+    origin = np.array([-0.12, -0.12, -0.016])
+    resolution = np.array([121, 191, 121])
+    padding = math.ceil(0.04 / spacing)
+    origin[:2] -= padding * spacing
+    resolution[:2] += padding
     return tuple((np.asarray(center) + origin).tolist()), tuple(int(r) for r in resolution)
 
 
-def explicit_solver_config(specs, background: str, fingers: dict[str, str]) -> SolverGraspExplicitMPM.Config:
+def explicit_solver_config(specs, fingers: dict[str, str]) -> SolverGraspExplicitMPM.Config:
     """Configure the explicit solver for the task's berries: one field per berry when there are several.
 
     Args:
         specs: The berries' :class:`.tissue.TissueSpec`.
-        background: ``studio`` or ``ebc``; the EBC table adds the punnet, bowl and reject dish.
         fingers: Body label pattern of each finger, keyed ``left`` and ``right``.
     """
     materials = [tissue_material(spec.profile) for spec in specs]
     # One grid serves every berry: the coarsest spacing and the fastest rate keep each stable.
     spacing = max(m.grid_spacing for m in materials)
     rate = max(m.substep_rate for m in materials)
-    origin, resolution = workcell_grid(background, spacing, specs[0].offset)
-    ebc = background == "ebc"
+    origin, resolution = workcell_grid(spacing, specs[0].offset)
     return SolverGraspExplicitMPM.Config(
         grid_origin=origin,
         grid_resolution=resolution,
@@ -1326,8 +1322,8 @@ def explicit_solver_config(specs, background: str, fingers: dict[str, str]) -> S
         fields=len(specs),
         substep_rate=rate,
         damping=materials[0].damping,
-        ground_friction=0.3 if ebc else materials[0].friction,
-        vessels=tuple(tuple(row) for row in tableware_solids().tolist()) if ebc else (),
+        ground_friction=0.3,
+        vessels=tuple(tuple(row) for row in tableware_solids().tolist()),
         vessel_corner_radius=PUNNET[4],
         vessel_wall_thickness=PUNNET[5],
         pads=tuple(PadConfig(fingers[side], _PAD_OFFSETS[side], _PAD_HALF_EXTENTS) for side in ("left", "right")),

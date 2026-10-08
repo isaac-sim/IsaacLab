@@ -5,8 +5,8 @@
 
 """Shot-by-shot camera for demonstration videos of the berry sorting sequence.
 
-Each phase of :class:`~..control.sorting.BerrySortSequence` selects a shot: an establishing view of the room, macro
-views of the grasps, tracking views of the carries and close-ups of the releases, ending with an orbit of the glass
+Each phase of :class:`~..control.sorting_sequence.SortingSequence` selects a shot: an establishing view of the room,
+macro views of the grasps, tracking views of the carries and close-ups of the releases, ending with an orbit of the
 bowl. Every shot moves slowly, and the camera blends from one shot to the next. Time is simulation time, so that a
 recording plays at the same pace however slowly it renders.
 """
@@ -15,7 +15,7 @@ import math
 
 import numpy as np
 
-from ..scene.tableware import BOWL, REJECT
+from ..scene.tableware import BOWL, REJECT_DISH
 
 # A camera looking from this side of the workcell shows the room behind it, as the default workcell view does.
 ROOM_AZIMUTH = -47.0
@@ -23,6 +23,9 @@ ROOM_AZIMUTH = -47.0
 
 CLOSE_SHOTS = ("macro", "grasp", "release")
 """Shots that use the viewer's depth of field, if any."""
+
+FINALE_DURATION = 6.5
+"""Duration [s] of the final orbit and pull-back, after which the film is over."""
 
 
 def _smooth(u: float) -> float:
@@ -36,7 +39,7 @@ def _around(subject: np.ndarray, distance: float, azimuth: float, elevation: flo
     return subject + distance * np.array([math.cos(e) * math.cos(a), math.cos(e) * math.sin(a), math.sin(e)])
 
 
-class SortCinematography:
+class SortingCameraDirector:
     """Choose and move the camera for each phase of the sorting sequence."""
 
     def __init__(self, transition: float = 1.2):
@@ -51,6 +54,11 @@ class SortCinematography:
         self.pose = None
         self.start_pose = None
 
+    @property
+    def finished(self) -> bool:
+        """Whether the final shot is over."""
+        return self.shot == "finale" and self.shot_time >= FINALE_DURATION
+
     def update(self, viewer, sequence, berries: dict, tcp: np.ndarray, dt: float) -> None:
         """Move ``viewer``'s camera for the current phase of ``sequence``.
 
@@ -63,7 +71,7 @@ class SortCinematography:
         """
         index = max(sequence.index, 0)
         berry = list(berries.values())[index]
-        viewer.follow(berry)
+        viewer.set_handled_berry(berry)
         shot = self._choose(sequence, index)
         if shot != self.shot:
             self.shot, self.shot_time, self.start_pose = shot, 0.0, self.pose
@@ -138,7 +146,7 @@ class SortCinematography:
     @staticmethod
     def _release(index, center, tcp, time):
         """Push in on the reject dish or the receiving bowl as the berry lands."""
-        x, y = (REJECT if index == 0 else BOWL)[:2]
+        x, y = (REJECT_DISH if index == 0 else BOWL)[:2]
         subject = np.array([x, y, 0.015])
         distance = 0.19 - 0.04 * _smooth(time / 3.0)
         return _around(subject, distance, ROOM_AZIMUTH + (10.0 if index == 0 else -15.0), 32.0), subject, 30.0

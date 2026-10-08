@@ -19,20 +19,18 @@ from isaaclab_newton.assets import MPMObjectCfg
 from isaaclab_newton.sim.spawners.mpm import MPMPointsCfg
 from scipy.spatial.transform import Rotation
 
+from ..assets.berry_asset import load_berry_asset
 from ..assets.sh_rotation import rotate_sh
-from ..assets.usd_asset import load_berry
 from ..scene.tableware import BOWL, PUNNET
 from .coupling import tissue_solver
 from .materials import particle_material
-from .resolution import physics_resolution
+from .tissue_resolution import select_tissue_particles
 
 if TYPE_CHECKING:
     from isaaclab_newton.assets import MPMObject
     from isaaclab_newton.sim.spawners.mpm import MPMParticleMaterialCfg
 
     from ..pick_berries_env_cfg import BerryPickEnvCfg
-
-BERRY_NAMES = ("raspberry", "blackberry", "blueberry", "strawberry")
 
 PARTICLES_PER_CELL = 8
 """Particles per background-grid cell. Below about this density the material is too sparse to carry load."""
@@ -43,8 +41,7 @@ class TissueSpec:
     """One berry's asset, tissue particles and world placement, resolved from the task configuration."""
 
     name: str
-    """Instance name: the species, numbered when several berries share it (``raspberry_1``)."""
-    species: str
+    """Instance name, numbered when there are several berries (``raspberry_1``)."""
     path: str
     stage: object
     asset: dict
@@ -75,32 +72,22 @@ class TissueSpec:
         return float(PARTICLES_PER_CELL ** (1.0 / 3.0) * self.proxy["spacing"])
 
 
-# Offsets [m] about the berry position: four species at the punnet's corners, or two or three of one species.
-_SPECIES_LAYOUT = ((-0.025, -0.025), (0.025, -0.025), (-0.025, 0.025), (0.025, 0.025))
-_COUNT_LAYOUT = {2: ((-0.022, 0.0), (0.022, 0.0)), 3: ((0.0, -0.018), (-0.024, 0.018), (0.024, 0.018))}
+# Offsets [m] of the fixed layout about the punnet center, by number of berries.
+_FIXED_LAYOUT = {
+    1: ((0.0, 0.0),),
+    2: ((-0.022, 0.0), (0.022, 0.0)),
+    3: ((0.0, -0.018), (-0.024, 0.018), (0.024, 0.018)),
+}
 
 
-def berry_layout(cfg: BerryPickEnvCfg) -> list[tuple[str, str, tuple[float, float, float]]]:
-    """Return each berry's instance name, species and world offset [m].
-
-    ``berry="all"`` separates the four species about the punnet; ``berry_count`` of two or three places that many
-    berries of one species there.
-    """
+def fixed_layout(cfg: BerryPickEnvCfg) -> list[tuple[str, tuple[float, float, float]]]:
+    """Return each berry's instance name and world offset [m] in the fixed layout."""
+    if cfg.num_berries not in _FIXED_LAYOUT:
+        raise ValueError(f"num_berries must be 1, 2 or 3, not {cfg.num_berries}")
     x, y, z = cfg.berry_position
-    if cfg.berry == "all":
-        if cfg.berry_asset_path:
-            raise ValueError("A custom --asset can only be used with a single berry")
-        if cfg.berry_count != 1:
-            raise ValueError("berry_count applies to a single species, not berry='all'")
-        return [(name, name, (x + dx, y + dy, z)) for name, (dx, dy) in zip(BERRY_NAMES, _SPECIES_LAYOUT)]
-    if cfg.berry_count == 1:
-        return [(cfg.berry, cfg.berry, (x, y, z))]
-    if cfg.berry_count not in _COUNT_LAYOUT:
-        raise ValueError(f"berry_count must be 1, 2 or 3, not {cfg.berry_count}")
-    return [
-        (f"{cfg.berry}_{i}", cfg.berry, (x + dx, y + dy, z))
-        for i, (dx, dy) in enumerate(_COUNT_LAYOUT[cfg.berry_count], start=1)
-    ]
+    if cfg.num_berries == 1:
+        return [("raspberry", (x, y, z))]
+    return [(f"raspberry_{i}", (x + dx, y + dy, z)) for i, (dx, dy) in enumerate(_FIXED_LAYOUT[cfg.num_berries], 1)]
 
 
 def random_punnet_poses(proxy: dict, count: int, seed: int) -> tuple[np.ndarray, np.ndarray]:
@@ -130,7 +117,7 @@ def random_punnet_poses(proxy: dict, count: int, seed: int) -> tuple[np.ndarray,
     return rotations, np.asarray(shifts, np.float32)
 
 
-def place_tissue(spec: TissueSpec, rotation: np.ndarray, shift: np.ndarray, offset) -> TissueSpec:
+def transform_tissue(spec: TissueSpec, rotation: np.ndarray, shift: np.ndarray, offset) -> TissueSpec:
     """Return the berry rotated by ``rotation`` and moved by ``shift`` [m] in its frame, at world ``offset`` [m].
 
     Tissue and Gaussians move together; the Gaussians' orientations and spherical harmonics turn with them.
@@ -143,23 +130,15 @@ def place_tissue(spec: TissueSpec, rotation: np.ndarray, shift: np.ndarray, offs
     return replace(spec, proxy=proxy, asset=asset, offset=tuple(offset))
 
 
-def load_tissue(cfg: BerryPickEnvCfg, name: str, species: str, offset: tuple[float, float, float]) -> TissueSpec:
+def load_tissue(cfg: BerryPickEnvCfg, name: str, offset: tuple[float, float, float]) -> TissueSpec:
     """Load one berry's asset and select its tissue particles and material."""
-    if cfg.berry_asset_version not in ("v1", "v2", "v3"):
-        raise ValueError(f"Unknown berry asset version: {cfg.berry_asset_version}")
-    suffix = "" if cfg.berry_asset_version == "v1" else f"_{cfg.berry_asset_version}"
-    path = cfg.berry_asset_path or f"{cfg.asset_root}/{species}/{species}{suffix}.usdz"
-    stage, asset, proxy, profile = load_berry(path)
-    if profile["berry"] != species:
-        raise ValueError(f"Asset is for {profile['berry']}, but --berry selects {species}")
+    path = cfg.berry_asset
+    stage, asset, proxy, profile = load_berry_asset(path)
     material = particle_material(profile)
-    parameters = {"density": material.density}
-    if "particle_volume" in proxy:
-        # v1 tissue has none; its particles then fill one lattice cell each.
-        parameters["particle_volume"] = float(proxy["particle_volume"])
-    proxy, _, resolution = physics_resolution(proxy, parameters, cfg.physics_resolution)
+    parameters = {"density": material.density, "particle_volume": float(proxy["particle_volume"])}
+    proxy, _, resolution = select_tissue_particles(proxy, parameters, cfg.tissue_resolution)
     proxy = dict(proxy, particle_volume=resolution["particle_volume_m3"])
-    return TissueSpec(name, species, path, stage, asset, proxy, profile, resolution, material, offset)
+    return TissueSpec(name, path, stage, asset, proxy, profile, resolution, material, offset)
 
 
 def tissue_object_cfg(spec: TissueSpec) -> MPMObjectCfg:
@@ -189,7 +168,7 @@ class BerryTissue:
     def __init__(self, spec: TissueSpec, particles: MPMObject):
         self.spec = spec
         self.particles = particles
-        self.berry = spec.name
+        self.name = spec.name
         self.usd_path, self.usd_stage = spec.path, spec.stage
         self.asset, self.proxy, self.profile, self.resolution = spec.asset, spec.proxy, spec.profile, spec.resolution
         self.offset = np.asarray(spec.offset, np.float32)
@@ -210,7 +189,7 @@ class BerryTissue:
         """Particle velocities [m/s]."""
         return self.particles.data.particle_vel_w.torch[0].cpu().numpy()
 
-    def positions_wp(self) -> wp.array:
+    def positions_warp(self) -> wp.array:
         """Particle positions in the berry frame as a Warp array, refreshed on every call."""
         world = self.particles.data.particle_pos_w.warp[0]
         wp.launch(

@@ -3,4 +3,4 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Static workcell geometry: tableware props and the EBC room background."""
+"""Static workcell helpers: the lab table, the punnet, bowl and reject dish, and the scanned room."""

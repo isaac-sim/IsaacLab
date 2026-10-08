@@ -12,12 +12,10 @@ import numpy as np
 from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics, UsdShade, Vt
 
 # (x, y, outer radius, inner radius, base thickness, total height), task frame.
-PLATE = (0.48, 0.0, 0.065, 0.060, 0.004, 0.009)
 BOWL = (0.48, 0.16, 0.060, 0.057, 0.004, 0.030)
-# Legacy PLATE center/floor remain the spawn-layout reference for CLI compatibility.
 # Punnet: (x, y, half width, half depth, corner radius, wall, floor, height).
 PUNNET = (0.48, 0.0, 0.055, 0.070, 0.010, 0.001, 0.004, 0.028)
-REJECT = (0.40, -0.085, 0.028, 0.026, 0.004, 0.018)
+REJECT_DISH = (0.40, -0.085, 0.028, 0.026, 0.004, 0.018)
 PUNNET_FLOOR_OPACITY = 0.6
 """Opacity of the punnet floor, which must catch the berries' shadows."""
 PUNNET_FLOOR_COLOR = (0.12, 0.125, 0.13)
@@ -45,7 +43,7 @@ def tableware_solids() -> np.ndarray:
     The punnet corner radius and wall thickness are shared with its render mesh.
     """
     solids = []
-    for x, y, outer, inner, base, height in (BOWL, REJECT):
+    for x, y, outer, inner, base, height in (BOWL, REJECT_DISH):
         solids += [(x, y, base / 2, 0, outer, base / 2), (x, y, (height + base) / 2, inner, outer, (height - base) / 2)]
     x, y, hx, hy, _, _, base, height = PUNNET
     solids += [(x, y, base / 2, -hx, hy, base / 2), (x, y, (height + base) / 2, -hx, -hy, (height - base) / 2)]
@@ -58,7 +56,7 @@ def spawn_tableware(prim_path: str, cfg, translation=None, orientation=None, **k
 
     stage = get_current_stage()
     root = UsdGeom.Xform.Define(stage, prim_path)
-    for index, (x, y, outer, inner, base, height) in enumerate((BOWL, REJECT)):
+    for index, (x, y, outer, inner, base, height) in enumerate((BOWL, REJECT_DISH)):
         disk = UsdGeom.Cylinder.Define(stage, f"{prim_path}/Base{index}")
         disk.CreateRadiusAttr(outer)
         disk.CreateHeightAttr(base)
@@ -320,18 +318,18 @@ def _porcelain_material(stage: Usd.Stage, path: str) -> UsdShade.Material:
     return material
 
 
-def add_tableware_visuals(stage: Usd.Stage, bowl: str = "glass") -> None:
+def add_tableware_visuals(stage: Usd.Stage, bowl_material: str = "glass") -> None:
     """Author open container render meshes.
 
     Args:
         stage: Stage to author the meshes in.
-        bowl: Material of the receiving bowl, one of :data:`BOWL_MATERIALS`.
+        bowl_material: Material of the receiving bowl, one of :data:`BOWL_MATERIALS`.
     """
-    if bowl not in BOWL_MATERIALS:
-        raise ValueError(f"Unknown bowl material {bowl!r}; expected one of {BOWL_MATERIALS}")
+    if bowl_material not in BOWL_MATERIALS:
+        raise ValueError(f"Unknown bowl material {bowl_material!r}; expected one of {BOWL_MATERIALS}")
     UsdGeom.Xform.Define(stage, "/World/Tableware")
     _add_punnet(stage)
-    for name, spec in (("Reject", REJECT), ("Bowl", BOWL)):
+    for name, spec in (("Reject", REJECT_DISH), ("Bowl", BOWL)):
         x, y, outer, inner, base, height = spec
         bevel = min(0.001, (outer - inner) / 3)
         # Closed solid cross-section: underside, outside, lip, inside, inner floor.
@@ -354,7 +352,7 @@ def add_tableware_visuals(stage: Usd.Stage, bowl: str = "glass") -> None:
         # Round the bowl's foot ring into its recess, and its 1 mm lip top into the lip bevels.
         smooth_corners = (2, 6, 7) if name == "Bowl" else ()
         mesh = _lathe(stage, f"/World/Tableware/{name}", profile, (x, y), smooth_corners)
-        if name == "Bowl" and bowl == "porcelain":
+        if name == "Bowl" and bowl_material == "porcelain":
             material = _porcelain_material(stage, "/World/Tableware/BowlMaterial")
         elif name == "Bowl":
             # RTX shadow rays do not refract: solid glass would cast an opaque

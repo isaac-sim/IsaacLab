@@ -3,4 +3,5 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Tissue physics: Newton coupled physics, the implicit and explicit tissue solvers, materials and per-berry tissue."""
+"""The berries' physics: tissue as MPM particles (:mod:`.tissue`), its solvers (:mod:`.grasp_explicit_mpm`, the
+default, and :mod:`.grasp_implicit_mpm`) and their coupling to the robot (:mod:`.coupling`)."""
