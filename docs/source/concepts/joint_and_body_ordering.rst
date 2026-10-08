@@ -67,6 +67,10 @@ consistent:
     backend order, which mismatches a checkpoint whose body vectors follow the
     source convention.
 
+Incoming joint wrenches read through
+:attr:`~isaaclab.assets.ArticulationData.body_joint_wrench` also follow public body order.
+See :doc:`sensors/joint_wrench_sensor` for enabling wrench data and backend root-body coverage.
+
 Once initialized, the articulation and its
 :class:`~isaaclab.assets.ArticulationNameMap` objects establish this contract:
 
@@ -80,8 +84,6 @@ Once initialized, the articulation and its
       - Public order
     * - :class:`~isaaclab.assets.ArticulationData` joint and body properties
       - Public order
-    * - Scene joint-wrench sensor names and force/torque entries
-      - Owning articulation's public body order, restricted to reportable bodies
     * - Articulation command and property writers
       - Public input order
     * - ``backend_joint_names`` and ``backend_body_names``

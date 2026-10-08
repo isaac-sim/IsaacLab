@@ -1017,6 +1017,24 @@ class ArticulationData(BaseArticulationData):
         return self._body_com_pose_w_ta
 
     @property
+    def body_joint_wrench(self) -> ProxyArray:
+        """Incoming joint reaction wrenches in public body order; see the base data contract."""
+        if self._body_joint_wrench.data is None:
+            self._body_joint_wrench.data = wp.empty(
+                (self._num_instances, self._num_bodies), dtype=wp.spatial_vectorf, device=self.device
+            )
+            self._body_joint_wrench_backend = (
+                TimestampedBuffer(wp.empty_like(self._body_joint_wrench.data)) if self.has_body_ordering else None
+            )
+            self._body_joint_wrench_ta = ProxyArray(self._body_joint_wrench.data)
+        self._refresh_reordered_body_buffer(
+            self._body_joint_wrench,
+            self._body_joint_wrench_backend,
+            TT.LINK_INCOMING_JOINT_FORCE,
+        )
+        return self._body_joint_wrench_ta
+
+    @property
     def body_com_acc_w(self) -> ProxyArray:
         """Acceleration of all bodies center of mass ``[lin_acc, ang_acc]`` [m/s^2, rad/s^2].
 

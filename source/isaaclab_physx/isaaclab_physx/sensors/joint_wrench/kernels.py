@@ -5,15 +5,11 @@
 
 import warp as wp
 
-from isaaclab.assets.articulation.ordering_kernels import resolve_backend_index
-
 
 @wp.kernel
 def joint_wrench_split_kernel(
     env_mask: wp.array(dtype=wp.bool),
     incoming_joint_wrench: wp.array(dtype=wp.spatial_vectorf, ndim=2),
-    user_to_backend: wp.array(dtype=wp.int32),
-    has_ordering: bool,
     timestamp: wp.array(dtype=wp.float32),
     out_force: wp.array(dtype=wp.vec3f, ndim=2),
     out_torque: wp.array(dtype=wp.vec3f, ndim=2),
@@ -28,8 +24,7 @@ def joint_wrench_split_kernel(
     if timestamp[env] == 0.0:
         return
 
-    backend_body = resolve_backend_index(body, user_to_backend, has_ordering)
-    wrench = incoming_joint_wrench[env, backend_body]
+    wrench = incoming_joint_wrench[env, body]
     out_force[env, body] = wp.spatial_top(wrench)
     out_torque[env, body] = wp.spatial_bottom(wrench)
 
