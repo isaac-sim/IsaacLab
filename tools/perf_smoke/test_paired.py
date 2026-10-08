@@ -507,7 +507,6 @@ class PairedTests(unittest.TestCase):
         return paired.restore_baseline(
             self.client,
             self.checkout,
-            self.output,
             self.selection_path,
             self.event,
             run_id,
@@ -516,7 +515,7 @@ class PairedTests(unittest.TestCase):
             base_commit=self._git("rev-parse", "HEAD"),
         )
 
-    def test_restore_unchanged_base_for_new_pr_head_copies_exact_results(self):
+    def test_restore_unchanged_base_for_new_pr_head_reuses_exact_baseline(self):
         files = self._files()
         artifact = self._add_baseline(files)
         self.event["pull_request"]["head"]["sha"] = "d" * 40
@@ -526,8 +525,6 @@ class PairedTests(unittest.TestCase):
         self.assertEqual(selection["baseline_origin"]["artifact_id"], artifact["id"])
         self.assertEqual(selection["baseline_origin"]["source_commit"], self.commit)
         self.assertEqual(json.loads(self.selection_path.read_text()), selection)
-        for name, data in files.items():
-            self.assertEqual((self.output / name).read_bytes(), data)
 
     def test_restore_requests_fresh_baseline_when_matrix_or_launcher_changes(self):
         self._add_baseline()
@@ -632,7 +629,7 @@ class PairedTests(unittest.TestCase):
         with patch.dict(os.environ, {"PERF_BASE_COMMIT": ""}):
             with self.assertRaisesRegex(ValueError, "first parent was not resolved"):
                 paired.restore_baseline(
-                    self.client, self.checkout, self.output, self.selection_path, self.event, 20, 1, legs=self.legs
+                    self.client, self.checkout, self.selection_path, self.event, 20, 1, legs=self.legs
                 )
         self.assertFalse(self.selection_path.exists())
         self.assertEqual(self.client.pages_requested, [])
@@ -702,25 +699,6 @@ class PairedTests(unittest.TestCase):
         self.assertIsNone(selection["baseline_origin"])
         self.assertEqual(selection["reference_commit"], self.commit)
         self.assertFalse(self.output.exists())
-
-    def test_interrupted_restore_does_not_publish_partial_results(self):
-        self._add_baseline()
-        write_bytes = Path.write_bytes
-        restored = []
-
-        def interrupted(path, content):
-            if path.name == "benchmark_runtime_fixture.json":
-                restored.append(path)
-                if len(restored) == 2:
-                    raise OSError("artifact restoration interrupted")
-            return write_bytes(path, content)
-
-        with patch.object(Path, "write_bytes", interrupted):
-            with self.assertRaisesRegex(OSError, "restoration interrupted"):
-                self._restore()
-        self.assertEqual(len(restored), 2)
-        self.assertFalse(self.output.exists())
-        self.assertFalse(json.loads(self.selection_path.read_text())["baseline_reused"])
 
     def test_expired_baseline_requests_fresh_measurement(self):
         artifact = self._add_baseline()
