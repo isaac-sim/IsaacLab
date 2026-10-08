@@ -177,6 +177,13 @@ position and orientation tolerances. This preset adds six end-effector pose-erro
 observations, giving the policy 38 inputs, and uses the separate RSL-RL experiment
 directory ``reach_franka_hold``.
 
+The holding preset uses task-level control profiles for the selected physics
+backend. Newton MJWarp uses one tenth of the authored arm stiffness with the
+same damping. Isaac Sim PhysX uses the authored stiffness and stronger
+joint-command change penalties. The robot asset, armature, effort limits, and
+policy exploration settings are unchanged. Train a new policy when changing
+the holding preset or its control profile.
+
 Train and play with the same preset and physics backend:
 
 .. code-block:: bash

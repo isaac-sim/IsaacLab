@@ -81,7 +81,6 @@ _REACH_PRESET_CASES = [
     (_TASK, (), "JointPositionActionCfg", "NewtonCfg"),
     (_TASK, ("isaacsim_physx",), "JointPositionActionCfg", "PhysxCfg"),
     (_TASK, ("ovphysx",), "JointPositionActionCfg", "OvPhysxCfg"),
-    (_TASK, ("hold", "isaacsim_physx"), "JointPositionActionCfg", "PhysxCfg"),
     (_TASK, ("diffik",), "DifferentialInverseKinematicsActionCfg", "NewtonCfg"),
     (_TASK, ("diffik", "isaacsim_physx"), "DifferentialInverseKinematicsActionCfg", "PhysxCfg"),
     (_TASK, ("diffik_abs", "isaacsim_physx"), "DifferentialInverseKinematicsActionCfg", "PhysxCfg"),
@@ -130,15 +129,18 @@ def test_reach_ur10_physics_presets_change_only_physics():
     assert physx_cfg == newton_cfg
 
 
-def test_reach_hold_preset_preserves_defaults_and_separates_policy_compatibility():
-    """Hold changes the objective and observation interface without changing the robot or controller."""
+@pytest.mark.parametrize("physics", ["newton_mjwarp", "isaacsim_physx"])
+def test_reach_hold_preset_preserves_defaults_and_separates_policy_compatibility(physics):
+    """Hold selects the validated backend profile and a distinct policy interface."""
     from isaaclab_rl.utils.pretrained_checkpoint import (
         get_pretrained_checkpoint_filename,
         get_pretrained_checkpoint_preset_names,
     )
 
-    default_env, default_agent = resolve_task_config(_TASK, "rsl_rl_cfg_entry_point", overrides=[])
-    hold_env, hold_agent = resolve_task_config(_TASK, "rsl_rl_cfg_entry_point", overrides=["presets=hold"])
+    default_env, default_agent = resolve_task_config(_TASK, "rsl_rl_cfg_entry_point", overrides=[f"physics={physics}"])
+    hold_env, hold_agent = resolve_task_config(
+        _TASK, "rsl_rl_cfg_entry_point", overrides=[f"physics={physics}", "presets=hold"]
+    )
 
     validate(hold_env)
     assert hold_env.episode_length_s == 12.0
@@ -164,6 +166,19 @@ def test_reach_hold_preset_preserves_defaults_and_separates_policy_compatibility
     assert hold_agent.experiment_name == "reach_franka_hold"
     assert hold_agent.max_iterations == 3000
 
+    if physics == "newton_mjwarp":
+        assert hold_env.scene.robot.actuators["panda_arm"].stiffness == {
+            "panda_joint[1-2]": 100.0,
+            "panda_joint[3-4]": 75.0,
+            "panda_joint[5-7]": 30.0,
+        }
+        assert hold_env.rewards.action_rate.weight == -0.0001
+        assert hold_env.curriculum.action_rate.params["weight"] == -0.005
+    else:
+        assert hold_env.scene.robot.actuators["panda_arm"].stiffness is None
+        assert hold_env.rewards.action_rate.weight == -0.01
+        assert hold_env.curriculum.action_rate.params["weight"] == -0.5
+
     default_cfg, hold_cfg = to_dict(default_env), to_dict(hold_env)
     hold_cfg["commands"]["ee_pose"]["resampling_time_range"] = default_cfg["commands"]["ee_pose"][
         "resampling_time_range"
@@ -171,6 +186,13 @@ def test_reach_hold_preset_preserves_defaults_and_separates_policy_compatibility
     hold_cfg["terminations"]["success"] = default_cfg["terminations"]["success"]
     hold_cfg["rewards"]["success"] = default_cfg["rewards"]["success"]
     hold_cfg["observations"]["policy"]["ee_target_error"] = None
+    hold_cfg["scene"]["robot"]["actuators"]["panda_arm"]["stiffness"] = default_cfg["scene"]["robot"]["actuators"][
+        "panda_arm"
+    ]["stiffness"]
+    hold_cfg["rewards"]["action_rate"]["weight"] = default_cfg["rewards"]["action_rate"]["weight"]
+    hold_cfg["curriculum"]["action_rate"]["params"]["weight"] = default_cfg["curriculum"]["action_rate"]["params"][
+        "weight"
+    ]
     assert hold_cfg == default_cfg
     default_agent_cfg, hold_agent_cfg = to_dict(default_agent), to_dict(hold_agent)
     for field in ("experiment_name", "max_iterations"):

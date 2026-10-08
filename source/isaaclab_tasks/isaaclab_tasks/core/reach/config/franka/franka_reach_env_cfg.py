@@ -185,3 +185,22 @@ class FrankaReachEnvCfg(ReachEnvCfg):
             default=self.rewards.success,
             hold=RewardTermCfg(func=mdp.pose_command_success, weight=10.0, params={"command_name": "ee_pose"}),
         )
+        # Softer force drives let the Newton policy settle without saturating the wrist drives.
+        self.scene.robot.actuators["panda_arm"].stiffness = preset(
+            default=None,
+            hold=preset(
+                default={"panda_joint[1-2]": 100.0, "panda_joint[3-4]": 75.0, "panda_joint[5-7]": 30.0},
+                isaacsim_physx=None,
+                physx=None,
+                ovphysx=None,
+            ),
+        )
+        # Native PhysX settles with the authored stiffness and a stronger command-change cost.
+        self.rewards.action_rate.weight = preset(
+            default=self.rewards.action_rate.weight,
+            hold=preset(default=self.rewards.action_rate.weight, isaacsim_physx=-0.01, physx=-0.01),
+        )
+        self.curriculum.action_rate.params["weight"] = preset(
+            default=self.curriculum.action_rate.params["weight"],
+            hold=preset(default=self.curriculum.action_rate.params["weight"], isaacsim_physx=-0.5, physx=-0.5),
+        )
