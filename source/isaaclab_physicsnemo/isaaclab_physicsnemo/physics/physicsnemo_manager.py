@@ -17,11 +17,11 @@ import warp as wp
 from isaaclab_newton.physics import NewtonManager
 from newton import Contacts, Control, Model, State
 from physicsnemo_robotics.dynamics import DynamicsArtifact, LearnedDynamicsSolver
-from physicsnemo_robotics.newton import FrameSpec
+from physicsnemo_robotics.newton import FrameSpec, NewtonModelSignature
 
 from isaaclab.utils.string import string_to_callable
 
-from ..signature import isaaclab_model_signature
+from ..signature import isaaclab_canonical_view
 from .state_ownership import validate_effort_control, validate_state_ownership
 
 if TYPE_CHECKING:
@@ -141,14 +141,17 @@ def _create_learned_solver(
     if artifact.requires_modeled_system_signature:
         raise NotImplementedError("Portable modeled-contact artifacts are not supported by Isaac Lab deployment.")
 
-    solver = artifact.as_solver(
-        model,
-        model_signature=isaaclab_model_signature(model),
-        codec_factory=_resolve(solver_cfg.codec_factory),
-        feature_factory=_resolve(solver_cfg.feature_factory),
-        device=str(model.device),
-        continuity=solver_cfg.continuity,
-    )
+    # Rebuilt features such as fixed contact probes fingerprint model geometry, which must not depend on
+    # the number of environments.
+    with isaaclab_canonical_view(model):
+        solver = artifact.as_solver(
+            model,
+            model_signature=NewtonModelSignature.from_model(model),
+            codec_factory=_resolve(solver_cfg.codec_factory),
+            feature_factory=_resolve(solver_cfg.feature_factory),
+            device=str(model.device),
+            continuity=solver_cfg.continuity,
+        )
     validate_state_ownership(model, solver.operator.adapter.codec)
     validate_effort_control(model)
     return solver
