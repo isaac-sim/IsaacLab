@@ -167,10 +167,34 @@ def _punnet_material(
     return material
 
 
+def _no_shadow(geometry: UsdGeom.Gprim) -> None:
+    """Keep ``geometry`` from casting shadows, which RTX would make opaque for glass."""
+    UsdGeom.PrimvarsAPI(geometry).CreatePrimvar("doNotCastShadows", Sdf.ValueTypeNames.Bool).Set(True)
+
+
+def _glass_material(
+    stage: Usd.Stage, name: str, color: tuple[float, float, float], ior: float, frosting: float, thin_walled: bool
+) -> UsdShade.Material:
+    """Clear glass or plastic; a thin-walled sheet reflects without bending what is behind it."""
+    material = UsdShade.Material.Define(stage, f"/World/Tableware/{name}")
+    shader = UsdShade.Shader.Define(stage, f"{material.GetPath()}/Shader")
+    shader.SetSourceAsset(Sdf.AssetPath("OmniGlass.mdl"), "mdl")
+    shader.SetSourceAssetSubIdentifier("OmniGlass", "mdl")
+    shader.CreateInput("glass_color", Sdf.ValueTypeNames.Color3f).Set(Gf.Vec3f(*color))
+    shader.CreateInput("glass_ior", Sdf.ValueTypeNames.Float).Set(ior)
+    shader.CreateInput("frosting_roughness", Sdf.ValueTypeNames.Float).Set(frosting)
+    shader.CreateInput("thin_walled", Sdf.ValueTypeNames.Bool).Set(thin_walled)
+    material.CreateSurfaceOutput("mdl").ConnectToSource(shader.ConnectableAPI(), "out")
+    return material
+
+
 def _add_punnet(stage: Usd.Stage) -> None:
     mesh = _punnet_mesh(stage)
-    material = _punnet_material(stage, "PunnetMaterial", 0.02)
-    accent = _punnet_material(stage, "PunnetMoldedEdges", 0.14)
+    # RTX shadow rays do not pass through glass: clear plastic would shade its own floor and the table.
+    _no_shadow(mesh)
+    # Glossy clear PET: sharp reflections along its folds and edges.
+    material = _glass_material(stage, "PunnetMaterial", (0.97, 0.99, 1.0), 1.57, 0.0, True)
+    accent = _glass_material(stage, "PunnetMoldedEdges", (0.97, 0.99, 1.0), 1.57, 0.08, True)
     UsdShade.MaterialBindingAPI.Apply(mesh.GetPrim()).Bind(material)
     x, y, hx, hy, corner, _, base, height = PUNNET
     # Thicker rolled/molded details catch light while the thin panels remain clear.
@@ -203,6 +227,7 @@ def _add_punnet(stage: Usd.Stage) -> None:
                 xy[1 - axis] += float(along)
                 rib.AddTranslateOp().Set(Gf.Vec3d(*xy, (height + base) / 2))
                 UsdShade.MaterialBindingAPI.Apply(rib.GetPrim()).Bind(accent)
+                _no_shadow(rib)
 
 
 def _lathe(
@@ -308,19 +333,11 @@ def add_tableware_visuals(stage: Usd.Stage) -> None:
         if name == "Bowl":
             # RTX shadow rays do not refract: solid glass would cast an opaque
             # shadow and leave the tabletop seen through its floor black.
-            primvars = UsdGeom.PrimvarsAPI(mesh)
-            primvars.CreatePrimvar("doNotCastShadows", Sdf.ValueTypeNames.Bool).Set(True)
-        material = UsdShade.Material.Define(stage, f"/World/Tableware/{name}Material")
-        shader = UsdShade.Shader.Define(stage, f"{material.GetPath()}/Shader")
-        if name == "Bowl":
-            shader.SetSourceAsset(Sdf.AssetPath("OmniGlass.mdl"), "mdl")
-            shader.SetSourceAssetSubIdentifier("OmniGlass", "mdl")
-            shader.CreateInput("glass_color", Sdf.ValueTypeNames.Color3f).Set(Gf.Vec3f(0.98, 1.0, 0.995))
-            shader.CreateInput("glass_ior", Sdf.ValueTypeNames.Float).Set(1.47)
-            shader.CreateInput("frosting_roughness", Sdf.ValueTypeNames.Float).Set(0.03)
-            shader.CreateInput("thin_walled", Sdf.ValueTypeNames.Bool).Set(False)
-            material.CreateSurfaceOutput("mdl").ConnectToSource(shader.ConnectableAPI(), "out")
+            _no_shadow(mesh)
+            material = _glass_material(stage, "BowlMaterial", (0.98, 1.0, 0.995), 1.47, 0.03, False)
         else:
+            material = UsdShade.Material.Define(stage, f"/World/Tableware/{name}Material")
+            shader = UsdShade.Shader.Define(stage, f"{material.GetPath()}/Shader")
             shader.CreateIdAttr("UsdPreviewSurface")
             shader.CreateInput("diffuseColor", Sdf.ValueTypeNames.Color3f).Set(Gf.Vec3f(0.50, 0.53, 0.56))
             shader.CreateInput("metallic", Sdf.ValueTypeNames.Float).Set(0.85)
