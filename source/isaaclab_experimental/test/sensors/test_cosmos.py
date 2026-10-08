@@ -68,11 +68,13 @@ class TransportStream:
         self.resource = resource
         self.settings = settings
         self.steps = []
+        self.episode_prompts = []
         self.closed = threading.Event()
 
-    def step(self, controls, reset_rows, seeds):
+    def step(self, controls, reset_rows, seeds, **episode):
         self.resource.calls.append(("step", threading.get_ident()))
         self.steps.append((controls, reset_rows, seeds))
+        self.episode_prompts.append(episode.get("prompt", "<kept>"))
         self.resource.step_entered.set()
         if not self.resource.resume_step.wait(5):
             raise TimeoutError("Test did not release the blocked generation")
@@ -167,11 +169,14 @@ def test_wire_rejects_oversized_headers_before_receiving_the_body(metadata_size,
 )
 def test_wire_rejects_unsafe_or_inconsistent_descriptors(descriptor, body_size, error):
     with pytest.raises(_protocol.ProtocolError, match=error):
-        _receive_packet({"version": 1, "arrays": [descriptor]}, claimed_body_size=body_size)
+        _receive_packet({"version": _protocol.PROTOCOL_VERSION, "arrays": [descriptor]}, claimed_body_size=body_size)
 
 
 def test_wire_requires_a_complete_binary_image():
-    metadata = {"version": 1, "arrays": [{"shape": [1, 1, 2, 3], "dtype": "uint8", "nbytes": 6}]}
+    metadata = {
+        "version": _protocol.PROTOCOL_VERSION,
+        "arrays": [{"shape": [1, 1, 2, 3], "dtype": "uint8", "nbytes": 6}],
+    }
     with pytest.raises(ConnectionError, match="complete message"):
         _receive_packet(metadata, b"\x00\x01\x02", claimed_body_size=6)
 
@@ -191,7 +196,7 @@ def test_wire_treats_pickle_bytes_as_pixels_without_execution(tmp_path):
     payload = pickle.dumps(PickleTrap(marker))
     payload += bytes(-len(payload) % 3)
     metadata = {
-        "version": 1,
+        "version": _protocol.PROTOCOL_VERSION,
         "arrays": [{"shape": [1, 1, len(payload) // 3, 3], "dtype": "uint8", "nbytes": len(payload)}],
     }
 
@@ -249,6 +254,52 @@ def test_camera_client_closes_sessions_and_keeps_the_model_resident(cosmos_servi
     assert cosmos_service.resource.calls[0][0] == "warmup"
     assert len({thread_id for _, thread_id in cosmos_service.resource.calls}) == 1
     assert cosmos_service.resource.calls[0][1] != threading.get_ident()
+
+
+def test_a_prompt_list_cycles_per_episode_over_one_session(cosmos_service):
+    """Each finished episode moves to the next prompt; a reset before the first update keeps the prompt."""
+    prompts = ["A bright warehouse.", "A wooden kitchen."]
+    client = CosmosModel(CosmosModelCfg(endpoint=cosmos_service.endpoint, prompt=prompts, timeout=2))
+    stream = client.open_stream(num_views=1, seeds=(7,))
+    first, update = _controls(), _controls().expand(4, -1, -1, -1).contiguous()
+    stream.step([first], reset_rows=(), seeds=())
+    stream.step([first], reset_rows=(0,), seeds=(8,))  # e.g. the environment's initial reset
+    stream.step([update], reset_rows=(), seeds=())
+    stream.step([first], reset_rows=(0,), seeds=(9,))
+    stream.step([update], reset_rows=(), seeds=())
+    stream.step([first], reset_rows=(0,), seeds=(10,))
+    resident_stream = cosmos_service.resource.streams[0]
+    client.close()
+
+    assert resident_stream.settings["prompt"] == "A bright warehouse."
+    sent = [prompt for prompt in resident_stream.episode_prompts if prompt != "<kept>"]
+    assert sent == ["A bright warehouse.", "A wooden kitchen.", "A bright warehouse."]
+    assert len(cosmos_service.resource.streams) == 1
+
+
+def test_prompt_lists_must_hold_text_and_the_service_changes_prompts_only_at_resets(cosmos_service):
+    with pytest.raises(ValueError, match="nonempty"):
+        CosmosModel(CosmosModelCfg(prompt=["", "Two"]))
+    with pytest.raises(ValueError, match="nonempty"):
+        CosmosModel(CosmosModelCfg(prompt=[]))
+    with socket.create_connection(_protocol.parse_endpoint(cosmos_service.endpoint), timeout=2) as connection:
+        open_request = {
+            "op": "open",
+            "num_views": 1,
+            "seeds": [1],
+            "prompt": "A lab.",
+            "modality": "edge",
+            "height": 2,
+            "width": 3,
+            "max_episode_frames": 9,
+        }
+        _protocol.send_message(connection, open_request)
+        _protocol.check_reply(_protocol.receive_message(connection)[0])
+        _protocol.send_message(
+            connection, {"op": "step", "reset_rows": [], "seeds": [], "prompt": "A kitchen."}, [_controls().numpy()]
+        )
+        reply, _ = _protocol.receive_message(connection)
+    assert not reply["ok"] and "only with an episode reset" in reply["error"]
 
 
 def test_only_one_generation_session_is_owned_and_disconnect_releases_it(cosmos_service):

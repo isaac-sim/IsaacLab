@@ -193,6 +193,17 @@ class CosmosInferenceModel:
         ):
             raise ValueError("Cosmos max_episode_frames must be 1 + 4*k, between 1 and 201 inclusive.")
 
+        import torch
+
+        with torch.cuda.device(self._device):
+            data = self._prompt_batch(prompt, modality, height, width, max_episode_frames)
+        self._stream = _CosmosInferenceStream(self, data, seeds[0], height, width, max_episode_frames, modality)
+        return self._stream
+
+    def _prompt_batch(
+        self, prompt: str | None, modality: str, height: int, width: int, max_episode_frames: int
+    ) -> dict[str, Any]:
+        """Build one episode's text conditioning: appearance prompt, control instruction, and metadata."""
         from cosmos_framework.inference.args import OmniSampleOverrides
         from cosmos_framework.inference.inference import _get_prompt_sample_data
         from cosmos_framework.model.generator.reasoner.qwen3_vl.utils import _SYSTEM_PROMPT_TRANSFER
@@ -226,8 +237,7 @@ class CosmosInferenceModel:
             f"motion of every visible structure must align with the {modality} signal at every frame."
         )
         data.update(dataset_name="video_transfer", system_prompt=_SYSTEM_PROMPT_TRANSFER, fps=[30.0])
-        self._stream = _CosmosInferenceStream(self, data, seeds[0], height, width, max_episode_frames)
-        return self._stream
+        return data
 
     def warmup(self, *, height: int = 480, width: int = 832) -> None:
         """Warm one canvas through finite-history saturation using a disposable session.
@@ -271,6 +281,10 @@ def _validate_seed(seed: int) -> None:
         raise ValueError("Cosmos episode seeds must be integers in [0, 2**63).")
 
 
+_KEEP_PROMPT = object()
+"""Marker for a reset that keeps the current episode prompt."""
+
+
 class _CosmosInferenceStream:
     """Own one single-view causal VAE session and autoregressive generation iterator."""
 
@@ -282,6 +296,7 @@ class _CosmosInferenceStream:
         height: int,
         width: int,
         max_episode_frames: int,
+        modality: str,
     ):
         self._owner = owner
         self._model = owner._pipeline.model
@@ -289,20 +304,31 @@ class _CosmosInferenceStream:
         self._seed = seed
         self._canvas = (height, width, 3)
         self._max_episode_frames = max_episode_frames
+        self._modality = modality
         self._frame_count = 0
         self._closed = False
         self._cache_scope: ExitStack | None = None
         self._next_control: torch.Tensor | None = None
         self._iterator = self._make_iterator()
 
-    def step(self, controls: list[np.ndarray], reset_rows: tuple[int, ...], seeds: tuple[int, ...]) -> list[np.ndarray]:
+    def step(
+        self,
+        controls: list[np.ndarray],
+        reset_rows: tuple[int, ...],
+        seeds: tuple[int, ...],
+        *,
+        prompt: str | None | object = _KEEP_PROMPT,
+    ) -> list[np.ndarray]:
         """Generate uint8 THWC RGB from one initial frame or four subsequent frames.
 
         A full reset ``reset_rows=(0,)`` requires one new seed and a one-frame
         control. It closes the previous generation and VAE state before processing
-        the new episode. Input arrays are never mutated. Model failures close this
+        the new episode, and with ``prompt`` it also rebuilds the episode's text
+        conditioning. Input arrays are never mutated. Model failures close this
         session because an inference step cannot be safely replayed.
         """
+        if prompt is not _KEEP_PROMPT and (not reset_rows or (prompt is not None and not isinstance(prompt, str))):
+            raise ValueError("A Cosmos prompt must be text or None and can change only with an episode reset.")
         if self._closed:
             raise RuntimeError("The Cosmos camera session is closed.")
         if reset_rows not in ((), (0,)) or len(seeds) != len(reset_rows):
@@ -328,6 +354,11 @@ class _CosmosInferenceStream:
             with torch.cuda.device(self._owner._device), torch.inference_mode():
                 if reset_rows:
                     self._close_episode()
+                    if prompt is not _KEEP_PROMPT:
+                        height, width, _ = self._canvas
+                        self._data_batch = self._owner._prompt_batch(
+                            prompt, self._modality, height, width, self._max_episode_frames
+                        )
                     self._seed = seeds[0]
                     self._frame_count = 0
                     self._iterator = self._make_iterator()

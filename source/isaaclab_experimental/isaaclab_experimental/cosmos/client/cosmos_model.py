@@ -37,8 +37,11 @@ class CosmosModel:
         parse_endpoint(cfg.endpoint)
         if not math.isfinite(cfg.timeout) or cfg.timeout <= 0:
             raise ValueError("Cosmos timeout must be finite and positive.")
-        if cfg.prompt is not None and not isinstance(cfg.prompt, str):
-            raise ValueError("Cosmos prompt must be a string or None.")
+        if isinstance(cfg.prompt, (list, tuple)):
+            if not cfg.prompt or any(not isinstance(prompt, str) or not prompt.strip() for prompt in cfg.prompt):
+                raise ValueError("A Cosmos prompt list must be nonempty and contain nonempty strings.")
+        elif cfg.prompt is not None and not isinstance(cfg.prompt, str):
+            raise ValueError("Cosmos prompt must be a string, a list of strings, or None.")
         if cfg.modality not in ("edge", "depth", "seg"):
             raise ValueError("Cosmos modality must be edge, depth, or seg.")
         if type(cfg.max_episode_frames) is not int or cfg.max_episode_frames <= 0:
@@ -102,6 +105,8 @@ class _CosmosStream:
         self._socket: socket.socket | None = None
         self._shape: tuple[int, int, int] | None = None
         self._closed = False
+        self._episode = 0
+        self._episode_frames = 0
 
     def step(
         self, controls: list[torch.Tensor], reset_rows: tuple[int, ...], seeds: tuple[int, ...]
@@ -143,7 +148,7 @@ class _CosmosStream:
                             "op": "open",
                             "num_views": 1,
                             "seeds": self._seeds,
-                            "prompt": self._cfg.prompt,
+                            "prompt": self._episode_prompt(self._episode),
                             "modality": self._cfg.modality,
                             "height": image_shape[0],
                             "width": image_shape[1],
@@ -155,13 +160,27 @@ class _CosmosStream:
                     self._shape = image_shape
                 # The transport crosses process/device boundaries through CPU memory deliberately.
                 array = control.detach().cpu().numpy()
-                _, generated = self._exchange({"op": "step", "reset_rows": reset_rows, "seeds": seeds}, [array])
+                request = {"op": "step", "reset_rows": reset_rows, "seeds": seeds}
+                episode = self._episode
+                if reset_rows and isinstance(self._cfg.prompt, (list, tuple)):
+                    # A reset starts the next prompt's episode, unless the ending episode never got past its
+                    # first frame, such as the capture taken before the environment's initial reset.
+                    episode += 1 if self._episode_frames > 1 else 0
+                    request["prompt"] = self._episode_prompt(episode)
+                _, generated = self._exchange(request, [array])
                 if len(generated) != 1 or generated[0].shape != tuple(control.shape):
                     raise ProtocolError("Cosmos returned images that do not match the control chunk.")
+                if reset_rows:
+                    self._episode, self._episode_frames = episode, 0
+                self._episode_frames += len(array)
                 return [torch.from_numpy(generated[0]).to(device=control.device)]
             except Exception:
                 self._release(notify=False)
                 raise
+
+    def _episode_prompt(self, episode: int) -> str | None:
+        prompt = self._cfg.prompt
+        return prompt[episode % len(prompt)] if isinstance(prompt, (list, tuple)) else prompt
 
     def close(self) -> None:
         """Close this camera's session. Repeated calls are safe."""

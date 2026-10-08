@@ -87,7 +87,7 @@ def serve(model: _Model, host: str = "127.0.0.1", port: int = 5555, *, warmup: b
 
 class _Stream(Protocol):
     def step(
-        self, controls: list[np.ndarray], reset_rows: tuple[int, ...], seeds: tuple[int, ...]
+        self, controls: list[np.ndarray], reset_rows: tuple[int, ...], seeds: tuple[int, ...], **episode: object
     ) -> list[np.ndarray]: ...
 
     def close(self) -> None: ...
@@ -179,13 +179,22 @@ def _handle_connection(
                 image_shape = (arguments["height"], arguments["width"], 3)
                 send_message(connection, {"ok": True})
             elif operation == "step":
-                _check_fields(metadata, {"op", "version", "reset_rows", "seeds"}, arrays, allow_arrays=True)
+                fields = {"op", "version", "reset_rows", "seeds"} | ({"prompt"} if "prompt" in metadata else set())
+                _check_fields(metadata, fields, arrays, allow_arrays=True)
                 if stream is None:
                     raise RuntimeError("Open a Cosmos generation session before sending controls.")
                 resets, seeds = _reset_arguments(metadata)
+                # A new episode may change the appearance prompt; the weights stay loaded.
+                episode = {}
+                if "prompt" in metadata:
+                    if not resets:
+                        raise ValueError("A Cosmos prompt can change only with an episode reset.")
+                    if metadata["prompt"] is not None and not isinstance(metadata["prompt"], str):
+                        raise ValueError("Cosmos prompt must be a string or None.")
+                    episode["prompt"] = metadata["prompt"]
                 if len(arrays) != 1 or arrays[0].shape[1:] != image_shape:
                     raise ValueError("Cosmos controls must match the single camera's configured image size.")
-                generated = state.executor.submit(stream.step, arrays, resets, seeds).result()
+                generated = state.executor.submit(stream.step, arrays, resets, seeds, **episode).result()
                 if (
                     not isinstance(generated, list)
                     or len(generated) != 1

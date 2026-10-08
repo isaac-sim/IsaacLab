@@ -153,6 +153,27 @@ configuration. Starting the service alone does not enable Cosmos for a task, and
 the task must already use camera observations. The training entry point does not
 need a Cosmos demo runner or model initialization code.
 
+### A different prompt per episode
+
+`prompt` takes one string or a list. With a list, episode `k` of a camera stream uses
+`prompt[k % len(prompt)]`, for visual randomization: the session opens with the first prompt, and each
+episode reset sends the next one to the service, which rebuilds the text conditioning for the new episode.
+The model stays loaded; only the episode's conditioning and generation state change.
+
+```python
+CosmosModelCfg(
+    modality="depth",
+    prompt=[
+        "A robotic Shadow Hand turning a red cube in a bright warehouse with metal shelves.",
+        "A robotic Shadow Hand turning a wooden cube on a kitchen counter in warm evening light.",
+        "A robotic Shadow Hand turning a blue cube in a dim laboratory with fluorescent lights.",
+    ],
+)
+```
+
+A prompt can change only at an episode reset. A reset before the first generated update, such as the
+environment's initial reset right after its first capture, keeps the current prompt.
+
 ## Runtime and resets
 
 The camera's post-processing chain is the integration boundary.

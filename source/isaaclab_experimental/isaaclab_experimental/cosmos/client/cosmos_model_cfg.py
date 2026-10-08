@@ -31,8 +31,11 @@ class CosmosModelCfg(BackendCfg):
     endpoint: str = "tcp://127.0.0.1:5555"
     """Endpoint of the independently started Cosmos service."""
 
-    prompt: str | None = None
-    """Appearance prompt. None omits an appearance description."""
+    prompt: str | list[str] | None = None
+    """Appearance prompt. A string applies to every episode. A list varies the appearance per episode, for
+    visual randomization: episode ``k`` of a camera stream uses ``prompt[k % len(prompt)]``. An episode reset
+    before the first generated update (for example the environment's initial reset right after its first capture)
+    keeps the current prompt. None omits an appearance description."""
 
     modality: Literal["edge", "depth", "seg"] = "edge"
     """Type of uint8 three-channel guidance prepared by the preceding camera modifier."""

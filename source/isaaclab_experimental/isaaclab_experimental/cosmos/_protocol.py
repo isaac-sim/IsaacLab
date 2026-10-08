@@ -21,7 +21,8 @@ from urllib.parse import urlsplit
 
 import numpy as np
 
-PROTOCOL_VERSION = 1
+PROTOCOL_VERSION = 2
+"""Version 2 lets an episode reset carry the next appearance prompt."""
 MAX_METADATA_BYTES = 64 * 1024
 MAX_ARRAY_BYTES = 256 * 1024 * 1024
 MAX_ARRAYS = 16
