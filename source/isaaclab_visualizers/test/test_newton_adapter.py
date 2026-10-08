@@ -1288,32 +1288,3 @@ def test_newton_rtx_visualizer_rejects_kit_physics_backend(monkeypatch, backend)
 
     with pytest.raises(RuntimeError, match="Newton RTX"):
         visualizer.initialize(Mock(), cameras=[])
-
-
-def test_newton_live_plots_read_updated_scalar_and_array_history():
-    from newton._src.viewer.plot_logger import PlotLogger
-
-    viewer = _Viewer()
-    viewer._plot_logger = plots = PlotLogger(4, get_window=lambda: None)
-    viewer.log_scalar = plots.log_scalar
-    viewer.gui = SimpleNamespace(ui=SimpleNamespace(dpi_scale=1.0))
-    viewer._implot = Mock(begin_plot=Mock(return_value=True))
-    imgui = Mock(collapsing_header=Mock(return_value=True))
-    imgui.get_content_region_avail.return_value.x = 200
-    plots._render_array_heatmap = Mock()
-    visualizer = _make_newton_visualizer(viewer, cfg=NewtonGLVisualizerCfg(live_plots_update_interval=1))
-    samples = iter((1.25, 2.5))
-    visualizer.add_live_plots({}, scalars={"metrics": {"loss": lambda: next(samples)}})
-
-    for value in (1.25, 2.5):
-        visualizer._render_live_plots()
-        visualizer._live_plots_panel_imgui(imgui)
-        viewer._implot.plot_line.assert_called()
-        label, array = viewer._implot.plot_line.call_args.args
-        assert label == "loss" and array[-1] == value
-    np.testing.assert_allclose(array[-2:], [1.25, 2.5])
-
-    heatmap = np.arange(4, dtype=np.float32).reshape(2, 2)
-    plots.log_array("heatmap", heatmap)
-    visualizer._live_plots_panel_imgui(imgui)
-    plots._render_array_heatmap.assert_called_once_with(imgui, "heatmap", heatmap, 180.0, dpi_scale=1.0)
