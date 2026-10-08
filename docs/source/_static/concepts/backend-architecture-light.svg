@@ -28,15 +28,15 @@
 <rect x="16" y="228" width="424" height="112" rx="7" fill="#fff8e1" stroke="#f9a825" stroke-width="1.5"/>
 <text x="228.0" y="249" text-anchor="middle" class="lbl" font-size="13.5" fill="#e65100">FactoryBase.__new__()  (construction time)</text>
 <text x="228.0" y="266" text-anchor="middle" class="mono" font-size="11" fill="#1f2328">_get_backend() → &quot;physx&quot; | &quot;newton&quot; | &quot;ovphysx&quot;</text>
-<text x="228.0" y="283" text-anchor="middle" class="body" font-size="11" fill="#57606a">(from the SimulationContext.physics_manager name)</text>
+<text x="228.0" y="283" text-anchor="middle" class="body" font-size="11" fill="#57606a">(from physics_manager, set to the resolved cfg&#x27;s class_type)</text>
 <text x="228.0" y="300" text-anchor="middle" class="mono" font-size="11" fill="#1f2328">_get_module_name() → isaaclab_&lt;backend&gt;.&lt;subpath&gt;</text>
 <text x="228.0" y="317" text-anchor="middle" class="body" font-size="11" fill="#57606a">ovphysx → isaaclab_ov · lazy import, cached in a registry</text>
 <rect x="490" y="228" width="394" height="112" rx="7" fill="#fff3e0" stroke="#ef6c00" stroke-width="1.5"/>
-<text x="687.0" y="249" text-anchor="middle" class="lbl" font-size="13.5" fill="#bf360c">Physics preset  (configuration time)</text>
+<text x="687.0" y="249" text-anchor="middle" class="lbl" font-size="13.5" fill="#bf360c">Physics preset  (isaaclab_tasks, configuration time)</text>
 <text x="687.0" y="266" text-anchor="middle" class="mono" font-size="11" fill="#1f2328">physics=newton_mjwarp → PresetCfg alternative</text>
-<text x="687.0" y="283" text-anchor="middle" class="mono" font-size="11" fill="#1f2328">SimulationCfg.physics: PhysxCfg | NewtonCfg | OvPhysxCfg</text>
+<text x="687.0" y="283" text-anchor="middle" class="mono" font-size="11" fill="#1f2328">SimulationCfg.physics: PhysicsCfg | None</text>
 <text x="687.0" y="300" text-anchor="middle" class="body" font-size="11" fill="#57606a">PhysxAutoCfg resolves to a concrete PhysX cfg at launch</text>
-<text x="687.0" y="317" text-anchor="middle" class="mono" font-size="11" fill="#1f2328">SimulationContext.physics_manager = class_type</text>
+<text x="687.0" y="317" text-anchor="middle" class="body" font-size="11" fill="#57606a">core receives a concrete PhysxCfg, NewtonCfg or OvPhysxCfg</text>
 <line x1="490" y1="284" x2="442" y2="284" stroke="#57606a" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#arrow)"/>
 <text x="466" y="276" text-anchor="middle" class="body" font-size="11" font-style="italic" fill="#57606a">selects</text>
 <line x1="228" y1="340" x2="228" y2="360" stroke="#57606a" stroke-width="1.6"/>
