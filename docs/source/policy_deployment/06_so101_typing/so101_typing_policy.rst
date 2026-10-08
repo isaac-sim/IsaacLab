@@ -55,11 +55,12 @@ for calibration, device access and operator procedures.
 Get started in simulation
 -------------------------
 
-Clone the public repository and build its pinned runtime:
+Once the repository is public, replace ``REPOSITORY_URL`` below with its clone
+URL and build the pinned runtime:
 
 .. code-block:: bash
 
-   git clone https://github.com/NVIDIA/so101-typing-task.git
+   git clone REPOSITORY_URL so101-typing-task
    cd so101-typing-task
    ./so101 build
 
