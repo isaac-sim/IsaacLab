@@ -87,11 +87,7 @@ class PendulumMARLEnvCfg(DirectMARLEnvCfg):
             focal_length=24.0,
             streaming_envs=[0],
             cameras=[
-                TrackedCameraCfg(
-                    eye=(8.0, 0.0, 2.3),
-                    lookat=(0.0, 0.0, 2.3),
-                    focal_length=24.0,
-                ),
+                TrackedCameraCfg(),
             ],
         ),
     )

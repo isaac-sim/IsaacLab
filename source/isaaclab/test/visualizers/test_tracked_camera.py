@@ -64,16 +64,46 @@ def test_heading_rotates_the_offsets_and_smoothing_lags_the_turn():
     assert 0.0 < yaw < math.pi / 2
 
 
-def test_cameras_are_added_only_when_a_visualizer_uses_them():
-    def env_cfg():
-        visualizer = VisualizerCfg(cameras=[TrackedCameraCfg(prim_path="{ENV_REGEX_NS}/Chase")])
-        return ManagerBasedRLEnvCfg(sim=SimulationCfg(default_visualizer_cfg=visualizer), scene=InteractiveSceneCfg())
+def _env_cfg(**sim_kwargs):
+    default = VisualizerCfg(eye=(1.0, 2.0, 3.0), lookat=(0.0, 0.0, 0.5), focal_length=30.0)
+    default.cameras = [TrackedCameraCfg(prim_path="{ENV_REGEX_NS}/Chase")]
+    return ManagerBasedRLEnvCfg(
+        sim=SimulationCfg(default_visualizer_cfg=default, **sim_kwargs), scene=InteractiveSceneCfg()
+    )
 
-    idle, viewed = env_cfg(), env_cfg()
+
+def test_cameras_are_added_only_when_a_visualizer_uses_them():
+    idle, viewed = _env_cfg(), _env_cfg()
     add_tracked_cameras(idle, {"visualizer": []})
     add_tracked_cameras(viewed, {"visualizer": ["newton_gl"], "physics": "newton_mjwarp"})
     assert not hasattr(idle.scene, "Chase")
     assert viewed.scene.Chase.prim_path == "{ENV_REGEX_NS}/Chase"
+
+
+def test_camera_follows_the_visualizer_pose_unless_it_sets_its_own():
+    inherited, explicit = _env_cfg(), _env_cfg()
+    explicit.sim.default_visualizer_cfg.cameras[0].eye = (5.0, 5.0, 5.0)
+    for cfg in (inherited, explicit):
+        add_tracked_cameras(cfg, {"visualizer": ["newton_gl"], "physics": "newton_mjwarp"})
+    assert inherited.scene.Chase.offset.pos == (1.0, 2.0, 3.0)
+    assert inherited.scene.Chase.spawn.focal_length == 30.0
+    assert explicit.scene.Chase.offset.pos == (5.0, 5.0, 5.0)
+
+
+def test_single_visualizer_config_and_conflicting_declarations():
+    cfg = _env_cfg(visualizer_cfgs=VisualizerCfg(visualizer_type="newton_gl"))
+    add_tracked_cameras(cfg, {"visualizer": ["newton_gl"], "physics": "newton_mjwarp"})
+    assert hasattr(cfg.scene, "Chase")
+
+    own = VisualizerCfg(cameras=[TrackedCameraCfg(prim_path="{ENV_REGEX_NS}/Chase", resolution=(320, 240))])
+    cfg = _env_cfg(visualizer_cfgs=[own])
+    add_tracked_cameras(cfg, {"visualizer": ["newton_gl"], "physics": "newton_mjwarp"})
+    assert (cfg.scene.Chase.width, cfg.scene.Chase.height) == (320, 240)
+
+    cfg = _env_cfg(visualizer_cfgs=[own, VisualizerCfg()])
+    cfg.sim.visualizer_cfgs[1].cameras = [TrackedCameraCfg(prim_path="{ENV_REGEX_NS}/Chase")]
+    with pytest.raises(ValueError, match="different tracked cameras"):
+        add_tracked_cameras(cfg, {"visualizer": ["newton_gl"], "physics": "newton_mjwarp"})
 
 
 def test_negative_smoothing_time_constant_is_rejected():

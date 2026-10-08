@@ -644,11 +644,7 @@ class FrankaSoftEnvCfg(ManagerBasedRLEnvCfg):
             focal_length=28.0,
             streaming_envs=[0],
             cameras=[
-                TrackedCameraCfg(
-                    eye=(1.8, -1.8, 1.5),
-                    lookat=(0.35, 0.0, 0.35),
-                    focal_length=28.0,
-                ),
+                TrackedCameraCfg(),
             ],
         )
 

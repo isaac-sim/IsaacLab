@@ -24,9 +24,6 @@ VISUALIZER_CFG = VisualizerCfg(
     streaming_envs=[0],
     cameras=[
         TrackedCameraCfg(
-            eye=(2.5, -3.5, 0.9),
-            lookat=(0.0, 0.0, -0.5),
-            focal_length=26.0,
             track_path="robot",
             follow_heading=True,
             heading_smoothing_time_constant=0.5,

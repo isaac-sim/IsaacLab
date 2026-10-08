@@ -30,11 +30,7 @@ VISUALIZER_CFG = VisualizerCfg(
     focal_length=35.0,
     streaming_envs=[0],
     cameras=[
-        TrackedCameraCfg(
-            eye=(1.15, -1.65, 1.15),
-            lookat=(0.0, -0.5, 0.55),
-            focal_length=35.0,
-        ),
+        TrackedCameraCfg(),
     ],
 )
 """Recording view framing both hands and the object between them."""

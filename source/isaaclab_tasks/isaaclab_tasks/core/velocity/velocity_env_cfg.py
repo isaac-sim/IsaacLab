@@ -365,9 +365,6 @@ class LocomotionVelocityRoughEnvCfg(ManagerBasedRLEnvCfg):
             streaming_envs=[0],
             cameras=[
                 TrackedCameraCfg(
-                    eye=(1.8, -3.0, 1.1),
-                    lookat=(0.15, 0.0, 0.0),
-                    focal_length=26.0,
                     track_path="robot",
                     follow_heading=True,
                     heading_smoothing_time_constant=0.2,

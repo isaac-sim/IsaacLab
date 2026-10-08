@@ -167,14 +167,18 @@ class TrackedCameraCfg(SceneCameraCfg):
     prim_path: str = "{ENV_REGEX_NS}/TrackedCamera"
     """Prim path of the created camera, including ``{ENV_REGEX_NS}``. Its last segment is the scene sensor name."""
 
-    eye: tuple[float, float, float] = (4.0, -4.0, 3.0)
-    """Camera eye offset [m] from the environment origin, or from the tracked asset when :attr:`track_path` is set."""
+    eye: tuple[float, float, float] | None = None
+    """Camera eye offset [m] from the tracked asset, or from the environment origin when :attr:`track_path` is None.
 
-    lookat: tuple[float, float, float] = (0.0, 0.0, 0.0)
-    """Camera look-at offset [m], in the same frame as :attr:`eye`."""
+    None uses :attr:`VisualizerCfg.eye` of the visualizer config that declares the camera, so a task adjusts both
+    views through one value.
+    """
 
-    focal_length: float = 24.0
-    """Camera focal length [mm]."""
+    lookat: tuple[float, float, float] | None = None
+    """Camera look-at offset [m], in the same frame as :attr:`eye`. None uses :attr:`VisualizerCfg.lookat`."""
+
+    focal_length: float | None = None
+    """Camera focal length [mm]. None uses :attr:`VisualizerCfg.focal_length`."""
 
     resolution: tuple[int, int] = (1920, 1080)
     """Camera image size as (width, height) [px]."""

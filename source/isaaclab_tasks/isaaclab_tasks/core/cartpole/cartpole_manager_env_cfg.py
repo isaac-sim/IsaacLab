@@ -187,10 +187,6 @@ class CartpoleEnvCfg(ManagerBasedRLEnvCfg):
             focal_length=24.0,
             streaming_envs=[0],
             cameras=[
-                TrackedCameraCfg(
-                    eye=(8.0, 0.0, 2.5),
-                    lookat=(0.0, 0.0, 2.5),
-                    focal_length=24.0,
-                ),
+                TrackedCameraCfg(),
             ],
         )

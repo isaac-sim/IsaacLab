@@ -34,11 +34,7 @@ VISUALIZER_CFG = VisualizerCfg(
     focal_length=24.0,
     streaming_envs=[0],
     cameras=[
-        TrackedCameraCfg(
-            eye=(0.2, -0.15, 1.35),
-            lookat=(-0.1, -0.15, 0.6),
-            focal_length=24.0,
-        ),
+        TrackedCameraCfg(),
     ],
 )
 """Top-down recording view of the held cube beside its goal cube."""

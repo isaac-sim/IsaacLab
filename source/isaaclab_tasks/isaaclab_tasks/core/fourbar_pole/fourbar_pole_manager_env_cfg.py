@@ -246,11 +246,7 @@ class FourbarPoleSwingupEnvCfg(ManagerBasedRLEnvCfg):
             focal_length=24.0,
             streaming_envs=[0],
             cameras=[
-                TrackedCameraCfg(
-                    eye=(4.5, 0.0, 1.8),
-                    lookat=(0.0, 0.0, 1.8),
-                    focal_length=24.0,
-                ),
+                TrackedCameraCfg(),
             ],
         )
         # simulation settings

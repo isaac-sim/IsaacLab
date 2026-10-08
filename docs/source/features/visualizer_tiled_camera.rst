@@ -211,11 +211,11 @@ camera to every environment; runs that display nothing do not pay for it. Set it
     from isaaclab.visualizers import TrackedCameraCfg, VisualizerCfg
 
     self.sim.default_visualizer_cfg = VisualizerCfg(
+        eye=(1.8, -3.0, 1.1),
+        lookat=(0.15, 0.0, 0.0),
         streaming_envs=[0],
         cameras=[
             TrackedCameraCfg(
-                eye=(1.8, -3.0, 1.1),
-                lookat=(0.15, 0.0, 0.0),
                 track_path="robot",
                 follow_heading=True,
                 heading_smoothing_time_constant=0.2,
@@ -224,7 +224,9 @@ camera to every environment; runs that display nothing do not pay for it. Set it
     )
 
 * ``eye`` and ``lookat`` are offsets [m] from the tracked asset, or from the environment origin when
-  ``track_path`` is None, which keeps the camera fixed in each environment.
+  ``track_path`` is None, which keeps the camera fixed in each environment. When unset they follow the
+  ``eye``, ``lookat`` and ``focal_length`` of the visualizer config that declares the camera, so one value frames
+  both the interactive view and the tracked one.
 * ``track_path`` names a scene asset (``"robot"``) or one of its bodies (``"robot/base"``).
 * ``follow_heading`` rotates the offsets with the asset's yaw, keeping the horizon level.
   ``heading_smoothing_time_constant`` [s] damps rapid turns; zero follows immediately.
@@ -232,8 +234,9 @@ camera to every environment; runs that display nothing do not pay for it. Set it
 * ``renderer_cfg`` sets the camera's renderer and so its quality, e.g. ``NewtonWarpRendererCfg`` with
   shadows enabled. Without it Newton physics uses the Newton Warp renderer.
 
-The camera renders only for the environments selected by ``streaming_envs``, so ``streaming_envs=[0]`` keeps
-the cost to one camera. A camera the scene already declares, e.g. a wrist camera, uses ``SceneCameraCfg``.
+The scene holds one camera per environment and the renderer draws every environment when the view reads its
+image, so the cost grows with the environment count and the resolution, and a view that is hidden costs nothing.
+Use few environments, or a smaller ``resolution``, for 1080p views. A camera the scene already declares, e.g. a wrist camera, uses ``SceneCameraCfg``.
 
 
 Troubleshooting

@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import logging
 import math
 from typing import TYPE_CHECKING
 
@@ -14,18 +15,38 @@ import torch
 
 from .visualizer_cfg import USD_DEFAULT_VERTICAL_APERTURE_MM, TrackedCameraCfg, VisualizerCfg
 
+logger = logging.getLogger(__name__)
+
 if TYPE_CHECKING:
     from ..scene import InteractiveScene
     from ..sensors import Camera, CameraCfg
 
 
-def tracked_camera_cfgs(*visualizer_cfgs) -> dict[str, tuple[TrackedCameraCfg, VisualizerCfg]]:
-    """Return the tracked cameras the visualizer configs declare with their visualizer, keyed by sensor name."""
+def tracked_camera_cfgs(sim_cfg) -> dict[str, tuple[TrackedCameraCfg, VisualizerCfg]]:
+    """Return the tracked cameras the visualizers use with their declaring config, keyed by scene sensor name.
+
+    A visualizer with its own ``cameras`` uses those; otherwise it uses the ``cameras`` of
+    :attr:`~isaaclab.sim.SimulationCfg.default_visualizer_cfg`, which is also all there is before the
+    launcher has resolved any visualizer.
+
+    Raises:
+        ValueError: If two visualizers declare different cameras under the same name.
+    """
+    visualizer_cfgs = sim_cfg.visualizer_cfgs
+    visualizer_cfgs = visualizer_cfgs if isinstance(visualizer_cfgs, (list, tuple)) else [visualizer_cfgs]
+    default_cfg = sim_cfg.default_visualizer_cfg
+    owners = [cfg if cfg.cameras is not None else default_cfg for cfg in visualizer_cfgs] or [default_cfg]
     cameras = {}
-    for cfg in visualizer_cfgs:
-        for camera in (cfg.cameras or []) if cfg is not None else []:
-            if isinstance(camera, TrackedCameraCfg):
-                cameras.setdefault(camera.prim_path.rsplit("/", 1)[-1], (camera, cfg))
+    for owner in owners:
+        for camera in (owner.cameras or []) if owner is not None else []:
+            if not isinstance(camera, TrackedCameraCfg):
+                continue
+            name = camera.prim_path.rsplit("/", 1)[-1]
+            if name in cameras and cameras[name][0] != camera:
+                raise ValueError(
+                    f"Visualizers declare different tracked cameras named {name!r}; give each its own prim_path."
+                )
+            cameras.setdefault(name, (camera, owner))
     return cameras
 
 
@@ -85,15 +106,29 @@ def add_tracked_cameras(cfg, args: dict) -> None:
         from isaaclab_newton.renderers import NewtonWarpRendererCfg
 
         renderer_cfg = NewtonWarpRendererCfg(enable_shadows=True, enable_ambient_lighting=True, enable_textures=True)
-    for name, (camera, visualizer_cfg) in tracked_camera_cfgs(
-        sim_cfg.default_visualizer_cfg, *sim_cfg.visualizer_cfgs
-    ).items():
-        if not hasattr(scene_cfg, name):
-            # the visualizer's background, so the camera's sky matches its viewport
-            scene_camera_cfg = make_scene_camera_cfg(
-                camera, camera.renderer_cfg or renderer_cfg, visualizer_cfg.background_color
+    for name, (camera, visualizer_cfg) in tracked_camera_cfgs(sim_cfg).items():
+        if hasattr(scene_cfg, name):
+            continue
+        # unset poses follow the declaring visualizer, so one value serves the viewport and this camera
+        camera.eye = camera.eye if camera.eye is not None else visualizer_cfg.eye
+        camera.lookat = camera.lookat if camera.lookat is not None else visualizer_cfg.lookat
+        camera.focal_length = camera.focal_length if camera.focal_length is not None else visualizer_cfg.focal_length
+        # the visualizer's background, so the camera's sky matches its viewport
+        scene_camera_cfg = make_scene_camera_cfg(
+            camera, camera.renderer_cfg or renderer_cfg, visualizer_cfg.background_color
+        )
+        setattr(scene_cfg, name, scene_camera_cfg)
+        num_envs, (width, height) = scene_cfg.num_envs, camera.resolution
+        # the count may still be unset, or changed after launch
+        gib = num_envs * width * height * 4 / 2**30 if isinstance(num_envs, int) else 0.0
+        if gib > 4.0:
+            logger.warning(
+                "Tracked camera %r allocates about %.0f GiB of image buffers for %d environments, because the scene "
+                "renders one image per environment. Use fewer environments or a smaller TrackedCameraCfg.resolution.",
+                name,
+                gib,
+                num_envs,
             )
-            setattr(scene_cfg, name, scene_camera_cfg)
 
 
 class TrackedCameraUpdater:

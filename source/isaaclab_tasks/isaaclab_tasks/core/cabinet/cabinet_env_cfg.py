@@ -114,11 +114,7 @@ class CabinetSimCfg(PresetCfg):
             focal_length=28.0,
             streaming_envs=[0],
             cameras=[
-                TrackedCameraCfg(
-                    eye=(-1.8, 2.0, 1.6),
-                    lookat=(0.55, 0.0, 0.5),
-                    focal_length=28.0,
-                ),
+                TrackedCameraCfg(),
             ],
         ),
     )

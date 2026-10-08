@@ -254,10 +254,6 @@ class ReachEnvCfg(ManagerBasedRLEnvCfg):
             focal_length=28.0,
             streaming_envs=[0],
             cameras=[
-                TrackedCameraCfg(
-                    eye=(1.8, -1.8, 1.5),
-                    lookat=(0.3, 0.0, 0.4),
-                    focal_length=28.0,
-                ),
+                TrackedCameraCfg(),
             ],
         )
