@@ -25,9 +25,10 @@ if TYPE_CHECKING:
     from isaacteleop.retargeting_engine_ui import MultiRetargeterTuningUIImGui
     from isaacteleop.teleop_session_manager import TeleopSession
 
+    from .teleop_message_processor import TeleopMessageProcessor
+
 from .control_events import _NO_OP_EVENTS, ControlEvents
 from .isaac_teleop_cfg import IsaacTeleopCfg
-from .teleop_message_processor import TeleopMessageProcessor
 
 # Opt-in acceptance of the NVIDIA CloudXR license, mirroring the ``OMNI_KIT_ACCEPT_EULA``
 # escape hatch Kit offers for the Omniverse license.
@@ -730,6 +731,8 @@ class TeleopSessionLifecycle:
         import isaacteleop.deviceio as deviceio
         from isaacteleop.retargeting_engine.deviceio_source_nodes import MessageChannelSource
         from isaacteleop.teleop_session_manager import DefaultTeleopStateManager
+
+        from .teleop_message_processor import TeleopMessageProcessor
 
         # Build the source directly rather than via ``message_channel_config``:
         # the factory owns the outbound queue internally, and the lifecycle needs
