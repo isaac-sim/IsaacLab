@@ -154,20 +154,20 @@ class RenderData:
         # Requested segmentation outputs keyed by data-type name -> (destination view, mapping). Each view
         # aliases the caller's output buffer as ``(world_count, 1, H, W)`` uint32.
         self._seg_dests: dict[str, tuple[wp.array, NewtonSegmentationMapping]] = {}
-        self.width = getattr(spec.cfg, "width", 100)
-        self.height = getattr(spec.cfg, "height", 100)
+        self.width = spec.cfg.width
+        self.height = spec.cfg.height
         # Camera clipping planes [m] from ``spawn.clipping_range`` (``[0]`` near, ``[1]`` far).
         # Newton's ray tracer has no near-plane parameter, so only the far plane is enforced (through
         # the sensor's ``max_distance``); ``near_clip`` is captured for consumers but not applied.
         spawn = spec.cfg.spawn
-        clipping_range = getattr(spawn, "clipping_range", None)
+        clipping_range = spawn.clipping_range if spawn is not None else None
         self.near_clip: float | None = float(clipping_range[0]) if clipping_range is not None else None
         self.far_clip: float | None = float(clipping_range[1]) if clipping_range is not None else None
 
         # ABGR clear color packed as uint32 — Newton's SensorTiledCamera reads the low byte as R,
         # next as G, next as B, high byte as A (little-endian RGBA in memory). Default is 93% gray
         # (0xFFEEEEEE), matching the RTX renderer background and improving visibility of dark objects.
-        background_color = getattr(spec.cfg, "background_color", None)
+        background_color = spec.cfg.background_color
         self._hdr_background_color = (
             wp.vec3f(*newton.utils.color_srgb_to_linear(tuple(max(0.0, min(1.0, c)) for c in background_color)))
             if background_color is not None
@@ -522,7 +522,7 @@ class NewtonWarpRenderer(BaseRenderer):
 
         """
         self._stage = stage
-        if getattr(getattr(spec.cfg, "spawn", None), "distortion", None) is None:
+        if spec.cfg.spawn is None or spec.cfg.spawn.distortion is None:
             for path in spec.camera_prim_paths:
                 prim = stage.GetPrimAtPath(path)
                 if not prim.IsValid():
