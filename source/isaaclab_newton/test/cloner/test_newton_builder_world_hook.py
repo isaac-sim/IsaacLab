@@ -192,7 +192,7 @@ def test_imported_deformables_follow_plan_and_publish_geometry(heterogeneous):
         UsdPhysics.Scene.Define(stage, "/physicsScene")
         volume_world = int(heterogeneous)
         volume_path = f"/World/env_{volume_world}/Volume"
-        cloth_name = "Cloth" if heterogeneous else "Robot/Cloth"
+        cloth_name = "Robot/Cloth"
         _author_deformable(stage, f"/World/env_0/{cloth_name}", "surface")
         _author_deformable(stage, volume_path, "volume")
         _author_deformable(stage, "/Shared/Cloth", "surface")
@@ -208,11 +208,8 @@ def test_imported_deformables_follow_plan_and_publish_geometry(heterogeneous):
             AssetBaseCfg(prim_path="/World/env_[^/]+/Volume", spawn=SpawnerCfg(spawn_path=volume_path)),
             AssetBaseCfg(prim_path="/Shared/Cloth"),
         )
-        if not heterogeneous:
-            assets += (
-                AssetBaseCfg(prim_path="/World/env_[^/]+/Robot", spawn=SpawnerCfg(spawn_path="/World/env_0/Robot")),
-            )
-        prototypes = ((0,), (1,)) if heterogeneous else ((0, 1, 3),)
+        assets += (AssetBaseCfg(prim_path="/World/env_[^/]+/Robot", spawn=SpawnerCfg(spawn_path="/World/env_0/Robot")),)
+        prototypes = ((3,), (0, 1)) if heterogeneous else ((0, 1, 3),)
         layout = np.array([0, int(heterogeneous), 0])
         placement = dict(env_template="/World/env_{}", positions=positions)
         plan = make_clone_plan(
@@ -228,7 +225,7 @@ def test_imported_deformables_follow_plan_and_publish_geometry(heterogeneous):
         stage.RemovePrim("/World")
         stage.RemovePrim("/Shared")
 
-        expected_counts = [3, 4, 3] if heterogeneous else [7, 7, 7]
+        expected_counts = [3, 7, 3] if heterogeneous else [7, 7, 7]
         assert builder.particle_count == sum(expected_counts) + 3
         np.testing.assert_array_equal(np.bincount(np.asarray(builder.particle_world) + 1), [3, *expected_counts])
         assert native.deformable_ranges["/Shared/Cloth"] == (0, 3, "surface")
@@ -236,9 +233,7 @@ def test_imported_deformables_follow_plan_and_publish_geometry(heterogeneous):
         expected_paths = {"/Shared/Cloth/sim"}
         local_vertices = np.asarray([(0, 0, 0), (1, 0, 0), (0, 1, 0), (0, 0, 1)], dtype=np.float32)
         for world in range(3):
-            kinds = (
-                ("Volume",) if heterogeneous and world == 1 else ("Cloth",) if heterogeneous else ("Cloth", "Volume")
-            )
+            kinds = ("Cloth",) if heterogeneous and world != 1 else ("Cloth", "Volume")
             for name in kinds:
                 path = f"/World/env_{world}/{cloth_name if name == 'Cloth' else name}"
                 start, count, _ = native.deformable_ranges[path]

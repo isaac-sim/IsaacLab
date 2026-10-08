@@ -318,6 +318,7 @@ def replicate_builder_mapping(
     num_worlds = len(layout)
     xforms_np = np.concatenate((positions, quaternions), axis=1).astype(np.float32, copy=False)
     world_xforms = [wp.transform(*xform) for xform in xforms_np]
+    source_worlds = {str(env_id): world for world, env_id in enumerate(env_ids)}
     initial_sites = source_site_indices.get(id(builder), {})
     local_site_map = {label: [indices.copy() for _ in range(num_worlds)] for label, indices in initial_sites.items()}
     source_inverse = {}
@@ -337,10 +338,13 @@ def replicate_builder_mapping(
         for source, destination in components:
             # Remove the source world's placement before composing assets into other world prototypes.
             if source not in source_inverse:
+                match = clone_path.match(source, env_template)
+                # The first destination also covers plans that remap an authored source ID outside env_ids.
+                source_world = source_worlds.get(match.instance, first_world) if match is not None else None
                 source_inverse[source] = (
                     np.asarray(wp.transform(), dtype=np.float32)
-                    if first_world == -1 or clone_path.match(source, env_template) is None
-                    else np.asarray(wp.transform_inverse(world_xforms[first_world]), dtype=np.float32)
+                    if prototype_id == -1 or source_world is None
+                    else np.asarray(wp.transform_inverse(world_xforms[source_world]), dtype=np.float32)
                 )
             asset = source_builders[source]
             asset_offsets.append((prototype.shape_count, prototype.particle_count))

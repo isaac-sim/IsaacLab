@@ -180,10 +180,11 @@ def _replicate_newton(
     if simulation:
         for entry in entries:
             ancestors = reversed(Sdf.Path(entry.root_path).GetPrefixes())
-            source = next((source_builders[str(path)] for path in ancestors if str(path) in source_builders), None)
-            if source is None:
+            owners = [source_builders[str(path)] for path in ancestors if str(path) in source_builders]
+            if not owners:
                 raise RuntimeError(f"No imported source owns deformable {entry.root_path!r}.")
-            add_deformable_from_usd(source, stage, entry)
+            for source in owners:
+                add_deformable_from_usd(source, stage, entry)
     else:
         add_visual_deformables_to_sources(source_builders, entries)
 
@@ -239,7 +240,7 @@ def _replicate_newton(
     site_index_map.update((label, (None, per_world)) for label, per_world in local_site_map.items())
     if simulation:
         NewtonManager._cable_bindings = cable_bindings
-        geometry = expand_deformable_entries(entries, plan, env_ids, positions)
+        geometry = expand_deformable_entries(entries, plan, env_ids, positions, imported_sources=source_builders)
         ranges = {
             label: start
             for family in ("cloth", "soft")

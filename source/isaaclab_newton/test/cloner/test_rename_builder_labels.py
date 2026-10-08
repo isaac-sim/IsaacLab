@@ -357,7 +357,10 @@ class TestVisualizationClonePlan(unittest.TestCase):
         assets = tuple(
             AssetBaseCfg(prim_path="/Scene/copy_[^/]+/" + name, spawn=SpawnerCfg(spawn_path=source))
             for name, source in zip(("Parent", "Volume", "Tet"), sources[:3], strict=True)
-        ) + (AssetBaseCfg(prim_path="/Shared"),)
+        ) + (
+            AssetBaseCfg(prim_path="/Shared"),
+            AssetBaseCfg(prim_path="/Scene/copy_[^/]+/Parent/Cloth", spawn=SpawnerCfg(spawn_path=roots[0])),
+        )
         env_ids = np.array([7, 9, 12])
         quaternions = np.asarray([[0, 0, 0, 1], [0, 0, 0, 1], [0, 0, 2**-0.5, 2**-0.5]], dtype=np.float32)
         for positions in (np.array([[10, 0, 0], [20, 0, 0], [30, 0, 0]], dtype=np.float32), None):
@@ -366,25 +369,25 @@ class TestVisualizationClonePlan(unittest.TestCase):
                     self.sim.close_backend(resource)
                 options = dict(shared_assets=(3,), env_template="/Scene/copy_{}")
                 options.update(clone_strategy=lambda _weights, _count: np.array([0, 1, 0]), positions=positions)
-                plan = make_clone_plan(assets, ((0,), (1, 1, 2)), 3, **options)
+                plan = make_clone_plan(assets, ((0,), (1, 1, 2, 4)), 3, **options)
                 with mock.patch.object(
                     newton.ModelBuilder, "add_cloth_mesh", autospec=True, side_effect=newton.ModelBuilder.add_cloth_mesh
                 ) as add_cloth:
-                    options = dict(plan=plan, asset_prototype_ids=range(4))
+                    options = dict(plan=plan, asset_prototype_ids=range(5))
                     options.update(positions=positions, quaternions=quaternions)
                     builder, _, _ = replicate_module._replicate_newton(stage, env_ids, self.sim, **options)
                 cfg = NewtonBackendCfg(physics_cfg=self.sim.cfg.physics, device=self.sim.device)
                 backend = self.sim.get_or_create_backend(cfg)
                 offsets = backend.geometry_offsets
-                self.assertEqual(add_cloth.call_count, 3)  # Three prototypes, not five destination meshes.
-                np.testing.assert_array_equal(np.bincount(np.asarray(builder.particle_world) + 1), [3, 3, 16, 3])
+                self.assertEqual(add_cloth.call_count, 4)  # One copy for each source builder that needs the cloth.
+                np.testing.assert_array_equal(np.bincount(np.asarray(builder.particle_world) + 1), [3, 3, 19, 3])
                 expected = {"/Shared/sim": vertices[:3]}
                 origins = np.zeros((3, 3)) if positions is None else positions
                 for world, env_id in enumerate(env_ids):
                     xform = wp.transform(origins[world], quaternions[world])
-                    meshes = {"Volume/vis": visual, "Volume_1/vis": visual, "Tet/sim": vertices}
-                    if world != 1:
-                        meshes = {"Parent/Cloth/sim": vertices[:3] + [15, 0, 0] - origins[0]}
+                    meshes = {"Parent/Cloth/sim": vertices[:3] + [15, 0, 0] - origins[0]}
+                    if world == 1:
+                        meshes.update({"Volume/vis": visual, "Volume_1/vis": visual, "Tet/sim": vertices})
                     for suffix, points in meshes.items():
                         expected[f"/Scene/copy_{env_id}/{suffix}"] = np.asarray(
                             [wp.transform_point(xform, wp.vec3(point)) for point in points]
