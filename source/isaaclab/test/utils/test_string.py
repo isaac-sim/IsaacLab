@@ -58,6 +58,19 @@ def test_case_conversion():
     assert string_utils.to_camel_case("snake_case_string", to="cC") == "snakeCaseString"
 
 
+_COMMA_LAMBDA_MAPPING = {
+    "pair": lambda x: (x, x + 1),
+}
+
+
+def test_callable_to_string_handles_lambda_mapping_fragment():
+    """Comma-containing lambdas embedded in mappings should serialize and round-trip."""
+    serialized = string_utils.callable_to_string(_COMMA_LAMBDA_MAPPING["pair"])
+
+    assert serialized == "lambda x: (x, x + 1)"
+    assert string_utils.string_to_callable(serialized)(3) == (3, 4)
+
+
 def test_string_to_callable_allows_safe_lambdas():
     """Test that simple lambda expressions and module references resolve to callables."""
     assert string_utils.string_to_callable("lambda x: x + 1")(5) == 6
