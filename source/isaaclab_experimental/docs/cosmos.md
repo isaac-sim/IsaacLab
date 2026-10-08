@@ -282,8 +282,10 @@ uv run isaaclab train --task Isaac-Reorient-KukaAllegro-Camera --rl_library rsl_
 - `--cosmos` checks the service before training: `--num_envs` must be at most its `--max-views`, and the service
   must run compiled.
 - The socket transport carries at most 16 environments per step; CUDA IPC has no such limit.
-- Reference (RTX PRO 6000 Blackwell MIG 2g.48gb, compiled, 640 x 640): one environment 917 ms per step, two 1596 ms
-  (1.15x the throughput), with 39.7 GiB peak memory for two. Larger GPUs fit more environments.
+- Each environment's history window (`--kv-window`, default 30 latent frames) takes GPU memory. On a 48 GB GPU,
+  one environment fits with the default window; two need `--kv-window 8`. Larger GPUs fit more environments.
+- Reference (RTX PRO 6000 Blackwell MIG 2g.48gb, compiled, 640 x 640, `--kv-window 8`): one environment 917 ms per
+  step, two 1596 ms (1.15x the throughput), with 39.7 GiB peak memory for two.
 
 Other control recipes are `edge_processor`, `regional_edge_processor`, and
 `segmentation_processor`, paired with modalities `"edge"` or `"seg"`. Edge
