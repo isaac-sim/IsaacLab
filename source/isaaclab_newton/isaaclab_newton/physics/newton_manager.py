@@ -652,6 +652,9 @@ class NewtonManager(PhysicsManager):
         if not (cls.kinematics_dirty or cls.transforms_may_change_on_graph_replay):
             return
         cls._reset_solver_internals_delegate(cls._world_reset_mask)
+        pipeline = cls._collision_pipeline
+        if pipeline is not None and pipeline.contact_matching != "disabled":
+            pipeline.reset_contact_matching(cls._world_reset_mask)
         cls._eval_fk(cls._world_reset_mask, cls._fk_reset_mask)
         if cls._fk_reset_mask is not None:
             cls._fk_reset_mask.zero_()
@@ -1351,8 +1354,9 @@ class NewtonManager(PhysicsManager):
             return
         pipeline_args = {"broad_phase": "explicit"}
         if cls._collision_cfg is not None:
-            pipeline_args = cls._collision_cfg.to_pipeline_args()
-        pipeline_args["deterministic"] = cls._deterministic_mode != wp.DeterministicMode.NOT_GUARANTEED
+            pipeline_args = cls._collision_cfg.to_pipeline_args(world_count=cls.backend.model.world_count)
+        if cls._deterministic_mode != wp.DeterministicMode.NOT_GUARANTEED:
+            pipeline_args["deterministic"] = True
         if cls._collision_pipeline is None:
             NewtonManager._collision_pipeline = CollisionPipeline(cls.backend.model, **pipeline_args)
         if cls._contacts is None:
@@ -1367,7 +1371,7 @@ class NewtonManager(PhysicsManager):
             if _solver is not None and hasattr(_solver, "get_max_contact_count"):
                 _need = _solver.get_max_contact_count()
                 if _need > NewtonManager._contacts.rigid_contact_max:
-                    if cls._deterministic_mode != wp.DeterministicMode.NOT_GUARANTEED:
+                    if cls._collision_pipeline.deterministic:
                         # In deterministic mode, CollisionPipeline sizes _sort_key_array from rigid_contact_max at
                         # construction. Rebuild so the sort and contact buffers retain matching capacity; replacing
                         # Contacts alone would leave the sorting buffer undersized.
