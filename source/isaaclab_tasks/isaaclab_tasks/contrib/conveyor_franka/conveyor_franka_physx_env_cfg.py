@@ -11,7 +11,7 @@ import functools
 from dataclasses import replace
 
 from isaaclab_physx.physics import PhysxCfg
-from isaaclab_physx.sim.schemas import PhysxCollisionCfg, PhysxSDFMeshCfg
+from isaaclab_physx.sim.schemas import PhysxCollisionCfg, PhysxRigidBodyCfg, PhysxSDFMeshCfg
 from isaaclab_physx.sim.spawners.materials import PhysxRigidBodyMaterialCfg
 
 import isaaclab.sim as sim_utils
@@ -41,11 +41,10 @@ from .conveyor_geometry import (
 )
 from .franka_robot_cfg import FRANKA_PANDA_CONVEYOR_PHYSX_CFG
 
-_PHYSX_KINEMATIC_PROPERTIES = sim_utils.RigidBodyBaseCfg(
-    rigid_body_enabled=True,
-    kinematic_enabled=True,
-    disable_gravity=True,
-)
+_PHYSX_KINEMATIC_PROPERTIES = [
+    sim_utils.UsdPhysicsRigidBodyCfg(rigid_body_enabled=True, kinematic_enabled=True),
+    PhysxRigidBodyCfg(disable_gravity=True),
+]
 
 
 def _physx_collision_properties(contact_offset: float = 0.005) -> list[CollisionFragment]:

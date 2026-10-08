@@ -109,5 +109,6 @@ def nonfinite_scene_state(
     robot: Articulation = env.scene[robot_cfg.name]
     invalid = ~torch.all(torch.isfinite(robot.data.joint_pos.torch), dim=1)
     invalid |= ~torch.all(torch.isfinite(robot.data.joint_vel.torch), dim=1)
-    invalid |= ~torch.isfinite(cube_values(env, "root_state_w", all_cubes=True)).all(dim=(1, 2))
+    for attribute in ("root_link_pose_w", "root_com_vel_w"):
+        invalid |= ~torch.isfinite(cube_values(env, attribute, all_cubes=True)).all(dim=(1, 2))
     return invalid

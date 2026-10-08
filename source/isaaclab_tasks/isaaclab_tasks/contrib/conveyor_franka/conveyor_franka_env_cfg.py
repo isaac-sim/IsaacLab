@@ -48,7 +48,7 @@ from .conveyor_geometry import (
 from .franka_robot_cfg import FRANKA_PANDA_CONVEYOR_CFG
 from .mdp.terminations import invalid_action as invalid_policy_action
 
-_DYNAMIC_PROPERTIES = sim_utils.RigidBodyBaseCfg()
+_DYNAMIC_PROPERTIES = sim_utils.UsdPhysicsRigidBodyCfg()
 _CONTACT_GAP = 0.01
 _CUBE_CONTACT_MARGIN = 0.003
 _MUJOCO_SOLIMP = (0.9, 0.95, 0.001, 0.5, 2.0)
@@ -475,7 +475,7 @@ def _cube(
         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=color, roughness=0.75),
     )
     spawn.rigid_props = _DYNAMIC_PROPERTIES
-    spawn.mass_props = sim_utils.MassPropertiesCfg(mass=0.05)
+    spawn.mass_props = sim_utils.MassCfg(mass=0.05)
     spawn.collision_props = _collision_properties(contact_margin=_CUBE_CONTACT_MARGIN)
     spawn.physics_material = NewtonMaterialPropertiesCfg(
         # The belt's higher MuJoCo contact priority overrides this friction
