@@ -187,7 +187,7 @@
     const copyButton = builder.querySelector("[data-copy-command]");
     const copyStatus = builder.querySelector("[data-copy-status]");
     const modeButtons = [...builder.querySelectorAll("[data-command-mode]")];
-    const scopeButtons = [...taskBrowser.querySelectorAll("[data-task-scope]")];
+    const scopeButtons = [...document.querySelectorAll("[data-task-scope]")];
     const taskList = taskBrowser.querySelector("[data-task-list]");
     const taskSearch = taskBrowser.querySelector("[data-task-search]");
     const taskCategory = taskBrowser.querySelector("[data-task-category]");

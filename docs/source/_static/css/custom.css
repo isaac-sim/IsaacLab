@@ -59,6 +59,35 @@ a {
     text-decoration: none !important;
 }
 
+.bd-article :is(h1, h2, h3, h4, h5, h6) {
+    overflow-wrap: anywhere;
+}
+
+/* Use wide displays while keeping navigation and prose at readable widths. */
+@media screen and (min-width: 992px) {
+    .bd-page-width {
+        max-width: none;
+    }
+
+    .bd-container__inner {
+        --isaaclab-sidebar-primary-width: min(20%, 18rem);
+    }
+
+    .bd-sidebar-primary {
+        flex-basis: var(--isaaclab-sidebar-primary-width);
+        width: var(--isaaclab-sidebar-primary-width);
+    }
+
+    .bd-sidebar-primary.pst-sidebar-hidden,
+    input#pst-primary-sidebar-checkbox:checked ~ .bd-container .bd-sidebar-primary {
+        margin-left: calc(-1 * var(--isaaclab-sidebar-primary-width));
+    }
+
+    .bd-article section > :is(p, ul, ol) {
+        max-inline-size: 80ch;
+    }
+}
+
 /* for the announcement link */
 .bd-header-announcement a,
 .bd-header-version-warning a {
@@ -174,8 +203,8 @@ figure.nurec-gif-contain img {
     white-space: nowrap;
 }
 
-/* Allow long renderer preset names to wrap without changing their copied text. */
-.renderer-preset-grid figcaption span.pre {
+/* Wrap long inline code and paths without changing their copied text. */
+.bd-article span.pre {
     overflow-wrap: anywhere;
     white-space: normal;
 }
