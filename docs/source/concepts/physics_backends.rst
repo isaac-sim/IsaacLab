@@ -114,7 +114,7 @@ for those fields.
 
 Feature coverage is still evolving. See the
 :doc:`OvPhysX specialist page
-</source/concepts/ovphysx>` for current
+</source/concepts/physics-backends/ovphysx>` for current
 limitations and runtime constraints.
 
 
@@ -142,8 +142,7 @@ follow the generated API links for :class:`~isaaclab_physx.physics.PhysxCfg`,
    :hidden:
 
    /source/concepts/physics-backends/newton
-   /source/concepts/joint_and_body_ordering
-   /source/concepts/ovphysx
-   /source/concepts/using_mpm
+   /source/concepts/physics-backends/ovphysx
    /source/concepts/warp_environments
+   /source/concepts/joint_and_body_ordering
    /source/concepts/warp_environment_migration
