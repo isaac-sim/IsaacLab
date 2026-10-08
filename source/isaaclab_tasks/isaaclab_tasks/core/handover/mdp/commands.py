@@ -71,6 +71,8 @@ class HandoverCommand(CommandTerm):
         self.metrics["consecutive_success"][env_ids] = goals
         extras = super().reset(env_ids)
         log = self._env.extras.setdefault("log", {})
+        # Route both metrics to the unified ``Metrics/`` cards shared across tasks; pop them so
+        # CommandManager does not also log them under ``Metrics/<term_name>/``.
         log["Metrics/success_rate"] = extras.pop("success_rate")
         log["Metrics/consecutive_success"] = extras.pop("consecutive_success")
         for statistic, value in self._minimum_goal_distance.reset(env_ids).items():
