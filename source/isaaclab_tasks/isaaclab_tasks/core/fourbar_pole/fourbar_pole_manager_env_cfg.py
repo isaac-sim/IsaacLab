@@ -241,9 +241,9 @@ class FourbarPoleSwingupEnvCfg(ManagerBasedRLEnvCfg):
         self.episode_length_s = 5
         # Match Newton GL / --video camera to the task viewport when --viz newton creates the visualizer.
         self.sim.default_visualizer_cfg = VisualizerCfg(
-            eye=(4.5, 0.0, 1.8),
-            lookat=(0.0, 0.0, 1.8),
-            focal_length=24.0,
+            eye=(3.4, 0.0, 2.6),
+            lookat=(0.0, 0.0, 2.3),
+            focal_length=16.0,
             origin_type="env",
             origin_env_index="center",
         )
