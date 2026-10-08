@@ -147,4 +147,3 @@ follow the generated API links for :class:`~isaaclab_physx.physics.PhysxCfg`,
    /source/concepts/physics-backends/newton
    /source/concepts/physics-backends/ovphysx
    /source/concepts/warp_environments
-   /source/concepts/warp_environment_migration
