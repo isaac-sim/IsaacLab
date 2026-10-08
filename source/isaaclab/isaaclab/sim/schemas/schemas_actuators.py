@@ -21,6 +21,7 @@ side effect of asset construction.
 from __future__ import annotations
 
 import json
+import math
 import re
 import tempfile
 from typing import Any
@@ -29,7 +30,8 @@ from pxr import Sdf, Usd, UsdPhysics
 
 from ...actuators.actuator_base_cfg import _is_implicit_actuator_cfg
 from ...actuators.actuator_compat import resolve_limit_aliases
-from ...utils import clone
+from ...utils import clone, to_dict, validate
+from ...utils.backend_utils import FactoryBase
 from ...utils.string import _resolve_matching_values_dense, resolve_matching_names, string_to_callable, to_camel_case
 from .schemas import drive_instance_name
 
@@ -51,6 +53,7 @@ def _resolve_actuator_class(class_type: type | str) -> type:
 def _is_newton_native_actuator_cfg(cfg: Any) -> bool:
     """Return whether an actuator config can be authored as a Newton actuator."""
     from ...actuators import DCMotorCfg, DelayedPDActuatorCfg  # noqa: PLC0415
+    from ...actuators.actuator_bam_cfg import BamActuatorCfg  # noqa: PLC0415
     from ...actuators.actuator_net import ActuatorNetLSTM, ActuatorNetMLP  # noqa: PLC0415
     from ...actuators.actuator_net_cfg import ActuatorNetLSTMCfg, ActuatorNetMLPCfg  # noqa: PLC0415
     from ...actuators.actuator_pd import (  # noqa: PLC0415
@@ -60,6 +63,9 @@ def _is_newton_native_actuator_cfg(cfg: Any) -> bool:
         RemotizedPDActuator,
     )
     from ...actuators.actuator_pd_cfg import IdealPDActuatorCfg, RemotizedPDActuatorCfg  # noqa: PLC0415
+
+    if isinstance(cfg, BamActuatorCfg):
+        return cfg.class_type is None
 
     supported_cfg_types = (
         (ActuatorNetMLPCfg, ActuatorNetMLP),
@@ -160,7 +166,7 @@ def define_actuator_properties(
     No-ops (returns immediately) when:
 
     * the active :class:`~isaaclab.sim.SimulationContext` was configured
-      with ``use_newton_actuators=False`` (or no context is active), or
+      with ``use_newton_actuators=False`` and no BAM groups (or no context is active), or
     * *prim_path* does not resolve to a valid prim on the stage.
 
     Must be called **after** the articulation is spawned (joint prims
@@ -177,12 +183,17 @@ def define_actuator_properties(
             is used.
 
     Raises:
-        ValueError: If Newton-native execution is enabled and an explicit actuator config is unsupported.
+        ValueError: If BAM is configured without native Newton execution, or if Newton-native
+            execution is enabled and an explicit actuator config is unsupported.
     """
+    from ...actuators.actuator_bam_cfg import BamActuatorCfg  # noqa: PLC0415
     from .. import SimulationContext  # noqa: PLC0415
 
     sim_ctx = SimulationContext.instance()
     sim_cfg = sim_ctx.cfg if sim_ctx is not None else None
+    if sim_cfg is not None and any(isinstance(cfg, BamActuatorCfg) for cfg in actuator_cfgs.values()):
+        if not sim_cfg.use_newton_actuators or FactoryBase._get_backend() != "newton":
+            raise ValueError("BAM requires use_newton_actuators=True with the Newton backend and MJWarp solver.")
     if sim_cfg is None or not sim_cfg.use_newton_actuators:
         return
 
@@ -232,11 +243,12 @@ def author_actuator_prims(
         for jname in joint_names:
             covered_joint_paths.add(joint_inventory[jname])
 
-    _remove_actuator_prims_for_joints(art_prim, covered_joint_paths)
-
     from ...actuators import DCMotorCfg, DelayedPDActuatorCfg  # noqa: PLC0415
+    from ...actuators.actuator_bam_cfg import BAM_DRIVE_API, BamActuatorCfg  # noqa: PLC0415
     from ...actuators.actuator_net_cfg import ActuatorNetLSTMCfg, ActuatorNetMLPCfg  # noqa: PLC0415
     from ...actuators.actuator_pd_cfg import RemotizedPDActuatorCfg  # noqa: PLC0415
+
+    _remove_actuator_prims_for_joints(art_prim, covered_joint_paths)
 
     for group_name, cfg, joint_names in cfg_entries:
         stiffness_map = resolve_per_dof(cfg.stiffness, joint_names)
@@ -246,8 +258,40 @@ def author_actuator_prims(
         is_remotized = isinstance(cfg, RemotizedPDActuatorCfg)
         is_dc_motor = isinstance(cfg, DCMotorCfg)
         is_delayed = isinstance(cfg, DelayedPDActuatorCfg)
-
+        is_bam = isinstance(cfg, BamActuatorCfg)
         configured_effort_limit = cfg.actuator_effort_limit
+        if is_bam:
+            validate(cfg)
+            bam_attrs = to_dict(cfg.motor)
+            # Viscous friction is applied as passive joint damping, not by the drive.
+            bam_attrs.pop("friction_viscous")
+            model = bam_attrs.pop("model")
+            bam_attrs.update(
+                stribeck=int(model != "m1"),
+                load_dependent=int(model in ("m5", "m6")),
+                quadratic=int(model == "m6"),
+                kp_fw=cfg.kp_fw,
+                vin=cfg.vin,
+                min_delay=cfg.min_delay,
+                max_delay=cfg.max_delay,
+                delay_hold_prob=cfg.delay_hold_prob,
+                delay_update_period=cfg.delay_update_period,
+                vin_min=cfg.vin_min if cfg.vin_min is not None else -math.inf,
+                # Reset runtime parameters so values on a weaker USD layer do not survive replacement.
+                kp_scale=1.0,
+                kd_scale=1.0,
+                friction_scale=1.0,
+                sag_gain=0.0,
+                delay_seed=0,
+            )
+            # Default to the stall torque at the highest sampled voltage.
+            voltage = max(cfg.vin_range) if cfg.vin_range is not None else cfg.vin
+            configured_effort_limit = (
+                voltage * cfg.motor.kt / cfg.motor.resistance
+                if configured_effort_limit is None
+                else configured_effort_limit
+            )
+
         effort_map: dict[str, float] = {}
         if not is_remotized:
             if configured_effort_limit is None:
@@ -289,12 +333,23 @@ def author_actuator_prims(
 
             if is_neural:
                 schemas.append("NewtonNeuralControlAPI")
+            elif is_bam:
+                schemas.append(BAM_DRIVE_API)
+                attrs.update(bam_attrs)
+                # Allocate the friction constraint; BAM overwrites this seed before each solve.
+                stage.GetPrimAtPath(joint_prim_path).CreateAttribute("newton:friction", Sdf.ValueTypeNames.Float).Set(
+                    1.0
+                )
             else:
                 schemas.append("NewtonPDControlAPI")
                 attrs["kp"] = stiffness_map.get(jname, 0.0)
                 attrs["kd"] = damping_map.get(jname, 0.0)
 
-            if is_dc_motor:
+            if is_bam:
+                # No clamping schema: it would hide the unregistered BAM token from Newton.
+                if jname in effort_map:
+                    attrs["max_effort"] = effort_map[jname]
+            elif is_dc_motor:
                 schemas.append("NewtonDCMotorClampingAPI")
                 attrs["saturation_effort"] = sat_effort_map.get(jname, 0.0)
                 if jname in vel_limit_map:
@@ -319,7 +374,8 @@ def author_actuator_prims(
 
             act_prim_path = f"{articulation_prim_path}/{group_name}_{jname}_actuator"
             act_prim = stage.DefinePrim(act_prim_path, "NewtonActuator")
-
+            # Replacement may reuse the path of an actuator deactivated above.
+            act_prim.SetActive(True)
             existing = act_prim.GetMetadata("apiSchemas") or Sdf.TokenListOp()
             existing.prependedItems = list(schemas)
             act_prim.SetMetadata("apiSchemas", existing)

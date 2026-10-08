@@ -1680,8 +1680,8 @@ def test_native_actuator_reset_and_gain_event_are_environment_selective(scene: _
     event = randomize_actuator_gains(EventTermCfg(func=randomize_actuator_gains, params=event_params), env)
     event(env, env_ids=torch.tensor([0], device=device), **event_params)
 
-    stiffness = read_group_parameter(articulation.actuators, "joint", "controller", "kp")
-    damping = read_group_parameter(articulation.actuators, "joint", "controller", "kd")
+    stiffness = read_group_parameter(articulation.actuators, "joint", "drive", "kp")
+    damping = read_group_parameter(articulation.actuators, "joint", "drive", "kd")
     torch.testing.assert_close(stiffness, torch.tensor([[101.0], [20.0]], device=device).repeat(1, num_joints))
     torch.testing.assert_close(damping, torch.tensor([[3.0], [1.0]], device=device).repeat(1, num_joints))
 
