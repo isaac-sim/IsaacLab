@@ -403,6 +403,7 @@ html_sidebars = {
 
 # Keep published links working after guide consolidation.
 isaaclab_doc_redirects = {
+    "source/concepts/backend_architecture": "source/concepts/backends_and_presets",
     "source/concepts/joint_and_body_ordering": "source/how-to/transfer_policies_between_physx_and_newton",
     "source/concepts/native-physics-api/newton": "source/concepts/physics-backends/newton",
     "source/concepts/native-physics-api/ovphysx": "source/concepts/physics-backends/ovphysx",
@@ -444,7 +445,6 @@ isaaclab_doc_redirects = {
     "source/tutorials/05_controllers/run_diff_ik": "source/how-to/run_diff_ik",
     "source/tutorials/05_controllers/run_osc": "source/how-to/run_osc",
     "source/tutorials/index": "source/how-to/index",
-    "source/concepts/backend_architecture": "source/concepts/backends_and_presets",
 }
 
 _streaming_how_to = "source/how-to/visualizer_streaming_camera_view"
