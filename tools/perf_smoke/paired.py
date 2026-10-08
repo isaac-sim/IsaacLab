@@ -18,9 +18,9 @@ from contextlib import suppress
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 
-from . import baseline as store
+from . import baseline as baseline_mod
 from .metric_identity import metric_definition
-from .source_revision import RUNTIME_MODULE, prepare_manifest
+from .source_revision import RUNTIME_MODULE, measurement_digest, prepare_manifest
 
 
 def _write(path: Path, value: dict) -> None:
@@ -52,7 +52,7 @@ def resolve_base(root: Path, event: dict) -> dict:
     tested = os.environ.get("GITHUB_SHA")
     pr = event["pull_request"]
     head = pr["head"]["sha"]
-    if not store.is_commit_sha(tested) or commit != tested:
+    if not baseline_mod.is_commit_sha(tested) or commit != tested:
         raise ValueError("Checked-out PR revision does not match the immutable tested merge GITHUB_SHA.")
     if len(parents) != 2 or parents[1] != head:
         raise ValueError("Tested PR merge does not have the event's head commit as its second parent.")
@@ -66,29 +66,51 @@ def resolve_base(root: Path, event: dict) -> dict:
 
 def _resolved_base(commit: str | None = None) -> str:
     commit = os.environ.get("PERF_BASE_COMMIT") if commit is None else commit
-    if not store.is_commit_sha(commit):
+    if not baseline_mod.is_commit_sha(commit):
         detail = os.environ.get("PERF_PAIR_ERROR")
         raise ValueError(detail or "The tested PR merge's first parent was not resolved; PERF_BASE_COMMIT is missing.")
     return commit
 
 
-def _benchmark_protocol(legs: Path) -> dict[str, str]:
+def _benchmark_protocol(legs: Path, measurement_manifest: dict | None = None) -> dict[str, str]:
     """Identify the matrix and preserved controller files that actually launch both builds."""
     paths = {
         "matrix_sha256": legs,
         "benchmark_launcher_sha256": Path(__file__).with_name("run_benchmarks.sh"),
         "source_launcher_sha256": Path(__file__).with_name("source_revision.py"),
     }
-    return {name: hashlib.sha256(path.read_bytes()).hexdigest() for name, path in paths.items()}
+    protocol = {name: hashlib.sha256(path.read_bytes()).hexdigest() for name, path in paths.items()}
+    if measurement_manifest is not None:
+        protocol["measurement_sha256"] = measurement_manifest["digest"]
+    return protocol
 
 
-def source_issues(evidence: store.Evidence, files: dict[str, bytes], commit: str) -> list[str]:
+def source_issues(evidence: baseline_mod.Evidence) -> list[str]:
     """Check each result against its same-process source proof, retaining per-leg failures."""
+    files, commit = evidence.files, evidence.identity["source_commit"]
     try:
-        manifest = store.artifact_json(files, "source-manifest.json")
+        manifest = baseline_mod.artifact_json(files, "source-manifest.json")
         if manifest.get("commit") != commit or not manifest.get("files"):
-            raise store.EvidenceError("source_mismatch", "Source manifest does not identify the selected commit.")
-    except store.EvidenceError as exc:
+            raise baseline_mod.EvidenceError(
+                "source_mismatch", "Source manifest does not identify the selected commit."
+            )
+        measurement = manifest.get("measurement")
+        if measurement is None and (
+            manifest.get("schema_version") == 2
+            or evidence.context.get("measurement") is not None
+            or str(evidence.context.get("metric_definition", {}).get("total_fps", "")).startswith("measurement-v1:")
+        ):
+            raise baseline_mod.EvidenceError("source_mismatch", "Shared measurement source manifest is missing.")
+        if measurement is not None and (
+            manifest.get("schema_version") != 2
+            or not measurement.get("files")
+            or measurement_digest(measurement["files"]) != measurement.get("digest")
+            or evidence.context.get("measurement") != {key: measurement[key] for key in ("commit", "digest")}
+            or evidence.context.get("metric_definition", {}).get("total_fps")
+            != f"measurement-v1:{measurement['digest']}"
+        ):
+            raise baseline_mod.EvidenceError("source_mismatch", "Measurement source identity was not verified.")
+    except (baseline_mod.EvidenceError, KeyError, TypeError, AttributeError) as exc:
         return [f"{leg}/source: {exc}" for leg in evidence.samples.keys() | evidence.statuses.keys()]
     issues = []
     for leg, samples in evidence.samples.items():
@@ -96,7 +118,7 @@ def source_issues(evidence: store.Evidence, files: dict[str, bytes], commit: str
             path = sample["path"]
             sidecar_path = str(PurePosixPath(path).parent / "source-revision.json")
             try:
-                proof = store.artifact_json(files, sidecar_path)
+                proof = baseline_mod.artifact_json(files, sidecar_path)
                 runtime = proof.get("runtime_entrypoint") or {}
                 modules = proof.get("modules") or []
                 if (
@@ -109,16 +131,29 @@ def source_issues(evidence: store.Evidence, files: dict[str, bytes], commit: str
                     or runtime.get("module") != RUNTIME_MODULE
                     or not any(module.get("name") == RUNTIME_MODULE for module in modules)
                 ):
-                    raise store.EvidenceError("source_mismatch", "Executing source was not verified for this commit.")
+                    raise baseline_mod.EvidenceError(
+                        "source_mismatch", "Executing source was not verified for this commit."
+                    )
+                if measurement is not None and (
+                    proof.get("schema_version") != 2
+                    or proof.get("measurement") != {**measurement, "status": "verified"}
+                    or runtime.get("origin") != "measurement"
+                ):
+                    raise baseline_mod.EvidenceError("source_mismatch", "Measurement source proof does not match.")
                 for module in modules:
-                    expected = manifest["files"].get(module.get("relative_path"))
+                    relative = module.get("relative_path")
+                    origin = "measurement" if measurement and relative in measurement["files"] else "workload"
+                    expected = (measurement if origin == "measurement" else manifest)["files"].get(relative)
                     if (
                         not expected
+                        or (measurement is not None and module.get("origin") != origin)
                         or module.get("status") != "verified"
                         or module.get("sha256") != expected
                         or module.get("expected_sha256") != expected
                     ):
-                        raise store.EvidenceError("source_mismatch", "Loaded source does not match its manifest.")
+                        raise baseline_mod.EvidenceError(
+                            "source_mismatch", "Loaded source does not match its manifest."
+                        )
                 matches = [item for item in proof.get("outputs", []) if item.get("path") == PurePosixPath(path).name]
                 content = files[path]
                 if (
@@ -126,18 +161,22 @@ def source_issues(evidence: store.Evidence, files: dict[str, bytes], commit: str
                     or matches[0].get("sha256") != hashlib.sha256(content).hexdigest()
                     or matches[0].get("bytes") != len(content)
                 ):
-                    raise store.EvidenceError("source_mismatch", "Result bytes do not match their source verification.")
-            except (store.EvidenceError, KeyError, TypeError, AttributeError) as exc:
+                    raise baseline_mod.EvidenceError(
+                        "source_mismatch", "Result bytes do not match their source verification."
+                    )
+            except (baseline_mod.EvidenceError, KeyError, TypeError, AttributeError) as exc:
                 issues.append(f"{leg}/source: {path}: {exc}")
     return issues
 
 
-def _read_baseline(client: store.GitHubClient, artifact: dict, pr_number: int, base_commit: str) -> store.Evidence:
-    contents = store.download_artifact(client, artifact)
-    context = store.artifact_json(contents[1], "build-context.json")
+def _read_baseline(
+    client: baseline_mod.GitHubClient, artifact: dict, pr_number: int, base_commit: str
+) -> baseline_mod.Evidence:
+    contents = baseline_mod.download_artifact(client, artifact)
+    context = baseline_mod.artifact_json(contents[1], "build-context.json")
     execution, source = context.get("execution", {}), context.get("source", {})
     if not isinstance(execution, dict) or not isinstance(source, dict):
-        raise store.EvidenceError("corrupt", "Baseline source/execution context is not an object.")
+        raise baseline_mod.EvidenceError("corrupt", "Baseline source/execution context is not an object.")
     run_id, attempt = execution.get("run_id"), execution.get("run_attempt")
     if (
         source.get("commit") != base_commit
@@ -147,11 +186,13 @@ def _read_baseline(client: store.GitHubClient, artifact: dict, pr_number: int, b
         or not isinstance(run_id, int)
         or not isinstance(attempt, int)
     ):
-        raise store.EvidenceError("identity_mismatch", "Baseline does not belong to this PR and exact base commit.")
+        raise baseline_mod.EvidenceError(
+            "identity_mismatch", "Baseline does not belong to this PR and exact base commit."
+        )
     run = client.run_attempt(run_id, attempt)
     if run.get("event") != "pull_request":
-        raise store.EvidenceError("identity_mismatch", "Baseline was not produced by a PR workflow.")
-    evidence = store.read_evidence(
+        raise baseline_mod.EvidenceError("identity_mismatch", "Baseline was not produced by a PR workflow.")
+    evidence = baseline_mod.read_evidence(
         client,
         run,
         artifact,
@@ -161,7 +202,7 @@ def _read_baseline(client: store.GitHubClient, artifact: dict, pr_number: int, b
     )
     for leg in execution.get("expected_legs", []):
         evidence.samples.setdefault(leg, [])
-    evidence.issues.extend(source_issues(evidence, contents[1], base_commit))
+    evidence.issues.extend(source_issues(evidence))
     return evidence
 
 
@@ -182,7 +223,7 @@ def _initial_selection(event: dict, base_commit: str) -> dict:
 
 
 def restore_baseline(
-    client: store.GitHubClient,
+    client: baseline_mod.GitHubClient,
     checkout_root: Path,
     selection_path: Path,
     event: dict,
@@ -191,24 +232,25 @@ def restore_baseline(
     *,
     legs: Path,
     base_commit: str | None = None,
+    measurement_manifest: dict | None = None,
 ) -> dict:
     """Select a complete verified measurement for this PR/base, or request a fresh one."""
     pr = event["pull_request"]
     pr_number, base_commit = pr["number"], _resolved_base(base_commit)
-    manifest = prepare_manifest(checkout_root)
+    manifest = prepare_manifest(checkout_root, measurement_manifest)
     if manifest["commit"] != base_commit:
         raise ValueError("Baseline checkout is not the tested PR merge's resolved first parent.")
     selection = _initial_selection(event, base_commit)
     selection["reason"] = "No reusable verified baseline exists for this PR and base commit; measure it before the PR."
-    # A terminated lookup leaves a valid request for fresh measurements, never an old reuse decision.
+    # Write the request for fresh measurements first in case the search for reusable results is interrupted.
     _write(selection_path, selection)
-    protocol = _benchmark_protocol(legs)
+    protocol = _benchmark_protocol(legs, measurement_manifest)
     prefix = f"performance-pr-baseline-{pr_number}-{base_commit}-"
     try:
         current_run = client.run_attempt(run_id, run_attempt)
         workflow_id = current_run.get("workflow_id")
         if not isinstance(workflow_id, int) or workflow_id <= 0:
-            raise store.EvidenceError("identity_mismatch", "The producing workflow identity is unavailable.")
+            raise baseline_mod.EvidenceError("identity_mismatch", "The producing workflow identity is unavailable.")
         selection["workflow_id"] = workflow_id
         runs = client.paginate(
             f"/repos/{client.repository}/actions/workflows/{workflow_id}/runs",
@@ -228,13 +270,14 @@ def restore_baseline(
             try:
                 evidence = _read_baseline(client, artifact, pr_number, base_commit)
                 if evidence.identity.get("workflow_id") != workflow_id:
-                    raise store.EvidenceError("identity_mismatch", "Baseline belongs to another workflow.")
+                    raise baseline_mod.EvidenceError("identity_mismatch", "Baseline belongs to another workflow.")
                 if evidence.context["execution"].get("benchmark_protocol") != protocol:
-                    raise store.EvidenceError(
+                    raise baseline_mod.EvidenceError(
                         "protocol_mismatch",
-                        "Baseline benchmark protocol is missing or differs from the current matrix or launchers.",
+                        "Baseline benchmark protocol is missing or differs from the current matrix, launchers,"
+                        " or measurement code.",
                     )
-                saved_manifest = store.artifact_json(evidence.files, "source-manifest.json")
+                saved_manifest = baseline_mod.artifact_json(evidence.files, "source-manifest.json")
                 expected = evidence.context["execution"].get("expected_samples")
                 planned = evidence.context["execution"].get("expected_legs")
                 complete = (
@@ -247,12 +290,20 @@ def restore_baseline(
                     and all(
                         evidence.statuses.get(leg) == "ok"
                         and len(evidence.samples.get(leg, [])) == expected
-                        and all(store.has_usable_runtime(item["bundle"]) for item in evidence.samples[leg])
+                        and all(baseline_mod.has_usable_runtime(item["bundle"]) for item in evidence.samples[leg])
                         for leg in evidence.samples.keys() | evidence.statuses.keys()
                     )
                 )
-                if saved_manifest != manifest or not complete:
-                    raise store.EvidenceError(
+                if measurement_manifest is not None:
+                    saved_measurement = saved_manifest.pop("measurement", {})
+                    same_source = (
+                        saved_manifest == {key: value for key, value in manifest.items() if key != "measurement"}
+                        and saved_measurement.get("digest") == measurement_manifest["digest"]
+                    )
+                else:
+                    same_source = saved_manifest == manifest
+                if not same_source or not complete:
+                    raise baseline_mod.EvidenceError(
                         "unverified_baseline", "Baseline is incomplete or its source proof is invalid."
                     )
                 if evidence.identity["run_id"] == run_id and evidence.identity["run_attempt"] >= run_attempt:
@@ -260,27 +311,40 @@ def restore_baseline(
                 selection.update(
                     baseline_reused=True,
                     baseline_origin=evidence.identity,
-                    baseline_metric_definition={
+                    reason="Reused the verified baseline measurement for this PR's unchanged base commit.",
+                )
+                if measurement_manifest is None:
+                    selection["baseline_metric_definition"] = {
                         "artifact_id": evidence.identity["artifact_id"],
                         "sha256": evidence.identity["sha256"],
                         "source_commit": base_commit,
                         "definition": metric_definition(checkout_root),
                         "provenance": "verified_baseline_checkout",
-                    },
-                    reason="Reused the verified baseline measurement for this PR's unchanged base commit.",
-                )
+                    }
                 break
-            except store.EvidenceError as exc:
+            except baseline_mod.EvidenceError as exc:
                 selection["issues"].append(f"Artifact {artifact['id']} was not reused: {exc}")
-    except store.EvidenceError as exc:
+    except baseline_mod.EvidenceError as exc:
         selection["issues"].append(f"Baseline lookup unavailable; measuring a fresh baseline: {exc}")
     _write(selection_path, selection)
     return selection
 
 
-def capture_context(root: Path, output_dir: Path, image_ref: str, role: str, event: dict, legs: Path) -> dict:
-    """Record the selected checkout, image and runner before its measurement."""
+def capture_context(
+    root: Path,
+    output_dir: Path,
+    image_ref: str,
+    role: str,
+    event: dict,
+    legs: Path,
+    measurement_manifest: dict | None = None,
+) -> dict:
+    """Prepare verified source, then record optional comparison metadata."""
     commit, parents = _checkout_source(root)
+    if measurement_manifest is not None and (
+        not isinstance(measurement_manifest, dict) or measurement_manifest.get("commit") != os.environ.get("GITHUB_SHA")
+    ):
+        raise ValueError("Measurement source does not identify the tested PR merge GITHUB_SHA.")
     pr = event.get("pull_request", {})
     if pr and role == "current":
         reference_commit = resolve_base(root, event)["base_commit"]
@@ -288,8 +352,7 @@ def capture_context(root: Path, output_dir: Path, image_ref: str, role: str, eve
         reference_commit = _resolved_base() if pr else (parents[0] if parents else None)
         if pr and commit != reference_commit:
             raise ValueError("baseline checkout does not match its intended source revision.")
-    inspected = subprocess.run(["docker", "image", "inspect", image_ref], capture_output=True, text=True)
-    image = json.loads(inspected.stdout)[0] if inspected.returncode == 0 else {}
+    _write(output_dir / "source-manifest.json", prepare_manifest(root, measurement_manifest))
     context = {
         "schema_version": 1,
         "source": {
@@ -303,8 +366,8 @@ def capture_context(root: Path, output_dir: Path, image_ref: str, role: str, eve
             "pull_request_number": pr.get("number"),
             "benchmark_role": role,
             "image_ref": image_ref,
-            "image_digest": next(iter(image.get("RepoDigests", [])), None),
-            "image_id": image.get("Id"),
+            "image_digest": None,
+            "image_id": None,
             "provenance": "ci_checkout",
         },
         "execution": {
@@ -312,16 +375,37 @@ def capture_context(root: Path, output_dir: Path, image_ref: str, role: str, eve
             "run_attempt": int(os.environ["GITHUB_RUN_ATTEMPT"]),
             "job": os.environ["GITHUB_JOB"],
             "runner_name": os.environ.get("RUNNER_NAME"),
-            "hostname": socket.gethostname(),
+            "hostname": None,
             "measurement_not_before": datetime.now(timezone.utc).isoformat(),
             "expected_samples": 3,
             "expected_legs": [line.split("|", 1)[0] for line in legs.read_text().splitlines() if line.strip()],
-            "benchmark_protocol": _benchmark_protocol(legs),
+            "benchmark_protocol": None,
         },
-        "metric_definition": {**metric_definition(root), "producer_commit": commit},
+        "metric_definition": {"total_fps": None, "producer_commit": commit},
     }
-    _write(output_dir / "build-context.json", context)
-    _write(output_dir / "source-manifest.json", prepare_manifest(root))
+    if measurement_manifest is not None:
+        context["measurement"] = {key: measurement_manifest[key] for key in ("commit", "digest")}
+        context["metric_definition"] = {
+            "total_fps": f"measurement-v1:{measurement_manifest['digest']}",
+            "producer_commit": measurement_manifest["commit"],
+            "provenance": "shared_measurement_source",
+        }
+    try:
+        inspected = subprocess.run(["docker", "image", "inspect", image_ref], capture_output=True, text=True)
+        image = json.loads(inspected.stdout)[0] if inspected.returncode == 0 else {}
+        context["source"].update(image_digest=next(iter(image.get("RepoDigests", [])), None), image_id=image.get("Id"))
+        context["execution"]["hostname"] = socket.gethostname()
+        context["execution"]["benchmark_protocol"] = _benchmark_protocol(legs, measurement_manifest)
+        if measurement_manifest is None:
+            context["metric_definition"].update(metric_definition(root))
+    except (OSError, ValueError, TypeError, AttributeError, IndexError, KeyError, subprocess.SubprocessError) as exc:
+        reason = f"Optional build provenance capture failed: {exc}"
+        context["metric_definition"]["reason"] = reason
+        print(f"::warning::{reason}")
+    try:
+        _write(output_dir / "build-context.json", context)
+    except OSError as exc:
+        print(f"::warning::Optional build provenance could not be saved: {exc}")
     return context
 
 
@@ -339,8 +423,8 @@ def bind_baseline(
     if selection.get("reference_commit") != _resolved_base():
         raise ValueError("Baseline selection does not match the tested PR merge's resolved first parent.")
     if artifact_id or reuse_confirmed is False:
-        # The workflow may measure fresh A if restore ended before publishing
-        # its reuse output. A failed fresh upload must not resurrect the old pin.
+        # An interrupted restore may leave an old reuse selection even though CI measured a fresh baseline.
+        # Clear it even when the new upload fails.
         selection["baseline_reused"] = False
         selection["baseline_origin"] = None
         selection.pop("baseline_metric_definition", None)
@@ -358,7 +442,7 @@ def bind_baseline(
                 "run_attempt": int(os.environ["GITHUB_RUN_ATTEMPT"]),
                 "source_commit": selection["reference_commit"],
             }
-            # The job also measures the PR, so use this timestamp as the baseline completion bound.
+            # Record this time because the job continues with the PR measurement.
             selection["baseline_finished_before"] = datetime.now(timezone.utc).isoformat()
             selection["reason"] = baseline_issue or (
                 "Measured the PR's exact base commit before its tested revision on the same runner."
@@ -373,27 +457,29 @@ def bind_baseline(
     _write(output_dir / "pr-comparison.json", selection)
 
 
-def select_pr_baseline(client: store.GitHubClient, candidate: store.Evidence) -> tuple[store.Evidence | None, dict]:
+def select_pr_baseline(
+    client: baseline_mod.GitHubClient, candidate: baseline_mod.Evidence
+) -> tuple[baseline_mod.Evidence | None, dict]:
     """Read the exact base measurement pinned by this PR benchmark job, without ancestry search."""
     files = candidate.files
     source = candidate.context.get("source", {})
     for leg in candidate.context.get("execution", {}).get("expected_legs", []):
         candidate.samples.setdefault(leg, [])
-    candidate.issues.extend(source_issues(candidate, files, candidate.identity["source_commit"]))
+    candidate.issues.extend(source_issues(candidate))
     try:
-        selection = store.artifact_json(files, "pr-comparison.json")
-    except store.EvidenceError as exc:
+        selection = baseline_mod.artifact_json(files, "pr-comparison.json")
+    except baseline_mod.EvidenceError as exc:
         return None, {"reason": str(exc), "reason_code": exc.code}
     base_commit, pr_number = source.get("reference_commit"), source.get("pull_request_number")
     if (
-        not store.is_commit_sha(base_commit)
+        not baseline_mod.is_commit_sha(base_commit)
         or source.get("commit_parents") != [base_commit, source.get("requested_head_commit")]
         or selection.get("reference_commit") != base_commit
         or selection.get("pull_request_number") != pr_number
         or selection.get("tested_commit") != candidate.identity["source_commit"]
         or selection.get("requested_head_commit") != source.get("requested_head_commit")
     ):
-        raise store.EvidenceError(
+        raise baseline_mod.EvidenceError(
             "identity_mismatch", "The pinned comparison does not identify this tested PR revision."
         )
     origin = selection.get("baseline_origin")
@@ -404,7 +490,7 @@ def select_pr_baseline(client: store.GitHubClient, candidate: store.Evidence) ->
         baseline = _read_baseline(client, artifact, pr_number, base_commit)
         for field in ("artifact_id", "run_id", "run_attempt", "source_commit", "sha256"):
             if field in origin and origin[field] != baseline.identity[field]:
-                raise store.EvidenceError("identity_mismatch", "Pinned baseline identity or bytes changed.")
+                raise baseline_mod.EvidenceError("identity_mismatch", "Pinned baseline identity or bytes changed.")
         derived = selection.get("baseline_metric_definition")
         if derived is not None and (
             not isinstance(derived, dict)
@@ -414,25 +500,25 @@ def select_pr_baseline(client: store.GitHubClient, candidate: store.Evidence) ->
                 derived.get(field) != baseline.identity[field] for field in ("artifact_id", "sha256", "source_commit")
             )
         ):
-            raise store.EvidenceError(
+            raise baseline_mod.EvidenceError(
                 "identity_mismatch", "Derived FPS identity does not identify this baseline artifact."
             )
         if not selection.get("baseline_reused"):
             left, right = baseline.context["execution"], candidate.context["execution"]
             for field in ("run_id", "run_attempt", "job", "runner_name", "hostname"):
                 if not left.get(field) or left.get(field) != right.get(field):
-                    raise store.EvidenceError(
+                    raise baseline_mod.EvidenceError(
                         "runner_mismatch", "Fresh base and PR were not measured on the same runner."
                     )
             bound = selection.get("baseline_finished_before")
-            completed = store.parse_timestamp(bound if bound is not None else baseline.measurement_end)
-            started = store.parse_timestamp(candidate.measurement_start)
-            captured = store.parse_timestamp(left.get("measurement_not_before"))
+            completed = baseline_mod.parse_timestamp(bound if bound is not None else baseline.measurement_end)
+            started = baseline_mod.parse_timestamp(candidate.measurement_start)
+            captured = baseline_mod.parse_timestamp(left.get("measurement_not_before"))
             sample_ends = [
                 end
                 for samples in baseline.samples.values()
                 for sample in samples
-                if (end := store.parse_timestamp(sample["bundle"]["run"].get("end_time_utc"))) is not None
+                if (end := baseline_mod.parse_timestamp(sample["bundle"]["run"].get("end_time_utc"))) is not None
             ]
             if (
                 not completed
@@ -441,12 +527,12 @@ def select_pr_baseline(client: store.GitHubClient, candidate: store.Evidence) ->
                 or (captured is not None and captured > completed)
                 or any(end > completed for end in sample_ends)
             ):
-                raise store.EvidenceError(
+                raise baseline_mod.EvidenceError(
                     "measurement_order", "Fresh baseline did not finish before the PR measurement."
                 )
         selection.update(baseline_origin=baseline.identity, selected=baseline.identity)
         return baseline, selection
-    except store.EvidenceError as exc:
+    except baseline_mod.EvidenceError as exc:
         selection.update(
             reason=str(exc), reason_code=exc.code, unavailable_evidence=origin, unavailable_side="baseline"
         )
@@ -454,28 +540,29 @@ def select_pr_baseline(client: store.GitHubClient, candidate: store.Evidence) ->
 
 
 def _execute(args: argparse.Namespace, event: dict) -> None:
+    measurement = (
+        json.loads(args.measurement_manifest.read_text())
+        if getattr(args, "measurement_manifest", None) is not None
+        else None
+    )
     if args.command == "resolve":
         resolved = resolve_base(args.checkout_root, event)
         with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
-            for field in ("base_commit", "tested_commit", "requested_head_commit"):
-                output.write(f"{field}={resolved[field]}\n")
+            output.write(f"base_commit={resolved['base_commit']}\n")
         print(f"Resolved tested PR merge {resolved['tested_commit']} first parent: {resolved['base_commit']}")
     elif args.command == "restore":
         selection = restore_baseline(
-            store.GitHubClient(os.environ["GITHUB_REPOSITORY"]),
+            baseline_mod.GitHubClient(os.environ["GITHUB_REPOSITORY"]),
             args.checkout_root,
             args.selection,
             event,
             int(os.environ["GITHUB_RUN_ID"]),
             int(os.environ["GITHUB_RUN_ATTEMPT"]),
             legs=args.legs,
+            measurement_manifest=measurement,
         )
         with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
             output.write(f"reused={str(selection['baseline_reused']).lower()}\n")
-            name = baseline_name(
-                selection["pull_request_number"], selection["reference_commit"], int(os.environ["GITHUB_RUN_ATTEMPT"])
-            )
-            output.write(f"artifact_name={name}\n")
         print(selection["reason"])
         for issue in selection["issues"]:
             print(issue)
@@ -487,6 +574,7 @@ def _execute(args: argparse.Namespace, event: dict) -> None:
             args.role,
             event,
             args.legs,
+            measurement_manifest=measurement,
         )
     else:
         if not args.selection.exists():
@@ -566,12 +654,14 @@ def main(argv: list[str] | None = None) -> int:
     restore.add_argument("--output-dir", type=Path, required=True)
     restore.add_argument("--selection", type=Path, required=True)
     restore.add_argument("--legs", type=Path, required=True)
+    restore.add_argument("--measurement-manifest", type=Path, default=os.environ.get("PERF_MEASUREMENT_MANIFEST"))
     capture = commands.add_parser("capture")
     capture.add_argument("--checkout-root", type=Path, required=True)
     capture.add_argument("--output-dir", type=Path, required=True)
     capture.add_argument("--image", required=True)
     capture.add_argument("--role", choices=("baseline", "current"), required=True)
     capture.add_argument("--legs", type=Path, required=True)
+    capture.add_argument("--measurement-manifest", type=Path, default=os.environ.get("PERF_MEASUREMENT_MANIFEST"))
     bind = commands.add_parser("bind")
     bind.add_argument("--selection", type=Path, required=True)
     bind.add_argument("--output-dir", type=Path, required=True)

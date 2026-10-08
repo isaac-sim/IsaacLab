@@ -203,8 +203,7 @@ def _hardware(bundle: dict) -> dict:
     if isinstance(devices, list) and devices:
         models = [normalize_gpu_model(_object(device).get("name")) for device in devices]
         if all(model not in ("unknown", "unknown-gpu") for model in models):
-            # Preserve order: the current single-GPU command defaults to cuda:0,
-            # and the bundle does not separately identify the selected device.
+            # GPU order matters: the command defaults to cuda:0, but results do not name the selected device.
             identity["gpu_devices"] = models
     return identity
 
@@ -334,6 +333,11 @@ def compare_evidence(
     return {
         "baseline": baseline.identity if baseline else None,
         "candidate": candidate.identity,
+        "measurement_sources": {
+            side: _object(evidence.context.get("measurement"))
+            for side, evidence in (("baseline", baseline), ("candidate", candidate))
+            if evidence and evidence.context.get("measurement")
+        },
         "rows": [
             _row(key, baseline, candidate, left.get(key), right.get(key), derived)
             for key in sorted(left.keys() | right.keys())
@@ -427,7 +431,7 @@ def main(argv: list[str] | None = None) -> int:
         json.dumps(payload, indent=2, sort_keys=True, allow_nan=False) + "\n", encoding="utf-8"
     )
     (args.output_dir / "build-comparison.md").write_text(render_build_comparison(payload), encoding="utf-8")
-    # The existing aggregate command remains the owner of the CI gate's exit status.
+    # The aggregate command sets the CI gate's exit status.
     return 0
 
 

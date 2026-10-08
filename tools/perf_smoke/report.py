@@ -86,8 +86,7 @@ def render_aggregate(reports: list[tuple[str, Report]]) -> str:
     if not reports:
         return "### Rolling-history CI gate: no results\n\nNo comparison artifacts were produced.\n"
 
-    # SKIP ranks below PASS so that a run where nothing was compared does not headline as a green
-    # pass. A mix still headlines PASS since at least once comparison was made.
+    # SKIP distinguishes runs with no comparisons from runs that passed.
     order = {SKIP: 0, PASS: 1, ERROR: 2, WARN: 3, FAIL: 4}
     worst = max((report.verdict for _, report in reports), key=lambda verdict: order.get(verdict, 0))
 
@@ -98,14 +97,9 @@ def render_aggregate(reports: list[tuple[str, Report]]) -> str:
     for message in dict.fromkeys(report.message for _, report in reports if report.message):
         lines += [_build_text(message), ""]
     lines += [
-        "<details>",
-        "<summary>Rolling-history gate details</summary>",
-        "",
         "| Combination | Total FPS | Baseline | FPS regression % | Startup [s] | GPU mem [GB] | RSS [GB] | Verdict |",
         "| --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |",
     ]
-    # Sort on the label only: a duplicate label would otherwise fall through to
-    # comparing Report objects, which are frozen dataclasses without ordering.
     for name, report in sorted(reports, key=lambda item: item[0]):
         by_name = {metric.name: metric for metric in report.metrics}
         fps = by_name.get("total_fps")
@@ -134,7 +128,6 @@ def render_aggregate(reports: list[tuple[str, Report]]) -> str:
         "result, and never blocks a pull request. A combination whose benchmark crashed shows both an ERROR "
         "row here and a failed job.",
         "",
-        "</details>",
     ]
     return "\n".join(lines) + "\n"
 
@@ -371,6 +364,26 @@ def render_build_comparison(report: dict) -> str:
         lines += ["Baseline measurements: " + (measurement_status if report.get("baseline") else "unavailable."), ""]
     if paired and selection.get("baseline_origin"):
         lines += [_build_identity("Baseline measurement origin", selection["baseline_origin"]), ""]
+    measurement_sources = report.get("measurement_sources", {})
+    if measurement_sources:
+        lines += [
+            "Measurement code: the tested PR's benchmark package and timer, applied to both workload revisions.",
+            "",
+        ]
+        for side, label in (("baseline", "A"), ("candidate", "B")):
+            measurement = measurement_sources.get(side)
+            if measurement:
+                identity = {
+                    **(identities[side] or {}),
+                    "source_commit": measurement.get("commit"),
+                    "requested_head_commit": None,
+                }
+                lines += [
+                    _build_identity(f"{label} measurement source", identity),
+                    "",
+                    f"Measurement SHA-256: `{_build_text(measurement.get('digest'))}`.",
+                    "",
+                ]
     if selection.get("reference_branch"):
         anchor = _build_text(str(selection.get("reference_commit") or "unknown")[:12])
         lines += [f"Reference: {_build_text(selection['reference_branch'])} at `{anchor}`.", ""]

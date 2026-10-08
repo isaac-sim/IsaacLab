@@ -81,7 +81,6 @@ def _implementation(module: ast.Module, names: set[str]) -> tuple[dict[str, str]
 
 def _reads(node: ast.AST) -> set[str]:
     names = {item.id for item in ast.walk(node) if isinstance(item, ast.Name) and isinstance(item.ctx, ast.Load)}
-    # Comprehension iteration variables are local to their expression.
     local = {
         item.id
         for generator in ast.walk(node)
@@ -401,7 +400,9 @@ def _producer_call(call: ast.Call, owner: ast.FunctionDef, runtime: ast.Module) 
                 inspect.Parameter(arg.arg, kind, default=defaults.get(arg.arg, inspect.Parameter.empty))
                 for arg in group
             )
-        bound = inspect.Signature(parameters).bind(*call.args, **_call_keywords(call, owner, runtime))
+        keywords = _call_keywords(call, owner, runtime)
+        inputs = [*call.args, *keywords.values()]
+        bound = inspect.Signature(parameters).bind(*call.args, **keywords)
         if any(not isinstance(value, ast.Constant) for name, value in defaults.items() if name not in bound.arguments):
             raise ValueError("The producer helper uses a default that cannot be resolved at its call site.")
         parameters_names = {parameter.name for parameter in parameters}
@@ -414,7 +415,7 @@ def _producer_call(call: ast.Call, owner: ast.FunctionDef, runtime: ast.Module) 
         if arguments.kwarg:
             values = bindings[arguments.kwarg.arg]
             bindings[arguments.kwarg.arg] = ast.Dict(
-                keys=[ast.Constant(name) for name in sorted(values)], values=[values[name] for name in sorted(values)]
+                keys=[ast.Constant(name) for name in values], values=list(values.values())
             )
         if any(
             isinstance(node, (ast.Call, ast.NamedExpr, ast.Await, ast.Yield, ast.YieldFrom))
@@ -422,23 +423,23 @@ def _producer_call(call: ast.Call, owner: ast.FunctionDef, runtime: ast.Module) 
             for node in ast.walk(value)
         ):
             raise ValueError("A producer helper argument has an unresolved evaluation order.")
-        if any(
-            not isinstance(value, (ast.Name, ast.Constant))
-            and sum(
-                isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load) and node.id == name
-                for node in ast.walk(forwarded)
-            )
-            > 1
-            for name, value in bindings.items()
-        ):
-            raise ValueError("A producer helper would evaluate a forwarded input more than once.")
+        forwarded_inputs = [*forwarded.args]
+        for keyword in forwarded.keywords:
+            if keyword.arg is None and not isinstance(keyword.value, ast.Name):
+                forwarded_inputs.extend(_keyword_mapping(keyword.value, helper, forwarded, runtime).values())
+            else:
+                forwarded_inputs.append(keyword.value)
+        if any(not isinstance(value, (ast.Name, ast.Constant)) for value in forwarded_inputs):
+            raise ValueError("The producer helper does more than pass through captured inputs.")
         call = ast.copy_location(_substitute(forwarded, bindings), location)
-        if any(
-            isinstance(node, (ast.Call, ast.NamedExpr, ast.Await, ast.Yield, ast.YieldFrom))
-            for value in (*call.args, *_call_keywords(call, owner, runtime).values())
-            for node in ast.walk(value)
-        ):
-            raise ValueError("The forwarded call may change inputs captured by the producer helper.")
+        if any(not isinstance(value, (ast.Name, ast.Constant)) for value in inputs):
+            expanded = [*call.args, *_call_keywords(call, owner, runtime).values()]
+            if [
+                ast.dump(value, include_attributes=True) for value in inputs if not isinstance(value, ast.Constant)
+            ] != [
+                ast.dump(value, include_attributes=True) for value in expanded if not isinstance(value, ast.Constant)
+            ]:
+                raise ValueError("The producer helper changes the evaluation order or count of captured inputs.")
     if call.args:
         raise ValueError("The runtime producer supplies positional arguments.")
     return ast.copy_location(

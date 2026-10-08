@@ -68,7 +68,7 @@ class GitHubClient:
                 destination = exc.headers.get("Location", "")
                 if urllib.parse.urlsplit(destination).scheme != "https":
                     raise EvidenceError("download_redirect", "GitHub artifact redirect is not HTTPS") from None
-                # A fresh request/opener carries no GitHub authorization to the signed URL.
+                # Start a new request so the signed download does not receive GitHub credentials.
                 response = urllib.request.urlopen(urllib.request.Request(destination), timeout=_REQUEST_TIMEOUT_SECONDS)
             with response:
                 return response.read()
@@ -415,10 +415,8 @@ def read_evidence(
         "event": run.get("event"),
         "branch": run.get("head_branch"),
         "workflow_id": run.get("workflow_id"),
-        "run_url": f"https://github.com/{client.repository}/actions/runs/{run_id}/attempts/{attempt}",
-        "commit_url": f"https://github.com/{client.repository}/commit/{commit}",
-        "artifact_url": f"https://github.com/{client.repository}/actions/runs/{run_id}/artifacts/{artifact['id']}",
     }
+    identity.update(_github_links(identity))
     return Evidence(
         identity,
         context,
@@ -462,7 +460,7 @@ def resolve_candidate(client: GitHubClient, run_id: int, report_attempt: int) ->
                     "Benchmark ran in this attempt but its evidence artifact is unavailable",
                     {"run_id": run_id, "run_attempt": attempt},
                 )
-        # Carried-forward jobs can have fresh IDs/attempt numbers but old start times.
+        # Jobs carried over from an earlier attempt can have new IDs but retain their old start times.
     raise EvidenceError("missing_candidate", "No producing benchmark artifact is available for this workflow run")
 
 
