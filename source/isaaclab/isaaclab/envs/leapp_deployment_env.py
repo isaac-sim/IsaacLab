@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import inspect
 import logging
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, cast
 
@@ -43,7 +44,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class StateInputSpec:
-    """Read a property from a scene entity's data object."""
+    """Read a data property, using dots for mapping entries such as ``output.rgb``."""
 
     entity_name: str
     property_name: str
@@ -316,7 +317,10 @@ class LeappDeploymentEnv:
         for key, spec in self._input_mapping.items():
             if isinstance(spec, StateInputSpec):
                 entity = self.scene[spec.entity_name]
-                value = getattr(entity.data, spec.property_name).torch
+                value = entity.data
+                for part in spec.property_name.split("."):
+                    value = value[part] if isinstance(value, Mapping) else getattr(value, part)
+                value = value.torch
                 if spec.joint_ids is not None:
                     value = value[:, spec.joint_ids]
                 inputs[key] = value

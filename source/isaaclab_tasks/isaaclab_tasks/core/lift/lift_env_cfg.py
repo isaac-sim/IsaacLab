@@ -23,7 +23,7 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sim import MeshCapsuleCfg, MeshConeCfg, MeshCuboidCfg, MeshSphereCfg, RigidBodyMaterialCfg
+from isaaclab.sim import MeshCapsuleCfg, MeshConeCfg, MeshCuboidCfg, MeshSphereCfg, RigidBodyMaterialBaseCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
@@ -47,7 +47,7 @@ TABLE_SPAWN_CFG = sim_utils.CuboidCfg(
 """Table the object rests on."""
 
 OBJECT_PHYSICS = {
-    "physics_material": RigidBodyMaterialCfg(static_friction=0.5),
+    "physics_material": RigidBodyMaterialBaseCfg(static_friction=0.5),
     "collision_props": [PhysxCollisionCfg(contact_offset=0.002)],
 }
 """Physics properties shared by the graspable object shapes."""
@@ -87,7 +87,7 @@ class ObjectCfg(PresetCfg):
     )
     cube = sim_utils.CuboidCfg(
         size=(0.05, 0.05, 0.05),
-        physics_material=RigidBodyMaterialCfg(static_friction=0.5),
+        physics_material=RigidBodyMaterialBaseCfg(static_friction=0.5),
         rigid_props=PhysxRigidBodyCfg(
             solver_position_iteration_count=16, solver_velocity_iteration_count=0, disable_gravity=False
         ),
@@ -166,7 +166,6 @@ class CommandsCfg:
             pitch=(-3.14, 3.14),
             yaw=(0.0, 0.0),
         ),
-        success_vis_material_name="table_material",
     )
 
 
@@ -569,6 +568,7 @@ class ReorientEnvCfg(ManagerBasedRLEnvCfg):
     def play_mode(self):
         super().play_mode()
         self.commands.object_pose.debug_vis = True
+        self.commands.object_pose.success_vis_material_name = "table_material"
         # the bank shapes what a policy trains on; at play it only has to supply starts for the
         # handful of environments the parent left, so it is harvested small and taken as it comes
         # rather than making the viewer wait through an oversampled prefill and its spread pass

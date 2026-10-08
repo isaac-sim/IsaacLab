@@ -15,11 +15,7 @@ import pytest
 def _find_source_checkout_root() -> Path | None:
     """Find the Isaac Lab source checkout containing this test tree, if present."""
     for parent in Path(__file__).resolve().parents:
-        if (
-            (parent / "isaaclab.sh").is_file()
-            and (parent / "pyproject.toml").is_file()
-            and (parent / "source").is_dir()
-        ):
+        if (parent / "uv.lock").is_file() and (parent / "pyproject.toml").is_file() and (parent / "source").is_dir():
             return parent
     return None
 

@@ -41,7 +41,7 @@ _NUM_ENVS = 4096
 
 _ACTUATED_JOINT_CFG = SceneEntityCfg("robot", joint_names=DR_LEGS_ACTUATED_JOINTS, preserve_order=True)
 
-_PHYSICS_MATERIAL = sim_utils.RigidBodyMaterialCfg(
+_PHYSICS_MATERIAL = sim_utils.PhysxRigidBodyMaterialCfg(
     friction_combine_mode="average",
     restitution_combine_mode="average",
     static_friction=1.0,

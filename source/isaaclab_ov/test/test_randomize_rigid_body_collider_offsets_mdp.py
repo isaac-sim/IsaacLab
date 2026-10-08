@@ -12,8 +12,7 @@ the backend dispatch itself is exercised (it previously fell through to the Phys
 ``env`` / ``asset_cfg`` inputs are stubbed: the term only reads ``cfg.params["asset_cfg"]``,
 ``env.scene[...]``, ``env.scene.num_envs`` and ``env.sim.physics_manager``.
 
-Kitless; run once per device (``-k cpu`` / ``-k 'cuda:0'``) -- the ovphysx runtime binds the
-device mode process-globally (see the asset tests' module docstring).
+Kitless; the CPU and CUDA cases run in one process.
 """
 
 from __future__ import annotations
@@ -41,31 +40,10 @@ from isaaclab_assets import CARTPOLE_CFG  # isort:skip  # noqa: E402
 
 wp.init()
 
-pytestmark = pytest.mark.device_split
-
-_LOCKED_DEVICE: list[str | None] = [None]
 
 REST_RANGE = (0.0002, 0.0006)  # below the 1 mm default contact offset: PhysX rejects rest >= contact
 CONTACT_RANGE = (0.03, 0.05)
 EPS = 1e-6
-
-
-@pytest.fixture(autouse=True)
-def _ovphysx_skip_other_device(request):
-    """Skip parametrized tests on the device the session is not pinned to (process-global lock)."""
-    callspec = getattr(request.node, "callspec", None)
-    device = callspec.params.get("device") if callspec is not None else None
-    if device is None:
-        return
-    locked = _LOCKED_DEVICE[0]
-    if locked is None:
-        _LOCKED_DEVICE[0] = device
-        return
-    if device != locked:
-        pytest.skip(
-            f"ovphysx process-global device lock is held by '{locked}'; cannot run '{device}' "
-            "tests in the same session.  Run pytest twice (once per device) for full coverage."
-        )
 
 
 def _ovphysx_sim_context(device: str, **kwargs):

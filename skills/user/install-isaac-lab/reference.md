@@ -18,7 +18,7 @@ Read-only commands to gather routing facts on Linux; nothing changes system stat
 ```bash
 grep PRETTY_NAME /etc/os-release && uname -m && ldd --version | head -1
 nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv,noheader
-command -v python3.12 uv conda; free -g | head -2; df -h .
+command -v python3.12 uv; free -g | head -2; df -h .
 env | grep -E '^(ISAACSIM_ASSET_REGION_PROFILE|ISAACSIM_ASSET_ROOT)=' || true
 ```
 
@@ -31,11 +31,8 @@ After preflight detection, read the "System requirements" and per-method section
 | Detected facts | Route | Docs section |
 | --- | --- | --- |
 | Linux, NVIDIA GPU, GLIBC at or above the documented pip minimum | automatic uv from checkout (docs-Recommended) | `docs/source/setup/installation/index.rst` (`installation-method-uv`) |
-| Linux, NVIDIA GPU, GLIBC below the pip minimum or undetectable | downloaded Isaac Sim package | `docs/source/setup/installation/index.rst` (`installation-method-binary`) |
 | Windows 11 | guided per-tab flow via the automatic uv or managed-env sections | `docs/source/setup/installation/index.rst` (`installation-method-uv` or `installation-method-python-env`) |
-| No NVIDIA GPU/driver, driver below minimum, or insufficient disk | blocked — report fixes, offer the legacy Newton-only installer as the no-Isaac-Sim alternative | `docs/source/setup/installation/index.rst` (`installation-legacy-installer`) |
 
-Distro version is not a routing key — GLIBC is. Ubuntu 22.04 (GLIBC 2.35) and Ubuntu 24.04 (GLIBC 2.39) both take the automatic uv route because they meet the pip minimum. Ubuntu 20.04 (GLIBC 2.31) falls below the minimum and routes to the downloaded Isaac Sim package. Read the current minimum from `docs/source/setup/installation/index.rst` for the OS support matrix rather than assuming a specific distro is on or off the list.
 
 User-stated preferences override the routing and map directly:
 
@@ -43,15 +40,14 @@ User-stated preferences override the routing and map directly:
 | --- | --- |
 | Isaac Sim contributor building from source | `docs/source/setup/installation/index.rst` (`installation-method-source`) |
 | External extension author, Isaac Lab wheel only | `docs/source/setup/installation/index.rst` (`installation-method-wheel`) |
-| Newton-only workflow, no Isaac Sim | `docs/source/setup/installation/index.rst` (`installation-legacy-installer`) |
-| Managed venv or conda with pip Isaac Sim | `docs/source/setup/installation/index.rst` (`installation-method-python-env`) |
+| Newton-only workflow, no Isaac Sim | `docs/source/setup/installation/index.rst` (`installation-method-uv`) |
+| Explicit uv environment | `docs/source/setup/installation/index.rst` (`installation-method-python-env`) |
 | Containerized deployment | `docs/source/setup/installation/index.rst` (`installation-method-container`); deep-dive `docs/source/workflows/docker/index.rst` |
 | Cloud-hosted GPU workstation | `docs/source/setup/installation/index.rst` (`installation-method-cloud`) |
 
 ## Express Flow Rules
 
-- At most one question: the consolidated go/no-go before execution. The downloaded-Isaac-Sim route adds one pause for the manual package download.
-- Env manager: uv if present, else conda if present, else install uv via the docs `installation-method-uv` step. Never ask.
+- Env manager: uv if present, else install uv via the docs `installation-method-uv` step. Never ask.
 - Defaults: install into the current checkout, docs-default env name, docs-Recommended options. Never ask.
 - Log every executed command and its output to `~/.isaaclab/logs/install-<timestamp>.log`.
 - After success, write facts, route, and commands run to `~/.isaaclab/install_profile.yaml`.
@@ -93,9 +89,7 @@ Read `docs/source/setup/installation/index.rst` "System requirements" from the c
 Run the docs-defined minimal verification command after every install, before larger tests. The command varies by route:
 
 - Automatic uv (`installation-method-uv`) uses the smallest workflow command documented in that section.
-- Legacy installer (`installation-legacy-installer`), managed Python env (`installation-method-python-env`), and Isaac Lab wheel (`installation-method-wheel`) use the verification command documented in their respective sections.
 - Isaac Sim source builds (`installation-method-source`) use the command documented for the selected source-build connection method. The recommended ``uv`` method runs through the live ``_isaac_sim`` release tree created by ``--isaacsim_source``.
-- Downloaded Isaac Sim packages (`installation-method-binary`) use the bundled-Python verification documented in that section, without activating conda, ``uv``, or ``venv``.
 - Docker (`installation-method-container`) runs the documented verification inside the container.
 
 Do not copy a verification command from another route; read it from the selected section in the current checkout.
@@ -106,7 +100,6 @@ Apply at most one documented fix per failed step, retry once, then stop and hand
 
 | Symptom during install | First reference |
 | --- | --- |
-| `GLIBC` version too low | `docs/source/setup/installation/index.rst` (`installation-method-binary` — switch to the downloaded Isaac Sim package) |
 | `nvidia-smi` missing or driver too old | `docs/source/setup/installation/index.rst` ("System requirements" — driver minimums) |
 | Network timeout fetching wheels | Retry the step once; then check proxy/firewall for github.com, pypi.org, pypi.nvidia.com, download.pytorch.org |
 | Windows path-too-long errors | Windows tab of the chosen section (long-path support) |

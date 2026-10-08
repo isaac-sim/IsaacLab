@@ -53,8 +53,8 @@ from .isaac_rtx_renderer_cfg import SIMPLE_SHADING_MODES, IsaacRtxRendererCfg
 
 _PPISP_IMPORT_ERROR_MESSAGE = (
     "isaaclab_ppisp is required when CameraCfg.isp_cfg is set. "
-    "It ships with the Isaac Lab wheel (`pip install isaaclab`); otherwise install the "
-    "isaaclab-ppisp extension from the Isaac Lab source checkout."
+    "Run `uv sync` from the Isaac Lab source checkout, or install the Isaac Lab wheel "
+    "with `uv pip install isaaclab`."
 )
 
 

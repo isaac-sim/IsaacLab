@@ -179,7 +179,7 @@ def test_spawn_cone_with_all_props(sim):
         rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
         collision_props=sim_utils.UsdPhysicsCollisionCfg(),
         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.75, 0.5)),
-        physics_material=sim_utils.RigidBodyMaterialCfg(),
+        physics_material=sim_utils.RigidBodyMaterialBaseCfg(),
     )
     prim = cfg.func("/World/Cone", cfg)
 
@@ -234,7 +234,7 @@ def test_spawn_cone_clone_with_all_props_global_material(sim):
         rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
         collision_props=sim_utils.UsdPhysicsCollisionCfg(),
         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.75, 0.5)),
-        physics_material=sim_utils.RigidBodyMaterialCfg(),
+        physics_material=sim_utils.RigidBodyMaterialBaseCfg(),
         visual_material_path="/Looks/visualMaterial",
         physics_material_path="/Looks/physicsMaterial",
     )

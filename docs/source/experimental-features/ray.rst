@@ -127,21 +127,6 @@ Then, run the following steps to start a tuning run.
         echo "import ray; ray.init(); import time; [time.sleep(10) for _ in iter(int, 1)]" | uv run python
 
 
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-        # Build the base image, but we don't need to run it
-        python3 docker/container.py start && python3 docker/container.py stop
-        # Build the tuning image with extra deps
-        docker build -t isaacray -f scripts/reinforcement_learning/ray/cluster_configs/Dockerfile .
-        # Start the tuning image - symlink so that changes in the source folder show up in the container
-        docker run -v $(pwd)/source:/workspace/isaaclab/source -it --gpus all --net=host --entrypoint /bin/bash isaacray
-        # Start the Ray server within the tuning image
-        echo "import ray; ray.init(); import time; [time.sleep(10) for _ in iter(int, 1)]" | ./isaaclab.sh -p
-
-
-
 In a different terminal, run the following.
 
 
@@ -156,21 +141,6 @@ In a different terminal, run the following.
         docker exec -it <ISAAC_RAY_IMAGE_ID_FROM_CONTAINER_PS> /bin/bash
         # Start a tuning run, with one parallel worker per GPU
         uv run python scripts/reinforcement_learning/ray/tuner.py \
-          --cfg_file scripts/reinforcement_learning/ray/hyperparameter_tuning/vision_cartpole_cfg.py \
-          --cfg_class CartpoleTheiaJobCfg \
-          --run_mode local \
-          --workflow scripts/reinforcement_learning/train.py \
-          --num_workers_per_node <NUMBER_OF_GPUS_IN_COMPUTER>
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-        # In a new terminal (don't close the above) , enter the image with a new shell.
-        docker container ps
-        docker exec -it <ISAAC_RAY_IMAGE_ID_FROM_CONTAINER_PS> /bin/bash
-        # Start a tuning run, with one parallel worker per GPU
-        ./isaaclab.sh -p scripts/reinforcement_learning/ray/tuner.py \
           --cfg_file scripts/reinforcement_learning/ray/hyperparameter_tuning/vision_cartpole_cfg.py \
           --cfg_class CartpoleTheiaJobCfg \
           --run_mode local \
@@ -277,14 +247,9 @@ be installed via the `Kubernetes website <https://kubernetes.io/docs/tasks/tools
 Google Cloud is currently the only platform tested, although
 any cloud provider should work if one configures the following.
 
-.. attention::
-  The ``ray`` command should be modified to use Isaac python, which could be achieved in a fashion similar to
-  ``sed -i "1i $(echo "#!/workspace/isaaclab/_isaac_sim/python.sh")" \
-  /isaac-sim/kit/python/bin/ray && ln -s /isaac-sim/kit/python/bin/ray /usr/local/bin/ray``.
-
 - An container registry (NGC, GCS artifact registry, AWS ECR, etc) with
   an Isaac Lab image configured to support Ray. See ``cluster_configs/Dockerfile`` to see how to modify the ``isaac-lab-base``
-  container for Ray compatibility. Ray should use the isaac sim python shebang, and ``nvidia-smi``
+  container for Ray compatibility. Ray uses the image's uv environment, and ``nvidia-smi``
   should work within the container. Be careful with the setup here as
   paths need to be configured correctly for everything to work. It's likely that
   the example dockerfile will work out of the box and can be pushed to the registry, as
@@ -304,7 +269,7 @@ any cloud provider should work if one configures the following.
 Ray Clusters (Without Kubernetes) Setup
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 .. attention::
-  Modify the Ray command to use Isaac Python like in KubeRay clusters, and follow the same
+  Use Ray from the image's uv environment as in KubeRay clusters, and follow the same
   steps for creating an image/cluster permissions.
 
 See the `Ray Clusters Overview <https://docs.ray.io/en/latest/cluster/getting-started.html>`_ or
@@ -457,7 +422,7 @@ Then visit the following address in a browser.
 If the MLFlow port is forwarded like above, it can be converted into tensorboard logs with
 this following command.
 
-``./isaaclab.sh -p scripts/reinforcement_learning/ray/mlflow_to_local_tensorboard.py \
+``uv run python scripts/reinforcement_learning/ray/mlflow_to_local_tensorboard.py \
 --uri http://localhost:5000 --experiment-name IsaacRay-<CLASS_JOB_CFG>-tune --download-dir test``
 
 

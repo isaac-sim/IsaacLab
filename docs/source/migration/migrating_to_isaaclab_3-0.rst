@@ -43,37 +43,18 @@ your project does not use that feature.
 Installation
 ------------
 
-Start from a fresh Isaac Lab 3.0 checkout and Python 3.12 environment instead of upgrading the
-packages inside an existing 2.x environment. The recommended workflow now uses ``uv`` to resolve the
-project environment and optional integrations when a command runs. The ``isaaclab.sh`` installer is
-still available for manually managed environments, but it is no longer the default path.
+Start from a fresh Isaac Lab 3.0 checkout. uv is the only supported installation method;
+create a new environment instead of upgrading an existing 2.x environment.
 
-.. grid:: 2
-   :gutter: 2
+Isaac Lab 3.0 removes ``isaaclab.sh``, ``isaaclab.bat``, and the CLI installation and
+environment-creation options (``--install``, ``--conda``, and ``--uv``, including their short forms).
+Replace installation commands with ``uv sync`` and launcher commands with ``uv run isaaclab``.
 
-   .. grid-item-card:: Isaac Lab 2.x
+.. code-block:: bash
 
-      Create and activate an environment, install every extension, then launch a library-specific script.
-
-      .. code-block:: bash
-
-         conda create -n env_isaaclab python=3.11
-         conda activate env_isaaclab
-         ./isaaclab.sh --install rsl_rl
-         ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
-            --task Isaac-Cartpole
-
-   .. grid-item-card:: Isaac Lab 3.0
-
-      Install ``uv`` once; ``uv run`` creates or synchronizes the project environment and launches the
-      unified command. Select optional runtimes with ``--extra`` before ``isaaclab``.
-
-      .. code-block:: bash
-
-         curl -LsSf https://astral.sh/uv/install.sh | sh
-         uv run --extra isaacsim isaaclab train \
-            --rl_library rsl_rl --task Isaac-Cartpole \
-            physics=isaacsim_physx
+   uv sync --extra isaacsim
+   uv run --extra isaacsim isaaclab train \
+      --rl_library rsl_rl --task Isaac-Cartpole physics=isaacsim_physx
 
 Use ``uv run isaaclab ...`` for Newton-only workflows, ``--extra ovphysx`` for OV PhysX, and
 ``--extra isaacsim`` for full Isaac Sim support. See :ref:`installation-method-uv` for platform-specific
@@ -2035,13 +2016,6 @@ Enable it by setting an environment variable before launching your script:
          export WARN_ON_TORCH_QUATF_ACCESS=1
          uv run python my_script.py
 
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         export WARN_ON_TORCH_QUATF_ACCESS=1
-         ./isaaclab.sh -p my_script.py
-
 Every read of ``.torch`` on a ``ProxyArray`` whose underlying ``wp.array`` has
 dtype ``wp.quatf`` then emits a :class:`UserWarning` with the message:
 
@@ -2415,13 +2389,6 @@ and play. Instead of launching library-specific scripts under
          # Isaac Lab 3.0
          uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole
 
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         # Isaac Lab 3.0
-         ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole
-
 The same pattern applies to the play workflow:
 
 .. tab-set::
@@ -2431,12 +2398,6 @@ The same pattern applies to the play workflow:
       .. code-block:: bash
 
          uv run isaaclab play --rl_library rsl_rl --task Isaac-Cartpole --checkpoint /PATH/TO/model.pt
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         ./isaaclab.sh play --rl_library rsl_rl --task Isaac-Cartpole --checkpoint /PATH/TO/model.pt
 
 Supported reinforcement learning libraries are ``rsl_rl``, ``rl_games``, ``skrl``,
 ``sb3``, and ``rlinf``. Backend-local ``train.py`` and ``play.py`` scripts were removed; use these
@@ -2625,13 +2586,26 @@ The :class:`~isaaclab.envs.ui.ViewportCameraController` class is also deprecated
 tracking is handled directly by :class:`~isaaclab_visualizers.kit.KitVisualizer`.
 
 
+Custom visualizers now receive resolved ``cameras`` and the optional USD ``stage`` in ``initialize()``.
+Accept these arguments and forward them to ``super().initialize(scene_data_provider, cameras=cameras,
+stage=stage)``. ``SimulationContext`` resolves scene-camera references before initialization;
+visualizers consume those borrowed sensors without a clone plan or a simulation lookup.
+Code that initializes a visualizer directly must supply ordered ``PerspectiveCameraCfg`` objects
+and existing ``Camera`` sensors through ``cameras``. Use ``resolve_camera_sources`` from
+``isaaclab.envs.utils.camera_view`` to bind configured path references against a camera registry.
+Call ``super().close()`` after releasing native viewer resources to drop borrowed scene references.
+The base ``initialize()`` also selects visible environments once. Pass ``get_visualized_env_ids()``
+to the viewer instead of calling ``newton_adapter.resolve_visible_env_indices`` or
+``apply_viewer_visible_worlds``; both helpers have been removed. The returned selection already
+applies bounds, duplicate removal, the visibility cap, and optional sampling.
+
+
 .. rubric:: Streaming Camera View (``tiled_cam_*`` fields removed)
 
 The ``tiled_cam_*`` configuration fields on visualizer configs (e.g. ``tiled_cam_view``,
 ``tiled_cam_num``, ``tiled_cam_prim_path``) have been removed and replaced by the unified
-``streaming_*`` API available on all four visualizer backends.  A one-release deprecation
-shim forwards the old fields except renderer selection to their ``streaming_*`` equivalents and emits
-:class:`DeprecationWarning`; the shim will be removed in the next major release.
+``streaming_*`` API and shared ``cameras`` source list. The deprecated forwarding shim has also
+been removed; update old field names using the table below.
 Renderer selection now takes a configuration directly, without a nickname compatibility path.
 
 .. list-table:: Field rename reference
@@ -2649,20 +2623,27 @@ Renderer selection now takes a configuration directly, without a nickname compat
      - Accepts ``int`` or ``list[int]``
    * - ``tiled_cam_prim_path``
      - ``streaming_sensor_prim_path``
-     - Existing sensor path; takes priority over auto-created camera
+     - Scene-declared sensor path
    * - ``tiled_cam_eye``
-     - ``streaming_cam_eye``
-     -
+     - ``CameraCfg.offset``
+     - Scene camera pose
    * - ``tiled_cam_renderer``
-     - ``streaming_cam_renderer_cfg``
-     - Renderer configuration, not a nickname
+     - ``CameraCfg.renderer_cfg``
+     - Renderer configuration on the scene camera
 
-Replace ``streaming_cam_renderer="ovrtx"`` with ``streaming_cam_renderer_cfg=OVRTXRendererCfg()``
-(imported from ``isaaclab_ov.renderers``). Likewise, pass ``NewtonWarpRendererCfg()`` or
-``IsaacRtxRendererCfg()`` for Newton Warp or Isaac RTX. Custom configurations use their existing
-``class_type`` class or resolvable string. Kit defaults to Isaac RTX; the other visualizers default
-to Newton Warp. An unavailable explicitly selected renderer raises its construction error instead
-of silently selecting another renderer.
+Streaming cameras must now be declared in the scene before cloning. Move
+``streaming_cam_renderer_cfg`` to the scene camera's ``CameraCfg.renderer_cfg``, and replace
+``streaming_cam_eye`` / ``streaming_cam_target_prim_path`` with its ``offset`` and parent prim path.
+The corresponding ``tiled_cam_eye`` and ``tiled_cam_target_prim_path`` aliases are also removed.
+Visualizers only display the selected sensor's output; they no longer create a renderer or
+camera, force a capture, or remove camera prims on close. See :doc:`/source/features/visualizer_tiled_camera`.
+
+The generated-camera helpers ``resolve_tiled_env_indices``, ``resolve_mono_env_index``,
+``compute_tile_resolution``, ``apply_camera_view_from_origins``, and ``sensor_keys_for_gt_types``
+have also been removed. Declare resolution, output channels, and initial pose in ``CameraCfg``.
+Use ``resolve_streaming_envs`` for display tile selection and ``Camera.set_world_poses_from_view``
+for explicit sensor pose updates.
+
 
 .. code-block:: python
 
@@ -2859,16 +2840,6 @@ automatically by the importer based on the robot name and cannot be overridden.
            --fix-base \
            --merge-joints
 
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         ./isaaclab.sh -p scripts/tools/convert_urdf.py \
-           robot.urdf \
-           /output/dir/robot.usd \
-           --fix-base \
-           --merge-joints
-
 **After (Isaac Lab 3.0):**
 
 .. tab-set::
@@ -2878,18 +2849,6 @@ automatically by the importer based on the robot name and cannot be overridden.
       .. code-block:: bash
 
          uv run --extra importers python scripts/tools/convert_urdf.py \
-           robot.urdf \
-           /output/dir \
-           --fix-base \
-           --joint-stiffness 100.0 \
-           --joint-damping 1.0 \
-           --viz kit
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         ./isaaclab.sh -p scripts/tools/convert_urdf.py \
            robot.urdf \
            /output/dir \
            --fix-base \
@@ -3039,16 +2998,6 @@ are no longer available.
            --import-sites \
            --make-instanceable
 
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         ./isaaclab.sh -p scripts/tools/convert_mjcf.py \
-           ../mujoco_menagerie/unitree_h1/h1.xml \
-           source/isaaclab_assets/data/Robots/Unitree/h1.usd \
-           --import-sites \
-           --make-instanceable
-
 **After (Isaac Lab 3.0):**
 
 .. tab-set::
@@ -3058,17 +3007,6 @@ are no longer available.
       .. code-block:: bash
 
          uv run --extra importers python scripts/tools/convert_mjcf.py \
-           ../mujoco_menagerie/unitree_h1/h1.xml \
-           source/isaaclab_assets/data/Robots/Unitree/h1.usd \
-           --merge-mesh \
-           --self-collision \
-           --viz kit
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         ./isaaclab.sh -p scripts/tools/convert_mjcf.py \
            ../mujoco_menagerie/unitree_h1/h1.xml \
            source/isaaclab_assets/data/Robots/Unitree/h1.usd \
            --merge-mesh \
@@ -3197,21 +3135,7 @@ exactly as for the training workflow. There is no ``--physics`` or ``--render`` 
 
 .. tab-set::
 
-   .. tab-item:: uv (Recommended)
-
-      .. code-block:: bash
-
-         # Non-RL (random-action) runtime benchmark
-         uv run python scripts/benchmarks/benchmark_non_rl.py --task Isaac-Cartpole-Direct
-
-         # Training benchmark (RSL-RL)
-         uv run python scripts/benchmarks/benchmark_rsl_rl.py --task Isaac-Cartpole-Direct
-
-         # Wrapper shell runners
-         ./scripts/benchmarks/run_non_rl_benchmarks.sh
-         ./scripts/benchmarks/run_training_benchmarks.sh
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
+   .. tab-item:: Isaac Lab launcher
 
       .. code-block:: bash
 

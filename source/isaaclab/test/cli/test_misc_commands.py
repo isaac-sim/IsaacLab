@@ -5,14 +5,79 @@
 
 """Tests for miscellaneous Isaac Lab CLI commands."""
 
+import json
+import shlex
+import subprocess
+import sys
 from unittest import mock
 
 import pytest
 
 import isaaclab.cli as cli
+import isaaclab.cli.commands.format as formatter
 import isaaclab.cli.commands.misc as misc
 
 pytestmark = pytest.mark.unit
+
+
+def test_format_checks_the_requested_files(tmp_path, monkeypatch):
+    """The public CLI formats the requested scope and returns hook failures without retrying."""
+    pytest.importorskip("pre_commit")
+    monkeypatch.setattr(cli, "ISAACLAB_ROOT", tmp_path)
+    monkeypatch.setattr(formatter, "ISAACLAB_ROOT", tmp_path)
+    monkeypatch.setattr(sys, "argv", ["isaaclab", "--format", "first.txt"])
+    (tmp_path / "pyproject.toml").touch()
+    (tmp_path / "hook.py").write_text(
+        "import sys\n"
+        "from pathlib import Path\n"
+        "with Path('runs.log').open('a') as log:\n"
+        "    log.write('run\\n')\n"
+        "for name in sys.argv[1:]:\n"
+        "    Path(name).write_text('formatted\\n')\n",
+        encoding="utf-8",
+    )
+    (tmp_path / ".pre-commit-config.yaml").write_text(
+        "repos:\n- repo: local\n  hooks:\n  - id: format-text\n    name: format text\n"
+        f"    entry: {json.dumps(shlex.join([sys.executable, 'hook.py']))}\n"
+        "    language: system\n    files: '\\.txt$'\n",
+        encoding="utf-8",
+    )
+    for name in ("first.txt", "second.txt"):
+        (tmp_path / name).write_text("unformatted\n", encoding="utf-8")
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    subprocess.run(["git", "-C", str(tmp_path), "add", "."], check=True)
+    with pytest.raises(SystemExit) as error:
+        cli.cli()
+    assert error.value.code == 1
+    assert (tmp_path / "runs.log").read_text(encoding="utf-8") == "run\n"
+    assert (tmp_path / "first.txt").read_text(encoding="utf-8") == "formatted\n"
+    assert (tmp_path / "second.txt").read_text(encoding="utf-8") == "unformatted\n"
+    cli.cli()
+    assert (tmp_path / "runs.log").read_text(encoding="utf-8") == "run\nrun\n"
+
+
+def test_checkout_command_rejects_wheel_installation(tmp_path, monkeypatch, capsys):
+    """Wheel users get checkout guidance before a development command launches or installs tools."""
+    monkeypatch.setattr(cli, "ISAACLAB_ROOT", tmp_path)
+    monkeypatch.setattr(sys, "argv", ["isaaclab", "--format"])
+
+    with mock.patch.object(cli, "command_format") as format_command, pytest.raises(SystemExit) as error:
+        cli.cli()
+
+    assert error.value.code == 2
+    assert "requires an Isaac Lab source checkout" in capsys.readouterr().err
+    format_command.assert_not_called()
+
+
+def test_sim_command_propagates_failure(monkeypatch):
+    """A failed simulator process must make the CLI fail with the same exit code."""
+    monkeypatch.setattr(sys, "argv", ["isaaclab", "--sim"])
+    monkeypatch.setattr(misc, "extract_isaacsim_exe", lambda: [sys.executable, "-c", "raise SystemExit(7)"])
+
+    with pytest.raises(SystemExit) as error:
+        cli.cli()
+
+    assert error.value.code == 7
 
 
 def test_python_subcommands_propagate_failures():
@@ -161,7 +226,7 @@ def test_build_isaacsim_links_incremental_build_without_packaging(tmp_path):
     with (
         mock.patch.object(misc, "ISAACLAB_ROOT", workspace),
         mock.patch.object(misc, "run_command") as run_command,
-        mock.patch.object(misc, "_repoint_source_build_prebundles") as repoint_prebundles,
+        mock.patch.object(misc, "repoint_prebundle_packages") as repoint_prebundles,
         mock.patch.object(misc.sys, "platform", "linux"),
         mock.patch.object(misc.platform, "machine", return_value="x86_64"),
     ):
