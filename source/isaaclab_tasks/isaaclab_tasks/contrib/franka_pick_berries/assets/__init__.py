@@ -3,4 +3,4 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Berry asset locations, USD/USDZ loading and spherical-harmonics transport."""
+"""Asset helpers: where the raspberry package lives and how its USD data is read."""

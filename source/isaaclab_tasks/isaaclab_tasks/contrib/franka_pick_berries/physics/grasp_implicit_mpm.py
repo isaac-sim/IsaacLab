@@ -292,7 +292,7 @@ class DamageConfig:
 
 @dataclass
 class TissueMaterial:
-    """Implicit-solver yield limits and tearing of one berry species."""
+    """Implicit-solver yield limits and tearing of the berry tissue."""
 
     shear_yield: float
     """Shear yield stress [Pa]."""
@@ -305,9 +305,9 @@ class TissueMaterial:
 def tissue_material(profile: dict) -> TissueMaterial:
     """Return the implicit-solver material of a berry from its asset profile.
 
-    Compression and shear stay elastic through handling loads; tearing applies to species whose asset enables it.
+    Compression and shear stay elastic through handling loads; tearing applies when the asset enables it.
     """
-    young = YOUNG_MODULUS[profile["berry"]]
+    young = YOUNG_MODULUS
     tears = profile["simulation"].get("tear_end", 0) > 0
     return TissueMaterial(
         shear_yield=0.5 * young,
@@ -332,7 +332,7 @@ class SolverGraspImplicitMPM(SolverImplicitMPM):
         device = model.device
         count = model.particle_count
         self.grasping = wp.zeros(1, dtype=int, device=device)
-        """Whether clamping is on (1) or off (0); set with :meth:`set_grasping`."""
+        """Whether clamping is on (1) or off (0); set with :meth:`set_implicit_grasp`."""
         self.clamp_body = wp.full(count, _FREE, dtype=int, device=device)
         """Body each particle is clamped to, or -1."""
         self.anchor = wp.zeros(count, dtype=wp.vec3, device=device)
@@ -359,7 +359,7 @@ class SolverGraspImplicitMPM(SolverImplicitMPM):
             raise ValueError(f"No body label matches {pattern!r}")
         self.gripping_body.assign(matches)
 
-    def set_grasping(self, grasping: bool) -> None:
+    def set_implicit_grasp(self, grasping: bool) -> None:
         """Turn clamping on or off; turning it off releases every clamped particle on the next step.
 
         Call outside CUDA graph capture; captured steps read the value when they run. :attr:`grasping` can also be

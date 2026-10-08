@@ -3,11 +3,15 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Continuous-grasp Franka teleoperation with deformable Gaussian berries.
+"""A Franka picks deformable raspberries: MPM physics on Newton, rendered as 3D Gaussians.
 
-The environment lives in :mod:`pick_berries_env` / :mod:`pick_berries_env_cfg`, the action terms in
-:mod:`mdp`, and the gym registration in :mod:`config.franka`. Runtime support is grouped into
-:mod:`physics`, :mod:`rendering`, :mod:`scene`, :mod:`assets` and :mod:`control`. Interactive and
-benchmark CLIs are in ``scripts/``, offline asset tools in ``offline/`` and the runtime installer in
-``setup/``.
+Each step of the environment (:mod:`.pick_berries_env`) runs two coupled Newton solvers: MuJoCo-Warp moves the arm
+and an MPM solver deforms, bruises and tears the berries' tissue, which the finger pads grip by friction
+(:mod:`.physics`). Each frame then moves the berries' hundreds of thousands of Gaussians with their few thousand tissue
+particles and streams them to the RTX renderer (:mod:`.gaussians`).
+
+Core: :mod:`.pick_berries_env_cfg` (the scene), :mod:`.pick_berries_env`, :mod:`.physics` and :mod:`.gaussians`.
+Helpers: :mod:`.mdp` (actions), :mod:`.control` (teleoperation and the scripted sorting), :mod:`.rendering` (viewer,
+camera director, video), :mod:`.scene` (table, tableware, room) and :mod:`.assets`. ``scripts/pick_berries.py`` runs
+the demo and ``setup/setup.sh`` installs its runtime.
 """

@@ -3,13 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Opt-in sampling/AA overrides; leave Gaussian, color and lighting settings alone."""
+"""Check that the installed renderer can show live Gaussian deformation."""
 
 from importlib.metadata import version
 
 from packaging.version import Version
-
-from pxr import Sdf, Usd
 
 
 def require_live_gaussian_renderer():
@@ -25,21 +23,5 @@ def require_live_gaussian_renderer():
             "OVRTX 0.5 can read back updated arrays while rendering a ghosted field. "
             "Run bash source/isaaclab_tasks/isaaclab_tasks/contrib/franka_pick_berries/setup/setup.sh "
             "--renderer-internal "
-            "(NVIDIA network access required); see the adjacent README.md. "
-            "Physics-only --no_render does not require these wheels."
+            "(NVIDIA network access required); see the adjacent README.md."
         )
-
-
-def apply_sampling_settings(product: Usd.Prim, rtpt_spp: int | None = None) -> dict:
-    """Author RTPT samples on one render product; antialiasing keeps the renderer's default.
-
-    ``None`` preserves the inherited setting. RTPT uses ``rtpt:spp``, not the
-    separate offline ``pt:samplesPerPixel`` attribute.
-    """
-    if rtpt_spp is not None and rtpt_spp < 1:
-        raise ValueError("RTPT samples must be positive")
-    authored = {}
-    if rtpt_spp is not None:
-        authored["omni:rtx:rtpt:spp"] = rtpt_spp
-        product.CreateAttribute("omni:rtx:rtpt:spp", Sdf.ValueTypeNames.Int).Set(rtpt_spp)
-    return authored

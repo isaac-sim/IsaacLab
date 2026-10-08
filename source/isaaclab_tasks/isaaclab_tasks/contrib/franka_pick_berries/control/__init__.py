@@ -3,4 +3,4 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Operator and scripted arm control: gamepad devices and scripted motion sequences."""
+"""Robot control helpers: gamepad and keyboard teleoperation, and the scripted sorting sequence."""

@@ -16,7 +16,7 @@ from isaaclab.utils.assets import retrieve_file_path
 from .usd_metadata import read_array, read_data
 
 
-def load_berry(path: str | Path) -> tuple[Usd.Stage, dict, dict, dict]:
+def load_berry_asset(path: str | Path) -> tuple[Usd.Stage, dict, dict, dict]:
     """Load a berry's appearance, tissue positions [m], and simulation metadata.
 
     ``path`` may be a Nucleus URL or a local path; it is resolved and locally cached
