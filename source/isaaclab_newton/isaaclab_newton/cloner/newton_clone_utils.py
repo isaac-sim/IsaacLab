@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 
 import numpy as np
@@ -83,14 +83,12 @@ def add_deformable_from_usd(builder: ModelBuilder, stage: Usd.Stage, geometry: D
 
 
 def add_visual_deformables_to_sources(
-    builders: dict[str, ModelBuilder], entries: Sequence[DeformableStageEntry]
+    builders: dict[str, ModelBuilder], entries_by_source: Mapping[str, Sequence[DeformableStageEntry]]
 ) -> None:
-    """Add each visual deformable to every imported source containing its USD subtree."""
-    for entry in entries:
-        for path in reversed(Sdf.Path(entry.root_path).GetPrefixes()):
-            builder = builders.get(str(path))
-            if builder is None:
-                continue
+    """Add visual deformables to the source builders selected by clone ownership."""
+    for source, entries in entries_by_source.items():
+        builder = builders[source]
+        for entry in entries:
             pose = dict(pos=wp.vec3(*entry.init_pos), rot=wp.quat(*entry.init_rot), scale=1.0, vel=wp.vec3())
             surface = entry.deformable_type == "surface" or entry.vis_mesh_path != entry.sim_mesh_path
             particle_start, tri_start = builder.particle_count, len(builder.tri_indices)
@@ -120,6 +118,7 @@ def build_source_builders(
     schema_resolvers: Sequence[Any],
     *,
     ignore_paths: Sequence[str] | None = None,
+    ignore_paths_by_source: Mapping[str, Sequence[str]] | None = None,
     load_visual_shapes: bool = True,
     skip_mesh_approximation: bool = False,
     import_results_out: dict[str, dict[str, Any]] | None = None,
@@ -136,6 +135,7 @@ def build_source_builders(
         create_builder: Factory returning a fresh :class:`ModelBuilder`.
         schema_resolvers: Schema resolvers forwarded to Newton's USD importer.
         ignore_paths: Prim paths skipped during import.
+        ignore_paths_by_source: Additional prim paths skipped only within their owning source import.
         load_visual_shapes: Whether to import visual-only geometry. Importing it costs
             USD parse time and memory that only pays off when the shapes are rendered
             or ray cast.
@@ -144,6 +144,7 @@ def build_source_builders(
             source's USD import result.
     """
     builders = {}
+    ignore_paths_by_source = ignore_paths_by_source or {}
     sources = tuple(dict.fromkeys(sources))
     for source in sources:
         builder = create_builder()
@@ -154,7 +155,7 @@ def build_source_builders(
             hide_collision_shapes=True,
             skip_mesh_approximation=skip_mesh_approximation,
             schema_resolvers=schema_resolvers,
-            ignore_paths=ignore_paths or (),
+            ignore_paths=[*(ignore_paths or ()), *ignore_paths_by_source.get(source, ())],
             return_deformable_results=True,
         )
         replace_newton_builder_shape_colors(builder, stage)

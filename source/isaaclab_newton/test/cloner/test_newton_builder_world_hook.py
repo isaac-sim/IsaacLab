@@ -209,11 +209,12 @@ def test_imported_deformables_follow_plan_and_publish_geometry(heterogeneous):
             AssetBaseCfg(prim_path="/Shared/Cloth"),
         )
         assets += (AssetBaseCfg(prim_path="/World/env_[^/]+/Robot", spawn=SpawnerCfg(spawn_path="/World/env_0/Robot")),)
+        assets += (AssetBaseCfg(prim_path="/World"),)
         prototypes = ((3,), (0, 1)) if heterogeneous else ((0, 1, 3),)
         layout = np.array([0, int(heterogeneous), 0])
         placement = dict(env_template="/World/env_{}", positions=positions)
         plan = make_clone_plan(
-            assets, prototypes, 3, shared_assets=(2,), clone_strategy=lambda _weights, _count: layout, **placement
+            assets, prototypes, 3, shared_assets=(2, 4), clone_strategy=lambda _weights, _count: layout, **placement
         )
         sim.set_clone_plan(plan)
         options = dict(

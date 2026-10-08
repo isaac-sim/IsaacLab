@@ -179,6 +179,46 @@ class TestVisualizationClonePlan(unittest.TestCase):
                 for _, resource in tuple(self.sim._backend_registry):
                     self.sim.close_backend(resource)
 
+        # A shared stage root must not import source or generated environments as global bodies.
+        for env in (0, 9):
+            body = UsdGeom.Cube.Define(stage, f"/World/envs/env_{env}/Robot")
+            body.CreateSizeAttr(0.2)
+            UsdPhysics.RigidBodyAPI.Apply(body.GetPrim())
+            UsdPhysics.CollisionAPI.Apply(body.GetPrim())
+        body = UsdGeom.Cube.Define(stage, "/World/envs/env_shared/GlobalBody")
+        UsdPhysics.RigidBodyAPI.Apply(body.GetPrim())
+        UsdPhysics.CollisionAPI.Apply(body.GetPrim())
+        cloth = UsdGeom.Xform.Define(stage, "/World/envs/env_0/Robot/Cloth").GetPrim()
+        cloth.SetMetadata("apiSchemas", Sdf.TokenListOp.CreateExplicit(["OmniPhysicsDeformableBodyAPI"]))
+        mesh = UsdGeom.Mesh.Define(stage, "/World/envs/env_0/Robot/Cloth/sim")
+        mesh.CreatePointsAttr([(0, 0, 0), (1, 0, 0), (0, 1, 0)])
+        mesh.CreateFaceVertexCountsAttr([3])
+        mesh.CreateFaceVertexIndicesAttr([0, 1, 2])
+        assets = (
+            AssetBaseCfg(prim_path="/World"),
+            AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Robot"),
+            AssetBaseCfg(prim_path="/World/envs/env_shared/GlobalBody"),
+        )
+        positions = np.array([[0, 0, 0], [2, 0, 0]], dtype=np.float32)
+        plan = make_clone_plan(assets, ((1,),), 2, shared_assets=(0, 2), positions=positions)
+        builder, _, _ = NewtonReplicateContext(self.sim).replicate(plan, (0, 1, 2))
+        self.assertCountEqual(
+            builder.body_label,
+            [
+                "/World/Declared",
+                "/World/Undeclared",
+                "/World/Excluded",
+                "/World/envs/env_shared/GlobalBody",
+                *[f"/World/envs/env_{env}/Robot" for env in range(2)],
+            ],
+        )
+        self.assertEqual(builder.shape_count, 6)
+        self.assertEqual(builder.body_world, [-1, -1, -1, -1, 0, 1])
+        np.testing.assert_array_equal(builder.particle_world, [0, 0, 0, 1, 1, 1])
+        self.assertEqual(builder._cloth_label, [f"/World/envs/env_{env}/Robot/Cloth/sim" for env in range(2)])
+        for _, resource in tuple(self.sim._backend_registry):
+            self.sim.close_backend(resource)
+
         # The same definition can also be shared and appear twice in each replicated world.
         plan = make_clone_plan((AssetBaseCfg(prim_path="/World/Declared"),), ((0, 0),), 2, shared_assets=(0,))
         with mock.patch.object(

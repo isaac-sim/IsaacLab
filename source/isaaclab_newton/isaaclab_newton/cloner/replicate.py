@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import contextlib
 import copy
-from collections.abc import Callable, Iterator, Sequence
+from collections.abc import Callable, Collection, Iterator, Mapping, Sequence
 from functools import partial
 from typing import TYPE_CHECKING, Any
 
@@ -23,6 +23,7 @@ from isaaclab.cloner import path as cloner_path
 from isaaclab.physics import PhysicsManager
 from isaaclab.scene_data import SceneDataFormat
 from isaaclab.scene_data.deformable_discovery import (
+    DeformableStageEntry,
     deformable_geometry_batches,
     deformable_prototypes,
     expand_deformable_entries,
@@ -97,6 +98,70 @@ def newton_builder_world_hook(
             hooks.remove(hook)
 
 
+def _shared_source_exclusions(
+    stage: Usd.Stage, env_template: str, references: Sequence[tuple[str, str]]
+) -> dict[str, list[str]]:
+    """Find environment subtrees to omit from shared stage-root imports.
+
+    Args:
+        stage: Stage containing authored source and generated environment roots.
+        env_template: Destination environment-root template with one instance slot.
+        references: Retained shared-source paths and their destination roots.
+
+    Returns:
+        Environment roots skipped within each shared source, preserving the shared instance slot.
+    """
+    exclusions = {}
+    for source, destination in references:
+        if cloner_path.relative_to(env_template, destination) is None:
+            continue
+        source_env_template = cloner_path.rebase(env_template, destination, source)
+        prefix, _, suffix = source_env_template.partition("{}")
+        slot_template = prefix + "{}" + suffix.split("/", 1)[0]
+        namespace = stage.GetPrimAtPath(prefix.rsplit("/", 1)[0] or "/")
+        excluded = exclusions.setdefault(source, [])
+        for prim in namespace.GetChildren() if namespace else ():
+            match = cloner_path.match(str(prim.GetPath()), slot_template)
+            if match is not None and not match.suffix and match.instance != "shared":
+                root = source_env_template.format(match.instance)
+                if stage.GetPrimAtPath(root):
+                    excluded.append(root)
+    return exclusions
+
+
+def _source_deformable_entries(
+    entries: Sequence[DeformableStageEntry],
+    sources: Collection[str],
+    exclusions: Mapping[str, Sequence[str]],
+) -> tuple[list[DeformableStageEntry], dict[str, list[DeformableStageEntry]]]:
+    """Select deformables once for both source imports and native visual bindings.
+
+    Args:
+        entries: Discovered deformable prototypes.
+        sources: Imported source paths.
+        exclusions: Subtrees skipped within each source import.
+
+    Returns:
+        Owned prototypes in discovery order and the prototypes supplied by each source.
+    """
+    source_entries = {source: [] for source in sources}
+    owned_entries = []
+    for entry in entries:
+        owners = [
+            str(path)
+            for path in reversed(Sdf.Path(entry.root_path).GetPrefixes())
+            if str(path) in sources
+            if not any(
+                cloner_path.relative_to(entry.root_path, root) is not None for root in exclusions.get(str(path), ())
+            )
+        ]
+        if owners:
+            owned_entries.append(entry)
+            for source in owners:
+                source_entries[source].append(entry)
+    return owned_entries, source_entries
+
+
 def _replicate_newton(
     stage: Usd.Stage,
     env_ids: np.ndarray,
@@ -161,6 +226,15 @@ def _replicate_newton(
                     f"from {parent_source!r}. A nested Newton source must be {expected!r}."
                 )
     source_paths = list(dict.fromkeys(source for source in routed_sources if source in needed))
+    # Shared stage roots own global geometry; environment subtrees belong to their per-world copies.
+    source_exclusions = {}
+    if any(plan.topology.world_prototypes[index] in asset_prototype_ids for index in range(starts[1], len(templates))):
+        references = [
+            (sources[asset], destination)
+            for asset, destination in zip(plan.topology.world_prototypes[: starts[1]], shared, strict=True)
+            if sources[asset] in needed
+        ]
+        source_exclusions = _shared_source_exclusions(stage, plan.env_template, references)
     # A parent source also owns deformables declared beneath it, even when the child has its own asset config.
     entries = deformable_prototypes(stage, plan, exclude_paths=exclude_paths)
     if simulation:
@@ -175,18 +249,19 @@ def _replicate_newton(
 
     import_results: dict[str, dict[str, Any]] = {}
     options = dict(ignore_paths=ignore_paths, load_visual_shapes=load_visual_shapes)
-    options.update(skip_mesh_approximation=not simulation, import_results_out=import_results)
+    options.update(
+        skip_mesh_approximation=not simulation,
+        import_results_out=import_results,
+        ignore_paths_by_source=source_exclusions,
+    )
     source_builders = build_source_builders(stage, source_paths, create_builder, schema_resolvers, **options)
+    entries, source_entries = _source_deformable_entries(entries, source_builders, source_exclusions)
     if simulation:
-        for entry in entries:
-            ancestors = reversed(Sdf.Path(entry.root_path).GetPrefixes())
-            owners = [source_builders[str(path)] for path in ancestors if str(path) in source_builders]
-            if not owners:
-                raise RuntimeError(f"No imported source owns deformable {entry.root_path!r}.")
-            for source in owners:
-                add_deformable_from_usd(source, stage, entry)
+        for source, geometry in source_entries.items():
+            for entry in geometry:
+                add_deformable_from_usd(source_builders[source], stage, entry)
     else:
-        add_visual_deformables_to_sources(source_builders, entries)
+        add_visual_deformables_to_sources(source_builders, source_entries)
 
     # Resolve native capsule indices once per source, not by rediscovering labels after cloning.
     source_cables = {}
