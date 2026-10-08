@@ -250,13 +250,8 @@ def _replicate_newton(
     if simulation:
         NewtonManager._cable_bindings = cable_bindings
         geometry = expand_deformable_entries(entries, plan, env_ids, positions, imported_sources=source_builders)
-        ranges = {
-            label: start
-            for family in ("cloth", "soft")
-            for label, start in zip(
-                getattr(builder, f"_{family}_label"), getattr(builder, f"_{family}_particle_start"), strict=True
-            )
-        }
+        ranges = dict(zip(builder.surface_label, builder._surface_particle_start, strict=True))
+        ranges.update(zip(builder.volume_label, builder._volume_particle_start, strict=True))
         offsets = [ranges[entry.root_path] for entry in geometry]
         batches = deformable_geometry_batches(geometry, offsets, device=sim.device)
         if visual_ranges:

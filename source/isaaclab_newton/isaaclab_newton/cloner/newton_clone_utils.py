@@ -39,7 +39,6 @@ def add_deformable_from_usd(builder: ModelBuilder, stage: Usd.Stage, geometry: D
         Replace this importer with native ``add_usd`` when Isaac Lab's authored schemas and
         Newton material attributes have parity (newton-physics/newton#3036 and #3038).
         The native USD importer landed in #3192; that alone does not establish material parity.
-        Remove private group recording when the pinned Newton includes #3326's native recording.
     """
     prim = stage.GetPrimAtPath(geometry.root_path)
     material = UsdShade.MaterialBindingAPI(prim).ComputeBoundMaterial(materialPurpose="physics")[0].GetPrim()
@@ -58,8 +57,6 @@ def add_deformable_from_usd(builder: ModelBuilder, stage: Usd.Stage, geometry: D
         attr = material.GetAttribute(f"newton:{to_camel_case(name, to='cC')}")
         material_kwargs[name] = attr.Get() if attr.IsValid() else getattr(defaults, name)
 
-    particle_start, tri_start = builder.particle_count, len(builder.tri_indices)
-    edge_start, tet_start = len(builder.edge_indices), len(builder.tet_indices)
     add_mesh(
         vertices=geometry.vertices,
         indices=geometry.indices,
@@ -70,16 +67,6 @@ def add_deformable_from_usd(builder: ModelBuilder, stage: Usd.Stage, geometry: D
         label=geometry.root_path,
         **material_kwargs,
     )
-    particle_range = (particle_start, builder.particle_count)
-    if geometry.deformable_type == "volume":
-        builder._record_soft_group(geometry.root_path, particle_range, (tet_start, len(builder.tet_indices)))
-    else:
-        builder._record_cloth_group(
-            geometry.root_path,
-            particle_range,
-            (tri_start, len(builder.tri_indices)),
-            (edge_start, len(builder.edge_indices)),
-        )
 
 
 def add_visual_deformables_to_sources(
@@ -93,8 +80,6 @@ def add_visual_deformables_to_sources(
                 continue
             pose = dict(pos=wp.vec3(*entry.init_pos), rot=wp.quat(*entry.init_rot), scale=1.0, vel=wp.vec3())
             surface = entry.deformable_type == "surface" or entry.vis_mesh_path != entry.sim_mesh_path
-            particle_start, tri_start = builder.particle_count, len(builder.tri_indices)
-            edge_start, tet_start = len(builder.edge_indices), len(builder.tet_indices)
             if surface:
                 add_mesh = builder.add_cloth_mesh
                 mesh = dict(vertices=entry.vis_vertices, indices=entry.vis_indices, density=1.0)
@@ -104,13 +89,6 @@ def add_visual_deformables_to_sources(
                 mesh = dict(vertices=entry.vertices, indices=entry.indices, density=1000.0)
                 mesh.update(k_mu=1e5, k_lambda=1e5, k_damp=0.0)
             add_mesh(label=entry.vis_mesh_path, **mesh, **pose)
-            # Remove private recording when the pinned Newton includes #3326.
-            particle_range = particle_start, builder.particle_count
-            if surface:
-                tri_range, edge_range = (tri_start, len(builder.tri_indices)), (edge_start, len(builder.edge_indices))
-                builder._record_cloth_group(entry.vis_mesh_path, particle_range, tri_range, edge_range)
-            else:
-                builder._record_soft_group(entry.vis_mesh_path, particle_range, (tet_start, len(builder.tet_indices)))
 
 
 def build_source_builders(

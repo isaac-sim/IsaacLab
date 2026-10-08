@@ -171,17 +171,13 @@ class NewtonBackend:
         builder = SimulationContext.instance().get_or_create_backend(NewtonBuilderCfg(physics_cfg=cfg.physics_cfg))
         self.model = builder.finalize(device=cfg.device)
         self.particle_ranges: dict[str, tuple[int, int]] = {}
-        # Newton 1.6 preserves groups through builder replication but not finalization.
-        # Remove this snapshot when the pinned Newton includes newton-physics/newton#3326.
         self.deformable_ranges = {
             label: (start, end - start, kind)
-            for family, kind in (("cloth", "surface"), ("soft", "volume"))
-            for label, start, end in zip(
-                getattr(builder, f"_{family}_label"),
-                getattr(builder, f"_{family}_particle_start"),
-                getattr(builder, f"_{family}_particle_end"),
-                strict=True,
+            for kind, labels, starts, ends in (
+                ("surface", builder.surface_label, builder._surface_particle_start, builder._surface_particle_end),
+                ("volume", builder.volume_label, builder._volume_particle_start, builder._volume_particle_end),
             )
+            for label, start, end in zip(labels, starts, ends, strict=True)
         }
         self.model.num_envs = self.model.world_count
         simulation = isinstance(cfg.physics_cfg, NewtonCfg)
@@ -595,12 +591,22 @@ class NewtonManager(PhysicsManager):
         A soft reset (``soft=True``) skips this full reinitialization and reuses
         the existing model, solver, collision pipeline and CUDA graph.
 
+        Assets bind data once at construction. Hard resets recreate their views,
+        data containers, and per-model step hooks through ``PHYSICS_READY``;
+        do not register additional callbacks to rebind the discarded data.
+        Reacquire ``asset.data`` and its arrays after a hard reset.
+
         Args:
             soft: If True, skip full reinitialization.
         """
         if not soft:
             if NewtonManager.backend is not None:
                 cls.dispatch_event(PhysicsEvent.STOP)
+                # Assets recreate these views and hooks on PHYSICS_READY for the new model.
+                for key in [key for key in NewtonManager.views if key[0] is NewtonManager]:
+                    del NewtonManager.views[key]
+                NewtonManager._post_actuator_callbacks.clear()
+                NewtonManager._post_step_callbacks.clear()
             # Release the cached collision pipeline, contacts and CUDA graph;
             # they point at the old model's freed buffers (CUDA 700 on next step).
             NewtonManager._graph = None
@@ -1885,6 +1891,7 @@ class NewtonManager(PhysicsManager):
         integrator on the same iteration. Multiple articulations register
         their own implicit-DOF telemetry / FF-routing kernels here; all
         registered callbacks fire in registration order each step.
+        Hard resets discard these hooks; register them again when the new model is ready.
         """
         cls._post_actuator_callbacks.append(callback)
 
@@ -1918,6 +1925,7 @@ class NewtonManager(PhysicsManager):
         registered before capture. Articulations with non-identity ordering
         register their backend-to-user state republish here; all registered
         callbacks fire in registration order each step.
+        Hard resets discard these hooks; register them again when the new model is ready.
         """
         cls._post_step_callbacks.append(callback)
 
