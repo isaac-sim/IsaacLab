@@ -17,29 +17,28 @@ from pxr import Gf, Sdf, UsdGeom, UsdLux, UsdShade
 
 from isaaclab.sim import get_current_stage
 
-from ..gaussians.publisher import GaussianPublisher
+from ..gaussian_splats.render_delegate import GaussianRenderDelegate
 from ..scene.room_scan import add_room_scan
 from ..scene.tableware import add_tableware_visuals
-from .renderer_version import require_live_gaussian_renderer
-from .workcell_materials import restore_workcell_materials
+from ..scene.workcell_materials import restore_workcell_materials
 
-CAMERA_VIEWS = ("punnet_and_bowl", "berry_closeup", "room", "film_director")
+CAMERA_VIEWS = ("punnet_and_bowl", "berry_closeup", "room", "scripted_camera")
 """Camera views: the punnet and bowl, a close-up following the handled berry, the whole room, or a camera moved by a
-director such as :class:`~.camera_director.SortingCameraDirector`."""
+scripted camera such as :class:`~.scripted_camera_demo.ScriptedCameraDemo`."""
 
 
 class BerryViewer(ViewerRTX):
     """Newton's RTX viewer, extended with the berries' Gaussians, the tableware and the room.
 
-    On every :meth:`draw`, each berry's Gaussians follow its tissue (:class:`..gaussians.publisher.GaussianPublisher`).
-    Rendering overlaps the next physics step: a frame is submitted asynchronously and collected before the next one
-    changes the scene.
+    On every :meth:`draw`, each berry's Gaussians follow its tissue
+    (:class:`..gaussian_splats.render_delegate.GaussianRenderDelegate`). Rendering overlaps the next physics step: a
+    frame is submitted asynchronously and collected before the next one changes the scene.
 
     Args:
         env: The berry environment.
         samples_per_pixel: Real-time path-tracing samples per pixel; None keeps the renderer's default.
         camera: Initial camera view, one of :data:`CAMERA_VIEWS`.
-        f_stop: Camera f-number for depth of field in a director's close shots; None keeps everything sharp.
+        f_stop: Camera f-number for depth of field in a scripted camera's close shots; None keeps everything sharp.
         bowl_material: Material of the receiving bowl, ``glass`` or ``porcelain``.
         **kwargs: Arguments of :class:`newton.viewer.ViewerRTX`, such as ``width``, ``height`` and ``headless``.
     """
@@ -47,7 +46,6 @@ class BerryViewer(ViewerRTX):
     def __init__(
         self, env, samples_per_pixel=None, camera="punnet_and_bowl", f_stop=None, bowl_material="glass", **kwargs
     ):
-        require_live_gaussian_renderer()
         if camera not in CAMERA_VIEWS:
             raise ValueError(f"Unknown camera view {camera!r}; expected one of {CAMERA_VIEWS}")
         self.env = env
@@ -69,13 +67,13 @@ class BerryViewer(ViewerRTX):
         # Phase of a scripted sequence, shown in the controls.
         self.status_text = None
         self.last_center = self.handled_berry.positions().mean(0)
-        self.gaussian_publishers = [
-            GaussianPublisher(berry, f"/World/Berries/{name}") for name, berry in env.berries.items()
+        self.render_delegates = [
+            GaussianRenderDelegate(berry, f"/World/Berries/{name}") for name, berry in env.berries.items()
         ]
         super().__init__(**kwargs, environment="studio", fps=30, async_rendering=False)
         self.set_model(NewtonManager.get_model())
-        # A director's camera starts on the overview and is then moved with place_camera().
-        self.set_camera_view("punnet_and_bowl" if camera == "film_director" else camera)
+        # A scripted camera starts on the overview and is then moved with place_camera().
+        self.set_camera_view("punnet_and_bowl" if camera == "scripted_camera" else camera)
         self.register_ui_callback(self.side_panel, position="side")
 
     def set_camera_view(self, view: str) -> None:
@@ -106,7 +104,7 @@ class BerryViewer(ViewerRTX):
         focus: float | None = None,
         depth_of_field: bool = True,
     ) -> None:
-        """Place the camera at ``eye`` looking at ``target`` [m], for example from a camera director.
+        """Place the camera at ``eye`` looking at ``target`` [m], for example from a scripted camera.
 
         Args:
             eye: Camera position [m].
@@ -158,7 +156,7 @@ class BerryViewer(ViewerRTX):
         key = self.is_key_down("R")
         self.reset_requested |= key and not self._reset_key
         self._reset_key = key
-        self._prepared = [publisher.deform() for publisher in self.gaussian_publishers]
+        self._prepared = [delegate.deform() for delegate in self.render_delegates]
         center = self.handled_berry.positions().mean(0)
         if self.camera_follows_berry:
             shift = center - self.last_center
@@ -190,16 +188,11 @@ class BerryViewer(ViewerRTX):
                 return np.from_dlpack(mapping).copy()
         raise RuntimeError("The renderer produced no color output")
 
-    def save_screenshot(self, path) -> None:
-        from PIL import Image
-
-        Image.fromarray(self.capture_image()).save(path)
-
     def close(self):
         self.finish_frame()
         renderer = self._rtx
-        for publisher in self.gaussian_publishers:
-            publisher.close()
+        for delegate in self.render_delegates:
+            delegate.close()
         super().close()
         if renderer is not None:
             renderer.destroy()
@@ -218,16 +211,16 @@ class BerryViewer(ViewerRTX):
                 for index, shape in enumerate(batch.model_shapes)
             ),
         )
-        for publisher in self.gaussian_publishers:
-            publisher.author_in_stage(self.stage)
+        for delegate in self.render_delegates:
+            delegate.author_in_stage(self.stage)
         add_tableware_visuals(self.stage, self.bowl_material)
         add_room_scan(
             self.stage,
-            UsdShade.Shader.Get(self.stage, f"{self.gaussian_publishers[0].root_path}/Materials/Radiance/Shader"),
+            UsdShade.Shader.Get(self.stage, f"{self.render_delegates[0].root_path}/Materials/Radiance/Shader"),
         )
         super()._init_ovrtx()
-        for publisher in self.gaussian_publishers:
-            publisher.bind_to_renderer(self._rtx)
+        for delegate in self.render_delegates:
+            delegate.bind_to_renderer(self._rtx)
 
     def _add_studio_lights(self):
         # The scan already contains the room's illumination. Light the meshes with broad, warm indoor sources.
@@ -273,8 +266,8 @@ class BerryViewer(ViewerRTX):
         # Publish the deformed Gaussians, show the frame that just finished, and submit the next one without waiting.
         from ovrtx import Device
 
-        for publisher, arrays in zip(self.gaussian_publishers, self._prepared):
-            publisher.publish(arrays)
+        for delegate, arrays in zip(self.render_delegates, self._prepared):
+            delegate.publish(arrays)
         if self._window is not None and self._window.context is not None:
             for var in self._color_outputs():
                 with var.map(device=Device.CUDA) as mapping:

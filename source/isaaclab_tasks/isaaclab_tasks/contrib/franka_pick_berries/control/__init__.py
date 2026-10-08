@@ -3,4 +3,4 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Robot control helpers: gamepad and keyboard teleoperation, and the scripted sorting sequence."""
+"""Robot control helpers: teleoperation devices (:mod:`.teleop_devices`) and the scripted demo (:mod:`.scripted_demo`)."""

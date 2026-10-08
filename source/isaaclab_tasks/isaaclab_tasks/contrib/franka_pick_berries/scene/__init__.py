@@ -3,4 +3,5 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Static workcell helpers: the lab table, the punnet, bowl and reject dish, and the scanned room."""
+"""Static workcell helpers: the lab table and tableware (:mod:`.tableware`), the scanned room (:mod:`.room_scan`) and
+the robot's and table's surface materials (:mod:`.workcell_materials`)."""

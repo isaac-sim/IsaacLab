@@ -151,9 +151,9 @@ def register_tissues(tissues) -> None:
     module = grasp_explicit_mpm if isinstance(solver, SolverGraspExplicitMPM) else grasp_implicit_mpm
     for field, tissue in enumerate(tissues):
         solver.set_tissue(
-            tissue.particle_start, tissue.proxy["interface"], field, module.tissue_material(tissue.profile)
+            tissue.particle_start, tissue.particles["interface"], field, module.tissue_material(tissue.profile)
         )
-        tissue.bind_solver(solver)
+        tissue.bind_damage(solver)
 
 
 def set_implicit_grasp(grasping: wp.array) -> None:

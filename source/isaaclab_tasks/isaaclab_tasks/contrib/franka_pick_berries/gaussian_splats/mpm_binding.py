@@ -7,7 +7,7 @@
 
 The berry's appearance is a few hundred thousand 3D Gaussians, far more than the few thousand MPM particles that carry
 its physics. Each Gaussian is bound once, at rest, to its 32 nearest particles of the same tissue region. On every
-frame :meth:`GaussianBinding.deform` fits, for each Gaussian, the affine motion of those particles by moving least
+frame :meth:`MPMBinding.deform` fits, for each Gaussian, the affine motion of those particles by moving least
 squares: the Gaussian's center moves with them and its covariance (scales and orientation) stretches and turns with
 the fitted deformation gradient. The binding is one-way: the Gaussians never act on the physics.
 
@@ -156,7 +156,7 @@ def gaussian_shape(
     shading[i] = wp.vec4(q[0], q[1], q[2], q[3]) * (1.0 - darkening * damage[nearest[i]])
 
 
-class GaussianBinding:
+class MPMBinding:
     """Bind a berry's Gaussians to its MPM particles at rest, then deform and shade them from the particles.
 
     Args:

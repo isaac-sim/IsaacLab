@@ -3,5 +3,5 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""The berries' appearance: 3D Gaussians that follow the MPM tissue (:mod:`.binding`) and are published to the
-renderer on every frame (:mod:`.publisher`)."""
+"""The berries' appearance: 3D Gaussians that follow the MPM tissue (:mod:`.mpm_binding`) and are published to the
+renderer on every frame (:mod:`.render_delegate`)."""

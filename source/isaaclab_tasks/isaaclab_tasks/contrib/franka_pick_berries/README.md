@@ -14,28 +14,26 @@ Isaac Lab and Newton:
 ```text
  gamepad / keyboard / script ─▶ Franka arm (MuJoCo-Warp) ◀─ contact ─▶ berry tissue (MPM particles)
                                                                               │
-                                    RTX renderer ◀── Gaussians follow the particles (gaussians/binding.py)
+                                    RTX renderer ◀── Gaussians follow the particles (gaussian_splats/mpm_binding.py)
 ```
 
 ## Install
 
-Linux x86-64 with an NVIDIA RTX GPU. From the Isaac Lab root:
+Linux or Windows with an NVIDIA RTX GPU. From the Isaac Lab root, install Isaac Lab with its OVRTX renderer:
 
 ```bash
-bash source/isaaclab_tasks/isaaclab_tasks/contrib/franka_pick_berries/setup/setup.sh --renderer-internal
-export UV_PROJECT_ENVIRONMENT="$PWD/.venv-tasks"
+uv sync --extra ovrtx
 ```
 
-This creates an isolated `.venv-tasks` with the OVRTX 0.6 renderer, which live Gaussian deformation needs
-(`--renderer-internal` requires NVIDIA network access). Use `uv run --no-sync` for this task: `uv sync` would remove
-the renderer. The assets are downloaded and cached on first use.
+Live Gaussian deformation needs OVRTX 0.6, which Isaac Lab pins from the NVIDIA Omniverse package index (NVIDIA
+network access required until it is published on PyPI). The assets are downloaded and cached on first use.
 
 ## Run the demo
 
 Pick a raspberry with the keyboard (use `--mode teleop_gamepad` with a controller):
 
 ```bash
-uv run --no-sync python source/isaaclab_tasks/isaaclab_tasks/contrib/franka_pick_berries/scripts/pick_berries.py \
+uv run python source/isaaclab_tasks/isaaclab_tasks/contrib/franka_pick_berries/scripts/pick_berries.py \
   --mode teleop_keyboard
 ```
 
@@ -52,17 +50,21 @@ The gripper is position-controlled: closing further squeezes, and can crush, the
 
 ## The showcase video
 
-The robot sorts three raspberries: it crushes the first and drops it in the reject dish, then gently sets the other
-two down in the bowl. A camera director films it shot by shot:
+In the scripted demo, the robot crushes the first of three raspberries and drops it in the reject dish, then gently
+sets the other two down in the bowl. A scripted camera films it shot by shot. Render its frames, then encode them
+with ffmpeg:
 
 ```bash
-uv run --no-sync python source/isaaclab_tasks/isaaclab_tasks/contrib/franka_pick_berries/scripts/pick_berries.py \
-  --mode scripted_sorting --camera film_director --arm_speed 6 --bowl_material porcelain --f_stop 64 \
-  --width 1920 --height 1080 --samples_per_pixel 64 --video berry_sorting.mp4
+uv run python source/isaaclab_tasks/isaaclab_tasks/contrib/franka_pick_berries/scripts/pick_berries.py \
+  --mode scripted_demo --camera scripted_camera --arm_speed 6 --bowl_material porcelain --f_stop 64 \
+  --width 1920 --height 1080 --samples_per_pixel 64 --save_frames berry_demo_frames
+ffmpeg -framerate 30 -i berry_demo_frames/%05d.png -c:v libx264 -profile:v main -bf 0 -crf 16 -pix_fmt yuv420p \
+  -movflags +faststart berry_demo.mp4
 ```
 
-The video plays at **30 frames/s** of simulated time (about 50 s); rendering it at 64 samples per pixel runs at about
-**0.4 frames/s**, about an hour. Without `--video`, the same sequence plays live in a window.
+Each frame is 1/30 s of simulated time, so the video plays at **30 frames/s** (about 50 s). Rendering the frames at
+64 samples per pixel runs at about **0.4 frames/s**, about an hour. Without `--save_frames`, the same sequence plays
+live in a window.
 
 ## Reference
 
@@ -70,16 +72,16 @@ The video plays at **30 frames/s** of simulated time (about 50 s); rendering it 
 
 | Option | Default | |
 |---|---|---|
-| `--mode {teleop_gamepad,teleop_keyboard,scripted_sorting}` | `teleop_keyboard` | Teleoperate, or watch the robot sort three berries |
-| `--num_berries {1,2,3}` | 1 (sorting: 3) | Raspberries in the punnet |
+| `--mode {teleop_gamepad,teleop_keyboard,scripted_demo}` | `teleop_keyboard` | Teleoperate the robot, or watch the scripted demo |
+| `--num_berries {1,2,3}` | 1 (scripted_demo: 3) | Raspberries in the punnet |
 | `--layout_seed N`, `--fixed_layout` | 0 | Random punnet layout (reset replays it), or side by side |
 | `--tissue_resolution {full,half}` | `full` | Half the tissue particles, for speed; the Gaussians are unchanged |
 | `--tissue_solver {explicit,implicit}` | `explicit` | Tissue solver (see below) |
 | `--arm_speed X` | 2 | Arm speed multiplier; the gripper keeps its gentle closing pace |
-| `--camera {punnet_and_bowl,berry_closeup,room,film_director}` | `punnet_and_bowl` | Fixed views, a close-up following the handled berry, or a shot-by-shot film (sorting) |
+| `--camera {punnet_and_bowl,berry_closeup,room,scripted_camera}` | `punnet_and_bowl` | Fixed views, a close-up following the handled berry, or a shot-by-shot film (scripted demo) |
 | `--bowl_material {glass,porcelain}` | `glass` | Material of the receiving bowl |
-| `--repeat` | | Sorting: start again when it ends |
-| `--video FILE.mp4` | | Sorting: record offscreen at 30 frames/s, then exit |
+| `--repeat` | | Scripted demo: start again when it ends |
+| `--save_frames DIR` | | Scripted demo: render offscreen, save one PNG per 1/30 s, then exit |
 | `--width`, `--height`, `--samples_per_pixel`, `--f_stop` | 1280 × 720 | Image size, path-tracing samples, depth of field (film) |
 
 Frame rates while grasping, at 1280 × 720 on an RTX 6000 Ada: about 17 frames/s with one berry, 9 with three
@@ -91,10 +93,13 @@ Frame rates while grasping, at 1280 × 720 on an RTX 6000 Ada: about 17 frames/s
 |---|---|
 | `pick_berries_env_cfg.py`, `pick_berries_env.py` | The scene (robot, table, tableware, berries) and the environment |
 | `physics/` | **MPM tissue.** `tissue.py` turns the asset into Newton MPM particles; `grasp_explicit_mpm.py` simulates them; `coupling.py` couples them to the arm |
-| `gaussians/` | **Gaussian appearance.** `binding.py` makes the Gaussians follow the particles; `publisher.py` publishes them to the renderer |
-| `mdp/`, `control/` | Arm and gripper actions; gamepad, keyboard and the scripted sorting |
-| `rendering/`, `scene/`, `assets/` | Viewer, camera director and video; table, tableware and room; asset loading |
-| `scripts/pick_berries.py`, `setup/setup.sh` | The demo, and its installer |
+| `gaussian_splats/` | **Gaussian appearance.** `mpm_binding.py` makes the Gaussians follow the particles; `render_delegate.py` publishes them to the renderer |
+| `mdp/actions.py` | Arm and gripper actions |
+| `control/` | `teleop_devices.py` (keyboard and gamepad) and `scripted_demo.py` |
+| `rendering/` | The viewer, and the scripted camera that films the demo |
+| `scene/` | Table and tableware, the scanned room, and the robot's and table's materials |
+| `assets/` | Where the assets live (`asset_paths.py`) and how the berry's is read (`berry_asset.py`) |
+| `scripts/pick_berries.py` | The demo |
 
 Each module's docstring explains its part; the solvers' docstrings list their methods and references.
 
@@ -117,5 +122,6 @@ and `background/ebc/`.
 ### Known limitations
 
 - The assets still live in a personal Nucleus folder; they should move to the public asset repository.
-- The public OVRTX 0.5 renderer can lose live Gaussian updates; the task requires OVRTX 0.6.
+- OVRTX 0.6, which live Gaussian deformation needs (0.5 can lose the updates), is not yet on PyPI: Isaac Lab pins an
+  internal build.
 - The Gaussians are stochastically composited, so the berries show slight sampling noise between frames.

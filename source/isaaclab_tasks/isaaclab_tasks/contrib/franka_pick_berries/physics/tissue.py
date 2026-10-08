@@ -3,9 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Berry tissue as Newton MPM particles: asset loading, layout, particle configuration and a runtime handle.
+"""Berry tissue as Newton MPM particles: loading, placement in the punnet, scene configuration and a runtime handle.
 
-It is shared by the tissue solvers; each models the tissue's deformation and damage itself.
+The tissue solvers (:mod:`.grasp_explicit_mpm`, :mod:`.grasp_implicit_mpm`) model the tissue's deformation and
+damage; this module only describes and places the particles.
 """
 
 from __future__ import annotations
@@ -19,12 +20,9 @@ from isaaclab_newton.assets import MPMObjectCfg
 from isaaclab_newton.sim.spawners.mpm import MPMPointsCfg
 from scipy.spatial.transform import Rotation
 
-from ..assets.berry_asset import load_berry_asset
-from ..assets.sh_rotation import rotate_sh
-from ..scene.tableware import BOWL, PUNNET
-from .coupling import tissue_solver
+from ..assets.berry_asset import load_berry_asset, rotate_berry_sh
+from ..scene.tableware import PUNNET
 from .materials import particle_material
-from .tissue_resolution import select_tissue_particles
 
 if TYPE_CHECKING:
     from isaaclab_newton.assets import MPMObject
@@ -42,14 +40,18 @@ class TissueSpec:
 
     name: str
     """Instance name, numbered when there are several berries (``raspberry_1``)."""
-    path: str
     stage: object
-    asset: dict
-    proxy: dict
+    """The berry's USD asset, opened."""
+    gaussians: dict
+    """Gaussians at rest: ``xyz``, ``scales``, ``rotations``, ``alpha``, ``sh`` and ``regions`` arrays."""
+    particles: dict
+    """Tissue particles at rest: ``xyz`` [m], ``regions``, ``interface``, ``spacing`` [m] and ``particle_volume``
+    [m³]."""
     profile: dict
-    resolution: dict
+    """The asset's simulation metadata."""
     material: MPMParticleMaterialCfg
     offset: tuple[float, float, float]
+    """World position [m] of the berry's frame."""
 
     @property
     def scene_name(self) -> str:
@@ -59,17 +61,53 @@ class TissueSpec:
     @property
     def particle_mass(self) -> float:
         """Mass of one tissue particle [kg]."""
-        return float(self.material.density * self.proxy["particle_volume"])
+        return float(self.material.density * self.particles["particle_volume"])
 
     @property
     def particle_radius(self) -> float:
         """Radius [m] of a sphere with the volume one particle represents."""
-        return float((3.0 * self.proxy["particle_volume"] / (4.0 * np.pi)) ** (1.0 / 3.0))
+        return float((3.0 * self.particles["particle_volume"] / (4.0 * np.pi)) ** (1.0 / 3.0))
 
     @property
     def voxel_size(self) -> float:
         """MPM grid spacing [m] giving :data:`PARTICLES_PER_CELL` particles per cell."""
-        return float(PARTICLES_PER_CELL ** (1.0 / 3.0) * self.proxy["spacing"])
+        return float(PARTICLES_PER_CELL ** (1.0 / 3.0) * self.particles["spacing"])
+
+
+def load_tissue(cfg: BerryPickEnvCfg, name: str, offset: tuple[float, float, float]) -> TissueSpec:
+    """Load one berry's asset, select its tissue particles and give it its material."""
+    stage, gaussians, particles, profile = load_berry_asset(cfg.berry_asset)
+    if cfg.tissue_resolution == "half":
+        particles = _half_resolution(particles)
+    elif cfg.tissue_resolution != "full":
+        raise ValueError(f"Unknown tissue resolution: {cfg.tissue_resolution}")
+    return TissueSpec(name, stage, gaussians, particles, profile, particle_material(profile), offset)
+
+
+def _half_resolution(particles: dict) -> dict:
+    """Keep alternating sites of the tissue's cubic lattice, with twice the volume each: the mass is preserved.
+
+    The Gaussians are untouched; they bind to the remaining particles. The explicit solver keeps its grid and rate,
+    which come from the material; the implicit solver sizes its grid from the particle spacing, so it coarsens too.
+    """
+    xyz = np.asarray(particles["xyz"])
+    lattice = (xyz - xyz.min(0)) / float(particles["spacing"])
+    cells = np.rint(lattice).astype(np.int64)
+    if not np.allclose(lattice, cells, atol=1e-3, rtol=0):
+        raise ValueError("Half resolution requires regular-lattice tissue; use full resolution")
+    if len(np.unique(particles["regions"])) != 1:
+        raise ValueError("Half resolution requires a single tissue material region")
+    keep = cells.sum(1) % 2 == 0
+    if keep.sum() < 32 or keep.all():
+        raise ValueError("Not enough spatially distributed particles for half resolution")
+    volume = float(particles["particle_volume"]) * len(xyz) / int(keep.sum())
+    return {
+        "xyz": xyz[keep].copy(),
+        "regions": np.asarray(particles["regions"])[keep].copy(),
+        "interface": np.asarray(particles["interface"])[keep].copy(),
+        "spacing": np.float32(np.cbrt(volume)),
+        "particle_volume": np.float64(volume),
+    }
 
 
 # Offsets [m] of the fixed layout about the punnet center, by number of berries.
@@ -90,7 +128,7 @@ def fixed_layout(cfg: BerryPickEnvCfg) -> list[tuple[str, tuple[float, float, fl
     return [(f"raspberry_{i}", (x + dx, y + dy, z)) for i, (dx, dy) in enumerate(_FIXED_LAYOUT[cfg.num_berries], 1)]
 
 
-def random_punnet_poses(proxy: dict, count: int, seed: int) -> tuple[np.ndarray, np.ndarray]:
+def random_punnet_poses(particles: dict, count: int, seed: int) -> tuple[np.ndarray, np.ndarray]:
     """Sample separated centers and full 3D orientations for ``count`` copies of a tissue inside the punnet.
 
     Returns each copy's rotation matrix and its translation [m] in the berry frame, about the punnet center, that
@@ -99,8 +137,8 @@ def random_punnet_poses(proxy: dict, count: int, seed: int) -> tuple[np.ndarray,
     """
     rng = np.random.default_rng(seed)
     rotations = Rotation.random(count, random_state=rng).as_matrix()
-    center = (proxy["xyz"].min(0) + proxy["xyz"].max(0)) / 2
-    rotated = [(proxy["xyz"] - center) @ r.T for r in rotations]
+    center = (particles["xyz"].min(0) + particles["xyz"].max(0)) / 2
+    rotated = [(particles["xyz"] - center) @ r.T for r in rotations]
     radius = max(float(np.linalg.norm(p[:, :2], axis=1).max()) for p in rotated)
     bounds = np.array(PUNNET[2:4]) - radius - 0.016
     if np.any(bounds <= 0):
@@ -112,7 +150,7 @@ def random_punnet_poses(proxy: dict, count: int, seed: int) -> tuple[np.ndarray,
     else:
         raise ValueError("Unable to fit separated berries with gripper clearance in the punnet")
     centers = np.asarray(sorted(centers, key=lambda c: c[1]))
-    floor = float(proxy["xyz"][:, 2].min())
+    floor = float(particles["xyz"][:, 2].min())
     shifts = [np.array([*xy, floor - p[:, 2].min()]) - r @ center for r, p, xy in zip(rotations, rotated, centers)]
     return rotations, np.asarray(shifts, np.float32)
 
@@ -122,23 +160,12 @@ def transform_tissue(spec: TissueSpec, rotation: np.ndarray, shift: np.ndarray, 
 
     Tissue and Gaussians move together; the Gaussians' orientations and spherical harmonics turn with them.
     """
-    proxy = dict(spec.proxy, xyz=(spec.proxy["xyz"] @ rotation.T + shift).astype(np.float32))
-    asset = dict(spec.asset, xyz=(spec.asset["xyz"] @ rotation.T + shift).astype(np.float32))
+    particles = dict(spec.particles, xyz=(spec.particles["xyz"] @ rotation.T + shift).astype(np.float32))
+    gaussians = dict(spec.gaussians, xyz=(spec.gaussians["xyz"] @ rotation.T + shift).astype(np.float32))
     turn = Rotation.from_matrix(rotation)
-    asset["rotations"] = (turn * Rotation.from_quat(spec.asset["rotations"])).as_quat().astype(np.float32)
-    asset["sh"] = rotate_sh(spec.asset["sh"], rotation).astype(np.float32)
-    return replace(spec, proxy=proxy, asset=asset, offset=tuple(offset))
-
-
-def load_tissue(cfg: BerryPickEnvCfg, name: str, offset: tuple[float, float, float]) -> TissueSpec:
-    """Load one berry's asset and select its tissue particles and material."""
-    path = cfg.berry_asset
-    stage, asset, proxy, profile = load_berry_asset(path)
-    material = particle_material(profile)
-    parameters = {"density": material.density, "particle_volume": float(proxy["particle_volume"])}
-    proxy, _, resolution = select_tissue_particles(proxy, parameters, cfg.tissue_resolution)
-    proxy = dict(proxy, particle_volume=resolution["particle_volume_m3"])
-    return TissueSpec(name, path, stage, asset, proxy, profile, resolution, material, offset)
+    gaussians["rotations"] = (turn * Rotation.from_quat(spec.gaussians["rotations"])).as_quat().astype(np.float32)
+    gaussians["sh"] = rotate_berry_sh(spec.gaussians["sh"], rotation).astype(np.float32)
+    return replace(spec, particles=particles, gaussians=gaussians, offset=tuple(offset))
 
 
 def tissue_object_cfg(spec: TissueSpec) -> MPMObjectCfg:
@@ -146,7 +173,7 @@ def tissue_object_cfg(spec: TissueSpec) -> MPMObjectCfg:
     return MPMObjectCfg(
         prim_path=f"{{ENV_REGEX_NS}}/{spec.scene_name}",
         spawn=MPMPointsCfg(
-            positions=spec.proxy["xyz"].astype(np.float32).tolist(),
+            positions=spec.particles["xyz"].astype(np.float32).tolist(),
             mass=spec.particle_mass,
             radius=spec.particle_radius,
             material=spec.material,
@@ -163,75 +190,41 @@ def _to_local(world: wp.array[wp.vec3], offset: wp.vec3, local: wp.array[wp.vec3
 
 
 class BerryTissue:
-    """Runtime handle over one berry's MPM particles, in the berry's own frame (world minus its offset)."""
+    """Runtime handle over one berry's MPM particles, in the berry's own frame (world minus its offset).
 
-    def __init__(self, spec: TissueSpec, particles: MPMObject):
-        self.spec = spec
-        self.particles = particles
+    Args:
+        spec: The berry's description.
+        mpm_object: The scene asset holding its particles.
+    """
+
+    def __init__(self, spec: TissueSpec, mpm_object: MPMObject):
         self.name = spec.name
-        self.usd_path, self.usd_stage = spec.path, spec.stage
-        self.asset, self.proxy, self.profile, self.resolution = spec.asset, spec.proxy, spec.profile, spec.resolution
+        self.stage = spec.stage
+        self.gaussians = spec.gaussians
+        self.particles = spec.particles
+        self.profile = spec.profile
+        self.mpm_object = mpm_object
+        self.device = mpm_object.device
         self.offset = np.asarray(spec.offset, np.float32)
-        self.rest = np.asarray(spec.proxy["xyz"], np.float32)
-        device = particles.device
-        self._offset_vec = wp.vec3(*self.offset)
-        self._local = wp.zeros(len(self.rest), dtype=wp.vec3, device=device)
-        self.particle_start = int(particles._particle_offsets.numpy()[0])
-        self._solver = None
-        # Damage, tearing, plastic strain history and bruise dose of each particle, bound from the tissue solver.
-        self.damage = self.tear = self.history = self.dose = None
+        self.rest = np.asarray(spec.particles["xyz"], np.float32)
+        """Particle rest positions in the berry frame [m]."""
+        self.particle_start = int(mpm_object._particle_offsets.numpy()[0])
+        """Index of the berry's first particle in the solver."""
+        self.damage = None
+        """Damage of each particle, from 0 (intact) to 1, on the device; set by :meth:`bind_damage`."""
+        self._offset = wp.vec3(*self.offset)
+        self._local = wp.zeros(len(self.rest), dtype=wp.vec3, device=self.device)
 
     def positions(self) -> np.ndarray:
-        """Particle positions in the berry frame [m]."""
-        return self.particles.data.particle_pos_w.torch[0].cpu().numpy() - self.offset
-
-    def velocities(self) -> np.ndarray:
-        """Particle velocities [m/s]."""
-        return self.particles.data.particle_vel_w.torch[0].cpu().numpy()
+        """Particle positions in the berry frame [m], on the host."""
+        return self.mpm_object.data.particle_pos_w.torch[0].cpu().numpy() - self.offset
 
     def positions_warp(self) -> wp.array:
-        """Particle positions in the berry frame as a Warp array, refreshed on every call."""
-        world = self.particles.data.particle_pos_w.warp[0]
-        wp.launch(
-            _to_local, dim=len(self.rest), inputs=[world, self._offset_vec, self._local], device=self._local.device
-        )
+        """Particle positions in the berry frame [m] as a device array, refreshed on every call."""
+        world = self.mpm_object.data.particle_pos_w.warp[0]
+        wp.launch(_to_local, dim=len(self.rest), inputs=[world, self._offset, self._local], device=self.device)
         return self._local
 
-    def bind_solver(self, solver) -> None:
-        """Read this berry's damage and elastic deformation from ``solver``, which models them."""
-        self._solver = solver
-        view = solver.damage_view(self.particle_start, len(self.rest))
-        self.damage, self.tear, self.history, self.dose = (view[k] for k in ("damage", "tear", "history", "dose"))
-
-    def metrics(self) -> dict:
-        """Berry state summary [m, m/s]: extent, center, speed and damage."""
-        x = self.positions()
-        damage = self.damage.numpy()
-        metrics = {
-            "center_m": (x.mean(0) + self.offset).tolist(),
-            "height_m": float(np.ptp(x[:, 2])),
-            "mean_damage": float(damage.mean()),
-            "max_damage": float(damage.max()),
-            "mean_tear": float(self.tear.numpy().mean()),
-            "max_strain_history": float(self.history.numpy().max()),
-            "max_bruise_dose": float(self.dose.numpy().max()),
-            "tissue_span_m": np.ptp(x, axis=0).tolist(),
-            "max_speed_m_s": float(np.linalg.norm(self.velocities(), axis=1).max()),
-        }
-        # Largest principal compression [Pa]: linear elasticity in the principal stretches of the elastic deformation.
-        _, state, model = tissue_solver()
-        span = slice(self.particle_start, self.particle_start + len(self.rest))
-        elastic = self._solver.elastic_strain(state, self.particle_start, len(self.rest)).numpy()
-        strain = np.linalg.svd(elastic, compute_uv=False) - 1.0
-        young = model.mpm.young_modulus.numpy()[span, None]
-        poisson = model.mpm.poisson_ratio.numpy()[span, None]
-        lame = young * poisson / ((1.0 + poisson) * (1.0 - 2.0 * poisson))
-        principal = lame * strain.sum(1, keepdims=True) + young / (1.0 + poisson) * strain
-        metrics["max_compression_pa"] = float(max(0.0, -principal.min()))
-        world = x + self.offset
-        # Up to 3 cm above the low rim, so that a large berry resting on the floor counts as in the bowl.
-        inside = (np.linalg.norm(world[:, :2] - BOWL[:2], axis=1) < BOWL[3]) & (
-            (world[:, 2] >= BOWL[4] - 0.001) & (world[:, 2] < BOWL[5] + 0.03)
-        )
-        metrics["fraction_in_bowl"] = float(inside.mean())
-        return metrics
+    def bind_damage(self, solver) -> None:
+        """Read the berry's damage from the tissue solver that models it."""
+        self.damage = solver.damage[self.particle_start : self.particle_start + len(self.rest)]
