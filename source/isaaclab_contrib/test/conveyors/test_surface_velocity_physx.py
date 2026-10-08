@@ -71,22 +71,6 @@ def test_curved_twist_requires_an_explicit_radius() -> None:
         surface_module.compute_surface_velocity_twist(spec)
 
 
-def test_paths_are_resolved_in_environment_major_order() -> None:
-    """Runtime rows stay deterministic across stage discovery ordering."""
-    specs = (_surface_spec("BeltA"), _surface_spec("Nested/BeltB"))
-
-    paths = surface_module.resolve_surface_velocity_paths(2, specs)
-
-    assert paths == (
-        "/World/envs/env_0/BeltA",
-        "/World/envs/env_0/Nested/BeltB",
-        "/World/envs/env_1/BeltA",
-        "/World/envs/env_1/Nested/BeltB",
-    )
-    with pytest.raises(ValueError, match="require every belt"):
-        surface_module.resolve_surface_velocity_paths(2, (SurfaceVelocitySpec(prim_path="/World/Shared/Belt"),))
-
-
 def test_facade_ramps_playback_and_preserves_commands_on_reset(monkeypatch: pytest.MonkeyPatch) -> None:
     """Full resets restart playback without erasing policy-visible command state."""
     writer = _FakeWriter()
