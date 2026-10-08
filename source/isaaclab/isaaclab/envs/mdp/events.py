@@ -1031,12 +1031,11 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
         self.default_fixed_tendon_damping = self.asset.data.fixed_tendon_damping.torch.clone()
         self.default_fixed_tendon_pos_limits = self.asset.data.fixed_tendon_pos_limits.torch.clone()
         # read only when randomized: Newton raises NotImplementedError for these
-        params = cfg.params
-        if params.get("limit_stiffness_distribution_params") is not None:
+        if cfg.params["limit_stiffness_distribution_params"] is not None:
             self.default_fixed_tendon_limit_stiffness = self.asset.data.fixed_tendon_limit_stiffness.torch.clone()
-        if params.get("rest_length_distribution_params") is not None:
+        if cfg.params["rest_length_distribution_params"] is not None:
             self.default_fixed_tendon_rest_length = self.asset.data.fixed_tendon_rest_length.torch.clone()
-        if params.get("offset_distribution_params") is not None:
+        if cfg.params["offset_distribution_params"] is not None:
             self.default_fixed_tendon_offset = self.asset.data.fixed_tendon_offset.torch.clone()
 
     def __call__(

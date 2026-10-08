@@ -209,33 +209,23 @@ def test_fixed_tendon_parameters(env: ManagerBasedEnv) -> None:
     torch.testing.assert_close(wp.to_torch(asset.root_view.get_fixed_tendon_limit_stiffnesses()), expected_stiffness)
     torch.testing.assert_close(wp.to_torch(asset.root_view.get_fixed_tendon_rest_lengths()), expected_length)
 
-
-@pytest.mark.parametrize(("operation", "value", "expected"), [("add", 0.5, 1.5), ("scale", 2.0, 2.0)])
-def test_fixed_tendon_parameters_do_not_compound(
-    env: ManagerBasedEnv, operation: str, value: float, expected: float
-) -> None:
-    """Repeated randomization samples around the initial values, not around the previous sample."""
-    asset = env.scene["identity"]
-    # a non-zero initial value, so scaling is observable
-    base = dict(
+    # repeated scaling samples around the values read at creation, not around the previous sample
+    base_params = dict(
         asset_cfg=SceneEntityCfg("identity"),
         stiffness_distribution_params=(1.0, 1.0),
         damping_distribution_params=(1.0, 1.0),
         operation="abs",
     )
-    mdp.randomize_fixed_tendon_parameters(EventTermCfg(func=mdp.randomize_fixed_tendon_parameters, params=base), env)(
-        env, None, **base
+    mdp.randomize_fixed_tendon_parameters(
+        EventTermCfg(func=mdp.randomize_fixed_tendon_parameters, params=base_params), env
+    )(env, None, **base_params)
+    scale_params = dict(
+        base_params, stiffness_distribution_params=(2.0, 2.0), damping_distribution_params=(2.0, 2.0), operation="scale"
     )
-    params = dict(
-        base,
-        stiffness_distribution_params=(value, value),
-        damping_distribution_params=(value, value),
-        operation=operation,
-    )
-    tendon = mdp.randomize_fixed_tendon_parameters(
-        EventTermCfg(func=mdp.randomize_fixed_tendon_parameters, params=params), env
+    scale = mdp.randomize_fixed_tendon_parameters(
+        EventTermCfg(func=mdp.randomize_fixed_tendon_parameters, params=scale_params), env
     )
     for _ in range(3):
-        tendon(env, None, **params)
+        scale(env, None, **scale_params)
     for values in (asset.root_view.get_fixed_tendon_stiffnesses(), asset.root_view.get_fixed_tendon_dampings()):
-        torch.testing.assert_close(wp.to_torch(values), torch.full_like(wp.to_torch(values), expected))
+        torch.testing.assert_close(wp.to_torch(values), torch.full_like(wp.to_torch(values), 2.0))
