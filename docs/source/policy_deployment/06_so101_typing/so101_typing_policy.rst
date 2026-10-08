@@ -16,10 +16,8 @@ requires alignment evidence for your robot and the policy's trained scene.
 .. note::
 
    **Runtime compatibility.** The commands below use the task repository's pinned
-   Docker runtime, which fetches an Isaac Lab source ancestor and applies
-   ``runtime/benchmark-runtime.patch``. They do not establish compatibility with
-   an unmodified Isaac Lab 3.0.0 installation. See :ref:`so101_typing_ga_integration`
-   for the checks needed before documenting a native GA installation.
+   Docker runtime, which fetches a specific isaaclab commit Isaac Lab
+   ``runtime/benchmark-runtime.patch``. 
 
 Policy and deployment contract
 ------------------------------
