@@ -184,7 +184,7 @@ html[data-theme="dark"] .environment-browser {
 
 .environment-command-row-options {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 24rem), 1fr));
     margin-top: 1rem;
 }
 
@@ -192,9 +192,10 @@ html[data-theme="dark"] .environment-browser {
     width: 100%;
 }
 
-.environment-command-row-options .environment-selector {
-    flex-direction: column;
-    align-items: stretch;
+.environment-command-row-options .environment-selector select {
+    flex: 1 1 0;
+    min-width: 0;
+    padding-right: 1rem;
 }
 
 .environment-selector-physics > span {
@@ -839,22 +840,6 @@ html[data-theme="dark"] .environment-browser {
     clip: rect(0, 0, 0, 0) !important;
     white-space: nowrap !important;
     border: 0 !important;
-}
-
-@container (max-width: 1150px) {
-    .environment-command-row-options {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-}
-
-@container (max-width: 560px) {
-    .environment-command-row-options {
-        grid-template-columns: 1fr;
-    }
-
-    .environment-checkpoint-toggle {
-        width: 100%;
-    }
 }
 
 @media (max-width: 1100px) {
