@@ -448,13 +448,28 @@ def test_collect_presets_root_level():
 
 def test_register_task_mixed_overrides():
     """Global presets, path presets, preset-path scalars, global scalars, and bare args apply together."""
-    overrides = ["presets=fast", "env.decimation=10", "env.backend=newton_mjwarp", "env.backend.dt=0.001", "--flag"]
-    env_cfg, agent_cfg, hydra_args = _register(PresetCfgEnvCfg(), overrides=overrides)
+    env = PresetCfgEnvCfg()
+    env.decimation = preset(default=4, fast=8)
+    env.range = preset(default=(0.6, 1.7), fast=(0.25, 2.5))
+    agent = PresetCfgAgentCfg()
+    agent.learning_rate = preset(default=3e-4, fast=1e-3)
+    overrides = [
+        "presets=fast",
+        "env.decimation=10",
+        "env.range=(0.1, 0.9)",
+        "agent.learning_rate=1e-5",
+        "env.backend=newton_mjwarp",
+        "env.backend.dt=0.001",
+        "--flag",
+    ]
+    env_cfg, agent_cfg, hydra_args = _register(env, agent, overrides)
     assert isinstance(env_cfg.observations, FastObservationsCfg)
     assert isinstance(agent_cfg.policy, FastPolicyCfg)
     assert isinstance(env_cfg.backend, NewtonCfg)
     assert env_cfg.backend.dt == 0.001
     assert env_cfg.decimation == 10
+    assert env_cfg.range == (0.1, 0.9)
+    assert agent_cfg.learning_rate == 1e-5
     assert hydra_args == ["--flag"]
 
 
@@ -1036,32 +1051,6 @@ def test_unknown_preset_name_raises():
     """An explicit preset path with an unknown name raises ValueError."""
     with pytest.raises(ValueError, match="Unknown preset 'nonexistent'"):
         _apply(PresetCfgEnvCfg(), preset_sel=[("env", "backend", "nonexistent")])
-
-
-@pytest.mark.parametrize(
-    ("section", "literal", "expected"),
-    [
-        ("env", "default", (0.6, 1.7)),
-        ("env", "[0.25, 2.5]", [0.25, 2.5]),
-        ("agent", "(0.25, 2.5)", (0.25, 2.5)),
-        ("env", "0.5", 0.5),
-        ("agent", "false", False),
-        ("env", "null", None),
-        ("agent", "{'x': 0.5}", {"x": 0.5}),
-    ],
-)
-def test_literal_override_replaces_resolved_preset(section, literal, expected):
-    """Literal overrides replace preset values while named alternatives still select presets."""
-
-    @configclass
-    class LiteralCfg:
-        parameter = preset(default=(0.6, 1.7), wide=(0.25, 2.5))
-
-    env, agent, remaining = _register(LiteralCfg(), LiteralCfg(), ["presets=wide", f"{section}.parameter={literal}"])
-    selected, untouched = (env, agent) if section == "env" else (agent, env)
-    assert selected.parameter == expected
-    assert untouched.parameter == (0.25, 2.5)
-    assert not remaining
 
 
 def test_conflicting_global_presets_raises():

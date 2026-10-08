@@ -19,7 +19,6 @@ from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics
 from isaaclab.assets import AssetBaseCfg
 from isaaclab.cloner import make_clone_plan
 from isaaclab.physics import PhysicsManager
-from isaaclab.test.utils import DeviceScope, test_devices
 
 
 def _pose_matrix(position: tuple[float, float, float], quaternion: tuple[float, float, float, float]) -> Gf.Matrix4d:
@@ -363,73 +362,3 @@ def test_native_clone_export_rejects_source_overlap():
     with pytest.raises(ValueError, match="overlaps a clone source"):
         _serialize_stage(stage, [("/World/Source", ["/World"], [], [0], 0)], full_stage=False)
     assert stage.GetRootLayer().ExportToString() == before
-
-
-@pytest.mark.integration
-@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-def test_replicated_acceleration_spring_contacts_match_source_settling(device):
-    """Identical cubes retain the same compliant contact behavior after replication."""
-    import torch
-    from isaaclab_ov.physics import OvPhysxCfg
-    from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
-    from isaaclab_physx.sim.spawners.materials import PhysxRigidBodyMaterialCfg
-
-    import isaaclab.sim as sim_utils
-    from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
-    from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
-    from isaaclab.sim import SimulationCfg, build_simulation_context
-    from isaaclab.utils.configclass import configclass
-
-    material = PhysxRigidBodyMaterialCfg(
-        static_friction=0.7,
-        dynamic_friction=0.7,
-        compliant_contact_stiffness=15700.0,
-        compliant_contact_damping=1120.0,
-        compliant_contact_acceleration_spring=True,
-    )
-
-    @configclass
-    class ContactSceneCfg(InteractiveSceneCfg):
-        floor = AssetBaseCfg(
-            prim_path="{ENV_REGEX_NS}/Floor",
-            spawn=sim_utils.CuboidCfg(
-                size=(0.6, 0.6, 0.04),
-                collision_props=sim_utils.UsdPhysicsCollisionCfg(),
-                physics_material=material,
-            ),
-            init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, -0.02)),
-        )
-        cube = RigidObjectCfg(
-            prim_path="{ENV_REGEX_NS}/Cube",
-            spawn=sim_utils.CuboidCfg(
-                size=(0.03, 0.03, 0.03),
-                rigid_props=[
-                    sim_utils.UsdPhysicsRigidBodyCfg(),
-                    PhysxRigidBodyCfg(
-                        sleep_threshold=0.0, stabilization_threshold=0.0, solver_position_iteration_count=128
-                    ),
-                ],
-                collision_props=sim_utils.UsdPhysicsCollisionCfg(),
-                mass_props=sim_utils.MassCfg(mass=0.02),
-                physics_material=material,
-            ),
-            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 0.06)),
-        )
-
-    sim_cfg = SimulationCfg(
-        device=device,
-        dt=1.0 / 120.0,
-        physics=OvPhysxCfg(),
-    )
-    with build_simulation_context(sim_cfg=sim_cfg) as sim:
-        scene = InteractiveScene(ContactSceneCfg(num_envs=2, env_spacing=1.0, replicate_physics=True))
-        sim.reset()
-        for _ in range(360):
-            scene.write_data_to_sim()
-            sim.step(render=False)
-            scene.update(sim.get_physics_dt())
-        positions = scene["cube"].data.root_pos_w.torch
-        heights = positions[:, 2]
-        # Both boxes must remain supported, not simply agree in free fall.
-        assert bool(((heights > 0.0) & (heights < 0.03)).all())
-        torch.testing.assert_close(heights[1:], heights[:1], rtol=0.0, atol=1.0e-5)

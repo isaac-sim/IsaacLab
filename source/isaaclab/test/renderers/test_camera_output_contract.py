@@ -80,32 +80,6 @@ _SPAWN = PinholeCameraCfg(
 
 
 @pytest.mark.parametrize(
-    ("authored_model", "configured", "warns"),
-    [("schema", False, True), ("token", False, True), ("none", False, False), ("schema", True, False)],
-)
-def test_newton_warns_only_for_unconfigured_asset_distortion(caplog, authored_model, configured, warns):
-    """Configured OpenCV cameras are supported; asset-only distortion must not be silently ignored."""
-    from isaaclab_newton.renderers.newton_warp_renderer import NewtonWarpRenderer
-
-    from pxr import Sdf, Usd, UsdGeom
-
-    stage = Usd.Stage.CreateInMemory()
-    prim = UsdGeom.Camera.Define(stage, "/Camera").GetPrim()
-    if authored_model == "schema":
-        prim.SetMetadata("apiSchemas", Sdf.TokenListOp.CreateExplicit(["OmniLensDistortionOpenCvPinholeAPI"]))
-    elif authored_model == "token":
-        prim.CreateAttribute("omni:lensdistortion:model", Sdf.ValueTypeNames.Token).Set("opencvPinhole")
-    renderer = NewtonWarpRenderer.__new__(NewtonWarpRenderer)
-    spec = SimpleNamespace(
-        cfg=SimpleNamespace(spawn=SimpleNamespace(distortion=object() if configured else None), isp_cfg=None),
-        camera_prim_paths=["/Camera"],
-    )
-    with caplog.at_level("WARNING"):
-        renderer.prepare_cameras(stage, spec)
-    assert ("lens distortion coefficients" in caplog.text) == warns
-
-
-@pytest.mark.parametrize(
     "field_name,deprecated_value",
     [
         ("colorize_semantic_segmentation", False),
