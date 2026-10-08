@@ -37,7 +37,7 @@ class HumanoidAmpSceneCfg(InteractiveSceneCfg):
         prim_path="/World/ground",
         collision_group=-1,
         spawn=sim_utils.GroundPlaneCfg(
-            physics_material=sim_utils.RigidBodyMaterialCfg(
+            physics_material=sim_utils.RigidBodyMaterialBaseCfg(
                 static_friction=1.0,
                 dynamic_friction=1.0,
                 restitution=0.0,

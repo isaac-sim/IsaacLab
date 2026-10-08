@@ -7,6 +7,8 @@
 
 import pytest
 
+from isaaclab.sim.schemas import UsdPhysicsRigidBodyCfg
+
 from isaaclab_tasks.contrib.conveyor_franka.conveyor_franka_env_cfg import ConveyorFrankaEnvCfg
 from isaaclab_tasks.contrib.conveyor_franka.conveyor_franka_physx_env_cfg import physx_belt_section_specs
 from isaaclab_tasks.contrib.conveyor_franka.conveyor_geometry import BELT_TURN_RADIUS
@@ -33,7 +35,9 @@ def test_physx_preserves_cpu_policy_and_pivot_conventions():
         for key in ("top_straight", "bottom_straight", "right_turn", "left_turn"):
             spawn = getattr(cfg.scene, f"conveyor_{side.lower()}_{key}_collision").spawn
             assert spawn.physics_material.static_friction == spawn.physics_material.dynamic_friction == 0.42
-            assert spawn.rigid_props.kinematic_enabled
+            assert next(
+                props for props in spawn.rigid_props if isinstance(props, UsdPhysicsRigidBodyCfg)
+            ).kinematic_enabled
         assert (
             getattr(cfg.scene, f"conveyor_{side.lower()}_right_turn_collision").spawn.collision_approximation == "sdf"
         )

@@ -18,7 +18,7 @@ from __future__ import annotations
 import math
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import Any
 
 import numpy as np
 
@@ -167,7 +167,7 @@ class SurfaceVelocity:
     The facade binds exact environment-major paths whose schemas were already authored by
     :func:`apply_surface_velocity_api`. Call :meth:`start` to register physics-rate updates,
     or call :meth:`update` manually.  Commands and enabled state survive full resets; a full reset
-    clears encoders and restarts the one-second startup ramp. This facade authors USD attributes
+    restarts the startup ramp. This facade authors USD attributes
     on the host and is not a GPU conveyor implementation.
     """
 
@@ -179,7 +179,6 @@ class SurfaceVelocity:
         env_path_format: str = "/World/envs/env_{}",
         startup_duration_s: float = 1.0,
         stage: Any | None = None,
-        writer: Any | None = None,
     ) -> None:
         """Bind native surface attributes and initialize host-side control state.
 
@@ -189,8 +188,6 @@ class SurfaceVelocity:
             env_path_format: Exact replicated environment path format.
             startup_duration_s: Duration of the global surface-speed ramp [s].
             stage: Optional USD stage used by the default schema writer.
-            writer: Optional writer implementing ``write(index, enabled=..., twist=...)`` and
-                ``close()``. This import-light seam is primarily for focused tests.
         """
         duration = _finite_float("startup_duration_s", startup_duration_s)
         if duration <= 0.0:
@@ -204,11 +201,7 @@ class SurfaceVelocity:
         self._velocity_scale = 0.0
         self._closed = False
         self._callback_handle: Any | None = None
-        self._writer: _SurfaceVelocityWriter = (
-            writer
-            if writer is not None
-            else _PhysxSchemaSurfaceWriter(self._surface_paths, stage=stage, apply_api=False)
-        )
+        self._writer = _PhysxSchemaSurfaceWriter(self._surface_paths, stage=stage, apply_api=False)
 
         self._command_velocity = np.tile(
             np.asarray([spec.velocity for spec in self._surface_specs], dtype=np.float32), self._num_envs
@@ -216,7 +209,6 @@ class SurfaceVelocity:
         self._enabled = np.tile(
             np.asarray([spec.enabled for spec in self._surface_specs], dtype=np.bool_), self._num_envs
         )
-        self._encoder_position = np.zeros(self.num_surfaces, dtype=np.float32)
         self._last_authored: list[tuple[bool, PhysxSurfaceVelocityTwist] | None] = [None] * self.num_surfaces
         self._flush(force=True)
 
@@ -236,19 +228,9 @@ class SurfaceVelocity:
         return self._surface_paths
 
     @property
-    def surface_paths(self) -> tuple[str, ...]:
-        """Return an alias for :attr:`prim_paths`."""
-        return self.prim_paths
-
-    @property
     def num_surfaces(self) -> int:
         """Return the total number of bound conveyor surfaces."""
         return len(self._surface_paths)
-
-    @property
-    def count(self) -> int:
-        """Return an alias for :attr:`num_surfaces`."""
-        return self.num_surfaces
 
     @property
     def initialized(self) -> bool:
@@ -269,7 +251,7 @@ class SurfaceVelocity:
         )
 
     def update(self, dt: float) -> None:
-        """Advance encoder state and the startup ramp by one physics step.
+        """Advance the startup ramp by one physics step.
 
         Args:
             dt: Positive physics step duration [s].
@@ -278,8 +260,6 @@ class SurfaceVelocity:
         step = _finite_float("physics dt", dt)
         if step <= 0.0:
             raise ValueError(f"Conveyor physics dt must be positive, got {dt!r}.")
-        effective_velocity = self._command_velocity * self._enabled
-        self._encoder_position += np.asarray(step * effective_velocity, dtype=np.float32)
         self._elapsed_time = min(self._startup_duration_s, self._elapsed_time + step)
         self._velocity_scale = self._elapsed_time / self._startup_duration_s
         self._flush()
@@ -317,12 +297,8 @@ class SurfaceVelocity:
         """Return enabled flags as integer values."""
         return self._get_values(self._enabled.astype(np.int32), indices, clone)
 
-    def get_encoder_positions(self, indices: Any = None, clone: bool = True) -> np.ndarray:
-        """Return physics-rate integrated commanded belt travel [m]."""
-        return self._get_values(self._encoder_position, indices, clone)
-
     def reset(self, env_ids: Any = None) -> None:
-        """Clear selected encoders and restart the global ramp on a full reset.
+        """Restart the global startup ramp on a full reset.
 
         Velocity commands and enabled state are deliberately preserved, including across a full
         hard-reset path.  Partial resets do not disturb the global ramp used by other environments.
@@ -332,8 +308,6 @@ class SurfaceVelocity:
         """
         self._require_open()
         ids = self._resolve_env_ids(env_ids)
-        rows = (ids[:, None] * self._surfaces_per_env + np.arange(self._surfaces_per_env)[None, :]).reshape(-1)
-        self._encoder_position[rows] = 0.0
         if len(np.unique(ids)) == self._num_envs:
             self._elapsed_time = 0.0
             self._velocity_scale = 0.0
@@ -424,18 +398,6 @@ class SurfaceVelocity:
         """Fail predictably after backend resources have been released."""
         if self._closed:
             raise RuntimeError("The PhysX conveyor surface facade is closed.")
-
-
-class _SurfaceVelocityWriter(Protocol):
-    """Minimal schema-writer seam used by the runtime facade."""
-
-    def write(self, index: int, *, enabled: bool, twist: PhysxSurfaceVelocityTwist) -> None:
-        """Author one bound surface state."""
-        ...
-
-    def close(self) -> None:
-        """Release retained schema attributes."""
-        ...
 
 
 class _PhysxSchemaSurfaceWriter:

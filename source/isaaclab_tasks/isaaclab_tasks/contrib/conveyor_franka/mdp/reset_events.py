@@ -442,8 +442,8 @@ class ConveyorResetStateTable(ManagerTermBase):
         joint_positions[:, self._arm_joint_ids] = arm_positions
         finger_positions = self._finger_positions[row_ids].to(dtype=joint_positions.dtype).unsqueeze(1).expand(-1, 2)
         joint_positions[:, self._finger_joint_ids] = finger_positions
-        self._robot.set_joint_position_target_index(target=joint_positions, env_ids=env_ids)
-        self._robot.set_joint_velocity_target_index(target=joint_velocities, env_ids=env_ids)
+        self._robot.actuators.target_command.set_position_index(value=joint_positions, env_ids=env_ids)
+        self._robot.actuators.target_command.set_velocity_index(value=joint_velocities, env_ids=env_ids)
         self._robot.write_joint_position_to_sim_index(position=joint_positions, env_ids=env_ids)
         self._robot.write_joint_velocity_to_sim_index(velocity=joint_velocities, env_ids=env_ids)
 

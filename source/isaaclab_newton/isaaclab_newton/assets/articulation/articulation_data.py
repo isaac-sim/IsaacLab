@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 import warp as wp
+from newton import JointType
 
 from isaaclab.assets.articulation import ordering_kernels
 from isaaclab.assets.articulation.base_articulation_data import BaseArticulationData
@@ -902,7 +903,7 @@ class ArticulationData(BaseArticulationData):
         jacobian = self._body_com_jacobian_w_ta.warp
         # eval_jacobian writes every articulation in the model; gather kernel extracts this
         # view's rows. ``link_offset`` skips Newton's fixed-root row for fixed-base; the DoF
-        # axis is preserved in full (free-root joint's 6 columns up front for floating-base),
+        # axis is preserved in full (a free root joint's 6 columns up front),
         # matching the PhysX layout and the cross-library industry convention.
         self._root_view.eval_jacobian(
             SimulationManager.get_state_0(), J=self._jacobian_buf_flat, joint_S_s=self._joint_S_s_buf
@@ -1835,7 +1836,8 @@ class ArticulationData(BaseArticulationData):
         # -- optional task-space quantities: retain ordering metadata, but defer large
         # model-wide scratch until the corresponding accessor is actually used.
         self._jacobian_link_offset = 1 if self._root_view.is_fixed_base else 0
-        self._num_base_dofs = 0 if self._root_view.is_fixed_base else 6
+        # only a free root joint's DoFs are excluded from the view's joints (``exclude_joint_types``)
+        self._num_base_dofs = 6 if self._root_view.root_joint_type == JointType.FREE else 0
         self._jacobian_body_user_to_backend: wp.array | None = None
         self._jacobian_view_art_ids = self._root_view.articulation_ids.reshape((-1,))
         self._jacobian_buf_flat: wp.array | None = None

@@ -76,7 +76,7 @@ class ConveyorRelativeJointPositionAction(JointAction):
 
     def apply_actions(self) -> None:
         """Hold the policy-step target through all physics substeps."""
-        self._asset.set_joint_position_target_index(target=self._position_targets, joint_ids=self._joint_ids)
+        self._asset.actuators.target_command.set_position_index(value=self._position_targets, joint_ids=self._joint_ids)
 
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
         """Initialize targets from the sampled reset pose."""

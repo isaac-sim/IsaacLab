@@ -2586,13 +2586,26 @@ The :class:`~isaaclab.envs.ui.ViewportCameraController` class is also deprecated
 tracking is handled directly by :class:`~isaaclab_visualizers.kit.KitVisualizer`.
 
 
+Custom visualizers now receive resolved ``cameras`` and the optional USD ``stage`` in ``initialize()``.
+Accept these arguments and forward them to ``super().initialize(scene_data_provider, cameras=cameras,
+stage=stage)``. ``SimulationContext`` resolves scene-camera references before initialization;
+visualizers consume those borrowed sensors without a clone plan or a simulation lookup.
+Code that initializes a visualizer directly must supply ordered ``PerspectiveCameraCfg`` objects
+and existing ``Camera`` sensors through ``cameras``. Use ``resolve_camera_sources`` from
+``isaaclab.envs.utils.camera_view`` to bind configured path references against a camera registry.
+Call ``super().close()`` after releasing native viewer resources to drop borrowed scene references.
+The base ``initialize()`` also selects visible environments once. Pass ``get_visualized_env_ids()``
+to the viewer instead of calling ``newton_adapter.resolve_visible_env_indices`` or
+``apply_viewer_visible_worlds``; both helpers have been removed. The returned selection already
+applies bounds, duplicate removal, the visibility cap, and optional sampling.
+
+
 .. rubric:: Streaming Camera View (``tiled_cam_*`` fields removed)
 
 The ``tiled_cam_*`` configuration fields on visualizer configs (e.g. ``tiled_cam_view``,
 ``tiled_cam_num``, ``tiled_cam_prim_path``) have been removed and replaced by the unified
-``streaming_*`` API available on all four visualizer backends.  A one-release deprecation
-shim forwards the old fields except renderer selection to their ``streaming_*`` equivalents and emits
-:class:`DeprecationWarning`; the shim will be removed in the next major release.
+``streaming_*`` API and shared ``cameras`` source list. The deprecated forwarding shim has also
+been removed; update old field names using the table below.
 Renderer selection now takes a configuration directly, without a nickname compatibility path.
 
 .. list-table:: Field rename reference
@@ -2610,20 +2623,27 @@ Renderer selection now takes a configuration directly, without a nickname compat
      - Accepts ``int`` or ``list[int]``
    * - ``tiled_cam_prim_path``
      - ``streaming_sensor_prim_path``
-     - Existing sensor path; takes priority over auto-created camera
+     - Scene-declared sensor path
    * - ``tiled_cam_eye``
-     - ``streaming_cam_eye``
-     -
+     - ``CameraCfg.offset``
+     - Scene camera pose
    * - ``tiled_cam_renderer``
-     - ``streaming_cam_renderer_cfg``
-     - Renderer configuration, not a nickname
+     - ``CameraCfg.renderer_cfg``
+     - Renderer configuration on the scene camera
 
-Replace ``streaming_cam_renderer="ovrtx"`` with ``streaming_cam_renderer_cfg=OVRTXRendererCfg()``
-(imported from ``isaaclab_ov.renderers``). Likewise, pass ``NewtonWarpRendererCfg()`` or
-``IsaacRtxRendererCfg()`` for Newton Warp or Isaac RTX. Custom configurations use their existing
-``class_type`` class or resolvable string. Kit defaults to Isaac RTX; the other visualizers default
-to Newton Warp. An unavailable explicitly selected renderer raises its construction error instead
-of silently selecting another renderer.
+Streaming cameras must now be declared in the scene before cloning. Move
+``streaming_cam_renderer_cfg`` to the scene camera's ``CameraCfg.renderer_cfg``, and replace
+``streaming_cam_eye`` / ``streaming_cam_target_prim_path`` with its ``offset`` and parent prim path.
+The corresponding ``tiled_cam_eye`` and ``tiled_cam_target_prim_path`` aliases are also removed.
+Visualizers only display the selected sensor's output; they no longer create a renderer or
+camera, force a capture, or remove camera prims on close. See :doc:`/source/features/visualizer_tiled_camera`.
+
+The generated-camera helpers ``resolve_tiled_env_indices``, ``resolve_mono_env_index``,
+``compute_tile_resolution``, ``apply_camera_view_from_origins``, and ``sensor_keys_for_gt_types``
+have also been removed. Declare resolution, output channels, and initial pose in ``CameraCfg``.
+Use ``resolve_streaming_envs`` for display tile selection and ``Camera.set_world_poses_from_view``
+for explicit sensor pose updates.
+
 
 .. code-block:: python
 
