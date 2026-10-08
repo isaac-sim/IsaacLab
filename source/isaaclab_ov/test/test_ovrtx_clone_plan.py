@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import contextlib
 import importlib.util
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, call
@@ -88,7 +89,9 @@ def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
         write_array_attribute=lambda *args, **kwargs: None,
         write_attribute=lambda *args, **kwargs: None,
     )
-    renderer._clone_plan = None
+    renderer._clone_plan = make_clone_plan(
+        (AssetBaseCfg(prim_path="/World/envs/env_[^/]+"),), ((0,),), 1, positions=np.zeros((1, 3), dtype=np.float32)
+    )
     renderer._device = "cuda:0"  # __init__'s default, replaced by create_render_data(spec)
     # create_render_data resolves this from the spec; tests that bypass it get the default.
     renderer._warp_device = SimpleNamespace(ordinal=0)
@@ -338,10 +341,17 @@ def test_create_render_data_pins_the_render_product_to_the_spec_device(tmp_path:
     assert "uint[] deviceIds = [1]" in combined_text
 
 
-def test_initialize_camera_render_data_from_spec_refreshes_camera_relationship_after_cloning():
+@pytest.mark.parametrize("perspective", [False, True])
+def test_initialize_camera_render_data_from_spec_refreshes_camera_relationship_after_cloning(perspective):
     """Multi-environment initialization rewrites the RenderProduct cameras after cloning."""
     num_envs = 4
     renderer = _make_ovrtx_renderer_without_backend()
+    renderer._clone_plan = make_clone_plan(
+        (AssetBaseCfg(prim_path="/World/envs/env_[^/]+"),),
+        ((0,),),
+        num_envs,
+        positions=np.zeros((num_envs, 3), dtype=np.float32),
+    )
     renderer._exported_usd_string = "#usda 1.0\n"
 
     call_order: list[str] = []
@@ -361,7 +371,9 @@ def test_initialize_camera_render_data_from_spec_refreshes_camera_relationship_a
     renderer._setup_xform_bindings_legacy = lambda: None
     renderer._setup_geometry_bindings_legacy = lambda: None
 
-    spec = _make_camera_render_spec(num_envs=num_envs)
+    spec = _make_camera_render_spec(num_envs=1 if perspective else num_envs)
+    if perspective:
+        spec = replace(spec, camera_prim_paths=())
     render_data = OVRTXCameraRenderData(spec, "cpu", render_scope_name="RenderCamera_0")
     renderer._initialize_camera_render_data_from_spec(spec, render_data)
 
@@ -370,7 +382,7 @@ def test_initialize_camera_render_data_from_spec_refreshes_camera_relationship_a
         (
             [render_data.render_product_path],
             "camera",
-            [[f"/World/envs/env_{env_id}/Camera" for env_id in range(num_envs)]],
+            [["/RenderCamera_0/Camera"] if perspective else [f"/World/envs/env_{i}/Camera" for i in range(num_envs)]],
         )
     ]
 
