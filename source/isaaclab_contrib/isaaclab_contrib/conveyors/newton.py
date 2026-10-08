@@ -19,18 +19,6 @@ import numpy as np
 import warp as wp
 from isaaclab_newton.physics import NewtonManager
 from newton.examples.basic.example_basic_conveyor_forces import ConveyorForceModel
-from newton.examples.basic.example_basic_conveyor_forces import (
-    Vec3Pair as Vec3Pair,
-)
-from newton.examples.basic.example_basic_conveyor_forces import (
-    compute_basis_vectors as compute_basis_vectors,
-)
-from newton.examples.basic.example_basic_conveyor_forces import (
-    compute_point_force as compute_point_force,
-)
-from newton.examples.basic.example_basic_conveyor_forces import (
-    compute_point_impulse as compute_point_impulse,
-)
 
 from isaaclab.physics import PhysicsEvent
 
@@ -69,16 +57,6 @@ def _advance_startup_scale(
 
 
 @wp.kernel
-def _integrate_encoders(
-    dt: wp.float32,
-    effective_velocity: wp.array[wp.float32],
-    position: wp.array[wp.float32],
-):
-    conveyor_id = wp.tid()
-    position[conveyor_id] += dt * effective_velocity[conveyor_id]
-
-
-@wp.kernel
 def _update_effective_velocities(
     commanded_velocity: wp.array[wp.float32],
     enabled: wp.array[wp.int32],
@@ -89,20 +67,10 @@ def _update_effective_velocities(
 
 
 @wp.kernel
-def _gather_float_values(
-    source: wp.array[wp.float32],
+def _gather_values(
+    source: wp.array(dtype=Any),
     indices: wp.array[wp.int32],
-    values: wp.array[wp.float32],
-):
-    output_id = wp.tid()
-    values[output_id] = source[indices[output_id]]
-
-
-@wp.kernel
-def _gather_int_values(
-    source: wp.array[wp.int32],
-    indices: wp.array[wp.int32],
-    values: wp.array[wp.int32],
+    values: wp.array(dtype=Any),
 ):
     output_id = wp.tid()
     values[output_id] = source[indices[output_id]]
@@ -118,25 +86,6 @@ def _clear_selected_body_forces(
     world_id = body_world[body_id]
     if world_id >= 0 and world_mask[world_id]:
         body_force[body_id] = wp.spatial_vector()
-
-
-@wp.kernel
-def _clear_selected_encoders(
-    conveyor_world: wp.array[wp.int32],
-    world_mask: wp.array[wp.bool],
-    encoder_position: wp.array[wp.float32],
-):
-    conveyor_id = wp.tid()
-    world_id = conveyor_world[conveyor_id]
-    if world_mask[world_id]:
-        encoder_position[conveyor_id] = 0.0
-
-
-def _require_buffer_length(name: str, buffer: Any, expected: int) -> None:
-    """Reject missing or mis-sized buffers before a Warp launch can access them."""
-    actual = len(buffer) if buffer is not None else 0
-    if actual != expected:
-        raise RuntimeError(f"Conveyor force buffer {name!r} has length {actual}, expected {expected}.")
 
 
 def _as_numpy(values: Any) -> np.ndarray:
@@ -210,7 +159,7 @@ def _validate_newton_surface_specs(surface_specs: Sequence[SurfaceVelocitySpec])
 
 
 class SurfaceVelocity:
-    """Adapt Newton's MuJoCo conveyor force model to the Isaac Lab lifecycle.
+    """Adapt Newton's upstream conveyor force model to the Isaac Lab lifecycle.
 
     The driver is created after the simulation context but before its first
     reset. It requests solved contact forces before model finalization, then
@@ -309,11 +258,6 @@ class SurfaceVelocity:
         return self._num_envs * self.surfaces_per_env
 
     @property
-    def count(self) -> int:
-        """Alias for :attr:`num_surfaces`, matching tensor-view naming."""
-        return self.num_surfaces
-
-    @property
     def initialized(self) -> bool:
         """Whether the driver is bound to the active Newton solver."""
         return self._binding is not None
@@ -322,11 +266,6 @@ class SurfaceVelocity:
     def prim_paths(self) -> tuple[str, ...]:
         """Resolved Newton shape labels in environment-major belt order."""
         return self._require_binding().surface_paths
-
-    @property
-    def surface_paths(self) -> tuple[str, ...]:
-        """Alias for :attr:`prim_paths`."""
-        return self.prim_paths
 
     def set_velocities(self, velocities: Any, indices: Any = None) -> None:
         """Set signed surface speeds, preserving commands while surfaces are disabled."""
@@ -348,12 +287,8 @@ class SurfaceVelocity:
         """Return integer enabled flags for selected surfaces."""
         return self._require_binding().get_enabled(indices, clone)
 
-    def get_encoder_positions(self, indices: Any = None, clone: bool = True) -> wp.array:
-        """Return physics-rate integrated surface travel distances [m]."""
-        return self._require_binding().get_encoder_positions(indices, clone)
-
     def reset(self, env_ids: Any = None) -> None:
-        """Clear stale force and encoder state for selected environments."""
+        """Clear stale force state for selected environments."""
         self._require_binding().reset(env_ids)
 
     def _request_contact_forces(self, _event: Any) -> None:
@@ -418,18 +353,8 @@ class _SurfaceVelocityBinding:
             startup_duration_s: Duration of the initial traction ramp [s].
             env_path_format: Format string resolving one exact environment root from its integer world index.
         """
-        if not isinstance(num_envs, int) or isinstance(num_envs, bool) or num_envs <= 0:
-            raise ValueError(f"num_envs must be a positive integer, got {num_envs!r}.")
-        if not np.isfinite(startup_duration_s) or startup_duration_s <= 0.0:
-            raise ValueError(f"Conveyor startup duration must be positive, got {startup_duration_s}.")
-        _validate_env_path_format(env_path_format)
-
         self._surface_specs = tuple(surface_specs)
-        _validate_newton_surface_specs(self._surface_specs)
-        try:
-            compiled_body_pattern = re.compile(body_pattern)
-        except re.error as exc:
-            raise ValueError(f"Invalid body pattern: {body_pattern!r}.") from exc
+        compiled_body_pattern = re.compile(body_pattern)
 
         if model is None or contacts is None:
             raise RuntimeError("The conveyor driver requires an initialized Newton model and contact buffer.")
@@ -447,7 +372,6 @@ class _SurfaceVelocityBinding:
         self._num_envs = num_envs
         self._startup_duration_s = startup_duration_s
         self._closed = False
-        self._validate_backend_buffers()
 
         surfaces_per_env = len(self._surface_specs)
         conveyor_count = num_envs * surfaces_per_env
@@ -456,7 +380,6 @@ class _SurfaceVelocityBinding:
         pivot_point = [wp.vec3() for _ in range(conveyor_count)]
         radius = [1.0] * conveyor_count
         surface_normal = [wp.vec3() for _ in range(conveyor_count)]
-        conveyor_world = [conveyor_id // surfaces_per_env for conveyor_id in range(conveyor_count)]
         surface_paths = [""] * conveyor_count
 
         shape_body = model.shape_body.numpy()
@@ -548,7 +471,6 @@ class _SurfaceVelocityBinding:
         self._body_is_tracked = wp.array(body_is_tracked, dtype=wp.int32, device=self._device)
         self._direction = wp.array(direction, dtype=wp.vec3, device=self._device)
         self._radius = wp.array(radius, dtype=wp.float32, device=self._device)
-        self._conveyor_world = wp.array(conveyor_world, dtype=wp.int32, device=self._device)
 
         authored_velocity = np.asarray([spec.velocity for spec in self._surface_specs], dtype=np.float32)
         authored_enabled = np.asarray([spec.enabled for spec in self._surface_specs], dtype=np.int32)
@@ -557,7 +479,6 @@ class _SurfaceVelocityBinding:
         self._command_velocity = wp.array(self._command_velocity_host, dtype=wp.float32, device=self._device)
         self._enabled = wp.array(self._enabled_host, dtype=wp.int32, device=self._device)
         self._effective_velocity = wp.zeros(conveyor_count, dtype=wp.float32, device=self._device)
-        self._encoder_position = wp.zeros(conveyor_count, dtype=wp.float32, device=self._device)
         self._elapsed_time = wp.zeros(1, dtype=wp.float32, device=self._device)
         self._conveyor.set_speed_scale(0.0)
 
@@ -600,14 +521,10 @@ class _SurfaceVelocityBinding:
 
     def get_enabled(self, indices: Any = None, clone: bool = True) -> wp.array:
         """Return integer enabled flags for selected surfaces."""
-        return self._get_device_int_values(self._enabled, indices, clone)
-
-    def get_encoder_positions(self, indices: Any = None, clone: bool = True) -> wp.array:
-        """Return physics-rate integrated surface travel distances [m]."""
-        return self._get_device_values(self._encoder_position, indices, clone)
+        return self._get_device_values(self._enabled, indices, clone)
 
     def reset(self, env_ids: Any = None) -> None:
-        """Clear stale force and encoder state for selected environments.
+        """Clear stale force state for selected environments.
 
         A full reset also restarts the global startup ramp. Partial vectorized
         resets leave other environments' conveyor forces and startup state intact.
@@ -617,7 +534,6 @@ class _SurfaceVelocityBinding:
         """
         if env_ids is None:
             self._conveyor.conveyor_body_f.zero_()
-            self._encoder_position.zero_()
             self._elapsed_time.zero_()
             self._conveyor.global_velocity_scale.zero_()
             return
@@ -641,13 +557,6 @@ class _SurfaceVelocityBinding:
             outputs=[self._conveyor.conveyor_body_f],
             device=self._device,
         )
-        wp.launch(
-            _clear_selected_encoders,
-            dim=len(self._surface_paths),
-            inputs=[self._conveyor_world, self._world_mask],
-            outputs=[self._encoder_position],
-            device=self._device,
-        )
 
     def close(self) -> None:
         """Deregister Newton callbacks and release references held by the driver."""
@@ -662,19 +571,12 @@ class _SurfaceVelocityBinding:
         self._conveyor.apply(state)
 
     def update(self, solver, contacts, state, dt: float) -> None:
-        """Update surface travel and let Newton compute the next conveyor wrench."""
+        """Advance the startup ramp and let Newton compute the next conveyor wrench."""
         wp.launch(
             _advance_startup_scale,
             dim=1,
             inputs=[dt, self._startup_duration_s],
             outputs=[self._elapsed_time, self._conveyor.global_velocity_scale],
-            device=self._device,
-        )
-        wp.launch(
-            _integrate_encoders,
-            dim=len(self._surface_paths),
-            inputs=[dt, self._effective_velocity],
-            outputs=[self._encoder_position],
             device=self._device,
         )
         self._conveyor.update(solver, contacts, state, dt)
@@ -686,41 +588,6 @@ class _SurfaceVelocityBinding:
             outputs=[self._conveyor.conveyor_body_f],
             device=self._device,
         )
-
-    def _validate_backend_buffers(self) -> None:
-        """Validate every fixed-size Newton buffer consumed by conveyor kernels."""
-        model = self._model
-        contacts = self._contacts
-        _require_buffer_length("model.shape_body", model.shape_body, model.shape_count)
-        _require_buffer_length("model.shape_world", model.shape_world, model.shape_count)
-        _require_buffer_length("model.shape_transform", model.shape_transform, model.shape_count)
-        _require_buffer_length("model.body_world", model.body_world, model.body_count)
-        _require_buffer_length("model.body_com", model.body_com, model.body_count)
-        _require_buffer_length("model.body_inv_mass", model.body_inv_mass, model.body_count)
-        _require_buffer_length("model.body_inv_inertia", model.body_inv_inertia, model.body_count)
-        _require_buffer_length("contacts.force", contacts.force, contacts.rigid_contact_max)
-        _require_buffer_length(
-            "contacts.rigid_contact_shape0", contacts.rigid_contact_shape0, contacts.rigid_contact_max
-        )
-        _require_buffer_length(
-            "contacts.rigid_contact_shape1", contacts.rigid_contact_shape1, contacts.rigid_contact_max
-        )
-        _require_buffer_length(
-            "contacts.rigid_contact_normal", contacts.rigid_contact_normal, contacts.rigid_contact_max
-        )
-        _require_buffer_length(
-            "contacts.rigid_contact_point0", contacts.rigid_contact_point0, contacts.rigid_contact_max
-        )
-        _require_buffer_length(
-            "contacts.rigid_contact_point1", contacts.rigid_contact_point1, contacts.rigid_contact_max
-        )
-        _require_buffer_length(
-            "contacts.rigid_contact_offset0", contacts.rigid_contact_offset0, contacts.rigid_contact_max
-        )
-        _require_buffer_length(
-            "contacts.rigid_contact_offset1", contacts.rigid_contact_offset1, contacts.rigid_contact_max
-        )
-        _require_buffer_length("contacts.rigid_contact_count", contacts.rigid_contact_count, 1)
 
     def _resolve_indices(self, indices: Any) -> np.ndarray:
         """Normalize and validate a surface index selection."""
@@ -763,27 +630,10 @@ class _SurfaceVelocityBinding:
             return wp.clone(source) if clone else source
         selected = self._resolve_indices(indices)
         selected_device = wp.array(selected, dtype=wp.int32, device=self._device)
-        values = wp.empty(len(selected), dtype=wp.float32, device=self._device)
+        values = wp.empty(len(selected), dtype=source.dtype, device=self._device)
         if len(selected) > 0:
             wp.launch(
-                _gather_float_values,
-                dim=len(selected),
-                inputs=[source, selected_device],
-                outputs=[values],
-                device=self._device,
-            )
-        return values
-
-    def _get_device_int_values(self, source: wp.array, indices: Any, clone: bool) -> wp.array:
-        """Clone an integer device buffer or gather a selected subset."""
-        if indices is None:
-            return wp.clone(source) if clone else source
-        selected = self._resolve_indices(indices)
-        selected_device = wp.array(selected, dtype=wp.int32, device=self._device)
-        values = wp.empty(len(selected), dtype=wp.int32, device=self._device)
-        if len(selected) > 0:
-            wp.launch(
-                _gather_int_values,
+                _gather_values,
                 dim=len(selected),
                 inputs=[source, selected_device],
                 outputs=[values],
