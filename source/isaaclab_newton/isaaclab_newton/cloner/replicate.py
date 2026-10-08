@@ -190,31 +190,38 @@ def _replicate_newton(
     if simulation:
         entries = [add_deformable_from_usd(source_builders[path], stage, root_path=path) for path in deformable_paths]
     else:
-        # Import visual meshes once into their owning prototypes, before the common native replication.
+        # Import visual meshes into every source that supplies them. Ancestors of a separately
+        # declared asset exclude its subtree, so stop at that asset's source.
         for entry in entries:
-            ancestors = reversed(Sdf.Path(entry.root_path).GetPrefixes())
-            source = next(str(path) for path in ancestors if str(path) in source_builders)
-            native = source_builders[source]
-            pose = dict(pos=wp.vec3(*entry.init_pos), rot=wp.quat(*entry.init_rot), scale=1.0, vel=wp.vec3())
-            surface = entry.deformable_type == "surface" or entry.vis_mesh_path != entry.sim_mesh_path
-            particle_start, tri_start = native.particle_count, len(native.tri_indices)
-            edge_start, tet_start = len(native.edge_indices), len(native.tet_indices)
-            if surface:
-                add_mesh = native.add_cloth_mesh
-                mesh = dict(vertices=entry.vis_vertices, indices=entry.vis_indices, density=1.0)
-                mesh.update(tri_ke=1e4, tri_ka=1e4, tri_kd=1.5e-6, edge_ke=5.0, edge_kd=1e-2, particle_radius=0.008)
-            else:
-                add_mesh = native.add_soft_mesh
-                mesh = dict(vertices=entry.vertices, indices=entry.indices, density=1000.0)
-                mesh.update(k_mu=1e5, k_lambda=1e5, k_damp=0.0)
-            add_mesh(label=entry.vis_mesh_path, **mesh, **pose)
-            # Remove private recording when the pinned Newton includes #3326.
-            particle_range = particle_start, native.particle_count
-            if surface:
-                tri_range, edge_range = (tri_start, len(native.tri_indices)), (edge_start, len(native.edge_indices))
-                native._record_cloth_group(entry.vis_mesh_path, particle_range, tri_range, edge_range)
-            else:
-                native._record_soft_group(entry.vis_mesh_path, particle_range, (tet_start, len(native.tet_indices)))
+            entry_sources = []
+            for path in reversed(Sdf.Path(entry.root_path).GetPrefixes()):
+                source = str(path)
+                if source in source_builders:
+                    entry_sources.append(source)
+                if source in asset_sources:
+                    break
+            for source in entry_sources:
+                native = source_builders[source]
+                pose = dict(pos=wp.vec3(*entry.init_pos), rot=wp.quat(*entry.init_rot), scale=1.0, vel=wp.vec3())
+                surface = entry.deformable_type == "surface" or entry.vis_mesh_path != entry.sim_mesh_path
+                particle_start, tri_start = native.particle_count, len(native.tri_indices)
+                edge_start, tet_start = len(native.edge_indices), len(native.tet_indices)
+                if surface:
+                    add_mesh = native.add_cloth_mesh
+                    mesh = dict(vertices=entry.vis_vertices, indices=entry.vis_indices, density=1.0)
+                    mesh.update(tri_ke=1e4, tri_ka=1e4, tri_kd=1.5e-6, edge_ke=5.0, edge_kd=1e-2, particle_radius=0.008)
+                else:
+                    add_mesh = native.add_soft_mesh
+                    mesh = dict(vertices=entry.vertices, indices=entry.indices, density=1000.0)
+                    mesh.update(k_mu=1e5, k_lambda=1e5, k_damp=0.0)
+                add_mesh(label=entry.vis_mesh_path, **mesh, **pose)
+                # Remove private recording when the pinned Newton includes #3326.
+                particle_range = particle_start, native.particle_count
+                if surface:
+                    tri_range, edge_range = (tri_start, len(native.tri_indices)), (edge_start, len(native.edge_indices))
+                    native._record_cloth_group(entry.vis_mesh_path, particle_range, tri_range, edge_range)
+                else:
+                    native._record_soft_group(entry.vis_mesh_path, particle_range, (tet_start, len(native.tet_indices)))
 
     # Resolve native capsule indices once per source, not by rediscovering labels after cloning.
     source_cables = {}

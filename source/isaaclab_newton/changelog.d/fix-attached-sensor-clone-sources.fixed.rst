@@ -1,1 +1,1 @@
-* Fixed Newton imports of attached sensors to preserve robot joints and native actuator targets with additional visualizers, including sensor geometry in world compositions without its owner.
+* Fixed Newton imports of attached sensors to preserve robot joints and native actuator targets with additional visualizers, including rigid and deformable geometry selected by sensors in world compositions with or without their owners.
