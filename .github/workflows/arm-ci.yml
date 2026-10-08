@@ -151,7 +151,7 @@ jobs:
     runs-on: [self-hosted, arm64]
     needs: [changes, config]
     if: needs.changes.outputs.should_run == 'true'
-    timeout-minutes: 60
+    timeout-minutes: 150
     steps:
     - uses: actions/checkout@v6
       with:
@@ -174,40 +174,11 @@ jobs:
       uses: ./.github/actions/resolve-ov-pins
       id: ov_pins
 
-    - name: Run arm_ci marker tests
-      uses: ./.github/actions/run-tests
-      with:
-        test-path: tools
-        result-file: arm-ci-report.xml
-        container-name: isaac-lab-arm-ci-${{ github.run_id }}-${{ github.run_attempt }}
-        image-tag: ${{ needs.config.outputs.ci_image_tag }}-arm64
-        extra-pip-packages: "${{ steps.ov_pins.outputs.ovrtx }} ${{ steps.ov_pins.outputs.ovphysx }}"
-        # ovstage rendering cases are post-merge only on x86 as well.
-        test-k-expr: not ovphysx and not ovstage
-        ci-marker: arm_ci
-        volume-mount-source: ${{ github.workspace }}
-
-    - name: Run arm_ci OVPhysX marker tests
-      uses: ./.github/actions/run-tests
-      with:
-        test-path: tools
-        result-file: arm-ci-ovphysx-report.xml
-        container-name: isaac-lab-arm-ci-ovphysx-${{ github.run_id }}-${{ github.run_attempt }}
-        image-tag: ${{ needs.config.outputs.ci_image_tag }}-arm64
-        extra-pip-packages: "${{ steps.ov_pins.outputs.ovrtx }} ${{ steps.ov_pins.outputs.ovphysx }}"
-        test-k-expr: ovphysx and not ovstage
-        ci-marker: arm_ci
-        volume-mount-source: ${{ github.workspace }}
-
-
-    - name: Run shared Cartpole smoke
-      uses: ./.github/actions/run-tests
-      with:
-        test-path: source/isaaclab/test/install_ci/misc/cartpole_training_smoke.py
-        result-file: arm-ci-cartpole-smoke-report.xml
-        container-name: isaac-lab-arm-ci-cartpole-${{ github.run_id }}-${{ github.run_attempt }}
-        image-tag: ${{ needs.config.outputs.ci_image_tag }}-arm64
-        volume-mount-source: ${{ github.workspace }}
+    - name: "[DIAG] NCCL communicator next to RTX, three NCCL builds (do not merge)"
+      env:
+        IMAGE_TAG: ${{ needs.config.outputs.ci_image_tag }}-arm64
+        EXTRA_PIP: "${{ steps.ov_pins.outputs.ovrtx }} ${{ steps.ov_pins.outputs.ovphysx }}"
+      run: bash .github/diag/arm_nccl_rtx/host.sh
 
     - name: Upload test reports
       if: always()
