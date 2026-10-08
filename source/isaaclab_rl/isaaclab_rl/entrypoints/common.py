@@ -490,6 +490,10 @@ def show_run_summary(
     """
     renderer = _renderer_name(env_cfg)
     visualizers = [cfg.visualizer_type for cfg in env_cfg.sim.visualizer_cfgs if cfg.visualizer_type]
+    # The summary is shown before apply_env_overrides, which puts --cosmos runs on one environment.
+    num_envs = (
+        1 if getattr(args_cli, "cosmos", False) else getattr(args_cli, "num_envs", None) or env_cfg.scene.num_envs
+    )
     screen.summary(
         f"Isaac Lab · {action}",
         {
@@ -500,7 +504,7 @@ def show_run_summary(
             "Renderer": "n/a (no camera sensors)" if renderer is None else renderer,
             "Visualizer": ", ".join(visualizers) or "headless",
             "Device": env_cfg.sim.device,
-            "Environments": str(getattr(args_cli, "num_envs", None) or env_cfg.scene.num_envs),
+            "Environments": str(num_envs),
         },
     )
 

@@ -13,7 +13,12 @@ import pytest
 from isaaclab_experimental.cosmos import DEFAULT_MAX_EPISODE_FRAMES, apply_cosmos
 from isaaclab_experimental.cosmos.client import camera as cosmos_camera_module
 
-from isaaclab_rl.entrypoints.common import add_common_play_args, add_common_train_args, apply_env_overrides
+from isaaclab_rl.entrypoints.common import (
+    add_common_play_args,
+    add_common_train_args,
+    apply_env_overrides,
+    show_run_summary,
+)
 
 from isaaclab_tasks.utils import parse_env_cfg
 
@@ -104,3 +109,17 @@ def test_direct_tasks_that_size_observations_from_the_camera_are_warned(caplog):
     with caplog.at_level(logging.WARNING):
         apply_cosmos(env_cfg, prompt="A cart.", max_episode_frames=None)
     assert "Direct tasks" in caplog.text
+
+
+def test_the_run_summary_shows_the_single_cosmos_environment():
+    """The summary appears before the overrides; with --cosmos it reports the one environment the run uses."""
+
+    class Screen:
+        def summary(self, title, fields):
+            self.fields = fields
+
+    screen = Screen()
+    show_run_summary(screen, _cli(add_common_train_args, ["--cosmos"]), _kuka(), library="rsl_rl", action="train")
+    assert screen.fields["Environments"] == "1"
+    show_run_summary(screen, _cli(add_common_train_args, []), _kuka(), library="rsl_rl", action="train")
+    assert screen.fields["Environments"] != "1"
