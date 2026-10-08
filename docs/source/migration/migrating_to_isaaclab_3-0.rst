@@ -1786,7 +1786,7 @@ Migrate tensor access, indexed writes, buffers, and quaternion conventions befor
 
          identity = (0.0, 0.0, 0.0, 1.0)
          root_pos = robot.data.root_pos_w.torch
-         robot.write_root_pose_to_sim_index(pose, env_ids)
+         robot.write_root_pose_to_sim_index(root_pose=pose, env_ids=env_ids)
 
 
 .. rubric:: Quaternion Format
@@ -2049,7 +2049,7 @@ by the convention change.
 
 .. rubric:: Quaternion Utility API Changes
 
-**The ``convert_quat`` function is no longer needed**
+**The convert_quat function is no longer needed**
 
 IsaacLab provides a utility function to convert between quaternion formats:
 
@@ -2059,8 +2059,9 @@ IsaacLab provides a utility function to convert between quaternion formats:
    from isaaclab.utils.math import convert_quat
    quat_xyzw = convert_quat(quat_wxyz, "xyzw")
 
-Since everything now uses XYZW natively, this function is no longer needed.
-If you were using it, simply remove the conversion calls.
+Since everything now uses XYZW natively, this function is no longer needed for Isaac Lab data.
+If you were using it, simply remove the conversion calls. Keep it only to convert external
+data that still uses WXYZ order.
 
 
 **Math utility functions now expect XYZW**
