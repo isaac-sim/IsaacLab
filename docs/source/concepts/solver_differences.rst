@@ -29,10 +29,6 @@ are the reference for exact fields and defaults.
 For finer-grained comparisons of features, contact materials, and joint support
 among Newton solvers, see the `Newton supported-features matrix
 <https://newton-physics.github.io/newton/stable/solvers/index.html#supported-features>`__.
-The upstream `MuJoCo
-<https://newton-physics.github.io/newton/latest/solvers/mujoco.html>`__ and
-`Kamino <https://newton-physics.github.io/newton/latest/solvers/kamino.html>`__
-guides explain their models and contact behavior.
 
 For checkpoint compatibility and articulation ordering, follow
 :doc:`/source/how-to/transfer_policies_between_physx_and_newton`.
@@ -46,6 +42,9 @@ These are direct solver capabilities exposed through Isaac Lab's asset APIs.
 Support for a particular task still depends on its registered physics presets.
 Rigid and deformable or material dynamics may be handled by different solvers
 in a coupled scene.
+
+✅ means supported, ❌ unsupported, and ⚠️ limited support. GPU requirements
+and experimental features are qualified in each cell.
 
 .. list-table:: Solver capabilities in documented Isaac Lab workflows
    :header-rows: 1
@@ -67,47 +66,54 @@ in a coupled scene.
      - Cloth, soft bodies, and cables
      - Fluids, granular media, and snow
    * - Rigid-body dynamics
-     - Yes
-     - Yes
-     - Yes
-     - Yes
-     - Colliders only
+     - ✅ Yes
+     - ✅ Yes
+     - ✅ Yes
+     - ✅ Yes
+     - ❌ No; colliders only
    * - Articulation formulation
-     - Reduced coordinates
-     - Generalized coordinates
-     - Maximal coordinates
-     - Limited maximal-coordinate joints
-     - No joint dynamics
+     - ✅ Reduced coordinates
+     - ✅ Generalized coordinates
+     - ✅ Maximal coordinates
+     - ⚠️ Limited maximal-coordinate joints
+     - ❌ No joint dynamics
    * - Cloth (surface mesh)
-     - Yes; GPU, experimental
-     - No
-     - No
-     - Yes
-     - No
+     - ✅ Yes; GPU, experimental
+     - ❌ No
+     - ❌ No
+     - ✅ Yes
+     - ❌ No
    * - Soft bodies (volume mesh)
-     - Yes; GPU, experimental
-     - No
-     - No
-     - Yes
-     - No
+     - ✅ Yes; GPU, experimental
+     - ❌ No
+     - ❌ No
+     - ✅ Yes
+     - ❌ No
    * - Segmented cables (``CableObject``)
-     - No
-     - No
-     - No
-     - Yes; experimental
-     - No
+     - ❌ No
+     - ❌ No
+     - ❌ No
+     - ✅ Yes; experimental
+     - ❌ No
    * - Particle-grid continuum materials
-     - No
-     - No
-     - No
-     - No
-     - Yes; experimental
+     - ❌ No
+     - ❌ No
+     - ❌ No
+     - ❌ No
+     - ✅ Yes; experimental
    * - Main tuning controls
      - Timestep, TGS/PGS iterations, GPU capacities
      - Substeps, iterations, contact capacities
      - Substeps, P-ADMM/DVI convergence, stabilization
      - Substeps, iterations, material and contact stiffness
      - Voxel resolution, substeps, rheology convergence
+   * - Solver details
+     - :ref:`PhysX overview <physics-backends-physx>`
+     - `MuJoCo-Warp <https://newton-physics.github.io/newton/stable/solvers/mujoco.html>`__
+     - `Kamino <https://newton-physics.github.io/newton/stable/solvers/kamino.html>`__
+     - `VBD <https://newton-physics.github.io/newton/stable/api/_generated/newton.solvers.SolverVBD.html>`__
+     - `Implicit MPM
+       <https://newton-physics.github.io/newton/stable/api/_generated/newton.solvers.SolverImplicitMPM.html>`__
    * - Tuning workflow
      - :doc:`PhysX </source/how-to/solver_tuning_physx>`
      - :doc:`MJWarp </source/how-to/solver_tuning_mjwarp>`
