@@ -78,7 +78,7 @@ class HandoverGoal:
             raise ValueError(f"success_steps_required must be positive, got {steps_required}.")
         self.success_steps += succeeded
         switched = self.success_steps >= steps_required
-        self.success.record_goal_reached(switched)
+        self.success.record_goal_reached(env_mask=switched)
         self._left ^= switched
         self.success_steps.masked_fill_(switched, 0)
         torch.where(self._left.unsqueeze(-1), self._positions[1], self._positions[0], out=self.position)
