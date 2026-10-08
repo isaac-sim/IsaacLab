@@ -1,10 +1,10 @@
 :orphan:
 
 .. meta::
-   :http-equiv=refresh: 0; url=../../../../concepts/native-physics-api/newton.html
+   :http-equiv=refresh: 0; url=../../../../concepts/physics-backends/newton.html#newton-native-access
    :name=robots: noindex
 
 Page Moved
 ==========
 
-This page moved to :doc:`/source/concepts/native-physics-api/newton`.
+This page moved to :ref:`newton-native-access`.
