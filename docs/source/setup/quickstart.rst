@@ -22,8 +22,8 @@ Isaac Lab, and enter the repository:
    git clone https://github.com/isaac-sim/IsaacLab.git
    cd IsaacLab
 
-Train Cartpole with the Newton MJWarp physics backend and open the Newton
-visualizer:
+Train Cartpole with the Newton MJWarp physics backend (its default, selected
+explicitly here to show the syntax) and open the Newton visualizer:
 
 .. code-block:: bash
 
@@ -220,7 +220,9 @@ example:
    uv run isaaclab train --task Isaac-Cartpole-Camera physics=newton_mjwarp renderer=newton_renderer presets=rgb
 
 Many tasks default to Isaac Sim PhysX, which needs Isaac Sim. Pick the setup path that matches
-your install and keep its selectors on every command, including camera tasks:
+your install and keep its ``physics=`` selector on every command. Add ``renderer=`` only for tasks
+with cameras or renderer presets, such as ``Isaac-Cartpole-Camera``; other tasks reject it. Run
+``uv run isaaclab list_envs --show_presets`` to see which presets a task declares:
 
 .. list-table::
    :widths: 24 38 38
@@ -230,10 +232,10 @@ your install and keep its selectors on every command, including camera tasks:
      - Selectors
      - Install
    * - Kit-less (Newton, no Isaac Sim)
-     - ``physics=newton_mjwarp renderer=newton_renderer`` (or ``renderer=ovrtx``)
+     - ``physics=newton_mjwarp``; camera tasks add ``renderer=newton_renderer`` (or ``renderer=ovrtx``)
      - Default ``uv run``; add ``--extra ovrtx`` for ``renderer=ovrtx``
    * - With Isaac Sim (PhysX)
-     - ``physics=isaacsim_physx renderer=isaacsim_rtx``
+     - ``physics=isaacsim_physx``; camera tasks add ``renderer=isaacsim_rtx``
      - ``uv run --extra isaacsim``
 
 See :doc:`/source/concepts/backends_and_presets` for backend and preset selection,

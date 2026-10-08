@@ -1,11 +1,11 @@
 Agent Skills
 ============
 
-Isaac Lab agent skills are repository-owned instructions that help coding agents follow Isaac Lab workflows. They are markdown guidance assets, not runtime Python packages.
-
-Isaac Lab ships a library of agent skills for installing, building environments, training, debugging,
-migrating, and contributing. Codex and Claude discover them automatically from a repository checkout
-(see `Discovery`_). The full catalog is in ``skills/README.md``.
+Isaac Lab agent skills are repository-owned instructions that help coding agents follow Isaac Lab
+workflows. They are markdown guidance assets, not runtime Python packages. The library covers
+installing, building environments, training, debugging, migrating, and contributing. Codex and
+Claude discover the skills automatically from a repository checkout (see `Discovery`_). The full
+catalog is in ``skills/README.md``.
 
 Skill categories
 ----------------

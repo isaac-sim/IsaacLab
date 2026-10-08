@@ -42,8 +42,8 @@ Run the ``run_tiled_camera_visualizer.py`` script in ``IsaacLab/scripts/tutorial
       :language: python
       :linenos:
 
-See `Examples`_ below for the two ways to run the script. For the ``VisualizerCfg`` fields that
-customize streaming, sources, and troubleshooting, see :ref:`visualization-streaming-camera-view`.
+See `Examples`_ below for the two ways to run the script, and `Configuration`_ for the
+``VisualizerCfg`` fields that customize streaming, display sources, and troubleshooting.
 
 
 .. raw:: html
@@ -140,10 +140,70 @@ feeds are shown by default.
    <p class="viz-cap">Newton visualizer: streaming camera view</p>
 
 
+Configuration
+-------------
+
+Declare camera resolution, pose, renderer, and output types on ``CameraCfg`` in the scene.
+Then choose what to display in ``VisualizerCfg``:
+
+* ``streaming_sensor_prim_path`` selects a scene :class:`~isaaclab.sensors.Camera` by its configured
+  prim path. The ``{ENV_REGEX_NS}`` macro uses the scene's environment template.
+  If omitted, the first camera supporting the requested channels is selected; without a compatible
+  camera the panel stays empty.
+* ``streaming_envs`` controls how many environment tiles are shown. Pass an ``int`` to randomly
+  sample that many environments, or a ``list[int]`` to pin specific environment indices.
+* ``streaming_gt_types`` selects which ground-truth types are shown, e.g.
+  ``["rgb", "depth", "segmentation", "normals"]``.
+* ``streaming_depth_min`` / ``streaming_depth_max`` set the depth colormap range in metres.
+
+Image layouts and color tables are prepared when the selection or layout changes. Colorization and
+tiling run on the source device and reuse the output buffer. Kit presents CUDA images directly;
+recording and web consumers read back the composed RGB image through ``render_tiled_rgb_array()``.
+
+
+Display sources
+---------------
+
+``VisualizerCfg.cameras`` accepts ``PerspectiveCameraCfg`` for the interactive view and
+``SceneCameraCfg(prim_path=...)`` for a camera sensor already declared in the scene.
+Kit, Newton GL, Rerun, and Viser display scene-camera output in a streaming panel.
+Newton RTX accepts perspective sources only. Every explicit scene source must provide
+the requested ``streaming_gt_types`` channels.
+
+
+Troubleshooting
+---------------
+
+* If a view reports no matching camera, declare a ``CameraCfg`` in the scene and set
+  ``streaming_sensor_prim_path`` to its prim path.
+* Each ``streaming_gt_types`` entry must have a corresponding output in the selected
+  camera's ``data_types``. An explicit incompatible source raises an error. Automatic selection
+  skips incompatible sources, and RGB display accepts a camera's RGBA output.
+* If the depth panel shows a flat color, adjust ``streaming_depth_min`` and
+  ``streaming_depth_max`` to bracket the expected depth range in your scene.
+* If the view is too expensive, reduce ``streaming_envs``, ``--num_envs``, or the camera
+  resolution.
+
+
+Migrating from generated cameras
+--------------------------------
+
+Visualizers no longer create, move, or destroy camera sensors. Replace
+``streaming_cam_target_prim_path``, ``streaming_cam_eye``, and ``streaming_cam_renderer_cfg``
+with a scene ``CameraCfg``: place its ``prim_path`` under the desired parent, set its
+``offset``, and supply ``renderer_cfg`` there. Select that camera through
+``streaming_sensor_prim_path``. This puts the camera in the clone plan and the normal sensor
+initialization, update, and teardown lifecycle. The full option mapping is in the
+:doc:`3.0 migration guide </source/migration/migrating_to_isaaclab_3-0>`.
+
+Closing a visualizer does not affect the camera or other visualizers reading it.
+``streaming_envs`` selects displayed tiles, not camera allocation or capture resolution.
+
+
 See also
 --------
 
-* :ref:`visualization-streaming-camera-view`: configuration, display sources, and troubleshooting
+* :ref:`visualization-streaming-camera-view`: how the streaming view works and which visualizers support it
 * :doc:`/source/concepts/visualization`: visualizer configuration and UI controls
 * :doc:`/source/how-to/record_video`: recording the streaming view to video
 * :doc:`/source/how-to/configure_rendering`: customizing RTX rendering settings
