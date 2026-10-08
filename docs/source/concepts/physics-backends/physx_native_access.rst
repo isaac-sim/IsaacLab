@@ -3,6 +3,8 @@
 ..
 .. SPDX-License-Identifier: BSD-3-Clause
 
+.. _physx-native-access:
+
 PhysX Tensor API
 ================
 

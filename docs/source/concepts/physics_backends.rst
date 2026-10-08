@@ -141,6 +141,7 @@ follow the generated API links for :class:`~isaaclab_physx.physics.PhysxCfg`,
 .. toctree::
    :hidden:
 
+   /source/concepts/physics-backends/physx_native_access
    /source/concepts/physics-backends/newton
    /source/concepts/joint_and_body_ordering
    /source/concepts/ovphysx

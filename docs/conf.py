@@ -403,6 +403,9 @@ html_sidebars = {
 
 # Keep published links working after guide consolidation.
 isaaclab_doc_redirects = {
+    "source/concepts/native-physics-api/newton": "source/concepts/physics-backends/newton",
+    "source/concepts/native-physics-api/ovphysx": "source/concepts/ovphysx",
+    "source/concepts/native-physics-api/physx": "source/concepts/physics-backends/physx_native_access",
     "source/concepts/solver-tuning/index": "source/how-to/index",
     "source/concepts/solver-tuning/tune_kamino": "source/how-to/solver_tuning_kamino",
     "source/concepts/solver-tuning/tune_mjwarp": "source/how-to/solver_tuning_mjwarp",
