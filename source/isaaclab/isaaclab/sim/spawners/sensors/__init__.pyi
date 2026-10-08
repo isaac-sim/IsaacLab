@@ -5,21 +5,18 @@
 
 __all__ = [
     "spawn_camera",
-    "spawn_sensor_frame",
     "FisheyeCameraCfg",
     "OpenCvDistortionCfg",
     "OpenCvFisheyeDistortionCfg",
     "OpenCvPinholeDistortionCfg",
     "PinholeCameraCfg",
-    "SensorFrameCfg",
 ]
 
-from .sensors import spawn_camera, spawn_sensor_frame
+from .sensors import spawn_camera
 from .sensors_cfg import (
     FisheyeCameraCfg,
     OpenCvDistortionCfg,
     OpenCvFisheyeDistortionCfg,
     OpenCvPinholeDistortionCfg,
     PinholeCameraCfg,
-    SensorFrameCfg,
 )
