@@ -106,7 +106,7 @@ class ReportRenderingTests(unittest.TestCase):
         self.assertNotIn("PASS", markdown)
         self.assertNotIn("FAIL", markdown)
         rows = [line for line in primary.splitlines() if line.startswith("|")]
-        self.assertEqual(len(rows), 7)  # Header, separator and all five workloads.
+        self.assertEqual(len(rows), 7)
         self.assertTrue(all(len(line.split("|")) == 7 for line in rows))
         self.assertIn("⚪ Not comparable", primary)
         self.assertIn("No baseline samples", diagnostics)
@@ -160,7 +160,10 @@ class ReportRenderingTests(unittest.TestCase):
         self.assertIn("No current samples", diagnostics)
 
     def test_paired_pr_labels_exact_sources_and_reused_baseline_inside_details(self):
-        report = compare_evidence(evidence(), evidence({"leg": [bundle(110)] * 3}))
+        a, b = evidence(), evidence({"leg": [bundle(110)] * 3})
+        a.context["measurement"] = {"commit": "d" * 40, "digest": "e" * 64}
+        b.context["measurement"] = {"commit": HEAD, "digest": "e" * 64}
+        report = compare_evidence(a, b)
         for side, commit, run in (("baseline", PARENT, 12), ("candidate", HEAD, 15)):
             report[side].update(
                 repository="isaac-sim/IsaacLab", source_commit=commit, run_id=run, artifact_id=run + 100
@@ -191,6 +194,11 @@ class ReportRenderingTests(unittest.TestCase):
         self.assertIn(f"Resolved PR base: `{PARENT}`", details)
         self.assertIn(f"The PR event reported `{HEAD}`", details)
         self.assertIn("actual first parent", details)
+        self.assertIn("A measurement source", details)
+        self.assertIn("B measurement source", details)
+        self.assertIn(f"https://github.com/isaac-sim/IsaacLab/commit/{'d' * 40}", details)
+        self.assertIn(f"Measurement SHA-256: `{'e' * 64}`", details)
+        self.assertNotIn("measurement source", primary)
         self.assertEqual(report, snapshot)
 
     def test_paired_baseline_measurement_status_reflects_available_evidence(self):
@@ -277,6 +285,8 @@ class ReportRenderingTests(unittest.TestCase):
         snapshot = [report.as_dict() for _, report in reports]
         markdown = render_aggregate(reports)
         self.assertIn("### Rolling-history CI gate: 🚫 ERROR", markdown)
+        self.assertNotIn("<details>", markdown)
+        self.assertIn("| Combination | Total FPS | Baseline | FPS regression %", markdown)
         self.assertIn(missing_credential, markdown)
         self.assertIn("Total FPS: insufficient independent runs for ASV significance testing", markdown)
         self.assertIn("comparison artifact could not be read: invalid JSON", markdown)

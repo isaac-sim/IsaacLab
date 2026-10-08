@@ -1,35 +1,36 @@
 # Performance smoke comparisons
 
-The **Performance smoke** Summary shows how the PR performed compared to its base.
+Open **Checks → Performance smoke comparison → Open rendered Performance smoke Summary**.
 
-It's located in **Checks → Performance smoke comparison → Open rendered Performance smoke Summary**
-
-The main table shows:
-
-**🟢 Improved · 🔴 Regressed · ⚪ Not comparable**
-
-with workload, baseline FPS, PR FPS, and percentage change.
-
-Small FPS changes may just be normal variation between runs.
+The table shows each workload's baseline FPS, PR FPS, percentage change, and **Improved**, **Regressed**, or **Not comparable** result.
+Small FPS changes may be normal variation between runs.
 
 ## How it runs
 
-For an activated PR, CI resolves GitHub's exact tested merge revision and uses its first parent as the baseline.
+Once CI is activated for a PR, updates rerun automatically and cancel superseded runs.
+CI compares GitHub's tested merge revision against its first parent, the base revision.
 
-If no valid reusable baseline exists, CI:
+Both runs use the PR’s code for warmup, timing, and calculating FPS.
 
-1. benchmarks the base,
-2. benchmarks the tested PR revision on the same runner,
-3. compares all shared compatible workloads.
+The baseline run uses the **base’s task and simulation code**. The PR run uses the **PR’s task and simulation code**.
+This compares the two versions using the same measuring method. For example, if the PR changes the timer or FPS calculation, **both runs use that new code**.
 
-On later PR updates, the verified baseline can be reused when the base, benchmark matrix, and launcher configuration are unchanged. The current PR revision is always measured fresh. A changed base, matrix, launcher, expired artifact, incomplete result, or failed verification requests a fresh baseline.
+We compare:
 
-Subsequent PR updates rerun automatically after the PR has been activated, and superseded runs are cancelled.
+- Base task/simulation code + new measurement code.
+- PR task/simulation code + new measurement code.
+
+We do **not** compare the old measurement code against the new measurement code. Therefore, this comparison cannot tell us whether changing the measurement code itself made the benchmark faster or slower.
+
+Reuse requires verified base results and matching base, workload matrix, launcher settings, and measurement-code digest.
+If no reusable results are found, CI measures the base and PR on the same runner. The PR is always measured fresh.
 
 ## Comparison safety
 
-Each benchmark runs against the intended checkout, with source verification tied to the produced results.
+Source verification checks workload and measurement code separately and ties both to the results.
+Their revisions and the measurement digest appear in the Summary's collapsed source details.
 
-A workload is only compared when its recorded task/configuration, measurement protocol, and hardware are compatible. Missing, partial, unverified, or incompatible results remain visible as **Not comparable** rather than forcing a percentage delta.
+Percentage comparisons require matching task settings, measurement protocols, CPU/GPU models, and device counts.
+Missing, incomplete, unverified, or incompatible results remain visible as **Not comparable**.
 
-Different CPU/GPU models or device counts are treated as incompatible for percentage comparison.
+The existing rolling-history gate and non-PR historical comparison remain separate.

@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import argparse
 import hashlib
-import importlib
 import json
 import os
 import subprocess
@@ -20,6 +19,7 @@ import types
 from pathlib import Path, PurePosixPath
 
 RUNTIME_MODULE = "isaaclab.benchmark.entrypoints.runtime"
+MEASUREMENT_PATHS = ("source/isaaclab/isaaclab/benchmark", "source/isaaclab/isaaclab/utils/timer.py")
 
 
 def _sha256(data: bytes) -> str:
@@ -33,21 +33,16 @@ def _git(root: Path, *args: str, data: bytes | None = None) -> bytes:
     return result.stdout
 
 
-def prepare_manifest(root: Path) -> dict:
-    """Hash immutable Python blobs and verify their checked-out contents."""
-    root = root.resolve()
-    commit = _git(root, "rev-parse", "HEAD").decode().strip()
+def _tracked_blobs(root: Path, commit: str, paths: tuple[str, ...], *, python_only: bool = False) -> dict[str, bytes]:
     entries = []
-    for entry in _git(root, "ls-tree", "-rz", "--full-tree", commit, "--", "source", "scripts").split(b"\0"):
+    for entry in _git(root, "ls-tree", "-rz", "--full-tree", commit, "--", *paths).split(b"\0"):
         if not entry:
             continue
         metadata, path_bytes = entry.split(b"\t", 1)
         _, kind, oid = metadata.decode().split()
         path = path_bytes.decode()
-        if kind == "blob" and path.endswith(".py"):
+        if kind == "blob" and (not python_only or path.endswith(".py")):
             entries.append((oid, path))
-    if not entries:
-        raise ValueError("The selected commit contains no Python source under source/ or scripts/.")
     batch = _git(root, "cat-file", "--batch", data="".join(f"{oid}\n" for oid, _ in entries).encode())
     files = {}
     cursor = 0
@@ -59,6 +54,38 @@ def prepare_manifest(root: Path) -> dict:
         cursor = header_end + 1
         blob = batch[cursor : cursor + int(size)]
         cursor += int(size) + 1
+        files[path] = blob
+    return files
+
+
+def measurement_digest(files: dict[str, str]) -> str:
+    """Identify measurement contents independently of the commit containing them."""
+    return _sha256(json.dumps(files, sort_keys=True, separators=(",", ":")).encode())
+
+
+def snapshot_measurement(root: Path, output_dir: Path) -> dict:
+    """Save the tested revision's measurement package for both benchmark legs."""
+    commit = _git(root, "rev-parse", "HEAD").decode().strip()
+    files = {}
+    for path, blob in _tracked_blobs(root, commit, MEASUREMENT_PATHS).items():
+        destination = output_dir / path
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(blob)
+        files[path] = _sha256(blob)
+    manifest = {"schema_version": 1, "commit": commit, "files": files, "digest": measurement_digest(files)}
+    (output_dir / "measurement-manifest.json").write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
+    return manifest
+
+
+def prepare_manifest(root: Path, measurement_manifest: dict | None = None) -> dict:
+    """Hash immutable Python blobs and verify their checked-out contents before any measurement overlay."""
+    root = root.resolve()
+    commit = _git(root, "rev-parse", "HEAD").decode().strip()
+    blobs = _tracked_blobs(root, commit, ("source", "scripts"), python_only=True)
+    if not blobs:
+        raise ValueError("The selected commit contains no Python source under source/ or scripts/.")
+    files = {}
+    for path, blob in blobs.items():
         expected = _sha256(blob)
         try:
             actual = (root / path).read_bytes()
@@ -74,12 +101,22 @@ def prepare_manifest(root: Path) -> dict:
         if len(parts) >= 4 and parts[0] == "source" and parts[2] == parts[1].replace("-", "_"):
             prefix = "/".join(parts[:3])
             namespaces.setdefault(parts[2], set()).add(prefix)
-    return {
+    manifest = {
         "schema_version": 1,
         "commit": commit,
         "files": files,
         "namespaces": {name: sorted(paths) for name, paths in sorted(namespaces.items())},
     }
+    if measurement_manifest is not None:
+        try:
+            if not isinstance(measurement_manifest["files"], dict):
+                raise TypeError("Measurement files must map paths to hashes.")
+            if measurement_digest(measurement_manifest["files"]) != measurement_manifest["digest"]:
+                raise ValueError("Measurement manifest digest does not match its files.")
+        except (KeyError, TypeError) as exc:
+            raise ValueError(f"Invalid measurement manifest: {exc}") from exc
+        manifest.update(schema_version=2, measurement=measurement_manifest)
+    return manifest
 
 
 def _expected_paths(name: str, namespaces: dict) -> list[str]:
@@ -93,20 +130,22 @@ def _expected_paths(name: str, namespaces: dict) -> list[str]:
 
 def _inspect_modules(manifest: dict, root: Path) -> tuple[list[dict], list[dict]]:
     records, mismatches = [], []
+    measurement_files = manifest.get("measurement", {}).get("files", {})
+    files = manifest["files"] | measurement_files
     for name, module in sorted(list(sys.modules.items())):
         filename = getattr(module, "__file__", None)
         expected_paths = _expected_paths(name, manifest["namespaces"])
         if not filename:
-            # A PEP 420 namespace has no executable Python file of its own.
+            # Implicit namespace packages have no __init__.py to verify.
             continue
         path = Path(filename).resolve()
         try:
             relative = path.relative_to(root).as_posix()
         except ValueError:
             relative = None
-        if not expected_paths and relative not in manifest["files"]:
+        if not expected_paths and relative not in files:
             continue
-        expected = manifest["files"].get(relative)
+        expected = files.get(relative)
         record = {
             "name": name,
             "path": str(path),
@@ -115,6 +154,12 @@ def _inspect_modules(manifest: dict, root: Path) -> tuple[list[dict], list[dict]
             "expected_sha256": expected,
             "status": "verified",
         }
+        if "measurement" in manifest:
+            record["origin"] = (
+                "measurement"
+                if relative in measurement_files or any(path in measurement_files for path in expected_paths)
+                else "workload"
+            )
         reasons = []
         if expected_paths and relative not in expected_paths:
             reasons.append("Imported module origin does not match the selected checkout module path.")
@@ -133,6 +178,21 @@ def _inspect_modules(manifest: dict, root: Path) -> tuple[list[dict], list[dict]
     return records, mismatches
 
 
+def _inspect_measurement(manifest: dict, root: Path) -> tuple[dict, list[dict]]:
+    measurement = manifest["measurement"]
+    mismatches = []
+    if measurement_digest(measurement["files"]) != measurement["digest"]:
+        mismatches.append({"reason": "Measurement manifest digest does not match its files."})
+    for relative, expected in measurement["files"].items():
+        try:
+            actual = _sha256((root / relative).read_bytes())
+            if actual != expected:
+                mismatches.append({"path": relative, "reason": "Measurement source differs from the tested revision."})
+        except OSError as exc:
+            mismatches.append({"path": relative, "reason": f"Measurement source could not be read: {exc.strerror}."})
+    return dict(measurement), mismatches
+
+
 def _inspect_runtime() -> tuple[dict | None, list[dict]]:
     module = sys.modules.get(RUNTIME_MODULE)
     function = getattr(module, "run", None)
@@ -147,7 +207,6 @@ def _inspect_runtime() -> tuple[dict | None, list[dict]]:
         expected = next(
             item for item in compiled.co_consts if isinstance(item, types.CodeType) and item.co_name == "run"
         )
-        # Check that the loaded benchmark function matches its source file.
         record["source_code_matches"] = code == expected
         if not record["source_code_matches"]:
             mismatches.append(
@@ -177,14 +236,16 @@ def run_benchmark(manifest: dict, root: Path, output_dir: Path, argv: list[str])
         sys.pycache_prefix = pycache
         try:
             sys.argv = ["isaaclab", *argv]
-            importlib.import_module("isaaclab.cli").cli()
+            from isaaclab.cli import cli
+
+            cli()
         except SystemExit as exc:
             exit_code = exc.code if isinstance(exc.code, int) else (0 if exc.code is None else 1)
             if exit_code:
                 exception = {"type": type(exc).__name__, "message": str(exc)}
                 if not isinstance(exc.code, int):
                     print(str(exc), file=sys.stderr)
-        except BaseException as exc:
+        except Exception as exc:
             traceback.print_exc()
             exit_code = 1
             exception = {"type": type(exc).__name__, "message": str(exc)}
@@ -194,6 +255,18 @@ def run_benchmark(manifest: dict, root: Path, output_dir: Path, argv: list[str])
         modules, mismatches = _inspect_modules(manifest, root)
         runtime, runtime_mismatches = _inspect_runtime()
         mismatches.extend(runtime_mismatches)
+        measurement = None
+        if "measurement" in manifest:
+            measurement, measurement_mismatches = _inspect_measurement(manifest, root)
+            mismatches.extend(measurement_mismatches)
+            measurement_failed = (
+                measurement_mismatches
+                or runtime_mismatches
+                or any(item["origin"] == "measurement" and item["status"] != "verified" for item in modules)
+            )
+            measurement["status"] = "failed" if measurement_failed else "verified"
+            if runtime is not None:
+                runtime["origin"] = "measurement"
         outputs = []
         for path, state in sorted(_output_state(output_dir).items()):
             if before.get(path) == state:
@@ -218,6 +291,8 @@ def run_benchmark(manifest: dict, root: Path, output_dir: Path, argv: list[str])
             "outputs": outputs,
             "mismatches": mismatches,
         }
+        if measurement is not None:
+            sidecar.update(schema_version=2, measurement=measurement)
         (output_dir / "source-revision.json").write_text(json.dumps(sidecar, indent=2, sort_keys=True) + "\n")
         print(f"Source revision {manifest['commit']}: {sidecar['status']} ({len(modules)} imported modules checked)")
         for mismatch in mismatches:
@@ -232,6 +307,10 @@ def main(argv: list[str] | None = None) -> int:
     prepare = commands.add_parser("prepare")
     prepare.add_argument("--checkout-root", type=Path, required=True)
     prepare.add_argument("--output", type=Path, required=True)
+    prepare.add_argument("--measurement-manifest", type=Path)
+    snapshot = commands.add_parser("snapshot")
+    snapshot.add_argument("--checkout-root", type=Path, required=True)
+    snapshot.add_argument("--output-dir", type=Path, required=True)
     run = commands.add_parser("run")
     run.add_argument("--manifest", type=Path, required=True)
     run.add_argument("--checkout-root", type=Path, required=True)
@@ -239,8 +318,13 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("benchmark_argv", nargs=argparse.REMAINDER)
     args = parser.parse_args(argv)
     try:
+        if args.command == "snapshot":
+            manifest = snapshot_measurement(args.checkout_root, args.output_dir)
+            print(f"Prepared measurement source {manifest['commit']} ({manifest['digest']})")
+            return 0
         if args.command == "prepare":
-            manifest = prepare_manifest(args.checkout_root)
+            measurement = json.loads(args.measurement_manifest.read_text()) if args.measurement_manifest else None
+            manifest = prepare_manifest(args.checkout_root, measurement)
             args.output.parent.mkdir(parents=True, exist_ok=True)
             args.output.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
             print(f"Prepared source revision {manifest['commit']} ({len(manifest['files'])} Python files)")
@@ -250,6 +334,7 @@ def main(argv: list[str] | None = None) -> int:
             benchmark_argv = benchmark_argv[1:]
         return run_benchmark(json.loads(args.manifest.read_text()), args.checkout_root, args.output_dir, benchmark_argv)
     except (OSError, ValueError, KeyError, TypeError) as exc:
+        traceback.print_exc()
         print(f"Source revision verification failed: {exc}", file=sys.stderr)
         return 1
 

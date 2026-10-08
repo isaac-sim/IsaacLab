@@ -4,8 +4,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Paths are supplied by the workflow so the launcher can remain at the current
-# revision while the source and manifest describe either side of a comparison.
+# Workflow paths let one launcher run both the base and PR checkouts.
 set -uo pipefail
 
 : "${CHECKOUT_ROOT:?}" "${BENCHMARK_OUTPUT:?}" "${SOURCE_REVISION_LAUNCHER:?}"
@@ -14,7 +13,7 @@ set -uo pipefail
 BENCHMARK_ROLE="${BENCHMARK_ROLE:-}"
 
 install -d -m 0777 "${JIT_CACHE_ROOT}/warp" "${JIT_CACHE_ROOT}/nv"
-# Restored version directories and kernels must also be writable by the container user.
+# The container user needs write access to restored kernels and directories too.
 chmod -R a+rwX "${JIT_CACHE_ROOT}" || exit 1
 
 container=""
@@ -29,10 +28,16 @@ trap 'exit 143' TERM
 
 run_attempt() {
   local attempt="$1"
+  local -a measurement_mounts=()
+  if [ -n "${PERF_MEASUREMENT_ROOT:-}" ]; then
+    measurement_mounts=(
+      -v "$PERF_MEASUREMENT_ROOT/source/isaaclab/isaaclab/benchmark:/workspace/isaaclab/source/isaaclab/isaaclab/benchmark:ro"
+      -v "$PERF_MEASUREMENT_ROOT/source/isaaclab/isaaclab/utils/timer.py:/workspace/isaaclab/source/isaaclab/isaaclab/utils/timer.py:ro"
+    )
+  fi
   container="performance-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${BENCHMARK_ROLE:+${BENCHMARK_ROLE}-}${leg}-${sample}-${attempt}"
   cleanup_container
-  # Dependency-cache hits can reuse an image with older source. Overlay this
-  # checkout at its editable-install paths, then verify the measured process.
+  # Cached images may contain older code, so mount the selected source over it.
   timeout "${bench_timeout_s}" docker run --name "$container" --gpus all --network=host --ipc=host \
     --user "$(id -u):$(id -g)" \
     -e HOME=/tmp/isaaclab-ci-home \
@@ -46,14 +51,13 @@ run_attempt() {
     -v "${CHECKOUT_ROOT}/source:/workspace/isaaclab/source:rw" \
     -v "${CHECKOUT_ROOT}/scripts:/workspace/isaaclab/scripts:ro" \
     -v "${CHECKOUT_ROOT}/apps:/workspace/isaaclab/apps:ro" \
+    "${measurement_mounts[@]}" \
     -v "${SOURCE_REVISION_LAUNCHER}:/tmp/source_revision.py:ro" \
     -v "${SOURCE_MANIFEST}:/tmp/source-manifest.json:ro" \
     --entrypoint bash "$CI_IMAGE_TAG" -c \
     "set -euo pipefail
     mkdir -p /tmp/benchmark-output /tmp/isaaclab-ci-home/.cache /tmp/isaaclab-ci-home/.local/share
-    id
-    stat -c 'Source owner: %u:%g; permissions: %a' /workspace/isaaclab/source
-    # Set up Isaac Sim first so source verification and the benchmark run in the same process.
+    # The Isaac Sim launcher keeps verification and measurement in the same Python process.
     uv run --no-sync isaaclab -p /tmp/source_revision.py run \
       --manifest /tmp/source-manifest.json \
       --checkout-root /workspace/isaaclab \
@@ -86,8 +90,7 @@ while IFS='|' read -r leg task num_envs bench_timeout_s args; do
   echo "::group::performance-smoke: ${BENCHMARK_ROLE:+${BENCHMARK_ROLE}: }${leg}"
   install -d -m 0777 "${BENCHMARK_OUTPUT}/${leg}"
   leg_ok=true
-  # ASV needs repeated independent runs on both sides for significance tests.
-  # Per-frame samples within one simulation are not independent CI runs.
+  # ASV's significance test needs independent runs; frames from one simulation are not independent samples.
   for sample in 1 2 3; do
     mkdir -p "${BENCHMARK_OUTPUT}/${leg}/sample-${sample}"
     if ! run_attempt 1; then

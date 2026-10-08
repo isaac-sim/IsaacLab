@@ -23,6 +23,7 @@ LAUNCHER = Path(__file__).with_name("source_revision.py")
 TASK = Path("source/isaaclab_tasks/isaaclab_tasks/fixture_task.py")
 RUNTIME_MODULE = "isaaclab.benchmark.entrypoints.runtime"
 RUNTIME_PATH = Path("source/isaaclab/isaaclab/benchmark/entrypoints/runtime.py")
+TIMER_PATH = Path("source/isaaclab/isaaclab/utils/timer.py")
 
 
 class SourceRevisionTests(unittest.TestCase):
@@ -38,9 +39,12 @@ class SourceRevisionTests(unittest.TestCase):
             "source/isaaclab/isaaclab/__init__.py",
             "source/isaaclab/isaaclab/benchmark/__init__.py",
             "source/isaaclab/isaaclab/benchmark/entrypoints/__init__.py",
+            "source/isaaclab/isaaclab/utils/__init__.py",
             "source/isaaclab_tasks/isaaclab_tasks/__init__.py",
         ):
             self._write(name, "")
+        self._write("source/isaaclab/isaaclab/benchmark/__init__.pyi", "from .entrypoints.runtime import run\n")
+        self._write(TIMER_PATH, "FPS = 100.0\n")
         self._write(
             "source/isaaclab/isaaclab/cli/__init__.py",
             """
@@ -50,6 +54,8 @@ class SourceRevisionTests(unittest.TestCase):
             def cli():
                 if os.environ.get("FIXTURE_EARLY_EXIT"):
                     raise SystemExit(17)
+                if os.environ.get("FIXTURE_INTERRUPT"):
+                    raise KeyboardInterrupt
                 from isaaclab.benchmark.entrypoints import runtime
                 if os.environ.get("FIXTURE_REPLACE_RUNTIME"):
                     from pathlib import Path
@@ -68,6 +74,7 @@ class SourceRevisionTests(unittest.TestCase):
             from pathlib import Path
 
             def run(argv):
+                from isaaclab.utils.timer import FPS
                 from isaaclab_tasks.fixture_task import observed
                 marker = observed()
                 if os.environ.get("FIXTURE_NO_OUTPUT"):
@@ -79,7 +86,7 @@ class SourceRevisionTests(unittest.TestCase):
                     "worker_pid": os.getpid(),
                     "image_identity": os.environ["FIXTURE_IMAGE_IDENTITY"],
                     "run": {"status": "completed"},
-                    "runtime": {"total_fps": {"mean": 100.0}},
+                    "runtime": {"total_fps": {"mean": FPS}},
                 }
                 (output / "benchmark_runtime_fixture.json").write_text(json.dumps(result))
             """,
@@ -122,10 +129,11 @@ class SourceRevisionTests(unittest.TestCase):
         environment.update(extra)
         return environment
 
-    def _prepare(self, name="manifest", *, success=True):
+    def _prepare(self, name="manifest", *, success=True, measurement=None):
         path = self.directory / f"{name}.json"
         process = subprocess.run(
-            [sys.executable, str(LAUNCHER), "prepare", "--checkout-root", str(self.checkout), "--output", str(path)],
+            [sys.executable, str(LAUNCHER), "prepare", "--checkout-root", str(self.checkout), "--output", str(path)]
+            + (["--measurement-manifest", str(measurement)] if measurement else []),
             cwd=self.directory,
             env=self._environment(),
             capture_output=True,
@@ -136,7 +144,32 @@ class SourceRevisionTests(unittest.TestCase):
             self.assertEqual(json.loads(path.read_text())["commit"], self._git("rev-parse", "HEAD"))
         return path, process
 
-    def _run(self, manifest, name, *, roots=None, command=None, **extra):
+    def _snapshot(self, name="measurement"):
+        output = self.directory / name
+        process = subprocess.run(
+            [
+                sys.executable,
+                str(LAUNCHER),
+                "snapshot",
+                "--checkout-root",
+                str(self.checkout),
+                "--output-dir",
+                str(output),
+            ],
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(process.returncode, 0, process.stdout + process.stderr)
+        return output / "measurement-manifest.json"
+
+    def _overlay(self, measurement):
+        shutil.rmtree(self.checkout / "source/isaaclab/isaaclab/benchmark")
+        for relative in json.loads(measurement.read_text())["files"]:
+            destination = self.checkout / relative
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(measurement.parent / relative, destination)
+
+    def _run(self, manifest, name, *, roots=None, command=None, proof_expected=True, **extra):
         output = self.directory / name
         process = subprocess.run(
             command
@@ -162,8 +195,8 @@ class SourceRevisionTests(unittest.TestCase):
             text=True,
         )
         sidecar_path = output / "source-revision.json"
-        self.assertTrue(sidecar_path.is_file(), process.stdout + process.stderr)
-        sidecar = json.loads(sidecar_path.read_text())
+        self.assertEqual(sidecar_path.is_file(), proof_expected, process.stdout + process.stderr)
+        sidecar = json.loads(sidecar_path.read_text()) if proof_expected else None
         return process, output, sidecar
 
     def _assert_verified(self, process, output, sidecar, marker, commit):
@@ -205,6 +238,39 @@ class SourceRevisionTests(unittest.TestCase):
         self.assertNotEqual(result_a["executed_revision"], result_b["executed_revision"])
         self.assertEqual(result_a["image_identity"], result_b["image_identity"])
 
+    def test_common_measurement_runs_both_selected_workloads(self):
+        self._task("B")
+        self._write(TIMER_PATH, "FPS = 150.0\n")
+        runtime = self.checkout / RUNTIME_PATH
+        runtime.write_text(
+            runtime.read_text()
+            .replace("def run(argv):", "def measure(**kwargs):\n    return kwargs['fps'] * 2\n\ndef run(argv):")
+            .replace('"mean": FPS', '"mean": measure(**{"fps": FPS})')
+        )
+        commit_b = self._commit()
+        measurement = self._snapshot()
+        expected = json.loads(measurement.read_text())
+        for marker, commit in (("A", self.commit_a), ("B", commit_b)):
+            with self.subTest(workload=marker):
+                self._git("checkout", "--force", "--detach", commit)
+                manifest, _ = self._prepare(f"manifest-{marker}", measurement=measurement)
+                self._overlay(measurement)
+                run = self._run(manifest, f"result-{marker}", roots=[self.checkout, self.cached])
+                result = self._assert_verified(*run, marker, commit)
+                self.assertEqual(result["runtime"]["total_fps"]["mean"], 300.0)
+                proof = run[2]
+                self.assertEqual(proof["measurement"], dict(expected, status="verified"))
+                origins = {item["name"]: item["origin"] for item in proof["modules"]}
+                self.assertEqual(origins[RUNTIME_MODULE], "measurement")
+                self.assertEqual(origins["isaaclab.utils.timer"], "measurement")
+                self.assertEqual(origins["isaaclab_tasks.fixture_task"], "workload")
+                self.assertEqual(proof["runtime_entrypoint"]["origin"], "measurement")
+        self._task("C")
+        self._commit()
+        later = json.loads(self._snapshot("later-measurement").read_text())
+        self.assertNotEqual(later["commit"], expected["commit"])
+        self.assertEqual(later["digest"], expected["digest"])
+
     def test_ci_launcher_verifies_the_initialized_benchmark_worker(self):
         self._write(
             "source/isaaclab/isaaclab/cli/__init__.py",
@@ -245,7 +311,6 @@ class SourceRevisionTests(unittest.TestCase):
         result = json.loads((output / "benchmark_runtime_fixture.json").read_text())
         self.assertNotEqual(result["worker_pid"], proof["pid"])
 
-        # Use the CI command so the test catches regressions in the production launch choice.
         runner = LAUNCHER.with_name("run_benchmarks.sh").read_text()
         command_text = runner[runner.index("uv run --no-sync ") :].split('$args"', 1)[0] + "$args"
         output = self.directory / "ci-wrapper"
@@ -306,40 +371,69 @@ class SourceRevisionTests(unittest.TestCase):
         self.assertEqual(result["worker_pid"], sidecar["pid"])
 
     def test_correct_path_with_changed_bytes_does_not_verify(self):
-        manifest, _ = self._prepare()
-        self._task("B")
-        process, output, sidecar = self._run(manifest, "wrong-bytes")
-        self.assertNotEqual(process.returncode, 0)
-        self.assertEqual(sidecar["status"], "failed")
-        self.assertTrue(sidecar["mismatches"])
-        task = next(item for item in sidecar["modules"] if item["name"] == "isaaclab_tasks.fixture_task")
-        self.assertEqual(task["relative_path"], TASK.as_posix())
-        self.assertNotEqual(task["sha256"], task["expected_sha256"])
-        self.assertEqual(json.loads((output / "benchmark_runtime_fixture.json").read_text())["executed_revision"], "B")
+        measurement = self._snapshot()
+        stub = Path("source/isaaclab/isaaclab/benchmark/__init__.pyi")
+        for name, path, selected_measurement in (
+            ("native workload", TASK, None),
+            ("shared workload", TASK, measurement),
+            ("measurement resource", stub, measurement),
+        ):
+            with self.subTest(change=name):
+                self._git("checkout", "--force", "--detach", self.commit_a)
+                manifest, _ = self._prepare(name, measurement=selected_measurement)
+                (self.checkout / path).write_text(
+                    "def observed():\n    return 'B'\n" if path == TASK else "# changed exports\n"
+                )
+                process, output, sidecar = self._run(manifest, name)
+                self.assertNotEqual(process.returncode, 0)
+                self.assertEqual(sidecar["status"], "failed")
+                self.assertTrue(sidecar["mismatches"])
+                if selected_measurement:
+                    self.assertEqual(sidecar["measurement"]["status"], "verified" if path == TASK else "failed")
+                if path == TASK:
+                    task = next(item for item in sidecar["modules"] if item["name"] == "isaaclab_tasks.fixture_task")
+                    self.assertEqual(task["relative_path"], TASK.as_posix())
+                    self.assertNotEqual(task["sha256"], task["expected_sha256"])
+                    self.assertTrue(any(item.get("module") == task["name"] for item in sidecar["mismatches"]))
+                    result = json.loads((output / "benchmark_runtime_fixture.json").read_text())
+                    self.assertEqual(result["executed_revision"], "B")
+                else:
+                    self.assertTrue(any(item.get("path") == stub.as_posix() for item in sidecar["mismatches"]))
 
     def test_prepare_detects_checkout_modified_from_commit(self):
         self._task("B")
         _, process = self._prepare(success=False)
         self.assertNotEqual(process.returncode, 0)
+        self.assertIn("Traceback (most recent call last):", process.stderr)
+        self.assertIn("ValueError: Checked-out Python source differs", process.stderr)
 
     def test_replaced_runtime_code_with_matching_source_bytes_is_detected(self):
-        manifest, _ = self._prepare()
-        process, output, sidecar = self._run(manifest, "replaced-code", FIXTURE_REPLACE_RUNTIME="1")
-        self.assertNotEqual(process.returncode, 0)
-        self.assertEqual(sidecar["status"], "failed")
-        self.assertTrue(sidecar["mismatches"])
-        runtime = next(item for item in sidecar["modules"] if item["name"] == RUNTIME_MODULE)
-        self.assertEqual(runtime["sha256"], runtime["expected_sha256"])
-        self.assertFalse(sidecar["runtime_entrypoint"]["source_code_matches"])
-        self.assertEqual(json.loads((output / "benchmark_runtime_fixture.json").read_text())["executed_revision"], "X")
+        for name, measurement in (("native", None), ("shared", self._snapshot())):
+            with self.subTest(mode=name):
+                manifest, _ = self._prepare(name, measurement=measurement)
+                process, output, sidecar = self._run(manifest, name, FIXTURE_REPLACE_RUNTIME="1")
+                self.assertNotEqual(process.returncode, 0)
+                self.assertEqual(sidecar["status"], "failed")
+                self.assertTrue(sidecar["mismatches"])
+                runtime = next(item for item in sidecar["modules"] if item["name"] == RUNTIME_MODULE)
+                self.assertEqual(runtime["sha256"], runtime["expected_sha256"])
+                self.assertFalse(sidecar["runtime_entrypoint"]["source_code_matches"])
+                result = json.loads((output / "benchmark_runtime_fixture.json").read_text())
+                self.assertEqual(result["executed_revision"], "X")
+                if measurement:
+                    self.assertEqual(sidecar["measurement"]["status"], "failed")
 
-    def test_early_cli_failure_retains_exit_without_completed_proof(self):
+    def test_cli_failures_preserve_exit_status_and_interruptions(self):
         manifest, _ = self._prepare()
         process, output, sidecar = self._run(manifest, "early-failure", FIXTURE_EARLY_EXIT="1")
         self.assertEqual(process.returncode, 17)
         self.assertEqual(sidecar["benchmark_exit_code"], 17)
         self.assertEqual(sidecar["status"], "failed")
         self.assertEqual(sidecar["outputs"], [])
+        self.assertFalse(list(output.glob("benchmark_runtime_*.json")))
+        process, output, _ = self._run(manifest, "interrupted", proof_expected=False, FIXTURE_INTERRUPT="1")
+        self.assertNotEqual(process.returncode, 0)
+        self.assertIn("KeyboardInterrupt", process.stderr)
         self.assertFalse(list(output.glob("benchmark_runtime_*.json")))
 
     def test_successful_cli_without_runtime_output_is_not_verified(self):
@@ -359,7 +453,7 @@ class SourceRevisionTests(unittest.TestCase):
         self.assertEqual(task.stat().st_size, original_size)
         os.utime(task, (1700000000, 1700000000))
         commit_b = self._commit()
-        # Establish that the fixture really exposes stale bytecode to an ordinary import.
+        # Confirm that an ordinary import loads stale bytecode before testing the fix.
         uncorrected = subprocess.run(
             [sys.executable, "-c", "from isaaclab_tasks.fixture_task import observed; print(observed())"],
             cwd=self.directory,
