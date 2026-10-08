@@ -562,6 +562,24 @@ def test_cuda_ipc_round_trip_keeps_controls_and_images_on_the_gpu():
         shutil.rmtree(directory, ignore_errors=True)
 
 
+def test_small_messages_leave_in_one_write_and_tcp_sends_them_without_delay(cosmos_service):
+    """Header and metadata go out together, and TCP connections disable Nagle, so CUDA IPC steps do not stall."""
+
+    class RecordingSocket:
+        def __init__(self):
+            self.writes = []
+
+        def sendall(self, data):
+            self.writes.append(bytes(data))
+
+    recording = RecordingSocket()
+    _protocol.send_message(recording, {"op": "step", "frames": 4})
+    assert len(recording.writes) == 1
+    if cosmos_service.endpoint.startswith("tcp://"):
+        with _protocol.connect(cosmos_service.endpoint, timeout=2) as connection:
+            assert connection.getsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY)
+
+
 def test_endpoints_name_an_absolute_unix_socket_or_a_tcp_host_and_port():
     assert _protocol.parse_endpoint("tcp://127.0.0.1:5555") == (socket.AF_INET, ("127.0.0.1", 5555))
     for malformed in ("tcp://127.0.0.1", "http://127.0.0.1:5555", "127.0.0.1:5555"):

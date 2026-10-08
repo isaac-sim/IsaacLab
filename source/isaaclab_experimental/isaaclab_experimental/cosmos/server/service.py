@@ -22,6 +22,7 @@ from .._protocol import (
     DEFAULT_ENDPOINT,
     MAX_CHUNK_FRAMES,
     ProtocolError,
+    disable_nagle,
     parse_endpoint,
     receive_message,
     send_message,
@@ -75,6 +76,8 @@ def serve(model: _Model, endpoint: str = DEFAULT_ENDPOINT, *, warmup: bool = Fal
                 except TimeoutError:
                     continue
                 connection.settimeout(600.0)
+                if family == socket.AF_INET:
+                    disable_nagle(connection)
                 with connections_lock:
                     connections.add(connection)
                 thread = threading.Thread(

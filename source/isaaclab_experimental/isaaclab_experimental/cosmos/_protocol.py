@@ -57,7 +57,9 @@ def connect(endpoint: str, timeout: float = 600.0) -> socket.socket:
     if not math.isfinite(timeout) or timeout <= 0:
         raise ValueError("Cosmos timeout must be finite and positive.")
     if family == socket.AF_INET:
-        return socket.create_connection(address, timeout=timeout)
+        connection = socket.create_connection(address, timeout=timeout)
+        disable_nagle(connection)
+        return connection
     connection = socket.socket(family, socket.SOCK_STREAM)
     try:
         connection.settimeout(timeout)
@@ -66,6 +68,11 @@ def connect(endpoint: str, timeout: float = 600.0) -> socket.socket:
         connection.close()
         raise
     return connection
+
+
+def disable_nagle(connection: socket.socket) -> None:
+    """Send small TCP messages at once; otherwise each step can wait for a delayed acknowledgment (40 ms on Linux)."""
+    connection.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
 
 
 def parse_endpoint(endpoint: str) -> tuple[socket.AddressFamily, str | tuple[str, int]]:
@@ -139,8 +146,8 @@ def send_message(sock: socket.socket, metadata: dict, arrays: Sequence[np.ndarra
         raise ProtocolError("Cosmos metadata must be JSON serializable and finite.") from exc
     if not 0 < len(encoded) <= MAX_METADATA_BYTES:
         raise ProtocolError("Cosmos metadata exceeds the message size limit.")
-    sock.sendall(_HEADER.pack(_MAGIC, len(encoded), body_size))
-    sock.sendall(encoded)
+    # One write for the header and metadata, so a small message leaves as one piece.
+    sock.sendall(_HEADER.pack(_MAGIC, len(encoded), body_size) + encoded)
     for array in arrays:
         sock.sendall(memoryview(np.ascontiguousarray(array)).cast("B"))
 
