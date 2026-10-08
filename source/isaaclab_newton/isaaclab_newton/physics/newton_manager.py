@@ -1936,20 +1936,6 @@ class NewtonManager(PhysicsManager):
             NewtonManager._state_force_callbacks.remove(callback)
 
     @classmethod
-    def unregister_post_actuator_callback(cls, callback: Callable[[], None]) -> None:
-        """Remove a previously registered post-actuator callback.
-
-        Removing a callback that was never registered or was already removed is
-        a safe no-op. This lets scene-owned systems release bound-method
-        references before the global Newton manager is cleared.
-
-        Args:
-            callback: Previously registered callback.
-        """
-        with contextlib.suppress(ValueError):
-            cls._post_actuator_callbacks.remove(callback)
-
-    @classmethod
     def register_post_solver_substep_callback(
         cls, callback: Callable[[SolverBase, Contacts | None, State, float], None]
     ) -> None:
