@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import os
+from contextlib import ExitStack
 
 from isaaclab.app import add_launcher_args, launch_simulation, scan
 
@@ -20,7 +21,12 @@ parser.add_argument("--demo", type=str, default="demo_0", help="The demo in the 
 parser.add_argument(
     "--randomize_placement", action="store_true", default=False, help="Randomize placement of obstacles."
 )
-parser.add_argument("--model_path", type=str, help="The path to the model checkpoint.")
+policy_source = parser.add_mutually_exclusive_group(required=True)
+policy_source.add_argument("--policy_host", help="Host running serve_policy.py in the GR00T environment.")
+policy_source.add_argument("--model_path", type=str, help="Legacy in-process mode: path to the model checkpoint.")
+parser.add_argument("--policy_port", type=int, default=5555)
+parser.add_argument("--policy_timeout_ms", type=int, default=15000)
+parser.add_argument("--max_steps", type=int, default=None, help="Stop after this many simulation steps.")
 parser.add_argument(
     "--embodiment_tag", type=str, default="new_embodiment", help="The embodiment tag to use for the model."
 )
@@ -35,6 +41,8 @@ parser.add_argument(
 add_launcher_args(parser)
 # forward unrecognized args as Hydra-style task config overrides
 args_cli, hydra_overrides = parser.parse_known_args()
+# The config is loaded after launch, so the launcher cannot discover the policy's camera yet.
+args_cli.enable_cameras = True
 # the task config imports USD, so the Kit runtime is always launched before the config is parsed
 args_cli.require_kit = True
 
@@ -42,7 +50,6 @@ from typing import TYPE_CHECKING
 
 import gymnasium as gym
 import torch
-from policy import Policy
 
 from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
 from isaaclab.utils.datasets import EpisodeData, HDF5DatasetFileHandler
@@ -308,10 +315,11 @@ def build_model_input(env: LocomanipulationSDGEnv, base_goal: RelativePose, poli
 
 def eval_policy(
     env: LocomanipulationSDGEnv,
-    policy: Policy,
+    policy,
     input_episode_data: EpisodeData,
     randomize_placement: bool = True,
     policy_quat_format: str = "xyzw",
+    max_steps: int | None = None,
 ) -> None:
     """Run policy rollout in the environment with state machine and recording-based initial state.
 
@@ -321,10 +329,11 @@ def eval_policy(
 
     Args:
         env: The locomanipulation SDG environment.
-        policy: The GR00T policy wrapper.
+        policy: Local GR00T policy or remote client exposing get_action().
         input_episode_data: Episode data for initial state and goal.
         randomize_placement: Whether to randomize fixture placement.
         policy_quat_format: Quaternion format expected by the policy ("xyzw" or "wxyz").
+        max_steps: Optional limit on total simulation steps, including resets.
     """
     initial_state = input_episode_data.get_initial_state()
     obs, _ = env.reset_to(
@@ -340,11 +349,13 @@ def eval_policy(
 
     action_idx = 0
     inference_interval = 16
+    total_steps = 0
 
-    while env.sim.is_running():
+    while env.sim.is_running() and (max_steps is None or total_steps < max_steps):
         if step % inference_interval == 0:
             model_input, dummy_action = build_model_input(env, base_goal, policy_quat_format)
-            action_dict = policy.policy.get_action(model_input)
+            model_input = {key: value.detach().cpu().numpy() for key, value in model_input.items()}
+            action_dict = policy.get_action(model_input)
             action_buffer = torch.cat([torch.from_numpy(v) for v in action_dict.values()], dim=-1)
             action_idx = 0
 
@@ -370,16 +381,28 @@ def eval_policy(
                 print("Reset timeouts")
 
         step += 1
+        total_steps += 1
         action_idx += 1
 
 
 if __name__ == "__main__":
-    with torch.no_grad(), launch_simulation(None, args_cli):
+    with ExitStack() as stack, torch.no_grad(), launch_simulation(None, args_cli):
         env_name = args_cli.task.split(":")[-1] if args_cli.task is not None else None
         if env_name is None:
             raise ValueError("Task/env name was not specified nor found in the dataset.")
 
-        policy = Policy(model_path=args_cli.model_path, embodiment_tag=args_cli.embodiment_tag)
+        if args_cli.policy_host is not None:
+            from policy_client import PolicyClient
+
+            policy = stack.enter_context(
+                PolicyClient(args_cli.policy_host, args_cli.policy_port, args_cli.policy_timeout_ms)
+            )
+            policy.ping()
+        else:
+            # Keep the legacy mode available without importing GR00T in the simulator's remote mode.
+            from policy import Policy
+
+            policy = Policy(model_path=args_cli.model_path, embodiment_tag=args_cli.embodiment_tag).policy
 
         env_cfg = parse_env_cfg(env_name, device=args_cli.device, num_envs=1, overrides=hydra_overrides)
         # resolve the config's automatic physics and renderer selections for the launched runtime
@@ -403,6 +426,7 @@ if __name__ == "__main__":
             input_episode_data=input_episode_data,
             randomize_placement=args_cli.randomize_placement,
             policy_quat_format=args_cli.policy_quat_format,
+            max_steps=args_cli.max_steps,
         )
 
         env.reset()
