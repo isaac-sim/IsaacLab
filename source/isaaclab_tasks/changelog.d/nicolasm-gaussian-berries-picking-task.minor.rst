@@ -11,3 +11,4 @@ Changed
   and better integrate the robot and support table with the scanned room.
 * Restored the robot's authored surface finishes and the support table's normal, roughness, and metalness
   texture maps in the standalone berry viewer.
+* Rendered the berry task's punnet as glossy clear plastic that casts no shadow.

@@ -278,8 +278,8 @@ The scan is positioned around the workcell: robot base and table top
 stay at task `z=0`, with no change to robot scale, berry size, IK controls or
 finger-contact parameters. The berry starts on the punnet's 4 mm-high inner floor.
 The punnet is 14 × 11 cm and 2.8 cm tall, with rounded corners, external molded
-ribs and a rolled flange. Its thin-plastic appearance uses an opacity-based
-real-time approximation rather than solid-glass refraction. Decorative ribs and
+ribs and a rolled flange. Its walls are thin-walled clear glass, glossy like PET, and cast no shadow: RTX
+shadow rays do not pass through glass, so the punnet would otherwise darken its own floor. Decorative ribs and
 the flange are omitted from collision; smooth rounded walls contain the tissue.
 The glass bowl remains 12 cm across and 4.5 cm tall. The metal reject dish is
 5.6 cm across and 1.8 cm tall. These are fixed props, not movable rigid objects.
