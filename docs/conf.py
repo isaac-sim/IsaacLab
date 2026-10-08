@@ -405,6 +405,7 @@ html_sidebars = {
 isaaclab_doc_redirects = {
     "source/concepts/joint_and_body_ordering": "source/how-to/transfer_policies_between_physx_and_newton",
     "source/concepts/ovphysx": "source/concepts/physics-backends/ovphysx",
+    "source/concepts/warp_environment_migration": "source/concepts/warp_environments",
     "source/concepts/solver-tuning/index": "source/how-to/index",
     "source/concepts/solver-tuning/tune_kamino": "source/how-to/solver_tuning_kamino",
     "source/concepts/solver-tuning/tune_mjwarp": "source/how-to/solver_tuning_mjwarp",
@@ -450,6 +451,22 @@ isaaclab_doc_redirect_fragments = {
             "warp-conversion",
             "what-ordering-does-not-solve",
             "verification-and-troubleshooting",
+        )
+    },
+    "source/concepts/warp_environment_migration": {
+        anchor: f"source/concepts/warp_environments#{anchor}"
+        for anchor in (
+            "design-rationale",
+            "project-structure",
+            "writing-warp-mdp-terms",
+            "imports",
+            "common-pattern",
+            "observation-terms",
+            "event-terms",
+            "action-terms",
+            "capture-safety",
+            "parity-testing",
+            "available-warp-mdp-terms",
         )
     },
     "source/features/docker_cloud": {
