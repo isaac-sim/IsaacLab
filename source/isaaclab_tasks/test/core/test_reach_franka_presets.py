@@ -12,9 +12,11 @@ from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.envs.mdp as mdp
 from isaaclab.actuators import IdealPDActuatorCfg
+from isaaclab.managers import ObservationTermCfg
 from isaaclab.utils import to_dict, validate
 
 import isaaclab_tasks  # noqa: F401
+from isaaclab_tasks.utils import resolve_task_config
 from isaaclab_tasks.utils.hydra import PresetCfg, resolve_presets
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 from isaaclab_tasks.utils.preset_cli import enumerate_task_presets
@@ -79,6 +81,7 @@ _REACH_PRESET_CASES = [
     (_TASK, (), "JointPositionActionCfg", "NewtonCfg"),
     (_TASK, ("isaacsim_physx",), "JointPositionActionCfg", "PhysxCfg"),
     (_TASK, ("ovphysx",), "JointPositionActionCfg", "OvPhysxCfg"),
+    (_TASK, ("hold", "isaacsim_physx"), "JointPositionActionCfg", "PhysxCfg"),
     (_TASK, ("diffik",), "DifferentialInverseKinematicsActionCfg", "NewtonCfg"),
     (_TASK, ("diffik", "isaacsim_physx"), "DifferentialInverseKinematicsActionCfg", "PhysxCfg"),
     (_TASK, ("diffik_abs", "isaacsim_physx"), "DifferentialInverseKinematicsActionCfg", "PhysxCfg"),
@@ -125,6 +128,71 @@ def test_reach_ur10_physics_presets_change_only_physics():
     physx_cfg["sim"].pop("physics")
     newton_cfg["sim"].pop("physics")
     assert physx_cfg == newton_cfg
+
+
+def test_reach_hold_preset_preserves_defaults_and_separates_policy_compatibility():
+    """Hold changes the objective and observation interface without changing the robot or controller."""
+    from isaaclab_rl.utils.pretrained_checkpoint import (
+        get_pretrained_checkpoint_filename,
+        get_pretrained_checkpoint_preset_names,
+    )
+
+    default_env, default_agent = resolve_task_config(_TASK, "rsl_rl_cfg_entry_point", overrides=[])
+    hold_env, hold_agent = resolve_task_config(_TASK, "rsl_rl_cfg_entry_point", overrides=["presets=hold"])
+
+    validate(hold_env)
+    assert hold_env.episode_length_s == 12.0
+    assert hold_env.commands.ee_pose.resampling_time_range == (1.0e9, 1.0e9)
+    assert hold_env.terminations.success is None
+    assert hold_env.terminations.time_out.func is mdp.time_out
+    assert hold_env.rewards.success.func is mdp.pose_command_success
+    assert hold_env.rewards.success.weight == 10.0
+    assert hold_env.rewards.success.params == {"command_name": "ee_pose"}
+    error_term = hold_env.observations.policy.ee_target_error
+    assert error_term.func is mdp.pose_command_error
+    assert error_term.params == {"command_name": "ee_pose"}
+    assert error_term.noise is None
+    assert [
+        name for name, term in vars(hold_env.observations.policy).items() if isinstance(term, ObservationTermCfg)
+    ] == ["joint_pos", "joint_vel", "pose_command", "actions", "ee_target_error"]
+    assert default_env.observations.policy.ee_target_error is None
+    assert default_env.commands.ee_pose.resampling_time_range == (4.0, 4.0)
+    assert default_env.terminations.success.func is mdp.pose_command_success
+    assert default_env.rewards.success.func is mdp.is_terminated_term
+    assert default_agent.experiment_name == "reach_franka"
+    assert default_agent.max_iterations == 1000
+    assert hold_agent.experiment_name == "reach_franka_hold"
+    assert hold_agent.max_iterations == 3000
+
+    default_cfg, hold_cfg = to_dict(default_env), to_dict(hold_env)
+    hold_cfg["commands"]["ee_pose"]["resampling_time_range"] = default_cfg["commands"]["ee_pose"][
+        "resampling_time_range"
+    ]
+    hold_cfg["terminations"]["success"] = default_cfg["terminations"]["success"]
+    hold_cfg["rewards"]["success"] = default_cfg["rewards"]["success"]
+    hold_cfg["observations"]["policy"]["ee_target_error"] = None
+    assert hold_cfg == default_cfg
+    default_agent_cfg, hold_agent_cfg = to_dict(default_agent), to_dict(hold_agent)
+    for field in ("experiment_name", "max_iterations"):
+        hold_agent_cfg[field] = default_agent_cfg[field]
+    assert hold_agent_cfg == default_agent_cfg
+
+    assert "hold" in enumerate_task_presets(_TASK)[PresetTarget.DOMAIN]
+    assert "hold" in registry[_TASK].kwargs["pretrained_checkpoint_preset_compatibility"]["rsl_rl"]
+    assert get_pretrained_checkpoint_preset_names(_TASK, ["presets=hold"]) == ("hold",)
+    assert (
+        get_pretrained_checkpoint_filename("rsl_rl", _TASK, "newtonmjwarp", "none", preset_names=("hold",))
+        == "Isaac-Reach-Franka_hold_newtonmjwarp_none_rsl_rl.pt"
+    )
+
+
+@pytest.mark.parametrize(("task", "presets"), [(_TASK, ("hold", "diffik")), (_OSC_TASK, ("hold",))])
+def test_reach_hold_rejects_untrained_cartesian_controller_interfaces(task, presets):
+    """The hold policy supports joint-position actions, including when inherited by the OSC task."""
+    cfg = _load_reach_env_cfg(task, *presets)
+
+    with pytest.raises(ValueError, match="hold.*joint.position"):
+        validate(cfg)
 
 
 def test_reach_action_presets_preserve_controller_independent_configuration():
@@ -233,7 +301,7 @@ def test_reach_osc_resolves_controller_preset_values_to_defaults():
     assert physx_props.disable_gravity is True
     assert mujoco_props.gravcomp == pytest.approx(1.0)
     assert cfg.teleop_devices.devices == {}
-    assert domain_presets == {"diffik_abs", "minimal"}
+    assert domain_presets == {"diffik_abs", "minimal", "hold"}
 
 
 def test_reach_osc_diffik_abs_is_a_deprecated_no_op_alias():

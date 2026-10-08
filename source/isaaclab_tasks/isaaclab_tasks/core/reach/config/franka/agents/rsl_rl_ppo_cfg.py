@@ -7,13 +7,15 @@ from isaaclab.utils import configclass
 
 from isaaclab_rl.rsl_rl import RslRlMLPModelCfg, RslRlOnPolicyRunnerCfg, RslRlPpoAlgorithmCfg
 
+from isaaclab_tasks.utils import preset
+
 
 @configclass
 class FrankaReachPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     num_steps_per_env = 24
-    max_iterations = 1000
+    max_iterations = preset(default=1000, hold=3000)
     save_interval = 50
-    experiment_name = "reach_franka"
+    experiment_name = preset(default="reach_franka", hold="reach_franka_hold")
     run_name = ""
     actor = RslRlMLPModelCfg(
         hidden_dims=[64, 64],

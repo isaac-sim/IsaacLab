@@ -283,12 +283,17 @@ def _apply_preset_exclusions(
     task_name: str, preset_map: dict[PresetTarget, list[str]] | None
 ) -> dict[PresetTarget, list[str]] | None:
     """Remove task/preset combinations disabled by runtime validation."""
-    if preset_map is None or task_name not in _NEWTON_MJWARP_EXCLUSIONS:
+    if preset_map is None:
+        return preset_map
+    if task_name not in _NEWTON_MJWARP_EXCLUSIONS and task_name != "Isaac-Reach-Franka-OSC":
         return preset_map
     filtered = dict(preset_map)
-    filtered[PresetTarget.PHYSICS] = [
-        name for name in filtered.get(PresetTarget.PHYSICS, []) if name != "newton_mjwarp"
-    ]
+    if task_name in _NEWTON_MJWARP_EXCLUSIONS:
+        filtered[PresetTarget.PHYSICS] = [
+            name for name in filtered.get(PresetTarget.PHYSICS, []) if name != "newton_mjwarp"
+        ]
+    if task_name == "Isaac-Reach-Franka-OSC":
+        filtered[PresetTarget.DOMAIN] = [name for name in filtered.get(PresetTarget.DOMAIN, []) if name != "hold"]
     return filtered
 
 

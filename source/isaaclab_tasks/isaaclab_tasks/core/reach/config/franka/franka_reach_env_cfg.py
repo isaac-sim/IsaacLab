@@ -24,7 +24,7 @@ from isaaclab.devices.gamepad import Se3GamepadCfg
 from isaaclab.devices.keyboard import Se3KeyboardCfg
 from isaaclab.devices.spacemouse import Se3SpaceMouseCfg
 from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
-from isaaclab.managers import SceneEntityCfg
+from isaaclab.managers import ObservationTermCfg, RewardTermCfg, SceneEntityCfg
 from isaaclab.utils import configclass, replace
 
 from isaaclab_tasks.utils import PresetCfg, preset
@@ -94,6 +94,10 @@ class FrankaReachEnvCfg(ReachEnvCfg):
 
     def validate_config(self) -> None:
         """Validate the selected controller and physics backend."""
+        if self.observations.policy.ee_target_error is not None and not isinstance(
+            self.actions.arm_action, mdp.JointPositionActionCfg
+        ):
+            raise ValueError("The 'hold' preset requires the Franka joint-position action.")
         if isinstance(self.actions.arm_action, NewtonInverseKinematicsActionCfg) and not isinstance(
             self.sim.physics, NewtonCfg
         ):
@@ -167,3 +171,17 @@ class FrankaReachEnvCfg(ReachEnvCfg):
         # end-effector is along z-direction
         self.commands.ee_pose.body_name = "panda_hand"
         self.commands.ee_pose.ranges.pitch = (math.pi, math.pi)
+
+        # Train continued pose tracking with a fixed episode goal and explicit pose feedback.
+        self.observations.policy.ee_target_error = preset(
+            default=None,
+            hold=ObservationTermCfg(func=mdp.pose_command_error, params={"command_name": "ee_pose"}),
+        )
+        self.commands.ee_pose.resampling_time_range = preset(
+            default=self.commands.ee_pose.resampling_time_range, hold=(1.0e9, 1.0e9)
+        )
+        self.terminations.success = preset(default=self.terminations.success, hold=None)
+        self.rewards.success = preset(
+            default=self.rewards.success,
+            hold=RewardTermCfg(func=mdp.pose_command_success, weight=10.0, params={"command_name": "ee_pose"}),
+        )
