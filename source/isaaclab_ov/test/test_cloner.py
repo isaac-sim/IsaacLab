@@ -366,7 +366,7 @@ def test_native_clone_export_rejects_source_overlap():
 
 
 @pytest.mark.integration
-@pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_replicated_acceleration_spring_contacts_match_source_settling(device):
     """Identical cubes retain the same compliant contact behavior after replication."""
     import torch
@@ -428,8 +428,7 @@ def test_replicated_acceleration_spring_contacts_match_source_settling(device):
             scene.write_data_to_sim()
             sim.step(render=False)
             scene.update(sim.get_physics_dt())
-        positions = scene["cube"].data.root_pos_w
-        positions = positions.torch if hasattr(positions, "torch") else positions
+        positions = scene["cube"].data.root_pos_w.torch
         heights = positions[:, 2]
         # Both boxes must remain supported, not simply agree in free fall.
         assert bool(((heights > 0.0) & (heights < 0.03)).all())

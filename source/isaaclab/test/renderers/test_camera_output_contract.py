@@ -23,7 +23,7 @@ pytestmark = [pytest.mark.integration, pytest.mark.rendering]
 
 
 @pytest.mark.parametrize("background", [None, (0.25, 0.5, 0.75)])
-@pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_newton_hdr_background_preserves_unlit_geometry(background, device):
     """HDR misses use linear background color while unlit geometry remains black, including graph replay."""
     import numpy as np
@@ -61,13 +61,13 @@ def test_newton_hdr_background_preserves_unlit_geometry(background, device):
         scene = InteractiveScene(scene_cfg)
         camera = scene["camera"]
         sim.reset()
+        expected = (0.0, 0.0, 0.0) if background is None else (0.050876088, 0.21404114, 0.52252155)
         for _ in range(2):
             sim.step(render=False)
             scene.update(sim.get_physics_dt())
             camera.update(sim.get_physics_dt(), force_recompute=True)
             pixels = camera.data.output["rgb_hdr"].warp.numpy()[0]
             np.testing.assert_allclose(pixels[16, 16], 0.0, atol=1e-6)
-            expected = (0.0, 0.0, 0.0) if background is None else (0.050876088, 0.21404114, 0.52252155)
             np.testing.assert_allclose(pixels[0, 0], expected, atol=1e-6)
 
 

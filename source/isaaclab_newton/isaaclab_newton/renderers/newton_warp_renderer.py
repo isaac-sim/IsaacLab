@@ -34,7 +34,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-@wp.kernel
+@wp.kernel(enable_backward=False)
 def _fill_hdr_background(
     image: wp.array4d(dtype=wp.vec3f),
     shape_ids: wp.array4d(dtype=wp.uint32),

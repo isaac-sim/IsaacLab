@@ -30,6 +30,7 @@ from isaaclab.assets import RigidObjectCfg  # noqa: E402
 from isaaclab.envs.mdp.events import randomize_rigid_body_material  # noqa: E402
 from isaaclab.managers import EventTermCfg, SceneEntityCfg  # noqa: E402
 from isaaclab.sim import SimulationCfg, build_simulation_context  # noqa: E402
+from isaaclab.test.utils import DeviceScope, test_devices  # noqa: E402
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR  # noqa: E402
 
 wp.init()
@@ -53,7 +54,7 @@ def _make_cubes(num_cubes: int, device: str) -> RigidObject:
     return RigidObject(cfg=cfg)
 
 
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CPU_AND_DEFAULT_CUDA))
 def test_randomize_material_writes_friction_within_range(device):
     """The term should dispatch to OVPhysX and write per-shape friction/restitution within the given ranges.
 
@@ -90,17 +91,20 @@ def test_randomize_material_writes_friction_within_range(device):
             values = materials[..., component]
             assert (values >= lo - eps).all() and (values <= hi + eps).all()
 
-        # Negative restitution is the native compliant stiffness channel. Randomizing
-        # one environment must preserve its spring and leave the other environment alone.
+        # Negative restitution encodes compliant stiffness, not bounce.
+        materials[0, :, :2] = 0.0
         materials[0, :, 2] = -15700.0
         cube_object.root_view.set_attribute(
             TT.RIGID_BODY_SHAPE_FRICTION_AND_RESTITUTION, wp.from_torch(materials.contiguous())
         )
         before = wp.to_torch(cube_object.root_view.get_attribute(TT.RIGID_BODY_SHAPE_FRICTION_AND_RESTITUTION)).clone()
+        assert (before[0, :, 2] == -15700.0).all()
         term(env, torch.tensor([0]), **cfg.params)
         after = wp.to_torch(cube_object.root_view.get_attribute(TT.RIGID_BODY_SHAPE_FRICTION_AND_RESTITUTION))
         torch.testing.assert_close(after[0, :, 2], before[0, :, 2])
         torch.testing.assert_close(after[1], before[1])
+        for component, (lo, hi) in enumerate((static_range, dynamic_range)):
+            assert ((after[0, :, component] >= lo - eps) & (after[0, :, component] <= hi + eps)).all()
 
         cfg.params["asset_cfg"] = SceneEntityCfg("cube", body_ids=[])
         with pytest.raises(NotImplementedError, match="per-body"):
