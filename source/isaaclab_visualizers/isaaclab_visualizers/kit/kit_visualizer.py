@@ -219,8 +219,8 @@ class KitVisualizer(BaseVisualizer):
 
         Uses the Replicator annotator bound to the controlled camera prim
         (``/OmniverseKit_Persp`` by default). Lazily creates the render product
-        and annotator on the first call. Returns a blank frame while the RTX
-        pipeline warms up.
+        and annotator on the first call, and waits there until RTX produces a
+        frame with the stage's textures streamed in.
 
         Returns:
             RGB image array of shape ``(window_height, window_width, 3)``, dtype ``uint8``.
@@ -237,7 +237,8 @@ class KitVisualizer(BaseVisualizer):
 
         # Create the render product and annotator before the app update so the first
         # captured frame contains real rendered output, not empty/blank data.
-        if self._rgb_annotator is None:
+        first_capture = self._rgb_annotator is None
+        if first_capture:
             self._rgb_render_product = rep.create.render_product(camera_path, (w, h))
             self._apply_render_product_background(self._scene_stage, self._rgb_render_product.path)
             self._rgb_annotator = rep.AnnotatorRegistry.get_annotator("rgb", device="cpu")
@@ -256,11 +257,10 @@ class KitVisualizer(BaseVisualizer):
             settings.set("/app/player/playSimulations", False)
             omni.kit.app.get_app().update()
             settings.set("/app/player/playSimulations", bool(play_flag))
+        if first_capture:
+            self._wait_for_first_frame()
 
-        raw = self._rgb_annotator.get_data()
-        if isinstance(raw, dict):
-            raw = raw.get("data", np.array([], dtype=np.uint8))
-        raw = np.asarray(raw, dtype=np.uint8)
+        raw = self._read_rgb_annotator()
         if raw.size == 0:
             return np.zeros((h, w, 3), dtype=np.uint8)
         if raw.ndim == 1:
@@ -277,6 +277,48 @@ class KitVisualizer(BaseVisualizer):
                 self._rgb_render_product.pause()
 
         return result
+
+    def _read_rgb_annotator(self) -> np.ndarray:
+        """Return the RGB annotator's latest data, empty while the render product has none."""
+        raw = self._rgb_annotator.get_data()
+        if isinstance(raw, dict):
+            raw = raw.get("data", np.array([], dtype=np.uint8))
+        return np.asarray(raw, dtype=np.uint8)
+
+    def _wait_for_first_frame(self, timeout_s: float = 30.0, settle_frames: int = 2) -> None:
+        """Pump Kit until a new render product yields a frame and RTX finishes streaming textures.
+
+        A render product created mid-run returns no data for its first updates and then renders
+        materials before their textures arrive, so without this wait a recording starts with
+        black and then untextured frames. Streaming reports idle one update before the textured
+        frame reaches the annotator, hence the settle updates.
+
+        Args:
+            timeout_s: Upper bound on the wait [s]; a warning is logged when reached.
+            settle_frames: Additional updates pumped once the frame and textures are ready.
+        """
+        import time
+
+        import omni.kit.app
+        import omni.usd
+
+        usd_context = omni.usd.get_context()
+        settings = get_settings_manager()
+        play_flag = settings.get("/app/player/playSimulations")
+        settings.set("/app/player/playSimulations", False)
+        start, updates = time.monotonic(), 0
+        while (self._read_rgb_annotator().size == 0 or usd_context.get_stage_streaming_status()) and (
+            time.monotonic() - start < timeout_s
+        ):
+            omni.kit.app.get_app().update()
+            updates += 1
+        for _ in range(settle_frames):
+            omni.kit.app.get_app().update()
+        settings.set("/app/player/playSimulations", bool(play_flag))
+        if time.monotonic() - start >= timeout_s:
+            logger.warning("[KitVisualizer] First capture still incomplete after %.0f s; recording anyway.", timeout_s)
+        else:
+            logger.info("[KitVisualizer] First capture ready after %d extra updates.", updates)
 
     # ---- Capabilities ---------------------------------------------------------------------
 
