@@ -89,15 +89,15 @@ def test_native_conveyor_controls_rebind_and_reset_independently(monkeypatch):
             driver.set_velocities([0.3, -0.25, -0.4], indices=[0, 1, 3])
             driver.set_enabled([False, True], indices=[2, 3])
             np.testing.assert_allclose(driver.get_velocities().numpy(), [0.3, 0, 0, -0.4])
+            np.testing.assert_allclose(driver.get_velocities(indices=[3, 0]).numpy(), [-0.4, 0.3])
+            np.testing.assert_array_equal(driver.get_enabled(indices=[2, 0]).numpy(), [0, 1])
             sim.step(render=False)
             assert calls == ["actuator"] + ["force", "substep"] * cfg.physics.num_substeps
-            np.testing.assert_allclose(driver.get_encoder_positions().numpy(), np.array([0.3, 0, 0, -0.4]) / 120)
             first._conveyor.conveyor_body_f.assign(np.ones((2, 6), dtype=np.float32))
             driver.reset([0])
             state = model.state()
             first.apply(state)
             np.testing.assert_array_equal(state.body_f.numpy(), [[0] * 6, [1] * 6])
-            np.testing.assert_allclose(driver.get_encoder_positions().numpy(), [0, 0, 0, -0.4 / 120])
             sim.reset()
             assert first._closed and driver._binding is not first
             assert driver._binding._model is NewtonManager.get_model()

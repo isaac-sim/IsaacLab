@@ -63,7 +63,7 @@ class SurfaceVelocitySpec:
 
     The fields follow the authored conveyor model proposed for Isaac Sim while remaining independent of
     Kit, OpenUSD, and any physics backend. Directions, surface normals, and the optional pivot point are
-    expressed in the collision prim's local frame. Runtime state such as encoder positions and applied
+    expressed in the collision prim's local frame. Runtime state such as commanded speeds and applied
     forces intentionally does not belong in this description.
 
     ``prim_path`` may contain Isaac Lab's ``{ENV_REGEX_NS}`` placeholder. A backend resolves that template
@@ -141,11 +141,6 @@ class SurfaceVelocityView(Protocol):
         """Number of resolved moving surfaces."""
         ...
 
-    @property
-    def count(self) -> int:
-        """Alias for :attr:`num_surfaces`, matching tensor-view naming."""
-        ...
-
     def set_velocities(self, velocities: Any, indices: Any = None) -> None:
         """Set signed surface velocities [m/s] for selected surfaces."""
         ...
@@ -164,10 +159,6 @@ class SurfaceVelocityView(Protocol):
 
     def get_enabled(self, indices: Any = None, clone: bool = True) -> Any:
         """Return integer enabled flags for selected surfaces."""
-        ...
-
-    def get_encoder_positions(self, indices: Any = None, clone: bool = True) -> Any:
-        """Return integrated surface travel [m] for selected surfaces."""
         ...
 
     def reset(self, env_ids: Any = None) -> None:

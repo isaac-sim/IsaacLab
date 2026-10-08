@@ -9,13 +9,13 @@ from __future__ import annotations
 
 import argparse
 import warnings
+from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
 from ..utils import configclass
 from ..utils.string import string_to_callable
 
 if TYPE_CHECKING:
-    from ..renderers import RendererCfg
     from .base_visualizer import BaseVisualizer
 
 
@@ -126,6 +126,31 @@ def resolve_visualizer_cfgs(
 
 
 @configclass
+class PerspectiveCameraCfg:
+    """Initial pose and optics for a visualizer-owned interactive perspective camera."""
+
+    eye: tuple[float, float, float] = (4.0, -4.0, 3.0)
+    """Eye position in world coordinates [m]."""
+
+    lookat: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    """Look-at target in world coordinates [m]."""
+
+    focal_length: float = 12.0
+    """Perspective camera focal length [mm]."""
+
+
+@configclass
+class SceneCameraCfg:
+    """Select an existing scene camera's output for display in the visualizer.
+
+    This does not create a sensor. Declare its pose, optics, and renderer in the scene's CameraCfg.
+    """
+
+    prim_path: str = MISSING
+    """Scene camera's configured prim path, including ``{ENV_REGEX_NS}`` when applicable."""
+
+
+@configclass
 class VisualizerCfg:
     """Base configuration for all visualizer backends.
 
@@ -143,6 +168,15 @@ class VisualizerCfg:
     """Clone contexts that build this visualizer's scene representation from the asset plan."""
 
     # Primary interactive camera settings
+    cameras: list[PerspectiveCameraCfg | SceneCameraCfg] | None = None
+    """Camera sources available to the visualizer.
+
+    PerspectiveCameraCfg configures the interactive view; SceneCameraCfg refers to an existing scene
+    sensor. Kit, Newton GL, Rerun, and Viser display the first scene source in their camera panel.
+    Newton RTX supports only perspective sources. None uses eye/lookat/focal_length and the streaming settings below.
+    Every explicit scene source must provide all requested streaming_gt_types channels.
+    """
+
     eye: tuple[float, float, float] = (4.0, -4.0, 3.0)
     """Interactive visualizer camera eye position in world coordinates."""
 
@@ -160,50 +194,27 @@ class VisualizerCfg:
     """
 
     # ── Streaming view ────────────────────────────────────────────────────────
-    # Captures pixels from a camera sensor (existing or auto-created), tiles them
+    # Reads pixels from a scene-declared camera sensor, tiles them
     # across envs and GT types, and shows the result as an image panel in interactive
     # visualizers (Newton GL, Kit) or pushes it per-step to sink-based ones (Rerun, Viser).
 
     streaming_view: bool = False
     """Enable the streaming camera image view (opt-in, disabled by default)."""
 
-    # Source — existing sensor (takes priority when set)
     streaming_sensor_prim_path: str | None = None
-    """Prim path of an existing TiledCamera sensor to stream from.
+    """Prim path of a scene-declared :class:`~isaaclab.sensors.Camera` to display.
 
-    When set, all ``streaming_cam_*`` fields are ignored.  Should point to an
-    existing camera sensor, e.g. ``"/World/envs/*/Camera"``.
-    """
-
-    # Source — auto-created camera (used when streaming_sensor_prim_path is None)
-    streaming_cam_target_prim_path: str | None = None
-    """Target prim for the auto-created streaming camera (ignored when
-    :attr:`streaming_sensor_prim_path` is set).
-
-    When ``None`` (the default), the visualizer adopts the first scene camera
-    sensor it discovers dynamically at initialization time.  If no scene camera
-    exists the streaming panel remains empty.  Set this explicitly (e.g.
-    ``"/World/envs/*/Robot"``) only when you need an auto-created follow-camera
-    and no suitable scene camera is present.
-    """
-
-    streaming_cam_eye: tuple[float, float, float] = (4.0, -4.0, 3.0)
-    """Eye offset [m] for the auto-created streaming camera relative to the target prim."""
-
-    streaming_cam_renderer_cfg: RendererCfg | None = None
-    """Renderer for the auto-created streaming camera.
-
-    Concrete visualizer configs declare their default renderer configuration.
-    Its ``class_type`` selects the implementation, including custom renderers.
-    Ignored when :attr:`streaming_sensor_prim_path` is set.
+    Use the camera's configured prim path, including ``{ENV_REGEX_NS}`` when applicable.
+    None selects the first compatible camera in the scene. Without one the panel stays empty.
+    The scene owns camera construction, updates, and lifetime; visualizers only read its output.
     """
 
     # Shared settings
     streaming_envs: int | list[int] = 32
-    """Environments to capture.
+    """Environments to display.
 
     * ``int`` — sample this many envs once at initialization (from all visible envs).
-    * ``list[int]`` — capture exactly these env indices.
+    * ``list[int]`` — display exactly these env indices.
     """
 
     streaming_gt_types: tuple[str, ...] = ("rgb",)
@@ -259,63 +270,15 @@ class VisualizerCfg:
     visualizer_type: str | None = None
     """Type identifier (e.g., 'newton', 'rerun', 'viser', 'kit'). Must be overridden by subclasses."""
 
-    # Deprecated aliases kept for one-release compatibility. Remove in the next major release.
-    tiled_cam_view: bool | None = None
-    """Deprecated. Use :attr:`streaming_view` instead."""
-
-    tiled_cam_num: int | None = None
-    """Deprecated. Use :attr:`streaming_envs` (int) instead."""
-
-    tiled_cam_env_indices: list[int] | None = None
-    """Deprecated. Use :attr:`streaming_envs` (list[int]) instead."""
-
-    tiled_cam_prim_path: str | None = None
-    """Deprecated. Use :attr:`streaming_sensor_prim_path` instead."""
-
-    tiled_cam_eye: tuple[float, float, float] | None = None
-    """Deprecated. Use :attr:`streaming_cam_eye` instead."""
-
-    tiled_cam_target_prim_path: str | None = None
-    """Deprecated. Use :attr:`streaming_cam_target_prim_path` instead."""
-
     def __post_init__(self) -> None:
-        import warnings
-
         if self.background_color is not None:
             if len(self.background_color) != 3 or any(not 0.0 <= value <= 1.0 for value in self.background_color):
                 raise ValueError("background_color must contain three normalized RGB values in [0, 1].")
             self.background_color = tuple(float(value) for value in self.background_color)
 
-        _simple = [
-            ("tiled_cam_view", "streaming_view"),
-            ("tiled_cam_prim_path", "streaming_sensor_prim_path"),
-            ("tiled_cam_eye", "streaming_cam_eye"),
-            ("tiled_cam_target_prim_path", "streaming_cam_target_prim_path"),
-        ]
-        for old, new in _simple:
-            val = getattr(self, old)
-            if val is not None:
-                warnings.warn(f"{old!r} is deprecated; use {new!r} instead.", DeprecationWarning, stacklevel=3)
-                setattr(self, new, val)
-                setattr(self, old, None)
-        # tiled_cam_env_indices takes priority over tiled_cam_num
-        env_indices = getattr(self, "tiled_cam_env_indices")
-        if env_indices is not None:
-            warnings.warn(
-                "'tiled_cam_env_indices' is deprecated; use 'streaming_envs' instead.",
-                DeprecationWarning,
-                stacklevel=3,
-            )
-            self.streaming_envs = env_indices
-            self.tiled_cam_env_indices = None
-            self.tiled_cam_num = None
-        else:
-            num = getattr(self, "tiled_cam_num")
-            if num is not None:
-                warnings.warn(
-                    "'tiled_cam_num' is deprecated; use 'streaming_envs' instead.",
-                    DeprecationWarning,
-                    stacklevel=3,
-                )
-                self.streaming_envs = num
-                self.tiled_cam_num = None
+        if self.cameras is not None:
+            if not self.cameras:
+                raise ValueError("cameras must contain at least one display source.")
+            self.streaming_view = any(isinstance(camera, SceneCameraCfg) for camera in self.cameras)
+            if isinstance(camera := self.cameras[0], PerspectiveCameraCfg):
+                self.eye, self.lookat, self.focal_length = camera.eye, camera.lookat, camera.focal_length

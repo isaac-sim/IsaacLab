@@ -14,8 +14,8 @@ experimental and is not exported from Isaac Lab core or the backend packages.
   Author the API before simulation parsing with `apply_surface_velocity_api`.
   This path requires the PhysX backend and Kit; GPU dynamics are unsupported.
 
-Both adapters retain commanded speeds while disabled and clear selected worlds'
-runtime state on reset. The Newton adapter supports live traction controls;
-PhysX uses authored contact materials and rejects unsupported traction setters.
+Both adapters retain commanded speeds while disabled and restart their startup
+ramp on a full reset. Newton also clears stale forces for selected worlds.
+Newton uses the spec's traction parameters; PhysX uses authored contact materials.
 
 No meshes, assets, task registrations, or policy checkpoints are bundled here.
