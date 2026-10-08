@@ -10,6 +10,7 @@ import copy
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 
 from .build_compare import compare_evidence
 from .metric_identity import PACKAGE, _normalized, metric_definition
@@ -271,6 +272,12 @@ def finish(startup_time_s, iteration_times_s, total_fps, steps_per_iteration, ag
                 True,
             ),
             ("forwarded keywords", helper, BUILDERS, True),
+            (
+                "forwarded attribute input",
+                helper.replace("startup_time_s=startup", "startup_time_s=args.startup"),
+                BUILDERS,
+                True,
+            ),
             ("helper parameters", positional, BUILDERS, True),
             ("explicit keyword dictionary", keywords, BUILDERS, True),
         ):
@@ -421,33 +428,67 @@ def mutate():
     SCALE = 100
     return 0
 
+class Source:
+    @property
+    def startup(self):
+        value = SCALE
+        mutate()
+        return value
+source = Source()
+
 def run(argv):
     from isaaclab.benchmark import builders
     times = [2.0]
     fps = [1.0]
 """
-        producer = (
-            "builders.build_runtime(startup_time_s=mutate(), iteration_times_s=times, total_fps=fps, "
-            "steps_per_iteration=SCALE, aggregate_throughput=True)"
-        )
-        self.runtime.write_text(prefix + "    return " + producer + "\n")
-        direct = self.identity()
-        self.assertIsNotNone(direct)
-        self.runtime.write_text(
-            prefix + "    return finish(SCALE, times, fps)\n\ndef finish(scale, times, fps):\n"
-            "    from isaaclab.benchmark import builders\n    return "
-            + producer.replace("steps_per_iteration=SCALE", "steps_per_iteration=scale")
-            + "\n"
-        )
-        result = metric_definition(self.root)
-        self.assertIsNone(result["total_fps"])
-        self.assertIn("captured", result["reason"])
-        row = compare_evidence(
-            evidence({"leg": [bundle(50)] * 3}, formula=direct),
-            evidence({"leg": [bundle(1)] * 3}, formula=result["total_fps"]),
-        )["rows"][0]
-        self.assertEqual(row["status"], "unknown")
-        self.assertIsNone(row["change_pct"])
+        builder_globals = {"Runtime": lambda **fields: fields}
+        exec(METRICS, builder_globals)
+        exec(BUILDERS.replace("from .metrics import mean_std_peak", ""), builder_globals)
+        for startup, scale, arguments, parameters, forwarded_startup in (
+            ("mutate()", "SCALE", "SCALE, times, fps", "scale, times, fps", "mutate()"),
+            ("source.startup", "SCALE", "SCALE, times, fps", "scale, times, fps", "source.startup"),
+            ("source.startup", "SCALE", "SCALE, times, fps, source.startup", "scale, times, fps, startup", "startup"),
+            (
+                "source.startup",
+                "source.startup",
+                "source.startup, times, fps, source.startup",
+                "scale, times, fps, startup",
+                "startup",
+            ),
+        ):
+            with self.subTest(startup=startup, helper_arguments=arguments):
+                producer = (
+                    f"builders.build_runtime(startup_time_s={startup}, iteration_times_s=times, total_fps=fps, "
+                    f"steps_per_iteration={scale}, aggregate_throughput=True)"
+                )
+                direct_source = prefix + "    return " + producer + "\n"
+                helper_source = (
+                    prefix + f"    return finish({arguments})\n\ndef finish({parameters}):\n"
+                    "    from isaaclab.benchmark import builders\n    return "
+                    + producer.replace(f"steps_per_iteration={scale}", "steps_per_iteration=scale").replace(
+                        f"startup_time_s={startup}", f"startup_time_s={forwarded_startup}"
+                    )
+                    + "\n"
+                )
+                measured = []
+                for source in (direct_source, helper_source):
+                    namespace = {"builders": SimpleNamespace(build_runtime=builder_globals["build_runtime"])}
+                    exec(source.replace("    from isaaclab.benchmark import builders\n", ""), namespace)
+                    measured.append(namespace["run"]([])["total_fps"])
+                self.assertEqual(measured, [50, 1])
+                self.runtime.write_text(direct_source)
+                direct = self.identity()
+                self.assertIsNotNone(direct)
+                self.runtime.write_text(helper_source)
+                result = metric_definition(self.root)
+                self.assertIsNone(result["total_fps"])
+                self.assertIn("captured", result["reason"])
+                row = compare_evidence(
+                    evidence({"leg": [bundle(measured[0])] * 3}, formula=direct),
+                    evidence({"leg": [bundle(measured[1])] * 3}, formula=result["total_fps"]),
+                )["rows"][0]
+                self.assertEqual(row["status"], "unknown")
+                self.assertIsNone(row["change_pct"])
 
         self.runtime.write_text(RUNTIME)
         self.builders.write_text(
