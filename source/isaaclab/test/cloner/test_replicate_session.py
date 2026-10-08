@@ -14,21 +14,23 @@ from pxr import Usd, UsdGeom
 
 import isaaclab.cloner.replicate_session as replicate_session
 from isaaclab.assets import AssetBaseCfg
-from isaaclab.cloner import CloneCfg, ReplicateSession, UsdReplicateContext, clone_plan_from_env_0, grid_transforms
+from isaaclab.cloner import (
+    CloneCfg,
+    ReplicateContext,
+    ReplicateSession,
+    UsdReplicateContext,
+    clone_plan_from_env_0,
+    grid_transforms,
+)
 from isaaclab.cloner import path as cloner_path
 from isaaclab.renderers import RenderContext, RendererCfg
 from isaaclab.sensors import CameraCfg, SensorBaseCfg
 from isaaclab.sim import CuboidCfg, MultiAssetSpawnerCfg, PinholeCameraCfg, SimulationContext, SphereCfg
 
 
-class _Context:
-    replicate_priority = 0
-
-    def __init__(self, sim):
-        self.calls = sim.calls
-
+class _Context(ReplicateContext):
     def replicate(self, plan, asset_prototype_ids):
-        self.calls.append((type(self), plan, asset_prototype_ids))
+        self._sim.calls.append((type(self), plan, asset_prototype_ids))
 
 
 class _RenderContext(_Context):
@@ -140,13 +142,15 @@ def test_dispatch_order_and_usd_scope(simulation):
     class Early(_Context):
         replicate_priority = -1
 
+    with pytest.raises(TypeError, match="ReplicateContext subclasses"):
+        replicate_session.prepare_clone_contexts(simulation, {object: set()})
+
     contexts = UsdReplicateContext, Late, Early
     cfg = AssetBaseCfg(prim_path="{ENV_REGEX_NS}/Robot", spawn=CuboidCfg(size=(1, 1, 1)), cloning_contexts=contexts)
     with ReplicateSession((cfg,), 2, 1.0) as session:
         UsdGeom.Xform.Define(simulation.stage, cfg.spawn.spawn_path)
         UsdGeom.Camera.Define(simulation.stage, "/World/envs/env_0/UndeclaredCamera")
     assert simulation.calls == [(Early, session.plan, (0,)), (Late, session.plan, (0,))]
-    assert set(vars(simulation.clone_contexts[UsdReplicateContext])) == {"stage"}
     assert simulation.stage.GetPrimAtPath("/World/envs/env_1/Robot")
     assert not simulation.stage.GetPrimAtPath("/World/envs/env_1/UndeclaredCamera")
     np.testing.assert_array_equal(session.plan.positions, grid_transforms(2, 1.0)[0])
@@ -155,6 +159,31 @@ def test_dispatch_order_and_usd_scope(simulation):
         np.testing.assert_array_equal(
             UsdGeom.Xformable(prim).ComputeLocalToWorldTransform(0).ExtractTranslation(), position
         )
+
+
+def test_shared_context_replaces_native_routes_with_their_union(simulation, monkeypatch):
+    """A shared representation clones disjoint physics/render assets once and removes native dispatch."""
+
+    class Shared(_Context):
+        def __init__(self, sim):
+            assert not sim.calls
+            assert _Context not in sim.clone_contexts
+            super().__init__(sim)
+
+    def prepare(sim, routing):
+        routing[Shared] = routing.pop(_Context) | routing.pop(_RenderContext)
+        sim.clone_contexts.pop(_Context)
+
+    monkeypatch.setattr(_RenderContext, "prepare", staticmethod(prepare))
+    simulation.render_context.clone_contexts.add(_RenderContext)
+    assets = (
+        AssetBaseCfg(prim_path="{ENV_REGEX_NS}/Body", cloning_contexts=(_Context,)),
+        AssetBaseCfg(prim_path="{ENV_REGEX_NS}/Visual", cloning_contexts=(_RenderContext,)),
+    )
+    with ReplicateSession(assets, 2, 1.0) as session:
+        pass
+    assert simulation.calls == [(Shared, session.plan, (0, 1))]
+    assert set(simulation.clone_contexts) == {Shared}
 
 
 def test_grid_transforms_centers_a_float32_grid():

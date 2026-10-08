@@ -27,13 +27,16 @@ from isaaclab_newton.sim.spawners.materials import (
 )
 
 
-def add_deformable_from_usd(builder: ModelBuilder, stage: Usd.Stage, *, root_path: str) -> DeformableStageEntry:
+def add_deformable_from_usd(
+    builder: ModelBuilder, stage: Usd.Stage, *, root_path: str, env_template: str | None = None
+) -> DeformableStageEntry:
     """Import one declared deformable's geometry, Newton material, and native element ranges.
 
     Args:
         builder: Source builder that receives the complete deformable prototype.
         stage: Stage containing the authored geometry and bound physics material.
         root_path: Deformable-body prim path.
+        env_template: Clone-plan environment template used to capture the authored source origin.
 
     Returns:
         Prototype geometry for SDP's visual-mesh binding.
@@ -45,7 +48,7 @@ def add_deformable_from_usd(builder: ModelBuilder, stage: Usd.Stage, *, root_pat
         Remove private group recording when the pinned Newton includes #3326's native recording.
     """
     prim = stage.GetPrimAtPath(root_path)
-    geometry = deformable_entry(prim)
+    geometry = deformable_entry(prim, env_template=env_template)
     if geometry is None:
         raise ValueError(f"No simulation mesh found under deformable {root_path!r}.")
     material = UsdShade.MaterialBindingAPI(prim).ComputeBoundMaterial(materialPurpose="physics")[0].GetPrim()

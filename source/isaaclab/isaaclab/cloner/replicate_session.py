@@ -23,6 +23,7 @@ from .clone_plan import ClonePlan, grid_transforms, make_clone_plan
 from .clone_plan import path as cloner_path
 from .cloner_cfg import DEFAULT_ENV_TEMPLATE, CloneCfg, InclusionSet, expand_env_regex_ns
 from .cloner_strategies import sequential
+from .replicate_context import ReplicateContext
 from .usd import UsdReplicateContext
 
 
@@ -79,6 +80,9 @@ def make_valid_clone_combinations(
 def replicate(plan: ClonePlan, *, replicate_physics: bool = True) -> None:
     """Execute one topology through its declared clone contexts.
 
+    Each context implements ``prepare(sim, routing)`` to resolve shared representations and
+    acquire their simulation-owned resources before any context is constructed or dispatched.
+
     Args:
         plan: The active simulation's topology.
         replicate_physics: Whether the active physics context performs native replication.
@@ -118,17 +122,36 @@ def replicate(plan: ClonePlan, *, replicate_physics: bool = True) -> None:
         if index in shared:
             contexts += tuple(context for context in (physics_context, *render_contexts) if context is not None)
         for context in contexts:
-            if not isinstance(context, type):
-                raise TypeError(f"{type(cfg).__name__}.cloning_contexts must contain only context classes.")
             routing.setdefault(context, set()).add(index)
 
-    # Register all participants before cloning; priorities put USD authoring before native imports.
+    prepare_clone_contexts(sim, routing)
     for context in routing:
         if context not in sim.clone_contexts:
             sim.clone_contexts[context] = context(sim)
     for context in sorted(routing, key=lambda context: context.replicate_priority):
         if replicate_physics or context is not physics_context:
             sim.clone_contexts[context].replicate(plan, tuple(sorted(routing[context])))
+
+
+def prepare_clone_contexts(
+    sim: sim_utils.SimulationContext, routing: dict[type[ReplicateContext], set[int]] | None = None
+) -> None:
+    """Resolve consumer requirements before clone dispatch or a standalone simulation reset.
+
+    Args:
+        sim: Simulation owning the consumers and native resources.
+        routing: Mutable asset routes; omitted when preparing registered renderers before reset.
+    """
+    if routing is None:
+        routing = {
+            string_to_callable(context) if isinstance(context, str) else context: set()
+            for context in sim.render_context.clone_contexts
+        }
+    for context in tuple(routing):
+        if not isinstance(context, type) or not issubclass(context, ReplicateContext):
+            raise TypeError("cloning_contexts must contain ReplicateContext subclasses.")
+        if context in routing:
+            context.prepare(sim, routing)
 
 
 def clone_plan_from_env_0(

@@ -156,15 +156,11 @@ class InteractiveScene:
             options.update(clone_strategy=clone_cfg.clone_strategy, replicate_physics=clone_cfg.replicate_physics)
             with cloner.ReplicateSession(asset_cfgs, self.num_envs, self.cfg.env_spacing, **options) as session:
                 positions = session.plan.positions
-                source, env_ids = self.env_prim_paths[0], np.arange(self.num_envs)
-                self.stage.DefinePrim(source, "Xform")
-                with cloner.disabled_fabric_change_notifies(self.stage, restore=False):
-                    cloner.usd_replicate(self.stage, [source], [self._env_fmt], env_ids, positions=positions)
                 self._add_entities_from_cfg()
         else:
             positions = cloner.grid_transforms(self.num_envs, self.cfg.env_spacing)[0]
-            env_0 = self.stage.DefinePrim(self.env_prim_paths[0], "Xform")
-            sim_utils.standardize_xform_ops(env_0, translation=tuple(map(float, positions[0])))
+            # Direct tasks may use regex spawners before declaring their clone plan.
+            self.stage.DefinePrim(self.env_prim_paths[0])
         self._env_origins = positions
         self._env_origins_plan = self.sim.get_clone_plan()
 

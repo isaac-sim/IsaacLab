@@ -3,10 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""OvPhysX clone-context dispatch from the active clone plan."""
+"""OV clone-context dispatch and native replication operations."""
 
 from __future__ import annotations
 
+import logging
+import os
 from collections.abc import Iterable, Sequence
 from typing import TYPE_CHECKING
 
@@ -18,10 +20,19 @@ from isaaclab import cloner
 from isaaclab.physics import PhysicsManager
 
 from isaaclab_ov._clone import CloneRecipe
+from isaaclab_ov.renderers.ovrtx_renderer_cfg import OVRTXBackendCfg, OVRTXRendererCfg
+from isaaclab_ov.stage import OvstageBackend, OvstageBackendCfg
+from isaaclab_ov.stage import ovstage_replicate as ovstage_replicate
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
+    import ovrtx
+
     from isaaclab.cloner import ClonePlan
     from isaaclab.sim import SimulationContext
+
+    from isaaclab_ov.renderers.ovrtx_renderer import OVRTXBackend
 
 
 def _clone_recipes(
@@ -115,19 +126,8 @@ def _clone_recipes(
     return recipes
 
 
-class OvPhysxReplicateContext:
+class OvPhysxReplicateContext(cloner.ReplicateContext):
     """Apply one clone plan to an OvPhysX simulation."""
-
-    replicate_priority = 0
-
-    def __init__(self, sim_context: SimulationContext):
-        """Initialize the context.
-
-        Args:
-            sim_context: Simulation context that owns this clone backend.
-        """
-        self._sim = sim_context
-        self.stage = sim_context.stage
 
     def replicate(self, plan: ClonePlan, asset_prototype_ids: tuple[int, ...]) -> None:
         """Publish clone operations from this context's source declarations.
@@ -151,8 +151,156 @@ class OvPhysxReplicateContext:
                 if (asset := plan.topology.world_prototypes[index]) in asset_prototype_ids:
                     copies.append(((sources[asset], templates[index]), targets))
         env_ids = np.arange(len(plan.topology.world_prototype_layout))
-        recipes = _clone_recipes(self.stage, copies, env_ids, plan.positions, None)
+        recipes = _clone_recipes(self._sim.stage, copies, env_ids, plan.positions, None)
         self._sim.physics_manager._clone_recipes.extend(recipes)
+
+
+class OvrtxReplicateContext(cloner.ReplicateContext):
+    """Prepare routed copies for OVRTX engines that own their scene internally."""
+
+    replicate_priority = 100
+
+    @staticmethod
+    def prepare(sim: SimulationContext, routing: dict[type[cloner.ReplicateContext], set[int]]) -> None:
+        """Resolve OVRTX's clone route and acquire resources before replication begins.
+
+        Args:
+            sim: Simulation that owns the configured consumers and native resources.
+            routing: Asset routes to prepare for each native representation.
+        """
+        # OVRTX is optional for physics-only users, and the renderer imports native clone operations.
+        from isaaclab_ov.renderers.ovrtx_renderer import ovrtx_read_gpu_transforms_enabled  # noqa: PLC0415
+
+        renderers = sim.get_backends(OVRTXRendererCfg)
+        if not renderers:
+            return
+        initialized = next((renderer for renderer in renderers if renderer.backend is not None), None)
+        if initialized is not None:
+            use_ovstage = initialized._use_ovstage
+        else:
+            # OVPhysX is faster with independent OVStage rendering; Newton is faster with native OVRTX cloning.
+            default = "1" if sim.physics_manager.clone_context_type is OvPhysxReplicateContext else "0"
+            value = os.environ.get("ISAAC_LAB_OVRTX_USE_OVSTAGE", default).strip()
+            if value not in {"0", "1"}:
+                raise ValueError(f"Invalid ISAAC_LAB_OVRTX_USE_OVSTAGE: {value!r}. Expected 0 or 1.")
+            use_ovstage = value == "1"
+        if use_ovstage:
+            routing.setdefault(OvstageReplicateContext, set()).update(routing.pop(OvrtxReplicateContext, ()))
+            sim.clone_contexts.pop(OvrtxReplicateContext, None)
+
+        # Stage ownership is settled before native construction. Register the stage before its borrowers.
+        for renderer in renderers:
+            cfg = renderer.cfg
+            if renderer.backend is not None:
+                continue
+            backend_cfg = OVRTXBackendCfg(
+                scene_key=cfg,
+                log_file_path=cfg.log_file_path,
+                log_level=cfg.log_level,
+                use_ovstage=use_ovstage,
+                read_gpu_transforms=ovrtx_read_gpu_transforms_enabled(),
+            )
+            scene = sim.get_or_create_backend(OvstageBackendCfg(scene_key=backend_cfg)) if use_ovstage else None
+            renderer.backend = sim.get_or_create_backend(backend_cfg)
+            renderer.scene = scene if use_ovstage else renderer.backend
+            renderer._use_ovstage = use_ovstage
+            if cfg.async_rendering and use_ovstage:
+                logger.warning("Asynchronous OVRTX rendering is unsupported with ovstage; rendering synchronously.")
+
+    def replicate(self, plan: ClonePlan, asset_prototype_ids: tuple[int, ...]) -> None:
+        """Publish routed copies, environment paths and positions to native OVRTX scene owners.
+
+        Engines borrowing an OVStage receive their copies through that stage's context.
+
+        Args:
+            plan: Replication layout shared by every clone backend.
+            asset_prototype_ids: Asset definitions routed to native OVRTX scenes.
+        """
+        backends = [backend for backend in self._sim.get_backends(OVRTXBackendCfg) if not backend.cfg.use_ovstage]
+        _prepare_scene_copies(plan, asset_prototype_ids, backends)
+
+
+class OvstageReplicateContext(cloner.ReplicateContext):
+    """Prepare routed copies for simulation-owned stages, independently of their consumers."""
+
+    replicate_priority = 100
+
+    def replicate(self, plan: ClonePlan, asset_prototype_ids: tuple[int, ...]) -> None:
+        """Publish routed copies, environment paths and positions to simulation-owned stages.
+
+        Args:
+            plan: Replication layout shared by every clone backend.
+            asset_prototype_ids: Asset definitions routed to OVStage resources.
+        """
+        _prepare_scene_copies(plan, asset_prototype_ids, self._sim.get_backends(OvstageBackendCfg))
+
+
+def _prepare_scene_copies(
+    plan: ClonePlan, asset_prototype_ids: tuple[int, ...], backends: Sequence[OVRTXBackend | OvstageBackend]
+) -> None:
+    """Store prepared subtree copies on their owners; consumers never reinterpret the clone plan."""
+    if not backends:
+        return
+    sources = cloner.path.get_asset_prototype_paths(plan)
+    templates, starts, world_ids, world_starts = cloner.path.get_world_prototype_asset_templates(
+        plan, include_world_indices=True
+    )
+    assets = plan.topology.world_prototypes
+    copies = {}
+    for group in np.flatnonzero(np.diff(world_starts)):
+        targets = world_ids[world_starts[group] : world_starts[group + 1]]
+        members = [index for index in range(*starts[group : group + 2]) if assets[index] in asset_prototype_ids]
+        destinations = [templates[index] for index in members]
+        for index, parent in zip(members, cloner.path.get_parent_indices(destinations), strict=True):
+            source, template = sources[assets[index]], templates[index]
+            if parent != -1:
+                ancestor = members[parent]
+                suffix = cloner.path.relative_to(template, templates[ancestor])
+                if source == sources[assets[ancestor]] + suffix:
+                    continue
+            copies.setdefault((source, template), []).extend(template.format(int(world)) for world in targets)
+    # Native clones cannot overwrite existing prims. Keep self-only sources for export,
+    # but omit self-copies and children already carried by the same parent copy.
+    native_copies = [
+        (source, [target for target in copies[source, template] if target != source])
+        for source, template in sorted(copies, key=lambda copy: copy[1].count("/"))
+    ]
+    env_paths = [plan.env_template.format(world) for world in range(len(plan.topology.world_prototype_layout))]
+    cloned_paths = {target for _, targets in native_copies for target in targets}
+    population_env_paths = [path for path in env_paths if path not in cloned_paths]
+    for backend in backends:
+        backend.population_env_paths = population_env_paths
+        backend.clone_copies = native_copies
+        backend.clone_env_paths = env_paths
+        backend.clone_positions = plan.positions
+
+
+def ovrtx_replicate(
+    renderer: ovrtx.Renderer,
+    copies: Sequence[tuple[str, Sequence[str]]],
+    env_paths: Sequence[str],
+    positions: np.ndarray | None = None,
+) -> None:
+    """Apply prepared subtree copies and environment placement to a native OVRTX scene.
+
+    Args:
+        renderer: Native renderer holding the source prims.
+        copies: Source paths paired with destination paths, ordered with parents before children.
+            Sources with no destinations are retained prototypes; self-copies must be excluded.
+        env_paths: Environment-root paths in placement order.
+        positions: Optional environment positions [m], shape ``[len(env_paths), 3]``.
+    """
+    from ovrtx import PrimMode, Semantic  # noqa: PLC0415
+
+    for source, targets in copies:
+        if targets:
+            renderer.clone_usd(source, targets)
+    if positions is not None and env_paths:
+        xforms = np.tile(np.eye(4, dtype=np.float64), (len(env_paths), 1, 1))
+        xforms[:, 3, :3] = positions
+        renderer.write_attribute(
+            env_paths, "omni:xform", xforms, semantic=Semantic.XFORM_MAT4x4, prim_mode=PrimMode.MUST_EXIST
+        )
 
 
 def ovphysx_replicate(
@@ -254,19 +402,19 @@ def _serialize_stage(
         target_by_world = dict(zip(world_ids, targets, strict=True)) if world_ids is not None else {}
         source_pose = xforms.GetLocalToWorldTransform(stage.GetPrimAtPath(source))
         for index, target in enumerate(targets):
-            if target == source:
-                continue
             target_path = Sdf.Path(target)
-            if any(path.HasPrefix(target_path) for path in sources):
+            if target != source and any(path.HasPrefix(target_path) for path in sources):
                 raise ValueError(f"OvPhysX clone target {target!r} overlaps a clone source.")
             world = world_ids[index] if world_ids is not None else None
-            if full_stage or world in originals:
+            if full_stage or world in originals or target == source:
                 # References preserve joint relationships and any authored target opinions.
                 prim = exported.GetPrimAtPath(target)
                 authored = bool(prim)
                 prim = prim or exported.DefinePrim(target, "Xform")
-                prim.GetReferences().AddInternalReference(source)
-                if transforms and not authored:
+                if target != source:
+                    prim.GetReferences().AddInternalReference(source)
+                # Originals also need plan placement; the authoring stage contains only prototypes.
+                if transforms and (not authored or target == source):
                     pose = transforms[index]
                     anchor = Gf.Matrix4d().SetRotate(Gf.Quatd(pose[6], Gf.Vec3d(*pose[3:6])))
                     anchor.SetTranslateOnly(Gf.Vec3d(*pose[:3]))

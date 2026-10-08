@@ -96,8 +96,18 @@ For example, ``NewtonManager.backend.model`` accesses the finalized native model
 Closing a renderer releases its bindings, not the shared native resource.
 Exposing native handles does not replace SDP transport.
 
-Clone contexts are registered separately as ``sim.clone_contexts[Context] = Context(...)``
-before plan dispatch. They apply the plan but do not own native runtime resources.
+Clone preparation resolves the contexts requested by consumer configurations before native
+initialization. Contexts derive from :class:`~isaaclab.cloner.ReplicateContext`; its default
+``prepare(sim, routing)`` keeps the declared routes. Overrides can merge routes for a shared
+representation and acquire resources through the simulation registry. For example, the OV package
+can replace the native OVRTX route with an isolated OVStage route. Renderer constructors declare
+requirements; they must not select another consumer's cloning path. Preparation also runs before
+reset for standalone consumers registered after scene construction.
+Consumers registered after physics is ready use the same preparation before their initialization.
+
+The resulting clone contexts are registered separately as ``sim.clone_contexts[Context] = Context(...)``
+before plan dispatch. They apply the plan but do not own native runtime resources. Stage population,
+clone execution, and physics/render attachment follow the preparation decision.
 
 Newton has two resources with different lifetimes, not two interchangeable backends:
 
