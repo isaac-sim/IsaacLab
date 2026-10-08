@@ -27,7 +27,7 @@ from isaaclab.sim import MeshCapsuleCfg, MeshConeCfg, MeshCuboidCfg, MeshSphereC
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
-from isaaclab.visualizers import VisualizerCfg
+from isaaclab.visualizers import TrackedCameraCfg, VisualizerCfg
 
 from isaaclab_tasks.utils import PresetCfg
 
@@ -567,8 +567,14 @@ class ReorientEnvCfg(ManagerBasedRLEnvCfg):
             eye=(-1.8, -1.8, 1.45),
             lookat=(-0.3, 0.0, 0.45),
             focal_length=28.0,
-            origin_type="env",
-            origin_env_index="center",
+            streaming_envs=[0],
+            cameras=[
+                TrackedCameraCfg(
+                    eye=(-1.8, -1.8, 1.45),
+                    lookat=(-0.3, 0.0, 0.45),
+                    focal_length=28.0,
+                ),
+            ],
         )
 
     def play_mode(self):

@@ -1,1 +1,2 @@
-* Changed core task recording views to framed environment cameras, and locomotion views to follow the robot.
+* Changed core task recording views to tracked cameras shown in the streaming view: framed environment views, and
+  views that follow the robot for locomotion. Record them with ``--video viz:newton_gl:streaming_view``.

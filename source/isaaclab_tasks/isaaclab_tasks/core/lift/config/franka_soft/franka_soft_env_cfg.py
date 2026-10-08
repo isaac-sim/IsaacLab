@@ -39,7 +39,7 @@ from isaaclab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg
 from isaaclab.utils import configclass, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-from isaaclab.visualizers import VisualizerCfg
+from isaaclab.visualizers import TrackedCameraCfg, VisualizerCfg
 
 from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
 
@@ -642,8 +642,14 @@ class FrankaSoftEnvCfg(ManagerBasedRLEnvCfg):
             eye=(1.8, -1.8, 1.5),
             lookat=(0.35, 0.0, 0.35),
             focal_length=28.0,
-            origin_type="env",
-            origin_env_index="center",
+            streaming_envs=[0],
+            cameras=[
+                TrackedCameraCfg(
+                    eye=(1.8, -1.8, 1.5),
+                    lookat=(0.35, 0.0, 0.35),
+                    focal_length=28.0,
+                ),
+            ],
         )
 
     def play_mode(self):
