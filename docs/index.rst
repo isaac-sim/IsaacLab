@@ -104,7 +104,6 @@ Table of Contents
    :caption: Concepts
 
    source/concepts/backends_and_presets
-   source/concepts/backend_architecture
    source/concepts/physics_backends
    source/concepts/solver_differences
    source/concepts/native-physics-api/index

@@ -403,6 +403,7 @@ html_sidebars = {
 
 # Keep published links working after guide consolidation.
 isaaclab_doc_redirects = {
+    "source/concepts/backend_architecture": "source/concepts/backends_and_presets",
     "source/concepts/solver-tuning/index": "source/how-to/index",
     "source/concepts/solver-tuning/tune_kamino": "source/how-to/solver_tuning_kamino",
     "source/concepts/solver-tuning/tune_mjwarp": "source/how-to/solver_tuning_mjwarp",
@@ -434,8 +435,11 @@ isaaclab_doc_redirects = {
     "source/tutorials/index": "source/how-to/index",
 }
 
-# Sections of the former combined Docker page now live on separate pages.
+# Sections of former pages that now live on other pages or anchors.
 isaaclab_doc_redirect_fragments = {
+    "source/concepts/backend_architecture": {
+        "overview": "source/concepts/backends_and_presets#backend-architecture",
+    },
     "source/features/docker_cloud": {
         "clusters": "source/workflows/docker/cluster#deployment-cluster",
         "deployment-cluster": "source/workflows/docker/cluster#deployment-cluster",

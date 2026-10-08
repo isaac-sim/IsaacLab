@@ -25,7 +25,7 @@ Isaac Lab supports two physics engines through multiple backend packages:
 
 A factory pattern dispatches every asset and sensor instantiation to the correct backend at
 runtime, so user code stays unchanged regardless of which backend is active. See
-:doc:`/source/concepts/backend_architecture` for details.
+:ref:`backend-architecture` for details.
 
 .. image:: ../_static/setup/ecosystem-light.svg
     :class: only-light
