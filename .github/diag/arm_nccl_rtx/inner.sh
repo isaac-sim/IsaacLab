@@ -17,7 +17,7 @@
 # logs an NCCL init is reported as invalid, not passed. ONLY=<regex> limits the cases run.
 
 set -u
-out=/reports
+out="${REPORTS:-/tmp/reports}"  # host.sh copies it out; desk runs bind-mount REPORTS
 mkdir -p "$out"
 summary="$out/summary.md"
 : > "$summary"
