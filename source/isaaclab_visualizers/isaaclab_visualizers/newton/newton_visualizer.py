@@ -531,7 +531,7 @@ class _NewtonVisualizer(BaseVisualizer):
         """Bind scene data and the Newton model shared with the simulation."""
         super().initialize(sim, cameras=cameras)
         self.newton_cfg = NewtonBackendCfg(physics_cfg=sim.cfg.physics, device=sim.device)
-        self.backend = self._get_backend(self.newton_cfg)
+        self.backend = self._sim.get_or_create_backend(self.newton_cfg)
         self._transform_mapping = self._scene_data_provider.create_mapping(list(self.backend.model.body_label))
         self._runtime_headless = self.cfg.headless or (
             sys.platform not in ("win32", "darwin") and not os.environ.get("DISPLAY")
@@ -856,7 +856,7 @@ class NewtonGLVisualizer(_NewtonVisualizer):
         if soft or not self._is_initialized or self._is_closed:
             return
 
-        backend = self._get_backend(self.newton_cfg)
+        backend = self._sim.get_or_create_backend(self.newton_cfg)
         if backend is self.backend:
             return
         self.backend = backend
@@ -1245,8 +1245,8 @@ class NewtonRTXVisualizer(_NewtonVisualizer):
             )
         super().initialize(sim, cameras=cameras)
         scene_data_provider = self._scene_data_provider
-        scene = self._get_backend(OvstageBackendCfg(viewer_id=id(self)))
-        scene.populate(self._scene_stage, sim.get_clone_plan())
+        scene = self._sim.get_or_create_backend(OvstageBackendCfg(viewer_id=id(self)))
+        scene.populate(self._sim.stage, sim.get_clone_plan())
         cfg = self.cfg
         settings = dict(cfg.render_settings)
         if cfg.background_color is not None:
@@ -1300,7 +1300,7 @@ class NewtonRTXVisualizer(_NewtonVisualizer):
         super().reset(soft)
         if soft or not self._is_initialized or self._is_closed:
             return
-        backend = self._get_backend(self.newton_cfg)
+        backend = self._sim.get_or_create_backend(self.newton_cfg)
         if backend is self.backend:
             return
         self.backend = backend

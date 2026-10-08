@@ -23,6 +23,8 @@ The guide owns shared contribution rules. Update them there instead of copying t
 - Follow the existing style and abstractions in the affected package.
 - Keep visualizer backend construction and rebinding in its implementation. Core initialization and
   reset dispatch must not import concrete backend resources or pass backend-specific arguments.
+- Keep the simulation owner directly on the visualizer; access its stage and backend registry through it
+  instead of caching stage or bound-method aliases.
 - Give each visualizer one frame implementation for interactive display and on-demand capture.
   Share lifecycle code between native viewers; let rendering failures propagate after frame cleanup.
 - Use the uv-managed environment for routine commands and `uv run python` for Python scripts.

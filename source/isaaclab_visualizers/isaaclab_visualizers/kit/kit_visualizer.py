@@ -107,14 +107,14 @@ class KitVisualizer(BaseVisualizer):
         self._ensure_simulation_app()
         self._setup_viewport()
         if self._viewport_api is not None:
-            self._apply_render_product_background(self._scene_stage, self._viewport_api.render_product_path)
+            self._apply_render_product_background(self._sim.stage, self._viewport_api.render_product_path)
 
         if self._env_ids is not None:
             logger.warning(
                 "[KitVisualizer] Partial visualization in Kit uses visibility only; unselected env prims are hidden."
             )
-            self._apply_env_visibility(self._scene_stage, num_envs, self._env_ids)
-        self._apply_viewport_camera_scene_partition(self._scene_stage, num_envs)
+            self._apply_env_visibility(self._sim.stage, num_envs, self._env_ids)
+        self._apply_viewport_camera_scene_partition(self._sim.stage, num_envs)
         num_visualized_envs = len(self._env_ids) if self._env_ids is not None else num_envs
         self._log_initialization_table(
             logger=logger,
@@ -231,7 +231,7 @@ class KitVisualizer(BaseVisualizer):
         # captured frame contains real rendered output, not empty/blank data.
         if self._rgb_annotator is None:
             self._rgb_render_product = rep.create.render_product(camera_path, (w, h))
-            self._apply_render_product_background(self._scene_stage, self._rgb_render_product.path)
+            self._apply_render_product_background(self._sim.stage, self._rgb_render_product.path)
             self._rgb_annotator = rep.AnnotatorRegistry.get_annotator("rgb", device="cpu")
             self._rgb_annotator.attach([self._rgb_render_product])
         elif self._runtime_headless and self._rgb_render_product is not None:
@@ -762,7 +762,7 @@ class KitVisualizer(BaseVisualizer):
         # TODO: Remove this USD-side pose path once Fabric-backed camera transforms propagate reliably to Kit.
         eye = torch.as_tensor(position, dtype=torch.float32, device="cpu").reshape(1, 3)
         lookat = torch.as_tensor(target, dtype=torch.float32, device="cpu").reshape(1, 3)
-        up_axis = UsdGeom.GetStageUpAxis(self._scene_stage)
+        up_axis = UsdGeom.GetStageUpAxis(self._sim.stage)
         rotation_matrix = create_rotation_matrix_from_view(eye, lookat, up_axis=up_axis, device="cpu")
         if torch.isnan(rotation_matrix).any():
             raise ValueError("[KitVisualizer] Cannot set camera pose because eye and lookat are degenerate.")
@@ -780,7 +780,7 @@ class KitVisualizer(BaseVisualizer):
             return False
 
         if camera_path not in self._viewport_camera_xform_ops:
-            camera = UsdGeom.Camera.Define(self._scene_stage, camera_path)
+            camera = UsdGeom.Camera.Define(self._sim.stage, camera_path)
             camera_xform = UsdGeom.Xformable(camera.GetPrim())
             camera_xform.ClearXformOpOrder()
             # Viewport eyes/targets are world-space.
@@ -822,7 +822,7 @@ class KitVisualizer(BaseVisualizer):
         """
         if self._viewport_api is None:
             return False
-        camera_prim = self._scene_stage.GetPrimAtPath(camera_path)
+        camera_prim = self._sim.stage.GetPrimAtPath(camera_path)
         if not camera_prim.IsValid():
             return False
         self._viewport_api.set_active_camera(camera_path)
@@ -858,7 +858,7 @@ class KitVisualizer(BaseVisualizer):
         num_envs = self._scene_data_provider.num_envs
         if num_envs <= 0:
             return
-        self._apply_visual_point_instancer_visibility(self._scene_stage, num_envs, set(self._env_ids))
+        self._apply_visual_point_instancer_visibility(self._sim.stage, num_envs, set(self._env_ids))
 
     def _apply_visual_point_instancer_visibility(self, usd_stage, num_envs: int, visible_env_ids: set[int]) -> None:
         """Set ``PointInstancer.invisibleIds`` for per-env `/Visuals` markers (e.g. velocity arrows)."""
@@ -904,7 +904,7 @@ class KitVisualizer(BaseVisualizer):
     def _restore_env_visibility(self) -> None:
         """Restore environment visibilities and PointInstancer ``invisibleIds`` from partial viz."""
         for env_path, prev in self._hidden_env_visibilities.items():
-            prim = self._scene_stage.GetPrimAtPath(env_path)
+            prim = self._sim.stage.GetPrimAtPath(env_path)
             if not prim.IsValid():
                 continue
             imageable = UsdGeom.Imageable(prim)
@@ -914,7 +914,7 @@ class KitVisualizer(BaseVisualizer):
         self._hidden_env_visibilities.clear()
 
         for path_str, (was_authored, prev) in self._point_instancer_invisible_ids_backup.items():
-            prim = self._scene_stage.GetPrimAtPath(path_str)
+            prim = self._sim.stage.GetPrimAtPath(path_str)
             if not prim.IsValid() or not prim.IsA(UsdGeom.PointInstancer):
                 continue
             inv_attr = UsdGeom.PointInstancer(prim).GetInvisibleIdsAttr()

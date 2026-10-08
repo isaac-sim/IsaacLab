@@ -51,7 +51,7 @@ def test_close_releases_owned_resources_even_on_failure(failure):
     viewer = visualizer._viewer = Mock()
     camera = visualizer._camera_sensor = Mock()
     visualizer._camera_choices = [camera]
-    visualizer._scene_stage = object()
+    visualizer._sim = Mock()
     if failure:
         viewer.close.side_effect = RuntimeError("release failed")
     if not failure:
@@ -64,6 +64,6 @@ def test_close_releases_owned_resources_even_on_failure(failure):
     viewer.close.assert_called_once()
     camera.close.assert_not_called()
     assert visualizer._viewer is visualizer.backend is None
-    assert visualizer._scene_stage is visualizer._camera_sensor is None
+    assert visualizer._sim is visualizer._camera_sensor is None
     assert not visualizer._camera_choices
     assert visualizer._is_closed

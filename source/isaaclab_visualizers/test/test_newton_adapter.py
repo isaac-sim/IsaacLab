@@ -644,7 +644,7 @@ def test_newton_visualizer_hard_reset_rebinds_viewer_model(monkeypatch, picking)
     viewer.set_visible_worlds = Mock()
     viewer.set_world_offsets = Mock()
     visualizer = _make_newton_visualizer(viewer)
-    visualizer._get_backend = sim.get_or_create_backend
+    visualizer._sim = sim
     cfg = visualizer.newton_cfg = NewtonBackendCfg(physics_cfg=object(), device="cpu")
     visualizer._env_ids = [1, 3]
     visualizer._picking_enabled = picking

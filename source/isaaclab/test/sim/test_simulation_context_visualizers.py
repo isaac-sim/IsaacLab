@@ -786,9 +786,9 @@ def test_visualizer_construction_precedes_initialization_and_happens_once(monkey
         assert visualizer._camera_choices == [camera, perspective]
         assert cfg.cameras == [source, perspective]
         assert source.prim_path == "{ENV_REGEX_NS}/Camera"
-        assert not hasattr(visualizer, "_clone_plan")
+        assert not {"_clone_plan", "_scene_stage", "_get_backend"}.intersection(vars(visualizer))
         ctx._scene_data_provider.get_camera_sensors.assert_called_once_with()
-        assert visualizer._scene_stage is ctx.stage
+        assert visualizer._sim is ctx
         assert seen == [cfg]
         assert ctx._visualizers == [visualizer]
     assert visualizer.close_calls == 0

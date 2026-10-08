@@ -54,7 +54,7 @@ class BaseVisualizer(ABC):
         validate(cfg)
         self.cfg = cfg
         self._scene_data_provider = None
-        self._scene_stage = None
+        self._sim: SimulationContext | None = None
         self._camera_choices: list[PerspectiveCameraCfg | Camera] = []
         self._is_initialized = False
         self._is_closed = False
@@ -89,15 +89,14 @@ class BaseVisualizer(ABC):
         """Bind scene inputs and the simulation-owned resource registry.
 
         Args:
-            sim: Simulation owner used to resolve resources during initialization.
+            sim: Simulation owner that provides the scene and backend resources.
             cameras: Resolved perspective settings and borrowed scene sensors, in display order.
         """
         scene_data_provider = sim.get_scene_data_provider()
         if scene_data_provider is None:
             raise RuntimeError(f"{self.__class__.__name__} requires a scene_data_provider.")
         self._scene_data_provider = scene_data_provider
-        self._scene_stage = sim.stage
-        self._get_backend = sim.get_or_create_backend
+        self._sim = sim
         self._camera_choices = list(cameras)
 
         cfg = self.cfg
@@ -227,8 +226,7 @@ class BaseVisualizer(ABC):
         self._streaming_env_ids = self._streaming_depth_colors = None
         self._streaming_layout = self._streaming_view_key = None
         self._streaming_keys = ()
-        self._scene_data_provider = self._scene_stage = None
-        self._get_backend = None
+        self._scene_data_provider = self._sim = None
         self._is_closed = True
 
     @abstractmethod

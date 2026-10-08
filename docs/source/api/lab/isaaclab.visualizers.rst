@@ -5,9 +5,10 @@
 
 Custom visualizers implement ``initialize(sim, *, cameras)`` and ``reset(soft=False)``.
 Initialization receives the simulation owner explicitly. Call ``super().initialize(sim, cameras=cameras)``
-to bind scene data, the authored stage, and the resource registry. Resolve backend-specific resources in
+to retain the simulation as ``self._sim`` and bind scene data. Resolve backend-specific resources in
 the implementation; core lifecycle dispatch does not import or construct them. Hard resets can reacquire
-resources through the bound ``self._get_backend`` callable. Rendering uses the resolved resources.
+resources through ``self._sim.get_or_create_backend(...)`` and access the stage through ``self._sim.stage``.
+Rendering uses the resolved resources.
 
 Additional Public Classes
 -------------------------

@@ -406,7 +406,7 @@ class RerunVisualizer(BaseVisualizer):
         super().reset(soft)
         if soft or not self._is_initialized or self._is_closed:
             return
-        backend = self._get_backend(self.newton_cfg)
+        backend = self._sim.get_or_create_backend(self.newton_cfg)
         if backend is self.backend:
             return
         self.backend = backend
