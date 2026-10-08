@@ -539,6 +539,10 @@ class TeleopSessionLifecycle:
         if not self._is_replay:
             self._run_system_check()
 
+        # Silence the OpenXR runtime's per-call error messages in this process; set
+        # OXR_NO_PRINTING=false to see them again. Must be set before Kit loads the runtime.
+        os.environ.setdefault("OXR_NO_PRINTING", "true")
+
         # CloudXR is per-run, not per-mode: when the caller passes a profile
         # we spawn the runtime so a real client has something to attach to.
         # This is true for live recording (operator wears the headset) and
