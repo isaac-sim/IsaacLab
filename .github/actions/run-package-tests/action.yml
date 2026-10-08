@@ -27,6 +27,14 @@ inputs:
     description: 'ECR cache tag'
     default: 'cache-base'
     required: false
+  ci-marker:
+    description: 'Optional pytest -m marker expression applied to every test file (e.g. arm_ci)'
+    default: ''
+    required: false
+  platform:
+    description: 'Target platform if the image has to be built'
+    default: 'linux/amd64'
+    required: false
   filter-pattern:
     description: >-
       Pattern to filter test files (e.g., isaaclab_tasks); test files whose path
@@ -111,14 +119,15 @@ inputs:
       newest compatible snapshot and never writes; every test job uses this, so
       a pull request can never publish kernels built from unmerged code. 'save'
       restores the same way and writes the result back as a new snapshot, making
-      post-merge a cumulative writeback; only warm-warp-cache uses it.
+      post-merge a cumulative writeback; only warm-warp-cache and ARM CI's
+      post-merge run use it.
     default: ''
     required: false
   ovrtx-shader-cache:
     description: >-
       OVRTX shader cache mode. Empty disables the cache. 'restore' reads the
       newest compatible snapshot and never writes. 'save' restores and writes
-      back a new snapshot; only warm-ovrtx-cache uses it.
+      back a new snapshot; only warm-ovrtx-cache and ARM CI's post-merge run use it.
     default: ''
     required: false
   ovrtx-shader-cache-trees:
@@ -141,6 +150,10 @@ inputs:
     required: false
   result-file:
     description: 'Optional JUnit result filename; defaults to the workflow job identifier'
+    default: ''
+    required: false
+  smoke-test-path:
+    description: 'Optional pytest smoke-test file to run after the package tests, before cache publication'
     default: ''
     required: false
   container-name:
@@ -197,6 +210,7 @@ runs:
         isaacsim-version: ${{ inputs.isaacsim-version }}
         dockerfile-path: ${{ inputs.dockerfile-path }}
         cache-tag: ${{ inputs.cache-tag }}
+        platform: ${{ inputs.platform }}
 
     - name: Report pull duration
       if: always()
@@ -348,6 +362,7 @@ runs:
         include-files: ${{ inputs.include-files }}
         test-node-ids-file: ${{ inputs.test-node-ids-file }}
         test-node-ids-key: ${{ inputs.test-node-ids-key }}
+        ci-marker: ${{ inputs.ci-marker }}
         volume-mount-source: ${{ github.workspace }}
         extra-pip-packages: ${{ inputs.extra-pip-packages }}
         extra-uv-packages: ${{ inputs.extra-uv-packages }}
@@ -359,6 +374,19 @@ runs:
         standalone-script-scope: ${{ inputs.standalone-script-scope }}
         standalone-script-visualizer: ${{ inputs.standalone-script-visualizer }}
         standalone-script-runtime-group: ${{ inputs.standalone-script-runtime-group }}
+
+    - name: Run smoke tests
+      if: inputs.smoke-test-path != ''
+      uses: ./.github/actions/run-tests
+      with:
+        test-path: ${{ inputs.smoke-test-path }}
+        result-file: ${{ github.job }}-smoke-report.xml
+        container-name: ${{ inputs.container-name }}-smoke-${{ github.run_id }}-${{ github.run_attempt }}
+        image-tag: ${{ inputs.image-tag }}
+        volume-mount-source: ${{ github.workspace }}
+        warp-cache-host-dir: ${{ steps.warp-cache-key.outputs.host-dir }}
+        ovrtx-shader-cache-host-dir: ${{ steps.ovrtx-cache.outputs.host-dir }}
+        omni-github-test-type: ${{ inputs.omni-github-test-type }}
 
     - name: Check Test Results
       if: always()

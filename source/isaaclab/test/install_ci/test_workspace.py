@@ -35,8 +35,6 @@ def test_workspace_install(
 def test_workspace_trains(workspace: tuple[str, Path, dict[str, str]], checkout: Path, run: Callable[..., str]) -> None:
     runtime, directory, env = workspace
     if runtime == "isaacsim":
-        if platform.machine().lower() in ("aarch64", "arm64"):
-            pytest.skip("Isaac Sim PhysX training is not functional on aarch64 yet")
         if platform.system() == "Linux":
             shim = directory / "venv/lib/python3.12/site-packages/isaacsim/kit/kernel/plugins/libcarb.env.shim.so"
             assert shim.is_file()
