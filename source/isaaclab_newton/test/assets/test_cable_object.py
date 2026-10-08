@@ -400,7 +400,6 @@ def test_cable_callback_does_not_retain_asset():
         scene = InteractiveScene(_CableSceneCfg(num_envs=1, env_spacing=1.0))
         sim.reset()
         cable = scene["cable"]
-        callback_id = cable._physics_ready_handle.id
         cable_ref = weakref.ref(cable)
 
         del cable
@@ -408,4 +407,3 @@ def test_cable_callback_does_not_retain_asset():
         gc.collect()
 
         assert cable_ref() is None
-        assert callback_id not in SimulationManager._callbacks

@@ -16,7 +16,6 @@ from newton.selection import ArticulationView
 from pxr import UsdGeom
 
 from isaaclab.assets.cable_object.base_cable_object import BaseCableObject
-from isaaclab.physics import PhysicsEvent
 from isaaclab.sim.utils.queries import has_deformable_curve_api, path_expr_to_glob, resolve_matching_prims_from_source
 from isaaclab.utils.warp import ProxyArray
 
@@ -196,7 +195,7 @@ class CableObject(BaseCableObject):
             and self.root_view.joint_count == num_segments
             and self.root_view.link_count == num_segments
             and bool((joint_types[..., 0] == int(JointType.FREE)).all())
-            and bool((joint_types[..., 1:] == int(JointType.CABLE)).all())
+            and bool((joint_types[..., 1:] == int(JointType.ROD)).all())
         )
         if not valid_topology:
             raise RuntimeError(topology_error)
@@ -205,11 +204,6 @@ class CableObject(BaseCableObject):
         self._ALL_ENV_MASK = wp.ones((self.num_instances,), dtype=wp.bool, device=self.device)
 
         self._data = CableObjectData(self.root_view, self.device)
-        self._physics_ready_handle = SimulationManager.register_callback(
-            self._rebind,
-            PhysicsEvent.PHYSICS_READY,
-            name=f"cable_object_rebind_{self.cfg.prim_path}",
-        )
 
     def _resolve_env_ids(self, env_ids: Sequence[int] | torch.Tensor | wp.array(dtype=wp.int32) | None) -> wp.array(
         dtype=wp.int32
@@ -259,14 +253,3 @@ class CableObject(BaseCableObject):
         yield state_0
         if state_1 is not None and state_1 is not state_0:
             yield state_1
-
-    def _rebind(self, _: object) -> None:
-        """Rebind simulation arrays after a Newton model rebuild."""
-        self._data._create_simulation_bindings()
-
-    def _clear_callbacks(self) -> None:
-        """Clear all registered callbacks."""
-        super()._clear_callbacks()
-        if hasattr(self, "_physics_ready_handle") and self._physics_ready_handle is not None:
-            self._physics_ready_handle.deregister()
-            self._physics_ready_handle = None

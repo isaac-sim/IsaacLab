@@ -491,24 +491,7 @@ class LightArticulationView:
     set_actuator_parameter = ArticulationView.set_actuator_parameter
     _get_actuator_dof_mapping = ArticulationView._get_actuator_dof_mapping
     _create_actuator_dof_mapping = ArticulationView._create_actuator_dof_mapping
-
-    def _resolve_world_mask(self, mask: Sequence[bool] | wp.array | None) -> wp.array:
-        """Normalize a world mask independently of the installed Newton version."""
-        if mask is None:
-            return self.full_mask
-        if isinstance(mask, wp.array):
-            if mask.dtype is not wp.bool:
-                raise ValueError(f"Expected Boolean mask, got dtype {mask.dtype}")
-            if mask.shape != (self.world_count,):
-                raise ValueError(f"Expected mask shape ({self.world_count},), got {mask.shape}")
-            if mask.device != self.device:
-                raise ValueError(f"Expected mask on device {self.device}, got {mask.device}")
-            return mask
-
-        try:
-            return wp.array(mask, dtype=wp.bool, shape=(self.world_count,), device=self.device, copy=False)
-        except Exception as error:
-            raise ValueError(f"Expected Boolean mask with shape ({self.world_count},)") from error
+    _resolve_world_mask = ArticulationView._resolve_world_mask
 
 
 @dataclass(frozen=True)
