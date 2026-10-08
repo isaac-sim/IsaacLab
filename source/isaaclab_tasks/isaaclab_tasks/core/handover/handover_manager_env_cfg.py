@@ -16,7 +16,7 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
-from isaaclab.utils import configclass, replace
+from isaaclab.utils import clone, configclass, replace
 
 import isaaclab_tasks.core.reorient.mdp as reorient_mdp
 from isaaclab_tasks.utils import PresetCfg
@@ -322,4 +322,4 @@ class HandoverManagerEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.render_interval = self.decimation
         self.sim.physics_material = RigidBodyMaterialBaseCfg(static_friction=1.0, dynamic_friction=1.0)
         self.sim.physics = PhysicsCfg()
-        self.sim.default_visualizer_cfg = VISUALIZER_CFG
+        self.sim.default_visualizer_cfg = clone(VISUALIZER_CFG)
