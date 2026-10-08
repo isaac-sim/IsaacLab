@@ -527,6 +527,7 @@ class image_normals(CameraImageBase):
 
     Args:
         sensor_cfg: The camera sensor to read. Defaults to SceneEntityCfg("tiled_camera").
+        data_type: The surface-normal camera data type. Defaults to "normals".
         normalize: Whether to normalize the image. Defaults to True.
         channel_first: Whether to return ``(num_envs, C, H, W)``. Defaults to False.
         frame_stack: Number of recent frames to stack along the channel axis. Defaults to 1.
@@ -545,11 +546,12 @@ class image_normals(CameraImageBase):
         self,
         env: ManagerBasedEnv,
         sensor_cfg: SceneEntityCfg = SceneEntityCfg("tiled_camera"),
+        data_type: str = "normals",
         normalize: bool = True,
         channel_first: bool = False,
         frame_stack: int = 1,
     ) -> torch.Tensor:
-        images = _read_camera_output(env, sensor_cfg, "normals")
+        images = _read_camera_output(env, sensor_cfg, data_type)
         return self._frames(images, normalize_normals if normalize else None)
 
 

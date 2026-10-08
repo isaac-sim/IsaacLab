@@ -23,6 +23,7 @@ pytestmark = pytest.mark.unit
 from isaaclab.envs.mdp.observations import (
     image_depth,
     image_features,
+    image_normals,
     image_rgb,
     image_segmentation,
     stacked_image,
@@ -143,6 +144,14 @@ class TestFrameStacking:
 
 class TestModalityTerms:
     """Per-modality reading, validation and normalization."""
+
+    def test_normals_uses_default_data_type(self):
+        """Normals resolve their default data type through the observation term signature."""
+        normals = torch.linspace(-1.0, 1.0, NUM_ENVS * HEIGHT * WIDTH * CHANNELS).reshape(
+            NUM_ENVS, HEIGHT, WIDTH, CHANNELS
+        )
+        _, observe = _make_term(image_normals, _make_env({"normals": normals}))
+        torch.testing.assert_close(observe(), (normals + 1.0) * 0.5)
 
     def test_rgb_drops_alpha_and_accepts_constant_mean(self):
         """Albedo's unused alpha channel is dropped and a constant mean replaces the per-image mean."""
