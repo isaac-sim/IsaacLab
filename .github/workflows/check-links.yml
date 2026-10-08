@@ -75,6 +75,7 @@ jobs:
         # 502/503/504 are often transient (GitHub throttles runners) and lychee does not retry them.
         # PR and push runs accept them like 429; the weekly and manual runs stay strict so a persistent
         # gateway failure still fails. They are kept out of the shared cache so later runs re-check.
+        # Anonymous CI receives 401 for the documented Cosmos checkpoint page; exclude only that URL.
         args: >-
           --verbose
           --no-progress
@@ -105,6 +106,7 @@ jobs:
           --exclude 'huggingface\.co/datasets/nvidia/PhysicalAI-Robotics-NuRec'
           --exclude 'huggingface\.co/nvidia/COMPASS'
           --exclude 'huggingface\.co/nvidia/X-Mobility'
+          --exclude '^https://huggingface\.co/nvidia/Cosmos3-Nano-Sim-Transfer/?$'
           --exclude 'openusd\.org'
           --exclude 'ubuntu\.com/server/docs'
           --exclude 'docs\.ray\.io'
