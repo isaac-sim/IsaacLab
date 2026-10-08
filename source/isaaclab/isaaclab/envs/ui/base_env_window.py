@@ -212,7 +212,7 @@ class BaseEnvWindow:
                 viewport_origin_cfg = {
                     "label": "Environment Index",
                     "type": "button",
-                    "default_val": ((_viz.camera_env_index or 0) if _viz is not None else 0) + 1,
+                    "default_val": (_viz.cfg.origin_env_index if _viz is not None else 0) + 1,
                     "min": 1,
                     "max": self.env.num_envs,
                     "tooltip": "The environment index to follow. Only effective if follow mode is not 'World'.",
@@ -239,14 +239,14 @@ class BaseEnvWindow:
                 # add viewer default eye and lookat locations
                 self.ui_window_elements["viewer_eye"] = isaacsim.gui.components.ui_utils.xyz_builder(
                     label="Camera Eye",
-                    tooltip="Camera eye offset from the follow origin.",
+                    tooltip="Modify the XYZ location of the viewer eye.",
                     default_val=_viz.cfg.eye if _viz is not None else (4.0, -4.0, 3.0),
                     step=0.1,
                     on_value_changed_fn=[self._set_viewer_location_fn] * 3,
                 )
                 self.ui_window_elements["viewer_lookat"] = isaacsim.gui.components.ui_utils.xyz_builder(
                     label="Camera Target",
-                    tooltip="Camera target offset from the follow origin.",
+                    tooltip="Modify the XYZ location of the viewer target.",
                     default_val=_viz.cfg.lookat if _viz is not None else (0.0, 0.0, 0.0),
                     step=0.1,
                     on_value_changed_fn=[self._set_viewer_location_fn] * 3,
@@ -436,13 +436,25 @@ class BaseEnvWindow:
         viz.reapply_origin()
 
     def _set_viewer_location_fn(self, model: omni.ui.SimpleFloatModel):
-        """Sets the viewport camera offsets from the follow origin based on the UI."""
+        """Sets the viewport camera location based on the UI."""
+
         viz = self._get_kit_visualizer()
         if viz is None:
             return
-        viz.cfg.eye = tuple(self.ui_window_elements["viewer_eye"][i].get_value_as_float() for i in range(3))
-        viz.cfg.lookat = tuple(self.ui_window_elements["viewer_lookat"][i].get_value_as_float() for i in range(3))
-        viz.reapply_origin()
+        eye = [self.ui_window_elements["viewer_eye"][i].get_value_as_float() for i in range(3)]
+        lookat = [self.ui_window_elements["viewer_lookat"][i].get_value_as_float() for i in range(3)]
+        viz.set_camera_view(eye, lookat)
+
+        # Persist the slider values back to cfg so that asset-tracking steps do not
+        # snap the camera back to the previously configured offsets.
+        origin = viz.viewer_origin
+        if origin is not None:
+            origin_np = origin.detach().cpu().numpy()
+            viz.cfg.eye = tuple(float(e - o) for e, o in zip(eye, origin_np))
+            viz.cfg.lookat = tuple(float(lk - o) for lk, o in zip(lookat, origin_np))
+        else:
+            viz.cfg.eye = tuple(float(v) for v in eye)
+            viz.cfg.lookat = tuple(float(v) for v in lookat)
 
     def _set_viewer_env_index_fn(self, model: omni.ui.SimpleIntModel):
         """Sets the environment index and updates the camera if in 'env' origin mode."""

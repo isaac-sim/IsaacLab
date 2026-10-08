@@ -25,8 +25,8 @@ from ..envs.utils.camera_view import image_grid_columns, resolve_streaming_envs
 from ..utils import validate
 from ..utils.buffers import TimestampedBuffer
 from ..utils.images import compose_image
-from .camera_controller import CameraController
-from .visualizer_cfg import PerspectiveCameraCfg
+from .tracked_camera import TrackedCameraUpdater
+from .visualizer_cfg import USD_DEFAULT_VERTICAL_APERTURE_MM, PerspectiveCameraCfg, TrackedCameraCfg
 
 if TYPE_CHECKING:
     from pxr import Usd
@@ -39,8 +39,6 @@ if TYPE_CHECKING:
 
 
 logger = logging.getLogger(__name__)
-
-_USD_DEFAULT_VERTICAL_APERTURE_MM = 15.2908
 
 
 class BaseVisualizer(ABC):
@@ -69,6 +67,8 @@ class BaseVisualizer(ABC):
         self._live_plots_step_counter: int = 0
         self._reset_requested: bool = False
         self._sim_time = 0.0
+        self._tracked_cameras: list[TrackedCameraUpdater] | None = None
+        self._tracked_camera_time = 0.0
         self._camera_sensor: Camera | None = None
         self._camera_sensor_indices: list[int] = []
         self._streaming_aspect = 1.0
@@ -79,10 +79,6 @@ class BaseVisualizer(ABC):
         self._streaming_layout: tuple | None = None
         self._streaming_view_key: tuple | None = None
         self._streaming_keys: tuple[str, ...] = ()
-        self._camera_controller: CameraController | None = None
-        self._camera_origin_spec: tuple | None = None
-        self._pending_world_camera_pose: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
-        self._camera_sim_time = 0.0
 
     @property
     def visual_material_writer(self) -> Callable[[tuple[VisualMaterialBatch, ...]], Any] | None:
@@ -145,6 +141,33 @@ class BaseVisualizer(ABC):
                 (camera for camera in self._camera_choices if not isinstance(camera, PerspectiveCameraCfg)), None
             )
 
+    def _update_tracked_cameras(self, env_ids: list[int]) -> None:
+        """Move the tracking cameras to their assets for the simulation time elapsed since the last move.
+
+        The elapsed time comes from the simulation, since headless capture renders without calling :meth:`step`.
+        """
+        if self._tracked_cameras is None:
+            scene = self._scene_data_provider.get_interactive_scene()
+            if scene is None:
+                return
+            sensors = [camera for camera in self._camera_choices if not isinstance(camera, PerspectiveCameraCfg)]
+            self._tracked_cameras = [
+                TrackedCameraUpdater(camera_cfg, sensor, scene)
+                for camera_cfg in self.cfg.cameras or ()
+                if isinstance(camera_cfg, TrackedCameraCfg) and camera_cfg.track_path
+                for sensor in sensors
+                if sensor.cfg.prim_path.rsplit("/", 1)[-1] == camera_cfg.prim_path.rsplit("/", 1)[-1]
+            ]
+        if not self._tracked_cameras:
+            return
+        sim = sim_utils.SimulationContext.instance()
+        sim_time = sim.get_physics_step_count() * sim.get_physics_dt()
+        # the step count restarts with a new simulation; a negative elapsed time would push the heading filter away
+        dt = max(sim_time - self._tracked_camera_time, 0.0)
+        for tracked in self._tracked_cameras:
+            tracked.update(env_ids, dt)
+        self._tracked_camera_time = sim_time
+
     def render_tiled_rgba(self) -> wp.array | None:
         """Acquire the selected camera frame and compose a device-resident display image.
 
@@ -155,6 +178,7 @@ class BaseVisualizer(ABC):
         camera, env_ids, cfg = self._camera_sensor, self._camera_sensor_indices, self.cfg
         if camera is None or not env_ids:
             return None
+        self._update_tracked_cameras(env_ids)
         gt_types = tuple(cfg.streaming_gt_types)
         aspect, depth_min, depth_max = self._streaming_aspect, cfg.streaming_depth_min, cfg.streaming_depth_max
         view_key = (camera, tuple(env_ids), gt_types, aspect, depth_min, depth_max)
@@ -165,7 +189,9 @@ class BaseVisualizer(ABC):
             self._streaming_layout = None
             self._streaming_view_key = view_key
             frame.timestamp = -1.0
-        if frame.timestamp == self._sim_time:
+        # The physics step, not the visualizer's own clock, which headless capture never advances.
+        step = sim_utils.SimulationContext.instance().get_physics_step_count()
+        if frame.timestamp == step:
             return frame.data
 
         outputs = camera.data.output
@@ -201,7 +227,7 @@ class BaseVisualizer(ABC):
             frame.data, sources, self._streaming_env_ids, gt_types, self._streaming_depth_colors,
             depth_min=depth_min, depth_max=depth_max,
         )  # fmt: skip
-        frame.timestamp = self._sim_time
+        frame.timestamp = step
         self._streaming_host_frame.timestamp = -1.0
         return frame.data
 
@@ -297,14 +323,6 @@ class BaseVisualizer(ABC):
     def is_closed(self) -> bool:
         """Check if close() has been called."""
         return self._is_closed
-
-    @property
-    def camera_env_index(self) -> int | None:
-        """Resolved camera environment, or ``None`` while automatic selection is pending."""
-        if self._camera_controller is not None:
-            return self._camera_controller.env_index
-        index = self.cfg.origin_env_index
-        return index if isinstance(index, int) else None
 
     @property
     def physics_backend(self) -> str | None:
@@ -428,76 +446,13 @@ class BaseVisualizer(ABC):
         """
         return None
 
-    def set_camera_view(
-        self, eye: tuple[float, float, float] | list[float], target: tuple[float, float, float] | list[float]
-    ) -> None:
-        """Set a world-space camera view and preserve it as offsets for subsequent tracking.
+    def set_camera_view(self, eye: tuple, target: tuple) -> None:
+        """Set camera view position.
 
         Args:
-            eye: Camera eye position in world coordinates [m].
-            target: Camera look-at target in world coordinates [m].
+            eye: Camera eye position.
+            target: Camera target position.
         """
-        eye = tuple(float(v) for v in eye)
-        target = tuple(float(v) for v in target)
-        self._set_camera_pose_cfg(eye, target)
-        self._apply_camera_pose((eye, target))
-
-    def _track_camera(self) -> None:
-        """Update the tracking camera by the simulation time elapsed since the last update.
-
-        Headless capture renders without calling :meth:`step`, so elapsed time comes from the
-        simulation rather than from step ``dt``.
-        """
-        if self.cfg.origin_type == "world" and self._pending_world_camera_pose is None:
-            return
-        sim = sim_utils.SimulationContext.instance()
-        sim_time = sim.get_physics_step_count() * sim.get_physics_dt()
-        self._update_camera_tracking(sim_time - self._camera_sim_time)
-        self._camera_sim_time = sim_time
-
-    def _update_camera_tracking(self, dt: float = 0.0) -> None:
-        """Apply the task camera before rendering, without rewriting configured offsets."""
-        origin_spec = (self.cfg.origin_type, self.cfg.origin_env_index, self.cfg.origin_track_path)
-        if origin_spec != self._camera_origin_spec:
-            self._camera_controller = None
-            self._camera_origin_spec = origin_spec
-        if self.cfg.origin_type == "world":
-            pose = self._pending_world_camera_pose
-        else:
-            if self._camera_controller is None:
-                # The scene and asset state may become available after visualizer initialization.
-                if self._scene_data_provider is None:
-                    return
-                scene = self._scene_data_provider.get_interactive_scene()
-                if scene is None:
-                    return
-                self._camera_controller = CameraController(self.cfg, scene, self._env_ids)
-            pose = self._camera_controller.update(dt)
-        if pose is not None:
-            if self._pending_world_camera_pose is not None:
-                pose = self._pending_world_camera_pose
-                self._set_camera_pose_cfg(*pose)
-            self._apply_camera_pose(pose)
-
-    def _set_camera_pose_cfg(self, eye: tuple[float, float, float], target: tuple[float, float, float]) -> None:
-        """Persist a world-space camera edit as offsets in the configured origin frame."""
-        if self.cfg.origin_type != "world":
-            origin_spec = (self.cfg.origin_type, self.cfg.origin_env_index, self.cfg.origin_track_path)
-            if (
-                self._camera_controller is None
-                or not self._camera_controller.has_pose
-                or origin_spec != self._camera_origin_spec
-            ):
-                # A queued world-space edit must wait for the first valid origin and heading.
-                self._pending_world_camera_pose = (eye, target)
-                return
-            eye, target = self._camera_controller.world_to_offsets(eye, target)
-        self.cfg.eye = eye
-        self.cfg.lookat = target
-        self._pending_world_camera_pose = None
-
-    def _apply_camera_pose(self, pose: tuple[tuple[float, float, float], tuple[float, float, float]]) -> None:
-        """Apply a world-space pose; backends must preserve the configured camera offsets."""
         pass
 
     def _focal_length_to_vertical_fov_degrees(self) -> float:
@@ -505,7 +460,7 @@ class BaseVisualizer(ABC):
         focal_length = float(self.cfg.focal_length)
         if focal_length <= 0.0:
             raise ValueError("VisualizerCfg.focal_length must be positive.")
-        return math.degrees(2.0 * math.atan(_USD_DEFAULT_VERTICAL_APERTURE_MM / (2.0 * focal_length)))
+        return math.degrees(2.0 * math.atan(USD_DEFAULT_VERTICAL_APERTURE_MM / (2.0 * focal_length)))
 
     def reset(self, soft: bool = False) -> None:
         """Reset visualizer state.

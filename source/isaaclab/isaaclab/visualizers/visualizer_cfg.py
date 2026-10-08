@@ -11,7 +11,7 @@ import argparse
 import math
 import warnings
 from dataclasses import MISSING
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any
 
 from ..utils import configclass
 from ..utils.string import string_to_callable
@@ -32,6 +32,9 @@ the ``<isaaclab_visualizers subpackage>:<class>`` of their default config, impor
 
 VISUALIZER_ALIASES = {"newton": "newton_gl"}
 """Deprecated ``--visualizer`` names and their replacements."""
+
+USD_DEFAULT_VERTICAL_APERTURE_MM = 15.2908
+"""Vertical aperture [mm] that visualizers use to turn a focal length into a vertical field of view."""
 
 _VISUALIZER_EXTRAS = {
     "kit": "isaacsim",
@@ -152,6 +155,61 @@ class SceneCameraCfg:
 
 
 @configclass
+class TrackedCameraCfg(SceneCameraCfg):
+    """A scene camera that follows an asset, created for the visualizer when it runs.
+
+    Unlike :class:`SceneCameraCfg`, this declares the camera instead of referring to one: when a visualizer is
+    selected or recorded, the launcher adds a :class:`~isaaclab.sensors.CameraCfg` with this pose, optics, and
+    renderer to every environment, so runs without a visualizer pay nothing. The streaming view shows it like any
+    other scene camera, e.g. recorded with ``--video viz:newton_gl:streaming_view``.
+    """
+
+    prim_path: str = "{ENV_REGEX_NS}/TrackedCamera"
+    """Prim path of the created camera, including ``{ENV_REGEX_NS}``. Its last segment is the scene sensor name."""
+
+    eye: tuple[float, float, float] = (4.0, -4.0, 3.0)
+    """Camera eye offset [m] from the environment origin, or from the tracked asset when :attr:`track_path` is set."""
+
+    lookat: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    """Camera look-at offset [m], in the same frame as :attr:`eye`."""
+
+    focal_length: float = 24.0
+    """Camera focal length [mm]."""
+
+    resolution: tuple[int, int] = (1920, 1080)
+    """Camera image size as (width, height) [px]."""
+
+    track_path: str | None = None
+    """Scene asset to follow, or None to keep the camera fixed relative to each environment origin.
+
+    Use ``"robot"`` for an asset root or ``"robot/base"`` for a named body, which must match exactly one body.
+    """
+
+    follow_heading: bool = False
+    """Rotate :attr:`eye` and :attr:`lookat` with the tracked asset's yaw, keeping the horizon level.
+
+    Without it the offsets stay aligned with the world axes. Only used with :attr:`track_path`.
+    """
+
+    heading_smoothing_time_constant: float = 0.0
+    """Exponential heading-filter time constant [s]; zero follows the heading immediately.
+
+    Larger values damp rapid turns more, with more lag. Only used with :attr:`follow_heading`.
+    """
+
+    renderer_cfg: Any = None
+    """Renderer of the camera sensor, e.g. ``NewtonWarpRendererCfg(enable_shadows=True)`` to trade speed for
+    quality. None uses the :class:`~isaaclab.sensors.CameraCfg` default."""
+
+    data_types: tuple[str, ...] = ("rgb",)
+    """Camera output channels; include every channel :attr:`VisualizerCfg.streaming_gt_types` displays."""
+
+    def __post_init__(self) -> None:
+        if not math.isfinite(self.heading_smoothing_time_constant) or self.heading_smoothing_time_constant < 0.0:
+            raise ValueError("heading_smoothing_time_constant must be finite and non-negative.")
+
+
+@configclass
 class VisualizerCfg:
     """Base configuration for all visualizer backends.
 
@@ -169,20 +227,21 @@ class VisualizerCfg:
     """Clone contexts that build this visualizer's scene representation from the asset plan."""
 
     # Primary interactive camera settings
-    cameras: list[PerspectiveCameraCfg | SceneCameraCfg] | None = None
+    cameras: list[PerspectiveCameraCfg | SceneCameraCfg | TrackedCameraCfg] | None = None
     """Camera sources available to the visualizer.
 
     PerspectiveCameraCfg configures the interactive view; SceneCameraCfg refers to an existing scene
-    sensor. Kit, Newton GL, Rerun, and Viser display the first scene source in their camera panel.
+    sensor; TrackedCameraCfg declares a scene sensor that follows an asset. Kit, Newton GL, Rerun, and Viser
+    display the first scene source in their camera panel.
     Newton RTX supports only perspective sources. None uses eye/lookat/focal_length and the streaming settings below.
     Every explicit scene source must provide all requested streaming_gt_types channels.
     """
 
     eye: tuple[float, float, float] = (4.0, -4.0, 3.0)
-    """Camera eye offset [m] relative to :attr:`origin_type`."""
+    """Interactive visualizer camera eye position in world coordinates."""
 
     lookat: tuple[float, float, float] = (0.0, 0.0, 0.0)
-    """Camera look-at offset [m] relative to :attr:`origin_type`."""
+    """Interactive visualizer camera look-at target in world coordinates."""
 
     focal_length: float = 12.0
     """Camera focal length in millimeters for visualizer camera views."""
@@ -192,45 +251,6 @@ class VisualizerCfg:
 
     Kit, Newton GL, and Newton RTX honor this field. Set it to ``None`` to preserve the
     backend's native background. Scene lighting remains independent of the visible background.
-    """
-
-    origin_type: Literal["world", "env", "asset"] = "world"
-    """Origin for :attr:`eye` and :attr:`lookat`.
-
-    ``"world"`` uses world coordinates. ``"env"`` fixes the camera relative to the selected
-    environment's initial origin. ``"asset"`` follows the asset root or body specified by
-    :attr:`origin_track_path`. These settings affect the interactive camera, not sensor streams.
-    """
-
-    origin_env_index: int | Literal["center"] = 0
-    """Environment used by ``"env"`` and ``"asset"`` origins.
-
-    ``"center"`` selects the visible environment nearest the horizontal bounding-box center
-    of all environment origins, with the lowest index breaking ties. Selection happens once
-    when the scene becomes available and is retained across episode resets. Explicit indices
-    must be in range and visible. The default preserves environment zero.
-    """
-
-    origin_track_path: str | None = None
-    """Scene asset to follow when :attr:`origin_type` is ``"asset"``.
-
-    Use ``"robot"`` for an asset root or ``"robot/base"`` for a named body. A body path must
-    match exactly one body on the asset.
-    """
-
-    origin_follow_heading: bool = False
-    """Rotate :attr:`eye` and :attr:`lookat` offsets with the tracked asset's yaw.
-
-    Only used with ``origin_type="asset"``. Roll and pitch are ignored to keep the horizon
-    level. The default follows position only, with offsets aligned to the world axes.
-    """
-
-    origin_heading_smoothing_time_constant: float = 0.0
-    """Exponential heading-filter time constant [s]. Zero disables smoothing.
-
-    Only used with ``origin_type="asset"`` and ``origin_follow_heading=True``. Positive values
-    smooth yaw along the shortest rotation while position follows immediately. Larger values
-    reduce rapid rotation more, with more lag. The first valid heading is applied immediately.
     """
 
     # ── Streaming view ────────────────────────────────────────────────────────
@@ -322,9 +342,3 @@ class VisualizerCfg:
             self.streaming_view = any(isinstance(camera, SceneCameraCfg) for camera in self.cameras)
             if isinstance(camera := self.cameras[0], PerspectiveCameraCfg):
                 self.eye, self.lookat, self.focal_length = camera.eye, camera.lookat, camera.focal_length
-
-        if (
-            not math.isfinite(self.origin_heading_smoothing_time_constant)
-            or self.origin_heading_smoothing_time_constant < 0.0
-        ):
-            raise ValueError("origin_heading_smoothing_time_constant must be finite and non-negative.")

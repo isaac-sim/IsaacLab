@@ -19,13 +19,13 @@ def test_rerun_visualizer_set_camera_view():
     visualizer.set_camera_view((1.0, 1.0, 1.0), (0.0, 0.0, 0.0))
 
     # A selected scene camera short-circuits _apply_camera_pose before it calls into the
-    # real rerun SDK, so this checks that the requested world view is still recorded.
-    visualizer._viewer = SimpleNamespace()
+    # real rerun SDK (rr.send_blueprint), letting this test exercise the pose-conversion and
+    # viewer-attribute-assignment logic without a live rerun session.
+    visualizer._viewer = SimpleNamespace(_camera_pose=None)
     visualizer._camera_sensor = object()
     visualizer.set_camera_view([1, 2, 3], [4, 5, 6])
 
-    assert visualizer.cfg.eye == (1.0, 2.0, 3.0)
-    assert visualizer.cfg.lookat == (4.0, 5.0, 6.0)
+    assert visualizer._viewer._camera_pose == ((1.0, 2.0, 3.0), (4.0, 5.0, 6.0))
 
 
 def test_viser_visualizer_set_camera_view(monkeypatch):

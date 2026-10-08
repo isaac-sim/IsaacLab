@@ -177,7 +177,6 @@ def _arm_for_step_failure(visualizer: NewtonVisualizer, viewer: _SpyRTXViewer) -
     visualizer.backend = SimpleNamespace(model=SimpleNamespace(num_envs=1))
     visualizer._scene_data_provider = None
     visualizer._update_frequency = 1
-    visualizer._track_camera = lambda: None
     viewer._update_frequency = 1
 
     def _unrecoverable() -> bool:
