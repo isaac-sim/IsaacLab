@@ -333,13 +333,9 @@ def replicate_builder_mapping(
         start, end = starts[prototype_id + 1 : prototype_id + 3]
         reference_paths = [(sources[topology.world_prototypes[index]], templates[index]) for index in range(start, end)]
         available = [(source, template) for source, template in reference_paths if source in source_builders]
-        # A parent copy covers a child only when the source and destination suffixes match.
+        # Newton source validation ensures a nested declaration belongs to its parent's subtree.
         parents = clone_path.get_parent_indices([target for _, target in available])
-        components = [
-            (source, target)
-            for (source, target), parent in zip(available, parents, strict=True)
-            if parent == -1 or source != available[parent][0] + clone_path.relative_to(target, available[parent][1])
-        ]
+        components = [reference for reference, parent in zip(available, parents, strict=True) if parent == -1]
         prototype = builder if prototype_id == -1 else ModelBuilder(up_axis=builder.up_axis)
         sites, asset_offsets = {}, []
         for source, destination in components:

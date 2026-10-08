@@ -142,19 +142,25 @@ def _replicate_newton(
     builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=cfg))
     builder.up_axis = Axis.from_string(up_axis)
     import_paths = (sim.cfg.physics_prim_path, *global_paths) if simulation else global_paths
-    # Parse a source only if some world prototype needs a copy not supplied by an ancestor copy.
+    # A parent import owns its whole subtree; reject nested replacements before importing either source.
     needed = set()
     for start, end in zip(starts[:-1], starts[1:], strict=True):
         references = []
         for index in range(start, end):
-            # Only prototypes routed to Newton with a USD source can be imported.
             if (asset := plan.topology.world_prototypes[index]) in asset_prototype_ids and sources[asset] is not None:
                 references.append((sources[asset], templates[index]))
         parents = cloner_path.get_parent_indices([target for _, target in references])
         for (source, target), parent in zip(references, parents, strict=True):
-            # Roots need a copy; skip a child only when its parent copy already supplies it.
-            if parent == -1 or source != references[parent][0] + cloner_path.relative_to(target, references[parent][1]):
+            if parent == -1:
                 needed.add(source)
+                continue
+            parent_source, parent_target = references[parent]
+            expected = cloner_path.rebase(target, parent_target, parent_source)
+            if source != expected:
+                raise ValueError(
+                    f"Cannot clone {source!r} to {target!r}: {parent_target!r} already owns that subtree "
+                    f"from {parent_source!r}. A nested Newton source must be {expected!r}."
+                )
     source_paths = list(dict.fromkeys(source for source in routed_sources if source in needed))
     if simulation:
         deformable_paths = []

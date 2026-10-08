@@ -279,6 +279,11 @@ class TestVisualizationClonePlan(unittest.TestCase):
             self.assertEqual(model.body_label[model.joint_child.numpy()[joint_id]], path)
         self.assertEqual(model.shape_contact_pair_count, 0)
 
+        unrelated = AssetBaseCfg(prim_path=child.prim_path, spawn=SpawnerCfg(spawn_path="/Other/Attachment"))
+        overlapping = make_clone_plan((asset, unrelated), ((0, 1),), 2, positions=positions)
+        with self.assertRaisesRegex(ValueError, "A nested Newton source must be '/World/envs/env_0/Robot/Attachment'"):
+            NewtonReplicateContext(self.sim).replicate(overlapping, (0, 1))
+
     def test_visualization_builder_uses_clone_plan_sources_and_rewrites_labels(self):
         stage = Usd.Stage.CreateInMemory()
         self.sim.stage = stage
