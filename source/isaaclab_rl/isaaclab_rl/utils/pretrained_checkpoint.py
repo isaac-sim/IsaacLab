@@ -466,17 +466,18 @@ def _get_physics_backend_name(physics_cfg: PhysicsCfg | None) -> str:
 
 
 def _get_newton_solver_name(solver_cfg) -> str | None:
-    """Return the checkpoint name of a Newton solver config, or ``None`` when unpublished.
+    """Return the checkpoint name of a Newton solver config, or ``None`` without one.
 
-    A coupled solver is named by its entry solvers in order followed by its coupling
-    scheme, so a proxy coupler over MJWarp and VBD entries gives ``mjwarpvbdproxy``.
+    A solver is named by its config class without ``SolverCfg``, so ``KaminoPADMMSolverCfg``
+    gives ``kaminopadmm``. A coupled solver is named by its entry solvers in order followed by
+    its coupling scheme, so a proxy coupler over MJWarp and VBD entries gives ``mjwarpvbdproxy``.
     """
     if solver_cfg is None:
         return None
     class_name = type(solver_cfg).__name__
     entries = getattr(solver_cfg, "entries", None)
     if entries is None:
-        return "mjwarp" if "mjwarp" in class_name.lower() else None
+        return class_name.removesuffix("SolverCfg").lower()
     families = (type(entry.solver_cfg).__name__.removesuffix("SolverCfg").lower() for entry in entries)
     return "".join(families) + class_name.removeprefix("Coupler").removesuffix("Cfg").lower()
 
