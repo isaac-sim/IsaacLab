@@ -78,7 +78,7 @@ parser.add_argument(
     "--background",
     choices=["studio", "ebc"],
     default="studio",
-    help="Studio surface (default), or an EBC lab table with punnet, glass bowl and reject dish",
+    help="Studio surface (default), or an EBC lab table with punnet, receiving bowl and reject dish",
 )
 parser.add_argument(
     "--view",
@@ -163,6 +163,12 @@ parser.add_argument(
     "--f_stop",
     type=float,
     help="Depth of field with this camera f-number in --view director close shots (e.g. 64; smaller blurs more)",
+)
+parser.add_argument(
+    "--bowl",
+    choices=["glass", "porcelain"],
+    default="glass",
+    help="Receiving bowl with --background ebc: clear glass, or glazed white porcelain",
 )
 parser.add_argument("--width", type=int, default=1280)
 parser.add_argument("--height", type=int, default=720)
@@ -292,6 +298,7 @@ with launch_simulation(cfg, args), ExitStack() as resources:
             sh_rotation=args.sh_rotation == "on",
             view=args.view,
             f_stop=args.f_stop,
+            bowl=args.bowl,
         )
         resources.callback(viewer.close)
     controller = BerryGamepad(BerryGamepadCfg(device=args.gamepad_device)) if args.mode == "gamepad" else None
@@ -589,6 +596,7 @@ with launch_simulation(cfg, args), ExitStack() as resources:
                 "steps": step,
                 "rendered": viewer is not None,
                 "background": args.background,
+                "bowl": args.bowl,
                 "background_asset": viewer.background_path if viewer is not None else None,
                 "initial_view": args.view,
                 "hide_interior": args.hide_interior,

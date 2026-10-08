@@ -137,7 +137,7 @@ class SortCinematography:
 
     @staticmethod
     def _release(index, center, tcp, time):
-        """Push in on the reject dish or the glass bowl as the berry lands."""
+        """Push in on the reject dish or the receiving bowl as the berry lands."""
         x, y = (REJECT if index == 0 else BOWL)[:2]
         subject = np.array([x, y, 0.015])
         distance = 0.19 - 0.04 * _smooth(time / 3.0)
@@ -145,7 +145,7 @@ class SortCinematography:
 
     @staticmethod
     def _finale(index, center, tcp, time):
-        """Orbit the glass bowl and its two berries, then pull back to the room."""
+        """Orbit the receiving bowl and its two berries, then pull back to the room."""
         subject = np.array([BOWL[0], BOWL[1], 0.015])
         out = _smooth((time - 3.5) / 2.5)
         distance = 0.2 + 0.7 * out

@@ -37,6 +37,7 @@ class BerryViewer(ViewerRTX):
         sh_rotation=True,
         view="auto",
         f_stop=None,
+        bowl="glass",
         **kwargs,
     ):
         require_live_gaussian_renderer()
@@ -48,6 +49,8 @@ class BerryViewer(ViewerRTX):
         self.rtpt_spp = rtpt_spp
         # Depth of field when set: the camera's f-number, with the focus distance set by place_camera().
         self.f_stop = f_stop
+        # Material of the receiving bowl, glass or porcelain.
+        self.bowl = bowl
         self.sampling_overrides = {}
         self.pending_frame = None
         self.follow_berry = True
@@ -192,7 +195,7 @@ class BerryViewer(ViewerRTX):
         for stream in self.streams:
             stream.author(self.stage)
         if self.env.cfg.background == "ebc":
-            add_tableware_visuals(self.stage)
+            add_tableware_visuals(self.stage, self.bowl)
             self.background_path = add_ebc_background(
                 self.stage, UsdShade.Shader.Get(self.stage, f"{self.streams[0].root_path}/Materials/Radiance/Shader")
             )
