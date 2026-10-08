@@ -1,0 +1,60 @@
+#usda 1.0
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+(
+    defaultPrim = "Parcel"
+    metersPerUnit = 1
+    upAxis = "Z"
+)
+
+def Xform "Parcel" (
+    prepend references = @parcel.usda@
+)
+{
+    over "Cardboard"
+    {
+        over "cardbox_a1_inst"
+        {
+            over "Looks"
+            {
+                over "opaque__cardboard__cardbox"
+                {
+                    over "Shader"
+                    {
+                        custom color3f inputs:diffuse_tint = (0.22, 0.5, 1)
+                    }
+                }
+            }
+        }
+    }
+
+    def "Looks"
+    {
+        def Material "ClassBand"
+        {
+            token outputs:surface.connect = </Parcel/Looks/ClassBand/Shader.outputs:surface>
+
+            def Shader "Shader"
+            {
+                uniform token info:id = "UsdPreviewSurface"
+                color3f inputs:diffuseColor = (0.035, 0.25, 0.85)
+                float inputs:roughness = 0.58
+                token outputs:surface
+            }
+        }
+    }
+
+    def Mesh "ClassBand" (
+        prepend apiSchemas = ["MaterialBindingAPI"]
+    )
+    {
+        uniform bool doubleSided = 1
+        int[] faceVertexCounts = [4, 4, 4, 4]
+        int[] faceVertexIndices = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+        rel material:binding = </Parcel/Looks/ClassBand>
+        point3f[] points = [(-0.009, -0.02, 0.02), (0.009, -0.02, 0.02), (0.009, 0.02, 0.02), (-0.009, 0.02, 0.02), (-0.009, -0.02, -0.02), (-0.009, 0.02, -0.02), (0.009, 0.02, -0.02), (0.009, -0.02, -0.02), (-0.009, -0.02, -0.02), (0.009, -0.02, -0.02), (0.009, -0.02, 0.02), (-0.009, -0.02, 0.02), (-0.009, 0.02, -0.02), (-0.009, 0.02, 0.02), (0.009, 0.02, 0.02), (0.009, 0.02, -0.02)]
+        uniform token subdivisionScheme = "none"
+    }
+}
