@@ -327,7 +327,7 @@ Visualizer Overview
       .. note::
 
          The following features are not yet supported and will be added in a future release:
-         visualization markers, live plots, and rigid-body dragging. Camera selection, scene-camera
+         live plots and rigid-body dragging. Visualization markers, camera selection, scene-camera
          display, pause controls, and headless recording are supported.
 
       **Core configuration:**
@@ -831,7 +831,7 @@ Performance
      - Newton Warp renderer; use ``max_visible_envs`` to limit the number of rendered
        environments.
    * - Newton RTX
-     - Shared OVRTX rendering; reduce perspective window resolution or increase ``update_frequency``.
+     - Native Newton RTX rendering; reduce configured perspective resolution or increase ``update_frequency``.
        Environment selection limits sensor display tiles; the perspective view shows the full scene.
    * - Rerun
      - Web viewer may slow down with many environments; use ``--num_envs`` to reduce load.
@@ -899,12 +899,16 @@ different across visualizers. Kit renders the scene's actual authored USD lights
 uses a fixed sky-gradient and single directional light color
 (:attr:`~isaaclab_visualizers.newton.NewtonVisualizerCfg.sky_upper_color`,
 ``sky_lower_color``, ``light_color``), independent of scene USD lights. Newton RTX renders the
-authored scene through OVRTX, sharing scene import and synchronization with camera sensors.
+authored scene through Newton's native RTX viewer, borrowing a simulation-owned OVStage.
+Body poses follow simulation updates; runtime material randomization is not yet propagated
+to the borrowed stage. Perspective resolution stays fixed when the window is resized; the
+window scales the image for presentation.
 Configure lights and environment placement in the scene. Viewer-only ``rtx_environment`` rigs
 and ``world_spacing`` are no longer supported: declare scene lights for studio lighting, remove
 scene lights for an unlit scene, and set ``InteractiveSceneCfg.env_spacing`` for world placement.
 Particle color overrides and rigid-body picking remain GL-only. Viser uses a single ambient light
-with no directional key light, so scenes tend to look darker and flatter than the other backends. Rerun uses fixed built-in viewer shading with no scene-driven lighting.
+with no directional key light, so scenes tend to look darker and flatter than the other backends.
+Rerun uses fixed built-in viewer shading with no scene-driven lighting.
 
 **Kit: incompatible with ovphysx / ovrtx presets**
 

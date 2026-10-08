@@ -5,11 +5,11 @@
   unselected sensors were neither read nor moved by the viewer.
 * Used scene-authored lights in Newton RTX by default, including HDR textures, intensity, initial
   transforms, and clone placements. An explicit solid background preserved scene illumination.
-* Replaced the separate Newton RTX scene importer with simulation-owned OVRTX rendering.
-  Added scene-camera selection and device-image presentation to RTX; resizing and closing the
-  perspective view left shared sensor products unchanged.
-  Direct construction required ``renderer=``; normal SimulationContext setup supplied it automatically.
-* Preserved RTX debug markers and visibility controls through shared renderer-owned geometry and GPU pose updates.
+* Used Newton's native ``ViewerRTX`` with a simulation-owned OVStage and preserved its debug markers.
+  Added scene-camera selection and device-image presentation to RTX. Window resizing scaled the fixed
+  perspective image; resizing and closing the window left camera sensors unchanged.
+  Direct initialization required the populated stage and Newton backend; SimulationContext supplied both.
+  Pinned Newton to the merged borrowed-stage implementation pending its next release.
 * Presented Newton GL and RTX camera views directly from composed device images. Recording and web
   transports read back only the composed image.
 * **Breaking:** Removed Newton RTX's viewer-only ``rtx_environment`` and ``world_spacing`` overrides

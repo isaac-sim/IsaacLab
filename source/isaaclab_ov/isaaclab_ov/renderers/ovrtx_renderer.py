@@ -71,17 +71,15 @@ except ModuleNotFoundError as exc:
         "(or, manually: python -m pip install 'ovrtx==0.5.0.377615')."
     ) from exc
 
-from pxr import Sdf, Usd, UsdGeom
-
 from isaaclab.cloner import ClonePlan
 from isaaclab.cloner import path as cloner_path
-from isaaclab.markers.visualization_markers_cfg import VisualizationMarkersCfg
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
 from isaaclab.scene_data import SceneDataFormat
-from isaaclab.sim import SimulationContext, use_stage
+from isaaclab.sim import SimulationContext
 from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.warp.warp_math import convert_camera_frame_orientation_convention_wp
 
+from isaaclab_ov.cloner.replicate import get_asset_copies
 from isaaclab_ov.renderers.ovrtx_annotator_utils import (
     build_instance_id_to_labels_and_semantics,
     build_semantic_id_to_labels,
@@ -93,7 +91,6 @@ from isaaclab_ov.renderers.ovrtx_compat import OVRTX_VERSION, uses_prim_path_ren
 from isaaclab_ov.renderers.ovrtx_renderer_cfg import OVRTXBackendCfg, OVRTXRendererCfg
 from isaaclab_ov.renderers.ovrtx_renderer_kernels import (
     create_camera_transforms_kernel,
-    create_marker_transforms_kernel,
     extract_all_tiles_kernel,
     generate_random_colors_from_ids_kernel,
 )
@@ -108,6 +105,7 @@ from isaaclab_ov.renderers.ovrtx_usd import (
 from isaaclab_ov.renderers.visual_materials import OVRTXVisualMaterialWriter
 from isaaclab_ov.stage import (
     create_ovstage,
+    ovstage_replicate,
     points_tensor_from_warp,
     xform_tensor_from_numpy,
     xform_tensor_from_warp,
@@ -407,8 +405,6 @@ class OVRTXRenderer(BaseRenderer):
         self._output_id_color_buffers: dict[str, wp.array] = {}
         self._clone_plan: ClonePlan | None = None
         self._visual_material_writer_ref: weakref.ReferenceType[OVRTXVisualMaterialWriter] | None = None
-        self.markers: weakref.WeakSet[_OVRTXMarkers] = weakref.WeakSet()
-        """Active marker groups shared by this renderer's products and visibility controls."""
 
         # Selected once at construction so every dispatch method below sees a stable path for the
         # lifetime of the renderer, even if the environment variable changes mid-process.
@@ -432,14 +428,6 @@ class OVRTXRenderer(BaseRenderer):
         writer = OVRTXVisualMaterialWriter(self, batches)
         self._visual_material_writer_ref = weakref.ref(writer)
         return writer
-
-    def create_markers(self, cfg: VisualizationMarkersCfg, *, visible: bool = True) -> _OVRTXMarkers:
-        """Add shared marker instances whose poses are written directly from device tensors."""
-        if not self._initialized_scene:
-            raise RuntimeError("OVRTX must ingest its scene before creating visualization markers.")
-        markers = _OVRTXMarkers(self, cfg, visible)
-        self.markers.add(markers)
-        return markers
 
     @property
     def visual_material_writer(self):
@@ -639,54 +627,17 @@ class OVRTXRenderer(BaseRenderer):
         env_paths = [plan.env_template.format(world) for world in range(num_envs)]
         logger.info("Cloning sources in OVRTX...")
 
-        sources = cloner_path.get_asset_prototype_paths(plan)
-        templates, starts, world_ids, world_starts = cloner_path.get_world_prototype_asset_templates(
-            plan, include_world_indices=True
-        )
-        # Group copies by source/template, omitting descendants already covered by an identical parent copy.
-        copies = {}
-        for group in np.flatnonzero(np.diff(world_starts)):
-            start, end = starts[group : group + 2]
-            targets = world_ids[world_starts[group] : world_starts[group + 1]]
-            for index, parent in enumerate(cloner_path.get_parent_indices(templates[start:end]), start):
-                source, template = sources[plan.topology.world_prototypes[index]], templates[index]
-                if parent != -1:
-                    ancestor = start + parent
-                    suffix = cloner_path.relative_to(template, templates[ancestor])
-                    if source == sources[plan.topology.world_prototypes[ancestor]] + suffix:
-                        continue
-                copies.setdefault((source, template), []).append(targets)
-        num_cloned_sources = 0
-        for source, destination in sorted(copies, key=lambda copy: copy[1].count("/")):
-            worlds = np.concatenate(copies[source, destination])
-            target_paths = [target for target in map(destination.format, worlds) if target != source]
-            if target_paths:
-                logger.debug("Cloning %s -> %d target(s)", source, len(target_paths))
-                if self._use_ovstage:
-                    self.backend.stage.clone(source, target_paths, ordinal=self._current_ordinal)
-                else:
-                    self.backend.renderer.clone_usd(source, target_paths)
-                num_cloned_sources += 1
-
-        logger.info("Cloned %d sources successfully in OVRTX", num_cloned_sources)
+        if self._use_ovstage:
+            ovstage_replicate(self.backend.stage, plan, ordinal=self._current_ordinal)
+            return
+        for source, targets in get_asset_copies(plan):
+            if targets:
+                self.backend.renderer.clone_usd(source, targets)
         xforms = np.tile(np.eye(4, dtype=np.float64), (num_envs, 1, 1))
         xforms[:, 3, :3] = plan.positions
-        if self._use_ovstage:
-            path_list = self.backend.paths.create_path_list_from_strings(env_paths)
-            with self.backend.stage.query_from_path_list(path_list) as query:
-                self.backend.stage.write_attribute(
-                    query,
-                    "omni:xform",
-                    ordinal=self._current_ordinal,
-                    tensors=xform_tensor_from_numpy(xforms),
-                    is_array=False,
-                    semantic=ovstage.AttributeSemantic.MATRIX,
-                ).wait()
-            self.backend.paths.destroy_path_list(path_list)
-        else:
-            self.backend.renderer.write_attribute(
-                env_paths, "omni:xform", xforms, semantic=Semantic.XFORM_MAT4x4, prim_mode=PrimMode.MUST_EXIST
-            )
+        self.backend.renderer.write_attribute(
+            env_paths, "omni:xform", xforms, semantic=Semantic.XFORM_MAT4x4, prim_mode=PrimMode.MUST_EXIST
+        )
 
     def _update_scene_partitions_after_clone(self, camera_paths: Sequence[str]) -> None:
         """Assign environment partitions to cloned roots and the declared camera batch."""
@@ -841,7 +792,7 @@ class OVRTXRenderer(BaseRenderer):
         )
         if self._use_ovstage:
             reference = ovstage.population.add_usd_reference_from_string(self.backend.stage, usd, f"/{scope}")
-            render_data.resources.callback(self._remove_usd_reference, reference)
+            render_data.resources.callback(self._remove_camera_reference, reference)
             ovstage.population.apply_usd_changes(self.backend.stage, ordinal=self._current_ordinal)
             product_paths = self.backend.paths.create_path_list_from_strings([product_path])
             try:
@@ -1654,8 +1605,8 @@ class OVRTXRenderer(BaseRenderer):
                 if render_data.render_product_path in self._render_product_paths:
                     self._render_product_paths.remove(render_data.render_product_path)
 
-    def _remove_usd_reference(self, reference: int) -> None:
-        """Publish removal of an owned USD reference at the shared stage's current ordinal."""
+    def _remove_camera_reference(self, reference: int) -> None:
+        """Publish removal of a camera's USD reference at the shared stage's current ordinal."""
         ovstage.population.remove_usd(self.backend.stage, reference)
         ovstage.population.apply_usd_changes(self.backend.stage, ordinal=self._current_ordinal)
 
@@ -1668,8 +1619,6 @@ class OVRTXRenderer(BaseRenderer):
                     resources.callback(self.cleanup, render_data)
                 resources.callback(self._transform_writes.close)
                 resources.callback(self._geometry_writes.close)
-                for markers in tuple(self.markers):
-                    resources.callback(markers.close)
         finally:
             self._transform_writes = _AsyncWriteBuffers(SceneDataFormat.TransposedMatrix44d() for _ in range(2))
             self._geometry_offsets.clear()
@@ -1740,7 +1689,7 @@ class OVRTXRenderer(BaseRenderer):
         reference = ovstage.population.add_usd_reference_from_string(
             self.backend.stage, render_product_string, f"/{scope}"
         )
-        render_data.resources.callback(self._remove_usd_reference, reference)
+        render_data.resources.callback(self._remove_camera_reference, reference)
         ovstage.population.apply_usd_changes(self.backend.stage, ordinal=self._current_ordinal)
 
         camera_paths = render_data.camera_paths
@@ -1951,191 +1900,6 @@ class OVRTXRenderer(BaseRenderer):
         self._object_scales = None
         self._object_scales_by_path = {}
         self._current_ordinal = 0
-
-
-class _OVRTXMarkers:
-    """Shared USD marker instances with GPU transform bindings."""
-
-    def __init__(self, renderer: OVRTXRenderer, cfg: VisualizationMarkersCfg, visible: bool):
-        self.cfg = cfg
-        self._renderer = renderer
-        self._resources = contextlib.ExitStack()
-        self._path = f"{cfg.prim_path}_{id(self)}"
-        self._visible = visible
-        self._layout = None
-        self._positions = self._orientations = self._scales = self._transforms = None
-        self._stage = Usd.Stage.CreateInMemory()
-        root = UsdGeom.Xform.Define(self._stage, "/Markers")
-        root.GetVisibilityAttr().Set("inherited" if visible else "invisible")
-        self._stage.SetDefaultPrim(root.GetPrim())
-        with use_stage(self._stage):
-            for name, prototype in cfg.markers.items():
-                prim = prototype.func(f"/Markers/Prototypes/{name}", prototype)
-                prim.SetSpecifier(Sdf.SpecifierClass)
-        self._prototypes = tuple(f"/Markers/Prototypes/{name}" for name in cfg.markers)
-        self._prototype_transforms = np.array(
-            [UsdGeom.Xformable(self._stage.GetPrimAtPath(path)).GetLocalTransformation() for path in self._prototypes]
-        )
-        self._local_transforms = None
-
-    def infer_device(self) -> torch.device:
-        """Use the renderer's device when a partial update supplies no tensor."""
-        return torch.device(self._renderer._device)
-
-    def is_visible(self) -> bool:
-        """Return the group's visibility."""
-        return self._visible
-
-    def set_visibility(self, visible: bool) -> None:
-        """Change visibility for every product sharing this renderer."""
-        if self._renderer is None or visible == self._visible:
-            return
-        token = "inherited" if visible else "invisible"
-        UsdGeom.Imageable(self._stage.GetDefaultPrim()).GetVisibilityAttr().Set(token)
-        if self._layout is not None and self._layout[0]:
-            renderer = self._renderer
-            if renderer._use_ovstage:
-                renderer.backend.stage.write_attribute(
-                    self._root_query,
-                    "visibility",
-                    ordinal=renderer._current_ordinal,
-                    tensors=np.array([renderer.backend.paths.intern_token(token)], dtype=np.uint64),
-                    is_array=False,
-                    semantic=ovstage.AttributeSemantic.TOKEN_ID,
-                ).wait()
-            else:
-                renderer.backend.renderer.write_attribute(
-                    [self._path], "visibility", [token], semantic=Semantic.TOKEN_STRING
-                )
-        self._visible = visible
-
-    def visualize(
-        self,
-        translations: torch.Tensor | None,
-        orientations: torch.Tensor | None,
-        scales: torch.Tensor | None,
-        marker_indices: torch.Tensor | None,
-        environment_ids: torch.Tensor | None = None,
-    ) -> None:
-        """Resolve marker selection, then write poses through the renderer's GPU transform path."""
-        if self._renderer is None:
-            return
-        renderer, device = self._renderer, self.infer_device()
-        previous_count = 0 if self._positions is None else len(self._positions)
-        count = next(
-            (len(v) for v in (translations, orientations, scales, marker_indices) if v is not None), previous_count
-        )
-        resized = count != previous_count or self._positions is None
-        if translations is not None:
-            self._positions = translations.to(device=device).contiguous()
-        elif resized:
-            self._positions = torch.zeros((count, 3), device=device)
-        if orientations is not None:
-            self._orientations = orientations.to(device=device).contiguous()
-        elif resized:
-            self._orientations = torch.tensor((0.0, 0.0, 0.0, 1.0), device=device).repeat(count, 1)
-        if scales is not None:
-            self._scales = scales.to(device=device).contiguous()
-        elif resized:
-            self._scales = torch.ones((count, 3), device=device)
-        if resized:
-            self._transforms = wp.empty(count, dtype=wp.mat44d, device=renderer._device)
-        indices, env_ids = (
-            self._layout if self._layout is not None and count == previous_count else ((0,) * count, None)
-        )
-        if marker_indices is not None:
-            indices = tuple(marker_indices.tolist())
-            if any(index < 0 or index >= len(self._prototypes) for index in indices):
-                raise ValueError("Marker indices must refer to configured prototypes.")
-        if environment_ids is not None:
-            env_ids = tuple(environment_ids.tolist())
-            if any(index < 0 or index >= renderer._sdp.num_envs for index in env_ids):
-                raise ValueError("Marker environment_ids must refer to existing scene environments.")
-        layout = (indices, env_ids)
-        if layout != self._layout:
-            errors = renderer.drain_pending_renders()
-            if errors:
-                raise ExceptionGroup("OVRTX renders failed before marker geometry update", errors)
-            self._resources.close()
-            self._stage.RemovePrim("/Markers/Instances")
-            self._local_transforms = wp.array(
-                self._prototype_transforms[list(indices)], dtype=wp.mat44d, device=renderer._device
-            )
-            paths = []
-            for index, prototype in enumerate(indices):
-                path = f"/Markers/Instances/marker_{index}"
-                prim = self._stage.DefinePrim(path)
-                prim.GetReferences().AddInternalReference(self._prototypes[prototype])
-                prim.SetInstanceable(True)
-                prim.CreateAttribute("omni:resetXformStack", Sdf.ValueTypeNames.Bool).Set(True)
-                if env_ids is not None and renderer._sdp.num_envs > 1:
-                    UsdGeom.PrimvarsAPI(prim).CreatePrimvar("omni:scenePartition", Sdf.ValueTypeNames.Token).Set(
-                        f"env_{env_ids[index]}"
-                    )
-                paths.append(self._path + path[len("/Markers") :])
-            if count:
-                backend, usd = renderer.backend, self._stage.GetRootLayer().ExportToString()
-                with self._resources:
-                    if renderer._use_ovstage:
-                        reference = ovstage.population.add_usd_reference_from_string(backend.stage, usd, self._path)
-                        self._resources.callback(renderer._remove_usd_reference, reference)
-                        ovstage.population.apply_usd_changes(backend.stage, ordinal=renderer._current_ordinal)
-                        root_paths = backend.paths.create_path_list_from_strings([self._path])
-                        self._resources.callback(backend.paths.destroy_path_list, root_paths)
-                        self._root_query = self._resources.enter_context(backend.stage.query_from_path_list(root_paths))
-                        instance_paths = backend.paths.create_path_list_from_strings(paths)
-                        self._resources.callback(backend.paths.destroy_path_list, instance_paths)
-                        self._query = self._resources.enter_context(backend.stage.query_from_path_list(instance_paths))
-                    else:
-                        reference = backend.renderer.add_usd_reference_from_string(usd, self._path)
-                        self._resources.callback(backend.renderer.remove_usd, reference)
-                        self._binding = backend.renderer.bind_attribute(
-                            paths, "omni:xform", semantic=Semantic.XFORM_MAT4x4
-                        )
-                        self._resources.callback(self._binding.unbind)
-                    self._resources = self._resources.pop_all()
-            self._layout = layout
-        if not count:
-            return
-        stream = wp.stream_from_torch(torch.cuda.current_stream(device))
-        wp.launch(
-            create_marker_transforms_kernel,
-            dim=count,
-            inputs=[
-                wp.from_torch(self._positions, wp.vec3),
-                wp.from_torch(self._orientations, wp.quat),
-                wp.from_torch(self._scales, wp.vec3),
-                self._local_transforms,
-                self._transforms,
-            ],
-            device=renderer._device,
-            stream=stream,
-        )
-        if renderer._use_ovstage:
-            renderer.backend.stage.write_attribute(
-                self._query,
-                "omni:xform",
-                ordinal=renderer._current_ordinal,
-                tensors=xform_tensor_from_warp(self._transforms),
-                is_array=False,
-                semantic=ovstage.AttributeSemantic.MATRIX,
-                cuda_stream=stream.cuda_stream or 1,
-            ).wait()
-        else:
-            self._binding.write(self._transforms, data_access=DataAccess.ASYNC, cuda_stream=stream.cuda_stream or 1)
-
-    def close(self) -> None:
-        """Release bindings and geometry before the renderer's native scene closes."""
-        if self._renderer is None:
-            return
-        renderer, self._renderer = self._renderer, None
-        with self._resources:
-            errors = renderer.drain_pending_renders()
-            if errors:
-                raise ExceptionGroup("OVRTX renders failed before marker cleanup", errors)
-        renderer.markers.discard(self)
-        self._positions = self._orientations = self._scales = self._transforms = self._stage = None
-        self._local_transforms = None
 
 
 class _AsyncWriteBuffers:

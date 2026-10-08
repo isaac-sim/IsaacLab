@@ -52,7 +52,7 @@ def sim():
 
 class _FakeMarkerVisualizer:
     def __init__(self, *, enable_markers: bool = True, pumps_app_update: bool = False):
-        self.cfg = SimpleNamespace(enable_markers=enable_markers, renderer_cfg=None)
+        self.cfg = type("Cfg", (), {"enable_markers": enable_markers})()
         self._pumps_app_update = pumps_app_update
 
     def supports_markers(self):
@@ -77,7 +77,7 @@ class _FakeMarkerVisualizer:
         (False, False, False, True, [], ["kit"]),
         (False, False, False, False, [], []),
         (False, False, False, False, [KitVisualizer(KitVisualizerCfg())], ["kit"]),
-        (False, False, False, False, [newton_visualizer.NewtonGLVisualizer(NewtonGLVisualizerCfg())], ["newton"]),
+        (False, False, False, False, [newton_visualizer.NewtonVisualizer(NewtonGLVisualizerCfg())], ["newton"]),
         (False, False, False, False, [rerun_visualizer.RerunVisualizer(RerunVisualizerCfg())], ["newton"]),
         (False, False, False, False, [viser_visualizer.ViserVisualizer(ViserVisualizerCfg())], ["newton"]),
     ],
@@ -101,7 +101,7 @@ def test_marker_backend_selection(
     only the ``newton`` backend, never ``kit``.
     """
     marker = object.__new__(VisualizationMarkers)
-    marker._backends = {}
+    marker._backends = []
     settings = {"/isaaclab/render/rtx_sensors": rtx_sensors, "/isaaclab/xr/enabled": xr_enabled}
     fake_sim = type(
         "FakeSim",
@@ -115,14 +115,12 @@ def test_marker_backend_selection(
     )()
 
     monkeypatch.setattr(sim_utils.SimulationContext, "instance", staticmethod(lambda: fake_sim))
-    monkeypatch.setattr(VisualizationMarkers, "_ensure_kit_backend", lambda self: self._backends.update(kit="kit"))
-    monkeypatch.setattr(
-        VisualizationMarkers, "_ensure_newton_backend", lambda self: self._backends.update(newton="newton")
-    )
+    monkeypatch.setattr(VisualizationMarkers, "_ensure_kit_backend", lambda self: self._backends.append("kit"))
+    monkeypatch.setattr(VisualizationMarkers, "_ensure_newton_backend", lambda self: self._backends.append("newton"))
 
     marker._ensure_backends_initialized()
 
-    assert list(marker._backends.values()) == expected_backends
+    assert marker._backends == expected_backends
 
 
 def test_rendering_context_authors_visible_usd_point_instancer(sim):
@@ -340,7 +338,7 @@ def test_newton_marker_backend_registers_and_updates_state_without_frame_capture
 
     test_marker.visualize(translations=translations, marker_indices=marker_indices)
 
-    newton_backend = next(iter(test_marker._backends.values()))
+    newton_backend = test_marker._backends[0]
     assert isinstance(newton_backend, newton_markers.NewtonVisualizationMarkers)
     assert sim.vis_marker_registry.get_groups()[newton_backend.group_id] is newton_backend
     assert torch.equal(newton_backend.translations, translations)

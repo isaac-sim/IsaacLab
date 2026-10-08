@@ -97,20 +97,18 @@ Use ``cameras`` to declare a list of selectable views; the first starts active:
 The ``cameras`` field is shared across visualizers. Kit, Rerun, and Viser use the first scene
 camera for their image panel; Newton GL and RTX provide the source dropdown shown above.
 ``SceneCameraCfg`` selects an existing sensor; ``PerspectiveCameraCfg`` configures the viewer's
-own interactive camera. Neither creates a camera sensor. Only the perspective camera follows
-the viewer's window size; sensor resolution stays controlled by the scene's ``CameraCfg``.
+own interactive camera. Neither creates a camera sensor. Newton RTX keeps its perspective
+render resolution fixed at the configured ``window_width`` and ``window_height``; resizing
+its window scales the displayed image. Sensor resolution remains controlled by ``CameraCfg``.
+Window resizing does not reallocate either camera's image buffers.
 
-Newton RTX's perspective product uses the same OVRTX renderer as scene cameras with matching
-``renderer_cfg`` values. OVRTX owns scene import, lighting, transforms, geometry, and render
-resources. It adds no default lights; scenes without authored lights remain unlit. Resizing or
-closing the viewer changes only its own product. Scene-camera selections
-use their sensor's renderer, including Newton Warp. The viewer makes no separate perspective
-capture request in this mode. OVRTX currently submits all registered products together, even
-when only one consumer requests an image.
-
-RTX debug markers also belong to the shared renderer. Changes to marker counts, prototypes, or
-environment ownership rebuild the group's USD instances; pose and scale updates stay on the GPU.
-Their visibility applies to every perspective and sensor product sharing that renderer.
+Newton RTX uses Newton's native ``ViewerRTX`` with a simulation-owned OVStage containing the
+authored scene and clone placements. Newton owns its perspective renderer, window, and debug
+markers; scene cameras retain their own renderer and resources. No default lights are added:
+scenes without authored lights remain unlit. Scene-camera selections use their sensor's
+renderer, including Newton Warp, and skip the viewer's perspective rendering.
+Closing the viewer releases its resources while leaving the borrowed stage and sensors alive.
+RTX markers are viewer overlays and do not appear in sensor images.
 
 Display layout and channel mappings are compiled when the source, selection, resolution, or
 color settings change. Composition writes into reusable device RGBA storage. Newton GL, Newton

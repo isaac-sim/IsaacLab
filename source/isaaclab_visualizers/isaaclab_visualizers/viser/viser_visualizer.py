@@ -376,6 +376,7 @@ class ViserVisualizer(BaseVisualizer):
 
         self._active_record_path = self.cfg.record_to_viser
         self._create_viewer(record_to_viser=self.cfg.record_to_viser, metadata=metadata)
+        self._viewer.marker_groups = sim.vis_marker_registry.get_groups().values()
         num_visualized_envs = len(self._env_ids) if self._env_ids is not None else num_envs
         self._log_initialization_table(
             logger=logger,

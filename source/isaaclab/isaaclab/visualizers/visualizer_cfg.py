@@ -16,7 +16,6 @@ from ..utils import configclass
 from ..utils.string import string_to_callable
 
 if TYPE_CHECKING:
-    from ..renderers.renderer_cfg import RendererCfg
     from .base_visualizer import BaseVisualizer
 
 
@@ -167,9 +166,6 @@ class VisualizerCfg:
 
     cloning_contexts: tuple[type | str, ...] = ()
     """Clone contexts that build this visualizer's scene representation from the asset plan."""
-
-    renderer_cfg: RendererCfg | None = None
-    """Shared renderer for a visualizer-owned render product. None uses the backend's native presentation path."""
 
     # Primary interactive camera settings
     cameras: list[PerspectiveCameraCfg | SceneCameraCfg] | None = None

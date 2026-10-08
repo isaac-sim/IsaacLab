@@ -24,6 +24,37 @@ if TYPE_CHECKING:
     from isaaclab.sim import SimulationContext
 
 
+def get_asset_copies(plan: ClonePlan) -> list[tuple[str, list[str]]]:
+    """Return native source/destination copies, omitting descendants covered by their parent.
+
+    Args:
+        plan: Scene topology and prototype paths shared by the rendering backends.
+    """
+    sources = cloner.path.get_asset_prototype_paths(plan)
+    templates, starts, world_ids, world_starts = cloner.path.get_world_prototype_asset_templates(
+        plan, include_world_indices=True
+    )
+    copies = {}
+    for group in np.flatnonzero(np.diff(world_starts)):
+        start, end = starts[group : group + 2]
+        targets = world_ids[world_starts[group] : world_starts[group + 1]]
+        for index, parent in enumerate(cloner.path.get_parent_indices(templates[start:end]), start):
+            source, template = sources[plan.topology.world_prototypes[index]], templates[index]
+            if parent != -1:
+                ancestor = start + parent
+                suffix = cloner.path.relative_to(template, templates[ancestor])
+                if source == sources[plan.topology.world_prototypes[ancestor]] + suffix:
+                    continue
+            copies.setdefault((source, template), []).append(targets)
+    return [
+        (
+            source,
+            [target for target in map(template.format, np.concatenate(copies[source, template])) if target != source],
+        )
+        for source, template in sorted(copies, key=lambda copy: copy[1].count("/"))
+    ]
+
+
 def _clone_recipes(
     stage: Usd.Stage,
     copies: Iterable[tuple[tuple[str, str], np.ndarray]],

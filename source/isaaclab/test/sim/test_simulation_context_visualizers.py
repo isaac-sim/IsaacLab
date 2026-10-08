@@ -279,6 +279,11 @@ def test_newton_visualizer_is_initialized_and_rebound_before_capture():
     ctx = _make_context_with_settings(
         {}, visualizer_cfgs=[_Cfg("newton_gl", True), _Cfg("newton_rtx", True), _Cfg("rerun")]
     )
+    scene = SimpleNamespace(stage=object(), populate=Mock())
+    ctx.get_or_create_backend = Mock(side_effect=[scene, object()])
+    ctx.physics_manager.get_device = lambda: "cpu"
+    ctx.cfg.gravity = (0.0, 0.0, -9.81)
+    ctx.vis_marker_registry = VisMarkerRegistry()
     ctx._create_visualizers()
     eye, target = (1.0, 2.0, 3.0), (0.0, 0.0, 0.0)
     ctx.set_camera_view(eye, target)
@@ -357,6 +362,7 @@ def web_backend(monkeypatch):
         cfg=SimpleNamespace(physics=object(), device="cpu"),
         device="cpu",
         get_or_create_backend=Mock(return_value=backend),
+        vis_marker_registry=VisMarkerRegistry(),
     )
     monkeypatch.setattr(SimulationContext, "instance", lambda: sim)
     return sim

@@ -54,11 +54,7 @@ def render_newton_visualization_markers(
         visible_env_ids: The env ids to draw markers for, or None for all envs.
         num_envs: The number of environments the marker state is batched over.
     """
-    sim = sim_utils.SimulationContext.instance()
-    if sim is None:
-        return
-
-    for marker in sim.vis_marker_registry.get_groups().values():
+    for marker in viewer.marker_groups:
         if not isinstance(marker, NewtonVisualizationMarkers):
             continue
         marker.render(viewer, visible_env_ids=visible_env_ids, num_envs=num_envs)
@@ -69,7 +65,7 @@ class NewtonVisualizationMarkers:
 
     def __init__(self, cfg: VisualizationMarkersCfg, visible: bool = True):
         self.cfg = cfg
-        self.group_id = f"{cfg.prim_path}::{id(self)}"
+        self.group_id = f"{cfg.prim_path}_{id(self)}"
         self.visible = visible
         self.translations: torch.Tensor | None = None
         self.orientations: torch.Tensor | None = None
@@ -173,8 +169,10 @@ class NewtonVisualizationMarkers:
                 marker_indices = marker_indices.reshape(num_envs, markers_per_env)[env_selection].flatten(0, 1)
             count = selected_env_count * markers_per_env
             if translations is not None:
-                offsets = wp.to_torch(viewer.world_offsets)[env_selection].to(translations)
-                translations = (translations + offsets[:, None, :]).flatten(0, 1)
+                if viewer.world_offsets is not None:
+                    offsets = wp.to_torch(viewer.world_offsets)[env_selection].to(translations)
+                    translations = translations + offsets[:, None, :]
+                translations = translations.flatten(0, 1)
 
         if count == 0:
             for name, newton_cfg in self._marker_specs.items():

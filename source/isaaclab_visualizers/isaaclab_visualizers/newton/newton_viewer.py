@@ -30,7 +30,7 @@ elif sys.platform not in ("win32", "darwin"):
             _pyglet_xlib.XlibScreen.is_primary = False
         del _pyglet_xlib
 
-from newton.viewer import ViewerGL
+from newton.viewer import ViewerGL, ViewerRTX
 from pyglet.math import Vec3 as PygletVec3
 
 from isaaclab.utils.math import quat_apply, quat_from_matrix, quat_mul
@@ -57,16 +57,11 @@ def _imgui_optional_checkbox(imgui, label: str, value: bool, available: bool, ti
 # ---------------------------------------------------------------------------
 
 
-class NewtonViewerGL(ViewerGL):
-    """Newton window with Isaac Lab controls and device-image presentation."""
+class _NewtonViewerUI:
+    """Isaac Lab controls shared by Newton's native GL and RTX viewers."""
 
-    # Set to False by NewtonGLVisualizer.initialize() when neither native Newton
-    # contacts nor a ContactSensor exists in the scene, so the Show Contacts
-    # checkbox can be greyed out in the UI.
-    _contacts_available: bool = True
-
+    _contacts_available = True
     CAMERA_SPEED_BOOST_MULTIPLIER = 2.0
-    """Factor applied to :attr:`camera_speed` while the speed-boost modifier is held."""
 
     def _is_camera_speed_boost_active(self) -> bool:
         """Return whether the camera speed-boost modifier (Left/Right Shift) is held."""
@@ -194,7 +189,7 @@ class NewtonViewerGL(ViewerGL):
                 live_plots_cb(imgui)
 
             # --- Model overlays ---------------------------------------------
-            if viewer.model is not None and viewer._main_image_name is None:
+            if isinstance(viewer, ViewerGL) and viewer.model is not None and viewer._main_image_name is None:
                 imgui.set_next_item_open(False, imgui.Cond_.appearing)
                 if imgui.collapsing_header("Model Overlays"):
                     imgui.separator()
@@ -268,9 +263,8 @@ class NewtonViewerGL(ViewerGL):
             if imgui.collapsing_header("Rendering Options"):
                 imgui.separator()
                 _c, viewer.vsync = imgui.checkbox("VSync", viewer.vsync)
-                if viewer.model is not None and viewer._main_image_name is None:
-                    for callback in _g._ui_callbacks.get("rendering", []):
-                        callback(imgui)
+                for callback in _g._ui_callbacks.get("rendering", []):
+                    callback(imgui)
 
             # --- Wind -------------------------------------------------------
             wind = getattr(viewer, "wind", None)
@@ -299,7 +293,7 @@ class NewtonViewerGL(ViewerGL):
                 imgui.text("Shift + WASD - Move camera 2x speed")
                 imgui.text("QE - Pan up/down")
                 imgui.text("Left Click - Look around")
-                if viewer.picking_enabled and viewer._main_image_name is None:
+                if isinstance(viewer, ViewerGL) and viewer.picking_enabled and viewer._main_image_name is None:
                     imgui.text("Right Click - Pick and drag objects")
                 imgui.text("Middle Click - Orbit")
                 imgui.text("Shift + Middle Click - Pan")
@@ -345,38 +339,6 @@ class NewtonViewerGL(ViewerGL):
                 " training\nhigher values -> less responsive visualizer but faster training"
             )
 
-    def __init__(self, *args, metadata: dict | None = None, update_frequency: int = 1, **kwargs):
-        """Initialize Newton viewer wrapper state.
-
-        Args:
-            *args: Positional arguments forwarded to ``ViewerGL``.
-            metadata: Optional metadata shown in viewer panels.
-            update_frequency: Viewer refresh cadence in simulation frames.
-            **kwargs: Keyword arguments forwarded to ``ViewerGL``.
-        """
-        super().__init__(*args, **kwargs)
-        self._paused_training = False
-        self._reset_requested = False
-        self._metadata = metadata or {}
-        self._update_frequency = update_frequency
-        self.particle_color: tuple[float, float, float] | None = None
-        self._particle_color_buffer: wp.array | None = None
-        self._particle_color_buffer_count = 0
-        self._particle_color_buffer_value: tuple[float, float, float] | None = None
-        self._mpm_particle_flags_cache_key: tuple[int, int, int] | None = None
-        self._mpm_particles_all_active = False
-        self._live_plots_callback = None
-        self.marker_groups = ()
-        backend = self._metadata.get("physics_backend", "Unknown")
-        self._backend_display = _BACKEND_DISPLAY_NAMES.get(backend, backend)
-
-        if self.gui is not None:
-            self._patch_scalar_plot_width()
-            self._patch_viewer_panel()
-
-        self.register_ui_callback(self._render_training_controls, position="side")
-        self._close_requested = False
-
     def is_training_paused(self) -> bool:
         """Return whether simulation is paused by viewer controls."""
         return self._paused_training
@@ -392,6 +354,35 @@ class NewtonViewerGL(ViewerGL):
     def request_close(self) -> None:
         """Close the window once the current frame ends."""
         self._close_requested = True
+
+    def __init__(self, *args, metadata: dict | None = None, update_frequency: int = 1, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._paused_training = False
+        self._reset_requested = False
+        self._metadata = metadata or {}
+        self._update_frequency = update_frequency
+        self._live_plots_callback = None
+        self.marker_groups = ()
+        self._close_requested = False
+        backend = self._metadata.get("physics_backend", "Unknown")
+        self._backend_display = _BACKEND_DISPLAY_NAMES.get(backend, backend)
+        if self.gui is not None:
+            self._patch_scalar_plot_width()
+            self._patch_viewer_panel()
+        self.register_ui_callback(self._render_training_controls, position="side")
+
+
+class NewtonViewerGL(_NewtonViewerUI, ViewerGL):
+    """Newton GL window with Isaac Lab controls and device-image presentation."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.particle_color: tuple[float, float, float] | None = None
+        self._particle_color_buffer: wp.array | None = None
+        self._particle_color_buffer_count = 0
+        self._particle_color_buffer_value: tuple[float, float, float] | None = None
+        self._mpm_particle_flags_cache_key: tuple[int, int, int] | None = None
+        self._mpm_particles_all_active = False
 
     def end_frame(self) -> None:
         """Finish the frame, then close the window if :meth:`request_close` was called."""
@@ -491,6 +482,24 @@ class NewtonViewerGL(ViewerGL):
         )
 
 
+class NewtonViewerRTX(_NewtonViewerUI, ViewerRTX):
+    """Newton RTX window borrowing the simulation's authored stage."""
+
+    def _init_window(self) -> None:
+        super()._init_window()
+        self._patch_scalar_plot_width()
+        self._patch_viewer_panel()
+
+    def end_frame(self) -> None:
+        super().end_frame()
+        if self._close_requested:
+            self.close()
+
+    def get_frame(self) -> np.ndarray:
+        """Explicitly download the latest perspective image for recording."""
+        return np.ascontiguousarray(self._capture_screenshot_pixels()[..., :3])
+
+
 class _NewtonCameraControls:
     """Camera selection and navigation shared by the GL scene and RTX image windows."""
 
@@ -532,11 +541,12 @@ class _NewtonCameraControls:
 
     def _navigate_scene_camera(self) -> None:
         camera, viewer = self._camera_sensor, self._viewer
-        if camera is None or viewer is None:
+        if camera is None or viewer is None or self._runtime_headless:
             return
-        width, height = viewer.renderer.window.get_framebuffer_size()
-        self._streaming_aspect = width / max(height, 1)
-        if self._runtime_headless or viewer.is_paused():
+        if isinstance(viewer, ViewerGL):
+            width, height = viewer.renderer.window.get_framebuffer_size()
+            self._streaming_aspect = width / max(height, 1)
+        if viewer.is_paused():
             return
         current = viewer.camera.get_view_matrix().reshape(4, 4).T
         previous, self._navigation_view = self._navigation_view, current.copy()
@@ -558,3 +568,5 @@ class _NewtonCameraControls:
         if self._viewer is not None:
             self._viewer.camera.pos = PygletVec3(*self.cfg.eye)
             self._viewer.camera.look_at(self.cfg.lookat)
+            camera = self._viewer.camera
+            self._viewer.set_camera(camera.pos, camera.pitch, camera.yaw)

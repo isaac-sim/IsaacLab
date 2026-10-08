@@ -1078,7 +1078,13 @@ def _assert_newton_rtx_markers_drawn(env, visualizer: NewtonRTXVisualizer, *, ca
     position = torch.tensor(_CARTPOLE_INTEGRATION_VISUALIZER_LOOKAT, device=env.device)
     positions = position.repeat(2, 1)
     positions[1, 1] += 0.7
-    markers.visualize(translations=positions, marker_indices=[0, 2], environment_ids=[0, 0])
+    markers.visualize(
+        translations=positions,
+        orientations=positions.new_tensor([[0.0, 0.0, 0.0, 1.0]]).repeat(2, 1),
+        scales=torch.ones_like(positions),
+        marker_indices=[0, 2],
+        environment_ids=[0, 0],
+    )
     resized_frame = _capture(True)
     _assert_frames_differ(
         rotated_frame, resized_frame, case_label=case_label, phase="marker count changed", debug_phase="marker"

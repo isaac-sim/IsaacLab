@@ -196,26 +196,18 @@ def test_newton_visualizer_set_camera_view_updates_cfg_without_viewer():
 def test_newton_visualizer_set_camera_view_updates_active_viewer():
     """NewtonGLVisualizer should honor SimulationContext camera updates."""
 
-    class _FakeCamera:
-        def __init__(self):
-            self.pos = None
-            self.look_at_calls = []
+    from newton._src.viewer.camera import Camera
 
-        def look_at(self, target):
-            self.look_at_calls.append(tuple(target))
-
-    class _FakeViewer:
-        def __init__(self):
-            self.camera = _FakeCamera()
-
-    viewer = _FakeViewer()
+    viewer = object.__new__(NewtonViewerGL)
+    viewer.camera = Camera(width=64, height=64, up_axis="Z")
     visualizer = NewtonGLVisualizer(NewtonGLVisualizerCfg())
     visualizer._viewer = viewer
 
     visualizer.set_camera_view((1, 2, 3), (0, 0, 1))
 
     assert (viewer.camera.pos.x, viewer.camera.pos.y, viewer.camera.pos.z) == (1.0, 2.0, 3.0)
-    assert viewer.camera.look_at_calls == [(0.0, 0.0, 1.0)]
+    expected = np.array([-1.0, -2.0, -2.0]) / 3.0
+    np.testing.assert_allclose(viewer.camera.get_front(), expected, atol=1e-6)
     assert visualizer.cfg.eye == (1.0, 2.0, 3.0)
     assert visualizer.cfg.lookat == (0.0, 0.0, 1.0)
 
@@ -1121,8 +1113,6 @@ def test_ensure_mesh_registered_handles_none_normals_and_uvs(monkeypatch):
 
 
 def test_newton_visualizer_cfg():
-    from isaaclab_newton.renderers import NewtonWarpRendererCfg
-
     assert NewtonGLVisualizerCfg().visualizer_type == "newton_gl"
     assert NewtonRTXVisualizerCfg().visualizer_type == "newton_rtx"
     assert not issubclass(NewtonRTXVisualizer, NewtonGLVisualizer)
@@ -1133,11 +1123,6 @@ def test_newton_visualizer_cfg():
     NewtonGLVisualizerCfg(enable_picking=False, show_particles=True, particle_color=(0.1, 0.2, 0.3))
     cfg = NewtonRTXVisualizerCfg(cameras=[SceneCameraCfg(prim_path="/Camera")])
     validate(cfg)
-    cfg.renderer_cfg = NewtonWarpRendererCfg()
-    with pytest.raises(ValueError, match="OVRTXRendererCfg"):
-        validate(cfg)
-    with pytest.raises(ValueError, match="OVRTXRendererCfg"):
-        NewtonRTXVisualizer(cfg, renderer=Mock())
 
 
 @pytest.mark.parametrize("color", [(0.1, 0.2, 0.3), None])
@@ -1162,7 +1147,7 @@ def test_newton_gl_background_color(color: tuple[float, float, float] | None) ->
 @pytest.mark.parametrize("lighting", [True, False])
 @pytest.mark.parametrize("background_color", [None, (0.0, 0.0, 1.0)])
 def test_newton_rtx_scene_sky_and_background_override(tmp_path, monkeypatch, lighting, background_color):
-    """One renderer serves sensors and a resizable view, preserving authored HDR and sensor lifetime."""
+    """The native viewer preserves authored lighting and borrows a stage without owning sensors."""
     import gymnasium as gym
     from isaaclab_newton.renderers import NewtonWarpRendererCfg
     from isaaclab_ov.renderers import OVRTXRendererCfg
@@ -1175,6 +1160,9 @@ def test_newton_rtx_scene_sky_and_background_override(tmp_path, monkeypatch, lig
 
     import isaaclab_tasks  # noqa: F401
     from isaaclab_tasks.utils import resolve_task_config
+
+    if sys.platform == "linux" and not os.environ.get("DISPLAY"):
+        monkeypatch.setenv("PYOPENGL_PLATFORM", "egl")
 
     texture = tmp_path / "red.hdr"
     texture.write_bytes(b"#?RADIANCE\nFORMAT=32-bit_rle_rgbe\n\n-Y 2 +X 4\n" + bytes((128, 0, 0, 129)) * 8)
@@ -1220,14 +1208,14 @@ def test_newton_rtx_scene_sky_and_background_override(tmp_path, monkeypatch, lig
             env.reset()
             visualizer = env.unwrapped.sim.visualizers[0]
             camera = env.unwrapped.scene["camera"]
-            renderer = visualizer._renderer
-            assert (renderer is camera._renderer) is lighting
-            assert renderer.visual_material_writer is not None
+            viewer = visualizer._viewer
+            native_stage = viewer._borrowed_stage
+            # Exercise the native presentation path through an EGL window in headless CI.
+            viewer._headless = False
             assert visualizer._camera_sensor is None
             assert len(env.unwrapped.scene.sensors) == 1
             origin = env.unwrapped.scene.env_origins[0].cpu().numpy()
             visualizer.set_camera_view(origin + (0.0, -6.0, 2.0), origin + (0.0, -2.0, 2.0))
-            product = visualizer._render_data
             for _ in range(40):
                 pixels = visualizer.render_rgb_array()
             background = pixels[8:24, 8:24].mean(axis=(0, 1))
@@ -1242,21 +1230,21 @@ def test_newton_rtx_scene_sky_and_background_override(tmp_path, monkeypatch, lig
             else:
                 assert color.max() < 10, color
 
+            output = camera.data.output["rgba"].warp
             sensor_frame = camera.frame.torch.clone()
-            # EGL windows cannot resize; emulate the framebuffer dimensions reported by a desktop window.
-            monkeypatch.setattr(visualizer._viewer.renderer.window, "get_framebuffer_size", lambda: (160, 96))
-            for _ in range(40):
-                pixels = visualizer.render_rgb_array()
-            assert pixels.shape == (96, 160, 3)
-            resized_color = pixels[40:56, 72:88].mean(axis=(0, 1))
-            if lighting:
-                assert resized_color[0] > 80 and resized_color[1:].max() < 10, resized_color
-            else:
-                assert resized_color.max() < 10, resized_color
-            assert visualizer._render_data is product
+            sensor_ptr = output.ptr
+            captured_output = wp.empty_like(output)
+            with wp.ScopedCapture(device=output.device) as capture:
+                wp.copy(captured_output, output)
+            viewer._window.set_size(160, 96)
+            viewer._window.dispatch_events()
+            pixels = visualizer.render_rgb_array()
+            assert pixels.shape == (128, 128, 3)
             assert camera.image_shape == (128, 128)
+            assert camera.data.output["rgba"].warp.ptr == sensor_ptr
             torch.testing.assert_close(camera.frame.torch, sensor_frame)
-            assert len(renderer._camera_render_data) == (2 if lighting else 1)
+            wp.capture_launch(capture.graph)
+            np.testing.assert_array_equal(captured_output.numpy(), output.numpy())
 
             visualizer._select_camera(1)
             image = visualizer.render_tiled_rgba()
@@ -1264,9 +1252,17 @@ def test_newton_rtx_scene_sky_and_background_override(tmp_path, monkeypatch, lig
             assert image.device.is_cuda
             with monkeypatch.context() as gpu_display:
                 gpu_display.setattr(wp.array, "numpy", Mock(side_effect=AssertionError("Display downloaded pixels")))
-                visualizer._viewer.log_image("RTX View", image, fullscreen=True)
+                visualizer._render_frame()
+            if lighting and background_color is None:
+                env.unwrapped.sim.reset()
+                visualizer._select_camera(0)
+                assert visualizer.render_rgb_array().shape == (128, 128, 3)
             visualizer.close()
-            assert len(renderer._camera_render_data) == (1 if lighting else 0)
+            query = native_stage.get_attribute_write_floor()
+            try:
+                assert native_stage.fetch_ordinal(query) > 0
+            finally:
+                native_stage.release_ordinal_query(query).wait()
             camera.update(cfg.sim.dt)
             assert np.ptp(camera.data.output["rgba"].warp.numpy()) > 0
         finally:
@@ -1274,7 +1270,7 @@ def test_newton_rtx_scene_sky_and_background_override(tmp_path, monkeypatch, lig
 
 
 def test_newton_rtx_visualizer_render_rgb_array_returns_none_when_viewer_unavailable():
-    visualizer = NewtonRTXVisualizer(NewtonRTXVisualizerCfg(), renderer=Mock())
+    visualizer = NewtonRTXVisualizer(NewtonRTXVisualizerCfg())
 
     assert visualizer.render_rgb_array() is None
 
@@ -1291,10 +1287,17 @@ def test_newton_rtx_visualizer_rejects_kit_physics_backend(monkeypatch, backend)
     from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
     monkeypatch.setattr(BaseVisualizer, "physics_backend", property(lambda self: backend))
-    visualizer = NewtonRTXVisualizer(NewtonRTXVisualizerCfg(), renderer=Mock())
+    visualizer = NewtonRTXVisualizer(NewtonRTXVisualizerCfg())
 
     with pytest.raises(RuntimeError, match="Newton RTX"):
-        visualizer.initialize(SimpleNamespace(num_envs=1), cameras=[])
+        visualizer.initialize(
+            SimpleNamespace(num_envs=1),
+            cameras=[],
+            ovstage=Mock(),
+            newton_backend=Mock(),
+            marker_groups=[],
+            gravity=(0.0, 0.0, -9.81),
+        )
 
 
 def test_newton_live_plots_read_updated_scalar_and_array_history():

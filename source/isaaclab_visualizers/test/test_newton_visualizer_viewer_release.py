@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Presentation teardown releases owned products and preserves shared renderer and sensor lifetimes."""
+"""Presentation teardown closes the native viewer and preserves borrowed sensor lifetimes."""
 
 from unittest.mock import Mock
 
@@ -44,32 +44,26 @@ def test_gl_close_request_closes_after_frame(monkeypatch: pytest.MonkeyPatch, re
     assert events == (["frame", "close"] if requested else ["frame"])
 
 
-@pytest.mark.parametrize("failure", [None, "product", "window"])
+@pytest.mark.parametrize("failure", [False, True])
 def test_close_releases_owned_resources_even_on_failure(failure):
-    """Teardown is idempotent and leaves shared sensors and renderer usable, even when one release fails."""
-    renderer = Mock()
-    visualizer = NewtonRTXVisualizer(NewtonRTXVisualizerCfg(), renderer=renderer)
+    """Teardown is idempotent and leaves borrowed sensor references untouched, even when one release fails."""
+    visualizer = NewtonRTXVisualizer(NewtonRTXVisualizerCfg())
     viewer = visualizer._viewer = Mock()
-    product = visualizer._render_data = object()
     camera = visualizer._camera_sensor = Mock()
     visualizer._camera_choices = [camera]
     visualizer._scene_stage = object()
-    if failure == "product":
-        renderer.cleanup.side_effect = RuntimeError("release failed")
-    elif failure == "window":
+    if failure:
         viewer.close.side_effect = RuntimeError("release failed")
-    if failure is None:
+    if not failure:
         visualizer.close()
     else:
         with pytest.raises(RuntimeError, match="release failed"):
             visualizer.close()
     visualizer.close()
 
-    renderer.cleanup.assert_called_once_with(product)
     viewer.close.assert_called_once()
-    renderer.close.assert_not_called()
     camera.close.assert_not_called()
-    assert visualizer._viewer is visualizer._render_data is visualizer._renderer is None
+    assert visualizer._viewer is visualizer.backend is None
     assert visualizer._scene_stage is visualizer._camera_sensor is None
     assert not visualizer._camera_choices
     assert visualizer._is_closed

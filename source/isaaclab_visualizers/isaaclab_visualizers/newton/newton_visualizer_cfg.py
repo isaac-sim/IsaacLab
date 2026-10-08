@@ -145,9 +145,10 @@ class NewtonGLVisualizerCfg(NewtonVisualizerCfg):
 
 @configclass
 class NewtonRTXVisualizerCfg(_NewtonWindowCfg):
-    """RTX images from the simulation's OVRTX renderer, presented in a Newton window.
+    """Newton ViewerRTX rendering a simulation-owned OVStage.
 
-    Perspective sources own a resizable render product; scene sources borrow sensor output.
+    Perspective sources use Newton's fixed-resolution render product; scene sources borrow sensor output.
+    Window resizing scales the displayed image without changing either source's resolution.
     Scene USD owns lighting, materials, and environment placement. Newton-model overlays,
     rigid-body dragging, and viewer-only lighting or world offsets are not supported.
     Environment selection controls tiled sensor views; the perspective camera sees the full scene.
@@ -166,20 +167,8 @@ class NewtonRTXVisualizerCfg(_NewtonWindowCfg):
     copyable. For example, ``{"omni:rtx:quality": ("Int", 100)}`` re-enables the path tracer's
     quality convergence loop, disabled by default to keep interactive latency down."""
 
-    def __post_init__(self) -> None:
-        super().__post_init__()
-        if self.renderer_cfg is None:
-            from isaaclab_ov.renderers import OVRTXRendererCfg
-
-            self.renderer_cfg = OVRTXRendererCfg()
-
-    cloning_contexts: tuple[type | str, ...] = ()
-    """RTX uses the renderer's authored scene; it does not require a Newton display model."""
+    cloning_contexts: tuple[type | str, ...] = ("isaaclab_newton.cloner:NewtonReplicateContext",)
+    """Build the Newton model supplying poses to the borrowed rendering stage."""
 
     streaming_view: bool = True
     """Offer compatible scene sensors alongside the interactive RTX perspective camera."""
-
-    def validate_config(self) -> None:
-        """Validate RTX capabilities after configuration edits."""
-        if self.renderer_cfg.renderer_type != "ovrtx":
-            raise ValueError("Newton RTX requires an OVRTXRendererCfg.")

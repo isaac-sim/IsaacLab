@@ -89,7 +89,6 @@ def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
     renderer.backend._resources = contextlib.ExitStack()
     SimulationContext.instance()._backend_registry.append((cfg, renderer.backend))
     renderer._camera_render_data = []
-    renderer.markers = set()
     renderer._initialized_scene = False
     renderer._next_camera_id = 0
     renderer._transform_writes = _AsyncWriteBuffers()

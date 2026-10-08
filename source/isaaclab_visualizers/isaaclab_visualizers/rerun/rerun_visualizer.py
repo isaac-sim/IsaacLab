@@ -328,6 +328,7 @@ class RerunVisualizer(BaseVisualizer):
             open_browser=self.cfg.open_browser,
             streaming_view=self._camera_sensor is not None,
         )
+        self._viewer.marker_groups = sim.vis_marker_registry.get_groups().values()
         if start_server_in_viewer:
             rerun_address = getattr(self._viewer, "_grpc_server_uri", rerun_address)
         viewer_host = _normalize_host(bind_address)
