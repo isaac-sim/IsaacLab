@@ -217,7 +217,7 @@ uv run --no-sync python source/isaaclab_tasks/isaaclab_tasks/contrib/franka_pick
 For a demonstration video, `--view director` films the sequence shot by shot (`rendering/cinematography.py`):
 an establishing view of the room, macro views of the crush and the first gentle grasp (which keep the gripper's
 original closing pace), tracking views of the carries with the room behind, close-ups of the releases and a final
-orbit of the glass bowl. `--f_stop 64` adds a subtle depth of field to the close shots only. Recording runs at
+orbit of the bowl. `--f_stop 64` adds a subtle depth of field to the close shots only. Recording runs at
 simulation time, so render quality does not change the pace:
 
 ```bash
@@ -226,6 +226,9 @@ uv run --no-sync python source/isaaclab_tasks/isaaclab_tasks/contrib/franka_pick
   --motion_speed 6 --view director --f_stop 64 --width 1920 --height 1080 --rtpt_spp 16 \
   --video --capture_every 0 --steps 1515 --output /tmp/berry-sort-video
 ```
+
+`--bowl porcelain` replaces the glass bowl with a glazed white porcelain one. Only its appearance changes: its
+shape and contact are the glass bowl's.
 
 ### Lower-resolution physics
 

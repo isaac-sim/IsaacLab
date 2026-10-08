@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Open plastic punnet, glass receiving bowl and reject dish; dimensions in metres."""
+"""Open plastic punnet, glass or porcelain receiving bowl and reject dish; dimensions in metres."""
 
 import math
 
@@ -30,6 +30,10 @@ PUNNET_FLOOR_COLOR = (0.12, 0.125, 0.13)
 TABLE_VISIBLE_TOP = 0.00142
 TABLE_POSITION = (0.55, 0.0, 0.003 - TABLE_VISIBLE_TOP - 0.0001)
 TABLE_ROTATION = (0.0, 0.0, math.sqrt(0.5), math.sqrt(0.5))
+BOWL_MATERIALS = ("glass", "porcelain")
+"""Materials of the receiving bowl."""
+PORCELAIN_COLOR = (0.93, 0.92, 0.89)
+"""Color [linear RGB] of the porcelain bowl's glaze."""
 
 
 def tableware_solids() -> np.ndarray:
@@ -303,8 +307,28 @@ def _lathe(
     return mesh
 
 
-def add_tableware_visuals(stage: Usd.Stage) -> None:
-    """Author open container render meshes; no external asset sidecars."""
+def _porcelain_material(stage: Usd.Stage, path: str) -> UsdShade.Material:
+    """Glossy glazed white porcelain."""
+    material = UsdShade.Material.Define(stage, path)
+    surface = UsdShade.Shader.Define(stage, f"{path}/Surface")
+    surface.CreateIdAttr("UsdPreviewSurface")
+    surface.CreateInput("diffuseColor", Sdf.ValueTypeNames.Color3f).Set(Gf.Vec3f(*PORCELAIN_COLOR))
+    surface.CreateInput("roughness", Sdf.ValueTypeNames.Float).Set(0.12)
+    surface.CreateInput("clearcoat", Sdf.ValueTypeNames.Float).Set(1.0)
+    surface.CreateInput("clearcoatRoughness", Sdf.ValueTypeNames.Float).Set(0.02)
+    material.CreateSurfaceOutput().ConnectToSource(surface.ConnectableAPI(), "surface")
+    return material
+
+
+def add_tableware_visuals(stage: Usd.Stage, bowl: str = "glass") -> None:
+    """Author open container render meshes.
+
+    Args:
+        stage: Stage to author the meshes in.
+        bowl: Material of the receiving bowl, one of :data:`BOWL_MATERIALS`.
+    """
+    if bowl not in BOWL_MATERIALS:
+        raise ValueError(f"Unknown bowl material {bowl!r}; expected one of {BOWL_MATERIALS}")
     UsdGeom.Xform.Define(stage, "/World/Tableware")
     _add_punnet(stage)
     for name, spec in (("Reject", REJECT), ("Bowl", BOWL)):
@@ -330,7 +354,9 @@ def add_tableware_visuals(stage: Usd.Stage) -> None:
         # Round the bowl's foot ring into its recess, and its 1 mm lip top into the lip bevels.
         smooth_corners = (2, 6, 7) if name == "Bowl" else ()
         mesh = _lathe(stage, f"/World/Tableware/{name}", profile, (x, y), smooth_corners)
-        if name == "Bowl":
+        if name == "Bowl" and bowl == "porcelain":
+            material = _porcelain_material(stage, "/World/Tableware/BowlMaterial")
+        elif name == "Bowl":
             # RTX shadow rays do not refract: solid glass would cast an opaque
             # shadow and leave the tabletop seen through its floor black.
             _no_shadow(mesh)
