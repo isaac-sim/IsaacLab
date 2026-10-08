@@ -155,7 +155,7 @@ alias.
 .. note::
 
    ``train`` and ``play`` run without a visualizer unless ``--viz`` is passed, while packaged demos and
-   examples open their own default visualizer. ``--viz none`` turns it off, but is planned for deprecation.
+   examples open their own default visualizer. ``--viz none`` turns it off.
 
 For combining visualizers, running headless, and other common use cases, see `Usage`_ below.
 
@@ -543,80 +543,14 @@ Multiple visualizers can display the same sensor with different tile selections.
      </div>
    </div>
 
-The streaming panel supports RGB, depth, segmentation, and surface normals, with a configurable
-number of environments shown. Attach a camera to a robot body to follow its motion, or select an
-existing view such as the Galbot task's wrist-mounted and ego cameras.
+Attach a camera to a robot body to follow its motion, or select an existing view such as the Galbot
+task's wrist-mounted and ego cameras. The view is supported in the Kit, Newton GL, Rerun, and Viser
+visualizers; Newton RTX supports perspective views only and rejects explicit scene-camera sources
+(experimental). **Kit** opens it as a separate **Streaming View** viewport, and **Newton GL** adds a
+**Streaming View** HUD section with a **Hide** / **Open** toggle and a source dropdown.
 
-Streams can come from auto-created cameras that track and follow robot bodies, or from existing
-scene camera sensors, letting you toggle between different views, such as the Galbot task's
-wrist-mounted and ego cameras. Supported on Kit, Newton GL, Rerun, and Viser; not yet
-supported on Newton RTX (experimental).
-
-.. note::
-
-   The streaming camera view is supported in the Kit, Newton GL, Rerun, and Viser visualizers.
-   Newton RTX supports perspective views only and rejects explicit scene-camera sources
-   (experimental).
-
-**Kit** launches the streaming view as a separate **Streaming View** viewport, selectable from
-the Viewport tabs; it can also be placed side by side with the default interactive viewport
-for dual monitoring.
-
-**Newton GL** shows a **Streaming View** section in the HUD sidebar with a **Hide** / **Open**
-toggle to show or hide the panel, and a source dropdown to select between different camera
-sensors.
-
-Configuration
-^^^^^^^^^^^^^
-
-Declare camera resolution, pose, renderer, and output types on ``CameraCfg`` in the scene.
-Then choose what to display in ``VisualizerCfg``:
-
-* ``streaming_sensor_prim_path`` selects a scene :class:`~isaaclab.sensors.Camera` by its configured
-  prim path. The ``{ENV_REGEX_NS}`` macro uses the scene's environment template.
-  If omitted, the first camera supporting the requested channels is selected; without a compatible
-  camera the panel stays empty.
-* ``streaming_envs`` controls how many environment tiles are shown. Pass an ``int`` to randomly
-  sample that many environments, or a ``list[int]`` to pin specific environment indices.
-* ``streaming_gt_types`` selects which ground-truth types are shown, e.g.
-  ``["rgb", "depth", "segmentation", "normals"]``.
-* ``streaming_depth_min`` / ``streaming_depth_max`` set the depth colormap range in metres.
-
-Display sources
-^^^^^^^^^^^^^^^
-
-``VisualizerCfg.cameras`` accepts ``PerspectiveCameraCfg`` for the interactive view and
-``SceneCameraCfg(prim_path=...)`` for a camera sensor already declared in the scene.
-Kit, Newton GL, Rerun, and Viser display scene-camera output in a streaming panel.
-Newton RTX accepts perspective sources only. Every explicit scene source must provide
-the requested ``streaming_gt_types`` channels.
-
-Troubleshooting
-^^^^^^^^^^^^^^^
-
-* If a view reports no matching camera, declare a ``CameraCfg`` in the scene and set
-  ``streaming_sensor_prim_path`` to its prim path.
-* Each ``streaming_gt_types`` entry must have a corresponding output in the selected
-  camera's ``data_types``. An explicit incompatible source raises an error. Automatic selection
-  skips incompatible sources, and RGB display accepts a camera's RGBA output.
-* If the depth panel shows a flat color, adjust ``streaming_depth_min`` and
-  ``streaming_depth_max`` to bracket the expected depth range in your scene.
-* If the view is too expensive, reduce ``streaming_envs``, ``--num_envs``, or the camera
-  resolution.
-
-Migrating from generated cameras
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Visualizers no longer create, move, or destroy camera sensors. Declare the camera as a scene
-``CameraCfg`` and select it through ``streaming_sensor_prim_path``; this puts the camera in the
-clone plan and the normal sensor initialization, update, and teardown lifecycle. See the
-:doc:`3.0 migration guide </source/migration/migrating_to_isaaclab_3-0>` for how each removed
-``streaming_cam_*`` and ``tiled_cam_*`` option maps to ``CameraCfg``.
-
-Closing a visualizer does not affect the camera or other visualizers reading it.
-``streaming_envs`` selects displayed tiles, not camera allocation or capture resolution.
-
-See :doc:`/source/how-to/visualizer_streaming_camera_view` for a step-by-step guide.
+See :doc:`/source/how-to/visualizer_streaming_camera_view` for the ``VisualizerCfg`` options, display
+sources, troubleshooting, and step-by-step examples.
 
 
 Visualization Markers
@@ -788,20 +722,9 @@ See :doc:`/source/how-to/record_video` for clip length, interval, and multi-sour
 
 **Combining an interactive view with a headless recording source**
 
-Watch training live in Kit while recording from a separate headless Newton GL angle:
-
-.. code-block:: python
-
-    from isaaclab_visualizers.kit import KitVisualizerCfg
-    from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
-
-    sim_cfg.visualizer_cfgs = [
-        KitVisualizerCfg(eye=(4.0, 4.0, 2.0)),
-        NewtonGLVisualizerCfg(eye=(12.0, 0.0, 6.0), headless=True),
-    ]
-
-Alternatively, declare a :class:`~isaaclab.sensors.CameraCfg` in the scene and record it with
-``source="sensor:<name>"`` for full control of the viewpoint without a second visualizer.
+Watch training live in Kit while recording from a separate headless Newton GL angle by running with
+``--viz kit --video viz:newton_gl`` and giving each visualizer its own camera. See
+:ref:`Recording from an independent camera angle <how_to_record_video_angle>` for the configuration.
 
 **Following a moving robot (Kit)**
 

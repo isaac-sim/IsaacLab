@@ -43,8 +43,8 @@ Run the ``run_tiled_camera_visualizer.py`` script in ``IsaacLab/scripts/tutorial
       :emphasize-lines: 72-78,81-83,93-99,107-109
       :linenos:
 
-See `Examples`_ below for the two ways to run the script. For the ``VisualizerCfg`` fields that
-customize streaming, sources, and troubleshooting, see :ref:`visualization-streaming-camera-view`.
+See `Examples`_ below for the two ways to run the script, and `Configuration`_ for the
+``VisualizerCfg`` fields that customize streaming, display sources, and troubleshooting.
 
 
 .. raw:: html
@@ -141,11 +141,8 @@ feeds are shown by default.
    <p class="viz-cap">Newton visualizer: streaming camera view</p>
 
 
-Usage
------
-
-Configuration notes
-~~~~~~~~~~~~~~~~~~~~
+Configuration
+-------------
 
 To customize streaming camera behavior, edit the highlighted ``VisualizerCfg`` fields in
 ``run_tiled_camera_visualizer.py``:
@@ -162,9 +159,8 @@ To customize streaming camera behavior, edit the highlighted ``VisualizerCfg`` f
   ``["rgb", "depth", "segmentation", "normals"]``.
 * ``streaming_depth_min`` / ``streaming_depth_max`` set the depth colormap range in metres.
 
-
 Troubleshooting
-~~~~~~~~~~~~~~~~
+---------------
 
 * If a generated view fails with a missing prim error, verify that
   ``streaming_cam_target_prim_path`` resolves in each selected environment; common template
@@ -196,7 +192,7 @@ Troubleshooting
 See also
 --------
 
-* :ref:`visualization-streaming-camera-view`: configuration, display sources, and troubleshooting
+* :ref:`visualization-streaming-camera-view`: how the streaming view works and which visualizers support it
 * :doc:`/source/concepts/visualization`: visualizer configuration and UI controls
 * :doc:`/source/how-to/record_video`: recording the streaming view to video
 * :doc:`/source/how-to/configure_rendering`: customizing RTX rendering settings
