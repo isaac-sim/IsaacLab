@@ -9,5 +9,5 @@
   ``Metrics/consecutive_success`` for the number of transfers per episode. Success rates
   from the previous single-goal task are not directly comparable; retrain policies for
   the alternating task objective.
-* Changed the default recording view of both handover tasks to aim at one hand pair from an
-  angle instead of the gap between environment rows.
+* Changed the default recording view of both handover tasks to face one hand pair from the
+  side instead of the gap between environment rows.
