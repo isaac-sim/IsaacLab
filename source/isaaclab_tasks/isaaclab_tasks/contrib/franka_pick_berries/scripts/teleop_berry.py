@@ -318,6 +318,7 @@ with launch_simulation(cfg, args), ExitStack() as resources:
     scripted_center = None
     scripted_gap = args.pick_gap
     scripted_opening = 0.08
+    scripted_hang = None
     # Scripted arm commands per control step: 8 mm and 0.03 rad at the default speed 2, scaled with it so that the
     # arm keeps up with faster plans; above it, pauses shorten too.
     step_limit, turn_limit = 0.004 * args.motion_speed, 0.015 * args.motion_speed
@@ -391,6 +392,7 @@ with launch_simulation(cfg, args), ExitStack() as resources:
                 script_step = 0
                 scripted_center = None
                 scripted_gap = args.pick_gap
+                scripted_hang = None
                 scripted_opening = 0.08
             if viewer is not None:
                 reset_key = viewer.is_key_down("R")
@@ -404,6 +406,7 @@ with launch_simulation(cfg, args), ExitStack() as resources:
                     script_step = 0
                     scripted_center = None
                     scripted_gap = args.pick_gap
+                    scripted_hang = None
                     scripted_opening = 0.08
                     viewer.aperture = 0.08
                     viewer.reset_requested = False
@@ -459,7 +462,14 @@ with launch_simulation(cfg, args), ExitStack() as resources:
                 elif args.mode == "place":
                     target[2] += 0.09 * np.clip((t - 9) / 3, 0, 1)
                     target[:2] += (np.array(BOWL[:2]) - target[:2]) * np.clip((t - 13) / 6, 0, 1)
-                    target[2] += (0.035 - grasp_z - 0.09) * np.clip((t - 20) / 3, 0, 1)
+                    if 12 <= t < 20:
+                        # Height [m] of the TCP above the berry's bottom, measured over the bowl; a low percentile
+                        # ignores a particle left behind in the punnet.
+                        tissue_z = env.berry.positions()[:, 2] + env.berry.offset[2]
+                        scripted_hang = float(pos[0, 2]) - float(np.percentile(tissue_z, 2))
+                    # Set the berry down just above the bowl's floor rather than dropping it.
+                    release_z = 0.035 if scripted_hang is None else max(0.009, BOWL[4] + 0.0025 + scripted_hang)
+                    target[2] += (release_z - grasp_z - 0.09) * np.clip((t - 20) / 3, 0, 1)
                     if t > 26:
                         target[2] += 0.08 * np.clip((t - 26) / 3, 0, 1)
                 current = pos[0].cpu().numpy()
