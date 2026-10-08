@@ -184,6 +184,9 @@ class ConveyorTransferCommand(CommandTerm):
             source_sides = self.source_side_ids[success_ids]
             self.transfer_counts[success_ids] += 1
             self.direction_transfer_counts[success_ids, source_sides] += 1
+            pool = getattr(self._env, "conveyor_cube_pool", None)
+            if pool is not None:
+                pool.record_transfers(success_ids, self.target_cube_ids[success_ids])
 
         potential = current_transfer_potential(self._env, command=self)
         progressed = (potential >= self._target_potential) & (evaluation_steps >= self.cfg.minimum_progress_steps)

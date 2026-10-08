@@ -30,7 +30,8 @@ def _cube_state(env: ManagerBasedRLEnv) -> tuple[torch.Tensor, torch.Tensor, tor
         cube_values(env, "root_quat_w"),
         cube_values(env, "root_vel_w"),
     )
-    return state
+    adapter = getattr(env, "_adapt_policy_cube_state", None)
+    return state if adapter is None else adapter(*state)
 
 
 def target_cube_one_hot(env: ManagerBasedRLEnv, command_name: str = "transfer") -> torch.Tensor:
@@ -66,7 +67,8 @@ def transfer_object_observation(env: ManagerBasedRLEnv) -> torch.Tensor:
     """Describe all four cubes in stable identity slots.
 
     The observation contains local positions, tool-relative positions, local
-    up axes, and linear/angular velocities in four fixed identity slots.
+    up axes, and linear/angular velocities. The base task keeps fixed identities;
+    warehouse playback can refill remote slots from its physical parcel pool.
     :func:`target_cube_one_hot` selects the active slot.
     """
     positions, quaternions, velocities = _cube_state(env)

@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Four-cube racetrack transfer with Newton and native CPU PhysX backends."""
+"""Four-cube racetrack transfer and warehouse sorting tasks sharing a Franka policy."""
 
 import gymnasium as gym
 
@@ -15,6 +15,16 @@ gym.register(
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.conveyor_franka_env_cfg:ConveyorFrankaEnvCfg",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:ConveyorFrankaPPORunnerCfg",
+    },
+)
+
+gym.register(
+    id="IsaacContrib-Conveyor-Warehouse-Sorting-v0",
+    entry_point=f"{__name__}.conveyor_franka_warehouse_env:ConveyorFrankaWarehouseEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.conveyor_franka_asset_env_cfg:ConveyorFrankaA09A12EnvCfg",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:ConveyorFrankaPPORunnerCfg",
     },
 )
