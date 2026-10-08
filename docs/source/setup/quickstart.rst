@@ -219,8 +219,9 @@ example:
 
    uv run isaaclab train --task Isaac-Cartpole-Camera physics=newton_mjwarp renderer=newton_renderer presets=rgb
 
-Many tasks default to Isaac Sim PhysX, which needs Isaac Sim. Pick the setup path that matches
-your install and keep its ``physics=`` selector on every command. Add ``renderer=`` only for tasks
+Many tasks default to Isaac Sim PhysX, which needs Isaac Sim, while others, such as Cartpole,
+already default to Newton. Pick the setup path that matches your install and set its ``physics=``
+selector whenever a task's default backend doesn't match it. Add ``renderer=`` only for tasks
 with cameras or renderer presets, such as ``Isaac-Cartpole-Camera``; other tasks reject it. Run
 ``uv run isaaclab list_envs --show_presets`` to see which presets a task declares:
 

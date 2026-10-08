@@ -19,8 +19,8 @@ Typically user-invoked skills
   They cover work you start yourself: installing Isaac Lab, creating and converting environments,
   training and debugging RL, choosing backends and presets, preparing assets for Newton, migrating from
   Isaac Gym or Isaac Lab 2.x, and troubleshooting setup. They live under ``skills/user/``. Some
-  maintainer tasks under ``skills/developer/`` are also run on request: ``issue-audit`` and
-  ``issue-backlog-triage``.
+  maintainer tasks under ``skills/developer/`` are also run on request: ``isaaclab-auditing-an-issue``
+  and ``isaaclab-triaging-issue-backlog``.
 
 Typically agent-automated skills
   The agent usually loads these on its own when a task matches the skill description, following ``AGENTS.md``.
