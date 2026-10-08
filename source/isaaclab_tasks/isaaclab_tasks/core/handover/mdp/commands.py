@@ -28,7 +28,7 @@ if TYPE_CHECKING:
 
 
 class HandoverCommand(CommandTerm):
-    """Alternate handover goals after cumulative dwell at each receiving hand."""
+    """Alternate handover goals after cumulative success steps at each receiving hand."""
 
     cfg: HandoverCommandCfg
 
@@ -87,10 +87,10 @@ class HandoverCommand(CommandTerm):
 
     def _update_command(self) -> None:
         succeeded = self.metrics["goal_distance"] < self.cfg.success_distance_threshold
-        # Commands follow autoreset; the reset pose must not earn dwell this step.
+        # Commands follow autoreset; the reset pose must not count as a success step.
         succeeded &= ~(self._env.reset_terminated | self._env.reset_time_outs)
-        self._goal.update(succeeded, self.cfg.success_dwell_steps)
-        self._env.extras.setdefault("log", {})["Diagnostics/dwell_steps"] = self._goal.dwell.float().mean()
+        self._goal.update(succeeded, self.cfg.success_steps_required)
+        self._env.extras.setdefault("log", {})["Diagnostics/success_steps"] = self._goal.success_steps.float().mean()
 
     def _set_debug_vis_impl(self, debug_vis: bool) -> None:
         if debug_vis:

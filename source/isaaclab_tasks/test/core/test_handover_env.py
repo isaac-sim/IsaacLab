@@ -25,7 +25,7 @@ def test_handover_goal_update_does_not_synchronize(device):
     poses[1, :, 0] = 1.0
     poses[..., 6] = 1.0
     goal = HandoverGoal(poses, (0.0, 0.0, 0.0))
-    with pytest.raises(ValueError, match="success_dwell_steps"):
+    with pytest.raises(ValueError, match="success_steps_required"):
         goal.update(torch.zeros(2, dtype=torch.bool, device=device), 0)
 
     succeeded = torch.tensor([True, False], device=device)
@@ -41,12 +41,12 @@ def test_handover_goal_update_does_not_synchronize(device):
 
 @pytest.mark.parametrize("task_name", ("Isaac-Shadow-Handover-Direct", "Isaac-Shadow-Handover"))
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-def test_handover_alternates_after_cumulative_dwell_and_resets_one_episode(task_name, device):
+def test_handover_alternates_after_cumulative_success_steps_and_resets_one_episode(task_name, device):
     """A completed transfer changes the observed goal; drops reset only the affected episode."""
     direct = task_name.endswith("-Direct")
     cfg = parse_env_cfg(task_name, device=device, num_envs=2)
     goal_cfg = cfg if direct else cfg.commands.object_pose
-    goal_cfg.success_dwell_steps = 3
+    goal_cfg.success_steps_required = 3
     if direct:
         cfg.reset_position_noise = 0.0
         cfg.reset_dof_pos_noise = 0.0
@@ -86,7 +86,7 @@ def test_handover_alternates_after_cumulative_dwell_and_resets_one_episode(task_
                 return obs["right_hand"], rewards, terminated["right_hand"], truncated["right_hand"], extras
             return obs["policy"], rewards, terminated, truncated, extras
 
-        # A brief exit keeps the earned dwell, but does not itself earn another step.
+        # A brief exit keeps earned success steps, but does not itself earn another step.
         step_at(targets)
         outside = targets.clone()
         outside[:, 0] += 0.2
@@ -109,7 +109,7 @@ def test_handover_alternates_after_cumulative_dwell_and_resets_one_episode(task_
         assert extras["log"]["Metrics/consecutive_success"].item() == 2.0
         assert extras["log"]["Metrics/success_rate"].item() == pytest.approx(2.0 / 3.0)
 
-        # Autoreset clears env 0's count without clearing env 1's partial dwell.
+        # Autoreset clears env 0's count without clearing env 1's partial success steps.
         targets[:] = left
         step_at(targets)
         observations, _, _, _, _ = step_at(targets)
@@ -124,8 +124,8 @@ def test_handover_alternates_after_cumulative_dwell_and_resets_one_episode(task_
         assert extras["log"]["Metrics/consecutive_success"].item() == 1.0
         assert extras["log"]["Metrics/success_rate"].item() == 0.5
 
-        # With a one-step dwell, the first full physics step after autoreset must count.
-        goal_cfg.success_dwell_steps = 1
+        # With one required success step, the first full physics step after autoreset must count.
+        goal_cfg.success_steps_required = 1
         goal_cfg.success_distance_threshold = 10.0
         env.reset()
         targets[0] = torch.tensor([0.0, -0.5, 0.1], device=device)

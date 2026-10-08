@@ -29,7 +29,7 @@ class HandoverCommandCfg(CommandTermCfg):
     position_offset: tuple[float, float, float] = GOAL_POSITION_OFFSET
     """Shared goal offset in each hand's local root frame [m], resolved once at initialization."""
     success_distance_threshold: float = 0.1
-    """Object-to-goal distance below which dwell is accumulated [m]."""
-    success_dwell_steps: int = 20
+    """Object-to-goal distance below which success steps accumulate [m]."""
+    success_steps_required: int = 20
     """Cumulative steps inside the success distance required to switch goals; must be positive."""
     goal_visualizer_cfg: VisualizationMarkersCfg = replace(GOAL_MARKER_CFG, prim_path="/Visuals/Command/goal_marker")

@@ -55,7 +55,7 @@ on this template; configclass deep-copies defaults, so sharing the instance is s
 
 
 class HandoverGoal:
-    """Track alternating goal positions and cumulative dwell for both workflows."""
+    """Track alternating goal positions and cumulative success steps for both workflows."""
 
     def __init__(self, hand_root_poses: torch.Tensor, position_offset: tuple[float, float, float]):
         """Initialize from right/left hand poses of shape (2, num_envs, 7), in environment frames."""
@@ -64,29 +64,29 @@ class HandoverGoal:
         offset = torch.tensor(position_offset, device=device).expand(2, num_envs, 3)
         self._positions = hand_root_poses[..., :3] + quat_apply(hand_root_poses[..., 3:7], offset)
         self.position = self._positions[1].clone()
-        self.dwell = torch.zeros(num_envs, dtype=torch.long, device=device)
+        self.success_steps = torch.zeros(num_envs, dtype=torch.long, device=device)
         self.success = SuccessTracker(num_envs, device)
         self._left = torch.ones(num_envs, dtype=torch.bool, device=device)
 
-    def update(self, succeeded: torch.Tensor, dwell_steps: int) -> torch.Tensor:
-        """Accumulate earned dwell, switch completed goals, and return the mask of switched environments.
+    def update(self, succeeded: torch.Tensor, steps_required: int) -> torch.Tensor:
+        """Accumulate success steps, switch completed goals, and return the mask of switched environments.
 
         Raises:
-            ValueError: If ``dwell_steps`` is not positive, which would switch goals every step.
+            ValueError: If ``steps_required`` is not positive, which would switch goals every step.
         """
-        if dwell_steps < 1:
-            raise ValueError(f"success_dwell_steps must be positive, got {dwell_steps}.")
-        self.dwell += succeeded
-        switched = self.dwell >= dwell_steps
+        if steps_required < 1:
+            raise ValueError(f"success_steps_required must be positive, got {steps_required}.")
+        self.success_steps += succeeded
+        switched = self.success_steps >= steps_required
         self.success.record_goal_reached(switched)
         self._left ^= switched
-        self.dwell.masked_fill_(switched, 0)
+        self.success_steps.masked_fill_(switched, 0)
         torch.where(self._left.unsqueeze(-1), self._positions[1], self._positions[0], out=self.position)
         return switched
 
     def reset(self, env_ids: Sequence[int] | torch.Tensor | slice) -> None:
-        """Start a new episode with the left-hand goal and no earned dwell or transfers."""
+        """Start a new episode with the left-hand goal and no success steps or transfers."""
         index_fill_(self._left, env_ids, True)
-        index_fill_(self.dwell, env_ids, 0)
+        index_fill_(self.success_steps, env_ids, 0)
         self.position[env_ids] = self._positions[1, env_ids]
-        self.success.clear(env_ids, skip_next_update=torch.zeros_like(self.dwell[env_ids], dtype=torch.bool))
+        self.success.clear(env_ids, skip_next_update=torch.zeros_like(self.success_steps[env_ids], dtype=torch.bool))

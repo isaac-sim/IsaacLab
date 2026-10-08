@@ -211,7 +211,7 @@ class HandoverEnvCfg(DirectMARLEnvCfg):
     # success criteria
     success_distance_threshold: float = 0.1
     """Object-to-goal distance below which the handover is considered successful [m]."""
-    success_dwell_steps: int = 20
+    success_steps_required: int = 20
     """Cumulative steps inside the success distance required to switch goals; must be positive."""
     goal_position_offset: tuple[float, float, float] = GOAL_POSITION_OFFSET
     """Shared goal offset in each hand's local root frame [m], resolved once at initialization."""
