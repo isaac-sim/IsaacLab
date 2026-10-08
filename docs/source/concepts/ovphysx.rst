@@ -74,7 +74,7 @@ tests.
 Heterogeneous cloning
 ---------------------
 
-OvPhysX 0.6.3 is required for heterogeneous runtime cloning. Tensor bindings use
+OvPhysX 0.6.3 or later is required for heterogeneous runtime cloning. Tensor bindings use
 numeric environment order so indexed resets, actions and observations address
 the correct variant. Variants may differ in geometry but must preserve body,
 joint and tendon layout. Isaac Lab checks prototype rotation axes and tendon layouts;
@@ -117,7 +117,8 @@ cloner.
 Installation
 ------------
 
-The ``ovphysx`` extra requires OvPhysX 0.6.3. Install it from the repository root with:
+The ``ovphysx`` extra requires OvPhysX 0.7.0.72321904, from the NVIDIA Omniverse package index. Install it from the
+repository root with:
 
 .. code-block:: bash
 
@@ -125,7 +126,7 @@ The ``ovphysx`` extra requires OvPhysX 0.6.3. Install it from the repository roo
 
 The ``--inexact`` flag preserves packages installed through other extras.
 Use ``--extra ov`` to install both public OvPhysX and OVRTX runtimes. The combined
-extra pairs OVRTX 0.5.0.377615 with OVStage 0.2; OVRTX 0.4.1 is not compatible
+extra pairs OVRTX 0.6.0.1791455901 with OVStage 0.3.0.378911; OVRTX 0.4.1 is not compatible
 with this runtime combination. The legacy
 Isaac Lab installer also supports ``./isaaclab.sh -i 'ov[ovphysx]'`` and
 ``./isaaclab.sh -i 'ov[all]'``.

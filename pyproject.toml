@@ -177,9 +177,9 @@ rerun = [
 
 isaacsim = ["isaacsim[all,extscache]==6.1.0.0"]
 
-ov = ["ovphysx==0.6.3", "ovrtx==0.5.0.377615", "ovstage==0.2.0.377349"]
-ovphysx = ["ovphysx==0.6.3", "ovstage==0.2.0.377349"]
-ovrtx = ["ovrtx==0.5.0.377615", "ovstage==0.2.0.377349"]
+ov = ["ovphysx==0.7.0.72321904", "ovrtx==0.6.0.1791455901", "ovstage==0.3.0.378911"]
+ovphysx = ["ovphysx==0.7.0.72321904", "ovstage==0.3.0.378911"]
+ovrtx = ["ovrtx==0.6.0.1791455901", "ovstage==0.3.0.378911"]
 
 mimic = [
     "isaaclab-mimic",
@@ -226,9 +226,9 @@ usd_exchange = "3.0.0"
 torch = "2.12.0"
 torchvision = "0.27.0"
 torchaudio = "2.11.0"
-ovphysx = "0.6.3"
-ovrtx = "0.5.0.377615"
-ovstage = "0.2.0.377349"
+ovphysx = "0.7.0.72321904"
+ovrtx = "0.6.0.1791455901"
+ovstage = "0.3.0.378911"
 warp = "1.17.0"
 
 [tool.ruff]
@@ -384,6 +384,13 @@ name = "pypi-public"
 url = "https://pypi.org/simple"
 explicit = true
 
+# OVRTX 0.6, which live Gaussian deformation needs, and the matching OVStage 0.3 and OvPhysX 0.7 are not yet
+# published on PyPI.
+[[tool.uv.index]]
+name = "nvidia-omniverse"
+url = "https://artifactory.nvidia.com/artifactory/api/pypi/ct-omniverse-pypi/simple"
+explicit = true
+
 [[tool.uv.index]]
 name = "pytorch-cu130"
 url = "https://download.pytorch.org/whl/cu130"
@@ -427,9 +434,9 @@ package = false
 
 [tool.uv.sources]
 omniverseclient = { index = "pypi-public" }
-ovphysx = { index = "pypi-public" }
-ovrtx = { index = "pypi-public" }
-ovstage = { index = "pypi-public" }
+ovphysx = { index = "nvidia-omniverse" }
+ovrtx = { index = "nvidia-omniverse" }
+ovstage = { index = "nvidia-omniverse" }
 isaaclab = { path = "source/isaaclab", editable = true }
 "isaaclab-assets" = { path = "source/isaaclab_assets", editable = true }
 "isaaclab-contrib" = { path = "source/isaaclab_contrib", editable = true }
