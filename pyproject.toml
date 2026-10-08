@@ -37,7 +37,6 @@ dependencies = [
     "numpy>=2",
     "torch==2.11.0",
     "torchvision==0.26.0",
-    "torchaudio==2.11.0",
     "onnx>=1.18.0",
     "prettytable>=3.3.0",
     "psutil",
@@ -222,7 +221,6 @@ isaacsim = "6.1.0.0"
 usd_exchange = "3.0.0"
 torch = "2.11.0"
 torchvision = "0.26.0"
-torchaudio = "2.11.0"
 ovphysx = "0.6.3"
 ovrtx = "0.5.0.377615"
 ovstage = "0.2.0.377349"
@@ -447,7 +445,6 @@ isaaclab = { path = "source/isaaclab", editable = true }
 "isaaclab-teleop" = { path = "source/isaaclab_teleop", editable = true }
 "isaaclab-visualizers" = { path = "source/isaaclab_visualizers", editable = true }
 torch = { index = "pytorch-cu130" }
-torchaudio = { index = "pytorch-cu130" }
 torchvision = { index = "pytorch-cu130" }
 
 [tool.uv.pip]

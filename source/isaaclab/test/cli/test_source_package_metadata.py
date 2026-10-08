@@ -16,7 +16,7 @@ import tomllib
 pytestmark = pytest.mark.unit
 
 
-@pytest.mark.parametrize("name", ["torch", "torchvision", "torchaudio"])
+@pytest.mark.parametrize("name", ["torch", "torchvision"])
 def test_resolved_torch_stack_supports_blackwell(source_checkout_root: Path, name: str):
     """All supported platforms use CUDA 13 wheels for Blackwell and DGX Spark."""
     with (source_checkout_root / "uv.lock").open("rb") as f:
