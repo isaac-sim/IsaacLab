@@ -3,13 +3,23 @@
 Ecosystem
 =========
 
-Isaac Lab is the robot-learning framework between accelerated simulation and the applications that
-train, generate data for, and evaluate robot policies. It provides reusable environments, assets,
-sensors, controllers, and learning integrations for reinforcement learning, imitation learning,
-teleoperation, and motion planning.
+Isaac Lab is a fully open-source framework for building, training, and testing robot-learning
+systems in simulation. It embraces a modular design that supports multiple physics backends,
+rendering backends, RL libraries, and various robot-learning workflows spanning from
+reinforcement learning, imitation learning, teleoperation, and post-training.
 
-Isaac Lab is not itself a simulator. Its common scene, asset, and sensor interfaces can run on
-multiple physics and rendering backends. Backend support is task-specific, but the shared interface
+
+At the core of Isaac Lab, we focus heavily on parallelized GPU-accelerated simulation. Isaac Lab
+provides warp-based integration with `Newton`_, allowing for efficient CUDA graphing of simulation
+and MDP pipelines. Additionally, the `OvPhysX`_ backend provides full PhysX support through a lightweight
+standalone library package. Similarly, `OvRTX`_ introduces full RTX rendering capabilities through an
+optional standalone python dependency. This architecture promotes a fully customized experience for
+users to choose from a selection of different physics and rendering engines.
+
+
+Isaac Lab is not itself a simulator. It provides a framework for defining
+concepts such as the scene, asset, sensors, actuators, controllers, and tasks, which can run on
+multiple physics and rendering backends. The shared backend interface
 lets a supported environment keep the same structure while its preset selects the runtime. See
 :doc:`/source/concepts/backend_architecture` for the implementation model.
 
@@ -17,32 +27,32 @@ lets a supported environment keep the same structure while its preset selects th
 Capabilities in motion
 ----------------------
 
-These examples span policy learning, synthetic demonstration generation, humanoid
-loco-manipulation, and contact-rich material simulation. Explore the packaged
+These examples span real-to-sim reconstruction, vision-policy learning, and contact-rich material
+simulation. Explore the packaged
 :doc:`demos </source/setup/demos>` and :doc:`environment catalog </source/setup/environments>`
 to run them yourself.
 
 .. grid:: 1 1 2 2
    :gutter: 2
 
-   .. grid-item-card:: Humanoid loco-manipulation
+   .. grid-item-card:: Real-to-sim scene reconstruction
 
-      .. image:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/locomanipulation_sdg_disjoint_nav_groot_policy_4x.gif
+      .. image:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/nurec_real2sim_living_room.gif
          :width: 100%
-         :alt: A humanoid policy navigates around obstacles and places a steering wheel.
+         :alt: A camera capture becomes a simulation-ready NuRec reconstruction of a living room.
 
-      A vision-conditioned policy combines navigation and whole-body manipulation.
-      See :doc:`humanoid imitation learning
-      </source/features/imitation-learning/humanoids_imitation>`.
+      NuRec turns real-world captures into simulation-ready scenes for policy training and
+      evaluation. See :doc:`COMPASS with NuRec
+      </source/policy_deployment/03_compass_with_NuRec/compass_navigation_policy_with_NuRec>`.
 
-   .. grid-item-card:: Synthetic demonstration generation
+   .. grid-item-card:: Vision-policy distillation
 
-      .. image:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/cube_stack_data_gen_skillgen.gif
+      .. image:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/tutorial_so101_vialplace_play.gif
          :width: 100%
-         :alt: A robot arm generates varied demonstrations for a cube-stacking task.
+         :alt: An SO-101 arm uses a wrist-camera policy to place a vial in a rack.
 
-      SkillGen turns a small set of task demonstrations into diverse training trajectories.
-      See :doc:`SkillGen </source/features/imitation-learning/skillgen>`.
+      The SO-101 tutorial trains a state teacher and distills it into a wrist-camera policy for
+      vial placement. See the :doc:`SO-101 tutorial </source/setup/tutorial>`.
 
    .. grid-item-card:: Newton MPM fluid simulation
 
@@ -91,8 +101,8 @@ These projects have their own releases and installation requirements:
 Choose a physics backend
 ------------------------
 
-Isaac Lab supports three physics backends. Start with the backend exposed by the target task's
-preset; changing solver families can require task and controller retuning.
+Isaac Lab supports two physics backends, with PhysX support available through either a Kit-based
+Isaac Sim PhysX implementation and a standalone (Kit-less) OvPhysX implementation.
 
 .. list-table::
    :header-rows: 1
@@ -102,55 +112,28 @@ preset; changing solver families can require task and controller retuning.
      - Best fit
      - Benefits
      - Trade-offs
-   * - **PhysX**
-     - Established Isaac Sim workflows and the broadest feature coverage
-     - Mature reference behavior, Isaac RTX rendering, deformables, Fabric, ROS/ROS 2, USD tools,
-       and importers
-     - Requires the larger Isaac Sim and Kit runtime; large GPU scenes can require explicit
-       capacity tuning
    * - **Newton**
-     - Kit-less training and workflows that need multiple solver families
+     - Lightweight training and workflows that can use multiple solver families
      - Warp-native GPU execution without Isaac Sim; provides MJWarp, VBD, MPM, and other solver
        paths
-     - Beta integration; feature and task coverage varies by solver, and switching solvers usually
-       requires retuning
+     - Task and feature coverage varies by solver, and changing solvers can require retuning
    * - **OvPhysX**
-     - Experimental kit-less PhysX workflows
-     - Runs PhysX through a smaller standalone runtime and can pair with kit-less OVRTX rendering
-     - Experimental and still gaining feature coverage; configuration is primarily USD-based and
-       the runtime cannot share a process with Kit
+     - Kit-less PhysX workflows
+     - PhysX SDK available through a standalone runtime and can pair with kit-less OVRTX rendering
+     - Cannot be mixed together with Isaac Sim workflows
+   * - **Isaac Sim PhysX**
+     - Isaac Sim workflows that require full Kit integration
+     - PhysX SDK through Isaac Sim and Kit
+     - Requires the larger Isaac Sim and Kit runtime
 
 Physics, camera rendering, and interactive visualization are separate choices. For example, Newton
 can use the lightweight Newton Warp renderer or OVRTX for RTX image quality without Isaac Sim.
 See :doc:`/source/concepts/physics_backends`, :doc:`/source/concepts/renderers`, and
 :doc:`/source/concepts/visualization` for current support matrices and preset commands.
 
-
-Where does Isaac Lab fit in the Isaac ecosystem?
-------------------------------------------------
-
-Over the years, NVIDIA has developed a number of tools for robotics and AI. These tools leverage
-the power of GPUs to accelerate simulation both in terms of speed and realism.
-
-`Isaac Gym`_ :cite:`makoviychuk2021isaac` provided a high-performance GPU-based physics simulation
-for robot learning built on top of `PhysX`_. Its end-to-end GPU pipeline enabled frame rates
-far beyond what CPU-based physics engines could achieve. The tool proved successful across a
-number of research projects, including legged locomotion :cite:`rudin2022learning`
-:cite:`rudin2022advanced`, in-hand manipulation :cite:`handa2022dextreme`
-:cite:`allshire2022transferring`, and industrial assembly :cite:`narang2022factory`.
-
-`Isaac Sim`_ is a general-purpose robot simulation toolkit built on top of `Omniverse`_. It
-integrates the capabilities of Isaac Gym while adding high-fidelity rendering, ROS/ROS2,
-deformable-object simulation, synthetic data generation, domain randomization, tiled rendering
-for vectorized observations, and cloud support via `Isaac Automator`_. With the Isaac Gym legacy
-API absorbed into Isaac Sim, NVIDIA also released open-sourced environment collections
-`IsaacGymEnvs`_ and `OmniIsaacGymEnvs`_ to showcase the capabilities of these simulators.
-Those environment collections are now deprecated in favor of Isaac Lab.
-
-Isaac Lab supersedes `IsaacGymEnvs`_, `OmniIsaacGymEnvs`_, and `Orbit`_ as the single robot
-learning framework for Isaac Sim. It retains full access to the PhysX/Isaac Sim stack while
-adding the Newton physics backend for kit-less deployments, an expanded sensor suite, imitation
-learning tooling, XR teleoperation, and a rich set of pre-built tasks.
+For the most lightweight installation experience, Newton brings the best experience through an out-of-the-box
+installation setup, multiple physics solver capabilities with solver coupling mechanisms, as well as
+lightweight rendering sensors.
 
 
 Is Isaac Lab a simulator?
@@ -161,9 +144,8 @@ learning applications on top of a simulator. An analogous example is `RoboSuite`
 built on top of `MuJoCo`_ for fixed-base manipulation. Other examples include
 `MuJoCo Playground`_ (built on `MJX`_) and Isaac Gym (built on `PhysX`_).
 
-Isaac Lab's shared interfaces cover the PhysX, Newton, and experimental OvPhysX backends without
-requiring environment code to import backend-specific modules directly. Actual portability depends
-on the presets and features supported by each task.
+Isaac Lab's shared interfaces cover the Newton, Kit-based PhysX, and OvPhysX backends without
+requiring environment code to import backend-specific modules directly.
 
 The framework addresses a recurring problem with standalone task implementations: because each
 task reimplements the observation, reward, termination, and randomization logic from scratch,
@@ -200,9 +182,10 @@ Concretely, Isaac Lab offers:
 
 * **Two authoring patterns** — manager-based for modular research and direct for rapid
   prototyping — with a shared :class:`~isaaclab.scene.InteractiveScene` and sensor stack.
-* **Multi-backend simulation** — select PhysX, Newton, or experimental OvPhysX from the command
-  line when the task provides the corresponding preset.
-* **Rich sensor suite** — cameras (tiled and standard), ray-casters, contact sensors, IMU,
+* **Multi-backend simulation** — select Newton, Kit-based PhysX or OvPhysX from the command
+  line when the task provides the corresponding preset. Additionally, choose from Newton rendering sensor,
+  Kit-based RTX, or OvRTX for rendering pipelines.
+* **Rich sensor suite** — cameras, ray-casters, contact sensors, IMU,
   frame transformers, joint-wrench sensors, and visuo-tactile sensors.
 * **Imitation learning tooling** — ``isaaclab_mimic`` provides cuRobo-based planners and a
   full dataset-generation pipeline for human demonstration collection.
@@ -211,18 +194,17 @@ Concretely, Isaac Lab offers:
 * **Hydra configuration management** — hierarchical configs with command-line overrides and a
   preset system for multi-backend environment variants.
 * **RL library integrations** — wrappers for RSL-RL, skrl, Stable Baselines 3, and RL Games
-  ship in ``isaaclab_rl``.
+  ship in ``isaaclab_rl``. Additionally, integration of RLinf provides RL post-training capabilities
+  for fine-tuning large foundation models.
 * **Kit-less deployment** — run policies and simulations using the Newton backend without a
   full Isaac Sim installation. URDF and MJCF command-line conversion can also run kit-less
   when the standalone ``isaacsim-asset-isolated`` importer wheel is installed.
 
-We are working with labs in universities and research institutions to integrate their work into
-Isaac Lab and hope that others in the community will join us. If you are interested in
-contributing, please reach out to us.
-
 
 .. _PhysX: https://developer.nvidia.com/physx-sdk
 .. _Newton: https://github.com/newton-physics/newton
+.. _OvPhysX: https://nvidia-omniverse.github.io/PhysX/ovphysx/latest/index.html
+.. _OvRTX: https://nvidia-omniverse.github.io/ovrtx/
 .. _Isaac Sim: https://developer.nvidia.com/isaac-sim
 .. _Omniverse: https://www.nvidia.com/en-us/omniverse/
 .. _Isaac Gym: https://developer.nvidia.com/isaac-gym
