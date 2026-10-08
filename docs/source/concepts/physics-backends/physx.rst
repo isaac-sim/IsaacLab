@@ -31,11 +31,12 @@ with ``physics=isaacsim_physx`` when the task exposes that preset:
 
    sim_cfg = SimulationCfg(physics=PhysxCfg())
 
-The ``physx`` selector is automatic. It builds a
-:class:`~isaaclab.physics.PhysxAutoCfg` that holds both a ``PhysxCfg`` and an
-:class:`~isaaclab_ov.physics.OvPhysxCfg`. When the simulation context is
-created, the auto configuration resolves to Isaac Sim PhysX if Kit is running
-and to OvPhysX otherwise. Use ``isaacsim_physx`` to require the Isaac Sim path.
+The ``physx`` selector is automatic. It selects a
+:class:`~isaaclab.physics.PhysxAutoCfg` that holds a ``PhysxCfg`` and, when
+the task supports it, an :class:`~isaaclab_ov.physics.OvPhysxCfg`. When the
+simulation is launched, the auto configuration resolves to Isaac Sim PhysX if
+the run needs Kit, and otherwise to OvPhysX when one is configured. Use
+``isaacsim_physx`` to require the Isaac Sim path.
 
 
 Runtime: Isaac Sim and Kit
@@ -81,7 +82,7 @@ timeline and stage callbacks. Its stop callback invalidates the shared
 ``omni.physics.tensors`` simulation view, which would also invalidate the views
 that Isaac Lab assets hold. Newer Isaac Sim versions can disable these default
 callbacks at startup, and Isaac Lab leaves them alone in that case. On older
-versions, importing ``isaaclab_physx`` disables those callbacks and redirects
+versions, ``PhysxManager.initialize()`` disables those callbacks and redirects
 the module's ``SimulationManager`` to ``PhysxManager``. ``PhysxManager``
 re-applies this patch if the Isaac Sim extension is enabled later.
 
@@ -118,7 +119,7 @@ First reset
    context. The resulting ``PhysxBackend`` owns the
    ``omni.physics.tensors`` simulation view, created with the Warp frontend for
    the current stage. Finally, the manager dispatches
-   :attr:`~isaaclab.physics.PhysicsEvent.PHYSICS_READY`, and assets and
+   ``PHYSICS_READY``, and assets and
    sensors create their typed views from the simulation view.
 
 Step
@@ -176,6 +177,7 @@ attribute in camel case, for example ``gpu_max_rigid_contact_count`` becomes
 copied:
 
 * ``solver_type`` becomes ``physxScene:solverType`` (``"TGS"`` or ``"PGS"``).
+* ``bounce_threshold_velocity`` becomes ``physxScene:bounceThreshold``.
 * The timestep becomes ``physxScene:timeStepsPerSecond``.
 * GPU simulation enables GPU dynamics and the GPU broadphase. CPU simulation
   uses the MBP broadphase.
@@ -183,13 +185,14 @@ copied:
   GPU dynamics is enabled.
 * The backend-agnostic ``deterministic`` request enables
   ``enable_enhanced_determinism``.
-* Scene query support is forced on when Kit runs with a GUI.
+* Scene query support follows ``SimulationCfg.enable_scene_query_support``
+  and is forced on when Kit runs with a GUI.
 
 Per-prim physics properties are not part of ``PhysxCfg``. They are authored
 through the USD schema configurations described in
 :doc:`/source/concepts/schema_cfgs`. PhysX-only schema configurations, such as
-:class:`~isaaclab_physx.sim.PhysxRigidBodyPropertiesCfg`, live in
-:mod:`isaaclab_physx.sim`.
+:class:`~isaaclab_physx.sim.schemas.PhysxRigidBodyPropertiesCfg`, live in
+:mod:`isaaclab_physx.sim.schemas`.
 
 Fabric
 ^^^^^^
@@ -205,8 +208,9 @@ slower for large scenes.
 Tensor views and native access
 ------------------------------
 
-Every PhysX asset and sensor in ``isaaclab_physx`` is built on typed views
-created from the shared ``omni.physics.tensors`` simulation view:
+Every PhysX asset and sensor in ``isaaclab_physx``, except ``SurfaceGripper``,
+is built on typed views created from the shared ``omni.physics.tensors``
+simulation view:
 
 .. list-table::
    :header-rows: 1
@@ -214,7 +218,7 @@ created from the shared ``omni.physics.tensors`` simulation view:
 
    * - Isaac Lab class
      - Native view
-   * - Articulation
+   * - Articulation, joint wrench sensor
      - Articulation view
    * - Rigid object, rigid object collection
      - Rigid-body view
@@ -265,13 +269,14 @@ PhysX-specific and shared components
      - ``PhysxReplicateContext``
    * - USD schemas
      - Shared schema configurations
-     - ``Physx*`` schema configurations in :mod:`isaaclab_physx.sim`
+     - ``Physx*`` schema configurations in :mod:`isaaclab_physx.sim.schemas`
    * - Scene data
      - :class:`~isaaclab.scene_data.SceneDataProvider`
      - A scene-data backend that reads poses from the tensor view or Fabric
 
 Kit-hosted rendering, such as the
 :class:`~isaaclab_physx.renderers.IsaacRtxRendererCfg` renderer, also ships in
-``isaaclab_physx`` because it requires Kit. Renderer selection remains
-independent of the physics backend. See :ref:`backend-architecture` for the
+``isaaclab_physx`` because it requires Kit. Renderer selection is
+configured separately from the physics backend, but the kitless OVRTX renderer
+cannot share a process with Isaac Sim PhysX. See :ref:`backend-architecture` for the
 factory and registry design that all backends share.
