@@ -607,12 +607,11 @@ Troubleshooting
 Migrating from generated cameras
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Visualizers no longer create, move, or destroy camera sensors. Replace
-``streaming_cam_target_prim_path``, ``streaming_cam_eye``, and ``streaming_cam_renderer_cfg``
-with a scene ``CameraCfg``: place its ``prim_path`` under the desired parent, set its
-``offset``, and supply ``renderer_cfg`` there. Select that camera through
-``streaming_sensor_prim_path``. This puts the camera in the clone plan and the normal sensor
-initialization, update, and teardown lifecycle.
+Visualizers no longer create, move, or destroy camera sensors. Declare the camera as a scene
+``CameraCfg`` and select it through ``streaming_sensor_prim_path``; this puts the camera in the
+clone plan and the normal sensor initialization, update, and teardown lifecycle. See the
+:doc:`3.0 migration guide </source/migration/migrating_to_isaaclab_3-0>` for how each removed
+``streaming_cam_*`` and ``tiled_cam_*`` option maps to ``CameraCfg``.
 
 Closing a visualizer does not affect the camera or other visualizers reading it.
 ``streaming_envs`` selects displayed tiles, not camera allocation or capture resolution.
@@ -727,8 +726,29 @@ Pass ``--video [SOURCE]`` on the command line for a quick recording, or define m
 ``VideoRecorderCfg`` entries to record multiple sources at once. ``--viz`` still decides which
 visualizers open a window; a visualizer that only records runs headless:
 
-Not currently supported by the web-based visualizers Viser and Rerun; add a headless
-visualizer as a capture source alongside them to record video.
+.. list-table::
+   :widths: 40 60
+   :header-rows: 1
+
+   * - Command line
+     - Records from
+   * - ``--video`` (same as ``--video viz``)
+     - the first capture-capable visualizer ``--viz`` selected, in its window; if none is selected, or only
+       streaming ones such as ``viser`` or ``rerun``, a headless ``newton_gl``
+   * - ``--video viz:newton_rtx``
+     - a ``newton_rtx``: the ``--viz``-selected one if selected, else an extra headless one
+   * - ``--video --viz newton_rtx``
+     - the selected ``newton_rtx`` window
+   * - ``--video viz:newton_gl --viz viser``
+     - ``viser`` runs; an extra headless ``newton_gl`` is added only for recording
+   * - ``--video sensor:wrist_camera[:rgb|depth|...]``
+     - that scene sensor; no visualizer is added
+
+A Hydra override after ``--video`` is never taken as its source: ``--video presets=newton_mjwarp``
+records from ``viz`` and applies the preset.
+
+Kit, Newton GL, and Newton RTX visualizers can be recorded from; the web-based visualizers Viser and
+Rerun cannot.
 
 See :doc:`/source/how-to/record_video` for the full guide and tutorial.
 
