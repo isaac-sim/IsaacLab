@@ -136,20 +136,321 @@ def _fps_statements(body: list[ast.stmt], needed: set[str]) -> tuple[list[ast.st
     return list(reversed(selected)), needed
 
 
-def _builder_fps(function: ast.FunctionDef) -> tuple[list[ast.stmt], set[str]]:
-    returns = [node for node in ast.walk(function) if isinstance(node, ast.Return)]
-    if len(returns) != 1 or not function.body or function.body[-1] is not returns[0]:
-        raise ValueError("The FPS builder does not have one final result expression.")
-    value = returns[0].value
+def _runtime_fps_value(node: ast.Return) -> ast.AST:
+    value = node.value
     if isinstance(value, ast.Call) and isinstance(value.func, ast.Name) and value.func.id == "Runtime":
         fields = [keyword.value for keyword in value.keywords if keyword.arg == "total_fps"]
         if len(fields) != 1:
             raise ValueError("The runtime builder does not identify one total_fps result field.")
-        value = fields[0]
+        return fields[0]
+    raise ValueError("The early return does not identify a Runtime FPS result.")
+
+
+def _normalize_early_returns(body: list[ast.stmt], result: str, continuation: list[ast.stmt]) -> list[ast.stmt]:
+    """Keep subsequent calculations only on paths that do not return early."""
+    normalized = []
+    body = [*body, *continuation]
+    for index, node in enumerate(body):
+        if isinstance(node, ast.Return):
+            value = _runtime_fps_value(node)
+            if any(
+                result in _reads(statement) - set().union(*(_writes(item) for item in ast.walk(statement)))
+                for statement in body[index + 1 :]
+            ):
+                raise ValueError("An early FPS result is used again after its return.")
+            if not (isinstance(value, ast.Name) and value.id == result):
+                normalized.append(
+                    ast.copy_location(ast.Assign(targets=[ast.Name(id=result, ctx=ast.Store())], value=value), node)
+                )
+            break
+        if isinstance(node, ast.If) and any(isinstance(item, ast.Return) for item in ast.walk(node)):
+            left = _normalize_early_returns(node.body, result, body[index + 1 :])
+            right = _normalize_early_returns(node.orelse, result, body[index + 1 :])
+            left, _ = _fps_statements(left, {result})
+            right, _ = _fps_statements(right, {result})
+            test = node.test
+            if not left and right:
+                test = (
+                    test.operand
+                    if isinstance(test, ast.UnaryOp) and isinstance(test.op, ast.Not)
+                    else ast.UnaryOp(op=ast.Not(), operand=test)
+                )
+                left, right = right, []
+            if left or right:
+                normalized.append(ast.copy_location(ast.If(test=test, body=left, orelse=right), node))
+            break
+        if any(isinstance(item, ast.Return) for item in ast.walk(node)):
+            raise ValueError("The FPS builder has an early return in unsupported control flow.")
+        normalized.append(node)
+    return normalized
+
+
+def _builder_fps(function: ast.FunctionDef) -> tuple[list[ast.stmt], set[str]]:
+    returns = [node for node in ast.walk(function) if isinstance(node, ast.Return)]
+    if not returns or not function.body or function.body[-1] not in returns:
+        raise ValueError("The FPS builder does not have one final result expression.")
+    final = function.body[-1]
+    value = final.value
+    if isinstance(value, ast.Call) and isinstance(value.func, ast.Name) and value.func.id == "Runtime":
+        value = _runtime_fps_value(final)
     if value is None:
         raise ValueError("The runtime builder returns no FPS result.")
-    statements, needed = _fps_statements(function.body[:-1], _reads(value))
+    body = function.body[:-1]
+    if len(returns) > 1:
+        if not isinstance(value, ast.Name):
+            raise ValueError("The early FPS returns do not share an identifiable final result local.")
+        body = _normalize_early_returns(body, value.id, [])
+    statements, needed = _fps_statements(body, _reads(value))
     return [*statements, ast.Return(value=value)], needed
+
+
+def _substitute(node: ast.AST, bindings: dict[str, ast.AST]) -> ast.AST:
+    """Replace loaded names while preserving local expression scopes."""
+    if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load) and node.id in bindings:
+        return copy.deepcopy(bindings[node.id])
+    node = copy.copy(node)
+    if isinstance(node, (ast.Lambda, ast.ListComp, ast.SetComp, ast.DictComp, ast.GeneratorExp)):
+        raise ValueError("The producer helper introduces an unresolved expression scope.")
+    for field, value in ast.iter_fields(node):
+        if isinstance(value, ast.AST):
+            setattr(node, field, _substitute(value, bindings))
+        elif isinstance(value, list):
+            setattr(node, field, [_substitute(item, bindings) if isinstance(item, ast.AST) else item for item in value])
+    return node
+
+
+def _keyword_mapping(
+    value: ast.AST, owner: ast.FunctionDef, before: ast.AST, runtime: ast.Module
+) -> dict[str, ast.AST]:
+    """Read explicit keyword mappings without executing benchmark code."""
+    if isinstance(value, ast.Name):
+        writes = [node for node in ast.walk(owner) if value.id in _writes(node) and node.lineno < before.lineno]
+        if len(writes) != 1 or not isinstance(writes[0], (ast.Assign, ast.AnnAssign)):
+            raise ValueError("The producer's expanded keyword mapping is not an unmodified assignment.")
+        assignment = writes[0]
+        target = assignment.targets[0] if isinstance(assignment, ast.Assign) else assignment.target
+        if not isinstance(target, ast.Name) or target.id != value.id:
+            raise ValueError("The producer's expanded keyword mapping is not a direct assignment.")
+        parents = {id(child): parent for parent in ast.walk(owner) for child in ast.iter_child_nodes(parent)}
+        parent = parents[id(assignment)]
+        if parent is not owner and not (parent.lineno <= before.lineno <= parent.end_lineno):
+            raise ValueError("The producer's expanded keyword mapping is conditional.")
+        if any(
+            isinstance(node, ast.Name)
+            and isinstance(node.ctx, ast.Load)
+            and node.id == value.id
+            and (assignment.lineno, assignment.col_offset)
+            < (node.lineno, node.col_offset)
+            <= (before.lineno, before.col_offset)
+            and (node.lineno, node.col_offset) != (value.lineno, value.col_offset)
+            for node in ast.walk(owner)
+        ):
+            raise ValueError("The expanded keyword mapping is also used outside the selected call.")
+        result = _keyword_mapping(assignment.value, owner, assignment, runtime)
+        if any(
+            isinstance(node, (ast.Call, ast.NamedExpr, ast.Await, ast.Yield, ast.YieldFrom))
+            for item in result.values()
+            for node in ast.walk(item)
+        ):
+            raise ValueError("An expanded keyword input has an unresolved evaluation order.")
+        if any(not isinstance(item, (ast.Name, ast.Constant)) for item in result.values()) and any(
+            isinstance(node, ast.stmt) and assignment.end_lineno < node.lineno < before.lineno
+            for node in ast.walk(owner)
+        ):
+            raise ValueError("An expanded keyword expression was captured before intervening statements.")
+        names = set().union(*(_reads(item) for item in result.values()))
+        if any(_writes(node) & names and assignment.lineno < node.lineno < before.lineno for node in ast.walk(owner)):
+            raise ValueError("An expanded keyword input was reassigned after the mapping was built.")
+        return result
+    if isinstance(value, ast.Dict):
+        result = {}
+        for key, item in zip(value.keys, value.values):
+            if key is None:
+                result.update(_keyword_mapping(item, owner, before, runtime))
+            elif isinstance(key, ast.Constant) and isinstance(key.value, str):
+                result[key.value] = item
+            else:
+                raise ValueError("The producer's expanded keywords do not have literal names.")
+        return result
+    if isinstance(value, ast.Call) and isinstance(value.func, ast.Name) and value.func.id == "dict" and not value.args:
+        if _bindings(owner, "dict") or _bindings(runtime, "dict"):
+            raise ValueError("The expanded mapping does not use the built-in dict constructor.")
+        return _call_keywords(value, owner, runtime)
+    raise ValueError("The producer's expanded keyword mapping cannot be resolved from source.")
+
+
+def _call_keywords(call: ast.Call, owner: ast.FunctionDef, runtime: ast.Module) -> dict[str, ast.AST]:
+    result = {}
+    for keyword in call.keywords:
+        values = (
+            {keyword.arg: keyword.value}
+            if keyword.arg is not None
+            else _keyword_mapping(keyword.value, owner, call, runtime)
+        )
+        if result.keys() & values.keys():
+            raise ValueError("The runtime producer supplies duplicate keyword arguments.")
+        result.update(values)
+    return result
+
+
+def _forwarding_calls(
+    call: ast.Call, owner: ast.FunctionDef, runtime: ast.Module, seen: tuple[str, ...] = ()
+) -> list[tuple[ast.FunctionDef, ast.Call]] | None:
+    """Find forwarding helpers before attempting to resolve their inputs."""
+    if isinstance(call.func, ast.Attribute) and call.func.attr == "build_runtime":
+        if isinstance(call.func.value, ast.Name):
+            name = call.func.value.id
+            if name == "builders" and _benchmark_binding(owner, name, runtime):
+                return []
+            bindings = _bindings(owner, name) or _bindings(runtime, name)
+            if bindings and all(
+                (
+                    isinstance(node, ast.ImportFrom)
+                    and node.module is not None
+                    and not node.module.startswith("isaaclab.benchmark")
+                    and node.level == 0
+                )
+                or (
+                    isinstance(node, ast.Import)
+                    and all(
+                        not alias.name.startswith("isaaclab.benchmark")
+                        for alias in node.names
+                        if (alias.asname or alias.name.split(".")[0]) == name
+                    )
+                )
+                for node in bindings
+            ):
+                return None
+        raise ValueError("A build_runtime call does not identify the selected benchmark builder.")
+    if not isinstance(call.func, ast.Name) or call.func.id in seen:
+        return None
+    functions = {node.name: node for node in runtime.body if isinstance(node, ast.FunctionDef)}
+    helper = functions.get(call.func.id)
+    if helper is None:
+        bindings = _bindings(owner, call.func.id) or _bindings(runtime, call.func.id)
+        if any(
+            isinstance(node, ast.ImportFrom)
+            and any(
+                alias.name == "build_runtime" and (alias.asname or alias.name) == call.func.id for alias in node.names
+            )
+            and (node.level or (node.module or "").startswith("isaaclab.benchmark"))
+            for node in bindings
+        ):
+            raise ValueError("An imported runtime producer cannot be resolved at its call site.")
+        return None
+    body = [
+        node
+        for node in helper.body
+        if not isinstance(node, (ast.Import, ast.ImportFrom))
+        and not (
+            isinstance(node, ast.Expr) and isinstance(node.value, ast.Constant) and isinstance(node.value.value, str)
+        )
+    ]
+    forwarded = (
+        body[0].value
+        if len(body) == 1 and isinstance(body[0], ast.Return) and isinstance(body[0].value, ast.Call)
+        else None
+    )
+    chain = None if forwarded is None else _forwarding_calls(forwarded, helper, runtime, (*seen, helper.name))
+    if chain is None:
+        if any(
+            _forwarding_calls(node, helper, runtime, (*seen, helper.name)) is not None
+            for node in _producer_nodes(helper, runtime, (*seen, helper.name))
+        ):
+            raise ValueError("The runtime producer helper does more than forward its inputs.")
+        return None
+    if any(
+        isinstance(node, (ast.Import, ast.ImportFrom))
+        and any((alias.asname or alias.name) in _reads(forwarded) for alias in node.names)
+        and not (isinstance(node, ast.ImportFrom) and node.module == "isaaclab.benchmark")
+        for node in helper.body
+    ):
+        raise ValueError("The producer helper's imports cannot be resolved at its call site.")
+    if helper.decorator_list or _bindings(runtime, helper.name) != [helper] or _bindings(owner, helper.name):
+        raise ValueError("The producer helper is decorated, reassigned or shadowed at its call site.")
+    return [(helper, forwarded), *chain]
+
+
+def _producer_call(call: ast.Call, owner: ast.FunctionDef, runtime: ast.Module) -> ast.Call | None:
+    chain = _forwarding_calls(call, owner, runtime)
+    if chain is None:
+        return None
+    location = call
+    if any(isinstance(node, ast.Starred) for node in call.args):
+        raise ValueError("The producer helper supplies unresolved positional arguments.")
+    for helper, forwarded in chain:
+        arguments = helper.args
+        positional = [*arguments.posonlyargs, *arguments.args]
+        parameters = []
+        defaults = (
+            dict(zip([arg.arg for arg in positional][-len(arguments.defaults) :], arguments.defaults))
+            if arguments.defaults
+            else {}
+        )
+        defaults.update(
+            {arg.arg: value for arg, value in zip(arguments.kwonlyargs, arguments.kw_defaults) if value is not None}
+        )
+        for group, kind in (
+            (arguments.posonlyargs, inspect.Parameter.POSITIONAL_ONLY),
+            (arguments.args, inspect.Parameter.POSITIONAL_OR_KEYWORD),
+            ([arguments.vararg] if arguments.vararg else [], inspect.Parameter.VAR_POSITIONAL),
+            (arguments.kwonlyargs, inspect.Parameter.KEYWORD_ONLY),
+            ([arguments.kwarg] if arguments.kwarg else [], inspect.Parameter.VAR_KEYWORD),
+        ):
+            parameters.extend(
+                inspect.Parameter(arg.arg, kind, default=defaults.get(arg.arg, inspect.Parameter.empty))
+                for arg in group
+            )
+        bound = inspect.Signature(parameters).bind(*call.args, **_call_keywords(call, owner, runtime))
+        if any(not isinstance(value, ast.Constant) for name, value in defaults.items() if name not in bound.arguments):
+            raise ValueError("The producer helper uses a default that cannot be resolved at its call site.")
+        parameters_names = {parameter.name for parameter in parameters}
+        if any(_bindings(owner, name) for name in _reads(forwarded) - parameters_names - {"builders"}):
+            raise ValueError("A producer helper's global input is shadowed at its call site.")
+        bound.apply_defaults()
+        bindings = dict(bound.arguments)
+        if arguments.vararg:
+            raise ValueError("The producer helper forwards unresolved positional arguments.")
+        if arguments.kwarg:
+            values = bindings[arguments.kwarg.arg]
+            bindings[arguments.kwarg.arg] = ast.Dict(
+                keys=[ast.Constant(name) for name in sorted(values)], values=[values[name] for name in sorted(values)]
+            )
+        if any(
+            isinstance(node, (ast.Call, ast.NamedExpr, ast.Await, ast.Yield, ast.YieldFrom))
+            for value in bindings.values()
+            for node in ast.walk(value)
+        ):
+            raise ValueError("A producer helper argument has an unresolved evaluation order.")
+        if any(
+            not isinstance(value, (ast.Name, ast.Constant))
+            and sum(
+                isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load) and node.id == name
+                for node in ast.walk(forwarded)
+            )
+            > 1
+            for name, value in bindings.items()
+        ):
+            raise ValueError("A producer helper would evaluate a forwarded input more than once.")
+        call = ast.copy_location(_substitute(forwarded, bindings), location)
+        if any(
+            isinstance(node, (ast.Call, ast.NamedExpr, ast.Await, ast.Yield, ast.YieldFrom))
+            for value in (*call.args, *_call_keywords(call, owner, runtime).values())
+            for node in ast.walk(value)
+        ):
+            raise ValueError("The forwarded call may change inputs captured by the producer helper.")
+    if call.args:
+        raise ValueError("The runtime producer supplies positional arguments.")
+    return ast.copy_location(
+        ast.Call(
+            func=call.func,
+            args=[],
+            keywords=[
+                ast.keyword(arg=name, value=value) for name, value in _call_keywords(call, owner, runtime).items()
+            ],
+        ),
+        location,
+    )
 
 
 def _runtime_inputs(run: ast.FunctionDef, call: ast.Call, expressions: list[ast.AST]) -> list[ast.AST]:
@@ -186,6 +487,64 @@ def _runtime_inputs(run: ast.FunctionDef, call: ast.Call, expressions: list[ast.
     return [value for _, _, value in sorted(selected.values(), key=lambda item: item[:2])]
 
 
+def _scope_nodes(scope: ast.AST):
+    """Visit one lexical scope without borrowing bindings from nested functions."""
+    for node in ast.iter_child_nodes(scope):
+        yield node
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Lambda)):
+            yield from _scope_nodes(node)
+
+
+def _bindings(scope: ast.AST, name: str) -> list[ast.AST]:
+    return [
+        node
+        for node in _scope_nodes(scope)
+        if isinstance(node, ast.Name)
+        and isinstance(node.ctx, ast.Store)
+        and node.id == name
+        or isinstance(node, ast.arg)
+        and node.arg == name
+        or isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
+        and node.name == name
+        or isinstance(node, (ast.Import, ast.ImportFrom))
+        and any((alias.asname or alias.name.split(".")[0]) == name for alias in node.names)
+    ]
+
+
+def _benchmark_binding(scope: ast.AST, name: str, runtime: ast.Module) -> bool:
+    bindings = _bindings(scope, name) or _bindings(runtime, name)
+    return bool(bindings) and all(
+        isinstance(node, ast.ImportFrom)
+        and node.module == "isaaclab.benchmark"
+        and any(alias.name == name and alias.asname in (None, name) for alias in node.names)
+        for node in bindings
+    )
+
+
+def _producer_nodes(scope: ast.AST, runtime: ast.Module, seen: tuple[str, ...] = ()) -> list[ast.Call]:
+    """Keep nested producers visible without resolving their inputs in the caller's scope."""
+    scoped = set(_scope_nodes(scope))
+    parents = {child: parent for parent in ast.walk(scope) for child in ast.iter_child_nodes(parent)}
+    calls = []
+    for node in ast.walk(scope):
+        if not isinstance(node, ast.Call):
+            continue
+        if node in scoped:
+            calls.append(node)
+            continue
+        owner = parents[node]
+        while not isinstance(owner, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda, ast.ClassDef)):
+            owner = parents[owner]
+        if _forwarding_calls(node, owner, runtime, seen) is not None or (
+            isinstance(node.func, ast.Attribute)
+            and node.func.attr == "build_runtime"
+            and isinstance(node.func.value, ast.Name)
+            and not _bindings(owner, node.func.value.id)
+        ):
+            raise ValueError("A runtime producer is defined in a nested scope.")
+    return calls
+
+
 def metric_definition(checkout_root: Path) -> dict:
     """Fingerprint the runtime producer call and its FPS aggregation implementation.
 
@@ -198,32 +557,14 @@ def metric_definition(checkout_root: Path) -> dict:
         runtime = ast.parse((checkout_root / runtime_path).read_text(encoding="utf-8"))
         builders = ast.parse((checkout_root / builder_path).read_text(encoding="utf-8"))
         run = _function(runtime, "run")
-        imports = [
-            node
-            for node in ast.walk(runtime)
-            if isinstance(node, ast.ImportFrom)
-            and node.module == "isaaclab.benchmark"
-            and any(alias.name == "builders" and alias.asname in (None, "builders") for alias in node.names)
-        ]
-        if not imports or any(
-            isinstance(node, ast.Name) and node.id == "builders" and isinstance(node.ctx, ast.Store)
-            for node in ast.walk(runtime)
-        ):
-            raise ValueError("The runtime builders binding does not identify the selected benchmark builders module.")
         calls = [
-            node
-            for node in ast.walk(run)
-            if isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Attribute)
-            and isinstance(node.func.value, ast.Name)
-            and node.func.value.id == "builders"
-            and node.func.attr == "build_runtime"
+            producer
+            for node in _producer_nodes(run, runtime)
+            if (producer := _producer_call(node, run, runtime)) is not None
         ]
         if len(calls) != 1:
             raise ValueError("The runtime producer does not have one identifiable builders.build_runtime call.")
         call = calls[0]
-        if call.args or any(keyword.arg is None for keyword in call.keywords):
-            raise ValueError("The runtime producer supplies positional or expanded arguments.")
         function = _function(builders, "build_runtime")
         settings = [keyword.value for keyword in call.keywords if keyword.arg == "aggregate_throughput"]
         if not settings:
@@ -272,15 +613,7 @@ def metric_definition(checkout_root: Path) -> dict:
             and node.func.value.id == "stepping"
         }
         if timing_calls:
-            if not any(
-                isinstance(node, ast.ImportFrom)
-                and node.module == "isaaclab.benchmark"
-                and any(alias.name == "stepping" and alias.asname in (None, "stepping") for alias in node.names)
-                for node in ast.walk(runtime)
-            ) or any(
-                isinstance(node, ast.Name) and node.id == "stepping" and isinstance(node.ctx, ast.Store)
-                for node in ast.walk(runtime)
-            ):
+            if not _benchmark_binding(run, "stepping", runtime):
                 raise ValueError("The FPS timing input does not identify the selected benchmark stepping module.")
             stepping_path = PACKAGE / "stepping.py"
             stepping = ast.parse((checkout_root / stepping_path).read_text(encoding="utf-8"))
