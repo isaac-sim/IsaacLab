@@ -2957,8 +2957,8 @@ The following new settings were added to :class:`~sim.converters.MjcfConverterCf
 +-----------------------------------------------------------------+------------------------------------------------------+
 | :attr:`~sim.converters.MjcfConverterCfg.collision_from_visuals` | Generate collision geometry from visuals.            |
 +-----------------------------------------------------------------+------------------------------------------------------+
-| :attr:`~sim.converters.MjcfConverterCfg.collision_type`         | Type of collision geometry (e.g. ``"default"``,      |
-|                                                                 | ``"Convex Hull"``, ``"Convex Decomposition"``).      |
+| :attr:`~sim.converters.MjcfConverterCfg.collision_type`         | Type of collision geometry (e.g. ``"Convex Hull"``,  |
+|                                                                 | ``"Convex Decomposition"``, ``"Bounding Cube"``).    |
 +-----------------------------------------------------------------+------------------------------------------------------+
 
 
