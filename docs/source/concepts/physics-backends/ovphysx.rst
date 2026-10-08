@@ -1,3 +1,5 @@
+.. _ovphysx-backend:
+
 OvPhysX Backend
 ===============
 

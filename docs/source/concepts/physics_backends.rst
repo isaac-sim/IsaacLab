@@ -64,8 +64,7 @@ same process.
 For the general PhysX--Newton policy validation workflow, see
 :doc:`/source/how-to/transfer_policies_between_physx_and_newton`. When a
 checkpoint's joint or body ordering differs from the target backend, use the
-:doc:`articulation ordering guide
-</source/concepts/joint_and_body_ordering>`.
+:ref:`articulation ordering guide <joint-and-body-ordering>`.
 
 
 .. _physics-backends-physx:
@@ -87,7 +86,10 @@ authoritative field list. Per-actor physical properties remain on the USD
 schema configuration described in
 :doc:`/source/concepts/schema_cfgs`.
 For a diagnose-first workflow covering solver selection, iterations, contacts,
-stability, and GPU capacities, see :ref:`physx-solver-tuning`.
+stability, and GPU capacities, see :ref:`physx-solver-tuning`. For how the
+backend starts Isaac Sim, owns the simulation lifecycle, and exposes PhysX
+tensor views, see :doc:`the PhysX backend page
+</source/concepts/physics-backends/physx>`.
 
 
 .. _physics-backends-newton:
@@ -114,7 +116,7 @@ for those fields.
 
 Feature coverage is still evolving. See the
 :doc:`OvPhysX specialist page
-</source/concepts/ovphysx>` for current
+</source/concepts/physics-backends/ovphysx>` for current
 limitations and runtime constraints.
 
 
@@ -141,9 +143,7 @@ follow the generated API links for :class:`~isaaclab_physx.physics.PhysxCfg`,
 .. toctree::
    :hidden:
 
+   /source/concepts/physics-backends/physx
    /source/concepts/physics-backends/newton
-   /source/concepts/joint_and_body_ordering
-   /source/concepts/ovphysx
-   /source/concepts/using_mpm
+   /source/concepts/physics-backends/ovphysx
    /source/concepts/warp_environments
-   /source/concepts/warp_environment_migration
