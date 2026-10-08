@@ -24,6 +24,7 @@ import types
 from pathlib import Path
 
 import pytest
+import torch
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
 
@@ -39,6 +40,7 @@ from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_camera_manager_
 from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_camera_env_cfg import (
     ShadowHandCameraEnvCfg,
 )
+from isaaclab_tasks.utils import parse_env_cfg, resolve_task_config
 from isaaclab_tasks.utils.hydra import collect_presets, resolve_presets
 
 # ---------------------------------------------------------------------------
@@ -254,6 +256,81 @@ def test_task_presets_select_published_feature_extractor_checkpoint(
 
     expected_path = f"{ISAACLAB_NUCLEUS_DIR}/PretrainedCheckpoints/rsl_rl/{checkpoint_filename}"
     assert env_cfg.feature_extractor.pretrained_checkpoint == expected_path
+
+
+def test_registered_cosmos_preset_composes_rgb_observations_and_local_checkpoint_playback():
+    """The training task composes depth-guided RGB, and playback retains its own trained CNN."""
+    task_name = "Isaac-Reorient-Cube-Shadow-Camera-Direct"
+    env_cfg = parse_env_cfg(task_name, overrides=("presets=cosmos", "env.episode_length_s=20.0"))
+    env_cfg.validate()
+    camera = env_cfg.scene.tiled_camera
+    transfer = camera.modifiers["distance_to_image_plane"][-1]
+
+    assert env_cfg.scene.num_envs == 1
+    assert camera.data_types == ["rgb"] and transfer.output == "rgb"
+    assert transfer.backend.modality == "depth"
+    assert env_cfg.feature_extractor.enabled and env_cfg.feature_extractor.train
+    assert env_cfg.feature_extractor.pretrained_checkpoint is None
+
+    play_cfg, _ = resolve_task_config(task_name, None, play_mode=True, overrides=("presets=cosmos",))
+    play_cfg.validate()
+
+    assert play_cfg.scene.num_envs == 1
+    assert not play_cfg.feature_extractor.train
+    assert play_cfg.feature_extractor.load_checkpoint
+    assert play_cfg.feature_extractor.pretrained_checkpoint is None
+
+
+@pytest.mark.parametrize(
+    "overrides,error",
+    [
+        (("env.scene.num_envs=2",), "requires one environment"),
+        (("env.max_consecutive_success=1",), "max_consecutive_success=0"),
+        (("env.episode_length_s=20.1",), "camera captures per episode.*frame budget"),
+        (("env.scene.tiled_camera.update_period=0.01",), "camera captures per episode.*frame budget"),
+        (("env.scene.lazy_sensor_update=False",), "lazy_sensor_update"),
+        (("renderer=ovrtx", "env.scene.tiled_camera.renderer_cfg.async_rendering=True"), "synchronous"),
+        (("env.feature_extractor.image_update_frames=1",), "image_update_frames"),
+    ],
+)
+def test_cosmos_task_rejects_overrides_exceeding_service_limits_before_simulation(overrides, error):
+    """CLI overrides must preserve the service limits and camera supervision timing."""
+    env_cfg = parse_env_cfg("Isaac-Reorient-Cube-Shadow-Camera-Direct", overrides=("presets=cosmos", *overrides))
+
+    with pytest.raises(ValueError, match=error):
+        env_cfg.validate()
+
+
+def test_feature_extractor_holds_capture_target_until_new_rgb_and_invalidates_it_on_reset(tmp_path):
+    """Real CNN loss uses the held image's target, including when frame one repeats after reset."""
+    extractor = FeatureExtractor(
+        FeatureExtractorCfg(train=True, image_update_frames=4),
+        device="cpu",
+        data_types=["rgb"],
+        log_dir=str(tmp_path),
+        height=64,
+        width=64,
+    )
+    for group in extractor.optimizer.param_groups:
+        group["lr"] = 0.0
+    rgb = {"rgb": torch.full((1, 64, 64, 3), 90, dtype=torch.uint8)}
+    pose = torch.zeros(1, 27)
+    first_loss, _ = extractor.step(rgb, pose, camera_frame=torch.tensor([1]))
+
+    for frame in (1, 2, 3, 4):
+        held_loss, _ = extractor.step(rgb, torch.full_like(pose, 10.0), camera_frame=torch.tensor([frame]))
+        torch.testing.assert_close(held_loss, first_loss)
+
+    updated_loss, _ = extractor.step(rgb, torch.full_like(pose, 10.0), camera_frame=torch.tensor([5]))
+    assert updated_loss > first_loss
+
+    extractor.reset(torch.tensor([0]))
+    reset_loss, _ = extractor.step(rgb, torch.full_like(pose, 20.0), camera_frame=torch.tensor([1]))
+    assert reset_loss > updated_loss
+
+    extractor.reset(torch.tensor([0]))
+    repeated_frame_loss, _ = extractor.step(rgb, torch.full_like(pose, 30.0), camera_frame=torch.tensor([1]))
+    assert repeated_frame_loss > reset_loss
 
 
 @pytest.fixture

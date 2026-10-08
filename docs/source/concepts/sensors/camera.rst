@@ -155,7 +155,10 @@ by its :class:`~isaaclab.renderers.RenderBufferSpec`.
      - Low-dynamic-range color
    * - ``rgb_hdr``
      - 3, ``float32``
-     - Scene-linear high-dynamic-range color
+     - High-dynamic-range RGB using the active camera settings
+   * - ``rgb_radiance``
+     - 3, ``float32``
+     - Scene-linear RGB before exposure and response, in renderer-relative intensity units
    * - ``albedo``
      - 4, ``uint8``
      - Material base color
@@ -184,6 +187,10 @@ by its :class:`~isaaclab.renderers.RenderBufferSpec`.
 ``depth`` is an alias of ``distance_to_image_plane``. Colorized segmentation uses RGBA ``uint8``;
 non-colorized segmentation uses one ``int32`` ID channel. Label and prim-path mappings are stored in
 ``camera_data.info[output_name]``.
+
+Requesting ``rgb_hdr`` alone preserves the renderer's existing camera settings. ``rgb_radiance`` is
+the input for image processing that applies its own exposure and camera response, such as PPISP.
+If both are requested, they share one buffer.
 
 .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-isaac-rtx.webp
    :align: center
@@ -221,6 +228,10 @@ current support matrix is:
      - Yes
      - Yes
      - Yes
+   * - ``rgb_radiance``
+     - Derived (see below)
+     - Derived (see below)
+     - Yes
    * - ``depth`` and both distance outputs
      - Yes
      - Yes
@@ -249,6 +260,16 @@ current support matrix is:
      - Isaac Sim 6.0+
      - Yes
      - No
+
+.. note::
+
+   On Isaac RTX and OVRTX, ``rgb_radiance`` is not a native renderer output. These renderers derive
+   it from HDR color by authoring neutral exposure on the camera prim, so every output rendered from
+   that prim, including ``rgb``, ``rgba``, and ``rgb_hdr``, loses the authored exposure. This also
+   applies to other camera sensors that share the prim. A single render product cannot return both
+   authored-exposure color and ``rgb_radiance``; use a separate camera prim when both are required.
+   Newton Warp has no exposure model and is not affected. A native pre-exposure radiance output has
+   been requested from the RTX team (NVBug 6858736).
 
 Querying an unsupported output fails during camera initialization. Renderer configuration controls
 semantic filters, segmentation colorization, and depth clipping where those options are
@@ -292,47 +313,69 @@ background. Set a normalized RGB tuple to use a solid color for pixels that miss
 The setting is per camera. Cameras with renderer-default and solid backgrounds can coexist in one
 scene.
 
-Post-render image signal processing
------------------------------------
+.. _camera-modifiers:
 
-:attr:`~sensors.CameraCfg.isp_cfg` optionally applies an image signal processing (ISP) pass to the
-renderer's scene-linear HDR output. The shipped implementation is PPISP (Physically Plausible Image
-Signal Processing), which applies responsivity, exposure, vignetting, color correction, and a camera
-response function before writing ``rgb`` or ``rgba``.
+Camera modifiers
+----------------
 
-The field accepts:
-
-* ``None`` to disable post-render ISP.
-* :class:`~isaaclab_ppisp.PpispCfg` for explicit coefficients or coefficients imported from a USD
-  camera.
-* :class:`~sensors.CameraISPMode` to discover ``ppisp:*`` attributes on a camera prim.
+:attr:`~sensors.CameraCfg.modifiers` processes camera images with the same
+:class:`~utils.modifiers.ModifierCfg` classes used by observation terms. Each entry maps a camera
+output to a list of modifiers. The camera requests that output from its renderer, runs the list once
+per captured image, and publishes the result in :attr:`~sensors.CameraData.output`. A modifier may
+declare the output it produces, for example ``rgb`` from ``rgb_radiance``; otherwise the result
+replaces the input name. Every observation term, recorder, or script that reads the camera then sees
+the same processed image, computed once.
 
 .. code-block:: python
 
-   from isaaclab.sensors.camera import CameraCfg, CameraISPMode
    from isaaclab.utils import replace
-   from isaaclab_ppisp import PpispCfg
+   from isaaclab_ppisp import PpispCfg, PpispModifierCfg
 
-   explicit_isp = replace(front_camera, data_types=["rgb"], isp_cfg=PpispCfg(inputs={"exposureOffset": 1.5}))
+   ppisp_camera = replace(
+       front_camera,
+       data_types=["rgb"],
+       modifiers={"rgb_radiance": [PpispModifierCfg(isp_cfg=PpispCfg(inputs={"exposureOffset": 1.5}))]},
+   )
 
-   discovered_isp = replace(front_camera, data_types=["rgb"], isp_cfg=CameraISPMode.AUTO_CAMERA)
+Modifiers receive the camera's buffers and must not change their input in place. An input that only
+modifiers read, such as ``rgb_radiance`` for PPISP above, is not published in
+:attr:`~sensors.CameraData.output` unless it is also listed in :attr:`~sensors.CameraCfg.data_types`.
+Class modifiers are constructed on the first capture, with the shape of their input, and reset with
+the camera. A delayed renderer that republishes an earlier capture does not rerun the modifiers.
 
-``AUTO_CAMERA`` checks the first matched camera prim. ``AUTO_ANY`` falls back to the first PPISP
-camera anywhere on the stage. Discovery happens once during camera construction.
+The same modifier can be applied to an observation term instead, where it runs on every observation
+computation. Request the input from the camera with :attr:`~sensors.CameraCfg.data_types`:
 
-PPISP is composed by Isaac RTX, OVRTX, and Newton Warp. It requires ``rgb`` or ``rgba`` output. A
-static configuration is shared by all cloned views in one camera batch; controller weights may
-predict per-view exposure and color parameters, while the remaining coefficients stay shared. ISP
-configuration and discovered USD attributes are fixed for the camera lifetime.
+.. code-block:: python
+
+   policy_image = ObsTerm(
+       func=mdp.image_rgb,
+       params={"sensor_cfg": SceneEntityCfg("front_camera"), "data_type": "rgb_radiance", "normalize": False},
+       modifiers=[PpispModifierCfg()],
+   )
+
+Prefer camera modifiers for expensive or stateful processing so that it runs once per image.
+
+PPISP
+~~~~~
+
+PPISP (Physically Plausible Image Signal Processing) applies responsivity, exposure, vignetting, color
+correction, and a camera response function to ``rgb_radiance`` and produces ``rgb`` or ``rgba``.
+When :attr:`~isaaclab_ppisp.PpispModifierCfg.isp_cfg` is ``None``, :class:`~isaaclab_ppisp.PpispModifierCfg`
+reads ``ppisp:*`` attributes from the camera's first prim, or from the first camera on the stage that
+has them, and uses default coefficients when there are none. On an observation term the modifier does
+not know its camera: set :attr:`~isaaclab_ppisp.PpispCfg.camera_prim_path` to read a specific camera.
+Modifiers with equal resolved settings share one :class:`~isaaclab_ppisp.PpispPipeline` through the
+simulation context.
+
+A static configuration is shared by all cloned views in one camera batch; controller weights may
+predict per-view exposure and color parameters, while the remaining coefficients stay shared.
 
 .. important::
 
-   With Isaac RTX and OVRTX, enabling ``isp_cfg`` makes PPISP the ISP authority. The renderer
-   disables RTX auto-exposure, authors neutral ``exposure:*`` values, and applies the
-   ``OmniRtxCameraAutoExposureAPI_1`` and ``OmniRtxCameraExposureAPI_1`` schemas on every matched
-   camera prim so RTX does not process the image a second time. Do not combine ``isp_cfg`` with
-   separately authored RTX exposure or tonemapping settings. When ``isp_cfg`` is ``None``, the
-   renderer leaves authored camera exposure unchanged.
+   On Isaac RTX and OVRTX, PPISP replaces the camera's own exposure: authored exposure and
+   auto-exposure are disabled for every color output of that camera prim, including cameras that
+   share the prim. Use a separate camera prim for images that need the authored exposure.
 
 Run the ``ppisp-camera`` example for a complete PPISP workflow:
 

@@ -3,13 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Post-render PPISP pipeline composed into renderer backends.
+"""PPISP pipeline converting scene-linear radiance to 8-bit color.
 
-:class:`PpispPipeline` runs *after* a renderer fills its HDR scene-linear AOV,
-converting HDR → LDR via a single Warp kernel. Renderer backends instantiate
-this class when their cfg/spec carries a :class:`PpispCfg` and dispatch
-:meth:`apply` once per render tick. The HDR scratch buffer is owned by the
-renderer backend, not by this class.
+:class:`PpispPipeline` converts HDR → LDR via a single Warp kernel. :class:`PpispModifier`
+obtains it through the simulation context, so equal settings share one pipeline.
 """
 
 from __future__ import annotations
@@ -29,9 +26,8 @@ from .kernels import (
 class PpispPipeline:
     """Post-render PPISP kernel applier.
 
-    Constructed by renderer backends when ``spec.cfg.isp_cfg`` is set. Owns the
-    normalised :class:`PpispCfg` and dispatches the PPISP Warp kernel once per
-    render tick via :meth:`apply`.
+    Owns the normalised :class:`PpispCfg` and dispatches the PPISP Warp kernel
+    through :meth:`apply`.
 
     One pipeline instance applies to the whole Camera sensor batch. The PPISP
     Warp kernel takes scalar coefficients, so every cloned view in a tiled
@@ -39,9 +35,6 @@ class PpispPipeline:
     Per-view support would require packing the cfg into GPU arrays and indexing
     by ``camera_id`` inside the kernel.
 
-    Today only :class:`PpispCfg` is accepted; future ISP implementations can
-    either subclass or be selected by cfg type without changes to the backend
-    renderers.
     """
 
     def __init__(self, cfg: PpispCfg):
@@ -49,9 +42,6 @@ class PpispPipeline:
 
         Normalises ``cfg`` on construction (validates input keys, fills
         defaults).
-        :class:`~isaaclab.sensors.camera.Camera` already normalises ``isp_cfg``
-        before passing the :class:`~isaaclab.renderers.CameraRenderSpec` to
-        the backend, so renderer backends pass a concrete, resolved config here.
 
         Args:
             cfg: The PPISP configuration.
@@ -62,6 +52,11 @@ class PpispPipeline:
         self.cfg = normalized_cfg
         self._controller_weights_by_device: dict[str, wp.array] = {}
         self._controller_buffers_by_shape: dict[tuple[str, int, int, int], tuple[wp.array, ...]] = {}
+
+    def close(self) -> None:
+        """Release cached controller buffers."""
+        self._controller_weights_by_device.clear()
+        self._controller_buffers_by_shape.clear()
 
     def apply(self, hdr: wp.array, rgba: wp.array) -> None:
         """Run the PPISP kernel: HDR scene-linear → LDR RGBA, in place on ``rgba``."""

@@ -12,9 +12,15 @@ https://arxiv.org/abs/2601.18336.
 from __future__ import annotations
 
 from dataclasses import field
-from typing import Any
+from typing import TYPE_CHECKING, Any, Literal
 
+from isaaclab.sim import BackendCfg
 from isaaclab.utils import configclass
+from isaaclab.utils.modifiers import ModifierCfg
+
+if TYPE_CHECKING:
+    from .modifier import PpispModifier
+    from .pipeline import PpispPipeline
 
 PPISP_ATTR_NAMESPACE = "ppisp:"
 """Namespace prefix for authoritative PPISP attributes authored on a USD camera."""
@@ -80,14 +86,20 @@ def default_ppisp_inputs() -> dict[str, float | tuple[float, float]]:
 
 
 @configclass
-class PpispCfg:
+class PpispCfg(BackendCfg):
     """Configuration for PPISP post-processing.
 
     PPISP inputs are static in IsaacLab. NRE exports store the authoritative
     values on a USD camera as ``ppisp:*`` attributes. If animated USD
     attributes are imported, the first authored time sample is used and later
     samples are ignored.
+
+    A normalized configuration identifies a shareable :class:`PpispPipeline` through
+    :meth:`~isaaclab.sim.SimulationContext.get_or_create_backend`.
     """
+
+    class_type: type[PpispPipeline] | str = "{DIR}.pipeline:PpispPipeline"
+    """Pipeline constructed for this configuration."""
 
     camera_prim_path: str | None = None
     """Optional USD camera prim path used to import PPISP camera attributes."""
@@ -126,6 +138,37 @@ class PpispCfg:
     and the four color latents from the HDR image each frame. Static PPISP
     inputs still provide responsivity, vignetting, and CRF.
     """
+
+
+@configclass
+class PpispModifierCfg(ModifierCfg):
+    """Apply PPISP to scene-linear ``rgb_radiance`` and produce 8-bit color.
+
+    Use it on a camera, where it runs once per captured image, or on an observation term that
+    returns ``rgb_radiance``:
+
+    .. code-block:: python
+
+        CameraCfg(data_types=["rgb"], modifiers={"rgb_radiance": [PpispModifierCfg()]}, ...)
+        ObservationTermCfg(func=mdp.image_rgb, params={..., "data_type": "rgb_radiance", "normalize": False},
+                           modifiers=[PpispModifierCfg()])
+
+    Cameras or terms with equal resolved settings share one :class:`PpispPipeline`.
+    """
+
+    func: type[PpispModifier] | str = "{DIR}.modifier:PpispModifier"
+    """PPISP modifier class."""
+
+    isp_cfg: PpispCfg | None = None
+    """PPISP settings. Defaults to None, which reads ``ppisp:*`` attributes from USD: on a camera, from the
+    camera's first prim; otherwise, or when that prim has none, from the first camera on the stage that has
+    them. Without any, :class:`PpispCfg` defaults apply.
+
+    On an observation term, set :attr:`PpispCfg.camera_prim_path` to read a specific camera's attributes.
+    """
+
+    output: Literal["rgb", "rgba"] = "rgb"
+    """Camera output produced from the radiance input."""
 
 
 def normalize_ppisp_cfg(
@@ -319,52 +362,6 @@ def has_ppisp_camera_attrs(camera_prim: Any | None) -> bool:
         ``ppisp:*`` attribute, otherwise false.
     """
     return _has_ppisp_camera_attrs(camera_prim)
-
-
-def resolve_and_normalize(isp_cfg: Any, stage: Any, camera_prim_path: str | None = None) -> PpispCfg | None:
-    """Resolve a Camera sensor batch's ``isp_cfg`` to a normalised cfg or ``None``.
-
-    Handles all three legal forms of :attr:`~isaaclab.sensors.camera.CameraCfg.isp_cfg`:
-
-    * ``None`` → returns ``None``.
-    * :class:`~isaaclab.sensors.camera.CameraISPMode` sentinel — checks the
-      target camera via :func:`auto_camera_ppisp_cfg` (and uses
-      :func:`auto_any_ppisp_cfg` for ``AUTO_ANY`` or when no camera path is
-      supplied) to discover a PPISP camera. Returns the parsed + normalised
-      :class:`PpispCfg`, or ``None`` if no PPISP camera matched.
-    * Concrete :class:`PpispCfg` — normalises in place (validates input keys,
-      fills defaults, and merges camera-authored USD values when
-      ``camera_prim_path`` is set).
-
-    This is the single entry point renderer backends call inside their
-    ``prepare_cameras`` hook so :mod:`isaaclab.sensors.camera` does not need
-    to know about PPISP types at all. The returned cfg applies to the whole
-    Camera sensor batch; callers pass the first matched camera prim path for
-    the camera-local discovery phase.
-
-    Args:
-        isp_cfg: The Camera sensor's :attr:`isp_cfg` value (``None``, ``CameraISPMode``, or :class:`PpispCfg`).
-        stage: USD stage used for sentinel discovery and camera-path resolution.
-        camera_prim_path: Optional absolute path of the first matched camera
-            prim in the Camera sensor batch. When omitted, discovery uses the
-            first camera on the stage with PPISP camera attributes.
-
-    Returns:
-        A fully-normalised :class:`PpispCfg`, or ``None`` if the batch has no ISP.
-    """
-    # Local import avoids a top-of-module dep on isaaclab.sensors.
-    from isaaclab.sensors.camera.camera_isp import CameraISPMode
-
-    if isp_cfg is None:
-        return None
-    if isinstance(isp_cfg, CameraISPMode):
-        resolved = auto_camera_ppisp_cfg(stage, camera_prim_path) if camera_prim_path else None
-        if resolved is None and (isp_cfg == CameraISPMode.AUTO_ANY or not camera_prim_path):
-            resolved = auto_any_ppisp_cfg(stage)
-        if resolved is None:
-            return None
-        return normalize_ppisp_cfg(resolved)
-    return normalize_ppisp_cfg(isp_cfg, stage=stage)
 
 
 def auto_camera_ppisp_cfg(stage: Any, camera_prim_path: str) -> PpispCfg | None:

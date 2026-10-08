@@ -2166,12 +2166,14 @@ source = { editable = "source/isaaclab_tasks" }
 dependencies = [
     { name = "isaaclab" },
     { name = "isaaclab-assets" },
+    { name = "isaaclab-experimental" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "isaaclab", editable = "source/isaaclab" },
     { name = "isaaclab-assets", editable = "source/isaaclab_assets" },
+    { name = "isaaclab-experimental", editable = "source/isaaclab_experimental" },
 ]
 
 [[package]]

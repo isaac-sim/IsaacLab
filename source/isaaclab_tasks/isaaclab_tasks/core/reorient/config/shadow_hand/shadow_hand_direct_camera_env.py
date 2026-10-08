@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
@@ -27,6 +28,7 @@ class ShadowHandCameraEnv(ShadowHandDirectEnv):
     cfg: ShadowHandCameraEnvCfg
 
     def __init__(self, cfg: ShadowHandCameraEnvCfg, render_mode: str | None = None, **kwargs):
+        self.feature_extractor: FeatureExtractor | None = None
         super().__init__(cfg, render_mode, **kwargs)
         self._tiled_camera = self.scene["tiled_camera"]
         # the CNN input channels follow the resolved camera data types, so any camera preset
@@ -45,6 +47,11 @@ class ShadowHandCameraEnv(ShadowHandDirectEnv):
         self.gt_keypoints = torch.ones(self.num_envs, 8, 3, dtype=torch.float32, device=self.device)
         self.goal_keypoints = torch.ones(self.num_envs, 8, 3, dtype=torch.float32, device=self.device)
 
+    def _reset_idx(self, env_ids: Sequence[int]) -> None:
+        super()._reset_idx(env_ids)
+        if self.feature_extractor is not None:
+            self.feature_extractor.reset(env_ids)
+
     def _compute_image_observations(self) -> torch.Tensor:
         # generate ground truth keypoints for in-hand cube
         compute_cube_keypoints(pose=torch.cat((self.object_pos, self.object_rot), dim=1), out=self.gt_keypoints)
@@ -52,9 +59,11 @@ class ShadowHandCameraEnv(ShadowHandDirectEnv):
         object_pose = torch.cat([self.object_pos, self.gt_keypoints.view(-1, 24)], dim=-1)
 
         # train CNN to regress on keypoint positions
+        camera_output = self._tiled_camera.data.output
         pose_loss, embeddings = self.feature_extractor.step(
-            self._tiled_camera.data.output,
+            camera_output,
             object_pose,
+            camera_frame=self._tiled_camera.frame.torch,
         )
 
         self.embeddings = embeddings.clone().detach()

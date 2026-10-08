@@ -10,13 +10,14 @@ from __future__ import annotations
 import glob
 import logging
 import os
+from collections.abc import Sequence
 
 import torch
 import torch.nn as nn
 import torchvision
 
 from isaaclab.sensors import save_images_to_file
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, index_fill_
 from isaaclab.utils.assets import retrieve_file_path
 
 logger = logging.getLogger(__name__)
@@ -128,6 +129,14 @@ class FeatureExtractorCfg:
     train: bool = True
     """If True, the feature extractor model is trained during the rollout process. Default is True."""
 
+    image_update_frames: int = 1
+    """Camera captures per generated RGB update after the initial image.
+
+    During training, values greater than one retain each generated image's pose target until the
+    next update. The first image is published at capture 1, followed by captures
+    ``1 + image_update_frames``, ``1 + 2 * image_update_frames``, and so on. Default is 1.
+    """
+
     load_checkpoint: bool = False
     """If True, the feature extractor model is loaded from a checkpoint. Default is False."""
 
@@ -192,6 +201,11 @@ class FeatureExtractor:
         self.cfg = cfg
         self.device = device
         self.data_types = data_types
+        if type(cfg.image_update_frames) is not int or cfg.image_update_frames < 1:
+            raise ValueError("Feature extractor image_update_frames must be a positive integer.")
+        self._image_target_pose: torch.Tensor | None = None
+        self._image_target_frame: torch.Tensor | None = None
+        self._image_target_valid: torch.Tensor | None = None
 
         # Compute total input channels from the camera data types.
         num_channel = sum(_DATA_TYPE_CHANNELS.get(dt, 3) for dt in data_types)
@@ -221,6 +235,15 @@ class FeatureExtractor:
             self.feature_extractor.train()
         else:
             self.feature_extractor.eval()
+
+    def reset(self, env_ids: torch.Tensor | Sequence[int] | None = None) -> None:
+        """Invalidate pose targets for camera views beginning a new episode.
+
+        Args:
+            env_ids: Rows to reset. None resets all rows.
+        """
+        if self._image_target_valid is not None:
+            index_fill_(self._image_target_valid, env_ids, False)
 
     def _preprocess_images(self, camera_output: dict[str, torch.Tensor]) -> torch.Tensor:
         """Preprocesses and concatenates camera images into a single tensor.
@@ -281,7 +304,11 @@ class FeatureExtractor:
             save_images_to_file(img, f"shadow_hand_{dt}.png")
 
     def step(
-        self, camera_output: dict[str, torch.Tensor], gt_pose: torch.Tensor
+        self,
+        camera_output: dict[str, torch.Tensor],
+        gt_pose: torch.Tensor,
+        *,
+        camera_frame: torch.Tensor | None = None,
     ) -> tuple[torch.Tensor | None, torch.Tensor]:
         """Extracts features and optionally trains the CNN.
 
@@ -294,6 +321,9 @@ class FeatureExtractor:
             camera_output: Dictionary mapping data type names to image tensors from the
                 tiled camera sensor.
             gt_pose: Ground truth pose tensor (position and keypoint corners). Shape: (N, 27).
+            camera_frame: Capture counter for each camera view, read after its image output.
+                Required during training when :attr:`FeatureExtractorCfg.image_update_frames`
+                is greater than one. Shape: (N,).
 
         Returns:
             tuple[torch.Tensor | None, torch.Tensor]: Pose loss (``None`` when not training
@@ -312,6 +342,35 @@ class FeatureExtractor:
         if self.cfg.train:
             with torch.enable_grad():
                 with torch.inference_mode(False):
+                    if self.cfg.image_update_frames > 1:
+                        if (
+                            not isinstance(camera_frame, torch.Tensor)
+                            or camera_frame.shape != gt_pose.shape[:1]
+                            or camera_frame.dtype not in (torch.int32, torch.int64)
+                            or camera_frame.device != gt_pose.device
+                        ):
+                            raise ValueError(
+                                "Training with held images requires camera_frame to contain one integer capture"
+                                " counter per pose on the same device."
+                            )
+                        if self._image_target_pose is None:
+                            self._image_target_pose = gt_pose.detach().clone()
+                            self._image_target_frame = camera_frame.clone()
+                            self._image_target_valid = torch.ones_like(camera_frame, dtype=torch.bool)
+                        else:
+                            update_target = ~self._image_target_valid | (
+                                ((camera_frame - 1) % self.cfg.image_update_frames == 0)
+                                & (camera_frame != self._image_target_frame)
+                            )
+                            self._image_target_pose = torch.where(
+                                update_target[:, None], gt_pose.detach(), self._image_target_pose
+                            )
+                            self._image_target_frame = torch.where(
+                                update_target, camera_frame, self._image_target_frame
+                            )
+                            self._image_target_valid.fill_(True)
+                        gt_pose = self._image_target_pose
+
                     self.optimizer.zero_grad()
 
                     predicted_pose = self.feature_extractor(img_input)

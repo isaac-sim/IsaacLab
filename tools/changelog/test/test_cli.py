@@ -99,6 +99,18 @@ def test_check_requires_a_valid_fragment_for_a_changed_package(repo, files, stat
         assert check(base_ref="HEAD") == 0
 
 
+@pytest.mark.parametrize("local_branch", [False, True], ids=["remote-only", "local-branch"])
+def test_check_uses_the_remote_base_for_branch_names_with_slashes(repo, capsys, local_branch):
+    git(repo, "update-ref", "refs/remotes/origin/exp/cosmos", "HEAD")
+    write(repo, {"source/pkg/code.py": "x = 1\n"})
+    commit(repo, "change without a fragment")
+    if local_branch:
+        # A local branch at the changed commit must not hide the missing fragment.
+        git(repo, "update-ref", "refs/heads/exp/cosmos", "HEAD")
+    assert check(base_ref="exp/cosmos") == 1
+    assert "source/pkg: changed without a changelog fragment" in capsys.readouterr().out
+
+
 def test_check_rejects_editing_or_deleting_a_pending_fragment(repo, capsys):
     write(repo, {FRAGMENTS + "a.fixed.rst": "* Fixed x.\n", FRAGMENTS + "b.fixed.rst": "* Fixed y.\n"})
     commit(repo, "pending fragments")

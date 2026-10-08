@@ -20,11 +20,14 @@ from ... import sim as sim_utils
 from ...app.logging_utils import force_log_level
 from ...renderers import BaseRenderer, CameraRenderSpec
 from ...sim.views import FrameView
+from ...utils import replace
 from ...utils.math import (
     convert_camera_frame_orientation_convention,
     create_rotation_matrix_from_view,
     quat_from_matrix,
 )
+from ...utils.modifiers import ModifierChain
+from ...utils.modifiers.modifier_chain import close_all
 from ...utils.warp import ProxyArray
 from ..sensor_base import SensorBase
 from .camera_data import CameraData, RenderBufferKind
@@ -245,34 +248,15 @@ class Camera(SensorBase):
         if sim_ctx is not None:
             sim_ctx.require_visual_shapes()
 
-        # An ISP (any ``isp_cfg`` other than ``None``) requires the HDR AOV;
-        # an explicit ``"rgb_hdr"`` in ``data_types`` also requires the
-        # HDR-routing flag flipped on the RTX-bearing backends.
-        require_hdr_output = "rgb_hdr" in self.cfg.data_types or self.cfg.isp_cfg is not None
-
-        # TODO(follow-up PR): move this flag flip out of Camera. The cleanest path is
-        # an apply_pre_reset_settings() hook on RendererCfg (default no-op) that
-        # IsaacRtxRendererCfg overrides to flip /isaaclab/render/rtx_sensors. The
-        # flag must be set pre-sim.reset() because SimulationContext.is_rendering
-        # and several env classes read it before the renderer's __init__ runs.
-        renderer_type = getattr(self.cfg.renderer_cfg, "renderer_type", None)
-        if renderer_type == "isaac_rtx":
-            from ...app.settings_manager import get_settings_manager
-
-            settings = get_settings_manager()
-            settings.set("/isaaclab/render/rtx_sensors", True)
-            settings.set("/physics/fabricUpdateTransformations", True)
-            if require_hdr_output:
-                settings.set("/rtx/rtpt/gaussian/skipTonemapping/enabled", False)
-        elif renderer_type == "ovrtx" and require_hdr_output:
-            from ...app.settings_manager import get_settings_manager
-
-            get_settings_manager().set("/rtx/rtpt/gaussian/skipTonemapping/enabled", False)
-            # FIXME: settings.set is a no-op for ovrtx
-            # warning only since it affects only ParticleField3DGaussianSplat scene
-            logger.warning(
-                "OVRTX backend with PPISP/HDR requires /rtx/rtpt/gaussian/skipTonemapping/enabled to be false."
-            )
+        # Renderers see the camera with its resolved outputs: requested outputs that no modifier
+        # produces, plus every modifier chain's input.
+        self._render_cfg = (
+            replace(self.cfg, data_types=self.cfg.render_data_types()) if self.cfg.modifiers else self.cfg
+        )
+        # Modifier chains by input, with their output names; built once the renderer buffers exist.
+        self._modifier_chains: dict[str, tuple[str, ModifierChain]] = {}
+        # Capture metadata last processed by the chains; delayed renderers may republish an older image.
+        self._modifier_capture: object | None = None
 
         # UsdGeom Camera prim for the sensor
         self._sensor_prims: list[UsdGeom.Camera] = []
@@ -309,6 +293,7 @@ class Camera(SensorBase):
         # cleanup render resources (renderer may be None if never initialized)
         if getattr(self, "_renderer", None) is not None:
             self._renderer.cleanup(getattr(self, "_render_data", None))
+        self._close_modifiers()
 
     def __str__(self) -> str:
         """Returns: A string containing information about the instance."""
@@ -613,6 +598,11 @@ class Camera(SensorBase):
         self._renderer.reset(self._render_data, env_ids)
         # reset the timestamps
         super().reset(env_ids, env_mask)
+        modifier_env_ids = env_ids
+        if modifier_env_ids is None and env_mask is not None:
+            modifier_env_ids = wp.to_torch(env_mask).nonzero().squeeze(-1)
+        for _, chain in self._modifier_chains.values():
+            chain.reset(modifier_env_ids)
         # reset the data
         # note: this recomputation is useful if one performs events such as randomizations on the camera poses.
         if env_mask is not None:
@@ -649,22 +639,12 @@ class Camera(SensorBase):
         if self._renderer is None:
             self._renderer = sim_ctx.get_or_create_backend(self.cfg.renderer_cfg)
 
-        # Build the render spec early — both the wrapper ISP (which delegates
-        # any renderer-side per-camera setup) and ``create_render_data`` consume
-        # it, and the prims are already authored at this point.
-        cam_paths = tuple(str(p.GetPath()) for p in sim_utils.find_matching_prims(self.cfg.prim_path, self.stage))
-        render_spec = CameraRenderSpec(
-            cfg=self.cfg,
-            device=str(self._device),
-            num_instances=self._num_envs,
-            camera_prim_paths=cam_paths,
-            view_count=self._num_envs,
-        )
-
-        # Delegate per-camera USD setup to the renderer — must run **before**
-        # ``ensure_prepare_stage`` so renderers that snapshot the stage
-        # (ovrtx's ``stage.Export``) capture the resulting overrides in their
-        # exported USD.
+        # Per-camera USD setup must run **before** ``ensure_prepare_stage`` so renderers that snapshot
+        # the stage (ovrtx's ``stage.Export``) capture the overrides in their exported USD. Every camera
+        # already did this in :meth:`_prepare_initialize_impl`; repeating it is harmless and covers
+        # cameras initialized without that callback.
+        render_spec = self._make_render_spec(self._num_envs)
+        cam_paths = render_spec.camera_prim_paths
         self._renderer.prepare_cameras(self.stage, render_spec)
 
         # Stage preprocessing must happen before creating the view because the view keeps
@@ -703,6 +683,17 @@ class Camera(SensorBase):
         # Create internal buffers (includes intrinsic matrix and pose init)
         self._create_buffers()
 
+    def _make_render_spec(self, num_views: int) -> CameraRenderSpec:
+        """Describe this camera's prims and requested outputs to the renderer."""
+        cam_paths = tuple(str(p.GetPath()) for p in sim_utils.find_matching_prims(self.cfg.prim_path, self.stage))
+        return CameraRenderSpec(
+            cfg=self._render_cfg,
+            device=str(sim_utils.SimulationContext.instance().device),
+            num_instances=num_views,
+            camera_prim_paths=cam_paths,
+            view_count=num_views,
+        )
+
     def _prepare_camera(self, env_mask: wp.array) -> None:
         """Advance capture frames and refresh requested poses before rendering."""
         if self.cfg.update_latest_camera_pose:
@@ -729,6 +720,7 @@ class Camera(SensorBase):
         else:
             renderer.render(self._render_data)
             renderer.read_output(self._render_data, self._data)
+        self._apply_modifiers()
 
     @staticmethod
     def _update_buffers_batch_impl(sensors: Sequence[SensorBase]) -> None:
@@ -753,6 +745,38 @@ class Camera(SensorBase):
             [(camera._renderer, camera._render_data, camera._data) for camera in ready],
             sim_ctx.get_physics_step_count(),
         )
+        for camera in ready:
+            camera._apply_modifiers()
+
+    def _close_modifiers(self) -> None:
+        """Release the modifier chains and the resources their modifiers hold."""
+        chains, self._modifier_chains = getattr(self, "_modifier_chains", {}), {}
+        close_all(chain for _, chain in chains.values())
+
+    def _apply_modifiers(self) -> None:
+        """Run each modifier chain once per published capture and copy its result to the camera output."""
+        if not self._modifier_chains:
+            return
+        # Delayed renderers attach the published capture to the output info and keep it until the
+        # next image is ready. Synchronous renderers publish a new image on every render.
+        capture = next(
+            (info["capture"] for info in self._data.info.values() if isinstance(info, dict) and "capture" in info),
+            None,
+        )
+        if capture is not None and capture is self._modifier_capture:
+            return
+        self._modifier_capture = capture
+        outputs = self._data.output
+        for data_type, (output_name, chain) in self._modifier_chains.items():
+            result = chain(self._render_outputs[data_type].torch)
+            buffer = self._modifier_buffers.get(output_name)
+            if buffer is None:
+                # The chain defines its output layout, so its buffer is allocated from the first result.
+                buffer = ProxyArray(wp.from_torch(result.contiguous().clone()))
+                self._modifier_buffers[output_name] = buffer
+                outputs[output_name] = buffer
+            else:
+                buffer.torch.copy_(result)
 
     """
     Private Helpers
@@ -791,7 +815,7 @@ class Camera(SensorBase):
         known: list[str] = []
         unknown: list[str] = []
         unsupported: list[str] = []
-        for name in self.cfg.data_types:
+        for name in self._render_cfg.data_types:
             try:
                 if RenderBufferKind(name) in specs:
                     known.append(name)
@@ -823,7 +847,25 @@ class Camera(SensorBase):
         self._data.create_buffers(self._view.count, str(self._device))
         self._initialize_intrinsics()
         self._update_poses()
-        self._renderer.set_outputs(self._render_data, self._data.output)
+        # The renderer keeps writing these buffers; modifier chains publish their results separately.
+        self._render_outputs = dict(self._data.output)
+        self._renderer.set_outputs(self._render_data, self._render_outputs)
+        self._close_modifiers()
+        self._modifier_chains = {
+            data_type: (output_name, ModifierChain(self.cfg.modifiers[data_type], str(self._device), sensor=self))
+            for data_type, output_name in self.cfg.modifier_outputs().items()
+        }
+        self._modifier_buffers: dict[str, ProxyArray] = {}
+        self._modifier_capture = None
+        # Inputs that only modifiers read stay private: publish the requested outputs and the modifier results.
+        public = set(self.cfg.data_types)
+        if not public.isdisjoint({"rgb", "rgba"}):
+            public.update({"rgb", "rgba"})
+        outputs = self._data.output
+        for name in [name for name in outputs if name not in public]:
+            del outputs[name]
+        # Renderers attach per-capture metadata, such as a delayed capture's pose, to each info entry.
+        self._data.info = dict.fromkeys([*outputs, *(output_name for output_name, _ in self._modifier_chains.values())])
 
     def _read_authored_opencv_intrinsics(
         self, prim: Usd.Prim, width: int, height: int, env_id: int
@@ -1035,15 +1077,35 @@ class Camera(SensorBase):
     Internal simulation callbacks.
     """
 
+    def _prepare_initialize_impl(self):
+        """Apply this camera's renderer USD overrides before any camera initializes.
+
+        A renderer that exports the stage when the first camera initializes, such as OVRTX, then sees
+        the overrides of every camera.
+        """
+        sim_ctx = sim_utils.SimulationContext.instance()
+        if self._renderer is None:
+            self._renderer = sim_ctx.get_or_create_backend(self.cfg.renderer_cfg)
+        # Matches the environment count that sensor initialization derives next.
+        clone_plan = sim_ctx.get_clone_plan()
+        if clone_plan is not None:
+            num_views = len(clone_plan.topology.world_prototype_layout)
+        else:
+            num_views = len(sim_utils.find_matching_prims(self.cfg.prim_path, self.stage))
+        self._renderer.prepare_cameras(self.stage, self._make_render_spec(num_views))
+
     def _invalidate_initialize_callback(self, event):
         """Invalidates the scene elements."""
         if self._renderer is not None and self._render_data is not None:
             self._renderer.cleanup(self._render_data)
         self._render_data = None
         self._renderer = None
-        # call parent
-        super()._invalidate_initialize_callback(event)
-        # release backend state deterministically, then invalidate the view
-        if self._view is not None:
-            self._view.close()
-            self._view = None
+        try:
+            self._close_modifiers()
+        finally:
+            # call parent
+            super()._invalidate_initialize_callback(event)
+            # release backend state deterministically, then invalidate the view
+            if self._view is not None:
+                self._view.close()
+                self._view = None

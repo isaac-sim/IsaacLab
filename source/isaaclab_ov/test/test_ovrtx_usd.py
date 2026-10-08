@@ -219,14 +219,17 @@ def test_ovrtx_authors_one_render_var_per_requested_data_type():
 
 
 def test_ovrtx_data_types_sharing_a_source_author_one_render_var():
-    """``rgb``/``rgba`` and ``depth``/``distance_to_image_plane`` collapse onto one render var each."""
+    """``rgb``/``rgba``, ``depth``/``distance_to_image_plane``, and ``rgb_hdr``/``rgb_radiance`` collapse onto one
+    render var each."""
     render_var_configs = get_render_var_configs(
-        ["rgb", "rgba", "depth", "distance_to_image_plane"], render_scope_name="RenderCamera_0"
+        ["rgb", "rgba", "depth", "distance_to_image_plane", "rgb_hdr", "rgb_radiance"],
+        render_scope_name="RenderCamera_0",
     )
 
     assert render_var_configs == [
         ("/RenderCamera_0/Vars/LdrColor", "LdrColor", "LdrColor"),
         ("/RenderCamera_0/Vars/depth", "depth", "DistanceToImagePlaneSD"),
+        ("/RenderCamera_0/Vars/HdrColor", "HdrColor", "HdrColor"),
     ]
 
 
@@ -306,20 +309,43 @@ def test_render_product_pins_device_ids_to_the_requested_cuda_device(camera_spec
     assert list(device_ids.default) == [1]
 
 
-@pytest.mark.parametrize("data_types", [["rgb"], ["rgb", "rgb_hdr"], []])
-def test_render_product_isp_requests_hdr_without_mutating_camera_outputs(camera_spec, render_data, data_types):
-    """ISP receives one HDR source while the camera's requested outputs remain unchanged."""
+@pytest.mark.parametrize(
+    ("data_types", "expected_vars"),
+    [
+        (["rgb"], ("LdrColor",)),
+        (["rgb_hdr"], ("HdrColor",)),
+        (["rgb_radiance"], ("HdrColor",)),
+        (["rgb", "rgb_hdr"], ("LdrColor", "HdrColor")),
+        (["rgb", "rgb_radiance"], ("LdrColor", "HdrColor")),
+        ([], ()),
+    ],
+)
+def test_render_product_routes_gaussian_hdr_only_for_hdr_outputs(camera_spec, render_data, data_types, expected_vars):
+    """Render only the resolved source outputs and route Gaussian HDR without mutating the request."""
     camera_spec.cfg.data_types = data_types.copy()
-    camera_spec.cfg.isp_cfg = object()
+    if not data_types:
+        with pytest.raises(ValueError, match="at least one output"):
+            build_render_product_as_string(camera_spec, render_data, device_id=0)
+        assert camera_spec.cfg.data_types == data_types
+        return
     render_product = build_render_product_as_string(camera_spec, render_data, device_id=0)
     layer = Sdf.Layer.CreateAnonymous(".usda")
     assert layer.ImportFromString(render_product)
-    ordered_vars = layer.GetRelationshipAtPath("/RenderCamera_0/RenderProduct.orderedVars")
-    expected_vars = ("LdrColor", "HdrColor") if data_types else ("HdrColor",)
+    product_path = "/RenderCamera_0/RenderProduct"
+    ordered_vars = layer.GetRelationshipAtPath(product_path + ".orderedVars")
     assert list(ordered_vars.targetPathList.explicitItems) == [
         Sdf.Path(f"/RenderCamera_0/Vars/{name}") for name in expected_vars
     ]
     assert camera_spec.cfg.data_types == data_types
+    schemas = layer.GetPrimAtPath(product_path).GetInfo("apiSchemas").prependedItems
+    assert "OmniRtxSettingsCommonAdvancedAPI_1" in schemas
+    gaussian_setting = layer.GetAttributeAtPath(product_path + ".omni:rtx:rtpt:gaussian:skipTonemapping:enabled")
+    if "HdrColor" in expected_vars:
+        assert "OmniRtxSettingsParticleFieldAPI_1" in schemas
+        assert gaussian_setting.default is False
+    else:
+        assert "OmniRtxSettingsParticleFieldAPI_1" not in schemas
+        assert gaussian_setting is None
 
 
 def test_ovrtx_rgb_and_rgb_hdr_author_both_render_vars(camera_spec, render_data):

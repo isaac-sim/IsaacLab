@@ -96,3 +96,4 @@ benchmark_*.json
 
 # Superpowers (Claude Code plugin artifacts)
 docs/superpowers/
+checkpoints
