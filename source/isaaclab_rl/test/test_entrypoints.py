@@ -622,6 +622,26 @@ def test_dispatch_uses_task_registered_default_backend(monkeypatch) -> None:
     assert received == {"module_name": "isaaclab_rl.entrypoints.backends.train_rsl_rl", "argv": ["--task", task_name]}
 
 
+def test_direct_worker_loads_external_task_before_selecting_backend(monkeypatch) -> None:
+    """A torchrun worker discovers installed task registrations without the top-level CLI."""
+    from isaaclab import cli
+
+    task_name = "Isaac-ExternalWorker-Test"
+    entry_point = SimpleNamespace(
+        load=lambda: gym.register(id=task_name, entry_point="dummy:Env", kwargs={"default_agent": "rsl_rl"})
+    )
+    monkeypatch.setattr(
+        cli.importlib.metadata, "entry_points", lambda *, group: [entry_point] if group == "isaaclab.tasks" else []
+    )
+    received = []
+    monkeypatch.setattr(dispatch, "_run_backend", lambda module, argv: received.append((module, argv)))
+    try:
+        assert dispatch.run_train_cli(["--task", task_name]) == 0
+        assert received == [("isaaclab_rl.entrypoints.backends.train_rsl_rl", ["--task", task_name])]
+    finally:
+        gym.registry.pop(task_name, None)
+
+
 def test_dispatch_fuses_option_like_kit_args(monkeypatch) -> None:
     """Space-separated option-like Kit arguments are fused before backend parsing."""
     received: dict[str, object] = {}
@@ -845,3 +865,53 @@ def test_skrl_play_restores_jax_backend(monkeypatch) -> None:
         play_skrl.run([])
 
     assert not hasattr(skrl.config.jax, "backend")
+
+
+@pytest.mark.parametrize("reset_optimizer", [False, True])
+def test_rsl_rl_checkpoint_preserves_selected_optimizer_state(reset_optimizer: bool) -> None:
+    """Weight initialization honors the new learning rate; ordinary resume restores Adam state."""
+    from rsl_rl.algorithms import PPO
+
+    from isaaclab_rl.entrypoints.backends.cli_args_rsl_rl import checkpoint_load_cfg
+
+    source = PPO(torch.nn.Linear(2, 1), torch.nn.Linear(2, 1), storage=None, learning_rate=3e-4)
+    loss = source.actor(torch.ones(1, 2)).sum() + source.critic(torch.ones(1, 2)).sum()
+    loss.backward()
+    source.optimizer.step()
+    saved = source.save()
+    destination = PPO(torch.nn.Linear(2, 1), torch.nn.Linear(2, 1), storage=None, learning_rate=1e-5)
+
+    assert destination.load(saved, checkpoint_load_cfg(reset_optimizer), strict=True)
+
+    for name, value in source.actor.state_dict().items():
+        torch.testing.assert_close(destination.actor.state_dict()[name], value)
+    for name, value in source.critic.state_dict().items():
+        torch.testing.assert_close(destination.critic.state_dict()[name], value)
+    assert destination.optimizer.param_groups[0]["lr"] == (1e-5 if reset_optimizer else 3e-4)
+    assert bool(destination.optimizer.state) is not reset_optimizer
+
+
+@pytest.mark.parametrize("reset_optimizer", [False, True])
+def test_distillation_checkpoint_preserves_models_when_resetting_optimizer(reset_optimizer: bool) -> None:
+    """Student continuation must restore both models while honoring the requested optimizer behavior."""
+    from rsl_rl.algorithms import Distillation
+    from rsl_rl.storage import RolloutStorage
+    from tensordict import TensorDict
+
+    from isaaclab_rl.entrypoints.backends.cli_args_rsl_rl import checkpoint_load_cfg
+
+    storage = RolloutStorage("distillation", 1, 15, TensorDict({"obs": torch.zeros(1, 2)}, batch_size=[1]), [1], "cpu")
+    source = Distillation(torch.nn.Linear(2, 1), torch.nn.Linear(2, 1), storage=storage, learning_rate=5e-4)
+    source.student(torch.ones(1, 2)).sum().backward()
+    source.optimizer.step()
+    destination = Distillation(torch.nn.Linear(2, 1), torch.nn.Linear(2, 1), storage=storage, learning_rate=5e-5)
+    load_cfg = checkpoint_load_cfg(reset_optimizer, runner_class="DistillationRunner")
+    assert destination.load(source.save(), load_cfg, strict=True)
+    assert destination.teacher_loaded
+    for name in ("student", "teacher"):
+        expected = getattr(source, name).state_dict()
+        actual = getattr(destination, name).state_dict()
+        for key in expected:
+            torch.testing.assert_close(actual[key], expected[key])
+    assert destination.optimizer.param_groups[0]["lr"] == (5e-5 if reset_optimizer else 5e-4)
+    assert bool(destination.optimizer.state) is not reset_optimizer

@@ -34,6 +34,17 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+@wp.kernel
+def _fill_hdr_background(
+    image: wp.array4d(dtype=wp.vec3f),
+    shape_ids: wp.array4d(dtype=wp.uint32),
+    color: wp.vec3f,
+):
+    world, camera, row, col = wp.tid()
+    if shape_ids[world, camera, row, col] == wp.uint32(0xFFFFFFFF):
+        image[world, camera, row, col] = color
+
+
 @wp.kernel(enable_backward=False)
 def _check_shared_intrinsics(intrinsics: wp.array(dtype=wp.mat33f), different: wp.array(dtype=wp.int32)):
     i = wp.tid()
@@ -157,6 +168,11 @@ class RenderData:
         # next as G, next as B, high byte as A (little-endian RGBA in memory). Default is 93% gray
         # (0xFFEEEEEE), matching the RTX renderer background and improving visibility of dark objects.
         background_color = getattr(spec.cfg, "background_color", None)
+        self._hdr_background_color = (
+            wp.vec3f(*newton.utils.color_srgb_to_linear(tuple(max(0.0, min(1.0, c)) for c in background_color)))
+            if background_color is not None
+            else None
+        )
         if background_color is not None:
             r, g, b = (max(0, min(255, round(c * 255))) for c in background_color)
             self.clear_color: int = (0xFF << 24) | (b << 16) | (g << 8) | r
@@ -263,6 +279,13 @@ class RenderData:
                 device=self._hdr_scratch_wp.device,
                 copy=False,
             )
+        # Newton clears HDR to black regardless of clear_color. A hit mask preserves dark geometry.
+        if (
+            self.outputs.hdr_color_image is not None
+            and self._hdr_background_color is not None
+            and self.outputs.shape_index_image is None
+        ):
+            self.outputs.shape_index_image = wp.zeros(shape, dtype=wp.uint32, device=self.newton_sensor.model.device)
         # Bind the two warp arrays the per-frame PPISP dispatch needs.
         if self.ppisp_pipeline is not None:
             if str(RenderBufferKind.RGBA) not in output_data:
@@ -499,6 +522,20 @@ class NewtonWarpRenderer(BaseRenderer):
 
         """
         self._stage = stage
+        if getattr(getattr(spec.cfg, "spawn", None), "distortion", None) is None:
+            for path in spec.camera_prim_paths:
+                prim = stage.GetPrimAtPath(path)
+                if not prim.IsValid():
+                    continue
+                schemas = prim.GetMetadata("apiSchemas")
+                if prim.GetAttribute("omni:lensdistortion:model").Get() or (
+                    schemas and any("LensDistortion" in name for name in schemas.GetAppliedItems())
+                ):
+                    logger.warning(
+                        "Newton Warp does not read lens distortion coefficients from camera USD assets. "
+                        "Configure spawn.distortion to apply the OpenCV camera model."
+                    )
+                    break
         if spec.cfg.isp_cfg is None:
             return
         try:
@@ -647,6 +684,18 @@ class NewtonWarpRenderer(BaseRenderer):
             ),
             kernel_block_dim=self.cfg.kernel_block_dim,
         )
+
+        if render_data.outputs.hdr_color_image is not None and render_data._hdr_background_color is not None:
+            wp.launch(
+                _fill_hdr_background,
+                dim=render_data.outputs.hdr_color_image.shape,
+                inputs=[
+                    render_data.outputs.hdr_color_image,
+                    render_data.outputs.shape_index_image,
+                    render_data._hdr_background_color,
+                ],
+                device=render_data.outputs.hdr_color_image.device,
+            )
 
         if _depth_kinds & render_data._PLANE_DEPTH_KINDS:
             render_data._copy_plane_depth()

@@ -16,9 +16,60 @@ pytest.importorskip("isaaclab_physx")
 from isaaclab.sensors.camera import CameraCfg, TiledCameraCfg
 from isaaclab.sensors.camera.camera_data import CameraData, RenderBufferKind, RenderBufferSpec
 from isaaclab.sim import PinholeCameraCfg
+from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils import clone, validate
 
 pytestmark = [pytest.mark.integration, pytest.mark.rendering]
+
+
+@pytest.mark.parametrize("background", [None, (0.25, 0.5, 0.75)])
+@pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
+def test_newton_hdr_background_preserves_unlit_geometry(background, device):
+    """HDR misses use linear background color while unlit geometry remains black, including graph replay."""
+    import numpy as np
+    from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+    from isaaclab_newton.renderers import NewtonWarpRendererCfg
+
+    import isaaclab.sim as sim_utils
+    from isaaclab.assets import RigidObjectCfg
+    from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
+
+    sim_cfg = sim_utils.SimulationCfg(
+        device=device, gravity=(0.0, 0.0, 0.0), physics=NewtonCfg(solver_cfg=MJWarpSolverCfg())
+    )
+    with sim_utils.build_simulation_context(sim_cfg=sim_cfg) as sim:
+        scene_cfg = InteractiveSceneCfg(num_envs=1, env_spacing=2.0)
+        scene_cfg.cube = RigidObjectCfg(
+            prim_path="{ENV_REGEX_NS}/Cube",
+            spawn=sim_utils.CuboidCfg(
+                size=(0.3, 0.3, 0.3),
+                rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+                mass_props=sim_utils.MassCfg(mass=1.0),
+                collision_props=sim_utils.UsdPhysicsCollisionCfg(),
+            ),
+        )
+        scene_cfg.camera = CameraCfg(
+            prim_path="{ENV_REGEX_NS}/Camera",
+            width=32,
+            height=32,
+            data_types=["rgb_hdr"],
+            background_color=background,
+            offset=CameraCfg.OffsetCfg(pos=(0.0, 0.0, 2.0), convention="opengl"),
+            spawn=PinholeCameraCfg(clipping_range=(0.1, 10.0)),
+            renderer_cfg=NewtonWarpRendererCfg(enable_ambient_lighting=False, create_default_light=False),
+        )
+        scene = InteractiveScene(scene_cfg)
+        camera = scene["camera"]
+        sim.reset()
+        for _ in range(2):
+            sim.step(render=False)
+            scene.update(sim.get_physics_dt())
+            camera.update(sim.get_physics_dt(), force_recompute=True)
+            pixels = camera.data.output["rgb_hdr"].warp.numpy()[0]
+            np.testing.assert_allclose(pixels[16, 16], 0.0, atol=1e-6)
+            expected = (0.0, 0.0, 0.0) if background is None else (0.050876088, 0.21404114, 0.52252155)
+            np.testing.assert_allclose(pixels[0, 0], expected, atol=1e-6)
+
 
 _SPAWN = PinholeCameraCfg(
     focal_length=24.0,
@@ -26,6 +77,32 @@ _SPAWN = PinholeCameraCfg(
     horizontal_aperture=20.955,
     clipping_range=(0.1, 1.0e5),
 )
+
+
+@pytest.mark.parametrize(
+    ("authored_model", "configured", "warns"),
+    [("schema", False, True), ("token", False, True), ("none", False, False), ("schema", True, False)],
+)
+def test_newton_warns_only_for_unconfigured_asset_distortion(caplog, authored_model, configured, warns):
+    """Configured OpenCV cameras are supported; asset-only distortion must not be silently ignored."""
+    from isaaclab_newton.renderers.newton_warp_renderer import NewtonWarpRenderer
+
+    from pxr import Sdf, Usd, UsdGeom
+
+    stage = Usd.Stage.CreateInMemory()
+    prim = UsdGeom.Camera.Define(stage, "/Camera").GetPrim()
+    if authored_model == "schema":
+        prim.SetMetadata("apiSchemas", Sdf.TokenListOp.CreateExplicit(["OmniLensDistortionOpenCvPinholeAPI"]))
+    elif authored_model == "token":
+        prim.CreateAttribute("omni:lensdistortion:model", Sdf.ValueTypeNames.Token).Set("opencvPinhole")
+    renderer = NewtonWarpRenderer.__new__(NewtonWarpRenderer)
+    spec = SimpleNamespace(
+        cfg=SimpleNamespace(spawn=SimpleNamespace(distortion=object() if configured else None), isp_cfg=None),
+        camera_prim_paths=["/Camera"],
+    )
+    with caplog.at_level("WARNING"):
+        renderer.prepare_cameras(stage, spec)
+    assert ("lens distortion coefficients" in caplog.text) == warns
 
 
 @pytest.mark.parametrize(

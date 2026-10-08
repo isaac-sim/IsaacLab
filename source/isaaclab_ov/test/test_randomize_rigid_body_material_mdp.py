@@ -16,6 +16,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 import pytest
+import torch
 import warp as wp
 
 pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
@@ -88,6 +89,18 @@ def test_randomize_material_writes_friction_within_range(device):
         for component, (lo, hi) in enumerate((static_range, dynamic_range, restitution_range)):
             values = materials[..., component]
             assert (values >= lo - eps).all() and (values <= hi + eps).all()
+
+        # Negative restitution is the native compliant stiffness channel. Randomizing
+        # one environment must preserve its spring and leave the other environment alone.
+        materials[0, :, 2] = -15700.0
+        cube_object.root_view.set_attribute(
+            TT.RIGID_BODY_SHAPE_FRICTION_AND_RESTITUTION, wp.from_torch(materials.contiguous())
+        )
+        before = wp.to_torch(cube_object.root_view.get_attribute(TT.RIGID_BODY_SHAPE_FRICTION_AND_RESTITUTION)).clone()
+        term(env, torch.tensor([0]), **cfg.params)
+        after = wp.to_torch(cube_object.root_view.get_attribute(TT.RIGID_BODY_SHAPE_FRICTION_AND_RESTITUTION))
+        torch.testing.assert_close(after[0, :, 2], before[0, :, 2])
+        torch.testing.assert_close(after[1], before[1])
 
         cfg.params["asset_cfg"] = SceneEntityCfg("cube", body_ids=[])
         with pytest.raises(NotImplementedError, match="per-body"):

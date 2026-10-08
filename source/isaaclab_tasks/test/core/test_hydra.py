@@ -1038,6 +1038,32 @@ def test_unknown_preset_name_raises():
         _apply(PresetCfgEnvCfg(), preset_sel=[("env", "backend", "nonexistent")])
 
 
+@pytest.mark.parametrize(
+    ("section", "literal", "expected"),
+    [
+        ("env", "default", (0.6, 1.7)),
+        ("env", "[0.25, 2.5]", [0.25, 2.5]),
+        ("agent", "(0.25, 2.5)", (0.25, 2.5)),
+        ("env", "0.5", 0.5),
+        ("agent", "false", False),
+        ("env", "null", None),
+        ("agent", "{'x': 0.5}", {"x": 0.5}),
+    ],
+)
+def test_literal_override_replaces_resolved_preset(section, literal, expected):
+    """Literal overrides replace preset values while named alternatives still select presets."""
+
+    @configclass
+    class LiteralCfg:
+        parameter = preset(default=(0.6, 1.7), wide=(0.25, 2.5))
+
+    env, agent, remaining = _register(LiteralCfg(), LiteralCfg(), ["presets=wide", f"{section}.parameter={literal}"])
+    selected, untouched = (env, agent) if section == "env" else (agent, env)
+    assert selected.parameter == expected
+    assert untouched.parameter == (0.25, 2.5)
+    assert not remaining
+
+
 def test_conflicting_global_presets_raises():
     """Two global presets matching the same path cause ValueError."""
 

@@ -199,6 +199,9 @@ class randomize_rigid_body_material(ManagerTermBase):
 
         bucket_ids = torch.randint(0, num_buckets, (len(material_rows), num_shapes), device="cpu")
         material_samples = self.material_buckets[bucket_ids].to(materials.device)
+        # Negative restitution encodes compliant stiffness, not bounce.
+        restitution = materials[material_rows_device, :, 2]
+        material_samples[..., 2] = torch.where(restitution < 0.0, restitution, material_samples[..., 2])
         materials[material_rows_device] = material_samples
 
         # OVPhysX requires the full source buffer for indexed writes.

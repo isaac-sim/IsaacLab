@@ -176,6 +176,9 @@ class randomize_rigid_body_material(ManagerTermBase):
     If the flag ``make_consistent`` is set to ``True``, the dynamic friction is set to be less than or equal to
     the static friction (PhysX and OVPhysX only). This obeys the physics constraint on friction values.
 
+    On PhysX and OVPhysX, compliant-contact stiffness stored as negative native restitution is
+    preserved. Restitution samples apply only to non-compliant shapes; friction is randomized for both.
+
     .. attention::
         On PhysX, this function uses CPU tensors to assign the material properties. It is recommended to
         use this function only during the initialization of the environment.

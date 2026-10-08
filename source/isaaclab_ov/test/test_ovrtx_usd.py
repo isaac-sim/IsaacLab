@@ -502,6 +502,7 @@ def test_create_scene_partition_attributes_all_envs():
     stage = _make_multi_env_stage(num_envs)
 
     create_scene_partition_attributes(stage, num_envs)
+    create_scene_partition_attributes(stage, num_envs)
 
     root_layer = stage.GetRootLayer()
     for env_idx in range(num_envs):
