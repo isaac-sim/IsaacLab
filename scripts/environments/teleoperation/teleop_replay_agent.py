@@ -406,6 +406,7 @@ from isaaclab_teleop import IsaacTeleopDevice, create_isaac_teleop_device, poll_
 
 from isaaclab.devices.openxr import remove_camera_configs
 from isaaclab.envs import ManagerBasedRLEnvCfg
+from isaaclab.utils import replace
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import parse_env_cfg
@@ -1044,6 +1045,11 @@ def _apply_rtx_settings() -> None:
     )
 
 
+def _never_terminate(env: gym.Env) -> torch.Tensor:
+    """Return a false termination signal for every environment."""
+    return torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)
+
+
 def _prepare_env_cfg(
     task: str,
     num_envs: int,
@@ -1052,13 +1058,13 @@ def _prepare_env_cfg(
 ) -> tuple[ManagerBasedRLEnvCfg, object | None]:
     """Build and tweak an env config suitable for non-interactive replay.
 
-    Mirrors the env-config mutations performed by ``record_demos.py``'s
+    The termination adjustments match ``record_demos.py``'s
     :func:`create_environment_config`:
 
-    * The ``success`` term is extracted and cleared from the env config so the
-      script can drive success detection (and the matching reset cycle)
-      explicitly via :func:`_process_success_condition`, gated by
-      ``--num_success_steps``. This matches record_demos.py's pattern of
+    * The ``success`` term is extracted and replaced with an inert term so
+      rewards referencing it remain valid while the script drives success
+      detection via :func:`_process_success_condition`, gated by ``--num_success_steps``.
+      This matches record_demos.py's pattern of
       manually counting consecutive success steps before resetting.
     * The ``time_out`` term is cleared for the same reason it is cleared in
       :file:`scripts/tools/record_demos.py` and
@@ -1095,10 +1101,9 @@ def _prepare_env_cfg(
             "teleop_replay_agent only supports ManagerBasedRLEnv environments. "
             f"Received environment config type: {type(env_cfg).__name__}"
         )
-    success_term: object | None = None
-    if hasattr(env_cfg.terminations, "success"):
-        success_term = env_cfg.terminations.success
-        env_cfg.terminations.success = None
+    success_term = getattr(env_cfg.terminations, "success", None)
+    if success_term is not None:
+        env_cfg.terminations.success = replace(success_term, func=_never_terminate, params={})
     else:
         logger.warning(
             "No success termination term was found in the environment;"
@@ -1416,8 +1421,8 @@ def _run_single_replay(
                         stats.outcome = "failure"
                         break
 
-                    # Success path: ``success_term`` was cleared from the
-                    # env cfg so ``env.step`` does not auto-reset on it.
+                    # Success path: the registered term is inert, so
+                    # ``env.step`` does not auto-reset on success.
                     # ``_process_success_condition`` consults the original
                     # success term and reports when it has held for
                     # ``--num_success_steps`` consecutive steps.

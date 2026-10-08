@@ -292,9 +292,12 @@ def main():
                 " Will not be able to mark recorded demos as successful."
             )
 
-    # Disable all recorders and terminations
+    # Replay applies recorded actions and checks success manually. Training
+    # rewards and curricula can reference the disabled termination terms.
     env_cfg.recorders = {}
     env_cfg.terminations = {}
+    env_cfg.rewards = {}
+    env_cfg.curriculum = {}
 
     with launch_simulation(env_cfg, args_cli):
         replay_dataset(env_cfg, dataset_file_handler, episode_count, episode_indices_to_replay, success_term)
