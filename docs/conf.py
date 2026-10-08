@@ -403,6 +403,7 @@ html_sidebars = {
 
 # Keep published links working after guide consolidation.
 isaaclab_doc_redirects = {
+    "source/concepts/joint_and_body_ordering": "source/how-to/transfer_policies_between_physx_and_newton",
     "source/concepts/ovphysx": "source/concepts/physics-backends/ovphysx",
     "source/concepts/solver-tuning/index": "source/how-to/index",
     "source/concepts/solver-tuning/tune_kamino": "source/how-to/solver_tuning_kamino",
@@ -435,8 +436,22 @@ isaaclab_doc_redirects = {
     "source/tutorials/index": "source/how-to/index",
 }
 
-# Sections of the former combined Docker page now live on separate pages.
+# Sections of moved or consolidated pages and where they live now.
 isaaclab_doc_redirect_fragments = {
+    "source/concepts/joint_and_body_ordering": {
+        anchor: f"source/how-to/transfer_policies_between_physx_and_newton#{anchor}"
+        for anchor in (
+            "why-articulation-orders-differ",
+            "public-and-backend-order",
+            "high-level-mdp-terms",
+            "conversion-cost",
+            "direct-backend-view-access",
+            "torch-conversion",
+            "warp-conversion",
+            "what-ordering-does-not-solve",
+            "verification-and-troubleshooting",
+        )
+    },
     "source/features/docker_cloud": {
         "clusters": "source/workflows/docker/cluster#deployment-cluster",
         "deployment-cluster": "source/workflows/docker/cluster#deployment-cluster",

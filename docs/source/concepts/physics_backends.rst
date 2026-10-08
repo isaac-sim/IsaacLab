@@ -64,8 +64,7 @@ same process.
 For the general PhysX--Newton policy validation workflow, see
 :doc:`/source/how-to/transfer_policies_between_physx_and_newton`. When a
 checkpoint's joint or body ordering differs from the target backend, use the
-:doc:`articulation ordering guide
-</source/concepts/joint_and_body_ordering>`.
+:ref:`articulation ordering guide <joint-and-body-ordering>`.
 
 
 .. _physics-backends-physx:
@@ -144,5 +143,4 @@ follow the generated API links for :class:`~isaaclab_physx.physics.PhysxCfg`,
    /source/concepts/physics-backends/newton
    /source/concepts/physics-backends/ovphysx
    /source/concepts/warp_environments
-   /source/concepts/joint_and_body_ordering
    /source/concepts/warp_environment_migration
