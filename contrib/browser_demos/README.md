@@ -13,8 +13,8 @@ The docs contain the teaching text and embed directive; `html_static_path` copie
 this collection's `static/` directory into the site's `_static/` directory.
 
 `export.py` is the source for the interactive examples in the
-[VBD tuning](../../docs/source/concepts/solver-tuning/tune_vbd.rst),
-[MJWarp tuning](../../docs/source/concepts/solver-tuning/tune_mjwarp.rst),
+[VBD tuning](../../docs/source/how-to/solver_tuning_vbd.rst),
+[MJWarp tuning](../../docs/source/how-to/solver_tuning_mjwarp.rst),
 [MPM](../../docs/source/concepts/using_mpm.rst),
 [actuator](../../docs/source/concepts/actuators.rst), and
 [reinforcement learning](../../docs/source/concepts/reinforcement_learning.rst) guides and

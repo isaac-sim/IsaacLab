@@ -109,7 +109,7 @@ objects, controllers, and robot variants retain their image or video previews.
          </div>
          <video data-preview-video muted autoplay loop playsinline preload="metadata" hidden></video>
          <img data-preview-image
-              src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/tasks/classic/cartpole.jpg"
+              src="../../_static/environment-previews/cartpole.jpg"
               alt="Isaac-Cartpole preview">
          <div class="environment-preview-caption">
            <span class="environment-preview-label">Selected task</span>
@@ -130,26 +130,24 @@ objects, controllers, and robot variants retain their image or video previews.
 Benchmarks
 ----------
 
+.. isaaclab-benchmark-data::
+
 .. raw:: html
 
    <div class="environment-browser" data-environment-benchmarks
-        data-benchmark-release-source="../../_static/benchmarks/environment-performance-release.csv"
-        data-benchmark-develop-source="../../_static/benchmarks/environment-performance-develop.csv"
         data-benchmark-release-dates="2026-09-09"
-        data-benchmark-develop-dates="2026-08-28,2026-09-09">
+        data-benchmark-develop-dates="2026-08-23,2026-08-30,2026-09-06,2026-09-13,2026-09-20,2026-09-27,2026-10-04">
      <section class="environment-benchmark-panel">
        <div class="environment-benchmark-toolbar">
          <div class="environment-benchmark-switch" role="group" aria-label="Benchmark channel">
            <button type="button" class="is-active" data-benchmark-channel="release" aria-pressed="true">Release</button>
            <button type="button" data-benchmark-channel="develop" aria-pressed="false">Develop</button>
          </div>
-         <div class="environment-benchmark-count"><code>num_envs = 8192</code></div>
          <div class="environment-benchmark-switch" role="group" aria-label="Benchmark workload">
            <button type="button" class="is-active" data-benchmark-workload="collection" aria-pressed="true">Collection</button>
            <button type="button" data-benchmark-workload="training" aria-pressed="false">Training</button>
          </div>
        </div>
-       <div class="environment-benchmark-legend" aria-label="Benchmark series"></div>
        <div class="environment-benchmark-results">
          <div class="environment-benchmark-chart" data-benchmark-chart></div>
          <div class="environment-benchmark-table" data-benchmark-table tabindex="0"

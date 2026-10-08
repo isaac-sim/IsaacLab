@@ -1053,7 +1053,8 @@ class ArticulationData(BaseArticulationData):
         """See :attr:`isaaclab.assets.BaseArticulationData.gravity_compensation_forces`."""
         if self._gravity_compensation_forces.timestamp < self._sim_timestamp:
             source = self._root_view.get_gravity_compensation_forces()
-            if self.has_joint_ordering or self._has_reversed_joints:
+            # PhysX gravity forces already use the public joint directions.
+            if self.has_joint_ordering:
                 if self._gravity_compensation_forces.data is None:
                     self._gravity_compensation_forces.data = ProxyArray(wp.empty_like(source))
                 self._read_launch_cache.launch(
@@ -1062,10 +1063,10 @@ class ArticulationData(BaseArticulationData):
                     dim=source.shape,
                     inputs=[
                         source,
-                        self.joint_ordering.user_to_backend if self.has_joint_ordering else None,
-                        self._joint_dof_signs,
+                        self.joint_ordering.user_to_backend,
+                        None,
                         self._num_base_dofs,
-                        self.has_joint_ordering,
+                        True,
                     ],
                     outputs=[self._gravity_compensation_forces.data],
                 )
