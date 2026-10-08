@@ -10,6 +10,7 @@ from collections import Counter
 from isaaclab_tasks.contrib.conveyor_franka.conveyor_franka_env_cfg import _collision_properties, _cube
 from isaaclab_tasks.contrib.conveyor_franka.conveyor_geometry import (
     MeshSpec,
+    belt_collision_geometry_specs,
     belt_mesh_spec,
     guard_mesh_specs,
 )
@@ -28,6 +29,7 @@ def test_belt_top_faces_point_upward():
     """One-sided triangle-mesh surfaces support parcels from above."""
     for side in ("Left", "Right"):
         specs = [belt_mesh_spec(side), *guard_mesh_specs(side)]
+        specs.extend(spec for spec in belt_collision_geometry_specs(side) if isinstance(spec, MeshSpec))
         for spec in specs:
             assert set(_edge_use_counts(spec).values()) == {2}
             _assert_top_faces_point_upward(spec)

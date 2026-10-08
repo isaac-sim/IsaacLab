@@ -47,9 +47,7 @@ class ConveyorGoalSelector:
             return
         imgui.separator()
 
-        if not self._refresh_command():
-            imgui.text_disabled("Waiting for transfer state...")
-            return
+        self._refresh_command()
 
         style = imgui.get_style()
         available_width = float(imgui.get_content_region_avail().x)
@@ -95,11 +93,10 @@ class ConveyorGoalSelector:
         imgui.text(f"Cube {self._target_cube_id + 1}: {source_name} -> {target_name}")
         imgui.text_disabled("Click a color to change the next transfer.")
 
-    def _refresh_command(self, force: bool = False) -> bool:
+    def _refresh_command(self, force: bool = False) -> None:
         """Refresh the small host-side UI cache at most ten times per second."""
         current_time = time.monotonic()
         if force or current_time - self._last_refresh_time >= 0.1:
             self._target_cube_id = int(self._command.target_cube_ids[self._env_id].item())
             self._source_side_id = int(self._command.source_side_ids[self._env_id].item())
             self._last_refresh_time = current_time
-        return True

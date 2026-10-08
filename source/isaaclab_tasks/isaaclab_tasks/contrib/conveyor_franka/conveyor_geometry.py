@@ -118,6 +118,29 @@ def _racetrack_centerline(center_y: float) -> tuple[tuple[float, float, float, f
     return tuple(points)
 
 
+def _prism_faces(count: int, *, closed: bool) -> tuple[tuple[int, int, int], ...]:
+    """Triangulate top, bottom, and side walls for inner/outer vertex rings.
+
+    Vertices are grouped as inner top, outer top, inner bottom, outer bottom.
+    Counter-clockwise centerlines produce outward faces; open arcs also receive end caps.
+    """
+    quads = []
+    for i in range(count if closed else count - 1):
+        j = (i + 1) % count
+        quads.extend(
+            (
+                (i, count + i, count + j, j),
+                (2 * count + i, 2 * count + j, 3 * count + j, 3 * count + i),
+                (3 * count + i, 3 * count + j, count + j, count + i),
+                (2 * count + i, i, j, 2 * count + j),
+            )
+        )
+    if not closed:
+        end = count - 1
+        quads.extend(((0, 2 * count, 3 * count, count), (end, count + end, 3 * count + end, 2 * count + end)))
+    return tuple(triangle for a, b, c, d in quads for triangle in ((a, b, c), (a, c, d)))
+
+
 def _racetrack_prism_mesh(
     name: str,
     center_y: float,
@@ -138,70 +161,9 @@ def _racetrack_prism_mesh(
     inner_bottom = [(x + nx * inner_offset, y + ny * inner_offset, z_min) for x, y, nx, ny in centerline]
     points = tuple(inner_top + outer_top + inner_bottom + outer_bottom)
 
-    count = len(centerline)
-    outer_top_offset = count
-    inner_bottom_offset = 2 * count
-    outer_bottom_offset = 3 * count
-    indices: list[int] = []
-    for index in range(count):
-        next_index = (index + 1) % count
-        inner_top_i = index
-        inner_top_j = next_index
-        outer_top_i = outer_top_offset + index
-        outer_top_j = outer_top_offset + next_index
-        inner_bottom_i = inner_bottom_offset + index
-        inner_bottom_j = inner_bottom_offset + next_index
-        outer_bottom_i = outer_bottom_offset + index
-        outer_bottom_j = outer_bottom_offset + next_index
-
-        # Top, bottom, outer wall, and inner wall; two triangles per surface.
-        indices.extend((inner_top_i, outer_top_i, outer_top_j, inner_top_i, outer_top_j, inner_top_j))
-        indices.extend(
-            (
-                inner_bottom_i,
-                inner_bottom_j,
-                outer_bottom_j,
-                inner_bottom_i,
-                outer_bottom_j,
-                outer_bottom_i,
-            )
-        )
-        indices.extend(
-            (
-                outer_bottom_i,
-                outer_bottom_j,
-                outer_top_j,
-                outer_bottom_i,
-                outer_top_j,
-                outer_top_i,
-            )
-        )
-        indices.extend(
-            (
-                inner_bottom_i,
-                inner_top_i,
-                inner_top_j,
-                inner_bottom_i,
-                inner_top_j,
-                inner_bottom_j,
-            )
-        )
-
-    # The centerline is sampled clockwise so its tangent matches the positive
-    # conveyor direction. The face pattern above is written for a
-    # counter-clockwise ring, so reverse every triangle to keep its collision
-    # normal outward (most importantly, the belt top must point +Z).
-    for triangle_start in range(0, len(indices), 3):
-        indices[triangle_start + 1], indices[triangle_start + 2] = (
-            indices[triangle_start + 2],
-            indices[triangle_start + 1],
-        )
-
-    return MeshSpec(
-        name=name,
-        vertices=points,
-        faces=tuple(tuple(indices[offset : offset + 3]) for offset in range(0, len(indices), 3)),
-    )
+    # Racetrack centerlines are clockwise; reverse the shared counter-clockwise winding.
+    faces = tuple((a, c, b) for a, b, c in _prism_faces(len(centerline), closed=True))
+    return MeshSpec(name=name, vertices=points, faces=faces)
 
 
 def belt_mesh_spec(side: str) -> MeshSpec:
@@ -254,49 +216,10 @@ def _turn_collision_mesh(
     inner_bottom = tuple((x, y, bottom_z) for x, y, _ in inner_top)
     outer_bottom = tuple((x, y, bottom_z) for x, y, _ in outer_top)
 
-    count = len(inner_top)
-    outer_top_offset = count
-    inner_bottom_offset = 2 * count
-    outer_bottom_offset = 3 * count
-    faces: list[tuple[int, int, int]] = []
-    for index in range(segment_count):
-        next_index = index + 1
-        inner_top_i = index
-        inner_top_j = next_index
-        outer_top_i = outer_top_offset + index
-        outer_top_j = outer_top_offset + next_index
-        inner_bottom_i = inner_bottom_offset + index
-        inner_bottom_j = inner_bottom_offset + next_index
-        outer_bottom_i = outer_bottom_offset + index
-        outer_bottom_j = outer_bottom_offset + next_index
-        faces.extend(
-            (
-                # Top, bottom, outer wall, and inner wall.
-                (inner_top_i, outer_top_i, outer_top_j),
-                (inner_top_i, outer_top_j, inner_top_j),
-                (inner_bottom_i, inner_bottom_j, outer_bottom_j),
-                (inner_bottom_i, outer_bottom_j, outer_bottom_i),
-                (outer_bottom_i, outer_bottom_j, outer_top_j),
-                (outer_bottom_i, outer_top_j, outer_top_i),
-                (inner_bottom_i, inner_top_i, inner_top_j),
-                (inner_bottom_i, inner_top_j, inner_bottom_j),
-            )
-        )
-
-    # Close both radial ends of the annular prism.
-    end = segment_count
-    faces.extend(
-        (
-            (0, inner_bottom_offset, outer_bottom_offset),
-            (0, outer_bottom_offset, outer_top_offset),
-            (end, outer_top_offset + end, outer_bottom_offset + end),
-            (end, outer_bottom_offset + end, inner_bottom_offset + end),
-        )
-    )
     return MeshSpec(
         name=name,
         vertices=inner_top + outer_top + inner_bottom + outer_bottom,
-        faces=tuple(faces),
+        faces=_prism_faces(len(inner_top), closed=False),
     )
 
 

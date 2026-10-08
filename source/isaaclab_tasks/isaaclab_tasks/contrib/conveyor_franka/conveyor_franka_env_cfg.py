@@ -81,18 +81,6 @@ def _validate_common_config(cfg: ConveyorFrankaEnvCfg) -> None:
     arm_action = cfg.actions.arm_action
     if arm_action.joint_names != list(_ARM_JOINT_NAMES) or not arm_action.preserve_order:
         raise ValueError("Arm actions must preserve the explicit panda_joint1-to-panda_joint7 ordering.")
-    if not math.isfinite(arm_action.max_delta) or arm_action.max_delta <= 0.0:
-        raise ValueError("Arm max_delta must be finite and positive.")
-    if not math.isfinite(arm_action.joint_limit_margin) or arm_action.joint_limit_margin < 0.0:
-        raise ValueError("Arm joint_limit_margin must be finite and non-negative.")
-    lower = arm_action.workspace_lower
-    upper = arm_action.workspace_upper
-    if len(lower) != len(_ARM_JOINT_NAMES) or len(upper) != len(_ARM_JOINT_NAMES):
-        raise ValueError("Arm workspace bounds must contain one value per controlled joint.")
-    if any(not math.isfinite(value) for value in (*lower, *upper)):
-        raise ValueError("Arm workspace bounds must be finite.")
-    if any(low >= high for low, high in zip(lower, upper, strict=True)):
-        raise ValueError("Every arm workspace lower bound must be less than its upper bound.")
 
 
 def _collision_properties(contact_margin: float = 0.0, mujoco_priority: int = 0) -> list[CollisionFragment]:
@@ -349,22 +337,13 @@ class ConveyorForceCfg:
 @sim_utils.clone
 def _spawn_shape_with_display_color(
     prim_path: str,
-    cfg: sim_utils.ShapeCfg,
+    cfg: sim_utils.CuboidCfg,
     translation: tuple[float, float, float] | None = None,
     orientation: tuple[float, float, float, float] | None = None,
     **kwargs,
 ):
-    """Spawn a primitive and author a renderer-independent USD display color."""
-    if isinstance(cfg, sim_utils.CuboidCfg):
-        prim = sim_utils.spawn_cuboid(prim_path, cfg, translation, orientation, **kwargs)
-    elif isinstance(cfg, sim_utils.CylinderCfg):
-        prim = sim_utils.spawn_cylinder(prim_path, cfg, translation, orientation, **kwargs)
-    elif isinstance(cfg, sim_utils.CapsuleCfg):
-        prim = sim_utils.spawn_capsule(prim_path, cfg, translation, orientation, **kwargs)
-    elif isinstance(cfg, sim_utils.SphereCfg):
-        prim = sim_utils.spawn_sphere(prim_path, cfg, translation, orientation, **kwargs)
-    else:
-        raise TypeError(f"Unsupported colored primitive configuration: {type(cfg).__name__}")
+    """Spawn a cuboid and author a renderer-independent USD display color."""
+    prim = sim_utils.spawn_cuboid(prim_path, cfg, translation, orientation, **kwargs)
 
     if cfg.visual_material is not None:
         from pxr import Usd, UsdGeom

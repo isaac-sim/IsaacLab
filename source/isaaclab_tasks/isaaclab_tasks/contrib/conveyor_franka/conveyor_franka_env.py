@@ -53,10 +53,10 @@ class ConveyorFrankaEnv(ManagerBasedRLEnv):
         # command adapter is attached only after PhysX has parsed that scene.
         from isaaclab_newton.physics import NewtonCfg
 
-        from isaaclab_contrib.conveyors.newton import SurfaceVelocity
-
         if isinstance(self.cfg.sim.physics, NewtonCfg):
-            driver = SurfaceVelocity(
+            from isaaclab_contrib.conveyors.newton import SurfaceVelocity as NewtonSurfaceVelocity
+
+            driver = NewtonSurfaceVelocity(
                 num_envs=self.cfg.scene.num_envs,
                 surface_specs=belt_specs,
                 startup_duration_s=self.cfg.conveyor_force.startup_duration_s,
@@ -75,7 +75,7 @@ class ConveyorFrankaEnv(ManagerBasedRLEnv):
 
         from isaaclab_physx.physics import PhysxCfg
 
-        from isaaclab_contrib.conveyors.physx import SurfaceVelocity
+        from isaaclab_contrib.conveyors.physx import SurfaceVelocity as PhysxSurfaceVelocity
 
         if not isinstance(self.cfg.sim.physics, PhysxCfg):
             raise ValueError(f"Unsupported conveyor physics backend: {type(self.cfg.sim.physics).__name__}.")
@@ -84,7 +84,7 @@ class ConveyorFrankaEnv(ManagerBasedRLEnv):
         if configure_conveyor is not None:
             configure_conveyor(friction_coefficient=self.cfg.conveyor_force.friction)
         super()._init_sim()
-        driver = SurfaceVelocity(
+        driver = PhysxSurfaceVelocity(
             num_envs=self.cfg.scene.num_envs,
             surface_specs=belt_specs,
             env_path_format=env_path_format,
