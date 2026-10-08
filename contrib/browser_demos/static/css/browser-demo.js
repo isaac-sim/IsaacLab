@@ -8,6 +8,14 @@ const arrayTypes = {
   int32: [Int32Array, 'HEAP32'], uint32: [Uint32Array, 'HEAPU32'],
 };
 
+async function loadBinaryFiles(url, files, label) {
+  return Promise.all(files.map(async (file) => {
+    const response = await fetch(new URL(file, url));
+    if (!response.ok) throw new Error(`${label} request failed (${response.status})`);
+    return response.arrayBuffer();
+  }));
+}
+
 class BrowserSimulation {
   static async load(source, wasmSource) {
     const url = new URL(source, document.baseURI);
@@ -18,12 +26,15 @@ class BrowserSimulation {
     const factory = (await import(new URL(manifest.module, url).href)).default;
     const wasmUrl = new URL(wasmSource || manifest.wasm, url);
     const options = { locateFile: (name) => name.endsWith('.wasm') ? wasmUrl.href : new URL(name, url).href };
-    if (manifest.wasm.endsWith('.gz')) {
-      if (!('DecompressionStream' in window)) throw new Error('This browser cannot decompress the simulation bundle');
-      const wasmResponse = await fetch(wasmUrl);
-      if (!wasmResponse.ok || !wasmResponse.body) throw new Error(`WebAssembly request failed (${wasmResponse.status})`);
-      const decompressed = wasmResponse.body.pipeThrough(new DecompressionStream('gzip'));
-      options.wasmBinary = new Uint8Array(await new Response(decompressed).arrayBuffer());
+    if (manifest.wasm.endsWith('.gz') || manifest.wasmFiles) {
+      const files = wasmSource ? [wasmSource] : (manifest.wasmFiles || [manifest.wasm]);
+      const chunks = await loadBinaryFiles(url, files, 'WebAssembly');
+      let stream = new Blob(chunks).stream();
+      if (manifest.wasm.endsWith('.gz')) {
+        if (!('DecompressionStream' in window)) throw new Error('This browser cannot decompress the simulation bundle');
+        stream = stream.pipeThrough(new DecompressionStream('gzip'));
+      }
+      options.wasmBinary = new Uint8Array(await new Response(stream).arrayBuffer());
     }
     const module = await factory(options);
     const simulation = new BrowserSimulation(manifest, module);
@@ -82,11 +93,8 @@ function rotateInverse(q, v) {
 
 class DensePolicy {
   static async load(url, description) {
-    const chunks = await Promise.all((description.files || [description.file]).map(async (file) => {
-      const response = await fetch(new URL(file, url));
-      if (!response.ok) throw new Error(`Policy request failed (${response.status})`);
-      return new Float32Array(await response.arrayBuffer());
-    }));
+    const chunks = (await loadBinaryFiles(url, description.files || [description.file], 'Policy'))
+      .map((data) => new Float32Array(data));
     const weights = new Float32Array(chunks.reduce((sum, chunk) => sum + chunk.length, 0));
     let cursor = 0;
     for (const chunk of chunks) { weights.set(chunk, cursor); cursor += chunk.length; }

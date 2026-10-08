@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Pack reviewed RSL-RL MLP actors for the shared browser evaluator."""
+"""Pack runtime binaries and reviewed RSL-RL actors for the shared browser widget."""
 
 from __future__ import annotations
 
@@ -11,6 +11,29 @@ import hashlib
 from pathlib import Path
 
 import torch
+
+
+def write_binary_files(data: bytes, output: Path, filename: str) -> list[str]:
+    """Write binary parts below the static preview hosts' per-file limit.
+
+    Args:
+        data: Complete binary payload, concatenated in returned filename order.
+        output: Directory receiving the files.
+        filename: Filename for an unsplit payload.
+
+    Returns:
+        Filenames in payload order.
+    """
+    limit = 1_900_000
+    path = Path(filename)
+    files = (
+        [filename]
+        if len(data) <= limit
+        else [f"{path.stem}-{i}{path.suffix}" for i in range((len(data) + limit - 1) // limit)]
+    )
+    for i, name in enumerate(files):
+        (output / name).write_bytes(data[i * limit : (i + 1) * limit])
+    return files
 
 
 def write_policy(checkpoint: Path, output: Path, widths: tuple[int, ...]) -> dict[str, object]:
@@ -35,14 +58,6 @@ def write_policy(checkpoint: Path, output: Path, widths: tuple[int, ...]) -> dic
         layers.append({"rows": rows, "columns": columns, "offset": offset})
         offset += rows * (columns + 1)
     packed = b"".join(chunks)
-    # Keep exact float32 weights while staying below static preview hosts' per-file limit.
-    limit = 1_900_000
-    files = (
-        ["policy.bin"]
-        if len(packed) <= limit
-        else [f"policy-{i}.bin" for i in range((len(packed) + limit - 1) // limit)]
-    )
-    for i, filename in enumerate(files):
-        (output / filename).write_bytes(packed[i * limit : (i + 1) * limit])
+    files = write_binary_files(packed, output, "policy.bin")
     source = {"file": files[0]} if len(files) == 1 else {"files": files}
     return {**source, "layers": layers, "sha256": hashlib.sha256(checkpoint.read_bytes()).hexdigest()}

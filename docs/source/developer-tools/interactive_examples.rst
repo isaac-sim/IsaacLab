@@ -51,6 +51,12 @@ Put a compiled bundle under
 JavaScript module, WebAssembly binary, bindings, parameters, and visualization.
 Policy weights, robot meshes, and licenses stay beside that manifest.
 
+Binary payloads above 1.9 MB use ordered parts. ``wasmFiles`` lists parts of
+one WASM payload (one gzip stream when ``wasm`` ends in ``.gz``); the widget
+joins them before loading. ``policy.files`` similarly lists weight parts.
+Keep required runtime files in ordinary Git so source-archive and multi-version
+docs builds contain the binaries. The directive rejects unresolved LFS pointers.
+
 The manifest, JavaScript bootstrap, WASM, and referenced policy/mesh files are
 required at runtime, along with the shared viewer and visual assets. GitHub hosts
 these checked-in files for PR play links; published docs serve their own copied

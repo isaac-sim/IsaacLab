@@ -16,9 +16,9 @@ import numpy as np
 import torch
 import trimesh
 import warp as wp
+from bundle import write_policy
 from isaaclab_newton.physics import NewtonManager
 from newton_web import export_graph
-from policy import write_policy
 from rsl_rl.modules.normalization import EmpiricalNormalization
 
 from pxr import Usd, UsdGeom, UsdShade

@@ -68,10 +68,11 @@ tool). It requires Emscripten 5.0.3. The compiled assets are checked into
 compiler or external robot and policy assets.
 Bundles larger than 2 MB are stored as gzip files. The shared browser widget
 decompresses them with `DecompressionStream` before initializing WebAssembly.
-The compressed MPM module also exceeds 2 MB and uses Git LFS; fetch it with
-`git lfs pull` before building the documentation. The standalone GitHub preview
-selects GitHub's media URL through the widget's optional `wasm-src` attribute,
-while documentation builds use the local bundle.
+Payloads above 1.9 MB use ordered parts, recorded in `wasmFiles` for WebAssembly
+or `policy.files` for weights. The widget joins WASM parts before decompressing
+the gzip stream. Runtime assets use ordinary Git files, so checkouts, source
+archives, and documentation builds serve the same bytes without Git LFS or
+host-specific URLs. Review GIFs still use Git LFS.
 The VBD widget exposes shear, volume, damping, and gravity in one WebAssembly
 instance. The joint PD widget exposes the target and both drive gains. Locomotion
 robots share the policy evaluator, joystick controls, and

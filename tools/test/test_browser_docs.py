@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import gzip
 import io
 import json
 from html.parser import HTMLParser
@@ -100,8 +101,24 @@ def _build(source: Path, builder: str) -> tuple[Path, int, str]:
         app.cleanup()
 
 
+def _use_chunked_wasm(bundle: Path) -> list[str]:
+    compressed = gzip.compress((bundle / "simulation.wasm").read_bytes(), mtime=0)
+    files = ["simulation.wasm.gz.part0", "simulation.wasm.gz.part1"]
+    split = len(compressed) // 2
+    for filename, data in zip(files, (compressed[:split], compressed[split:]), strict=True):
+        (bundle / filename).write_bytes(data)
+    manifest = json.loads((bundle / "manifest.json").read_text())
+    manifest.update(wasm="simulation.wasm.gz", wasmFiles=files)
+    (bundle / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    (bundle / "simulation.wasm").unlink()
+    return files
+
+
 @pytest.mark.parametrize("builder", ["html", "dirhtml"])
 def test_browser_embeds_resolve_assets_and_load_widget_once(docs_source: Path, builder: str):
+    bundle = docs_source.parent / "contrib/browser_demos/static/browser_demos/example"
+    if builder == "dirhtml":
+        _use_chunked_wasm(bundle)
     output, status, warnings = _build(docs_source, builder)
     assert status == 0, warnings
     page = output / ("guide/nested.html" if builder == "html" else "guide/nested/index.html")
@@ -109,7 +126,13 @@ def test_browser_embeds_resolve_assets_and_load_widget_once(docs_source: Path, b
     assert len(assets.widgets) == 2
     assert assets.widgets[0]["demo-title"] == "Gains & limits"
     for widget in assets.widgets:
-        assert (page.parent / widget["src"]).resolve().is_file()
+        manifest_path = (page.parent / widget["src"]).resolve()
+        manifest = json.loads(manifest_path.read_text())
+        files = manifest.get("wasmFiles", [manifest["wasm"]])
+        binary = b"".join((manifest_path.parent / file).read_bytes() for file in files)
+        if manifest["wasm"].endswith(".gz"):
+            binary = gzip.decompress(binary)
+        assert binary == b"\x00asm\x01\x00\x00\x00"
     assert len(assets.assets) == 2
     for target in assets.assets:
         assert (page.parent / target.split("?", 1)[0]).resolve().is_file()
@@ -117,7 +140,16 @@ def test_browser_embeds_resolve_assets_and_load_widget_once(docs_source: Path, b
 
 
 @pytest.mark.parametrize(
-    "problem", ["unknown-demo", "missing-binary", "missing-policy-chunk", "missing-shared-visual", "future-abi"]
+    "problem",
+    [
+        "unknown-demo",
+        "missing-binary",
+        "missing-wasm-chunk",
+        "missing-policy-chunk",
+        "missing-shared-visual",
+        "lfs-pointer",
+        "future-abi",
+    ],
 )
 def test_browser_embeds_reject_unusable_bundles(docs_source: Path, problem: str):
     bundle = docs_source.parent / "contrib/browser_demos/static/browser_demos/example"
@@ -125,10 +157,18 @@ def test_browser_embeds_reject_unusable_bundles(docs_source: Path, problem: str)
         (bundle / "manifest.json").unlink()
     elif problem == "missing-binary":
         (bundle / "simulation.wasm").unlink()
+    elif problem == "missing-wasm-chunk":
+        files = _use_chunked_wasm(bundle)
+        (bundle / files[-1]).unlink()
     elif problem == "missing-policy-chunk":
         (bundle / "policy-1.bin").unlink()
     elif problem == "missing-shared-visual":
         (bundle.parent / "shared/robot.bin").unlink()
+    elif problem == "lfs-pointer":
+        (bundle / "policy-1.bin").write_text(
+            "version https://git-lfs.github.com/spec/v1\noid sha256:" + "0" * 64 + "\nsize 4\n",
+            encoding="utf-8",
+        )
     else:
         manifest = json.loads((bundle / "manifest.json").read_text())
         manifest["abiVersion"] = 2
@@ -136,6 +176,10 @@ def test_browser_embeds_reject_unusable_bundles(docs_source: Path, problem: str)
     _, status, warnings = _build(docs_source, "html")
     assert status == 1
     assert "Cannot embed browser demo 'example'" in warnings
+    if problem == "missing-wasm-chunk":
+        assert files[-1] in warnings
+    if problem == "lfs-pointer":
+        assert "Git LFS pointer" in warnings
 
 
 def test_browser_embeds_allow_text_documentation(docs_source: Path):

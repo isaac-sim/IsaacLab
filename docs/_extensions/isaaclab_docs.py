@@ -165,7 +165,8 @@ class IsaacLabBrowserDemo(SphinxDirective):
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
             if manifest["bundleVersion"] != 1 or manifest["abiVersion"] != 1:
                 raise ValueError("unsupported bundle or runtime ABI version")
-            assets = [(field, manifest[field]) for field in ("module", "wasm")]
+            assets = [("module", manifest["module"])]
+            assets.extend(("wasm", file) for file in manifest.get("wasmFiles", [manifest["wasm"]]))
             demo = manifest.get("isaacLabDemo", {})
             policy = demo.get("policy")
             if policy:
@@ -178,6 +179,9 @@ class IsaacLabBrowserDemo(SphinxDirective):
                 asset = manifest_path.parent / file
                 if not asset.is_file():
                     raise ValueError(f"missing {field} asset: {asset.name}")
+                with asset.open("rb") as stream:
+                    if stream.read(64).startswith(b"version https://git-lfs.github.com/spec/v1"):
+                        raise ValueError(f"unresolved Git LFS pointer: {asset.name}; run git lfs pull")
                 self.env.note_dependency(str(asset))
         except (OSError, ValueError, KeyError, TypeError) as error:
             raise self.error(f"Cannot embed browser demo '{name}': {error}") from error

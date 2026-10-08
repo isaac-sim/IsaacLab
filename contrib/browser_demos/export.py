@@ -29,6 +29,7 @@ import numpy as np
 import trimesh
 import warp as wp
 import warp.fem as fem
+from bundle import write_binary_files, write_policy
 from manipulation import MANIPULATION_TASKS, export_manipulation
 from mujoco_warp._src.types import DisableBit
 from newton._src.solvers.implicit_mpm.contact_solver_kernels import solve_coulomb_isotropic
@@ -37,7 +38,6 @@ from newton._src.solvers.implicit_mpm.rasterized_collisions import world_positio
 from newton._src.solvers.implicit_mpm.rheology_solver_kernels import YieldParamVec
 from newton._src.solvers.implicit_mpm.solver_implicit_mpm import ImplicitMPMScratchpad, LastStepData
 from newton_web import Parameter, export_graph
-from policy import write_policy
 
 NEWTON_WEB_REVISION = "b0795fbe6b46e08a1fea2425699421415ca4cdf1"
 BROWSER_BUILD_VERSIONS = {"newton": "1.6.0", "warp-lang": "1.17.0", "mujoco-warp": "3.12.0"}
@@ -1603,10 +1603,16 @@ def main() -> None:
     wasm_path.chmod(0o644)
     if wasm_path.stat().st_size > 2_000_000:
         compressed_path = wasm_path.with_suffix(wasm_path.suffix + ".gz")
-        with wasm_path.open("rb") as source, gzip.open(compressed_path, "wb", compresslevel=9) as destination:
-            shutil.copyfileobj(source, destination)
+        with wasm_path.open("rb") as source, compressed_path.open("wb") as destination:
+            with gzip.GzipFile(filename="", mode="wb", fileobj=destination, compresslevel=9, mtime=0) as compressed:
+                shutil.copyfileobj(source, compressed)
         wasm_path.unlink()
         manifest["wasm"] = compressed_path.name
+        wasm_path = compressed_path
+    files = write_binary_files(wasm_path.read_bytes(), deployment, wasm_path.name)
+    if len(files) > 1:
+        manifest["wasmFiles"] = files
+        wasm_path.unlink()
     manifest_path.write_text(json.dumps(manifest, separators=(",", ":")) + "\n")
     if args.demo in ("cartpole", "g1", "anymal", *MANIPULATION_TASKS):
         for path in bundle.glob("policy*.bin"):
