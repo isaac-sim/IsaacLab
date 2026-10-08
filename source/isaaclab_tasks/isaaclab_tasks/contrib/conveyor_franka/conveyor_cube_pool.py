@@ -48,7 +48,7 @@ class ConveyorCubePool:
         candidates: torch.Tensor,
         target_slots: torch.Tensor,
         pinned: torch.Tensor,
-    ) -> torch.Tensor:
+    ) -> None:
         """Assign arriving parcels to remote slots, preserving all local and pinned identities.
 
         Args:
@@ -57,15 +57,11 @@ class ConveyorCubePool:
             candidates: Parcels eligible for pickup, shape ``(N, P)``.
             target_slots: Current command's policy slot, shape ``(N,)``.
             pinned: Whether the active parcel must retain its slot, shape ``(N,)``.
-
-        Returns:
-            Environments whose slot assignments changed, shape ``(N,)``.
         """
         mapped = torch.zeros_like(candidates).scatter_(1, self.slot_ids, True)
         available = candidates & ~mapped
         reusable = ~local.gather(1, self.slot_ids)
         reusable.scatter_(1, target_slots[:, None], ~pinned[:, None] & reusable.gather(1, target_slots[:, None]))
-        changed = torch.zeros_like(pinned)
         # Prefer parcels assigned less often, then the arrival with more belt travel remaining.
         priority = positions[..., 0] - 10.0 * self.assignment_counts
         for slot in range(CUBE_COUNT):
@@ -77,8 +73,6 @@ class ConveyorCubePool:
             self.slot_ids[rows, slot] = choices
             self.assignment_counts[rows, choices] += 1
             available[rows, choices] = False
-            changed[rows] = True
-        return changed
 
     def record_transfers(self, env_ids: torch.Tensor, target_slots: torch.Tensor) -> None:
         """Credit stable placements to physical parcels before the command selects its next slot."""

@@ -94,65 +94,37 @@ intermediate-reset training reward alone does not establish deployment reliabili
 
 ## Warehouse sorting task
 
-Run the warehouse sorting task with the same checkpoint. The two parallel manipulation
-straights and their adjoining 90-degree bends retain their original positions, widths, radii,
-and 0.35 m/s surface speed. Beyond these fixed sections, two short rising feeds climb 0.10 m at less than 10 degrees and
-join a shared elevated deck. Guides keep the two return lanes assigned through the upper split,
-and separate descending conveyors deliver the parcels back to the original workcell approaches.
-The new incline panels use slope-aligned traction and a 0.95 friction coefficient; the original
-manipulation sections retain their trained 0.5 setting.
+The workcell contains 24 physical 40 mm, 50 g parcels: six each in blue, orange, green,
+and purple. Blue and green belong on the positive-Y conveyor; orange and purple belong
+on the negative-Y conveyor. Resets shuffle a mixed batch across the supply feeds using
+seeded randomness. Slow feeds deliver parcels through 12 cm gravity drops; misplaced
+arrivals recirculate until transferred. Colors and physical identities remain fixed.
 
-Blue conveyor frames reach the floor, and the scanner faces along the background main belt after
-a 90-degree counterclockwise rotation. The cubes wear SimReady cardboard meshes normalized to
-**40 × 40 × 40 mm**, centered on their original colliders; mass remains 50 g. Actions and observation
-ordering stay checkpoint-compatible. The sorting task widens its travel bounds and resets all parcels as a randomized mixed batch on the
-raised supply belts.
-The base training and PhysX tasks retain the original compact layout.
+The two manipulation straights and adjoining 90-degree bends preserve the trained
+positions, dimensions, and 0.35 m/s speed. Compact elevated returns connect them to
+asymmetric routes. Incline normals follow their panels, with 0.95 traction friction;
+the original manipulation sections retain their 0.5 setting.
 
-The workcell contains **24 physical parcels**, exposed to the unchanged checkpoint through
-four policy slots. The sorting command fills remote slots with misplaced arrivals; local assignments and an
-active grasp stay pinned. Reassignment runs in the command manager, before the next policy observation,
-and changes only identity mapping, never a physical pose. Commands, rewards, and placement checks
-use the same mapping. All 24 parcels receive belt forces and participate in safety checks.
-During playback, the arm parks when there is no active sorting transfer. The policy sees remote
-inventory in canonical waiting slots;
-all local parcel poses and velocities, physical transport, rewards, and transfer checks remain
-actual simulated states. This adapter is necessary because the checkpoint was trained on compact,
-flat returns. Tensor ordering stays 123 observations to eight actions, but remote observation values
-are intentionally adapted. Invalid actions still reach the original sanitization and termination path.
-The checkpoint can still miss grasps and reset before a batch finishes. The larger randomized
-inventory preserves the policy interface, but reliable complete-batch sorting is not established.
+Four policy slots map to the larger physical pool. Local parcels and the active grasp
+keep their assignments; the command manager assigns misplaced arrivals to available
+slots before observations are computed. Reassignment changes identity mapping, never
+physical poses. Commands, rewards, placement checks, and safety checks use the same
+mapping. All 24 parcels receive physical belt forces.
 
-The near loop has a rounded return; the far loop has a shorter squared return with rounded corners
-and a shorter supply belt. Both retain the exact original manipulation geometry. Oversized yellow
-drive blocks are omitted from the workcell.
+Remote inventory is represented through canonical waiting-slot observations because
+the checkpoint learned compact, flat returns. Local states and physical interactions
+remain exact. Class dispatch uses supervisory metadata; the state-based policy does
+not recognize color. Playback parks the arm between transfers and after sorting.
+Invalid actions still reach sanitization and termination. The unchanged checkpoint
+can miss grasps and reset before finishing; reliable complete-batch sorting is not established.
 
-The batch contains six cartons in each of four clearly marked colors: **blue, orange, green,
-and purple**. Colored paper bands wrap the textured cardboard without changing its 40 mm bounds.
-Reset shuffles physical identities across 24 supply positions, independently
-for each environment, using the simulation's seeded random generator. Counts remain balanced while
-arrival order and initial conveyor assignments vary. Colors stay fixed throughout each batch.
-The 0.043–0.052 m/s feeds release cartons through **12 cm gravity drops** onto the 0.35 m/s loops.
-Blue and green belong on the positive-Y loop; orange and purple belong on the negative-Y loop.
-The dispatcher requests only wrong-lane transfers and retains ownership through grasp and stable
-release. Missed arrivals recirculate for another opportunity. Once the batch is sorted, the arm
-parks and both loops continue running. No parcels are recolored, teleported, or replaced during sorting.
+`commands.transfer.parcel_colors` sets appearances and `parcel_destinations` sets
+conveyor IDs; each color must have one destination. Set `randomize_arrivals=False`
+for authored arrival ordering. `sorted_parcels` counts settled, correctly routed parcels;
+`batch_complete` indicates that all parcels have reached their assigned loops.
 
-Class assignment is explicit supervisory metadata, not a claim that the unchanged state-based
-checkpoint recognizes color. `commands.transfer.parcel_colors` assigns appearances and
-`commands.transfer.parcel_destinations` assigns loop IDs; all parcels of a color must share a
-single destination. `commands.transfer.randomize_arrivals=False` uses the authored ordering.
-`sorted_parcels` counts settled, correctly routed inventory; `batch_complete` indicates that all
-24 parcels are settled on their assigned loops.
-
-The surrounding warehouse includes loaded rack aisles, packing shelves, pallet staging, scan and
-outbound signs, safety markings, overhead beams, and warm/cool industrial lighting. Its additional
-23.11 m parcel loop includes A29 elevated runs and A38 ramps, with twelve animated cartons traveling
-along the main transport line. These background cartons remain render-only inventory and do not
-add contacts or policy observations. The 24 small workcell parcels have real collision and
-dynamics. A Y-divert dresses the outbound bay.
-
-Use **Kit/RTX** to see the authored MDL textures, USD lights, and background animation:
+Use Kit/RTX for the USD materials, warehouse lighting, and twelve animated background
+cartons. Background inventory is render-only and adds no contacts or policy observations.
 
 ```bash
 DISPLAY=:1 uv run --extra isaacsim isaaclab play --rl_library rsl_rl \
@@ -161,20 +133,17 @@ DISPLAY=:1 uv run --extra isaacsim isaaclab play --rl_library rsl_rl \
   --kit_args=--/UJITSO/geometry=false
 ```
 
-Kit renders the USD directly, so the Play configuration excludes visual-only meshes from the
-Newton model (`sim.physics.load_visual_shapes=False`). This avoids importing warehouse dressing
-into the physics model. For a static approximation in `--viz newton_gl`, explicitly pass
-`env.sim.physics.load_visual_shapes=True`; materials and lighting are simplified in that viewer.
-The launch override disables experimental geometry streaming to prevent disappearing meshes with
-Fabric transforms. Presentation defaults to one environment. Asset references and textures are downloaded and cached
-on first use, so the first launch takes longer.
+Kit renders USD directly; `sim.physics.load_visual_shapes=False` excludes dressing
+from the Newton model. For a static approximation with `--viz newton_gl`, pass
+`env.sim.physics.load_visual_shapes=True`. The Kit override disables experimental
+geometry streaming to prevent disappearing meshes with Fabric transforms. Assets
+and textures are downloaded and cached on first use. Presentation defaults to one environment.
 
 ### Fine-tuning
 
-Warehouse training starts the robot at home and parcels on the actual supply feeds. It disables
-the racetrack reset curriculum and passes every sampled policy action through, including idle
-steps. Parking is enabled only by the playback configuration so PPO trains on its own actions.
-Use the shared racetrack checkpoint to warm-start warehouse fine-tuning:
+Warehouse training starts at home with parcels on the actual feeds, disables the
+racetrack reset curriculum, and passes every sampled policy action through.
+Idle parking applies only during playback. Warm-start with the shared checkpoint:
 
 ```bash
 uv run isaaclab train --rl_library rsl_rl \
@@ -182,50 +151,28 @@ uv run isaaclab train --rl_library rsl_rl \
   --checkpoint /path/to/model.pt --num_envs 256 --device cuda:0
 ```
 
-This provides a consistent fine-tuning path; reliable full-batch sorting still requires evaluation.
-
 ### Editing the presentation
 
-* `assets/warehouse.usda` owns the warehouse layout, referenced props, materials, lights, cameras,
-  and looping parcel transform samples. It can be opened in a USD authoring application with an
-  Omniverse-compatible asset resolver. `Cameras/Workcell` and `Cameras/Overview` provide two views.
-* `assets/parcel_{blue,orange,green,purple}.usda` reference the carton, tint its cardboard, and
-  add a colored paper band within the original bounds.
-* `assets/parcel.usda` normalizes the measured SimReady `cardbox_a1` visual bounds to a centered
-  40 mm cube. Keep the shell bounds aligned with the task's original collider when editing it.
-* `assets/conveyor_*_supported.usda` reference the source conveyors and describe their support
-  extension with two scalar attributes. The visual spawner stretches only the lower frame on load;
-  mesh vertices and normals are not bundled in the package.
-* `assets/conveyor_routes.usda` owns the elevated network's centerlines, frame meshes, material
-  references, ramp traction, feed speeds, and mixed-batch spawn positions. Physics reads these same paths after application startup;
-  USD is not imported during task discovery. Incline normals follow each panel's slope. All 24
-  physical parcel spawn positions are authored in `conveyor:parcelSpawnPositions`.
-* The Python adapter resolves remote references into the normal local asset cache, removes all
-  imported physics/action-graph ownership, and samples background animation using simulation time.
-  `conveyor_warehouse_geometry.py` sweeps lightweight collision proxies along the authored paths.
-  `mdp/sorting.py` extends the shared transfer command with class dispatch and batch metrics;
-  the action, observation, reward, and stable-placement contracts remain shared with the trained task.
-* `env.conveyor_cube_pool.slot_ids` maps each environment's four policy slots to physical parcel IDs.
-  `transfer_counts` records placements per physical parcel; assignments never duplicate a parcel
-  within an environment, and resetting one environment does not change another's slots.
+- `assets/warehouse.usda` owns layout, props, materials, lights, cameras, and looping
+  background transforms. `Cameras/Workcell` and `Cameras/Overview` provide two views.
+- `assets/conveyor_routes.usda` owns route centerlines, frame meshes, traction,
+  feed speeds, and `conveyor:parcelSpawnPositions`. Python builds collision proxies
+  from these paths after application startup; task discovery does not import USD.
+- `assets/parcel.usda` normalizes the referenced SimReady carton to the original
+  centered 40 mm collider; `parcel_{blue,orange,green,purple}.usda` add color bands.
+- `assets/conveyor_*_supported.usda` reference source conveyors and describe support
+  extension with two scalar attributes. The spawner derives lower-frame points and normals.
+- `env.conveyor_cube_pool.slot_ids` maps policy slots to physical IDs;
+  `transfer_counts` records placements. Selected resets clear that batch's counters.
 
-### Asset and visual references
-
-The asset survey covered SimReady Central (`simready-central.nvidia.com`),
-`omniverse://ov-isaac-dev.nvidia.com/Isaac/SimReady/Industrial/Warehouse`,
-`Isaac/Environments/{Digital_Twin_Warehouse,Modular_Warehouse}`, `Isaac/Props/Conveyors`, and
-`NVIDIA/Assets/DigitalTwin/Assets/Warehouse`. The composition references publicly accessible
-Omniverse counterparts so playback does not require internal Nucleus credentials. Public catalog
-usage is described in the [SimReady Explorer documentation](https://docs.omniverse.nvidia.com/extensions/latest/ext_core/ext_browser-extensions/simready-explorer.html).
-
-Selected assets are the Omniverse A03/A09/A12/A24/A29/A38 conveyors, `RackLarge_A1`, SimReady
-`bulkstoragerack_a01` and `cardbox_a1`, the Isaac packing table, and loaded pallets. NVIDIA assets
-remain under their original licenses; this package contains authored scene composition and support parameters; NVIDIA geometry and textures remain external references.
-The layout draws on [Dematic's modular conveyor examples](https://www.dematic.com/content/dam/dematic/downloads/brochures/NA_BR_1039_MCS.pdf)
-and [KION's warehouse installation photographs](https://www.kiongroup.com/en/News-Stories/Stories/Innovation/Warehousing-is-being-transformed.html):
-parallel transport, elevation changes, rack storage, packing zones, and clear marked aisles.
-The induction and recirculation layout also follows the concepts in
-[Dematic’s sortation overview](https://www.dematic.com/content/dam/dematic/downloads/whitepapers/NA_WP-1015_Sorting-Out-Sortation.pdf).
+The spawner caches external assets, removes imported physics and action graphs,
+and samples background animation using simulation time. NVIDIA geometry and textures
+remain external references under their original licenses. See the
+[SimReady Explorer documentation](https://docs.omniverse.nvidia.com/extensions/latest/ext_core/ext_browser-extensions/simready-explorer.html)
+for catalog access. Layout references include
+[Dematic modular conveyors](https://www.dematic.com/content/dam/dematic/downloads/brochures/NA_BR_1039_MCS.pdf),
+[Dematic sortation](https://www.dematic.com/content/dam/dematic/downloads/whitepapers/NA_WP-1015_Sorting-Out-Sortation.pdf),
+and [KION warehouse installations](https://www.kiongroup.com/en/News-Stories/Stories/Innovation/Warehousing-is-being-transformed.html).
 
 ## PhysX CPU playback
 
