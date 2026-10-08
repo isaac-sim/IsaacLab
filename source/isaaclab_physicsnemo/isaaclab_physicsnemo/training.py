@@ -23,11 +23,12 @@ from physicsnemo_robotics.data import (
 from physicsnemo_robotics.dynamics import (
     ControlFieldEncoder,
     DynamicsArtifact,
+    FeatureEncoder,
     TransitionAdapter,
     TransitionSpec,
     newton_state_codec,
 )
-from physicsnemo_robotics.models import NewtonNeRDVectorTransformer
+from physicsnemo_robotics.models import NewtonNeRDVectorTransformer, ParallelNeRD
 from physicsnemo_robotics.training import (
     Intervals,
     RuntimeOptions,
@@ -40,6 +41,17 @@ from physicsnemo_robotics.training import (
 
 from .evaluation import HorizonError, evaluate_rollout_nrmse
 from .recording import CONTROL_KEY
+
+PARALLEL_NERD_CONFIG: dict[str, Any] = {
+    "num_heads": 5,
+    "head_dim": 64,
+    "intermediate_size": 640,
+    "head_hidden": 128,
+    "temporal_attention_spans": [4, 3, 3, 3],
+    "rms_norm_eps": 1.0e-6,
+    "linear_probe": True,
+}
+"""ParallelNeRD (FlashNeRD) geometry of the PhysicsNeMo Robotics G1 application, the default for ``"parallel_nerd"``."""
 
 
 @dataclass(frozen=True)
@@ -73,11 +85,20 @@ class TrainingSettings:
     seed: int = 7
     """Seed of the trajectory split and the batch order."""
 
+    architecture: Literal["nerd", "parallel_nerd"] = "nerd"
+    """Network: :class:`~physicsnemo_robotics.models.NewtonNeRDVectorTransformer` (``"nerd"``) or the streaming
+    :class:`~physicsnemo_robotics.models.ParallelNeRD` of FlashNeRD (``"parallel_nerd"``)."""
+
     model_kwargs: dict[str, Any] = field(default_factory=dict)
-    """Keyword overrides of :class:`~physicsnemo_robotics.models.NewtonNeRDVectorTransformer`."""
+    """Keyword overrides of the network constructor. ``"parallel_nerd"`` starts from :data:`PARALLEL_NERD_CONFIG`."""
 
     rollout_horizons: tuple[int, ...] = (1, 15, 100, 200)
-    """Horizons of the held-out recursive-rollout evaluation after training."""
+    """Horizons of the held-out recursive-rollout evaluation after training.
+
+    The evaluation feeds recorded efforts to the rolled-out model, so it runs only for the default
+    effort-only features. Inputs that depend on the state, such as contact probes, must be recomputed from
+    every predicted state; evaluate those artifacts in a deployed environment instead.
+    """
 
 
 @dataclass(frozen=True)
@@ -109,6 +130,7 @@ def train_dynamics_artifact(
     output_dir: str | Path,
     *,
     remove_root_translation: bool | Literal["planar"] = False,
+    features: FeatureEncoder | None = None,
     settings: TrainingSettings | None = None,
     device: str = "cuda:0",
 ) -> TrainingSummary:
@@ -125,6 +147,8 @@ def train_dynamics_artifact(
         model: Finalized Newton model of the recording scene, used to build the state codec.
         output_dir: Directory receiving training checkpoints and the ``artifact`` directory.
         remove_root_translation: Same value the dataset was recorded with.
+        features: Encoder of the model's conditioning inputs, built against ``model``. Defaults to the applied
+            joint efforts. Its recorded fields must be in the dataset.
         settings: Optimization settings. Defaults to :class:`TrainingSettings`.
         device: Training device.
 
@@ -161,7 +185,9 @@ def train_dynamics_artifact(
         raise ValueError(f"The dataset at {dataset_path} has too few trajectories for a train/validation split.")
 
     codec = newton_state_codec(model, "joint", joint_remove_root_translation=remove_root_translation)
-    features = ControlFieldEncoder("joint_f", per_world_shape=(codec.layout.dof_qd,), key=CONTROL_KEY)
+    effort_only = features is None
+    if effort_only:
+        features = ControlFieldEncoder("joint_f", per_world_shape=(codec.layout.dof_qd,), key=CONTROL_KEY)
     transition = TransitionSpec(history=settings.history)
     adapter = TransitionAdapter(reader.schema, codec, transition, features=features)
     # A deployed solver starts every episode with a repeated first frame as history, so training includes
@@ -174,12 +200,17 @@ def train_dynamics_artifact(
     )
     normalizer = fit_transition_normalizer(train_windows, adapter, device=device)
 
-    network = NewtonNeRDVectorTransformer(
-        input_dim=codec.state_shape[-1] + features.signature.width,
-        prediction_dim=codec.prediction_shape[-1],
-        max_sequence_length=settings.history,
-        **settings.model_kwargs,
-    ).to(device)
+    dimensions = {
+        "input_dim": codec.state_shape[-1] + features.signature.width,
+        "prediction_dim": codec.prediction_shape[-1],
+    }
+    if settings.architecture == "parallel_nerd":
+        network = ParallelNeRD(**dimensions, **{**PARALLEL_NERD_CONFIG, **settings.model_kwargs})
+    else:
+        network = NewtonNeRDVectorTransformer(
+            **dimensions, max_sequence_length=settings.history, **settings.model_kwargs
+        )
+    network = network.to(device)
     optimizer = torch.optim.AdamW(network.parameters(), lr=settings.learning_rate)
     scheduler = torch.optim.lr_scheduler.LinearLR(
         optimizer,
@@ -237,7 +268,7 @@ def train_dynamics_artifact(
         features,
         evaluation_indices=[indices[trajectory_id] for trajectory_id in split.validation],
         reference_indices=[indices[trajectory_id] for trajectory_id in split.train],
-        horizons=settings.rollout_horizons,
+        horizons=settings.rollout_horizons if effort_only else (),
         device=device,
     )
     return TrainingSummary(

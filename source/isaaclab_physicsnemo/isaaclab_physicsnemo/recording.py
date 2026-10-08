@@ -8,13 +8,14 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Sequence
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Literal, Protocol
 
 import torch
 from physicsnemo_robotics.data import NewtonTrajectoryWriter, TrajectoryRecorder
 from physicsnemo_robotics.dynamics import TrajectoryFieldSpec, TrajectorySchema, newton_state_codec
-from physicsnemo_robotics.newton import field_to_torch
+from physicsnemo_robotics.newton import NewtonStepContext, field_to_torch
 
 from .binding import NewtonBinding
 from .physics import validate_effort_control
@@ -24,6 +25,24 @@ if TYPE_CHECKING:
 
 CONTROL_KEY = "control/joint_f"
 """Trajectory field holding the joint efforts that Isaac Lab applied during each transition."""
+
+
+class RecordedFeature(Protocol):
+    """Transition input recorded next to the state, such as a PhysicsNeMo Robotics fixed-contact encoder."""
+
+    @property
+    def key(self) -> str:
+        """Trajectory field name."""
+        ...
+
+    @property
+    def field_spec(self) -> TrajectoryFieldSpec:
+        """Declaration of the transition-aligned trajectory field."""
+        ...
+
+    def encode_step(self, context: NewtonStepContext) -> torch.Tensor:
+        """Encode the field for the transition that starts at ``context.state_in``."""
+        ...
 
 
 class TrajectoryDatasetRecorder:
@@ -50,6 +69,7 @@ class TrajectoryDatasetRecorder:
         *,
         scenario_id: str,
         remove_root_translation: bool | Literal["planar"] = False,
+        recorded_features: Sequence[RecordedFeature] = (),
         seed: int = 0,
         replace: bool = False,
     ) -> None:
@@ -61,6 +81,8 @@ class TrajectoryDatasetRecorder:
             scenario_id: Stable name of the data-collection scenario stored with every episode.
             remove_root_translation: Root translation removed from model inputs. Use ``"planar"`` for
                 floating-base robots so that per-environment origins do not reach the model.
+            recorded_features: Encoders of additional transition inputs, such as PhysicsNeMo Robotics
+                fixed contact probes. Each transition stores their values for its starting state.
             seed: Seed stored with every episode.
             replace: Whether to replace an existing dataset at ``path``.
 
@@ -87,8 +109,11 @@ class TrajectoryDatasetRecorder:
                 TrajectoryFieldSpec(
                     CONTROL_KEY, "transition", dtype="float32", trailing_shape=(self._applied_joint_f().shape[-1],)
                 ),
+                *(feature.field_spec for feature in recorded_features),
             ),
         )
+        self._recorded_features = tuple(recorded_features)
+        self._frame_dt = manager.get_dt()
         self._recorder = TrajectoryRecorder(
             self.schema,
             worlds=self.binding.worlds,
@@ -98,6 +123,7 @@ class TrajectoryDatasetRecorder:
         )
         self._writer = NewtonTrajectoryWriter(path, self.schema, mode="replace" if replace else "create")
         self._recorder.begin(self.codec.read(self.binding.state))
+        self._pending_features = self._encode_features()
         self.episodes_written = 0
         """Number of episodes written to the dataset."""
 
@@ -117,10 +143,13 @@ class TrajectoryDatasetRecorder:
         Args:
             dones: Terminated or truncated environments returned by the step, shape [num_envs].
         """
-        self._recorder.record(self.codec.read(self.binding.state), transitions={CONTROL_KEY: self._applied_joint_f()})
+        transitions = {CONTROL_KEY: self._applied_joint_f(), **self._pending_features}
+        self._recorder.record(self.codec.read(self.binding.state), transitions=transitions)
         if bool(dones.any()):
             self._write(self._recorder.finalize(dones, drop_last=1))
             self._recorder.begin(self.codec.read(self.binding.state), worlds_mask=dones)
+        # The current state, reset or not, starts the next transition.
+        self._pending_features = self._encode_features()
 
     def close(self) -> Path:
         """Write the open episodes and publish the dataset.
@@ -130,6 +159,23 @@ class TrajectoryDatasetRecorder:
         """
         self._write(self._recorder.finalize())
         return self._writer.close()
+
+    def _encode_features(self) -> dict[str, torch.Tensor]:
+        """Encode the recorded features of the current state."""
+        if not self._recorded_features:
+            return {}
+        state = self.binding.state
+        context = NewtonStepContext(
+            state_in=state,
+            state_out=state,
+            control=self.binding.control,
+            contacts=self.binding.contacts,
+            frame_index=0,
+            substep_index=0,
+            solver_dt=self._frame_dt,
+            frame_dt=self._frame_dt,
+        )
+        return {feature.key: feature.encode_step(context).clone() for feature in self._recorded_features}
 
     def _applied_joint_f(self) -> torch.Tensor:
         return field_to_torch(self.binding.control.joint_f, clone=True).reshape(self.binding.worlds, -1)

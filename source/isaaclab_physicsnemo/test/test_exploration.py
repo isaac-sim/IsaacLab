@@ -12,7 +12,7 @@ import pytest
 pytest.importorskip("physicsnemo_robotics")
 
 import torch
-from isaaclab_physicsnemo import SmoothRandomActions
+from isaaclab_physicsnemo import SmoothRandomActions, UniformRandomActions
 
 
 def test_actions_have_requested_scale_and_correlation():
@@ -49,3 +49,18 @@ def test_scale_range_spans_gentle_and_saturating_episodes():
     assert actions.scales.min() >= 0.1 and actions.scales.max() <= 2.0
     torch.testing.assert_close(actions.scales.mean(), torch.tensor(1.05), atol=0.02, rtol=0.0)
     torch.testing.assert_close((samples / actions.scales).std(), torch.tensor(1.0), atol=0.02, rtol=0.0)
+
+
+def test_uniform_targets_hold_for_a_control_period():
+    """Recording at the physics rate keeps each target for one control period, and resets redraw it."""
+    actions = UniformRandomActions(1000, 12, high=1.5, hold_steps=4, seed=3)
+    first = [actions() for _ in range(4)]
+    dones = torch.arange(1000) % 2 == 0
+    fifth = actions()
+    sixth = actions(dones)
+
+    assert all(torch.equal(sample, first[0]) for sample in first[1:])
+    assert first[0].abs().max() <= 1.5 and first[0].abs().max() > 1.4
+    assert not torch.equal(fifth, first[0])
+    torch.testing.assert_close(sixth[~dones], fifth[~dones], atol=0.0, rtol=0.0)
+    assert torch.all(sixth[dones] != fifth[dones])

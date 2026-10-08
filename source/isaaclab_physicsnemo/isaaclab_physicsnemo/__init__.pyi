@@ -8,8 +8,10 @@ __all__ = [
     "HorizonError",
     "JointRollout",
     "NewtonBinding",
+    "PARALLEL_NERD_CONFIG",
     "PreflightCheck",
     "PreflightReport",
+    "RecordedFeature",
     "RolloutError",
     "SIGNATURE_SIGNIFICANT_DIGITS",
     "SIGNATURE_ZERO_TOLERANCE",
@@ -18,10 +20,12 @@ __all__ = [
     "TrainingSettings",
     "TrainingSummary",
     "TrajectoryDatasetRecorder",
+    "UniformRandomActions",
     "apply_learned_physics",
     "compare_rollouts",
     "evaluate_rollout_nrmse",
     "execution_spec_from_manager",
+    "isaaclab_canonical_view",
     "isaaclab_model_signature",
     "preflight_learned_physics",
     "record_joint_rollout",
@@ -38,13 +42,14 @@ from .evaluation import (
     evaluate_rollout_nrmse,
     record_joint_rollout,
 )
-from .exploration import SmoothRandomActions
+from .exploration import SmoothRandomActions, UniformRandomActions
 from .preflight import PreflightCheck, PreflightReport, preflight_learned_physics
-from .recording import CONTROL_KEY, TrajectoryDatasetRecorder
+from .recording import CONTROL_KEY, RecordedFeature, TrajectoryDatasetRecorder
 from .signature import (
     SIGNATURE_SIGNIFICANT_DIGITS,
     SIGNATURE_ZERO_TOLERANCE,
     SOLVER_ATTRIBUTE_NAMESPACES,
+    isaaclab_canonical_view,
     isaaclab_model_signature,
 )
-from .training import TrainingSettings, TrainingSummary, train_dynamics_artifact
+from .training import PARALLEL_NERD_CONFIG, TrainingSettings, TrainingSummary, train_dynamics_artifact
