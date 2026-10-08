@@ -163,7 +163,7 @@ jobs:
   test-multi-gpu-pytest:
     name: Multi-GPU unit tests
     needs: [config, build, changes]
-    if: needs.changes.outputs.unit == 'true'
+    if: false  # [DIAG] unit shards are not part of this diagnostic
     # The ``multi-gpu`` label is the multi-GPU pool. Do NOT add ``gpu`` here:
     # in this fleet ``gpu`` tags single-GPU runners, so requiring it routes the
     # job onto a 1-GPU box and the shard runner aborts with "Need at least 2
@@ -297,6 +297,9 @@ jobs:
           dockerfile-path: docker/Dockerfile.base
           cache-tag: cache-base
 
+      - name: "[DIAG] GPU inventory (do not merge)"
+        run: nvidia-smi --query-gpu=index,name,driver_version,compute_cap,memory.total --format=csv | tee -a "$GITHUB_STEP_SUMMARY"
+
       - name: Multi-GPU training smoke (Kit renderer)
         # Real multi-rank training runs, outside the sharded device-parametrized
         # path: a multi-GPU job owns several GPUs at once, so a per-device shard
@@ -358,6 +361,9 @@ jobs:
           dockerfile-path: docker/Dockerfile.kitless
           cache-tag: cache-kitless
           pull-on-deps-hit: 'true'
+
+      - name: "[DIAG] GPU inventory (do not merge)"
+        run: nvidia-smi --query-gpu=index,name,driver_version,compute_cap,memory.total --format=csv | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Multi-GPU training smoke (kitless renderer)
         # Same tests as the Kit lane with the marker inverted, but run in the kit-less image,

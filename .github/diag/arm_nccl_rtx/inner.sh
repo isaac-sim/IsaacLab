@@ -12,7 +12,9 @@
 #   A  nvidia-nccl-cu13 2.28.9  (as locked by PR 8372)
 #   B  nvidia-nccl-cu13 2.29.7  (develop, and PR 8357's ARM leg)
 #   C  nvidia-nccl-cu12 2.29.7  (PR 8280)
-# One rank still creates a communicator, which is where the shared-memory attribute is set.
+# RL-Games creates a communicator even at one rank (rsl_rl skips distributed mode below two), and
+# communicator creation is where NCCL sets the kernels' shared-memory attribute. A case that never
+# logs an NCCL init is reported as invalid, not passed. ONLY=<regex> limits the cases run.
 
 set -u
 out=/reports
@@ -68,28 +70,30 @@ probe() {
 }
 echo "## Driver probe (Vulkan ray-tracing device, then cuKernelSetAttribute at the documented maximum)" | tee -a "$summary"
 echo '```' >>"$summary"
-probe >"$out/probe.log" 2>&1 || echo "probe did not complete; see probe.log" >>"$summary"
+probe >"$out/probe.log" 2>&1
+grep -q "RESULT vk=before" "$out/probe.log" || echo "probe did not complete; see probe.log" >>"$summary"
 grep -E "BSEARCH|RESULT|vulkan:|VALIDATION_SUMMARY" "$out/probe.log" | tee -a "$summary"
 echo '```' >>"$summary"
 
 # ---- One-rank training: NCCL communicator creation next to each renderer ----
 train() {  # <label> <task> <presets>
   local label=$1 task=$2 presets=$3 log rc res nccl err
+  if [ -n "${ONLY:-}" ] && ! [[ $label =~ $ONLY ]]; then return; fi
   log="$out/$label.log"
   timeout -k 30 1200 env NCCL_DEBUG=INFO NCCL_DEBUG_SUBSYS=INIT CUDA_LOG_FILE=stderr \
     uv run --no-sync isaaclab -p scripts/reinforcement_learning/train_multigpu.py \
     --num_gpus 1 --log_all_ranks --rdzv_backend c10d --rdzv_endpoint localhost:0 --rdzv_id "$label" \
-    --rl_library rsl_rl --task "$task" "presets=$presets" \
-    --num_envs 2 --max_iterations 3 --seed 7 --experiment_name "diag_$label" >"$log" 2>&1
+    --rl_library rl_games --task "$task" "presets=$presets" \
+    --num_envs 32 --max_iterations 3 --seed 7 >"$log" 2>&1
   rc=$?
   pkill -9 -f "isaaclab_rl|train_multigpu|torch.distributed.run" >/dev/null 2>&1 || true
-  if [ "$rc" -eq 0 ] && grep -q "Training time:" "$log" && ! grep -q "Traceback (most recent call last):" "$log"; then
-    res="✅ pass"
+  nccl=$(grep -m1 -oE "NCCL version [0-9.]+\+cuda[0-9.]+" "$log" | sed 's/NCCL version //')
+  if [ "$rc" -eq 0 ] && ! grep -q "Traceback (most recent call last):" "$log"; then
+    if [ -n "$nccl" ]; then res="✅ pass"; else res="⚠️ invalid: no NCCL init logged"; fi
   else
     res="❌ fail (rc=$rc)"
   fi
-  nccl=$(grep -m1 -oE "NCCL version [0-9.]+\+cuda[0-9.]+" "$log" | sed 's/NCCL version //')
-  err=$(grep -m1 -E "larger than limit|invalid argument|unhandled cuda error" "$log" | cut -c1-160 | tr '|' '/')
+  err=$(grep -m1 -E "larger than limit|invalid argument|unhandled cuda error|undefined symbol" "$log" | cut -c1-160 | tr '|' '/')
   echo "| $label | \`$presets\` | ${nccl:-not logged} | $res | ${err:-} |" | tee -a "$summary"
 }
 
