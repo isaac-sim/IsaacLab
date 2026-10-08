@@ -3,43 +3,62 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Train an ANYmal-D NeRD dynamics artifact on a recorded dataset."""
+"""Train an ANYmal-D ParallelNeRD (FlashNeRD) dynamics artifact on a recorded dataset.
+
+The model is conditioned on the applied joint efforts and the four fixed foot-probe features, with the
+ParallelNeRD geometry of the PhysicsNeMo Robotics G1 application. FlashNeRD trains its ANYmal model for
+60,000 updates with a 5 % trajectory validation split.
+"""
 
 import argparse
 import logging
 from pathlib import Path
 
 from isaaclab_physicsnemo import TrainingSettings, train_dynamics_artifact
-from isaaclab_physicsnemo.tasks import ANYMAL_D_REMOVE_ROOT_TRANSLATION, AnymalDFlatTeacherEnvCfg
+from isaaclab_physicsnemo.tasks import (
+    ANYMAL_D_REMOVE_ROOT_TRANSLATION,
+    AnymalDFlatTeacherEnvCfg,
+    anymal_d_dynamics_features,
+    anymal_d_foot_contacts,
+)
 
 from isaaclab.envs import ManagerBasedRLEnv
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--dataset", type=Path, required=True, help="Dataset written by record.py.")
     parser.add_argument("--output", type=Path, required=True, help="Training output directory.")
     parser.add_argument("--max-updates", type=int, default=5000)
     parser.add_argument("--batch-size", type=int, default=512)
-    parser.add_argument("--history", type=int, default=10)
+    parser.add_argument("--history", type=int, default=10, help="Frames observed; the receptive field of the model.")
+    parser.add_argument("--validation-fraction", type=float, default=0.05)
     parser.add_argument("--seed", type=int, default=7)
     parser.add_argument("--device", default="cuda:0")
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO)
 
-    # The state codec is built from the finalized model of the recording scene.
+    # The state codec and probes are built from the finalized model of the recording scene.
     cfg = AnymalDFlatTeacherEnvCfg()
     cfg.scene.num_envs = 1
     cfg.sim.device = args.device
     env = ManagerBasedRLEnv(cfg=cfg)
     try:
+        model = env.sim.physics_manager.get_model()
+        features = anymal_d_dynamics_features(anymal_d_foot_contacts(model), model.joint_dof_count)
         summary = train_dynamics_artifact(
             args.dataset,
-            env.sim.physics_manager.get_model(),
+            model,
             args.output,
             remove_root_translation=ANYMAL_D_REMOVE_ROOT_TRANSLATION,
+            features=features,
             settings=TrainingSettings(
-                history=args.history, max_updates=args.max_updates, batch_size=args.batch_size, seed=args.seed
+                history=args.history,
+                max_updates=args.max_updates,
+                batch_size=args.batch_size,
+                validation_fraction=args.validation_fraction,
+                seed=args.seed,
+                architecture="parallel_nerd",
             ),
             device=args.device,
         )
@@ -51,8 +70,6 @@ def main() -> None:
     )
     for name, value in summary.validation.items():
         print(f"  validation {name}: {value:.6g}")
-    for error in summary.rollout_nrmse:
-        print(f"  rollout NRMSE E{error.horizon}: {error.nrmse:.4g} over {error.trajectories} trajectories")
     print(f"Artifact: {summary.artifact_path}")
 
 
