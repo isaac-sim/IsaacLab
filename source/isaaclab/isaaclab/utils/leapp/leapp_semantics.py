@@ -125,6 +125,14 @@ def body_names_resolver(data_self) -> list[str] | None:
     )
 
 
+def fixed_tendon_names_resolver(data_self) -> list[str] | None:
+    """Resolve fixed-tendon element names from the data object at trace time."""
+    return select_element_names(
+        getattr(data_self, "fixed_tendon_names", getattr(data_self, "_fixed_tendon_names", None)),
+        getattr(data_self, "_fixed_tendon_ids", None),
+    )
+
+
 def _compound_resolver(outer_fn: Callable, inner_names: list[str]) -> Callable:
     """Build a 2D resolver: ``[outer_names, inner_constant_names]``."""
 

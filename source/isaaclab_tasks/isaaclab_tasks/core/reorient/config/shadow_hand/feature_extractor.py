@@ -240,11 +240,11 @@ class FeatureExtractor:
             if dt == "rgb":
                 img = img / 255.0
             elif dt == "depth":
+                img = img.clone()
                 img[img == float("inf")] = 0
                 img /= 5.0
                 max_val = img.max()
-                if max_val > 0:
-                    img /= max_val
+                img /= torch.where(max_val > 0, max_val, torch.ones_like(max_val))
             elif dt == "semantic_segmentation":
                 img = img[..., :3] / 255.0
                 mean_tensor = torch.mean(img, dim=(1, 2), keepdim=True)
