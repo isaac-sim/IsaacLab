@@ -367,7 +367,6 @@ class _SurfaceVelocityBinding:
             raise RuntimeError(f"Newton model has {model.world_count} worlds, expected {num_envs}.")
 
         self._model = model
-        self._contacts = contacts
         self._device = model.device
         self._num_envs = num_envs
         self._startup_duration_s = startup_duration_s
