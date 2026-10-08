@@ -404,8 +404,9 @@ html_sidebars = {
 # Keep published links working after guide consolidation.
 isaaclab_doc_redirects = {
     "source/concepts/native-physics-api/newton": "source/concepts/physics-backends/newton",
-    "source/concepts/native-physics-api/ovphysx": "source/concepts/ovphysx",
+    "source/concepts/native-physics-api/ovphysx": "source/concepts/physics-backends/ovphysx",
     "source/concepts/native-physics-api/physx": "source/concepts/physics-backends/physx_native_access",
+    "source/concepts/ovphysx": "source/concepts/physics-backends/ovphysx",
     "source/concepts/solver-tuning/index": "source/how-to/index",
     "source/concepts/solver-tuning/tune_kamino": "source/how-to/solver_tuning_kamino",
     "source/concepts/solver-tuning/tune_mjwarp": "source/how-to/solver_tuning_mjwarp",
@@ -452,8 +453,8 @@ isaaclab_doc_redirect_fragments = {
         "newton-native-data-and-selection-api": "source/concepts/physics-backends/newton#newton-native-access",
     },
     "source/concepts/native-physics-api/ovphysx": {
-        "": "source/concepts/ovphysx#ovphysx-native-access",
-        "ovphysx-tensor-bindings": "source/concepts/ovphysx#ovphysx-native-access",
+        "": "source/concepts/physics-backends/ovphysx#ovphysx-native-access",
+        "ovphysx-tensor-bindings": "source/concepts/physics-backends/ovphysx#ovphysx-native-access",
     },
     "source/features/docker_cloud": {
         "clusters": "source/workflows/docker/cluster#deployment-cluster",

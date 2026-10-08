@@ -61,6 +61,12 @@ Backend developers can also read
 :doc:`/source/developer-tools/extending_newton_solvers`.
 
 
+.. toctree::
+   :hidden:
+
+   /source/concepts/using_mpm
+
+
 .. _newton-native-access:
 
 Native access
