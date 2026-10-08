@@ -7,6 +7,11 @@
 
 from __future__ import annotations
 
+import math
+
+from isaaclab_experimental.cosmos import CosmosModelCfg, depth_processor
+from isaaclab_ov.renderers import OVRTXRendererCfg
+
 import isaaclab.sim as sim_utils
 from isaaclab.renderers import RendererCfg
 from isaaclab.sensors import CameraCfg, JointWrenchSensorCfg
@@ -200,3 +205,88 @@ class ShadowHandCameraEnvCfg(ShadowHandEnvCfg):
         # inference for CNN
         self.feature_extractor.train = False
         self.feature_extractor.load_checkpoint = True
+
+
+_COSMOS_DEPTH_INPUT, _COSMOS_DEPTH_MODIFIERS = depth_processor(
+    CosmosModelCfg(
+        modality="depth",
+        prompt=(
+            "A close-up overhead view of a robotic Shadow Hand reorienting a small colored cube, "
+            "with realistic metallic fingers, natural lighting, and a dark background."
+        ),
+    ),
+    near=0.1,
+    far=1.5,
+)
+
+
+@configclass
+class ShadowHandCameraCosmosEnvCfg(ShadowHandCameraEnvCfg):
+    """Single-environment Shadow Hand task with depth-guided Cosmos RGB observations.
+
+    Start the Cosmos service separately, then select ``presets=cosmos``. The camera captures at
+    10 Hz, and Cosmos publishes an initial frame followed by four-frame chunks. The feature
+    extractor trains on the generated RGB; playback requires its checkpoint from a Cosmos run.
+    """
+
+    scene: ShadowHandCameraSceneCfg = ShadowHandCameraSceneCfg(
+        num_envs=1,
+        tiled_camera=_ShadowHandBaseTiledCameraCfg(
+            data_types=["rgb"],
+            height=640,
+            width=640,
+            update_period=0.1,
+            modifiers={_COSMOS_DEPTH_INPUT: _COSMOS_DEPTH_MODIFIERS},
+        ),
+    )
+    feature_extractor: FeatureExtractorCfg = FeatureExtractorCfg(pretrained_checkpoint=None, image_update_frames=4)
+
+    def validate_config(self):
+        """Check the scene and episode fit the Cosmos service's stream limits."""
+        super().validate_config()
+        if self.scene.num_envs != 1:
+            raise ValueError("The Shadow Hand Cosmos preset requires one environment; use --num_envs 1.")
+        if not self.scene.lazy_sensor_update:
+            raise ValueError(
+                "The Shadow Hand Cosmos preset requires scene.lazy_sensor_update=True so generated "
+                "images and feature-extractor supervision stay aligned with camera captures."
+            )
+        if self.max_consecutive_success != 0:
+            raise ValueError(
+                "The Shadow Hand Cosmos preset requires max_consecutive_success=0 so goal successes "
+                "do not extend the camera episode beyond its frame budget."
+            )
+        camera = self.scene.tiled_camera
+        if isinstance(camera.renderer_cfg, OVRTXRendererCfg) and camera.renderer_cfg.async_rendering:
+            raise ValueError(
+                "The Shadow Hand Cosmos preset requires synchronous OVRTX rendering; set "
+                "scene.tiled_camera.renderer_cfg.async_rendering=False."
+            )
+        transfer = camera.modifiers[_COSMOS_DEPTH_INPUT][-1]
+        if self.feature_extractor.image_update_frames != transfer.update_frames:
+            raise ValueError(
+                "The Shadow Hand Cosmos preset requires feature_extractor.image_update_frames "
+                f"to match the Cosmos update_frames ({transfer.update_frames})."
+            )
+        capture_period = max(camera.update_period, self.sim.dt)
+        episode_frames = math.ceil(self.episode_length_s / capture_period) + 1
+        frame_budget = transfer.backend.max_episode_frames
+        if episode_frames > frame_budget:
+            raise ValueError(
+                f"The Shadow Hand Cosmos preset needs up to {episode_frames} camera captures per episode, "
+                f"but the Cosmos frame budget is {frame_budget}. Shorten episode_length_s or increase "
+                "scene.tiled_camera.update_period."
+            )
+
+    def play_mode(self):
+        """Load this run's feature extractor and retain the single-camera scene."""
+        super().play_mode()
+        self.scene.num_envs = 1
+
+
+@configclass
+class ShadowHandCameraEnvPresetCfg(PresetCfg):
+    """Select ordinary camera observations or depth-guided Cosmos with ``presets=cosmos``."""
+
+    default: ShadowHandCameraEnvCfg = ShadowHandCameraEnvCfg()
+    cosmos: ShadowHandCameraCosmosEnvCfg = ShadowHandCameraCosmosEnvCfg()

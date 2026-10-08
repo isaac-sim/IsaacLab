@@ -4,6 +4,9 @@
 model to cameras through modifiers. It does not load models, download assets, or
 select a network transport.
 
+For a ready-made adapter with a separately started Cosmos service, see
+[Cosmos camera integration](cosmos.md).
+
 ## Camera integration
 
 Add the modifiers to `CameraCfg.modifiers` under the camera output the model is
