@@ -395,9 +395,6 @@ def apply_env_overrides(args_cli: argparse.Namespace, env_cfg: Any) -> None:
     if getattr(args_cli, "cosmos", False):
         from isaaclab_experimental.cosmos import DEFAULT_ENDPOINT, apply_cosmos
 
-        if args_cli.num_envs not in (None, 1):
-            raise ValueError("--cosmos serves one camera view; use --num_envs 1 or leave it unset.")
-
         prompts = args_cli.cosmos_prompt
         apply_cosmos(
             env_cfg,
@@ -408,6 +405,7 @@ def apply_env_overrides(args_cli: argparse.Namespace, env_cfg: Any) -> None:
             far=args_cli.cosmos_far,
             endpoint=args_cli.cosmos_endpoint or DEFAULT_ENDPOINT,
             transport=args_cli.cosmos_transport,
+            num_envs=args_cli.num_envs,
         )
 
 

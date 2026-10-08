@@ -20,10 +20,11 @@ __all__ = [
     "regional_edge_processor",
     "regional_edges",
     "segmentation_processor",
+    "service_capabilities",
     "service_max_episode_frames",
 ]
 
-from .camera import COSMOS_CANVASES, apply_cosmos, cosmos_camera, service_max_episode_frames
+from .camera import COSMOS_CANVASES, apply_cosmos, cosmos_camera, service_capabilities, service_max_episode_frames
 from .control_profiles import (
     RegionalEdgeControl,
     RegionalEdgeControlCfg,

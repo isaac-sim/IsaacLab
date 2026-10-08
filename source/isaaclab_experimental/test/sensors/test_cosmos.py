@@ -508,7 +508,7 @@ from isaaclab_experimental.cosmos.server.service import serve
 
 class Stream:
     def step(self, controls, reset_rows, seeds, **episode):
-        return [255 - controls[0]]
+        return [255 - control for control in controls]
 
     def close(self):
         pass
@@ -559,11 +559,59 @@ def test_cuda_ipc_round_trip_keeps_controls_and_images_on_the_gpu():
         assert images[0].device == first.device and torch.equal(images[0], 255 - first)
         assert torch.equal(images[1], 255 - update)
         client.close()
+
+        # Two views share the buffers row by row; view 1 restarts with one frame while view 0 sends four.
+        client = CosmosModel(CosmosModelCfg(endpoint=endpoint, transport="cuda_ipc", timeout=10))
+        stream = client.open_stream(num_views=2, seeds=(7, 8))
+        stream.step([first, first + 1], (), ())
+        images = stream.step([update, first + 2], (1,), (9,))
+        assert [tuple(view.shape) for view in images] == [(4, 4, 6, 3), (1, 4, 6, 3)]
+        assert torch.equal(images[0], 255 - update) and torch.equal(images[1], 255 - (first + 2))
+        client.close()
     finally:
         with suppress(OSError):
             _protocol.request(endpoint, {"op": "shutdown"}, timeout=2)
         service.wait(timeout=30)
         shutil.rmtree(directory, ignore_errors=True)
+
+
+def test_several_views_share_one_session_with_their_own_prompts_frames_and_resets(cosmos_service):
+    """Two views open one batched session; a restarting view sends one frame while the other sends four."""
+    cfg = CosmosModelCfg(endpoint=cosmos_service.endpoint, prompt=["A lab.", "A kitchen.", "A field."], timeout=2)
+    client = CosmosModel(cfg)
+    stream = client.open_stream(num_views=2, seeds=(1, 2))
+    first = [_controls(), _controls()]
+    stream.step(first, (), ())
+    images = stream.step([_controls().expand(4, -1, -1, -1).contiguous(), _controls()], (1,), (9,))
+    session = cosmos_service.resource.streams[0]
+    client.close()
+
+    assert session.settings["num_views"] == 2 and session.settings["seeds"] == (1, 2)
+    assert session.settings["prompt"] == ["A lab.", "A kitchen."]
+    controls, resets, seeds = session.steps[-1]
+    assert [array.shape[0] for array in controls] == [4, 1] and resets == (1,) and seeds == (9,)
+    assert [tuple(view.shape) for view in images] == [(4, *_controls().shape[1:]), tuple(_controls().shape)]
+    # Batched views keep their prompts, so a reset sends none.
+    assert session.episode_prompts[-1] == "<kept>"
+
+
+def test_the_service_accepts_only_distinct_ordered_resets_of_opened_views(cosmos_service):
+    with _protocol.connect(cosmos_service.endpoint, timeout=2) as connection:
+        open_request = {
+            "op": "open",
+            "num_views": 2,
+            "seeds": [1, 2],
+            "prompt": None,
+            "modality": "edge",
+            "height": 2,
+            "width": 3,
+            "max_episode_frames": 9,
+        }
+        _protocol.send_message(connection, open_request)
+        _protocol.check_reply(_protocol.receive_message(connection)[0])
+        _protocol.send_message(connection, {"op": "step", "reset_rows": [2], "seeds": [5]}, [_controls().numpy()] * 2)
+        reply, _ = _protocol.receive_message(connection)
+    assert not reply["ok"] and "distinct opened views" in reply["error"]
 
 
 def test_small_messages_leave_in_one_write_and_tcp_sends_them_without_delay(cosmos_service):

@@ -36,9 +36,10 @@ For a different endpoint, pass `--endpoint unix:///path/to/socket` or `--endpoin
 Any camera task can use Cosmos without changes to the task: add `--cosmos` to `isaaclab train` or
 `isaaclab play`. Isaac Lab finds the task's camera that publishes only `rgb`, renders it at a Cosmos canvas
 with the same aspect ratio and view, generates with Cosmos, and scales the result back to the camera's size,
-so the policy's observation keeps its shape. It also uses one environment and, when an episode would need more
-captures than the service's episode cap, makes the camera capture every few environment steps and warns. The cap
-is read from the running service, so start the service first.
+so the policy's observation keeps its shape. It uses one environment unless `--num_envs` asks for more (see
+"Several environments"), and, when an episode would need more captures than the service's episode cap, makes the
+camera capture every few environment steps and warns. The cap is read from the running service, so start the
+service first.
 
 ```bash
 uv run isaaclab train --task Isaac-Reorient-KukaAllegro-Camera --rl_library rsl_rl \
@@ -49,7 +50,7 @@ uv run isaaclab train --task Isaac-Reorient-KukaAllegro-Camera --rl_library rsl_
 | Option | Meaning |
 |---|---|
 | `--cosmos` | Put Cosmos on the task's rgb camera |
-| `--cosmos_prompt TEXT` | Scene description; repeat it to use a different prompt per episode |
+| `--cosmos_prompt TEXT` | Scene description; repeat it for a different prompt per episode (one environment) or per environment (several) |
 | `--cosmos_camera NAME` | Scene camera to use, when the task has several rgb cameras |
 | `--cosmos_control depth\|edge` | Control prepared from the render (default `depth`) |
 | `--cosmos_near M`, `--cosmos_far M` | Depth shown white and black (defaults 0.1 m and 2.0 m) |
@@ -61,8 +62,9 @@ hand and table between about 0.7 m and 1.8 m.
 
 Limits of `--cosmos`:
 
-- One environment; `--num_envs` other than 1 is rejected. Agent configurations with fixed minibatch sizes larger
-  than one environment's rollout (some rl_games configurations) need adjusting; RSL-RL works as configured.
+- One environment unless `--num_envs` sets more, up to the service's `--max-views`. Agent configurations with
+  fixed minibatch sizes larger than the rollout (some rl_games configurations) need adjusting; RSL-RL works as
+  configured.
 - The camera must publish only `rgb` and use a pinhole lens.
 - The camera renders at the Cosmos canvas, so its `image_shape` and intrinsics describe the canvas, while its `rgb`
   output keeps the original size. Direct tasks that size their observation space from the camera configuration,
@@ -244,11 +246,44 @@ service retains the loaded weights. Closing a camera closes its generation
 session; it does not stop Cosmos. Failed requests are surfaced to the caller and
 are not silently retried against an already advanced episode.
 
-This initial integration supports one camera view and one active generation
-session per service. Supported `(height, width)` canvases are `(480, 832)`,
+The service runs one active generation session at a time; a session serves one camera view per environment
+(see "Several environments"). Supported `(height, width)` canvases are `(480, 832)`,
 `(544, 736)`, `(640, 640)`, `(736, 544)`, and `(832, 480)`. An episode's frame budget
 must be `1 + 4*k`, up to the service's episode cap. Reset before exhausting
-that budget. Batched environments and independent partial resets are not supported.
+that budget.
+
+## Several environments
+
+One session can generate the cameras of several environments as one batch. Each environment keeps its own
+prompt, seed, and generation history, and resets on its own: a resetting environment starts its new episode with
+one frame while the others continue with four. More environments share each transformer step, so throughput per
+environment rises with GPU size, while each environment needs GPU memory for its own history.
+
+Start the service with the number of environments it may batch, in compiled mode (resetting one environment
+while the others continue needs the compiled runtime):
+
+```bash
+uv run --no-sync isaaclab-cosmos-server --checkpoint "$COSMOS_CHECKPOINT" --max-views 4 --warmup
+```
+
+Then ask for the environments:
+
+```bash
+uv run isaaclab train --task Isaac-Reorient-KukaAllegro-Camera --rl_library rsl_rl --num_envs 4 \
+  --cosmos --cosmos_prompt "A KUKA arm with an Allegro hand in a bright lab." \
+  --cosmos_prompt "A KUKA arm with an Allegro hand in a wooden workshop." \
+  --cosmos_near 0.6 --cosmos_far 1.9 presets=cube,single_camera,rgb64
+```
+
+- With several environments, environment `v` uses `prompt[v % len(prompt)]` for all its episodes; the batch keeps
+  each environment's prompt across its resets. With one environment, a prompt list changes per episode.
+- An environment that resets mid-chunk starts its new episode at the next chunk with its newest capture, so all
+  environments keep one four-frame cadence; it shows black until then.
+- `--cosmos` checks the service before training: `--num_envs` must be at most its `--max-views`, and the service
+  must run compiled.
+- The socket transport carries at most 16 environments per step; CUDA IPC has no such limit.
+- Reference (RTX PRO 6000 Blackwell MIG 2g.48gb, compiled, 640 x 640): one environment 917 ms per step, two 1596 ms
+  (1.15x the throughput), with 39.7 GiB peak memory for two. Larger GPUs fit more environments.
 
 Other control recipes are `edge_processor`, `regional_edge_processor`, and
 `segmentation_processor`, paired with modalities `"edge"` or `"seg"`. Edge

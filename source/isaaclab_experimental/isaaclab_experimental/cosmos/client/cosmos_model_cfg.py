@@ -36,10 +36,12 @@ class CosmosModelCfg(BackendCfg):
     ``tcp://127.0.0.1:5555`` on Windows."""
 
     prompt: str | list[str] | None = None
-    """Appearance prompt. A string applies to every episode. A list varies the appearance per episode, for
-    visual randomization: episode ``k`` of a camera stream uses ``prompt[k % len(prompt)]``. An episode reset
-    before the first generated update (for example the environment's initial reset right after its first capture)
-    keeps the current prompt. None omits an appearance description."""
+    """Appearance prompt. A string applies to every episode. A list varies the appearance, for visual
+    randomization. With one view, episode ``k`` of the camera stream uses ``prompt[k % len(prompt)]``; an episode
+    reset before the first generated update (for example the environment's initial reset right after its first
+    capture) keeps the current prompt. With several views (environments), view ``v`` uses
+    ``prompt[v % len(prompt)]`` for all its episodes, because a batched session keeps each view's prompt across
+    resets. None omits an appearance description."""
 
     modality: Literal["edge", "depth", "seg"] = "edge"
     """Type of uint8 three-channel guidance prepared by the preceding camera modifier."""

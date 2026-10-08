@@ -45,7 +45,7 @@ def _cli(add_args, argv):
 @pytest.mark.parametrize("add_args", [add_common_train_args, add_common_play_args])
 def test_cosmos_options_put_cosmos_on_the_policy_camera_of_an_unmodified_task(add_args, monkeypatch):
     """The Kuka Allegro camera task gets Cosmos from command-line options, with its 64 x 64 observation kept."""
-    monkeypatch.setattr(cosmos_camera_module, "service_max_episode_frames", lambda endpoint: DEFAULT_MAX_EPISODE_FRAMES)
+    _serve(monkeypatch)
     args = _cli(add_args, ["--cosmos", "--cosmos_prompt", "A lab.", "--cosmos_prompt", "A kitchen."])
     env_cfg = _kuka()
     apply_env_overrides(args, env_cfg)
@@ -58,8 +58,32 @@ def test_cosmos_options_put_cosmos_on_the_policy_camera_of_an_unmodified_task(ad
     assert chain[1].backend.prompt == ["A lab.", "A kitchen."]
     assert chain[-1].params == {"width": 64, "height": 64}
 
-    with pytest.raises(ValueError, match="--num_envs 1"):
-        apply_env_overrides(_cli(add_args, ["--cosmos", "--num_envs", "4"]), _kuka())
+
+def _serve(monkeypatch, views=1, partial_resets=False):
+    """Stand in for the running service's status."""
+    capabilities = {
+        "max_episode_frames": DEFAULT_MAX_EPISODE_FRAMES,
+        "num_views": views,
+        "partial_resets": partial_resets,
+    }
+    monkeypatch.setattr(cosmos_camera_module, "service_capabilities", lambda endpoint: capabilities)
+
+
+def test_several_environments_need_a_compiled_service_that_batches_them(monkeypatch):
+    """--num_envs N batches N cameras; the service must offer N views and independent resets."""
+    args = _cli(add_common_train_args, ["--cosmos", "--num_envs", "4"])
+    _serve(monkeypatch, views=1)
+    with pytest.raises(ValueError, match="--max-views 4"):
+        apply_env_overrides(args, _kuka())
+    _serve(monkeypatch, views=4, partial_resets=False)
+    with pytest.raises(ValueError, match="without --no-compile"):
+        apply_env_overrides(args, _kuka())
+
+    _serve(monkeypatch, views=4, partial_resets=True)
+    env_cfg = _kuka()
+    apply_env_overrides(args, env_cfg)
+    assert env_cfg.scene.num_envs == 4
+    assert env_cfg.scene.base_camera.modifiers["distance_to_image_plane"][1].backend.max_episode_frames > 1
 
 
 @pytest.mark.parametrize(

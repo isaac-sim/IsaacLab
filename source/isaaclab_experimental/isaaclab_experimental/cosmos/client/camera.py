@@ -86,6 +86,28 @@ def cosmos_camera(
     )
 
 
+def service_capabilities(endpoint: str = DEFAULT_ENDPOINT, timeout: float = 5.0) -> dict[str, Any]:
+    """Return the running Cosmos service's capabilities, such as its episode cap and the views it batches.
+
+    Args:
+        endpoint: Cosmos service endpoint.
+        timeout: Connection and response timeout [s].
+
+    Returns:
+        The capabilities reported by ``isaaclab cosmos status``.
+
+    Raises:
+        RuntimeError: If the service is not running.
+    """
+    try:
+        reply, _ = request(endpoint, {"op": "status"}, timeout=timeout)
+    except OSError as error:
+        raise RuntimeError(
+            f"No Cosmos service at {endpoint}; start isaaclab-cosmos-server as described in cosmos_service.md."
+        ) from error
+    return reply["capabilities"]
+
+
 def service_max_episode_frames(endpoint: str = DEFAULT_ENDPOINT, timeout: float = 5.0) -> int | None:
     """Return the running Cosmos service's episode cap in frames, or None when it has no cap.
 
@@ -99,13 +121,7 @@ def service_max_episode_frames(endpoint: str = DEFAULT_ENDPOINT, timeout: float 
     Raises:
         RuntimeError: If the service is not running.
     """
-    try:
-        reply, _ = request(endpoint, {"op": "status"}, timeout=timeout)
-    except OSError as error:
-        raise RuntimeError(
-            f"No Cosmos service at {endpoint}; start isaaclab-cosmos-server as described in cosmos_service.md."
-        ) from error
-    return reply["capabilities"]["max_episode_frames"]
+    return service_capabilities(endpoint, timeout)["max_episode_frames"]
 
 
 def apply_cosmos(
@@ -119,17 +135,20 @@ def apply_cosmos(
     endpoint: str = DEFAULT_ENDPOINT,
     max_episode_frames: int | None | Literal["service"] = "service",
     transport: Literal["auto", "cuda_ipc", "socket"] = "auto",
+    num_envs: int | None = None,
 ) -> None:
     """Put Cosmos on a task's camera in place.
 
     Selects the scene camera publishing only ``rgb`` (or ``camera``) and replaces it with :func:`cosmos_camera`. It
-    uses one environment and, when an episode would exceed the service's episode cap, makes the camera capture every
-    few environment steps. Tasks must read the camera image from its output; Direct tasks that size their observation
-    space from the camera configuration are not supported, because the camera renders at the Cosmos canvas.
+    sets the environment count, whose cameras the service generates as one batch, and, when an episode would exceed
+    the service's episode cap, makes the camera capture every few environment steps. Tasks must read the camera image
+    from its output; Direct tasks that size their observation space from the camera configuration are not
+    supported, because the camera renders at the Cosmos canvas.
 
     Args:
         env_cfg: Task environment configuration.
-        prompt: Appearance prompt, or a list cycled per episode.
+        prompt: Appearance prompt, or a list: cycled per episode for one environment, one per environment for
+            several (see :attr:`CosmosModelCfg.prompt`).
         camera: Scene camera name. Defaults to None, which selects the only rgb camera.
         control: Control type: ``"depth"`` or ``"edge"``.
         near: Depth rendered white [m], for depth control.
@@ -138,13 +157,31 @@ def apply_cosmos(
         max_episode_frames: The service's episode cap in frames, ``1 + 4*k`` with ``k >= 1``, or None for no cap.
             Defaults to ``"service"``, which asks the running service.
         transport: How images move to and from the service; see :attr:`CosmosModelCfg.transport`.
+        num_envs: Environments to generate together. Defaults to None, which uses one. Several need a service
+            started with ``--max-views`` of at least this count, in compiled mode so environments reset independently.
 
     Raises:
         ValueError: If no single rgb camera can be selected, the selected entity is not a suitable camera, sensors
-            update eagerly, the camera renders asynchronously, or the episode cap is invalid.
-        RuntimeError: If the cap is read from a service that is not running.
+            update eagerly, the camera renders asynchronously, the episode cap is invalid, or the service cannot
+            batch ``num_envs`` environments.
+        RuntimeError: If the cap or batch size is read from a service that is not running.
     """
-    cap = service_max_episode_frames(endpoint) if max_episode_frames == "service" else max_episode_frames
+    num_envs = 1 if num_envs is None else num_envs
+    if type(num_envs) is not int or num_envs < 1:
+        raise ValueError(f"Cosmos needs a positive number of environments, got {num_envs!r}.")
+    capabilities = service_capabilities(endpoint) if max_episode_frames == "service" or num_envs > 1 else {}
+    cap = capabilities["max_episode_frames"] if max_episode_frames == "service" else max_episode_frames
+    if num_envs > 1:
+        if num_envs > capabilities.get("num_views", 1):
+            raise ValueError(
+                f"The Cosmos service batches at most {capabilities.get('num_views', 1)} environments; start "
+                f"isaaclab-cosmos-server with --max-views {num_envs}."
+            )
+        if not capabilities.get("partial_resets", False):
+            raise ValueError(
+                "Several Cosmos environments reset independently, which needs the compiled service; start "
+                "isaaclab-cosmos-server without --no-compile."
+            )
     if cap is not None and (type(cap) is not int or cap < 5 or (cap - 1) % 4):
         raise ValueError(f"The Cosmos episode cap must be 1 + 4*k frames with k >= 1, or None, got {cap!r}.")
     if prompt is None:
@@ -153,9 +190,9 @@ def apply_cosmos(
     camera_cfg = getattr(env_cfg.scene, name, None)
     if not isinstance(camera_cfg, CameraCfg):
         raise ValueError(f"Scene entity {name!r} is not a camera.")
-    if env_cfg.scene.num_envs != 1:
-        logger.warning("Cosmos serves one camera view; using 1 environment instead of %d.", env_cfg.scene.num_envs)
-        env_cfg.scene.num_envs = 1
+    if env_cfg.scene.num_envs != num_envs:
+        logger.info("Cosmos generates %d environment(s); the task default was %d.", num_envs, env_cfg.scene.num_envs)
+        env_cfg.scene.num_envs = num_envs
     if not env_cfg.scene.lazy_sensor_update:
         raise ValueError("Cosmos needs scene.lazy_sensor_update=True so each image matches its simulation state.")
     if getattr(camera_cfg.renderer_cfg, "async_rendering", False):

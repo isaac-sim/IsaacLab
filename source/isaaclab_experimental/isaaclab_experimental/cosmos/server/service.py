@@ -20,6 +20,7 @@ import numpy as np
 
 from .._protocol import (
     DEFAULT_ENDPOINT,
+    MAX_ARRAYS,
     MAX_CHUNK_FRAMES,
     ProtocolError,
     disable_nagle,
@@ -191,6 +192,7 @@ def _handle_connection(
     stream: _Stream | None = None
     channel = None
     image_shape: tuple[int, int, int] | None = None
+    num_views = 0
     try:
         while not state.stopping.is_set():
             metadata, arrays = receive_message(connection)
@@ -236,6 +238,8 @@ def _handle_connection(
                 if transport not in state.transports:
                     raise ValueError(f"This Cosmos service does not offer the {transport} transport.")
                 arguments = _open_arguments(metadata)
+                if transport == "socket" and arguments["num_views"] > MAX_ARRAYS:
+                    raise ValueError(f"The socket transport carries at most {MAX_ARRAYS} views; use CUDA IPC.")
                 with state.ownership_lock:
                     if state.owner is not None:
                         raise RuntimeError(
@@ -246,8 +250,11 @@ def _handle_connection(
                     state.owner = token
                 stream = state.executor.submit(state.model.open_stream, **arguments).result()
                 image_shape = (arguments["height"], arguments["width"], 3)
+                num_views = arguments["num_views"]
                 if transport == "cuda_ipc":
-                    channel = state.executor.submit(_open_channel, state.model, image_shape, handles).result()
+                    channel = state.executor.submit(
+                        _open_channel, state.model, num_views, image_shape, handles
+                    ).result()
                 send_message(connection, {"ok": True})
             elif operation == "step":
                 fields = {"op", "version", "reset_rows", "seeds"} | ({"prompt"} if "prompt" in metadata else set())
@@ -255,33 +262,17 @@ def _handle_connection(
                 _check_fields(metadata, fields, arrays, allow_arrays=channel is None)
                 if stream is None:
                     raise RuntimeError("Open a Cosmos generation session before sending controls.")
-                resets, seeds = _reset_arguments(metadata)
-                # A new episode may change the appearance prompt; the weights stay loaded.
-                episode = {}
-                if "prompt" in metadata:
-                    if not resets:
-                        raise ValueError("A Cosmos prompt can change only with an episode reset.")
-                    if metadata["prompt"] is not None and not isinstance(metadata["prompt"], str):
-                        raise ValueError("Cosmos prompt must be a string or None.")
-                    episode["prompt"] = metadata["prompt"]
+                resets, seeds = _reset_arguments(metadata, num_views)
+                episode = _episode_arguments(metadata, resets)
                 if channel is not None:
-                    frames = metadata["frames"]
-                    if type(frames) is not int or not 1 <= frames <= MAX_CHUNK_FRAMES:
-                        raise ValueError(f"Cosmos chunks hold 1 to {MAX_CHUNK_FRAMES} frames.")
+                    frames = _channel_frames(metadata["frames"], num_views)
                     state.executor.submit(_step_channel, stream, channel, frames, resets, seeds, episode).result()
-                    send_message(connection, {"ok": True, "frames": frames})
+                    send_message(connection, {"ok": True, "frames": metadata["frames"]})
                     continue
-                if len(arrays) != 1 or arrays[0].shape[1:] != image_shape:
-                    raise ValueError("Cosmos controls must match the single camera's configured image size.")
+                if len(arrays) != num_views or any(array.shape[1:] != image_shape for array in arrays):
+                    raise ValueError("Cosmos controls must hold one chunk per view at the configured image size.")
                 generated = state.executor.submit(stream.step, arrays, resets, seeds, **episode).result()
-                if (
-                    not isinstance(generated, list)
-                    or len(generated) != 1
-                    or not isinstance(generated[0], np.ndarray)
-                    or generated[0].dtype != np.uint8
-                    or generated[0].shape != arrays[0].shape
-                ):
-                    raise ValueError("Cosmos must return uint8 THWC RGB matching the control chunk.")
+                _check_generated(generated, arrays)
                 send_message(connection, {"ok": True}, generated)
             elif operation == "close":
                 _check_fields(metadata, {"op", "version"}, arrays)
@@ -328,8 +319,8 @@ def _handle_connection(
             connection.close()
 
 
-def _open_channel(model: _Model, image_shape: tuple[int, int, int], handles: object):
-    """Open the camera's shared GPU buffers and events on the model's device (inference thread)."""
+def _open_channel(model: _Model, num_views: int, image_shape: tuple[int, int, int], handles: object):
+    """Open the camera's shared GPU buffers, one row per view, and events on the model's device (inference thread)."""
     import torch
 
     from .._cuda_ipc import SharedChannel
@@ -337,28 +328,69 @@ def _open_channel(model: _Model, image_shape: tuple[int, int, int], handles: obj
     keys = {"control", "output", "control_ready", "output_ready"}
     if not isinstance(handles, dict) or set(handles) != keys or not all(isinstance(v, str) for v in handles.values()):
         raise ProtocolError("A CUDA IPC session needs control, output, control_ready and output_ready handles.")
-    return SharedChannel(torch.device(model.capabilities["device"]), (MAX_CHUNK_FRAMES, *image_shape), handles)
+    shape = (num_views, MAX_CHUNK_FRAMES, *image_shape)
+    return SharedChannel(torch.device(model.capabilities["device"]), shape, handles)
 
 
-def _step_channel(stream: _Stream, channel, frames: int, resets, seeds, episode: dict) -> None:
+def _step_channel(stream: _Stream, channel, frames: list[int], resets, seeds, episode: dict) -> None:
     """Generate from shared GPU controls into the shared output, ordered by events (inference thread)."""
     import torch
 
     channel.control_ready.wait()
-    generated = stream.step([channel.control.tensor[:frames]], resets, seeds, **episode)
+    controls = [channel.control.tensor[view, :count] for view, count in enumerate(frames)]
+    generated = stream.step(controls, resets, seeds, **episode)
     if (
         not isinstance(generated, list)
-        or len(generated) != 1
-        or not isinstance(generated[0], torch.Tensor)
-        or generated[0].dtype != torch.uint8
-        or tuple(generated[0].shape) != (frames, *channel.control.shape[1:])
+        or len(generated) != len(frames)
+        or any(
+            not isinstance(images, torch.Tensor)
+            or images.dtype != torch.uint8
+            or tuple(images.shape) != tuple(control.shape)
+            for images, control in zip(generated, controls)
+        )
     ):
-        raise ValueError("Cosmos must return uint8 THWC RGB matching the control chunk.")
-    channel.output.tensor[:frames].copy_(generated[0])
+        raise ValueError("Cosmos must return uint8 THWC RGB matching each view's control chunk.")
+    for view, (images, count) in enumerate(zip(generated, frames)):
+        channel.output.tensor[view, :count].copy_(images)
     channel.output_ready.record()
     # A GPU fault must reach the client as an error reply; its stream would otherwise wait on output_ready forever.
     # This waits in the service process only; the camera's process does not synchronize.
     torch.cuda.current_stream(channel.output.device).synchronize()
+
+
+def _episode_arguments(metadata: dict, resets: tuple[int, ...]) -> dict:
+    """Return a step's episode settings: a reset may bring a new appearance prompt; the weights stay loaded."""
+    if "prompt" not in metadata:
+        return {}
+    if not resets:
+        raise ValueError("A Cosmos prompt can change only with an episode reset.")
+    if metadata["prompt"] is not None and not isinstance(metadata["prompt"], str):
+        raise ValueError("Cosmos prompt must be a string or None.")
+    return {"prompt": metadata["prompt"]}
+
+
+def _channel_frames(frames: object, num_views: int) -> list[int]:
+    """Return one frame count per view of a CUDA IPC step; a single integer is the one-view form."""
+    frames = [frames] if type(frames) is int else frames
+    if (
+        not isinstance(frames, list)
+        or len(frames) != num_views
+        or any(type(count) is not int or not 1 <= count <= MAX_CHUNK_FRAMES for count in frames)
+    ):
+        raise ValueError(f"Cosmos chunks hold 1 to {MAX_CHUNK_FRAMES} frames for each view.")
+    return frames
+
+
+def _check_generated(generated: object, arrays: list[np.ndarray]) -> None:
+    if (
+        not isinstance(generated, list)
+        or len(generated) != len(arrays)
+        or any(
+            not isinstance(images, np.ndarray) or images.dtype != np.uint8 or images.shape != array.shape
+            for images, array in zip(generated, arrays)
+        )
+    ):
+        raise ValueError("Cosmos must return uint8 THWC RGB matching each view's control chunk.")
 
 
 def _check_fields(metadata: dict, fields: set[str], arrays: list[np.ndarray], *, allow_arrays: bool = False) -> None:
@@ -369,25 +401,34 @@ def _check_fields(metadata: dict, fields: set[str], arrays: list[np.ndarray], *,
 
 
 def _open_arguments(metadata: dict) -> dict:
-    if type(metadata["num_views"]) is not int or metadata["num_views"] != 1:
-        raise ValueError("The Cosmos service currently supports one camera view per session.")
+    num_views = metadata["num_views"]
+    if type(num_views) is not int or num_views < 1:
+        raise ValueError("Cosmos num_views must be a positive integer.")
     for name in ("height", "width", "max_episode_frames"):
         if type(metadata[name]) is not int or metadata[name] <= 0:
             raise ValueError(f"Cosmos {name} must be a positive integer.")
-    if metadata["prompt"] is not None and not isinstance(metadata["prompt"], str):
-        raise ValueError("Cosmos prompt must be a string or None.")
+    prompt = metadata["prompt"]
+    prompts = prompt if isinstance(prompt, list) else [prompt]
+    if (isinstance(prompt, list) and len(prompt) != num_views) or any(
+        text is not None and not isinstance(text, str) for text in prompts
+    ):
+        raise ValueError("Cosmos prompt must be a string or None, or one per view.")
     if metadata["modality"] not in ("edge", "depth", "seg"):
         raise ValueError("Cosmos modality must be edge, depth, or seg.")
-    seeds = _seeds(metadata["seeds"], 1)
+    seeds = _seeds(metadata["seeds"], num_views)
     return {
         name: (seeds if name == "seeds" else value) for name, value in metadata.items() if name not in ("op", "version")
     }
 
 
-def _reset_arguments(metadata: dict) -> tuple[tuple[int, ...], tuple[int, ...]]:
+def _reset_arguments(metadata: dict, num_views: int) -> tuple[tuple[int, ...], tuple[int, ...]]:
     rows = metadata["reset_rows"]
-    if not isinstance(rows, list) or (rows != [] and (len(rows) != 1 or type(rows[0]) is not int or rows[0] != 0)):
-        raise ValueError("Cosmos supports only a full reset of its single camera view.")
+    if (
+        not isinstance(rows, list)
+        or any(type(row) is not int or not 0 <= row < num_views for row in rows)
+        or rows != sorted(set(rows))
+    ):
+        raise ValueError("Cosmos resets name distinct opened views in increasing order.")
     return tuple(rows), _seeds(metadata["seeds"], len(rows))
 
 

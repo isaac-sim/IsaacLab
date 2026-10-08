@@ -22,6 +22,7 @@ __all__ = [
     "regional_edge_processor",
     "regional_edges",
     "segmentation_processor",
+    "service_capabilities",
     "service_max_episode_frames",
 ]
 
@@ -43,5 +44,6 @@ from .client import (
     regional_edge_processor,
     regional_edges,
     segmentation_processor,
+    service_capabilities,
     service_max_episode_frames,
 )
