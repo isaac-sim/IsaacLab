@@ -29,7 +29,8 @@ _LAZY_PEER_ACCESS = 0x1  # CU_IPC_MEM_LAZY_ENABLE_PEER_ACCESS
 
 
 class _Handle(ctypes.Structure):
-    _fields_ = [("reserved", ctypes.c_char * _HANDLE_BYTES)]
+    # Raw bytes: a c_char array would read as text and stop at the first zero byte.
+    _fields_ = [("reserved", ctypes.c_ubyte * _HANDLE_BYTES)]
 
 
 _driver: ctypes.CDLL | None = None

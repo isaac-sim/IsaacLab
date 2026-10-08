@@ -454,6 +454,15 @@ def test_transport_keeps_images_on_the_gpu_only_when_the_service_shares_this_gpu
     assert stream._select_transport(torch.device(device)) == expected
 
 
+def test_cuda_ipc_handles_keep_all_64_bytes_including_zero_bytes():
+    """Driver handles are raw bytes; zero bytes must survive the trip to the other process."""
+    from isaaclab_experimental.cosmos import _cuda_ipc
+
+    raw = bytes([7, 0]) + bytes(range(62))
+    handle = _cuda_ipc._Handle.from_buffer_copy(raw)
+    assert bytes(_cuda_ipc._decode(_cuda_ipc._encode(handle)).reserved) == raw
+
+
 def test_explicit_cuda_ipc_fails_clearly_when_unavailable_and_remote_services_use_the_socket(monkeypatch):
     from isaaclab_experimental.cosmos import _cuda_ipc
 
