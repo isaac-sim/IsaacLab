@@ -18,7 +18,6 @@ from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import Camera, CameraCfg
 from isaaclab.sim import SimulationCfg
-from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
 from isaaclab.sim.spawners.sensors.sensors_cfg import (
     OpenCvDistortionCfg,
     OpenCvFisheyeDistortionCfg,
@@ -63,7 +62,6 @@ class _DistortionSceneCfg(InteractiveSceneCfg):
             rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
             mass_props=sim_utils.MassCfg(mass=0.001),
             collision_props=sim_utils.UsdPhysicsCollisionCfg(),
-            physics_material=RigidBodyMaterialBaseCfg(),
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, -100.0)),
     )

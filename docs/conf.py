@@ -403,6 +403,12 @@ html_sidebars = {
 
 # Keep published links working after guide consolidation.
 isaaclab_doc_redirects = {
+    "source/concepts/solver-tuning/index": "source/how-to/index",
+    "source/concepts/solver-tuning/tune_kamino": "source/how-to/solver_tuning_kamino",
+    "source/concepts/solver-tuning/tune_mjwarp": "source/how-to/solver_tuning_mjwarp",
+    "source/concepts/solver-tuning/tune_mpm": "source/how-to/solver_tuning_mpm",
+    "source/concepts/solver-tuning/tune_physx": "source/how-to/solver_tuning_physx",
+    "source/concepts/solver-tuning/tune_vbd": "source/how-to/solver_tuning_vbd",
     "source/features/docker_cloud": "source/workflows/docker/index",
     "source/concepts/scene_data_providers": "source/concepts/native-physics-api/scene_data_providers",
     "source/developer-tools/scene_data_providers": "source/concepts/native-physics-api/scene_data_providers",

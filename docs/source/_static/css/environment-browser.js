@@ -52,7 +52,7 @@
             ["Isaac-Velocity-Flat-H1", "rsl_rl,skrl", "isaacsim_physx,newton_kamino,newton_mjwarp,ovphysx", "", "", "environment-previews/h1_flat.jpg", true],
             ["Isaac-Velocity-Flat-UnitreeGo2", "rsl_rl,skrl", "isaacsim_physx,newton_kamino,newton_mjwarp,ovphysx", "", "", "environment-previews/go2_flat.jpg", true],
             ["Isaac-Velocity-Rough-AnymalD", "rsl_rl,skrl", "isaacsim_physx,newton_kamino,newton_mjwarp,ovphysx", "", "", "tasks/locomotion/anymal_d_rough.jpg"],
-            ["Isaac-Velocity-Rough-Cassie", "rsl_rl,skrl", "isaacsim_physx,newton_kamino,newton_mjwarp,ovphysx", "", "", "tasks/locomotion/anymal_d_rough.jpg"],
+            ["Isaac-Velocity-Rough-Cassie", "rsl_rl,skrl", "isaacsim_physx,newton_kamino,newton_mjwarp,ovphysx", "", "", "tasks/cassie_rough.jpg"],
             ["Isaac-Velocity-Rough-G1", "rsl_rl,skrl", "isaacsim_physx,newton_kamino,newton_mjwarp,ovphysx", "", "", "tasks/locomotion/g1_rough.jpg"],
             ["Isaac-Velocity-Rough-H1", "rsl_rl,skrl", "isaacsim_physx,newton_kamino,newton_mjwarp,ovphysx", "", "", "tasks/locomotion/h1_rough.jpg"],
             ["Isaac-Velocity-Rough-UnitreeGo2", "rsl_rl,skrl", "isaacsim_physx,newton_kamino,newton_mjwarp,ovphysx", "", "", "tasks/locomotion/go2_rough.jpg"],
@@ -339,7 +339,7 @@
             [/AnymalB/, "tasks/locomotion/anymal_b_flat.jpg"],
             [/AnymalC/, "tasks/locomotion/anymal_c_flat.jpg"],
             [/AnymalD/, "tasks/locomotion/anymal_d_flat.jpg"],
-            [/Cassie/, "tasks/locomotion/agility_digit_flat.jpg"],
+            [/Cassie/, "tasks/cassie_flat.jpg"],
             [/Digit/, "tasks/locomotion/agility_digit_flat.jpg"],
             [/Velocity-Flat-G1/, "tasks/locomotion/g1_flat.jpg"],
             [/Velocity-Rough-G1/, "tasks/locomotion/g1_rough.jpg"],
@@ -353,13 +353,8 @@
         return imageRules.find(([pattern]) => pattern.test(taskName))?.[1] || "tasks/classic/cartpole.jpg";
     };
 
-    const previewVideos = {
-        "Isaac-Cartpole": "cartpole-newton-mjwarp-rsl-rl.mp4",
-        "Isaac-Ant": "ant-newton-mjwarp-rsl-rl.mp4",
-        "Isaac-Velocity-Rough-G1": "velocity-rough-g1-newton-mjwarp-rsl-rl.mp4",
-        "Isaac-Lift-KukaAllegro": "lift-kuka-allegro-newton-mjwarp-rsl-rl.mp4",
-    };
     const previewImageBaseUrl = "https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/";
+    const previewVideoBaseUrl = "https://download.isaacsim.omniverse.nvidia.com/isaaclab/videos/tasks/";
     const failedPreviewVideos = new Set();
 
     const previewImageUrl = (task) => {
@@ -368,6 +363,11 @@
             ? new URL(imagePath, previewImageBaseUrl).href
             : new URL(`../../_static/${imagePath}`, window.location.href).href;
     };
+
+    // Each preview video shares its image's file name, so tasks without an uploaded clip fall back to the image.
+    const previewVideoUrl = (task) => (
+        new URL(previewImageFor(task).split("/").pop().replace(/\.[^.]+$/, ".mp4"), previewVideoBaseUrl).href
+    );
 
     const updateTaskControls = () => {
         const task = selectedTask();
@@ -470,15 +470,18 @@
     const updatePreview = () => {
         const previewImage = preview.querySelector("[data-preview-image]");
         const previewVideo = preview.querySelector("[data-preview-video]");
-        const videoName = fields.rl.value === "rsl_rl" && fields.physics.value === "newton_mjwarp"
-            ? previewVideos[state.task]
-            : undefined;
-        const videoUrl = videoName
-            ? new URL(`../../_static/tasks/previews/${videoName}`, window.location.href).href
-            : undefined;
+        const videoUrl = previewVideoUrl(selectedTask());
         previewImage.src = previewImageUrl(selectedTask());
         previewImage.alt = `${state.task} preview`;
-        if (videoUrl && !failedPreviewVideos.has(videoUrl)) {
+        // Keep the image up until the clip has a frame; tasks without a clip keep their image.
+        const showVideo = () => {
+            if (previewVideo.src === videoUrl) {
+                previewVideo.hidden = false;
+                previewImage.hidden = true;
+                previewVideo.play().catch(() => {});
+            }
+        };
+        if (!failedPreviewVideos.has(videoUrl)) {
             previewVideo.onerror = () => {
                 if (previewVideo.src === videoUrl) {
                     failedPreviewVideos.add(videoUrl);
@@ -486,15 +489,18 @@
                     previewImage.hidden = false;
                 }
             };
-            if (previewVideo.src !== videoUrl) {
-                previewVideo.src = videoUrl;
-            }
+            previewVideo.onloadeddata = showVideo;
             previewVideo.setAttribute("aria-label", `${state.task} preview`);
-            previewVideo.hidden = false;
-            previewImage.hidden = true;
-            previewVideo.play().catch(() => {});
+            if (previewVideo.src !== videoUrl) {
+                previewVideo.hidden = true;
+                previewImage.hidden = false;
+                previewVideo.src = videoUrl;
+            } else if (previewVideo.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+                showVideo();
+            }
         } else {
             previewVideo.onerror = null;
+            previewVideo.onloadeddata = null;
             previewVideo.pause();
             previewVideo.hidden = true;
             previewImage.hidden = false;
