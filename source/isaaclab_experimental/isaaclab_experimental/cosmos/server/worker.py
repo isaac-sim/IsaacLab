@@ -34,6 +34,12 @@ def main(args: list[str] | None = None) -> None:
         default=DEFAULT_MAX_EPISODE_FRAMES,
         help="Longest episode in frames, 1 + 4*k with k >= 1 (default: the trained horizon, 201); 0 removes the cap.",
     )
+    parser.add_argument(
+        "--max-views",
+        type=int,
+        default=1,
+        help="Most camera views (environments) one session may batch; each needs GPU memory for its history.",
+    )
     options = parser.parse_args(args)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     os.environ["COSMOS_TRAINING"] = "0"
@@ -44,6 +50,7 @@ def main(args: list[str] | None = None) -> None:
         options.device,
         use_compile=not options.no_compile,
         max_episode_frames=options.max_episode_frames or None,
+        max_views=options.max_views,
     )
     try:
         serve(model, options.endpoint, warmup=options.warmup)
