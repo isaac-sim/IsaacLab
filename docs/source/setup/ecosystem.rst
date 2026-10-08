@@ -11,8 +11,8 @@ reinforcement learning, imitation learning, teleoperation, and post-training.
 
 At the core of Isaac Lab, we focus heavily on parallelized GPU-accelerated simulation. Isaac Lab
 provides warp-based integration with `Newton`_, allowing for efficient CUDA graphing of simulation
-and MDP pipelines. Additionally, the `OvPhysX`_ backend provides full PhysX support through a lightweight
-standalone library package. Similarly, `OvRTX`_ introduces full RTX rendering capabilities through an
+and MDP pipelines. Additionally, the `OvPhysX`_ backend provides PhysX support through a lightweight
+standalone library package. Similarly, `OvRTX`_ introduces RTX rendering capabilities through an
 optional standalone python dependency. This architecture promotes a fully customized experience for
 users to choose from a selection of different physics and rendering engines.
 
