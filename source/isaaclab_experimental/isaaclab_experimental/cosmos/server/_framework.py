@@ -16,19 +16,14 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
+from .._protocol import CANVAS_ASPECT_RATIOS as _CANVASES
+from .._protocol import DEFAULT_MAX_EPISODE_FRAMES
+
 if TYPE_CHECKING:
     import torch
 
 logger = logging.getLogger(__name__)
 
-_CANVASES = {
-    (480, 832): "16,9",
-    (544, 736): "4,3",
-    (640, 640): "1,1",
-    (736, 544): "3,4",
-    (832, 480): "9,16",
-}
-_MAX_EPISODE_FRAMES = 201
 
 
 class CosmosInferenceModel:
@@ -40,18 +35,37 @@ class CosmosInferenceModel:
     views, and partial episode resets are unsupported.
     """
 
-    def __init__(self, checkpoint: str, device: str = "cuda:0", *, use_compile: bool = True):
+    def __init__(
+        self,
+        checkpoint: str,
+        device: str = "cuda:0",
+        *,
+        use_compile: bool = True,
+        max_episode_frames: int | None = DEFAULT_MAX_EPISODE_FRAMES,
+    ):
         """Load weights on the selected CUDA device.
 
         Args:
             checkpoint: Exported HF checkpoint directory or a Framework checkpoint name.
             device: CUDA device in this process's visible GPU set.
             use_compile: Enable the Framework's compiled CUDA-graph streaming path.
+            max_episode_frames: Longest episode a session may request, ``1 + 4*k`` frames. None removes the
+                cap. The model was trained on 201-frame episodes; longer episodes are unvalidated.
 
         Raises:
             ValueError: If the runtime or checkpoint does not support this streaming contract.
             ImportError: If the optional Cosmos Framework runtime is unavailable.
         """
+        if max_episode_frames is not None and (
+            type(max_episode_frames) is not int or max_episode_frames < 1 or (max_episode_frames - 1) % 4
+        ):
+            raise ValueError("The Cosmos episode cap must be 1 + 4*k frames, or None for no cap.")
+        self._max_episode_frames = max_episode_frames
+        if max_episode_frames is None or max_episode_frames > DEFAULT_MAX_EPISODE_FRAMES:
+            logger.warning(
+                "Cosmos episodes may exceed the model's trained horizon of %d frames; check quality and memory use.",
+                DEFAULT_MAX_EPISODE_FRAMES,
+            )
         import torch
         from cosmos_framework.inference.common.init import init_script
 
@@ -139,7 +153,7 @@ class CosmosInferenceModel:
             "initial_frames": 1,
             "update_frames": 4,
             "canvases": [list(canvas) for canvas in _CANVASES],
-            "max_episode_frames": _MAX_EPISODE_FRAMES,
+            "max_episode_frames": max_episode_frames,
             "fps": 30,
             "partial_resets": False,
         }
@@ -168,7 +182,7 @@ class CosmosInferenceModel:
             modality: Preprocessed control type: edge, depth, or seg.
             height: Control image height [pixels].
             width: Control image width [pixels].
-            max_episode_frames: Episode horizon; must be 1 + 4*k and at most 201.
+            max_episode_frames: Episode horizon; must be 1 + 4*k and within the service's cap.
 
         Returns:
             A session whose close releases generation history, retaining model weights.
@@ -188,10 +202,14 @@ class CosmosInferenceModel:
             raise ValueError(f"Unsupported Cosmos canvas {(height, width)}; choose one of {list(_CANVASES)}.")
         if (
             type(max_episode_frames) is not int
-            or not 1 <= max_episode_frames <= _MAX_EPISODE_FRAMES
+            or max_episode_frames < 1
             or (max_episode_frames - 1) % 4
+            or (self._max_episode_frames is not None and max_episode_frames > self._max_episode_frames)
         ):
-            raise ValueError("Cosmos max_episode_frames must be 1 + 4*k, between 1 and 201 inclusive.")
+            raise ValueError(
+                f"Cosmos max_episode_frames must be 1 + 4*k and at most the service cap {self._max_episode_frames}; "
+                "raise it with isaaclab-cosmos-server --max-episode-frames."
+            )
 
         import torch
 
@@ -242,10 +260,11 @@ class CosmosInferenceModel:
     def warmup(self, *, height: int = 480, width: int = 832) -> None:
         """Warm one canvas through finite-history saturation using a disposable session.
 
-        The warmup emits 33 frames from blank controls. Its prompt, seed, VAE caches,
-        and generation history are discarded before real cameras can connect. Other
-        canvases or prompts can still require compilation on their first use.
+        The warmup emits up to 33 frames from blank controls, within the episode cap. Its
+        prompt, seed, VAE caches, and generation history are discarded before real cameras
+        can connect. Other canvases or prompts can still require compilation on their first use.
         """
+        frames = 33 if self._max_episode_frames is None else min(33, self._max_episode_frames)
         stream = self.open_stream(
             num_views=1,
             seeds=(0,),
@@ -253,12 +272,12 @@ class CosmosInferenceModel:
             modality="edge",
             height=height,
             width=width,
-            max_episode_frames=33,
+            max_episode_frames=frames,
         )
         try:
             stream.step([np.zeros((1, height, width, 3), dtype=np.uint8)], (), ())
             controls = np.zeros((4, height, width, 3), dtype=np.uint8)
-            for _ in range(8):
+            for _ in range((frames - 1) // 4):
                 stream.step([controls], (), ())
         finally:
             stream.close()

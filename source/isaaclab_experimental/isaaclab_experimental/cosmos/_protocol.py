@@ -23,6 +23,17 @@ import numpy as np
 
 PROTOCOL_VERSION = 2
 """Version 2 lets an episode reset carry the next appearance prompt."""
+CANVAS_ASPECT_RATIOS = {
+    (480, 832): "16,9",
+    (544, 736): "4,3",
+    (640, 640): "1,1",
+    (736, 544): "3,4",
+    (832, 480): "9,16",
+}
+"""Image sizes ``(height, width)`` the Cosmos service accepts, with their aspect-ratio names."""
+DEFAULT_MAX_EPISODE_FRAMES = 201
+"""Default episode cap of the service in frames, the model's trained horizon;
+``isaaclab-cosmos-server --max-episode-frames`` changes it."""
 MAX_METADATA_BYTES = 64 * 1024
 MAX_ARRAY_BYTES = 256 * 1024 * 1024
 MAX_ARRAYS = 16

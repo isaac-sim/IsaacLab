@@ -4,12 +4,15 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
+    "COSMOS_CANVASES",
     "CosmosModel",
     "CosmosModelCfg",
     "CosmosTransferModifier",
     "CosmosTransferModifierCfg",
     "RegionalEdgeControl",
     "RegionalEdgeControlCfg",
+    "apply_cosmos",
+    "cosmos_camera",
     "depth_processor",
     "edge_control",
     "edge_processor",
@@ -17,8 +20,10 @@ __all__ = [
     "regional_edge_processor",
     "regional_edges",
     "segmentation_processor",
+    "service_max_episode_frames",
 ]
 
+from .camera import COSMOS_CANVASES, apply_cosmos, cosmos_camera, service_max_episode_frames
 from .control_profiles import (
     RegionalEdgeControl,
     RegionalEdgeControlCfg,

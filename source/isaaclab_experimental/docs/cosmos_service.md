@@ -108,6 +108,10 @@ Wait for `Cosmos ready at tcp://127.0.0.1:5555`, then leave this terminal runnin
 The worker loads the model once on `cuda:0` and exposes the endpoint after model
 loading and warmup. Isaac Lab can then connect from its own environment.
 
+`--max-episode-frames N` sets the longest episode a camera may request, `1 + 4*k` frames. The default, 201,
+is the model's trained horizon; `0` removes the cap. See
+[Episode length cap](cosmos.md#episode-length-cap).
+
 `--no-compile` selects eager inference. Omit it to enable the compiled CUDA-graph
 path, which can take additional time on its first use. `--warmup` runs a disposable
 33-frame session on a `(480, 832)` canvas before reporting readiness. With compiled

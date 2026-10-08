@@ -30,9 +30,52 @@ starting training.
 For a different endpoint, pass `--endpoint tcp://127.0.0.1:5556` to `status` and
 set the camera's `CosmosModelCfg.endpoint` to the same address.
 
+## Run any camera task with Cosmos
+
+Any camera task can use Cosmos without changes to the task: add `--cosmos` to `isaaclab train` or
+`isaaclab play`. Isaac Lab finds the task's camera that publishes only `rgb`, renders it at a Cosmos canvas
+with the same aspect ratio and view, generates with Cosmos, and scales the result back to the camera's size,
+so the policy's observation keeps its shape. It also uses one environment and, when an episode would need more
+captures than the service's episode cap, makes the camera capture every few environment steps and warns. The cap
+is read from the running service, so start the service first.
+
+```bash
+uv run isaaclab train --task Isaac-Reorient-KukaAllegro-Camera --rl_library rsl_rl \
+  --cosmos --cosmos_prompt "A KUKA arm with an Allegro hand turning a cube in a bright lab." \
+  --cosmos_near 0.6 --cosmos_far 1.9 presets=cube,single_camera,rgb64
+```
+
+| Option | Meaning |
+|---|---|
+| `--cosmos` | Put Cosmos on the task's rgb camera |
+| `--cosmos_prompt TEXT` | Scene description; repeat it to use a different prompt per episode |
+| `--cosmos_camera NAME` | Scene camera to use, when the task has several rgb cameras |
+| `--cosmos_control depth\|edge` | Control prepared from the render (default `depth`) |
+| `--cosmos_near M`, `--cosmos_far M` | Depth shown white and black (defaults 0.1 m and 2.0 m) |
+| `--cosmos_endpoint URL` | Service endpoint (default `tcp://127.0.0.1:5555`) |
+
+Choose `--cosmos_near` and `--cosmos_far` to cover the scene: the Kuka Allegro base camera sees the cube,
+hand and table between about 0.7 m and 1.8 m.
+
+Limits of `--cosmos`:
+
+- One environment; `--num_envs` other than 1 is rejected. Agent configurations with fixed minibatch sizes larger
+  than one environment's rollout (some rl_games configurations) need adjusting; RSL-RL works as configured.
+- The camera must publish only `rgb` and use a pinhole lens.
+- The camera renders at the Cosmos canvas, so its `image_shape` and intrinsics describe the canvas, while its `rgb`
+  output keeps the original size. Direct tasks that size their observation space from the camera configuration,
+  such as `Isaac-Cartpole-Camera-Direct`, are not supported; Isaac Lab warns for Direct tasks.
+- Without `--cosmos_prompt`, Cosmos runs without a scene description and Isaac Lab warns.
+
+In code, `apply_cosmos(env_cfg, prompt=...)` does the same, and `cosmos_camera(camera_cfg, CosmosModelCfg(...))`
+returns a Cosmos version of one camera. Tasks that train an image encoder from a pretrained checkpoint may need
+their own preset, as the Shadow Hand tasks below do, because the encoder sees new images.
+
 ## Run the Shadow Hand camera task
 
-After `status` reports readiness, run the registered task with its Cosmos preset:
+The Direct task `Isaac-Reorient-Cube-Shadow-Camera-Direct` and the Manager-based task
+`Isaac-Reorient-Cube-Shadow-Camera` both offer `presets=cosmos`, with the same Cosmos camera.
+After `status` reports readiness, run a task with its Cosmos preset:
 
 ```bash
 uv run isaaclab train \
@@ -67,7 +110,7 @@ cube, and it connects to `tcp://127.0.0.1:5555`. The camera captures at 10 Hz of
 simulation time. After the initial generated frame, Cosmos updates every four
 captures, so fresh generated observations arrive at 2.5 Hz of simulation time.
 Generation latency determines the elapsed time needed to run those captures.
-The task keeps its 10-second episode length, within the 201-frame Cosmos budget.
+The task keeps its 10-second episode length, within the default 201-frame Cosmos episode cap.
 The preset requires `scene.lazy_sensor_update=True` and synchronous rendering so
 each image remains aligned with its simulation state. With OVRTX, set
 `scene.tiled_camera.renderer_cfg.async_rendering=False`.
@@ -90,7 +133,7 @@ uv run isaaclab play \
   presets=cosmos
 ```
 
-Without `presets=cosmos`, the task uses its existing camera configuration.
+Without a Cosmos preset, the task uses its existing camera configuration.
 
 ## Client and server packages
 
@@ -113,7 +156,8 @@ package also exports the camera client API for existing task configurations.
 
 ## Configure another camera task
 
-Add a Cosmos chain to the task's camera configuration. For depth conditioning:
+`cosmos_camera` is the simplest way: it chooses the canvas, keeps the view and the published size, and builds the
+chain. To write the chain by hand instead, add it to the task's camera configuration. For depth conditioning:
 
 ```python
 from isaaclab.sensors import CameraCfg
@@ -174,6 +218,29 @@ CosmosModelCfg(
 A prompt can change only at an episode reset. A reset before the first generated update, such as the
 environment's initial reset right after its first capture, keeps the current prompt.
 
+### A different prompt per episode
+
+`prompt` takes one string or a list. With a list, episode `k` of a camera stream uses
+`prompt[k % len(prompt)]`, for visual randomization: the session opens with the first prompt, and each
+episode reset sends the next one to the service, which rebuilds the text conditioning for the new episode.
+The model stays loaded; only the episode's conditioning and generation state change. A reset before the
+episode's first update keeps the prompt, so the environment's initial reset right after its first capture does
+not skip the first prompt. Rebuilding the conditioning adds time to that reset, and with compiled inference a
+prompt's first use can trigger compilation, so prefer a short list of prompts.
+
+```python
+CosmosModelCfg(
+    modality="depth",
+    prompt=[
+        "A robotic Shadow Hand turning a red cube in a bright warehouse with metal shelves.",
+        "A robotic Shadow Hand turning a wooden cube on a kitchen counter in warm evening light.",
+        "A robotic Shadow Hand turning a blue cube in a dim laboratory with fluorescent lights.",
+    ],
+)
+```
+
+A prompt can change only at an episode reset.
+
 ## Runtime and resets
 
 The camera's post-processing chain is the integration boundary.
@@ -200,7 +267,7 @@ are not silently retried against an already advanced episode.
 This initial integration supports one camera view and one active generation
 session per service. Supported `(height, width)` canvases are `(480, 832)`,
 `(544, 736)`, `(640, 640)`, `(736, 544)`, and `(832, 480)`. An episode's frame budget
-must be `1 + 4*k`, with a maximum of 201 generated frames. Reset before exhausting
+must be `1 + 4*k`, up to the service's episode cap. Reset before exhausting
 that budget. Batched environments and independent partial resets are not supported.
 
 Other control recipes are `edge_processor`, `regional_edge_processor`, and
@@ -209,6 +276,15 @@ extraction needs OpenCV in the Isaac Lab environment; the depth and segmentation
 recipes do not. Segmentation recipes require uncolorized semantic IDs and a fixed
 palette, while regional edges also require the camera's segmentation output and
 explicit foreground IDs. See the helper docstrings for their camera requirements.
+
+## Episode length cap
+
+The service limits how many frames one episode may generate: `isaaclab-cosmos-server --max-episode-frames N`
+sets the cap (`1 + 4*k`, default 201), `0` removes it, and `status` reports it. The model generates with a
+sliding window of history and was trained on 201-frame episodes, so the server warns when the cap allows longer
+episodes; check quality and memory use before relying on them. Each task requests its own budget with
+`CosmosModelCfg.max_episode_frames`, which must stay within the cap. `--cosmos` reads the cap from the service, so
+the camera slows down only when an episode would not fit.
 
 See [Image transfer for camera images](image_transfer.md) for the underlying model
 contract, camera scheduling, and optional PPISP processing. Service shutdown and

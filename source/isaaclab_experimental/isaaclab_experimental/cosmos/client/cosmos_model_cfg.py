@@ -12,6 +12,8 @@ from typing import TYPE_CHECKING, Literal
 from isaaclab.sim import BackendCfg
 from isaaclab.utils import configclass
 
+from .._protocol import DEFAULT_MAX_EPISODE_FRAMES
+
 if TYPE_CHECKING:
     from .cosmos_model import CosmosModel
 
@@ -40,8 +42,9 @@ class CosmosModelCfg(BackendCfg):
     modality: Literal["edge", "depth", "seg"] = "edge"
     """Type of uint8 three-channel guidance prepared by the preceding camera modifier."""
 
-    max_episode_frames: int = 201
-    """Image-frame budget per episode, including the initial frame."""
+    max_episode_frames: int = DEFAULT_MAX_EPISODE_FRAMES
+    """Image-frame budget per episode, including the initial frame: ``1 + 4*k``. It must be within the service's
+    cap, set with ``isaaclab-cosmos-server --max-episode-frames`` (default 201, 0 for no cap)."""
 
     timeout: float = 600.0
     """Maximum wait per network operation [s], including the first generation."""

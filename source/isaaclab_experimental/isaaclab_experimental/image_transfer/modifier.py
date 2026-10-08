@@ -172,6 +172,35 @@ def depth_to_control(data: torch.Tensor, near: float = 0.1, far: float = 10.0) -
     return pixels.expand(*pixels.shape[:-1], 3)
 
 
+def center_crop_resize(data: torch.Tensor, width: int, height: int) -> torch.Tensor:
+    """Crop uint8 images to the target aspect ratio around the center, then area-resize them.
+
+    Use it at the end of a chain to return a generated image to the size an observation expects.
+
+    Args:
+        data: Images of shape ``(N, H, W, C)``, dtype uint8.
+        width: Output width [px].
+        height: Output height [px].
+
+    Returns:
+        Images of shape ``(N, height, width, C)``, dtype uint8.
+
+    Raises:
+        ValueError: If the images are not uint8.
+    """
+    if data.dtype != torch.uint8:
+        raise ValueError(f"center_crop_resize expects uint8 images, got {data.dtype}.")
+    _, rows, cols, _ = data.shape
+    if cols * height > rows * width:
+        crop = rows * width // height
+        data = data[:, :, (cols - crop) // 2 : (cols - crop) // 2 + crop]
+    else:
+        crop = cols * height // width
+        data = data[:, (rows - crop) // 2 : (rows - crop) // 2 + crop]
+    pixels = torch.nn.functional.interpolate(data.permute(0, 3, 1, 2).float(), size=(height, width), mode="area")
+    return pixels.round().clamp(0, 255).to(torch.uint8).permute(0, 2, 3, 1).contiguous()
+
+
 def srgb_to_linear(data: torch.Tensor) -> torch.Tensor:
     """Approximate scene-linear color from display sRGB, for example before PPISP.
 
