@@ -83,7 +83,7 @@ and a deformable in one scene, and for the tuning workflow, see
 :doc:`/source/how-to/solver_tuning_vbd` and :doc:`/source/concepts/coupled_solvers`.
 
 OvPhysX deformables carry further restrictions on node counts and startup cost. See
-:doc:`/source/concepts/ovphysx`.
+:doc:`/source/concepts/physics-backends/ovphysx`.
 
 
 Volume and surface deformables
@@ -612,6 +612,6 @@ Related
 * :doc:`/source/concepts/coupled_solvers` covers running a rigid robot and a deformable in one
   scene.
 * :ref:`migrating-deformables` covers the Isaac Lab 3.0 deformable API changes.
-* :doc:`/source/concepts/ovphysx` covers the OvPhysX deformable limitations.
+* :doc:`/source/concepts/physics-backends/ovphysx` covers the OvPhysX deformable limitations.
 * :doc:`/source/api/lab/isaaclab.assets` and :doc:`/source/api/lab/isaaclab.sim.spawners` are the
   API references for the asset, spawner, and material classes used here.
