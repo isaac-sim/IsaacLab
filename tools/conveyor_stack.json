@@ -1,0 +1,58 @@
+{
+  "repository": "isaac-sim/IsaacLab",
+  "base": "develop",
+  "integration_pr": 6952,
+  "integration_branch": "maximiliank/conveyor-franka-env",
+  "components": [
+    {
+      "pr": 8326,
+      "name": "Custom mesh spawning"
+    },
+    {
+      "pr": 8327,
+      "name": "Experimental conveyor support in Contrib"
+    },
+    {
+      "pr": 8331,
+      "name": "Racetrack transfer task"
+    },
+    {
+      "pr": 8332,
+      "name": "Warehouse sorting task"
+    }
+  ],
+  "snapshot": {
+    "base": "abe7db4f38174a8ed4e4f843b28d6fe68f34b578",
+    "components": [
+      {
+        "pr": 8326,
+        "name": "Custom mesh spawning",
+        "head": "3e20689974f9659579c20df4900f5b3b34ab8479",
+        "merged": false
+      },
+      {
+        "pr": 8327,
+        "name": "Experimental conveyor support in Contrib",
+        "head": "ffbfb8d31be120939b6e1283930b471eaf0078ce",
+        "merged": false
+      },
+      {
+        "pr": 8331,
+        "name": "Racetrack transfer task",
+        "head": "783815b1015456b860e019afdefd5816110f9dcd",
+        "merged": false
+      },
+      {
+        "pr": 8332,
+        "name": "Warehouse sorting task",
+        "head": "e1c2fe6c0fde37bc8e3872a0d65ea2ed088f2431",
+        "merged": false
+      }
+    ],
+    "checks": [
+      "Focused CPU tests and lock consistency passed",
+      "360-step policy evaluation: 3 transfers, zero safety resets/non-finite observations"
+    ],
+    "checked_at": "2026-10-08T12:16:09.851232+00:00"
+  }
+}
