@@ -87,13 +87,13 @@ RTX, available as a standalone library OvRTX, as well as Isaac Sim Kit-based Isa
 .. grid:: 1 1 3 3
    :gutter: 2
 
-   .. grid-item-card:: Newton Tiled Camera Sensor
+   .. grid-item-card:: Newton Tiled Camera
 
       .. image:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-newton.webp
          :alt: Material spheres rendered with the Newton Tiled Camera Sensor
          :width: 100%
 
-      Lightweight Warp rasterization for tiled camera observations.
+      Lightweight Warp sensor for tiled camera observations.
 
    .. grid-item-card:: OVRTX
 
@@ -128,7 +128,7 @@ Capabilities in motion
 These examples span real-to-sim reconstruction, vision-policy learning, and contact-rich material
 simulation. Explore the packaged
 :doc:`demos </source/setup/demos>` and :doc:`environment catalog </source/setup/environments>`
-to run them yourself.
+for more examples.
 
 .. grid:: 1 1 2 2
    :gutter: 2
