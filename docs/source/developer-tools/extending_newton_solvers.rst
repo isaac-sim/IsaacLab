@@ -223,7 +223,9 @@ Override anything else only when the solver needs it:
 * ``_requires_initial_reset_before_graph_capture()``: delay headless capture
   until the first post-reset step.
 * ``_solver_specific_clear()``: release class-level state the subclass owns.
-* ``_check_solver_status()`` and ``_log_solver_debug()``: run after stepping.
+* ``_check_solver_status()``: runs after each eager or replayed dispatch, before
+  the simulation time advances.
+* ``_log_solver_debug()``: runs after stepping.
 
 :class:`~isaaclab_newton.physics.NewtonMPMManager` overrides both builder hooks.
 

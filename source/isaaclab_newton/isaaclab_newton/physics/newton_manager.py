@@ -739,6 +739,7 @@ class NewtonManager(PhysicsManager):
             else:
                 with wp.ScopedDevice(device):
                     cls._simulate_full()
+            cls._check_solver_status()
             PhysicsManager._sim_time += physics_dt * cls._decimation
         else:
             # --- Some actuators not graph-safe: step them eagerly, graph solver only ---
@@ -752,6 +753,7 @@ class NewtonManager(PhysicsManager):
             else:
                 with wp.ScopedDevice(device):
                     cls._simulate_physics_only()
+            cls._check_solver_status()
             PhysicsManager._sim_time += physics_dt
 
         # Run the requested step eagerly before capture so lazy GPU allocations happen outside recording.
@@ -762,8 +764,6 @@ class NewtonManager(PhysicsManager):
             NewtonManager._graph_capture_pending = False
 
         cls._mark_transforms_changed()
-
-        cls._check_solver_status()
 
         # Launch solver-specific debug logging after stepping.
         cls._log_solver_debug()
@@ -1542,8 +1542,8 @@ class NewtonManager(PhysicsManager):
     def _check_solver_status(cls) -> None:
         """Raise solver-specific asynchronous failures after stepping.
 
-        Default no-op. Subclasses override when a solver requires a host-side
-        status check after CUDA graph replay.
+        Runs outside graph capture after each eager or replayed step dispatch, before the simulation time
+        advances. Default no-op; subclasses override when a solver reports failures through device-side status.
         """
 
     @classmethod
@@ -1665,6 +1665,14 @@ class NewtonManager(PhysicsManager):
     # ------------------------------------------------------------------
 
     @classmethod
+    def _collide(cls, state: State, contacts: Contacts) -> None:
+        """Generate contacts for ``state`` with the collision pipeline.
+
+        Solver managers override this when collision generation needs solver-specific timing.
+        """
+        cls._collision_pipeline.collide(state, contacts)
+
+    @classmethod
     def _run_solver_substeps(cls, contacts) -> None:
         """Run ``num_substeps`` solver iterations, handling double-buffered state swap."""
         backend = cls.backend
@@ -1680,7 +1688,7 @@ class NewtonManager(PhysicsManager):
                 cls._step_solver(backend.state_0, backend.state_0, backend.control, contacts, cls._solver_dt)
                 backend.state_0.clear_forces()
                 if collide_mid_loop and (i + 1) % collide_every == 0 and i + 1 < cls._num_substeps:
-                    cls._collision_pipeline.collide(backend.state_0, contacts)
+                    cls._collide(backend.state_0, contacts)
         else:
             cfg = PhysicsManager._cfg
             need_copy_on_last = cfg is not None and cls._num_substeps % 2 == 1
@@ -1694,7 +1702,7 @@ class NewtonManager(PhysicsManager):
                     backend.state_0, backend.state_1 = backend.state_1, backend.state_0
                 backend.state_0.clear_forces()
                 if collide_mid_loop and (i + 1) % collide_every == 0 and i + 1 < cls._num_substeps:
-                    cls._collision_pipeline.collide(backend.state_0, contacts)
+                    cls._collide(backend.state_0, contacts)
 
     @classmethod
     def _update_sensors(cls, contacts) -> None:
@@ -1723,7 +1731,7 @@ class NewtonManager(PhysicsManager):
 
         for i in range(cls._decimation):
             if cls._needs_collision_pipeline:
-                cls._collision_pipeline.collide(cls.backend.state_0, cls._contacts)
+                cls._collide(cls.backend.state_0, cls._contacts)
 
             if cls._adapter is not None:
                 cls._adapter.step(
@@ -1749,7 +1757,7 @@ class NewtonManager(PhysicsManager):
         there are no actuators at all.
         """
         if cls._needs_collision_pipeline:
-            cls._collision_pipeline.collide(cls.backend.state_0, cls._contacts)
+            cls._collide(cls.backend.state_0, cls._contacts)
             contacts = cls._contacts
         else:
             contacts = None
