@@ -106,14 +106,14 @@ def test_joint_wrench_body_ordering(sim, tmp_path: Path) -> None:
     stage.GetRootLayer().Save()
 
     cfg = InteractiveSceneCfg(num_envs=2, env_spacing=2.0)
+    # Declare the sensor first and use a different prefix to exercise root association.
+    cfg.wrench = JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}")
     cfg.robot = ArticulationCfg(
         prim_path="{ENV_REGEX_NS}/Robot",
         spawn=sim_utils.UsdFileCfg(usd_path=usd_path),
         body_ordering=("base", "right", "left"),
         actuators={"joints": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=0.0, damping=0.0)},
     )
-    # A different prefix verifies association by articulation root rather than matching config paths.
-    cfg.wrench = JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}")
     scene = InteractiveScene(cfg)
     sim.reset()
     robot, sensor = scene["robot"], scene["wrench"]
