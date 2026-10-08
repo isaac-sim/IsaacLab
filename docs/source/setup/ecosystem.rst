@@ -24,6 +24,104 @@ lets a supported environment keep the same structure while its preset selects th
 :doc:`/source/concepts/backend_architecture` for the implementation model.
 
 
+Modular Multi-Backend Physics and Rendering
+-------------------------------------------
+
+Isaac Lab supports two physics backends, with PhysX support available through either a Kit-based
+Isaac Sim PhysX implementation and a standalone (Kit-less) OvPhysX implementation.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 13 25 31 31
+
+   * - Backend
+     - Best fit
+     - Benefits
+     - Trade-offs
+   * - **Newton**
+     - Lightweight training and workflows that can use multiple solver families
+     - Warp-native GPU execution without Isaac Sim; provides MJWarp, VBD, MPM, and other solver
+       paths
+     - Task and feature coverage varies by solver, and changing solvers can require retuning
+   * - **OvPhysX**
+     - Kit-less PhysX workflows
+     - PhysX SDK available through a standalone runtime and can pair with kit-less OVRTX rendering
+     - Cannot be mixed together with Isaac Sim workflows
+   * - **Isaac Sim PhysX**
+     - Isaac Sim workflows that require full Kit integration
+     - PhysX SDK through Isaac Sim and Kit
+     - Requires the larger Isaac Sim and Kit runtime
+
+.. raw:: html
+
+   <video autoplay loop muted playsinline controls preload="metadata" aria-label="A PhysX-trained ANYmal-D policy runs side by side in PhysX and Newton MJWarp" style="width:100%; max-width:960px; display:block; margin:1.5em auto;">
+     <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/sim2sim_anymal_d_transfer_10s_trimmed.mp4" type="video/mp4">
+   </video>
+
+Additionally, Isaac Lab provides multiple rendering options through the Newton Tiled Camera sensor and
+RTX, available as a standalone library OvRTX, as well as Isaac Sim Kit-based Isaac Sim RTX.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 13 25 31 31
+
+   * - Renderer
+     - Best fit
+     - Benefits
+     - Trade-offs
+   * - **Newton Tiled Camera Sensor**
+     - Kit-less training where lightweight camera observations are sufficient at small resolutions
+     - Warp-native raytraced tiled rendering; supports RGB, depth, normals, and
+       semantic and instance segmentation at high throughput
+     - Lower fidelity rendering; minimal support for complex lighting and physics-based materials
+   * - **OvRTX**
+     - Kit-less rendering workflows that require high-fidelity RTX image quality
+     - Provides higher throughput minimal mode; supports photo-real rendering and can be combined
+       with Newton or OvPhysX without requiring Isaac Sim
+     - Requires the optional ``ovrtx`` runtime; may require higher VRAM for high fidelity rendering
+   * - **Isaac RTX**
+     - Isaac Sim-based workflows that require full RTX fidelity and the broadest sensor-output coverage
+     - Provides higher throughput minimal mode and photo-real rendering integrated with PhysX, Kit, and the Isaac Sim toolchain
+     - Requires the larger Isaac Sim and Kit runtime
+
+.. grid:: 1 1 3 3
+   :gutter: 2
+
+   .. grid-item-card:: Newton Tiled Camera Sensor
+
+      .. image:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-newton.webp
+         :alt: Material spheres rendered with the Newton Tiled Camera Sensor
+         :width: 100%
+
+      Lightweight Warp rasterization for tiled camera observations.
+
+   .. grid-item-card:: OVRTX
+
+      .. image:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-ovrtx.webp
+         :alt: Material spheres rendered with the kit-less OVRTX renderer
+         :width: 100%
+
+      Kit-less RTX materials, lighting, and camera outputs.
+
+   .. grid-item-card:: Isaac RTX
+
+      .. image:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-isaac-rtx.webp
+         :alt: Material spheres rendered with Isaac RTX in Isaac Sim
+         :width: 100%
+
+      Full RTX fidelity and camera-output coverage in Isaac Sim.
+
+See :ref:`renderer-visual-comparison` for the complete output gallery.
+
+Physics, camera sensor rendering, and interactive visualization are separate choices. For example, Newton
+can use the lightweight Newton Tiled Camera Sensor or OvRTX for RTX image quality without Isaac Sim.
+See :doc:`/source/concepts/physics_backends`, :doc:`/source/concepts/renderers`, and
+:doc:`/source/concepts/visualization` for current support matrices and preset commands.
+
+For the most lightweight installation experience, Newton brings the best experience through an out-of-the-box
+installation setup, multiple physics solver capabilities with solver coupling mechanisms, as well as
+lightweight rendering sensors.
+
 Capabilities in motion
 ----------------------
 
@@ -54,86 +152,27 @@ to run them yourself.
       The SO-101 tutorial trains a state teacher and distills it into a wrist-camera policy for
       vial placement. See the :doc:`SO-101 tutorial </source/setup/tutorial>`.
 
-   .. grid-item-card:: Newton MPM fluid simulation
+   .. grid-item-card:: Robot cable manipulation
 
       .. raw:: html
 
-         <video autoplay loop muted playsinline preload="metadata" aria-label="A teapot pours MPM water into a bowl" style="width:100%;">
-           <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/videos/mpm_teapot_particles.mp4" type="video/mp4">
+         <video autoplay loop muted playsinline preload="metadata" aria-label="A Rizon robot uses a Sharpa hand to manipulate an RJ45 cable" style="width:100%;">
+           <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/videos/rizon_sharpa_rj45_gb300.mp4" type="video/mp4">
          </video>
 
-      Newton's MPM solver couples fluid particles, rigid bodies, and interactive controls in the
-      packaged **Teapot Fill** demo.
+      A Rizon robot and Sharpa hand demonstrate contact-rich manipulation of an RJ45 cable.
 
-   .. grid-item-card:: Contact-rich material coupling
+   .. grid-item-card:: Robot teapot manipulation
 
       .. raw:: html
 
-         <video autoplay loop muted playsinline preload="metadata" aria-label="MPM snowballs strike a stack of rigid crates" style="width:100%;">
-           <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/videos/mpm_snowball.mp4" type="video/mp4">
+         <video autoplay loop muted playsinline preload="metadata" aria-label="A Rizon robot uses a Sharpa hand to manipulate a teapot" style="width:100%;">
+           <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/videos/rizon_sharpa_teapot.mp4" type="video/mp4">
          </video>
 
-      The **Snowball Smash** demo combines deformable MPM material with rigid-body contact.
+      A Rizon robot and Sharpa hand demonstrate dexterous teapot manipulation with MPM fluid simulation.
 
 
-Applications built on Isaac Lab
--------------------------------
-
-The framework also serves as the simulation and environment layer for higher-level applications.
-These projects have their own releases and installation requirements:
-
-.. grid:: 1 1 2 2
-   :gutter: 2
-
-   .. grid-item-card:: Isaac Lab-Arena
-      :link: https://github.com/isaac-sim/IsaacLab-Arena
-
-      Composes scenes, robot embodiments, and tasks into scalable benchmarks, then evaluates
-      generalist robot policies across controlled environment variations.
-
-   .. grid-item-card:: NVIDIA Isaac GR00T workflows
-      :link: https://github.com/NVIDIA/Isaac-GR00T
-
-      Uses Isaac Lab environments for demonstration collection, synthetic trajectory generation,
-      policy training, and closed-loop evaluation of generalist robot models.
-
-
-Choose a physics backend
-------------------------
-
-Isaac Lab supports two physics backends, with PhysX support available through either a Kit-based
-Isaac Sim PhysX implementation and a standalone (Kit-less) OvPhysX implementation.
-
-.. list-table::
-   :header-rows: 1
-   :widths: 13 25 31 31
-
-   * - Backend
-     - Best fit
-     - Benefits
-     - Trade-offs
-   * - **Newton**
-     - Lightweight training and workflows that can use multiple solver families
-     - Warp-native GPU execution without Isaac Sim; provides MJWarp, VBD, MPM, and other solver
-       paths
-     - Task and feature coverage varies by solver, and changing solvers can require retuning
-   * - **OvPhysX**
-     - Kit-less PhysX workflows
-     - PhysX SDK available through a standalone runtime and can pair with kit-less OVRTX rendering
-     - Cannot be mixed together with Isaac Sim workflows
-   * - **Isaac Sim PhysX**
-     - Isaac Sim workflows that require full Kit integration
-     - PhysX SDK through Isaac Sim and Kit
-     - Requires the larger Isaac Sim and Kit runtime
-
-Physics, camera rendering, and interactive visualization are separate choices. For example, Newton
-can use the lightweight Newton Warp renderer or OVRTX for RTX image quality without Isaac Sim.
-See :doc:`/source/concepts/physics_backends`, :doc:`/source/concepts/renderers`, and
-:doc:`/source/concepts/visualization` for current support matrices and preset commands.
-
-For the most lightweight installation experience, Newton brings the best experience through an out-of-the-box
-installation setup, multiple physics solver capabilities with solver coupling mechanisms, as well as
-lightweight rendering sensors.
 
 
 Is Isaac Lab a simulator?
@@ -199,6 +238,28 @@ Concretely, Isaac Lab offers:
 * **Kit-less deployment** — run policies and simulations using the Newton backend without a
   full Isaac Sim installation. URDF and MJCF command-line conversion can also run kit-less
   when the standalone ``isaacsim-asset-isolated`` importer wheel is installed.
+
+
+Applications built on Isaac Lab
+-------------------------------
+
+The framework also serves as the simulation and environment layer for higher-level applications.
+These projects have their own releases and installation requirements:
+
+.. grid:: 1 1 2 2
+   :gutter: 2
+
+   .. grid-item-card:: Isaac Lab-Arena
+      :link: https://github.com/isaac-sim/IsaacLab-Arena
+
+      Composes scenes, robot embodiments, and tasks into scalable benchmarks, then evaluates
+      generalist robot policies across controlled environment variations.
+
+   .. grid-item-card:: NVIDIA Isaac GR00T workflows
+      :link: https://github.com/NVIDIA/Isaac-GR00T
+
+      Uses Isaac Lab environments for demonstration collection, synthetic trajectory generation,
+      policy training, and closed-loop evaluation of generalist robot models.
 
 
 .. _PhysX: https://developer.nvidia.com/physx-sdk
