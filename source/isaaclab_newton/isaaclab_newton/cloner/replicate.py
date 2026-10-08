@@ -15,7 +15,7 @@ import numpy as np
 import warp as wp
 from newton import Axis, ModelBuilder
 
-from pxr import Sdf, Usd, UsdGeom
+from pxr import Usd, UsdGeom
 
 from isaaclab.assets import AssetBaseCfg
 from isaaclab.cloner import ClonePlan, PrototypeWorldTopology
@@ -33,6 +33,7 @@ from isaaclab.sim.utils.queries import has_deformable_body_api
 
 from isaaclab_newton.cloner.newton_clone_utils import (
     add_deformable_from_usd,
+    add_visual_deformables_to_sources,
     build_source_builders,
     replicate_builder_mapping,
 )
@@ -116,12 +117,14 @@ def _replicate_newton(
     global_paths = tuple(
         root for root, parent in zip(shared, cloner_path.get_parent_indices(shared), strict=True) if parent == -1
     )
-    # A sensor selects an existing body; opting out of cloning must not remove that body from its owner.
+    routed_sources = tuple(sources[index] for index in asset_prototype_ids if sources[index] is not None)
+    # A selected source owns its entire USD subtree, including separately declared descendants.
     exclude_paths = tuple(
         source
         for index, source in enumerate(sources)
         if source is not None and index not in asset_prototype_ids
         if not isinstance(plan.asset_cfgs[index], SensorBaseCfg)
+        if not any(cloner_path.relative_to(source, owner) is not None for owner in routed_sources)
     )
     simulation = isinstance(cfg, NewtonCfg)
     if positions is None:
@@ -139,7 +142,20 @@ def _replicate_newton(
     builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=cfg))
     builder.up_axis = Axis.from_string(up_axis)
     import_paths = (sim.cfg.physics_prim_path, *global_paths) if simulation else global_paths
-    source_paths = list(dict.fromkeys(sources[index] for index in asset_prototype_ids if sources[index] is not None))
+    # Parse a source only if some world prototype needs a copy not supplied by an ancestor copy.
+    needed = set()
+    for start, end in zip(starts[:-1], starts[1:], strict=True):
+        references = []
+        for index in range(start, end):
+            # Only prototypes routed to Newton with a USD source can be imported.
+            if (asset := plan.topology.world_prototypes[index]) in asset_prototype_ids and sources[asset] is not None:
+                references.append((sources[asset], templates[index]))
+        parents = cloner_path.get_parent_indices([target for _, target in references])
+        for (source, target), parent in zip(references, parents, strict=True):
+            # Roots need a copy; skip a child only when its parent copy already supplies it.
+            if parent == -1 or source != references[parent][0] + cloner_path.relative_to(target, references[parent][1]):
+                needed.add(source)
+    source_paths = list(dict.fromkeys(source for source in routed_sources if source in needed))
     if simulation:
         deformable_paths = []
         for source in source_paths:
@@ -164,31 +180,7 @@ def _replicate_newton(
     if simulation:
         entries = [add_deformable_from_usd(source_builders[path], stage, root_path=path) for path in deformable_paths]
     else:
-        # Import visual meshes once into their owning prototypes, before the common native replication.
-        for entry in entries:
-            ancestors = reversed(Sdf.Path(entry.root_path).GetPrefixes())
-            source = next(str(path) for path in ancestors if str(path) in source_builders)
-            native = source_builders[source]
-            pose = dict(pos=wp.vec3(*entry.init_pos), rot=wp.quat(*entry.init_rot), scale=1.0, vel=wp.vec3())
-            surface = entry.deformable_type == "surface" or entry.vis_mesh_path != entry.sim_mesh_path
-            particle_start, tri_start = native.particle_count, len(native.tri_indices)
-            edge_start, tet_start = len(native.edge_indices), len(native.tet_indices)
-            if surface:
-                add_mesh = native.add_cloth_mesh
-                mesh = dict(vertices=entry.vis_vertices, indices=entry.vis_indices, density=1.0)
-                mesh.update(tri_ke=1e4, tri_ka=1e4, tri_kd=1.5e-6, edge_ke=5.0, edge_kd=1e-2, particle_radius=0.008)
-            else:
-                add_mesh = native.add_soft_mesh
-                mesh = dict(vertices=entry.vertices, indices=entry.indices, density=1000.0)
-                mesh.update(k_mu=1e5, k_lambda=1e5, k_damp=0.0)
-            add_mesh(label=entry.vis_mesh_path, **mesh, **pose)
-            # Remove private recording when the pinned Newton includes #3326.
-            particle_range = particle_start, native.particle_count
-            if surface:
-                tri_range, edge_range = (tri_start, len(native.tri_indices)), (edge_start, len(native.edge_indices))
-                native._record_cloth_group(entry.vis_mesh_path, particle_range, tri_range, edge_range)
-            else:
-                native._record_soft_group(entry.vis_mesh_path, particle_range, (tet_start, len(native.tet_indices)))
+        add_visual_deformables_to_sources(source_builders, entries)
 
     # Resolve native capsule indices once per source, not by rediscovering labels after cloning.
     source_cables = {}

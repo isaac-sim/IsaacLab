@@ -86,6 +86,37 @@ def add_deformable_from_usd(builder: ModelBuilder, stage: Usd.Stage, *, root_pat
     return geometry
 
 
+def add_visual_deformables_to_sources(
+    builders: dict[str, ModelBuilder], entries: Sequence[DeformableStageEntry]
+) -> None:
+    """Add each visual deformable to every imported source containing its USD subtree."""
+    for entry in entries:
+        for path in reversed(Sdf.Path(entry.root_path).GetPrefixes()):
+            builder = builders.get(str(path))
+            if builder is None:
+                continue
+            pose = dict(pos=wp.vec3(*entry.init_pos), rot=wp.quat(*entry.init_rot), scale=1.0, vel=wp.vec3())
+            surface = entry.deformable_type == "surface" or entry.vis_mesh_path != entry.sim_mesh_path
+            particle_start, tri_start = builder.particle_count, len(builder.tri_indices)
+            edge_start, tet_start = len(builder.edge_indices), len(builder.tet_indices)
+            if surface:
+                add_mesh = builder.add_cloth_mesh
+                mesh = dict(vertices=entry.vis_vertices, indices=entry.vis_indices, density=1.0)
+                mesh.update(tri_ke=1e4, tri_ka=1e4, tri_kd=1.5e-6, edge_ke=5.0, edge_kd=1e-2, particle_radius=0.008)
+            else:
+                add_mesh = builder.add_soft_mesh
+                mesh = dict(vertices=entry.vertices, indices=entry.indices, density=1000.0)
+                mesh.update(k_mu=1e5, k_lambda=1e5, k_damp=0.0)
+            add_mesh(label=entry.vis_mesh_path, **mesh, **pose)
+            # Remove private recording when the pinned Newton includes #3326.
+            particle_range = particle_start, builder.particle_count
+            if surface:
+                tri_range, edge_range = (tri_start, len(builder.tri_indices)), (edge_start, len(builder.edge_indices))
+                builder._record_cloth_group(entry.vis_mesh_path, particle_range, tri_range, edge_range)
+            else:
+                builder._record_soft_group(entry.vis_mesh_path, particle_range, (tet_start, len(builder.tet_indices)))
+
+
 def build_source_builders(
     stage: Usd.Stage,
     sources: Sequence[str],
@@ -127,10 +158,7 @@ def build_source_builders(
             hide_collision_shapes=True,
             skip_mesh_approximation=skip_mesh_approximation,
             schema_resolvers=schema_resolvers,
-            ignore_paths=[
-                *(ignore_paths or ()),
-                *(path for path in sources if path != source and clone_path.relative_to(path, source) is not None),
-            ],
+            ignore_paths=ignore_paths or (),
             return_deformable_results=True,
         )
         replace_newton_builder_shape_colors(builder, stage)
@@ -304,7 +332,14 @@ def replicate_builder_mapping(
     for prototype_id, first_world in zip((-1, *prototype_ids), (-1, *first_world_ids), strict=True):
         start, end = starts[prototype_id + 1 : prototype_id + 3]
         reference_paths = [(sources[topology.world_prototypes[index]], templates[index]) for index in range(start, end)]
-        components = [(source, template) for source, template in reference_paths if source in source_builders]
+        available = [(source, template) for source, template in reference_paths if source in source_builders]
+        # A parent copy covers a child only when the source and destination suffixes match.
+        parents = clone_path.get_parent_indices([target for _, target in available])
+        components = [
+            (source, target)
+            for (source, target), parent in zip(available, parents, strict=True)
+            if parent == -1 or source != available[parent][0] + clone_path.relative_to(target, available[parent][1])
+        ]
         prototype = builder if prototype_id == -1 else ModelBuilder(up_axis=builder.up_axis)
         sites, asset_offsets = {}, []
         for source, destination in components:

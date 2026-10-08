@@ -349,6 +349,8 @@ before changing an interface. Apply these rules when adding code or cleaning up 
   :doc:`/source/developer-tools/add_physics_backend` for backend integration.
 * Treat non-spawning sensor paths as references to existing scene prims, not as independently owned
   clone sources. Import the owning asset and resolve sensor tracking from its replicated prims.
+* Keep nested physics bodies in their owning source import. A second declaration only requires a
+  separate native copy when its source-to-destination mapping is not already covered by the parent.
 * Prefer existing project dependencies and the standard library. Do not add dependencies or compatibility
   layers for hypothetical future uses.
 
