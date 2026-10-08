@@ -10,10 +10,11 @@ migrating, and contributing. Codex and Claude discover them automatically from a
 Skill categories
 ----------------
 
-Skills are either invoked by you or applied automatically by the agent. The audience directory
-(``user/`` or ``developer/``) says who a skill is for.
+Skills typically fall into two groups: ones you invoke and ones the agent applies automatically.
+The groups are not exclusive. The audience directory (``user/`` or ``developer/``) says who a skill
+is for.
 
-User-invoked skills
+Typically user-invoked skills
   Ask for these by task or by name, for example ``/isaaclab-installing-isaac-lab`` in Claude Code.
   They cover work you start yourself: installing Isaac Lab, creating and converting environments,
   training and debugging RL, choosing backends and presets, preparing assets for Newton, migrating from
@@ -21,8 +22,8 @@ User-invoked skills
   maintainer tasks under ``skills/developer/`` are also run on request: ``issue-audit`` and
   ``issue-backlog-triage``.
 
-Agent-automated skills
-  The agent loads these on its own when a task matches the skill description, following ``AGENTS.md``.
+Typically agent-automated skills
+  The agent usually loads these on its own when a task matches the skill description, following ``AGENTS.md``.
   They cover contribution conventions: coding style, test audits, changelog fragments, environment
   docs synchronization, and PR preparation. They live under ``skills/developer/``.
 

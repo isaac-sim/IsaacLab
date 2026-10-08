@@ -441,6 +441,23 @@ isaaclab_doc_redirect_fragments = {
         "cloud-workstations": "source/workflows/docker/cloud#docker-cloud-cloud",
         "docker-cloud-cloud": "source/workflows/docker/cloud#docker-cloud-cloud",
     },
+    # Sections of the former recording and streaming camera pages now live in Visualization concepts.
+    "source/features/record_video": {
+        "overview": "source/concepts/visualization#video-recording",
+        "record-video-cli": "source/concepts/visualization#record-video-cli",
+        "usage": "source/how-to/record_video#sources",
+        "source-types": "source/how-to/record_video#sources",
+        "recording-from-an-independent-camera-angle": "source/concepts/visualization#visualization-recording-angle",
+        "limitations-and-compatibility": "source/how-to/record_video#limitations",
+    },
+    "source/features/visualizer_tiled_camera": {
+        "overview": "source/concepts/visualization#visualization-streaming-camera-view",
+        "usage": "source/concepts/visualization#visualization-streaming-camera-view",
+        "configuration-notes": "source/concepts/visualization#configuration",
+        "troubleshooting": "source/concepts/visualization#troubleshooting",
+        "migration-from-generated-streaming-cameras": "source/concepts/visualization#migrating-from-generated-cameras",
+        "declared-display-sources": "source/concepts/visualization#display-sources",
+    },
 }
 
 # -- Advanced configuration -------------------------------------------------
