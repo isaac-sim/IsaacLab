@@ -16,7 +16,7 @@ from pxr import Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
 
 from isaaclab.cloner import ClonePlan
 from isaaclab.cloner import path as clone_path
-from isaaclab.scene_data.deformable_discovery import DeformableStageEntry, deformable_entry
+from isaaclab.scene_data.deformable_discovery import DeformableStageEntry
 from isaaclab.sim.utils.newton_model_utils import replace_newton_builder_shape_colors
 from isaaclab.utils.string import to_camel_case
 
@@ -27,16 +27,13 @@ from isaaclab_newton.sim.spawners.materials import (
 )
 
 
-def add_deformable_from_usd(builder: ModelBuilder, stage: Usd.Stage, *, root_path: str) -> DeformableStageEntry:
-    """Import one declared deformable's geometry, Newton material, and native element ranges.
+def add_deformable_from_usd(builder: ModelBuilder, stage: Usd.Stage, geometry: DeformableStageEntry) -> None:
+    """Add a discovered deformable's geometry, Newton material, and native element ranges.
 
     Args:
         builder: Source builder that receives the complete deformable prototype.
         stage: Stage containing the authored geometry and bound physics material.
-        root_path: Deformable-body prim path.
-
-    Returns:
-        Prototype geometry for SDP's visual-mesh binding.
+        geometry: Deformable prototype discovered beneath an imported source.
 
     Note:
         Replace this importer with native ``add_usd`` when Isaac Lab's authored schemas and
@@ -44,13 +41,10 @@ def add_deformable_from_usd(builder: ModelBuilder, stage: Usd.Stage, *, root_pat
         The native USD importer landed in #3192; that alone does not establish material parity.
         Remove private group recording when the pinned Newton includes #3326's native recording.
     """
-    prim = stage.GetPrimAtPath(root_path)
-    geometry = deformable_entry(prim)
-    if geometry is None:
-        raise ValueError(f"No simulation mesh found under deformable {root_path!r}.")
+    prim = stage.GetPrimAtPath(geometry.root_path)
     material = UsdShade.MaterialBindingAPI(prim).ComputeBoundMaterial(materialPurpose="physics")[0].GetPrim()
     if not material:
-        raise ValueError(f"Deformable {root_path!r} requires a bound Newton physics material.")
+        raise ValueError(f"Deformable {geometry.root_path!r} requires a bound Newton physics material.")
     if geometry.deformable_type == "volume":
         add_mesh = builder.add_soft_mesh
         defaults = NewtonDeformableBodyMaterialCfg()
@@ -73,17 +67,19 @@ def add_deformable_from_usd(builder: ModelBuilder, stage: Usd.Stage, *, root_pat
         rot=wp.quat(*geometry.init_rot),
         scale=1.0,
         vel=wp.vec3(),
-        label=root_path,
+        label=geometry.root_path,
         **material_kwargs,
     )
     particle_range = (particle_start, builder.particle_count)
     if geometry.deformable_type == "volume":
-        builder._record_soft_group(root_path, particle_range, (tet_start, len(builder.tet_indices)))
+        builder._record_soft_group(geometry.root_path, particle_range, (tet_start, len(builder.tet_indices)))
     else:
         builder._record_cloth_group(
-            root_path, particle_range, (tri_start, len(builder.tri_indices)), (edge_start, len(builder.edge_indices))
+            geometry.root_path,
+            particle_range,
+            (tri_start, len(builder.tri_indices)),
+            (edge_start, len(builder.edge_indices)),
         )
-    return geometry
 
 
 def add_visual_deformables_to_sources(

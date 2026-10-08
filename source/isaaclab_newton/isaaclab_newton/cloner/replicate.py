@@ -15,7 +15,7 @@ import numpy as np
 import warp as wp
 from newton import Axis, ModelBuilder
 
-from pxr import Usd, UsdGeom
+from pxr import Sdf, Usd, UsdGeom
 
 from isaaclab.assets import AssetBaseCfg
 from isaaclab.cloner import ClonePlan, PrototypeWorldTopology
@@ -29,7 +29,6 @@ from isaaclab.scene_data.deformable_discovery import (
 )
 from isaaclab.sensors import SensorBaseCfg
 from isaaclab.sim import SpawnerCfg
-from isaaclab.sim.utils.queries import has_deformable_body_api
 
 from isaaclab_newton.cloner.newton_clone_utils import (
     add_deformable_from_usd,
@@ -162,17 +161,12 @@ def _replicate_newton(
                     f"from {parent_source!r}. A nested Newton source must be {expected!r}."
                 )
     source_paths = list(dict.fromkeys(source for source in routed_sources if source in needed))
+    # A parent source also owns deformables declared beneath it, even when the child has its own asset config.
+    entries = deformable_prototypes(stage, plan, exclude_paths=exclude_paths)
     if simulation:
-        deformable_paths = []
-        for source in source_paths:
-            prim = stage.GetPrimAtPath(source)
-            is_mesh_body = prim and not prim.IsA(UsdGeom.Points) and not prim.IsA(UsdGeom.BasisCurves)
-            if is_mesh_body and has_deformable_body_api(prim):
-                deformable_paths.append(source)
         ignore_paths = manager_cls._inject_terrain_heightfields(stage, builder, root_paths=import_paths)
-        ignore_paths.extend((*exclude_paths, *deformable_paths))
+        ignore_paths.extend((*exclude_paths, *(entry.root_path for entry in entries)))
     else:
-        entries = deformable_prototypes(stage, plan, exclude_paths=exclude_paths)
         ignore_paths = [*exclude_paths, *(entry.root_path for entry in entries)]
 
     stage_info = None
@@ -184,7 +178,12 @@ def _replicate_newton(
     options.update(skip_mesh_approximation=not simulation, import_results_out=import_results)
     source_builders = build_source_builders(stage, source_paths, create_builder, schema_resolvers, **options)
     if simulation:
-        entries = [add_deformable_from_usd(source_builders[path], stage, root_path=path) for path in deformable_paths]
+        for entry in entries:
+            ancestors = reversed(Sdf.Path(entry.root_path).GetPrefixes())
+            source = next((source_builders[str(path)] for path in ancestors if str(path) in source_builders), None)
+            if source is None:
+                raise RuntimeError(f"No imported source owns deformable {entry.root_path!r}.")
+            add_deformable_from_usd(source, stage, entry)
     else:
         add_visual_deformables_to_sources(source_builders, entries)
 
