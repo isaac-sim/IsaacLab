@@ -14,7 +14,7 @@ import threading
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-from ._protocol import ProtocolError, check_reply, connect, parse_endpoint, receive_message, send_message
+from .._protocol import ProtocolError, check_reply, connect, parse_endpoint, receive_message, send_message
 
 if TYPE_CHECKING:
     import numpy as np

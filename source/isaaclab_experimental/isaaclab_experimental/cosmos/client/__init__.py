@@ -3,8 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Cosmos camera client API, with model serving in the separate ``server`` package."""
+"""Camera controls and client resources connecting Isaac Lab to a resident Cosmos server."""
 
-import lazy_loader as lazy
+from isaaclab.utils.module import lazy_export
 
-__getattr__, __dir__, __all__ = lazy.attach_stub(__name__, __file__)
+lazy_export()

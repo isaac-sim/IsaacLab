@@ -135,8 +135,9 @@ def receive_message(sock: socket.socket) -> tuple[dict, list[np.ndarray]]:
         shapes.append(tuple(shape))
     if sum(sizes) != body_size:
         raise ProtocolError("Cosmos array descriptors do not match the payload size.")
-    arrays = [np.frombuffer(_receive_exact(sock, size), dtype=np.uint8).reshape(shape)
-              for size, shape in zip(sizes, shapes)]
+    arrays = [
+        np.frombuffer(_receive_exact(sock, size), dtype=np.uint8).reshape(shape) for size, shape in zip(sizes, shapes)
+    ]
     return metadata, arrays
 
 

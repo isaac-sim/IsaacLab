@@ -19,11 +19,7 @@ __all__ = [
     "segmentation_processor",
 ]
 
-from .client import (
-    CosmosModel,
-    CosmosModelCfg,
-    CosmosTransferModifier,
-    CosmosTransferModifierCfg,
+from .control_profiles import (
     RegionalEdgeControl,
     RegionalEdgeControlCfg,
     depth_processor,
@@ -34,3 +30,7 @@ from .client import (
     regional_edges,
     segmentation_processor,
 )
+from .cosmos_model import CosmosModel
+from .cosmos_model_cfg import CosmosModelCfg
+from .cosmos_modifier import CosmosTransferModifier
+from .cosmos_modifier_cfg import CosmosTransferModifierCfg

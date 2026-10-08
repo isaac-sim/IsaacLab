@@ -16,7 +16,7 @@ from typing import Protocol
 
 import numpy as np
 
-from ._protocol import ProtocolError, receive_message, send_message
+from .._protocol import ProtocolError, receive_message, send_message
 
 _LOGGER = logging.getLogger(__name__)
 

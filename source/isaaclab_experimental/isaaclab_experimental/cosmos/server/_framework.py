@@ -79,9 +79,10 @@ class CosmosInferenceModel:
                 use_torch_compile=use_compile,
                 use_cuda_graphs=use_compile,
                 compiled_region="language",
-                condition_stream_encode=True,
-                kv_cache_inference_size=8,
-                attention_sink_size=3,
+                experiment_overrides=[
+                    "model.config.kv_cache_inference_size=8",
+                    "model.config.attention_sink_size=3",
+                ],
                 dp_shard_size=1,
                 cp_size=1,
                 cfgp_size=1,
@@ -208,13 +209,13 @@ class CosmosInferenceModel:
             aspect_ratio=_CANVASES[(height, width)],
             num_frames=max_episode_frames,
             fps=30,
-            autoregressive=False,
             num_steps=4,
             guidance=1.0,
             shift=5.0,
             negative_metadata_mode="none",
             negative_prompt_keep_metadata=False,
             prompt_upsampling=False,
+            **({"autoregressive": False} if "autoregressive" in OmniSampleOverrides.model_fields else {}),
         ).build_sample(model_config=model.config)
         data = _get_prompt_sample_data(sample, model, h=height, w=width, device="cuda")
         # Native streaming transfer names the active hint in the caption; its

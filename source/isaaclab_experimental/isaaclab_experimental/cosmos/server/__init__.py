@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Cosmos camera client API, with model serving in the separate ``server`` package."""
+"""Optional Cosmos model service running independently of the camera client."""
 
 import lazy_loader as lazy
 

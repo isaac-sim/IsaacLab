@@ -9,13 +9,14 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
 
-from ._framework import CosmosInferenceModel
-from .service import serve
+from isaaclab_experimental.cosmos.server._framework import CosmosInferenceModel
+from isaaclab_experimental.cosmos.server.service import serve
 
 
 def main(args: list[str] | None = None) -> None:
-    """Run the worker with the optional Cosmos Framework interpreter."""
+    """Run the streaming service in the Cosmos Framework environment."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--checkpoint", required=True)
     parser.add_argument("--device", default="cuda:0")
@@ -25,6 +26,9 @@ def main(args: list[str] | None = None) -> None:
     parser.add_argument("--warmup", action="store_true")
     options = parser.parse_args(args)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    os.environ["COSMOS_TRAINING"] = "0"
+    os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
+    os.environ.setdefault("TORCHINDUCTOR_COMPILE_THREADS", "2")
     model = CosmosInferenceModel(options.checkpoint, options.device, use_compile=not options.no_compile)
     try:
         serve(model, host=options.host, port=options.port, warmup=options.warmup)

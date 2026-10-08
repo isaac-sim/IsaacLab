@@ -3,8 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Cosmos camera client API, with model serving in the separate ``server`` package."""
+__all__ = ["CosmosInferenceModel", "serve"]
 
-import lazy_loader as lazy
-
-__getattr__, __dir__, __all__ = lazy.attach_stub(__name__, __file__)
+from ._framework import CosmosInferenceModel
+from .service import serve

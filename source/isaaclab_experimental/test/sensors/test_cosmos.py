@@ -25,8 +25,8 @@ import numpy as np
 import pytest
 import torch
 from isaaclab_experimental.cosmos import CosmosModelCfg, CosmosTransferModifierCfg, _protocol
-from isaaclab_experimental.cosmos.cosmos_model import CosmosModel
-from isaaclab_experimental.cosmos.service import serve
+from isaaclab_experimental.cosmos.client import CosmosModel
+from isaaclab_experimental.cosmos.server import serve
 from isaaclab_experimental.image_transfer import depth_to_control
 from isaaclab_experimental.image_transfer import modifier as modifier_module
 
