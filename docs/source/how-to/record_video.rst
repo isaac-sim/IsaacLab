@@ -198,8 +198,10 @@ Record a short clip at regular intervals while training, without opening a windo
        --video_length 200 --video_interval 2000
 
 With no ``--viz``, ``--video`` records from a headless Newton GL visualizer. This writes a
-200-step clip every 2,000 steps into ``videos/`` under the run's log directory. Add
-``--viz kit`` to watch the run in a window while recording the same view.
+200-step clip every 2,000 steps. The ``train`` and ``play`` entrypoints put clips in ``videos/``
+under the run's log directory unless a recorder sets ``output_dir``; a script that builds its own
+recorders writes to ``output_dir`` (default ``videos``). Add ``--viz kit`` to watch the run in a
+window while recording the same view.
 
 Recording depth or segmentation from a scene sensor
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

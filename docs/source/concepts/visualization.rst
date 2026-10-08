@@ -537,8 +537,9 @@ Multiple visualizers can display the same sensor with different tile selections.
 Attach a camera to a robot body to follow its motion, or select an existing view such as the Galbot
 task's wrist-mounted and ego cameras. The view is supported in the Kit, Newton GL, Rerun, and Viser
 visualizers; Newton RTX supports perspective views only and rejects explicit scene-camera sources
-(experimental). **Kit** opens it as a separate **Streaming View** viewport, and **Newton GL** adds a
-**Streaming View** HUD section with a **Hide** / **Open** toggle and a source dropdown.
+(experimental). **Kit** opens it as a separate **Streaming View** viewport, which can sit side by side
+with the default viewport for dual monitoring, and **Newton GL** adds a **Streaming View** HUD section
+with a **Hide** / **Open** toggle and a source dropdown.
 
 See :doc:`/source/how-to/visualizer_streaming_camera_view` for the ``VisualizerCfg`` options, display
 sources, troubleshooting, migration from generated cameras, and step-by-step examples.

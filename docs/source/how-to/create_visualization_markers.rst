@@ -97,11 +97,11 @@ current velocity, or contact events:
 
 .. raw:: html
 
-   <img src="../../_static/markers_anymal_d.jpg" alt="Velocity arrow marker on an AnymalD robot" style="width:100%;">
+   <img src="../../_static/visualizers/markers_anymal_d.jpg" alt="Velocity arrow marker on an AnymalD robot" style="width:100%;">
    <p style="text-align:center; font-style:italic; margin-top:0.4em; font-size:0.9em;">
    Velocity command (green) and current velocity (blue) arrow markers on an AnymalD robot.</p>
 
-   <img src="../../_static/markers_franka.jpg" alt="Joint arrow markers on a Franka arm and contact sensor markers on a cube" style="width:100%;">
+   <img src="../../_static/visualizers/markers_franka.jpg" alt="Joint arrow markers on a Franka arm and contact sensor markers on a cube" style="width:100%;">
    <p style="text-align:center; font-style:italic; margin-top:0.4em; font-size:0.9em;">
    Joint arrow markers on a Franka arm, with contact sensor markers on a cube.</p>
 
