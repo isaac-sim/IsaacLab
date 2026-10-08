@@ -86,7 +86,10 @@ authoritative field list. Per-actor physical properties remain on the USD
 schema configuration described in
 :doc:`/source/concepts/schema_cfgs`.
 For a diagnose-first workflow covering solver selection, iterations, contacts,
-stability, and GPU capacities, see :ref:`physx-solver-tuning`.
+stability, and GPU capacities, see :ref:`physx-solver-tuning`. For how the
+backend starts Isaac Sim, owns the simulation lifecycle, and exposes PhysX
+tensor views, see :doc:`the PhysX backend page
+</source/concepts/physics-backends/physx>`.
 
 
 .. _physics-backends-newton:
@@ -140,6 +143,7 @@ follow the generated API links for :class:`~isaaclab_physx.physics.PhysxCfg`,
 .. toctree::
    :hidden:
 
+   /source/concepts/physics-backends/physx
    /source/concepts/physics-backends/newton
    /source/concepts/physics-backends/ovphysx
    /source/concepts/warp_environments
