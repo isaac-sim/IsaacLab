@@ -153,6 +153,15 @@ class TestModalityTerms:
         _, observe = _make_term(image_normals, _make_env({"normals": normals}))
         torch.testing.assert_close(observe(), (normals + 1.0) * 0.5)
 
+    def test_normals_preserves_positional_normalize(self):
+        """The positional normalize argument keeps its pre-data-type meaning."""
+        normals = torch.linspace(-1.0, 1.0, NUM_ENVS * HEIGHT * WIDTH * CHANNELS).reshape(
+            NUM_ENVS, HEIGHT, WIDTH, CHANNELS
+        )
+        env = _make_env({"normals": normals})
+        term, _ = _make_term(image_normals, env)
+        torch.testing.assert_close(term(env, SENSOR_CFG, False), normals)
+
     def test_rgb_drops_alpha_and_accepts_constant_mean(self):
         """Albedo's unused alpha channel is dropped and a constant mean replaces the per-image mean."""
         albedo = torch.randint(0, 255, (NUM_ENVS, HEIGHT, WIDTH, 4), dtype=torch.uint8)
