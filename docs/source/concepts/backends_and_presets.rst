@@ -193,7 +193,7 @@ Assets and sensors use the same layering as the factories:
    <isaaclab.utils.backend_utils.FactoryBase>` and that base class.
 3. Backend packages provide the supported implementations.
 
-Data classes use the same pattern, for example
+Sensor data classes use the same pattern, for example
 ``ContactSensorData(FactoryBase, BaseContactSensorData)``. Implementations expose
 :class:`~isaaclab.utils.warp.ProxyArray` values through public asset and sensor
 data properties. Each proxy wraps the underlying ``wp.array`` and provides
@@ -357,14 +357,14 @@ conventions:
    * - Name
      - Meaning
    * - ``isaacsim_rtx``
-     - Concrete Isaac Sim RTX renderer configuration. This is the default for
-       tasks that use the multi-backend renderer preset.
+     - Concrete Isaac Sim RTX renderer configuration.
    * - ``rtx``
      - Automatic RTX-family selection. Isaac Sim RTX is used when physics,
        visualization, livestreaming, or another runtime choice requires Kit;
        otherwise OVRTX is used for a fully kit-less run.
    * - ``newton_renderer``
-     - Newton Warp renderer.
+     - Newton Warp renderer. This is the default for tasks that use the
+       multi-backend renderer preset.
    * - ``ovrtx``
      - Concrete OVRTX renderer configuration for supported kit-less workflows.
 
