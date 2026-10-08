@@ -1148,7 +1148,8 @@ jobs:
       run: |
         set -euo pipefail
         cd "$PERF_CONTROLLER"
-        # Clear this run's baseline directory so interrupted restores cannot contaminate fresh results.
+        # Remove any error report from a failed check for reusable results in earlier CI runs
+        # to keep it out of the new benchmark results.
         rm -rf -- "$PERF_BASELINE_OUTPUT"
         mkdir -p "$PERF_BASELINE_OUTPUT"
         python3 -m tools.perf_smoke.paired capture \

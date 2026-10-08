@@ -184,7 +184,6 @@ def _initial_selection(event: dict, base_commit: str) -> dict:
 def restore_baseline(
     client: store.GitHubClient,
     checkout_root: Path,
-    output_dir: Path,
     selection_path: Path,
     event: dict,
     run_id: int,
@@ -193,7 +192,7 @@ def restore_baseline(
     legs: Path,
     base_commit: str | None = None,
 ) -> dict:
-    """Restore a complete verified measurement for this PR/base, or request a fresh one."""
+    """Select a complete verified measurement for this PR/base, or request a fresh one."""
     pr = event["pull_request"]
     pr_number, base_commit = pr["number"], _resolved_base(base_commit)
     manifest = prepare_manifest(checkout_root)
@@ -258,23 +257,6 @@ def restore_baseline(
                     )
                 if evidence.identity["run_id"] == run_id and evidence.identity["run_attempt"] >= run_attempt:
                     continue
-                restored_files = evidence.files
-                if any(
-                    PurePosixPath(path).is_absolute() or ".." in PurePosixPath(path).parts for path in restored_files
-                ):
-                    raise store.EvidenceError("corrupt", "Baseline artifact contains an invalid path.")
-                output_dir.parent.mkdir(parents=True, exist_ok=True)
-                with tempfile.TemporaryDirectory(prefix="baseline-restore-", dir=output_dir.parent) as directory:
-                    staged = Path(directory) / "results"
-                    staged.mkdir()
-                    for path, data in restored_files.items():
-                        destination = staged.joinpath(*PurePosixPath(path).parts)
-                        destination.parent.mkdir(parents=True, exist_ok=True)
-                        destination.write_bytes(data)
-                    # Publish only a complete restore; never mix its samples into an existing directory.
-                    if output_dir.exists():
-                        output_dir.replace(Path(directory) / "previous")
-                    staged.replace(output_dir)
                 selection.update(
                     baseline_reused=True,
                     baseline_origin=evidence.identity,
@@ -482,7 +464,6 @@ def _execute(args: argparse.Namespace, event: dict) -> None:
         selection = restore_baseline(
             store.GitHubClient(os.environ["GITHUB_REPOSITORY"]),
             args.checkout_root,
-            args.output_dir,
             args.selection,
             event,
             int(os.environ["GITHUB_RUN_ID"]),
