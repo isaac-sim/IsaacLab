@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import argparse
 import hashlib
-import importlib
 import json
 import os
 import subprocess
@@ -70,7 +69,7 @@ def prepare_manifest(root: Path) -> dict:
     namespaces = {}
     for path in files:
         parts = PurePosixPath(path).parts
-        # Test directories are not installed namespaces, even when they have __init__.py.
+        # Test directories may contain __init__.py without being installed packages.
         if len(parts) >= 4 and parts[0] == "source" and parts[2] == parts[1].replace("-", "_"):
             prefix = "/".join(parts[:3])
             namespaces.setdefault(parts[2], set()).add(prefix)
@@ -97,7 +96,7 @@ def _inspect_modules(manifest: dict, root: Path) -> tuple[list[dict], list[dict]
         filename = getattr(module, "__file__", None)
         expected_paths = _expected_paths(name, manifest["namespaces"])
         if not filename:
-            # A PEP 420 namespace has no executable Python file of its own.
+            # Implicit namespace packages have no __init__.py to verify.
             continue
         path = Path(filename).resolve()
         try:
@@ -147,7 +146,6 @@ def _inspect_runtime() -> tuple[dict | None, list[dict]]:
         expected = next(
             item for item in compiled.co_consts if isinstance(item, types.CodeType) and item.co_name == "run"
         )
-        # Check that the loaded benchmark function matches its source file.
         record["source_code_matches"] = code == expected
         if not record["source_code_matches"]:
             mismatches.append(
@@ -177,14 +175,16 @@ def run_benchmark(manifest: dict, root: Path, output_dir: Path, argv: list[str])
         sys.pycache_prefix = pycache
         try:
             sys.argv = ["isaaclab", *argv]
-            importlib.import_module("isaaclab.cli").cli()
+            from isaaclab.cli import cli
+
+            cli()
         except SystemExit as exc:
             exit_code = exc.code if isinstance(exc.code, int) else (0 if exc.code is None else 1)
             if exit_code:
                 exception = {"type": type(exc).__name__, "message": str(exc)}
                 if not isinstance(exc.code, int):
                     print(str(exc), file=sys.stderr)
-        except BaseException as exc:
+        except Exception as exc:
             traceback.print_exc()
             exit_code = 1
             exception = {"type": type(exc).__name__, "message": str(exc)}
@@ -250,6 +250,7 @@ def main(argv: list[str] | None = None) -> int:
             benchmark_argv = benchmark_argv[1:]
         return run_benchmark(json.loads(args.manifest.read_text()), args.checkout_root, args.output_dir, benchmark_argv)
     except (OSError, ValueError, KeyError, TypeError) as exc:
+        traceback.print_exc()
         print(f"Source revision verification failed: {exc}", file=sys.stderr)
         return 1
 

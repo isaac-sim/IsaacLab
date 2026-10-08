@@ -50,6 +50,8 @@ class SourceRevisionTests(unittest.TestCase):
             def cli():
                 if os.environ.get("FIXTURE_EARLY_EXIT"):
                     raise SystemExit(17)
+                if os.environ.get("FIXTURE_INTERRUPT"):
+                    raise KeyboardInterrupt
                 from isaaclab.benchmark.entrypoints import runtime
                 if os.environ.get("FIXTURE_REPLACE_RUNTIME"):
                     from pathlib import Path
@@ -136,7 +138,7 @@ class SourceRevisionTests(unittest.TestCase):
             self.assertEqual(json.loads(path.read_text())["commit"], self._git("rev-parse", "HEAD"))
         return path, process
 
-    def _run(self, manifest, name, *, roots=None, command=None, **extra):
+    def _run(self, manifest, name, *, roots=None, command=None, proof_expected=True, **extra):
         output = self.directory / name
         process = subprocess.run(
             command
@@ -162,8 +164,8 @@ class SourceRevisionTests(unittest.TestCase):
             text=True,
         )
         sidecar_path = output / "source-revision.json"
-        self.assertTrue(sidecar_path.is_file(), process.stdout + process.stderr)
-        sidecar = json.loads(sidecar_path.read_text())
+        self.assertEqual(sidecar_path.is_file(), proof_expected, process.stdout + process.stderr)
+        sidecar = json.loads(sidecar_path.read_text()) if proof_expected else None
         return process, output, sidecar
 
     def _assert_verified(self, process, output, sidecar, marker, commit):
@@ -245,7 +247,6 @@ class SourceRevisionTests(unittest.TestCase):
         result = json.loads((output / "benchmark_runtime_fixture.json").read_text())
         self.assertNotEqual(result["worker_pid"], proof["pid"])
 
-        # Use the CI command so the test catches regressions in the production launch choice.
         runner = LAUNCHER.with_name("run_benchmarks.sh").read_text()
         command_text = runner[runner.index("uv run --no-sync ") :].split('$args"', 1)[0] + "$args"
         output = self.directory / "ci-wrapper"
@@ -321,6 +322,8 @@ class SourceRevisionTests(unittest.TestCase):
         self._task("B")
         _, process = self._prepare(success=False)
         self.assertNotEqual(process.returncode, 0)
+        self.assertIn("Traceback (most recent call last):", process.stderr)
+        self.assertIn("ValueError: Checked-out Python source differs", process.stderr)
 
     def test_replaced_runtime_code_with_matching_source_bytes_is_detected(self):
         manifest, _ = self._prepare()
@@ -333,13 +336,17 @@ class SourceRevisionTests(unittest.TestCase):
         self.assertFalse(sidecar["runtime_entrypoint"]["source_code_matches"])
         self.assertEqual(json.loads((output / "benchmark_runtime_fixture.json").read_text())["executed_revision"], "X")
 
-    def test_early_cli_failure_retains_exit_without_completed_proof(self):
+    def test_cli_failures_preserve_exit_status_and_interruptions(self):
         manifest, _ = self._prepare()
         process, output, sidecar = self._run(manifest, "early-failure", FIXTURE_EARLY_EXIT="1")
         self.assertEqual(process.returncode, 17)
         self.assertEqual(sidecar["benchmark_exit_code"], 17)
         self.assertEqual(sidecar["status"], "failed")
         self.assertEqual(sidecar["outputs"], [])
+        self.assertFalse(list(output.glob("benchmark_runtime_*.json")))
+        process, output, _ = self._run(manifest, "interrupted", proof_expected=False, FIXTURE_INTERRUPT="1")
+        self.assertNotEqual(process.returncode, 0)
+        self.assertIn("KeyboardInterrupt", process.stderr)
         self.assertFalse(list(output.glob("benchmark_runtime_*.json")))
 
     def test_successful_cli_without_runtime_output_is_not_verified(self):
@@ -359,7 +366,7 @@ class SourceRevisionTests(unittest.TestCase):
         self.assertEqual(task.stat().st_size, original_size)
         os.utime(task, (1700000000, 1700000000))
         commit_b = self._commit()
-        # Establish that the fixture really exposes stale bytecode to an ordinary import.
+        # Confirm that an ordinary import loads stale bytecode before testing the fix.
         uncorrected = subprocess.run(
             [sys.executable, "-c", "from isaaclab_tasks.fixture_task import observed; print(observed())"],
             cwd=self.directory,
