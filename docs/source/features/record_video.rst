@@ -318,27 +318,36 @@ Clip control
 Task camera views
 ~~~~~~~~~~~~~~~~~
 
-Tasks set their recording view in ``sim.default_visualizer_cfg``; every visualizer uses it unless its own
-config sets the field. ``eye`` and ``lookat`` are offsets from ``origin_type``: ``"world"``, a fixed
-environment (``"env"``), or a tracked asset or body (``"asset"``, e.g. ``"robot"`` or ``"robot/base"``):
+``--video`` records the primary viewport, which stays static and interactive. Tasks also declare a camera that
+follows the robot or frames the environment, in ``sim.default_visualizer_cfg``; record it through the
+streaming view:
+
+.. code-block:: bash
+
+    uv run isaaclab play --rl_library rsl_rl --task Isaac-Velocity-Rough-AnymalD --checkpoint pretrained \
+        --video viz:newton_gl:streaming_view
+
+The launcher adds the camera to the scene only when a visualizer is selected or a ``streaming_view`` source
+is recorded. A task declares it with ``TrackedCameraCfg``:
 
 .. code-block:: python
 
-    from isaaclab.visualizers import VisualizerCfg
+    from isaaclab.visualizers import TrackedCameraCfg, VisualizerCfg
 
     self.sim.default_visualizer_cfg = VisualizerCfg(
-        eye=(1.8, -3.0, 1.1),
-        lookat=(0.15, 0.0, 0.0),
-        origin_type="asset",
-        origin_env_index="center",
-        origin_track_path="robot",
-        origin_follow_heading=True,
-        origin_heading_smoothing_time_constant=0.2,
+        streaming_envs=[0],
+        cameras=[
+            TrackedCameraCfg(
+                eye=(1.8, -3.0, 1.1),
+                lookat=(0.15, 0.0, 0.0),
+                track_path="robot",
+                follow_heading=True,
+                heading_smoothing_time_constant=0.2,
+            )
+        ],
     )
 
-``origin_env_index="center"`` follows the visible environment nearest the middle of the grid.
-``origin_follow_heading`` rotates the offsets with the asset's yaw, smoothed over
-``origin_heading_smoothing_time_constant`` seconds.
+See :ref:`how-to-visualizer-tiled-camera` for every field, including the renderer used for quality.
 
 
 Recording from an independent camera angle
