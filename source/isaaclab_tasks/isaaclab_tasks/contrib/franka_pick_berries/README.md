@@ -284,7 +284,7 @@ The punnet is 14 × 11 cm and 2.8 cm tall, with rounded corners, external molded
 ribs and a rolled flange. Its walls are thin-walled clear glass, glossy like PET, and cast no shadow: RTX
 shadow rays do not pass through glass, so the punnet would otherwise darken its own floor. Decorative ribs and
 the flange are omitted from collision; smooth rounded walls contain the tissue.
-The glass bowl remains 12 cm across and 4.5 cm tall. The metal reject dish is
+The receiving bowl is 12 cm across and 3 cm tall, low enough that berries are set down in it without a fall. The metal reject dish is
 5.6 cm across and 1.8 cm tall. These are fixed props, not movable rigid objects.
 Smooth visual meshes are
 authored by task code; no extra asset files or uploads are required.

@@ -13,7 +13,7 @@ from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics, UsdShade, Vt
 
 # (x, y, outer radius, inner radius, base thickness, total height), task frame.
 PLATE = (0.48, 0.0, 0.065, 0.060, 0.004, 0.009)
-BOWL = (0.48, 0.16, 0.060, 0.057, 0.004, 0.045)
+BOWL = (0.48, 0.16, 0.060, 0.057, 0.004, 0.030)
 # Legacy PLATE center/floor remain the spawn-layout reference for CLI compatibility.
 # Punnet: (x, y, half width, half depth, corner radius, wall, floor, height).
 PUNNET = (0.48, 0.0, 0.055, 0.070, 0.010, 0.001, 0.004, 0.028)

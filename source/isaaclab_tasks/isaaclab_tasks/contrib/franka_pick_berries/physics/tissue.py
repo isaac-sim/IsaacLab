@@ -250,8 +250,9 @@ class BerryTissue:
         principal = lame * strain.sum(1, keepdims=True) + young / (1.0 + poisson) * strain
         metrics["max_compression_pa"] = float(max(0.0, -principal.min()))
         world = x + self.offset
+        # Up to 3 cm above the low rim, so that a large berry resting on the floor counts as in the bowl.
         inside = (np.linalg.norm(world[:, :2] - BOWL[:2], axis=1) < BOWL[3]) & (
-            (world[:, 2] >= BOWL[4] - 0.001) & (world[:, 2] < BOWL[5])
+            (world[:, 2] >= BOWL[4] - 0.001) & (world[:, 2] < BOWL[5] + 0.03)
         )
         metrics["fraction_in_bowl"] = float(inside.mean())
         return metrics
