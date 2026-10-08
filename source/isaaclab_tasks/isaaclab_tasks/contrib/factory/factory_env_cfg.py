@@ -12,8 +12,7 @@ from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
 from isaaclab.envs import DirectRLEnvCfg
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sim import SimulationCfg
-from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialCfg
+from isaaclab.sim import RigidBodyMaterialBaseCfg, SimulationCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
@@ -220,7 +219,7 @@ class FactoryEnvCfg(DirectRLEnvCfg):
             gpu_collision_stack_size=2**28,
             gpu_max_num_partitions=1,  # Important for stable simulation.
         ),
-        physics_material=RigidBodyMaterialCfg(static_friction=1.0, dynamic_friction=1.0),
+        physics_material=RigidBodyMaterialBaseCfg(static_friction=1.0, dynamic_friction=1.0),
     )
 
     scene: FactorySceneCfg = FactorySceneCfg(num_envs=128, env_spacing=2.0, clone_in_fabric=True)

@@ -247,11 +247,11 @@ def test_gravity_compensation_holds_static_equilibrium(sim, device) -> None:
     articulation = Articulation(
         _branching_cfg(
             actuators={"joints": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=0.0, damping=0.0)},
-            joint_ordering="mjwarp",
+            joint_ordering=BRANCHING_MJWARP_JOINT_NAMES,
             init_state=ArticulationCfg.InitialStateCfg(rot=(math.sqrt(0.5), 0.0, 0.0, math.sqrt(0.5))),
         )
     )
-    _author_branching_robot("/World/Robot", fixed_base=True)
+    _author_branching_robot("/World/Robot", fixed_base=True, reversed_left_elbow=True)
     # Offset the tip centers of mass from the elbow axes so that gravity also loads the elbows.
     for tip in ("left_tip", "right_tip"):
         UsdPhysics.MassAPI(sim.stage.GetPrimAtPath(f"/World/Robot/{tip}")).CreateCenterOfMassAttr(Gf.Vec3f(0.2, 0, 0))
@@ -978,6 +978,13 @@ def test_floating_articulation_root_writes_and_wrenches(articulation_scene: _Art
         wp.to_torch(floating.root_view.get_root_velocities()).to(device),
     )
     torch.testing.assert_close(reordered.data.root_com_vel_w.torch, floating.data.root_com_vel_w.torch)
+    # PhysX holds the center-of-mass velocity: the link velocity plus the angular velocity crossed with the
+    # world-frame center-of-mass offset (the center-of-mass frame has identity orientation, so it shares the link's).
+    expected_com_velocity = root_link_velocity.clone()
+    expected_com_velocity[:, :3] += torch.linalg.cross(
+        root_link_velocity[:, 3:], quat_apply(root_com_pose[:, 3:], backend_coms[:, 0, :3])
+    )
+    torch.testing.assert_close(wp.to_torch(floating.root_view.get_root_velocities()).to(device), expected_com_velocity)
     # The derived root link pose carries the written center-of-mass pose at the root's center-of-mass offset.
     for articulation, offset in ((floating, 0.0), (reordered, island_offset)):
         link_pose = articulation.data.root_link_pose_w.torch

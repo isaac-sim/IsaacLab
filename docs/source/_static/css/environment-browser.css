@@ -576,25 +576,6 @@ html[data-theme="dark"] .environment-browser {
     margin: 0 0 0.5rem;
 }
 
-.environment-benchmark-legend {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem 1rem;
-    margin-bottom: 0.75rem;
-    color: var(--environment-muted);
-    font-size: 0.75rem;
-}
-
-.environment-benchmark-legend:empty {
-    display: none;
-}
-
-.environment-benchmark-legend span {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.4rem;
-}
-
 .environment-benchmark-results {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(12rem, 14rem);
@@ -918,11 +899,4 @@ html[data-theme="dark"] .environment-browser {
     color: var(--environment-muted);
     white-space: normal;
     font-size: 0.7rem;
-}
-
-.environment-benchmark-count {
-    margin-right: auto;
-    white-space: nowrap;
-    color: var(--environment-muted);
-    font-size: 0.85rem;
 }
