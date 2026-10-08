@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from isaaclab_contrib.conveyors.surface_velocity import SurfaceVelocitySpec
+from isaaclab_contrib.conveyors.surface_velocity import SurfaceVelocitySpec, resolve_surface_velocity_paths
 
 
 def test_surface_velocity_spec_normalizes_vectors() -> None:
@@ -43,3 +43,20 @@ def test_surface_velocity_spec_rejects_invalid_authored_values(kwargs: dict, mes
     """Invalid persistent intent fails before any physics lifecycle is registered."""
     with pytest.raises(ValueError, match=message):
         SurfaceVelocitySpec(**kwargs)
+
+
+def test_paths_are_resolved_in_environment_major_order() -> None:
+    """Runtime rows stay deterministic across stage discovery ordering."""
+    specs = (SurfaceVelocitySpec("{ENV_REGEX_NS}/BeltA"), SurfaceVelocitySpec("{ENV_REGEX_NS}/Nested/BeltB"))
+
+    paths = resolve_surface_velocity_paths(2, specs)
+
+    assert paths == (
+        "/World/envs/env_0/BeltA",
+        "/World/envs/env_0/Nested/BeltB",
+        "/World/envs/env_1/BeltA",
+        "/World/envs/env_1/Nested/BeltB",
+    )
+    with pytest.raises(ValueError, match="require every belt"):
+        resolve_surface_velocity_paths(2, (SurfaceVelocitySpec(prim_path="/World/Shared/Belt"),))
+    assert resolve_surface_velocity_paths(1, (SurfaceVelocitySpec("/World/Shared/Belt"),)) == ("/World/Shared/Belt",)

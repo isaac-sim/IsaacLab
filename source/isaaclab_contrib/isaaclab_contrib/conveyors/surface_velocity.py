@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any, Protocol, runtime_checkable
 
@@ -125,6 +126,53 @@ class SurfaceVelocitySpec:
         object.__setattr__(self, "radius", radius)
         object.__setattr__(self, "contact_threshold", contact_threshold)
         object.__setattr__(self, "friction_coefficient", friction_coefficient)
+
+
+def resolve_surface_velocity_paths(
+    num_envs: int,
+    surface_specs: Sequence[SurfaceVelocitySpec],
+    env_path_format: str = "/World/envs/env_{}",
+) -> tuple[str, ...]:
+    """Resolve conveyor templates to exact environment-major prim paths.
+
+    Args:
+        num_envs: Number of replicated environments.
+        surface_specs: Within-environment surface descriptions.
+        env_path_format: Exact environment path format containing one ``{}`` field.
+
+    Returns:
+        Exact paths ordered by environment, then by ``surface_specs`` order.
+
+    Raises:
+        ValueError: If inputs cannot produce one unique path per environment and belt.
+        TypeError: If a surface description is not a :class:`SurfaceVelocitySpec`.
+    """
+    if not isinstance(num_envs, int) or isinstance(num_envs, bool) or num_envs <= 0:
+        raise ValueError(f"Conveyor num_envs must be a positive integer, got {num_envs!r}.")
+    specs = tuple(surface_specs)
+    if not specs:
+        raise ValueError("At least one SurfaceVelocitySpec is required.")
+    if not all(isinstance(spec, SurfaceVelocitySpec) for spec in specs):
+        raise TypeError("Every surface specification must be a SurfaceVelocitySpec.")
+    if not isinstance(env_path_format, str) or env_path_format.count("{}") != 1:
+        raise ValueError(f"Conveyor env_path_format must contain exactly one '{{}}', got {env_path_format!r}.")
+    try:
+        env_paths = tuple(env_path_format.format(env_id) for env_id in range(num_envs))
+    except (IndexError, KeyError, ValueError) as exc:
+        raise ValueError(f"Invalid conveyor env_path_format: {env_path_format!r}.") from exc
+    if any(not path.startswith("/") or "{" in path or "}" in path for path in env_paths):
+        raise ValueError(f"Conveyor env_path_format must produce exact absolute paths, got {env_path_format!r}.")
+
+    templates = tuple(spec.prim_path for spec in specs)
+    if len(set(templates)) != len(templates):
+        raise ValueError("Conveyor belt spec paths must be unique within an environment.")
+    if num_envs > 1 and any(_ENV_REGEX_NS not in path for path in templates):
+        raise ValueError("Replicated conveyors require every belt prim_path to use {ENV_REGEX_NS}.")
+
+    paths = tuple(template.replace(_ENV_REGEX_NS, env_path) for env_path in env_paths for template in templates)
+    if len(set(paths)) != len(paths):
+        raise ValueError("Resolved conveyor prim paths must be unique.")
+    return paths
 
 
 @runtime_checkable

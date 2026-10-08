@@ -22,7 +22,7 @@ from newton.examples.basic.example_basic_conveyor_forces import ConveyorForceMod
 
 from isaaclab.physics import PhysicsEvent
 
-from .surface_velocity import SurfaceVelocitySpec
+from .surface_velocity import SurfaceVelocitySpec, resolve_surface_velocity_paths
 
 
 @wp.kernel
@@ -122,33 +122,14 @@ def _world_point(transform_values: np.ndarray, local_point: tuple[float, float, 
     return wp.vec3(*(float(point[index]) for index in range(3)))
 
 
-def _resolve_belt_prim_path(prim_path: str, env_path_format: str, world_id: int) -> str:
-    """Resolve one replicated conveyor template to an exact Newton shape label."""
-    if prim_path.startswith("{ENV_REGEX_NS}/"):
-        return prim_path.format(ENV_REGEX_NS=env_path_format.format(world_id))
-    return prim_path
-
-
 def _shape_belongs_to_prim(shape_label: str, prim_path: str) -> bool:
     """Return whether a Newton collision-shape label is the prim or one of its descendants."""
     return shape_label == prim_path or shape_label.startswith(f"{prim_path.rstrip('/')}/")
 
 
-def _validate_env_path_format(env_path_format: str) -> None:
-    """Validate the concrete per-world path format derived from the scene cloner."""
-    if not isinstance(env_path_format, str) or env_path_format.count("{}") != 1:
-        raise ValueError(f"Conveyor env_path_format must contain exactly one '{{}}', got {env_path_format!r}.")
-    if not env_path_format.startswith("/"):
-        raise ValueError(f"Conveyor env_path_format must be absolute, got {env_path_format!r}.")
-
-
 def _validate_newton_surface_specs(surface_specs: Sequence[SurfaceVelocitySpec]) -> None:
     """Validate Newton-specific requirements before registering lifecycle callbacks."""
-    if not surface_specs:
-        raise ValueError("At least one surface-velocity specification is required.")
     prim_paths = [spec.prim_path for spec in surface_specs]
-    if len(set(prim_paths)) != len(prim_paths):
-        raise ValueError(f"Conveyor prim paths must be unique, got {prim_paths}.")
     for index, path in enumerate(prim_paths):
         for other in prim_paths[index + 1 :]:
             if _shape_belongs_to_prim(path, other) or _shape_belongs_to_prim(other, path):
@@ -190,18 +171,10 @@ class SurfaceVelocity:
             env_path_format: Format string resolving one exact environment root from its integer world index.
         """
         surface_specs = tuple(surface_specs)
-        if not all(isinstance(spec, SurfaceVelocitySpec) for spec in surface_specs):
-            raise TypeError("Every surface specification must be a SurfaceVelocitySpec.")
+        prim_paths = resolve_surface_velocity_paths(num_envs, surface_specs, env_path_format)
         _validate_newton_surface_specs(surface_specs)
-        if not isinstance(num_envs, int) or isinstance(num_envs, bool) or num_envs <= 0:
-            raise ValueError(f"num_envs must be a positive integer, got {num_envs!r}.")
-        if num_envs > 1 and any(not spec.prim_path.startswith("{ENV_REGEX_NS}/") for spec in surface_specs):
-            raise ValueError(
-                "Replicated conveyor environments require every belt prim_path to start with '{ENV_REGEX_NS}/'."
-            )
         if not np.isfinite(startup_duration_s) or startup_duration_s <= 0.0:
             raise ValueError(f"Conveyor startup duration must be positive, got {startup_duration_s}.")
-        _validate_env_path_format(env_path_format)
         if not isinstance(body_pattern, str):
             raise ValueError(f"body_pattern must be a regular-expression string, got {body_pattern!r}.")
         try:
@@ -220,7 +193,7 @@ class SurfaceVelocity:
             "num_envs": num_envs,
             "surface_specs": self._surface_specs,
             "startup_duration_s": startup_duration_s,
-            "env_path_format": env_path_format,
+            "prim_paths": prim_paths,
             "body_pattern": body_pattern,
             "body_count_per_env": body_count_per_env,
         }
@@ -339,7 +312,7 @@ class _SurfaceVelocityBinding:
         body_pattern: str,
         body_count_per_env: int | None = None,
         startup_duration_s: float = 1.0,
-        env_path_format: str = "/World/envs/env_{}",
+        prim_paths: tuple[str, ...],
     ) -> None:
         """Initialize the binding before Newton CUDA graph capture.
 
@@ -351,7 +324,7 @@ class _SurfaceVelocityBinding:
             body_pattern: Regular expression selecting bodies that receive surface traction.
             body_count_per_env: Expected selected body count per environment, or ``None``.
             startup_duration_s: Duration of the initial traction ramp [s].
-            env_path_format: Format string resolving one exact environment root from its integer world index.
+            prim_paths: Exact collision prim paths in environment-major order.
         """
         self._surface_specs = tuple(surface_specs)
         compiled_body_pattern = re.compile(body_pattern)
@@ -391,8 +364,8 @@ class _SurfaceVelocityBinding:
                 continue
             matching_specs = [
                 index
-                for index, spec in enumerate(self._surface_specs)
-                if _shape_belongs_to_prim(label, _resolve_belt_prim_path(spec.prim_path, env_path_format, world_id))
+                for index in range(surfaces_per_env)
+                if _shape_belongs_to_prim(label, prim_paths[world_id * surfaces_per_env + index])
             ]
             if not matching_specs:
                 continue

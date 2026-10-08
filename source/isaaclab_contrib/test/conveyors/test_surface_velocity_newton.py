@@ -149,6 +149,13 @@ def test_native_conveyor_controls_rebind_and_reset_independently(monkeypatch):
         ((SurfaceVelocitySpec("/Curve", curved=True),), 1, "/World/envs/env_{}", ValueError, "positive radius"),
         ((SurfaceVelocitySpec("/Shared/Belt"),), 2, "/World/envs/env_{}", ValueError, "Replicated"),
         ((SurfaceVelocitySpec("{ENV_REGEX_NS}/Belt"),), 1, "/World/envs/env_.*", ValueError, "env_path_format"),
+        (
+            (SurfaceVelocitySpec("{ENV_REGEX_NS}/Belt"),),
+            1,
+            "/World/envs/env_{}/{missing}",
+            ValueError,
+            "env_path_format",
+        ),
     ],
 )
 def test_invalid_conveyors_leave_no_callbacks(specs, num_envs, env_path, error, message):
@@ -157,10 +164,3 @@ def test_invalid_conveyors_leave_no_callbacks(specs, num_envs, env_path, error, 
     with pytest.raises(error, match=message):
         SurfaceVelocity(num_envs, specs, env_path_format=env_path, body_pattern="Cube0$")
     assert set(NewtonManager._callbacks) == before
-
-
-def test_unreplicated_absolute_surface_path_is_preserved():
-    """A single-environment surface can target a global authored path."""
-    from isaaclab_contrib.conveyors.newton import _resolve_belt_prim_path
-
-    assert _resolve_belt_prim_path("/World/Shared/Belt", "/World/envs/env_{}", 0) == "/World/Shared/Belt"
