@@ -86,6 +86,11 @@ def configure_rlinf_environment(config_name: str, config_path: str | None) -> st
         config_path: Explicit configuration directory, or None to search for it.
     """
     config_dir = resolve_config_dir(config_name, config_path)
+    # Ray 2.47+ turns the current project into a ``working_dir`` runtime environment when the driver is
+    # launched through ``uv run``. An Isaac Lab checkout commonly contains a large ``.venv`` and local
+    # model checkpoints, which exceed Ray's 500 MiB upload limit. RLinf already selects the Python
+    # executable for each worker, so this upload is neither needed nor desirable.
+    os.environ.setdefault("RAY_ENABLE_UV_RUN_RUNTIME_ENV", "0")
     # required for RLinf to register Isaac Lab tasks and converters
     os.environ.setdefault("RLINF_EXT_MODULE", "isaaclab_contrib.rl.rlinf.extension")
     os.environ["RLINF_CONFIG_FILE"] = str(Path(config_dir) / f"{config_name}.yaml")

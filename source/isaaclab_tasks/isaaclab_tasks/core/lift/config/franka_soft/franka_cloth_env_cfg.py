@@ -106,7 +106,7 @@ SUPPORT_SPAWN_CFG = sim_utils.CuboidCfg(
     rigid_props=[sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True), PhysxRigidBodyCfg(disable_gravity=True)],
     mass_props=sim_utils.MassCfg(mass=1.0),
     collision_props=sim_utils.UsdPhysicsCollisionCfg(),
-    physics_material=sim_utils.RigidBodyMaterialCfg(static_friction=0.01, dynamic_friction=0.01),
+    physics_material=sim_utils.RigidBodyMaterialBaseCfg(static_friction=0.01, dynamic_friction=0.01),
     visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.2, 0.2, 0.25)),
 )
 """Kinematic support block the cloth is draped over."""

@@ -23,9 +23,22 @@ experimental backend with its own limitations; it is not another solver mode
 of the PhysX backend discussed here.
 
 Use this page to understand the model differences. For the controls and a
-measured tuning procedure, use :doc:`/source/concepts/solver-tuning/tune_mjwarp` or
-:doc:`/source/concepts/solver-tuning/tune_kamino`; the generated solver configuration APIs
+measured tuning procedure, use :doc:`/source/how-to/solver_tuning_mjwarp` or
+:doc:`/source/how-to/solver_tuning_kamino`; the generated solver configuration APIs
 are the reference for exact fields and defaults.
+
+For comparisons of supported features, contact materials, and joint support among
+Newton solvers, see the `Newton solver overview
+<https://newton-physics.github.io/newton/latest/solvers/index.html>`__.
+The upstream `MuJoCo
+<https://newton-physics.github.io/newton/latest/solvers/mujoco.html>`__ and
+`Kamino <https://newton-physics.github.io/newton/latest/solvers/kamino.html>`__
+guides explain their models and contact behavior.
+
+For checkpoint compatibility and articulation ordering, follow
+:doc:`/source/how-to/transfer_policies_between_physx_and_newton`.
+Its :ref:`side-by-side transfer demonstrations <sim-to-sim-transfer-demonstrations>`
+show PhysX-trained policies running in Newton MJWarp.
 
 Why solver settings do not translate directly
 ----------------------------------------------
