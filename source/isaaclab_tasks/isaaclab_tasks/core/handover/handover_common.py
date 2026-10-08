@@ -34,8 +34,8 @@ GOAL_POSITION_OFFSET: tuple[float, float, float] = (0.36, 0.0, 0.04)
 
 # The camera is world-framed, so this aims at the environment nearest the grid center for the
 # default 2048 environments (x = 0.75 m); other counts shift the grid.
-VISUALIZER_CFG = VisualizerCfg(eye=(2.35, -0.5, 1.1), lookat=(0.75, -0.5, 0.55), focal_length=35.0)
-"""Recording view facing one hand pair from the side, with both hands and the object between them."""
+VISUALIZER_CFG = VisualizerCfg(eye=(1.9, -1.65, 1.15), lookat=(0.75, -0.5, 0.55), focal_length=35.0)
+"""Recording view angled down at one hand pair, with neighboring environments behind it."""
 
 
 GOAL_MARKER_CFG = VisualizationMarkersCfg(
