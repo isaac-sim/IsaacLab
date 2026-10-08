@@ -93,7 +93,7 @@ require additional VRAM. Confirm your machine against the `Isaac Sim system requ
 Isaac Sim 5.1 and older are not supported. Use Isaac Sim 6.1 with Python 3.12.
 
 The CUDA 13.0 PyTorch build requires NVIDIA driver ``580.65.06`` or newer on Linux and
-``580.88`` or newer on Windows, as documented in the `PyTorch 2.12 release announcement
+``580.88`` or newer on Windows, as documented in the `PyTorch CUDA 13.0 requirements
 <https://pytorch.org/blog/pytorch-2-12-release-blog/>`__. CUDA 13.0 wheels support Blackwell GPUs.
 
 Use the latest NVIDIA production branch driver. Version ``580.95.05`` or later is recommended on
