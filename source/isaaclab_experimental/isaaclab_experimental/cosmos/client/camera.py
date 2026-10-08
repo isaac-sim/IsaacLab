@@ -19,7 +19,7 @@ from isaaclab.utils.modifiers import ModifierCfg
 
 from isaaclab_experimental.image_transfer import center_crop_resize
 
-from .._protocol import CANVAS_ASPECT_RATIOS, request
+from .._protocol import CANVAS_ASPECT_RATIOS, DEFAULT_ENDPOINT, request
 from .control_profiles import depth_processor, edge_processor
 from .cosmos_model_cfg import CosmosModelCfg
 
@@ -86,7 +86,7 @@ def cosmos_camera(
     )
 
 
-def service_max_episode_frames(endpoint: str = "tcp://127.0.0.1:5555", timeout: float = 5.0) -> int | None:
+def service_max_episode_frames(endpoint: str = DEFAULT_ENDPOINT, timeout: float = 5.0) -> int | None:
     """Return the running Cosmos service's episode cap in frames, or None when it has no cap.
 
     Args:
@@ -116,8 +116,9 @@ def apply_cosmos(
     control: Literal["depth", "edge"] = "depth",
     near: float = 0.1,
     far: float = 2.0,
-    endpoint: str = "tcp://127.0.0.1:5555",
+    endpoint: str = DEFAULT_ENDPOINT,
     max_episode_frames: int | None | Literal["service"] = "service",
+    transport: Literal["auto", "cuda_ipc", "socket"] = "auto",
 ) -> None:
     """Put Cosmos on a task's camera in place.
 
@@ -136,6 +137,7 @@ def apply_cosmos(
         endpoint: Cosmos service endpoint.
         max_episode_frames: The service's episode cap in frames, ``1 + 4*k`` with ``k >= 1``, or None for no cap.
             Defaults to ``"service"``, which asks the running service.
+        transport: How images move to and from the service; see :attr:`CosmosModelCfg.transport`.
 
     Raises:
         ValueError: If no single rgb camera can be selected, the selected entity is not a suitable camera, sensors
@@ -181,7 +183,9 @@ def apply_cosmos(
         )
         camera_cfg = replace(camera_cfg, update_period=steps_per_capture * step_dt)
     budget = 1 + 4 * math.ceil((frames - 1) / 4)
-    model = CosmosModelCfg(endpoint=endpoint, prompt=prompt, modality=control, max_episode_frames=budget)
+    model = CosmosModelCfg(
+        endpoint=endpoint, prompt=prompt, modality=control, max_episode_frames=budget, transport=transport
+    )
     setattr(env_cfg.scene, name, cosmos_camera(camera_cfg, model, near=near, far=far))
 
 

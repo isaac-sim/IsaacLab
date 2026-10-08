@@ -14,7 +14,8 @@ the server does not import the camera client.
 
 Cosmos Framework also provides a native [Ray serving interface](https://github.com/NVIDIA/cosmos-framework/blob/main/docs/faq.md#q-how-do-i-run-online-inference-with-ray).
 That service accepts HTTP generation requests and returns output files. The server
-below supplies the incremental TCP camera interface used by this integration.
+below supplies the incremental camera interface used by this integration, over a Unix socket on the same
+machine or TCP from another machine.
 
 ## Prerequisites and paths
 
@@ -104,7 +105,8 @@ uv run --no-sync isaaclab-cosmos-server \
   --warmup
 ```
 
-Wait for `Cosmos ready at tcp://127.0.0.1:5555`, then leave this terminal running.
+Wait for `Cosmos ready at unix:///tmp/isaaclab-cosmos-<uid>.sock`, then leave this terminal running. The
+server listens on that Unix socket, which only your user can open; it opens no network port.
 The worker loads the model once on `cuda:0` and exposes the endpoint after model
 loading and warmup. Isaac Lab can then connect from its own environment.
 
@@ -120,8 +122,9 @@ use. Omit `--warmup` to expose the endpoint after model loading.
 
 The equivalent module entrypoint is
 `uv run --no-sync python -m isaaclab_experimental.cosmos.server.worker` with the same
-arguments. Use `--device cuda:1` for another GPU, `--port 5556` for another port, or
-`--host` to choose the listening interface. Match that endpoint in the camera
+arguments. Use `--device cuda:1` for another GPU, and `--endpoint unix:///path/to/socket` or
+`--endpoint tcp://127.0.0.1:5556` for another endpoint, for example TCP for Isaac Lab on another machine through
+an SSH tunnel (see [Endpoints and transports](cosmos.md#endpoints-and-transports)). Match that endpoint in the camera
 configuration.
 
 ## Connect Isaac Lab
@@ -137,7 +140,7 @@ A ready service reports `"ready": true`. Before connecting a camera, check that
 `"session_active": false`: the current server supports one camera view and one
 active generation session. If a session is active, close that camera or Isaac Lab
 process before connecting another. For another endpoint, pass
-`--endpoint tcp://127.0.0.1:5556` to the status command.
+the same `--endpoint` to the status command.
 
 Run the camera task or training command from [Cosmos camera integration](cosmos.md).
 Resetting or closing the camera clears its generation history while keeping the

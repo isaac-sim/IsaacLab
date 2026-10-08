@@ -5,6 +5,7 @@
 
 __all__ = [
     "COSMOS_CANVASES",
+    "DEFAULT_ENDPOINT",
     "DEFAULT_MAX_EPISODE_FRAMES",
     "CosmosModel",
     "CosmosModelCfg",
@@ -24,7 +25,7 @@ __all__ = [
     "service_max_episode_frames",
 ]
 
-from ._protocol import DEFAULT_MAX_EPISODE_FRAMES
+from ._protocol import DEFAULT_ENDPOINT, DEFAULT_MAX_EPISODE_FRAMES
 from .client import (
     COSMOS_CANVASES,
     CosmosModel,

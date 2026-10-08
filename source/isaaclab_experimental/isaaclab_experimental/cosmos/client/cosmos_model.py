@@ -14,7 +14,17 @@ import threading
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-from .._protocol import ProtocolError, check_reply, connect, parse_endpoint, receive_message, send_message
+from .._protocol import (
+    MAX_CHUNK_FRAMES,
+    ProtocolError,
+    check_reply,
+    connect,
+    parse_endpoint,
+    receive_message,
+    send_message,
+)
+
+_LOOPBACK_HOSTS = ("127.0.0.1", "localhost", "::1")
 
 if TYPE_CHECKING:
     import numpy as np
@@ -46,6 +56,8 @@ class CosmosModel:
             raise ValueError("Cosmos modality must be edge, depth, or seg.")
         if type(cfg.max_episode_frames) is not int or cfg.max_episode_frames <= 0:
             raise ValueError("Cosmos max_episode_frames must be a positive integer.")
+        if cfg.transport not in ("auto", "cuda_ipc", "socket"):
+            raise ValueError("Cosmos transport must be auto, cuda_ipc, or socket.")
         self._cfg = cfg
         self._lock = threading.Lock()
         self._streams: set[_CosmosStream] = set()
@@ -107,6 +119,8 @@ class _CosmosStream:
         self._closed = False
         self._episode = 0
         self._episode_frames = 0
+        self._channel = None
+        self.transport: str | None = None
 
     def step(
         self, controls: list[torch.Tensor], reset_rows: tuple[int, ...], seeds: tuple[int, ...]
@@ -143,23 +157,29 @@ class _CosmosStream:
                     raise ValueError("Cosmos image size cannot change within a camera stream.")
                 if self._socket is None:
                     self._socket = connect(self._cfg.endpoint, self._cfg.timeout)
-                    _, arrays = self._exchange(
-                        {
-                            "op": "open",
-                            "num_views": 1,
-                            "seeds": self._seeds,
-                            "prompt": self._episode_prompt(self._episode),
-                            "modality": self._cfg.modality,
-                            "height": image_shape[0],
-                            "width": image_shape[1],
-                            "max_episode_frames": self._cfg.max_episode_frames,
-                        }
-                    )
+                    request = {
+                        "op": "open",
+                        "num_views": 1,
+                        "seeds": self._seeds,
+                        "prompt": self._episode_prompt(self._episode),
+                        "modality": self._cfg.modality,
+                        "height": image_shape[0],
+                        "width": image_shape[1],
+                        "max_episode_frames": self._cfg.max_episode_frames,
+                    }
+                    self.transport = self._select_transport(control.device)
+                    if self.transport == "cuda_ipc":
+                        from .._cuda_ipc import SharedChannel
+
+                        self._channel = SharedChannel(control.device, (MAX_CHUNK_FRAMES, *image_shape))
+                        request.update(transport="cuda_ipc", ipc=self._channel.handles)
+                    _, arrays = self._exchange(request)
                     if arrays:
                         raise ProtocolError("Cosmos open reply must not contain image arrays.")
                     self._shape = image_shape
-                # The transport crosses process/device boundaries through CPU memory deliberately.
-                array = control.detach().cpu().numpy()
+                frames = control.shape[0]
+                if frames > MAX_CHUNK_FRAMES:
+                    raise ValueError(f"Cosmos chunks hold at most {MAX_CHUNK_FRAMES} frames.")
                 request = {"op": "step", "reset_rows": reset_rows, "seeds": seeds}
                 episode = self._episode
                 if reset_rows and isinstance(self._cfg.prompt, (list, tuple)):
@@ -167,13 +187,26 @@ class _CosmosStream:
                     # first frame, such as the capture taken before the environment's initial reset.
                     episode += 1 if self._episode_frames > 1 else 0
                     request["prompt"] = self._episode_prompt(episode)
-                _, generated = self._exchange(request, [array])
-                if len(generated) != 1 or generated[0].shape != tuple(control.shape):
-                    raise ProtocolError("Cosmos returned images that do not match the control chunk.")
+                if self._channel is not None:
+                    # Controls and images stay on the GPU; events order the two processes' streams.
+                    self._channel.control.tensor[:frames].copy_(control)
+                    self._channel.control_ready.record()
+                    request["frames"] = frames
+                    reply, generated = self._exchange(request)
+                    if generated or reply.get("frames") != frames:
+                        raise ProtocolError("Cosmos returned images that do not match the control chunk.")
+                    self._channel.output_ready.wait()
+                    images = self._channel.output.tensor[:frames].clone()
+                else:
+                    # Images cross the process boundary through host memory and the socket.
+                    _, generated = self._exchange(request, [control.detach().cpu().numpy()])
+                    if len(generated) != 1 or generated[0].shape != tuple(control.shape):
+                        raise ProtocolError("Cosmos returned images that do not match the control chunk.")
+                    images = torch.from_numpy(generated[0]).to(device=control.device)
                 if reset_rows:
                     self._episode, self._episode_frames = episode, 0
-                self._episode_frames += len(array)
-                return [torch.from_numpy(generated[0]).to(device=control.device)]
+                self._episode_frames += frames
+                return [images]
             except Exception:
                 self._release(notify=False)
                 raise
@@ -186,6 +219,33 @@ class _CosmosStream:
     def _episode_prompt(self, episode: int) -> str | None:
         prompt = self._cfg.prompt
         return prompt[episode % len(prompt)] if isinstance(prompt, (list, tuple)) else prompt
+
+    def _select_transport(self, device: torch.device) -> str:
+        """Choose CUDA IPC when the service shares this GPU on this machine, else the socket, per the configuration."""
+        if self._cfg.transport == "socket":
+            return "socket"
+        reason = None
+        family, address = parse_endpoint(self._cfg.endpoint)
+        if device.type != "cuda":
+            reason = "the camera images are not on a CUDA device"
+        elif family == socket.AF_INET and address[0] not in _LOOPBACK_HOSTS:
+            reason = f"the service at {address[0]} is not on this machine"
+        else:
+            from .. import _cuda_ipc
+
+            capabilities = self._exchange({"op": "status"})[0].get("capabilities", {})
+            if not _cuda_ipc.available():
+                reason = "CUDA IPC is not available on this platform"
+            elif "cuda_ipc" not in capabilities.get("transports", ()):
+                reason = "the service does not offer CUDA IPC"
+            elif capabilities.get("pci_bus_id") != _cuda_ipc.pci_bus_id(device.index or 0):
+                reason = "the service uses a different GPU"
+        if reason is None:
+            return "cuda_ipc"
+        if self._cfg.transport == "cuda_ipc":
+            raise RuntimeError(f"Cosmos transport cuda_ipc is unavailable: {reason}.")
+        _LOGGER.info("Cosmos sends images through the socket because %s.", reason)
+        return "socket"
 
     def _exchange(self, metadata: dict, arrays: Sequence[np.ndarray] = ()) -> tuple[dict, list[np.ndarray]]:
         if self._socket is None:
@@ -210,4 +270,8 @@ class _CosmosStream:
                     self._socket.close()
                     self._socket = None
         finally:
+            # The service unmaps the shared memory when the session closes; then this process frees it.
+            if self._channel is not None:
+                self._channel.close()
+                self._channel = None
             self._model._discard_stream(self)

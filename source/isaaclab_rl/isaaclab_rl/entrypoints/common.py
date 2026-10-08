@@ -204,7 +204,17 @@ def add_cosmos_args(parser: argparse.ArgumentParser) -> None:
     group.add_argument("--cosmos_control", choices=["depth", "edge"], default="depth", help="Cosmos control type.")
     group.add_argument("--cosmos_near", type=float, default=0.1, help="Depth rendered white [m].")
     group.add_argument("--cosmos_far", type=float, default=2.0, help="Depth rendered black [m].")
-    group.add_argument("--cosmos_endpoint", default="tcp://127.0.0.1:5555", help="Cosmos service endpoint.")
+    group.add_argument(
+        "--cosmos_endpoint",
+        default=None,
+        help="Cosmos service endpoint, unix:///path or tcp://host:port; defaults to the service's default endpoint.",
+    )
+    group.add_argument(
+        "--cosmos_transport",
+        choices=["auto", "cuda_ipc", "socket"],
+        default="auto",
+        help="cuda_ipc keeps images on the GPU (same Linux machine and GPU); socket also works across machines.",
+    )
 
 
 def add_common_train_args(
@@ -383,7 +393,7 @@ def apply_env_overrides(args_cli: argparse.Namespace, env_cfg: Any) -> None:
     # request on the resolved physics config; each backend translates and validates it at startup.
     request_determinism(args_cli, env_cfg)
     if getattr(args_cli, "cosmos", False):
-        from isaaclab_experimental.cosmos import apply_cosmos
+        from isaaclab_experimental.cosmos import DEFAULT_ENDPOINT, apply_cosmos
 
         if args_cli.num_envs not in (None, 1):
             raise ValueError("--cosmos serves one camera view; use --num_envs 1 or leave it unset.")
@@ -396,7 +406,8 @@ def apply_env_overrides(args_cli: argparse.Namespace, env_cfg: Any) -> None:
             control=args_cli.cosmos_control,
             near=args_cli.cosmos_near,
             far=args_cli.cosmos_far,
-            endpoint=args_cli.cosmos_endpoint,
+            endpoint=args_cli.cosmos_endpoint or DEFAULT_ENDPOINT,
+            transport=args_cli.cosmos_transport,
         )
 
 

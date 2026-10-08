@@ -156,6 +156,7 @@ class CosmosInferenceModel:
             "max_episode_frames": max_episode_frames,
             "fps": 30,
             "partial_resets": False,
+            "device": str(selected_device),
         }
 
     def open_stream(
@@ -332,13 +333,16 @@ class _CosmosInferenceStream:
 
     def step(
         self,
-        controls: list[np.ndarray],
+        controls: list[np.ndarray] | list[torch.Tensor],
         reset_rows: tuple[int, ...],
         seeds: tuple[int, ...],
         *,
         prompt: str | None | object = _KEEP_PROMPT,
-    ) -> list[np.ndarray]:
+    ) -> list[np.ndarray] | list[torch.Tensor]:
         """Generate uint8 THWC RGB from one initial frame or four subsequent frames.
+
+        NumPy controls (socket transport) return NumPy images. CUDA tensors on the model's device (CUDA IPC)
+        return CUDA tensors produced on the current stream, without host copies or synchronization.
 
         A full reset ``reset_rows=(0,)`` requires one new seed and a one-frame
         control. It closes the previous generation and VAE state before processing
@@ -356,16 +360,20 @@ class _CosmosInferenceStream:
             _validate_seed(seeds[0])
         expected_frames = 1 if self._frame_count == 0 or reset_rows else 4
         expected_shape = (expected_frames, *self._canvas)
-        if len(controls) != 1 or not isinstance(controls[0], np.ndarray):
-            raise ValueError("Cosmos requires exactly one numpy control array.")
+        import torch
+
+        if len(controls) != 1 or not isinstance(controls[0], (np.ndarray, torch.Tensor)):
+            raise ValueError("Cosmos requires exactly one NumPy array or CUDA tensor of controls.")
         control = controls[0]
-        if control.dtype != np.uint8 or control.shape != expected_shape:
+        on_device = isinstance(control, torch.Tensor)
+        if on_device and control.device != self._owner._device:
+            raise ValueError(f"Cosmos tensor controls must be on {self._owner._device}, got {control.device}.")
+        dtype_ok = control.dtype == (torch.uint8 if on_device else np.uint8)
+        if not dtype_ok or tuple(control.shape) != expected_shape:
             raise ValueError(f"Cosmos controls must be uint8 THWC with shape {expected_shape}.")
         previous_frames = 0 if reset_rows else self._frame_count
         if previous_frames + expected_frames > self._max_episode_frames:
             raise RuntimeError("Cosmos episode horizon exceeded; reset the camera before sending more controls.")
-
-        import torch
 
         try:
             # Service connections run in separate threads, whose default CUDA
@@ -385,7 +393,8 @@ class _CosmosInferenceStream:
                     self._cache_scope = ExitStack()
                     self._cache_scope.enter_context(self._model.tokenizer_vision_gen.use_cached_encoder())
                     self._cache_scope.enter_context(self._model.tokenizer_vision_gen.use_cached_decoder())
-                pixels = torch.from_numpy(np.ascontiguousarray(control)).permute(3, 0, 1, 2).unsqueeze(0)
+                pixels = control if on_device else torch.from_numpy(np.ascontiguousarray(control))
+                pixels = pixels.permute(3, 0, 1, 2).unsqueeze(0)
                 pixels = pixels.to(**self._model.tensor_kwargs).div(127.5).sub(1)
                 latent = self._model.encode(pixels)
                 self._next_control = latent[:, :, -1:].clone()
@@ -394,7 +403,9 @@ class _CosmosInferenceStream:
                 if tuple(decoded.shape) != (1, 3, expected_frames, *self._canvas[:2]):
                     raise RuntimeError(f"Cosmos decoder returned unexpected shape {tuple(decoded.shape)}.")
                 packed = decoded[0].clamp(-1, 1).add(1).mul(127.5).round().to(torch.uint8)
-                video = packed.permute(1, 2, 3, 0).contiguous().cpu().numpy()
+                video = packed.permute(1, 2, 3, 0).contiguous()
+                if not on_device:
+                    video = video.cpu().numpy()
                 self._frame_count = previous_frames + expected_frames
                 return [video]
         except BaseException:

@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import socket
 import struct
 from collections.abc import Sequence
@@ -34,6 +35,15 @@ CANVAS_ASPECT_RATIOS = {
 DEFAULT_MAX_EPISODE_FRAMES = 201
 """Default episode cap of the service in frames, the model's trained horizon;
 ``isaaclab-cosmos-server --max-episode-frames`` changes it."""
+MAX_CHUNK_FRAMES = 4
+"""Most frames one control chunk carries: one initial frame, then four per update."""
+DEFAULT_ENDPOINT = (
+    f"unix:///tmp/isaaclab-cosmos-{os.getuid()}.sock" if hasattr(socket, "AF_UNIX") else "tcp://127.0.0.1:5555"
+)
+"""Default service endpoint: a Unix socket only this user can open on Linux, local TCP where Unix sockets are
+unavailable (Windows)."""
+_ENDPOINT_FORMS = "unix:///absolute/path or tcp://host:port"
+_MAX_UNIX_PATH_BYTES = 107
 MAX_METADATA_BYTES = 64 * 1024
 MAX_ARRAY_BYTES = 256 * 1024 * 1024
 MAX_ARRAYS = 16
@@ -42,20 +52,48 @@ _MAGIC = b"ILCS"
 
 
 def connect(endpoint: str, timeout: float = 600.0) -> socket.socket:
-    """Connect to a ``tcp://host:port`` service with a finite timeout [s]."""
-    host, port = parse_endpoint(endpoint)
+    """Connect to a ``unix:///path`` or ``tcp://host:port`` service with a finite timeout [s]."""
+    family, address = parse_endpoint(endpoint)
     if not math.isfinite(timeout) or timeout <= 0:
         raise ValueError("Cosmos timeout must be finite and positive.")
-    return socket.create_connection((host, port), timeout=timeout)
+    if family == socket.AF_INET:
+        return socket.create_connection(address, timeout=timeout)
+    connection = socket.socket(family, socket.SOCK_STREAM)
+    try:
+        connection.settimeout(timeout)
+        connection.connect(address)
+    except BaseException:
+        connection.close()
+        raise
+    return connection
 
 
-def parse_endpoint(endpoint: str) -> tuple[str, int]:
-    """Validate and split a TCP endpoint without contacting the service."""
+def parse_endpoint(endpoint: str) -> tuple[socket.AddressFamily, str | tuple[str, int]]:
+    """Validate an endpoint without contacting the service.
+
+    ``unix:///path`` names a Unix socket on this machine; ``tcp://host:port`` a TCP service, also on another machine.
+
+    Returns:
+        The socket family and its address: the socket path, or ``(host, port)``.
+
+    Raises:
+        ValueError: If the endpoint is malformed, or names a Unix socket where Unix sockets are unavailable.
+    """
+    if isinstance(endpoint, str) and endpoint.startswith("unix://"):
+        path = endpoint[len("unix://") :]
+        if not hasattr(socket, "AF_UNIX"):
+            raise ValueError("Unix socket endpoints need Linux; use tcp://host:port on this platform.")
+        if not path.startswith("/") or "\0" in path or len(path.encode()) > _MAX_UNIX_PATH_BYTES:
+            raise ValueError(
+                f"Cosmos endpoint must have the form {_ENDPOINT_FORMS}, with a socket path of at most "
+                f"{_MAX_UNIX_PATH_BYTES} bytes."
+            )
+        return socket.AF_UNIX, path
     try:
         parts = urlsplit(endpoint)
         host, port = parts.hostname, parts.port
     except (TypeError, ValueError) as exc:
-        raise ValueError("Cosmos endpoint must have the form tcp://host:port.") from exc
+        raise ValueError(f"Cosmos endpoint must have the form {_ENDPOINT_FORMS}.") from exc
     if (
         parts.scheme != "tcp"
         or not host
@@ -67,8 +105,8 @@ def parse_endpoint(endpoint: str) -> tuple[str, int]:
         or parts.query
         or parts.fragment
     ):
-        raise ValueError("Cosmos endpoint must have the form tcp://host:port.")
-    return host, port
+        raise ValueError(f"Cosmos endpoint must have the form {_ENDPOINT_FORMS}.")
+    return socket.AF_INET, (host, port)
 
 
 def send_message(sock: socket.socket, metadata: dict, arrays: Sequence[np.ndarray] = ()) -> None:
