@@ -46,6 +46,8 @@ class CosmosInferenceModel:
         use_compile: bool = True,
         max_episode_frames: int | None = DEFAULT_MAX_EPISODE_FRAMES,
         max_views: int = 1,
+        kv_window: int = 30,
+        attention_sink: int = 3,
     ):
         """Load weights on the selected CUDA device.
 
@@ -57,6 +59,9 @@ class CosmosInferenceModel:
                 removes the cap. The model was trained on 201-frame episodes; longer episodes are unvalidated.
             max_views: Most camera views one session may batch. More views share each transformer step but
                 need GPU memory for their own generation history.
+            kv_window: Generation history the transformer attends to [latent frames]. The Sim-Transfer recipe
+                uses 30; shorter windows are faster and need less memory but remember less of the episode.
+            attention_sink: Earliest latent frames always kept in the history window; the recipe uses 3.
 
         Raises:
             ValueError: If the runtime or checkpoint does not support this streaming contract.
@@ -68,6 +73,13 @@ class CosmosInferenceModel:
             raise ValueError("The Cosmos episode cap must be 1 + 4*k frames with k >= 1, or None for no cap.")
         if type(max_views) is not int or max_views < 1:
             raise ValueError("Cosmos max_views must be a positive integer.")
+        if (
+            type(kv_window) is not int
+            or type(attention_sink) is not int
+            or kv_window < 1
+            or not 0 <= attention_sink < kv_window
+        ):
+            raise ValueError("Cosmos needs a positive history window and an attention sink smaller than it.")
         self._max_episode_frames = max_episode_frames
         self._max_views = max_views
         if max_episode_frames is None or max_episode_frames > DEFAULT_MAX_EPISODE_FRAMES:
@@ -103,8 +115,8 @@ class CosmosInferenceModel:
                 use_cuda_graphs=use_compile,
                 compiled_region="language",
                 experiment_overrides=[
-                    "model.config.kv_cache_inference_size=8",
-                    "model.config.attention_sink_size=3",
+                    f"model.config.kv_cache_inference_size={kv_window}",
+                    f"model.config.attention_sink_size={attention_sink}",
                 ],
                 dp_shard_size=1,
                 cp_size=1,
@@ -121,8 +133,8 @@ class CosmosInferenceModel:
                 and config.fixed_step_sampler_config is not None
                 and config.teacher_forcing_frames_per_chunk == 1
                 and config.tokenizer.temporal_compression_factor == 4
-                and config.kv_cache_inference_size == 8
-                and config.attention_sink_size == 3
+                and config.kv_cache_inference_size == kv_window
+                and config.attention_sink_size == attention_sink
                 and config.kv_cache_dtype is None
             ):
                 raise ValueError(
@@ -171,6 +183,8 @@ class CosmosInferenceModel:
             # The Framework restarts single rows of a batch only on its compiled CUDA-graph path.
             "partial_resets": max_views > 1 and use_compile,
             "device": str(selected_device),
+            "kv_window": kv_window,
+            "attention_sink": attention_sink,
         }
 
     def open_stream(

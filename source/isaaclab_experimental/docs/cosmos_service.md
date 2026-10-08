@@ -118,6 +118,10 @@ is the model's trained horizon; `0` removes the cap. See
 memory for its own generation history, and resetting environments independently needs the compiled path. See
 [Several environments](cosmos.md#several-environments).
 
+`--kv-window N` and `--attention-sink M` set the generation history the model attends to, in latent frames
+(four video frames each). The defaults, 30 and 3, follow the Sim-Transfer recipe. A shorter window is faster and
+needs less memory, especially with several environments, but remembers less of each episode.
+
 `--no-compile` selects eager inference. Omit it to enable the compiled CUDA-graph
 path, which can take additional time on its first use. `--warmup` runs a disposable
 33-frame session on a `(480, 832)` canvas before reporting readiness. With compiled

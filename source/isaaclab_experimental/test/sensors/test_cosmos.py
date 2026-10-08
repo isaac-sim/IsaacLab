@@ -429,6 +429,15 @@ def test_the_service_episode_cap_is_a_setting_of_1_plus_4k_frames(cap):
         CosmosInferenceModel("unused-checkpoint", max_episode_frames=cap)
 
 
+@pytest.mark.parametrize("window,sink", [(0, 0), (3, 3), (30, -1)])
+def test_the_history_window_must_hold_its_attention_sink(window, sink):
+    """The window and sink are checked before the model loads, so bad --kv-window settings fail fast."""
+    from isaaclab_experimental.cosmos.server import CosmosInferenceModel
+
+    with pytest.raises(ValueError, match="attention sink smaller"):
+        CosmosInferenceModel("unused-checkpoint", kv_window=window, attention_sink=sink)
+
+
 @pytest.mark.parametrize(
     "transport,device,capabilities,available,expected",
     [

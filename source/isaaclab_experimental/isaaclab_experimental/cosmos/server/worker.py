@@ -40,6 +40,15 @@ def main(args: list[str] | None = None) -> None:
         default=1,
         help="Most camera views (environments) one session may batch; each needs GPU memory for its history.",
     )
+    parser.add_argument(
+        "--kv-window",
+        type=int,
+        default=30,
+        help="Generation history in latent frames (Sim-Transfer recipe: 30); shorter is faster but remembers less.",
+    )
+    parser.add_argument(
+        "--attention-sink", type=int, default=3, help="Earliest latent frames always kept in the history window."
+    )
     options = parser.parse_args(args)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     os.environ["COSMOS_TRAINING"] = "0"
@@ -51,6 +60,8 @@ def main(args: list[str] | None = None) -> None:
         use_compile=not options.no_compile,
         max_episode_frames=options.max_episode_frames or None,
         max_views=options.max_views,
+        kv_window=options.kv_window,
+        attention_sink=options.attention_sink,
     )
     try:
         serve(model, options.endpoint, warmup=options.warmup)
