@@ -16,7 +16,7 @@ Use this skill whenever a registered environment is added or renamed, or when it
 ## Workflow
 
 1. Read the task registration and configuration to identify its training ID, inference ID, workflow, RL-library entry points, and selectable presets. Use versionless ``Isaac-`` IDs for core tasks and versionless ``IsaacContrib-`` IDs for contributed tasks. Preserve released IDs as deprecated aliases when renaming is necessary. Distinguish selectable presets from fixed configuration: if a task supports only one hard-wired backend, leave its Presets cell empty instead of adding or documenting a single-option selector.
-2. Add a representative screenshot under ``docs/source/_static/tasks/`` when the world is new. Assign the image to the task's generated row in ``docs/source/_static/css/environment-browser.js`` before running the updater. Capture screenshots with the Kit visualizer so their rendering matches the existing previews unless the task deliberately documents another visualizer.
+2. When the world is new, upload a representative screenshot to the download server under ``https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/``, for example ``tasks/<category>/<name>.jpg``. Assign that path, relative to the image base URL, to the task's generated row in ``docs/source/_static/css/environment-browser.js`` before running the updater. Optionally upload a preview clip with the same file name and an ``.mp4`` extension under ``isaaclab/videos/tasks/``; tasks without a clip show the image. Capture screenshots with the Kit visualizer so their rendering matches the existing previews unless the task deliberately documents another visualizer.
 3. Run the registry-backed updater:
 
    ```bash
