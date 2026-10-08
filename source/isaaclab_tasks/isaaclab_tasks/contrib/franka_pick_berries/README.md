@@ -204,7 +204,7 @@ Teleop can handle any of the berries; scripted modes handle `raspberry_1`, for e
 neighbor. The same limitations as for all four berries apply.
 
 `--mode sort` handles all three in sequence on the EBC table: it crushes the first berry and drops it in the
-reject dish, then picks the other two gently, one after the other, and places them in the glass bowl. A grasp that
+reject dish, then picks the other two gently, one after the other, and sets them down side by side in the bowl. A grasp that
 slips is tightened slightly; one that loses the berry stops the sequence until reset (R). The report's
 `sorting_result` checks the outcome: the first berry damaged and in the reject dish, the others in the bowl and
 barely damaged.

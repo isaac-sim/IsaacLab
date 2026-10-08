@@ -13,6 +13,9 @@ from .motion import pause_speed, scripted_duration, scripted_motion_time
 # Task-frame center and usable radius [m] of the reject dish.
 DISCARD = REJECT[:2]
 DISCARD_RADIUS = REJECT[3]
+# Task-frame spots [m] in the bowl where the accepted berries are set down, side by side across the fingers' opening
+# direction, so that the second is not lowered onto the first and the open fingers clear the bowl's wall.
+BOWL_SPOTS = ((BOWL[0] - 0.022, BOWL[1]), (BOWL[0] + 0.022, BOWL[1]))
 
 
 def _ramp(t: float, start: float, duration: float) -> float:
@@ -21,7 +24,7 @@ def _ramp(t: float, start: float, duration: float) -> float:
 
 
 class BerrySortSequence:
-    """Crush the first berry and discard it in the reject dish, then gently place the other two in the glass bowl."""
+    """Crush the first berry and discard it in the reject dish, then gently place the other two in the bowl."""
 
     def __init__(
         self,
@@ -63,6 +66,7 @@ class BerrySortSequence:
         self.failed = False
         self.grip_adjustment = 0.0
         self.grip_offset = None
+        self.hang = None
         self.holding = False
 
     def command(self, elapsed: float, berries: dict, tcp: np.ndarray | None = None) -> tuple[np.ndarray, float]:
@@ -87,20 +91,26 @@ class BerrySortSequence:
             self.center = None
             self.grip_adjustment = 0.0
             self.grip_offset = None
+            self.hang = None
         if self.center is None or t < 1:
             tissue = berry.positions()
             self.center = (tissue.min(0) + tissue.max(0)) / 2 + berry.offset
             width = float(np.ptp(tissue[:, 1]))
             self.opening = float(np.clip(width + 0.008, 0.02, 0.08))
             self.gap = 0.001 if index == 0 else (self.pick_gap or float(np.clip(width * 0.7, 0.001, 0.08)))
-        destination = np.array(DISCARD if index == 0 else BOWL[:2])
+        destination = np.array(DISCARD if index == 0 else BOWL_SPOTS[index - 1])
         # With the hand facing down, pad centers sit 3.6 mm above the TCP.
         grasp_z = max(0.009, self.center[2] - 0.0036)
         target = self.center.copy()
         target[2] = 0.09 - (0.09 - grasp_z) * _ramp(t, 1, 3)
         target[2] += 0.09 * _ramp(t, 9, 3)
         target[:2] += (destination - target[:2]) * _ramp(t, 13, 6)
-        release_z = 0.028 if index == 0 else 0.035
+        # The accepted berries are set down, not dropped: lowered until they hang just above the bowl's floor, however
+        # far they sit below the fingers. A fall would also smear them on screen.
+        release_z = 0.028
+        if index > 0:
+            hang = self.hang if self.hang is not None else grasp_z - BOWL[4]
+            release_z = max(0.009, BOWL[4] + 0.0025 + hang)
         target[2] += (release_z - grasp_z - 0.09) * _ramp(t, 20, 3)
         target[2] += 0.08 * _ramp(t, 26, 3)
         self.holding = False
@@ -117,8 +127,13 @@ class BerrySortSequence:
             elif any(start <= t < start + 1 for start in (12, 19)):
                 tolerance = 0.010
             self.holding = bool(tolerance is not None and np.linalg.norm(tcp - target) > tolerance)
-            if index > 0 and 8 <= t < 24:
-                center_z = float(berry.positions()[:, 2].mean() + berry.offset[2])
+            tissue_z = berry.positions()[:, 2] + berry.offset[2] if index > 0 and 8 <= t < 24 else None
+            if tissue_z is not None and 12 <= t < 20:
+                # Height [m] of the TCP above the berry's bottom, measured over the bowl before setting it down. A low
+                # percentile ignores a particle left behind in the punnet.
+                self.hang = float(tcp[2] - np.percentile(tissue_z, 2))
+            if tissue_z is not None:
+                center_z = float(tissue_z.mean())
                 offset = center_z - tcp[2]
                 if self.grip_offset is None:
                     self.grip_offset = offset
@@ -138,12 +153,13 @@ class BerrySortSequence:
                 self.delay += dt
         gap = self.gap - self.grip_adjustment
         aperture = self.opening + (gap - self.opening) * np.clip((t - 4) / 4, 0, 1)
-        aperture += (0.08 - gap) * np.clip((t - 24) / 2, 0, 1)
+        # Inside the bowl the fingers open only to the approach opening, which keeps them clear of its wall.
+        aperture += ((0.08 if index == 0 else self.opening) - gap) * np.clip((t - 24) / 2, 0, 1)
         phase = "Approach"
         if t >= 4:
             phase = "Crush" if index == 0 else "Gentle grasp"
         if t >= 9:
-            phase = "Carry to discard" if index == 0 else "Carry to glass bowl"
+            phase = "Carry to discard" if index == 0 else "Carry to bowl"
         if t >= 24:
             phase = "Release and retreat"
         self.phase = f"Berry {index + 1}/3: {phase}"

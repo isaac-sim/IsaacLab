@@ -15,3 +15,5 @@ Changed
   texture maps in the standalone berry viewer.
 * Rendered the berry task's punnet as glossy clear plastic that casts no shadow.
 * Lowered the berry task's receiving bowl from 4.5 cm to 3 cm.
+* Set accepted berries down just above the receiving bowl's floor instead of dropping them, side by side in
+  the sort demonstration.
