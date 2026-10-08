@@ -87,30 +87,29 @@ def test_paths_are_resolved_in_environment_major_order() -> None:
         surface_module.resolve_surface_velocity_paths(2, (SurfaceVelocitySpec(prim_path="/World/Shared/Belt"),))
 
 
-def test_facade_ramps_playback_integrates_encoders_and_preserves_commands_on_reset() -> None:
+def test_facade_ramps_playback_and_preserves_commands_on_reset(monkeypatch: pytest.MonkeyPatch) -> None:
     """Full resets restart playback without erasing policy-visible command state."""
     writer = _FakeWriter()
-    facade = surface_module.SurfaceVelocity(2, (_surface_spec(),), writer=writer)
+    monkeypatch.setattr(surface_module, "_PhysxSchemaSurfaceWriter", lambda *args, **kwargs: writer)
+    facade = surface_module.SurfaceVelocity(2, (_surface_spec(),))
 
     assert facade.prim_paths == ("/World/envs/env_0/Belt", "/World/envs/env_1/Belt")
-    assert facade.num_surfaces == facade.count == 2
+    assert facade.num_surfaces == 2
     assert [record[2].linear_velocity for record in writer.writes] == [(0.0, 0.0, 0.0)] * 2
 
     facade.update(0.25)
     np.testing.assert_allclose([record[2].linear_velocity[0] for record in writer.writes[-2:]], (0.1, 0.1))
-    np.testing.assert_allclose(facade.get_encoder_positions(), (0.1, 0.1))
 
     facade.set_velocities(torch.tensor([0.8], requires_grad=True), indices=torch.tensor([0]))
     facade.set_enabled(False, indices=[1])
     facade.update(0.25)
     np.testing.assert_allclose(facade.get_commanded_velocities(), (0.8, 0.4))
     np.testing.assert_allclose(facade.get_velocities(), (0.8, 0.0))
-    np.testing.assert_allclose(facade.get_encoder_positions(), (0.3, 0.1))
 
+    writes_before_reset = list(writer.writes)
     facade.reset(env_ids=torch.tensor([0]))
-    np.testing.assert_allclose(facade.get_encoder_positions(), (0.0, 0.1))
+    assert writer.writes == writes_before_reset
     facade.reset(env_ids=[1, 0])
-    np.testing.assert_allclose(facade.get_encoder_positions(), (0.0, 0.0))
     np.testing.assert_allclose(facade.get_commanded_velocities(), (0.8, 0.4))
     assert facade.get_enabled().tolist() == [1, 0]
     np.testing.assert_allclose(writer.writes[-2][2].linear_velocity, (0.0, 0.0, 0.0))
