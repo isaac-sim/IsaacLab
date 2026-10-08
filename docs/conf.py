@@ -432,10 +432,14 @@ isaaclab_doc_redirects = {
     "source/tutorials/05_controllers/run_diff_ik": "source/how-to/run_diff_ik",
     "source/tutorials/05_controllers/run_osc": "source/how-to/run_osc",
     "source/tutorials/index": "source/how-to/index",
+    "source/concepts/backend_architecture": "source/concepts/backends_and_presets",
 }
 
 # Sections of the former combined Docker page now live on separate pages.
 isaaclab_doc_redirect_fragments = {
+    "source/concepts/backend_architecture": {
+        "overview": "source/concepts/backends_and_presets#backend-architecture",
+    },
     "source/features/docker_cloud": {
         "clusters": "source/workflows/docker/cluster#deployment-cluster",
         "deployment-cluster": "source/workflows/docker/cluster#deployment-cluster",

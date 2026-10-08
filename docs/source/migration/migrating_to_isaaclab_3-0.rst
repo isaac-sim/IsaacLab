@@ -124,7 +124,7 @@ Tasks can expose alternatives such as ``physics=physx``, ``physics=ovphysx``, or
 ``physics=newton_mjwarp`` without changing their asset import paths.
 
 For a comprehensive overview of the factory pattern and backend selection,
-see :doc:`/source/concepts/backend_architecture`. To add a new backend, see
+see :ref:`backend-architecture`. To add a new backend, see
 :doc:`/source/developer-tools/add_physics_backend`.
 
 
