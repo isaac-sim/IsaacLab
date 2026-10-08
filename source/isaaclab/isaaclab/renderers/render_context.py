@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 import warnings
 from collections.abc import Sequence
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import torch
 import warp as wp
@@ -18,6 +18,9 @@ import warp as wp
 from ..sensors.camera.camera_data import CameraData
 from .base_renderer import BaseRenderer, VisualMaterialBatch
 from .renderer_cfg import RendererCfg
+
+if TYPE_CHECKING:
+    from ..assets.visual_material.visual_material import VisualMaterial
 
 logger = logging.getLogger(__name__)
 
@@ -85,7 +88,7 @@ class RenderContext:
         self._physics_initialized: bool = False  # Set to True after the first PHYSICS_READY callback fires.
         self._prepared_renderer_ids: set[int] = set()
         self._prepared_num_envs: int | None = None
-        self._visual_materials: list[Any] = []
+        self._visual_materials: list[VisualMaterial] = []
         self._visual_material_batches: tuple[VisualMaterialBatch, ...] = ()
         self._visual_material_batches_by_channel: dict[str, VisualMaterialBatch] = {}
         self._visual_material_batch_views: dict[str, wp.array] = {}
@@ -102,6 +105,11 @@ class RenderContext:
     def renderer_types(self) -> tuple[str, ...]:
         """Return the registered camera renderer types."""
         return tuple(cfg.renderer_type for cfg, _renderer in self._renderer_entries)
+
+    @property
+    def visual_materials(self) -> tuple[VisualMaterial, ...]:
+        """Initialized material assets available when renderers prepare their scenes."""
+        return tuple(self._visual_materials)
 
     def validate_renderer_cfg(self, cfg: RendererCfg) -> None:
         """Reject late registration and conflicting global settings before renderer construction."""
@@ -133,7 +141,7 @@ class RenderContext:
         for _cfg, renderer in self._renderer_entries:
             renderer.initialize()
 
-    def register_visual_material(self, material: Any) -> None:
+    def register_visual_material(self, material: VisualMaterial) -> None:
         """Register one initialized material asset for flat channel composition."""
         if any(registered is material for registered in self._visual_materials):
             return

@@ -19,6 +19,7 @@ import warp as wp
 from isaaclab.assets import AssetBaseCfg
 from isaaclab.assets.visual_material.visual_material import VisualMaterial
 from isaaclab.cloner import make_clone_plan
+from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.renderers.render_context import RenderContext
 from isaaclab.renderers.renderer_cfg import RendererCfg
 from isaaclab.sim import SpawnerCfg
@@ -201,6 +202,45 @@ def test_material_registration_is_idempotent_after_lifecycle_stop() -> None:
 
     with pytest.raises(RuntimeError, match="before rendering consumers"):
         context.register_visual_material(_Material("late", "roughness", torch.zeros(2)))
+
+
+def test_materials_are_available_during_camera_preparation_after_stop(monkeypatch):
+    class Manager(PhysicsManager):
+        _callbacks = {}
+        _device = "cpu"
+
+    registry = []
+    context = RenderContext(registry)
+    prepared = []
+    registry.append(
+        (RendererCfg(), SimpleNamespace(prepare_stage=lambda *_: prepared.append(context.visual_materials)))
+    )
+    simulation = SimpleNamespace(
+        physics_manager=Manager,
+        vis_marker_registry=SimpleNamespace(clear_debug_vis_callback=lambda _: None),
+    )
+    monkeypatch.setattr("isaaclab.assets.asset_base.SimulationContext", SimpleNamespace(instance=lambda: simulation))
+    material = VisualMaterial.__new__(VisualMaterial)
+    material._is_initialized = False
+    material._is_per_env = False
+    material._source_material_path = "/Looks/owned"
+    material._source_shader_path = "/Looks/owned/Shader"
+    material._initial_values = {"color": torch.tensor([0.8, 0.1, 0.1])}
+    material._values = {}
+    material._render_context = context
+    # A camera can be constructed before its material, so registration order must not decide readiness.
+    Manager.register_callback(lambda _: context.ensure_prepare_stage(None, 1), PhysicsEvent.PHYSICS_READY, order=10)
+    material._register_callbacks()
+    try:
+        Manager.dispatch_event(PhysicsEvent.PHYSICS_READY)
+        Manager.dispatch_event(PhysicsEvent.STOP)
+        context.close()
+        assert context.visual_materials == ()
+        Manager.dispatch_event(PhysicsEvent.PHYSICS_READY)
+        assert prepared == [(material,), (material,)]
+    finally:
+        material._clear_callbacks()
+        Manager.clear_callbacks()
 
 
 def _class_method(path: Path, class_name: str, method_name: str) -> ast.FunctionDef:
