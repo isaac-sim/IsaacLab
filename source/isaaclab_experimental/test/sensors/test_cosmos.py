@@ -442,7 +442,7 @@ def test_the_service_episode_cap_is_a_setting_of_1_plus_4k_frames(cap):
     ],
 )
 def test_transport_keeps_images_on_the_gpu_only_when_the_service_shares_this_gpu(
-    transport, device, capabilities, available, expected, monkeypatch
+    transport, device, capabilities, available, expected, monkeypatch, caplog
 ):
     """Auto uses CUDA IPC only for a local service on the same GPU; the socket is the fallback."""
     from isaaclab_experimental.cosmos import _cuda_ipc
@@ -451,7 +451,11 @@ def test_transport_keeps_images_on_the_gpu_only_when_the_service_shares_this_gpu
     monkeypatch.setattr(_cuda_ipc, "pci_bus_id", lambda index: "0000:01:00.0")
     stream = CosmosModel(CosmosModelCfg(transport=transport)).open_stream(num_views=1, seeds=(1,))
     stream._exchange = lambda metadata, arrays=(): ({"ok": True, "capabilities": capabilities}, [])
-    assert stream._select_transport(torch.device(device)) == expected
+    with caplog.at_level("INFO"):
+        assert stream._select_transport(torch.device(device)) == expected
+    if transport != "socket":
+        # The log says which path the images take; an explicit socket transport needs no choice.
+        assert ("CUDA IPC" if expected == "cuda_ipc" else "through the socket") in caplog.text
 
 
 def test_cuda_ipc_handles_keep_all_64_bytes_including_zero_bytes():

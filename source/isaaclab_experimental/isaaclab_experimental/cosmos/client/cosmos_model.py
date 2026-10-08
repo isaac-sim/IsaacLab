@@ -241,6 +241,7 @@ class _CosmosStream:
             elif capabilities.get("pci_bus_id") != _cuda_ipc.pci_bus_id(device.index or 0):
                 reason = "the service uses a different GPU"
         if reason is None:
+            _LOGGER.info("Cosmos keeps images on the GPU with CUDA IPC.")
             return "cuda_ipc"
         if self._cfg.transport == "cuda_ipc":
             raise RuntimeError(f"Cosmos transport cuda_ipc is unavailable: {reason}.")
