@@ -199,11 +199,15 @@ Dense grids and unbounded grids run without capture.
 Resets
 ^^^^^^
 
-When MPM worlds share one grid, the solver cannot reset its history for only a
-subset of worlds, so automatic asset resets leave solver history untouched.
-Tasks that use independent MPM worlds and need an exact history reset call
+With the MPM solver alone, automatic asset resets leave solver history
+untouched, because worlds that share one grid cannot have their history reset
+individually. Under a coupler, automatic resets go through the coupled
+solver's reset, which passes the per-world reset mask to every entry, including
+the MPM entry. Tasks that need an exact history reset, such as Franka Pour, use
+independent MPM worlds (``separate_worlds=True``) and call
 :meth:`~isaaclab_newton.physics.NewtonMPMManager.reset_solver_state` after
-writing their complete state.
+writing their complete state. In a coupled run, this also resets the coupled
+solver's history.
 
 
 Rendering a particle surface

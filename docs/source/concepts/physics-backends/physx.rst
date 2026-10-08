@@ -80,11 +80,14 @@ simulation lifecycle. Isaac Sim's own
 ``isaacsim.core.simulation_manager.SimulationManager`` registers default
 timeline and stage callbacks. Its stop callback invalidates the shared
 ``omni.physics.tensors`` simulation view, which would also invalidate the views
-that Isaac Lab assets hold. Newer Isaac Sim versions can disable these default
-callbacks at startup, and Isaac Lab leaves them alone in that case. On older
-versions, ``PhysxManager.initialize()`` disables those callbacks and redirects
-the module's ``SimulationManager`` to ``PhysxManager``. ``PhysxManager``
-re-applies this patch if the Isaac Sim extension is enabled later.
+that Isaac Lab assets hold. ``KitLauncher`` asks Isaac Sim to skip these
+callbacks at startup through the
+``/exts/isaacsim.core.simulation_manager/enable_default_callbacks`` setting.
+Newer Isaac Sim versions honor it, and Isaac Lab then leaves the manager
+untouched. On older versions, ``PhysxManager.initialize()`` disables those
+callbacks and redirects the module's ``SimulationManager`` to
+``PhysxManager``. ``PhysxManager`` re-applies this patch if the Isaac Sim
+extension is enabled later.
 
 
 Simulation lifecycle
