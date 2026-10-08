@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import sys
 from types import SimpleNamespace
-from typing import Any, cast
+from typing import Any
 from unittest.mock import Mock
 
 import isaaclab_visualizers.kit.kit_visualizer as kit_visualizer
@@ -90,8 +90,8 @@ class _FakeVisualizer(BaseVisualizer):
         self.step_calls = []
         self.close_calls = 0
 
-    def initialize(self, provider, *, cameras, stage=None):
-        super().initialize(provider, cameras=cameras, stage=stage)
+    def initialize(self, sim, *, cameras):
+        super().initialize(sim, cameras=cameras)
         self._is_initialized = True
 
     @property
@@ -279,11 +279,7 @@ def test_newton_visualizer_is_initialized_and_rebound_before_capture():
     ctx = _make_context_with_settings(
         {}, visualizer_cfgs=[_Cfg("newton_gl", True), _Cfg("newton_rtx", True), _Cfg("rerun")]
     )
-    scene = SimpleNamespace(stage=object(), populate=Mock())
-    ctx.get_or_create_backend = Mock(side_effect=[scene, object()])
-    ctx.physics_manager.get_device = lambda: "cpu"
-    ctx.cfg.gravity = (0.0, 0.0, -9.81)
-    ctx.vis_marker_registry = VisMarkerRegistry()
+    ctx.get_or_create_backend = Mock(side_effect=AssertionError("Core must not construct viewer backends"))
     ctx._create_visualizers()
     eye, target = (1.0, 2.0, 3.0), (0.0, 0.0, 0.0)
     ctx.set_camera_view(eye, target)
@@ -307,9 +303,19 @@ def test_reset_initializes_visualizers_before_playing_timeline():
     """Initial visualizers must see the PhysX views created by reset before play() pumps timeline events."""
     events: list[str] = []
     ctx = object.__new__(SimulationContext)
-    ctx._visualizers = []
+    ctx.cfg = SimpleNamespace(physics=object())
+    ctx._visualizers = [
+        SimpleNamespace(
+            cfg=SimpleNamespace(visualizer_type="newton_rtx"), reset=lambda soft: events.append("viewer_reset")
+        )
+    ]
+    ctx.get_or_create_backend = Mock(side_effect=AssertionError("Core must not rebind viewer backends"))
 
     class _PhysicsManager:
+        @staticmethod
+        def get_device():
+            return "cpu"
+
         @staticmethod
         def reset(soft=False):
             events.append(f"reset:{soft}")
@@ -333,7 +339,7 @@ def test_reset_initializes_visualizers_before_playing_timeline():
 
     ctx.reset()
 
-    assert events == ["reset:False", "initialize_visualizers", "finalize_consumers:1:True", "play"]
+    assert events == ["reset:False", "viewer_reset", "initialize_visualizers", "finalize_consumers:1:True", "play"]
     assert ctx.is_playing()
     assert not ctx.is_stopped()
 
@@ -363,6 +369,8 @@ def web_backend(monkeypatch):
         device="cpu",
         get_or_create_backend=Mock(return_value=backend),
         vis_marker_registry=VisMarkerRegistry(),
+        stage=None,
+        get_scene_data_provider=Mock(return_value=_DummyViserSceneDataProvider()),
     )
     monkeypatch.setattr(SimulationContext, "instance", lambda: sim)
     return sim
@@ -391,6 +399,7 @@ class _DummyViserViewer:
 
 def test_viser_visualizer_reads_sdp_and_rebinds_native_resource(monkeypatch, web_backend):
     provider = _DummyViserSceneDataProvider()
+    web_backend.get_scene_data_provider.return_value = provider
     viewer = _DummyViserViewer()
 
     def _fake_create_viewer(self, record_to_viser: str | None, metadata: dict | None = None):
@@ -403,7 +412,7 @@ def test_viser_visualizer_reads_sdp_and_rebinds_native_resource(monkeypatch, web
 
     cfg = NewtonBackendCfg(physics_cfg=web_backend.cfg.physics, device=web_backend.device)
     visualizer = viser_visualizer.ViserVisualizer(ViserVisualizerCfg())
-    visualizer.initialize(cast(Any, provider), cameras=[])
+    visualizer.initialize(web_backend, cameras=[])
     visualizer.step(0.25)
 
     assert visualizer.is_initialized
@@ -488,7 +497,8 @@ def test_viser_visualizer_create_viewer_applies_visible_worlds(
     )
     visualizer = viser_visualizer.ViserVisualizer(cfg)
     visualizer.backend = SimpleNamespace(model="dummy-model")
-    BaseVisualizer.initialize(visualizer, SimpleNamespace(num_envs=8), cameras=[])
+    sim = Mock(stage=None, get_scene_data_provider=Mock(return_value=SimpleNamespace(num_envs=8)))
+    BaseVisualizer.initialize(visualizer, sim, cameras=[])
     visualizer._create_viewer(record_to_viser="record.viser", metadata={"num_envs": 8})
 
     assert captured["set_model"] == "dummy-model"
@@ -544,7 +554,7 @@ def test_rerun_visualizer_initialize_applies_visible_worlds_and_world_offsets(
         randomly_sample_visible_envs=False,
     )
     visualizer = rerun_visualizer.RerunVisualizer(cfg)
-    visualizer.initialize(cast(Any, _DummyViserSceneDataProvider()), cameras=[])
+    visualizer.initialize(web_backend, cameras=[])
 
     assert captured["streaming_view"] is False
     assert captured["set_model"] is web_backend.get_or_create_backend.return_value.model
@@ -724,7 +734,7 @@ class _FakeVisualizerCfg(VisualizerCfg):
 
 
 class _FailingInitVisualizer(_FakeVisualizer):
-    def initialize(self, provider, *, cameras, stage=None):
+    def initialize(self, sim, *, cameras):
         raise RuntimeError("init failed")
 
 

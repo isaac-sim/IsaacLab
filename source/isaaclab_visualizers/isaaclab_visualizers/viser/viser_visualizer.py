@@ -35,9 +35,6 @@ logger = logging.getLogger(__name__)
 
 
 if TYPE_CHECKING:
-    from pxr import Usd
-
-    from isaaclab.scene_data import SceneDataProvider
     from isaaclab.sensors.camera import Camera
 
 
@@ -348,28 +345,21 @@ class ViserVisualizer(BaseVisualizer):
         self._paused_rendering = False
         self._paused_simulation = False
 
-    def initialize(
-        self,
-        scene_data_provider: SceneDataProvider,
-        *,
-        cameras: list[PerspectiveCameraCfg | Camera],
-        stage: Usd.Stage | None = None,
-    ) -> None:
+    def initialize(self, sim: SimulationContext, *, cameras: list[PerspectiveCameraCfg | Camera]) -> None:
         """Initialize viewer resources and bind scene data provider.
 
         Args:
-            scene_data_provider: Scene data provider used to fetch model/state data.
+            sim: Simulation owner used to resolve scene data and native resources.
             cameras: Resolved perspective settings and borrowed scene sensors, in display order.
-            stage: Authored scene stage, when available.
         """
         if self._is_initialized:
             logger.debug("[ViserVisualizer] initialize() called while already initialized.")
             return
 
-        super().initialize(scene_data_provider, cameras=cameras, stage=stage)
+        super().initialize(sim, cameras=cameras)
+        scene_data_provider = self._scene_data_provider
         num_envs = scene_data_provider.num_envs
         metadata = {"num_envs": num_envs}
-        sim = SimulationContext.instance()
         self.newton_cfg = NewtonBackendCfg(physics_cfg=sim.cfg.physics, device=sim.device)
         self.backend = sim.get_or_create_backend(self.newton_cfg)
         self._transform_mapping = scene_data_provider.create_mapping(list(self.backend.model.body_label))
@@ -482,8 +472,7 @@ class ViserVisualizer(BaseVisualizer):
         super().reset(soft)
         if soft or not self._is_initialized or self._is_closed:
             return
-        sim = SimulationContext.instance()
-        backend = sim.get_or_create_backend(self.newton_cfg)
+        backend = self._get_backend(self.newton_cfg)
         if backend is self.backend:
             return
         self.backend = backend

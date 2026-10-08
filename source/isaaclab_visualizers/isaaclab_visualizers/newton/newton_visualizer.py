@@ -21,8 +21,6 @@ import torch
 import warp as wp
 from isaaclab_newton.physics import NewtonBackendCfg, NewtonManager
 
-from pxr import Usd
-
 from isaaclab.scene_data import SceneDataFormat
 from isaaclab.sensors.camera import Camera
 from isaaclab.sim import SimulationContext
@@ -81,8 +79,6 @@ _NEWTON_ICON_DIR = Path(newton.__file__).parent / "_src" / "viewer" / "gl"
 
 if TYPE_CHECKING:
     from newton import State
-
-    from isaaclab.scene_data import SceneDataProvider
 
 
 # ---------------------------------------------------------------------------
@@ -158,28 +154,21 @@ class NewtonGLVisualizer(_NewtonCameraControls, BaseVisualizer):
     # GL lifecycle
     # ------------------------------------------------------------------
 
-    def initialize(
-        self,
-        scene_data_provider: SceneDataProvider,
-        *,
-        cameras: list[PerspectiveCameraCfg | Camera],
-        stage: Usd.Stage | None = None,
-    ) -> None:
+    def initialize(self, sim: SimulationContext, *, cameras: list[PerspectiveCameraCfg | Camera]) -> None:
         """Initialize viewer resources and bind scene data provider.
 
         Args:
-            scene_data_provider: Scene data provider used to fetch model/state data.
+            sim: Simulation owner used to resolve scene data and native resources.
             cameras: Resolved perspective settings and borrowed scene sensors, in display order.
-            stage: Authored scene stage, when available.
         """
 
         if self._is_initialized:
             logger.debug("[%s] initialize() called while already initialized.", type(self).__name__)
             return
 
-        super().initialize(scene_data_provider, cameras=cameras, stage=stage)
+        super().initialize(sim, cameras=cameras)
+        scene_data_provider = self._scene_data_provider
         newton_backend_active = self.physics_backend == "newton"
-        sim = SimulationContext.instance()
         physics_manager = sim.physics_manager
         picking_supported = newton_backend_active and bool(
             getattr(physics_manager, "_supports_rigid_body_force_input", False)
@@ -366,8 +355,7 @@ class NewtonGLVisualizer(_NewtonCameraControls, BaseVisualizer):
         if soft or not self._is_initialized or self._is_closed:
             return
 
-        sim = SimulationContext.instance()
-        backend = sim.get_or_create_backend(self.newton_cfg)
+        backend = self._get_backend(self.newton_cfg)
         if backend is self.backend:
             return
         self.backend = backend

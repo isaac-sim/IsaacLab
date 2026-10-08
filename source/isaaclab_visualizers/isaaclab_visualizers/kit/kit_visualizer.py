@@ -30,7 +30,6 @@ from .kit_visualizer_cfg import KitVisualizerCfg
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
-    from isaaclab.scene_data import SceneDataProvider
     from isaaclab.sensors.camera import Camera
 
 _DEFAULT_VIEWPORT_NAME = "Visualizer Viewport"
@@ -90,25 +89,19 @@ class KitVisualizer(BaseVisualizer):
 
         return FabricVisualMaterialWriter
 
-    def initialize(
-        self,
-        scene_data_provider: SceneDataProvider,
-        *,
-        cameras: list[PerspectiveCameraCfg | Camera],
-        stage: Usd.Stage | None = None,
-    ) -> None:
+    def initialize(self, sim: SimulationContext, *, cameras: list[PerspectiveCameraCfg | Camera]) -> None:
         """Initialize viewport resources and bind scene data provider.
 
         Args:
-            scene_data_provider: Scene data provider used by the visualizer.
+            sim: Simulation owner used to resolve scene data and native resources.
             cameras: Resolved perspective settings and borrowed scene sensors, in display order.
-            stage: Authored scene stage, when available.
         """
         if self._is_initialized:
             logger.debug("[KitVisualizer] initialize() called while already initialized.")
             return
 
-        super().initialize(scene_data_provider, cameras=cameras, stage=stage)
+        super().initialize(sim, cameras=cameras)
+        scene_data_provider = self._scene_data_provider
         num_envs = scene_data_provider.num_envs
 
         self._ensure_simulation_app()
@@ -140,7 +133,6 @@ class KitVisualizer(BaseVisualizer):
         )
         self._setup_streaming_view(num_envs)
 
-        sim = SimulationContext.instance()
         from isaaclab_physx.renderers.fabric import FabricBackendCfg  # noqa: PLC0415 - requires Kit
 
         self._fabric = sim.get_or_create_backend(FabricBackendCfg(stage=sim.stage, device=sim.device))

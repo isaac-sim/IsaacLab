@@ -230,13 +230,14 @@ def test_visualizers_borrow_scene_camera_outputs(monkeypatch):
     provider = SimpleNamespace(
         num_envs=4, get_camera_sensors=Mock(side_effect=AssertionError("Sources must already be bound"))
     )
+    sim = Mock(stage=None, get_scene_data_provider=Mock(return_value=provider))
     camera_sensors = {"camera": camera}
     viewers = []
     for ids in ([0, 2], [1, 3]):
         cfg = NewtonGLVisualizerCfg(streaming_envs=ids, cameras=[SceneCameraCfg(prim_path="{ENV_REGEX_NS}/Camera")])
         visualizer = instantiate(cfg)
         cameras = resolve_camera_sources(cfg, camera_sensors, env_template="/Scenes/world_{}")
-        BaseVisualizer.initialize(visualizer, provider, cameras=cameras)
+        BaseVisualizer.initialize(visualizer, sim, cameras=cameras)
         assert not hasattr(visualizer, "_clone_plan")
         assert not hasattr(visualizer, "_resolve_camera_pose_from_usd_path")
         assert not hasattr(visualizer, "_streaming_params")
@@ -677,7 +678,7 @@ def test_newton_visualizer_hard_reset_rebinds_viewer_model(monkeypatch, picking)
     new_state = object()
     backend = SimpleNamespace(model=new_model, state_0=new_state)
     sim = SimpleNamespace(get_or_create_backend=Mock(return_value=backend))
-    monkeypatch.setattr(SimulationContext, "instance", lambda: sim)
+    monkeypatch.setattr(SimulationContext, "instance", Mock(side_effect=AssertionError("No global resource lookup")))
 
     viewer = _Viewer()
     viewer.picking_enabled = False
@@ -688,6 +689,7 @@ def test_newton_visualizer_hard_reset_rebinds_viewer_model(monkeypatch, picking)
     viewer.set_visible_worlds = Mock()
     viewer.set_world_offsets = Mock()
     visualizer = _make_newton_visualizer(viewer)
+    visualizer._get_backend = sim.get_or_create_backend
     cfg = visualizer.newton_cfg = NewtonBackendCfg(physics_cfg=object(), device="cpu")
     visualizer._env_ids = [1, 3]
     visualizer._picking_enabled = picking
@@ -1290,14 +1292,7 @@ def test_newton_rtx_visualizer_rejects_kit_physics_backend(monkeypatch, backend)
     visualizer = NewtonRTXVisualizer(NewtonRTXVisualizerCfg())
 
     with pytest.raises(RuntimeError, match="Newton RTX"):
-        visualizer.initialize(
-            SimpleNamespace(num_envs=1),
-            cameras=[],
-            ovstage=Mock(),
-            newton_backend=Mock(),
-            marker_groups=[],
-            gravity=(0.0, 0.0, -9.81),
-        )
+        visualizer.initialize(Mock(), cameras=[])
 
 
 def test_newton_live_plots_read_updated_scalar_and_array_history():

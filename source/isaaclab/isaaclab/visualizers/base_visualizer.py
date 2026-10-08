@@ -27,12 +27,10 @@ from ..utils.images import compose_image
 from .visualizer_cfg import PerspectiveCameraCfg
 
 if TYPE_CHECKING:
-    from pxr import Usd
-
     from ..managers import ManagerBase
     from ..renderers.base_renderer import VisualMaterialBatch
-    from ..scene_data import SceneDataProvider
     from ..sensors import Camera
+    from ..sim import SimulationContext
     from .visualizer_cfg import VisualizerCfg
 
 
@@ -87,24 +85,19 @@ class BaseVisualizer(ABC):
         """
         return None
 
-    def initialize(
-        self,
-        scene_data_provider: SceneDataProvider,
-        *,
-        cameras: list[PerspectiveCameraCfg | Camera],
-        stage: Usd.Stage | None = None,
-    ) -> None:
-        """Bind the scene dependencies supplied by SimulationContext.
+    def initialize(self, sim: SimulationContext, *, cameras: list[PerspectiveCameraCfg | Camera]) -> None:
+        """Bind scene inputs and the simulation-owned resource registry.
 
         Args:
-            scene_data_provider: Scene data and scene-owned sensors.
+            sim: Simulation owner used to resolve resources during initialization.
             cameras: Resolved perspective settings and borrowed scene sensors, in display order.
-            stage: Authored scene stage, when the visualizer consumes USD.
         """
+        scene_data_provider = sim.get_scene_data_provider()
         if scene_data_provider is None:
             raise RuntimeError(f"{self.__class__.__name__} requires a scene_data_provider.")
         self._scene_data_provider = scene_data_provider
-        self._scene_stage = stage
+        self._scene_stage = sim.stage
+        self._get_backend = sim.get_or_create_backend
         self._camera_choices = list(cameras)
 
         cfg = self.cfg
@@ -235,6 +228,7 @@ class BaseVisualizer(ABC):
         self._streaming_layout = self._streaming_view_key = None
         self._streaming_keys = ()
         self._scene_data_provider = self._scene_stage = None
+        self._get_backend = None
         self._is_closed = True
 
     @abstractmethod

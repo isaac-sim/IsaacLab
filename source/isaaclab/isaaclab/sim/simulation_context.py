@@ -465,22 +465,7 @@ class SimulationContext:
             camera_sensors = self._scene_data_provider.get_camera_sensors() if visualizer.cfg.streaming_view else {}
             env_template = self._clone_plan.env_template if self._clone_plan is not None else DEFAULT_ENV_TEMPLATE
             cameras = resolve_camera_sources(visualizer.cfg, camera_sensors, env_template=env_template)
-            native_scene = {}
-            if visualizer.cfg.visualizer_type == "newton_rtx":
-                from isaaclab_newton.physics import NewtonBackendCfg
-                from isaaclab_ov.stage import OvstageBackendCfg
-
-                scene = self.get_or_create_backend(OvstageBackendCfg(viewer_id=id(visualizer)))
-                scene.populate(self.stage, self._clone_plan)
-                native_scene = dict(
-                    ovstage=scene.stage,
-                    newton_backend=self.get_or_create_backend(
-                        NewtonBackendCfg(physics_cfg=self.cfg.physics, device=self.device)
-                    ),
-                    marker_groups=self.vis_marker_registry.get_groups().values(),
-                    gravity=self.cfg.gravity,
-                )
-            visualizer.initialize(self._scene_data_provider, cameras=cameras, stage=self.stage, **native_scene)
+            visualizer.initialize(self, cameras=cameras)
             self._pending_visualizers.remove(visualizer)
             self._visualizers.append(visualizer)
             self._visualizers_started = True
@@ -577,13 +562,7 @@ class SimulationContext:
         """
         self.physics_manager.reset(soft)
         for viz in self._visualizers:
-            if viz.cfg.visualizer_type == "newton_rtx":
-                from isaaclab_newton.physics import NewtonBackendCfg
-
-                cfg = NewtonBackendCfg(physics_cfg=self.cfg.physics, device=self.device)
-                viz.reset(soft, newton_backend=self.get_or_create_backend(cfg))
-            else:
-                viz.reset(soft)
+            viz.reset(soft)
         # Initialize visualizers not prepared by a backend-specific pre-capture hook.
         self.initialize_visualizers()
         self._render_context.finalize_consumers(self._visualizers, rebuild=not soft)

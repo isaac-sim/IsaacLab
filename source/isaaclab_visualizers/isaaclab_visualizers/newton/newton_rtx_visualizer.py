@@ -9,10 +9,11 @@ from __future__ import annotations
 
 import os
 import sys
-from collections.abc import Iterable
 from typing import TYPE_CHECKING
 
 import numpy as np
+from isaaclab_newton.physics import NewtonBackendCfg
+from isaaclab_ov.stage import OvstageBackendCfg
 
 from isaaclab.scene_data import SceneDataFormat
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
@@ -22,16 +23,9 @@ from .newton_visualization_markers import render_newton_visualization_markers
 from .newton_visualizer_cfg import NewtonRTXVisualizerCfg
 
 if TYPE_CHECKING:
-    import ovstage as ovstage_module
-    from isaaclab_newton.physics import NewtonBackend
-
-    from pxr import Usd
-
-    from isaaclab.scene_data import SceneDataProvider
     from isaaclab.sensors.camera import Camera
+    from isaaclab.sim import SimulationContext
     from isaaclab.visualizers import PerspectiveCameraCfg
-
-    from .newton_visualization_markers import NewtonVisualizationMarkers
 
 
 class NewtonRTXVisualizer(_NewtonCameraControls, BaseVisualizer):
@@ -49,17 +43,7 @@ class NewtonRTXVisualizer(_NewtonCameraControls, BaseVisualizer):
         self._step_counter = 0
         self.backend = None
 
-    def initialize(
-        self,
-        scene_data_provider: SceneDataProvider,
-        *,
-        cameras: list[PerspectiveCameraCfg | Camera],
-        ovstage: ovstage_module.Stage,
-        newton_backend: NewtonBackend,
-        marker_groups: Iterable[NewtonVisualizationMarkers],
-        gravity: tuple[float, float, float],
-        stage: Usd.Stage | None = None,
-    ) -> None:
+    def initialize(self, sim: SimulationContext, *, cameras: list[PerspectiveCameraCfg | Camera]) -> None:
         """Attach to the populated scene and bind the model used to publish body poses."""
         if self._is_initialized:
             return
@@ -67,9 +51,13 @@ class NewtonRTXVisualizer(_NewtonCameraControls, BaseVisualizer):
             raise RuntimeError(
                 "Newton RTX is kitless and cannot share a process with Kit physics; use Newton or OVPhysX."
             )
-        super().initialize(scene_data_provider, cameras=cameras, stage=stage)
-        self.backend = newton_backend
-        self._transform_mapping = scene_data_provider.create_mapping(list(newton_backend.model.body_label))
+        super().initialize(sim, cameras=cameras)
+        scene_data_provider = self._scene_data_provider
+        scene = self._get_backend(OvstageBackendCfg(viewer_id=id(self)))
+        scene.populate(self._scene_stage, sim.get_clone_plan())
+        self.newton_cfg = NewtonBackendCfg(physics_cfg=sim.cfg.physics, device=sim.device)
+        self.backend = self._get_backend(self.newton_cfg)
+        self._transform_mapping = scene_data_provider.create_mapping(list(self.backend.model.body_label))
         cfg = self.cfg
         self._runtime_headless = cfg.headless or (
             sys.platform not in ("win32", "darwin") and not os.environ.get("DISPLAY")
@@ -83,18 +71,18 @@ class NewtonRTXVisualizer(_NewtonCameraControls, BaseVisualizer):
             height=cfg.window_height,
             headless=self._runtime_headless,
             async_rendering=not self._runtime_headless,
-            ovstage=ovstage,
+            ovstage=scene.stage,
             render_settings=settings,
             up_axis="Z",
             metadata={
                 "num_envs": scene_data_provider.num_envs,
                 "physics_backend": self.physics_backend,
-                "gravity": gravity,
+                "gravity": sim.cfg.gravity,
             },
             update_frequency=cfg.update_frequency,
         )
-        self._viewer.set_model(newton_backend.model)
-        self._viewer.marker_groups = marker_groups
+        self._viewer.set_model(self.backend.model)
+        self._viewer.marker_groups = sim.vis_marker_registry.get_groups().values()
         self._viewer.picking_enabled = False
         self._setup_streaming_view(
             scene_data_provider.num_envs,
@@ -144,14 +132,17 @@ class NewtonRTXVisualizer(_NewtonCameraControls, BaseVisualizer):
             return
         self._render_frame()
 
-    def reset(self, soft: bool = False, *, newton_backend: NewtonBackend) -> None:
-        """Rebind the model after a hard simulation reset; the simulation supplies its current backend."""
+    def reset(self, soft: bool = False) -> None:
+        """Rebind the viewer when a hard reset replaces its simulation-owned model."""
         super().reset(soft)
-        if self._viewer is None or newton_backend is self.backend:
+        if soft or not self._is_initialized or self._is_closed:
             return
-        self.backend = newton_backend
-        self._transform_mapping = self._scene_data_provider.create_mapping(list(newton_backend.model.body_label))
-        self._viewer.set_model(newton_backend.model)
+        backend = self._get_backend(self.newton_cfg)
+        if backend is self.backend:
+            return
+        self.backend = backend
+        self._transform_mapping = self._scene_data_provider.create_mapping(list(backend.model.body_label))
+        self._viewer.set_model(backend.model)
         self._viewer.picking_enabled = False
         self._viewer.register_ui_callback(self._viewer._render_training_controls, position="side")
         self._viewer.register_ui_callback(self._draw_streaming_view_controls, position="side")

@@ -21,6 +21,8 @@ The guide owns shared contribution rules. Update them there instead of copying t
 - Preserve unrelated workspace changes and do not commit generated plans, scratch files, or agent artifacts.
 - Use the repository's current SPDX header template for new source files; do not change existing file headers.
 - Follow the existing style and abstractions in the affected package.
+- Keep visualizer backend construction and rebinding in its implementation. Core initialization and
+  reset dispatch must not import concrete backend resources or pass backend-specific arguments.
 - Use the uv-managed environment for routine commands and `uv run python` for Python scripts.
 - Run the guide's formatting and lint checks before committing.
 - Do not define Warp kernels in `python -c`; write a temporary Python file instead so Warp can inspect the source.
