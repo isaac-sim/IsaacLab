@@ -2,6 +2,8 @@
   3.14, keeping workspace and wheel dependencies aligned.
 * Updated cable segment reads and writes for Newton's explicit free root joint, preserving masked
   writes and CUDA graph capture.
-* Fixed rigid-object hard resets by removing a redundant callback that accessed an invalidated view.
-  Removed the same duplicate reset callback from cables and initialized their bindings and buffers once per data instance.
+* Fixed asset hard resets by removing redundant callbacks that accessed invalidated views and clearing
+  Newton's old view registry and per-model step hooks before rebuilding. Data and actuator buffers were
+  initialized once per model generation. As before, hard resets recreated asset data; callers must
+  reacquire ``asset.data`` and its arrays after ``sim.reset(soft=False)``.
 * Fixed contact-force debug visualization after Newton removed its deprecated sensor-transform alias.

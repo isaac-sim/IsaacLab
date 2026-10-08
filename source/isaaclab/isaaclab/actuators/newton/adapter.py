@@ -462,9 +462,8 @@ class LightArticulationView:
 
     The PhysX-family backends build Newton actuators from USD without a Newton
     :class:`~newton.Model`, so they cannot construct a real
-    :class:`~newton.selection.ArticulationView`. The view's actuator-parameter
-    section only consumes the placement attributes below, so this stand-in
-    provides them for the PhysX flat layout (one articulation per world,
+    :class:`~newton.selection.ArticulationView`. This stand-in provides the placement
+    attributes and DOF mapping cache for the PhysX flat layout (one articulation per world,
     identity joint order, per-world DOF stride equal to the joint count) and
     borrows the real implementations unchanged.
     """
@@ -486,7 +485,6 @@ class LightArticulationView:
             )
         }
 
-    # The real implementations, unchanged: they only read the attributes above.
     get_actuator_parameter = ArticulationView.get_actuator_parameter
     set_actuator_parameter = ArticulationView.set_actuator_parameter
     _get_actuator_dof_mapping = ArticulationView._get_actuator_dof_mapping

@@ -591,12 +591,22 @@ class NewtonManager(PhysicsManager):
         A soft reset (``soft=True``) skips this full reinitialization and reuses
         the existing model, solver, collision pipeline and CUDA graph.
 
+        Assets bind data once at construction. Hard resets recreate their views,
+        data containers, and per-model step hooks through ``PHYSICS_READY``;
+        do not register additional callbacks to rebind the discarded data.
+        Reacquire ``asset.data`` and its arrays after a hard reset.
+
         Args:
             soft: If True, skip full reinitialization.
         """
         if not soft:
             if NewtonManager.backend is not None:
                 cls.dispatch_event(PhysicsEvent.STOP)
+                # Assets recreate these views and hooks on PHYSICS_READY for the new model.
+                for key in [key for key in NewtonManager.views if key[0] is NewtonManager]:
+                    del NewtonManager.views[key]
+                NewtonManager._post_actuator_callbacks.clear()
+                NewtonManager._post_step_callbacks.clear()
             # Release the cached collision pipeline, contacts and CUDA graph;
             # they point at the old model's freed buffers (CUDA 700 on next step).
             NewtonManager._graph = None
@@ -1881,6 +1891,7 @@ class NewtonManager(PhysicsManager):
         integrator on the same iteration. Multiple articulations register
         their own implicit-DOF telemetry / FF-routing kernels here; all
         registered callbacks fire in registration order each step.
+        Hard resets discard these hooks; register them again when the new model is ready.
         """
         cls._post_actuator_callbacks.append(callback)
 
@@ -1914,6 +1925,7 @@ class NewtonManager(PhysicsManager):
         registered before capture. Articulations with non-identity ordering
         register their backend-to-user state republish here; all registered
         callbacks fire in registration order each step.
+        Hard resets discard these hooks; register them again when the new model is ready.
         """
         cls._post_step_callbacks.append(callback)
 

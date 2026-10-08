@@ -410,8 +410,13 @@ def resave_checkpoint_with_metadata(original_path: str, metadata: dict[str, Any]
     format with a dynamic batch dimension. The temporary file persists for the
     lifetime of the process.
 
+    Args:
+        original_path: Path or URL of a TorchScript actuator checkpoint.
+        metadata: Overrides for the checkpoint's metadata. The merged metadata must include
+            ``model_type`` (``"mlp"`` or ``"lstm"``) and, for MLP models, ``input_idx``.
+
     Returns:
-        Path to the temporary checkpoint file.
+        Path to the temporary ``.pt2`` checkpoint.
     """
     local_path = retrieve_file_path(original_path)
 

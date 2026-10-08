@@ -171,7 +171,7 @@ def test_collection_initialization_with_no_rigid_body() -> None:
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CPU))
 def test_collection_single_instance_initialization(device: str) -> None:
-    """A single-environment, single-body collection initializes with singleton buffers."""
+    """A singleton collection keeps working after repeated hard resets without accumulating callbacks."""
     with build_simulation_context(sim_cfg=newton_sim_cfg(device)) as sim:
         object_collection = spawn_assets({"collection": _collection_cfg(1)}, num_envs=1)["collection"]
         sim.reset()
@@ -184,6 +184,23 @@ def test_collection_single_instance_initialization(device: str) -> None:
         assert object_collection.data.body_link_quat_w.torch.shape == (1, 1, 4)
         assert object_collection.data.body_mass.torch.shape == (1, 1)
         assert object_collection.data.body_inertia.torch.shape == (1, 1, 9)
+
+        callback_count = len(SimulationManager._callbacks)
+        for _ in range(2):
+            old_data = object_collection.data
+            sim.reset()
+            assert object_collection.data is not old_data
+            assert len(SimulationManager._callbacks) == callback_count
+
+            pose = object_collection.data.default_body_pose.torch.clone()
+            velocity = torch.zeros((1, 1, 6), device=device)
+            velocity[..., 0] = 0.5
+            object_collection.write_body_pose_to_sim_index(body_poses=pose)
+            object_collection.write_body_velocity_to_sim_index(body_velocities=velocity)
+            sim.step(render=False)
+            object_collection.update(sim.cfg.dt)
+            pose[..., 0] += 0.5 * sim.cfg.dt
+            torch.testing.assert_close(object_collection.data.body_link_pose_w.torch, pose)
 
 
 ##
