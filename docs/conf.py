@@ -406,6 +406,7 @@ isaaclab_doc_redirects = {
     "source/concepts/native-physics-api/newton": "source/concepts/physics-backends/newton",
     "source/concepts/native-physics-api/ovphysx": "source/concepts/physics-backends/ovphysx",
     "source/concepts/native-physics-api/physx": "source/concepts/physics-backends/physx_native_access",
+    "source/concepts/joint_and_body_ordering": "source/how-to/transfer_policies_between_physx_and_newton",
     "source/concepts/ovphysx": "source/concepts/physics-backends/ovphysx",
     "source/concepts/solver-tuning/index": "source/how-to/index",
     "source/concepts/solver-tuning/tune_kamino": "source/how-to/solver_tuning_kamino",
@@ -455,6 +456,20 @@ isaaclab_doc_redirect_fragments = {
     "source/concepts/native-physics-api/ovphysx": {
         "": "source/concepts/physics-backends/ovphysx#ovphysx-native-access",
         "ovphysx-tensor-bindings": "source/concepts/physics-backends/ovphysx#ovphysx-native-access",
+    },
+    "source/concepts/joint_and_body_ordering": {
+        anchor: f"source/how-to/transfer_policies_between_physx_and_newton#{anchor}"
+        for anchor in (
+            "why-articulation-orders-differ",
+            "public-and-backend-order",
+            "high-level-mdp-terms",
+            "conversion-cost",
+            "direct-backend-view-access",
+            "torch-conversion",
+            "warp-conversion",
+            "what-ordering-does-not-solve",
+            "verification-and-troubleshooting",
+        )
     },
     "source/features/docker_cloud": {
         "clusters": "source/workflows/docker/cluster#deployment-cluster",
