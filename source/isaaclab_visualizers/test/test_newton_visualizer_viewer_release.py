@@ -7,7 +7,7 @@
 
 from unittest.mock import Mock
 
-import isaaclab_visualizers.newton.newton_viewer as newton_viewer
+import isaaclab_visualizers.newton.newton_visualizer as newton_visualizer
 import pytest
 from isaaclab_visualizers.newton import (
     NewtonGLVisualizer,
@@ -19,11 +19,11 @@ from isaaclab_visualizers.newton import (
 pytestmark = [pytest.mark.unit]
 
 
-def test_release_viewer_does_not_close_gl_viewer() -> None:
+def test_close_does_not_destroy_shared_gl_context() -> None:
     """GL teardown must not prevent another viewer from starting in the same process."""
     visualizer = NewtonGLVisualizer(NewtonGLVisualizerCfg())
     viewer = visualizer._viewer = Mock()
-    visualizer._release_viewer()
+    visualizer.close()
     viewer.close.assert_not_called()
     assert visualizer._viewer is None
 
@@ -32,8 +32,8 @@ def test_release_viewer_does_not_close_gl_viewer() -> None:
 def test_gl_close_request_closes_after_frame(monkeypatch: pytest.MonkeyPatch, requested: bool) -> None:
     """A close request must not destroy the GL context inside the UI render callback."""
     events: list[str] = []
-    monkeypatch.setattr(newton_viewer.ViewerGL, "end_frame", lambda self: events.append("frame"))
-    viewer = object.__new__(newton_viewer.NewtonViewerGL)
+    monkeypatch.setattr(newton_visualizer.ViewerGL, "end_frame", lambda self: events.append("frame"))
+    viewer = object.__new__(newton_visualizer.NewtonViewerGL)
     viewer._close_requested = False
     if requested:
         viewer.request_close()

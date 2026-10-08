@@ -16,8 +16,7 @@ from typing import TYPE_CHECKING
 from .newton_visualizer_cfg import NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg, NewtonVisualizerCfg
 
 if TYPE_CHECKING:
-    from .newton_rtx_visualizer import NewtonRTXVisualizer
-    from .newton_visualizer import NewtonGLVisualizer
+    from .newton_visualizer import NewtonGLVisualizer, NewtonRTXVisualizer
 
 __all__ = [
     # Deprecated GL configuration
@@ -33,7 +32,7 @@ __all__ = [
 
 def __getattr__(name: str):
     if name == "NewtonRTXVisualizer":
-        from .newton_rtx_visualizer import NewtonRTXVisualizer
+        from .newton_visualizer import NewtonRTXVisualizer
 
         return NewtonRTXVisualizer
     if name in ("NewtonVisualizer", "NewtonGLVisualizer"):

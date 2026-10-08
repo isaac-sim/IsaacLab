@@ -14,8 +14,7 @@ from isaaclab.utils import configclass
 from isaaclab.visualizers.visualizer_cfg import VisualizerCfg
 
 if TYPE_CHECKING:
-    from .newton_rtx_visualizer import NewtonRTXVisualizer
-    from .newton_visualizer import NewtonGLVisualizer
+    from .newton_visualizer import NewtonGLVisualizer, NewtonRTXVisualizer
 
 
 @configclass
@@ -154,7 +153,7 @@ class NewtonRTXVisualizerCfg(_NewtonWindowCfg):
     Environment selection controls tiled sensor views; the perspective camera sees the full scene.
     """
 
-    class_type: type[NewtonRTXVisualizer] | str = "{DIR}.newton_rtx_visualizer:NewtonRTXVisualizer"
+    class_type: type[NewtonRTXVisualizer] | str = "{DIR}.newton_visualizer:NewtonRTXVisualizer"
     """Visualizer implementation class."""
 
     visualizer_type: str = "newton_rtx"

@@ -26,7 +26,7 @@ from isaaclab_visualizers.newton import (
 )
 from isaaclab_visualizers.newton import newton_visualization_markers as newton_markers
 from isaaclab_visualizers.newton import newton_visualizer as newton_visualizer_module
-from isaaclab_visualizers.newton.newton_viewer import NewtonViewerGL
+from isaaclab_visualizers.newton.newton_visualizer import NewtonViewerGL
 from isaaclab_visualizers.newton_adapter import (
     VISUALIZER_INFINITE_PLANE_SIZE,
     expand_infinite_plane_scale,
@@ -406,79 +406,34 @@ def test_newton_viewer_particle_color_override(monkeypatch):
     viewer = NewtonViewerGL.__new__(NewtonViewerGL)
     viewer.device = "cpu"
     viewer.objects = {}
-    viewer.model_changed = False
     viewer.particle_color = (0.1, 0.2, 0.3)
     viewer._particle_color_buffer = None
-    viewer._particle_color_buffer_count = 0
     viewer._particle_color_buffer_value = None
     points = wp.zeros(4, dtype=wp.vec3, device="cpu")
     calls = []
+    monkeypatch.setattr(ViewerGL, "log_points", lambda self, *args: calls.append(args))
 
-    def _log_points(self, name, points, radii=None, colors=None, hidden=False):
-        calls.append((name, points, radii, colors, hidden))
-
-    monkeypatch.setattr(ViewerGL, "log_points", _log_points)
-
-    viewer.log_points("/model/particles", points, colors=None)
-
+    viewer.log_points("/model/particles", points)
     name, _, _, colors, hidden = calls[-1]
-    assert name == "/model/particles"
-    assert hidden is False
-    assert isinstance(colors, wp.array)
-    assert colors.shape[0] == 4
-    np.testing.assert_allclose(colors.numpy()[0], np.array([0.1, 0.2, 0.3], dtype=np.float32), rtol=1.0e-6)
+    assert name == "/model/particles" and hidden is False
+    assert colors.shape == (4,)
+    np.testing.assert_allclose(colors.numpy(), np.tile([0.1, 0.2, 0.3], (4, 1)), rtol=1.0e-6)
 
+    # Newton retains uploaded colors until the batch grows or the color changes.
+    viewer.objects[name] = SimpleNamespace(num_instances=4)
+    viewer.log_points(name, points)
+    assert calls[-1][3] is None
+    points = wp.zeros(6, dtype=wp.vec3, device="cpu")
+    viewer.log_points(name, points)
+    np.testing.assert_allclose(calls[-1][3].numpy(), np.tile([0.1, 0.2, 0.3], (6, 1)), rtol=1.0e-6)
+    viewer.objects[name].num_instances = 6
+    viewer.particle_color = (0.3, 0.2, 0.1)
+    viewer.log_points(name, points)
+    np.testing.assert_allclose(calls[-1][3].numpy(), np.tile([0.3, 0.2, 0.1], (6, 1)), rtol=1.0e-6)
 
-def test_newton_viewer_particle_color_override_reuses_existing_color_buffer(monkeypatch):
-    from newton.viewer import ViewerGL
-
-    viewer = NewtonViewerGL.__new__(NewtonViewerGL)
-    viewer.device = "cpu"
-    viewer.model_changed = False
-    viewer.particle_color = (0.1, 0.2, 0.3)
-    viewer._particle_color_buffer = wp.zeros(4, dtype=wp.vec3, device="cpu")
-    viewer._particle_color_buffer_count = 4
-    viewer._particle_color_buffer_value = (0.1, 0.2, 0.3)
-    viewer.objects = {"/model/particles": SimpleNamespace(num_instances=4)}
-    points = wp.zeros(4, dtype=wp.vec3, device="cpu")
-    calls = []
-
-    def _log_points(self, name, points, radii=None, colors=None, hidden=False):
-        calls.append((name, points, radii, colors, hidden))
-
-    monkeypatch.setattr(ViewerGL, "log_points", _log_points)
-
-    viewer.log_points("/model/particles", points, colors=None)
-
-    _, _, _, colors, _ = calls[-1]
-    # When buffer is already valid and count matches, _particle_color_update_array returns None
-    # (no new GPU upload needed; Newton retains existing colors from the previous frame).
-    assert colors is None
-
-
-def test_newton_viewer_particle_color_override_leaves_other_points_unchanged(monkeypatch):
-    from newton.viewer import ViewerGL
-
-    viewer = NewtonViewerGL.__new__(NewtonViewerGL)
-    viewer.device = "cpu"
-    viewer.model_changed = False
-    viewer.particle_color = (0.1, 0.2, 0.3)
-    viewer._particle_color_buffer = None
-    viewer._particle_color_buffer_count = 0
-    viewer._particle_color_buffer_value = None
-    custom_colors = wp.zeros(3, dtype=wp.vec3, device="cpu")
-    points = wp.zeros(3, dtype=wp.vec3, device="cpu")
-    calls = []
-
-    def _log_points(self, name, points, radii=None, colors=None, hidden=False):
-        calls.append((name, points, radii, colors, hidden))
-
-    monkeypatch.setattr(ViewerGL, "log_points", _log_points)
-
+    custom_colors = wp.zeros(6, dtype=wp.vec3, device="cpu")
     viewer.log_points("/user/custom_points", points, colors=custom_colors)
-
-    _, _, _, colors, _ = calls[-1]
-    assert colors is custom_colors
+    assert calls[-1][3] is custom_colors
 
 
 def test_newton_viewer_fast_paths_all_active_mpm_particles(monkeypatch):
@@ -992,15 +947,52 @@ def test_newton_visualizer_headless_renders_frame_on_demand(monkeypatch):
     assert state.body_q is provider.poses
     assert viewer.events[-2:] == ["begin_frame", "end_frame"]
 
+    visualizer._runtime_headless = False
+    viewer.events.clear()
+    with pytest.raises(RuntimeError, match="render failed"):
+        visualizer.step(0.1)
+    assert viewer.events == ["begin_frame", "end_frame"]
 
-def test_newton_visualizer_contact_sensor_fallback_obeys_show_contacts(monkeypatch):
+
+def test_newton_live_plots_read_updated_scalar_and_array_history():
+    from newton._src.viewer.plot_logger import PlotLogger
+
+    viewer = _Viewer()
+    viewer._plot_logger = plots = PlotLogger(4, get_window=lambda: None)
+    viewer.log_scalar = plots.log_scalar
+    viewer.gui = SimpleNamespace(ui=SimpleNamespace(dpi_scale=1.0))
+    viewer._implot = Mock(begin_plot=Mock(return_value=True))
+    imgui = Mock(collapsing_header=Mock(return_value=True))
+    imgui.get_content_region_avail.return_value.x = 200
+    plots._render_array_heatmap = Mock()
+    visualizer = _make_newton_visualizer(viewer, cfg=NewtonGLVisualizerCfg(live_plots_update_interval=1))
+    samples = iter((1.25, 2.5))
+    visualizer.add_live_plots({}, scalars={"metrics": {"loss": lambda: next(samples)}})
+
+    for value in (1.25, 2.5):
+        visualizer._render_live_plots()
+        visualizer._live_plots_panel_imgui(imgui)
+        viewer._implot.plot_line.assert_called()
+        label, array = viewer._implot.plot_line.call_args.args
+        assert label == "loss" and array[-1] == value
+    np.testing.assert_allclose(array[-2:], [1.25, 2.5])
+
+    heatmap = np.arange(4, dtype=np.float32).reshape(2, 2)
+    plots.log_array("heatmap", heatmap)
+    visualizer._live_plots_panel_imgui(imgui)
+    plots._render_array_heatmap.assert_called_once_with(imgui, "heatmap", heatmap, 180.0, dpi_scale=1.0)
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_newton_visualizer_contact_sensor_fallback_obeys_show_contacts(monkeypatch, device):
     from isaaclab_newton.physics import NewtonManager
 
     state = SimpleNamespace(body_q=wp.empty(1, dtype=wp.transform, device="cpu"))
     viewer = _Viewer()
+    viewer.device = device
     sensor = _ContactSensor(
-        net_normal_forces_w=torch.tensor([[[0.0, 0.0, 2.0], [0.0, 0.0, 0.5]]], dtype=torch.float32),
-        pos_w=torch.tensor([[[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]], dtype=torch.float32),
+        net_normal_forces_w=torch.tensor([[[0.0, 0.0, 2.0], [0.0, 0.0, 0.5]]], device=device),
+        pos_w=torch.tensor([[[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]], device=device),
         force_threshold=1.0,
     )
     scene_data_provider = _SceneDataProvider({"contact_forces": sensor})
@@ -1012,12 +1004,15 @@ def test_newton_visualizer_contact_sensor_fallback_obeys_show_contacts(monkeypat
     assert viewer.logged_arrows == ("/contacts", None, None, None)
 
     viewer.show_contacts = True
-    visualizer.step(0.1)
+    with monkeypatch.context() as display:
+        display.setattr(torch.Tensor, "numpy", Mock(side_effect=AssertionError("Arrow display downloaded arrays")))
+        visualizer.step(0.1)
 
     name, starts, ends, colors = viewer.logged_arrows
     assert name == "/contacts"
     assert len(starts) == 1
     assert len(ends) == 1
+    assert starts.device == ends.device == wp.get_device(device)
     assert colors == (0.0, 1.0, 0.0)
     assert torch.allclose(torch.tensor(starts.numpy()[0]), torch.tensor([1.0, 2.0, 3.0]))
     assert torch.allclose(torch.tensor(ends.numpy()[0]), torch.tensor([1.0, 2.0, 3.1]))
@@ -1135,7 +1130,7 @@ def test_newton_gl_background_color(color: tuple[float, float, float] | None) ->
         renderer=SimpleNamespace(),
     )
 
-    visualizer._apply_viewer_post_init()
+    visualizer._configure_viewer()
 
     assert visualizer._viewer.renderer.draw_sky == (color is None)
     expected_upper = cfg.sky_upper_color if color is None else color
