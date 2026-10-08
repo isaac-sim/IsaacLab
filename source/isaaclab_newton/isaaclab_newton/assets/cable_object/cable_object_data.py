@@ -63,21 +63,16 @@ class CableObjectData(BaseCableObjectData):
             dt: The time step [s].
         """
         del dt
-        wp.copy(self._segment_pose_w[:, 0], self._sim_bind_root_pose_w)
-        wp.copy(self._segment_velocity_w[:, 0], self._sim_bind_root_velocity_w)
-        wp.copy(self._segment_pose_w[:, 1:], self._sim_bind_link_pose_w)
-        wp.copy(self._segment_velocity_w[:, 1:], self._sim_bind_link_velocity_w)
+        wp.copy(self._segment_pose_w, self._sim_bind_link_pose_w)
+        wp.copy(self._segment_velocity_w, self._sim_bind_link_velocity_w)
 
     def _create_simulation_bindings(self) -> None:
         """Create bindings to Newton simulation data."""
         model = SimulationManager.get_model()
         state = SimulationManager.get_state_0()
         self._num_instances = self._root_view.count
-        self._num_segments = self._root_view.link_count + 1
-        self._sim_bind_root_body_ids = self._root_view.get_attribute("joint_parent", model)[:, 0, 0].contiguous()
-        self._sim_bind_link_body_ids = self._root_view.get_attribute("joint_child", model)[:, 0].contiguous()
-        self._sim_bind_root_pose_w = state.body_q[self._sim_bind_root_body_ids]
-        self._sim_bind_root_velocity_w = state.body_qd[self._sim_bind_root_body_ids]
+        self._num_segments = self._root_view.link_count
+        self._sim_bind_body_ids = self._root_view.get_attribute("joint_child", model)[:, 0].contiguous()
         self._sim_bind_link_pose_w = self._root_view.get_link_transforms(state)[:, 0]
         self._sim_bind_link_velocity_w = self._root_view.get_link_velocities(state)[:, 0]
 

@@ -501,7 +501,8 @@ def test_world_hinged_root_has_no_base_dofs(monkeypatch, device):
     monkeypatch.setattr(SimulationManager, "get_model", lambda: model)
     monkeypatch.setattr(SimulationManager, "get_state_0", lambda: state)
     monkeypatch.setattr(SimulationManager, "get_control", lambda: control)
-    data = ArticulationData(ArticulationView(model, "Robot"), device)
+    root_view = ArticulationView(model, "Robot")
+    data = ArticulationData(root_view, device)
     data._apply_ordering_maps_after_resolve()
 
     assert data.body_link_jacobian_w.torch.shape[-1] == data.mass_matrix.torch.shape[-1] == 1

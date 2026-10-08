@@ -62,12 +62,11 @@ class _ProxyCableSceneCfg(_CableSceneCfg):
 
 
 def _expected_segment_state(cable, state, model) -> tuple[torch.Tensor, torch.Tensor]:
-    root_body_ids = wp.to_torch(cable.root_view.get_attribute("joint_parent", model)[:, 0, 0]).long()
-    root_pose = wp.to_torch(state.body_q)[root_body_ids].unsqueeze(1)
-    root_velocity = wp.to_torch(state.body_qd)[root_body_ids].unsqueeze(1)
-    link_pose = wp.to_torch(cable.root_view.get_link_transforms(state)[:, 0])
-    link_velocity = wp.to_torch(cable.root_view.get_link_velocities(state)[:, 0])
-    return torch.cat((root_pose, link_pose), dim=1), torch.cat((root_velocity, link_velocity), dim=1)
+    body_ids = wp.to_torch(model.body_world) >= 0
+    # Each scene authors only cable segments in these worlds for the write tests.
+    poses = wp.to_torch(state.body_q)[body_ids].reshape(cable.num_instances, cable.num_segments, 7)
+    velocities = wp.to_torch(state.body_qd)[body_ids].reshape(cable.num_instances, cable.num_segments, 6)
+    return poses, velocities
 
 
 def test_cable_collides_with_ground():

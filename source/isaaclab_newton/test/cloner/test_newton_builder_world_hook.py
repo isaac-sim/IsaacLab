@@ -245,7 +245,7 @@ def test_imported_deformables_follow_plan_and_publish_geometry(heterogeneous):
                 else:
                     np.testing.assert_allclose(points[visual_path].numpy(), (expected[1:] + expected[0]) / 2, atol=1e-6)
         assert set(points) == expected_paths
-        np.testing.assert_allclose(np.asarray(builder.tri_materials)[builder._cloth_tri_start, 0], 123.0)
+        np.testing.assert_allclose(np.asarray(builder.tri_materials)[builder._surface_tri_start, 0], 123.0)
         np.testing.assert_allclose(np.asarray(builder.tet_materials)[:, 0], 456.0)
         for tet, pose in zip(builder.tet_indices, builder.tet_poses, strict=True):
             vertices = np.asarray(builder.particle_q)[tet]

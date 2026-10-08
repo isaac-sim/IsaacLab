@@ -474,6 +474,7 @@ class LightArticulationView:
         self.count_per_world = 1
         self.device = device
         self.full_mask = wp.ones(num_envs, dtype=wp.bool, device=device)
+        self._actuator_dof_mapping_cache = {}
         self.frequency_layouts = {
             Model.AttributeFrequency.JOINT_DOF: FrequencyLayout(
                 offset=0,
@@ -489,6 +490,7 @@ class LightArticulationView:
     get_actuator_parameter = ArticulationView.get_actuator_parameter
     set_actuator_parameter = ArticulationView.set_actuator_parameter
     _get_actuator_dof_mapping = ArticulationView._get_actuator_dof_mapping
+    _create_actuator_dof_mapping = ArticulationView._create_actuator_dof_mapping
 
     def _resolve_world_mask(self, mask: Sequence[bool] | wp.array | None) -> wp.array:
         """Normalize a world mask independently of the installed Newton version."""

@@ -171,17 +171,13 @@ class NewtonBackend:
         builder = SimulationContext.instance().get_or_create_backend(NewtonBuilderCfg(physics_cfg=cfg.physics_cfg))
         self.model = builder.finalize(device=cfg.device)
         self.particle_ranges: dict[str, tuple[int, int]] = {}
-        # Newton 1.6 preserves groups through builder replication but not finalization.
-        # Remove this snapshot when the pinned Newton includes newton-physics/newton#3326.
         self.deformable_ranges = {
             label: (start, end - start, kind)
-            for family, kind in (("cloth", "surface"), ("soft", "volume"))
-            for label, start, end in zip(
-                getattr(builder, f"_{family}_label"),
-                getattr(builder, f"_{family}_particle_start"),
-                getattr(builder, f"_{family}_particle_end"),
-                strict=True,
+            for kind, labels, starts, ends in (
+                ("surface", builder.surface_label, builder._surface_particle_start, builder._surface_particle_end),
+                ("volume", builder.volume_label, builder._volume_particle_start, builder._volume_particle_end),
             )
+            for label, start, end in zip(labels, starts, ends, strict=True)
         }
         self.model.num_envs = self.model.world_count
         simulation = isinstance(cfg.physics_cfg, NewtonCfg)
