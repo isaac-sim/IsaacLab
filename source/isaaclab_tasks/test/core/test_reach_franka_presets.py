@@ -107,12 +107,12 @@ def test_reach_presets_resolve_supported_combinations(task, presets, action_type
     if task in (_TASK, _OSC_TASK) and not presets:
         assert cfg.commands.ee_pose.position_success_threshold == pytest.approx(0.05)
         assert cfg.commands.ee_pose.orientation_success_threshold == pytest.approx(0.2)
-        assert cfg.terminations.success is None
+        assert cfg.terminations.success.func is mdp.pose_command_success
+        assert cfg.terminations.success.params["command_name"] == "ee_pose"
         assert cfg.terminations.time_out.func is mdp.time_out
-        assert cfg.rewards.success is None
-        assert cfg.rewards.end_effector_position_tracking_fine_grained.func is mdp.position_command_error_tanh
-        assert cfg.rewards.end_effector_position_tracking_fine_grained.weight == pytest.approx(0.1)
-        assert cfg.rewards.end_effector_position_tracking_fine_grained.params["std"] == pytest.approx(0.1)
+        assert cfg.rewards.success.func is mdp.is_terminated_term
+        assert cfg.rewards.success.weight == pytest.approx(10.0)
+        assert cfg.rewards.success.params["term_keys"] == ["success"]
 
 
 def test_reach_ur10_physics_presets_change_only_physics():

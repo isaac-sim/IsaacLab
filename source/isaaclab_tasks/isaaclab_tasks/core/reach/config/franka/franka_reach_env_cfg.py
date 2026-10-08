@@ -24,7 +24,6 @@ from isaaclab.devices.gamepad import Se3GamepadCfg
 from isaaclab.devices.keyboard import Se3KeyboardCfg
 from isaaclab.devices.spacemouse import Se3SpaceMouseCfg
 from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
-from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils import configclass, replace
 
@@ -35,7 +34,7 @@ from isaaclab_tasks.utils import PresetCfg, preset
 ##
 from isaaclab_assets import FRANKA_MINIMAL_CFG, FRANKA_PANDA_CFG  # isort: skip
 
-from ...reach_env_cfg import ReachEnvCfg, RewardsCfg, TerminationsCfg
+from ...reach_env_cfg import ReachEnvCfg
 
 ##
 # Environment configuration
@@ -90,24 +89,8 @@ class FrankaArmActionCfg(PresetCfg):
 
 
 @configclass
-class FrankaReachRewardsCfg(RewardsCfg):
-    """Keep continuous pose-tracking rewards specific to Franka Reach."""
-
-    end_effector_position_tracking_fine_grained = RewTerm(
-        func=mdp.position_command_error_tanh,
-        weight=0.1,
-        params={"asset_cfg": SceneEntityCfg("robot", body_names="panda_hand"), "std": 0.1, "command_name": "ee_pose"},
-    )
-    success: RewTerm | None = None
-
-
-@configclass
 class FrankaReachEnvCfg(ReachEnvCfg):
     """Franka Reach configuration with selectable arm and physics presets."""
-
-    rewards: FrankaReachRewardsCfg = FrankaReachRewardsCfg()
-    # Report success while continuing to track poses until timeout.
-    terminations: TerminationsCfg = replace(TerminationsCfg(), success=None)
 
     def validate_config(self) -> None:
         """Validate the selected controller and physics backend."""
@@ -120,6 +103,15 @@ class FrankaReachEnvCfg(ReachEnvCfg):
         super().__post_init__()
 
         self.scene.robot = replace(FRANKA_PANDA_CFG, prim_path="{ENV_REGEX_NS}/Robot")
+        # Joint inertia varies substantially along the arm; damp each drive accordingly.
+        self.scene.robot.actuators["panda_arm"].damping = {
+            "panda_joint1": 40.0,
+            "panda_joint2": 60.0,
+            "panda_joint3": 35.0,
+            "panda_joint4": 60.0,
+            "panda_joint[5-6]": 15.0,
+            "panda_joint7": 12.0,
+        }
         self.scene.robot.spawn.variants["Physics"] = preset(
             default="mujoco", isaacsim_physx="physx", physx="physx", ovphysx="physx"
         )
@@ -135,6 +127,18 @@ class FrankaReachEnvCfg(ReachEnvCfg):
             ),
             MujocoRigidBodyCfg(gravcomp=preset(default=None, diffik=1.0, diffik_abs=1.0, newton_ik=1.0)),
         ]
+        # Bound arm offsets away from joint limits and initialize both mimic fingers together.
+        self.events.reset_robot_joints = replace(
+            self.events.reset_robot_joints,
+            func=mdp.reset_joints_within_limits_range,
+            params={
+                "position_range": {"panda_joint.*": (-0.1, 0.1), "panda_finger_joint.*": (0.0, 0.0)},
+                "velocity_range": {".*": (0.0, 0.0)},
+                "use_default_offset": True,
+                "operation": "abs",
+                "asset_cfg": SceneEntityCfg("robot"),
+            },
+        )
         # override rewards
         self.rewards.end_effector_position_tracking.params["asset_cfg"].body_names = ["panda_hand"]
         self.rewards.end_effector_orientation_tracking.params["asset_cfg"].body_names = ["panda_hand"]
