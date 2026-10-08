@@ -1,98 +1,129 @@
 .. _isaac-lab-ecosystem:
 
-Isaac Lab Ecosystem
-===================
+Ecosystem
+=========
 
-Isaac Lab is a modular, extensible framework for robot learning built on top of `Isaac Sim`_ and
-`Newton`_. It provides a unified interface for the most common workflows in robotics research —
-reinforcement learning, learning from demonstrations, and motion planning — while staying easy to
-use and easy to extend.
+Isaac Lab is the robot-learning framework between accelerated simulation and the applications that
+train, generate data for, and evaluate robot policies. It provides reusable environments, assets,
+sensors, controllers, and learning integrations for reinforcement learning, imitation learning,
+teleoperation, and motion planning.
 
-Isaac Lab supports two physics engines through multiple backend packages:
-
-* **PhysX** — the default backend through `Isaac Sim`_, with access to GPU-accelerated
-  rigid-body simulation, deformable objects, Fabric views, tiled RTX rendering, ROS/ROS2,
-  URDF/MJCF importers, and the full Omniverse toolchain. PhysX can also be used through the
-  standalone ``ovphysx`` runtime for kit-less workflows that do not launch Isaac Sim.
-* **Newton** — a Warp-native backend that can run in kit-less mode, enabling lightweight
-  deployments and GPU-parallel simulation using `Warp`_.
-
-.. note::
-
-   Isaac Lab 3.0 supports a **kit-less installation** mode: you can install Isaac Lab and use the
-   Newton physics backend without installing Isaac Sim at all.
-   See :ref:`isaaclab-installation-root` for details.
-
-A factory pattern dispatches every asset and sensor instantiation to the correct backend at
-runtime, so user code stays unchanged regardless of which backend is active. See
-:doc:`/source/concepts/backend_architecture` for details.
-
-.. image:: ../_static/setup/ecosystem-light.svg
-    :class: only-light
-    :align: center
-    :alt: The Isaac Lab package ecosystem layered on the NVIDIA GPU platform
-
-.. image:: ../_static/setup/ecosystem-dark.svg
-    :class: only-dark
-    :align: center
-    :alt: The Isaac Lab package ecosystem layered on the NVIDIA GPU platform
+Isaac Lab is not itself a simulator. Its common scene, asset, and sensor interfaces can run on
+multiple physics and rendering backends. Backend support is task-specific, but the shared interface
+lets a supported environment keep the same structure while its preset selects the runtime. See
+:doc:`/source/concepts/backend_architecture` for the implementation model.
 
 
-Package structure
------------------
+Capabilities in motion
+----------------------
 
-Isaac Lab is organized into a set of focused packages that can be used independently or together.
+These examples span policy learning, synthetic demonstration generation, humanoid
+loco-manipulation, and contact-rich material simulation. Explore the packaged
+:doc:`demos </source/setup/demos>` and :doc:`environment catalog </source/setup/environments>`
+to run them yourself.
 
-**Core**
+.. grid:: 1 1 2 2
+   :gutter: 2
 
-* ``isaaclab`` — the core library. Contains simulation context and configuration
-  (:mod:`~isaaclab.sim`), the :class:`~isaaclab.scene.InteractiveScene` that aggregates all
-  assets, sensors, and terrain for a vectorized set of environments, asset interfaces
-  (:mod:`~isaaclab.assets`), sensor interfaces (:mod:`~isaaclab.sensors`), environment base
-  classes (:mod:`~isaaclab.envs`), the manager system (:mod:`~isaaclab.managers`),
-  composable MDP term functions (:mod:`~isaaclab.envs.mdp`), actuator models
-  (:mod:`~isaaclab.actuators`), low-level controllers (:mod:`~isaaclab.controllers`),
-  procedural terrain generation (:mod:`~isaaclab.terrains`), and human-input device support
-  (:mod:`~isaaclab.devices`).
+   .. grid-item-card:: Humanoid loco-manipulation
 
-**Physics and renderer backends**
+      .. image:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/locomanipulation_sdg_disjoint_nav_groot_policy_4x.gif
+         :width: 100%
+         :alt: A humanoid policy navigates around obstacles and places a steering wheel.
 
-* ``isaaclab_physx`` — PhysX-backed implementations of articulations,
-  rigid bodies, deformable objects, Fabric views, the Isaac RTX renderer, and USD spawners.
-  Requires Isaac Sim.
-* ``isaaclab_ov`` — Omniverse integration package containing standalone PhysX-backed
-  implementations built on ``ovphysx`` and the OVRTX renderer for RTX-based tiled camera
-  rendering. Its backends require the corresponding optional ``ovphysx`` or ``ovrtx``
-  runtime and can be used in kit-less workflows without Isaac Sim.
-* ``isaaclab_newton`` — Newton-backed implementations of articulations, rigid bodies, and the
-  Warp renderer. Supports kit-less installation without Isaac Sim.
+      A vision-conditioned policy combines navigation and whole-body manipulation.
+      See :doc:`humanoid imitation learning
+      </source/features/imitation-learning/humanoids_imitation>`.
 
-**Extensions**
+   .. grid-item-card:: Synthetic demonstration generation
 
-* ``isaaclab_assets`` — pre-configured robot and sensor :class:`~isaaclab.utils.configclass`
-  dataclasses for a wide range of robots (Franka, Unitree, ANYmal, Spot, Allegro, humanoids,
-  quadcopters, and more) and sensors (Velodyne, GelSight).
-* ``isaaclab_tasks`` — registered `gymnasium`_ environments organized into two authoring patterns:
+      .. image:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/cube_stack_data_gen_skillgen.gif
+         :width: 100%
+         :alt: A robot arm generates varied demonstrations for a cube-stacking task.
 
-  * *Manager-based* — behavior is fully specified through composable manager configurations
-    (observations, rewards, terminations, events, commands, actions). Well-suited for research
-    that requires clean separation between task specification and environment logic.
-  * *Direct* — a single Python class implements the full step/reset/obs/reward loop, similar
-    in style to Isaac Gym. Convenient for rapid prototyping and tasks with complex custom logic.
+      SkillGen turns a small set of task demonstrations into diverse training trajectories.
+      See :doc:`SkillGen </source/features/imitation-learning/skillgen>`.
 
-* ``isaaclab_rl`` — thin wrappers that adapt Isaac Lab environments to the vectorized
-  environment interfaces expected by `RSL-RL`_, `skrl`_, `Stable Baselines 3`_, and
-  `RL Games`_.
-* ``isaaclab_mimic`` — APIs and pre-configured environments for data generation and imitation
-  learning, including cuRobo-based motion planners and a full dataset-generation pipeline.
-* ``isaaclab_teleop`` — teleoperation session orchestration with XR (OpenXR / CloudXR) support,
-  device retargeters for manipulators and humanoids, and gamepad/spacemouse/keyboard input.
-* ``isaaclab_visualizers`` — supplementary visualizer backends (Isaac Kit, Rerun, Viser) that
-  work with any physics backend.
-* ``isaaclab_contrib`` — community-contributed features: multirotor assets, TacSL visuo-tactile
-  sensors, drone thrust controllers, and more.
-* ``isaaclab_experimental`` — pre-production experiments, including Warp-accelerated manager and
-  environment variants.
+   .. grid-item-card:: Newton MPM fluid simulation
+
+      .. raw:: html
+
+         <video autoplay loop muted playsinline preload="metadata" aria-label="A teapot pours MPM water into a bowl" style="width:100%;">
+           <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/videos/mpm_teapot_particles.mp4" type="video/mp4">
+         </video>
+
+      Newton's MPM solver couples fluid particles, rigid bodies, and interactive controls in the
+      packaged **Teapot Fill** demo.
+
+   .. grid-item-card:: Contact-rich material coupling
+
+      .. raw:: html
+
+         <video autoplay loop muted playsinline preload="metadata" aria-label="MPM snowballs strike a stack of rigid crates" style="width:100%;">
+           <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/videos/mpm_snowball.mp4" type="video/mp4">
+         </video>
+
+      The **Snowball Smash** demo combines deformable MPM material with rigid-body contact.
+
+
+Applications built on Isaac Lab
+-------------------------------
+
+The framework also serves as the simulation and environment layer for higher-level applications.
+These projects have their own releases and installation requirements:
+
+.. grid:: 1 1 2 2
+   :gutter: 2
+
+   .. grid-item-card:: Isaac Lab-Arena
+      :link: https://github.com/isaac-sim/IsaacLab-Arena
+
+      Composes scenes, robot embodiments, and tasks into scalable benchmarks, then evaluates
+      generalist robot policies across controlled environment variations.
+
+   .. grid-item-card:: NVIDIA Isaac GR00T workflows
+      :link: https://github.com/NVIDIA/Isaac-GR00T
+
+      Uses Isaac Lab environments for demonstration collection, synthetic trajectory generation,
+      policy training, and closed-loop evaluation of generalist robot models.
+
+
+Choose a physics backend
+------------------------
+
+Isaac Lab supports three physics backends. Start with the backend exposed by the target task's
+preset; changing solver families can require task and controller retuning.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 13 25 31 31
+
+   * - Backend
+     - Best fit
+     - Benefits
+     - Trade-offs
+   * - **PhysX**
+     - Established Isaac Sim workflows and the broadest feature coverage
+     - Mature reference behavior, Isaac RTX rendering, deformables, Fabric, ROS/ROS 2, USD tools,
+       and importers
+     - Requires the larger Isaac Sim and Kit runtime; large GPU scenes can require explicit
+       capacity tuning
+   * - **Newton**
+     - Kit-less training and workflows that need multiple solver families
+     - Warp-native GPU execution without Isaac Sim; provides MJWarp, VBD, MPM, and other solver
+       paths
+     - Beta integration; feature and task coverage varies by solver, and switching solvers usually
+       requires retuning
+   * - **OvPhysX**
+     - Experimental kit-less PhysX workflows
+     - Runs PhysX through a smaller standalone runtime and can pair with kit-less OVRTX rendering
+     - Experimental and still gaining feature coverage; configuration is primarily USD-based and
+       the runtime cannot share a process with Kit
+
+Physics, camera rendering, and interactive visualization are separate choices. For example, Newton
+can use the lightweight Newton Warp renderer or OVRTX for RTX image quality without Isaac Sim.
+See :doc:`/source/concepts/physics_backends`, :doc:`/source/concepts/renderers`, and
+:doc:`/source/concepts/visualization` for current support matrices and preset commands.
 
 
 Where does Isaac Lab fit in the Isaac ecosystem?
@@ -130,9 +161,9 @@ learning applications on top of a simulator. An analogous example is `RoboSuite`
 built on top of `MuJoCo`_ for fixed-base manipulation. Other examples include
 `MuJoCo Playground`_ (built on `MJX`_) and Isaac Gym (built on `PhysX`_).
 
-Isaac Lab supports both `PhysX`_ and `Newton`_ as physics backends and is deliberately
-agnostic to the underlying engine — user environments and tasks do not import backend-specific
-modules directly.
+Isaac Lab's shared interfaces cover the PhysX, Newton, and experimental OvPhysX backends without
+requiring environment code to import backend-specific modules directly. Actual portability depends
+on the presets and features supported by each task.
 
 The framework addresses a recurring problem with standalone task implementations: because each
 task reimplements the observation, reward, termination, and randomization logic from scratch,
@@ -169,8 +200,8 @@ Concretely, Isaac Lab offers:
 
 * **Two authoring patterns** — manager-based for modular research and direct for rapid
   prototyping — with a shared :class:`~isaaclab.scene.InteractiveScene` and sensor stack.
-* **Multi-backend simulation** — switch between PhysX and Newton from the command line; the
-  same environment code runs on both.
+* **Multi-backend simulation** — select PhysX, Newton, or experimental OvPhysX from the command
+  line when the task provides the corresponding preset.
 * **Rich sensor suite** — cameras (tiled and standard), ray-casters, contact sensors, IMU,
   frame transformers, joint-wrench sensors, and visuo-tactile sensors.
 * **Imitation learning tooling** — ``isaaclab_mimic`` provides cuRobo-based planners and a
@@ -192,7 +223,6 @@ contributing, please reach out to us.
 
 .. _PhysX: https://developer.nvidia.com/physx-sdk
 .. _Newton: https://github.com/newton-physics/newton
-.. _Warp: https://github.com/NVIDIA/warp
 .. _Isaac Sim: https://developer.nvidia.com/isaac-sim
 .. _Omniverse: https://www.nvidia.com/en-us/omniverse/
 .. _Isaac Gym: https://developer.nvidia.com/isaac-gym
@@ -202,17 +232,7 @@ contributing, please reach out to us.
 .. _Isaac Automator: https://github.com/isaac-sim/IsaacAutomator
 .. _gymnasium: https://gymnasium.farama.org/
 .. _Hydra: https://hydra.cc/
-.. _RSL-RL: https://github.com/leggedrobotics/rsl_rl
-.. _skrl: https://skrl.readthedocs.io/
-.. _Stable Baselines 3: https://stable-baselines3.readthedocs.io/
-.. _RL Games: https://github.com/Denys88/rl_games
-.. _AirSim: https://microsoft.github.io/AirSim/
-.. _DoorGym: https://github.com/PSVL/DoorGym/
-.. _ManiSkill: https://github.com/haosulab/ManiSkill
-.. _ThreeDWorld: https://github.com/threedworld-mit/tdw
 .. _RoboSuite: https://github.com/ARISE-Initiative/robosuite
 .. _MuJoCo: https://mujoco.org/
 .. _MuJoCo Playground: https://playground.mujoco.org/
 .. _MJX: https://mujoco.readthedocs.io/en/stable/mjx.html
-.. _Bullet: https://github.com/bulletphysics/bullet3
-.. _Flex: https://developer.nvidia.com/flex
