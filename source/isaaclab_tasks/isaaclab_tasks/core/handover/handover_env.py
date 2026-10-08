@@ -231,10 +231,8 @@ class HandoverEnv(DirectMARLEnv):
         self.extras["log"]["dist_goal"] = goal_dist_mean
         self.extras["log"]["Metrics/goal_distance"] = goal_dist_mean
 
-        banked_ids = self._goal.update(succeeded, self.cfg.success_dwell_steps)
-        if banked_ids.numel() > 0:
-            self._visualize_goal()
-
+        self._goal.update(succeeded, self.cfg.success_dwell_steps)
+        self._visualize_goal()
         self.extras["log"]["Diagnostics/dwell_steps"] = self._goal.dwell.float().mean()
 
         return {"right_hand": rew_dist, "left_hand": rew_dist}

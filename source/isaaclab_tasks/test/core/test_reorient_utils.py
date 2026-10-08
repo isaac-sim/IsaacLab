@@ -118,7 +118,8 @@ def test_success_tracker_counts_goals_reached_per_episode():
 
     tracker.record_goal_reached(torch.tensor([0, 1, 2]))
     tracker.record_goal_reached(torch.tensor([1, 2]))
-    tracker.record_goal_reached(torch.tensor([2]))
+    # a boolean mask counts like the equivalent indices
+    tracker.record_goal_reached(torch.tensor([False, False, True]))
 
     # the count keeps rising past the first goal, so it does not saturate
     assert torch.equal(tracker.snapshot(slice(None)), torch.tensor([1.0, 2.0, 3.0]))

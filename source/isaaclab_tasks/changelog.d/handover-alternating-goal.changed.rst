@@ -1,7 +1,7 @@
 * **Breaking:** Changed ``Isaac-Shadow-Handover-Direct`` and ``Isaac-Shadow-Handover`` to alternate
   their goal between the two hands after each completed transfer, continuing until
   timeout or an object drop.
-* Added ``success_dwell_steps`` (20 cumulative steps inside the success distance) to
+* Added ``success_dwell_steps`` (20 cumulative steps inside the success distance; must be positive) to
   both workflows and ``goal_position_offset`` to the Direct configuration. The manager
   command's ``position_offset`` now uses each hand's local root frame instead of the
   object's initial position; update custom offsets for this frame change.

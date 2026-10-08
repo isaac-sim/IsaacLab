@@ -139,9 +139,13 @@ class SuccessTracker:
         """Count one reached goal for the given environments.
 
         Args:
-            env_ids: Environments whose goal was just resampled.
+            env_ids: Environments whose goal was just resampled, as indices or a boolean mask.
+                A mask avoids the device synchronization of boolean indexing.
         """
-        self._goals_reached[env_ids] += 1.0
+        if isinstance(env_ids, torch.Tensor) and env_ids.dtype == torch.bool:
+            self._goals_reached += env_ids
+        else:
+            self._goals_reached[env_ids] += 1.0
 
     def earned(self, reached: torch.Tensor) -> torch.Tensor:
         """Drop the goals a reset handed out, and release the guard.

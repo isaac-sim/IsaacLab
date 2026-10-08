@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Handover goal and episode lifecycle coverage through real environment transitions."""
+"""Handover goal state and episode lifecycle coverage, including real environment transitions."""
 
 import gymnasium as gym
 import pytest
@@ -13,7 +13,42 @@ from isaaclab.app import launch_simulation
 from isaaclab.test.utils import DeviceScope, test_devices
 
 import isaaclab_tasks  # noqa: F401
+from isaaclab_tasks.core.handover.handover_common import HandoverGoal
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
+
+
+def _two_hand_goal(device: str) -> HandoverGoal:
+    """Right hand at the origin and left hand 1 m along x, both unrotated, for two environments."""
+    poses = torch.zeros((2, 2, 7), device=device)
+    poses[1, :, 0] = 1.0
+    poses[..., 6] = 1.0
+    return HandoverGoal(poses, (0.0, 0.0, 0.0))
+
+
+@pytest.mark.parametrize("dwell_steps", (0, -1))
+def test_handover_goal_rejects_non_positive_dwell(dwell_steps):
+    """A non-positive dwell would switch goals every step without a transfer."""
+    goal = _two_hand_goal("cpu")
+    with pytest.raises(ValueError, match="success_dwell_steps"):
+        goal.update(torch.zeros(2, dtype=torch.bool), dwell_steps)
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_handover_goal_update_does_not_synchronize(device):
+    """The per-step update switches only completed goals without a host synchronization."""
+    goal = _two_hand_goal(device)
+    succeeded = torch.tensor([True, False], device=device)
+    previous = torch.cuda.get_sync_debug_mode()
+    torch.cuda.set_sync_debug_mode("error")
+    try:
+        goal.update(succeeded, 2)
+        switched = goal.update(succeeded, 2)
+    finally:
+        torch.cuda.set_sync_debug_mode(previous)
+    assert switched.tolist() == [True, False]
+    torch.testing.assert_close(goal.position.cpu(), torch.tensor([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]]))
+    assert goal.dwell.tolist() == [0, 0]
+    assert goal.success.snapshot(slice(None)).tolist() == [1.0, 0.0]
 
 
 @pytest.mark.parametrize("task_name", ("Isaac-Shadow-Handover-Direct", "Isaac-Shadow-Handover"))
