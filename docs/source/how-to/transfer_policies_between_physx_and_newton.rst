@@ -289,7 +289,7 @@ generic commands above.
      - ``anymal_d_rough``
      - Branched topology: same ordering overrides as G1.
 
-
+.. _sim-to-sim-transfer-demonstrations:
 
 Transfer demonstrations
 ~~~~~~~~~~~~~~~~~~~~~~~
@@ -326,5 +326,5 @@ See also
 * :doc:`/source/concepts/reinforcement_learning`
 * :doc:`/source/features/hydra`
 * :doc:`/source/concepts/joint_and_body_ordering`
-* :doc:`/source/concepts/solver-tuning/tune_mjwarp`
+* :doc:`/source/how-to/solver_tuning_mjwarp`
 * :ref:`physics-backends-newton`

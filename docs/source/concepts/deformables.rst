@@ -80,7 +80,7 @@ Backend support
 On Newton, deformables of every kind are simulated by the VBD solver, so a scene containing them
 must select a physics cfg whose solver is VBD. For the solver parameters, for running a rigid robot
 and a deformable in one scene, and for the tuning workflow, see
-:doc:`/source/concepts/solver-tuning/tune_vbd` and :doc:`/source/concepts/coupled_solvers`.
+:doc:`/source/how-to/solver_tuning_vbd` and :doc:`/source/concepts/coupled_solvers`.
 
 OvPhysX deformables carry further restrictions on node counts and startup cost. See
 :doc:`/source/concepts/ovphysx`.
@@ -165,7 +165,7 @@ A surface deformable is authored the same way, with a 2D mesh spawner and a surf
 
 The material values above are the tuned ones from ``Isaac-Lift-Cloth-Franka`` rather than the
 defaults. For what each parameter does and what it defaults to, see
-:doc:`/source/concepts/solver-tuning/tune_vbd`, which also covers cloth self-contact. Self-contact
+:doc:`/source/how-to/solver_tuning_vbd`, which also covers cloth self-contact. Self-contact
 is off by default, so cloth passes through itself until it is enabled.
 
 ``edge_refinement`` sets the simulation resolution for both kinds: the maximum surface edge length
@@ -221,9 +221,6 @@ contain a ``UsdGeom.TetMesh``, Isaac Lab generates one, which requires the optio
 .. code-block:: bash
 
     uv sync --inexact --extra tetrahedralization
-
-    # With the legacy installer.
-    ./isaaclab.sh -i tetrahedralization
 
 Surface deformables never need it, and neither do volume deformables loaded from a USD that already
 ships a pre-tetrahedralized ``UsdGeom.TetMesh`` under the deformable prim.
@@ -599,8 +596,8 @@ Run an example first to confirm that the spawner, solver, and visualizer all wor
     # A pile of cables that collide and settle. Newton VBD only.
     uv run isaaclab example cables
 
-    # A larger cable pile, without a visualizer, stopping after a fixed number of steps.
-    uv run isaaclab example cables --visualizer none --num_cables 40 --num_segments 15 --max_steps 500
+    # A larger cable pile, stopping after a fixed number of steps.
+    uv run isaaclab example cables --num_cables 40 --num_segments 15 --max_steps 500
 
 ``scripts/environments/state_machine/lift_franka_soft.py`` drives ``Isaac-Lift-Soft-Franka`` with a
 scripted state machine, which is a useful starting point for a deformable manipulation task.
@@ -610,7 +607,7 @@ Related
 -------
 
 * :ref:`tutorial-interact-deformable-object` walks through a volume deformable step by step.
-* :doc:`/source/concepts/solver-tuning/tune_vbd` covers the VBD solver parameters, the Newton
+* :doc:`/source/how-to/solver_tuning_vbd` covers the VBD solver parameters, the Newton
   material tables, cloth self-contact, and the tuning workflow.
 * :doc:`/source/concepts/coupled_solvers` covers running a rigid robot and a deformable in one
   scene.

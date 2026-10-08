@@ -22,111 +22,62 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import logging
 import sys
 
 import gymnasium as gym
 import torch
+from isaaclab_newton.renderers import NewtonWarpRendererCfg
+from isaaclab_physx.renderers import IsaacRtxRendererCfg
+from isaaclab_visualizers.kit import KitVisualizerCfg
+from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
 
 import isaaclab_tasks  # noqa: F401
 
 with contextlib.suppress(ImportError):
     import isaaclab_tasks_experimental  # noqa: F401
 from isaaclab.app import add_launcher_args, launch_simulation
+from isaaclab.sensors import CameraCfg
+from isaaclab.sim import PinholeCameraCfg
+from isaaclab.utils.math import create_rotation_matrix_from_view, quat_from_matrix
+from isaaclab.visualizers import SceneCameraCfg
 
 from isaaclab_tasks.utils import resolve_task_config, setup_preset_cli
 
+logger = logging.getLogger(__name__)
+
 KIT_DEFAULT_TASK = "Isaac-Velocity-Rough-AnymalD"
 NEWTON_DEFAULT_TASK = "IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor"
-SUPPORTED_TILED_VISUALIZERS = {"kit", "newton", "newton_gl", "newton_rtx"}
-UNSUPPORTED_TILED_VISUALIZERS = {"rerun", "viser"}
-
-
-def _resolve_env_regex_path(prim_path: str) -> str:
-    """Resolve scene config env namespace macros to the cloned-env regex."""
-    return prim_path.format(ENV_REGEX_NS="/World/envs/env_.*")
-
-
-def _requested_visualizers(args_cli: argparse.Namespace) -> list[str]:
-    """Return requested visualizers, defaulting to Kit for this tutorial."""
-    visualizers = args_cli.visualizer or ["kit"]
-    visualizers = [str(visualizer).lower() for visualizer in visualizers]
-
-    if "none" in visualizers:
-        raise ValueError("This demo requires a tiled-camera visualizer. Use '--viz kit' or '--viz newton_gl'.")
-    unsupported = sorted(set(visualizers) & UNSUPPORTED_TILED_VISUALIZERS)
-    if unsupported:
-        raise ValueError(
-            "The visualizer tiled camera panel is only implemented for Kit and Newton. "
-            f"Unsupported selection: {unsupported}."
-        )
-    unknown = sorted(set(visualizers) - SUPPORTED_TILED_VISUALIZERS)
-    if unknown:
-        raise ValueError(f"Unknown visualizer selection for this demo: {unknown}.")
-    return visualizers
-
-
-def _make_kit_visualizer_cfg(env_cfg):
-    """Create the Kit streaming-camera visualizer for the selected task."""
-    from isaaclab_visualizers.kit import KitVisualizerCfg
-
-    visualizer_cfg = KitVisualizerCfg()
-    visualizer_cfg.streaming_view = True
-    visualizer_cfg.streaming_envs = 36
-
-    ego_cam_cfg = getattr(env_cfg.scene, "ego_cam", None)
-    if ego_cam_cfg is not None:
-        visualizer_cfg.streaming_sensor_prim_path = _resolve_env_regex_path(ego_cam_cfg.prim_path)
-        return visualizer_cfg
-
-    visualizer_cfg.streaming_sensor_prim_path = None
-    visualizer_cfg.streaming_cam_eye = (3.0, 3.0, 3.0)
-    visualizer_cfg.streaming_cam_target_prim_path = "/World/envs/*/Robot/base"
-    # Here is an alternative eye position for a top down view
-    # visualizer_cfg.streaming_cam_eye = (0.0, 0.0, 5.0)
-    return visualizer_cfg
-
-
-def _make_newton_visualizer_cfg(env_cfg):
-    """Create the Newton streaming-camera visualizer for the selected task."""
-    from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
-
-    visualizer_cfg = NewtonGLVisualizerCfg()
-    visualizer_cfg.streaming_view = True
-    visualizer_cfg.streaming_envs = 12
-
-    ego_cam_cfg = getattr(env_cfg.scene, "ego_cam", None)
-    if ego_cam_cfg is not None:
-        visualizer_cfg.streaming_sensor_prim_path = _resolve_env_regex_path(ego_cam_cfg.prim_path)
-        return visualizer_cfg
-
-    # Here are other robot mounted camera options for this environment
-    # visualizer_cfg.streaming_sensor_prim_path = "/World/envs/env_.*/Robot/left_arm_camera_sim_view_frame/left_camera"
-    # visualizer_cfg.streaming_sensor_prim_path = (
-    #     "/World/envs/env_.*/Robot/right_arm_camera_sim_view_frame/right_camera"
-    # )
-    visualizer_cfg.streaming_sensor_prim_path = None
-    visualizer_cfg.streaming_cam_eye = (3.0, 3.0, 3.0)
-    visualizer_cfg.streaming_cam_target_prim_path = "/World/envs/*/Robot/base"
-    return visualizer_cfg
 
 
 def _configure_visualizers(env_cfg, args_cli: argparse.Namespace) -> None:
-    """Attach tiled camera visualizer configs to the environment simulation config."""
-    visualizers = _requested_visualizers(args_cli)
-    args_cli.visualizer = visualizers
+    """Declare a scene camera before launch; every viewer borrows the same sensor."""
+    visualizers = args_cli.visualizer
+    if any(kind not in ("kit", "newton_gl") for kind in visualizers):
+        raise ValueError("This tutorial supports --viz kit or --viz newton_gl.")
+    camera_cfg = next((cfg for cfg in vars(env_cfg.scene).values() if isinstance(cfg, CameraCfg)), None)
+    if camera_cfg is None:
+        eye, target = torch.tensor([[3.0, 3.0, 3.0]]), torch.zeros((1, 3))
+        rotation = quat_from_matrix(create_rotation_matrix_from_view(eye, target, device="cpu"))[0]
+        # Attaching the sensor to the base gives it the robot's pose through the normal camera view.
+        camera_cfg = CameraCfg(
+            prim_path="{ENV_REGEX_NS}/Robot/base/StreamingCamera",
+            width=320,
+            height=240,
+            data_types=["rgb"],
+            spawn=PinholeCameraCfg(focal_length=24.0, clipping_range=(0.1, 1.0e5)),
+            offset=CameraCfg.OffsetCfg(pos=(3.0, 3.0, 3.0), rot=tuple(rotation.tolist()), convention="opengl"),
+            renderer_cfg=IsaacRtxRendererCfg() if "kit" in visualizers else NewtonWarpRendererCfg(),
+        )
+        env_cfg.scene.streaming_camera = camera_cfg
     env_cfg.sim.visualizer_cfgs = [
-        _make_kit_visualizer_cfg(env_cfg) if visualizer == "kit" else _make_newton_visualizer_cfg(env_cfg)
-        for visualizer in visualizers
+        (KitVisualizerCfg if kind == "kit" else NewtonGLVisualizerCfg)(
+            streaming_view=True,
+            streaming_envs=36 if kind == "kit" else 12,
+            cameras=[SceneCameraCfg(prim_path=camera_cfg.prim_path)],
+        )
+        for kind in visualizers
     ]
-
-
-def _resolve_task(args_cli: argparse.Namespace) -> str:
-    """Resolve the task for the selected visualizer."""
-    if args_cli.task is not None:
-        return args_cli.task
-    if "newton" in _requested_visualizers(args_cli):
-        return NEWTON_DEFAULT_TASK
-    return KIT_DEFAULT_TASK
 
 
 # add argparse arguments
@@ -135,8 +86,10 @@ parser.add_argument("--num_envs", type=int, default=None, help="Number of enviro
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
 # append simulation launcher cli args
 add_launcher_args(parser)
+parser.set_defaults(visualizer=["kit"])
 args_cli, hydra_args = setup_preset_cli(parser)
-args_cli.task = _resolve_task(args_cli)
+if args_cli.task is None:
+    args_cli.task = NEWTON_DEFAULT_TASK if "newton_gl" in args_cli.visualizer else KIT_DEFAULT_TASK
 sys.argv = [sys.argv[0]] + hydra_args
 
 
@@ -162,7 +115,7 @@ def main():
         # keep stepping until all visualizer windows have been closed
         sim = env.unwrapped.sim
         if not sim.visualizers:
-            print("[WARN]: No visualizers found. Exiting.")
+            logger.warning("No visualizers found. Exiting.")
             env.close()
             return
 

@@ -138,7 +138,7 @@ def test_schema_bundle_file_serializes_bundle_and_rejects_missing_bundle(tmp_pat
     assert data["extra"] == profile_metrics
     assert "scope_timings" not in data["runtime"]
     assert data["resources"]["gpu_mem_gb"]["peak"] == pytest.approx(12.0)
-    assert data["schema_version"] == "1.4"
+    assert data["schema_version"] == "1.5"
     assert "Test FPS" not in json.dumps(data)
 
     with pytest.raises(RuntimeError, match="requires a benchmark bundle"):

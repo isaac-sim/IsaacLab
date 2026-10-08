@@ -3,6 +3,35 @@ Changelog
 
 .. towncrier release notes start
 
+2.1.2 (2026-10-03)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed warnings in the locomanipulation SDG path utilities and the cuRobo planner helpers to use
+  :mod:`logging` instead of ``print``.
+
+
+2.1.1 (2026-10-02)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Excluded the robot subtree from cuRobo world obstacles even when custom world ignore substrings were configured.
+
+
+2.1.0 (2026-10-01)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the ``env_cfg`` argument to :func:`~isaaclab_mimic.datagen.generation.setup_env_config` to configure the
+  environment config passed to :func:`~isaaclab.app.launch_simulation` instead of parsing a new one.
+
+
 2.0.11 (2026-09-28)
 ~~~~~~~~~~~~~~~~~~~
 

@@ -85,7 +85,7 @@ class key_positions_b(ManagerTermBase):
 
     def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedRLEnv):
         super().__init__(cfg, env)
-        command: LetterTypingCommand = env.command_manager.get_term(cfg.params.get("command_name", "typing"))  # type: ignore
+        command: LetterTypingCommand = env.command_manager.get_term(cfg.params["command_name"])  # type: ignore
         self.keyboard = command.keyboard
         self.num_slots = command.num_keys
         self._inst_idx = command._inst_idx
@@ -93,7 +93,7 @@ class key_positions_b(ManagerTermBase):
 
         # Zero-padding mask: every gathered slot maps to a real key body, so keep them all unless
         # active_slots restricts the observation to a subset of slots (the rest stay zeroed).
-        active_slots: tuple[int, ...] | None = cfg.params.get("active_slots", None)  # type: ignore
+        active_slots: tuple[int, ...] | None = cfg.params["active_slots"]  # type: ignore
         if active_slots is None:
             active = torch.ones(self.num_envs, self.num_slots, dtype=torch.bool, device=self.device)
         else:

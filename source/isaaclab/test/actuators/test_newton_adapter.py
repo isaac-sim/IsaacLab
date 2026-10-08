@@ -3,21 +3,29 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Tests for the PhysX-side Newton actuator adapter."""
+"""Tests for the PhysX-side Newton actuator adapter and its host runtime."""
 
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import Mock
 
 import numpy as np
 import pytest
 import torch
+import warp as wp
 from newton.actuators import ClampingDCMotor, ClampingMaxEffort, ClampingPositionBased, DrivePD
 
 from pxr import Usd, UsdGeom, UsdPhysics
 
 from isaaclab.actuators import ActuatorBaseCfg, DCMotor, DCMotorCfg, DelayedPDActuatorCfg, RemotizedPDActuatorCfg
 from isaaclab.actuators.newton import NewtonActuatorAdapter
-from isaaclab.sim import SimulationCfg
-from isaaclab.sim.schemas.schemas_actuators import author_actuator_prims, resave_checkpoint_with_metadata
+from isaaclab.actuators.newton.physx_runtime import PhysxActuatorRuntime
+from isaaclab.sim import SimulationCfg, SimulationContext
+from isaaclab.sim.schemas.schemas_actuators import (
+    author_actuator_prims,
+    define_actuator_properties,
+    resave_checkpoint_with_metadata,
+)
 from isaaclab.utils import configclass
 
 _JOINT_NAMES = ["pd_a", "pd_b", "dc_a", "dc_b", "remote_a", "remote_b"]
@@ -54,7 +62,8 @@ class _PickleMarker:
         return _write_pickle_marker, (self.marker_path,)
 
 
-def _make_actuator_stage() -> Usd.Stage:
+def _make_robot_stage() -> Usd.Stage:
+    """Create a robot with one revolute joint per entry of ``_JOINT_NAMES`` and no actuators."""
     stage = Usd.Stage.CreateInMemory()
     UsdGeom.Xform.Define(stage, "/World/Robot")
 
@@ -65,7 +74,11 @@ def _make_actuator_stage() -> Usd.Stage:
     joints = [UsdPhysics.RevoluteJoint.Define(stage, f"/World/Robot/{name}") for name in _JOINT_NAMES]
     for joint, body in zip(joints, bodies, strict=True):
         joint.CreateBody1Rel().SetTargets([body.GetPath()])
+    return stage
 
+
+def _make_actuator_stage() -> Usd.Stage:
+    stage = _make_robot_stage()
     author_actuator_prims(
         stage,
         "/World/Robot",
@@ -178,6 +191,35 @@ def test_from_usd_groups_by_structure_and_preserves_per_dof_values():
     } == {(10.0, 20.0), (11.0, 21.0)}
 
 
+def test_is_stateful_only_with_delay_state():
+    """Report the adapter as stateful when an actuator keeps a delay buffer, and stateless otherwise."""
+    stateless_stage = _make_robot_stage()
+    author_actuator_prims(
+        stateless_stage,
+        "/World/Robot",
+        {
+            "dc": DCMotorCfg(
+                joint_names_expr=[".*"],
+                stiffness=1.0,
+                damping=0.1,
+                actuator_effort_limit=2.0,
+                actuator_velocity_limit=3.0,
+                saturation_effort=4.0,
+            )
+        },
+    )
+    for stage, expected in ((_make_actuator_stage(), True), (stateless_stage, False)):
+        adapter = NewtonActuatorAdapter.from_usd(
+            stage=stage,
+            joint_names=_JOINT_NAMES,
+            num_envs=2,
+            num_joints=len(_JOINT_NAMES),
+            device="cpu",
+            articulation_prim_path="/World/Robot",
+        )
+        assert adapter.is_stateful is expected
+
+
 @pytest.mark.parametrize(
     ("configured_limit", "expected_limits"),
     [(None, (71.0, 72.0)), ({"pd_a": 5.0}, (5.0, 0.0))],
@@ -280,3 +322,112 @@ def test_schema_authoring_accepts_supported_public_actuator_alias():
     author_actuator_prims(stage, "/World/Robot", {"public_alias": cfg})
 
     assert stage.GetPrimAtPath("/World/Robot/public_alias_pd_a_actuator").IsValid()
+
+
+def test_define_actuator_properties_authors_every_spawned_articulation(monkeypatch):
+    """A multi-asset spawner creates one articulation per match, and each needs its own actuator prims."""
+    stage = Usd.Stage.CreateInMemory()
+    robot_paths = [f"/World/envs/env_{index}/Robot" for index in range(3)]
+    for robot_path in robot_paths:
+        UsdGeom.Xform.Define(stage, robot_path)
+        body = UsdGeom.Xform.Define(stage, f"{robot_path}/body")
+        UsdPhysics.RigidBodyAPI.Apply(body.GetPrim())
+        joint = UsdPhysics.RevoluteJoint.Define(stage, f"{robot_path}/pd_a")
+        joint.CreateBody1Rel().SetTargets([body.GetPath()])
+    monkeypatch.setattr(
+        SimulationContext,
+        "instance",
+        staticmethod(lambda: SimpleNamespace(cfg=SimpleNamespace(use_newton_actuators=True))),
+    )
+    cfg = DelayedPDActuatorCfg(
+        joint_names_expr=["pd_a"], stiffness=11.0, damping=1.5, actuator_effort_limit=21.0, max_delay=2
+    )
+
+    define_actuator_properties(r"/World/envs/env_.*/Robot", {"pd": cfg}, stage=stage)
+
+    for robot_path in robot_paths:
+        actuators = [prim for prim in stage.Traverse() if prim.GetTypeName() == "NewtonActuator"]
+        assert any(str(prim.GetPath()).startswith(robot_path + "/") for prim in actuators), robot_path
+
+
+# ---------------------------------------------------------------------------
+# CUDA-graph handling of the host-side PhysX actuator runtime
+# ---------------------------------------------------------------------------
+
+
+def _runtime() -> PhysxActuatorRuntime:
+    """Create a runtime for a CUDA articulation with a mocked logger."""
+    return PhysxActuatorRuntime(SimpleNamespace(device="cuda:0"), logger=Mock())
+
+
+def _failing_capture(fail_at: int) -> type:
+    """Return a ``wp.ScopedCapture`` double whose capture number ``fail_at`` (0-based) raises on entry."""
+
+    class _Capture:
+        count = 0
+
+        def __init__(self, *args, **kwargs) -> None:
+            self.index = type(self).count
+            type(self).count += 1
+            self.graph = object()
+
+        def __enter__(self):
+            if self.index >= fail_at:
+                raise RuntimeError("capture unavailable")
+            return self
+
+        def __exit__(self, *exc_info) -> bool:
+            return False
+
+    return _Capture
+
+
+def test_graph_capture_failure_restores_adapter_state_and_falls_back_to_eager(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A failed second capture discards the graphs and restores the state swapped by the first capture."""
+    state_a, state_b = object(), object()
+    runtime = _runtime()
+    runtime.adapter = SimpleNamespace(_states_a=state_a, _states_b=state_b)
+
+    def _swap_adapter_state(*args, **kwargs) -> None:
+        runtime.adapter._states_a, runtime.adapter._states_b = runtime.adapter._states_b, runtime.adapter._states_a
+
+    monkeypatch.setattr(wp, "ScopedCapture", _failing_capture(fail_at=1))
+    monkeypatch.setattr(runtime, "_run_native_actuator_kernels", _swap_adapter_state)
+
+    runtime._capture_native_actuator_graphs(SimpleNamespace(), 0.01)
+
+    assert runtime.native_actuator_graphs == ()
+    assert runtime.adapter._states_a is state_a
+    assert runtime.adapter._states_b is state_b
+    runtime._logger.warning.assert_called_once()
+
+
+def test_compute_runs_eagerly_after_graph_capture_failure(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A graphable adapter whose capture fails still computes the current command eagerly."""
+    capture = _failing_capture(fail_at=0)
+    runtime = _runtime()
+    runtime.adapter = SimpleNamespace(is_stateful=False, is_all_graphable=True, _states_a=object(), _states_b=object())
+    eager_compute = Mock()
+    monkeypatch.setattr(wp, "get_device", lambda device: SimpleNamespace(is_cuda=True, is_capturing=False))
+    monkeypatch.setattr(wp, "ScopedCapture", capture)
+    monkeypatch.setattr(runtime, "_run_native_actuator_kernels", eager_compute)
+    collection = SimpleNamespace()
+
+    runtime.compute(collection, 0.01)
+    runtime.compute(collection, 0.01)
+
+    # The failed capture is not retried, and every step falls back to the eager kernels.
+    assert capture.count == 1
+    assert runtime.native_actuator_graphs == ()
+    assert eager_compute.call_count == 2
+    eager_compute.assert_called_with(collection, 0.01)
+
+
+def test_stateful_actuator_rejects_outer_cuda_capture(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Stateful adapters cannot safely mutate their buffers inside an outer CUDA capture."""
+    runtime = _runtime()
+    runtime.adapter = SimpleNamespace(is_stateful=True)
+    monkeypatch.setattr(wp, "get_device", lambda device: SimpleNamespace(is_cuda=True, is_capturing=True))
+
+    with pytest.raises(RuntimeError, match="stateful Newton actuators cannot run inside an outer CUDA graph capture"):
+        runtime.compute(SimpleNamespace(), 0.01)

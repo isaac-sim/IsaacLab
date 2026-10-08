@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 
 import torch
 
-from isaaclab.assets import Asset, AssetBase
+from isaaclab.assets import Asset, AssetBase, VisualMaterial
 from isaaclab.managers import CommandTerm
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.utils.leapp import POSE7_ELEMENT_NAMES
@@ -66,6 +66,12 @@ class ObjectUniformPoseCommand(CommandTerm):
             self._static_success_vis_pos_w = env.scene.env_origins + offset
         else:
             self._static_success_vis_pos_w = None
+        self.success_vis_material: VisualMaterial | None = None
+        if cfg.success_vis_material_name is not None:
+            self.success_vis_material = env.scene[cfg.success_vis_material_name]
+            if not self.success_vis_material.is_per_env:
+                raise ValueError(f"Success material '{cfg.success_vis_material_name}' must be per-environment.")
+            self._success_vis_colors = torch.tensor(cfg.success_vis_colors, device=self.device)
 
         # create buffers
         # -- commands: (x, y, z, qx, qy, qz, qw) in root frame
@@ -78,13 +84,11 @@ class ObjectUniformPoseCommand(CommandTerm):
             self.metrics["orientation_error"] = torch.zeros(self.num_envs, device=self.device)
 
         # success markers, always visible
-        self.success_visualizer = VisualizationMarkers(self.cfg.success_visualizer_cfg)
-        self.success_visualizer.set_visibility(True)
+        self.success_visualizer: VisualizationMarkers | None = None
         if self.success_vis_asset is not None:
-            self.success_visualizer.visualize(
-                self._get_success_vis_pos_w(),
-                environment_ids=self._env.scene._ALL_INDICES,
-            )
+            self.success_visualizer = VisualizationMarkers(self.cfg.success_visualizer_cfg)
+            self.success_visualizer.set_visibility(True)
+        self._visualize_success(torch.zeros(self.num_envs, dtype=torch.bool, device=self.device))
 
         # adds (optional) cmd kind and element names for leapp export
         # during export, semantic data about this command will be used to annotate the command input
@@ -135,12 +139,19 @@ class ObjectUniformPoseCommand(CommandTerm):
         if not self.cfg.position_only:
             self.metrics["orientation_error"] = torch.linalg.norm(rot_error, dim=-1)
             success_id &= self.metrics["orientation_error"] < 0.5
-        if self.success_vis_asset is not None:
+        self._visualize_success(success_id)
+
+    def _visualize_success(self, success: torch.Tensor) -> None:
+        """Update the success markers and material from per-environment success. Shape is (num_envs,)."""
+        if self.success_visualizer is not None:
             self.success_visualizer.visualize(
                 self._get_success_vis_pos_w(),
-                marker_indices=success_id.int(),
+                marker_indices=success.int(),
                 environment_ids=self._env.scene._ALL_INDICES,
             )
+        if self.success_vis_material is not None:
+            colors = self._success_vis_colors[success.long()]
+            VisualMaterial.write_channels([self.success_vis_material], {"color": colors.unsqueeze(0)})
 
     def _get_success_vis_pos_w(self) -> torch.Tensor:
         """Return the success visualization positions in the world frame."""
@@ -248,15 +259,8 @@ class DeformableUniformPoseCommand(ObjectUniformPoseCommand):
         com_w = self.object.data.root_pos_w.torch
         self.metrics["position_error"] = torch.linalg.norm(self.pose_command_w[:, :3] - com_w, dim=-1)
 
-        if self.success_vis_asset is None:
-            return
         # same success radius as the goal markers of the base class
-        success_id = (self.metrics["position_error"] < 0.05).int()
-        self.success_visualizer.visualize(
-            self._get_success_vis_pos_w(),
-            marker_indices=success_id,
-            environment_ids=self._env.scene._ALL_INDICES,
-        )
+        self._visualize_success(self.metrics["position_error"] < 0.05)
 
 
 class CableUniformPoseCommand(ObjectUniformPoseCommand):
@@ -288,14 +292,7 @@ class CableUniformPoseCommand(ObjectUniformPoseCommand):
         segment_pos_w = self._segment_position_w()
         self.metrics["position_error"] = torch.linalg.norm(self.pose_command_w[:, :3] - segment_pos_w, dim=-1)
 
-        if self.success_vis_asset is None:
-            return
-        success_id = (self.metrics["position_error"] < 0.05).int()
-        self.success_visualizer.visualize(
-            self._get_success_vis_pos_w(),
-            marker_indices=success_id,
-            environment_ids=self._env.scene._ALL_INDICES,
-        )
+        self._visualize_success(self.metrics["position_error"] < 0.05)
 
     def _debug_vis_callback(self, event):
         if not self.robot.is_initialized:

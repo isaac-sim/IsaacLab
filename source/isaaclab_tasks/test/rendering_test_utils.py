@@ -415,7 +415,7 @@ MINIMAL_PHYSICS_RENDERER_AOV_GROUPS = group_rendering_params(
 # Only the RTX arm is covered: it draws the ``UsdGeom.Points`` clouds on the USD stage, whereas the Warp
 # rasterizer draws particles straight from Newton state as synthetic hits, which is a separate code path.
 MPM_PARTICLE_AOV_COMBINATIONS = [
-    *_make_sensor_data_type_params("newton", "isaacsim_rtx", _NON_MINIMAL_SENSOR_DATA_TYPES),
+    *_make_sensor_data_type_params("newton", "isaacsim_rtx", _NON_MINIMAL_SENSOR_DATA_TYPES, flaky=False),
 ]
 
 MPM_PARTICLE_AOV_GROUPS = group_rendering_params(MPM_PARTICLE_AOV_COMBINATIONS)
@@ -1127,7 +1127,7 @@ def make_require_ovlibs_install_fixture():
     """Create an autouse fixture that fails fast when OV libraries are required but not installed.
 
     Only parametrized cases with ``renderer == "ovrtx_renderer"`` or ``physics_backend == "ovphysx"`` are checked.
-    Install with ``./isaaclab.sh -i 'ov[all]'`` (or the equivalent in your environment).
+    Install with ``uv sync --extra ov`` (or the equivalent in your environment).
     """
 
     @pytest.fixture(autouse=True)
@@ -1144,7 +1144,7 @@ def make_require_ovlibs_install_fixture():
             except ImportError as exc:
                 pytest.fail(
                     "Kitless OVRTX rendering tests require the optional dependency ov[ovrtx]. "
-                    "Install with: ./isaaclab.sh -i 'ov[ovrtx]'\n"
+                    "Install with: uv sync --extra ovrtx\n"
                     f"ImportError: {exc}"
                 )
 
@@ -1156,7 +1156,7 @@ def make_require_ovlibs_install_fixture():
             except ImportError as exc:
                 pytest.fail(
                     "Kitless OVPhysX rendering tests require the optional dependency ov[ovphysx]. "
-                    "Install with: ./isaaclab.sh -i 'ov[ovphysx]'\n"
+                    "Install with: uv sync --extra ovphysx\n"
                     f"ImportError: {exc}"
                 )
 
@@ -1954,12 +1954,6 @@ def rendering_test_lift_kuka(
     if point_cloud_term is not None:
         point_cloud_term.params["visualize"] = False
 
-    # The success and failure markers are placed exactly at the same location. If both markers are
-    # visible, the rendering order will determine which one is visible in the camera output. Hide
-    # both markers to avoid this nondeterministic behavior.
-    for marker_cfg in env_cfg.commands.object_pose.success_visualizer_cfg.markers.values():
-        marker_cfg.visible = False
-
     test_name = f"lift_kuka_{'homo' if setup_homogeneous_envs else 'hetero'}"
 
     env = None
@@ -2152,28 +2146,19 @@ def _apply_franka_camera_golden_scene_overrides(env_cfg: Any, data_types: list[s
 
 
 def _configure_franka_camera_test_env_cfg(
-    env_cfg: Any,
-    data_types: list[str],
-    command_name: str = "deformable_pose",
-    reset_event_name: str = "reset_deformable",
+    env_cfg: Any, data_types: list[str], command_cfg: Any, reset_event_cfg: Any
 ) -> None:
     """Apply deterministic golden rendering test overrides to a resolved Franka camera config.
 
     Args:
         env_cfg: Resolved Franka camera environment config to mutate in place.
         data_types: Camera data types the golden capture requests.
-        command_name: Name of the pose command term whose success visualizer is disabled.
-        reset_event_name: Name of the reset event term whose position range is pinned to zero.
+        command_cfg: Pose command term whose debug visualization is disabled.
+        reset_event_cfg: Reset event term whose position range is pinned to zero.
     """
     _apply_franka_camera_golden_scene_overrides(env_cfg, data_types)
-    command_cfg = getattr(env_cfg.commands, command_name)
-    # The table spawns invisible because the success visualizer normally draws it; the goldens hide
-    # that visualizer, so paint the table itself with the marker material instead of replacing the
-    # spawn, which would drop task-specific physics overrides.
-    env_cfg.scene.table.spawn.visual_material = command_cfg.success_visualizer_cfg.markers["failure"].visual_material
-    env_cfg.scene.table.spawn.visible = True
     command_cfg.debug_vis = False
-    getattr(env_cfg.events, reset_event_name).params["position_range"] = {
+    reset_event_cfg.params["position_range"] = {
         "x": (0.0, 0.0),
         "y": (0.0, 0.0),
         "z": (0.0, 0.0),
@@ -2206,7 +2191,9 @@ def rendering_test_franka_cloth(
     _skip_if_physics_preset_unsupported(env_cfg, physics_preset_name)
 
     env_cfg = _apply_overrides_to_env_cfg(env_cfg, [f"presets={physics_preset_name},{renderer}"])
-    _configure_franka_camera_test_env_cfg(env_cfg, data_types)
+    _configure_franka_camera_test_env_cfg(
+        env_cfg, data_types, env_cfg.commands.deformable_pose, env_cfg.events.reset_deformable
+    )
     if is_newton_ovrtx_motion:
         initial_pos = env_cfg.scene.deformable.init_state.pos
         env_cfg.scene.deformable.init_state.pos = (initial_pos[0], initial_pos[1], initial_pos[2] + 0.01)
@@ -2218,7 +2205,6 @@ def rendering_test_franka_cloth(
 
     try:
         env = ManagerBasedRLEnv(env_cfg)
-        env.command_manager.get_term("deformable_pose").success_visualizer.set_visibility(False)
 
         maybe_save_stage(test_name, physics_backend, renderer, data_types[0])
 
@@ -2283,7 +2269,9 @@ def rendering_test_franka_soft(
     _skip_if_physics_preset_unsupported(env_cfg, physics_preset_name)
 
     env_cfg = _apply_overrides_to_env_cfg(env_cfg, [f"presets={physics_preset_name},{renderer}"])
-    _configure_franka_camera_test_env_cfg(env_cfg, data_types)
+    _configure_franka_camera_test_env_cfg(
+        env_cfg, data_types, env_cfg.commands.deformable_pose, env_cfg.events.reset_deformable
+    )
 
     _maybe_enable_physx_determinism_for_motion(env_cfg, physics_backend, _motion_data_type(data_types))
 
@@ -2292,7 +2280,6 @@ def rendering_test_franka_soft(
 
     try:
         env = ManagerBasedRLEnv(env_cfg)
-        env.command_manager.get_term("deformable_pose").success_visualizer.set_visibility(False)
 
         maybe_step_env_for_motion(env, _motion_data_type(data_types), action_value=0.5)
 
@@ -2327,7 +2314,7 @@ def rendering_test_mpm_particles(
 
     Covers the ``UsdGeom.Points`` clouds authored by
     MPM spawners and updated by the shared Fabric resource through SDP. The camera frames the
-    UR10 particle pile head-on so the particles, not the workcell, dominate the frame.
+    UR10 particle pile and nearby wrist while keeping the rest of the workcell out of frame.
 
     MPM runs only on Newton's coupled MPM/MJWarp solver, so ``UR10ParticlePushEnvCfg`` pins
     ``sim.physics`` directly rather than exposing physics presets; only the renderer is selected
@@ -2336,11 +2323,9 @@ def rendering_test_mpm_particles(
 
     Two properties of this suite are worth knowing before debugging a failure here:
 
-    * The retry from ``_FLAKY_MARK`` cannot rescue a failure. Only the first environment built in
-      a process reproduces the goldens; a second one renders RTX colour differently and lands
-      ~37 % of pixels away on ``rgb``/``rgba`` while the geometry AOVs still match exactly. Two
-      separate processes agree with each other, so a real regression and a retried failure look
-      alike. Compare a fresh process against the goldens rather than trusting the retries.
+    * Only the first environment built in a process reproduces the goldens; a second one renders
+      RTX colour differently. This case therefore has no flaky retry mark, so each comparison
+      uses a fresh process rather than a second environment in the same process.
     * ``semantic_segmentation`` and ``instance_segmentation`` carry only silhouette-level signal.
       Nothing in this scene is semantically tagged, so the pile shares one unlabelled region with
       the table and would barely move those AOVs if it stopped rendering. ``rgb``/``rgba`` and
@@ -2363,13 +2348,13 @@ def rendering_test_mpm_particles(
     )
     from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
 
-    # Orientation is the quaternion for eye (1.05, -0.50, 0.35) looking at the pile centre
-    # (0.70, 0.0, 0.03), i.e. the value create_rotation_matrix_from_view yields for that view.
+    # Look from (1.15, -0.80, 0.55) toward (0.62, 0.0, 0.18) to include the pile and wrist
+    # without the ground plane. Rotation is create_rotation_matrix_from_view's OpenGL quaternion.
     particle_camera_cfg = CameraCfg(
         prim_path="{ENV_REGEX_NS}/Camera",
         offset=CameraCfg.OffsetCfg(
-            pos=(1.05, -0.50, 0.35),
-            rot=(0.493575, 0.155586, 0.257249, 0.816088),
+            pos=(1.15, -0.80, 0.55),
+            rot=(0.541755, 0.163176, 0.237799, 0.789510),
             convention="opengl",
         ),
         data_types=list(data_types),
@@ -2419,6 +2404,7 @@ def rendering_test_mpm_particles(
 
     try:
         env = UR10ParticlePushEnv(env_cfg)
+        env.reset()
 
         maybe_save_stage(test_name, physics_backend, renderer, data_types[0])
 
@@ -2480,14 +2466,15 @@ def rendering_test_franka_cable(
     _skip_if_physics_preset_unsupported(env_cfg, physics_preset_name)
 
     env_cfg = _apply_overrides_to_env_cfg(env_cfg, [f"presets={physics_preset_name},{renderer}"])
-    _configure_franka_camera_test_env_cfg(
-        env_cfg, data_types, command_name="cable_pose", reset_event_name="reset_cable"
-    )
+    _configure_franka_camera_test_env_cfg(env_cfg, data_types, env_cfg.commands.cable_pose, env_cfg.events.reset_cable)
 
     # Training ramps gravity from ~0 → -9.81; without this, reset installs g≈0 and the cable floats.
     # Same as FrankaSoftEnvCfg.play_mode(): keep variable_gravity's fixed -9.81.
     if env_cfg.curriculum is not None:
         env_cfg.curriculum.gravity = None
+
+    # Settling the USD pose must not trigger randomized RL resets during golden capture.
+    env_cfg.terminations.joint_vel_out_of_limit = None
 
     _maybe_enable_physx_determinism_for_motion(env_cfg, physics_backend, _motion_data_type(data_types))
 
@@ -2511,7 +2498,8 @@ def rendering_test_franka_cable(
             return
 
         # Let the cable settle under gravity so golden frames are not first-frame spawn poses.
-        env.step(zero_actions)
+        _, _, terminated, truncated, _ = env.step(zero_actions)
+        assert not torch.any(terminated | truncated), "Cable golden capture unexpectedly reset the scene."
 
         validate_camera_outputs(
             test_name,

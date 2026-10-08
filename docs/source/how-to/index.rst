@@ -276,13 +276,45 @@ How-to Guides
 
          Diagnose bottlenecks and improve simulation throughput.
 
+      .. _solver-tuning:
+
+      .. container:: guide-entry
+
+         :doc:`Tuning the PhysX solver </source/how-to/solver_tuning_physx>`
+
+         Tune timestep, iterations, and contacts to diagnose PhysX solver stability.
+
+      .. container:: guide-entry
+
+         :doc:`Tuning the MJWarp solver </source/how-to/solver_tuning_mjwarp>`
+
+         Tune Newton MuJoCo-Warp contact capacity, timestep, friction, and convergence.
+
+      .. container:: guide-entry
+
+         :doc:`Tuning the Kamino solver </source/how-to/solver_tuning_kamino>`
+
+         Tune Newton Kamino PADMM or DVI convergence, stabilization, timestep, and substeps.
+
+      .. container:: guide-entry
+
+         :doc:`Tuning the VBD solver </source/how-to/solver_tuning_vbd>`
+
+         Tune Newton Vertex Block Descent (VBD) materials, contacts, cloth, soft bodies, and proxy or ADMM coupling.
+
+      .. container:: guide-entry
+
+         :doc:`Tuning the MPM solver </source/how-to/solver_tuning_mpm>`
+
+         Tune Newton Material Point Method (MPM) resolution, timestep, convergence, and material parameters.
+
    .. container:: guide-group
 
       .. rubric:: Teleoperation
 
       .. container:: guide-entry
 
-         :doc:`Setting up Isaac Teleop with CloudXR </source/how-to/cloudxr_teleoperation>`
+         :doc:`Setting up Isaac Capture with CloudXR </source/how-to/cloudxr_teleoperation>`
 
          Connect XR devices through CloudXR for immersive teleoperation.
 

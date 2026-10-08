@@ -14,7 +14,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from . import cli, compare
-from .contract import Contract
+from .contract import Contract, build
 from .metrics import METRICS, PerfSmokeError
 from .store import BaselineRow
 
@@ -171,6 +171,42 @@ class TestAsvComparison(unittest.TestCase):
                     )
                 self.assertEqual(status, 0)
                 self.assertEqual(json.loads(output.read_text())["verdict"], expected)
+
+
+class TestContracts(unittest.TestCase):
+    """Compare solver identity without invalidating legacy single-solver baselines."""
+
+    def test_solver_and_coupling_identity_controls_comparability(self):
+        bundle = {
+            "run": {
+                "task": "task",
+                "num_envs": 16,
+                "config": {
+                    "physics_backend": "newton_mjwarp",
+                    "rendering_backend": "none",
+                    "presets": [],
+                },
+            },
+            "versions": {"torch": "2.5", "warp": "1.9", "newton": "1.0", "mujoco": "3.4", "mjwarp": "0.1"},
+            "hardware": {"gpu_devices": [{"name": "L40S"}], "cpu_name": "cpu"},
+        }
+        config = bundle["run"]["config"]
+        legacy = build(bundle)
+        config["physics_solvers"] = ["newton_mjwarp"]
+        config["physics_coupling"] = None
+        self.assertEqual(build(bundle), legacy)
+        config.update(physics_solvers=["newton_vbd", "newton_mjwarp", "newton_vbd"], physics_coupling="proxy")
+        proxy = build(bundle)
+        self.assertNotEqual(proxy, legacy)
+        config["physics_solvers"] = ["newton_mjwarp", "newton_vbd"]
+        self.assertEqual(build(bundle), proxy)
+        config["physics_coupling"] = "admm"
+        self.assertNotEqual(build(bundle), proxy)
+        config["physics_backend"] = "newton_kamino"
+        config["physics_solvers"] = ["newton_kamino", "newton_mjwarp"]
+        del bundle["versions"]["mjwarp"]
+        with self.assertRaisesRegex(compare.PerfSmokeError, "versions.mjwarp"):
+            build(bundle)
 
 
 if __name__ == "__main__":

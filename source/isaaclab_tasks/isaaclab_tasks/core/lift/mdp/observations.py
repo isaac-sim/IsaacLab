@@ -110,14 +110,14 @@ class object_point_cloud_b(ManagerTermBase):
 
     def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedRLEnv):
         super().__init__(cfg, env)
-        object_cfg: SceneEntityCfg = cfg.params.get("object_cfg", SceneEntityCfg("object"))
-        ref_asset_cfg: SceneEntityCfg = cfg.params.get("ref_asset_cfg", SceneEntityCfg("robot"))
-        num_points: int = cfg.params.get("num_points", 10)
+        object_cfg: SceneEntityCfg = cfg.params["object_cfg"]
+        ref_asset_cfg: SceneEntityCfg = cfg.params["ref_asset_cfg"]
+        num_points: int = cfg.params["num_points"]
         self.object: RigidObject = env.scene[object_cfg.name]
         self.ref_asset: Articulation = env.scene[ref_asset_cfg.name]
         self.points_local = sample_object_point_cloud(env.num_envs, num_points, self.object.cfg.prim_path, env.device)
         self.points_w = torch.zeros_like(self.points_local)
-        if cfg.params.get("visualize", True):
+        if cfg.params["visualize"]:
             marker_cfg = replace(RAY_CASTER_MARKER_CFG, prim_path="/Visuals/ObservationPointCloud")
             marker_cfg.markers["hit"].radius = 0.0025
             self.visualizer = VisualizationMarkers(marker_cfg)
@@ -198,7 +198,7 @@ class vision_camera(ManagerTermBase):
 
     def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedRLEnv):
         super().__init__(cfg, env)
-        sensor_cfg: SceneEntityCfg = cfg.params.get("sensor_cfg", SceneEntityCfg("tiled_camera"))
+        sensor_cfg: SceneEntityCfg = cfg.params["sensor_cfg"]
         self.sensor: Camera = env.scene.sensors[sensor_cfg.name]
         self.sensor_type = self.sensor.cfg.data_types[0]
         if is_depth_like(self.sensor_type):
@@ -249,9 +249,9 @@ class DeformableSampledPointsInRobotRootFrame(ManagerTermBase):
     def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedRLEnv):
         super().__init__(cfg, env)
 
-        self.asset_cfg: SceneEntityCfg = cfg.params.get("asset_cfg", SceneEntityCfg("deformable"))
-        self.robot_cfg: SceneEntityCfg = cfg.params.get("robot_cfg", SceneEntityCfg("robot"))
-        self.num_points: int = cfg.params.get("num_points", 20)
+        self.asset_cfg: SceneEntityCfg = cfg.params["asset_cfg"]
+        self.robot_cfg: SceneEntityCfg = cfg.params["robot_cfg"]
+        self.num_points: int = cfg.params["num_points"]
 
         asset: DeformableObject = env.scene[self.asset_cfg.name]
         self.num_nodes = asset.data.nodal_pos_w.shape[1]

@@ -264,6 +264,7 @@ def run(argv: list[str]) -> BenchmarkResult | None:
     env_cfg, agent_cfg = resolve_task_config(args_cli.task, agent_cfg_entry_point)
     algorithm = resolve_skrl_algorithm(agent_cfg, args_cli.algorithm)
     config_t1 = time.perf_counter_ns()
+    common.pre_launch_video_config(env_cfg, args_cli)
 
     start_utc = capture.now_utc_iso()
     app_t0 = time.perf_counter_ns()
@@ -289,7 +290,6 @@ def run(argv: list[str]) -> BenchmarkResult | None:
             agent_cfg["trainer"]["close_environment_at_exit"] = False
 
             agent_cfg["seed"] = args_cli.seed if args_cli.seed is not None else agent_cfg.get("seed", 0)
-            common.validate_distributed_device(args_cli)
             if distributed.enabled:
                 # skrl reads the rank environment itself and pins the device; offsetting the seed by
                 # the rank decorrelates exploration across ranks, as in regular skrl training.

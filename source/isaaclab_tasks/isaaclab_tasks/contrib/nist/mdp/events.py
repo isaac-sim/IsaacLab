@@ -218,10 +218,10 @@ def grasp_held_asset(
 class reset_end_effector_around_asset(ManagerTermBase):
     def __init__(self, cfg: EventTermCfg, env: ManagerBasedRLEnv):
         super().__init__(cfg, env)
-        fixed_asset_cfg: SceneEntityCfg = cfg.params.get("fixed_asset_cfg")  # type: ignore
-        fixed_asset_offset: Offset = cfg.params.get("fixed_asset_offset")  # type: ignore
-        pose_range_b: dict[str, tuple[float, float]] = cfg.params.get("pose_range_b")  # type: ignore
-        robot_ik_cfg: SceneEntityCfg = cfg.params.get("robot_ik_cfg", SceneEntityCfg("robot"))
+        fixed_asset_cfg: SceneEntityCfg = cfg.params["fixed_asset_cfg"]  # type: ignore
+        fixed_asset_offset: Offset = cfg.params["fixed_asset_offset"]  # type: ignore
+        pose_range_b: dict[str, tuple[float, float]] = cfg.params["pose_range_b"]  # type: ignore
+        robot_ik_cfg: SceneEntityCfg = cfg.params["robot_ik_cfg"]
 
         range_list = [pose_range_b.get(key, (0.0, 0.0)) for key in ["x", "y", "z", "roll", "pitch", "yaw"]]
         self.wrist_idx = 6

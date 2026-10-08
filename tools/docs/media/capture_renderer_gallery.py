@@ -211,7 +211,7 @@ def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     add_gallery_arguments(parser)
     add_launcher_args(parser)
-    parser.set_defaults(enable_cameras=True, headless=True)
+    parser.set_defaults(enable_cameras=True)
     args = parser.parse_args()
     args.output_dir = args.output_dir.expanduser().resolve()
     if args.width < 1 or args.height < 1:
