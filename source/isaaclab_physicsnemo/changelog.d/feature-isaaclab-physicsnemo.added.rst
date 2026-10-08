@@ -7,5 +7,6 @@
 * Added :func:`~isaaclab_physicsnemo.evaluate_rollout_nrmse`, the prefix-averaged recursive-rollout
   error of the FlashNeRD evaluation, which training reports on held-out trajectories.
 * Added Cartpole and ANYmal-D flat-terrain teacher configurations with recording, training, and
-  deployment examples, task-independent Cartpole data collection, and a Cartpole PPO example that
-  trains in learned physics and evaluates in MuJoCo Warp.
+  deployment examples, task-independent data collection, and PPO examples that train in learned physics
+  and evaluate in MuJoCo Warp. The ANYmal-D model follows the FlashNeRD locomotion experiment with four
+  fixed foot-sphere probes and ParallelNeRD.

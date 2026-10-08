@@ -87,19 +87,37 @@ python source/isaaclab_physicsnemo/examples/anymal_d/record.py --output /tmp/any
 python source/isaaclab_physicsnemo/examples/anymal_d/train.py \
   --dataset /tmp/anymal-data --output /tmp/anymal-train
 python source/isaaclab_physicsnemo/examples/anymal_d/deploy.py --artifact /tmp/anymal-train/artifact
+python source/isaaclab_physicsnemo/examples/anymal_d/train_policy.py --output /tmp/ppo-anymal-learned \
+  --artifact /tmp/anymal-train/artifact
 ```
 
+The ANYmal-D example follows the FlashNeRD locomotion experiment and the PhysicsNeMo Robotics G1
+application, using PhysicsNeMo Robotics library components only:
+
+- **Contact:** four fixed foot-sphere probes (`FixedRigidContactEncoder` with
+  `expand_rigid_contact_shapes`), expressed in the base heading frame and flattened by
+  `FixedContactFeatureAdapter` with the G1 channels. FlashNeRD uses fixed probes for this experiment and
+  variable contact tokens only for platform climbing. Probes query per-world surfaces, so the teacher
+  gives every environment its own ground plane.
+- **Model:** `ParallelNeRD`, the FlashNeRD architecture, with the G1 geometry (`PARALLEL_NERD_CONFIG`),
+  conditioned on the applied joint efforts and the probe features; 5 % trajectory validation split.
+- **Data:** `AnymalDExplorationEnvCfg` randomizes base poses, base velocities, and joint configurations;
+  uniform joint-position targets within 0.75 rad of the default pose change every 20 ms; episodes last
+  at most 2 s and keep falls.
+- **Timing:** the learned frame is Isaac Lab's 5 ms physics step. The ANYdrive actuator network runs once
+  per physics step, so a 20 ms physics step degrades the actuator itself: with it, even PPO in MuJoCo
+  Warp fails to learn to walk. FlashNeRD instead learns the actuator response inside a 20 ms frame.
+
 Both ANYmal-D scripts accept `--policy` with a TorchScript policy exported by the RSL-RL `play.py`
-script. Recording with a walking policy plus exploration noise covers locomotion states that random
-joint targets alone rarely reach.
+script, to add a walking policy to the exploration targets.
 
 ### What the scripts do
 
-- `record.py` steps the teacher configuration with smooth random actions and writes every episode,
+- `record.py` steps the exploration configuration with random actions and writes every episode,
   including asynchronous per-environment resets.
-- `train.py` trains a vector NeRD for a fixed number of updates and packages a hash-verified
-  artifact. It prints the held-out one-step error and the recursive-rollout error `E_H` of the
-  FlashNeRD evaluation (`evaluate_rollout_nrmse`) for `H` = 1, 15, 100, and 200.
+- `train.py` trains a NeRD for a fixed number of updates and packages a hash-verified artifact. It prints
+  the held-out one-step error and, for effort-only Cartpole models, the recursive-rollout error `E_H` of
+  the FlashNeRD evaluation (`evaluate_rollout_nrmse`) for `H` = 1, 15, 100, and 200.
 - `deploy.py` runs a MuJoCo Warp rollout and a learned rollout from the same seed and actions,
   checks the learned environment with `preflight_learned_physics`, and prints the open-loop joint
   error of every environment that has not been reset.
@@ -137,14 +155,38 @@ only 55 % of MuJoCo Warp episodes. Recorded data must cover the command range th
 
 ### ANYmal-D
 
-Reference results with the default settings: validation normalized one-step RMSE 0.36, and after
-0.5 s of open-loop random actions joint position error 0.84, joint velocity error 19, and base height
-error 0.07 m.
+The FlashNeRD-scale run:
 
-The ANYmal-D model conditions only on joint state and applied efforts. Ground contact is learned
-implicitly from random exploration, which limits its accuracy. Recording with a walking policy, more
-data and updates, and contact features such as PhysicsNeMo Robotics `FixedRigidContactEncoder` foot
-probes are the next steps for a useful legged-robot model.
+```bash
+python source/isaaclab_physicsnemo/examples/anymal_d/record.py --output /tmp/anymal-data \
+  --num-envs 1024 --steps 3000
+python source/isaaclab_physicsnemo/examples/anymal_d/train.py \
+  --dataset /tmp/anymal-data --output /tmp/anymal-train --max-updates 60000
+for physics in "" "--artifact /tmp/anymal-train/artifact"; do
+  python source/isaaclab_physicsnemo/examples/anymal_d/train_policy.py --output /tmp/ppo-anymal $physics
+done
+```
+
+The dataset holds 8,192 episodes and 3.1 million 5 ms frames; recording takes about 8 minutes and
+training the 3.5M-parameter model about 70 minutes. Reference results:
+
+- One-step validation normalized delta RMSE 0.26. After 2 s of open-loop random targets, joint position
+  error 0.11 rad, joint velocity error 1.7 rad/s, and base height error 0.025 m.
+- A policy trained in MuJoCo Warp keeps most of its reward in the learned environment (0.0149 against
+  0.0174 per step, linear-velocity tracking error 0.40 against 0.36 m/s), but falls in 17 % of its
+  learned episodes against 2 % in MuJoCo Warp.
+- PPO trained only in the learned environment (300 iterations, 4,096 environments) yields policies that
+  walk in MuJoCo Warp but track commands worse than MuJoCo Warp training:
+
+| Training physics, seed | MuJoCo Warp episode return | MuJoCo Warp fall rate |
+| --- | --- | --- |
+| MuJoCo Warp, 42 / 43 | 17.7 / 13.5 | 0.8 % / 3.9 % |
+| Learned, 42 / 43 | 6.6 / 5.2 | 2.0 % / 31 % |
+
+FlashNeRD reports parity (28.0 against 27.8 in its reward). The remaining differences from its setup are
+the 5 ms frame with four times as many autoregressive steps and a 50 ms history window, a smaller model
+(3.5M against 8.88M parameters), and the PhysicsNeMo Robotics library codec, which keeps the base yaw and
+has no body-frame gravity input, where the G1 application adds an application-level heading codec.
 
 ## Library
 
@@ -154,16 +196,18 @@ probes are the next steps for a useful legged-robot model.
 | `physics.validate_state_ownership` | Check that a codec owns every dynamic Newton state row |
 | `physics.validate_effort_control` | Check that applied joint efforts carry every actuation command |
 | `tasks.CartpoleTeacherEnvCfg`, `tasks.AnymalDFlatTeacherEnvCfg` | Teacher configurations whose physics an artifact can replace |
-| `tasks.CartpoleExplorationEnvCfg` | Cartpole teacher with task-independent initial states for data collection |
+| `tasks.CartpoleExplorationEnvCfg`, `tasks.AnymalDExplorationEnvCfg` | Teachers with task-independent initial states for data collection |
+| `tasks.anymal_d_foot_contacts`, `tasks.anymal_d_dynamics_features` | ANYmal-D fixed foot probes and model inputs built from PhysicsNeMo Robotics encoders |
 | `TrajectoryDatasetRecorder` | Write the episodes of a running environment to a Zarr dataset |
-| `SmoothRandomActions` | Temporally correlated exploration actions |
-| `train_dynamics_artifact`, `TrainingSettings` | Train and package a control-conditioned vector NeRD |
+| `SmoothRandomActions`, `UniformRandomActions` | Temporally correlated, or uniform held, exploration actions |
+| `TrajectoryDatasetRecorder(recorded_features=...)`, `RecordedFeature` | Record additional transition inputs such as fixed contact probes |
+| `train_dynamics_artifact`, `TrainingSettings`, `PARALLEL_NERD_CONFIG` | Train and package a NeRD or ParallelNeRD artifact |
 | `apply_learned_physics` | Replace the teacher solver of a configuration with an artifact |
 | `preflight_learned_physics` | Check a live environment against the deployment contract |
 | `NewtonBinding`, `execution_spec_from_manager` | Simulation identity and live buffers of an environment |
 | `record_joint_rollout`, `compare_rollouts` | Measure the open-loop error of a learned rollout |
 | `evaluate_rollout_nrmse`, `HorizonError` | Prefix-averaged recursive-rollout error on recorded trajectories |
-| `isaaclab_model_signature` | Solver-independent model identity |
+| `isaaclab_model_signature`, `isaaclab_canonical_view` | Solver- and environment-count-independent model identity |
 
 Deploy a recorded task with the same configuration it was recorded with:
 
@@ -227,7 +271,9 @@ last two rows work around PhysicsNeMo Robotics behavior and can be removed when 
 | --- | --- |
 | Isaac Lab labels replicated entities with `/World/envs/env_<i>/...` prim paths, while PhysicsNeMo Robotics removes only a leading `env_<i>/` | `isaaclab_model_signature` fingerprints a canonical view with the prefix rewritten |
 | The MuJoCo Warp teacher registers `mujoco:*` custom attributes that the learned manager does not | The signature ignores solver-private attribute namespaces |
-| USD-derived local transforms differ in their last bits with the environment grid | The signature rounds floating attributes to `SIGNATURE_SIGNIFICANT_DIGITS` (6) significant digits and flushes values below `SIGNATURE_ZERO_TOLERANCE` (1e-8) times the largest magnitude of the same attribute to zero |
+| USD-derived local transforms differ in their last bits with the environment grid | The signature rounds transform attributes to `SIGNATURE_SIGNIFICANT_DIGITS` (6) significant digits and flushes values below `SIGNATURE_ZERO_TOLERANCE` (1e-8) times the largest magnitude of the same attribute to zero. Other floating attributes stay exact, because PhysicsNeMo Robotics derives semantics such as continuous joints from exact thresholds |
+| A ground plane replicated into every environment sits at a different origin in every world | The signature places every static plane at its point closest to the world origin |
+| PhysicsNeMo Robotics fixed-probe geometry fingerprints use the raw model arrays | Probes are built, and artifacts rebuilt by the manager, inside `isaaclab_canonical_view` |
 | Isaac Lab notifies the solver with `JOINT_PROPERTIES` after every fixed-root pose write ([#7777](https://github.com/isaac-sim/IsaacLab/pull/7777)) | The manager drops the notification while the joint anchors `joint_X_p` and `joint_X_c` are unchanged and rejects every other model change |
 | Isaac Lab applies external body wrenches through `State.body_f`, which the learned model has no input for | The manager fails a step that carries an external body wrench instead of silently ignoring it |
 | Implicit position drives act on targets that never appear in `control.joint_f` | Recording and deployment reject nonzero `joint_target_ke` |
