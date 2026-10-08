@@ -79,7 +79,7 @@ Command Builder
                data-demo-visualizers-isaacsim-physx="none,kit,newton_gl,rerun,viser"
                data-demo-visualizers-newton-mjwarp="none,kit,newton_gl,newton_rtx,rerun,viser"
                data-demo-description="Animate an arm, biped, quadruped, dexterous hand, quadcopter, and rigid props in one deterministic scene.">
-         <img src="../../_static/demos/arms.jpg" alt="Robots in the Isaac Lab Zoo demo" loading="lazy">
+         <img src="../../_static/demos/zoo.jpg" alt="Robots in the Isaac Lab Zoo demo" loading="lazy">
          <span>Zoo</span>
        </button>
        <button type="button" class="demo-card" aria-pressed="false"

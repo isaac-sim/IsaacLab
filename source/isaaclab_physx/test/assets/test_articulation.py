@@ -32,7 +32,7 @@ import warp as wp
 from isaaclab_physx.assets import Articulation
 from isaaclab_physx.sim.schemas import PhysxJointCfg
 
-from pxr import UsdPhysics
+from pxr import Gf, UsdPhysics
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
@@ -430,6 +430,48 @@ def test_reversed_joint_dynamics_use_public_joint_basis(sim, device, gravity_ena
     torch.testing.assert_close(generalized_energy, body_energy, atol=1e-5, rtol=1e-5)
 
 
+@pytest.mark.parametrize("device", ["cpu"])
+def test_reversed_joint_gravity_compensation_holds_static_equilibrium(sim, device):
+    """Gravity compensation efforts hold a robot with a reversed joint still.
+
+    Setting ``tau = g(q)`` at rest gives zero joint acceleration, so a sign error on the reversed joint surfaces as
+    joint drift. The joint axes are turned horizontal and the link centers of mass are offset from them so that
+    gravity loads every joint.
+    """
+    articulation = Articulation(
+        ArticulationCfg(
+            prim_path="/World/Robot",
+            spawn=sim_utils.UsdFileCfg(
+                usd_path=str(Path(__file__).parent / "data" / "articulation_ordering_branching.usda")
+            ),
+            actuators={"joints": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=0.0, damping=0.0)},
+        )
+    )
+    UsdPhysics.FixedJoint.Define(sim.stage, "/World/Robot/fixed_root").GetBody1Rel().SetTargets(["/World/Robot/base"])
+    for joint_name in ("left_shoulder", "left_elbow", "right_shoulder", "right_elbow"):
+        UsdPhysics.RevoluteJoint.Get(sim.stage, f"/World/Robot/{joint_name}").GetAxisAttr().Set("X")
+    joint = UsdPhysics.RevoluteJoint.Get(sim.stage, "/World/Robot/left_elbow")
+    body0, body1 = joint.GetBody0Rel().GetTargets(), joint.GetBody1Rel().GetTargets()
+    joint.GetBody0Rel().SetTargets(body1)
+    joint.GetBody1Rel().SetTargets(body0)
+    for body_name in ("left_upper", "left_tip", "right_upper", "right_tip"):
+        UsdPhysics.MassAPI(sim.stage.GetPrimAtPath(f"/World/Robot/{body_name}")).CreateCenterOfMassAttr(
+            Gf.Vec3f(0.0, 0.2, 0.0)
+        )
+    sim.reset()
+    joint_pos = torch.tensor([[0.3, -0.5, 0.4, 0.6]], device=device)
+    articulation.write_joint_state_to_sim_index(position=joint_pos, velocity=torch.zeros_like(joint_pos))
+    assert articulation.data.gravity_compensation_forces.torch.abs().min() > 0.1, "every joint must carry a load"
+
+    for _ in range(100):
+        gravity_compensation = articulation.data.gravity_compensation_forces.torch[:, articulation.num_base_dofs :]
+        articulation.set_joint_effort_target_index(target=gravity_compensation)
+        articulation.write_data_to_sim()
+        sim.step()
+        articulation.update(sim.cfg.dt)
+    torch.testing.assert_close(articulation.data.joint_pos.torch, joint_pos, atol=5e-3, rtol=0.0)
+
+
 @pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("gravity_enabled", [False])
 def test_live_floating_root_writers_match_identity_after_body_reordering(sim, device, gravity_enabled):
@@ -487,6 +529,15 @@ def test_live_floating_root_writers_match_identity_after_body_reordering(sim, de
         _to_device_tensor(identity.root_view.get_root_velocities(), device),
     )
     torch.testing.assert_close(ordered.data.root_com_vel_w.torch, identity.data.root_com_vel_w.torch)
+    # PhysX holds the center-of-mass velocity: the link velocity plus the angular velocity crossed with the
+    # world-frame center-of-mass offset (the center-of-mass frame has identity orientation, so it shares the link's).
+    expected_com_velocity = root_link_velocity.clone()
+    expected_com_velocity[:, :3] += torch.linalg.cross(
+        root_link_velocity[:, 3:], math_utils.quat_apply(root_com_pose[:, 3:], backend_coms[:, 0, :3])
+    )
+    torch.testing.assert_close(
+        _to_device_tensor(identity.root_view.get_root_velocities(), device), expected_com_velocity
+    )
     for articulation in (identity, ordered):
         torch.testing.assert_close(articulation.data.root_com_pose_w.torch, root_com_pose)
         torch.testing.assert_close(articulation.data.root_link_vel_w.torch, root_link_velocity)

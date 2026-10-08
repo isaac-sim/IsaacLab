@@ -394,11 +394,11 @@ class CameraImageBase(ManagerTermBase):
     """
 
     default_data_type: str
-    """Legacy data-type alias. Defaults are resolved from the subclass's ``__call__`` signature."""
+    """Data type used when the term parameters do not set ``data_type``."""
 
     def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedEnv):
         super().__init__(cfg, env)
-        data_type = cfg.params["data_type"]
+        data_type = cfg.params.get("data_type", self.default_data_type)
         if not self._accepts(data_type):
             raise ValueError(f"{type(self).__name__} does not support camera data type '{data_type}'.")
         self._frames = CameraFrameStack(
