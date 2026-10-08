@@ -19,6 +19,7 @@ import torch
 import warp as wp
 
 from isaaclab.assets import AssetBaseCfg
+from isaaclab.renderers.camera_render_spec import CameraRenderSpec
 from isaaclab.sensors.camera import CameraCfg
 from isaaclab.sensors.camera.camera_data import CameraData, RenderBufferKind, RenderBufferSpec
 from isaaclab.sim import PinholeCameraCfg, SimulationContext
@@ -68,14 +69,14 @@ def _make_camera_cfg(data_types: list[str]) -> CameraCfg:
     return CameraCfg(
         height=8,
         width=16,
-        prim_path="/World/Camera",
+        prim_path="/World/envs/env_0/Camera",
         spawn=_SPAWN,
         data_types=data_types,
     )
 
 
 def _make_ovrtx_camera_render_data() -> OVRTXCameraRenderData:
-    spec = types.SimpleNamespace(cfg=_make_camera_cfg(["rgb"]), num_instances=2)
+    spec = CameraRenderSpec(_make_camera_cfg(["rgb"]), "cpu", 2, ("/World/envs/env_0/Camera",), 2)
     return OVRTXCameraRenderData(spec, "cpu", render_scope_name="RenderCamera_0")
 
 
@@ -88,6 +89,8 @@ def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
     renderer.backend._resources = contextlib.ExitStack()
     SimulationContext.instance()._backend_registry.append((cfg, renderer.backend))
     renderer._camera_render_data = []
+    renderer._initialized_scene = False
+    renderer._next_camera_id = 0
     renderer._transform_writes = _AsyncWriteBuffers()
     renderer._geometry_writes = _AsyncWriteBuffers()
     renderer._geometry_offsets = {}
@@ -354,8 +357,8 @@ def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, use_ovstag
                 cfg=cfg,
                 device="cuda:0",
                 num_instances=2,
-                camera_prim_paths=tuple(f"/World/envs/env_{i}/cam{index}" for i in range(2)),
                 view_count=2,
+                camera_prim_paths=tuple(f"/World/envs/env_{i}/cam{index}" for i in range(2)),
             )
             rd = renderer.create_render_data(spec)
             data = CameraData.allocate(
@@ -666,10 +669,11 @@ def test_ovrtx_process_frame_reads_authored_camera_render_vars(monkeypatch, use_
     for camera_id in range(2):
         cfg = _make_camera_cfg(list(outputs))
         render_data = renderer.create_render_data(
-            types.SimpleNamespace(
+            CameraRenderSpec(
                 cfg=cfg,
                 device="cpu",
                 num_instances=2,
+                view_count=2,
                 camera_prim_paths=[f"/World/envs/env_{i}/cam{camera_id}" for i in range(2)],
             )
         )
@@ -968,10 +972,11 @@ def test_intrinsic_updates_target_the_given_camera(monkeypatch, use_ovstage):
     ]
     cameras = [
         renderer.create_render_data(
-            types.SimpleNamespace(
+            CameraRenderSpec(
                 cfg=_make_camera_cfg(["depth"]),
                 device="cpu",
                 num_instances=2,
+                view_count=2,
                 camera_prim_paths=camera_paths,
             )
         )
@@ -996,6 +1001,26 @@ def test_intrinsic_updates_target_the_given_camera(monkeypatch, use_ovstage):
         cameras[1].cleanup()
         assert all(binding.unbind.call_count == 1 for binding in bindings)
         assert all(not binding.unbind.called for binding in cameras[0].intrinsic_bindings)
+
+    sensor_shape = (cameras[0].height, cameras[0].width)
+    with pytest.raises(ValueError, match="renderer-owned perspective"):
+        renderer.resize_render_product(cameras[0], width=64, height=32)
+    spec = CameraRenderSpec(_make_camera_cfg(["rgb"]), "cpu", 1, (), 1)
+    perspective = OVRTXCameraRenderData(spec, "cpu", "Perspective")
+    renderer.backend.renderer.write_attribute.reset_mock()
+    renderer.backend.stage.write_attribute.reset_mock()
+    renderer.resize_render_product(perspective, width=64, height=32)
+    assert (perspective.height, perspective.width) == (32, 64)
+    assert (cameras[0].height, cameras[0].width) == sensor_shape
+    if use_ovstage:
+        renderer.backend.paths.create_path_list_from_strings.assert_called_with([perspective.render_product_path])
+        calls = renderer.backend.stage.write_attribute.call_args_list
+        values = {call.args[1]: call.kwargs["tensors"] for call in calls}
+    else:
+        calls = renderer.backend.renderer.write_attribute.call_args_list
+        assert all(call.args[0] == [perspective.render_product_path] for call in calls)
+        values = {call.args[1]: call.args[2] for call in calls}
+    np.testing.assert_array_equal(values["resolution"], [[64, 32]])
 
 
 class _RecordingBinding:
