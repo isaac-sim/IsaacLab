@@ -1173,6 +1173,7 @@ class NewtonVisualizer(BaseVisualizer):
                 " rigid-body force input."
             )
         self._is_initialized = True
+        self._update_camera_tracking()
         # Inform the viewer whether contact data is available so the UI can grey
         # out "Show Contacts" when neither native Newton contacts nor a ContactSensor
         # exists in the scene.
@@ -1211,6 +1212,7 @@ class NewtonVisualizer(BaseVisualizer):
         if self._step_counter % self._viewer._update_frequency != 0:
             return
 
+        self._track_camera()
         self._pre_step()
         num_envs = self.backend.model.num_envs
 
@@ -1387,21 +1389,6 @@ class NewtonVisualizer(BaseVisualizer):
             return False
         return bool(self._viewer.is_key_down(key))
 
-    def set_camera_view(
-        self, eye: tuple[float, float, float] | list[float], target: tuple[float, float, float] | list[float]
-    ) -> None:
-        """Set active viewer camera eye/target.
-
-        Args:
-            eye: Camera eye position.
-            target: Camera look-at target.
-        """
-        eye_t = (float(eye[0]), float(eye[1]), float(eye[2]))
-        target_t = (float(target[0]), float(target[1]), float(target[2]))
-        self.cfg.eye = eye_t
-        self.cfg.lookat = target_t
-        self._apply_camera_pose((eye_t, target_t))
-
     def log_mesh(
         self,
         name: str,
@@ -1544,6 +1531,7 @@ class NewtonVisualizer(BaseVisualizer):
         """Render on demand, borrowing current SDP arrays and preserving paused frames."""
         if not self._runtime_headless or self._viewer.is_paused():
             return
+        self._track_camera()
         backend, provider = self.backend, self._scene_data_provider
         poses = SceneDataFormat.Transform()
         if provider.get_transforms(poses, mapping=self._transform_mapping, count=backend.model.body_count):

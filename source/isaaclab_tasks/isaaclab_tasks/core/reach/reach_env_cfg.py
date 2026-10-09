@@ -248,4 +248,10 @@ class ReachEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.render_interval = self.decimation
         self.sim.physics = ReachPhysicsCfg()
         # visualizer settings
-        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(3.5, 3.5, 3.5))
+        self.sim.default_visualizer_cfg = VisualizerCfg(
+            eye=(1.8, -1.8, 1.5),
+            lookat=(0.3, 0.0, 0.4),
+            focal_length=28.0,
+            origin_type="env",
+            origin_env_index="center",
+        )

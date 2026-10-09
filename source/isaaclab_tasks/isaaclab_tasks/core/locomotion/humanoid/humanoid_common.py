@@ -13,8 +13,21 @@ import isaaclab.sim as sim_utils
 from isaaclab.physics import PhysxAutoCfg
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass
+from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_tasks.utils import PresetCfg
+
+VISUALIZER_CFG = VisualizerCfg(
+    eye=(2.5, -3.5, 0.9),
+    lookat=(0.0, 0.0, -0.5),
+    focal_length=26.0,
+    origin_type="asset",
+    origin_env_index="center",
+    origin_track_path="robot",
+    origin_follow_heading=True,
+    origin_heading_smoothing_time_constant=0.5,
+)
+"""Recording view following the Humanoid with smoothed heading."""
 
 TERRAIN_CFG = TerrainImporterCfg(
     prim_path="/World/ground",

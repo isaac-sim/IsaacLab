@@ -17,6 +17,7 @@ from isaaclab.utils import configclass
 
 from isaaclab_assets.robots.allegro import ALLEGRO_ACTUATED_JOINT_NAMES, ALLEGRO_FINGERTIP_BODY_NAMES
 
+from ...utils import GOAL_MARKER_POS, VISUALIZER_CFG
 from .allegro_hand_common import (
     ALLEGRO_HAND_ROBOT_CFG,
     CUBE_CFG,
@@ -58,6 +59,7 @@ class AllegroHandEnvCfg(DirectRLEnvCfg):
         render_interval=decimation,
         physics_material=RigidBodyMaterialBaseCfg(static_friction=1.0, dynamic_friction=1.0),
         physics=PhysicsCfg(),
+        default_visualizer_cfg=VISUALIZER_CFG,
     )
     actuated_joint_names = ALLEGRO_ACTUATED_JOINT_NAMES
     fingertip_body_names = ALLEGRO_FINGERTIP_BODY_NAMES
@@ -85,7 +87,7 @@ class AllegroHandEnvCfg(DirectRLEnvCfg):
     max_consecutive_success = 0
     in_hand_pos_offset: tuple[float, float, float] = (0.0, 0.0, -0.04)
     """In-hand goal anchor, relative to the object's default position [m]."""
-    goal_marker_position: tuple[float, float, float] = (-0.2, -0.45, 0.68)
+    goal_marker_position: tuple[float, float, float] = GOAL_MARKER_POS
     """Fixed goal-marker display position [m], environment frame."""
     av_factor = 0.1
     act_moving_average = 1.0

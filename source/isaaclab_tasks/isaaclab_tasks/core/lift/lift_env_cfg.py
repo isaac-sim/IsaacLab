@@ -563,7 +563,13 @@ class ReorientEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.render_interval = self.decimation
         self.sim.physics = PhysicsCfg()
         # visualizer settings
-        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(-2.25, 0.0, 0.75), lookat=(0.0, 0.0, 0.45))
+        self.sim.default_visualizer_cfg = VisualizerCfg(
+            eye=(-1.8, -1.8, 1.45),
+            lookat=(-0.3, 0.0, 0.45),
+            focal_length=28.0,
+            origin_type="env",
+            origin_env_index="center",
+        )
 
     def play_mode(self):
         super().play_mode()
