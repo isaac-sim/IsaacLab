@@ -333,7 +333,7 @@ def _porcelain_material(stage: Usd.Stage, path: str) -> UsdShade.Material:
     return material
 
 
-def add_tableware_visuals(stage: Usd.Stage, bowl_material: str = "glass") -> None:
+def add_tableware_visuals(stage: Usd.Stage, bowl_material: str = "porcelain") -> None:
     """Author open container render meshes.
 
     Args:
