@@ -16,7 +16,7 @@ from isaaclab_newton.cloner.replicate import newton_builder_world_hook
 from newton import GeoType, ModelBuilder
 from newton.geometry import compute_inertia_shape
 
-from pxr import Usd
+from pxr import Usd, UsdPhysics, UsdShade
 
 from isaaclab.envs import ManagerBasedRLEnv
 from isaaclab.sim import SimulationContext
@@ -59,7 +59,7 @@ def configure_shoelace_builder(
 
     Applies four task-specific physics features before model finalization:
 
-    * Set cable contact friction, stiffness, damping, and gap [m].
+    * Read cable contact friction from USD and set contact stiffness, damping, and gap [m].
     * Recompute capsule inertia and add isotropic regularization [kg*m^2].
     * Zero mass, inertia, and their inverses for cable anchors and the kinematic shoe.
     * Set length-scaled rod stiffness/damping with a smoothly stiffened free tip (aglet).
@@ -86,6 +86,8 @@ def configure_shoelace_builder(
     for side, free_end_at_start in (("Left", True), ("Right", False)):
         suffix = f"/ShoelaceScene/Shoelace{side}/geometry/mesh"
         curve = stage.GetPrimAtPath(f"/World/envs/env_0{suffix}")
+        material, _ = UsdShade.MaterialBindingAPI(curve).ComputeBoundMaterial(materialPurpose="physics")
+        friction = UsdPhysics.MaterialAPI(material.GetPrim()).GetDynamicFrictionAttr().Get()
         # Numeric suffixes recover curve order; lexical sorting would put segment 10 before segment 2.
         chain = sorted(
             (body for body in bodies if f"{suffix}_edge_body_" in builder.body_label[body]),
@@ -110,7 +112,7 @@ def configure_shoelace_builder(
                 raise ValueError("Shoelace construction requires one capsule shape per segment")
             # Configure generated capsule contacts before solver views exist; no runtime notification is needed.
             shape = shapes[0]
-            builder.shape_material_mu[shape] = cfg.lace_mu
+            builder.shape_material_mu[shape] = friction
             builder.shape_material_ke[shape] = physics.CONTACT_KE
             builder.shape_material_kd[shape] = physics.CONTACT_KD
             builder.shape_gap[shape] = physics.CONTACT_GAP

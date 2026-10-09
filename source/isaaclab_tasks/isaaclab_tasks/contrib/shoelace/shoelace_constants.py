@@ -9,19 +9,31 @@ from pathlib import Path
 
 ASSET_DIR = Path(__file__).resolve().parent / "data"
 
-# Runtime asset; texture paths are resolved relative to this USD.
-SHOELACE_ASSET = ASSET_DIR / "shoelace.usda"
+# Runtime assets; texture paths are resolved relative to each USD.
+SHOELACE_ASSET = ASSET_DIR / "shoelace.usda"  # Base asset
+SHOELACE_ASSETS = (
+    SHOELACE_ASSET,
+    *(
+        ASSET_DIR / name
+        for name in (
+            "canvas_sand.usda",
+            "canvas_rust.usda",
+            "suede_sage.usda",
+            "suede_burgundy.usda",
+            "knit_ocean.usda",
+            "knit_lavender.usda",
+        )
+    ),
+)
 
 # Control defaults.
 TCP_OFFSET = (0.0, 0.0, 0.1034)
-ARM_ACTION_SCALE = 0.005
+ARM_ACTION_SCALE = 0.005  # [m]
+ARM_ROTATION_ACTION_SCALE = 0.01  # [rad]
 GRIPPER_OPEN_POSITION = 0.01
 GRIPPER_CLOSED_POSITION = 0.001
 GRIPPER_STIFFNESS = 8000.0
 CONTACT_OBSERVATION_HISTORY_LENGTH = 3
-
-# Scene defaults.
-ENV_SPACING = 1.5
 
 # Success criteria.
 TAIL_SUCCESS_OUTWARD_DISTANCE = 0.09
@@ -70,10 +82,9 @@ CONTACT_GAP = 1.0e-4
 CONTACT_DISTANCE_CAP = 2.0e-3
 CONTACT_KE = 1.0e6
 CONTACT_KD = 0.0
-GROUND_CONTACT_KD = 30.0
 LACE_MU = 0.1
 SHOE_MU = 0.02
-GROUND_MU = 0.8
+FINGER_MU = 40.0
 COLLISION_GROUP = 1
 VBD_CONTACT_BUFFER = 256
 CONTACTS_PER_ENV = 512

@@ -19,7 +19,9 @@ from isaaclab_newton.physics import (
 from isaaclab_newton.sim.schemas import MujocoRigidBodyCfg
 
 import isaaclab.envs.mdp as env_mdp
+import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, CableObjectCfg, RigidObjectCfg
+from isaaclab.controllers import DifferentialIKControllerCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
@@ -33,13 +35,9 @@ from isaaclab.utils.configclass import configclass
 
 from isaaclab_contrib.coupling import CouplerAdmmCfg, CouplerEntryCfg
 
-from isaaclab_tasks.core.lift.config.franka_soft.franka_soft_env_cfg import (
-    ActionsCfg as FrankaSoftActionsCfg,
-)
 from isaaclab_tasks.core.lift.config.franka_soft.franka_soft_env_cfg import FrankaSoftSceneCfg
 
 from . import mdp
-from . import shoelace_assets as assets
 from . import shoelace_constants as physics
 from .shoelace_assets import ShoelaceUsdCfg
 from .shoelace_contacts import FingerTailContactSensorCfg
@@ -49,6 +47,7 @@ ROBOT_CFGS = (
     SceneEntityCfg("robot_left", joint_names=["panda_finger_joint1"], body_names=["panda_hand"]),
     SceneEntityCfg("robot_right", joint_names=["panda_finger_joint1"], body_names=["panda_hand"]),
 )
+_FINGER_FRICTION = {"/.*panda_(left|right)finger/.*": physics.FINGER_MU}
 _GRIPPER_PARAMS = {
     "open_position": physics.GRIPPER_OPEN_POSITION,
     "closed_position": physics.GRIPPER_CLOSED_POSITION,
@@ -74,26 +73,30 @@ def _franka_cfg(
     robot = FrankaSoftSceneCfg().default.robot.replace(prim_path=prim_path)
     spawn_args = {field.name: getattr(robot.spawn, field.name) for field in fields(robot.spawn)}
     spawn_args.pop("func")
-    robot.spawn = ShoelaceUsdCfg(**spawn_args)
+    robot.spawn = ShoelaceUsdCfg(**spawn_args, friction_overrides=_FINGER_FRICTION.copy())
     robot.init_state.pos = position
     robot.init_state.rot = rotation
     robot.init_state.joint_pos.update(arm_joint_positions)
     robot.init_state.joint_pos["panda_finger_joint.*"] = physics.GRIPPER_OPEN_POSITION
+    # Newton ignores the inherited PhysX-only ``disable_gravity``; compensate gravity so zero actions hold pose.
     robot.spawn.rigid_props = {"/.*": [robot.spawn.rigid_props, MujocoRigidBodyCfg(gravcomp=1.0)]}
+    # Limit finger speed so closing fingers do not tunnel through the thin cable.
     robot.actuators["panda_hand"].actuator_velocity_limit = 0.04
+    # Stiff finger drive for a stable grasp on the cable.
     robot.actuators["panda_hand"].stiffness = physics.GRIPPER_STIFFNESS
     return robot
 
 
 def _arm_action(asset_name: str) -> env_mdp.DifferentialInverseKinematicsActionCfg:
     """Build one six-dimensional relative TCP action."""
-    action = FrankaSoftActionsCfg().ik.arm_action
-    action.asset_name = asset_name
-    action.controller.use_relative_mode = True
-    action.controller.ik_params = {"lambda_val": 0.01}
-    action.scale = (physics.ARM_ACTION_SCALE,) * 3 + (0.01,) * 3
-    action.body_offset.pos = physics.TCP_OFFSET
-    return action
+    return env_mdp.DifferentialInverseKinematicsActionCfg(
+        asset_name=asset_name,
+        joint_names=["panda_joint.*"],
+        body_name="panda_hand",
+        controller=DifferentialIKControllerCfg(command_type="pose", use_relative_mode=True, ik_method="dls"),
+        scale=(physics.ARM_ACTION_SCALE,) * 3 + (physics.ARM_ROTATION_ACTION_SCALE,) * 3,
+        body_offset=env_mdp.DifferentialInverseKinematicsActionCfg.OffsetCfg(pos=physics.TCP_OFFSET),
+    )
 
 
 @configclass
@@ -114,14 +117,24 @@ class ShoelaceSceneCfg(InteractiveSceneCfg):
     )
     shoelace_asset = AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/ShoelaceScene",
-        spawn=ShoelaceUsdCfg(usd_path=str(physics.SHOELACE_ASSET)),
+        spawn=sim_utils.MultiAssetSpawnerCfg(
+            assets_cfg=[ShoelaceUsdCfg(usd_path=str(usd_path)) for usd_path in physics.SHOELACE_ASSETS],
+            random_choice=False,
+        ),
     )
     shoe = RigidObjectCfg(prim_path="{ENV_REGEX_NS}/ShoelaceScene/Shoe", spawn=None)
     shoelace_left = CableObjectCfg(prim_path="{ENV_REGEX_NS}/ShoelaceScene/ShoelaceLeft", spawn=None)
     shoelace_right = CableObjectCfg(prim_path="{ENV_REGEX_NS}/ShoelaceScene/ShoelaceRight", spawn=None)
     finger_tail_contacts = FingerTailContactSensorCfg(prim_path="{ENV_REGEX_NS}/ShoelaceScene")
-    ground = assets.ground_asset_cfg(10.0)
-    light = assets.light_asset_cfg()
+    ground = AssetBaseCfg(
+        prim_path="/World/Ground",
+        spawn=sim_utils.GroundPlaneCfg(color=(0.08, 0.08, 0.08), size=(10.0, 10.0)),
+        collision_group=-1,
+    )
+    light = AssetBaseCfg(
+        prim_path="/World/Light",
+        spawn=sim_utils.DomeLightCfg(intensity=1800.0, color=(0.75, 0.80, 1.0)),
+    )
 
 
 @configclass
@@ -362,7 +375,7 @@ class ShoelaceEnvCfg(ManagerBasedRLEnvCfg):
             use_cuda_graph=True,
         ),
     )
-    scene: ShoelaceSceneCfg = ShoelaceSceneCfg(num_envs=4, env_spacing=physics.ENV_SPACING, replicate_physics=True)
+    scene: ShoelaceSceneCfg = ShoelaceSceneCfg(num_envs=4, env_spacing=1.5, replicate_physics=True)
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
     events: EventsCfg = EventsCfg()
@@ -370,25 +383,11 @@ class ShoelaceEnvCfg(ManagerBasedRLEnvCfg):
     terminations: TerminationsCfg = TerminationsCfg()
     ui_window_class_type = None
 
-    finger_mu: float = 40.0
-    lace_mu: float = physics.LACE_MU
-    shoe_mu: float = physics.SHOE_MU
-
     cable_inertia_regularization: float = physics.CABLE_INERTIA_REGULARIZATION
     """Isotropic inertia added to each dynamic cable segment [kg*m^2], without changing its mass."""
 
     def validate_config(self) -> None:
-        """Resolve dependent scene settings after CLI overrides and validate the Newton backend."""
-        self.scene.shoelace_asset.spawn.friction_overrides = {
-            "/Shoelace(Left|Right)/geometry/mesh": self.lace_mu,
-            "/Shoe/ShoelacePinned/geometry/mesh": self.lace_mu,
-            "/Shoe/(Collider|TongueUpper/geometry/mesh)": self.shoe_mu,
-        }
-        for robot in (self.scene.robot_left, self.scene.robot_right):
-            robot.spawn.friction_overrides = {"/.*panda_(left|right)finger/.*": self.finger_mu}
-        size = assets.ground_size(self.scene.num_envs, self.scene.env_spacing)
-        self.scene.ground.spawn.size = (size, size)
-
+        """Resolve environment-count-dependent contact capacity and validate the Newton backend."""
         if not isinstance(self.sim.physics, NewtonCfg):
             raise TypeError("The dual-Franka shoelace task requires Newton physics")
         collision = self.sim.physics.collision_cfg

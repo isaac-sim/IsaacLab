@@ -7,13 +7,17 @@
 
 from types import SimpleNamespace
 
+import newton
+import numpy as np
 import pytest
 import torch
+
+from pxr import Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
 
 from isaaclab_tasks.contrib.shoelace import shoelace_constants as constants
 from isaaclab_tasks.contrib.shoelace.mdp.events import reset_shoe_position
 from isaaclab_tasks.contrib.shoelace.shoelace_env_cfg import ShoelaceEnvCfg
-from isaaclab_tasks.contrib.shoelace.shoelace_physics import create_shoelace_env
+from isaaclab_tasks.contrib.shoelace.shoelace_physics import configure_shoelace_builder, create_shoelace_env
 
 
 @pytest.mark.parametrize("env_ids", [slice(None), slice(1, 4, 2), slice(0, 0), torch.tensor([3, 1])])
@@ -87,3 +91,30 @@ def test_invalid_proxy_inertia_is_rejected_before_environment_construction(
     )
     with pytest.raises(ValueError, match="finite and nonnegative"):
         create_shoelace_env(cfg=cfg)
+
+
+def test_cable_friction_uses_each_bound_usd_material() -> None:
+    """Preserve distinct authored cable friction through model construction without external assets."""
+    stage = Usd.Stage.CreateInMemory()
+    builder = newton.ModelBuilder()
+    builder.begin_world()
+    expected = {}
+    for side, friction in (("Left", 0.23), ("Right", 0.37)):
+        path = f"/World/envs/env_0/ShoelaceScene/Shoelace{side}/geometry/mesh"
+        curve = UsdGeom.BasisCurves.Define(stage, path).GetPrim()
+        points = np.array([(0.0, 0.0, 0.0), (0.01, 0.0, 0.0), (0.02, 0.0, 0.0)])
+        segment_length = np.linalg.norm(np.diff(points, axis=0), axis=1).mean()
+        for name in ("referenceSegmentLength", "segmentLength"):
+            curve.CreateAttribute(f"shoelace:{name}", Sdf.ValueTypeNames.Double).Set(segment_length)
+        material = UsdShade.Material.Define(stage, f"{path}/ContactMaterial")
+        UsdPhysics.MaterialAPI.Apply(material.GetPrim()).CreateDynamicFrictionAttr(friction)
+        UsdShade.MaterialBindingAPI.Apply(curve).Bind(material, materialPurpose="physics")
+        bodies, _ = builder.add_rod(rod=newton.Rod(points, radius=0.001), label=path, body_frame_origin="start")
+        for body in bodies:
+            expected.update({shape: friction for shape in builder.body_shapes[body]})
+    builder.end_world()
+
+    configure_shoelace_builder(builder, stage, 0, np.array([0.0, 0.0, 0.0, 1.0]), ShoelaceEnvCfg())
+    model = builder.finalize(device="cpu")
+    for shape, friction in expected.items():
+        assert model.shape_material_mu.numpy()[shape] == pytest.approx(friction)

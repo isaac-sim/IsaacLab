@@ -11,16 +11,11 @@ import math
 import re
 from collections.abc import Callable
 
-from isaaclab_newton.sim.spawners.materials import NewtonMaterialCfg
-
 from pxr import Usd, UsdGeom, UsdPhysics, UsdShade
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import AssetBaseCfg
 from isaaclab.sim.spawners.materials import UsdPhysicsRigidBodyMaterialCfg, spawn_physics_material
 from isaaclab.utils import configclass
-
-from . import shoelace_constants as constants
 
 
 @sim_utils.clone
@@ -46,6 +41,19 @@ def spawn_shoelace_usd(
     if any(not math.isfinite(value) or value < 0.0 for value in cfg.friction_overrides.values()):
         raise ValueError("Friction overrides must be finite and nonnegative")
     root = sim_utils.spawn_from_usd(prim_path, cfg, translation, orientation, **kwargs)
+    visual_path = str(root.GetPath()) + "/Shoe/Visual"
+    if root.GetStage().GetPrimAtPath(visual_path):
+        # Reserve the four optional eyelet visuals before cable import. Newton views require
+        # the same shape offsets and types in each world; visual-only meshes have no contacts.
+        for index in range(1, 5):
+            path = f"{visual_path}/ExtraEyelet_{index}"
+            if not root.GetStage().GetPrimAtPath(path):
+                placeholder = UsdGeom.Mesh.Define(root.GetStage(), path)
+                placeholder.CreatePointsAttr([(0.0, 0.0, 0.0), (1.0e-6, 0.0, 0.0), (0.0, 1.0e-6, 0.0)])
+                placeholder.CreateFaceVertexCountsAttr([3])
+                placeholder.CreateFaceVertexIndicesAttr([0, 1, 2])
+                placeholder.CreateSubdivisionSchemeAttr(UsdGeom.Tokens.none)
+                placeholder.CreateVisibilityAttr(UsdGeom.Tokens.invisible)
     for prim in Usd.PrimRange(root):
         relative_path = str(prim.GetPath()).removeprefix(str(root.GetPath()))
         if prim.HasAPI(UsdPhysics.CollisionAPI) or prim.IsA(UsdGeom.BasisCurves):
@@ -72,37 +80,3 @@ class ShoelaceUsdCfg(sim_utils.UsdFileCfg):
     func: Callable = spawn_shoelace_usd
     friction_overrides: dict[str, float] = {}
     """Asset-relative collision-prim expressions and their friction coefficients."""
-
-
-def rigid_material(friction: float, damping: float) -> list[UsdPhysicsRigidBodyMaterialCfg | NewtonMaterialCfg]:
-    """Build standard-friction and Newton-contact material fragments."""
-    return [
-        UsdPhysicsRigidBodyMaterialCfg(static_friction=friction, dynamic_friction=friction, restitution=0.0),
-        NewtonMaterialCfg(contact_stiffness=constants.CONTACT_KE, contact_damping=damping),
-    ]
-
-
-def ground_asset_cfg(size: float) -> AssetBaseCfg:
-    """Build the shared square ground plane with side length ``size`` [m]."""
-    return AssetBaseCfg(
-        prim_path="/World/Ground",
-        spawn=sim_utils.GroundPlaneCfg(
-            color=(0.08, 0.08, 0.08),
-            size=(size, size),
-            physics_material=rigid_material(constants.GROUND_MU, constants.GROUND_CONTACT_KD),
-        ),
-        collision_group=-1,
-    )
-
-
-def light_asset_cfg() -> AssetBaseCfg:
-    """Build the shared dome light."""
-    return AssetBaseCfg(
-        prim_path="/World/Light",
-        spawn=sim_utils.DomeLightCfg(intensity=1800.0, color=(0.75, 0.80, 1.0)),
-    )
-
-
-def ground_size(num_envs: int, env_spacing: float) -> float:
-    """Return a ground-plane side length [m] covering the centered environment grid."""
-    return max(2.0, env_spacing * (math.ceil(math.sqrt(num_envs)) + 1))
