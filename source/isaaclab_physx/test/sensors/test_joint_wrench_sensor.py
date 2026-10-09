@@ -22,7 +22,7 @@ from isaaclab_physx.sensors.joint_wrench import joint_wrench_sensor as joint_wre
 from isaaclab_physx.sensors.joint_wrench.joint_wrench_sensor import JointWrenchSensor as PhysxJointWrenchSensor
 from isaaclab_physx.sensors.joint_wrench.joint_wrench_sensor_data import JointWrenchSensorData
 from isaaclab_physx.sim.schemas import PhysxJointCfg
-from joint_wrench_contract import test_joint_wrench_frame  # noqa: F401
+from joint_wrench_contract import test_joint_wrench_body_ordering, test_joint_wrench_frame  # noqa: F401
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
@@ -265,6 +265,7 @@ def _make_joint_wrench_sensor(use_recorded_launch: bool = True, num_envs: int = 
     sensor._device = device
     sensor._num_envs = num_envs
     sensor._num_bodies = 1
+    sensor._body_ordering = None
     sensor._root_view = root_view
     sensor._timestamp = wp.ones(num_envs, dtype=wp.float32, device=device)
     sensor._data = JointWrenchSensorData()

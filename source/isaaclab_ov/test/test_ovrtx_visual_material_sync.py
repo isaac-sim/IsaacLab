@@ -301,5 +301,6 @@ def test_compilation_rejects_host_buffers_without_fallback():
 def test_writer_factory_requires_ingested_detached_scene():
     renderer, _events = _renderer()
     renderer._initialized_scene = False
-    with pytest.raises(RuntimeError, match="ingest its detached scene"):
-        renderer.visual_material_writer((_batch("color", ("diffuseColor",), torch.zeros(1, 3)),))
+    assert renderer.visual_material_writer is None
+    renderer._initialized_scene = True
+    assert callable(renderer.visual_material_writer)

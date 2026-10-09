@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import csv
 import inspect
 import json
 import posixpath
@@ -19,11 +20,31 @@ from docutils import nodes
 from docutils.parsers.rst import directives
 from docutils.statemachine import StringList
 from sphinx.application import Sphinx
+from sphinx.builders.html import StandaloneHTMLBuilder
 from sphinx.config import Config
 from sphinx.util.docutils import SphinxDirective, SphinxRole
 from sphinx.util.nodes import split_explicit_title
 
 _UPSTREAM_SOURCE_REF_PATTERN = re.compile(r"^(main|develop|release/.*|v[1-9]\d*\.\d+\.\d+(-[A-Za-z0-9.]+)?)$")
+
+
+class IsaacLabHTMLBuilder(StandaloneHTMLBuilder):
+    """Reuse static images instead of shipping another copy under ``_images``."""
+
+    def post_process_images(self, doctree: nodes.Node) -> None:
+        original_images = {}
+        for image in doctree.findall(nodes.image):
+            for uri in image.get("candidates", {}).values():
+                if uri.startswith("source/_static/") and uri in self.env.images and uri not in original_images:
+                    original_images[uri] = self.env.images[uri]
+                    docnames, _ = self.env.images[uri]
+                    # Keep Sphinx's relative image paths and scaled-image links, pointing
+                    # them at the file already copied by html_static_path.
+                    self.env.images[uri] = (docnames, "../_static/" + uri.removeprefix("source/_static/"))
+        try:
+            super().post_process_images(doctree)
+        finally:
+            self.env.images.update(original_images)
 
 
 def _branch(config) -> str:
@@ -82,6 +103,22 @@ def _parse_rst(directive: SphinxDirective, content: str) -> list[nodes.Node]:
     container = nodes.container()
     directive.state.nested_parse(lines, 0, container)
     return container.children
+
+
+class IsaacLabBenchmarkData(SphinxDirective):
+    """Embed benchmark snapshots so downloaded HTML works without an HTTP server."""
+
+    def run(self) -> list[nodes.Node]:
+        snapshots = {}
+        for channel in ("release", "develop"):
+            path = Path(self.env.srcdir) / "source/_static/benchmarks" / f"environment-performance-{channel}.csv"
+            self.env.note_dependency(str(path))
+            with path.open(encoding="utf-8", newline="") as stream:
+                snapshots[channel] = list(csv.DictReader(stream))
+        # Prevent CSV text from closing the script element, even inside a JSON string.
+        payload = json.dumps(snapshots).replace("<", "\\u003c")
+        html = f'<script type="application/json" data-environment-benchmark-rows>{payload}</script>'
+        return [nodes.raw("", html, format="html")]
 
 
 class IsaacLabCloneCommands(SphinxDirective):
@@ -271,6 +308,7 @@ def _write_doc_redirects(app: Sphinx, exception: Exception | None) -> None:
 
 def setup(app):
     """Register Isaac Lab documentation directives."""
+    app.add_builder(IsaacLabHTMLBuilder, override=True)
     app.add_config_value("isaaclab_doc_redirects", {}, "html")
     app.add_config_value("isaaclab_doc_redirect_fragments", {}, "html")
     app.connect("build-finished", _write_doc_redirects)
@@ -283,6 +321,7 @@ def setup(app):
     app.add_config_value("torchvision_version", "", "env")
     app.add_config_value("ovrtx_spec", "", "env")
     app.add_role("isaaclab-source", IsaacLabSourceLink())
+    app.add_directive("isaaclab-benchmark-data", IsaacLabBenchmarkData)
     app.add_directive("isaaclab-clone-commands", IsaacLabCloneCommands)
     app.add_directive("isaaclab-clone-https", IsaacLabCloneHttps)
     app.add_directive("isaaclab-uv-isaacsim-wheel-install", IsaacLabUvIsaacSimWheelInstall)

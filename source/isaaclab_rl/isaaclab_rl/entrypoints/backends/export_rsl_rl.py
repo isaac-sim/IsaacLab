@@ -137,6 +137,7 @@ def export_rsl_rl_agent(args_cli: argparse.Namespace, env_cfg: Any, agent_cfg: R
         agent_cfg.load_checkpoint = args_cli.checkpoint
     if args_cli.experiment_name is not None:
         agent_cfg.experiment_name = args_cli.experiment_name
+    agent_cfg.device = args_cli.device
 
     env_cfg.scene.num_envs = 1
     # certain randomizations occur in the environment initialization so we set the seed here

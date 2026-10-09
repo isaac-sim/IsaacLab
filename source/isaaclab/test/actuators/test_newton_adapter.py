@@ -13,6 +13,7 @@ import numpy as np
 import pytest
 import torch
 import warp as wp
+from newton._src.actuators.utils import load_checkpoint
 from newton.actuators import ClampingDCMotor, ClampingMaxEffort, ClampingPositionBased, DrivePD
 
 from pxr import Usd, UsdGeom, UsdPhysics
@@ -26,6 +27,8 @@ from isaaclab.sim.schemas.schemas_actuators import (
     define_actuator_properties,
     resave_checkpoint_with_metadata,
 )
+from isaaclab.test.utils import DeviceScope, test_devices
+from isaaclab.test.utils.actuator_equivalence import make_dummy_lstm_checkpoint, make_dummy_mlp_checkpoint
 from isaaclab.utils import configclass
 
 _JOINT_NAMES = ["pd_a", "pd_b", "dc_a", "dc_b", "remote_a", "remote_b"]
@@ -143,6 +146,38 @@ def test_checkpoint_metadata_rejects_pickle_without_deserializing(monkeypatch, t
         resave_checkpoint_with_metadata(str(checkpoint_path), {})
 
     assert not marker_path.exists()
+
+
+@pytest.mark.parametrize("kind", ["mlp", "lstm"])
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_checkpoint_export_preserves_metadata_and_variable_batches(kind, device):
+    """Newton can move exported Lab checkpoints to CUDA and evaluate any environment count."""
+    path = make_dummy_mlp_checkpoint() if kind == "mlp" else make_dummy_lstm_checkpoint()
+    converted_path = None
+    try:
+        original = torch.jit.load(path).eval()
+        converted_path = resave_checkpoint_with_metadata(path, {"model_type": kind, "torque_scale": 3.0})
+        converted, metadata = load_checkpoint(converted_path)
+        original, converted = original.to(device), converted.to(device)
+        assert metadata["model_type"] == kind
+        assert metadata["torque_scale"] == 3.0
+        if kind == "mlp":
+            assert metadata["input_idx"] == [0, 1, 2]
+            assert metadata["vel_scale"] == 0.5
+        else:
+            assert (metadata["num_layers"], metadata["hidden_size"]) == (1, 4)
+        for batch_size in (1, 3, 8):
+            if kind == "mlp":
+                args = (torch.randn(batch_size, 6, device=device),)
+            else:
+                hidden = torch.randn(1, batch_size, 4, device=device)
+                cell = torch.randn_like(hidden)
+                args = (torch.randn(batch_size, 1, 2, device=device), (hidden, cell))
+            torch.testing.assert_close(converted(*args), original(*args))
+    finally:
+        Path(path).unlink()
+        if converted_path is not None:
+            Path(converted_path).unlink()
 
 
 def test_from_usd_groups_by_structure_and_preserves_per_dof_values():

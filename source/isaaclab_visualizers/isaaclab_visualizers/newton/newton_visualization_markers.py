@@ -195,21 +195,13 @@ class NewtonVisualizationMarkers:
             return
 
         device = viewer.device
+        num_markers = translations.shape[0]
+        if orientations is None:
+            orientations = translations.new_tensor((0.0, 0.0, 0.0, 1.0)).expand(num_markers, -1)
 
         for proto_index, (name, marker_cfg) in enumerate(self.cfg.markers.items()):
             newton_cfg = self._marker_specs[name]
             batch_name = f"{render_id}/{name}"
-            if marker_indices is None:
-                if proto_index != 0:
-                    self._hide_batch(viewer, name, newton_cfg, render_id)
-                    continue
-                selected = slice(None)
-            else:
-                selected = marker_indices == proto_index
-                if not torch.any(selected):
-                    self._hide_batch(viewer, name, newton_cfg, render_id)
-                    continue
-
             if newton_cfg.renderer == "none":
                 unsupported_key = f"{self.group_id}:{name}"
                 if unsupported_key not in self._warned_unsupported:
@@ -221,42 +213,40 @@ class NewtonVisualizationMarkers:
                     self._warned_unsupported.add(unsupported_key)
                 continue
 
-            selected_translations = translations[selected]
-            selected_count = selected_translations.shape[0]
-            if orientations is None:
-                selected_orientations = selected_translations.new_tensor((0.0, 0.0, 0.0, 1.0)).expand(
-                    selected_count, -1
-                )
+            # TODO(newton-physics/newton#4539): Log only the shown markers once ViewerRTX batches resize or hide
+            # instances in place. Until then every prototype batch logs all markers and zero-scales the ones it does
+            # not show, since changing a batch's instance count rebuilds it in ViewerRTX.
+            if marker_indices is None:
+                shown = torch.full((num_markers,), proto_index == 0, dtype=torch.bool, device=translations.device)
             else:
-                selected_orientations = orientations[selected]
-            default_scale = newton_cfg.scale or _extract_scale_hint(marker_cfg)
-            default_scale_tensor = selected_translations.new_tensor(default_scale)
-            if scales is None:
-                selected_scales = default_scale_tensor.expand(selected_count, -1)
-            else:
-                selected_scales = scales[selected] * default_scale_tensor
+                shown = marker_indices == proto_index
+            marker_scales = translations.new_tensor(newton_cfg.scale or _extract_scale_hint(marker_cfg))
+            marker_scales = marker_scales * shown.unsqueeze(-1)
+            if scales is not None:
+                marker_scales = scales * marker_scales
 
             if newton_cfg.renderer == "mesh":
                 mesh_name = f"{render_id}/meshes/{name}"
                 self._ensure_mesh_registered(viewer, mesh_name, newton_cfg)
                 color = newton_cfg.color or _extract_color(marker_cfg)
-                colors = selected_translations.new_tensor(color).expand(selected_count, -1)
+                colors = translations.new_tensor(color).expand(num_markers, -1)
                 # ViewerGL gates texture sampling with material.w. Rerun and Viser ignore this flag.
                 texture_flag = float(newton_cfg.texture is not None)
-                materials = selected_translations.new_tensor((0.0, 0.0, 0.0, texture_flag)).expand(selected_count, -1)
-                xforms = torch.cat((selected_translations, selected_orientations), dim=1).detach().cpu().numpy()
+                materials = translations.new_tensor((0.0, 0.0, 0.0, texture_flag)).expand(num_markers, -1)
+                xforms = torch.cat((translations, orientations), dim=1).detach().cpu().numpy()
                 viewer.log_instances(
                     batch_name,
                     mesh_name,
                     wp.array(xforms.astype(np.float32), dtype=wp.transform, device=device),
-                    wp.array(selected_scales.detach().cpu().numpy().astype(np.float32), dtype=wp.vec3, device=device),
+                    wp.array(marker_scales.detach().cpu().numpy().astype(np.float32), dtype=wp.vec3, device=device),
                     wp.array(colors.detach().cpu().numpy().astype(np.float32), dtype=wp.vec3, device=device),
                     wp.array(materials.detach().cpu().numpy().astype(np.float32), dtype=wp.vec4, device=device),
                     hidden=False,
                 )
             elif newton_cfg.renderer == "frame":
-                starts, ends, colors = _build_frame_lines(selected_translations, selected_orientations, selected_scales)
-                width = max(float(selected_scales.mean().item()) * 0.05, 0.0025)
+                starts, ends, colors = _build_frame_lines(translations, orientations, marker_scales)
+                shown_scales = marker_scales[shown]
+                width = max(float(shown_scales.mean().item()) * 0.05, 0.0025) if shown_scales.numel() else 0.0025
                 viewer.log_lines(
                     batch_name,
                     wp.array(starts.detach().cpu().numpy().astype(np.float32), dtype=wp.vec3, device=device),

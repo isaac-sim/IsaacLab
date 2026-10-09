@@ -155,11 +155,15 @@ def test_version_single_source_matches_literal_pins(source_checkout_root: Path):
     assert all(spec("ovrtx") in line or "steps.ov_pins.outputs.ovrtx" in line for line in ovrtx_install_lines)
 
     # Direct torch-stack pins apply to both source and wheel installations.
-    for package in ("torch", "torchvision", "torchaudio"):
+    for package in ("torch", "torchvision"):
         assert f"{package}=={versions[package]}" in dependencies
 
-    # Newton uses the same exact PyPI release for source and wheel installations.
-    newton_spec = f"newton[sim]=={versions['newton']}"
+    # Newton source and wheel installations use the locked commit until its next release.
+    lock = tomllib.loads((source_checkout_root / "uv.lock").read_text(encoding="utf-8"))
+    newton = next(package for package in lock["package"] if package["name"] == "newton")
+    assert newton["version"] == versions["newton"]
+    commit = newton["source"]["git"].rsplit("#", 1)[1]
+    newton_spec = f"newton[sim] @ git+https://github.com/newton-physics/newton.git@{commit}"
     assert newton_spec in dependencies
     assert newton_spec in overrides
 

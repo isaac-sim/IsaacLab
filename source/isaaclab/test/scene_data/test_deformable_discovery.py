@@ -117,7 +117,7 @@ def test_deformable_entry_surface_without_sim_api_uses_first_mesh():
     assert entry.vis_vertex_count == 3
 
 
-def test_backend_geometry_nearest_owner_partial_rows_and_shared_roots():
+def test_backend_geometry_nested_owners_partial_rows_and_shared_roots():
     """Import declared prototypes once; bind exact paths without retaining geometry on the plan."""
     stage = Usd.Stage.CreateInMemory()
     parent = UsdGeom.Xform.Define(stage, "/Lab/Cell3")
@@ -164,10 +164,14 @@ def test_backend_geometry_nearest_owner_partial_rows_and_shared_roots():
         "/Lab/Cell3/Cloth",
         "/Lab/Cell7/Cloth",
         "/Lab/Cell3/Nested/Cloth",
+        "/Lab/Cell7/Nested/Cloth",
         "/Lab/Cell11/Nested/Cloth",
         "/Shared/Cloth",
     }
-    assert {entry.root_path for entry in expand_deformable_entries(nested, plan, env_ids, positions)} == {
+    assert {
+        entry.root_path
+        for entry in expand_deformable_entries(nested, plan, env_ids, positions, imported_sources={sources[1]})
+    } == {
         "/Lab/Cell3/Nested/Cloth",
         "/Lab/Cell11/Nested/Cloth",
         "/Shared/Cloth",

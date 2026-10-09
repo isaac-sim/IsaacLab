@@ -311,13 +311,17 @@ before changing an interface. Apply these rules when adding code or cleaning up 
   meaningful state or resources, enforce invariants over a lifecycle, or implement an interface required
   by the architecture. Avoid classes that only group static methods, wrap a single operation, or forward
   calls to another object. Preserve established public contracts when simplifying existing designs.
-* Reuse existing mechanisms before introducing helpers, configuration options, or abstractions. Extract
+* Place shared operations in the existing module that owns their contract before adding a new file.
+  Reuse existing mechanisms before introducing helpers, configuration options, or abstractions. Extract
   shared logic when it has the same contract; keep helpers private unless callers need a public API.
   Prefer direct control flow and early returns when they remove unnecessary nesting.
+* Use predicates or optional lookup results for expected incompatibility, such as filtering available
+  camera channels. Do not raise and catch exceptions for routine selection or capability checks.
 * Inline simple expressions and operations when a helper would only add indirection. Do not extract
   a one-line helper merely to rename an obvious operation. Introduce a helper when it removes meaningful
   duplication or gives a coherent, non-trivial operation a useful name; its benefit should outweigh the
   need to jump to another definition to understand the caller.
+  When retiring a workflow, remove its unused helper chains and tests that only preserve those helpers.
 * Prefer direct attribute access and assignment (``obj.value`` and ``obj.value = value``). Use ``getattr``
   and ``setattr`` only when dynamic attribute access is required, such as when the attribute name is
   determined at runtime. Do not use them for known attributes or use default values to hide a missing
@@ -325,11 +329,28 @@ before changing an interface. Apply these rules when adding code or cleaning up 
 * Give each piece of state and validation one owner. Consumers should use the owner's contract instead
   of repairing results or maintaining duplicate state. Cache derived values only when their lifetime and
   invalidation are clear; do not expose mutable cached results for callers to modify accidentally.
+  Resolve selections once at initialization; backends should consume the final selection without a second
+  filtering pass or cache.
+  Before adding a parameter record and preparation helper for one consumer, check which values already
+  exist in its configuration or array metadata. Keep the remaining setup with that owner and cache only
+  the buffers or calculations that need reuse.
+* Pass scene dependencies from the composition root into consumers. Do not retrieve the simulation
+  singleton to resolve a dependency the caller already owns. Resolve references at initialization,
+  then retain the resolved objects instead of copying paths between configuration fields. Give consumers
+  resolved resources rather than a broader construction plan used only to discover those resources;
+  visualizers receive bound camera choices, while cloning and renderer scene preparation retain ``ClonePlan``.
+* Put common configuration in the shared owner and document backend capabilities explicitly. Name
+  collections in the plural. Remove empty hooks and expired compatibility aliases during their
+  announced removal release instead of maintaining unused extension points.
 * Keep backend selection at shared dispatch boundaries. Use established types, configuration, and
   capability contracts instead of inferring behavior from class-name strings.
 * Keep physics and rendering responsibilities separate and resolve construction requirements before
   finalization. See :doc:`/source/developer-tools/scene_data_providers` for geometry ownership and
   :doc:`/source/developer-tools/add_physics_backend` for backend integration.
+* Treat non-spawning sensor paths as references to existing scene prims, not as independently owned
+  clone sources. Import the owning asset and resolve sensor tracking from its replicated prims.
+* Keep nested physics bodies in their owning source import. A second declaration only requires a
+  separate native copy when its source-to-destination mapping is not already covered by the parent.
 * Prefer existing project dependencies and the standard library. Do not add dependencies or compatibility
   layers for hypothetical future uses.
 
@@ -343,6 +364,10 @@ environment. Costs that are small for one environment can dominate a large batch
   them, reusing cached device indices when available. Preserve the selector's ordering and device contract.
 * Allocate arrays directly with the required value, dtype, and device. Prefer ``torch.full`` or ``wp.full``
   over filling through Python lists, arithmetic on temporary arrays, or a round trip through another library.
+* Keep operations on Warp-owned arrays in Warp. Use ``ProxyArray`` when consumers need multiple
+  array interfaces; do not convert to Torch and back merely to mutate a Warp buffer.
+* Keep per-step control flow direct, with one call to each lifecycle operation. Perform optional
+  work only for the active consumer and preserve the configured update cadence.
 * Remove redundant copies and ``contiguous()`` calls only after checking layout and ownership requirements.
   Do not mutate caller-owned inputs unless the API explicitly promises an in-place operation.
 * Batch operations when supported. Avoid Python loops over environments and unnecessary host/device
@@ -413,6 +438,9 @@ See the `Lazy Loading & Module Exports`_ section for details.
 Pass ``ProxyArray`` objects directly to Warp kernels. Keep one proxy per owned array, without
 parallel ``_ta``, ``_warp``, or ``_torch`` attributes; timestamped array caches can own the proxy in
 ``data``. Use explicit native access only where the receiving API requires it.
+When a kernel operation is known before launch, specialize it with dedicated kernels or static Warp
+branches instead of a runtime mode switch. Keep shared indexing in one implementation and benchmark
+the generated kernels against the original path.
 
 Python does not have a concept of private and public classes and functions. However, we follow the
 convention of prefixing the private functions and classes with an underscore.
