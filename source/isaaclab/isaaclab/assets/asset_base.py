@@ -212,11 +212,20 @@ class AssetBase(Asset, ABC):
             self._debug_vis_handle = None
 
     @abstractmethod
-    def reset(self, env_ids: Sequence[int] | None = None):
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | torch.Tensor | None = None):
         """Resets all internal buffers of selected environments.
+
+        Implementations that take ``env_mask`` reset the selected environments without synchronizing the device;
+        :class:`~isaaclab.scene.InteractiveScene` passes them the reset mask. Implementations that only take
+        ``env_ids`` receive indices instead, which synchronizes the device.
+
+        .. caution::
+            If both ``env_ids`` and ``env_mask`` are provided, ``env_mask`` takes precedence.
 
         Args:
             env_ids: The indices of the object to reset. Defaults to None (all instances).
+            env_mask: Boolean mask of the environments to reset. Shape is (num_instances,).
+                Defaults to None, in which case ``env_ids`` selects the environments.
         """
         raise NotImplementedError
 

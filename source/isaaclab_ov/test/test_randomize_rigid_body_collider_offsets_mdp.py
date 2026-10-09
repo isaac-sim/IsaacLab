@@ -33,7 +33,7 @@ import isaaclab.sim as sim_utils  # noqa: E402
 from isaaclab.assets import RigidObjectCfg  # noqa: E402
 from isaaclab.envs.mdp.events import randomize_rigid_body_collider_offsets  # noqa: E402
 from isaaclab.sim import SimulationCfg, build_simulation_context  # noqa: E402
-from isaaclab.utils import replace
+from isaaclab.utils import env_mask_from_ids, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR  # noqa: E402
 
 from isaaclab_assets import CARTPOLE_CFG  # isort:skip  # noqa: E402
@@ -154,11 +154,21 @@ def test_articulation_offsets_randomized_for_all_envs(device):
         assert not ((contact_before >= CONTACT_RANGE[0]) & (contact_before <= CONTACT_RANGE[1])).any()
 
         # only rest offsets requested: contact offsets must stay untouched
-        term(env, None, asset_cfg, rest_offset_distribution_params=REST_RANGE)
+        term(
+            env,
+            env_mask_from_ids(None, env.num_envs, env.device),
+            asset_cfg,
+            rest_offset_distribution_params=REST_RANGE,
+        )
         rest_after, contact_after = _read_offsets(articulation, TT.REST_OFFSET, TT.CONTACT_OFFSET)
         _assert_randomized_rows(rest_before, rest_after, list(range(num_envs)), REST_RANGE)
         torch.testing.assert_close(contact_after, contact_before)
 
-        term(env, None, asset_cfg, contact_offset_distribution_params=CONTACT_RANGE)
+        term(
+            env,
+            env_mask_from_ids(None, env.num_envs, env.device),
+            asset_cfg,
+            contact_offset_distribution_params=CONTACT_RANGE,
+        )
         _, contact_after = _read_offsets(articulation, TT.REST_OFFSET, TT.CONTACT_OFFSET)
         _assert_randomized_rows(contact_before, contact_after, list(range(num_envs)), CONTACT_RANGE)

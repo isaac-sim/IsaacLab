@@ -466,3 +466,35 @@ def test_stateful_actuator_rejects_outer_cuda_capture(monkeypatch: pytest.Monkey
 
     with pytest.raises(RuntimeError, match="stateful Newton actuators cannot run inside an outer CUDA graph capture"):
         runtime.compute(SimpleNamespace(), 0.01)
+
+
+@pytest.mark.parametrize("device", test_devices())
+def test_masked_reset_resets_only_selected_env_states(device):
+    """A mask reset clears the delay state of the masked environments in both state buffers and keeps the rest."""
+    num_envs = 3
+    adapter = NewtonActuatorAdapter.from_usd(
+        stage=_make_actuator_stage(),
+        joint_names=_JOINT_NAMES,
+        num_envs=num_envs,
+        num_joints=len(_JOINT_NAMES),
+        device=device,
+        articulation_prim_path="/World/Robot",
+    )
+    delay_states = [
+        state.delay_state
+        for state in (*adapter._states_a, *adapter._states_b)
+        if state is not None and state.delay_state is not None
+    ]
+    assert delay_states
+    for delay_state in delay_states:
+        delay_state.num_pushes.fill_(5)
+    env_mask = torch.tensor([True, False, True], device=device)
+
+    adapter.reset(env_mask=wp.from_torch(env_mask, dtype=wp.bool))
+
+    for actuator, states in zip(adapter.actuators, zip(adapter._states_a, adapter._states_b)):
+        envs = torch.as_tensor(actuator.indices.numpy().astype(np.int64), device=device) // len(_JOINT_NAMES)
+        expected = torch.where(env_mask[envs], 0, 5).to(torch.int32)
+        for state in states:
+            if state is not None and state.delay_state is not None:
+                torch.testing.assert_close(wp.to_torch(state.delay_state.num_pushes), expected)

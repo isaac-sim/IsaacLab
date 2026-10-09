@@ -9,16 +9,17 @@ import builtins
 import logging
 import sys
 import warnings
+from collections.abc import Sequence
 from typing import Any
 
 import torch
 
 from ..app.loading_screen import report_activity
-from ..managers import ActionManager, EventManager, ObservationManager, RecorderManager
+from ..managers import ActionManager, EventManager, ManagerBase, ObservationManager, RecorderManager
 from ..scene import InteractiveScene
 from ..sim import SimulationContext
 from ..sim.utils.stage import use_stage
-from ..utils import validate
+from ..utils import env_mask_from_ids, validate
 from ..utils.seed import configure_seed
 from ..utils.timer import Timer
 from .common import VecEnvObs, _apply_deprecated_viewer_cfg
@@ -629,27 +630,50 @@ class ManagerBasedEnv:
         Args:
             env_ids: A slice or environment indices on the environment device.
         """
+        self._reset_mask(env_mask_from_ids(env_ids, self.num_envs, self.device))
+
+    def _reset_mask(self, env_mask: torch.Tensor):
+        """Reset the environments selected by a boolean mask.
+
+        The reset runs on every call, and unselected environments are left unchanged, so it never waits on the
+        device unless a scene entity or manager term only accepts indices.
+
+        Args:
+            env_mask: Boolean mask of the environments to reset. Shape is (num_envs,).
+        """
         # reset the internal buffers of the scene elements
-        self.scene.reset(env_ids)
+        self.scene.reset(env_mask=env_mask)
 
         # apply events such as randomization for environments that need a reset
         if "reset" in self.event_manager.active_terms:
             env_step_count = self._sim_step_counter // self.cfg.decimation
-            self.event_manager.apply(mode="reset", env_ids=env_ids, global_env_step_count=env_step_count)
+            self.event_manager.apply(mode="reset", env_mask=env_mask, global_env_step_count=env_step_count)
 
         # iterate over all managers and reset them
         # this returns a dictionary of information which is stored in the extras
         # note: This is order-sensitive! Certain things need be reset before others.
-        self.extras["log"] = dict()
-        # -- observation manager
-        info = self.observation_manager.reset(env_ids)
-        self.extras["log"].update(info)
-        # -- action manager
-        info = self.action_manager.reset(env_ids)
-        self.extras["log"].update(info)
-        # -- event manager
-        info = self.event_manager.reset(env_ids)
-        self.extras["log"].update(info)
-        # -- recorder manager
-        info = self.recorder_manager.reset(env_ids)
-        self.extras["log"].update(info)
+        managers = (self.observation_manager, self.action_manager, self.event_manager, self.recorder_manager)
+        self._reset_managers(env_mask, managers)
+
+    def _reset_managers(self, env_mask: torch.Tensor, managers: Sequence[ManagerBase]):
+        """Reset ``managers`` in order and store their logs in ``extras["log"]``.
+
+        Terms may also write into ``extras["log"]`` while resetting. A logged tensor keeps its previous value
+        when no environment was reset, and a key that no term logged this time (an index-based term with nothing
+        selected) keeps its previous value, so logs describe the last completed episodes without reading the mask
+        on the host.
+
+        Args:
+            env_mask: Boolean mask of the reset environments. Shape is (num_envs,).
+            managers: Managers to reset, in order.
+        """
+        previous = self.extras.get("log", {})
+        log = self.extras["log"] = {}
+        for manager in managers:
+            log.update(manager.reset(env_mask=env_mask))
+        any_reset = env_mask.any()
+        for key, last in previous.items():
+            value = log.setdefault(key, last)
+            if value is not last and isinstance(value, torch.Tensor) and isinstance(last, torch.Tensor):
+                if value.shape == last.shape:
+                    log[key] = torch.where(any_reset, value, last)

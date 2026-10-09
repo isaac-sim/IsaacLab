@@ -12,7 +12,6 @@ from typing import TYPE_CHECKING
 import torch
 
 from isaaclab.managers import ManagerTermBase, RewardTermCfg
-from isaaclab.utils import index_fill_
 from isaaclab.utils import math as math_utils
 
 from ..selection_utils import SceneEntitySelectionCfg
@@ -34,6 +33,32 @@ def _action_slice(env: ManagerBasedRLEnv, term_names: tuple[str, ...]) -> slice:
             start += dim
         cache[term_names] = slice(starts[term_names[0]][0], starts[term_names[-1]][1])
     return cache[term_names]
+
+
+def _masked_mean(values: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+    """Return the mean of ``values`` over the environments selected by ``mask``, or zero if none is selected."""
+    return torch.where(mask, values, 0.0).sum() / mask.sum().clamp_min(1)
+
+
+def _log_masked_mean(
+    env: ManagerBasedRLEnv, logged: dict[str, torch.Tensor], key: str, values: torch.Tensor, mask: torch.Tensor
+) -> None:
+    """Log the mean of ``values`` over ``mask``, keeping the term's previous value when nothing is selected.
+
+    Each task logs only its own environments, so the environment-level blend, which keeps a value only when no
+    environment reset at all, is not enough when only other tasks' environments reset.
+
+    Args:
+        env: The environment.
+        logged: The term's previously logged values by key, updated in place.
+        key: Log key.
+        values: Per-environment values. Shape is (num_envs,).
+        mask: Boolean mask of the reset environments of this task. Shape is (num_envs,).
+    """
+    value = _masked_mean(values, mask)
+    if key in logged:
+        value = torch.where(mask.any(), value, logged[key])
+    env.extras.setdefault("log", {})[key] = logged[key] = value
 
 
 def _lift_goal_error(
@@ -100,16 +125,18 @@ class _LiftSuccessTerm(ManagerTermBase):
     def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv) -> None:
         super().__init__(cfg, env)
         self.succeeded = torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)
+        self._logged: dict[str, torch.Tensor] = {}
 
-    def reset(self, env_ids: torch.Tensor) -> None:
-        """Log and clear success for reset lift environments."""
+    def reset(self, env_mask: torch.Tensor) -> None:
+        """Log and clear success for reset lift environments.
+
+        Args:
+            env_mask: Boolean mask of the environments to reset. Shape is (num_envs,).
+        """
         object_cfg: SceneEntitySelectionCfg = self.cfg.params["object_cfg"]
-        selected = env_ids[object_cfg.instance_ids[env_ids] >= 0]
-        if selected.numel() == 0:
-            return
-        log = self._env.extras.setdefault("log", {})
-        log["Metrics/lift_success_rate"] = self.succeeded[selected].float().mean().item()
-        index_fill_(self.succeeded, selected, False)
+        selected = env_mask & (object_cfg.instance_ids >= 0)
+        _log_masked_mean(self._env, self._logged, "Metrics/lift_success_rate", self.succeeded.float(), selected)
+        self.succeeded.masked_fill_(selected, False)
 
 
 class LiftGoalTracking(_LiftSuccessTerm):
@@ -254,18 +281,20 @@ class CabinetOpenDrawerBonus(ManagerTermBase):
         super().__init__(cfg, env)
         self.succeeded = torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)
         self.best_drawer_pos = torch.zeros(env.num_envs, device=env.device)
+        self._logged: dict[str, torch.Tensor] = {}
 
-    def reset(self, env_ids: torch.Tensor) -> None:
-        """Log and clear episode statistics for reset cabinet environments."""
+    def reset(self, env_mask: torch.Tensor) -> None:
+        """Log and clear episode statistics for reset cabinet environments.
+
+        Args:
+            env_mask: Boolean mask of the environments to reset. Shape is (num_envs,).
+        """
         cabinet_cfg: SceneEntitySelectionCfg = self.cfg.params["cabinet_cfg"]
-        selected = env_ids[cabinet_cfg.instance_ids[env_ids] >= 0]
-        if selected.numel() == 0:
-            return
-        log = self._env.extras.setdefault("log", {})
-        log["Metrics/cabinet_success_rate"] = self.succeeded[selected].float().mean().item()
-        log["Metrics/cabinet_drawer_pos"] = self.best_drawer_pos[selected].mean().item()
-        index_fill_(self.succeeded, selected, False)
-        index_fill_(self.best_drawer_pos, selected, 0.0)
+        selected = env_mask & (cabinet_cfg.instance_ids >= 0)
+        _log_masked_mean(self._env, self._logged, "Metrics/cabinet_success_rate", self.succeeded.float(), selected)
+        _log_masked_mean(self._env, self._logged, "Metrics/cabinet_drawer_pos", self.best_drawer_pos, selected)
+        self.succeeded.masked_fill_(selected, False)
+        self.best_drawer_pos.masked_fill_(selected, 0.0)
 
     def __call__(
         self,

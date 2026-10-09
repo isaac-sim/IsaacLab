@@ -116,33 +116,28 @@ class BaseRayCaster(SensorBase):
         self._drift_sampled |= sample_drift or sample_ray_cast_drift
         if not self._drift_sampled:
             return
-        # determine the selected batch size
-        if env_ids is not None:
-            num_envs_ids = len(range(self._view_count)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
-        elif env_mask is not None:
-            env_ids = wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1)
-            num_envs_ids = len(env_ids)
+        # resample drift for every view and keep it only where selected: a mask selection stays on the device
+        if env_mask is not None:
+            selected = wp.to_torch(env_mask)[:, None]
         else:
-            env_ids = slice(None)
-            num_envs_ids = self._view_count
-        # resample drift (uses torch views for indexing)
+            selected = torch.zeros(self._view_count, 1, dtype=torch.bool, device=self.device)
+            selected[slice(None) if env_ids is None else env_ids] = True
+        drift = torch.zeros(self._view_count, 3, device=self.device)
         if sample_drift:
-            r = torch.empty(num_envs_ids, 3, device=self.device)
-            self.drift.torch[env_ids] = r.uniform_(*self.cfg.drift_range)
-        else:
-            self.drift.torch[env_ids] = 0.0
+            drift.uniform_(*self.cfg.drift_range)
+        torch.where(selected, drift, self.drift.torch, out=self.drift.torch)
         # resample the ray cast drift
+        ray_cast_drift = torch.zeros(self._view_count, 3, device=self.device)
         if sample_ray_cast_drift:
             # Upload the ranges to the device only when the configuration changes.
             if ray_cast_range_list != self._ray_cast_drift_range_list:
                 self._ray_cast_drift_range_list = ray_cast_range_list
                 self._ray_cast_drift_ranges = torch.tensor(ray_cast_range_list, device=self.device)
             ranges = self._ray_cast_drift_ranges
-            self.ray_cast_drift.torch[env_ids] = math_utils.sample_uniform(
-                ranges[:, 0], ranges[:, 1], (num_envs_ids, 3), device=self.device
+            ray_cast_drift = math_utils.sample_uniform(
+                ranges[:, 0], ranges[:, 1], (self._view_count, 3), device=self.device
             )
-        else:
-            self.ray_cast_drift.torch[env_ids] = 0.0
+        torch.where(selected, ray_cast_drift, self.ray_cast_drift.torch, out=self.ray_cast_drift.torch)
 
     """
     Implementation.

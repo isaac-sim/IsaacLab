@@ -70,7 +70,7 @@ def test_difficulty_scheduler_waits_for_accumulator_rates():
     result = DifficultyScheduler.__call__(
         scheduler,
         env,
-        torch.arange(3),
+        torch.ones(3, dtype=torch.bool),
         "env.event_manager.get_term_cfg('reset_strategies').func.monitor_success_rate",
         max_difficulty=10,
     )
@@ -93,7 +93,7 @@ def test_difficulty_scheduler_averages_ready_success_rates():
     result = DifficultyScheduler.__call__(
         scheduler,
         env,
-        torch.arange(3),
+        torch.ones(3, dtype=torch.bool),
         "env.event_manager.get_term_cfg('reset_strategies').func.monitor_success_rate",
         max_difficulty=10,
     )

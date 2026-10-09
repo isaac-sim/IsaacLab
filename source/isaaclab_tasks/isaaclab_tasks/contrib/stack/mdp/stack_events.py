@@ -24,14 +24,15 @@ if TYPE_CHECKING:
 
 def set_default_joint_pose(
     env: ManagerBasedEnv,
-    env_ids: torch.Tensor,
+    env_mask: torch.Tensor,
     default_pose: torch.Tensor,
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
 ):
-    # Set the default pose for robots in all envs
+    # Set the default pose for robots in all envs, independent of ``env_mask``
     asset = env.scene[asset_cfg.name]
     # Convert default_pose to 1D array and create joint indices
-    default_pose_1d = torch.tensor(default_pose, device=env.device).repeat(env.num_envs, 1).flatten()
+    # note: the copy is non-blocking so that the reset does not wait on the device
+    default_pose_1d = torch.tensor(default_pose).to(env.device, non_blocking=True).repeat(env.num_envs, 1).flatten()
     num_joints = len(default_pose)
     joint_ids = torch.arange(num_joints, device=env.device, dtype=torch.int32)
     # Use update_default_joint_values kernel to update all joints for all environments
@@ -51,7 +52,7 @@ def set_default_joint_pose(
 
 def randomize_joint_by_gaussian_offset(
     env: ManagerBasedEnv,
-    env_ids: torch.Tensor,
+    env_mask: torch.Tensor,
     mean: float,
     std: float,
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
@@ -68,32 +69,40 @@ def randomize_joint_by_gaussian_offset(
     * a non-empty list -> those joints are held at their default pose (everything else is noised);
     * an empty list -> no gripper joints to hold, so every joint is noised (e.g. surface grippers);
     * unset / ``None`` -> backward-compatible fallback that holds the last two joints.
+
+    Args:
+        env: The environment.
+        env_mask: Boolean mask of the environments to reset. Shape is (num_envs,).
+        mean: Mean of the Gaussian joint position noise [rad or m].
+        std: Standard deviation of the Gaussian joint position noise [rad or m].
+        asset_cfg: The asset to reset.
     """
     asset: Articulation = env.scene[asset_cfg.name]
 
     # Add gaussian noise to joint states
-    joint_pos = asset.data.default_joint_pos.torch[env_ids].clone()
-    joint_vel = asset.data.default_joint_vel.torch[env_ids].clone()
+    joint_pos = asset.data.default_joint_pos.torch.clone()
+    joint_vel = asset.data.default_joint_vel.torch.clone()
     joint_pos += math_utils.sample_gaussian(mean, std, joint_pos.shape, joint_pos.device)
 
     # Clamp joint pos to limits
-    joint_pos_limits = asset.data.soft_joint_pos_limits.torch[env_ids]
+    joint_pos_limits = asset.data.soft_joint_pos_limits.torch
     joint_pos = joint_pos.clamp_(joint_pos_limits[..., 0], joint_pos_limits[..., 1])
 
     # Don't noise the gripper joints (resolved generically; see the docstring).
     gripper_joint_names = getattr(env.cfg, "gripper_joint_names", None)
     if gripper_joint_names is None:
         # Backward-compatible fallback for callers that do not configure gripper joint names.
-        joint_pos[:, -2:] = asset.data.default_joint_pos.torch[env_ids, -2:]
+        joint_pos[:, -2:] = asset.data.default_joint_pos.torch[:, -2:]
     elif gripper_joint_names:
         gripper_ids, _ = asset.find_joints(gripper_joint_names)
-        joint_pos[:, gripper_ids] = asset.data.default_joint_pos.torch[env_ids][:, gripper_ids]
+        joint_pos[:, gripper_ids] = asset.data.default_joint_pos.torch[:, gripper_ids]
 
     # Set into the physics simulation
-    asset.set_joint_position_target_index(target=joint_pos, env_ids=env_ids)
-    asset.set_joint_velocity_target_index(target=joint_vel, env_ids=env_ids)
-    asset.write_joint_position_to_sim_index(position=joint_pos, env_ids=env_ids)
-    asset.write_joint_velocity_to_sim_index(velocity=joint_vel, env_ids=env_ids)
+    env_mask_wp = wp.from_torch(env_mask, dtype=wp.bool)
+    asset.actuators.target_command.set_position_mask(value=joint_pos, env_mask=env_mask_wp)
+    asset.actuators.target_command.set_velocity_mask(value=joint_vel, env_mask=env_mask_wp)
+    asset.write_joint_position_to_sim_mask(position=joint_pos, env_mask=env_mask)
+    asset.write_joint_velocity_to_sim_mask(velocity=joint_vel, env_mask=env_mask)
 
 
 def sample_random_color(base=(0.75, 0.75, 0.75), variation=0.1):

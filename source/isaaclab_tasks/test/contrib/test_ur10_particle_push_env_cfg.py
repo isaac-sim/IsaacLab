@@ -84,7 +84,7 @@ def test_curriculum_preserves_reset_mixture_and_tracks_level_success():
     env.success_this_step[level_0_ids[: level_0_ids.numel() // 2]] = True
     env.success_this_step[level_1_ids[: level_1_ids.numel() // 4]] = True
 
-    state = curriculum(env, torch.arange(env_count))
+    state = curriculum(env, torch.ones(env_count, dtype=torch.bool))
 
     expected = torch.tensor(env.cfg.reset_level_probabilities)
     actual = torch.bincount(curriculum.levels, minlength=3).float() / env_count

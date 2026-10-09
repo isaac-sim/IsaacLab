@@ -71,7 +71,7 @@ from isaaclab.test.utils.actuator_equivalence import (
     make_dummy_mlp_checkpoint,
 )
 from isaaclab.test.utils.articulation_ordering import assert_articulation_ordering_trace_matches
-from isaaclab.utils import replace
+from isaaclab.utils import env_mask_from_ids, replace
 
 from isaaclab_assets.robots.spot import joint_parameter_lookup as SPOT_KNEE_LOOKUP
 
@@ -927,7 +927,7 @@ def test_randomize_actuator_gains_reaches_newton_controllers(newton_run: _Run) -
         term, asset_cfg = build_dr_term(env, name)
         term(
             env,
-            env_ids=torch.tensor([0], device=legs.device, dtype=torch.long),
+            env_mask=env_mask_from_ids([0], env.num_envs, legs.device),
             asset_cfg=asset_cfg,
             stiffness_distribution_params=(100.0, 100.0),
             damping_distribution_params=(7.0, 7.0),

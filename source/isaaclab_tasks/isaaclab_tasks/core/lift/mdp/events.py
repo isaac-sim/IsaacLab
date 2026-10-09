@@ -17,7 +17,7 @@ from tqdm import tqdm
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
 from isaaclab.managers import EventTermCfg, ManagerTermBase, ManagerTermBaseCfg, SceneEntityCfg
-from isaaclab.utils import instantiate
+from isaaclab.utils import env_selection_kwargs, instantiate
 from isaaclab.utils.math import quat_apply, quat_mul, random_orientation, sample_uniform, sample_uniform_from_ranges
 
 from isaaclab_tasks.utils.success_monitor import SuccessMonitor, SuccessMonitorCfg
@@ -28,7 +28,7 @@ from .utils import (
     farthest_point_sampling,
     get_reset_state,
     sample_object_point_cloud,
-    set_reset_state,
+    set_reset_state_mask,
 )
 
 if TYPE_CHECKING:
@@ -42,7 +42,7 @@ if TYPE_CHECKING:
 
 def reset_joints_shared_offset(
     env: ManagerBasedEnv,
-    env_ids: torch.Tensor,
+    env_mask: torch.Tensor,
     position_range: tuple[float, float],
     asset_cfg: SceneEntityCfg,
 ):
@@ -56,41 +56,56 @@ def reset_joints_shared_offset(
 
     Args:
         env: The environment.
-        env_ids: Environments to reset.
+        env_mask: Boolean mask of the environments to reset. Shape is (num_envs,).
         position_range: Uniform offset range around the default joint positions
             [m or rad, depending on joint type].
         asset_cfg: The asset and coupled joints to reset.
     """
     asset = env.scene[asset_cfg.name]
-    default = asset.data.default_joint_pos.torch[env_ids][:, asset_cfg.joint_ids]
-    limits = asset.data.soft_joint_pos_limits.torch[env_ids][:, asset_cfg.joint_ids]
+    # sample for every environment and joint; the masks select what is written
+    default = asset.data.default_joint_pos.torch
+    limits = asset.data.soft_joint_pos_limits.torch
     offset = sample_uniform(position_range[0], position_range[1], (default.shape[0], 1), device=default.device)
     positions = (default + offset).clamp(limits[..., 0], limits[..., 1])
-    asset.write_joint_position_to_sim_index(position=positions, joint_ids=asset_cfg.joint_ids, env_ids=env_ids)
-    asset.write_joint_velocity_to_sim_index(
-        velocity=torch.zeros_like(positions), joint_ids=asset_cfg.joint_ids, env_ids=env_ids
+    joint_mask = _joint_mask(asset, asset_cfg.joint_ids)
+    asset.write_joint_position_to_sim_mask(position=positions, joint_mask=joint_mask, env_mask=env_mask)
+    asset.write_joint_velocity_to_sim_mask(
+        velocity=torch.zeros_like(positions), joint_mask=joint_mask, env_mask=env_mask
     )
+
+
+def _joint_mask(asset: Articulation, joint_ids: Sequence[int] | torch.Tensor | slice) -> wp.array | None:
+    """Return a joint mask that selects ``joint_ids``, or None for all joints."""
+    if isinstance(joint_ids, slice) and joint_ids == slice(None):
+        return None
+    mask = torch.zeros(asset.num_joints, dtype=torch.bool, device=asset.device)
+    if isinstance(joint_ids, slice):
+        joint_ids = torch.arange(asset.num_joints, device=asset.device)[joint_ids]
+    # index_fill_ with device indices does not wait on the device, unlike index assignment
+    mask.index_fill_(0, torch.as_tensor(joint_ids, dtype=torch.long, device=asset.device), True)
+    return wp.from_torch(mask, dtype=wp.bool)
 
 
 def reset_cable_state_uniform(
     env: ManagerBasedEnv,
-    env_ids: torch.Tensor,
+    env_mask: torch.Tensor,
     position_range: dict[str, tuple[float, float]],
     asset_cfg: SceneEntityCfg = SceneEntityCfg("cable"),
 ) -> None:
     """Reset a cable to its default shape with a uniformly sampled translation [m]."""
     asset: CableObject = env.scene[asset_cfg.name]
-    segment_pose = asset.data.default_segment_pose_w.torch[env_ids].clone()
-    segment_velocity = asset.data.default_segment_velocity_w.torch[env_ids].clone()
+    segment_pose = asset.data.default_segment_pose_w.torch.clone()
+    segment_velocity = asset.data.default_segment_velocity_w.torch.clone()
     offset = sample_uniform_from_ranges(position_range, ("x", "y", "z"), segment_pose.shape[0], device=asset.device)
     segment_pose[..., :3] += offset.unsqueeze(1)
-    asset.write_segment_pose_to_sim_index(segment_pose=segment_pose, env_ids=env_ids)
-    asset.write_segment_velocity_to_sim_index(segment_velocity=segment_velocity, env_ids=env_ids)
+    wp_mask = wp.from_torch(env_mask, dtype=wp.bool)
+    asset.write_segment_pose_to_sim_mask(segment_pose=segment_pose, env_mask=wp_mask)
+    asset.write_segment_velocity_to_sim_mask(segment_velocity=segment_velocity, env_mask=wp_mask)
 
 
 def reset_to_target(
     env: ManagerBasedEnv,
-    env_ids: torch.Tensor,
+    env_mask: torch.Tensor,
     pose_range: dict[str, tuple[float, float]],
     velocity_range: dict[str, tuple[float, float]],
     probability: float,
@@ -113,7 +128,7 @@ def reset_to_target(
 
     Args:
         env: The environment.
-        env_ids: Environments being reset.
+        env_mask: Boolean mask of the environments being reset. Shape is (num_envs,).
         pose_range: Position offset ranges in the target body frame [m], keys ``x``/``y``/``z``.
         velocity_range: Velocity ranges, keys ``x``/``y``/``z``/``roll``/``pitch``/``yaw``
             [m/s, rad/s].
@@ -121,29 +136,28 @@ def reset_to_target(
         target_cfg: Target body (e.g. the gripper palm) to spawn the asset at.
         asset_cfg: The asset to reset.
     """
-    env_ids = env.scene._ALL_INDICES[env_ids]
-    picked = env_ids[torch.rand(len(env_ids), device=env.device) < probability]
-    if len(picked) == 0:
-        return
+    # sample for every environment and write only the picked ones
+    num_envs = env.num_envs
+    picked = env_mask & (torch.rand(num_envs, device=env.device) < probability)
     asset = env.scene[asset_cfg.name]
     target = env.scene[target_cfg.name]
-    target_pos = target.data.body_pos_w.torch[picked][:, target_cfg.body_ids, :].reshape(len(picked), -1)[:, :3]
-    target_quat = target.data.body_quat_w.torch[picked][:, target_cfg.body_ids, :].reshape(len(picked), -1)[:, :4]
+    target_pos = target.data.body_pos_w.torch[:, target_cfg.body_ids, :].reshape(num_envs, -1)[:, :3]
+    target_quat = target.data.body_quat_w.torch[:, target_cfg.body_ids, :].reshape(num_envs, -1)[:, :4]
 
     keys = ("x", "y", "z")
     offsets = torch.tensor([tuple(pose_range.get(key, (0.0, 0.0))) for key in keys], device=asset.device)
     # offsets are expressed in the target body frame, so e.g. a +z range places the object
     # along the gripper approach axis (between the fingertips) at any hand orientation
-    local_offsets = sample_uniform(offsets[:, 0], offsets[:, 1], (len(picked), 3), device=asset.device)
+    local_offsets = sample_uniform(offsets[:, 0], offsets[:, 1], (num_envs, 3), device=asset.device)
     positions = target_pos + quat_apply(target_quat, local_offsets)
-    orientations = random_orientation(len(picked), device=asset.device)
+    orientations = random_orientation(num_envs, device=asset.device)
 
     keys = ("x", "y", "z", "roll", "pitch", "yaw")
     vel_ranges = torch.tensor([tuple(velocity_range.get(key, (0.0, 0.0))) for key in keys], device=asset.device)
-    velocities = sample_uniform(vel_ranges[:, 0], vel_ranges[:, 1], (len(picked), 6), device=asset.device)
+    velocities = sample_uniform(vel_ranges[:, 0], vel_ranges[:, 1], (num_envs, 6), device=asset.device)
 
-    asset.write_root_pose_to_sim_index(root_pose=torch.cat([positions, orientations], dim=-1), env_ids=picked)
-    asset.write_root_velocity_to_sim_index(root_velocity=velocities, env_ids=picked)
+    asset.write_root_pose_to_sim_mask(root_pose=torch.cat([positions, orientations], dim=-1), env_mask=picked)
+    asset.write_root_velocity_to_sim_mask(root_velocity=velocities, env_mask=picked)
 
 
 class reset_to_grasp(ManagerTermBase):
@@ -194,13 +208,15 @@ class reset_to_grasp(ManagerTermBase):
         self._offset_ranges = torch.tensor(
             [cfg.params["pose_range"].get(axis, (0.0, 0.0)) for axis in ("x", "y", "z")], device=env.device
         )
-        self._zero_joint_velocities = torch.zeros((env.num_envs, len(self._gripper_joint_ids)), device=env.device)
+        self._gripper_joint_mask = _joint_mask(self._gripper, self._gripper_joint_ids)
+        self._joint_positions = torch.zeros((env.num_envs, self._gripper.num_joints), device=env.device)
+        self._zero_joint_velocities = torch.zeros_like(self._joint_positions)
         self._zero_root_velocities = torch.zeros((env.num_envs, 6), device=env.device)
 
     def __call__(
         self,
         env: ManagerBasedEnv,
-        env_ids: Sequence[int] | slice | torch.Tensor,
+        env_mask: torch.Tensor,
         pose_range: dict[str, tuple[float, float]],
         probability: float,
         target_cfg: SceneEntityCfg,
@@ -212,7 +228,7 @@ class reset_to_grasp(ManagerTermBase):
 
         Args:
             env: The environment.
-            env_ids: Environments to reset.
+            env_mask: Boolean mask of the environments to reset. Shape is (num_envs,).
             pose_range: Object-position offsets in the target frame [m].
             probability: Per-environment probability of applying the pre-grasp.
             target_cfg: Body defining the pre-grasp frame.
@@ -222,36 +238,34 @@ class reset_to_grasp(ManagerTermBase):
                 associates each pre-grasp with its cloned object. Static values are cached at initialization.
             asset_cfg: Object asset to reset.
         """
-        env_ids = env.scene._ALL_INDICES[env_ids]
-        picked = env_ids[torch.rand(len(env_ids), device=env.device) < probability]
-        if len(picked) == 0:
-            return
+        # sample for every environment and write only the picked ones
+        num_envs = env.num_envs
+        picked = env_mask & (torch.rand(num_envs, device=env.device) < probability)
 
-        variant_ids = self._variant_ids[picked]
-
-        target_pos = self._target.data.body_pos_w.torch[picked][:, self._target_body_ids, :].flatten(1)[:, :3]
-        target_quat = self._target.data.body_quat_w.torch[picked][:, self._target_body_ids, :].flatten(1)[:, :4]
+        target_pos = self._target.data.body_pos_w.torch[:, self._target_body_ids, :].flatten(1)[:, :3]
+        target_quat = self._target.data.body_quat_w.torch[:, self._target_body_ids, :].flatten(1)[:, :4]
         local_offsets = sample_uniform(
-            self._offset_ranges[:, 0], self._offset_ranges[:, 1], (len(picked), 3), device=env.device
+            self._offset_ranges[:, 0], self._offset_ranges[:, 1], (num_envs, 3), device=env.device
         )
         positions = target_pos + quat_apply(target_quat, local_offsets)
-        local_orientations = self._asset_orientations[variant_ids]
+        local_orientations = self._asset_orientations[self._variant_ids]
         orientations = quat_mul(target_quat, local_orientations)
 
-        joint_positions = self._gripper_joint_positions[variant_ids, None].expand(-1, len(self._gripper_joint_ids))
-        self._gripper.write_joint_position_to_sim_index(
-            position=joint_positions, joint_ids=self._gripper_joint_ids, env_ids=picked
+        # full joint data; the joint mask restricts the writes to the gripper joints
+        self._joint_positions[:, self._gripper_joint_ids] = self._gripper_joint_positions[self._variant_ids, None]
+        self._gripper.write_joint_position_to_sim_mask(
+            position=self._joint_positions, joint_mask=self._gripper_joint_mask, env_mask=picked
         )
-        self._gripper.write_joint_velocity_to_sim_index(
-            velocity=self._zero_joint_velocities[: len(picked)], joint_ids=self._gripper_joint_ids, env_ids=picked
+        self._gripper.write_joint_velocity_to_sim_mask(
+            velocity=self._zero_joint_velocities, joint_mask=self._gripper_joint_mask, env_mask=picked
         )
-        self._gripper.set_joint_position_target_index(
-            target=joint_positions, joint_ids=self._gripper_joint_ids, env_ids=picked
+        self._gripper.actuators.target_command.set_position_mask(
+            value=self._joint_positions,
+            joint_mask=self._gripper_joint_mask,
+            env_mask=wp.from_torch(picked, dtype=wp.bool),
         )
-        self._asset.write_root_pose_to_sim_index(root_pose=torch.cat((positions, orientations), dim=-1), env_ids=picked)
-        self._asset.write_root_velocity_to_sim_index(
-            root_velocity=self._zero_root_velocities[: len(picked)], env_ids=picked
-        )
+        self._asset.write_root_pose_to_sim_mask(root_pose=torch.cat((positions, orientations), dim=-1), env_mask=picked)
+        self._asset.write_root_velocity_to_sim_mask(root_velocity=self._zero_root_velocities, env_mask=picked)
 
 
 def _grasp_geometry(shape: sim_utils.SpawnerCfg) -> tuple:
@@ -275,10 +289,11 @@ class conditional_reset(ManagerTermBase):
 
     On the first reset the wrapped terms are re-rolled and the states satisfying
     :paramref:`valid_criteria` are harvested into a buffer of :paramref:`buffer_size_per_group`
-    samples per group by rejection sampling. The prefill ignores ``env_ids`` and rolls every
+    samples per group by rejection sampling. The prefill ignores ``env_mask`` and rolls every
     environment, since a partial first reset could otherwise never fill the groups it does not
-    cover. The bank is then frozen: the wrapped terms and criteria never run again, and every
-    reset from that point restores a banked sample to the requested environments.
+    cover. The prefill runs once and waits on the device. The bank is then frozen: the wrapped
+    terms and criteria never run again, and every reset from that point restores a banked sample
+    to the selected environments without waiting on the device.
 
     Given a :paramref:`diversity_feature` the prefill keeps the most spread-out states rather
     than the first valid ones, and given a :paramref:`success_monitor` the restore is drawn by
@@ -298,7 +313,7 @@ class conditional_reset(ManagerTermBase):
         # bank row each environment is currently playing; -1 until its first restore
         self._playing_row = torch.full((env.num_envs,), -1, dtype=torch.long, device=env.device)
 
-    def reset(self, env_ids: Sequence[int] | None = None):
+    def reset(self, env_mask: torch.Tensor):
         """Log how well the policy does across the bank, once a monitor is tracking it.
 
         Reported from here rather than from the reward term because the bank is what the number is
@@ -311,7 +326,7 @@ class conditional_reset(ManagerTermBase):
     def __call__(
         self,
         env: ManagerBasedEnv,
-        env_ids: torch.Tensor,
+        env_mask: torch.Tensor,
         terms: dict[str, EventTermCfg],
         valid_criteria: dict[str, ManagerTermBaseCfg],
         buffer_size_per_group: int = 20,
@@ -325,11 +340,13 @@ class conditional_reset(ManagerTermBase):
 
         Args:
             env: The environment.
-            env_ids: Environments being reset. The prefill phase ignores this and rolls all
-                environments so every asset-combination group can bank states; the first
-                reset therefore restores a banked state to every environment.
+            env_mask: Boolean mask of the environments being reset. Shape is (num_envs,). The
+                prefill phase ignores this and rolls all environments so every asset-combination
+                group can bank states; the first reset therefore restores a banked state to every
+                environment.
             terms: Reset event terms to wrap, applied in insertion order during prefill.
-                Resolved by the event manager before the first call.
+                Resolved by the event manager before the first call. Each is called like the
+                event manager calls it, with a mask or with indices of all environments.
             valid_criteria: Criteria as term configs (e.g. :class:`SlabClearanceCfg`,
                 :class:`MeshClearanceCfg`), each evaluated as
                 ``func(env, env_ids, **params) -> BoolTensor`` over the freshly reset
@@ -359,7 +376,8 @@ class conditional_reset(ManagerTermBase):
 
         def roll_once(roll_ids: torch.Tensor) -> torch.Tensor:
             for term in terms.values():
-                term.func(env, roll_ids, **term.params)
+                selection = env_selection_kwargs(term.func, roll_mask)
+                term.func(env, *selection.values(), **term.params)
             # no explicit refresh needed: state writes invalidate the FK timestamps and the
             # criteria's kinematic reads recompute on demand
             ok = torch.ones(len(roll_ids), dtype=torch.bool, device=roll_ids.device)
@@ -379,9 +397,10 @@ class conditional_reset(ManagerTermBase):
             self._fill = torch.zeros(num_groups, dtype=torch.long, device=env.device)
             iteration = 0
 
-            # prefill ignores env_ids and rolls every environment: a partial first reset may
+            # prefill ignores env_mask and rolls every environment: a partial first reset may
             # not cover all groups, and a group with no rolled envs could never fill
             all_ids = torch.arange(env.num_envs, device=env.device)
+            roll_mask = torch.ones(env.num_envs, dtype=torch.bool, device=env.device)
 
             with tqdm(
                 total=num_groups * harvest_size,
@@ -440,19 +459,20 @@ class conditional_reset(ManagerTermBase):
             valid_criteria.clear()
             # the rolls above perturbed every environment, so the first reset restores a
             # banked state to all of them, not just the requested subset
-            env_ids = all_ids
+            env_mask = roll_mask
 
-        groups = self._group[env_ids]
+        # draw a banked state for every environment and restore only the selected ones
+        groups = self._group
         if self._monitor is None:
             # ``rand * fill`` floors to a uniform draw in ``[0, fill)``.
             donor = (torch.rand(groups.shape[0], device=env.device) * self._fill[groups]).long()
             rows = groups * buffer_size_per_group + donor
         else:
             # credit before drawing: the outcome belongs to the row these environments were playing
-            self._credit_episodes(env, env_ids, self._monitor, success_reward_term)
+            self._credit_episodes(env, env_mask, self._monitor, success_reward_term)
             rows = self._monitor.sample_by_target_rate(groups)
-            self._playing_row[env_ids] = rows
-        set_reset_state(env, self._buffer[rows], env_ids, self._reset_assets, is_relative=True)
+            torch.where(env_mask, rows, self._playing_row, out=self._playing_row)
+        set_reset_state_mask(env, self._buffer[rows], env_mask, self._reset_assets, is_relative=True)
 
     def _keep_most_spread(self, num_groups: int, harvest_size: int, keep_size: int):
         """Thin each group's harvest down to the ``keep_size`` states most spread over the descriptor.
@@ -478,7 +498,7 @@ class conditional_reset(ManagerTermBase):
     def _credit_episodes(
         self,
         env: ManagerBasedRLEnv,
-        env_ids: torch.Tensor,
+        env_mask: torch.Tensor,
         monitor: SuccessMonitor,
         success_reward_term: str,
     ):
@@ -496,9 +516,9 @@ class conditional_reset(ManagerTermBase):
                     " episode outcomes cannot be credited to the banked states. Point 'success_reward_term'"
                     " at a term that keeps one, such as 'success_reward'."
                 )
-        played = self._playing_row[env_ids]
-        # an environment that has not been restored yet has no episode to credit
-        monitor.success_update(played, self._success_term.succeeded[env_ids], valid=played >= 0)
+        played = self._playing_row
+        # an environment that is not reset, or has not been restored yet, has no episode to credit
+        monitor.success_update(played, self._success_term.succeeded, valid=env_mask & (played >= 0))
 
 
 class grasp_travel_distance(ManagerTermBase):
@@ -920,7 +940,7 @@ class slab_clearance(ManagerTermBase):
 
 def reset_deformable_over_support(
     env: ManagerBasedEnv,
-    env_ids: torch.Tensor,
+    env_mask: torch.Tensor,
     position_range: dict[str, tuple[float, float]],
     clear_gap_range: tuple[float, float],
     support_cfg: tuple[SceneEntityCfg, SceneEntityCfg],
@@ -930,7 +950,7 @@ def reset_deformable_over_support(
 
     Args:
         env: The environment instance.
-        env_ids: The environment indices to reset.
+        env_mask: Boolean mask of the environments to reset. Shape is (num_envs,).
         position_range: Deformable displacement bounds [m] keyed by ``x``, ``y``, ``z``. The planar
             displacement is shared with the supports.
         clear_gap_range: Clear gap bounds [m] for a support pair.
@@ -940,16 +960,18 @@ def reset_deformable_over_support(
     deformable: DeformableObject = env.scene[asset_cfg.name]
     supports: tuple[RigidObject, RigidObject] = (env.scene[support_cfg[0].name], env.scene[support_cfg[1].name])
 
-    num_envs = len(range(env.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
+    # sample for every environment and write only the selected ones
+    num_envs = env.num_envs
+    wp_mask = wp.from_torch(env_mask, dtype=wp.bool)
     offset = sample_uniform_from_ranges(position_range, ("x", "y", "z"), num_envs, device=deformable.device)
 
-    nodal_state = deformable.data.default_nodal_state_w.torch[env_ids].clone()
+    nodal_state = deformable.data.default_nodal_state_w.torch.clone()
     nodal_state[..., :3] += offset.unsqueeze(1)
-    deformable.write_nodal_state_to_sim_index(nodal_state, env_ids=env_ids)
+    deformable.write_nodal_state_to_sim_mask(nodal_state, env_mask=wp_mask)
 
-    root_poses = [support.data.default_root_pose.torch[env_ids].clone() for support in supports]
+    root_poses = [support.data.default_root_pose.torch.clone() for support in supports]
     for root_pose in root_poses:
-        root_pose[:, :3] += env.scene.env_origins[env_ids]
+        root_pose[:, :3] += env.scene.env_origins
         root_pose[:, :2] += offset[:, :2]
 
     gap = sample_uniform(*clear_gap_range, (num_envs,), device=supports[0].device)
@@ -960,7 +982,7 @@ def reset_deformable_over_support(
     root_poses[1][:, 1] = center_y + 0.5 * (gap + thickness_pos)
 
     for support, root_pose in zip(supports, root_poses):
-        support.write_root_pose_to_sim_index(root_pose=root_pose, env_ids=env_ids)
-        support.write_root_velocity_to_sim_index(
-            root_velocity=torch.zeros_like(support.data.default_root_vel.torch[env_ids]), env_ids=env_ids
+        support.write_root_pose_to_sim_mask(root_pose=root_pose, env_mask=wp_mask)
+        support.write_root_velocity_to_sim_mask(
+            root_velocity=torch.zeros_like(support.data.default_root_vel.torch), env_mask=wp_mask
         )

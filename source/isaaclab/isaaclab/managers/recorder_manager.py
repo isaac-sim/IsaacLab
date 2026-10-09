@@ -15,7 +15,7 @@ import torch
 import warp as wp
 from prettytable import PrettyTable
 
-from ..utils import configclass, instantiate
+from ..utils import configclass, env_ids_from_mask, instantiate
 from ..utils.datasets import EpisodeData, HDF5DatasetFileHandler
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import RecorderTermCfg
@@ -267,12 +267,18 @@ class RecorderManager(ManagerBase):
     Operations.
     """
 
-    def reset(self, env_ids: Sequence[int] | slice | None = None) -> dict[str, torch.Tensor]:
+    def reset(
+        self, env_ids: Sequence[int] | slice | None = None, env_mask: torch.Tensor | None = None
+    ) -> dict[str, torch.Tensor]:
         """Resets the recorder data.
+
+        Recorded episodes live on the host, so a mask is converted to indices when recorder terms are active.
 
         Args:
             env_ids: The environment ids. Defaults to None, in which case
                 all environments are considered.
+            env_mask: Boolean mask of the environments to reset. Shape is (num_envs,). Takes precedence over
+                ``env_ids``.
 
         Returns:
             An empty dictionary.
@@ -280,6 +286,8 @@ class RecorderManager(ManagerBase):
         # Do nothing if no active recorder terms are provided
         if len(self.active_terms) == 0:
             return {}
+        if env_mask is not None:
+            env_ids = env_ids_from_mask(env_mask)
         # resolve environment ids
         if env_ids is None:
             env_ids = slice(None)

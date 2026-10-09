@@ -86,9 +86,10 @@ class survival_success_rate(ManagerTermBase):
     timed out without terminating early.
     """
 
-    def reset(self, env_ids: torch.Tensor) -> None:
-        survived = self._env.termination_manager.time_outs[env_ids]
-        self._env.extras.setdefault("log", {})["Metrics/success_rate"] = survived.float().mean()
+    def reset(self, env_mask: torch.Tensor) -> None:
+        survived = (self._env.termination_manager.time_outs & env_mask).sum()
+        success_rate = survived / env_mask.sum().clamp_min(1)
+        self._env.extras.setdefault("log", {})["Metrics/success_rate"] = success_rate
 
     def __call__(self, env: ManagerBasedRLEnv) -> torch.Tensor:
         return torch.zeros(env.num_envs, device=env.device)

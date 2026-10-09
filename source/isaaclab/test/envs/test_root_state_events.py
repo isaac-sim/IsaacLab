@@ -38,8 +38,8 @@ def _make_env(device: str, num_envs: int = 3) -> tuple[SimpleNamespace, SimpleNa
         ),
         written={},
     )
-    asset.write_root_pose_to_sim_index = lambda root_pose, env_ids: asset.written.update(pose=root_pose)
-    asset.write_root_velocity_to_sim_index = lambda root_velocity, env_ids: asset.written.update(vel=root_velocity)
+    asset.write_root_pose_to_sim_mask = lambda root_pose, env_mask: asset.written.update(pose=root_pose)
+    asset.write_root_velocity_to_sim_mask = lambda root_velocity, env_mask: asset.written.update(vel=root_velocity)
     env_origins = torch.arange(num_envs * 3, dtype=torch.float, device=device).reshape(num_envs, 3)
     env = SimpleNamespace(num_envs=num_envs, device=device, scene=_Scene(asset, env_origins))
     return env, asset
@@ -56,9 +56,9 @@ def test_reset_root_state_uniform_uses_call_ranges():
         params={"pose_range": {}, "velocity_range": {}, "asset_cfg": asset_cfg},
     )
     term = reset_root_state_uniform(cfg, env)
-    env_ids = torch.arange(env.num_envs, device=device)
+    env_mask = torch.ones(env.num_envs, dtype=torch.bool, device=device)
 
-    term(env, env_ids, pose_range={"x": (1.0, 1.0), "z": (0.5, 0.5)}, velocity_range={"yaw": (2.0, 2.0)})
+    term(env, env_mask, pose_range={"x": (1.0, 1.0), "z": (0.5, 0.5)}, velocity_range={"yaw": (2.0, 2.0)})
 
     expected_pos = env.scene.env_origins + torch.tensor([1.0, 0.0, 0.9], device=device)
     torch.testing.assert_close(asset.written["pose"][:, :3], expected_pos)
@@ -72,10 +72,10 @@ def test_push_by_setting_velocity_follows_range_edits():
     """Ranges are matched to components by name, and in-place range edits still take effect."""
     device = "cpu"
     env, asset = _make_env(device)
-    env_ids = torch.arange(env.num_envs, device=device)
+    env_mask = torch.ones(env.num_envs, dtype=torch.bool, device=device)
     # Dictionary insertion order differs from the command's component order.
     velocity_range = {"yaw": (-0.2, 0.8), "x": (-2.0, 1.0)}
-    push_by_setting_velocity(env, env_ids, velocity_range)
+    push_by_setting_velocity(env, env_mask, velocity_range)
     velocity = asset.written["vel"]
     assert ((velocity[:, 0] >= -2.0) & (velocity[:, 0] <= 1.0)).all()
     assert ((velocity[:, 5] >= -0.2) & (velocity[:, 5] <= 0.8)).all()
@@ -83,5 +83,5 @@ def test_push_by_setting_velocity_follows_range_edits():
 
     # a curriculum may edit the range dictionary in place
     velocity_range["x"] = (-2.0, -2.0)
-    push_by_setting_velocity(env, env_ids, velocity_range)
+    push_by_setting_velocity(env, env_mask, velocity_range)
     torch.testing.assert_close(asset.written["vel"][:, 0], torch.full((env.num_envs,), -2.0, device=device))

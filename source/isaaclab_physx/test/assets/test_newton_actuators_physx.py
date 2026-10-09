@@ -15,7 +15,7 @@ heterogeneous robots, per-environment resets, gain randomization, network actuat
 """
 
 from isaaclab.test.utils import DeviceScope, launch_test_simulation, test_devices
-from isaaclab.utils import replace
+from isaaclab.utils import env_mask_from_ids, replace
 
 launch_test_simulation()
 
@@ -324,11 +324,12 @@ def test_gain_randomization_reuses_payload_for_implicit_storage(rollouts: _Rollo
     env = MockEnv({"robot": robot}, NUM_ENVS, robot.device)
     term, asset_cfg = build_dr_term(env, "robot")
     env_ids = torch.tensor([0], device=robot.device)
+    env_mask = env_mask_from_ids(env_ids, NUM_ENVS, robot.device)
     torch.manual_seed(12345)
 
     term(
         env,
-        env_ids=env_ids,
+        env_mask=env_mask,
         asset_cfg=asset_cfg,
         stiffness_distribution_params=(25.0, 75.0),
         damping_distribution_params=(1.0, 9.0),
@@ -364,7 +365,7 @@ def test_gain_randomization_reaches_only_the_selected_articulation(rollouts: _Ro
 
     term(
         env,
-        env_ids=torch.tensor([0], device=legs.device),
+        env_mask=env_mask_from_ids([0], NUM_ENVS, legs.device),
         asset_cfg=asset_cfg,
         stiffness_distribution_params=(100.0, 100.0),
         damping_distribution_params=(5.0, 5.0),

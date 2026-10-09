@@ -8,13 +8,11 @@
 from __future__ import annotations
 
 import math
-from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
 
 from isaaclab.managers import ActionTerm
-from isaaclab.utils import index_fill_
 
 from ..selection_utils import SceneEntitySelectionCfg
 
@@ -52,9 +50,13 @@ class _SelectedJointAction(ActionTerm):
         """Processed actions in asset physics-view order."""
         return self._processed_actions
 
-    def reset(self, env_ids: Sequence[int] | None = None) -> None:
-        """Clear raw actions for the reset global environments."""
-        index_fill_(self._raw_actions, env_ids, 0.0)
+    def reset(self, env_mask: torch.Tensor) -> None:
+        """Clear raw actions for the reset global environments.
+
+        Args:
+            env_mask: Boolean mask of the environments to reset. Shape is (num_envs,).
+        """
+        self._raw_actions.masked_fill_(env_mask.unsqueeze(-1), 0.0)
 
 
 class SelectedJointPositionAction(_SelectedJointAction):

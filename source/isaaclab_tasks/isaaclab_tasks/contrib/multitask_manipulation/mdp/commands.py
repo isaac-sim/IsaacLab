@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
@@ -30,7 +29,6 @@ class SelectedUniformPoseCommand(CommandTerm):
     def __init__(self, cfg: SelectedUniformPoseCommandCfg, env: ManagerBasedRLEnv):
         super().__init__(cfg, env)
         self.pose_command = torch.zeros(self.num_envs, 7, device=self.device)
-        self._all_env_ids = torch.arange(self.num_envs, device=self.device)
         self._reference_cfg = cfg.reference_cfg
         self._tracked_cfg = cfg.tracked_cfg
         self._reference_cfg.resolve(env.scene)
@@ -43,19 +41,20 @@ class SelectedUniformPoseCommand(CommandTerm):
         """Pose command, shape ``(num_envs, 7)``."""
         return self.pose_command
 
-    def _resample_command(self, env_ids: Sequence[int]) -> None:
-        global_env_ids = self._all_env_ids[env_ids]
-        _, selected_env_ids = self._reference_cfg.select(global_env_ids)
+    def _resample_command(self, env_mask: torch.Tensor) -> None:
+        # resample only the selected environments that contain the reference entity
+        env_mask = env_mask & (self._reference_cfg.instance_ids.to(self.device) >= 0)
         ranges = self.cfg.ranges
-        sample = torch.empty(len(selected_env_ids), device=self.device)
-        self.pose_command[selected_env_ids, 0] = sample.uniform_(*ranges.pos_x)
-        self.pose_command[selected_env_ids, 1] = sample.uniform_(*ranges.pos_y)
-        self.pose_command[selected_env_ids, 2] = sample.uniform_(*ranges.pos_z)
-        euler = torch.empty(len(selected_env_ids), 3, device=self.device)
+        pose_command = torch.empty_like(self.pose_command)
+        pose_command[:, 0].uniform_(*ranges.pos_x)
+        pose_command[:, 1].uniform_(*ranges.pos_y)
+        pose_command[:, 2].uniform_(*ranges.pos_z)
+        euler = torch.empty(self.num_envs, 3, device=self.device)
         euler[:, 0].uniform_(*ranges.roll)
         euler[:, 1].uniform_(*ranges.pitch)
         euler[:, 2].uniform_(*ranges.yaw)
-        self.pose_command[selected_env_ids, 3:] = quat_unique(quat_from_euler_xyz(*euler.unbind(-1)))
+        pose_command[:, 3:] = quat_unique(quat_from_euler_xyz(*euler.unbind(-1)))
+        torch.where(env_mask[:, None], pose_command, self.pose_command, out=self.pose_command)
 
     def _update_metrics(self) -> None:
         pass

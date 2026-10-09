@@ -7,8 +7,9 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from typing import TYPE_CHECKING
+
+import torch
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
@@ -16,7 +17,7 @@ if TYPE_CHECKING:
 
 def difficulty_interpolate_float(
     env: ManagerBasedRLEnv,
-    _env_ids: Sequence[int],
+    env_mask: torch.Tensor,
     _data: float,
     initial_value: float,
     final_value: float,
@@ -29,7 +30,7 @@ def difficulty_interpolate_float(
 
 def gravity_range_linear(
     env: ManagerBasedRLEnv,
-    _env_ids: Sequence[int],
+    env_mask: torch.Tensor,
     event_name: str,
     start_gravity_z: float,
     end_gravity_z: float,

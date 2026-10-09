@@ -110,3 +110,18 @@ def test_constant_noise(device, noise_device, op):
 
         assert str(noise_cfg.bias.device) == device
         torch.testing.assert_close(noise_cfg.bias.repeat(data.shape[0], 1), bias_result)
+
+
+def test_additive_bias_mask_reset():
+    """A mask reset resamples the bias of the selected environments only."""
+    cfg = noise.NoiseModelWithAdditiveBiasCfg(
+        noise_cfg=noise.ConstantNoiseCfg(bias=0.0),
+        bias_noise_cfg=noise.ConstantNoiseCfg(bias=1.0, operation="add"),
+        sample_bias_per_component=False,
+    )
+    noise_model = noise.NoiseModelWithAdditiveBias(cfg, num_envs=3, device="cpu")
+
+    noise_model.reset(env_mask=torch.tensor([True, False, True]))
+
+    output = noise_model(torch.zeros(3, 2))
+    torch.testing.assert_close(output, torch.tensor([[1.0, 1.0], [0.0, 0.0], [1.0, 1.0]]))

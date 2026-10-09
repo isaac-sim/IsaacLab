@@ -315,8 +315,8 @@ class PinkInverseKinematicsAction(ActionTerm):
             self._apply_gravity_compensation()
 
         # Apply joint position targets
-        self._asset.set_joint_position_target_index(
-            target=self._processed_actions, joint_ids=self._controlled_joint_ids
+        self._asset.actuators.target_command.set_position_index(
+            value=self._processed_actions, joint_ids=self._controlled_joint_ids
         )
 
     def _apply_gravity_compensation(self) -> None:
@@ -335,7 +335,7 @@ class PinkInverseKinematicsAction(ActionTerm):
             gravity = self._asset.data.gravity_compensation_forces.torch[:, jacobi_ids]
 
             # Apply gravity compensation to arm joints
-            self._asset.set_joint_effort_target_index(target=gravity, joint_ids=self._controlled_joint_ids)
+            self._asset.actuators.target_command.set_effort_index(value=gravity, joint_ids=self._controlled_joint_ids)
 
     def _compute_ik_solutions(self) -> torch.Tensor:
         """Compute IK solutions for all environments.
@@ -357,10 +357,12 @@ class PinkInverseKinematicsAction(ActionTerm):
 
     # ==================== Reset ====================
 
-    def reset(self, env_ids: Sequence[int] | None = None) -> None:
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: torch.Tensor | None = None) -> None:
         """Reset the action term for specified environments.
 
         Args:
             env_ids: A list of environment IDs to reset. If None, all environments are reset.
+            env_mask: Boolean mask of the environments to reset. Shape is (num_envs,). Takes precedence over
+                ``env_ids``.
         """
-        index_fill_(self._raw_actions, env_ids, 0.0)
+        index_fill_(self._raw_actions, env_ids if env_mask is None else env_mask, 0.0)

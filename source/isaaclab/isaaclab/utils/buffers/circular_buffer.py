@@ -147,7 +147,8 @@ class CircularBuffer:
         """Reset the circular buffer at the specified batch indices.
 
         Args:
-            batch_ids: Elements to reset in the batch dimension. Default is None, which resets all the batch indices.
+            batch_ids: Elements to reset in the batch dimension, as indices or a boolean mask. Default is None,
+                which resets all the batch indices.
         """
         if batch_ids is None:
             batch_ids = slice(None)

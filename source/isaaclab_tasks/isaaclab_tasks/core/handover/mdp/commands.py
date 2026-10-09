@@ -15,7 +15,7 @@ import torch
 import isaaclab.utils.math as math_utils
 from isaaclab.managers import CommandTerm
 from isaaclab.markers import VisualizationMarkers
-from isaaclab.utils import index_fill_
+from isaaclab.utils import env_mask_from_ids
 
 from isaaclab_tasks.core.reorient.utils import EpisodeErrorRecorder
 
@@ -57,30 +57,30 @@ class HandoverCommand(CommandTerm):
         self._minimum_goal_distance.update(goal_distance)
         self._succeeded |= goal_distance < self.cfg.success_distance_threshold
 
-    def reset(self, env_ids: Sequence[int] | None = None) -> dict[str, float]:
-        if env_ids is None:
-            env_ids = slice(None)
-        # The base class averages the metric over ``env_ids`` and zeroes it, so the episode's success bit is
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: torch.Tensor | None = None) -> dict[str, float]:
+        if env_mask is None:
+            env_mask = env_mask_from_ids(env_ids, self.num_envs, self.device)
+        # The base class averages the metric over the reset envs and zeroes it, so the episode's success bit is
         # written before delegating. Success means the object is at the goal when the episode ends, not that
         # it passed through it; the latch guards the first reset, before any distance is measured.
-        self.metrics["success_rate"][env_ids] = (
-            (self.metrics["goal_distance"][env_ids] < self.cfg.success_distance_threshold) & self._succeeded[env_ids]
-        ).float()
-        extras = super().reset(env_ids)
-        index_fill_(self._succeeded, env_ids, False)
+        success = (self.metrics["goal_distance"] < self.cfg.success_distance_threshold) & self._succeeded
+        success_rate = self.metrics["success_rate"]
+        torch.where(env_mask, success.float(), success_rate, out=success_rate)
+        extras = super().reset(env_mask=env_mask)
+        self._succeeded.masked_fill_(env_mask, False)
         log = self._env.extras.setdefault("log", {})
         # Route success_rate to the unified ``Metrics/success_rate`` path (shared TensorBoard
         # card across tasks); pop it from the returned dict so CommandManager does not
         # additionally log it under ``Metrics/<term_name>/success_rate``.
         log["Metrics/success_rate"] = extras.pop("success_rate")
-        for statistic, value in self._minimum_goal_distance.reset(env_ids).items():
+        for statistic, value in self._minimum_goal_distance.reset(env_mask).items():
             log[f"Diagnostics/episode_min_goal_distance_{statistic}"] = value
         return extras
 
-    def _resample_command(self, env_ids: Sequence[int]) -> None:
+    def _resample_command(self, env_mask: torch.Tensor) -> None:
         # sample uniformly over SO(3) rather than composing single-axis rotations, which only reaches a subset
-        num_envs = len(range(self.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
-        self.quat_command_w[env_ids] = math_utils.random_orientation(num_envs, device=self.device)
+        quat = math_utils.random_orientation(self.num_envs, device=self.device)
+        torch.where(env_mask[:, None], quat, self.quat_command_w, out=self.quat_command_w)
 
     def _update_command(self) -> None:
         pass

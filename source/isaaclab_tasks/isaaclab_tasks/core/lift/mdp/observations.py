@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import functools
-from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
@@ -258,18 +257,23 @@ class DeformableSampledPointsInRobotRootFrame(ManagerTermBase):
         self.node_ids = torch.empty(env.num_envs, self.num_points, dtype=torch.long, device=env.device)
         self.reset()
 
-    def reset(self, env_ids: Sequence[int] | slice | None = None) -> None:
-        """Resample observed deformable nodes for the selected environments."""
-        if env_ids is None:
-            env_ids = slice(None)
-        num_envs = len(range(self.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
+    def reset(self, env_mask: torch.Tensor | None = None) -> None:
+        """Resample observed deformable nodes for the selected environments.
 
+        Args:
+            env_mask: Boolean mask of the environments to resample. Shape is (num_envs,). Defaults to None,
+                which resamples every environment.
+        """
+        # sample for every environment and keep the unselected ones
         if self.num_points <= self.num_nodes:
-            self.node_ids[env_ids] = (
-                torch.rand((num_envs, self.num_nodes), device=self.device).topk(self.num_points, dim=1).indices
-            )
+            node_ids = torch.rand((self.num_envs, self.num_nodes), device=self.device).topk(self.num_points, dim=1)
+            node_ids = node_ids.indices
         else:
-            self.node_ids[env_ids] = torch.randint(self.num_nodes, (num_envs, self.num_points), device=self.device)
+            node_ids = torch.randint(self.num_nodes, (self.num_envs, self.num_points), device=self.device)
+        if env_mask is None:
+            self.node_ids.copy_(node_ids)
+        else:
+            torch.where(env_mask.unsqueeze(-1), node_ids, self.node_ids, out=self.node_ids)
 
     def __call__(
         self,

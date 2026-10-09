@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from typing import TYPE_CHECKING, Literal
 
 import torch
@@ -71,9 +70,13 @@ class _ProgressReward(ManagerTermBase):
         # RewardManager integrates rates over ``step_dt``; dividing here preserves a potential delta.
         return delta / env.step_dt
 
-    def reset(self, env_ids: Sequence[int] | torch.Tensor | slice | None = None) -> None:
-        selected = slice(None) if env_ids is None else env_ids
-        self._previous[selected] = self._value(self._env)[selected]
+    def reset(self, env_mask: torch.Tensor) -> None:
+        """Rebase the potential of the reset environments on their current value.
+
+        Args:
+            env_mask: Boolean mask of the environments to reset. Shape is (num_envs,).
+        """
+        torch.where(env_mask, self._value(self._env), self._previous, out=self._previous)
 
 
 class BinProgressReward(_ProgressReward):

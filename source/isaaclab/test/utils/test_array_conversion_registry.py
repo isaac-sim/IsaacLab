@@ -8,7 +8,13 @@ import pytest
 import torch
 import warp as wp
 
-from isaaclab.utils.array import index_fill_
+from isaaclab.utils.array import (
+    env_ids_from_mask,
+    env_mask_from_ids,
+    env_selection_kwargs,
+    index_fill_,
+    takes_env_mask,
+)
 from isaaclab.utils.dict import convert_dict_to_backend
 
 pytestmark = pytest.mark.unit
@@ -56,3 +62,48 @@ def test_index_fill(device, dim, dtype, value, indices):
         if previous is not None:
             torch.cuda.set_sync_debug_mode(previous)
     torch.testing.assert_close(data.cpu(), expected)
+
+
+@pytest.mark.parametrize("env_ids", [None, slice(None), slice(1, None, 2), [0, 3], torch.tensor([2])])
+def test_env_mask_round_trip(env_ids):
+    """Masks built from indices select the same environments as the indices."""
+    mask = env_mask_from_ids(env_ids, 5, "cpu")
+    expected = torch.zeros(5, dtype=torch.bool)
+    expected[slice(None) if env_ids is None else env_ids] = True
+    assert torch.equal(mask, expected)
+    assert torch.equal(env_ids_from_mask(mask), expected.nonzero().squeeze(-1))
+
+
+def test_env_selection_kwargs():
+    """Mask callables get the mask; index callables get the caller's or the selected indices, or are skipped."""
+
+    def by_mask(env, env_mask):
+        pass
+
+    def by_ids(env, env_ids):
+        pass
+
+    class Term:
+        def __call__(self, env, env_mask):
+            pass
+
+        def reset(self, env_ids=None):
+            pass
+
+    mask = torch.tensor([False, True, False, True])
+    assert takes_env_mask(by_mask) and takes_env_mask(Term()) and takes_env_mask(Term)
+    assert not takes_env_mask(by_ids) and not takes_env_mask(Term().reset)
+    assert env_selection_kwargs(by_mask, mask) == {"env_mask": mask}
+    assert torch.equal(env_selection_kwargs(by_ids, mask)["env_ids"], torch.tensor([1, 3]))
+    assert env_selection_kwargs(by_ids, mask, slice(None)) == {"env_ids": slice(None)}
+    assert env_selection_kwargs(Term().reset, torch.zeros(4, dtype=torch.bool)) is None
+
+
+def test_takes_env_mask_sees_through_partial():
+    """A partial of a mask-native function is recognized as mask-native."""
+    import functools
+
+    def by_mask(env, env_mask, scale):
+        pass
+
+    assert takes_env_mask(functools.partial(by_mask, scale=2.0))

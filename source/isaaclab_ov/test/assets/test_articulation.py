@@ -67,7 +67,7 @@ from isaaclab.test.utils.articulation_ordering import (  # noqa: E402
     BRANCHING_PHYSX_BODY_NAMES,
     BRANCHING_PHYSX_JOINT_NAMES,
 )
-from isaaclab.utils import replace  # noqa: E402
+from isaaclab.utils import env_mask_from_ids, replace  # noqa: E402
 from isaaclab.utils.warp.launch_cache import _WarpLaunchCache  # noqa: E402
 
 from isaaclab_assets import FRANKA_PANDA_CFG  # noqa: E402
@@ -986,7 +986,7 @@ def test_set_material_properties(scene: _ArticulationScene) -> None:
     randomize = randomize_rigid_body_material(cfg, env)
 
     # Randomize only the last environment; the others keep their materials.
-    randomize(env, torch.tensor([num_articulations - 1], device=device), **cfg.params)
+    randomize(env, env_mask_from_ids([num_articulations - 1], num_articulations, device), **cfg.params)
     scene.step(articulation)
 
     materials = wp.to_torch(view.get_attribute(TT.SHAPE_FRICTION_AND_RESTITUTION))
@@ -1664,7 +1664,7 @@ def test_native_actuator_reset_and_gain_event_are_environment_selective(scene: _
         "distribution": "uniform",
     }
     event = randomize_actuator_gains(EventTermCfg(func=randomize_actuator_gains, params=event_params), env)
-    event(env, env_ids=torch.tensor([0], device=device), **event_params)
+    event(env, env_mask=env_mask_from_ids([0], env.num_envs, device), **event_params)
 
     stiffness = read_group_parameter(articulation.actuators, "joint", "controller", "kp")
     damping = read_group_parameter(articulation.actuators, "joint", "controller", "kd")

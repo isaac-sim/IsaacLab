@@ -61,11 +61,15 @@ class BaseCableObject(AssetBase):
         raise NotImplementedError()
 
     @abstractmethod
-    def reset(self, env_ids: Sequence[int] | None = None) -> None:
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | torch.Tensor | None = None) -> None:
         """Reset the cable object.
+
+        .. caution::
+            If both ``env_ids`` and ``env_mask`` are provided, ``env_mask`` takes precedence.
 
         Args:
             env_ids: Environment indices. If None, all instances are used.
+            env_mask: Boolean environment mask. Shape is (num_instances,). Defaults to None.
         """
         raise NotImplementedError()
 

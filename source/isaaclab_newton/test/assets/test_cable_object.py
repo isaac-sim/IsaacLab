@@ -26,7 +26,7 @@ from isaaclab.sim import GroundPlaneCfg, SimulationCfg, UsdPhysicsCollisionCfg, 
 from isaaclab.sim.spawners.materials import CableMaterialCfg
 from isaaclab.sim.spawners.shapes import CableCfg
 from isaaclab.test.utils import DeviceScope, test_devices
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, env_mask_from_ids
 
 from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
 
@@ -205,8 +205,8 @@ def test_interactive_scene_manages_newton_cables():
         state_1_pose, state_1_velocity = _expected_segment_state(
             cable, SimulationManager.get_state_1(), SimulationManager.get_model()
         )
-        env_ids = torch.tensor([0], device=sim.device, dtype=torch.long)
-        reset_scene_to_default(SimpleNamespace(scene=scene), env_ids)
+        env_mask = env_mask_from_ids([0], scene.num_envs, sim.device)
+        reset_scene_to_default(SimpleNamespace(scene=scene), env_mask)
 
         torch.testing.assert_close(cable.data.segment_pose_w.torch[0], default_pose[0])
         torch.testing.assert_close(cable.data.segment_velocity_w.torch[0], default_velocity[0])

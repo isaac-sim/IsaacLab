@@ -156,16 +156,19 @@ class DigitalFilter(ModifierBase):
         self.x_n = torch.zeros(self._data_dim + (self.B.shape[0],), device=self._device)
         self.y_n = torch.zeros(self._data_dim + (self.A.shape[0],), device=self._device)
 
-    def reset(self, env_ids: Sequence[int] | None = None):
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: torch.Tensor | None = None):
         """Resets digital filter history.
 
         Args:
             env_ids: The environment ids. Defaults to None, in which case
                 all environments are considered.
+            env_mask: Boolean mask of the environments to reset. Shape is (num_envs,). Defaults to None.
+                Takes precedence over ``env_ids``.
         """
+        env_selection = env_ids if env_mask is None else env_mask
         # reset history buffers
-        index_fill_(self.x_n, env_ids, 0.0)
-        index_fill_(self.y_n, env_ids, 0.0)
+        index_fill_(self.x_n, env_selection, 0.0)
+        index_fill_(self.y_n, env_selection, 0.0)
 
     def __call__(self, data: torch.Tensor) -> torch.Tensor:
         """Applies digital filter modification with a rolling history window inputs and outputs.
@@ -229,16 +232,19 @@ class Integrator(ModifierBase):
         self.integral = torch.zeros(self._data_dim, device=self._device)
         self.y_prev = torch.zeros(self._data_dim, device=self._device)
 
-    def reset(self, env_ids: Sequence[int] | None = None):
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: torch.Tensor | None = None):
         """Resets integrator state to zero.
 
         Args:
             env_ids: The environment ids. Defaults to None, in which case
                 all environments are considered.
+            env_mask: Boolean mask of the environments to reset. Shape is (num_envs,). Defaults to None.
+                Takes precedence over ``env_ids``.
         """
+        env_selection = env_ids if env_mask is None else env_mask
         # reset history buffers
-        index_fill_(self.integral, env_ids, 0.0)
-        index_fill_(self.y_prev, env_ids, 0.0)
+        index_fill_(self.integral, env_selection, 0.0)
+        index_fill_(self.y_prev, env_selection, 0.0)
 
     def __call__(self, data: torch.Tensor) -> torch.Tensor:
         """Applies integral modification to input data.

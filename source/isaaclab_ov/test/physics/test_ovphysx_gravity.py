@@ -65,7 +65,7 @@ def test_gravity_event_changes_rigid_body_motion(device):
         def set_gravity(gravity: tuple[float, float, float]) -> None:
             gravity_event(
                 env,
-                env_ids=None,
+                env_mask=torch.ones(1, dtype=torch.bool, device=sim.device),
                 gravity_distribution_params=(gravity, (0.0, 0.0, 0.0)),
                 operation="abs",
             )

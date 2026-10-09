@@ -172,18 +172,24 @@ class DelayBuffer:
         Externally selected lags are preserved.
 
         Args:
-            batch_ids: Elements to reset in the batch dimension. Default is None, which resets all the batch indices.
+            batch_ids: Elements to reset in the batch dimension, as indices or a boolean mask. Default is None,
+                which resets all the batch indices.
         """
         indices = slice(None) if batch_ids is None else batch_ids
         index_fill_(self._num_pushes, indices, 0)
         if self._hold_prob is not None:
-            self._time_lags[indices] = torch.randint(
-                self._min_lag,
-                self.history_length + 1,
-                self._time_lags[indices].shape,
-                dtype=self._time_lags.dtype,
-                device=self.device,
-            )
+            if isinstance(indices, torch.Tensor) and indices.dtype == torch.bool:
+                # a mask redraws every lag and keeps the unselected ones, which keeps the device unsynchronized
+                lags = torch.randint_like(self._time_lags, self._min_lag, self.history_length + 1)
+                torch.where(indices, lags, self._time_lags, out=self._time_lags)
+            else:
+                self._time_lags[indices] = torch.randint(
+                    self._min_lag,
+                    self.history_length + 1,
+                    self._time_lags[indices].shape,
+                    dtype=self._time_lags.dtype,
+                    device=self.device,
+                )
 
     def compute(self, data: torch.Tensor, *, update_history: bool = True) -> torch.Tensor:
         """Return delayed data, optionally recording the input as a new sample.
