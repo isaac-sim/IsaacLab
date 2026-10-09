@@ -176,8 +176,8 @@ rerun = [
 
 isaacsim = ["isaacsim[all,extscache]==6.2.0.0"]
 
-ov = ["ovphysx==0.6.4.72118723", "ovrtx==0.5.1.385782", "ovstage==0.2.1.385922"]
-ovphysx = ["ovphysx==0.6.4.72118723", "ovstage==0.2.1.385922"]
+ov = ["ovphysx==0.6.4.72118723", "ovrtx==0.5.1.385782", "ovstage==0.2.1.385922", "physx-usd-schemas>=25.11.2"]
+ovphysx = ["ovphysx==0.6.4.72118723", "ovstage==0.2.1.385922", "physx-usd-schemas>=25.11.2"]
 ovrtx = ["ovrtx==0.5.1.385782", "ovstage==0.2.1.385922"]
 
 mimic = [
@@ -437,6 +437,7 @@ omniverseclient = { index = "pypi-public" }
 ovphysx = { index = "pypi-public" }
 ovrtx = { index = "pypi-public" }
 ovstage = { index = "pypi-public" }
+physx-usd-schemas = { index = "pypi-public" }
 isaaclab = { path = "source/isaaclab", editable = true }
 "isaaclab-assets" = { path = "source/isaaclab_assets", editable = true }
 "isaaclab-contrib" = { path = "source/isaaclab_contrib", editable = true }

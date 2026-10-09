@@ -13,9 +13,8 @@ OvPhysX Backend
 .. warning::
 
     Do not combine OvPhysX with the Kit visualizer. Commands such as
-    ``physics=ovphysx --visualizer kit`` are unsupported because ovphysx
-    loads USD-dependent PhysX plugins from its own package, while Kit already
-    owns a separate USD/plugin stack in the same process. Use
+    ``physics=ovphysx --visualizer kit`` are unsupported. The launcher rejects
+    configurations that combine OvPhysX physics with a Kit-dependent component. Use
     ``--visualizer newton_gl``, ``--visualizer rerun``, ``--visualizer viser``,
     or omit ``--visualizer`` for headless execution.
 
@@ -129,6 +128,13 @@ The ``--inexact`` flag preserves packages installed through other extras.
 Use ``--extra ov`` to install both public OvPhysX and OVRTX runtimes. The combined
 extra pairs OVRTX 0.5.1.385782 with OVStage 0.2.1; OVRTX 0.4.1 is not compatible
 with this runtime combination.
+
+The ``ovphysx`` and ``ov`` extras also install ``physx-usd-schemas``. Isaac Lab
+discovers that package's PhysX and deformable schema resources without importing
+the provider, then registers them with OVStage and the host USD runtime before
+creating the simulation stage. A missing or incomplete provider fails at startup.
+Custom consumers must register both schema resource directories before their first
+USD schema lookup or OVStage population; newer OVPhysX runtimes no longer bundle those resources.
 
 Task completion
 ---------------

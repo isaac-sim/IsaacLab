@@ -106,23 +106,21 @@ def test_initialize_defers_native_resource_until_warmup(monkeypatch, manager_mod
 
 
 @pytest.mark.parametrize(
-    ("registered_names", "expected_paths", "schema_root", "has_registration_api"),
+    ("registered_names", "expected_paths", "has_registration_api"),
     [
-        (["physxSchema"], ["/schemas/OmniUsdPhysicsDeformableSchema/resources"], "/schemas", True),
-        (["PhysxSchema", "OmniUsdPhysicsDeformableSchema"], [], "/schemas", True),
-        (["PhysxSchema", "OmniUsdPhysicsDeformableSchema"], [], None, True),
-        (["physxSchema"], ["/schemas/OmniUsdPhysicsDeformableSchema/resources"], "/schemas", False),
+        (["physxSchema"], ["/schemas/OmniUsdPhysicsDeformableSchema/resources"], True),
+        (["PhysxSchema", "OmniUsdPhysicsDeformableSchema"], [], True),
+        (["physxSchema"], ["/schemas/OmniUsdPhysicsDeformableSchema/resources"], False),
         pytest.param(
             ["physxSchema"],
             ["/schemas/OmniUsdPhysicsDeformableSchema/resources"],
-            "/schemas",
             None,
             id="ovstage-import-unavailable",
         ),
     ],
 )
 def test_schema_registration_skips_providers_already_supplied_by_host(
-    monkeypatch, manager_module, registered_names, expected_paths, schema_root, has_registration_api
+    monkeypatch, manager_module, registered_names, expected_paths, has_registration_api
 ):
     manager = manager_module.OvPhysxManager
     schema_paths = [
@@ -132,10 +130,7 @@ def test_schema_registration_skips_providers_already_supplied_by_host(
     host_registrations = []
     ovstage_registrations = []
 
-    fake_ovphysx = ModuleType("ovphysx")
-    fake_ovphysx.codeless_schema_paths = lambda: schema_paths
-    if schema_root is not None:
-        fake_ovphysx.codeless_schema_root = lambda: Path(schema_root)
+    monkeypatch.setattr(manager_module, "physx_schema_paths", lambda: schema_paths)
 
     fake_ovstage = ModuleType("ovstage")
     fake_ovstage.population = SimpleNamespace()
@@ -151,7 +146,6 @@ def test_schema_registration_skips_providers_already_supplied_by_host(
 
     fake_pxr = ModuleType("pxr")
     fake_pxr.Plug = type("FakePlug", (), {"Registry": staticmethod(FakeRegistry)})
-    monkeypatch.setitem(sys.modules, "ovphysx", fake_ovphysx)
     # A None entry makes importing OVStage raise ModuleNotFoundError.
     monkeypatch.setitem(sys.modules, "ovstage", fake_ovstage if has_registration_api is not None else None)
     monkeypatch.setitem(sys.modules, "pxr", fake_pxr)
@@ -163,8 +157,7 @@ def test_schema_registration_skips_providers_already_supplied_by_host(
 
     expected_ovstage_registrations = []
     if has_registration_api:
-        if schema_root is not None:
-            expected_ovstage_registrations.append(schema_root)
+        expected_ovstage_registrations.append([str(path) for path in schema_paths])
         expected_ovstage_registrations.append(newton_schema_root)
     assert ovstage_registrations == expected_ovstage_registrations
     assert host_registrations == ([expected_paths] if expected_paths else [])
