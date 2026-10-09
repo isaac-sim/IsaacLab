@@ -17,6 +17,7 @@ from isaaclab.utils import configclass
 
 from isaaclab_assets.robots.allegro import ALLEGRO_ACTUATED_JOINT_NAMES, ALLEGRO_FINGERTIP_BODY_NAMES
 
+from ...utils import VISUALIZER_CFG
 from .allegro_hand_common import (
     ALLEGRO_HAND_ROBOT_CFG,
     CUBE_CFG,
@@ -58,6 +59,7 @@ class AllegroHandEnvCfg(DirectRLEnvCfg):
         render_interval=decimation,
         physics_material=RigidBodyMaterialBaseCfg(static_friction=1.0, dynamic_friction=1.0),
         physics=PhysicsCfg(),
+        default_visualizer_cfg=VISUALIZER_CFG.copy(),
     )
     actuated_joint_names = ALLEGRO_ACTUATED_JOINT_NAMES
     fingertip_body_names = ALLEGRO_FINGERTIP_BODY_NAMES

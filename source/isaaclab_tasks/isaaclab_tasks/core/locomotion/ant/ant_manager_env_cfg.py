@@ -25,6 +25,7 @@ from .ant_common import (
     FEET_BODY_NAMES,
     JOINT_GEARS,
     TERRAIN_CFG,
+    VISUALIZER_CFG,
     WALK_TARGET_POS,
     AntPhysicsCfg,
 )
@@ -186,6 +187,7 @@ class AntEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.dt = 1 / 120
         self.sim.render_interval = self.decimation
         self.sim.physics = AntPhysicsCfg()
+        self.sim.default_visualizer_cfg = VISUALIZER_CFG.copy()
         self.sim.physics_material.static_friction = 1.0
         self.sim.physics_material.dynamic_friction = 1.0
         self.sim.physics_material.restitution = 0.0

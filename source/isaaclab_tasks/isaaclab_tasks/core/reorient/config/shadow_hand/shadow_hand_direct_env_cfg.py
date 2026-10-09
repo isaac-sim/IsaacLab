@@ -17,6 +17,7 @@ from isaaclab.utils import configclass
 
 from isaaclab_assets.robots.shadow_hand import FINGERTIP_NAMES, JOINT_NAMES, TENDON_NAMES, TENDON_POSITION_LIMITS
 
+from ...utils import VISUALIZER_CFG
 from .shadow_hand_common import (
     CUBE_CFG,
     GOAL_OBJECT_CFG,
@@ -61,6 +62,7 @@ class ShadowHandEnvCfg(DirectRLEnvCfg):
         render_interval=decimation,
         physics_material=RigidBodyMaterialBaseCfg(static_friction=1.0, dynamic_friction=1.0),
         physics=PhysicsCfg(),
+        default_visualizer_cfg=VISUALIZER_CFG.copy(),
     )
 
     actuated_joint_names = JOINT_NAMES

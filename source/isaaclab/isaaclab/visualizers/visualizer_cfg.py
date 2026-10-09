@@ -8,14 +8,15 @@
 from __future__ import annotations
 
 import argparse
+import math
 import warnings
-from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
 from ..utils import configclass
 from ..utils.string import string_to_callable
 
 if TYPE_CHECKING:
+    from ..renderers.renderer_cfg import RendererCfg
     from .base_visualizer import BaseVisualizer
 
 
@@ -31,6 +32,9 @@ the ``<isaaclab_visualizers subpackage>:<class>`` of their default config, impor
 
 VISUALIZER_ALIASES = {"newton": "newton_gl"}
 """Deprecated ``--visualizer`` names and their replacements."""
+
+USD_DEFAULT_VERTICAL_APERTURE_MM = 15.2908
+"""Vertical aperture [mm] that visualizers use to turn a focal length into a vertical field of view."""
 
 _VISUALIZER_EXTRAS = {
     "kit": "isaacsim",
@@ -141,13 +145,73 @@ class PerspectiveCameraCfg:
 
 @configclass
 class SceneCameraCfg:
-    """Select an existing scene camera's output for display in the visualizer.
+    """A scene camera whose output a visualizer displays in its streaming view.
 
-    This does not create a sensor. Declare its pose, optics, and renderer in the scene's CameraCfg.
+    By default this refers to a camera sensor the scene already declares, and it creates nothing: declare the
+    camera's pose, optics, and renderer in the scene's :class:`~isaaclab.sensors.CameraCfg`, and a path that
+    matches no scene camera raises an error.
+
+    With ``create=True`` the visualizer declares the camera instead. When a visualizer is selected or recorded, the
+    launcher adds a :class:`~isaaclab.sensors.CameraCfg` built from the fields below to every environment, so runs
+    without a visualizer pay nothing. The camera stays fixed relative to each environment, or follows an asset
+    when :attr:`track_path` is set. The streaming view shows it like any other scene camera, e.g. recorded with
+    ``--video viz:newton_gl:streaming_view``.
     """
 
-    prim_path: str = MISSING
-    """Scene camera's configured prim path, including ``{ENV_REGEX_NS}`` when applicable."""
+    prim_path: str = "{ENV_REGEX_NS}/StreamingCamera"
+    """Scene camera's prim path, including ``{ENV_REGEX_NS}`` when applicable.
+
+    With ``create=True`` this is the path of the created camera, and its last segment is the scene sensor name.
+    """
+
+    create: bool = False
+    """Whether the launcher creates the camera from the fields below, instead of finding it in the scene."""
+
+    eye: tuple[float, float, float] = (4.0, -4.0, 3.0)
+    """Created camera's eye offset [m] from the tracked asset, or from the environment origin without
+    :attr:`track_path`."""
+
+    lookat: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    """Created camera's look-at offset [m], in the same frame as :attr:`eye`."""
+
+    focal_length: float = 24.0
+    """Created camera's focal length [mm]."""
+
+    resolution: tuple[int, int] = (1920, 1080)
+    """Created camera's image size as (width, height) [px]."""
+
+    data_types: tuple[str, ...] = ("rgb",)
+    """Created camera's output channels; include every channel :attr:`VisualizerCfg.streaming_gt_types` displays."""
+
+    renderer_cfg: RendererCfg | None = None
+    """Renderer of the created camera, e.g. ``NewtonWarpRendererCfg(enable_shadows=True)`` to trade speed for
+    quality. None uses the Newton Warp renderer, except with a Kit visualizer on other physics, where it uses the
+    :class:`~isaaclab.sensors.CameraCfg` default."""
+
+    track_path: str | None = None
+    """Scene asset the created camera follows, or None to keep it fixed relative to each environment origin.
+
+    Use ``"robot"`` for an asset root or ``"robot/base"`` for a named body, which must match exactly one body.
+    Tracking moves the camera, so it needs ``create=True``: a camera the scene declares is never moved.
+    """
+
+    follow_heading: bool = False
+    """Rotate :attr:`eye` and :attr:`lookat` with the tracked asset's yaw, keeping the horizon level.
+
+    Without it the offsets stay aligned with the world axes. Only used with :attr:`track_path`.
+    """
+
+    heading_smoothing_time_constant: float = 0.0
+    """Exponential heading-filter time constant [s]; zero follows the heading immediately.
+
+    Larger values damp rapid turns more, with more lag. Only used with :attr:`follow_heading`.
+    """
+
+    def __post_init__(self) -> None:
+        if self.track_path is not None and not self.create:
+            raise ValueError("track_path requires create=True: a camera the scene declares is never moved.")
+        if not math.isfinite(self.heading_smoothing_time_constant) or self.heading_smoothing_time_constant < 0.0:
+            raise ValueError("heading_smoothing_time_constant must be finite and non-negative.")
 
 
 @configclass
@@ -167,14 +231,18 @@ class VisualizerCfg:
     cloning_contexts: tuple[type | str, ...] = ()
     """Clone contexts that build this visualizer's scene representation from the asset plan."""
 
-    # Primary interactive camera settings
+    # Camera sources
     cameras: list[PerspectiveCameraCfg | SceneCameraCfg] | None = None
-    """Camera sources available to the visualizer.
+    """Camera sources the visualizer displays, in display order. None uses :attr:`eye`, :attr:`lookat` and
+    :attr:`focal_length` for the main viewport and shows no scene camera unless :attr:`streaming_view` is set.
 
-    PerspectiveCameraCfg configures the interactive view; SceneCameraCfg refers to an existing scene
-    sensor. Kit, Newton GL, Rerun, and Viser display the first scene source in their camera panel.
-    Newton RTX supports only perspective sources. None uses eye/lookat/focal_length and the streaming settings below.
-    Every explicit scene source must provide all requested streaming_gt_types channels.
+    * :class:`PerspectiveCameraCfg`: the interactive main viewport, which you can move.
+    * :class:`SceneCameraCfg`: a scene camera sensor, shown in the streaming panel. It refers to one the scene
+      declares, or with ``create=True`` the launcher creates it for the visualizer, optionally following an asset.
+
+    Any scene source turns :attr:`streaming_view` on, and every one must provide all
+    :attr:`streaming_gt_types` channels. Kit, Newton GL, Rerun, and Viser show the first scene source by default,
+    and Newton GL also lets you switch between them. Newton RTX supports only perspective sources.
     """
 
     eye: tuple[float, float, float] = (4.0, -4.0, 3.0)

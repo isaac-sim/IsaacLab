@@ -25,11 +25,11 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
 from isaaclab.utils import configclass
-from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_tasks.utils import PresetCfg
 
 from . import mdp
+from .utils import VISUALIZER_CFG
 
 ##
 # Scene definition
@@ -232,7 +232,7 @@ class ReorientManagerEnvBaseCfg(ManagerBasedRLEnvCfg):
         self.commands.object_pose.orientation_success_threshold = self.goal_orientation_threshold
         self.commands.object_pose.goal_pose_visualizer_cfg = self.goal_marker_cfg
         self.sim.render_interval = self.decimation
-        # visualizer settings: frame the hand, which lies horizontal around (0, -0.25, 0.51)
-        self.sim.default_visualizer_cfg = VisualizerCfg(
+        # the viewport frames the hand; the tracking camera shows the held cube beside its goal
+        self.sim.default_visualizer_cfg = VISUALIZER_CFG.replace(
             eye=(0.62, -0.80, 0.85), lookat=(0.0, -0.28, 0.53), focal_length=35.0
         )

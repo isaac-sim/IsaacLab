@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import logging
 import math
 import random
 import re
@@ -23,6 +24,8 @@ from .camera_colorizer import sensor_key_for_gt_type
 if TYPE_CHECKING:
     from ...sensors.camera import Camera
     from ...visualizers.visualizer_cfg import VisualizerCfg
+
+logger = logging.getLogger(__name__)
 
 VISUALIZER_TILED_CAMERA_MAX_TILES = 100
 
@@ -68,6 +71,11 @@ def resolve_camera_sources(
             ):
                 break
         else:
+            if source.create:
+                # a run that did not add the camera, e.g. one without the launcher, has nothing to display
+                logger.warning("Created camera %r is not in the scene; skipping it.", path)
+                sources[index] = None
+                continue
             available_paths = sorted(camera.cfg.prim_path for camera in cameras.values())
             raise ValueError(
                 f"No scene Camera matches prim_path={path!r}. "
@@ -77,7 +85,7 @@ def resolve_camera_sources(
         for gt_type in gt_types:
             sensor_key_for_gt_type(gt_type, available)
         sources[index] = camera
-    return sources
+    return [source for source in sources if source is not None]
 
 
 def resolve_streaming_envs(

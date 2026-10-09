@@ -79,7 +79,6 @@ streaming visualizers is unsupported because they have no frame capture.
 See `Source types`_ for the full list of recordable sources and `Clip control`_ for length and
 interval options.
 
-
 Overview
 --------
 
@@ -314,6 +313,42 @@ Clip control
 
     VideoRecorderCfg(source="viz:kit", video_length=200, video_interval=1000,
                      keep_last_n_clips=1)
+
+
+Task camera views
+~~~~~~~~~~~~~~~~~
+
+``--video`` records the primary viewport, which stays static and interactive. Tasks also declare a camera that
+follows the robot or frames the environment, in ``sim.default_visualizer_cfg``; record it through the
+streaming view:
+
+.. code-block:: bash
+
+    uv run isaaclab play --rl_library rsl_rl --task Isaac-Velocity-Rough-AnymalD --checkpoint pretrained \
+        --video viz:newton_gl:streaming_view
+
+The launcher adds the camera to the scene only when a visualizer is selected or a ``streaming_view`` source
+is recorded. A task declares it with ``SceneCameraCfg``:
+
+.. code-block:: python
+
+    from isaaclab.visualizers import SceneCameraCfg, VisualizerCfg
+
+    self.sim.default_visualizer_cfg = VisualizerCfg(
+        streaming_envs=[0],
+        cameras=[
+            SceneCameraCfg(
+                create=True,
+                eye=(1.8, -3.0, 1.1),
+                lookat=(0.15, 0.0, 0.0),
+                track_path="robot",
+                follow_heading=True,
+                heading_smoothing_time_constant=0.2,
+            )
+        ],
+    )
+
+See :ref:`how-to-visualizer-tiled-camera` for every field, including the renderer used for quality.
 
 
 Recording from an independent camera angle

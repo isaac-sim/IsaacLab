@@ -136,3 +136,25 @@ def test_physics_backend_returns_none_without_simulation_context():
     """physics_backend is None when no SimulationContext is active."""
     viz = _DummyVisualizer(VisualizerCfg())
     assert viz.physics_backend is None
+
+
+def test_streaming_frame_refreshes_with_physics_steps_without_visualizer_steps(monkeypatch):
+    """A headless capture never steps the visualizer, yet each physics step must compose a new frame."""
+    import numpy as np
+    import warp as wp
+
+    from isaaclab.visualizers import base_visualizer
+
+    steps = iter([5, 5, 6])
+    sim = SimpleNamespace(get_physics_step_count=lambda: next(steps))
+    monkeypatch.setattr(base_visualizer.sim_utils.SimulationContext, "instance", lambda: sim)
+    compose = Mock()
+    monkeypatch.setattr(base_visualizer, "compose_image", compose)
+    rgb = SimpleNamespace(warp=wp.array(np.zeros((1, 2, 2, 3), dtype=np.uint8), device="cpu"))
+    camera = SimpleNamespace(cfg=SimpleNamespace(data_types=["rgb"]), data=SimpleNamespace(output={"rgb": rgb}))
+    viz = _DummyVisualizer(VisualizerCfg(streaming_view=True, streaming_envs=[0]))
+    viz._scene_data_provider = SimpleNamespace(get_interactive_scene=lambda: None)
+    viz._camera_sensor, viz._camera_sensor_indices = camera, [0]
+    for _ in range(3):
+        viz.render_tiled_rgba()
+    assert compose.call_count == 2

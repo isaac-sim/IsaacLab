@@ -399,6 +399,8 @@ class SimulationContext:
         for field in fields(default_cfg):
             if field.name in ("class_type", "visualizer_type") or not hasattr(cfg, field.name):
                 continue
+            if cfg.visualizer_type == "newton_rtx" and field.name in ("cameras", "streaming_view"):
+                continue  # Newton RTX displays no scene cameras, and a default must not bypass its own check
             default_val = getattr(default_cfg, field.name)
             if default_val == getattr(source_defaults, field.name):
                 continue

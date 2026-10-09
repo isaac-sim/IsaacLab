@@ -27,7 +27,7 @@ from isaaclab.sim import MeshCapsuleCfg, MeshConeCfg, MeshCuboidCfg, MeshSphereC
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
-from isaaclab.visualizers import VisualizerCfg
+from isaaclab.visualizers import SceneCameraCfg, VisualizerCfg
 
 from isaaclab_tasks.utils import PresetCfg
 
@@ -563,7 +563,19 @@ class ReorientEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.render_interval = self.decimation
         self.sim.physics = PhysicsCfg()
         # visualizer settings
-        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(-2.25, 0.0, 0.75), lookat=(0.0, 0.0, 0.45))
+        self.sim.default_visualizer_cfg = VisualizerCfg(
+            eye=(-2.25, 0.0, 0.75),
+            lookat=(0.0, 0.0, 0.45),
+            streaming_envs=[0],
+            cameras=[
+                SceneCameraCfg(
+                    create=True,
+                    eye=(-1.8, -1.8, 1.45),
+                    lookat=(-0.3, 0.0, 0.45),
+                    focal_length=28.0,
+                ),
+            ],
+        )
 
     def play_mode(self):
         super().play_mode()

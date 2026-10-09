@@ -18,6 +18,7 @@ class AnymalDRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
 
     def __post_init__(self):
         super().__post_init__()
+        self.sim.default_visualizer_cfg.cameras[0].eye = (2.0, -3.0, 1.4)
 
         # scene
         self.scene.robot = replace(

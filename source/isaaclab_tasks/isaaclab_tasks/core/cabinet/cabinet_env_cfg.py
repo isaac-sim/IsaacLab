@@ -29,7 +29,7 @@ from isaaclab.sensors.frame_transformer import OffsetCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils import clone, configclass, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-from isaaclab.visualizers import VisualizerCfg
+from isaaclab.visualizers import SceneCameraCfg, VisualizerCfg
 
 from isaaclab_tasks.utils import PresetCfg
 
@@ -108,16 +108,26 @@ class CabinetSimCfg(PresetCfg):
         dt=1 / 60,
         render_interval=1,
         physics=PhysxCfg(bounce_threshold_velocity=0.01, friction_correlation_distance=0.00625),
-        default_visualizer_cfg=VisualizerCfg(eye=(-2.0, 2.0, 2.0), lookat=(0.8, 0.0, 0.5)),
+        default_visualizer_cfg=VisualizerCfg(
+            eye=(-2.0, 2.0, 2.0),
+            lookat=(0.8, 0.0, 0.5),
+            streaming_envs=[0],
+            cameras=[
+                SceneCameraCfg(
+                    create=True,
+                    eye=(-1.8, 2.0, 1.6),
+                    lookat=(0.55, 0.0, 0.5),
+                    focal_length=28.0,
+                ),
+            ],
+        ),
     )
     ovphysx: SimulationCfg = replace(isaacsim_physx, physics=OvPhysxCfg())
     physx: SimulationCfg = replace(
         isaacsim_physx, physics=PhysxAutoCfg(isaacsim_physx=isaacsim_physx.physics, ovphysx=ovphysx.physics)
     )
-    newton_mjwarp: SimulationCfg = SimulationCfg(
+    newton_mjwarp: SimulationCfg = isaacsim_physx.replace(
         dt=1 / 600,
-        render_interval=1,
-        default_visualizer_cfg=VisualizerCfg(eye=(-2.0, 2.0, 2.0), lookat=(0.8, 0.0, 0.5)),
         physics=NewtonCfg(
             solver_cfg=MJWarpSolverCfg(
                 njmax=90,

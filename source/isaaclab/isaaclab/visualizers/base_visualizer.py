@@ -19,12 +19,14 @@ from urllib.parse import urlparse
 import numpy as np
 import warp as wp
 
+from .. import sim as sim_utils
 from ..envs.utils.camera_colorizer import sensor_key_for_gt_type
 from ..envs.utils.camera_view import image_grid_columns, resolve_streaming_envs
 from ..utils import validate
 from ..utils.buffers import TimestampedBuffer
 from ..utils.images import compose_image
-from .visualizer_cfg import PerspectiveCameraCfg
+from .scene_camera import TrackingCameraUpdater
+from .visualizer_cfg import USD_DEFAULT_VERTICAL_APERTURE_MM, PerspectiveCameraCfg, SceneCameraCfg
 
 if TYPE_CHECKING:
     from pxr import Usd
@@ -37,8 +39,6 @@ if TYPE_CHECKING:
 
 
 logger = logging.getLogger(__name__)
-
-_USD_DEFAULT_VERTICAL_APERTURE_MM = 15.2908
 
 
 class BaseVisualizer(ABC):
@@ -67,6 +67,8 @@ class BaseVisualizer(ABC):
         self._live_plots_step_counter: int = 0
         self._reset_requested: bool = False
         self._sim_time = 0.0
+        self._tracking_cameras: list[TrackingCameraUpdater] | None = None
+        self._tracking_camera_time = 0.0
         self._camera_sensor: Camera | None = None
         self._camera_sensor_indices: list[int] = []
         self._streaming_aspect = 1.0
@@ -139,6 +141,33 @@ class BaseVisualizer(ABC):
                 (camera for camera in self._camera_choices if not isinstance(camera, PerspectiveCameraCfg)), None
             )
 
+    def _update_tracking_cameras(self, env_ids: list[int]) -> None:
+        """Move the tracking cameras to their assets for the simulation time elapsed since the last move.
+
+        The elapsed time comes from the simulation, since headless capture renders without calling :meth:`step`.
+        """
+        if self._tracking_cameras is None:
+            scene = self._scene_data_provider.get_interactive_scene()
+            if scene is None:
+                return
+            sensors = [camera for camera in self._camera_choices if not isinstance(camera, PerspectiveCameraCfg)]
+            self._tracking_cameras = [
+                TrackingCameraUpdater(camera_cfg, sensor, scene)
+                for camera_cfg in self.cfg.cameras or ()
+                if isinstance(camera_cfg, SceneCameraCfg) and camera_cfg.create and camera_cfg.track_path
+                for sensor in sensors
+                if sensor.cfg.prim_path.endswith(camera_cfg.prim_path.removeprefix("{ENV_REGEX_NS}"))
+            ]
+        if not self._tracking_cameras:
+            return
+        sim = sim_utils.SimulationContext.instance()
+        sim_time = sim.get_physics_step_count() * sim.get_physics_dt()
+        # the step count restarts with a new simulation; a negative elapsed time would push the heading filter away
+        dt = max(sim_time - self._tracking_camera_time, 0.0)
+        for tracked in self._tracking_cameras:
+            tracked.update(env_ids, dt)
+        self._tracking_camera_time = sim_time
+
     def render_tiled_rgba(self) -> wp.array | None:
         """Acquire the selected camera frame and compose a device-resident display image.
 
@@ -149,6 +178,7 @@ class BaseVisualizer(ABC):
         camera, env_ids, cfg = self._camera_sensor, self._camera_sensor_indices, self.cfg
         if camera is None or not env_ids:
             return None
+        self._update_tracking_cameras(env_ids)
         gt_types = tuple(cfg.streaming_gt_types)
         aspect, depth_min, depth_max = self._streaming_aspect, cfg.streaming_depth_min, cfg.streaming_depth_max
         view_key = (camera, tuple(env_ids), gt_types, aspect, depth_min, depth_max)
@@ -159,7 +189,9 @@ class BaseVisualizer(ABC):
             self._streaming_layout = None
             self._streaming_view_key = view_key
             frame.timestamp = -1.0
-        if frame.timestamp == self._sim_time:
+        # The physics step, not the visualizer's own clock, which headless capture never advances.
+        step = sim_utils.SimulationContext.instance().get_physics_step_count()
+        if frame.timestamp == step:
             return frame.data
 
         outputs = camera.data.output
@@ -195,7 +227,7 @@ class BaseVisualizer(ABC):
             frame.data, sources, self._streaming_env_ids, gt_types, self._streaming_depth_colors,
             depth_min=depth_min, depth_max=depth_max,
         )  # fmt: skip
-        frame.timestamp = self._sim_time
+        frame.timestamp = step
         self._streaming_host_frame.timestamp = -1.0
         return frame.data
 
@@ -231,6 +263,7 @@ class BaseVisualizer(ABC):
         """
         self._camera_sensor = None
         self._camera_choices.clear()
+        self._tracking_cameras, self._tracking_camera_time = None, 0.0
         self._streaming_frame = TimestampedBuffer()
         self._streaming_host_frame = TimestampedBuffer()
         self._streaming_env_ids = self._streaming_depth_colors = None
@@ -428,7 +461,7 @@ class BaseVisualizer(ABC):
         focal_length = float(self.cfg.focal_length)
         if focal_length <= 0.0:
             raise ValueError("VisualizerCfg.focal_length must be positive.")
-        return math.degrees(2.0 * math.atan(_USD_DEFAULT_VERTICAL_APERTURE_MM / (2.0 * focal_length)))
+        return math.degrees(2.0 * math.atan(USD_DEFAULT_VERTICAL_APERTURE_MM / (2.0 * focal_length)))
 
     def reset(self, soft: bool = False) -> None:
         """Reset visualizer state.

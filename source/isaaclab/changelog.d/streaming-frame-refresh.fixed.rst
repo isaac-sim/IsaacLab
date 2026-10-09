@@ -1,0 +1,1 @@
+* Fixed the streaming view recording an unchanging frame when a visualizer is headless, because its frame cache followed a clock that only visualizer steps advance. The cache now follows the physics step.
