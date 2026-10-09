@@ -123,10 +123,10 @@ class NewtonMJWarpManager(NewtonManager):
             logger.warning(f"Solver didn't converge! max_iter={np.max(niter)}")
 
     @classmethod
-    def create_fixed_tendon_control(cls, articulation, model: Model | None = None) -> MjWarpTendonControl | None:
+    def create_fixed_tendon_control(cls, articulation, model: Model) -> MjWarpTendonControl | None:
         """Build the MuJoCo tendon adapter for ``articulation``.
 
         Returns:
             The adapter, or None when no MuJoCo actuator transmits to any of the articulation's tendons.
         """
-        return MjWarpTendonControl.create(articulation, model if model is not None else cls.get_model())
+        return MjWarpTendonControl.create(articulation, model)

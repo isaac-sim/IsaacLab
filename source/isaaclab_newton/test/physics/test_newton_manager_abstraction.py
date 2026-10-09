@@ -570,7 +570,7 @@ def test_solver_registers_only_its_builder_attributes(manager, active, inactive)
     """A solver declares its own builder schema once and no inactive solver schema."""
     builder = ModelBuilder()
 
-    manager.register_builder_attributes(builder)
+    manager.register_builder_attributes(builder, None)
 
     assert builder.has_custom_attribute(active)
     assert all(not builder.has_custom_attribute(name) for name in inactive)
@@ -579,7 +579,7 @@ def test_solver_registers_only_its_builder_attributes(manager, active, inactive)
         assert "mujoco:tendon" in builder.custom_frequencies
 
     # A second registration on the same builder is a no-op.
-    manager.register_builder_attributes(builder)
+    manager.register_builder_attributes(builder, None)
     assert builder.has_custom_attribute(active)
 
 
@@ -608,7 +608,7 @@ def test_mpm_prepare_builder_makes_kinematic_bodies_massless():
         label="dynamic_body",
     )
 
-    NewtonMPMManager.prepare_solver_builder(builder)
+    NewtonMPMManager.prepare_solver_builder(builder, MPMSolverCfg())
 
     assert builder.body_flags[kinematic_body] & int(newton.BodyFlags.KINEMATIC)
     assert builder.body_mass[kinematic_body] == 0.0
@@ -627,7 +627,7 @@ def test_mpm_prepare_builder_converts_convex_mesh_before_solver_construction():
     import newton
 
     builder = newton.ModelBuilder()
-    NewtonMPMManager.register_builder_attributes(builder)
+    NewtonMPMManager.register_builder_attributes(builder, MPMSolverCfg())
     body = builder.add_body(label="convex_mesh_collider")
     mesh = newton.Mesh(
         vertices=[(-1.0, -1.0, 0.0), (1.0, -1.0, 0.0), (0.0, 1.0, 0.0)],
@@ -651,7 +651,7 @@ def test_mpm_prepare_builder_converts_convex_mesh_before_solver_construction():
         },
     )
 
-    NewtonMPMManager.prepare_solver_builder(builder)
+    NewtonMPMManager.prepare_solver_builder(builder, MPMSolverCfg())
     model = builder.finalize(device="cuda:0")
     solver = NewtonMPMManager.create_solver(model, MPMSolverCfg(max_iterations=2, voxel_size=0.05))
 
@@ -763,9 +763,9 @@ def test_schema_resolver_policy_and_precedence(manager_cls, imports_mujoco):
     joint_prim.CreateAttribute("newton:friction", Sdf.ValueTypeNames.Double, True).Set(0.31)
     joint_prim.CreateAttribute("newton:armature", Sdf.ValueTypeNames.Double, True).Set(0.41)
 
-    schema_resolvers = manager_cls.get_usd_import_schema_resolvers()
+    schema_resolvers = manager_cls.get_usd_import_schema_resolvers(None)
     builder = ModelBuilder()
-    manager_cls.register_builder_attributes(builder)
+    manager_cls.register_builder_attributes(builder, None)
     builder.add_usd(stage, schema_resolvers=schema_resolvers)
     model = builder.finalize(device="cpu")
 

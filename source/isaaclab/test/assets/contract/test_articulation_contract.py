@@ -184,7 +184,7 @@ def test_newton_tendon_target_requires_a_tendon_actuator(monkeypatch):
     with pytest.raises(RuntimeError, match="no MuJoCo tendon actuator"):
         art.set_fixed_tendon_position_target_index(target=torch.zeros((N, 2)))
     with pytest.raises(NotImplementedError, match="does not drive fixed tendons"):
-        NewtonManager.create_fixed_tendon_control(art)
+        NewtonManager.create_fixed_tendon_control(art, None)
 
 
 # ---------------------------------------------------------------------------

@@ -620,19 +620,22 @@ class NewtonManager(PhysicsManager):
             shape_constructor=newton_cfg.bvh_constructor_scene if newton_cfg else None,
             shape_flags=ShapeFlags.VISIBLE,
         )
-        cls.register_builder_attributes(builder)
+        cls.register_builder_attributes(builder, newton_cfg.solver_cfg if newton_cfg else None)
         checked_apply(newton_cfg.default_shape_cfg if newton_cfg else NewtonShapeCfg(), builder.default_shape_cfg)
         return builder
 
     @classmethod
-    def get_usd_import_schema_resolvers(cls) -> list[SchemaResolver]:
+    def get_usd_import_schema_resolvers(cls, solver_cfg: NewtonSolverCfg | None) -> list[SchemaResolver]:
         """Return ordered schema resolvers for physics-model USD imports.
 
         MJC is enabled for managers that register ``SolverMuJoCo`` attributes. Visualization and articulation-ordering
         builders keep their fixed pair because solver attributes do not affect their outputs.
+
+        Args:
+            solver_cfg: Solver configuration of the imported model; ``None`` without Newton physics.
         """
         resolvers: list[SchemaResolver] = [SchemaResolverNewton(), SchemaResolverPhysx()]
-        if cls.registers_builder_attributes_from(SolverMuJoCo):
+        if cls.registers_builder_attributes_from(SolverMuJoCo, solver_cfg):
             resolvers.append(SchemaResolverMjc())
         return resolvers
 
@@ -690,13 +693,14 @@ class NewtonManager(PhysicsManager):
         return ignore_paths
 
     @classmethod
-    def prepare_builder(cls, builder: ModelBuilder) -> None:
+    def prepare_builder(cls, builder: ModelBuilder, solver_cfg: NewtonSolverCfg) -> None:
         """Apply unresolved site requests and solver-specific normalization to the builder about to be finalized.
 
         The builder survives hard resets, and so do the sites added to it, so a site is added only once.
 
         Args:
             builder: Builder of the simulated model.
+            solver_cfg: Solver configuration of the model.
         """
         global_sites, body_sites, root_sites = cls.inject_sites(builder, {})
         site_map = NewtonManager._site_index_map
@@ -705,7 +709,7 @@ class NewtonManager(PhysicsManager):
         for label, xform in root_sites.items():
             site_map[label] = (None, [[builder.add_site(body=-1, xform=xform, label=label)]])
         builder.up_axis = Axis.Z
-        cls.prepare_solver_builder(builder)
+        cls.prepare_solver_builder(builder, solver_cfg)
 
     @classmethod
     def register_site(cls, body_pattern: str | None, xform: wp.transform, *, per_world: bool = False) -> str:
@@ -999,30 +1003,35 @@ class NewtonManager(PhysicsManager):
             )
 
     @classmethod
-    def register_builder_attributes(cls, builder: ModelBuilder) -> None:
+    def register_builder_attributes(cls, builder: ModelBuilder, solver_cfg: NewtonSolverCfg | None) -> None:
         """Register custom attributes the solver reads from the model.
 
         Args:
             builder: Builder that receives imported assets.
+            solver_cfg: Solver configuration of the model.
         """
         for solver_cls in cls.builder_attribute_solvers:
             solver_cls.register_custom_attributes(builder)
 
     @classmethod
-    def registers_builder_attributes_from(cls, solver_cls: type[SolverBase]) -> bool:
+    def registers_builder_attributes_from(
+        cls, solver_cls: type[SolverBase], solver_cfg: NewtonSolverCfg | None
+    ) -> bool:
         """Return whether this manager registers ``solver_cls``'s custom builder attributes.
 
         Args:
             solver_cls: Solver whose attributes, and matching USD schemas, may be imported.
+            solver_cfg: Solver configuration of the model.
         """
         return solver_cls in cls.builder_attribute_solvers
 
     @classmethod
-    def prepare_solver_builder(cls, builder: ModelBuilder) -> None:
+    def prepare_solver_builder(cls, builder: ModelBuilder, solver_cfg: NewtonSolverCfg) -> None:
         """Normalize a complete builder for the solver before finalization. The default is a no-op.
 
         Args:
             builder: Builder about to be finalized.
+            solver_cfg: Solver configuration of the model.
         """
 
     @classmethod
@@ -1117,7 +1126,7 @@ class NewtonManager(PhysicsManager):
         """Log solver diagnostics after a step when debug mode is enabled. The default is a no-op."""
 
     @classmethod
-    def create_fixed_tendon_control(cls, articulation: Any, model: Model | None = None) -> Any:
+    def create_fixed_tendon_control(cls, articulation: Any, model: Model) -> Any:
         """Build the solver's fixed-tendon command adapter for ``articulation``.
 
         Tendon state is backend-neutral and lives on the articulation; how a target reaches the solver is not. Only
@@ -1125,7 +1134,7 @@ class NewtonManager(PhysicsManager):
 
         Args:
             articulation: Newton articulation to drive.
-            model: Finalized model; defaults to the active one.
+            model: Finalized model of the articulation.
 
         Raises:
             NotImplementedError: For solvers without fixed-tendon transmission.

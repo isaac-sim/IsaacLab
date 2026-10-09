@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-import re
 import warnings
 from typing import TYPE_CHECKING
 
@@ -24,14 +23,10 @@ from newton import (
 from newton.solvers import SolverBase, SolverImplicitMPM
 from warp.fem import TemporaryStore
 
-from isaaclab.physics import PhysicsManager
-
 from .mpm_manager_cfg import MPMSolverCfg
 from .newton_manager import NewtonManager
 
 if TYPE_CHECKING:
-    from pxr import Usd
-
     from .newton_backend import NewtonBackend
 
 
@@ -52,8 +47,8 @@ def _canonical_collider_velocity_mode(solver_cfg: MPMSolverCfg) -> str:
     return collider_velocity_mode
 
 
-def _make_solver_config(solver_cfg: MPMSolverCfg, scene_prim: Usd.Prim | None = None) -> SolverImplicitMPM.Config:
-    """Build Newton's implicit MPM config, consuming authored USD when available."""
+def _make_solver_config(solver_cfg: MPMSolverCfg) -> SolverImplicitMPM.Config:
+    """Build Newton's implicit MPM config from the solver configuration."""
     collider_velocity_mode = _canonical_collider_velocity_mode(solver_cfg)
     values = {
         "max_iterations": solver_cfg.max_iterations,
@@ -78,93 +73,7 @@ def _make_solver_config(solver_cfg: MPMSolverCfg, scene_prim: Usd.Prim | None = 
         "strain_basis": solver_cfg.strain_basis,
         "velocity_basis": solver_cfg.velocity_basis,
     }
-    if scene_prim is None:
-        return SolverImplicitMPM.Config(**values)
-
-    config = SolverImplicitMPM.Config.create_from_usd(scene_prim)
-    # Retain the cfg's Python values after validating the authored schema. USD
-    # float attributes otherwise quantize grid-sensitive values to float32.
-    for name, value in values.items():
-        setattr(config, name, value)
-    return config
-
-
-def _author_mpm_scene_config(scene_prim: Usd.Prim, solver_cfg: MPMSolverCfg) -> None:
-    """Author schema-representable MPM solver settings on a physics scene."""
-    from pxr import Sdf, Vt  # noqa: PLC0415
-
-    # Preserve the raw API metadata when Kit's registry predates the installed codeless schemas.
-    if not scene_prim.AddAppliedSchema("NewtonMPMSceneAPI"):
-        raise RuntimeError(f"Failed to apply NewtonMPMSceneAPI to '{scene_prim.GetPath()}'.")
-
-    rheology_solvers = (solver_cfg.solver,) if isinstance(solver_cfg.solver, str) else solver_cfg.solver
-
-    attributes = {
-        "newton:maxSolverIterations": solver_cfg.max_iterations,
-        "newton:mpm:tolerance": solver_cfg.tolerance,
-        "newton:mpm:rheologySolvers": Vt.TokenArray(rheology_solvers),
-        "newton:mpm:voxelSize": solver_cfg.voxel_size,
-        "newton:mpm:gridType": solver_cfg.grid_type,
-        "newton:mpm:gridPadding": solver_cfg.grid_padding,
-        "newton:mpm:maxActiveCellCount": solver_cfg.max_active_cell_count,
-        "newton:mpm:transferScheme": solver_cfg.transfer_scheme,
-        "newton:mpm:integrationScheme": solver_cfg.integration_scheme,
-        "newton:mpm:criticalFraction": solver_cfg.critical_fraction,
-        "newton:mpm:airDrag": solver_cfg.air_drag,
-    }
-    attributes.update(_basis_attributes("collider", solver_cfg.collider_basis))
-    attributes.update(_basis_attributes("strain", solver_cfg.strain_basis))
-    attributes.update(_basis_attributes("velocity", solver_cfg.velocity_basis))
-    for name, value in attributes.items():
-        if name == "newton:mpm:rheologySolvers":
-            type_name = Sdf.ValueTypeNames.TokenArray
-        elif isinstance(value, bool):
-            type_name = Sdf.ValueTypeNames.Bool
-        elif isinstance(value, int):
-            type_name = Sdf.ValueTypeNames.Int
-        elif isinstance(value, str):
-            type_name = Sdf.ValueTypeNames.Token
-        else:
-            type_name = Sdf.ValueTypeNames.Float
-        scene_prim.CreateAttribute(name, type_name, custom=False, variability=Sdf.VariabilityUniform).Set(value)
-
-
-def _basis_attributes(prefix: str, basis: str) -> dict[str, object]:
-    """Expand a compact Newton basis name into newton-usd-schemas attributes."""
-    if basis.startswith("pic"):
-        if prefix == "velocity":
-            raise ValueError("The MPM velocity basis cannot use a particle basis.")
-        basis_type, order, discontinuous = "particle", 0, False
-    else:
-        matched = re.fullmatch(r"([PQBS])([0-9]+)(d?)", basis)
-        if matched is None:
-            raise ValueError(f"Unsupported MPM {prefix} basis {basis!r}.")
-        basis_prefix = matched.group(1)
-        order = int(matched.group(2))
-        discontinuous = order == 0 or bool(matched.group(3))
-        if basis_prefix == "P" and order > 0 and not discontinuous:
-            raise ValueError(f"Unsupported MPM {prefix} basis {basis!r}: positive-order P bases must be discontinuous.")
-        if (prefix == "strain" and basis_prefix in "BS") or (
-            prefix == "velocity" and (basis_prefix not in "QB" or not 1 <= order <= 3)
-        ):
-            return {}
-        if basis_prefix in "BS" and not 1 <= order <= 3:
-            return {}
-        basis_type = {
-            "P": "linear",
-            "Q": "trilinear",
-            "B": "bspline",
-            "S": "serendipity",
-        }[basis_prefix]
-
-    namespace = f"newton:mpm:{prefix}"
-    attributes: dict[str, object] = {
-        f"{namespace}BasisType": basis_type,
-        f"{namespace}BasisOrder": order,
-    }
-    if prefix != "velocity":
-        attributes[f"{namespace}DiscontinuousBasis"] = discontinuous
-    return attributes
+    return SolverImplicitMPM.Config(**values)
 
 
 def implicit_mpm_solvers(solver: SolverBase | None) -> tuple[SolverImplicitMPM, ...]:
@@ -221,16 +130,11 @@ class NewtonMPMManager(NewtonManager):
         solver_cfg: MPMSolverCfg,
         deterministic_mode: wp.DeterministicMode = wp.DeterministicMode.NOT_GUARANTEED,
     ) -> SolverImplicitMPM:
-        """Construct the configured implicit MPM solver, authoring its configuration on the physics scene."""
-        scene_prim = None
-        sim = PhysicsManager._sim
-        if sim is not None:
-            scene_prim = sim.stage.GetPrimAtPath(sim.cfg.physics_prim_path)
-            _author_mpm_scene_config(scene_prim, solver_cfg)
-        return SolverImplicitMPM(model, _make_solver_config(solver_cfg, scene_prim), temporary_store=TemporaryStore())
+        """Construct the configured implicit MPM solver."""
+        return SolverImplicitMPM(model, _make_solver_config(solver_cfg), temporary_store=TemporaryStore())
 
     @classmethod
-    def register_builder_attributes(cls, builder: ModelBuilder) -> None:
+    def register_builder_attributes(cls, builder: ModelBuilder, solver_cfg: MPMSolverCfg | None) -> None:
         """Register the per-particle material attributes before particles are added.
 
         Implicit MPM materials are configured per particle through Newton custom attributes (``mpm:young_modulus``,
@@ -240,7 +144,7 @@ class NewtonMPMManager(NewtonManager):
             SolverImplicitMPM.register_custom_attributes(builder)
 
     @classmethod
-    def prepare_solver_builder(cls, builder: ModelBuilder) -> None:
+    def prepare_solver_builder(cls, builder: ModelBuilder, solver_cfg: MPMSolverCfg) -> None:
         """Normalize rigid colliders before solver construction.
 
         Newton's implicit MPM treats positive-mass body colliders as finite-mass colliders, so kinematic bodies lose
@@ -302,19 +206,21 @@ class NewtonMPMManager(NewtonManager):
     @classmethod
     def reset_solver_state(
         cls,
+        backend: NewtonBackend,
         state: State | None = None,
         world_mask: wp.array(dtype=wp.bool) | None = None,
         flags: StateFlags | int | None = None,
     ) -> None:
         """Reset MPM and coupled-solver history after task state is rewritten.
 
-        When :paramref:`state` is omitted, both distinct manager state buffers are reset so a later buffer swap cannot
+        When :paramref:`state` is omitted, both distinct backend state buffers are reset so a later buffer swap cannot
         restore stale history. A mask follows Newton's canonical ``world_count + 1`` contract, where the last entry
         selects global entities in world -1. A selected single local world is promoted to a full reset because a
         one-world MPM grid has no environment offsets.
 
         Args:
-            state: State whose solver-owned history should be reset. If omitted, reset both manager states.
+            backend: Backend whose solver to reset, e.g. :attr:`NewtonManager.backend`.
+            state: State whose solver-owned history should be reset. If omitted, reset both backend states.
             world_mask: Canonical per-world mask, including the final global-world entry.
             flags: State components whose solver-owned history should reset.
 
@@ -322,8 +228,8 @@ class NewtonMPMManager(NewtonManager):
             RuntimeError: If the MPM solver or a usable state is not initialized.
             ValueError: If :paramref:`world_mask` does not use Newton's canonical shape.
         """
-        solver, backend = cls.get_solver(), cls.backend
-        if solver is None or backend is None or not implicit_mpm_solvers(solver):
+        solver = backend.solver
+        if not implicit_mpm_solvers(solver):
             raise RuntimeError("An implicit MPM solver is not initialized; cannot reset solver state.")
         model = backend.model
 

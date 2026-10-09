@@ -512,19 +512,18 @@ def test_mpm_entry_reuses_builder_lifecycle_hooks(monkeypatch, vbd_entries):
     entries = [CouplerEntryCfg(name="media", solver_cfg=MPMSolverCfg())]
     entries.extend(CouplerEntryCfg(name=f"cloth_{index}", solver_cfg=VBDSolverCfg()) for index in range(vbd_entries))
     solver_cfg = CouplerProxyCfg(entries=entries)
-    monkeypatch.setattr(coupler.PhysicsManager, "_cfg", SimpleNamespace(solver_cfg=solver_cfg))
     monkeypatch.setattr(
         NewtonMPMManager,
         "prepare_solver_builder",
-        classmethod(lambda cls, value: events.append(("finalize", value))),
+        classmethod(lambda cls, value, solver_cfg: events.append(("finalize", value))),
     )
 
-    NewtonCouplerManager.prepare_solver_builder(builder)
+    NewtonCouplerManager.prepare_solver_builder(builder, solver_cfg)
 
     assert events == [("finalize", builder)] + ([("color", False)] if vbd_entries else [])
 
 
-def test_nested_solvers_register_their_builder_attributes(monkeypatch):
+def test_nested_solvers_register_their_builder_attributes():
     """A coupled model declares the schemas consumed by each configured child solver."""
     builder = ModelBuilder()
     solver_cfg = CouplerProxyCfg(
@@ -533,9 +532,7 @@ def test_nested_solvers_register_their_builder_attributes(monkeypatch):
             CouplerEntryCfg(name="media", solver_cfg=MPMSolverCfg()),
         ]
     )
-    monkeypatch.setattr(coupler.PhysicsManager, "_cfg", SimpleNamespace(solver_cfg=solver_cfg))
-
-    NewtonCouplerManager.register_builder_attributes(builder)
+    NewtonCouplerManager.register_builder_attributes(builder, solver_cfg)
 
     assert builder.has_custom_attribute("mujoco:condim")
     assert builder.has_custom_attribute("mpm:young_modulus")
@@ -548,12 +545,9 @@ def test_nested_solvers_register_their_builder_attributes(monkeypatch):
         pytest.param(XPBDSolverCfg(), 0.0, 0.0, id="xpbd"),
     ],
 )
-def test_nested_solver_scopes_mujoco_joint_properties(
-    monkeypatch, entry_solver_cfg, expected_friction, expected_damping
-):
+def test_nested_solver_scopes_mujoco_joint_properties(entry_solver_cfg, expected_friction, expected_damping):
     """A coupler imports MuJoCo properties only when a nested solver consumes them."""
     solver_cfg = CouplerProxyCfg(entries=[CouplerEntryCfg(name="rigid", solver_cfg=entry_solver_cfg)])
-    monkeypatch.setattr(coupler.PhysicsManager, "_cfg", NewtonCfg(solver_cfg=solver_cfg))
 
     stage = Usd.Stage.CreateInMemory()
     UsdGeom.Xform.Define(stage, "/World")
@@ -571,8 +565,9 @@ def test_nested_solver_scopes_mujoco_joint_properties(
     joint.GetPrim().CreateAttribute("mjc:frictionloss", Sdf.ValueTypeNames.Double, True).Set(0.11)
     joint.GetPrim().CreateAttribute("mjc:damping", Sdf.ValueTypeNames.Double, True).Set(0.23)
 
-    builder = NewtonCouplerManager.create_builder(up_axis="Z")
-    builder.add_usd(stage, root_path=root_path, schema_resolvers=NewtonCouplerManager.get_usd_import_schema_resolvers())
+    builder = NewtonCouplerManager.create_builder(up_axis="Z", physics_cfg=NewtonCfg(solver_cfg=solver_cfg))
+    schema_resolvers = NewtonCouplerManager.get_usd_import_schema_resolvers(solver_cfg)
+    builder.add_usd(stage, root_path=root_path, schema_resolvers=schema_resolvers)
     model = builder.finalize(device="cpu")
 
     assert model.joint_friction.numpy()[-1] == pytest.approx(expected_friction)

@@ -24,3 +24,12 @@
 * **Breaking:** Replaced the ``NewtonQueries`` static-method class with the module functions ``run_query`` and
   ``capture_graph`` in :mod:`isaaclab_newton.physics.newton_backend`.
 * **Breaking:** The Newton model no longer carries a patched ``num_envs`` attribute; use ``Model.world_count``.
+* **Breaking:** :meth:`~isaaclab_newton.physics.NewtonMPMManager.reset_solver_state` and
+  :meth:`~isaaclab_newton.physics.NewtonManager.create_fixed_tendon_control` take the backend or model explicitly
+  instead of reading the active one, and builder hooks receive the solver configuration. Solver hooks no longer read
+  manager class state, so several backends can coexist.
+* The Kamino manager resolves an automatic ``use_fk_solver`` into the backend's configuration instead of writing it
+  into the user's configuration.
+* The implicit MPM manager builds :class:`newton.solvers.SolverImplicitMPM.Config` directly from
+  :class:`~isaaclab_newton.physics.MPMSolverCfg` instead of authoring ``NewtonMPMSceneAPI`` solver attributes on the
+  physics scene and reading them back on every hard reset.

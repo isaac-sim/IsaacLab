@@ -3582,12 +3582,9 @@ class Articulation(BaseArticulation):
             )
             if tendon_types.sum() > 0:
                 raise NotImplementedError("Spatial tendons are not supported yet.")
-            # ``SimulationManager`` is bound to the base class, so ask the *active* solver's
-            # manager -- only it knows whether this solver transmits to tendons.
-            from isaaclab.sim import SimulationContext  # noqa: PLC0415
-
-            manager = SimulationContext.instance().physics_manager
-            self._fixed_tendon_control = manager.create_fixed_tendon_control(self)
+            # Only the backend's solver manager knows whether its solver transmits to tendons.
+            backend = SimulationManager.backend
+            self._fixed_tendon_control = backend.manager.create_fixed_tendon_control(self, backend.model)
 
     """
     Internal helpers -- Debugging.

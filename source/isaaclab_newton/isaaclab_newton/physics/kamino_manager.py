@@ -69,6 +69,9 @@ class NewtonKaminoManager(NewtonManager):
         Raises:
             RuntimeError: If the FK solver is enabled with more than one articulation per environment.
         """
+        if solver_cfg.use_fk_solver is None:
+            # Enable the FK solver for loop-closing articulations unless the user chose explicitly.
+            solver_cfg = solver_cfg.replace(use_fk_solver=_model_has_loop_closing_joints(model))
         if solver_cfg.max_contacts_per_world is not None:
             model.rigid_contact_max = int(solver_cfg.max_contacts_per_world) * model.world_count
             logger.info(
@@ -77,9 +80,6 @@ class NewtonKaminoManager(NewtonManager):
                 solver_cfg.max_contacts_per_world,
                 model.world_count,
             )
-        # Enable the FK solver for loop-closing articulations unless the user chose explicitly.
-        if solver_cfg.use_fk_solver is None:
-            solver_cfg.use_fk_solver = _model_has_loop_closing_joints(model)
         if solver_cfg.use_fk_solver and model.articulation_count != model.world_count:
             raise RuntimeError(
                 "The Kamino FK solver requires exactly one articulation per environment, but the model"
@@ -87,6 +87,15 @@ class NewtonKaminoManager(NewtonManager):
                 " Multiple articulations per environment are not yet supported in Kamino's FK solver."
             )
         return SolverKamino(model, solver_cfg.to_solver_config())
+
+    @classmethod
+    def validate_cfg(cls, backend: NewtonBackend) -> None:
+        """Resolve the automatic FK-solver choice into the backend's configuration, leaving the user's untouched."""
+        super().validate_cfg(backend)
+        solver_cfg = backend.cfg.solver_cfg
+        if solver_cfg.use_fk_solver is None:
+            use_fk_solver = _model_has_loop_closing_joints(backend.model)
+            backend.cfg = backend.cfg.replace(solver_cfg=solver_cfg.replace(use_fk_solver=use_fk_solver))
 
     @classmethod
     def uses_collision_pipeline(cls, backend: NewtonBackend) -> bool:

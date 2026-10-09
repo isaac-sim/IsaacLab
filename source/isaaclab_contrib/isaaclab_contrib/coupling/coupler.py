@@ -27,7 +27,6 @@ from newton import CollisionPipeline, Model, ModelBuilder, ShapeFlags, State
 from newton.solvers import SolverBase
 from newton.solvers.experimental.coupled import SolverCoupled, SolverCoupledADMM, SolverCoupledProxy
 
-from isaaclab.physics import PhysicsManager
 from isaaclab.utils.string import resolve_matching_names
 
 from .coupler_cfg import (
@@ -186,27 +185,29 @@ class NewtonCouplerManager(NewtonManager):
             cls._validate_no_cross_entry_proxy_joints(model, {entry.config.name: entry for entry in entries})
 
     @staticmethod
-    def _entry_managers() -> list[type[NewtonManager]]:
-        """Return the solver manager of each configured entry, without duplicates."""
-        entries = PhysicsManager._cfg.solver_cfg.entries
-        return list(dict.fromkeys(entry.solver_cfg.class_type for entry in entries))
+    def _entry_managers(solver_cfg: CouplerCfg) -> dict[type[NewtonManager], NewtonSolverCfg]:
+        """Return each distinct entry manager with an entry configuration it serves."""
+        return {entry.solver_cfg.class_type: entry.solver_cfg for entry in solver_cfg.entries}
 
     @classmethod
-    def register_builder_attributes(cls, builder: ModelBuilder) -> None:
+    def register_builder_attributes(cls, builder: ModelBuilder, solver_cfg: CouplerCfg) -> None:
         """Register custom attributes required by nested coupled entries."""
-        for manager in cls._entry_managers():
-            manager.register_builder_attributes(builder)
+        for manager, entry_cfg in cls._entry_managers(solver_cfg).items():
+            manager.register_builder_attributes(builder, entry_cfg)
 
     @classmethod
-    def registers_builder_attributes_from(cls, solver_cls: type[SolverBase]) -> bool:
+    def registers_builder_attributes_from(cls, solver_cls: type[SolverBase], solver_cfg: CouplerCfg) -> bool:
         """Return whether a configured entry registers ``solver_cls`` attributes."""
-        return any(manager.registers_builder_attributes_from(solver_cls) for manager in cls._entry_managers())
+        return any(
+            manager.registers_builder_attributes_from(solver_cls, entry_cfg)
+            for manager, entry_cfg in cls._entry_managers(solver_cfg).items()
+        )
 
     @classmethod
-    def prepare_solver_builder(cls, builder: ModelBuilder) -> None:
+    def prepare_solver_builder(cls, builder: ModelBuilder, solver_cfg: CouplerCfg) -> None:
         """Prepare the shared builder once per selected entry manager."""
-        for manager in cls._entry_managers():
-            manager.prepare_solver_builder(builder)
+        for manager, entry_cfg in cls._entry_managers(solver_cfg).items():
+            manager.prepare_solver_builder(builder, entry_cfg)
 
     @classmethod
     def prepare_contacts(cls, backend: NewtonBackend) -> None:

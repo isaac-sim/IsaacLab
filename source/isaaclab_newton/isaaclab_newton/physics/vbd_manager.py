@@ -13,6 +13,7 @@ from newton import ModelBuilder, State
 from newton.solvers import SolverVBD
 
 from .newton_manager import NewtonManager
+from .vbd_manager_cfg import VBDSolverCfg
 
 if TYPE_CHECKING:
     from .newton_backend import NewtonBackend
@@ -25,7 +26,7 @@ class NewtonVBDManager(NewtonManager):
     prepares_step = True
 
     @classmethod
-    def prepare_solver_builder(cls, builder: ModelBuilder) -> None:
+    def prepare_solver_builder(cls, builder: ModelBuilder, solver_cfg: VBDSolverCfg) -> None:
         """Color the completed builder before allocating the model."""
         builder.color(balance_colors=False)
 

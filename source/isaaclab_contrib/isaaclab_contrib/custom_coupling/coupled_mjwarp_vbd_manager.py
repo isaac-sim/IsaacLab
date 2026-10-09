@@ -157,9 +157,9 @@ class NewtonCoupledMJWarpVBDManager(NewtonManager):
         )
 
     @classmethod
-    def prepare_solver_builder(cls, builder: ModelBuilder) -> None:
+    def prepare_solver_builder(cls, builder: ModelBuilder, solver_cfg: CoupledMJWarpVBDSolverCfg) -> None:
         """Color the completed builder for VBD before allocating the model."""
-        NewtonVBDManager.prepare_solver_builder(builder)
+        NewtonVBDManager.prepare_solver_builder(builder, solver_cfg.soft_solver_cfg)
 
     @classmethod
     def prepare_contacts(cls, backend: NewtonBackend) -> None:

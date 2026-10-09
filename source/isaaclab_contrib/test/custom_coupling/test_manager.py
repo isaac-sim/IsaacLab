@@ -55,8 +55,11 @@ def test_registered_mujoco_solver_imports_mujoco_joint_properties() -> None:
     joint.GetPrim().CreateAttribute("mjc:damping", Sdf.ValueTypeNames.Double, True).Set(0.23)
 
     builder = ModelBuilder()
-    NewtonCoupledMJWarpVBDManager.register_builder_attributes(builder)
-    builder.add_usd(stage, schema_resolvers=NewtonCoupledMJWarpVBDManager.get_usd_import_schema_resolvers())
+    NewtonCoupledMJWarpVBDManager.register_builder_attributes(builder, CoupledMJWarpVBDSolverCfg())
+    builder.add_usd(
+        stage,
+        schema_resolvers=NewtonCoupledMJWarpVBDManager.get_usd_import_schema_resolvers(CoupledMJWarpVBDSolverCfg()),
+    )
     model = builder.finalize(device="cpu")
 
     assert model.joint_friction.numpy()[-1] == pytest.approx(0.11)

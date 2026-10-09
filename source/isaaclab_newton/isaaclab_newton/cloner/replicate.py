@@ -135,8 +135,9 @@ def _replicate_newton(
         quaternions[:, 3] = 1.0
 
     manager_cls = sim.physics_manager if simulation else NewtonManager
-    schema_resolvers = manager_cls.get_usd_import_schema_resolvers()
-    create_builder = partial(manager_cls.create_builder if simulation else ModelBuilder, up_axis=up_axis)
+    schema_resolvers = manager_cls.get_usd_import_schema_resolvers(cfg.solver_cfg if simulation else None)
+    create_builder = partial(manager_cls.create_builder, physics_cfg=cfg) if simulation else ModelBuilder
+    create_builder = partial(create_builder, up_axis=up_axis)
     load_visual_shapes = cfg.load_visual_shapes if simulation else True
     if load_visual_shapes is None:
         load_visual_shapes = sim.is_rendering or sim.can_render_rgb_array() or sim.visual_shapes_required

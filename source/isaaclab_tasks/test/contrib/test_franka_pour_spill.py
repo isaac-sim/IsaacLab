@@ -52,6 +52,7 @@ def test_spilled_particles_land_on_ground_without_escaping_workspace(device):
         world_mask = torch.ones(env.num_envs + 1, dtype=torch.bool, device=device)
         world_mask[-1] = False
         NewtonMPMManager.reset_solver_state(
+            NewtonMPMManager.backend,
             world_mask=wp.from_torch(world_mask, dtype=wp.bool),
             flags=newton.StateFlags.BODY | newton.StateFlags.PARTICLE,
         )

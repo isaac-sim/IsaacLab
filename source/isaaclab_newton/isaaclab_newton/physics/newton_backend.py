@@ -391,7 +391,7 @@ def create_newton_backend(cfg: NewtonBackendCfg) -> NewtonBackend:
     builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=cfg.physics_cfg))
     simulation = isinstance(cfg.physics_cfg, NewtonCfg)
     if simulation:
-        cfg.physics_cfg.class_type.prepare_builder(builder)
+        cfg.physics_cfg.class_type.prepare_builder(builder, cfg.physics_cfg.solver_cfg)
     model = builder.finalize(device=cfg.device)
     deformable_ranges = {
         label: (start, end - start, kind)

@@ -120,7 +120,7 @@ def test_explicit_global_import_uses_global_world(
 
     monkeypatch.setattr(newton.ModelBuilder, "add_usd", import_usd)
     manager = SimpleNamespace(
-        create_builder=newton.ModelBuilder,
+        create_builder=lambda physics_cfg, up_axis: newton.ModelBuilder(up_axis=up_axis),
         get_usd_import_schema_resolvers=NewtonManager.get_usd_import_schema_resolvers,
         inject_terrain_heightfields=mock.Mock(return_value=[]),
     )

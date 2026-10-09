@@ -11,3 +11,5 @@
   never injected again, and sensors no longer re-register on ``STOP``.
 * Fixed every CUDA graph capture running a full Python garbage collection afterwards, which added about 0.25 s per
   capture on large scenes (about 1.7 s at the first step of the rough-terrain ANYmal-D task).
+* Fixed :meth:`~isaaclab_newton.physics.NewtonCfg.copy` and ``replace`` raising because the derived ``class_type``
+  looked user-set.

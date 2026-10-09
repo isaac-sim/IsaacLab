@@ -295,8 +295,8 @@ class NewtonCfg(PhysicsCfg):
     def __post_init__(self):
         # NewtonCfg.class_type is auto-derived from solver_cfg.class_type.
         # Refuse a user-set value: setting both is ambiguous and was
-        # previously silently overwritten.
-        if self.class_type is not None:
+        # previously silently overwritten. Copies carry the derived value.
+        if self.class_type is not None and (self.solver_cfg is None or self.class_type != self.solver_cfg.class_type):
             raise TypeError("Cannot manually set NewtonCfg.class_type; it is auto-derived from solver_cfg.class_type.")
         if self.deterministic_mode not in ("not_guaranteed", "run_to_run", "gpu_to_gpu"):
             raise ValueError(

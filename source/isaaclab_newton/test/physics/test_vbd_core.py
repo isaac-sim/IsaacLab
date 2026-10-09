@@ -102,7 +102,7 @@ def test_vbd_colors_builder_before_finalization():
         def color(self, *, balance_colors):
             events.append(("color", balance_colors))
 
-    physics.NewtonVBDManager.prepare_solver_builder(Builder())
+    physics.NewtonVBDManager.prepare_solver_builder(Builder(), physics.VBDSolverCfg())
     assert events == [("color", False)]
 
 
