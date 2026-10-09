@@ -41,7 +41,8 @@ def cosmos_camera(
 
     The copy renders the control input at the Cosmos canvas closest to the camera's aspect ratio, widening the lens
     aperture so the camera's original view is the canvas's center crop. Its chain prepares controls with
-    :func:`depth_processor` or :func:`edge_processor` (``model.modality``), generates with Cosmos, scales the result
+    :func:`depth_processor`, :func:`edge_processor`, or :func:`blur_processor` (``model.modality``), generates with
+    Cosmos, and scales the result
     back to the camera's width and height. Observation terms that read ``rgb`` keep their image shape; the camera's
     ``image_shape`` and intrinsics describe the canvas.
 

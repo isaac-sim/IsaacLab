@@ -207,7 +207,6 @@ class ShadowHandCameraEnvCfg(ShadowHandEnvCfg):
         self.feature_extractor.load_checkpoint = True
 
 
-_COSMOS_DEPTH_INPUT = "distance_to_image_plane"
 _COSMOS_MODEL_CFG = CosmosModelCfg(
     modality="depth",
     prompt=(
@@ -220,6 +219,7 @@ _COSMOS_BASE_CAMERA_CFG = _ShadowHandBaseTiledCameraCfg(data_types=["rgb"], heig
 
 SHADOW_HAND_COSMOS_CAMERA_CFG = cosmos_camera(_COSMOS_BASE_CAMERA_CFG, _COSMOS_MODEL_CFG, near=0.1, far=1.5)
 """Camera rendering depth that Cosmos turns into the published ``rgb``; captures every 0.1 s."""
+(_COSMOS_DEPTH_INPUT,) = SHADOW_HAND_COSMOS_CAMERA_CFG.modifiers
 
 
 def validate_shadow_hand_cosmos_preset(env_cfg) -> None:

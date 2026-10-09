@@ -103,6 +103,13 @@ lighting, and camera usually follows the control more closely).
 
 The Direct task `Isaac-Reorient-Cube-Shadow-Camera-Direct` and the Manager-based task
 `Isaac-Reorient-Cube-Shadow-Camera` both offer `presets=cosmos`, with the same Cosmos camera.
+
+Both presets currently require one environment for training and playback. This is a preset restriction:
+their feature-extractor training and playback are supported only for that setup. Supporting several environments
+in these presets needs separate validation of feature-extractor supervision across independent captures and
+resets. The service can batch several views, and compatible tasks using `--cosmos --num_envs N` can use that
+capability, as shown in [Several environments](#several-environments).
+
 After `status` reports readiness, run a task with its Cosmos preset:
 
 ```bash

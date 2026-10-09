@@ -16,8 +16,7 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
-from .._protocol import CANVAS_ASPECT_RATIOS as _CANVASES
-from .._protocol import DEFAULT_MAX_EPISODE_FRAMES
+from .._protocol import CANVAS_ASPECT_RATIOS, DEFAULT_MAX_EPISODE_FRAMES
 
 if TYPE_CHECKING:
     import torch
@@ -177,7 +176,7 @@ class CosmosInferenceModel:
             "modalities": ["edge", "blur", "depth", "seg"],
             "initial_frames": 1,
             "update_frames": 4,
-            "canvases": [list(canvas) for canvas in _CANVASES],
+            "canvases": [list(canvas) for canvas in CANVAS_ASPECT_RATIOS],
             "max_episode_frames": max_episode_frames,
             "fps": 30,
             # The Framework restarts single rows of a batch only on its compiled CUDA-graph path.
@@ -234,8 +233,8 @@ class CosmosInferenceModel:
             raise ValueError("The Cosmos appearance prompt must be text or None, or one per camera view.")
         if modality not in self.capabilities["modalities"]:
             raise ValueError("Cosmos controls must use edge, blur, depth, or seg modality.")
-        if (height, width) not in _CANVASES:
-            raise ValueError(f"Unsupported Cosmos canvas {(height, width)}; choose one of {list(_CANVASES)}.")
+        if (height, width) not in CANVAS_ASPECT_RATIOS:
+            raise ValueError(f"Unsupported Cosmos canvas {(height, width)}; choose one of {list(CANVAS_ASPECT_RATIOS)}.")
         if (
             type(max_episode_frames) is not int
             or max_episode_frames < 1
@@ -316,7 +315,7 @@ class CosmosInferenceModel:
             model_mode="video2video",
             prompt=prompt or "",
             resolution="480",
-            aspect_ratio=_CANVASES[(height, width)],
+            aspect_ratio=CANVAS_ASPECT_RATIOS[(height, width)],
             num_frames=max_episode_frames,
             fps=30,
             num_steps=4,
