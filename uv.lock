@@ -1812,6 +1812,7 @@ all = [
     { name = "ovphysx" },
     { name = "ovrtx" },
     { name = "ovstage" },
+    { name = "physx-usd-schemas" },
     { name = "pyarrow" },
     { name = "rerun-sdk" },
     { name = "rich" },
@@ -1863,10 +1864,12 @@ ov = [
     { name = "ovphysx" },
     { name = "ovrtx" },
     { name = "ovstage" },
+    { name = "physx-usd-schemas" },
 ]
 ovphysx = [
     { name = "ovphysx" },
     { name = "ovstage" },
+    { name = "physx-usd-schemas" },
 ]
 ovrtx = [
     { name = "ovrtx" },
@@ -2010,6 +2013,8 @@ requires-dist = [
     { name = "packaging" },
     { name = "pandas", marker = "extra == 'rlinf'" },
     { name = "peft", marker = "extra == 'rlinf'", specifier = ">=0.17.0" },
+    { name = "physx-usd-schemas", marker = "extra == 'ov'", specifier = ">=25.11.1", index = "https://pypi.org/simple" },
+    { name = "physx-usd-schemas", marker = "extra == 'ovphysx'", specifier = ">=25.11.1", index = "https://pypi.org/simple" },
     { name = "pillow", specifier = ">=12.3.0" },
     { name = "pin", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
     { name = "pin-pink", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')", specifier = "==3.3.0" },
@@ -3900,6 +3905,14 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/42/92/cc564bf6381ff43ce1f4d06852fc19a2f11d180f23dc32d9588bee2f149d/pexpect-4.9.0.tar.gz", hash = "sha256:ee7d41123f3c9911050ea2c2dac107568dc43b2d3b0c7557a33212c398ead30f", size = 166450, upload-time = "2023-11-25T09:07:26.339Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/9e/c3/059298687310d527a58bb01f3b1965787ee3b40dce76752eda8b44e9a2c5/pexpect-4.9.0-py2.py3-none-any.whl", hash = "sha256:7236d1e080e4936be2dc3e326cec0af72acf9212a7e1d060210e70a47e253523", size = 63772, upload-time = "2023-11-25T06:56:14.81Z" },
+]
+
+[[package]]
+name = "physx-usd-schemas"
+version = "25.11.1"
+source = { registry = "https://pypi.org/simple" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/69/d1/1ec944dcf81f806448bde3c3a538b79046b7dfd526059c9fdb2deff0619f/physx_usd_schemas-25.11.1-py3-none-any.whl", hash = "sha256:a00e4062b28f5a23cbacdfb9dcddb6f3cf59418f082e2df8f9c3d0359d88da37", size = 79208, upload-time = "2026-08-11T12:23:17.131Z" },
 ]
 
 [[package]]

@@ -561,6 +561,14 @@
     "comment": "NVIDIA component imported into the Isaac Lab Python process"
   },
   {
+    "package": "physx-usd-schemas",
+    "package_type": "Python",
+    "license": "LicenseRef-NVIDIA-Omniverse",
+    "usage": "runtime_dependency",
+    "interaction": "same_process_dynamic",
+    "comment": "NVIDIA codeless PhysX schema resources read by the USD runtime in the Isaac Lab process"
+  },
+  {
     "package": "decorator",
     "license": "UNKNOWN",
     "comment": "BSD-2"

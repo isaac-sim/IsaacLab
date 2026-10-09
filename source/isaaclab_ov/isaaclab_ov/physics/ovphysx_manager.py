@@ -38,7 +38,7 @@ from isaaclab.sim.simulation_context import SimulationContext
 from isaaclab.utils.buffers import TimestampedBuffer
 
 from isaaclab_ov._clone import CloneRecipe, clone_transforms_from_positions
-from isaaclab_ov._runtime import import_ovphysx
+from isaaclab_ov._runtime import import_ovphysx, physx_schema_paths
 from isaaclab_ov.cloner import OvPhysxReplicateContext
 from isaaclab_ov.cloner.replicate import _serialize_stage
 from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView
@@ -454,8 +454,8 @@ class OvPhysxManager(PhysicsManager):
     def _ensure_physx_schemas_registered(cls) -> None:
         """Register the USD schemas consumed by the OVPhysX runtime.
 
-        OVStage maintains its own USD schema registry, so register the wheel's
-        schema root and the separately packaged Newton schemas there even when
+        OVStage maintains its own USD schema registry, so register the external
+        PhysX and Newton schema resources there even when
         the host USD runtime already provides the same plugins. For the host USD
         registry, only register providers that are not already available from a
         compiled plugin.
@@ -463,32 +463,26 @@ class OvPhysxManager(PhysicsManager):
         if cls._physx_schemas_registered:
             return
         try:
-            import ovphysx  # noqa: PLC0415
-
             from pxr import Plug  # noqa: PLC0415
         except ImportError:
             return
+        schema_paths = physx_schema_paths()
         try:
             import ovstage  # noqa: PLC0415
         except ImportError:
             pass  # Host USD schemas can still be registered without OVStage.
         else:
-            schema_root = getattr(ovphysx, "codeless_schema_root", None)
             register_ovstage_schemas = getattr(getattr(ovstage, "population", None), "register_usd_schemas", None)
             if callable(register_ovstage_schemas):
-                if callable(schema_root):
-                    register_ovstage_schemas(str(schema_root()))
+                register_ovstage_schemas([str(path) for path in schema_paths])
                 if (newton_schema_root := _newton_schema_root()) is not None:
                     register_ovstage_schemas(newton_schema_root)
         registry = Plug.Registry()
         registered_names = {plugin.name.casefold() for plugin in registry.GetAllPlugins()}
-        # The wheel documents ``<module>/resources`` as its stable layout and its
-        # bundled plugin names match those module directory names case-insensitively.
-        schema_paths = [
-            str(path) for path in ovphysx.codeless_schema_paths() if path.parent.name.casefold() not in registered_names
-        ]
-        if schema_paths:
-            registry.RegisterPlugins(schema_paths)
+        # The provider's plugin names match its module directory names.
+        host_schema_paths = [str(path) for path in schema_paths if path.parent.name.casefold() not in registered_names]
+        if host_schema_paths:
+            registry.RegisterPlugins(host_schema_paths)
         cls._physx_schemas_registered = True
 
     @classmethod

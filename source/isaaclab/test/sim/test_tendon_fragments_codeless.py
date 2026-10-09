@@ -3,11 +3,13 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Kitless coverage for PhysX tendon fragments using OVPhysX's codeless USD schemas."""
+"""Kitless coverage for PhysX tendon fragments using external codeless USD schemas."""
 
 import pytest
 
-ovphysx = pytest.importorskip("ovphysx", reason="ovphysx wheel not installed")
+pytest.importorskip("ovphysx", reason="ovphysx wheel not installed")
+
+from isaaclab_ov._runtime import physx_schema_paths
 
 from pxr import Plug, Usd
 
@@ -19,9 +21,7 @@ def test_tendon_fragments_use_codeless_schema_names_and_types():
 
     registry = Plug.Registry()
     registered_names = {plugin.name.casefold() for plugin in registry.GetAllPlugins()}
-    schema_paths = [
-        str(path) for path in ovphysx.codeless_schema_paths() if path.parent.name.casefold() not in registered_names
-    ]
+    schema_paths = [str(path) for path in physx_schema_paths() if path.parent.name.casefold() not in registered_names]
     if schema_paths:
         registry.RegisterPlugins(schema_paths)
 

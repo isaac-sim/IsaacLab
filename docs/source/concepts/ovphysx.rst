@@ -128,6 +128,13 @@ Use ``--extra ov`` to install both public OvPhysX and OVRTX runtimes. The combin
 extra pairs OVRTX 0.5.0.377615 with OVStage 0.2; OVRTX 0.4.1 is not compatible
 with this runtime combination.
 
+The ``ovphysx`` and ``ov`` extras also install ``physx-usd-schemas``. Isaac Lab
+discovers that package's PhysX and deformable schema resources without importing
+the provider, then registers them with OVStage and the host USD runtime before
+creating the simulation stage. A missing or incomplete provider fails at startup.
+Custom consumers must register both schema resource directories before their first
+USD schema lookup or OVStage population; newer OVPhysX runtimes no longer bundle those resources.
+
 Task completion
 ---------------
 
