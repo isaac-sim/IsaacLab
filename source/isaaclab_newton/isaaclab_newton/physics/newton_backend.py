@@ -969,7 +969,11 @@ def capture_graph(device: str, fn: Callable[[], None], *, relaxed: bool = False)
 
 @contextlib.contextmanager
 def _paused_gc():
-    """Keep collection-driven frees out of CUDA graph capture."""
+    """Keep collection-driven frees out of CUDA graph capture.
+
+    The deferred garbage is left to the next automatic collection: an explicit collection after every capture costs
+    hundreds of milliseconds on a large heap.
+    """
     was_enabled = gc.isenabled()
     gc.disable()
     try:
@@ -977,7 +981,6 @@ def _paused_gc():
     finally:
         if was_enabled:
             gc.enable()
-            gc.collect()
 
 
 class NewtonQueries:

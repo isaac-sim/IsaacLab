@@ -9,3 +9,5 @@
 * Fixed IMU, PVA, and frame-transformer sensors injecting duplicate sites into the retained builder on every hard
   reset. Site requests now persist until :meth:`~isaaclab_newton.physics.NewtonManager.close`, a resolved site is
   never injected again, and sensors no longer re-register on ``STOP``.
+* Fixed every CUDA graph capture running a full Python garbage collection afterwards, which added about 0.25 s per
+  capture on large scenes (about 1.7 s at the first step of the rough-terrain ANYmal-D task).
