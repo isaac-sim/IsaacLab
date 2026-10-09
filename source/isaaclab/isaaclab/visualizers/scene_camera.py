@@ -61,7 +61,11 @@ def make_scene_camera_cfg(cfg: SceneCameraCfg, renderer_cfg, background_color=No
     from ..sim import PinholeCameraCfg
     from ..utils.math import create_rotation_matrix_from_view, quat_from_matrix
 
-    rotation = quat_from_matrix(create_rotation_matrix_from_view(torch.tensor([cfg.eye]), torch.tensor([cfg.lookat])))
+    rotation = quat_from_matrix(
+        create_rotation_matrix_from_view(
+            torch.tensor([cfg.eye], dtype=torch.float32), torch.tensor([cfg.lookat], dtype=torch.float32)
+        )
+    )
     width, height = cfg.resolution
     return CameraCfg(
         prim_path=cfg.prim_path,
@@ -75,8 +79,9 @@ def make_scene_camera_cfg(cfg: SceneCameraCfg, renderer_cfg, background_color=No
             clipping_range=(0.1, 1.0e5),
         ),
         offset=CameraCfg.OffsetCfg(pos=cfg.eye, rot=tuple(rotation[0].tolist()), convention="opengl"),
-        renderer_cfg=renderer_cfg,
         background_color=background_color,
+        # None keeps the camera's own default: passing it would replace that with no renderer
+        **({} if renderer_cfg is None else {"renderer_cfg": renderer_cfg}),
     )
 
 
@@ -84,8 +89,8 @@ def add_created_cameras(env_cfg, sim_cfg, physics_cfg) -> bool:
     """Add the scene cameras that the launcher's visualizers create to *env_cfg*'s scene.
 
     Visualizers exist only when ``--visualizer`` selects one or a video records from one, so runs that display
-    nothing pay nothing. A camera without ``renderer_cfg`` uses the Newton Warp renderer on Newton physics and
-    the camera default otherwise, and takes its background color from its visualizer.
+    nothing pay nothing. A camera without ``renderer_cfg`` uses the Newton Warp renderer, except with a Kit
+    visualizer on other physics, where it uses the camera default. It takes its background color from its visualizer.
 
     Args:
         env_cfg: The launched config; only one with a ``scene`` is changed.
@@ -100,8 +105,14 @@ def add_created_cameras(env_cfg, sim_cfg, physics_cfg) -> bool:
     scene_cfg = getattr(env_cfg, "scene", None)
     if scene_cfg is None or not sim_cfg.visualizer_cfgs:
         return False
+    # Newton Warp renders any physics whose visualizers need the Newton model, i.e. all but Kit, so a camera
+    # for them adds no runtime; with Kit and not Newton physics the camera default is the Kit renderer.
+    viewers = (
+        sim_cfg.visualizer_cfgs if isinstance(sim_cfg.visualizer_cfgs, (list, tuple)) else [sim_cfg.visualizer_cfgs]
+    )
+    uses_kit = any(cfg.visualizer_type == "kit" for cfg in viewers)
     renderer_cfg = None
-    if type(physics_cfg).__module__.startswith("isaaclab_newton"):
+    if not uses_kit or type(physics_cfg).__module__.startswith("isaaclab_newton"):
         from isaaclab_newton.renderers import NewtonWarpRendererCfg
 
         renderer_cfg = NewtonWarpRendererCfg(enable_shadows=True, enable_ambient_lighting=True, enable_textures=True)
@@ -147,8 +158,6 @@ class TrackingCameraUpdater:
             raise ValueError(f"track_path refers to an unknown scene asset: {asset_name!r}.") from exc
         self._body_index: int | None = None
         self._yaw: torch.Tensor | None = None
-        # an eager scene captures cameras before they move, so a move must request fresh pixels
-        self._eager = not scene.cfg.lazy_sensor_update
 
     def update(self, env_ids: list[int], dt: float) -> None:
         """Move the cameras of *env_ids* to the asset's pose after *dt* [s] of simulation, once both are ready."""
@@ -177,8 +186,8 @@ class TrackingCameraUpdater:
                 for o in (eye, target)
             )
         camera.set_world_poses_from_view(position + eye, position + target, env_ids=ids)
-        if self._eager:
-            camera.update(0.0, force_recompute=True)
+        # a move does not mark the images outdated, and a scene may have captured before it or for another viewer
+        camera.update(0.0, force_recompute=True)
 
     def _filtered_yaw(self, ids: torch.Tensor, quat: torch.Tensor, dt: float) -> torch.Tensor:
         """Return the yaw of *quat* filtered toward along the shortest rotation, the first sample unfiltered."""

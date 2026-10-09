@@ -17,7 +17,7 @@ from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.visualizers import SceneCameraCfg, VisualizerCfg
-from isaaclab.visualizers.scene_camera import TrackingCameraUpdater, add_created_cameras
+from isaaclab.visualizers.scene_camera import TrackingCameraUpdater, add_created_cameras, make_scene_camera_cfg
 
 
 def _quat_z(yaw: float) -> list[float]:
@@ -91,10 +91,16 @@ def _add(env_cfg) -> bool:
     return add_created_cameras(env_cfg, env_cfg.sim, None)
 
 
-def test_an_eager_scene_gets_fresh_pixels_after_the_camera_moves():
+def test_a_moved_camera_is_asked_for_fresh_pixels_in_any_scene():
     cfg = SceneCameraCfg(create=True, track_path="robot")
     assert _update(cfg, [0.0], lazy=False).refreshed
-    assert not _update(cfg, [0.0], lazy=True).refreshed
+    assert _update(cfg, [0.0], lazy=True).refreshed
+
+
+def test_whole_number_poses_and_unset_renderers_build_a_camera():
+    camera = make_scene_camera_cfg(SceneCameraCfg(create=True, eye=(4, -4, 3), lookat=(0, 0, 0)), None)
+    assert camera.offset.pos == (4, -4, 3)
+    assert camera.renderer_cfg is not None  # the camera's own default, not None
 
 
 def test_cameras_are_added_only_when_a_visualizer_uses_them():

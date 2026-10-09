@@ -185,8 +185,8 @@ class SceneCameraCfg:
 
     renderer_cfg: RendererCfg | None = None
     """Renderer of the created camera, e.g. ``NewtonWarpRendererCfg(enable_shadows=True)`` to trade speed for
-    quality. None uses the Newton Warp renderer on Newton physics and the :class:`~isaaclab.sensors.CameraCfg`
-    default otherwise."""
+    quality. None uses the Newton Warp renderer, except with a Kit visualizer on other physics, where it uses the
+    :class:`~isaaclab.sensors.CameraCfg` default."""
 
     track_path: str | None = None
     """Scene asset the created camera follows, or None to keep it fixed relative to each environment origin.

@@ -237,7 +237,8 @@ These fields apply only with ``create=True``:
   ``heading_smoothing_time_constant`` [s] damps rapid turns; zero follows immediately.
 * ``focal_length`` [mm], ``resolution`` (width, height) and ``data_types`` set the optics and outputs.
 * ``renderer_cfg`` sets the camera's renderer and so its quality, e.g. ``NewtonWarpRendererCfg`` with
-  shadows enabled. Without it Newton physics uses the Newton Warp renderer.
+  shadows enabled. Without it the camera uses the Newton Warp renderer, except with a Kit visualizer on other
+  physics, where it uses the camera default.
 
 The scene holds one camera per environment and the renderer draws every environment when the view reads its
 image, so the cost grows with the environment count and the resolution, and a view that is hidden costs nothing.
