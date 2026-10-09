@@ -902,19 +902,9 @@ def pre_launch_video_config(env_cfg: Any, args_cli: argparse.Namespace) -> None:
     Args:
         env_cfg: Isaac Lab environment config to modify in-place.
         args_cli: Parsed command-line arguments.
-
-    Raises:
-        ValueError: If recording is requested with the warp frontend.
     """
     if not getattr(args_cli, "video", None):
         return
-    frontend = getattr(args_cli, "frontend", "torch") or "torch"
-    if frontend != "torch":
-        raise ValueError(
-            f"--video is not supported with --frontend {frontend!r}. "
-            "Video recording requires the standard torch frontend. "
-            "Remove --video or switch to --frontend torch."
-        )
     if not env_cfg.video_recorders:
         env_cfg.video_recorders = [VideoRecorderCfg(source=args_cli.video, video_interval=2000)]
 
