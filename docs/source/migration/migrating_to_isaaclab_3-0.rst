@@ -497,69 +497,29 @@ backend-specific fragment silently drops the inherited properties.
 
 **Deformable bodies: pick the slot**
 
-The deformable fragments go in one of two spawner slots,
-``volume_deformable_props`` or ``surface_deformable_props``, and that slot sets
-the deformable type. The legacy ``deformable_props`` field has no type of its
-own: it authors a surface deformable when the spawner's ``physics_material`` is
-a :class:`~isaaclab.sim.spawners.materials.SurfaceDeformableBodyMaterialBaseCfg`
-(for example ``PhysxSurfaceDeformableBodyMaterialCfg`` or
-``NewtonSurfaceDeformableBodyMaterialCfg``) and a volume deformable otherwise.
-Use the slot that matches:
+The slot now selects the deformable type. Replace ``deformable_props`` with
+``surface_deformable_props`` when its physics material is a surface deformable material;
+otherwise use ``volume_deformable_props``. An empty slot creates a body with backend defaults,
+including on Newton. Add only the fragments whose values you need to set. The active backend
+chooses the deformable schemas, whereas the legacy cfg type chose them previously.
 
-.. list-table::
-   :header-rows: 1
-   :widths: 45 55
-
-   * - Legacy spawner cfg
-     - Fragment slot
-   * - ``deformable_props=...`` with a surface deformable ``physics_material``
-     - ``surface_deformable_props=[...]``
-   * - ``deformable_props=...`` with any other ``physics_material``, or none
-     - ``volume_deformable_props=[...]``
-
-:class:`~isaaclab_physx.sim.schemas.PhysxSurfaceDeformableBodyCfg` carries the
-two surface-only fields, ``collision_pair_update_frequency`` and
-``collision_iteration_multiplier``. It belongs in the surface slot only; in the
-volume slot it is still authored, with a logged warning. Unlike the legacy class,
-it also applies ``PhysxSurfaceDeformableBodyAPI``, the schema that declares both
-fields.
-
-Two more differences to account for:
-
-* The legacy PhysX cfgs author ``kinematic_enabled=False`` and
-  ``solver_position_iteration_count=16`` even when you leave them unset, while
-  the fragments author only the fields you set. The schema fallbacks have the
-  same values, so the simulation does not change. To keep the authored USD
-  identical (for example when a file-spawned asset authors other values that
-  the legacy cfg used to overwrite), set both explicitly:
-  ``[OmniPhysicsDeformableBodyCfg(kinematic_enabled=False), PhysxDeformableBodyCfg(solver_position_iteration_count=16)]``.
-* The legacy cfg type chose the deformable schemas: ``NewtonDeformableBodyPropertiesCfg``
-  authored Newton's schemas and every other cfg the OmniPhysics ones. With the
-  fragment slots the active physics backend chooses, so use the fragments for
-  the backend you run.
+PhysX properties split into :class:`~isaaclab.sim.schemas.OmniPhysicsDeformableBodyCfg`
+for ``omniphysics:*``, :class:`~isaaclab_physx.sim.schemas.PhysxDeformableBodyCfg` for
+solver properties, and :class:`~isaaclab_physx.sim.schemas.PhysxSurfaceDeformableBodyCfg`
+for surface-only properties. Legacy PhysX cfgs explicitly authored
+``kinematic_enabled=False`` and ``solver_position_iteration_count=16``; the fragment API
+uses the same schema defaults without authoring them. Set those values explicitly only
+when preserving authored USD on a pre-authored asset matters.
 
 .. code-block:: python
 
-   # Deprecated: the physics material decides that this is a surface deformable
-   cloth = sim_utils.MeshRectangleCfg(
-       size=(0.2, 0.2),
-       deformable_props=PhysxDeformableBodyPropertiesCfg(self_collision=True),
-       collision_props=[PhysxCollisionCfg(rest_offset=0.002, contact_offset=0.01)],
-       physics_material=PhysxSurfaceDeformableBodyMaterialCfg(),
-   )
-
-.. code-block:: python
-
-   # Recommended: the slot says surface; one fragment per USD namespace
-   from isaaclab.sim.schemas import OmniPhysicsDeformableBodyCfg
+   import isaaclab.sim as sim_utils
    from isaaclab_physx.sim.schemas import PhysxCollisionCfg, PhysxDeformableBodyCfg
+   from isaaclab_physx.sim.spawners.materials import PhysxSurfaceDeformableBodyMaterialCfg
 
    cloth = sim_utils.MeshRectangleCfg(
        size=(0.2, 0.2),
-       surface_deformable_props=[
-           OmniPhysicsDeformableBodyCfg(kinematic_enabled=False),
-           PhysxDeformableBodyCfg(solver_position_iteration_count=16, self_collision=True),
-       ],
+       surface_deformable_props=PhysxDeformableBodyCfg(self_collision=True),
        collision_props=[PhysxCollisionCfg(rest_offset=0.002, contact_offset=0.01)],
        physics_material=PhysxSurfaceDeformableBodyMaterialCfg(),
    )

@@ -28,11 +28,9 @@ args_cli = parser.parse_args()
 
 """Rest everything follows."""
 
-from isaaclab_physx.sim.schemas import PhysxDeformableBodyCfg
 from isaaclab_physx.sim.spawners.materials import PhysxDeformableBodyMaterialCfg
 
 import isaaclab.sim as sim_utils
-from isaaclab.sim.schemas import OmniPhysicsDeformableBodyCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 
@@ -64,9 +62,9 @@ def design_scene():
     cfg_cone_rigid = sim_utils.ConeCfg(
         radius=0.15,
         height=0.5,
-        rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
-        mass_props=sim_utils.MassCfg(mass=1.0),
-        collision_props=sim_utils.UsdPhysicsCollisionCfg(),
+        rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+        mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+        collision_props=sim_utils.CollisionPropertiesCfg(),
         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 0.0)),
     )
     cfg_cone_rigid.func(
@@ -76,10 +74,7 @@ def design_scene():
     # spawn a blue cuboid with deformable body
     cfg_cuboid_deformable = sim_utils.MeshCuboidCfg(
         size=(0.2, 0.5, 0.2),
-        volume_deformable_props=[
-            OmniPhysicsDeformableBodyCfg(kinematic_enabled=False),
-            PhysxDeformableBodyCfg(solver_position_iteration_count=16),
-        ],
+        volume_deformable_props=[],
         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0)),
         physics_material=PhysxDeformableBodyMaterialCfg(),
     )

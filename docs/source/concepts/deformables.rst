@@ -104,8 +104,8 @@ Each fragment writes one USD namespace, so a backend's properties are split acro
 attributes (``mass``, ``kinematic_enabled``, ``deformable_body_enabled``),
 :class:`~isaaclab_physx.sim.schemas.PhysxDeformableBodyCfg` the PhysX solver attributes, and
 :class:`~isaaclab_physx.sim.schemas.PhysxSurfaceDeformableBodyCfg` the PhysX surface-only ones.
-Newton has no deformable-body attributes, so a Newton scene sets the slot to an empty list. The
-active physics backend applies its own deformable anchor schemas.
+An empty slot creates the body with the active backend's defaults; add fragments only for
+properties you want to set. The backend applies its own deformable anchor schemas.
 
 Wrap the spawner in a :class:`~isaaclab.assets.DeformableObjectCfg` to get a runtime asset.
 
@@ -113,25 +113,20 @@ Wrap the spawner in a :class:`~isaaclab.assets.DeformableObjectCfg` to get a run
 
     import isaaclab.sim as sim_utils
     from isaaclab.assets import DeformableObjectCfg
-    from isaaclab.sim.schemas import OmniPhysicsDeformableBodyCfg
-    from isaaclab_physx.sim.schemas import PhysxDeformableBodyCfg
     from isaaclab_physx.sim.spawners.materials import PhysxDeformableBodyMaterialCfg
 
     cfg = DeformableObjectCfg(
         prim_path="/World/env_.*/Cube",
         spawn=sim_utils.MeshCuboidCfg(
             size=(0.2, 0.2, 0.2),
-            volume_deformable_props=[
-                OmniPhysicsDeformableBodyCfg(kinematic_enabled=False),
-                PhysxDeformableBodyCfg(solver_position_iteration_count=16),
-            ],
+            volume_deformable_props=[],
             physics_material=PhysxDeformableBodyMaterialCfg(
                 youngs_modulus=1.0e5, poissons_ratio=0.4, density=1000.0
             ),
         ),
     )
 
-The same object on Newton uses an empty slot and swaps the material:
+The same object on Newton swaps the material:
 
 .. code-block:: python
 
@@ -199,6 +194,9 @@ A deformable can also come from a pre-authored asset. Pass a deformable slot and
 the deformable schema to the loaded prim, or modifies it in place if the prim already carries one.
 
 .. code-block:: python
+
+    from isaaclab.sim.schemas import OmniPhysicsDeformableBodyCfg
+    from isaaclab_physx.sim.schemas import PhysxDeformableBodyCfg
 
     cfg_usd = sim_utils.UsdFileCfg(
         usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Objects/Teddy_Bear/teddy_bear.usd",

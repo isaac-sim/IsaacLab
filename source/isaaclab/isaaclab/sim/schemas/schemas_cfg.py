@@ -978,8 +978,7 @@ class BoundingSpherePropertiesCfg(MeshCollisionBaseCfg):
 class DeformableBodyPropertiesBaseCfg:
     """Base deformable body properties for backend-specific extensions.
 
-    This class is currently empty. It will be populated once the USD deformable
-    schemas can be unified more cleanly between physics backends.
+    This legacy base class has no fields; backend-specific subclasses define them.
 
     .. deprecated:: 3.1
         Use the deformable-body schema fragments instead, passed in the spawner's

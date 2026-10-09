@@ -8,7 +8,6 @@ from isaaclab.test.utils import launch_test_simulation
 launch_test_simulation()
 
 import pytest
-from isaaclab_physx.sim.schemas.schemas_cfg import PhysxDeformableBodyCfg
 from isaaclab_physx.sim.spawners.materials.physics_materials_cfg import PhysxDeformableBodyMaterialCfg
 
 import isaaclab.sim as sim_utils
@@ -44,11 +43,11 @@ def test_spawn_cone_with_deformable_and_mass_props(sim):
     specifying either the mass or the material density.
     """
     # Spawn cone
-    body_cfg = OmniPhysicsDeformableBodyCfg(deformable_body_enabled=True, kinematic_enabled=False, mass=1.0)
+    body_cfg = OmniPhysicsDeformableBodyCfg(deformable_body_enabled=True, mass=1.0)
     cfg = sim_utils.MeshConeCfg(
         radius=1.0,
         height=2.0,
-        volume_deformable_props=[body_cfg, PhysxDeformableBodyCfg(solver_position_iteration_count=16)],
+        volume_deformable_props=body_cfg,
     )
     prim = cfg.func("/World/Cone", cfg)
 
@@ -64,10 +63,7 @@ def test_spawn_cone_with_deformable_and_mass_props(sim):
     cfg = sim_utils.MeshConeCfg(
         radius=1.0,
         height=2.0,
-        volume_deformable_props=[
-            OmniPhysicsDeformableBodyCfg(deformable_body_enabled=True, kinematic_enabled=False),
-            PhysxDeformableBodyCfg(solver_position_iteration_count=16),
-        ],
+        volume_deformable_props=OmniPhysicsDeformableBodyCfg(deformable_body_enabled=True),
         physics_material=PhysxDeformableBodyMaterialCfg(density=10.0),
     )
     prim = cfg.func("/World/ConeDensity", cfg)
@@ -91,10 +87,7 @@ def test_spawn_cone_with_deformable_and_collision_fragment_mapping(sim):
     cfg = sim_utils.MeshConeCfg(
         radius=1.0,
         height=2.0,
-        volume_deformable_props=[
-            OmniPhysicsDeformableBodyCfg(deformable_body_enabled=True, kinematic_enabled=False, mass=1.0),
-            PhysxDeformableBodyCfg(solver_position_iteration_count=16),
-        ],
+        volume_deformable_props=OmniPhysicsDeformableBodyCfg(deformable_body_enabled=True, mass=1.0),
         collision_props={"/sim_mesh": [PhysxCollisionCfg(contact_offset=0.02, rest_offset=0.001)]},
     )
     cfg.func("/World/ConeMap", cfg)

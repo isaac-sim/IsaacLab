@@ -14,9 +14,10 @@ from isaaclab_newton.physics import (
     NewtonSoftContactCfg,
     VBDSolverCfg,
 )
+from isaaclab_newton.sim.schemas import NewtonDeformableBodyPropertiesCfg
 from isaaclab_newton.sim.spawners.materials import NewtonDeformableBodyMaterialCfg
 from isaaclab_physx.physics import PhysxCfg
-from isaaclab_physx.sim.schemas import PhysxCollisionCfg, PhysxDeformableBodyCfg
+from isaaclab_physx.sim.schemas import PhysxCollisionCfg, PhysxDeformableBodyPropertiesCfg
 from isaaclab_physx.sim.spawners.materials import PhysxDeformableBodyMaterialCfg
 
 import isaaclab.sim as sim_utils
@@ -35,7 +36,6 @@ from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import CameraCfg, FrameTransformerCfg
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
-from isaaclab.sim.schemas import OmniPhysicsDeformableBodyCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg
 from isaaclab.utils import configclass, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
@@ -91,7 +91,7 @@ class DeformableCfg(PresetCfg):
         spawn=sim_utils.MeshCuboidCfg(
             size=(0.3, 0.04, 0.04),
             edge_refinement=8.0,
-            volume_deformable_props=[],
+            deformable_props=NewtonDeformableBodyPropertiesCfg(),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.45, 0.45, 0.85)),
             physics_material=NewtonDeformableBodyMaterialCfg(
                 density=1000.0,
@@ -108,10 +108,7 @@ class DeformableCfg(PresetCfg):
         spawn=sim_utils.MeshCuboidCfg(
             size=(0.3, 0.04, 0.04),
             edge_refinement=8.0,
-            volume_deformable_props=[
-                OmniPhysicsDeformableBodyCfg(kinematic_enabled=False),
-                PhysxDeformableBodyCfg(solver_position_iteration_count=16),
-            ],
+            deformable_props=PhysxDeformableBodyPropertiesCfg(),
             collision_props=PhysxCollisionCfg(rest_offset=0.0025, contact_offset=0.01),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.45, 0.45, 0.85)),
             physics_material=PhysxDeformableBodyMaterialCfg(

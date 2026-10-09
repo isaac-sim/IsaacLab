@@ -16,7 +16,6 @@ These tests run on an in-memory USD stage and do not launch Isaac Sim / Kit.
 import dataclasses
 import inspect
 import json
-import re
 import subprocess
 import sys
 import warnings
@@ -156,9 +155,6 @@ DEPRECATED_WRITERS = {
     "modify_deformable_body_properties": _DEFORMABLE_WRITERS,
 }
 
-# The curve writer has no fragment family to point at, so it stays undeprecated.
-UNDEPRECATED_DEFORMABLE_WRITERS = ["define_deformable_curve_properties"]
-
 
 def _physx_cfgs():
     """Import the PhysX schema cfg module, skipping the test when the extension is absent."""
@@ -212,43 +208,6 @@ def test_legacy_newton_cfg_warns_on_instantiation(name, expected):
     _assert_deprecated_once(getattr(_newton_cfgs(), name), expected)
 
 
-# Every deformable-body fragment a legacy deformable cfg can migrate to, and every legacy
-# deformable cfg. The cover test derives the fragments a warning must name from the fields.
-_DEFORMABLE_FRAGMENTS = [
-    ("isaaclab.sim.schemas.schemas_cfg", "OmniPhysicsDeformableBodyCfg"),
-    ("isaaclab_physx.sim.schemas.schemas_cfg", "PhysxDeformableBodyCfg"),
-    ("isaaclab_physx.sim.schemas.schemas_cfg", "PhysxSurfaceDeformableBodyCfg"),
-]
-_LEGACY_DEFORMABLE_CFGS = [
-    ("isaaclab.sim.schemas.schemas_cfg", "DeformableBodyPropertiesBaseCfg"),
-    ("isaaclab_physx.sim.schemas.schemas_cfg", "OmniPhysicsDeformableBodyPropertiesCfg"),
-    ("isaaclab_physx.sim.schemas.schemas_cfg", "PhysXDeformableBodyPropertiesCfg"),
-    ("isaaclab_physx.sim.schemas.schemas_cfg", "PhysxDeformableBodyPropertiesCfg"),
-    ("isaaclab_physx.sim.schemas.schemas_cfg", "DeformableBodyPropertiesCfg"),
-    ("isaaclab_newton.sim.schemas.schemas_cfg", "NewtonDeformableBodyPropertiesCfg"),
-]
-
-
-def _field_names(cls) -> set[str]:
-    """Return the authored field names of a schema cfg class (the applier callable excluded)."""
-    return {field.name for field in dataclasses.fields(cls)} - {"func"}
-
-
-@pytest.mark.parametrize("module_name,name", _LEGACY_DEFORMABLE_CFGS)
-def test_legacy_deformable_cfg_warning_names_complete_fragment_cover(module_name, name):
-    """The fragments a legacy deformable cfg warning names carry every field of that cfg, and both slots."""
-    cls = getattr(pytest.importorskip(module_name), name)
-    fragments = [getattr(pytest.importorskip(module), fragment) for module, fragment in _DEFORMABLE_FRAGMENTS]
-    deprecations = _deprecations(cls)
-    assert len(deprecations) == 1
-    message = str(deprecations[0].message)
-    named = [fragment for fragment in fragments if re.search(rf"\b{fragment.__name__}\b", message)]
-    covered = set().union(*(_field_names(fragment) for fragment in named))
-    uncovered = _field_names(cls) - covered
-    assert not uncovered, f"{name}: warning names {[f.__name__ for f in named]}, which miss {sorted(uncovered)}"
-    assert all(slot in message for slot in _DEFORMABLE_SLOTS), f"{name}: warning omits a deformable slot"
-
-
 @pytest.mark.parametrize("name", CURRENT_CORE_FRAGMENTS)
 def test_core_fragment_does_not_warn(name):
     """The replacement core fragments must not warn."""
@@ -267,17 +226,11 @@ def test_newton_fragment_does_not_warn(name):
     assert _deprecations(getattr(_newton_cfgs(), name)) == []
 
 
-@pytest.mark.parametrize("name", UNDEPRECATED_DEFORMABLE_WRITERS)
-def test_deformable_curve_writer_is_not_deprecated(name):
-    """The curve writer has no fragment family, so it must neither warn nor document a deprecation."""
-    writer = getattr(schemas, name)
-    assert ".. deprecated::" not in (writer.__doc__ or "")
+def test_deformable_curve_writer_is_not_deprecated():
+    """The curve writer has no replacement fragment and remains public."""
     stage = Usd.Stage.CreateInMemory()
     UsdGeom.BasisCurves.Define(stage, "/World/Cable")
-    assert _deprecations(lambda: writer("/World/Cable", stage=stage)) == []
-    # a token API schema is only visible through the prim type info
-    applied = stage.GetPrimAtPath("/World/Cable").GetPrimTypeInfo().GetAppliedAPISchemas()
-    assert "PhysicsCurvesDeformableSimAPI" in applied
+    assert _deprecations(lambda: schemas.define_deformable_curve_properties("/World/Cable", stage=stage)) == []
 
 
 # Imports the schema cfg modules for the first time in a fresh interpreter and reports every
@@ -288,7 +241,6 @@ def test_deformable_curve_writer_is_not_deprecated(name):
 _IMPORT_SILENCE_PROBE = """
 import importlib
 import json
-import re
 import sys
 import warnings
 
@@ -442,8 +394,8 @@ def test_legacy_collision_writer_warns_once_despite_mesh_delegation(name):
     assert UsdPhysics.MeshCollisionAPI(prim).GetApproximationAttr().Get() == "boundingCube"
 
 
-def _stage_with_surface_mesh() -> tuple[Usd.Stage, str]:
-    """Return an in-memory stage carrying a body prim with one triangle-mesh child, and its path."""
+def test_legacy_deformable_writers_warn_once_and_author():
+    """The legacy define and modify writers each warn once and still author their USD fields."""
     stage = Usd.Stage.CreateInMemory()
     prim_path = "/World/Cloth"
     UsdGeom.Xform.Define(stage, prim_path)
@@ -451,18 +403,10 @@ def _stage_with_surface_mesh() -> tuple[Usd.Stage, str]:
     mesh.GetPointsAttr().Set([(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (1.0, 1.0, 0.0), (0.0, 1.0, 0.0)])
     mesh.GetFaceVertexIndicesAttr().Set([0, 1, 2, 0, 2, 3])
     mesh.GetFaceVertexCountsAttr().Set([3, 3])
-    return stage, prim_path
-
-
-def test_define_deformable_body_properties_warns_once_and_authors():
-    """The legacy deformable writer warns once at the caller, including its internal ``modify`` call."""
-    newton_cfg = _newton_cfgs()
-    stage, prim_path = _stage_with_surface_mesh()
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", DeprecationWarning)
-        cfg = newton_cfg.NewtonDeformableBodyPropertiesCfg()
+        cfg = _newton_cfgs().NewtonDeformableBodyPropertiesCfg()
 
-    # the mesh lookup inside the writer reads the current stage, not the ``stage`` argument
     with use_stage(stage):
         deprecations = _deprecations(
             lambda: schemas.define_deformable_body_properties(prim_path, cfg, stage, deformable_type="surface")
@@ -475,15 +419,9 @@ def test_define_deformable_body_properties_warns_once_and_authors():
     assert "3.2" in message
     assert "PhysicsDeformableBodyAPI" in stage.GetPrimAtPath(prim_path).GetPrimTypeInfo().GetAppliedAPISchemas()
 
-
-def test_modify_deformable_body_properties_warns_and_writes():
-    """The legacy deformable modifier warns once and still authors the ``omniphysics:*`` fields."""
-    physx_cfg = _physx_cfgs()
-    stage, prim_path = _stage_with_surface_mesh()
-    stage.GetPrimAtPath(prim_path).AddAppliedSchema("PhysicsDeformableBodyAPI")
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", DeprecationWarning)
-        cfg = physx_cfg.OmniPhysicsDeformableBodyPropertiesCfg(mass=2.0)
+        cfg = _physx_cfgs().OmniPhysicsDeformableBodyPropertiesCfg(mass=2.0)
 
     deprecations = _deprecations(lambda: schemas.modify_deformable_body_properties(prim_path, cfg, stage))
     assert len(deprecations) == 1

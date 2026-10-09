@@ -65,8 +65,6 @@ density = 500.0
 if args_cli.backend == "newton_vbd":
     from isaaclab_newton.sim.spawners.materials import NewtonDeformableBodyMaterialCfg
 
-    # Newton needs no deformable-body attributes; an empty slot still creates the deformable body
-    deformable_props = []
     # Newton's VBD path skips the simulation mesh collider, so collision offsets do not apply
     collision_props = None
     physics_material = NewtonDeformableBodyMaterialCfg(
@@ -75,16 +73,9 @@ if args_cli.backend == "newton_vbd":
         density=density,
     )
 else:
-    from isaaclab_physx.sim.schemas import PhysxCollisionCfg, PhysxDeformableBodyCfg
+    from isaaclab_physx.sim.schemas import PhysxCollisionCfg
     from isaaclab_physx.sim.spawners.materials import PhysxDeformableBodyMaterialCfg
 
-    from isaaclab.sim.schemas import OmniPhysicsDeformableBodyCfg
-
-    # one fragment per USD namespace: ``omniphysics:*`` body attributes and ``physxDeformableBody:*`` solver ones
-    deformable_props = [
-        OmniPhysicsDeformableBodyCfg(kinematic_enabled=False),
-        PhysxDeformableBodyCfg(solver_position_iteration_count=16),
-    ]
     collision_props = [PhysxCollisionCfg(rest_offset=0.0, contact_offset=0.001)]
     physics_material = PhysxDeformableBodyMaterialCfg(
         poissons_ratio=poissons_ratio, youngs_modulus=youngs_modulus, density=density
@@ -108,7 +99,7 @@ class DeformableSceneCfg(InteractiveSceneCfg):
         prim_path="{ENV_REGEX_NS}/Cube",
         spawn=sim_utils.MeshCuboidCfg(
             size=(0.2, 0.2, 0.2),
-            volume_deformable_props=deformable_props,
+            volume_deformable_props=[],
             collision_props=collision_props,
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.5, 0.1, 0.0)),
             physics_material=physics_material,
