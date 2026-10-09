@@ -1867,16 +1867,15 @@ class NewtonGLVisualizer(NewtonVisualizer):
         if not self._live_plot_sources or self._viewer is None:
             return
         viewer = self._viewer
-        scalar_buffers = getattr(viewer, "_scalar_buffers", None)
-        array_buffers = getattr(viewer, "_array_buffers", None)
+        plots = viewer._plot_logger
+        scalar_buffers = plots._scalar_buffers
+        array_buffers = plots._array_buffers
         if not scalar_buffers and not array_buffers:
             return
 
         _ip = getattr(viewer, "_implot", None)
-        if not hasattr(viewer, "_scalar_arrays"):
-            viewer._scalar_arrays = {}
-        scalar_arrays = viewer._scalar_arrays
-        n = getattr(viewer, "_plot_history_size", 250)
+        scalar_arrays = plots._scalar_arrays
+        n = plots._plot_history_size
         s = viewer.gui.ui.dpi_scale
         plot_h = 180 * s
 
@@ -1925,12 +1924,10 @@ class NewtonGLVisualizer(NewtonVisualizer):
                         overlay = f"{buf[-1]:.4g}" if buf else ""
                         imgui.plot_lines(f"##{name}", arr, graph_size=graph_size, overlay_text=overlay)
 
-        render_heatmap = getattr(viewer, "_render_array_heatmap", None)
-        if render_heatmap is not None:
-            panel_width = imgui.get_content_region_avail().x
-            for name, array in (array_buffers or {}).items():
-                if imgui.collapsing_header(name):
-                    render_heatmap(name, array, panel_width - 20.0 * s, dpi_scale=s)
+        panel_width = imgui.get_content_region_avail().x
+        for name, array in array_buffers.items():
+            if imgui.collapsing_header(name):
+                plots._render_array_heatmap(imgui, name, array, panel_width - 20.0 * s, dpi_scale=s)
 
     def _render_live_plots(self) -> None:
         """Push manager-term scalars to the Newton viewer's built-in plot panel."""

@@ -17,7 +17,7 @@ from isaaclab.assets import AssetBaseCfg
 from isaaclab.cloner import CloneCfg, ReplicateSession, UsdReplicateContext, clone_plan_from_env_0, grid_transforms
 from isaaclab.cloner import path as cloner_path
 from isaaclab.renderers import RenderContext, RendererCfg
-from isaaclab.sensors import CameraCfg, SensorBaseCfg
+from isaaclab.sensors import CameraCfg, RayCasterCfg, SensorBaseCfg
 from isaaclab.sim import CuboidCfg, MultiAssetSpawnerCfg, PinholeCameraCfg, SimulationContext, SphereCfg
 
 
@@ -92,7 +92,7 @@ def test_empty_and_shared_only_worlds(simulation, shared):
 
 @pytest.mark.parametrize("from_env_0", [False, True])
 def test_camera_registers_before_cloning_and_shares_the_plan(simulation, from_env_0):
-    """Camera requirements enter both construction workflows before dispatch."""
+    """Camera requirements enter both workflows; an attached ray caster does not own a clone source."""
     constructed = []
 
     def factory(cfg):
@@ -105,7 +105,10 @@ def test_camera_registers_before_cloning_and_shares_the_plan(simulation, from_en
     prop = AssetBaseCfg(prim_path="{ENV_REGEX_NS}/Prop", spawn=MultiAssetSpawnerCfg(assets_cfg=[SphereCfg(radius=1)]))
     assets = camera, ground, prop, AssetBaseCfg(prim_path="/Lab/Ground/Material")
     assets += SensorBaseCfg(prim_path="/Lab/Ground/Frame"), SensorBaseCfg(prim_path=camera.prim_path)
-    assets += (AssetBaseCfg(prim_path="{ENV_REGEX_NS}/Prop/body"),)
+    assets += (
+        AssetBaseCfg(prim_path="{ENV_REGEX_NS}/Prop/body"),
+        RayCasterCfg(prim_path="{ENV_REGEX_NS}/Prop", mesh_prim_paths=["/Lab/Ground"]),
+    )
     if from_env_0:
         plan = clone_plan_from_env_0(CloneCfg(clone_template="/Lab/Cell{}"), assets, 3, 2.0)
         replicate_session.replicate(plan)
