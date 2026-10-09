@@ -268,11 +268,14 @@ class CosmosInferenceModel:
     def warmup(self, *, height: int = 480, width: int = 832) -> None:
         """Warm one canvas through finite-history saturation using a disposable session.
 
-        The warmup emits up to 33 frames from blank controls, within the episode cap. Its
-        prompt, seed, VAE caches, and generation history are discarded before real cameras
-        can connect. Other canvases or prompts can still require compilation on their first use.
+        The warmup emits ``1 + 4 * kv_window`` frames from blank controls (121 for the default window), one latent
+        more than the history window holds, within the episode cap. Its prompt, seed, VAE caches, and generation
+        history are discarded before real cameras can connect. Other canvases or prompts can still require
+        compilation on their first use.
         """
-        frames = 33 if self._max_episode_frames is None else min(33, self._max_episode_frames)
+        frames = 1 + 4 * self.capabilities["kv_window"]
+        if self._max_episode_frames is not None:
+            frames = min(frames, self._max_episode_frames)
         stream = self.open_stream(
             num_views=1,
             seeds=(0,),
@@ -665,6 +668,14 @@ class _CosmosBatchStream(_CosmosInferenceStream):
         except BaseException:
             self.close()
             raise
+
+    def close(self) -> None:
+        """Discard every view's history and causal VAE caches and allow a new camera to use the loaded model."""
+        try:
+            super().close()
+        finally:
+            self._vae_states = []
+            self._vae = None
 
     def _make_iterator(self) -> Generator[dict[str, torch.Tensor], None, None]:
         self._started = False

@@ -22,11 +22,7 @@ import pytest
 import torch
 from isaaclab_experimental.cosmos.server import _framework
 
-pytestmark = [
-    pytest.mark.unit,
-    # The server pins its work to the model's CUDA device; the stand-in model itself runs on the CPU.
-    pytest.mark.skipif(not torch.cuda.is_available(), reason="The Cosmos server selects a CUDA device"),
-]
+pytestmark = pytest.mark.unit
 
 HEIGHT, WIDTH = 480, 832
 
@@ -104,6 +100,9 @@ class Model:
 @pytest.fixture
 def batch(monkeypatch):
     """Two views on the stand-in model; ``partial`` selects the compiled (per-view reset) runtime."""
+    # The server pins its work to the model's CUDA device; the stand-in model itself runs on the CPU.
+    if not torch.cuda.is_available():
+        pytest.skip("The Cosmos server selects a CUDA device")
     module = types.ModuleType("cosmos_framework.model.generator.omni_mot_causal_model")
     module.StreamingTransferStep = StreamingTransferStep
     monkeypatch.setitem(sys.modules, module.__name__, module)
@@ -184,6 +183,37 @@ def test_eager_runtimes_restart_all_views_together_but_not_one(batch):
     assert [image.shape[0] for image in images] == [1, 1]
     assert model.iterators == 2 and model.steps[-1] == ((), None)
     assert stream._seeds == (7, 8)
+
+
+def test_closing_a_batch_releases_every_views_caches(batch):
+    stream, _ = batch()
+    stream.step(_controls((1, 40), (1, 200)), (), ())
+    stream.close()
+    assert stream._vae_states == [] and stream._vae is None
+
+
+@pytest.mark.parametrize("window,cap,frames", [(30, 201, 121), (8, 201, 33), (30, 81, 81), (30, None, 121)])
+def test_warmup_fills_the_history_window_within_the_episode_cap(window, cap, frames, monkeypatch):
+    """Warmup runs one latent past the history window, so the first real episode needs no new shapes."""
+    model = _framework.CosmosInferenceModel.__new__(_framework.CosmosInferenceModel)
+    model.capabilities = {"kv_window": window}
+    model._max_episode_frames = cap
+    opened = {}
+
+    class Stream:
+        def step(self, controls, reset_rows, seeds):
+            opened["frames"] += controls[0].shape[0]
+
+        def close(self):
+            opened["closed"] = True
+
+    def open_stream(**settings):
+        opened.update(budget=settings["max_episode_frames"], frames=0)
+        return Stream()
+
+    monkeypatch.setattr(model, "open_stream", open_stream)
+    model.warmup(height=4, width=4)
+    assert opened == {"budget": frames, "frames": frames, "closed": True}
 
 
 def test_prompt_rows_merge_into_one_batch_with_a_caption_per_view():

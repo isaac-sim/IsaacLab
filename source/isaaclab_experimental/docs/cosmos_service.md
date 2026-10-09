@@ -122,7 +122,8 @@ needs less memory, especially with several environments, but remembers less of e
 
 `--no-compile` selects eager inference. Omit it to enable the compiled CUDA-graph
 path, which can take additional time on its first use. `--warmup` runs a disposable
-33-frame session on a `(480, 832)` canvas before reporting readiness. With compiled
+session on a `(480, 832)` canvas through the full history window (`1 + 4 * --kv-window` frames, 121 by default,
+within the episode cap) before reporting readiness. With compiled
 inference, other canvases or prompts can still require compilation on their first
 use. Omit `--warmup` to expose the endpoint after model loading.
 
