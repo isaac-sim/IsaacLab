@@ -1,10 +1,10 @@
 :orphan:
 
 .. meta::
-   :http-equiv=refresh: 0; url=../../../../concepts/native-physics-api/ovphysx.html
+   :http-equiv=refresh: 0; url=../../../../concepts/ovphysx.html#ovphysx-native-access
    :name=robots: noindex
 
 Page Moved
 ==========
 
-This page moved to :doc:`/source/concepts/native-physics-api/ovphysx`.
+This page moved to :ref:`ovphysx-native-access`.

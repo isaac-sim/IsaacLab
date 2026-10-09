@@ -69,10 +69,9 @@ Ownership and synchronization
      - Caller respects access mode, device, dtype, and shape
      - Reacquire after stage/runtime teardown
 
-.. toctree::
-   :maxdepth: 1
-   :hidden:
+Backend-specific guides
+-----------------------
 
-   physx
-   newton
-   ovphysx
+* PhysX: :ref:`physx-native-access`
+* Newton: :ref:`newton-native-access`
+* OvPhysX: :ref:`ovphysx-native-access`
