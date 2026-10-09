@@ -8,6 +8,7 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
+from collections import Counter
 from collections.abc import Callable
 from dataclasses import MISSING, asdict, field
 from functools import wraps
@@ -626,6 +627,21 @@ def test_config_update_nested_dict():
     assert isinstance(cfg.list_1[1], EnvCfg)
     assert isinstance(cfg.list_1[0].viewer, ViewerCfg)
     assert isinstance(cfg.list_1[1].viewer, ViewerCfg)
+
+
+def test_configclass_wraps_dotted_callable_reference():
+    """Dotted callable references should be wrapped lazily and remain callable."""
+
+    @configclass
+    class NestedCallableCfg:
+        updater: str = "collections:Counter.update"
+
+    cfg = NestedCallableCfg()
+    assert isinstance(cfg.updater, ResolvableString)
+
+    counter = Counter()
+    cfg.updater(counter, {"value": 2})
+    assert counter["value"] == 2
 
 
 def test_wrap_resolvable_strings_handles_cyclic_containers():
