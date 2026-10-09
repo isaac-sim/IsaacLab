@@ -176,7 +176,7 @@ def fit_resident(
         end_factor=options.final_learning_rate / options.learning_rate,
         total_iters=options.max_updates,
     )
-    scaler = torch.amp.GradScaler("cuda", enabled=options.mixed_precision)
+    scaler = torch.amp.grad_scaler.GradScaler("cuda", enabled=options.mixed_precision)
     fingerprint = hashlib.sha256(json.dumps(dict(identity), sort_keys=True, default=str).encode()).hexdigest()
 
     completed = 0
