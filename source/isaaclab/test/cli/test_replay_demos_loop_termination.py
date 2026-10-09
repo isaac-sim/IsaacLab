@@ -15,11 +15,16 @@ extracted from the source and executed against stub objects instead.
 
 import ast
 import contextlib
+import runpy
+import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 import torch
 
+import isaaclab.envs.mdp as mdp
+from isaaclab.managers import CurriculumManager, RewardManager, TerminationManager
 from isaaclab.utils.datasets import EpisodeData, HDF5DatasetFileHandler
 
 pytestmark = pytest.mark.integration
@@ -112,3 +117,43 @@ def test_replay_loop_does_not_step_after_the_recorded_actions():
     assert len(env.stepped_actions) == len(recorded_actions)
     for stepped, recorded in zip(env.stepped_actions, recorded_actions):
         torch.testing.assert_close(stepped, recorded.unsqueeze(0), atol=1e-6, rtol=0.0)
+
+
+def test_replay_prepares_success_reward_tasks_without_training_managers(monkeypatch, tmp_path):
+    """HDF5 replay starts with success-referencing rewards and retains manual validation."""
+    dataset_path = str(tmp_path / "reach.hdf5")
+    dataset = HDF5DatasetFileHandler()
+    dataset.create(dataset_path, env_name="Isaac-Reach-UR10")
+    episode = EpisodeData()
+    episode.data = {"actions": torch.zeros(1, 6)}
+    dataset.write_episode(episode)
+    dataset.close()
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [str(_REPLAY_DEMOS_PATH), "--dataset_file", dataset_path, "--validate_success_rate", "--device", "cpu"],
+    )
+    replay = runpy.run_path(str(_REPLAY_DEMOS_PATH), run_name="replay_demos_test")
+    main = replay["main"]
+    replayed = []
+
+    def check_replay_environment(cfg, dataset_handler, episode_count, selected_episodes, success):
+        env = SimpleNamespace(num_envs=1, device="cpu", sim=SimpleNamespace(is_playing=lambda: True))
+        env.termination_manager = TerminationManager(cfg.terminations, env)
+        success_reward = cfg.rewards.get("success") if isinstance(cfg.rewards, dict) else cfg.rewards.success
+        if success_reward is not None:
+            # Exercise the real missing-termination lookup before constructing
+            # other reward terms, which would require a physics scene.
+            mdp.is_terminated_term(success_reward, env)
+        env.reward_manager = RewardManager(cfg.rewards, env)
+        env.curriculum_manager = CurriculumManager(cfg.curriculum, env)
+        assert not env.termination_manager.compute().any()
+        assert env.reward_manager.compute(dt=1.0 / 30.0).eq(0.0).all()
+        env.curriculum_manager.compute(torch.tensor([0]))
+        assert success is not None
+        replayed.append(success)
+
+    monkeypatch.setitem(main.__globals__, "launch_simulation", lambda *_: contextlib.nullcontext())
+    monkeypatch.setitem(main.__globals__, "replay_dataset", check_replay_environment)
+    main()
+    assert replayed
