@@ -246,7 +246,6 @@ prompt's first use can trigger compilation, so prefer a short list of prompts.
 ```python
 CosmosModelCfg(
     modality="depth",
-    max_episode_frames=301,
     prompt=[
         "A robotic Shadow Hand turning a red cube in a bright warehouse with metal shelves.",
         "A robotic Shadow Hand turning a wooden cube on a kitchen counter in warm evening light.",
