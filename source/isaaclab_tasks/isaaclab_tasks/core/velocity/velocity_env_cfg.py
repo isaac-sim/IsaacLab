@@ -72,8 +72,12 @@ class RoughPhysicsCfg(PresetCfg):
     )
     newton_kamino = NewtonCfg(
         solver_cfg=KaminoPADMMSolverCfg(max_contacts_per_world=64),
+        # Rough-terrain triangle-pair demand scales ~linearly with num_envs (measured
+        # ~470 pairs/env for these legged assets: ~1.9M @4096, ~3.9M @8192). Size the
+        # buffer to cover the benchmark's largest env sweep (16384 -> ~7.8M); the knobs
+        # are exposed on NewtonCollisionPipelineCfg for even larger custom runs.
         collision_cfg=NewtonCollisionPipelineCfg(
-            max_triangle_pairs=2_500_000,
+            max_triangle_pairs=8_000_000,
             contact_reduction_hashtable_size_factor=0.5,
         ),
     )
