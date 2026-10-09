@@ -14,7 +14,7 @@ marker templates) stay module-level constants.
 
 import isaaclab.sim as sim_utils
 from isaaclab.markers import VisualizationMarkersCfg
-from isaaclab.visualizers import TrackingCameraCfg, VisualizerCfg
+from isaaclab.visualizers import SceneCameraCfg, VisualizerCfg
 
 __all__ = [
     "GOAL_MARKER_CFG",
@@ -30,7 +30,8 @@ VISUALIZER_CFG = VisualizerCfg(
     focal_length=35.0,
     streaming_envs=[0],
     cameras=[
-        TrackingCameraCfg(
+        SceneCameraCfg(
+            create=True,
             eye=(1.15, -1.65, 1.15),
             lookat=(0.0, -0.5, 0.55),
             focal_length=35.0,

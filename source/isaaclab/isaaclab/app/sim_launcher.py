@@ -37,7 +37,7 @@ from ..sim.simulation_cfg import SimulationCfg
 from ..utils.assets import configure_storage_profile
 from ..utils.device import set_cuda_device
 from ..utils.string import string_to_callable
-from ..visualizers.tracking_camera import add_tracking_cameras
+from ..visualizers.scene_camera import add_created_cameras
 from ..visualizers.visualizer_cfg import parse_visualizer_csv, resolve_visualizer_cfgs
 from .logging_utils import apply_python_logging_level, ensure_console_handlers, resolve_python_logging_level
 from .settings_manager import get_settings_manager
@@ -582,7 +582,7 @@ def launch_simulation(
             sim_cfg.visualizer_cfgs, args["visualizer"], args.get("max_visible_envs"), config_scan.video_visualizers
         )
         # The cameras they display join the scene, and the scan must see them.
-        if add_tracking_cameras(cfg, sim_cfg, config_scan.resolved_physics_cfg):
+        if add_created_cameras(cfg, sim_cfg, config_scan.resolved_physics_cfg):
             config_scan = scan(cfg, args)
     physics_cfg = config_scan.resolved_physics_cfg
 

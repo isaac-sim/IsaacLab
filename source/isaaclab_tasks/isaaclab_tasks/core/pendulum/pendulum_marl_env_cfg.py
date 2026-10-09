@@ -18,7 +18,7 @@ from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass, replace
-from isaaclab.visualizers import TrackingCameraCfg, VisualizerCfg
+from isaaclab.visualizers import SceneCameraCfg, VisualizerCfg
 
 from isaaclab_tasks.utils import PresetCfg
 
@@ -84,7 +84,8 @@ class PendulumMARLEnvCfg(DirectMARLEnvCfg):
         default_visualizer_cfg=VisualizerCfg(
             streaming_envs=[0],
             cameras=[
-                TrackingCameraCfg(
+                SceneCameraCfg(
+                    create=True,
                     eye=(8.0, 0.0, 2.3),
                     lookat=(0.0, 0.0, 2.3),
                     focal_length=24.0,

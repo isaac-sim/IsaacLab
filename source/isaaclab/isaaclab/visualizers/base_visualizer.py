@@ -25,8 +25,8 @@ from ..envs.utils.camera_view import image_grid_columns, resolve_streaming_envs
 from ..utils import validate
 from ..utils.buffers import TimestampedBuffer
 from ..utils.images import compose_image
-from .tracking_camera import TrackingCameraUpdater
-from .visualizer_cfg import USD_DEFAULT_VERTICAL_APERTURE_MM, PerspectiveCameraCfg, TrackingCameraCfg
+from .scene_camera import TrackingCameraUpdater
+from .visualizer_cfg import USD_DEFAULT_VERTICAL_APERTURE_MM, PerspectiveCameraCfg, SceneCameraCfg
 
 if TYPE_CHECKING:
     from pxr import Usd
@@ -154,7 +154,7 @@ class BaseVisualizer(ABC):
             self._tracking_cameras = [
                 TrackingCameraUpdater(camera_cfg, sensor, scene)
                 for camera_cfg in self.cfg.cameras or ()
-                if isinstance(camera_cfg, TrackingCameraCfg) and camera_cfg.track_path
+                if isinstance(camera_cfg, SceneCameraCfg) and camera_cfg.create and camera_cfg.track_path
                 for sensor in sensors
                 if sensor.cfg.prim_path.endswith(camera_cfg.prim_path.removeprefix("{ENV_REGEX_NS}"))
             ]

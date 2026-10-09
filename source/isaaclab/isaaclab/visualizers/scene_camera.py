@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Scene cameras that follow an asset, shown in the visualizer streaming view."""
+"""Scene cameras that visualizers create, optionally following an asset, for the streaming view."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 
 import torch
 
-from .visualizer_cfg import USD_DEFAULT_VERTICAL_APERTURE_MM, TrackingCameraCfg, VisualizerCfg
+from .visualizer_cfg import USD_DEFAULT_VERTICAL_APERTURE_MM, SceneCameraCfg, VisualizerCfg
 
 logger = logging.getLogger(__name__)
 
@@ -22,8 +22,8 @@ if TYPE_CHECKING:
     from ..sensors import Camera, CameraCfg
 
 
-def tracking_camera_cfgs(sim_cfg) -> dict[str, tuple[TrackingCameraCfg, VisualizerCfg]]:
-    """Return the tracking cameras the visualizers use with the first visualizer using each, keyed by sensor name.
+def created_camera_cfgs(sim_cfg) -> dict[str, tuple[SceneCameraCfg, VisualizerCfg]]:
+    """Return the cameras the visualizers create with the first visualizer using each, keyed by sensor name.
 
     A visualizer with its own ``cameras`` uses those; otherwise it uses the ``cameras`` of
     :attr:`~isaaclab.sim.SimulationCfg.default_visualizer_cfg`.
@@ -38,18 +38,18 @@ def tracking_camera_cfgs(sim_cfg) -> dict[str, tuple[TrackingCameraCfg, Visualiz
     for viewer in visualizer_cfgs or [default_cfg]:
         declaring = viewer if viewer.cameras is not None else default_cfg
         for camera in (declaring.cameras or []) if declaring is not None else []:
-            if not isinstance(camera, TrackingCameraCfg):
+            if not (isinstance(camera, SceneCameraCfg) and camera.create):
                 continue
             name = camera.prim_path.rsplit("/", 1)[-1]
             if name in cameras and cameras[name][0] != camera:
                 raise ValueError(
-                    f"Visualizers declare different tracking cameras named {name!r}; give each its own prim_path."
+                    f"Visualizers declare different created cameras named {name!r}; give each its own prim_path."
                 )
             cameras.setdefault(name, (camera, viewer))
     return cameras
 
 
-def make_scene_camera_cfg(cfg: TrackingCameraCfg, renderer_cfg, background_color=None) -> CameraCfg:
+def make_scene_camera_cfg(cfg: SceneCameraCfg, renderer_cfg, background_color=None) -> CameraCfg:
     """Return the scene :class:`~isaaclab.sensors.CameraCfg` that realizes *cfg* in every environment.
 
     The camera starts at the configured offsets, so a camera that tracks nothing stays fixed relative to its
@@ -78,8 +78,8 @@ def make_scene_camera_cfg(cfg: TrackingCameraCfg, renderer_cfg, background_color
     )
 
 
-def add_tracking_cameras(env_cfg, sim_cfg, physics_cfg) -> bool:
-    """Add the scene cameras that the launcher's visualizers declare to *env_cfg*'s scene.
+def add_created_cameras(env_cfg, sim_cfg, physics_cfg) -> bool:
+    """Add the scene cameras that the launcher's visualizers create to *env_cfg*'s scene.
 
     Visualizers exist only when ``--visualizer`` selects one or a video records from one, so runs that display
     nothing pay nothing. A camera without ``renderer_cfg`` uses the Newton Warp renderer on Newton physics and
@@ -104,13 +104,13 @@ def add_tracking_cameras(env_cfg, sim_cfg, physics_cfg) -> bool:
 
         renderer_cfg = NewtonWarpRendererCfg(enable_shadows=True, enable_ambient_lighting=True, enable_textures=True)
     added = False
-    for name, (camera, visualizer_cfg) in tracking_camera_cfgs(sim_cfg).items():
+    for name, (camera, visualizer_cfg) in created_camera_cfgs(sim_cfg).items():
         existing = getattr(scene_cfg, name, None)
         if existing is not None:
             # a launch that already added this camera, for a config reused across launches
             if isinstance(existing, CameraCfg) and existing.prim_path == camera.prim_path:
                 continue
-            raise ValueError(f"Scene already has an entry named {name!r}; give the tracking camera another prim_path.")
+            raise ValueError(f"Scene already has an entry named {name!r}; give the created camera another prim_path.")
         # the visualizer's background, so the camera's sky matches its viewport
         setattr(
             scene_cfg,
@@ -123,8 +123,8 @@ def add_tracking_cameras(env_cfg, sim_cfg, physics_cfg) -> bool:
         gib = num_envs * width * height * 4 / 2**30 if isinstance(num_envs, int) else 0.0
         if gib > 4.0:
             logger.warning(
-                "Tracking camera %r allocates about %.0f GiB of image buffers for %d environments, because the scene "
-                "renders one image per environment. Use fewer environments or a smaller TrackingCameraCfg.resolution.",
+                "Created camera %r allocates about %.0f GiB of image buffers for %d environments, because the scene "
+                "renders one image per environment. Use fewer environments or a smaller SceneCameraCfg.resolution.",
                 name,
                 gib,
                 num_envs,
@@ -135,7 +135,7 @@ def add_tracking_cameras(env_cfg, sim_cfg, physics_cfg) -> bool:
 class TrackingCameraUpdater:
     """Places a scene camera behind a tracked asset, following its position and, optionally, its yaw."""
 
-    def __init__(self, cfg: TrackingCameraCfg, camera: Camera, scene: InteractiveScene) -> None:
+    def __init__(self, cfg: SceneCameraCfg, camera: Camera, scene: InteractiveScene) -> None:
         self.cfg = cfg
         self.camera = camera
         asset_name, _, self._body_name = cfg.track_path.partition("/")

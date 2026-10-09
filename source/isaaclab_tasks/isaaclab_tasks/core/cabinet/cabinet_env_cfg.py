@@ -29,7 +29,7 @@ from isaaclab.sensors.frame_transformer import OffsetCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils import clone, configclass, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-from isaaclab.visualizers import TrackingCameraCfg, VisualizerCfg
+from isaaclab.visualizers import SceneCameraCfg, VisualizerCfg
 
 from isaaclab_tasks.utils import PresetCfg
 
@@ -113,7 +113,8 @@ class CabinetSimCfg(PresetCfg):
             lookat=(0.8, 0.0, 0.5),
             streaming_envs=[0],
             cameras=[
-                TrackingCameraCfg(
+                SceneCameraCfg(
+                    create=True,
                     eye=(-1.8, 2.0, 1.6),
                     lookat=(0.55, 0.0, 0.5),
                     focal_length=28.0,

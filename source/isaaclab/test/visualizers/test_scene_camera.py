@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Unit tests for tracking cameras: their poses and when the launcher adds them to the scene."""
+"""Unit tests for created scene cameras: tracking poses and when the launcher adds them to the scene."""
 
 from __future__ import annotations
 
@@ -16,8 +16,8 @@ import torch
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
-from isaaclab.visualizers import TrackingCameraCfg, VisualizerCfg
-from isaaclab.visualizers.tracking_camera import TrackingCameraUpdater, add_tracking_cameras
+from isaaclab.visualizers import SceneCameraCfg, VisualizerCfg
+from isaaclab.visualizers.scene_camera import TrackingCameraUpdater, add_created_cameras
 
 
 def _quat_z(yaw: float) -> list[float]:
@@ -48,7 +48,7 @@ class _Camera:
         self.eyes, self.targets, self.env_ids = eyes, targets, env_ids
 
 
-def _update(cfg: TrackingCameraCfg, yaws: list[float], dt: float = 0.1, lazy: bool = True) -> _Camera:
+def _update(cfg: SceneCameraCfg, yaws: list[float], dt: float = 0.1, lazy: bool = True) -> _Camera:
     """Run one update per yaw of a robot at (10, 0, 0.5) in env 1 of 2 and return the camera."""
     camera = _Camera()
     data = SimpleNamespace(
@@ -64,7 +64,9 @@ def _update(cfg: TrackingCameraCfg, yaws: list[float], dt: float = 0.1, lazy: bo
 
 
 def test_heading_rotates_the_offsets_and_smoothing_lags_the_turn():
-    cfg = TrackingCameraCfg(eye=(-3.0, 0.0, 1.0), lookat=(0.0, 0.0, 0.0), track_path="robot", follow_heading=True)
+    cfg = SceneCameraCfg(
+        create=True, eye=(-3.0, 0.0, 1.0), lookat=(0.0, 0.0, 0.0), track_path="robot", follow_heading=True
+    )
     # turned a quarter turn, the robot's back is at -y
     camera = _update(cfg, [math.pi / 2])
     torch.testing.assert_close(camera.eyes, torch.tensor([[10.0, -3.0, 1.5]]), atol=1e-5, rtol=0)
@@ -79,18 +81,18 @@ def test_heading_rotates_the_offsets_and_smoothing_lags_the_turn():
 
 
 def _env_cfg(**sim_kwargs):
-    default = VisualizerCfg(cameras=[TrackingCameraCfg(prim_path="{ENV_REGEX_NS}/Chase")])
+    default = VisualizerCfg(cameras=[SceneCameraCfg(create=True, prim_path="{ENV_REGEX_NS}/Chase")])
     return ManagerBasedRLEnvCfg(
         sim=SimulationCfg(default_visualizer_cfg=default, **sim_kwargs), scene=InteractiveSceneCfg()
     )
 
 
 def _add(env_cfg) -> bool:
-    return add_tracking_cameras(env_cfg, env_cfg.sim, None)
+    return add_created_cameras(env_cfg, env_cfg.sim, None)
 
 
 def test_an_eager_scene_gets_fresh_pixels_after_the_camera_moves():
-    cfg = TrackingCameraCfg(track_path="robot")
+    cfg = SceneCameraCfg(create=True, track_path="robot")
     assert _update(cfg, [0.0], lazy=False).refreshed
     assert not _update(cfg, [0.0], lazy=True).refreshed
 
@@ -108,18 +110,18 @@ def test_newton_physics_renders_with_the_newton_warp_renderer():
     from isaaclab_newton.physics import NewtonCfg
 
     cfg = _env_cfg(visualizer_cfgs=VisualizerCfg(visualizer_type="newton_gl"))
-    assert add_tracking_cameras(cfg, cfg.sim, NewtonCfg())
+    assert add_created_cameras(cfg, cfg.sim, NewtonCfg())
     assert cfg.scene.Chase.renderer_cfg.renderer_type == "newton_warp"
 
 
 def test_a_visualizers_own_cameras_win_and_conflicts_are_rejected():
-    own = VisualizerCfg(cameras=[TrackingCameraCfg(prim_path="{ENV_REGEX_NS}/Chase", resolution=(320, 240))])
+    own = VisualizerCfg(cameras=[SceneCameraCfg(create=True, prim_path="{ENV_REGEX_NS}/Chase", resolution=(320, 240))])
     cfg = _env_cfg(visualizer_cfgs=[own])
     assert _add(cfg)
     assert (cfg.scene.Chase.width, cfg.scene.Chase.height) == (320, 240)
 
     cfg = _env_cfg(visualizer_cfgs=[own, VisualizerCfg()])
-    with pytest.raises(ValueError, match="different tracking cameras"):
+    with pytest.raises(ValueError, match="different created cameras"):
         _add(cfg)
 
     cfg = _env_cfg(visualizer_cfgs=[VisualizerCfg()])
@@ -132,4 +134,4 @@ def test_a_visualizers_own_cameras_win_and_conflicts_are_rejected():
 
 def test_negative_smoothing_time_constant_is_rejected():
     with pytest.raises(ValueError, match="non-negative"):
-        TrackingCameraCfg(heading_smoothing_time_constant=-1.0)
+        SceneCameraCfg(create=True, heading_smoothing_time_constant=-1.0)

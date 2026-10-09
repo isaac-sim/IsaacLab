@@ -18,7 +18,7 @@ import torch
 import warp as wp
 
 from ...cloner.cloner_cfg import DEFAULT_ENV_TEMPLATE, expand_env_regex_ns
-from ...visualizers.visualizer_cfg import PerspectiveCameraCfg, SceneCameraCfg, TrackingCameraCfg
+from ...visualizers.visualizer_cfg import PerspectiveCameraCfg, SceneCameraCfg
 from .camera_colorizer import sensor_key_for_gt_type
 
 if TYPE_CHECKING:
@@ -71,9 +71,9 @@ def resolve_camera_sources(
             ):
                 break
         else:
-            if isinstance(source, TrackingCameraCfg):
+            if source.create:
                 # a run that did not add the camera, e.g. one without the launcher, has nothing to display
-                logger.warning("Tracking camera %r is not in the scene; skipping it.", path)
+                logger.warning("Created camera %r is not in the scene; skipping it.", path)
                 sources[index] = None
                 continue
             available_paths = sorted(camera.cfg.prim_path for camera in cameras.values())

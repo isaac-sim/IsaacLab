@@ -18,7 +18,7 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils import configclass, replace
-from isaaclab.visualizers import TrackingCameraCfg, VisualizerCfg
+from isaaclab.visualizers import SceneCameraCfg, VisualizerCfg
 
 from isaaclab_assets.robots.cartpole import CARTPOLE_CFG
 
@@ -185,7 +185,8 @@ class CartpoleEnvCfg(ManagerBasedRLEnvCfg):
             eye=(8.0, 0.0, 5.0),
             streaming_envs=[0],
             cameras=[
-                TrackingCameraCfg(
+                SceneCameraCfg(
+                    create=True,
                     eye=(8.0, 0.0, 2.5),
                     lookat=(0.0, 0.0, 2.5),
                     focal_length=24.0,

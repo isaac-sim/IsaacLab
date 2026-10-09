@@ -112,7 +112,7 @@ Example 1: Following AnymalD Robots
          uv run python scripts/tutorials/07_visualizers/run_tiled_camera_visualizer.py ^
              --task Isaac-Velocity-Rough-AnymalD --num_envs 256 --viz kit
 
-The script declares a ``TrackingCameraCfg`` in the visualizer config; see `Tracking cameras`_. The
+The script declares a ``SceneCameraCfg`` in the visualizer config; see `Created and tracking cameras`_. The
 launcher adds a camera to every environment, and the camera follows its robot's position and smoothed
 heading. Of the 256 environments, 36 are sampled for display.
 
@@ -188,32 +188,36 @@ Then choose what to display in ``VisualizerCfg``:
 * ``streaming_depth_min`` / ``streaming_depth_max`` set the depth colormap range in metres.
 
 
-Declared display sources
-~~~~~~~~~~~~~~~~~~~~~~~~
+Display sources
+~~~~~~~~~~~~~~~
 
-``VisualizerCfg.cameras`` accepts ``PerspectiveCameraCfg`` for the interactive view,
-``SceneCameraCfg(prim_path=...)`` for a camera sensor already declared in the scene, and
-``TrackingCameraCfg`` for a camera the visualizer declares itself.
-Kit, Newton GL, Rerun, and Viser display scene-camera output in a streaming panel.
-Newton RTX accepts perspective sources only. Every explicit scene source must provide
-the requested ``streaming_gt_types`` channels.
+``VisualizerCfg.cameras`` accepts ``PerspectiveCameraCfg`` for the interactive view and ``SceneCameraCfg`` for a
+scene camera sensor. Kit, Newton GL, Rerun, and Viser display scene-camera output in a streaming panel.
+Newton RTX accepts perspective sources only. Every explicit scene source must provide the requested
+``streaming_gt_types`` channels.
 
-Tracking cameras
-~~~~~~~~~~~~~~~~
+``SceneCameraCfg(prim_path=...)`` refers to a camera the scene already declares, e.g. a wrist camera, and creates
+nothing. A path that matches no scene camera raises an error.
 
-A ``TrackingCameraCfg`` follows a scene asset without changing the interactive camera, which stays free to
-move. When a visualizer is selected, or a video records a ``streaming_view`` source, the launcher adds a
-camera to every environment; runs that display nothing do not pay for it. Set it on a task through
+
+Created and tracking cameras
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+With ``create=True``, ``SceneCameraCfg`` declares the camera instead of referring to one. The launcher adds it to
+every environment when a visualizer is selected, or a video records a ``streaming_view`` source; runs that display
+nothing do not pay for it. The camera stays fixed relative to each environment, or follows an asset when
+``track_path`` is set, without changing the interactive camera, which stays free to move. Set it on a task through
 ``sim.default_visualizer_cfg``, or on any visualizer config:
 
 .. code-block:: python
 
-    from isaaclab.visualizers import TrackingCameraCfg, VisualizerCfg
+    from isaaclab.visualizers import SceneCameraCfg, VisualizerCfg
 
     self.sim.default_visualizer_cfg = VisualizerCfg(
         streaming_envs=[0],
         cameras=[
-            TrackingCameraCfg(
+            SceneCameraCfg(
+                create=True,
                 eye=(1.8, -3.0, 1.1),
                 lookat=(0.15, 0.0, 0.0),
                 track_path="robot",
@@ -223,9 +227,12 @@ camera to every environment; runs that display nothing do not pay for it. Set it
         ],
     )
 
+These fields apply only with ``create=True``:
+
 * ``eye`` and ``lookat`` are offsets [m] from the tracked asset, or from the environment origin when
-  ``track_path`` is None, which keeps the camera fixed in each environment.
-* ``track_path`` names a scene asset (``"robot"``) or one of its bodies (``"robot/base"``).
+  ``track_path`` is None.
+* ``track_path`` names a scene asset (``"robot"``) or one of its bodies (``"robot/base"``). Tracking moves the
+  camera, so it needs ``create=True``: a camera the scene declares is never moved.
 * ``follow_heading`` rotates the offsets with the asset's yaw, keeping the horizon level.
   ``heading_smoothing_time_constant`` [s] damps rapid turns; zero follows immediately.
 * ``focal_length`` [mm], ``resolution`` (width, height) and ``data_types`` set the optics and outputs.
@@ -234,7 +241,7 @@ camera to every environment; runs that display nothing do not pay for it. Set it
 
 The scene holds one camera per environment and the renderer draws every environment when the view reads its
 image, so the cost grows with the environment count and the resolution, and a view that is hidden costs nothing.
-Use few environments, or a smaller ``resolution``, for 1080p views. A camera the scene already declares, e.g. a wrist camera, uses ``SceneCameraCfg``.
+Use few environments, or a smaller ``resolution``, for 1080p views.
 
 
 Troubleshooting
@@ -267,7 +274,7 @@ Closing a visualizer does not affect the camera or other visualizers reading it.
 
    A camera parented under a robot in the scene follows it only when the physics backend writes poses
    to USD, e.g. PhysX with Kit. With Newton physics it stays where it was spawned; use a
-   ``TrackingCameraCfg`` instead, which moves the camera explicitly.
+   ``SceneCameraCfg`` instead, which moves the camera explicitly.
 
 
 See also

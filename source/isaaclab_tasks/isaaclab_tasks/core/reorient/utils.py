@@ -19,7 +19,7 @@ import torch
 import isaaclab.utils.math as math_utils
 from isaaclab.utils import index_fill_
 from isaaclab.utils.math import quat_from_angle_axis, quat_mul
-from isaaclab.visualizers import TrackingCameraCfg, VisualizerCfg
+from isaaclab.visualizers import SceneCameraCfg, VisualizerCfg
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation
@@ -28,7 +28,8 @@ if TYPE_CHECKING:
 VISUALIZER_CFG = VisualizerCfg(
     streaming_envs=[0],
     cameras=[
-        TrackingCameraCfg(
+        SceneCameraCfg(
+            create=True,
             eye=(0.2, -0.15, 1.35),
             lookat=(-0.1, -0.15, 0.6),
             focal_length=24.0,
