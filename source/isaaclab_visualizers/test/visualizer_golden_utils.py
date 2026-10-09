@@ -560,7 +560,7 @@ def run_visualizer_golden_anymal_d(
             # Preserve the golden's world-aligned view despite the robot's randomized orientation.
             targets = env.scene["robot"].data.root_pos_w.torch
             eye = torch.tensor(_viz_utils._ANYMAL_D_INTEGRATION_TILED_CAMERA_EYE_OFFSET, device=env.device)
-            camera = _get_active_visualizer(env, visualizer_type)._camera_sensor
+            camera = _get_active_visualizer(env, visualizer_type).image_view.camera
             camera.set_world_poses_from_view(targets + eye, targets)
 
         frame = _capture_frame(env, visualizer_type, mode, physics_backend, actions)

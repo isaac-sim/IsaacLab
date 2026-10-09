@@ -13,7 +13,7 @@ import math
 import os
 import sys
 from collections.abc import Callable
-from dataclasses import dataclass
+from functools import partial
 from pathlib import Path
 from typing import Any
 
@@ -63,25 +63,6 @@ CONTACT_ARROW_COLOR = (0.0, 1.0, 0.0)
 
 CONTACT_ARROW_LENGTH = 0.1
 """Length of synthesized contact arrows in meters."""
-
-
-@dataclass(frozen=True)
-class _MeshSubmission:
-    """Mesh data staged for the next Newton viewer frame."""
-
-    name: str
-    points: wp.array
-    indices: wp.array
-    normals: wp.array | None
-    uvs: wp.array | None
-    texture: np.ndarray | str | None
-    hidden: bool
-    backface_culling: bool
-    color: tuple[float, float, float] | None
-    roughness: float | None
-    metallic: float | None
-    dynamic: bool
-    opacity: float | None
 
 
 _NEWTON_ICON_DIR = Path(newton.__file__).parent / "_src" / "viewer" / "gl"
@@ -654,6 +635,21 @@ class _NewtonVisualizer(BaseVisualizer):
         elif self._step_counter % self._viewer._update_frequency == 0:
             self._render_frame()
 
+    def reset(self, soft: bool = False) -> None:
+        """Rebind the native viewer only when a hard reset replaces the simulation model."""
+        super().reset(soft)
+        self._last_render_step = -1
+        if soft or not self._is_initialized or self._is_closed:
+            return
+        backend = self._sim.get_or_create_backend(self.newton_cfg)
+        if backend is self.backend:
+            return
+        self.backend = backend
+        self._transform_mapping = self._scene_data_provider.create_mapping(list(backend.model.body_label))
+        self._viewer.set_model(backend.model)
+        self._viewer.register_ui_callback(self._viewer._render_training_controls, position="side")
+        self._viewer.register_ui_callback(self._draw_streaming_view_controls, position="side")
+
     def is_running(self) -> bool:
         """Return whether the viewer is open."""
         return self._viewer is not None and self._viewer.is_running()
@@ -759,7 +755,7 @@ class NewtonGLVisualizer(_NewtonVisualizer):
         super().__init__(cfg)
         self._viewer_picking_binding = self._ViewerPickingBinding()
         self._picking_enabled = False
-        self._pending_mesh_submissions: dict[str, _MeshSubmission] = {}
+        self._pending_mesh_submissions: dict[str, Callable[[], None]] = {}
 
     # ------------------------------------------------------------------
     # GL lifecycle
@@ -893,7 +889,10 @@ class NewtonGLVisualizer(_NewtonVisualizer):
                             render_newton_visualization_markers(
                                 viewer, self._env_ids, num_envs=self.backend.model.num_envs
                             )
-                self._log_pending_meshes()
+                submissions = tuple(self._pending_mesh_submissions.values())
+                self._pending_mesh_submissions.clear()
+                for submit in submissions:
+                    submit()
             if not viewer.is_paused():
                 self._render_live_plots()
         finally:
@@ -905,22 +904,13 @@ class NewtonGLVisualizer(_NewtonVisualizer):
             self.image_view.invalidate()
 
     def reset(self, soft: bool = False) -> None:
-        """Rebind viewer resources after a hard Newton model reset."""
+        """Restore GL overlays and picking after the shared model binding changes."""
+        previous = self.backend
         super().reset(soft)
-        self._last_render_step = -1
-        if soft or not self._is_initialized or self._is_closed:
+        if self.backend is previous:
             return
-
-        backend = self._sim.get_or_create_backend(self.newton_cfg)
-        if backend is self.backend:
-            return
-        self.backend = backend
-        self._transform_mapping = self._scene_data_provider.create_mapping(list(backend.model.body_label))
-        self._viewer.set_model(self.backend.model)
         if self._picking_enabled:
             self._viewer.wind = None
-        self._viewer.register_ui_callback(self._viewer._render_training_controls, position="side")
-        self._viewer.register_ui_callback(self._draw_streaming_view_controls, position="side")
         self._viewer.set_visible_worlds(self._env_ids)
         self._viewer.set_world_offsets(self.cfg.world_spacing)
         self._configure_viewer()
@@ -987,45 +977,11 @@ class NewtonGLVisualizer(_NewtonVisualizer):
         """
         if not self._is_initialized or self._viewer is None:
             raise RuntimeError("Newton visualizer must be initialized before logging meshes.")
-        self._pending_mesh_submissions[name] = _MeshSubmission(
-            name=name,
-            points=points,
-            indices=indices,
-            normals=normals,
-            uvs=uvs,
-            texture=texture,
-            hidden=hidden,
-            backface_culling=backface_culling,
-            color=color,
-            roughness=roughness,
-            metallic=metallic,
-            dynamic=dynamic,
-            opacity=opacity,
-        )
-
-    def _log_pending_meshes(self) -> None:
-        """Publish staged meshes inside the active viewer frame."""
-        if self._viewer is None or not self._pending_mesh_submissions:
-            return
-
-        submissions = tuple(self._pending_mesh_submissions.values())
-        self._pending_mesh_submissions.clear()
-        for mesh in submissions:
-            self._viewer.log_mesh(
-                mesh.name,
-                mesh.points,
-                mesh.indices,
-                normals=mesh.normals,
-                uvs=mesh.uvs,
-                texture=mesh.texture,
-                hidden=mesh.hidden,
-                backface_culling=mesh.backface_culling,
-                color=mesh.color,
-                roughness=mesh.roughness,
-                metallic=mesh.metallic,
-                dynamic=mesh.dynamic,
-                opacity=mesh.opacity,
-            )
+        self._pending_mesh_submissions[name] = partial(
+            self._viewer.log_mesh, name, points, indices, normals=normals, uvs=uvs,
+            texture=texture, hidden=hidden, backface_culling=backface_culling, color=color,
+            roughness=roughness, metallic=metallic, dynamic=dynamic, opacity=opacity,
+        )  # fmt: skip
 
     # ------------------------------------------------------------------
     # Shared internals
@@ -1350,21 +1306,12 @@ class NewtonRTXVisualizer(_NewtonVisualizer):
             self.image_view.invalidate()
 
     def reset(self, soft: bool = False) -> None:
-        """Rebind the viewer when a hard reset replaces its simulation-owned model."""
+        """Restore RTX camera selection after Newton replaces its camera during model binding."""
+        previous = self.backend
         super().reset(soft)
-        self._last_render_step = -1
-        if soft or not self._is_initialized or self._is_closed:
-            return
-        backend = self._sim.get_or_create_backend(self.newton_cfg)
-        if backend is self.backend:
-            return
-        self.backend = backend
-        self._transform_mapping = self._scene_data_provider.create_mapping(list(backend.model.body_label))
-        self._viewer.set_model(backend.model)
-        self._viewer.picking_enabled = False
-        self._viewer.register_ui_callback(self._viewer._render_training_controls, position="side")
-        self._viewer.register_ui_callback(self._draw_streaming_view_controls, position="side")
-        self._select_camera(self._camera_index)
+        if self.backend is not previous:
+            self._viewer.picking_enabled = False
+            self._select_camera(self._camera_index)
 
     def render_rgb_array(self) -> np.ndarray | None:
         """Return the shared view when the native renderer is available."""

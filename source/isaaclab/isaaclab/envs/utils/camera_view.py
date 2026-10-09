@@ -12,19 +12,52 @@ import random
 import re
 from typing import TYPE_CHECKING
 
-import numpy as np
-import torch
-import warp as wp
-
 from ...cloner.cloner_cfg import DEFAULT_ENV_TEMPLATE, expand_env_regex_ns
 from ...visualizers.visualizer_cfg import PerspectiveCameraCfg, SceneCameraCfg
-from .camera_colorizer import sensor_key_for_gt_type
 
 if TYPE_CHECKING:
     from ...sensors.camera import Camera
     from ...visualizers.visualizer_cfg import VisualizerCfg
 
 VISUALIZER_TILED_CAMERA_MAX_TILES = 100
+
+
+_CAMERA_CHANNEL_KEYS = {
+    "rgb": ("rgb", "rgba"),
+    "depth": ("depth", "distance_to_image_plane"),
+    "segmentation": ("semantic_segmentation",),
+    "normals": ("normals",),
+}
+
+
+def sensor_key_for_gt_type(
+    gt_type: str, available_keys: frozenset[str] | None = None, *, required: bool = True
+) -> str | None:
+    """Bind a display channel to its available sensor output.
+
+    Args:
+        gt_type: Display channel: rgb, depth, normals, or segmentation.
+        available_keys: Sensor output names. None returns the primary output name.
+        required: Whether a missing output raises; False skips incompatible automatic sources.
+
+    Returns:
+        The matching sensor key, or None when absent and not required.
+
+    Raises:
+        ValueError: If the display channel is unknown.
+        KeyError: If no matching output is available and required is True.
+    """
+    if gt_type not in _CAMERA_CHANNEL_KEYS:
+        raise ValueError(f"GT type {gt_type!r} is not supported. Valid types: {sorted(_CAMERA_CHANNEL_KEYS)}")
+    keys = _CAMERA_CHANNEL_KEYS[gt_type]
+    if available_keys is None:
+        return keys[0]
+    for key in keys:
+        if key in available_keys:
+            return key
+    if not required:
+        return None
+    raise KeyError(f"No sensor output found for GT type {gt_type!r}. Tried {keys}; available: {sorted(available_keys)}")
 
 
 def resolve_camera_sources(
@@ -107,30 +140,6 @@ def resolve_streaming_envs(
     return sorted(random.sample(pool, count))
 
 
-def camera_gt_batch(camera: Camera, env_indices: list[int], sensor_key: str) -> torch.Tensor:
-    """Return GT output for selected env indices from a camera sensor.
-
-    Args:
-        camera: Isaac Lab :class:`~isaaclab.sensors.camera.Camera` sensor.
-        env_indices: Env indices to select (must be valid indices into the
-            camera's tiled output).
-        sensor_key: Key in ``camera.data.output``, e.g. ``"rgb"``,
-            ``"depth"``, or ``"semantic_segmentation"``.
-
-    Returns:
-        Tensor of shape ``(len(env_indices), H, W, C)`` on the camera's device.
-    """
-    raw = camera.data.output[sensor_key]
-    if isinstance(raw, wp.array):
-        raw = wp.to_torch(raw)
-    elif hasattr(raw, "torch"):
-        raw = raw.torch
-    if env_indices:
-        idx = torch.tensor(env_indices, dtype=torch.long, device=raw.device)
-        return raw.index_select(0, idx)
-    return raw
-
-
 def image_grid_columns(n_envs: int, n_gt: int, height: int, width: int, target_aspect: float = 1.0) -> int:
     """Choose complete environment rows first, then the closest display aspect ratio."""
     if not (math.isfinite(target_aspect) and target_aspect > 0):
@@ -144,72 +153,3 @@ def image_grid_columns(n_envs: int, n_gt: int, height: int, width: int, target_a
         if score < best_score:
             best_cols, best_score = columns, score
     return best_cols
-
-
-def compose_streaming_grid(
-    frames: list[np.ndarray],
-    n_envs: int,
-    n_gt: int,
-    target_aspect: float = 1.0,
-) -> np.ndarray:
-    """Composite streaming frames into a tiled output image.
-
-    Layout minimises ``|log(composite_W/composite_H / target_aspect)|`` subject
-    to the constraint that all GT columns for one env remain on the same row.
-    Pass ``target_aspect=window_width/window_height`` to fill the panel optimally.
-
-    Args:
-        frames: Flat list of ``uint8 (H, W, 3)`` arrays ordered as
-            ``[env0_gt0, env0_gt1, ..., env0_gtM-1, env1_gt0, ...]``.
-        n_envs: Number of environments represented in ``frames``.
-        n_gt: Number of GT types per environment.
-        target_aspect: Desired width-to-height ratio for the composite image.
-            Defaults to ``1.0`` (square).  Use ``window_width / window_height``
-            to fill the visualizer panel.  Must be positive and finite; invalid
-            values (zero, negative, NaN, inf) fall back to ``1.0``.
-
-    Returns:
-        Single ``uint8 (total_H, total_W, 3)`` composite image, or a 1×1 black
-        pixel if ``frames`` is empty.
-    """
-    if not frames:
-        return np.zeros((1, 1, 3), dtype=np.uint8)
-    h, w = frames[0].shape[:2]
-    env_cols = image_grid_columns(n_envs, n_gt, h, w, target_aspect)
-    env_rows = math.ceil(n_envs / env_cols)
-    canvas = np.zeros((env_rows * h, env_cols * n_gt * w, 3), dtype=np.uint8)
-    for env_idx in range(n_envs):
-        ec = env_idx % env_cols
-        er = env_idx // env_cols
-        for gt_idx in range(n_gt):
-            frame = frames[env_idx * n_gt + gt_idx]
-            y0, x0 = er * h, (ec * n_gt + gt_idx) * w
-            canvas[y0 : y0 + h, x0 : x0 + w] = frame[..., :3]
-    return canvas
-
-
-def camera_rgb_batch(camera: Camera, env_indices: list[int]) -> torch.Tensor:
-    """Return RGB output for selected env indices."""
-    rgb = camera.data.output["rgb"]
-    if isinstance(rgb, wp.array):
-        rgb = wp.to_torch(rgb)
-    elif hasattr(rgb, "torch"):
-        rgb = rgb.torch
-    if env_indices:
-        index = torch.tensor(env_indices, dtype=torch.long, device=rgb.device)
-        return rgb.index_select(0, index)
-    return rgb
-
-
-def compose_rgb_grid_tensor(rgb_batch: torch.Tensor) -> torch.Tensor:
-    """Compose an RGB batch into a near-square uint8 image grid without leaving its device."""
-    if rgb_batch.ndim == 3:
-        return rgb_batch[..., :3].contiguous()
-    n, h, w, _ = rgb_batch.shape
-    cols = max(1, math.ceil(math.sqrt(n)))
-    rows = math.ceil(n / cols)
-    rgb = rgb_batch[..., :3]
-    pad = rows * cols - n
-    if pad > 0:
-        rgb = torch.cat([rgb, torch.zeros((pad, h, w, 3), dtype=rgb.dtype, device=rgb.device)], dim=0)
-    return rgb.reshape(rows, cols, h, w, 3).permute(0, 2, 1, 3, 4).reshape(rows * h, cols * w, 3).contiguous()

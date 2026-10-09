@@ -30,7 +30,6 @@ except ImportError:
 from .video_recorder_cfg import CAPTURE_VISUALIZER_TYPES, parse_video_source
 
 if TYPE_CHECKING:
-    from ...visualizers.image_view import ImageView
     from .video_recorder_cfg import VideoRecorderCfg
 
 logger = logging.getLogger(__name__)
@@ -51,7 +50,6 @@ class VideoRecorder:
 
     def __init__(self, cfg: VideoRecorderCfg, env: object):
         self._source = parse_video_source(cfg.source) if cfg.view is None else None
-        self._view: ImageView | None = None
         self._capture: Callable[[], np.ndarray | None] | None = None
 
         if ImageSequenceClip is None:
@@ -108,13 +106,10 @@ class VideoRecorder:
         if self._frame_error_logged:
             return None
         try:
-            if self._view is None and self._capture is None:
-                self._bind_source()
-            sim = self._env.sim
-            if self._view is not None:
-                return self._view.read_rgb(sim.get_physics_step_count())
+            if self._capture is None:
+                self._capture = self._bind_source()
             frame = self._capture()
-            if frame is None:
+            if frame is None and self._source is not None and self._source[0] == "viz":
                 raise RuntimeError(f"No frame available from {self.cfg.source!r}.")
             return frame
         except RuntimeError as exc:
@@ -124,13 +119,11 @@ class VideoRecorder:
             self._frame_error_logged = True
             return None
 
-    def _bind_source(self) -> None:
-        """Resolve legacy source strings once; image views own selection and composition."""
+    def _bind_source(self) -> Callable[[], np.ndarray | None]:
+        """Bind one frame reader; image views own selection and composition."""
         sim = self._env.sim
-        if self.cfg.view is not None:
-            self._view = sim.get_image_view(self.cfg.view)
-            return
-        kind, name, channel = self._source
+        cfg = self.cfg.view
+        kind, name, channel = self._source or (None, None, None)
         if kind == "sensor":
             if name not in self._env.scene.sensors:
                 raise RuntimeError(f"Sensor {name!r} not found; available sensors: {sorted(self._env.scene.sensors)}.")
@@ -139,8 +132,9 @@ class VideoRecorder:
                 channels=(channel or "rgb",),
                 depth_range=(self.cfg.depth_colormap_min, self.cfg.depth_colormap_max),
             )
-            self._view = sim.get_image_view(cfg)
-            return
+        if cfg is not None:
+            view = sim.get_image_view(cfg)
+            return lambda: view.read_rgb(sim.get_physics_step_count())
         candidates = [
             viz
             for viz in sim.visualizers
@@ -161,7 +155,7 @@ class VideoRecorder:
                 "Use source='viz:newton_gl' if cubric is unavailable."
             )
         # Legacy visualizer recording follows camera selection in the window.
-        self._capture = viz.render_tiled_rgb_array if channel == "streaming_view" else viz.render_rgb_array
+        return viz.render_tiled_rgb_array if channel == "streaming_view" else viz.render_rgb_array
 
     def _clip_path(self, index: int) -> str:
         return os.path.join(self.cfg.output_dir or "videos", f"{self.cfg.output_filename_prefix}_{index:04d}.mp4")

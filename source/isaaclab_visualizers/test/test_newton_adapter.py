@@ -32,9 +32,9 @@ from isaaclab_visualizers.newton_adapter import (
     expand_infinite_plane_scale,
     log_geo_with_expanded_plane_scale,
 )
+from matplotlib import colormaps
 
 from isaaclab.assets import AssetBaseCfg
-from isaaclab.envs.utils.camera_colorizer import CameraFrameColorizer
 from isaaclab.envs.utils.camera_view import resolve_camera_sources
 from isaaclab.sim import SimulationContext
 from isaaclab.test.utils import DeviceScope, test_devices
@@ -79,22 +79,6 @@ def test_log_geo_with_expanded_plane_scale_preserves_non_plane_scale():
 
     log_geo_with_expanded_plane_scale(_log_geo, 1, "box", 2, (0.0, 25.0), 0.0, True, hidden=True)
     assert calls == [("box", 2, (0.0, 25.0), 0.0, True, None, True)]
-
-
-def test_newton_visualizer_log_mesh_keeps_latest_submission_per_name():
-    viewer = Mock()
-    visualizer = _make_newton_visualizer(None)
-    visualizer._viewer = viewer
-    points_0 = wp.zeros(3, dtype=wp.vec3)
-    points_1 = wp.zeros(6, dtype=wp.vec3)
-    indices = wp.zeros(3, dtype=wp.int32)
-
-    visualizer.log_mesh("/surface", points_0, indices, dynamic=True)
-    visualizer.log_mesh("/surface", points_1, indices, dynamic=True)
-    visualizer._log_pending_meshes()
-
-    viewer.log_mesh.assert_called_once()
-    assert viewer.log_mesh.call_args.args[:3] == ("/surface", points_1, indices)
 
 
 def test_newton_visualizer_log_mesh_requires_initialized_viewer():
@@ -278,7 +262,7 @@ def test_visualizers_borrow_scene_camera_outputs(monkeypatch):
     for depth_max in (5.0, 3.0):
         visualizer.image_view.cfg.depth_range = (1.0, depth_max)
         image = visualizer.render_tiled_rgb_array()
-        expected = CameraFrameColorizer.colorize(np.array([[[2.0]]]), "depth", depth_min=1.0, depth_max=depth_max)
+        expected = (np.array(colormaps["turbo"](1.0 / (depth_max - 1.0))[:3]) * 255).astype(np.uint8)
         np.testing.assert_array_equal(image, np.broadcast_to(expected, image.shape))
     camera.cfg.data_types.remove("depth")
     del camera.data.output["depth"]
@@ -704,6 +688,8 @@ def test_newton_visualizer_logs_staged_mesh_inside_frame(monkeypatch):
 
     normals = wp.zeros(3, dtype=wp.vec3)
 
+    # Two submissions for one mesh publish only the latest data, inside the next frame.
+    visualizer.log_mesh("/surface", wp.ones(6, dtype=wp.vec3), indices, dynamic=True)
     visualizer.log_mesh(
         "/surface",
         points,
@@ -736,6 +722,7 @@ def test_newton_visualizer_logs_staged_mesh_inside_frame(monkeypatch):
         },
     )
     assert visualizer._pending_mesh_submissions == {}
+    assert "_MeshSubmission" not in vars(newton_visualizer_module)
 
 
 def test_newton_visualizer_logs_staged_mesh_for_bodyless_state(monkeypatch):

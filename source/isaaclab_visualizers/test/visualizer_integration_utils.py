@@ -46,7 +46,6 @@ from isaaclab_visualizers.newton import (
 )
 
 import isaaclab.sim as sim_utils
-from isaaclab.envs.utils.camera_view import camera_rgb_batch, compose_rgb_grid_tensor
 from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
 from isaaclab.markers.config import GREEN_ARROW_X_MARKER_CFG
 from isaaclab.sensors import CameraCfg
@@ -1324,43 +1323,21 @@ def _capture_kit_viewport_rgb(annotator) -> np.ndarray:
     return frame
 
 
-def _pump_tiled_until_stable(camera_sensor, camera_indices: list[int]) -> np.ndarray:
-    """Pump ``camera_sensor.update()`` until two consecutive tiled frames converge.
-
-    Replaces the fixed :data:`_TILED_CAMERA_SENSOR_WARMUP_UPDATES` loop with an
-    adaptive one: stops as soon as two consecutive frames satisfy
-    :func:`_frames_converged`, or after :data:`_WARMUP_MAX_FRAMES` updates.
-    Returns the last captured frame.
-    """
-    prev: np.ndarray | None = None
-    last: np.ndarray | None = None
-    for i in range(_WARMUP_MAX_FRAMES):
-        camera_sensor.update(dt=0.0, force_recompute=True)
-        rgb_batch = camera_rgb_batch(camera_sensor, camera_indices)
-        curr = compose_rgb_grid_tensor(rgb_batch).detach().cpu().numpy()[..., :3]
-        if i >= _TILED_CAMERA_SENSOR_WARMUP_UPDATES and prev is not None and _frames_converged(prev, curr):
-            return curr
-        prev = curr
-        last = curr
-    return last
-
-
-def _capture_visualizer_tiled_camera_rgb(
-    visualizer, *, label: str = "capture", force_recompute: bool = True, paused: bool = False
-) -> np.ndarray:
-    """Capture the declared scene camera used by the visualizer."""
-    camera_sensor = visualizer._camera_sensor
-    assert camera_sensor is not None, "Visualizer did not bind its declared scene camera."
-    camera_indices = [int(index) for index in (visualizer._camera_sensor_indices or [0])]
-    if force_recompute:
-        if isinstance(visualizer, KitVisualizer):
-            _update_active_simulation_app()
-        return _pump_tiled_until_stable(camera_sensor, camera_indices)
-    rgb_batch = camera_rgb_batch(camera_sensor, camera_indices)
-    frame = compose_rgb_grid_tensor(rgb_batch).detach().cpu().numpy()
-    assert frame.ndim == 3, f"Expected tiled camera RGB frame to be HxWxC, got shape {frame.shape}."
-    assert frame.shape[-1] >= 3, f"Expected tiled camera RGB frame to have at least 3 channels, got {frame.shape}."
-    return frame[..., :3]
+def _capture_visualizer_tiled_camera_rgb(visualizer) -> np.ndarray:
+    """Converge the declared sensor and read the same composed frame used by its window."""
+    view = visualizer.image_view
+    assert view is not None and view.camera is not None, "Visualizer did not bind its declared scene camera."
+    if isinstance(visualizer, KitVisualizer):
+        _update_active_simulation_app()
+    previous = None
+    for index in range(_WARMUP_MAX_FRAMES):
+        view.camera.update(dt=0.0, force_recompute=True)
+        view.invalidate()
+        frame = visualizer.render_tiled_rgb_array()
+        if index >= _TILED_CAMERA_SENSOR_WARMUP_UPDATES and _frames_converged(previous, frame):
+            return frame
+        previous = frame
+    return frame
 
 
 def _run_visualizer_tiled_camera_motion_test(env, visualizer, *, physics_kind: str, viz_kind: str) -> None:
@@ -1371,11 +1348,11 @@ def _run_visualizer_tiled_camera_motion_test(env, visualizer, *, physics_kind: s
     for _ in range(_INTEGRATION_MOTION_BUFFER_STEPS):
         env.step(action=actions)
 
-    motion_start_frame = _capture_visualizer_tiled_camera_rgb(visualizer, label="1a_playing_frame_00")
+    motion_start_frame = _capture_visualizer_tiled_camera_rgb(visualizer)
     for _ in range(PLAY_VIZ_N_STEP):
         env.step(action=actions)
     play_end_idx = PLAY_VIZ_N_STEP
-    motion_end_frame = _capture_visualizer_tiled_camera_rgb(visualizer, label="1b_playing_frame_20")
+    motion_end_frame = _capture_visualizer_tiled_camera_rgb(visualizer)
     _save_visualizer_debug_phase_images(
         motion_start_frame,
         motion_end_frame,
@@ -1401,10 +1378,10 @@ def _run_visualizer_tiled_camera_motion_test(env, visualizer, *, physics_kind: s
         # Re-render both paused captures: comparing the sensor's cached frame with itself cannot
         # detect a renderer that keeps changing the image after physics stops.  The denoiser residue
         # that motivated caching is handled by the per-channel threshold below (NVBUG 6570125).
-        paused_start_frame = _capture_visualizer_tiled_camera_rgb(visualizer, label="2a_pausing_frame_20", paused=True)
+        paused_start_frame = _capture_visualizer_tiled_camera_rgb(visualizer)
         for _ in range(PAUSE_VIZ_N_STEP):
             env.sim.render()
-        paused_end_frame = _capture_visualizer_tiled_camera_rgb(visualizer, label="2b_pausing_frame_25", paused=True)
+        paused_end_frame = _capture_visualizer_tiled_camera_rgb(visualizer)
         _save_visualizer_debug_phase_images(
             paused_start_frame,
             paused_end_frame,
@@ -1439,10 +1416,10 @@ def _run_visualizer_tiled_camera_motion_test(env, visualizer, *, physics_kind: s
 
     def _attempt_replay():
         _set_kit_simulation_paused(env, False)
-        play_start_frame = _capture_visualizer_tiled_camera_rgb(visualizer, label="3a_playing_frame_25")
+        play_start_frame = _capture_visualizer_tiled_camera_rgb(visualizer)
         for _ in range(PLAY_VIZ_N_STEP):
             env.step(action=actions)
-        play_end_frame = _capture_visualizer_tiled_camera_rgb(visualizer, label="3b_playing_frame_45")
+        play_end_frame = _capture_visualizer_tiled_camera_rgb(visualizer)
         _save_visualizer_debug_phase_images(
             play_start_frame,
             play_end_frame,

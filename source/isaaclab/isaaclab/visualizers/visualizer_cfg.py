@@ -179,7 +179,7 @@ class ImageViewCfg:
 
     def validate_config(self) -> None:
         """Reject unsupported channels, negative row indices, and invalid output dimensions."""
-        from ..envs.utils.camera_colorizer import sensor_key_for_gt_type
+        from ..envs.utils.camera_view import sensor_key_for_gt_type
 
         if not isinstance(self.source, (str, PerspectiveCameraCfg)) or self.source == "":
             raise ValueError("ImageViewCfg.source must name a scene camera or declare a perspective camera.")
@@ -288,8 +288,7 @@ class VisualizerCfg:
     """GT data types displayed left-to-right per environment row.
 
     Valid values: ``"rgb"``, ``"depth"``, ``"segmentation"``, ``"normals"``.
-    Validated against :data:`~isaaclab.envs.utils.camera_colorizer.SUPPORTED_GT_TYPES`
-    at initialization time (only when :attr:`streaming_view` is ``True``).
+    Validated at initialization when :attr:`streaming_view` is ``True``.
     """
 
     streaming_depth_min: float = 0.1

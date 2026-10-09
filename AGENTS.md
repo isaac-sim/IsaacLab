@@ -29,6 +29,8 @@ The guide owns shared contribution rules. Update them there instead of copying t
   Share lifecycle code between native viewers; let rendering failures propagate after frame cleanup.
 - Let simulation-owned image views own selection, composition, and frame caching. Windows and recorders
   consume those frames; do not add separate channel processing or camera discovery to either hot path.
+  Use the shared device kernels for colorization and tiling; do not retain a parallel CPU implementation.
+- Queue deferred native calls directly; do not mirror their arguments in a record and a forwarding helper.
 - Keep native copy batching in the OV rendering package. Reuse core path primitives without
   exposing backend copy policies through the core cloner API.
 - Use the uv-managed environment for routine commands and `uv run python` for Python scripts.

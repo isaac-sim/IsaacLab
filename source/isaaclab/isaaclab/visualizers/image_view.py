@@ -15,8 +15,7 @@ import numpy as np
 import warp as wp
 from matplotlib import colormaps
 
-from ..envs.utils.camera_colorizer import sensor_key_for_gt_type
-from ..envs.utils.camera_view import image_grid_columns
+from ..envs.utils.camera_view import image_grid_columns, sensor_key_for_gt_type
 from ..utils import validate
 from ..utils.buffers import TimestampedBuffer
 from ..utils.images import _resize_rgba_image, compose_image
@@ -42,7 +41,7 @@ class ImageView:
         self.render: Callable[[wp.array | None], wp.array] | None = None
         self.aspect = 1.0
         self.frame = TimestampedBuffer()
-        self._host_frame = TimestampedBuffer()
+        self._host_frame: np.ndarray | None = None
         self._render_buffer: wp.array | None = None
         self._tiles: wp.array | None = None
         self._env_ids: wp.array | None = None
@@ -113,7 +112,7 @@ class ImageView:
             output = self.frame.data
             wp.launch(_resize_rgba_image, dim=output.shape[:2], inputs=[self._tiles, output], device=output.device)
         self.frame.timestamp = frame_id
-        self._host_frame.timestamp = -1.0
+        self._host_frame = None
         return self.frame.data
 
     def read_rgb(self, frame_id: int | float) -> np.ndarray | None:
@@ -121,19 +120,19 @@ class ImageView:
         image = self.read(frame_id)
         if image is None:
             return None
-        if self._host_frame.timestamp != self.frame.timestamp:
-            self._host_frame.data = np.ascontiguousarray(image.numpy()[..., :3])
-            self._host_frame.timestamp = self.frame.timestamp
-        return self._host_frame.data
+        if self._host_frame is None:
+            self._host_frame = np.ascontiguousarray(image.numpy()[..., :3])
+        return self._host_frame
 
     def invalidate(self) -> None:
         """Invalidate cached pixels after camera movement, a source update, or a simulation reset."""
-        self.frame.timestamp = self._host_frame.timestamp = -1.0
+        self.frame.timestamp = -1.0
+        self._host_frame = None
 
     def close(self) -> None:
         """Release source references and owned storage after the consumers have closed."""
         self.camera = self.render = self._render_buffer = None
         self.frame = TimestampedBuffer()
-        self._host_frame = TimestampedBuffer()
+        self._host_frame = None
         self._tiles = self._env_ids = self._depth_colors = None
         self._layout = self._selection = None
