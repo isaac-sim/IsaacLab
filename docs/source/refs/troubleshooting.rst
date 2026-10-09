@@ -19,6 +19,71 @@ Tricks and Troubleshooting
    :local:
    :depth: 2
 
+Capturing an Environment for a Bug Report
+-----------------------------------------
+
+Most setup failures are a difference between two machines rather than a defect in the code, and the
+difference is rarely in the lockfile. ``tools/capture_env.py`` records the parts a lockfile does not:
+the GPU and driver, the installed packages as they exist on disk, the environment variables Isaac Lab
+reads, the symlinks and ``.pth`` files that decide which code actually gets imported, and which Isaac
+Sim the checkout reaches -- the ``isaacsim`` wheel, a downloaded package, or a local Kit build, named
+by the revision it was built from.
+
+.. code:: bash
+
+    uv run --no-project python tools/capture_env.py capture --command "<the command that failed>"
+
+This writes ``isaaclab-env-<host>-<timestamp>.zip`` and a matching ``.md`` document beside it. The
+document lists the steps to rebuild the environment and what the bundle cannot rebuild. Attach the
+zip to the issue.
+
+The steps are derived from the capture rather than written in advance. The ``uv sync`` command carries
+the extras the captured environment was actually built with, worked out from the lockfile's dependency
+graph and what is installed, because a bare ``uv sync`` installs the default dependency set and
+*removes* everything else -- on a working checkout that is over a hundred packages, including Isaac Sim
+and every RL library.
+
+The script uses only the Python standard library, never imports Isaac Lab, and never runs ``git``, so
+it still works on an installation that is too broken to start and on a machine with no git installed.
+``--no-project`` stops ``uv`` from syncing. What gets described is the active environment
+and the checked-out revision, both read from disk rather than through the interpreter that runs the
+capture; pass ``--venv`` to describe a different one.
+
+Environment variables are captured by allowlist, limited to the names Isaac Lab and its runtime stack
+are known to read. The list is closed and matched by exact name, so a variable this project does not
+read is counted but never named or valued anywhere in the bundle. That is the whole of the guarantee:
+a bundle does record the hostname of the machine that produced it, in the archive name and in the
+manifest, the ``--command`` string as you typed it, and the values of allowlisted path variables such
+as ``PYTHONPATH`` and ``LD_LIBRARY_PATH``. Read ``REPRODUCE.md`` and ``env/environment.txt`` from the
+bundle before attaching it to a public issue.
+
+No source diff and no configured remotes are captured, so a fork's URL cannot name a host or an
+organisation. The working tree is not otherwise untouched, though: ``pyproject.toml``, ``uv.lock``,
+``pyvenv.cfg`` and the ``.pth`` files are copied verbatim, dirty or not, so an uncommitted index URL
+or a local path edited into any of them travels with the bundle. The clone step names Isaac Lab
+itself; a commit that is not reachable from it came from a fork and has to come from you.
+
+
+Reproducing a Reported Environment
+----------------------------------
+
+A bundle carries its own instructions, because the extras and the local wiring differ between the
+machine that produced it and yours. Unpack it and follow what it prescribes:
+
+.. code:: bash
+
+    unzip isaaclab-env-<host>-<timestamp>.zip -d bundle
+    cat bundle/REPRODUCE.md
+
+The document holds a single block of shell: clone and check out the recorded commit, copy the captured
+``pyproject.toml`` and ``uv.lock`` over it, sync with the derived extras, recreate the hand-made
+symlinks, and export the environment variables that change behaviour. Take the ``uv sync`` line from
+the document rather than typing it yourself -- the bare form removes everything the extras leave out.
+
+The document ends with what the bundle cannot rebuild: the GPU and its driver, any uncommitted source
+changes, and anything reached through ``PYTHONPATH`` or ``LD_LIBRARY_PATH``
+from outside the repository. Read that section before concluding that a failure to reproduce is
+meaningful.
 
 Installation and imports
 ------------------------
