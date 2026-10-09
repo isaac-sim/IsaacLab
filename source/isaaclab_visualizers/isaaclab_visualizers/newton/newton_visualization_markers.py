@@ -90,13 +90,6 @@ class NewtonVisualizationMarkers:
         if registry is not None:
             registry.remove_group(self.group_id)
 
-    def infer_device(self) -> torch.device:
-        """Infer the device from current marker state."""
-        for value in (self.translations, self.orientations, self.scales, self.marker_indices):
-            if value is not None:
-                return value.device
-        return torch.device("cpu")
-
     def set_visibility(self, visible: bool) -> None:
         """Set marker visibility."""
         self.visible = visible

@@ -111,7 +111,7 @@ class VisualizationMarkers:
         self.prim_path = cfg.prim_path
         self._count = len(cfg.markers)
         self._is_visible = True
-        self._has_visualized = False
+        self._device: torch.device | None = None
         self._backends: list[object] = []
         self._ensure_backends_initialized()
 
@@ -179,6 +179,9 @@ class VisualizationMarkers:
         indices ``[0, 1, 0, 1]``, the first and third markers use the first
         prototype and the second and fourth markers use the second prototype.
 
+        Inputs use the device of the first nonempty update. Later partial updates are moved to that
+        device so they can be combined with the retained marker state.
+
         .. caution::
             This function updates all markers instanced from the prototypes. If
             you want to update only a subset of markers, handle the indexing
@@ -217,12 +220,12 @@ class VisualizationMarkers:
         norm_scales = self._to_tensor(scales, expected_width=3, name="scales")
         norm_marker_indices = self._to_index_tensor(marker_indices, name="marker_indices")
         norm_environment_ids = self._to_index_tensor(environment_ids, name="environment_ids")
-        target_device = self._resolve_target_device(
-            norm_translations, norm_orientations, norm_scales, norm_marker_indices, norm_environment_ids
+        values = (norm_translations, norm_orientations, norm_scales, norm_marker_indices, norm_environment_ids)
+        target_device = self._device or next(
+            (value.device for value in values if value is not None), torch.device("cpu")
         )
         norm_translations, norm_orientations, norm_scales, norm_marker_indices, norm_environment_ids = (
-            None if value is None else value.to(device=target_device)
-            for value in (norm_translations, norm_orientations, norm_scales, norm_marker_indices, norm_environment_ids)
+            None if value is None else value.to(device=target_device) for value in values
         )
 
         marker_values = (norm_translations, norm_orientations, norm_scales, norm_marker_indices)
@@ -231,11 +234,7 @@ class VisualizationMarkers:
             raise ValueError(f"Expected all marker inputs to have the same length. Received: {sorted(marker_counts)}.")
         num_markers = next(iter(marker_counts), 0)
 
-        if (
-            norm_marker_indices is None
-            and num_markers != 0
-            and (not self._has_visualized or num_markers != self._count)
-        ):
+        if norm_marker_indices is None and num_markers != 0 and (self._device is None or num_markers != self._count):
             norm_marker_indices = torch.zeros(num_markers, dtype=torch.int32, device=target_device)
         elif norm_marker_indices is None and num_markers == 0:
             if all(value is None for value in marker_values):
@@ -256,7 +255,7 @@ class VisualizationMarkers:
 
         if num_markers != 0:
             self._count = num_markers
-            self._has_visualized = True
+            self._device = target_device
 
     def __del__(self):
         for backend in getattr(self, "_backends", []):
@@ -306,15 +305,6 @@ class VisualizationMarkers:
 
         if not any(isinstance(backend, NewtonVisualizationMarkers) for backend in self._backends):
             self._backends.append(NewtonVisualizationMarkers(self.cfg, visible=self._is_visible))
-
-    def _resolve_target_device(self, *values: torch.Tensor | None) -> torch.device:
-        for value in values:
-            if value is not None:
-                return value.device
-        for backend in self._backends:
-            if hasattr(backend, "infer_device"):
-                return backend.infer_device()
-        return torch.device("cpu")
 
     @staticmethod
     def _to_tensor(
