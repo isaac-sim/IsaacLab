@@ -59,6 +59,7 @@ Guidelines for modifications:
 * Andrei Aristarkhov
 * Andrej Orsula
 * Anke Zhao
+* Anthony Clark
 * Anton Bjørndahl Mortensen
 * Antonin Raffin
 * Arjun Bhardwaj

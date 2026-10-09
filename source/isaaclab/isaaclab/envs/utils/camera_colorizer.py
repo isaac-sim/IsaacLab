@@ -22,24 +22,28 @@ _GT_TO_SENSOR_KEY: dict[str, str] = {
 }
 # Fallback sensor key when the primary is absent
 _GT_SENSOR_KEY_FALLBACK: dict[str, str] = {
+    "rgb": "rgba",
     "depth": "distance_to_image_plane",
 }
 
 
-def sensor_key_for_gt_type(gt_type: str, available_keys: frozenset[str] | None = None) -> str:
+def sensor_key_for_gt_type(
+    gt_type: str, available_keys: frozenset[str] | None = None, *, required: bool = True
+) -> str | None:
     """Return the camera sensor output key for a streaming GT type.
 
     Args:
         gt_type: One of :data:`SUPPORTED_GT_TYPES`.
         available_keys: Keys present in ``camera.data.output``. When provided the
-            fallback key for ``"depth"`` is tried if the primary is absent.
+            fallback key for ``"rgb"`` or ``"depth"`` is tried if the primary is absent.
+        required: Whether a missing output raises an error. False returns None for compatibility checks.
 
     Returns:
-        The sensor output key to index into ``camera.data.output``.
+        The sensor output key to index into ``camera.data.output``, or None if absent and not required.
 
     Raises:
         ValueError: If ``gt_type`` is not in :data:`SUPPORTED_GT_TYPES`.
-        KeyError: If no matching key exists in ``available_keys``.
+        KeyError: If no matching key exists in ``available_keys`` and required is True.
     """
     if gt_type not in SUPPORTED_GT_TYPES:
         raise ValueError(f"GT type {gt_type!r} is not supported. Valid types: {sorted(SUPPORTED_GT_TYPES)}")
@@ -51,30 +55,12 @@ def sensor_key_for_gt_type(gt_type: str, available_keys: frozenset[str] | None =
     fallback = _GT_SENSOR_KEY_FALLBACK.get(gt_type)
     if fallback and fallback in available_keys:
         return fallback
+    if not required:
+        return None
     raise KeyError(
         f"No sensor output found for GT type {gt_type!r}. "
         f"Tried {primary!r} and {fallback!r}; available: {sorted(available_keys)}"
     )
-
-
-def sensor_keys_for_gt_types(gt_types: list[str]) -> list[str]:
-    """Return deduplicated ``CameraCfg.data_types`` list for the given GT types.
-
-    Args:
-        gt_types: List of streaming GT types (e.g. ``["rgb", "depth"]``).
-
-    Returns:
-        Ordered, deduplicated sensor data-type strings suitable for
-        ``CameraCfg(data_types=...)``.
-    """
-    seen: set[str] = set()
-    keys: list[str] = []
-    for gt in gt_types:
-        key = _GT_TO_SENSOR_KEY.get(gt)
-        if key and key not in seen:
-            keys.append(key)
-            seen.add(key)
-    return keys
 
 
 class CameraFrameColorizer:

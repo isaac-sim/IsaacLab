@@ -107,7 +107,6 @@ Table of Contents
    source/concepts/backend_architecture
    source/concepts/physics_backends
    source/concepts/solver_differences
-   source/concepts/solver-tuning/index
    source/concepts/native-physics-api/index
    source/concepts/renderers
    source/concepts/actuators

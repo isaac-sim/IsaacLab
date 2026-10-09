@@ -25,16 +25,14 @@ pytestmark = [
 if not _MISSING_MODULES:
     from isaaclab_ov.renderers.ovrtx_usd import (  # noqa: E402
         build_render_product_as_string,
-        build_render_scope_usd,
         create_scene_partition_attributes,
         export_stage_to_string,
-        get_render_var_config,
         get_render_var_configs,
         render_var_prim_names_by_source,
         render_var_prim_paths_by_source,
     )
 
-    from pxr import Sdf, Usd, UsdGeom  # noqa: E402
+    from pxr import Gf, Sdf, Usd, UsdGeom, UsdRender  # noqa: E402
 
     from isaaclab.renderers.camera_render_spec import CameraRenderSpec  # noqa: E402
     from isaaclab.sensors.camera import CameraCfg  # noqa: E402
@@ -43,10 +41,8 @@ else:
     Usd = None
     UsdGeom = None
     build_render_product_as_string = None
-    build_render_scope_usd = None
     create_scene_partition_attributes = None
     export_stage_to_string = None
-    get_render_var_config = None
     get_render_var_configs = None
     render_var_prim_names_by_source = None
     render_var_prim_paths_by_source = None
@@ -71,8 +67,16 @@ def camera_spec():
 
 
 @pytest.fixture
-def render_data():
-    return SimpleNamespace(render_scope_name="RenderCamera_0", render_product_name="RenderProduct")
+def render_data(camera_spec):
+    return SimpleNamespace(
+        render_scope_name="RenderCamera_0",
+        render_product_path="/RenderCamera_0/RenderProduct",
+        camera_paths=list(camera_spec.camera_prim_paths),
+        width=16,
+        height=8,
+        num_cols=2,
+        num_rows=2,
+    )
 
 
 def _make_multi_env_stage(num_envs: int) -> Usd.Stage:
@@ -110,7 +114,7 @@ def _assert_export_omits_env_children(exported: str, env_indices: range | list[i
 
 def test_render_product_default_background_is_dome_light(camera_spec, render_data):
     """Default background (background_color=None) uses domeLight source type."""
-    render_scope = build_render_product_as_string(camera_spec, render_data)
+    render_scope = build_render_product_as_string(camera_spec, render_data, device_id=0)
     assert 'token omni:rtx:background:source:type = "domeLight"' in render_scope
     assert "omni:rtx:background:source:color" not in render_scope
     assert 'token omni:rtx:rendermode = "RealTimePathTracing"' in render_scope
@@ -120,7 +124,7 @@ def test_render_product_default_background_is_dome_light(camera_spec, render_dat
 def test_render_product_solid_background_color(camera_spec, render_data):
     """Providing background_color emits color source type and the color attribute."""
     camera_spec.cfg.background_color = (1.0, 0.0, 0.5)
-    render_scope = build_render_product_as_string(camera_spec, render_data)
+    render_scope = build_render_product_as_string(camera_spec, render_data, device_id=0)
     assert 'token omni:rtx:background:source:type = "color"' in render_scope
     assert "color3f omni:rtx:background:source:color = (1.0, 0.0, 0.5)" in render_scope
     assert 'token omni:rtx:background:source:type = "domeLight"' not in render_scope
@@ -149,14 +153,14 @@ def test_render_var_prim_paths_cover_every_authored_render_var(camera_spec, rend
     prim_paths = render_var_prim_paths_by_source(render_scope_name=render_scope_name)
     authored = get_render_var_configs(data_types, render_scope_name=render_scope_name)
     camera_spec.cfg.data_types = data_types
-    render_data.render_product_name = "CameraOutput"
     render_data.render_scope_name = render_scope_name
-    render_scope = build_render_product_as_string(camera_spec, render_data)
+    render_data.render_product_path = f"/{render_scope_name}/RenderProduct"
+    render_scope = build_render_product_as_string(camera_spec, render_data, device_id=0)
     layer = Sdf.Layer.CreateAnonymous(".usda")
     assert layer.ImportFromString(render_scope)
     stage = Usd.Stage.Open(layer)
     assert stage.GetDefaultPrim().GetPath() == Sdf.Path(f"/{render_scope_name}")
-    product = stage.GetPrimAtPath(f"/{render_scope_name}/CameraOutput")
+    product = stage.GetPrimAtPath(f"/{render_scope_name}/RenderProduct")
     assert product.GetTypeName() == "RenderProduct"
     targets = product.GetRelationship("orderedVars").GetTargets()
     assert targets == [Sdf.Path(path) for path, _, _ in authored]
@@ -171,13 +175,13 @@ def test_render_var_prim_paths_cover_every_authored_render_var(camera_spec, rend
 
 
 def test_ovrtx_primary_render_var_follows_the_first_requested_data_type():
-    """The primary render var is the first supported configuration in the requested data types."""
-    assert get_render_var_config(["rgb", "motion_vectors"], render_scope_name="RenderCamera_0") == (
+    """The primary render var follows the order of the requested outputs."""
+    assert get_render_var_configs(["rgb", "motion_vectors"], render_scope_name="RenderCamera_0")[0] == (
         "/RenderCamera_0/Vars/LdrColor",
         "LdrColor",
         "LdrColor",
     )
-    assert get_render_var_config(["motion_vectors", "rgb"], render_scope_name="RenderCamera_0") == (
+    assert get_render_var_configs(["motion_vectors", "rgb"], render_scope_name="RenderCamera_0")[0] == (
         "/RenderCamera_0/Vars/TargetMotionSD",
         "TargetMotionSD",
         "TargetMotionSD",
@@ -226,14 +230,11 @@ def test_ovrtx_data_types_sharing_a_source_author_one_render_var():
     ]
 
 
-def test_ovrtx_unsupported_data_type_is_skipped_and_falls_back_to_ldr_color():
-    """Unsupported data types author no render var; an otherwise empty product keeps LdrColor."""
-    assert get_render_var_configs(["instance_id_segmentation_fast"], render_scope_name="RenderCamera_0") == [
-        ("/RenderCamera_0/Vars/LdrColor", "LdrColor", "LdrColor")
-    ]
-    assert get_render_var_configs(["normals", "instance_id_segmentation_fast"], render_scope_name="RenderCamera_0") == [
-        ("/RenderCamera_0/Vars/NormalSD", "NormalSD", "NormalSD")
-    ]
+@pytest.mark.parametrize("data_types", [[], ["instance_id_segmentation_fast"], ["normals", "unknown"]])
+def test_ovrtx_rejects_missing_or_unsupported_outputs(data_types):
+    """Invalid requests fail instead of silently rendering RGB or dropping an output."""
+    with pytest.raises(ValueError, match="output"):
+        get_render_var_configs(data_types, render_scope_name="RenderCamera_0")
 
 
 def test_ovrtx_rejects_color_combined_with_simple_shading():
@@ -264,11 +265,12 @@ def test_ovrtx_simple_shading_alone_uses_ldr_color(camera_spec, render_data, dat
         ("/RenderCamera_0/Vars/LdrColor", "LdrColor", "LdrColor")
     ]
     camera_spec.cfg.data_types = [data_type]
-    render_product = build_render_product_as_string(camera_spec, render_data, enable_shadows=enable_shadows)
+    usd = build_render_product_as_string(camera_spec, render_data, device_id=0, enable_shadows=enable_shadows)
     layer = Sdf.Layer.CreateAnonymous(".usda")
-    assert layer.ImportFromString(render_product)
+    assert layer.ImportFromString(usd)
     assert layer.GetAttributeAtPath("/RenderCamera_0/RenderProduct.omni:rtx:rendermode").default == "Minimal"
     assert layer.GetAttributeAtPath("/RenderCamera_0/RenderProduct.omni:rtx:minimal:mode").default == minimal_mode
+    assert layer.GetAttributeAtPath("/RenderCamera_0/RenderProduct.omni:rtx:rt:ecoMode:enabled").default is False
     assert (
         layer.GetAttributeAtPath("/RenderCamera_0/RenderProduct.omni:rtx:minimal:castShadows").default == enable_shadows
     )
@@ -283,7 +285,7 @@ def test_ovrtx_duplicate_simple_shading_data_types_collapse():
 
 def test_render_product_initially_targets_only_the_resolvable_source_camera(camera_spec, render_data):
     """Multi-environment RenderProducts initially target env zero while retaining tiled resolution."""
-    render_product = build_render_product_as_string(camera_spec, render_data)
+    render_product = build_render_product_as_string(camera_spec, render_data, device_id=0)
 
     layer = Sdf.Layer.CreateAnonymous(".usda")
     assert layer.ImportFromString(render_product)
@@ -305,25 +307,18 @@ def test_render_product_pins_device_ids_to_the_requested_cuda_device(camera_spec
     assert list(device_ids.default) == [1]
 
 
-def test_render_product_omits_device_ids_when_no_device_is_given(camera_spec, render_data):
-    """Without a device index the render product keeps OVRTX's automatic device assignment."""
-    render_product = build_render_product_as_string(camera_spec, render_data)
-
-    assert "deviceIds" not in render_product
-
-
 @pytest.mark.parametrize("data_types", [["rgb"], ["rgb", "rgb_hdr"], []])
 def test_render_product_isp_requests_hdr_without_mutating_camera_outputs(camera_spec, render_data, data_types):
     """ISP receives one HDR source while the camera's requested outputs remain unchanged."""
     camera_spec.cfg.data_types = data_types.copy()
     camera_spec.cfg.isp_cfg = object()
-    render_product = build_render_product_as_string(camera_spec, render_data)
+    render_product = build_render_product_as_string(camera_spec, render_data, device_id=0)
     layer = Sdf.Layer.CreateAnonymous(".usda")
     assert layer.ImportFromString(render_product)
     ordered_vars = layer.GetRelationshipAtPath("/RenderCamera_0/RenderProduct.orderedVars")
+    expected_vars = ("LdrColor", "HdrColor") if data_types else ("HdrColor",)
     assert list(ordered_vars.targetPathList.explicitItems) == [
-        Sdf.Path("/RenderCamera_0/Vars/LdrColor"),
-        Sdf.Path("/RenderCamera_0/Vars/HdrColor"),
+        Sdf.Path(f"/RenderCamera_0/Vars/{name}") for name in expected_vars
     ]
     assert camera_spec.cfg.data_types == data_types
 
@@ -338,7 +333,7 @@ def test_ovrtx_rgb_and_rgb_hdr_author_both_render_vars(camera_spec, render_data)
     ]
 
     camera_spec.cfg.data_types = ["rgb", "rgb_hdr"]
-    render_scope = build_render_scope_usd(camera_spec, render_data)
+    render_scope = build_render_product_as_string(camera_spec, render_data, device_id=0)
 
     assert "rel orderedVars = [</RenderCamera_0/Vars/LdrColor>, </RenderCamera_0/Vars/HdrColor>]" in render_scope
     assert 'def RenderVar "LdrColor"' in render_scope
@@ -355,7 +350,7 @@ def test_ovrtx_semantic_segmentation_authors_semantic_and_id_map_render_vars(cam
     ]
 
     camera_spec.cfg.data_types = ["semantic_segmentation"]
-    render_scope = build_render_scope_usd(camera_spec, render_data)
+    render_scope = build_render_product_as_string(camera_spec, render_data, device_id=0)
 
     assert "rel orderedVars = [</RenderCamera_0/Vars/semantic>, </RenderCamera_0/Vars/SemanticIdMap>]" in render_scope
     assert 'uniform string sourceName = "SemanticSegmentation"' in render_scope
@@ -378,7 +373,7 @@ def test_ovrtx_instance_segmentation_authors_pixel_and_map_render_vars(camera_sp
     ]
 
     camera_spec.cfg.data_types = ["instance_segmentation"]
-    render_scope = build_render_scope_usd(camera_spec, render_data)
+    render_scope = build_render_product_as_string(camera_spec, render_data, device_id=0)
 
     assert (
         "rel orderedVars = [</RenderCamera_0/Vars/NonStableInstanceSegmentation>,"
@@ -478,26 +473,28 @@ def test_export_stage_heterogeneous_keeps_multiple_sources():
     assert 'def Camera "Camera"' not in exported
 
 
-def test_export_stage_restores_active_state():
-    """Export temporarily deactivates prims but restores them afterward."""
+@pytest.mark.parametrize("settings_path", [None, "/Render/AuthoredSettings"])
+def test_export_stage_preserves_authored_scene(settings_path):
+    """Renderer settings and clone trimming are confined to the exported scene."""
     num_envs = 4
     stage = _make_multi_env_stage(num_envs)
-
-    for env_idx in range(num_envs):
-        env_path = f"/World/envs/env_{env_idx}"
-        assert stage.GetPrimAtPath(env_path).IsActive()
-        assert stage.GetPrimAtPath(f"{env_path}/Object_env{env_idx}_only").IsActive()
-
-    export_stage_to_string(
-        stage,
-        num_envs,
-        source_paths=("/World/envs/env_0",),
-    )
-
-    for env_idx in range(num_envs):
-        env_path = f"/World/envs/env_{env_idx}"
-        assert stage.GetPrimAtPath(env_path).IsActive()
-        assert stage.GetPrimAtPath(f"{env_path}/Object_env{env_idx}_only").IsActive()
+    if settings_path is not None:
+        settings = UsdRender.Settings.Define(stage, settings_path)
+        settings.CreateResolutionAttr(Gf.Vec2i(1280, 720))
+        stage.SetMetadata("renderSettingsPrimPath", settings_path)
+    before = stage.ExportToString()
+    layer = Sdf.Layer.CreateAnonymous()
+    layer.ImportFromString(export_stage_to_string(stage, num_envs, source_paths=("/World/envs/env_0",)))
+    exported = Usd.Stage.Open(layer)
+    assert exported.HasAuthoredMetadata("renderSettingsPrimPath")
+    settings = exported.GetPrimAtPath(exported.GetMetadata("renderSettingsPrimPath"))
+    show_all = settings.GetAttribute("omni:rtx:scenePartitioning:showAllPartitionsByDefault")
+    assert show_all and show_all.Get() is True
+    if settings_path is not None:
+        assert settings.GetPath() == settings_path
+        assert settings.GetAttribute("resolution").Get() == (1280, 720)
+    assert stage.ExportToString() == before
+    assert not exported.GetPrimAtPath("/World/envs/env_1/Robot")
 
 
 def test_create_scene_partition_attributes_all_envs():

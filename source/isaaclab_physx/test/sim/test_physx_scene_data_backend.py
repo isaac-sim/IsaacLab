@@ -23,7 +23,14 @@ def test_pose_publication_refreshes_after_physics_but_reuses_clean_reads(monkeyp
     from isaaclab.scene_data import SceneDataFormat, SceneDataProvider
 
     manager = physx_manager.PhysxManager
-    fabric = Mock()
+    # On-demand capture keeps continuous Fabric writes off; each refresh must enable them while it runs.
+    settings = {"/physics/fabricUpdateTransformations": False}
+    refreshes = []
+
+    def record_refresh(*_):
+        refreshes.append(settings["/physics/fabricUpdateTransformations"])
+
+    fabric = Mock(force_update=Mock(side_effect=record_refresh))
     monkeypatch.setattr(manager, "_fabric", fabric)
     backend = physx_manager.PhysxSceneDataBackend()
     transforms = wp.zeros(1, dtype=wp.transformf, device="cpu")
@@ -36,7 +43,15 @@ def test_pose_publication_refreshes_after_physics_but_reuses_clean_reads(monkeyp
     monkeypatch.setattr(manager, "kinematics_dirty", False)
     monkeypatch.setattr(manager, "_anim_recorder", None)
     monkeypatch.setattr(
-        PhysicsManager, "_sim", SimpleNamespace(stage=object(), cfg=SimpleNamespace(dt=0.01), is_playing=lambda: True)
+        PhysicsManager,
+        "_sim",
+        SimpleNamespace(
+            stage=object(),
+            cfg=SimpleNamespace(dt=0.01),
+            is_playing=lambda: True,
+            get_setting=settings.get,
+            set_setting=settings.__setitem__,
+        ),
     )
     monkeypatch.setattr(PhysicsManager, "_device", "cpu")
     monkeypatch.setattr(physx_manager.omni.physx, "get_physx_simulation_interface", Mock(return_value=Mock()))
@@ -61,6 +76,8 @@ def test_pose_publication_refreshes_after_physics_but_reuses_clean_reads(monkeyp
     version = backend.transforms_timestamp
     assert provider.get_transforms(SceneDataFormat.FabricMatrix44())
     fabric.force_update.assert_called_once_with(0.0, 0.0)
+    assert refreshes == [True]
+    assert settings["/physics/fabricUpdateTransformations"] is False
     backend.get_rigid_body_view.assert_not_called()
     view.get_transforms.assert_not_called()
     assert backend.transforms_timestamp == version

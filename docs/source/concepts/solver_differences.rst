@@ -14,18 +14,124 @@ interchangeable. PhysX and the Newton solvers can use the same USD asset while
 producing different trajectories because they construct contacts, represent
 state, stabilize constraints, and allocate work differently.
 
-This comparison covers the PhysX solver configured by
-:class:`~isaaclab_physx.physics.PhysxCfg`, Newton MuJoCo-Warp (MJWarp)
-configured by :class:`~isaaclab_newton.physics.MJWarpSolverCfg`, and Newton
-Kamino configured by :class:`~isaaclab_newton.physics.KaminoPADMMSolverCfg` or
-:class:`~isaaclab_newton.physics.KaminoDVISolverCfg`. OvPhysX is a separate,
+The table below compares the documented PhysX and Newton MJWarp, Kamino,
+VBD, and MPM workflows. The detailed sections focus on three solvers used for
+rigid robots: PhysX, MuJoCo-Warp (MJWarp), and Kamino. For additional Newton
+solver configurations, see :ref:`newton-backend`. OvPhysX is a separate,
 experimental backend with its own limitations; it is not another solver mode
 of the PhysX backend discussed here.
 
 Use this page to understand the model differences. For the controls and a
-measured tuning procedure, use :doc:`/source/concepts/solver-tuning/tune_mjwarp` or
-:doc:`/source/concepts/solver-tuning/tune_kamino`; the generated solver configuration APIs
+measured tuning procedure, use :doc:`/source/how-to/solver_tuning_mjwarp` or
+:doc:`/source/how-to/solver_tuning_kamino`; the generated solver configuration APIs
 are the reference for exact fields and defaults.
+
+For finer-grained comparisons of features, contact materials, and joint support
+among Newton solvers, see the `Newton supported-features matrix
+<https://newton-physics.github.io/newton/stable/solvers/index.html#supported-features>`__.
+
+For checkpoint compatibility and articulation ordering, follow
+:doc:`/source/how-to/transfer_policies_between_physx_and_newton`.
+Its :ref:`side-by-side transfer demonstrations <sim-to-sim-transfer-demonstrations>`
+show PhysX-trained policies running in Newton MJWarp.
+
+Capabilities at a glance
+------------------------
+
+These are direct solver capabilities exposed through Isaac Lab's asset APIs.
+Support for a particular task still depends on its registered physics presets.
+Rigid and deformable or material dynamics may be handled by different solvers
+in a coupled scene.
+
+✅ means supported, ❌ unsupported, and ⚠️ limited support. GPU requirements
+and experimental features are qualified in each cell.
+
+.. list-table:: Solver capabilities in documented Isaac Lab workflows
+   :header-rows: 1
+   :stub-columns: 1
+   :widths: 22 16 16 16 15 15
+
+   * - Capability
+     - :class:`PhysX <isaaclab_physx.physics.PhysxCfg>`
+     - :class:`Newton MJWarp <isaaclab_newton.physics.MJWarpSolverCfg>`
+     - Newton Kamino
+       (:class:`P-ADMM <isaaclab_newton.physics.KaminoPADMMSolverCfg>` /
+       :class:`DVI <isaaclab_newton.physics.KaminoDVISolverCfg>`)
+     - :class:`Newton VBD <isaaclab_newton.physics.VBDSolverCfg>`
+     - :class:`Newton MPM <isaaclab_newton.physics.MPMSolverCfg>`
+   * - Main workload
+     - Rigid robots and mesh deformables
+     - Rigid articulated robots
+     - Rigid mechanisms, including loops
+     - Cloth, soft bodies, and cables
+     - Fluids, granular media, and snow
+   * - Rigid-body dynamics
+     - ✅ Yes
+     - ✅ Yes
+     - ✅ Yes
+     - ✅ Yes
+     - ❌ No; colliders only
+   * - Articulation formulation
+     - ✅ Reduced coordinates
+     - ✅ Generalized coordinates
+     - ✅ Maximal coordinates
+     - ⚠️ Limited maximal-coordinate joints
+     - ❌ No joint dynamics
+   * - Cloth (surface mesh)
+     - ✅ Yes; GPU, experimental
+     - ❌ No
+     - ❌ No
+     - ✅ Yes
+     - ❌ No
+   * - Soft bodies (volume mesh)
+     - ✅ Yes; GPU, experimental
+     - ❌ No
+     - ❌ No
+     - ✅ Yes
+     - ❌ No
+   * - Segmented cables (``CableObject``)
+     - ❌ No
+     - ❌ No
+     - ❌ No
+     - ✅ Yes; experimental
+     - ❌ No
+   * - Particle-grid continuum materials
+     - ❌ No
+     - ❌ No
+     - ❌ No
+     - ❌ No
+     - ✅ Yes; experimental
+   * - Main tuning controls
+     - Timestep, TGS/PGS iterations, GPU capacities
+     - Substeps, iterations, contact capacities
+     - Substeps, P-ADMM/DVI convergence, stabilization
+     - Substeps, iterations, material and contact stiffness
+     - Voxel resolution, substeps, rheology convergence
+   * - Solver details
+     - :ref:`PhysX overview <physics-backends-physx>`
+     - `MuJoCo-Warp <https://newton-physics.github.io/newton/stable/solvers/mujoco.html>`__
+     - `Kamino <https://newton-physics.github.io/newton/stable/solvers/kamino.html>`__
+     - `VBD <https://newton-physics.github.io/newton/stable/api/_generated/newton.solvers.SolverVBD.html>`__
+     - `Implicit MPM
+       <https://newton-physics.github.io/newton/stable/api/_generated/newton.solvers.SolverImplicitMPM.html>`__
+   * - Tuning workflow
+     - :doc:`PhysX </source/how-to/solver_tuning_physx>`
+     - :doc:`MJWarp </source/how-to/solver_tuning_mjwarp>`
+     - :doc:`Kamino </source/how-to/solver_tuning_kamino>`
+     - :doc:`VBD </source/how-to/solver_tuning_vbd>`
+     - :doc:`MPM </source/how-to/solver_tuning_mpm>`
+
+PhysX surface and volume deformables use an experimental asset API, require
+CUDA, and need ``scene.replicate_physics=False``. Nodal kinematic targets are
+supported for volume deformables only. See :doc:`/source/concepts/deformables`
+and :class:`~isaaclab_physx.assets.DeformableObject` for the asset requirements.
+
+VBD's limited joint support does not replace a general robot articulation.
+The maintained Franka deformable tasks assign the robot to MJWarp and the
+deformable to VBD through proxy coupling. MPM advances particle materials;
+dynamic rigid bodies need a separate rigid solver. See
+:doc:`/source/concepts/coupled_solvers` and :doc:`/source/concepts/using_mpm`
+for the supported scene construction and coupling limitations.
 
 Why solver settings do not translate directly
 ----------------------------------------------

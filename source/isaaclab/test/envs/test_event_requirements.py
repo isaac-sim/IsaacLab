@@ -10,6 +10,7 @@ import sys
 from types import SimpleNamespace
 
 import pytest
+import torch
 
 from isaaclab.envs import ManagerBasedEnvCfg
 from isaaclab.envs.mdp import (
@@ -126,7 +127,11 @@ def test_randomization_parameters_follow_distribution(params, options, error):
 
 def test_tendon_defaults_and_signed_parameters():
     """Omitted operation uses abs; optional and signed fields retain their distinct policies."""
-    asset = SimpleNamespace()
+    # the term caches the tendon properties when created
+    prop = SimpleNamespace(torch=torch.zeros(1, 1))
+    asset = SimpleNamespace(
+        data=SimpleNamespace(fixed_tendon_stiffness=prop, fixed_tendon_damping=prop, fixed_tendon_pos_limits=prop)
+    )
     env = SimpleNamespace(scene={"robot": asset})
     cfg = EventTermCfg(
         func=randomize_fixed_tendon_parameters,
