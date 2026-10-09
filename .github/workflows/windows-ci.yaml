@@ -99,6 +99,8 @@ jobs:
       # deletes, so every run compiled them again (~6 min). They go through the
       # Actions cache instead, keyed on the version that compiles them and the GPU
       # and driver the blobs are valid for, and saved only when the key missed.
+      # actions/cache archives with Git's tar, whose gzip is found only through
+      # PATH, so the cache steps put Git's usr\bin on it.
       - name: Shader cache keys
         id: shader-cache
         if: ${{ !cancelled() }}
@@ -116,19 +118,19 @@ jobs:
       - name: Restore ovrtx shader cache
         id: ovrtx-cache
         uses: actions/cache/restore@v4
+        env:
+          PATH: C:\Program Files\Git\usr\bin;C:\Windows\System32
         with:
           path: .venv/Lib/site-packages/ovrtx/bin/cache
           key: ${{ steps.shader-cache.outputs.ovrtx }}
 
-      # ovrtx and usd-exchange ship differently built DLLs under the same names
-      # (MaterialXCore, MaterialXFormat, tbb12); on Windows whichever loads
-      # second fails (nvbug 6817794). Linux is unaffected. ovrtx loads its
-      # runtime only when a renderer is created, so every case creates one, each
-      # in a fresh interpreter. ovrtx-alone is the control; usd-first loads no
-      # MaterialX; isaaclab-render is the user-facing path.
-      # The cases that load usd-exchange are expected to fail only for the
-      # known-broken version pair below. A version bump re-arms them, and an
-      # unexpected pass fails the step so the entry gets removed.
+      # usd-exchange 3.0.0 and ovrtx 0.5.0 shipped differently built MaterialX
+      # DLLs under the same names; on Windows whichever loaded second failed
+      # (nvbug 6817794) until usd-exchange 3.0.1 and ovrtx 0.5.1 versioned them.
+      # Linux is unaffected. ovrtx loads its runtime only when a renderer is
+      # created, so every case creates one, each in a fresh interpreter.
+      # ovrtx-alone is the control; usd-first loads no MaterialX;
+      # isaaclab-render is the user-facing path.
       - name: OV runtime coexistence (ovrtx + usd-exchange)
         if: ${{ !cancelled() && steps.sync-kitless.outcome == 'success' }}
         timeout-minutes: 35
@@ -194,13 +196,7 @@ jobs:
               print(f"{step.__name__}: ok", flush=True)
           '@
           $script | Out-File -FilePath ov_coexist_probe.py -Encoding utf8
-          $knownBroken = @{ "usd-exchange 3.0.0 / ovrtx 0.5.0.377615" = @("usd-first", "materialx-first", "ovrtx-first", "isaaclab-render") }
-          $pair = uv run --frozen --no-sync python -c "import importlib.metadata as m; print('usd-exchange', m.version('usd-exchange'), '/ ovrtx', m.version('ovrtx'))"
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          $pair = "$pair".Trim()
-          $expectedFailures = if ($knownBroken.ContainsKey($pair)) { $knownBroken[$pair] } else { @() }
-          Write-Host "Installed: $pair (expected failures: $($expectedFailures -join ', '))"
-          $results = [ordered]@{}
+          $failed = @()
           foreach ($case in @("ovrtx-alone", "usd-first", "materialx-first", "ovrtx-first", "isaaclab-render")) {
             Write-Host "=== $case ==="
             $proc = Start-Process -PassThru -NoNewWindow -FilePath uv -ArgumentList "run --frozen --no-sync python ov_coexist_probe.py $case"
@@ -209,30 +205,13 @@ jobs:
             if (-not $proc.WaitForExit(360000)) {
               Write-Host "::error::$case hard timeout (6 min); killing process tree"
               taskkill /PID $proc.Id /T /F | Out-Null
-              $results[$case] = "timeout"
+              $failed += "$case (timeout)"
             } elseif ($proc.ExitCode -ne 0) {
-              $results[$case] = "failure"
-            } else {
-              $results[$case] = "success"
+              $failed += "$case (exit $($proc.ExitCode))"
             }
           }
-          Write-Host "=== ovrtx coexistence cases ==="
-          $failed = @()
-          foreach ($k in $results.Keys) {
-            $expected = $expectedFailures -contains $k
-            $verdict = if ($expected -and $results[$k] -eq "failure") { "xfail" }
-                       elseif ($expected -and $results[$k] -eq "success") { "XPASS" }
-                       elseif ($results[$k] -eq "success") { "pass" }
-                       else { $results[$k] }
-            if ($verdict -notin @("pass", "xfail")) { $failed += "$k ($verdict)" }
-            "{0,-16} {1}" -f $k, $verdict
-          }
-          if ($expectedFailures.Count -gt 0) {
-            Write-Host "::warning::nvbug 6817794: ovrtx and usd-exchange cannot share a process on Windows ($pair); expected failures: $($expectedFailures -join ', ')"
-          }
           if ($failed.Count -gt 0) {
-            $hint = if ($failed -match "XPASS") { " Remove the known-broken entry for $pair." } else { "" }
-            Write-Host "::error::ovrtx coexistence: $($failed -join ', ').$hint"
+            Write-Host "::error::ovrtx coexistence: $($failed -join ', ')"
             exit 1
           }
 
@@ -259,6 +238,8 @@ jobs:
       - name: Save ovrtx shader cache
         if: ${{ success() && steps.ovrtx-cache.outputs.cache-hit != 'true' }}
         uses: actions/cache/save@v4
+        env:
+          PATH: C:\Program Files\Git\usr\bin;C:\Windows\System32
         with:
           path: .venv/Lib/site-packages/ovrtx/bin/cache
           key: ${{ steps.shader-cache.outputs.ovrtx }}
@@ -275,6 +256,8 @@ jobs:
         id: kit-cache
         if: ${{ !cancelled() && steps.sync-kit.outcome == 'success' && steps.shader-cache.outcome == 'success' }}
         uses: actions/cache/restore@v4
+        env:
+          PATH: C:\Program Files\Git\usr\bin;C:\Windows\System32
         with:
           path: .venv/Lib/site-packages/isaacsim/kit/cache
           key: ${{ steps.shader-cache.outputs.isaacsim }}
@@ -351,6 +334,8 @@ jobs:
       - name: Save Kit shader cache
         if: ${{ success() && steps.kit-cache.outputs.cache-hit != 'true' }}
         uses: actions/cache/save@v4
+        env:
+          PATH: C:\Program Files\Git\usr\bin;C:\Windows\System32
         with:
           path: .venv/Lib/site-packages/isaacsim/kit/cache
           key: ${{ steps.shader-cache.outputs.isaacsim }}
