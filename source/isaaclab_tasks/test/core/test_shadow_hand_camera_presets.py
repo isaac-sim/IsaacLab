@@ -281,6 +281,74 @@ def test_registered_cosmos_preset_composes_rgb_observations_and_local_checkpoint
     assert play_cfg.feature_extractor.pretrained_checkpoint is None
 
 
+def test_manager_camera_term_passes_capture_counters_and_resets_held_targets(monkeypatch):
+    """The Manager term gives the feature extractor each capture counter and invalidates targets on reset."""
+    from isaaclab_tasks.core.reorient import mdp
+
+    calls = []
+
+    class RecordingExtractor:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def reset(self, env_ids=None):
+            calls.append(("reset", env_ids))
+
+        def step(self, camera_output, gt_pose, *, camera_frame=None):
+            calls.append(("step", camera_frame))
+            return None, torch.zeros(gt_pose.shape[0], 27)
+
+    monkeypatch.setattr(feature_extractor_module, "FeatureExtractor", RecordingExtractor)
+    frame = torch.tensor([5])
+    camera = types.SimpleNamespace(
+        cfg=types.SimpleNamespace(data_types=["rgb"], height=4, width=4),
+        data=types.SimpleNamespace(output={"rgb": torch.zeros(1, 4, 4, 3)}),
+        frame=types.SimpleNamespace(torch=frame),
+    )
+    cube = types.SimpleNamespace(
+        data=types.SimpleNamespace(
+            root_pos_w=types.SimpleNamespace(torch=torch.zeros(1, 3)),
+            root_quat_w=types.SimpleNamespace(torch=torch.tensor([[1.0, 0.0, 0.0, 0.0]])),
+        )
+    )
+
+    class Scene(types.SimpleNamespace):
+        def __getitem__(self, name):
+            return cube
+
+    env = types.SimpleNamespace(
+        device="cpu",
+        num_envs=1,
+        cfg=types.SimpleNamespace(log_dir=None),
+        extras={},
+        scene=Scene(sensors={"tiled_camera": camera}, env_origins=torch.zeros(1, 3)),
+    )
+    params = {"feature_extractor_cfg": FeatureExtractorCfg(), "sensor_cfg": types.SimpleNamespace(name="tiled_camera")}
+    term = mdp.ShadowHandCameraFeatures(types.SimpleNamespace(params=params), env)
+    term.reset([0])
+    term(env, params["feature_extractor_cfg"], params["sensor_cfg"], types.SimpleNamespace(name="object"))
+
+    assert calls[0] == ("reset", [0])
+    assert calls[1][0] == "step" and calls[1][1] is frame
+
+
+def test_manager_cosmos_preset_feeds_generated_rgb_to_the_camera_observation_term():
+    """The Manager task uses the Direct task's Cosmos camera; its observation term reads the generated rgb."""
+    env_cfg = parse_env_cfg("Isaac-Reorient-Cube-Shadow-Camera", overrides=("presets=cosmos",))
+    env_cfg.validate()
+    camera = env_cfg.scene.tiled_camera
+
+    assert env_cfg.scene.num_envs == 1 and (camera.width, camera.height) == (640, 640)
+    assert camera.modifier_outputs() == {"distance_to_image_plane": "rgb"}
+    assert env_cfg.observations.policy.camera_features.params["feature_extractor_cfg"] == env_cfg.feature_extractor
+    assert env_cfg.feature_extractor.image_update_frames == 4
+    assert env_cfg.feature_extractor.pretrained_checkpoint is None
+
+    too_many = parse_env_cfg("Isaac-Reorient-Cube-Shadow-Camera", overrides=("presets=cosmos", "env.scene.num_envs=2"))
+    with pytest.raises(ValueError, match="requires one environment"):
+        too_many.validate()
+
+
 @pytest.mark.parametrize(
     "overrides,error",
     [

@@ -16,20 +16,13 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
+from .._protocol import CANVAS_ASPECT_RATIOS as _CANVASES
 from .._protocol import DEFAULT_MAX_EPISODE_FRAMES
 
 if TYPE_CHECKING:
     import torch
 
 logger = logging.getLogger(__name__)
-
-_CANVASES = {
-    (480, 832): "16,9",
-    (544, 736): "4,3",
-    (640, 640): "1,1",
-    (736, 544): "3,4",
-    (832, 480): "9,16",
-}
 
 _BATCH_LATENT_STEPS = 1 << 30
 """Latent steps a batched session may run. Each view's episode ends at its own cap, so the batch need not stop."""

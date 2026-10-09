@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import math
 
-from isaaclab_experimental.cosmos import CosmosModelCfg, depth_processor
+from isaaclab_experimental.cosmos import CosmosModelCfg, CosmosTransferModifierCfg, cosmos_camera
 from isaaclab_ov.renderers import OVRTXRendererCfg
 
 import isaaclab.sim as sim_utils
@@ -207,17 +207,65 @@ class ShadowHandCameraEnvCfg(ShadowHandEnvCfg):
         self.feature_extractor.load_checkpoint = True
 
 
-_COSMOS_DEPTH_INPUT, _COSMOS_DEPTH_MODIFIERS = depth_processor(
-    CosmosModelCfg(
-        modality="depth",
-        prompt=(
-            "A close-up overhead view of a robotic Shadow Hand reorienting a small colored cube, "
-            "with realistic metallic fingers, natural lighting, and a dark background."
-        ),
+_COSMOS_DEPTH_INPUT = "distance_to_image_plane"
+_COSMOS_MODEL_CFG = CosmosModelCfg(
+    modality="depth",
+    prompt=(
+        "A close-up overhead view of a robotic Shadow Hand reorienting a small colored cube, "
+        "with realistic metallic fingers, natural lighting, and a dark background."
     ),
-    near=0.1,
-    far=1.5,
 )
+# The Cosmos presets feed the 640 x 640 generated image to the CNN, so the camera already uses a Cosmos canvas.
+_COSMOS_BASE_CAMERA_CFG = _ShadowHandBaseTiledCameraCfg(data_types=["rgb"], height=640, width=640, update_period=0.1)
+
+SHADOW_HAND_COSMOS_CAMERA_CFG = cosmos_camera(_COSMOS_BASE_CAMERA_CFG, _COSMOS_MODEL_CFG, near=0.1, far=1.5)
+"""Camera rendering depth that Cosmos turns into the published ``rgb``; captures every 0.1 s."""
+
+
+def validate_shadow_hand_cosmos_preset(env_cfg) -> None:
+    """Check a Shadow Hand Cosmos preset against the Cosmos service's stream limits.
+
+    Shared by the Direct and Manager-based tasks.
+
+    Args:
+        env_cfg: Environment configuration with ``scene.tiled_camera`` and ``feature_extractor``.
+
+    Raises:
+        ValueError: If the scene, rendering, supervision cadence, or episode length breaks a Cosmos limit.
+    """
+    if env_cfg.scene.num_envs != 1:
+        raise ValueError("The Shadow Hand Cosmos preset requires one environment; use --num_envs 1.")
+    if not env_cfg.scene.lazy_sensor_update:
+        raise ValueError(
+            "The Shadow Hand Cosmos preset requires scene.lazy_sensor_update=True so generated "
+            "images and feature-extractor supervision stay aligned with camera captures."
+        )
+    camera = env_cfg.scene.tiled_camera
+    if isinstance(camera.renderer_cfg, OVRTXRendererCfg) and camera.renderer_cfg.async_rendering:
+        raise ValueError(
+            "The Shadow Hand Cosmos preset requires synchronous OVRTX rendering; set "
+            "scene.tiled_camera.renderer_cfg.async_rendering=False."
+        )
+    transfers = [
+        cfg for cfg in camera.modifiers.get(_COSMOS_DEPTH_INPUT, ()) if isinstance(cfg, CosmosTransferModifierCfg)
+    ]
+    if len(transfers) != 1:
+        raise ValueError("The Shadow Hand Cosmos preset requires one Cosmos step on the camera's depth chain.")
+    transfer = transfers[0]
+    if env_cfg.feature_extractor.image_update_frames != transfer.update_frames:
+        raise ValueError(
+            "The Shadow Hand Cosmos preset requires feature_extractor.image_update_frames "
+            f"to match the Cosmos update_frames ({transfer.update_frames})."
+        )
+    capture_period = max(camera.update_period, env_cfg.sim.dt)
+    episode_frames = math.ceil(env_cfg.episode_length_s / capture_period) + 1
+    frame_budget = transfer.backend.max_episode_frames
+    if episode_frames > frame_budget:
+        raise ValueError(
+            f"The Shadow Hand Cosmos preset needs up to {episode_frames} camera captures per episode, "
+            f"but the Cosmos frame budget is {frame_budget}. Shorten episode_length_s or increase "
+            "scene.tiled_camera.update_period."
+        )
 
 
 @configclass
@@ -229,53 +277,17 @@ class ShadowHandCameraCosmosEnvCfg(ShadowHandCameraEnvCfg):
     extractor trains on the generated RGB; playback requires its checkpoint from a Cosmos run.
     """
 
-    scene: ShadowHandCameraSceneCfg = ShadowHandCameraSceneCfg(
-        num_envs=1,
-        tiled_camera=_ShadowHandBaseTiledCameraCfg(
-            data_types=["rgb"],
-            height=640,
-            width=640,
-            update_period=0.1,
-            modifiers={_COSMOS_DEPTH_INPUT: _COSMOS_DEPTH_MODIFIERS},
-        ),
-    )
+    scene: ShadowHandCameraSceneCfg = ShadowHandCameraSceneCfg(num_envs=1, tiled_camera=SHADOW_HAND_COSMOS_CAMERA_CFG)
     feature_extractor: FeatureExtractorCfg = FeatureExtractorCfg(pretrained_checkpoint=None, image_update_frames=4)
 
     def validate_config(self):
         """Check the scene and episode fit the Cosmos service's stream limits."""
         super().validate_config()
-        if self.scene.num_envs != 1:
-            raise ValueError("The Shadow Hand Cosmos preset requires one environment; use --num_envs 1.")
-        if not self.scene.lazy_sensor_update:
-            raise ValueError(
-                "The Shadow Hand Cosmos preset requires scene.lazy_sensor_update=True so generated "
-                "images and feature-extractor supervision stay aligned with camera captures."
-            )
+        validate_shadow_hand_cosmos_preset(self)
         if self.max_consecutive_success != 0:
             raise ValueError(
                 "The Shadow Hand Cosmos preset requires max_consecutive_success=0 so goal successes "
                 "do not extend the camera episode beyond its frame budget."
-            )
-        camera = self.scene.tiled_camera
-        if isinstance(camera.renderer_cfg, OVRTXRendererCfg) and camera.renderer_cfg.async_rendering:
-            raise ValueError(
-                "The Shadow Hand Cosmos preset requires synchronous OVRTX rendering; set "
-                "scene.tiled_camera.renderer_cfg.async_rendering=False."
-            )
-        transfer = camera.modifiers[_COSMOS_DEPTH_INPUT][-1]
-        if self.feature_extractor.image_update_frames != transfer.update_frames:
-            raise ValueError(
-                "The Shadow Hand Cosmos preset requires feature_extractor.image_update_frames "
-                f"to match the Cosmos update_frames ({transfer.update_frames})."
-            )
-        capture_period = max(camera.update_period, self.sim.dt)
-        episode_frames = math.ceil(self.episode_length_s / capture_period) + 1
-        frame_budget = transfer.backend.max_episode_frames
-        if episode_frames > frame_budget:
-            raise ValueError(
-                f"The Shadow Hand Cosmos preset needs up to {episode_frames} camera captures per episode, "
-                f"but the Cosmos frame budget is {frame_budget}. Shorten episode_length_s or increase "
-                "scene.tiled_camera.update_period."
             )
 
     def play_mode(self):

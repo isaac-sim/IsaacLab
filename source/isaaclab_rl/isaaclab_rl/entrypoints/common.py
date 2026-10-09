@@ -186,6 +186,39 @@ def video_source(value: str) -> str:
     return value
 
 
+def add_cosmos_args(parser: argparse.ArgumentParser) -> None:
+    """Add the options that put Cosmos on a task's camera; see :func:`isaaclab_experimental.cosmos.apply_cosmos`.
+
+    Args:
+        parser: The parser to add arguments to.
+    """
+    group = parser.add_argument_group("Cosmos", "Generate the policy camera's images with a running Cosmos service.")
+    group.add_argument("--cosmos", action="store_true", default=False, help="Put Cosmos on the task's rgb camera.")
+    group.add_argument(
+        "--cosmos_prompt",
+        action="append",
+        default=None,
+        help="Appearance prompt; repeat the option to cycle prompts per episode.",
+    )
+    group.add_argument("--cosmos_camera", default=None, help="Scene camera name; defaults to the only rgb camera.")
+    group.add_argument(
+        "--cosmos_control", choices=["depth", "edge", "blur"], default="depth", help="Cosmos control type."
+    )
+    group.add_argument("--cosmos_near", type=float, default=0.1, help="Depth rendered white [m].")
+    group.add_argument("--cosmos_far", type=float, default=2.0, help="Depth rendered black [m].")
+    group.add_argument(
+        "--cosmos_endpoint",
+        default=None,
+        help="Cosmos service endpoint, unix:///path or tcp://host:port; defaults to the service's default endpoint.",
+    )
+    group.add_argument(
+        "--cosmos_transport",
+        choices=["auto", "cuda_ipc", "socket"],
+        default="auto",
+        help="cuda_ipc keeps images on the GPU (same Linux machine and GPU); socket also works across machines.",
+    )
+
+
 def add_common_train_args(
     parser: argparse.ArgumentParser,
     *,
@@ -206,6 +239,7 @@ def add_common_train_args(
         max_iterations_type: Converter and validator for ``--max_iterations``.
     """
     add_video_args(parser, action="training")
+    add_cosmos_args(parser)
     parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
     parser.add_argument("--task", type=str, default=None, help="Name of the task.")
     add_frontend_args(parser)
@@ -275,6 +309,7 @@ def add_common_play_args(parser: argparse.ArgumentParser, *, agent_default: str 
         agent_help: Help text for the ``--agent`` argument.
     """
     add_video_args(parser, action="play")
+    add_cosmos_args(parser)
     parser.add_argument(
         "--disable_fabric", action="store_true", default=False, help="Disable fabric and use USD I/O operations."
     )
@@ -359,6 +394,21 @@ def apply_env_overrides(args_cli: argparse.Namespace, env_cfg: Any) -> None:
     # --deterministic is a Kit launcher flag, so it only reaches carb settings on its own. Record the
     # request on the resolved physics config; each backend translates and validates it at startup.
     request_determinism(args_cli, env_cfg)
+    if getattr(args_cli, "cosmos", False):
+        from isaaclab_experimental.cosmos import DEFAULT_ENDPOINT, apply_cosmos
+
+        prompts = args_cli.cosmos_prompt
+        apply_cosmos(
+            env_cfg,
+            prompt=prompts[0] if prompts and len(prompts) == 1 else prompts,
+            camera=args_cli.cosmos_camera,
+            control=args_cli.cosmos_control,
+            near=args_cli.cosmos_near,
+            far=args_cli.cosmos_far,
+            endpoint=args_cli.cosmos_endpoint or DEFAULT_ENDPOINT,
+            transport=args_cli.cosmos_transport,
+            num_envs=args_cli.num_envs,
+        )
 
 
 def request_determinism(args_cli: argparse.Namespace, env_cfg: Any) -> None:
@@ -451,6 +501,10 @@ def show_run_summary(
     """
     renderer = _renderer_name(env_cfg)
     visualizers = [cfg.visualizer_type for cfg in env_cfg.sim.visualizer_cfgs if cfg.visualizer_type]
+    # The summary is shown before apply_env_overrides, which gives --cosmos runs one environment unless set.
+    num_envs = getattr(args_cli, "num_envs", None) or (
+        1 if getattr(args_cli, "cosmos", False) else env_cfg.scene.num_envs
+    )
     screen.summary(
         f"Isaac Lab · {action}",
         {
@@ -461,7 +515,7 @@ def show_run_summary(
             "Renderer": "n/a (no camera sensors)" if renderer is None else renderer,
             "Visualizer": ", ".join(visualizers) or "headless",
             "Device": env_cfg.sim.device,
-            "Environments": str(getattr(args_cli, "num_envs", None) or env_cfg.scene.num_envs),
+            "Environments": str(num_envs),
         },
     )
 
