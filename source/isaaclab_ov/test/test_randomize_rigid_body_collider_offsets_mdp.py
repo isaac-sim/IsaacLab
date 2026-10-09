@@ -38,6 +38,8 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR  # noqa: E402
 
 from isaaclab_assets import CARTPOLE_CFG  # isort:skip  # noqa: E402
 
+pytestmark = pytest.mark.kitless
+
 wp.init()
 
 

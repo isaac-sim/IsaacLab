@@ -51,6 +51,8 @@ from isaaclab.sim.utils.stage import get_current_stage  # noqa: E402
 from isaaclab.terrains import HfRandomUniformTerrainCfg, TerrainGeneratorCfg, TerrainImporterCfg  # noqa: E402
 from isaaclab.utils import configclass, replace  # noqa: E402
 
+pytestmark = pytest.mark.kitless
+
 wp.init()
 
 

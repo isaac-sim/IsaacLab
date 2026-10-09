@@ -18,6 +18,8 @@ from newton.solvers import SolverVBD
 from isaaclab.sim import BackendCfg, SimulationContext
 from isaaclab.utils import replace
 
+pytestmark = pytest.mark.kitless
+
 
 # The soft-contact and simulation axes are independent, so each value is covered once.
 @pytest.mark.parametrize(

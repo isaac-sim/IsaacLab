@@ -1,0 +1,1 @@
+Marked the test files that run without Kit as kitless so CI runs them in the Kit-less image.

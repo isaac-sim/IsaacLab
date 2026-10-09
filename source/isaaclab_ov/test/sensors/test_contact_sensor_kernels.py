@@ -10,6 +10,8 @@ import pytest
 import warp as wp
 from isaaclab_ov.sensors.contact_sensor.kernels import unpack_contact_buffer_data
 
+pytestmark = pytest.mark.kitless
+
 
 @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
 @pytest.mark.parametrize("track_points,track_friction", [(True, False), (False, True), (True, True)])

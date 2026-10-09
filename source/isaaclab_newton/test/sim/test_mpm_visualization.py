@@ -15,6 +15,8 @@ from pxr import Gf, Usd, UsdGeom, UsdShade
 
 import isaaclab.sim as sim_utils
 
+pytestmark = pytest.mark.kitless
+
 _PRIM_PATHS = ["/World/envs/env_0/Sand/Particles", "/World/envs/env_1/Sand/Particles"]
 """Environment-namespaced points prims, matching the ``{ENV_REGEX_NS}/<asset>/Particles`` paths used by MPMObject."""
 

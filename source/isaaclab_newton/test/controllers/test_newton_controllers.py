@@ -24,6 +24,8 @@ from isaaclab_newton.envs.mdp.actions.newton_task_space_actions import _NewtonTa
 
 from isaaclab.utils import math as math_utils
 
+pytestmark = pytest.mark.kitless
+
 _NUM_ENVS = 3
 _NUM_JOINTS = 7
 _DEVICE = "cpu"

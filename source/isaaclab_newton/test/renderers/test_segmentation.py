@@ -27,6 +27,8 @@ from isaaclab.cloner import make_clone_plan
 from isaaclab.renderers.segmentation_colors import BACKGROUND_ID, UNLABELLED_ID, pack_rgba, random_color_from_id
 from isaaclab.sim.utils.semantics import add_labels
 
+pytestmark = pytest.mark.kitless
+
 
 def _cfg(**overrides):
     """Minimal renderer-cfg stand-in exposing only the fields the mapper reads."""
