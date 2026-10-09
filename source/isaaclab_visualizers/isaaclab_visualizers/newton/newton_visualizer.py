@@ -12,6 +12,7 @@ import logging
 import math
 import os
 import sys
+import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -45,7 +46,7 @@ from isaaclab.sensors.camera import Camera
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.math import quat_apply, quat_from_matrix, quat_mul
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
-from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg
+from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg, WindowCfg
 
 from isaaclab_visualizers.desktop_entry import write_desktop_entry
 from isaaclab_visualizers.newton.newton_visualization_markers import render_newton_visualization_markers
@@ -108,7 +109,7 @@ def _imgui_optional_checkbox(imgui, label: str, value: bool, available: bool, ti
 # ---------------------------------------------------------------------------
 
 
-class _NewtonViewerUI:
+class NewtonViewerUI:
     """Isaac Lab controls shared by Newton's native GL and RTX viewers."""
 
     _contacts_available = True
@@ -347,19 +348,9 @@ class _NewtonViewerUI:
         if imgui.button("Reset Episode"):
             self._reset_requested = True
 
-        imgui.text("Visualizer Update Frequency")
-        current_frequency = self._update_frequency
-        changed, new_frequency = imgui.slider_int(
-            "##VisualizerUpdateFreq", current_frequency, 1, 20, f"Every {current_frequency} frames"
-        )
-        if changed:
-            self._update_frequency = new_frequency
-
+        _, self.window_cfg.fps = imgui.slider_float("Window FPS", self.window_cfg.fps, 1.0, 120.0, "%.0f FPS")
         if imgui.is_item_hovered():
-            imgui.set_tooltip(
-                "Controls visualizer update frequency\nlower values -> more responsive visualizer but slower"
-                " training\nhigher values -> less responsive visualizer but faster training"
-            )
+            imgui.set_tooltip("Maximum window updates per second; independent of simulation speed and recording.")
 
     def is_training_paused(self) -> bool:
         """Return whether simulation is paused by viewer controls."""
@@ -377,12 +368,12 @@ class _NewtonViewerUI:
         """Close the window once the current frame ends."""
         self._close_requested = True
 
-    def __init__(self, *args, metadata: dict | None = None, update_frequency: int = 1, **kwargs):
+    def __init__(self, *args, window_cfg: WindowCfg, metadata: dict | None = None, **kwargs):
         super().__init__(*args, **kwargs)
         self._paused_training = False
         self._reset_requested = False
         self._metadata = metadata or {}
-        self._update_frequency = update_frequency
+        self.window_cfg = window_cfg
         self._live_plots_callback = None
         self.marker_groups = ()
         self._close_requested = False
@@ -393,7 +384,7 @@ class _NewtonViewerUI:
         self.register_ui_callback(self._render_training_controls, position="side")
 
 
-class NewtonViewerRTX(_NewtonViewerUI, ViewerRTX):
+class NewtonViewerRTX(NewtonViewerUI, ViewerRTX):
     """Newton RTX window borrowing the simulation's authored stage."""
 
     def _init_window(self) -> None:
@@ -410,7 +401,7 @@ class NewtonViewerRTX(_NewtonViewerUI, ViewerRTX):
         return np.ascontiguousarray(self._capture_screenshot_pixels()[..., :3])
 
 
-class NewtonViewerGL(_NewtonViewerUI, ViewerGL):
+class NewtonViewerGL(NewtonViewerUI, ViewerGL):
     """Newton GL window with Isaac Lab controls and device-image presentation."""
 
     def __init__(self, *args, **kwargs):
@@ -515,7 +506,7 @@ class NewtonViewerGL(_NewtonViewerUI, ViewerGL):
         )
 
 
-class _NewtonVisualizer(BaseVisualizer):
+class NewtonVisualizerBase(BaseVisualizer):
     """Own Newton resource bindings, frame cadence, and camera selection for both renderers."""
 
     def __init__(self, cfg):
@@ -523,7 +514,7 @@ class _NewtonVisualizer(BaseVisualizer):
         self._viewer = None
         self.backend = None
         self._runtime_headless = cfg.headless
-        self._step_counter = 0
+        self._last_present_time = -math.inf
         self._camera_index = 0
         self._navigation_view = None
 
@@ -532,14 +523,16 @@ class _NewtonVisualizer(BaseVisualizer):
         super().initialize(sim, cameras=cameras)
         self.newton_cfg = NewtonBackendCfg(physics_cfg=sim.cfg.physics, device=sim.device)
         self.backend = self._sim.get_or_create_backend(self.newton_cfg)
-        self._transform_mapping = self._scene_data_provider.create_mapping(list(self.backend.model.body_label))
+        self._transform_mapping = self._sim.get_scene_data_provider().create_mapping(
+            list(self.backend.model.body_label)
+        )
         self._runtime_headless = self.cfg.headless or (
             sys.platform not in ("win32", "darwin") and not os.environ.get("DISPLAY")
         )
 
     def _update_state(self) -> newton.State:
         """Bind current scene arrays without reading any camera sensors."""
-        backend, provider = self.backend, self._scene_data_provider
+        backend, provider = self.backend, self._sim.get_scene_data_provider()
         state = backend.state_0
         poses = SceneDataFormat.Transform()
         if provider.get_transforms(poses, mapping=self._transform_mapping, count=backend.model.body_count):
@@ -616,9 +609,12 @@ class _NewtonVisualizer(BaseVisualizer):
         if not self._is_initialized or self._is_closed:
             return
         self._sim_time += dt
-        self._step_counter += 1
-        if self._runtime_headless or self._step_counter % self._viewer._update_frequency:
+        if self._runtime_headless:
             return
+        now = time.monotonic()
+        if now - self._last_present_time < 1.0 / self.cfg.window.fps:
+            return
+        self._last_present_time = now
         self._render_frame()
 
     def is_running(self) -> bool:
@@ -649,13 +645,13 @@ class _NewtonVisualizer(BaseVisualizer):
         """Present sensor pixels directly; paused rendering retains the last displayed image."""
         composite = self._streaming_frame.data
         if composite is None or self._streaming_frame.timestamp < 0 or not self._viewer.is_paused():
-            composite = self.render_tiled_rgba()
+            composite = self.render_tiled_rgba_array()
         if composite is None:
             raise ValueError("Scene-camera display requires at least one selected camera frame.")
         self._viewer.log_image("Streaming View", composite, fullscreen=True)
 
 
-class NewtonGLVisualizer(_NewtonVisualizer):
+class NewtonGLVisualizer(NewtonVisualizerBase):
     """Newton model rendering, picking, and contact overlays used by the GL visualizer."""
 
     @property
@@ -730,7 +726,7 @@ class NewtonGLVisualizer(_NewtonVisualizer):
             return
 
         super().initialize(sim, cameras=cameras)
-        scene_data_provider = self._scene_data_provider
+        scene_data_provider = self._sim.get_scene_data_provider()
         newton_backend_active = self.physics_backend == "newton"
         physics_manager = sim.physics_manager
         picking_supported = newton_backend_active and bool(
@@ -763,11 +759,11 @@ class NewtonGLVisualizer(_NewtonVisualizer):
             # pyglet sets WM_CLASS from the window caption, which ViewerGL defaults to "Newton".
             write_desktop_entry("isaaclab-newton-gl-viewer", "Newton", "Newton", _NEWTON_ICON_DIR / "icon_64.png")
         self._viewer = NewtonViewerGL(
-            width=self.cfg.window_width,
-            height=self.cfg.window_height,
+            width=self.cfg.window.size[0],
+            height=self.cfg.window.size[1],
             headless=runtime_headless,
             metadata=metadata,
-            update_frequency=self.cfg.update_frequency,
+            window_cfg=self.cfg.window,
         )
         self._viewer.marker_groups = sim.vis_marker_registry.get_groups().values()
         self._viewer.set_model(self.backend.model)
@@ -783,7 +779,7 @@ class NewtonGLVisualizer(_NewtonVisualizer):
         self._setup_streaming_view(
             num_envs,
             visible_env_ids=self._env_ids,
-            target_aspect=self.cfg.window_width / self.cfg.window_height,
+            target_aspect=self.cfg.window.size[0] / self.cfg.window.size[1],
         )
 
         self._viewer.register_ui_callback(self._draw_streaming_view_controls, position="side")
@@ -860,7 +856,7 @@ class NewtonGLVisualizer(_NewtonVisualizer):
         if backend is self.backend:
             return
         self.backend = backend
-        self._transform_mapping = self._scene_data_provider.create_mapping(list(backend.model.body_label))
+        self._transform_mapping = self._sim.get_scene_data_provider().create_mapping(list(backend.model.body_label))
         self._viewer.set_model(self.backend.model)
         if self._picking_enabled:
             self._viewer.wind = None
@@ -983,9 +979,7 @@ class NewtonGLVisualizer(_NewtonVisualizer):
         if not self._viewer.show_contacts:
             self._viewer.log_arrows(CONTACT_ARROW_PATH, None, None, None)
             return
-        contact_sensors = (
-            self._scene_data_provider.get_contact_sensors() if self._scene_data_provider is not None else {}
-        )
+        contact_sensors = self._sim.get_scene_data_provider().get_contact_sensors()
         if not contact_sensors:
             self._viewer.log_arrows(CONTACT_ARROW_PATH, None, None, None)
             return
@@ -1226,7 +1220,7 @@ class NewtonGLVisualizer(_NewtonVisualizer):
         return self._viewer.get_frame().numpy()
 
 
-class NewtonRTXVisualizer(_NewtonVisualizer):
+class NewtonRTXVisualizer(NewtonVisualizerBase):
     """Use Newton's native RTX camera, GPU presentation, and markers on a borrowed scene.
 
     The simulation owns the stage and sensors. Newton owns the perspective render product and window.
@@ -1244,7 +1238,7 @@ class NewtonRTXVisualizer(_NewtonVisualizer):
                 "Newton RTX is kitless and cannot share a process with Kit physics; use Newton or OVPhysX."
             )
         super().initialize(sim, cameras=cameras)
-        scene_data_provider = self._scene_data_provider
+        scene_data_provider = self._sim.get_scene_data_provider()
         scene = self._sim.get_or_create_backend(OvstageBackendCfg(viewer_id=id(self)))
         scene.populate(self._sim.stage, sim.get_clone_plan())
         cfg = self.cfg
@@ -1253,8 +1247,8 @@ class NewtonRTXVisualizer(_NewtonVisualizer):
             settings["omni:rtx:background:source:type"] = ("Token", "color")
             settings["omni:rtx:background:source:color"] = ("Color3f", cfg.background_color)
         self._viewer = NewtonViewerRTX(
-            width=cfg.window_width,
-            height=cfg.window_height,
+            width=cfg.window.size[0],
+            height=cfg.window.size[1],
             headless=self._runtime_headless,
             async_rendering=not self._runtime_headless,
             ovstage=scene.stage,
@@ -1265,7 +1259,7 @@ class NewtonRTXVisualizer(_NewtonVisualizer):
                 "physics_backend": self.physics_backend,
                 "gravity": sim.cfg.gravity,
             },
-            update_frequency=cfg.update_frequency,
+            window_cfg=cfg.window,
         )
         self._viewer.set_model(self.backend.model)
         self._viewer.marker_groups = sim.vis_marker_registry.get_groups().values()
@@ -1273,7 +1267,7 @@ class NewtonRTXVisualizer(_NewtonVisualizer):
         self._setup_streaming_view(
             scene_data_provider.num_envs,
             visible_env_ids=self._env_ids,
-            target_aspect=cfg.window_width / cfg.window_height,
+            target_aspect=cfg.window.size[0] / cfg.window.size[1],
         )
         self._viewer.register_ui_callback(self._draw_streaming_view_controls, position="side")
         self._select_camera(self._camera_index)
@@ -1304,7 +1298,7 @@ class NewtonRTXVisualizer(_NewtonVisualizer):
         if backend is self.backend:
             return
         self.backend = backend
-        self._transform_mapping = self._scene_data_provider.create_mapping(list(backend.model.body_label))
+        self._transform_mapping = self._sim.get_scene_data_provider().create_mapping(list(backend.model.body_label))
         self._viewer.set_model(backend.model)
         self._viewer.picking_enabled = False
         self._viewer.register_ui_callback(self._viewer._render_training_controls, position="side")

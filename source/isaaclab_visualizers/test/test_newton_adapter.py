@@ -40,7 +40,7 @@ from isaaclab.sim import SimulationContext
 from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils import instantiate, validate
 from isaaclab.utils.warp import ProxyArray
-from isaaclab.visualizers import PerspectiveCameraCfg, SceneCameraCfg
+from isaaclab.visualizers import PerspectiveCameraCfg, SceneCameraCfg, WindowCfg
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
 
@@ -251,11 +251,11 @@ def test_visualizers_borrow_scene_camera_outputs(monkeypatch):
         viewers.append(visualizer)
 
     # A new step or reset refreshes the composite, not the sensor's lifetime.
-    frame = viewers[0].render_tiled_rgba()
+    frame = viewers[0].render_tiled_rgba_array()
     camera.data.output["rgba"].torch[..., :3].add_(10)
     viewers[0]._sim_time += 0.1
     np.testing.assert_array_equal(np.unique(viewers[0].render_tiled_rgb_array()), [10, 12])
-    assert viewers[0].render_tiled_rgba() is frame
+    assert viewers[0].render_tiled_rgba_array() is frame
     viewers[1].reset(soft=True)
     np.testing.assert_array_equal(np.unique(viewers[1].render_tiled_rgb_array()), [11, 13])
     camera.update.assert_not_called()
@@ -268,7 +268,7 @@ def test_visualizers_borrow_scene_camera_outputs(monkeypatch):
     camera.data.output["rgba"] = ProxyArray(rgba.warp[:, :, :, :1])
     visualizer._sim_time += 0.1
     with pytest.raises(ValueError, match="channels"):
-        visualizer.render_tiled_rgba()
+        visualizer.render_tiled_rgba_array()
     camera.data.output["rgba"] = rgba
 
     # Channel and color-range changes rebuild the display buffers at their owner.
@@ -364,7 +364,7 @@ class _FakeTrainingControlsImgui:
     def text(self, _text):
         pass
 
-    def slider_int(self, _label, value, _min_value, _max_value, _format):
+    def slider_float(self, _label, value, _min_value, _max_value, _format):
         return False, value
 
     def is_item_hovered(self):
@@ -383,7 +383,7 @@ def test_newton_gl_viewer_rendering_pause_state_stays_in_sync_with_space_key():
     viewer._paused = False
     viewer._paused_training = False
     viewer._reset_requested = False
-    viewer._update_frequency = 1
+    viewer.window_cfg = WindowCfg()
 
     assert viewer.is_rendering_paused() is False
 
@@ -490,8 +490,6 @@ def test_newton_viewer_inactive_mpm_particles_use_newton_filter(monkeypatch):
 
 
 class _Viewer:
-    _update_frequency = 1
-
     def __init__(self):
         self.device = "cpu"
         self.show_contacts = False
@@ -584,15 +582,16 @@ def _make_newton_visualizer(viewer, scene_data_provider=None, state=None, *, cfg
     visualizer._is_initialized = True
     visualizer._is_closed = False
     visualizer._sim_time = 0.0
-    visualizer._step_counter = 0
+    visualizer.cfg.window.fps = 1e9
     visualizer._runtime_headless = False
     visualizer._viewer = viewer
     state = state or SimpleNamespace(body_q=wp.empty(1, dtype=wp.transform, device="cpu"))
     visualizer.backend = SimpleNamespace(
         model=SimpleNamespace(num_envs=1, body_count=len(state.body_q)), state_0=state, geometry_offsets={}
     )
-    visualizer._scene_data_provider = scene_data_provider or _SceneDataProvider()
-    visualizer._scene_data_provider.poses = state.body_q
+    provider = scene_data_provider or _SceneDataProvider()
+    provider.poses = state.body_q
+    visualizer._sim = SimpleNamespace(get_scene_data_provider=lambda: provider)
     visualizer._transform_mapping = None
     visualizer._live_plot_sources = []
     if viewer is not None:
@@ -644,6 +643,7 @@ def test_newton_visualizer_hard_reset_rebinds_viewer_model(monkeypatch, picking)
     viewer.set_visible_worlds = Mock()
     viewer.set_world_offsets = Mock()
     visualizer = _make_newton_visualizer(viewer)
+    sim.get_scene_data_provider = visualizer._sim.get_scene_data_provider
     visualizer._sim = sim
     cfg = visualizer.newton_cfg = NewtonBackendCfg(physics_cfg=object(), device="cpu")
     visualizer._env_ids = [1, 3]
@@ -769,8 +769,8 @@ def test_newton_scene_camera_replaces_perspective_rendering(monkeypatch):
     visualizer._camera_sensor = Mock()
     visualizer._streaming_frame.data = image
     visualizer._streaming_frame.timestamp = 0.0
-    visualizer.render_tiled_rgba = Mock(return_value=image)
-    provider = visualizer._scene_data_provider
+    visualizer.render_tiled_rgba_array = Mock(return_value=image)
+    provider = visualizer._sim.get_scene_data_provider()
     provider.get_transforms = Mock(wraps=provider.get_transforms)
     contacts, markers = Mock(return_value=None), Mock()
     monkeypatch.setattr(newton_visualizer_module.NewtonManager, "get_contacts", contacts)
@@ -782,7 +782,7 @@ def test_newton_scene_camera_replaces_perspective_rendering(monkeypatch):
     assert viewer.events == ["begin_frame", "log_image", "end_frame"] * 2
     name, displayed, fullscreen = viewer.logged_image
     assert name == "Streaming View" and displayed is image and fullscreen
-    visualizer.render_tiled_rgba.assert_called_once()
+    visualizer.render_tiled_rgba_array.assert_called_once()
     provider.get_transforms.assert_not_called()
     contacts.assert_not_called()
     markers.assert_not_called()
@@ -828,7 +828,7 @@ def test_newton_scene_camera_controls_apply_uniformly_to_active_copies(monkeypat
     cfg.scene.back_camera = cfg.scene.color_camera.copy()
     cfg.scene.back_camera.prim_path = "{ENV_REGEX_NS}/Robot/cart/BackCamera"
     cfg.sim.visualizer_cfgs = [
-        NewtonGLVisualizerCfg(headless=True, window_width=128, window_height=128, streaming_envs=[0])
+        NewtonGLVisualizerCfg(headless=True, window=WindowCfg(size=(128, 128)), streaming_envs=[0])
     ]
     with launch_simulation(cfg, {"visualizer": ["newton_gl"], "device": device}):
         env = gym.make("Isaac-Cartpole", cfg=cfg)
@@ -919,7 +919,7 @@ def test_newton_visualizer_headless_renders_frame_on_demand(monkeypatch):
     markers = Mock()
     monkeypatch.setattr(newton_visualizer_module, "render_newton_visualization_markers", markers)
     visualizer = _make_newton_visualizer(viewer, state=state, cfg=NewtonGLVisualizerCfg(enable_markers=True))
-    provider = visualizer._scene_data_provider
+    provider = visualizer._sim.get_scene_data_provider()
     provider.get_transforms = Mock(wraps=provider.get_transforms)
     provider.get_geometry_points = Mock()
     visualizer.backend.geometry_offsets = {"/Cloth": 0}
@@ -940,6 +940,16 @@ def test_newton_visualizer_headless_renders_frame_on_demand(monkeypatch):
     provider.get_transforms.assert_called_once()
 
     viewer.paused = False
+    visualizer._runtime_headless = False
+    visualizer.cfg.window.fps = 20.0
+    clock = iter((0.0, 0.01, 0.025, 0.05, 0.1))
+    monkeypatch.setattr(newton_visualizer_module.time, "monotonic", lambda: next(clock))
+    viewer.events.clear()
+    for dt in (0.0, 10.0, 0.1, 0.0):
+        visualizer.step(dt)
+    assert viewer.events == ["begin_frame", "log_state", "end_frame"] * 2
+
+    visualizer._runtime_headless = True
     provider.poses = wp.empty(1, dtype=wp.transform, device="cpu")
     viewer.log_state = Mock(side_effect=RuntimeError("render failed"))
     with pytest.raises(RuntimeError, match="render failed"):
@@ -1189,8 +1199,7 @@ def test_newton_rtx_scene_sky_and_background_override(tmp_path, monkeypatch, lig
     cfg.sim.visualizer_cfgs = [
         NewtonRTXVisualizerCfg(
             headless=True,
-            window_width=128,
-            window_height=128,
+            window=WindowCfg(size=(128, 128)),
             streaming_envs=[0],
             background_color=background_color,
             cameras=[
@@ -1244,7 +1253,7 @@ def test_newton_rtx_scene_sky_and_background_override(tmp_path, monkeypatch, lig
             np.testing.assert_array_equal(captured_output.numpy(), output.numpy())
 
             visualizer._select_camera(1)
-            image = visualizer.render_tiled_rgba()
+            image = visualizer.render_tiled_rgba_array()
             np.testing.assert_array_equal(image.numpy(), camera.data.output["rgba"].warp.numpy()[0])
             assert image.device.is_cuda
             with monkeypatch.context() as gpu_display:

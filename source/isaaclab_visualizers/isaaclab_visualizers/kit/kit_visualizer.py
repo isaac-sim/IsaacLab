@@ -101,7 +101,7 @@ class KitVisualizer(BaseVisualizer):
             return
 
         super().initialize(sim, cameras=cameras)
-        scene_data_provider = self._scene_data_provider
+        scene_data_provider = self._sim.get_scene_data_provider()
         num_envs = scene_data_provider.num_envs
 
         self._ensure_simulation_app()
@@ -155,8 +155,9 @@ class KitVisualizer(BaseVisualizer):
         # triggered on demand by render_rgb_array() / render_tiled_rgb_array().
         if self._runtime_headless:
             return
-        self._fabric.update_transforms(self._scene_data_provider)
-        self._fabric.update_geometries(self._scene_data_provider, SimulationContext.instance().render_generation)
+        provider = self._sim.get_scene_data_provider()
+        self._fabric.update_transforms(provider)
+        self._fabric.update_geometries(provider, self._sim.render_generation)
         if self.cfg.origin_type == "asset":
             self._update_asset_tracking_camera()
         _externally_paused = self.is_training_paused()
@@ -220,12 +221,13 @@ class KitVisualizer(BaseVisualizer):
         import omni.kit.app
         import omni.replicator.core as rep
 
-        self._fabric.update_transforms(self._scene_data_provider)
-        self._fabric.update_geometries(self._scene_data_provider, SimulationContext.instance().render_generation)
+        provider = self._sim.get_scene_data_provider()
+        self._fabric.update_transforms(provider)
+        self._fabric.update_geometries(provider, self._sim.render_generation)
         if self._runtime_headless and self.cfg.origin_type == "asset":
             self._update_asset_tracking_camera()
         camera_path = self._controlled_camera_path or "/OmniverseKit_Persp"
-        w, h = self.cfg.window_width, self.cfg.window_height
+        w, h = self.cfg.window.size
 
         # Create the render product and annotator before the app update so the first
         # captured frame contains real rendered output, not empty/blank data.
@@ -558,8 +560,8 @@ class KitVisualizer(BaseVisualizer):
 
             self._viewport_window = vp_utils.create_viewport_window(
                 name=effective_viewport_name,
-                width=self.cfg.window_width,
-                height=self.cfg.window_height,
+                width=self.cfg.window.size[0],
+                height=self.cfg.window.size[1],
                 position_x=50,
                 position_y=50,
                 docked=True,
@@ -587,7 +589,7 @@ class KitVisualizer(BaseVisualizer):
         super()._setup_streaming_view(
             num_envs,
             visible_env_ids=self._env_ids,
-            target_aspect=self.cfg.window_width / self.cfg.window_height,
+            target_aspect=self.cfg.window.size[0] / self.cfg.window.size[1],
         )
         if self._camera_sensor is None or self._runtime_headless:
             return
@@ -595,7 +597,7 @@ class KitVisualizer(BaseVisualizer):
 
         title = self.cfg.viewport_name or "Streaming View"
         self._camera_image_provider = omni.ui.ByteImageProvider()
-        self._camera_image_window = omni.ui.Window(title, width=self.cfg.window_width, height=self.cfg.window_height)
+        self._camera_image_window = omni.ui.Window(title, width=self.cfg.window.size[0], height=self.cfg.window.size[1])
         with self._camera_image_window.frame:
             omni.ui.ImageWithProvider(self._camera_image_provider)
 
@@ -627,7 +629,7 @@ class KitVisualizer(BaseVisualizer):
 
     def _update_camera_image_panel(self) -> None:
         """Present device pixels; CPU images are uploaded only for CPU-backed sources."""
-        image = self._streaming_frame.data if self.is_training_paused() else self.render_tiled_rgba()
+        image = self._streaming_frame.data if self.is_training_paused() else self.render_tiled_rgba_array()
         if image is None or self._camera_image_provider is None:
             return
         height, width = image.shape[:2]
@@ -853,9 +855,9 @@ class KitVisualizer(BaseVisualizer):
 
     def _refresh_partial_viz_point_instancers_if_needed(self) -> None:
         """Re-apply ``invisibleIds`` for env-scaled `/Visuals` instancers (handles lazy marker creation)."""
-        if self._env_ids is None or self._scene_data_provider is None:
+        if self._env_ids is None or self._sim is None:
             return
-        num_envs = self._scene_data_provider.num_envs
+        num_envs = self._sim.get_scene_data_provider().num_envs
         if num_envs <= 0:
             return
         self._apply_visual_point_instancer_visibility(self._sim.stage, num_envs, set(self._env_ids))
@@ -931,7 +933,7 @@ class KitVisualizer(BaseVisualizer):
         camera is positioned immediately. For asset-tracking origins the first update is deferred
         to :meth:`step` because asset state is not yet available at initialization time.
         """
-        self._interactive_scene = self._scene_data_provider.get_interactive_scene()
+        self._interactive_scene = self._sim.get_scene_data_provider().get_interactive_scene()
 
         if self.cfg.origin_type == "world":
             self._viewer_origin = torch.zeros(3)

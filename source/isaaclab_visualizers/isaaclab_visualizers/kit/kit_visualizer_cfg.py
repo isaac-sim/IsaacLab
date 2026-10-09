@@ -10,7 +10,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from isaaclab.utils import configclass
-from isaaclab.visualizers.visualizer_cfg import VisualizerCfg
+from isaaclab.visualizers.visualizer_cfg import VisualizerCfg, WindowCfg
 
 if TYPE_CHECKING:
     from .kit_visualizer import KitVisualizer
@@ -40,9 +40,6 @@ class KitVisualizerCfg(VisualizerCfg):
     create_viewport: bool = False
     """If ``True``, create a new viewport window; if ``False``, use the active viewport window."""
 
-    headless: bool = False
-    """Run without creating viewport windows when supported by the app."""
-
     dock_position: str = "SAME"
     """Dock position for the streaming image panel and any new viewport window.
 
@@ -55,11 +52,8 @@ class KitVisualizerCfg(VisualizerCfg):
         side-by-side.
     """
 
-    window_width: int = 1280
-    """Viewport width in pixels (when :attr:`create_viewport` is ``True``)."""
-
-    window_height: int = 720
-    """Viewport height in pixels (when :attr:`create_viewport` is ``True``)."""
+    window: WindowCfg = WindowCfg(size=(1280, 720))
+    """Viewport and capture dimensions. Kit owns the application update cadence."""
 
     origin_type: str = "world"
     """Frame in which :attr:`~isaaclab.visualizers.VisualizerCfg.eye` and

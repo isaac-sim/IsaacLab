@@ -357,7 +357,7 @@ class ViserVisualizer(BaseVisualizer):
             return
 
         super().initialize(sim, cameras=cameras)
-        scene_data_provider = self._scene_data_provider
+        scene_data_provider = self._sim.get_scene_data_provider()
         num_envs = scene_data_provider.num_envs
         metadata = {"num_envs": num_envs}
         self.newton_cfg = NewtonBackendCfg(physics_cfg=sim.cfg.physics, device=sim.device)
@@ -391,7 +391,7 @@ class ViserVisualizer(BaseVisualizer):
         Args:
             dt: Simulation time-step in seconds.
         """
-        if not self._is_initialized or self._viewer is None or self._scene_data_provider is None:
+        if not self._is_initialized or self._viewer is None or self._sim is None:
             return
 
         self._apply_pending_camera_pose()
@@ -425,7 +425,7 @@ class ViserVisualizer(BaseVisualizer):
             # When streaming_view is active, skip the 3D Newton scene so the
             # background streaming composite is the only content visible.
             if not self.cfg.streaming_view:
-                backend, provider = self.backend, self._scene_data_provider
+                backend, provider = self.backend, self._sim.get_scene_data_provider()
                 poses = SceneDataFormat.Transform()
                 if provider.get_transforms(poses, mapping=self._transform_mapping, count=backend.model.body_count):
                     backend.state_0.body_q = poses.transforms
@@ -476,7 +476,7 @@ class ViserVisualizer(BaseVisualizer):
         if backend is self.backend:
             return
         self.backend = backend
-        self._transform_mapping = self._scene_data_provider.create_mapping(list(backend.model.body_label))
+        self._transform_mapping = self._sim.get_scene_data_provider().create_mapping(list(backend.model.body_label))
         self._viewer.set_model(backend.model)
         self._setup_isaaclab_sidebar(self._viewer._server)
         self._viewer.set_visible_worlds(self._env_ids)

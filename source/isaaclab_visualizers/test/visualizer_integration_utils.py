@@ -58,6 +58,7 @@ from isaaclab.utils.math import (
     quat_from_matrix,
     quat_mul,
 )
+from isaaclab.visualizers import WindowCfg
 
 from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env import CartpoleCameraEnv
 from isaaclab_tasks.core.reorient.reorient_direct_env import ReorientDirectEnv
@@ -113,7 +114,7 @@ _CARTPOLE_KIT_INTEGRATION_RENDER_RESOLUTION: tuple[int, int] = (400, 400)
 """Kit: Replicator ``render_product`` (width, height) for viewport RGB in the motion check."""
 
 _CARTPOLE_NEWTON_INTEGRATION_WINDOW_SIZE: tuple[int, int] = (400, 400)
-"""Newton: ``NewtonGLVisualizerCfg`` framebuffer (window_width × window_height) for ``get_frame()``."""
+"""Newton: ``NewtonGLVisualizerCfg`` framebuffer (``window.size``) for ``get_frame()``."""
 
 _CARTPOLE_TILED_CAMERA_INTEGRATION_WH: tuple[int, int] = (400, 400)
 """Tiled camera per-env tile width/height (preset default is 96×96); keeps ``observation_space`` consistent."""
@@ -375,8 +376,7 @@ def _get_visualizer_cfg(visualizer_kind: str, *, tiled_camera: bool = False, all
         return (
             NewtonGLVisualizerCfg(
                 headless=True,
-                window_width=nw,
-                window_height=nh,
+                window=WindowCfg(size=(nw, nh)),
                 randomly_sample_visible_envs=False,
                 **tiled_cam,
                 **cam,
@@ -390,8 +390,7 @@ def _get_visualizer_cfg(visualizer_kind: str, *, tiled_camera: bool = False, all
         return (
             NewtonRTXVisualizerCfg(
                 headless=True,
-                window_width=nw,
-                window_height=nh,
+                window=WindowCfg(size=(nw, nh)),
                 randomly_sample_visible_envs=False,
                 **cam,
             ),
@@ -425,8 +424,7 @@ def _get_visualizer_cfg(visualizer_kind: str, *, tiled_camera: bool = False, all
         )
     return (
         KitVisualizerCfg(
-            window_width=_CARTPOLE_KIT_INTEGRATION_RENDER_RESOLUTION[0],
-            window_height=_CARTPOLE_KIT_INTEGRATION_RENDER_RESOLUTION[1],
+            window=WindowCfg(size=_CARTPOLE_KIT_INTEGRATION_RENDER_RESOLUTION),
             randomly_sample_visible_envs=False,
             **tiled_cam,
             **cam,
@@ -1548,8 +1546,7 @@ def _make_shadow_hand_env(
             visualizer_cfgs.append(
                 NewtonGLVisualizerCfg(
                     headless=True,
-                    window_width=nw,
-                    window_height=nh,
+                    window=WindowCfg(size=(nw, nh)),
                     randomly_sample_visible_envs=False,
                     **tiled_cam,
                     **cam,
@@ -1558,8 +1555,7 @@ def _make_shadow_hand_env(
         else:
             visualizer_cfgs.append(
                 KitVisualizerCfg(
-                    window_width=_SHADOW_HAND_KIT_INTEGRATION_RENDER_RESOLUTION[0],
-                    window_height=_SHADOW_HAND_KIT_INTEGRATION_RENDER_RESOLUTION[1],
+                    window=WindowCfg(size=_SHADOW_HAND_KIT_INTEGRATION_RENDER_RESOLUTION),
                     randomly_sample_visible_envs=False,
                     **tiled_cam,
                     **cam,
@@ -1615,8 +1611,7 @@ def _make_anymal_d_env(visualizer_kind: str | tuple[str, ...], backend_kind: str
             visualizer_cfgs.append(
                 NewtonGLVisualizerCfg(
                     headless=True,
-                    window_width=nw,
-                    window_height=nh,
+                    window=WindowCfg(size=(nw, nh)),
                     randomly_sample_visible_envs=False,
                     **tiled_cam,
                     **cam,
@@ -1625,8 +1620,7 @@ def _make_anymal_d_env(visualizer_kind: str | tuple[str, ...], backend_kind: str
         else:
             visualizer_cfgs.append(
                 KitVisualizerCfg(
-                    window_width=_ANYMAL_D_KIT_INTEGRATION_RENDER_RESOLUTION[0],
-                    window_height=_ANYMAL_D_KIT_INTEGRATION_RENDER_RESOLUTION[1],
+                    window=WindowCfg(size=_ANYMAL_D_KIT_INTEGRATION_RENDER_RESOLUTION),
                     randomly_sample_visible_envs=False,
                     **tiled_cam,
                     **cam,

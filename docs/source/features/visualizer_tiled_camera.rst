@@ -98,9 +98,12 @@ The ``cameras`` field is shared across visualizers. Kit, Rerun, and Viser use th
 camera for their image panel; Newton GL and RTX provide the source dropdown shown above.
 ``SceneCameraCfg`` selects an existing sensor; ``PerspectiveCameraCfg`` configures the viewer's
 own interactive camera. Neither creates a camera sensor. Newton RTX keeps its perspective
-render resolution fixed at the configured ``window_width`` and ``window_height``; resizing
+render resolution fixed at the configured ``WindowCfg.size``; resizing
 its window scales the displayed image. Sensor resolution remains controlled by ``CameraCfg``.
 Window resizing does not reallocate either camera's image buffers.
+Newton windows present at up to ``WindowCfg.fps`` (30 by default), measured in wall-clock time.
+Changing the simulation timestep does not change that limit. Headless on-demand capture is
+independent of the window update rate; Kit uses its application's update cadence.
 
 Newton RTX uses Newton's native ``ViewerRTX`` with a simulation-owned OVStage containing the
 authored scene and clone placements. Newton owns its perspective renderer, window, and debug
@@ -114,7 +117,7 @@ Display layout and channel mappings are compiled when the source, selection, res
 color settings change. Composition writes into reusable device RGBA storage. Newton GL, Newton
 RTX, and Kit present CUDA images without downloading pixels. Recording through
 ``render_tiled_rgb_array()`` and the Rerun/Viser transports explicitly read back the composed
-image. The GPU API, ``render_tiled_rgba()``, returns borrowed storage that is reused on the next
+image. The GPU API, ``render_tiled_rgba_array()``, returns borrowed storage that is reused on the next
 composition; consumers must copy it if they need to retain a frame.
 
 Both scene cameras must already be declared as ``CameraCfg`` entries in the scene. Keyboard

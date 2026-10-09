@@ -286,7 +286,7 @@ class RerunVisualizer(BaseVisualizer):
             return
 
         super().initialize(sim, cameras=cameras)
-        scene_data_provider = self._scene_data_provider
+        scene_data_provider = self._sim.get_scene_data_provider()
         num_envs = scene_data_provider.num_envs
         self.newton_cfg = NewtonBackendCfg(physics_cfg=sim.cfg.physics, device=sim.device)
         self.backend = sim.get_or_create_backend(self.newton_cfg)
@@ -378,7 +378,7 @@ class RerunVisualizer(BaseVisualizer):
         num_envs = self.backend.model.num_envs
 
         if not self._viewer.is_paused():
-            backend, provider = self.backend, self._scene_data_provider
+            backend, provider = self.backend, self._sim.get_scene_data_provider()
             poses = SceneDataFormat.Transform()
             if provider.get_transforms(poses, mapping=self._transform_mapping, count=backend.model.body_count):
                 backend.state_0.body_q = poses.transforms
@@ -410,7 +410,7 @@ class RerunVisualizer(BaseVisualizer):
         if backend is self.backend:
             return
         self.backend = backend
-        self._transform_mapping = self._scene_data_provider.create_mapping(list(backend.model.body_label))
+        self._transform_mapping = self._sim.get_scene_data_provider().create_mapping(list(backend.model.body_label))
         self._viewer.set_model(backend.model)
         self._viewer.set_visible_worlds(self._env_ids)
         self._viewer.set_world_offsets((0.0, 0.0, 0.0))

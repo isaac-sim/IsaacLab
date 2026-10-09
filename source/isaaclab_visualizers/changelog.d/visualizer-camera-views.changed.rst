@@ -20,3 +20,6 @@
   and GL model options. Declare lighting, materials, and environment placement in the scene instead.
   Use Newton GL for rigid-body dragging and model overlays. Environment selection now limited RTX
   sensor display tiles; its perspective camera viewed the full shared scene.
+* **Breaking:** Replaced ``window_width`` and ``window_height`` with ``window=WindowCfg(size=(width, height))``
+  for Newton and Kit. Replaced Newton's ``update_frequency`` frame skipping with ``window.fps``;
+  the default 30 Hz presentation limit used wall-clock time and did not throttle simulation or headless capture.

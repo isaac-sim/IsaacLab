@@ -24,9 +24,8 @@ def test_viewport_pose_publication_is_deferred_for_headless_capture(monkeypatch,
     visualizer = KitVisualizer(KitVisualizerCfg(headless=headless, origin_type="asset"))
     visualizer._is_initialized = True
     visualizer._fabric = MagicMock()
-    visualizer._scene_data_provider = MagicMock()
-    sim = MagicMock(render_generation=12)
-    monkeypatch.setattr(kit_visualizer_module.SimulationContext, "instance", lambda: sim)
+    visualizer._sim = sim = MagicMock(render_generation=12)
+    provider = sim.get_scene_data_provider.return_value
     monkeypatch.setattr(visualizer, "is_training_paused", lambda: True)
     tracking = MagicMock()
     monkeypatch.setattr(visualizer, "_update_asset_tracking_camera", tracking)
@@ -40,8 +39,8 @@ def test_viewport_pose_publication_is_deferred_for_headless_capture(monkeypatch,
         visualizer._fabric.update_transforms.assert_not_called()
         visualizer._fabric.update_geometries.assert_not_called()
     else:
-        visualizer._fabric.update_transforms.assert_called_once_with(visualizer._scene_data_provider)
-        visualizer._fabric.update_geometries.assert_called_once_with(visualizer._scene_data_provider, 12)
+        visualizer._fabric.update_transforms.assert_called_once_with(provider)
+        visualizer._fabric.update_geometries.assert_called_once_with(provider, 12)
 
 
 @pytest.mark.parametrize("color", [(0.1, 0.2, 0.3), None])

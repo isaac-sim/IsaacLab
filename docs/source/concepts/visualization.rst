@@ -208,13 +208,13 @@ Visualizer Overview
 
       .. code-block:: python
 
+          from isaaclab.visualizers import WindowCfg
           from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
 
           visualizer_cfg = NewtonGLVisualizerCfg(
               eye=(8.0, 8.0, 3.0),
               lookat=(0.0, 0.0, 0.0),
-              window_width=1920,
-              window_height=1080,
+              window=WindowCfg(size=(1920, 1080), fps=30.0),
               show_joints=False,
               show_contacts=False,
               enable_live_plots=True,
@@ -353,9 +353,9 @@ Visualizer Overview
       .. dropdown:: Shared window options
          :icon: code
 
-         .. literalinclude:: ../../../source/isaaclab_visualizers/isaaclab_visualizers/newton/newton_visualizer_cfg.py
+         .. literalinclude:: ../../../source/isaaclab/isaaclab/visualizers/visualizer_cfg.py
             :language: python
-            :pyobject: _NewtonWindowCfg
+            :pyobject: WindowCfg
 
       .. dropdown:: VisualizerCfg source (shared base class)
          :icon: code
@@ -471,13 +471,13 @@ Visualizer Overview
 
       .. code-block:: python
 
+          from isaaclab.visualizers import WindowCfg
           from isaaclab_visualizers.kit import KitVisualizerCfg
 
           visualizer_cfg = KitVisualizerCfg(
               eye=(8.0, 8.0, 3.0),
               lookat=(0.0, 0.0, 0.0),
-              window_width=1280,
-              window_height=720,
+              window=WindowCfg(size=(1280, 720)),
               enable_markers=True,
               enable_live_plots=True,
           )
@@ -826,17 +826,17 @@ Performance
    * - Visualizer
      - Tips
    * - Newton GL
-     - Lowest overhead; increase ``update_frequency`` to skip render calls.
+     - Lowest overhead; lower ``window.fps`` to limit wall-clock render frequency.
    * - Viser
      - Newton Warp renderer; use ``max_visible_envs`` to limit the number of rendered
        environments.
    * - Newton RTX
-     - Native Newton RTX rendering; reduce configured perspective resolution or increase ``update_frequency``.
+     - Native Newton RTX rendering; reduce configured perspective resolution or lower ``window.fps``.
        Environment selection limits sensor display tiles; the perspective view shows the full scene.
    * - Rerun
      - Web viewer may slow down with many environments; use ``--num_envs`` to reduce load.
    * - Kit
-     - Highest overhead of the five visualizers; reduce ``window_width`` / ``window_height``
+     - Highest overhead of the five visualizers; reduce ``window.size``
        or use ``--max_visible_envs``.
 
 

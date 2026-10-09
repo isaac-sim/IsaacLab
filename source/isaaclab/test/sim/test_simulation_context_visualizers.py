@@ -29,6 +29,7 @@ from isaaclab_visualizers.viser.viser_visualizer_cfg import ViserVisualizerCfg
 
 from isaaclab.markers.vis_marker_registry import VisMarkerRegistry
 from isaaclab.sim.simulation_context import SimulationContext
+from isaaclab.visualizers import WindowCfg
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg, SceneCameraCfg, VisualizerCfg
 
@@ -883,8 +884,8 @@ def test_default_visualizer_cfg_applies_to_explicit_visualizer_cfgs():
         lookat=(0.0, 0.0, 0.5),
         streaming_sensor_prim_path="/World/envs/*/Camera",
     )
-    # Explicit Newton cfg with only window_width customized; eye/lookat at class defaults.
-    explicit_cfg = NewtonGLVisualizerCfg(window_width=320, window_height=240)
+    # Explicit Newton cfg with only the window size customized; eye/lookat at class defaults.
+    explicit_cfg = NewtonGLVisualizerCfg(window=WindowCfg(size=(320, 240)))
     ctx = _make_context_with_settings(settings, visualizer_cfgs=[explicit_cfg], default_visualizer_cfg=default_cfg)
 
     cfgs = ctx._resolve_visualizer_cfgs()
@@ -895,8 +896,7 @@ def test_default_visualizer_cfg_applies_to_explicit_visualizer_cfgs():
     assert cfgs[0].lookat == (0.0, 0.0, 0.5)
     assert cfgs[0].streaming_sensor_prim_path == "/World/envs/*/Camera"
     # user-customized fields preserved
-    assert cfgs[0].window_width == 320
-    assert cfgs[0].window_height == 240
+    assert cfgs[0].window.size == (320, 240)
     assert cfgs[0].class_type.__name__ == "NewtonGLVisualizer"
     assert cfgs[0].visualizer_type == "newton_gl"
     assert cfgs[0].cloning_contexts == NewtonGLVisualizerCfg().cloning_contexts

@@ -13,6 +13,7 @@ from unittest.mock import Mock
 
 # Launch Isaac Sim before importing Newton modules so USD schema bindings are initialized.
 from isaaclab.test.utils import launch_test_simulation
+from isaaclab.visualizers import WindowCfg
 
 launch_test_simulation(enable_cameras=True)
 
@@ -177,7 +178,7 @@ def test_root_pose_write_is_visible_on_next_render_without_step(capture_method, 
         device=device,
         gravity=(0.0, 0.0, 0.0),
         physics=NewtonCfg(solver_cfg=XPBDSolverCfg(), use_cuda_graph=False),
-        visualizer_cfgs=[KitVisualizerCfg(headless=True, window_width=64, window_height=64)],
+        visualizer_cfgs=[KitVisualizerCfg(headless=True, window=WindowCfg(size=(64, 64)))],
     )
 
     with build_simulation_context(sim_cfg=sim_cfg) as sim:

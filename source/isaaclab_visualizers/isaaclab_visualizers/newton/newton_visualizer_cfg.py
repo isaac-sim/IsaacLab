@@ -18,24 +18,7 @@ if TYPE_CHECKING:
 
 
 @configclass
-class _NewtonWindowCfg(VisualizerCfg):
-    """Window dimensions and presentation cadence shared by the Newton frontends."""
-
-    window_width: int = 1920
-    """Window width in pixels."""
-
-    window_height: int = 1080
-    """Window height in pixels."""
-
-    headless: bool = False
-    """Run the Newton viewer without requiring a display server."""
-
-    update_frequency: int = 1
-    """Visualizer update frequency (renders every N simulation frames)."""
-
-
-@configclass
-class NewtonVisualizerCfg(_NewtonWindowCfg):
+class NewtonVisualizerCfg(VisualizerCfg):
     """Deprecated configuration base for the Newton GL visualizer.
 
     .. deprecated::
@@ -143,7 +126,7 @@ class NewtonGLVisualizerCfg(NewtonVisualizerCfg):
 
 
 @configclass
-class NewtonRTXVisualizerCfg(_NewtonWindowCfg):
+class NewtonRTXVisualizerCfg(VisualizerCfg):
     """Newton ViewerRTX rendering a simulation-owned OVStage.
 
     Perspective sources use Newton's fixed-resolution render product; scene sources borrow sensor output.

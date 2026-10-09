@@ -362,7 +362,6 @@ def test_visualizer_step_renders_markers_and_closes_frame(monkeypatch, caplog, m
     backend = SimpleNamespace(model=SimpleNamespace(num_envs=4, body_count=0), state_0=state, geometry_offsets={})
 
     class Viewer:
-        _update_frequency = 1
         show_contacts = False
 
         def is_paused(self):
@@ -400,7 +399,7 @@ def test_visualizer_step_renders_markers_and_closes_frame(monkeypatch, caplog, m
     visualizer.backend = backend
     visualizer._is_initialized = True
     visualizer._viewer = viewer = Viewer()
-    visualizer._scene_data_provider = provider
+    visualizer._sim = SimpleNamespace(get_scene_data_provider=lambda: provider)
     visualizer._transform_mapping = None
     visualizer._env_ids = [1, 3]
 

@@ -13,9 +13,10 @@ from unittest.mock import Mock
 
 import pytest
 
+from isaaclab.utils import validate
 from isaaclab.utils.string import ResolvableString
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
-from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg, SceneCameraCfg, VisualizerCfg
+from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg, SceneCameraCfg, VisualizerCfg, WindowCfg
 
 pytestmark = [pytest.mark.integration, pytest.mark.rendering]
 
@@ -62,11 +63,17 @@ def test_visualizer_cfg_camera_sources():
         VisualizerCfg(cameras=[])
 
 
-def test_visualizer_cfg_validates_background_color():
+def test_visualizer_cfg_validates_presentation():
     assert VisualizerCfg(background_color=None).background_color is None
     assert VisualizerCfg(background_color=[0, 0.5, 1]).background_color == (0.0, 0.5, 1.0)
     with pytest.raises(ValueError, match="three normalized RGB values"):
         VisualizerCfg(background_color=(0.0, 0.5, 1.1))
+    for size in ((0, 720), (1280, -1), (1280,), (1.5, 720)):
+        with pytest.raises(ValueError, match="WindowCfg.size"):
+            validate(WindowCfg(size=size))
+    for fps in (0.0, -1.0, float("inf"), float("nan")):
+        with pytest.raises(ValueError, match="WindowCfg.fps"):
+            validate(WindowCfg(fps=fps))
 
 
 #

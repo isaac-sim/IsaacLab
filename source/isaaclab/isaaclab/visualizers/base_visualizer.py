@@ -53,7 +53,6 @@ class BaseVisualizer(ABC):
         """
         validate(cfg)
         self.cfg = cfg
-        self._scene_data_provider = None
         self._sim: SimulationContext | None = None
         self._camera_choices: list[PerspectiveCameraCfg | Camera] = []
         self._is_initialized = False
@@ -95,7 +94,6 @@ class BaseVisualizer(ABC):
         scene_data_provider = sim.get_scene_data_provider()
         if scene_data_provider is None:
             raise RuntimeError(f"{self.__class__.__name__} requires a scene_data_provider.")
-        self._scene_data_provider = scene_data_provider
         self._sim = sim
         self._camera_choices = list(cameras)
 
@@ -129,7 +127,7 @@ class BaseVisualizer(ABC):
             (camera for camera in self._camera_choices if not isinstance(camera, PerspectiveCameraCfg)), None
         )
 
-    def render_tiled_rgba(self) -> wp.array | None:
+    def render_tiled_rgba_array(self) -> wp.array | None:
         """Acquire the selected camera frame and compose a device-resident display image.
 
         Returns:
@@ -195,7 +193,7 @@ class BaseVisualizer(ABC):
         Returns:
             Cached contiguous uint8 RGB image of shape [H, W, 3], or None without a selected camera.
         """
-        image = self.render_tiled_rgba()
+        image = self.render_tiled_rgba_array()
         if image is None:
             return None
         frame = self._streaming_host_frame
@@ -226,7 +224,7 @@ class BaseVisualizer(ABC):
         self._streaming_env_ids = self._streaming_depth_colors = None
         self._streaming_layout = self._streaming_view_key = None
         self._streaming_keys = ()
-        self._scene_data_provider = self._sim = None
+        self._sim = None
         self._is_closed = True
 
     @abstractmethod
