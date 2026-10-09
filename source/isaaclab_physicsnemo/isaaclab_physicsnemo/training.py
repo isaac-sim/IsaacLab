@@ -7,7 +7,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from collections.abc import Callable
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 
@@ -42,6 +43,7 @@ from physicsnemo_robotics.training import (
 
 from .evaluation import HorizonError, evaluate_rollout_nrmse
 from .recording import CONTROL_KEY
+from .resident_training import ResidentOptions, fit_resident, materialize_windows
 
 PARALLEL_NERD_CONFIG: dict[str, Any] = {
     "num_heads": 5,
@@ -96,6 +98,27 @@ class TrainingSettings:
     model_kwargs: dict[str, Any] = field(default_factory=dict)
     """Keyword overrides of the network constructor. ``"parallel_nerd"`` starts from :data:`PARALLEL_NERD_CONFIG`."""
 
+    resident: bool = False
+    """Keep the normalized training windows on the device and sample them directly, as the FlashNeRD study does.
+
+    The streaming pipeline reads windows on the host and sustains a few thousand per second; resident
+    windows remove that limit at the cost of device memory for every window. Resident training also
+    supports data-parallel ranks under ``torchrun`` (:attr:`batch_size` is then the global batch),
+    :attr:`mixed_precision`, and resumable checkpoints.
+    """
+
+    mixed_precision: bool = False
+    """Run projections under FP16 autocast with dynamic loss scaling. Requires :attr:`resident`."""
+
+    checkpoint_every: int = 0
+    """Updates between resumable checkpoints of resident training; zero writes one only at the end."""
+
+    validate_every: int = 0
+    """Updates between logged one-step validations of resident training; zero validates only at the end."""
+
+    loader_workers: int = 0
+    """Worker processes that read windows once for resident training."""
+
     rollout_horizons: tuple[int, ...] = (1, 15, 100, 200)
     """Horizons of the held-out recursive-rollout evaluation after training.
 
@@ -138,6 +161,7 @@ def train_dynamics_artifact(
     features: FeatureEncoder | None = None,
     settings: TrainingSettings | None = None,
     device: str = "cuda:0",
+    on_checkpoint: Callable[[int, Path], None] | None = None,
 ) -> TrainingSummary:
     """Train a control-conditioned vector NeRD on a recorded dataset and package it as an artifact.
 
@@ -156,19 +180,25 @@ def train_dynamics_artifact(
         features: Encoder of the model's conditioning inputs, built against ``model``. Defaults to the applied
             joint efforts. Its recorded fields must be in the dataset.
         settings: Optimization settings. Defaults to :class:`TrainingSettings`.
-        device: Training device.
+        device: Training device. Under ``torchrun``, the device of the local rank is used instead.
+        on_checkpoint: Called on rank zero after every resident-training checkpoint with the completed
+            update count and an artifact packaged from the current parameters, for example to track
+            rollout error over the training budget.
 
     Returns:
         The artifact location and final validation metrics.
 
     Raises:
-        ValueError: If the split leaves the training or validation set empty, or the codec does not
-            match the dataset schema.
+        ValueError: If the split leaves the training or validation set empty, the codec does not
+            match the dataset schema, or mixed precision is requested without resident training.
     """
     settings = settings or TrainingSettings()
+    if settings.mixed_precision and not settings.resident:
+        raise ValueError("Mixed-precision training requires resident training.")
     if not DistributedManager.is_initialized():
         DistributedManager.initialize()
-    device = torch.device(device)
+    manager = DistributedManager()
+    device = manager.device if manager.world_size > 1 else torch.device(device)
     output_dir = Path(output_dir).expanduser().resolve()
 
     # Window sampling reads many short slices per trajectory, which is far faster from memory than
@@ -218,53 +248,121 @@ def train_dynamics_artifact(
             **dimensions, max_sequence_length=settings.history, **settings.model_kwargs
         )
     network = network.to(device)
-    optimizer = torch.optim.AdamW(network.parameters(), lr=settings.learning_rate, weight_decay=settings.weight_decay)
-    scheduler = torch.optim.lr_scheduler.LinearLR(
-        optimizer,
-        start_factor=1.0,
-        end_factor=settings.final_learning_rate / settings.learning_rate,
-        total_iters=settings.max_updates,
-    )
 
-    def normalized_delta_mse(network: torch.nn.Module, batch: Any) -> torch.Tensor:
-        transition_batch, target = normalize_transition(adapter, normalizer, batch)
-        return (adapter.predict(network, transition_batch).value - target).square().mean()
+    def package(path: Path, updates: int) -> Path:
+        return Path(
+            package_dynamics_artifact(
+                path,
+                model=network,
+                schema=reader.schema,
+                codec=codec,
+                features=features,
+                transition=transition,
+                normalizer=normalizer,
+                epoch=updates,
+            )
+        )
 
-    result = fit_transition_model(
-        network,
-        adapter,
-        normalizer,
-        train_windows=train_windows,
-        val_windows=validation_windows,
-        loss_fn=normalized_delta_mse,
-        loss_name="normalized_delta_mse",
-        metrics={
-            "delta_rmse": lambda physical, normalized: physical,
-            "normalized_delta_rmse": lambda physical, normalized: normalized,
-        },
-        optimizer=optimizer,
-        scheduler=scheduler,
-        device=device,
-        batch_size=settings.batch_size,
-        seed=settings.seed,
-        gradient_clip_norm=settings.gradient_clip_norm,
-        runtime=RuntimeOptions(),
-        stop=StopCondition(max_updates=settings.max_updates),
-        intervals=Intervals(log=settings.log_every, validation=settings.max_updates, checkpoint=settings.max_updates),
-        label="isaaclab_physicsnemo",
-        checkpoint_dir=output_dir / "training_checkpoints",
-    )
+    if settings.resident:
+        input_dtype = torch.float16 if settings.mixed_precision else torch.float32
+        resident_train, resident_validation = (
+            materialize_windows(
+                windows,
+                adapter,
+                normalizer,
+                device=device,
+                input_dtype=input_dtype,
+                num_workers=settings.loader_workers,
+            )
+            for windows in (train_windows, validation_windows)
+        )
+        identity = {
+            key: value
+            for key, value in asdict(settings).items()
+            if key not in ("checkpoint_every", "validate_every", "log_every", "loader_workers", "rollout_horizons")
+        }
+        identity |= {
+            "dataset": str(Path(dataset_path).expanduser().resolve()),
+            "train_windows": resident_train.targets.shape[0],
+            "world_size": manager.world_size,
+        }
+        checkpoint_callback = (
+            None
+            if on_checkpoint is None
+            else lambda updates: on_checkpoint(updates, package(output_dir / "checkpoint_artifact", updates))
+        )
+        parameter_updates, validation = fit_resident(
+            network,
+            resident_train,
+            resident_validation,
+            normalizer,
+            ResidentOptions(
+                max_updates=settings.max_updates,
+                batch_size=settings.batch_size,
+                learning_rate=settings.learning_rate,
+                final_learning_rate=settings.final_learning_rate,
+                weight_decay=settings.weight_decay,
+                gradient_clip_norm=settings.gradient_clip_norm,
+                seed=settings.seed,
+                log_every=settings.log_every,
+                mixed_precision=settings.mixed_precision,
+                checkpoint_every=settings.checkpoint_every,
+                validate_every=settings.validate_every,
+            ),
+            device=device,
+            checkpoint_path=output_dir / "training_checkpoints" / "resident.pt",
+            identity=identity,
+            on_checkpoint=checkpoint_callback,
+        )
+    else:
 
-    artifact_path = package_dynamics_artifact(
-        output_dir / "artifact",
-        model=network,
-        schema=reader.schema,
-        codec=codec,
-        features=features,
-        transition=transition,
-        normalizer=normalizer,
-        epoch=result.parameter_updates,
-    )
+        def normalized_delta_mse(network: torch.nn.Module, batch: Any) -> torch.Tensor:
+            transition_batch, target = normalize_transition(adapter, normalizer, batch)
+            return (adapter.predict(network, transition_batch).value - target).square().mean()
+
+        optimizer = torch.optim.AdamW(
+            network.parameters(), lr=settings.learning_rate, weight_decay=settings.weight_decay
+        )
+        scheduler = torch.optim.lr_scheduler.LinearLR(
+            optimizer,
+            start_factor=1.0,
+            end_factor=settings.final_learning_rate / settings.learning_rate,
+            total_iters=settings.max_updates,
+        )
+        result = fit_transition_model(
+            network,
+            adapter,
+            normalizer,
+            train_windows=train_windows,
+            val_windows=validation_windows,
+            loss_fn=normalized_delta_mse,
+            loss_name="normalized_delta_mse",
+            metrics={
+                "delta_rmse": lambda physical, normalized: physical,
+                "normalized_delta_rmse": lambda physical, normalized: normalized,
+            },
+            optimizer=optimizer,
+            scheduler=scheduler,
+            device=device,
+            batch_size=settings.batch_size,
+            seed=settings.seed,
+            gradient_clip_norm=settings.gradient_clip_norm,
+            runtime=RuntimeOptions(),
+            stop=StopCondition(max_updates=settings.max_updates),
+            intervals=Intervals(
+                log=settings.log_every, validation=settings.max_updates, checkpoint=settings.max_updates
+            ),
+            label="isaaclab_physicsnemo",
+            checkpoint_dir=output_dir / "training_checkpoints",
+        )
+        parameter_updates, validation = result.parameter_updates, dict(result.validation)
+
+    artifact_path = output_dir / "artifact"
+    if manager.rank != 0:
+        return TrainingSummary(
+            artifact_path, parameter_updates, tuple(split.train), tuple(split.validation), validation, ()
+        )
+    artifact_path = package(artifact_path, parameter_updates)
     artifact = DynamicsArtifact.load(artifact_path)
     artifact.assert_compatible(reader.schema)
     indices = {reader.trajectory_metadata(index).trajectory_id: index for index in range(len(reader))}
@@ -279,10 +377,10 @@ def train_dynamics_artifact(
         device=device,
     )
     return TrainingSummary(
-        artifact_path=Path(artifact_path),
-        parameter_updates=result.parameter_updates,
+        artifact_path=artifact_path,
+        parameter_updates=parameter_updates,
         train_trajectory_ids=tuple(split.train),
         validation_trajectory_ids=tuple(split.validation),
-        validation=dict(result.validation),
+        validation=validation,
         rollout_nrmse=rollout_nrmse,
     )

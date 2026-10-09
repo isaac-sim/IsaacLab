@@ -28,8 +28,9 @@ Known limitations:
 - PhysicsNeMo Robotics is not on a package index and pins older Newton, Warp, and Torch releases, so it is
   installed next to Isaac Lab without its pins, and this package is not part of the repository `uv.lock`
   or the Sphinx documentation.
-- The training input pipeline sustains about 7,000 windows per second on one GPU, far below the budgets
-  of the FlashNeRD study (five million updates of 4,096 windows).
+- FlashNeRD-scale budgets (five million updates of 4,096 windows) need resident training
+  (`TrainingSettings(resident=True, mixed_precision=True)`); the default streaming pipeline sustains about
+  7,000 windows per second. Data-parallel resident training under `torchrun` has not been run yet.
 - The manager, binding, and preflight read private `NewtonManager` attributes; public accessors in
   `isaaclab_newton` would remove them.
 - Floating-base artifacts deploy with `continuity="off"`, and the external-wrench check aborts the CUDA
@@ -168,6 +169,18 @@ script, to add a walking policy to the exploration targets.
 
 Default settings complete in minutes per stage on one GPU and only demonstrate the workflow. The
 reference results below were measured on a GPU shared with other jobs, so timings are upper bounds.
+
+### Resident training
+
+`TrainingSettings(resident=True)` normalizes every window once, keeps them on the GPU, and samples them
+uniformly with replacement, as the FlashNeRD study does. `mixed_precision=True` adds FP16 autocast with
+dynamic loss scaling (an overflowed batch is retried without advancing the schedule), `checkpoint_every`
+writes resumable checkpoints that a rerun of the same command continues from, and `on_checkpoint`
+receives an artifact of each checkpoint. Under `torchrun`, every rank samples its share of the global
+`batch_size`. On the FlashNeRD CartPole data with the frozen model, 2,000 updates of 512 windows reach the
+same validation error as the streaming pipeline (normalized delta RMSE 0.040 against 0.041) at 8 times
+its speed, and batches of 4,096 windows train at 26 updates per second with mixed precision, against 1.7
+for the streaming pipeline, on a shared GPU.
 
 ### A usable Cartpole model
 
