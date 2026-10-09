@@ -1092,7 +1092,6 @@ def test_clear_releases_backend_and_session_state_for_every_solver(monkeypatch):
 
     assert closed == [backend]
     assert NewtonManager.backend is None
-    assert NewtonManager.get_num_envs() is None
     assert NewtonManager._site_requests == {}
     # Solver managers only override stateless hooks; they never shadow the shared state.
     for manager in (

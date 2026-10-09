@@ -23,7 +23,7 @@ from newton.usd import SchemaResolver, SchemaResolverMjc, SchemaResolverNewton, 
 
 from pxr import Usd, UsdGeom
 
-from isaaclab.physics import CallbackHandle, PhysicsEvent, PhysicsManager
+from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.scene_data import SceneDataBackend, SceneDataFormat, SceneDataProvider
 from isaaclab.sim import SimulationContext
 from isaaclab.utils import checked_apply, to_dict
@@ -784,15 +784,6 @@ class NewtonManager(PhysicsManager):
         return global_sites, source_sites, root_sites
 
     @classmethod
-    def add_world_builder_hook(cls, hook: Callable[[ModelBuilder, int, np.ndarray, np.ndarray], None]) -> None:
-        """Extend every world built by Newton replication.
-
-        Args:
-            hook: Called with ``(world_builder, world_id, position, orientation)`` for every cloned world.
-        """
-        NewtonManager._world_builder_hooks.append(hook)
-
-    @classmethod
     def get_world_builder_hooks(cls) -> list[Callable[[ModelBuilder, int, np.ndarray, np.ndarray], None]]:
         """Return the hooks extending every world built by Newton replication."""
         return NewtonManager._world_builder_hooks
@@ -897,24 +888,6 @@ class NewtonManager(PhysicsManager):
         return None if backend is None else backend.contacts
 
     @classmethod
-    def get_num_envs(cls) -> int | None:
-        """Return the number of simulated environments, or ``None`` before replication."""
-        model = cls.get_model()
-        if model is not None:
-            return model.num_envs
-        return None if NewtonManager._clone is None else NewtonManager._clone.num_envs
-
-    @classmethod
-    def get_dt(cls) -> float:
-        """Get the physics timestep. Alias for get_physics_dt()."""
-        return cls.get_physics_dt()
-
-    @classmethod
-    def get_solver_dt(cls) -> float:
-        """Get the solver substep timestep."""
-        return NewtonManager.backend.solver_dt
-
-    @classmethod
     def get_scene_data_backend(cls) -> SceneDataBackend | None:
         """Return the SceneDataBackend for the SceneDataProvider."""
         return NewtonManager._scene_data_backend
@@ -953,31 +926,9 @@ class NewtonManager(PhysicsManager):
     # ----- Backend descriptors -----------------------------------------------
 
     @classmethod
-    def provides_implicit_damping(cls) -> bool:
-        # Newton's symplectic integrator has no implicit damping.
-        return False
-
-    @classmethod
     def video_capture_backend(cls) -> str:
         """Newton GL headless perspective video capture."""
         return "newton_gl"
-
-    @classmethod
-    def is_fabric_enabled(cls) -> bool:
-        """Check if fabric interface is enabled (not applicable for Newton)."""
-        return False
-
-    @classmethod
-    def register_callback(
-        cls,
-        callback: Callable,
-        event: PhysicsEvent,
-        order: int = 0,
-        name: str | None = None,
-        wrap_weak_ref: bool = True,
-    ) -> CallbackHandle:
-        """Register a callback. Passes event to parent class."""
-        return PhysicsManager.register_callback(callback, event, order, name, wrap_weak_ref)
 
     # ----- Solver hooks ------------------------------------------------------------------
     # Overridden by solver managers. They are stateless and take every input explicitly, so a solver manager can

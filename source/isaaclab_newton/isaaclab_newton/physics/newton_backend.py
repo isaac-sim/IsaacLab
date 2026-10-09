@@ -441,11 +441,6 @@ def init_solver(backend: NewtonBackend) -> None:
     manager, cfg = backend.manager, backend.cfg
     manager.validate_cfg(backend)
     backend.solver = manager.create_solver(backend.model, cfg.solver_cfg, backend.deterministic_mode)
-    if backend.contact_sensors and not manager.supports_contact_sensors:
-        raise NotImplementedError(
-            f"Newton contact sensors are not yet supported by {manager.__name__} because its contact forces live in"
-            " per-entry buffers. Remove the contact sensor."
-        )
     if not manager.single_state:
         manager.initialize_output_state(backend, backend.state_1)
     _allocate_contacts(backend)
@@ -712,7 +707,7 @@ def add_contact_sensor(
     Returns:
         The Newton contact sensor, updated at the end of every step.
     """
-    if backend.solver is not None and not backend.manager.supports_contact_sensors:
+    if not backend.manager.supports_contact_sensors:
         raise NotImplementedError(
             f"Newton contact sensors are not yet supported by {backend.manager.__name__} because its contact forces"
             " live in per-entry buffers."

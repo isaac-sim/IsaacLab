@@ -76,6 +76,5 @@ def create_mock_newton_manager(
             "get_model.return_value": mock_model,
             "get_state_0.return_value": mock_state,
             "get_control.return_value": mock_control,
-            "get_dt.return_value": 0.01,
         },
     )

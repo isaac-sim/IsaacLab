@@ -9,8 +9,7 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
-import warp as wp
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, VBDSolverCfg
+from isaaclab_newton.physics import MJWarpSolverCfg, VBDSolverCfg
 from isaaclab_newton.physics import newton_backend as nb
 from newton import ModelBuilder
 
@@ -113,21 +112,12 @@ def test_build_solver_rejects_invalid_configuration(solver_cfg: CoupledMJWarpVBD
         NewtonCoupledMJWarpVBDManager.create_solver(MagicMock(), solver_cfg)
 
 
-def test_build_solver_rejects_contact_sensors(monkeypatch: pytest.MonkeyPatch) -> None:
-    solver_cfg = CoupledMJWarpVBDSolverCfg()
-    _stub_subsolvers(monkeypatch, solver_cfg)
-    backend = SimpleNamespace(
-        manager=NewtonCoupledMJWarpVBDManager,
-        cfg=NewtonCfg(solver_cfg=solver_cfg),
-        model=MagicMock(),
-        deterministic_mode=wp.DeterministicMode.NOT_GUARANTEED,
-        contact_sensors={("body", None, None, None): object()},
-        contacts=None,
-    )
+def test_add_contact_sensor_rejects_coupled_solver() -> None:
+    backend = SimpleNamespace(manager=NewtonCoupledMJWarpVBDManager, contact_sensors={})
 
     with pytest.raises(NotImplementedError, match="contact sensors are not yet supported"):
-        nb.init_solver(backend)
-    assert backend.contacts is None
+        nb.add_contact_sensor(backend, body_names_expr="body")
+    assert backend.contact_sensors == {}
 
 
 def test_build_solver_sets_capabilities(monkeypatch: pytest.MonkeyPatch) -> None:
