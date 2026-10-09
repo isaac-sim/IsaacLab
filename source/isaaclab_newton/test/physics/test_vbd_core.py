@@ -17,11 +17,9 @@ from isaaclab_newton.physics import (
     NewtonBuilderCfg,
     NewtonCfg,
     NewtonManager,
-    NewtonSchema,
     NewtonSoftContactCfg,
-    NewtonSolverBinding,
+    newton_backend,
 )
-from isaaclab_newton.physics import runtime as newton_runtime
 from newton import ModelBuilder
 from newton.solvers import SolverVBD
 
@@ -50,8 +48,14 @@ def test_soft_contact_cfg_updates_finalized_model(monkeypatch, soft_contact_cfg,
         soft_contact_ke = 7.0
         soft_contact_kd = 8.0
         soft_contact_mu = 9.0
+        device = "cpu"
         world_count = 0
         articulation_count = 0
+        body_count = 0
+        particle_count = 0
+
+        def set_gravity(self, gravity):
+            pass
 
         def state(self):
             state_values.append((self.soft_contact_ke, self.soft_contact_kd, self.soft_contact_mu))
@@ -69,6 +73,7 @@ def test_soft_contact_cfg_updates_finalized_model(monkeypatch, soft_contact_cfg,
     cfg = NewtonBackendCfg(physics_cfg=physics_cfg, device="cpu")
     sim = object.__new__(SimulationContext)
     sim._backend_registry = []
+    sim.cfg = SimpleNamespace(dt=0.01, gravity=(0.0, 0.0, -9.81))
     monkeypatch.setattr(SimulationContext, "instance", lambda: sim)
     builder = sim.get_or_create_backend(builder_cfg)
     backend = sim.get_or_create_backend(cfg)
@@ -97,32 +102,28 @@ def test_vbd_colors_builder_before_finalization():
         def color(self, *, balance_colors):
             events.append(("color", balance_colors))
 
-    physics.NewtonVBDManager.solver_binding.prepare_builder(Builder())
+    physics.NewtonVBDManager.prepare_solver_builder(Builder())
     assert events == [("color", False)]
 
 
-def test_vbd_solver_force_input_capability(monkeypatch):
+def test_vbd_solver_force_input_capability():
     """VBD rejects rigid forces when an external solver integrates rigid bodies.
 
     The default (VBD integrates rigid bodies itself) is covered end to end by
-    ``test_initialize_solver_populates_canonical_state``.
+    ``test_reset_binds_solver_and_capabilities``.
     """
     physics = importlib.import_module("isaaclab_newton.physics")
-    solver = object()
-    monkeypatch.setattr(physics.VBDSolverBinding, "create", classmethod(lambda cls, *args: solver))
-
     solver_cfg = physics.VBDSolverCfg(integrate_with_external_rigid_solver=True)
-    binding = physics.NewtonVBDManager.solver_binding(object(), solver_cfg, wp.DeterministicMode.NOT_GUARANTEED)
+    backend = SimpleNamespace(cfg=SimpleNamespace(solver_cfg=solver_cfg))
 
-    assert binding.solver is solver
-    assert binding.supports_body_forces is False
+    assert physics.NewtonVBDManager.supports_body_forces(backend) is False
 
 
 @pytest.mark.parametrize("overrides", [{}, {"rigid_compliant_alm": False}], ids=["defaults", "legacy"])
 def test_vbd_rigid_solver_controls(overrides):
     """VBD preserves the default controls and explicit legacy-mode selection."""
     physics = importlib.import_module("isaaclab_newton.physics")
-    kwargs = NewtonSolverBinding.filter_kwargs(
+    kwargs = NewtonManager.solver_kwargs(
         SolverVBD, physics.VBDSolverCfg(**overrides), wp.DeterministicMode.NOT_GUARANTEED
     )
     assert kwargs["rigid_compliant_alm"] is overrides.get("rigid_compliant_alm")
@@ -150,7 +151,7 @@ def test_vbd_compliant_alm_cable_stiffness():
     builder.color()
     model = builder.finalize(device="cpu")
     solver_cfg = physics.VBDSolverCfg(rigid_compliant_alm=True, rigid_body_contact_buffer_size=256)
-    solver = physics.NewtonVBDManager.solver_binding.create(model, solver_cfg)
+    solver = physics.NewtonVBDManager.create_solver(model, solver_cfg)
     assert solver.rigid_compliant_alm is True
     assert solver.body_body_contact_indices.size == model.body_count * 256
 
@@ -166,7 +167,7 @@ def test_vbd_compliant_alm_cable_stiffness():
     assert state_0.body_q.numpy()[body, 2] == pytest.approx(-expected_extension, rel=0.01)
 
 
-def test_vbd_rebuilds_particle_bvh_before_physics_step(monkeypatch):
+def test_vbd_rebuilds_particle_bvh_before_physics_step():
     """VBD rebuilds its particle BVH before the solver advances each physics step."""
     physics = importlib.import_module("isaaclab_newton.physics")
     events = []
@@ -187,26 +188,27 @@ def test_vbd_rebuilds_particle_bvh_before_physics_step(monkeypatch):
         def step(self, state_in, state_out, control, contacts, dt):
             events.append(("step", state_in))
 
-    monkeypatch.setattr(physics.VBDSolverBinding, "create", classmethod(lambda cls, *args: Solver()))
-    model = SimpleNamespace(particle_count=1, world_count=1, articulation_count=0)
     state_0, state_1 = State(), State()
-    backend = SimpleNamespace(model=model, state_0=state_0, state_1=state_1, control=None)
-    schema = NewtonSchema(
-        device="cpu",
-        world_count=1,
-        world_prototypes=None,
-        physics_dt=0.01,
+    backend = SimpleNamespace(
+        manager=physics.NewtonVBDManager,
+        model=SimpleNamespace(particle_count=1),
+        solver=Solver(),
+        state_0=state_0,
+        state_1=state_1,
+        control=None,
+        collision_pipeline=None,
+        contacts=None,
+        cfg=SimpleNamespace(collision_decimation=0),
+        dt=0.01,
         num_substeps=1,
-        collision_decimation=0,
-        body_count=0,
-        joint_dof_count=0,
-        articulation_count=0,
-    )
-    runtime = newton_runtime.create_runtime(backend, schema)
-    runtime.solver = physics.NewtonVBDManager.solver_binding(
-        model, physics.VBDSolverCfg(), wp.DeterministicMode.NOT_GUARANTEED
+        solver_dt=0.01,
+        callbacks=[],
+        actuators=None,
+        staged_forces={},
+        contact_sensors={},
+        imu_sensors=[],
     )
 
-    newton_runtime.compile_program(runtime, 1).run()
+    newton_backend.build_step_graph(backend, 1).launch()
 
     assert events == [("rebuild", state_0), ("step", state_0)]

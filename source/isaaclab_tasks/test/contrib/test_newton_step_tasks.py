@@ -5,9 +5,13 @@
 
 """Behavior of tasks that run controllers inside the Newton step."""
 
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+
+from isaaclab.sim import SimulationCfg
 from isaaclab.test.utils import launch_test_simulation
 
-launch_test_simulation()
+# Every task here runs on Newton, which needs no Kit runtime.
+launch_test_simulation(SimulationCfg(physics=NewtonCfg(solver_cfg=MJWarpSolverCfg())))
 
 import gymnasium as gym
 import pytest

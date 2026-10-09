@@ -124,8 +124,7 @@ def test_clone_inputs_create_one_registry_resource_until_closed(monkeypatch):
 def test_native_publication_reuses_clean_fk_and_refreshes_writes_and_swaps(monkeypatch, invalidate):
     """Clean native reads reuse FK and conversions; writes and solver-buffer swaps refresh their values."""
     import warp as wp
-    from isaaclab_newton.physics import NewtonManager, NewtonSchema, NewtonXPBDManager
-    from isaaclab_newton.physics import runtime as newton_runtime
+    from isaaclab_newton.physics import NewtonManager, NewtonXPBDManager
     from isaaclab_newton.physics.newton_manager import NewtonSceneDataBackend
 
     from isaaclab.physics import PhysicsManager
@@ -137,27 +136,28 @@ def test_native_publication_reuses_clean_fk_and_refreshes_writes_and_swaps(monke
         body_q=wp.array([[0, 0, 0, 0, 0, 0, 1]], dtype=wp.transformf, device="cpu"),
         body_f=wp.zeros(1, dtype=wp.spatial_vectorf, device="cpu"),
     )
-    backend = NewtonSceneDataBackend(lambda: NewtonManager._runtime)
+    backend = NewtonSceneDataBackend(lambda: NewtonManager.backend)
     provider = SceneDataProvider(backend)
-    model = SimpleNamespace(body_count=1, world_count=1, articulation_count=1, particle_count=0)
-    schema = NewtonSchema(
+    manager = Mock()
+    newton_backend = SimpleNamespace(
+        model=SimpleNamespace(body_count=1, world_count=1, articulation_world=None),
+        state_0=state,
         device="cpu",
-        world_count=1,
-        world_prototypes=None,
-        physics_dt=0.01,
-        num_substeps=1,
-        collision_decimation=0,
-        body_count=1,
-        joint_dof_count=0,
-        articulation_count=1,
+        cfg=SimpleNamespace(),
+        solver=None,
+        manager=manager,
+        world_mask=wp.zeros(2, dtype=wp.bool, device="cpu"),
+        fk_mask=wp.zeros(1, dtype=wp.bool, device="cpu"),
+        world_ids=wp.zeros(1, dtype=wp.int32, device="cpu"),
+        kinematics_dirty=False,
+        transforms_may_change_on_graph_replay=False,
     )
-    runtime = newton_runtime.create_runtime(SimpleNamespace(model=model, state_0=state), schema)
-    monkeypatch.setattr(NewtonManager, "_runtime", runtime)
+    monkeypatch.setattr(NewtonManager, "backend", newton_backend)
     monkeypatch.setattr(NewtonManager, "_scene_data_backend", backend)
     # Fabric may bind between native allocation and solver initialization.
     assert backend.transforms.transforms is state.body_q
-    runtime.solver = Mock()
-    eval_fk = runtime.solver.eval_fk
+    newton_backend.solver = object()
+    eval_fk = manager.eval_fk
     monkeypatch.setattr(wp, "launch", Mock(wraps=wp.launch))
 
     output = SceneDataFormat.Matrix44()
@@ -184,7 +184,7 @@ def test_native_publication_reuses_clean_fk_and_refreshes_writes_and_swaps(monke
     assert wp.launch.call_count == 2
 
     replacement = wp.array([[3, 2, 1, 0, 0, 0, 1]], dtype=wp.transformf, device="cpu")
-    runtime.backend.state_0 = SimpleNamespace(body_q=replacement)
+    newton_backend.state_0 = SimpleNamespace(body_q=replacement)
     native = SceneDataFormat.Transform()
     assert provider.get_transforms(native)
     assert native.transforms is replacement

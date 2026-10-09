@@ -16,10 +16,9 @@ import pytest
 import torch
 import warp as wp
 from isaaclab_newton.assets import Articulation
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, newton_backend
 from isaaclab_newton.physics import NewtonManager as SimulationManager
-from isaaclab_newton.physics import runtime as newton_runtime
-from isaaclab_newton.physics.step_program import StepProgram
+from isaaclab_newton.physics.newton_backend import StepGraph
 from isaaclab_physx.sim.schemas import PhysxJointCfg
 from newton.solvers import SolverMuJoCo
 
@@ -128,10 +127,9 @@ def test_env_reset_clears_selected_mjwarp_solver_internals(device):
         warm_start[1].fill_(29.0)
         wp.synchronize_device(device)
 
-        # Compile an empty step program so only the step boundary's reconcile touches the solver.
-        runtime = SimulationManager._runtime
-        runtime.program = None
-        with patch.object(newton_runtime, "compile_program", lambda runtime, steps: StepProgram((), steps)):
+        # Build an empty step graph so only the step boundary's forward touches the solver.
+        SimulationManager.backend.step_graph = None
+        with patch.object(newton_backend, "build_step_graph", lambda backend, steps: StepGraph((), steps)):
             sim.step(render=False)
         wp.synchronize_device(device)
 

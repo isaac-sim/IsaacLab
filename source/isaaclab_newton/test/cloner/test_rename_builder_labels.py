@@ -17,7 +17,6 @@ from isaaclab_newton.cloner import newton_clone_utils as newton_clone_utils_modu
 from isaaclab_newton.cloner import replicate as replicate_module
 from isaaclab_newton.cloner.newton_clone_utils import replicate_builder_mapping
 from isaaclab_newton.physics import NewtonBackendCfg, NewtonCloneRecord
-from isaaclab_newton.physics.runtime import NewtonBuildRequests
 
 from pxr import Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
 
@@ -236,10 +235,11 @@ class TestVisualizationClonePlan(unittest.TestCase):
             source_builders={},
             particle_ranges={},
             cable_bindings=bindings,
+            geometry_batches=[],
         )
-        with mock.patch.object(replicate_module.NewtonManager, "_requests", NewtonBuildRequests(clone=clone)):
+        with mock.patch.object(replicate_module.NewtonManager, "_clone", clone):
             builder, _, _ = NewtonReplicateContext(self.sim).replicate(plan, (0, *range(2, len(shared) + 2)))
-            self.assertIs(replicate_module.NewtonManager.build_requests().clone.cable_bindings, bindings)
+            self.assertIs(replicate_module.NewtonManager.get_clone_record().cable_bindings, bindings)
         for path in ("/Scene/SharedRope", "/Scene/copy_0/Rope", "/Scene/copy_1/Rope"):
             self.assertTrue(all(f"{path}_edge_capsule_{index}" in builder.shape_label for index in range(2)))
         self.assertFalse(any("OtherRope" in path for path in builder.shape_label))

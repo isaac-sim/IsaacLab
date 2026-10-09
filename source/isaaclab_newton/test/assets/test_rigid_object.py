@@ -695,8 +695,7 @@ def test_body_link_pose_w_fresh_after_root_pose_write(scene: _Scene) -> None:
     """
 
     def _fk_reset_mask_dirty() -> bool:
-        assert SimulationManager._fk_reset_mask is not None
-        return bool(wp.to_torch(SimulationManager._fk_reset_mask).any().item())
+        return bool(wp.to_torch(SimulationManager.backend.fk_mask).any().item())
 
     cube_object = scene.cube
     num_cubes = cube_object.num_instances
@@ -1077,8 +1076,7 @@ def test_body_pose_write_marks_fk_reset_mask(scene: _Scene) -> None:
     """
 
     def _fk_reset_mask_dirty() -> bool:
-        assert SimulationManager._fk_reset_mask is not None
-        return bool(wp.to_torch(SimulationManager._fk_reset_mask).any().item())
+        return bool(wp.to_torch(SimulationManager.backend.fk_mask).any().item())
 
     cube_object = scene.collection
     scene.step()

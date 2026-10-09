@@ -31,6 +31,7 @@ from newton import CollisionPipeline, Contacts, Model, ModelBuilder, State
 from newton.sensors import SensorContact, SensorIMU
 
 from isaaclab.utils.buffers import TimestampedBuffer
+from isaaclab.utils.string import string_to_callable
 from isaaclab.utils.version import has_kit
 from isaaclab.utils.warp.index_kernel import IndexKernelDispatcher
 
@@ -295,6 +296,12 @@ class NewtonBackend:
         self.particle_ranges: dict[str, tuple[int, int]] = {} if clone is None else clone.particle_ranges
         model.num_envs = model.world_count if clone is None else clone.num_envs
         self.device = str(model.device)
+        # Physics settings apply to the model before any state is allocated from it.
+        soft_contact = physics_cfg.soft_contact_cfg if isinstance(physics_cfg, NewtonCfg) else None
+        if soft_contact is not None:
+            model.soft_contact_ke = float(soft_contact.soft_contact_ke)
+            model.soft_contact_kd = float(soft_contact.soft_contact_kd)
+            model.soft_contact_mu = float(soft_contact.soft_contact_mu)
         self.state_0: State = model.state()
         self.bvh_refit = TimestampedBuffer()
 
@@ -308,13 +315,9 @@ class NewtonBackend:
             return
         if dt is None:
             raise ValueError("A simulation NewtonBackend requires the physics step duration dt.")
-        soft_contact = physics_cfg.soft_contact_cfg
-        if soft_contact is not None:
-            model.soft_contact_ke = float(soft_contact.soft_contact_ke)
-            model.soft_contact_kd = float(soft_contact.soft_contact_kd)
-            model.soft_contact_mu = float(soft_contact.soft_contact_mu)
 
-        self.manager: type[NewtonManager] = physics_cfg.class_type
+        manager = physics_cfg.class_type
+        self.manager: type[NewtonManager] = string_to_callable(manager) if isinstance(manager, str) else manager
         """Solver manager whose classmethods construct, step, and reset the solver of this backend."""
         self.dt = dt
         """Duration of one physics step [s]."""

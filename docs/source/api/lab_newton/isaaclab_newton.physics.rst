@@ -8,12 +8,11 @@
   .. autosummary::
 
     NewtonManager
-    NewtonSolverBinding
-    NewtonRuntime
-    NewtonSchema
+    NewtonBackend
     NewtonCloneRecord
     StepPhase
-    StepStage
+    StepCallback
+    StepGraph
     NewtonCfg
     NewtonBackendCfg
     NewtonBuilderCfg
@@ -53,19 +52,9 @@ Physics Manager
   :inherited-members:
   :show-inheritance:
 
-.. autoclass:: NewtonSolverBinding
+.. autoclass:: NewtonBackend
   :members:
   :show-inheritance:
-
-.. autoclass:: NewtonRuntime
-  :members:
-  :show-inheritance:
-  :exclude-members: __init__
-
-.. autoclass:: NewtonSchema
-  :members:
-  :show-inheritance:
-  :exclude-members: __init__
 
 .. autoclass:: NewtonCloneRecord
   :members:
@@ -76,10 +65,22 @@ Physics Manager
   :members:
   :show-inheritance:
 
-.. autoclass:: StepStage
+.. autoclass:: StepCallback
   :members:
   :show-inheritance:
   :exclude-members: __init__
+
+.. autoclass:: StepGraph
+  :members:
+  :show-inheritance:
+
+Backend Functions
+-----------------
+
+.. automodule:: isaaclab_newton.physics.newton_backend
+  :members: init_solver, forward, invalidate_fk, invalidate_body_state, view_row_worlds, notify_model_changes,
+    register_step_callback, unregister_step_callback, activate_actuators, add_contact_sensor, add_imu_sensor,
+    build_step_graph, prepare, step, record_step, capture_graph, create_newton_backend
 
 Physics Configuration
 ---------------------

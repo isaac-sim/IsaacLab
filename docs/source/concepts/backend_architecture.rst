@@ -104,8 +104,9 @@ Newton has two resources with different lifetimes, not two interchangeable backe
 * ``ModelBuilder`` holds mutable construction data. Cloning populates it and sensors declare
   requirements before finalization. It remains available for hard reset. ``NewtonBuilderCfg``
   is a plain construction cfg, not a ``BackendCfg``; the builder needs no native ``close()``.
-* ``NewtonBackend`` owns the finalized model and native buffers. Physics and render consumers
-  borrow those handles. Closing it releases runtime allocations without closing the builder.
+* ``NewtonBackend`` owns the finalized model and native buffers and, under Newton physics, the
+  solver, contacts, step callbacks, and compiled step graph. Physics and render consumers borrow
+  those handles. Closing it releases runtime allocations without closing the builder.
 
 Both resources use the same registry:
 

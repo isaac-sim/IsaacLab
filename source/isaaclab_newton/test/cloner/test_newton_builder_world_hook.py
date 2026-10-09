@@ -16,7 +16,6 @@ import warp as wp
 from isaaclab_newton.cloner import copy_newton_clone_source, newton_builder_world_hook
 from isaaclab_newton.physics import NewtonCfg, NewtonCloneRecord, NewtonManager, VBDSolverCfg
 from isaaclab_newton.physics.newton_manager import NewtonSceneDataBackend
-from isaaclab_newton.physics.runtime import NewtonBuildRequests
 
 from pxr import Sdf, Usd, UsdGeom, UsdLux, UsdPhysics, UsdShade
 
@@ -40,7 +39,7 @@ def test_newton_builder_world_hook_owns_one_registration(monkeypatch):
         pass
 
     hooks = [existing]
-    monkeypatch.setattr(NewtonManager, "_requests", NewtonBuildRequests(world_builder_hooks=hooks))
+    monkeypatch.setattr(NewtonManager, "_world_builder_hooks", hooks)
 
     with pytest.raises(ValueError, match="stop"):
         with newton_builder_world_hook(temporary):
@@ -74,8 +73,9 @@ def test_copy_newton_clone_source_owns_mutable_geometry(monkeypatch):
         source_builders={"/World/Source": source},
         particle_ranges={},
         cable_bindings={},
+        geometry_batches=[],
     )
-    monkeypatch.setattr(NewtonManager, "_requests", NewtonBuildRequests(clone=clone))
+    monkeypatch.setattr(NewtonManager, "_clone", clone)
 
     copied = copy_newton_clone_source("/World/Source")
 
@@ -140,8 +140,10 @@ def test_explicit_global_import_uses_global_world(
     )
     sim.get_or_create_backend = lambda cfg: SimulationContext.get_or_create_backend(sim, cfg)
     monkeypatch.setattr(replicate_module.PhysicsManager, "_sim", sim)
-    monkeypatch.setattr(NewtonManager, "_scene_data_backend", NewtonSceneDataBackend(lambda: NewtonManager._runtime))
-    monkeypatch.setattr(NewtonManager, "_requests", NewtonBuildRequests())
+    monkeypatch.setattr(NewtonManager, "_scene_data_backend", NewtonSceneDataBackend(lambda: NewtonManager.backend))
+    monkeypatch.setattr(NewtonManager, "_site_requests", {})
+    monkeypatch.setattr(NewtonManager, "_world_builder_hooks", [])
+    monkeypatch.setattr(NewtonManager, "_clone", None)
 
     env_ids, mapping = np.arange(2, dtype=np.int64), np.empty((0, 2), dtype=np.bool_)
     builder, _ = replicate_module.newton_physics_replicate(stage, (), (), env_ids, mapping, global_paths=global_paths)

@@ -769,8 +769,8 @@ def test_newton_visualizer_hard_reset_rebinds_viewer_model(monkeypatch, picking)
     backend = SimpleNamespace(model=new_model, state_0=new_state)
     sim = SimpleNamespace(get_or_create_backend=Mock(return_value=backend))
     monkeypatch.setattr(SimulationContext, "instance", lambda: sim)
-    add_stage = Mock()
-    monkeypatch.setattr(NewtonManager, "add_stage", add_stage)
+    register_step_callback = Mock()
+    monkeypatch.setattr(NewtonManager, "register_step_callback", register_step_callback)
 
     viewer = _Viewer()
     viewer.picking_enabled = False
@@ -800,12 +800,12 @@ def test_newton_visualizer_hard_reset_rebinds_viewer_model(monkeypatch, picking)
     assert viewer.picking_enabled is picking
     if picking:
         assert viewer.wind is None
-        # The hard reset discarded the old runtime's stages, so picking forces join the new step program.
-        add_stage.assert_called_once_with(
-            visualizer._viewer_picking_binding.apply, StepPhase.SUBSTEP, name="viewer.picking"
+        # The hard reset discarded the old backend's callbacks, so picking forces join the new step.
+        register_step_callback.assert_called_once_with(
+            visualizer._viewer_picking_binding.apply, StepPhase.STATE_FORCE, name="viewer.picking"
         )
     else:
-        add_stage.assert_not_called()
+        register_step_callback.assert_not_called()
     assert visualizer._viewer_picking_binding._viewer is viewer
 
 

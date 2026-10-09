@@ -37,7 +37,7 @@ from dataclasses import dataclass
 from types import SimpleNamespace
 from unittest.mock import patch
 
-import isaaclab_newton.physics.newton_manager as newton_manager_module
+import isaaclab_newton.physics.newton_backend as newton_backend
 import newton
 import numpy as np
 import pytest
@@ -384,23 +384,27 @@ def test_write_joint_limit_data_to_user_and_backend_mask_reorders_backend_buffer
 
 @pytest.mark.parametrize("index_dtype", [wp.int32, wp.int64])
 def test_scatter_reset_masks_from_ids_accepts_index_dtype(index_dtype: type) -> None:
-    """Set exact world and articulation reset masks from nonidentity environment IDs."""
+    """Set exact world and articulation reset masks from nonidentity environment IDs.
 
+    View rows map to worlds through the model's articulation-to-world table; a global articulation (world -1) only
+    requests FK and never flags the global world slot.
+    """
+    articulation_world = wp.array(np.asarray([0, 0, 1, 1, 2, -1], dtype=np.int32), dtype=wp.int32, device="cpu")
+    backend = SimpleNamespace(
+        model=SimpleNamespace(world_count=3, articulation_world=articulation_world),
+        device="cpu",
+        world_mask=wp.zeros(4, dtype=wp.bool, device="cpu"),
+        fk_mask=wp.zeros(6, dtype=wp.bool, device="cpu"),
+        kinematics_dirty=False,
+    )
     env_ids = _selector([2, 0], index_dtype)
     articulation_ids = wp.array(np.asarray([[0, 1], [2, 3], [4, 5]], dtype=np.int32), dtype=int, device="cpu")
-    world_mask = wp.zeros(3, dtype=wp.bool, device="cpu")
-    fk_mask = wp.zeros(6, dtype=wp.bool, device="cpu")
 
-    wp.launch(
-        newton_manager_module._scatter_reset_masks_from_ids,
-        dim=(env_ids.shape[0], articulation_ids.shape[1]),
-        inputs=[env_ids, articulation_ids],
-        outputs=[world_mask, fk_mask],
-        device="cpu",
-    )
+    newton_backend.invalidate_fk(backend, env_ids=env_ids, articulation_ids=articulation_ids)
 
-    np.testing.assert_array_equal(world_mask.numpy(), np.asarray([True, False, True]))
-    np.testing.assert_array_equal(fk_mask.numpy(), np.asarray([True, True, False, False, True, True]))
+    assert backend.kinematics_dirty
+    np.testing.assert_array_equal(backend.world_mask.numpy(), np.asarray([True, False, True, False]))
+    np.testing.assert_array_equal(backend.fk_mask.numpy(), np.asarray([True, True, False, False, True, True]))
 
 
 def test_num_shapes_per_body_follows_public_body_order() -> None:
@@ -564,21 +568,13 @@ def test_hard_reset_recreates_ordered_state_and_actuators(device: str) -> None:
     with build_simulation_context(sim_cfg=newton_sim_cfg(device, use_newton_actuators=False)) as sim:
         articulations = spawn_assets(cfgs)
         sim.reset()
-        callback_counts = (
-            len(SimulationManager._callbacks),
-            len(SimulationManager._post_step_callbacks),
-            len(SimulationManager._post_actuator_callbacks),
-        )
+        callback_counts = (len(SimulationManager._callbacks), len(SimulationManager.backend.callbacks))
         for reset_index in range(3):
             if reset_index:
                 old_data = [articulation.data for articulation in articulations.values()]
                 sim.reset()
                 assert all(a.data is not previous for a, previous in zip(articulations.values(), old_data, strict=True))
-                assert callback_counts == (
-                    len(SimulationManager._callbacks),
-                    len(SimulationManager._post_step_callbacks),
-                    len(SimulationManager._post_actuator_callbacks),
-                )
+                assert callback_counts == (len(SimulationManager._callbacks), len(SimulationManager.backend.callbacks))
 
             positions = []
             for name, articulation in articulations.items():
@@ -632,7 +628,7 @@ def test_newton_ordered_state_publishes_inside_captured_cuda_graph(device: str) 
         sim.reset()
         # the first step captures the graph that later steps replay
         sim.step()
-        assert SimulationManager._graph is not None
+        assert SimulationManager.backend.step_graph.captured
         data = articulation.data
         joint_u2b = np.asarray(articulation.joint_ordering.user_to_backend_indices)
         body_u2b = np.asarray(articulation.body_ordering.user_to_backend_indices)
@@ -1613,7 +1609,7 @@ def test_hand_with_tendons_targets_only_given_envs_and_properties_reach_solver(s
     articulation.write_fixed_tendon_properties_to_sim_mask()
     scene.step("tendon")
 
-    solver_model = SimulationManager._solver.mjw_model
+    solver_model = SimulationManager.get_solver().mjw_model
     np.testing.assert_allclose(solver_model.tendon_stiffness.numpy(), 12.0)
     np.testing.assert_allclose(solver_model.tendon_damping.numpy(), 3.0)
     np.testing.assert_allclose(solver_model.tendon_range.numpy(), limits.cpu().numpy(), rtol=1e-6)
@@ -1959,7 +1955,7 @@ def test_body_q_consistent_after_root_write(scene: _Scene) -> None:
     Regression test for a NaN bug where collide() used stale body_q after env
     reset because eval_fk was not called between write_root_pose and collide.
 
-    The scene uses Newton's collision pipeline, and the test patches ``_simulate_physics_only`` to capture
+    The scene uses Newton's collision pipeline, and the test wraps the pipeline's ``collide`` to capture
     body_q at the moment collide() is called and asserts it matches joint_q.
     """
     device = scene.device
@@ -1982,26 +1978,28 @@ def test_body_q_consistent_after_root_write(scene: _Scene) -> None:
         env_ids=torch.tensor([0], device=device, dtype=torch.int32),
     )
 
-    # Patch _simulate_physics_only to capture body_q before collide runs
+    # Wrap the pipeline's collide to capture body_q as collide() sees it; the step graph binds collide when it is
+    # built, so drop the built graph before stepping and after restoring the pipeline.
     captured = {}
-    original_simulate = SimulationManager._simulate_physics_only.__func__
+    backend = SimulationManager.backend
+    pipeline = backend.collision_pipeline
+    assert pipeline is not None and backend.manager.uses_collision_pipeline(backend)
+    original_collide = pipeline.collide
 
-    @classmethod  # type: ignore[misc]
-    def _patched_simulate(cls) -> None:
-        if cls._needs_collision_pipeline:
-            bq = wp.to_torch(cls.backend.state_0.body_q)
-            jq = wp.to_torch(cls.backend.state_0.joint_q)
-            b0 = int(body_starts[0])
+    def _capturing_collide(state, contacts, *args, **kwargs):
+        if "bq_root" not in captured:
+            captured["bq_root"] = wp.to_torch(state.body_q)[int(body_starts[0]), :3].clone()
             jc0 = int(jc_starts[0])
-            captured["bq_root"] = bq[b0, :3].clone()
-            captured["jq_root"] = jq[jc0 : jc0 + 3].clone()
-        original_simulate(cls)
+            captured["jq_root"] = wp.to_torch(state.joint_q)[jc0 : jc0 + 3].clone()
+        original_collide(state, contacts, *args, **kwargs)
 
-    with patch.object(SimulationManager, "_simulate_physics_only", _patched_simulate):
+    backend.step_graph = None
+    with patch.object(pipeline, "collide", _capturing_collide):
         scene.sim.step()
+    backend.step_graph = None
     articulation.update(scene.sim.cfg.dt)
 
-    assert captured, "collision pipeline did not run — _needs_collision_pipeline is False"
+    assert captured, "collision pipeline did not run in the step"
 
     bq_root = captured["bq_root"]
     jq_root = captured["jq_root"]
