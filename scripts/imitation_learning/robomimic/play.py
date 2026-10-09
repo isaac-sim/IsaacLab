@@ -144,9 +144,6 @@ def main():
     # Extract success checking function
     success_term = env_cfg.terminations.success
     env_cfg.terminations.success = None
-    # Policy evaluation checks success manually and does not consume training rewards.
-    env_cfg.rewards = {}
-    env_cfg.curriculum = {}
 
     # Launch the runtime the task needs. Camera rendering is only enabled for tasks that declare Kit
     # camera sensors, so policies trained on low-dimensional observations do not pay for the RTX renderer.

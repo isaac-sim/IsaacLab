@@ -1106,9 +1106,6 @@ def _prepare_env_cfg(
         )
     if hasattr(env_cfg.terminations, "time_out"):
         env_cfg.terminations.time_out = None
-    # Replay checks success manually and does not use training rewards or curricula.
-    env_cfg.rewards = {}
-    env_cfg.curriculum = {}
     # Keep camera configs when external cameras are enabled (defaulted on) so the replay
     # renders them for production parity; otherwise strip them for a lighter headless replay.
     if args_cli.disable_external_cameras:

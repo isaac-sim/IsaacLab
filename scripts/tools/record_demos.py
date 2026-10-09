@@ -180,7 +180,7 @@ from isaaclab.devices.openxr import remove_camera_configs
 from isaaclab.devices.teleop_device_factory import create_teleop_device
 from isaaclab.envs import DirectRLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
-from isaaclab.managers import CommandTermCfg, DatasetExportMode
+from isaaclab.managers import DatasetExportMode
 
 import isaaclab_mimic.envs  # noqa: F401
 
@@ -354,16 +354,6 @@ def create_environment_config(
     # the goal is reached or other termination conditions are met
     env_cfg.terminations.time_out = None
     env_cfg.observations.policy.concatenate_terms = False
-
-    # Keep each demonstration's goals fixed; command generators still sample
-    # fresh goals when the environment resets for the next recording attempt.
-    if isinstance(env_cfg, ManagerBasedRLEnvCfg) and env_cfg.commands is not None:
-        command_cfgs = (
-            env_cfg.commands.values() if isinstance(env_cfg.commands, dict) else vars(env_cfg.commands).values()
-        )
-        for command_cfg in command_cfgs:
-            if isinstance(command_cfg, CommandTermCfg):
-                command_cfg.resampling_time_range = (1.0e9, 1.0e9)
 
     demo_recorder_cfg_entry_point = gym.spec(args_cli.task.split(":")[-1]).kwargs.get("demo_recorder_cfg_entry_point")
     if demo_recorder_cfg_entry_point is None:
