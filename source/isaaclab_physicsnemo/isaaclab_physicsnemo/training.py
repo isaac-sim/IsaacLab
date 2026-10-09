@@ -74,6 +74,9 @@ class TrainingSettings:
     final_learning_rate: float = 1.0e-4
     """Learning rate reached linearly at the last update."""
 
+    weight_decay: float = 0.0
+    """AdamW weight decay. Zero, as in the FlashNeRD and PhysicsNeMo Robotics training recipes."""
+
     gradient_clip_norm: float = 1.0
     """Maximum total gradient norm."""
 
@@ -215,7 +218,7 @@ def train_dynamics_artifact(
             **dimensions, max_sequence_length=settings.history, **settings.model_kwargs
         )
     network = network.to(device)
-    optimizer = torch.optim.AdamW(network.parameters(), lr=settings.learning_rate)
+    optimizer = torch.optim.AdamW(network.parameters(), lr=settings.learning_rate, weight_decay=settings.weight_decay)
     scheduler = torch.optim.lr_scheduler.LinearLR(
         optimizer,
         start_factor=1.0,

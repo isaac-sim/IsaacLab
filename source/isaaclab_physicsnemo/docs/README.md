@@ -67,7 +67,8 @@ and Torch versions, and its locked environment already includes RSL-RL for the P
 
 ```bash
 git clone https://gitlab-master.nvidia.com/mataei/physicsnemo-robotics.git /absolute/path/to/physicsnemo-robotics
-git -C /absolute/path/to/physicsnemo-robotics checkout 4e4be69
+git -C /absolute/path/to/physicsnemo-robotics fetch origin tag mnabian/flashnerd-benchmark-v1
+git -C /absolute/path/to/physicsnemo-robotics checkout mnabian/flashnerd-benchmark-v1
 export ROBOTICS_ROOT=/absolute/path/to/physicsnemo-robotics
 
 uv sync --frozen
@@ -80,11 +81,11 @@ uv pip install --python .venv/bin/python --no-deps -e source/isaaclab_physicsnem
 Run Python from `.venv/bin/python`, or use `uv run --no-sync`. A later `uv sync` restores the
 locked environment and removes these packages.
 
-The integration was validated with PhysicsNeMo Robotics `mataei/icra` at `4e4be69`, Newton 1.6.1,
-Warp 1.17.0, Torch 2.12 (CUDA 13), PhysicsNeMo 2.1.1, and RSL-RL 5.5.1 on one NVIDIA RTX PRO 5000
-Blackwell GPU (driver 595.84). The tag `mnabian/flashnerd-benchmark-v1` adds only benchmark tooling and
-FP16 model safeguards on top of `4e4be69`; the benchmark below reproduces its protocol and does not
-need that checkout.
+The integration was validated with PhysicsNeMo Robotics tag `mnabian/flashnerd-benchmark-v1`
+(`a81160e`), Newton 1.6.1, Warp 1.17.0, Torch 2.12 (CUDA 13), PhysicsNeMo 2.1.1, and RSL-RL 5.5.1 on one
+NVIDIA RTX PRO 5000 Blackwell GPU (driver 595.84). The tag adds the FlashNeRD benchmark tooling and the
+ParallelNeRD FP16 safeguards to `mataei/icra` at `4e4be69`, which the reference results below were measured
+with; its library sources otherwise equal that commit.
 
 ## Examples
 
