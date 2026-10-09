@@ -229,6 +229,12 @@ python source/isaaclab_physicsnemo/examples/cartpole/flashnerd_benchmark.py --ou
   --max-updates 20000
 ```
 
+The benchmark trains with resident windows and FP16 autocast, appends the held-out `E_H` of every
+checkpoint to `rollout_nrmse.jsonl`, and resumes from its last checkpoint when rerun. `--teacher physicsnemo
+--physicsnemo-root <checkout>` instead generates and trains on the study's own Featherstone CartPole, which
+separates the training recipe from the difference in teacher systems. Run the `data` stage in one process
+and the `train` stage under `torchrun --nproc-per-node 2` for the study's two data-parallel ranks.
+
 | Setting | Study | This benchmark |
 | --- | --- | --- |
 | Teacher | Its own Cartpole URDF, Newton Featherstone, 1/60 s frames | Isaac Lab Cartpole, MuJoCo Warp, 1/60 s frames (`CartpoleFlashNeRDBenchmarkEnvCfg`) |
@@ -302,6 +308,21 @@ environment still produces falls that MuJoCo Warp does not, and PPO trained unde
 FlashNeRD reports parity (28.0 against 27.8 in its reward). The remaining differences from its setup are
 the 5 ms frame with four times as many autoregressive steps and a 50 ms history window, effort instead of
 joint-target control, and ANYmal-D instead of ANYmal-C.
+
+## Container
+
+`docker/Dockerfile` adds PhysicsNeMo Robotics and this extension to the kit-less Isaac Lab image, for
+cluster jobs that record, train, and evaluate without Isaac Sim:
+
+```bash
+docker build -f docker/Dockerfile.kitless -t isaac-lab-kitless .
+docker build -f source/isaaclab_physicsnemo/docker/Dockerfile --build-arg BASE_IMAGE=isaac-lab-kitless \
+  --build-context physicsnemo=/absolute/path/to/physicsnemo-robotics -t isaaclab-physicsnemo .
+docker run --rm --gpus all --entrypoint bash isaaclab-physicsnemo \
+  -c "python -m pytest source/isaaclab_physicsnemo/test"
+```
+
+The image contains PhysicsNeMo Robotics sources, so publish it only to a private registry.
 
 ## Library
 
