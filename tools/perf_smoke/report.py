@@ -152,7 +152,7 @@ def _build_identity(label: str, identity: dict | None) -> str:
     commit = _build_text(str(identity.get("source_commit", "unknown"))[:12])
     run = _build_text(identity.get("run_id", "unknown"))
     attempt = _build_text(identity.get("run_attempt", "unknown"))
-    # Artifact-provided URLs are untrusted, including links recovered from earlier reports.
+    # Rebuild links because URLs supplied by artifacts may be unsafe.
     repository = identity.get("repository", "")
     origin = f"https://github.com/{repository}" if re.fullmatch(r"[\w.-]+/[\w.-]+", repository) else None
     source = commit
@@ -277,9 +277,7 @@ def _build_source_diagnostics(report: dict) -> list[str]:
     return lines
 
 
-def _build_candidate_label(report: dict, pr: bool, identity: dict | None) -> str:
-    if not pr:
-        return "B — current benchmark"
+def _build_candidate_label(report: dict, identity: dict | None) -> str:
     if (identity or {}).get("source_provenance") == "github_run_metadata":
         return "B — PR revision (not verified)"
     return {
@@ -301,10 +299,8 @@ def render_build_comparison(report: dict) -> str:
     unavailable_side = selection.get("unavailable_side")
     if unavailable_side in identities and not identities[unavailable_side]:
         identities[unavailable_side] = selection.get("unavailable_evidence")
-    paired = report.get("comparison_mode") == "paired_pr"
-    pr = paired or (report.get("candidate") or {}).get("event") == "pull_request"
-    a_label = "A — PR base" if paired else "A — historical baseline"
-    b_label = _build_candidate_label(report, pr, identities["candidate"])
+    a_label = "A — PR base"
+    b_label = _build_candidate_label(report, identities["candidate"])
     a_label += " (evidence unavailable)" if unavailable_side == "baseline" else ""
     b_label += " (evidence unavailable)" if unavailable_side == "candidate" else ""
     rows = report.get("rows", [])
@@ -314,7 +310,7 @@ def render_build_comparison(report: dict) -> str:
     if results["⚪ Unchanged"]:
         counts.append(f"⚪ Unchanged {results['⚪ Unchanged']}")
     lines = [
-        "### PR performance comparison" if paired else "### Automatic build comparison",
+        "### PR performance comparison",
         "",
         "**" + (" · ".join(counts) if rows else "⚪ Not comparable: no workload results available") + "**",
         "",
@@ -330,7 +326,7 @@ def render_build_comparison(report: dict) -> str:
     primary_rows = _build_primary_rows(rows, selection.get("paired_failure"))
     if primary_rows:
         lines += [
-            f"| Status | Workload | Baseline FPS | {'PR' if pr else 'Current'} FPS | Change % |",
+            "| Status | Workload | Baseline FPS | PR FPS | Change % |",
             "| --- | --- | ---: | ---: | ---: |",
         ]
     for label, row in zip(labels, primary_rows):
@@ -359,10 +355,10 @@ def render_build_comparison(report: dict) -> str:
         "**Baseline selection:** " + _build_text(selection.get("reason", "Selection information is unavailable.")),
         "",
     ]
-    if paired and isinstance(selection.get("baseline_reused"), bool):
+    if isinstance(selection.get("baseline_reused"), bool):
         measurement_status = "reused." if selection["baseline_reused"] else "run for this PR."
         lines += ["Baseline measurements: " + (measurement_status if report.get("baseline") else "unavailable."), ""]
-    if paired and selection.get("baseline_origin"):
+    if selection.get("baseline_origin"):
         lines += [_build_identity("Baseline measurement origin", selection["baseline_origin"]), ""]
     measurement_sources = report.get("measurement_sources", {})
     if measurement_sources:
@@ -387,11 +383,7 @@ def render_build_comparison(report: dict) -> str:
     if selection.get("reference_branch"):
         anchor = _build_text(str(selection.get("reference_commit") or "unknown")[:12])
         lines += [f"Reference: {_build_text(selection['reference_branch'])} at `{anchor}`.", ""]
-    if paired:
-        lines += _build_source_diagnostics(report)
-    visited = selection.get("visited_commits", [])
-    if report.get("baseline") and len(visited) > 1:
-        lines += [f"The selected reference is {len(visited) - 1} first-parent commit(s) older than the anchor.", ""]
+    lines += _build_source_diagnostics(report)
     candidate = report.get("candidate") or {}
     if candidate.get("run_attempt") and report.get("report_attempt") != candidate["run_attempt"]:
         lines += [

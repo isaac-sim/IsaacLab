@@ -33,4 +33,4 @@ Their revisions and the measurement digest appear in the Summary's collapsed sou
 Percentage comparisons require matching task settings, measurement protocols, CPU/GPU models, and device counts.
 Missing, incomplete, unverified, or incompatible results remain visible as **Not comparable**.
 
-The existing rolling-history gate and non-PR historical comparison remain separate.
+This build comparison is for PRs. The existing rolling-history gate remains separate and also runs for non-PR builds.

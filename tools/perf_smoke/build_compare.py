@@ -31,9 +31,8 @@ def _fps(bundle: dict) -> float | None:
     return valid_fps(value)
 
 
-def _formula(evidence: Evidence | None, definition: dict | None = None) -> str | None:
-    if definition is None:
-        definition = _object(evidence.context.get("metric_definition")) if evidence else {}
+def _formula(evidence: Evidence | None) -> str | None:
+    definition = _object(evidence.context.get("metric_definition")) if evidence else {}
     value = definition.get("total_fps")
     return (
         value
@@ -222,12 +221,11 @@ def _row(
     b: Evidence,
     left: dict | None,
     right: dict | None,
-    baseline_definition: dict | None = None,
 ) -> dict:
     before, left_reasons = _summary(a, left)
     after, right_reasons = _summary(b, right)
     reasons = ["Baseline: " + reason for reason in left_reasons] + ["Candidate: " + reason for reason in right_reasons]
-    formulas = {"baseline": _formula(a, baseline_definition), "candidate": _formula(b)}
+    formulas = {"baseline": _formula(a), "candidate": _formula(b)}
     pa, pb = _observations(left, _protocol), _observations(right, _protocol)
     protocol_differences = _differences(pa, pb, missing=True)
     context_differences = _differences(_context(a, left), _context(b, right))
@@ -293,9 +291,7 @@ def _row(
     }
 
 
-def compare_evidence(
-    baseline: Evidence | None, candidate: Evidence, *, baseline_metric_definition: dict | None = None
-) -> dict:
+def compare_evidence(baseline: Evidence | None, candidate: Evidence) -> dict:
     """Return dynamically discovered workload rows and descriptive FPS deltas."""
     aliases = defaultdict(set)
     for evidence in (baseline, candidate):
@@ -310,22 +306,10 @@ def compare_evidence(
     ]
     if baseline is None:
         notes.append("No baseline evidence was selected.")
-    derived = (
-        baseline_metric_definition.get("definition") if baseline is not None and baseline_metric_definition else None
-    )
-    if derived is not None:
-        notes.append(
-            "Baseline FPS identity was re-derived from its verified checkout; "
-            "the original artifact and recorded identity are unchanged."
-        )
     for side, evidence in (("Baseline", baseline), ("Candidate", candidate)):
         if evidence:
             notes.extend(f"{side}: {issue}" for issue in evidence.issues)
-            definition = (
-                derived
-                if side == "Baseline" and derived is not None
-                else _object(evidence.context.get("metric_definition"))
-            )
+            definition = _object(evidence.context.get("metric_definition"))
             if definition.get("reason"):
                 notes.append(f"{side} FPS definition: {definition['reason']}")
     if not left and not right:
@@ -339,8 +323,7 @@ def compare_evidence(
             if evidence and evidence.context.get("measurement")
         },
         "rows": [
-            _row(key, baseline, candidate, left.get(key), right.get(key), derived)
-            for key in sorted(left.keys() | right.keys())
+            _row(key, baseline, candidate, left.get(key), right.get(key)) for key in sorted(left.keys() | right.keys())
         ],
         "notes": notes,
     }
@@ -380,23 +363,18 @@ def main(argv: list[str] | None = None) -> int:
     if not args.repository or not args.run_id or not args.run_attempt or min(args.run_id, args.run_attempt) < 1:
         parser.error("Repository, run ID and report attempt are needed to resolve current benchmark evidence")
 
-    candidate = selected = pinned = paired_failure = None
+    candidate = selected = paired_failure = None
     selection = {}
     try:
         client = baseline_mod.GitHubClient(args.repository)
         candidate = baseline_mod.resolve_candidate(client, args.run_id, args.run_attempt)
-        if candidate.identity.get("event") == "pull_request":
-            paired_failure = _paired_failure(candidate)
-            selected, selection = select_pr_baseline(client, candidate)
-        else:
-            pinned = baseline_mod.load_previous_selection(client, candidate)
-            selected, selection = baseline_mod.select_baseline(client, candidate, pinned)
+        paired_failure = _paired_failure(candidate)
+        selected, selection = select_pr_baseline(client, candidate)
     except baseline_mod.EvidenceError as exc:
         selection = {
             "reason": str(exc),
             "reason_code": exc.code,
-            "pinned": pinned is not None,
-            "unavailable_evidence": pinned or exc.identity,
+            "unavailable_evidence": exc.identity,
             "unavailable_side": "candidate" if candidate is None else "baseline",
         }
 
@@ -406,14 +384,9 @@ def main(argv: list[str] | None = None) -> int:
             selection["unavailable_side"] = "candidate"
 
     payload = (
-        compare_evidence(selected, candidate, baseline_metric_definition=selection.get("baseline_metric_definition"))
+        compare_evidence(selected, candidate)
         if candidate is not None
         else {"candidate": None, "baseline": None, "rows": [], "notes": ["Candidate evidence is unavailable."]}
-    )
-    is_pr = (
-        candidate.identity.get("event") == "pull_request"
-        if candidate is not None
-        else os.environ.get("GITHUB_EVENT_NAME") == "pull_request"
     )
     payload.update(
         schema_version=1,
@@ -422,8 +395,8 @@ def main(argv: list[str] | None = None) -> int:
         run_id=args.run_id,
         report_attempt=args.run_attempt,
         selection=selection,
-        comparison_mode="paired_pr" if is_pr else "historical",
-        candidate_kind="merge" if is_pr and candidate and candidate.identity.get("tested_commit") else None,
+        comparison_mode="paired_pr",
+        candidate_kind="merge" if candidate and candidate.identity.get("tested_commit") else None,
         source_context=_object(candidate.context.get("source")) if candidate else {},
     )
     args.output_dir.mkdir(parents=True, exist_ok=True)

@@ -3,18 +3,16 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Pure FPS comparison tests, independent of evidence retrieval and selection."""
+"""Tests for FPS comparisons, Summary rendering, and report failures."""
 
-import contextlib
 import copy
-import io
 import json
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from . import build_compare, cli, compare
+from . import build_compare, compare
 from .baseline import Evidence, workload_key
 from .build_compare import compare_evidence
 from .report import render_aggregate, render_build_comparison
@@ -46,7 +44,7 @@ def bundle(fps, task="Task", *, seed=42):
     }
 
 
-def evidence(samples=None, *, expected=3, formula="source-fps-v2:" + "a" * 64, statuses=None):
+def evidence(samples=None, *, expected=3, formula="measurement-v1:" + "a" * 64, statuses=None):
     samples = {"leg": [bundle(90), bundle(100), bundle(110)]} if samples is None else samples
     return Evidence(
         identity={"run_id": 1, "run_attempt": 1, "source_commit": "a" * 40},
@@ -102,7 +100,7 @@ class ReportRenderingTests(unittest.TestCase):
         markdown = render_build_comparison(report)
         primary, diagnostics = markdown.split("<details>", 1)
         self.assertIn("**🟢 Improved 2 · 🔴 Regressed 1 · ⚪ Not comparable 1 · ⚪ Unchanged 1**", primary)
-        self.assertIn("Status | Workload | Baseline FPS | Current FPS | Change %", primary)
+        self.assertIn("Status | Workload | Baseline FPS | PR FPS | Change %", primary)
         self.assertNotIn("PASS", markdown)
         self.assertNotIn("FAIL", markdown)
         rows = [line for line in primary.splitlines() if line.startswith("|")]
@@ -385,7 +383,7 @@ class BuildComparisonTests(unittest.TestCase):
         self.assertIn("Candidate: " + b.issues[0], report["notes"])
 
     def test_unknown_different_and_legacy_fps_formulas_are_not_equivalent(self):
-        known = "source-fps-v2:" + "a" * 64
+        known = "measurement-v1:" + "a" * 64
         legacy = "aggregate_frames_over_measured_seconds"
         for case, baseline_formula, candidate_formula, candidate_fps, expected in (
             ("missing", known, None, 100, "unknown"),
@@ -406,17 +404,6 @@ class BuildComparisonTests(unittest.TestCase):
                 self.assertIsNone(row["change_pct"])
                 if case.startswith("legacy_"):
                     self.assertIn("FPS formula identity is unknown for one or both selections.", row["reasons"])
-
-    def test_verified_baseline_definition_can_replace_a_legacy_recorded_label(self):
-        a = evidence(formula="aggregate_frames_over_measured_seconds")
-        b = evidence({"leg": [bundle(110) for _ in range(3)]})
-        original_definition = copy.deepcopy(a.context["metric_definition"])
-        report = compare_evidence(a, b, baseline_metric_definition={"definition": b.context["metric_definition"]})
-        row = report["rows"][0]
-        self.assertEqual(row["status"], "compared")
-        self.assertEqual(row["change_pct"], 10)
-        self.assertEqual(a.context["metric_definition"], original_definition)
-        self.assertTrue(any("re-derived from its verified checkout" in note for note in report["notes"]))
 
     def test_protocol_changes_and_missing_values_are_explicit(self):
         for field, value in (
@@ -574,25 +561,14 @@ class BuildComparisonTests(unittest.TestCase):
             self.assertEqual(len(rows), 2)
             self.assertTrue(all(row["status"] == "missing" for row in rows))
 
-    def test_historical_missing_context_keeps_observations_without_delta(self):
-        a, b = evidence(), evidence()
-        a.context = b.context = {}
-        a.issues = ["Historical formula unavailable"]
-        report = compare_evidence(a, b)
-        self.assertEqual(report["rows"][0]["status"], "unknown")
-        self.assertEqual(report["rows"][0]["baseline"]["median"], 100)
-        self.assertIsNone(report["rows"][0]["change_pct"])
-        self.assertIn("Baseline: Historical formula unavailable", report["notes"])
-
 
 class AutomaticReportTests(unittest.TestCase):
     def setUp(self):
         self.client = FixtureClient()
-        for run_id, commit, hour, fps in ((10, PARENT, 8, 100), (20, HEAD, 12, 80)):
-            samples = [bundle(fps) for _ in range(3)]
-            for sample in samples:
-                sample["run"].update(start_time_utc=stamp(hour, 1), end_time_utc=stamp(hour, 5))
-            self.client.add(run_id, commit, start=stamp(hour), samples={"leg": samples})
+        samples = [bundle(80) for _ in range(3)]
+        for sample in samples:
+            sample["run"].update(start_time_utc=stamp(12, 1), end_time_utc=stamp(12, 5))
+        self.client.add(20, HEAD, start=stamp(12), samples={"leg": samples}, event="pull_request")
 
     def run_report(self, output, attempt=1):
         with patch.object(build_compare.baseline_mod, "GitHubClient", return_value=self.client):
@@ -613,82 +589,6 @@ class AutomaticReportTests(unittest.TestCase):
             json.loads((output / "build-comparison.json").read_text()),
             (output / "build-comparison.md").read_text(),
         )
-
-    def test_automatic_report_is_advisory_and_preserves_existing_gate_failure(self):
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            gate = root / "comparisons" / "leg"
-            gate.mkdir(parents=True)
-            (gate / "comparison.json").write_text(json.dumps({"verdict": "FAIL", "label": "leg"}))
-            with contextlib.redirect_stdout(io.StringIO()):
-                before = cli.main(["aggregate", "--comparison_dir", str(gate.parent)])
-                status, result, markdown = self.run_report(root / "build-comparison")
-                after = cli.main(["aggregate", "--comparison_dir", str(gate.parent)])
-            self.assertEqual((before, after, status), (1, 1, 0))
-            self.assertEqual(result["baseline"]["run_id"], 10)
-            self.assertEqual(result["candidate"]["run_id"], 20)
-            self.assertEqual(result["rows"][0]["change_pct"], -20)
-            self.assertIn("-20.00%", markdown)
-            self.assertIn("/actions/runs/10/attempts/1", markdown)
-            self.assertIn("/actions/runs/20/attempts/1", markdown)
-            self.assertIn("3/3 / 3/3", markdown)
-
-    def test_unavailable_baseline_keeps_current_values_and_explicit_reason(self):
-        self.client.run_artifacts[10][0]["expired"] = True
-        with tempfile.TemporaryDirectory() as directory:
-            status, result, markdown = self.run_report(Path(directory))
-        self.assertEqual(status, 0)
-        self.assertIsNone(result["baseline"])
-        self.assertIn("No available measured target-branch ancestor", result["selection"]["reason"])
-        self.assertIn(
-            {"artifact_id": self.client.run_artifacts[10][0]["id"], "reason": "Selected artifact has expired"},
-            result["selection"]["issues"],
-        )
-        self.assertFalse(result["selection"]["pinned"])
-        self.assertEqual(result["rows"][0]["candidate"]["median"], 80)
-        self.assertIsNone(result["rows"][0]["change_pct"])
-        self.assertIn("Comparison unavailable", markdown)
-        self.assertIn("expired", markdown)
-
-    def test_known_event_takes_precedence_with_ambient_fallback_when_candidate_is_unavailable(self):
-        artifacts = self.client.run_artifacts[20]
-        for case, event, ambient, mode, kind, heading in (
-            (
-                "dispatch_over_ambient_pr",
-                "workflow_dispatch",
-                "pull_request",
-                "historical",
-                None,
-                "Automatic build comparison",
-            ),
-            ("pr_over_ambient_push", "pull_request", "push", "paired_pr", "merge", "PR performance comparison"),
-            ("unavailable_candidate", None, "pull_request", "paired_pr", None, "PR performance comparison"),
-        ):
-            with self.subTest(case=case):
-                self.client.attempts[20, 1]["event"] = event or "push"
-                self.client.run_artifacts[20] = artifacts if event is not None else []
-                with (
-                    tempfile.TemporaryDirectory() as directory,
-                    patch.dict("os.environ", {"GITHUB_EVENT_NAME": ambient}),
-                ):
-                    status, result, markdown = self.run_report(Path(directory))
-                self.assertEqual(status, 0)
-                if event is None:
-                    self.assertIsNone(result["candidate"])
-                else:
-                    self.assertEqual(result["candidate"]["event"], event)
-                self.assertEqual(result["comparison_mode"], mode)
-                self.assertEqual(result["candidate_kind"], kind)
-                self.assertIn(heading, markdown)
-                if mode == "historical":
-                    primary, details = markdown.split("<details>", 1)
-                    self.assertIn("### Automatic build comparison", primary)
-                    self.assertNotIn("### PR performance comparison", primary)
-                    self.assertIn("| Current FPS |", primary)
-                    self.assertNotIn("PR FPS", primary)
-                    self.assertIn("A — historical baseline", details)
-                    self.assertIn("B — current benchmark", details)
-                    self.assertNotIn("PR merge result", details)
 
     def test_capture_failure_explains_missing_results_before_pin_identity_error(self):
         self.client.attempts[20, 1]["event"] = "pull_request"
@@ -775,43 +675,6 @@ class AutomaticReportTests(unittest.TestCase):
         self.assertIsNone(result["candidate"])
         self.assertEqual(result["selection"]["reason_code"], "missing_candidate")
         self.assertIn("Candidate evidence is unavailable", markdown)
-
-    def test_report_only_reruns_preserve_the_pin_when_its_baseline_expires(self):
-        with tempfile.TemporaryDirectory() as directory:
-            output = Path(directory)
-            _, first, _ = self.run_report(output)
-            self.client.add_artifact(20, "performance-build-comparison-20-1", {"build-comparison.json": first})
-            self.client.add(20, HEAD, attempt=2, start=stamp(13), artifact=False)
-            self.client.run_jobs[20, 2][0].update(started_at=stamp(12), run_attempt=2, id=999)
-            _, second, rerun_markdown = self.run_report(output, attempt=2)
-            self.assertEqual(second["baseline"], first["baseline"])
-            self.assertTrue(second["selection"]["pinned"])
-            self.assertEqual(second["candidate"]["run_attempt"], 1)
-            self.assertEqual(second["candidate"]["report_attempt"], 2)
-            self.assertIn("Measurements: attempt 1; report: attempt 2", rerun_markdown)
-            self.client.run_artifacts[10][0]["expired"] = True
-            _, result, markdown = self.run_report(output, attempt=2)
-            self.client.run_artifacts[20] = [
-                item for item in self.client.run_artifacts[20] if item["name"] == "performance-smoke-20-1"
-            ]
-            self.client.add_artifact(20, "performance-build-comparison-20-2", {"build-comparison.json": result})
-            newer = bundle(90)
-            newer["run"].update(start_time_utc=stamp(10), end_time_utc=stamp(11))
-            self.client.add(11, PARENT, samples={"leg": [newer] * 3})
-            self.client.add(20, HEAD, attempt=3, start=stamp(14), artifact=False)
-            self.client.run_jobs[20, 3][0]["started_at"] = stamp(12)
-            _, third, third_markdown = self.run_report(output, attempt=3)
-        self.assertIsNone(result["baseline"])
-        self.assertTrue(result["selection"]["pinned"])
-        self.assertEqual(result["selection"]["unavailable_evidence"]["run_id"], 10)
-        self.assertIsNone(result["rows"][0]["change_pct"])
-        self.assertIn("historical baseline (evidence unavailable)", markdown)
-        self.assertIn("/actions/runs/10/attempts/1", markdown)
-        self.assertIn("expired", markdown)
-        self.assertTrue(third["selection"]["pinned"])
-        self.assertEqual(third["selection"]["unavailable_evidence"], result["selection"]["unavailable_evidence"])
-        self.assertEqual(third["selection"]["reason_code"], "expired")
-        self.assertIn("/actions/runs/10/attempts/1", third_markdown)
 
 
 if __name__ == "__main__":

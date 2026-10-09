@@ -360,7 +360,7 @@ class SourceRevisionTests(unittest.TestCase):
         self.assertTrue(proof_a["source_code_matches"])
         self.assertTrue(proof_b["source_code_matches"])
 
-    def test_stale_installed_package_does_not_verify_as_checkout(self):
+    def test_wrong_package_path_does_not_verify_as_checkout(self):
         manifest, _ = self._prepare()
         process, output, sidecar = self._run(manifest, "stale", roots=[self.cached, self.checkout])
         self.assertNotEqual(process.returncode, 0)
@@ -369,6 +369,23 @@ class SourceRevisionTests(unittest.TestCase):
         result = json.loads((output / "benchmark_runtime_fixture.json").read_text())
         self.assertEqual(result["executed_revision"], "C")
         self.assertEqual(result["worker_pid"], sidecar["pid"])
+
+        shadow = Path("source/isaaclab_tasks/test/isaaclab_tasks/fixture_task.py")
+        self._write(shadow.parent / "__init__.py", "")
+        self._write(shadow, "def observed():\n    return 'T'\n")
+        self._commit()
+        manifest, _ = self._prepare("tracked-shadow")
+        pythonpath = os.pathsep.join((str(self.checkout / shadow.parent.parent), self._environment()["PYTHONPATH"]))
+        process, output, sidecar = self._run(manifest, "tracked-shadow", PYTHONPATH=pythonpath)
+        result = json.loads((output / "benchmark_runtime_fixture.json").read_text())
+        self.assertEqual(result["executed_revision"], "T")
+        task = next(item for item in sidecar["modules"] if item["name"] == "isaaclab_tasks.fixture_task")
+        self.assertEqual(task["relative_path"], shadow.as_posix())
+        self.assertEqual(task["expected_sha256"], json.loads(manifest.read_text())["files"][shadow.as_posix()])
+        self.assertEqual(task["sha256"], task["expected_sha256"])
+        self.assertEqual(task["status"], "failed")
+        self.assertNotEqual(process.returncode, 0)
+        self.assertEqual(sidecar["status"], "failed")
 
     def test_correct_path_with_changed_bytes_does_not_verify(self):
         measurement = self._snapshot()

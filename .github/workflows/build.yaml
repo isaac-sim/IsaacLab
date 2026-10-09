@@ -4,7 +4,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 # Any label starts a run because GitHub cannot filter label names at trigger time.
-# Ordinary label events queue to avoid cancelling builds with reported required checks.
 
 name: Docker + Tests
 
@@ -978,6 +977,7 @@ jobs:
   performance-smoke:
     name: performance-smoke-benchmarks
     runs-on: [self-hosted, gpu]
+    # Configured paired attempts total 372 minutes, leaving 78 minutes for setup and reporting.
     timeout-minutes: 450
     needs: [build, config]
     env:
@@ -1112,7 +1112,7 @@ jobs:
       uses: actions/upload-artifact@v7
       with:
         name: performance-pr-baseline-${{ github.event.pull_request.number }}-${{ needs.config.outputs.paired_base_commit }}-${{ github.run_attempt }}
-        path: ${{ env.PERF_BASELINE_OUTPUT }}/
+        path: ${{ runner.temp }}/perf-smoke-${{ github.run_id }}-${{ github.run_attempt }}/baseline-output/
         if-no-files-found: warn
 
     - name: Restore the tested PR revision
@@ -1239,7 +1239,6 @@ jobs:
         while IFS='|' read -r leg task num_envs bench_timeout_s args; do
           gate_report="$GITHUB_STEP_SUMMARY"
           if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
-            # Save historical reports separately so the PR Summary shows the paired comparison.
             mkdir -p "benchmark-output/${leg}"
             gate_report="benchmark-output/${leg}/rolling-history.md"
           fi
@@ -1318,7 +1317,7 @@ jobs:
         path: comparisons
       continue-on-error: true
     - name: Compare the tested build with its selected baseline
-      if: always()
+      if: always() && github.event_name == 'pull_request'
       continue-on-error: true
       timeout-minutes: 5
       env:
@@ -1327,7 +1326,7 @@ jobs:
 
     - name: Upload the automatic build comparison
       id: build_comparison_artifact
-      if: always()
+      if: always() && github.event_name == 'pull_request'
       continue-on-error: true
       uses: actions/upload-artifact@v7
       with:
@@ -1344,6 +1343,10 @@ jobs:
         gate_exit=0
         uv run --no-project python -m tools.perf_smoke.cli aggregate \
           --comparison_dir comparisons > rolling-history.md || gate_exit=$?
+        if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
+          cat rolling-history.md >> "$GITHUB_STEP_SUMMARY"
+          exit "$gate_exit"
+        fi
         {
           printf '## Performance smoke\n\n'
           if [ -s build-comparison/build-comparison.md ]; then
