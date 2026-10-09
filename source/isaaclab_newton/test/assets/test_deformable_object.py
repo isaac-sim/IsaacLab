@@ -480,12 +480,19 @@ def test_freefall_analytical(num_substeps, use_cuda_graph):
         cube_object.update(sim.cfg.dt)
         torch.testing.assert_close(cube_object.data.nodal_pos_w.torch, first_pos, rtol=1e-5, atol=1e-5)
 
-        sim.reset()
+        callback_count = len(NewtonManager._callbacks)
+        for _ in range(2):
+            old_data = cube_object.data
+            sim.reset()
+            assert cube_object.data is not old_data
+            assert len(NewtonManager._callbacks) == callback_count
 
-        second_pos = initial_pos + torch.tensor([0.0, -0.1, 0.2], device=sim.device)
-        cube_object.write_nodal_pos_to_sim_index(second_pos)
-        cube_object.update(sim.cfg.dt)
-        torch.testing.assert_close(cube_object.data.nodal_pos_w.torch, second_pos, rtol=1e-5, atol=1e-5)
+            second_pos = initial_pos + torch.tensor([0.0, -0.1, 0.2], device=sim.device)
+            cube_object.write_nodal_pos_to_sim_index(second_pos)
+            sim.step()
+            cube_object.update(sim.cfg.dt)
+            second_pos[..., 2] += expected_dz
+            torch.testing.assert_close(cube_object.data.nodal_pos_w.torch, second_pos, rtol=1e-5, atol=1e-5)
 
 
 def test_set_kinematic_targets(sim):

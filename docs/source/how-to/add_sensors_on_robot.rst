@@ -106,9 +106,8 @@ Height scanner
 The height-scanner is implemented as a virtual ray-casting sensor. Through the
 :class:`sensors.RayCasterCfg`, we specify the ray pattern. PhysX-based backends
 cast against the configured meshes, while Newton casts against its live scene
-BVH and ignores the mesh list. By default, :attr:`~sensors.RayCasterCfg.spawn` creates
-a plain USD Xform at :attr:`~sensors.RayCasterCfg.prim_path` to serve as the sensor's
-attachment frame, similar to how :class:`sensors.CameraCfg` spawns a Camera prim.
+BVH and ignores the mesh list. The ray caster tracks the existing prim selected by
+:attr:`~sensors.RayCasterCfg.prim_path`; it does not spawn a new USD prim.
 
 For this tutorial, the ray-cast based height scanner is attached under the base frame of the robot.
 The pattern of rays is specified using the :attr:`~sensors.RayCasterCfg.pattern` attribute. For
@@ -194,13 +193,6 @@ Now that we have gone through the code, let's run the script and see the result:
          uv run python scripts/tutorials/04_sensors/add_sensors_on_robot.py --num_envs 2 --viz kit
 
 
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         ./isaaclab.sh -p scripts/tutorials/04_sensors/add_sensors_on_robot.py --num_envs 2 --viz kit
-
-
 This command should open a stage with a ground plane, lights, and two quadrupedal robots.
 Around the robots, you should see red spheres that indicate the points where the rays hit the mesh.
 Additionally, you can switch the viewport to the camera view to see the RGB image captured by the
@@ -236,18 +228,3 @@ following commands:
 
          # USD Camera
          uv run python scripts/tutorials/04_sensors/run_usd_camera.py --viz kit
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         # Frame Transformer
-         ./isaaclab.sh -p scripts/tutorials/04_sensors/run_frame_transformer.py --viz kit
-
-         # Ray Caster
-         ./isaaclab.sh -p scripts/tutorials/04_sensors/run_ray_caster.py --viz kit
-
-         # Ray Caster Camera
-         ./isaaclab.sh -p scripts/tutorials/04_sensors/run_ray_caster_camera.py --viz kit
-
-         # USD Camera
-         ./isaaclab.sh -p scripts/tutorials/04_sensors/run_usd_camera.py --viz kit

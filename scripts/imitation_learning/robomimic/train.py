@@ -444,5 +444,5 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # run training inside a headless Isaac Sim runtime, which validation rollouts in Isaac Lab environments need
-    with launch_simulation(None, {"headless": True}):
+    with launch_simulation(None):
         main(args)

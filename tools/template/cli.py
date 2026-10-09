@@ -188,9 +188,11 @@ def _create_argument_parser() -> argparse.ArgumentParser:
         action="append",
         help="Project author. Repeat this option to specify multiple authors.",
     )
-    parser.add_argument("--initial_content", choices=("blank", "cartpole"), help="Initial external project content.")
-    parser.add_argument("--task_name", help="Task family name for the Cartpole example.")
-    parser.add_argument("--robot_name", help="Robot/config name for the Cartpole example.")
+    parser.add_argument(
+        "--initial_content", choices=("blank", "cartpole", "stubbed"), help="Initial external project content."
+    )
+    parser.add_argument("--task_name", help="Task family name for the generated task.")
+    parser.add_argument("--robot_name", help="Robot/config name for the generated task.")
     parser.add_argument(
         "--include_ui_extension",
         action="store_true",
@@ -273,13 +275,15 @@ def _collect_interactive_specification(lab_module: object, is_lab_pip_installed:
         ]
         initial_content = cli_handler.input_select(
             "Initial project content:",
-            choices=["Cartpole", "Blank"],
+            choices=["Cartpole", "Stubbed", "Blank"],
             default="Cartpole",
             long_instruction=(
-                "Cartpole creates a runnable example task. Blank creates only the project structure and tooling."
+                "Cartpole creates a runnable example task. "
+                "Stubbed creates task files with implementation placeholders. "
+                "Blank creates only the project structure and tooling."
             ),
         ).lower()
-        if initial_content == "cartpole":
+        if initial_content != "blank":
             task_name = cli_handler.input_text(
                 "Task family name:",
                 default="balance",
@@ -315,7 +319,7 @@ def _collect_interactive_specification(lab_module: object, is_lab_pip_installed:
 
     workflow = []
     rl_library_algorithms = []
-    if initial_content == "cartpole":
+    if initial_content != "blank":
         workflow_table = rich.table.Table(title="RL environment features support according to Isaac Lab workflows")
         workflow_table.add_column("Environment feature", no_wrap=True)
         workflow_table.add_column("Manager-based", justify="center")

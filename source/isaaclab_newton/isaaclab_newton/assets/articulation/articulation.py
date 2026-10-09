@@ -250,6 +250,11 @@ class Articulation(BaseArticulation):
         return self.root_view.is_fixed_base
 
     @property
+    def num_base_dofs(self) -> int:
+        """Number of free DoFs of the floating base: 6 for a free root joint, otherwise 0."""
+        return self.data._num_base_dofs
+
+    @property
     def num_joints(self) -> int:
         """Number of joints in articulation."""
         return self.root_view.joint_dof_count
@@ -3406,13 +3411,6 @@ class Articulation(BaseArticulation):
         # container for data access
         self._data = ArticulationData(self.root_view, self.device)
 
-        # Register callback to rebind simulation data after a full reset (model/state recreation).
-        self._physics_ready_handle = SimulationManager.register_callback(
-            lambda _: self._data._create_simulation_bindings(),
-            PhysicsEvent.PHYSICS_READY,
-            name=f"articulation_rebind_{self.cfg.prim_path}",
-        )
-
         # create buffers
         self._create_buffers()
         # process configuration
@@ -3429,14 +3427,11 @@ class Articulation(BaseArticulation):
         self.data.is_primed = True
 
     def _clear_callbacks(self) -> None:
-        """Clears all registered callbacks, including the physics-ready rebind handle."""
+        """Clear lifecycle and post-step callbacks."""
         super()._clear_callbacks()
         if hasattr(self, "_model_init_handle") and self._model_init_handle is not None:
             self._model_init_handle.deregister()
             self._model_init_handle = None
-        if hasattr(self, "_physics_ready_handle") and self._physics_ready_handle is not None:
-            self._physics_ready_handle.deregister()
-            self._physics_ready_handle = None
         # Remove the post-step republish hook registered in ``_create_buffers`` so the
         # bound method does not linger on ``NewtonManager._post_step_callbacks`` after
         # this articulation is gone (registered only for non-identity ordering).

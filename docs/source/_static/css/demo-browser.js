@@ -25,6 +25,7 @@
         const copyStatus = browser.querySelector("[data-copy-status]");
         const selectedName = browser.querySelector("[data-demo-name]:not([data-demo-id])");
         const selectedDescription = browser.querySelector("[data-demo-description]:not([data-demo-id])");
+        const notes = [...browser.querySelectorAll("[data-demo-note], [data-demo-note-visualizers]")];
         let selectedCard = cards[0];
 
         const populateSelect = (select, values, preferredValues) => {
@@ -74,12 +75,19 @@
 
         const updateCommand = () => {
             commandOutput.textContent = currentCommand();
+            for (const note of notes) {
+                const visualizers = splitValues(note.dataset.demoNoteVisualizers);
+                note.hidden = Boolean(
+                    (note.dataset.demoNote && note.dataset.demoNote !== selectedCard.dataset.demoId)
+                    || (visualizers.length && !visualizers.includes(fields.visualizer.value))
+                );
+            }
         };
 
         const updateVisualizer = () => {
             const preferredVisualizers = fields.physics.value.startsWith("newton")
-                ? ["newton_gl", "kit", "none"]
-                : fields.physics.value === "ovphysx" ? ["none"] : ["kit", "none"];
+                ? ["newton_gl", "kit"]
+                : ["kit"];
             populateSelect(fields.visualizer, compatibleVisualizers(), preferredVisualizers);
             updateCommand();
         };

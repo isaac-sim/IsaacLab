@@ -187,12 +187,6 @@ You can now run the script and see the result:
 
          uv run isaaclab -p scripts/tutorials/05_controllers/run_osc.py --num_envs 128 --viz kit
 
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         ./isaaclab.sh -p scripts/tutorials/05_controllers/run_osc.py --num_envs 128 --viz kit
-
 The script will start a simulation with 128 robots. The robots will be controlled using the OSC.
 The current and desired end-effector poses should be displayed using frame markers in addition to the red tilted wall.
 You should see that the robot reaches the desired pose while applying a constant force perpendicular to the wall

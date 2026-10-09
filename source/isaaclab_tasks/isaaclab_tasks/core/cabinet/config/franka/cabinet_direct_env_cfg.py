@@ -9,7 +9,9 @@ from __future__ import annotations
 
 from isaaclab.utils import configclass, replace
 
-from isaaclab_assets.robots.franka import FRANKA_PANDA_LEGACY_CFG
+from isaaclab_tasks.utils import preset
+
+from isaaclab_assets.robots.franka import FRANKA_PANDA_CFG
 
 from ...cabinet_direct_env_cfg import CabinetDirectEnvCfg, CabinetDirectSceneCfg
 
@@ -18,7 +20,8 @@ from ...cabinet_direct_env_cfg import CabinetDirectEnvCfg, CabinetDirectSceneCfg
 class FrankaCabinetDirectSceneCfg(CabinetDirectSceneCfg):
     """Direct-workflow cabinet scene configured for the Franka robot."""
 
-    robot = replace(FRANKA_PANDA_LEGACY_CFG, prim_path="{ENV_REGEX_NS}/Robot")
+    robot = replace(FRANKA_PANDA_CFG, prim_path="{ENV_REGEX_NS}/Robot")
+    robot.spawn.variants["Physics"] = preset(default="mujoco", isaacsim_physx="physx", physx="physx", ovphysx="physx")
 
 
 @configclass

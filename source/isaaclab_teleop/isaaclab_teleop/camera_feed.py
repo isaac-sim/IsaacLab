@@ -184,7 +184,7 @@ class XrCameraFeedSession:
         arrange :meth:`close` on every exit, including failures before :meth:`bind`.
 
         Args:
-            env_cfg: Environment configuration containing the IsaacTeleop and scene settings.
+            env_cfg: Environment configuration containing the Isaac Capture and scene settings.
             enabled: Whether XR camera feeds are enabled for this run.
             camera_rendering_enabled: Whether external camera rendering is enabled.
 
