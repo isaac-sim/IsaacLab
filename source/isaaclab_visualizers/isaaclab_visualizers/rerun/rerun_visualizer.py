@@ -397,7 +397,7 @@ class RerunVisualizer(BaseVisualizer):
         self._step_counter += 1
 
         # Training can advance much faster than the web viewer can ingest frames. Drop
-        # intermediate visualization updates instead of building an ever-growing latency queue.
+        # intermediate visualization updates to reduce viewer load.
         if not self._is_render_due():
             return
 

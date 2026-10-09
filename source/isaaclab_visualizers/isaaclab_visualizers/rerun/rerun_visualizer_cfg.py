@@ -52,11 +52,11 @@ class RerunVisualizerCfg(VisualizerCfg):
     The viewer URL is always logged during initialization. Set this to ``True`` to auto-launch it.
     """
 
-    max_fps: float | None = 10.0
+    max_fps: float | None = 60.0
     """Maximum Rerun updates per wall-clock second.
 
-    Intermediate simulation frames are dropped when training runs faster than this rate, preventing
-    the web viewer from accumulating latency. Set to ``None`` to publish every simulation step.
+    Intermediate simulation frames are dropped when training runs faster than this rate, reducing
+    the web viewer load. Set to ``None`` to publish every simulation step.
     """
 
     keep_historical_data: bool = False
