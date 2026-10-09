@@ -94,8 +94,8 @@ class ScriptSpec:
 
     @property
     def finite(self) -> bool:
-        """Return whether the script can stop itself after a bounded number of steps."""
-        return "--max_steps" in self.options
+        """Return whether CLI discovery or an explicit override bounds the script's steps."""
+        return "--max_steps" in self.options or "--max_steps" in self.args
 
     @property
     def relative_path(self) -> str:
@@ -221,6 +221,17 @@ OVERRIDES = {
         args=("--voxel_size", "0.1"), fixed_physics_backend="newton_mpm"
     ),
     "examples/demos/teapot_fill.py": ScriptOverride(args=("--voxel_size", "0.006"), fixed_physics_backend="newton_mpm"),
+    "examples/demos/rizon_sharpa_teapot_demo.py": ScriptOverride(
+        args=("--max_steps", "10"),
+        fixed_physics_backend="newton_coupler",
+        visualizers=("none", "newton_gl", "newton_rtx"),
+        required_modules=("isaaclab_contrib",),
+        skip_reason=(
+            None
+            if os.environ.get("ISAACLAB_FABRICS_SIM_RIZON_SHARPA_ROOT")
+            else "requires a licensed Rizon--Sharpa bundle; set ISAACLAB_FABRICS_SIM_RIZON_SHARPA_ROOT"
+        ),
+    ),
     "examples/multi_asset.py": ScriptOverride(args=("--num_envs", "4")),
     "examples/demos/newton_viewer_block_and_tackle.py": ScriptOverride(
         fixed_physics_backend="newton_vbd",
