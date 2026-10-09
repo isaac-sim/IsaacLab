@@ -233,12 +233,6 @@ def validate_shadow_hand_cosmos_preset(env_cfg) -> None:
     Raises:
         ValueError: If the scene, rendering, supervision cadence, or episode length breaks a Cosmos limit.
     """
-    if env_cfg.scene.num_envs != 1:
-        raise ValueError(
-            "The Shadow Hand Cosmos preset requires one environment; use --num_envs 1. "
-            "Its feature-extractor supervision is not validated for independently resetting environments. "
-            "For batched Cosmos, use a compatible task such as Isaac-Reorient-KukaAllegro-Camera with --cosmos."
-        )
     if not env_cfg.scene.lazy_sensor_update:
         raise ValueError(
             "The Shadow Hand Cosmos preset requires scene.lazy_sensor_update=True so generated "
@@ -278,11 +272,12 @@ def validate_shadow_hand_cosmos_preset(env_cfg) -> None:
 
 @configclass
 class ShadowHandCameraCosmosEnvCfg(ShadowHandCameraEnvCfg):
-    """Single-environment Shadow Hand task with depth-guided Cosmos RGB observations.
+    """Shadow Hand task with depth-guided Cosmos RGB observations.
 
-    Start the Cosmos service separately, then select ``presets=cosmos``. The camera captures at
-    10 Hz, and Cosmos publishes an initial frame followed by four-frame chunks. The feature
-    extractor trains on the generated RGB; playback requires its checkpoint from a Cosmos run.
+    Start the Cosmos service separately, then select ``presets=cosmos``. The task uses one environment
+    unless ``--num_envs`` sets more. The camera captures at 10 Hz, and Cosmos publishes an initial frame
+    followed by four-frame chunks. The feature extractor trains on the generated RGB; playback requires
+    its checkpoint from a Cosmos run.
     """
 
     scene: ShadowHandCameraSceneCfg = ShadowHandCameraSceneCfg(num_envs=1, tiled_camera=SHADOW_HAND_COSMOS_CAMERA_CFG)

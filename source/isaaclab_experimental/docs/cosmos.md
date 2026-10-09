@@ -104,11 +104,7 @@ lighting, and camera usually follows the control more closely).
 The Direct task `Isaac-Reorient-Cube-Shadow-Camera-Direct` and the Manager-based task
 `Isaac-Reorient-Cube-Shadow-Camera` both offer `presets=cosmos`, with the same Cosmos camera.
 
-Both presets currently require one environment for training and playback. This is a preset restriction:
-their feature-extractor training and playback are supported only for that setup. Supporting several environments
-in these presets needs separate validation of feature-extractor supervision across independent captures and
-resets. The service can batch several views, and compatible tasks using `--cosmos --num_envs N` can use that
-capability, as shown in [Several environments](#several-environments).
+Both presets use one environment unless `--num_envs` sets more; see [Several environments](#several-environments).
 
 After `status` reports readiness, run a task with its Cosmos preset:
 
@@ -139,7 +135,7 @@ uv run --extra video isaaclab train \
 The recording reads the camera's generated RGB, including held frames between
 Cosmos updates.
 
-The preset selects one environment, a `640 x 640` RGB camera, and depth controls
+The preset selects a `640 x 640` RGB camera and depth controls
 covering `0.1` to `1.5` meters. Its prompt describes a Shadow Hand manipulating a
 cube, and it connects to the default endpoint. The camera captures at 10 Hz of
 simulation time. After the initial generated frame, Cosmos updates every four
@@ -151,8 +147,9 @@ each image remains aligned with its simulation state. With OVRTX, set
 `scene.tiled_camera.renderer_cfg.async_rendering=False`.
 
 The Cosmos preset trains its feature extractor from generated RGB. While an image
-is held, its supervised cube-pose target is held too; both refresh at captures
-1, 5, 9, and so on, and resets invalidate the cached target. Published
+is held, its supervised cube-pose target is held too: each environment's target is
+the cube pose of the step its image appeared, kept until that image changes. An
+environment showing black after a reset is left out of the loss until its next image. Published
 feature-extractor checkpoints for the default `120 x 120`, seven-channel camera
 are incompatible with this `640 x 640`, three-channel input, so the preset disables
 that pretrained fallback. For playback, use a policy checkpoint from a Cosmos
@@ -316,6 +313,15 @@ uv run isaaclab train --task Isaac-Reorient-KukaAllegro-Camera --rl_library rsl_
   --cosmos --cosmos_prompt "A KUKA arm with an Allegro hand in a bright lab." \
   --cosmos_prompt "A KUKA arm with an Allegro hand in a wooden workshop." \
   --cosmos_near 0.6 --cosmos_far 1.9 presets=cube,single_camera,rgb64
+```
+
+The Shadow Hand presets take the same options:
+
+```bash
+uv run isaaclab train --task Isaac-Reorient-Cube-Shadow-Camera-Direct --rl_library rsl_rl --num_envs 2 \
+  --cosmos_prompt "A close-up overhead view of a robotic Shadow Hand turning a red cube on a wooden workbench." \
+  --cosmos_prompt "A close-up overhead view of a robotic Shadow Hand turning a blue cube in a bright white lab." \
+  presets=cosmos
 ```
 
 - With several environments, environment `v` uses `prompt[v % len(prompt)]` for all its episodes; the batch keeps

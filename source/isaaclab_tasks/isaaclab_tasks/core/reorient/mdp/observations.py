@@ -178,8 +178,8 @@ class ShadowHandCameraFeatures(ManagerTermBase):
         """Finish the shape-probe phase on the first Manager reset and start new episodes' supervision.
 
         Args:
-            env_ids: Environment indices being reset. Their held image targets are invalidated, so a
-                generated image held across captures is not paired with the previous episode's pose.
+            env_ids: Environment indices being reset. The feature extractor forgets their held images, so
+                each new episode's first image takes a new pose target.
         """
         if self._shape_probe_pending:
             self._shape_probe_pending = False
@@ -220,8 +220,7 @@ class ShadowHandCameraFeatures(ManagerTermBase):
             data_type: value if isinstance(value, torch.Tensor) else value.torch
             for data_type, value in camera.data.output.items()
         }
-        # The capture counter lets supervision hold a generated image's target until its next update.
-        pose_loss, embeddings = self._feature_extractor.step(camera_output, target, camera_frame=camera.frame.torch)
+        pose_loss, embeddings = self._feature_extractor.step(camera_output, target)
         embeddings = embeddings.clone().detach()
         env._shadow_hand_camera_embeddings = embeddings
         if pose_loss is not None:
