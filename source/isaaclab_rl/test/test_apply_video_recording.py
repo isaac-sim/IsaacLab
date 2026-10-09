@@ -95,11 +95,11 @@ def launches(monkeypatch: pytest.MonkeyPatch) -> dict:
         # --video records from the first capture-capable visualizer --viz selects, in its window
         (
             dict(visualizer=["viser", "kit", "newton_gl"]),
-            ("viz:kit", [("kit", False), ("viser", None), ("newton_gl", False)]),
+            ("viz:kit", [("kit", False), ("viser", False), ("newton_gl", False)]),
         ),
         # ...else from a headless newton_gl, also next to streaming-only visualizers
         (dict(), ("viz:newton_gl", [("newton_gl", True)])),
-        (dict(visualizer=["viser"]), ("viz:newton_gl", [("viser", None), ("newton_gl", True)])),
+        (dict(visualizer=["viser"]), ("viz:newton_gl", [("viser", False), ("newton_gl", True)])),
         # viz:<type> records from the selected visualizer, else from a headless one added for the recording
         (dict(video="viz:newton_rtx", visualizer=["newton_rtx"]), ("viz:newton_rtx", [("newton_rtx", False)])),
         (dict(video="viz:newton_rtx"), ("viz:newton_rtx", [("newton_rtx", True)])),
@@ -127,6 +127,7 @@ def test_video_source_resolves_against_the_visualizer_selection(launches, cli, e
     kit_cfg = KitVisualizerCfg(eye=(1.0, 2.0, 3.0))
     env_cfg = ManagerBasedRLEnvCfg()
     env_cfg.sim.physics = NewtonCfg()
+    env_cfg.sim.device = "cpu"
     env_cfg.sim.visualizer_cfgs = [kit_cfg, ViserVisualizerCfg()]
     args = _args(**cli)
     if isinstance(expected, str):
@@ -141,7 +142,7 @@ def test_video_source_resolves_against_the_visualizer_selection(launches, cli, e
 
     source, visualizers = expected
     assert [recorder.source for recorder in env_cfg.video_recorders] == [source]
-    assert [(cfg.visualizer_type, getattr(cfg, "headless", None)) for cfg in env_cfg.sim.visualizer_cfgs] == visualizers
+    assert [(cfg.visualizer_type, cfg.headless) for cfg in env_cfg.sim.visualizer_cfgs] == visualizers
     # a Kit visualizer, selected or added, keeps its configured camera; an added one is a copy, so the
     # configured visualizer stays as configured for a later launch
     assert all(cfg.eye == kit_cfg.eye for cfg in env_cfg.sim.visualizer_cfgs if cfg.visualizer_type == "kit")

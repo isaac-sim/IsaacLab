@@ -696,7 +696,7 @@ def _select_newton_training_control_button(viewer, target_label: str) -> None:
         def button(self, label):
             return label == target_label
 
-        def slider_int(self, _label, value, _min_value, _max_value, _format):
+        def slider_float(self, _label, value, _min_value, _max_value, _format):
             return False, value
 
         def is_item_hovered(self):
