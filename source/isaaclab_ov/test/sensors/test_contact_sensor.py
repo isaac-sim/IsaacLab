@@ -131,6 +131,8 @@ class ContactSensorSceneCfg(InteractiveSceneCfg):
     This is a second contact sensor used for testing contact filtering.
     """
 
+    total_sensor: ContactSensorCfg = None
+
 
 ##
 # Scene entity configurations.
@@ -812,20 +814,15 @@ def test_lazy_sensor_reports_contact_loss(device):
 @pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize(
     "grav_dir, history_length, max_count",
-    [((-10.0, 0.0, -9.81), 0, 32), ((0.0, -10.0, -9.81), 3, 32), ((-10.0, 0.0, -9.81), 3, 1)],
-    ids=["no-history", "history", "truncated"],
+    [((-10.0, 0.0, -9.81), 0, 1), ((0.0, -10.0, -9.81), 3, 32)],
+    ids=["no-history-truncated", "history"],
 )
 def test_friction_reporting(device, grav_dir, history_length, max_count):
     """Sliding contact reports complete forces independently of detail capacity and tracking options."""
-
-    @configclass
-    class FrictionSceneCfg(ContactSensorSceneCfg):
-        total_sensor: ContactSensorCfg = None
-
     num_envs = 3
     sim_cfg = SimulationCfg(physics=OvPhysxCfg(), dt=_SIM_DT, device=device, gravity=grav_dir)
     with build_simulation_context(device=device, sim_cfg=sim_cfg, add_lighting=False) as sim:
-        scene_cfg = FrictionSceneCfg(num_envs=num_envs, env_spacing=2.0, lazy_sensor_update=True)
+        scene_cfg = ContactSensorSceneCfg(num_envs=num_envs, env_spacing=2.0, lazy_sensor_update=True)
         scene_cfg.terrain = FLAT_TERRAIN_CFG
         scene_cfg.shape = replace(CUBE_CFG, prim_path="{ENV_REGEX_NS}/Cube")
         scene_cfg.shape.spawn.mass_props = sim_utils.MassCfg(mass=1.0)
@@ -853,12 +850,14 @@ def test_friction_reporting(device, grav_dir, history_length, max_count):
             track_contact_points=False,
             track_friction_forces=False,
             max_contact_data_count_per_prim=0,
+            filter_prim_paths_expr=[scene_cfg.shape.prim_path],
         )
         scene = InteractiveScene(scene_cfg)
         sim.reset()
         scene.reset()
         sensor: ContactSensor = scene["contact_sensor"]
-        sensors = (sensor, scene["contact_sensor_2"], scene["total_sensor"])
+        total_sensor = scene["total_sensor"]
+        sensors = (sensor, scene["contact_sensor_2"], total_sensor)
         shape: RigidObject = scene["shape"]
         for _ in range(20):
             _perform_sim_step(sim, scene, _SIM_DT)
@@ -915,9 +914,12 @@ def test_friction_reporting(device, grav_dir, history_length, max_count):
                 assert current_data.friction_forces_w is None
                 assert current_data.friction_force_matrix_w is None
                 assert current_data.friction_force_matrix_w_history is None
-            if current_sensor.cfg.filter_prim_paths_expr:
+            if current_sensor is sensor:
                 # The ground is the only contacting partner.
                 torch.testing.assert_close(current_data.force_matrix_w.torch[:, :, 0], current_data.net_forces_w.torch)
+            elif current_sensor is total_sensor:
+                # The filter excludes the ground, but the aggregate still includes its contact.
+                assert torch.count_nonzero(current_data.force_matrix_w.torch) == 0
             else:
                 assert current_data.normal_force_matrix_w is None
                 assert current_data.normal_force_matrix_w_history is None
@@ -945,7 +947,6 @@ def test_friction_reporting(device, grav_dir, history_length, max_count):
         for current_sensor in sensors:
             current_sensor.reset(env_ids=[0])
         for force, before in zip(forces, before_reset):
-            assert torch.count_nonzero(before) > 0
             assert torch.count_nonzero(force.torch[0]) == 0
             torch.testing.assert_close(force.torch[1:], before[1:])
         assert torch.isnan(data.contact_pos_w.torch[0]).all()

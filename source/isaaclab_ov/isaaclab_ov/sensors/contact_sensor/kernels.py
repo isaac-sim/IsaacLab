@@ -149,33 +149,25 @@ def reset_contact_sensor_kernel(
         net_friction_forces_w[env, sensor] = wp.vec3f(0.0)
 
     # Reset history
-    if net_normal_forces_w_history:
-        for i in range(history_length):
-            net_normal_forces_w_history[env, i, sensor] = wp.vec3f(0.0)
-    if net_forces_w_history:
-        for i in range(history_length):
-            net_forces_w_history[env, i, sensor] = wp.vec3f(0.0)
-    if net_friction_forces_w_history:
-        for i in range(history_length):
+    for i in range(history_length):
+        net_normal_forces_w_history[env, i, sensor] = wp.vec3f(0.0)
+        net_forces_w_history[env, i, sensor] = wp.vec3f(0.0)
+        if net_friction_forces_w_history:
             net_friction_forces_w_history[env, i, sensor] = wp.vec3f(0.0)
 
-    # Reset force matrix (guard for None case)
+    # Reset filtered forces when filters are configured.
     if normal_force_matrix_w:
         for f in range(num_filter_objects):
             normal_force_matrix_w[env, sensor, f] = wp.vec3f(0.0)
-
-    if normal_force_matrix_w_history:
+            force_matrix_w[env, sensor, f] = wp.vec3f(0.0)
+            if friction_force_matrix_w:
+                friction_force_matrix_w[env, sensor, f] = wp.vec3f(0.0)
         for i in range(history_length):
             for f in range(num_filter_objects):
                 normal_force_matrix_w_history[env, i, sensor, f] = wp.vec3f(0.0)
-
-    if force_matrix_w:
-        for f in range(num_filter_objects):
-            force_matrix_w[env, sensor, f] = wp.vec3f(0.0)
-    if force_matrix_w_history:
-        for i in range(history_length):
-            for f in range(num_filter_objects):
                 force_matrix_w_history[env, i, sensor, f] = wp.vec3f(0.0)
+                if friction_force_matrix_w_history:
+                    friction_force_matrix_w_history[env, i, sensor, f] = wp.vec3f(0.0)
 
     # Reset air/contact time tracking
     if current_air_time:
@@ -183,13 +175,6 @@ def reset_contact_sensor_kernel(
         last_air_time[env, sensor] = 0.0
         current_contact_time[env, sensor] = 0.0
         last_contact_time[env, sensor] = 0.0
-
-    if friction_force_matrix_w:
-        for f in range(num_filter_objects):
-            friction_force_matrix_w[env, sensor, f] = wp.vec3f(0.0)
-            if friction_force_matrix_w_history:
-                for i in range(history_length):
-                    friction_force_matrix_w_history[env, i, sensor, f] = wp.vec3f(0.0)
 
     if contact_pos_w:
         for f in range(num_filter_objects):
@@ -233,7 +218,6 @@ def update_net_forces_ovphysx_kernel(
     friction_forces_matrix_flat: wp.array2d(dtype=wp.vec3f),
     mask: wp.array(dtype=wp.bool),
     num_envs: int,
-    num_sensors: int,
     num_filter_shapes: int,
     history_length: int,
     contact_force_threshold: wp.float32,
@@ -274,7 +258,6 @@ def update_net_forces_ovphysx_kernel(
         friction_forces_matrix_flat: Flat friction force matrix. Shape is (num_sensors*num_envs, num_filter_shapes).
         mask: Mask array. Shape is (num_envs,).
         num_envs: Number of environments.
-        num_sensors: Number of sensors per environment.
         num_filter_shapes: Number of filter shapes.
         history_length: Length of history.
         contact_force_threshold: Threshold for the contact force.
@@ -318,17 +301,14 @@ def update_net_forces_ovphysx_kernel(
     if net_friction_forces_w:
         net_friction_forces_w[env, sensor] = friction_force
     # Update history
-    if net_normal_forces_w_history:
-        for i in range(history_length - 1, 0, -1):
-            net_normal_forces_w_history[env, i, sensor] = net_normal_forces_w_history[env, i - 1, sensor]
-        net_normal_forces_w_history[env, 0, sensor] = net_normal_forces_w[env, sensor]
-    if net_forces_w_history:
-        for i in range(history_length - 1, 0, -1):
-            net_forces_w_history[env, i, sensor] = net_forces_w_history[env, i - 1, sensor]
-        net_forces_w_history[env, 0, sensor] = net_forces_w[env, sensor]
-    if net_friction_forces_w_history:
-        for i in range(history_length - 1, 0, -1):
+    for i in range(history_length - 1, 0, -1):
+        net_normal_forces_w_history[env, i, sensor] = net_normal_forces_w_history[env, i - 1, sensor]
+        net_forces_w_history[env, i, sensor] = net_forces_w_history[env, i - 1, sensor]
+        if net_friction_forces_w_history:
             net_friction_forces_w_history[env, i, sensor] = net_friction_forces_w_history[env, i - 1, sensor]
+    net_normal_forces_w_history[env, 0, sensor] = normal_force
+    net_forces_w_history[env, 0, sensor] = normal_force + friction_force
+    if net_friction_forces_w_history:
         net_friction_forces_w_history[env, 0, sensor] = friction_force
 
     # update force matrix
@@ -338,23 +318,18 @@ def update_net_forces_ovphysx_kernel(
             friction_force = friction_forces_matrix_flat[src_idx, f]
             normal_force_matrix_w[env, sensor, f] = normal_force
             force_matrix_w[env, sensor, f] = normal_force + friction_force
-            if normal_force_matrix_w_history:
-                for i in range(history_length - 1, 0, -1):
-                    normal_force_matrix_w_history[env, i, sensor, f] = normal_force_matrix_w_history[
-                        env, i - 1, sensor, f
-                    ]
-                normal_force_matrix_w_history[env, 0, sensor, f] = normal_force
-            if force_matrix_w_history:
-                for i in range(history_length - 1, 0, -1):
-                    force_matrix_w_history[env, i, sensor, f] = force_matrix_w_history[env, i - 1, sensor, f]
-                force_matrix_w_history[env, 0, sensor, f] = normal_force + friction_force
-            if friction_force_matrix_w:
-                friction_force_matrix_w[env, sensor, f] = friction_force
-            if friction_force_matrix_w_history:
-                for i in range(history_length - 1, 0, -1):
+            for i in range(history_length - 1, 0, -1):
+                normal_force_matrix_w_history[env, i, sensor, f] = normal_force_matrix_w_history[env, i - 1, sensor, f]
+                force_matrix_w_history[env, i, sensor, f] = force_matrix_w_history[env, i - 1, sensor, f]
+                if friction_force_matrix_w_history:
                     friction_force_matrix_w_history[env, i, sensor, f] = friction_force_matrix_w_history[
                         env, i - 1, sensor, f
                     ]
+            normal_force_matrix_w_history[env, 0, sensor, f] = normal_force
+            force_matrix_w_history[env, 0, sensor, f] = normal_force + friction_force
+            if friction_force_matrix_w:
+                friction_force_matrix_w[env, sensor, f] = friction_force
+            if friction_force_matrix_w_history:
                 friction_force_matrix_w_history[env, 0, sensor, f] = friction_force
 
     # Update air/contact time tracking

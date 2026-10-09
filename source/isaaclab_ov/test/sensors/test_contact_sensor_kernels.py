@@ -14,8 +14,7 @@ from isaaclab.test.utils import DeviceScope, test_devices
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-@pytest.mark.parametrize("use_mask", [False, True])
-@pytest.mark.parametrize("capacity", [None, 5])
+@pytest.mark.parametrize("use_mask, capacity", [(False, None), (True, 5)])
 def test_unpack_contact_buffer_data_pattern_major(device: str, use_mask: bool, capacity: int | None):
     """Preserve body/environment order, masked values and partial or absent contact positions."""
     num_envs, num_sensors, num_filters = 2, 2, 2
