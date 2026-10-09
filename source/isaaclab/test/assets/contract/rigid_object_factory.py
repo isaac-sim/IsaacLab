@@ -195,6 +195,7 @@ def _newton_collection(num_instances: int, num_bodies: int, device: str, monkeyp
     collection._ALL_BODY_INDICES = indices(num_bodies, device)
     collection._ALL_ENV_MASK = wp.ones((num_instances,), dtype=wp.bool, device=device)
     collection._ALL_BODY_MASK = wp.ones((num_bodies,), dtype=wp.bool, device=device)
+    collection._scratch_body_mask = wp.zeros((num_bodies,), dtype=wp.bool, device=device)
     return collection, view
 
 

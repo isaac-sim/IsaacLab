@@ -206,7 +206,7 @@ def test_from_stable_copies_all_selection_fields():
         assert getattr(warp, field) == getattr(stable, field), f"field {field!r} mismatch"
     assert isinstance(warp, WarpSceneEntityCfg)
     # Warp-only fields stay None until :meth:`resolve` runs.
-    assert warp.joint_mask is None
+    assert warp.joint_mask_wp is None
     assert warp.joint_ids_wp is None
     assert warp.body_ids_wp is None
 
