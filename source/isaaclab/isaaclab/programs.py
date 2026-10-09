@@ -84,9 +84,9 @@ DEMOS = (
     ProgramSpec("zoo", "examples/demos/zoo.py", "Explore Isaac Lab robots and simulation features."),
     ProgramSpec("h1-locomotion", "examples/demos/h1_locomotion.py", "Control a trained H1 locomotion policy."),
     ProgramSpec(
-        "factory-k10",
-        "examples/demos/factory_k10.py",
-        "Assemble ten randomized parts with a local exported Factory policy.",
+        "nist",
+        "examples/demos/nist.py",
+        "Assemble ten randomized NIST parts with a local exported policy.",
         extras=("ovrtx",),
         newton_gl_args=None,
     ),

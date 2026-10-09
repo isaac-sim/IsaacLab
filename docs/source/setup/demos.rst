@@ -93,12 +93,12 @@ Command Builder
          <span>H1 Locomotion</span>
        </button>
        <button type="button" class="demo-card" aria-pressed="false"
-               data-demo-name="Factory K10" data-demo-id="factory-k10"
+               data-demo-name="NIST" data-demo-id="nist"
                data-demo-physics="newton_mjwarp" data-demo-fixed-physics="true"
                data-demo-visualizers="newton_gl,newton_rtx"
                data-demo-args="--policy /path/to/exported-policy.pt"
                data-demo-description="Assemble ten randomized parts using a local exported Factory policy; provide its path with --policy.">
-         <span>Factory K10</span>
+         <span>NIST</span>
        </button>
        <button type="button" class="demo-card" aria-pressed="false"
                data-demo-name="Pick and Place" data-demo-id="pick-and-place"

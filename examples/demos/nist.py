@@ -3,9 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Run the K10 Factory policy without a trainer, curriculum, or reset bank.
+"""Run a ten-part NIST assembly policy without a trainer, curriculum, or reset bank.
 
-    uv run --extra ovrtx python examples/demos/factory_k10.py --policy <exported-policy.pt>
+    uv run --extra ovrtx isaaclab demo nist --policy <exported-policy.pt>
 
 The exported policy includes normalization and takes robot history [N, 195] and
 slot history [N, 5, 10, 40]. At startup, the seed selects ten distinct asset
@@ -31,9 +31,6 @@ import torch
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg
 from isaaclab_newton.sim.schemas import MujocoRigidBodyCfg, NewtonArticulationCfg
 from isaaclab_newton.sim.spawners.materials import NewtonMaterialCfg
-from isaaclab_visualizers.newton import NewtonRTXVisualizerCfg
-
-from pxr import Gf, Usd, UsdGeom
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
@@ -144,31 +141,6 @@ SOCKET_COLLISION = sim_utils.NewtonSDFCollisionPropertiesCfg(
     sdf_narrow_band_inner=-0.005,
     sdf_narrow_band_outer=0.005,
 )
-
-
-@sim_utils.clone
-def spawn_board(
-    prim_path: str,
-    cfg: sim_utils.UsdFileCfg,
-    translation: tuple[float, float, float] | None = None,
-    orientation: tuple[float, float, float, float] | None = None,
-    **kwargs,
-) -> Usd.Prim:
-    """Keep the board's top surface and extend its collider down to 30 mm thickness."""
-    prim = sim_utils.spawn_from_usd(prim_path, cfg, translation, orientation, **kwargs)
-    collider = sim_utils.get_current_stage().GetPrimAtPath(f"{prim_path}/collisions/mesh_0")
-    if not collider.IsA(UsdGeom.Cube):
-        raise ValueError(f"Expected a cube board collider at {collider.GetPath()}")
-    size = UsdGeom.Cube(collider).GetSizeAttr().Get()
-    scale = collider.GetAttribute("xformOp:scale").Get()
-    center = collider.GetAttribute("xformOp:translate").Get()
-    collider_orientation = collider.GetAttribute("xformOp:orient").Get()
-    if size <= 0 or not 0 < size * scale[2] <= 0.03 or collider_orientation != Gf.Quatd(1.0):
-        raise ValueError(f"Unexpected board collider transform at {collider.GetPath()}")
-    lower_face = center[2] - 0.5 * size * scale[2]
-    collider.GetAttribute("xformOp:scale").Set(Gf.Vec3d(scale[0], scale[1], 0.03 / size))
-    collider.GetAttribute("xformOp:translate").Set(Gf.Vec3d(center[0], center[1], lower_face + 0.015))
-    return prim
 
 
 def grasp_pose(env: ManagerBasedEnv, robot_cfg: SceneEntityCfg) -> torch.Tensor:
@@ -440,11 +412,9 @@ def main() -> None:
     scene.nistboard = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/NistBoard",
         spawn=sim_utils.UsdFileCfg(
-            func=spawn_board,
             usd_path=f"{ASSET_DIR}/Taskboard/nistboard.usd",
             rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
             physics_material=CONTACT_MATERIAL,
-            make_uninstanceable=True,
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.452824, 0.19145, 0.0206), rot=(0.0, 1.0, 0.0, 0.0)),
     )
@@ -597,21 +567,6 @@ def main() -> None:
                 "diagonal_only": True,
             },
         )
-    visualizer_cfg = NewtonRTXVisualizerCfg(
-        window_width=1920,
-        window_height=1080,
-        eye=(3.35, -1.15, 1.45),
-        lookat=(0.35, 0.0, 0.4),
-        focal_length=40.0,
-        visible_env_indices=None,
-        rtx_environment="default",
-        render_settings={
-            "omni:rtx:pt:samplesPerPixel": ("UInt", 8),
-            "omni:rtx:pt:denoising:enabled": ("Bool", True),
-        },
-        enable_markers=False,
-        enable_live_plots=False,
-    )
     cfg = ManagerBasedEnvCfg(
         sim=sim_utils.SimulationCfg(
             dt=0.01,
@@ -637,7 +592,6 @@ def main() -> None:
                     rigid_contact_max=args.num_envs * 2400,
                 ),
             ),
-            visualizer_cfgs=[visualizer_cfg],
         ),
         scene=scene,
         actions=Actions(),
@@ -652,10 +606,10 @@ def main() -> None:
         env = ManagerBasedEnv(cfg)
         try:
             center = env.scene.env_origins.mean(dim=0).cpu()
-            target = center + torch.tensor(visualizer_cfg.lookat)
+            target = center + torch.tensor((0.35, 0.0, 0.4))
             span = env.scene.env_origins.amax(dim=0) - env.scene.env_origins.amin(dim=0)
             camera_scale = 1.0 + 1.25 * float(span[:2].max()) / scene.env_spacing
-            eye = target + camera_scale * (torch.tensor(visualizer_cfg.eye) - torch.tensor(visualizer_cfg.lookat))
+            eye = target + camera_scale * torch.tensor((1.2, -0.65, 0.8))
             env.sim.set_camera_view(eye=eye.tolist(), target=target.tolist())
             obs, _ = env.reset()
             episodes = env.event_manager.get_term_cfg("reset_finished").func
