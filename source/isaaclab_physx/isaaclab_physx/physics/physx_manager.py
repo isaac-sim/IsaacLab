@@ -579,10 +579,14 @@ class PhysxManager(PhysicsManager):
     @classmethod
     def play(cls) -> None:
         """Start or resume the timeline."""
+        # Re-attaching Fabric hides GPU tensor writes until the next physics step,
+        # so the first reset frame after start would show the spawn pose.
+        resuming = not cls._timeline.is_playing() and not cls._timeline.is_stopped()
         cls._timeline.play()
         # Pump events so timeline callbacks fire synchronously
         omni.kit.app.get_app().update()
-        cls._sync_fabric_after_resume()
+        if resuming:
+            cls._sync_fabric_after_resume()
 
     @classmethod
     def pause(cls) -> None:
