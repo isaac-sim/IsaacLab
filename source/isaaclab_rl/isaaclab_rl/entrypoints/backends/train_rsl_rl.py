@@ -126,7 +126,6 @@ def _run(args_cli: argparse.Namespace) -> None:
                 agent_cfg.max_iterations = args_cli.max_iterations
             rank = int(os.getenv("RANK", "0")) if args_cli.distributed else None
             if rank is not None:
-                agent_cfg.device = env_cfg.sim.device
                 agent_cfg.seed += rank
             env_cfg.seed = agent_cfg.seed
 
