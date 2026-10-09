@@ -42,3 +42,13 @@ class FrankaReachPPORunnerCfg(RslRlOnPolicyRunnerCfg):
         desired_kl=0.01,
         max_grad_norm=1.0,
     )
+
+
+@configclass
+class FrankaReachOSCPPORunnerCfg(FrankaReachPPORunnerCfg):
+    """OSC training configuration without the joint-position holding preset."""
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.max_iterations = self.max_iterations.default
+        self.experiment_name = self.experiment_name.default

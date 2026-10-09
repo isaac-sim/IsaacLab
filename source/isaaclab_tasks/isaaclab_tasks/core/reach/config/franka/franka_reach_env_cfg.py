@@ -6,6 +6,7 @@
 """Configuration for the Franka reach environment."""
 
 import math
+import warnings
 from typing import TYPE_CHECKING
 
 import torch
@@ -37,7 +38,7 @@ from isaaclab_tasks.utils import PresetCfg, preset
 ##
 from isaaclab_assets import FRANKA_MINIMAL_CFG, FRANKA_PANDA_CFG  # isort: skip
 
-from ...reach_env_cfg import ReachEnvCfg
+from ...reach_env_cfg import ReachEnvCfg, RewardsCfg
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
@@ -94,24 +95,29 @@ class FrankaArmActionCfg(PresetCfg):
     default: mdp.JointPositionActionCfg = joint_pos
 
 
-def _pose_command_error(env: "ManagerBasedRLEnv", command_name: str) -> torch.Tensor:
-    """Return target-minus-current position and rotation errors in the robot root frame."""
-    command = env.command_manager.get_term(command_name)
-    data = command.robot.data
-    position_b, orientation_b = math_utils.subtract_frame_transforms(
-        data.root_pos_w.torch,
-        data.root_quat_w.torch,
-        data.body_pos_w.torch[:, command.body_idx],
-        data.body_quat_w.torch[:, command.body_idx],
+@configclass
+class FrankaReachRewardsCfg(RewardsCfg):
+    """Legacy continuous Franka pose-tracking rewards.
+
+    .. deprecated::
+        Use :class:`~isaaclab_tasks.core.reach.reach_env_cfg.RewardsCfg` for shared Reach
+        rewards. Add ``end_effector_position_tracking_fine_grained`` explicitly if needed.
+    """
+
+    end_effector_position_tracking_fine_grained = RewardTermCfg(
+        func=mdp.position_command_error_tanh,
+        weight=0.1,
+        params={"asset_cfg": SceneEntityCfg("robot", body_names="panda_hand"), "std": 0.1, "command_name": "ee_pose"},
     )
-    position_error, rotation_error = math_utils.compute_pose_error(
-        position_b,
-        orientation_b,
-        command.command[:, :3],
-        command.command[:, 3:],
-        rot_error_type="axis_angle",
-    )
-    return torch.cat((position_error, rotation_error), dim=-1)
+    success: RewardTermCfg | None = None
+
+    def __post_init__(self):
+        warnings.warn(
+            "FrankaReachRewardsCfg is deprecated. Use the shared Reach RewardsCfg and add"
+            " end_effector_position_tracking_fine_grained explicitly if needed.",
+            FutureWarning,
+            stacklevel=2,
+        )
 
 
 @configclass
@@ -209,6 +215,7 @@ class FrankaReachEnvCfg(ReachEnvCfg):
             default=None,
             hold=ObservationTermCfg(func=_pose_command_error, params={"command_name": "ee_pose"}),
         )
+        # A finite interval beyond the episode prevents resampling; torch.uniform_ rejects infinity.
         self.commands.ee_pose.resampling_time_range = preset(
             default=self.commands.ee_pose.resampling_time_range, hold=(1.0e9, 1.0e9)
         )
@@ -217,22 +224,53 @@ class FrankaReachEnvCfg(ReachEnvCfg):
             default=self.rewards.success,
             hold=RewardTermCfg(func=mdp.pose_command_success, weight=10.0, params={"command_name": "ee_pose"}),
         )
-        # Softer force drives let the Newton policy settle without saturating the wrist drives.
+        # Keep each backend's stiffness and command-change costs together for every backend alias.
+        newton_hold_profile = {
+            "stiffness": {"panda_joint[1-2]": 100.0, "panda_joint[3-4]": 75.0, "panda_joint[5-7]": 30.0},
+            "action_rate": self.rewards.action_rate.weight,
+            "curriculum_action_rate": self.curriculum.action_rate.params["weight"],
+        }
+        physx_hold_profile = {"stiffness": None, "action_rate": -0.01, "curriculum_action_rate": -0.5}
+        hold_profiles = {
+            "default": newton_hold_profile,
+            "isaacsim_physx": physx_hold_profile,
+            "physx": physx_hold_profile,
+            "ovphysx": physx_hold_profile,
+        }
         self.scene.robot.actuators["panda_arm"].stiffness = preset(
             default=None,
-            hold=preset(
-                default={"panda_joint[1-2]": 100.0, "panda_joint[3-4]": 75.0, "panda_joint[5-7]": 30.0},
-                isaacsim_physx=None,
-                physx=None,
-                ovphysx=None,
-            ),
+            hold=preset(**{backend: profile["stiffness"] for backend, profile in hold_profiles.items()}),
         )
-        # Native PhysX settles with the authored stiffness and a stronger command-change cost.
         self.rewards.action_rate.weight = preset(
             default=self.rewards.action_rate.weight,
-            hold=preset(default=self.rewards.action_rate.weight, isaacsim_physx=-0.01, physx=-0.01),
+            hold=preset(**{backend: profile["action_rate"] for backend, profile in hold_profiles.items()}),
         )
         self.curriculum.action_rate.params["weight"] = preset(
             default=self.curriculum.action_rate.params["weight"],
-            hold=preset(default=self.curriculum.action_rate.params["weight"], isaacsim_physx=-0.5, physx=-0.5),
+            hold=preset(**{backend: profile["curriculum_action_rate"] for backend, profile in hold_profiles.items()}),
         )
+
+
+def _pose_command_error(env: "ManagerBasedRLEnv", command_name: str) -> torch.Tensor:
+    """Return target-minus-current pose errors in the robot root frame.
+
+    Returns:
+        Tensor of shape (num_envs, 6), with position errors in meters followed by
+        axis-angle rotation errors in radians.
+    """
+    command = env.command_manager.get_term(command_name)
+    data = command.robot.data
+    position_b, orientation_b = math_utils.subtract_frame_transforms(
+        data.root_pos_w.torch,
+        data.root_quat_w.torch,
+        data.body_pos_w.torch[:, command.body_idx],
+        data.body_quat_w.torch[:, command.body_idx],
+    )
+    position_error, rotation_error = math_utils.compute_pose_error(
+        position_b,
+        orientation_b,
+        command.command[:, :3],
+        command.command[:, 3:],
+        rot_error_type="axis_angle",
+    )
+    return torch.cat((position_error, rotation_error), dim=-1)

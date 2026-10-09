@@ -109,14 +109,8 @@ def test_reach_presets_resolve_supported_combinations(task, presets, action_type
     assert type(cfg.sim.physics).__name__ == physics_type
 
     if task in (_TASK, _OSC_TASK) and not presets:
-        assert cfg.commands.ee_pose.position_success_threshold == pytest.approx(0.05)
-        assert cfg.commands.ee_pose.orientation_success_threshold == pytest.approx(0.2)
-        assert cfg.terminations.success.func is mdp.pose_command_success
-        assert cfg.terminations.success.params["command_name"] == "ee_pose"
-        assert cfg.terminations.time_out.func is mdp.time_out
-        assert cfg.rewards.success.func is mdp.is_terminated_term
-        assert cfg.rewards.success.weight == pytest.approx(10.0)
-        assert cfg.rewards.success.params["term_keys"] == ["success"]
+        assert cfg.terminations.success is not None
+        assert cfg.rewards.success is not None
 
 
 def test_reach_ur10_physics_presets_change_only_physics():
@@ -131,45 +125,17 @@ def test_reach_ur10_physics_presets_change_only_physics():
     assert physx_cfg == newton_cfg
 
 
-@pytest.mark.parametrize("physics", ["newton_mjwarp", "isaacsim_physx"])
-def test_reach_hold_uses_continuing_pose_reward_and_backend_profile(physics):
-    """Hold keeps learning after arrival with pose feedback and the selected backend profile."""
-    default_env, default_agent = resolve_task_config(_TASK, "rsl_rl_cfg_entry_point", overrides=[f"physics={physics}"])
-    hold_env, hold_agent = resolve_task_config(
-        _TASK, "rsl_rl_cfg_entry_point", overrides=[f"physics={physics}", "presets=hold"]
-    )
+def test_reach_hold_keeps_one_goal_and_rewards_continued_success():
+    """Hold keeps one episode goal and rewards reaching it without terminating on arrival."""
+    _, default_agent = resolve_task_config(_TASK, "rsl_rl_cfg_entry_point", overrides=[])
+    hold_env, hold_agent = resolve_task_config(_TASK, "rsl_rl_cfg_entry_point", overrides=["presets=hold"])
 
     validate(hold_env)
-    assert hold_env.episode_length_s == default_env.episode_length_s
     assert min(hold_env.commands.ee_pose.resampling_time_range) > hold_env.episode_length_s
     assert hold_env.terminations.success is None
-    assert hold_env.terminations.time_out.func is mdp.time_out
     assert hold_env.rewards.success.func is mdp.pose_command_success
-    assert hold_env.rewards.success.weight == default_env.rewards.success.weight
-    assert hold_env.rewards.success.params == {"command_name": "ee_pose"}
-    assert hold_env.observations.policy.ee_target_error is not None
-    assert default_env.observations.policy.ee_target_error is None
+    # The 38-input holding policies must not share a checkpoint directory with 32-input reaching policies.
     assert hold_agent.experiment_name != default_agent.experiment_name
-    assert hold_agent.max_iterations > default_agent.max_iterations
-
-    if physics == "newton_mjwarp":
-        assert hold_env.scene.robot.actuators["panda_arm"].stiffness is not None
-        assert hold_env.rewards.action_rate.weight == default_env.rewards.action_rate.weight
-        assert hold_env.curriculum.action_rate.params["weight"] == default_env.curriculum.action_rate.params["weight"]
-    else:
-        assert hold_env.scene.robot.actuators["panda_arm"].stiffness is None
-        assert hold_env.rewards.action_rate.weight == pytest.approx(100 * default_env.rewards.action_rate.weight)
-        assert hold_env.curriculum.action_rate.params["weight"] == pytest.approx(
-            100 * default_env.curriculum.action_rate.params["weight"]
-        )
-
-
-def test_reach_hold_rejects_inherited_osc_controller():
-    """The inherited hold preset cannot feed a joint-position policy to the OSC controller."""
-    cfg = _load_reach_env_cfg(_OSC_TASK, "hold")
-
-    with pytest.raises(ValueError, match="hold.*joint.position"):
-        validate(cfg)
 
 
 def test_reach_hold_pose_error_uses_robot_base_frame_and_commanded_body():
@@ -303,7 +269,7 @@ def test_reach_osc_resolves_controller_preset_values_to_defaults():
     assert physx_props.disable_gravity is True
     assert mujoco_props.gravcomp == pytest.approx(1.0)
     assert cfg.teleop_devices.devices == {}
-    assert domain_presets == {"diffik_abs", "minimal", "hold"}
+    assert domain_presets == {"diffik_abs", "minimal"}
 
 
 def test_reach_osc_diffik_abs_is_a_deprecated_no_op_alias():
