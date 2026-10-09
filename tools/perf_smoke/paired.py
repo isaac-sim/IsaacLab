@@ -19,7 +19,6 @@ from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 
 from . import baseline as baseline_mod
-from .metric_identity import metric_definition
 from .source_revision import RUNTIME_MODULE, measurement_digest, prepare_manifest
 
 
@@ -313,14 +312,6 @@ def restore_baseline(
                     baseline_origin=evidence.identity,
                     reason="Reused the verified baseline measurement for this PR's unchanged base commit.",
                 )
-                if measurement_manifest is None:
-                    selection["baseline_metric_definition"] = {
-                        "artifact_id": evidence.identity["artifact_id"],
-                        "sha256": evidence.identity["sha256"],
-                        "source_commit": base_commit,
-                        "definition": metric_definition(checkout_root),
-                        "provenance": "verified_baseline_checkout",
-                    }
                 break
             except baseline_mod.EvidenceError as exc:
                 selection["issues"].append(f"Artifact {artifact['id']} was not reused: {exc}")
@@ -353,6 +344,8 @@ def capture_context(
         if pr and commit != reference_commit:
             raise ValueError("baseline checkout does not match its intended source revision.")
     _write(output_dir / "source-manifest.json", prepare_manifest(root, measurement_manifest))
+    if not pr:
+        return {}
     context = {
         "schema_version": 1,
         "source": {
@@ -396,8 +389,6 @@ def capture_context(
         context["source"].update(image_digest=next(iter(image.get("RepoDigests", [])), None), image_id=image.get("Id"))
         context["execution"]["hostname"] = socket.gethostname()
         context["execution"]["benchmark_protocol"] = _benchmark_protocol(legs, measurement_manifest)
-        if measurement_manifest is None:
-            context["metric_definition"].update(metric_definition(root))
     except (OSError, ValueError, TypeError, AttributeError, IndexError, KeyError, subprocess.SubprocessError) as exc:
         reason = f"Optional build provenance capture failed: {exc}"
         context["metric_definition"]["reason"] = reason
@@ -427,7 +418,6 @@ def bind_baseline(
         # Clear it even when the new upload fails.
         selection["baseline_reused"] = False
         selection["baseline_origin"] = None
-        selection.pop("baseline_metric_definition", None)
     if not selection["baseline_reused"]:
         if artifact_id:
             selection["baseline_origin"] = {
@@ -491,18 +481,6 @@ def select_pr_baseline(
         for field in ("artifact_id", "run_id", "run_attempt", "source_commit", "sha256"):
             if field in origin and origin[field] != baseline.identity[field]:
                 raise baseline_mod.EvidenceError("identity_mismatch", "Pinned baseline identity or bytes changed.")
-        derived = selection.get("baseline_metric_definition")
-        if derived is not None and (
-            not isinstance(derived, dict)
-            or derived.get("provenance") != "verified_baseline_checkout"
-            or not isinstance(derived.get("definition"), dict)
-            or any(
-                derived.get(field) != baseline.identity[field] for field in ("artifact_id", "sha256", "source_commit")
-            )
-        ):
-            raise baseline_mod.EvidenceError(
-                "identity_mismatch", "Derived FPS identity does not identify this baseline artifact."
-            )
         if not selection.get("baseline_reused"):
             left, right = baseline.context["execution"], candidate.context["execution"]
             for field in ("run_id", "run_attempt", "job", "runner_name", "hostname"):
