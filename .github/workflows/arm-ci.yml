@@ -181,16 +181,13 @@ jobs:
         result-file: arm-ci-report.xml
         container-name: isaac-lab-arm-ci-${{ github.run_id }}-${{ github.run_attempt }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}-arm64
-        # DRAFT: OVRTX only; ovphysx 0.6.3 would downgrade OVStage to 0.2.0.
-        extra-pip-packages: "${{ steps.ov_pins.outputs.ovrtx }}"
+        extra-pip-packages: "${{ steps.ov_pins.outputs.ovrtx }} ${{ steps.ov_pins.outputs.ovphysx }}"
         # ovstage rendering cases are post-merge only on x86 as well.
         test-k-expr: not ovphysx and not ovstage
         ci-marker: arm_ci
         volume-mount-source: ${{ github.workspace }}
 
     - name: Run arm_ci OVPhysX marker tests
-      # DRAFT: OvPhysX is not installed for the OVRTX 0.5.1 / OVStage 0.2.1 sanity check.
-      if: false
       uses: ./.github/actions/run-tests
       with:
         test-path: tools

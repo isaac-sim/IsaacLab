@@ -471,8 +471,7 @@ jobs:
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
-        # DRAFT: ovphysx 0.6.3 would downgrade OVStage to 0.2.0, so the OvPhysX demos skip here.
-        # extra-pip-packages: "${{ steps.ov_pins.outputs.ovphysx }}"
+        extra-pip-packages: "${{ steps.ov_pins.outputs.ovphysx }}"
         include-files: "test_standalone_scripts.py"
         standalone-script-scope: "demos"
         standalone-script-visualizer: "default"
@@ -722,13 +721,7 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_ov"
-        # DRAFT: OVRTX only; ovphysx 0.6.3 would downgrade OVStage to 0.2.0. Most OvPhysX modules skip
-        # without the wheel; these three import it unconditionally.
-        extra-pip-packages: ${{ steps.ov_pins.outputs.ovrtx }}
-        exclude-pattern: >-
-          isaaclab_ov/test/assets/test_deformable_object.py,
-          isaaclab_ov/test/sensors/test_ray_caster.py,
-          isaaclab_ov/test/test_cloner.py
+        extra-pip-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && steps.ov_pins.outputs.ovrtx || format('{0} {1}', steps.ov_pins.outputs.ovrtx, steps.ov_pins.outputs.ovphysx) }}
         wheelhouse-image: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && needs.config.outputs.ovphysx_wheelhouse_image || '' }}
         wheelhouse-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && 'ovphysx' || '' }}
         warp-cache: restore
@@ -912,8 +905,8 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_tasks"
-        # DRAFT: OVRTX only; ovphysx 0.6.3 would downgrade OVStage to 0.2.0.
-        extra-pip-packages: ${{ steps.ov_pins.outputs.ovrtx }}
+        extra-pip-packages: >-
+          ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && steps.ov_pins.outputs.ovrtx || format('{0} {1}', steps.ov_pins.outputs.ovrtx, steps.ov_pins.outputs.ovphysx) }}
         wheelhouse-image: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && needs.config.outputs.ovphysx_wheelhouse_image || '' }}
         wheelhouse-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && 'ovphysx' || '' }}
         include-files: >-
@@ -924,7 +917,7 @@ jobs:
           test_rendering_franka_soft_kitless.py,
           test_rendering_franka_cable_kitless.py,
           test_rendering_shadow_hand_kitless.py
-        test-k-expr: legacy and not ovphysx
+        test-k-expr: legacy
         test-node-ids-file: ${{ github.event_name == 'push' && '.github/test-subsets/postmerge-rendering.toml' || '' }}
         test-node-ids-key: ${{ github.event_name == 'push' && 'rendering-correctness-kitless-legacy' || '' }}
         ovrtx-shader-cache: restore
@@ -959,8 +952,8 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_tasks"
-        # DRAFT: OVRTX only; ovphysx 0.6.3 would downgrade OVStage to 0.2.0.
-        extra-pip-packages: ${{ steps.ov_pins.outputs.ovrtx }}
+        extra-pip-packages: >-
+          ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && steps.ov_pins.outputs.ovrtx || format('{0} {1}', steps.ov_pins.outputs.ovrtx, steps.ov_pins.outputs.ovphysx) }}
         wheelhouse-image: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && needs.config.outputs.ovphysx_wheelhouse_image || '' }}
         wheelhouse-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && 'ovphysx' || '' }}
         include-files: >-
@@ -971,7 +964,7 @@ jobs:
           test_rendering_franka_soft_kitless.py,
           test_rendering_franka_cable_kitless.py,
           test_rendering_shadow_hand_kitless.py
-        test-k-expr: ovstage and not ovphysx
+        test-k-expr: ovstage
         test-node-ids-file: ${{ github.event_name == 'push' && '.github/test-subsets/postmerge-rendering.toml' || '' }}
         test-node-ids-key: ${{ github.event_name == 'push' && 'rendering-correctness-kitless-ovstage' || '' }}
         ovrtx-shader-cache: restore
@@ -1004,12 +997,12 @@ jobs:
         cache-tag: cache-base
 
     # Kit-free combinations only: name|task|num_envs|bench_timeout_s|args
-    # DRAFT: shadow-camera-ovphysx-newton is removed; OvPhysX is not installed for this sanity check.
     - name: Define benchmark matrix
       run: |
         cat > benchmark-legs.tsv <<'EOF'
         cartpole-newton|Isaac-Cartpole-Direct|4096|600|physics=newton_mjwarp
         shadow-camera-newton-renderer|IsaacContrib-Reorient-Cube-Shadow-Camera-Benchmark-Direct|512|1200|physics=newton_mjwarp renderer=newton_renderer
+        shadow-camera-ovphysx-newton|IsaacContrib-Reorient-Cube-Shadow-Camera-Benchmark-Direct|512|1200|physics=ovphysx renderer=newton_renderer
         g1-newton|Isaac-Velocity-Flat-G1|512|720|physics=newton_mjwarp
         EOF
 
@@ -1330,9 +1323,7 @@ jobs:
         # One combined job covers both sub-trees: Kit cartpole rendering warms
         # kit/, kitless ovrtx cartpole rendering warms kitless/.
         filter-pattern: "isaaclab_tasks"
-        # DRAFT: OVRTX only; ovphysx 0.6.3 would downgrade OVStage to 0.2.0.
-        extra-pip-packages: "${{ steps.ov_pins.outputs.ovrtx }}"
-        test-k-expr: not ovphysx
+        extra-pip-packages: "${{ steps.ov_pins.outputs.ovrtx }} ${{ steps.ov_pins.outputs.ovphysx }}"
         include-files: >-
           test_rendering_cartpole.py,
           test_rendering_cartpole_kitless.py
