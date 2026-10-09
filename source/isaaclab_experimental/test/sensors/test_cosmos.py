@@ -38,7 +38,7 @@ pytestmark = pytest.mark.unit
 class TransportResource:
     """Already-loaded resource whose ownership is observable across a real socket."""
 
-    capabilities = {"max_views": 1, "modalities": ["edge", "depth", "seg"]}
+    capabilities = {"modalities": ["edge", "depth", "seg"]}
 
     def __init__(self):
         self.streams = []
@@ -130,7 +130,9 @@ def cosmos_service():
 
 
 def _client(endpoint):
-    return CosmosModel(CosmosModelCfg(endpoint=endpoint, prompt="A camera view", modality="edge", timeout=2))
+    return CosmosModel(
+        CosmosModelCfg(max_episode_frames=13, endpoint=endpoint, prompt="A camera view", modality="edge", timeout=2)
+    )
 
 
 def _controls():
@@ -259,7 +261,9 @@ def test_camera_client_closes_sessions_and_keeps_the_model_resident(cosmos_servi
 def test_a_prompt_list_cycles_per_episode_over_one_session(cosmos_service):
     """Each finished episode moves to the next prompt; a reset before the first update keeps the prompt."""
     prompts = ["A bright warehouse.", "A wooden kitchen."]
-    client = CosmosModel(CosmosModelCfg(endpoint=cosmos_service.endpoint, prompt=prompts, timeout=2))
+    client = CosmosModel(
+        CosmosModelCfg(max_episode_frames=13, endpoint=cosmos_service.endpoint, prompt=prompts, timeout=2)
+    )
     stream = client.open_stream(num_views=1, seeds=(7,))
     first, update = _controls(), _controls().expand(4, -1, -1, -1).contiguous()
     stream.step([first], reset_rows=(), seeds=())
@@ -279,9 +283,9 @@ def test_a_prompt_list_cycles_per_episode_over_one_session(cosmos_service):
 
 def test_prompt_lists_must_hold_text_and_the_service_changes_prompts_only_at_resets(cosmos_service):
     with pytest.raises(ValueError, match="nonempty"):
-        CosmosModel(CosmosModelCfg(prompt=["", "Two"]))
+        CosmosModel(CosmosModelCfg(max_episode_frames=13, prompt=["", "Two"]))
     with pytest.raises(ValueError, match="nonempty"):
-        CosmosModel(CosmosModelCfg(prompt=[]))
+        CosmosModel(CosmosModelCfg(max_episode_frames=13, prompt=[]))
     with _protocol.connect(cosmos_service.endpoint, timeout=2) as connection:
         open_request = {
             "op": "open",
@@ -364,7 +368,9 @@ def test_camera_postprocessing_publishes_rgb_from_the_connected_service(cosmos_s
         [
             ModifierCfg(func=depth_to_control, params={"near": 1.0, "far": 9.0}),
             CosmosTransferModifierCfg(
-                backend=CosmosModelCfg(endpoint=cosmos_service.endpoint, modality="depth", timeout=2)
+                backend=CosmosModelCfg(
+                    max_episode_frames=13, endpoint=cosmos_service.endpoint, modality="depth", timeout=2
+                )
             ),
         ],
         device="cpu",
@@ -387,7 +393,8 @@ def test_incompatible_cosmos_cadence_is_rejected_before_opening_a_session(cosmos
     chain = ModifierChain(
         [
             CosmosTransferModifierCfg(
-                backend=CosmosModelCfg(endpoint=cosmos_service.endpoint, timeout=2), update_frames=1
+                backend=CosmosModelCfg(max_episode_frames=13, endpoint=cosmos_service.endpoint, timeout=2),
+                update_frames=1,
             )
         ],
         device="cpu",
@@ -420,7 +427,9 @@ def test_the_history_window_must_hold_its_attention_sink(window, sink):
 
 def test_several_views_share_one_session_with_their_own_prompts_frames_and_resets(cosmos_service):
     """Two views open one batched session; a restarting view sends one frame while the other sends four."""
-    cfg = CosmosModelCfg(endpoint=cosmos_service.endpoint, prompt=["A lab.", "A kitchen.", "A field."], timeout=2)
+    cfg = CosmosModelCfg(
+        max_episode_frames=13, endpoint=cosmos_service.endpoint, prompt=["A lab.", "A kitchen.", "A field."], timeout=2
+    )
     client = CosmosModel(cfg)
     stream = client.open_stream(num_views=2, seeds=(1, 2))
     first = [_controls(), _controls()]
@@ -455,3 +464,32 @@ def test_the_service_accepts_only_distinct_ordered_resets_of_opened_views(cosmos
         _protocol.send_message(connection, {"op": "step", "reset_rows": [2], "seeds": [5]}, [_controls().numpy()] * 2)
         reply, _ = _protocol.receive_message(connection)
     assert not reply["ok"] and "distinct opened views" in reply["error"]
+
+
+def test_worker_rejects_an_occupied_endpoint_before_loading_the_model(monkeypatch):
+    from isaaclab_experimental.cosmos.server import worker
+
+    def load(*args, **kwargs):
+        pytest.fail("An occupied endpoint must not load the model")
+
+    monkeypatch.setattr(worker, "CosmosInferenceModel", load)
+    with socket.socket() as occupied:
+        occupied.bind(("127.0.0.1", 0))
+        occupied.listen()
+        port = occupied.getsockname()[1]
+        with pytest.raises(OSError):
+            worker.main(["--checkpoint", "unused", "--host", "127.0.0.1", "--port", str(port), "--warmup"])
+
+
+def test_failed_model_loading_releases_the_reserved_endpoint():
+    with socket.socket() as reserved:
+        reserved.bind(("127.0.0.1", 0))
+        port = reserved.getsockname()[1]
+
+    def load():
+        raise ValueError("checkpoint unavailable")
+
+    with pytest.raises(ValueError, match="checkpoint unavailable"):
+        serve(load, host="127.0.0.1", port=port)
+    with socket.socket() as replacement:
+        replacement.bind(("127.0.0.1", port))

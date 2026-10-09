@@ -11,7 +11,6 @@ import argparse
 import logging
 import os
 
-from isaaclab_experimental.cosmos._protocol import DEFAULT_MAX_EPISODE_FRAMES
 from isaaclab_experimental.cosmos.server._framework import CosmosInferenceModel
 from isaaclab_experimental.cosmos.server.service import serve
 
@@ -28,14 +27,8 @@ def main(args: list[str] | None = None) -> None:
     parser.add_argument(
         "--max-episode-frames",
         type=int,
-        default=DEFAULT_MAX_EPISODE_FRAMES,
-        help="Longest episode in frames, 1 + 4*k with k >= 1 (default: the trained horizon, 201); 0 removes the cap.",
-    )
-    parser.add_argument(
-        "--max-views",
-        type=int,
-        default=1,
-        help="Most camera views (environments) one session may batch; each needs GPU memory for its history.",
+        default=0,
+        help="Optional episode cap in frames, 1 + 4*k with k >= 1; default 0 leaves the budget to each session.",
     )
     parser.add_argument(
         "--kv-window",
@@ -51,19 +44,19 @@ def main(args: list[str] | None = None) -> None:
     os.environ["COSMOS_TRAINING"] = "0"
     os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
     os.environ.setdefault("TORCHINDUCTOR_COMPILE_THREADS", "2")
-    model = CosmosInferenceModel(
-        options.checkpoint,
-        options.device,
-        use_compile=not options.no_compile,
-        max_episode_frames=options.max_episode_frames or None,
-        max_views=options.max_views,
-        kv_window=options.kv_window,
-        attention_sink=options.attention_sink,
+    serve(
+        lambda: CosmosInferenceModel(
+            options.checkpoint,
+            options.device,
+            use_compile=not options.no_compile,
+            max_episode_frames=options.max_episode_frames or None,
+            kv_window=options.kv_window,
+            attention_sink=options.attention_sink,
+        ),
+        host=options.host,
+        port=options.port,
+        warmup=options.warmup,
     )
-    try:
-        serve(model, host=options.host, port=options.port, warmup=options.warmup)
-    finally:
-        model.close()
 
 
 if __name__ == "__main__":

@@ -12,8 +12,6 @@ from typing import TYPE_CHECKING, Literal
 from isaaclab.sim import BackendCfg
 from isaaclab.utils import configclass
 
-from .._protocol import DEFAULT_MAX_EPISODE_FRAMES
-
 if TYPE_CHECKING:
     from .cosmos_model import CosmosModel
 
@@ -45,9 +43,11 @@ class CosmosModelCfg(BackendCfg):
     """Type of uint8 three-channel guidance. The preceding camera modifier prepares edge, depth, and seg controls;
     for blur the camera sends its RGB and the service applies the Framework's own blur filter."""
 
-    max_episode_frames: int = DEFAULT_MAX_EPISODE_FRAMES
-    """Image-frame budget per episode, including the initial frame: ``1 + 4*k``. It must be within the service's
-    cap, set with ``isaaclab-cosmos-server --max-episode-frames`` (default 201, 0 for no cap)."""
+    max_episode_frames: int | None = None
+    """Image-frame budget per episode, including the initial frame: ``1 + 4*k``. The
+    Shadow Hand preset derives it from the task duration and capture rate. Low-level callers must set it before
+    creating the client. It must fit any explicit server ``--max-episode-frames`` cap; the server has none by default.
+    """
 
     timeout: float = 600.0
     """Maximum wait per network operation [s], including the first generation."""

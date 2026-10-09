@@ -90,7 +90,7 @@ cube, and it connects to `tcp://127.0.0.1:5555`. The camera captures at 10 Hz of
 simulation time. After the initial generated frame, Cosmos updates every four
 captures, so fresh generated observations arrive at 2.5 Hz of simulation time.
 Generation latency determines the elapsed time needed to run those captures.
-The task keeps its 10-second episode length, within the default 201-frame Cosmos episode cap.
+The task keeps its 10-second episode length and requests 101 frames, including its initial capture.
 The preset requires `scene.lazy_sensor_update=True` and synchronous rendering so
 each image remains aligned with its simulation state. With OVRTX, set
 `scene.tiled_camera.renderer_cfg.async_rendering=False`.
@@ -147,7 +147,7 @@ input_name, modifiers = depth_processor(
         endpoint="tcp://127.0.0.1:5555",
         modality="depth",
         prompt="A robot arm manipulating an object on a workbench.",
-        max_episode_frames=201,
+        max_episode_frames=301,  # Example: 10 seconds at 30 captures/s, plus the initial capture.
     ),
     near=0.2,
     far=12.0,
@@ -189,6 +189,7 @@ prompt's first use can trigger compilation, so prefer a short list of prompts.
 ```python
 CosmosModelCfg(
     modality="depth",
+    max_episode_frames=301,
     prompt=[
         "A robotic Shadow Hand turning a red cube in a bright warehouse with metal shelves.",
         "A robotic Shadow Hand turning a wooden cube on a kitchen counter in warm evening light.",
@@ -235,14 +236,16 @@ prompt, seed, and generation history, and resets on its own: a resetting environ
 one frame while the others continue with four. More environments share each transformer step, so throughput per
 environment rises with GPU size, while each environment needs GPU memory for its own history.
 
-Start the service with the number of environments it may batch, in compiled mode (resetting one environment
+Start the service in compiled mode (resetting one environment
 while the others continue needs the compiled runtime):
 
 ```bash
-uv run --no-sync isaaclab-cosmos-server --checkpoint "$COSMOS_CHECKPOINT" --max-views 4 --warmup
+uv run --no-sync isaaclab-cosmos-server --checkpoint "$COSMOS_CHECKPOINT" --warmup
 ```
 
-A camera with a Cosmos chain then sends one view per environment.
+A camera with a Cosmos chain requests one view per environment when its session opens. Close the session
+before starting another with a different count; the model stays loaded. Available GPU memory limits the batch,
+and a new batch size may compile on its first use.
 
 - With several environments, environment `v` uses `prompt[v % len(prompt)]` for all its episodes; the batch keeps
   each environment's prompt across its resets. With one environment, a prompt list changes per episode.
@@ -256,11 +259,14 @@ A camera with a Cosmos chain then sends one view per environment.
 
 ## Episode length cap
 
-The service limits how many frames one episode may generate: `isaaclab-cosmos-server --max-episode-frames N`
-sets the cap (`1 + 4*k`, default 201), `0` removes it, and `status` reports it. The model generates with a
-sliding window of history and was trained on 201-frame episodes, so the server warns when the cap allows longer
-episodes; check quality and memory use before relying on them. Each task requests its own budget with
-`CosmosModelCfg.max_episode_frames`, which must stay within the cap.
+There is no server episode cap by default. Operators may set `--max-episode-frames N`
+(`1 + 4*k`, with `k >= 1`); `0` removes it and `status` reports `null` when uncapped.
+This is an operational limit, not a model training horizon.
+
+Each session still requests a finite budget. The Shadow Hand preset derives it from the task's duration and
+capture cadence, including the initial capture and rounding up to `1 + 4*k`. Low-level camera chains must set
+`CosmosModelCfg.max_episode_frames` explicitly. Reset before exhausting that budget; the service rejects further
+generation rather than silently resetting the episode. Longer runs need quality and memory validation.
 
 See [Image transfer for camera images](image_transfer.md) for the underlying model
 contract, camera scheduling, and optional PPISP processing. Service shutdown and

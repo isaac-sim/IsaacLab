@@ -8,8 +8,10 @@
 from __future__ import annotations
 
 import logging
+import os
 import socket
 import threading
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import suppress
 from typing import Protocol
@@ -21,8 +23,10 @@ from .._protocol import MAX_ARRAYS, ProtocolError, receive_message, send_message
 _LOGGER = logging.getLogger(__name__)
 
 
-def serve(model: _Model, host: str = "127.0.0.1", port: int = 5555, *, warmup: bool = False) -> None:
-    """Serve an already initialized model until shutdown or interruption.
+def serve(
+    model: _Model | Callable[[], _Model], host: str = "127.0.0.1", port: int = 5555, *, warmup: bool = False
+) -> None:
+    """Reserve the endpoint, then serve a resident model until shutdown or interruption.
 
     A connection owns at most one generation session. Only one session may use the resident model
     at a time; separate status and shutdown connections remain available during generation.
@@ -31,7 +35,8 @@ def serve(model: _Model, host: str = "127.0.0.1", port: int = 5555, *, warmup: b
     compiled CUDA graph state is thread-local.
 
     Args:
-        model: Loaded model resource implementing the NumPy stream interface.
+        model: Loaded model resource, or a factory called only after the endpoint is reserved. The worker uses
+            a factory so a busy or invalid endpoint fails before model loading and warmup.
         host: Interface to bind. Use loopback for local operation.
         port: TCP listening port.
         warmup: Warm the model on its inference thread before exposing the ready endpoint.
@@ -39,19 +44,31 @@ def serve(model: _Model, host: str = "127.0.0.1", port: int = 5555, *, warmup: b
     The service owns ``model`` and closes it on exit, including failed startup. The protocol has no
     authentication: remote connections should use a trusted tunnel rather than a public interface.
     """
-    state = _ServiceState(model)
+    state = None
+    resource = None if callable(model) else model
     connections: set[socket.socket] = set()
     threads: list[threading.Thread] = []
     connections_lock = threading.Lock()
     try:
-        if warmup:
-            state.executor.submit(model.warmup).result()
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
-            listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            if os.name == "nt":
+                listener.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+            else:
+                listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             listener.bind((host, port))
+            endpoint = f"tcp://{host}:{listener.getsockname()[1]}"
             listener.listen(16)
             listener.settimeout(0.25)
-            _LOGGER.info("Cosmos ready at tcp://%s:%d", host, listener.getsockname()[1])
+            _LOGGER.info(
+                "Cosmos reserved %s; loading the model. Wait for the ready message before connecting.", endpoint
+            )
+            if resource is None:
+                resource = model()
+            state = _ServiceState(resource)
+            if warmup:
+                _LOGGER.info("Cosmos warming up; the first compilation can take several minutes.")
+                state.executor.submit(resource.warmup).result()
+            _LOGGER.info("Cosmos ready at %s", endpoint)
             while not state.stopping.is_set():
                 try:
                     connection, _ = listener.accept()
@@ -71,18 +88,22 @@ def serve(model: _Model, host: str = "127.0.0.1", port: int = 5555, *, warmup: b
                 threads.append(thread)
                 thread.start()
     finally:
-        state.stopping.set()
-        with connections_lock:
-            for connection in connections:
-                with suppress(OSError):
-                    connection.shutdown(socket.SHUT_RDWR)
         try:
-            # In-flight inference and session cleanup complete before the model is released.
-            for thread in threads:
-                thread.join()
-            state.executor.submit(model.close).result()
+            if state is not None:
+                state.stopping.set()
+                with connections_lock:
+                    for connection in connections:
+                        with suppress(OSError):
+                            connection.shutdown(socket.SHUT_RDWR)
+                # In-flight inference and session cleanup complete before the model is released.
+                for thread in threads:
+                    thread.join()
+                state.executor.submit(resource.close).result()
+            elif resource is not None:
+                resource.close()
         finally:
-            state.executor.shutdown(wait=True)
+            if state is not None:
+                state.executor.shutdown(wait=True)
 
 
 class _Stream(Protocol):

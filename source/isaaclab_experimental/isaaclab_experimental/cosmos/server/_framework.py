@@ -16,7 +16,6 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
-from .._protocol import DEFAULT_MAX_EPISODE_FRAMES
 
 if TYPE_CHECKING:
     import torch
@@ -31,8 +30,8 @@ _CANVASES = {
     (832, 480): "9,16",
 }
 
-_BATCH_LATENT_STEPS = 1 << 30
-"""Latent steps a batched session may run. Each view's episode ends at its own cap, so the batch need not stop."""
+_MAX_BATCH_LATENT_FRAMES = 1 << 30
+"""Maximum latent frames in a batched session. Each view's episode ends at its own cap, so the batch need not stop."""
 
 
 class CosmosInferenceModel:
@@ -40,9 +39,9 @@ class CosmosInferenceModel:
 
     Construct this resource in the Cosmos Framework environment, independently of the
     simulation process. Each stream owns its VAE and transformer history; closing or
-    resetting a stream preserves the resident weights. A session serves up to ``max_views``
-    camera views as one batch; resetting some views while others continue needs the compiled
-    runtime. Concurrent sessions are unsupported.
+    resetting a stream preserves the resident weights. Each session requests its camera count,
+    with memory allocated for that batch. Resetting some views while others continue needs the
+    compiled runtime. Concurrent sessions are unsupported.
     """
 
     def __init__(
@@ -51,8 +50,7 @@ class CosmosInferenceModel:
         device: str = "cuda:0",
         *,
         use_compile: bool = True,
-        max_episode_frames: int | None = DEFAULT_MAX_EPISODE_FRAMES,
-        max_views: int = 1,
+        max_episode_frames: int | None = None,
         kv_window: int = 30,
         attention_sink: int = 3,
     ):
@@ -63,9 +61,7 @@ class CosmosInferenceModel:
             device: CUDA device in this process's visible GPU set.
             use_compile: Enable the Framework's compiled CUDA-graph streaming path.
             max_episode_frames: Longest episode a session may request, ``1 + 4*k`` frames with ``k >= 1``. None
-                removes the cap. The model was trained on 201-frame episodes; longer episodes are unvalidated.
-            max_views: Most camera views one session may batch. More views share each transformer step but
-                need GPU memory for their own generation history.
+                (default) leaves the budget to each session. Validate quality for your rollout length.
             kv_window: Generation history the transformer attends to [latent frames]. The Sim-Transfer recipe
                 uses 30; shorter windows are faster and need less memory but remember less of the episode.
             attention_sink: Earliest latent frames always kept in the history window; the recipe uses 3.
@@ -78,8 +74,6 @@ class CosmosInferenceModel:
             type(max_episode_frames) is not int or max_episode_frames < 5 or (max_episode_frames - 1) % 4
         ):
             raise ValueError("The Cosmos episode cap must be 1 + 4*k frames with k >= 1, or None for no cap.")
-        if type(max_views) is not int or max_views < 1:
-            raise ValueError("Cosmos max_views must be a positive integer.")
         if (
             type(kv_window) is not int
             or type(attention_sink) is not int
@@ -88,12 +82,6 @@ class CosmosInferenceModel:
         ):
             raise ValueError("Cosmos needs a positive history window and an attention sink smaller than it.")
         self._max_episode_frames = max_episode_frames
-        self._max_views = max_views
-        if max_episode_frames is None or max_episode_frames > DEFAULT_MAX_EPISODE_FRAMES:
-            logger.warning(
-                "Cosmos episodes may exceed the model's trained horizon of %d frames; check quality and memory use.",
-                DEFAULT_MAX_EPISODE_FRAMES,
-            )
         import torch
         from cosmos_framework.inference.common.init import init_script
 
@@ -162,10 +150,6 @@ class CosmosInferenceModel:
             ):
                 if not callable(getattr(owner, method, None)):
                     raise ValueError(f"The Cosmos checkpoint runtime does not provide {method}().")
-            if max_views > 1 and _vae_cache_owner(model.tokenizer_vision_gen) is None:
-                raise ValueError(
-                    "This Cosmos Framework's video tokenizer does not expose per-stream caches; serve one view."
-                )
             policy = model._get_teacher_forcing_replay_policy()
             if not (
                 policy.control_visibility == "causal"
@@ -179,7 +163,6 @@ class CosmosInferenceModel:
             self.close()
             raise
         self.capabilities: dict[str, Any] = {
-            "num_views": max_views,
             "max_concurrent_streams": 1,
             "modalities": ["edge", "blur", "depth", "seg"],
             "initial_frames": 1,
@@ -188,7 +171,7 @@ class CosmosInferenceModel:
             "max_episode_frames": max_episode_frames,
             "fps": 30,
             # The Framework restarts single rows of a batch only on its compiled CUDA-graph path.
-            "partial_resets": max_views > 1 and use_compile,
+            "partial_resets": use_compile and _vae_cache_owner(model.tokenizer_vision_gen) is not None,
             "kv_window": kv_window,
             "attention_sink": attention_sink,
         }
@@ -211,7 +194,8 @@ class CosmosInferenceModel:
         generation; no reference video or cookbook files are loaded.
 
         Args:
-            num_views: Camera count, at most ``max_views``. Views are generated as one batch.
+            num_views: Positive camera count. Views are generated as one batch, subject to available GPU memory.
+                A new session may request a different count without reloading the model; its first step may compile.
             seeds: One seed per view for its first episode.
             prompt: Appearance description, the same for every view or one per view. None uses empty text plus
                 native metadata. A view keeps its prompt across resets when the session has several views.
@@ -228,10 +212,11 @@ class CosmosInferenceModel:
             raise RuntimeError("The Cosmos model is closed.")
         if self._stream is not None:
             raise RuntimeError("The Cosmos model already has an active camera session.")
-        if type(num_views) is not int or not 1 <= num_views <= self._max_views or len(seeds) != num_views:
+        if type(num_views) is not int or num_views < 1 or len(seeds) != num_views:
+            raise ValueError("Cosmos requires a positive camera count, with one seed per view.")
+        if num_views > 1 and _vae_cache_owner(self._pipeline.model.tokenizer_vision_gen) is None:
             raise ValueError(
-                f"Cosmos serves 1 to {self._max_views} camera views per session, with one seed each; start "
-                "isaaclab-cosmos-server with --max-views for more."
+                "This Cosmos Framework's video tokenizer does not expose per-stream caches; serve one view."
             )
         for seed in seeds:
             _validate_seed(seed)
@@ -681,7 +666,7 @@ class _CosmosBatchStream(_CosmosInferenceStream):
         return self._model.iter_samples_from_batch_autoregressive_streaming_transfer(
             data_batch=self._data_batch,
             control_latent_chunks=self._control_iterator(),
-            num_frames=_BATCH_LATENT_STEPS,
+            num_frames=_MAX_BATCH_LATENT_FRAMES,
             seeds=list(self._seeds),
             guidance=1.0,
             num_steps=4,

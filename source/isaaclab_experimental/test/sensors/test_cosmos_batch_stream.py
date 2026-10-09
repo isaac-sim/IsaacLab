@@ -75,6 +75,7 @@ class Model:
     """Encodes a view's mean control value, generates it back, and decodes one or four frames per causal cache."""
 
     tensor_kwargs = {"dtype": torch.float32}
+    input_caption_key = "caption"
 
     def __init__(self):
         self.tokenizer_vision_gen = Tokenizer()
@@ -124,13 +125,24 @@ def batch(monkeypatch):
 
     def make(views=2, partial=True, budget=13, modality="depth"):
         model = Model()
-        owner = SimpleNamespace(
-            _pipeline=SimpleNamespace(model=model),
-            _device=torch.device("cuda", torch.cuda.current_device()),
-            capabilities={"partial_resets": partial},
-            _stream=None,
+        # Keep the real session admission and lifecycle; replace only the loaded Framework and text conditioning.
+        owner = _framework.CosmosInferenceModel.__new__(_framework.CosmosInferenceModel)
+        owner._pipeline = SimpleNamespace(model=model)
+        owner._device = torch.device("cuda", torch.cuda.current_device())
+        owner.capabilities = {"partial_resets": partial, "modalities": ["depth", "blur"]}
+        owner._stream = None
+        owner._closed = False
+        owner._max_episode_frames = None
+        monkeypatch.setattr(owner, "_prompt_batch", lambda text, *args: {"caption": [text]})
+        stream = owner.open_stream(
+            num_views=views,
+            seeds=tuple(range(views)),
+            prompt="A lab.",
+            modality=modality,
+            height=HEIGHT,
+            width=WIDTH,
+            max_episode_frames=budget,
         )
-        stream = _framework._CosmosBatchStream(owner, {}, tuple(range(views)), HEIGHT, WIDTH, budget, modality)
         return stream, model
 
     return make
@@ -138,6 +150,48 @@ def batch(monkeypatch):
 
 def _controls(*frames_and_values):
     return [np.full((frames, HEIGHT, WIDTH, 3), value, dtype=np.uint8) for frames, value in frames_and_values]
+
+
+def test_new_sessions_change_view_count_without_reloading_the_model(batch):
+    """A resident model serves four views, then eight, then one, with fresh history and distinct images."""
+    stream, model = batch(views=4)
+    owner = stream._owner
+    for views in (4, 8, 1):
+        if views != 4:
+            stream = owner.open_stream(
+                num_views=views,
+                seeds=tuple(range(views)),
+                prompt="A lab.",
+                modality="depth",
+                height=HEIGHT,
+                width=WIDTH,
+                max_episode_frames=13,
+            )
+        try:
+            for frames in (1, 4):
+                images = stream.step(_controls(*((frames, 20 + view) for view in range(views))), (), ())
+                assert len(images) == views
+                for view, pixels in enumerate(images):
+                    assert pixels.shape == (frames, HEIGHT, WIDTH, 3)
+                    assert pixels.dtype == np.uint8
+                    assert np.all(pixels == 20 + view)
+        finally:
+            stream.close()
+    assert model.iterators == 3
+
+
+def test_an_uncapped_server_generates_past_201_frames_to_the_requested_budget(batch):
+    stream, _ = batch(views=1, budget=209)
+    try:
+        stream.step(_controls((1, 40)), (), ())
+        for _ in range(52):
+            images = stream.step(_controls((4, 40)), (), ())
+            assert images[0].shape == (4, HEIGHT, WIDTH, 3)
+            assert np.all(images[0] == 40)
+        with pytest.raises(RuntimeError, match="episode horizon exceeded"):
+            stream.step(_controls((4, 40)), (), ())
+    finally:
+        stream.close()
 
 
 def test_views_advance_together_and_a_restarting_view_sends_one_frame(batch):
