@@ -267,7 +267,7 @@ The **transport** is how control images go to the service, and generated images 
 
 | Transport | Data path | Where it works |
 |---|---|---|
-| `cuda_ipc` | Shared GPU buffers, opened once per session, ordered by interprocess CUDA events. Image transfer between the camera and service needs no host copies or host synchronization. Each step sends only a small message on the endpoint. | Service on the same Linux machine and the same GPU as the camera. |
+| `cuda_ipc` | Shared GPU buffers, opened once per session, ordered by interprocess CUDA events. Image transfer between the camera and service needs no host copies. Each step sends only a small message on the endpoint. | Service on the same Linux machine and the same GPU as the camera. |
 | `socket` | Images go through host memory in the endpoint's messages. | Any endpoint. |
 
 `CosmosModelCfg.transport` defaults to `auto`: CUDA IPC when the service reports it and uses the camera's GPU, the
@@ -279,6 +279,8 @@ service's `--max-views` setting and available GPU memory still limit the batch s
 Control preprocessing is separate from transport. Edge extraction uses CPU OpenCV in the camera process, and
 blur filtering copies RGB from GPU to CPU and back inside the service. CUDA IPC does not remove those copies
 or their synchronization costs; it avoids CPU staging when exchanging images between the two processes.
+The camera-side IPC handoff orders GPU work with events. The service synchronizes its CUDA stream before
+replying so GPU faults reach the client as errors; a complete inference step is not free of host synchronization.
 
 For Isaac Lab on another machine, start the service with `--endpoint tcp://127.0.0.1:5555` and forward that port,
 for example with `ssh -L 5555:localhost:5555 gpu-host`, or keep the Unix socket and forward it with
