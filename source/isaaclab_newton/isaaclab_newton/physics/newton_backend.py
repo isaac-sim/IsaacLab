@@ -105,6 +105,25 @@ def _mark_worlds_from_mask(
 
 
 @wp.kernel(enable_backward=False)
+def _mark_articulations_of_worlds(
+    worlds: wp.array(dtype=wp.bool), articulation_world: wp.array(dtype=wp.int32), fk_mask: wp.array(dtype=wp.bool)
+):
+    """Flag the articulations of the masked worlds for forward kinematics."""
+    articulation = wp.tid()
+    world = articulation_world[articulation]
+    if world >= 0 and worlds[world]:
+        fk_mask[articulation] = True
+
+
+@wp.kernel(enable_backward=False)
+def _mark_worlds(worlds: wp.array(dtype=wp.bool), world_mask: wp.array(dtype=wp.bool)):
+    """Flag the masked worlds for a solver reset."""
+    world = wp.tid()
+    if worlds[world]:
+        world_mask[world] = True
+
+
+@wp.kernel(enable_backward=False)
 def _mark_worlds_from_ids(
     env_ids: wp.array(dtype=wp.int32), row_worlds: wp.array(dtype=wp.int32), world_mask: wp.array(dtype=wp.bool)
 ):
@@ -553,6 +572,27 @@ def invalidate_body_state(
     wp.launch(kernel, selection.shape[0], [selection, row_worlds], [backend.world_mask], device=backend.device)
 
 
+def invalidate_worlds(backend: NewtonBackend, worlds: wp.array) -> None:
+    """Flag whole worlds for a solver reset and forward kinematics, without host synchronization.
+
+    This is the commit of a world-masked reset: write the state of the masked worlds, call this, then
+    :func:`forward`. Both launch masked kernels whose effect follows the mask contents at launch time, so they can be
+    recorded into a caller's CUDA graph and replayed with a different mask each time.
+
+    Args:
+        backend: Simulation backend.
+        worlds: Boolean mask over local worlds. Shape is (world_count,).
+    """
+    backend.kinematics_dirty = True
+    model = backend.model
+    wp.launch(_mark_worlds, model.world_count, [worlds], [backend.world_mask], device=backend.device)
+    if model.articulation_count:
+        inputs = [worlds, model.articulation_world]
+        wp.launch(
+            _mark_articulations_of_worlds, model.articulation_count, inputs, [backend.fk_mask], device=backend.device
+        )
+
+
 def view_row_worlds(backend: NewtonBackend, articulation_ids: wp.array) -> wp.array:
     """Return the world of each row of an articulation view. Call once at bind time; it reads device arrays.
 
@@ -902,9 +942,13 @@ def step(backend: NewtonBackend) -> StepGraph:
 def record_step(backend: NewtonBackend) -> StepGraph:
     """Record :attr:`NewtonBackend.steps_per_call` physics steps into the caller's active CUDA graph capture.
 
-    The caller owns the capture of a larger graph, such as a whole environment step. :func:`prepare` the step before
-    the capture and run it eagerly at least once, so recording allocates nothing. The masked :func:`forward` is always
-    recorded, so each replay applies state authored since the previous one, inside or outside the graph.
+    The caller owns the capture of a larger graph, such as a whole environment step, on whichever stream it records:
+    a Warp capture, or a Torch capture that Warp joins on the same stream with ``wp.capture_begin(stream,
+    external=True)`` so that Warp allocations stay graph safe. :func:`prepare` the step before the
+    capture; the solvers need no warm-up step, but step callbacks must not allocate when first called. The masked
+    :func:`forward` is always recorded, so each replay applies state authored since the previous one, inside or outside
+    the graph. The recording stays valid while :attr:`NewtonBackend.step_graph` is the returned graph; registering
+    callbacks or changing the step count builds a new one, which must be recorded again.
 
     Args:
         backend: Simulation backend with a solver.

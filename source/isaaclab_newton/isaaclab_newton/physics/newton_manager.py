@@ -948,6 +948,9 @@ class NewtonManager(PhysicsManager):
     prepares_step: ClassVar[bool] = False
     """Whether :meth:`prepare_step` does work, so the step graph runs it."""
 
+    supports_heterogeneous_worlds: ClassVar[bool] = False
+    """Whether one solver can step worlds with different contents, such as different robots per world."""
+
     ignored_model_changes: ClassVar[dict[int, str]] = {}
     """Model changes the solver does not apply after construction, mapped to the warning logged once."""
 

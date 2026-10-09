@@ -56,6 +56,7 @@ class NewtonKaminoManager(NewtonManager):
     """
 
     builder_attribute_solvers = (SolverKamino,)
+    supports_heterogeneous_worlds = True
 
     @classmethod
     def create_solver(

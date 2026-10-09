@@ -16,4 +16,5 @@ class NewtonXPBDManager(NewtonManager):
     """:class:`NewtonManager` running the XPBD solver, which double-buffers state."""
 
     solver_class = SolverXPBD
+    supports_heterogeneous_worlds = True
     supports_deterministic = True

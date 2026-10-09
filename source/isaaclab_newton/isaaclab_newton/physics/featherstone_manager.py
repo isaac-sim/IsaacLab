@@ -17,6 +17,7 @@ class NewtonFeatherstoneManager(NewtonManager):
     """:class:`NewtonManager` running the Featherstone solver, which double-buffers state."""
 
     solver_class = SolverFeatherstone
+    supports_heterogeneous_worlds = True
     supports_deterministic = True
     # SolverFeatherstone derives its inertia data from the model only when it is constructed.
     ignored_model_changes = {

@@ -23,6 +23,7 @@ class NewtonVBDManager(NewtonManager):
     """:class:`NewtonManager` running the VBD solver, which double-buffers state."""
 
     solver_class = SolverVBD
+    supports_heterogeneous_worlds = True
     prepares_step = True
 
     @classmethod
