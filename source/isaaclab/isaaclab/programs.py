@@ -62,10 +62,15 @@ def _run_script(path: Path) -> None:
     module.__package__ = None
     module.__spec__ = None
     original_main = sys.modules.get("__main__")
+    original_path = sys.path
     try:
         sys.modules["__main__"] = module
+        # Match Python's script execution so packaged demos can import helpers
+        # alongside their entrypoint, including when launched outside a checkout.
+        sys.path = [str(path.parent), *original_path]
         exec(compile(path.read_bytes(), str(path), "exec"), module.__dict__)
     finally:
+        sys.path = original_path
         if original_main is None:
             sys.modules.pop("__main__", None)
         else:
@@ -101,6 +106,12 @@ DEMOS = (
         "Smash rigid crates with MPM snowballs.",
     ),
     ProgramSpec("teapot-fill", "examples/demos/teapot_fill.py", "Fill and pour a teapot with MPM fluid."),
+    ProgramSpec(
+        "rizon-sharpa-teapot",
+        "examples/demos/rizon_sharpa_teapot_demo.py",
+        "Grasp and pour a teapot with Rizon--Sharpa and water closeups.",
+        required_modules=("isaaclab_contrib",),
+    ),
 )
 
 

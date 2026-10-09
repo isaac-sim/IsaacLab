@@ -762,10 +762,34 @@ class NewtonViewerRTX(_NewtonViewerUIMixin, ViewerRTX):
                         frame.render_vars.setdefault("LdrColor", frame.render_vars["/Render/Vars/LdrColor"])
         self._ovrtx_render_products = products
 
+    @staticmethod
+    def _make_point3f_dltensor(points_np) -> np.ndarray:
+        """Submit dynamic float3 arrays through OVRTX's supported array protocol.
+
+        OVRTX infers vector lanes from the trailing dimension. Newton's older
+        helper calls ``DLTensor.from_dlpack``, which the pinned OVRTX removed.
+        """
+        return np.ascontiguousarray(points_np, dtype=np.float32).reshape((-1, 3))
+
     def get_frame(self) -> np.ndarray:
         """Return the latest OVRTX LDR framebuffer as contiguous RGB pixels."""
-        # TODO: Use Newton's public RGB capture API when one becomes available.
-        return np.ascontiguousarray(self._capture_screenshot_pixels()[..., :3])
+        from ovrtx import Device
+
+        # Async presentation retains the previous frame. Recording needs the
+        # submitted frame, including the first frame before presentation.
+        if self._async and self._render_result is not None:
+            self._render_products = self._render_result.wait().fetch()
+        if self._render_products is None:
+            raise RuntimeError("RGB capture requires a completed RTX render frame.")
+        for product in self._render_products.values():
+            for frame in product.frames:
+                for name, render_var in frame.render_vars.items():
+                    # OVRTX versions expose either the source name or the USD
+                    # RenderVar path as the buffer key.
+                    if name.rsplit("/", 1)[-1] == "LdrColor":
+                        with render_var.map(device=Device.CPU) as mapping:
+                            return np.from_dlpack(mapping)[..., :3].copy(order="C")
+        raise RuntimeError("RTX frame does not contain a LdrColor render output.")
 
     def _capture_screenshot_pixels(self) -> np.ndarray:
         """Normalize the first asynchronous result before Newton reads its color output."""
@@ -1401,6 +1425,18 @@ class NewtonVisualizer(BaseVisualizer):
         self.cfg.eye = eye_t
         self.cfg.lookat = target_t
         self._apply_camera_pose((eye_t, target_t))
+
+    def set_particle_visibility(self, visible: bool) -> None:
+        """Show or hide particle geometry without changing simulation state.
+
+        The selection also applies when the visualizer is initialized or reset.
+
+        Args:
+            visible: Whether to display particles in subsequent viewer frames.
+        """
+        self.cfg.show_particles = visible
+        if self._viewer is not None:
+            self._viewer.show_particles = visible
 
     def log_mesh(
         self,
