@@ -125,11 +125,12 @@ history, and resetting environments independently needs the compiled path. See
 needs less memory, especially with several environments, but remembers less of each episode.
 
 `--no-compile` selects eager inference. Omit it to enable the compiled CUDA-graph
-path, which can take additional time on its first use. `--warmup` runs a disposable
-session on a `(480, 832)` canvas through the full history window (`1 + 4 * --kv-window` frames, 121 by default,
-within the episode cap) before reporting readiness. With compiled
-inference, other batch sizes, canvases, or prompts can still require compilation on their first
-use. Omit `--warmup` to accept requests after model loading.
+path, which can take additional time on its first use. `--warmup` runs a disposable one-view session through the
+full history window (`1 + 4 * --kv-window` frames, 121 by default, within any episode cap) before reporting
+readiness. No camera has connected yet, so the server warms the recipe's default `(480, 832)` canvas; cameras
+choose their canvas when they connect. With compiled inference, a session with another canvas, view count, or
+prompt compiles again on its first step, while the warmup's compiled state keeps its GPU memory. Use `--warmup`
+for one camera on the `(480, 832)` canvas; otherwise omit it to accept requests after model loading.
 
 The equivalent module entrypoint is
 `uv run --no-sync python -m isaaclab_experimental.cosmos.server.worker` with the same
