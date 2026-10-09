@@ -280,14 +280,14 @@ class NewtonOperationalSpaceControllerAction(_NewtonTaskSpaceAction):
                 self._contact_sensor._initialize_impl()
                 self._contact_sensor._is_initialized = True
 
-        self._in_graph = self._supports_step_program()
+        self._in_graph = self._supports_control_callback()
         if self._in_graph:
-            self._bind_step_program()
+            self._bind_control_callback()
 
-    def _supports_step_program(self) -> bool:
-        """Whether the controller can run inside the Newton step program.
+    def _supports_control_callback(self) -> bool:
+        """Whether the controller can run as a Newton control callback inside the step.
 
-        The step program computes efforts before every physics step from simulation-bound buffers. It needs Newton
+        The callback computes efforts before every physics step from simulation-bound buffers. It needs Newton
         physics, public joint and body order equal to the backend order, and no measured-wrench feedback, whose contact
         sensor refreshes on the host.
         """
@@ -298,7 +298,7 @@ class NewtonOperationalSpaceControllerAction(_NewtonTaskSpaceAction):
             and not (data.has_joint_ordering or data.has_body_ordering or data._joint_coord_map.required)
         )
 
-    def _bind_step_program(self) -> None:
+    def _bind_control_callback(self) -> None:
         """Bind the controller to fixed buffers and schedule it before Newton actuators on every physics step."""
         cfg, device = self._controller.cfg, self.device
         num_envs, num_joints = self.num_envs, self._num_joints
@@ -348,22 +348,20 @@ class NewtonOperationalSpaceControllerAction(_NewtonTaskSpaceAction):
             if name in self._command_buffers:
                 setattr(inputs, port, wp.from_torch(self._command_buffers[name], dtype=wp.spatial_vectorf))
 
-        # The controller runs inside the step program, so the environment may fold its decimation loop.
+        # The controller runs inside the Newton step, so physics may run the whole decimation loop.
         self.apply_every_physics_step = False
-        self._schedule_step_program()
+        self._register_control_callback()
         self._physics_ready_handle = NewtonManager.register_callback(
-            lambda _: self._schedule_step_program(),
+            lambda _: self._register_control_callback(),
             PhysicsEvent.PHYSICS_READY,
             name=f"osc_action_{self._asset.cfg.prim_path}",
         )
-        # Allocate the articulation's lazily created dynamics buffers before any capture records them.
-        self._apply_in_step_program()
 
-    def _schedule_step_program(self) -> None:
-        """Add the controller stage to the current runtime; a hard reset discards stages with the model."""
-        NewtonManager.add_stage(self._apply_in_step_program, StepPhase.COMMAND, name="osc_action")
+    def _register_control_callback(self) -> None:
+        """Run the controller in the control phase of every physics step; a hard reset discards it with the model."""
+        NewtonManager.register_step_callback(self._apply_control, StepPhase.CONTROL, name="osc_action")
 
-    def _apply_in_step_program(self) -> None:
+    def _apply_control(self) -> None:
         """Compute and write joint efforts from the current physics state. Graph-safe."""
         data, device = self._asset.data, self.device
         num_envs, num_joints = self.num_envs, self._num_joints
@@ -465,7 +463,7 @@ class NewtonOperationalSpaceControllerAction(_NewtonTaskSpaceAction):
 
     def apply_actions(self):
         if self._in_graph:
-            # The step program computes efforts before every physics step.
+            # The control callback computes efforts before every physics step.
             return
         cfg = self._controller.cfg
         data = self._asset.data

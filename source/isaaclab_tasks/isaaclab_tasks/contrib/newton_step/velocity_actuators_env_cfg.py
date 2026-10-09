@@ -14,7 +14,7 @@ from isaaclab_assets.robots.anymal import ANYDRIVE_3_LSTM_ACTUATOR_CFG, ANYDRIVE
 
 @configclass
 class AnymalDDCMotorEnvCfg(AnymalDFlatEnvCfg):
-    """Flat ANYmal-D with DC-motor drives, whose Newton actuators the step program captures."""
+    """Flat ANYmal-D with DC-motor drives, whose Newton actuators the Newton step graph captures."""
 
     def __post_init__(self):
         super().__post_init__()
@@ -25,7 +25,7 @@ class AnymalDDCMotorEnvCfg(AnymalDFlatEnvCfg):
 class AnymalDMixedActuatorsEnvCfg(AnymalDFlatEnvCfg):
     """Flat ANYmal-D with DC motors on the hind legs and LSTM networks on the front legs.
 
-    The TorchScript networks cannot be captured, so the step program runs them eagerly between captured segments.
+    The TorchScript networks cannot be captured, so the Newton step runs them eagerly between captured segments.
     """
 
     def __post_init__(self):

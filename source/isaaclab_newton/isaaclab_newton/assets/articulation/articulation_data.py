@@ -2144,8 +2144,8 @@ class ArticulationData(BaseArticulationData):
         """Republish all Tier-1 user-order state shadows from live backend state, and gather any
         ball-joint DOF positions ahead of them.
 
-        Added as a post-step stage (see
-        :meth:`isaaclab_newton.physics.NewtonManager.add_stage`)
+        Registered as a post-step callback (see
+        :meth:`isaaclab_newton.physics.NewtonManager.register_step_callback`)
         so the reorder launches land inside the stepped/captured region right after
         the last solver substep. With no Python freshness guard the launches are
         recorded into every captured graph and replayed on each tick, so the

@@ -182,7 +182,7 @@ class Imu(BaseImu):
         if self._data._lin_acc_b is not None:
             self._data._lin_acc_b.zero_()
 
-        # Re-register so a subsequent start_simulation picks them up.
+        # Re-register so the next model finalization picks them up.
         offset_xform = wp.transform(self.cfg.offset.pos, self.cfg.offset.rot)
         self._site_label = NewtonManager.cl_register_site(self.cfg.prim_path, offset_xform)
         NewtonManager.request_extended_state_attribute("body_qdd")

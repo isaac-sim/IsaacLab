@@ -9,6 +9,7 @@ import logging
 from typing import TYPE_CHECKING
 
 import warp as wp
+from newton.sensors import SensorFrameTransform
 
 from isaaclab.sensors.frame_transformer.base_frame_transformer import BaseFrameTransformer
 from isaaclab.sim.utils.queries import split_path_expr
@@ -157,7 +158,9 @@ class FrameTransformer(BaseFrameTransformer):
         self._data._target_frame_names = expanded_names
 
         # Store the native sensor and its flat transforms array.
-        self._newton_sensor = NewtonManager.add_frame_transform_sensor(shapes_list, references_list)
+        self._newton_sensor = SensorFrameTransform(
+            NewtonManager.get_model(), shapes=shapes_list, reference_sites=references_list
+        )
         self._newton_transforms = self._newton_sensor.transforms
         self._stride = 1 + self._num_targets
 
@@ -342,7 +345,7 @@ class FrameTransformer(BaseFrameTransformer):
         self._newton_sensor = None
         self._newton_transforms = None
 
-        # Re-register sites so a subsequent start_simulation picks them up.
+        # Re-register sites so the next model finalization picks them up.
         self._world_origin_label = NewtonManager.cl_register_site(None, wp.transform())
 
         source_offset = wp.transform(self.cfg.source_frame_offset.pos, self.cfg.source_frame_offset.rot)

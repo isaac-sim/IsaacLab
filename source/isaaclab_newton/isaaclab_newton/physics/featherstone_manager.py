@@ -13,34 +13,26 @@ from newton.solvers import SolverFeatherstone
 
 from .featherstone_manager_cfg import FeatherstoneSolverCfg
 from .newton_manager import NewtonManager
-from .solver_binding import NewtonSolverBinding
 
 
-class FeatherstoneSolverBinding(NewtonSolverBinding):
-    """Binding for the Featherstone solver, which double-buffers state and uses Newton's collision pipeline."""
+class NewtonFeatherstoneManager(NewtonManager):
+    """:class:`NewtonManager` running the Featherstone solver, which double-buffers state."""
 
-    def __init__(self, model: Model, solver_cfg: FeatherstoneSolverCfg, deterministic_mode: wp.DeterministicMode):
-        super().__init__(model, solver_cfg, deterministic_mode)
-        # SolverFeatherstone derives its inertia data from the model only when it is constructed.
-        self.ignored_model_changes = {
-            ModelFlags.BODY_INERTIAL_PROPERTIES: (
-                "The Newton Featherstone solver does not apply mass, center of mass, or inertia changes made after"
-                " the simulation starts; the simulation keeps the initial values."
-            )
-        }
+    supports_deterministic = True
+    # SolverFeatherstone derives its inertia data from the model only when it is constructed.
+    ignored_model_changes = {
+        ModelFlags.BODY_INERTIAL_PROPERTIES: (
+            "The Newton Featherstone solver does not apply mass, center of mass, or inertia changes made after"
+            " the simulation starts; the simulation keeps the initial values."
+        )
+    }
 
     @classmethod
-    def create(
+    def create_solver(
         cls,
         model: Model,
         solver_cfg: FeatherstoneSolverCfg,
         deterministic_mode: wp.DeterministicMode = wp.DeterministicMode.NOT_GUARANTEED,
     ) -> SolverFeatherstone:
         """Construct the configured Featherstone solver."""
-        return SolverFeatherstone(model, **cls.filter_kwargs(SolverFeatherstone, solver_cfg, deterministic_mode))
-
-
-class NewtonFeatherstoneManager(NewtonManager):
-    """:class:`NewtonManager` running the Featherstone solver."""
-
-    solver_binding = FeatherstoneSolverBinding
+        return SolverFeatherstone(model, **cls.solver_kwargs(SolverFeatherstone, solver_cfg, deterministic_mode))

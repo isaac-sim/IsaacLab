@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Franka reach driven by the Newton operational-space controller inside the Newton step program."""
+"""Franka reach driven by the Newton operational-space controller inside the Newton step."""
 
 from isaaclab_newton.controllers import NewtonOperationalSpaceControllerCfg
 from isaaclab_newton.envs.mdp.actions import NewtonOperationalSpaceControllerActionCfg
@@ -17,8 +17,8 @@ from isaaclab_tasks.core.reach.config.franka import franka_reach_osc_env_cfg
 class FrankaReachNewtonOSCEnvCfg(franka_reach_osc_env_cfg.FrankaReachEnvCfg):
     """Franka reach with the Newton operational-space controller.
 
-    On Newton physics the controller computes arm efforts before every physics step inside the captured step
-    program, so the decimation loop stays folded into one physics call. Other backends run the same controller on
+    On Newton physics the controller computes arm efforts before every physics step as a captured control callback,
+    so physics runs the whole decimation loop in one call. Other backends run the same controller on
     the host every physics step. Gains match ``Isaac-Reach-Franka-OSC``'s default impedance with critical damping.
     """
 

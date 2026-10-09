@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Behavior of tasks that run controllers inside the Newton step program."""
+"""Behavior of tasks that run controllers inside the Newton step."""
 
 from isaaclab.test.utils import launch_test_simulation
 
@@ -18,11 +18,11 @@ from isaaclab_newton.envs.mdp.actions.newton_task_space_actions import NewtonOpe
 import isaaclab.sim as sim_utils
 
 import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.contrib.newton_step_program.captured_cartpole import CapturedCartpole
+from isaaclab_tasks.contrib.newton_step.captured_cartpole import CapturedCartpole
 from isaaclab_tasks.utils.hydra import resolve_presets
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 
-_OSC_TASK = "IsaacContrib-StepProgram-Reach-Franka-NewtonOSC"
+_OSC_TASK = "IsaacContrib-NewtonStep-Reach-Franka-NewtonOSC"
 
 
 def _rollout_osc(num_steps: int) -> tuple[torch.Tensor, bool]:
@@ -53,21 +53,21 @@ def _rollout_osc(num_steps: int) -> tuple[torch.Tensor, bool]:
         env.close()
 
 
-def test_newton_osc_in_step_program_matches_host_controller(monkeypatch: pytest.MonkeyPatch):
+def test_newton_osc_in_step_matches_host_controller(monkeypatch: pytest.MonkeyPatch):
     """The captured, physics-step controller tracks targets exactly like the same controller run on the host.
 
-    On the host the term must run before every physics step, so the environment drives the decimation loop; inside
-    the step program the loop stays folded into one physics call.
+    On the host the term must run before every physics step, so the environment drives the decimation loop; as a
+    control callback, physics runs the whole loop in one call.
     """
-    in_program, folded = _rollout_osc(num_steps=20)
+    in_step, physics_loop = _rollout_osc(num_steps=20)
     with monkeypatch.context() as patch:
-        patch.setattr(NewtonOperationalSpaceControllerAction, "_supports_step_program", lambda self: False)
-        on_host, host_folded = _rollout_osc(num_steps=20)
+        patch.setattr(NewtonOperationalSpaceControllerAction, "_supports_control_callback", lambda self: False)
+        on_host, host_physics_loop = _rollout_osc(num_steps=20)
 
-    assert folded and not host_folded
+    assert physics_loop and not host_physics_loop
     # The arm moves toward the targets, so the comparison is not between two resting trajectories.
     assert (on_host[-1] - on_host[0]).abs().max() > 0.05
-    torch.testing.assert_close(in_program, on_host, atol=1e-4, rtol=0.0)
+    torch.testing.assert_close(in_step, on_host, atol=1e-4, rtol=0.0)
 
 
 def _rollout_cartpole(actions: list[torch.Tensor], captured: bool) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
@@ -101,9 +101,9 @@ def _rollout_cartpole(actions: list[torch.Tensor], captured: bool) -> tuple[torc
 
 
 def test_whole_environment_step_captures_with_newton_physics():
-    """An environment step with MDP stages, partial resets, and the Newton step program replays as one graph.
+    """An environment step with MDP stages, partial resets, and the Newton step replays as one graph.
 
-    The captured step records the physics program into the caller's graph and must reproduce eager stepping,
+    The captured step records the physics step into the caller's graph and must reproduce eager stepping,
     including worlds reset inside the graph.
     """
     generator = torch.Generator(device="cuda:0").manual_seed(0)

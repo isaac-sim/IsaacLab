@@ -7,75 +7,53 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import warp as wp
 from isaaclab_newton.physics.newton_manager import NewtonManager
-from isaaclab_newton.physics.solver_binding import NewtonSolverBinding
-from isaaclab_newton.physics.vbd_manager import VBDSolverBinding
+from isaaclab_newton.physics.vbd_manager import NewtonVBDManager
 from newton import CollisionPipeline, Contacts, Control, Model, ModelBuilder, State
 from newton.solvers import SolverBase, SolverMuJoCo, SolverVBD
 
 from .kernels import _kernel_body_particle_reaction
 from .newton_manager_cfg import CoupledMJWarpVBDSolverCfg
 
+if TYPE_CHECKING:
+    from isaaclab_newton.physics.newton_backend import NewtonBackend
 
-class CoupledMJWarpVBDSolverBinding(NewtonSolverBinding):
-    """Binding for custom MJWarp and VBD coupling.
+
+class CoupledMJWarpVBDSolver(SolverBase):
+    """Newton solver coupling MJWarp rigid bodies with VBD deformables.
 
     MJWarp advances rigid bodies with its internal contacts, and VBD advances deformables using Newton's
     :class:`CollisionPipeline`. In two-way mode, deformable contact reactions are injected into ``body_f`` before
     MJWarp consumes it.
     """
 
-    builder_attribute_solvers = (SolverMuJoCo,)
-
-    def __init__(self, model: Model, solver_cfg: CoupledMJWarpVBDSolverCfg, deterministic_mode: wp.DeterministicMode):
-        if solver_cfg.coupling_mode not in ("one_way", "two_way"):
-            raise ValueError("coupling_mode must be 'one_way' or 'two_way'.")
-        if not solver_cfg.rigid_solver_cfg.use_mujoco_contacts:
-            raise ValueError("The custom coupling manager requires MJWarp internal contacts.")
-        if not solver_cfg.soft_solver_cfg.integrate_with_external_rigid_solver:
-            raise ValueError("The custom coupling manager requires VBD external rigid-body integration.")
-        super().__init__(model, solver_cfg, deterministic_mode)
-        self.supports_contact_sensors = False
+    def __init__(self, model: Model, rigid_solver: SolverMuJoCo, soft_solver: SolverVBD, coupling_mode: str):
+        super().__init__(model)
+        self.rigid_solver = rigid_solver
+        self.soft_solver = soft_solver
+        self.coupling_mode = coupling_mode
         self.contacts: Contacts | None = None
+        """Contacts the coupled substep collides into; bound by the manager once allocated."""
         self.collision_pipeline: CollisionPipeline | None = None
 
-    def construct(self) -> SolverBase:
-        """Construct both sub-solvers; the base solver slot only satisfies the shared lifecycle."""
-        cfg = self.cfg
-        self.rigid_solver: SolverMuJoCo = cfg.rigid_solver_cfg.class_type.solver_binding.create(
-            self.model, cfg.rigid_solver_cfg, self.deterministic_mode
-        )
-        self.soft_solver: SolverVBD = cfg.soft_solver_cfg.class_type.solver_binding.create(
-            self.model, cfg.soft_solver_cfg, self.deterministic_mode
-        )
-        return SolverBase(self.model)
-
-    @classmethod
-    def prepare_builder(cls, builder: ModelBuilder) -> None:
-        """Color the completed builder for VBD before allocating the model."""
-        VBDSolverBinding.prepare_builder(builder)
-
-    def prepare_contacts(self, contacts: Contacts, collision_pipeline: CollisionPipeline | None) -> None:
-        """Keep the contacts and pipeline used inside each coupled substep."""
-        self.contacts = contacts
-        self.collision_pipeline = collision_pipeline
-
-    def prepare_step(self, state: State) -> None:
+    def rebuild_bvh(self, state: State) -> None:
         """Rebuild the VBD BVH before each physics step."""
         self.soft_solver.rebuild_bvh(state)
 
-    def notify_model_changed(self, change: int) -> None:
+    def notify_model_changed(self, flags: int) -> None:
         """Notify both sub-solvers of a model change."""
-        self.rigid_solver.notify_model_changed(change)
-        self.soft_solver.notify_model_changed(change)
+        self.rigid_solver.notify_model_changed(flags)
+        self.soft_solver.notify_model_changed(flags)
 
-    def reset(self, state: State, world_mask: wp.array) -> None:
+    def reset(self, state: State, world_mask: wp.array | None = None, flags: int = 0) -> None:
         """Reset both sub-solvers for masked worlds."""
-        if self.rigid_solver.use_mujoco_cpu and not world_mask.numpy().any():
+        if self.rigid_solver.use_mujoco_cpu and world_mask is not None and not world_mask.numpy().any():
             return
-        self.rigid_solver.reset(state, world_mask=world_mask, flags=0)
-        self.soft_solver.reset(state, world_mask=world_mask, flags=0)
+        self.rigid_solver.reset(state, world_mask=world_mask, flags=flags)
+        self.soft_solver.reset(state, world_mask=world_mask, flags=flags)
 
     def step(self, state_in: State, state_out: State, control: Control, contacts: Contacts | None, dt: float) -> None:
         """Run one coupled substep.
@@ -93,7 +71,7 @@ class CoupledMJWarpVBDSolverBinding(NewtonSolverBinding):
         self.collision_pipeline.collide(state_in, self.contacts)
         # 3. In two-way mode, inject contact reactions before MJWarp consumes body_f. The inactive state buffer
         # supplies reference poses for friction velocity estimation.
-        if self.cfg.coupling_mode == "two_way" and state_in.body_f is not None:
+        if self.coupling_mode == "two_way" and state_in.body_f is not None:
             self._apply_reactions(state_in, state_out, dt)
         # 4. Advance rigid bodies.
         self.rigid_solver.step(state_in, state_out, control, None, dt)
@@ -149,6 +127,47 @@ class CoupledMJWarpVBDSolverBinding(NewtonSolverBinding):
 
 
 class NewtonCoupledMJWarpVBDManager(NewtonManager):
-    """:class:`NewtonManager` running custom MJWarp and VBD coupling."""
+    """:class:`NewtonManager` running custom MJWarp and VBD coupling (:class:`CoupledMJWarpVBDSolver`)."""
 
-    solver_binding = CoupledMJWarpVBDSolverBinding
+    builder_attribute_solvers = (SolverMuJoCo,)
+    supports_contact_sensors = False
+    prepares_step = True
+
+    @classmethod
+    def create_solver(
+        cls,
+        model: Model,
+        solver_cfg: CoupledMJWarpVBDSolverCfg,
+        deterministic_mode: wp.DeterministicMode = wp.DeterministicMode.NOT_GUARANTEED,
+    ) -> CoupledMJWarpVBDSolver:
+        """Construct both sub-solvers through their own managers."""
+        if solver_cfg.coupling_mode not in ("one_way", "two_way"):
+            raise ValueError("coupling_mode must be 'one_way' or 'two_way'.")
+        if not solver_cfg.rigid_solver_cfg.use_mujoco_contacts:
+            raise ValueError("The custom coupling manager requires MJWarp internal contacts.")
+        if not solver_cfg.soft_solver_cfg.integrate_with_external_rigid_solver:
+            raise ValueError("The custom coupling manager requires VBD external rigid-body integration.")
+        rigid = solver_cfg.rigid_solver_cfg
+        soft = solver_cfg.soft_solver_cfg
+        return CoupledMJWarpVBDSolver(
+            model,
+            rigid.class_type.create_solver(model, rigid, deterministic_mode),
+            soft.class_type.create_solver(model, soft, deterministic_mode),
+            solver_cfg.coupling_mode,
+        )
+
+    @classmethod
+    def prepare_solver_builder(cls, builder: ModelBuilder) -> None:
+        """Color the completed builder for VBD before allocating the model."""
+        NewtonVBDManager.prepare_solver_builder(builder)
+
+    @classmethod
+    def prepare_contacts(cls, backend: NewtonBackend) -> None:
+        """Bind the contacts and pipeline used inside each coupled substep."""
+        backend.solver.contacts = backend.contacts
+        backend.solver.collision_pipeline = backend.collision_pipeline
+
+    @classmethod
+    def prepare_step(cls, backend: NewtonBackend, state: State) -> None:
+        """Rebuild the VBD BVH before each physics step."""
+        backend.solver.rebuild_bvh(state)

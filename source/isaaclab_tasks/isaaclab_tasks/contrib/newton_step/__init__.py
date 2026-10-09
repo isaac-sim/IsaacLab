@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Tasks exercising the Newton step program: in-program controllers, Newton actuators, and Newton sensors.
+"""Tasks exercising work inside the Newton step: control callbacks, Newton actuators, and Newton sensors.
 
 They pair with existing tasks to compare work run inside the captured Newton step against host-side equivalents.
 """
@@ -14,7 +14,7 @@ from isaaclab_tasks.core.reach.config.franka import agents as franka_reach_agent
 from isaaclab_tasks.core.velocity.config.anymal_d import agents as anymal_d_agents
 
 gym.register(
-    id="IsaacContrib-StepProgram-Reach-Franka-NewtonOSC",
+    id="IsaacContrib-NewtonStep-Reach-Franka-NewtonOSC",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
@@ -25,7 +25,7 @@ gym.register(
 )
 
 gym.register(
-    id="IsaacContrib-StepProgram-Velocity-Flat-AnymalD-Sensors",
+    id="IsaacContrib-NewtonStep-Velocity-Flat-AnymalD-Sensors",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
@@ -36,7 +36,7 @@ gym.register(
 
 for name, cfg in (("DCMotor", "AnymalDDCMotorEnvCfg"), ("MixedActuators", "AnymalDMixedActuatorsEnvCfg")):
     gym.register(
-        id=f"IsaacContrib-StepProgram-Velocity-Flat-AnymalD-{name}",
+        id=f"IsaacContrib-NewtonStep-Velocity-Flat-AnymalD-{name}",
         entry_point="isaaclab.envs:ManagerBasedRLEnv",
         disable_env_checker=True,
         kwargs={

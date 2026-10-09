@@ -3438,12 +3438,12 @@ class Articulation(BaseArticulation):
         if hasattr(self, "_physics_ready_handle") and self._physics_ready_handle is not None:
             self._physics_ready_handle.deregister()
             self._physics_ready_handle = None
-        # Remove the post-step republish stage added in ``_create_buffers`` so it does not
-        # outlive this articulation (added only for non-identity ordering).
-        post_step_stage = getattr(self, "_post_step_stage", None)
-        if post_step_stage is not None:
-            SimulationManager.remove_stage(post_step_stage)
-            self._post_step_stage = None
+        # Unregister the post-step republish callback registered in ``_create_buffers`` so it does not
+        # outlive this articulation (registered only for non-identity ordering).
+        post_step_callback = getattr(self, "_post_step_callback", None)
+        if post_step_callback is not None:
+            SimulationManager.unregister_step_callback(post_step_callback)
+            self._post_step_callback = None
 
     def _create_buffers(self):
         self._ALL_INDICES = wp.array(np.arange(self.num_instances, dtype=np.int32), device=self.device)
@@ -3484,9 +3484,9 @@ class Articulation(BaseArticulation):
         # so passthrough state getters never replay stale.
         # A ball-jointed articulation also needs the stage: its DOF-space joint_pos is derived, not
         # sim-bound, so it has to be republished after every step just like the ordering shadows.
-        self._post_step_stage = None
+        self._post_step_callback = None
         if self.data.has_joint_ordering or self.data.has_body_ordering or self.data._joint_coord_map.required:
-            self._post_step_stage = SimulationManager.add_stage(
+            self._post_step_callback = SimulationManager.register_step_callback(
                 self._data._refresh_user_order_state, StepPhase.POST_STEP, name="articulation.republish_state"
             )
         # tendon names are set in _process_tendons function

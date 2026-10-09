@@ -25,7 +25,7 @@ def feet_pos_base(env: ManagerBasedEnv, sensor_cfg: SceneEntityCfg) -> torch.Ten
 class AnymalDSensorsEnvCfg(AnymalDFlatEnvCfg):
     """Flat ANYmal-D with a base IMU, a foot frame transformer, and foot contact sensors in the policy input.
 
-    Newton updates the IMU, frame-transformer, and contact sensors at the end of every step program; the policy
+    Newton updates the IMU, frame-transformer, and contact sensors at the end of every Newton step; the policy
     reads them through Isaac Lab's sensor data.
     """
 

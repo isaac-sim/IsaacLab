@@ -6,8 +6,8 @@
 """A cart-pole MDP whose whole environment step, physics included, is one CUDA graph.
 
 The MDP mirrors ``Isaac-Cartpole`` (effort action, reward terms and weights, terminations, reset ranges, relative
-joint observations) with Warp kernels, mask-based partial resets, and the Newton step program recorded into the same
-capture. It demonstrates the contract a graph-captured MDP needs from the physics layer: prepare the step program,
+joint observations) with Warp kernels, mask-based partial resets, and the Newton step recorded into the same
+capture. It demonstrates the contract a graph-captured MDP needs from the physics layer: prepare the Newton step,
 then record ``sim.step()`` inside the caller's capture.
 """
 
@@ -91,7 +91,7 @@ def _observe(
 
 
 class CapturedCartpole:
-    """Run ``Isaac-Cartpole``'s MDP as Warp stages around the Newton step program, capturable as one graph.
+    """Run ``Isaac-Cartpole``'s MDP as Warp stages around the Newton step, capturable as one graph.
 
     The environment provides the scene and simulation; this class replaces its managers. Write actions into
     :attr:`actions`, then call :meth:`step` (eager) or :meth:`replay` (captured). Rewards, termination and truncation
@@ -172,9 +172,9 @@ class CapturedCartpole:
         )
 
     def capture(self) -> wp.Graph:
-        """Record :meth:`step` into one CUDA graph, including the Newton step program.
+        """Record :meth:`step` into one CUDA graph, including the Newton step.
 
-        Prepares the step program first, so recording allocates nothing and never nests a capture.
+        Prepares the Newton step first, so recording allocates nothing and never nests a capture.
         """
         NewtonManager.prepare()
         with wp.ScopedCapture(device=self.env.device) as capture:

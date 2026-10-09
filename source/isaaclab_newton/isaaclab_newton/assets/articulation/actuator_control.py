@@ -68,7 +68,7 @@ class NewtonActuatorControl(ArticulationActuatorControl):
         if not getattr(articulation._sim_cfg, "use_newton_actuators", False):
             # Isaac Lab actuator models compute efforts on the host before every physics step.
             if any(not _is_implicit_actuator_cfg(actuator_cfg) for actuator_cfg in actuator_cfgs.values()):
-                SimulationManager.require_host_physics_steps()
+                SimulationManager.require_env_decimation()
             return set()
 
         validate_newton_native_actuator_cfgs(actuator_cfgs)
@@ -148,7 +148,9 @@ class NewtonActuatorControl(ArticulationActuatorControl):
                 device=self.device,
             )
 
-        SimulationManager.add_stage(_post_actuator, StepPhase.CONTROL, name="articulation.actuator_telemetry")
+        SimulationManager.register_step_callback(
+            _post_actuator, StepPhase.POST_ACTUATOR, name="articulation.actuator_telemetry"
+        )
 
         if adapter is None:
             return None

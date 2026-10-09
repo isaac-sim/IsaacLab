@@ -86,7 +86,7 @@ def newton_builder_world_hook(
     Raises:
         RuntimeError: If the callback is already registered.
     """
-    hooks = NewtonManager.build_requests().world_builder_hooks
+    hooks = NewtonManager.get_world_builder_hooks()
     if hook in hooks:
         raise RuntimeError("Newton world-builder hook is already registered.")
     hooks.append(hook)
@@ -211,7 +211,7 @@ def _replicate_newton(
                 continue
             cables[path] = [shapes[f"{path}_edge_capsule_{segment}"] for segment in range(len(bodies))]
     if simulation:
-        global_sites, source_sites, root_sites = NewtonManager.build_requests().inject_sites(builder, source_builders)
+        global_sites, source_sites, root_sites = NewtonManager.inject_sites(builder, source_builders)
     else:
         # Clear imported filters before merging into a fresh, compact final filter store.
         for imported in source_builders.values():
@@ -239,7 +239,7 @@ def _replicate_newton(
                 visual_ranges[cloner_path.rebase(particle_visual_paths[path], source, destination)] = native_range
 
     options = dict(env_ids=env_ids, source_site_indices=source_sites, env_root_sites=root_sites)
-    options["per_world_builder_hooks"] = NewtonManager.build_requests().world_builder_hooks if simulation else ()
+    options["per_world_builder_hooks"] = NewtonManager.get_world_builder_hooks() if simulation else ()
     has_geometry = any(source_cables.values()) or any(result["path_particle_map"] for result in import_results.values())
     options["source_builder_added"] = record_geometry if has_geometry else None
     local_site_map, world_xforms = replicate_builder_mapping(
@@ -263,8 +263,9 @@ def _replicate_newton(
             source_builders=source_builders,
             particle_ranges=particle_ranges,
             cable_bindings=cable_bindings,
+            geometry_batches=batches,
         )
-        NewtonManager.record_clone(record, batches)
+        NewtonManager.record_clone(record)
     return builder, stage_info, site_index_map
 
 

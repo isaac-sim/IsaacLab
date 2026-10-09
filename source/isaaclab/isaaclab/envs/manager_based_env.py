@@ -206,10 +206,10 @@ class ManagerBasedEnv:
         report_activity("Setting up managers")
         self.load_managers()
         report_activity(None)
-        # let the physics backend fold the decimation loop into a single step() when no action term
+        # let the physics backend run the whole decimation loop in one step() when no action term
         # has to be re-applied between physics steps
         self.sim.physics_manager.set_decimation(
-            self.cfg.decimation, fold=not self.action_manager.apply_every_physics_step
+            self.cfg.decimation, apply_every_physics_step=self.action_manager.apply_every_physics_step
         )
         self._physics_handles_decimation = self.sim.physics_manager.handles_decimation()
 

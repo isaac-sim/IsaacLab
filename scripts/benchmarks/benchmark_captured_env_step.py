@@ -9,8 +9,8 @@ Compares, on Newton MJWarp:
 
 - ``Isaac-Cartpole`` with the torch MDP managers (``env.step``),
 - the same task on the Warp frontend (per-stage graphs), and
-- :class:`~isaaclab_tasks.contrib.newton_step_program.captured_cartpole.CapturedCartpole`, whose Warp MDP and Newton
-  step program are recorded into one graph per environment step.
+- :class:`~isaaclab_tasks.contrib.newton_step.captured_cartpole.CapturedCartpole`, whose Warp MDP and Newton
+  step are recorded into one graph per environment step.
 
 Usage:
     uv run python scripts/benchmarks/benchmark_captured_env_step.py --num_envs 4096
@@ -36,7 +36,7 @@ import warp as wp
 import isaaclab.sim as sim_utils
 
 import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.contrib.newton_step_program.captured_cartpole import CapturedCartpole
+from isaaclab_tasks.contrib.newton_step.captured_cartpole import CapturedCartpole
 from isaaclab_tasks.utils.hydra import resolve_presets
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 

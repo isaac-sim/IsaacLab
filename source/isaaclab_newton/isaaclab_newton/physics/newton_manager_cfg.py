@@ -23,7 +23,7 @@ if TYPE_CHECKING:
 
     from isaaclab_newton.physics import NewtonManager
 
-    from .newton_manager import NewtonBackend
+    from .newton_backend import NewtonBackend
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +41,7 @@ class NewtonBuilderCfg:
 class NewtonBackendCfg(BackendCfg):
     """Allocate model and state from the matching builder; closing them leaves the builder intact."""
 
-    class_type: type[NewtonBackend] | str = "{DIR}.newton_manager:NewtonBackend"
+    class_type: Callable[[NewtonBackendCfg], NewtonBackend] | str = "{DIR}.newton_backend:create_newton_backend"
     physics_cfg: PhysicsCfg = field(kw_only=True, metadata={"copy": False})
     """Selected physics settings, also identifying the shared construction builder."""
     device: str = MISSING

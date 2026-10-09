@@ -12,25 +12,20 @@ from newton import Model
 from newton.solvers import SolverXPBD
 
 from .newton_manager import NewtonManager
-from .solver_binding import NewtonSolverBinding
 from .xpbd_manager_cfg import XPBDSolverCfg
 
 
-class XPBDSolverBinding(NewtonSolverBinding):
-    """Binding for the XPBD solver, which double-buffers state and uses Newton's collision pipeline."""
+class NewtonXPBDManager(NewtonManager):
+    """:class:`NewtonManager` running the XPBD solver, which double-buffers state."""
+
+    supports_deterministic = True
 
     @classmethod
-    def create(
+    def create_solver(
         cls,
         model: Model,
         solver_cfg: XPBDSolverCfg,
         deterministic_mode: wp.DeterministicMode = wp.DeterministicMode.NOT_GUARANTEED,
     ) -> SolverXPBD:
         """Construct the configured XPBD solver."""
-        return SolverXPBD(model, **cls.filter_kwargs(SolverXPBD, solver_cfg, deterministic_mode))
-
-
-class NewtonXPBDManager(NewtonManager):
-    """:class:`NewtonManager` running the XPBD solver."""
-
-    solver_binding = XPBDSolverBinding
+        return SolverXPBD(model, **cls.solver_kwargs(SolverXPBD, solver_cfg, deterministic_mode))
