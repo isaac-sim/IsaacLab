@@ -6,6 +6,7 @@
 """Configuration for the Franka reach environment."""
 
 import math
+from typing import TYPE_CHECKING
 
 import torch
 from isaaclab_newton.controllers.ik.newton_ik_objectives_cfg import (
@@ -24,7 +25,6 @@ from isaaclab.devices import DevicesCfg
 from isaaclab.devices.gamepad import Se3GamepadCfg
 from isaaclab.devices.keyboard import Se3KeyboardCfg
 from isaaclab.devices.spacemouse import Se3SpaceMouseCfg
-from isaaclab.envs import ManagerBasedRLEnv
 from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
 from isaaclab.managers import ObservationTermCfg, RewardTermCfg, SceneEntityCfg
 from isaaclab.utils import configclass, replace
@@ -38,6 +38,9 @@ from isaaclab_tasks.utils import PresetCfg, preset
 from isaaclab_assets import FRANKA_MINIMAL_CFG, FRANKA_PANDA_CFG  # isort: skip
 
 from ...reach_env_cfg import ReachEnvCfg
+
+if TYPE_CHECKING:
+    from isaaclab.envs import ManagerBasedRLEnv
 
 ##
 # Environment configuration
@@ -91,7 +94,7 @@ class FrankaArmActionCfg(PresetCfg):
     default: mdp.JointPositionActionCfg = joint_pos
 
 
-def _pose_command_error(env: ManagerBasedRLEnv, command_name: str) -> torch.Tensor:
+def _pose_command_error(env: "ManagerBasedRLEnv", command_name: str) -> torch.Tensor:
     """Return target-minus-current position and rotation errors in the robot root frame."""
     command = env.command_manager.get_term(command_name)
     data = command.robot.data
@@ -157,13 +160,19 @@ class FrankaReachEnvCfg(ReachEnvCfg):
         # Bound arm offsets away from joint limits and initialize both mimic fingers together.
         self.events.reset_robot_joints = replace(
             self.events.reset_robot_joints,
-            func=mdp.reset_joints_within_limits_range,
+            func=mdp.reset_joints_by_offset,
             params={
-                "position_range": {"panda_joint.*": (-0.1, 0.1), "panda_finger_joint.*": (0.0, 0.0)},
-                "velocity_range": {".*": (0.0, 0.0)},
-                "use_default_offset": True,
-                "operation": "abs",
-                "asset_cfg": SceneEntityCfg("robot"),
+                "position_range": (-0.1, 0.1),
+                "velocity_range": (0.0, 0.0),
+                "asset_cfg": SceneEntityCfg("robot", joint_names="panda_joint.*"),
+            },
+        )
+        self.events.reset_robot_fingers = replace(
+            self.events.reset_robot_joints,
+            params={
+                "position_range": (0.0, 0.0),
+                "velocity_range": (0.0, 0.0),
+                "asset_cfg": SceneEntityCfg("robot", joint_names="panda_finger_joint.*"),
             },
         )
         # override rewards
