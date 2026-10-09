@@ -42,6 +42,13 @@ guidance 1.0, a 30-latent history window with three attention sinks, and one con
 | `blur` | The service | The camera's RGB, blurred by the Framework's own filter with the recipe's medium preset |
 | `seg` | Isaac Lab | Segmentation colored with a fixed palette (`segmentation_processor`) |
 
+Other control recipes are `edge_processor`, `blur_processor`, `regional_edge_processor`, and
+`segmentation_processor`, paired with modalities `"edge"`, `"blur"`, or `"seg"`. Edge
+extraction needs OpenCV in the Isaac Lab environment; the depth and segmentation
+recipes do not. Segmentation recipes require uncolorized semantic IDs and a fixed
+palette, while regional edges also require the camera's segmentation output and
+explicit foreground IDs. See the helper docstrings for their camera requirements.
+
 The prompt is used as given; like the recipe, the service does not append control instructions to it. The recipe
 uses detailed scene descriptions (a short sentence works, but a paragraph describing the scene, materials,
 lighting, and camera usually follows the control more closely).
@@ -246,13 +253,6 @@ A camera with a Cosmos chain then sends one view per environment.
   one environment fits with the default window; two need `--kv-window 8`. Larger GPUs fit more environments.
 - Reference (RTX PRO 6000 Blackwell MIG 2g.48gb, compiled, 640 x 640, `--kv-window 8`): one environment 917 ms per
   step, two 1596 ms (1.15x the throughput), with 39.7 GiB peak memory for two.
-
-Other control recipes are `edge_processor`, `blur_processor`, `regional_edge_processor`, and
-`segmentation_processor`, paired with modalities `"edge"`, `"blur"`, or `"seg"`. Edge
-extraction needs OpenCV in the Isaac Lab environment; the depth and segmentation
-recipes do not. Segmentation recipes require uncolorized semantic IDs and a fixed
-palette, while regional edges also require the camera's segmentation output and
-explicit foreground IDs. See the helper docstrings for their camera requirements.
 
 ## Episode length cap
 

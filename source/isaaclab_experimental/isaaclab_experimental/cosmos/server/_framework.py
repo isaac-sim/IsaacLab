@@ -678,9 +678,6 @@ class _CosmosBatchStream(_CosmosInferenceStream):
             self._vae = None
 
     def _make_iterator(self) -> Generator[dict[str, torch.Tensor], None, None]:
-        self._started = False
-        self._frames = [0] * len(self._seeds)
-        self._vae_states = [self._fresh_vae_state() for _ in self._seeds]
         return self._model.iter_samples_from_batch_autoregressive_streaming_transfer(
             data_batch=self._data_batch,
             control_latent_chunks=self._control_iterator(),
