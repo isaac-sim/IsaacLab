@@ -237,14 +237,6 @@ def apply_cosmos(
     episode_steps = math.ceil(env_cfg.episode_length_s / step_dt - 1e-9)
     # A sensor updates once its elapsed time reaches update_period - 1e-6 (see SensorBase).
     steps_per_capture = max(1, math.ceil((camera_cfg.update_period - 1e-6) / step_dt - 1e-9))
-    if num_envs > 1 and steps_per_capture > 1:
-        # Independent resets shift each environment's capture times, and every capture runs the Cosmos
-        # step for all views, so a slower camera would queue extra frames for the environments it skipped.
-        raise ValueError(
-            f"Several Cosmos environments need a camera that captures every environment step, but {name!r} "
-            f"captures every {steps_per_capture} steps; set its update_period to 0, for example "
-            f"env.scene.{name}.update_period=0."
-        )
     frames = math.ceil(episode_steps / steps_per_capture) + 1
     budget = 1 + 4 * math.ceil((frames - 1) / 4)
     if cap is not None and budget > cap:

@@ -319,24 +319,22 @@ uv run isaaclab train --task Isaac-Reorient-KukaAllegro-Camera --rl_library rsl_
   --cosmos_near 0.6 --cosmos_far 1.9 presets=cube,single_camera,rgb64
 ```
 
-The Shadow Hand presets take the same options. Their camera captures at 10 Hz, so set its period to 0 to capture
-every environment step (see the list below); Cosmos then updates every four steps, which needs more generation
-per simulated second:
+The Shadow Hand presets take the same options:
 
 ```bash
 uv run isaaclab train --task Isaac-Reorient-Cube-Shadow-Camera-Direct --rl_library rsl_rl --num_envs 2 \
   --cosmos_prompt "A close-up overhead view of a robotic Shadow Hand turning a red cube on a wooden workbench." \
   --cosmos_prompt "A close-up overhead view of a robotic Shadow Hand turning a blue cube in a bright white lab." \
-  presets=cosmos env.scene.tiled_camera.update_period=0
+  presets=cosmos
 ```
 
 - With several environments, environment `v` uses `prompt[v % len(prompt)]` for all its episodes; the batch keeps
   each environment's prompt across its resets. With one environment, a prompt list changes per episode.
 - An environment that resets mid-chunk starts its new episode at the next chunk with its newest capture, so all
   environments keep one four-frame cadence; it shows black until then.
-- The camera must capture every environment step. Independent resets shift each environment's capture times, and
-  every capture runs the Cosmos step for all environments, so a slower camera would send extra frames. `--cosmos`
-  and the Shadow Hand presets reject a slower camera when several environments are requested.
+- A camera slower than the environment step captures each environment on its own schedule after independent
+  resets; Cosmos receives a frame only for the environments a capture covers, so each environment's frames and
+  budget follow its own captures.
 - `--cosmos` checks that the service supports independent resets before training several environments. This
   requires compiled inference and per-view VAE caches in the Framework runtime.
 - With the socket transport, one step's image message carries at most 16 environments.
@@ -357,7 +355,7 @@ uv run --extra video isaaclab train --task Isaac-Reorient-Cube-Shadow-Camera-Dir
   --cosmos_prompt "A close-up overhead view of a robotic Shadow Hand turning a red cube on a wooden workbench." \
   --cosmos_prompt "A close-up overhead view of a robotic Shadow Hand turning a blue cube in a bright white lab." \
   --video viz:newton_gl:streaming_view --video_length 1200 \
-  presets=cosmos env.scene.tiled_camera.update_period=0
+  presets=cosmos
 ```
 
 The run prints the clip directory when it starts. On a machine without a screen, such as over SSH, run

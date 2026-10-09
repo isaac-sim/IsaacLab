@@ -134,19 +134,17 @@ def test_several_environments_need_a_compiled_service_that_batches_them(monkeypa
     assert env_cfg.scene.base_camera.modifiers["distance_to_image_plane"][1].backend.max_episode_frames > 1
 
 
-def test_several_environments_need_a_camera_that_captures_every_step(monkeypatch):
-    """Independent resets shift each environment's captures, so batched Cosmos rejects a slower camera."""
+def test_the_shadow_hand_preset_batches_several_environments_at_its_camera_rate(monkeypatch):
+    """--num_envs on the preset keeps its 10 Hz camera; each environment's budget counts its own captures."""
     _serve(monkeypatch, partial_resets=True)
     args = _cli(add_common_train_args, ["--num_envs", "2"])
-    task = "Isaac-Reorient-Cube-Shadow-Camera-Direct"
-    with pytest.raises(ValueError, match="captures every 6 steps"):
-        apply_env_overrides(args, parse_env_cfg(task, overrides=("presets=cosmos",)))
-
-    env_cfg = parse_env_cfg(task, overrides=("presets=cosmos", "env.scene.tiled_camera.update_period=0"))
+    env_cfg = parse_env_cfg("Isaac-Reorient-Cube-Shadow-Camera-Direct", overrides=("presets=cosmos",))
     apply_env_overrides(args, env_cfg)
     env_cfg.validate()
+
     assert env_cfg.scene.num_envs == 2
-    assert env_cfg.scene.tiled_camera.modifiers["distance_to_image_plane"][-1].backend.max_episode_frames == 601
+    assert env_cfg.scene.tiled_camera.update_period == 0.1
+    assert env_cfg.scene.tiled_camera.modifiers["distance_to_image_plane"][-1].backend.max_episode_frames == 101
 
 
 def test_an_explicit_cap_rejects_the_task_without_slowing_its_camera():

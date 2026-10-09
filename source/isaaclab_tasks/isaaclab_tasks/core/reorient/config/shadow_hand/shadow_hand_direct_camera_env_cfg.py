@@ -257,11 +257,6 @@ def validate_shadow_hand_cosmos_preset(env_cfg) -> None:
         )
     step_dt = env_cfg.sim.dt * env_cfg.decimation
     steps_per_capture = max(1, math.ceil((camera.update_period - 1e-6) / step_dt - 1e-9))
-    if env_cfg.scene.num_envs > 1 and steps_per_capture > 1:
-        raise ValueError(
-            "Several Shadow Hand Cosmos environments need the camera to capture every environment step; set "
-            "scene.tiled_camera.update_period=0."
-        )
     episode_steps = math.ceil(env_cfg.episode_length_s / step_dt - 1e-9)
     episode_frames = math.ceil(episode_steps / steps_per_capture) + 1
     if transfer.backend.max_episode_frames is None:
