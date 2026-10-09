@@ -9,6 +9,7 @@ from types import SimpleNamespace
 
 import pytest
 import torch
+import warp as wp
 from isaaclab_experimental.image_transfer import ImageTransferModifierCfg, depth_to_control, srgb_to_linear
 from isaaclab_experimental.image_transfer import modifier as modifier_module
 
@@ -103,6 +104,24 @@ def test_reset_restarts_only_the_selected_view_with_a_new_seed(no_sim):
 
     # View 1 starts again from its seed 8, advanced by the number of views for its second episode.
     assert model.steps[-1][1:] == ((1,), (10,))
+
+
+def test_a_capture_queues_controls_only_for_the_views_it_covers(no_sim):
+    """After independent resets, environments capture at different steps; a view a capture skipped queues nothing."""
+    modifier, model = _modifier(initial_frames=1, update_frames=2)
+    camera = SimpleNamespace(_is_outdated=wp.array([True, True], dtype=wp.bool, device="cpu"))
+    modifier.bind_sensor(camera)
+    modifier(_controls(1))
+
+    # The two views now capture on alternate calls; each call's data holds a stale render for the other view.
+    for value, mask in ((2, [True, False]), (3, [False, True]), (4, [True, False]), (5, [False, True])):
+        camera._is_outdated = wp.array(mask, dtype=wp.bool, device="cpu")
+        modifier(_controls(value))
+
+    assert len(model.steps) == 2
+    chunks = model.steps[1][0]
+    assert chunks[0][:, 0, 0, 0].tolist() == [2, 4] and chunks[1][:, 0, 0, 0].tolist() == [3, 5]
+    assert [len(queue) for queue in modifier._pending] == [0, 0]
 
 
 def test_a_failed_generation_publishes_nothing_and_is_not_retried(no_sim):
