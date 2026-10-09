@@ -8,6 +8,9 @@
 :func:`keyboard_action` turns the keys held in the viewer into an action. :class:`Se3LinuxGamepad` reads
 ``/dev/input/js*`` events into SE(3) motion commands, and :class:`BerryGamepad` adds a deadman button (LB) and
 continuous gripper control with the analog triggers (RT closes, LT opens).
+
+Both devices command horizontal motion and tilt in the camera's view: forward, left and up. :func:`view_to_robot`
+turns them into the robot's frame, so that forward moves the hand away from the camera whichever way it looks.
 """
 
 import errno
@@ -24,22 +27,43 @@ import torch
 from isaaclab.devices.device_base import DeviceBase, DeviceCfg
 from isaaclab.utils.configclass import configclass
 
-# Keys that move the hand along x, y and z and turn it about x, y and z: (positive, negative).
+# Keys that move the hand forward, left and up, and turn it about those axes: (positive, negative).
 _AXES = ("WS", "AD", "QE", "ZX", "TG", "CV")
+
+CLOSING_SPEED = 0.024
+"""Rate [m/s] of total aperture at which the teleoperated gripper closes: slow enough to stop short of crushing."""
+OPENING_SPEED = 0.036
+"""Rate [m/s] of total aperture at which the teleoperated gripper opens: fast enough to release crushed tissue."""
+
+
+def view_to_robot(action: torch.Tensor, camera_yaw: float) -> torch.Tensor:
+    """Turn an action's horizontal motion and tilt from the camera's view into the robot's frame.
+
+    Args:
+        action: Action of shape (1, 7) whose motion (0, 1) and rotation (3, 4) are along the camera's horizontal
+            forward and left directions.
+        camera_yaw: Heading [deg] of the camera's view direction about the vertical axis.
+    """
+    yaw = np.radians(camera_yaw)
+    turn = torch.tensor([[np.cos(yaw), -np.sin(yaw)], [np.sin(yaw), np.cos(yaw)]], dtype=action.dtype)
+    action = action.clone()
+    for axes in (slice(0, 2), slice(3, 5)):
+        action[0, axes] = turn.to(action.device) @ action[0, axes]
+    return action
 
 
 def keyboard_action(viewer) -> torch.Tensor:
     """Return the environment action from the keys held in ``viewer``'s window.
 
-    W/S, A/D and Q/E move the hand 1.5 mm per step along x, y and z; Z/X, T/G and C/V turn it 0.02 rad per step; K
-    closes and J opens the gripper at 12 mm/s, and releasing them holds its opening.
+    W/S, A/D and Q/E move the hand 1.5 mm per step forward, left and up in the camera's view; Z/X, T/G and C/V turn
+    it 0.02 rad per step about those axes; K closes and J opens the gripper, and releasing them holds its opening.
     """
     action = torch.zeros((1, 7))
     for axis, (positive, negative) in enumerate(_AXES):
         held = int(viewer.is_key_down(positive)) - int(viewer.is_key_down(negative))
         action[0, axis] = (0.0015 if axis < 3 else 0.02) * held
-    opening = int(viewer.is_key_down("J")) - int(viewer.is_key_down("K"))
-    viewer.keyboard_aperture = float(np.clip(viewer.keyboard_aperture + 0.012 / 30 * opening, 0.0, 0.08))
+    rate = OPENING_SPEED * viewer.is_key_down("J") - CLOSING_SPEED * viewer.is_key_down("K")
+    viewer.keyboard_aperture = float(np.clip(viewer.keyboard_aperture + rate / 30, 0.0, 0.08))
     action[0, 6] = viewer.keyboard_aperture / 0.04 - 1
     return action
 
@@ -206,7 +230,7 @@ class Se3LinuxGamepad(DeviceBase):
         command = np.array(
             [
                 left_y * self.pos_sensitivity,
-                left_x * self.pos_sensitivity,
+                -left_x * self.pos_sensitivity,
                 right_y * self.pos_sensitivity,
                 -dpad_x * self.rot_sensitivity * 0.8,
                 dpad_y * self.rot_sensitivity * 0.8,
@@ -255,7 +279,8 @@ class BerryGamepad(Se3LinuxGamepad):
 
     def __str__(self):
         return (
-            f"Berry gamepad: {self._name}. Hold LB/L1 to enable. Sticks: XYZ/yaw; D-pad: roll/pitch. "
+            f"Berry gamepad: {self._name}. Hold LB/L1 to enable. "
+            "Left stick: forward/left in the view; right stick: up/yaw; D-pad: tilt. "
             "RT/R2: close, LT/L2: open; release triggers to hold. Menu: reset. "
             "Trigger pressure controls closure speed; the operator decides pick versus squash."
         )
@@ -322,14 +347,8 @@ class BerryGamepad(Se3LinuxGamepad):
         if not self.connected or not self._enabled:
             command[:6] = 0
         if self.connected and self._enabled:
-            rate = self._trigger(2) - self._trigger(5)
-            self.aperture = float(
-                np.clip(
-                    self.aperture + rate * self.cfg.aperture_speed * self.cfg.control_dt,
-                    0,
-                    0.08,
-                )
-            )
+            rate = self._trigger(2) * OPENING_SPEED - self._trigger(5) * CLOSING_SPEED
+            self.aperture = float(np.clip(self.aperture + rate * self.cfg.control_dt, 0, 0.08))
         command[6] = self.aperture / 0.04 - 1
         return command
 
@@ -337,9 +356,8 @@ class BerryGamepad(Se3LinuxGamepad):
 @configclass
 class BerryGamepadCfg(DeviceCfg):
     class_type: type = BerryGamepad
-    pos_sensitivity: float = 0.0015
+    pos_sensitivity: float = 0.003
     rot_sensitivity: float = 0.02
     dead_zone: float = 0.12
     device: str | None = None
-    aperture_speed: float = 0.012  # Total aperture change [m/s].
     control_dt: float = 1 / 30
