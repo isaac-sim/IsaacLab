@@ -240,21 +240,49 @@ and the `train` stage under `torchrun --nproc-per-node 2` for the study's two da
 | Teacher | Its own Cartpole URDF, Newton Featherstone, 1/60 s frames | Isaac Lab Cartpole, MuJoCo Warp, 1/60 s frames (`CartpoleFlashNeRDBenchmarkEnvCfg`) |
 | Data | 10,000 x 100 training and 2,048 x 509 held-out transitions; uniform initial states (cart 1 m, pole full turn, velocities 1) and per-frame uniform forces; no termination | Same, with forces over the full 400 N actuator range |
 | Model | ParallelNeRD H256, 4 heads x 64, FFN 640, head 256, spans (4, 3, 3, 3), inputs padded to 64 | Same geometry without padding (`tasks.CARTPOLE_FLASHNERD_MODEL_CONFIG`, 2.69M parameters) |
-| Optimization | Global batch 4,096, 1e-3 to 1e-4, 5,000,000 updates, FP16 autocast | Batch 4,096, 1e-3 to 1e-4, `--max-updates`, FP32 |
+| Optimization | Global batch 4,096, 1e-3 to 1e-4, 5,000,000 updates, FP16 autocast, two ranks | Same, with `--max-updates` updates, resident windows, and `torch.compile` |
 | Metric | Prefix-pooled `E_H` on the finite held-out cohort, training-state scale | Same (`evaluate_rollout_nrmse`) |
 
-Reference results after 20,000 updates (3.3 hours on a shared GPU; the input pipeline sustains about
-7,000 windows per second), on all 2,048 held-out trajectories, none non-finite:
+Results on all 2,048 held-out trajectories, none non-finite, for 50,000 updates (1 % of the study's budget;
+27 minutes on one shared GPU) on each teacher:
 
 | E_H | E1 | E15 | E50 | E100 | E200 | E500 |
 | --- | --- | --- | --- | --- | --- | --- |
-| This benchmark, 20,000 updates | 7.4e-4 | 3.0e-3 | 2.6e-2 | 0.16 | 0.49 | 0.86 |
+| Study teacher (`--teacher physicsnemo`), 50,000 updates | 9.9e-5 | 5.1e-4 | 1.7e-3 | 1.0e-2 | 0.11 | 1.07 |
+| Isaac Lab teacher, 50,000 updates | 4.1e-4 | 1.7e-3 | 1.5e-2 | 0.12 | 0.44 | 0.83 |
 | FlashNeRD paper, 5,000,000 updates | 4.4e-5 | 1.7e-4 | - | 3.2e-3 | 6.0e-2 | - |
 
-The teacher-forced one-step normalized delta RMSE is 0.013. The run used 0.4 % of the study's updates,
-and its teacher is a different system: with per-frame random 400 N efforts and no termination, the
-Isaac Lab cart reaches its track limits and the pole reaches 50 rad/s. The comparison therefore checks the
-protocol and metric, not the absolute accuracy.
+On the study's own teacher, 1 % of the budget already comes within 2 to 3 times the paper at every reported
+horizon, which validates the training recipe. At equal budget the Isaac Lab Cartpole is 3 to 12 times
+harder: with per-frame random 400 N efforts and no termination, its cart reaches the track limits and its
+pole reaches 50 rad/s. Full-budget runs on both teachers are pending.
+
+### ANYmal-C with target control (FlashNeRD locomotion)
+
+`examples/anymal_c` follows the FlashNeRD locomotion experiment more closely than the ANYmal-D example: the
+model steps one 20 ms control period, receives joint-position targets, and learns the ANYdrive actuator
+response, which the teacher computes with its actuator network every 5 ms physics step.
+
+```bash
+E=source/isaaclab_physicsnemo/examples/anymal_c
+python $E/record.py --output /tmp/anymal-c/data --num-envs 4096 --steps 600
+torchrun --standalone --nproc-per-node 2 $E/train.py --dataset /tmp/anymal-c/data --output /tmp/anymal-c/train
+python $E/deploy.py --artifact /tmp/anymal-c/train/artifact
+python $E/train_policy.py --output /tmp/anymal-c/ppo-learned --artifact /tmp/anymal-c/train/artifact
+python $E/train_policy.py --output /tmp/anymal-c/ppo-mjwarp
+```
+
+| Setting | FlashNeRD | This example |
+| --- | --- | --- |
+| Robot and teacher | ANYmal-C, MJWarp | ANYmal-C, MJWarp, ANYdrive LSTM actuator network at 5 ms (`AnymalCFlatTeacherEnvCfg`) |
+| Frame and control | 20 ms, joint-position targets | Same: `TrajectoryDatasetRecorder(control_targets=...)` records Newton `joint_target_q`, and the learned scene (`AnymalCTargetControlEnvCfg`) forwards targets through zero-gain implicit actuators, which leaves the Newton model identical |
+| Data | Randomized base poses, velocities, joints; targets within 0.75 rad every 20 ms; up to 100 steps; falls kept | Same (`AnymalCExplorationEnvCfg`), 4,096 x 600 control periods |
+| Contact and inputs | Four fixed foot-sphere probes | Same, with heading-frame state and base-frame gravity |
+| Model | FlashNeRD 8.88M, 13-frame receptive field, 60,000 updates, 5 % validation | ParallelNeRD with the study's G1 geometry and spans (4, 4, 4, 4), 13 frames, 60,000 updates of 4,096 windows, 5 % validation |
+| PPO | 16,384 environments, 300 iterations | Same; the joint-torque penalty is removed in both physics, because target control does not expose torques |
+
+The recorded targets equal what the learned scene hands the model, element for element
+(`test_target_control.py`). Full-scale results are pending.
 
 ### ANYmal-D
 
