@@ -72,6 +72,9 @@ RUN apt-get update && \
     wget \
  && rm -rf /var/lib/apt/lists/*
 
+# Fail if the base image brings Git LFS: scanners flag the Go modules embedded in its binary.
+RUN if command -v git-lfs; then echo "git-lfs must not ship in this image" >&2; exit 1; fi
+
 # Install the Carbonite environment shim that serializes glibc environment
 # access across Kit worker threads. Use /etc/ld.so.preload because Isaac Sim's
 # python.sh overwrites LD_PRELOAD before launching the interpreter.

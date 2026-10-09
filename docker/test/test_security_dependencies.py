@@ -56,15 +56,6 @@ class TestSecurityDependencies(unittest.TestCase):
             with self.subTest(package=name):
                 self.assertGreaterEqual(tuple(map(int, packages[name].split("."))), tuple(map(int, version.split("."))))
 
-    def test_images_ship_no_git_lfs(self):
-        # Scanners flag the Go modules embedded in the upstream Git LFS binary.
-        for name in ("Dockerfile.base", "Dockerfile.kitless"):
-            with self.subTest(dockerfile=name):
-                text = (REPO_ROOT / "docker" / name).read_text(encoding="utf-8")
-                for line in text.splitlines():
-                    if not line.lstrip().startswith("#"):
-                        self.assertNotRegex(line, r"git[-_]lfs")
-
     def test_contract_workflows_use_hash_locked_dependencies(self):
         requirements = REPO_ROOT / "docker/test/requirements.txt"
         self.assertTrue(requirements.is_file())

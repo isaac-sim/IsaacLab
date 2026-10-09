@@ -120,7 +120,7 @@ ENV PYTHONUNBUFFERED=1
 ENV NVIDIA_VISIBLE_DEVICES=all
 ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility,graphics
 
-# Neither image ships Git LFS: scanners flag the Go modules embedded in its upstream binary. Nothing
+# No image ships Git LFS: scanners flag the Go modules embedded in its upstream binary. Nothing
 # here needs it, since .dockerignore keeps .git out and CI's test launchers hide the mounted one.
 #
 # Libraries ovrtx loads at init. GLVND splits these: libgl1 gives libGL.so.1,
@@ -152,6 +152,9 @@ RUN apt-get update \
  && mkdir -p "${HOME}" \
  && chown -R isaaclab:isaaclab "${HOME}" \
  && chmod 750 "${HOME}"
+
+# Fail if the base image brings Git LFS: scanners flag the Go modules embedded in its binary.
+RUN if command -v git-lfs; then echo "git-lfs must not ship in this image" >&2; exit 1; fi
 
 COPY --from=builder /usr/local/bin/uv /usr/local/bin/uv
 COPY --from=builder /usr/local/bin/uvx /usr/local/bin/uvx
