@@ -16,7 +16,7 @@ import warp as wp
 from isaaclab.app import add_launcher_args, launch_simulation
 
 parser = argparse.ArgumentParser(description="Keyboard control for Isaac Lab Pick and Place.")
-parser.add_argument("--num_envs", type=int, default=32, help="Number of environments to spawn.")
+parser.add_argument("--num_envs", type=int, default=1, help="Number of environments to spawn.")
 parser.add_argument("--max_steps", type=int, default=-1, help="Stop after this many steps; negative runs forever.")
 parser.add_argument(
     "--physics",
@@ -184,9 +184,10 @@ class PickAndPlaceEnv(DirectRLEnv):
             xy_efforts[mask] = (goal_xy[mask] - head_pos_xy[mask]) * 5.0
 
         # Set the joint effort targets for the picker
-        self.pick_and_place.set_joint_effort_target_index(target=xy_efforts[:, 0:1], joint_ids=self._x_dof_idx)
-        self.pick_and_place.set_joint_effort_target_index(target=xy_efforts[:, 1:2], joint_ids=self._y_dof_idx)
-        self.pick_and_place.set_joint_effort_target_index(target=self.actions[:, 2:3], joint_ids=self._z_dof_idx)
+        command = self.pick_and_place.actuators.target_command
+        command.set_effort_index(value=xy_efforts[:, 0:1], joint_ids=self._x_dof_idx)
+        command.set_effort_index(value=xy_efforts[:, 1:2], joint_ids=self._y_dof_idx)
+        command.set_effort_index(value=self.actions[:, 2:3], joint_ids=self._z_dof_idx)
         # Set the gripper command
         self.gripper.set_grippers_command(self.actions[:, 3])
 
@@ -329,7 +330,7 @@ def main() -> None:
             teleop.add_callback("N", lambda: pick_and_place.auto_aim(cube=True))
             teleop.add_callback("M", lambda: pick_and_place.auto_aim(cube=False))
             print(teleop)
-            print("Pick up the purple cube and drop it on the red sphere, in ALL environments at once.")
+            print("Pick up the purple cube and drop it on the red sphere.")
             print("\tW/S and A/D move the gantries, Q/E latch them UP/DOWN, K toggles the grippers.")
             print("\tN/M make the grippers track the cube/target position.")
         step_count = 0

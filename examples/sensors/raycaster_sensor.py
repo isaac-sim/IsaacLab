@@ -30,12 +30,12 @@ parser.add_argument("--log_interval", type=int, default=100, help="Steps between
 parser.add_argument("--max_steps", type=int, default=-1, help="Stop after this many steps; negative runs forever.")
 parser.add_argument(
     "--physics",
-    default="isaacsim_physx",
-    choices=["isaacsim_physx"],
+    default="newton_mjwarp",
+    choices=["isaacsim_physx", "newton_mjwarp"],
     help="Physics backend.",
 )
 add_launcher_args(parser)
-parser.set_defaults(visualizer=["kit"])
+parser.set_defaults(visualizer=["newton_gl"])
 args_cli = parser.parse_args()
 if args_cli.log_interval < 1:
     parser.error("--log_interval must be at least 1.")
@@ -106,7 +106,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: "InteractiveScene") -
             scene.reset()
             print("[INFO]: Resetting robot state...")
         targets = scene["robot"].data.default_joint_pos.torch
-        scene["robot"].set_joint_position_target_index(target=targets)
+        scene["robot"].actuators.target_command.set_position_index(value=targets)
         scene.write_data_to_sim()
         sim.step()
         count += 1

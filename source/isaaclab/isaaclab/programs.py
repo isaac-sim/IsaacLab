@@ -44,13 +44,13 @@ class ProgramSpec:
     def path(self) -> Path:
         """Return the program path in a checkout or installed wheel."""
         directory, relative_path = self.relative_path.split("/", 1)
-        return _program_root(directory) / relative_path
+        return _program_root(directory, relative_path) / relative_path
 
 
-def _program_root(directory: str) -> Path:
+def _program_root(directory: str, relative_path: str) -> Path:
     """Return the root containing executable programs."""
     installed_root = Path(__file__).resolve().parent / directory
-    if installed_root.is_dir():
+    if (installed_root / relative_path).is_file():
         return installed_root
     return ISAACLAB_ROOT / directory
 
@@ -109,7 +109,6 @@ EXAMPLES = (
         "bin-packing",
         "examples/bin_packing.py",
         "Clone heterogeneous randomized bin layouts.",
-        **_ISAACSIM,
     ),
     ProgramSpec("cables", "examples/cables.py", "Simulate colliding cables with Newton VBD."),
     ProgramSpec(
@@ -125,14 +124,13 @@ EXAMPLES = (
         "Compose heterogeneous task scenes.",
         **_ISAACSIM,
     ),
-    ProgramSpec("markers", "examples/markers.py", "Render reusable visualization markers.", **_ISAACSIM),
+    ProgramSpec("markers", "examples/markers.py", "Render reusable visualization markers."),
     ProgramSpec("multi-asset", "examples/multi_asset.py", "Spawn different assets across cloned environments."),
     ProgramSpec("newton-dominoes", "examples/newton_viewer_dominoes.py", "Interact with Newton XPBD dominoes."),
     ProgramSpec(
         "procedural-terrain",
         "examples/procedural_terrain.py",
         "Generate procedural terrain meshes.",
-        **_ISAACSIM,
     ),
     ProgramSpec(
         "visual-color-randomization",
@@ -153,7 +151,6 @@ EXAMPLES = (
         "camera",
         "examples/sensors/cameras.py",
         "Capture data from several camera configurations.",
-        **_ISAACSIM,
     ),
     ProgramSpec(
         "contact-sensor",
@@ -164,13 +161,11 @@ EXAMPLES = (
         "frame-transformer",
         "examples/sensors/frame_transformer_sensor.py",
         "Track transforms between robot frames.",
-        **_ISAACSIM,
     ),
     ProgramSpec(
         "imu",
         "examples/sensors/imu_sensor.py",
         "Inspect inertial measurements.",
-        **_ISAACSIM,
     ),
     ProgramSpec(
         "multi-mesh-ray-caster",
@@ -181,7 +176,6 @@ EXAMPLES = (
         "multi-mesh-ray-caster-camera",
         "examples/sensors/multi_mesh_raycaster_camera.py",
         "Render depth and normals with a multi-mesh ray caster.",
-        **_ISAACSIM,
     ),
     ProgramSpec(
         "newton-raycast",
@@ -192,19 +186,16 @@ EXAMPLES = (
         "pva",
         "examples/sensors/pva_sensor.py",
         "Inspect pose, velocity, and acceleration data.",
-        **_ISAACSIM,
     ),
     ProgramSpec(
         "ray-caster",
         "examples/sensors/raycaster_sensor.py",
         "Inspect a lidar-style ray caster.",
-        **_ISAACSIM,
     ),
     ProgramSpec(
         "arl-robot-1",
         "examples/arl_robot_1.py",
         "Fly ARL Robot 1 with its position controller.",
-        **_ISAACSIM,
     ),
     ProgramSpec(
         "haply-teleoperation",
