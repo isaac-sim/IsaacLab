@@ -158,8 +158,12 @@ def test_version_single_source_matches_literal_pins(source_checkout_root: Path):
     for package in ("torch", "torchvision", "torchaudio"):
         assert f"{package}=={versions[package]}" in dependencies
 
-    # Newton uses the same exact PyPI release for source and wheel installations.
-    newton_spec = f"newton[sim]=={versions['newton']}"
+    # Newton can pin either a release or an exact main-branch revision.
+    newton_version = versions["newton"]
+    if re.fullmatch(r"[0-9a-f]{40}", newton_version):
+        newton_spec = f"newton[sim] @ git+https://github.com/newton-physics/newton.git@{newton_version}"
+    else:
+        newton_spec = f"newton[sim]=={newton_version}"
     assert newton_spec in dependencies
     assert newton_spec in overrides
 

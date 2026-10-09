@@ -31,7 +31,7 @@ wp.config.enable_backward = False
 
 def main() -> None:
     args, parser, ffmpeg = _parse_args()
-    video_stride = 100 // args.video_fps
+    video_stride = args.control_hz // args.video_fps
     cfg, visualizers = _make_env_cfg(args, parser, video_stride)
     with launch_simulation(cfg, args), ExitStack() as stack:
         from isaaclab_tasks.contrib.rizon_sharpa_coffee.coffee_env import CoffeeEnv
@@ -76,6 +76,7 @@ def main() -> None:
             device.request_start()
             teleop_controller = CoffeeTeleopController(env)
         recording = stack.enter_context(_DemoRecording(env, args, ffmpeg, video_stride))
+        presentation_elapsed = 0.0
         step = 0
         with torch.inference_mode():
             while step < args.max_steps:
@@ -118,14 +119,20 @@ def main() -> None:
                             if camera is not None:
                                 camera.reset()
                             recording.previous_phase = None
+                            presentation_elapsed = 0.0
                             step += 1
                             continue
                         raise RuntimeError(f"Scripted rollout ended at step {step}: {', '.join(reasons)}.")
                     device.reset()
                     teleop_controller.reset()
-                if env.presentation is not None:
-                    env.presentation.update(env.step_dt)
                 phase = str(controller.phase) if controller is not None else "teleoperation"
+                presentation_elapsed += env.step_dt
+                # Surface reconstruction is only needed for frames that are recorded.
+                if env.presentation is not None and (
+                    not args.video or step % video_stride == 0 or phase != recording.previous_phase
+                ):
+                    env.presentation.update(presentation_elapsed)
+                    presentation_elapsed = 0.0
                 recording.update(step, phase)
                 if controller is not None and controller.finished:
                     if env.particle_fractions()[0, 2] < cfg.success_fraction:
@@ -140,6 +147,7 @@ def main() -> None:
                     if camera is not None:
                         camera.reset()
                     recording.previous_phase = None
+                    presentation_elapsed = 0.0
                 step += 1
         recording.close()
         print("Final coffee fractions [bowl, spoon, cup, spill]:", env.particle_fractions()[0].tolist(), flush=True)
@@ -159,28 +167,35 @@ def _parse_args():
     parser.add_argument(
         "--water_fill_height", type=float, default=None, help="Override the task's water seed height [m]."
     )
-    parser.add_argument("--voxel_size", type=float, default=0.002)
+    parser.add_argument("--voxel_size", type=float, default=0.004)
     parser.add_argument(
         "--spoon_margin", type=float, default=None, help="Override the broad spoon collision margin [m]."
     )
     parser.add_argument(
-        "--spoon_rim_margin_scale", type=float, default=1.0 / 9.0, help="Rim margin relative to the broad spoon faces."
+        "--spoon_rim_margin_scale",
+        type=float,
+        default=0.0,
+        help="Relative rim margin; zero uses the actual mesh at the lip.",
     )
     parser.add_argument(
         "--coffee_wetting_time",
         type=float,
-        default=0.12,
+        default=0.02,
         help="Accumulated water contact before coffee becomes liquid [s].",
     )
     parser.add_argument(
         "--physics_hz",
         type=int,
-        choices=(100, 200, 400, 800),
+        choices=(100, 120, 200, 400, 800),
         default=None,
         help="Coupling rate; defaults to 400 Hz for dry 2 mm or wet 3+ mm mounted scripts, otherwise 800 Hz.",
     )
     parser.add_argument(
-        "--rigid_hz", type=int, choices=(400, 800), default=800, help="Mounted robot integration rate [Hz]."
+        "--rigid_hz",
+        type=int,
+        choices=(400, 800, 840),
+        default=None,
+        help="Mounted robot integration rate [Hz]; default 840 with 120 Hz physics, otherwise 800.",
     )
     parser.add_argument("--mpm_substeps", type=int, default=None, help="MPM substeps per physics tick.")
     parser.add_argument(
@@ -204,7 +219,7 @@ def _parse_args():
             " Zero uses the full particle budget."
         ),
     )
-    parser.add_argument("--grains_per_particle", type=int, choices=(0, 1, 5, 10, 20, 64, 128), default=5)
+    parser.add_argument("--grains_per_particle", type=int, choices=(0, 1, 3, 5, 10, 20, 64, 128), default=5)
     parser.add_argument("--render_samples", type=int, default=4)
     parser.add_argument(
         "--surface_smoothing_time",
@@ -214,8 +229,9 @@ def _parse_args():
     )
     parser.add_argument("--max_steps", type=int, default=8000)
     parser.add_argument("--camera", choices=("follow", "fixed"), default="follow")
+    parser.add_argument("--backdrop", choices=("kitchen", "studio"), default="kitchen", help="Kit render backdrop.")
     parser.add_argument("--video", action="store_true", help="Record an MP4 at 1x simulation speed.")
-    parser.add_argument("--video_fps", type=int, choices=(25, 50, 100), default=25)
+    parser.add_argument("--video_fps", type=int, choices=(25, 30, 50, 60, 100), default=None)
     parser.add_argument("--video_crf", type=int, default=14, help="H.264 quality from 0 to 51; lower is better.")
     parser.add_argument(
         "--video_render_scale", type=int, choices=(1, 2), default=1, help="Render scale before downsampling the MP4."
@@ -242,10 +258,19 @@ def _parse_args():
             and ((not args.water and args.voxel_size == 0.002) or (args.water and args.voxel_size >= 0.003))
         )
         args.physics_hz = 400 if fast_script else 800
+    args.control_hz = 60 if args.physics_hz == 120 else 100
+    if args.rigid_hz is None:
+        args.rigid_hz = 840 if args.physics_hz == 120 else 800
+    if args.video_fps is None:
+        args.video_fps = 30 if args.physics_hz == 120 else 25
+    if args.control_hz % args.video_fps:
+        parser.error("--video_fps must divide the control rate (60 Hz at 120 Hz physics, otherwise 100 Hz).")
     if args.visualizer is None:
         args.visualizer = ["newton_rtx" if args.video else "newton_gl"]
-    if args.grasp_mode == "mounted" and args.rigid_hz < args.physics_hz:
-        parser.error("--rigid_hz must be at least --physics_hz.")
+    if args.grasp_mode == "mounted" and args.rigid_hz % args.physics_hz:
+        parser.error("--rigid_hz must be an integer multiple of --physics_hz.")
+    if args.grasp_mode == "contact" and args.physics_hz == 120:
+        parser.error("120 Hz physics currently supports mounted tools; contact grasping uses a 1600 Hz solver.")
     if args.grasp_mode == "contact" and args.rigid_hz != 800:
         parser.error("--rigid_hz applies only to mounted tools; contact grasping uses 1600 Hz.")
     if args.spoon_margin is not None and (not math.isfinite(args.spoon_margin) or args.spoon_margin < 0.0):
@@ -287,7 +312,7 @@ def _make_env_cfg(args, parser, video_stride):
         cfg.spoon_margin_voxels = args.spoon_margin / cfg.voxel_size
     cfg.spoon_rim_margin_scale = args.spoon_rim_margin_scale
     cfg.sim.dt = 1.0 / args.physics_hz
-    cfg.decimation = args.physics_hz // 100
+    cfg.decimation = args.physics_hz // args.control_hz
     cfg.sim.render_interval = 2 * cfg.decimation
     # The robot and material keep independent integration rates.
     cfg.sim.physics.solver_cfg.entries[0].substeps = args.rigid_hz // args.physics_hz
@@ -321,7 +346,9 @@ def _make_env_cfg(args, parser, video_stride):
         parser.error("--keep_open requires a desktop visualizer.")
     if args.video and not visualizers:
         parser.error("--video requires a GL, RTX or Kit visualizer; --headless recording is supported.")
-    if args.video and any(visualizer.visualizer_type == "kit" for visualizer in visualizers):
+    if (args.video or args.output_dir is not None) and any(
+        visualizer.visualizer_type == "kit" for visualizer in visualizers
+    ):
         args.enable_cameras = True
     cfg.sim.physics.load_visual_shapes = bool(visualizers)
     cfg.grains_per_particle = args.grains_per_particle if visualizers else 0
@@ -330,7 +357,6 @@ def _make_env_cfg(args, parser, video_stride):
 
 def _make_visualizers(args, parser):
     from isaaclab_physx.renderers import IsaacRtxRendererCfg, IsaacRtxRendererGlobalSettingsCfg
-    from isaaclab_visualizers.kit import KitVisualizerCfg
     from isaaclab_visualizers.newton import NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg
 
     from isaaclab_tasks.contrib.rizon_sharpa_coffee.presentation import CoffeeGLVisualizer, CoffeeRTXVisualizer
@@ -351,9 +377,14 @@ def _make_visualizers(args, parser):
         if name not in ("newton_gl", "newton_rtx", "kit"):
             parser.error("This demo's grain/surface presentation supports newton_gl, newton_rtx or kit.")
         if name == "kit":
+            from isaaclab_tasks.contrib.rizon_sharpa_coffee.kit_presentation_cfg import CoffeeKitVisualizerCfg
+
+            kit_camera = camera_cfg.copy()
+            if args.backdrop == "kitchen":
+                kit_camera.update(eye=(0.97, -0.88, 0.98), lookat=(0.45, 0.03, 0.14))
             visualizers.append(
-                KitVisualizerCfg(
-                    class_type="isaaclab_tasks.contrib.rizon_sharpa_coffee.kit_presentation:CoffeeKitVisualizer",
+                CoffeeKitVisualizerCfg(
+                    backdrop=args.backdrop,
                     streaming_cam_renderer_cfg=IsaacRtxRendererCfg(
                         global_settings=IsaacRtxRendererGlobalSettingsCfg(
                             enable_translucency=True,
@@ -367,7 +398,7 @@ def _make_visualizers(args, parser):
                     ),
                     enable_markers=False,
                     enable_live_plots=False,
-                    **camera_cfg,
+                    **kit_camera,
                 )
             )
             continue
@@ -433,20 +464,26 @@ def _write_metrics(output: Path, metrics: list) -> None:
 
 
 class _SpoonCamera:
-    """Follow the tool, with elevated cup close-ups during pouring and stirring."""
+    """Ease framing through the demonstration and clear the arm when stirring."""
 
     def __init__(self, visualizers, *, show_cup: bool = False):
         self._visualizers = visualizers
         self._initial_eye = np.array(visualizers[0].cfg.eye, dtype=float)
         self._initial_target = np.array(visualizers[0].cfg.lookat, dtype=float)
         self._offset = self._initial_eye - self._initial_target
+        self._azimuth = math.atan2(self._offset[1], self._offset[0])
         self._show_cup = show_cup
         self.reset()
 
     def reset(self):
         self._eye = self._initial_eye.copy()
         self._target = self._initial_target.copy()
-        self._cup_revealed = False
+        distance = np.linalg.norm(self._offset)
+        elevation = math.asin(self._offset[2] / distance)
+        # Three cascaded filters keep position, velocity and acceleration
+        # continuous even when the scripted phase changes its framing target.
+        self._framing = np.tile((*self._target, math.log(distance), elevation, self._azimuth), (3, 1))
+        self._stirring = False
         for visualizer in self._visualizers:
             visualizer.set_camera_view(self._eye, self._target)
 
@@ -456,37 +493,43 @@ class _SpoonCamera:
         spoon = np.asarray(spoon_position)
         # Bias toward the handle so the thumb/index pinch stays in the shot.
         focus = spoon + (-0.045, 0.0, 0.025)
-        target = 0.45 * focus + 0.55 * np.array((0.52, 0.02, 0.11))
-        scale = 1.0
-        if phase.startswith("scoop"):
-            proximity = np.clip((0.20 - spoon[2]) / 0.13, 0.0, 1.0)
-            blend = proximity * proximity * (3.0 - 2.0 * proximity)
-            pickup_target = 0.7 * focus + 0.3 * (np.array(BOWL_POSITION) + (-0.025, 0.0, 0.055))
-            target = (1.0 - blend) * target + blend * pickup_target
-            scale -= 0.30 * blend
-        elif phase.startswith(("pour_height", "tip", "empty", "stir")):
-            target = 0.55 * focus + 0.45 * (np.array(CUP_POSITION) + (-0.015, 0.0, 0.055))
-            scale = 0.85
-        if self._show_cup and phase == "empty_1":
-            self._cup_revealed = True
-        offset = self._offset
-        if self._cup_revealed:
-            # Raise and gently orbit toward +X at nearly constant distance.
-            # The steeper view clears the near rim during the second scoop.
-            offset = offset + (0.05, 0.30, 0.22)
-        if self._show_cup and phase.startswith(("pour_height", "tip", "empty", "stir")):
-            # View from -X/+Y at 55 degrees, clearing the hand along the full
-            # scoop path. Keep the opening and falling grains large in frame.
-            offset = np.array((-0.36772, 0.36772, 0.74270))
-            target = np.array(CUP_POSITION) + (0.0, 0.0, 0.075)
-            scale = 0.42
-            if phase.startswith("stir"):
-                target = np.array(CUP_POSITION) + (0.0, 0.0, 0.052)
-                scale = 0.32
-        # Time-based damping keeps motion smooth regardless of rendering speed.
-        weight = -math.expm1(-dt / 0.65)
-        self._target += weight * (target - self._target)
-        self._eye += weight * (target + scale * offset - self._eye)
+        target = 0.35 * focus + 0.65 * np.array((0.52, 0.02, 0.13))
+        distance = 0.85
+        elevation = math.radians(48.0)
+        azimuth = self._azimuth
+        if phase.startswith(("approach", "return", "scoop")):
+            target = 0.25 * focus + 0.75 * (np.array(BOWL_POSITION) + (-0.025, 0.0, 0.075))
+            distance = 0.68
+            elevation = math.radians(52.0)
+        if phase.startswith("stir"):
+            self._stirring = True
+        if self._show_cup and (self._stirring or phase.startswith(("pour_height", "tip", "empty"))):
+            target = np.array(CUP_POSITION) + (-0.015, 0.0, 0.075 if self._stirring else 0.065)
+            distance = 0.33 if self._stirring else 0.50
+            elevation = math.radians(35.0 if self._stirring else 60.0)
+            if self._stirring:
+                # Move right toward a front view of the fingers and liquid,
+                # keeping the wrist above the close-up.
+                angle = math.radians(-30.0) - self._azimuth
+                azimuth += math.atan2(math.sin(angle), math.cos(angle))
+        # Filter log distance for a gradual dolly at both wide and close views.
+        goal = np.array((*target, math.log(distance), elevation, azimuth))
+        errors = self._framing - goal
+        elapsed = dt / 0.70
+        decay = math.exp(-elapsed)
+        self._framing[0] = goal + decay * errors[0]
+        self._framing[1] = goal + decay * (errors[1] + elapsed * errors[0])
+        self._framing[2] = goal + decay * (errors[2] + elapsed * errors[1] + 0.5 * elapsed**2 * errors[0])
+        self._target = self._framing[2, :3].copy()
+        distance = math.exp(self._framing[2, 3])
+        elevation = self._framing[2, 4]
+        azimuth = self._framing[2, 5]
+        horizontal = distance * math.cos(elevation)
+        self._eye = self._target + (
+            horizontal * math.cos(azimuth),
+            horizontal * math.sin(azimuth),
+            distance * math.sin(elevation),
+        )
         for visualizer in self._visualizers:
             visualizer.set_camera_view(self._eye, self._target)
 

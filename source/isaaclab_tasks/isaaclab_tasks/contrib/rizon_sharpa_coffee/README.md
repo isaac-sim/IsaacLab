@@ -3,15 +3,15 @@
 `IsaacContrib-Rizon-Sharpa-Coffee` is a manager-based tool-use environment with a
 Rizon4s arm, a 22-joint right Sharpa Wave hand, a shallow steel spoon, an open
 coffee bowl and a ceramic cup. Newton MPM simulates the coffee and optional
-water; MJWarp simulates the robot. A scripted IK controller performs two scoops
-and pours, followed by stirring when water is enabled. Apple Vision Pro input
+water; MJWarp simulates the robot. A scripted IK controller performs one scoop
+and pour, followed by stirring when water is enabled. Apple Vision Pro input
 uses the same action interface.
 
 ![An earlier Newton RTX capture of the coffee setup](../../../../../docs/source/_static/tasks/rizon_sharpa_coffee.jpg)
 
 The image illustrates the setup; the current motion enters steeply, advances
-about 15 mm while rotating flat **inside** the pile, then lifts level. The two
-entries are offset by −4 and +4 mm. The original 50 × 32 × 10 mm spoon and
+about 15 mm while rotating flat **inside** the pile, then lifts level. The original
+50 × 32 × 10 mm spoon and
 1.8 mm shell are retained. A delivered dose of 8–10 g per scoop has not been
 established with this spoon.
 
@@ -46,6 +46,17 @@ the USD-plus-texture bundle's SHA-256. A cached USD override repairs malformed
 visual normals without modifying the source asset. The procedural tableware
 is generated locally. Retargeting asset provenance and licenses are in
 [assets/NOTICE](assets/NOTICE).
+
+Kit presentation defaults to NVIDIA's public L-shaped kitchen sample from
+`Isaac/Environments/replicator_kitchen/kitchen_l_island.usda`. The enclosed room,
+SimReady appliances, cabinetry, windows and pendant lights are referenced only
+after Newton constructs the physics model. Authored room collisions and rigid
+bodies are disabled; the sample island, apple and decorative coffee cups are
+excluded so the original worktable and task geometry remain usable. Matte sage
+cabinets, warm plaster and brass accents complement the tableware. Rendering adds geometry and texture memory,
+but no solver bodies, contacts or particles. Headless learning does not load it.
+Use `--visualizer kit --backdrop kitchen` for this presentation, or
+`--backdrop studio` to keep the previous studio and avoid the public asset download.
 
 Live headset operation additionally requires IsaacTeleop, CloudXR and a
 configured headset connection. Follow the maintained
@@ -85,8 +96,9 @@ For the wet Kit demonstration and a video, use the following liquid pressure pro
 ```bash
 uv run --no-sync isaaclab demo rizon-sharpa-coffee \
     --mode scripted --water --visualizer kit --headless --video \
-    --voxel_size 0.003 --physics_hz 400 --mpm_iterations 500 \
+    --voxel_size 0.004 --physics_hz 400 --mpm_iterations 500 \
     --mpm_grid_capacity 49152 --grains_per_particle 5 \
+    --spoon_margin 0.0036 --spoon_rim_margin_scale 0 \
     --render_samples 4 --width 1280 --height 720 \
     --output_dir logs/coffee_video
 ```
@@ -145,19 +157,38 @@ env OMNI_KIT_ACCEPT_EULA=YES \
 
 The desktop **Reset** control restarts the entire episode and script. With
 `--keep_open`, the viewer remains open after completion. `--camera fixed` holds
-the initial view; the following camera raises its view into the cup after the
-first pour and moves closer for pouring and stirring. `--max_steps 8000` gives
+the initial view. The following camera smoothly eases its target, angle and
+distance, raises the view into the cup for pouring, and moves right into a close
+front view of the fingers, spoon and liquid for stirring. It holds the cup framing
+while the hand withdraws. `--max_steps 8000` gives
 80 simulated seconds at the 100 Hz control rate.
+
+The scripted demo pours 30 mm above the cup mouth and centres the releasing lip
+over the liquid. Its default 20 ms wetting delay converts contacted coffee into
+liquid within one frame at the default 25 fps; the task's configurable 120 ms default remains
+available for learning experiments.
 
 ## Physics and collision settings
 
-The environment configuration defaults to a 2 mm grid and 800 Hz physics. The
+The demo defaults to a 4 mm grid for visual quality. The environment
+configuration defaults to a 2 mm grid and 800 Hz physics. The
 demo selects 400 Hz for a dry mounted scripted run at 2 mm or a wet mounted
 script at 3 mm and above; other runs default to 800 Hz. `--physics_hz` selects
-100, 200, 400 or 800 Hz, and `--mpm_substeps` multiplies the material step rate.
-The control rate remains 100 Hz. Mounted robot integration defaults to 800 Hz;
+100, 120, 200, 400 or 800 Hz, and `--mpm_substeps` multiplies the material step rate.
+At 120 Hz, control runs at 60 Hz and mounted robot integration defaults to
+840 Hz (seven rigid steps per physics tick). The spoon collider is updated at
+each material step; use one MPM substep for this profile. Videos default to
+30 fps at this rate. Other profiles use 100 Hz control and 25 fps recording.
+Mounted robot integration otherwise defaults to 800 Hz;
 `--rigid_hz 400` reduces it independently when the coupling rate is at most
 400 Hz. Contact grasping keeps its 1,600 Hz solver-entry profile.
+
+The 120 Hz mounted profile can be selected with `--physics_hz 120`. The
+4 mm experiment uses `--mpm_iterations 150 --mpm_grid_capacity 16384`;
+check sparse-grid overflow, liquid containment and settled liquid level when
+changing the fill or motion. A complete 120 Hz run at 250 iterations contained
+all water but reduced its settled surface height by about 8 mm after stirring.
+The conservative wet defaults remain 400 Hz and 500 iterations.
 
 The MPM profile uses sparse CUDA graph capture, `P1d` strain interpolation,
 `pic27` particle-sampled contacts, `backward` collider velocities and native
@@ -168,14 +199,16 @@ explicit overrides; zero grid capacity requests automatic sizing. Grid overflow
 must be checked when changing the fill, resolution or motion.
 
 Broad spoon faces use a margin of 1.2 physics voxels; container margins are
-0.3 voxels. The spoon's bowl margin tapers over its outer 15% to one-ninth of the
-broad-face margin: **0.4 mm at a 3 mm grid**, or approximately 0.267 mm at 2 mm.
+0.3 voxels. The spoon's bowl margin tapers over its outer 15% to **zero at the
+rim**, keeping the contact lip at the actual mesh rather than supporting coffee
+beyond its edge. Broad faces retain their clearance against tunneling.
 Native per-face collider materials implement the taper before graph capture;
 the closed shell and handle retain their geometry. `CoffeeEnvCfg.spoon_margin_voxels`
 and `--spoon_rim_margin_scale` control these values. `--spoon_margin` overrides the
 broad margin in metres, preserving a useful tool clearance on larger grids.
 Reducing the timestep rate or margin requires checking loaded-tool containment
 as well as the complete path.
+Negative rim margins are not supported: they erode the thin collision shell.
 Particle speed is capped at half a physics voxel per MPM substep, up to 4 m/s.
 This keeps coarse-step advection within the native collider query band and
 limits fast pressure-driven outliers without projecting particles out of walls.
@@ -185,8 +218,12 @@ with 205.5762 g total mass and density 450 kg/m³. Supported grids span 1–10 m
 Coarser grids resample the fill at half-voxel spacing while retaining density.
 Grain rendering only decorates
 those physical particles. `--grains_per_particle 0` disables presentation for
-learning; factors 1, 5, 10, 20, 64 and 128 change visual sampling without increasing
+learning; factors 1, 3, 5, 10, 20, 64 and 128 change visual sampling without increasing
 physical contact resolution.
+The visible grains are passive samples of each deformed physical particle, not
+independently colliding bodies. Some visual overhang can therefore remain even
+with zero rim margin; a smaller rim offset does not guarantee that every rendered
+grain stays within the lip.
 
 ## Water, dissolution and surface reconstruction
 

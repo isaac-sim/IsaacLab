@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Measured-pose IK demonstration of two scoops and optional stirring."""
+"""Measured-pose IK demonstration of one scoop and optional stirring."""
 
 from __future__ import annotations
 
@@ -61,10 +61,10 @@ class CoffeeScoopDemo:
         # ceramic rim before the loaded spoon lifts out of the powder.
         scoop_z = source_z + 0.0365
         transfer_z = max(source_z + 0.22, cup_z + CUP_HEIGHT + 0.135)
-        pour_z = cup_z + CUP_HEIGHT + 0.040
+        pour_z = cup_z + CUP_HEIGHT + 0.030
         # Positive X-axis roll releases over the -Y lip. Center that lip over
         # the mouth rather than centering the unrotated spoon cavity.
-        pour_y = cup_y + SPOON_BOWL_WIDTH * 0.46
+        pour_y = cup_y + SPOON_BOWL_WIDTH * 0.40
 
         def pose(position, quaternion=level):
             return (
@@ -111,31 +111,21 @@ class CoffeeScoopDemo:
                 ("clearance", 1.4, clearance, 0.010),
                 ("approach", 2.5, approach, 0.007),
             ]
-        # Mirrored local entries and separate X lanes reach fresh material.
-        # Both motions share one episode and preserve the powder state.
-        self._scoop_lanes = {"scoop_1": (-0.004, 1.0), "scoop_2": (0.004, -1.0)}
-        for cycle, (name, (lane_offset, direction)) in enumerate(self._scoop_lanes.items(), start=1):
-            self._phases.append(
-                (
-                    "approach_1" if cycle == 1 else f"return_{cycle}",
-                    1.4 if cycle == 1 else 4.0,
-                    pose((source_x - 0.030 + lane_offset, source_y - 0.010 * direction, transfer_z)),
-                    0.007,
-                )
-            )
-            self._phases += [
-                (
-                    name,
-                    self._scoop_knots[-1][0],
-                    pose((source_x - 0.014, source_y - 0.010 * direction, transfer_z)),
-                    0.007,
-                ),
-                (f"transfer_{cycle}", 4.5, pose((cup_x, pour_y, transfer_z)), 0.007),
-                (f"pour_height_{cycle}", 1.4, pose((cup_x, pour_y, pour_z)), 0.006),
-                (f"tip_{cycle}", 2.4, pose((cup_x, pour_y, pour_z), tipped), 0.006),
-                (f"empty_{cycle}", 1.3, pose((cup_x, pour_y, pour_z), tipped), 0.006),
-                (f"recover_{cycle}", 3.0, pose((cup_x, pour_y, transfer_z)), 0.007),
-            ]
+        self._scoop_lanes = {"scoop_1": (-0.001, 1.0)}
+        self._phases += [
+            ("approach_1", 1.4, pose((source_x - 0.031, source_y - 0.010, transfer_z)), 0.007),
+            (
+                "scoop_1",
+                self._scoop_knots[-1][0],
+                pose((source_x - 0.014, source_y - 0.010, transfer_z)),
+                0.007,
+            ),
+            ("transfer_1", 4.5, pose((cup_x, pour_y, transfer_z)), 0.007),
+            ("pour_height_1", 1.4, pose((cup_x, pour_y, pour_z)), 0.006),
+            ("tip_1", 2.4, pose((cup_x, pour_y, pour_z), tipped), 0.006),
+            ("empty_1", 1.3, pose((cup_x, pour_y, pour_z), tipped), 0.006),
+            ("recover_1", 3.0, pose((cup_x, pour_y, transfer_z)), 0.007),
+        ]
         if self._env.cfg.water_enabled:
             # An inclined spoon keeps the original flat handle above the cup
             # rim while its front is immersed. Lift before leveling again.
@@ -161,7 +151,7 @@ class CoffeeScoopDemo:
                 ("stir_raise", 2.5, pose((start[0], start[1], stir_clearance_z), stirring), 0.006),
                 ("stir_upright", 2.5, pose((start[0], start[1], transfer_z)), 0.007),
             ]
-        self._phases.append(("retreat_2", 2.0, pose((cup_x + 0.015, pour_y, transfer_z + 0.04)), 0.010))
+        self._phases.append(("retreat", 2.0, pose((cup_x + 0.015, pour_y, transfer_z + 0.04)), 0.010))
         self._phase_index = 0
         self._elapsed = 0.0
         self._start_pose = initial.clone()

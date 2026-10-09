@@ -92,7 +92,7 @@ def test_native_contact_margin_reduces_only_near_spoon_rim():
     after = distances.numpy()
     assert np.isfinite(before).all() and np.isfinite(after).all()
     np.testing.assert_allclose(after[:2], before[:2], rtol=0, atol=1.0e-7)
-    assert after[2] - before[2] == pytest.approx(0.0032, abs=1.0e-7)
+    assert after[2] - before[2] == pytest.approx(0.0036, abs=1.0e-7)
 
 
 @wp.func

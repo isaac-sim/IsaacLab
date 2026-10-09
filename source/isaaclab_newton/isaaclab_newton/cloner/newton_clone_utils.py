@@ -42,7 +42,6 @@ def add_deformable_from_usd(builder: ModelBuilder, stage: Usd.Stage, *, root_pat
         Replace this importer with native ``add_usd`` when Isaac Lab's authored schemas and
         Newton material attributes have parity (newton-physics/newton#3036 and #3038).
         The native USD importer landed in #3192; that alone does not establish material parity.
-        Remove private group recording when the pinned Newton includes #3326's native recording.
     """
     prim = stage.GetPrimAtPath(root_path)
     geometry = deformable_entry(prim)
@@ -64,8 +63,6 @@ def add_deformable_from_usd(builder: ModelBuilder, stage: Usd.Stage, *, root_pat
         attr = material.GetAttribute(f"newton:{to_camel_case(name, to='cC')}")
         material_kwargs[name] = attr.Get() if attr.IsValid() else getattr(defaults, name)
 
-    particle_start, tri_start = builder.particle_count, len(builder.tri_indices)
-    edge_start, tet_start = len(builder.edge_indices), len(builder.tet_indices)
     add_mesh(
         vertices=geometry.vertices,
         indices=geometry.indices,
@@ -76,13 +73,6 @@ def add_deformable_from_usd(builder: ModelBuilder, stage: Usd.Stage, *, root_pat
         label=root_path,
         **material_kwargs,
     )
-    particle_range = (particle_start, builder.particle_count)
-    if geometry.deformable_type == "volume":
-        builder._record_soft_group(root_path, particle_range, (tet_start, len(builder.tet_indices)))
-    else:
-        builder._record_cloth_group(
-            root_path, particle_range, (tri_start, len(builder.tri_indices)), (edge_start, len(builder.edge_indices))
-        )
     return geometry
 
 

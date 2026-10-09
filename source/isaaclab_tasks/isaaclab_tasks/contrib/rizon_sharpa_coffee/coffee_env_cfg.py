@@ -145,8 +145,8 @@ class CoffeeEnvCfg(ManagerBasedRLEnvCfg):
     voxel_size: float = 0.002
     spoon_margin_voxels: float = 1.2
     """Spoon collision expansion in grid cells, separate from the container margins."""
-    spoon_rim_margin_scale: float = 1.0 / 9.0
-    """Rim margin relative to the broad faces, tapered over the outer 15% of radius."""
+    spoon_rim_margin_scale: float = 0.0
+    """Rim margin relative to the broad faces; zero keeps the lip at the actual mesh."""
     spoon_proxy_mass_scale: float = 20.0
     """Finite inertia multiplier for the contact-held spoon's MPM proxy."""
     water_enabled: bool = False

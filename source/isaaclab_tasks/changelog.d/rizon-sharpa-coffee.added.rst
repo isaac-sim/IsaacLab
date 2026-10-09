@@ -1,5 +1,5 @@
 * Added the manager-based ``IsaacContrib-Rizon-Sharpa-Coffee`` environment with
-  procedural tableware, coupled Newton MPM/MJWarp physics, a two-scoop IK demo,
+  procedural tableware, coupled Newton MPM/MJWarp physics, a single-scoop IK demo,
   optional stirring, Apple Vision Pro retargeting and named grasp-reset authoring.
   The default uses a measured-palm tool attachment; free-spoon contact grasping
   remains experimental. The licensed robot bundle must be provided separately.
@@ -22,3 +22,15 @@
   margin overrides and up to 128 native visual grains per physical particle.
   Fine defaults were retained; the experimental wet profile trades contact
   resolution and some liquid-level accuracy for higher throughput.
+* Selected a 4 mm demo grid for finer scoop motion and reconstructed the liquid
+  only at recorded frames, preserving simulation-time surface filtering.
+* Added a 120 Hz mounted-demo profile with 60 Hz control, 840 Hz rigid integration
+  and 30 fps recording, keeping the spoon collider aligned with material steps.
+* Added an optional public NVIDIA kitchen backdrop for Kit with an enclosed
+  room, SimReady appliances, warm lights and matte cabinetry. The backdrop is
+  composed after physics construction and adds no solver bodies or collisions.
+* Smoothed the demo camera with continuous acceleration and gentler close-up
+  framing, added a front/right stirring view, and removed distracting kitchen countertop props.
+  Kit presentation omits dissolved grains instead of submitting zero-width points.
+* Shortened the scripted demo to one scoop followed directly by stirring, with
+  a slightly shifted entry, a lower pour and a 20 ms demo wetting delay.

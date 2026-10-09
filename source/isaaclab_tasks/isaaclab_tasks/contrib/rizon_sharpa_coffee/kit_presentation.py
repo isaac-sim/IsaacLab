@@ -22,12 +22,14 @@ from isaaclab.sim import SimulationContext
 from .presentation import COFFEE_COLOR, WATER_COLOR, _add_coffee_studio_lights
 
 if TYPE_CHECKING:
+    from .kit_presentation_cfg import CoffeeKitVisualizerCfg
     from .presentation import CoffeePresentation
 
 
 class CoffeeKitVisualizer(KitVisualizer):
     """Render the coffee task through Kit while Newton remains the physics owner."""
 
+    cfg: CoffeeKitVisualizerCfg
     presentation: CoffeePresentation | None = None
 
     def initialize(self, scene_data_provider) -> None:
@@ -48,7 +50,24 @@ class CoffeeKitVisualizer(KitVisualizer):
                 self._light_backup[path] = intensity.Get()
                 intensity.Set(0.0)
         _add_coffee_studio_lights(self._stage, f"{self._root_path}/Lights")
+        if self.cfg.backdrop == "kitchen":
+            from .kitchen import add_kitchen
+
+            add_kitchen(self._stage, f"{self._root_path}/Kitchen")
+            for prim in self._stage.Traverse():
+                if (
+                    prim.GetPath().HasPrefix("/World/envs")
+                    and prim.GetName() == "StudioFloor"
+                    and prim.IsA(UsdGeom.Imageable)
+                ):
+                    imageable = UsdGeom.Imageable(prim)
+                    self._visibility_backup[str(prim.GetPath())] = imageable.GetVisibilityAttr().Get()
+                    imageable.MakeInvisible()
+        elif self.cfg.backdrop != "studio":
+            raise ValueError("Coffee backdrop must be 'kitchen' or 'studio'.")
         self._coffee = UsdGeom.Points.Define(self._stage, f"{self._root_path}/Coffee")
+        self._coffee.CreateWidthsAttr()
+        self._coffee.SetWidthsInterpolation(UsdGeom.Tokens.vertex)
         self._water = UsdGeom.Mesh.Define(self._stage, f"{self._root_path}/Water")
         self._water.CreateSubdivisionSchemeAttr(UsdGeom.Tokens.none)
         self._water.CreateDoubleSidedAttr(True)
@@ -80,14 +99,18 @@ class CoffeeKitVisualizer(KitVisualizer):
     def update_coffee(
         self, points: wp.array, radii: wp.array, colors: wp.array, *, dynamic_radii: bool = False
     ) -> None:
-        """Publish grains; wet demos update widths to hide coffee converted to liquid."""
-        self._coffee.GetPointsAttr().Set(Vt.Vec3fArray.FromNumpy(points.numpy()))
+        """Publish dry grains, omitting coffee that has converted to liquid."""
+        positions = points.numpy()
         if dynamic_radii or not self._coffee_attributes_ready:
-            self._coffee.CreateWidthsAttr(Vt.FloatArray.FromNumpy(2.0 * radii.numpy()))
-            self._coffee.SetWidthsInterpolation(UsdGeom.Tokens.vertex)
-        if not self._coffee_attributes_ready:
-            self._coffee_colors.Set(Vt.Vec3fArray.FromNumpy(colors.numpy()))
+            widths = 2.0 * radii.numpy()
+            display_colors = colors.numpy()
+            if dynamic_radii:
+                visible = widths > 0.0
+                positions, widths, display_colors = positions[visible], widths[visible], display_colors[visible]
+            self._coffee.GetWidthsAttr().Set(Vt.FloatArray.FromNumpy(widths))
+            self._coffee_colors.Set(Vt.Vec3fArray.FromNumpy(display_colors))
             self._coffee_attributes_ready = True
+        self._coffee.GetPointsAttr().Set(Vt.Vec3fArray.FromNumpy(positions))
 
     def update_water(self, points, indices, normals, colors: np.ndarray | None, opacity: float) -> None:
         """Publish shared liquid vertices with smoothly interpolated local colours."""
@@ -116,12 +139,12 @@ class CoffeeKitVisualizer(KitVisualizer):
         self._app_pumped_this_step = False
         frame = super().render_rgb_array()
         if not self._capture_ready:
-            for _ in range(12):
-                if frame.any():
-                    self._capture_ready = True
-                    break
+            # Let referenced materials and the temporal denoiser settle before
+            # recording the first frame. This does not advance Newton physics.
+            for _ in range(24):
                 self._app_pumped_this_step = False
                 frame = super().render_rgb_array()
+            self._capture_ready = bool(frame.any())
             if not self._capture_ready:
                 raise RuntimeError("Kit did not produce a nonempty coffee camera frame during warmup.")
         return frame

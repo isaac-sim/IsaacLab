@@ -10,3 +10,12 @@ The Sharpa URDF is an external, user-provided model and is not packaged here.
 The pinned model revision and checksum match NVIDIA IsaacTeleop's fetch script:
 https://github.com/NVIDIA/IsaacTeleop/blob/c5fe6624cc4dff456485d2e786922c8e41100f83/examples/teleop_ros2/scripts/fetch_sharpa_wave_urdfs.py
 The licensed Fabrics-Sim robot USD and textures are also not redistributed.
+
+The optional Kit kitchen backdrop references NVIDIA's public Isaac Sim asset
+library, respecting the configured ISAACSIM_ASSET_ROOT:
+Isaac/Environments/replicator_kitchen/kitchen_l_island.usda
+The sample composes NVIDIA SimReady residential appliances and kitchen props.
+No downloaded NVIDIA USD, MDL or texture files are redistributed here.
+Public asset-pack information and applicable licensing:
+https://docs.omniverse.nvidia.com/usd/latest/usd_content_samples/downloadable_packs.html
+https://docs.omniverse.nvidia.com/usd/latest/common/NVIDIA_Omniverse_License_Agreement.html
