@@ -93,6 +93,14 @@ Command Builder
          <span>H1 Locomotion</span>
        </button>
        <button type="button" class="demo-card" aria-pressed="false"
+               data-demo-name="Factory K10" data-demo-id="factory-k10"
+               data-demo-physics="newton_mjwarp" data-demo-fixed-physics="true"
+               data-demo-visualizers="newton_gl,newton_rtx"
+               data-demo-args="--policy /path/to/exported-policy.pt"
+               data-demo-description="Assemble ten randomized parts using a local exported Factory policy; provide its path with --policy.">
+         <span>Factory K10</span>
+       </button>
+       <button type="button" class="demo-card" aria-pressed="false"
                data-demo-name="Pick and Place" data-demo-id="pick-and-place"
                data-demo-physics="isaacsim_physx" data-demo-visualizers="kit"
                data-demo-description="Interactively pick up a cube with a parallel robot and place it on a target.">

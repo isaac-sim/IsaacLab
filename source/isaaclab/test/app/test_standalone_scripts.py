@@ -22,11 +22,16 @@ launches; ``ISAACLAB_STANDALONE_SCREENSHOT_DELAY`` controls when.
 import ast
 import os
 import re
+import runpy
 import sys
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import Mock
 
+import numpy as np
 import pytest
 import standalone_script_cases as script_cases
+from scipy.spatial.transform import Rotation
 from standalone_script_cases import (
     OVERRIDES,
     SmokeResult,
@@ -131,6 +136,198 @@ def test_demo_browser_documents_options_for_each_demo():
         assert set(entry["visualizers"].split(",")) == set(spec.visualizers) - {None}, (
             f"{demo_name} documents incorrect visualizer options"
         )
+
+
+@pytest.fixture(scope="module")
+def factory_k10_demo():
+    return runpy.run_path(str(script_cases.ROOT / "examples/demos/factory_k10.py"))
+
+
+def test_factory_k10_demo_does_not_depend_on_training_packages():
+    """The exported-policy demo must remain usable without task registration or an RL runner."""
+    path = script_cases.ROOT / "examples/demos/factory_k10.py"
+    imports = []
+    for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+        if isinstance(node, ast.Import):
+            imports.extend(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom):
+            imports.append(node.module or "")
+    assert not any(name.startswith(("isaaclab_tasks", "isaaclab_rl", "rsl_rl")) for name in imports)
+
+
+def test_factory_k10_headless_launch_disables_configured_renderer(factory_k10_demo, monkeypatch):
+    """Headless CLI selection must remove the demo's default RTX renderer before building the scene."""
+    demo = factory_k10_demo
+
+    class ConfigInspected(Exception):
+        pass
+
+    def inspect_config(cfg):
+        assert cfg.sim.visualizer_cfgs == []
+        assert cfg.sim.device == "cpu"
+        assert cfg.scene.num_envs == 2
+        raise ConfigInspected
+
+    monkeypatch.setattr(demo["torch"].jit, "load", Mock())
+    monkeypatch.setitem(demo["main"].__globals__, "ManagerBasedEnv", inspect_config)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["factory_k10.py", "--policy", "actor.pt", "--device", "cpu", "--visualizer", "none", "--num_envs", "2"],
+    )
+    with pytest.raises(ConfigInspected):
+        demo["main"]()
+
+
+def test_factory_k10_resets_only_finished_boards_before_history_update(factory_k10_demo):
+    """Success, invalid state, nonfinite robot state, and timeout preserve continuing episodes."""
+    demo = factory_k10_demo
+    torch = demo["torch"]
+    assembled = torch.zeros((6, 10), dtype=torch.bool)
+    assembled[[0, 2]] = True
+    geometry = Mock(assembled=assembled, invalid=torch.tensor([False, True, False, False, False, False]))
+    robot = SimpleNamespace(
+        data=SimpleNamespace(
+            joint_pos=SimpleNamespace(torch=torch.zeros((6, 9))),
+            joint_vel=SimpleNamespace(torch=torch.zeros((6, 9))),
+        )
+    )
+    robot.data.joint_vel.torch[2, 0] = float("nan")
+
+    class Scene(dict):
+        write_data_to_sim = Mock()
+
+    observations = SimpleNamespace(
+        cfg={"slots": SimpleNamespace(geometry=SimpleNamespace(func=geometry, params={}))},
+        compute=Mock(side_effect=AssertionError("History must update once, after interval events.")),
+    )
+    env = SimpleNamespace(
+        num_envs=6,
+        device="cpu",
+        step_dt=0.1,
+        scene=Scene(robot=robot),
+        observation_manager=observations,
+        sim=Mock(),
+        reset=Mock(side_effect=AssertionError("Public reset advances continuing histories.")),
+    )
+    term = demo["EpisodeReset"](demo["EventTermCfg"](), env)
+    env._reset_idx = Mock(side_effect=term.reset)
+    term.age[:] = torch.tensor([1, 3, 7, 9, 4, 2])
+    term(env, None, horizon=1.0)
+
+    assert term.completed == 4 and term.successes == 1
+    assert env._reset_idx.call_args.args[0].tolist() == [0, 1, 2, 3]
+    assert term.age.tolist() == [0, 0, 0, 0, 5, 3]
+    env.scene.write_data_to_sim.assert_called_once_with()
+    env.sim.forward.assert_called_once_with()
+    env.reset.assert_not_called()
+    observations.compute.assert_not_called()
+
+    geometry.assembled.zero_()
+    geometry.invalid.zero_()
+    robot.data.joint_vel.torch.zero_()
+    term(env, None, horizon=1.0)
+    assert term.age.tolist() == [1, 1, 1, 1, 6, 4]
+    assert term.completed == 4 and term.successes == 1
+    assert env._reset_idx.call_count == 1
+
+
+def test_factory_k10_reset_ranges_and_shared_fixture_geometry(factory_k10_demo):
+    """Random resets retain canonical geometry and identities, including gears sharing one fixture."""
+    demo = factory_k10_demo
+    torch = demo["torch"]
+    assemblies = tuple(reversed(demo["ASSEMBLIES"][:10]))
+    num_envs, env_ids = 64, torch.arange(1, 64, 2)
+    origins = torch.stack((torch.arange(num_envs) % 8, torch.arange(num_envs) // 8, torch.zeros(num_envs)), dim=1) * 2
+    board_default = torch.tensor([0.452824, 0.19145, 0.0206, 0.0, 1.0, 0.0, 0.0])
+
+    class Scene(dict):
+        env_origins = origins
+
+    scene = Scene()
+    names = {"nistboard", *(f"fixed_{part.socket}" for part in assemblies), *(f"held_{slot:02d}" for slot in range(10))}
+    for name in names:
+        default = board_default if name == "nistboard" else torch.tensor([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0])
+        pose = torch.full((num_envs, 7), -99.0)
+        scene[name] = SimpleNamespace(
+            data=SimpleNamespace(
+                default_root_pose=SimpleNamespace(torch=default.repeat(num_envs, 1)),
+                root_link_pose_w=SimpleNamespace(torch=pose),
+            ),
+            write_root_link_pose_to_sim_index=lambda root_pose, env_ids, target=pose: target.__setitem__(
+                env_ids, root_pose
+            ),
+            write_root_com_velocity_to_sim_index=Mock(),
+        )
+    root = torch.zeros((num_envs, 7))
+    root[:, :3], root[:, 6] = origins, 1
+    scene["robot"] = SimpleNamespace(
+        data=SimpleNamespace(
+            default_joint_pos=SimpleNamespace(torch=torch.zeros((num_envs, 9))),
+            root_link_pose_w=SimpleNamespace(torch=root),
+            body_link_pose_w=SimpleNamespace(torch=root[:, None]),
+        ),
+        write_joint_state_to_sim_index=Mock(),
+        find_bodies=Mock(return_value=([0], ["panda_hand"])),
+    )
+    env = SimpleNamespace(scene=scene, num_envs=num_envs, device="cpu")
+    torch.manual_seed(1701)
+    demo["reset_parts"](env, slice(1, None, 2), assemblies)
+    board = scene["nistboard"].data.root_link_pose_w.torch[env_ids].clone()
+    board[:, :3] -= origins[env_ids]
+    board_rotation = Rotation.from_quat(board[:, 3:].numpy())
+    center = board[:, :3].numpy() + board_rotation.apply([0.19232847446867662, -0.191768517928605, 0.0])
+    assert np.all(center[:, :2] >= np.array([0.4, -0.03]) - 2e-6)
+    assert np.all(center[:, :2] <= np.array([0.5, 0.03]) + 2e-6)
+    assert center[:, :2].std(axis=0).min() > 0.008
+    np.testing.assert_allclose(center[:, 2], 0.0206, atol=2e-6)
+    assert np.ptp((Rotation.from_quat(board_default[3:]).inv() * board_rotation).as_rotvec()[:, 2]) > 4.0
+
+    held = torch.stack([scene[f"held_{slot:02d}"].data.root_link_pose_w.torch[env_ids] for slot in range(10)], dim=1)
+    positions = held[..., :3] - origins[env_ids, None]
+    assert (positions >= torch.tensor([0.1, -0.5, 0.12]) - 2e-6).all()
+    assert (positions <= torch.tensor([0.5, 0.5, 0.14]) + 2e-6).all()
+    assert (positions[..., 1].abs() >= 0.3 - 2e-6).all()
+    assert ((positions[..., 1] > 0).sum(dim=1) == 5).all()
+    assert (positions[..., 1].min(dim=0).values < 0).all() and (positions[..., 1].max(dim=0).values > 0).all()
+    distances = torch.cdist(positions[..., :2], positions[..., :2])
+    distances[:, torch.arange(10), torch.arange(10)] = float("inf")
+    assert distances.min() >= 0.1 - 2e-6
+    angles = Rotation.from_quat(held[..., 3:].reshape(-1, 4).numpy()).as_euler("xyz")
+    assert np.all(np.abs(angles) <= np.array([1.57, 1.57, 3.14]) + 2e-6)
+
+    first = {name: scene[name].data.root_link_pose_w.torch.clone() for name in names}
+    demo["reset_parts"](env, env_ids, assemblies)
+    for name, initial in first.items():
+        current = scene[name].data.root_link_pose_w.torch
+        assert not torch.equal(current[env_ids], initial[env_ids])
+        assert (current[::2] == -99).all()
+    torch.manual_seed(1701)
+    demo["reset_parts"](env, env_ids, assemblies)
+    for name, initial in first.items():
+        torch.testing.assert_close(scene[name].data.root_link_pose_w.torch, initial, atol=0, rtol=0)
+
+    for slot, part in enumerate(assemblies):
+        fixed = scene[f"fixed_{part.socket}"].data.root_link_pose_w.torch[env_ids].clone()
+        fixed[:, :3] -= origins[env_ids]
+        np.testing.assert_allclose(
+            board_rotation.inv().apply((fixed[:, :3] - board[:, :3]).numpy()),
+            np.tile(part.board_pose[:3], (len(env_ids), 1)),
+            atol=2e-6,
+        )
+        fixed_rotation = Rotation.from_quat(fixed[:, 3:].numpy())
+        relative_rotation = board_rotation.inv() * fixed_rotation
+        assert (relative_rotation.inv() * Rotation.from_quat(part.board_pose[3:])).magnitude().max() < 2e-6
+        goal = fixed[:, :3].numpy() + fixed_rotation.apply(np.array(part.seated) - part.held_align)
+        assert np.all(goal >= np.array(demo["WORKSPACE_LOWER"])) and np.all(goal <= np.array(demo["WORKSPACE_UPPER"]))
+        pose = scene[f"held_{slot:02d}"].data.root_link_pose_w.torch
+        pose[env_ids, :3] = torch.from_numpy(goal).float() + origins[env_ids]
+        pose[env_ids, 3:] = fixed[:, 3:]
+    geometry = demo["SlotGeometry"](demo["ObservationTermCfg"](params={"assemblies": assemblies}), env)
+    slots = geometry(env, assemblies)
+    assert slots.shape == (num_envs, 10, 40)
+    assert slots[env_ids, :, 21:].argmax(dim=-1).tolist() == [[part.identity for part in assemblies]] * len(env_ids)
+    assert geometry.assembled[env_ids].all()
 
 
 # Launch matrix selection.
