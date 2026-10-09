@@ -150,6 +150,13 @@ EXAMPLES = (
         "Couple MPM sand with rigid bodies.",
     ),
     ProgramSpec(
+        "mpm-g1-coupling",
+        "examples/mpm/g1_coupling.py",
+        "Compare one-way and two-way G1 coupling across particle materials.",
+        extras=("isaacsim", "rsl-rl"),
+        required_modules=("rsl_rl",),
+    ),
+    ProgramSpec(
         "camera",
         "examples/sensors/cameras.py",
         "Capture data from several camera configurations.",

@@ -221,6 +221,29 @@ OVERRIDES = {
         args=("--voxel_size", "0.1"), fixed_physics_backend="newton_mpm"
     ),
     "examples/demos/teapot_fill.py": ScriptOverride(args=("--voxel_size", "0.006"), fixed_physics_backend="newton_mpm"),
+    "scripts/tutorials/08_mpm/material_parameters.py": ScriptOverride(
+        args=("--max_steps", "2", "--variant_index", "0", "--voxel_size", "0.1"),
+        fixed_physics_backend="newton_mpm",
+        visualizers=("none", "kit", "newton_gl", "newton_rtx"),
+    ),
+    "scripts/tutorials/08_mpm/rigid_body_equivalence.py": ScriptOverride(
+        args=("--max_steps", "2", "--voxel_size", "0.1"),
+        fixed_physics_backend="newton_coupler",
+        visualizers=("none", "kit", "newton_gl", "newton_rtx"),
+        required_modules=("isaaclab_contrib",),
+    ),
+    "examples/mpm/g1_coupling.py": ScriptOverride(
+        args=("--max_steps", "2"),
+        skip_reason="downloads a published policy",
+        fixed_physics_backend="newton_coupler",
+        visualizers=("none", "kit", "newton_gl", "newton_rtx"),
+        required_modules=("isaaclab_contrib", "rsl_rl"),
+    ),
+    "scripts/tutorials/08_mpm/surface_reconstruction.py": ScriptOverride(
+        args=("--max_steps", "2"),
+        fixed_physics_backend="newton_mpm",
+        visualizers=("newton_gl", "newton_rtx"),
+    ),
     "examples/multi_asset.py": ScriptOverride(args=("--num_envs", "4")),
     "examples/demos/newton_viewer_block_and_tackle.py": ScriptOverride(
         fixed_physics_backend="newton_vbd",
