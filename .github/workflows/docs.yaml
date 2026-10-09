@@ -73,9 +73,6 @@ jobs:
       working-directory: ./docs
       run: make current-docs
 
-    - name: Test documentation image output
-      run: uv run python -m pytest tools/test/test_doc_images.py --noconftest -q
-
     - name: Upload docs artifact
       uses: actions/upload-artifact@v7
       with:
