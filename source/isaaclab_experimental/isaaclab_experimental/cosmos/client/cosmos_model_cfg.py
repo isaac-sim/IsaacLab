@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Literal
 from isaaclab.sim import BackendCfg
 from isaaclab.utils import configclass
 
-from .._protocol import DEFAULT_ENDPOINT, DEFAULT_MAX_EPISODE_FRAMES
+from .._protocol import DEFAULT_ENDPOINT
 
 if TYPE_CHECKING:
     from .cosmos_model import CosmosModel
@@ -47,9 +47,11 @@ class CosmosModelCfg(BackendCfg):
     """Type of uint8 three-channel guidance. The preceding camera modifier prepares edge, depth, and seg controls;
     for blur the camera sends its RGB and the service applies the Framework's own blur filter."""
 
-    max_episode_frames: int = DEFAULT_MAX_EPISODE_FRAMES
-    """Image-frame budget per episode, including the initial frame: ``1 + 4*k``. It must be within the service's
-    cap, set with ``isaaclab-cosmos-server --max-episode-frames`` (default 201, 0 for no cap)."""
+    max_episode_frames: int | None = None
+    """Image-frame budget per episode, including the initial frame: ``1 + 4*k``. ``apply_cosmos`` and the
+    Shadow Hand presets derive it from the task duration and capture rate. Low-level callers must set it before
+    creating the client. It must fit any explicit server ``--max-episode-frames`` cap; the server has none by default.
+    """
 
     transport: Literal["auto", "cuda_ipc", "socket"] = "auto"
     """How images move between the camera and the service. ``"cuda_ipc"`` keeps them on the GPU through shared

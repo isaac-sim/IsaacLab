@@ -198,14 +198,17 @@ def add_cosmos_args(parser: argparse.ArgumentParser) -> None:
         "--cosmos_prompt",
         action="append",
         default=None,
-        help="Appearance prompt; repeat the option to cycle prompts per episode.",
+        help="Repeat for prompts cycled per episode with one environment, or fixed per environment with several.",
     )
     group.add_argument("--cosmos_camera", default=None, help="Scene camera name; defaults to the only rgb camera.")
     group.add_argument(
-        "--cosmos_control", choices=["depth", "edge", "blur"], default="depth", help="Cosmos control type."
+        "--cosmos_control",
+        choices=["depth", "edge", "blur"],
+        default=None,
+        help="Cosmos control type; defaults to depth or preserves the Cosmos preset.",
     )
-    group.add_argument("--cosmos_near", type=float, default=0.1, help="Depth rendered white [m].")
-    group.add_argument("--cosmos_far", type=float, default=2.0, help="Depth rendered black [m].")
+    group.add_argument("--cosmos_near", type=float, default=None, help="Depth rendered white [m]; preset value or 0.1.")
+    group.add_argument("--cosmos_far", type=float, default=None, help="Depth rendered black [m]; preset value or 2.0.")
     group.add_argument(
         "--cosmos_endpoint",
         default=None,
@@ -214,7 +217,7 @@ def add_cosmos_args(parser: argparse.ArgumentParser) -> None:
     group.add_argument(
         "--cosmos_transport",
         choices=["auto", "cuda_ipc", "socket"],
-        default="auto",
+        default=None,
         help="cuda_ipc keeps images on the GPU (same Linux machine and GPU); socket also works across machines.",
     )
 
@@ -394,18 +397,32 @@ def apply_env_overrides(args_cli: argparse.Namespace, env_cfg: Any) -> None:
     # --deterministic is a Kit launcher flag, so it only reaches carb settings on its own. Record the
     # request on the resolved physics config; each backend translates and validates it at startup.
     request_determinism(args_cli, env_cfg)
-    if getattr(args_cli, "cosmos", False):
-        from isaaclab_experimental.cosmos import DEFAULT_ENDPOINT, apply_cosmos
+    if hasattr(args_cli, "cosmos"):
+        from isaaclab_experimental.cosmos import CosmosTransferModifierCfg, apply_cosmos
 
+        preset_cameras = [
+            name
+            for name, sensor in vars(env_cfg.scene).items()
+            if any(
+                isinstance(item, CosmosTransferModifierCfg)
+                for chain in (getattr(sensor, "modifiers", None) or {}).values()
+                for item in chain
+            )
+        ]
+        options = ("prompt", "camera", "control", "near", "far", "endpoint", "transport")
+        if not args_cli.cosmos and not preset_cameras:
+            if any(getattr(args_cli, f"cosmos_{option}", None) is not None for option in options):
+                raise ValueError("Cosmos options require --cosmos or a task configured with presets=cosmos.")
+            return
         prompts = args_cli.cosmos_prompt
         apply_cosmos(
             env_cfg,
             prompt=prompts[0] if prompts and len(prompts) == 1 else prompts,
-            camera=args_cli.cosmos_camera,
+            camera=args_cli.cosmos_camera or (preset_cameras[0] if len(preset_cameras) == 1 else None),
             control=args_cli.cosmos_control,
             near=args_cli.cosmos_near,
             far=args_cli.cosmos_far,
-            endpoint=args_cli.cosmos_endpoint or DEFAULT_ENDPOINT,
+            endpoint=args_cli.cosmos_endpoint,
             transport=args_cli.cosmos_transport,
             num_envs=args_cli.num_envs,
         )

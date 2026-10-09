@@ -9,7 +9,7 @@ import argparse
 import logging
 
 import pytest
-from isaaclab_experimental.cosmos import DEFAULT_MAX_EPISODE_FRAMES, apply_cosmos
+from isaaclab_experimental.cosmos import apply_cosmos
 from isaaclab_experimental.cosmos.client import camera as cosmos_camera_module
 
 from isaaclab_rl.entrypoints.common import (
@@ -59,53 +59,87 @@ def test_cosmos_options_put_cosmos_on_the_policy_camera_of_an_unmodified_task(ad
     assert chain[-1].params == {"width": 64, "height": 64}
 
 
-def _serve(monkeypatch, views=1, partial_resets=False):
+def _serve(monkeypatch, partial_resets=False):
     """Stand in for the running service's status."""
     capabilities = {
-        "max_episode_frames": DEFAULT_MAX_EPISODE_FRAMES,
-        "num_views": views,
+        "max_episode_frames": None,
         "partial_resets": partial_resets,
     }
-    monkeypatch.setattr(cosmos_camera_module, "service_capabilities", lambda endpoint: capabilities)
+    monkeypatch.setattr(cosmos_camera_module, "service_capabilities", lambda endpoint, **kwargs: capabilities)
+
+
+@pytest.mark.parametrize("add_args,enable", [(add_common_train_args, []), (add_common_play_args, ["--cosmos"])])
+def test_cosmos_preset_accepts_cli_overrides_without_replacing_its_chain(add_args, enable, monkeypatch, caplog):
+    """Train overrides the preset directly; play also accepts --cosmos without applying the modifier twice."""
+    _serve(monkeypatch)
+    env_cfg = parse_env_cfg("Isaac-Reorient-Cube-Shadow-Camera-Direct", overrides=("presets=cosmos",))
+    args = _cli(
+        add_args,
+        [
+            *enable,
+            "--cosmos_prompt",
+            "A kitchen.",
+            "--cosmos_endpoint",
+            "tcp://127.0.0.1:5556",
+            "--cosmos_near",
+            "0.2",
+            "--cosmos_transport",
+            "socket",
+        ],
+    )
+    with caplog.at_level(logging.INFO):
+        apply_env_overrides(args, env_cfg)
+    env_cfg.validate()
+    camera = env_cfg.scene.tiled_camera
+    chain = camera.modifiers["distance_to_image_plane"]
+    assert len(chain) == 2
+    assert chain[0].params == {"near": 0.2, "far": 1.5}
+    assert chain[1].backend.prompt == "A kitchen."
+    assert chain[1].backend.endpoint == "tcp://127.0.0.1:5556"
+    assert chain[1].backend.transport == "socket"
+    assert chain[1].backend.max_episode_frames == 101
+    assert camera.update_period == 0.1
+    assert env_cfg.feature_extractor.image_update_frames == 4
+    assert "10.000 captures/s, 2.500 generated updates/s" in caplog.text
+
+
+def test_cosmos_preset_keeps_defaults_and_rejects_changing_its_control(monkeypatch):
+    _serve(monkeypatch)
+    env_cfg = parse_env_cfg("Isaac-Reorient-Cube-Shadow-Camera-Direct", overrides=("presets=cosmos",))
+    original = env_cfg.scene.tiled_camera.modifiers["distance_to_image_plane"][-1].backend
+    apply_env_overrides(_cli(add_common_train_args, []), env_cfg)
+    backend = env_cfg.scene.tiled_camera.modifiers["distance_to_image_plane"][-1].backend
+    assert backend.prompt == original.prompt and backend.endpoint == original.endpoint
+    assert backend.transport == original.transport
+    with pytest.raises(ValueError, match="preset prepares depth"):
+        apply_env_overrides(_cli(add_common_train_args, ["--cosmos_control", "edge"]), env_cfg)
+
+
+def test_cosmos_options_without_a_cosmos_camera_fail_instead_of_being_ignored():
+    with pytest.raises(ValueError, match="require --cosmos"):
+        apply_env_overrides(_cli(add_common_train_args, ["--cosmos_prompt", "A lab."]), _kuka())
 
 
 def test_several_environments_need_a_compiled_service_that_batches_them(monkeypatch):
-    """--num_envs N batches N cameras; the service must offer N views and independent resets."""
+    """--num_envs selects the batch without a server view limit; independent resets still need compiled inference."""
     args = _cli(add_common_train_args, ["--cosmos", "--num_envs", "4"])
-    _serve(monkeypatch, views=1)
-    with pytest.raises(ValueError, match="--max-views 4"):
-        apply_env_overrides(args, _kuka())
-    _serve(monkeypatch, views=4, partial_resets=False)
+    _serve(monkeypatch, partial_resets=False)
     with pytest.raises(ValueError, match="without --no-compile"):
         apply_env_overrides(args, _kuka())
 
-    _serve(monkeypatch, views=4, partial_resets=True)
+    _serve(monkeypatch, partial_resets=True)
     env_cfg = _kuka()
     apply_env_overrides(args, env_cfg)
     assert env_cfg.scene.num_envs == 4
     assert env_cfg.scene.base_camera.modifiers["distance_to_image_plane"][1].backend.max_episode_frames > 1
 
 
-@pytest.mark.parametrize(
-    "episode_length_s,dt,decimation,steps_per_capture,budget",
-    [
-        (12.0, 1 / 120, 4, 2, 181),  # 360 steps: 181 captures
-        (8.8, 0.002, 2, 11, 201),  # 8.8 / 0.004 rounds to 2200 steps: 201 captures
-        (20.0, 0.005, 2, 10, 201),  # 2000 steps: 201 captures
-    ],
-)
-def test_a_fast_camera_captures_every_few_steps_and_never_exceeds_the_cap(
-    episode_length_s, dt, decimation, steps_per_capture, budget, caplog
-):
-    """Whole environment steps between captures keep every episode within the 201-frame cap."""
-    env_cfg = _kuka(episode_length_s=episode_length_s, decimation=decimation)
-    env_cfg.sim.dt = dt
-    with caplog.at_level(logging.WARNING):
-        apply_cosmos(env_cfg, prompt="A lab.", max_episode_frames=DEFAULT_MAX_EPISODE_FRAMES)
-
-    assert env_cfg.scene.base_camera.update_period == pytest.approx(steps_per_capture * dt * decimation)
-    assert _budget(env_cfg) == budget
-    assert "captures every" in caplog.text
+def test_an_explicit_cap_rejects_the_task_without_slowing_its_camera():
+    env_cfg = _kuka()
+    with pytest.raises(ValueError, match="needs a Cosmos budget of 361 frames.*cap is 201"):
+        apply_cosmos(env_cfg, prompt="A lab.", max_episode_frames=201)
+    assert env_cfg.scene.base_camera.update_period == 0.0
+    assert not env_cfg.scene.base_camera.modifiers
 
 
 def test_the_capture_count_uses_the_sensor_update_tolerance():
@@ -113,7 +147,7 @@ def test_the_capture_count_uses_the_sensor_update_tolerance():
     env_cfg = _kuka(episode_length_s=4.0, decimation=2)
     env_cfg.sim.dt = 0.005
     env_cfg.scene.base_camera.update_period = 0.0200001
-    apply_cosmos(env_cfg, prompt="A lab.", max_episode_frames=DEFAULT_MAX_EPISODE_FRAMES)
+    apply_cosmos(env_cfg, prompt="A lab.", max_episode_frames=None)
 
     assert env_cfg.scene.base_camera.update_period == 0.0200001
     assert _budget(env_cfg) == 201  # 400 steps: 201 captures

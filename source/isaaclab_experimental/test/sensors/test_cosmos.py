@@ -31,6 +31,7 @@ import pytest
 import torch
 from isaaclab_experimental.cosmos import CosmosModelCfg, CosmosTransferModifierCfg, _protocol
 from isaaclab_experimental.cosmos.client import CosmosModel
+from isaaclab_experimental.cosmos.client.camera import service_capabilities
 from isaaclab_experimental.cosmos.server import serve
 from isaaclab_experimental.image_transfer import depth_to_control
 from isaaclab_experimental.image_transfer import modifier as modifier_module
@@ -51,7 +52,7 @@ def _unix_endpoint() -> tuple[str, str]:
 class TransportResource:
     """Already-loaded resource whose ownership is observable across a real socket."""
 
-    capabilities = {"max_views": 1, "modalities": ["edge", "depth", "seg"]}
+    capabilities = {"modalities": ["edge", "depth", "seg"]}
 
     def __init__(self):
         self.streams = []
@@ -150,7 +151,9 @@ def cosmos_service(request):
 
 
 def _client(endpoint):
-    return CosmosModel(CosmosModelCfg(endpoint=endpoint, prompt="A camera view", modality="edge", timeout=2))
+    return CosmosModel(
+        CosmosModelCfg(max_episode_frames=13, endpoint=endpoint, prompt="A camera view", modality="edge", timeout=2)
+    )
 
 
 def _controls():
@@ -243,6 +246,8 @@ def test_camera_client_closes_sessions_and_keeps_the_model_resident(cosmos_servi
     assert resident_stream.settings["prompt"] == "A camera view"
     assert resident_stream.settings["height"] == 2 and resident_stream.settings["width"] == 3
     assert resident_stream.settings["seeds"] == (7,)
+    with pytest.raises(RuntimeError, match="active camera session"):
+        service_capabilities(cosmos_service.endpoint, require_idle=True)
 
     cosmos_service.resource.step_entered.clear()
     cosmos_service.resource.resume_step.clear()
@@ -262,6 +267,7 @@ def test_camera_client_closes_sessions_and_keeps_the_model_resident(cosmos_servi
     client.close()
     assert resident_stream.closed.wait(2)
     assert not cosmos_service.resource.closed.is_set()
+    assert service_capabilities(cosmos_service.endpoint, require_idle=True)["modalities"]
 
     replacement = _client(cosmos_service.endpoint)
     try:
@@ -280,7 +286,9 @@ def test_camera_client_closes_sessions_and_keeps_the_model_resident(cosmos_servi
 def test_a_prompt_list_cycles_per_episode_over_one_session(cosmos_service):
     """Each finished episode moves to the next prompt; a reset before the first update keeps the prompt."""
     prompts = ["A bright warehouse.", "A wooden kitchen."]
-    client = CosmosModel(CosmosModelCfg(endpoint=cosmos_service.endpoint, prompt=prompts, timeout=2))
+    client = CosmosModel(
+        CosmosModelCfg(max_episode_frames=13, endpoint=cosmos_service.endpoint, prompt=prompts, timeout=2)
+    )
     stream = client.open_stream(num_views=1, seeds=(7,))
     first, update = _controls(), _controls().expand(4, -1, -1, -1).contiguous()
     stream.step([first], reset_rows=(), seeds=())
@@ -300,9 +308,9 @@ def test_a_prompt_list_cycles_per_episode_over_one_session(cosmos_service):
 
 def test_prompt_lists_must_hold_text_and_the_service_changes_prompts_only_at_resets(cosmos_service):
     with pytest.raises(ValueError, match="nonempty"):
-        CosmosModel(CosmosModelCfg(prompt=["", "Two"]))
+        CosmosModel(CosmosModelCfg(max_episode_frames=13, prompt=["", "Two"]))
     with pytest.raises(ValueError, match="nonempty"):
-        CosmosModel(CosmosModelCfg(prompt=[]))
+        CosmosModel(CosmosModelCfg(max_episode_frames=13, prompt=[]))
     with _protocol.connect(cosmos_service.endpoint, timeout=2) as connection:
         open_request = {
             "op": "open",
@@ -385,7 +393,9 @@ def test_camera_postprocessing_publishes_rgb_from_the_connected_service(cosmos_s
         [
             ModifierCfg(func=depth_to_control, params={"near": 1.0, "far": 9.0}),
             CosmosTransferModifierCfg(
-                backend=CosmosModelCfg(endpoint=cosmos_service.endpoint, modality="depth", timeout=2)
+                backend=CosmosModelCfg(
+                    max_episode_frames=13, endpoint=cosmos_service.endpoint, modality="depth", timeout=2
+                )
             ),
         ],
         device="cpu",
@@ -408,7 +418,8 @@ def test_incompatible_cosmos_cadence_is_rejected_before_opening_a_session(cosmos
     chain = ModifierChain(
         [
             CosmosTransferModifierCfg(
-                backend=CosmosModelCfg(endpoint=cosmos_service.endpoint, timeout=2), update_frames=1
+                backend=CosmosModelCfg(max_episode_frames=13, endpoint=cosmos_service.endpoint, timeout=2),
+                update_frames=1,
             )
         ],
         device="cpu",
@@ -459,7 +470,9 @@ def test_transport_keeps_images_on_the_gpu_only_when_the_service_shares_this_gpu
 
     monkeypatch.setattr(_cuda_ipc, "available", lambda: available)
     monkeypatch.setattr(_cuda_ipc, "pci_bus_id", lambda index: "0000:01:00.0")
-    stream = CosmosModel(CosmosModelCfg(transport=transport)).open_stream(num_views=1, seeds=(1,))
+    stream = CosmosModel(CosmosModelCfg(max_episode_frames=13, transport=transport)).open_stream(
+        num_views=1, seeds=(1,)
+    )
     stream._exchange = lambda metadata, arrays=(): ({"ok": True, "capabilities": capabilities}, [])
     with caplog.at_level("INFO"):
         assert stream._select_transport(torch.device(device)) == expected
@@ -517,11 +530,15 @@ def test_explicit_cuda_ipc_fails_clearly_when_unavailable_and_remote_services_us
     from isaaclab_experimental.cosmos import _cuda_ipc
 
     monkeypatch.setattr(_cuda_ipc, "available", lambda: False)
-    stream = CosmosModel(CosmosModelCfg(transport="cuda_ipc")).open_stream(num_views=1, seeds=(1,))
+    stream = CosmosModel(CosmosModelCfg(max_episode_frames=13, transport="cuda_ipc")).open_stream(
+        num_views=1, seeds=(1,)
+    )
     stream._exchange = lambda metadata, arrays=(): ({"ok": True, "capabilities": {"transports": ["socket"]}}, [])
     with pytest.raises(RuntimeError, match="cuda_ipc is unavailable"):
         stream._select_transport(torch.device("cuda:0"))
-    remote = CosmosModel(CosmosModelCfg(endpoint="tcp://10.1.2.3:5555")).open_stream(num_views=1, seeds=(1,))
+    remote = CosmosModel(CosmosModelCfg(max_episode_frames=13, endpoint="tcp://10.1.2.3:5555")).open_stream(
+        num_views=1, seeds=(1,)
+    )
     assert remote._select_transport(torch.device("cuda:0")) == "socket"
 
 
@@ -596,7 +613,7 @@ def test_cuda_ipc_round_trip_keeps_controls_and_images_on_the_gpu():
                 if time.monotonic() > deadline or service.poll() is not None:
                     pytest.fail("GPU test service did not start")
                 time.sleep(0.2)
-        client = CosmosModel(CosmosModelCfg(endpoint=endpoint, transport="cuda_ipc", timeout=10))
+        client = CosmosModel(CosmosModelCfg(max_episode_frames=13, endpoint=endpoint, transport="cuda_ipc", timeout=10))
         stream = client.open_stream(num_views=1, seeds=(7,))
         first = torch.full((1, 4, 6, 3), 10, dtype=torch.uint8, device="cuda:0")
         update = torch.arange(4 * 4 * 6 * 3, device="cuda:0").remainder(256).to(torch.uint8).view(4, 4, 6, 3)
@@ -607,7 +624,7 @@ def test_cuda_ipc_round_trip_keeps_controls_and_images_on_the_gpu():
         client.close()
 
         # Two views share the buffers row by row; view 1 restarts with one frame while view 0 sends four.
-        client = CosmosModel(CosmosModelCfg(endpoint=endpoint, transport="cuda_ipc", timeout=10))
+        client = CosmosModel(CosmosModelCfg(max_episode_frames=13, endpoint=endpoint, transport="cuda_ipc", timeout=10))
         stream = client.open_stream(num_views=2, seeds=(7, 8))
         stream.step([first, first + 1], (), ())
         images = stream.step([update, first + 2], (1,), (9,))
@@ -623,7 +640,9 @@ def test_cuda_ipc_round_trip_keeps_controls_and_images_on_the_gpu():
 
 def test_several_views_share_one_session_with_their_own_prompts_frames_and_resets(cosmos_service):
     """Two views open one batched session; a restarting view sends one frame while the other sends four."""
-    cfg = CosmosModelCfg(endpoint=cosmos_service.endpoint, prompt=["A lab.", "A kitchen.", "A field."], timeout=2)
+    cfg = CosmosModelCfg(
+        max_episode_frames=13, endpoint=cosmos_service.endpoint, prompt=["A lab.", "A kitchen.", "A field."], timeout=2
+    )
     client = CosmosModel(cfg)
     stream = client.open_stream(num_views=2, seeds=(1, 2))
     first = [_controls(), _controls()]
@@ -684,6 +703,35 @@ def test_a_missing_service_is_reported_with_its_endpoint():
         endpoint = f"tcp://127.0.0.1:{reserved.getsockname()[1]}"
     with pytest.raises(ConnectionError, match=f"No Cosmos service at {endpoint}"):
         _protocol.connect(endpoint, timeout=1)
+
+
+def test_worker_rejects_an_occupied_endpoint_before_loading_the_model(monkeypatch):
+    from isaaclab_experimental.cosmos.server import worker
+
+    def load(*args, **kwargs):
+        pytest.fail("An occupied endpoint must not load the model")
+
+    monkeypatch.setattr(worker, "CosmosInferenceModel", load)
+    with socket.socket() as occupied:
+        occupied.bind(("127.0.0.1", 0))
+        occupied.listen()
+        endpoint = f"tcp://127.0.0.1:{occupied.getsockname()[1]}"
+        with pytest.raises(OSError):
+            worker.main(["--checkpoint", "unused", "--endpoint", endpoint, "--warmup"])
+
+
+def test_failed_model_loading_releases_the_reserved_endpoint():
+    with socket.socket() as reserved:
+        reserved.bind(("127.0.0.1", 0))
+        port = reserved.getsockname()[1]
+
+    def load():
+        raise ValueError("checkpoint unavailable")
+
+    with pytest.raises(ValueError, match="checkpoint unavailable"):
+        serve(load, f"tcp://127.0.0.1:{port}")
+    with socket.socket() as replacement:
+        replacement.bind(("127.0.0.1", port))
 
 
 def test_endpoints_name_an_absolute_unix_socket_or_a_tcp_host_and_port():

@@ -32,9 +32,6 @@ CANVAS_ASPECT_RATIOS = {
     (832, 480): "9,16",
 }
 """Image sizes ``(height, width)`` the Cosmos service accepts, with their aspect-ratio names."""
-DEFAULT_MAX_EPISODE_FRAMES = 201
-"""Default episode cap of the service in frames, the model's trained horizon;
-``isaaclab-cosmos-server --max-episode-frames`` changes it."""
 MAX_CHUNK_FRAMES = 4
 """Most frames one control chunk carries: one initial frame, then four per update."""
 DEFAULT_ENDPOINT = (
