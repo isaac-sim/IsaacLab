@@ -281,7 +281,10 @@ class OVRTXBackend:
         if dependency.exists():
             with contextlib.suppress(OSError):
                 ctypes.CDLL(str(dependency))
+        # Select the simulation's CUDA device for rendering, matching Kit's ``activeCudaGpus`` setting.
+        sim_device = wp.get_device(cfg.device)
         native_cfg = RendererConfig(
+            active_cuda_gpus=str(sim_device.ordinal) if sim_device.is_cuda else None,
             log_file_path=cfg.renderer_cfg.log_file_path,
             log_level=cfg.renderer_cfg.log_level,
             read_gpu_transforms=cfg.read_gpu_transforms,
@@ -425,7 +428,10 @@ class OVRTXRenderer(BaseRenderer):
             logger.warning("Asynchronous OVRTX rendering is unsupported with ovstage; rendering synchronously.")
         self.backend: OVRTXBackend = SimulationContext.instance().get_or_create_backend(
             OVRTXBackendCfg(
-                renderer_cfg=cfg, use_ovstage=self._use_ovstage, read_gpu_transforms=_read_gpu_transforms_enabled()
+                renderer_cfg=cfg,
+                use_ovstage=self._use_ovstage,
+                read_gpu_transforms=_read_gpu_transforms_enabled(),
+                device=SimulationContext.instance().device,
             )
         )
         """Native engine and detached stage borrowed from the simulation registry, which owns their lifetime."""
