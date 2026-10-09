@@ -103,7 +103,7 @@ class _Model(Protocol):
         *,
         num_views: int,
         seeds: tuple[int, ...],
-        prompt: str | None,
+        prompt: str | None | list[str | None],
         modality: str,
         height: int,
         width: int,

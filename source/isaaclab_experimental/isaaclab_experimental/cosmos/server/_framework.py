@@ -256,7 +256,7 @@ class CosmosInferenceModel:
         import torch
 
         with torch.cuda.device(self._device):
-            rows = {text: self._prompt_batch(text, modality, height, width, max_episode_frames) for text in set(prompts)}
+            rows = {text: self._prompt_batch(text, height, width, max_episode_frames) for text in set(prompts)}
         if num_views == 1:
             data = rows[prompts[0]]
             self._stream = _CosmosInferenceStream(self, data, seeds[0], height, width, max_episode_frames, modality)
@@ -306,7 +306,7 @@ class CosmosInferenceModel:
             self._metadata_dir.cleanup()
 
     def _prompt_batch(
-        self, prompt: str | None, modality: str, height: int, width: int, max_episode_frames: int
+        self, prompt: str | None, height: int, width: int, max_episode_frames: int
     ) -> dict[str, Any]:
         """Build one episode's text conditioning: appearance prompt and metadata."""
         from cosmos_framework.inference.args import OmniSampleOverrides
@@ -468,7 +468,7 @@ class _CosmosInferenceStream:
                     if prompt is not _KEEP_PROMPT:
                         height, width, _ = self._canvas
                         self._data_batch = self._owner._prompt_batch(
-                            prompt, self._modality, height, width, self._max_episode_frames
+                            prompt, height, width, self._max_episode_frames
                         )
                     self._seed = seeds[0]
                     self._frame_count = 0
@@ -554,7 +554,7 @@ class _CosmosBatchStream(_CosmosInferenceStream):
         height: int,
         width: int,
         max_episode_frames: int,
-        modality: str = "depth",
+        modality: str,
     ):
         self._owner = owner
         self._model = owner._pipeline.model

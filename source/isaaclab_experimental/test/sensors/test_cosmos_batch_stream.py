@@ -11,8 +11,10 @@ generator echoes each view's control so views can be told apart.
 
 from __future__ import annotations
 
+import gc
 import sys
 import types
+import weakref
 from contextlib import contextmanager
 from dataclasses import dataclass
 from types import SimpleNamespace
@@ -55,11 +57,18 @@ class Tokenizer:
 
     @contextmanager
     def use_cached_encoder(self):
-        yield
+        try:
+            yield
+        finally:
+            self.model.model._enc_cache = self.model.model._new_enc_cache()
+            self.model.model._enc_stream_shape = None
 
     @contextmanager
     def use_cached_decoder(self):
-        yield
+        try:
+            yield
+        finally:
+            self.model.model._dec_cache = self.model.model._new_dec_cache()
 
 
 class Model:
@@ -71,19 +80,25 @@ class Model:
         self.tokenizer_vision_gen = Tokenizer()
         self.vae = self.tokenizer_vision_gen.model.model
         self.encoded_caches: list[int] = []
+        self.cache_tensors: list[weakref.ReferenceType] = []
         self.steps: list[tuple[tuple[int, ...], tuple[int, ...] | None]] = []
         self.iterators = 0
 
     def encode(self, pixels: torch.Tensor) -> torch.Tensor:
         frames = pixels.shape[2]
         assert frames == (1 if self.vae._enc_stream_shape is None else 4), "a view's encoder cache was mixed up"
+        if self.vae._enc_cache[0] is None:
+            self.vae._enc_cache[0] = torch.zeros(1)
+            self.cache_tensors.append(weakref.ref(self.vae._enc_cache[0]))
         self.vae._enc_stream_shape = "primed"
         self.encoded_caches.append(id(self.vae._enc_cache))
         return pixels.mean(dim=(1, 3, 4), keepdim=True)[:, :, -1:]  # [1,1,1,1,1]
 
     def decode(self, latent: torch.Tensor) -> torch.Tensor:
         frames = 1 if self.vae._dec_cache[0] is None else 4
-        self.vae._dec_cache[0] = "primed"
+        if self.vae._dec_cache[0] is None:
+            self.vae._dec_cache[0] = torch.zeros(1)
+            self.cache_tensors.append(weakref.ref(self.vae._dec_cache[0]))
         return latent.expand(1, 3, frames, HEIGHT, WIDTH)
 
     def iter_samples_from_batch_autoregressive_streaming_transfer(self, *, control_latent_chunks, seeds, **_):
@@ -186,10 +201,14 @@ def test_eager_runtimes_restart_all_views_together_but_not_one(batch):
 
 
 def test_closing_a_batch_releases_every_views_caches(batch):
-    stream, _ = batch()
+    stream, model = batch()
     stream.step(_controls((1, 40), (1, 200)), (), ())
+    assert len(model.cache_tensors) == 4 and all(ref() is not None for ref in model.cache_tensors)
     stream.close()
-    assert stream._vae_states == [] and stream._vae is None
+    stream.close()
+    gc.collect()
+    # Keep the closed stream and resident model alive; neither may retain a view's cached tensors.
+    assert all(ref() is None for ref in model.cache_tensors)
 
 
 @pytest.mark.parametrize("window,cap,frames", [(30, 201, 121), (8, 201, 33), (30, 81, 81), (30, None, 121)])
