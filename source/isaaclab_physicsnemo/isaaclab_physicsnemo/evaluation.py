@@ -122,6 +122,8 @@ def evaluate_rollout_nrmse(
     Returns:
         One error per horizon that at least one trajectory is long enough for.
     """
+    if not horizons:
+        return ()
     operator = artifact.as_operator(codec=codec, features=features, device=device)
     history = operator.history
 

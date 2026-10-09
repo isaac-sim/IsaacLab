@@ -6,6 +6,7 @@
 __all__ = [
     "CONTROL_KEY",
     "HeadingJointStateCodec",
+    "JOINT_TARGET_KEY",
     "HorizonError",
     "JointRollout",
     "NewtonBinding",
@@ -47,7 +48,7 @@ from .evaluation import (
 from .heading import HeadingJointStateCodec, RootGravityEncoder
 from .exploration import SmoothRandomActions, UniformRandomActions
 from .preflight import PreflightCheck, PreflightReport, preflight_learned_physics
-from .recording import CONTROL_KEY, RecordedFeature, TrajectoryDatasetRecorder
+from .recording import CONTROL_KEY, JOINT_TARGET_KEY, RecordedFeature, TrajectoryDatasetRecorder
 from .signature import (
     SIGNATURE_SIGNIFICANT_DIGITS,
     SIGNATURE_ZERO_TOLERANCE,
