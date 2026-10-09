@@ -174,17 +174,8 @@ rerun = [
 
 isaacsim = ["isaacsim[all,extscache]==6.1.0.0"]
 
-# DRAFT (OVRTX 0.5.1 / OVStage 0.2.1 sanity check): ovphysx 0.6.3 pins ovstage==0.2.0.377349, so it
-# cannot co-install with OVStage 0.2.1. Restore it once an OvPhysX release built on OVStage 0.2.1 ships.
-ov = [
-    # "ovphysx==0.6.3",
-    "ovrtx==0.5.1.385782",
-    "ovstage==0.2.1.385922",
-]
-ovphysx = [
-    # "ovphysx==0.6.3",
-    "ovstage==0.2.1.385922",
-]
+ov = ["ovphysx==0.6.4.72118723", "ovrtx==0.5.1.385782", "ovstage==0.2.1.385922"]
+ovphysx = ["ovphysx==0.6.4.72118723", "ovstage==0.2.1.385922"]
 ovrtx = ["ovrtx==0.5.1.385782", "ovstage==0.2.1.385922"]
 
 mimic = [
@@ -232,7 +223,7 @@ usd_exchange = "3.0.0"
 torch = "2.12.0"
 torchvision = "0.27.0"
 torchaudio = "2.11.0"
-ovphysx = "0.6.3"
+ovphysx = "0.6.4.72118723"
 ovrtx = "0.5.1.385782"
 ovstage = "0.2.1.385922"
 newton = "1.6.1"

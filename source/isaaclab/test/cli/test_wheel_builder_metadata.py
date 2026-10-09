@@ -147,8 +147,7 @@ def test_wheel_builder_expands_all_extra_into_concrete_requirements(generated_wh
     all_extra = optional_dependencies["all"]
 
     assert not any(dep.lower().startswith("isaaclab") for dep in all_extra)
-    # DRAFT: ovphysx is out of the OV extras for the OVRTX 0.5.1 / OVStage 0.2.1 sanity check.
-    for prefix in ("ovrtx", "ovstage", "stable-baselines3", "skrl", "viser", "rerun-sdk"):
+    for prefix in ("ovphysx", "ovrtx", "ovstage", "stable-baselines3", "skrl", "viser", "rerun-sdk"):
         assert any(dep.startswith(prefix) for dep in all_extra), f"'{prefix}' missing from the 'all' extra"
     for prefix in (
         "isaacsim[",
