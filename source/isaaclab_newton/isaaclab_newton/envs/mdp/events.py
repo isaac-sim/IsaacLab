@@ -55,8 +55,8 @@ class randomize_rigid_body_material(ManagerTermBase):
         self._kamino_group_inverse: torch.Tensor | None = None
         self._kamino_num_groups = 0
 
-        self._static_friction_range = cfg.params["static_friction_range"]
-        self._restitution_range = cfg.params["restitution_range"]
+        self._friction_bounds = torch.tensor(cfg.params["static_friction_range"], device=env.device)
+        self._restitution_bounds = torch.tensor(cfg.params["restitution_range"], device=env.device)
 
         model = self._newton_manager.get_model()
         self._friction_binding = asset._root_view.get_attribute("shape_material_mu", model)[:, 0]  # type: ignore
@@ -68,9 +68,9 @@ class randomize_rigid_body_material(ManagerTermBase):
             body_shapes = asset._root_view.body_shapes  # type: ignore
             backend_body_ids = asset.map_body_ids_to_backend(asset_cfg.body_ids)
             shape_indices_list = [shape_id for body_id in backend_body_ids for shape_id in body_shapes[body_id]]
-            self._shape_indices = torch.tensor(shape_indices_list, dtype=torch.long)
+            self._shape_indices = torch.tensor(shape_indices_list, dtype=torch.long, device=env.device)
         else:
-            self._shape_indices = torch.arange(self._friction_binding.shape[1], dtype=torch.long)
+            self._shape_indices = torch.arange(self._friction_binding.shape[1], dtype=torch.long, device=env.device)
 
     def __call__(
         self,
@@ -102,10 +102,10 @@ class randomize_rigid_body_material(ManagerTermBase):
         env_rows = env_ids if isinstance(env_ids, slice) else env_ids[:, None]
 
         num_shapes = len(self._shape_indices)
-        shape_idx = self._shape_indices.to(device)
+        shape_idx = self._shape_indices
 
-        friction_range = torch.tensor(self._static_friction_range, device=device)
-        restitution_range_t = torch.tensor(self._restitution_range, device=device)
+        friction_range = self._friction_bounds
+        restitution_range_t = self._restitution_bounds
         friction_view = wp.to_torch(self._friction_binding)
         restitution_view = wp.to_torch(self._restitution_binding)
 

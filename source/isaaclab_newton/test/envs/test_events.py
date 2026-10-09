@@ -124,7 +124,16 @@ def test_material_body_selection(event_env: ManagerBasedEnv):
     expected_friction[selected] = 0.4
     expected_restitution[selected] = 0.1
     term = randomize_rigid_body_material(EventTermCfg(func=randomize_rigid_body_material, params=params), env)
-    term(env, torch.tensor([1], device=env.device, dtype=torch.int32), **params)
+    env_ids = torch.tensor([1], device=env.device, dtype=torch.int32)
+    term(env, env_ids, **params)
+    torch.testing.assert_close(friction, expected_friction)
+    torch.testing.assert_close(restitution, expected_restitution)
+
+    # Repeated device-resident resets must not require a synchronizing host upload.
+    graph = torch.cuda.CUDAGraph()
+    with torch.cuda.graph(graph):
+        term(env, env_ids, **params)
+    graph.replay()
     torch.testing.assert_close(friction, expected_friction)
     torch.testing.assert_close(restitution, expected_restitution)
 
