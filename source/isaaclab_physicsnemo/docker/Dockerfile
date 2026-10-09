@@ -16,6 +16,10 @@ ARG BASE_IMAGE=isaac-lab-kitless
 FROM ${BASE_IMAGE}
 
 USER root
+# Triton, which compiles ParallelNeRD inference kernels and torch.compile graphs at run time, needs a C toolchain.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends gcc libc6-dev python3.12-dev \
+ && rm -rf /var/lib/apt/lists/*
 COPY --from=physicsnemo --chown=isaaclab:isaaclab src/ /opt/physicsnemo-robotics/src/
 COPY --from=physicsnemo --chown=isaaclab:isaaclab examples/ /opt/physicsnemo-robotics/examples/
 COPY --from=physicsnemo --chown=isaaclab:isaaclab pyproject.toml README.md LICENSE.txt /opt/physicsnemo-robotics/
