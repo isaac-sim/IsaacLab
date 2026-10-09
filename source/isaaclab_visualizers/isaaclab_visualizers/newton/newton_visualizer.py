@@ -350,7 +350,7 @@ class NewtonViewerUI:
 
         _, self.window_cfg.fps = imgui.slider_float("Window FPS", self.window_cfg.fps, 1.0, 120.0, "%.0f FPS")
         if imgui.is_item_hovered():
-            imgui.set_tooltip("Maximum window updates per second; independent of simulation speed and recording.")
+            imgui.set_tooltip("Maximum window updates per second; independent of simulation speed.")
 
     def is_training_paused(self) -> bool:
         """Return whether simulation is paused by viewer controls."""

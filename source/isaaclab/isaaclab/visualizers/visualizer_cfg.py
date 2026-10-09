@@ -161,7 +161,7 @@ class WindowCfg:
     fps: float = 30.0
     """Maximum Newton window update rate [Hz], measured in wall-clock time.
 
-    On-demand recording is independent of this limit. Kit owns its application update cadence.
+    Headless on-demand recording is independent of this limit. Kit owns its application update cadence.
     """
 
     def validate_config(self) -> None:

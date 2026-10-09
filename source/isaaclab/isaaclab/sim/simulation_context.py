@@ -412,8 +412,7 @@ class SimulationContext:
 
     def _has_continuous_visualizers(self) -> bool:
         """Return whether the configured visualizers require per-step updates."""
-        # only the Kit and Newton configs have ``headless``
-        return any(cfg.visualizer_type and not getattr(cfg, "headless", False) for cfg in self.cfg.visualizer_cfgs)
+        return any(cfg.visualizer_type and not cfg.headless for cfg in self.cfg.visualizer_cfgs)
 
     def _resolve_visualizer_cfgs(self) -> list[Any]:
         """Return the configured visualizers with the shared defaults applied, plus a Kit visualizer for XR."""

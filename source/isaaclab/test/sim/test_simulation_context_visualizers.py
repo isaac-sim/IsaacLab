@@ -916,7 +916,7 @@ def test_default_visualizer_cfg_does_not_override_explicitly_customized_fields()
 
 
 def test_is_rendering_true_when_only_cfg_visualizer_is_set():
-    cfg_visualizer = type("CfgVisualizer", (), {"visualizer_type": "newton_gl"})()
+    cfg_visualizer = VisualizerCfg(visualizer_type="newton_gl")
     settings = {
         "/isaaclab/render/rtx_sensors": False,
     }
@@ -926,7 +926,7 @@ def test_is_rendering_true_when_only_cfg_visualizer_is_set():
 
 def test_is_rendering_false_when_only_cfg_visualizer_is_headless():
     """A capture-only headless visualizer must not trigger continuous rendering."""
-    cfg_visualizer = type("CfgVisualizer", (), {"visualizer_type": "kit", "headless": True})()
+    cfg_visualizer = VisualizerCfg(visualizer_type="kit", headless=True)
     settings = {
         "/isaaclab/render/rtx_sensors": False,
     }
