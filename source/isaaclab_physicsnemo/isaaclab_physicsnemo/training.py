@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import shutil
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -250,6 +251,8 @@ def train_dynamics_artifact(
     network = network.to(device)
 
     def package(path: Path, updates: int) -> Path:
+        # PhysicsNeMo Robotics publishes artifacts atomically and refuses an existing destination.
+        shutil.rmtree(path, ignore_errors=True)
         return Path(
             package_dynamics_artifact(
                 path,
