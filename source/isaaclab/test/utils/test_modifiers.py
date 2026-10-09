@@ -116,3 +116,24 @@ def test_integral(device):
 
         # check if the modified data is close to the expected result
         torch.testing.assert_close(processed_data, test_cfg.result)
+
+
+@pytest.mark.parametrize(
+    "cfg", [modifiers.DigitalFilterCfg(A=[0.0, 0.1], B=[0.5, 0.5]), modifiers.IntegratorCfg(dt=0.1)]
+)
+def test_stateful_modifier_mask_reset(cfg):
+    """A mask reset clears the history of the selected environments only."""
+    modifier_obj = cfg.func(cfg, (3, 2), device="cpu")
+    reference = cfg.func(cfg, (3, 2), device="cpu")
+    data = torch.ones(3, 2)
+    first_output = reference(data).clone()
+    reference(data)
+    third_output = reference(data).clone()
+    modifier_obj(data)
+    modifier_obj(data)
+
+    modifier_obj.reset(env_mask=torch.tensor([True, False, True]))
+    output = modifier_obj(data)
+
+    torch.testing.assert_close(output[[0, 2]], first_output[[0, 2]])
+    torch.testing.assert_close(output[1], third_output[1])

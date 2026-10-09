@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import functools
-from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
@@ -39,8 +38,8 @@ class CameraImageStack(ManagerTermBase):
         frame_stack = max(1, getattr(env.cfg, "frame_stack", 1))
         self._frames = CameraFrameStack(env.num_envs, env.device, frame_stack=frame_stack, channel_first=True)
 
-    def reset(self, env_ids: Sequence[int] | None = None) -> None:
-        self._frames.reset(env_ids)
+    def reset(self, env_mask: torch.Tensor) -> None:
+        self._frames.reset(env_mask)
 
     def __call__(self, env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg, data_type: str) -> torch.Tensor:
         camera: Camera = env.scene.sensors[sensor_cfg.name]

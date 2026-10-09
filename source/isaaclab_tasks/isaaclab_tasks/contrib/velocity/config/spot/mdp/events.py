@@ -26,7 +26,7 @@ if TYPE_CHECKING:
 
 def reset_joints_around_default(
     env: ManagerBasedEnv,
-    env_ids: torch.Tensor,
+    env_mask: torch.Tensor,
     position_range: tuple[float, float],
     velocity_range: tuple[float, float],
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
@@ -36,25 +36,32 @@ def reset_joints_around_default(
     This function samples random values from the given ranges around the default joint positions and velocities.
     The ranges are clipped to fit inside the soft joint limits. The sampled values are then set into the physics
     simulation.
+
+    Args:
+        env: The environment.
+        env_mask: Boolean mask of the environments to reset. Shape is (num_envs,).
+        position_range: Offset range [rad or m] around the default joint positions.
+        velocity_range: Offset range [rad/s or m/s] around the default joint velocities.
+        asset_cfg: The articulation to reset. Defaults to ``SceneEntityCfg("robot")``.
     """
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
     # get default joint state
-    joint_min_pos = asset.data.default_joint_pos.torch[env_ids] + position_range[0]
-    joint_max_pos = asset.data.default_joint_pos.torch[env_ids] + position_range[1]
-    joint_min_vel = asset.data.default_joint_vel.torch[env_ids] + velocity_range[0]
-    joint_max_vel = asset.data.default_joint_vel.torch[env_ids] + velocity_range[1]
+    joint_min_pos = asset.data.default_joint_pos.torch + position_range[0]
+    joint_max_pos = asset.data.default_joint_pos.torch + position_range[1]
+    joint_min_vel = asset.data.default_joint_vel.torch + velocity_range[0]
+    joint_max_vel = asset.data.default_joint_vel.torch + velocity_range[1]
     # clip pos to range
-    joint_pos_limits = asset.data.soft_joint_pos_limits.torch[env_ids, ...]
+    joint_pos_limits = asset.data.soft_joint_pos_limits.torch
     joint_min_pos = torch.clamp(joint_min_pos, min=joint_pos_limits[..., 0], max=joint_pos_limits[..., 1])
     joint_max_pos = torch.clamp(joint_max_pos, min=joint_pos_limits[..., 0], max=joint_pos_limits[..., 1])
     # clip vel to range
-    joint_vel_abs_limits = asset.data.soft_joint_vel_limits.torch[env_ids]
+    joint_vel_abs_limits = asset.data.soft_joint_vel_limits.torch
     joint_min_vel = torch.clamp(joint_min_vel, min=-joint_vel_abs_limits, max=joint_vel_abs_limits)
     joint_max_vel = torch.clamp(joint_max_vel, min=-joint_vel_abs_limits, max=joint_vel_abs_limits)
-    # sample these values randomly
+    # sample these values randomly for all environments; only the selected ones are written
     joint_pos = sample_uniform(joint_min_pos, joint_max_pos, joint_min_pos.shape, joint_min_pos.device)
     joint_vel = sample_uniform(joint_min_vel, joint_max_vel, joint_min_vel.shape, joint_min_vel.device)
     # set into the physics simulation
-    asset.write_joint_position_to_sim_index(position=joint_pos, env_ids=env_ids)
-    asset.write_joint_velocity_to_sim_index(velocity=joint_vel, env_ids=env_ids)
+    asset.write_joint_position_to_sim_mask(position=joint_pos, env_mask=env_mask)
+    asset.write_joint_velocity_to_sim_mask(velocity=joint_vel, env_mask=env_mask)

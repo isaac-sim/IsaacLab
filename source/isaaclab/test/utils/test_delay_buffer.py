@@ -157,3 +157,18 @@ def test_delay_buffer_cuda_graph(delay_buffer, device):
                 expected[1].clamp_(min=4)
             torch.testing.assert_close(result, expected)
             torch.testing.assert_close(read, expected)
+
+
+def test_reset_with_mask_redraws_only_selected_lags():
+    """A mask reset clears and redraws the lags of the selected batches and keeps the others."""
+    buffer = DelayBuffer(8, 6, "cpu", min_lag=1, hold_prob=0.5)
+    for value in range(3):
+        buffer.compute(torch.full((6, 1), float(value)))
+    buffer._time_lags[:] = 0
+    mask = torch.tensor([True, False, True, False, False, True])
+
+    buffer.reset(mask)
+
+    assert torch.all(buffer.time_lags[mask] >= 1)
+    assert torch.all(buffer.time_lags[~mask] == 0)
+    assert torch.equal(buffer._num_pushes == 0, mask)

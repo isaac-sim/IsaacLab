@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING
 import torch
 from prettytable import PrettyTable
 
-from ..utils import index_fill_, instantiate
+from ..utils import env_mask_from_ids, env_selection_kwargs, instantiate
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import CommandTermCfg
 
@@ -112,7 +112,9 @@ class CommandTerm(ManagerTermBase):
         # return success
         return True
 
-    def reset(self, env_ids: Sequence[int] | slice | None = None) -> dict[str, torch.Tensor]:
+    def reset(
+        self, env_ids: Sequence[int] | slice | None = None, env_mask: torch.Tensor | None = None
+    ) -> dict[str, torch.Tensor]:
         """Reset the command generator and log metrics.
 
         This function resets the command counter and resamples the command. It should be called
@@ -120,26 +122,32 @@ class CommandTerm(ManagerTermBase):
 
         Args:
             env_ids: The list of environment IDs to reset. Defaults to None.
+            env_mask: Boolean mask of the environments to reset. Shape is (num_envs,). Takes precedence over
+                ``env_ids``.
 
         Returns:
-            A dictionary containing the information to log under the "{name}" key.
+            A dictionary containing the information to log under the "{name}" key. Metrics are averaged over the
+            reset environments, and are zero when no environment is selected.
         """
-        # resolve the environment IDs
-        if env_ids is None:
-            env_ids = slice(None)
+        if env_mask is None:
+            env_ids = slice(None) if env_ids is None else env_ids
+            env_mask = env_mask_from_ids(env_ids, self.num_envs, self.device)
+        else:
+            env_ids = None
+        num_selected = env_mask.sum().clamp_min(1)
 
         # add logging metrics
         extras = {}
         for metric_name, metric_value in self.metrics.items():
             # compute the mean metric value
-            extras[metric_name] = torch.mean(metric_value[env_ids])
+            extras[metric_name] = torch.where(env_mask, metric_value, 0.0).sum() / num_selected
             # reset the metric value
-            index_fill_(metric_value, env_ids, 0.0)
+            metric_value.masked_fill_(env_mask, 0.0)
 
         # set the command counter to zero
-        index_fill_(self.command_counter, env_ids, 0)
+        self.command_counter.masked_fill_(env_mask, 0)
         # resample the command
-        self._resample(env_ids)
+        self._resample(env_mask, env_ids)
 
         return extras
 
@@ -154,9 +162,7 @@ class CommandTerm(ManagerTermBase):
         # reduce the time left before resampling
         self.time_left -= dt
         # resample the command if necessary
-        resample_env_ids = (self.time_left <= 0.0).nonzero().flatten()
-        if len(resample_env_ids) > 0:
-            self._resample(resample_env_ids)
+        self._resample(self.time_left <= 0.0)
         # update the command
         self._update_command()
 
@@ -164,23 +170,26 @@ class CommandTerm(ManagerTermBase):
     Helper functions.
     """
 
-    def _resample(self, env_ids: Sequence[int] | slice):
-        """Resample the command.
+    def _resample(self, env_mask: torch.Tensor, env_ids: Sequence[int] | slice | None = None):
+        """Resample the command and the time for which it is applied in the selected environments.
 
-        This function resamples the command and time for which the command is applied for the
-        specified environment indices.
+        Terms whose :meth:`_resample_command` takes ``env_mask`` resample without synchronizing the device. Terms
+        that take ``env_ids`` resample only when an environment is selected.
 
         Args:
-            env_ids: Environment slice or device-resident indices to resample.
+            env_mask: Boolean mask of the environments to resample. Shape is (num_envs,).
+            env_ids: The indices ``env_mask`` was selected with, if any, passed to index-based terms.
         """
-        num_envs = len(range(self.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
-        if num_envs != 0:
-            # resample the time left before resampling
-            self.time_left[env_ids] = self.time_left[env_ids].uniform_(*self.cfg.resampling_time_range)
-            # resample the command
-            self._resample_command(env_ids)
-            # increment the command counter
-            self.command_counter[env_ids] += 1
+        selection = env_selection_kwargs(self._resample_command, env_mask, env_ids)
+        if selection is None:
+            return
+        # resample the time left before resampling
+        time_left = torch.empty_like(self.time_left).uniform_(*self.cfg.resampling_time_range)
+        torch.where(env_mask, time_left, self.time_left, out=self.time_left)
+        # resample the command
+        self._resample_command(**selection)
+        # increment the command counter
+        self.command_counter += env_mask
 
     """
     Implementation specific functions.
@@ -192,8 +201,13 @@ class CommandTerm(ManagerTermBase):
         raise NotImplementedError
 
     @abstractmethod
-    def _resample_command(self, env_ids: Sequence[int] | slice):
-        """Resample the command for the specified environments."""
+    def _resample_command(self, env_mask: torch.Tensor):
+        """Resample the command for the selected environments.
+
+        Implementations take either ``env_mask``, a boolean mask of shape (num_envs,), and leave unselected
+        environments unchanged, or ``env_ids``, the selected indices. Taking indices synchronizes the device
+        whenever the command is resampled.
+        """
         raise NotImplementedError
 
     @abstractmethod
@@ -327,7 +341,9 @@ class CommandManager(ManagerBase):
         for term in self._terms.values():
             term.set_debug_vis(debug_vis)
 
-    def reset(self, env_ids: Sequence[int] | slice | None = None) -> dict[str, torch.Tensor]:
+    def reset(
+        self, env_ids: Sequence[int] | slice | None = None, env_mask: torch.Tensor | None = None
+    ) -> dict[str, torch.Tensor]:
         """Reset the command terms and log their metrics.
 
         This function resets the command counter and resamples the command for each term. It should be called
@@ -335,18 +351,18 @@ class CommandManager(ManagerBase):
 
         Args:
             env_ids: The list of environment IDs to reset. Defaults to None.
+            env_mask: Boolean mask of the environments to reset. Shape is (num_envs,). Takes precedence over
+                ``env_ids``.
 
         Returns:
             A dictionary containing the information to log under the "Metrics/{term_name}/{metric_name}" key.
         """
-        # resolve environment ids
-        if env_ids is None:
-            env_ids = slice(None)
+        env_mask, env_ids = self._env_selection(env_ids, env_mask)
         # store information
         extras = {}
         for name, term in self._terms.items():
             # reset the command term
-            metrics = term.reset(env_ids=env_ids)
+            metrics = self._reset_term(term, env_mask, env_ids) or {}
             # compute the mean metric value
             for metric_name, metric_value in metrics.items():
                 extras[f"Metrics/{name}/{metric_name}"] = metric_value

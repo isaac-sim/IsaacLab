@@ -327,20 +327,31 @@ class ObservationManager(ManagerBase):
     Operations.
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None) -> dict[str, float]:
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: torch.Tensor | None = None) -> dict[str, float]:
+        """Resets the class terms, modifiers, and the delay and history buffers of the selected environments.
+
+        Args:
+            env_ids: The environment ids. Defaults to None, in which case all environments are considered.
+            env_mask: Boolean mask of the environments to reset. Shape is (num_envs,). Takes precedence over
+                ``env_ids``.
+
+        Returns:
+            An empty dictionary.
+        """
+        env_mask, env_ids = self._env_selection(env_ids, env_mask)
         # call all terms that are classes
         for group_name, group_cfg in self._group_obs_class_term_cfgs.items():
             for term_cfg in group_cfg:
-                term_cfg.func.reset(env_ids=env_ids)
+                self._reset_term(term_cfg.func, env_mask, env_ids)
             # reset delay and observation histories for the selected environments
             for term_name in self._group_obs_term_names[group_name]:
                 if term_name in self._group_obs_term_delay_buffer[group_name]:
-                    self._group_obs_term_delay_buffer[group_name][term_name].reset(env_ids)
+                    self._group_obs_term_delay_buffer[group_name][term_name].reset(env_mask)
                 if term_name in self._group_obs_term_history_buffer[group_name]:
-                    self._group_obs_term_history_buffer[group_name][term_name].reset(batch_ids=env_ids)
+                    self._group_obs_term_history_buffer[group_name][term_name].reset(batch_ids=env_mask)
         # call all modifiers that are classes
         for mod in self._group_obs_class_instances:
-            mod.reset(env_ids=env_ids)
+            self._reset_term(mod, env_mask, env_ids)
 
         # nothing to log here
         return {}
@@ -766,7 +777,7 @@ class ObservationManager(ManagerBase):
                 if isinstance(term_cfg.func, ManagerTermBase):
                     self._group_obs_class_term_cfgs[group_name].append(term_cfg)
                     # call reset (in-case above call to get obs dims changed the state)
-                    term_cfg.func.reset()
+                    self._reset_term(term_cfg.func, *self._env_selection(None, None))
             # add history buffers for each group
             self._group_obs_term_delay_buffer[group_name] = group_entry_delay_buffer
             self._group_obs_term_history_buffer[group_name] = group_entry_history_buffer

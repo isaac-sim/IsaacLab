@@ -23,7 +23,7 @@ from isaaclab.assets import ArticulationCfg, RigidObjectCfg
 from isaaclab.envs import ManagerBasedEnv, ManagerBasedEnvCfg, mdp
 from isaaclab.managers import EventTermCfg, ObservationGroupCfg, ObservationTermCfg, SceneEntityCfg
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.utils import configclass, replace
+from isaaclab.utils import configclass, env_mask_from_ids, replace
 
 pytestmark = pytest.mark.isaacsim_ci
 
@@ -130,7 +130,7 @@ def test_material_selection(env: ManagerBasedEnv) -> None:
         term = mdp.randomize_rigid_body_material(
             EventTermCfg(func=mdp.randomize_rigid_body_material, params=params), env
         )
-        term(env, selection, **params)
+        term(env, env_mask_from_ids(selection, env.num_envs, env.device), **params)
         selected = selection.start if isinstance(selection, slice) else selection.item()
         expected[selected, body_name][:] = expected[selected, body_name].new_tensor([0.4, 0.4, 0.1])
         for key, view in views.items():
@@ -147,7 +147,7 @@ def test_gravity_distribution(env: ManagerBasedEnv) -> None:
     gravity = mdp.randomize_physics_scene_gravity(
         EventTermCfg(func=mdp.randomize_physics_scene_gravity, params=gravity_params), env
     )
-    gravity(env, torch.tensor([0], device=env.device), **gravity_params)
+    gravity(env, env_mask_from_ids([0], env.num_envs, env.device), **gravity_params)
     cube = env.scene["cube"]
     for _ in range(2):
         env.sim.step()
@@ -171,7 +171,7 @@ def test_collider_offsets(env: ManagerBasedEnv) -> None:
     offsets = mdp.randomize_rigid_body_collider_offsets(
         EventTermCfg(func=mdp.randomize_rigid_body_collider_offsets, params=offset_params), env
     )
-    offsets(env, slice(1, 2), **offset_params)
+    offsets(env, env_mask_from_ids(slice(1, 2), env.num_envs, env.device), **offset_params)
     expected_rest = original_rest.clone()
     expected_contact = original_contact.clone()
     expected_rest[1] = -0.01
@@ -179,11 +179,16 @@ def test_collider_offsets(env: ManagerBasedEnv) -> None:
     torch.testing.assert_close(wp.to_torch(view.get_rest_offsets()), expected_rest)
     torch.testing.assert_close(wp.to_torch(view.get_contact_offsets()), expected_contact)
 
-    offsets(env, torch.tensor([1], device=env.device), asset_cfg, contact_offset_distribution_params=(0.06, 0.06))
+    offsets(
+        env,
+        env_mask_from_ids([1], env.num_envs, env.device),
+        asset_cfg,
+        contact_offset_distribution_params=(0.06, 0.06),
+    )
     expected_contact[1] = 0.06
     torch.testing.assert_close(wp.to_torch(view.get_rest_offsets()), expected_rest)
     torch.testing.assert_close(wp.to_torch(view.get_contact_offsets()), expected_contact)
-    offsets(env, None, asset_cfg)
+    offsets(env, env_mask_from_ids(None, env.num_envs, env.device), asset_cfg)
     torch.testing.assert_close(wp.to_torch(view.get_rest_offsets()), expected_rest)
     torch.testing.assert_close(wp.to_torch(view.get_contact_offsets()), expected_contact)
 
@@ -203,7 +208,7 @@ def test_fixed_tendon_parameters(env: ManagerBasedEnv) -> None:
     )
     expected_stiffness = wp.to_torch(asset.root_view.get_fixed_tendon_limit_stiffnesses()).clone()
     expected_length = wp.to_torch(asset.root_view.get_fixed_tendon_rest_lengths()).clone()
-    tendon(env, torch.tensor([1], device=env.device), **tendon_params)
+    tendon(env, env_mask_from_ids([1], env.num_envs, env.device), **tendon_params)
     expected_stiffness[1] = 2.0
     expected_length[1] = 0.5
     torch.testing.assert_close(wp.to_torch(asset.root_view.get_fixed_tendon_limit_stiffnesses()), expected_stiffness)
@@ -218,7 +223,7 @@ def test_fixed_tendon_parameters(env: ManagerBasedEnv) -> None:
     )
     mdp.randomize_fixed_tendon_parameters(
         EventTermCfg(func=mdp.randomize_fixed_tendon_parameters, params=base_params), env
-    )(env, None, **base_params)
+    )(env, env_mask_from_ids(None, env.num_envs, env.device), **base_params)
     scale_params = dict(
         base_params, stiffness_distribution_params=(2.0, 2.0), damping_distribution_params=(2.0, 2.0), operation="scale"
     )
@@ -226,6 +231,6 @@ def test_fixed_tendon_parameters(env: ManagerBasedEnv) -> None:
         EventTermCfg(func=mdp.randomize_fixed_tendon_parameters, params=scale_params), env
     )
     for _ in range(3):
-        scale(env, None, **scale_params)
+        scale(env, env_mask_from_ids(None, env.num_envs, env.device), **scale_params)
     for values in (asset.root_view.get_fixed_tendon_stiffnesses(), asset.root_view.get_fixed_tendon_dampings()):
         torch.testing.assert_close(wp.to_torch(values), torch.full_like(wp.to_torch(values), 2.0))

@@ -43,6 +43,7 @@ from isaaclab.envs.mdp.events import randomize_rigid_body_material
 from isaaclab.managers import EventTermCfg, SceneEntityCfg
 from isaaclab.sim import SimulationContext, build_simulation_context
 from isaaclab.test.utils import DeviceScope, test_devices
+from isaaclab.utils import env_mask_from_ids
 from isaaclab.utils.math import (
     combine_frame_transforms,
     quat_apply_inverse,
@@ -360,7 +361,7 @@ def test_rigid_body_set_material_properties(scene: _Scene) -> None:
     term = randomize_rigid_body_material(
         EventTermCfg(func=randomize_rigid_body_material, mode="startup", params=params), env
     )
-    term(env, torch.tensor([num_cubes - 1], device=device), **params)
+    term(env, env_mask_from_ids([num_cubes - 1], num_cubes, device), **params)
 
     # Simulate physics
     scene.step()
@@ -476,7 +477,7 @@ def test_gravity_vec_w_tracks_model_gravity(scene: _Scene) -> None:
         params = {"gravity_distribution_params": ((0.0, 0.0, 0.0), (0.0, 0.0, 0.0)), "operation": "abs"}
         event = randomize_physics_scene_gravity(EventTermCfg(func=randomize_physics_scene_gravity, params=params), env)
         for row, values in enumerate(new_gravity.tolist()):
-            event(env, torch.tensor([row], device=device), (values, values), operation="abs")
+            event(env, env_mask_from_ids([row], num_cubes, device), (values, values), operation="abs")
 
         # Live view: new per-env values are visible immediately, no invalidation step.
         torch.testing.assert_close(cube_object.data.GRAVITY_VEC_W.torch, new_gravity)

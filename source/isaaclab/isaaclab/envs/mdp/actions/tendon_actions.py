@@ -164,6 +164,7 @@ class FixedTendonPositionAction(ActionTerm):
             target=self._processed_actions, fixed_tendon_ids=self._tendon_ids
         )
 
-    def reset(self, env_ids: Sequence[int] | None = None) -> None:
-        index_fill_(self._raw_actions, env_ids, 0.0)
-        index_fill_(self._processed_actions, env_ids, 0.0)
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: torch.Tensor | None = None) -> None:
+        env_selection = env_ids if env_mask is None else env_mask
+        index_fill_(self._raw_actions, env_selection, 0.0)
+        index_fill_(self._processed_actions, env_selection, 0.0)

@@ -436,3 +436,90 @@ def test_apply_reset_mode(env, index_dtype):
                 event_man._reset_term_last_triggered_step_id[index],
                 torch.tensor(last_step[index], dtype=torch.int32, device=env.device),
             )
+
+
+def increment_dummy1_by_one_masked(env, env_mask: torch.Tensor):
+    env.dummy1.add_(env_mask[:, None])
+
+
+def reset_dummy1_to_zero_masked(env, env_mask: torch.Tensor):
+    env.dummy1.masked_fill_(env_mask[:, None], 0)
+
+
+def test_apply_reset_mode_with_mask_terms(env):
+    """Mask terms run on every reset, see the cooldown-filtered mask, and leave unselected environments alone."""
+    calls = []
+
+    def increment(env, env_mask: torch.Tensor):
+        calls.append(env_mask.clone())
+        increment_dummy1_by_one_masked(env, env_mask)
+
+    event_man = EventManager(
+        {
+            "term_1": EventTermCfg(func=increment, mode="reset"),
+            "term_2": EventTermCfg(func=reset_dummy1_to_zero_masked, mode="reset", min_step_count_between_reset=10),
+        },
+        env,
+    )
+    expected = [0] * env.num_envs
+    last_step = [0] * env.num_envs
+    triggered = [False] * env.num_envs
+    for count in range(23):
+        selected = [i for i in range(env.num_envs) if (i + count) % 3 == 0] if count % 4 else []
+        env_mask = torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)
+        env_mask[selected] = True
+        event_man.apply("reset", env_mask=env_mask, global_env_step_count=count)
+
+        # an empty selection still calls the mask term, with an all-False mask
+        assert torch.equal(calls[-1], env_mask)
+        for i in selected:
+            expected[i] += 1
+            if not triggered[i] or count - last_step[i] >= 10:
+                expected[i] = 0
+                last_step[i] = count
+                triggered[i] = True
+        torch.testing.assert_close(
+            env.dummy1, torch.tensor(expected, dtype=env.dummy1.dtype, device=env.device)[:, None].expand_as(env.dummy1)
+        )
+    assert len(calls) == 23
+
+
+def test_apply_interval_mode_with_mask_term(env):
+    """A mask term is called every interval update with the environments whose interval elapsed."""
+    event_man = EventManager(
+        {"term_1": EventTermCfg(func=increment_dummy1_by_one_masked, mode="interval", interval_range_s=(0.1, 0.1))},
+        env,
+    )
+    # stagger the timers so that the environments fire on different updates
+    event_man._interval_term_time_left[0][:] = torch.tensor([0.01, 0.02, 0.03, 0.04], device=env.device)
+    for _ in range(4):
+        event_man.apply("interval", dt=0.01)
+    torch.testing.assert_close(env.dummy1, torch.ones_like(env.dummy1))
+    torch.testing.assert_close(
+        event_man._interval_term_time_left[0], torch.tensor([0.07, 0.08, 0.09, 0.1], device=env.device)
+    )
+
+
+def test_apply_startup_mode_with_mask_term(env):
+    """A mask term in startup mode receives an all-True mask."""
+    event_man = EventManager(
+        {"term_1": EventTermCfg(func=increment_dummy1_by_one_masked, mode="startup")},
+        env,
+    )
+    event_man.apply("startup")
+    torch.testing.assert_close(env.dummy1, torch.ones_like(env.dummy1))
+
+
+def test_apply_interval_mode_with_global_time_mask_term(env):
+    """A mask term on a global-time interval receives an all-True mask."""
+    event_man = EventManager(
+        {
+            "term_1": EventTermCfg(
+                func=increment_dummy1_by_one_masked, mode="interval", interval_range_s=(0.1, 0.1), is_global_time=True
+            )
+        },
+        env,
+    )
+    for _ in range(10):
+        event_man.apply("interval", dt=0.01)
+    torch.testing.assert_close(env.dummy1, torch.ones_like(env.dummy1))

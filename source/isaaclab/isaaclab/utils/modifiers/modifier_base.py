@@ -57,12 +57,14 @@ class ModifierBase(ABC):
         self._device = device
 
     @abstractmethod
-    def reset(self, env_ids: Sequence[int] | None = None):
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: torch.Tensor | None = None):
         """Resets the Modifier.
 
         Args:
             env_ids: The environment ids. Defaults to None, in which case
                 all environments are considered.
+            env_mask: Boolean mask of the environments to reset. Shape is (num_envs,). Defaults to None.
+                Takes precedence over ``env_ids``.
         """
         raise NotImplementedError
 

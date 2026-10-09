@@ -21,7 +21,6 @@ import torch
 
 import isaaclab.utils.math as math_utils
 from isaaclab.managers import ManagerTermBase, RewardTermCfg, SceneEntityCfg
-from isaaclab.utils import index_fill_
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
@@ -119,9 +118,14 @@ class ActionRate2L2(ManagerTermBase):
         self._prev_action = torch.zeros((env.num_envs, dim), device=env.device)
         self._prev_prev_action = torch.zeros((env.num_envs, dim), device=env.device)
 
-    def reset(self, env_ids: torch.Tensor | None = None):
-        index_fill_(self._prev_action, env_ids, 0.0)
-        index_fill_(self._prev_prev_action, env_ids, 0.0)
+    def reset(self, env_mask: torch.Tensor):
+        """Clear the action history of the reset environments.
+
+        Args:
+            env_mask: Boolean mask of the environments to reset. Shape is (num_envs,).
+        """
+        self._prev_action.masked_fill_(env_mask.unsqueeze(-1), 0.0)
+        self._prev_prev_action.masked_fill_(env_mask.unsqueeze(-1), 0.0)
 
     def __call__(self, env: ManagerBasedRLEnv) -> torch.Tensor:
         current_action = env.action_manager.action
@@ -237,27 +241,31 @@ class walk_success_rate(ManagerTermBase):
         self._vel_yaw_threshold = 0.4
         self._contact_match_threshold = 0.7
 
-    def reset(self, env_ids: torch.Tensor):
-        denom = self._steps[env_ids].clamp_min(1.0)
-        err_xy = self._err_xy_sum[env_ids] / denom
-        err_yaw = self._err_yaw_sum[env_ids] / denom
-        contact = self._contact_sum[env_ids] / denom
-        survived = self._env.termination_manager.time_outs[env_ids]
+    def reset(self, env_mask: torch.Tensor):
+        """Log the episode metrics of the reset environments and clear their accumulators.
+
+        Args:
+            env_mask: Boolean mask of the environments to reset. Shape is (num_envs,).
+        """
+        denom = self._steps.clamp_min(1.0)
+        err_xy = self._err_xy_sum / denom
+        err_yaw = self._err_yaw_sum / denom
+        contact = self._contact_sum / denom
+        survived = self._env.termination_manager.time_outs
         success = (
             survived
             & (err_xy < self._vel_xy_threshold)
             & (err_yaw < self._vel_yaw_threshold)
             & (contact >= self._contact_match_threshold)
         )
+        num_reset = env_mask.sum().clamp_min(1)
         log = self._env.extras.setdefault("log", {})
-        log["Metrics/success_rate"] = success.float().mean().item()
-        log["Metrics/error_vel_xy"] = err_xy.mean().item()
-        log["Metrics/error_vel_yaw"] = err_yaw.mean().item()
-        log["Metrics/contact_match_rate"] = contact.mean().item()
-        index_fill_(self._err_xy_sum, env_ids, 0.0)
-        index_fill_(self._err_yaw_sum, env_ids, 0.0)
-        index_fill_(self._contact_sum, env_ids, 0.0)
-        index_fill_(self._steps, env_ids, 0.0)
+        log["Metrics/success_rate"] = torch.where(env_mask, success, False).sum() / num_reset
+        log["Metrics/error_vel_xy"] = torch.where(env_mask, err_xy, 0.0).sum() / num_reset
+        log["Metrics/error_vel_yaw"] = torch.where(env_mask, err_yaw, 0.0).sum() / num_reset
+        log["Metrics/contact_match_rate"] = torch.where(env_mask, contact, 0.0).sum() / num_reset
+        for buffer in (self._err_xy_sum, self._err_yaw_sum, self._contact_sum, self._steps):
+            buffer.masked_fill_(env_mask, 0.0)
 
     def __call__(
         self,

@@ -71,6 +71,8 @@ is desired.
    from isaaclab.managers import CurriculumTermCfg
    import isaaclab.managers.mdp as mdp
 
+   # Taking ``env_ids`` runs the function only on steps where an environment resets. A function that
+   # takes ``env_mask`` instead runs on every step and must only change the masked environments.
    def resample_friction(env, env_ids, old_value, low, high, num_steps):
        # After num_steps, sample a new friction coefficient uniformly
        if env.common_step_counter > num_steps:

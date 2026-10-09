@@ -29,6 +29,8 @@ from isaaclab_newton.physics import NewtonManager as SimulationManager
 from isaaclab_newton.physics import StepPhase
 
 if TYPE_CHECKING:
+    import torch
+
     from .articulation import Articulation
 
 logger = logging.getLogger(__name__)
@@ -225,13 +227,18 @@ class NewtonActuatorControl(ArticulationActuatorControl):
                 articulation._ALL_ENV_MASK,
             )
 
-    def reset_native_actuators(self, env_ids: Sequence[int] | slice) -> None:
+    def reset_native_actuators(
+        self, env_ids: Sequence[int] | slice, env_mask: wp.array | torch.Tensor | None = None
+    ) -> None:
         adapter = SimulationManager.backend.actuators
         if not self._native_actuator_path_active or adapter is None:
             return
         row_mask = self._reset_row_mask
-        row_mask.zero_()
-        index_fill_(row_mask, env_ids, True)
+        if env_mask is not None:
+            row_mask.copy_(wp.to_torch(env_mask) if isinstance(env_mask, wp.array) else env_mask)
+        else:
+            row_mask.zero_()
+            index_fill_(row_mask, env_ids, True)
         wp.launch(
             _select_row_dofs,
             dim=self._reset_dof_view.shape,

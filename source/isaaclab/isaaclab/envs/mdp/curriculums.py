@@ -18,13 +18,18 @@ from typing import TYPE_CHECKING, Any, ClassVar
 import torch
 
 from ...managers import CurriculumTermCfg, ManagerTermBase
+from ...utils import env_selection_kwargs
 
 if TYPE_CHECKING:
     from .. import ManagerBasedRLEnv
 
 
 class modify_reward_weight(ManagerTermBase):
-    """Curriculum that modifies the reward weight based on a step-wise schedule."""
+    """Curriculum that modifies the reward weight based on a step-wise schedule.
+
+    The schedule depends only on :attr:`~isaaclab.envs.ManagerBasedRLEnv.common_step_counter`, so the term
+    ignores the selected environments and applies the weight on the first update after ``num_steps``.
+    """
 
     def __init__(self, cfg: CurriculumTermCfg, env: ManagerBasedRLEnv):
         super().__init__(cfg, env)
@@ -36,7 +41,7 @@ class modify_reward_weight(ManagerTermBase):
     def __call__(
         self,
         env: ManagerBasedRLEnv,
-        env_ids: Sequence[int],
+        env_mask: torch.Tensor,
         term_name: str,
         weight: float,
         num_steps: int,
@@ -64,16 +69,21 @@ class modify_env_param(ManagerTermBase):
 
     .. code-block:: python
 
-        def modify_fn(env, env_ids, old_value, **modify_params) -> new_value | modify_env_param.NO_CHANGE:
+        def modify_fn(env, env_mask, old_value, **modify_params) -> new_value | modify_env_param.NO_CHANGE:
             # modify the value based on the old value and the modify parameters
             new_value = old_value + modify_params["value"]
             return new_value
 
-    where ``env`` is the learning environment, ``env_ids`` are the sub-environment indices,
-    ``old_value`` is the current value of the target attribute, and ``modify_params``
-    are additional parameters that can be passed to the function. The function should return
+    where ``env`` is the learning environment, ``env_mask`` is the boolean mask of the environments being
+    reset with shape (num_envs,), ``old_value`` is the current value of the target attribute, and
+    ``modify_params`` are additional parameters that can be passed to the function. The function should return
     the new value to be set for the target attribute, or the special token ``modify_env_param.NO_CHANGE``
     to indicate that the value should not be changed.
+
+    A ``modify_fn`` that names its second parameter ``env_mask`` is called on every curriculum update, including
+    updates where no environment is reset, without synchronizing the device. Otherwise the function receives the
+    selected environment indices, which synchronizes the device, and is called only when an environment is
+    selected.
 
     At the first call to the term after initialization, it compiles getter and setter functions
     for the target attribute specified by the ``address`` parameter. The getter retrieves the
@@ -89,7 +99,7 @@ class modify_env_param(ManagerTermBase):
         .. code-block:: python
 
             def resample_bucket_range(
-                env, env_id, data, static_friction_range, dynamic_friction_range, restitution_range, num_steps
+                env, env_mask, data, static_friction_range, dynamic_friction_range, restitution_range, num_steps
             ):
                 if env.common_step_counter > num_steps:
                     range_list = [static_friction_range, dynamic_friction_range, restitution_range]
@@ -150,11 +160,17 @@ class modify_env_param(ManagerTermBase):
     def __call__(
         self,
         env: ManagerBasedRLEnv,
-        env_ids: Sequence[int],
+        env_mask: torch.Tensor,
         address: str,
         modify_fn: callable,
         modify_params: dict | None = None,
     ):
+        # resolve the environment selection for the modify function
+        # note: functions that take indices are skipped when no environment is selected
+        selection = env_selection_kwargs(modify_fn, env_mask)
+        if selection is None:
+            return
+
         # fetch the getter and setter functions if not already compiled
         if not self._get_fn:
             self._get_fn, self._set_fn = self._process_accessors(self._env, self._address)
@@ -165,7 +181,7 @@ class modify_env_param(ManagerTermBase):
         # get the current value of the target attribute
         data = self._get_fn()
         # modify the value using the provided function
-        new_val = modify_fn(self._env, env_ids, data, **modify_params)
+        new_val = modify_fn(self._env, *selection.values(), data, **modify_params)
         # set the modified value back to the target attribute
         # note: if the modify_fn return NO_CHANGE signal, we do not invoke self.set_fn
         if new_val is not self.NO_CHANGE:
@@ -268,7 +284,7 @@ class modify_term_cfg(modify_env_param):
     Usage:
         .. code-block:: python
 
-            def override_value(env, env_ids, data, value, num_steps):
+            def override_value(env, env_mask, data, value, num_steps):
                 if env.common_step_counter > num_steps:
                     return value
                 return mdp.modify_term_cfg.NO_CHANGE
@@ -317,7 +333,7 @@ class DifficultyScheduler(ManagerTermBase):
     def __call__(
         self,
         env: ManagerBasedRLEnv,
-        env_ids: Sequence[int],
+        env_mask: torch.Tensor,
         init_difficulty: int = 0,
         min_difficulty: int = 0,
         max_difficulty: int = 50,
@@ -325,20 +341,20 @@ class DifficultyScheduler(ManagerTermBase):
         success_term_name: str = "success",
     ) -> float:
         # the success term must be a class-based reward exposing a per-environment boolean ``succeeded`` buffer
-        succeeded = env.reward_manager.get_term_cfg(success_term_name).func.succeeded[env_ids]
-        current = self.current_difficulties[env_ids]
+        succeeded = env.reward_manager.get_term_cfg(success_term_name).func.succeeded
+        current = self.current_difficulties
         demoted = current if promotion_only else current - 1
-        self.current_difficulties[env_ids] = torch.where(succeeded, current + 1, demoted).clamp(
-            min=min_difficulty, max=max_difficulty
-        )
+        updated = torch.where(succeeded, current + 1, demoted).clamp(min=min_difficulty, max=max_difficulty)
+        torch.where(env_mask, updated, current, out=self.current_difficulties)
         # Python float: the dependent curriculum terms compare and interpolate host-side
+        # note: this synchronizes the device on every curriculum update
         self.difficulty_frac = (torch.mean(self.current_difficulties) / max(max_difficulty, 1)).item()
         return self.difficulty_frac
 
 
 def initial_final_interpolate_fn(
     env: ManagerBasedRLEnv,
-    env_ids: Sequence[int],
+    env_mask: torch.Tensor,
     data: Any,
     initial_value: Any,
     final_value: Any,
@@ -351,7 +367,8 @@ def initial_final_interpolate_fn(
 
     Args:
         env: The environment.
-        env_ids: Environments being updated. Unused, the interpolation is shared by all environments.
+        env_mask: Boolean mask of the environments being updated. Shape is (num_envs,). Unused, the
+            interpolation is shared by all environments.
         data: Current value of the parameter, which fixes the structure and leaf types of the result.
         initial_value: Value at zero difficulty.
         final_value: Value at maximum difficulty.

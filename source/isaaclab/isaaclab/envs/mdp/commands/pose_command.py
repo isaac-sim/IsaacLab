@@ -15,7 +15,7 @@ import torch
 from isaaclab.assets import Articulation
 from isaaclab.managers import CommandTerm
 from isaaclab.markers import VisualizationMarkers
-from isaaclab.utils import index_fill_
+from isaaclab.utils import env_mask_from_ids
 from isaaclab.utils.leapp import POSE7_ELEMENT_NAMES
 from isaaclab.utils.math import combine_frame_transforms, compute_pose_error, quat_from_euler_xyz, quat_unique
 
@@ -151,33 +151,36 @@ class UniformPoseCommand(CommandTerm):
             success[:] = False
         return success
 
-    def reset(self, env_ids: Sequence[int] | None = None) -> dict[str, torch.Tensor]:
-        extras = super().reset(env_ids)
+    def reset(
+        self, env_ids: Sequence[int] | None = None, env_mask: torch.Tensor | None = None
+    ) -> dict[str, torch.Tensor]:
+        if env_mask is None:
+            env_mask = env_mask_from_ids(env_ids, self.num_envs, self.device)
+        extras = super().reset(env_mask=env_mask)
         if self._track_success:
-            if env_ids is None:
-                env_ids = slice(None)
             # Write the unified ``Metrics/success_rate`` directly to env extras so it shares
             # a TensorBoard card with the same metric from other tasks.
-            self._env.extras.setdefault("log", {})["Metrics/success_rate"] = self._succeeded[env_ids].float().mean()
-            index_fill_(self._succeeded, env_ids, False)
+            success_rate = (self._succeeded & env_mask).sum() / env_mask.sum().clamp_min(1)
+            self._env.extras.setdefault("log", {})["Metrics/success_rate"] = success_rate
+            self._succeeded.masked_fill_(env_mask, False)
         return extras
 
-    def _resample_command(self, env_ids: Sequence[int]):
-        # sample new pose targets
+    def _resample_command(self, env_mask: torch.Tensor):
+        # sample new pose targets for all the environments and keep them only for the selected ones
+        pose_command_b = torch.empty_like(self.pose_command_b)
         # -- position
-        num_envs = len(range(self.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
-        r = torch.empty(num_envs, device=self.device)
-        self.pose_command_b[env_ids, 0] = r.uniform_(*self.cfg.ranges.pos_x)
-        self.pose_command_b[env_ids, 1] = r.uniform_(*self.cfg.ranges.pos_y)
-        self.pose_command_b[env_ids, 2] = r.uniform_(*self.cfg.ranges.pos_z)
+        pose_command_b[:, 0].uniform_(*self.cfg.ranges.pos_x)
+        pose_command_b[:, 1].uniform_(*self.cfg.ranges.pos_y)
+        pose_command_b[:, 2].uniform_(*self.cfg.ranges.pos_z)
         # -- orientation
-        euler_angles = torch.zeros_like(self.pose_command_b[env_ids, :3])
+        euler_angles = torch.zeros_like(self.pose_command_b[:, :3])
         euler_angles[:, 0].uniform_(*self.cfg.ranges.roll)
         euler_angles[:, 1].uniform_(*self.cfg.ranges.pitch)
         euler_angles[:, 2].uniform_(*self.cfg.ranges.yaw)
         quat = quat_from_euler_xyz(euler_angles[:, 0], euler_angles[:, 1], euler_angles[:, 2])
         # make sure the quaternion has real part as positive
-        self.pose_command_b[env_ids, 3:] = quat_unique(quat) if self.cfg.make_quat_unique else quat
+        pose_command_b[:, 3:] = quat_unique(quat) if self.cfg.make_quat_unique else quat
+        torch.where(env_mask[:, None], pose_command_b, self.pose_command_b, out=self.pose_command_b)
 
     def _update_command(self):
         pass

@@ -217,7 +217,7 @@ class Articulation(BaseArticulation):
     Operations.
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> None:
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | torch.Tensor | None = None) -> None:
         """Reset the articulation.
 
         .. caution::
@@ -230,9 +230,11 @@ class Articulation(BaseArticulation):
         # use ellipses object to skip initial indices.
         if (env_ids is None) or (env_ids == slice(None)):
             env_ids = slice(None)
+        if isinstance(env_mask, torch.Tensor):
+            env_mask = wp.from_torch(env_mask, dtype=wp.bool)
         # reset actuators, including backend-native actuator state. None selects all
-        # environments; delayed-actuator buffers do not accept a slice.
-        self.actuators.reset(None if env_ids == slice(None) else env_ids)
+        # environments; delayed-actuator buffers do not accept a slice. A mask takes precedence.
+        self.actuators.reset(None if env_ids == slice(None) else env_ids, env_mask=env_mask)
         # reset external wrenches.
         self._instantaneous_wrench_composer.reset(env_ids, env_mask)
         self._permanent_wrench_composer.reset(env_ids, env_mask)

@@ -46,7 +46,7 @@ from ..markers import VisualizationMarkers, VisualizationMarkersCfg
 from ..sensors import CameraCfg, ContactSensorCfg, FrameTransformerCfg, SensorBase, SensorBaseCfg
 from ..sim import SimulationContext
 from ..sim.utils.stage import get_current_stage, get_current_stage_id
-from ..utils import instantiate, validate
+from ..utils import env_mask_from_ids, env_selection_kwargs, instantiate, takes_env_mask, validate
 from .interactive_scene_cfg import InteractiveSceneCfg
 
 if TYPE_CHECKING:
@@ -434,29 +434,40 @@ class InteractiveScene:
     Operations.
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None):
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: torch.Tensor | None = None):
         """Resets the scene entities.
+
+        Entities whose ``reset`` takes ``env_mask`` receive the mask as a Warp array and reset without
+        synchronizing the device. Other entities receive the selected indices.
 
         Args:
             env_ids: The indices of the environments to reset.
                 Defaults to None (all instances).
+            env_mask: Boolean mask of the environments to reset. Shape is (num_envs,). Takes precedence over
+                ``env_ids``.
         """
-        # -- assets
-        for articulation in self._articulations.values():
-            articulation.reset(env_ids)
-        for cable_object in self._cable_objects.values():
-            cable_object.reset(env_ids)
-        for deformable_object in self._deformable_objects.values():
-            deformable_object.reset(env_ids)
-        for rigid_object in self._rigid_objects.values():
-            rigid_object.reset(env_ids)
-        for surface_gripper in self._surface_grippers.values():
-            surface_gripper.reset(env_ids)
-        for rigid_object_collection in self._rigid_object_collections.values():
-            rigid_object_collection.reset(env_ids)
-        # -- sensors
-        for sensor in self._sensors.values():
-            sensor.reset(env_ids)
+        if env_mask is None:
+            env_ids = slice(None) if env_ids is None else env_ids
+            env_mask = env_mask_from_ids(env_ids, self.num_envs, self.device)
+        else:
+            env_ids = None
+        env_mask_wp = wp.from_torch(env_mask, dtype=wp.bool)
+        entities = (
+            *self._articulations.values(),
+            *self._cable_objects.values(),
+            *self._deformable_objects.values(),
+            *self._rigid_objects.values(),
+            *self._surface_grippers.values(),
+            *self._rigid_object_collections.values(),
+            *self._sensors.values(),
+        )
+        for entity in entities:
+            if takes_env_mask(entity.reset):
+                entity.reset(env_mask=env_mask_wp)
+            else:
+                selection = env_selection_kwargs(entity.reset, env_mask, env_ids)
+                if selection is not None:
+                    entity.reset(*selection.values())
 
     def write_data_to_sim(self):
         """Writes the data of the scene entities to the simulation."""

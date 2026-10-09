@@ -79,7 +79,7 @@ from isaaclab.test.utils.articulation_ordering import (
     BRANCHING_PHYSX_BODY_NAMES,
     BRANCHING_PHYSX_JOINT_NAMES,
 )
-from isaaclab.utils import replace
+from isaaclab.utils import env_mask_from_ids, replace
 
 pytestmark = [pytest.mark.integration, pytest.mark.kitless]
 
@@ -1498,7 +1498,7 @@ def test_set_material_properties(scene: _Scene) -> None:
         return np.flatnonzero(np.isin(shape_body, bodies) & is_collision_shape)
 
     env = SimpleNamespace(scene={"robot": articulation}, sim=scene.sim, device=device, num_envs=num_articulations)
-    env_ids = torch.tensor([num_articulations - 1], device=device)
+    env_mask = env_mask_from_ids([num_articulations - 1], num_articulations, device)
     other_env_shapes = robot_shapes(0)
     configured_mu = model.shape_material_mu.numpy().copy()
     configured_restitution = model.shape_material_restitution.numpy().copy()
@@ -1525,7 +1525,7 @@ def test_set_material_properties(scene: _Scene) -> None:
         material_term = randomize_rigid_body_material(
             EventTermCfg(func=randomize_rigid_body_material, mode="startup", params=params), env
         )
-        material_term(env, env_ids, **params)
+        material_term(env, env_mask, **params)
         scene.step("floating")
 
         mu = model.shape_material_mu.numpy()
@@ -1547,7 +1547,7 @@ def test_set_material_properties(scene: _Scene) -> None:
     offset_term = randomize_rigid_body_collider_offsets(
         EventTermCfg(func=randomize_rigid_body_collider_offsets, mode="startup", params=offset_params), env
     )
-    offset_term(env, env_ids, **offset_params)
+    offset_term(env, env_mask, **offset_params)
     scene.step("floating")
 
     # Newton maps the rest offset to the shape margin and the contact offset to margin + gap.
@@ -1927,7 +1927,7 @@ def test_gravity_vec_w_tracks_model_gravity(scene: _Scene) -> None:
         params = {"gravity_distribution_params": ((0.0, 0.0, 0.0), (0.0, 0.0, 0.0)), "operation": "abs"}
         event = randomize_physics_scene_gravity(EventTermCfg(func=randomize_physics_scene_gravity, params=params), env)
         for row, values in enumerate(new_gravity.tolist()):
-            event(env, torch.tensor([row], device=device), (values, values), operation="abs")
+            event(env, env_mask_from_ids([row], num_articulations, device), (values, values), operation="abs")
 
         # Live view: new per-env values are visible immediately, no invalidation step.
         torch.testing.assert_close(articulation.data.GRAVITY_VEC_W.torch, new_gravity)

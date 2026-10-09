@@ -176,8 +176,8 @@ class JointAction(ActionTerm):
         if self.cfg.clip is not None:
             self._processed_actions.clamp_(min=self._clip[:, :, 0], max=self._clip[:, :, 1])
 
-    def reset(self, env_ids: Sequence[int] | None = None) -> None:
-        index_fill_(self._raw_actions, env_ids, 0.0)
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: torch.Tensor | None = None) -> None:
+        index_fill_(self._raw_actions, env_ids if env_mask is None else env_mask, 0.0)
 
 
 class JointPositionAction(JointAction):
@@ -197,7 +197,7 @@ class JointPositionAction(JointAction):
 
     def apply_actions(self):
         # set position targets
-        self._asset.set_joint_position_target_index(target=self.processed_actions, joint_ids=self._joint_ids)
+        self._asset.actuators.target_command.set_position_index(value=self.processed_actions, joint_ids=self._joint_ids)
 
 
 class RelativeJointPositionAction(JointAction):
@@ -230,7 +230,7 @@ class RelativeJointPositionAction(JointAction):
         # add current joint positions to the processed actions
         current_actions = self.processed_actions + self._asset.data.joint_pos.torch[:, self._joint_ids]
         # set position targets
-        self._asset.set_joint_position_target_index(target=current_actions, joint_ids=self._joint_ids)
+        self._asset.actuators.target_command.set_position_index(value=current_actions, joint_ids=self._joint_ids)
 
 
 class JointVelocityAction(JointAction):
@@ -250,7 +250,7 @@ class JointVelocityAction(JointAction):
 
     def apply_actions(self):
         # set joint velocity targets
-        self._asset.set_joint_velocity_target_index(target=self.processed_actions, joint_ids=self._joint_ids)
+        self._asset.actuators.target_command.set_velocity_index(value=self.processed_actions, joint_ids=self._joint_ids)
 
 
 class JointEffortAction(JointAction):
@@ -266,4 +266,4 @@ class JointEffortAction(JointAction):
 
     def apply_actions(self):
         # set joint effort targets
-        self._asset.set_joint_effort_target_index(target=self.processed_actions, joint_ids=self._joint_ids)
+        self._asset.actuators.target_command.set_effort_index(value=self.processed_actions, joint_ids=self._joint_ids)

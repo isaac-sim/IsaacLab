@@ -159,7 +159,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         self,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         object_ids: slice | torch.Tensor | None = None,
-        env_mask: wp.array | None = None,
+        env_mask: wp.array | torch.Tensor | None = None,
         object_mask: wp.array | None = None,
     ) -> None:
         """Resets all internal buffers of selected environments and objects.
@@ -167,7 +167,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         Args:
             env_ids: Environment indices. If None, then all indices are used.
             object_ids: Object indices. If None, then all indices are used.
-            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+            env_mask: Environment mask. If None, then the selection follows ``env_ids``. Takes precedence over
+                ``env_ids``. Shape is (num_instances,).
             object_mask: Object mask. Not used currently.
         """
         # resolve all indices
@@ -175,9 +176,11 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             env_ids = self._ALL_ENV_INDICES
         if object_ids is None:
             object_ids = self._ALL_BODY_INDICES
+        if isinstance(env_mask, torch.Tensor):
+            env_mask = wp.from_torch(env_mask, dtype=wp.bool)
         # reset external wrench
-        self._instantaneous_wrench_composer.reset(env_ids)
-        self._permanent_wrench_composer.reset(env_ids)
+        self._instantaneous_wrench_composer.reset(env_ids, env_mask)
+        self._permanent_wrench_composer.reset(env_ids, env_mask)
 
     def write_data_to_sim(self) -> None:
         """Write external wrench to the simulation.

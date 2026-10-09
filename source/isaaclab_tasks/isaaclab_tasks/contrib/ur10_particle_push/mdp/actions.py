@@ -82,9 +82,18 @@ class ClampedRelativeJointPositionAction(RelativeJointPositionAction):
             raise ValueError(f"Reset-position shape {tuple(position.shape)} does not match {tuple(expected_shape)}.")
         self._joint_targets[selected] = position.to(device=self.device, dtype=self._joint_targets.dtype)
 
-    def reset(self, env_ids: Sequence[int] | torch.Tensor | slice | None = None) -> None:
-        """Clear selected action and validity history without changing reset targets."""
-        super().reset(env_ids)
-        index_fill_(self._processed_actions, env_ids, 0.0)
-        index_fill_(self._previous_actions, env_ids, 0.0)
-        index_fill_(self._invalid_actions, env_ids, False)
+    def reset(
+        self, env_ids: Sequence[int] | torch.Tensor | slice | None = None, env_mask: torch.Tensor | None = None
+    ) -> None:
+        """Clear selected action and validity history without changing reset targets.
+
+        Args:
+            env_ids: Environment indices. Defaults to None, which selects all environments.
+            env_mask: Boolean mask of the environments to reset. Shape is (num_envs,). Takes precedence over
+                ``env_ids``.
+        """
+        super().reset(env_ids=env_ids, env_mask=env_mask)
+        selection = env_ids if env_mask is None else env_mask
+        index_fill_(self._processed_actions, selection, 0.0)
+        index_fill_(self._previous_actions, selection, 0.0)
+        index_fill_(self._invalid_actions, selection, False)

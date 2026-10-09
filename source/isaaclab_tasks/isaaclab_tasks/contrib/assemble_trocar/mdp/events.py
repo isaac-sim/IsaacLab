@@ -14,7 +14,6 @@ from typing import TYPE_CHECKING
 import torch
 
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.utils import index_fill_
 from isaaclab.utils.math import quat_apply, quat_mul
 
 if TYPE_CHECKING:
@@ -31,7 +30,7 @@ __all__ = [
 
 def reset_task_stage(
     env: ManagerBasedRLEnv,
-    env_ids: torch.Tensor,
+    env_mask: torch.Tensor,
     print_log: bool = False,
 ) -> None:
     """Reset task stage to 0 for specified environments.
@@ -41,37 +40,36 @@ def reset_task_stage(
 
     Args:
         env: The environment instance
-        env_ids: Indices of environments to reset
-        print_log: If True, log debug information.
+        env_mask: Boolean mask of the environments to reset. Shape is (num_envs,).
+        print_log: If True, log debug information. Counting the reset environments waits on the device.
     """
     from .rewards import get_assemble_trocar_state
 
     s = get_assemble_trocar_state(env)
-    index_fill_(s.task_stage, env_ids, 0)
+    s.task_stage.masked_fill_(env_mask, 0)
 
     # Reset dense-reward locked caches
-    index_fill_(s.lift_reward_locked, env_ids, 0)
-    index_fill_(s.tip_reward_locked, env_ids, 0)
-    index_fill_(s.insertion_reward_locked, env_ids, 0)
-    index_fill_(s.placement_reward_locked, env_ids, 0)
+    s.lift_reward_locked.masked_fill_(env_mask, 0)
+    s.tip_reward_locked.masked_fill_(env_mask, 0)
+    s.insertion_reward_locked.masked_fill_(env_mask, 0)
+    s.placement_reward_locked.masked_fill_(env_mask, 0)
 
     # Reset sparse-reward previous-stage trackers
-    index_fill_(s.prev_stage_lift, env_ids, 0)
-    index_fill_(s.prev_stage_tip, env_ids, 0)
-    index_fill_(s.prev_stage_insert, env_ids, 0)
-    index_fill_(s.prev_stage_place, env_ids, 0)
+    s.prev_stage_lift.masked_fill_(env_mask, 0)
+    s.prev_stage_tip.masked_fill_(env_mask, 0)
+    s.prev_stage_insert.masked_fill_(env_mask, 0)
+    s.prev_stage_place.masked_fill_(env_mask, 0)
 
     # Reset debug throttle
     s.last_debug_print_step = -1
 
     if print_log:
-        num_envs = len(range(env.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
-        logger.debug("Reset task stage for %d environment(s)", num_envs)
+        logger.debug("Reset task stage for %d environment(s)", int(env_mask.sum()))
 
 
 def reset_tray_with_random_rotation(
     env: ManagerBasedRLEnv,
-    env_ids: torch.Tensor,
+    env_mask: torch.Tensor,
     tray_cfg: SceneEntityCfg,
     trocar_1_cfg: SceneEntityCfg,
     trocar_2_cfg: SceneEntityCfg,
@@ -88,7 +86,7 @@ def reset_tray_with_random_rotation(
 
     Args:
         env: The environment instance.
-        env_ids: The environment indices to reset.
+        env_mask: Boolean mask of the environments to reset. Shape is (num_envs,).
         tray_cfg: Scene entity config for the tray.
         trocar_1_cfg: Scene entity config for trocar_1.
         trocar_2_cfg: Scene entity config for trocar_2.
@@ -97,9 +95,7 @@ def reset_tray_with_random_rotation(
             - float value: Random rotation between -value and +value degrees
             Examples: (0, 10), (-5, 15), 5.0 (equivalent to (-5, 5))
     """
-    num_envs = len(range(env.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
-    if num_envs == 0:
-        return
+    num_envs = env.num_envs
 
     # Parse rotation_range parameter
     if isinstance(rotation_range, (tuple, list)):
@@ -115,11 +111,11 @@ def reset_tray_with_random_rotation(
     trocar_2 = env.scene[trocar_2_cfg.name]
 
     # Get default poses and velocities (local coordinates relative to env origin)
-    tray_default_pose = tray.data.default_root_pose.torch[env_ids].clone()
-    trocar_1_default_pose = trocar_1.data.default_root_pose.torch[env_ids].clone()
-    trocar_2_default_pose = trocar_2.data.default_root_pose.torch[env_ids].clone()
+    tray_default_pose = tray.data.default_root_pose.torch.clone()
+    trocar_1_default_pose = trocar_1.data.default_root_pose.torch.clone()
+    trocar_2_default_pose = trocar_2.data.default_root_pose.torch.clone()
 
-    env_origins = env.scene.env_origins[env_ids]  # (num_envs, 3)
+    env_origins = env.scene.env_origins  # (num_envs, 3)
 
     # Convert local coordinate to world coordinate
     tray_default_pose[:, :3] += env_origins
@@ -143,7 +139,7 @@ def reset_tray_with_random_rotation(
         # IsaacLab typically seeds torch during env reset with the provided seed.
         if deterministic_seed is None:
             deterministic_seed = int(torch.initial_seed())
-        u = _deterministic_uniform_0_1_from_ids(env, env_ids, deterministic_seed)  # (num_envs,)
+        u = _deterministic_uniform_0_1(env, deterministic_seed)  # (num_envs,)
     else:
         u = torch.rand(num_envs, device=env.device)
     random_yaw = u * (max_angle_rad - min_angle_rad) + min_angle_rad  # (num_envs,)
@@ -183,24 +179,20 @@ def reset_tray_with_random_rotation(
 
     zero_velocity = torch.zeros(num_envs, 6, device=env.device)  # [lin_vel(3), ang_vel(3)]
 
-    tray.write_root_pose_to_sim_index(root_pose=tray_new_pose, env_ids=env_ids)
-    trocar_1.write_root_pose_to_sim_index(root_pose=trocar_1_new_pose, env_ids=env_ids)
-    trocar_2.write_root_pose_to_sim_index(root_pose=trocar_2_new_pose, env_ids=env_ids)
+    tray.write_root_pose_to_sim_mask(root_pose=tray_new_pose, env_mask=env_mask)
+    trocar_1.write_root_pose_to_sim_mask(root_pose=trocar_1_new_pose, env_mask=env_mask)
+    trocar_2.write_root_pose_to_sim_mask(root_pose=trocar_2_new_pose, env_mask=env_mask)
 
-    tray.write_root_velocity_to_sim_index(root_velocity=zero_velocity, env_ids=env_ids)
-    trocar_1.write_root_velocity_to_sim_index(root_velocity=zero_velocity, env_ids=env_ids)
-    trocar_2.write_root_velocity_to_sim_index(root_velocity=zero_velocity, env_ids=env_ids)
+    tray.write_root_velocity_to_sim_mask(root_velocity=zero_velocity, env_mask=env_mask)
+    trocar_1.write_root_velocity_to_sim_mask(root_velocity=zero_velocity, env_mask=env_mask)
+    trocar_2.write_root_velocity_to_sim_mask(root_velocity=zero_velocity, env_mask=env_mask)
 
 
-def _deterministic_uniform_0_1_from_ids(
-    env: ManagerBasedRLEnv,
-    ids: torch.Tensor,
-    seed: int,
-) -> torch.Tensor:
-    """Deterministically map env ids -> floats in [0, 1) via a seeded lookup table.
+def _deterministic_uniform_0_1(env: ManagerBasedRLEnv, seed: int) -> torch.Tensor:
+    """Deterministically map each env id to a float in [0, 1) via a seeded lookup table.
 
     We generate a length-(env.num_envs) random table with a local torch.Generator
-    seeded by `seed`, then return table[ids]. This is deterministic and avoids
+    seeded by `seed`, then return it, so entry ``i`` belongs to env ``i``. This is deterministic and avoids
     uint64 bitwise ops (which may not be supported on CPU).
     """
     device = env.device
@@ -216,12 +208,12 @@ def _deterministic_uniform_0_1_from_ids(
         cache = {"key": cache_key, "u_table": u_table}
         setattr(env, "_deterministic_u_table_cache", cache)
 
-    return cache["u_table"][ids]
+    return cache["u_table"]
 
 
 def reset_robot_to_default_joint_positions(
     env: ManagerBasedRLEnv,
-    env_ids: torch.Tensor,
+    env_mask: torch.Tensor,
     robot_cfg: SceneEntityCfg,
 ):
     """Reset robot joint positions directly to default values.
@@ -232,26 +224,22 @@ def reset_robot_to_default_joint_positions(
 
     Args:
         env: The environment instance.
-        env_ids: The environment indices to reset.
+        env_mask: Boolean mask of the environments to reset. Shape is (num_envs,).
         robot_cfg: Scene entity config for the robot.
     """
-    num_envs = len(range(env.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
-    if num_envs == 0:
-        return
-
     # Get robot asset
     robot = env.scene[robot_cfg.name]
 
     # Get default joint positions and velocities
-    default_joint_pos = robot.data.default_joint_pos.torch[env_ids].clone()
-    default_joint_vel = robot.data.default_joint_vel.torch[env_ids].clone()
+    default_joint_pos = robot.data.default_joint_pos.torch.clone()
+    default_joint_vel = robot.data.default_joint_vel.torch.clone()
 
     # Directly write joint state to simulation (bypasses PD controller)
-    robot.write_joint_position_to_sim_index(position=default_joint_pos, env_ids=env_ids)
-    robot.write_joint_velocity_to_sim_index(velocity=default_joint_vel, env_ids=env_ids)
+    robot.write_joint_position_to_sim_mask(position=default_joint_pos, env_mask=env_mask)
+    robot.write_joint_velocity_to_sim_mask(velocity=default_joint_vel, env_mask=env_mask)
 
     # Also reset root pose and velocity
-    default_root_pose = robot.data.default_root_pose.torch[env_ids].clone()
-    default_root_vel = robot.data.default_root_vel.torch[env_ids].clone()
-    robot.write_root_pose_to_sim_index(root_pose=default_root_pose, env_ids=env_ids)
-    robot.write_root_velocity_to_sim_index(root_velocity=default_root_vel, env_ids=env_ids)
+    default_root_pose = robot.data.default_root_pose.torch.clone()
+    default_root_vel = robot.data.default_root_vel.torch.clone()
+    robot.write_root_pose_to_sim_mask(root_pose=default_root_pose, env_mask=env_mask)
+    robot.write_root_velocity_to_sim_mask(root_velocity=default_root_vel, env_mask=env_mask)
