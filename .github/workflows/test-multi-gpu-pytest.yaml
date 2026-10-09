@@ -40,8 +40,9 @@ jobs:
     name: Detect Changes
     runs-on: ubuntu-latest
     outputs:
-      unit: ${{ steps.unit.outputs.should_run }}
-      smoke: ${{ steps.smoke.outputs.should_run }}
+      # TEMP (Windows diag PR, revert before review): force-skip; only windows-ci carries signal.
+      unit: 'false'
+      smoke: 'false'
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
         with:
