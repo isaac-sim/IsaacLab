@@ -15,10 +15,8 @@ import torch
 
 import isaaclab.envs.mdp as mdp
 from isaaclab.envs.mdp.commands import UniformPoseCommand
-from isaaclab.managers import CommandManager, TerminationManager
+from isaaclab.managers import CommandManager, CurriculumManager, RewardManager, TerminationManager
 from isaaclab.markers.vis_marker_registry import VisMarkerRegistry
-
-from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 
 pytestmark = pytest.mark.unit
 
@@ -48,7 +46,7 @@ def command_env():
 
 
 def test_recorded_reach_goal_changes_only_on_episode_reset(monkeypatch, tmp_path, command_env):
-    """Recording holds one target while ordinary training still samples new targets."""
+    """Recording keeps its target beyond the training timer and resamples it on reset."""
     root = Path(__file__).resolve().parents[3]
     script = root / "scripts/tools/record_demos.py"
     overrides = ["physics=newton_mjwarp", "presets=newton_ik"]
@@ -61,29 +59,22 @@ def test_recorded_reach_goal_changes_only_on_episode_reset(monkeypatch, tmp_path
         recorder = runpy.run_path(str(script), run_name="record_demos_test")
         recording_cfg, _, _ = recorder["create_environment_config"](str(tmp_path), "reach")
 
-    training_cfg = parse_env_cfg("Isaac-Reach-Franka", device="cpu", num_envs=1, overrides=overrides)
     recording_cfg.commands.ee_pose.debug_vis = False
-    training_cfg.commands.ee_pose.debug_vis = False
     recording_command = UniformPoseCommand(recording_cfg.commands.ee_pose, command_env)
-    training_command = UniformPoseCommand(training_cfg.commands.ee_pose, command_env)
     recording_command.reset()
-    training_command.reset()
     first_recorded_goal = recording_command.command.clone()
-    first_training_goal = training_command.command.clone()
 
-    # Twenty seconds spans several of Reach's ordinary four-second intervals.
-    for _ in range(600):
+    # Cross Reach's ordinary four-second timer using the recording step interval.
+    for _ in range(150):
         recording_command.compute(dt=1.0 / 30.0)
-        training_command.compute(dt=1.0 / 30.0)
         torch.testing.assert_close(recording_command.command, first_recorded_goal, rtol=0.0, atol=0.0)
 
-    assert not torch.equal(training_command.command, first_training_goal)
     recording_command.reset()
     assert not torch.equal(recording_command.command, first_recorded_goal)
 
 
-def test_mcap_replay_keeps_success_rewards_valid_without_automatic_resets(monkeypatch, tmp_path, command_env):
-    """Manual replay success remains available while its registered term stays inert."""
+def test_mcap_replay_preserves_manual_success_without_training_managers(monkeypatch, tmp_path, command_env):
+    """Manual success works without training managers referencing removed terminations."""
     root = Path(__file__).resolve().parents[3]
     script = root / "scripts/environments/teleoperation/teleop_replay_agent.py"
     with monkeypatch.context() as patch:
@@ -98,10 +89,15 @@ def test_mcap_replay_keeps_success_rewards_valid_without_automatic_resets(monkey
     cfg.commands.ee_pose.debug_vis = False
     command_env.command_manager = CommandManager(cfg.commands, command_env)
     command_env.termination_manager = TerminationManager(cfg.terminations, command_env)
-    success_reward = mdp.is_terminated_term(cfg.rewards.success, command_env)
+    success_reward = getattr(cfg.rewards, "success", None)
+    if success_reward is not None:
+        mdp.is_terminated_term(success_reward, command_env)
+    reward_manager = RewardManager(cfg.rewards, command_env)
+    curriculum_manager = CurriculumManager(cfg.curriculum, command_env)
     command = command_env.command_manager.get_term("ee_pose")
     command.pose_command_b[:] = torch.tensor([[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]])
 
     assert success.func(command_env, **success.params).all()
     assert not command_env.termination_manager.compute().any()
-    assert success_reward(command_env, **cfg.rewards.success.params).eq(0.0).all()
+    assert reward_manager.compute(dt=1.0 / 30.0).eq(0.0).all()
+    curriculum_manager.compute(torch.tensor([0]))

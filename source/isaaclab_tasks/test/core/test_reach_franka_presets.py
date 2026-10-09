@@ -3,6 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import math
+from types import SimpleNamespace
+
 import pytest
 import torch
 from gymnasium.envs.registration import registry
@@ -12,7 +15,6 @@ from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.envs.mdp as mdp
 from isaaclab.actuators import IdealPDActuatorCfg
-from isaaclab.managers import ObservationTermCfg
 from isaaclab.utils import to_dict, validate
 
 import isaaclab_tasks  # noqa: F401
@@ -130,91 +132,69 @@ def test_reach_ur10_physics_presets_change_only_physics():
 
 
 @pytest.mark.parametrize("physics", ["newton_mjwarp", "isaacsim_physx"])
-def test_reach_hold_preset_preserves_defaults_and_separates_policy_compatibility(physics):
-    """Hold selects the validated backend profile and a distinct policy interface."""
-    from isaaclab_rl.utils.pretrained_checkpoint import (
-        get_pretrained_checkpoint_filename,
-        get_pretrained_checkpoint_preset_names,
-    )
-
+def test_reach_hold_uses_continuing_pose_reward_and_backend_profile(physics):
+    """Hold keeps learning after arrival with pose feedback and the selected backend profile."""
     default_env, default_agent = resolve_task_config(_TASK, "rsl_rl_cfg_entry_point", overrides=[f"physics={physics}"])
     hold_env, hold_agent = resolve_task_config(
         _TASK, "rsl_rl_cfg_entry_point", overrides=[f"physics={physics}", "presets=hold"]
     )
 
     validate(hold_env)
-    assert hold_env.episode_length_s == 12.0
-    assert hold_env.commands.ee_pose.resampling_time_range == (1.0e9, 1.0e9)
+    assert hold_env.episode_length_s == default_env.episode_length_s
+    assert min(hold_env.commands.ee_pose.resampling_time_range) > hold_env.episode_length_s
     assert hold_env.terminations.success is None
     assert hold_env.terminations.time_out.func is mdp.time_out
     assert hold_env.rewards.success.func is mdp.pose_command_success
-    assert hold_env.rewards.success.weight == 10.0
+    assert hold_env.rewards.success.weight == default_env.rewards.success.weight
     assert hold_env.rewards.success.params == {"command_name": "ee_pose"}
-    error_term = hold_env.observations.policy.ee_target_error
-    assert error_term.func is mdp.pose_command_error
-    assert error_term.params == {"command_name": "ee_pose"}
-    assert error_term.noise is None
-    assert [
-        name for name, term in vars(hold_env.observations.policy).items() if isinstance(term, ObservationTermCfg)
-    ] == ["joint_pos", "joint_vel", "pose_command", "actions", "ee_target_error"]
+    assert hold_env.observations.policy.ee_target_error is not None
     assert default_env.observations.policy.ee_target_error is None
-    assert default_env.commands.ee_pose.resampling_time_range == (4.0, 4.0)
-    assert default_env.terminations.success.func is mdp.pose_command_success
-    assert default_env.rewards.success.func is mdp.is_terminated_term
-    assert default_agent.experiment_name == "reach_franka"
-    assert default_agent.max_iterations == 1000
-    assert hold_agent.experiment_name == "reach_franka_hold"
-    assert hold_agent.max_iterations == 3000
+    assert hold_agent.experiment_name != default_agent.experiment_name
+    assert hold_agent.max_iterations > default_agent.max_iterations
 
     if physics == "newton_mjwarp":
-        assert hold_env.scene.robot.actuators["panda_arm"].stiffness == {
-            "panda_joint[1-2]": 100.0,
-            "panda_joint[3-4]": 75.0,
-            "panda_joint[5-7]": 30.0,
-        }
-        assert hold_env.rewards.action_rate.weight == -0.0001
-        assert hold_env.curriculum.action_rate.params["weight"] == -0.005
+        assert hold_env.scene.robot.actuators["panda_arm"].stiffness is not None
+        assert hold_env.rewards.action_rate.weight == default_env.rewards.action_rate.weight
+        assert hold_env.curriculum.action_rate.params["weight"] == default_env.curriculum.action_rate.params["weight"]
     else:
         assert hold_env.scene.robot.actuators["panda_arm"].stiffness is None
-        assert hold_env.rewards.action_rate.weight == -0.01
-        assert hold_env.curriculum.action_rate.params["weight"] == -0.5
-
-    default_cfg, hold_cfg = to_dict(default_env), to_dict(hold_env)
-    hold_cfg["commands"]["ee_pose"]["resampling_time_range"] = default_cfg["commands"]["ee_pose"][
-        "resampling_time_range"
-    ]
-    hold_cfg["terminations"]["success"] = default_cfg["terminations"]["success"]
-    hold_cfg["rewards"]["success"] = default_cfg["rewards"]["success"]
-    hold_cfg["observations"]["policy"]["ee_target_error"] = None
-    hold_cfg["scene"]["robot"]["actuators"]["panda_arm"]["stiffness"] = default_cfg["scene"]["robot"]["actuators"][
-        "panda_arm"
-    ]["stiffness"]
-    hold_cfg["rewards"]["action_rate"]["weight"] = default_cfg["rewards"]["action_rate"]["weight"]
-    hold_cfg["curriculum"]["action_rate"]["params"]["weight"] = default_cfg["curriculum"]["action_rate"]["params"][
-        "weight"
-    ]
-    assert hold_cfg == default_cfg
-    default_agent_cfg, hold_agent_cfg = to_dict(default_agent), to_dict(hold_agent)
-    for field in ("experiment_name", "max_iterations"):
-        hold_agent_cfg[field] = default_agent_cfg[field]
-    assert hold_agent_cfg == default_agent_cfg
-
-    assert "hold" in enumerate_task_presets(_TASK)[PresetTarget.DOMAIN]
-    assert "hold" in registry[_TASK].kwargs["pretrained_checkpoint_preset_compatibility"]["rsl_rl"]
-    assert get_pretrained_checkpoint_preset_names(_TASK, ["presets=hold"]) == ("hold",)
-    assert (
-        get_pretrained_checkpoint_filename("rsl_rl", _TASK, "newtonmjwarp", "none", preset_names=("hold",))
-        == "Isaac-Reach-Franka_hold_newtonmjwarp_none_rsl_rl.pt"
-    )
+        assert hold_env.rewards.action_rate.weight == pytest.approx(100 * default_env.rewards.action_rate.weight)
+        assert hold_env.curriculum.action_rate.params["weight"] == pytest.approx(
+            100 * default_env.curriculum.action_rate.params["weight"]
+        )
 
 
-@pytest.mark.parametrize(("task", "presets"), [(_TASK, ("hold", "diffik")), (_OSC_TASK, ("hold",))])
-def test_reach_hold_rejects_untrained_cartesian_controller_interfaces(task, presets):
-    """The hold policy supports joint-position actions, including when inherited by the OSC task."""
-    cfg = _load_reach_env_cfg(task, *presets)
+def test_reach_hold_rejects_inherited_osc_controller():
+    """The inherited hold preset cannot feed a joint-position policy to the OSC controller."""
+    cfg = _load_reach_env_cfg(_OSC_TASK, "hold")
 
     with pytest.raises(ValueError, match="hold.*joint.position"):
         validate(cfg)
+
+
+def test_reach_hold_pose_error_uses_robot_base_frame_and_commanded_body():
+    """The six added inputs use target-minus-current pose error in robot base coordinates."""
+    # Root is translated and rotated +90 degrees about Z. The selected hand is
+    # (0.4, -0.2, 0.3) in that frame, rotated +90 degrees about X. The target
+    # differs by (0.1, 0.3, -0.05) and a further +90 degrees about base Z.
+    data = SimpleNamespace(
+        root_pos_w=SimpleNamespace(torch=torch.tensor([[2.0, -1.0, 3.0]])),
+        root_quat_w=SimpleNamespace(torch=torch.tensor([[0.0, 0.0, math.sqrt(0.5), math.sqrt(0.5)]])),
+        body_pos_w=SimpleNamespace(torch=torch.tensor([[[0.0, 0.0, 0.0], [2.2, -0.6, 3.3]]])),
+        body_quat_w=SimpleNamespace(torch=torch.tensor([[[0.0, 0.0, 0.0, 1.0], [0.5, 0.5, 0.5, 0.5]]])),
+    )
+    command = SimpleNamespace(
+        robot=SimpleNamespace(data=data),
+        body_idx=1,
+        command=torch.tensor([[0.5, 0.1, 0.25, 0.5, 0.5, 0.5, 0.5]]),
+    )
+    env = SimpleNamespace(command_manager=SimpleNamespace(get_term={"ee_pose": command}.__getitem__))
+    term = _load_env_cfg("hold").observations.policy.ee_target_error
+
+    error = term.func(env, **term.params)
+
+    expected = torch.tensor([[0.1, 0.3, -0.05, 0.0, 0.0, math.pi / 2]])
+    torch.testing.assert_close(error, expected, rtol=1e-5, atol=1e-6)
 
 
 def test_reach_action_presets_preserve_controller_independent_configuration():

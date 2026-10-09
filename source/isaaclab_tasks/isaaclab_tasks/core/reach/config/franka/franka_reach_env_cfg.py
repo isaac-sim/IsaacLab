@@ -7,6 +7,7 @@
 
 import math
 
+import torch
 from isaaclab_newton.controllers.ik.newton_ik_objectives_cfg import (
     NewtonIKJointLimitObjectiveCfg,
     NewtonIKPoseObjectiveCfg,
@@ -23,9 +24,11 @@ from isaaclab.devices import DevicesCfg
 from isaaclab.devices.gamepad import Se3GamepadCfg
 from isaaclab.devices.keyboard import Se3KeyboardCfg
 from isaaclab.devices.spacemouse import Se3SpaceMouseCfg
+from isaaclab.envs import ManagerBasedRLEnv
 from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
 from isaaclab.managers import ObservationTermCfg, RewardTermCfg, SceneEntityCfg
 from isaaclab.utils import configclass, replace
+from isaaclab.utils import math as math_utils
 
 from isaaclab_tasks.utils import PresetCfg, preset
 
@@ -86,6 +89,26 @@ class FrankaArmActionCfg(PresetCfg):
         ],
     )
     default: mdp.JointPositionActionCfg = joint_pos
+
+
+def _pose_command_error(env: ManagerBasedRLEnv, command_name: str) -> torch.Tensor:
+    """Return target-minus-current position and rotation errors in the robot root frame."""
+    command = env.command_manager.get_term(command_name)
+    data = command.robot.data
+    position_b, orientation_b = math_utils.subtract_frame_transforms(
+        data.root_pos_w.torch,
+        data.root_quat_w.torch,
+        data.body_pos_w.torch[:, command.body_idx],
+        data.body_quat_w.torch[:, command.body_idx],
+    )
+    position_error, rotation_error = math_utils.compute_pose_error(
+        position_b,
+        orientation_b,
+        command.command[:, :3],
+        command.command[:, 3:],
+        rot_error_type="axis_angle",
+    )
+    return torch.cat((position_error, rotation_error), dim=-1)
 
 
 @configclass
@@ -175,7 +198,7 @@ class FrankaReachEnvCfg(ReachEnvCfg):
         # Train continued pose tracking with a fixed episode goal and explicit pose feedback.
         self.observations.policy.ee_target_error = preset(
             default=None,
-            hold=ObservationTermCfg(func=mdp.pose_command_error, params={"command_name": "ee_pose"}),
+            hold=ObservationTermCfg(func=_pose_command_error, params={"command_name": "ee_pose"}),
         )
         self.commands.ee_pose.resampling_time_range = preset(
             default=self.commands.ee_pose.resampling_time_range, hold=(1.0e9, 1.0e9)

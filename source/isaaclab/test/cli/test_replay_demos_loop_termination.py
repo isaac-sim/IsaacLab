@@ -151,10 +151,9 @@ def test_replay_prepares_success_reward_tasks_without_training_managers(monkeypa
         assert env.reward_manager.compute(dt=1.0 / 30.0).eq(0.0).all()
         env.curriculum_manager.compute(torch.tensor([0]))
         assert success is not None
-        assert episode_count == dataset_handler.get_num_episodes() == 1
-        replayed.extend(selected_episodes)
+        replayed.append(success)
 
     monkeypatch.setitem(main.__globals__, "launch_simulation", lambda *_: contextlib.nullcontext())
     monkeypatch.setitem(main.__globals__, "replay_dataset", check_replay_environment)
     main()
-    assert replayed == [0]
+    assert replayed

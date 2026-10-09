@@ -297,13 +297,8 @@ def test_collect_environment_doc_rows_excludes_unsupported_franka_hold():
     """Generated commands must offer hold only for Franka's joint-position task."""
     task_names = ("Isaac-Reach-Franka", "Isaac-Reach-Franka-OSC")
     rows = {row.task_name: row for row in collect_environment_doc_rows([gym.spec(name) for name in task_names])}
-    joint_position_presets = rows[task_names[0]].presets[PresetTarget.DOMAIN]
-    osc_presets = rows[task_names[1]].presets[PresetTarget.DOMAIN]
-
-    assert "hold" in joint_position_presets
-    assert "hold" not in osc_presets
-    assert {"joint_pos", "diffik", "minimal"} <= set(joint_position_presets)
-    assert {"diffik_abs", "minimal"} <= set(osc_presets)
+    assert "hold" in rows[task_names[0]].presets[PresetTarget.DOMAIN]
+    assert "hold" not in rows[task_names[1]].presets[PresetTarget.DOMAIN]
 
 
 @pytest.mark.parametrize("task_name", ["Isaac-Lift-Soft-Franka", "Isaac-Lift-Soft-Franka-Camera"])

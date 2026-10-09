@@ -911,38 +911,6 @@ def generated_commands(env: ManagerBasedRLEnv, command_name: str | None = None) 
     return env.command_manager.get_command(command_name)
 
 
-def pose_command_error(env: ManagerBasedRLEnv, command_name: str) -> torch.Tensor:
-    """Return a uniform pose command's position and rotation errors in the robot root frame.
-
-    The six entries are target-minus-current XYZ in metres followed by the shortest
-    axis-angle rotation from the current orientation to the target, in radians.
-    Command and articulation quaternions use XYZW order.
-
-    Args:
-        env: The environment instance.
-        command_name: Name of the uniform pose command term.
-
-    Returns:
-        Pose errors with shape ``(num_envs, 6)``.
-    """
-    command = env.command_manager.get_term(command_name)
-    data = command.robot.data
-    position_b, orientation_b = math_utils.subtract_frame_transforms(
-        data.root_pos_w.torch,
-        data.root_quat_w.torch,
-        data.body_pos_w.torch[:, command.body_idx],
-        data.body_quat_w.torch[:, command.body_idx],
-    )
-    position_error, rotation_error = math_utils.compute_pose_error(
-        position_b,
-        orientation_b,
-        command.command[:, :3],
-        command.command[:, 3:],
-        rot_error_type="axis_angle",
-    )
-    return torch.cat((position_error, rotation_error), dim=-1)
-
-
 """
 Time.
 """
