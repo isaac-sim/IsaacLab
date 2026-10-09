@@ -207,6 +207,7 @@ run_tests() {
 
   # Set by the multi-GPU smoke steps: fail rather than skip on a runner with too few GPUs.
   [ -z "${ISAACLAB_TEST_REQUIRE_MULTI_GPU:-}" ] || docker_env_args+=(-e ISAACLAB_TEST_REQUIRE_MULTI_GPU)
+  [ -z "${TEST_RUNTIME:-}" ] || docker_env_args+=(-e TEST_RUNTIME)
 
   if [ -n "$standalone_script_scope" ]; then
     docker_env_args+=(

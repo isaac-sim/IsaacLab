@@ -117,6 +117,12 @@ inputs:
     description: 'CI_MARKER value forwarded to the container (read by tools/conftest.py to select test files by pytest marker)'
     default: ''
     required: false
+  runtime:
+    description: >-
+      'kit' or 'kitless': run only the test files for that image (a file is kitless when its module-level
+      pytestmark carries pytest.mark.kitless). Empty runs every file.
+    default: ''
+    required: false
   standalone-script-scope:
     description: 'Enable standalone script smoke tests for this scripts/ subdirectory'
     default: ''
@@ -164,6 +170,7 @@ runs:
         TEST_K_EXPR_INPUT: ${{ inputs.test-k-expr }}
         TEST_JOBS_INPUT: ${{ inputs.test-jobs }}
         CI_MARKER_INPUT: ${{ inputs.ci-marker }}
+        TEST_RUNTIME: ${{ inputs.runtime }}
         VOLUME_MOUNT_SOURCE: ${{ inputs.volume-mount-source }}
         WARP_CACHE_HOST_DIR: ${{ inputs.warp-cache-host-dir }}
         WHEELHOUSE_HOST_DIR: ${{ inputs.wheelhouse-host-dir }}

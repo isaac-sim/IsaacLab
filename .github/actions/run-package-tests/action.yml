@@ -47,6 +47,12 @@ inputs:
       spawned by tools/conftest.py.
     default: ''
     required: false
+  runtime:
+    description: >-
+      'kit' runs the test files that need Isaac Sim in the image-tag image; 'kitless' runs the files whose
+      module-level pytestmark carries pytest.mark.kitless in the Kit-less image (image-tag + '-kitless').
+    default: 'kit'
+    required: false
   test-jobs:
     description: >-
       Number of test-file slots tools/conftest.py runs at once. Each file still runs in
@@ -189,14 +195,38 @@ runs:
       shell: bash
       run: echo "time=$(date +%s)" >> "$GITHUB_OUTPUT"
 
+    # The one place a runtime maps to its image. The Kit-less image is build.yaml's build-kitless output:
+    # Dockerfile.kitless built FROM ubuntu:24.04, which ecr-build-push-pull takes through its isaacsim-* inputs.
+    - name: Resolve image
+      id: image
+      shell: bash
+      env:
+        RUNTIME: ${{ inputs.runtime }}
+        IMAGE_TAG: ${{ inputs.image-tag }}
+        BASE_IMAGE: ${{ inputs.isaacsim-base-image }}
+        BASE_TAG: ${{ inputs.isaacsim-version }}
+        DOCKERFILE: ${{ inputs.dockerfile-path }}
+        CACHE_TAG: ${{ inputs.cache-tag }}
+      run: |
+        set -euo pipefail
+        case "$RUNTIME" in
+          kit) ;;
+          kitless) IMAGE_TAG="${IMAGE_TAG}-kitless" BASE_IMAGE=ubuntu BASE_TAG=24.04 DOCKERFILE=docker/Dockerfile.kitless CACHE_TAG=cache-kitless ;;
+          *) echo "::error::runtime must be 'kit' or 'kitless', got '$RUNTIME'"; exit 1 ;;
+        esac
+        {
+          echo "tag=$IMAGE_TAG"; echo "base-image=$BASE_IMAGE"; echo "base-tag=$BASE_TAG"
+          echo "dockerfile=$DOCKERFILE"; echo "cache-tag=$CACHE_TAG"
+        } >> "$GITHUB_OUTPUT"
+
     - name: Pull image from ECR
       uses: ./.github/actions/ecr-build-push-pull
       with:
-        image-tag: ${{ inputs.image-tag }}
-        isaacsim-base-image: ${{ inputs.isaacsim-base-image }}
-        isaacsim-version: ${{ inputs.isaacsim-version }}
-        dockerfile-path: ${{ inputs.dockerfile-path }}
-        cache-tag: ${{ inputs.cache-tag }}
+        image-tag: ${{ steps.image.outputs.tag }}
+        isaacsim-base-image: ${{ steps.image.outputs.base-image }}
+        isaacsim-version: ${{ steps.image.outputs.base-tag }}
+        dockerfile-path: ${{ steps.image.outputs.dockerfile }}
+        cache-tag: ${{ steps.image.outputs.cache-tag }}
 
     - name: Report pull duration
       if: always()
@@ -335,11 +365,12 @@ runs:
         test-path: "tools"
         result-file: "${{ inputs.result-file != '' && inputs.result-file || format('{0}-report.xml', github.job) }}"
         container-name: "${{ inputs.container-name }}-${{ github.run_id }}-${{ github.run_attempt }}"
-        image-tag: ${{ inputs.image-tag }}
+        image-tag: ${{ steps.image.outputs.tag }}
         pytest-options: ${{ inputs.pytest-options }}
         filter-pattern: ${{ inputs.filter-pattern }}
         exclude-pattern: ${{ inputs.exclude-pattern }}
         test-k-expr: ${{ inputs.test-k-expr }}
+        runtime: ${{ inputs.runtime }}
         test-jobs: ${{ inputs.test-jobs }}
         shard-index: ${{ inputs.shard-index }}
         shard-count: ${{ inputs.shard-count }}
