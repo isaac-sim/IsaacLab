@@ -55,7 +55,8 @@ Keep this skill synchronized with the following install docs. If commands or ver
 - `docs/source/setup/installation/index.rst` — `installation-method-uv` steps (Newton-only default without Isaac Sim).
 - `docs/source/setup/installation/index.rst` — `installation-method-python-env` steps (managed uv sync with the isaacsim extra).
 - `docs/source/setup/installation/index.rst` — `installation-method-wheel` steps (Isaac Lab Python package for external projects).
-- `docs/source/setup/installation/index.rst` — `installation-method-source` steps (Isaac Sim source build) and the `installation-asset-region-profiles` workflow.
+- `docs/source/setup/installation/index.rst` — `installation-method-source` steps (Isaac Sim source build).
+- `docs/source/how-to/manage_asset_downloads.rst` — the `installation-asset-region-profiles` workflow.
 - `docs/source/setup/installation/asset_caching_details.inc` — asset caching notes.
 - `docs/source/workflows/docker/index.rst` — Docker and cloud-workstation deep dive; complements `installation-method-container` and `installation-method-cloud` in `index.rst`.
 - `docs/source/refs/troubleshooting.rst` — hand-off target for post-install diagnostics.
@@ -72,6 +73,8 @@ This skill is a router and executor, not a copy of the install pages. Adding ins
 - Python environment with Isaac Sim (uv sync): section `installation-method-python-env` in `index.rst`
 - Isaac Lab Python package (external projects): section `installation-method-wheel` in `index.rst`
 - Isaac Sim source build: section `installation-method-source` in `index.rst`
+- Asset Region Profiles: section `installation-asset-region-profiles` in
+  `docs/source/how-to/manage_asset_downloads.rst`
 - Docker and HPC clusters: section `installation-method-container` in `index.rst`, deep-dive in `docs/source/workflows/docker/index.rst`
 - Cloud workstations: section `installation-method-cloud` in `index.rst`
 - Troubleshooting: `docs/source/refs/troubleshooting.rst`

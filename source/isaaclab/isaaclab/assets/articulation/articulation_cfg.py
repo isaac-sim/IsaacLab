@@ -58,6 +58,14 @@ class ArticulationCfg(AssetBaseCfg):
     init_state: InitialStateCfg = InitialStateCfg()
     """Initial state of the articulated object. Defaults to identity pose with zero velocity and zero joint state."""
 
+    enable_joint_wrench: bool = False
+    """Request incoming joint reaction wrenches before simulation startup.
+
+    Newton uses this to allocate extended state and enable the solver's wrench computation.
+    It is unnecessary for PhysX and OVPhysX, which provide these values on demand.
+    Read them through :attr:`ArticulationData.body_joint_wrench`.
+    """
+
     soft_joint_pos_limit_factor: float = 1.0
     """Fraction specifying the range of joint position limits (parsed from the asset) to use. Defaults to 1.0.
 
