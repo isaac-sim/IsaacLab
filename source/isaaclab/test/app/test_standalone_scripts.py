@@ -22,8 +22,11 @@ launches; ``ISAACLAB_STANDALONE_SCREENSHOT_DELAY`` controls when.
 import ast
 import os
 import re
+import runpy
 import sys
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import Mock
 
 import pytest
 import standalone_script_cases as script_cases
@@ -131,6 +134,134 @@ def test_demo_browser_documents_options_for_each_demo():
         assert set(entry["visualizers"].split(",")) == set(spec.visualizers) - {None}, (
             f"{demo_name} documents incorrect visualizer options"
         )
+
+
+@pytest.fixture(scope="module")
+def nist_demo():
+    return runpy.run_path(str(script_cases.ROOT / "examples/demos/nist.py"))
+
+
+def test_nist_demo_does_not_depend_on_training_packages():
+    """The exported-policy demo must remain usable without task registration or an RL runner."""
+    path = script_cases.ROOT / "examples/demos/nist.py"
+    imports = []
+    for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+        if isinstance(node, ast.Import):
+            imports.extend(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom):
+            imports.append(node.module or "")
+    assert not any(name.startswith(("isaaclab_tasks", "isaaclab_rl", "rsl_rl")) for name in imports)
+
+
+@pytest.mark.parametrize(("visualizer", "policy"), [("none", None), ("newton_gl", "actor.pt")])
+def test_nist_launch_selects_visualizer_and_consistent_assets(nist_demo, monkeypatch, visualizer, policy):
+    """The real launcher selects rendering and passes one asset subset to observations and resets."""
+    demo = nist_demo
+
+    class ConfigInspected(Exception):
+        pass
+
+    def inspect_config(cfg):
+        assert [item.visualizer_type for item in cfg.sim.visualizer_cfgs] == (
+            [] if visualizer == "none" else [visualizer]
+        )
+        assert cfg.sim.device == "cpu" and cfg.scene.num_envs == 2
+        assemblies = cfg.events["reset_parts"].params["assemblies"]
+        assert len({part.identity for part in assemblies}) == 10
+        assert set(assemblies) <= set(demo["ASSEMBLIES"])
+        assert cfg.observations["slots"].geometry.params["assemblies"] == assemblies
+        raise ConfigInspected
+
+    retrieve = Mock(return_value="downloaded_actor.pt")
+    load = Mock()
+    monkeypatch.setitem(demo["main"].__globals__, "retrieve_file_path", retrieve)
+    monkeypatch.setattr(demo["torch"].jit, "load", load)
+    monkeypatch.setitem(demo["main"].__globals__, "ManagerBasedEnv", inspect_config)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["nist.py", "--device", "cpu", "--visualizer", visualizer, "--num_envs", "2"]
+        + (["--policy", policy] if policy else []),
+    )
+    with pytest.raises(ConfigInspected):
+        demo["main"]()
+    expected_policy = policy or f"{demo['ISAACLAB_NUCLEUS_DIR']}/PretrainedCheckpoints/rsl_rl/demo-alphaNIST.pt"
+    retrieve.assert_called_once_with(expected_policy)
+    load.assert_called_once_with("downloaded_actor.pt", map_location="cpu")
+
+
+def test_nist_resets_only_finished_boards_before_history_update(nist_demo):
+    """Success, invalid state, nonfinite robot state, and timeout preserve continuing episodes."""
+    demo = nist_demo
+    torch = demo["torch"]
+    assembled = torch.zeros((6, 10), dtype=torch.bool)
+    assembled[[0, 2]] = True
+    geometry = Mock(assembled=assembled, invalid=torch.tensor([False, True, False, False, False, False]))
+    robot = Mock()
+    robot.data.joint_pos.torch = torch.zeros((6, 9))
+    robot.data.joint_vel.torch = torch.zeros((6, 9))
+    robot.data.joint_vel.torch[2, 0] = float("nan")
+
+    class Scene(dict):
+        write_data_to_sim = Mock()
+
+    observations = Mock(cfg={"slots": SimpleNamespace(geometry=SimpleNamespace(func=geometry, params={}))})
+    env = Mock(num_envs=6, device="cpu", step_dt=0.1, scene=Scene(robot=robot), observation_manager=observations)
+    term = demo["EpisodeReset"](demo["EventTermCfg"](), env)
+    env._reset_idx = Mock(side_effect=term.reset)
+    term.age[:] = torch.tensor([1, 3, 7, 9, 4, 2])
+    term(env, None, horizon=1.0)
+
+    assert term.completed == 4 and term.successes == 1
+    assert env._reset_idx.call_args.args[0].tolist() == [0, 1, 2, 3]
+    assert term.age.tolist() == [0, 0, 0, 0, 5, 3]
+    env.scene.write_data_to_sim.assert_called_once_with()
+    env.sim.forward.assert_called_once_with()
+    env.reset.assert_not_called()
+    observations.compute.assert_not_called()
+
+    geometry.assembled.zero_()
+    geometry.invalid.zero_()
+    robot.data.joint_vel.torch.zero_()
+    term(env, None, horizon=1.0)
+    assert term.age.tolist() == [1, 1, 1, 1, 6, 4]
+    assert term.completed == 4 and term.successes == 1
+    assert env._reset_idx.call_count == 1
+
+
+def test_nist_reset_keeps_loose_parts_in_separated_strips(nist_demo):
+    """Partial resets place loose parts inside their own environment, with five on each side."""
+    demo = nist_demo
+    torch = demo["torch"]
+    assemblies = demo["ASSEMBLIES"][:10]
+    num_envs, env_ids = 64, torch.arange(1, 64, 2)
+
+    class Scene(dict):
+        env_origins = torch.arange(num_envs)[:, None].expand(-1, 3) * 2.0
+
+    names = {"nistboard", *(f"fixed_{part.socket}" for part in assemblies), *(f"held_{slot:02d}" for slot in range(10))}
+    scene = Scene({name: Mock() for name in names | {"robot"}})
+    for name in names:
+        scene[name].data.default_root_pose.torch = torch.tensor([0.0, 0, 0, 0, 0, 0, 1]).repeat(num_envs, 1)
+    scene["robot"].data.default_joint_pos.torch = torch.zeros((num_envs, 9))
+    board_pose = torch.tensor([0.452824, 0.19145, 0.0206, 0, 1, 0, 0])
+    scene["nistboard"].data.default_root_pose.torch = board_pose.repeat(num_envs, 1)
+    env = SimpleNamespace(scene=scene, num_envs=num_envs, device="cpu")
+    torch.manual_seed(1701)
+    demo["reset_parts"](env, slice(1, None, 2), assemblies)
+    for name in names:
+        write = scene[name].write_root_link_pose_to_sim_index
+        assert write.call_count == 1
+        torch.testing.assert_close(write.call_args.kwargs["env_ids"], env_ids)
+    writes = [scene[f"held_{slot:02d}"].write_root_link_pose_to_sim_index.call_args.kwargs for slot in range(10)]
+    positions = torch.stack([write["root_pose"][:, :3] for write in writes], dim=1) - scene.env_origins[env_ids, None]
+    assert (positions >= torch.tensor([0.1, -0.5, 0.12]) - 1e-5).all()
+    assert (positions <= torch.tensor([0.5, 0.5, 0.14]) + 1e-5).all()
+    assert (positions[..., 1].abs() >= 0.3 - 1e-5).all()
+    assert ((positions[..., 1] > 0).sum(dim=1) == 5).all()
+    distances = torch.cdist(positions[..., :2], positions[..., :2])
+    distances[:, torch.arange(10), torch.arange(10)] = float("inf")
+    assert distances.min() >= 0.1 - 1e-5
 
 
 # Launch matrix selection.

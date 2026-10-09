@@ -84,6 +84,12 @@ DEMOS = (
     ProgramSpec("zoo", "examples/demos/zoo.py", "Explore Isaac Lab robots and simulation features."),
     ProgramSpec("h1-locomotion", "examples/demos/h1_locomotion.py", "Control a trained H1 locomotion policy."),
     ProgramSpec(
+        "nist",
+        "examples/demos/nist.py",
+        "Assemble ten randomized NIST parts with a pretrained policy.",
+        extras=("ovrtx",),
+    ),
+    ProgramSpec(
         "pick-and-place",
         "examples/demos/pick_and_place.py",
         "Interactively pick and place a cube.",

@@ -188,6 +188,10 @@ class SmokeResult:
 _NEWTON_MJCF = str(Path(importlib.util.find_spec("newton").origin).parent / "examples" / "assets" / "nv_ant.xml")
 
 OVERRIDES = {
+    "examples/demos/nist.py": ScriptOverride(
+        fixed_physics_backend="newton_mjwarp",
+        visualizers=(None, "newton_gl", "newton_rtx"),
+    ),
     "examples/haply_teleoperation.py": ScriptOverride(
         skip_reason="requires a physical Haply device and its WebSocket service"
     ),
