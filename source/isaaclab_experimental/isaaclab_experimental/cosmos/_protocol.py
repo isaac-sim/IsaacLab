@@ -24,9 +24,6 @@ import numpy as np
 
 PROTOCOL_VERSION = 2
 """Version 2 lets an episode reset carry the next appearance prompt."""
-DEFAULT_MAX_EPISODE_FRAMES = 201
-"""Default episode cap of the service in frames, the model's trained horizon;
-``isaaclab-cosmos-server --max-episode-frames`` changes it."""
 MAX_CHUNK_FRAMES = 4
 """Most frames one control chunk carries: one initial frame, then four per update."""
 DEFAULT_ENDPOINT = (

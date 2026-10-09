@@ -107,15 +107,17 @@ uv run --no-sync isaaclab-cosmos-server \
 
 Wait for `Cosmos ready at unix:///tmp/isaaclab-cosmos-<uid>.sock`, then leave this terminal running. The
 server listens on that Unix socket, which only your user can open; it opens no network port.
-The worker loads the model once on `cuda:0` and exposes the endpoint after model
-loading and warmup. Isaac Lab can then connect from its own environment.
+The worker reserves the endpoint before loading the model once on `cuda:0`, so a conflicting endpoint
+fails immediately. It accepts requests after model loading and warmup; wait for the ready message before
+connecting from Isaac Lab's environment.
 
-`--max-episode-frames N` sets the longest episode a camera may request, `1 + 4*k` frames. The default, 201,
-is the model's trained horizon; `0` removes the cap. See
+`--max-episode-frames N` optionally sets the longest episode a camera may request, `1 + 4*k` frames.
+The default is `0` (no server cap); each task requests its own finite frame budget. See
 [Episode length cap](cosmos.md#episode-length-cap).
 
-`--max-views N` lets one camera session batch the cameras of up to N environments (default 1); each needs GPU
-memory for its own generation history, and resetting environments independently needs the compiled path. See
+Isaac Lab requests the camera count when it opens a session; no server-side view count is needed. Close the
+session before starting another with a different count. Each view needs GPU memory for its own generation
+history, and resetting environments independently needs the compiled path. See
 [Several environments](cosmos.md#several-environments).
 
 `--kv-window N` and `--attention-sink M` set the generation history the model attends to, in latent frames
@@ -126,8 +128,8 @@ needs less memory, especially with several environments, but remembers less of e
 path, which can take additional time on its first use. `--warmup` runs a disposable
 session on a `(480, 832)` canvas through the full history window (`1 + 4 * --kv-window` frames, 121 by default,
 within the episode cap) before reporting readiness. With compiled
-inference, other canvases or prompts can still require compilation on their first
-use. Omit `--warmup` to expose the endpoint after model loading.
+inference, other batch sizes, canvases, or prompts can still require compilation on their first
+use. Omit `--warmup` to accept requests after model loading.
 
 The equivalent module entrypoint is
 `uv run --no-sync python -m isaaclab_experimental.cosmos.server.worker` with the same
@@ -146,8 +148,8 @@ uv run isaaclab cosmos status
 ```
 
 A ready service reports `"ready": true`. Before connecting a camera, check that
-`"session_active": false`: the server runs one active generation session, with up
-to `--max-views` camera views. If a session is active, close that camera or Isaac Lab
+`"session_active": false`: the server runs one active generation session with the
+camera count requested by Isaac Lab. If a session is active, close that camera or Isaac Lab
 process before connecting another. For another endpoint, pass
 the same `--endpoint` to the status command.
 
