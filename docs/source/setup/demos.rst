@@ -96,8 +96,7 @@ Command Builder
                data-demo-name="NIST" data-demo-id="nist"
                data-demo-physics="newton_mjwarp" data-demo-fixed-physics="true"
                data-demo-visualizers="newton_gl,newton_rtx"
-               data-demo-args="--policy /path/to/exported-policy.pt"
-               data-demo-description="Assemble ten randomized parts using a local exported Factory policy; provide its path with --policy.">
+               data-demo-description="Assemble ten randomized NIST parts using an automatically downloaded TorchScript policy.">
          <span>NIST</span>
        </button>
        <button type="button" class="demo-card" aria-pressed="false"

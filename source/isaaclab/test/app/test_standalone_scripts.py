@@ -153,8 +153,8 @@ def test_nist_demo_does_not_depend_on_training_packages():
     assert not any(name.startswith(("isaaclab_tasks", "isaaclab_rl", "rsl_rl")) for name in imports)
 
 
-@pytest.mark.parametrize("visualizer", ["none", "newton_gl"])
-def test_nist_launch_selects_visualizer_and_consistent_assets(nist_demo, monkeypatch, visualizer):
+@pytest.mark.parametrize(("visualizer", "policy"), [("none", None), ("newton_gl", "actor.pt")])
+def test_nist_launch_selects_visualizer_and_consistent_assets(nist_demo, monkeypatch, visualizer, policy):
     """The real launcher selects rendering and passes one asset subset to observations and resets."""
     demo = nist_demo
 
@@ -172,15 +172,22 @@ def test_nist_launch_selects_visualizer_and_consistent_assets(nist_demo, monkeyp
         assert cfg.observations["slots"].geometry.params["assemblies"] == assemblies
         raise ConfigInspected
 
-    monkeypatch.setattr(demo["torch"].jit, "load", Mock())
+    retrieve = Mock(return_value="downloaded_actor.pt")
+    load = Mock()
+    monkeypatch.setitem(demo["main"].__globals__, "retrieve_file_path", retrieve)
+    monkeypatch.setattr(demo["torch"].jit, "load", load)
     monkeypatch.setitem(demo["main"].__globals__, "ManagerBasedEnv", inspect_config)
     monkeypatch.setattr(
         sys,
         "argv",
-        ["nist.py", "--policy", "actor.pt", "--device", "cpu", "--visualizer", visualizer, "--num_envs", "2"],
+        ["nist.py", "--device", "cpu", "--visualizer", visualizer, "--num_envs", "2"]
+        + (["--policy", policy] if policy else []),
     )
     with pytest.raises(ConfigInspected):
         demo["main"]()
+    expected_policy = policy or f"{demo['ISAACLAB_NUCLEUS_DIR']}/PretrainedCheckpoints/rsl_rl/demo-alphaNIST.pt"
+    retrieve.assert_called_once_with(expected_policy)
+    load.assert_called_once_with("downloaded_actor.pt", map_location="cpu")
 
 
 def test_nist_resets_only_finished_boards_before_history_update(nist_demo):

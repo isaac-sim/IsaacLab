@@ -5,8 +5,9 @@
 
 """Run a ten-part NIST assembly policy without a trainer, curriculum, or reset bank.
 
-    uv run --extra ovrtx isaaclab demo nist --policy <exported-policy.pt>
+    uv run --extra ovrtx isaaclab demo nist
 
+The pretrained TorchScript policy is downloaded automatically; --policy accepts a local file or URL override.
 The exported policy includes normalization and takes robot history [N, 195] and
 slot history [N, 5, 10, 40]. At startup, the seed selects ten distinct asset
 identities from the original 19-asset catalog. The selection stays fixed across
@@ -24,7 +25,6 @@ from __future__ import annotations
 import argparse
 import random
 import time
-from pathlib import Path
 from typing import NamedTuple
 
 import torch
@@ -41,7 +41,7 @@ from isaaclab.managers import EventTermCfg, ManagerTermBase, ObservationGroupCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim.spawners.materials import UsdPhysicsRigidBodyMaterialCfg
 from isaaclab.utils import math as math_utils
-from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
+from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 from isaaclab.utils.configclass import configclass
 
 
@@ -371,10 +371,12 @@ class Actions:
 
 
 def main() -> None:
-    """Load a local TorchScript actor and run complete ten-part assembly episodes."""
+    """Load the pretrained TorchScript actor and run complete ten-part assembly episodes."""
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument(
-        "--policy", type=Path, required=True, help="Exported K10 TorchScript .pt, not a training checkpoint."
+        "--policy",
+        default=f"{ISAACLAB_NUCLEUS_DIR}/PretrainedCheckpoints/rsl_rl/demo-alphaNIST.pt",
+        help="Exported K10 TorchScript .pt path or URL; defaults to the published policy.",
     )
     parser.add_argument("--seed", type=int, default=1701)
     parser.add_argument("--num_envs", type=int, default=1, help="Independent boards simulated in parallel.")
@@ -394,7 +396,7 @@ def main() -> None:
         parser.error("num_envs and horizon must be positive; episodes must be nonnegative.")
     if args.max_steps == 0 or args.max_steps < -1:
         parser.error("max_steps must be positive or -1.")
-    policy = torch.jit.load(str(args.policy), map_location=args.device).eval()
+    policy = torch.jit.load(retrieve_file_path(args.policy), map_location=args.device).eval()
     assemblies = tuple(random.Random(args.seed).sample(ASSEMBLIES, 10))
     slot_observations = SlotObservations()
     slot_observations.geometry.params = {"assemblies": assemblies}

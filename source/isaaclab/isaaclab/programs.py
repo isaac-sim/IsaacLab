@@ -86,9 +86,8 @@ DEMOS = (
     ProgramSpec(
         "nist",
         "examples/demos/nist.py",
-        "Assemble ten randomized NIST parts with a local exported policy.",
+        "Assemble ten randomized NIST parts with a pretrained policy.",
         extras=("ovrtx",),
-        newton_gl_args=None,
     ),
     ProgramSpec(
         "pick-and-place",
