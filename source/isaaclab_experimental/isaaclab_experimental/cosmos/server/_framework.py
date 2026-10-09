@@ -49,17 +49,17 @@ class CosmosInferenceModel:
             checkpoint: Exported HF checkpoint directory or a Framework checkpoint name.
             device: CUDA device in this process's visible GPU set.
             use_compile: Enable the Framework's compiled CUDA-graph streaming path.
-            max_episode_frames: Longest episode a session may request, ``1 + 4*k`` frames. None removes the
-                cap. The model was trained on 201-frame episodes; longer episodes are unvalidated.
+            max_episode_frames: Longest episode a session may request, ``1 + 4*k`` frames with ``k >= 1``. None
+                removes the cap. The model was trained on 201-frame episodes; longer episodes are unvalidated.
 
         Raises:
             ValueError: If the runtime or checkpoint does not support this streaming contract.
             ImportError: If the optional Cosmos Framework runtime is unavailable.
         """
         if max_episode_frames is not None and (
-            type(max_episode_frames) is not int or max_episode_frames < 1 or (max_episode_frames - 1) % 4
+            type(max_episode_frames) is not int or max_episode_frames < 5 or (max_episode_frames - 1) % 4
         ):
-            raise ValueError("The Cosmos episode cap must be 1 + 4*k frames, or None for no cap.")
+            raise ValueError("The Cosmos episode cap must be 1 + 4*k frames with k >= 1, or None for no cap.")
         self._max_episode_frames = max_episode_frames
         if max_episode_frames is None or max_episode_frames > DEFAULT_MAX_EPISODE_FRAMES:
             logger.warning(
@@ -218,6 +218,44 @@ class CosmosInferenceModel:
         self._stream = _CosmosInferenceStream(self, data, seeds[0], height, width, max_episode_frames, modality)
         return self._stream
 
+    def warmup(self, *, height: int = 480, width: int = 832) -> None:
+        """Warm one canvas through finite-history saturation using a disposable session.
+
+        The warmup emits up to 33 frames from blank controls, within the episode cap. Its
+        prompt, seed, VAE caches, and generation history are discarded before real cameras
+        can connect. Other canvases or prompts can still require compilation on their first use.
+        """
+        frames = 33 if self._max_episode_frames is None else min(33, self._max_episode_frames)
+        stream = self.open_stream(
+            num_views=1,
+            seeds=(0,),
+            prompt=None,
+            modality="edge",
+            height=height,
+            width=width,
+            max_episode_frames=frames,
+        )
+        try:
+            stream.step([np.zeros((1, height, width, 3), dtype=np.uint8)], (), ())
+            controls = np.zeros((4, height, width, 3), dtype=np.uint8)
+            for _ in range((frames - 1) // 4):
+                stream.step([controls], (), ())
+        finally:
+            stream.close()
+
+    def close(self) -> None:
+        """Close any session and release the resident model and owned metadata directory."""
+        if self._closed:
+            return
+        self._closed = True
+        try:
+            if self._stream is not None:
+                self._stream.close()
+        finally:
+            self._pipeline = None
+            self._metadata_dir.cleanup()
+
+
     def _prompt_batch(
         self, prompt: str | None, modality: str, height: int, width: int, max_episode_frames: int
     ) -> dict[str, Any]:
@@ -256,44 +294,6 @@ class CosmosInferenceModel:
         )
         data.update(dataset_name="video_transfer", system_prompt=_SYSTEM_PROMPT_TRANSFER, fps=[30.0])
         return data
-
-    def warmup(self, *, height: int = 480, width: int = 832) -> None:
-        """Warm one canvas through finite-history saturation using a disposable session.
-
-        The warmup emits up to 33 frames from blank controls, within the episode cap. Its
-        prompt, seed, VAE caches, and generation history are discarded before real cameras
-        can connect. Other canvases or prompts can still require compilation on their first use.
-        """
-        frames = 33 if self._max_episode_frames is None else min(33, self._max_episode_frames)
-        stream = self.open_stream(
-            num_views=1,
-            seeds=(0,),
-            prompt=None,
-            modality="edge",
-            height=height,
-            width=width,
-            max_episode_frames=frames,
-        )
-        try:
-            stream.step([np.zeros((1, height, width, 3), dtype=np.uint8)], (), ())
-            controls = np.zeros((4, height, width, 3), dtype=np.uint8)
-            for _ in range((frames - 1) // 4):
-                stream.step([controls], (), ())
-        finally:
-            stream.close()
-
-    def close(self) -> None:
-        """Close any session and release the resident model and owned metadata directory."""
-        if self._closed:
-            return
-        self._closed = True
-        try:
-            if self._stream is not None:
-                self._stream.close()
-        finally:
-            self._pipeline = None
-            self._metadata_dir.cleanup()
-
 
 def _validate_seed(seed: int) -> None:
     if type(seed) is not int or not 0 <= seed < 2**63:

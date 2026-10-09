@@ -134,8 +134,8 @@ def apply_cosmos(
         near: Depth rendered white [m], for depth control.
         far: Depth rendered black [m], for depth control.
         endpoint: Cosmos service endpoint.
-        max_episode_frames: The service's episode cap in frames, ``1 + 4*k``, or None for no cap. Defaults to
-            ``"service"``, which asks the running service.
+        max_episode_frames: The service's episode cap in frames, ``1 + 4*k`` with ``k >= 1``, or None for no cap.
+            Defaults to ``"service"``, which asks the running service.
 
     Raises:
         ValueError: If no single rgb camera can be selected, the selected entity is not a suitable camera, sensors
@@ -143,8 +143,8 @@ def apply_cosmos(
         RuntimeError: If the cap is read from a service that is not running.
     """
     cap = service_max_episode_frames(endpoint) if max_episode_frames == "service" else max_episode_frames
-    if cap is not None and (type(cap) is not int or cap < 1 or (cap - 1) % 4):
-        raise ValueError(f"The Cosmos episode cap must be 1 + 4*k frames or None, got {cap!r}.")
+    if cap is not None and (type(cap) is not int or cap < 5 or (cap - 1) % 4):
+        raise ValueError(f"The Cosmos episode cap must be 1 + 4*k frames with k >= 1, or None, got {cap!r}.")
     if prompt is None:
         logger.warning("Cosmos runs without a prompt; pass --cosmos_prompt to describe the scene.")
     name = camera or _select_camera(env_cfg.scene)
@@ -167,7 +167,8 @@ def apply_cosmos(
     # Count in whole environment steps so rounding cannot push an episode past the cap.
     step_dt = env_cfg.sim.dt * env_cfg.decimation
     episode_steps = math.ceil(env_cfg.episode_length_s / step_dt - 1e-9)
-    steps_per_capture = max(1, math.ceil(camera_cfg.update_period / step_dt - 1e-9))
+    # A sensor updates once its elapsed time reaches update_period - 1e-6 (see SensorBase).
+    steps_per_capture = max(1, math.ceil((camera_cfg.update_period - 1e-6) / step_dt - 1e-9))
     frames = math.ceil(episode_steps / steps_per_capture) + 1
     if cap is not None and frames > cap:
         steps_per_capture = math.ceil(episode_steps / (cap - 1))
@@ -180,8 +181,6 @@ def apply_cosmos(
         )
         camera_cfg = replace(camera_cfg, update_period=steps_per_capture * step_dt)
     budget = 1 + 4 * math.ceil((frames - 1) / 4)
-    if cap is not None and budget > cap:
-        raise AssertionError(f"Cosmos episode budget {budget} exceeds the cap {cap}.")
     model = CosmosModelCfg(endpoint=endpoint, prompt=prompt, modality=control, max_episode_frames=budget)
     setattr(env_cfg.scene, name, cosmos_camera(camera_cfg, model, near=near, far=far))
 

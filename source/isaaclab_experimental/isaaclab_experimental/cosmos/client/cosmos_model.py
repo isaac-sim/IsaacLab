@@ -178,14 +178,14 @@ class _CosmosStream:
                 self._release(notify=False)
                 raise
 
-    def _episode_prompt(self, episode: int) -> str | None:
-        prompt = self._cfg.prompt
-        return prompt[episode % len(prompt)] if isinstance(prompt, (list, tuple)) else prompt
-
     def close(self) -> None:
         """Close this camera's session. Repeated calls are safe."""
         with self._lock:
             self._release(notify=True)
+
+    def _episode_prompt(self, episode: int) -> str | None:
+        prompt = self._cfg.prompt
+        return prompt[episode % len(prompt)] if isinstance(prompt, (list, tuple)) else prompt
 
     def _exchange(self, metadata: dict, arrays: Sequence[np.ndarray] = ()) -> tuple[dict, list[np.ndarray]]:
         if self._socket is None:

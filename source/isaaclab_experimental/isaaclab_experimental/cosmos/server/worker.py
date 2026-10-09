@@ -29,7 +29,7 @@ def main(args: list[str] | None = None) -> None:
         "--max-episode-frames",
         type=int,
         default=DEFAULT_MAX_EPISODE_FRAMES,
-        help="Longest episode in frames, 1 + 4*k (default: the trained horizon, 201); 0 removes the cap.",
+        help="Longest episode in frames, 1 + 4*k with k >= 1 (default: the trained horizon, 201); 0 removes the cap.",
     )
     options = parser.parse_args(args)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")

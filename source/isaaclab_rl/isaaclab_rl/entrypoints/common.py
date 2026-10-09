@@ -490,9 +490,9 @@ def show_run_summary(
     """
     renderer = _renderer_name(env_cfg)
     visualizers = [cfg.visualizer_type for cfg in env_cfg.sim.visualizer_cfgs if cfg.visualizer_type]
-    # The summary is shown before apply_env_overrides, which puts --cosmos runs on one environment.
-    num_envs = (
-        1 if getattr(args_cli, "cosmos", False) else getattr(args_cli, "num_envs", None) or env_cfg.scene.num_envs
+    # The summary is shown before apply_env_overrides, which gives --cosmos runs one environment unless set.
+    num_envs = getattr(args_cli, "num_envs", None) or (
+        1 if getattr(args_cli, "cosmos", False) else env_cfg.scene.num_envs
     )
     screen.summary(
         f"Isaac Lab · {action}",

@@ -7,7 +7,6 @@
 
 import argparse
 import logging
-import math
 
 import pytest
 from isaaclab_experimental.cosmos import DEFAULT_MAX_EPISODE_FRAMES, apply_cosmos
@@ -64,38 +63,51 @@ def test_cosmos_options_put_cosmos_on_the_policy_camera_of_an_unmodified_task(ad
 
 
 @pytest.mark.parametrize(
-    "episode_length_s,dt,decimation",
-    [(12.0, 1 / 120, 4), (8.8, 0.002, 2), (20.0, 0.005, 2)],
+    "episode_length_s,dt,decimation,steps_per_capture,budget",
+    [
+        (12.0, 1 / 120, 4, 2, 181),  # 360 steps: 181 captures
+        (8.8, 0.002, 2, 11, 201),  # 8.8 / 0.004 rounds to 2200 steps: 201 captures
+        (20.0, 0.005, 2, 10, 201),  # 2000 steps: 201 captures
+    ],
 )
-def test_a_fast_camera_captures_every_few_steps_and_never_exceeds_the_cap(episode_length_s, dt, decimation, caplog):
-    """Whole environment steps between captures keep every episode within the cap, including rounding cases."""
+def test_a_fast_camera_captures_every_few_steps_and_never_exceeds_the_cap(
+    episode_length_s, dt, decimation, steps_per_capture, budget, caplog
+):
+    """Whole environment steps between captures keep every episode within the 201-frame cap."""
     env_cfg = _kuka(episode_length_s=episode_length_s, decimation=decimation)
     env_cfg.sim.dt = dt
-    step_dt = dt * decimation
     with caplog.at_level(logging.WARNING):
         apply_cosmos(env_cfg, prompt="A lab.", max_episode_frames=DEFAULT_MAX_EPISODE_FRAMES)
-    period = env_cfg.scene.base_camera.update_period
-    episode_steps = math.ceil(episode_length_s / step_dt - 1e-9)
-    captures = math.ceil(episode_steps / round(period / step_dt)) + 1
 
-    assert period / step_dt == pytest.approx(round(period / step_dt))
-    assert captures <= _budget(env_cfg) <= DEFAULT_MAX_EPISODE_FRAMES and (_budget(env_cfg) - 1) % 4 == 0
+    assert env_cfg.scene.base_camera.update_period == pytest.approx(steps_per_capture * dt * decimation)
+    assert _budget(env_cfg) == budget
     assert "captures every" in caplog.text
+
+
+def test_the_capture_count_uses_the_sensor_update_tolerance():
+    """A sensor updates 1e-6 s early, so a 0.0200001 s period at 0.01 s steps captures every 2 steps, not 3."""
+    env_cfg = _kuka(episode_length_s=4.0, decimation=2)
+    env_cfg.sim.dt = 0.005
+    env_cfg.scene.base_camera.update_period = 0.0200001
+    apply_cosmos(env_cfg, prompt="A lab.", max_episode_frames=DEFAULT_MAX_EPISODE_FRAMES)
+
+    assert env_cfg.scene.base_camera.update_period == 0.0200001
+    assert _budget(env_cfg) == 201  # 400 steps: 201 captures
 
 
 @pytest.mark.parametrize("cap", [601, None])
 def test_a_higher_or_removed_episode_cap_keeps_the_camera_at_every_step(cap):
     env_cfg = _kuka()
-    episode_steps = math.ceil(env_cfg.episode_length_s / (env_cfg.sim.dt * env_cfg.decimation) - 1e-9)
     apply_cosmos(env_cfg, prompt="A lab.", max_episode_frames=cap)
 
     assert env_cfg.scene.base_camera.update_period == 0.0
-    assert _budget(env_cfg) == 1 + 4 * math.ceil(episode_steps / 4)
+    assert _budget(env_cfg) == 361  # 12 s at 1/30 s steps: 360 steps and the initial frame
 
 
 def test_cosmos_rejects_an_invalid_cap_and_needs_one_rgb_camera_or_an_explicit_choice():
-    with pytest.raises(ValueError, match="1 \\+ 4\\*k"):
-        apply_cosmos(_kuka(), prompt="A lab.", max_episode_frames=200)
+    for cap in (1, 200):
+        with pytest.raises(ValueError, match="1 \\+ 4\\*k"):
+            apply_cosmos(_kuka(), prompt="A lab.", max_episode_frames=cap)
     env_cfg = parse_env_cfg(KUKA_TASK, overrides=("presets=cube,duo_camera,newton_mjwarp,newton_renderer,rgb64",))
     with pytest.raises(ValueError, match="--cosmos_camera"):
         apply_cosmos(env_cfg, prompt="A lab.", max_episode_frames=None)
@@ -121,5 +133,8 @@ def test_the_run_summary_shows_the_single_cosmos_environment():
     screen = Screen()
     show_run_summary(screen, _cli(add_common_train_args, ["--cosmos"]), _kuka(), library="rsl_rl", action="train")
     assert screen.fields["Environments"] == "1"
+    args = _cli(add_common_train_args, ["--cosmos", "--num_envs", "4"])
+    show_run_summary(screen, args, _kuka(), library="rsl_rl", action="train")
+    assert screen.fields["Environments"] == "4"
     show_run_summary(screen, _cli(add_common_train_args, []), _kuka(), library="rsl_rl", action="train")
     assert screen.fields["Environments"] != "1"
