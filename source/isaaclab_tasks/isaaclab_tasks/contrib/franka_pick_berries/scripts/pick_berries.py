@@ -111,6 +111,7 @@ with launch_simulation(cfg, args), ExitStack() as resources:
         BerryGamepad,
         BerryGamepadCfg,
         keyboard_action,
+        view_to_robot,
     )
     from isaaclab_tasks.contrib.franka_pick_berries.rendering.scripted_camera_demo import ScriptedCameraDemo
     from isaaclab_tasks.contrib.franka_pick_berries.rendering.viewer import BerryViewer
@@ -180,7 +181,8 @@ with launch_simulation(cfg, args), ExitStack() as resources:
             else:
                 viewer.set_handled_berry(env.handled_berry)
         else:
-            action = gamepad.advance() if gamepad is not None else keyboard_action(viewer)
+            action = gamepad.advance().reshape(1, -1) if gamepad is not None else keyboard_action(viewer)
+            action = view_to_robot(action, viewer.camera.yaw)
             action[0, :6] *= args.arm_speed
 
         env.step(action)

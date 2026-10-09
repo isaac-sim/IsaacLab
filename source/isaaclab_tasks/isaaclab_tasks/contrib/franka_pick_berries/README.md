@@ -40,12 +40,14 @@ It runs at about 17 frames/s while grasping (1280 × 720, RTX 6000 Ada); the sid
 
 | | Keyboard (focus the window) | Gamepad |
 |---|---|---|
-| Move the hand | W/S, A/D, Q/E | hold LB; left stick (x, y), right stick (z) |
-| Turn the hand | Z/X, T/G, C/V | hold LB; right stick (yaw), D-pad (roll, pitch) |
+| Move the hand: forward / left in the view, up | W/S, A/D, Q/E | hold LB; left stick, right stick up/down |
+| Turn the hand | Z/X, T/G, C/V | hold LB; D-pad (tilt), right stick left/right (yaw) |
 | Close / open the gripper | K / J | RT / LT; release to hold |
 | Reset | R | Menu |
 
-The gripper is position-controlled: closing further squeezes, and can crush, the berry.
+The hand moves relative to the camera: forward is away from it, whichever view is shown. The gripper is
+position-controlled and closes slowly: closing further squeezes, and can crush, the berry. It opens faster, so a
+crushed berry, whose damaged tissue sticks briefly to the fingers, drops off.
 
 ## The showcase video
 
