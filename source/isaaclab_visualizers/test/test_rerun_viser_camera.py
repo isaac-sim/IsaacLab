@@ -41,6 +41,8 @@ def test_rerun_visualizer_caps_updates_by_wall_time(monkeypatch):
 
 
 def test_rerun_visualizer_rejects_nonpositive_max_fps():
+    assert RerunVisualizerCfg().max_fps == 60.0
+
     with pytest.raises(ValueError, match="max_fps must be positive or None"):
         RerunVisualizerCfg(max_fps=0.0)
 
