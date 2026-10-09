@@ -93,6 +93,28 @@ class TestFrameStacking:
         assert torch.all(out[1, ..., :CHANNELS] == 2)
         assert torch.all(out[1, ..., CHANNELS:] == 9)
 
+    @pytest.mark.parametrize(("term_cls", "data_type"), [(image_rgb, "rgb"), (image_depth, "distance_to_image_plane")])
+    def test_blank_first_frame_zeros_new_episodes_and_their_history(self, term_cls, data_type):
+        """Environments in the first step of an episode see zeros, also in the stacked history."""
+        rgb = term_cls is image_rgb
+        shape = (NUM_ENVS, HEIGHT, WIDTH, CHANNELS if rgb else 1)
+        camera = torch.full(shape, 7, dtype=torch.uint8 if rgb else torch.float32)
+        env = _make_env({data_type: camera})
+        env.episode_length_buf = torch.tensor([0, 5, 5, 5])
+        term, observe = _make_term(
+            term_cls, env, data_type=data_type, normalize=False, frame_stack=2, blank_first_frame=True
+        )
+        out = observe()
+        assert torch.all(out[0] == 0)
+        assert torch.all(out[1:] == 7)
+        assert torch.all(camera == 7), "the camera buffer must not be modified"
+        env.episode_length_buf += 1
+        camera.fill_(9)
+        out = observe()
+        channels = out.shape[-1] // 2
+        assert torch.all(out[0, ..., :channels] == 0)
+        assert torch.all(out[0, ..., channels:] == 9)
+
     def test_invalid_frame_stack_raises(self):
         with pytest.raises(ValueError, match="frame_stack must be >= 1"):
             _make_term(image_rgb, _make_env({"rgb": _random_rgb()}), frame_stack=0)
