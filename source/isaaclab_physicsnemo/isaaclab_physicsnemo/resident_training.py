@@ -45,6 +45,7 @@ class ResidentOptions:
     mixed_precision: bool
     checkpoint_every: int
     validate_every: int
+    compile: bool = False
     max_overflow_retries: int = 32
 
 
@@ -126,6 +127,7 @@ def fit_resident(
     """Train ``network`` on resident windows with uniform sampling with replacement.
 
     Every rank samples its share of the global batch independently from all training windows. With
+    ``compile``, the training forward and backward passes run through :func:`torch.compile`. With
     ``mixed_precision``, projections run under FP16 autocast while parameters, optimizer state, loss,
     and metrics stay FP32, and an overflowed batch is retried with a lower loss scale without advancing
     the sampler or the learning-rate schedule. A checkpoint is written every ``checkpoint_every``
@@ -159,7 +161,15 @@ def fit_resident(
     model = (
         torch.nn.parallel.DistributedDataParallel(predictor, device_ids=[device.index]) if world_size > 1 else predictor
     )
-    optimizer = torch.optim.AdamW(network.parameters(), lr=options.learning_rate, weight_decay=options.weight_decay)
+    if options.compile:
+        # Fusing the many small attention and normalization kernels roughly doubles the update rate.
+        model = torch.compile(model)
+    optimizer = torch.optim.AdamW(
+        network.parameters(),
+        lr=options.learning_rate,
+        weight_decay=options.weight_decay,
+        fused=device.type == "cuda",
+    )
     scheduler = torch.optim.lr_scheduler.LinearLR(
         optimizer,
         start_factor=1.0,

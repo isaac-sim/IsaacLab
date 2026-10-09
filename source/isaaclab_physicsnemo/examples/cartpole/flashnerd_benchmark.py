@@ -225,6 +225,7 @@ def main() -> None:
                     model_kwargs=CARTPOLE_FLASHNERD_MODEL_CONFIG,
                     resident=True,
                     mixed_precision=not args.fp32,
+                    compile=True,
                     checkpoint_every=args.checkpoint_every,
                     validate_every=args.checkpoint_every,
                     rollout_horizons=(),

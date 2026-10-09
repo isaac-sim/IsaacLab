@@ -120,6 +120,9 @@ class TrainingSettings:
     loader_workers: int = 0
     """Worker processes that read windows once for resident training."""
 
+    compile: bool = False
+    """Compile the resident training step with :func:`torch.compile`, which roughly doubles its update rate."""
+
     rollout_horizons: tuple[int, ...] = (1, 15, 100, 200)
     """Horizons of the held-out recursive-rollout evaluation after training.
 
@@ -282,7 +285,8 @@ def train_dynamics_artifact(
         identity = {
             key: value
             for key, value in asdict(settings).items()
-            if key not in ("checkpoint_every", "validate_every", "log_every", "loader_workers", "rollout_horizons")
+            if key
+            not in ("checkpoint_every", "validate_every", "log_every", "loader_workers", "rollout_horizons", "compile")
         }
         identity |= {
             "dataset": str(Path(dataset_path).expanduser().resolve()),
@@ -311,6 +315,7 @@ def train_dynamics_artifact(
                 mixed_precision=settings.mixed_precision,
                 checkpoint_every=settings.checkpoint_every,
                 validate_every=settings.validate_every,
+                compile=settings.compile,
             ),
             device=device,
             checkpoint_path=output_dir / "training_checkpoints" / "resident.pt",
