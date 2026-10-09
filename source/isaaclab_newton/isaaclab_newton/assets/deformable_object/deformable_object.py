@@ -446,9 +446,7 @@ class DeformableObject(BaseDeformableObject):
         # https://github.com/newton-physics/newton/pull/3326.
         pattern = re.compile(self.cfg.prim_path)
         selected = [
-            value
-            for path, value in SimulationManager.get_newton_backend().deformable_ranges.items()
-            if pattern.fullmatch(path)
+            value for path, value in SimulationManager.backend.deformable_ranges.items() if pattern.fullmatch(path)
         ]
         if not selected:
             raise RuntimeError(f"No imported deformable matches '{self.cfg.prim_path}'.")

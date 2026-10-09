@@ -405,7 +405,7 @@ class ViserVisualizer(BaseVisualizer):
 
         self._apply_pending_camera_pose()
 
-        num_envs = self.backend.model.num_envs
+        num_envs = self.backend.model.world_count
 
         self._sim_time += dt
 

@@ -293,7 +293,7 @@ class NewtonOperationalSpaceControllerAction(_NewtonTaskSpaceAction):
         """
         data = self._asset.data
         return (
-            NewtonManager.get_newton_backend() is not None
+            NewtonManager.backend is not None
             and not self._controller.cfg.use_wrench_feedback
             and not (data.has_joint_ordering or data.has_body_ordering or data._joint_coord_map.required)
         )

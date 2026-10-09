@@ -228,7 +228,7 @@ def test_imported_deformables_follow_plan_and_publish_geometry(heterogeneous):
         )
         builder, _, _ = replicate_module._replicate_newton(stage, np.arange(3), sim, **options)
         sim.reset()
-        native = NewtonManager.get_newton_backend()
+        native = NewtonManager.backend
         stage.RemovePrim("/World")
         stage.RemovePrim("/Shared")
 

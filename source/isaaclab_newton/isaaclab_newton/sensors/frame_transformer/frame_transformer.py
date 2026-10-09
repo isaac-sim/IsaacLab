@@ -15,7 +15,8 @@ from isaaclab.sensors.frame_transformer.base_frame_transformer import BaseFrameT
 from isaaclab.sim.utils.queries import split_path_expr
 from isaaclab.utils.version import has_kit
 
-from isaaclab_newton.physics import NewtonManager, NewtonQueries
+from isaaclab_newton.physics import NewtonManager
+from isaaclab_newton.physics.newton_backend import capture_graph
 
 from .frame_transformer_data import FrameTransformerData
 from .frame_transformer_kernels import copy_from_newton_kernel
@@ -49,7 +50,7 @@ class FrameTransformer(BaseFrameTransformer):
     def __init__(self, cfg: FrameTransformerCfg):
         """Initializes the frame transformer.
 
-        Registers site requests via :meth:`NewtonManager.cl_register_site` for
+        Registers site requests via :meth:`NewtonManager.register_site` for
         the source frame, each target frame, and a shared world-origin reference.
         Sites are injected into prototype builders by ``newton_replicate`` before
         replication, so they end up correctly in each world.
@@ -69,11 +70,11 @@ class FrameTransformer(BaseFrameTransformer):
         self._source_frame_body_name: str = split_path_expr(cfg.prim_path)[-1]
 
         # Register world-origin reference site
-        self._world_origin_label = NewtonManager.cl_register_site(None, wp.transform())
+        self._world_origin_label = NewtonManager.register_site(None, wp.transform())
 
         # Register source site
         source_offset = wp.transform(cfg.source_frame_offset.pos, cfg.source_frame_offset.rot)
-        self._source_label = NewtonManager.cl_register_site(cfg.prim_path, source_offset)
+        self._source_label = NewtonManager.register_site(cfg.prim_path, source_offset)
 
         # Register target sites
         self._target_labels: list[str] = []
@@ -82,7 +83,7 @@ class FrameTransformer(BaseFrameTransformer):
 
         for target_frame in cfg.target_frames:
             target_offset = wp.transform(target_frame.offset.pos, target_frame.offset.rot)
-            label = NewtonManager.cl_register_site(target_frame.prim_path, target_offset)
+            label = NewtonManager.register_site(target_frame.prim_path, target_offset)
 
             self._target_labels.append(label)
             body_name = split_path_expr(target_frame.prim_path)[-1]
@@ -313,9 +314,7 @@ class FrameTransformer(BaseFrameTransformer):
         if device.is_cuda and not device.is_capturing:
             pointers = state.body_q.ptr, env_mask.ptr
             if self._update_graph is None or self._update_graph[0] != pointers:
-                graph = NewtonQueries.capture_graph(
-                    self._device, lambda: self._update_buffers_impl(env_mask), relaxed=has_kit()
-                )
+                graph = capture_graph(self._device, lambda: self._update_buffers_impl(env_mask), relaxed=has_kit())
                 self._update_graph = pointers, graph
             wp.capture_launch(self._update_graph[1])
             return

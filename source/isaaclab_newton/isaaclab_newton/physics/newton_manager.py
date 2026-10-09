@@ -416,7 +416,7 @@ class NewtonManager(PhysicsManager):
         backend = NewtonManager.backend
         if backend is None or backend.env_decimation or NewtonManager._apply_every_physics_step:
             return False
-        return NewtonManager._apply_every_physics_step is False or backend.uses_newton_actuators
+        return NewtonManager._apply_every_physics_step is False or backend.actuators is not None
 
     @classmethod
     def require_env_decimation(cls) -> None:
@@ -471,21 +471,13 @@ class NewtonManager(PhysicsManager):
             nb.unregister_step_callback(NewtonManager.backend, callback)
 
     @classmethod
-    def activate_newton_actuator_path(cls) -> NewtonActuatorAdapter | None:
+    def activate_actuators(cls) -> NewtonActuatorAdapter | None:
         """Run the model's Newton actuators inside the step. Idempotent.
 
         Returns:
             The adapter, or ``None`` when no articulation has explicit Newton actuators.
         """
-        backend = NewtonManager.backend
-        backend.uses_newton_actuators = True
-        return nb.activate_actuators(backend)
-
-    @classmethod
-    def get_actuator_adapter(cls) -> NewtonActuatorAdapter | None:
-        """Return the adapter running Newton actuators inside the step, if any."""
-        backend = NewtonManager.backend
-        return None if backend is None else backend.actuators
+        return nb.activate_actuators(NewtonManager.backend)
 
     # ----- Authored state --------------------------------------------------------------
 
@@ -716,7 +708,7 @@ class NewtonManager(PhysicsManager):
         cls.prepare_solver_builder(builder)
 
     @classmethod
-    def cl_register_site(cls, body_pattern: str | None, xform: wp.transform, *, per_world: bool = False) -> str:
+    def register_site(cls, body_pattern: str | None, xform: wp.transform, *, per_world: bool = False) -> str:
         """Request a site for injection into prototypes before replication.
 
         Sensors call this during ``__init__``. Identical ``(body_pattern, per_world, transform)`` requests share a site,
@@ -845,11 +837,6 @@ class NewtonManager(PhysicsManager):
         return sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics))
 
     # ----- Accessors -------------------------------------------------------------------
-
-    @classmethod
-    def get_newton_backend(cls) -> NewtonBackend | None:
-        """Return the active Newton backend, or ``None`` before finalization."""
-        return NewtonManager.backend
 
     @classmethod
     def get_solver(cls) -> SolverBase | None:

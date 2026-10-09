@@ -1215,7 +1215,7 @@ class NewtonVisualizer(BaseVisualizer):
             return
 
         self._pre_step()
-        num_envs = self.backend.model.num_envs
+        num_envs = self.backend.model.world_count
 
         try:
             if not self._viewer.is_paused():
@@ -1561,7 +1561,7 @@ class NewtonVisualizer(BaseVisualizer):
         self._viewer.begin_frame(self._sim_time)
         try:
             self._viewer.log_state(backend.state_0)
-            self._render_markers(backend.model.num_envs)
+            self._render_markers(backend.model.world_count)
             self._log_pending_meshes()
         finally:
             self._viewer.end_frame()

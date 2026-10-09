@@ -41,10 +41,10 @@ def test_sites_bind_once_to_clone_sources_or_explicit_builder(monkeypatch, repli
     monkeypatch.setattr(NewtonManager, "_site_requests", {})
     monkeypatch.setattr(NewtonManager, "_site_index_map", {})
     xform = wp.transform((1.0, 2.0, 3.0), wp.quat_identity())
-    global_label = NewtonManager.cl_register_site(None, xform)
-    local_label = NewtonManager.cl_register_site("Robot/.*_foot", xform)
-    world_label = NewtonManager.cl_register_site(None, xform, per_world=True)
-    assert NewtonManager.cl_register_site(None, xform, per_world=True) == world_label
+    global_label = NewtonManager.register_site(None, xform)
+    local_label = NewtonManager.register_site("Robot/.*_foot", xform)
+    world_label = NewtonManager.register_site(None, xform, per_world=True)
+    assert NewtonManager.register_site(None, xform, per_world=True) == world_label
 
     sources = {"Robot": source} if replicated else {}
     global_sites, body_sites, world_sites = NewtonManager.inject_sites(main, sources)
@@ -61,9 +61,9 @@ def test_sites_bind_once_to_clone_sources_or_explicit_builder(monkeypatch, repli
     shape_count = main.shape_count
     assert NewtonManager.inject_sites(main, sources) == ({}, {}, {})
     assert main.shape_count == shape_count
-    assert NewtonManager.cl_register_site("Robot/.*_foot", xform) == local_label
+    assert NewtonManager.register_site("Robot/.*_foot", xform) == local_label
 
-    NewtonManager.cl_register_site("Robot/nonexistent", xform)
+    NewtonManager.register_site("Robot/nonexistent", xform)
     with pytest.raises(ValueError, match="matched no builder bodies"):
         NewtonManager.inject_sites(main, sources)
 

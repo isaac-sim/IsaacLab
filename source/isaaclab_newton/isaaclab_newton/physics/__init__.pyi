@@ -29,7 +29,6 @@ __all__ = [
     "NewtonManager",
     "NewtonMJWarpManager",
     "NewtonMPMManager",
-    "NewtonQueries",
     "NewtonShapeCfg",
     "NewtonSoftContactCfg",
     "NewtonSolverCfg",
@@ -61,7 +60,7 @@ from .mjwarp_manager_cfg import MJWarpSolverCfg
 from .mpm_manager import NewtonMPMManager
 from .mpm_manager_cfg import MPMSolverCfg
 from .newton_collision_cfg import HydroelasticSDFCfg, NewtonCollisionPipelineCfg
-from .newton_backend import NewtonBackend, NewtonCloneRecord, NewtonQueries, StepCallback, StepGraph, StepPhase
+from .newton_backend import NewtonBackend, NewtonCloneRecord, StepCallback, StepGraph, StepPhase
 from .newton_manager import NewtonManager, create_newton_builder
 from .newton_manager_cfg import (
     NewtonBackendCfg,

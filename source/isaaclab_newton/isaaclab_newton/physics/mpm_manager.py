@@ -322,7 +322,7 @@ class NewtonMPMManager(NewtonManager):
             RuntimeError: If the MPM solver or a usable state is not initialized.
             ValueError: If :paramref:`world_mask` does not use Newton's canonical shape.
         """
-        solver, backend = cls.get_solver(), cls.get_newton_backend()
+        solver, backend = cls.get_solver(), cls.backend
         if solver is None or backend is None or not implicit_mpm_solvers(solver):
             raise RuntimeError("An implicit MPM solver is not initialized; cannot reset solver state.")
         model = backend.model

@@ -18,3 +18,9 @@
 * Extended state and contact attribute requests apply directly to the shared builder.
 * A determinism guarantee disables MuJoCo Warp's sensor stage instead of requiring
   ``MJWarpSolverCfg.disable_sensors``.
+* **Breaking:** Renamed ``NewtonManager.cl_register_site`` to :meth:`~isaaclab_newton.physics.NewtonManager.register_site`
+  and ``NewtonManager.activate_newton_actuator_path`` to
+  :meth:`~isaaclab_newton.physics.NewtonManager.activate_actuators`, matching the functional core.
+* **Breaking:** Replaced the ``NewtonQueries`` static-method class with the module functions ``run_query`` and
+  ``capture_graph`` in :mod:`isaaclab_newton.physics.newton_backend`.
+* **Breaking:** The Newton model no longer carries a patched ``num_envs`` attribute; use ``Model.world_count``.

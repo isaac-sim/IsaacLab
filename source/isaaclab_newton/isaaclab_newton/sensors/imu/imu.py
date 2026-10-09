@@ -56,7 +56,7 @@ class Imu(BaseImu):
         self._newton_sensor: NewtonSensorIMU | None = None
 
         offset_xform = wp.transform(cfg.offset.pos, cfg.offset.rot)
-        self._site_label: str = NewtonManager.cl_register_site(cfg.prim_path, offset_xform)
+        self._site_label: str = NewtonManager.register_site(cfg.prim_path, offset_xform)
         NewtonManager.request_extended_state_attribute("body_qdd")
 
         logger.info(f"IMU '{cfg.prim_path}': site registered (label='{self._site_label}')")

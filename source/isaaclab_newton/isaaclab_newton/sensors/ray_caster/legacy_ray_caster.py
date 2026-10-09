@@ -72,7 +72,7 @@ class _LegacyNewtonRayCasterMixin(_NewtonRayCasterPoseMixin):
     def _register_target_sites_for_exprs(self, owner_exprs: list[str]) -> list[str]:
         """Register identity-pose Newton sites on target owner bodies."""
         identity = wp.transform(wp.vec3(0.0, 0.0, 0.0), wp.quat(0.0, 0.0, 0.0, 1.0))
-        labels = [NewtonManager.cl_register_site(owner_expr, identity) for owner_expr in owner_exprs]
+        labels = [NewtonManager.register_site(owner_expr, identity) for owner_expr in owner_exprs]
         return list(dict.fromkeys(labels))
 
     def _create_tracked_target_view(self: Any, target_prim_path: str | list[str]) -> wp.array:

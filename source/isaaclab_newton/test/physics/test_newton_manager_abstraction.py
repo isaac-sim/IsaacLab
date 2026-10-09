@@ -51,7 +51,6 @@ from isaaclab_newton.physics import (
     NewtonManager,
     NewtonMJWarpManager,
     NewtonMPMManager,
-    NewtonQueries,
     NewtonShapeCfg,
     NewtonVBDManager,
     NewtonXPBDManager,
@@ -337,8 +336,6 @@ def test_queries_share_native_bvhs_and_read_only_through_sdp(monkeypatch, cloth,
     # Render/query consumers may not restore a manager gateway or another state-update wrapper.
     for name in ("_register_sensor_task", "get_state", "update_visualization_state"):
         assert not hasattr(NewtonManager, name)
-    assert not hasattr(NewtonQueries, "get_state")
-    assert not hasattr(NewtonQueries, "update_scene_data")
     assert not hasattr(backend, "transforms")
     backend.close()
 
@@ -1086,7 +1083,7 @@ def test_clear_releases_backend_and_session_state_for_every_solver(monkeypatch):
     monkeypatch.setattr(SimulationContext, "instance", lambda: SimpleNamespace(close_backend=closed.append))
     monkeypatch.setattr(NewtonManager, "backend", backend)
     monkeypatch.setattr(NewtonManager, "_site_requests", {})
-    NewtonManager.cl_register_site(None, wp.transform_identity())
+    NewtonManager.register_site(None, wp.transform_identity())
 
     NewtonManager.clear()
 
@@ -1102,7 +1099,7 @@ def test_clear_releases_backend_and_session_state_for_every_solver(monkeypatch):
         NewtonKaminoManager,
         NewtonMPMManager,
     ):
-        assert manager.get_newton_backend() is None
+        assert manager.backend is None
         assert {"backend", "_site_requests", "_clone"}.isdisjoint(vars(manager))
 
 
@@ -1157,7 +1154,7 @@ def test_reset_binds_consumers_before_constructing_the_solver(monkeypatch):
         def on_physics_ready(_):
             events.append("ready")
             backend = sim.get_or_create_backend(NewtonBackendCfg(physics_cfg=sim.cfg.physics, device=sim.device))
-            assert backend is NewtonManager.get_newton_backend()
+            assert backend is NewtonManager.backend
             # Consumers author the model before solvers that copy it at construction exist.
             assert backend.solver is None
             allocations.append(backend)
@@ -1637,7 +1634,7 @@ def test_graph_capture_preserves_first_step_and_recapture(
         if rtx_capture:
             monkeypatch.setattr(newton_manager_module, "has_kit", lambda: True)
             monkeypatch.setattr(sim, "_has_offscreen_render", True)
-        NewtonManager.activate_newton_actuator_path()
+        NewtonManager.activate_actuators()
         counter = wp.zeros(1, dtype=wp.int32, device="cuda:0")
         NewtonManager.register_step_callback(
             lambda: wp.launch(_count_physics_steps, 1, inputs=[counter]), StepPhase.POST_STEP
@@ -1672,7 +1669,7 @@ def test_staged_body_force_acts_on_every_solver_substep(solver_cfg, num_substeps
         sim.reset()
         if decimation > 1:
             # Newton runs the whole decimation loop inside one step() call.
-            NewtonManager.activate_newton_actuator_path()
+            NewtonManager.activate_actuators()
             NewtonManager.set_decimation(decimation)
         NewtonManager.get_state_0().body_f.assign(
             wp.array([[0.0, 0.0, 9.81, 0.0, 0.0, 0.0]], dtype=wp.spatial_vector, device="cuda:0")
@@ -1704,7 +1701,7 @@ def test_stateful_actuator_graph_matches_eager_across_decimation_changes(monkeyp
             sim.reset()
             monkeypatch.setattr(newton_manager_module, "has_kit", lambda: True)
             monkeypatch.setattr(sim, "_has_offscreen_render", True)
-            NewtonManager.activate_newton_actuator_path()
+            NewtonManager.activate_actuators()
             samples = []
             for decimation in (1, 2, 3):
                 NewtonManager.set_decimation(decimation)
@@ -1758,7 +1755,7 @@ def test_actuators_follow_world_varying_dof_layouts():
             for dof in range(3):
                 builder.add_actuator(DrivePID, index=dof, kp=1.0 + dof, kd=0.1, ki=0.5)
             sim.reset()
-            NewtonManager.activate_newton_actuator_path()
+            NewtonManager.activate_actuators()
             NewtonManager.set_decimation(2)
             assert NewtonManager.get_model().joint_dof_count == 3
             targets = np.array([1.0, -2.0, 3.0], dtype=np.float32)
@@ -1766,7 +1763,7 @@ def test_actuators_follow_world_varying_dof_layouts():
             for scale in (1.0, -0.5, 2.0):
                 NewtonManager.get_control().joint_target_q.assign(targets * scale)
                 sim.step(render=False)
-                computed = NewtonManager.get_actuator_adapter().computed_effort.numpy()
+                computed = NewtonManager.backend.actuators.computed_effort.numpy()
                 applied = NewtonManager.get_control().joint_f.numpy()
                 # No clamping is configured, so each DOF's computed effort equals the effort applied to it.
                 np.testing.assert_allclose(computed, applied, atol=1e-6)
@@ -1881,13 +1878,13 @@ def test_hard_reset_then_step_runs(use_cuda_graph):
         _build_collision_scene(sim)
 
         sim.reset()
-        old_backend = NewtonManager.get_newton_backend()
+        old_backend = NewtonManager.backend
         assert old_backend.manager.uses_collision_pipeline(old_backend) is True
         old_model = old_backend.collision_pipeline.model
         sim.step(render=False)
 
         sim.reset()
-        assert NewtonManager.get_newton_backend() is not old_backend
+        assert NewtonManager.backend is not old_backend
         assert old_backend.model is old_backend.state_0 is old_backend.state_1 is old_backend.control is None
         assert sum(isinstance(cfg, NewtonBackendCfg) for cfg, _ in sim._backend_registry) == 1
 

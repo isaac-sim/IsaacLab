@@ -108,7 +108,7 @@ def test_clone_inputs_create_one_registry_resource_until_closed(monkeypatch):
     late = sim.get_or_create_backend(NewtonWarpRendererCfg(max_distance=12))
     assert sim.get_or_create_backend(late.newton_cfg) is first
     assert finalized == [builder]
-    assert NewtonManager.get_newton_backend() is None
+    assert NewtonManager.backend is None
     sim.close_backend(first)
     assert len(sim._backend_registry) == 4
     assert first.model is first.state_0 is None

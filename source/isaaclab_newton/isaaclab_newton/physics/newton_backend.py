@@ -294,7 +294,6 @@ class NewtonBackend:
         self.clone = clone
         self.deformable_ranges = deformable_ranges or {}
         self.particle_ranges: dict[str, tuple[int, int]] = {} if clone is None else clone.particle_ranges
-        model.num_envs = model.world_count if clone is None else clone.num_envs
         self.device = str(model.device)
         # Physics settings apply to the model before any state is allocated from it.
         soft_contact = physics_cfg.soft_contact_cfg if isinstance(physics_cfg, NewtonCfg) else None
@@ -359,8 +358,6 @@ class NewtonBackend:
         self.imu_sensors: list[SensorIMU] = []
         self.actuators: NewtonActuatorAdapter | None = None
         """Newton actuators run inside the step, once an articulation activates them."""
-        self.uses_newton_actuators = False
-        """Whether an articulation runs its explicit actuators as Newton actuators inside the step."""
         self.env_decimation = False
         """Whether a consumer does host work between physics steps, so the environment runs the decimation loop."""
 
@@ -675,11 +672,10 @@ def activate_actuators(backend: NewtonBackend) -> NewtonActuatorAdapter | None:
 
         backend.actuators = NewtonActuatorAdapter(
             actuators=list(model.actuators),
-            num_envs=model.num_envs,
-            num_joints=model.joint_dof_count // model.num_envs,
+            num_envs=1,
+            num_joints=model.joint_dof_count,
             dof_offset=0,
             device=backend.device,
-            dof_count=model.joint_dof_count,
         )
         backend.actuators.finalize(backend.control)
         backend.step_graph = None
@@ -978,59 +974,50 @@ def _paused_gc():
             gc.enable()
 
 
-class NewtonQueries:
-    """Stateless query functions operating on an explicit :class:`NewtonBackend`."""
+def run_query(
+    backend: NewtonBackend,
+    timestamp: int,
+    query: Callable[[], None],
+    graph: tuple[tuple[int, ...], wp.Graph] | None,
+    *,
+    use_cuda_graph: bool = True,
+) -> tuple[tuple[int, ...], wp.Graph] | None:
+    """Refresh shared BVHs once per publication and run a consumer-owned query graph.
 
-    @staticmethod
-    def run_query(
-        backend: NewtonBackend,
-        timestamp: int,
-        query: Callable[[], None],
-        graph: tuple[tuple[int, ...], wp.Graph] | None,
-        *,
-        use_cuda_graph: bool = True,
-    ) -> tuple[tuple[int, ...], wp.Graph] | None:
-        """Refresh shared BVHs once per publication and run a consumer-owned query graph.
+    Args:
+        backend: Shared model, state, and acceleration structures.
+        timestamp: Sum of the monotonic SDP transform and geometry timestamps for this state.
+        query: Camera or ray-cast work using the supplied backend.
+        graph: This consumer's previous captured query and pointer layout, or None.
+        use_cuda_graph: Whether to capture GPU queries. CPU queries always run eagerly.
 
-        Args:
-            backend: Shared model, state, and acceleration structures.
-            timestamp: Sum of the monotonic SDP transform and geometry timestamps for this state.
-            query: Camera or ray-cast work using the supplied backend.
-            graph: This consumer's previous captured query and pointer layout, or None.
-            use_cuda_graph: Whether to capture GPU queries. CPU queries always run eagerly.
+    Returns:
+        The consumer's captured query and pointer layout, or None for eager execution.
+    """
+    model, state = backend.model, backend.state_0
+    pointers = tuple(array.ptr if array is not None else 0 for array in (state.body_q, state.particle_q))
+    cached = backend.bvh_refit
+    if cached.timestamp != timestamp:
+        if model.device.is_cuda and use_cuda_graph:
+            if cached.data is None or cached.data[0] != pointers:
+                refit = partial(_refit_bvh, backend)
+                cached.data = pointers, capture_graph(str(model.device), refit, relaxed=has_kit())
+            wp.capture_launch(cached.data[1])
+        else:
+            _refit_bvh(backend)
+        cached.timestamp = timestamp
+    if not model.device.is_cuda or not use_cuda_graph:
+        query()
+        return None
+    if graph is None or graph[0] != pointers:
+        graph = pointers, capture_graph(str(model.device), query, relaxed=has_kit())
+    wp.capture_launch(graph[1])
+    return graph
 
-        Returns:
-            The consumer's captured query and pointer layout, or None for eager execution.
-        """
-        model, state = backend.model, backend.state_0
-        pointers = tuple(array.ptr if array is not None else 0 for array in (state.body_q, state.particle_q))
-        cached = backend.bvh_refit
-        if cached.timestamp != timestamp:
-            if model.device.is_cuda and use_cuda_graph:
-                if cached.data is None or cached.data[0] != pointers:
-                    refit = partial(NewtonQueries._refit_bvh, backend)
-                    cached.data = pointers, capture_graph(str(model.device), refit, relaxed=has_kit())
-                wp.capture_launch(cached.data[1])
-            else:
-                NewtonQueries._refit_bvh(backend)
-            cached.timestamp = timestamp
-        if not model.device.is_cuda or not use_cuda_graph:
-            query()
-            return None
-        if graph is None or graph[0] != pointers:
-            graph = pointers, capture_graph(str(model.device), query, relaxed=has_kit())
-        wp.capture_launch(graph[1])
-        return graph
 
-    @staticmethod
-    def capture_graph(device: str, capture_target: Callable[[], None], *, relaxed: bool = False) -> wp.Graph:
-        """Record work without an eager warmup or graph replay; see :func:`capture_graph`."""
-        return capture_graph(device, capture_target, relaxed=relaxed)
-
-    @staticmethod
-    def _refit_bvh(backend: NewtonBackend) -> None:
-        model, state = backend.model, backend.state_0
-        if model.shape_count:
-            model.bvh_refit_shapes(state)
-        if model.particle_count:
-            model.bvh_refit_particles(state)
+def _refit_bvh(backend: NewtonBackend) -> None:
+    model, state = backend.model, backend.state_0
+    if model.shape_count:
+        model.bvh_refit_shapes(state)
+    if model.particle_count:
+        model.bvh_refit_particles(state)

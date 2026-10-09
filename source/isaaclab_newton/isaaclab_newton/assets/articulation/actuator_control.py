@@ -80,7 +80,7 @@ class NewtonActuatorControl(ArticulationActuatorControl):
 
         self._native_actuator_path_active = True
         articulation._has_newton_actuators = True
-        SimulationManager.activate_newton_actuator_path()
+        SimulationManager.activate_actuators()
 
         return native_group_names
 
@@ -89,7 +89,7 @@ class NewtonActuatorControl(ArticulationActuatorControl):
             return None
 
         articulation = self._articulation
-        adapter = SimulationManager.get_actuator_adapter()
+        adapter = SimulationManager.backend.actuators
         if adapter is not None:
             # View the adapter's flat DOF buffers through this articulation's own layout, which stays correct
             # when worlds hold different robots.
@@ -98,9 +98,9 @@ class NewtonActuatorControl(ArticulationActuatorControl):
             self._reset_dof_mask = wp.zeros(adapter.computed_effort.shape[0], dtype=wp.bool, device=self.device)
             self._reset_dof_view = view.get_attribute("joint_f", _DofBuffer(self._reset_dof_mask))[:, 0]
             self._reset_row_mask = torch.zeros(self.num_instances, dtype=torch.bool, device=self.device)
+            self._reset_row_mask_wp = wp.from_torch(self._reset_row_mask, dtype=wp.bool)
             binding = adapter.bind_articulation(
                 implicit_joint_indices=collection._implicit_group_joint_indices(),
-                dof_offset=self._joint_dof_offset(),
                 num_joints=self.num_joints,
                 computed_effort_view=computed_effort,
             )
@@ -226,7 +226,7 @@ class NewtonActuatorControl(ArticulationActuatorControl):
             )
 
     def reset_native_actuators(self, env_ids: Sequence[int] | slice) -> None:
-        adapter = SimulationManager.get_actuator_adapter()
+        adapter = SimulationManager.backend.actuators
         if not self._native_actuator_path_active or adapter is None:
             return
         row_mask = self._reset_row_mask
@@ -235,21 +235,8 @@ class NewtonActuatorControl(ArticulationActuatorControl):
         wp.launch(
             _select_row_dofs,
             dim=self._reset_dof_view.shape,
-            inputs=[wp.from_torch(row_mask, dtype=wp.bool)],
+            inputs=[self._reset_row_mask_wp],
             outputs=[self._reset_dof_view],
             device=self.device,
         )
         adapter.reset_dofs(self._reset_dof_mask)
-
-    def _joint_dof_offset(self) -> int:
-        """Return the first selected joint DOF's model offset within an environment."""
-        from newton import Model as NewtonModel  # noqa: PLC0415
-
-        dof_layout = self._articulation._root_view.frequency_layouts[NewtonModel.AttributeFrequency.JOINT_DOF]
-        if dof_layout.slice is not None:
-            selection_offset = dof_layout.slice.start
-        elif dof_layout.indices is not None:
-            selection_offset = int(dof_layout.indices.numpy()[0])
-        else:
-            selection_offset = 0
-        return dof_layout.offset + selection_offset

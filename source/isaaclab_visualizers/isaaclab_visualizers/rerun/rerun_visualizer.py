@@ -384,7 +384,7 @@ class RerunVisualizer(BaseVisualizer):
         self._sim_time += dt
         self._step_counter += 1
 
-        num_envs = self.backend.model.num_envs
+        num_envs = self.backend.model.world_count
 
         if not self._viewer.is_paused():
             backend, provider = self.backend, self._scene_data_provider

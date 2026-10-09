@@ -79,20 +79,17 @@ class NewtonActuatorAdapter:
         num_joints: int,
         dof_offset: int,
         device: str,
-        *,
-        dof_count: int | None = None,
     ):
         """Initialize the adapter.
 
         Args:
             actuators: Actuators to step.
             num_envs: Number of environments.
-            num_joints: Per-environment DOF stride of the actuator index arrays.
+            num_joints: Per-environment DOF stride of the actuator index arrays. A model whose worlds hold different
+                robots passes ``num_envs=1`` and its total DOF count, and binds articulations with explicit views
+                (see :meth:`bind_articulation`).
             dof_offset: Offset of the first DOF in the actuator index arrays.
             device: Warp device.
-            dof_count: Size of the flat DOF space the actuator indices address. Defaults to
-                ``num_envs * num_joints``; a model whose worlds hold different robots passes its total DOF count
-                and binds articulations with explicit views (see :meth:`bind_articulation`).
         """
         self.actuators = actuators
         self.num_joints = num_joints
@@ -100,23 +97,6 @@ class NewtonActuatorAdapter:
         self._num_envs = num_envs
         self._dof_offset = dof_offset
         self._device = device
-
-        # Collect the set of local DOFs covered by some actuator. Only the
-        # env-0 slice of each actuator's flat ``indices`` array is needed —
-        # later envs are repeats with a constant ``num_joints`` stride.
-        managed: set[int] = set()
-        for act in actuators:
-            all_indices = act.indices.numpy()
-            num_per_act = len(all_indices) // num_envs
-            for global_dof in all_indices[:num_per_act]:
-                local_dof = global_dof - dof_offset
-                if 0 <= local_dof < num_joints:
-                    managed.add(local_dof)
-
-        if len(managed) == num_joints:
-            self.joint_indices: torch.Tensor | slice = slice(None)
-        else:
-            self.joint_indices = torch.tensor(sorted(managed), dtype=torch.int32, device=device)
 
         self._dof_reset_masks: list[wp.array] | None = None
         self._states_a = [act.state() for act in actuators]
@@ -128,15 +108,8 @@ class NewtonActuatorAdapter:
         # buffer so the post-actuator telemetry kernel can report the actual
         # computed (pre-clamp) effort instead of mirroring ``joint_f``. The
         # binding onto ``sim_control`` happens in :meth:`finalize`.
-        uniform_count = num_envs * num_joints
-        self._computed_effort = wp.zeros(
-            uniform_count if dof_count is None else dof_count,
-            dtype=wp.float32,
-            device=device,
-        )
-        self.computed_effort_2d = (
-            self._computed_effort.reshape((num_envs, num_joints)) if dof_count in (None, uniform_count) else None
-        )
+        self._computed_effort = wp.zeros(num_envs * num_joints, dtype=wp.float32, device=device)
+        self.computed_effort_2d = self._computed_effort.reshape((num_envs, num_joints))
         for act in actuators:
             act.control_computed_output_attr = "joint_computed_f"
 
@@ -295,8 +268,8 @@ class NewtonActuatorAdapter:
         self,
         *,
         implicit_joint_indices: Sequence[slice | torch.Tensor | None],
-        dof_offset: int,
         num_joints: int,
+        dof_offset: int = 0,
         computed_effort_view: wp.array | None = None,
     ) -> ArticulationBinding:
         """Assemble the Newton fast-path init state for one articulation.
@@ -308,12 +281,11 @@ class NewtonActuatorAdapter:
             implicit_joint_indices: Joint selectors of the articulation's implicit
                 actuator groups in public joint order; they define
                 :attr:`ArticulationBinding.implicit_dof_mask`.
-            dof_offset: Offset of this articulation's DOFs in the adapter's
-                env-major global index space (``0`` on PhysX, view-dependent
-                on Newton).
             num_joints: Articulation-local joint count. Distinct from
                 :attr:`num_joints`, which is the whole-model per-env DOF
                 stride used to lay out the actuator index arrays.
+            dof_offset: Offset of this articulation's DOFs in the adapter's
+                env-major global index space. Unused with :paramref:`computed_effort_view`.
             computed_effort_view: This articulation's ``(num_instances, num_joints)`` view of
                 :attr:`computed_effort`. Required when the DOF space is not a uniform per-environment layout;
                 defaults to the uniform slice at :paramref:`dof_offset`.

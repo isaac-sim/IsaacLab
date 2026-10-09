@@ -545,7 +545,7 @@ def test_prepare_native_actuators_activates_only_explicit_groups(monkeypatch, ac
         write_joint_stiffness_to_sim_index=lambda **_: gain_writes.append("stiffness"),
         write_joint_damping_to_sim_index=lambda **_: gain_writes.append("damping"),
     )
-    monkeypatch.setattr(SimulationManager, "activate_newton_actuator_path", lambda: activation_calls.append(True))
+    monkeypatch.setattr(SimulationManager, "activate_actuators", lambda: activation_calls.append(True))
 
     control = NewtonActuatorControl(articulation)
     group_name = "explicit" if expected_native_groups else "implicit"
@@ -903,7 +903,7 @@ def test_randomize_actuator_gains_reaches_newton_controllers(newton_run: _Run) -
         "cartpole": (newton_run.articulations["cartpole"], "all_joints"),
     }
     legs = groups["legs"][0]
-    assert SimulationManager.get_actuator_adapter() is not None
+    assert SimulationManager.backend.actuators is not None
 
     def gains(name: str) -> torch.Tensor:
         """Return the ``(kp, kd)`` gains of one articulation's actuator group, shape ``(2, num_envs, num_joints)``."""
@@ -946,7 +946,7 @@ def test_newton_state_reset_isolated_to_reset_env(newton_run: _Run) -> None:
     islands' actuators share its state buffers; their state is not part of this articulation's contract.
     """
     articulation = newton_run.articulations["delayed"]
-    adapter = SimulationManager.get_actuator_adapter()
+    adapter = SimulationManager.backend.actuators
     assert adapter is not None
     own_actuators = []
     for group_name in articulation.actuators._native_group_names:
@@ -965,14 +965,15 @@ def test_newton_state_reset_isolated_to_reset_env(newton_run: _Run) -> None:
 
     articulation.reset(env_ids=torch.tensor([0], device=articulation.device, dtype=torch.long))
 
-    # Map each entry of ``act.indices`` to its env via the adapter's per-env DOF count. The adapter is
-    # model-wide (includes free-joint DOFs on floating-base articulations), so ``adapter.num_joints`` is the
-    # stride.
+    # Map each entry of ``act.indices`` to its env via the model's per-world DOF count (worlds here share a layout,
+    # including free-joint DOFs on floating-base articulations).
+    model = SimulationManager.get_model()
+    dofs_per_world = model.joint_dof_count // model.world_count
     for act, state in stateful_pairs:
         pushes_after = state.delay_state.num_pushes.numpy()
         indices_np = act.indices.numpy()
         for i, global_dof in enumerate(indices_np):
-            env = int(global_dof) // adapter.num_joints
+            env = int(global_dof) // dofs_per_world
             if env == 0:
                 assert int(pushes_after[i]) == 0, f"DOF {i} (env {env}) should be reset to 0, got {pushes_after[i]}"
             else:

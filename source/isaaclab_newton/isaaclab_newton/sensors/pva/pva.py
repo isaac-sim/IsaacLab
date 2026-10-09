@@ -60,7 +60,7 @@ class Pva(BasePva):
         self._newton_model = None
 
         offset_xform = wp.transform(cfg.offset.pos, cfg.offset.rot)
-        self._site_label = NewtonManager.cl_register_site(cfg.prim_path, offset_xform)
+        self._site_label = NewtonManager.register_site(cfg.prim_path, offset_xform)
         NewtonManager.request_extended_state_attribute("body_qdd")
 
         logger.info(f"Pva '{cfg.prim_path}': site registered (label='{self._site_label}')")
