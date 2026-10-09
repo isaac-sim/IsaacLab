@@ -22,7 +22,7 @@ from isaaclab.envs import ManagerBasedRLEnv
 from isaaclab.sim import SimulationContext
 
 from . import shoelace_constants as physics
-from .mdp.events import _startup_array
+from .shoelace_assets import read_shoelace_attribute
 
 if TYPE_CHECKING:
     from .shoelace_env_cfg import ShoelaceEnvCfg
@@ -100,8 +100,8 @@ def configure_shoelace_builder(
         if not chain or len(rod_joints) != len(chain) - 1:
             raise ValueError(f"Expected one open cable chain for {side} in world {world}")
         # Preserve the material tuning when the asset is resampled to a different segment length [m].
-        reference_length = float(_startup_array(curve, "referenceSegmentLength", ()))
-        segment_length = float(_startup_array(curve, "segmentLength", ()))
+        reference_length = float(read_shoelace_attribute(curve, "referenceSegmentLength", ()))
+        segment_length = float(read_shoelace_attribute(curve, "segmentLength", ()))
         if reference_length <= 0.0 or segment_length <= 0.0:
             raise ValueError(f"{curve.GetPath()}: segment lengths must be positive")
         # The anchored end is opposite the free tail: left cable last segment, right cable first.

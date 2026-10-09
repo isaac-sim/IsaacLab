@@ -15,8 +15,7 @@ import torch
 import warp as wp
 from isaaclab_newton.physics import NewtonManager
 
-from isaaclab.sensors import SensorBase, SensorBaseCfg
-from isaaclab.utils import configclass
+from isaaclab.sensors import SensorBase
 
 from . import shoelace_constants as physics
 
@@ -198,13 +197,6 @@ class FingerTailContactSensor(SensorBase):
         if hasattr(self, "_contacts"):
             NewtonManager.unregister_post_step_callback(self._contacts.update)
         super()._clear_callbacks()
-
-
-@configclass
-class FingerTailContactSensorCfg(SensorBaseCfg):
-    """Configuration for the task's four finger-tail contact observations."""
-
-    class_type: type = FingerTailContactSensor
 
 
 def _find_chains(labels: list[str], worlds: list[int], num_envs: int, suffix: str) -> list[tuple[list[int], list[int]]]:

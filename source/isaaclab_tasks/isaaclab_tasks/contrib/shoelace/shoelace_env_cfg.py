@@ -7,8 +7,6 @@
 
 from __future__ import annotations
 
-from dataclasses import fields
-
 from isaaclab_newton.physics import (
     MJWarpSolverCfg,
     NewtonCfg,
@@ -40,7 +38,7 @@ from isaaclab_tasks.core.lift.config.franka_soft.franka_soft_env_cfg import Fran
 from . import mdp
 from . import shoelace_constants as physics
 from .shoelace_assets import ShoelaceUsdCfg
-from .shoelace_contacts import FingerTailContactSensorCfg
+from .shoelace_contacts_cfg import FingerTailContactSensorCfg
 
 CABLE_CFGS = (SceneEntityCfg("shoelace_left"), SceneEntityCfg("shoelace_right"))
 ROBOT_CFGS = (
@@ -71,9 +69,13 @@ def _franka_cfg(
 ) -> ArticulationCfg:
     """Build one fixed-base Franka in the nominal open-pregrasp pose."""
     robot = FrankaSoftSceneCfg().default.robot.replace(prim_path=prim_path)
-    spawn_args = {field.name: getattr(robot.spawn, field.name) for field in fields(robot.spawn)}
-    spawn_args.pop("func")
-    robot.spawn = ShoelaceUsdCfg(**spawn_args, friction_overrides=_FINGER_FRICTION.copy())
+    robot.spawn = ShoelaceUsdCfg(
+        usd_path=robot.spawn.usd_path,
+        rigid_props=robot.spawn.rigid_props,
+        articulation_props=robot.spawn.articulation_props,
+        variants=robot.spawn.variants,
+        friction_overrides=_FINGER_FRICTION.copy(),
+    )
     robot.init_state.pos = position
     robot.init_state.rot = rotation
     robot.init_state.joint_pos.update(arm_joint_positions)

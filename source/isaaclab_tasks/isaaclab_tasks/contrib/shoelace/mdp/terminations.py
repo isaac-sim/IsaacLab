@@ -108,9 +108,7 @@ class shoelace_bilateral_pull_success(ManagerTermBase):
         if not math.isfinite(minimum_tail_outward_distance) or minimum_tail_outward_distance <= 0.0:
             raise ValueError("minimum_tail_outward_distance must be finite and positive")
 
-        throat_counts, _, _, geometry_finite = untying_metrics(
-            env, cable_cfgs, throat_radius, per_arm_throat_counts=True
-        )
+        throat_counts, geometry_finite = untying_metrics(env, cable_cfgs, throat_radius)
         outward_x = tail_outward_x(env, cable_cfgs)
         geometry_success = (
             geometry_finite

@@ -27,28 +27,35 @@ def test_shoe_reset_accepts_slices_and_preserves_unselected_poses(env_ids: torch
     defaults[:, 6] = 1.0
     origins = torch.arange(12, dtype=torch.float32).reshape(4, 3)
     shoe_pose = defaults.clone()
-    cable_pose = defaults[:, None].expand(-1, 3, -1).clone()
+    cable_poses = [defaults[:, None].expand(-1, 3, -1).clone() for _ in range(2)]
+    cable_poses[1][..., 1] = 0.5
+    initial_cable_poses = [pose.clone() for pose in cable_poses]
     shoe = SimpleNamespace(
         data=SimpleNamespace(default_root_pose=SimpleNamespace(torch=defaults)),
         write_root_pose_to_sim_index=lambda *, root_pose, env_ids: shoe_pose.__setitem__(env_ids, root_pose),
     )
-    cable = SimpleNamespace(
-        data=SimpleNamespace(default_segment_pose_w=SimpleNamespace(torch=cable_pose.clone())),
-        write_segment_pose_to_sim_index=lambda *, segment_pose, env_ids: cable_pose.__setitem__(env_ids, segment_pose),
-    )
+    cables = [
+        SimpleNamespace(
+            data=SimpleNamespace(default_segment_pose_w=SimpleNamespace(torch=pose.clone())),
+            write_segment_pose_to_sim_index=lambda *, segment_pose, env_ids, buffer=pose: buffer.__setitem__(
+                env_ids, segment_pose
+            ),
+        )
+        for pose in cable_poses
+    ]
 
     class Scene(dict):
         env_origins = origins
 
-    env = SimpleNamespace(device="cpu", scene=Scene(shoe=shoe, shoelace_left=cable, shoelace_right=cable))
+    env = SimpleNamespace(device="cpu", scene=Scene(shoe=shoe, shoelace_left=cables[0], shoelace_right=cables[1]))
     reset_shoe_position(env, env_ids, {"x": (0.1, 0.1), "y": (-0.2, -0.2)})
     expected_shoe = defaults.clone()
-    expected_cable = defaults[:, None].expand(-1, 3, -1).clone()
     offset = torch.tensor([0.1, -0.2, 0.0])
     expected_shoe[env_ids, :3] += origins[env_ids] + offset
-    expected_cable[env_ids, :, :3] += offset
     torch.testing.assert_close(shoe_pose, expected_shoe)
-    torch.testing.assert_close(cable_pose, expected_cable)
+    for actual, expected in zip(cable_poses, initial_cable_poses, strict=True):
+        expected[env_ids, :, :3] += offset
+        torch.testing.assert_close(actual, expected)
 
 
 @pytest.mark.parametrize(("num_envs", "override"), [(4, None), (1024, None), (1024, 1_024_000)])

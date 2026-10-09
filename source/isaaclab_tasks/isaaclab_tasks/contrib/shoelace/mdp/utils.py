@@ -62,21 +62,16 @@ def untying_metrics(
     env: ManagerBasedEnv,
     cable_cfgs: tuple[SceneEntityCfg, SceneEntityCfg],
     throat_radius: float,
-    *,
-    per_arm_throat_counts: bool = False,
-) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+) -> tuple[torch.Tensor, torch.Tensor]:
     """Measure free cable occupancy around the fixed seam midpoint.
 
     Args:
         env: Shoelace environment.
         cable_cfgs: Left and right cable scene entities, including their fixed seam anchors.
         throat_radius: Radius of the spherical knot-throat region [m].
-        per_arm_throat_counts: Return separate counts in robot-arm order instead of their total.
 
     Returns:
-        Free segment-center counts in the throat, shape [N] or [N, 2] when ``per_arm_throat_counts``;
-        tail-to-midpoint distances [m], shape [N, 2] in robot-arm order;
-        absolute tail X separation [m], shape [N]; and finite position/velocity
+        Free segment-center counts in the throat, shape [N, 2] in robot-arm order, and finite position/velocity
         flags, shape [N]. Counts alone are not valid for nonfinite cable states. This is a regional
         geometric criterion, not a topological knot classifier.
     """
@@ -90,12 +85,7 @@ def untying_metrics(
     left_free_count = left.shape[1] - 1
     # Robot-left controls the right cable; report counts in the same order as grasp and pull metrics.
     throat_count = torch.stack((inside[:, left_free_count:].sum(dim=1), inside[:, :left_free_count].sum(dim=1)), dim=1)
-    if not per_arm_throat_counts:
-        throat_count = throat_count.sum(dim=1)
-    tail_positions, _ = tail_state(env, cable_cfgs)
-    tail_distances = torch.linalg.vector_norm(tail_positions - center.unsqueeze(1), dim=-1)
-    separation = torch.abs(tail_positions[:, 1, 0] - tail_positions[:, 0, 0])
     finite = torch.isfinite(left).all(dim=(1, 2)) & torch.isfinite(right).all(dim=(1, 2))
     for cable in cables:
         finite &= torch.isfinite(cable.data.segment_velocity_w.torch).all(dim=(1, 2))
-    return throat_count, tail_distances, separation, finite
+    return throat_count, finite

@@ -19,6 +19,8 @@ from isaaclab.envs.mdp.events import reset_joints_by_offset
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils.math import quat_mul, sample_uniform
 
+from ..shoelace_assets import read_shoelace_attribute
+
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
 
@@ -33,8 +35,8 @@ def install_settled_default_state(env: ManagerBasedEnv, env_ids: torch.Tensor | 
     for name, side in (("shoelace_left", "Left"), ("shoelace_right", "Right")):
         cable: CableObject = env.scene[name]
         curve = _source_curve(env, side)
-        positions = _startup_array(curve, "settledPositions", (cable.num_segments, 3))
-        orientations = _startup_array(curve, "settledOrientations", (cable.num_segments, 4), quaternion=True)
+        positions = read_shoelace_attribute(curve, "settledPositions", (cable.num_segments, 3))
+        orientations = read_shoelace_attribute(curve, "settledOrientations", (cable.num_segments, 4), quaternion=True)
         transform = _source_transform(curve)
         matrix = np.asarray(transform)
         positions = positions @ matrix[:3, :3] + matrix[3, :3]
@@ -120,34 +122,6 @@ def _source_curve(env: ManagerBasedEnv, side: str) -> Usd.Prim:
     if not curve:
         raise ValueError(f"Missing shoelace source curve: {path}")
     return curve
-
-
-def _startup_array(curve: Usd.Prim, name: str, shape: tuple[int, ...], quaternion: bool = False) -> np.ndarray:
-    """Read and validate task-local startup data baked into a cable prim.
-
-    Args:
-        curve: Source cable geometry prim.
-        name: Attribute name without the ``shoelace:`` prefix.
-        shape: Expected array shape; ``()`` denotes a scalar.
-        quaternion: Whether to require unit-length xyzw quaternions.
-
-    Returns:
-        Float64 values with the requested shape. Positions and lengths are in [m];
-        orientations are dimensionless xyzw quaternions.
-
-    Raises:
-        ValueError: If the attribute is missing, has an unexpected shape, contains
-            nonfinite values, or fails the requested quaternion validation.
-    """
-    value = curve.GetAttribute(f"shoelace:{name}").Get()
-    if value is None:
-        raise ValueError(f"{curve.GetPath()}: missing shoelace:{name}; regenerate shoelace.usda")
-    values = np.asarray(value, dtype=np.float64)
-    if values.shape != shape or not np.isfinite(values).all():
-        raise ValueError(f"{curve.GetPath()}: shoelace:{name} must have finite shape {shape}")
-    if quaternion and not np.allclose(np.linalg.norm(values, axis=-1), 1.0, atol=2.0e-5):
-        raise ValueError(f"{curve.GetPath()}: shoelace:{name} must contain unit xyzw quaternions")
-    return values
 
 
 def _source_transform(curve: Usd.Prim) -> Gf.Matrix4d:

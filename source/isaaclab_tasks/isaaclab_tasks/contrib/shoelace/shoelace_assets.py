@@ -3,13 +3,15 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""USD-level overrides for the example's existing material configuration knobs."""
+"""USD spawning and baked startup data for the shoelace task."""
 
 from __future__ import annotations
 
 import math
 import re
 from collections.abc import Callable
+
+import numpy as np
 
 from pxr import Usd, UsdGeom, UsdPhysics, UsdShade
 
@@ -80,3 +82,31 @@ class ShoelaceUsdCfg(sim_utils.UsdFileCfg):
     func: Callable = spawn_shoelace_usd
     friction_overrides: dict[str, float] = {}
     """Asset-relative collision-prim expressions and their friction coefficients."""
+
+
+def read_shoelace_attribute(curve: Usd.Prim, name: str, shape: tuple[int, ...], quaternion: bool = False) -> np.ndarray:
+    """Read and validate task-local startup data baked into a cable prim.
+
+    Args:
+        curve: Source cable geometry prim.
+        name: Attribute name without the ``shoelace:`` prefix.
+        shape: Expected array shape; ``()`` denotes a scalar.
+        quaternion: Whether to require unit-length xyzw quaternions.
+
+    Returns:
+        Float64 values with the requested shape. Positions and lengths are in [m];
+        orientations are dimensionless xyzw quaternions.
+
+    Raises:
+        ValueError: If the attribute is missing, has an unexpected shape, contains
+            nonfinite values, or fails the requested quaternion validation.
+    """
+    value = curve.GetAttribute(f"shoelace:{name}").Get()
+    if value is None:
+        raise ValueError(f"{curve.GetPath()}: missing shoelace:{name}; regenerate shoelace.usda")
+    values = np.asarray(value, dtype=np.float64)
+    if values.shape != shape or not np.isfinite(values).all():
+        raise ValueError(f"{curve.GetPath()}: shoelace:{name} must have finite shape {shape}")
+    if quaternion and not np.allclose(np.linalg.norm(values, axis=-1), 1.0, atol=2.0e-5):
+        raise ValueError(f"{curve.GetPath()}: shoelace:{name} must contain unit xyzw quaternions")
+    return values
