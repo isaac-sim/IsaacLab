@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Literal, Protocol
 
 import torch
 from physicsnemo_robotics.data import NewtonTrajectoryWriter, TrajectoryRecorder
-from physicsnemo_robotics.dynamics import TrajectoryFieldSpec, TrajectorySchema, newton_state_codec
+from physicsnemo_robotics.dynamics import StateCodec, TrajectoryFieldSpec, TrajectorySchema, newton_state_codec
 from physicsnemo_robotics.newton import NewtonStepContext, field_to_torch
 
 from .binding import NewtonBinding
@@ -69,6 +69,7 @@ class TrajectoryDatasetRecorder:
         *,
         scenario_id: str,
         remove_root_translation: bool | Literal["planar"] = False,
+        codec: StateCodec | None = None,
         recorded_features: Sequence[RecordedFeature] = (),
         seed: int = 0,
         replace: bool = False,
@@ -80,7 +81,11 @@ class TrajectoryDatasetRecorder:
             path: Output dataset directory.
             scenario_id: Stable name of the data-collection scenario stored with every episode.
             remove_root_translation: Root translation removed from model inputs. Use ``"planar"`` for
-                floating-base robots so that per-environment origins do not reach the model.
+                floating-base robots so that per-environment origins do not reach the model. Ignored when
+                ``codec`` is given.
+            codec: Joint state codec of the model inputs, such as
+                :class:`~isaaclab_physicsnemo.HeadingJointStateCodec`. Defaults to the PhysicsNeMo Robotics
+                joint codec.
             recorded_features: Encoders of additional transition inputs, such as PhysicsNeMo Robotics
                 fixed contact probes. Each transition stores their values for its starting state.
             seed: Seed stored with every episode.
@@ -98,8 +103,10 @@ class TrajectoryDatasetRecorder:
             )
         self.binding = NewtonBinding(manager)
         validate_effort_control(self.binding.model)
-        self.codec = newton_state_codec(
-            self.binding.model, "joint", joint_remove_root_translation=remove_root_translation
+        self.codec = (
+            codec
+            if codec is not None
+            else newton_state_codec(self.binding.model, "joint", joint_remove_root_translation=remove_root_translation)
         )
         self.schema = TrajectorySchema.from_specs(
             self.binding.spec,

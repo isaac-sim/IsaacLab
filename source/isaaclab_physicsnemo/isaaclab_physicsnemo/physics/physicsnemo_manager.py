@@ -21,6 +21,7 @@ from physicsnemo_robotics.newton import FrameSpec, NewtonModelSignature
 
 from isaaclab.utils.string import string_to_callable
 
+from ..heading import artifact_codec_factory, artifact_feature_factory
 from ..signature import isaaclab_canonical_view
 from .state_ownership import validate_effort_control, validate_state_ownership
 
@@ -147,8 +148,8 @@ def _create_learned_solver(
         solver = artifact.as_solver(
             model,
             model_signature=NewtonModelSignature.from_model(model),
-            codec_factory=_resolve(solver_cfg.codec_factory),
-            feature_factory=_resolve(solver_cfg.feature_factory),
+            codec_factory=_resolve(solver_cfg.codec_factory) or artifact_codec_factory,
+            feature_factory=_resolve(solver_cfg.feature_factory) or artifact_feature_factory,
             device=str(model.device),
             continuity=solver_cfg.continuity,
         )

@@ -50,7 +50,15 @@ class PhysicsNeMoSolverCfg(NewtonSolverCfg):
     """Factory returning the network module, required only for artifacts storing a plain Torch module."""
 
     codec_factory: Callable | str | None = None
-    """Factory building a custom state codec, required only for artifacts with one."""
+    """Factory rebuilding a custom state codec.
+
+    Defaults to :func:`~isaaclab_physicsnemo.heading.artifact_codec_factory`, which rebuilds the codecs of
+    this extension.
+    """
 
     feature_factory: Callable | str | None = None
-    """Factory building a custom feature encoder, required only for artifacts with one."""
+    """Factory rebuilding a custom feature encoder.
+
+    Defaults to :func:`~isaaclab_physicsnemo.heading.artifact_feature_factory`, which rebuilds the encoders
+    of this extension.
+    """

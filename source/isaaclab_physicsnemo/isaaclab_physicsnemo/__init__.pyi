@@ -5,6 +5,7 @@
 
 __all__ = [
     "CONTROL_KEY",
+    "HeadingJointStateCodec",
     "HorizonError",
     "JointRollout",
     "NewtonBinding",
@@ -13,6 +14,7 @@ __all__ = [
     "PreflightReport",
     "RecordedFeature",
     "RolloutError",
+    "RootGravityEncoder",
     "SIGNATURE_SIGNIFICANT_DIGITS",
     "SIGNATURE_ZERO_TOLERANCE",
     "SOLVER_ATTRIBUTE_NAMESPACES",
@@ -42,6 +44,7 @@ from .evaluation import (
     evaluate_rollout_nrmse,
     record_joint_rollout,
 )
+from .heading import HeadingJointStateCodec, RootGravityEncoder
 from .exploration import SmoothRandomActions, UniformRandomActions
 from .preflight import PreflightCheck, PreflightReport, preflight_learned_physics
 from .recording import CONTROL_KEY, RecordedFeature, TrajectoryDatasetRecorder

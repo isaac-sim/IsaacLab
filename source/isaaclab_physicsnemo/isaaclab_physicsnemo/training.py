@@ -24,6 +24,7 @@ from physicsnemo_robotics.dynamics import (
     ControlFieldEncoder,
     DynamicsArtifact,
     FeatureEncoder,
+    StateCodec,
     TransitionAdapter,
     TransitionSpec,
     newton_state_codec,
@@ -130,6 +131,7 @@ def train_dynamics_artifact(
     output_dir: str | Path,
     *,
     remove_root_translation: bool | Literal["planar"] = False,
+    codec: StateCodec | None = None,
     features: FeatureEncoder | None = None,
     settings: TrainingSettings | None = None,
     device: str = "cuda:0",
@@ -146,7 +148,8 @@ def train_dynamics_artifact(
         dataset_path: Dataset written by :class:`~isaaclab_physicsnemo.TrajectoryDatasetRecorder`.
         model: Finalized Newton model of the recording scene, used to build the state codec.
         output_dir: Directory receiving training checkpoints and the ``artifact`` directory.
-        remove_root_translation: Same value the dataset was recorded with.
+        remove_root_translation: Same value the dataset was recorded with. Ignored when ``codec`` is given.
+        codec: State codec the dataset was recorded with. Defaults to the PhysicsNeMo Robotics joint codec.
         features: Encoder of the model's conditioning inputs, built against ``model``. Defaults to the applied
             joint efforts. Its recorded fields must be in the dataset.
         settings: Optimization settings. Defaults to :class:`TrainingSettings`.
@@ -184,7 +187,8 @@ def train_dynamics_artifact(
     if not split.train or not split.validation:
         raise ValueError(f"The dataset at {dataset_path} has too few trajectories for a train/validation split.")
 
-    codec = newton_state_codec(model, "joint", joint_remove_root_translation=remove_root_translation)
+    if codec is None:
+        codec = newton_state_codec(model, "joint", joint_remove_root_translation=remove_root_translation)
     effort_only = features is None
     if effort_only:
         features = ControlFieldEncoder("joint_f", per_world_shape=(codec.layout.dof_qd,), key=CONTROL_KEY)

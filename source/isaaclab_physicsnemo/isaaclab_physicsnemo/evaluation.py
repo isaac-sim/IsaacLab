@@ -33,10 +33,13 @@ class HorizonError:
     """Number of autoregressive predictions averaged into the error."""
 
     nrmse: float
-    """Normalized root-mean-square error, averaged over state channels."""
+    """Normalized root-mean-square error, pooled over trajectories, predictions, and state channels."""
 
     trajectories: int
-    """Number of evaluated trajectories long enough for the horizon."""
+    """Number of evaluated trajectories, which stayed finite over the rollout."""
+
+    nonfinite_trajectories: int = 0
+    """Number of trajectories excluded because their rollout became non-finite."""
 
 
 @dataclass(frozen=True)
@@ -85,19 +88,23 @@ def evaluate_rollout_nrmse(
     *,
     evaluation_indices: Sequence[int],
     reference_indices: Sequence[int],
+    reference_reader: TrajectoryReader | None = None,
     horizons: Sequence[int] = (1, 15, 100, 200),
     max_trajectories: int = 2048,
     device: str | torch.device = "cuda:0",
 ) -> tuple[HorizonError, ...]:
-    """Measure recursive-rollout accuracy with the prefix-averaged NRMSE of the FlashNeRD evaluation.
+    """Measure recursive-rollout accuracy with the prefix-pooled NRMSE of the FlashNeRD evaluation.
 
     Each evaluated trajectory starts from its first ``history`` recorded states and is rolled out
     autoregressively with its recorded joint efforts, so predictions become inputs and errors compound.
     The error of a predicted state is its codec transition from the recorded state, which wraps
     continuous angles and expresses orientation errors as rotation vectors. Each channel is normalized
-    by the standard deviation of the reference states in the same coordinates. ``E_H`` is the mean over
-    channels of the root-mean-square normalized error over the first ``H`` predictions of every
-    trajectory with at least ``history + H`` states.
+    by the standard deviation of the reference states in the same coordinates. ``E_H`` is the
+    root-mean-square normalized error pooled over trajectories, the first ``H`` predictions, and the state
+    channels, as in the FlashNeRD main-results study.
+
+    Horizons that the same trajectories are long enough for share one rollout, so they are prefixes of one
+    cohort. Trajectories whose rollout becomes non-finite are excluded and counted.
 
     Args:
         artifact: Artifact to evaluate.
@@ -105,8 +112,9 @@ def evaluate_rollout_nrmse(
         codec: State codec of the artifact, rebuilt against the recording scene.
         features: Feature encoder of the artifact, which reads the recorded joint efforts.
         evaluation_indices: Reader indices of the held-out trajectories to roll out.
-        reference_indices: Reader indices of the trajectories that define the normalization, typically
-            the training trajectories.
+        reference_indices: Indices of the trajectories that define the normalization, typically the
+            training trajectories.
+        reference_reader: Reader of the reference trajectories. Defaults to ``reader``.
         horizons: Numbers of predictions to average over.
         max_trajectories: Maximum number of trajectories evaluated per horizon.
         device: Inference device.
@@ -117,40 +125,47 @@ def evaluate_rollout_nrmse(
     operator = artifact.as_operator(codec=codec, features=features, device=device)
     history = operator.history
 
-    def read(index: int, *, controls: bool = True) -> dict[str, torch.Tensor]:
+    def read(source: TrajectoryReader, index: int, *, controls: bool = True) -> dict[str, torch.Tensor]:
         """Read the state timeline and, optionally, the one-shorter transition timeline of a trajectory."""
-        length = reader.trajectory_length(index)
-        fields = reader.read_slice(index, 0, length, ("state",))
+        length = source.trajectory_length(index)
+        fields = source.read_slice(index, 0, length, ("state",))
         if controls:
-            fields |= reader.read_slice(index, 0, length - 1, (CONTROL_KEY,))
+            fields |= source.read_slice(index, 0, length - 1, (CONTROL_KEY,))
         return fields
 
-    trajectories = [read(index) for index in evaluation_indices]
-    reference = torch.cat([read(index, controls=False)["state"] for index in reference_indices]).to(device)
-    anchor = reference[:1].expand_as(reference)
-    spread = codec.state_to_delta(anchor, reference).std(dim=0)
+    reference_reader = reader if reference_reader is None else reference_reader
+    trajectories = [read(reader, index) for index in evaluation_indices]
+    reference = torch.cat([read(reference_reader, index, controls=False)["state"] for index in reference_indices])
+    reference = reference.to(device)
+    spread = codec.state_to_delta(reference[:1].expand_as(reference), reference).std(dim=0)
     spread = torch.where(spread > 1.0e-8, spread, torch.ones_like(spread))
 
+    cohorts: dict[tuple[int, ...], list[int]] = {}
+    for horizon in sorted(horizons):
+        eligible = tuple(i for i, data in enumerate(trajectories) if data["state"].shape[0] >= history + horizon)
+        if eligible:
+            cohorts.setdefault(eligible[:max_trajectories], []).append(horizon)
+
     errors = []
-    for horizon in horizons:
-        selected = [data for data in trajectories if data["state"].shape[0] >= history + horizon][:max_trajectories]
-        if not selected:
-            continue
-        states = torch.stack([data["state"][: history + horizon] for data in selected]).to(device)
-        controls = torch.stack([data[CONTROL_KEY][: history + horizon - 1] for data in selected]).to(device)
+    for cohort, cohort_horizons in cohorts.items():
+        steps = max(cohort_horizons)
+        states = torch.stack([trajectories[i]["state"][: history + steps] for i in cohort]).to(device)
+        controls = torch.stack([trajectories[i][CONTROL_KEY][: history + steps - 1] for i in cohort]).to(device)
         controls = controls.flatten(start_dim=2)
         rollout = operator.rollout(
             initial_history=states[:, :history],
-            steps=horizon,
+            steps=steps,
             feature_history=controls[:, :history],
             frame_factory=lambda current, index: DynamicsFrame(current, features=controls[:, history + index]),
         )
         recorded = states[:, history:].flatten(end_dim=1)
         predicted = rollout.states[:, 1:].to(device).flatten(end_dim=1)
-        normalized = codec.state_to_delta(recorded, predicted) / spread
-        nrmse = normalized.square().mean(dim=0).sqrt().mean().item()
-        errors.append(HorizonError(horizon=horizon, nrmse=nrmse, trajectories=len(selected)))
-    return tuple(errors)
+        normalized = (codec.state_to_delta(recorded, predicted) / spread).reshape(len(cohort), steps, -1)
+        finite = normalized.isfinite().all(dim=(1, 2))
+        for horizon in cohort_horizons:
+            nrmse = normalized[finite, :horizon].double().square().mean().sqrt().item()
+            errors.append(HorizonError(horizon, nrmse, int(finite.sum()), int((~finite).sum())))
+    return tuple(sorted(errors, key=lambda error: error.horizon))
 
 
 def record_joint_rollout(
