@@ -226,18 +226,3 @@ those links are treated as full bodies rather than zero-mass reference frames.
 However, the USD importer currently raises ``ReportError`` warnings showing unresolved references for such links
 when they lack visuals or colliders. This is a known bug in the importer; it creates references to visuals
 that do not exist. The warnings can be safely ignored until the importer is updated.
-
-
-Environment and setup
----------------------
-
-GLIBCXX errors in conda environments
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-**Affects:** conda-based installations, independent of the physics backend.
-
-Some workflows exit with an ``OSError`` indicating ``version 'GLIBCXX_3.4.30' not found``
-when running from a conda environment. The issue appears to stem from importing torch or
-torch-related packages, such as tensorboard, before Isaac Sim starts. As a workaround, ensure
-that all torch imports happen inside :func:`~isaaclab.app.launch_simulation`, after the runtime has
-started, which should resolve the error.

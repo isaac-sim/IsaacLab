@@ -126,9 +126,7 @@ The ``ovphysx`` extra requires OvPhysX 0.6.3. Install it from the repository roo
 The ``--inexact`` flag preserves packages installed through other extras.
 Use ``--extra ov`` to install both public OvPhysX and OVRTX runtimes. The combined
 extra pairs OVRTX 0.5.0.377615 with OVStage 0.2; OVRTX 0.4.1 is not compatible
-with this runtime combination. The legacy
-Isaac Lab installer also supports ``./isaaclab.sh -i 'ov[ovphysx]'`` and
-``./isaaclab.sh -i 'ov[all]'``.
+with this runtime combination.
 
 Testing the Installation
 ------------------------
@@ -143,12 +141,6 @@ First check that the Python package and runtime wheel import correctly:
 
           uv run --extra ovphysx --extra test python -c "import ovphysx.types; from isaaclab_ov.physics import OvPhysxCfg; print('OvPhysX runtime OK')"
 
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-          ./isaaclab.sh -p -c "import ovphysx.types; from isaaclab_ov.physics import OvPhysxCfg; print('OvPhysX runtime OK')"
-
 Then run a small backend smoke test:
 
 .. tab-set::
@@ -157,13 +149,7 @@ Then run a small backend smoke test:
 
       .. code-block:: bash
 
-          uv run --extra ovphysx --extra test python -m pytest source/isaaclab_ov/test/assets/test_rigid_object.py::test_initialization -k cpu
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-          ./isaaclab.sh -p -m pytest source/isaaclab_ov/test/assets/test_rigid_object.py::test_initialization -k cpu
+          uv run --extra ovphysx --extra test python -m pytest source/isaaclab_ov/test/assets/test_rigid_object.py::test_rigid_object_real_ovphysx_seams -k cpu
 
 To try a task that declares an OvPhysX physics preset, use the same preset CLI
 syntax as the other backends:
@@ -175,13 +161,6 @@ syntax as the other backends:
       .. code-block:: bash
 
           uv run --extra ovphysx isaaclab zero_agent --task Isaac-Cartpole-Direct \
-              --num_envs 128 --max_steps 64 physics=ovphysx
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-          ./isaaclab.sh -p scripts/environments/zero_agent.py --task Isaac-Cartpole-Direct \
               --num_envs 128 --max_steps 64 physics=ovphysx
 
 This command runs a 64-step headless zero-action rollout and then exits.

@@ -38,7 +38,7 @@ from ..utils.assets import configure_storage_profile
 from ..utils.device import set_cuda_device
 from ..utils.string import string_to_callable
 from ..visualizers.visualizer_cfg import parse_visualizer_csv, resolve_visualizer_cfgs
-from .logging_utils import apply_python_logging_level
+from .logging_utils import apply_python_logging_level, ensure_console_handlers, resolve_python_logging_level
 from .settings_manager import get_settings_manager
 
 logger = logging.getLogger(__name__)
@@ -193,16 +193,6 @@ def _resolve_launcher_args(args: dict) -> None:
         visualizers = [*visualizers, "kit"]
     args["livestream"] = livestream
     args["visualizer"] = visualizers
-
-
-def _resolve_python_logging_level(args: dict) -> int:
-    """Return the level for ``--verbose`` / ``--info`` (also read from ``sys.argv``), else the current root level."""
-    if args.get("verbose", False) or "--verbose" in sys.argv:
-        return logging.DEBUG
-    if args.get("info", False) or "--info" in sys.argv:
-        return logging.INFO
-    level = logging.getLogger().getEffectiveLevel()
-    return logging.WARNING if level == logging.NOTSET else level
 
 
 def _resolve_video_sources(video_recorders: list[VideoRecorderCfg], visualizers: list[str]) -> list[str]:
@@ -515,10 +505,15 @@ def _resolve_device(sim_cfg, args: dict, launchers: list[SimulationLauncher]) ->
 
     Starts from the ``device`` launcher argument resolved before launch; a started runtime may refine it
     (e.g. XR selects the CPU), and a bare ``"cuda"`` is pinned to the physics GPU index.
+
+    Raises:
+        RuntimeError: When the device is a CUDA device and CUDA is unavailable (e.g. on macOS).
     """
     device = args.get("device")
     for launcher in launchers:
         device = launcher.device or device
+    if device is not None and device.startswith("cuda") and not torch.cuda.is_available():
+        raise RuntimeError(f"Device '{device}' requires CUDA, which is not available; pass --device cpu.")
     if device == "cuda":
         cuda_device = get_settings_manager().get("/physics/cudaDevice")
         device = f"cuda:{max(0, int(cuda_device) if cuda_device is not None else 0)}"
@@ -540,6 +535,9 @@ def launch_simulation(
     physics/renderer/visualizer combination, and deciding whether Isaac Sim Kit is
     needed), then starts the launcher each required runtime's config names (closed on exit) or
     does nothing for kitless ones. Cameras are auto-enabled for Kit-renderer sensors.
+
+    On exit, stops and releases a simulation context created inside the scope before closing
+    its runtimes. An existing context owned by the caller is preserved.
 
     The run's visualizers and device are decided here, once: they are written to the
     :class:`~isaaclab.sim.SimulationCfg` in *cfg* (``visualizer_cfgs`` and ``device``), which
@@ -585,7 +583,9 @@ def launch_simulation(
     needs_kit = bool(kit_sources)
 
     # Honor --verbose / --info; the Kit launcher re-applies this level once Kit has started.
-    apply_python_logging_level(_resolve_python_logging_level(args))
+    python_logging_level = resolve_python_logging_level(args)
+    apply_python_logging_level(python_logging_level)
+    ensure_console_handlers(python_logging_level)
 
     # The SimulationCfg the simulation is built from, e.g. an env config's ``sim``; a physics config or None
     # holds none.
@@ -609,6 +609,9 @@ def launch_simulation(
 
     # Resolve the device before any launcher or physics init: --device, else this rank's GPU, else the config's.
     _resolve_distributed_device(args)
+    if sys.platform == "darwin" and args.get("device") == "cpu" and not args.get("device_explicit", False):
+        # the --device default on macOS, which has no CUDA
+        logger.warning("No --device given; using 'cpu' because macOS has no CUDA.")
     if sim_cfg is not None:
         args["device"] = args.get("device") or sim_cfg.device
 
@@ -629,12 +632,21 @@ def launch_simulation(
     settings.set("/isaaclab/visualizer/types", ",".join(args["visualizer"]) if sim_cfg is None else "")
     settings.set("/isaaclab/visualizer/max_visible_envs", -1 if max_visible_envs is None else int(max_visible_envs))
 
+    from ..sim.simulation_context import SimulationContext
+
+    previous_context = SimulationContext.instance()
     exit_code = 0
     try:
         # With no selected profile this is a no-op; with one, it installs process-wide OmniClient
         # routing before user code runs.
-        configure_storage_profile()
-        yield physics_cfg
+        try:
+            configure_storage_profile()
+            yield physics_cfg
+        finally:
+            # Release runtime consumers before a launcher can terminate the process.
+            context = SimulationContext.instance()
+            if context is not None and context is not previous_context:
+                SimulationContext.clear_instance()
     except KeyboardInterrupt:
         exit_code = 130
         raise

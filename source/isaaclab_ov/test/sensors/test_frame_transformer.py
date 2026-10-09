@@ -55,39 +55,6 @@ from isaaclab_assets.robots.franka import FRANKA_PANDA_CFG  # noqa: E402
 
 wp.init()
 
-pytestmark = pytest.mark.device_split
-
-
-# ---------------------------------------------------------------------------
-# Device-lock autouse fixture (mirrors test_contact_sensor.py)                #
-# ---------------------------------------------------------------------------
-
-_LOCKED_DEVICE: list[str | None] = [None]
-"""Device the session pins to on the first parametrized test that runs."""
-
-
-@pytest.fixture(autouse=True)
-def _ovphysx_skip_other_device(request):
-    """Skip parametrized tests on the device the session is not pinned to.
-
-    The OVPhysX runtime fixes device mode when the process creates its first
-    ``ovphysx.PhysX`` instance and cannot switch modes without a process
-    restart. Pin the session to whichever device is first used.
-    """
-    callspec = getattr(request.node, "callspec", None)
-    device = callspec.params.get("device") if callspec is not None else None
-    if device is None:
-        return
-    locked = _LOCKED_DEVICE[0]
-    if locked is None:
-        _LOCKED_DEVICE[0] = device
-        return
-    if device != locked:
-        pytest.skip(
-            f"ovphysx process-global device lock is held by '{locked}'; cannot run '{device}' "
-            "tests in the same session.  Run pytest twice (once per device) for full coverage."
-        )
-
 
 # ---------------------------------------------------------------------------
 # Simulation context helper                                                  #
@@ -146,7 +113,7 @@ class _SceneCfg(InteractiveSceneCfg):
             size=(0.2, 0.2, 0.2),
             rigid_props=PhysxRigidBodyCfg(max_depenetration_velocity=1.0),
             mass_props=sim_utils.MassCfg(mass=1.0),
-            physics_material=sim_utils.RigidBodyMaterialCfg(),
+            physics_material=sim_utils.RigidBodyMaterialBaseCfg(),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.5, 0.0, 0.0)),
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(2.0, 0.0, 5)),

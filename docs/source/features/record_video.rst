@@ -44,12 +44,6 @@ adds a single recorder; to record several sources at once, list one ``VideoRecor
 
           uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole --video
 
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-          ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole --video
-
 .. _record_video_cli:
 
 ``--video`` records from the source it names, and ``--viz`` still decides which visualizers open a window:

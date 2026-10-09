@@ -253,7 +253,9 @@ class MeshRepeatedObjectsTerrainCfg(SubTerrainBaseCfg):
         if self.max_height_noise is not None:
             warnings.warn(
                 "MeshRepeatedObjectsTerrainCfg: max_height_noise:float is deprecated and support will be removed in the"
-                " future. Use abs_height_noise:list[float] instead."
+                " future. Use abs_height_noise:list[float] instead.",
+                FutureWarning,
+                stacklevel=2,
             )
             self.abs_height_noise = (-self.max_height_noise, self.max_height_noise)
 

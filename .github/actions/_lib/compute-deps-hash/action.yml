@@ -51,8 +51,6 @@ runs:
           docker/docker-compose.yaml
           docker/scripts/install_carb_env_shim.sh
           docker/utils/volume_mounts.py
-          isaaclab.sh
-          environment.yml
           source/isaaclab/isaaclab/cli
           tools/wheel_builder/uv-overrides.txt
           # Pins the CI pytest deps layered onto the image after build, so a

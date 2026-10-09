@@ -312,7 +312,6 @@ class CommandsCfg:
             pitch=(0.0, 0.0),
             yaw=(0.0, 0.0),
         ),
-        success_vis_material_name="table_material",
         success_vis_colors=((0.8, 0.5, 0.5), (0.5, 0.8, 0.5)),
     )
 
@@ -643,6 +642,9 @@ class FrankaSoftEnvCfg(ManagerBasedRLEnvCfg):
 
     def play_mode(self):
         super().play_mode()
+        for command_cfg in vars(self.commands).values():
+            if isinstance(command_cfg, mdp.ObjectUniformPoseCommandCfg):
+                command_cfg.success_vis_material_name = "table_material"
         if self.curriculum is not None:
             self.curriculum.gravity = None
 

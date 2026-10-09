@@ -3,6 +3,47 @@ Changelog
 
 .. towncrier release notes start
 
+7.4.4 (2026-10-06)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the ``--device`` default to ``cpu`` on macOS, which has no CUDA, so commands run without passing
+  ``--device cpu``. Other platforms still default to ``cuda:0``.
+
+
+7.4.3 (2026-10-03)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the contact sensor debug-visualization notice and the surface gripper stage-attribute fallbacks
+  to use ``logger.warning`` instead of ``warnings.warn``, since they report runtime conditions that the
+  caller cannot fix.
+* Changed :class:`~isaaclab_physx.app.KitLauncher` to reuse the console logging handlers from
+  ``isaaclab.app.logging_utils``, removing the stderr warning handler once Kit's log bridge is active.
+* Missing-runtime diagnostics direct users to uv installation and source-build launch commands.
+
+Fixed
+^^^^^
+
+* Fixed :meth:`~isaaclab_physx.assets.RigidObjectCollection.set_coms_index` and
+  :meth:`~isaaclab_physx.assets.RigidObjectCollection.set_coms_mask` raising a ``KeyError`` because the
+  center-of-mass poses were passed to the PhysX tensor API as ``wp.transformf`` instead of ``float32``.
+* Fixed :meth:`~isaaclab_physx.assets.RigidObjectCollection.set_coms_index` and
+  :meth:`~isaaclab_physx.assets.RigidObjectCollection.set_coms_mask` leaving the unselected entries of
+  :attr:`~isaaclab_physx.assets.RigidObjectCollectionData.body_com_pose_b` zeroed when they were called for a
+  subset of bodies or environments before the property was first read.
+* Fixed :meth:`~isaaclab_physx.assets.RigidObjectCollection.set_inertias_index` and
+  :meth:`~isaaclab_physx.assets.RigidObjectCollection.set_inertias_mask` failing in the PhysX backend because the
+  inertias were passed to the PhysX tensor API with the wrong layout.
+* Fixed inertia writes leaving cached center-of-mass poses and their derived states stale when PhysX
+  recomputed the principal-axis rotation.
+* Report the source-build launch hint without requiring the ``ISAACLAB_PATH`` environment variable.
+
+
 7.4.2 (2026-10-02)
 ~~~~~~~~~~~~~~~~~~
 

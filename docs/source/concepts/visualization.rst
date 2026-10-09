@@ -137,15 +137,6 @@ alias.
           # Multiple visualizers simultaneously (comma-separated, no spaces)
           uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole --viz rerun,newton_rtx
 
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-          ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole --viz newton_gl
-          ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole --viz viser
-          ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole --viz kit
-          ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole --viz rerun,newton_rtx
-
 .. note::
 
    Most tasks default to a PhysX backend, which requires Isaac Sim. If it isn't installed yet,
@@ -537,9 +528,9 @@ updates every step.
 The streaming panel supports RGB, depth, segmentation, and surface normals, with a configurable
 number of environments shown.
 
-Streams can come from auto-created cameras that track and follow robot bodies, or from existing
-scene camera sensors, letting you toggle between different views, such as the Galbot task's
-wrist-mounted and ego cameras. Supported on Kit, Newton GL, Rerun, and Viser; not yet
+Streams come from camera sensors declared in the scene before cloning. Attach a camera to a robot
+body to follow its motion, and select between existing views such as the Galbot task's wrist-mounted
+and ego cameras. Supported on Kit, Newton GL, Rerun, and Viser; not yet
 supported on Newton RTX (experimental).
 
 See :doc:`/source/features/visualizer_tiled_camera` for the full guide and tutorial.
@@ -694,12 +685,6 @@ capture source, e.g. ``--video viz:kit``:
       .. code-block:: bash
 
           uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole --video
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-          ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole --video
 
 See :doc:`/source/features/record_video` for clip length, interval, and multi-source options.
 
@@ -941,12 +926,6 @@ The Rerun web viewer may slow down or crash with many environments. Reduce load 
 
           uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole --viz rerun --num_envs 512
 
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-          ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole --viz rerun --num_envs 512
-
 **Rerun: blank page until the first payload loads**
 
 The Rerun browser tab opens blank and stays that way for several seconds (up to ~10s,
@@ -975,21 +954,6 @@ If pyglet reports that ``glCreateShader`` is not exported or that OpenGL 2.0 is 
 process is running without a GPU-backed display context (for example, in a service session or
 a remote desktop without GPU acceleration). Run from a GPU-backed interactive display session,
 or omit ``--viz newton_gl`` for headless execution.
-
-**Newton GL: Spark + conda**
-
-Conda-installed X11 libraries may conflict with pyglet on Spark, producing:
-
-.. code-block:: text
-
-    pyglet.window.xlib.XlibException: Could not create UTF8 text property
-
-Remove the conflicting conda packages to use the system libraries instead:
-
-.. code-block:: bash
-
-    conda remove --force xorg-libx11 libxcb
-
 
 See Also
 --------

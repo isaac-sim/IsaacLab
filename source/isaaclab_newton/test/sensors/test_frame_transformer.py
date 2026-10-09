@@ -62,7 +62,7 @@ class MySceneCfg(InteractiveSceneCfg):
             size=(0.2, 0.2, 0.2),
             rigid_props=PhysxRigidBodyCfg(max_depenetration_velocity=1.0),
             mass_props=sim_utils.MassCfg(mass=1.0),
-            physics_material=sim_utils.RigidBodyMaterialCfg(),
+            physics_material=sim_utils.RigidBodyMaterialBaseCfg(),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.5, 0.0, 0.0)),
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(2.0, 0.0, 5)),
@@ -179,6 +179,9 @@ def test_frame_transformer_sources_and_targets(sim):
     robot = scene.articulations["robot"]
     cube = scene["cube"]
 
+    initial_frames = scene.sensors["ft_cube"].data
+    torch.testing.assert_close(initial_frames.target_pos_w.torch[:, 0], cube.data.root_pos_w.torch)
+
     # -- ft_base: reorder the feet indices to match the target frames with the _USER suffix removed
     base_feet_indices, base_feet_names = robot.find_bodies(["LF_FOOT", "RF_FOOT", "LH_FOOT", "RH_FOOT"])
     base_frame_names = [name.split("_USER")[0] for name in scene.sensors["ft_base"].data.target_frame_names]
@@ -218,6 +221,13 @@ def test_frame_transformer_sources_and_targets(sim):
             cube.write_root_velocity_to_sim_index(root_velocity=cube_state[:, 7:])
             # reset buffers
             scene.reset()
+
+            sim.forward()
+            # Read the sensor after FK, before asset-pose reads or the next physics step.
+            reset_frames = scene.sensors["ft_cube"].data
+            torch.testing.assert_close(reset_frames.source_pos_w.torch, root_state[:, :3])
+            torch.testing.assert_close(reset_frames.target_pos_w.torch[:, 0], cube_state[:, :3])
+            torch.testing.assert_close(reset_frames.target_quat_w.torch[:, 0], cube_state[:, 3:7])
 
         # set joint targets
         robot_actions = default_actions + 0.5 * torch.randn_like(default_actions)
@@ -313,6 +323,17 @@ def test_frame_transformer_sources_and_targets(sim):
             data.target_pos_source.torch,
             data.target_quat_source.torch,
         )
+
+    # A cached update must honor changes to the reset mask.
+    sensor = scene.sensors["ft_cube"]
+    previous_frames = sensor.data.target_pos_w.torch.clone()
+    cube_pose = cube.data.root_pose_w.torch.clone()
+    cube_pose[1, 0] += 1.0
+    cube.write_root_pose_to_sim_index(root_pose=cube_pose[1:2], env_ids=[1])
+    sim.forward()
+    sensor.reset(env_ids=[1])
+    torch.testing.assert_close(sensor.data.target_pos_w.torch[1, 0], cube_pose[1, :3])
+    torch.testing.assert_close(sensor.data.target_pos_w.torch[0], previous_frames[0])
 
 
 # Each source robot and each path prefix is covered once; the axes select independent branches.

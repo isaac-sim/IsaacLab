@@ -14,7 +14,7 @@ Expected workflow:
 
 1. Run targeted tests for the changed asset behavior.
 2. Add a fragment under `source/isaaclab/changelog.d/`.
-3. Run `uv run isaaclab -f`.
+3. Format selected files during editing, then run `uv run isaaclab -f` on the final changes. Reuse successful focused tests while their inputs remain current.
 4. Fill the PR checklist with test results.
 
 ## Docs-Only Change
@@ -24,7 +24,7 @@ Input: a PR modifies `docs/source/overview/`.
 Expected workflow:
 
 1. Use the contribution guide's incremental preview during editing, then run one clean, warning-free build of the final documentation changes.
-2. Run `uv run isaaclab -f`.
+2. Run `uv run isaaclab -f` on the final changes. Inspect any automatic edits before rerunning failed checks.
 3. Do not add a package changelog fragment unless `source/<package>/` changed.
 
 ## Skill-Only Change

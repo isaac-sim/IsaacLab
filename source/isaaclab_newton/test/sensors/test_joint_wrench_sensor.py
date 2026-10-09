@@ -19,7 +19,7 @@ import torch
 import warp as wp
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_physx.sim.schemas import PhysxJointCfg
-from joint_wrench_contract import test_joint_wrench_frame  # noqa: F401
+from joint_wrench_contract import test_joint_wrench_body_ordering, test_joint_wrench_frame  # noqa: F401
 
 from pxr import Usd, UsdPhysics
 
@@ -147,19 +147,24 @@ def test_data_before_init_is_none():
 
 
 def test_nested_articulation_root_resolution(sim):
-    """Sensor covers a nested articulation root from the configured asset prefix."""
-    scene = InteractiveScene(_NestedRootAntSceneCfg(num_envs=1))
-    sim.reset()
+    """A sensor initialized before its articulation uses the current model, including after hard resets."""
+    sensor = JointWrenchSensor(JointWrenchSensorCfg(prim_path="/World/envs/env_.*/Robot"))
+    scene = InteractiveScene(_NestedRootAntSceneCfg(num_envs=1, wrench=None))
 
     robot: Articulation = scene["robot"]
-    sensor: JointWrenchSensor = scene["wrench"]
-    sim.step()
-    scene.update(sim.get_physics_dt())
+    for _ in range(3):
+        sim.reset()
+        assert sensor._root_view.model is robot.root_view.model
+        sim.step()
+        scene.update(sim.get_physics_dt())
+        sensor.update(sim.get_physics_dt())
 
-    assert len(sensor.body_names) == robot.num_joints
-    assert set(sensor.body_names).issubset(set(robot.body_names))
-    assert sensor.data.force.torch.shape == (1, robot.num_joints, 3)
-    assert sensor.data.torque.torch.shape == (1, robot.num_joints, 3)
+        assert len(sensor.body_names) == robot.num_joints
+        assert set(sensor.body_names).issubset(set(robot.body_names))
+        assert sensor.data.force.torch.shape == (1, robot.num_joints, 3)
+        assert sensor.data.torque.torch.shape == (1, robot.num_joints, 3)
+        root_wrench = robot.data.body_joint_wrench.torch[:, 0]
+        torch.testing.assert_close(root_wrench, torch.zeros_like(root_wrench))
 
 
 # ---------------------------------------------------------------------------
@@ -254,6 +259,15 @@ def test_interior_joint_wrench_at_rest(sim, tmp_path, fixed_pole):
         torch.testing.assert_close(
             sensor.data.force.torch[0, joint].norm(), (subtree_mass * gravity).norm(), atol=1e-2, rtol=1e-3
         )
+        body = robot.find_bodies(descendants[0])[0][0]
+        torch.testing.assert_close(
+            robot.data.body_joint_wrench.torch[0, body, :3].norm(),
+            (subtree_mass * gravity).norm(),
+            atol=1e-2,
+            rtol=1e-3,
+        )
+    root = robot.data.body_joint_wrench.torch[0, 0]
+    torch.testing.assert_close(root, torch.zeros_like(root))
 
 
 # ---------------------------------------------------------------------------
