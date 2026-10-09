@@ -17,7 +17,6 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
-from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.sensors import CameraCfg
 from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
 from isaaclab.utils import configclass, replace
@@ -151,22 +150,7 @@ class CommandsCfg:
             pitch=(0.0, 0.0),
             yaw=(0.0, 0.0),
         ),
-        success_vis_asset_name="table",
-        success_visualizer_cfg=VisualizationMarkersCfg(
-            prim_path="/Visuals/SuccessMarkers",
-            markers={
-                "failure": replace(
-                    soft.TABLE_SPAWN_CFG,
-                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.8, 0.5, 0.5)),
-                    visible=True,
-                ),
-                "success": replace(
-                    soft.TABLE_SPAWN_CFG,
-                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.5, 0.8, 0.5)),
-                    visible=True,
-                ),
-            },
-        ),
+        success_vis_colors=((0.8, 0.5, 0.5), (0.5, 0.8, 0.5)),
     )
 
 

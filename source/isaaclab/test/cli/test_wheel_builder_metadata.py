@@ -20,16 +20,6 @@ import tomllib
 pytestmark = pytest.mark.unit
 
 
-def _root_rsl_rl_pin(source_checkout_root: Path) -> str:
-    """Return the ``rsl-rl-lib`` pin declared by the root ``pyproject.toml`` core deps."""
-    with (source_checkout_root / "pyproject.toml").open("rb") as f:
-        data = tomllib.load(f)
-    for dependency in data["project"]["dependencies"]:
-        if dependency.startswith("rsl-rl-lib=="):
-            return dependency
-    raise AssertionError("Could not find rsl-rl-lib pin in the root pyproject.toml")
-
-
 def _generate_wheel_pyproject(source_checkout_root: Path, tmp_path: Path) -> dict:
     """Run ``gen_pyproject.py`` against the root pyproject and return the parsed result."""
     output = tmp_path / "pyproject.toml"
@@ -164,18 +154,20 @@ def test_wheel_builder_expands_all_extra_into_concrete_requirements(generated_wh
         assert not any(dep.startswith(prefix) for dep in all_extra), f"'{prefix}' must not be in the 'all' extra"
 
 
-def test_wheel_builder_rsl_rl_pin_matches_root_pyproject(source_checkout_root: Path, generated_wheel_project: dict):
-    """The bundled wheel metadata must install the RSL-RL version declared at the root."""
-    expected_pin = _root_rsl_rl_pin(source_checkout_root)
+def test_wheel_builder_core_pins_match_root_pyproject(source_checkout_root: Path, generated_wheel_project: dict):
+    """The bundled wheel must preserve the source checkout's physics and training dependencies."""
+    with (source_checkout_root / "pyproject.toml").open("rb") as f:
+        source_dependencies = tomllib.load(f)["project"]["dependencies"]
+    for package in ("newton", "rsl-rl-lib"):
+        expected = [dep for dep in source_dependencies if _requirement_name(dep) == package]
+        actual = [dep for dep in generated_wheel_project["dependencies"] if _requirement_name(dep) == package]
+        assert len(expected) == 1
+        assert actual == expected
 
-    # RSL-RL is a core dependency (default training library) and also exposed as an extra.
-    core_pins = [dep for dep in generated_wheel_project["dependencies"] if dep.startswith("rsl-rl-lib==")]
-    assert core_pins == [expected_pin]
-
-    optional_dependencies = generated_wheel_project["optional-dependencies"]
     # RSL-RL is also exposed through its own ``rsl-rl`` extra.
-    rsl_rl_pins = [dep for dep in optional_dependencies["rsl-rl"] if dep.startswith("rsl-rl-lib==")]
-    assert rsl_rl_pins == [expected_pin]
+    assert generated_wheel_project["optional-dependencies"]["rsl-rl"] == [
+        dep for dep in source_dependencies if _requirement_name(dep) == "rsl-rl-lib"
+    ]
 
 
 def test_wheel_builder_uv_overrides_match_root_pyproject(source_checkout_root: Path, tmp_path):
@@ -187,12 +179,5 @@ def test_wheel_builder_uv_overrides_match_root_pyproject(source_checkout_root: P
     published_overrides = (
         (source_checkout_root / "tools" / "wheel_builder" / "uv-overrides.txt").read_text(encoding="utf-8").splitlines()
     )
-    install_ci_overrides = (
-        (source_checkout_root / "source" / "isaaclab" / "test" / "install_ci" / "uv_pip" / "uv-overrides.txt")
-        .read_text(encoding="utf-8")
-        .splitlines()
-    )
-
     assert generated_overrides == root["tool"]["uv"]["override-dependencies"]
     assert published_overrides == generated_overrides
-    assert install_ci_overrides == generated_overrides

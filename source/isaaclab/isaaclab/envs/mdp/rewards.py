@@ -55,7 +55,7 @@ class is_terminated_term(ManagerTermBase):
 
     def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
         super().__init__(cfg, env)
-        term_keys = cfg.params.get("term_keys", ".*")
+        term_keys = cfg.params["term_keys"]
         self._term_names = env.termination_manager.find_terms(term_keys)
 
     def __call__(self, env: ManagerBasedRLEnv, term_keys: str | list[str] = ".*") -> torch.Tensor:
@@ -88,7 +88,7 @@ class survival_success_rate(ManagerTermBase):
 
     def reset(self, env_ids: torch.Tensor) -> None:
         survived = self._env.termination_manager.time_outs[env_ids]
-        self._env.extras.setdefault("log", {})["Metrics/success_rate"] = survived.float().mean().item()
+        self._env.extras.setdefault("log", {})["Metrics/success_rate"] = survived.float().mean()
 
     def __call__(self, env: ManagerBasedRLEnv) -> torch.Tensor:
         return torch.zeros(env.num_envs, device=env.device)

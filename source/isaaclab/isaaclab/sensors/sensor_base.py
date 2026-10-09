@@ -189,7 +189,13 @@ class SensorBase(ABC):
         wp.launch(
             reset_envs_kernel,
             dim=self._num_envs,
-            inputs=[env_mask, self._is_outdated, self._timestamp, self._timestamp_last_update],
+            inputs=[
+                env_mask,
+                self._is_outdated,
+                self._timestamp,
+                self._timestamp_last_update,
+                self._elapsed_since_update,
+            ],
             device=self._device,
         )
         self._data_dirty = True
@@ -203,11 +209,17 @@ class SensorBase(ABC):
         wp.launch(
             update_timestamp_kernel,
             dim=self._num_envs,
-            inputs=[self._is_outdated, self._timestamp, self._timestamp_last_update, dt, self.cfg.update_period],
+            inputs=[
+                self._is_outdated,
+                self._timestamp,
+                self._elapsed_since_update,
+                dt,
+                self.cfg.update_period - 1e-6,
+            ],
             device=self._device,
         )
-        # Update the buffers
-        if force_recompute or self._is_visualizing:
+        # Update the buffers; debug visualization refreshes lazily from its callback.
+        if force_recompute:
             self._update_outdated_buffers(force_recompute=force_recompute)
 
     @staticmethod
@@ -265,10 +277,7 @@ class SensorBase(ABC):
         self._ALL_ENV_MASK = wp.ones((self._num_envs), dtype=wp.bool, device=self._device)
         self._reset_mask = wp.zeros((self._num_envs), dtype=wp.bool, device=self._device)
         self._reset_mask_torch = wp.to_torch(self._reset_mask)
-        # timestamp and outdated flags
-        self._is_outdated = wp.ones(self._num_envs, dtype=wp.bool, device=self._device)
-        self._timestamp = wp.zeros(self._num_envs, dtype=wp.float32, device=self._device)
-        self._timestamp_last_update = wp.zeros_like(self._timestamp)
+        self._create_timing_buffers()
         self._data_dirty = True
 
         # Initialize debug visualization handle
@@ -316,6 +325,8 @@ class SensorBase(ABC):
         """Callback for debug visualization.
 
         This function calls the visualization objects and sets the data to visualize into them.
+        Sensor buffers are refreshed lazily, so implementations must refresh outdated buffers
+        (for example through :attr:`data`) before reading internal data.
         """
         raise NotImplementedError(f"Debug visualization is not implemented for {self.__class__.__name__}.")
 
@@ -416,6 +427,18 @@ class SensorBase(ABC):
     Helper functions.
     """
 
+    def _create_timing_buffers(self) -> None:
+        """Allocates the per-environment outdated flags, timestamps and elapsed times used to schedule updates.
+
+        Sensors that change :attr:`_num_envs` after :meth:`_initialize_impl` must call this again, after
+        reallocating their environment masks.
+        """
+        # timestamp and outdated flags
+        self._is_outdated = wp.ones(self._num_envs, dtype=wp.bool, device=self._device)
+        self._timestamp = wp.zeros(self._num_envs, dtype=wp.float32, device=self._device)
+        self._timestamp_last_update = wp.zeros_like(self._timestamp)
+        self._elapsed_since_update = wp.zeros(self._num_envs, dtype=wp.float64, device=self._device)
+
     def _update_outdated_buffers(self, force_recompute: bool = False) -> None:
         """Fills the sensor data for the outdated sensors."""
         if not force_recompute and not self._data_dirty:
@@ -429,7 +452,7 @@ class SensorBase(ABC):
         wp.launch(
             update_outdated_envs_kernel,
             dim=self._num_envs,
-            inputs=[self._is_outdated, self._timestamp, self._timestamp_last_update],
+            inputs=[self._is_outdated, self._timestamp, self._timestamp_last_update, self._elapsed_since_update],
             device=self._device,
         )
         self._data_dirty = False

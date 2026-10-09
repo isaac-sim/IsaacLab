@@ -1,10 +1,6 @@
 #!/bin/bash
 set -e
 
-# Python interpreter override. Linux installs typically expose `python3`;
-# Windows git-bash only has `python`. Callers can set PYTHON=python to override.
-PYTHON="${PYTHON:-python3}"
-
 SELF_DIR="$(dirname "$(realpath "$0")")"
 cd "$SELF_DIR/../.."
 
@@ -27,41 +23,14 @@ else
 fi
 echo "[WHEEL VERSION] $WHEEL_VERSION"
 
-# Platform tags matching the official IsaacLab wheel
-PYTHON_TAG="${PYTHON_TAG:-cp312}"
-ABI_TAG="${ABI_TAG:-cp312}"
-# Auto-detect platform
-ARCH=$(uname -m)
-case "$ARCH" in
-    x86_64|AMD64)  PLATFORM_TAG="${PLATFORM_TAG:-manylinux_2_35_x86_64}" ;;
-    aarch64|arm64) PLATFORM_TAG="${PLATFORM_TAG:-manylinux_2_35_aarch64}" ;;
-    *)             PLATFORM_TAG="${PLATFORM_TAG:-linux_$ARCH}" ;;
-esac
-
 rm -rf "$BUILD_DIR" "$DIST_DIR"
 
 # Stage the same aggregate source tree used by the PEP 517 Git-source backend.
-"$PYTHON" "$SELF_DIR/stage.py" "$BUILD_DIR" "$WHEEL_VERSION"
+uv run --no-project --python 3.12 python "$SELF_DIR/stage.py" "$BUILD_DIR" "$WHEEL_VERSION"
 
-# 4. Build the wheel
-cd "$BUILD_DIR"
-export PIP_RETRIES="${PIP_RETRIES:-12}"
+# Build in uv's isolated PEP 517 environment without installing tools into the host Python.
 export UV_HTTP_RETRIES="${UV_HTTP_RETRIES:-12}"
-# Prefer --user to avoid polluting system Python; fall back to --break-system-packages
-# for environments where --user is unsupported (e.g. Docker, ephemeral CI runners).
-"$PYTHON" -m pip install --user build wheel 2>/dev/null || "$PYTHON" -m pip install --break-system-packages build wheel
-"$PYTHON" -m build --wheel --outdir "$DIST_DIR/"
-
-# 5. Retag the wheel to match official platform tags
-# cd "$DIST_DIR"
-# GENERIC_WHL=$(ls isaaclab-*.whl)
-# echo "Retagging $GENERIC_WHL -> $PYTHON_TAG-$ABI_TAG-$PLATFORM_TAG"
-# "$PYTHON" -m wheel tags --python-tag "$PYTHON_TAG" --abi-tag "$ABI_TAG" --platform-tag "$PLATFORM_TAG" "$GENERIC_WHL"
-# # Remove the generic wheel (wheel tags creates a new file)
-# TAGGED_WHL=$(ls isaaclab-*"$PLATFORM_TAG"*.whl 2>/dev/null)
-# if [ "$GENERIC_WHL" != "$TAGGED_WHL" ] && [ -n "$TAGGED_WHL" ]; then
-#     rm -f "$GENERIC_WHL"
-# fi
+uv build --wheel --out-dir "$DIST_DIR" "$BUILD_DIR"
 
 echo ""
 echo "[WHEEL BUILT]"

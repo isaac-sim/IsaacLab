@@ -257,8 +257,8 @@ class TestMemoryInfoRecorder:
         assert "System Memory VMS" in names
         assert "System Memory VMS std" in names
         assert "System Memory VMS n" in names
-        # USS measurements may be present depending on platform (mean, std, peak, n)
-        assert 8 <= len(data.measurements) <= 12
+        # Exactly 8: RSS and VMS, each with mean, std, peak and n.
+        assert len(data.measurements) == 8
         metadata = {m.name: m.data for m in data.metadata}
         assert len(data.metadata) == 1
         assert isinstance(metadata["total_ram_gb"], float) and metadata["total_ram_gb"] > 0
@@ -277,7 +277,6 @@ class TestMemoryInfoRecorder:
             def __init__(self, rss):
                 self.rss = rss
                 self.vms = rss  # mirror so VMS also moves
-                # USS is read via memory_full_info, not memory_info; leave alone.
 
         def _fake_memory_info(self):  # noqa: ARG001 — bound method, self is the process
             return _FakeMemInfo(next(scripted_iter))

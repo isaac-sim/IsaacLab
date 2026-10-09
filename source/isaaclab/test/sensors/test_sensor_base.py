@@ -81,6 +81,21 @@ class DummySensorCfg(SensorBaseCfg):
     prim_path = "{ENV_REGEX_NS}/Cube/dummy_sensor"
 
 
+class DummyVisSensor(DummySensor):
+    """Dummy sensor whose debug visualization records the counts it displays."""
+
+    def __init__(self, cfg):
+        self.visualized_counts = []
+        super().__init__(cfg)
+
+    def _set_debug_vis_impl(self, debug_vis: bool):
+        pass
+
+    def _debug_vis_callback(self, event):
+        if self._is_initialized:
+            self.visualized_counts.append(torch.clone(self.data.count))
+
+
 def _populate_scene():
     """"""
 
@@ -171,7 +186,8 @@ def test_sensor_update_rate(create_dummy_sensor, device):
     """
     sensor_cfg, sim, dt = create_dummy_sensor
     sensor_cfg.update_period = 2 * dt
-    sensor = DummySensor(cfg=sensor_cfg)
+    sensor_cfg.debug_vis = True
+    sensor = DummyVisSensor(cfg=sensor_cfg)
 
     # Play sim
     sim.step()
@@ -190,6 +206,14 @@ def test_sensor_update_rate(create_dummy_sensor, device):
             torch.tensor(expected_value, device=device, dtype=torch.int32).repeat(sensor.num_instances),
         )
         expected_value += i % 2
+
+    backend_update_count = sensor.backend_update_count
+    for _ in range(3):
+        sensor.update(dt=dt)
+    assert sensor.backend_update_count == backend_update_count
+    sim.vis_marker_registry.dispatch_callbacks()
+    assert sensor.backend_update_count == backend_update_count + 1
+    torch.testing.assert_close(sensor.visualized_counts[-1], sensor.data.count)
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CPU))

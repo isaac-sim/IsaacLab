@@ -12,10 +12,13 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from isaaclab.benchmark import BenchmarkResult
 
+import logging
 import sys
 import time
 
 from isaaclab_rl.entrypoints import common
+
+logger = logging.getLogger(__name__)
 
 
 def _build_benchmark_callback_class():
@@ -201,6 +204,7 @@ def run(argv: list[str]) -> BenchmarkResult:
     from isaaclab.benchmark.metrics import RL_LIBRARY_DESCRIPTORS, parse_tf_logs
     from isaaclab.benchmark.schema import StartupTime
 
+    from isaaclab_rl.entrypoints.backends import cli_args_sb3 as cli_args
     from isaaclab_rl.sb3 import Sb3VecEnvWrapper, process_sb3_cfg
 
     import isaaclab_tasks  # noqa: F401
@@ -226,6 +230,7 @@ def run(argv: list[str]) -> BenchmarkResult:
     config_t0 = time.perf_counter_ns()
     env_cfg, agent_cfg = resolve_task_config(args_cli.task, args_cli.agent)
     config_t1 = time.perf_counter_ns()
+    common.pre_launch_video_config(env_cfg, args_cli)
 
     start_utc = capture.now_utc_iso()
     app_t0 = time.perf_counter_ns()
@@ -236,7 +241,7 @@ def run(argv: list[str]) -> BenchmarkResult:
 
             apply_env_overrides(args_cli, env_cfg)
 
-            agent_cfg["seed"] = args_cli.seed if args_cli.seed is not None else agent_cfg.get("seed", 0)
+            agent_cfg = cli_args.update_sb3_cfg(agent_cfg, args_cli)
             env_cfg.seed = agent_cfg["seed"]
 
             # Convert the iteration override to SB3 total timesteps.
@@ -353,10 +358,9 @@ def run(argv: list[str]) -> BenchmarkResult:
             reward_series = [v for v in cb.ep_rew_mean if v == v]  # NaN != NaN
             ep_len_series = [v for v in cb.ep_len_mean if v == v]
             if not reward_series and iteration_times_s:
-                print(
-                    "[WARNING] sb3: no episodes completed during the benchmarked rollouts;"
-                    " reward/episode-length curves are empty.",
-                    file=sys.stderr,
+                logger.warning(
+                    "sb3: no episodes completed during the benchmarked rollouts;"
+                    " reward/episode-length curves are empty."
                 )
 
             startup = StartupTime(

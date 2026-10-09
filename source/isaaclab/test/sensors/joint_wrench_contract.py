@@ -75,3 +75,67 @@ def test_joint_wrench_frame(sim, tmp_path: Path) -> None:
     expected_torque = torch.tensor([[-0.1 * weight, 0.25 * weight, 0.0]], device=sim.device)
     torch.testing.assert_close(sensor.data.force.torch[:, sensor_arm], expected_force, atol=1e-2, rtol=1e-3)
     torch.testing.assert_close(sensor.data.torque.torch[:, sensor_arm], expected_torque, atol=1e-2, rtol=1e-3)
+    wrench = robot.data.body_joint_wrench.torch[:, arm]
+    torch.testing.assert_close(wrench[:, :3], expected_force, atol=1e-2, rtol=1e-3)
+    torch.testing.assert_close(wrench[:, 3:], expected_torque, atol=1e-2, rtol=1e-3)
+
+
+@pytest.mark.integration
+def test_joint_wrench_body_ordering(sim, tmp_path: Path) -> None:
+    """Articulation wrenches follow public body order and preserve the incoming joint frame."""
+    usd_path = str(tmp_path / "ordered_wrenches.usda")
+    stage = Usd.Stage.CreateNew(usd_path)
+    root = UsdGeom.Xform.Define(stage, "/Robot").GetPrim()
+    stage.SetDefaultPrim(root)
+    UsdPhysics.ArticulationRootAPI.Apply(root)
+    for name, mass in (("base", 1.0), ("left", 2.0), ("right", 3.0)):
+        body = UsdGeom.Xform.Define(stage, f"/Robot/{name}").GetPrim()
+        UsdPhysics.RigidBodyAPI.Apply(body)
+        mass_api = UsdPhysics.MassAPI.Apply(body)
+        mass_api.CreateMassAttr(mass)
+        mass_api.CreateCenterOfMassAttr(Gf.Vec3f(0.1, 0.0, 0.0))
+        mass_api.CreateDiagonalInertiaAttr(Gf.Vec3f(1.0))
+    fixed = UsdPhysics.FixedJoint.Define(stage, "/Robot/root_joint")
+    fixed.CreateBody1Rel().SetTargets(["/Robot/base"])
+    for name in ("left", "right"):
+        joint = UsdPhysics.RevoluteJoint.Define(stage, f"/Robot/{name}_joint")
+        joint.CreateBody0Rel().SetTargets(["/Robot/base"])
+        joint.CreateBody1Rel().SetTargets([f"/Robot/{name}"])
+        joint.CreateAxisAttr("X" if name == "left" else "Z")
+        if name == "left":
+            rotation = Gf.Quatf(2.0**-0.5, Gf.Vec3f(2.0**-0.5, 0.0, 0.0))
+            joint.CreateLocalRot0Attr(rotation)
+            joint.CreateLocalRot1Attr(rotation)
+    stage.GetRootLayer().Save()
+
+    cfg = InteractiveSceneCfg(num_envs=2, env_spacing=2.0)
+    cfg.robot = ArticulationCfg(
+        prim_path="{ENV_REGEX_NS}/Robot",
+        spawn=sim_utils.UsdFileCfg(usd_path=usd_path),
+        body_ordering=("base", "right", "left"),
+        enable_joint_wrench=True,
+        actuators={"joints": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=0.0, damping=0.0)},
+    )
+    scene = InteractiveScene(cfg)
+    sim.reset()
+    robot = scene["robot"]
+    assert robot.body_names == ["base", "right", "left"]
+    # Read before stepping to ensure subsequent accesses refresh the cached data.
+    assert robot.data.body_joint_wrench.torch.shape == (2, 3, 6)
+    for _ in range(5):
+        sim.step()
+        scene.update(sim.get_physics_dt())
+    for name, force_direction, torque_per_weight, mass in (
+        ("left", (0.0, 1.0, 0.0), (0.0, 0.0, 0.1), 2.0),
+        ("right", (0.0, 0.0, 1.0), (0.0, -0.1, 0.0), 3.0),
+    ):
+        index = robot.find_bodies(name)[0][0]
+        weight = -mass * sim.cfg.gravity[2]
+        expected_force = (weight * torch.tensor([force_direction], device=sim.device)).expand(2, -1)
+        expected_torque = (weight * torch.tensor([torque_per_weight], device=sim.device)).expand(2, -1)
+        torch.testing.assert_close(
+            robot.data.body_joint_wrench.torch[:, index, :3], expected_force, atol=1e-2, rtol=1e-3
+        )
+        torch.testing.assert_close(
+            robot.data.body_joint_wrench.torch[:, index, 3:], expected_torque, atol=1e-2, rtol=1e-3
+        )

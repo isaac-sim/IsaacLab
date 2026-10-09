@@ -159,6 +159,9 @@ class Articulation(BaseArticulation):
         """
         super().__init__(cfg)
 
+        if cfg.enable_joint_wrench:
+            SimulationManager.request_extended_state_attribute("body_parent_f")
+
         sim_ctx = SimulationContext.instance()
         self._sim_cfg = sim_ctx.cfg if sim_ctx is not None else None
         # Solver-built fixed-tendon adapter, held like ``_actuator_control``; None when the active
@@ -250,6 +253,11 @@ class Articulation(BaseArticulation):
         return self.root_view.is_fixed_base
 
     @property
+    def num_base_dofs(self) -> int:
+        """Number of free DoFs of the floating base: 6 for a free root joint, otherwise 0."""
+        return self.data._num_base_dofs
+
+    @property
     def num_joints(self) -> int:
         """Number of joints in articulation."""
         return self.root_view.joint_dof_count
@@ -271,11 +279,12 @@ class Articulation(BaseArticulation):
 
     @property
     def num_shapes_per_body(self) -> list[int]:
-        """Number of collision shapes per body in public body-name order.
+        """Number of shapes per body in public body-name order.
 
         Each element corresponds to the body at the same index in
         :attr:`body_names`. Backend-order counts are cached; a nonidentity body
-        ordering returns those counts gathered into public order.
+        ordering returns those counts gathered into public order. The counts are
+        not offsets into the shape axis; see :attr:`backend_num_shapes_per_body`.
 
         Returns:
             List of integers representing the number of shapes per body.
@@ -287,12 +296,16 @@ class Articulation(BaseArticulation):
 
     @property
     def backend_num_shapes_per_body(self) -> list[int]:
-        """Number of collision shapes per body in active backend solver-view order.
+        """Number of shapes per body in active backend solver-view order.
 
         Each element corresponds to the body at the same index in
-        :attr:`backend_body_names`, matching the shape axis of the backend
-        solver arrays. The counts are cached on first access. Use
+        :attr:`backend_body_names`. The counts include visual-only shapes when they
+        are imported. The counts are cached on first access. Use
         :attr:`num_shapes_per_body` for public body order.
+
+        The shape axis of the solver-view bindings follows the model's shape order and
+        is not grouped by body, so these counts are not offsets into it. Use
+        ``root_view.body_shapes[i]`` for the shape indices of backend body ``i``.
 
         Returns:
             List of integers representing the number of shapes per backend-order body.
@@ -1797,7 +1810,11 @@ class Articulation(BaseArticulation):
         """
         env_ids = self._resolve_env_ids(env_ids)
         joint_ids = self._resolve_joint_ids(joint_ids)
-        clamped_defaults = wp.zeros(1, dtype=wp.int32, device=self.device)
+        # Count clamped defaults (a host sync) only when the resulting message would be logged.
+        log_level = logging.WARNING if warn_limit_violation else logging.INFO
+        report_clamping = logger.isEnabledFor(log_level)
+        if report_clamping:
+            self._clamped_default_count.zero_()
         if isinstance(limits, float):
             raise ValueError("Joint position limits must be a tensor or array, not a float.")
         self.assert_shape_and_dtype(limits, (env_ids.shape[0], joint_ids.shape[0]), wp.vec2f, "limits")
@@ -1829,20 +1846,17 @@ class Articulation(BaseArticulation):
                 self.data._sim_bind_joint_pos_limits_upper,
                 self.data._soft_joint_pos_limits,
                 self.data._default_joint_pos,
-                clamped_defaults,
+                self._clamped_default_count,
             ],
             device=self.device,
         )
         self.data._joint_pos_limits.timestamp = self.data._sim_timestamp
-        if clamped_defaults.numpy()[0] > 0:
-            violation_message = (
+        if report_clamping and self._clamped_default_count.numpy()[0] > 0:
+            logger.log(
+                log_level,
                 "Some default joint positions are outside of the range of the new joint limits. Default joint positions"
-                " will be clamped to be within the new joint limits."
+                " will be clamped to be within the new joint limits.",
             )
-            if warn_limit_violation:
-                logger.warning(violation_message)
-            else:
-                logger.info(violation_message)
         SimulationManager.add_model_change(ModelFlags.JOINT_DOF_PROPERTIES)
 
     def write_joint_position_limit_to_sim_mask(
@@ -1871,7 +1885,11 @@ class Articulation(BaseArticulation):
         """
         env_mask = self._resolve_mask(env_mask, self._ALL_ENV_MASK)
         joint_mask = self._resolve_mask(joint_mask, self._ALL_JOINT_MASK)
-        clamped_defaults = wp.zeros(1, dtype=wp.int32, device=self.device)
+        # Count clamped defaults (a host sync) only when the resulting message would be logged.
+        log_level = logging.WARNING if warn_limit_violation else logging.INFO
+        report_clamping = logger.isEnabledFor(log_level)
+        if report_clamping:
+            self._clamped_default_count.zero_()
         if isinstance(limits, float):
             raise ValueError("Joint position limits must be a tensor or array, not a float.")
         self.assert_shape_and_dtype_mask(limits, (env_mask, joint_mask), wp.vec2f, "limits")
@@ -1903,20 +1921,17 @@ class Articulation(BaseArticulation):
                 self.data._sim_bind_joint_pos_limits_upper,
                 self.data._soft_joint_pos_limits,
                 self.data._default_joint_pos,
-                clamped_defaults,
+                self._clamped_default_count,
             ],
             device=self.device,
         )
         self.data._joint_pos_limits.timestamp = self.data._sim_timestamp
-        if clamped_defaults.numpy()[0] > 0:
-            violation_message = (
+        if report_clamping and self._clamped_default_count.numpy()[0] > 0:
+            logger.log(
+                log_level,
                 "Some default joint positions are outside of the range of the new joint limits. Default joint positions"
-                " will be clamped to be within the new joint limits."
+                " will be clamped to be within the new joint limits.",
             )
-            if warn_limit_violation:
-                logger.warning(violation_message)
-            else:
-                logger.info(violation_message)
         SimulationManager.add_model_change(ModelFlags.JOINT_DOF_PROPERTIES)
 
     def write_joint_velocity_limit_to_sim_index(
@@ -3399,13 +3414,6 @@ class Articulation(BaseArticulation):
         # container for data access
         self._data = ArticulationData(self.root_view, self.device)
 
-        # Register callback to rebind simulation data after a full reset (model/state recreation).
-        self._physics_ready_handle = SimulationManager.register_callback(
-            lambda _: self._data._create_simulation_bindings(),
-            PhysicsEvent.PHYSICS_READY,
-            name=f"articulation_rebind_{self.cfg.prim_path}",
-        )
-
         # create buffers
         self._create_buffers()
         # process configuration
@@ -3422,14 +3430,11 @@ class Articulation(BaseArticulation):
         self.data.is_primed = True
 
     def _clear_callbacks(self) -> None:
-        """Clears all registered callbacks, including the physics-ready rebind handle."""
+        """Clear lifecycle and post-step callbacks."""
         super()._clear_callbacks()
         if hasattr(self, "_model_init_handle") and self._model_init_handle is not None:
             self._model_init_handle.deregister()
             self._model_init_handle = None
-        if hasattr(self, "_physics_ready_handle") and self._physics_ready_handle is not None:
-            self._physics_ready_handle.deregister()
-            self._physics_ready_handle = None
         # Remove the post-step republish hook registered in ``_create_buffers`` so the
         # bound method does not linger on ``NewtonManager._post_step_callbacks`` after
         # this articulation is gone (registered only for non-identity ordering).
@@ -3451,6 +3456,8 @@ class Articulation(BaseArticulation):
             np.arange(self.num_spatial_tendons, dtype=np.int32), device=self.device
         )
         self._ALL_SPATIAL_TENDON_MASK = wp.ones((self.num_spatial_tendons,), dtype=wp.bool, device=self.device)
+        # Scratch counter for default joint positions clamped by a joint position-limit write.
+        self._clamped_default_count = wp.zeros(1, dtype=wp.int32, device=self.device)
 
         # Lazily-filled cache of backend-order collision-shape counts (see ``backend_num_shapes_per_body``).
         self._num_shapes_per_body_backend: list[int] | None = None
@@ -3547,6 +3554,9 @@ class Articulation(BaseArticulation):
         # call parent
         super()._invalidate_initialize_callback(event)
         self._root_view = None
+
+        if self.cfg.enable_joint_wrench:
+            SimulationManager.request_extended_state_attribute("body_parent_f")
 
     """
     Internal helpers -- Actuators.

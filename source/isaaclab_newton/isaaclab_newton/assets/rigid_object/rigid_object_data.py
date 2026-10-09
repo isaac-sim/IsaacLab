@@ -420,13 +420,15 @@ class RigidObjectData(BaseRigidObjectData):
         This quantity is the acceleration of the rigid bodies' center of mass frame relative to the world.
         """
         if self._body_com_acc_w.timestamp < self._sim_timestamp:
+            # Finite-difference over the elapsed time, which spans the decimation when Newton owns it.
+            time_elapsed = self._sim_timestamp - self._body_com_acc_w.timestamp
             wp.launch(
                 shared_kernels.derive_body_acceleration_from_body_com_velocities,
                 dim=(self._num_instances, 1),
                 device=self.device,
                 inputs=[
                     self._sim_bind_body_com_vel_w,
-                    SimulationManager.get_dt(),
+                    time_elapsed,
                     self._previous_body_com_vel,
                 ],
                 outputs=[
@@ -854,9 +856,6 @@ class RigidObjectData(BaseRigidObjectData):
         .. caution:: This is possible if and only if the properties that we access are strided from newton and not
         indexed. Newton willing this is the case all the time, but we should pay attention to this if things look off.
         """
-        # A full reset replaces simulation arrays.
-        self._read_launch_cache.clear()
-
         # Short-hand for the number of instances, number of links, and number of joints.
         self._num_instances = self._root_view.count
         self._num_bodies = self._root_view.link_count
@@ -902,15 +901,9 @@ class RigidObjectData(BaseRigidObjectData):
             :, 0
         ]
 
-        # Re-pin ProxyArray wrappers to the newly created sim bindings.
-        # On first init, _create_buffers() handles this after all buffers exist.
-        if hasattr(self, "_root_link_pose_w_ta"):
-            self._pin_proxy_arrays()
-
     def _create_buffers(self) -> None:
         """Create buffers for the root data."""
         super()._create_buffers()
-        self._num_instances = self._root_view.count
         num_instances, device = self._num_instances, self.device
         body_shape = (num_instances, 1)
         # Initialize history for finite differencing. If the rigid object is fixed, the root com velocity is not
@@ -950,19 +943,7 @@ class RigidObjectData(BaseRigidObjectData):
         self._root_com_lin_vel_b = None
         self._root_com_ang_vel_b = None
 
-        # Pin all ProxyArray wrappers to current buffers.
-        self._pin_proxy_arrays()
-
-    def _pin_proxy_arrays(self) -> None:
-        """Create or rebind all pinned ProxyArray wrappers.
-
-        Called from :meth:`_create_buffers` on first initialization and from
-        :meth:`_create_simulation_bindings` after a full simulation reset when
-        the solver recreates its internal arrays.
-        """
-        is_rebind = hasattr(self, "_root_link_pose_w_ta")
-
-        # Both initial binding and full reset borrow the current native arrays.
+        # Pin proxies to native arrays and the buffers owned by this data instance.
         self._root_link_pose_w_ta = ProxyArray(self._sim_bind_root_link_pose_w)
         self._root_com_vel_w_ta = ProxyArray(self._sim_bind_root_com_vel_w)
         self._body_link_pose_w_ta = ProxyArray(self._sim_bind_body_link_pose_w)
@@ -971,28 +952,22 @@ class RigidObjectData(BaseRigidObjectData):
         self._body_inertia_ta = ProxyArray(self._sim_bind_body_inertia)
         self._body_com_pos_b_ta = ProxyArray(self._sim_bind_body_com_pos_b)
 
-        if not is_rebind:
-            # First-time creation: pin ProxyArrays to current buffers
-            self._default_root_pose_ta = ProxyArray(self._default_root_pose)
-            self._default_root_vel_ta = ProxyArray(self._default_root_vel)
+        self._default_root_pose_ta = ProxyArray(self._default_root_pose)
+        self._default_root_vel_ta = ProxyArray(self._default_root_vel)
+        self._body_com_acc_w_ta = ProxyArray(self._body_com_acc_w.data)
 
-            # Category 2: TimestampedBuffer properties
-            self._body_com_acc_w_ta = ProxyArray(self._body_com_acc_w.data)
-
-            # -- deprecated state properties (lazy); type annotations declared once here
-            self._root_link_lin_vel_b_ta: ProxyArray | None = None
-            self._root_link_ang_vel_b_ta: ProxyArray | None = None
-            self._root_com_lin_vel_b_ta: ProxyArray | None = None
-            self._root_com_ang_vel_b_ta: ProxyArray | None = None
-            self._root_state_w_ta: ProxyArray | None = None
-            self._root_link_state_w_ta: ProxyArray | None = None
-            self._root_com_state_w_ta: ProxyArray | None = None
-            self._default_root_state_ta: ProxyArray | None = None
-            self._body_state_w_ta: ProxyArray | None = None
-            self._body_link_state_w_ta: ProxyArray | None = None
-            self._body_com_state_w_ta: ProxyArray | None = None
-
-        # Recreate component views after native arrays are rebound.
+        # Deprecated state properties and component views are allocated on first access.
+        self._root_link_lin_vel_b_ta: ProxyArray | None = None
+        self._root_link_ang_vel_b_ta: ProxyArray | None = None
+        self._root_com_lin_vel_b_ta: ProxyArray | None = None
+        self._root_com_ang_vel_b_ta: ProxyArray | None = None
+        self._root_state_w_ta: ProxyArray | None = None
+        self._root_link_state_w_ta: ProxyArray | None = None
+        self._root_com_state_w_ta: ProxyArray | None = None
+        self._default_root_state_ta: ProxyArray | None = None
+        self._body_state_w_ta: ProxyArray | None = None
+        self._body_link_state_w_ta: ProxyArray | None = None
+        self._body_com_state_w_ta: ProxyArray | None = None
         self._root_link_pos_w_ta: ProxyArray | None = None
         self._root_link_quat_w_ta: ProxyArray | None = None
         self._root_link_lin_vel_w_ta: ProxyArray | None = None

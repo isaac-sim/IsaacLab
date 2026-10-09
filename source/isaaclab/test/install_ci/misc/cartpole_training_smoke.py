@@ -12,8 +12,8 @@ same probes inside its prepared image.
 
 from __future__ import annotations
 
-import os
 import subprocess
+import sys
 from pathlib import Path
 
 _STATE_TRAIN_CMD = [
@@ -46,7 +46,7 @@ _CAMERA_TRAIN_CMD = [
 def _find_isaaclab_root() -> Path:
     """Return the repository root containing the Isaac Lab launcher."""
     for parent in Path(__file__).resolve().parents:
-        if (parent / "isaaclab.sh").exists() or (parent / "isaaclab.bat").exists():
+        if (parent / "uv.lock").is_file():
             return parent
     raise FileNotFoundError("Could not locate the Isaac Lab repository root")
 
@@ -62,14 +62,10 @@ def _assert_training_passed(result: subprocess.CompletedProcess[str]) -> None:
 def _run_training(command: list[str], timeout: int) -> None:
     """Run one training command in the caller's active environment."""
     isaaclab_root = _find_isaaclab_root()
-    launcher = isaaclab_root / ("isaaclab.bat" if os.name == "nt" else "isaaclab.sh")
-    # Decode as UTF-8 explicitly: text=True alone uses the locale code page on Windows
-    # (cp1252), which cannot decode the trainer's UTF-8 console output.
     result = subprocess.run(
-        [str(launcher)] + command,
+        [sys.executable, "-m", "isaaclab", *command],
         cwd=isaaclab_root,
-        encoding="utf-8",
-        errors="replace",
+        text=True,
         capture_output=True,
         timeout=timeout,
         check=False,

@@ -9,7 +9,7 @@ Main data generation script.
 
 import argparse
 
-from isaaclab.app import add_launcher_args, launch_simulation, scan
+from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.utils.string import list_intersection, string_to_callable
 
 parser = argparse.ArgumentParser(description="Generate demonstrations for Isaac Lab environments.")
@@ -109,11 +109,12 @@ def main():
     env_name = task_name
 
     # Launch the runtime the task needs before loading the mimic helpers, which import USD
-    with launch_simulation(parse_env_cfg(env_name, device=args_cli.device, num_envs=num_envs), args_cli):
-        generate(env_name)
+    env_cfg = parse_env_cfg(env_name, device=args_cli.device, num_envs=num_envs)
+    with launch_simulation(env_cfg, args_cli):
+        generate(env_name, env_cfg)
 
 
-def generate(env_name: str):
+def generate(env_name: str, env_cfg):
     """Configure and create the environment, then run the (optionally SkillGen-based) data generation."""
     from isaaclab.envs import ManagerBasedRLMimicEnv
 
@@ -134,9 +135,8 @@ def generate(env_name: str):
         device=args_cli.device,
         generation_num_trials=args_cli.generation_num_trials,
         dataset_compression=not args_cli.disable_dataset_compression,
+        env_cfg=env_cfg,
     )
-    # resolve the automatic physics and renderer selections of this config the same way the launch did
-    scan(env_cfg, args_cli)
     if args_cli.max_num_failures is not None:
         env_cfg.datagen_config.max_num_failures = args_cli.max_num_failures
 

@@ -931,6 +931,21 @@ class ArticulationData(BaseArticulationData):
         return self._body_com_vel_w_ta
 
     @property
+    def body_joint_wrench(self) -> ProxyArray:
+        """Incoming joint reaction wrenches in public body order; see the base data contract."""
+        if self._body_joint_wrench.data is None and self.has_body_ordering:
+            self._body_joint_wrench.data = wp.empty(
+                (self._num_instances, self._num_bodies), dtype=wp.spatial_vectorf, device=self.device
+            )
+        self._refresh_body_state_user(
+            self._body_joint_wrench,
+            lambda: self._root_view.get_link_incoming_joint_force().view(wp.spatial_vectorf),
+        )
+        if self._body_joint_wrench_ta is None:
+            self._body_joint_wrench_ta = ProxyArray(self._body_joint_wrench.data)
+        return self._body_joint_wrench_ta
+
+    @property
     def body_com_acc_w(self) -> ProxyArray:
         """Acceleration of all bodies center of mass ``[lin_acc, ang_acc]``.
         Shape is (num_instances, num_bodies), dtype = wp.spatial_vectorf. In torch this resolves to
@@ -1053,7 +1068,8 @@ class ArticulationData(BaseArticulationData):
         """See :attr:`isaaclab.assets.BaseArticulationData.gravity_compensation_forces`."""
         if self._gravity_compensation_forces.timestamp < self._sim_timestamp:
             source = self._root_view.get_gravity_compensation_forces()
-            if self.has_joint_ordering or self._has_reversed_joints:
+            # PhysX gravity forces already use the public joint directions.
+            if self.has_joint_ordering:
                 if self._gravity_compensation_forces.data is None:
                     self._gravity_compensation_forces.data = ProxyArray(wp.empty_like(source))
                 self._read_launch_cache.launch(
@@ -1062,10 +1078,10 @@ class ArticulationData(BaseArticulationData):
                     dim=source.shape,
                     inputs=[
                         source,
-                        self.joint_ordering.user_to_backend if self.has_joint_ordering else None,
-                        self._joint_dof_signs,
+                        self.joint_ordering.user_to_backend,
+                        None,
                         self._num_base_dofs,
-                        self.has_joint_ordering,
+                        True,
                     ],
                     outputs=[self._gravity_compensation_forces.data],
                 )

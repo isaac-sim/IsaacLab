@@ -15,6 +15,7 @@ the event introduced by the function.
 from __future__ import annotations
 
 import logging
+import math
 from types import ModuleType
 from typing import TYPE_CHECKING, Literal
 
@@ -255,28 +256,17 @@ class randomize_rigid_body_mass(ManagerTermBase):
             env: The environment instance.
 
         Raises:
-            TypeError: If `params` is not a tuple of two numbers.
-            ValueError: If the operation is not supported.
-            ValueError: If the lower bound is negative or zero when not allowed.
-            ValueError: If the upper bound is less than the lower bound.
+            TypeError: If distribution parameters are not a pair of numbers.
+            ValueError: If the operation or distribution is unsupported, parameters are non-finite,
+                bounds or standard deviation are invalid, or scale sign constraints are violated.
         """
         super().__init__(cfg, env)
 
         self.asset_cfg: SceneEntityCfg = cfg.params["asset_cfg"]
         self.asset: RigidObject | Articulation = env.scene[self.asset_cfg.name]
-        # check for valid operation
-        if cfg.params["operation"] == "scale":
-            if "mass_distribution_params" in cfg.params:
-                _validate_scale_range(
-                    cfg.params["mass_distribution_params"], "mass_distribution_params", allow_zero=False
-                )
-        elif cfg.params["operation"] not in ("abs", "add"):
-            raise ValueError(
-                "Randomization term 'randomize_rigid_body_mass' does not support operation:"
-                f" '{cfg.params['operation']}'."
-            )
-        if cfg.params.get("min_mass") is not None:
-            if cfg.params.get("min_mass") < 1e-6:
+        _validate_randomization_params(cfg, "mass_distribution_params", allow_zero=False)
+        if cfg.params["min_mass"] is not None:
+            if cfg.params["min_mass"] < 1e-6:
                 raise ValueError(
                     "Randomization term 'randomize_rigid_body_mass' does not support 'min_mass' less than 1e-6 to avoid"
                     " physics errors."
@@ -372,9 +362,9 @@ class randomize_rigid_body_inertia(ManagerTermBase):
             env: The environment instance.
 
         Raises:
-            ValueError: If the operation is not supported.
-            ValueError: If the lower bound is negative or zero when not allowed for scale operation.
-            ValueError: If the upper bound is less than the lower bound.
+            TypeError: If distribution parameters are not a pair of numbers.
+            ValueError: If the operation or distribution is unsupported, parameters are non-finite,
+                bounds or standard deviation are invalid, or scale sign constraints are violated.
         """
         from ...assets import BaseArticulation, BaseRigidObject, BaseRigidObjectCollection
 
@@ -389,21 +379,11 @@ class randomize_rigid_body_inertia(ManagerTermBase):
                 f" with type: '{type(self.asset)}'."
             )
 
-        # check for valid operation
-        if cfg.params["operation"] == "scale":
-            if "inertia_distribution_params" in cfg.params:
-                _validate_scale_range(
-                    cfg.params["inertia_distribution_params"], "inertia_distribution_params", allow_zero=False
-                )
-        elif cfg.params["operation"] not in ("abs", "add"):
-            raise ValueError(
-                f"Randomization term 'randomize_rigid_body_inertia' does not support operation:"
-                f" '{cfg.params['operation']}'."
-            )
+        _validate_randomization_params(cfg, "inertia_distribution_params", allow_zero=False)
 
         self.default_inertia = None
         # cache inertia indices: diagonal (0, 4, 8) for regularization, or all elements
-        diagonal_only = cfg.params.get("diagonal_only", True)
+        diagonal_only = cfg.params["diagonal_only"]
         self._inertia_idx = torch.tensor([0, 4, 8], device=self.asset.device) if diagonal_only else slice(None)
 
     def __call__(
@@ -422,8 +402,8 @@ class randomize_rigid_body_inertia(ManagerTermBase):
             env: The environment instance.
             env_ids: The environment indices to randomize. If None, all environments are randomized.
             asset_cfg: The asset configuration specifying the asset and body names.
-            inertia_distribution_params: Distribution parameters as a tuple of two floats
-                ``(low, high)`` for sampling inertia modification values.
+            inertia_distribution_params: ``(mean, std)`` for Gaussian sampling, or ``(low, high)``
+                for uniform and log-uniform sampling of inertia modification values.
             operation: The operation to apply. Options: ``"add"``, ``"scale"``, ``"abs"``.
                 Defaults to ``"add"`` which is typical for regularization/armature.
             distribution: The distribution to sample from. Options: ``"uniform"``,
@@ -522,11 +502,9 @@ class randomize_rigid_body_com(ManagerTermBase):
         env_rows = env_ids[:, None] if not isinstance(env_ids, slice) and not isinstance(body_ids, slice) else env_ids
 
         # sample random CoM values
-        range_list = [com_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z"]]
-        ranges = torch.tensor(range_list, device=self.asset.device)
         num_envs = len(range(env.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
-        rand_samples = math_utils.sample_uniform(
-            ranges[:, 0], ranges[:, 1], (num_envs, 3), device=self.asset.device
+        rand_samples = math_utils.sample_uniform_from_ranges(
+            com_range, ("x", "y", "z"), num_envs, device=self.asset.device
         ).unsqueeze(1)
 
         # start from defaults and add random offsets
@@ -667,10 +645,9 @@ class randomize_actuator_gains(ManagerTermBase):
             env: The environment instance.
 
         Raises:
-            TypeError: If `params` is not a tuple of two numbers.
-            ValueError: If the operation is not supported.
-            ValueError: If the lower bound is negative or zero when not allowed.
-            ValueError: If the upper bound is less than the lower bound.
+            TypeError: If distribution parameters are not a pair of numbers.
+            ValueError: If the operation or distribution is unsupported, parameters are non-finite,
+                bounds or standard deviation are invalid, or scale sign constraints are violated.
         """
         super().__init__(cfg, env)
 
@@ -718,19 +695,8 @@ class randomize_actuator_gains(ManagerTermBase):
             self.default_actuator_stiffness[name] = stiffness.clone()
             self.default_actuator_damping[name] = damping.clone()
 
-        # check for valid operation
-        if cfg.params["operation"] == "scale":
-            if "stiffness_distribution_params" in cfg.params:
-                _validate_scale_range(
-                    cfg.params["stiffness_distribution_params"], "stiffness_distribution_params", allow_zero=False
-                )
-            if "damping_distribution_params" in cfg.params:
-                _validate_scale_range(cfg.params["damping_distribution_params"], "damping_distribution_params")
-        elif cfg.params["operation"] not in ("abs", "add"):
-            raise ValueError(
-                "Randomization term 'randomize_actuator_gains' does not support operation:"
-                f" '{cfg.params['operation']}'."
-            )
+        _validate_randomization_params(cfg, "stiffness_distribution_params", allow_zero=False)
+        _validate_randomization_params(cfg, "damping_distribution_params")
 
     def __call__(
         self,
@@ -863,10 +829,9 @@ class randomize_joint_parameters(ManagerTermBase):
             env: The environment instance.
 
         Raises:
-            TypeError: If `params` is not a tuple of two numbers.
-            ValueError: If the operation is not supported.
-            ValueError: If the lower bound is negative or zero when not allowed.
-            ValueError: If the upper bound is less than the lower bound.
+            TypeError: If distribution parameters are not a pair of numbers.
+            ValueError: If the operation or distribution is unsupported, parameters are non-finite,
+                bounds or standard deviation are invalid, or scale sign constraints are violated.
         """
         super().__init__(cfg, env)
 
@@ -883,17 +848,16 @@ class randomize_joint_parameters(ManagerTermBase):
         if hasattr(self.asset.data, "joint_dynamic_friction_coeff"):
             self.default_dynamic_joint_friction_coeff = self.asset.data.joint_dynamic_friction_coeff.torch.clone()
 
-        # check for valid operation
-        if cfg.params["operation"] == "scale":
-            if "friction_distribution_params" in cfg.params:
-                _validate_scale_range(cfg.params["friction_distribution_params"], "friction_distribution_params")
-            if "armature_distribution_params" in cfg.params:
-                _validate_scale_range(cfg.params["armature_distribution_params"], "armature_distribution_params")
-        elif cfg.params["operation"] not in ("abs", "add"):
-            raise ValueError(
-                "Randomization term 'randomize_joint_parameters' does not support operation:"
-                f" '{cfg.params['operation']}'."
-            )
+        for name in (
+            "friction_distribution_params",
+            "armature_distribution_params",
+        ):
+            _validate_randomization_params(cfg, name)
+        for name in (
+            "lower_limit_distribution_params",
+            "upper_limit_distribution_params",
+        ):
+            _validate_randomization_params(cfg, name, allow_negative=True)
 
     def __call__(
         self,
@@ -1027,6 +991,9 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
     The function samples random values from the given distribution parameters and applies the operation to
     the tendon properties. It then sets the values into the physics simulation. If the distribution parameters
     are not provided for a particular property, the function does not modify the property.
+
+    The operation applies to the tendon properties read when the term is created, so repeated calls do not
+    compound and values written afterwards by other code are ignored.
     """
 
     def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv):
@@ -1037,32 +1004,39 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
             env: The environment instance.
 
         Raises:
-            TypeError: If `params` is not a tuple of two numbers.
-            ValueError: If the operation is not supported.
-            ValueError: If the lower bound is negative or zero when not allowed.
-            ValueError: If the upper bound is less than the lower bound.
+            TypeError: If distribution parameters are not a pair of numbers.
+            ValueError: If the operation or distribution is unsupported, parameters are non-finite,
+                bounds or standard deviation are invalid, or scale sign constraints are violated.
         """
         super().__init__(cfg, env)
 
         self.asset_cfg: SceneEntityCfg = cfg.params["asset_cfg"]
         self.asset: RigidObject | Articulation = env.scene[self.asset_cfg.name]
-        # check for valid operation
-        if cfg.params["operation"] == "scale":
-            if "stiffness_distribution_params" in cfg.params:
-                _validate_scale_range(
-                    cfg.params["stiffness_distribution_params"], "stiffness_distribution_params", allow_zero=False
-                )
-            if "damping_distribution_params" in cfg.params:
-                _validate_scale_range(cfg.params["damping_distribution_params"], "damping_distribution_params")
-            if "limit_stiffness_distribution_params" in cfg.params:
-                _validate_scale_range(
-                    cfg.params["limit_stiffness_distribution_params"], "limit_stiffness_distribution_params"
-                )
-        elif cfg.params["operation"] not in ("abs", "add"):
-            raise ValueError(
-                "Randomization term 'randomize_fixed_tendon_parameters' does not support operation:"
-                f" '{cfg.params['operation']}'."
-            )
+        _validate_randomization_params(cfg, "stiffness_distribution_params", allow_zero=False)
+        for name in (
+            "damping_distribution_params",
+            "limit_stiffness_distribution_params",
+        ):
+            _validate_randomization_params(cfg, name)
+        for name in (
+            "lower_limit_distribution_params",
+            "upper_limit_distribution_params",
+            "rest_length_distribution_params",
+            "offset_distribution_params",
+        ):
+            _validate_randomization_params(cfg, name, allow_negative=True)
+
+        # cache default values
+        self.default_fixed_tendon_stiffness = self.asset.data.fixed_tendon_stiffness.torch.clone()
+        self.default_fixed_tendon_damping = self.asset.data.fixed_tendon_damping.torch.clone()
+        self.default_fixed_tendon_pos_limits = self.asset.data.fixed_tendon_pos_limits.torch.clone()
+        # read only when randomized: Newton raises NotImplementedError for these
+        if cfg.params["limit_stiffness_distribution_params"] is not None:
+            self.default_fixed_tendon_limit_stiffness = self.asset.data.fixed_tendon_limit_stiffness.torch.clone()
+        if cfg.params["rest_length_distribution_params"] is not None:
+            self.default_fixed_tendon_rest_length = self.asset.data.fixed_tendon_rest_length.torch.clone()
+        if cfg.params["offset_distribution_params"] is not None:
+            self.default_fixed_tendon_offset = self.asset.data.fixed_tendon_offset.torch.clone()
 
     def __call__(
         self,
@@ -1094,7 +1068,7 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
         # stiffness
         if stiffness_distribution_params is not None:
             stiffness = _randomize_prop_by_op(
-                self.asset.data.fixed_tendon_stiffness.torch.clone(),
+                self.default_fixed_tendon_stiffness.clone(),
                 stiffness_distribution_params,
                 env_ids,
                 tendon_ids,
@@ -1107,7 +1081,7 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
 
         if damping_distribution_params is not None:
             damping = _randomize_prop_by_op(
-                self.asset.data.fixed_tendon_damping.torch.clone(),
+                self.default_fixed_tendon_damping.clone(),
                 damping_distribution_params,
                 env_ids,
                 tendon_ids,
@@ -1121,7 +1095,7 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
         # limit stiffness
         if limit_stiffness_distribution_params is not None:
             limit_stiffness = _randomize_prop_by_op(
-                self.asset.data.fixed_tendon_limit_stiffness.torch.clone(),
+                self.default_fixed_tendon_limit_stiffness.clone(),
                 limit_stiffness_distribution_params,
                 env_ids,
                 tendon_ids,
@@ -1135,7 +1109,7 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
             )
 
         if lower_limit_distribution_params is not None or upper_limit_distribution_params is not None:
-            limit = self.asset.data.fixed_tendon_pos_limits.torch.clone()
+            limit = self.default_fixed_tendon_pos_limits.clone()
             # -- lower limit
             if lower_limit_distribution_params is not None:
                 limit[..., 0] = _randomize_prop_by_op(
@@ -1170,7 +1144,7 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
 
         if rest_length_distribution_params is not None:
             rest_length = _randomize_prop_by_op(
-                self.asset.data.fixed_tendon_rest_length.torch.clone(),
+                self.default_fixed_tendon_rest_length.clone(),
                 rest_length_distribution_params,
                 env_ids,
                 tendon_ids,
@@ -1183,7 +1157,7 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
         # offset
         if offset_distribution_params is not None:
             offset = _randomize_prop_by_op(
-                self.asset.data.fixed_tendon_offset.torch.clone(),
+                self.default_fixed_tendon_offset.clone(),
                 offset_distribution_params,
                 env_ids,
                 tendon_ids,
@@ -1257,9 +1231,9 @@ def push_by_setting_velocity(
     # velocities
     vel_w = asset.data.root_vel_w.torch[env_ids]
     # sample random velocities
-    range_list = [velocity_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z", "roll", "pitch", "yaw"]]
-    ranges = torch.tensor(range_list, device=asset.device)
-    vel_w += math_utils.sample_uniform(ranges[:, 0], ranges[:, 1], vel_w.shape, device=asset.device)
+    vel_w += math_utils.sample_uniform_from_ranges(
+        velocity_range, ("x", "y", "z", "roll", "pitch", "yaw"), vel_w.shape[:-1], device=asset.device
+    )
     # set the velocities into the physics simulation
     asset.write_root_velocity_to_sim_index(root_velocity=vel_w, env_ids=env_ids)
 
@@ -1277,19 +1251,7 @@ class reset_root_state_uniform(ManagerTermBase):
     The term takes a dictionary of pose and velocity ranges for each axis and rotation. The keys of the
     dictionary are ``x``, ``y``, ``z``, ``roll``, ``pitch``, and ``yaw``. The values are tuples of the form
     ``(min, max)``. If the dictionary does not contain a key, the position or velocity is set to zero for that axis.
-
-    The range dictionaries are materialized as device tensors once at construction.
     """
-
-    def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv):
-        super().__init__(cfg, env)
-        keys = ("x", "y", "z", "roll", "pitch", "yaw")
-        pose_range = cfg.params.get("pose_range", {})
-        velocity_range = cfg.params.get("velocity_range", {})
-        self._pose_ranges = torch.tensor([tuple(pose_range.get(key, (0.0, 0.0))) for key in keys], device=env.device)
-        self._velocity_ranges = torch.tensor(
-            [tuple(velocity_range.get(key, (0.0, 0.0))) for key in keys], device=env.device
-        )
 
     def __call__(
         self,
@@ -1304,18 +1266,16 @@ class reset_root_state_uniform(ManagerTermBase):
         default_root_pose = asset.data.default_root_pose.torch[env_ids]
         default_root_vel = asset.data.default_root_vel.torch[env_ids]
 
-        ranges = self._pose_ranges
-        rand_samples = math_utils.sample_uniform(
-            ranges[:, 0], ranges[:, 1], (default_root_pose.shape[0], 6), device=asset.device
+        rand_samples = math_utils.sample_uniform_from_ranges(
+            pose_range, ("x", "y", "z", "roll", "pitch", "yaw"), default_root_pose.shape[0], device=asset.device
         )
 
         positions = default_root_pose[:, 0:3] + env.scene.env_origins[env_ids] + rand_samples[:, 0:3]
         orientations_delta = math_utils.quat_from_euler_xyz(rand_samples[:, 3], rand_samples[:, 4], rand_samples[:, 5])
         orientations = math_utils.quat_mul(default_root_pose[:, 3:7], orientations_delta)
         # velocities
-        ranges = self._velocity_ranges
-        rand_samples = math_utils.sample_uniform(
-            ranges[:, 0], ranges[:, 1], (default_root_pose.shape[0], 6), device=asset.device
+        rand_samples = math_utils.sample_uniform_from_ranges(
+            velocity_range, ("x", "y", "z", "roll", "pitch", "yaw"), default_root_pose.shape[0], device=asset.device
         )
 
         velocities = default_root_vel + rand_samples
@@ -1356,20 +1316,16 @@ def reset_root_state_with_random_orientation(
     default_root_vel = asset.data.default_root_vel.torch[env_ids].clone()
 
     # poses
-    range_list = [pose_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z"]]
-    ranges = torch.tensor(range_list, device=asset.device)
-    rand_samples = math_utils.sample_uniform(
-        ranges[:, 0], ranges[:, 1], (default_root_pose.shape[0], 3), device=asset.device
+    rand_samples = math_utils.sample_uniform_from_ranges(
+        pose_range, ("x", "y", "z"), default_root_pose.shape[0], device=asset.device
     )
 
     positions = default_root_pose[:, 0:3] + env.scene.env_origins[env_ids] + rand_samples
     orientations = math_utils.random_orientation(default_root_pose.shape[0], device=asset.device)
 
     # velocities
-    range_list = [velocity_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z", "roll", "pitch", "yaw"]]
-    ranges = torch.tensor(range_list, device=asset.device)
-    rand_samples = math_utils.sample_uniform(
-        ranges[:, 0], ranges[:, 1], (default_root_pose.shape[0], 6), device=asset.device
+    rand_samples = math_utils.sample_uniform_from_ranges(
+        velocity_range, ("x", "y", "z", "roll", "pitch", "yaw"), default_root_pose.shape[0], device=asset.device
     )
 
     velocities = default_root_vel + rand_samples
@@ -1426,17 +1382,17 @@ def reset_root_state_from_terrain(
     positions = valid_positions[terrain.terrain_levels[env_ids], terrain.terrain_types[env_ids], ids]
     positions += asset.data.default_root_pose.torch[env_ids, :3]
     # sample random orientations
-    range_list = [pose_range.get(key, (0.0, 0.0)) for key in ["roll", "pitch", "yaw"]]
-    ranges = torch.tensor(range_list, device=asset.device)
-    rand_samples = math_utils.sample_uniform(ranges[:, 0], ranges[:, 1], (num_envs, 3), device=asset.device)
+    rand_samples = math_utils.sample_uniform_from_ranges(
+        pose_range, ("roll", "pitch", "yaw"), num_envs, device=asset.device
+    )
 
     # convert to quaternions
     orientations = math_utils.quat_from_euler_xyz(rand_samples[:, 0], rand_samples[:, 1], rand_samples[:, 2])
 
     # sample random velocities
-    range_list = [velocity_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z", "roll", "pitch", "yaw"]]
-    ranges = torch.tensor(range_list, device=asset.device)
-    rand_samples = math_utils.sample_uniform(ranges[:, 0], ranges[:, 1], (num_envs, 6), device=asset.device)
+    rand_samples = math_utils.sample_uniform_from_ranges(
+        velocity_range, ("x", "y", "z", "roll", "pitch", "yaw"), num_envs, device=asset.device
+    )
 
     velocities = asset.data.default_root_vel.torch[env_ids] + rand_samples
 
@@ -1570,9 +1526,9 @@ class reset_joints_within_limits_range(ManagerTermBase):
             )
 
         # parse the parameters
-        asset_cfg: SceneEntityCfg = cfg.params.get("asset_cfg", SceneEntityCfg("robot"))
-        use_default_offset = cfg.params.get("use_default_offset", False)
-        operation = cfg.params.get("operation", "abs")
+        asset_cfg: SceneEntityCfg = cfg.params["asset_cfg"]
+        use_default_offset = cfg.params["use_default_offset"]
+        operation = cfg.params["operation"]
         # check if the operation is valid
         if operation not in ["abs", "scale"]:
             raise ValueError(
@@ -1699,19 +1655,15 @@ def reset_nodal_state_uniform(
     nodal_state = asset.data.default_nodal_state_w.torch[env_ids].clone()
 
     # position
-    range_list = [position_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z"]]
-    ranges = torch.tensor(range_list, device=asset.device)
-    rand_samples = math_utils.sample_uniform(
-        ranges[:, 0], ranges[:, 1], (nodal_state.shape[0], 1, 3), device=asset.device
+    rand_samples = math_utils.sample_uniform_from_ranges(
+        position_range, ("x", "y", "z"), (nodal_state.shape[0], 1), device=asset.device
     )
 
     nodal_state[..., :3] += rand_samples
 
     # velocities
-    range_list = [velocity_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z"]]
-    ranges = torch.tensor(range_list, device=asset.device)
-    rand_samples = math_utils.sample_uniform(
-        ranges[:, 0], ranges[:, 1], (nodal_state.shape[0], 1, 3), device=asset.device
+    rand_samples = math_utils.sample_uniform_from_ranges(
+        velocity_range, ("x", "y", "z"), (nodal_state.shape[0], 1), device=asset.device
     )
 
     nodal_state[..., 3:] += rand_samples
@@ -1896,7 +1848,7 @@ def _randomize_prop_by_op(
         dim_0_ids: The indices of the first dimension to randomize.
         dim_1_ids: The indices of the second dimension to randomize.
         operation: The operation to perform on the data. Options: 'add', 'scale', 'abs'.
-        distribution: The distribution to sample the random values from. Options: 'uniform', 'log_uniform'.
+        distribution: The sampling distribution: 'uniform', 'log_uniform', or 'gaussian'.
 
     Returns:
         The data tensor after randomization. Shape is (dim_0, dim_1).
@@ -1937,48 +1889,51 @@ def _randomize_prop_by_op(
     return data
 
 
-def _validate_scale_range(
-    params: tuple[float, float] | None,
+def _validate_randomization_params(
+    cfg: EventTermCfg,
     name: str,
     *,
     allow_negative: bool = False,
     allow_zero: bool = True,
 ) -> None:
+    """Validate a distribution and the event's scale-sign policy before sampling.
+
+    Gaussian parameters are (mean, std); uniform and log-uniform parameters are (low, high).
+    The scale-sign policy constrains the lower bound or Gaussian mean, not every Gaussian sample.
+    None leaves an optional property unchanged.
     """
-    Validates a (low, high) tuple used in scale-based randomization.
-
-    This function ensures the tuple follows expected rules when applying a 'scale'
-    operation. It performs type and value checks, optionally allowing negative or
-    zero lower bounds.
-
-    Args:
-        params (tuple[float, float] | None): The (low, high) range to validate. If None,
-            validation is skipped.
-        name (str): The name of the parameter being validated, used for error messages.
-        allow_negative (bool, optional): If True, allows the lower bound to be negative.
-            Defaults to False.
-        allow_zero (bool, optional): If True, allows the lower bound to be zero.
-            Defaults to True.
-
-    Raises:
-        TypeError: If `params` is not a tuple of two numbers.
-        ValueError: If the lower bound is negative or zero when not allowed.
-        ValueError: If the upper bound is less than the lower bound.
-
-    Example:
-        _validate_scale_range((0.5, 1.5), "mass_scale")
-    """
-    if params is None:  # caller didn’t request randomisation for this field
+    operation = cfg.params["operation"]
+    distribution = cfg.params["distribution"]
+    params = cfg.params[name]
+    if operation not in ("scale", "abs", "add"):
+        raise ValueError(f"Unsupported randomization operation: {operation!r}.")
+    if distribution not in ("uniform", "log_uniform", "gaussian"):
+        raise ValueError(f"{name}: unsupported distribution {distribution!r}.")
+    if params is None:
         return
-    low, high = params
-    if not isinstance(low, (int, float)) or not isinstance(high, (int, float)):
-        raise TypeError(f"{name}: expected (low, high) to be a tuple of numbers, got {params}.")
-    if not allow_negative and not allow_zero and low <= 0:
-        raise ValueError(f"{name}: lower bound must be > 0 when using the 'scale' operation (got {low}).")
-    if not allow_negative and allow_zero and low < 0:
-        raise ValueError(f"{name}: lower bound must be ≥ 0 when using the 'scale' operation (got {low}).")
-    if high < low:
-        raise ValueError(f"{name}: upper bound ({high}) must be ≥ lower bound ({low}).")
+    if (
+        not isinstance(params, (tuple, list))
+        or len(params) != 2
+        or not all(isinstance(value, (int, float)) for value in params)
+    ):
+        raise TypeError(f"{name}: expected a pair of numbers, got {params!r}.")
+    first, second = params
+    if not all(math.isfinite(value) for value in params):
+        raise ValueError(f"{name}: distribution parameters must be finite, got {params!r}.")
+    if distribution == "gaussian":
+        if second < 0:
+            raise ValueError(f"{name}: standard deviation must be >= 0 (got {second}).")
+    else:
+        if second < first:
+            raise ValueError(f"{name}: upper bound ({second}) must be >= lower bound ({first}).")
+        if distribution == "log_uniform" and first <= 0:
+            raise ValueError(f"{name}: log-uniform bounds must be > 0 (got {params!r}).")
+
+    if operation == "scale" and not allow_negative:
+        first_name = "mean" if distribution == "gaussian" else "lower bound"
+        if first < 0 or (not allow_zero and first == 0):
+            bound = ">= 0" if allow_zero else "> 0"
+            raise ValueError(f"{name}: {first_name} must be {bound} when using the 'scale' operation (got {first}).")
 
 
 def _get_backend_events(env: ManagerBasedEnv) -> ModuleType:
@@ -2014,7 +1969,7 @@ class _GravityRandomization(ManagerTermBase):
     def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv, device: str) -> None:
         super().__init__(cfg, env)
         self._sampling_device = device
-        self._distribution = cfg.params.get("distribution", "uniform")
+        self._distribution = cfg.params["distribution"]
         if self._distribution not in ("uniform", "log_uniform", "gaussian"):
             raise NotImplementedError(f"Unknown gravity distribution: {self._distribution!r}.")
         if cfg.params["operation"] not in ("add", "scale", "abs"):

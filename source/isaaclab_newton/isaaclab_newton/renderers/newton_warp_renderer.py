@@ -58,8 +58,8 @@ def _update_camera_rays(intrinsics: wp.array(dtype=wp.mat33f), rays: wp.array4d(
 
 _PPISP_IMPORT_ERROR_MESSAGE = (
     "isaaclab_ppisp is required when CameraCfg.isp_cfg is set. "
-    "It ships with the Isaac Lab wheel (`pip install isaaclab`); otherwise install the "
-    "isaaclab-ppisp extension from the Isaac Lab source checkout."
+    "Run `uv sync` from the Isaac Lab source checkout, or install the Isaac Lab wheel "
+    "with `uv pip install isaaclab`."
 )
 
 
@@ -656,17 +656,8 @@ class NewtonWarpRenderer(BaseRenderer):
         render_data._convert_segmentation()
 
     def read_output(self, render_data: RenderData, camera_data: CameraData) -> None:
-        """Copy rendered outputs to the camera data buffers.
+        """Publish segmentation metadata; pixel outputs alias the camera buffers bound in :meth:`set_outputs`.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.read_output`."""
-        for output_name in camera_data.output:
-            if output_name == "rgb":
-                continue
-            image_data = render_data.get_output(output_name)
-            if image_data is not None:
-                output_wp = camera_data.output[output_name].warp
-                if image_data.ptr != output_wp.ptr:
-                    wp.copy(output_wp, image_data)
-
         # Publish the segmentation id-to-label metadata (idToLabels / idToSemantics) alongside the
         # pixel buffers.
         for output_name, info in render_data.segmentation_info().items():

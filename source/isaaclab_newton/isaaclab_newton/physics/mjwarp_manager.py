@@ -116,10 +116,10 @@ class NewtonMJWarpManager(NewtonManager):
 
         With ``use_mujoco_cpu=True`` the solver owns a single global ``MjData``
         and its reset path is not mask-aware — it clears the buffers for every
-        world.  Since this hook fires on every step/forward boundary (usually
-        with an all-``False`` mask), the CPU path is gated on at least one
-        world actually being flagged so warm-starting is not defeated on every
-        step.
+        world.  Since this hook can fire with an all-``False`` mask (e.g. on
+        every forward boundary after a graph-captured write), the CPU path is
+        gated on at least one world actually being flagged so warm-starting is
+        not defeated on every step.
 
         Args:
             world_mask: Per-world bool mask of shape ``(world_count + 1,)``.

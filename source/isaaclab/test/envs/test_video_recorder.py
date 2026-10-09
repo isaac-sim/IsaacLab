@@ -11,6 +11,7 @@ All tests are pure-Python mocks — no simulation context or Kit app required.
 from __future__ import annotations
 
 import logging
+import warnings
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -18,8 +19,8 @@ import numpy as np
 import pytest
 
 from isaaclab.envs.common import ViewerCfg
-from isaaclab.envs.utils.video_recorder import VideoRecorder, _parse_source
-from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
+from isaaclab.envs.utils.video_recorder import VideoRecorder
+from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg, parse_video_source
 from isaaclab.utils import validate
 
 _FRAME = np.ones((8, 12, 3), dtype=np.uint8) * 128
@@ -47,7 +48,7 @@ def _patch_moviepy():
 
 
 def _cfg(**overrides) -> VideoRecorderCfg:
-    defaults = dict(source="visualizer", output_dir="/tmp/test_videos", fps=30, video_length=4, video_interval=0)
+    defaults = dict(source="viz", output_dir="/tmp/test_videos", fps=30, video_length=4, video_interval=0)
     cfg = VideoRecorderCfg()
     for k, v in {**defaults, **overrides}.items():
         setattr(cfg, k, v)
@@ -64,6 +65,9 @@ class _FakeViz:
         self.render_calls += 1
         return self._frame
 
+    def supports_markers(self) -> bool:
+        return True
+
 
 def _make_env(visualizers=(), sensors: dict | None = None):
     env = MagicMock()
@@ -73,22 +77,45 @@ def _make_env(visualizers=(), sensors: dict | None = None):
 
 
 # ---------------------------------------------------------------------------
-# _parse_source
+# parse_video_source
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.parametrize(
     "source,expected",
     [
-        ("visualizer", ("visualizer", "", "")),
-        ("visualizer:kit", ("visualizer", "kit", "")),
-        ("visualizer:newton:streaming_view", ("visualizer", "newton", "streaming_view")),
+        ("viz", ("viz", "", "")),
+        ("kit", ("viz", "kit", "")),
+        ("newton_gl", ("viz", "newton_gl", "")),
+        ("newton_rtx", ("viz", "newton_rtx", "")),
+        ("viser", ("viz", "viser", "")),
+        ("rerun", ("viz", "rerun", "")),
+        ("viz:newton_gl:streaming_view", ("viz", "newton_gl", "streaming_view")),
         ("sensor:tiled_camera", ("sensor", "tiled_camera", "")),
-        ("  visualizer:kit  ", ("visualizer", "kit", "")),
+        ("sensor:tiled_camera:depth", ("sensor", "tiled_camera", "depth")),
+        # ``visualizer`` is the long form of ``viz``
+        ("visualizer:kit", ("viz", "kit", "")),
+        # the deprecated ``newton`` type maps to ``newton_gl``, with a DeprecationWarning
+        ("visualizer:newton:streaming_view", ("viz", "newton_gl", "streaming_view")),
+        ("newton", ("viz", "newton_gl", "")),
+        ("a=b", "Invalid video source"),
+        ("viz:foo", "Invalid video source"),
+        ("viz:kit:bar", "Invalid video source"),
+        ("sensor", "Invalid video source"),
+        ("sensor:", "Invalid video source"),
+        ("sensor:cam:foo", "Invalid video source"),
+        ("newton_gl:streaming_view", "Invalid video source"),
     ],
 )
-def test_parse_source(source, expected):
-    assert _parse_source(source) == expected
+def test_parse_video_source(source, expected):
+    if isinstance(expected, str):  # an invalid source and the error it raises
+        with pytest.raises(ValueError, match=expected):
+            parse_video_source(source)
+        return
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        assert parse_video_source(source) == expected
+    assert [w.category for w in caught] == [DeprecationWarning] * ("newton" in source.split(":"))
 
 
 # ---------------------------------------------------------------------------
@@ -97,7 +124,7 @@ def test_parse_source(source, expected):
 
 
 def test_init_raises_value_error_for_unknown_source_kind():
-    with pytest.raises(ValueError, match="Unrecognized source kind"):
+    with pytest.raises(ValueError, match="Invalid video source"):
         VideoRecorder(_cfg(source="badkind:foo"), _make_env())
 
 
@@ -169,9 +196,7 @@ def test_step_schedule_writes_expected_clips(tmp_path, schedule, num_steps, expe
         written.append(([int(frame[0, 0, 0]) for frame in frames], fps))
         return MagicMock()
 
-    recorder = VideoRecorder(
-        _cfg(source="visualizer:kit", output_dir=str(tmp_path), **schedule), _make_env(visualizers=[viz])
-    )
+    recorder = VideoRecorder(_cfg(source="viz:kit", output_dir=str(tmp_path), **schedule), _make_env(visualizers=[viz]))
     with patch("isaaclab.envs.utils.video_recorder.ImageSequenceClip", side_effect=write_clip):
         for step in range(1, num_steps + 1):
             recorder.step()
@@ -186,24 +211,20 @@ def test_step_schedule_writes_expected_clips(tmp_path, schedule, num_steps, expe
 # ---------------------------------------------------------------------------
 
 
-def test_visualizer_source_refreshes_physics_before_on_demand_capture():
-    """On-demand capture reads a frame after physics transforms are synchronized."""
-    synchronized = False
+def test_visualizer_source_refreshes_physics_and_markers_before_on_demand_capture():
+    """On-demand capture reads a frame after physics transforms and debug markers are updated."""
+    updated = set()
 
     class _FreshFrameViz(_FakeViz):
         def render_rgb_array(self) -> np.ndarray:
-            return np.full_like(self._frame, 255 if synchronized else 0)
+            return np.full_like(self._frame, 255 if updated == {"physics", "markers"} else 0)
 
     viz = _FreshFrameViz("kit")
     env = _make_env(visualizers=[viz])
     env.sim.is_rendering = False
-
-    def synchronize_physics() -> None:
-        nonlocal synchronized
-        synchronized = True
-
-    env.sim.forward.side_effect = synchronize_physics
-    recorder = VideoRecorder(_cfg(source="visualizer:kit"), env)
+    env.sim.forward.side_effect = lambda: updated.add("physics")
+    env.sim.vis_marker_registry.dispatch_callbacks.side_effect = lambda: updated.add("markers")
+    recorder = VideoRecorder(_cfg(source="viz:kit"), env)
 
     frame = recorder._get_frame()
 
@@ -212,7 +233,7 @@ def test_visualizer_source_refreshes_physics_before_on_demand_capture():
 
 
 def test_kit_visualizer_newton_physics_logs_warning(caplog):
-    """source='visualizer:kit' with Newton physics logs a warning and attempts capture.
+    """source='viz:kit' with Newton physics logs a warning and attempts capture.
 
     With cubric the capture succeeds; without it frames may be black.  Either way
     the recorder warns and does not hard-fail.
@@ -224,14 +245,14 @@ def test_kit_visualizer_newton_physics_logs_warning(caplog):
     env = _make_env(visualizers=[kit_viz])
     env.sim.physics_manager.video_capture_backend.return_value = "newton_gl"
 
-    recorder = VideoRecorder(_cfg(source="visualizer:kit"), env)
+    recorder = VideoRecorder(_cfg(source="viz:kit"), env)
     with caplog.at_level(logging.WARNING, logger="isaaclab.envs.utils.video_recorder"):
         for _ in range(5):
             recorder._get_frame()
-        second_recorder = VideoRecorder(_cfg(source="visualizer:kit"), env)
+        second_recorder = VideoRecorder(_cfg(source="viz:kit"), env)
         second_recorder._get_frame()
 
-    cubric_warnings = [r for r in caplog.records if "source='visualizer:newton'" in r.message]
+    cubric_warnings = [r for r in caplog.records if "source='viz:newton_gl'" in r.message]
     assert len(cubric_warnings) == 2
     # Capture is still attempted on every frame rather than short-circuiting.
     assert kit_viz.render_calls == 6
@@ -248,11 +269,11 @@ def _rgb_sensor():
 @pytest.mark.parametrize(
     "source,make_env",
     [
-        ("visualizer", lambda: _make_env(visualizers=[_FakeViz("kit")])),
-        ("visualizer:newton", lambda: _make_env(visualizers=[_FakeViz("newton_gl")])),
+        ("viz", lambda: _make_env(visualizers=[_FakeViz("kit")])),
+        ("viz:newton_gl", lambda: _make_env(visualizers=[_FakeViz("newton_gl")])),
         ("sensor:tiled_camera", lambda: _make_env(sensors={"tiled_camera": _rgb_sensor()})),
     ],
-    ids=["auto_visualizer", "newton_alias", "sensor_rgb"],
+    ids=["auto_visualizer", "newton_gl", "sensor_rgb"],
 )
 def test_source_resolves_frame(source, make_env):
     frame = VideoRecorder(_cfg(source=source), make_env())._get_frame()
@@ -263,7 +284,7 @@ def test_source_resolves_frame(source, make_env):
 @pytest.mark.parametrize(
     "source,make_env,message",
     [
-        ("visualizer", lambda: _make_env(visualizers=[]), "no recording-capable visualizer"),
+        ("viz", lambda: _make_env(visualizers=[]), "no recording-capable visualizer"),
         ("sensor:missing", lambda: _make_env(sensors={"tiled_camera": MagicMock()}), "tiled_camera"),
     ],
 )

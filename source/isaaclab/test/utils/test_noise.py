@@ -31,9 +31,11 @@ def test_gaussian_noise(device, noise_device, op):
     # create noise config
     noise_cfg = noise.GaussianNoiseCfg(std=std, mean=mean, operation=op)
 
+    source = data.clone()
     for _ in range(2):
         # apply noise
         noisy_data = noise_cfg.func(data, cfg=noise_cfg)
+        torch.testing.assert_close(data, source)
         # calculate resulting noise compared to original data set
         if op == "add":
             std_result, mean_result = torch.std_mean(noisy_data - data, dim=0)
@@ -61,9 +63,11 @@ def test_uniform_noise(device, noise_device, op):
     # create noise config
     noise_cfg = noise.UniformNoiseCfg(n_max=n_max, n_min=n_min, operation=op)
 
+    source = data.clone()
     for _ in range(2):
         # apply noise
         noisy_data = noise_cfg.func(data, cfg=noise_cfg)
+        torch.testing.assert_close(data, source)
         # calculate resulting noise compared to original data set
         if op == "add":
             min_result, _ = torch.min(noisy_data - data, dim=0)
@@ -93,9 +97,11 @@ def test_constant_noise(device, noise_device, op):
     # create noise config
     noise_cfg = noise.ConstantNoiseCfg(bias=bias, operation=op)
 
+    source = data.clone()
     for _ in range(2):
         # apply noise
         noisy_data = noise_cfg.func(data, cfg=noise_cfg)
+        torch.testing.assert_close(data, source)
         # calculate resulting noise compared to original data set
         if op == "add":
             bias_result = noisy_data - data

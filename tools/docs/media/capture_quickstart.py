@@ -100,7 +100,7 @@ def main():
     _configure_resolved_sim(env_cfg.sim, focal_length=22.0)
     env_cfg.video_recorders = [
         VideoRecorderCfg(
-            source="visualizer:newton_rtx",
+            source="viz:newton_rtx",
             output_dir=args.output_dir,
             output_filename_prefix=args.policy,
             video_length=args.video_length,
@@ -135,7 +135,7 @@ def _configure_capture(env_cfg: object, focal_length: float):
     if output_dir:
         env_cfg.video_recorders = [
             VideoRecorderCfg(
-                source="visualizer:newton_rtx",
+                source="viz:newton_rtx",
                 output_dir=output_dir,
                 output_filename_prefix=os.environ.get("QUICKSTART_VIDEO_PREFIX", "clip"),
                 fps=60,

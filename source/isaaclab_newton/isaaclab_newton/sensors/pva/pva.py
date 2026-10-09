@@ -209,6 +209,7 @@ class Pva(BasePva):
     def _debug_vis_callback(self, event):
         if self._newton_model is None:
             return
+        self._update_outdated_buffers()
         # base position (offset upward for visibility)
         base_pos_w = self._data.pos_w.torch.clone()
         base_pos_w[:, 2] += 0.5

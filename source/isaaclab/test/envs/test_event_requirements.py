@@ -3,16 +3,23 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Construction errors for unsupported event backends and runtimes."""
+"""Construction-time validation of event requirements and randomization parameters."""
 
 import subprocess
 import sys
 from types import SimpleNamespace
 
 import pytest
+import torch
 
 from isaaclab.envs import ManagerBasedEnvCfg
-from isaaclab.envs.mdp import randomize_physics_scene_gravity, randomize_visual_color, randomize_visual_shape
+from isaaclab.envs.mdp import (
+    randomize_fixed_tendon_parameters,
+    randomize_physics_scene_gravity,
+    randomize_rigid_body_mass,
+    randomize_visual_color,
+    randomize_visual_shape,
+)
 from isaaclab.managers import EventTermCfg, SceneEntityCfg
 from isaaclab.physics import PhysicsCfg
 from isaaclab.renderers import RenderContext, RendererCfg
@@ -78,3 +85,64 @@ def test_unknown_physics_configuration_fails_at_term_construction():
     cfg = EventTermCfg(func=randomize_physics_scene_gravity, mode="startup")
     with pytest.raises(NotImplementedError, match="unsupported for PhysicsCfg"):
         randomize_physics_scene_gravity(cfg, env)
+
+
+@pytest.mark.parametrize(
+    "params,options,error",
+    [
+        ((0.5, 0.1), {"distribution": "gaussian"}, None),
+        ((1.0, 0.0), {"distribution": "gaussian"}, None),
+        ((1.0, -0.1), {"distribution": "gaussian", "operation": "add"}, "standard deviation"),
+        ((0.0, 0.1), {"distribution": "gaussian"}, "mean must be > 0"),
+        ((0.5, 0.1), {}, "upper bound"),
+        ((0.5, 1.5), {}, None),
+        ((0.0, 1.0), {"distribution": "log_uniform", "operation": "abs"}, "bounds must be > 0"),
+        ((0.5, 1.5), {"distribution": "log_uniform"}, None),
+        ((float("nan"), 1.0), {}, "must be finite"),
+        ((1.0, float("inf")), {"distribution": "gaussian"}, "must be finite"),
+        ((0.5, 1.5), {"distribution": "unknown"}, "unsupported distribution"),
+        ((0.5, 1.5), {"operation": "unknown"}, "Unsupported randomization operation"),
+    ],
+)
+def test_randomization_parameters_follow_distribution(params, options, error):
+    """Validate the configured distribution independently of operation, preserving scale-sign policy."""
+    asset = SimpleNamespace()
+    env = SimpleNamespace(scene={"robot": asset})
+    cfg = EventTermCfg(
+        func=randomize_rigid_body_mass,
+        mode="startup",
+        params={
+            "asset_cfg": SceneEntityCfg("robot"),
+            "mass_distribution_params": params,
+            "operation": "scale",
+            **options,
+        },
+    )
+    if error is None:
+        assert randomize_rigid_body_mass(cfg, env).asset is asset
+    else:
+        with pytest.raises(ValueError, match=error):
+            randomize_rigid_body_mass(cfg, env)
+
+
+def test_tendon_defaults_and_signed_parameters():
+    """Omitted operation uses abs; optional and signed fields retain their distinct policies."""
+    # the term caches the tendon properties when created
+    prop = SimpleNamespace(torch=torch.zeros(1, 1))
+    asset = SimpleNamespace(
+        data=SimpleNamespace(fixed_tendon_stiffness=prop, fixed_tendon_damping=prop, fixed_tendon_pos_limits=prop)
+    )
+    env = SimpleNamespace(scene={"robot": asset})
+    cfg = EventTermCfg(
+        func=randomize_fixed_tendon_parameters,
+        mode="startup",
+        params={"asset_cfg": SceneEntityCfg("robot"), "damping_distribution_params": (0.0, 0.0)},
+    )
+    assert randomize_fixed_tendon_parameters(cfg, env).asset is asset
+    assert cfg.params["operation"] == "abs"
+    assert cfg.params["distribution"] == "uniform"
+    cfg.params.update(operation="scale", lower_limit_distribution_params=(-2.0, -1.0))
+    assert randomize_fixed_tendon_parameters(cfg, env).asset is asset
+    cfg.params.update(distribution="log_uniform", lower_limit_distribution_params=None)
+    with pytest.raises(ValueError, match="log-uniform bounds must be > 0"):
+        randomize_fixed_tendon_parameters(cfg, env)

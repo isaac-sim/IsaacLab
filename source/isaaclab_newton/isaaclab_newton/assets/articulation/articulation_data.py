@@ -4,13 +4,13 @@
 # SPDX-License-Identifier: BSD-3-Clause
 from __future__ import annotations
 
-import logging
 import warnings
 import weakref
 from typing import TYPE_CHECKING
 
 import numpy as np
 import warp as wp
+from newton import JointType
 
 from isaaclab.assets.articulation import ordering_kernels
 from isaaclab.assets.articulation.base_articulation_data import BaseArticulationData
@@ -31,9 +31,6 @@ from ..kernels import vec13f
 
 if TYPE_CHECKING:
     from newton.selection import ArticulationView
-
-# import logger
-logger = logging.getLogger(__name__)
 
 _LAZY_CAPTURE_REASON = (
     "This is a lazily-computed derived property guarded by a Python timestamp check "
@@ -810,6 +807,54 @@ class ArticulationData(BaseArticulationData):
         return self._body_com_vel_w_ta
 
     @property
+    @capture_unsafe(_LAZY_CAPTURE_REASON)
+    def body_joint_wrench(self) -> ProxyArray:
+        """Incoming joint reaction wrenches in public body order; see the base data contract."""
+        if self._sim_bind_body_parent_f is None:
+            raise RuntimeError("Set ArticulationCfg.enable_joint_wrench=True before simulation startup.")
+        if self._body_joint_wrench.data is None:
+            model = SimulationManager.get_model()
+            articulation_ids = self._root_view.articulation_ids.numpy()[:, 0]
+            starts = model.articulation_start.numpy()[articulation_ids]
+            end = model.articulation_end.numpy()[articulation_ids[0]]
+            tree_joints = np.arange(starts[0], end)
+            children = model.joint_child.numpy()
+            body_ids = np.unique(children[tree_joints])
+            joint_types = model.joint_type.numpy()[tree_joints]
+            parents = model.joint_parent.numpy()[tree_joints]
+            report_joint = (joint_types != JointType.FREE) & ((joint_types != JointType.FIXED) | (parents != -1))
+            report_body = np.zeros(self._num_bodies, dtype=bool)
+            body_indices = np.searchsorted(body_ids, children[tree_joints[report_joint]])
+            report_body[body_indices] = True
+            joint_ids = starts[:, None] + (tree_joints[report_joint] - starts[0])
+            joint_poses = np.zeros((self._num_instances, self._num_bodies, 7), dtype=np.float32)
+            joint_poses[:, body_indices] = model.joint_X_c.numpy()[joint_ids]
+            self._wrench_body_joint_pose = wp.array(joint_poses, dtype=wp.transformf, device=self.device)
+            self._wrench_report_body = wp.array(report_body, dtype=wp.bool, device=self.device)
+            self._body_joint_wrench.data = wp.empty(
+                (self._num_instances, self._num_bodies), dtype=wp.spatial_vectorf, device=self.device
+            )
+            self._body_joint_wrench_ta = ProxyArray(self._body_joint_wrench.data)
+        if self._body_joint_wrench.timestamp < self._sim_timestamp:
+            self._read_launch_cache.launch(
+                "body_joint_wrench",
+                articulation_kernels.update_body_joint_wrench,
+                dim=(self._num_instances, self._num_bodies),
+                inputs=[
+                    self._sim_bind_body_parent_f,
+                    self._sim_bind_body_link_pose_w,
+                    self._sim_bind_body_com_pos_b,
+                    self._wrench_body_joint_pose,
+                    self._wrench_report_body,
+                    self.body_ordering.user_to_backend if self.has_body_ordering else None,
+                    self.has_body_ordering,
+                ],
+                outputs=[self._body_joint_wrench.data],
+            )
+            self._body_joint_wrench.timestamp = self._sim_timestamp
+        return self._body_joint_wrench_ta
+
+    @property
     def body_com_acc_w(self) -> ProxyArray:
         """Acceleration of all bodies center of mass ``[lin_acc, ang_acc]``.
 
@@ -819,6 +864,8 @@ class ArticulationData(BaseArticulationData):
         All values are relative to the world.
         """
         if self._body_com_acc_w.timestamp < self._sim_timestamp:
+            # Finite-difference over the elapsed time, which spans the decimation when Newton owns it.
+            time_elapsed = self._sim_timestamp - self._body_com_acc_w.timestamp
             body_ordering = self.body_ordering
             wp.launch(
                 articulation_kernels.get_body_com_acc_from_body_com_vel_ordered,
@@ -829,7 +876,7 @@ class ArticulationData(BaseArticulationData):
                     self._previous_body_com_vel,
                     body_ordering.user_to_backend if body_ordering is not None else None,
                     body_ordering is not None,
-                    SimulationManager.get_dt(),
+                    time_elapsed,
                 ],
                 outputs=[self._body_com_acc_w.data],
             )
@@ -900,7 +947,7 @@ class ArticulationData(BaseArticulationData):
         jacobian = self._body_com_jacobian_w_ta.warp
         # eval_jacobian writes every articulation in the model; gather kernel extracts this
         # view's rows. ``link_offset`` skips Newton's fixed-root row for fixed-base; the DoF
-        # axis is preserved in full (free-root joint's 6 columns up front for floating-base),
+        # axis is preserved in full (a free root joint's 6 columns up front),
         # matching the PhysX layout and the cross-library industry convention.
         self._root_view.eval_jacobian(
             SimulationManager.get_state_0(), J=self._jacobian_buf_flat, joint_S_s=self._joint_S_s_buf
@@ -1516,9 +1563,6 @@ class ArticulationData(BaseArticulationData):
         .. caution:: This is possible if and only if the properties that we access are strided from newton and not
         indexed. Newton willing this is the case all the time, but we should pay attention to this if things look off.
         """
-        # A full Newton reset recreates model/state arrays, invalidating recorded pointers.
-        self._read_launch_cache.clear()
-
         # Short-hand for the number of instances, number of links, and number of joints.
         self._num_instances = self._root_view.count
         self._num_joints = self._root_view.joint_dof_count
@@ -1528,21 +1572,17 @@ class ArticulationData(BaseArticulationData):
 
         # -- root properties
         self._sim_bind_root_link_pose_w = self._root_view.get_root_transforms(SimulationManager.get_state_0())[:, 0]
-        # ``get_root_velocities`` returns ``None`` for fixed-base articulations; the
-        # ``wp.zeros`` fallback set by :meth:`_create_buffers` must survive subsequent
-        # resets, so only overwrite when the solver actually exposes the binding.
+        # Newton exposes root velocities only for floating bases.
         root_vel_w = self._root_view.get_root_velocities(SimulationManager.get_state_0())
-        if root_vel_w is not None:
-            if self._root_view.is_fixed_base:
-                self._sim_bind_root_com_vel_w = root_vel_w[:, 0, 0]
-            else:
-                self._sim_bind_root_com_vel_w = root_vel_w[:, 0]
+        self._sim_bind_root_com_vel_w = (
+            wp.zeros(self._num_instances, dtype=wp.spatial_vectorf, device=self.device)
+            if root_vel_w is None
+            else root_vel_w[:, 0]
+        )
         # -- body properties
         self._sim_bind_body_com_pos_b = self._root_view.get_attribute("body_com", SimulationManager.get_model())[:, 0]
         self._sim_bind_body_link_pose_w = self._root_view.get_link_transforms(SimulationManager.get_state_0())[:, 0]
-        body_com_vel_w = self._root_view.get_link_velocities(SimulationManager.get_state_0())
-        if body_com_vel_w is not None:
-            self._sim_bind_body_com_vel_w = body_com_vel_w[:, 0]
+        self._sim_bind_body_com_vel_w = self._root_view.get_link_velocities(SimulationManager.get_state_0())[:, 0]
         self._sim_bind_body_mass = self._root_view.get_attribute("body_mass", SimulationManager.get_model())[:, 0]
         self._sim_bind_body_inv_mass = self._root_view.get_attribute("body_inv_mass", SimulationManager.get_model())[
             :, 0
@@ -1711,25 +1751,6 @@ class ArticulationData(BaseArticulationData):
                 (self._num_instances, 0), dtype=wp.vec2f, device=self.device
             )
 
-        # Re-pin ProxyArray wrappers to the newly created sim bindings.
-        # On first init, _create_buffers() handles this after all buffers exist.
-        if hasattr(self, "_root_link_pose_w_ta"):
-            self._pin_proxy_arrays()
-            if self.has_joint_ordering:
-                wp.launch(
-                    ordering_kernels.reorder_2d_backend_to_user,
-                    dim=(self._num_instances, self._num_joints),
-                    inputs=[self._sim_bind_joint_vel, self.joint_ordering.user_to_backend],
-                    outputs=[self._previous_joint_vel],
-                    device=self.device,
-                )
-            else:
-                self._previous_joint_vel.assign(self._sim_bind_joint_vel)
-            self._previous_body_com_vel.assign(self._sim_bind_body_com_vel_w)
-            reset_timestamps([self._joint_acc, self._body_com_acc_w])
-            if self._actuator_collection is not None:
-                self._actuator_collection._rebind_state_inputs()
-
     def _create_buffers(self) -> None:
         """Create buffers for the root data."""
         super()._create_buffers()
@@ -1737,21 +1758,6 @@ class ArticulationData(BaseArticulationData):
         body_shape = (num_instances, self._num_bodies)
         joint_shape = (num_instances, self._num_joints)
 
-        # Initialize history for finite differencing. If the articulation is fixed, the root com velocity is not
-        # available, so we use zeros.
-        if self._root_view.get_root_velocities(SimulationManager.get_state_0()) is None:
-            logger.warning(
-                "Failed to get root com velocity. If the articulation is fixed, this is expected. "
-                "Setting root com velocity to zeros."
-            )
-            self._sim_bind_root_com_vel_w = wp.zeros(num_instances, dtype=wp.spatial_vectorf, device=device)
-        # Body velocities are well-defined regardless of the base type (fixed-base articulations
-        # still report link velocities); fall back to zeros only when the view genuinely cannot
-        # provide them. Zeroing this binding together with the root velocity silently zeroes
-        # every body-velocity read for fixed-base robots.
-        if self._root_view.get_link_velocities(SimulationManager.get_state_0()) is None:
-            logger.warning("Failed to get body com velocities. Setting body com velocities to zeros.")
-            self._sim_bind_body_com_vel_w = wp.zeros(body_shape, dtype=wp.spatial_vectorf, device=device)
         # -- default root pose and velocity
         self._default_root_pose = wp.zeros((num_instances,), dtype=wp.transformf, device=device)
         self._default_root_vel = wp.zeros((num_instances,), dtype=wp.spatial_vectorf, device=device)
@@ -1833,7 +1839,8 @@ class ArticulationData(BaseArticulationData):
         # -- optional task-space quantities: retain ordering metadata, but defer large
         # model-wide scratch until the corresponding accessor is actually used.
         self._jacobian_link_offset = 1 if self._root_view.is_fixed_base else 0
-        self._num_base_dofs = 0 if self._root_view.is_fixed_base else 6
+        # only a free root joint's DoFs are excluded from the view's joints (``exclude_joint_types``)
+        self._num_base_dofs = 6 if self._root_view.root_joint_type == JointType.FREE else 0
         self._jacobian_body_user_to_backend: wp.array | None = None
         self._jacobian_view_art_ids = self._root_view.articulation_ids.reshape((-1,))
         self._jacobian_buf_flat: wp.array | None = None
@@ -1853,7 +1860,38 @@ class ArticulationData(BaseArticulationData):
         self._body_com_state_w = None
         self._default_root_state = None
 
-        # Pin all ProxyArray wrappers to current buffers.
+        self._default_root_pose_ta = ProxyArray(self._default_root_pose)
+        self._default_root_vel_ta = ProxyArray(self._default_root_vel)
+        self._default_joint_pos_ta = ProxyArray(self._default_joint_pos)
+        self._default_joint_vel_ta = ProxyArray(self._default_joint_vel)
+        self._joint_pos_target_ta = None
+        self._joint_vel_target_ta = None
+        self._joint_effort_target_ta = None
+        self._computed_torque_ta = ProxyArray(self._computed_torque)
+        self._applied_torque_ta = ProxyArray(self._applied_torque)
+        self._soft_joint_pos_limits_ta = ProxyArray(self._soft_joint_pos_limits)
+        self._soft_joint_vel_limits_ta = ProxyArray(self._soft_joint_vel_limits)
+        self._fixed_tendon_stiffness_ta = ProxyArray(self._sim_bind_fixed_tendon_stiffness)
+        self._fixed_tendon_damping_ta = ProxyArray(self._sim_bind_fixed_tendon_damping)
+        self._fixed_tendon_pos_limits_ta = ProxyArray(self._sim_bind_fixed_tendon_pos_limits)
+
+        # Category 2: TimestampedBuffer properties
+        self._body_com_acc_w_ta = ProxyArray(self._body_com_acc_w.data)
+        self._joint_acc_ta = ProxyArray(self._joint_acc.data)
+        self._body_com_jacobian_w_ta: ProxyArray | None = None
+        self._body_link_jacobian_w_ta: ProxyArray | None = None
+        self._mass_matrix_ta: ProxyArray | None = None
+        self._gravity_compensation_forces_ta: ProxyArray | None = None
+
+        # -- deprecated state properties (lazy); type annotations declared once here
+        self._root_state_w_ta: ProxyArray | None = None
+        self._root_link_state_w_ta: ProxyArray | None = None
+        self._root_com_state_w_ta: ProxyArray | None = None
+        self._default_root_state_ta: ProxyArray | None = None
+        self._body_state_w_ta: ProxyArray | None = None
+        self._body_link_state_w_ta: ProxyArray | None = None
+        self._body_com_state_w_ta: ProxyArray | None = None
+
         self._pin_proxy_arrays()
 
     def _create_jacobian_buffers(self) -> None:
@@ -1930,11 +1968,8 @@ class ArticulationData(BaseArticulationData):
                     setattr(self, field_name, wp.zeros(shape, dtype=wp.float32, device=self.device))
             self._validate_joint_ordering_buffers()
             # Seed the Lab-owned actuator gain records from the solver's initial
-            # gains at ordering-resolve time, before actuator processing overwrites
-            # the actuator-covered DOFs. These records are Lab-owned afterwards
-            # (sim gains are deliberately zeroed for explicit DOFs), so they must
-            # never be resynced from the solver on rebind -- unlike the sim-owned
-            # mirrors in :meth:`_sync_user_ordered_joint_property_buffers`.
+            # gains before actuator processing. Explicit DOFs subsequently zero
+            # the solver gains while retaining the actuator's configured values.
             for backend_data, user_data in (
                 (self._sim_bind_joint_stiffness_sim, self._actuator_stiffness),
                 (self._sim_bind_joint_damping_sim, self._actuator_damping),
@@ -2038,8 +2073,8 @@ class ArticulationData(BaseArticulationData):
 
         Ordering state lives only on :attr:`joint_ordering` / :attr:`body_ordering`;
         a non-``None`` map denotes an active permutation. The staging
-        (re)allocation below reconciles from those maps read directly, so an
-        ordering that was cleared on rebind releases its buffers.
+        (re)allocation below reconciles from those maps read directly, so a
+        cleared ordering releases its buffers.
         """
         self._read_launch_cache.clear()
         # Always build the row map (even under identity ordering) so the gather kernel can
@@ -2127,19 +2162,8 @@ class ArticulationData(BaseArticulationData):
     def _sync_user_ordered_joint_property_buffers(self) -> None:
         """Refresh user-order joint property buffers from sim-bound backend-order arrays.
 
-        Only sim-owned mirrors belong here: the solver is authoritative for these
-        arrays, so re-gathering them on init and rebind is always correct. This
-        includes the Tier-1 joint-state shadows (``_joint_pos_user`` /
-        ``_joint_vel_user``), which the solver owns; seeding them here at resolve
-        and rebind is what makes the first pre-step reads valid, since the
-        post-step publish in :meth:`_refresh_user_order_state` only runs inside a
-        sim step. The Lab-owned actuator gain records (``_actuator_stiffness`` /
-        ``_actuator_damping``) are deliberately excluded -- they are seeded once in
-        :meth:`_configure_joint_ordering_buffers` and would be clobbered here on
-        every rebind.
-
-        The required public-order buffers are allocated and validated by
-        :meth:`_configure_joint_ordering_buffers`, which always runs before this.
+        Seed state shadows for reads before the first step. Actuator-owned gains
+        are initialized separately in :meth:`_configure_joint_ordering_buffers`.
         """
         for backend_data, user_data in (
             (self._sim_bind_joint_pos, self._joint_pos_user),
@@ -2202,19 +2226,7 @@ class ArticulationData(BaseArticulationData):
         )
 
     def _pin_proxy_arrays(self) -> None:
-        """Create or rebind all pinned ProxyArray wrappers.
-
-        Called from :meth:`_create_buffers` on first initialization and from
-        :meth:`_create_simulation_bindings` after a full simulation reset when
-        the solver recreates its internal arrays. The public-order buffers this
-        pins are allocated and validated by the ``_configure_*_ordering_buffers``
-        methods, which run at ordering-resolve time before any pin or rebind.
-        """
-        is_rebind = hasattr(self, "_root_link_pose_w_ta")
-        if is_rebind and self.has_joint_ordering:
-            self._sync_user_ordered_joint_property_buffers()
-        if is_rebind and self.has_body_ordering:
-            self._sync_user_ordered_body_property_buffers()
+        """Bind public arrays at construction and after joint/body ordering is resolved."""
         joint_stiffness = self._joint_stiffness_user if self.has_joint_ordering else self._sim_bind_joint_stiffness_sim
         joint_damping = self._joint_damping_user if self.has_joint_ordering else self._sim_bind_joint_damping_sim
         joint_armature = self._joint_armature_user if self.has_joint_ordering else self._sim_bind_joint_armature
@@ -2239,7 +2251,6 @@ class ArticulationData(BaseArticulationData):
             self._joint_effort_limits_user if self.has_joint_ordering else self._sim_bind_joint_effort_limits_sim
         )
 
-        # Both initial binding and full reset borrow the current native arrays.
         self._root_link_pose_w_ta = ProxyArray(self._sim_bind_root_link_pose_w)
         self._root_com_vel_w_ta = ProxyArray(self._sim_bind_root_com_vel_w)
         body_link_pose_w = self._body_link_pose_w_user if self.has_body_ordering else self._sim_bind_body_link_pose_w
@@ -2266,41 +2277,7 @@ class ArticulationData(BaseArticulationData):
         self._body_inertia_ta = ProxyArray(body_inertia)
         self._body_com_pos_b_ta = ProxyArray(body_com_pos_b)
 
-        if not is_rebind:
-            # First-time creation: pin ProxyArrays to current buffers
-            self._default_root_pose_ta = ProxyArray(self._default_root_pose)
-            self._default_root_vel_ta = ProxyArray(self._default_root_vel)
-            self._default_joint_pos_ta = ProxyArray(self._default_joint_pos)
-            self._default_joint_vel_ta = ProxyArray(self._default_joint_vel)
-            self._joint_pos_target_ta = None
-            self._joint_vel_target_ta = None
-            self._joint_effort_target_ta = None
-            self._computed_torque_ta = ProxyArray(self._computed_torque)
-            self._applied_torque_ta = ProxyArray(self._applied_torque)
-            self._soft_joint_pos_limits_ta = ProxyArray(self._soft_joint_pos_limits)
-            self._soft_joint_vel_limits_ta = ProxyArray(self._soft_joint_vel_limits)
-            self._fixed_tendon_stiffness_ta = ProxyArray(self._sim_bind_fixed_tendon_stiffness)
-            self._fixed_tendon_damping_ta = ProxyArray(self._sim_bind_fixed_tendon_damping)
-            self._fixed_tendon_pos_limits_ta = ProxyArray(self._sim_bind_fixed_tendon_pos_limits)
-
-            # Category 2: TimestampedBuffer properties
-            self._body_com_acc_w_ta = ProxyArray(self._body_com_acc_w.data)
-            self._joint_acc_ta = ProxyArray(self._joint_acc.data)
-            self._body_com_jacobian_w_ta: ProxyArray | None = None
-            self._body_link_jacobian_w_ta: ProxyArray | None = None
-            self._mass_matrix_ta: ProxyArray | None = None
-            self._gravity_compensation_forces_ta: ProxyArray | None = None
-
-            # -- deprecated state properties (lazy); type annotations declared once here
-            self._root_state_w_ta: ProxyArray | None = None
-            self._root_link_state_w_ta: ProxyArray | None = None
-            self._root_com_state_w_ta: ProxyArray | None = None
-            self._default_root_state_ta: ProxyArray | None = None
-            self._body_state_w_ta: ProxyArray | None = None
-            self._body_link_state_w_ta: ProxyArray | None = None
-            self._body_com_state_w_ta: ProxyArray | None = None
-
-        # Recreate component views after native arrays are rebound.
+        # Component views must follow the resolved joint/body ordering.
         self._root_link_pos_w_ta: ProxyArray | None = None
         self._root_link_quat_w_ta: ProxyArray | None = None
         self._root_link_lin_vel_w_ta: ProxyArray | None = None

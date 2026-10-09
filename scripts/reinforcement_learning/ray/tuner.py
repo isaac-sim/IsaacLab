@@ -4,8 +4,10 @@
 # SPDX-License-Identifier: BSD-3-Clause
 import argparse
 import importlib.util
+import logging
 import os
 import random
+import shlex
 import subprocess
 import sys
 from time import sleep, time
@@ -18,6 +20,8 @@ from ray.tune.progress_reporter import ProgressReporter
 from ray.tune.search.optuna import OptunaSearch
 from ray.tune.search.repeater import Repeater
 from ray.tune.stopper import CombinedStopper
+
+logger = logging.getLogger(__name__)
 
 """
 This script breaks down an aggregate tuning job, as defined by a hyperparameter sweep configuration,
@@ -64,7 +68,7 @@ Usage:
 
 DOCKER_PREFIX = "/workspace/isaaclab/"
 BASE_DIR = os.path.expanduser("~")
-PYTHON_EXEC = "./isaaclab.sh -p"
+PYTHON_EXEC = "uv run --no-sync isaaclab -p"
 WORKFLOW = "scripts/reinforcement_learning/train.py"
 NUM_WORKERS_PER_NODE = 1  # needed for local parallelism
 PROCESS_RESPONSE_TIMEOUT = 200.0  # seconds to wait before killing the process when it stops responding
@@ -150,7 +154,7 @@ class IsaacLabTuneTrainable(tune.Trainable):
                         break
                     if self.time_since_last_proc_response > PROCESS_RESPONSE_TIMEOUT:
                         self.time_since_last_proc_response = 0.0
-                        print("[WARNING]: Training workflow process is not responding, terminating...")
+                        logger.warning("Training workflow process is not responding, terminating...")
                         self.proc.terminate()
                         try:
                             self.proc.wait(timeout=20)
@@ -172,7 +176,7 @@ class IsaacLabTuneTrainable(tune.Trainable):
         and that each trainable is meant for one node, where it uses all available resources."""
         resources = util.get_gpu_node_resources(one_node_only=True)
         if NUM_WORKERS_PER_NODE != 1:
-            print("[WARNING]: Splitting node into more than one worker")
+            logger.warning("Splitting node into more than one worker")
         return tune.PlacementGroupFactory(
             [{"CPU": resources["CPU"] / NUM_WORKERS_PER_NODE, "GPU": resources["GPU"] / NUM_WORKERS_PER_NODE}],
             strategy="STRICT_PACK",
@@ -250,9 +254,9 @@ def invoke_tuning_run(
     # Allow for early exit
     os.environ["TUNE_DISABLE_STRICT_METRIC_CHECKING"] = "1"
 
-    print("[WARNING]: Not saving checkpoints, just running experiment...")
+    logger.warning("Not saving checkpoints, just running experiment...")
     print("[INFO]: Model parameters and metrics will be preserved.")
-    print("[WARNING]: For homogeneous cluster resources only...")
+    logger.warning("For homogeneous cluster resources only...")
 
     # Initialize Ray
     util.ray_init(
@@ -396,7 +400,7 @@ if __name__ == "__main__":
         "--run_mode",
         choices=["local", "remote"],
         default="remote",
-        help=("Set to local to use uv run python, set to remote to use /workspace/isaaclab/isaaclab.sh -p python"),
+        help=("Run in the local uv environment or the prepared remote container environment"),
     )
     parser.add_argument(
         "--workflow",
@@ -490,7 +494,7 @@ if __name__ == "__main__":
     print(f"[INFO]: Using {NUM_WORKERS_PER_NODE} workers per node.")
     if args.run_mode == "remote":
         BASE_DIR = DOCKER_PREFIX  # ensure logs are dumped to persistent location
-        PYTHON_EXEC = DOCKER_PREFIX + PYTHON_EXEC[2:]
+        PYTHON_EXEC = f"uv run --project {shlex.quote(DOCKER_PREFIX)} --no-sync isaaclab -p"
         if args.workflow is None:
             WORKFLOW = DOCKER_PREFIX + WORKFLOW
         else:
@@ -505,7 +509,7 @@ if __name__ == "__main__":
         else:
             raise ValueError("Please provide a result MLFLow URI server.")
     else:  # local
-        PYTHON_EXEC = os.getcwd() + "/" + PYTHON_EXEC[2:]
+        PYTHON_EXEC = f"uv run --project {shlex.quote(os.getcwd())} --no-sync isaaclab -p"
         if args.workflow is None:
             WORKFLOW = os.getcwd() + "/" + WORKFLOW
         else:

@@ -119,7 +119,7 @@ extensions = [
     "sphinx.ext.intersphinx",
     "sphinx.ext.mathjax",
     "sphinx.ext.todo",
-    "sphinx.ext.viewcode",
+    "sphinx.ext.linkcode",
     "sphinxcontrib.bibtex",
     "sphinxcontrib.icon",
     "sphinx_copybutton",
@@ -192,7 +192,10 @@ intersphinx_mapping = {
     # pinned to the release version because /docs/stable/objects.inv currently 404s
     "torch": (f"https://docs.pytorch.org/docs/{torch_docs_version}/", None),
     # Versioned documentation can lag a newly published Isaac Sim package release.
-    "isaacsim": ("https://docs.isaacsim.omniverse.nvidia.com/latest/py/", None),
+    "isaacsim": (
+        "https://docs.isaacsim.omniverse.nvidia.com/latest/py/",
+        "https://docs.isaacsim.omniverse.nvidia.com/latest/py/objects.inv",
+    ),
     "gymnasium": ("https://gymnasium.farama.org/", None),
     # NOTE: pinned to /stable/ because /objects.inv at the root currently 404s
     "warp": ("https://nvidia.github.io/warp/stable/", None),
@@ -400,6 +403,12 @@ html_sidebars = {
 
 # Keep published links working after guide consolidation.
 isaaclab_doc_redirects = {
+    "source/concepts/solver-tuning/index": "source/how-to/index",
+    "source/concepts/solver-tuning/tune_kamino": "source/how-to/solver_tuning_kamino",
+    "source/concepts/solver-tuning/tune_mjwarp": "source/how-to/solver_tuning_mjwarp",
+    "source/concepts/solver-tuning/tune_mpm": "source/how-to/solver_tuning_mpm",
+    "source/concepts/solver-tuning/tune_physx": "source/how-to/solver_tuning_physx",
+    "source/concepts/solver-tuning/tune_vbd": "source/how-to/solver_tuning_vbd",
     "source/features/docker_cloud": "source/workflows/docker/index",
     "source/how-to/robots": "source/how-to/write_articulation_cfg",
     "source/tutorials/00_sim/create_empty": "source/how-to/create_empty",

@@ -68,6 +68,54 @@ as described in `Unit Testing`_ and `Tools`_.
 More details on the code style and testing can be found in the `Coding Style`_ and `Unit Testing`_ sections.
 
 
+Agent Development
+-----------------
+
+Read the contribution sections and skills that apply to the current task. Reuse guidance already
+loaded in the conversation while it remains current; reread when relevant files change or needed
+context is lost. Native skill discovery already supplies descriptions, so do not load the whole
+catalog or every linked reference. Load PR preparation guidance when preparing the final change.
+
+Before editing, identify the behavior's owner, the closest reusable implementation, and the smallest
+change that fixes the problem. For changes that span packages or add work to a hot path, briefly
+state the affected boundaries and runtime cost. Distinguish requested scope changes from unrelated
+improvements and record the latter as follow-ups.
+
+Use bounded searches and read relevant functions and callers instead of dumping unrelated files or
+tool inventories. Batch independent reads, keeping their combined output small enough to inspect.
+When delegation is requested or an applicable workflow calls for it, give each agent a bounded
+question and clear file ownership; serialize edits to shared infrastructure.
+
+Worktrees and environments
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Use a separate worktree when the current checkout has unrelated changes. Run commands from the
+worktree and give it its own uv environment; uv can reuse downloaded packages from its cache.
+If an existing environment must be reused, verify the interpreter and imported source paths before
+validation. The CLI resolves its repository root from the imported package, not the shell's working
+directory. Check that root with:
+
+.. code-block:: bash
+
+   uv run python -c "import sys; from isaaclab.paths import ISAACLAB_ROOT; print(sys.executable); print(ISAACLAB_ROOT)"
+
+Also verify the imported locations of packages touched by the change. Avoid concurrent environment
+synchronization or documentation builds against the same environment or output directory.
+
+Validation and long-running jobs
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Run the narrowest relevant checks during editing, then the required final checks. Record the tested
+revision or relevant diff, command, and result in the task notes. Reuse successful results until a
+relevant source, dependency, configuration, or test change invalidates them. Diagnose failed checks
+before retrying; keep environmental failures distinct from regressions introduced by the change.
+
+Launch long-running checks once and retain their process or CI run IDs and logs. Use a local watch
+command or longer polling intervals while continuing independent work, and report meaningful state
+changes rather than repeatedly reading unchanged logs. If the request only requires starting CI,
+hand off the run link after confirming it started. Await completion when the result is required.
+
+
 Contributing Documentation
 --------------------------
 
@@ -79,6 +127,10 @@ We use `Sphinx <https://www.sphinx-doc.org/en/master/>`__ with the
 `Book Theme <https://sphinx-book-theme.readthedocs.io/en/stable/>`__
 for maintaining the documentation.
 
+API ``[source]`` links open the implementation on GitHub, using the published documentation's
+branch or tag (``develop`` for a current-checkout build by default). We do not generate local
+Python source pages; viewing the implementation requires internet access.
+
 Sending a pull request for the documentation is the same as sending a pull request for the codebase.
 Please follow the steps mentioned in the `Contributing Code`_ section.
 
@@ -89,39 +141,46 @@ the externally hosted file from the documentation.
 .. caution::
 
   Install `uv <https://docs.astral.sh/uv/getting-started/installation/>`__ before building
-  the documentation. The build command creates a temporary environment for the
-  ``dev`` extra, which includes documentation requirements, leaving the
-  repository's ``.venv`` unchanged.
+  the documentation. The build command syncs the ``dev`` extra, which includes
+  documentation requirements, into the repository's ``.venv``.
 
 
-To build the documentation, run the following command from the repository root. It installs
+Choose documentation validation according to the changed behavior:
+
+* Skip Sphinx when rendered docs are unaffected, including standalone ``AGENTS.md`` and ``skills/``
+  edits. Run the relevant code or skill checks instead.
+* Use the incremental HTML preview while editing documentation pages.
+* Use a clean build for API signatures or docstrings, Sphinx configuration or extensions, and
+  theme changes. Sphinx's cache does not reliably detect Python source changes.
+* Run one clean, warning-free build of final documentation-affecting changes before submitting
+  a PR. Repeat it only after further relevant changes or a failure. CI also runs the clean build.
+
+For an incremental HTML preview, run this command from the repository root on Linux or Windows:
+
+.. code:: bash
+
+   uv run --extra dev --directory docs python -m sphinx -W --keep-going -j auto . _build/incremental
+
+On systems with Make, the equivalent command is:
+
+.. code:: bash
+
+   uv run --extra dev make -C docs incremental-docs
+
+Open ``docs/_build/incremental/index.html`` to inspect the preview. Subsequent runs reuse the cache
+and treat new warnings as errors, but can omit old warnings and retain deleted pages. Use a clean
+build for final validation, and avoid concurrent builds in the same output directory.
+
+For the final clean build, run the following command from the repository root. It installs
 the documentation packages and builds the current version:
 
 .. code:: bash
 
-   uv run isaaclab --docs
+   uv run --extra dev isaaclab --docs
 
-The documentation is generated in the ``docs/_build`` directory. To view the documentation, open
-the ``index.html`` file in ``docs/_build/current``. This can be done by running the following command
-in the terminal:
-
-.. code:: bash
-
-   xdg-open docs/_build/current/index.html
-
-.. hint::
-
-   The ``xdg-open`` command is used to open the ``index.html`` file in the default browser. If you are
-   using a different operating system, you can use the appropriate command to open the file in the browser.
-
-
-For PR validation, remove the generated HTML before building so deleted pages cannot leave stale output.
-Run these commands from the repository root; they preserve the Sphinx cache:
-
-.. code:: bash
-
-   uv run python -c "import shutil; shutil.rmtree('docs/_build/current', ignore_errors=True)"
-   uv run isaaclab --docs
+The documentation is generated in ``docs/_build/current``. Open
+``docs/_build/current/index.html`` in a browser to view it. Each build clears the current
+HTML output and its Sphinx cache so deleted pages and cached warnings cannot be carried over.
 
 
 Contributing assets
@@ -160,15 +219,16 @@ package version.
 
 .. note::
 
-   ``CHANGELOG.rst`` and the package version in ``pyproject.toml`` are compiled by CI from per-PR **fragment
-   files** — contributors do not edit them directly. For every package your PR touches
-   in ``source/<pkg>/`` (outside ``changelog.d/``), add one fragment under
-   ``source/<pkg>/changelog.d/<slug>.<tier>.rst``:
+   ``CHANGELOG.rst`` and the package version in ``pyproject.toml`` are compiled nightly by CI from
+   per-PR `towncrier <https://towncrier.readthedocs.io/>`__ **fragment files** — contributors do not
+   edit them directly. For every package your PR touches in ``source/<pkg>/`` (outside
+   ``changelog.d/``), add fragments under ``source/<pkg>/changelog.d/``:
 
-   * ``<slug>.rst`` — patch bump
-   * ``<slug>.minor.rst`` — minor bump (new public API)
-   * ``<slug>.major.rst`` — major bump (breaking change)
-   * ``<slug>.skip`` — no entry, no bump (CI / docs / test-only PRs)
+   * ``<slug>.<type>.rst`` — one file per entry type, where ``<type>`` is ``added``, ``changed``,
+     ``deprecated``, ``removed`` or ``fixed``; the file holds that section's bullets.
+   * ``<slug>.minor`` or ``<slug>.major`` — an empty file that raises the version bump from patch
+     to minor (new public API) or major (breaking change).
+   * ``<slug>.skip`` — an empty file for no entry and no bump (CI / docs / test-only PRs).
 
    ``<slug>`` is any short, unique name; your branch name with ``/`` replaced by ``-``
    is the recommended default. Within a batch the highest tier wins for the package.
@@ -181,15 +241,15 @@ been made between each release of a package. This is a *MUST* for every release-
 
 For each fragment, please follow the following guidelines:
 
-* Each fragment is divided into subsections based on the type of changes made.
+* Each fragment's ``<type>`` names the changelog section its bullets appear under.
 
-  * ``Added``: For new features.
-  * ``Changed``: For changes in existing functionality.
-  * ``Deprecated``: For soon-to-be removed features.
-  * ``Removed``: For now removed features.
-  * ``Fixed``: For any bug fixes.
+  * ``added``: For new features.
+  * ``changed``: For changes in existing functionality.
+  * ``deprecated``: For soon-to-be removed features.
+  * ``removed``: For now removed features.
+  * ``fixed``: For any bug fixes.
 
-* Each change is described in its corresponding sub-section with a bullet point.
+* Each change is described with a ``*`` bullet point; continuation lines are indented.
 * Prefix breaking changes with **Breaking:** and provide migration guidance for deprecated, changed,
   or removed behavior that requires callers to adapt.
 * The bullet points are written in the **past tense**.
@@ -203,14 +263,22 @@ For each fragment, please follow the following guidelines:
 
    When in doubt, please check the style in the existing changelog files and follow the same style.
 
-For example, ``source/isaaclab/changelog.d/fix-partial-reset.rst``:
+For example, ``source/isaaclab/changelog.d/fix-partial-reset.fixed.rst``:
 
 .. code:: rst
 
-    Fixed
-    ^^^^^
-
     * Fixed contact sensor reset behavior when only a subset of environments was reset.
+
+Validate against the PR's base without creating temporary remote-tracking refs:
+
+.. code-block:: bash
+
+   uv run python tools/changelog/cli.py check upstream/develop --include-worktree
+
+The checker accepts remote-qualified refs, full refs, and commit SHAs. Branch shorthand such as
+``develop`` continues to prefer ``origin/develop`` when it exists; use ``refs/heads/develop`` to
+select a local branch explicitly. The pre-commit hook uses ``ISAACLAB_CHANGELOG_BASE_REF`` when
+set, otherwise ``develop``. Fetch the intended base before validation.
 
 
 Coding Style
@@ -243,13 +311,17 @@ before changing an interface. Apply these rules when adding code or cleaning up 
   meaningful state or resources, enforce invariants over a lifecycle, or implement an interface required
   by the architecture. Avoid classes that only group static methods, wrap a single operation, or forward
   calls to another object. Preserve established public contracts when simplifying existing designs.
-* Reuse existing mechanisms before introducing helpers, configuration options, or abstractions. Extract
+* Place shared operations in the existing module that owns their contract before adding a new file.
+  Reuse existing mechanisms before introducing helpers, configuration options, or abstractions. Extract
   shared logic when it has the same contract; keep helpers private unless callers need a public API.
   Prefer direct control flow and early returns when they remove unnecessary nesting.
+* Use predicates or optional lookup results for expected incompatibility, such as filtering available
+  camera channels. Do not raise and catch exceptions for routine selection or capability checks.
 * Inline simple expressions and operations when a helper would only add indirection. Do not extract
   a one-line helper merely to rename an obvious operation. Introduce a helper when it removes meaningful
   duplication or gives a coherent, non-trivial operation a useful name; its benefit should outweigh the
   need to jump to another definition to understand the caller.
+  When retiring a workflow, remove its unused helper chains and tests that only preserve those helpers.
 * Prefer direct attribute access and assignment (``obj.value`` and ``obj.value = value``). Use ``getattr``
   and ``setattr`` only when dynamic attribute access is required, such as when the attribute name is
   determined at runtime. Do not use them for known attributes or use default values to hide a missing
@@ -257,11 +329,28 @@ before changing an interface. Apply these rules when adding code or cleaning up 
 * Give each piece of state and validation one owner. Consumers should use the owner's contract instead
   of repairing results or maintaining duplicate state. Cache derived values only when their lifetime and
   invalidation are clear; do not expose mutable cached results for callers to modify accidentally.
+  Resolve selections once at initialization; backends should consume the final selection without a second
+  filtering pass or cache.
+  Before adding a parameter record and preparation helper for one consumer, check which values already
+  exist in its configuration or array metadata. Keep the remaining setup with that owner and cache only
+  the buffers or calculations that need reuse.
+* Pass scene dependencies from the composition root into consumers. Do not retrieve the simulation
+  singleton to resolve a dependency the caller already owns. Resolve references at initialization,
+  then retain the resolved objects instead of copying paths between configuration fields. Give consumers
+  resolved resources rather than a broader construction plan used only to discover those resources;
+  visualizers receive bound camera choices, while cloning and renderer scene preparation retain ``ClonePlan``.
+* Put common configuration in the shared owner and document backend capabilities explicitly. Name
+  collections in the plural. Remove empty hooks and expired compatibility aliases during their
+  announced removal release instead of maintaining unused extension points.
 * Keep backend selection at shared dispatch boundaries. Use established types, configuration, and
   capability contracts instead of inferring behavior from class-name strings.
 * Keep physics and rendering responsibilities separate and resolve construction requirements before
   finalization. See :doc:`/source/developer-tools/scene_data_providers` for geometry ownership and
   :doc:`/source/developer-tools/add_physics_backend` for backend integration.
+* Treat non-spawning sensor paths as references to existing scene prims, not as independently owned
+  clone sources. Import the owning asset and resolve sensor tracking from its replicated prims.
+* Keep nested physics bodies in their owning source import. A second declaration only requires a
+  separate native copy when its source-to-destination mapping is not already covered by the parent.
 * Prefer existing project dependencies and the standard library. Do not add dependencies or compatibility
   layers for hypothetical future uses.
 
@@ -275,6 +364,10 @@ environment. Costs that are small for one environment can dominate a large batch
   them, reusing cached device indices when available. Preserve the selector's ordering and device contract.
 * Allocate arrays directly with the required value, dtype, and device. Prefer ``torch.full`` or ``wp.full``
   over filling through Python lists, arithmetic on temporary arrays, or a round trip through another library.
+* Keep operations on Warp-owned arrays in Warp. Use ``ProxyArray`` when consumers need multiple
+  array interfaces; do not convert to Torch and back merely to mutate a Warp buffer.
+* Keep per-step control flow direct, with one call to each lifecycle operation. Perform optional
+  work only for the active consumer and preserve the configured update cadence.
 * Remove redundant copies and ``contiguous()`` calls only after checking layout and ownership requirements.
   Do not mutate caller-owned inputs unless the API explicitly promises an in-place operation.
 * Batch operations when supported. Avoid Python loops over environments and unnecessary host/device
@@ -345,6 +438,9 @@ See the `Lazy Loading & Module Exports`_ section for details.
 Pass ``ProxyArray`` objects directly to Warp kernels. Keep one proxy per owned array, without
 parallel ``_ta``, ``_warp``, or ``_torch`` attributes; timestamped array caches can own the proxy in
 ``data``. Use explicit native access only where the receiving API requires it.
+When a kernel operation is known before launch, specialize it with dedicated kernels or static Warp
+branches instead of a runtime mode switch. Keep shared indexing in one implementation and benchmark
+the generated kernels against the original path.
 
 Python does not have a concept of private and public classes and functions. However, we follow the
 convention of prefixing the private functions and classes with an underscore.
@@ -677,6 +773,73 @@ and constraints in docstrings without repeating the annotated types:
 * Annotate functions that return no value with ``-> None``. Omit an unnecessary ``Returns:`` section
   from their docstrings.
 
+Warnings and Logging
+^^^^^^^^^^^^^^^^^^^^
+
+Choose the mechanism by who has to act on the message, following the Python
+`logging HOWTO <https://docs.python.org/3/howto/logging.html#when-to-use-logging>`__:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 50 50
+
+   * - Situation
+     - Mechanism
+   * - The **caller should change their code or config**: a deprecated API or parameter, an ignored or
+       conflicting setting, or misuse.
+     - ``warnings.warn(message, <Category>, stacklevel=...)``
+   * - A **runtime event** that the caller cannot avoid by changing their code: a fallback was taken, an
+       optional dependency or feature is unavailable, or performance is degraded.
+     - ``logger.warning(message)`` with a module-level ``logger = logging.getLogger(__name__)``
+   * - User-facing notices in scripts and command-line tools.
+     - ``logger.warning(message)``, as above
+   * - **Progress and status** from library code and entry points: the parsed task configuration, the log
+       directory, environment and manager summaries.
+     - ``logger.info(message)``
+   * - A **failure reported before exiting** a command-line tool.
+     - ``logger.error(message)``
+
+* Always pass an explicit category to ``warnings.warn``:
+
+  * ``DeprecationWarning`` for deprecated Python APIs that callers use from their own code.
+  * ``FutureWarning`` for deprecated configuration values, presets, or command-line options that end users
+    reach through Isaac Lab entry points. Python shows these by default even when they are raised from
+    library code.
+  * ``UserWarning`` for misuse or for settings that are ignored.
+
+* Set ``stacklevel`` so that the warning points at the caller's line, not at Isaac Lab internals.
+* Do not use ``print`` for warnings or status messages, and do not add ``[WARNING]``, ``[WARN]``,
+  ``[INFO]``, or ``[ERROR]`` prefixes. Printed messages ignore ``--verbose`` / ``--info`` and log handlers,
+  and tests cannot capture them reliably. The logging record already carries the level. ``print`` remains
+  the right tool for a program's actual output, such as command results, a ``--dry_run`` command line, or
+  the tables a tutorial walks through.
+* Isaac Lab entry points and :func:`~isaaclab.app.launch_simulation` call
+  ``isaaclab.app.logging_utils.configure_console_logging``, which prints INFO records from ``isaaclab*``
+  loggers on stdout as ``[INFO]: <message>`` and warnings on stderr. Call it first in a new command-line
+  entry point so that messages logged before the simulation runtime starts are shown.
+* In tests, assert ``warnings.warn`` with ``pytest.warns`` and ``logger.warning`` with ``caplog``.
+
+.. code:: python
+
+   import logging
+   import warnings
+
+   logger = logging.getLogger(__name__)
+
+
+   def set_gains(stiffness: float, damping: float | None = None, kd: float | None = None) -> None:
+       if kd is not None:
+           warnings.warn("'kd' is deprecated. Use 'damping' instead.", DeprecationWarning, stacklevel=2)
+           damping = kd
+       ...
+
+
+   def capture_graph() -> None:
+       try:
+           ...
+       except RuntimeError as exc:
+           logger.warning(f"CUDA graph capture failed; falling back to eager launches. Reason: {exc}")
+
 Documenting the code
 ^^^^^^^^^^^^^^^^^^^^
 
@@ -756,3 +919,14 @@ Run the repository formatting and lint checks from the uv-managed environment on
 .. code-block:: bash
 
    uv run isaaclab --format
+
+During editing, pass repository-relative file paths to restrict file-based hooks:
+
+.. code-block:: bash
+
+   uv run isaaclab --format source/isaaclab/isaaclab/cli/commands/format.py
+
+Repository-wide hooks such as the changelog gate still run. The command runs pre-commit once and
+returns its failure status, including when hooks modify files. Inspect those edits and rerun after
+resolving failures; it does not automatically replay all hooks. Run the full command on the final
+changes before committing.

@@ -53,8 +53,8 @@ from .isaac_rtx_renderer_cfg import SIMPLE_SHADING_MODES, IsaacRtxRendererCfg
 
 _PPISP_IMPORT_ERROR_MESSAGE = (
     "isaaclab_ppisp is required when CameraCfg.isp_cfg is set. "
-    "It ships with the Isaac Lab wheel (`pip install isaaclab`); otherwise install the "
-    "isaaclab-ppisp extension from the Isaac Lab source checkout."
+    "Run `uv sync` from the Isaac Lab source checkout, or install the Isaac Lab wheel "
+    "with `uv pip install isaaclab`."
 )
 
 
@@ -695,19 +695,14 @@ class IsaacRtxRenderer(BaseRenderer):
                     ptr=tiled_data_buffer.ptr, shape=(*tiled_data_buffer.shape, 4), dtype=wp.uint8, device=device
                 )
 
-            # For motion vectors, use specialized kernel that reads 4 channels but only writes 2
-            # Note: Not doing this breaks the alignment of the data (check: https://github.com/isaac-sim/IsaacLab/issues/2003)
-            if data_type == "motion_vectors":
-                tiled_data_buffer = tiled_data_buffer[:, :, :2].contiguous()
-
-            # For normals, we only require the first three channels of the tiled buffer
-            # Note: Not doing this breaks the alignment of the data (check: https://github.com/isaac-sim/IsaacLab/issues/4239)
-            if data_type == "normals":
-                tiled_data_buffer = tiled_data_buffer[:, :, :3].contiguous()
-            if data_type in SIMPLE_SHADING_MODES:
-                tiled_data_buffer = tiled_data_buffer[:, :, :3].contiguous()
-            if data_type == str(RenderBufferKind.RGB_HDR):
-                tiled_data_buffer = tiled_data_buffer[:, :, :3].contiguous()
+            tile_height, tile_width, num_channels = (int(dim) for dim in buf_wp.shape[1:])
+            # Motion vectors, normals, HDR color, and simple shading annotators return 4 channels while the
+            # outputs keep only the leading ones. Index the source with its own channel count so the
+            # kernel, which copies only the destination channels, stays aligned without a compacting copy
+            # (see https://github.com/isaac-sim/IsaacLab/issues/2003 and #4239).
+            source_channels = num_channels
+            if data_type in ("motion_vectors", "normals", str(RenderBufferKind.RGB_HDR), *SIMPLE_SHADING_MODES):
+                source_channels = int(tiled_data_buffer.shape[2])
 
             # ``reshape_tiled_image`` indexes the tiled buffer as
             # (num_tiles_y * height, num_tiles_x * width, channels), but annotators hand this data back
@@ -718,12 +713,11 @@ class IsaacRtxRenderer(BaseRenderer):
             # are ignored exactly as the previous flattened indexing ignored them. Keeping the view 3D
             # instead of 1D also keeps every dimension within Warp's per-dimension array size limit, so
             # large environment counts and camera resolutions no longer overflow a flattened dimension.
-            tile_height, tile_width, num_channels = (int(dim) for dim in buf_wp.shape[1:])
             # ``tiled_source`` must outlive the view below: the view does not own the annotator memory.
             tiled_source = tiled_data_buffer
             tiled_data_buffer = wp.array(
                 ptr=tiled_source.ptr,
-                shape=(num_tiles_y * tile_height, num_tiles_x * tile_width, num_channels),
+                shape=(num_tiles_y * tile_height, num_tiles_x * tile_width, source_channels),
                 dtype=tiled_source.dtype,
                 device=device,
             )

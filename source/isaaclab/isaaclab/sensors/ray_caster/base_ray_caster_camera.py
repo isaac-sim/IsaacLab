@@ -446,6 +446,7 @@ class BaseRayCasterCamera(BaseRayCaster):
         # Debug visualization can be toggled before ray buffers are initialized.
         if not hasattr(self, "ray_hits_w"):
             return
+        self._update_outdated_buffers()
         # drop missed rays (inf) before visualizing
         viz_points = self.ray_hits_w.torch.reshape(-1, 3)
         viz_points = viz_points[~torch.isinf(viz_points).any(dim=-1)]

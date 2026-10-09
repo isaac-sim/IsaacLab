@@ -113,6 +113,9 @@ def test_empty_buffer_access(circular_buffer):
     with pytest.raises(RuntimeError):
         circular_buffer[torch.tensor([0, 0, 0], device=circular_buffer.device)]
 
+    with pytest.raises(RuntimeError, match="append data"):
+        _ = circular_buffer.buffer
+
 
 def test_invalid_batch_size(circular_buffer):
     """Test appending data with an invalid batch size."""
@@ -148,6 +151,11 @@ def test_return_buffer_prop(circular_buffer):
     """Test retrieving the whole buffer for correct size and contents.
     Returning the whole buffer should have the shape [batch_size,max_len,data.shape[1:]]
     """
+    data = torch.tensor([[1, 2], [3, 4], [5, 6]], device=circular_buffer.device)
+    circular_buffer.append(data)
+    expected = data.unsqueeze(1).repeat(1, circular_buffer.max_length, 1)
+    torch.testing.assert_close(circular_buffer.buffer, expected)
+
     num_overflow = 2
     for i in range(circular_buffer.max_length + num_overflow):
         data = torch.tensor([[i]], device=circular_buffer.device).repeat(3, 2)
@@ -257,19 +265,18 @@ def test_stack_dim_positive_index_equivalent_to_negative():
     torch.testing.assert_close(buf_neg.stacked, buf_pos.stacked)
 
 
-def test_stack_dim_ring_shift_after_overflow():
-    """After K+1 frames, the oldest slot must be frame 1 (frame 0 evicted), newest = last."""
-    B, H, W, C, K = 2, 4, 4, 3, 2
+@pytest.mark.parametrize(("height", "width"), [(2, 3), (512, 256)], ids=["staged_shift", "large_frame_shift"])
+def test_stack_dim_ring_shift_after_overflow(height: int, width: int):
+    """After K+1 frames, the oldest frame is evicted and the slots hold frames 1..K in order."""
+    B, C, K = 2, 3, 4
     buf = CircularBuffer(max_len=K, batch_size=B, device="cpu", stack_dim=-1)
-    f0 = torch.full((B, H, W, C), 0.0)
-    f1 = torch.full((B, H, W, C), 1.0)
-    f2 = torch.full((B, H, W, C), 2.0)
-    buf.append(f0)
-    buf.append(f1)
-    buf.append(f2)
-    stacked = buf.stacked  # K=2, so slots are [f1, f2]
-    torch.testing.assert_close(stacked[..., :C], torch.full((B, H, W, C), 1.0))
-    torch.testing.assert_close(stacked[..., C:], torch.full((B, H, W, C), 2.0))
+    for value in range(K + 1):
+        buf.append(torch.full((B, height, width, C), float(value)))
+    stacked = buf.stacked
+    for slot in range(K):
+        torch.testing.assert_close(
+            stacked[..., slot * C : (slot + 1) * C], torch.full((B, height, width, C), slot + 1.0)
+        )
 
 
 def test_stack_dim_reset_clears_buffer():

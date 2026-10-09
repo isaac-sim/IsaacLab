@@ -44,6 +44,9 @@ if TYPE_CHECKING:
 # import logger
 logger = logging.getLogger(__name__)
 
+_GPU_ARTICULATION_ALIASING_LINK_THRESHOLD = 64
+_GPU_ARTICULATION_ALIASING_INSTANCE_THRESHOLD = 32
+
 
 class Articulation(BaseArticulation):
     """An articulation asset class.
@@ -940,8 +943,8 @@ class Articulation(BaseArticulation):
         # Let the data class handle the invalidation of velocity-dependent properties.
         if not skip_forward:
             self.data._reset_velocity(from_com=False)
-        # set into simulation
-        self.root_view.set_root_velocities(self.data._root_link_vel_w.data.view(wp.float32), indices=sim_env_ids)
+        # PhysX root velocities are measured at the root link's center of mass.
+        self.root_view.set_root_velocities(self.data._root_com_vel_w.data.view(wp.float32), indices=sim_env_ids)
 
     def write_root_link_velocity_to_sim_mask(
         self,
@@ -1603,7 +1606,10 @@ class Articulation(BaseArticulation):
         if env_ids.shape[0] == 0 or joint_ids.shape[0] == 0:
             return
 
-        clamped_defaults = wp.zeros(1, dtype=wp.int32, device=self.device)
+        log_level = logging.WARNING if warn_limit_violation else logging.INFO
+        report_clamping = logger.isEnabledFor(log_level)
+        if report_clamping:
+            self._clamped_default_count.zero_()
         sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         # Note: we are doing a single launch for faster performance. Prior versions would do this in multiple launches.
@@ -1623,21 +1629,18 @@ class Articulation(BaseArticulation):
                 self.data._joint_pos_limits,
                 self.data._soft_joint_pos_limits,
                 self.data._default_joint_pos,
-                clamped_defaults,
+                self._clamped_default_count,
                 sim_env_ids,
             ],
             device=self.device,
         )
         # Log a warning if the default joint positions are outside of the new limits.
-        if clamped_defaults.numpy()[0] > 0:
+        if report_clamping and self._clamped_default_count.numpy()[0] > 0:
             violation_message = (
                 "Some default joint positions are outside of the range of the new joint limits. Default joint positions"
                 " will be clamped to be within the new joint limits."
             )
-            if warn_limit_violation:
-                logger.warning(violation_message)
-            else:
-                logger.info(violation_message)
+            logger.log(log_level, violation_message)
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
         cpu_env_ids = self._get_cpu_env_ids(env_ids, sim_env_ids)
         joint_pos_limits_backend = self._get_backend_ordered_joint_buffer(
@@ -3932,6 +3935,7 @@ class Articulation(BaseArticulation):
         )
         if self.root_view._backend is None:
             raise RuntimeError(f"Failed to create articulation at: {root_prim_path_expr}. Please check PhysX logs.")
+        self._maybe_warn_gpu_articulation_partition_aliasing(root_prim_path_expr)
 
         # container for data access
         joint_dof_signs = self._resolve_joint_dof_signs()
@@ -3955,6 +3959,38 @@ class Articulation(BaseArticulation):
         # Let the articulation data know that it is fully instantiated and ready to use.
         self.data.is_primed = True
 
+    def _maybe_warn_gpu_articulation_partition_aliasing(self, root_prim_path_expr: str) -> None:
+        """Warn about a known PhysX GPU articulation solver partition issue."""
+        if self._sim_cfg is None:
+            return
+        physics_cfg = self._sim_cfg.physics
+        if "cuda" not in self.device or physics_cfg.gpu_max_num_partitions <= 1:
+            return
+
+        sim_view_id = id(self._physics_sim_view)
+        if sim_view_id in SimulationManager._gpu_articulation_aliasing_warning_logged:
+            return
+        tally = SimulationManager._gpu_articulation_aliasing_tally.setdefault(sim_view_id, {})
+        tally[root_prim_path_expr] = (self.num_instances, self.num_bodies)
+
+        total_articulation_count = sum(count for count, _ in tally.values())
+        max_link_count = max(link_count for _, link_count in tally.values())
+        if (
+            total_articulation_count <= _GPU_ARTICULATION_ALIASING_INSTANCE_THRESHOLD
+            or max_link_count <= _GPU_ARTICULATION_ALIASING_LINK_THRESHOLD
+        ):
+            return
+
+        SimulationManager._gpu_articulation_aliasing_warning_logged.add(sim_view_id)
+        logger.warning(
+            "PhysX GPU articulations may corrupt articulation state when the scene has more than "
+            f"{_GPU_ARTICULATION_ALIASING_INSTANCE_THRESHOLD} articulation instances, any articulation has more than "
+            f"{_GPU_ARTICULATION_ALIASING_LINK_THRESHOLD} links, and PhysxCfg.gpu_max_num_partitions > 1. "
+            f"The current Isaac Lab articulation assets have {total_articulation_count} total instance(s) and a "
+            f"maximum link count of {max_link_count}. Set PhysxCfg(gpu_max_num_partitions=1) as a workaround. "
+            "See isaac-sim/IsaacLab#8121."
+        )
+
     def _resolve_joint_dof_signs(self) -> tuple[int, ...]:
         """Resolve joint directions once from the source USD."""
         body_indices = {path: index for index, path in enumerate(self.root_view.link_paths[0])}
@@ -3971,6 +4007,7 @@ class Articulation(BaseArticulation):
     def _create_buffers(self):
         self._ALL_INDICES = wp.array(np.arange(self.num_instances, dtype=np.int32), device=self.device)
         self._ALL_JOINT_INDICES = wp.array(np.arange(self.num_joints, dtype=np.int32), device=self.device)
+        self._clamped_default_count = wp.zeros(1, dtype=wp.int32, device=self.device)
         self._ALL_BODY_INDICES = wp.array(np.arange(self.num_bodies, dtype=np.int32), device=self.device)
         self._ALL_FIXED_TENDON_INDICES = wp.array(np.arange(self.num_fixed_tendons, dtype=np.int32), device=self.device)
         self._ALL_SPATIAL_TENDON_INDICES = wp.array(

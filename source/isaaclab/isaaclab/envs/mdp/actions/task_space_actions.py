@@ -34,15 +34,15 @@ logger = logging.getLogger(__name__)
 class DifferentialInverseKinematicsAction(ActionTerm):
     r"""Inverse Kinematics action term.
 
-    This action term performs pre-processing of the raw actions using scaling transformation.
+    This action term pre-processes raw actions using an affine transformation.
 
     .. math::
-        \text{action} = \text{scaling} \times \text{input action}
+        \text{action} = \text{offset} + \text{scaling} \times \text{input action}
         \text{joint position} = J^{-} \times \text{action}
 
-    where :math:`\text{scaling}` is the scaling applied to the input action, and :math:`\text{input action}`
-    is the input action from the user, :math:`J` is the Jacobian over the articulation's actuated joints,
-    and \text{joint position} is the desired joint position command for the articulation's joints.
+    where :math:`\text{offset}` and :math:`\text{scaling}` define the affine transformation,
+    :math:`\text{input action}` is the input action from the user, :math:`J` is the Jacobian over the
+    articulation's actuated joints, and \text{joint position} is the desired joint position command.
     """
 
     cfg: actions_cfg.DifferentialInverseKinematicsActionCfg
@@ -50,7 +50,9 @@ class DifferentialInverseKinematicsAction(ActionTerm):
     _asset: Articulation
     """The articulation asset on which the action term is applied."""
     _scale: torch.Tensor
-    """The scaling factor applied to the input action. Shape is (1, action_dim)."""
+    """The scaling factor applied to the input action. Shape is (num_envs, action_dim)."""
+    _offset: torch.Tensor
+    """The offset applied to the scaled action. Shape is (num_envs, action_dim)."""
     _clip: torch.Tensor
     """The clip applied to the input action."""
 
@@ -100,9 +102,11 @@ class DifferentialInverseKinematicsAction(ActionTerm):
         # owned buffer; _compute_frame_jacobian mutates this, not the data-layer view.
         self._jacobian_b = torch.zeros(self.num_envs, 6, len(self._jacobi_joint_ids), device=self.device)
 
-        # save the scale as tensors
+        # save the affine transform as tensors
         self._scale = torch.zeros((self.num_envs, self.action_dim), device=self.device)
         self._scale[:] = torch.tensor(self.cfg.scale, device=self.device)
+        self._offset = torch.zeros((self.num_envs, self.action_dim), device=self.device)
+        self._offset[:] = torch.tensor(self.cfg.offset, device=self.device)
 
         # convert the fixed offsets to torch tensors of batched shape
         if self.cfg.body_offset is not None:
@@ -160,6 +164,7 @@ class DifferentialInverseKinematicsAction(ActionTerm):
         - body_name: The name of the body.
         - joint_names: The names of the joints.
         - scale: The scale of the action term.
+        - offset: The offset of the action term.
         - clip: The clip of the action term.
         - controller_cfg: The configuration of the controller.
         - body_offset: The offset of the body.
@@ -174,6 +179,7 @@ class DifferentialInverseKinematicsAction(ActionTerm):
         self._IO_descriptor.body_name = self._body_name
         self._IO_descriptor.joint_names = self._joint_names
         self._IO_descriptor.scale = self._scale
+        self._IO_descriptor.offset = self._offset
         if self.cfg.clip is not None:
             self._IO_descriptor.clip = self.cfg.clip
         else:
@@ -189,7 +195,7 @@ class DifferentialInverseKinematicsAction(ActionTerm):
     def process_actions(self, actions: torch.Tensor):
         # store the raw actions
         self._raw_actions[:] = actions
-        self._processed_actions[:] = self.raw_actions * self._scale
+        self._processed_actions[:] = self.raw_actions * self._scale + self._offset
         if self.cfg.clip is not None:
             self._processed_actions = torch.clamp(
                 self._processed_actions, min=self._clip[:, :, 0], max=self._clip[:, :, 1]
@@ -210,11 +216,9 @@ class DifferentialInverseKinematicsAction(ActionTerm):
             self._ik_controller.set_joint_pos_limits(limits[:, 0].clone(), limits[:, 1].clone())
             self._limits_injected = True
         # compute the delta in joint-space
-        if ee_quat_curr.norm() != 0:
-            jacobian = self._compute_frame_jacobian()
-            joint_pos_des = self._ik_controller.compute(ee_pos_curr, ee_quat_curr, jacobian, joint_pos)
-        else:
-            joint_pos_des = joint_pos.clone()
+        jacobian = self._compute_frame_jacobian()
+        joint_pos_des = self._ik_controller.compute(ee_pos_curr, ee_quat_curr, jacobian, joint_pos)
+        joint_pos_des = torch.where(ee_quat_curr.norm() != 0, joint_pos_des, joint_pos)
         # set the joint position command
         self._asset.set_joint_position_target_index(target=joint_pos_des, joint_ids=self._joint_ids)
 
@@ -261,9 +265,7 @@ class DifferentialInverseKinematicsAction(ActionTerm):
                 self._asset.data.body_quat_w.torch[:, self._body_idx],
             )
             offset_pos_b = math_utils.quat_apply(body_quat_b, self._offset_pos)
-            self._jacobian_b[:, 0:3, :] += torch.bmm(
-                -math_utils.skew_symmetric_matrix(offset_pos_b), self._jacobian_b[:, 3:, :]
-            )
+            self._jacobian_b[:, :3] += torch.linalg.cross(self._jacobian_b[:, 3:], offset_pos_b[:, :, None], dim=1)
 
         return self._jacobian_b
 
@@ -676,9 +678,7 @@ class OperationalSpaceControllerAction(ActionTerm):
                 self._asset.data.body_quat_w.torch[:, self._ee_body_idx],
             )
             offset_pos_b = math_utils.quat_apply(body_quat_b, self._offset_pos)
-            self._jacobian_b[:, 0:3, :] += torch.bmm(
-                -math_utils.skew_symmetric_matrix(offset_pos_b), self._jacobian_b[:, 3:, :]
-            )
+            self._jacobian_b[:, :3] += torch.linalg.cross(self._jacobian_b[:, 3:], offset_pos_b[:, :, None], dim=1)
 
     def _compute_ee_pose(self):
         """Computes the pose of the ee frame in root frame."""

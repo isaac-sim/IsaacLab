@@ -1518,7 +1518,10 @@ class Articulation(BaseArticulation):
             device=self._device,
         )
         # Clamp default_joint_pos to the new limits and refresh soft_joint_pos_limits.
-        clamped_count = wp.zeros(1, dtype=wp.int32, device=self._device)
+        log_level = logging.WARNING if warn_limit_violation else logging.INFO
+        report_clamping = logger.isEnabledFor(log_level)
+        if report_clamping:
+            self._clamped_default_count.zero_()
         wp.launch(
             clamp_default_joint_pos_and_update_soft_limits_index_kernel(env_ids, joint_ids),
             dim=(env_ids.shape[0], joint_ids.shape[0]),
@@ -1531,19 +1534,16 @@ class Articulation(BaseArticulation):
             outputs=[
                 self._data._default_joint_pos,
                 self._data._soft_joint_pos_limits,
-                clamped_count,
+                self._clamped_default_count,
             ],
             device=self._device,
         )
-        if clamped_count.numpy()[0] > 0:
+        if report_clamping and self._clamped_default_count.numpy()[0] > 0:
             violation_message = (
                 "Some default joint positions are outside of the range of the new joint limits. Default joint"
                 " positions will be clamped to be within the new joint limits."
             )
-            if warn_limit_violation:
-                logger.warning(violation_message)
-            else:
-                logger.info(violation_message)
+            logger.log(log_level, violation_message)
         # Stage to pinned-host CPU: flatten the vec2f buffer to float32 view.
         self._push_joint_property(
             TT.DOF_LIMIT,
@@ -1613,7 +1613,10 @@ class Articulation(BaseArticulation):
             device=self._device,
         )
         # Clamp default_joint_pos to the new limits and refresh soft_joint_pos_limits.
-        clamped_count = wp.zeros(1, dtype=wp.int32, device=self._device)
+        log_level = logging.WARNING if warn_limit_violation else logging.INFO
+        report_clamping = logger.isEnabledFor(log_level)
+        if report_clamping:
+            self._clamped_default_count.zero_()
         wp.launch(
             clamp_default_joint_pos_and_update_soft_limits_mask,
             dim=(self._num_instances, self._num_joints),
@@ -1626,19 +1629,16 @@ class Articulation(BaseArticulation):
             outputs=[
                 self._data._default_joint_pos,
                 self._data._soft_joint_pos_limits,
-                clamped_count,
+                self._clamped_default_count,
             ],
             device=self._device,
         )
-        if clamped_count.numpy()[0] > 0:
+        if report_clamping and self._clamped_default_count.numpy()[0] > 0:
             violation_message = (
                 "Some default joint positions are outside of the range of the new joint limits. Default joint"
                 " positions will be clamped to be within the new joint limits."
             )
-            if warn_limit_violation:
-                logger.warning(violation_message)
-            else:
-                logger.info(violation_message)
+            logger.log(log_level, violation_message)
         self._push_joint_property(
             TT.DOF_LIMIT,
             self._data._joint_pos_limits.data,
@@ -4081,6 +4081,7 @@ class Articulation(BaseArticulation):
         self._ALL_INDICES = wp.array(np.arange(N, dtype=np.int32), device=device)
         self._ALL_BODY_INDICES = wp.array(np.arange(B, dtype=np.int32), device=device)
         self._ALL_JOINT_INDICES = wp.array(np.arange(J, dtype=np.int32), device=device)
+        self._clamped_default_count = wp.zeros(1, dtype=wp.int32, device=self._device)
         self._ALL_FIXED_TENDON_INDICES = wp.array(np.arange(FT, dtype=np.int32), device=device)
         self._ALL_SPATIAL_TENDON_INDICES = wp.array(np.arange(ST, dtype=np.int32), device=device)
         self._sim_env_ids = wp.empty(N, dtype=wp.int32, device=device)

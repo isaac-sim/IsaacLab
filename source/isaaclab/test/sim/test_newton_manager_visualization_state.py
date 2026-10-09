@@ -182,8 +182,8 @@ def test_native_publication_reuses_clean_fk_and_refreshes_writes_and_swaps(monke
 
 
 @pytest.mark.parametrize("global_path", ["/World/Assets/Cloth", "/World/Assets"])
-def test_clone_visualization_builder_imports_only_declared_global_deformables(monkeypatch, global_path):
-    """Global ancestors do not route excluded clone sources into the shadow model."""
+def test_clone_visualization_builder_imports_full_global_subtree(monkeypatch, global_path):
+    """A declared global ancestor owns its full subtree, while unrelated roots stay out."""
     from isaaclab_newton.cloner import NewtonReplicateContext
     from isaaclab_newton.physics import NewtonBackendCfg
     from newton import ModelBuilder
@@ -194,13 +194,13 @@ def test_clone_visualization_builder_imports_only_declared_global_deformables(mo
 
     stage = _make_surface_cloth_stage(path="/World/Assets/Cloth")
     Sdf.CopySpec(stage.GetRootLayer(), "/World/Assets/Cloth", stage.GetRootLayer(), "/World/UnplannedCloth")
-    sources = ("/World/Assets/Selected", "/World/Assets/Excluded")
+    sources = ("/World/Assets/Selected", "/World/Assets/Unrouted")
     for source in sources:
         UsdGeom.Xform.Define(stage, source)
         Sdf.CopySpec(stage.GetRootLayer(), "/World/Assets/Cloth", stage.GetRootLayer(), f"{source}/Cloth")
     assets = tuple(
         AssetBaseCfg(prim_path=dst.format("[^/]+"), spawn=SpawnerCfg(spawn_path=src))
-        for src, dst in zip(sources, ("/Copies/env_{}/Selected", "/Copies/env_{}/Excluded"), strict=True)
+        for src, dst in zip(sources, ("/Copies/env_{}/Selected", "/Copies/env_{}/Unrouted"), strict=True)
     )
     assets += (AssetBaseCfg(prim_path=global_path),)
     plan = make_clone_plan(assets, ((0, 1),), 2, shared_assets=(2,), env_template="/Copies/env_{}")
@@ -224,7 +224,10 @@ def test_clone_visualization_builder_imports_only_declared_global_deformables(mo
     geometry = backend.geometry_offsets
 
     assert sorted(kwargs["root_path"] for kwargs in usd_imports) == sorted([global_path, sources[0]])
-    assert set(geometry) == {"/World/Assets/Cloth", "/Copies/env_0/Selected/Cloth", "/Copies/env_1/Selected/Cloth"}
-    assert sorted(geometry.values()) == [0, 3, 6]
-    assert builder.particle_count == 9
+    expected = {"/World/Assets/Cloth", "/Copies/env_0/Selected/Cloth", "/Copies/env_1/Selected/Cloth"}
+    if global_path == "/World/Assets":
+        expected.update({f"{source}/Cloth" for source in sources})
+    assert set(geometry) == expected
+    assert sorted(geometry.values()) == list(range(0, 3 * len(expected), 3))
+    assert builder.particle_count == 3 * len(expected)
     backend.close()

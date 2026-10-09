@@ -171,17 +171,13 @@ class NewtonBackend:
         builder = SimulationContext.instance().get_or_create_backend(NewtonBuilderCfg(physics_cfg=cfg.physics_cfg))
         self.model = builder.finalize(device=cfg.device)
         self.particle_ranges: dict[str, tuple[int, int]] = {}
-        # Newton 1.6 preserves groups through builder replication but not finalization.
-        # Remove this snapshot when the pinned Newton includes newton-physics/newton#3326.
         self.deformable_ranges = {
             label: (start, end - start, kind)
-            for family, kind in (("cloth", "surface"), ("soft", "volume"))
-            for label, start, end in zip(
-                getattr(builder, f"_{family}_label"),
-                getattr(builder, f"_{family}_particle_start"),
-                getattr(builder, f"_{family}_particle_end"),
-                strict=True,
+            for kind, labels, starts, ends in (
+                ("surface", builder.surface_label, builder._surface_particle_start, builder._surface_particle_end),
+                ("volume", builder.volume_label, builder._volume_particle_start, builder._volume_particle_end),
             )
+            for label, start, end in zip(labels, starts, ends, strict=True)
         }
         self.model.num_envs = self.model.world_count
         simulation = isinstance(cfg.physics_cfg, NewtonCfg)
@@ -515,6 +511,9 @@ class NewtonManager(PhysicsManager):
     _post_actuator_callbacks: list[Callable[[], None]] = []
     # In-graph hooks invoked immediately before every solver substep.
     _state_force_callbacks: list[Callable[[State], None]] = []
+    # Body forces written to ``state_0`` before a step. The substep loop clears
+    # the input state's forces, so every substep re-applies this copy.
+    _staged_body_f: wp.array | None = None
     # In-graph hooks invoked after the last solver substep and before sensors,
     # in registration order. Articulations with non-identity ordering register
     # their backend-to-user state republish kernels here so the reorders are
@@ -595,12 +594,22 @@ class NewtonManager(PhysicsManager):
         A soft reset (``soft=True``) skips this full reinitialization and reuses
         the existing model, solver, collision pipeline and CUDA graph.
 
+        Assets bind data once at construction. Hard resets recreate their views,
+        data containers, and per-model step hooks through ``PHYSICS_READY``;
+        do not register additional callbacks to rebind the discarded data.
+        Reacquire ``asset.data`` and its arrays after a hard reset.
+
         Args:
             soft: If True, skip full reinitialization.
         """
         if not soft:
             if NewtonManager.backend is not None:
                 cls.dispatch_event(PhysicsEvent.STOP)
+                # Assets recreate these views and hooks on PHYSICS_READY for the new model.
+                for key in [key for key in NewtonManager.views if key[0] is NewtonManager]:
+                    del NewtonManager.views[key]
+                NewtonManager._post_actuator_callbacks.clear()
+                NewtonManager._post_step_callbacks.clear()
             # Release the cached collision pipeline, contacts and CUDA graph;
             # they point at the old model's freed buffers (CUDA 700 on next step).
             NewtonManager._graph = None
@@ -714,8 +723,6 @@ class NewtonManager(PhysicsManager):
         if sim is None or not sim.is_playing():
             return
 
-        cls._reset_solver_internals_delegate(cls._world_reset_mask)
-
         # Notify solver of model changes
         if cls._model_changes:
             with wp.ScopedDevice(PhysicsManager._device):
@@ -727,15 +734,10 @@ class NewtonManager(PhysicsManager):
                 NewtonManager._model_changes = set()
 
         # Reset-authored state and persistent solver resources must be ready before capture.
+        # forward() also resets solver internals for the worlds flagged since the last boundary.
         cls.forward()
         cfg = PhysicsManager._cfg
         device = PhysicsManager._device
-        if cls._graph_capture_pending and cfg is not None and cfg.use_cuda_graph:
-            simulate = cls._simulate_full if cls._is_all_graphable() else cls._simulate_physics_only
-            with Timer(name="newton_cuda_graph", msg="CUDA graph took:"):
-                NewtonManager._graph = cls._capture_graph(simulate)
-            NewtonManager._graph_capture_pending = False
-
         physics_dt = cls._solver_dt * cls._num_substeps
         use_graph = cfg is not None and cfg.use_cuda_graph and cls._graph is not None and "cuda" in device  # type: ignore[union-attr]
 
@@ -760,6 +762,13 @@ class NewtonManager(PhysicsManager):
                 with wp.ScopedDevice(device):
                     cls._simulate_physics_only()
             PhysicsManager._sim_time += physics_dt
+
+        # Run the requested step eagerly before capture so lazy GPU allocations happen outside recording.
+        if cls._graph_capture_pending and cfg is not None and cfg.use_cuda_graph:
+            simulate = cls._simulate_full if cls._is_all_graphable() else cls._simulate_physics_only
+            with Timer(name="newton_cuda_graph", msg="CUDA graph took:"):
+                NewtonManager._graph = cls._capture_graph(simulate)
+            NewtonManager._graph_capture_pending = False
 
         cls._mark_transforms_changed()
 
@@ -825,6 +834,7 @@ class NewtonManager(PhysicsManager):
         NewtonManager._adapter = None
         NewtonManager._post_actuator_callbacks = []
         NewtonManager._state_force_callbacks = []
+        NewtonManager._staged_body_f = None
         NewtonManager._post_step_callbacks = []
         # Set by an articulation that took the ``use_newton_actuators=True``
         # branch in ``_process_actuators_cfg``.  Together with the adapter
@@ -1610,6 +1620,8 @@ class NewtonManager(PhysicsManager):
                     "NewtonManager._supports_rigid_body_force_input."
                 )
             cls._initialize_contacts()
+            state_0 = cls.backend.state_0
+            NewtonManager._staged_body_f = wp.zeros_like(state_0.body_f) if state_0.body_count else None
 
         # Picking callbacks must be registered after the concrete solver has
         # published its force-input capability, but before CUDA graph capture.
@@ -1665,8 +1677,24 @@ class NewtonManager(PhysicsManager):
     # ------------------------------------------------------------------
 
     @classmethod
+    def _stage_body_forces(cls) -> None:
+        """Copy the body forces written to ``state_0`` before the step, so that every solver substep applies them."""
+        if cls._staged_body_f is not None:
+            wp.copy(cls._staged_body_f, cls.backend.state_0.body_f)
+
+    @classmethod
+    def _apply_staged_body_forces(cls, state: State) -> None:
+        """Write the staged body forces into the input state of a solver substep."""
+        if cls._staged_body_f is not None:
+            wp.copy(state.body_f, cls._staged_body_f)
+
+    @classmethod
     def _run_solver_substeps(cls, contacts) -> None:
-        """Run ``num_substeps`` solver iterations, handling double-buffered state swap."""
+        """Run ``num_substeps`` solver iterations, handling double-buffered state swap.
+
+        The staged body forces overwrite the input state's ``body_f``, so they are written before the state-force
+        callbacks, which add on top of them.
+        """
         backend = cls.backend
         collide_every = cls._collision_decimation
         # Last substep is skipped: its contact set would only feed the next tick's
@@ -1675,6 +1703,7 @@ class NewtonManager(PhysicsManager):
 
         if cls._use_single_state:
             for i in range(cls._num_substeps):
+                cls._apply_staged_body_forces(backend.state_0)
                 for callback in cls._state_force_callbacks:
                     callback(backend.state_0)
                 cls._step_solver(backend.state_0, backend.state_0, backend.control, contacts, cls._solver_dt)
@@ -1685,6 +1714,7 @@ class NewtonManager(PhysicsManager):
             cfg = PhysicsManager._cfg
             need_copy_on_last = cfg is not None and cls._num_substeps % 2 == 1
             for i in range(cls._num_substeps):
+                cls._apply_staged_body_forces(backend.state_0)
                 for callback in cls._state_force_callbacks:
                     callback(backend.state_0)
                 cls._step_solver(backend.state_0, backend.state_1, backend.control, contacts, cls._solver_dt)
@@ -1698,9 +1728,7 @@ class NewtonManager(PhysicsManager):
 
     @classmethod
     def _update_sensors(cls, contacts) -> None:
-        """Push latest state to all registered Newton sensors."""
-        for sensor in cls._newton_frame_transform_sensors:
-            sensor.update(cls.backend.state_0)
+        """Push latest state to registered IMU and contact sensors."""
         for sensor in cls._newton_imu_sensors:
             sensor.update(cls.backend.state_0)
         if cls._report_contacts:
@@ -1723,6 +1751,7 @@ class NewtonManager(PhysicsManager):
         physics_dt = cls._solver_dt * cls._num_substeps
         contacts = cls._contacts if cls._needs_collision_pipeline else None
 
+        cls._stage_body_forces()
         for i in range(cls._decimation):
             if cls._needs_collision_pipeline:
                 cls._collision_pipeline.collide(cls.backend.state_0, cls._contacts)
@@ -1750,6 +1779,7 @@ class NewtonManager(PhysicsManager):
         Used when actuators are stepped eagerly outside the graph, or when
         there are no actuators at all.
         """
+        cls._stage_body_forces()
         if cls._needs_collision_pipeline:
             cls._collision_pipeline.collide(cls.backend.state_0, cls._contacts)
             contacts = cls._contacts
@@ -1887,6 +1917,7 @@ class NewtonManager(PhysicsManager):
         integrator on the same iteration. Multiple articulations register
         their own implicit-DOF telemetry / FF-routing kernels here; all
         registered callbacks fire in registration order each step.
+        Hard resets discard these hooks; register them again when the new model is ready.
         """
         cls._post_actuator_callbacks.append(callback)
 
@@ -1920,6 +1951,7 @@ class NewtonManager(PhysicsManager):
         registered before capture. Articulations with non-identity ordering
         register their backend-to-user state republish here; all registered
         callbacks fire in registration order each step.
+        Hard resets discard these hooks; register them again when the new model is ready.
         """
         cls._post_step_callbacks.append(callback)
 
@@ -1971,7 +2003,7 @@ class NewtonManager(PhysicsManager):
         is captured as a single CUDA graph.
 
         Invalidate the existing graph when the loop changes. Its replacement is captured
-        immediately before the next requested step, after authored state is reconciled.
+        immediately after the next requested step runs eagerly.
         """
         cls._decimation = max(1, decimation)
         if cls._is_all_graphable():

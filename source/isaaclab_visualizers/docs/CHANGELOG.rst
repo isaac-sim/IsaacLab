@@ -1,6 +1,38 @@
 Changelog
 ---------
 
+.. towncrier release notes start
+
+2.0.2 (2026-10-06)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the Newton GL and Newton RTX visualizers failing to open a window on an X server that reports no monitors, such as a GPU-backed virtual display, with ``AttributeError: 'XlibScreen' object has no attribute 'is_primary'``.
+* Fixed the Newton RTX visualizer freezing on Newton 1.6.1 with OVStage 0.2, where body motion was not
+  reflected in rendered frames. The viewer now holds an OVStage stage using Isaac Lab's hierarchy computation
+  model so the stage Newton creates inherits it.
+* Fixed the first asynchronous Newton RTX frame capture failing to find the color output before viewer warm-up.
+* Resolved Newton RTX color-output aliases from the returned render-variable keys without depending on package version metadata.
+* Fixed the Newton RTX visualizer dropping visualization markers, so both the interactive
+  ``--viz newton_rtx`` viewer and videos captured through it now draw the goal poses, command
+  arrows, and other debug markers the GL viewer already showed, sanitizing the marker group
+  ids into valid USD prim paths the RTX stage accepts.
+* Fixed the Newton RTX visualizer showing a black window and failing headless frame capture with
+  ``ovrtx`` 0.5, which keys render outputs by prim path (``/Render/Vars/LdrColor``) while Newton's
+  ``ViewerRTX`` looks up ``LdrColor``. The viewer now aliases the color output as ``LdrColor`` when ``ovrtx`` is 0.5 or newer.
+
+
+2.0.1 (2026-10-03)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the Newton visualizer "no display found" notice to use ``logger.warning`` instead of ``print``.
+
+
 2.0.0 (2026-09-28)
 ~~~~~~~~~~~~~~~~~~
 

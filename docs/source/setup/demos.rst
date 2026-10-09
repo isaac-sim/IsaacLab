@@ -59,25 +59,35 @@ Command Builder
            </button>
          </div>
        </div>
+       <aside class="admonition note demo-command-note" data-demo-note="h1-locomotion" hidden>
+         <p class="admonition-title">H1 locomotion</p>
+         <p>H1 locomotion uses a published policy. For autonomous H1 task playback, use <code>isaaclab play</code>.</p>
+         <p data-demo-note-visualizers="newton_gl,newton_rtx" hidden>In the Newton viewer, press <kbd>N</kbd> to select a robot,
+           <kbd>I</kbd>/<kbd>J</kbd>/<kbd>L</kbd> to walk forward or turn, <kbd>K</kbd> to stop, and <kbd>C</kbd> to toggle the follow camera.</p>
+       </aside>
+       <aside class="admonition note demo-command-note" data-demo-note="pick-and-place" hidden>
+         <p class="admonition-title">Pick and place</p>
+         <p>Pick and place requires Kit input.</p>
+       </aside>
      </section>
 
      <div class="demo-card-grid" data-demo-list>
        <button type="button" class="demo-card is-selected" aria-pressed="true"
                data-demo-name="Zoo" data-demo-id="zoo"
                data-demo-physics="isaacsim_physx,newton_mjwarp"
-               data-demo-visualizers="none,kit,newton_gl,newton_rtx,rerun,viser"
-               data-demo-visualizers-isaacsim-physx="none,kit,newton_gl,rerun,viser"
-               data-demo-visualizers-newton-mjwarp="none,kit,newton_gl,newton_rtx,rerun,viser"
+               data-demo-visualizers="kit,newton_gl,newton_rtx,rerun,viser"
+               data-demo-visualizers-isaacsim-physx="kit,newton_gl,rerun,viser"
+               data-demo-visualizers-newton-mjwarp="kit,newton_gl,newton_rtx,rerun,viser"
                data-demo-description="Animate an arm, biped, quadruped, dexterous hand, quadcopter, and rigid props in one deterministic scene.">
-         <img src="../../_static/demos/arms.jpg" alt="Robots in the Isaac Lab Zoo demo" loading="lazy">
+         <img src="../../_static/demos/zoo.jpg" alt="Robots in the Isaac Lab Zoo demo" loading="lazy">
          <span>Zoo</span>
        </button>
        <button type="button" class="demo-card" aria-pressed="false"
                data-demo-name="H1 Locomotion" data-demo-id="h1-locomotion"
                data-demo-physics="isaacsim_physx,newton_mjwarp"
-               data-demo-visualizers="none,kit,newton_gl,newton_rtx,rerun,viser"
-               data-demo-visualizers-isaacsim-physx="none,kit,newton_gl,rerun,viser"
-               data-demo-visualizers-newton-mjwarp="none,kit,newton_gl,newton_rtx,rerun,viser"
+               data-demo-visualizers="kit,newton_gl,newton_rtx,rerun,viser"
+               data-demo-visualizers-isaacsim-physx="kit,newton_gl,rerun,viser"
+               data-demo-visualizers-newton-mjwarp="kit,newton_gl,newton_rtx,rerun,viser"
                data-demo-description="Select H1 robots and control a trained rough-terrain policy with the keyboard and follow camera.">
          <img src="../../_static/demos/h1_locomotion.jpg" alt="H1 locomotion in Isaac Lab" loading="lazy">
          <span>H1 Locomotion</span>
@@ -94,20 +104,22 @@ Command Builder
                data-demo-physics="newton_vbd" data-demo-fixed-physics="true"
                data-demo-visualizers="newton_gl"
                data-demo-description="Drag a cable handle to lift a load through a 4:1 pulley system.">
+         <img src="../../_static/demos/newton_block_and_tackle.jpg" alt="Block and tackle pulleys and a red load" loading="lazy">
          <span>Newton Block and Tackle</span>
        </button>
        <button type="button" class="demo-card" aria-pressed="false"
                data-demo-name="Snowball Smash" data-demo-id="snowball-smash"
                data-demo-physics="newton_mpm" data-demo-fixed-physics="true"
-               data-demo-visualizers="none,kit,newton_gl,newton_rtx,rerun,viser"
+               data-demo-visualizers="kit,newton_gl,newton_rtx,rerun,viser"
                data-demo-args="--device cuda:0"
                data-demo-description="Smash rigid crates with coupled MPM snowballs.">
+         <img src="../../_static/demos/snowball_smash.jpg" alt="Snowballs striking a stack of colored crates" loading="lazy">
          <span>Snowball Smash</span>
        </button>
        <button type="button" class="demo-card" aria-pressed="false"
                data-demo-name="Teapot Fill" data-demo-id="teapot-fill"
                data-demo-physics="newton_mpm" data-demo-fixed-physics="true"
-               data-demo-visualizers="none,kit,newton_gl,newton_rtx,rerun,viser"
+               data-demo-visualizers="kit,newton_gl,newton_rtx,rerun,viser"
                data-demo-args="--device cuda:0"
                data-demo-description="Fill a Utah teapot with MPM water particles and pour them into a bowl.">
          <img src="../../_static/demos/teapot_fill.jpg" alt="Utah teapot pouring simulated water" loading="lazy">
@@ -115,6 +127,3 @@ Command Builder
        </button>
      </div>
    </div>
-
-H1 locomotion uses a published policy. In the Newton viewer, press N to select a robot, I/J/L to walk
-forward or turn, K to stop, and C to toggle the follow camera. Pick and place requires Kit input. For autonomous H1 task playback, use ``isaaclab play``.
