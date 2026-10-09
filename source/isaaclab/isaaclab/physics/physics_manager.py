@@ -257,8 +257,10 @@ class PhysicsManager(ABC):
             >>> # Later, to remove:
             >>> handle.deregister()
         """
-        cid = cls._callback_id
-        cls._callback_id += 1
+        # One counter for every subclass: callbacks registered through a solver subclass and its parent share
+        # ``_callbacks``, so their ids must not collide.
+        cid = PhysicsManager._callback_id
+        PhysicsManager._callback_id += 1
 
         if wrap_weak_ref:
             callback = cls._wrap_weak_ref(callback)
