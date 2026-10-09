@@ -722,6 +722,35 @@ def test_failed_rsl_training_restores_torch_backend_state(monkeypatch) -> None:
     assert _torch_backend_state() == caller_state
 
 
+@pytest.mark.parametrize("backend_name", ["train_rsl_rl", "play_rsl_rl"])
+@pytest.mark.parametrize("checkpoint", [None, "latest"])
+def test_rsl_parses_wandb_checkpoint_source(backend_name, checkpoint, monkeypatch) -> None:
+    """W&B source options match playback and reject competing local checkpoints."""
+    backend = importlib.import_module(f"isaaclab_rl.entrypoints.backends.{backend_name}")
+
+    argv = [
+        "--task",
+        "Isaac-Cartpole",
+        "--wandb_run",
+        "abc123",
+        "--wandb_entity",
+        "team",
+        "--wandb_project",
+        "teachers",
+    ]
+    if checkpoint is not None:
+        argv.extend(["--checkpoint", checkpoint])
+    monkeypatch.setattr(sys, "argv", ["train.py", *argv])
+    if checkpoint is not None:
+        with pytest.raises(ValueError, match="cannot be combined with --checkpoint"):
+            backend._parse_args(argv)
+    else:
+        args = backend._parse_args(argv)
+        assert args.wandb_run == "abc123"
+        assert args.wandb_entity == "team"
+        assert args.wandb_project == "teachers"
+
+
 def test_rsl_training_registers_external_task_before_agent_discovery(monkeypatch) -> None:
     """RSL-RL parses tasks registered by its external callback."""
     from isaaclab_rl.entrypoints.backends import train_rsl_rl

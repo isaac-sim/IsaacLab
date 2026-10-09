@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import argparse
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -388,3 +389,76 @@ def test_apply_env_overrides_tolerates_a_config_without_physics(monkeypatch: pyt
     rl_common.apply_env_overrides(args_cli, env_cfg)
 
     assert env_cfg.sim.physics is None
+
+
+class _FakeWandbRun:
+    """W&B run exposing the subset of the API the checkpoint download relies on."""
+
+    def __init__(self, file_names: list[str], download_dirs: list[str]) -> None:
+        self.id = "abc123"
+        self.name = "brisk-sweep"
+        self._file_names = file_names
+        self._download_dirs = download_dirs
+        self.downloaded: list[str] = []
+
+    def files(self) -> list[SimpleNamespace]:
+        return [SimpleNamespace(name=name) for name in self._file_names]
+
+    def file(self, name: str) -> SimpleNamespace:
+        def download(root: str, replace: bool) -> None:
+            self.downloaded.append(name)
+            self._download_dirs.append(root)
+
+        return SimpleNamespace(download=download)
+
+
+def _install_fake_wandb(monkeypatch: pytest.MonkeyPatch, run: _FakeWandbRun, run_paths: list[str]) -> None:
+    """Register a stand-in ``wandb`` module so the helper can run without the real client."""
+
+    def api() -> SimpleNamespace:
+        def get_run(run_path: str) -> _FakeWandbRun:
+            run_paths.append(run_path)
+            return run
+
+        return SimpleNamespace(run=get_run)
+
+    monkeypatch.setitem(sys.modules, "wandb", SimpleNamespace(Api=api))
+
+
+def test_download_wandb_checkpoint_selects_the_highest_iteration(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Alphabetical order would pick ``model_9.pt``; the newest checkpoint is ``model_10.pt``."""
+    download_dirs: list[str] = []
+    run_paths: list[str] = []
+    run = _FakeWandbRun(["model_9.pt", "model_10.pt", "config.yaml"], download_dirs)
+    _install_fake_wandb(monkeypatch, run, run_paths)
+
+    resume_path = rl_common.download_wandb_checkpoint(str(tmp_path), "isaaclab", "abc123", "some-team")
+
+    assert run_paths == ["some-team/isaaclab/abc123"]
+    assert run.downloaded == ["model_10.pt"]
+    assert download_dirs == [str(tmp_path / "wandb" / "brisk-sweep_abc123")]
+    assert resume_path == str(tmp_path / "wandb" / "brisk-sweep_abc123" / "model_10.pt")
+
+
+def test_download_wandb_checkpoint_omits_an_unset_entity(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Without an entity the run path is left for W&B to complete from the local login."""
+    run_paths: list[str] = []
+    run = _FakeWandbRun(["model_1.pt"], [])
+    _install_fake_wandb(monkeypatch, run, run_paths)
+
+    rl_common.download_wandb_checkpoint(str(tmp_path), "isaaclab", "abc123")
+
+    assert run_paths == ["isaaclab/abc123"]
+
+
+def test_download_wandb_checkpoint_reports_a_run_without_checkpoints(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A run that only uploaded logs must fail loudly instead of returning a missing path."""
+    run = _FakeWandbRun(["config.yaml"], [])
+    _install_fake_wandb(monkeypatch, run, [])
+
+    with pytest.raises(ValueError, match="No file matching"):
+        rl_common.download_wandb_checkpoint(str(tmp_path), "isaaclab", "abc123")
