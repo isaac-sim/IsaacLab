@@ -5,7 +5,9 @@
 
 """Paired PR evidence reuse and selection using immutable local source fixtures."""
 
+import contextlib
 import hashlib
+import io
 import json
 import os
 import subprocess
@@ -15,8 +17,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from . import baseline, build_compare, paired, source_revision
-from . import test_metric_identity as metric_fixtures
+from . import baseline, build_compare, cli, paired, source_revision
 from .test_baseline import HEAD, REPO, FixtureClient, bundle, stamp
 
 RUNTIME = "source/isaaclab/isaaclab/benchmark/entrypoints/runtime.py"
@@ -278,12 +279,7 @@ class PairedTests(unittest.TestCase):
             failure = None
             snapshot = self.root / "measurement"
             measurement = source_revision.snapshot_measurement(self.checkout, snapshot)
-            with (
-                patch.dict(os.environ, {"PERF_MEASUREMENT_MANIFEST": str(snapshot / "measurement-manifest.json")}),
-                patch.object(
-                    paired, "metric_definition", side_effect=AssertionError("Shared measurements do not use AST")
-                ),
-            ):
+            with patch.dict(os.environ, {"PERF_MEASUREMENT_MANIFEST": str(snapshot / "measurement-manifest.json")}):
                 for role, commit in (("baseline", base), ("current", merge)):
                     self._git("checkout", "--quiet", "--detach", commit)
                     output = self.root / role
@@ -326,64 +322,19 @@ class PairedTests(unittest.TestCase):
                     "measurement-manifest.json", json.loads((output / "paired-failure.json").read_text())["reason"]
                 )
 
-    def test_push_and_dispatch_capture_source_formula_changes_and_unknown_producers(self):
-        package = self.checkout / metric_fixtures.PACKAGE
-        (package / "builders.py").write_text(metric_fixtures.BUILDERS)
-        (package / "metrics.py").write_text(metric_fixtures.METRICS)
-        original_run = subprocess.run
-
-        def inspect_or_run(command, **kwargs):
-            if command[:3] == ["docker", "image", "inspect"]:
-                return subprocess.CompletedProcess(command, 0, '[{"Id":"same-image","RepoDigests":[]}]', "")
-            return original_run(command, **kwargs)
-
-        definitions = {event_name: {} for event_name in ("push", "workflow_dispatch")}
-        for variant, runtime, stepping in (
-            ("original", metric_fixtures.RUNTIME, metric_fixtures.STEPPING),
-            (
-                "changed",
-                metric_fixtures.RUNTIME,
-                metric_fixtures.STEPPING.replace("time.perf_counter() - start", "(time.perf_counter() - start) / 1000"),
-            ),
-            (
-                "unsupported",
-                metric_fixtures.RUNTIME.replace("builders.build_runtime", "other.build_runtime"),
-                metric_fixtures.STEPPING,
-            ),
-        ):
-            (package / "stepping.py").write_text(stepping)
-            commit = self._commit_file(RUNTIME, runtime)
-            for event_name in definitions:
-                with (
-                    self.subTest(event=event_name, source=variant),
-                    patch.dict(
-                        os.environ,
-                        {
-                            "GITHUB_SHA": commit,
-                            "GITHUB_EVENT_NAME": event_name,
-                            "GITHUB_REF_NAME": "develop",
-                            "GITHUB_RUN_ID": "20",
-                            "GITHUB_RUN_ATTEMPT": "1",
-                            "GITHUB_JOB": "performance-smoke-benchmarks",
-                        },
-                    ),
-                    patch.object(paired.subprocess, "run", side_effect=inspect_or_run),
-                ):
-                    output = self.root / event_name / variant
-                    context = paired.capture_context(self.checkout, output, "same-image", "current", {}, self.legs)
-                    definition = context["metric_definition"]
-                    definitions[event_name][variant] = definition["total_fps"]
-                    self.assertEqual(definition["producer_commit"], commit)
-                    saved = json.loads((output / "build-context.json").read_text())
-                    self.assertEqual(saved["metric_definition"], definition)
-                    if variant == "unsupported":
-                        self.assertIsNone(definition["total_fps"])
-                        self.assertIn("unknown:", definition["reason"])
-                    else:
-                        self.assertTrue(definition["total_fps"].startswith("source-fps-v2:"))
-        for event_name, observed in definitions.items():
-            with self.subTest(event=event_name):
-                self.assertNotEqual(observed["original"], observed["changed"])
+    def test_push_and_dispatch_capture_source_evidence_without_build_comparison(self):
+        for event_name in ("push", "workflow_dispatch"):
+            with (
+                self.subTest(event=event_name),
+                patch.dict(os.environ, {"GITHUB_EVENT_NAME": event_name}),
+                patch.object(paired.subprocess, "run", wraps=subprocess.run) as commands,
+            ):
+                output = self.root / event_name
+                context = paired.capture_context(self.checkout, output, "same-image", "current", {}, self.legs)
+                self.assertEqual(context, {})
+                self.assertEqual(json.loads((output / "source-manifest.json").read_text()), self.manifest)
+                self.assertFalse((output / "build-context.json").exists())
+                self.assertFalse(any(call.args[0][0] == "docker" for call in commands.call_args_list))
 
     def test_capture_rejects_invalid_current_source_even_without_base_metadata(self):
         base, head, merge, _ = self._moving_merge()
@@ -674,22 +625,17 @@ class PairedTests(unittest.TestCase):
         artifact = self._add_baseline(self._files(measurement=self.measurement))
         original = self.client.contents[artifact["id"]]
         for measurement_commit in (HEAD, "d" * 40):
-            with (
-                self.subTest(measurement_commit=measurement_commit),
-                patch.object(
-                    paired, "metric_definition", side_effect=AssertionError("Shared measurements do not use AST")
-                ),
-            ):
+            with self.subTest(measurement_commit=measurement_commit):
                 measurement = {**self.measurement, "commit": measurement_commit}
                 restored = self._restore(measurement=measurement)
                 self.assertTrue(restored["baseline_reused"])
                 self.assertEqual(restored["baseline_origin"]["artifact_id"], artifact["id"])
-                self.assertNotIn("baseline_metric_definition", restored)
                 candidate = self._candidate(
                     restored["baseline_origin"], reused=True, selection=restored, measurement=measurement
                 )
                 evidence, _ = paired.select_pr_baseline(self.client, candidate)
                 self.assertEqual(evidence.issues, [])
+                self.assertEqual(evidence.identity["sha256"], hashlib.sha256(original).hexdigest())
                 self.assertEqual(candidate.issues, [])
                 report = build_compare.compare_evidence(evidence, candidate)
                 self.assertTrue(all(row["status"] == "compared" for row in report["rows"]))
@@ -704,57 +650,6 @@ class PairedTests(unittest.TestCase):
         selection = self._restore(measurement=changed)
         self.assertFalse(selection["baseline_reused"])
         self.assertIn("measurement code", str(selection["issues"]))
-
-    def test_reused_legacy_identity_is_migrated_without_changing_measurement_evidence(self):
-        files = self._files()
-        context = json.loads(files["build-context.json"])
-        original_definition = {"total_fps": "source-fps-v1:legacy"}
-        context["metric_definition"] = original_definition
-        files["build-context.json"] = encoded(context)
-        artifact = self._add_baseline(files)
-        original_bytes = self.client.contents[artifact["id"]]
-        current_definition = {"total_fps": "source-fps-v2:verified", "provenance": "producer_source_ast"}
-        with patch.object(paired, "metric_definition", return_value=current_definition):
-            restored = self._restore()
-        migration = restored["baseline_metric_definition"]
-        self.assertTrue(restored["baseline_reused"])
-        self.assertEqual(migration["artifact_id"], artifact["id"])
-        self.assertEqual(migration["sha256"], hashlib.sha256(original_bytes).hexdigest())
-        self.assertEqual(migration["source_commit"], self.commit)
-        candidate = self._candidate(
-            restored["baseline_origin"], reused=True, selection=restored, definition=current_definition
-        )
-        evidence, _ = paired.select_pr_baseline(self.client, candidate)
-        self.assertEqual(evidence.context["metric_definition"], original_definition)
-        self.assertEqual(evidence.files, files)
-        self.assertEqual(evidence.identity["sha256"], hashlib.sha256(original_bytes).hexdigest())
-        report_dir = self.root / "report"
-        with patch.object(build_compare.baseline_mod, "GitHubClient", return_value=self.client):
-            self.assertEqual(
-                build_compare.main(
-                    ["--repository", REPO, "--run_id", "20", "--run_attempt", "1", "--output_dir", str(report_dir)]
-                ),
-                0,
-            )
-        report = json.loads((report_dir / "build-comparison.json").read_text())
-        self.assertEqual(len(report["rows"]), 2)
-        self.assertTrue(all(row["status"] == "compared" and row["change_pct"] == 0 for row in report["rows"]))
-        self.assertTrue(all(row["formula"]["baseline"] == "source-fps-v2:verified" for row in report["rows"]))
-        self.assertEqual(self.client.contents[artifact["id"]], original_bytes)
-        self.assertIn("re-derived from its verified checkout", " ".join(report["notes"]))
-
-    def test_derived_baseline_identity_cannot_be_rebound_to_other_evidence(self):
-        artifact = self._add_baseline()
-        restored = self._restore()
-        for field, value in (("artifact_id", -1), ("sha256", "0" * 64), ("source_commit", HEAD)):
-            with self.subTest(field=field):
-                pin = json.loads(encoded(restored))
-                pin["baseline_metric_definition"][field] = value
-                candidate = self._candidate(restored["baseline_origin"], reused=True, selection=pin)
-                evidence, metadata = paired.select_pr_baseline(self.client, candidate)
-                self.assertIsNone(evidence)
-                self.assertEqual(metadata["reason_code"], "identity_mismatch")
-                self.assertEqual(metadata["unavailable_evidence"]["artifact_id"], artifact["id"])
 
     def test_restore_and_selection_use_resolved_reference_not_recorded_event_base(self):
         event_base = "f" * 40
@@ -983,6 +878,7 @@ class PairedTests(unittest.TestCase):
         reused=False,
         hostname="fixture-gpu-host",
         start=stamp(10),
+        fps=100,
         selection=None,
         definition=None,
         measurement=None,
@@ -1004,6 +900,7 @@ class PairedTests(unittest.TestCase):
                 path = name.rsplit("/", 1)[0] + "/benchmark_runtime_fixture.json"
                 data = json.loads(files[path])
                 data["run"].update(start_time_utc=start, end_time_utc=stamp(11))
+                data["runtime"]["total_fps"]["mean"] = fps
                 files[path] = encoded(data)
                 proof["outputs"][0].update(sha256=hashlib.sha256(files[path]).hexdigest(), bytes=len(files[path]))
                 files[name] = encoded(proof)
@@ -1033,12 +930,75 @@ class PairedTests(unittest.TestCase):
             "source_commit": self.commit,
         }
 
+    def _run_report(self, attempt=1):
+        output = self.root / "report"
+        with patch.object(build_compare.baseline_mod, "GitHubClient", return_value=self.client):
+            status = build_compare.main(
+                ["--repository", REPO, "--run_id", "20", "--run_attempt", str(attempt), "--output_dir", str(output)]
+            )
+        return (
+            status,
+            json.loads((output / "build-comparison.json").read_text()),
+            (output / "build-comparison.md").read_text(),
+        )
+
+    def test_automatic_report_is_advisory_and_preserves_existing_gate_failure(self):
+        artifact = self._add_baseline(self._files(measurement=self.measurement))
+        self._candidate(self._origin(artifact, run_id=10), reused=True, measurement=self.measurement, fps=80)
+        gate = self.root / "comparisons" / "first"
+        gate.mkdir(parents=True)
+        (gate / "comparison.json").write_bytes(encoded({"verdict": "FAIL", "label": "first"}))
+        with contextlib.redirect_stdout(io.StringIO()):
+            before = cli.main(["aggregate", "--comparison_dir", str(gate.parent)])
+            status, report, markdown = self._run_report()
+            after = cli.main(["aggregate", "--comparison_dir", str(gate.parent)])
+        self.assertEqual((before, after, status), (1, 1, 0))
+        self.assertEqual(report["baseline"]["run_id"], 10)
+        self.assertEqual(report["candidate"]["run_id"], 20)
+        self.assertEqual(report["candidate_kind"], "merge")
+        self.assertEqual(len(report["rows"]), 2)
+        self.assertTrue(all(row["change_pct"] == -20 for row in report["rows"]))
+        self.assertIn("-20.00%", markdown)
+        self.assertNotIn("Comparison unavailable", markdown)
+        self.assertIn("/actions/runs/10/attempts/1", markdown)
+        self.assertIn("/actions/runs/20/attempts/1", markdown)
+        self.assertIn("3/3 / 3/3", markdown)
+        self.assertEqual(self.client.pages_requested, [])
+
+    def test_report_only_reruns_preserve_the_pin_when_its_baseline_expires(self):
+        artifact = self._add_baseline(self._files(measurement=self.measurement))
+        self._candidate(self._origin(artifact, run_id=10), reused=True, measurement=self.measurement, fps=80)
+        _, first, _ = self._run_report()
+        self.client.add(20, HEAD, attempt=2, start=stamp(13), event="pull_request", artifact=False)
+        self.client.run_jobs[20, 2][0].update(started_at=stamp(12), id=999)
+        _, second, rerun_markdown = self._run_report(attempt=2)
+        self.assertEqual(second["baseline"], first["baseline"])
+        self.assertEqual(second["candidate"]["run_attempt"], 1)
+        self.assertEqual(second["candidate"]["report_attempt"], 2)
+        self.assertIn("Measurements: attempt 1; report: attempt 2", rerun_markdown)
+        artifact["expired"] = True
+        _, result, markdown = self._run_report(attempt=2)
+        self.assertIsNone(result["baseline"])
+        self.assertEqual(result["selection"]["unavailable_evidence"]["artifact_id"], artifact["id"])
+        self.assertTrue(all(row["candidate"]["median"] == 80 for row in result["rows"]))
+        self.assertTrue(all(row["change_pct"] is None for row in result["rows"]))
+        self.assertIn("PR base (evidence unavailable)", markdown)
+        self.assertIn("/actions/runs/10/attempts/1", markdown)
+        self.assertIn("expired", markdown)
+        self._add_baseline(self._files(run_id=11, measurement=self.measurement), run_id=11)
+        self.client.add(20, HEAD, attempt=3, start=stamp(14), event="pull_request", artifact=False)
+        self.client.run_jobs[20, 3][0]["started_at"] = stamp(12)
+        _, third, third_markdown = self._run_report(attempt=3)
+        self.assertEqual(third["selection"]["unavailable_evidence"], result["selection"]["unavailable_evidence"])
+        self.assertEqual(third["selection"]["reason_code"], "expired")
+        self.assertIn("/actions/runs/10/attempts/1", third_markdown)
+        self.assertEqual(self.client.pages_requested, [])
+
     def test_fresh_pair_uses_exact_pinned_base_from_same_runner_in_order(self):
         artifact = self._add_baseline(run_id=20)
         evidence, _ = paired.select_pr_baseline(self.client, self._candidate(self._origin(artifact)))
         self.assertEqual(evidence.identity["artifact_id"], artifact["id"])
         self.assertEqual(evidence.identity["source_commit"], self.commit)
-        self.assertEqual(self.client.queried, [])
         self.assertEqual(self.client.pages_requested, [])
 
     def test_selection_rejects_parent_mismatch_before_retrieving_baseline(self):
@@ -1114,7 +1074,7 @@ class PairedTests(unittest.TestCase):
         self.assertIsNone(evidence)
         self.assertEqual(metadata["reason_code"], "expired")
         self.assertEqual(metadata["unavailable_evidence"]["artifact_id"], artifact["id"])
-        self.assertEqual(self.client.queried, [])
+        self.assertEqual(self.client.pages_requested, [])
 
     def test_bind_rejects_selection_for_another_resolved_base(self):
         self._restore()
@@ -1136,6 +1096,7 @@ class PairedTests(unittest.TestCase):
     def test_unconfirmed_reuse_handoff_cannot_override_fresh_or_missing_upload(self):
         self._add_baseline(run_id=10)
         self._restore()
+        requested = list(self.client.pages_requested)
         fresh = self._add_baseline(run_id=20)
         event_path = self.root / "event.json"
         event_path.write_bytes(encoded(self.event))
@@ -1172,9 +1133,8 @@ class PairedTests(unittest.TestCase):
                     self.assertEqual(
                         metadata["reason"], "The base benchmark artifact was not produced; baseline FPS is unavailable."
                     )
-                    self.assertEqual(self.client.queried, [])
+                    self.assertEqual(self.client.pages_requested, requested)
                 self.assertFalse(metadata["baseline_reused"])
-                self.assertNotIn("baseline_metric_definition", metadata)
 
     def test_bind_cli_recovers_missing_selection_with_or_without_failure_detail(self):
         tested_merge = "e" * 40

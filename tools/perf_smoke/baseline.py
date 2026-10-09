@@ -3,12 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Resolve exact GitHub benchmark evidence and its historical branch baseline.
-
-Selection uses ancestry and measurement time, never measured performance or the
-conclusion of an unrelated workflow job. Original ZIPs and incomplete workloads
-remain available to the report layer. This module does not execute benchmarks.
-"""
+"""Read exact GitHub benchmark artifacts, preserving incomplete workloads and source evidence."""
 
 from __future__ import annotations
 
@@ -124,19 +119,6 @@ class GitHubClient:
     def artifacts(self, run_id: int) -> list[dict]:
         return self.paginate(f"/repos/{self.repository}/actions/runs/{run_id}/artifacts", "artifacts")
 
-    def runs(self, commit: str, branch: str, event: str, workflow_id: int | None = None) -> list[dict]:
-        workflow = f"workflows/{workflow_id}/" if workflow_id else ""
-        return self.paginate(
-            f"/repos/{self.repository}/actions/{workflow}runs",
-            "workflow_runs",
-            head_sha=commit,
-            branch=branch,
-            event=event,
-        )
-
-    def commit(self, commit: str) -> dict:
-        return self.get(f"/repos/{self.repository}/commits/{urllib.parse.quote(commit, safe='')}")
-
     def download(self, artifact: dict) -> bytes:
         if artifact.get("expired"):
             raise EvidenceError("expired", "Selected GitHub artifact has expired", {"artifact_id": artifact.get("id")})
@@ -156,10 +138,6 @@ class Evidence:
     measurement_start: str | None
     measurement_end: str | None
     files: dict[str, bytes] = field(repr=False)
-
-    @property
-    def has_completed_runtime(self) -> bool:
-        return any(has_usable_runtime(item["bundle"]) for items in self.samples.values() for item in items)
 
 
 def parse_timestamp(value: Any) -> datetime | None:
@@ -272,28 +250,6 @@ def _github_links(identity: dict) -> dict[str, str]:
     }
 
 
-def _saved_baseline_identity(value: Any) -> dict:
-    """Validate fields needed to resolve a saved pin and rebuild its public links."""
-    if not isinstance(value, dict):
-        raise EvidenceError("corrupt", "Previous comparison baseline identity is not an object")
-    repository = value.get("repository")
-    if not isinstance(repository, str) or re.fullmatch(r"[\w.-]+/[\w.-]+", repository) is None:
-        raise EvidenceError("corrupt", "Previous comparison baseline repository is invalid")
-    for key in ("run_id", "run_attempt", "artifact_id"):
-        item = value.get(key)
-        if not isinstance(item, int) or isinstance(item, bool) or item <= 0:
-            raise EvidenceError("corrupt", f"Previous comparison baseline {key} is not a positive integer")
-    digest = value.get("sha256")
-    if not isinstance(digest, str) or re.fullmatch(r"[0-9a-fA-F]{64}", digest) is None:
-        raise EvidenceError("corrupt", "Previous comparison baseline SHA256 is invalid")
-    if not is_commit_sha(value.get("source_commit")):
-        raise EvidenceError("corrupt", "Previous comparison baseline source commit is not a full Git SHA")
-    identity = {**value, "sha256": digest.lower(), "source_commit": value["source_commit"].lower()}
-    identity["artifact_name"] = f"performance-smoke-{identity['run_id']}-{identity['run_attempt']}"
-    identity.update(_github_links(identity))
-    return identity
-
-
 def read_evidence(
     client: GitHubClient,
     run: dict,
@@ -380,7 +336,7 @@ def read_evidence(
             if bundle["run"].get("status") == "completed" and not has_usable_runtime(bundle):
                 issues.append(f"{path}: completed runtime has no finite nonnegative FPS value")
     if not context:
-        issues.append("Build context and FPS formula provenance are unavailable in this historical artifact")
+        issues.append("Build context and FPS formula provenance are unavailable in this artifact")
     capture_time = parse_timestamp(execution.get("measurement_not_before"))
     cutoff = min(starts) if starts and not missing_start else capture_time
     if cutoff and (missing_start or not starts):
@@ -462,180 +418,3 @@ def resolve_candidate(client: GitHubClient, run_id: int, report_attempt: int) ->
                 )
         # Jobs carried over from an earlier attempt can have new IDs but retain their old start times.
     raise EvidenceError("missing_candidate", "No producing benchmark artifact is available for this workflow run")
-
-
-def load_previous_selection(client: GitHubClient, candidate: Evidence) -> dict | None:
-    """Recover a prior A only when the report identifies the identical candidate ZIP."""
-    identity = candidate.identity
-    report_attempt = identity.get("report_attempt", identity["run_attempt"])
-    prefix = f"performance-build-comparison-{identity['run_id']}-"
-    reports = []
-    for artifact in client.artifacts(identity["run_id"]):
-        name = artifact.get("name", "")
-        suffix = name.removeprefix(prefix)
-        if name.startswith(prefix) and suffix.isdigit() and int(suffix) < report_attempt:
-            reports.append((int(suffix), artifact))
-    for _, artifact in sorted(reports, key=lambda item: item[0], reverse=True):
-        _, files = download_artifact(client, artifact)
-        if "build-comparison.json" not in files:
-            raise EvidenceError("corrupt", "Previous comparison artifact has no build-comparison.json")
-        report = _object(files["build-comparison.json"], "build-comparison.json")
-        previous = report.get("candidate")
-        if previous is None:
-            continue
-        if not isinstance(previous, dict):
-            raise EvidenceError("corrupt", "Previous comparison candidate identity is not an object or null")
-        if (previous.get("artifact_id"), previous.get("sha256")) == (identity["artifact_id"], identity["sha256"]):
-            if report.get("baseline") is not None:
-                return _saved_baseline_identity(report["baseline"])
-            selection = report.get("selection")
-            if selection is not None and not isinstance(selection, dict):
-                raise EvidenceError("corrupt", "Previous comparison selection is not an object or null")
-            if selection and selection.get("pinned") is True and selection.get("unavailable_side") == "baseline":
-                return _saved_baseline_identity(selection.get("unavailable_evidence"))
-    return None
-
-
-def select_baseline(
-    client: GitHubClient, candidate: Evidence, pinned_identity: dict | None = None
-) -> tuple[Evidence | None, dict[str, Any]]:
-    """Find one measured branch execution on the nearest first-parent ancestor."""
-    if pinned_identity is not None:
-        pinned_identity = _saved_baseline_identity(pinned_identity)
-    source = candidate.context.get("source", {})
-    branch = source.get("reference_branch")
-    anchor = source.get("reference_commit")
-    if not branch and candidate.identity["event"] in ("push", "workflow_dispatch"):
-        branch = candidate.identity["branch"]
-    metadata: dict[str, Any] = {
-        "reference_branch": branch,
-        "reference_commit": anchor,
-        "candidate_measurement_start": candidate.measurement_start,
-        "visited_commits": [],
-        "issues": [],
-        "pinned": bool(pinned_identity),
-    }
-    candidate_keys = {
-        key
-        for items in candidate.samples.values()
-        for item in items
-        if (key := workload_key(item["bundle"])) is not None
-    }
-    if not candidate_keys:
-        metadata.update(
-            reason_code="no_readable_candidate_workload",
-            reason="Candidate evidence has no readable workload identity to match against historical measurements",
-        )
-        return None, metadata
-    if not anchor and candidate.identity["event"] in ("push", "workflow_dispatch"):
-        parents = client.commit(candidate.identity["source_commit"]).get("parents", [])
-        anchor = parents[0].get("sha") if parents else None
-        metadata["reference_commit"] = anchor
-    if pinned_identity:
-        if pinned_identity.get("repository") != client.repository:
-            raise EvidenceError("identity_mismatch", "Pinned baseline belongs to another repository")
-        run_id, attempt = pinned_identity["run_id"], pinned_identity["run_attempt"]
-        artifact = _exact_artifact(client.artifacts(run_id), f"performance-smoke-{run_id}-{attempt}")
-        if artifact is None or artifact["id"] != pinned_identity.get("artifact_id"):
-            raise EvidenceError(
-                "missing_pinned_baseline", "Previously selected baseline artifact is unavailable", pinned_identity
-            )
-        baseline = read_evidence(client, client.run_attempt(run_id, attempt), artifact, attempt)
-        if (
-            baseline.identity["sha256"] != pinned_identity["sha256"]
-            or baseline.identity["source_commit"] != pinned_identity["source_commit"]
-        ):
-            raise EvidenceError(
-                "identity_mismatch",
-                "Previously selected baseline artifact bytes or source identity changed",
-                pinned_identity,
-            )
-        metadata.update(
-            reason="Reused the prior report's exact baseline for the same candidate artifact",
-            selected=baseline.identity,
-        )
-        return baseline, metadata
-    cutoff = parse_timestamp(candidate.measurement_start)
-    if not branch or not is_commit_sha(anchor) or cutoff is None:
-        metadata["reason"] = "Baseline reference branch, tested parent, or candidate measurement start is unavailable"
-        return None, metadata
-    while anchor:
-        if anchor in metadata["visited_commits"]:
-            raise EvidenceError("invalid_ancestry", "GitHub commit ancestry contains a cycle")
-        metadata["visited_commits"].append(anchor)
-        eligible = []
-        for event in ("push", "workflow_dispatch"):
-            for listed in client.runs(anchor, branch, event, candidate.identity.get("workflow_id")):
-                if (
-                    listed.get("head_sha") != anchor
-                    or listed.get("head_branch") != branch
-                    or listed.get("event") != event
-                ):
-                    continue
-                run_id = listed["id"]
-                for artifact in client.artifacts(run_id):
-                    match = re.fullmatch(rf"performance-smoke-{run_id}-(\d+)", artifact.get("name", ""))
-                    if not match:
-                        continue
-                    attempt = int(match[1])
-                    run = client.run_attempt(run_id, attempt)
-                    attempt_start = parse_timestamp(run.get("run_started_at"))
-                    if attempt_start and attempt_start >= cutoff:
-                        continue
-                    try:
-                        baseline = read_evidence(client, run, artifact, attempt)
-                    except EvidenceError as exc:
-                        if exc.code != "expired":
-                            raise
-                        metadata["issues"].append({"artifact_id": artifact["id"], "reason": str(exc)})
-                        continue
-                    if baseline.identity["source_commit"] != anchor:
-                        metadata["issues"].append(
-                            {
-                                "artifact_id": artifact["id"],
-                                "reason": "Measured checkout differs from the branch commit",
-                            }
-                        )
-                        continue
-                    end = parse_timestamp(baseline.measurement_end)
-                    if not baseline.has_completed_runtime:
-                        metadata["issues"].append(
-                            {"artifact_id": artifact["id"], "reason": "No usable completed runtime sample"}
-                        )
-                    elif not any(
-                        baseline.statuses.get(leg) == "ok"
-                        and has_usable_runtime(item["bundle"])
-                        and workload_key(item["bundle"]) in candidate_keys
-                        for leg, items in baseline.samples.items()
-                        for item in items
-                    ):
-                        metadata["issues"].append(
-                            {
-                                "artifact_id": artifact["id"],
-                                "reason": "No shared workload with status ok and usable completed evidence",
-                            }
-                        )
-                    elif end is None:
-                        metadata["issues"].append(
-                            {"artifact_id": artifact["id"], "reason": "Measurement end time is unavailable"}
-                        )
-                    elif end < cutoff:
-                        eligible.append((end, baseline))
-        if eligible:
-            eligible.sort(key=lambda item: (item[0], item[1].identity["run_id"], item[1].identity["run_attempt"]))
-            baseline = eligible[-1][1]
-            metadata.update(
-                reason=(
-                    "Latest measured branch execution before the candidate, "
-                    "on the nearest measured first-parent ancestor"
-                ),
-                selected=baseline.identity,
-                baseline_measurement_end=baseline.measurement_end,
-            )
-            return baseline, metadata
-        parents = client.commit(anchor).get("parents", [])
-        anchor = parents[0].get("sha") if parents else None
-        if anchor is not None and not is_commit_sha(anchor):
-            raise EvidenceError("invalid_ancestry", "GitHub returned an invalid first-parent commit")
-    metadata["reason"] = "No available measured target-branch ancestor completed before the candidate"
-    return None, metadata
