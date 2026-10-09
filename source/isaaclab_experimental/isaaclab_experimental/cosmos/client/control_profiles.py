@@ -137,6 +137,16 @@ def edge_processor(
     return "rgb", [control, CosmosTransferModifierCfg(backend=backend, **cosmos)]
 
 
+def blur_processor(backend: CosmosModelCfg, **cosmos: Any) -> tuple[str, list[ModifierCfg]]:
+    """Blur-guided Cosmos chain on the camera's ``rgb`` output.
+
+    The camera sends its RGB unchanged; the service blurs it with the Framework's own filter, so the control matches
+    the model's training data.
+    """
+    _check_modality(backend, "blur")
+    return "rgb", [CosmosTransferModifierCfg(backend=backend, **cosmos)]
+
+
 def segmentation_processor(
     backend: CosmosModelCfg, palette: dict[int, tuple[int, int, int]], **cosmos: Any
 ) -> tuple[str, list[ModifierCfg]]:

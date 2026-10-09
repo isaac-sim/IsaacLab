@@ -108,6 +108,18 @@ Wait for `Cosmos ready at tcp://127.0.0.1:5555`, then leave this terminal runnin
 The worker loads the model once on `cuda:0` and exposes the endpoint after model
 loading and warmup. Isaac Lab can then connect from its own environment.
 
+`--max-episode-frames N` sets the longest episode a camera may request, `1 + 4*k` frames. The default, 201,
+is the model's trained horizon; `0` removes the cap. See
+[Episode length cap](cosmos.md#episode-length-cap).
+
+`--max-views N` lets one camera session batch the cameras of up to N environments (default 1); each needs GPU
+memory for its own generation history, and resetting environments independently needs the compiled path. See
+[Several environments](cosmos.md#several-environments).
+
+`--kv-window N` and `--attention-sink M` set the generation history the model attends to, in latent frames
+(four video frames each). The defaults, 30 and 3, follow the Sim-Transfer recipe. A shorter window is faster and
+needs less memory, especially with several environments, but remembers less of each episode.
+
 `--no-compile` selects eager inference. Omit it to enable the compiled CUDA-graph
 path, which can take additional time on its first use. `--warmup` runs a disposable
 33-frame session on a `(480, 832)` canvas before reporting readiness. With compiled
@@ -130,8 +142,8 @@ uv run isaaclab cosmos status
 ```
 
 A ready service reports `"ready": true`. Before connecting a camera, check that
-`"session_active": false`: the current server supports one camera view and one
-active generation session. If a session is active, close that camera or Isaac Lab
+`"session_active": false`: the server runs one active generation session, with up
+to `--max-views` camera views. If a session is active, close that camera or Isaac Lab
 process before connecting another. For another endpoint, pass
 `--endpoint tcp://127.0.0.1:5556` to the status command.
 

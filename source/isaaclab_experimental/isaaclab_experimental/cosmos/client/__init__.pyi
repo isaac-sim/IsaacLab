@@ -10,6 +10,7 @@ __all__ = [
     "CosmosTransferModifierCfg",
     "RegionalEdgeControl",
     "RegionalEdgeControlCfg",
+    "blur_processor",
     "depth_processor",
     "edge_control",
     "edge_processor",
@@ -22,6 +23,7 @@ __all__ = [
 from .control_profiles import (
     RegionalEdgeControl,
     RegionalEdgeControlCfg,
+    blur_processor,
     depth_processor,
     edge_control,
     edge_processor,

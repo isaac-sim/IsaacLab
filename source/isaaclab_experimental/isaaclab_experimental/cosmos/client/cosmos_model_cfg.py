@@ -12,6 +12,8 @@ from typing import TYPE_CHECKING, Literal
 from isaaclab.sim import BackendCfg
 from isaaclab.utils import configclass
 
+from .._protocol import DEFAULT_MAX_EPISODE_FRAMES
+
 if TYPE_CHECKING:
     from .cosmos_model import CosmosModel
 
@@ -31,14 +33,21 @@ class CosmosModelCfg(BackendCfg):
     endpoint: str = "tcp://127.0.0.1:5555"
     """Endpoint of the independently started Cosmos service."""
 
-    prompt: str | None = None
-    """Appearance prompt. None omits an appearance description."""
+    prompt: str | list[str] | None = None
+    """Appearance prompt. A string applies to every episode. A list varies the appearance, for visual
+    randomization. With one view, episode ``k`` of the camera stream uses ``prompt[k % len(prompt)]``; an episode
+    reset before the first generated update (for example the environment's initial reset right after its first
+    capture) keeps the current prompt. With several views (environments), view ``v`` uses
+    ``prompt[v % len(prompt)]`` for all its episodes, because a batched session keeps each view's prompt across
+    resets. None omits an appearance description."""
 
-    modality: Literal["edge", "depth", "seg"] = "edge"
-    """Type of uint8 three-channel guidance prepared by the preceding camera modifier."""
+    modality: Literal["edge", "blur", "depth", "seg"] = "edge"
+    """Type of uint8 three-channel guidance. The preceding camera modifier prepares edge, depth, and seg controls;
+    for blur the camera sends its RGB and the service applies the Framework's own blur filter."""
 
-    max_episode_frames: int = 201
-    """Image-frame budget per episode, including the initial frame."""
+    max_episode_frames: int = DEFAULT_MAX_EPISODE_FRAMES
+    """Image-frame budget per episode, including the initial frame: ``1 + 4*k``. It must be within the service's
+    cap, set with ``isaaclab-cosmos-server --max-episode-frames`` (default 201, 0 for no cap)."""
 
     timeout: float = 600.0
     """Maximum wait per network operation [s], including the first generation."""

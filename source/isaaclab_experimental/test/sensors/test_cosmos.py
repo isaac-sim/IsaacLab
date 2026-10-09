@@ -68,11 +68,13 @@ class TransportStream:
         self.resource = resource
         self.settings = settings
         self.steps = []
+        self.episode_prompts = []
         self.closed = threading.Event()
 
-    def step(self, controls, reset_rows, seeds):
+    def step(self, controls, reset_rows, seeds, **episode):
         self.resource.calls.append(("step", threading.get_ident()))
         self.steps.append((controls, reset_rows, seeds))
+        self.episode_prompts.append(episode.get("prompt", "<kept>"))
         self.resource.step_entered.set()
         if not self.resource.resume_step.wait(5):
             raise TimeoutError("Test did not release the blocked generation")
@@ -167,11 +169,14 @@ def test_wire_rejects_oversized_headers_before_receiving_the_body(metadata_size,
 )
 def test_wire_rejects_unsafe_or_inconsistent_descriptors(descriptor, body_size, error):
     with pytest.raises(_protocol.ProtocolError, match=error):
-        _receive_packet({"version": 1, "arrays": [descriptor]}, claimed_body_size=body_size)
+        _receive_packet({"version": _protocol.PROTOCOL_VERSION, "arrays": [descriptor]}, claimed_body_size=body_size)
 
 
 def test_wire_requires_a_complete_binary_image():
-    metadata = {"version": 1, "arrays": [{"shape": [1, 1, 2, 3], "dtype": "uint8", "nbytes": 6}]}
+    metadata = {
+        "version": _protocol.PROTOCOL_VERSION,
+        "arrays": [{"shape": [1, 1, 2, 3], "dtype": "uint8", "nbytes": 6}],
+    }
     with pytest.raises(ConnectionError, match="complete message"):
         _receive_packet(metadata, b"\x00\x01\x02", claimed_body_size=6)
 
@@ -191,7 +196,7 @@ def test_wire_treats_pickle_bytes_as_pixels_without_execution(tmp_path):
     payload = pickle.dumps(PickleTrap(marker))
     payload += bytes(-len(payload) % 3)
     metadata = {
-        "version": 1,
+        "version": _protocol.PROTOCOL_VERSION,
         "arrays": [{"shape": [1, 1, len(payload) // 3, 3], "dtype": "uint8", "nbytes": len(payload)}],
     }
 
@@ -249,6 +254,52 @@ def test_camera_client_closes_sessions_and_keeps_the_model_resident(cosmos_servi
     assert cosmos_service.resource.calls[0][0] == "warmup"
     assert len({thread_id for _, thread_id in cosmos_service.resource.calls}) == 1
     assert cosmos_service.resource.calls[0][1] != threading.get_ident()
+
+
+def test_a_prompt_list_cycles_per_episode_over_one_session(cosmos_service):
+    """Each finished episode moves to the next prompt; a reset before the first update keeps the prompt."""
+    prompts = ["A bright warehouse.", "A wooden kitchen."]
+    client = CosmosModel(CosmosModelCfg(endpoint=cosmos_service.endpoint, prompt=prompts, timeout=2))
+    stream = client.open_stream(num_views=1, seeds=(7,))
+    first, update = _controls(), _controls().expand(4, -1, -1, -1).contiguous()
+    stream.step([first], reset_rows=(), seeds=())
+    stream.step([first], reset_rows=(0,), seeds=(8,))  # e.g. the environment's initial reset
+    stream.step([update], reset_rows=(), seeds=())
+    stream.step([first], reset_rows=(0,), seeds=(9,))
+    stream.step([update], reset_rows=(), seeds=())
+    stream.step([first], reset_rows=(0,), seeds=(10,))
+    resident_stream = cosmos_service.resource.streams[0]
+    client.close()
+
+    assert resident_stream.settings["prompt"] == "A bright warehouse."
+    sent = [prompt for prompt in resident_stream.episode_prompts if prompt != "<kept>"]
+    assert sent == ["A bright warehouse.", "A wooden kitchen.", "A bright warehouse."]
+    assert len(cosmos_service.resource.streams) == 1
+
+
+def test_prompt_lists_must_hold_text_and_the_service_changes_prompts_only_at_resets(cosmos_service):
+    with pytest.raises(ValueError, match="nonempty"):
+        CosmosModel(CosmosModelCfg(prompt=["", "Two"]))
+    with pytest.raises(ValueError, match="nonempty"):
+        CosmosModel(CosmosModelCfg(prompt=[]))
+    with _protocol.connect(cosmos_service.endpoint, timeout=2) as connection:
+        open_request = {
+            "op": "open",
+            "num_views": 1,
+            "seeds": [1],
+            "prompt": "A lab.",
+            "modality": "edge",
+            "height": 2,
+            "width": 3,
+            "max_episode_frames": 9,
+        }
+        _protocol.send_message(connection, open_request)
+        _protocol.check_reply(_protocol.receive_message(connection)[0])
+        _protocol.send_message(
+            connection, {"op": "step", "reset_rows": [], "seeds": [], "prompt": "A kitchen."}, [_controls().numpy()]
+        )
+        reply, _ = _protocol.receive_message(connection)
+    assert not reply["ok"] and "only with an episode reset" in reply["error"]
 
 
 def test_only_one_generation_session_is_owned_and_disconnect_releases_it(cosmos_service):
@@ -347,3 +398,60 @@ def test_incompatible_cosmos_cadence_is_rejected_before_opening_a_session(cosmos
         assert not cosmos_service.resource.streams
     finally:
         chain.close()
+
+
+@pytest.mark.parametrize("cap", [1, 200])
+def test_the_service_episode_cap_is_a_setting_of_1_plus_4k_frames(cap):
+    """The cap is checked before the model loads, so a bad --max-episode-frames fails fast."""
+    from isaaclab_experimental.cosmos.server import CosmosInferenceModel
+
+    with pytest.raises(ValueError, match=r"1 \+ 4\*k"):
+        CosmosInferenceModel("unused-checkpoint", max_episode_frames=cap)
+
+
+@pytest.mark.parametrize("window,sink", [(0, 0), (3, 3), (30, -1)])
+def test_the_history_window_must_hold_its_attention_sink(window, sink):
+    """The window and sink are checked before the model loads, so bad --kv-window settings fail fast."""
+    from isaaclab_experimental.cosmos.server import CosmosInferenceModel
+
+    with pytest.raises(ValueError, match="attention sink smaller"):
+        CosmosInferenceModel("unused-checkpoint", kv_window=window, attention_sink=sink)
+
+
+def test_several_views_share_one_session_with_their_own_prompts_frames_and_resets(cosmos_service):
+    """Two views open one batched session; a restarting view sends one frame while the other sends four."""
+    cfg = CosmosModelCfg(endpoint=cosmos_service.endpoint, prompt=["A lab.", "A kitchen.", "A field."], timeout=2)
+    client = CosmosModel(cfg)
+    stream = client.open_stream(num_views=2, seeds=(1, 2))
+    first = [_controls(), _controls()]
+    stream.step(first, (), ())
+    images = stream.step([_controls().expand(4, -1, -1, -1).contiguous(), _controls()], (1,), (9,))
+    session = cosmos_service.resource.streams[0]
+    client.close()
+
+    assert session.settings["num_views"] == 2 and session.settings["seeds"] == (1, 2)
+    assert session.settings["prompt"] == ["A lab.", "A kitchen."]
+    controls, resets, seeds = session.steps[-1]
+    assert [array.shape[0] for array in controls] == [4, 1] and resets == (1,) and seeds == (9,)
+    assert [tuple(view.shape) for view in images] == [(4, *_controls().shape[1:]), tuple(_controls().shape)]
+    # Batched views keep their prompts, so a reset sends none.
+    assert session.episode_prompts[-1] == "<kept>"
+
+
+def test_the_service_accepts_only_distinct_ordered_resets_of_opened_views(cosmos_service):
+    with _protocol.connect(cosmos_service.endpoint, timeout=2) as connection:
+        open_request = {
+            "op": "open",
+            "num_views": 2,
+            "seeds": [1, 2],
+            "prompt": None,
+            "modality": "edge",
+            "height": 2,
+            "width": 3,
+            "max_episode_frames": 9,
+        }
+        _protocol.send_message(connection, open_request)
+        _protocol.check_reply(_protocol.receive_message(connection)[0])
+        _protocol.send_message(connection, {"op": "step", "reset_rows": [2], "seeds": [5]}, [_controls().numpy()] * 2)
+        reply, _ = _protocol.receive_message(connection)
+    assert not reply["ok"] and "distinct opened views" in reply["error"]

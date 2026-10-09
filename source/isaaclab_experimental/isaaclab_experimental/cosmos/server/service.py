@@ -16,7 +16,7 @@ from typing import Protocol
 
 import numpy as np
 
-from .._protocol import ProtocolError, receive_message, send_message
+from .._protocol import MAX_ARRAYS, ProtocolError, receive_message, send_message
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -87,7 +87,7 @@ def serve(model: _Model, host: str = "127.0.0.1", port: int = 5555, *, warmup: b
 
 class _Stream(Protocol):
     def step(
-        self, controls: list[np.ndarray], reset_rows: tuple[int, ...], seeds: tuple[int, ...]
+        self, controls: list[np.ndarray], reset_rows: tuple[int, ...], seeds: tuple[int, ...], **episode: object
     ) -> list[np.ndarray]: ...
 
     def close(self) -> None: ...
@@ -131,6 +131,7 @@ def _handle_connection(
     token = object()
     stream: _Stream | None = None
     image_shape: tuple[int, int, int] | None = None
+    num_views = 0
     try:
         while not state.stopping.is_set():
             metadata, arrays = receive_message(connection)
@@ -167,6 +168,8 @@ def _handle_connection(
                 if stream is not None:
                     raise RuntimeError("This connection already has a Cosmos generation session.")
                 arguments = _open_arguments(metadata)
+                if arguments["num_views"] > MAX_ARRAYS:
+                    raise ValueError(f"One Cosmos message carries at most {MAX_ARRAYS} views.")
                 with state.ownership_lock:
                     if state.owner is not None:
                         raise RuntimeError(
@@ -177,23 +180,19 @@ def _handle_connection(
                     state.owner = token
                 stream = state.executor.submit(state.model.open_stream, **arguments).result()
                 image_shape = (arguments["height"], arguments["width"], 3)
+                num_views = arguments["num_views"]
                 send_message(connection, {"ok": True})
             elif operation == "step":
-                _check_fields(metadata, {"op", "version", "reset_rows", "seeds"}, arrays, allow_arrays=True)
+                fields = {"op", "version", "reset_rows", "seeds"} | ({"prompt"} if "prompt" in metadata else set())
+                _check_fields(metadata, fields, arrays, allow_arrays=True)
                 if stream is None:
                     raise RuntimeError("Open a Cosmos generation session before sending controls.")
-                resets, seeds = _reset_arguments(metadata)
-                if len(arrays) != 1 or arrays[0].shape[1:] != image_shape:
-                    raise ValueError("Cosmos controls must match the single camera's configured image size.")
-                generated = state.executor.submit(stream.step, arrays, resets, seeds).result()
-                if (
-                    not isinstance(generated, list)
-                    or len(generated) != 1
-                    or not isinstance(generated[0], np.ndarray)
-                    or generated[0].dtype != np.uint8
-                    or generated[0].shape != arrays[0].shape
-                ):
-                    raise ValueError("Cosmos must return uint8 THWC RGB matching the control chunk.")
+                resets, seeds = _reset_arguments(metadata, num_views)
+                episode = _episode_arguments(metadata, resets)
+                if len(arrays) != num_views or any(array.shape[1:] != image_shape for array in arrays):
+                    raise ValueError("Cosmos controls must hold one chunk per view at the configured image size.")
+                generated = state.executor.submit(stream.step, arrays, resets, seeds, **episode).result()
+                _check_generated(generated, arrays)
                 send_message(connection, {"ok": True}, generated)
             elif operation == "close":
                 _check_fields(metadata, {"op", "version"}, arrays)
@@ -235,6 +234,29 @@ def _handle_connection(
             connection.close()
 
 
+def _episode_arguments(metadata: dict, resets: tuple[int, ...]) -> dict:
+    """Return a step's episode settings: a reset may bring a new appearance prompt; the weights stay loaded."""
+    if "prompt" not in metadata:
+        return {}
+    if not resets:
+        raise ValueError("A Cosmos prompt can change only with an episode reset.")
+    if metadata["prompt"] is not None and not isinstance(metadata["prompt"], str):
+        raise ValueError("Cosmos prompt must be a string or None.")
+    return {"prompt": metadata["prompt"]}
+
+
+def _check_generated(generated: object, arrays: list[np.ndarray]) -> None:
+    if (
+        not isinstance(generated, list)
+        or len(generated) != len(arrays)
+        or any(
+            not isinstance(images, np.ndarray) or images.dtype != np.uint8 or images.shape != array.shape
+            for images, array in zip(generated, arrays)
+        )
+    ):
+        raise ValueError("Cosmos must return uint8 THWC RGB matching each view's control chunk.")
+
+
 def _check_fields(metadata: dict, fields: set[str], arrays: list[np.ndarray], *, allow_arrays: bool = False) -> None:
     if set(metadata) != fields:
         raise ProtocolError("Cosmos request contains missing or unsupported metadata fields.")
@@ -243,25 +265,34 @@ def _check_fields(metadata: dict, fields: set[str], arrays: list[np.ndarray], *,
 
 
 def _open_arguments(metadata: dict) -> dict:
-    if type(metadata["num_views"]) is not int or metadata["num_views"] != 1:
-        raise ValueError("The Cosmos service currently supports one camera view per session.")
+    num_views = metadata["num_views"]
+    if type(num_views) is not int or num_views < 1:
+        raise ValueError("Cosmos num_views must be a positive integer.")
     for name in ("height", "width", "max_episode_frames"):
         if type(metadata[name]) is not int or metadata[name] <= 0:
             raise ValueError(f"Cosmos {name} must be a positive integer.")
-    if metadata["prompt"] is not None and not isinstance(metadata["prompt"], str):
-        raise ValueError("Cosmos prompt must be a string or None.")
-    if metadata["modality"] not in ("edge", "depth", "seg"):
-        raise ValueError("Cosmos modality must be edge, depth, or seg.")
-    seeds = _seeds(metadata["seeds"], 1)
+    prompt = metadata["prompt"]
+    prompts = prompt if isinstance(prompt, list) else [prompt]
+    if (isinstance(prompt, list) and len(prompt) != num_views) or any(
+        text is not None and not isinstance(text, str) for text in prompts
+    ):
+        raise ValueError("Cosmos prompt must be a string or None, or one per view.")
+    if metadata["modality"] not in ("edge", "blur", "depth", "seg"):
+        raise ValueError("Cosmos modality must be edge, blur, depth, or seg.")
+    seeds = _seeds(metadata["seeds"], num_views)
     return {
         name: (seeds if name == "seeds" else value) for name, value in metadata.items() if name not in ("op", "version")
     }
 
 
-def _reset_arguments(metadata: dict) -> tuple[tuple[int, ...], tuple[int, ...]]:
+def _reset_arguments(metadata: dict, num_views: int) -> tuple[tuple[int, ...], tuple[int, ...]]:
     rows = metadata["reset_rows"]
-    if not isinstance(rows, list) or (rows != [] and (len(rows) != 1 or type(rows[0]) is not int or rows[0] != 0)):
-        raise ValueError("Cosmos supports only a full reset of its single camera view.")
+    if (
+        not isinstance(rows, list)
+        or any(type(row) is not int or not 0 <= row < num_views for row in rows)
+        or rows != sorted(set(rows))
+    ):
+        raise ValueError("Cosmos resets name distinct opened views in increasing order.")
     return tuple(rows), _seeds(metadata["seeds"], len(rows))
 
 
