@@ -57,6 +57,7 @@ from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg
 from isaaclab_visualizers.desktop_entry import write_desktop_entry
 from isaaclab_visualizers.newton.newton_visualization_markers import render_newton_visualization_markers
 
+from .newton_key_event_source import NewtonKeyEventSource, viewer_window
 from .newton_visualizer_cfg import NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg, NewtonVisualizerCfg
 
 logger = logging.getLogger(__name__)
@@ -837,6 +838,10 @@ class NewtonViewerGL(_NewtonViewerUIMixin, ViewerGL):
 
         self.register_ui_callback(self._render_training_controls, position="side")
         self._close_requested = False
+        # set while a keyboard consumer captures the keys (see NewtonKeyEventSource)
+        self.camera_keys_suspended = False
+        # called after every frame while a NewtonKeyEventSource listens, to track ImGui keyboard ownership
+        self.keyboard_frame_hook: Callable[[], object] | None = None
 
     def is_training_paused(self) -> bool:
         """Return whether simulation is paused by viewer controls."""
@@ -857,6 +862,8 @@ class NewtonViewerGL(_NewtonViewerUIMixin, ViewerGL):
     def end_frame(self) -> None:
         """Finish the frame, then close the window if :meth:`request_close` was called."""
         super().end_frame()
+        if self.keyboard_frame_hook is not None:
+            self.keyboard_frame_hook()
         if self._close_requested:
             self.renderer.close()
 
@@ -865,6 +872,12 @@ class NewtonViewerGL(_NewtonViewerUIMixin, ViewerGL):
         if self.ui.is_capturing():
             return
         super().on_key_press(symbol, modifiers)
+
+    def _update_camera(self, dt: float):
+        """Move the camera from held keys, unless a keyboard consumer captured them."""
+        if self.camera_keys_suspended:
+            return
+        super()._update_camera(dt)
 
     def _render_ui(self):
         """Render the Newton viewer UI."""
@@ -1042,6 +1055,19 @@ class NewtonVisualizer(BaseVisualizer):
         self._picking_enabled = False
         self._live_plots_manager_visible: dict[str, bool] = {}
         self._pending_mesh_submissions: dict[str, _MeshSubmission] = {}
+        self._key_event_source: NewtonKeyEventSource | None = None
+
+    @property
+    def key_event_source(self) -> NewtonKeyEventSource | None:
+        """Keys typed into the GL viewer window; ``None`` before initialization, after close, or without a window.
+
+        The RTX viewer and a headless GL viewer have no window that reports keys.
+        """
+        if self._key_event_source is None and isinstance(self._viewer, NewtonViewerGL):
+            window = viewer_window(self._viewer)
+            if window is not None:
+                self._key_event_source = NewtonKeyEventSource(self._viewer, window)
+        return self._key_event_source
 
     # ------------------------------------------------------------------
     # Shared lifecycle
@@ -1323,15 +1349,23 @@ class NewtonVisualizer(BaseVisualizer):
         viewer = self._viewer
         if viewer is None:
             return
+        # Keep the reference until release finishes: a focus-loss callback reading key_event_source
+        # during shutdown gets the closing source back instead of creating one that is never closed.
+        key_event_source = self._key_event_source
         try:
-            if self._picking_enabled:
-                # Keep the stable callback registered: captured graphs replay
-                # its now-neutral device inputs without retaining the viewer.
-                self._viewer_picking_binding.deactivate()
-            if isinstance(viewer, NewtonViewerRTX):
-                viewer.close()
+            try:
+                if key_event_source is not None:
+                    key_event_source.close()
+            finally:
+                if self._picking_enabled:
+                    # Keep the stable callback registered: captured graphs replay
+                    # its now-neutral device inputs without retaining the viewer.
+                    self._viewer_picking_binding.deactivate()
+                if isinstance(viewer, NewtonViewerRTX):
+                    viewer.close()
         finally:
             self._viewer = None
+            self._key_event_source = None
 
     def close(self) -> None:
         """Release viewer resources."""
