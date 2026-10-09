@@ -19,7 +19,7 @@ import torch
 import warp as wp
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_physx.sim.schemas import PhysxJointCfg
-from joint_wrench_contract import test_joint_wrench_frame  # noqa: F401
+from joint_wrench_contract import test_joint_wrench_body_ordering, test_joint_wrench_frame  # noqa: F401
 
 from pxr import Usd, UsdPhysics
 
@@ -163,6 +163,8 @@ def test_nested_articulation_root_resolution(sim):
         assert set(sensor.body_names).issubset(set(robot.body_names))
         assert sensor.data.force.torch.shape == (1, robot.num_joints, 3)
         assert sensor.data.torque.torch.shape == (1, robot.num_joints, 3)
+        root_wrench = robot.data.body_joint_wrench.torch[:, 0]
+        torch.testing.assert_close(root_wrench, torch.zeros_like(root_wrench))
 
 
 # ---------------------------------------------------------------------------
@@ -257,6 +259,15 @@ def test_interior_joint_wrench_at_rest(sim, tmp_path, fixed_pole):
         torch.testing.assert_close(
             sensor.data.force.torch[0, joint].norm(), (subtree_mass * gravity).norm(), atol=1e-2, rtol=1e-3
         )
+        body = robot.find_bodies(descendants[0])[0][0]
+        torch.testing.assert_close(
+            robot.data.body_joint_wrench.torch[0, body, :3].norm(),
+            (subtree_mass * gravity).norm(),
+            atol=1e-2,
+            rtol=1e-3,
+        )
+    root = robot.data.body_joint_wrench.torch[0, 0]
+    torch.testing.assert_close(root, torch.zeros_like(root))
 
 
 # ---------------------------------------------------------------------------
