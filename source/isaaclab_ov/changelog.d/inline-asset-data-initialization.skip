@@ -1,0 +1,1 @@
+Folded one-use asset proxy initialization into buffer creation and removed unused articulation-data invalidation.

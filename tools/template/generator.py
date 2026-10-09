@@ -79,28 +79,13 @@ def _generate_task_per_workflow(task_dir: str, specification: dict) -> None:
                     f" algorithm '{algorithm}'. Add the template or drop the algorithm from the selection."
                 ) from exc
             _write_file(os.path.join(agents_dir, file_name + file_ext), content=template.render(**specification))
-    if task_spec["workflow"]["name"] == "direct":
-        template = jinja_env.get_template(f"tasks/direct_{task_spec['workflow']['type']}/env_cfg")
-        _write_file(
-            os.path.join(task_dir, f"{task_spec['env_cfg_filename']}.py"), content=template.render(**specification)
-        )
-        template = jinja_env.get_template(f"tasks/direct_{task_spec['workflow']['type']}/env")
-        _write_file(os.path.join(task_dir, f"{task_spec['env_filename']}.py"), content=template.render(**specification))
-    elif task_spec["workflow"]["name"] == "manager-based":
-        template = jinja_env.get_template(f"tasks/manager-based_{task_spec['workflow']['type']}/env_cfg")
-        _write_file(
-            os.path.join(task_dir, f"{task_spec['env_cfg_filename']}.py"), content=template.render(**specification)
-        )
-        if task_spec["amp_selected"]:
-            template = jinja_env.get_template(f"tasks/manager-based_{task_spec['workflow']['type']}/env")
-            _write_file(
-                os.path.join(task_dir, f"{task_spec['env_filename']}.py"), content=template.render(**specification)
-            )
-        shutil.copytree(
-            os.path.join(TEMPLATE_DIR, "tasks", f"manager-based_{task_spec['workflow']['type']}", "mdp"),
-            os.path.join(task_spec["family_dir"], "mdp"),
-            dirs_exist_ok=True,
-        )
+    initial_content = specification.get("initial_content", "cartpole") if specification["external"] else "cartpole"
+    template = jinja_env.get_template(f"tasks/{initial_content}.jinja")
+    task_files = template.make_module(specification).files
+    for filename, content in task_files.items():
+        destination = os.path.join(task_spec["family_dir"], filename)
+        os.makedirs(os.path.dirname(destination), exist_ok=True)
+        _write_file(destination, content=content)
 
 
 def _generate_tasks(specification: dict, task_dir: str) -> list[dict]:
@@ -366,7 +351,7 @@ def generate(specification: dict) -> None:
             "At least one author is required"
         )
         specification["authors_toml"] = json.dumps(", ".join(specification["authors"]))[1:-1]
-        assert specification["initial_content"] in ("blank", "cartpole"), "Invalid initial project content"
+        assert specification["initial_content"] in ("blank", "cartpole", "stubbed"), "Invalid initial project content"
         assert specification["task_name"].isascii() and specification["task_name"].isidentifier(), (
             "Task family name must be an ASCII identifier"
         )
@@ -376,6 +361,8 @@ def generate(specification: dict) -> None:
     for workflow in specification["workflows"]:
         assert workflow["name"] in ["direct", "manager-based"], f"Invalid workflow: {workflow}"
         assert workflow["type"] in ["single-agent", "multi-agent"], f"Invalid workflow type: {workflow}"
+        if workflow["name"] == "manager-based" and workflow["type"] == "multi-agent":
+            raise ValueError("Manager-based workflows only support single-agent tasks")
     selected_workflow_types = {workflow["type"] for workflow in specification["workflows"]}
     allowed_algorithms = set()
     if "single-agent" in selected_workflow_types:
