@@ -21,7 +21,6 @@ import numpy as np
 import pytest
 import warp as wp
 from isaaclab_newton.physics import (
-    FeatherstoneSolverCfg,
     KaminoPADMMSolverCfg,
     MJWarpSolverCfg,
     MPMSolverCfg,
@@ -32,7 +31,6 @@ from isaaclab_newton.physics import (
 )
 from isaaclab_newton.physics import newton_backend as nb
 from isaaclab_newton.physics.mpm_manager import NewtonMPMManager
-from isaaclab_newton.physics.newton_manager import NewtonManager
 from newton import ModelBuilder, ShapeFlags
 from newton.solvers.experimental.coupled import SolverCoupledADMM, SolverCoupledProxy
 
@@ -219,14 +217,6 @@ def test_config_validation_requires_newton_solver_config():
 def test_config_validation_rejects_unsupported_nested_lifecycle(solver_cfg, entry_kwargs, error_type, match):
     cfg = CouplerAdmmCfg(entries=[CouplerEntryCfg(name="entry", solver_cfg=solver_cfg, **entry_kwargs)])
     with pytest.raises(error_type, match=match):
-        NewtonCouplerManager._validate_config(cfg)
-
-
-def test_config_validation_requires_concrete_nested_factory():
-    solver_cfg = XPBDSolverCfg()
-    solver_cfg.class_type = NewtonManager
-    cfg = CouplerAdmmCfg(entries=[CouplerEntryCfg(name="entry", solver_cfg=solver_cfg)])
-    with pytest.raises(TypeError, match="does not implement nested solver construction"):
         NewtonCouplerManager._validate_config(cfg)
 
 
@@ -455,20 +445,6 @@ def test_proxy_build_uses_custom_and_default_collision_pipelines(monkeypatch):
     assert solver.coupling.proxies[0].collision_pipeline is custom_pipeline
     assert solver.coupling.proxies[1].collision_pipeline("soft-view") == ("soft-view", "explicit")
     assert isinstance(cfg.proxies[1].collision_pipeline, NewtonCollisionPipelineCfg)
-
-
-@pytest.mark.parametrize(
-    "solver_cfg",
-    [
-        MJWarpSolverCfg(),
-        XPBDSolverCfg(),
-        FeatherstoneSolverCfg(),
-        MPMSolverCfg(),
-        VBDSolverCfg(),
-    ],
-)
-def test_solver_config_manager_exposes_nested_factory(solver_cfg):
-    assert solver_cfg.class_type.create_solver.__func__ is not NewtonManager.create_solver.__func__
 
 
 def test_mpm_entry_forwards_config_and_execution_policy():
@@ -763,26 +739,14 @@ def test_admm_always_requests_outer_collision_pipeline(monkeypatch):
     assert NewtonCouplerManager.supports_body_forces(backend) is True
 
 
-def test_contact_sensor_guard_rejects_coupler_before_allocating_contacts(monkeypatch):
-    """Initializing a coupler with a registered contact sensor fails before the step can use its contacts."""
-    monkeypatch.setattr(NewtonCouplerManager, "create_solver", classmethod(lambda cls, *args: object()))
-    solver_cfg = CouplerProxyCfg(entries=[CouplerEntryCfg(name="rigid", solver_cfg=XPBDSolverCfg())])
-    backend = SimpleNamespace(
-        manager=NewtonCouplerManager,
-        cfg=NewtonCfg(solver_cfg=solver_cfg),
-        model=SimpleNamespace(world_count=1, articulation_count=0),
-        deterministic_mode=_NG,
-        contact_sensors={("body", None, None, None): object()},
-        contacts=None,
-        collision_pipeline=None,
-        step_graph=None,
-    )
+def test_contact_sensor_guard_rejects_coupler():
+    """Adding a contact sensor to a coupler backend fails before any sensor is created."""
+    backend = SimpleNamespace(manager=NewtonCouplerManager, contact_sensors={})
 
     with pytest.raises(NotImplementedError, match="contact sensors"):
-        nb.init_solver(backend)
+        nb.add_contact_sensor(backend, body_names_expr="body")
 
-    assert backend.contacts is None
-    assert backend.collision_pipeline is None
+    assert backend.contact_sensors == {}
 
 
 class _RecordingAdmm:

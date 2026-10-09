@@ -922,6 +922,9 @@ class NewtonManager(PhysicsManager):
     # Overridden by solver managers. They are stateless and take every input explicitly, so a solver manager can
     # drive several backends at once.
 
+    solver_class: ClassVar[type[SolverBase] | None] = None
+    """Newton solver the default :meth:`create_solver` constructs from the matching configuration fields."""
+
     builder_attribute_solvers: ClassVar[tuple[type[SolverBase], ...]] = ()
     """Solvers whose custom builder attributes are registered before import."""
 
@@ -949,6 +952,8 @@ class NewtonManager(PhysicsManager):
     ) -> SolverBase:
         """Construct the configured solver. Coupled solvers call this to build their entries.
 
+        The default constructs :attr:`solver_class` from the configuration fields its constructor accepts.
+
         Args:
             model: Model or model view the solver runs on.
             solver_cfg: Solver configuration.
@@ -957,7 +962,9 @@ class NewtonManager(PhysicsManager):
         Returns:
             The solver.
         """
-        raise NotImplementedError(f"{cls.__name__} does not implement solver construction.")
+        if cls.solver_class is None:
+            raise NotImplementedError(f"{cls.__name__} does not implement solver construction.")
+        return cls.solver_class(model, **cls.solver_kwargs(cls.solver_class, solver_cfg, deterministic_mode))
 
     @staticmethod
     def solver_kwargs(solver_cls: type, solver_cfg: Any, deterministic_mode: wp.DeterministicMode) -> dict:

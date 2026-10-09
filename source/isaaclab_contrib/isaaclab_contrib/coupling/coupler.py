@@ -149,12 +149,6 @@ class NewtonCouplerManager(NewtonManager):
                 raise ValueError(
                     f"CouplerEntryCfg {entry.name!r} contains a nested CouplerCfg; nested couplers are not supported."
                 )
-            create_solver = getattr(nested_cfg.class_type, "create_solver", None)
-            if getattr(create_solver, "__func__", None) in (None, NewtonManager.create_solver.__func__):
-                raise TypeError(
-                    f"CouplerEntryCfg {entry.name!r} uses {type(nested_cfg).__name__}, whose manager "
-                    "does not implement nested solver construction."
-                )
             if isinstance(nested_cfg, (KaminoPADMMSolverCfg, KaminoDVISolverCfg)):
                 raise NotImplementedError(
                     f"CouplerEntryCfg {entry.name!r} uses a Kamino solver config, whose manager-specific FK/reset "
