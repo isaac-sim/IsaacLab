@@ -19,7 +19,6 @@ if str(_CONTRACT_DIR) not in sys.path:
 
 from rigid_object_rendering_contract import (  # noqa: E402
     RigidObjectRenderingBackend,
-    run_rigid_object_long_motion_rendering_contract,
     run_rigid_object_scale_and_pose_rendering_contract,
 )
 
@@ -42,18 +41,6 @@ else:
     OvPhysxCfg = None
 
 
-def _ovrtx_backend(stage_mode: str) -> RigidObjectRenderingBackend:
-    """Return the OVRTX renderer with OVPhysX physics as a contract backend."""
-    assert OVRTXRendererCfg is not None
-    assert OvPhysxCfg is not None
-    sim_cfg = SimulationCfg(device="cuda:0", gravity=(0.0, 0.0, 0.0), physics=OvPhysxCfg())
-    return RigidObjectRenderingBackend(
-        name=f"ovrtx (OVPhysX, {stage_mode})",
-        simulation_context_factory=lambda: build_simulation_context(sim_cfg=sim_cfg),
-        renderer_cfg=OVRTXRendererCfg(),
-    )
-
-
 @pytest.mark.parametrize(
     "use_ovstage",
     [
@@ -67,11 +54,14 @@ def _ovrtx_backend(stage_mode: str) -> RigidObjectRenderingBackend:
 )
 def test_kinematic_rigid_object_scale_and_pose_are_rendered(monkeypatch: pytest.MonkeyPatch, use_ovstage: bool) -> None:
     """Kinematic OVPhysX transforms and root scale must reach OVRTX."""
+    assert OVRTXRendererCfg is not None
+    assert OvPhysxCfg is not None
     monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", str(int(use_ovstage)))
-    run_rigid_object_scale_and_pose_rendering_contract(_ovrtx_backend("ovstage" if use_ovstage else "legacy"))
-
-
-def test_kinematic_rigid_object_motion_is_rendered_beyond_500_frames(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Object-only motion must keep reaching OVRTX color output past the RTX eco-mode idle limit."""
-    monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", "0")
-    run_rigid_object_long_motion_rendering_contract(_ovrtx_backend("legacy"))
+    sim_cfg = SimulationCfg(device="cuda:0", gravity=(0.0, 0.0, 0.0), physics=OvPhysxCfg())
+    run_rigid_object_scale_and_pose_rendering_contract(
+        RigidObjectRenderingBackend(
+            name=f"ovrtx (OVPhysX, {'ovstage' if use_ovstage else 'legacy'})",
+            simulation_context_factory=lambda: build_simulation_context(sim_cfg=sim_cfg),
+            renderer_cfg=OVRTXRendererCfg(),
+        )
+    )

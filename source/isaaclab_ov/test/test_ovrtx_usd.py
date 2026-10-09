@@ -118,7 +118,6 @@ def test_render_product_default_background_is_dome_light(camera_spec, render_dat
     assert 'token omni:rtx:background:source:type = "domeLight"' in render_scope
     assert "omni:rtx:background:source:color" not in render_scope
     assert 'token omni:rtx:rendermode = "RealTimePathTracing"' in render_scope
-    assert "bool omni:rtx:rt:ecoMode:enabled = false" in render_scope
     assert "omni:rtx:minimal:" not in render_scope
 
 

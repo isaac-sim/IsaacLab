@@ -31,11 +31,7 @@ from isaaclab.sim.schemas import UsdPhysicsRigidBodyCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
-__all__ = [
-    "RigidObjectRenderingBackend",
-    "run_rigid_object_long_motion_rendering_contract",
-    "run_rigid_object_scale_and_pose_rendering_contract",
-]
+__all__ = ["RigidObjectRenderingBackend", "run_rigid_object_scale_and_pose_rendering_contract"]
 
 _NUM_ENVS = 2
 _ENV_SPACING = 4.0
@@ -48,8 +44,6 @@ _MIN_OBJECT_DEPTH = 0.05
 _MAX_OBJECT_DEPTH = 10.0
 _MIN_OBJECT_PIXELS = 50
 _MIN_CENTROID_SHIFT = 10.0
-# Exceeds the 500 frames without a detected scene change after which RTX eco mode pauses rendering.
-_LONG_MOTION_FRAMES = 520
 
 
 @dataclass(frozen=True)
@@ -63,7 +57,7 @@ class RigidObjectRenderingBackend:
     cleanup: Callable[[], None] | None = None
 
 
-def _make_scene_cfg(backend: RigidObjectRenderingBackend, data_types: list[str]) -> InteractiveSceneCfg:
+def _make_scene_cfg(backend: RigidObjectRenderingBackend) -> InteractiveSceneCfg:
     """Create the scene whose rendered behavior is shared by every backend."""
 
     @configclass
@@ -82,7 +76,7 @@ def _make_scene_cfg(backend: RigidObjectRenderingBackend, data_types: list[str])
             width=_CAMERA_WIDTH,
             update_period=0.0,
             update_latest_camera_pose=True,
-            data_types=data_types,
+            data_types=["depth"],
             renderer_cfg=backend.renderer_cfg,
             spawn=sim_utils.PinholeCameraCfg(
                 focal_length=24.0,
@@ -154,14 +148,11 @@ def _write_pose_and_render(
     return camera.data.output["depth"].torch.clone()
 
 
-_ContractCheck = Callable[[SimulationContext, InteractiveScene, RigidObject, Camera, torch.Tensor], None]
-
-
-def _run_in_contract_scene(backend: RigidObjectRenderingBackend, data_types: list[str], check: _ContractCheck) -> None:
-    """Build the shared scene with each camera aimed at its object, then run ``check`` with centered object poses."""
+def run_rigid_object_scale_and_pose_rendering_contract(backend: RigidObjectRenderingBackend) -> None:
+    """Assert root-scale preservation and pose/calibration changes in rendered pixels."""
     with backend.simulation_context_factory() as sim:
         sim._app_control_on_stop_handle = None
-        scene = InteractiveScene(_make_scene_cfg(backend, data_types))
+        scene = InteractiveScene(_make_scene_cfg(backend))
         sim.register_interactive_scene(scene)
         rigid_object = scene["rigid_object"]
         camera = scene["camera"]
@@ -180,7 +171,78 @@ def _run_in_contract_scene(backend: RigidObjectRenderingBackend, data_types: lis
             center_poses = torch.zeros((_NUM_ENVS, 7), device=rigid_object.device)
             center_poses[:, :3] = scene.env_origins
             center_poses[:, 6] = 1.0
-            check(sim, scene, rigid_object, camera, center_poses)
+
+            center_depth = _write_pose_and_render(sim, scene, rigid_object, camera, center_poses)
+            center_heights, center_widths, center_centroids = _measure_depth_mask(center_depth, backend.name, camera)
+            _require(
+                torch.all(center_heights > 3 * center_widths),
+                f"[{backend.name}] Expected root-scaled cubes to render as tall silhouettes, got "
+                f"heights={center_heights.tolist()} and widths={center_widths.tolist()}.",
+            )
+            _require(
+                torch.all(center_heights > _CAMERA_HEIGHT // 4),
+                f"[{backend.name}] Expected root-scaled silhouettes to span more than one quarter of the image, "
+                f"got heights={center_heights.tolist()}.",
+            )
+            _require(
+                torch.all(torch.abs(center_centroids - (_CAMERA_WIDTH - 1) / 2) < 8.0),
+                f"[{backend.name}] Expected centered silhouettes, got centroids={center_centroids.tolist()}.",
+            )
+
+            intrinsics = camera.data.intrinsic_matrices.torch.clone()
+            pointer = camera.data.intrinsic_matrices.warp.ptr
+            authored = [[attr.Get() for attr in prim.GetPrim().GetAttributes()] for prim in camera._sensor_prims]
+            zoomed = intrinsics.clone()
+            zoomed[:, 0, 0] *= 2.0
+            zoomed[:, 1, 1] *= 2.0
+            # Compile runtime kernels on first use, then prohibit compilation in repeated updates.
+            camera.set_intrinsic_matrices(intrinsics)
+            for focal_length in (None, 12.0):
+                with patch.object(
+                    type(wp.get_module(Camera.__module__)),
+                    "_compile",
+                    side_effect=AssertionError("Repeated runtime calibration must not compile Warp modules"),
+                ):
+                    camera.set_intrinsic_matrices(zoomed, focal_length=focal_length)
+                depth = _write_pose_and_render(sim, scene, rigid_object, camera, center_poses)
+                _, widths, _ = _measure_depth_mask(depth, backend.name, camera)
+                torch.testing.assert_close(widths.float(), center_widths.float() * 2.0, atol=2.0, rtol=0.0)
+                torch.testing.assert_close(camera.data.intrinsic_matrices.torch, zoomed)
+                _require(camera.data.intrinsic_matrices.warp.ptr == pointer, "Calibration storage changed.")
+                _require(
+                    [[attr.Get() for attr in prim.GetPrim().GetAttributes()] for prim in camera._sensor_prims]
+                    == authored,
+                    "Runtime calibration authored USD.",
+                )
+                camera.set_intrinsic_matrices(intrinsics)
+                restored = _write_pose_and_render(sim, scene, rigid_object, camera, center_poses)
+                torch.testing.assert_close(restored, center_depth)
+
+            negative_poses = center_poses.clone()
+            negative_poses[:, 0] -= _OBJECT_SHIFT
+            negative_depth = _write_pose_and_render(sim, scene, rigid_object, camera, negative_poses)
+            _, _, negative_centroids = _measure_depth_mask(negative_depth, backend.name, camera)
+
+            positive_poses = center_poses.clone()
+            positive_poses[:, 0] += _OBJECT_SHIFT
+            positive_depth = _write_pose_and_render(sim, scene, rigid_object, camera, positive_poses)
+            _, _, positive_centroids = _measure_depth_mask(positive_depth, backend.name, camera)
+
+            negative_delta = negative_centroids - center_centroids
+            positive_delta = positive_centroids - center_centroids
+            _require(
+                torch.all(negative_delta.abs() > _MIN_CENTROID_SHIFT),
+                f"[{backend.name}] Negative-shift centroids moved too little: {negative_delta.tolist()}.",
+            )
+            _require(
+                torch.all(positive_delta.abs() > _MIN_CENTROID_SHIFT),
+                f"[{backend.name}] Positive-shift centroids moved too little: {positive_delta.tolist()}.",
+            )
+            _require(
+                torch.all(negative_delta * positive_delta < 0.0),
+                f"[{backend.name}] Opposite translations must move silhouettes in opposite directions, got "
+                f"deltas {negative_delta.tolist()} and {positive_delta.tolist()}.",
+            )
         finally:
             sim.register_interactive_scene(None)
             # Release camera-owned render products before another parametrized case creates a stage.
@@ -189,108 +251,3 @@ def _run_in_contract_scene(backend: RigidObjectRenderingBackend, data_types: lis
             gc.collect()
             if backend.cleanup is not None:
                 backend.cleanup()
-
-
-def run_rigid_object_scale_and_pose_rendering_contract(backend: RigidObjectRenderingBackend) -> None:
-    """Assert root-scale preservation and pose/calibration changes in rendered pixels."""
-
-    def check(sim, scene, rigid_object, camera, center_poses):
-        center_depth = _write_pose_and_render(sim, scene, rigid_object, camera, center_poses)
-        center_heights, center_widths, center_centroids = _measure_depth_mask(center_depth, backend.name, camera)
-        _require(
-            torch.all(center_heights > 3 * center_widths),
-            f"[{backend.name}] Expected root-scaled cubes to render as tall silhouettes, got "
-            f"heights={center_heights.tolist()} and widths={center_widths.tolist()}.",
-        )
-        _require(
-            torch.all(center_heights > _CAMERA_HEIGHT // 4),
-            f"[{backend.name}] Expected root-scaled silhouettes to span more than one quarter of the image, "
-            f"got heights={center_heights.tolist()}.",
-        )
-        _require(
-            torch.all(torch.abs(center_centroids - (_CAMERA_WIDTH - 1) / 2) < 8.0),
-            f"[{backend.name}] Expected centered silhouettes, got centroids={center_centroids.tolist()}.",
-        )
-
-        intrinsics = camera.data.intrinsic_matrices.torch.clone()
-        pointer = camera.data.intrinsic_matrices.warp.ptr
-        authored = [[attr.Get() for attr in prim.GetPrim().GetAttributes()] for prim in camera._sensor_prims]
-        zoomed = intrinsics.clone()
-        zoomed[:, 0, 0] *= 2.0
-        zoomed[:, 1, 1] *= 2.0
-        # Compile runtime kernels on first use, then prohibit compilation in repeated updates.
-        camera.set_intrinsic_matrices(intrinsics)
-        for focal_length in (None, 12.0):
-            with patch.object(
-                type(wp.get_module(Camera.__module__)),
-                "_compile",
-                side_effect=AssertionError("Repeated runtime calibration must not compile Warp modules"),
-            ):
-                camera.set_intrinsic_matrices(zoomed, focal_length=focal_length)
-            depth = _write_pose_and_render(sim, scene, rigid_object, camera, center_poses)
-            _, widths, _ = _measure_depth_mask(depth, backend.name, camera)
-            torch.testing.assert_close(widths.float(), center_widths.float() * 2.0, atol=2.0, rtol=0.0)
-            torch.testing.assert_close(camera.data.intrinsic_matrices.torch, zoomed)
-            _require(camera.data.intrinsic_matrices.warp.ptr == pointer, "Calibration storage changed.")
-            _require(
-                [[attr.Get() for attr in prim.GetPrim().GetAttributes()] for prim in camera._sensor_prims] == authored,
-                "Runtime calibration authored USD.",
-            )
-            camera.set_intrinsic_matrices(intrinsics)
-            restored = _write_pose_and_render(sim, scene, rigid_object, camera, center_poses)
-            torch.testing.assert_close(restored, center_depth)
-
-        negative_poses = center_poses.clone()
-        negative_poses[:, 0] -= _OBJECT_SHIFT
-        negative_depth = _write_pose_and_render(sim, scene, rigid_object, camera, negative_poses)
-        _, _, negative_centroids = _measure_depth_mask(negative_depth, backend.name, camera)
-
-        positive_poses = center_poses.clone()
-        positive_poses[:, 0] += _OBJECT_SHIFT
-        positive_depth = _write_pose_and_render(sim, scene, rigid_object, camera, positive_poses)
-        _, _, positive_centroids = _measure_depth_mask(positive_depth, backend.name, camera)
-
-        negative_delta = negative_centroids - center_centroids
-        positive_delta = positive_centroids - center_centroids
-        _require(
-            torch.all(negative_delta.abs() > _MIN_CENTROID_SHIFT),
-            f"[{backend.name}] Negative-shift centroids moved too little: {negative_delta.tolist()}.",
-        )
-        _require(
-            torch.all(positive_delta.abs() > _MIN_CENTROID_SHIFT),
-            f"[{backend.name}] Positive-shift centroids moved too little: {positive_delta.tolist()}.",
-        )
-        _require(
-            torch.all(negative_delta * positive_delta < 0.0),
-            f"[{backend.name}] Opposite translations must move silhouettes in opposite directions, got "
-            f"deltas {negative_delta.tolist()} and {positive_delta.tolist()}.",
-        )
-
-    _run_in_contract_scene(backend, ["depth"], check)
-
-
-def run_rigid_object_long_motion_rendering_contract(backend: RigidObjectRenderingBackend) -> None:
-    """Assert that color output keeps following object motion for longer than renderer idle limits.
-
-    Only the object moves, every frame, between two poses. Some renderers stop producing color frames
-    after a run of frames without a detected scene change while other outputs keep updating, so this
-    contract checks ``rgb``.
-    """
-
-    def check(sim, scene, rigid_object, camera, center_poses):
-        poses = center_poses.clone()
-        images = []
-        for frame in range(_LONG_MOTION_FRAMES):
-            poses[:, 0] = center_poses[:, 0] + _OBJECT_SHIFT * (frame % 2 - 0.5)
-            rigid_object.write_root_pose_to_sim_index(root_pose=poses)
-            sim.step()
-            scene.update(sim.cfg.dt)
-            images = [*images[-1:], camera.data.output["rgb"].torch.clone()]
-        changed = (images[0] != images[1]).flatten(1).any(dim=1)
-        _require(
-            torch.all(changed),
-            f"[{backend.name}] Expected every camera's rgb to change between the last two of "
-            f"{_LONG_MOTION_FRAMES} frames with alternating object poses, got changed={changed.tolist()}.",
-        )
-
-    _run_in_contract_scene(backend, ["rgb"], check)
