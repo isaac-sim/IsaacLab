@@ -61,9 +61,10 @@ User-stated preferences override the routing and map directly:
 Use the China profile only when the user requests it or states that Isaac Lab will run in mainland China. Do not
 infer the profile from an IP address or other geolocation lookup.
 
-Read the `installation-asset-region-profiles` section in `docs/source/setup/installation/index.rst` from the checkout
-every time. Use its current profile setting and asset-availability manifest instead of copying release numbers,
-service endpoints, bucket names, or CDN URLs into the skill.
+Read the `installation-asset-region-profiles` section in
+`docs/source/how-to/manage_asset_downloads.rst` from the checkout every time. Use its current profile
+setting and asset-availability manifest instead of copying release numbers, service endpoints,
+bucket names, or CDN URLs into the skill.
 
 - Add the documented profile environment variable to the install verification and subsequent example commands. Do
   not edit shell startup files unless the user explicitly requests persistence.

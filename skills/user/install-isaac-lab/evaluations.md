@@ -101,7 +101,8 @@ Expected behavior:
 
 - Runs the normal preflight and chooses the install method from current system requirements rather than changing the
   package source solely because of location.
-- Reads the Asset Region Profiles section in `index.rst`, includes the documented China profile setting in the single consolidated plan,
+- Reads the Asset Region Profiles section in `docs/source/how-to/manage_asset_downloads.rst`, includes
+  the documented China profile setting in the single consolidated plan,
   and handles an existing `ISAACSIM_ASSET_ROOT` according to its documented precedence.
 - Runs the normal verification with the profile selected, while stating that this does not prove every mirrored asset
   is available.
