@@ -1020,8 +1020,10 @@ def _flush_newton_render_for_motion_capture(visualizer) -> None:
     """
     visualizer.step(0.0)
     if isinstance(visualizer, NewtonRTXVisualizer):
-        # Async OVRTX hands back the previous submission, so one extra capture pushes the latest state through.
+        # Async OVRTX displays the previous submission. Advance another display frame so the next
+        # capture observes the current state instead of rereading the shared cached image.
         visualizer.render_rgb_array()
+        visualizer.step(0.0)
 
 
 def _assert_newton_rtx_markers_drawn(env, visualizer: NewtonRTXVisualizer, *, case_label: str) -> None:

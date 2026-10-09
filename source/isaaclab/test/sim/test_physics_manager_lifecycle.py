@@ -299,6 +299,7 @@ def test_clear_instance_closes_renderers_before_native_backends(monkeypatch, ren
     context._render_context._visual_material_writers = (Resource("writers"),)
     context._visualizers = [Resource("visualizer_failed", ValueError("visualizer failed")), Resource("visualizer_last")]
     context._pending_visualizers = [Resource("visualizer_pending")]
+    context._image_views = {0: Resource("image_view")}
     context.clone_contexts = {object: object()}
     groups = (
         (RendererCfg, (("renderer_failed", OSError("renderer failed")), ("renderer_last", None))),
@@ -338,6 +339,7 @@ def test_clear_instance_closes_renderers_before_native_backends(monkeypatch, ren
         "visualizer_failed",
         "visualizer_last",
         "visualizer_pending",
+        "image_view",
         # native backends close newest first
         "backend_last",
         "backend_failed",
@@ -347,6 +349,7 @@ def test_clear_instance_closes_renderers_before_native_backends(monkeypatch, ren
     ]
     assert context._visualizers == []
     assert context._pending_visualizers == []
+    assert context._image_views == {}
     assert context._backend_registry == []
     assert context.clone_contexts == {}
     assert SimulationContext.instance() is None
@@ -375,6 +378,7 @@ def test_clear_instance_drops_owned_context_references_before_garbage_collection
     context._render_context = RenderContext()
     context._visualizers = []
     context._pending_visualizers = []
+    context._image_views = {}
     context._backend_registry = []
     context.clone_contexts = {}
     context_ref = weakref.ref(context)
