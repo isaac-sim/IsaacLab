@@ -3,7 +3,7 @@
 SO-101 Keyboard Typing with Isaac Lab
 =====================================
 
-The `SO-101 typing project <https://github.com/NVIDIA>`_ trains
+The `SO-101 typing project <https://github.com/NVIDIA/so101-typing-task>`_ trains
 an SO-101 follower to press letters on a fixed Logitech MX Keys keyboard with
 its typing jaw, then runs the learned policy on hardware through LeRobot.
 Use it to explore sim-to-real typing, play a released policy in simulation,
@@ -16,7 +16,7 @@ or calibrate and train a policy for your own robot and keyboard setup.
    `6f991d4becf7 <https://github.com/ooctipus/IsaacLab/commit/6f991d4becf764b151e0a1c775561ddd9c406f72>`_.
    Use the project's Docker image rather than an existing Isaac Lab installation.
    Compatibility with unmodified 3.0 GA or later versions has not been validated.
-   See the `runtime provenance <https://github.com/NVIDIA>`_
+   See the `runtime provenance <https://github.com/NVIDIA/so101-typing-task/blob/main/runtime/README.md>`_
    for the source patch and dependency pins.
 
 What the project includes
@@ -49,18 +49,17 @@ your GPU's memory; this also changes the number of samples per training update.
 Hardware deployment additionally requires an SO-101 follower with the supported
 typing jaw, a Logitech MX Keys keyboard, and ``uv`` for the separate LeRobot
 environment. Hardware inference does not require Isaac Sim or a GPU. See the
-`hardware preparation guide <https://github.com/NVIDIA>`_
+`hardware preparation guide <https://github.com/NVIDIA/so101-typing-task/blob/main/docs/release/HARDWARE_PREPARATION.md>`_
 for calibration, device access and operator procedures.
 
 Get started in simulation
 -------------------------
 
-Once the repository is public, replace ``REPOSITORY_URL`` below with its clone
-URL and build the pinned runtime:
+Clone the public repository and build its pinned runtime:
 
 .. code-block:: bash
 
-   git clone REPOSITORY_URL so101-typing-task
+   git clone https://github.com/NVIDIA/so101-typing-task.git
    cd so101-typing-task
    ./so101 build
 
@@ -81,20 +80,20 @@ and deployment. The first simulation launch compiles Warp kernels.
 Training and physical deployment
 --------------------------------
 
-Follow the repository's `training guide <https://github.com/NVIDIA>`_
+Follow the repository's `training guide <https://github.com/NVIDIA/so101-typing-task/blob/main/docs/release/TRAINING.md>`_
 for the two-letter P1A and six-letter Transit15 stages. Its demonstrated starting
 budget is 500 P1A plus 2,000 Transit15 updates with 4,096 environments. Evaluate
 between stages and increase the budget if needed; this is not a guaranteed minimum.
 The example seeds make experiments reproducible and are not required values for success.
 
 Before hardware execution, follow the
-`scene calibration <https://github.com/NVIDIA>`_
-and `alignment checks <https://github.com/NVIDIA>`_
+`scene calibration <https://github.com/NVIDIA/so101-typing-task/blob/main/docs/release/REAL2SIM.md>`_
+and `alignment checks <https://github.com/NVIDIA/so101-typing-task/blob/main/docs/release/ALIGNMENT.md>`_
 for your robot. The released joint-angle offsets map encoder readings to model
 coordinates for the original setup; they do not calibrate another robot.
 
 The repository maintains the detailed
-`simulation quickstart <https://github.com/NVIDIA>`_,
-`fixture setup <https://github.com/NVIDIA>`_,
-and `configuration guide <https://github.com/NVIDIA>`_.
+`simulation quickstart <https://github.com/NVIDIA/so101-typing-task/blob/main/docs/release/QUICKSTART.md>`_,
+`fixture setup <https://github.com/NVIDIA/so101-typing-task/blob/main/FIXTURE_SETUP.md>`_,
+and `configuration guide <https://github.com/NVIDIA/so101-typing-task/blob/main/docs/release/TASK_CONFIGURATION.md>`_.
 Use those guides for training, debugging, evaluation and deployment instructions.
