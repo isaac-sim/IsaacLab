@@ -114,6 +114,12 @@ How-to Guides
 
       .. container:: guide-entry
 
+         :doc:`Managing asset downloads </source/how-to/manage_asset_downloads>`
+
+         Cache remote assets, migrate Nucleus setups, and select a regional asset service.
+
+      .. container:: guide-entry
+
          :doc:`Preparing an asset for Newton with MJWarp </source/how-to/prepare_asset_for_newton>`
 
          Prepare an asset and task to run with the Newton MJWarp physics preset.
