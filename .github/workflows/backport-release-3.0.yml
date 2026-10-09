@@ -388,3 +388,6 @@ jobs:
             --body-file "$body_file" \
             --draft)
           echo "Inference-resolved draft backport PR: $pr_url" >> "$GITHUB_STEP_SUMMARY"
+          # Docker CI runs only on request; the App token's comment triggers run-docker-ci.yml.
+          gh pr comment "$pr_url" --body "run-ci" \
+            || echo "::warning::The draft PR was opened, but Docker CI could not be requested. Comment 'run-ci' on it."
