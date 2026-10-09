@@ -406,6 +406,7 @@ from isaaclab_teleop import IsaacTeleopDevice, create_isaac_teleop_device, poll_
 
 from isaaclab.devices.openxr import remove_camera_configs
 from isaaclab.envs import ManagerBasedRLEnvCfg
+from isaaclab.envs.utils._manual_success import _prepare_success_term
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import parse_env_cfg
@@ -1055,7 +1056,7 @@ def _prepare_env_cfg(
     Mirrors the env-config mutations performed by ``record_demos.py``'s
     :func:`create_environment_config`:
 
-    * The ``success`` term is extracted and cleared from the env config so the
+    * The ``success`` term is extracted and replaced by an inert term so the
       script can drive success detection (and the matching reset cycle)
       explicitly via :func:`_process_success_condition`, gated by
       ``--num_success_steps``. This matches record_demos.py's pattern of
@@ -1095,20 +1096,14 @@ def _prepare_env_cfg(
             "teleop_replay_agent only supports ManagerBasedRLEnv environments. "
             f"Received environment config type: {type(env_cfg).__name__}"
         )
-    success_term: object | None = None
-    if hasattr(env_cfg.terminations, "success"):
-        success_term = env_cfg.terminations.success
-        env_cfg.terminations.success = None
-    else:
+    success_term = _prepare_success_term(env_cfg)
+    if success_term is None:
         logger.warning(
             "No success termination term was found in the environment;"
             " success-driven resets will not fire during replay."
         )
     if hasattr(env_cfg.terminations, "time_out"):
         env_cfg.terminations.time_out = None
-    # Replay checks success manually and does not use training rewards or curricula.
-    env_cfg.rewards = {}
-    env_cfg.curriculum = {}
     # Keep camera configs when external cameras are enabled (defaulted on) so the replay
     # renders them for production parity; otherwise strip them for a lighter headless replay.
     if args_cli.disable_external_cameras:

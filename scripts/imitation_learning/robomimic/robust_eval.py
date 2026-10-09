@@ -72,6 +72,8 @@ import robomimic.utils.file_utils as FileUtils
 import robomimic.utils.torch_utils as TorchUtils
 import torch
 
+from isaaclab.envs.utils._manual_success import _prepare_success_term
+
 from isaaclab_tasks.utils import parse_env_cfg
 
 
@@ -224,11 +226,7 @@ def main() -> None:
     env_cfg.recorders = None
 
     # Extract success checking function
-    success_term = env_cfg.terminations.success
-    env_cfg.terminations.success = None
-    # Policy evaluation checks success manually and does not consume training rewards.
-    env_cfg.rewards = {}
-    env_cfg.curriculum = {}
+    success_term = _prepare_success_term(env_cfg)
 
     # Set evaluation settings
     env_cfg.eval_mode = True
