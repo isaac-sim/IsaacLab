@@ -108,9 +108,9 @@ from isaaclab_contrib.actuators import ThrusterCfg
 # Define thruster actuator configuration
 thruster_cfg = ThrusterCfg(
     thruster_names_expr=["rotor_[0-3]"],  # Match rotors 0-3
-    thrust_range=(0.0, 10.0),  # Min and max thrust in Newtons
-    rise_time_constant=0.12,  # Time constant for thrust increase (120ms)
-    fall_time_constant=0.25,  # Time constant for thrust decrease (250ms)
+    thrust_range=(0.0, 10.0),              # Min and max thrust in Newtons
+    rise_time_constant=0.12,               # Time constant for thrust increase (120ms)
+    fall_time_constant=0.25,               # Time constant for thrust decrease (250ms)
 )
 
 # Create multirotor configuration
@@ -120,19 +120,19 @@ multirotor_cfg = MultirotorCfg(
         usd_path="path/to/quadcopter.usd",
     ),
     init_state=MultirotorCfg.InitialStateCfg(
-        pos=(0.0, 0.0, 1.0),  # Start 1m above ground
-        rps={".*": 110.0},  # All thrusters at 110 RPS (hover)
+        pos=(0.0, 0.0, 1.0),    # Start 1m above ground
+        rps={".*": 110.0},      # All thrusters at 110 RPS (hover)
     ),
     actuators={
         "thrusters": thruster_cfg,
     },
     allocation_matrix=[  # 6x4 matrix for quadcopter
-        [1.0, 1.0, 1.0, 1.0],  # Total vertical thrust
-        [0.0, 0.0, 0.0, 0.0],  # Lateral force X
-        [0.0, 0.0, 0.0, 0.0],  # Lateral force Y
-        [0.0, 0.13, 0.0, -0.13],  # Roll torque
-        [-0.13, 0.0, 0.13, 0.0],  # Pitch torque
-        [0.01, -0.01, 0.01, -0.01],  # Yaw torque
+        [1.0, 1.0, 1.0, 1.0],       # Total vertical thrust
+        [0.0, 0.0, 0.0, 0.0],       # Lateral force X
+        [0.0, 0.0, 0.0, 0.0],       # Lateral force Y
+        [0.0, 0.13, 0.0, -0.13],    # Roll torque
+        [-0.13, 0.0, 0.13, 0.0],    # Pitch torque
+        [0.01, -0.01, 0.01, -0.01], # Yaw torque
     ],
     rotor_directions=[1, -1, 1, -1],  # Alternating CW/CCW
 )
@@ -145,7 +145,6 @@ from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.utils import configclass
 from isaaclab_contrib.mdp.actions import ThrustActionCfg
 
-
 @configclass
 class QuadcopterEnvCfg(ManagerBasedRLEnvCfg):
     # ... scene, observations, rewards, etc. ...
@@ -155,9 +154,9 @@ class QuadcopterEnvCfg(ManagerBasedRLEnvCfg):
         # Normalized thrust control around hover
         thrust = ThrustActionCfg(
             asset_name="robot",
-            scale=2.0,  # Actions in [-1,1] become [-2,2] N deviation
-            use_default_offset=True,  # Add hover thrust from config
-            clip={".*": (0.0, 10.0)},  # Constrain final thrust to [0, 10] N
+            scale=2.0,                    # Actions in [-1,1] become [-2,2] N deviation
+            use_default_offset=True,      # Add hover thrust from config
+            clip={".*": (0.0, 10.0)},    # Constrain final thrust to [0, 10] N
         )
 
     actions = ActionsCfg()
@@ -268,20 +267,26 @@ tactile_sensor_cfg = VisuoTactileSensorCfg(
     prim_path="{ENV_REGEX_NS}/Robot/elastomer/tactile_sensor",
     history_length=0,
     debug_vis=False,
+
     # Sensor rendering configuration
     render_cfg=GELSIGHT_R15_CFG,  # Use GelSight R15 sensor parameters
+
     # Enable RGB and/or force field sensing
-    enable_camera_tactile=True,  # RGB tactile images
-    enable_force_field=True,  # Force field data
+    enable_camera_tactile=True,    # RGB tactile images
+    enable_force_field=True,        # Force field data
+
     # Elastomer configuration
-    tactile_array_size=(20, 25),  # 20×25 taxel array
-    tactile_margin=0.003,  # 3mm sensor margin
+    tactile_array_size=(20, 25),   # 20×25 taxel array
+    tactile_margin=0.003,           # 3mm sensor margin
+
     # Contact object configuration
     contact_object_prim_path_expr="{ENV_REGEX_NS}/contact_object",
+
     # Force field physics parameters
-    normal_contact_stiffness=1.0,  # Normal stiffness (N/mm)
-    friction_coefficient=2.0,  # Surface friction
-    tangential_stiffness=0.1,  # Tangential stiffness
+    normal_contact_stiffness=1.0,   # Normal stiffness (N/mm)
+    friction_coefficient=2.0,        # Surface friction
+    tangential_stiffness=0.1,        # Tangential stiffness
+
     # Camera configuration (dimensions must match GELSIGHT_R15_CFG which provides the render_cfg)
     camera_cfg=CameraCfg(
         prim_path="{ENV_REGEX_NS}/Robot/elastomer_tip/cam",
@@ -303,10 +308,12 @@ robot_cfg = ArticulationCfg(
     prim_path="{ENV_REGEX_NS}/Robot",
     spawn=sim_utils.UsdFileWithCompliantContactCfg(
         usd_path="path/to/gelsight_finger.usd",
+
         # Compliant contact parameters for elastomer
-        compliant_contact_stiffness=100.0,  # Elastomer stiffness
-        compliant_contact_damping=10.0,  # Elastomer damping
+        compliant_contact_stiffness=100.0,    # Elastomer stiffness
+        compliant_contact_damping=10.0,       # Elastomer damping
         physics_material_prim_path="elastomer",  # Prim with compliant contact
+
         rigid_props=PhysxRigidBodyCfg(
             disable_gravity=True,
             max_depenetration_velocity=5.0,
@@ -344,7 +351,7 @@ if tactile_data.tactile_rgb_image is not None:
 # Force field data (if enabled)
 if tactile_data.tactile_normal_force is not None:
     normal_forces = tactile_data.tactile_normal_force  # Shape: (num_envs * rows * cols,)
-    shear_forces = tactile_data.tactile_shear_force  # Shape: (num_envs * rows * cols, 2)
+    shear_forces = tactile_data.tactile_shear_force    # Shape: (num_envs * rows * cols, 2)
 
     # Reshape to tactile array dimensions
     num_envs = scene.num_envs
@@ -431,8 +438,8 @@ sim_cfg = sim_utils.SimulationCfg(
 Also ensure high solver iteration counts for the robot:
 
 ```python
-solver_position_iteration_count = 12  # Higher = more accurate contact resolution
-solver_velocity_iteration_count = 1
+solver_position_iteration_count=12  # Higher = more accurate contact resolution
+solver_velocity_iteration_count=1
 ```
 
 ### Performance Considerations

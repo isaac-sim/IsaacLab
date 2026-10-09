@@ -29,12 +29,13 @@ GOAL_MARKER_POS = (-0.2, 0.1, 0.6)
 """Goal-cube display position [m], environment frame, inside the Shadow Hand camera frustum."""
 
 VISUALIZER_CFG = VisualizerCfg(
-    eye=(0.2, -0.15, 1.35),
-    lookat=(-0.1, -0.15, 0.6),
-    focal_length=24.0,
     streaming_envs=[0],
     cameras=[
-        TrackingCameraCfg(),
+        TrackingCameraCfg(
+            eye=(0.2, -0.15, 1.35),
+            lookat=(-0.1, -0.15, 0.6),
+            focal_length=24.0,
+        ),
     ],
 )
 """Top-down recording view of the held cube beside its goal cube."""

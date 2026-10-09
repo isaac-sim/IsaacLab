@@ -25,16 +25,30 @@ def _quat_z(yaw: float) -> list[float]:
     return [0.0, 0.0, math.sin(yaw / 2), math.cos(yaw / 2)]
 
 
-class _Camera:
-    """Records the poses it is given."""
+class _Scene:
+    """Holds one asset, as the scene does."""
 
-    is_initialized, device = True, "cpu"
+    def __init__(self, asset, lazy: bool):
+        self.cfg = SimpleNamespace(lazy_sensor_update=lazy)
+        self._asset = asset
+
+    def __getitem__(self, name):
+        return self._asset
+
+
+class _Camera:
+    """Records the poses it is given and whether it was asked for fresh pixels."""
+
+    is_initialized, device, refreshed = True, "cpu", False
+
+    def update(self, dt, force_recompute=False):
+        self.refreshed = force_recompute
 
     def set_world_poses_from_view(self, eyes, targets, env_ids=None):
         self.eyes, self.targets, self.env_ids = eyes, targets, env_ids
 
 
-def _update(cfg: TrackingCameraCfg, yaws: list[float], dt: float = 0.1) -> _Camera:
+def _update(cfg: TrackingCameraCfg, yaws: list[float], dt: float = 0.1, lazy: bool = True) -> _Camera:
     """Run one update per yaw of a robot at (10, 0, 0.5) in env 1 of 2 and return the camera."""
     camera = _Camera()
     data = SimpleNamespace(
@@ -42,7 +56,7 @@ def _update(cfg: TrackingCameraCfg, yaws: list[float], dt: float = 0.1) -> _Came
         root_quat_w=SimpleNamespace(),
     )
     asset = SimpleNamespace(is_initialized=True, num_instances=2, data=data)
-    updater = TrackingCameraUpdater(cfg, camera, {"robot": asset})
+    updater = TrackingCameraUpdater(cfg, camera, _Scene(asset, lazy))
     for yaw in yaws:
         data.root_quat_w.torch = torch.tensor([[0.0, 0.0, 0.0, 1.0], _quat_z(yaw)])
         updater.update([1], dt)
@@ -65,45 +79,53 @@ def test_heading_rotates_the_offsets_and_smoothing_lags_the_turn():
 
 
 def _env_cfg(**sim_kwargs):
-    default = VisualizerCfg(eye=(1.0, 2.0, 3.0), lookat=(0.0, 0.0, 0.5), focal_length=30.0)
-    default.cameras = [TrackingCameraCfg(prim_path="{ENV_REGEX_NS}/Chase")]
+    default = VisualizerCfg(cameras=[TrackingCameraCfg(prim_path="{ENV_REGEX_NS}/Chase")])
     return ManagerBasedRLEnvCfg(
         sim=SimulationCfg(default_visualizer_cfg=default, **sim_kwargs), scene=InteractiveSceneCfg()
     )
 
 
+def _add(env_cfg) -> bool:
+    return add_tracking_cameras(env_cfg, env_cfg.sim, None)
+
+
+def test_an_eager_scene_gets_fresh_pixels_after_the_camera_moves():
+    cfg = TrackingCameraCfg(track_path="robot")
+    assert _update(cfg, [0.0], lazy=False).refreshed
+    assert not _update(cfg, [0.0], lazy=True).refreshed
+
+
 def test_cameras_are_added_only_when_a_visualizer_uses_them():
-    idle, viewed = _env_cfg(), _env_cfg()
-    add_tracking_cameras(idle, {"visualizer": []})
-    add_tracking_cameras(viewed, {"visualizer": ["newton_gl"], "physics": "newton_mjwarp"})
-    assert not hasattr(idle.scene, "Chase")
+    idle = _env_cfg()
+    viewed = _env_cfg(visualizer_cfgs=[VisualizerCfg(visualizer_type="newton_gl", background_color=(0.1, 0.2, 0.3))])
+    assert not _add(idle) and not hasattr(idle.scene, "Chase")
+    assert _add(viewed)
     assert viewed.scene.Chase.prim_path == "{ENV_REGEX_NS}/Chase"
+    assert viewed.scene.Chase.background_color == (0.1, 0.2, 0.3)
 
 
-def test_camera_follows_the_visualizer_pose_unless_it_sets_its_own():
-    inherited, explicit = _env_cfg(), _env_cfg()
-    explicit.sim.default_visualizer_cfg.cameras[0].eye = (5.0, 5.0, 5.0)
-    for cfg in (inherited, explicit):
-        add_tracking_cameras(cfg, {"visualizer": ["newton_gl"], "physics": "newton_mjwarp"})
-    assert inherited.scene.Chase.offset.pos == (1.0, 2.0, 3.0)
-    assert inherited.scene.Chase.spawn.focal_length == 30.0
-    assert explicit.scene.Chase.offset.pos == (5.0, 5.0, 5.0)
+def test_newton_physics_renders_with_the_newton_warp_renderer():
+    from isaaclab_newton.physics import NewtonCfg
 
-
-def test_single_visualizer_config_and_conflicting_declarations():
     cfg = _env_cfg(visualizer_cfgs=VisualizerCfg(visualizer_type="newton_gl"))
-    add_tracking_cameras(cfg, {"visualizer": ["newton_gl"], "physics": "newton_mjwarp"})
-    assert hasattr(cfg.scene, "Chase")
+    assert add_tracking_cameras(cfg, cfg.sim, NewtonCfg())
+    assert cfg.scene.Chase.renderer_cfg.renderer_type == "newton_warp"
 
+
+def test_a_visualizers_own_cameras_win_and_conflicts_are_rejected():
     own = VisualizerCfg(cameras=[TrackingCameraCfg(prim_path="{ENV_REGEX_NS}/Chase", resolution=(320, 240))])
     cfg = _env_cfg(visualizer_cfgs=[own])
-    add_tracking_cameras(cfg, {"visualizer": ["newton_gl"], "physics": "newton_mjwarp"})
+    assert _add(cfg)
     assert (cfg.scene.Chase.width, cfg.scene.Chase.height) == (320, 240)
 
     cfg = _env_cfg(visualizer_cfgs=[own, VisualizerCfg()])
-    cfg.sim.visualizer_cfgs[1].cameras = [TrackingCameraCfg(prim_path="{ENV_REGEX_NS}/Chase")]
     with pytest.raises(ValueError, match="different tracking cameras"):
-        add_tracking_cameras(cfg, {"visualizer": ["newton_gl"], "physics": "newton_mjwarp"})
+        _add(cfg)
+
+    cfg = _env_cfg(visualizer_cfgs=[VisualizerCfg()])
+    cfg.scene.Chase = object()
+    with pytest.raises(ValueError, match="already has an entry"):
+        _add(cfg)
 
 
 def test_negative_smoothing_time_constant_is_rejected():

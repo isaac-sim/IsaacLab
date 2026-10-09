@@ -82,12 +82,13 @@ class PendulumMARLEnvCfg(DirectMARLEnvCfg):
         render_interval=decimation,
         physics=PendulumPhysicsCfg(),
         default_visualizer_cfg=VisualizerCfg(
-            eye=(8.0, 0.0, 2.3),
-            lookat=(0.0, 0.0, 2.3),
-            focal_length=24.0,
             streaming_envs=[0],
             cameras=[
-                TrackingCameraCfg(),
+                TrackingCameraCfg(
+                    eye=(8.0, 0.0, 2.3),
+                    lookat=(0.0, 0.0, 2.3),
+                    focal_length=24.0,
+                ),
             ],
         ),
     )

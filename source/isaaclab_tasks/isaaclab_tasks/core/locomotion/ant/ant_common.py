@@ -18,12 +18,12 @@ from isaaclab.visualizers import TrackingCameraCfg, VisualizerCfg
 from isaaclab_tasks.utils import PresetCfg
 
 VISUALIZER_CFG = VisualizerCfg(
-    eye=(3.5, -1.0, 2.8),
-    lookat=(0.0, 0.0, 0.0),
-    focal_length=26.0,
     streaming_envs=[0],
     cameras=[
         TrackingCameraCfg(
+            eye=(3.5, -1.0, 2.8),
+            lookat=(0.0, 0.0, 0.0),
+            focal_length=26.0,
             track_path="robot",
             follow_heading=True,
             heading_smoothing_time_constant=0.5,

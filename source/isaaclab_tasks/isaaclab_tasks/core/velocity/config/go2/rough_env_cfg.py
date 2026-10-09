@@ -43,7 +43,7 @@ class UnitreeGo2RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
 
     def __post_init__(self):
         super().__post_init__()
-        self.sim.default_visualizer_cfg.eye = (1.5, -2.5, 1.1)
+        self.sim.default_visualizer_cfg.cameras[0].eye = (1.5, -2.5, 1.1)
 
         # simulation
         # execute the DC motor actuators through the backend-native path

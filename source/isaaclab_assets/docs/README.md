@@ -30,6 +30,7 @@ The recommended directory structure inside `data` is as follows:
 You can use the following snippet to refer to the assets:
 
 ```python
+
 from isaaclab_assets import ISAACLAB_ASSETS_DATA_DIR
 
 

@@ -564,12 +564,15 @@ class ReorientEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.physics = PhysicsCfg()
         # visualizer settings
         self.sim.default_visualizer_cfg = VisualizerCfg(
-            eye=(-1.8, -1.8, 1.45),
-            lookat=(-0.3, 0.0, 0.45),
-            focal_length=28.0,
+            eye=(-2.25, 0.0, 0.75),
+            lookat=(0.0, 0.0, 0.45),
             streaming_envs=[0],
             cameras=[
-                TrackingCameraCfg(),
+                TrackingCameraCfg(
+                    eye=(-1.8, -1.8, 1.45),
+                    lookat=(-0.3, 0.0, 0.45),
+                    focal_length=28.0,
+                ),
             ],
         )
 

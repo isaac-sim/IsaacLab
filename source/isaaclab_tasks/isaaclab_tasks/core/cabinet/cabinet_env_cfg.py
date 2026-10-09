@@ -109,12 +109,15 @@ class CabinetSimCfg(PresetCfg):
         render_interval=1,
         physics=PhysxCfg(bounce_threshold_velocity=0.01, friction_correlation_distance=0.00625),
         default_visualizer_cfg=VisualizerCfg(
-            eye=(-1.8, 2.0, 1.6),
-            lookat=(0.55, 0.0, 0.5),
-            focal_length=28.0,
+            eye=(-2.0, 2.0, 2.0),
+            lookat=(0.8, 0.0, 0.5),
             streaming_envs=[0],
             cameras=[
-                TrackingCameraCfg(),
+                TrackingCameraCfg(
+                    eye=(-1.8, 2.0, 1.6),
+                    lookat=(0.55, 0.0, 0.5),
+                    focal_length=28.0,
+                ),
             ],
         ),
     )

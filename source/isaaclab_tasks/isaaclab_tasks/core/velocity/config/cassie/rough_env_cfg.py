@@ -67,7 +67,7 @@ class CassieRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
 
     def __post_init__(self):
         super().__post_init__()
-        self.sim.default_visualizer_cfg.lookat = (0.15, 0.0, -0.25)
+        self.sim.default_visualizer_cfg.cameras[0].lookat = (0.15, 0.0, -0.25)
 
         # scene
         self.scene.robot = replace(CASSIE_CFG, prim_path="{ENV_REGEX_NS}/Robot")

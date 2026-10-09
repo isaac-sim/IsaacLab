@@ -199,7 +199,7 @@ Newton RTX accepts perspective sources only. Every explicit scene source must pr
 the requested ``streaming_gt_types`` channels.
 
 Tracking cameras
-~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~
 
 A ``TrackingCameraCfg`` follows a scene asset without changing the interactive camera, which stays free to
 move. When a visualizer is selected, or a video records a ``streaming_view`` source, the launcher adds a
@@ -211,11 +211,11 @@ camera to every environment; runs that display nothing do not pay for it. Set it
     from isaaclab.visualizers import TrackingCameraCfg, VisualizerCfg
 
     self.sim.default_visualizer_cfg = VisualizerCfg(
-        eye=(1.8, -3.0, 1.1),
-        lookat=(0.15, 0.0, 0.0),
         streaming_envs=[0],
         cameras=[
             TrackingCameraCfg(
+                eye=(1.8, -3.0, 1.1),
+                lookat=(0.15, 0.0, 0.0),
                 track_path="robot",
                 follow_heading=True,
                 heading_smoothing_time_constant=0.2,
@@ -224,9 +224,7 @@ camera to every environment; runs that display nothing do not pay for it. Set it
     )
 
 * ``eye`` and ``lookat`` are offsets [m] from the tracked asset, or from the environment origin when
-  ``track_path`` is None, which keeps the camera fixed in each environment. When unset they follow the
-  ``eye``, ``lookat`` and ``focal_length`` of the visualizer config that declares the camera, so one value frames
-  both the interactive view and the tracked one.
+  ``track_path`` is None, which keeps the camera fixed in each environment.
 * ``track_path`` names a scene asset (``"robot"``) or one of its bodies (``"robot/base"``).
 * ``follow_heading`` rotates the offsets with the asset's yaw, keeping the horizon level.
   ``heading_smoothing_time_constant`` [s] damps rapid turns; zero follows immediately.

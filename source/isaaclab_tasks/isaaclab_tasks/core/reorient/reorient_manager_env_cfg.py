@@ -232,4 +232,7 @@ class ReorientManagerEnvBaseCfg(ManagerBasedRLEnvCfg):
         self.commands.object_pose.orientation_success_threshold = self.goal_orientation_threshold
         self.commands.object_pose.goal_pose_visualizer_cfg = self.goal_marker_cfg
         self.sim.render_interval = self.decimation
-        self.sim.default_visualizer_cfg = VISUALIZER_CFG
+        # the viewport frames the hand; the tracking camera shows the held cube beside its goal
+        self.sim.default_visualizer_cfg = VISUALIZER_CFG.replace(
+            eye=(0.62, -0.80, 0.85), lookat=(0.0, -0.28, 0.53), focal_length=35.0
+        )

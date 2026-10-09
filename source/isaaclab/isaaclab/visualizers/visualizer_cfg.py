@@ -11,12 +11,13 @@ import argparse
 import math
 import warnings
 from dataclasses import MISSING
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from ..utils import configclass
 from ..utils.string import string_to_callable
 
 if TYPE_CHECKING:
+    from ..renderers.renderer_cfg import RendererCfg
     from .base_visualizer import BaseVisualizer
 
 
@@ -167,18 +168,14 @@ class TrackingCameraCfg(SceneCameraCfg):
     prim_path: str = "{ENV_REGEX_NS}/TrackingCamera"
     """Prim path of the created camera, including ``{ENV_REGEX_NS}``. Its last segment is the scene sensor name."""
 
-    eye: tuple[float, float, float] | None = None
-    """Camera eye offset [m] from the tracked asset, or from the environment origin when :attr:`track_path` is None.
+    eye: tuple[float, float, float] = (4.0, -4.0, 3.0)
+    """Camera eye offset [m] from the tracked asset, or from the environment origin when :attr:`track_path` is None."""
 
-    None uses :attr:`VisualizerCfg.eye` of the visualizer config that declares the camera, so a task adjusts both
-    views through one value.
-    """
+    lookat: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    """Camera look-at offset [m], in the same frame as :attr:`eye`."""
 
-    lookat: tuple[float, float, float] | None = None
-    """Camera look-at offset [m], in the same frame as :attr:`eye`. None uses :attr:`VisualizerCfg.lookat`."""
-
-    focal_length: float | None = None
-    """Camera focal length [mm]. None uses :attr:`VisualizerCfg.focal_length`."""
+    focal_length: float = 24.0
+    """Camera focal length [mm]."""
 
     resolution: tuple[int, int] = (1920, 1080)
     """Camera image size as (width, height) [px]."""
@@ -201,7 +198,7 @@ class TrackingCameraCfg(SceneCameraCfg):
     Larger values damp rapid turns more, with more lag. Only used with :attr:`follow_heading`.
     """
 
-    renderer_cfg: Any = None
+    renderer_cfg: RendererCfg | None = None
     """Renderer of the camera sensor, e.g. ``NewtonWarpRendererCfg(enable_shadows=True)`` to trade speed for
     quality. None uses the :class:`~isaaclab.sensors.CameraCfg` default."""
 

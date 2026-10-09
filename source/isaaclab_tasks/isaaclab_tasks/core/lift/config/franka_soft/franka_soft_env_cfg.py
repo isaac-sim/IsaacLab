@@ -639,12 +639,15 @@ class FrankaSoftEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.physics = PhysicsCfg()
         # visualizer settings
         self.sim.default_visualizer_cfg = _FrankaSoftVisualizerCfg(
-            eye=(1.8, -1.8, 1.5),
-            lookat=(0.35, 0.0, 0.35),
-            focal_length=28.0,
+            eye=(0.75, 0.25, 0.65),
+            lookat=(0.0, 0.75, 0.4),
             streaming_envs=[0],
             cameras=[
-                TrackingCameraCfg(),
+                TrackingCameraCfg(
+                    eye=(1.8, -1.8, 1.5),
+                    lookat=(0.35, 0.0, 0.35),
+                    focal_length=28.0,
+                ),
             ],
         )
 

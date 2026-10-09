@@ -23,11 +23,10 @@ if TYPE_CHECKING:
 
 
 def tracking_camera_cfgs(sim_cfg) -> dict[str, tuple[TrackingCameraCfg, VisualizerCfg]]:
-    """Return the tracking cameras the visualizers use with their declaring config, keyed by scene sensor name.
+    """Return the tracking cameras the visualizers use with the first visualizer using each, keyed by sensor name.
 
     A visualizer with its own ``cameras`` uses those; otherwise it uses the ``cameras`` of
-    :attr:`~isaaclab.sim.SimulationCfg.default_visualizer_cfg`, which is also all there is before the
-    launcher has resolved any visualizer.
+    :attr:`~isaaclab.sim.SimulationCfg.default_visualizer_cfg`.
 
     Raises:
         ValueError: If two visualizers declare different cameras under the same name.
@@ -35,10 +34,10 @@ def tracking_camera_cfgs(sim_cfg) -> dict[str, tuple[TrackingCameraCfg, Visualiz
     visualizer_cfgs = sim_cfg.visualizer_cfgs
     visualizer_cfgs = visualizer_cfgs if isinstance(visualizer_cfgs, (list, tuple)) else [visualizer_cfgs]
     default_cfg = sim_cfg.default_visualizer_cfg
-    owners = [cfg if cfg.cameras is not None else default_cfg for cfg in visualizer_cfgs] or [default_cfg]
     cameras = {}
-    for owner in owners:
-        for camera in (owner.cameras or []) if owner is not None else []:
+    for viewer in visualizer_cfgs or [default_cfg]:
+        declaring = viewer if viewer.cameras is not None else default_cfg
+        for camera in (declaring.cameras or []) if declaring is not None else []:
             if not isinstance(camera, TrackingCameraCfg):
                 continue
             name = camera.prim_path.rsplit("/", 1)[-1]
@@ -46,7 +45,7 @@ def tracking_camera_cfgs(sim_cfg) -> dict[str, tuple[TrackingCameraCfg, Visualiz
                 raise ValueError(
                     f"Visualizers declare different tracking cameras named {name!r}; give each its own prim_path."
                 )
-            cameras.setdefault(name, (camera, owner))
+            cameras.setdefault(name, (camera, viewer))
     return cameras
 
 
@@ -79,45 +78,40 @@ def make_scene_camera_cfg(cfg: TrackingCameraCfg, renderer_cfg, background_color
     )
 
 
-def add_tracking_cameras(cfg, args: dict) -> None:
-    """Add the scene cameras that tracking cameras declare to *cfg*'s scene, if a visualizer will use them.
+def add_tracking_cameras(env_cfg, sim_cfg, physics_cfg) -> bool:
+    """Add the scene cameras that the launcher's visualizers declare to *env_cfg*'s scene.
 
-    A visualizer uses them when ``--visualizer`` selects one or a video recorder records a ``streaming_view``
-    source, so runs that display nothing pay nothing. Without ``renderer_cfg``, Newton physics renders them with
-    the Newton Warp renderer and other physics with the camera default.
+    Visualizers exist only when ``--visualizer`` selects one or a video records from one, so runs that display
+    nothing pay nothing. A camera without ``renderer_cfg`` uses the Newton Warp renderer on Newton physics and
+    the camera default otherwise, and takes its background color from its visualizer.
 
     Args:
-        cfg: The launched config; only an environment config with ``sim`` and ``scene`` is changed.
-        args: Launcher arguments whose ``visualizer`` selection is already resolved.
-    """
-    from ..envs.utils.video_recorder_cfg import parse_video_source
-    from ..sim import SimulationCfg
+        env_cfg: The launched config; only one with a ``scene`` is changed.
+        sim_cfg: Its :class:`~isaaclab.sim.SimulationCfg`, whose ``visualizer_cfgs`` the launcher has resolved.
+        physics_cfg: The resolved physics config.
 
-    sim_cfg, scene_cfg = getattr(cfg, "sim", None), getattr(cfg, "scene", None)
-    if not isinstance(sim_cfg, SimulationCfg) or scene_cfg is None:
-        return
-    recorded = any(
-        parse_video_source(recorder.source)[2] == "streaming_view" for recorder in getattr(cfg, "video_recorders", ())
-    )
-    if not (args["visualizer"] or recorded):
-        return
+    Returns:
+        Whether a camera was added, which the launcher's scan must then see.
+    """
+    scene_cfg = getattr(env_cfg, "scene", None)
+    if scene_cfg is None or not sim_cfg.visualizer_cfgs:
+        return False
     renderer_cfg = None
-    if "newton" in str(args.get("physics") or type(sim_cfg.physics).__name__).lower():
+    if type(physics_cfg).__module__.startswith("isaaclab_newton"):
         from isaaclab_newton.renderers import NewtonWarpRendererCfg
 
         renderer_cfg = NewtonWarpRendererCfg(enable_shadows=True, enable_ambient_lighting=True, enable_textures=True)
+    added = False
     for name, (camera, visualizer_cfg) in tracking_camera_cfgs(sim_cfg).items():
         if hasattr(scene_cfg, name):
-            continue
-        # unset poses follow the declaring visualizer, so one value serves the viewport and this camera
-        camera.eye = camera.eye if camera.eye is not None else visualizer_cfg.eye
-        camera.lookat = camera.lookat if camera.lookat is not None else visualizer_cfg.lookat
-        camera.focal_length = camera.focal_length if camera.focal_length is not None else visualizer_cfg.focal_length
+            raise ValueError(f"Scene already has an entry named {name!r}; give the tracking camera another prim_path.")
         # the visualizer's background, so the camera's sky matches its viewport
-        scene_camera_cfg = make_scene_camera_cfg(
-            camera, camera.renderer_cfg or renderer_cfg, visualizer_cfg.background_color
+        setattr(
+            scene_cfg,
+            name,
+            make_scene_camera_cfg(camera, camera.renderer_cfg or renderer_cfg, visualizer_cfg.background_color),
         )
-        setattr(scene_cfg, name, scene_camera_cfg)
+        added = True
         num_envs, (width, height) = scene_cfg.num_envs, camera.resolution
         # the count may still be unset, or changed after launch
         gib = num_envs * width * height * 4 / 2**30 if isinstance(num_envs, int) else 0.0
@@ -129,6 +123,7 @@ def add_tracking_cameras(cfg, args: dict) -> None:
                 gib,
                 num_envs,
             )
+    return added
 
 
 class TrackingCameraUpdater:
@@ -144,6 +139,8 @@ class TrackingCameraUpdater:
             raise ValueError(f"track_path refers to an unknown scene asset: {asset_name!r}.") from exc
         self._body_index: int | None = None
         self._yaw: torch.Tensor | None = None
+        # an eager scene captures cameras before they move, so a move must request fresh pixels
+        self._eager = not scene.cfg.lazy_sensor_update
 
     def update(self, env_ids: list[int], dt: float) -> None:
         """Move the cameras of *env_ids* to the asset's pose after *dt* [s] of simulation, once both are ready."""
@@ -172,6 +169,8 @@ class TrackingCameraUpdater:
                 for o in (eye, target)
             )
         camera.set_world_poses_from_view(position + eye, position + target, env_ids=ids)
+        if self._eager:
+            camera.update(0.0, force_recompute=True)
 
     def _filtered_yaw(self, ids: torch.Tensor, quat: torch.Tensor, dt: float) -> torch.Tensor:
         """Return the yaw of *quat* filtered toward along the shortest rotation, the first sample unfiltered."""

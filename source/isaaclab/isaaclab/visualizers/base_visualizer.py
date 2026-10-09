@@ -263,6 +263,7 @@ class BaseVisualizer(ABC):
         """
         self._camera_sensor = None
         self._camera_choices.clear()
+        self._tracking_cameras, self._tracking_camera_time = None, 0.0
         self._streaming_frame = TimestampedBuffer()
         self._streaming_host_frame = TimestampedBuffer()
         self._streaming_env_ids = self._streaming_depth_colors = None
