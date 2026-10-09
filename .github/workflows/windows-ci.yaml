@@ -96,6 +96,9 @@ jobs:
         timeout-minutes: 25
         run: uv sync --frozen --extra ovrtx --extra test
 
+      - name: "TEMP probe: mark after kit-less sync"
+        run: '& "$env:GITHUB_WORKSPACE\tools\ci_cache_probe.ps1" mark'
+
       # ovrtx and usd-exchange ship differently built DLLs under the same names
       # (MaterialXCore, MaterialXFormat, tbb12); on Windows whichever loads
       # second fails (nvbug 6817794). Linux is unaffected. ovrtx loads its
@@ -231,6 +234,10 @@ jobs:
         timeout-minutes: 45
         run: uv run --frozen --no-sync python -m pytest -v source/isaaclab/test/install_ci/misc/cartpole_training_smoke.py
 
+      - name: "TEMP probe: kit-less lane writes"
+        if: ${{ !cancelled() }}
+        run: '& "$env:GITHUB_WORKSPACE\tools\ci_cache_probe.ps1" report kitless'
+
       # ===== Isaac Sim lane: `uv run --extra isaacsim` (public Isaac Sim pin). =====
 
       - name: Sync Isaac Sim environment
@@ -238,6 +245,10 @@ jobs:
         if: ${{ !cancelled() }}
         timeout-minutes: 30
         run: uv sync --frozen --extra isaacsim --extra test
+
+      - name: "TEMP probe: mark after Isaac Sim sync"
+        if: ${{ !cancelled() }}
+        run: '& "$env:GITHUB_WORKSPACE\tools\ci_cache_probe.ps1" mark'
 
       # Isaac Sim PhysX training; same command and checks as
       # install_ci/test_workspace.py::test_workspace_trains, run in this
@@ -307,6 +318,10 @@ jobs:
           }
           if ($null -eq $proc.ExitCode) { Write-Host "::error::perception exit code unavailable"; exit 1 }
           exit $proc.ExitCode
+
+      - name: "TEMP probe: Isaac Sim lane writes"
+        if: ${{ !cancelled() }}
+        run: '& "$env:GITHUB_WORKSPACE\tools\ci_cache_probe.ps1" report kit'
 
       # Last test step: it replaces the editable isaaclab with the built wheel.
       - name: Wheel build + install
