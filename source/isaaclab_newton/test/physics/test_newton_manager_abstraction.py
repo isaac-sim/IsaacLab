@@ -22,7 +22,6 @@ from __future__ import annotations
 import contextlib
 import functools
 import logging
-from functools import partial
 from types import SimpleNamespace
 
 import isaaclab_newton.physics.newton_backend as nb
@@ -898,12 +897,13 @@ def test_step_captures_only_when_the_solver_supports_it(monkeypatch, supported):
     """The first step runs eagerly; later steps replay a graph only when the solver can be captured."""
     events = []
     backend = _recording_backend(events, single_state=True, num_substeps=1)
-    backend.manager.supports_graph_capture = lambda backend: supported
     replays = []
     monkeypatch.setattr(wp, "capture_launch", lambda graph: (replays.append(graph), graph()))
+    # init_solver resolves the capture function only for solvers that support capture.
+    backend.capture = (lambda segment: segment) if supported else None
 
     for _ in range(2):
-        nb.step(backend, steps=1, capture=lambda segment: segment)
+        nb.step(backend)
 
     assert backend.step_graph.captured is supported
     assert len(replays) == int(supported)
@@ -928,14 +928,12 @@ def test_cuda_graph_capture_uses_simulation_device(monkeypatch):
         def __exit__(self, exc_type, exc_value, traceback):
             return False
 
-    monkeypatch.setattr(PhysicsManager, "_device", "cuda:1", raising=False)
-    monkeypatch.setattr(newton_manager_module, "has_kit", lambda: False)
     stream = SimpleNamespace(device="cuda:1")
     monkeypatch.setattr(wp, "get_stream", lambda device: stream if device == "cuda:1" else None)
     monkeypatch.setattr(wp, "ScopedStream", lambda stream: contextlib.nullcontext())
     monkeypatch.setattr(wp, "ScopedCapture", FakeScopedCapture)
 
-    graph = NewtonManager._capture_graph(lambda: None)
+    graph = nb.capture_graph("cuda:1", lambda: None)
 
     assert captured_devices == ["cuda:1"]
     assert graph is captured_graph
@@ -957,7 +955,7 @@ def test_cuda_graph_capture_uses_simulation_device(monkeypatch):
     ],
 )
 def test_fixed_root_pose_write_updates_solver(monkeypatch, asset_class, writer, selector):
-    """A model-backed root write immediately refreshes MuJoCo's root transform."""
+    """A model-backed root write refreshes MuJoCo's root transform when the next step notifies the solver."""
     builder = ModelBuilder()
     SolverMuJoCo.register_custom_attributes(builder)
     builder.begin_world()
@@ -986,11 +984,19 @@ def test_fixed_root_pose_write_updates_solver(monkeypatch, asset_class, writer, 
         assert_shape_and_dtype_mask=lambda *args: None,
     )
     solver = SolverMuJoCo(model)
-    monkeypatch.setattr(NewtonManager, "get_solver", lambda: solver)
+    backend = SimpleNamespace(
+        manager=NewtonMJWarpManager,
+        solver=solver,
+        device=wp.get_device("cpu"),
+        model_changes=set(),
+        warned_model_changes=set(),
+    )
+    monkeypatch.setattr(NewtonManager, "backend", backend)
     target = wp.array([[1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0]], dtype=wp.transform, device="cpu")
     selection = wp.array([0], dtype=wp.int32, device="cpu") if selector == "env_ids" else asset._ALL_ENV_MASK
 
     getattr(asset_class, writer)(asset, root_pose=target, skip_forward=True, **{selector: selection})
+    nb.notify_model_changes(backend)
 
     np.testing.assert_allclose(solver.mjw_data.mocap_pos.numpy()[0, 0], target.numpy()[0, :3])
 
@@ -1392,20 +1398,20 @@ def test_record_step_requires_a_prepared_graphable_step():
     backend = _recording_backend(events, single_state=True, num_substeps=1, callbacks=[eager])
 
     with pytest.raises(RuntimeError, match="Prepare the Newton step"):
-        nb.record_step(backend, steps=1)
+        nb.record_step(backend)
 
-    nb.prepare(backend, steps=1)
+    nb.prepare(backend)
     with pytest.raises(RuntimeError, match="not graphable"):
-        nb.record_step(backend, steps=1)
+        nb.record_step(backend)
 
 
 def test_record_step_always_records_the_masked_forward():
     """Each replay applies state authored since the previous one, even when nothing was dirty while recording."""
     events = []
     backend = _recording_backend(events, single_state=True, num_substeps=1)
-    nb.prepare(backend, steps=1)
+    nb.prepare(backend)
 
-    nb.record_step(backend, steps=1)
+    nb.record_step(backend)
 
     assert events[:2] == ["reset", "fk"]
     assert ("step", "state_0", "state_0") in events
@@ -1458,6 +1464,8 @@ def _recording_backend(events, *, single_state, num_substeps, callbacks=()):
         contact_sensors={},
         imu_sensors=[],
         step_graph=None,
+        steps_per_call=1,
+        capture=None,
         model_changes=set(),
         world_mask=wp.zeros(2, dtype=wp.bool, device="cpu"),
         fk_mask=wp.zeros(1, dtype=wp.bool, device="cpu"),
@@ -1791,14 +1799,16 @@ def test_independent_backends_step_without_manager_state(monkeypatch, device):
         nb.init_solver(backend)
         backends.append(backend)
     eager, captured = backends
+    eager.capture = None
+    captured.steps_per_call = 10
     start = captured.state_0.body_q.numpy().copy()
 
     for _ in range(20):
-        nb.step(eager, steps=1)
+        nb.step(eager)
     np.testing.assert_array_equal(captured.state_0.body_q.numpy(), start)
 
     for _ in range(2):
-        graph = nb.step(captured, steps=10, capture=partial(nb.capture_graph, device))
+        graph = nb.step(captured)
 
     assert graph.captured and graph.steps == 10
     fallen = eager.state_0.body_q.numpy()

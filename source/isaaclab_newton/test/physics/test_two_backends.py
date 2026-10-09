@@ -7,8 +7,6 @@
 
 from __future__ import annotations
 
-from functools import partial
-
 import numpy as np
 import pytest
 import warp as wp
@@ -19,8 +17,11 @@ DEVICE = "cuda:0"
 DT = 0.01
 
 
-def _pendulums(physics_cfg: NewtonCfg, num_worlds: int = 4) -> NewtonBackend:
-    """Build a backend of one revolute pendulum per world, released from a different angle in each world."""
+def _pendulums(physics_cfg: NewtonCfg, steps: int, *, captured: bool = False, num_worlds: int = 4) -> NewtonBackend:
+    """Build a backend of one revolute pendulum per world, released from a different angle in each world.
+
+    Each :func:`nb.step` advances ``steps`` physics steps, replayed from CUDA graphs when ``captured``.
+    """
     builder = physics_cfg.class_type.create_builder(physics_cfg=physics_cfg)
     for world in range(num_worlds):
         builder.begin_world()
@@ -38,13 +39,17 @@ def _pendulums(physics_cfg: NewtonCfg, num_worlds: int = 4) -> NewtonBackend:
     model = builder.finalize(device=DEVICE)
     backend = NewtonBackend(model, physics_cfg, dt=DT)
     nb.init_solver(backend)
+    backend.steps_per_call = steps
+    if not captured:
+        backend.capture = None
     return backend
 
 
-def _configs() -> tuple[NewtonCfg, NewtonCfg]:
+def _configs() -> tuple[tuple[NewtonCfg, int], tuple[NewtonCfg, int]]:
+    """Two solver configurations and the physics steps each backend advances per call."""
     return (
-        NewtonCfg(solver_cfg=MJWarpSolverCfg(use_mujoco_contacts=True), num_substeps=2),
-        NewtonCfg(solver_cfg=FeatherstoneSolverCfg(), num_substeps=4),
+        (NewtonCfg(solver_cfg=MJWarpSolverCfg(use_mujoco_contacts=True), num_substeps=2), 3),
+        (NewtonCfg(solver_cfg=FeatherstoneSolverCfg(), num_substeps=4), 2),
     )
 
 
@@ -55,19 +60,18 @@ def _angles(backend: NewtonBackend) -> np.ndarray:
 @pytest.mark.parametrize("captured", [False, True], ids=["eager", "captured"])
 def test_backends_with_different_solvers_step_side_by_side(captured):
     """Each backend advances only its own model and matches a backend stepped alone."""
-    capture = partial(nb.capture_graph, DEVICE) if captured else None
-    pair = [_pendulums(cfg) for cfg in _configs()]
-    alone = [_pendulums(cfg) for cfg in _configs()]
+    pair = [_pendulums(cfg, steps, captured=captured) for cfg, steps in _configs()]
+    alone = [_pendulums(cfg, steps) for cfg, steps in _configs()]
     start = [_angles(backend) for backend in pair]
 
     for _ in range(5):
-        nb.step(pair[0], steps=3, capture=capture)
+        nb.step(pair[0])
     np.testing.assert_array_equal(_angles(pair[1]), start[1])
     for _ in range(5):
-        nb.step(pair[1], steps=2, capture=capture)
+        nb.step(pair[1])
     for _ in range(5):
-        nb.step(alone[0], steps=3)
-        nb.step(alone[1], steps=2)
+        nb.step(alone[0])
+        nb.step(alone[1])
 
     assert type(pair[0].solver) is not type(pair[1].solver)
     for backend, reference, initial in zip(pair, alone, start, strict=True):
@@ -78,27 +82,27 @@ def test_backends_with_different_solvers_step_side_by_side(captured):
 
 def test_backends_with_different_solvers_record_into_one_graph():
     """Both backends' steps replay from one caller-owned CUDA graph and match eager stepping."""
-    pair = [_pendulums(cfg) for cfg in _configs()]
-    eager = [_pendulums(cfg) for cfg in _configs()]
-    steps = (3, 2)
+    pair = [_pendulums(cfg, steps) for cfg, steps in _configs()]
+    eager = [_pendulums(cfg, steps) for cfg, steps in _configs()]
 
     # One eager step performs lazy solver allocations before anything is recorded.
-    for backend, count in zip((*pair, *eager), steps * 2):
-        nb.step(backend, steps=count)
+    for backend in (*pair, *eager):
+        nb.step(backend)
     with wp.ScopedCapture(device=DEVICE) as capture:
-        for backend, count in zip(pair, steps, strict=True):
-            nb.record_step(backend, steps=count)
+        for backend in pair:
+            nb.record_step(backend)
 
     for _ in range(10):
         wp.capture_launch(capture.graph)
-        for backend, count in zip(eager, steps, strict=True):
-            nb.step(backend, steps=count)
+        for backend in eager:
+            nb.step(backend)
     for backend, reference in zip(pair, eager, strict=True):
         np.testing.assert_allclose(_angles(backend), _angles(reference), atol=1e-5)
 
 
 def test_record_step_requires_a_prepared_graph():
     """Recording refuses a step that was not prepared, so a caller's capture never allocates."""
-    backend = _pendulums(_configs()[1])
+    cfg, steps = _configs()[1]
+    backend = _pendulums(cfg, steps)
     with pytest.raises(RuntimeError, match="Prepare the Newton step"):
-        nb.record_step(backend, steps=2)
+        nb.record_step(backend)

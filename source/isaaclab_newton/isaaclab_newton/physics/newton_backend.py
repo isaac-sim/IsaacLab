@@ -122,7 +122,8 @@ class StepPhase(enum.Enum):
     """After collision and before Newton actuators, like ``mjcb_control``. Controllers write targets and efforts."""
 
     POST_ACTUATOR = "post_actuator"
-    """After Newton actuators and before the solver substeps, e.g. actuator telemetry."""
+    """After Newton actuators of the last physics step of :func:`step`, before its solver substeps, e.g. actuator
+    telemetry, which consumers observe after the step."""
 
     STATE_FORCE = "state_force"
     """Before every solver substep. The callback receives the substep's input :class:`newton.State`."""
@@ -281,7 +282,7 @@ class NewtonBackend:
         """
         self.model = model
         self.deformable_ranges = deformable_ranges or {}
-        self.device = str(model.device)
+        self.device: wp.Device = model.device
         # Physics settings apply to the model before any state is allocated from it.
         soft_contact = physics_cfg.soft_contact_cfg if isinstance(physics_cfg, NewtonCfg) else None
         if soft_contact is not None:
@@ -357,6 +358,10 @@ class NewtonBackend:
         """Copies of the forces authored before a step, re-applied before every solver substep."""
         self.step_graph: StepGraph | None = None
         """Compiled step; ``None`` until the next :func:`step` builds it."""
+        self.steps_per_call = 1
+        """Physics steps one :func:`step` advances, e.g. the environment's decimation when physics runs the loop."""
+        self.capture: Callable[[Callable[[], None]], wp.Graph] | None = None
+        """Records step-graph segments into CUDA graphs; ``None`` steps eagerly. Set by :func:`init_solver`."""
 
     def create_visual_material_writer(self, batches: tuple[VisualMaterialBatch, ...]) -> VisualMaterialWriter:
         """Bind material writes to this resource's native shape-color buffer."""
@@ -410,24 +415,30 @@ def create_newton_backend(cfg: NewtonBackendCfg) -> NewtonBackend:
 # ----- Solver ------------------------------------------------------------------------
 
 
-def init_solver(backend: NewtonBackend) -> None:
-    """Construct the solver and contacts, and compute body state from the initial joint state.
+def init_solver(backend: NewtonBackend, *, relaxed_capture: bool = False) -> None:
+    """Construct the solver and contacts, compute body state from the initial joint state, and resolve capture.
 
     Consumers bind views, sensors, callbacks, and model properties before this, so solvers that copy model data at
     construction see the authored model.
 
     Args:
         backend: Simulation backend without a solver.
+        relaxed_capture: Capture step graphs in relaxed mode; see :func:`capture_graph`.
     """
-    manager, cfg = backend.manager, backend.cfg
+    manager = backend.manager
     manager.validate_cfg(backend)
+    cfg = backend.cfg
     backend.solver = manager.create_solver(backend.model, cfg.solver_cfg, backend.deterministic_mode)
     if not manager.single_state:
         manager.initialize_output_state(backend, backend.state_1)
     _allocate_contacts(backend)
     manager.eval_fk(backend, backend.state_0, None, None)
-    if cfg.use_cuda_graph and "cuda" in backend.device and not manager.supports_graph_capture(backend):
-        logger.warning("%s cannot capture the current solver configuration; stepping eagerly.", manager.__name__)
+    backend.capture = None
+    if cfg.use_cuda_graph and backend.device.is_cuda:
+        if manager.supports_graph_capture(backend):
+            backend.capture = partial(capture_graph, backend.device, relaxed=relaxed_capture)
+        else:
+            logger.warning("%s cannot capture the current solver configuration; stepping eagerly.", manager.__name__)
 
 
 def _allocate_contacts(backend: NewtonBackend) -> None:
@@ -659,7 +670,7 @@ def activate_actuators(backend: NewtonBackend) -> NewtonActuatorAdapter | None:
             num_envs=1,
             num_joints=model.joint_dof_count,
             dof_offset=0,
-            device=backend.device,
+            device=str(backend.device),
         )
         backend.actuators.finalize(backend.control)
         backend.step_graph = None
@@ -747,13 +758,14 @@ def compile_label_pattern(expr: str | list[str] | None) -> re.Pattern[str] | Non
 def build_step_graph(backend: NewtonBackend, steps: int) -> StepGraph:
     """Unroll ``steps`` physics steps into straight-line operations with every buffer bound.
 
-    Each physics step runs ``collide -> CONTROL -> Newton actuators -> POST_ACTUATOR -> substeps``, where each substep
-    runs ``staged forces -> STATE_FORCE -> solver`` and an optional mid-step collision. ``POST_STEP`` callbacks and
-    sensors run once at the end. Double-buffered states alternate when the graph is built, and every physics step ends
-    in :attr:`NewtonBackend.state_0`, so callbacks and bound views always observe the current state.
+    Each physics step runs ``collide -> CONTROL -> Newton actuators -> substeps``, where each substep runs
+    ``staged forces -> STATE_FORCE -> solver`` and an optional mid-step collision. ``POST_ACTUATOR`` callbacks run
+    after the actuators of the last physics step, and ``POST_STEP`` callbacks and sensors run once at the end.
+    Double-buffered states alternate when the graph is built, and every physics step ends in
+    :attr:`NewtonBackend.state_0`, so callbacks and bound views always observe the current state.
 
-    Forces written to ``state_0`` before the step are staged once and re-applied before every substep of every physics
-    step, then cleared at the end, so each write applies to exactly the next :func:`step`.
+    Forces written to ``state_0`` before the step apply to every substep of every physics step and are cleared at the
+    end, so each write applies to exactly the next :func:`step`.
 
     Args:
         backend: Simulation backend with a solver.
@@ -764,7 +776,7 @@ def build_step_graph(backend: NewtonBackend, steps: int) -> StepGraph:
     """
     manager, state_0, control = backend.manager, backend.state_0, backend.control
     spare = state_0 if manager.single_state else backend.state_1
-    pipeline = backend.collision_pipeline if manager.uses_collision_pipeline(backend) else None
+    pipeline = backend.collision_pipeline
     contacts = backend.contacts if pipeline is not None else None
     collide_every = backend.cfg.collision_decimation if pipeline is not None else 0
     phases = {phase: [cb for cb in backend.callbacks if cb.phase == phase] for phase in StepPhase}
@@ -777,11 +789,13 @@ def build_step_graph(backend: NewtonBackend, steps: int) -> StepGraph:
         for cb in phases[phase]:
             emit(partial(cb.fn, *args) if args else cb.fn, cb.name, cb.graphable)
 
-    staged = list(backend.staged_forces.items())
+    # Forces persist in a single state across substeps. Double-buffered solvers alternate input states, and STATE_FORCE
+    # callbacks add to the input forces, so both re-apply staged copies before every substep.
+    staged = list(backend.staged_forces.items()) if not manager.single_state or phases[StepPhase.STATE_FORCE] else []
     for name, buffer in staged:
         emit(partial(wp.copy, buffer, getattr(state_0, name)), f"stage_forces.{name}")
     actuator_steps = 0
-    for _ in range(steps):
+    for physics_step in range(steps):
         if manager.prepares_step:
             emit(partial(manager.prepare_step, backend, state_0), "solver.prepare_step")
         if pipeline is not None:
@@ -790,7 +804,8 @@ def build_step_graph(backend: NewtonBackend, steps: int) -> StepGraph:
         if backend.actuators is not None:
             _emit_actuators(emit, backend.actuators, state_0, control, backend.dt, actuator_steps % 2)
             actuator_steps += 1
-        emit_callbacks(StepPhase.POST_ACTUATOR)
+        if physics_step == steps - 1:
+            emit_callbacks(StepPhase.POST_ACTUATOR)
         state_in, state_out = state_0, spare
         for substep in range(backend.num_substeps):
             for name, buffer in staged:
@@ -839,58 +854,53 @@ def _update_sensors(backend: NewtonBackend) -> None:
             sensor.update(backend.state_0, backend.contacts)
 
 
-def prepare(backend: NewtonBackend, steps: int) -> StepGraph:
-    """Build the step graph for ``steps`` physics steps unless the current one matches, without advancing physics.
+def prepare(backend: NewtonBackend) -> StepGraph:
+    """Build the step graph for :attr:`NewtonBackend.steps_per_call` unless the current one matches.
 
-    Building allocates nothing on the device, so a caller can prepare before recording :func:`step` into its own
-    capture.
+    This does not advance physics, and building allocates nothing on the device, so a caller can prepare before
+    recording :func:`step` into its own capture.
 
     Args:
         backend: Simulation backend with a solver.
-        steps: Physics steps one launch advances.
 
     Returns:
         The step graph.
     """
     graph = backend.step_graph
-    if graph is None or graph.steps != steps:
-        graph = backend.step_graph = build_step_graph(backend, steps)
+    if graph is None or graph.steps != backend.steps_per_call:
+        graph = backend.step_graph = build_step_graph(backend, backend.steps_per_call)
     return graph
 
 
-def step(
-    backend: NewtonBackend, steps: int = 1, capture: Callable[[Callable[[], None]], wp.Graph] | None = None
-) -> StepGraph:
-    """Advance ``steps`` physics steps.
+def step(backend: NewtonBackend) -> StepGraph:
+    """Advance :attr:`NewtonBackend.steps_per_call` physics steps.
 
     Notifies model changes, runs :func:`forward` for authored state, and launches the step graph. The first launch
     after the graph is built runs eagerly, which also performs lazy solver allocations, and then the graph is captured
-    for later launches.
+    with :attr:`NewtonBackend.capture` for later launches.
 
     Args:
         backend: Simulation backend with a solver.
-        steps: Physics steps to advance.
-        capture: Records a function into a CUDA graph; ``None`` steps eagerly. See :func:`capture_graph`.
 
     Returns:
         The step graph that ran.
     """
     notify_model_changes(backend)
     forward(backend)
-    graph = prepare(backend, steps)
+    graph = prepare(backend)
     if graph.captured and graph.graphable:
         # Graph replays carry their device; skip the host-side device scope.
         graph.launch()
         return graph
     with wp.ScopedDevice(backend.device):
         graph.launch()
-    if capture is not None and not graph.captured and backend.manager.supports_graph_capture(backend):
-        graph.capture(capture)
+    if backend.capture is not None and not graph.captured:
+        graph.capture(backend.capture)
     return graph
 
 
-def record_step(backend: NewtonBackend, steps: int = 1) -> StepGraph:
-    """Record ``steps`` physics steps into the caller's active CUDA graph capture.
+def record_step(backend: NewtonBackend) -> StepGraph:
+    """Record :attr:`NewtonBackend.steps_per_call` physics steps into the caller's active CUDA graph capture.
 
     The caller owns the capture of a larger graph, such as a whole environment step. :func:`prepare` the step before
     the capture and run it eagerly at least once, so recording allocates nothing. The masked :func:`forward` is always
@@ -898,16 +908,16 @@ def record_step(backend: NewtonBackend, steps: int = 1) -> StepGraph:
 
     Args:
         backend: Simulation backend with a solver.
-        steps: Physics steps to record.
 
     Returns:
         The recorded step graph.
 
     Raises:
-        RuntimeError: If no step graph for ``steps`` was prepared, or it contains operations that cannot be recorded.
+        RuntimeError: If no step graph for the current step count was prepared, or it contains operations that cannot
+            be recorded.
     """
     graph = backend.step_graph
-    if graph is None or graph.steps != steps:
+    if graph is None or graph.steps != backend.steps_per_call:
         raise RuntimeError("Prepare the Newton step before recording it into an outer CUDA graph.")
     notify_model_changes(backend)
     forward(backend, force=True)
@@ -919,7 +929,7 @@ def record_step(backend: NewtonBackend, steps: int = 1) -> StepGraph:
 # ----- CUDA graph capture and scene queries ------------------------------------------
 
 
-def capture_graph(device: str, fn: Callable[[], None], *, relaxed: bool = False) -> wp.Graph:
+def capture_graph(device: wp.DeviceLike, fn: Callable[[], None], *, relaxed: bool = False) -> wp.Graph:
     """Record ``fn`` into a CUDA graph without executing it.
 
     Args:
@@ -934,7 +944,7 @@ def capture_graph(device: str, fn: Callable[[], None], *, relaxed: bool = False)
     stream = wp.get_stream(device)
     mode = wp.CaptureMode.THREAD_LOCAL
     if relaxed:
-        stream = wp.stream_from_torch(torch.cuda.Stream(device=device))
+        stream = wp.stream_from_torch(torch.cuda.Stream(device=wp.device_to_torch(device)))
         mode = wp.CaptureMode.RELAXED
     with _paused_gc(), wp.ScopedStream(stream):
         with wp.ScopedCapture(stream=stream, capture_mode=mode) as capture:

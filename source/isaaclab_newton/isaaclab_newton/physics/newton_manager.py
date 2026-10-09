@@ -272,7 +272,8 @@ class NewtonManager(PhysicsManager):
             synchronize="both",
             device=sim.device,
         ):
-            nb.init_solver(backend)
+            nb.init_solver(backend, relaxed_capture=has_kit() and (sim.has_gui or sim.has_offscreen_render))
+        cls._resolve_steps_per_call()
         cls._mark_transforms_changed()
 
     @classmethod
@@ -294,16 +295,15 @@ class NewtonManager(PhysicsManager):
         if sim is None or not sim.is_playing():
             return
         backend = NewtonManager.backend
-        steps = NewtonManager._decimation if cls.handles_decimation() else 1
-        if wp.get_device(backend.device).is_capturing:
+        if backend.device.is_capturing:
             # A caller records a larger graph, such as a whole environment step; record into it.
-            nb.record_step(backend, steps)
+            nb.record_step(backend)
         else:
-            graph = nb.step(backend, steps, cls._capture_graph if cls._uses_cuda_graph() else None)
+            graph = nb.step(backend)
             backend.manager.check_status(backend, graph.captured)
             if PhysicsManager._cfg.debug_mode:
                 backend.manager.log_debug(backend)
-        PhysicsManager._sim_time += backend.dt * steps
+        PhysicsManager._sim_time += backend.dt * backend.steps_per_call
         scene_data = NewtonManager._scene_data_backend
         scene_data.transforms_timestamp += 1
         scene_data.geometry_timestamp += 1
@@ -314,7 +314,7 @@ class NewtonManager(PhysicsManager):
         backend = NewtonManager.backend
         nb.notify_model_changes(backend)
         nb.forward(backend)
-        nb.prepare(backend, NewtonManager._decimation if cls.handles_decimation() else 1)
+        nb.prepare(backend)
 
     @classmethod
     def close(cls) -> None:
@@ -405,6 +405,8 @@ class NewtonManager(PhysicsManager):
         """
         NewtonManager._decimation = max(1, decimation)
         NewtonManager._apply_every_physics_step = apply_every_physics_step
+        if NewtonManager.backend is not None:
+            cls._resolve_steps_per_call()
 
     @classmethod
     def handles_decimation(cls) -> bool:
@@ -425,19 +427,14 @@ class NewtonManager(PhysicsManager):
         Articulations whose explicit actuators run as Isaac Lab actuator models call this on ``PHYSICS_READY``.
         """
         NewtonManager.backend.env_decimation = True
+        cls._resolve_steps_per_call()
 
     @classmethod
-    def _uses_cuda_graph(cls) -> bool:
-        """Whether the step graph is captured into CUDA graphs."""
-        cfg, backend = PhysicsManager._cfg, NewtonManager.backend
-        return cfg.use_cuda_graph and "cuda" in backend.device
-
-    @classmethod
-    def _capture_graph(cls, fn: Callable[[], None]) -> wp.Graph:
-        """Record a step graph segment without executing it."""
-        sim = PhysicsManager._sim
-        relaxed = has_kit() and (sim.has_gui or sim.has_offscreen_render)
-        return nb.capture_graph(PhysicsManager._device, fn, relaxed=relaxed)
+    def _resolve_steps_per_call(cls) -> None:
+        """Set the physics steps of one :meth:`step` once the backend's consumers and the decimation are known."""
+        backend = NewtonManager.backend
+        if backend.cfg is not None:
+            backend.steps_per_call = NewtonManager._decimation if cls.handles_decimation() else 1
 
     # ----- Step callbacks and actuators -----------------------------------------------
 
@@ -477,7 +474,9 @@ class NewtonManager(PhysicsManager):
         Returns:
             The adapter, or ``None`` when no articulation has explicit Newton actuators.
         """
-        return nb.activate_actuators(NewtonManager.backend)
+        adapter = nb.activate_actuators(NewtonManager.backend)
+        cls._resolve_steps_per_call()
+        return adapter
 
     # ----- Authored state --------------------------------------------------------------
 
@@ -531,10 +530,15 @@ class NewtonManager(PhysicsManager):
     def add_model_change(cls, change: ModelFlags) -> None:
         """Notify the solver of a model change before the next step.
 
-        Changes authored before the solver exists are part of the model it is constructed from.
+        Changes authored before the solver exists are part of the model it is constructed from. While a caller records
+        a CUDA graph, the solver is notified immediately, so every replay of the graph applies the change.
         """
-        if NewtonManager.backend is not None and NewtonManager.backend.solver is not None:
-            NewtonManager.backend.model_changes.add(change)
+        backend = NewtonManager.backend
+        if backend is None or backend.solver is None:
+            return
+        backend.model_changes.add(change)
+        if backend.device.is_capturing:
+            nb.notify_model_changes(backend)
 
     @classmethod
     def transforms_may_change_on_graph_replay(cls) -> bool:
@@ -560,7 +564,7 @@ class NewtonManager(PhysicsManager):
     def _flag_outer_capture(cls) -> None:
         """Remember writes recorded into an outer capture, whose replays bypass Python invalidation."""
         backend = NewtonManager.backend
-        if backend is not None and backend.cfg is not None and wp.get_device(backend.device).is_capturing:
+        if backend is not None and backend.cfg is not None and backend.device.is_capturing:
             backend.transforms_may_change_on_graph_replay = True
 
     # ----- Sensors ------------------------------------------------------------------

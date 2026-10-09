@@ -33,3 +33,14 @@
 * The implicit MPM manager builds :class:`newton.solvers.SolverImplicitMPM.Config` directly from
   :class:`~isaaclab_newton.physics.MPMSolverCfg` instead of authoring ``NewtonMPMSceneAPI`` solver attributes on the
   physics scene and reading them back on every hard reset.
+* The step count and capture function are resolved once per backend, in ``init_solver`` and
+  :meth:`~isaaclab_newton.physics.NewtonManager.set_decimation`, so ``step(backend)`` reads
+  ``NewtonBackend.steps_per_call`` and ``NewtonBackend.capture`` instead of re-deriving them every step.
+  ``NewtonBackend.device`` is a :class:`warp.Device`.
+* ``POST_ACTUATOR`` step callbacks, such as actuator telemetry, run once per step, after the actuators of its last
+  physics step.
+* Forces authored before a step are staged and re-applied per substep only for double-buffered solvers or when
+  ``STATE_FORCE`` callbacks add forces; single-state solvers read them in place.
+* Fixed-base root pose writes notify the solver through
+  :meth:`~isaaclab_newton.physics.NewtonManager.add_model_change`. A model change authored while a caller records a
+  CUDA graph notifies the solver immediately, so every replay applies it.
