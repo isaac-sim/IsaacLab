@@ -321,4 +321,13 @@ class DrLegsHoldPoseEnvCfg(ManagerBasedRLEnvCfg):
     def __post_init__(self) -> None:
         self.decimation = 3
         self.episode_length_s = 10.0
-        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(1.5, 0.5, 0.5), lookat=(0.0, 0.0, 0.265))
+        self.sim.default_visualizer_cfg = VisualizerCfg(
+            eye=(0.55, -0.9, 0.3),
+            lookat=(0.05, 0.0, -0.05),
+            focal_length=26.0,
+            origin_type="asset",
+            origin_env_index="center",
+            origin_track_path="robot",
+            origin_follow_heading=True,
+            origin_heading_smoothing_time_constant=0.2,
+        )

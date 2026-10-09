@@ -1,1 +1,1 @@
-* Changed core task recording views to framed environment cameras, and locomotion views to follow the robot.
+* Changed core task recording views to framed environment cameras, and locomotion views, including DR Legs, to follow the robot.
