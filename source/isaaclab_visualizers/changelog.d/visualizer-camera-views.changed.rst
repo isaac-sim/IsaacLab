@@ -15,6 +15,8 @@
   transports read back only the composed image.
 * Unified Newton GL window and headless frame rendering, and propagated rendering errors after frame
   cleanup. Kept contact-sensor arrow data on the viewer device during presentation.
+  Corrected PhysX contact arrow origins when displaying a subset of environments and removed
+  wind controls that did not apply forces to the simulation.
 * Read live-plot histories from Newton's plot logger, restoring scalar and array plots with the updated Newton API.
 * **Breaking:** Removed Newton RTX's viewer-only ``rtx_environment`` and ``world_spacing`` overrides
   and GL model options. Declare lighting, materials, and environment placement in the scene instead.

@@ -150,9 +150,8 @@ class NewtonViewerUI:
            is called.
         3. **Model Overlays** and **Visualization Markers** (closed) — debug visibility controls.
         4. **Rendering Options** (open) — VSync and renderer-specific options.
-        5. **Wind** (closed) — only shown when ``viewer.wind`` is set.
-        6. **Controls** (closed) — camera keyboard reference.
-        7. **Selection API** (closed) — Newton's selection panel.
+        5. **Controls** (closed) — camera keyboard reference.
+        6. **Selection API** (closed) — Newton's selection panel.
 
         The top-level Newton ``Pause / Step`` row is suppressed; pause/resume is
         handled by the IsaacLab training controls inside **Isaac Lab**.
@@ -288,20 +287,6 @@ class NewtonViewerUI:
                 _c, viewer.vsync = imgui.checkbox("VSync", viewer.vsync)
                 for callback in _g._ui_callbacks.get("rendering", []):
                     callback(imgui)
-
-            # --- Wind -------------------------------------------------------
-            wind = getattr(viewer, "wind", None)
-            if wind is not None:
-                imgui.set_next_item_open(False, imgui.Cond_.once)
-                if imgui.collapsing_header("Wind"):
-                    imgui.separator()
-                    changed, wind.amplitude = imgui.slider_float("Wind Amplitude", wind.amplitude, -2.0, 2.0, "%.2f")
-                    changed, wind.period = imgui.slider_float("Wind Period", wind.period, 1.0, 30.0, "%.2f")
-                    changed, wind.frequency = imgui.slider_float("Wind Frequency", wind.frequency, 0.1, 5.0, "%.2f")
-                    direction = [wind.direction[0], wind.direction[1], wind.direction[2]]
-                    changed, direction = imgui.slider_float3("Wind Direction", direction, -1.0, 1.0, "%.2f")
-                    if changed:
-                        wind.direction = direction
 
             # --- Controls ---------------------------------------------------
             imgui.set_next_item_open(False, imgui.Cond_.appearing)
@@ -617,6 +602,24 @@ class NewtonVisualizerBase(BaseVisualizer):
         self._last_present_time = now
         self._render_frame()
 
+    def reset(self, soft: bool = False) -> None:
+        """Rebind the native viewer only when a hard reset replaces the simulation model."""
+        super().reset(soft)
+        if soft or not self._is_initialized or self._is_closed:
+            return
+        backend = self._sim.get_or_create_backend(self.newton_cfg)
+        if backend is self.backend:
+            return
+        self.backend = backend
+        self._transform_mapping = self._sim.get_scene_data_provider().create_mapping(list(backend.model.body_label))
+        self._viewer.set_model(backend.model)
+        self._viewer.register_ui_callback(self._viewer._render_training_controls, position="side")
+        self._viewer.register_ui_callback(self._draw_streaming_view_controls, position="side")
+
+    def supports_markers(self) -> bool:
+        """Return whether visualization markers are enabled for this viewer."""
+        return self.cfg.enable_markers
+
     def is_running(self) -> bool:
         """Return whether the viewer is open."""
         return self._viewer is not None and self._viewer.is_running()
@@ -728,41 +731,24 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         super().initialize(sim, cameras=cameras)
         scene_data_provider = self._sim.get_scene_data_provider()
         newton_backend_active = self.physics_backend == "newton"
-        physics_manager = sim.physics_manager
-        picking_supported = newton_backend_active and bool(
-            getattr(physics_manager, "_supports_rigid_body_force_input", False)
-        )
+        picking_supported = newton_backend_active and sim.physics_manager._supports_rigid_body_force_input
         num_envs = scene_data_provider.num_envs
-        metadata = {"num_envs": num_envs, "physics_backend": self.physics_backend, "gravity": sim.cfg.gravity}
-        runtime_headless = self._runtime_headless
-        if runtime_headless and not self.cfg.headless:
+        if self._runtime_headless and not self.cfg.headless:
             logger.warning(
                 "[NewtonVisualizer] No display found (DISPLAY is unset); the Newton viewer runs"
                 " headless via EGL and no window will open. Run from a session with a display (or set"
                 " DISPLAY, e.g. 'export DISPLAY=:0') to see the viewer."
             )
 
-        # Use pyglet's EGL headless backend when requested or when no Linux X display is available.
-        # NOTE: this call is only effective when ``DISPLAY`` is unset on Linux.  When a display
-        # is present, ``from newton.viewer import ViewerGL`` at module-import time
-        # already initialised pyglet (and resolved the ``Window`` class), so setting
-        # ``pyglet.options["headless"]`` here is a no-op.  In that situation ``cfg.headless=True``
-        # has no effect and a real windowed viewer is created.  To guarantee headless behaviour
-        # when a display is present, unset DISPLAY before importing this module.
-        if runtime_headless:
-            import pyglet
-
-            pyglet.options["headless"] = True
-
-        self._picking_enabled = self.cfg.enable_picking and picking_supported and not runtime_headless
-        if not runtime_headless:
+        self._picking_enabled = self.cfg.enable_picking and picking_supported and not self._runtime_headless
+        if not self._runtime_headless:
             # pyglet sets WM_CLASS from the window caption, which ViewerGL defaults to "Newton".
             write_desktop_entry("isaaclab-newton-gl-viewer", "Newton", "Newton", _NEWTON_ICON_DIR / "icon_64.png")
         self._viewer = NewtonViewerGL(
             width=self.cfg.window.size[0],
             height=self.cfg.window.size[1],
-            headless=runtime_headless,
-            metadata=metadata,
+            headless=self._runtime_headless,
+            metadata={"num_envs": num_envs, "physics_backend": self.physics_backend, "gravity": sim.cfg.gravity},
             window_cfg=self.cfg.window,
         )
         self._viewer.marker_groups = sim.vis_marker_registry.get_groups().values()
@@ -833,7 +819,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
                         if contacts is not None:
                             viewer.log_contacts(contacts, state)
                         else:
-                            self._log_scene_contact_sensor_arrows(self.backend.model.num_envs)
+                            self._log_scene_contact_sensor_arrows()
                         if self.cfg.enable_markers:
                             render_newton_visualization_markers(
                                 viewer, self._env_ids, num_envs=self.backend.model.num_envs
@@ -847,21 +833,13 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
                 self._viewer_picking_binding.deactivate()
 
     def reset(self, soft: bool = False) -> None:
-        """Rebind viewer resources after a hard Newton model reset."""
+        """Restore GL overlays and picking after the shared model binding changes."""
+        previous = self.backend
         super().reset(soft)
-        if soft or not self._is_initialized or self._is_closed:
+        if self.backend is previous:
             return
-
-        backend = self._sim.get_or_create_backend(self.newton_cfg)
-        if backend is self.backend:
-            return
-        self.backend = backend
-        self._transform_mapping = self._sim.get_scene_data_provider().create_mapping(list(backend.model.body_label))
-        self._viewer.set_model(self.backend.model)
         if self._picking_enabled:
             self._viewer.wind = None
-        self._viewer.register_ui_callback(self._viewer._render_training_controls, position="side")
-        self._viewer.register_ui_callback(self._draw_streaming_view_controls, position="side")
         self._viewer.set_visible_worlds(self._env_ids)
         self._viewer.set_world_offsets(self.cfg.world_spacing)
         self._configure_viewer()
@@ -881,10 +859,6 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             self._viewer = self.backend = self._transform_mapping = None
             self._pending_mesh_submissions.clear()
             super().close()
-
-    def supports_markers(self) -> bool:
-        """Newton viewers support Isaac Lab markers through viewer-side meshes and lines."""
-        return bool(self.cfg.enable_markers)
 
     def log_mesh(
         self,
@@ -972,113 +946,53 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
     # Shared internals
     # ------------------------------------------------------------------
 
-    def _log_scene_contact_sensor_arrows(self, num_envs: int) -> None:
-        """Render contact sensor data as Newton-style arrows when native contacts are unavailable."""
-        if self._viewer is None:
-            return
-        if not self._viewer.show_contacts:
+    def _log_scene_contact_sensor_arrows(self) -> None:
+        """Draw filtered contact points, or body origins when only net forces are available."""
+        starts, ends = [], []
+        env_ids = slice(None) if self._env_ids is None else self._env_ids
+        if self._viewer.show_contacts:
+            for sensor in self._sim.get_scene_data_provider().get_contact_sensors().values():
+                data = sensor.data
+                forces = data.net_normal_forces_w.torch
+                if data.contact_pos_w is not None and data.normal_force_matrix_w is not None:
+                    positions = data.contact_pos_w.torch[env_ids]
+                    contact_forces = data.normal_force_matrix_w.torch[env_ids]
+                    active = torch.linalg.norm(contact_forces, dim=-1) > sensor.cfg.force_threshold
+                    active &= torch.isfinite(positions).all(dim=-1)
+                    if torch.any(active):
+                        positions = positions[active]
+                        directions = torch.nn.functional.normalize(contact_forces[active], dim=-1)
+                        starts.append(positions)
+                        ends.append(positions + directions * CONTACT_ARROW_LENGTH)
+                        continue
+
+                if data.pos_w is not None:
+                    positions = data.pos_w.torch
+                elif self.physics_backend in ("physx", "isaacsim_physx"):
+                    # PhysX exposes body-major poses even when pose tracking is disabled.
+                    poses = wp.to_torch(sensor.body_physx_view.get_transforms())
+                    positions = poses.view(forces.shape[1], forces.shape[0], 7).transpose(0, 1)[..., :3]
+                else:
+                    continue
+                forces, positions = forces[env_ids], positions[env_ids]
+                active = torch.linalg.norm(forces, dim=-1) > sensor.cfg.force_threshold
+                positions = positions[active]
+                if len(positions):
+                    starts.append(positions)
+                    directions = torch.nn.functional.normalize(forces[active], dim=-1)
+                    ends.append(positions + directions * CONTACT_ARROW_LENGTH)
+
+        if starts:
+            starts = torch.cat(starts).to(dtype=torch.float32, device=str(self._viewer.device))
+            ends = torch.cat(ends).to(dtype=torch.float32, device=str(self._viewer.device))
+            self._viewer.log_arrows(
+                CONTACT_ARROW_PATH,
+                wp.from_torch(starts, dtype=wp.vec3),
+                wp.from_torch(ends, dtype=wp.vec3),
+                CONTACT_ARROW_COLOR,
+            )
+        else:
             self._viewer.log_arrows(CONTACT_ARROW_PATH, None, None, None)
-            return
-        contact_sensors = self._sim.get_scene_data_provider().get_contact_sensors()
-        if not contact_sensors:
-            self._viewer.log_arrows(CONTACT_ARROW_PATH, None, None, None)
-            return
-
-        starts: list[torch.Tensor] = []
-        ends: list[torch.Tensor] = []
-        for sensor in contact_sensors.values():
-            sensor_starts, sensor_ends = self._contact_sensor_arrow_tensors(sensor, num_envs)
-            if sensor_starts is not None and sensor_ends is not None:
-                starts.append(sensor_starts)
-                ends.append(sensor_ends)
-
-        if not starts:
-            self._viewer.log_arrows(CONTACT_ARROW_PATH, None, None, None)
-            return
-
-        starts_t = torch.cat(starts).to(dtype=torch.float32, device=str(self._viewer.device))
-        ends_t = torch.cat(ends).to(dtype=torch.float32, device=str(self._viewer.device))
-        self._viewer.log_arrows(
-            CONTACT_ARROW_PATH,
-            wp.from_torch(starts_t, dtype=wp.vec3),
-            wp.from_torch(ends_t, dtype=wp.vec3),
-            CONTACT_ARROW_COLOR,
-        )
-
-    def _contact_sensor_arrow_tensors(self, sensor, num_envs: int) -> tuple[torch.Tensor | None, torch.Tensor | None]:
-        """Build Newton-style arrow starts/ends from an Isaac Lab contact sensor."""
-        try:
-            data = sensor.data
-            net_forces_proxy = data.net_normal_forces_w
-            net_forces = net_forces_proxy.torch if net_forces_proxy is not None else None
-        except (AttributeError, NotImplementedError, RuntimeError):
-            return None, None
-
-        if net_forces is None or net_forces.numel() == 0:
-            return None, None
-        net_forces = self._filter_visible_env_tensor(net_forces, num_envs)
-
-        force_threshold = getattr(getattr(sensor, "cfg", None), "force_threshold", None)
-        if force_threshold is None:
-            force_threshold = 0.0
-
-        try:
-            contact_pos = getattr(data, "contact_pos_w", None)
-            force_matrix = getattr(data, "normal_force_matrix_w", None)
-        except NotImplementedError:
-            contact_pos = None
-            force_matrix = None
-        if contact_pos is not None and force_matrix is not None:
-            contact_pos_t = self._filter_visible_env_tensor(contact_pos.torch, num_envs)
-            force_matrix_t = self._filter_visible_env_tensor(force_matrix.torch, num_envs)
-            if contact_pos_t.numel() != 0 and force_matrix_t.numel() != 0:
-                force_norm = torch.linalg.norm(force_matrix_t, dim=-1)
-                finite_pos = torch.isfinite(contact_pos_t).all(dim=-1)
-                active = (force_norm > force_threshold) & finite_pos
-                if torch.any(active):
-                    starts = contact_pos_t[active]
-                    directions = torch.nn.functional.normalize(force_matrix_t[active], dim=-1)
-                    return starts, starts + directions * CONTACT_ARROW_LENGTH
-
-        origins = self._contact_sensor_origin_positions(sensor, data, net_forces)
-        if origins is None:
-            return None, None
-        origins = self._filter_visible_env_tensor(origins, num_envs)
-
-        force_norm = torch.linalg.norm(net_forces, dim=-1)
-        active = force_norm > force_threshold
-        if not torch.any(active):
-            return None, None
-
-        starts = origins[active]
-        directions = torch.nn.functional.normalize(net_forces[active], dim=-1)
-        return starts, starts + directions * CONTACT_ARROW_LENGTH
-
-    def _contact_sensor_origin_positions(self, sensor, data, net_forces: torch.Tensor) -> torch.Tensor | None:
-        """Return per-sensor origins for contact arrow starts."""
-        try:
-            pos_w = getattr(data, "pos_w", None)
-        except NotImplementedError:
-            pos_w = None
-        if pos_w is not None:
-            return pos_w.torch
-
-        body_physx_view = getattr(sensor, "body_physx_view", None)
-        if body_physx_view is None:
-            return None
-        try:
-            pose = body_physx_view.get_transforms()
-        except RuntimeError:
-            return None
-        num_envs, num_bodies = net_forces.shape[0], net_forces.shape[1]
-        return wp.to_torch(pose).view(num_bodies, num_envs, 7).transpose(0, 1)[..., :3]
-
-    def _filter_visible_env_tensor(self, tensor: torch.Tensor, num_envs: int) -> torch.Tensor:
-        """Apply Newton visualizer visible-world filtering to a sensor tensor."""
-        if self._env_ids is None or tensor.ndim == 0 or tensor.shape[0] != num_envs:
-            return tensor
-        ids = torch.as_tensor(self._env_ids, dtype=torch.long, device=tensor.device)
-        return tensor.index_select(0, ids)
 
     def register_ui_callback(self, callback: Callable[[Any], None], position: str = "side") -> None:
         """Add a panel to the viewer's ImGui interface.
@@ -1290,20 +1204,12 @@ class NewtonRTXVisualizer(NewtonVisualizerBase):
             viewer.end_frame()
 
     def reset(self, soft: bool = False) -> None:
-        """Rebind the viewer when a hard reset replaces its simulation-owned model."""
+        """Restore RTX camera selection after Newton replaces its camera during model binding."""
+        previous = self.backend
         super().reset(soft)
-        if soft or not self._is_initialized or self._is_closed:
-            return
-        backend = self._sim.get_or_create_backend(self.newton_cfg)
-        if backend is self.backend:
-            return
-        self.backend = backend
-        self._transform_mapping = self._sim.get_scene_data_provider().create_mapping(list(backend.model.body_label))
-        self._viewer.set_model(backend.model)
-        self._viewer.picking_enabled = False
-        self._viewer.register_ui_callback(self._viewer._render_training_controls, position="side")
-        self._viewer.register_ui_callback(self._draw_streaming_view_controls, position="side")
-        self._select_camera(self._camera_index)
+        if self.backend is not previous:
+            self._viewer.picking_enabled = False
+            self._select_camera(self._camera_index)
 
     def render_rgb_array(self) -> np.ndarray | None:
         """Explicitly download the selected sensor or perspective image for recording."""
@@ -1314,10 +1220,6 @@ class NewtonRTXVisualizer(NewtonVisualizerBase):
         if self._runtime_headless:
             self._render_frame()
         return self._viewer.get_frame()
-
-    def supports_markers(self) -> bool:
-        """Return whether the native viewer accepts runtime visualization markers."""
-        return True
 
     def close(self) -> None:
         """Close Newton's viewer before the simulation releases the borrowed scene."""

@@ -994,22 +994,37 @@ def test_newton_live_plots_read_updated_scalar_and_array_history():
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-def test_newton_visualizer_contact_sensor_fallback_obeys_show_contacts(monkeypatch, device):
+@pytest.mark.parametrize("origins", ["tracked", "filtered", "physx"])
+def test_newton_visualizer_contact_sensor_fallback_obeys_show_contacts(monkeypatch, device, origins):
     from isaaclab_newton.physics import NewtonManager
 
     state = SimpleNamespace(body_q=wp.empty(1, dtype=wp.transform, device="cpu"))
     viewer = _Viewer()
     viewer.device = device
+    positions = torch.tensor(
+        [[[10.0, 20.0, 30.0], [40.0, 50.0, 60.0]], [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]], device=device
+    )
     sensor = _ContactSensor(
-        net_normal_forces_w=torch.tensor([[[0.0, 0.0, 2.0], [0.0, 0.0, 0.5]]], device=device),
-        pos_w=torch.tensor([[[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]], device=device),
+        net_normal_forces_w=torch.tensor([[[0.0, 0.0, 2.0], [0.0, 0.0, 0.5]]], device=device).repeat(2, 1, 1),
+        pos_w=positions,
         force_threshold=1.0,
     )
+    if origins == "filtered":
+        sensor.data.contact_pos_w = _Proxy(positions.unsqueeze(2))
+        sensor.data.normal_force_matrix_w = _Proxy(sensor.data.net_normal_forces_w.torch.unsqueeze(2))
+        sensor.data.pos_w = None
+    elif origins == "physx":
+        poses = torch.zeros((2, 2, 7), device=device)
+        poses[..., :3] = positions.transpose(0, 1)  # PhysX orders body poses before environments.
+        sensor.body_physx_view = SimpleNamespace(get_transforms=lambda: wp.from_torch(poses.reshape(-1, 7)))
+        sensor.data.pos_w = None
+        monkeypatch.setattr(BaseVisualizer, "physics_backend", property(lambda self: "physx"))
     scene_data_provider = _SceneDataProvider({"contact_forces": sensor})
-
     monkeypatch.setattr(NewtonManager, "get_contacts", lambda: None)
 
     visualizer = _make_newton_visualizer(viewer, scene_data_provider, state=state)
+    visualizer.backend.model.num_envs = 2
+    visualizer._env_ids = [1]
     visualizer.step(0.1)
     assert viewer.logged_arrows == ("/contacts", None, None, None)
 
@@ -1020,12 +1035,11 @@ def test_newton_visualizer_contact_sensor_fallback_obeys_show_contacts(monkeypat
 
     name, starts, ends, colors = viewer.logged_arrows
     assert name == "/contacts"
-    assert len(starts) == 1
-    assert len(ends) == 1
+    assert len(starts) == len(ends) == 1
     assert starts.device == ends.device == wp.get_device(device)
     assert colors == (0.0, 1.0, 0.0)
-    assert torch.allclose(torch.tensor(starts.numpy()[0]), torch.tensor([1.0, 2.0, 3.0]))
-    assert torch.allclose(torch.tensor(ends.numpy()[0]), torch.tensor([1.0, 2.0, 3.1]))
+    torch.testing.assert_close(wp.to_torch(starts).cpu(), torch.tensor([[1.0, 2.0, 3.0]]))
+    torch.testing.assert_close(wp.to_torch(ends).cpu(), torch.tensor([[1.0, 2.0, 3.1]]))
 
 
 # ── USD marker inference and None-normal guard ────────────────────────
