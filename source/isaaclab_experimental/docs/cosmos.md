@@ -248,7 +248,7 @@ A camera with a Cosmos chain then sends one view per environment.
   each environment's prompt across its resets. With one environment, a prompt list changes per episode.
 - An environment that resets mid-chunk starts its new episode at the next chunk with its newest capture, so all
   environments keep one four-frame cadence; it shows black until then.
-- One step's message carries at most 16 environments.
+- With the socket transport, one step's image message carries at most 16 environments.
 - Each environment's history window (`--kv-window`, default 30 latent frames) takes GPU memory. On a 48 GB GPU,
   one environment fits with the default window; two need `--kv-window 8`. Larger GPUs fit more environments.
 - Reference (RTX PRO 6000 Blackwell MIG 2g.48gb, compiled, 640 x 640, `--kv-window 8`): one environment 917 ms per
@@ -267,13 +267,18 @@ The **transport** is how control images go to the service, and generated images 
 
 | Transport | Data path | Where it works |
 |---|---|---|
-| `cuda_ipc` | Shared GPU buffers, opened once per session, ordered by interprocess CUDA events. No host copies and no host synchronization. Each step sends only a small message on the endpoint. | Service on the same Linux machine and the same GPU as the camera. |
+| `cuda_ipc` | Shared GPU buffers, opened once per session, ordered by interprocess CUDA events. Image transfer between the camera and service needs no host copies or host synchronization. Each step sends only a small message on the endpoint. | Service on the same Linux machine and the same GPU as the camera. |
 | `socket` | Images go through host memory in the endpoint's messages. | Any endpoint. |
 
 `CosmosModelCfg.transport` defaults to `auto`: CUDA IPC when the service reports it and uses the camera's GPU, the
 socket otherwise. `cuda_ipc` fails when it is unavailable instead of falling back. `status` lists the service's
-transports. With the defaults on one Linux machine, images stay on the GPU and the messages use the Unix socket, so
-no TCP is involved. CUDA IPC also has no limit on the number of environments per step.
+transports. With the defaults on one Linux machine, image transport uses shared GPU buffers and the messages use
+the Unix socket, so no TCP is involved. CUDA IPC avoids the socket transport's 16-view protocol limit; the
+service's `--max-views` setting and available GPU memory still limit the batch size.
+
+Control preprocessing is separate from transport. Edge extraction uses CPU OpenCV in the camera process, and
+blur filtering copies RGB from GPU to CPU and back inside the service. CUDA IPC does not remove those copies
+or their synchronization costs; it avoids CPU staging when exchanging images between the two processes.
 
 For Isaac Lab on another machine, start the service with `--endpoint tcp://127.0.0.1:5555` and forward that port,
 for example with `ssh -L 5555:localhost:5555 gpu-host`, or keep the Unix socket and forward it with

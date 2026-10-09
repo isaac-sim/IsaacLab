@@ -53,8 +53,10 @@ class CosmosModelCfg(BackendCfg):
 
     transport: Literal["auto", "cuda_ipc", "socket"] = "auto"
     """How images move between the camera and the service. ``"cuda_ipc"`` keeps them on the GPU through shared
-    device memory and interprocess events, with no host copies or synchronization; it needs the service on the same
-    Linux machine and GPU. ``"socket"`` sends them through host memory in the endpoint's messages, which also works
+    device memory and interprocess events, with no host copies or synchronization for the transfer; it needs the
+    service on the same Linux machine and GPU. Control preprocessing can still use the CPU: edge extraction in the
+    camera process and blur filtering in the service copy images to the CPU and back. ``"socket"`` sends images
+    through host memory in the endpoint's messages, which also works
     across machines. ``"auto"`` (default) uses CUDA IPC when the service supports it and shares the camera's GPU,
     and the socket otherwise. The endpoint carries the small step messages in both cases."""
 
