@@ -159,6 +159,34 @@ class SubTaskConfig:
     apply_noise_during_interpolation: bool = False
     """Whether to apply noise during interpolation."""
 
+    num_settle_steps_before_gripper: int = 0
+    """Number of noise-free steps to hold the target of each gripper transition in this subtask
+    before the transition is commanded.
+
+    Source demonstrations are replayed by frame index, but a human operator stops the arm before
+    closing or opening the gripper: in the source data the target and the achieved end-effector
+    pose coincide at the frame of the gripper command, while the generated arm, driven with action
+    noise from a different configuration, is still moving when that frame is reached. Holding the
+    transition's target for a few steps lets the generated arm settle where the source arm was
+    before the gripper acts. The held steps keep the pre-transition gripper action and carry no
+    action noise. 0 (default) keeps the source timing unchanged.
+
+    A transition is any change of the gripper action between consecutive frames of the subtask
+    segment, as discrete open/close commands produce, including a change between the source frame
+    just before the segment and its first frame; leave the option at 0 for continuous hand-joint
+    targets, where nearly every frame differs. A useful value is a few time constants of the arm
+    controller (20 steps for the Franka IK-Rel stack task).
+
+    Note:
+        :attr:`num_fixed_steps` also holds a target, but the subtask's first one, at its start;
+        this option holds at the gripper transition inside the subtask.
+
+    Note:
+        Not supported on subtasks under a coordination constraint: the hold lengthens each
+        end effector's segment independently, which the synchronous-steps coordination does not
+        account for. The data generator raises at construction in that case.
+    """
+
     description: str = ""
     """Description of the subtask"""
 
