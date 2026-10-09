@@ -15,6 +15,9 @@ Camera data is expensive compared with low-dimensional state. Isaac Lab therefor
 camera copies from cloned environments into tiled render passes and exposes the de-tiled result as
 one device-resident buffer per requested output.
 
+For silent black or corrupted RTX camera images when scaling the workload, see
+:ref:`troubleshooting-rtx-black-frames`.
+
 Rendering model
 ---------------
 

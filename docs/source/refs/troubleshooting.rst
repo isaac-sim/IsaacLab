@@ -265,6 +265,29 @@ details.
 Renderers and visualizers
 -------------------------
 
+.. _troubleshooting-rtx-black-frames:
+
+Black or corrupted RTX camera images
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+With IsaacRTX or OVRTX, increasing the camera count, resolution, or path-tracing
+samples per pixel (SPP) can cause camera views to become black or corrupted without
+raising an error. Simulation and training can continue with invalid observations.
+
+Camera views are combined into a tiled image (an atlas). On affected renderer
+versions, the rendering workload for a large atlas can exceed the supported Vulkan
+shader-access range for a buffer, approximately 4 GiB in the reported configuration.
+This can happen even with free GPU memory. The threshold depends on the padded
+atlas dimensions and rendering settings, so there is no universal camera-count limit.
+
+Reduce the camera resolution, camera count, or path-tracing SPP, and inspect images
+from all cameras before training. Reducing the camera count may leave the atlas
+dimensions unchanged because of tile padding. Path-tracing SPP is distinct from
+the direct-lighting ``samples_per_pixel`` setting.
+
+See `issue #8412 <https://github.com/isaac-sim/IsaacLab/issues/8412>`__ for affected
+configurations, reproduction steps, and fix status.
+
 Crash in ``libusd_tf`` / USD symbol collision with OVRTX
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
