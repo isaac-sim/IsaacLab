@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import math
 import re
-from collections.abc import Callable, Iterator, Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Any, NamedTuple
 
@@ -293,44 +293,6 @@ class path:
         indices = np.r_[-1, np.argsort(topology.world_prototype_layout, kind="stable")].astype(np.int32)
         counts = np.bincount(topology.world_prototype_layout, minlength=len(starts) - 2)
         return tuple(templates), starts, indices, np.cumsum(np.r_[0, 1, counts], dtype=np.int64)
-
-    @staticmethod
-    def get_asset_copies(
-        plan: ClonePlan, asset_prototype_ids: Sequence[int] | None = None
-    ) -> Iterator[tuple[str, str, np.ndarray]]:
-        """Yield parent-first copies, omitting children supplied by the same parent source.
-
-        Args:
-            plan: Host declarations, topology, and naming template.
-            asset_prototype_ids: Asset definitions selected by the consumer; None selects all.
-
-        Yields:
-            Source path, destination template, and destination world IDs. Differently sourced
-            children follow their parents. World IDs include authored source worlds; consumers
-            may omit self-copies.
-        """
-        sources = path.get_asset_prototype_paths(plan)
-        templates, starts, worlds, world_starts = path.get_world_prototype_asset_templates(
-            plan, include_world_indices=True
-        )
-        copies = {}
-        for group in np.flatnonzero(np.diff(world_starts)):
-            start, end = starts[group : group + 2]
-            targets = worlds[world_starts[group] : world_starts[group + 1]]
-            references = [
-                (sources[asset], templates[index])
-                for index, asset in enumerate(plan.topology.world_prototypes[start:end], start)
-                if asset_prototype_ids is None or asset in asset_prototype_ids
-            ]
-            parents = path.get_parent_indices([target for _, target in references])
-            for (source, target), parent in zip(references, parents, strict=True):
-                if parent != -1:
-                    parent_source, parent_target = references[parent]
-                    if source == path.rebase(target, parent_target, parent_source):
-                        continue
-                copies.setdefault((source, target), []).append(targets)
-        for source, template in sorted(copies, key=lambda copy: copy[1].count("/")):
-            yield source, template, np.concatenate(copies[source, template])
 
     @staticmethod
     def get_parent_indices(paths: Sequence[str]) -> np.ndarray:

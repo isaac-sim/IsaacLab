@@ -103,6 +103,7 @@ from isaaclab_ov.renderers.ovrtx_usd import (
 )
 from isaaclab_ov.renderers.visual_materials import OVRTXVisualMaterialWriter
 from isaaclab_ov.stage import (
+    _iter_clone_batches,
     create_ovstage,
     ovstage_replicate,
     points_tensor_from_warp,
@@ -629,10 +630,8 @@ class OVRTXRenderer(BaseRenderer):
         if self._use_ovstage:
             ovstage_replicate(self.backend.stage, plan, ordinal=self._current_ordinal)
             return
-        for source, template, worlds in cloner_path.get_asset_copies(plan):
-            targets = [target for target in map(template.format, worlds) if target != source]
-            if targets:
-                self.backend.renderer.clone_usd(source, targets)
+        for source, targets in _iter_clone_batches(plan):
+            self.backend.renderer.clone_usd(source, targets)
         xforms = np.tile(np.eye(4, dtype=np.float64), (num_envs, 1, 1))
         xforms[:, 3, :3] = plan.positions
         self.backend.renderer.write_attribute(

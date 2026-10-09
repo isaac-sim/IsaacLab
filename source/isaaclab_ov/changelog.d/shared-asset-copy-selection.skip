@@ -1,1 +1,1 @@
-Used the core cloner's asset copy selection for OVStage and OVRTX rendering.
+Kept native copy batching in the OV rendering package without expanding the core clone-path API.

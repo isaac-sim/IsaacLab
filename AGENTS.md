@@ -27,8 +27,8 @@ The guide owns shared contribution rules. Update them there instead of copying t
   instead of caching stage or bound-method aliases.
 - Give each visualizer one frame implementation for interactive display and on-demand capture.
   Share lifecycle code between native viewers; let rendering failures propagate after frame cleanup.
-- Share USD, OVStage, and OVRTX parent/child copy selection through the core cloner path utilities;
-  keep native execution in each backend rather than adding another copy-planning helper.
+- Keep native copy batching in the OV rendering package. Reuse core path primitives without
+  exposing backend copy policies through the core cloner API.
 - Use the uv-managed environment for routine commands and `uv run python` for Python scripts.
 - Run the guide's formatting and lint checks before committing.
 - Do not define Warp kernels in `python -c`; write a temporary Python file instead so Warp can inspect the source.

@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterator
 
 import numpy as np
 import ovstage
@@ -124,6 +125,34 @@ def points_tensor_from_warp(points: wp.array) -> ovstage.DLTensor:
     return ovstage.make_dltensor(points, dtype=OVSTAGE_POINT_DTYPE)
 
 
+def _iter_clone_batches(plan: ClonePlan) -> Iterator[tuple[str, list[str]]]:
+    """Yield native clone paths parent-first, omitting self-copies and children covered by their parent."""
+    sources = cloner_path.get_asset_prototype_paths(plan)
+    templates, starts, worlds, world_starts = cloner_path.get_world_prototype_asset_templates(
+        plan, include_world_indices=True
+    )
+    copies = {}
+    for group in np.flatnonzero(np.diff(world_starts)):
+        start, end = starts[group : group + 2]
+        targets = worlds[world_starts[group] : world_starts[group + 1]]
+        references = [
+            (sources[asset], templates[index])
+            for index, asset in enumerate(plan.topology.world_prototypes[start:end], start)
+        ]
+        parents = cloner_path.get_parent_indices([target for _, target in references])
+        for (source, target), parent in zip(references, parents, strict=True):
+            if parent != -1:
+                parent_source, parent_target = references[parent]
+                if source == cloner_path.rebase(target, parent_target, parent_source):
+                    continue
+            copies.setdefault((source, target), []).append(targets)
+    for source, template in sorted(copies, key=lambda copy: copy[1].count("/")):
+        worlds = np.concatenate(copies[source, template])
+        targets = [target for target in map(template.format, worlds) if target != source]
+        if targets:
+            yield source, targets
+
+
 def ovstage_replicate(stage: ovstage.Stage, plan: ClonePlan, *, ordinal: int) -> None:
     """Clone the scene's prototypes and place environments on a native stage.
 
@@ -132,10 +161,8 @@ def ovstage_replicate(stage: ovstage.Stage, plan: ClonePlan, *, ordinal: int) ->
         plan: Scene topology and environment positions [m].
         ordinal: Write ordinal for cloning and placement.
     """
-    for source, template, worlds in cloner_path.get_asset_copies(plan):
-        targets = [target for target in map(template.format, worlds) if target != source]
-        if targets:
-            stage.clone(source, targets, ordinal=ordinal)
+    for source, targets in _iter_clone_batches(plan):
+        stage.clone(source, targets, ordinal=ordinal)
     num_envs = len(plan.topology.world_prototype_layout)
     xforms = np.tile(np.eye(4, dtype=np.float64), (num_envs, 1, 1))
     xforms[:, 3, :3] = plan.positions
