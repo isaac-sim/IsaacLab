@@ -78,16 +78,12 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      # setup-uv moves the cache to %APPDATA% on self-hosted Windows; keep uv's
-      # default location so reused runners start with a warm cache.
-      - name: Locate uv cache
-        id: uv-cache
-        run: '"dir=$env:LOCALAPPDATA\uv\cache" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append'
-
+      # Newer than the v6.8.0 the Linux workflows pin: on these runners v6.8.0
+      # crashes on exit whenever uv is already in the tool cache
+      # (astral-sh/setup-uv#686). v10 also leaves uv's cache at its default
+      # %LOCALAPPDATA%\uv\cache, so reused runners start warm.
       - name: Set up uv
-        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e  # v6.8.0
-        with:
-          cache-local-path: ${{ steps.uv-cache.outputs.dir }}
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7  # v10.2.0
 
       # ovrtx and Kit compile their shaders into .venv, which checkout's clean
       # deletes, so every run compiled them again (~6 min). They go through the
@@ -273,7 +269,7 @@ jobs:
 
       - name: Restore Kit shader cache
         id: kit-cache
-        if: ${{ !cancelled() && steps.sync-kit.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.sync-kit.outcome == 'success' && steps.shader-cache.outcome == 'success' }}
         uses: actions/cache/restore@v4
         with:
           path: .venv/Lib/site-packages/isaacsim/kit/cache
