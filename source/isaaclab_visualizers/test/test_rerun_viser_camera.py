@@ -9,7 +9,9 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+import pytest
 from isaaclab_visualizers.rerun import RerunVisualizer, RerunVisualizerCfg
+from isaaclab_visualizers.rerun import rerun_visualizer as rerun_visualizer_module
 from isaaclab_visualizers.viser import ViserVisualizer, ViserVisualizerCfg
 
 
@@ -26,6 +28,21 @@ def test_rerun_visualizer_set_camera_view():
     visualizer.set_camera_view([1, 2, 3], [4, 5, 6])
 
     assert visualizer._viewer._camera_pose == ((1.0, 2.0, 3.0), (4.0, 5.0, 6.0))
+
+
+def test_rerun_visualizer_caps_updates_by_wall_time(monkeypatch):
+    visualizer = RerunVisualizer(RerunVisualizerCfg(max_fps=20.0))
+    times = iter((10.0, 10.01, 10.05))
+    monkeypatch.setattr(rerun_visualizer_module.time, "monotonic", lambda: next(times))
+
+    assert visualizer._is_render_due()
+    assert not visualizer._is_render_due()
+    assert visualizer._is_render_due()
+
+
+def test_rerun_visualizer_rejects_nonpositive_max_fps():
+    with pytest.raises(ValueError, match="max_fps must be positive or None"):
+        RerunVisualizerCfg(max_fps=0.0)
 
 
 def test_viser_visualizer_set_camera_view(monkeypatch):

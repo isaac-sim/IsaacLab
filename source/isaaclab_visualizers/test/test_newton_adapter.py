@@ -414,6 +414,41 @@ def test_newton_viewer_camera_speed_setter_validates(monkeypatch):
         viewer.camera_speed = -1.0
 
 
+def test_newton_viewer_image_logger_patch_preserves_draw_arguments():
+    viewer = NewtonViewerGL.__new__(NewtonViewerGL)
+    calls = []
+
+    class ImageLogger:
+        def draw(self, ui, sidebar_width_px=0.0):
+            calls.append((self, ui, sidebar_width_px))
+
+    image_logger = ImageLogger()
+    image_logger.draw_controls = Mock()
+    viewer._image_logger = image_logger
+    viewer._streaming_panel_needs_sizing = False
+    viewer._patch_image_logger()
+    ui = object()
+
+    image_logger.draw(ui, sidebar_width_px=320.0)
+
+    assert calls == [(image_logger, ui, 320.0)]
+
+
+def test_newton_viewer_camera_keys_ignore_mouse_capture():
+    viewer = NewtonViewerGL.__new__(NewtonViewerGL)
+    capture = SimpleNamespace(mouse=True, keyboard=False)
+    viewer.gui = SimpleNamespace(
+        is_capturing=lambda: capture.mouse or capture.keyboard,
+        should_ignore_keyboard_input=lambda: capture.keyboard,
+    )
+
+    viewer._patch_keyboard_capture()
+
+    assert not viewer.gui.is_capturing()
+    capture.keyboard = True
+    assert viewer.gui.is_capturing()
+
+
 class _FakeTrainingControlsImgui:
     """Minimal imgui double that drives ``_render_training_controls`` by label."""
 

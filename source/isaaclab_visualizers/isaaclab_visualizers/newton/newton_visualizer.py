@@ -245,6 +245,11 @@ class _NewtonViewerUIMixin:
         # Replace Newton's floating plots window with a no-op; rendering is in the panel.
         gui._render_scalar_plots = lambda: None
 
+    def _patch_keyboard_capture(self) -> None:
+        """Keep Newton camera keys active while only the mouse is captured by ImGui."""
+        gui = self.gui
+        gui.is_capturing = gui.should_ignore_keyboard_input
+
     def _patch_image_logger(self) -> None:
         """Patch the image logger for streaming view integration.
 
@@ -269,7 +274,7 @@ class _NewtonViewerUIMixin:
         _orig_draw = type(image_logger).draw
         _viewer_ref = self  # capture for closure — used to read composite dimensions
 
-        def _draw_large(self_logger: object) -> None:
+        def _draw_large(self_logger: object, ui: object, sidebar_width_px: float = 0.0) -> None:
             # Use our own flag (not Newton's entry.window_initialized) so Newton cannot
             # preempt our sizing by marking the window as initialized via the placeholder.
             if getattr(_viewer_ref, "_streaming_panel_needs_sizing", False):
@@ -279,7 +284,7 @@ class _NewtonViewerUIMixin:
                     from imgui_bundle import imgui as _imgui
 
                     vp = _imgui.get_main_viewport()
-                    sidebar_w = float(self_logger._sidebar_width_px)
+                    sidebar_w = float(sidebar_width_px)
                     margin = 20.0
                     avail_w = max(320.0, vp.work_size.x - sidebar_w - 2.0 * margin)
                     avail_h = max(240.0, vp.work_size.y - 2.0 * margin)
@@ -301,7 +306,7 @@ class _NewtonViewerUIMixin:
                     # Force the window uncollapsed — imgui.ini may have saved a collapsed state.
                     _imgui.set_next_window_collapsed(False, _imgui.Cond_.always)
                     _viewer_ref._streaming_panel_needs_sizing = False
-            return _orig_draw(self_logger)
+            return _orig_draw(self_logger, ui, sidebar_width_px=sidebar_width_px)
 
         image_logger.draw = types.MethodType(_draw_large, image_logger)
 
@@ -834,6 +839,7 @@ class NewtonViewerGL(_NewtonViewerUIMixin, ViewerGL):
             self._patch_scalar_plot_width()
             self._patch_viewer_panel()
             self._patch_image_logger()
+            self._patch_keyboard_capture()
 
         self.register_ui_callback(self._render_training_controls, position="side")
         self._close_requested = False

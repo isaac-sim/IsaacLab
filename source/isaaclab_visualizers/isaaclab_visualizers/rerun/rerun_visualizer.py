@@ -12,6 +12,7 @@ import contextlib
 import inspect
 import logging
 import socket
+import time
 import webbrowser
 from typing import TYPE_CHECKING
 from urllib.parse import quote
@@ -277,6 +278,17 @@ class RerunVisualizer(BaseVisualizer):
         self._step_counter = 0
         self.backend = None
         self._last_camera_pose: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
+        self._last_render_wall_time: float | None = None
+
+    def _is_render_due(self) -> bool:
+        """Return whether enough wall time elapsed for another Rerun update."""
+        if self.cfg.max_fps is None:
+            return True
+        now = time.monotonic()
+        if self._last_render_wall_time is not None and now - self._last_render_wall_time < 1.0 / self.cfg.max_fps:
+            return False
+        self._last_render_wall_time = now
+        return True
 
     def initialize(
         self,
@@ -383,6 +395,11 @@ class RerunVisualizer(BaseVisualizer):
 
         self._sim_time += dt
         self._step_counter += 1
+
+        # Training can advance much faster than the web viewer can ingest frames. Drop
+        # intermediate visualization updates instead of building an ever-growing latency queue.
+        if not self._is_render_due():
+            return
 
         num_envs = self.backend.model.num_envs
 
