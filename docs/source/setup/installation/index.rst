@@ -257,21 +257,6 @@ resources as a released wheel:
 Use a commit hash or release tag for reproducible environments. A branch name is accepted, but
 updating the lockfile can then select a newer Isaac Lab revision and dependency set.
 
-For a one-off Git installation with Isaac Sim, pass the matching revision's resolver overrides
-to ``uvx``. The overrides reconcile Isaac Sim's older exact dependency pins, including
-``newton-usd-schemas``, with Isaac Lab's requirements; wheel metadata cannot carry uv overrides.
-Include the CUDA index because the overrides also replace PyTorch requirements.
-Replace both occurrences of ``<git-revision>`` with the same commit, tag, or branch:
-
-.. code-block:: bash
-
-   uvx --python 3.12 \
-     --overrides "https://raw.githubusercontent.com/isaac-sim/IsaacLab/<git-revision>/tools/wheel_builder/uv-overrides.txt" \
-     --extra-index-url https://pypi.nvidia.com --extra-index-url https://download.pytorch.org/whl/cu130 \
-     --index-strategy unsafe-best-match --prerelease allow \
-     --from "git+https://github.com/isaac-sim/IsaacLab.git@<git-revision>#subdirectory=tools/wheel_builder[isaacsim]" \
-     isaaclab demo zoo --physics isaacsim_physx --viz kit
-
 Installing the published wheel
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
