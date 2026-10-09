@@ -155,8 +155,8 @@ class SceneCameraCfg:
 
 
 @configclass
-class TrackedCameraCfg(SceneCameraCfg):
-    """A scene camera that follows an asset, created for the visualizer when it runs.
+class TrackingCameraCfg(SceneCameraCfg):
+    """A scene camera that follows an asset, or stays fixed in each environment, created for the visualizer.
 
     Unlike :class:`SceneCameraCfg`, this declares the camera instead of referring to one: when a visualizer is
     selected or recorded, the launcher adds a :class:`~isaaclab.sensors.CameraCfg` with this pose, optics, and
@@ -164,7 +164,7 @@ class TrackedCameraCfg(SceneCameraCfg):
     other scene camera, e.g. recorded with ``--video viz:newton_gl:streaming_view``.
     """
 
-    prim_path: str = "{ENV_REGEX_NS}/TrackedCamera"
+    prim_path: str = "{ENV_REGEX_NS}/TrackingCamera"
     """Prim path of the created camera, including ``{ENV_REGEX_NS}``. Its last segment is the scene sensor name."""
 
     eye: tuple[float, float, float] | None = None
@@ -230,15 +230,18 @@ class VisualizerCfg:
     cloning_contexts: tuple[type | str, ...] = ()
     """Clone contexts that build this visualizer's scene representation from the asset plan."""
 
-    # Primary interactive camera settings
-    cameras: list[PerspectiveCameraCfg | SceneCameraCfg | TrackedCameraCfg] | None = None
-    """Camera sources available to the visualizer.
+    # Camera sources
+    cameras: list[PerspectiveCameraCfg | SceneCameraCfg] | None = None
+    """Camera sources the visualizer displays, in display order. None uses :attr:`eye`, :attr:`lookat` and
+    :attr:`focal_length` for the main viewport and shows no scene camera unless :attr:`streaming_view` is set.
 
-    PerspectiveCameraCfg configures the interactive view; SceneCameraCfg refers to an existing scene
-    sensor; TrackedCameraCfg declares a scene sensor that follows an asset. Kit, Newton GL, Rerun, and Viser
-    display the first scene source in their camera panel.
-    Newton RTX supports only perspective sources. None uses eye/lookat/focal_length and the streaming settings below.
-    Every explicit scene source must provide all requested streaming_gt_types channels.
+    * :class:`PerspectiveCameraCfg`: the interactive main viewport, which you can move.
+    * :class:`SceneCameraCfg`: the output of a camera sensor the scene already declares, shown in the streaming
+      panel. A :class:`TrackingCameraCfg` is a scene camera that the launcher creates for the visualizer.
+
+    Any scene source turns :attr:`streaming_view` on, and every one must provide all
+    :attr:`streaming_gt_types` channels. Kit, Newton GL, Rerun, and Viser show the first scene source by default,
+    and Newton GL also lets you switch between them. Newton RTX supports only perspective sources.
     """
 
     eye: tuple[float, float, float] = (4.0, -4.0, 3.0)

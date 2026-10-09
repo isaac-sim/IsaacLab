@@ -36,7 +36,7 @@ with contextlib.suppress(ImportError):
     import isaaclab_tasks_experimental  # noqa: F401
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.sensors import CameraCfg
-from isaaclab.visualizers import SceneCameraCfg, TrackedCameraCfg
+from isaaclab.visualizers import SceneCameraCfg, TrackingCameraCfg
 
 from isaaclab_tasks.utils import resolve_task_config, setup_preset_cli
 
@@ -57,7 +57,7 @@ def _configure_visualizers(env_cfg, args_cli: argparse.Namespace) -> None:
         source = SceneCameraCfg(prim_path=camera_cfg.prim_path)
     else:
         # a camera the visualizer declares: the launcher adds it to every environment and moves it behind the robot
-        source = TrackedCameraCfg(
+        source = TrackingCameraCfg(
             eye=(-3.0, 0.0, 1.6),
             lookat=(0.0, 0.0, 0.4),
             track_path="robot",

@@ -19,7 +19,7 @@ import torch
 import isaaclab.utils.math as math_utils
 from isaaclab.utils import index_fill_
 from isaaclab.utils.math import quat_from_angle_axis, quat_mul
-from isaaclab.visualizers import TrackedCameraCfg, VisualizerCfg
+from isaaclab.visualizers import TrackingCameraCfg, VisualizerCfg
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation
@@ -34,7 +34,7 @@ VISUALIZER_CFG = VisualizerCfg(
     focal_length=24.0,
     streaming_envs=[0],
     cameras=[
-        TrackedCameraCfg(),
+        TrackingCameraCfg(),
     ],
 )
 """Top-down recording view of the held cube beside its goal cube."""

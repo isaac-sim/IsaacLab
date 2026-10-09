@@ -24,7 +24,7 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils import configclass, replace
-from isaaclab.visualizers import TrackedCameraCfg, VisualizerCfg
+from isaaclab.visualizers import TrackingCameraCfg, VisualizerCfg
 
 from isaaclab_tasks.utils import PresetCfg
 
@@ -246,7 +246,7 @@ class FourbarPoleSwingupEnvCfg(ManagerBasedRLEnvCfg):
             focal_length=24.0,
             streaming_envs=[0],
             cameras=[
-                TrackedCameraCfg(),
+                TrackingCameraCfg(),
             ],
         )
         # simulation settings

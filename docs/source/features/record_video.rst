@@ -328,18 +328,18 @@ streaming view:
         --video viz:newton_gl:streaming_view
 
 The launcher adds the camera to the scene only when a visualizer is selected or a ``streaming_view`` source
-is recorded. A task declares it with ``TrackedCameraCfg``:
+is recorded. A task declares it with ``TrackingCameraCfg``:
 
 .. code-block:: python
 
-    from isaaclab.visualizers import TrackedCameraCfg, VisualizerCfg
+    from isaaclab.visualizers import TrackingCameraCfg, VisualizerCfg
 
     self.sim.default_visualizer_cfg = VisualizerCfg(
         eye=(1.8, -3.0, 1.1),
         lookat=(0.15, 0.0, 0.0),
         streaming_envs=[0],
         cameras=[
-            TrackedCameraCfg(
+            TrackingCameraCfg(
                 track_path="robot",
                 follow_heading=True,
                 heading_smoothing_time_constant=0.2,

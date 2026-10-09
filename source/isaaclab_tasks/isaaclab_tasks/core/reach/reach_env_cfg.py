@@ -27,7 +27,7 @@ from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
-from isaaclab.visualizers import TrackedCameraCfg, VisualizerCfg
+from isaaclab.visualizers import TrackingCameraCfg, VisualizerCfg
 
 from isaaclab_tasks.utils import PresetCfg
 
@@ -254,6 +254,6 @@ class ReachEnvCfg(ManagerBasedRLEnvCfg):
             focal_length=28.0,
             streaming_envs=[0],
             cameras=[
-                TrackedCameraCfg(),
+                TrackingCameraCfg(),
             ],
         )

@@ -13,7 +13,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.physics import PhysxAutoCfg
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass
-from isaaclab.visualizers import TrackedCameraCfg, VisualizerCfg
+from isaaclab.visualizers import TrackingCameraCfg, VisualizerCfg
 
 from isaaclab_tasks.utils import PresetCfg
 
@@ -23,7 +23,7 @@ VISUALIZER_CFG = VisualizerCfg(
     focal_length=26.0,
     streaming_envs=[0],
     cameras=[
-        TrackedCameraCfg(
+        TrackingCameraCfg(
             track_path="robot",
             follow_heading=True,
             heading_smoothing_time_constant=0.5,

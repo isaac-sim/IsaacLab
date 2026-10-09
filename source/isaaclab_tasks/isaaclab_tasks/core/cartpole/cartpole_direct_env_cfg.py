@@ -15,7 +15,7 @@ from isaaclab.envs import DirectRLEnvCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass, replace
-from isaaclab.visualizers import TrackedCameraCfg, VisualizerCfg
+from isaaclab.visualizers import TrackingCameraCfg, VisualizerCfg
 
 from isaaclab_assets.robots.cartpole import CARTPOLE_CFG
 
@@ -78,6 +78,6 @@ class CartpoleEnvCfg(DirectRLEnvCfg):
             focal_length=24.0,
             streaming_envs=[0],
             cameras=[
-                TrackedCameraCfg(),
+                TrackingCameraCfg(),
             ],
         )

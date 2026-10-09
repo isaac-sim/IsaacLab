@@ -25,8 +25,8 @@ from ..envs.utils.camera_view import image_grid_columns, resolve_streaming_envs
 from ..utils import validate
 from ..utils.buffers import TimestampedBuffer
 from ..utils.images import compose_image
-from .tracked_camera import TrackedCameraUpdater
-from .visualizer_cfg import USD_DEFAULT_VERTICAL_APERTURE_MM, PerspectiveCameraCfg, TrackedCameraCfg
+from .tracking_camera import TrackingCameraUpdater
+from .visualizer_cfg import USD_DEFAULT_VERTICAL_APERTURE_MM, PerspectiveCameraCfg, TrackingCameraCfg
 
 if TYPE_CHECKING:
     from pxr import Usd
@@ -67,8 +67,8 @@ class BaseVisualizer(ABC):
         self._live_plots_step_counter: int = 0
         self._reset_requested: bool = False
         self._sim_time = 0.0
-        self._tracked_cameras: list[TrackedCameraUpdater] | None = None
-        self._tracked_camera_time = 0.0
+        self._tracking_cameras: list[TrackingCameraUpdater] | None = None
+        self._tracking_camera_time = 0.0
         self._camera_sensor: Camera | None = None
         self._camera_sensor_indices: list[int] = []
         self._streaming_aspect = 1.0
@@ -141,32 +141,32 @@ class BaseVisualizer(ABC):
                 (camera for camera in self._camera_choices if not isinstance(camera, PerspectiveCameraCfg)), None
             )
 
-    def _update_tracked_cameras(self, env_ids: list[int]) -> None:
+    def _update_tracking_cameras(self, env_ids: list[int]) -> None:
         """Move the tracking cameras to their assets for the simulation time elapsed since the last move.
 
         The elapsed time comes from the simulation, since headless capture renders without calling :meth:`step`.
         """
-        if self._tracked_cameras is None:
+        if self._tracking_cameras is None:
             scene = self._scene_data_provider.get_interactive_scene()
             if scene is None:
                 return
             sensors = [camera for camera in self._camera_choices if not isinstance(camera, PerspectiveCameraCfg)]
-            self._tracked_cameras = [
-                TrackedCameraUpdater(camera_cfg, sensor, scene)
+            self._tracking_cameras = [
+                TrackingCameraUpdater(camera_cfg, sensor, scene)
                 for camera_cfg in self.cfg.cameras or ()
-                if isinstance(camera_cfg, TrackedCameraCfg) and camera_cfg.track_path
+                if isinstance(camera_cfg, TrackingCameraCfg) and camera_cfg.track_path
                 for sensor in sensors
                 if sensor.cfg.prim_path.rsplit("/", 1)[-1] == camera_cfg.prim_path.rsplit("/", 1)[-1]
             ]
-        if not self._tracked_cameras:
+        if not self._tracking_cameras:
             return
         sim = sim_utils.SimulationContext.instance()
         sim_time = sim.get_physics_step_count() * sim.get_physics_dt()
         # the step count restarts with a new simulation; a negative elapsed time would push the heading filter away
-        dt = max(sim_time - self._tracked_camera_time, 0.0)
-        for tracked in self._tracked_cameras:
+        dt = max(sim_time - self._tracking_camera_time, 0.0)
+        for tracked in self._tracking_cameras:
             tracked.update(env_ids, dt)
-        self._tracked_camera_time = sim_time
+        self._tracking_camera_time = sim_time
 
     def render_tiled_rgba(self) -> wp.array | None:
         """Acquire the selected camera frame and compose a device-resident display image.
@@ -178,7 +178,7 @@ class BaseVisualizer(ABC):
         camera, env_ids, cfg = self._camera_sensor, self._camera_sensor_indices, self.cfg
         if camera is None or not env_ids:
             return None
-        self._update_tracked_cameras(env_ids)
+        self._update_tracking_cameras(env_ids)
         gt_types = tuple(cfg.streaming_gt_types)
         aspect, depth_min, depth_max = self._streaming_aspect, cfg.streaming_depth_min, cfg.streaming_depth_max
         view_key = (camera, tuple(env_ids), gt_types, aspect, depth_min, depth_max)

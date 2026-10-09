@@ -17,6 +17,7 @@ The following classes are part of the public :mod:`isaaclab.visualizers` API.
    VisualizerCfg
    PerspectiveCameraCfg
    SceneCameraCfg
+   TrackingCameraCfg
 
 .. autoclass:: BaseVisualizer
    :show-inheritance:
@@ -28,4 +29,7 @@ The following classes are part of the public :mod:`isaaclab.visualizers` API.
    :show-inheritance:
 
 .. autoclass:: SceneCameraCfg
+   :show-inheritance:
+
+.. autoclass:: TrackingCameraCfg
    :show-inheritance:

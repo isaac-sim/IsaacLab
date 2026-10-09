@@ -86,7 +86,7 @@ Examples
 Running ``run_tiled_camera_visualizer.py`` demonstrates two ways to use the streaming camera
 view:
 
-- a tracked camera that follows each AnymalD robot, shown in the Kit visualizer
+- a tracking camera that follows each AnymalD robot, shown in the Kit visualizer
 - streaming from existing wrist-mounted robot cameras, shown in the Newton visualizer
 
 
@@ -112,7 +112,7 @@ Example 1: Following AnymalD Robots
          uv run python scripts/tutorials/07_visualizers/run_tiled_camera_visualizer.py ^
              --task Isaac-Velocity-Rough-AnymalD --num_envs 256 --viz kit
 
-The script declares a ``TrackedCameraCfg`` in the visualizer config; see `Tracked cameras`_. The
+The script declares a ``TrackingCameraCfg`` in the visualizer config; see `Tracking cameras`_. The
 launcher adds a camera to every environment, and the camera follows its robot's position and smoothed
 heading. Of the 256 environments, 36 are sampled for display.
 
@@ -193,29 +193,29 @@ Declared display sources
 
 ``VisualizerCfg.cameras`` accepts ``PerspectiveCameraCfg`` for the interactive view,
 ``SceneCameraCfg(prim_path=...)`` for a camera sensor already declared in the scene, and
-``TrackedCameraCfg`` for a camera the visualizer declares itself.
+``TrackingCameraCfg`` for a camera the visualizer declares itself.
 Kit, Newton GL, Rerun, and Viser display scene-camera output in a streaming panel.
 Newton RTX accepts perspective sources only. Every explicit scene source must provide
 the requested ``streaming_gt_types`` channels.
 
-Tracked cameras
+Tracking cameras
 ~~~~~~~~~~~~~~~
 
-A ``TrackedCameraCfg`` follows a scene asset without changing the interactive camera, which stays free to
+A ``TrackingCameraCfg`` follows a scene asset without changing the interactive camera, which stays free to
 move. When a visualizer is selected, or a video records a ``streaming_view`` source, the launcher adds a
 camera to every environment; runs that display nothing do not pay for it. Set it on a task through
 ``sim.default_visualizer_cfg``, or on any visualizer config:
 
 .. code-block:: python
 
-    from isaaclab.visualizers import TrackedCameraCfg, VisualizerCfg
+    from isaaclab.visualizers import TrackingCameraCfg, VisualizerCfg
 
     self.sim.default_visualizer_cfg = VisualizerCfg(
         eye=(1.8, -3.0, 1.1),
         lookat=(0.15, 0.0, 0.0),
         streaming_envs=[0],
         cameras=[
-            TrackedCameraCfg(
+            TrackingCameraCfg(
                 track_path="robot",
                 follow_heading=True,
                 heading_smoothing_time_constant=0.2,
@@ -269,7 +269,7 @@ Closing a visualizer does not affect the camera or other visualizers reading it.
 
    A camera parented under a robot in the scene follows it only when the physics backend writes poses
    to USD, e.g. PhysX with Kit. With Newton physics it stays where it was spawned; use a
-   ``TrackedCameraCfg`` instead, which moves the camera explicitly.
+   ``TrackingCameraCfg`` instead, which moves the camera explicitly.
 
 
 See also

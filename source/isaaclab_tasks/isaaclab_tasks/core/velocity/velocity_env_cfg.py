@@ -37,7 +37,7 @@ from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
-from isaaclab.visualizers import TrackedCameraCfg, VisualizerCfg
+from isaaclab.visualizers import TrackingCameraCfg, VisualizerCfg
 
 from isaaclab_tasks.utils import PresetCfg
 
@@ -364,7 +364,7 @@ class LocomotionVelocityRoughEnvCfg(ManagerBasedRLEnvCfg):
             focal_length=26.0,
             streaming_envs=[0],
             cameras=[
-                TrackedCameraCfg(
+                TrackingCameraCfg(
                     track_path="robot",
                     follow_heading=True,
                     heading_smoothing_time_constant=0.2,
