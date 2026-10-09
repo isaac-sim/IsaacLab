@@ -221,7 +221,9 @@ class MPMObject(BaseDeformableObject):
     def _initialize_impl(self):
         expression = re.compile(self.cfg.prim_path + _SIMULATION_POINTS_SUFFIX)
         ranges = [
-            value for path, value in SimulationManager.backend.particle_ranges.items() if expression.fullmatch(path)
+            value
+            for path, value in SimulationManager.get_clone_record().particle_ranges.items()
+            if expression.fullmatch(path)
         ]
         if not ranges:
             raise RuntimeError(f"No imported MPM particles match '{self.cfg.prim_path}'.")

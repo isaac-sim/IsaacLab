@@ -228,9 +228,6 @@ class TestVisualizationClonePlan(unittest.TestCase):
         plan = make_clone_plan(assets, ((0, 1),), 2, shared_assets=range(2, len(assets)), env_template="/Scene/copy_{}")
         bindings = {"/PhysicsOwned": [0]}
         clone = NewtonCloneRecord(
-            num_envs=1,
-            world_prototypes=np.zeros(1, dtype=np.int64),
-            site_index_map={},
             world_xforms=None,
             source_builders={},
             particle_ranges={},

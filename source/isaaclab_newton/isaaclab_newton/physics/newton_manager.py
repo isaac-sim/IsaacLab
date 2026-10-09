@@ -781,14 +781,15 @@ class NewtonManager(PhysicsManager):
         return NewtonManager._world_builder_hooks
 
     @classmethod
-    def record_clone(cls, record: NewtonCloneRecord) -> None:
+    def record_clone(cls, record: NewtonCloneRecord, site_index_map: dict[str, SiteEntry]) -> None:
         """Record native replication outputs for model finalization and consumers.
 
         Args:
             record: Replication outputs.
+            site_index_map: Sites resolved during replication, by label.
         """
         NewtonManager._clone = record
-        NewtonManager._site_index_map.update(record.site_index_map)
+        NewtonManager._site_index_map.update(site_index_map)
 
     @classmethod
     def get_clone_record(cls) -> NewtonCloneRecord | None:

@@ -231,15 +231,6 @@ def _run(ops: Sequence[StepOp]) -> None:
 class NewtonCloneRecord:
     """Native replication outputs, kept across hard resets and consumed when the model is finalized."""
 
-    num_envs: int
-    """Number of cloned worlds."""
-
-    world_prototypes: np.ndarray
-    """Clone-plan world prototype of each world. Worlds that share a prototype hold the same assets."""
-
-    site_index_map: dict[str, SiteEntry]
-    """Resolved site indices by site label."""
-
     world_xforms: list[wp.transform] | None
     """Root transform of each cloned world."""
 
@@ -277,7 +268,6 @@ class NewtonBackend:
         physics_cfg: PhysicsCfg | None = None,
         *,
         dt: float | None = None,
-        clone: NewtonCloneRecord | None = None,
         deformable_ranges: dict[str, tuple[int, int, str]] | None = None,
     ):
         """Bind native buffers to a finalized model.
@@ -287,13 +277,10 @@ class NewtonBackend:
             physics_cfg: Physics configuration. A :class:`NewtonCfg` makes this a simulation backend driven by
                 ``physics_cfg.class_type``; anything else makes it render-only.
             dt: Duration of one physics step [s]. Required for a simulation backend.
-            clone: Replication outputs of the model's builder, if it was cloned.
             deformable_ranges: Native ``(start, count, kind)`` particle range of each deformable mesh, by label.
         """
         self.model = model
-        self.clone = clone
         self.deformable_ranges = deformable_ranges or {}
-        self.particle_ranges: dict[str, tuple[int, int]] = {} if clone is None else clone.particle_ranges
         self.device = str(model.device)
         # Physics settings apply to the model before any state is allocated from it.
         soft_contact = physics_cfg.soft_contact_cfg if isinstance(physics_cfg, NewtonCfg) else None
@@ -378,7 +365,7 @@ class NewtonBackend:
     def close(self) -> None:
         """Drop native handles after consumers release their bindings."""
         self.model = self.state_0 = self.state_1 = self.control = None
-        self.deformable_ranges, self.particle_ranges, self.geometry_offsets = {}, {}, {}
+        self.deformable_ranges, self.geometry_offsets = {}, {}
         self.bvh_refit = TimestampedBuffer()
         if self.cfg is not None:
             self.solver = self.collision_pipeline = self.contacts = self.actuators = self.step_graph = None
@@ -403,11 +390,8 @@ def create_newton_backend(cfg: NewtonBackendCfg) -> NewtonBackend:
     sim = SimulationContext.instance()
     builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=cfg.physics_cfg))
     simulation = isinstance(cfg.physics_cfg, NewtonCfg)
-    clone = None
     if simulation:
-        manager = cfg.physics_cfg.class_type
-        manager.prepare_builder(builder)
-        clone = manager.get_clone_record()
+        cfg.physics_cfg.class_type.prepare_builder(builder)
     model = builder.finalize(device=cfg.device)
     deformable_ranges = {
         label: (start, end - start, kind)
@@ -420,7 +404,7 @@ def create_newton_backend(cfg: NewtonBackendCfg) -> NewtonBackend:
     if simulation:
         model.set_gravity(sim.cfg.gravity)
     dt = sim.cfg.dt if simulation else None
-    return NewtonBackend(model, cfg.physics_cfg, dt=dt, clone=clone, deformable_ranges=deformable_ranges)
+    return NewtonBackend(model, cfg.physics_cfg, dt=dt, deformable_ranges=deformable_ranges)
 
 
 # ----- Solver ------------------------------------------------------------------------

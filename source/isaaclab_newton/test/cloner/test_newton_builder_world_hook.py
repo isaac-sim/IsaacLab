@@ -66,9 +66,6 @@ def test_copy_newton_clone_source_owns_mutable_geometry(monkeypatch):
     mesh = newton.Mesh(vertices=[(0, 0, 0), (1, 0, 0), (0, 1, 0)], indices=[0, 1, 2])
     source.add_shape_mesh(body, mesh=mesh)
     clone = NewtonCloneRecord(
-        num_envs=1,
-        world_prototypes=np.zeros(1, dtype=np.int64),
-        site_index_map={},
         world_xforms=None,
         source_builders={"/World/Source": source},
         particle_ranges={},

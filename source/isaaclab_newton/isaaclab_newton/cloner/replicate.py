@@ -256,16 +256,13 @@ def _replicate_newton(
         if visual_ranges:
             batches.append((SceneDataFormat.Points(), visual_ranges))
         record = NewtonCloneRecord(
-            num_envs=len(env_ids),
-            world_prototypes=np.asarray(plan.topology.world_prototype_layout),
-            site_index_map=site_index_map,
             world_xforms=world_xforms,
             source_builders=source_builders,
             particle_ranges=particle_ranges,
             cable_bindings=cable_bindings,
             geometry_batches=batches,
         )
-        NewtonManager.record_clone(record)
+        NewtonManager.record_clone(record, site_index_map)
     return builder, stage_info, site_index_map
 
 
