@@ -93,6 +93,8 @@ def add_tracking_cameras(env_cfg, sim_cfg, physics_cfg) -> bool:
     Returns:
         Whether a camera was added, which the launcher's scan must then see.
     """
+    from ..sensors import CameraCfg
+
     scene_cfg = getattr(env_cfg, "scene", None)
     if scene_cfg is None or not sim_cfg.visualizer_cfgs:
         return False
@@ -103,7 +105,11 @@ def add_tracking_cameras(env_cfg, sim_cfg, physics_cfg) -> bool:
         renderer_cfg = NewtonWarpRendererCfg(enable_shadows=True, enable_ambient_lighting=True, enable_textures=True)
     added = False
     for name, (camera, visualizer_cfg) in tracking_camera_cfgs(sim_cfg).items():
-        if hasattr(scene_cfg, name):
+        existing = getattr(scene_cfg, name, None)
+        if existing is not None:
+            # a launch that already added this camera, for a config reused across launches
+            if isinstance(existing, CameraCfg) and existing.prim_path == camera.prim_path:
+                continue
             raise ValueError(f"Scene already has an entry named {name!r}; give the tracking camera another prim_path.")
         # the visualizer's background, so the camera's sky matches its viewport
         setattr(

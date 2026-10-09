@@ -156,7 +156,7 @@ class BaseVisualizer(ABC):
                 for camera_cfg in self.cfg.cameras or ()
                 if isinstance(camera_cfg, TrackingCameraCfg) and camera_cfg.track_path
                 for sensor in sensors
-                if sensor.cfg.prim_path.rsplit("/", 1)[-1] == camera_cfg.prim_path.rsplit("/", 1)[-1]
+                if sensor.cfg.prim_path.endswith(camera_cfg.prim_path.removeprefix("{ENV_REGEX_NS}"))
             ]
         if not self._tracking_cameras:
             return

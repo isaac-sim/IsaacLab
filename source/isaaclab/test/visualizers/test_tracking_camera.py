@@ -123,6 +123,8 @@ def test_a_visualizers_own_cameras_win_and_conflicts_are_rejected():
         _add(cfg)
 
     cfg = _env_cfg(visualizer_cfgs=[VisualizerCfg()])
+    assert _add(cfg)
+    assert not _add(cfg)  # a reused config keeps the camera it already has
     cfg.scene.Chase = object()
     with pytest.raises(ValueError, match="already has an entry"):
         _add(cfg)

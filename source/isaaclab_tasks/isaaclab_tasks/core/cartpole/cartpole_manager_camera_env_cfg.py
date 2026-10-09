@@ -12,6 +12,7 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.images import is_depth_like
+from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_tasks.utils import PresetCfg
 
@@ -144,6 +145,8 @@ class CartpoleCameraEnvCfg(PresetCfg):
             self.scene.ground = None
             # reset: smaller initial pole angle than the proprioceptive task
             self.events.reset_pole_position.params["position_range"] = (-0.125 * math.pi, 0.125 * math.pi)
+            # visualizer settings
+            self.sim.default_visualizer_cfg = VisualizerCfg(eye=(20.0, 20.0, 20.0), lookat=(0.0, 0.0, 0.0))
 
     rgb = BaseCartpoleCameraEnvCfg(observations=image_observations_cfg("rgb"))
     depth = BaseCartpoleCameraEnvCfg(observations=image_observations_cfg("depth"))

@@ -17,7 +17,7 @@ from isaaclab.utils import configclass
 
 from isaaclab_assets.robots.shadow_hand import FINGERTIP_NAMES, JOINT_NAMES, TENDON_NAMES, TENDON_POSITION_LIMITS
 
-from ...utils import GOAL_MARKER_POS, VISUALIZER_CFG
+from ...utils import VISUALIZER_CFG
 from .shadow_hand_common import (
     CUBE_CFG,
     GOAL_OBJECT_CFG,
@@ -90,7 +90,7 @@ class ShadowHandEnvCfg(DirectRLEnvCfg):
     max_consecutive_success = 0
     in_hand_pos_offset: tuple[float, float, float] = (0.0, 0.0, -0.04)
     """In-hand goal anchor, relative to the object's default position [m]."""
-    goal_marker_position: tuple[float, float, float] = GOAL_MARKER_POS
+    goal_marker_position: tuple[float, float, float] = (-0.2, -0.45, 0.68)
     """Fixed goal-marker display position [m], environment frame."""
     av_factor = 0.1
     act_moving_average = 1.0

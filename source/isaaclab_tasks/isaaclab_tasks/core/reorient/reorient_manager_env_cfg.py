@@ -29,7 +29,7 @@ from isaaclab.utils import configclass
 from isaaclab_tasks.utils import PresetCfg
 
 from . import mdp
-from .utils import GOAL_MARKER_POS, VISUALIZER_CFG
+from .utils import VISUALIZER_CFG
 
 ##
 # Scene definition
@@ -67,7 +67,7 @@ class CommandsCfg:
         update_goal_on_success=True,
         orientation_success_threshold=MISSING,
         make_quat_unique=False,
-        fixed_marker_pos=GOAL_MARKER_POS,
+        fixed_marker_pos=(-0.2, -0.45, 0.68),
         debug_vis=True,
     )
 

@@ -10,6 +10,7 @@ from __future__ import annotations
 import math
 
 from isaaclab.utils import configclass
+from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_tasks.utils import PresetCfg
 
@@ -56,6 +57,11 @@ class CartpoleCameraEnvCfg(PresetCfg):
 
         # reset: smaller initial pole angle than the proprioceptive task
         initial_pole_angle_range = (-0.125 * math.pi, 0.125 * math.pi)  # [rad]
+
+        def __post_init__(self):
+            super().__post_init__()
+            # the base sets the proprioceptive camera view; widen it to see the camera environments
+            self.sim.default_visualizer_cfg = VisualizerCfg(eye=(20.0, 20.0, 20.0))
 
     default = BaseCartpoleCameraEnvCfg()
     depth = BaseCartpoleCameraEnvCfg(observation_space=[1, 96, 96])

@@ -115,6 +115,8 @@ class ShadowHandCameraManagerEnvCfg(ShadowHandManagerEnvCfg):
 
     def __post_init__(self):
         super().__post_init__()
+        # the goal cube must sit inside the tiled camera's frustum
+        self.commands.object_pose.fixed_marker_pos = (-0.2, 0.1, 0.6)
         self.observations.policy.camera_features.params["feature_extractor_cfg"] = self.feature_extractor
 
     def validate_config(self):

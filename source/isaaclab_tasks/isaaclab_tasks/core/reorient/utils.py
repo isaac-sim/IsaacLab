@@ -25,9 +25,6 @@ if TYPE_CHECKING:
     from isaaclab.assets import Articulation
 
 
-GOAL_MARKER_POS = (-0.2, 0.1, 0.6)
-"""Goal-cube display position [m], environment frame, inside the Shadow Hand camera frustum."""
-
 VISUALIZER_CFG = VisualizerCfg(
     streaming_envs=[0],
     cameras=[
@@ -38,7 +35,7 @@ VISUALIZER_CFG = VisualizerCfg(
         ),
     ],
 )
-"""Top-down recording view of the held cube beside its goal cube."""
+"""Top-down tracking view of the hand and the held cube."""
 
 
 class EpisodeErrorRecorder:
