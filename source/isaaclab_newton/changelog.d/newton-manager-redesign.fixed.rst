@@ -6,3 +6,6 @@
 * Fixed particle forces applying only to the first solver substep; the step stages them like body forces.
 * Fixed articulations running Isaac Lab actuator models while the Newton manager ran the decimation loop; they now
   require the environment to run the loop.
+* Fixed IMU, PVA, and frame-transformer sensors injecting duplicate sites into the retained builder on every hard
+  reset. Site requests now persist until :meth:`~isaaclab_newton.physics.NewtonManager.close`, a resolved site is
+  never injected again, and sensors no longer re-register on ``STOP``.

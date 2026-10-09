@@ -39,6 +39,7 @@ def test_sites_bind_once_to_clone_sources_or_explicit_builder(monkeypatch, repli
     for leg in ("FL", "FR", "RL", "RR"):
         source.add_body(label=f"Robot/{leg}_foot")
     monkeypatch.setattr(NewtonManager, "_site_requests", {})
+    monkeypatch.setattr(NewtonManager, "_site_index_map", {})
     xform = wp.transform((1.0, 2.0, 3.0), wp.quat_identity())
     global_label = NewtonManager.cl_register_site(None, xform)
     local_label = NewtonManager.cl_register_site("Robot/.*_foot", xform)
@@ -52,7 +53,15 @@ def test_sites_bind_once_to_clone_sources_or_explicit_builder(monkeypatch, repli
     assert [source.shape_body[index] for index in indices] == list(range(4))
     assert [source.shape_label[index] for index in indices] == [f"{name}/{local_label}" for name in source.body_label]
     assert world_sites == {world_label: xform}
-    assert not NewtonManager._site_requests
+
+    # Requests persist across hard resets, but resolved sites are never added to the retained builder again.
+    NewtonManager._site_index_map.update((label, (index, None)) for label, index in global_sites.items())
+    NewtonManager._site_index_map[local_label] = (None, [indices])
+    NewtonManager._site_index_map[world_label] = (None, [[0]])
+    shape_count = main.shape_count
+    assert NewtonManager.inject_sites(main, sources) == ({}, {}, {})
+    assert main.shape_count == shape_count
+    assert NewtonManager.cl_register_site("Robot/.*_foot", xform) == local_label
 
     NewtonManager.cl_register_site("Robot/nonexistent", xform)
     with pytest.raises(ValueError, match="matched no builder bodies"):

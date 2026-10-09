@@ -699,18 +699,19 @@ class NewtonManager(PhysicsManager):
 
     @classmethod
     def prepare_builder(cls, builder: ModelBuilder) -> None:
-        """Apply pending site requests and solver-specific normalization to the builder about to be finalized.
+        """Apply unresolved site requests and solver-specific normalization to the builder about to be finalized.
+
+        The builder survives hard resets, and so do the sites added to it, so a site is added only once.
 
         Args:
             builder: Builder of the simulated model.
         """
-        if NewtonManager._site_requests:
-            global_sites, body_sites, root_sites = cls.inject_sites(builder, {})
-            site_map = NewtonManager._site_index_map
-            site_map.update((label, (index, None)) for label, index in global_sites.items())
-            site_map.update((label, (None, [indices])) for label, indices in body_sites.get(id(builder), {}).items())
-            for label, xform in root_sites.items():
-                site_map[label] = (None, [[builder.add_site(body=-1, xform=xform, label=label)]])
+        global_sites, body_sites, root_sites = cls.inject_sites(builder, {})
+        site_map = NewtonManager._site_index_map
+        site_map.update((label, (index, None)) for label, index in global_sites.items())
+        site_map.update((label, (None, [indices])) for label, indices in body_sites.get(id(builder), {}).items())
+        for label, xform in root_sites.items():
+            site_map[label] = (None, [[builder.add_site(body=-1, xform=xform, label=label)]])
         builder.up_axis = Axis.Z
         cls.prepare_solver_builder(builder)
 
@@ -718,7 +719,8 @@ class NewtonManager(PhysicsManager):
     def cl_register_site(cls, body_pattern: str | None, xform: wp.transform, *, per_world: bool = False) -> str:
         """Request a site for injection into prototypes before replication.
 
-        Sensors call this during ``__init__``. Identical ``(body_pattern, per_world, transform)`` requests share a site.
+        Sensors call this during ``__init__``. Identical ``(body_pattern, per_world, transform)`` requests share a site,
+        and requests persist until :meth:`close`, so sites survive hard resets without being requested again.
         The pattern matches prototype-local body labels (e.g. ``"Robot/finger.*"``) during replication, and wildcard
         patterns create one site per matched body.
 
@@ -742,7 +744,7 @@ class NewtonManager(PhysicsManager):
     def inject_sites(
         cls, main_builder: ModelBuilder, source_builders: dict[str, ModelBuilder]
     ) -> tuple[dict[str, int], dict[int, dict[str, list[int]]], dict[str, wp.transform]]:
-        """Add pending sites to source builders, or to the main builder for global and shared-asset sites.
+        """Add unresolved sites to source builders, or to the main builder for global and shared-asset sites.
 
         Args:
             main_builder: Top-level builder that receives global sites.
@@ -756,6 +758,8 @@ class NewtonManager(PhysicsManager):
         source_sites: dict[int, dict[str, list[int]]] = {}
         root_sites: dict[str, wp.transform] = {}
         for (body_pattern, per_world, _), (label, xform) in NewtonManager._site_requests.items():
+            if label in NewtonManager._site_index_map:
+                continue
             if per_world:
                 root_sites[label] = xform
                 continue
@@ -777,7 +781,6 @@ class NewtonManager(PhysicsManager):
                 source_sites.setdefault(id(builder), {})[label] = sites
             if not matched_any:
                 raise ValueError(f"Site '{label}' with body_pattern '{body_pattern}' matched no builder bodies.")
-        NewtonManager._site_requests = {}
         return global_sites, source_sites, root_sites
 
     @classmethod
@@ -802,7 +805,7 @@ class NewtonManager(PhysicsManager):
             record: Replication outputs.
         """
         NewtonManager._clone = record
-        NewtonManager._site_index_map = dict(record.site_index_map)
+        NewtonManager._site_index_map.update(record.site_index_map)
 
     @classmethod
     def get_clone_record(cls) -> NewtonCloneRecord | None:

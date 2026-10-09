@@ -239,7 +239,7 @@ class Pva(BasePva):
         )
 
     def _invalidate_initialize_callback(self, event):
-        """Clears references for re-initialization and re-registers with NewtonManager."""
+        """Clears references for re-initialization; sites and attribute requests persist on the builder."""
         super()._invalidate_initialize_callback(event)
         self._newton_model = None
         self._site_indices = None
@@ -257,8 +257,3 @@ class Pva(BasePva):
         ]:
             if buf is not None:
                 buf.zero_()
-
-        # Re-register so the next model finalization picks them up.
-        offset_xform = wp.transform(self.cfg.offset.pos, self.cfg.offset.rot)
-        self._site_label = NewtonManager.cl_register_site(self.cfg.prim_path, offset_xform)
-        NewtonManager.request_extended_state_attribute("body_qdd")
