@@ -261,6 +261,11 @@ class _NewtonViewerUIMixin:
         # Replace Newton's floating plots window with a no-op; rendering is in the panel.
         gui._render_scalar_plots = lambda: None
 
+    def _patch_keyboard_capture(self) -> None:
+        """Keep Newton camera keys active while only the mouse is captured by ImGui."""
+        gui = self.gui
+        gui.is_capturing = gui.should_ignore_keyboard_input
+
     def _patch_image_logger(self) -> None:
         """Patch the image logger for streaming view integration.
 
@@ -857,6 +862,7 @@ class NewtonViewerGL(_NewtonViewerUIMixin, ViewerGL):
             self._patch_scalar_plot_width()
             self._patch_viewer_panel()
             self._patch_image_logger()
+            self._patch_keyboard_capture()
 
         self.register_ui_callback(self._render_training_controls, position="side")
         self._close_requested = False

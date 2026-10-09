@@ -409,6 +409,21 @@ def test_newton_viewer_camera_speed_setter_validates(monkeypatch):
         viewer.camera_speed = -1.0
 
 
+def test_newton_viewer_camera_keys_ignore_mouse_capture():
+    viewer = NewtonViewerGL.__new__(NewtonViewerGL)
+    capture = SimpleNamespace(mouse=True, keyboard=False)
+    viewer.gui = SimpleNamespace(
+        is_capturing=lambda: capture.mouse or capture.keyboard,
+        should_ignore_keyboard_input=lambda: capture.keyboard,
+    )
+
+    viewer._patch_keyboard_capture()
+
+    assert not viewer.gui.is_capturing()
+    capture.keyboard = True
+    assert viewer.gui.is_capturing()
+
+
 class _FakeTrainingControlsImgui:
     """Minimal imgui double that drives ``_render_training_controls`` by label."""
 
