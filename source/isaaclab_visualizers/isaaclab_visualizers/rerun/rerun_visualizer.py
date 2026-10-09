@@ -292,7 +292,6 @@ class RerunVisualizer(BaseVisualizer):
         self.backend = sim.get_or_create_backend(self.newton_cfg)
         self._transform_mapping = scene_data_provider.create_mapping(list(self.backend.model.body_label))
 
-        self._setup_streaming_view(num_envs, visible_env_ids=self._env_ids)
         grpc_port = int(self.cfg.grpc_port)
         web_port = int(self.cfg.web_port)
         bind_address = self.cfg.bind_address or "0.0.0.0"
@@ -316,7 +315,7 @@ class RerunVisualizer(BaseVisualizer):
             keep_scalar_history=self.cfg.keep_scalar_history or self.cfg.enable_live_plots,
             record_to_rrd=self.cfg.record_to_rrd,
             open_browser=self.cfg.open_browser,
-            streaming_view=self._camera_sensor is not None,
+            streaming_view=(self.image_view is not None and self.image_view.camera is not None),
         )
         self._viewer.marker_groups = sim.vis_marker_registry.get_groups().values()
         if start_server_in_viewer:
@@ -460,7 +459,7 @@ class RerunVisualizer(BaseVisualizer):
         # Do not send a Spatial3DView blueprint when the streaming composite is active:
         # the streaming blueprint (Spatial2DView) from _get_blueprint() would be replaced
         # by a 3D view, hiding the streaming composite panel entirely.
-        if self._camera_sensor is not None:
+        if self.image_view is not None and self.image_view.camera is not None:
             return
         panel_states = [rrb.TimePanel(state="hidden")]
         rr.send_blueprint(

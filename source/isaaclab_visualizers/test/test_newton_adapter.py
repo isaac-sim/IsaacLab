@@ -230,7 +230,8 @@ def test_visualizers_borrow_scene_camera_outputs(monkeypatch):
     provider = SimpleNamespace(
         num_envs=4, get_camera_sensors=Mock(side_effect=AssertionError("Sources must already be bound"))
     )
-    sim = Mock(stage=None, get_scene_data_provider=Mock(return_value=provider))
+    sim = object.__new__(SimulationContext)
+    sim._scene_data_provider, sim._image_views, sim._physics_step_count = provider, {}, 0
     camera_sensors = {"camera": camera}
     viewers = []
     for ids in ([0, 2], [1, 3]):
@@ -243,8 +244,7 @@ def test_visualizers_borrow_scene_camera_outputs(monkeypatch):
         assert not hasattr(visualizer, "_streaming_params")
         assert not hasattr(visualizer, "_resolved_visible_env_ids")
         assert not hasattr(visualizer, "_resolve_initial_camera_pose")
-        visualizer._setup_streaming_view(4)
-        assert visualizer._camera_sensor is camera
+        assert visualizer.image_view.camera is camera
         image = visualizer.render_tiled_rgb_array()
         np.testing.assert_array_equal(np.unique(image), ids)
         assert visualizer.render_tiled_rgb_array() is image
@@ -253,7 +253,7 @@ def test_visualizers_borrow_scene_camera_outputs(monkeypatch):
     # A new step or reset refreshes the composite, not the sensor's lifetime.
     frame = viewers[0].render_tiled_rgba()
     camera.data.output["rgba"].torch[..., :3].add_(10)
-    viewers[0]._sim_time += 0.1
+    sim._physics_step_count += 1
     np.testing.assert_array_equal(np.unique(viewers[0].render_tiled_rgb_array()), [10, 12])
     assert viewers[0].render_tiled_rgba() is frame
     viewers[1].reset(soft=True)
@@ -266,18 +266,17 @@ def test_visualizers_borrow_scene_camera_outputs(monkeypatch):
     cfg = visualizer.cfg
     rgba = camera.data.output["rgba"]
     camera.data.output["rgba"] = ProxyArray(rgba.warp[:, :, :, :1])
-    visualizer._sim_time += 0.1
-    with pytest.raises(ValueError, match="channels"):
+    sim._physics_step_count += 1
+    with pytest.raises(ValueError, match="Channel"):
         visualizer.render_tiled_rgba()
     camera.data.output["rgba"] = rgba
 
     # Channel and color-range changes rebuild the display buffers at their owner.
     camera.cfg.data_types.append("depth")
     camera.data.output["depth"] = ProxyArray(wp.full((4, 2, 3, 1), 2.0, dtype=wp.float32, device=rgba.warp.device))
-    cfg.streaming_gt_types = ("depth",)
-    cfg.streaming_depth_min = 1.0
+    visualizer.image_view.cfg.channels = ("depth",)
     for depth_max in (5.0, 3.0):
-        cfg.streaming_depth_max = depth_max
+        visualizer.image_view.cfg.depth_range = (1.0, depth_max)
         image = visualizer.render_tiled_rgb_array()
         expected = CameraFrameColorizer.colorize(np.array([[[2.0]]]), "depth", depth_min=1.0, depth_max=depth_max)
         np.testing.assert_array_equal(image, np.broadcast_to(expected, image.shape))
@@ -315,12 +314,13 @@ def test_visualizers_borrow_scene_camera_outputs(monkeypatch):
 
 
 def test_newton_visualizer_render_rgb_array_returns_viewer_frame():
-    frame = np.zeros((4, 6, 3), dtype=np.uint8)
-    viewer = SimpleNamespace(get_frame=lambda: SimpleNamespace(numpy=lambda: frame))
-    visualizer = NewtonGLVisualizer(NewtonGLVisualizerCfg())
-    visualizer._viewer = viewer
+    frame = wp.full((4, 6, 3), 128, dtype=wp.uint8, device="cpu")
+    viewer = _Viewer()
+    viewer.get_frame = lambda output: frame
+    visualizer = _make_newton_visualizer(viewer)
 
-    assert visualizer.render_rgb_array() is frame
+    np.testing.assert_array_equal(visualizer.render_rgb_array(), frame.numpy())
+    assert visualizer.render_rgb_array() is visualizer.render_rgb_array()
 
 
 def test_newton_visualizer_render_rgb_array_requires_initialized_viewer():
@@ -540,8 +540,8 @@ class _Viewer:
         # Mirrors ViewerBase.close(), which every real viewer inherits.
         self.closed = True
 
-    def get_frame(self):
-        return SimpleNamespace(numpy=lambda: np.zeros((4, 6, 3), dtype=np.uint8))
+    def get_frame(self, output=None):
+        return wp.zeros((4, 6, 3), dtype=wp.uint8, device="cpu")
 
 
 class _Proxy:
@@ -595,6 +595,12 @@ def _make_newton_visualizer(viewer, scene_data_provider=None, state=None, *, cfg
     visualizer._scene_data_provider.poses = state.body_q
     visualizer._transform_mapping = None
     visualizer._live_plot_sources = []
+    visualizer._sim = SimpleNamespace(get_physics_step_count=lambda: visualizer._sim_time, is_rendering=True)
+    from isaaclab.visualizers import ImageView, ImageViewCfg
+
+    view = ImageView(ImageViewCfg(source=PerspectiveCameraCfg()))
+    view.render = visualizer._capture_perspective
+    visualizer.image_view, visualizer._image_views = view, [view]
     if viewer is not None:
         visualizer._viewer_picking_binding.bind(viewer)
     return visualizer
@@ -766,10 +772,10 @@ def test_newton_scene_camera_replaces_perspective_rendering(monkeypatch):
     cameras = [SceneCameraCfg(prim_path="/Camera"), PerspectiveCameraCfg()]
     visualizer = _make_newton_visualizer(viewer, cfg=NewtonGLVisualizerCfg(cameras=cameras, enable_markers=False))
     image = wp.full((4, 6, 4), 127, dtype=wp.uint8, device="cpu")
-    visualizer._camera_sensor = Mock()
-    visualizer._streaming_frame.data = image
-    visualizer._streaming_frame.timestamp = 0.0
-    visualizer.render_tiled_rgba = Mock(return_value=image)
+    visualizer.image_view.camera = Mock()
+    visualizer.image_view.frame.data = image
+    visualizer.image_view.frame.timestamp = 0.0
+    visualizer.image_view.read = Mock(return_value=image)
     provider = visualizer._scene_data_provider
     provider.get_transforms = Mock(wraps=provider.get_transforms)
     contacts, markers = Mock(return_value=None), Mock()
@@ -782,13 +788,13 @@ def test_newton_scene_camera_replaces_perspective_rendering(monkeypatch):
     assert viewer.events == ["begin_frame", "log_image", "end_frame"] * 2
     name, displayed, fullscreen = viewer.logged_image
     assert name == "Streaming View" and displayed is image and fullscreen
-    visualizer.render_tiled_rgba.assert_called_once()
+    visualizer.image_view.read.assert_called_once()
     provider.get_transforms.assert_not_called()
     contacts.assert_not_called()
     markers.assert_not_called()
 
     viewer.paused = False
-    visualizer._camera_sensor = None
+    visualizer.image_view.camera = None
     visualizer.step(0.1)
     assert viewer.events[-3:] == ["begin_frame", "log_state", "end_frame"]
     provider.get_transforms.assert_called_once()
@@ -840,9 +846,9 @@ def test_newton_scene_camera_controls_apply_uniformly_to_active_copies(monkeypat
             depth_frame = depth.frame.torch.clone()
             color_frame = color.frame.torch.clone()
             back_frame = back.frame.torch.clone()
-            assert visualizer._camera_sensor is None
-            assert isinstance(visualizer._camera_choices[0], PerspectiveCameraCfg)
-            assert [camera.cfg.prim_path for camera in visualizer._camera_choices[1:]] == [
+            assert visualizer.image_view.camera is None
+            assert isinstance(visualizer._image_views[0].cfg.source, PerspectiveCameraCfg)
+            assert [view.camera.cfg.prim_path for view in visualizer._image_views[1:]] == [
                 color.cfg.prim_path,
                 back.cfg.prim_path,
             ]
@@ -916,10 +922,15 @@ def test_newton_visualizer_headless_renders_frame_on_demand(monkeypatch):
         body_q=wp.empty(1, dtype=wp.transform, device="cpu"), particle_q=wp.empty(3, dtype=wp.vec3, device="cpu")
     )
     viewer = _Viewer()
-    markers = Mock()
+    events = []
+    markers = Mock(side_effect=lambda *args, **kwargs: events.append("render-markers"))
     monkeypatch.setattr(newton_visualizer_module, "render_newton_visualization_markers", markers)
     visualizer = _make_newton_visualizer(viewer, state=state, cfg=NewtonGLVisualizerCfg(enable_markers=True))
     provider = visualizer._scene_data_provider
+    fresh_poses = wp.full(1, wp.transform((1.0, 2.0, 3.0), (0.0, 0.0, 0.0, 1.0)), device="cpu")
+    visualizer._sim.is_rendering = False
+    visualizer._sim.forward = lambda: setattr(provider, "poses", fresh_poses)
+    visualizer._sim.vis_marker_registry = SimpleNamespace(dispatch_callbacks=lambda: events.append("update-markers"))
     provider.get_transforms = Mock(wraps=provider.get_transforms)
     provider.get_geometry_points = Mock()
     visualizer.backend.geometry_offsets = {"/Cloth": 0}
@@ -930,6 +941,8 @@ def test_newton_visualizer_headless_renders_frame_on_demand(monkeypatch):
 
     assert visualizer.render_rgb_array().shape == (4, 6, 3)
     assert viewer.logged_state is state
+    assert state.body_q is fresh_poses
+    assert events == ["update-markers", "render-markers"]
     assert viewer.events == ["begin_frame", "log_state", "end_frame"]
     assert markers.call_count == 1
     provider.get_geometry_points.assert_called_once_with(output=state.particle_q, offsets={"/Cloth": 0})
@@ -940,6 +953,7 @@ def test_newton_visualizer_headless_renders_frame_on_demand(monkeypatch):
     provider.get_transforms.assert_called_once()
 
     viewer.paused = False
+    visualizer.step(0.1)
     provider.poses = wp.empty(1, dtype=wp.transform, device="cpu")
     viewer.log_state = Mock(side_effect=RuntimeError("render failed"))
     with pytest.raises(RuntimeError, match="render failed"):
@@ -1209,11 +1223,12 @@ def test_newton_rtx_scene_sky_and_background_override(tmp_path, monkeypatch, lig
             native_stage = viewer._borrowed_stage
             # Exercise the native presentation path through an EGL window in headless CI.
             viewer._headless = False
-            assert visualizer._camera_sensor is None
+            assert visualizer.image_view.camera is None
             assert len(env.unwrapped.scene.sensors) == 1
             origin = env.unwrapped.scene.env_origins[0].cpu().numpy()
             visualizer.set_camera_view(origin + (0.0, -6.0, 2.0), origin + (0.0, -2.0, 2.0))
             for _ in range(40):
+                env.unwrapped.sim.step(render=False)
                 pixels = visualizer.render_rgb_array()
             background = pixels[8:24, 8:24].mean(axis=(0, 1))
             color = pixels[56:72, 56:72].mean(axis=(0, 1))

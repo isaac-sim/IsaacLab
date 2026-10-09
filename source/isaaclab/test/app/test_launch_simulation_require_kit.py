@@ -182,3 +182,30 @@ def test_require_kit_false_does_not_suppress_a_kit_config(kit_branch_taken):
         pass
 
     assert kit_branch_taken == [True]
+
+
+@pytest.mark.parametrize("perspective", [False, True])
+def test_shared_view_recording_selects_its_producer_without_a_window(perspective):
+    """A named sensor needs no viewer; a recorded perspective retains its configured headless producer."""
+    from types import SimpleNamespace
+
+    from isaaclab_newton.physics import NewtonCfg
+    from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
+
+    from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
+    from isaaclab.sim import SimulationCfg
+    from isaaclab.visualizers import GLWindowCfg, ImageViewCfg, PerspectiveCameraCfg
+
+    view = ImageViewCfg(source=PerspectiveCameraCfg() if perspective else "front", size=(128, 96))
+    visualizer = NewtonGLVisualizerCfg(window=GLWindowCfg(view=view))
+    cfg = SimpleNamespace(
+        sim=SimulationCfg(physics=NewtonCfg(), visualizer_cfgs=[visualizer]),
+        video_recorders=[VideoRecorderCfg(view=view)],
+    )
+    with launch_simulation(cfg, {"visualizer": [], "headless": True}):
+        assert len(cfg.sim.visualizer_cfgs) == int(perspective)
+        if perspective:
+            producer = cfg.sim.visualizer_cfgs[0]
+            assert producer.headless
+            assert producer.window.view is cfg.video_recorders[0].view
+            assert producer.window.view.size == (128, 96)

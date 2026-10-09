@@ -405,13 +405,39 @@ class NewtonViewerRTX(_NewtonViewerUI, ViewerRTX):
         if self._close_requested:
             self.close()
 
-    def get_frame(self) -> np.ndarray:
-        """Explicitly download the latest perspective image for recording."""
-        return np.ascontiguousarray(self._capture_screenshot_pixels()[..., :3])
+    def get_frame(self, target_image: wp.array | None = None) -> wp.array:
+        """Copy the completed RTX image into owned device storage before releasing its mapping."""
+        from ovrtx import Device
+
+        products = self._render_products
+        if products is None and self._render_result is not None:
+            products = self._render_result.wait().fetch()
+        if products is None:
+            raise RuntimeError("Perspective capture requires a completed Newton RTX frame.")
+        for product in products.values():
+            for frame in product.frames:
+                render_var = self._get_ldr_color_render_var(frame)
+                if render_var is None:
+                    continue
+                with render_var.map(device=Device.CUDA) as mapping:
+                    rgba = wp.from_dlpack(mapping)
+                    if target_image is None or target_image.shape != rgba.shape or target_image.device != rgba.device:
+                        target_image = wp.empty_like(rgba)
+                    wp.copy(target_image, rgba)
+                    mapping.unmap(stream=target_image.device.stream.cuda_stream)
+                return target_image
+        raise RuntimeError("Newton RTX did not publish an LdrColor render output.")
 
 
 class NewtonViewerGL(_NewtonViewerUI, ViewerGL):
     """Newton GL window with Isaac Lab controls and device-image presentation."""
+
+    def get_frame(self, target_image: wp.array | None = None, render_ui: bool = False) -> wp.array:
+        """Reuse device capture storage while the native framebuffer size remains unchanged."""
+        shape = (self.renderer._screen_height, self.renderer._screen_width, 3)
+        if target_image is not None and target_image.shape != shape:
+            target_image = None
+        return super().get_frame(target_image, render_ui=render_ui)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -526,6 +552,7 @@ class _NewtonVisualizer(BaseVisualizer):
         self._step_counter = 0
         self._camera_index = 0
         self._navigation_view = None
+        self._last_render_step = -1
 
     def initialize(self, sim: SimulationContext, *, cameras: list[PerspectiveCameraCfg | Camera]) -> None:
         """Bind scene data and the Newton model shared with the simulation."""
@@ -554,8 +581,8 @@ class _NewtonVisualizer(BaseVisualizer):
         if not imgui.collapsing_header("Camera View"):
             return
         labels = [
-            f"Perspective {i + 1}" if isinstance(camera, PerspectiveCameraCfg) else camera.cfg.prim_path
-            for i, camera in enumerate(self._camera_choices)
+            f"Perspective {i + 1}" if view.camera is None else view.cfg.source
+            for i, view in enumerate(self._image_views)
         ]
         changed, index = imgui.combo("Camera", self._camera_index, labels)
         if changed:
@@ -565,10 +592,13 @@ class _NewtonVisualizer(BaseVisualizer):
 
     def _select_camera(self, index: int) -> None:
         """Bind the selected source; all scene cameras retain their normal lazy-data lifecycle."""
-        camera = self._camera_choices[index]
-        self._camera_sensor = None if isinstance(camera, PerspectiveCameraCfg) else camera
-        self._streaming_frame.timestamp = -1.0
+        self.image_view = self._image_views[index]
+        camera = self.image_view.cfg.source
+        self.image_view.invalidate()
         if isinstance(camera, PerspectiveCameraCfg):
+            if self.image_view.render is not None and self.image_view.render != self._capture_perspective:
+                raise ValueError("A perspective image view must have exactly one rendering owner.")
+            self.image_view.render = self._capture_perspective
             self.set_camera_view(camera.eye, camera.lookat)
             self.cfg.focal_length = camera.focal_length
             self._viewer.camera.fov = self._focal_length_to_vertical_fov_degrees()
@@ -580,12 +610,9 @@ class _NewtonVisualizer(BaseVisualizer):
         self._navigation_view = self._viewer.camera.get_view_matrix().reshape(4, 4).T.copy()
 
     def _navigate_scene_camera(self) -> None:
-        camera, viewer = self._camera_sensor, self._viewer
+        camera, viewer = self.image_view.camera if self.image_view is not None else None, self._viewer
         if camera is None or viewer is None or self._runtime_headless:
             return
-        if isinstance(viewer, NewtonViewerGL):
-            width, height = viewer.renderer.window.get_framebuffer_size()
-            self._streaming_aspect = width / max(height, 1)
         if viewer.is_paused():
             return
         current = viewer.camera.get_view_matrix().reshape(4, 4).T
@@ -598,13 +625,16 @@ class _NewtonVisualizer(BaseVisualizer):
         translation = quat_apply(orientations, delta[:3, 3].expand_as(positions))
         rotation = quat_from_matrix(delta[:3, :3]).expand_as(orientations)
         camera.set_world_poses(positions + translation, quat_mul(orientations, rotation), convention="opengl")
-        self._streaming_frame.timestamp = -1.0
+        self.image_view.invalidate()
 
     def set_camera_view(
         self, eye: tuple[float, float, float] | list[float], target: tuple[float, float, float] | list[float]
     ) -> None:
         """Set the configured and active camera eye and target positions [m]."""
         self.cfg.eye, self.cfg.lookat = tuple(float(v) for v in eye), tuple(float(v) for v in target)
+        self._last_render_step = -1
+        if self.image_view is not None:
+            self.image_view.invalidate()
         if self._viewer is not None:
             self._viewer.camera.pos = PygletVec3(*self.cfg.eye)
             self._viewer.camera.look_at(self.cfg.lookat)
@@ -617,9 +647,12 @@ class _NewtonVisualizer(BaseVisualizer):
             return
         self._sim_time += dt
         self._step_counter += 1
-        if self._runtime_headless or self._step_counter % self._viewer._update_frequency:
-            return
-        self._render_frame()
+        if self._runtime_headless:
+            self._last_render_step = -1
+            if self.image_view is not None:
+                self.image_view.invalidate()
+        elif self._step_counter % self._viewer._update_frequency == 0:
+            self._render_frame()
 
     def is_running(self) -> bool:
         """Return whether the viewer is open."""
@@ -647,12 +680,27 @@ class _NewtonVisualizer(BaseVisualizer):
 
     def _log_streaming_image(self) -> None:
         """Present sensor pixels directly; paused rendering retains the last displayed image."""
-        composite = self._streaming_frame.data
-        if composite is None or self._streaming_frame.timestamp < 0 or not self._viewer.is_paused():
-            composite = self.render_tiled_rgba()
-        if composite is None:
-            raise ValueError("Scene-camera display requires at least one selected camera frame.")
-        self._viewer.log_image("Streaming View", composite, fullscreen=True)
+        composite = self.image_view.frame.data
+        if composite is None or self.image_view.frame.timestamp < 0 or not self._viewer.is_paused():
+            composite = self.image_view.read(self._sim.get_physics_step_count())
+        if composite is not None:
+            self._viewer.log_image("Streaming View", composite, fullscreen=True)
+
+    def _capture_perspective(self, output: wp.array | None) -> wp.array:
+        """Read the frame already displayed, or render once when capture is the only consumer."""
+        if self._last_render_step != self._sim.get_physics_step_count():
+            if not self._sim.is_rendering:
+                self._sim.forward()
+                if self.supports_markers():
+                    self._sim.vis_marker_registry.dispatch_callbacks()
+            self._render_frame()
+        return self._viewer.get_frame(output)
+
+    def render_rgb_array(self) -> np.ndarray:
+        """Download the selected shared view for legacy capture callers."""
+        if self.image_view is None:
+            raise RuntimeError("The visualizer must be initialized before capturing an image.")
+        return self.image_view.read_rgb(self._sim.get_physics_step_count())
 
 
 class NewtonGLVisualizer(_NewtonVisualizer):
@@ -762,9 +810,12 @@ class NewtonGLVisualizer(_NewtonVisualizer):
         if not runtime_headless:
             # pyglet sets WM_CLASS from the window caption, which ViewerGL defaults to "Newton".
             write_desktop_entry("isaaclab-newton-gl-viewer", "Newton", "Newton", _NEWTON_ICON_DIR / "icon_64.png")
+        window = self.cfg.window
+        size = (window.view.size or window.size) if window is not None else None
+        width, height = size or (self.cfg.window_width, self.cfg.window_height)
         self._viewer = NewtonViewerGL(
-            width=self.cfg.window_width,
-            height=self.cfg.window_height,
+            width=width,
+            height=height,
             headless=runtime_headless,
             metadata=metadata,
             update_frequency=self.cfg.update_frequency,
@@ -780,11 +831,11 @@ class NewtonGLVisualizer(_NewtonVisualizer):
         self._viewer.picking_enabled = self._picking_enabled
         self._configure_viewer()
 
-        self._setup_streaming_view(
-            num_envs,
-            visible_env_ids=self._env_ids,
-            target_aspect=self.cfg.window_width / self.cfg.window_height,
-        )
+        if window is None:
+            for view in self._image_views:
+                view.aspect = width / height
+        elif window.size is not None:
+            self._viewer.renderer.window.set_size(*window.size)
 
         self._viewer.register_ui_callback(self._draw_streaming_view_controls, position="side")
         self._select_camera(self._camera_index)
@@ -826,7 +877,7 @@ class NewtonGLVisualizer(_NewtonVisualizer):
         viewer.begin_frame(self._sim_time)
         try:
             self._navigate_scene_camera()
-            if self._camera_sensor is not None:
+            if self.image_view is not None and self.image_view.camera is not None:
                 self._log_streaming_image()
             else:
                 if not viewer.is_paused():
@@ -849,10 +900,14 @@ class NewtonGLVisualizer(_NewtonVisualizer):
             viewer.end_frame()
             if not viewer.is_running():
                 self._viewer_picking_binding.deactivate()
+        self._last_render_step = self._sim.get_physics_step_count()
+        if self.image_view is not None and self.image_view.camera is None:
+            self.image_view.invalidate()
 
     def reset(self, soft: bool = False) -> None:
         """Rebind viewer resources after a hard Newton model reset."""
         super().reset(soft)
+        self._last_render_step = -1
         if soft or not self._is_initialized or self._is_closed:
             return
 
@@ -1217,14 +1272,6 @@ class NewtonGLVisualizer(_NewtonVisualizer):
         self._viewer.renderer.sky_lower = tuple(lower_color)
         self._viewer.renderer._light_color = tuple(self.cfg.light_color)
 
-    def render_rgb_array(self) -> np.ndarray:
-        """Return the latest RGB pixels, rendering on demand for a headless viewer."""
-        if self._viewer is None:
-            raise RuntimeError("NewtonGLVisualizer must be initialized before capturing an RGB frame.")
-        if self._runtime_headless and not self._viewer.is_paused():
-            self._render_frame()
-        return self._viewer.get_frame().numpy()
-
 
 class NewtonRTXVisualizer(_NewtonVisualizer):
     """Use Newton's native RTX camera, GPU presentation, and markers on a borrowed scene.
@@ -1252,9 +1299,12 @@ class NewtonRTXVisualizer(_NewtonVisualizer):
         if cfg.background_color is not None:
             settings["omni:rtx:background:source:type"] = ("Token", "color")
             settings["omni:rtx:background:source:color"] = ("Color3f", cfg.background_color)
+        window = cfg.window
+        size = (window.view.size or window.size) if window is not None else None
+        width, height = size or (cfg.window_width, cfg.window_height)
         self._viewer = NewtonViewerRTX(
-            width=cfg.window_width,
-            height=cfg.window_height,
+            width=width,
+            height=height,
             headless=self._runtime_headless,
             async_rendering=not self._runtime_headless,
             ovstage=scene.stage,
@@ -1267,14 +1317,15 @@ class NewtonRTXVisualizer(_NewtonVisualizer):
             },
             update_frequency=cfg.update_frequency,
         )
+        if window is not None and window.size is not None:
+            self._viewer._window_width, self._viewer._window_height = window.size
         self._viewer.set_model(self.backend.model)
         self._viewer.marker_groups = sim.vis_marker_registry.get_groups().values()
         self._viewer.picking_enabled = False
-        self._setup_streaming_view(
-            scene_data_provider.num_envs,
-            visible_env_ids=self._env_ids,
-            target_aspect=cfg.window_width / cfg.window_height,
-        )
+        if window is None:
+            for view in self._image_views:
+                view.aspect = width / height
+
         self._viewer.register_ui_callback(self._draw_streaming_view_controls, position="side")
         self._select_camera(self._camera_index)
         self._is_initialized = True
@@ -1285,7 +1336,7 @@ class NewtonRTXVisualizer(_NewtonVisualizer):
         viewer.begin_frame(self._sim_time)
         try:
             self._navigate_scene_camera()
-            if self._camera_sensor is not None:
+            if self.image_view is not None and self.image_view.camera is not None:
                 self._log_streaming_image()
             else:
                 if not viewer.is_paused():
@@ -1294,10 +1345,14 @@ class NewtonRTXVisualizer(_NewtonVisualizer):
                     render_newton_visualization_markers(viewer, self._env_ids, num_envs=self.backend.model.num_envs)
         finally:
             viewer.end_frame()
+        self._last_render_step = self._sim.get_physics_step_count()
+        if self.image_view is not None and self.image_view.camera is None:
+            self.image_view.invalidate()
 
     def reset(self, soft: bool = False) -> None:
         """Rebind the viewer when a hard reset replaces its simulation-owned model."""
         super().reset(soft)
+        self._last_render_step = -1
         if soft or not self._is_initialized or self._is_closed:
             return
         backend = self._sim.get_or_create_backend(self.newton_cfg)
@@ -1312,14 +1367,8 @@ class NewtonRTXVisualizer(_NewtonVisualizer):
         self._select_camera(self._camera_index)
 
     def render_rgb_array(self) -> np.ndarray | None:
-        """Explicitly download the selected sensor or perspective image for recording."""
-        if self._viewer is None:
-            return None
-        if self._camera_sensor is not None:
-            return self.render_tiled_rgb_array()
-        if self._runtime_headless:
-            self._render_frame()
-        return self._viewer.get_frame()
+        """Return the shared view when the native renderer is available."""
+        return super().render_rgb_array() if self._viewer is not None else None
 
     def supports_markers(self) -> bool:
         """Return whether the native viewer accepts runtime visualization markers."""

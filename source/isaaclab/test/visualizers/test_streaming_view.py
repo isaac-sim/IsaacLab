@@ -6,6 +6,7 @@
 """Streaming display channel, colorization, and pixel layout contracts."""
 
 import math
+from colorsys import hsv_to_rgb
 from unittest.mock import Mock
 
 import numpy as np
@@ -18,6 +19,29 @@ from isaaclab.envs.utils.camera_colorizer import CameraFrameColorizer, sensor_ke
 from isaaclab.envs.utils.camera_view import compose_streaming_grid
 from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils.images import compose_image
+
+
+def _reference_colorize(data, channel):
+    """NumPy/stdlib reference independent of the device composition kernels."""
+    if channel == "rgb":
+        return data[..., :3]
+    if channel == "depth":
+        normalized = np.clip((data[..., 0] - 0.1) / 9.9, 0.0, 1.0)
+        return (colormaps["turbo"](normalized)[..., :3] * 255).astype(np.uint8)
+    if channel == "normals":
+        return np.clip((data[..., :3] + 1.0) * 127.5, 0, 255).astype(np.uint8)
+    ids = data[..., 0].astype(np.int32)
+    if data.shape[-1] >= 3:
+        ids = (data[..., :3].astype(np.int32) * (1, 256, 65536)).sum(axis=-1)
+    return np.array(
+        [
+            (40, 40, 40)
+            if identifier == 0
+            else np.array(hsv_to_rgb((int(identifier) * 0.6180339887) % 1, 0.75, 0.9)) * 255
+            for identifier in ids.flat
+        ],
+        dtype=np.uint8,
+    ).reshape((*ids.shape, 3))
 
 
 def test_colorize_rgb_drops_alpha_channel():
@@ -148,7 +172,7 @@ def test_device_colorization_matches_recording_and_reuses_storage(device, monkey
             compose_image(output, sources, env_ids, channels, depth_colors)
         # Different display channels must not share a runtime-switched kernel.
         assert len({call.args[0] for call in launch.call_args_list}) == len(set(channels))
-        frames = [CameraFrameColorizer.colorize(array[env], gt) for env in (1, 0) for array, gt in zip(host, channels)]
+        frames = [_reference_colorize(array[env], gt) for env in (1, 0) for array, gt in zip(host, channels)]
         expected = compose_streaming_grid(frames, 2, len(channels))
         np.testing.assert_array_equal(output.numpy()[..., :3], expected)
         assert output.ptr == pointer
@@ -176,3 +200,68 @@ def test_compose_streaming_grid_invalid_target_aspect_fallback():
     assert compose_streaming_grid(frames, 4, 1, target_aspect=0.0).shape == shape_default
     assert compose_streaming_grid(frames, 4, 1, target_aspect=-1.0).shape == shape_default
     assert compose_streaming_grid(frames, 4, 1, target_aspect=math.inf).shape == shape_default
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
+def test_window_and_recorder_share_fixed_device_image(device, monkeypatch):
+    """One selected frame serves both consumers; resizing presentation preserves captured storage."""
+    from copy import deepcopy
+    from types import SimpleNamespace
+    from unittest.mock import PropertyMock
+
+    from isaaclab.envs.utils.video_recorder import VideoRecorder
+    from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
+    from isaaclab.sim import SimulationContext
+    from isaaclab.utils.warp import ProxyArray
+    from isaaclab.visualizers import GLWindowCfg, ImageViewCfg
+
+    rgb = wp.array(np.arange(3, dtype=np.uint8)[:, None, None, None] * np.ones((3, 2, 2, 4), np.uint8), device=device)
+    depth = wp.full((3, 2, 2, 1), 2.0, dtype=wp.float32, device=device)
+    data = SimpleNamespace(output={"rgba": ProxyArray(rgb), "distance_to_image_plane": ProxyArray(depth)})
+    camera = Mock(cfg=SimpleNamespace(data_types=list(data.output)))
+    acquired = PropertyMock(return_value=data)
+    type(camera).data = acquired
+    sim = object.__new__(SimulationContext)
+    sim._scene_data_provider = SimpleNamespace(get_camera_sensors=Mock(return_value={"front": camera}))
+    sim._image_views, sim._physics_step_count = {}, 0
+    declaration = ImageViewCfg(source="front", envs=(2, 0), channels=("rgb", "depth"), size=(16, 20))
+    window = deepcopy(GLWindowCfg(view=declaration))
+    recorder_cfg = deepcopy(VideoRecorderCfg(view=declaration))
+    monkeypatch.setattr("isaaclab.envs.utils.video_recorder.ImageSequenceClip", Mock())
+    recorder = VideoRecorder(recorder_cfg, SimpleNamespace(sim=sim))
+    view = sim.get_image_view(window.view)
+    image = view.read(0)
+    pixels = recorder._get_frame()
+    assert sim.get_image_view(recorder_cfg.view) is view
+    assert acquired.call_count == 1
+    assert image.device == wp.get_device(device)
+    colors = (colormaps["turbo"]((2.0 - 0.1) / 9.9)[:3] * np.array(255)).astype(np.uint8)
+    expected = np.zeros((20, 16, 3), np.uint8)
+    expected[2:10, :8] = 2
+    expected[2:18, 8:] = colors
+    np.testing.assert_array_equal(pixels, expected)
+
+    # The window is only a consumer. Changing its dimensions leaves the sensor and view allocations intact.
+    pointer, source_pointer = image.ptr, rgb.ptr
+    window.size = (1920, 1080)
+    with monkeypatch.context() as execution:
+        forbidden = Mock(side_effect=AssertionError("GPU frame execution must not download or allocate images"))
+        execution.setattr(wp.array, "numpy", forbidden)
+        execution.setattr(wp, "empty", forbidden)
+        execution.setattr(SimulationContext, "instance", forbidden)
+        with wp.ScopedCapture(device=device) as capture:
+            view.read(1)
+    rgb.fill_(7)
+    wp.capture_launch(capture.graph)
+    assert image.ptr == pointer and rgb.ptr == source_pointer
+    replayed = image.numpy()[..., :3]
+    assert np.all(replayed[2:18, :8] == 7)
+    np.testing.assert_array_equal(replayed[2:18, 8:], expected[2:18, 8:])
+    assert not replayed[:2].any() and not replayed[-2:].any()
+    camera.update.assert_not_called()
+    camera.close.assert_not_called()
+    declaration.envs = ()
+    assert view.read(2) is None
+    assert recorder._get_frame() is None
+    view.close()
+    camera.close.assert_not_called()

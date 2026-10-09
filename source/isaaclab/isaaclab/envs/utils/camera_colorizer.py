@@ -9,6 +9,10 @@ from __future__ import annotations
 
 import numpy as np
 import torch
+import warp as wp
+from matplotlib import colormaps
+
+from ...utils.images import compose_image
 
 SUPPORTED_GT_TYPES: frozenset[str] = frozenset({"rgb", "depth", "segmentation", "normals"})
 """GT types accepted by :class:`CameraFrameColorizer`."""
@@ -92,99 +96,17 @@ class CameraFrameColorizer:
         Raises:
             ValueError: If ``gt_type`` is not in :data:`SUPPORTED_GT_TYPES`.
         """
-        if gt_type not in SUPPORTED_GT_TYPES:
-            raise ValueError(f"GT type {gt_type!r} is not supported. Valid types: {sorted(SUPPORTED_GT_TYPES)}")
-        if gt_type == "rgb":
-            return CameraFrameColorizer._colorize_rgb(data)
+        sensor_key_for_gt_type(gt_type)
+        wp.init()
+        source = wp.from_torch(data) if isinstance(data, torch.Tensor) else wp.array(np.asarray(data), device="cpu")
+        source = source.contiguous().reshape((1, *source.shape))
+        device = source.device
+        output = wp.empty((*source.shape[1:3], 4), dtype=wp.uint8, device=device)
+        colors = np.empty((0, 3), dtype=np.uint8)
         if gt_type == "depth":
-            return CameraFrameColorizer._colorize_depth(data, depth_min, depth_max)
-        if gt_type == "normals":
-            return CameraFrameColorizer._colorize_normals(data)
-        return CameraFrameColorizer._colorize_segmentation(data)
-
-    # ------------------------------------------------------------------
-    # Private per-type implementations
-    # ------------------------------------------------------------------
-
-    @staticmethod
-    def _colorize_rgb(data: torch.Tensor) -> np.ndarray:
-        arr = data.cpu().numpy() if isinstance(data, torch.Tensor) else np.asarray(data)
-        return np.ascontiguousarray(arr[..., :3]).astype(np.uint8)
-
-    @staticmethod
-    def _colorize_depth(data: torch.Tensor, depth_min: float, depth_max: float) -> np.ndarray:
-        arr = (
-            data.squeeze(-1).float().cpu().numpy()
-            if isinstance(data, torch.Tensor)
-            else np.asarray(data, dtype=np.float32).squeeze(-1)
-        )
-        span = max(float(depth_max - depth_min), 1e-6)
-        norm = np.clip((arr - depth_min) / span, 0.0, 1.0)
-        try:
-            import matplotlib.cm
-
-            rgb_f = matplotlib.cm.get_cmap("turbo")(norm)[..., :3]
-            return (rgb_f * 255).astype(np.uint8)
-        except Exception:
-            return CameraFrameColorizer._fallback_depth_gradient(norm)
-
-    @staticmethod
-    def _colorize_segmentation(data: torch.Tensor) -> np.ndarray:
-        arr = data.cpu().numpy() if isinstance(data, torch.Tensor) else np.asarray(data)
-        # Class ID packed as R + G*256 + B*65536 across the first 3 channels.
-        if arr.ndim == 3 and arr.shape[-1] >= 3:
-            ids = (
-                arr[..., 0].astype(np.int32) + arr[..., 1].astype(np.int32) * 256 + arr[..., 2].astype(np.int32) * 65536
-            )
-        else:
-            ids = arr.squeeze(-1).astype(np.int32)
-        return CameraFrameColorizer._ids_to_colors(ids)
-
-    @staticmethod
-    def _ids_to_colors(ids: np.ndarray) -> np.ndarray:
-        h, w = ids.shape
-        out = np.zeros((h, w, 3), dtype=np.uint8)
-        out[ids == 0] = (40, 40, 40)  # background → dark grey
-        for uid in np.unique(ids[ids != 0]):
-            # Golden-ratio hue shift for maximum perceptual separation between classes.
-            hue = (int(uid) * 0.6180339887) % 1.0
-            out[ids == uid] = _hsv_to_rgb_uint8(hue, 0.75, 0.90)
-        return out
-
-    @staticmethod
-    def _colorize_normals(data: torch.Tensor) -> np.ndarray:
-        """Map surface normal vectors to RGB by remapping XYZ from [-1, 1] to [0, 255].
-
-        The standard normals-to-color convention: R=X, G=Y, B=Z with each component
-        shifted from [-1, 1] → [0, 1] → uint8.  Flat upward-facing surfaces appear
-        cyan/teal (X≈0, Y≈0, Z≈1 → rgb≈128, 128, 255).
-        """
-        arr = data.cpu().numpy() if isinstance(data, torch.Tensor) else np.asarray(data, dtype=np.float32)
-        # Handle (H, W, 4) XYZW or (H, W, 3) XYZ
-        xyz = arr[..., :3].astype(np.float32)
-        # Remap [-1, 1] → [0, 255]; clamp to handle out-of-range normals.
-        rgb = np.clip((xyz + 1.0) * 127.5, 0.0, 255.0).astype(np.uint8)
-        return rgb
-
-    @staticmethod
-    def _fallback_depth_gradient(norm: np.ndarray) -> np.ndarray:
-        """Blue (near) → green → red (far) gradient when matplotlib is unavailable."""
-        hue = (1.0 - norm) * 0.667  # 0.667 = blue, 0.0 = red
-        h6 = hue * 6.0
-        r = np.clip(np.abs(h6 - 3.0) - 1.0, 0.0, 1.0)
-        g = np.clip(2.0 - np.abs(h6 - 2.0), 0.0, 1.0)
-        b = np.clip(2.0 - np.abs(h6 - 4.0), 0.0, 1.0)
-        return (np.stack([r, g, b], axis=-1) * 255).astype(np.uint8)
-
-
-def _hsv_to_rgb_uint8(h: float, s: float, v: float) -> tuple[int, int, int]:
-    """Convert HSV to uint8 (R, G, B)."""
-    if s == 0.0:
-        c = int(v * 255)
-        return (c, c, c)
-    i = int(h * 6.0) % 6
-    f = (h * 6.0) - int(h * 6.0)
-    p, q, t = v * (1.0 - s), v * (1.0 - s * f), v * (1.0 - s * (1.0 - f))
-    pairs = [(v, t, p), (q, v, p), (p, v, t), (p, q, v), (t, p, v), (v, p, q)]
-    r, g, b = pairs[i]
-    return (int(r * 255), int(g * 255), int(b * 255))
+            colors = (colormaps["turbo"](np.arange(256) / 255.0)[..., :3] * 255).astype(np.uint8)
+        compose_image(
+            output, (source,), wp.array([0], dtype=wp.int32, device=device), (gt_type,),
+            wp.array(colors, dtype=wp.uint8, device=device), depth_min=depth_min, depth_max=depth_max,
+        )  # fmt: skip
+        return np.ascontiguousarray(output.numpy()[..., :3])

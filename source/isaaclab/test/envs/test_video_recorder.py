@@ -73,6 +73,12 @@ def _make_env(visualizers=(), sensors: dict | None = None):
     env = MagicMock()
     env.sim.visualizers = list(visualizers)
     env.scene.sensors = sensors or {}
+    from isaaclab.sim import SimulationContext
+
+    env.sim._image_views = {}
+    env.sim._scene_data_provider.get_camera_sensors.return_value = env.scene.sensors
+    env.sim.get_image_view.side_effect = lambda cfg: SimulationContext.get_image_view(env.sim, cfg)
+    env.sim.get_physics_step_count.return_value = 0
     return env
 
 
@@ -211,27 +217,6 @@ def test_step_schedule_writes_expected_clips(tmp_path, schedule, num_steps, expe
 # ---------------------------------------------------------------------------
 
 
-def test_visualizer_source_refreshes_physics_and_markers_before_on_demand_capture():
-    """On-demand capture reads a frame after physics transforms and debug markers are updated."""
-    updated = set()
-
-    class _FreshFrameViz(_FakeViz):
-        def render_rgb_array(self) -> np.ndarray:
-            return np.full_like(self._frame, 255 if updated == {"physics", "markers"} else 0)
-
-    viz = _FreshFrameViz("kit")
-    env = _make_env(visualizers=[viz])
-    env.sim.is_rendering = False
-    env.sim.forward.side_effect = lambda: updated.add("physics")
-    env.sim.vis_marker_registry.dispatch_callbacks.side_effect = lambda: updated.add("markers")
-    recorder = VideoRecorder(_cfg(source="viz:kit"), env)
-
-    frame = recorder._get_frame()
-
-    assert frame is not None
-    assert np.all(frame == 255)
-
-
 def test_kit_visualizer_newton_physics_logs_warning(caplog):
     """source='viz:kit' with Newton physics logs a warning and attempts capture.
 
@@ -259,10 +244,13 @@ def test_kit_visualizer_newton_physics_logs_warning(caplog):
 
 
 def _rgb_sensor():
-    import torch
+    import warp as wp
+
+    from isaaclab.utils.warp import ProxyArray
 
     sensor = MagicMock()
-    sensor.data.output = {"rgb": torch.full((1, *_FRAME.shape), 200, dtype=torch.uint8)}
+    sensor.cfg.data_types = ["rgb"]
+    sensor.data.output = {"rgb": ProxyArray(wp.full((1, *_FRAME.shape), 200, dtype=wp.uint8, device="cpu"))}
     return sensor
 
 

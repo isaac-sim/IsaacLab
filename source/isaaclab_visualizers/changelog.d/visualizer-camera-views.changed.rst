@@ -20,3 +20,6 @@
   and GL model options. Declare lighting, materials, and environment placement in the scene instead.
   Use Newton GL for rigid-body dragging and model overlays. Environment selection now limited RTX
   sensor display tiles; its perspective camera viewed the full shared scene.
+* Separated shared image selection from Newton window dimensions through ``GLWindowCfg``.
+  Recorders reused the view's completed frame. RTX capture copied native output directly on the GPU;
+  only CPU consumers downloaded pixels. Sensor-view window resizing retained source and output storage.
