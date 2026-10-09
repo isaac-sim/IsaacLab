@@ -238,8 +238,8 @@ class CoffeePresentation:
 
     @property
     def tracer_mass_kg(self) -> float:
-        """Coffee-origin liquid mass [kg] supplying the colour tracer; host synchronized."""
-        return 0.0 if self._dissolution is None else self._dissolution.converted_mass_kg
+        """Actual colour-tracer mass [kg] on the liquid carriers; host synchronized."""
+        return 0.0 if self._water is None else float(self._dye_mass.numpy().sum(dtype=np.float64))
 
     def update(self, dt: float) -> None:
         """Update appearance after advancing the environment by ``dt`` [s]."""
@@ -415,7 +415,7 @@ class CoffeePresentation:
             self._surface_cache = None
         if self._surface_cache is not None:
             return self._surface_cache
-        fraction = 1.0 - math.exp(-self.tracer_mass_kg / self._color_mass_scale)
+        fraction = 1.0 - math.exp(-self._dissolution.converted_mass_kg / self._color_mass_scale)
         points, indices, normals = self._surface_mesh
         hidden = points is None
         colors = None
@@ -472,12 +472,10 @@ class CoffeePresentation:
         if viewer._rtx is None:
             return
         shader_path = self._rtx_water_shaders[key]
-        viewer._rtx.write_array_attribute(
-            prim_paths=[viewer._mesh_prim_paths[viewer._qualify("/coffee_water_surface")]],
-            attribute_name="primvars:displayColor",
-            tensors=[viewer._make_point3f_dltensor(colors)],
+        viewer._write_runtime_array_attribute(
+            viewer._mesh_prim_paths[viewer._qualify("/coffee_water_surface")], "primvars:displayColor", colors
         )
-        viewer._rtx.write_attribute(
+        viewer._write_runtime_attribute(
             [shader_path],
             "inputs:opacity",
             np.asarray([viewer._preview_surface_opacity_value(opacity)], dtype=np.float32),

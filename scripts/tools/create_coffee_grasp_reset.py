@@ -41,7 +41,8 @@ def validate_retention(candidate: CoffeeGraspReset, duration_s: float = 2.0) -> 
     from pxr import Usd, UsdPhysics
 
     from isaaclab_tasks.contrib.rizon_sharpa_coffee.assets import build_coffee_assets
-    from isaaclab_tasks.contrib.rizon_sharpa_coffee.physics import configure_grasp_contacts, make_grasp_solver_cfg
+    from isaaclab_tasks.contrib.rizon_sharpa_coffee.physics import configure_grasp_contacts
+    from isaaclab_tasks.contrib.rizon_sharpa_coffee.physics_cfg import make_grasp_solver_cfg
     from isaaclab_tasks.contrib.rizon_sharpa_coffee.robot import PALM_BODY_NAME, configured_asset_path, get_robot_cfg
 
     candidate.validate()

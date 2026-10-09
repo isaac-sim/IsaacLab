@@ -1150,25 +1150,46 @@ def test_newton_rtx_captures_ovrtx_render_variable_paths(monkeypatch: pytest.Mon
 
 
 def test_newton_rtx_updates_deforming_mesh_with_managed_arrays():
-    """Mesh updates reach OVRTX as float3 arrays without removed DLTensor APIs."""
-    pytest.importorskip("ovrtx")
+    """Dynamic geometry and colors retain float3 elements in the native runtime stage."""
+    ovstage = pytest.importorskip("ovstage")
     points = np.arange(18, dtype=np.float32).reshape(6, 3)[::2]
     viewer = NewtonViewerRTX.__new__(NewtonViewerRTX)
     viewer._rtx = Mock()
+    viewer._use_ovstage = True
+    viewer._ovstage_queries = {}
+    viewer._ovstage_ordinal = 1
     viewer._mesh_prim_paths = {"water": "/root/water"}
     viewer._pending_mesh_points = {"water": points}
     viewer._pending_mesh_normals = {}
     viewer._pending_mesh_topology = {}
     viewer._pending_mesh_visibility = {}
 
-    viewer._update_ovrtx_mesh_points()
-
-    update = viewer._rtx.write_array_attribute.call_args.kwargs
-    assert update["prim_paths"] == ["/root/water"]
-    assert update["attribute_name"] == "points"
-    tensor = np.from_dlpack(update["tensors"][0])
-    np.testing.assert_array_equal(tensor, points)
-    assert tensor.dtype == np.float32 and tensor.flags.c_contiguous
+    with ovstage.Stage("coffee_mesh_test") as stage, ovstage.PathDictionary(stage) as paths:
+        viewer._ovstage, viewer._ovstage_paths = stage, paths
+        try:
+            viewer._update_ovrtx_mesh_points()
+            viewer._write_runtime_array_attribute("/root/water", "primvars:displayColor", points / 18.0)
+            stage.advance_write_floor(1).wait()
+            query = viewer._get_ovstage_query(["/root/water"])
+            for name, expected in (("points", points), ("primvars:displayColor", points / 18.0)):
+                read = stage.read_attributes(query, [paths.intern_token(name)], ovstage.OrdinalRange.latest(1))
+                try:
+                    read.wait()
+                    group = read.fetch_next()
+                    assert group is not None
+                    try:
+                        tensor = group.tensor(0)
+                        assert tensor.dtype.lanes == 3 and tensor.dtype.bits == 32
+                        np.testing.assert_allclose(group.array(0).reshape(-1, 3), expected)
+                    finally:
+                        stage.release_group(group)
+                finally:
+                    read.release().wait()
+        finally:
+            for path_list, query in viewer._ovstage_queries.values():
+                query.release().wait()
+                paths.destroy_path_list(path_list)
+        viewer._rtx.write_array_attribute.assert_not_called()
 
 
 def test_newton_rtx_visualizer_render_rgb_array_returns_none_when_viewer_unavailable():

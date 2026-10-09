@@ -11,10 +11,8 @@ from typing import TYPE_CHECKING
 
 import torch
 
-from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
 from isaaclab.envs.mdp.actions.joint_actions import JointPositionAction
 from isaaclab.envs.mdp.actions.task_space_actions import DifferentialInverseKinematicsAction
-from isaaclab.utils import configclass
 from isaaclab.utils import math as math_utils
 
 if TYPE_CHECKING:
@@ -59,13 +57,6 @@ class PalmPoseIKAction(DifferentialInverseKinematicsAction):
         self._asset.actuators.target_command.set_position_index(
             value=targets.clamp(min=limits[..., 0], max=limits[..., 1]), joint_ids=self._joint_ids
         )
-
-
-@configclass
-class PalmPoseIKActionCfg(DifferentialInverseKinematicsActionCfg):
-    """Relative palm inverse kinematics with bounded joint targets."""
-
-    class_type: type = PalmPoseIKAction
 
 
 class HandPositionAction(JointPositionAction):

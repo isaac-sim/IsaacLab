@@ -7,9 +7,9 @@ water; MJWarp simulates the robot. A scripted IK controller performs one scoop
 and pour, followed by stirring when water is enabled. Apple Vision Pro input
 uses the same action interface.
 
-![An earlier Newton RTX capture of the coffee setup](../../../../../docs/source/_static/tasks/rizon_sharpa_coffee.jpg)
+![Kit capture of the coffee task in the kitchen](../../../../../docs/source/_static/environment-previews/rizon_sharpa_coffee.jpg)
 
-The image illustrates the setup; the current motion enters steeply, advances
+The motion enters steeply, advances
 about 15 mm while rotating flat **inside** the pile, then lifts level. The original
 50 × 32 × 10 mm spoon and
 1.8 mm shell are retained. A delivered dose of 8–10 g per scoop has not been
@@ -44,7 +44,21 @@ On another workstation, set `ISAACLAB_FABRICS_SIM_RIZON_SHARPA_ROOT` to the comp
 asset directory. `robot.py` declares the default cache location and validates
 the USD-plus-texture bundle's SHA-256. A cached USD override repairs malformed
 visual normals without modifying the source asset. The procedural tableware
-is generated locally. Retargeting asset provenance and licenses are in
+is generated locally. This is an experimental contributed task that requires
+an externally provisioned robot; the public kitchen and Sharpa URDF do not
+supply the combined Rizon/Sharpa USD. Obtain the bundle through your authorized
+Fabrics-Sim asset access and retain its relative `textures/` directory. This
+repository provides no public download or redistribution of that bundle.
+The source asset revision is `d0dbd1ddaefc4996db546949a7dfb37e39afcbeb` and its
+USD-plus-texture fingerprint is
+`ae5d22792b44fb6d29a7691d4276bc061a5529132f01e7a0eb5795a482595d63`.
+Check provisioning before starting a simulator:
+
+```bash
+uv run --no-sync python -c 'from isaaclab_tasks.contrib.rizon_sharpa_coffee.robot import configured_asset_path; print(configured_asset_path())'
+```
+
+Retargeting asset provenance and licenses are in
 [assets/NOTICE](assets/NOTICE).
 
 Kit presentation defaults to NVIDIA's public L-shaped kitchen sample from
@@ -97,7 +111,7 @@ For the wet Kit demonstration and a video, use the following liquid pressure pro
 uv run --no-sync isaaclab demo rizon-sharpa-coffee \
     --mode scripted --water --visualizer kit --headless --video \
     --voxel_size 0.004 --physics_hz 400 --mpm_iterations 500 \
-    --mpm_grid_capacity 49152 --grains_per_particle 5 \
+    --mpm_grid_capacity 49152 --grains_per_particle 3 \
     --spoon_margin 0.0036 --spoon_rim_margin_scale 0 \
     --render_samples 4 --width 1280 --height 720 \
     --output_dir logs/coffee_video
@@ -110,20 +124,25 @@ of the larger grid and use finer visual grains:
 uv run --no-sync isaaclab demo rizon-sharpa-coffee \
     --water --visualizer newton_gl --headless --video \
     --voxel_size 0.010 --physics_hz 100 --rigid_hz 400 \
-    --mpm_iterations 150 --mpm_grid_capacity 1536 --spoon_margin 0.0036 \
+    --mpm_iterations 250 --mpm_grid_capacity 2048 --spoon_margin 0.0036 \
     --grains_per_particle 128 --width 1280 --height 720 \
     --output_dir logs/coffee_video_coarse
 ```
 
 This profile seeds 4,530 physical particles at 5 mm spacing and displays coffee
-grains with approximately 0.45 mm radius. On an RTX 4090 it measured approximately
-0.42 times real time headlessly and 0.27 with GL rendering and 720p CRF 18 recording.
-Using 125 iterations and 64 visual grains reached 0.47 headlessly, but its
-liquid-level check had little headroom. The full 150-iteration demo retained the
-water with about 2 mm of surface-height loss after stirring. This is a speed experiment:
-fine rendering grains do not restore physical scoop resolution, and resampling
-reduces the seeded coffee and water mass near vessel boundaries. The finer
-profile remains the reference for liquid level and tool contact fidelity.
+grains with approximately 0.45 mm radius. Its 250-iteration pressure budget
+passes the native cup's 18-second stirring regression with less than 2 mm of
+settled level change. With the current Newton pin, 150 iterations lost about
+3.8 mm in that check while retaining the particle mass.
+
+Earlier RTX 4090 measurements at 150 iterations and a 1,536-cell allocation
+reached approximately 0.42 times real time headlessly and 0.27 with GL rendering
+and 720p CRF 18 recording. Using 125 iterations and 64 visual grains reached
+0.47 headlessly. These historical measurements do not establish the speed of
+the updated 250-iteration profile. Fine rendering grains do not restore
+physical scoop resolution, and resampling reduces the seeded coffee and water
+mass near vessel boundaries. The finer profile remains the reference for
+liquid level and tool contact fidelity.
 
 `--video` defaults to Newton RTX unless `--visualizer` is explicit. It requires
 FFmpeg and writes `coffee.mp4`, phase images, `run.json`, `metrics.json` and
@@ -339,7 +358,7 @@ guides an empty spoon to the source and a loaded spoon to the cup, using measure
 contents rather than scripted phases. Other rewards use delivery, retention,
 spill, action changes and success. Dose reporting is independent of the success
 threshold. The demo disables success termination so it can complete
-both scoops and stirring; PPO retains success, invalid-state and timeout resets.
+the scoop and optional stirring; PPO retains success, invalid-state and timeout resets.
 
 Train the dry mounted task without presentation resources:
 
@@ -355,13 +374,16 @@ and a target delivered dose have not been established. Keep environment counts
 small initially because each world owns a fine MPM grid. Larger voxel sizes can
 reduce training cost but change spoon containment and must be validated before
 using them for policy development. Optional water conversion is enabled with
-`env.water_enabled=True`; the dry task is the default learning configuration.
+`env.water_enabled=True`; the final scene preparation selects Gauss–Seidel with
+500 pressure iterations for water, or the automatic solver with 100 iterations
+for dry coffee. Explicit solver and iteration overrides take precedence.
+The dry task is the default learning configuration.
 
 The current workstation also uses pinned Newton main and Warp nightly builds
 for MPM optimizations. Their revisions are declared in the root `pyproject.toml`
 and `uv.lock`. Include that dependency update in review or land it as a
 prerequisite; the captured material-conversion regression does not pass on the
-repository's earlier Newton 1.6.0 / Warp 1.17.0 combination. The task does not
+earlier Newton 1.6 / Warp 1.17 combination. The task does not
 patch Newton itself.
 
 Play a saved policy with the standard runner:

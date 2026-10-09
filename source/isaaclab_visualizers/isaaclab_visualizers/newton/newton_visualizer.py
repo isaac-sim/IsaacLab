@@ -773,20 +773,6 @@ class NewtonViewerRTX(_NewtonViewerUIMixin, ViewerRTX):
             self._render_products = self._render_result.wait().fetch()
         return super()._capture_screenshot_pixels()
 
-    @staticmethod
-    def _make_laned_array_dltensor(values_np: np.ndarray, lanes: int) -> np.ndarray:
-        """Supply shaped arrays to OVRTX's managed DLPack ingestion.
-
-        OVRTX infers vector lanes from the trailing dimension and retains the
-        array while writing. Its current DLTensor is only a C descriptor.
-        """
-        return np.ascontiguousarray(values_np).reshape(-1, lanes)
-
-    @staticmethod
-    def _make_point3f_dltensor(points_np: np.ndarray) -> np.ndarray:
-        """Use the managed array path for deforming mesh points and normals."""
-        return NewtonViewerRTX._make_laned_array_dltensor(np.asarray(points_np, dtype=np.float32), lanes=3)
-
     def _init_window(self) -> None:
         """Create the viewer window and immediately apply Isaac Lab UI patches."""
         super()._init_window()

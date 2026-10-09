@@ -14,6 +14,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import os
 import shutil
 import subprocess
 from contextlib import ExitStack
@@ -33,6 +34,9 @@ def main() -> None:
     args, parser, ffmpeg = _parse_args()
     video_stride = args.control_hz // args.video_fps
     cfg, visualizers = _make_env_cfg(args, parser, video_stride)
+    if args.headless:
+        # Kit's launcher resolves its app window from HEADLESS and the visualizer selection.
+        os.environ["HEADLESS"] = "1"
     with launch_simulation(cfg, args), ExitStack() as stack:
         from isaaclab_tasks.contrib.rizon_sharpa_coffee.coffee_env import CoffeeEnv
         from isaaclab_tasks.contrib.rizon_sharpa_coffee.presentation import CoffeePresentation
@@ -356,10 +360,8 @@ def _make_env_cfg(args, parser, video_stride):
 
 
 def _make_visualizers(args, parser):
-    from isaaclab_physx.renderers import IsaacRtxRendererCfg, IsaacRtxRendererGlobalSettingsCfg
+    from isaaclab_physx.renderers import IsaacRtxRendererGlobalSettingsCfg
     from isaaclab_visualizers.newton import NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg
-
-    from isaaclab_tasks.contrib.rizon_sharpa_coffee.presentation import CoffeeGLVisualizer, CoffeeRTXVisualizer
 
     visualizers = []
     camera_cfg = dict(
@@ -385,16 +387,14 @@ def _make_visualizers(args, parser):
             visualizers.append(
                 CoffeeKitVisualizerCfg(
                     backdrop=args.backdrop,
-                    streaming_cam_renderer_cfg=IsaacRtxRendererCfg(
-                        global_settings=IsaacRtxRendererGlobalSettingsCfg(
-                            enable_translucency=True,
-                            max_bounces=12,
-                            split_glass=False,
-                            carb_settings={
-                                "/rtx/rtpt/spp": args.render_samples,
-                                "/rtx/rtpt/extraSpecularAndTransmissiveBounces": 8,
-                            },
-                        )
+                    render_settings=IsaacRtxRendererGlobalSettingsCfg(
+                        enable_translucency=True,
+                        max_bounces=12,
+                        split_glass=False,
+                        carb_settings={
+                            "/rtx/rtpt/spp": args.render_samples,
+                            "/rtx/rtpt/extraSpecularAndTransmissiveBounces": 8,
+                        },
                     ),
                     enable_markers=False,
                     enable_live_plots=False,
@@ -411,7 +411,7 @@ def _make_visualizers(args, parser):
         )
         visualizers.append(
             NewtonRTXVisualizerCfg(
-                class_type=CoffeeRTXVisualizer,
+                class_type="isaaclab_tasks.contrib.rizon_sharpa_coffee.presentation:CoffeeRTXVisualizer",
                 rtx_environment="studio",
                 render_settings={
                     "omni:rtx:rtpt:spp": ("Int", args.render_samples),
@@ -424,7 +424,9 @@ def _make_visualizers(args, parser):
                 **common,
             )
             if name == "newton_rtx"
-            else NewtonGLVisualizerCfg(class_type=CoffeeGLVisualizer, **common)
+            else NewtonGLVisualizerCfg(
+                class_type="isaaclab_tasks.contrib.rizon_sharpa_coffee.presentation:CoffeeGLVisualizer", **common
+            )
         )
     return visualizers
 

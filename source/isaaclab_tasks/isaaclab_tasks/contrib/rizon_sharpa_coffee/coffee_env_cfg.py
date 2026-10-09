@@ -23,9 +23,8 @@ from isaaclab.managers import EventTermCfg, ObservationGroupCfg, ObservationTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils import configclass
 
-from . import mdp
 from .assets import BOWL_POSITION, CUP_INNER_RADIUS, CUP_POSITION, coffee_cavity_radius
-from .physics import configure_contact_grasp, make_physics_cfg
+from .physics_cfg import configure_contact_grasp, make_physics_cfg
 from .robot import (
     ARM_JOINT_NAMES,
     DEFAULT_SPOON_OFFSET_POS,
@@ -62,7 +61,8 @@ class CoffeeSceneCfg(InteractiveSceneCfg):
 class CoffeeActionsCfg:
     """Six scaled palm increments and 22 finger positions normalized to joint limits."""
 
-    arm = mdp.PalmPoseIKActionCfg(
+    arm = common_mdp.DifferentialInverseKinematicsActionCfg(
+        class_type="isaaclab_tasks.contrib.rizon_sharpa_coffee.mdp:PalmPoseIKAction",
         asset_name="robot",
         joint_names=list(ARM_JOINT_NAMES),
         body_name=PALM_BODY_NAME,
@@ -72,7 +72,7 @@ class CoffeeActionsCfg:
         ),
     )
     hand = common_mdp.JointPositionActionCfg(
-        class_type=mdp.HandPositionAction,
+        class_type="isaaclab_tasks.contrib.rizon_sharpa_coffee.mdp:HandPositionAction",
         asset_name="robot",
         joint_names=list(HAND_JOINT_NAMES),
         preserve_order=True,
@@ -95,10 +95,10 @@ class CoffeeObservationsCfg:
     class PolicyCfg(ObservationGroupCfg):
         joint_pos = ObservationTermCfg(func=common_mdp.joint_pos_rel)
         joint_vel = ObservationTermCfg(func=common_mdp.joint_vel_rel)
-        palm = ObservationTermCfg(func=mdp.palm_pose)
-        spoon = ObservationTermCfg(func=mdp.spoon_pose)
-        targets = ObservationTermCfg(func=mdp.target_vectors)
-        coffee = ObservationTermCfg(func=mdp.particle_fractions)
+        palm = ObservationTermCfg(func="isaaclab_tasks.contrib.rizon_sharpa_coffee.mdp:palm_pose")
+        spoon = ObservationTermCfg(func="isaaclab_tasks.contrib.rizon_sharpa_coffee.mdp:spoon_pose")
+        targets = ObservationTermCfg(func="isaaclab_tasks.contrib.rizon_sharpa_coffee.mdp:target_vectors")
+        coffee = ObservationTermCfg(func="isaaclab_tasks.contrib.rizon_sharpa_coffee.mdp:particle_fractions")
         last_action = ObservationTermCfg(func=common_mdp.last_action)
 
         def __post_init__(self):
@@ -110,24 +110,26 @@ class CoffeeObservationsCfg:
 
 @configclass
 class CoffeeRewardsCfg:
-    approach = RewardTermCfg(func=mdp.approach, weight=0.1, params={"std": 0.1})
-    delivered = RewardTermCfg(func=mdp.delivery, weight=20.0)
-    carried = RewardTermCfg(func=mdp.spoon_load, weight=2.0)
-    spilled = RewardTermCfg(func=mdp.spill, weight=-10.0)
-    succeeded = RewardTermCfg(func=mdp.success, weight=1000.0)
+    approach = RewardTermCfg(
+        func="isaaclab_tasks.contrib.rizon_sharpa_coffee.mdp:approach", weight=0.1, params={"std": 0.1}
+    )
+    delivered = RewardTermCfg(func="isaaclab_tasks.contrib.rizon_sharpa_coffee.mdp:delivery", weight=20.0)
+    carried = RewardTermCfg(func="isaaclab_tasks.contrib.rizon_sharpa_coffee.mdp:spoon_load", weight=2.0)
+    spilled = RewardTermCfg(func="isaaclab_tasks.contrib.rizon_sharpa_coffee.mdp:spill", weight=-10.0)
+    succeeded = RewardTermCfg(func="isaaclab_tasks.contrib.rizon_sharpa_coffee.mdp:success", weight=1000.0)
     action_rate = RewardTermCfg(func=common_mdp.action_rate_l2, weight=-0.001)
 
 
 @configclass
 class CoffeeTerminationsCfg:
     time_out = TerminationTermCfg(func=common_mdp.time_out, time_out=True)
-    success = TerminationTermCfg(func=mdp.success)
-    invalid = TerminationTermCfg(func=mdp.invalid_state)
+    success = TerminationTermCfg(func="isaaclab_tasks.contrib.rizon_sharpa_coffee.mdp:success")
+    invalid = TerminationTermCfg(func="isaaclab_tasks.contrib.rizon_sharpa_coffee.mdp:invalid_state")
 
 
 @configclass
 class CoffeeEventsCfg:
-    reset = EventTermCfg(func=mdp.reset_task, mode="reset")
+    reset = EventTermCfg(func="isaaclab_tasks.contrib.rizon_sharpa_coffee.mdp:reset_task", mode="reset")
 
 
 @configclass
@@ -171,7 +173,7 @@ class CoffeeEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.dt = 1.0 / 800.0
         self.sim.render_interval = 16
         self.sim.use_newton_actuators = True
-        self.sim.physics = make_physics_cfg(self.voxel_size, water=self.water_enabled)
+        self.sim.physics = make_physics_cfg(self.voxel_size, water=None)
 
 
 def configure_scene(cfg: CoffeeEnvCfg) -> None:
@@ -234,6 +236,12 @@ def configure_scene(cfg: CoffeeEnvCfg) -> None:
         else None
     )
     solver = cfg.sim.physics.solver_cfg.entries[1].solver_cfg
+    # Resolve defaults after Hydra/CLI overrides, preserving explicitly tuned
+    # pressure settings and the independently configured integration rates.
+    if solver.solver is None:
+        solver.solver = "gs" if cfg.water_enabled else "auto"
+    if solver.max_iterations is None:
+        solver.max_iterations = 500 if cfg.water_enabled else 100
     solver.voxel_size = cfg.voxel_size
     solver.grains_per_particle = cfg.grains_per_particle
     # The rebuildable grid allocates at most one active voxel per physical particle.
@@ -265,6 +273,8 @@ def _particle_cfg(
     points = points[np.linalg.norm(points[:, :2], axis=1) < radius - spacing]
     if not water:
         points = points[np.linalg.norm(points[:, :2], axis=1) < coffee_cavity_radius(points[:, 2]) - 2.0 * spacing]
+    if not len(points):
+        raise ValueError(f"{name} fill is empty at spacing={spacing:g} m and height={height:g} m.")
     rng = np.random.default_rng(7)
     points += rng.uniform(-0.15 * spacing, 0.15 * spacing, points.shape)
     density = 1000.0 if water else 450.0

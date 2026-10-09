@@ -17,8 +17,6 @@ from isaaclab_visualizers.kit import KitVisualizer
 
 from pxr import Gf, Sdf, UsdGeom, UsdShade, Vt
 
-from isaaclab.sim import SimulationContext
-
 from .presentation import COFFEE_COLOR, WATER_COLOR, _add_coffee_studio_lights
 
 if TYPE_CHECKING:
@@ -32,14 +30,12 @@ class CoffeeKitVisualizer(KitVisualizer):
     cfg: CoffeeKitVisualizerCfg
     presentation: CoffeePresentation | None = None
 
-    def initialize(self, scene_data_provider) -> None:
+    def initialize(self, scene_data_provider, *, cameras, stage=None) -> None:
         if self._is_initialized:
             return
-        # The camera configuration also owns global RTX quality for a viewport
-        # capture, even when its streaming panel is disabled.
-        apply_isaac_rtx_global_settings(self.cfg.streaming_cam_renderer_cfg.global_settings)
-        super().initialize(scene_data_provider)
-        self._stage = SimulationContext.instance().stage
+        apply_isaac_rtx_global_settings(self.cfg.render_settings)
+        super().initialize(scene_data_provider, cameras=cameras, stage=stage)
+        self._stage = self._scene_stage
         self._root_path = "/World/CoffeePresentation"
         UsdGeom.Xform.Define(self._stage, self._root_path)
         self._visibility_backup = {}

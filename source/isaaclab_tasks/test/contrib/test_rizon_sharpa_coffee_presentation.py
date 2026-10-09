@@ -6,6 +6,7 @@
 """Independent physics and passive-tracer contracts for coffee presentation."""
 
 import math
+from types import SimpleNamespace
 
 import newton
 import numpy as np
@@ -19,6 +20,7 @@ from isaaclab.test.utils import DeviceScope, test_devices
 
 from isaaclab_tasks.contrib.rizon_sharpa_coffee.physics import CoffeeMPMSolver
 from isaaclab_tasks.contrib.rizon_sharpa_coffee.presentation import (
+    CoffeePresentation,
     _color_water_faces,
     _color_water_vertices,
     _diffuse_water_color,
@@ -155,6 +157,18 @@ def test_water_tint_diffuses_conservatively_without_crossing_air_gaps():
     np.testing.assert_allclose(result[:3] / masses[:3], 0.005 / 6.0, atol=1.0e-7)
     assert result[3] == pytest.approx(0.004, abs=1.0e-9)
     assert result[4] == 0.0  # Nearby dry coffee cannot absorb the liquid's colour.
+
+    # The recorded tracer metric must observe the colour field, independently
+    # of the physical mass converted to liquid. A missing dye release should
+    # remain detectable instead of reporting the source mass twice.
+    presentation = CoffeePresentation.__new__(CoffeePresentation)
+    presentation._water = object()
+    presentation._dissolution = SimpleNamespace(converted_mass_kg=0.009)
+    presentation._dye_mass = dye
+    assert presentation.tracer_mass_kg == pytest.approx(0.009, abs=1.0e-8)
+    dye.assign(result * 0.5)
+    assert presentation.tracer_mass_kg == pytest.approx(0.0045, abs=1.0e-8)
+    np.testing.assert_array_equal(mass.numpy(), masses)
 
 
 def test_gl_surface_tint_stays_on_the_wet_faces_after_texture_upload():

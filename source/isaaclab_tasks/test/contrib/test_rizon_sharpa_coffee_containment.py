@@ -28,6 +28,7 @@ from isaaclab_tasks.contrib.rizon_sharpa_coffee.assets import (
 )
 from isaaclab_tasks.contrib.rizon_sharpa_coffee.coffee_env_cfg import CoffeeEnvCfg, _particle_cfg
 from isaaclab_tasks.contrib.rizon_sharpa_coffee.physics import CoffeeMPMSolver, configure_spoon_rim_margin
+from isaaclab_tasks.contrib.rizon_sharpa_coffee.physics_cfg import make_physics_cfg
 
 _SPOON_HALF_LENGTH = wp.constant(SPOON_BOWL_LENGTH / 2.0)
 _SPOON_HALF_WIDTH = wp.constant(SPOON_BOWL_WIDTH / 2.0)
@@ -171,7 +172,7 @@ def test_spoon_holds_coffee_through_motion_and_releases_when_tipped(device):
     points[:, 2] += 0.1
 
     model = _make_model(points, cfg, device)
-    config = _make_solver_config(cfg.sim.physics.solver_cfg.entries[1].solver_cfg)
+    config = _make_solver_config(make_physics_cfg(cfg.voxel_size).solver_cfg.entries[1].solver_cfg)
     config.voxel_size = cfg.voxel_size
     config.max_active_cell_count = max(1024, math.ceil(len(points) / 1024) * 1024)
     solver = CoffeeMPMSolver(model, config=config, grains_per_particle=0)
@@ -236,7 +237,7 @@ def _stir_spoon(pose: wp.array[wp.transform], tick: wp.array[int], dt: float):
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 @pytest.mark.parametrize(
     ("voxel_size", "physics_hz", "iterations", "capacity"),
-    ((0.003, 400, 500, 32768), (0.010, 100, 150, 2048)),
+    ((0.003, 400, 500, 32768), (0.010, 100, 250, 2048)),
     ids=("fine", "coarse"),
 )
 def test_water_level_survives_stirring_with_native_profile(device, voxel_size, physics_hz, iterations, capacity):
@@ -286,7 +287,7 @@ def test_water_level_survives_stirring_with_native_profile(device, voxel_size, p
         "dilatancy",
     ):
         getattr(model.mpm, name).fill_(getattr(water.spawn.material, name))
-    config = _make_solver_config(cfg.sim.physics.solver_cfg.entries[1].solver_cfg)
+    config = _make_solver_config(make_physics_cfg(cfg.voxel_size, water=True).solver_cfg.entries[1].solver_cfg)
     config.max_active_cell_count = capacity
     config.max_iterations = iterations
     solver = CoffeeMPMSolver(model, config, grains_per_particle=0)

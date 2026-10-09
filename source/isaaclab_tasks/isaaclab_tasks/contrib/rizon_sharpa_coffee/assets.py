@@ -18,13 +18,15 @@ import math
 import os
 import tempfile
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import numpy as np
-import trimesh
 from filelock import FileLock
-from PIL import Image
 
-from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
+if TYPE_CHECKING:
+    import trimesh
+
+    from pxr import Usd, UsdGeom, UsdShade
 
 TABLE_TOP_Z = 0.0
 BOWL_POSITION = (0.52, -0.12, TABLE_TOP_Z)
@@ -118,6 +120,8 @@ def cup_handle_mesh() -> trimesh.Trimesh:
     inside the ceramic wall rather than touching it at a single tangent point.
     The handle stays outside the opening and is visual decoration only.
     """
+    import trimesh
+
     angles = np.linspace(-math.pi / 2.0, math.pi / 2.0, 64)
     radial_angles = np.linspace(0.0, 2.0 * math.pi, 16, endpoint=False)
     centers = np.column_stack(
@@ -165,6 +169,8 @@ def spoon_mesh() -> trimesh.Trimesh:
 
 def spoon_handle_mesh() -> trimesh.Trimesh:
     """Return the original straight, flattened handle."""
+    import trimesh
+
     radius = 0.0052
     rear_x = -0.025 - (SPOON_HANDLE_LENGTH - 2.0 * radius) + 0.003
     front_x = -0.022
@@ -210,6 +216,8 @@ def build_coffee_assets(cache_dir: str | Path | None = None) -> dict[str, str]:
 
 def _lathe(profile: list[tuple[float, float]]) -> trimesh.Trimesh:
     """Revolve a cross-section, merging pole vertices and orienting faces outward."""
+    import trimesh
+
     mesh = trimesh.creation.revolve(np.asarray(profile), sections=96)
     mesh.fix_normals()
     return mesh
@@ -217,6 +225,8 @@ def _lathe(profile: list[tuple[float, float]]) -> trimesh.Trimesh:
 
 def _stage(path: Path, *, rigid: bool = False) -> Usd.Stage:
     """Create a Z-up stage with a default prim and a shared contact material."""
+    from pxr import Usd, UsdGeom, UsdPhysics, UsdShade
+
     stage = Usd.Stage.CreateNew(str(path))
     root = UsdGeom.Xform.Define(stage, "/Asset").GetPrim()
     stage.SetDefaultPrim(root)
@@ -246,6 +256,8 @@ def _material(
     texture: str | None = None,
 ) -> UsdShade.Material:
     """Author a portable preview material, optionally with a UV-mapped texture."""
+    from pxr import Gf, Sdf, UsdShade
+
     material = UsdShade.Material.Define(stage, f"/Asset/Looks/{name}")
     shader = UsdShade.Shader.Define(stage, f"{material.GetPath()}/PreviewSurface")
     shader.CreateIdAttr("UsdPreviewSurface")
@@ -286,6 +298,8 @@ def _mesh(
     preserve these surfaces alongside decoration and allow material subsets to
     follow the visual-mesh importer without changing physical shape counts.
     """
+    from pxr import Sdf, UsdGeom, UsdPhysics, UsdShade
+
     mesh = UsdGeom.Mesh.Define(stage, f"/Asset/{name}")
     mesh.CreatePointsAttr(geometry.vertices.astype(np.float32).tolist())
     mesh.CreateFaceVertexIndicesAttr(geometry.faces.reshape(-1).tolist())
@@ -327,6 +341,8 @@ def _vessel_mesh(
     center: tuple[float, float] = (0.0, 0.0),
 ) -> None:
     """Author an open vessel with distinct inner and outer glazes."""
+    from pxr import UsdShade
+
     mesh = _mesh(stage, name, geometry, interior)
     # The outer walls face radially away from the center; the inner walls face in.
     radial_centers = geometry.triangles_center[:, :2] - np.asarray(center)
@@ -367,6 +383,10 @@ def _write_spoon(path: Path) -> None:
 
 def _write_table(path: Path) -> None:
     """Create a walnut studio tabletop, linen runner and understated brass trim."""
+    import trimesh
+
+    from pxr import UsdGeom
+
     stage = _stage(path)
     _write_walnut_texture(path.parent / "walnut.png")
     walnut = _material(stage, "Walnut", (0.19, 0.082, 0.033), roughness=0.57, texture="walnut.png")
@@ -408,6 +428,8 @@ def _write_table(path: Path) -> None:
 
 def _write_walnut_texture(path: Path) -> None:
     """Synthesize a deterministic wood grain texture without external assets."""
+    from PIL import Image
+
     rng = np.random.default_rng(19)
     y, x = np.mgrid[0:768, 0:1024].astype(np.float32)
     x /= 1024.0
