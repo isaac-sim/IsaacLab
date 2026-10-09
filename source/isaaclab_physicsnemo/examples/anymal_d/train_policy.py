@@ -100,7 +100,7 @@ def main():
     SimulationContext.clear_instance()
 
     source = args.checkpoint or f"training with {'learned' if args.artifact is not None else 'MuJoCo Warp'} physics"
-    evaluations = {"MuJoCo Warp": None}
+    evaluations: dict[str, Path | None] = {"MuJoCo Warp": None}
     if (args.eval_artifact or args.artifact) is not None:
         evaluations["learned"] = args.eval_artifact or args.artifact
     for physics, artifact in evaluations.items():
