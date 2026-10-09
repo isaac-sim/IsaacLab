@@ -157,10 +157,31 @@ reuses the hierarchy topology. Clean requests never acquire writable Fabric arra
 Renderers do not select a physics-specific synchronization path.
 The same Fabric resource receives geometry through ``update_geometries(provider, frame)``.
 PhysX publishes its native ``FabricPoints`` without a conversion or rewrite. Foreign mesh points
-are interpolated directly into GPU Fabric storage. The current Kit Hydra path requires CPU Fabric
-destinations for ``Points`` and ``BasisCurves``; SDP handles their device transfer without USD
-attribute writes. Only destinations whose update interval has elapsed are transferred. World-space
+are interpolated directly into GPU Fabric storage. ``Points`` destinations use GPU Fabric
+on Kit 110.4 and newer when RTX Points geometry streaming is disabled, keeping the SDP
+particle-position upload on the device. Older Kit versions, streamed ``Points``, and
+``BasisCurves`` use CPU Fabric destinations; SDP handles their device transfer without USD
+attribute writes. Only destinations whose update interval has elapsed are updated. World-space
 point destinations reset their transform stack to avoid applying the environment or body pose twice.
+The procedural Points path renders particle spheres through RTX's analytic geometry and GPU
+position-update API. The visual prim remains ``UsdGeom.Points``. Geometry streaming controls
+geometry preprocessing, loading, and caching; GPU position updates also exist in its animated
+Points path. On Isaac Sim 6.2.0-rc.11 / Kit 110.4, streamed GPU updates leave a single-particle
+cloud with default constant display color stale, while a 4,000-particle scene moves correctly
+but loses its authored colors. The procedural path passes the movement and color checks.
+Points streaming is enabled by default, including when ``/UJITSO/geometry`` is false or
+``/UJITSO/geometryTypes`` is empty.
+To use GPU particle updates, set the following Kit arguments before creating the scene:
+
+.. code-block:: text
+
+   --kit_args "--/UJITSO/geometry=false --/UJITSO/geometryTypes=Mesh"
+
+This configuration selects the procedural GPU particle path while enabling geometry streaming
+for existing meshes. Particle positions remain on the device during SDP uploads. Gaussian
+rendering requires Points streaming; retain the CPU particle fallback for scenes that need it.
+This removes the SDP particle-position readback; unrelated Fabric/RTX synchronization and
+small renderer metadata transfers can still occur.
 ``FabricMatrix44`` and ``FabricPoints`` contain only array storage, not bindings or native engine handles.
 
 Newton backend
