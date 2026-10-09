@@ -36,6 +36,8 @@ from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg, build_simulation_context
 from isaaclab.utils import configclass
 
+pytestmark = pytest.mark.kitless
+
 NEWTON_SIM_CFG = SimulationCfg(physics=NewtonCfg(solver_cfg=MJWarpSolverCfg()))
 WORLD_MARKER_POS = (5.0, 3.0, 1.0)
 SITE_PATH = "/World/Robot/SiteFrame"

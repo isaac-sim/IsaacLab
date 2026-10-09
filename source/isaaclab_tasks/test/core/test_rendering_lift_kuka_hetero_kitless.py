@@ -18,6 +18,8 @@ from rendering_test_utils import (
     rendering_test_lift_kuka,
 )
 
+pytestmark = pytest.mark.kitless
+
 # OVPhysX heterogeneous rendering goldens are not available yet.
 _RENDERING_PARAMS = group_rendering_params(
     [param for param in make_kitless_rendering_params_lift() if param.values[1] != "ovphysx"]

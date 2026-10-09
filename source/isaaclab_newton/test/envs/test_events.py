@@ -36,6 +36,8 @@ from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils import configclass
 from isaaclab.visualizers import VisualizerCfg
 
+pytestmark = pytest.mark.kitless
+
 
 @configclass
 class ActionsCfg:

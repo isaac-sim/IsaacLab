@@ -10,6 +10,8 @@ import importlib
 import pytest
 from isaaclab_ov._runtime import _OVPHYSX_INSTALL_MESSAGE, import_ovphysx
 
+pytestmark = pytest.mark.kitless
+
 
 def test_import_ovphysx_reports_install_command_when_runtime_missing(monkeypatch):
     """Missing root ``ovphysx`` imports raise the Isaac Lab install hint."""

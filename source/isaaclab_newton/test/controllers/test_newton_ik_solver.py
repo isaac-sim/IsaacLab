@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import isaaclab_newton.controllers.ik.newton_ik_objectives as objectives_module
 import isaaclab_newton.controllers.ik.newton_ik_solver as ik_solver_module
+import pytest
 import torch
 import warp as wp
 from isaaclab_newton.controllers.ik.newton_ik_objectives import (
@@ -23,6 +24,8 @@ from isaaclab_newton.controllers.ik.newton_ik_solver import NewtonIKSolver
 from isaaclab_newton.controllers.ik.newton_ik_solver_cfg import NewtonIKSolverCfg
 
 from isaaclab.utils import configclass
+
+pytestmark = pytest.mark.kitless
 
 # Maps the stub body names used across these tests to Newton link indices.
 _LINKS = {"ee": 0, "torso": 1, "custom": 0}

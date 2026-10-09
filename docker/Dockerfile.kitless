@@ -59,19 +59,21 @@ COPY pyproject.toml uv.lock VERSION LICENSE LICENSE-mimic README.md ./
 COPY source/ source/
 
 # Install the locked dependency graph and its resolver overrides. The curated all extra
-# excludes Isaac Sim; importers adds the standalone importers. UV_PYTHON pins the
-# environment to the runtime stage's Python ABI.
-# OVRTX caches shaders, textures and derived data inside its own site-packages, and a
-# volume-mounted run executes as the runner's uid rather than the image's, so those paths must be
-# writable by a uid the image cannot know. Widened here rather than bind-mounted: the write targets
-# sit alongside shipped content such as ``cache/shadercache``, which a mount would hide.
+# excludes Isaac Sim; importers adds the standalone importers; tetrahedralization matches the Isaac Sim
+# image, whose volume-deformable tests now run here. UV_PYTHON pins the environment to the runtime stage's
+# Python ABI.
+# A volume-mounted run executes as the runner's uid rather than the image's, so the environment must be
+# writable by a uid the image cannot know: OVRTX caches shaders, textures and derived data inside its own
+# site-packages, and CI installs pinned or prerelease OV wheels over the locked ones (as Dockerfile.base allows).
+# Widened here rather than bind-mounted: the write targets sit alongside shipped content such as
+# ``cache/shadercache``, which a mount would hide.
 # ``--frozen`` is load-bearing: without it uv re-resolves whenever it judges the lock stale, which
 # would silently defeat the point of installing from it. ``--inexact`` keeps the seeded pip, which
 # is not a lock entry. ``uv sync`` reuses the venv only because UV_PYTHON pins the same interpreter
 # it was created with; otherwise it deletes and rebuilds it.
 RUN uv venv --seed "${VIRTUAL_ENV}" \
- && uv sync --frozen --inexact --extra all --extra importers --extra test \
- && chmod -R a+rwX "${VIRTUAL_ENV}"/lib/python3.*/site-packages/ovrtx \
+ && uv sync --frozen --inexact --extra all --extra importers --extra test --extra tetrahedralization \
+ && chmod -R a+rwX "${VIRTUAL_ENV}/lib" "${VIRTUAL_ENV}/bin" \
  && python -c "import importlib.metadata as m; \
       names = {d.metadata['Name'].lower() for d in m.distributions()}; \
       assert 'isaacsim' not in names; \

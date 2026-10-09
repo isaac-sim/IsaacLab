@@ -15,9 +15,10 @@ import warp as wp
 _REQUIRED_MODULES = ("isaaclab_ov", "ovrtx")
 _MISSING_MODULES = [module for module in _REQUIRED_MODULES if importlib.util.find_spec(module) is None]
 
-pytestmark = pytest.mark.skipif(
-    bool(_MISSING_MODULES), reason=f"requires optional modules: {', '.join(_MISSING_MODULES)}"
-)
+pytestmark = [
+    pytest.mark.skipif(bool(_MISSING_MODULES), reason=f"requires optional modules: {', '.join(_MISSING_MODULES)}"),
+    pytest.mark.kitless,
+]
 
 if not _MISSING_MODULES:
     from isaaclab_ov.renderers.ovrtx_renderer import OVRTXRenderer

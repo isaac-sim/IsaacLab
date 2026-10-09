@@ -718,3 +718,19 @@ def test_external_git_asset_tests_receive_extended_startup_deadline():
 
     assert startup_deadline == orchestrator.test_settings.GIT_ASSET_STARTUP_TIMEOUT
     assert orchestrator._resolve_startup_deadline("test_sample.py", timeout=10000, is_cold_cache_test=False) == 120
+
+
+def test_runtime_follows_the_module_level_kitless_marker(tmp_path: Path) -> None:
+    """A file runs in the Kit-less image only when every test in it is marked ``kitless``."""
+    orchestrator = _load_orchestrator_module()
+    module_marked = tmp_path / "test_module.py"
+    module_marked.write_text("import pytest\npytestmark = [pytest.mark.integration, pytest.mark.kitless]\n")
+    param_marked = tmp_path / "test_param.py"
+    param_marked.write_text(
+        "import pytest\n\n@pytest.mark.parametrize('x', [pytest.param(1, marks=pytest.mark.kitless), 2])\n"
+        "def test_x(x):\n    pass\n"
+    )
+
+    assert orchestrator._test_runtime(str(module_marked)) == "kitless"
+    assert orchestrator._test_runtime(str(param_marked)) == "kit"
+    assert not orchestrator._has_module_marker(str(module_marked), "isaacsim_ci")

@@ -52,6 +52,8 @@ from isaaclab.terrains import HfRandomUniformTerrainCfg, TerrainGeneratorCfg, Te
 from isaaclab.test.utils import test_devices  # noqa: E402
 from isaaclab.utils import configclass, replace  # noqa: E402
 
+pytestmark = pytest.mark.kitless
+
 wp.init()
 
 

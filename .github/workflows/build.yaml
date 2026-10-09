@@ -102,7 +102,7 @@ jobs:
     - id: detect
       uses: ./.github/actions/detect-changes
       with:
-        triggered-jobs-push: "Docker base build job + rendering-correctness + rendering-correctness-kitless + warp-cache-warm + ovrtx-cache-warm"
+        triggered-jobs-push: "Docker base build job + rendering-correctness + rendering-correctness-kitless + warp-cache-warm + ovrtx-cache-warm (kit, kitless)"
         triggered-jobs-pr: "Docker build jobs + all test-* matrix jobs"
         # config.yaml is included because it controls the base image names and tags
         # consumed by the Docker build jobs.
@@ -246,6 +246,30 @@ jobs:
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         dockerfile-path: docker/Dockerfile.curobo
         cache-tag: cache-curobo
+
+  # Same tag and base as kitless-docker.yml, so the two workflows share one ECR image. Dockerfile.kitless builds
+  # FROM ubuntu:24.04; ecr-build-push-pull takes that base through its isaacsim-* inputs (no Isaac Sim involved).
+  # The name differs from kitless-docker.yml's build job so the two stay distinct required checks.
+  build-kitless:
+    name: Build Kit-less CI Image
+    runs-on: [self-hosted, gpu]
+    needs: [changes, config]
+    if: needs.changes.outputs.should_run == 'true'
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+        lfs: true
+
+    - name: Build and push to ECR
+      uses: ./.github/actions/ecr-build-push-pull
+      with:
+        image-tag: ${{ needs.config.outputs.ci_image_tag }}-kitless
+        isaacsim-base-image: ubuntu
+        isaacsim-version: "24.04"
+        dockerfile-path: docker/Dockerfile.kitless
+        cache-tag: cache-kitless
 
   #endregion
 
@@ -701,10 +725,10 @@ jobs:
     name: isaaclab_ov
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
-    needs: [build, config]
+    needs: [build-kitless, config]
     if: >-
       github.event_name != 'push' &&
-      needs.build.result == 'success'
+      needs.build-kitless.result == 'success'
     env:
       USE_OVPHYSX_WHEELHOUSE: ${{ needs.config.outputs.ovphysx_wheelhouse_image != '' && ((github.event_name == 'pull_request' && github.base_ref == 'develop' && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name != 'pull_request' && github.ref_name == 'develop')) }}
     steps:
@@ -720,30 +744,43 @@ jobs:
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
+        runtime: kitless
         filter-pattern: "isaaclab_ov"
         extra-pip-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && steps.ov_pins.outputs.ovrtx || format('{0} {1}', steps.ov_pins.outputs.ovrtx, steps.ov_pins.outputs.ovphysx) }}
         wheelhouse-image: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && needs.config.outputs.ovphysx_wheelhouse_image || '' }}
         wheelhouse-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && 'ovphysx' || '' }}
         warp-cache: restore
         ovrtx-shader-cache: restore
+        ovrtx-shader-cache-trees: kitless
         test-jobs: "4"
         container-name: isaac-lab-ov-test
 
-    # Folded from the former standalone verify-base-non-root job: reuses the
-    # base image already pulled by run-package-tests to keep the regression
-    # check without burning a separate runner.
-    - name: Verify Base runtime user is non-root
-      shell: bash
-      run: |
-        set -euo pipefail
-        runtime_identity="$(docker run --rm --entrypoint bash "${{ needs.config.outputs.ci_image_tag }}" \
-          -lc 'printf "%s %s %s\n" "$(id -u)" "$(id -g)" "$(id -un 2>/dev/null || true)"')"
-        read -r runtime_uid runtime_gid runtime_user <<< "${runtime_identity}"
-        echo "Base runtime identity: uid=${runtime_uid} gid=${runtime_gid} user=${runtime_user}"
-        if [ "${runtime_uid}" = "0" ]; then
-          echo "::error::Base Docker image must not run as root by default."
-          exit 1
-        fi
+  # Kit-less files without a dedicated Kit-less job (isaaclab_ov and the kitless rendering jobs have their own).
+  test-kitless:
+    name: kitless
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 180
+    needs: [build-kitless, config]
+    if: >-
+      github.event_name != 'push' &&
+      needs.build-kitless.result == 'success'
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+        lfs: true
+    - uses: ./.github/actions/run-package-tests
+      with:
+        image-tag: ${{ needs.config.outputs.ci_image_tag }}
+        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
+        runtime: kitless
+        exclude-pattern: "isaaclab_ov,test_rendering_"
+        warp-cache: restore
+        ovrtx-shader-cache: restore
+        ovrtx-shader-cache-trees: kitless
+        test-jobs: "4"
+        container-name: isaac-lab-kitless-test
 
   test-curobo:
     name: test-curobo
@@ -843,6 +880,22 @@ jobs:
         container-name: isaac-lab-record-video-test
         omni-github-test-type: video-e2e
 
+    # Folded from the former standalone verify-base-non-root job: reuses the
+    # base image already pulled by run-package-tests to keep the regression
+    # check without burning a separate runner.
+    - name: Verify Base runtime user is non-root
+      shell: bash
+      run: |
+        set -euo pipefail
+        runtime_identity="$(docker run --rm --entrypoint bash "${{ needs.config.outputs.ci_image_tag }}" \
+          -lc 'printf "%s %s %s\n" "$(id -u)" "$(id -g)" "$(id -un 2>/dev/null || true)"')"
+        read -r runtime_uid runtime_gid runtime_user <<< "${runtime_identity}"
+        echo "Base runtime identity: uid=${runtime_uid} gid=${runtime_gid} user=${runtime_user}"
+        if [ "${runtime_uid}" = "0" ]; then
+          echo "::error::Base Docker image must not run as root by default."
+          exit 1
+        fi
+
   test-rendering-correctness:
     name: "rendering-correctness"
     runs-on: [self-hosted, gpu]
@@ -887,8 +940,8 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 120
     continue-on-error: ${{ github.event_name == 'workflow_dispatch' }}
-    needs: [build, config]
-    if: needs.build.result == 'success'
+    needs: [build-kitless, config]
+    if: needs.build-kitless.result == 'success'
     env:
       USE_OVPHYSX_WHEELHOUSE: ${{ needs.config.outputs.ovphysx_wheelhouse_image != '' && ((github.event_name == 'pull_request' && github.base_ref == 'develop' && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name != 'pull_request' && github.ref_name == 'develop')) }}
     steps:
@@ -904,19 +957,13 @@ jobs:
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
-        filter-pattern: "isaaclab_tasks"
+        # Every Kit-less rendering file; test-kitless excludes test_rendering_, so the two partition the Kit-less files.
+        runtime: kitless
+        filter-pattern: "test_rendering_"
         extra-pip-packages: >-
           ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && steps.ov_pins.outputs.ovrtx || format('{0} {1}', steps.ov_pins.outputs.ovrtx, steps.ov_pins.outputs.ovphysx) }}
         wheelhouse-image: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && needs.config.outputs.ovphysx_wheelhouse_image || '' }}
         wheelhouse-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && 'ovphysx' || '' }}
-        include-files: >-
-          test_rendering_cartpole_kitless.py,
-          test_rendering_lift_kuka_hetero_kitless.py,
-          test_rendering_lift_kuka_homo_kitless.py,
-          test_rendering_franka_cloth_kitless.py,
-          test_rendering_franka_soft_kitless.py,
-          test_rendering_franka_cable_kitless.py,
-          test_rendering_shadow_hand_kitless.py
         test-k-expr: legacy
         test-node-ids-file: ${{ github.event_name == 'push' && '.github/test-subsets/postmerge-rendering.toml' || '' }}
         test-node-ids-key: ${{ github.event_name == 'push' && 'rendering-correctness-kitless-legacy' || '' }}
@@ -932,10 +979,10 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 120
     continue-on-error: ${{ github.event_name == 'workflow_dispatch' }}
-    needs: [build, config]
+    needs: [build-kitless, config]
     if: >-
       github.event_name != 'pull_request' &&
-      needs.build.result == 'success'
+      needs.build-kitless.result == 'success'
     env:
       USE_OVPHYSX_WHEELHOUSE: ${{ needs.config.outputs.ovphysx_wheelhouse_image != '' && ((github.event_name == 'pull_request' && github.base_ref == 'develop' && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name != 'pull_request' && github.ref_name == 'develop')) }}
     steps:
@@ -951,19 +998,12 @@ jobs:
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
-        filter-pattern: "isaaclab_tasks"
+        runtime: kitless
+        filter-pattern: "test_rendering_"
         extra-pip-packages: >-
           ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && steps.ov_pins.outputs.ovrtx || format('{0} {1}', steps.ov_pins.outputs.ovrtx, steps.ov_pins.outputs.ovphysx) }}
         wheelhouse-image: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && needs.config.outputs.ovphysx_wheelhouse_image || '' }}
         wheelhouse-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && 'ovphysx' || '' }}
-        include-files: >-
-          test_rendering_cartpole_kitless.py,
-          test_rendering_lift_kuka_hetero_kitless.py,
-          test_rendering_lift_kuka_homo_kitless.py,
-          test_rendering_franka_cloth_kitless.py,
-          test_rendering_franka_soft_kitless.py,
-          test_rendering_franka_cable_kitless.py,
-          test_rendering_shadow_hand_kitless.py
         test-k-expr: ovstage
         test-node-ids-file: ${{ github.event_name == 'push' && '.github/test-subsets/postmerge-rendering.toml' || '' }}
         test-node-ids-key: ${{ github.event_name == 'push' && 'rendering-correctness-kitless-ovstage' || '' }}
@@ -1293,18 +1333,55 @@ jobs:
   # Publishes the shared OVRTX shader cache (nv_shadercache PSO blobs) that
   # rendering test jobs restore. Mirrors warm-warp-cache: runs post-merge so
   # PR code never publishes a cache that later jobs on main would inherit.
+  # One warmer per tree: kit/ is compiled by the Kit RTX renderer in the Isaac Sim
+  # image, kitless/ by the ovrtx wheel, so each runs in the image of its consumers.
+  # Only the RTX paths compile PSO blobs; the Warp rasterizer populates neither tree.
+  # The nodes are pinned by exact ID rather than a -k expression, so a parametrize-ID
+  # rename fails collection instead of quietly leaving a warmer with nothing to run.
   warm-ovrtx-cache:
-    name: "ovrtx-cache-warm"
+    name: "ovrtx-cache-warm (kit)"
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     continue-on-error: true
     needs: [build, config]
     concurrency:
-      group: ovrtx-cache-write-${{ github.ref }}
+      group: ovrtx-cache-write-kit-${{ github.ref }}
       cancel-in-progress: false
     if: >-
       (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
       needs.build.result == 'success'
+    env:
+      PUBLISHES_OVRTX_CACHE: ${{ github.ref_name == 'main' || github.ref_name == 'develop' || startsWith(github.ref_name, 'release/') }}
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+        lfs: true
+    - uses: ./.github/actions/run-package-tests
+      with:
+        image-tag: ${{ needs.config.outputs.ci_image_tag }}
+        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
+        filter-pattern: "test_rendering_"
+        test-node-ids-file: .github/test-subsets/postmerge-rendering.toml
+        test-node-ids-key: ovrtx-cache-warm-kit
+        ovrtx-shader-cache: ${{ env.PUBLISHES_OVRTX_CACHE == 'true' && 'save' || 'restore' }}
+        ovrtx-shader-cache-trees: kit
+        container-name: isaac-lab-ovrtx-cache-warm-kit
+        omni-github-test-type: ovrtx-cache-warm-kit
+
+  warm-ovrtx-cache-kitless:
+    name: "ovrtx-cache-warm (kitless)"
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 180
+    continue-on-error: true
+    needs: [build-kitless, config]
+    concurrency:
+      group: ovrtx-cache-write-kitless-${{ github.ref }}
+      cancel-in-progress: false
+    if: >-
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+      needs.build-kitless.result == 'success'
     env:
       PUBLISHES_OVRTX_CACHE: ${{ github.ref_name == 'main' || github.ref_name == 'develop' || startsWith(github.ref_name, 'release/') }}
     steps:
@@ -1320,23 +1397,15 @@ jobs:
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
-        # One combined job covers both sub-trees: Kit cartpole rendering warms
-        # kit/, kitless ovrtx cartpole rendering warms kitless/.
-        filter-pattern: "isaaclab_tasks"
+        runtime: kitless
+        filter-pattern: "test_rendering_"
         extra-pip-packages: "${{ steps.ov_pins.outputs.ovrtx }} ${{ steps.ov_pins.outputs.ovphysx }}"
-        include-files: >-
-          test_rendering_cartpole.py,
-          test_rendering_cartpole_kitless.py
-        # Only the two RTX paths compile PSO blobs: isaacsim_rtx fills kit/ and
-        # ovrtx fills kitless/. newton_warp would exercise the Warp rasterizer,
-        # which populates neither tree. The nodes are pinned by exact ID rather
-        # than a -k expression, so a parametrize-ID rename fails collection here
-        # instead of quietly leaving the warmer with nothing to run.
         test-node-ids-file: .github/test-subsets/postmerge-rendering.toml
-        test-node-ids-key: ovrtx-cache-warm
+        test-node-ids-key: ovrtx-cache-warm-kitless
         ovrtx-shader-cache: ${{ env.PUBLISHES_OVRTX_CACHE == 'true' && 'save' || 'restore' }}
-        container-name: isaac-lab-ovrtx-cache-warm
-        omni-github-test-type: ovrtx-cache-warm
+        ovrtx-shader-cache-trees: kitless
+        container-name: isaac-lab-ovrtx-cache-warm-kitless
+        omni-github-test-type: ovrtx-cache-warm-kitless
   #endregion
 
 #region disabled quarantined tests

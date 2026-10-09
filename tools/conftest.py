@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import ast
 import contextlib
 import logging
 import os
@@ -1565,6 +1566,31 @@ def _resolve_startup_deadline(file_name: str, timeout: int, is_cold_cache_test: 
     return min(timeout, base_deadline + cold_cache_extra)
 
 
+def _has_module_marker(test_file: str, marker: str) -> bool:
+    """Return whether the file's module-level ``pytestmark`` applies ``pytest.mark.<marker>`` to every test."""
+    with open(test_file) as f:
+        tree = ast.parse(f.read(), filename=test_file)
+    for node in tree.body:
+        if not isinstance(node, ast.Assign):
+            continue
+        if not any(isinstance(target, ast.Name) and target.id == "pytestmark" for target in node.targets):
+            continue
+        for sub in ast.walk(node.value):
+            if (
+                isinstance(sub, ast.Attribute)
+                and sub.attr == marker
+                and isinstance(sub.value, ast.Attribute)
+                and sub.value.attr == "mark"
+            ):
+                return True
+    return False
+
+
+def _test_runtime(test_file: str) -> str:
+    """Return the image a test file runs in: ``kitless`` when its module-level ``pytestmark`` says so, else ``kit``."""
+    return "kitless" if _has_module_marker(test_file, "kitless") else "kit"
+
+
 def _collect_test_files(
     source_dirs,
     filter_pattern,
@@ -1752,6 +1778,11 @@ def pytest_sessionstart(session):
     # filter is owned by Isaac Sim's external CI pipeline; the CI_MARKER path
     # leaves that contract untouched.
     ci_marker = os.environ.get("CI_MARKER", "")
+    # ``kit`` or ``kitless`` splits the files between the Isaac Sim image and the Kit-less image.
+    # Unset runs every file.
+    test_runtime = os.environ.get("TEST_RUNTIME", "")
+    if test_runtime not in ("", "kit", "kitless"):
+        raise ValueError(f"TEST_RUNTIME must be 'kit' or 'kitless', got {test_runtime!r}")
     test_node_ids_by_file = _collect_test_node_ids_by_file(workspace_root)
 
     # Parse include files list (comma-separated paths)
@@ -1823,6 +1854,9 @@ def pytest_sessionstart(session):
                     f" silently drop a potentially marker-tagged file"
                 ) from exc
         test_files = new_test_files
+
+    if test_runtime:
+        test_files = [f for f in test_files if _test_runtime(f) == test_runtime]
 
     if test_node_ids_by_file:
         configured_files = set(test_node_ids_by_file)

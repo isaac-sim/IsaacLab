@@ -31,6 +31,8 @@ from isaaclab.managers import EventTermCfg, SceneEntityCfg  # noqa: E402
 from isaaclab.sim import SimulationCfg, build_simulation_context  # noqa: E402
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR  # noqa: E402
 
+pytestmark = pytest.mark.kitless
+
 wp.init()
 
 

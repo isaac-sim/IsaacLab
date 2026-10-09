@@ -23,6 +23,8 @@ from isaaclab.assets import AssetBaseCfg
 from isaaclab.cloner import make_clone_plan
 from isaaclab.sim import SimulationCfg, SimulationContext, SpawnerCfg, build_simulation_context
 
+pytestmark = pytest.mark.kitless
+
 replicate_module = importlib.import_module("isaaclab_newton.cloner.replicate")
 
 

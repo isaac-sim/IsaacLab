@@ -40,6 +40,8 @@ from isaaclab.sim import SimulationCfg
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass
 
+pytestmark = pytest.mark.kitless
+
 SENSOR_HEIGHT = 2.0
 RAY_OFFSET = 0.2
 RAY_START_HEIGHT = SENSOR_HEIGHT - RAY_OFFSET

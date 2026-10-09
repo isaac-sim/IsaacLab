@@ -22,6 +22,8 @@ from isaaclab.sim import SimulationCfg
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass
 
+pytestmark = pytest.mark.kitless
+
 
 @configclass
 class ImuTestSceneCfg(InteractiveSceneCfg):

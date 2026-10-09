@@ -12,6 +12,8 @@ from types import ModuleType, SimpleNamespace
 
 import pytest
 
+pytestmark = pytest.mark.kitless
+
 # The OVPhysX runtime wheel is optional. Skip gracefully when it is not installed;
 # CI jobs that need OVPhysX coverage install it explicitly.
 pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")

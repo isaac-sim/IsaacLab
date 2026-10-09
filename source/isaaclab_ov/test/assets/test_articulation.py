@@ -72,7 +72,7 @@ from isaaclab.utils.warp.launch_cache import _WarpLaunchCache  # noqa: E402
 
 from isaaclab_assets import FRANKA_PANDA_CFG  # noqa: E402
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.kitless]
 
 _FIXTURE = Path(__file__).parent / "data" / "articulation_ordering_branching.usda"
 _STIFFNESS, _DAMPING, _MAX_FORCE = 5.0, 0.5, 100.0

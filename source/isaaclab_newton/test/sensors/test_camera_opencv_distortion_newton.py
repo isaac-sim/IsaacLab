@@ -28,7 +28,7 @@ from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils.configclass import configclass
 from isaaclab.utils.math import create_rotation_matrix_from_view, quat_from_matrix
 
-pytestmark = [pytest.mark.integration, pytest.mark.rendering]
+pytestmark = [pytest.mark.integration, pytest.mark.rendering, pytest.mark.kitless]
 
 SIM_DT = 1.0 / 60.0
 WIDTH, HEIGHT = 640, 480

@@ -12,6 +12,8 @@ from isaaclab_ov.sensors.contact_sensor.kernels import unpack_contact_buffer_dat
 
 from isaaclab.test.utils import DeviceScope, test_devices
 
+pytestmark = pytest.mark.kitless
+
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 @pytest.mark.parametrize("use_mask, capacity", [(False, None), (True, 5)])
