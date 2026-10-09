@@ -155,7 +155,27 @@ class NewtonKaminoManager(NewtonManager):
                 " Multiple articulations per environment are not yet supported in Kamino's FK solver."
             )
 
-        NewtonManager._solver = cls._create_solver(model, solver_cfg)
+        try:
+            NewtonManager._solver = cls._create_solver(model, solver_cfg)
+        except ValueError as exc:
+            # Kamino's dense Delassus operator allocates a single Warp array sized
+            # ``sum(per-world constraint_dim**2)`` (float32). Warp caps any single array
+            # dimension at ``2**31 - 1``; contact-rich assets and/or large environment
+            # counts push that sum past the limit, where the size wraps negative and Warp
+            # raises a cryptic "Array shapes must be non-negative". Re-raise with an
+            # actionable message so users know which knobs to turn. The dense-Delassus
+            # size ceiling itself is a Newton-side limitation (needs a chunked or sparse
+            # matrix-free Delassus) tracked upstream.
+            msg = str(exc)
+            if "Array shapes must be non-negative" in msg or "signed 32-bit integer" in msg:
+                raise ValueError(
+                    f"[KAMINO] Failed to build SolverKamino for {model.world_count} environments: "
+                    "the dense Delassus operator (size = sum of per-world constraint_dim**2) exceeds "
+                    "Warp's 2**31-1 single-array limit. Reduce num_envs, lower "
+                    f"KaminoPADMMSolverCfg.max_contacts_per_world (currently {solver_cfg.max_contacts_per_world}), "
+                    f"or use a sparse Kamino solver path. (underlying Warp error: {msg})"
+                ) from exc
+            raise
         NewtonManager._use_single_state = False
         NewtonManager._needs_collision_pipeline = not solver_cfg.use_collision_detector
         NewtonManager._supports_rigid_body_force_input = True

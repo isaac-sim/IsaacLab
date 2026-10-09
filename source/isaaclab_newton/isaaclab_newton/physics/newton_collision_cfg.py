@@ -136,6 +136,18 @@ class NewtonCollisionPipelineCfg:
     Defaults to ``1_000_000`` (same as Newton's default).
     """
 
+    contact_reduction_hashtable_size_factor: float = 0.25
+    """Multiplier applied to ``max_triangle_pairs`` when sizing the global contact-reduction
+    hashtable used for mesh/heightfield (SDF) collisions.
+
+    The reduction hashtable holds one entry per winning ``(shape_pair, normal_bin)``; when it
+    saturates its inserts fail and contacts are silently dropped (Newton logs triangle-pair /
+    hashtable overflow warnings), degrading contact quality on dense rough terrain. Increase
+    this (e.g. ``0.5``) together with ``max_triangle_pairs`` for large batched scenes.
+
+    Defaults to ``0.25`` (same as Newton's default).
+    """
+
     soft_contact_max: int | None = None
     """Maximum number of soft contacts to allocate.
 

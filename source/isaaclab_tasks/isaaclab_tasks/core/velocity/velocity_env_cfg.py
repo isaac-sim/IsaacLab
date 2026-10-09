@@ -70,7 +70,13 @@ class RoughPhysicsCfg(PresetCfg):
         debug_mode=False,
         default_shape_cfg=NewtonShapeCfg(margin=0.0, ke=160000.0, kd=1100.0),
     )
-    newton_kamino = NewtonCfg(solver_cfg=KaminoPADMMSolverCfg(max_contacts_per_world=64))
+    newton_kamino = NewtonCfg(
+        solver_cfg=KaminoPADMMSolverCfg(max_contacts_per_world=64),
+        collision_cfg=NewtonCollisionPipelineCfg(
+            max_triangle_pairs=2_500_000,
+            contact_reduction_hashtable_size_factor=0.5,
+        ),
+    )
     default = newton_mjwarp
 
 
