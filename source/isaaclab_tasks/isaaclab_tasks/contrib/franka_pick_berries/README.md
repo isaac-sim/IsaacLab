@@ -19,21 +19,20 @@ Isaac Lab and Newton:
 
 ## Install
 
-Linux or Windows with an NVIDIA RTX GPU. From the Isaac Lab root, install Isaac Lab with its OVRTX renderer:
-
-```bash
-uv sync --extra ovrtx
-```
+Linux or Windows with an NVIDIA RTX GPU, and [uv](https://docs.astral.sh/uv/). Nothing else: from the Isaac Lab root,
+each command below runs with `uv run --extra ovrtx`, which creates and syncs the `.venv` with Isaac Lab and its OVRTX
+renderer before running. Keep `--extra ovrtx` on every run; without it, uv syncs the renderer out of the environment.
 
 Live Gaussian deformation needs OVRTX 0.6, which Isaac Lab pins from the NVIDIA Omniverse package index (NVIDIA
-network access required until it is published on PyPI). The assets are downloaded and cached on first use.
+network access required until it is published on PyPI). The first run takes several minutes more: it downloads the
+packages and the assets, which are then cached, and compiles the renderer's shaders.
 
 ## Run the demo
 
 Pick a raspberry with the keyboard (use `--mode teleop_gamepad` with a controller):
 
 ```bash
-uv run python source/isaaclab_tasks/isaaclab_tasks/contrib/franka_pick_berries/scripts/pick_berries.py \
+uv run --extra ovrtx python source/isaaclab_tasks/isaaclab_tasks/contrib/franka_pick_berries/scripts/pick_berries.py \
   --mode teleop_keyboard
 ```
 
@@ -55,7 +54,7 @@ sets the other two down in the bowl. A scripted camera films it shot by shot. Re
 with ffmpeg:
 
 ```bash
-uv run python source/isaaclab_tasks/isaaclab_tasks/contrib/franka_pick_berries/scripts/pick_berries.py \
+uv run --extra ovrtx python source/isaaclab_tasks/isaaclab_tasks/contrib/franka_pick_berries/scripts/pick_berries.py \
   --mode scripted_demo --camera scripted_camera --arm_speed 6 --bowl_material porcelain --f_stop 64 \
   --width 1920 --height 1080 --samples_per_pixel 64 --save_frames berry_demo_frames
 ffmpeg -framerate 30 -i berry_demo_frames/%05d.png -c:v libx264 -profile:v main -bf 0 -crf 16 -pix_fmt yuv420p \
