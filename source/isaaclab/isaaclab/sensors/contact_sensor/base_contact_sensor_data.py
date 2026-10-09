@@ -26,14 +26,15 @@ class BaseContactSensorData(ABC):
     This base class defines the interface for contact sensor data. Backend-specific
     implementations should inherit from this class and provide the actual data storage.
 
-    :attr:`net_forces_w` is the total contact force (normal + friction). Newton reports this
-    quantity directly. PhysX and OVPhysX cannot compute a total force, so they return
-    :attr:`net_normal_forces_w` and warn. The same applies to :attr:`net_forces_w_history`,
+    :attr:`net_forces_w` is the total contact force (normal + friction). Newton and OVPhysX report
+    this quantity even when :attr:`ContactSensorCfg.track_friction_forces` is False.
+    The Isaac Sim PhysX backend currently returns
+    :attr:`net_normal_forces_w` and warns. The same applies to :attr:`net_forces_w_history`,
     :attr:`force_matrix_w`, and :attr:`force_matrix_w_history`.
 
-    :attr:`friction_forces_w` is the aggregate friction force. Newton reports this as
-    :attr:`net_friction_forces_w`. PhysX and OVPhysX only provide filtered friction, so they
-    return :attr:`friction_force_matrix_w` and warn.
+    :attr:`friction_forces_w` is the aggregate friction force. Newton and OVPhysX report this as
+    :attr:`net_friction_forces_w`. Isaac Sim PhysX only provides filtered friction, so it
+    returns :attr:`friction_force_matrix_w` and warns.
     """
 
     @property
@@ -200,8 +201,9 @@ class BaseContactSensorData(ABC):
         (num_instances, num_sensors, 3).
 
         This is the sum of :attr:`net_normal_forces_w` and :attr:`net_friction_forces_w`.
-        PhysX and OVPhysX cannot compute a total force, so they return
-        :attr:`net_normal_forces_w` and warn.
+        Newton and OVPhysX include friction even when :attr:`ContactSensorCfg.track_friction_forces`
+        is False. The Isaac Sim PhysX backend currently returns
+        :attr:`net_normal_forces_w` and warns.
         """
         warnings.warn(
             "PhysX does not return a total contact force. This is a known limitation in PhysX"
@@ -219,8 +221,8 @@ class BaseContactSensorData(ABC):
         Shape is (num_instances, history_length, num_sensors), dtype = wp.vec3f. In torch this resolves to
         (num_instances, history_length, num_sensors, 3).
 
-        PhysX and OVPhysX cannot compute a total force, so they return
-        :attr:`net_normal_forces_w_history` and warn.
+        The Isaac Sim PhysX backend currently returns
+        :attr:`net_normal_forces_w_history` and warns.
         """
         warnings.warn(
             "PhysX does not return a total contact force. This is a known limitation in PhysX"
@@ -239,8 +241,9 @@ class BaseContactSensorData(ABC):
         (num_instances, num_sensors, num_filter_shapes, 3).
 
         This is the sum of :attr:`normal_force_matrix_w` and :attr:`friction_force_matrix_w`.
-        PhysX and OVPhysX cannot compute a total force, so they return
-        :attr:`normal_force_matrix_w` and warn.
+        Newton and OVPhysX include friction even when :attr:`ContactSensorCfg.track_friction_forces`
+        is False. The Isaac Sim PhysX backend currently returns
+        :attr:`normal_force_matrix_w` and warns.
 
         None if :attr:`ContactSensorCfg.filter_prim_paths_expr` is empty.
         """
@@ -260,8 +263,8 @@ class BaseContactSensorData(ABC):
         Shape is (num_instances, history_length, num_sensors, num_filter_shapes), dtype = wp.vec3f.
         In torch this resolves to (num_instances, history_length, num_sensors, num_filter_shapes, 3).
 
-        PhysX and OVPhysX cannot compute a total force, so they return
-        :attr:`normal_force_matrix_w_history` and warn.
+        The Isaac Sim PhysX backend currently returns
+        :attr:`normal_force_matrix_w_history` and warns.
 
         None if :attr:`ContactSensorCfg.filter_prim_paths_expr` is empty.
         """
@@ -281,8 +284,9 @@ class BaseContactSensorData(ABC):
         Shape is (num_instances, num_sensors), dtype = wp.vec3f. In torch this resolves to
         (num_instances, num_sensors, 3).
 
-        This is the same quantity as :attr:`net_friction_forces_w`. PhysX and OVPhysX only
-        provide filtered friction, so they return :attr:`friction_force_matrix_w` and warn.
+        This is the same quantity as :attr:`net_friction_forces_w` on Newton and OVPhysX.
+        Isaac Sim PhysX only provides filtered friction, so it returns
+        :attr:`friction_force_matrix_w` and warns.
 
         None if :attr:`ContactSensorCfg.track_friction_forces` is False.
         """
