@@ -2078,6 +2078,11 @@ Optimize XR Performance
 Known Issues
 ------------
 
+* OpenXR runtime error messages (``XR_ERROR_...``) are hidden by default
+
+  Isaac Lab sets ``OXR_NO_PRINTING=true`` for teleoperation sessions. Set ``OXR_NO_PRINTING=false``
+  before launching to see them when debugging an XR connection.
+
 * ``XR_ERROR_VALIDATION_FAILURE: xrWaitFrame(frameState->type == 0)`` when stopping AR Mode
 
   Can be safely ignored. Caused by a race condition in the exit handler.
