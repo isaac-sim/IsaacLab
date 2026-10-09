@@ -141,7 +141,7 @@ cube, and it connects to the default endpoint. The camera captures at 10 Hz of
 simulation time. After the initial generated frame, Cosmos updates every four
 captures, so fresh generated observations arrive at 2.5 Hz of simulation time.
 Generation latency determines the elapsed time needed to run those captures.
-The task keeps its 10-second episode length and requests 101 frames, including its initial capture.
+The task keeps its 10-second episode length and requests 101 frames: one capture every 0.1 s, plus the initial capture.
 The preset requires `scene.lazy_sensor_update=True` and synchronous rendering so
 each image remains aligned with its simulation state. With OVRTX, set
 `scene.tiled_camera.renderer_cfg.async_rendering=False`.
