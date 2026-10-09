@@ -12,6 +12,7 @@ import re
 import subprocess
 import sys
 import textwrap
+from contextlib import nullcontext
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -1133,6 +1134,29 @@ def test_newton_rtx_visualizer_render_rgb_array_returns_none_when_viewer_unavail
     visualizer = NewtonRTXVisualizer(NewtonRTXVisualizerCfg())
 
     assert visualizer.render_rgb_array() is None
+
+
+@pytest.mark.parametrize("render_var_name", ["LdrColor", "/Render/Vars/LdrColor"])
+def test_newton_rtx_rgb_capture_reads_submitted_async_frame(render_var_name: str):
+    """Recording must return the submitted image even before the first presentation."""
+    pytest.importorskip("ovrtx")
+    submitted = np.full((4, 6, 4), 127, dtype=np.uint8)
+    previous = np.zeros_like(submitted)
+
+    def render_products(pixels):
+        render_var = Mock()
+        render_var.map.return_value = nullcontext(pixels)
+        return {"camera": SimpleNamespace(frames=[SimpleNamespace(render_vars={render_var_name: render_var})])}
+
+    viewer = NewtonViewerRTX.__new__(NewtonViewerRTX)
+    viewer._async = True
+    viewer._render_products = render_products(previous)
+    viewer._render_result = Mock()
+    viewer._render_result.wait.return_value.fetch.return_value = render_products(submitted)
+
+    frame = viewer.get_frame()
+
+    np.testing.assert_array_equal(frame, submitted[..., :3])
 
 
 def test_newton_rtx_visualizer_set_camera_view_uses_set_camera():
