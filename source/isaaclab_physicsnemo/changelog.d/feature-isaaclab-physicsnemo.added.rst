@@ -9,4 +9,6 @@
 * Added Cartpole and ANYmal-D flat-terrain teacher configurations with recording, training, and
   deployment examples, task-independent data collection, and PPO examples that train in learned physics
   and evaluate in MuJoCo Warp. The ANYmal-D model follows the FlashNeRD locomotion experiment with four
-  fixed foot-sphere probes and ParallelNeRD.
+  fixed foot-sphere probes and ParallelNeRD, with the heading-frame state and base-frame gravity of the
+  PhysicsNeMo Robotics G1 recipe. A CartPole benchmark repeats the protocol of the FlashNeRD main-results
+  study.

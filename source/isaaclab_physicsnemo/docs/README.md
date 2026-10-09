@@ -91,19 +91,25 @@ python source/isaaclab_physicsnemo/examples/anymal_d/train_policy.py --output /t
   --artifact /tmp/anymal-train/artifact
 ```
 
-The ANYmal-D example follows the FlashNeRD locomotion experiment and the PhysicsNeMo Robotics G1
-application, using PhysicsNeMo Robotics library components only:
+The ANYmal-D example follows the FlashNeRD locomotion experiment and the input recipe of the PhysicsNeMo
+Robotics G1 application:
 
+- **State:** `HeadingJointStateCodec` expresses the joint state in the base heading frame (the twist about
+  z of a swing/twist decomposition), so the model does not see world position or yaw.
+- **Gravity:** `RootGravityEncoder` adds the unit gravity direction in the base frame.
 - **Contact:** four fixed foot-sphere probes (`FixedRigidContactEncoder` with
   `expand_rigid_contact_shapes`), expressed in the base heading frame and flattened by
   `FixedContactFeatureAdapter` with the G1 channels. FlashNeRD uses fixed probes for this experiment and
   variable contact tokens only for platform climbing. Probes query per-world surfaces, so the teacher
   gives every environment its own ground plane.
-- **Model:** `ParallelNeRD`, the FlashNeRD architecture, with the G1 geometry (`PARALLEL_NERD_CONFIG`),
-  conditioned on the applied joint efforts and the probe features; 5 % trajectory validation split.
+- **Model:** `ParallelNeRD`, the FlashNeRD architecture, with the G1 geometry of the FlashNeRD
+  main-results study (`tasks.ANYMAL_D_MODEL_CONFIG`, 10.7M parameters), conditioned on the applied joint
+  efforts, gravity, and the probe features; 5 % trajectory validation split.
 - **Data:** `AnymalDExplorationEnvCfg` randomizes base poses, base velocities, and joint configurations;
   uniform joint-position targets within 0.75 rad of the default pose change every 20 ms; episodes last
   at most 2 s and keep falls.
+- **Deployment:** the learned-dynamics manager rebuilds the heading codec and gravity encoder from the
+  artifact by default (`artifact_codec_factory`, `artifact_feature_factory`).
 - **Timing:** the learned frame is Isaac Lab's 5 ms physics step. The ANYdrive actuator network runs once
   per physics step, so a 20 ms physics step degrades the actuator itself: with it, even PPO in MuJoCo
   Warp fails to learn to walk. FlashNeRD instead learns the actuator response inside a 20 ms frame.
@@ -116,8 +122,8 @@ script, to add a walking policy to the exploration targets.
 - `record.py` steps the exploration configuration with random actions and writes every episode,
   including asynchronous per-environment resets.
 - `train.py` trains a NeRD for a fixed number of updates and packages a hash-verified artifact. It prints
-  the held-out one-step error and, for effort-only Cartpole models, the recursive-rollout error `E_H` of
-  the FlashNeRD evaluation (`evaluate_rollout_nrmse`) for `H` = 1, 15, 100, and 200.
+  the held-out one-step error and, for effort-only Cartpole models, the prefix-pooled recursive-rollout
+  error `E_H` of the FlashNeRD evaluation (`evaluate_rollout_nrmse`) for `H` = 1, 15, 100, and 200.
 - `deploy.py` runs a MuJoCo Warp rollout and a learned rollout from the same seed and actions,
   checks the learned environment with `preflight_learned_physics`, and prints the open-loop joint
   error of every environment that has not been reset.
@@ -141,7 +147,7 @@ training about 70 minutes on one GPU. Reference results:
 
 | Held-out rollout error | E1 | E15 | E100 | E200 |
 | --- | --- | --- | --- | --- |
-| This model, 30,000 updates | 1.5e-4 | 8.5e-4 | 1.3e-2 | 8.4e-2 |
+| This model, 30,000 updates (channel-averaged, before `E_H` was pooled) | 1.5e-4 | 8.5e-4 | 1.3e-2 | 8.4e-2 |
 | FlashNeRD paper, 5,000,000 updates | 4.4e-5 | 1.7e-4 | 3.2e-3 | 6.0e-2 |
 
 The deployed model stays within 0.016 m or rad of MuJoCo Warp joint positions after 0.5 s of open-loop
@@ -152,6 +158,37 @@ trained in MuJoCo Warp, for two seeds.
 The per-episode action-scale range matters. With a fixed scale of 0.5 (about 50 N) the model reached a
 lower E200 of 0.023, but the PPO policy learned to exploit its errors at larger efforts and succeeded in
 only 55 % of MuJoCo Warp episodes. Recorded data must cover the command range that controllers use.
+
+### FlashNeRD CartPole benchmark protocol
+
+`examples/cartpole/flashnerd_benchmark.py` repeats the CartPole configuration of the FlashNeRD
+main-results study (PhysicsNeMo Robotics tag `mnabian/flashnerd-benchmark-v1`) on the Isaac Lab Cartpole:
+
+```bash
+python source/isaaclab_physicsnemo/examples/cartpole/flashnerd_benchmark.py --output /tmp/flashnerd-cartpole \
+  --max-updates 20000
+```
+
+| Setting | Study | This benchmark |
+| --- | --- | --- |
+| Teacher | Its own Cartpole URDF, Newton Featherstone, 1/60 s frames | Isaac Lab Cartpole, MuJoCo Warp, 1/60 s frames (`CartpoleFlashNeRDBenchmarkEnvCfg`) |
+| Data | 10,000 x 100 training and 2,048 x 509 held-out transitions; uniform initial states (cart 1 m, pole full turn, velocities 1) and per-frame uniform forces; no termination | Same, with forces over the full 400 N actuator range |
+| Model | ParallelNeRD H256, 4 heads x 64, FFN 640, head 256, spans (4, 3, 3, 3), inputs padded to 64 | Same geometry without padding (`tasks.CARTPOLE_FLASHNERD_MODEL_CONFIG`, 2.69M parameters) |
+| Optimization | Global batch 4,096, 1e-3 to 1e-4, 5,000,000 updates, FP16 autocast | Batch 4,096, 1e-3 to 1e-4, `--max-updates`, FP32 |
+| Metric | Prefix-pooled `E_H` on the finite held-out cohort, training-state scale | Same (`evaluate_rollout_nrmse`) |
+
+Reference results after 20,000 updates (3.3 hours on a shared GPU; the input pipeline sustains about
+7,000 windows per second), on all 2,048 held-out trajectories, none non-finite:
+
+| E_H | E1 | E15 | E50 | E100 | E200 | E500 |
+| --- | --- | --- | --- | --- | --- | --- |
+| This benchmark, 20,000 updates | 7.4e-4 | 3.0e-3 | 2.6e-2 | 0.16 | 0.49 | 0.86 |
+| FlashNeRD paper, 5,000,000 updates | 4.4e-5 | 1.7e-4 | - | 3.2e-3 | 6.0e-2 | - |
+
+The teacher-forced one-step normalized delta RMSE is 0.013. The run used 0.4 % of the study's updates,
+and its teacher is a different system: with per-frame random 400 N efforts and no termination, the
+Isaac Lab cart reaches its track limits and the pole reaches 50 rad/s. The comparison therefore checks the
+protocol and metric, not the absolute accuracy.
 
 ### ANYmal-D
 
@@ -167,26 +204,33 @@ for physics in "" "--artifact /tmp/anymal-train/artifact"; do
 done
 ```
 
-The dataset holds 8,192 episodes and 3.1 million 5 ms frames; recording takes about 8 minutes and
-training the 3.5M-parameter model about 70 minutes. Reference results:
+The dataset holds 8,192 episodes and 3.1 million 5 ms frames; recording takes about 13 minutes and
+training the 10.7M-parameter model about 2.6 hours on a shared GPU. Reference results, with the earlier
+library-only inputs (planar joint codec, no gravity, 3.5M-parameter G1 application geometry) for comparison:
 
-- One-step validation normalized delta RMSE 0.26. After 2 s of open-loop random targets, joint position
-  error 0.11 rad, joint velocity error 1.7 rad/s, and base height error 0.025 m.
-- A policy trained in MuJoCo Warp keeps most of its reward in the learned environment (0.0149 against
-  0.0174 per step, linear-velocity tracking error 0.40 against 0.36 m/s), but falls in 17 % of its
-  learned episodes against 2 % in MuJoCo Warp.
-- PPO trained only in the learned environment (300 iterations, 4,096 environments) yields policies that
-  walk in MuJoCo Warp but track commands worse than MuJoCo Warp training:
+| Metric | G1 recipe | Library-only inputs |
+| --- | --- | --- |
+| One-step validation normalized delta RMSE | 0.25 | 0.26 |
+| Open-loop joint position error after 0.4 s / 2 s of random targets | 0.046 / 0.105 rad | 0.062 / 0.107 rad |
+| Open-loop base height error after 2 s | 0.024 m | 0.025 m |
+| MuJoCo Warp policy in learned physics: reward per step (MuJoCo Warp 0.0172) | 0.0175 | 0.0149 |
+| MuJoCo Warp policy in learned physics: linear-velocity tracking error (MuJoCo Warp 0.35 m/s) | 0.35 m/s | 0.40 m/s |
+| MuJoCo Warp policy in learned physics: falls (MuJoCo Warp 2 %) | 10 % | 17 % |
+
+PPO trained only in the learned environment (300 iterations, 4,096 environments) yields policies that
+walk in MuJoCo Warp but track commands worse than MuJoCo Warp training:
 
 | Training physics, seed | MuJoCo Warp episode return | MuJoCo Warp fall rate |
 | --- | --- | --- |
 | MuJoCo Warp, 42 / 43 | 17.7 / 13.5 | 0.8 % / 3.9 % |
-| Learned, 42 / 43 | 6.6 / 5.2 | 2.0 % / 31 % |
+| Learned, G1 recipe, 42 / 43 | 4.3 / 5.9 | 3.1 % / 0 % |
+| Learned, library-only inputs, 42 / 43 | 6.6 / 5.2 | 2.0 % / 31 % |
 
+The G1 recipe makes the model reproduce a walking policy almost exactly, but the learned environment
+still produces falls that MuJoCo Warp does not, and PPO trained under them learns a conservative gait.
 FlashNeRD reports parity (28.0 against 27.8 in its reward). The remaining differences from its setup are
-the 5 ms frame with four times as many autoregressive steps and a 50 ms history window, a smaller model
-(3.5M against 8.88M parameters), and the PhysicsNeMo Robotics library codec, which keeps the base yaw and
-has no body-frame gravity input, where the G1 application adds an application-level heading codec.
+the 5 ms frame with four times as many autoregressive steps and a 50 ms history window, effort instead of
+joint-target control, and ANYmal-D instead of ANYmal-C.
 
 ## Library
 
@@ -197,7 +241,9 @@ has no body-frame gravity input, where the G1 application adds an application-le
 | `physics.validate_effort_control` | Check that applied joint efforts carry every actuation command |
 | `tasks.CartpoleTeacherEnvCfg`, `tasks.AnymalDFlatTeacherEnvCfg` | Teacher configurations whose physics an artifact can replace |
 | `tasks.CartpoleExplorationEnvCfg`, `tasks.AnymalDExplorationEnvCfg` | Teachers with task-independent initial states for data collection |
-| `tasks.anymal_d_foot_contacts`, `tasks.anymal_d_dynamics_features` | ANYmal-D fixed foot probes and model inputs built from PhysicsNeMo Robotics encoders |
+| `tasks.anymal_d_state_codec`, `tasks.anymal_d_foot_contacts`, `tasks.anymal_d_dynamics_features` | ANYmal-D model inputs of the G1 recipe |
+| `HeadingJointStateCodec`, `RootGravityEncoder` | Heading-frame free-root state and base-frame gravity |
+| `tasks.CartpoleFlashNeRDBenchmarkEnvCfg`, `tasks.CARTPOLE_FLASHNERD_MODEL_CONFIG` | FlashNeRD CartPole benchmark protocol and geometry |
 | `TrajectoryDatasetRecorder` | Write the episodes of a running environment to a Zarr dataset |
 | `SmoothRandomActions`, `UniformRandomActions` | Temporally correlated, or uniform held, exploration actions |
 | `TrajectoryDatasetRecorder(recorded_features=...)`, `RecordedFeature` | Record additional transition inputs such as fixed contact probes |
