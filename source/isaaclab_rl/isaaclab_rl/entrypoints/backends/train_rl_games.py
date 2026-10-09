@@ -41,13 +41,13 @@ from ..common import (
     enable_cameras_for_video,
     pre_launch_video_config,
     resolve_checkpoint_selector,
-    resolve_seed,
     set_hydra_args,
     show_run_summary,
     startup_screen,
     wrap_sensor_capture,
     write_run_manifest,
 )
+from . import cli_args_rl_games as cli_args
 
 logger = logging.getLogger(__name__)
 
@@ -114,18 +114,14 @@ def run(argv: list[str]) -> None:
             show_run_summary(screen, args_cli, env_cfg, library="rl_games", action="train")
             apply_env_overrides(args_cli, env_cfg)
 
+            agent_cfg = cli_args.update_rl_games_cfg(agent_cfg, args_cli)
             params = agent_cfg["params"]
             config = params["config"]
-            args_cli.seed = resolve_seed(args_cli.seed)
-            if args_cli.seed is not None:
-                params["seed"] = args_cli.seed
             if args_cli.max_iterations is not None:
                 config["max_epochs"] = args_cli.max_iterations
             rank = int(os.getenv("RANK", "0")) if args_cli.distributed else None
             if rank is not None:
                 params["seed"] += rank
-                config["device"] = env_cfg.sim.device
-                config["device_name"] = env_cfg.sim.device
                 config["multi_gpu"] = True
             env_cfg.seed = params["seed"]
 

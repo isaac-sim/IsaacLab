@@ -15,7 +15,7 @@ _STRETCH, _SHEAR, _BEND, _TWIST = range(4)
 
 
 def _import_cable_joint_stiffness(**material_kwargs) -> list[float]:
-    """Spawn a cable, import it into Newton, and return its first joint's per-DOF stiffness."""
+    """Spawn a cable, import it into Newton, and return its first cable joint's per-DOF stiffness."""
     sim_utils.create_new_stage()
     stage = sim_utils.get_current_stage()
     cfg = CableCfg(
@@ -28,8 +28,8 @@ def _import_cable_joint_stiffness(**material_kwargs) -> list[float]:
 
     builder = newton.ModelBuilder()
     builder.add_usd(stage, root_path="/World/Cable")
-    dof0 = builder.joint_qd_start[0]
-    return [builder.joint_target_ke[dof0 + offset] for offset in range(4)]
+    dof0 = builder.joint_qd_start[builder.joint_type.index(newton.JointType.ROD)]
+    return builder.joint_target_ke[dof0 : dof0 + 4]
 
 
 def test_newton_cable_authored_shear_and_twist_override_fallbacks():
@@ -81,9 +81,9 @@ def test_newton_imports_cable_without_registry():
     cable_attrs = import_result["path_cable_attrs"][cable_path]
 
     assert builder.body_count == 2
-    assert builder.joint_count == 1
+    assert builder.joint_type == [newton.JointType.FREE, newton.JointType.ROD]
     assert builder.shape_count == 2
-    assert import_result["path_cable_map"][cable_path] == ([0, 1], [0])
+    assert import_result["path_cable_map"][cable_path] == ([0, 1], [1])
     assert cable_attrs["closed"] is False
     assert cable_attrs["material"]["thickness"] == pytest.approx(material.thickness)
     assert cable_attrs["material"]["density"] == pytest.approx(material.density)
