@@ -51,6 +51,11 @@ arguments are the same arguments accepted by ``train``:
 ``--num_envs 4096``, the job collects experience from 16,384 environments in
 total.
 
+All ranks write into one run folder. Each rank trains with the launch seed plus
+its rank on its own GPU. Rank 0 writes its settings (``params/env.yaml`` and
+``params/agent.yaml``) and videos where a single-GPU run does; every other rank
+writes its own ``params/`` and videos to ``rank_<rank>/``.
+
 .. tip::
 
    Add ``--dry_run`` to print the resolved launcher command without starting
@@ -284,6 +289,10 @@ The total world size is ``nnodes * num_gpus``: eight ranks in this example. You
 can also use ``--rdzv_backend``, ``--rdzv_endpoint``, and ``--rdzv_id`` for an
 elastic ``torchrun`` rendezvous. Add ``--dry_run`` first to verify the command on
 each node.
+
+Each node names the run folder from its own launch time. When the nodes share
+storage, pass the same ``--run_timestamp`` value (format ``YYYY-MM-DD_HH-MM-SS``)
+to ``train_multigpu`` on every node so that all ranks write into one run folder.
 
 For skrl with JAX, pass ``--nnodes``, ``--node_rank``, an integer
 ``--num_gpus``, and the same ``--coordinator_address`` on every node. Do not pass

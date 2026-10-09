@@ -44,8 +44,7 @@ def _parse_args(argv: list[str]):
     from isaaclab_tasks.utils import setup_preset_cli
 
     parser = argparse.ArgumentParser(description="Benchmark RL inference (play) with Stable-Baselines3.")
-    parser.add_argument("--video", action="store_true", default=False, help="Record videos during play.")
-    parser.add_argument("--video_length", type=int, default=None, help="Recorded video length in environment steps.")
+    common.add_video_args(parser, action="play")
     help_requested = "-h" in argv or "--help" in argv
     parser.add_argument("--task", type=str, required=not help_requested, help="Gym task id to benchmark.")
     parser.add_argument("--num_envs", type=int, default=None, help="Number of parallel environments.")
@@ -117,6 +116,7 @@ def run(argv: list[str]) -> BenchmarkResult:
     from isaaclab.benchmark import BaseIsaacLabBenchmark, BenchmarkMonitor, BenchmarkResult, builders, capture, stepping
     from isaaclab.benchmark.schema import StartupTime
 
+    from isaaclab_rl.entrypoints.backends import cli_args_sb3 as cli_args
     from isaaclab_rl.sb3 import Sb3VecEnvWrapper, process_sb3_cfg
 
     # Importing the task packages registers their gym environments so the
@@ -143,7 +143,7 @@ def run(argv: list[str]) -> BenchmarkResult:
 
             if args_cli.num_envs is not None:
                 env_cfg.scene.num_envs = args_cli.num_envs
-            agent_cfg["seed"] = args_cli.seed if args_cli.seed is not None else agent_cfg.get("seed", 0)
+            agent_cfg = cli_args.update_sb3_cfg(agent_cfg, args_cli)
             env_cfg.seed = agent_cfg["seed"]
 
             log_root_path = os.path.abspath(os.path.join("logs", "sb3", args_cli.task))
@@ -213,7 +213,7 @@ def run(argv: list[str]) -> BenchmarkResult:
                 )
 
             # Load the trained policy.
-            agent = PPO.load(resume_path, env, print_system_info=True)
+            agent = PPO.load(resume_path, env, device=agent_cfg["device"], print_system_info=True)
 
             def policy(obs):
                 """Map an observation batch to a deterministic action batch via the sb3 agent.

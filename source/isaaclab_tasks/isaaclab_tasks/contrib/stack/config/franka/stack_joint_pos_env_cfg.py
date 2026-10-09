@@ -13,6 +13,7 @@ from isaaclab_tasks.contrib.stack.stack_env_cfg import (
     apply_default_semantics,
     make_ee_frame_cfg,
 )
+from isaaclab_tasks.utils import preset
 
 ##
 # Pre-defined configs
@@ -55,6 +56,7 @@ class FrankaCubeStackEnvCfg(StackEnvCfg):
             prim_path="{ENV_REGEX_NS}/Robot",
             init_state=ArticulationCfg.InitialStateCfg(joint_pos=_FRANKA_STACK_IK_REL_INIT_JOINT_POS),
         )
+        self.scene.robot.spawn.variants["Physics"] = preset(default="physx", newton_mjwarp="mujoco")
 
         # Tag the table / ground / robot semantic classes.
         apply_default_semantics(self.scene)
@@ -76,11 +78,11 @@ class FrankaCubeStackEnvCfg(StackEnvCfg):
 
         # End-effector frame (the shared cubes/spawns come from the base scene).
         self.scene.ee_frame = make_ee_frame_cfg(
-            base_prim_path="{ENV_REGEX_NS}/Robot/panda_link0",
+            base_prim_path="{ENV_REGEX_NS}/Robot/(Geometry/)?panda_link0",
             target_specs=[
-                ("{ENV_REGEX_NS}/Robot/panda_hand", "end_effector", (0.0, 0.0, 0.1034)),
-                ("{ENV_REGEX_NS}/Robot/panda_rightfinger", "tool_rightfinger", (0.0, 0.0, 0.046)),
-                ("{ENV_REGEX_NS}/Robot/panda_leftfinger", "tool_leftfinger", (0.0, 0.0, 0.046)),
+                ("{ENV_REGEX_NS}/Robot/(Geometry/.*/)?panda_hand", "end_effector", (0.0, 0.0, 0.1034)),
+                ("{ENV_REGEX_NS}/Robot/(Geometry/.*/)?panda_rightfinger", "tool_rightfinger", (0.0, 0.0, 0.046)),
+                ("{ENV_REGEX_NS}/Robot/(Geometry/.*/)?panda_leftfinger", "tool_leftfinger", (0.0, 0.0, 0.046)),
             ],
             marker_scale=(0.1, 0.1, 0.1),
         )

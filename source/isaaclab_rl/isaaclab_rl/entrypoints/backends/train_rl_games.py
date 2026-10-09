@@ -9,12 +9,14 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import logging
 import os
 import re
 import time
 from datetime import datetime
 from distutils.util import strtobool
 
+import torch.distributed as dist
 from rl_games.common.algo_observer import IsaacAlgoObserver
 from rl_games.torch_runner import Runner
 
@@ -39,14 +41,15 @@ from ..common import (
     enable_cameras_for_video,
     pre_launch_video_config,
     resolve_checkpoint_selector,
-    resolve_seed,
     set_hydra_args,
     show_run_summary,
     startup_screen,
-    validate_distributed_device,
     wrap_sensor_capture,
     write_run_manifest,
 )
+from . import cli_args_rl_games as cli_args
+
+logger = logging.getLogger(__name__)
 
 # PLACEHOLDER: Extension template (do not remove this comment)
 with contextlib.suppress(ImportError):
@@ -106,23 +109,19 @@ def run(argv: list[str]) -> None:
     with startup_screen(args_cli, num_stages=3) as screen:
         env_cfg, agent_cfg = resolve_task_config(args_cli.task, args_cli.agent)
         pre_launch_video_config(env_cfg, args_cli)
-        show_run_summary(screen, args_cli, env_cfg, library="rl_games", action="train")
         screen.stage("Launching simulation")
         with launch_simulation(env_cfg, args_cli), contextlib.ExitStack() as cleanup:
+            show_run_summary(screen, args_cli, env_cfg, library="rl_games", action="train")
             apply_env_overrides(args_cli, env_cfg)
-            validate_distributed_device(args_cli)
 
+            agent_cfg = cli_args.update_rl_games_cfg(agent_cfg, args_cli)
             params = agent_cfg["params"]
             config = params["config"]
-            args_cli.seed = resolve_seed(args_cli.seed)
-            if args_cli.seed is not None:
-                params["seed"] = args_cli.seed
             if args_cli.max_iterations is not None:
                 config["max_epochs"] = args_cli.max_iterations
-            if args_cli.distributed:
-                params["seed"] += int(os.getenv("RANK", "0"))
-                config["device"] = env_cfg.sim.device
-                config["device_name"] = env_cfg.sim.device
+            rank = int(os.getenv("RANK", "0")) if args_cli.distributed else None
+            if rank is not None:
+                params["seed"] += rank
                 config["multi_gpu"] = True
             env_cfg.seed = params["seed"]
 
@@ -132,24 +131,30 @@ def run(argv: list[str]) -> None:
                 log_root_path = os.path.join(agent_cfg["pbt"]["directory"], log_root_path)
             else:
                 log_root_path = os.path.abspath(log_root_path)
-            print(f"[INFO] Logging experiment in directory: {log_root_path}")
+            logger.info(f"Logging experiment in directory: {log_root_path}")
 
             resume_path = _resolve_checkpoint(args_cli, agent_cfg, log_root_path)
             if resume_path is not None:
                 params["load_checkpoint"] = True
                 params["load_path"] = resume_path
-                print(f"[INFO]: Loading model checkpoint from: {resume_path}")
+                logger.info(f"Loading model checkpoint from: {resume_path}")
 
-            run_name = config.get("full_experiment_name", datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
+            run_name = config.get(
+                "full_experiment_name", args_cli.run_timestamp or datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            )
             config["train_dir"] = log_root_path
             config["full_experiment_name"] = run_name
             log_dir = os.path.join(log_root_path, run_name)
-            write_run_manifest(log_dir, library="rl_games", task=args_cli.task, metadata={"agent": args_cli.agent})
-            dump_train_configs(log_dir, env_cfg, agent_cfg)
+            # rank 0 writes its settings and videos where a single-GPU run does; other ranks use rank_<rank>/
+            rank_dir = log_dir if rank in (None, 0) else os.path.join(log_dir, f"rank_{rank}")
+            # All ranks share the run folder, so its manifest is written once.
+            if rank in (None, 0):
+                write_run_manifest(log_dir, library="rl_games", task=args_cli.task, metadata={"agent": args_cli.agent})
+            dump_train_configs(rank_dir, env_cfg, agent_cfg)
             print(f"Exact experiment name requested from command line: {log_dir}")
 
-            env_cfg.log_dir = log_dir
-            apply_video_recording(env_cfg, log_dir, args_cli)
+            env_cfg.log_dir = rank_dir
+            apply_video_recording(env_cfg, rank_dir, args_cli)
 
             screen.stage("Creating environment")
             env = create_isaaclab_env(
@@ -159,7 +164,7 @@ def run(argv: list[str]) -> None:
                 convert_marl_to_single_agent=isinstance(env_cfg, DirectMARLEnvCfg),
             )
             cleanup.callback(lambda: close_env(env))
-            env = wrap_sensor_capture(env, log_dir, args_cli)
+            env = wrap_sensor_capture(env, rank_dir, args_cli)
 
             screen.stage("Preparing agent")
             start_time = time.time()
@@ -182,7 +187,7 @@ def run(argv: list[str]) -> None:
             runner.load(agent_cfg)
             runner.reset()
 
-            if args_cli.track and int(os.getenv("RANK", "0")) == 0:
+            if args_cli.track and rank in (None, 0):
                 if args_cli.wandb_entity is None:
                     raise ValueError("Weights and Biases entity must be specified for tracking.")
                 # wandb is an optional dependency of experiment tracking
@@ -209,3 +214,6 @@ def run(argv: list[str]) -> None:
             with contextlib.suppress(KeyboardInterrupt):
                 runner.run(run_args)
                 print(f"Training time: {round(time.time() - start_time, 2)} seconds")
+                # the RL library creates the process group but never destroys it, which torch warns about at exit
+                if dist.is_initialized():
+                    dist.destroy_process_group()

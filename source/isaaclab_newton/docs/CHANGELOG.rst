@@ -3,6 +3,70 @@ Changelog
 
 .. towncrier release notes start
 
+9.1.5 (2026-10-06)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the body-offset Jacobian of
+  :class:`~isaaclab_newton.envs.mdp.actions.NewtonDifferentialInverseKinematicsAction` and
+  :class:`~isaaclab_newton.envs.mdp.actions.NewtonOperationalSpaceControllerAction`. The translational rows are now
+  shifted by the offset rotated with the body orientation, and the angular rows are no longer rotated by the offset
+  rotation, matching the target frame's pose and velocity.
+
+
+9.1.4 (2026-10-04)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed Newton frame-transform sensors returning stale poses immediately after initialization
+  and reset forward kinematics. Sampled current transforms when sensor buffers were updated instead of
+  eagerly refreshing every frame sensor on each physics step.
+  Combined copying and world-pose composition in one kernel and reused cached CUDA graphs.
+
+
+9.1.3 (2026-10-03)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Update runtime installation guidance and launcher examples to use uv.
+
+
+9.1.2 (2026-10-01)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Removed the redundant per-step solver-internal reset from :meth:`~isaaclab_newton.physics.NewtonManager.step`.
+  The reset still runs through :meth:`~isaaclab_newton.physics.NewtonManager.forward` for worlds flagged by
+  state writes.
+* Skipped the device-to-host readback in joint position-limit writes of
+  :class:`~isaaclab_newton.assets.Articulation` when the clamped-default message would not be logged.
+* Removed the unused per-frame output copy loop from
+  :class:`~isaaclab_newton.renderers.NewtonWarpRenderer`, whose outputs alias the camera buffers.
+* Changed Newton contact and PVA debug visualization to refresh outdated sensor buffers before drawing.
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_newton.envs.mdp.events.randomize_rigid_body_material` writing the friction and
+  restitution of other bodies' shapes when ``asset_cfg`` selects a subset of an articulation's bodies. The
+  Newton view's shape axis follows the model's shape order, which is not grouped by body, so the term now
+  selects each body's shapes from ``root_view.body_shapes`` instead of offsets accumulated from the per-body
+  shape counts.
+* Used resolved callable defaults when constructing manager terms instead of duplicating defaults in constructors.
+* Fixed ``body_com_acc_w`` of :class:`~isaaclab_newton.assets.Articulation`,
+  :class:`~isaaclab_newton.assets.RigidObject`, and :class:`~isaaclab_newton.assets.RigidObjectCollection`
+  dividing by the physics time step when an update spans several physics steps, such as when Newton owns
+  the decimation loop. The finite difference now uses the elapsed time since the previous update.
+
+
 9.1.1 (2026-09-30)
 ~~~~~~~~~~~~~~~~~~
 

@@ -516,8 +516,7 @@ class ContactSensor(BaseContactSensor):
                 self._data._normal_force_matrix_w,
                 self._data._net_friction_forces_w,
                 self._data._friction_force_matrix_w,
-                self._timestamp,
-                self._timestamp_last_update,
+                self._elapsed_since_update,
                 self._data._net_forces_w_history,
                 self._data._force_matrix_w_history,
                 self._data._net_normal_forces_w_history,
@@ -562,7 +561,7 @@ class ContactSensor(BaseContactSensor):
             return
         self._update_outdated_buffers()
 
-        sensing_transforms = wp.to_torch(self.contact_view.sensing_obj_transforms)
+        sensing_transforms = wp.to_torch(self.contact_view.sensing_transforms)
         positions = sensing_transforms.reshape(self._num_envs, self._num_sensors, 7)[..., :3]
         normal_forces = self._data.net_normal_forces_w.torch
         friction_forces = self._data.net_friction_forces_w

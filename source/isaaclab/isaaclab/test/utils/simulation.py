@@ -26,10 +26,11 @@ def launch_test_simulation(cfg=None, **launcher_args) -> None:
         **launcher_args: Launcher arguments, for example ``device`` or ``enable_cameras``. ``device``
             defaults to :func:`~isaaclab.test.utils.resolve_test_sim_device`.
     """
+    # sim_launcher loads the backend configs (~1 s); keep this module cheap for tests that only use test_devices
     from isaaclab.app import launch_simulation
     from isaaclab.sim import SimulationCfg
 
     if "device" not in launcher_args:
         launcher_args["device"] = resolve_test_sim_device()
     cfg = SimulationCfg() if cfg is None else cfg
-    _RUNTIME.enter_context(launch_simulation(cfg, {"headless": True, **launcher_args}))
+    _RUNTIME.enter_context(launch_simulation(cfg, launcher_args))

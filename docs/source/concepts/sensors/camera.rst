@@ -42,10 +42,27 @@ when the renderer must be fixed:
 For an environment that exposes renderer presets, select the renderer at launch instead of editing
 the scene configuration:
 
-.. code-block:: bash
+.. tab-set::
+   :sync-group: os
 
-   uv run isaaclab train --rl_library rsl_rl \
-      --task Isaac-Cartpole-Camera-Direct renderer=newton_renderer
+   .. tab-item:: :icon:`fa-brands fa-linux` Linux
+      :sync: linux
+
+      .. code-block:: bash
+
+         uv run isaaclab train --rl_library rsl_rl \
+             --task Isaac-Cartpole-Camera-Direct renderer=newton_renderer
+
+   .. tab-item:: :icon:`fa-brands fa-windows` Windows
+      :sync: windows
+
+      .. code-block:: batch
+
+         uv run isaaclab train --rl_library rsl_rl ^
+             --task Isaac-Cartpole-Camera-Direct renderer=newton_renderer
+
+Images are not written to disk by default. Set ``env.write_image_to_file=true`` to write
+``cartpole_<data_type>.png`` in the current working directory.
 
 See :doc:`/source/concepts/backends_and_presets` for preset discovery and
 :ref:`renderer-visual-comparison` for a same-scene comparison of the renderer outputs.
@@ -319,10 +336,27 @@ configuration and discovered USD attributes are fixed for the camera lifetime.
 
 Run the ``ppisp-camera`` example for a complete PPISP workflow:
 
-.. code-block:: bash
+.. tab-set::
+   :sync-group: os
 
-   uv run --extra isaacsim isaaclab example ppisp-camera \
-      --renderer newton_renderer --max_steps 60
+   .. tab-item:: :icon:`fa-brands fa-linux` Linux
+      :sync: linux
+
+      .. code-block:: bash
+
+         uv run --extra isaacsim isaaclab example ppisp-camera \
+             --renderer newton_renderer --max_steps 60
+
+   .. tab-item:: :icon:`fa-brands fa-windows` Windows
+      :sync: windows
+
+      .. code-block:: batch
+
+         uv run --extra isaacsim isaaclab example ppisp-camera ^
+             --renderer newton_renderer --max_steps 60
+
+Images are written to ``output/ppisp_camera`` in the current working directory by default. Pass
+``--output_dir <path>`` to choose another location.
 
 Performance and validation
 --------------------------

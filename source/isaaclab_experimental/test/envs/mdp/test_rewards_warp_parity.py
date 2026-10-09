@@ -17,6 +17,7 @@ wp.init()
 pytestmark = pytest.mark.skipif(not wp.is_cuda_available(), reason="CUDA device required")
 
 import isaaclab_experimental.envs.mdp.rewards as warp_rew
+import isaaclab_tasks_experimental.core.velocity.mdp.rewards as warp_velocity_rew
 from parity_helpers import (
     BODY_IDS,
     CMD_DIM,
@@ -42,6 +43,7 @@ from parity_helpers import (
     copy_np_to_wp,
     mutate_art_data,
     mutate_body_data,
+    proxy_array,
     run_warp_captured_mutated,
     run_warp_rew,
 )
@@ -386,3 +388,27 @@ class TestNewRewardParity:
         )
         expected = stable_rew.undesired_contacts(stable_env_bodies, threshold=threshold, sensor_cfg=sensor_cfg)
         assert_close(actual_cap, expected.float())
+
+    def test_feet_slide_body_selection(self, warp_env_bodies, art_data_bodies, contact_data):
+        # The sensor numbers only the feet; the articulation also contains the torso and hip.
+        velocities = np.zeros((NUM_ENVS, NUM_BODIES, 3), dtype=np.float32)
+        velocities[:, 0, 0] = 9.0  # torso
+        velocities[:, 1, 0] = 2.0  # left foot
+        velocities[:, 3, 0] = 4.0  # right foot
+        art_data_bodies.body_lin_vel_w = proxy_array(velocities, dtype=wp.vec3f, device=DEVICE)
+        forces = np.zeros((NUM_ENVS, 3, 2, 3), dtype=np.float32)
+        forces[:, :, :, 0] = 2.0
+        contact_data.net_normal_forces_w_history = proxy_array(forces, dtype=wp.vec3f, device=DEVICE)
+        warp_env_bodies.scene.sensors["contact_sensor"].num_bodies = 2
+        sensor_cfg = MockSensorCfg("contact_sensor", body_ids=[0, 1])
+        asset_cfg = MockSensorCfg("robot", body_ids=[1, 3])
+
+        actual = run_warp_rew(warp_velocity_rew.feet_slide, warp_env_bodies, sensor_cfg=sensor_cfg, asset_cfg=asset_cfg)
+        assert_close(actual, torch.full((NUM_ENVS,), 6.0, device=DEVICE))
+        with pytest.raises(RuntimeError, match="same number of bodies"):
+            run_warp_rew(
+                warp_velocity_rew.feet_slide,
+                warp_env_bodies,
+                sensor_cfg=sensor_cfg,
+                asset_cfg=MockSensorCfg("robot", body_ids=[1]),
+            )

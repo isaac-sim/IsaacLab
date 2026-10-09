@@ -23,6 +23,40 @@ Articulation-specific warp functions.
 
 
 @wp.func
+def incoming_joint_wrench(
+    wrench: wp.spatial_vectorf, link_pose: wp.transformf, com: wp.vec3f, joint_pose: wp.transformf
+) -> wp.spatial_vectorf:
+    """Shift a world-frame COM wrench to the child joint anchor and express it in that frame."""
+    force = wp.spatial_top(wrench)
+    joint_world = link_pose * joint_pose
+    com_world = wp.transform_point(link_pose, com)
+    torque = wp.spatial_bottom(wrench) + wp.cross(com_world - wp.transform_get_translation(joint_world), force)
+    rotation = wp.transform_get_rotation(joint_world)
+    return wp.spatial_vector(wp.quat_rotate_inv(rotation, force), wp.quat_rotate_inv(rotation, torque))
+
+
+@wp.kernel
+def update_body_joint_wrench(
+    body_parent_f: wp.array(dtype=wp.spatial_vectorf, ndim=2),
+    body_q: wp.array(dtype=wp.transformf, ndim=2),
+    body_com: wp.array(dtype=wp.vec3f, ndim=2),
+    body_joint_pose: wp.array(dtype=wp.transformf, ndim=2),
+    report_body: wp.array(dtype=wp.bool),
+    user_to_backend: wp.array(dtype=wp.int32),
+    has_ordering: bool,
+    out: wp.array(dtype=wp.spatial_vectorf, ndim=2),
+):
+    """Convert reportable tree-joint wrenches into the articulation's public body order."""
+    env, user_body = wp.tid()
+    body = resolve_backend_index(user_body, user_to_backend, has_ordering)
+    out[env, user_body] = wp.spatial_vectorf(0.0)
+    if report_body[body]:
+        out[env, user_body] = incoming_joint_wrench(
+            body_parent_f[env, body], body_q[env, body], body_com[env, body], body_joint_pose[env, body]
+        )
+
+
+@wp.func
 def compute_soft_joint_pos_limits_func(
     joint_pos_limits: wp.vec2f,
     soft_limit_factor: wp.float32,

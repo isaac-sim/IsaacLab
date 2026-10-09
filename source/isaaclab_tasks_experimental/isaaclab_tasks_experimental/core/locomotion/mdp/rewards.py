@@ -243,7 +243,8 @@ class joint_pos_limits_penalty_ratio(ManagerTermBase):
     """Penalty for violating joint position limits weighted by the gear ratio."""
 
     def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
-        asset_cfg = cfg.params.get("asset_cfg", SceneEntityCfg("robot"))
+        super().__init__(cfg, env)
+        asset_cfg = cfg.params["asset_cfg"]
         asset: Articulation = env.scene[asset_cfg.name]
 
         # resolve the gear ratio for each joint (torch in __init__ is fine)
@@ -299,7 +300,8 @@ class power_consumption(ManagerTermBase):
     """Penalty for the power consumed by the actions to the environment."""
 
     def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
-        asset_cfg = cfg.params.get("asset_cfg", SceneEntityCfg("robot"))
+        super().__init__(cfg, env)
+        asset_cfg = cfg.params["asset_cfg"]
         asset: Articulation = env.scene[asset_cfg.name]
 
         # resolve the gear ratio for each joint (torch in __init__ is fine)

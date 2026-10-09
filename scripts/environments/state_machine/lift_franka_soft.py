@@ -11,11 +11,11 @@ It uses the `warp` library to run the state machine in parallel on the GPU.
 
 .. code-block:: bash
 
-    # Kitless run with the Newton OpenGL viewer (default).
-    uv run python scripts/environments/state_machine/lift_franka_soft.py
+    # Kitless run with the Newton OpenGL viewer.
+    uv run python scripts/environments/state_machine/lift_franka_soft.py --viz newton_gl
 
     # Headless.
-    uv run python scripts/environments/state_machine/lift_franka_soft.py --viz none
+    uv run python scripts/environments/state_machine/lift_franka_soft.py
 
 """
 
@@ -40,8 +40,6 @@ parser.add_argument("--num_envs", type=int, default=1, help="Number of environme
 parser.add_argument("--num_steps", type=int, default=1000, help="Number of environment steps to run.")
 parser.add_argument("--task", type=str, default="Isaac-Lift-Soft-Franka", help="The task to run.")
 add_launcher_args(parser)
-# the task runs on Newton, so default to the kitless viewer
-parser.set_defaults(visualizer=["newton"])
 args_cli, hydra_args = setup_preset_cli(parser)
 sys.argv = [sys.argv[0]] + hydra_args
 

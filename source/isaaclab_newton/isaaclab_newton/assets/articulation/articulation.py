@@ -159,6 +159,9 @@ class Articulation(BaseArticulation):
         """
         super().__init__(cfg)
 
+        if cfg.enable_joint_wrench:
+            SimulationManager.request_extended_state_attribute("body_parent_f")
+
         sim_ctx = SimulationContext.instance()
         self._sim_cfg = sim_ctx.cfg if sim_ctx is not None else None
         # Solver-built fixed-tendon adapter, held like ``_actuator_control``; None when the active
@@ -250,6 +253,11 @@ class Articulation(BaseArticulation):
         return self.root_view.is_fixed_base
 
     @property
+    def num_base_dofs(self) -> int:
+        """Number of free DoFs of the floating base: 6 for a free root joint, otherwise 0."""
+        return self.data._num_base_dofs
+
+    @property
     def num_joints(self) -> int:
         """Number of joints in articulation."""
         return self.root_view.joint_dof_count
@@ -271,11 +279,12 @@ class Articulation(BaseArticulation):
 
     @property
     def num_shapes_per_body(self) -> list[int]:
-        """Number of collision shapes per body in public body-name order.
+        """Number of shapes per body in public body-name order.
 
         Each element corresponds to the body at the same index in
         :attr:`body_names`. Backend-order counts are cached; a nonidentity body
-        ordering returns those counts gathered into public order.
+        ordering returns those counts gathered into public order. The counts are
+        not offsets into the shape axis; see :attr:`backend_num_shapes_per_body`.
 
         Returns:
             List of integers representing the number of shapes per body.
@@ -287,12 +296,16 @@ class Articulation(BaseArticulation):
 
     @property
     def backend_num_shapes_per_body(self) -> list[int]:
-        """Number of collision shapes per body in active backend solver-view order.
+        """Number of shapes per body in active backend solver-view order.
 
         Each element corresponds to the body at the same index in
-        :attr:`backend_body_names`, matching the shape axis of the backend
-        solver arrays. The counts are cached on first access. Use
+        :attr:`backend_body_names`. The counts include visual-only shapes when they
+        are imported. The counts are cached on first access. Use
         :attr:`num_shapes_per_body` for public body order.
+
+        The shape axis of the solver-view bindings follows the model's shape order and
+        is not grouped by body, so these counts are not offsets into it. Use
+        ``root_view.body_shapes[i]`` for the shape indices of backend body ``i``.
 
         Returns:
             List of integers representing the number of shapes per backend-order body.
@@ -3401,13 +3414,6 @@ class Articulation(BaseArticulation):
         # container for data access
         self._data = ArticulationData(self.root_view, self.device)
 
-        # Register callback to rebind simulation data after a full reset (model/state recreation).
-        self._physics_ready_handle = SimulationManager.register_callback(
-            lambda _: self._data._create_simulation_bindings(),
-            PhysicsEvent.PHYSICS_READY,
-            name=f"articulation_rebind_{self.cfg.prim_path}",
-        )
-
         # create buffers
         self._create_buffers()
         # process configuration
@@ -3424,7 +3430,7 @@ class Articulation(BaseArticulation):
         self.data.is_primed = True
 
     def _clear_callbacks(self) -> None:
-        """Clears all registered callbacks, including the physics-ready rebind handle."""
+        """Clear lifecycle and post-step callbacks."""
         super()._clear_callbacks()
         if hasattr(self, "_model_init_handle") and self._model_init_handle is not None:
             self._model_init_handle.deregister()
@@ -3548,6 +3554,9 @@ class Articulation(BaseArticulation):
         # call parent
         super()._invalidate_initialize_callback(event)
         self._root_view = None
+
+        if self.cfg.enable_joint_wrench:
+            SimulationManager.request_extended_state_attribute("body_parent_f")
 
     """
     Internal helpers -- Actuators.

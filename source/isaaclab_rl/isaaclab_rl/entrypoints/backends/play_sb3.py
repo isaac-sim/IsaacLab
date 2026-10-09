@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import logging
 import os
 from pathlib import Path
 
@@ -35,12 +36,14 @@ from ..common import (
     pre_launch_video_config,
     resolve_checkpoint_selector,
     resolve_published_checkpoint,
-    resolve_seed,
     run_playback,
     set_hydra_args,
     show_run_summary,
     startup_screen,
 )
+from . import cli_args_sb3 as cli_args
+
+logger = logging.getLogger(__name__)
 
 # PLACEHOLDER: Extension template (do not remove this comment)
 with contextlib.suppress(ImportError):
@@ -98,17 +101,15 @@ def run(argv: list[str]) -> None:
     with startup_screen(args_cli, num_stages=3) as screen:
         env_cfg, agent_cfg = resolve_task_config(args_cli.task, args_cli.agent, play_mode=not args_cli.train_env_cfg)
         pre_launch_video_config(env_cfg, args_cli)
-        show_run_summary(screen, args_cli, env_cfg, library="sb3", action="play")
         screen.stage("Launching simulation")
         with launch_simulation(env_cfg, args_cli), contextlib.ExitStack() as cleanup:
+            show_run_summary(screen, args_cli, env_cfg, library="sb3", action="play")
             apply_env_overrides(args_cli, env_cfg)
-            args_cli.seed = resolve_seed(args_cli.seed)
-            if args_cli.seed is not None:
-                agent_cfg["seed"] = args_cli.seed
+            agent_cfg = cli_args.update_sb3_cfg(agent_cfg, args_cli)
             env_cfg.seed = agent_cfg["seed"]
 
             log_root_path = os.path.abspath(os.path.join("logs", "sb3", normalize_task_name(args_cli.task)))
-            print(f"[INFO] Loading experiment from directory: {log_root_path}")
+            logger.info(f"Loading experiment from directory: {log_root_path}")
             checkpoint_path = _resolve_checkpoint(args_cli, env_cfg, log_root_path)
             if checkpoint_path is None:
                 return
@@ -144,7 +145,7 @@ def run(argv: list[str]) -> None:
                 )
 
             print(f"Loading checkpoint from: {checkpoint_path}")
-            agent = PPO.load(checkpoint_path, env, print_system_info=True)
+            agent = PPO.load(checkpoint_path, env, device=agent_cfg["device"], print_system_info=True)
             # configure_seed must run after PPO.load so torch determinism does not disturb SB3's initialization
             if args_cli.deterministic:
                 configure_seed(env_cfg.seed, torch_deterministic=True)

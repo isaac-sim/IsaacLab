@@ -26,7 +26,7 @@ see :ref:`backends-and-presets`. This guide prepares an asset and task for
 ``physics=newton_mjwarp``. After both backends run the asset and task, use
 :doc:`/source/how-to/transfer_policies_between_physx_and_newton` to transfer a policy checkpoint.
 For the conceptual differences that require target-solver validation, see
-:ref:`solver-differences`; use :doc:`/source/concepts/solver-tuning/tune_mjwarp` for the focused MJWarp tuning
+:ref:`solver-differences`; use :doc:`/source/how-to/solver_tuning_mjwarp` for the focused MJWarp tuning
 procedure.
 
 Import a multi-physics asset
@@ -127,8 +127,8 @@ Run the same fixed task state through both backends before training or transfer:
 
 .. code-block:: bash
 
-   uv run --extra isaacsim python scripts/environments/zero_agent.py --task TASK --num_envs 4 --viz none physics=physx
-   uv run --extra isaacsim python scripts/environments/zero_agent.py --task TASK --num_envs 4 --viz none physics=newton_mjwarp
+   uv run --extra isaacsim python scripts/environments/zero_agent.py --task TASK --num_envs 4 physics=physx
+   uv run --extra isaacsim python scripts/environments/zero_agent.py --task TASK --num_envs 4 physics=newton_mjwarp
 
 Let each run cross multiple resets. Record object displacement, contact count, gripper effort,
 penetration, and success rate for the same fixed grasp. Also check for non-finite state, first-step

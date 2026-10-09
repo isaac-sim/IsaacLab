@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from isaaclab.benchmark import BenchmarkResult
 
+import logging
 import sys
 import time
 from typing import Any
@@ -19,6 +20,8 @@ from typing import Any
 from isaaclab.utils import to_dict
 
 from isaaclab_rl.entrypoints import common
+
+logger = logging.getLogger(__name__)
 
 
 def _disable_code_state_capture(runner: Any) -> None:
@@ -119,7 +122,6 @@ def run(argv: list[str]) -> BenchmarkResult | None:
     imports_t0 = time.perf_counter_ns()
 
     import contextlib
-    import importlib.metadata as metadata
     import os
     import re
     from datetime import datetime
@@ -140,7 +142,7 @@ def run(argv: list[str]) -> BenchmarkResult | None:
     from isaaclab.benchmark.metrics import RL_LIBRARY_DESCRIPTORS, parse_tf_logs
     from isaaclab.benchmark.schema import StartupTime
 
-    from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper, handle_deprecated_rsl_rl_cfg
+    from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper
 
     import isaaclab_tasks  # noqa: F401
 
@@ -165,6 +167,7 @@ def run(argv: list[str]) -> BenchmarkResult | None:
     config_t0 = time.perf_counter_ns()
     env_cfg, agent_cfg = resolve_task_config(args_cli.task, args_cli.agent)
     config_t1 = time.perf_counter_ns()
+    common.pre_launch_video_config(env_cfg, args_cli)
 
     start_utc = capture.now_utc_iso()
     app_t0 = time.perf_counter_ns()
@@ -186,15 +189,11 @@ def run(argv: list[str]) -> BenchmarkResult | None:
             agent_cfg.max_iterations = (
                 args_cli.max_iterations if args_cli.max_iterations is not None else agent_cfg.max_iterations
             )
-            installed_rsl_rl = metadata.version("rsl-rl-lib")
-            agent_cfg = handle_deprecated_rsl_rl_cfg(agent_cfg, installed_rsl_rl)
             env_cfg.seed = agent_cfg.seed
 
-            common.validate_distributed_device(args_cli)
             if distributed.enabled:
-                # Mirror the regular training entrypoint: the launcher pinned this rank to its own
-                # device, and offsetting the seed by the rank decorrelates exploration across ranks.
-                agent_cfg.device = env_cfg.sim.device
+                # Mirror the regular training entrypoint: offsetting the seed by the rank decorrelates
+                # exploration across ranks.
                 agent_cfg.seed += distributed.rank
                 env_cfg.seed = agent_cfg.seed
             reported_num_envs, _ = distributed.global_work(env_cfg.scene.num_envs, agent_cfg.num_steps_per_env)
@@ -286,10 +285,9 @@ def run(argv: list[str]) -> BenchmarkResult | None:
             desc = RL_LIBRARY_DESCRIPTORS["rsl_rl"]
             log_data = parse_tf_logs(log_dir, desc.tfevents_pattern)
             if not log_data or (not log_data.get(desc.reward_tag) and agent_cfg.max_iterations >= 1):
-                print(
-                    f"[WARNING] No TensorBoard data parsed from {log_dir!r};"
-                    " the emitted bundle will report zero metrics. Check the log directory.",
-                    file=sys.stderr,
+                logger.warning(
+                    f"No TensorBoard data parsed from {log_dir!r};"
+                    " the emitted bundle will report zero metrics. Check the log directory."
                 )
 
             # RSL-RL reports collection and learning durations separately in seconds. Ranks train in
