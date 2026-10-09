@@ -132,28 +132,40 @@ class AnymalDExplorationEnvCfg(AnymalDFlatTeacherEnvCfg):
         super().__post_init__()
         self.decimation = 1
         self.sim.render_interval = 1
-        self.episode_length_s = 2.0
-        self.terminations.bad_orientation = None
-        self.events.reset_base.params = {
-            "pose_range": {
-                "x": (-0.5, 0.5),
-                "y": (-0.5, 0.5),
-                "z": (-0.1, 0.1),
-                "roll": (-0.3, 0.3),
-                "pitch": (-0.3, 0.3),
-                "yaw": (-math.pi, math.pi),
-            },
-            "velocity_range": {
-                "x": (-1.0, 1.0),
-                "y": (-1.0, 1.0),
-                "z": (-0.5, 0.5),
-                "roll": (-1.0, 1.0),
-                "pitch": (-1.0, 1.0),
-                "yaw": (-1.0, 1.0),
-            },
-        }
-        self.events.reset_robot_joints.func = mdp.reset_joints_by_offset
-        self.events.reset_robot_joints.params = {"position_range": (-0.5, 0.5), "velocity_range": (-1.0, 1.0)}
+        task_independent_episodes(self)
+
+
+def task_independent_episodes(cfg: AnymalDFlatTeacherEnvCfg) -> None:
+    """Apply the FlashNeRD task-independent locomotion data protocol to an ANYmal teacher configuration.
+
+    Episodes start from randomized base poses, base velocities, and joint configurations, last up to 2 s,
+    and keep falls instead of terminating them. The Newton model is unchanged.
+
+    Args:
+        cfg: Teacher configuration, modified in place.
+    """
+    cfg.episode_length_s = 2.0
+    cfg.terminations.bad_orientation = None
+    cfg.events.reset_base.params = {
+        "pose_range": {
+            "x": (-0.5, 0.5),
+            "y": (-0.5, 0.5),
+            "z": (-0.1, 0.1),
+            "roll": (-0.3, 0.3),
+            "pitch": (-0.3, 0.3),
+            "yaw": (-math.pi, math.pi),
+        },
+        "velocity_range": {
+            "x": (-1.0, 1.0),
+            "y": (-1.0, 1.0),
+            "z": (-0.5, 0.5),
+            "roll": (-1.0, 1.0),
+            "pitch": (-1.0, 1.0),
+            "yaw": (-1.0, 1.0),
+        },
+    }
+    cfg.events.reset_robot_joints.func = mdp.reset_joints_by_offset
+    cfg.events.reset_robot_joints.params = {"position_range": (-0.5, 0.5), "velocity_range": (-1.0, 1.0)}
 
 
 def anymal_d_foot_contacts(model: newton.Model) -> FixedRigidContactEncoder:

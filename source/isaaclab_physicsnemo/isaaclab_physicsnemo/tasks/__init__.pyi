@@ -4,6 +4,10 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
+    "ANYMAL_C_MODEL_CONFIG",
+    "AnymalCExplorationEnvCfg",
+    "AnymalCFlatTeacherEnvCfg",
+    "AnymalCTargetControlEnvCfg",
     "ANYMAL_D_CONTACT_CHANNELS",
     "ANYMAL_D_CONTACT_KEY",
     "ANYMAL_D_CONTINUITY",
@@ -16,10 +20,19 @@ __all__ = [
     "CartpoleFlashNeRDBenchmarkEnvCfg",
     "CartpoleTeacherEnvCfg",
     "anymal_d_dynamics_features",
+    "anymal_target_dynamics_features",
     "anymal_d_foot_contacts",
     "anymal_d_state_codec",
+    "task_independent_episodes",
 ]
 
+from .anymal_c import (
+    ANYMAL_C_MODEL_CONFIG,
+    AnymalCExplorationEnvCfg,
+    AnymalCFlatTeacherEnvCfg,
+    AnymalCTargetControlEnvCfg,
+    anymal_target_dynamics_features,
+)
 from .anymal_d import (
     ANYMAL_D_CONTACT_CHANNELS,
     ANYMAL_D_CONTACT_KEY,
@@ -30,6 +43,7 @@ from .anymal_d import (
     anymal_d_dynamics_features,
     anymal_d_foot_contacts,
     anymal_d_state_codec,
+    task_independent_episodes,
 )
 from .cartpole import (
     CARTPOLE_FLASHNERD_MODEL_CONFIG,
