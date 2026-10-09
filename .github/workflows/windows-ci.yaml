@@ -89,12 +89,36 @@ jobs:
         with:
           cache-local-path: ${{ steps.uv-cache.outputs.dir }}
 
+      # ovrtx and Kit compile their shaders into .venv, which checkout's clean
+      # deletes, so every run compiled them again (~6 min). They go through the
+      # Actions cache instead, keyed on the version that compiles them and the GPU
+      # and driver the blobs are valid for, and saved only when the key missed.
+      - name: Shader cache keys
+        id: shader-cache
+        run: |
+          $gpu = nvidia-smi --query-gpu=compute_cap,driver_version --format=csv,noheader | Select-Object -First 1
+          if (-not $gpu) { throw "nvidia-smi reported no GPU" }
+          $gpu = "sm$($gpu -replace '\s', '' -replace ',', '-drv')"
+          foreach ($name in "ovrtx", "isaacsim") {
+            $pin = @(Select-String -LiteralPath uv.lock -Pattern "^name = `"$name`"$" -Context 0,1)
+            if ($pin.Count -ne 1) { throw "uv.lock pins $name $($pin.Count) times" }
+            $version = $pin[0].Context.PostContext[0] -replace '^version = "(.+)"$', '$1'
+            "$name=windows-$name-$version-$gpu" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          }
+
       # ===== Kit-less lane: `uv run` without Isaac Sim (Newton, OV runtimes). =====
 
       - name: Sync kit-less environment
         id: sync-kitless
         timeout-minutes: 25
         run: uv sync --frozen --extra ovrtx --extra test
+
+      - name: Restore ovrtx shader cache
+        id: ovrtx-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: .venv/Lib/site-packages/ovrtx/bin/cache
+          key: ${{ steps.shader-cache.outputs.ovrtx }}
 
       # ovrtx and usd-exchange ship differently built DLLs under the same names
       # (MaterialXCore, MaterialXFormat, tbb12); on Windows whichever loads
@@ -231,6 +255,14 @@ jobs:
         timeout-minutes: 45
         run: uv run --frozen --no-sync python -m pytest -v source/isaaclab/test/install_ci/misc/cartpole_training_smoke.py
 
+      # Saved before the Isaac Sim sync, which uninstalls ovrtx.
+      - name: Save ovrtx shader cache
+        if: ${{ success() && steps.ovrtx-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@v4
+        with:
+          path: .venv/Lib/site-packages/ovrtx/bin/cache
+          key: ${{ steps.shader-cache.outputs.ovrtx }}
+
       # ===== Isaac Sim lane: `uv run --extra isaacsim` (public Isaac Sim pin). =====
 
       - name: Sync Isaac Sim environment
@@ -238,6 +270,14 @@ jobs:
         if: ${{ !cancelled() }}
         timeout-minutes: 30
         run: uv sync --frozen --extra isaacsim --extra test
+
+      - name: Restore Kit shader cache
+        id: kit-cache
+        if: ${{ !cancelled() && steps.sync-kit.outcome == 'success' }}
+        uses: actions/cache/restore@v4
+        with:
+          path: .venv/Lib/site-packages/isaacsim/kit/cache
+          key: ${{ steps.shader-cache.outputs.isaacsim }}
 
       # Isaac Sim PhysX training; same command and checks as
       # install_ci/test_workspace.py::test_workspace_trains, run in this
@@ -307,6 +347,13 @@ jobs:
           }
           if ($null -eq $proc.ExitCode) { Write-Host "::error::perception exit code unavailable"; exit 1 }
           exit $proc.ExitCode
+
+      - name: Save Kit shader cache
+        if: ${{ success() && steps.kit-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@v4
+        with:
+          path: .venv/Lib/site-packages/isaacsim/kit/cache
+          key: ${{ steps.shader-cache.outputs.isaacsim }}
 
       # Last test step: it replaces the editable isaaclab with the built wheel.
       - name: Wheel build + install
