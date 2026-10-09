@@ -17,11 +17,7 @@ from pathlib import Path
 import torch
 from actions import ACTION_BOUND, make_action_source
 from isaaclab_physicsnemo import TrajectoryDatasetRecorder
-from isaaclab_physicsnemo.tasks import (
-    ANYMAL_D_REMOVE_ROOT_TRANSLATION,
-    AnymalDExplorationEnvCfg,
-    anymal_d_foot_contacts,
-)
+from isaaclab_physicsnemo.tasks import AnymalDExplorationEnvCfg, anymal_d_foot_contacts, anymal_d_state_codec
 
 from isaaclab.envs import ManagerBasedRLEnv
 
@@ -45,6 +41,7 @@ def main() -> None:
     env = ManagerBasedRLEnv(cfg=cfg)
     try:
         env.reset(seed=args.seed)
+        model = env.sim.physics_manager.get_model()
         # Targets change every 20 ms control period while each environment step is one 5 ms physics step.
         hold_steps = round(0.02 / cfg.sim.dt)
         actions = make_action_source(
@@ -55,8 +52,8 @@ def main() -> None:
             env,
             args.output,
             scenario_id="isaaclab-anymal-d-flat-mjwarp-task-independent",
-            remove_root_translation=ANYMAL_D_REMOVE_ROOT_TRANSLATION,
-            recorded_features=(anymal_d_foot_contacts(env.sim.physics_manager.get_model()),),
+            codec=anymal_d_state_codec(model),
+            recorded_features=(anymal_d_foot_contacts(model),),
             seed=args.seed,
             replace=args.replace,
         ) as recorder:

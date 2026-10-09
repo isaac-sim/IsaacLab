@@ -57,3 +57,41 @@ class CartpoleExplorationEnvCfg(CartpoleTeacherEnvCfg):
         self.initial_cart_velocity_range = (-2.0, 2.0)
         self.initial_pole_angle_range = (-math.pi, math.pi)
         self.initial_pole_velocity_range = (-2.0 * math.pi, 2.0 * math.pi)
+
+
+CARTPOLE_FLASHNERD_MODEL_CONFIG: dict[str, object] = {
+    "num_heads": 4,
+    "head_dim": 64,
+    "intermediate_size": 640,
+    "head_hidden": 256,
+    "temporal_attention_spans": [4, 3, 3, 3],
+    "rms_norm_eps": 1.0e-6,
+    "linear_probe": True,
+}
+"""Frozen ParallelNeRD (FlashNeRD) geometry of the CartPole model in the FlashNeRD main-results study."""
+
+
+@configclass
+class CartpoleFlashNeRDBenchmarkEnvCfg(CartpoleTeacherEnvCfg):
+    """Cartpole teacher with the CartPole data protocol of the FlashNeRD main-results study.
+
+    Frames are 1/60 s, initial states are uniform within 1 m of cart position, a full turn of pole angle,
+    and 1 m/s or rad/s of velocity, and episodes are never terminated early. Each episode holds 100
+    transitions; set :attr:`episode_length_s` to ``(transitions + 0.5) / 60`` for longer held-out episodes.
+    Pair it with :class:`~isaaclab_physicsnemo.UniformRandomActions` with ``high=4.0``, which draws a fresh
+    cart effort uniformly over the full 400 N actuator range every frame.
+
+    The study's teacher is a different Cartpole model stepped by Newton's Featherstone solver with a
+    1500 N force range, so errors are comparable in protocol and metric but not for the same system.
+    """
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.sim.dt = 1.0 / 60.0
+        self.sim.physics.num_substeps = 2
+        self.episode_length_s = 100.5 / 60.0
+        self.max_cart_pos = 1.0e3
+        self.initial_cart_position_range = (-1.0, 1.0)
+        self.initial_cart_velocity_range = (-1.0, 1.0)
+        self.initial_pole_angle_range = (-math.pi, math.pi)
+        self.initial_pole_velocity_range = (-1.0, 1.0)

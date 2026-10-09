@@ -5,9 +5,10 @@
 
 """Train an ANYmal-D ParallelNeRD (FlashNeRD) dynamics artifact on a recorded dataset.
 
-The model is conditioned on the applied joint efforts and the four fixed foot-probe features, with the
-ParallelNeRD geometry of the PhysicsNeMo Robotics G1 application. FlashNeRD trains its ANYmal model for
-60,000 updates with a 5 % trajectory validation split.
+The model follows the input recipe of the PhysicsNeMo Robotics G1 application: the state in the base
+heading frame, conditioned on the applied joint efforts, base-frame gravity, and the four fixed foot-probe
+features, with the ParallelNeRD geometry of the FlashNeRD main-results G1 model. FlashNeRD trains its
+ANYmal model for 60,000 updates with a 5 % trajectory validation split.
 """
 
 import argparse
@@ -16,10 +17,11 @@ from pathlib import Path
 
 from isaaclab_physicsnemo import TrainingSettings, train_dynamics_artifact
 from isaaclab_physicsnemo.tasks import (
-    ANYMAL_D_REMOVE_ROOT_TRANSLATION,
+    ANYMAL_D_MODEL_CONFIG,
     AnymalDFlatTeacherEnvCfg,
     anymal_d_dynamics_features,
     anymal_d_foot_contacts,
+    anymal_d_state_codec,
 )
 
 from isaaclab.envs import ManagerBasedRLEnv
@@ -45,12 +47,13 @@ def main() -> None:
     env = ManagerBasedRLEnv(cfg=cfg)
     try:
         model = env.sim.physics_manager.get_model()
-        features = anymal_d_dynamics_features(anymal_d_foot_contacts(model), model.joint_dof_count)
+        codec = anymal_d_state_codec(model)
+        features = anymal_d_dynamics_features(codec, anymal_d_foot_contacts(model))
         summary = train_dynamics_artifact(
             args.dataset,
             model,
             args.output,
-            remove_root_translation=ANYMAL_D_REMOVE_ROOT_TRANSLATION,
+            codec=codec,
             features=features,
             settings=TrainingSettings(
                 history=args.history,
@@ -59,6 +62,7 @@ def main() -> None:
                 validation_fraction=args.validation_fraction,
                 seed=args.seed,
                 architecture="parallel_nerd",
+                model_kwargs=ANYMAL_D_MODEL_CONFIG,
             ),
             device=args.device,
         )

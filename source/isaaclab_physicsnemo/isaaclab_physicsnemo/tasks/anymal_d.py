@@ -29,11 +29,9 @@ from isaaclab.utils import configclass
 
 from isaaclab_tasks.core.velocity.config.anymal_d.flat_env_cfg import AnymalDFlatEnvCfg
 
+from ..heading import HeadingJointStateCodec, RootGravityEncoder
 from ..recording import CONTROL_KEY
 from ..signature import isaaclab_canonical_view
-
-ANYMAL_D_REMOVE_ROOT_TRANSLATION = "planar"
-"""Root translation removed from ANYmal-D model inputs, so that environment origins do not reach the model."""
 
 ANYMAL_D_CONTINUITY = "off"
 """Continuity mode of a deployed ANYmal-D artifact.
@@ -49,6 +47,17 @@ ANYMAL_D_CONTACT_KEY = "contact/anymal_d_feet"
 
 ANYMAL_D_CONTACT_CHANNELS = ("point", "normal", "lever_arm", "gap", "relative_velocity", "contact_state")
 """Fixed-probe channels given to the model, as in the PhysicsNeMo Robotics G1 application."""
+
+ANYMAL_D_MODEL_CONFIG: dict[str, object] = {
+    "num_heads": 10,
+    "head_dim": 64,
+    "intermediate_size": 896,
+    "head_hidden": 192,
+    "temporal_attention_spans": [4, 3, 3, 3],
+    "rms_norm_eps": 1.0e-6,
+    "linear_probe": True,
+}
+"""ParallelNeRD (FlashNeRD) geometry of the G1 model in the FlashNeRD main-results study."""
 
 _FOOT_BODIES = ("LF_FOOT", "LH_FOOT", "RF_FOOT", "RH_FOOT")
 _BASE_BODY = "base"
@@ -192,17 +201,32 @@ def anymal_d_foot_contacts(model: newton.Model) -> FixedRigidContactEncoder:
         )
 
 
-def anymal_d_dynamics_features(contacts: FixedRigidContactEncoder, dof_qd: int) -> CompositeFeatureEncoder:
-    """Condition the model on the applied joint efforts and the dense fixed foot-probe features.
+def anymal_d_state_codec(model: newton.Model) -> HeadingJointStateCodec:
+    """Express the ANYmal-D joint state in the base heading frame, as the G1 application does.
 
     Args:
+        model: Finalized Newton model of an ANYmal-D scene built from :class:`AnymalDFlatTeacherEnvCfg`.
+    """
+    return HeadingJointStateCodec(model)
+
+
+def anymal_d_dynamics_features(
+    codec: HeadingJointStateCodec, contacts: FixedRigidContactEncoder
+) -> CompositeFeatureEncoder:
+    """Condition the model on applied joint efforts, base-frame gravity, and the fixed foot-probe features.
+
+    This is the input recipe of the PhysicsNeMo Robotics G1 application with the four foot-sphere probes
+    of the FlashNeRD ANYmal experiment.
+
+    Args:
+        codec: State codec from :func:`anymal_d_state_codec`.
         contacts: Probe encoder from :func:`anymal_d_foot_contacts`.
-        dof_qd: Number of generalized velocities of one environment.
 
     Returns:
         The feature encoder of the artifact.
     """
     return CompositeFeatureEncoder(
-        ControlFieldEncoder("joint_f", per_world_shape=(dof_qd,), key=CONTROL_KEY),
+        ControlFieldEncoder("joint_f", per_world_shape=(codec.layout.dof_qd,), key=CONTROL_KEY),
+        RootGravityEncoder(codec),
         FixedContactFeatureAdapter(contacts, ANYMAL_D_CONTACT_CHANNELS),
     )
