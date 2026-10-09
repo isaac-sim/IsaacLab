@@ -135,13 +135,24 @@ class SuccessTracker:
         self._goals_reached = torch.zeros(num_envs, device=device)
         self._skip_update = torch.zeros(num_envs, dtype=torch.bool, device=device)
 
-    def record_goal_reached(self, env_ids: Sequence[int] | torch.Tensor) -> None:
+    def record_goal_reached(
+        self, env_ids: Sequence[int] | torch.Tensor | None = None, env_mask: torch.Tensor | None = None
+    ) -> None:
         """Count one reached goal for the given environments.
 
         Args:
-            env_ids: Environments whose goal was just resampled.
+            env_ids: Indices of the environments whose goal was just resampled.
+            env_mask: Boolean mask of those environments, counted without a device synchronization.
+
+        Raises:
+            ValueError: If not exactly one of ``env_ids`` and ``env_mask`` is given.
         """
-        self._goals_reached[env_ids] += 1.0
+        if (env_ids is None) == (env_mask is None):
+            raise ValueError("Pass exactly one of env_ids and env_mask.")
+        if env_mask is not None:
+            self._goals_reached += env_mask
+        else:
+            self._goals_reached[env_ids] += 1.0
 
     def earned(self, reached: torch.Tensor) -> torch.Tensor:
         """Drop the goals a reset handed out, and release the guard.
