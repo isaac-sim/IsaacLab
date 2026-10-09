@@ -31,7 +31,7 @@ pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 from isaaclab_ov import tensor_types as TT  # noqa: E402
 from isaaclab_ov.physics import OvPhysxCfg  # noqa: E402
 from isaaclab_physx.sim.schemas import PhysxJointCfg  # noqa: E402
-from joint_wrench_contract import test_joint_wrench_frame  # noqa: E402, F401
+from joint_wrench_contract import test_joint_wrench_body_ordering, test_joint_wrench_frame  # noqa: E402, F401
 
 import isaaclab.sim as sim_utils  # noqa: E402
 from isaaclab.actuators import ImplicitActuatorCfg  # noqa: E402
