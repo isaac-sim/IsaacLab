@@ -13,7 +13,7 @@ or calibrate and train a policy for your own robot and keyboard setup.
 
    **Isaac Lab version.** This project uses a pinned, patched Isaac Lab 3.0.0-based
    runtime built from source revision
-   `6f991d4becf7 <https://github.com/ooctipus/IsaacLab/commit/6f991d4becf764b151e0a1c775561ddd9c406f72>`_.
+   `6f991d4becf7 <https://github.com/isaac-sim/IsaacLab/commit/6f991d4becf764b151e0a1c775561ddd9c406f72>`_.
    Use the project's Docker image rather than an existing Isaac Lab installation.
    Compatibility with unmodified 3.0 GA or later versions has not been validated.
    See the `runtime provenance <https://github.com/NVIDIA/so101-typing-task/blob/main/runtime/README.md>`_
