@@ -100,12 +100,12 @@ class TransportStream:
         self.closed.set()
 
 
-@pytest.fixture(params=["tcp", pytest.param("unix", marks=_UNIX)])
+@pytest.fixture
 def cosmos_service(request):
     """Start the production listener on a TCP or Unix socket endpoint, then shut it down through that endpoint."""
     resource = TransportResource()
     directory = None
-    if request.param == "unix":
+    if getattr(request, "param", "tcp") == "unix":
         endpoint, directory = _unix_endpoint()
     else:
         with socket.socket() as reserved:
@@ -227,6 +227,7 @@ def test_wire_treats_pickle_bytes_as_pixels_without_execution(tmp_path):
     assert not marker.exists()
 
 
+@pytest.mark.parametrize("cosmos_service", ["tcp", pytest.param("unix", marks=_UNIX)], indirect=True)
 def test_camera_client_closes_sessions_and_keeps_the_model_resident(cosmos_service):
     """Warmup and reconnect use one inference thread, while status stays responsive during generation."""
     client = _client(cosmos_service.endpoint)
@@ -465,6 +466,42 @@ def test_transport_keeps_images_on_the_gpu_only_when_the_service_shares_this_gpu
     if transport != "socket":
         # The log says which path the images take; an explicit socket transport needs no choice.
         assert ("CUDA IPC" if expected == "cuda_ipc" else "through the socket") in caplog.text
+
+
+@pytest.mark.parametrize("fail_output_event", [False, True])
+def test_cuda_ipc_channel_releases_acquired_resources_on_close_or_construction_failure(monkeypatch, fail_output_event):
+    from isaaclab_experimental.cosmos import _cuda_ipc
+
+    acquired, released = [], []
+
+    class Buffer:
+        def __init__(self, device, shape, handle):
+            acquired.append(self)
+
+        def close(self):
+            if self not in released:
+                released.append(self)
+
+    class Event:
+        def __init__(self, device, handle):
+            if fail_output_event and any(isinstance(resource, Event) for resource in acquired):
+                raise RuntimeError("Cannot create output event")
+            acquired.append(self)
+
+        def close(self):
+            if self not in released:
+                released.append(self)
+
+    monkeypatch.setattr(_cuda_ipc, "SharedBuffer", Buffer)
+    monkeypatch.setattr(_cuda_ipc, "SharedEvent", Event)
+    if fail_output_event:
+        with pytest.raises(RuntimeError, match="Cannot create output event"):
+            _cuda_ipc.SharedChannel(torch.device("cuda:0"), (1, 4, 6, 3))
+    else:
+        channel = _cuda_ipc.SharedChannel(torch.device("cuda:0"), (1, 4, 6, 3))
+        channel.close()
+        channel.close()
+    assert len(released) == len(acquired) and set(released) == set(acquired)
 
 
 def test_cuda_ipc_handles_keep_all_64_bytes_including_zero_bytes():

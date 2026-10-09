@@ -18,6 +18,7 @@ import base64
 import ctypes
 import math
 import sys
+from contextlib import ExitStack
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -248,10 +249,16 @@ class SharedChannel:
             handles: Handles from :attr:`handles` of the creating process. Defaults to None, which creates them.
         """
         handles = handles or {}
-        self.control = SharedBuffer(device, shape, handles.get("control"))
-        self.output = SharedBuffer(device, shape, handles.get("output"))
-        self.control_ready = SharedEvent(device, handles.get("control_ready"))
-        self.output_ready = SharedEvent(device, handles.get("output_ready"))
+        with ExitStack() as resources:
+            self.control = SharedBuffer(device, shape, handles.get("control"))
+            resources.callback(self.control.close)
+            self.output = SharedBuffer(device, shape, handles.get("output"))
+            resources.callback(self.output.close)
+            self.control_ready = SharedEvent(device, handles.get("control_ready"))
+            resources.callback(self.control_ready.close)
+            self.output_ready = SharedEvent(device, handles.get("output_ready"))
+            resources.callback(self.output_ready.close)
+            self._resources = resources.pop_all()
 
     @property
     def handles(self) -> dict:
@@ -265,5 +272,4 @@ class SharedChannel:
 
     def close(self) -> None:
         """Release every buffer and event. Repeated calls are safe."""
-        for resource in (self.control, self.output, self.control_ready, self.output_ready):
-            resource.close()
+        self._resources.close()
