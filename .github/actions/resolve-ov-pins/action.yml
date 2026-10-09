@@ -8,15 +8,17 @@ description: >
   Reads the OVRTX / OVPhysX version specifiers from [tool.isaaclab.versions] in
   the repository's pyproject.toml. CI installs these packages through a generic
   pip-package input, so this keeps the installed versions bound to the single
-  source of truth instead of hardcoding ranges in the workflow.
+  source of truth instead of hardcoding ranges in the workflow. A package that
+  [tool.uv.sources] routes to a named [[tool.uv.index]] gets that index as a pip
+  ``--extra-index-url`` in its output, so pre-release builds hosted off PyPI install too.
   NOTE: The calling job must check out the code before using this action.
 
 outputs:
   ovrtx:
-    description: 'OVRTX pip requirement specifier (e.g. ovrtx>=0.3.0,<0.4.0)'
+    description: 'OVRTX pip arguments: requirement specifier, plus its index if any (e.g. ovrtx>=0.3.0,<0.4.0)'
     value: ${{ steps.resolve.outputs.ovrtx }}
   ovphysx:
-    description: 'OVPhysX pip requirement specifier (e.g. ovphysx==0.5.9)'
+    description: 'OVPhysX pip arguments: requirement specifier, plus its index if any (e.g. ovphysx==0.5.9)'
     value: ${{ steps.resolve.outputs.ovphysx }}
 
 runs:
@@ -40,7 +42,10 @@ runs:
         import tomllib
 
         with open("pyproject.toml", "rb") as f:
-            vals = tomllib.load(f).get("tool", {}).get("isaaclab", {}).get("versions", {})
+            tool = tomllib.load(f).get("tool", {})
+        vals = tool.get("isaaclab", {}).get("versions", {})
+        sources = tool.get("uv", {}).get("sources", {})
+        indexes = {index.get("name"): index["url"] for index in tool.get("uv", {}).get("index", [])}
 
         def spec(pkg: str) -> str:
             # Mirror pyproject's convention: exact versions map to ``pkg==x.y.z``,
@@ -48,7 +53,16 @@ runs:
             if not vals.get(pkg):
                 sys.exit(f"[tool.isaaclab.versions] is missing a value for required key '{pkg}'")
             value = vals[pkg]
-            return f"{pkg}=={value}" if value[0].isdigit() else f"{pkg}{value}"
+            requirement = f"{pkg}=={value}" if value[0].isdigit() else f"{pkg}{value}"
+            # Builds routed to a non-PyPI index (e.g. internal pre-releases) need that index; pip also
+            # resolves their pinned dependencies (ovstage) from it. Temporary: only the internal OVRTX 0.6
+            # pins use it; revert this with the switch to the public OVRTX 0.6 release.
+            index = sources.get(pkg, {}).get("index")
+            if index is None:
+                return requirement
+            if index not in indexes:
+                sys.exit(f"[tool.uv.sources] routes '{pkg}' to undefined index '{index}'")
+            return f"--extra-index-url {indexes[index]} {requirement}"
 
         for pkg in ("ovrtx", "ovphysx"):
             print(f"{pkg}={spec(pkg)}")
