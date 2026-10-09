@@ -13,7 +13,6 @@ from collections.abc import Callable, Iterator
 from pathlib import Path
 
 import pytest
-import tomllib
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
@@ -123,29 +122,10 @@ def installed_wheel(
         str(checkout / "tools/wheel_builder/uv-overrides.txt"),
         "--extra-index-url",
         "https://pypi.nvidia.com",
+        "--extra-index-url",
+        "https://download.pytorch.org/whl/cu130",
         "--index-strategy",
         "unsafe-best-match",
-        cwd=directory,
-        timeout=4500,
-    )
-    # Wheel consumers select their CUDA index explicitly; project sources do not propagate.
-    with (checkout / "pyproject.toml").open("rb") as file:
-        versions = tomllib.load(file)["tool"]["isaaclab"]["versions"]
-    run(
-        "uv",
-        "--no-config",
-        "pip",
-        "install",
-        "--python",
-        str(python),
-        f"torch=={versions['torch']}",
-        f"torchvision=={versions['torchvision']}",
-        "--reinstall-package",
-        "torch",
-        "--reinstall-package",
-        "torchvision",
-        "--index-url",
-        "https://download.pytorch.org/whl/cu130",
         cwd=directory,
         timeout=4500,
     )

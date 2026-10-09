@@ -32,6 +32,10 @@ For particle-material comparisons and solver guidance, see :ref:`newton-tuning-m
 Command Builder
 ---------------
 
+Commands that select Isaac Sim include the resolver overrides and package indexes required by
+the :ref:`wheel installation <installation-method-wheel>`. For demos built from a Git revision,
+use the matching revision's overrides as described in that installation guide.
+
 .. raw:: html
 
    <div class="environment-browser demo-browser" data-demo-browser>

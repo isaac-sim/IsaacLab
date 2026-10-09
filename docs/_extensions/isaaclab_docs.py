@@ -200,6 +200,7 @@ class IsaacLabUvIsaacSimWheelInstall(SphinxDirective):
    uv pip install "isaaclab[isaacsim]=={self.config.isaaclab_wheel_version}" \\
      --overrides "{overrides_url}" \\
      --extra-index-url https://pypi.nvidia.com \\
+     --extra-index-url https://download.pytorch.org/whl/cu130 \\
      --index-strategy unsafe-best-match
 """
         return _parse_rst(self, content)
@@ -306,6 +307,19 @@ def _write_doc_redirects(app: Sphinx, exception: Exception | None) -> None:
         )
 
 
+def _add_demo_overrides_meta(
+    app: Sphinx, pagename: str, templatename: str, context: dict, doctree: nodes.document | None
+) -> None:
+    """Expose the versioned wheel resolver overrides to the demo command builder."""
+    overrides_url = (
+        f"https://raw.githubusercontent.com/isaac-sim/IsaacLab/{_branch(app.config)}/tools/wheel_builder/uv-overrides.txt"
+    )
+    context["metatags"] = (
+        context.get("metatags", "")
+        + f'<meta name="isaaclab-wheel-overrides" content="{escape(overrides_url, quote=True)}">'
+    )
+
+
 def setup(app):
     """Register Isaac Lab documentation directives."""
     app.add_builder(IsaacLabHTMLBuilder, override=True)
@@ -313,6 +327,7 @@ def setup(app):
     app.add_config_value("isaaclab_doc_redirect_fragments", {}, "html")
     app.connect("build-finished", _write_doc_redirects)
     app.connect("config-inited", _configure_source_links)
+    app.connect("html-page-context", _add_demo_overrides_meta)
     app.add_config_value("isaaclab_latest_branch", "develop", "env")
     app.add_config_value("isaaclab_wheel_version", "", "env")
     app.add_config_value("isaaclab_wheel_source_tag", "", "env")

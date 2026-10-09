@@ -190,8 +190,9 @@ and then runs the command.
 
 The source checkout selects PyTorch's CUDA 13.0 build on Linux x86_64, Linux aarch64, and Windows.
 No additional command flags are needed.
-The published wheel pins the PyTorch versions, but downstream uv projects must configure their own
-PyTorch indexes because uv does not inherit a dependency project's ``tool.uv.sources`` settings.
+The aggregate wheel uses platform-specific CUDA PyTorch wheel URLs from the source lockfile.
+This also selects CUDA builds for ``uvx`` and downstream projects, which do not inherit a dependency
+project's ``tool.uv.sources`` settings. The wheel supports Python 3.12, matching the source checkout.
 
 Head over to the :doc:`/source/setup/quickstart`, which starts with your first task and
 introduces the available commands, RL libraries, backends, and visualizers.
@@ -255,6 +256,21 @@ resources as a released wheel:
 
 Use a commit hash or release tag for reproducible environments. A branch name is accepted, but
 updating the lockfile can then select a newer Isaac Lab revision and dependency set.
+
+For a one-off Git installation with Isaac Sim, pass the matching revision's resolver overrides
+to ``uvx``. The overrides reconcile Isaac Sim's older exact dependency pins, including
+``newton-usd-schemas``, with Isaac Lab's requirements; wheel metadata cannot carry uv overrides.
+Include the CUDA index because the overrides also replace PyTorch requirements.
+Replace both occurrences of ``<git-revision>`` with the same commit, tag, or branch:
+
+.. code-block:: bash
+
+   uvx --python 3.12 \
+     --overrides "https://raw.githubusercontent.com/isaac-sim/IsaacLab/<git-revision>/tools/wheel_builder/uv-overrides.txt" \
+     --extra-index-url https://pypi.nvidia.com --extra-index-url https://download.pytorch.org/whl/cu130 \
+     --index-strategy unsafe-best-match --prerelease allow \
+     --from "git+https://github.com/isaac-sim/IsaacLab.git@<git-revision>#subdirectory=tools/wheel_builder[isaacsim]" \
+     isaaclab demo zoo --physics isaacsim_physx --viz kit
 
 Installing the published wheel
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

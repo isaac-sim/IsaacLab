@@ -60,7 +60,14 @@
             const extraOrder = ["isaacsim", "ovphysx", "ovrtx", "tetrahedralization", "teleop", "rerun", "viser"];
             const extras = extraOrder.filter((extra) => requiredExtras.has(extra));
 
-            const parts = ["uvx"];
+            const parts = ["uvx", "--python", "3.12"];
+            if (requiredExtras.has("isaacsim")) {
+                const overrides = document.querySelector('meta[name="isaaclab-wheel-overrides"]').content;
+                parts.push("--overrides", `'${overrides}'`,
+                    "--extra-index-url", "https://pypi.nvidia.com",
+                    "--extra-index-url", "https://download.pytorch.org/whl/cu130",
+                    "--index-strategy", "unsafe-best-match", "--prerelease", "allow");
+            }
             if (extras.length) {
                 parts.push("--from", `'isaaclab[${extras.join(",")}]'`);
             }

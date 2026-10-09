@@ -23,6 +23,7 @@ def test_installed_wheel(installed_wheel: tuple[str, Path, Path], wheel: Path, r
         """
 import importlib.util
 from pathlib import Path
+import torch
 import isaaclab
 from isaaclab import _deprioritize_prebundle_paths
 from isaaclab.app import launch_simulation
@@ -34,6 +35,7 @@ from isaaclab.programs import DEMOS, EXAMPLES
 import isaaclab_rl
 import isaaclab_tasks
 
+assert torch.version.cuda == '13.0'
 assert list(isaaclab.__path__) == [str(Path(isaaclab.__file__).parent)]
 assert all(program.path.is_file() for program in (*DEMOS, *EXAMPLES))
 assert (ISAACLAB_ROOT / 'tools/template/cli.py').is_file()
