@@ -19,6 +19,7 @@ from ... import sim as sim_utils
 from ...markers import VisualizationMarkers
 from ...terrains.trimesh.utils import make_plane
 from ...utils import math as math_utils
+from ...utils.seed import WarpRng
 from ...utils.warp import ProxyArray, convert_to_warp_mesh
 from ...utils.warp.kernels import raycast_mesh_masked_kernel
 from ..sensor_base import SensorBase
@@ -116,12 +117,27 @@ class BaseRayCaster(SensorBase):
         self._drift_sampled |= sample_drift or sample_ray_cast_drift
         if not self._drift_sampled:
             return
+        if env_mask is not None:
+            # Resample in a kernel from the shared per-environment random states with the ranges as launch
+            # arguments, so the masked reset neither synchronizes nor allocates and can be captured.
+            # A zero range draws zero, which clears drift that was sampled before it was disabled.
+            wp.launch(
+                ray_caster_kernels.resample_drift_masked_kernel,
+                dim=self._view_count,
+                inputs=[
+                    env_mask,
+                    wp.vec2f(*self.cfg.drift_range),
+                    wp.vec3f(*(low for low, _ in ray_cast_range_list)),
+                    wp.vec3f(*(high for _, high in ray_cast_range_list)),
+                    WarpRng.state,
+                ],
+                outputs=[self.drift.warp, self.ray_cast_drift.warp],
+                device=self._device,
+            )
+            return
         # determine the selected batch size
         if env_ids is not None:
             num_envs_ids = len(range(self._view_count)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
-        elif env_mask is not None:
-            env_ids = wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1)
-            num_envs_ids = len(env_ids)
         else:
             env_ids = slice(None)
             num_envs_ids = self._view_count

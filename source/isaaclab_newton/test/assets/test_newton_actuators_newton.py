@@ -384,33 +384,94 @@ def _run(
     return _Run(sim=sim, articulations=articulations, results=results)
 
 
-def _record_lab_state_reset(run: _Run) -> dict[str, tuple[torch.Tensor, torch.Tensor]]:
-    """Reset one Lab-path environment of the delayed island and record each group's effort and PD demand.
+_RESET_SELECTORS = ("env_ids", "env_mask")
+"""Partial-reset selectors: an index tensor and a Warp mask."""
+
+
+def _reset_env_0(articulation: Articulation, selector: str) -> None:
+    """Reset environment 0 alone through the given selector."""
+    if selector == "env_ids":
+        articulation.reset(env_ids=torch.tensor([0], device=articulation.device, dtype=torch.long))
+    else:
+        env_mask = torch.arange(articulation.num_instances, device=articulation.device) == 0
+        articulation.reset(env_mask=wp.from_torch(env_mask))
+
+
+def _record_lab_state_reset(run: _Run) -> dict[str, dict[str, tuple[torch.Tensor, torch.Tensor]]]:
+    """Reset one Lab-path environment of the delayed island per selector and record each group's effort and PD demand.
 
     Reset environments must accept fresh commands while the remaining environments retain their delay history.
     """
     articulation = run.articulations["delayed"]
     commands = articulation.actuators.target_command
     old_target = commands.position.torch.clone()
-    # Episode reset samples the configured lag; construction alone leaves actuator lag at zero.
-    articulation.reset()
-    commands.set_position_index(value=old_target)
-    articulation.write_data_to_sim()
     new_target = old_target + 0.02
-    articulation.reset(env_ids=torch.tensor([0], device=articulation.device))
-    commands.set_position_index(value=new_target)
-    articulation.write_data_to_sim()
     expected_target = old_target.clone()
     expected_target[0] = new_target[0]
     recorded = {}
-    for name, actuator in articulation.actuators.items():
-        joints = actuator.joint_indices
-        demand = (
-            actuator.stiffness * (expected_target[:, joints] - articulation.data.joint_pos.torch[:, joints])
-            - actuator.damping * articulation.data.joint_vel.torch[:, joints]
-        )
-        recorded[name] = (actuator.computed_effort.clone(), demand)
+    for selector in _RESET_SELECTORS:
+        # Episode reset samples the configured lag; construction alone leaves actuator lag at zero.
+        articulation.reset()
+        commands.set_position_index(value=old_target)
+        articulation.write_data_to_sim()
+        _reset_env_0(articulation, selector)
+        commands.set_position_index(value=new_target)
+        articulation.write_data_to_sim()
+        recorded[selector] = {}
+        for name, actuator in articulation.actuators.items():
+            joints = actuator.joint_indices
+            demand = (
+                actuator.stiffness * (expected_target[:, joints] - articulation.data.joint_pos.torch[:, joints])
+                - actuator.damping * articulation.data.joint_vel.torch[:, joints]
+            )
+            recorded[selector][name] = (actuator.computed_effort.clone(), demand)
     return recorded
+
+
+def _warm_delayed_island(run: _Run) -> list:
+    """Step the delayed island until its delay buffers hold history and return its delayed actuators' state pairs.
+
+    Only the reset articulation's own delayed actuators are returned. The adapter is model-wide, so the other
+    islands' actuators share its state buffers; their state is not part of this articulation's contract.
+    """
+    articulation = run.articulations["delayed"]
+    for _ in range(3):
+        articulation.write_data_to_sim()
+        run.sim.step()
+        articulation.update(DT)
+    adapter = SimulationManager._adapter
+    assert adapter is not None
+    own_actuators = []
+    for group_name in articulation.actuators._native_group_names:
+        group_actuators = articulation.actuators[group_name]
+        own_actuators.extend(group_actuators if isinstance(group_actuators, tuple) else (group_actuators,))
+    stateful_pairs = [
+        (act, st)
+        for act, st in zip(adapter.actuators, adapter._states_a)
+        if any(act is own for own in own_actuators) and st is not None and st.delay_state is not None
+    ]
+    assert len(stateful_pairs) > 0, "expected at least one DelayedPD actuator with delay_state"
+    for act, state in stateful_pairs:
+        pushes_before = state.delay_state.num_pushes.numpy()
+        assert (pushes_before > 0).all(), "expected non-zero num_pushes for all DOFs after warmup"
+    return stateful_pairs
+
+
+def _assert_delay_state_cleared_for_env_0_only(stateful_pairs: list) -> None:
+    """Assert ``num_pushes`` is zero for environment 0's DOFs and positive for every other environment's DOFs."""
+    # Map each entry of ``act.indices`` to its env via the adapter's per-env DOF count. The adapter is
+    # model-wide (includes free-joint DOFs on floating-base articulations), so ``adapter.num_joints`` is the
+    # stride.
+    adapter = SimulationManager._adapter
+    for act, state in stateful_pairs:
+        pushes_after = state.delay_state.num_pushes.numpy()
+        indices_np = act.indices.numpy()
+        for i, global_dof in enumerate(indices_np):
+            env = int(global_dof) // adapter.num_joints
+            if env == 0:
+                assert int(pushes_after[i]) == 0, f"DOF {i} (env {env}) should be reset to 0, got {pushes_after[i]}"
+            else:
+                assert int(pushes_after[i]) > 0, f"DOF {i} (env {env}) was NOT in the reset selection but is 0"
 
 
 @pytest.fixture(scope="module", params=test_devices(DeviceScope.CUDA))
@@ -756,6 +817,31 @@ def test_sync_torque_telemetry_keeps_user_order_effort_buffers_unmapped() -> Non
 
 
 # ---------------------------------------------------------------------------
+# Own scene; runs before the module-scoped scenes exist, since only one simulation context can be alive
+# ---------------------------------------------------------------------------
+
+
+def test_newton_masked_reset_replays_from_cuda_graph_without_allocation(device: str) -> None:
+    """A masked reset records into a CUDA graph without allocating and, on replay, clears only the masked env.
+
+    The scene holds only the delayed island: the adapter resets every actuator of the model, and Newton's neural
+    actuator state reset cannot be recorded into a graph.
+    """
+    sim_cfg = newton_sim_cfg(device, dt=DT, use_newton_actuators=True, solver_cfg=_solver_cfg())
+    with build_simulation_context(sim_cfg=sim_cfg) as sim:
+        run = _run(sim, {"delayed": _islands()["delayed"]}, use_newton_actuators=True)
+        articulation = run.articulations["delayed"]
+        env_mask = wp.from_torch(torch.arange(articulation.num_instances, device=device) == 0)
+        # Allocating inside the capture raises while the memory pool is disabled.
+        with wp.ScopedMempool(device, False), wp.ScopedCapture(device) as capture:
+            articulation.reset(env_mask=env_mask)
+        # Repopulate the delay buffers, so the replay rather than the capture must clear environment 0.
+        stateful_pairs = _warm_delayed_island(run)
+        wp.capture_launch(capture.graph)
+        _assert_delay_state_cleared_for_env_0_only(stateful_pairs)
+
+
+# ---------------------------------------------------------------------------
 # Equivalence tests with different actuator types
 # ---------------------------------------------------------------------------
 
@@ -944,47 +1030,16 @@ def test_randomize_actuator_gains_reaches_newton_controllers(newton_run: _Run) -
 # ---------------------------------------------------------------------------
 
 
-def test_newton_state_reset_isolated_to_reset_env(newton_run: _Run) -> None:
-    """Newton: ``num_pushes`` zeroes for env 0's DOFs only after reset of [0].
-
-    Only the reset articulation's own delayed actuators are checked. The adapter is model-wide, so the other
-    islands' actuators share its state buffers; their state is not part of this articulation's contract.
-    """
-    articulation = newton_run.articulations["delayed"]
-    adapter = SimulationManager._adapter
-    assert adapter is not None
-    own_actuators = []
-    for group_name in articulation.actuators._native_group_names:
-        group_actuators = articulation.actuators[group_name]
-        own_actuators.extend(group_actuators if isinstance(group_actuators, tuple) else (group_actuators,))
-    stateful_pairs = [
-        (act, st)
-        for act, st in zip(adapter.actuators, adapter._states_a)
-        if any(act is own for own in own_actuators) and st is not None and st.delay_state is not None
-    ]
-    assert len(stateful_pairs) > 0, "expected at least one DelayedPD actuator with delay_state"
-
-    for act, state in stateful_pairs:
-        pushes_before = state.delay_state.num_pushes.numpy()
-        assert (pushes_before > 0).all(), "expected non-zero num_pushes for all DOFs after warmup"
-
-    articulation.reset(env_ids=torch.tensor([0], device=articulation.device, dtype=torch.long))
-
-    # Map each entry of ``act.indices`` to its env via the adapter's per-env DOF count. The adapter is
-    # model-wide (includes free-joint DOFs on floating-base articulations), so ``adapter.num_joints`` is the
-    # stride.
-    for act, state in stateful_pairs:
-        pushes_after = state.delay_state.num_pushes.numpy()
-        indices_np = act.indices.numpy()
-        for i, global_dof in enumerate(indices_np):
-            env = int(global_dof) // adapter.num_joints
-            if env == 0:
-                assert int(pushes_after[i]) == 0, f"DOF {i} (env {env}) should be reset to 0, got {pushes_after[i]}"
-            else:
-                assert int(pushes_after[i]) > 0, f"DOF {i} (env {env}) was NOT in reset env_ids but num_pushes is 0"
+@pytest.mark.parametrize("selector", _RESET_SELECTORS)
+def test_newton_state_reset_isolated_to_reset_env(newton_run: _Run, selector: str) -> None:
+    """Newton: ``num_pushes`` zeroes for env 0's DOFs only after a partial reset of env 0."""
+    stateful_pairs = _warm_delayed_island(newton_run)
+    _reset_env_0(newton_run.articulations["delayed"], selector)
+    _assert_delay_state_cleared_for_env_0_only(stateful_pairs)
 
 
-def test_lab_state_reset_isolated_to_reset_env(lab_run: dict) -> None:
+@pytest.mark.parametrize("selector", _RESET_SELECTORS)
+def test_lab_state_reset_isolated_to_reset_env(lab_run: dict, selector: str) -> None:
     """Reset environments accept fresh commands while the remaining environments retain their history."""
-    for computed_effort, demand in lab_run["state_reset"].values():
+    for computed_effort, demand in lab_run["state_reset"][selector].values():
         torch.testing.assert_close(computed_effort, demand)
