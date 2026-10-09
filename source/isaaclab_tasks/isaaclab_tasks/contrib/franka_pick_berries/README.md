@@ -57,7 +57,7 @@ with ffmpeg:
 
 ```bash
 uv run --extra ovrtx python source/isaaclab_tasks/isaaclab_tasks/contrib/franka_pick_berries/scripts/pick_berries.py \
-  --mode scripted_demo --camera scripted_camera --arm_speed 6 --bowl_material porcelain --f_stop 64 \
+  --mode scripted_demo --camera scripted_camera --arm_speed 6 --f_stop 64 \
   --width 1920 --height 1080 --samples_per_pixel 64 --save_frames berry_demo_frames
 ffmpeg -framerate 30 -i berry_demo_frames/%05d.png -c:v libx264 -profile:v main -bf 0 -crf 16 -pix_fmt yuv420p \
   -movflags +faststart berry_demo.mp4
@@ -80,7 +80,7 @@ live in a window.
 | `--tissue_solver {explicit,implicit}` | `explicit` | Tissue solver (see below) |
 | `--arm_speed X` | 2 | Arm speed multiplier; the gripper keeps its gentle closing pace |
 | `--camera {punnet_and_bowl,berry_closeup,room,scripted_camera}` | `punnet_and_bowl` | Fixed views, a close-up following the handled berry, or a shot-by-shot film (scripted demo) |
-| `--bowl_material {glass,porcelain}` | `glass` | Material of the receiving bowl |
+| `--bowl_material {glass,porcelain}` | `porcelain` | Material of the receiving bowl |
 | `--repeat` | | Scripted demo: start again when it ends |
 | `--save_frames DIR` | | Scripted demo: render offscreen, save one PNG per 1/30 s, then exit |
 | `--width`, `--height`, `--samples_per_pixel`, `--f_stop` | 1280 × 720 | Image size, path-tracing samples, depth of field (film) |

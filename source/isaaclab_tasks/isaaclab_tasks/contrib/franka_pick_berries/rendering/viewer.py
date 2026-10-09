@@ -44,7 +44,7 @@ class BerryViewer(ViewerRTX):
     """
 
     def __init__(
-        self, env, samples_per_pixel=None, camera="punnet_and_bowl", f_stop=None, bowl_material="glass", **kwargs
+        self, env, samples_per_pixel=None, camera="punnet_and_bowl", f_stop=None, bowl_material="porcelain", **kwargs
     ):
         if camera not in CAMERA_VIEWS:
             raise ValueError(f"Unknown camera view {camera!r}; expected one of {CAMERA_VIEWS}")

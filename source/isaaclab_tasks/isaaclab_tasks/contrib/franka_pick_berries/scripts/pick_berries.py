@@ -54,7 +54,7 @@ parser.add_argument(
     help="Fixed views, a close-up that follows the handled berry, or (scripted_demo) a shot-by-shot scripted camera",
 )
 parser.add_argument(
-    "--bowl_material", choices=["glass", "porcelain"], default="glass", help="Material of the receiving bowl"
+    "--bowl_material", choices=["glass", "porcelain"], default="porcelain", help="Material of the receiving bowl"
 )
 parser.add_argument("--repeat", action="store_true", help="scripted_demo: reset and run it again when it ends")
 parser.add_argument(
