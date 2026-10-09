@@ -1,0 +1,100 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+name: 'Windows instance state report + minimum cleanup'
+description: >-
+  Print disk + relevant directory sizes on the Windows runner before and after
+  a job, and (in 'post' phase) wipe non-cache user state so the runner is left
+  net-zero except for content-addressed wheel caches (uv, pip).
+  See the per-dir comments below for what's cleaned and why.
+
+inputs:
+  phase:
+    description: '"pre" (report only) or "post" (report → cleanup → report).'
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Report and optionally clean
+      shell: powershell
+      run: |
+        $ErrorActionPreference = "Continue"
+
+        # Directories we observe on every run. uv/pip are content-addressed
+        # wheel caches (safe across runs, big speedup). The rest is user state
+        # that can chain bad behavior between runs and is cleaned in 'post'.
+        $observed = [ordered]@{
+          "uv cache"          = "$env:LOCALAPPDATA\uv\cache"          # KEEP — content-addressed
+          "pip cache"         = "$env:LOCALAPPDATA\pip\Cache"         # KEEP — content-addressed
+          "Kit shader cache"  = "$env:LOCALAPPDATA\NVIDIA\Omniverse"  # KEEP — invalidated by Kit on version mismatch
+          "Kit user state"    = "$env:APPDATA\NVIDIA Corporation\Omniverse Kit"  # CLEAN — settings + last-used renderer chain
+          "Kit docs"          = "$env:USERPROFILE\Documents\Kit"      # CLEAN — recent files / persistent_state
+          "user site-pkgs"    = "$env:APPDATA\Python\Python312\site-packages"   # observe — escaped pip --user installs
+        }
+
+        function Show-State($label) {
+          Write-Host "=== Windows instance state: $label ==="
+          Get-PSDrive C |
+            Select-Object @{n='Drive';e={$_.Name}},
+                          @{n='Used GB';e={[math]::Round($_.Used/1GB,1)}},
+                          @{n='Free GB';e={[math]::Round($_.Free/1GB,1)}} |
+            Format-Table
+          # GPU presence check via nvidia-smi. Surfaces "is there a GPU at all"
+          # before any Kit boot, so a Vulkan failure can be classified as
+          # "no GPU on the runner" vs "GPU present but Vulkan/driver issue".
+          $nvsmi = & nvidia-smi --query-gpu=name,driver_version,memory.total --format=csv,noheader 2>&1
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "nvidia-smi: $nvsmi"
+          } else {
+            Write-Host "nvidia-smi: not available or no GPU detected (exit=$LASTEXITCODE)"
+          }
+          foreach ($k in $observed.Keys) {
+            $p = $observed[$k]
+            if (Test-Path $p) {
+              $s = (Get-ChildItem -Recurse -File -ErrorAction SilentlyContinue $p |
+                    Measure-Object -Sum Length -ErrorAction SilentlyContinue).Sum
+              if ($null -eq $s) { $s = 0 }
+              "{0,-20} {1,10:N1} MB  ({2})" -f $k, ($s/1MB), $p
+            } else {
+              "{0,-20} {1,10}  ({2})" -f $k, "(absent)", $p
+            }
+          }
+        }
+
+        if ("${{ inputs.phase }}" -eq "pre") {
+          Show-State "BEFORE"
+          exit 0
+        }
+
+        # phase == post: report → minimum cleanup → report
+        Show-State "AFTER (pre-cleanup)"
+
+        $toRemove = @(
+          "$env:APPDATA\NVIDIA Corporation\Omniverse Kit",
+          "$env:USERPROFILE\Documents\Kit"
+        )
+        foreach ($p in $toRemove) {
+          if (Test-Path $p) {
+            Remove-Item -LiteralPath $p -Recurse -Force -ErrorAction SilentlyContinue
+          }
+        }
+        # Crash-leftover scratch dirs in %TEMP%.
+        Get-ChildItem -Path $env:TEMP -Filter "Kit*"        -ErrorAction SilentlyContinue |
+          Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+        Get-ChildItem -Path $env:TEMP -Filter "hub-*"       -ErrorAction SilentlyContinue |
+          Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+        Get-ChildItem -Path $env:TEMP -Filter "omniverse-*" -ErrorAction SilentlyContinue |
+          Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+        # build.sh fallback can leave 'build' / 'wheel' in user site-packages.
+        $userSite = "$env:APPDATA\Python\Python312\site-packages"
+        foreach ($pkg in @("build", "wheel")) {
+          $p = Join-Path $userSite $pkg
+          if (Test-Path $p) {
+            Remove-Item -LiteralPath $p -Recurse -Force -ErrorAction SilentlyContinue
+          }
+        }
+
+        Show-State "AFTER (post-cleanup)"

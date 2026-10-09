@@ -20,7 +20,7 @@ from isaaclab.utils import clone, configclass, instantiate, replace, to_dict, up
 from isaaclab.utils.io import dump_yaml, load_yaml
 from isaaclab.utils.string import ResolvableString
 
-pytestmark = pytest.mark.unit
+pytestmark = [pytest.mark.unit, pytest.mark.windows_ci]
 
 """
 Mock classes and functions.
