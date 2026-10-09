@@ -293,12 +293,16 @@ prompt, seed, and generation history, and resets on its own: a resetting environ
 one frame while the others continue with four. More environments share each transformer step, so throughput per
 environment rises with GPU size, while each environment needs GPU memory for its own history.
 
-Start the service in compiled mode (resetting one environment
-while the others continue needs the compiled runtime):
+Start the service in compiled mode (resetting one environment while the others continue needs the compiled
+runtime). Omit `--warmup`: it compiles one `832 x 480` view and keeps that memory, while a batch of another size
+or canvas compiles again on its first step.
 
 ```bash
-uv run --no-sync isaaclab-cosmos-server --checkpoint "$COSMOS_CHECKPOINT" --warmup
+uv run --no-sync isaaclab-cosmos-server --checkpoint "$COSMOS_CHECKPOINT" --kv-window 4
 ```
+
+`--kv-window 4` fits two `640 x 640` environments on a 48 GB GPU that Isaac Sim shares; larger GPUs can keep the
+default window of 30 latent frames, which remembers more of each episode.
 
 A camera with a Cosmos chain requests one view per environment when its session opens. The server uses that
 count without a separate view setting. After closing the session, another run can request a different count
@@ -309,32 +313,55 @@ not establish that a full episode fits.
 With `--cosmos`, ask for the environments:
 
 ```bash
-uv run isaaclab train --task Isaac-Reorient-KukaAllegro-Camera --rl_library rsl_rl --num_envs 4 \
+uv run isaaclab train --task Isaac-Reorient-KukaAllegro-Camera --rl_library rsl_rl --num_envs 2 \
   --cosmos --cosmos_prompt "A KUKA arm with an Allegro hand in a bright lab." \
   --cosmos_prompt "A KUKA arm with an Allegro hand in a wooden workshop." \
   --cosmos_near 0.6 --cosmos_far 1.9 presets=cube,single_camera,rgb64
 ```
 
-The Shadow Hand presets take the same options:
+The Shadow Hand presets take the same options. Their camera captures at 10 Hz, so set its period to 0 to capture
+every environment step (see the list below); Cosmos then updates every four steps, which needs more generation
+per simulated second:
 
 ```bash
 uv run isaaclab train --task Isaac-Reorient-Cube-Shadow-Camera-Direct --rl_library rsl_rl --num_envs 2 \
   --cosmos_prompt "A close-up overhead view of a robotic Shadow Hand turning a red cube on a wooden workbench." \
   --cosmos_prompt "A close-up overhead view of a robotic Shadow Hand turning a blue cube in a bright white lab." \
-  presets=cosmos
+  presets=cosmos env.scene.tiled_camera.update_period=0
 ```
 
 - With several environments, environment `v` uses `prompt[v % len(prompt)]` for all its episodes; the batch keeps
   each environment's prompt across its resets. With one environment, a prompt list changes per episode.
 - An environment that resets mid-chunk starts its new episode at the next chunk with its newest capture, so all
   environments keep one four-frame cadence; it shows black until then.
+- The camera must capture every environment step. Independent resets shift each environment's capture times, and
+  every capture runs the Cosmos step for all environments, so a slower camera would send extra frames. `--cosmos`
+  and the Shadow Hand presets reject a slower camera when several environments are requested.
 - `--cosmos` checks that the service supports independent resets before training several environments. This
   requires compiled inference and per-view VAE caches in the Framework runtime.
 - With the socket transport, one step's image message carries at most 16 environments.
 - Each environment's history window (`--kv-window`, default 30 latent frames) takes GPU memory. On a 48 GB GPU,
-  one environment fits with the default window; two need `--kv-window 8`. Larger GPUs fit more environments.
+  one environment fits with the default window. Two `640 x 640` Shadow Hand environments ran with `--kv-window 4`
+  and no `--warmup` while Isaac Sim shared the GPU. Larger GPUs fit more environments.
 - Reference (RTX PRO 6000 Blackwell MIG 2g.48gb, compiled, 640 x 640, `--kv-window 8`): one environment 917 ms per
   step, two 1596 ms (1.15x the throughput), with 39.7 GiB peak memory for two.
+
+### Record several environments
+
+`--video sensor:<camera>:rgb` records environment 0 only. The Newton GL streaming view tiles the camera's `rgb`
+output, the generated images, across environments; record it to see every environment side by side:
+
+```bash
+uv run --extra video isaaclab train --task Isaac-Reorient-Cube-Shadow-Camera-Direct --rl_library rsl_rl --num_envs 2 \
+  --max_iterations 20 \
+  --cosmos_prompt "A close-up overhead view of a robotic Shadow Hand turning a red cube on a wooden workbench." \
+  --cosmos_prompt "A close-up overhead view of a robotic Shadow Hand turning a blue cube in a bright white lab." \
+  --video viz:newton_gl:streaming_view --video_length 1200 \
+  presets=cosmos env.scene.tiled_camera.update_period=0
+```
+
+The run prints the clip directory when it starts. On a machine without a screen, such as over SSH, run
+`unset DISPLAY` first: with `DISPLAY` set, the headless recording visualizer cannot create its OpenGL context.
 
 ## Endpoints and transports
 

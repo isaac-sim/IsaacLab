@@ -348,8 +348,10 @@ def test_manager_cosmos_preset_feeds_generated_rgb_to_the_camera_observation_ter
 
 @pytest.mark.parametrize("task", ["Isaac-Reorient-Cube-Shadow-Camera-Direct", "Isaac-Reorient-Cube-Shadow-Camera"])
 def test_cosmos_presets_accept_several_environments(task):
-    """Both Shadow Hand Cosmos presets run several environments, one Cosmos view each."""
-    env_cfg = parse_env_cfg(task, overrides=("presets=cosmos", "env.scene.num_envs=2"))
+    """Both Shadow Hand Cosmos presets run several environments, one Cosmos view each, capturing every step."""
+    env_cfg = parse_env_cfg(
+        task, overrides=("presets=cosmos", "env.scene.num_envs=2", "env.scene.tiled_camera.update_period=0")
+    )
     env_cfg.validate()
 
     assert env_cfg.scene.num_envs == 2
@@ -358,6 +360,7 @@ def test_cosmos_presets_accept_several_environments(task):
 @pytest.mark.parametrize(
     "overrides,error",
     [
+        (("env.scene.num_envs=2",), "capture every environment step"),
         (("env.max_consecutive_success=1",), "max_consecutive_success=0"),
         (("env.scene.lazy_sensor_update=False",), "lazy_sensor_update"),
         (("renderer=ovrtx", "env.scene.tiled_camera.renderer_cfg.async_rendering=True"), "synchronous"),
