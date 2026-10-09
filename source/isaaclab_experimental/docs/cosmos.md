@@ -354,12 +354,17 @@ uv run --extra video isaaclab train --task Isaac-Reorient-Cube-Shadow-Camera-Dir
   --max_iterations 20 \
   --cosmos_prompt "A close-up overhead view of a robotic Shadow Hand turning a red cube on a wooden workbench." \
   --cosmos_prompt "A close-up overhead view of a robotic Shadow Hand turning a blue cube in a bright white lab." \
-  --video viz:newton_gl:streaming_view --video_length 1200 \
+  --viz newton_gl --video viz:newton_gl:streaming_view --video_length 1200 \
   presets=cosmos
 ```
 
-The run prints the clip directory when it starts. On a machine without a screen, such as over SSH, run
-`unset DISPLAY` first: with `DISPLAY` set, the headless recording visualizer cannot create its OpenGL context.
+The run prints the clip directory when it starts. `--viz newton_gl` keeps the visualizer running every step; a
+visualizer added only for the recording does not advance during headless training, and its streaming view records
+the first frame throughout. On a machine without a screen, such as over SSH, run `unset DISPLAY` first: with
+`DISPLAY` set, the headless visualizer cannot create its OpenGL context.
+
+Each reset shows black until the environment's next chunk. For a clip without mid-episode resets, add
+`env.fall_dist=10.0` so a dropped cube does not end the episode; environments then reset together at the time limit.
 
 ## Endpoints and transports
 
