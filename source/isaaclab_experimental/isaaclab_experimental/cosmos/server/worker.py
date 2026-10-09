@@ -11,7 +11,7 @@ import argparse
 import logging
 import os
 
-from isaaclab_experimental.cosmos._protocol import DEFAULT_MAX_EPISODE_FRAMES
+from isaaclab_experimental.cosmos._protocol import DEFAULT_ENDPOINT, DEFAULT_MAX_EPISODE_FRAMES
 from isaaclab_experimental.cosmos.server._framework import CosmosInferenceModel
 from isaaclab_experimental.cosmos.server.service import serve
 
@@ -21,8 +21,11 @@ def main(args: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--checkpoint", required=True)
     parser.add_argument("--device", default="cuda:0")
-    parser.add_argument("--host", default="127.0.0.1")
-    parser.add_argument("--port", type=int, default=5555)
+    parser.add_argument(
+        "--endpoint",
+        default=DEFAULT_ENDPOINT,
+        help=f"unix:///path (same machine, owner-only) or tcp://host:port (default {DEFAULT_ENDPOINT}).",
+    )
     parser.add_argument("--no-compile", action="store_true")
     parser.add_argument("--warmup", action="store_true")
     parser.add_argument(
@@ -61,7 +64,7 @@ def main(args: list[str] | None = None) -> None:
         attention_sink=options.attention_sink,
     )
     try:
-        serve(model, host=options.host, port=options.port, warmup=options.warmup)
+        serve(model, options.endpoint, warmup=options.warmup)
     finally:
         model.close()
 
