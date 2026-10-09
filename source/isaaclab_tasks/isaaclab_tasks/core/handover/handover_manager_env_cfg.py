@@ -322,4 +322,4 @@ class HandoverManagerEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.render_interval = self.decimation
         self.sim.physics_material = RigidBodyMaterialBaseCfg(static_friction=1.0, dynamic_friction=1.0)
         self.sim.physics = PhysicsCfg()
-        self.sim.default_visualizer_cfg = VISUALIZER_CFG
+        self.sim.default_visualizer_cfg = VISUALIZER_CFG.copy()

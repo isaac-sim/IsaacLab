@@ -56,7 +56,7 @@ class AntEnvCfg(DirectRLEnvCfg):
         dt=1 / 120,
         render_interval=decimation,
         physics=AntPhysicsCfg(),
-        default_visualizer_cfg=VISUALIZER_CFG,
+        default_visualizer_cfg=VISUALIZER_CFG.copy(),
     )
 
     # scene

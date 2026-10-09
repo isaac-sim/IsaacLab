@@ -56,7 +56,7 @@ class HumanoidEnvCfg(DirectRLEnvCfg):
         dt=1 / 120,
         render_interval=decimation,
         physics=HumanoidPhysicsCfg(),
-        default_visualizer_cfg=VISUALIZER_CFG,
+        default_visualizer_cfg=VISUALIZER_CFG.copy(),
     )
 
     # scene

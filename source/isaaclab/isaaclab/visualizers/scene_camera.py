@@ -36,6 +36,8 @@ def created_camera_cfgs(sim_cfg) -> dict[str, tuple[SceneCameraCfg, VisualizerCf
     default_cfg = sim_cfg.default_visualizer_cfg
     cameras = {}
     for viewer in visualizer_cfgs or [default_cfg]:
+        if viewer.visualizer_type == "newton_rtx":
+            continue  # it displays no scene cameras, so a created one would only cost
         declaring = viewer if viewer.cameras is not None else default_cfg
         for camera in (declaring.cameras or []) if declaring is not None else []:
             if not (isinstance(camera, SceneCameraCfg) and camera.create):
