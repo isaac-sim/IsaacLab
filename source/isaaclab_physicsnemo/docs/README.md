@@ -3,13 +3,40 @@
 This extension connects Isaac Lab Newton environments to
 [PhysicsNeMo Robotics](https://github.com/NVIDIA/physicsnemo-robotics) learned dynamics. It
 records environment episodes as PhysicsNeMo trajectory datasets, trains a control-conditioned
-Neural Robot Dynamics (NeRD) model on them, and runs the resulting dynamics artifact as the Newton
-solver of the same environment through an ordinary `NewtonCfg`.
+Neural Robot Dynamics model on them (NeRD, or the streaming FlashNeRD `ParallelNeRD`), and runs the
+resulting dynamics artifact as the Newton solver of the same environment through an ordinary `NewtonCfg`.
 
 ```text
 teacher env (MuJoCo Warp) ──record──▶ Zarr dataset ──train──▶ DynamicsArtifact ──deploy──▶ learned env
         TrajectoryDatasetRecorder     train_dynamics_artifact      PhysicsNeMoSolverCfg
 ```
+
+## Status
+
+The extension is experimental and depends on an unreleased PhysicsNeMo Robotics.
+
+| Area | State |
+| --- | --- |
+| Integration (manager, preflight, model identity, recording, training, deployment) | Complete for whole-scene learned physics of joint-backed robots; covered by CPU tests and CUDA Cartpole tests of the data semantics |
+| Cartpole | Usable: a PPO policy trained only in learned physics transfers to MuJoCo Warp with the same return |
+| FlashNeRD CartPole benchmark | Protocol, model geometry, and metric of the FlashNeRD main-results study; accuracy limited by the training budget |
+| ANYmal-D flat-ground locomotion | Experimental: the model reproduces a walking policy, but PPO trained in learned physics reaches about a third of the MuJoCo Warp return |
+| Variable contact tokens, hybrid learned/Newton coupling | Not supported |
+
+Known limitations:
+
+- PhysicsNeMo Robotics is not on a package index and pins older Newton, Warp, and Torch releases, so it is
+  installed next to Isaac Lab without its pins, and this package is not part of the repository `uv.lock`
+  or the Sphinx documentation.
+- The training input pipeline sustains about 7,000 windows per second on one GPU, far below the budgets
+  of the FlashNeRD study (five million updates of 4,096 windows).
+- The manager, binding, and preflight read private `NewtonManager` attributes; public accessors in
+  `isaaclab_newton` would remove them.
+- Floating-base artifacts deploy with `continuity="off"`, and the external-wrench check aborts the CUDA
+  context instead of raising a Python exception.
+- Recording cannot detect external wrenches, because the teacher clears `State.body_f` after each step;
+  deployment rejects them.
+- The ANYmal-D `--policy` recording option has not been exercised.
 
 ## Architecture
 
@@ -34,10 +61,13 @@ sensors are rejected, and a step with an external body wrench fails on the devic
 ## Installation
 
 PhysicsNeMo Robotics is not published on a package index and pins older Newton, Warp, and Torch
-releases than Isaac Lab. Install it into the Isaac Lab environment without its dependency pins, then
-add its remaining dependencies. Isaac Lab keeps its own Newton, Warp, and Torch versions.
+releases than Isaac Lab. Check out the validated commit, install it into the Isaac Lab environment
+without its dependency pins, then add its remaining dependencies. Isaac Lab keeps its own Newton, Warp,
+and Torch versions, and its locked environment already includes RSL-RL for the PPO examples.
 
 ```bash
+git clone https://gitlab-master.nvidia.com/mataei/physicsnemo-robotics.git /absolute/path/to/physicsnemo-robotics
+git -C /absolute/path/to/physicsnemo-robotics checkout 4e4be69
 export ROBOTICS_ROOT=/absolute/path/to/physicsnemo-robotics
 
 uv sync --frozen
@@ -51,7 +81,10 @@ Run Python from `.venv/bin/python`, or use `uv run --no-sync`. A later `uv sync`
 locked environment and removes these packages.
 
 The integration was validated with PhysicsNeMo Robotics `mataei/icra` at `4e4be69`, Newton 1.6.1,
-Warp 1.17.0, Torch 2.12, and PhysicsNeMo 2.1.1 on one CUDA GPU.
+Warp 1.17.0, Torch 2.12 (CUDA 13), PhysicsNeMo 2.1.1, and RSL-RL 5.5.1 on one NVIDIA RTX PRO 5000
+Blackwell GPU (driver 595.84). The tag `mnabian/flashnerd-benchmark-v1` adds only benchmark tooling and
+FP16 model safeguards on top of `4e4be69`; the benchmark below reproduces its protocol and does not
+need that checkout.
 
 ## Examples
 
@@ -127,8 +160,13 @@ script, to add a walking policy to the exploration targets.
 - `deploy.py` runs a MuJoCo Warp rollout and a learned rollout from the same seed and actions,
   checks the learned environment with `preflight_learned_physics`, and prints the open-loop joint
   error of every environment that has not been reset.
+- `train_policy.py` trains the task's RSL-RL PPO policy with MuJoCo Warp or, with `--artifact`, in
+  learned physics, and evaluates it with MuJoCo Warp. The ANYmal-D script also evaluates in learned
+  physics with `--eval-artifact`, and evaluates an existing policy without training with `--checkpoint`.
+- `cartpole/flashnerd_benchmark.py` records, trains, and evaluates with the FlashNeRD CartPole protocol.
 
-Default settings complete in a few minutes per stage on one GPU and only demonstrate the workflow.
+Default settings complete in minutes per stage on one GPU and only demonstrate the workflow. The
+reference results below were measured on a GPU shared with other jobs, so timings are upper bounds.
 
 ### A usable Cartpole model
 
@@ -140,14 +178,22 @@ python source/isaaclab_physicsnemo/examples/cartpole/record.py --output /tmp/car
   --num-envs 1024 --steps 1500
 python source/isaaclab_physicsnemo/examples/cartpole/train.py \
   --dataset /tmp/cartpole-data --output /tmp/cartpole-train --max-updates 30000 --batch-size 1024
+python source/isaaclab_physicsnemo/examples/cartpole/deploy.py --artifact /tmp/cartpole-train/artifact
+for seed in 42 43; do
+  python source/isaaclab_physicsnemo/examples/cartpole/train_policy.py --output /tmp/ppo-cartpole-mjwarp-$seed \
+    --seed $seed
+  python source/isaaclab_physicsnemo/examples/cartpole/train_policy.py --output /tmp/ppo-cartpole-learned-$seed \
+    --seed $seed --artifact /tmp/cartpole-train/artifact
+done
 ```
 
 The dataset holds about 10,800 episodes and 1.5 million frames; recording takes about 11 minutes and
-training about 70 minutes on one GPU. Reference results:
+training about 70 minutes on one GPU. Reference results, printed by `train.py` on the held-out 10 % of
+episodes (each horizon uses the episodes long enough for it, from 1,069 at E1 to 373 at E200):
 
 | Held-out rollout error | E1 | E15 | E100 | E200 |
 | --- | --- | --- | --- | --- |
-| This model, 30,000 updates (channel-averaged, before `E_H` was pooled) | 1.5e-4 | 8.5e-4 | 1.3e-2 | 8.4e-2 |
+| This model, 30,000 updates | 2.0e-4 | 1.0e-3 | 1.4e-2 | 0.10 |
 | FlashNeRD paper, 5,000,000 updates | 4.4e-5 | 1.7e-4 | 3.2e-3 | 6.0e-2 |
 
 The deployed model stays within 0.016 m or rad of MuJoCo Warp joint positions after 0.5 s of open-loop
@@ -199,23 +245,34 @@ python source/isaaclab_physicsnemo/examples/anymal_d/record.py --output /tmp/any
   --num-envs 1024 --steps 3000
 python source/isaaclab_physicsnemo/examples/anymal_d/train.py \
   --dataset /tmp/anymal-data --output /tmp/anymal-train --max-updates 60000
-for physics in "" "--artifact /tmp/anymal-train/artifact"; do
-  python source/isaaclab_physicsnemo/examples/anymal_d/train_policy.py --output /tmp/ppo-anymal $physics
+python source/isaaclab_physicsnemo/examples/anymal_d/deploy.py --artifact /tmp/anymal-train/artifact
+for seed in 42 43; do
+  python source/isaaclab_physicsnemo/examples/anymal_d/train_policy.py --output /tmp/ppo-anymal-mjwarp-$seed \
+    --seed $seed
+  python source/isaaclab_physicsnemo/examples/anymal_d/train_policy.py --output /tmp/ppo-anymal-learned-$seed \
+    --seed $seed --artifact /tmp/anymal-train/artifact
 done
+# the MuJoCo Warp policy in learned physics
+python source/isaaclab_physicsnemo/examples/anymal_d/train_policy.py --output /tmp/eval-anymal-mjwarp-42 \
+  --checkpoint /tmp/ppo-anymal-mjwarp-42/model_299.pt --eval-artifact /tmp/anymal-train/artifact
 ```
 
 The dataset holds 8,192 episodes and 3.1 million 5 ms frames; recording takes about 13 minutes and
 training the 10.7M-parameter model about 2.6 hours on a shared GPU. Reference results, with the earlier
-library-only inputs (planar joint codec, no gravity, 3.5M-parameter G1 application geometry) for comparison:
+library-only inputs (planar joint codec, no gravity, 3.5M-parameter G1 application geometry, commit
+`a7c167904`) for comparison:
 
 | Metric | G1 recipe | Library-only inputs |
 | --- | --- | --- |
 | One-step validation normalized delta RMSE | 0.25 | 0.26 |
 | Open-loop joint position error after 0.4 s / 2 s of random targets | 0.046 / 0.105 rad | 0.062 / 0.107 rad |
 | Open-loop base height error after 2 s | 0.024 m | 0.025 m |
-| MuJoCo Warp policy in learned physics: reward per step (MuJoCo Warp 0.0172) | 0.0175 | 0.0149 |
-| MuJoCo Warp policy in learned physics: linear-velocity tracking error (MuJoCo Warp 0.35 m/s) | 0.35 m/s | 0.40 m/s |
-| MuJoCo Warp policy in learned physics: falls (MuJoCo Warp 2 %) | 10 % | 17 % |
+| MuJoCo Warp policy in learned physics: reward per step (MuJoCo Warp 0.0175 to 0.0178) | 0.0177 | 0.0135 |
+| MuJoCo Warp policy in learned physics: linear-velocity tracking error (MuJoCo Warp 0.35 m/s) | 0.34 m/s | 0.41 m/s |
+| MuJoCo Warp policy in learned physics: fall rate (MuJoCo Warp 0.4 to 0.8 %) | 7.8 % | 24 % |
+
+The policy rows evaluate the seed-42 MuJoCo Warp policy with the `--checkpoint` command above, over 256
+environments and 1,000 policy steps; MuJoCo Warp results vary slightly between runs.
 
 PPO trained only in the learned environment (300 iterations, 4,096 environments) yields policies that
 walk in MuJoCo Warp but track commands worse than MuJoCo Warp training:
@@ -226,8 +283,8 @@ walk in MuJoCo Warp but track commands worse than MuJoCo Warp training:
 | Learned, G1 recipe, 42 / 43 | 4.3 / 5.9 | 3.1 % / 0 % |
 | Learned, library-only inputs, 42 / 43 | 6.6 / 5.2 | 2.0 % / 31 % |
 
-The G1 recipe makes the model reproduce a walking policy almost exactly, but the learned environment
-still produces falls that MuJoCo Warp does not, and PPO trained under them learns a conservative gait.
+The G1 recipe makes the model reproduce the reward and tracking of a walking policy, but the learned
+environment still produces falls that MuJoCo Warp does not, and PPO trained under them learns a conservative gait.
 FlashNeRD reports parity (28.0 against 27.8 in its reward). The remaining differences from its setup are
 the 5 ms frame with four times as many autoregressive steps and a 50 ms history window, effort instead of
 joint-target control, and ANYmal-D instead of ANYmal-C.
@@ -252,7 +309,8 @@ joint-target control, and ANYmal-D instead of ANYmal-C.
 | `preflight_learned_physics` | Check a live environment against the deployment contract |
 | `NewtonBinding`, `execution_spec_from_manager` | Simulation identity and live buffers of an environment |
 | `record_joint_rollout`, `compare_rollouts` | Measure the open-loop error of a learned rollout |
-| `evaluate_rollout_nrmse`, `HorizonError` | Prefix-averaged recursive-rollout error on recorded trajectories |
+| `evaluate_rollout_nrmse`, `HorizonError` | Prefix-pooled recursive-rollout error on recorded trajectories |
+| `heading.artifact_codec_factory`, `heading.artifact_feature_factory` | Default factories that rebuild this extension's codec and features from an artifact |
 | `isaaclab_model_signature`, `isaaclab_canonical_view` | Solver- and environment-count-independent model identity |
 
 Deploy a recorded task with the same configuration it was recorded with:
@@ -290,8 +348,10 @@ cfg.sim.physics = NewtonCfg(
 
 A teacher configuration must satisfy the learned solver contract:
 
-- One environment step is one physics frame: `decimation = 1`. Choose `sim.dt` as the control
-  period and let the teacher solver use substeps.
+- The learned solver advances one physics step, so `sim.dt` is the artifact frame. Recording needs one
+  environment step per physics step (`decimation = 1`); deployment may use any decimation. Keep the
+  physics step at the rate that explicit actuator models are evaluated at, and let the teacher solver use
+  substeps.
 - The scene has no contact-force sensor, IMU acceleration, or joint-wrench output, and no reward or
   termination reads them.
 - No event changes model properties (material, mass, inertia, center of mass, joint parameters) or
@@ -303,8 +363,10 @@ A teacher configuration must satisfy the learned solver contract:
   or no contacts, so no Newton collision pipeline is part of the recorded execution.
 - Articulations are trees that Newton forward kinematics rebuilds: one root, enabled joints, no
   loop-closing or cable joints, and identity anchors on free roots.
-- Floating-base robots use `remove_root_translation="planar"` when recording and training, so the
-  per-environment origin does not reach the model.
+- Floating-base robots pass a `HeadingJointStateCodec` (or `remove_root_translation="planar"`) to both
+  recording and training, so the per-environment origin does not reach the model.
+- Fixed contact probes query per-world surfaces, so every environment needs its own ground plane, as
+  in `tasks.AnymalDFlatTeacherEnvCfg`.
 
 Recording and deployment may use different environment counts.
 
@@ -334,7 +396,7 @@ last two rows work around PhysicsNeMo Robotics behavior and can be removed when 
 ```
 
 Tests skip when PhysicsNeMo Robotics is not installed. The CPU tests cover model identity, state
-ownership, effort control, rollout comparison, and exploration. The CUDA Cartpole tests check that every
+ownership, effort control, rollout comparison, exploration, and the heading codec and gravity encoder. The CUDA Cartpole tests check that every
 stage keeps the data semantics, independently of model accuracy:
 
 | Test | Contract |
