@@ -151,69 +151,6 @@ class SceneCameraCfg:
 
 
 @configclass
-class ImageViewCfg:
-    """A shared image selection consumed by windows and recorders.
-
-    Reusing this declaration shares one runtime view within a simulation, including across copies
-    of an environment configuration. Use :func:`isaaclab.utils.replace` to declare an independent view.
-    """
-
-    source: str | PerspectiveCameraCfg = MISSING
-    """Scene sensor name, or the initial camera for a visualizer-owned perspective render product."""
-
-    envs: tuple[int, ...] = (0,)
-    """Sensor rows to display, in the requested order."""
-
-    channels: tuple[str, ...] = ("rgb",)
-    """Display channels, left-to-right within each environment: rgb, depth, normals, or segmentation."""
-
-    size: tuple[int, int] | None = None
-    """Output width and height [px]. None retains native tile sizes. Window resizing does not change this."""
-
-    depth_range: tuple[float, float] = (0.1, 10.0)
-    """Near and far limits [m] for depth colorization."""
-
-    def __deepcopy__(self, memo):
-        """Keep this explicitly shared declaration when its consumers' configurations are copied."""
-        return self
-
-    def validate_config(self) -> None:
-        """Reject unsupported channels, negative row indices, and invalid output dimensions."""
-        from ..envs.utils.camera_view import sensor_key_for_gt_type
-
-        if not isinstance(self.source, (str, PerspectiveCameraCfg)) or self.source == "":
-            raise ValueError("ImageViewCfg.source must name a scene camera or declare a perspective camera.")
-        if any(not isinstance(i, int) or i < 0 for i in self.envs):
-            raise ValueError("ImageViewCfg.envs must contain non-negative sensor row indices.")
-        if not self.channels:
-            raise ValueError("ImageViewCfg.channels must contain at least one display channel.")
-        for channel in self.channels:
-            sensor_key_for_gt_type(channel)
-        if isinstance(self.source, PerspectiveCameraCfg) and (self.envs != (0,) or self.channels != ("rgb",)):
-            raise ValueError("Perspective image views provide one RGB image; use envs=(0,) and channels=('rgb',).")
-        if self.size is not None and (len(self.size) != 2 or any(not isinstance(i, int) or i < 1 for i in self.size)):
-            raise ValueError("ImageViewCfg.size must contain positive integer width and height.")
-        if len(self.depth_range) != 2 or not 0 <= self.depth_range[0] < self.depth_range[1]:
-            raise ValueError("ImageViewCfg.depth_range must contain increasing non-negative limits.")
-
-
-@configclass
-class GLWindowCfg:
-    """Present an image view in a Newton GL or RTX window, independently of the source renderer."""
-
-    view: ImageViewCfg = MISSING
-    """Shared image view presented by the window."""
-
-    size: tuple[int, int] | None = None
-    """Initial window width and height [px]. None uses the image view's size or backend defaults."""
-
-    def validate_config(self) -> None:
-        """Check the requested window dimensions."""
-        if self.size is not None and (len(self.size) != 2 or any(not isinstance(i, int) or i < 1 for i in self.size)):
-            raise ValueError("GLWindowCfg.size must contain positive integer width and height.")
-
-
-@configclass
 class VisualizerCfg:
     """Base configuration for all visualizer backends.
 
@@ -229,9 +166,6 @@ class VisualizerCfg:
 
     cloning_contexts: tuple[type | str, ...] = ()
     """Clone contexts that build this visualizer's scene representation from the asset plan."""
-
-    window: GLWindowCfg | None = None
-    """Shared image-view presentation for Newton GL/RTX. None retains legacy camera selection."""
 
     # Primary interactive camera settings
     cameras: list[PerspectiveCameraCfg | SceneCameraCfg] | None = None
@@ -288,7 +222,8 @@ class VisualizerCfg:
     """GT data types displayed left-to-right per environment row.
 
     Valid values: ``"rgb"``, ``"depth"``, ``"segmentation"``, ``"normals"``.
-    Validated at initialization when :attr:`streaming_view` is ``True``.
+    Validated against :data:`~isaaclab.envs.utils.camera_colorizer.SUPPORTED_GT_TYPES`
+    at initialization time (only when :attr:`streaming_view` is ``True``).
     """
 
     streaming_depth_min: float = 0.1
@@ -335,14 +270,6 @@ class VisualizerCfg:
     # Internal
     visualizer_type: str | None = None
     """Type identifier (e.g., 'newton', 'rerun', 'viser', 'kit'). Must be overridden by subclasses."""
-
-    def validate_config(self) -> None:
-        """Reject ambiguous sources and unsupported native-window configurations."""
-        if self.window is not None:
-            if self.visualizer_type not in ("newton_gl", "newton_rtx"):
-                raise ValueError("GLWindowCfg requires a Newton GL or RTX visualizer.")
-            if self.cameras is not None or self.streaming_sensor_prim_path is not None:
-                raise ValueError("Choose window.view or legacy cameras/streaming_sensor_prim_path, not both.")
 
     def __post_init__(self) -> None:
         if self.background_color is not None:

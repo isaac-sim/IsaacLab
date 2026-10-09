@@ -401,7 +401,6 @@ def test_visualizer_step_renders_markers_and_closes_frame(monkeypatch, caplog, m
     visualizer._is_initialized = True
     visualizer._viewer = viewer = Viewer()
     visualizer._scene_data_provider = provider
-    visualizer._sim = SimpleNamespace(get_physics_step_count=lambda: 1)
     visualizer._transform_mapping = None
     visualizer._env_ids = [1, 3]
 

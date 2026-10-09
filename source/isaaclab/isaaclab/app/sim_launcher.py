@@ -17,7 +17,7 @@ import logging
 import os
 import sys
 import traceback
-from collections.abc import Generator, Sequence
+from collections.abc import Generator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Any
@@ -37,7 +37,7 @@ from ..sim.simulation_cfg import SimulationCfg
 from ..utils.assets import configure_storage_profile
 from ..utils.device import set_cuda_device
 from ..utils.string import string_to_callable
-from ..visualizers.visualizer_cfg import VisualizerCfg, parse_visualizer_csv, resolve_visualizer_cfgs
+from ..visualizers.visualizer_cfg import parse_visualizer_csv, resolve_visualizer_cfgs
 from .logging_utils import apply_python_logging_level, ensure_console_handlers, resolve_python_logging_level
 from .settings_manager import get_settings_manager
 
@@ -195,9 +195,7 @@ def _resolve_launcher_args(args: dict) -> None:
     args["visualizer"] = visualizers
 
 
-def _resolve_video_sources(
-    video_recorders: list[VideoRecorderCfg], visualizers: list[str], visualizer_cfgs: Sequence[VisualizerCfg] = ()
-) -> list[str]:
+def _resolve_video_sources(video_recorders: list[VideoRecorderCfg], visualizers: list[str]) -> list[str]:
     """Rewrite each visualizer source of *video_recorders* to the concrete ``viz:<type>[:streaming_view]``.
 
     A bare ``viz`` records from the first capture-capable type of the *visualizers* selection, else from
@@ -211,14 +209,6 @@ def _resolve_video_sources(
     """
     video_visualizers = []
     for recorder in video_recorders:
-        if recorder.view is not None:
-            if isinstance(recorder.view.source, str):
-                continue
-            owners = [cfg for cfg in visualizer_cfgs if cfg.window is not None and cfg.window.view is recorder.view]
-            if len(owners) != 1:
-                raise ValueError("A recorded perspective view requires exactly one configured visualizer.")
-            video_visualizers.append(owners[0].visualizer_type)
-            continue
         kind, name, sub = parse_video_source(recorder.source)
         if kind == "sensor":
             continue
@@ -361,9 +351,7 @@ def scan(cfg, launcher_args: argparse.Namespace | dict | None = None) -> Scan:
 
     visit(cfg, None, None)
 
-    video_visualizers = _resolve_video_sources(
-        video_recorders, args["visualizer"], sim_cfg.visualizer_cfgs if sim_cfg is not None else ()
-    )
+    video_visualizers = _resolve_video_sources(video_recorders, args["visualizer"])
     has_physics = bool(physics_cfgs)
     config_scan = Scan(
         resolved_physics_cfg=physics_cfgs[0] if physics_cfgs else None,

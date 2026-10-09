@@ -30,13 +30,7 @@ from ..utils import instantiate
 from ..utils.string import clear_resolve_matching_names_cache
 from ..utils.version import has_kit
 from ..visualizers.base_visualizer import BaseVisualizer
-from ..visualizers.image_view import ImageView
-from ..visualizers.visualizer_cfg import (
-    ImageViewCfg,
-    get_visualizer_install_hint,
-    parse_visualizer_csv,
-    resolve_visualizer_cfgs,
-)
+from ..visualizers.visualizer_cfg import get_visualizer_install_hint, parse_visualizer_csv, resolve_visualizer_cfgs
 from .utils import create_new_stage
 from .utils import stage as stage_utils
 
@@ -44,7 +38,6 @@ if TYPE_CHECKING:
     from pxr import Usd
 
     from ..cloner.clone_plan import ClonePlan
-    from ..sensors import Camera
 
 from .simulation_cfg import BackendCfg, SimulationCfg
 from .spawners import DomeLightCfg, GroundPlaneCfg
@@ -204,7 +197,6 @@ class SimulationContext:
         # Construct visualizers before cloning; initialize their runtime bindings after physics is ready.
         self._scene_data_provider = SceneDataProvider(self.physics_manager.get_scene_data_backend())
         self._visualizers: list[BaseVisualizer] = []
-        self._image_views: dict[int, ImageView] = {}
         self._pending_visualizers: list[BaseVisualizer] = []
         self._visualizers_started = False
         self._reset_requested: bool = False
@@ -470,13 +462,9 @@ class SimulationContext:
         for visualizer in tuple(self._pending_visualizers):
             if config_filter is not None and not config_filter(visualizer.cfg):
                 continue
-            if visualizer.cfg.window is not None:
-                view = self.get_image_view(visualizer.cfg.window.view)
-                cameras = [view.camera if view.camera is not None else view.cfg.source]
-            else:
-                camera_sensors = self._scene_data_provider.get_camera_sensors() if visualizer.cfg.streaming_view else {}
-                env_template = self._clone_plan.env_template if self._clone_plan is not None else DEFAULT_ENV_TEMPLATE
-                cameras = resolve_camera_sources(visualizer.cfg, camera_sensors, env_template=env_template)
+            camera_sensors = self._scene_data_provider.get_camera_sensors() if visualizer.cfg.streaming_view else {}
+            env_template = self._clone_plan.env_template if self._clone_plan is not None else DEFAULT_ENV_TEMPLATE
+            cameras = resolve_camera_sources(visualizer.cfg, camera_sensors, env_template=env_template)
             visualizer.initialize(self, cameras=cameras)
             self._pending_visualizers.remove(visualizer)
             self._visualizers.append(visualizer)
@@ -485,26 +473,6 @@ class SimulationContext:
                 visualizer.set_camera_view(*self._pending_camera_view)
         if not self._pending_visualizers:
             self._pending_camera_view = None
-
-    def get_image_view(self, cfg: ImageViewCfg, *, camera: Camera | None = None) -> ImageView:
-        """Bind a shared image declaration once for all windows and recorders in this simulation.
-
-        Args:
-            cfg: Shared view declaration. Copies of a consumer retain this declaration by reference.
-            camera: Already resolved sensor for legacy prim-path camera selections.
-
-        Returns:
-            The simulation-owned view. Perspective producers bind their rendering callback during initialization.
-        """
-        key = id(cfg)
-        if key not in self._image_views:
-            if camera is None and isinstance(cfg.source, str):
-                cameras = self._scene_data_provider.get_camera_sensors()
-                if cfg.source not in cameras:
-                    raise ValueError(f"No scene Camera named {cfg.source!r}; available cameras: {sorted(cameras)}.")
-                camera = cameras[cfg.source]
-            self._image_views[key] = ImageView(cfg, camera)
-        return self._image_views[key]
 
     def get_scene_data_provider(self) -> SceneDataProvider:
         """Return the scene data provider shared by visualizers and renderers."""
@@ -593,8 +561,6 @@ class SimulationContext:
             soft: If True, skip full reinitialization.
         """
         self.physics_manager.reset(soft)
-        for view in self._image_views.values():
-            view.invalidate()
         for viz in self._visualizers:
             viz.reset(soft)
         # Initialize visualizers not prepared by a backend-specific pre-capture hook.
@@ -858,9 +824,6 @@ class SimulationContext:
                     run_cleanup(viz.close)
                 instance._visualizers.clear()
                 instance._pending_visualizers.clear()
-                for view in instance._image_views.values():
-                    run_cleanup(view.close)
-                instance._image_views.clear()
 
                 instance.clone_contexts.clear()
                 # Newest first: the Kit USD-context backend, registered first, closes last but

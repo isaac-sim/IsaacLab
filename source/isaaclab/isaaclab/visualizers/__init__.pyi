@@ -5,14 +5,10 @@
 
 __all__ = [
     "BaseVisualizer",
-    "GLWindowCfg",
-    "ImageView",
-    "ImageViewCfg",
     "PerspectiveCameraCfg",
     "SceneCameraCfg",
     "VisualizerCfg",
 ]
 
 from .base_visualizer import BaseVisualizer
-from .image_view import ImageView
-from .visualizer_cfg import GLWindowCfg, ImageViewCfg, PerspectiveCameraCfg, SceneCameraCfg, VisualizerCfg
+from .visualizer_cfg import PerspectiveCameraCfg, SceneCameraCfg, VisualizerCfg

@@ -140,7 +140,6 @@ class _FakeVisualizer(BaseVisualizer):
 
 def _make_context(visualizers, provider=None):
     ctx = object.__new__(SimulationContext)
-    ctx._image_views = {}
     ctx._visualizers = list(visualizers)
     ctx._visualizers_started = bool(visualizers)
     ctx._scene_data_provider = provider
@@ -304,7 +303,6 @@ def test_reset_initializes_visualizers_before_playing_timeline():
     """Initial visualizers must see the PhysX views created by reset before play() pumps timeline events."""
     events: list[str] = []
     ctx = object.__new__(SimulationContext)
-    ctx._image_views = {}
     ctx.cfg = SimpleNamespace(physics=object())
     ctx._visualizers = [
         SimpleNamespace(
@@ -778,7 +776,6 @@ def test_visualizer_construction_precedes_initialization_and_happens_once(monkey
     visualizer = ctx._pending_visualizers[0]
     if not fail_construct:
         ctx._clone_plan = SimpleNamespace(env_template="/Scenes/world_{}")
-        ctx._scene_data_provider._num_envs = 4
         camera = SimpleNamespace(cfg=SimpleNamespace(prim_path="/Scenes/world_[^/]+/Camera", data_types=["rgb"]))
         ctx._scene_data_provider.get_camera_sensors = Mock(return_value={"camera": camera})
         source = SceneCameraCfg(prim_path="{ENV_REGEX_NS}/Camera")
@@ -786,12 +783,10 @@ def test_visualizer_construction_precedes_initialization_and_happens_once(monkey
         cfg.cameras, cfg.streaming_view = [source, perspective], True
         ctx.initialize_visualizers()
         ctx.initialize_visualizers()
-        assert [view.camera or view.cfg.source for view in visualizer._image_views] == [camera, perspective]
+        assert visualizer._camera_choices == [camera, perspective]
         assert cfg.cameras == [source, perspective]
         assert source.prim_path == "{ENV_REGEX_NS}/Camera"
-        assert not {"_clone_plan", "_scene_stage", "_get_backend", "_camera_choices", "_streaming_frame"}.intersection(
-            vars(visualizer)
-        )
+        assert not {"_clone_plan", "_scene_stage", "_get_backend"}.intersection(vars(visualizer))
         ctx._scene_data_provider.get_camera_sensors.assert_called_once_with()
         assert visualizer._sim is ctx
         assert seen == [cfg]
@@ -827,7 +822,6 @@ def _make_context_with_settings(
         },
     )()
     ctx = object.__new__(SimulationContext)
-    ctx._image_views = {}
     ctx.cfg = cfg
     ctx._has_gui = has_gui
     ctx._has_offscreen_render = has_offscreen_render

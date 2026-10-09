@@ -19,10 +19,12 @@ from urllib.parse import urlparse
 import numpy as np
 import warp as wp
 
-from ..envs.utils.camera_view import resolve_streaming_envs
+from ..envs.utils.camera_colorizer import sensor_key_for_gt_type
+from ..envs.utils.camera_view import image_grid_columns, resolve_streaming_envs
 from ..utils import validate
-from .image_view import ImageView
-from .visualizer_cfg import ImageViewCfg, PerspectiveCameraCfg
+from ..utils.buffers import TimestampedBuffer
+from ..utils.images import compose_image
+from .visualizer_cfg import PerspectiveCameraCfg
 
 if TYPE_CHECKING:
     from ..managers import ManagerBase
@@ -53,6 +55,7 @@ class BaseVisualizer(ABC):
         self.cfg = cfg
         self._scene_data_provider = None
         self._sim: SimulationContext | None = None
+        self._camera_choices: list[PerspectiveCameraCfg | Camera] = []
         self._is_initialized = False
         self._is_closed = False
         self._env_ids: list[int] | None = None
@@ -62,8 +65,16 @@ class BaseVisualizer(ABC):
         self._live_plots_step_counter: int = 0
         self._reset_requested: bool = False
         self._sim_time = 0.0
-        self.image_view: ImageView | None = None
-        self._image_views: list[ImageView] = []
+        self._camera_sensor: Camera | None = None
+        self._camera_sensor_indices: list[int] = []
+        self._streaming_aspect = 1.0
+        self._streaming_frame = TimestampedBuffer()
+        self._streaming_host_frame = TimestampedBuffer()
+        self._streaming_env_ids: wp.array | None = None
+        self._streaming_depth_colors: wp.array | None = None
+        self._streaming_layout: tuple | None = None
+        self._streaming_view_key: tuple | None = None
+        self._streaming_keys: tuple[str, ...] = ()
 
     @property
     def visual_material_writer(self) -> Callable[[tuple[VisualMaterialBatch, ...]], Any] | None:
@@ -86,6 +97,7 @@ class BaseVisualizer(ABC):
             raise RuntimeError(f"{self.__class__.__name__} requires a scene_data_provider.")
         self._scene_data_provider = scene_data_provider
         self._sim = sim
+        self._camera_choices = list(cameras)
 
         cfg = self.cfg
         num_envs = scene_data_provider.num_envs
@@ -99,37 +111,98 @@ class BaseVisualizer(ABC):
             elif cfg.max_visible_envs is not None:
                 self._env_ids = list(range(count))
 
-        self._image_views.clear()
-        if self.cfg.window is not None:
-            self.image_view = self._sim.get_image_view(self.cfg.window.view)
-            self._image_views = [self.image_view]
+    def _setup_streaming_view(
+        self,
+        num_envs: int,
+        *,
+        visible_env_ids: list[int] | None = None,
+        target_aspect: float = 1.0,
+    ) -> None:
+        """Configure tiles and bind the first scene camera for display."""
+        if not self.cfg.streaming_view:
             return
-        env_ids = []
-        if any(not isinstance(camera, PerspectiveCameraCfg) for camera in cameras):
-            env_ids = resolve_streaming_envs(num_envs, self.cfg.streaming_envs, sample_from=self._env_ids)
-        for camera in cameras:
-            perspective = isinstance(camera, PerspectiveCameraCfg)
-            cfg = ImageViewCfg(
-                source=camera if perspective else camera.cfg.prim_path,
-                envs=(0,) if perspective else tuple(map(int, env_ids)),
-                channels=("rgb",) if perspective else tuple(self.cfg.streaming_gt_types),
-                depth_range=(self.cfg.streaming_depth_min, self.cfg.streaming_depth_max),
-            )
-            view = self._sim.get_image_view(cfg, camera=None if perspective else camera)
-            self._image_views.append(view)
-        self.image_view = next((view for view in self._image_views if view.camera is not None), None)
+        self._streaming_aspect = target_aspect
+        self._camera_sensor_indices = resolve_streaming_envs(
+            num_envs, self.cfg.streaming_envs, sample_from=visible_env_ids
+        )
+        self._camera_sensor = next(
+            (camera for camera in self._camera_choices if not isinstance(camera, PerspectiveCameraCfg)), None
+        )
 
     def render_tiled_rgba(self) -> wp.array | None:
-        """Read the selected sensor view's shared GPU frame."""
-        if self.image_view is None or self.image_view.camera is None:
+        """Acquire the selected camera frame and compose a device-resident display image.
+
+        Returns:
+            Reused uint8 RGBA storage of shape [H, W, 4], or None without a selected camera.
+            Acquisition uses the sensor's normal lazy update. Composition itself only reads published arrays.
+        """
+        camera, env_ids, cfg = self._camera_sensor, self._camera_sensor_indices, self.cfg
+        if camera is None or not env_ids:
             return None
-        return self.image_view.read(self._sim.get_physics_step_count())
+        gt_types = tuple(cfg.streaming_gt_types)
+        aspect, depth_min, depth_max = self._streaming_aspect, cfg.streaming_depth_min, cfg.streaming_depth_max
+        view_key = (camera, tuple(env_ids), gt_types, aspect, depth_min, depth_max)
+        frame = self._streaming_frame
+        if view_key != self._streaming_view_key:
+            available = frozenset(camera.cfg.data_types)
+            self._streaming_keys = tuple(sensor_key_for_gt_type(gt, available) for gt in gt_types)
+            self._streaming_layout = None
+            self._streaming_view_key = view_key
+            frame.timestamp = -1.0
+        if frame.timestamp == self._sim_time:
+            return frame.data
+
+        outputs = camera.data.output
+        sources = tuple(outputs[key].warp for key in self._streaming_keys)
+        layout = tuple((source.shape, source.dtype, source.device) for source in sources)
+        if self._streaming_layout != layout:
+            if not sources:
+                raise ValueError("Image composition requires at least one display channel.")
+            for source, gt in zip(sources, gt_types, strict=True):
+                channels = 3 if gt in ("rgb", "normals") else 1
+                if source.ndim != 4 or min(source.shape) < 1 or source.shape[3] < channels:
+                    raise ValueError(
+                        f"Channel {gt!r} requires nonempty [N, H, W, C] arrays with at least {channels} channels."
+                    )
+            device = sources[0].device
+            n, height, width, _ = sources[0].shape
+            if any(source.device != device or source.shape[:3] != (n, height, width) for source in sources):
+                raise ValueError("Image channels must have the same batch size, resolution, and device.")
+            if min(env_ids) < 0 or max(env_ids) >= n:
+                raise ValueError(f"Image row selection is outside the source batch of {n} rows.")
+            columns = image_grid_columns(len(env_ids), len(sources), height, width, aspect)
+            shape = (math.ceil(len(env_ids) / columns) * height, columns * len(sources) * width, 4)
+            colors = np.empty((0, 3), dtype=np.uint8)
+            if "depth" in gt_types:
+                from matplotlib import colormaps
+
+                colors = (colormaps["turbo"](np.arange(256) / 255.0)[..., :3] * 255).astype(np.uint8)
+            self._streaming_env_ids = wp.array(env_ids, dtype=wp.int32, device=device)
+            self._streaming_depth_colors = wp.array(colors, dtype=wp.uint8, device=device)
+            frame.data = wp.empty(shape, dtype=wp.uint8, device=device)
+            self._streaming_layout = layout
+        compose_image(
+            frame.data, sources, self._streaming_env_ids, gt_types, self._streaming_depth_colors,
+            depth_min=depth_min, depth_max=depth_max,
+        )  # fmt: skip
+        frame.timestamp = self._sim_time
+        self._streaming_host_frame.timestamp = -1.0
+        return frame.data
 
     def render_tiled_rgb_array(self) -> np.ndarray | None:
-        """Download the selected sensor view's shared frame for CPU consumers."""
-        if self.image_view is None or self.image_view.camera is None:
+        """Read back the tiled image for CPU consumers such as recording and web transports.
+
+        Returns:
+            Cached contiguous uint8 RGB image of shape [H, W, 3], or None without a selected camera.
+        """
+        image = self.render_tiled_rgba()
+        if image is None:
             return None
-        return self.image_view.read_rgb(self._sim.get_physics_step_count())
+        frame = self._streaming_host_frame
+        if frame.timestamp != self._streaming_frame.timestamp:
+            frame.data = np.ascontiguousarray(image.numpy()[..., :3])
+            frame.timestamp = self._streaming_frame.timestamp
+        return frame.data
 
     @abstractmethod
     def step(self, dt: float) -> None:
@@ -146,8 +219,13 @@ class BaseVisualizer(ABC):
 
         Subclasses must call ``super().close()`` when their resource teardown finishes, including on failure.
         """
-        self.image_view = None
-        self._image_views.clear()
+        self._camera_sensor = None
+        self._camera_choices.clear()
+        self._streaming_frame = TimestampedBuffer()
+        self._streaming_host_frame = TimestampedBuffer()
+        self._streaming_env_ids = self._streaming_depth_colors = None
+        self._streaming_layout = self._streaming_view_key = None
+        self._streaming_keys = ()
         self._scene_data_provider = self._sim = None
         self._is_closed = True
 
@@ -348,8 +426,8 @@ class BaseVisualizer(ABC):
         Args:
             soft: Whether to perform a soft reset.
         """
-        for view in self._image_views:
-            view.invalidate()
+        self._streaming_frame.timestamp = -1.0
+        self._streaming_host_frame.timestamp = -1.0
 
     def _log_initialization_table(self, logger: logging.Logger, title: str, rows: list[tuple[str, Any]]) -> None:
         """Log a compact initialization table for a visualizer.

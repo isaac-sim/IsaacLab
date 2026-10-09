@@ -564,23 +564,6 @@ def compose_image(
         )
 
 
-@wp.kernel(enable_backward=False)
-def _resize_rgba_image(source: wp.array3d(dtype=wp.uint8), output: wp.array3d(dtype=wp.uint8)):
-    y, x = wp.tid()
-    scale = wp.min(float(output.shape[0]) / float(source.shape[0]), float(output.shape[1]) / float(source.shape[1]))
-    height = wp.max(1, int(float(source.shape[0]) * scale))
-    width = wp.max(1, int(float(source.shape[1]) * scale))
-    top, left = (output.shape[0] - height) // 2, (output.shape[1] - width) // 2
-    for c in range(3):
-        value = wp.uint8(0)
-        if top <= y and y < top + height and left <= x and x < left + width:
-            src_y = wp.min(int(float(y - top) / scale), source.shape[0] - 1)
-            src_x = wp.min(int(float(x - left) / scale), source.shape[1] - 1)
-            value = source[src_y, src_x, c]
-        output[y, x, c] = value
-    output[y, x, 3] = wp.uint8(255)
-
-
 def _make_image_composition_kernel(gt_type: str):
     """Specialize channel colorization at compilation; share only the tiling implementation."""
 
