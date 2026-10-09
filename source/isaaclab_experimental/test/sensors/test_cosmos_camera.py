@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Cosmos on any camera: canvas choice, preserved view, and published size."""
+"""Cosmos on compatible cameras: canvas choice, preserved view, and published pixels."""
 
 import pytest
 import torch
@@ -28,10 +28,15 @@ def _camera(width, height, **kwargs):
 
 
 @pytest.mark.parametrize(
-    "size,canvas",
-    [((64, 64), (640, 640)), ((160, 120), (736, 544)), ((120, 160), (544, 736)), ((832, 480), (832, 480))],
+    "size,canvas,bounds",
+    [
+        ((64, 64), (640, 640), (0, 0, 640, 640)),
+        ((160, 120), (736, 544), (5, 0, 730, 544)),
+        ((120, 160), (544, 736), (0, 5, 544, 730)),
+        ((832, 480), (832, 480), (0, 0, 832, 480)),
+    ],
 )
-def test_cosmos_camera_renders_a_canvas_with_the_same_view_and_publishes_the_original_size(size, canvas):
+def test_cosmos_camera_renders_a_canvas_with_the_same_view_and_publishes_the_original_size(size, canvas, bounds):
     """The canvas keeps the camera's aspect ratio; the published crop sees what the camera saw."""
     width, height = size
     camera = cosmos_camera(_camera(width, height), CosmosModelCfg(modality="depth"), near=0.2, far=1.5)
@@ -46,10 +51,21 @@ def test_cosmos_camera_renders_a_canvas_with_the_same_view_and_publishes_the_ori
     assert camera.spawn.vertical_aperture == pytest.approx(pixel * canvas[1])
     crop = min(canvas[0] / width, canvas[1] / height)
     assert pixel * width * crop == pytest.approx(20.0, rel=1 / min(canvas))
+    # Two differently colored views with a white border outside the independently specified center crop.
+    # Publishing a corner crop, the entire canvas, or another view's pixels changes the expected colors.
+    colors = torch.tensor([[20, 40, 60], [80, 100, 120]], dtype=torch.uint8).view(2, 1, 1, 3)
+    generated = torch.full((2, canvas[1], canvas[0], 3), 255, dtype=torch.uint8)
+    left, top, right, bottom = bounds
+    generated[:, top:bottom, left:right] = colors
     if size == canvas:
         assert len(chain) == 2
+        published = generated
     else:
-        assert chain[2].func is center_crop_resize and chain[2].params == {"width": width, "height": height}
+        published = chain[2].func(generated, **chain[2].params)
+    assert published.shape == (2, height, width, 3)
+    assert published.dtype == torch.uint8 and published.device == generated.device
+    assert published.is_contiguous()
+    assert torch.equal(published, colors.expand(2, height, width, 3))
 
 
 def test_cosmos_camera_rejects_cameras_it_cannot_reproduce():

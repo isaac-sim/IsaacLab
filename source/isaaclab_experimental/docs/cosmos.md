@@ -31,9 +31,9 @@ starting training.
 For a different endpoint, pass `--endpoint unix:///path/to/socket` or `--endpoint tcp://127.0.0.1:5556` to
 `status` and set the camera's `CosmosModelCfg.endpoint` to the same address.
 
-## Run any camera task with Cosmos
+## Run a compatible camera task with Cosmos
 
-Any camera task can use Cosmos without changes to the task: add `--cosmos` to `isaaclab train` or
+Compatible camera tasks can use Cosmos without a task-specific preset: add `--cosmos` to `isaaclab train` or
 `isaaclab play`. Isaac Lab finds the task's camera that publishes only `rgb`, renders it at a Cosmos canvas
 with the same aspect ratio and view, generates with Cosmos, and scales the result back to the camera's size,
 so the policy's observation keeps its shape. It uses one environment unless `--num_envs` asks for more (see
@@ -65,7 +65,8 @@ Limits of `--cosmos`:
 - One environment unless `--num_envs` sets more, up to the service's `--max-views`. Agent configurations with
   fixed minibatch sizes larger than the rollout (some rl_games configurations) need adjusting; RSL-RL works as
   configured.
-- The camera must publish only `rgb` and use a pinhole lens.
+- The camera must publish only `rgb`, use a pinhole lens, and have no existing modifiers. Rendering must be
+  synchronous and the scene must use lazy sensor updates.
 - The camera renders at the Cosmos canvas, so its `image_shape` and intrinsics describe the canvas, while its `rgb`
   output keeps the original size. Direct tasks that size their observation space from the camera configuration,
   such as `Isaac-Cartpole-Camera-Direct`, are not supported; Isaac Lab warns for Direct tasks.

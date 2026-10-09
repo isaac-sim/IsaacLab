@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""One path for Cosmos on any Isaac Lab camera: :func:`cosmos_camera` and :func:`apply_cosmos`."""
+"""Cosmos on compatible Isaac Lab cameras: :func:`cosmos_camera` and :func:`apply_cosmos`."""
 
 from __future__ import annotations
 
@@ -47,7 +47,7 @@ def cosmos_camera(
 
     Args:
         camera: Pinhole camera publishing only ``rgb``, for example a task's policy camera.
-        model: Cosmos service connection, prompt and control type (``"depth"`` or ``"edge"``).
+        model: Cosmos service connection, prompt and control type (``"depth"``, ``"edge"``, or ``"blur"``).
         near: Depth rendered white [m], for depth control.
         far: Depth rendered black [m], for depth control.
         edge_thresholds: Lower and upper Canny thresholds, for edge control.
@@ -152,7 +152,7 @@ def apply_cosmos(
         prompt: Appearance prompt, or a list: cycled per episode for one environment, one per environment for
             several (see :attr:`CosmosModelCfg.prompt`).
         camera: Scene camera name. Defaults to None, which selects the only rgb camera.
-        control: Control type: ``"depth"`` or ``"edge"``.
+        control: Control type: ``"depth"``, ``"edge"``, or ``"blur"``.
         near: Depth rendered white [m], for depth control.
         far: Depth rendered black [m], for depth control.
         endpoint: Cosmos service endpoint.
