@@ -658,6 +658,7 @@ class OperationalSpaceControllerAction(ActionTerm):
             self._mass_matrix[:] = self._asset.data.mass_matrix.torch[:, self._jacobi_joint_idx, :][
                 :, :, self._jacobi_joint_idx
             ]
+            self._mass_matrix.diagonal(dim1=-2, dim2=-1).add_(self._asset.data.joint_armature.torch[:, self._joint_ids])
         if self._needs_gravity:
             self._gravity[:] = self._asset.data.gravity_compensation_forces.torch[:, self._jacobi_joint_idx]
 
