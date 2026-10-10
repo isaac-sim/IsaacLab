@@ -28,7 +28,6 @@ args_cli = parser.parse_args()
 
 """Rest everything follows."""
 
-from isaaclab_physx.sim.schemas import PhysxDeformableBodyPropertiesCfg
 from isaaclab_physx.sim.spawners.materials import PhysxDeformableBodyMaterialCfg
 
 import isaaclab.sim as sim_utils
@@ -75,7 +74,7 @@ def design_scene():
     # spawn a blue cuboid with deformable body
     cfg_cuboid_deformable = sim_utils.MeshCuboidCfg(
         size=(0.2, 0.5, 0.2),
-        deformable_props=PhysxDeformableBodyPropertiesCfg(),
+        volume_deformable_props=[],
         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0)),
         physics_material=PhysxDeformableBodyMaterialCfg(),
     )
