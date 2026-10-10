@@ -1169,6 +1169,10 @@ def test_newton_gl_background_color(color: tuple[float, float, float] | None) ->
 @pytest.mark.parametrize("background_color", [None, (0.0, 0.0, 1.0)])
 def test_newton_rtx_scene_sky_and_background_override(tmp_path, monkeypatch, lighting, background_color):
     """The native viewer preserves authored lighting and borrows a stage without owning sensors."""
+    if lighting:
+        pytest.skip(
+            "Two OVRTX renderers can hang; re-enable after adopting https://github.com/newton-physics/newton/pull/4627."
+        )
     import gymnasium as gym
     from isaaclab_newton.renderers import NewtonWarpRendererCfg
     from isaaclab_ov.renderers import OVRTXRendererCfg
