@@ -4,9 +4,12 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
+    "UNITREE_G1_29DOF_BOX_FOOT_CFG",
     "Multirotor",
     "MultirotorCfg",
     "MultirotorData",
 ]
 
 from .multirotor import Multirotor, MultirotorCfg, MultirotorData
+
+from .unitree import UNITREE_G1_29DOF_BOX_FOOT_CFG
