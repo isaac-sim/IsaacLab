@@ -9,6 +9,10 @@ This document describes the implemented design. Examples marked **application
 stub** leave task-specific scene/controller code to the application; all surrounding
 configuration, lifecycle and API calls show the intended integration.
 
+The companion [configuration and API reference](newton-manager-api.md) lists every
+Newton configuration field, public manager/backend call, solver extension hook and
+runtime record, with defaults, usage and recipes for callbacks, sensors and resets.
+
 ## The pieces and their relationships
 
 ```mermaid
