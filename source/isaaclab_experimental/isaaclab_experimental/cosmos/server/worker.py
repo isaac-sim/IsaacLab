@@ -25,12 +25,6 @@ def main(args: list[str] | None = None) -> None:
     parser.add_argument("--no-compile", action="store_true")
     parser.add_argument("--warmup", action="store_true")
     parser.add_argument(
-        "--max-episode-frames",
-        type=int,
-        default=0,
-        help="Optional episode cap in frames, 1 + 4*k with k >= 1; default 0 leaves the budget to each session.",
-    )
-    parser.add_argument(
         "--kv-window",
         type=int,
         default=30,
@@ -49,7 +43,6 @@ def main(args: list[str] | None = None) -> None:
             options.checkpoint,
             options.device,
             use_compile=not options.no_compile,
-            max_episode_frames=options.max_episode_frames or None,
             kv_window=options.kv_window,
             attention_sink=options.attention_sink,
         ),

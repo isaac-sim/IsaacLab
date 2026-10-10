@@ -108,9 +108,8 @@ Wait for `Cosmos ready at tcp://127.0.0.1:5555`, then leave this terminal runnin
 The worker reserves the endpoint before loading the model on `cuda:0`, so a conflicting endpoint fails
 immediately. It accepts requests after model loading and warmup; wait for the ready message before connecting.
 
-`--max-episode-frames N` optionally sets the longest episode a camera may request, `1 + 4*k` frames.
-The default is `0` (no server cap); each task requests its own finite frame budget. See
-[Episode length cap](cosmos.md#episode-length-cap).
+The server sets no episode length limit: each task requests its own frame budget when it opens a session. See
+[Episode frame budget](cosmos.md#episode-frame-budget).
 
 Isaac Lab requests the camera count when it opens a session; no server-side view count is needed. Close the
 session before starting another with a different count. Each view needs GPU memory for its own generation
@@ -123,7 +122,7 @@ needs less memory, especially with several environments, but remembers less of e
 
 `--no-compile` selects eager inference. Omit it to enable the compiled CUDA-graph
 path, which can take additional time on its first use. `--warmup` runs a disposable one-view session through the
-full history window (`1 + 4 * --kv-window` frames, 121 by default, within any episode cap) before reporting
+full history window (`1 + 4 * --kv-window` frames, 121 by default) before reporting
 readiness. No camera has connected yet, so the server warms the recipe's default `(480, 832)` canvas; cameras
 choose their canvas when they connect. With compiled inference, a session with another canvas, view count, or
 prompt compiles again on its first step, while the warmup's compiled state keeps its GPU memory. Use `--warmup`

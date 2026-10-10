@@ -132,7 +132,6 @@ def batch(monkeypatch):
         owner.capabilities = {"partial_resets": partial, "modalities": ["depth", "blur"]}
         owner._stream = None
         owner._closed = False
-        owner._max_episode_frames = None
         monkeypatch.setattr(owner, "_prompt_batch", lambda text, *args: {"caption": [text]})
         stream = owner.open_stream(
             num_views=views,
@@ -180,11 +179,12 @@ def test_new_sessions_change_view_count_without_reloading_the_model(batch):
     assert model.iterators == 3
 
 
-def test_an_uncapped_server_generates_past_201_frames_to_the_requested_budget(batch):
-    stream, _ = batch(views=1, budget=209)
+def test_a_session_generates_its_whole_requested_budget_then_stops(batch):
+    """The server sets no length limit: a 10-second episode at 60 captures/s gets all 601 frames."""
+    stream, _ = batch(views=1, budget=601)
     try:
         stream.step(_controls((1, 40)), (), ())
-        for _ in range(52):
+        for _ in range(150):
             images = stream.step(_controls((4, 40)), (), ())
             assert images[0].shape == (4, HEIGHT, WIDTH, 3)
             assert np.all(images[0] == 40)
@@ -265,12 +265,11 @@ def test_closing_a_batch_releases_every_views_caches(batch):
     assert all(ref() is None for ref in model.cache_tensors)
 
 
-@pytest.mark.parametrize("window,cap,frames", [(30, 201, 121), (8, 201, 33), (30, 81, 81), (30, None, 121)])
-def test_warmup_fills_the_history_window_within_the_episode_cap(window, cap, frames, monkeypatch):
+@pytest.mark.parametrize("window,frames", [(30, 121), (8, 33)])
+def test_warmup_fills_the_history_window(window, frames, monkeypatch):
     """Warmup runs one latent past the history window, so the first real episode needs no new shapes."""
     model = _framework.CosmosInferenceModel.__new__(_framework.CosmosInferenceModel)
     model.capabilities = {"kv_window": window}
-    model._max_episode_frames = cap
     opened = {}
 
     class Stream:

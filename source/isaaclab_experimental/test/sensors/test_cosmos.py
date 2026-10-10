@@ -319,7 +319,7 @@ def test_only_one_generation_session_is_owned_and_disconnect_releases_it(cosmos_
             "modality": "edge",
             "height": 2,
             "width": 3,
-            "max_episode_frames": 201,
+            "max_episode_frames": 13,
         },
     )
     reply, _ = _protocol.receive_message(connection)
@@ -405,15 +405,6 @@ def test_incompatible_cosmos_cadence_is_rejected_before_opening_a_session(cosmos
         assert not cosmos_service.resource.streams
     finally:
         chain.close()
-
-
-@pytest.mark.parametrize("cap", [1, 200])
-def test_the_service_episode_cap_is_a_setting_of_1_plus_4k_frames(cap):
-    """The cap is checked before the model loads, so a bad --max-episode-frames fails fast."""
-    from isaaclab_experimental.cosmos.server import CosmosInferenceModel
-
-    with pytest.raises(ValueError, match=r"1 \+ 4\*k"):
-        CosmosInferenceModel("unused-checkpoint", max_episode_frames=cap)
 
 
 @pytest.mark.parametrize("window,sink", [(0, 0), (3, 3), (30, -1)])

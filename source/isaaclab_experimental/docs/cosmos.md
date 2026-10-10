@@ -139,6 +139,8 @@ package also exports the camera client API for existing task configurations.
 Add a Cosmos chain to the task's camera configuration. For depth conditioning:
 
 ```python
+import math
+
 from isaaclab.sensors import CameraCfg
 from isaaclab_experimental.cosmos.client import CosmosModelCfg, depth_processor
 
@@ -147,7 +149,8 @@ input_name, modifiers = depth_processor(
         endpoint="tcp://127.0.0.1:5555",
         modality="depth",
         prompt="A robot arm manipulating an object on a workbench.",
-        max_episode_frames=301,  # Example: 10 seconds at 30 captures/s, plus the initial capture.
+        # The initial capture plus the episode's captures (here 10 s at 30 per second), rounded up to 1 + 4*k.
+        max_episode_frames=1 + 4 * math.ceil(10 * 30 / 4),
     ),
     near=0.2,
     far=12.0,
@@ -225,8 +228,7 @@ are not silently retried against an already advanced episode.
 The service runs one active generation session at a time; a session serves one camera view per environment
 (see "Several environments"). Supported `(height, width)` canvases are `(480, 832)`,
 `(544, 736)`, `(640, 640)`, `(736, 544)`, and `(832, 480)`. An episode's frame budget
-must be `1 + 4*k`, up to the service's episode cap. Reset before exhausting
-that budget.
+must be `1 + 4*k`. Reset before exhausting that budget.
 
 ## Several environments
 
@@ -256,16 +258,13 @@ and a new batch size may compile on its first use.
 - Reference (RTX PRO 6000 Blackwell MIG 2g.48gb, compiled, 640 x 640, `--kv-window 8`): one environment 917 ms per
   step, two 1596 ms (1.15x the throughput), with 39.7 GiB peak memory for two.
 
-## Episode length cap
+## Episode frame budget
 
-There is no server episode cap by default. Operators may set `--max-episode-frames N`
-(`1 + 4*k`, with `k >= 1`); `0` removes it and `status` reports `null` when uncapped.
-This is an operational limit, not a model training horizon.
-
-Each session still requests a finite budget. The Shadow Hand preset derives it from the task's duration and
-capture cadence, including the initial capture and rounding up to `1 + 4*k`. Low-level camera chains must set
-`CosmosModelCfg.max_episode_frames` explicitly. Reset before exhausting that budget; the service rejects further
-generation rather than silently resetting the episode. Longer runs need quality and memory validation.
+Each session requests a frame budget, `1 + 4*k` frames per episode; the server sets no limit of its own. The
+service tells the model the episode's duration from this budget. The Shadow Hand preset derives it from the task's
+duration and capture cadence, including the initial capture and rounding up to `1 + 4*k`. Low-level camera chains
+must set `CosmosModelCfg.max_episode_frames` explicitly. Reset before exhausting that budget; the service rejects
+further generation rather than silently resetting the episode. Longer runs need quality and memory validation.
 
 See [Image transfer for camera images](image_transfer.md) for the underlying model
 contract, camera scheduling, and optional PPISP processing. Service shutdown and
