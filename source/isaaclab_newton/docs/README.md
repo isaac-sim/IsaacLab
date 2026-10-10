@@ -1,7 +1,9 @@
-# Isaac Lab Newton Simulation interfaces
+# Newton simulation in Isaac Lab
 
-See the [Newton manager design](newton-manager-design.md) for ownership, public APIs,
-graph execution and downstream extension points.
+Use Newton physics through Isaac Lab's usual scene lifecycle, with support for
+captured simulation steps and custom integrations.
 
-The [configuration and API reference](newton-manager-api.md) covers configuration
-fields, signatures, parameter contracts and usage recipes.
+Start with the [Newton manager guide](newton-manager-design.md) for configuration,
+initialization, stepping and cleanup. Then explore the
+[extension examples](newton-manager-api.md) for independent simulations, custom
+managers and outer CUDA capture.
