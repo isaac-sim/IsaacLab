@@ -20,7 +20,15 @@ from isaaclab.terrains import (
     TerrainGeneratorCfg,
 )
 from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG
-from isaaclab.terrains.height_field import HfInvertedPyramidSlopedTerrainCfg
+from isaaclab.terrains.height_field import (
+    HfDiscreteObstaclesTerrainCfg,
+    HfInvertedPyramidSlopedTerrainCfg,
+    HfPyramidSlopedTerrainCfg,
+    HfPyramidStairsTerrainCfg,
+    HfRandomUniformTerrainCfg,
+    HfSteppingStonesTerrainCfg,
+    HfWaveTerrainCfg,
+)
 from isaaclab.terrains.trimesh.utils import make_box, make_cone, make_cylinder
 from isaaclab.utils.seed import configure_seed
 
@@ -139,6 +147,44 @@ def test_inverted_pyramid_origin_matches_platform(platform_width: float, border_
     np.testing.assert_allclose(origin[:2], (4.0, 4.0))
     assert len(center_vertices) == 1
     assert origin[2] == pytest.approx(center_vertices[0, 2])
+
+
+@pytest.mark.parametrize(
+    "cfg_class, cfg_kwargs",
+    [
+        (HfRandomUniformTerrainCfg, {"noise_range": (0.02, 0.1), "noise_step": 0.02}),
+        (HfPyramidSlopedTerrainCfg, {"slope_range": (0.2, 0.2)}),
+        (HfPyramidStairsTerrainCfg, {"step_height_range": (0.1, 0.1), "step_width": 0.3}),
+        (
+            HfDiscreteObstaclesTerrainCfg,
+            {"obstacle_width_range": (0.5, 1.0), "obstacle_height_range": (0.05, 0.2), "num_obstacles": 5},
+        ),
+        (HfWaveTerrainCfg, {"amplitude_range": (0.1, 0.1), "num_waves": 2}),
+        (
+            HfSteppingStonesTerrainCfg,
+            {"stone_height_max": 0.1, "stone_width_range": (0.5, 1.0), "stone_distance_range": (0.1, 0.3)},
+        ),
+    ],
+)
+def test_height_field_terrain_spans_size_with_border(cfg_class, cfg_kwargs):
+    """Height-field terrains span their full size when the area inside the border is not a float-exact multiple."""
+    # A 10 m terrain with a 0.4 m border leaves 91 inner vertices per side, handed to the generator as 91 * 0.1 m,
+    # which divided back by the 0.1 m horizontal scale evaluates to 90.99999999999999.
+    cfg = cfg_class(size=(10.0, 10.0), horizontal_scale=0.1, border_width=0.4, **cfg_kwargs)
+    meshes, _ = cfg.function(0.5, cfg)
+
+    np.testing.assert_allclose(meshes[0].bounds[:, :2], [[0.0, 0.0], [10.0, 10.0]], atol=1e-6)
+
+
+def test_random_uniform_terrain_samples_every_pixel_with_border():
+    """Random uniform terrain without a downsampled scale keeps every height on a noise step for the same size."""
+    # Resampling one sample short onto the pixel grid would interpolate between the noise steps.
+    cfg = HfRandomUniformTerrainCfg(
+        size=(10.0, 10.0), horizontal_scale=0.1, border_width=0.4, noise_range=(0.02, 0.1), noise_step=0.02
+    )
+    meshes, _ = cfg.function(0.5, cfg)
+
+    np.testing.assert_allclose(np.unique(meshes[0].vertices[:, 2].round(6)), [0.0, 0.02, 0.04, 0.06, 0.08, 0.1])
 
 
 @pytest.mark.parametrize("parent_slope_threshold", [0.75, None])

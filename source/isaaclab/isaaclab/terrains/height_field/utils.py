@@ -47,6 +47,8 @@ def height_field_to_mesh(func: Callable) -> Callable:
         border_pixels = int(cfg.border_width / cfg.horizontal_scale) + 1
         heights = np.zeros((width_pixels, length_pixels), dtype=np.int16)
         # override size of the terrain to account for the border
+        # note: generators must recover the pixel count with round(), since this size divided back by the horizontal
+        #   scale can land just below the integer (e.g. 91 * 0.1 / 0.1 = 90.99999999999999)
         sub_terrain_size = [width_pixels - 2 * border_pixels, length_pixels - 2 * border_pixels]
         sub_terrain_size = [dim * cfg.horizontal_scale for dim in sub_terrain_size]
         # update the config

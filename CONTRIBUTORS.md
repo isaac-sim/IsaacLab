@@ -122,6 +122,7 @@ Guidelines for modifications:
 * Jia Lin Yuan
 * Jiakai Zhang
 * Jichuan Hu
+* jih0
 * Jinghuan Shang
 * Jingzhou Liu
 * Jinqi Wei
