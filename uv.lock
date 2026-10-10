@@ -1703,7 +1703,7 @@ wheels = [
 
 [[package]]
 name = "isaaclab"
-version = "35.2.0"
+version = "36.0.0"
 source = { editable = "source/isaaclab" }
 
 [[package]]
@@ -2069,7 +2069,7 @@ provides-extras = ["tetrahedralization", "video", "importers", "test", "dev", "s
 
 [[package]]
 name = "isaaclab-experimental"
-version = "0.2.6"
+version = "0.2.7"
 source = { editable = "source/isaaclab_experimental" }
 dependencies = [
     { name = "isaaclab" },
@@ -2080,7 +2080,7 @@ requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
 
 [[package]]
 name = "isaaclab-mimic"
-version = "2.1.2"
+version = "2.1.3"
 source = { editable = "source/isaaclab_mimic" }
 dependencies = [
     { name = "isaaclab" },
@@ -2097,7 +2097,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-newton"
-version = "9.1.5"
+version = "9.2.0"
 source = { editable = "source/isaaclab_newton" }
 dependencies = [
     { name = "isaaclab" },
@@ -2108,7 +2108,7 @@ requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
 
 [[package]]
 name = "isaaclab-ov"
-version = "4.1.3"
+version = "5.0.0"
 source = { editable = "source/isaaclab_ov" }
 dependencies = [
     { name = "isaaclab" },
@@ -2123,7 +2123,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-physx"
-version = "7.4.4"
+version = "7.5.0"
 source = { editable = "source/isaaclab_physx" }
 dependencies = [
     { name = "isaaclab" },
@@ -2145,7 +2145,7 @@ requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
 
 [[package]]
 name = "isaaclab-rl"
-version = "4.0.1"
+version = "5.0.0"
 source = { editable = "source/isaaclab_rl" }
 dependencies = [
     { name = "isaaclab" },
@@ -2162,7 +2162,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-tasks"
-version = "25.0.1"
+version = "25.0.2"
 source = { editable = "source/isaaclab_tasks" }
 dependencies = [
     { name = "isaaclab" },
@@ -2177,7 +2177,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-tasks-experimental"
-version = "1.0.0"
+version = "1.0.1"
 source = { editable = "source/isaaclab_tasks_experimental" }
 dependencies = [
     { name = "isaaclab" },
@@ -2192,7 +2192,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-teleop"
-version = "0.10.2"
+version = "0.10.3"
 source = { editable = "source/isaaclab_teleop" }
 dependencies = [
     { name = "isaaclab" },
@@ -2203,7 +2203,7 @@ requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
 
 [[package]]
 name = "isaaclab-visualizers"
-version = "2.0.2"
+version = "3.0.0"
 source = { editable = "source/isaaclab_visualizers" }
 dependencies = [
     { name = "isaaclab" },

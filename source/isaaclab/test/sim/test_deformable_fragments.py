@@ -109,6 +109,7 @@ def test_mesh_surface_deformable_spawn(stage, props):
         ({"deformable_props": sim_utils.DeformableBodyPropertiesBaseCfg}, "one deformable"),
         ({"rigid_props": sim_utils.UsdPhysicsRigidBodyCfg()}, "both deformable and rigid"),
         ({"collision_props": sim_utils.CollisionBaseCfg()}, "collision fragments"),
+        ({"mesh_collision_props": sim_utils.UsdPhysicsMeshCollisionCfg()}, "mesh_collision_props"),
     ],
 )
 @pytest.mark.filterwarnings("ignore:DeformableBodyPropertiesBaseCfg is deprecated:DeprecationWarning")
@@ -132,3 +133,7 @@ def test_usd_file_deformable_targets_only_spawn_prim(stage, tmp_path):
     assert stage.GetPrimAtPath("/World/Soft/tet").HasAPI(UsdPhysics.CollisionAPI)
     assert not stage.GetPrimAtPath("/World/Soft/sim_mesh")
     assert not sim_utils.has_deformable_body_api(stage.GetPrimAtPath("/World/Soft/tet"))
+    cfg = cfg.replace(mesh_collision_props=sim_utils.UsdPhysicsMeshCollisionCfg())
+    with pytest.raises(ValueError, match="mesh_collision_props"):
+        cfg.func("/World/Rejected", cfg)
+    assert not stage.GetPrimAtPath("/World/Rejected")

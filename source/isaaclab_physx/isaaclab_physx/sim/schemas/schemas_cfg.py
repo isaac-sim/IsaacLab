@@ -1294,7 +1294,7 @@ class FixedTendonPropertiesCfg(PhysxFixedTendonPropertiesCfg):
         ``FixedTendonPropertiesCfg`` was relocated to
         :mod:`isaaclab_physx.sim.schemas` and renamed to
         :class:`PhysxFixedTendonPropertiesCfg`. The legacy name remains as a
-        deprecation alias and is scheduled for removal in 4.0.
+        deprecation alias and is scheduled for removal in 3.2.
     """
 
     def __post_init__(self):
@@ -1351,7 +1351,7 @@ class SpatialTendonPropertiesCfg(PhysxSpatialTendonPropertiesCfg):
         ``SpatialTendonPropertiesCfg`` was relocated to
         :mod:`isaaclab_physx.sim.schemas` and renamed to
         :class:`PhysxSpatialTendonPropertiesCfg`. The legacy name remains as a
-        deprecation alias and is scheduled for removal in 4.0.
+        deprecation alias and is scheduled for removal in 3.2.
     """
 
     def __post_init__(self):

@@ -443,7 +443,8 @@ backend-specific fragment silently drops the inherited properties.
        :class:`~isaaclab_newton.sim.schemas.NewtonArticulationCfg`
    * - ``MeshCollisionBaseCfg``, ``MeshCollisionPropertiesCfg``,
        ``BoundingCubePropertiesCfg``, ``BoundingSpherePropertiesCfg``
-     - :class:`~isaaclab.sim.schemas.UsdPhysicsMeshCollisionCfg`
+     - :class:`~isaaclab.sim.schemas.UsdPhysicsMeshCollisionCfg`, in the spawner's
+       ``mesh_collision_props`` slot
    * - ``Physx*MeshPropertiesCfg`` cooking family (``PhysxConvexHullPropertiesCfg``,
        ``PhysxConvexDecompositionPropertiesCfg``, ``PhysxTriangleMeshPropertiesCfg``,
        ``PhysxTriangleMeshSimplificationPropertiesCfg``, ``PhysxSDFMeshPropertiesCfg``)
@@ -451,22 +452,24 @@ backend-specific fragment silently drops the inherited properties.
        :class:`~isaaclab_physx.sim.schemas.PhysxConvexDecompositionCfg`,
        :class:`~isaaclab_physx.sim.schemas.PhysxTriangleMeshCfg`,
        :class:`~isaaclab_physx.sim.schemas.PhysxTriangleMeshSimplificationCfg`,
-       :class:`~isaaclab_physx.sim.schemas.PhysxSDFMeshCfg`)
+       :class:`~isaaclab_physx.sim.schemas.PhysxSDFMeshCfg`), in the spawner's
+       ``mesh_collision_props`` slot
    * - ``NewtonCollisionPropertiesCfg``
      - :class:`~isaaclab.sim.schemas.UsdPhysicsCollisionCfg` +
        :class:`~isaaclab_physx.sim.schemas.PhysxCollisionCfg` +
        :class:`~isaaclab_newton.sim.schemas.NewtonCollisionCfg`
    * - ``NewtonMeshCollisionPropertiesCfg``
-     - :class:`~isaaclab.sim.schemas.UsdPhysicsCollisionCfg` +
+     - ``collision_props``: :class:`~isaaclab.sim.schemas.UsdPhysicsCollisionCfg` +
        :class:`~isaaclab_physx.sim.schemas.PhysxCollisionCfg` +
-       :class:`~isaaclab_newton.sim.schemas.NewtonCollisionCfg` +
-       :class:`~isaaclab.sim.schemas.UsdPhysicsMeshCollisionCfg` +
+       :class:`~isaaclab_newton.sim.schemas.NewtonCollisionCfg`;
+       ``mesh_collision_props``: :class:`~isaaclab.sim.schemas.UsdPhysicsMeshCollisionCfg` +
        :class:`~isaaclab_newton.sim.schemas.NewtonMeshCollisionCfg`
    * - ``NewtonSDFCollisionPropertiesCfg``
-     - :class:`~isaaclab.sim.schemas.UsdPhysicsCollisionCfg` +
+     - ``collision_props``: :class:`~isaaclab.sim.schemas.UsdPhysicsCollisionCfg` +
        :class:`~isaaclab_physx.sim.schemas.PhysxCollisionCfg` +
-       :class:`~isaaclab_newton.sim.schemas.NewtonCollisionCfg` +
-       :class:`~isaaclab_newton.sim.schemas.NewtonSDFCollisionCfg`
+       :class:`~isaaclab_newton.sim.schemas.NewtonCollisionCfg`;
+       ``mesh_collision_props``: :class:`~isaaclab_newton.sim.schemas.NewtonSDFCollisionCfg`
+       (authors no ``physics:approximation`` token, like the deprecated class)
    * - ``DeformableBodyPropertiesBaseCfg``
      - None: the class has no fields. Pass
        :class:`~isaaclab.sim.schemas.DeformableBodyFragment` subclasses in a deformable slot, and
@@ -570,7 +573,9 @@ only swaps cfg classes drops them:
        :func:`~isaaclab.sim.schemas.apply_joint_drive_properties`
    * - ``CollisionBaseCfg.mesh_collision_property``
      - the spawner's ``mesh_collision_props`` slot, which takes the
-       mesh-collision fragments directly
+       mesh-collision fragments directly. Every rigid-object spawner has it (USD, URDF,
+       MJCF, mesh-file, shape, and mesh spawners); like the nested field, it reaches every
+       collider under a USD asset and the geometry prim of a shape or mesh spawner
 
 The renamed joint-drive fields keep working on the fragments as well:
 ``max_effort`` is a deprecated alias of
@@ -601,7 +606,8 @@ of fragments, so one call can author a whole subtree:
    * - ``modify_joint_drive_properties``
      - :func:`~isaaclab.sim.schemas.apply_joint_drive_properties`
    * - ``define_mesh_collision_properties``, ``modify_mesh_collision_properties``
-     - :func:`~isaaclab.sim.schemas.apply_mesh_collision_properties`
+     - :func:`~isaaclab.sim.schemas.apply_mesh_collision_properties` (takes a single collider
+       prim path rather than an expression)
    * - ``modify_fixed_tendon_properties``, ``modify_spatial_tendon_properties``
      - :func:`~isaaclab.sim.schemas.apply_fixed_tendon_properties`,
        :func:`~isaaclab.sim.schemas.apply_spatial_tendon_properties`

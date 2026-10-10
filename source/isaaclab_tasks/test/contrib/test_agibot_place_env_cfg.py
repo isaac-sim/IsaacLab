@@ -11,7 +11,28 @@ from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
 
+from isaaclab.assets import RigidObjectCfg
+
 from isaaclab_tasks.contrib.place.config.agibot.place_toy2box_rmp_rel_env_cfg import RmpFlowAgibotPlaceToy2BoxEnvCfg
+from isaaclab_tasks.contrib.place.config.agibot.place_upright_mug_rmp_rel_env_cfg import (
+    RmpFlowAgibotPlaceUprightMugEnvCfg,
+)
+
+
+@pytest.mark.parametrize(
+    ("env_cfg_cls", "expected_objects"),
+    (
+        (RmpFlowAgibotPlaceToy2BoxEnvCfg, {"toy_truck", "box"}),
+        (RmpFlowAgibotPlaceUprightMugEnvCfg, {"mug"}),
+    ),
+    ids=("toy2box", "mug"),
+)
+def test_agibot_place_scene_contains_only_task_objects(env_cfg_cls, expected_objects) -> None:
+    """Place tasks should spawn only their manipulated objects, without stacking cubes."""
+    env_cfg = env_cfg_cls()
+    rigid_objects = {name for name, cfg in vars(env_cfg.scene).items() if isinstance(cfg, RigidObjectCfg)}
+
+    assert rigid_objects == expected_objects
 
 
 @pytest.mark.parametrize(

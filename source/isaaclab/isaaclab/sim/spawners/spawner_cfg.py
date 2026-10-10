@@ -162,6 +162,22 @@ class RigidObjectSpawnerCfg(SpawnerCfg):
     i.e. the anchor prim itself.
     """
 
+    mesh_collision_props: (
+        dict[str, list[schemas.MeshCollisionFragment]]
+        | schemas.MeshCollisionFragment
+        | list[schemas.MeshCollisionFragment]
+        | schemas.MeshCollisionBaseCfg
+        | None
+    ) = None
+    """Mesh-collision properties for existing colliders. Defaults to None.
+
+    Accepts a fragment, a list of fragments, a target-pattern mapping, or a legacy
+    :class:`~isaaclab.sim.schemas.MeshCollisionBaseCfg`. Patterns anchor at the spawn prim for file
+    spawners and the geometry prim for shape and mesh spawners. A bare value reaches every collider
+    under a file asset or the geometry collider of a shape or mesh. Non-colliders are ignored.
+    Deformable spawners reject this slot because they collide through their simulation mesh.
+    """
+
     activate_contact_sensors: bool = False
     """Activate contact reporting on all rigid bodies. Defaults to False.
 
