@@ -1,0 +1,19 @@
+# GR00T N1.5 runtime for Python 3.12. Install in a separate environment with
+# uv pip install --no-config --python <gr00t-python> -r <this-file> -e <Isaac-GR00T>.
+# Install the appropriate CUDA builds of torch/torchvision first; see the guide.
+numpy==1.26.4
+pyarrow==14.0.1
+pydantic==2.10.6
+numpydantic==1.6.7
+transformers==4.51.3
+huggingface-hub==0.36.2
+diffusers==0.35.1
+# RigidTransform in the SDG converter needs SciPy >=1.16.
+scipy==1.16.3
+torch==2.7.1
+torchvision==0.22.1
+decord2==3.4.0
+msgpack==1.2.3
+pyzmq==27.2.0
+tensorboard==2.20.0
+wheel==0.48.0
