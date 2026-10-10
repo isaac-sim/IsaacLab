@@ -93,7 +93,7 @@ def cosmos_camera(
 def service_capabilities(
     endpoint: str = DEFAULT_ENDPOINT, timeout: float = 5.0, *, require_idle: bool = False
 ) -> dict[str, Any]:
-    """Return the running Cosmos service's capabilities, such as its episode cap and independent reset support.
+    """Return the running Cosmos service's capabilities, such as its independent reset support.
 
     Args:
         endpoint: Cosmos service endpoint.
@@ -121,22 +121,6 @@ def service_capabilities(
     return reply["capabilities"]
 
 
-def service_max_episode_frames(endpoint: str = DEFAULT_ENDPOINT, timeout: float = 5.0) -> int | None:
-    """Return the running Cosmos service's episode cap in frames, or None when it has no cap.
-
-    Args:
-        endpoint: Cosmos service endpoint.
-        timeout: Connection and response timeout [s].
-
-    Returns:
-        The cap set with ``isaaclab-cosmos-server --max-episode-frames``.
-
-    Raises:
-        RuntimeError: If the service is not running.
-    """
-    return service_capabilities(endpoint, timeout)["max_episode_frames"]
-
-
 def apply_cosmos(
     env_cfg: Any,
     *,
@@ -146,7 +130,6 @@ def apply_cosmos(
     near: float | None = None,
     far: float | None = None,
     endpoint: str | None = None,
-    max_episode_frames: int | None | Literal["service"] = "service",
     transport: Literal["auto", "cuda_ipc", "socket"] | None = None,
     num_envs: int | None = None,
 ) -> None:
@@ -154,10 +137,10 @@ def apply_cosmos(
 
     Selects the scene camera publishing only ``rgb`` (or ``camera``) and replaces it with :func:`cosmos_camera`. It
     sets the environment count, whose cameras the service generates as one batch, and derives the episode budget
-    without changing capture timing. For an existing Cosmos camera, it updates settings without rebuilding its
-    modifier chain. Tasks must read the camera image
-    from its output; Direct tasks that size their observation space from the camera configuration are not
-    supported, because the camera renders at the Cosmos canvas.
+    without changing capture timing. It checks that the service is running and idle. For an existing Cosmos camera,
+    it updates settings without rebuilding its modifier chain. Tasks must read the camera image from its output;
+    Direct tasks that size their observation space from the camera configuration are not supported, because the
+    camera renders at the Cosmos canvas.
 
     Args:
         env_cfg: Task environment configuration.
@@ -169,8 +152,6 @@ def apply_cosmos(
         near: Depth rendered white [m]. None preserves a preset or uses 0.1.
         far: Depth rendered black [m]. None preserves a preset or uses 2.0.
         endpoint: Cosmos service endpoint. None preserves a preset or uses the default endpoint.
-        max_episode_frames: The service's episode cap in frames, ``1 + 4*k`` with ``k >= 1``, or None for no cap.
-            Defaults to ``"service"``, which asks the running service.
         transport: How images move to and from the service. None preserves a preset or uses auto.
         num_envs: Environments to generate together. Defaults to None, which uses one. The session requests this
             count from the service. Several need compiled inference with per-view caches for independent resets,
@@ -178,9 +159,9 @@ def apply_cosmos(
 
     Raises:
         ValueError: If no single rgb camera can be selected, the selected entity is not a suitable camera, sensors
-            update eagerly, the camera renders asynchronously, the episode cap is invalid, or the service cannot
-            batch ``num_envs`` environments.
-        RuntimeError: If capabilities are read from a service that is not running.
+            update eagerly, the camera renders asynchronously, or the service cannot batch ``num_envs``
+            environments.
+        RuntimeError: If the service is not running or already has a camera session.
     """
     num_envs = 1 if num_envs is None else num_envs
     if type(num_envs) is not int or num_envs < 1:
@@ -206,17 +187,12 @@ def apply_cosmos(
     prompt = existing.prompt if prompt is None and existing is not None else prompt
     if control != "depth" and (near is not None or far is not None):
         raise ValueError("--cosmos_near and --cosmos_far apply only to depth control.")
-    capabilities = (
-        service_capabilities(endpoint, require_idle=True) if max_episode_frames == "service" or num_envs > 1 else {}
-    )
-    cap = capabilities["max_episode_frames"] if max_episode_frames == "service" else max_episode_frames
+    capabilities = service_capabilities(endpoint, require_idle=True)
     if num_envs > 1 and not capabilities.get("partial_resets", False):
         raise ValueError(
             "Several Cosmos environments need a Framework runtime with per-view caches and compiled inference "
             "for independent resets; start isaaclab-cosmos-server without --no-compile."
         )
-    if cap is not None and (type(cap) is not int or cap < 5 or (cap - 1) % 4):
-        raise ValueError(f"The Cosmos episode cap must be 1 + 4*k frames with k >= 1, or None, got {cap!r}.")
     if prompt is None:
         logger.warning("Cosmos runs without a prompt; pass --cosmos_prompt to describe the scene.")
     if env_cfg.scene.num_envs != num_envs:
@@ -232,19 +208,13 @@ def apply_cosmos(
             "the camera renders at the Cosmos canvas."
         )
 
-    # Count actual captures at the sensor's existing cadence; never slow policy observations to fit a cap.
+    # Count actual captures at the sensor's existing cadence.
     step_dt = env_cfg.sim.dt * env_cfg.decimation
     episode_steps = math.ceil(env_cfg.episode_length_s / step_dt - 1e-9)
     # A sensor updates once its elapsed time reaches update_period - 1e-6 (see SensorBase).
     steps_per_capture = max(1, math.ceil((camera_cfg.update_period - 1e-6) / step_dt - 1e-9))
     frames = math.ceil(episode_steps / steps_per_capture) + 1
     budget = 1 + 4 * math.ceil((frames - 1) / 4)
-    if cap is not None and budget > cap:
-        raise ValueError(
-            f"The task needs a Cosmos budget of {budget} frames, but the service cap is {cap}. "
-            "Raise --max-episode-frames on the server (0 removes the cap), shorten the episode, or explicitly "
-            "increase the camera update_period. Capture timing was not changed."
-        )
     model = replace(
         existing or CosmosModelCfg(),
         endpoint=endpoint,

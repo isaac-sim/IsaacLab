@@ -23,7 +23,6 @@ __all__ = [
     "regional_edges",
     "segmentation_processor",
     "service_capabilities",
-    "service_max_episode_frames",
 ]
 
 from ._protocol import DEFAULT_ENDPOINT
@@ -46,5 +45,4 @@ from .client import (
     regional_edges,
     segmentation_processor,
     service_capabilities,
-    service_max_episode_frames,
 )
