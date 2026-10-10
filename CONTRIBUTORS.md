@@ -110,6 +110,7 @@ Guidelines for modifications:
 * Hongwei Xiong
 * Hongyu Li
 * Hougant Chen
+* Huadong Zhang
 * HuiDong Chen
 * Huihua Zhao
 * Iretiayo Akinola
@@ -223,7 +224,9 @@ Guidelines for modifications:
 * Xinjie Yao
 * Xinpeng Liu
 * Xin Xu
+* Xiwen Dengxiong
 * Xu Li
+* Xueting Wang
 * Yang Jin
 * Yanzi Zhu
 * Yijie Guo
