@@ -106,12 +106,15 @@ def test_mesh_surface_deformable_spawn(stage, props):
     "kwargs, message",
     [
         ({"volume_deformable_props": []}, "one deformable"),
-        ({"deformable_props": sim_utils.DeformableBodyPropertiesBaseCfg()}, "one deformable"),
+        ({"deformable_props": sim_utils.DeformableBodyPropertiesBaseCfg}, "one deformable"),
         ({"rigid_props": sim_utils.UsdPhysicsRigidBodyCfg()}, "both deformable and rigid"),
         ({"collision_props": sim_utils.CollisionBaseCfg()}, "collision fragments"),
     ],
 )
+@pytest.mark.filterwarnings("ignore:DeformableBodyPropertiesBaseCfg is deprecated:DeprecationWarning")
 def test_mesh_rejects_conflicting_deformable_properties(stage, kwargs, message):
+    if "deformable_props" in kwargs:
+        kwargs = {"deformable_props": kwargs["deformable_props"]()}
     cfg = sim_utils.MeshRectangleCfg(size=(0.1, 0.1), surface_deformable_props=[], **kwargs)
     with pytest.raises(ValueError, match=message):
         cfg.func("/World/Bad", cfg)

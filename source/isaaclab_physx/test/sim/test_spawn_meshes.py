@@ -8,11 +8,11 @@ from isaaclab.test.utils import launch_test_simulation
 launch_test_simulation()
 
 import pytest
-from isaaclab_physx.sim.schemas.schemas_cfg import PhysxDeformableBodyPropertiesCfg
 from isaaclab_physx.sim.spawners.materials.physics_materials_cfg import PhysxDeformableBodyMaterialCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
+from isaaclab.sim.schemas import OmniPhysicsDeformableBodyCfg
 
 pytestmark = pytest.mark.isaacsim_ci
 
@@ -43,10 +43,11 @@ def test_spawn_cone_with_deformable_and_mass_props(sim):
     specifying either the mass or the material density.
     """
     # Spawn cone
+    body_cfg = OmniPhysicsDeformableBodyCfg(deformable_body_enabled=True, mass=1.0)
     cfg = sim_utils.MeshConeCfg(
         radius=1.0,
         height=2.0,
-        deformable_props=PhysxDeformableBodyPropertiesCfg(deformable_body_enabled=True, mass=1.0),
+        volume_deformable_props=body_cfg,
     )
     prim = cfg.func("/World/Cone", cfg)
 
@@ -55,14 +56,14 @@ def test_spawn_cone_with_deformable_and_mass_props(sim):
     assert sim.stage.GetPrimAtPath("/World/Cone").IsValid()
     # Check properties
     prim = sim.stage.GetPrimAtPath("/World/Cone")
-    assert prim.GetAttribute("omniphysics:deformableBodyEnabled").Get() == cfg.deformable_props.deformable_body_enabled
-    assert prim.GetAttribute("omniphysics:mass").Get() == cfg.deformable_props.mass
+    assert prim.GetAttribute("omniphysics:deformableBodyEnabled").Get() == body_cfg.deformable_body_enabled
+    assert prim.GetAttribute("omniphysics:mass").Get() == body_cfg.mass
 
     # Spawn cone with density instead of mass
     cfg = sim_utils.MeshConeCfg(
         radius=1.0,
         height=2.0,
-        deformable_props=PhysxDeformableBodyPropertiesCfg(deformable_body_enabled=True),
+        volume_deformable_props=OmniPhysicsDeformableBodyCfg(deformable_body_enabled=True),
         physics_material=PhysxDeformableBodyMaterialCfg(density=10.0),
     )
     prim = cfg.func("/World/ConeDensity", cfg)
@@ -86,7 +87,7 @@ def test_spawn_cone_with_deformable_and_collision_fragment_mapping(sim):
     cfg = sim_utils.MeshConeCfg(
         radius=1.0,
         height=2.0,
-        deformable_props=PhysxDeformableBodyPropertiesCfg(deformable_body_enabled=True, mass=1.0),
+        volume_deformable_props=OmniPhysicsDeformableBodyCfg(deformable_body_enabled=True, mass=1.0),
         collision_props={"/sim_mesh": [PhysxCollisionCfg(contact_offset=0.02, rest_offset=0.001)]},
     )
     cfg.func("/World/ConeMap", cfg)
