@@ -51,6 +51,25 @@ def test_constant_time_lags(delay_buffer):
         assert torch.all(delay_buffer.num_pushes == i + 1)
 
 
+def test_selected_updates_preserve_other_timelines():
+    """Partial writes keep independent delayed histories when full-batch writes resume."""
+    buffer = DelayBuffer(2, 3, "cpu")
+    buffer.set_time_lag(1)
+    buffer.compute(torch.tensor([[20.0], [0.0]]), batch_ids=torch.tensor([2, 0]))
+    result = buffer.compute(torch.tensor([[1.0]]), batch_ids=slice(0, 1))
+    torch.testing.assert_close(result, torch.tensor([[0.0]]))
+    assert buffer.num_pushes.tolist() == [2, 0, 1]
+    result = buffer.compute(torch.tensor([[2.0], [10.0], [21.0]]))
+    torch.testing.assert_close(result, torch.tensor([[1.0], [10.0], [20.0]]))
+    buffer.reset([2])
+    buffer.compute(torch.tensor([[30.0]]), batch_ids=[2])
+    result = buffer.compute(torch.tensor([[3.0], [11.0], [31.0]]))
+    torch.testing.assert_close(result, torch.tensor([[2.0], [10.0], [30.0]]))
+    result = buffer.compute(torch.full((2, 1), -100.0), update_history=False, batch_ids=torch.tensor([2, 0]))
+    torch.testing.assert_close(result, torch.tensor([[30.0], [2.0]]))
+    assert buffer.num_pushes.tolist() == [4, 2, 2]
+
+
 @pytest.mark.parametrize("feature_shape", [(), (2, 3)])
 def test_reset(delay_buffer, feature_shape):
     """Partial and full resets return fresh samples without affecting other histories."""
