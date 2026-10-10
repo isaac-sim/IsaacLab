@@ -1,0 +1,355 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+# Windows CI on self-hosted GPU runners, exercising the documented uv workflow
+# (`uv run` from the committed uv.lock) with public wheels only. One job, so the
+# autoscaler cannot tear the runner down between steps. The kit-less and Isaac
+# Sim lanes share one environment; `uv sync` is exact, so it swaps the extras.
+
+name: Windows CI
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches:
+      - main
+      - develop
+      - 'release/**'
+  push:
+    branches:
+      - main
+      - develop
+      - 'release/**'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: read
+
+env:
+  OMNI_KIT_ACCEPT_EULA: "yes"
+  HEADLESS: "1"
+  # Decode subprocess output as UTF-8 instead of the cp1252 code page.
+  PYTHONUTF8: "1"
+  # Keep output that a watchdog kill would otherwise drop from the buffer.
+  PYTHONUNBUFFERED: "1"
+
+jobs:
+  changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      should_run: ${{ steps.detect.outputs.should_run }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          sparse-checkout: .github/actions/detect-changes
+          sparse-checkout-cone-mode: false
+      - id: detect
+        uses: ./.github/actions/detect-changes
+        with:
+          triggered-jobs-push: windows-ci
+          triggered-jobs-pr: windows-ci
+          patterns: |
+            ^source/ :: Library source code
+            ^tools/ :: Build tooling
+            ^apps/ :: Standalone apps
+            ^scripts/ :: Standalone scripts
+            (^|/)pyproject\.toml$ :: Python project metadata
+            ^uv\.lock$ :: Locked dependency graph
+            ^VERSION$ :: Version file
+            ^\.github/workflows/windows-ci\.yaml$ :: This workflow file
+
+  windows-ci:
+    name: windows-ci
+    needs: [changes]
+    if: needs.changes.outputs.should_run == 'true'
+    runs-on: [self-hosted, gpu-windows]
+    timeout-minutes: 120
+    defaults:
+      run:
+        shell: powershell
+    steps:
+      - uses: actions/checkout@v6
+
+      # Newer than the v6.8.0 the Linux workflows pin: on these runners v6.8.0
+      # crashes on exit whenever uv is already in the tool cache
+      # (astral-sh/setup-uv#686). v10 also leaves uv's cache at its default
+      # %LOCALAPPDATA%\uv\cache, so reused runners start warm.
+      - name: Set up uv
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7  # v10.2.0
+        with:
+          # The uv the Docker images pin (UV_PIN in docker/test/test_dockerfile_nonroot.py).
+          version: "0.12.9"
+
+      # ===== Kit-less lane: `uv run` without Isaac Sim (Newton, OV runtimes). =====
+
+      - name: Sync kit-less environment
+        id: sync-kitless
+        timeout-minutes: 25
+        run: uv sync --frozen --extra ovrtx --extra test
+
+      # ovrtx and Kit compile their shaders into .venv, which checkout's clean
+      # deletes, so every run compiled them again (~6 min). They go through the
+      # Actions cache instead, keyed on the version that compiles them and the GPU
+      # and driver the blobs are valid for, and saved only when the key missed.
+      # actions/cache archives with Git's tar, whose gzip is found only through
+      # PATH, so the cache steps put Git's usr\bin on it.
+      - name: Shader cache keys
+        id: shader-cache
+        if: ${{ !cancelled() }}
+        run: |
+          $gpu = @(nvidia-smi --query-gpu=compute_cap,driver_version --format=csv,noheader)
+          if ($LASTEXITCODE -ne 0 -or $gpu.Count -eq 0) { throw "nvidia-smi failed: $gpu" }
+          $gpu = "sm$($gpu[0] -replace '\s', '' -replace ',', '-drv')"
+          foreach ($name in "ovrtx", "isaacsim") {
+            $pin = @(Select-String -LiteralPath uv.lock -Pattern "^name = `"$name`"$" -Context 0,1)
+            if ($pin.Count -ne 1) { throw "uv.lock pins $name $($pin.Count) times" }
+            $version = $pin[0].Context.PostContext[0] -replace '^version = "(.+)"$', '$1'
+            "$name=windows-$name-$version-$gpu" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          }
+
+      - name: Restore ovrtx shader cache
+        id: ovrtx-cache
+        uses: actions/cache/restore@v4
+        env:
+          PATH: C:\Program Files\Git\usr\bin;C:\Windows\System32
+        with:
+          path: .venv/Lib/site-packages/ovrtx/bin/cache
+          key: ${{ steps.shader-cache.outputs.ovrtx }}
+
+      # usd-exchange 3.0.0 and ovrtx 0.5.0 shipped differently built MaterialX
+      # DLLs under the same names; on Windows whichever loaded second failed
+      # (nvbug 6817794) until usd-exchange 3.0.1 and ovrtx 0.5.1 versioned them.
+      # Linux is unaffected. ovrtx loads its runtime only when a renderer is
+      # created, so every case creates one, each in a fresh interpreter.
+      # ovrtx-alone is the control; usd-first loads no MaterialX;
+      # isaaclab-render is the user-facing path.
+      - name: OV runtime coexistence (ovrtx + usd-exchange)
+        if: ${{ !cancelled() && steps.sync-kitless.outcome == 'success' }}
+        timeout-minutes: 35
+        run: |
+          $script = @'
+          import sys
+
+          import psutil
+
+
+          def load_usd_exchange_usd():
+              from pxr import Usd  # noqa: F401
+
+
+          def load_usd_exchange_materialx():
+              import usdex.core  # noqa: F401
+              from pxr import UsdMtlx  # noqa: F401
+
+
+          def create_ovrtx_renderer():
+              import ovrtx
+
+              ovrtx.Renderer()
+
+
+          def render_isaaclab_ovrtx_camera():
+              import torch
+
+              from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env import CartpoleCameraEnv
+              from isaaclab_tasks.utils import resolve_task_config
+
+              env_cfg, _ = resolve_task_config(
+                  "Isaac-Cartpole-Camera-Direct", "", overrides=("physics=newton_mjwarp", "renderer=ovrtx")
+              )
+              env_cfg.scene.num_envs = 2
+              env_cfg.frame_stack = 1
+              env = CartpoleCameraEnv(cfg=env_cfg)
+              try:
+                  obs, _ = env.reset()
+                  image = obs["policy"]
+                  assert torch.isfinite(image).all(), "OVRTX camera observation contains NaN or infinity"
+                  assert image.amax() > image.amin(), "OVRTX camera observation is constant"
+              finally:
+                  env.close()
+
+
+          PROBES = {
+              "ovrtx-alone": [create_ovrtx_renderer],
+              "usd-first": [load_usd_exchange_usd, create_ovrtx_renderer],
+              "materialx-first": [load_usd_exchange_materialx, create_ovrtx_renderer],
+              "ovrtx-first": [create_ovrtx_renderer, load_usd_exchange_materialx],
+              "isaaclab-render": [render_isaaclab_ovrtx_camera],
+          }
+
+          for step in PROBES[sys.argv[1]]:
+              try:
+                  step()
+              except BaseException:
+                  keys = ("materialx", "tbb", "usd", "crender")
+                  libs = sorted({m.path for m in psutil.Process().memory_maps() if any(k in m.path.lower() for k in keys)})
+                  print("Loaded libraries at failure:", *libs, sep="\n  ", flush=True)
+                  raise
+              print(f"{step.__name__}: ok", flush=True)
+          '@
+          $script | Out-File -FilePath ov_coexist_probe.py -Encoding utf8
+          $failed = @()
+          foreach ($case in @("ovrtx-alone", "usd-first", "materialx-first", "ovrtx-first", "isaaclab-render")) {
+            Write-Host "=== $case ==="
+            $proc = Start-Process -PassThru -NoNewWindow -FilePath uv -ArgumentList "run --frozen --no-sync python ov_coexist_probe.py $case"
+            # Reading Handle keeps the process handle open so ExitCode survives the exit.
+            $null = $proc.Handle
+            if (-not $proc.WaitForExit(360000)) {
+              Write-Host "::error::$case hard timeout (6 min); killing process tree"
+              taskkill /PID $proc.Id /T /F | Out-Null
+              $failed += "$case (timeout)"
+            } elseif ($proc.ExitCode -ne 0) {
+              $failed += "$case (exit $($proc.ExitCode))"
+            }
+          }
+          if ($failed.Count -gt 0) {
+            Write-Host "::error::ovrtx coexistence: $($failed -join ', ')"
+            exit 1
+          }
+
+      - name: Unit tests (windows_ci marker)
+        if: ${{ !cancelled() && steps.sync-kitless.outcome == 'success' }}
+        timeout-minutes: 10
+        # Explicit files only; neighbor tests import AppLauncher/argparse at
+        # module load and crash on Windows without Sim initialised.
+        run: |
+          uv run --frozen --no-sync python -m pytest -v -m windows_ci `
+            source/isaaclab/test/utils/test_configclass.py `
+            source/isaaclab/test/utils/test_dict.py `
+            source/isaaclab/test/utils/test_episode_data.py `
+            source/isaaclab/test/utils/test_hdf5_dataset_file_handler.py
+
+      # Same probes the ARM CI runs: Newton MJWarp state training,
+      # Newton-rendered camera observations, and camera training.
+      - name: Cartpole smoke (kit-less, Newton)
+        if: ${{ !cancelled() && steps.sync-kitless.outcome == 'success' }}
+        timeout-minutes: 45
+        run: uv run --frozen --no-sync python -m pytest -v source/isaaclab/test/install_ci/misc/cartpole_training_smoke.py
+
+      # Saved before the Isaac Sim sync, which uninstalls ovrtx.
+      - name: Save ovrtx shader cache
+        if: ${{ success() && steps.ovrtx-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@v4
+        env:
+          PATH: C:\Program Files\Git\usr\bin;C:\Windows\System32
+        with:
+          path: .venv/Lib/site-packages/ovrtx/bin/cache
+          key: ${{ steps.shader-cache.outputs.ovrtx }}
+
+      # ===== Isaac Sim lane: `uv run --extra isaacsim` (public Isaac Sim pin). =====
+
+      - name: Sync Isaac Sim environment
+        id: sync-kit
+        if: ${{ !cancelled() }}
+        timeout-minutes: 30
+        run: uv sync --frozen --extra isaacsim --extra test
+
+      - name: Restore Kit shader cache
+        id: kit-cache
+        if: ${{ !cancelled() && steps.sync-kit.outcome == 'success' && steps.shader-cache.outcome == 'success' }}
+        uses: actions/cache/restore@v4
+        env:
+          PATH: C:\Program Files\Git\usr\bin;C:\Windows\System32
+        with:
+          path: .venv/Lib/site-packages/isaacsim/kit/cache
+          key: ${{ steps.shader-cache.outputs.isaacsim }}
+
+      # Isaac Sim PhysX training; same command and checks as
+      # install_ci/test_workspace.py::test_workspace_trains, run in this
+      # environment instead of a fresh install.
+      - name: Cartpole training smoke (Isaac Sim PhysX)
+        if: ${{ !cancelled() && steps.sync-kit.outcome == 'success' }}
+        timeout-minutes: 30
+        run: |
+          cmd /c "uv run --frozen --no-sync isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Direct --num_envs 16 --max_iterations 5 physics=isaacsim_physx 2>&1" | Tee-Object -Variable trainLog
+          $rc = $LASTEXITCODE
+          $text = $trainLog | Out-String
+          if ($rc -ne 0) { Write-Host "::error::training exited with $rc"; exit 1 }
+          if ($text -match "Traceback \(most recent call last\):") { Write-Host "::error::training printed a traceback"; exit 1 }
+          if ($text -notmatch "Training time:") { Write-Host "::error::training did not report completion"; exit 1 }
+
+      # Cartpole camera through Kit's RTX renderer (Vulkan path) on Isaac Sim
+      # PhysX: reset + one step, checking the pixels and reward are usable. The
+      # watchdog kills the whole process tree, which the step timeout does not.
+      - name: Cartpole camera smoke (Isaac Sim RTX)
+        if: ${{ !cancelled() && steps.sync-kit.outcome == 'success' }}
+        timeout-minutes: 10
+        run: |
+          $script = @'
+          import os
+          import sys
+          import traceback
+
+          from isaaclab.test.utils import launch_test_simulation
+
+          launch_test_simulation(enable_cameras=True)
+
+          try:
+              import torch
+
+              from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env import CartpoleCameraEnv
+              from isaaclab_tasks.utils import resolve_task_config
+
+              env_cfg, _ = resolve_task_config(
+                  "Isaac-Cartpole-Camera-Direct", "", overrides=("physics=isaacsim_physx", "renderer=isaacsim_rtx")
+              )
+              env_cfg.scene.num_envs = 2
+              env_cfg.frame_stack = 1
+              env = CartpoleCameraEnv(cfg=env_cfg)
+              obs, _ = env.reset()
+              image = obs["policy"]
+              assert torch.isfinite(image).all(), "Camera observation contains NaN or infinity"
+              assert image.amax() > image.amin(), "Camera observation is constant"
+              _, reward, _, _, _ = env.step(torch.zeros(env.num_envs, 1, device=env.device))
+              assert torch.isfinite(reward).all(), "Cartpole reward contains NaN or infinity"
+              env.close()
+          except BaseException:
+              # Print the real failure and skip Kit teardown: a wedged shutdown
+              # would otherwise hide the traceback behind the watchdog kill.
+              traceback.print_exc()
+              sys.stdout.flush()
+              sys.stderr.flush()
+              os._exit(1)
+          '@
+          $script | Out-File -FilePath perception_smoke.py -Encoding utf8
+          $proc = Start-Process -PassThru -NoNewWindow -FilePath uv -ArgumentList "run --frozen --no-sync python perception_smoke.py"
+          # Reading Handle keeps the process handle open so ExitCode survives the exit.
+          $null = $proc.Handle
+          if (-not $proc.WaitForExit(480000)) {
+            Write-Host "::error::perception hard timeout (8 min) - Kit/Vulkan hung; killing process tree"
+            taskkill /PID $proc.Id /T /F | Out-Null
+            exit 124
+          }
+          if ($null -eq $proc.ExitCode) { Write-Host "::error::perception exit code unavailable"; exit 1 }
+          exit $proc.ExitCode
+
+      - name: Save Kit shader cache
+        if: ${{ success() && steps.kit-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@v4
+        env:
+          PATH: C:\Program Files\Git\usr\bin;C:\Windows\System32
+        with:
+          path: .venv/Lib/site-packages/isaacsim/kit/cache
+          key: ${{ steps.shader-cache.outputs.isaacsim }}
+
+      # Last test step: it replaces the editable isaaclab with the built wheel.
+      - name: Wheel build + install
+        if: ${{ !cancelled() && steps.sync-kit.outcome == 'success' }}
+        timeout-minutes: 20
+        run: |
+          & "C:\Program Files\Git\bin\bash.exe" tools/wheel_builder/build.sh
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $wheel = Get-ChildItem -Path tools/wheel_builder/build/dist -Filter "isaaclab-*.whl"
+          uv pip uninstall --python .venv isaaclab
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          uv pip install --python .venv $wheel.FullName
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          uv run --frozen --no-sync python -c "import isaaclab; assert 'site-packages' in isaaclab.__file__, isaaclab.__file__"

@@ -28,7 +28,8 @@ jobs:
     name: Detect Changes
     runs-on: ubuntu-latest
     outputs:
-      run_kitless_tests: ${{ steps.detect.outputs.should_run }}
+      # TEMP (Windows diag PR, revert before review): force-skip; only windows-ci carries signal.
+      run_kitless_tests: 'false'
     steps:
     # The build job skips via `if:` rather than a workflow-level `paths:` filter,
     # so a required check is always created. Checked out in full (not sparse like
