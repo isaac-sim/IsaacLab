@@ -309,10 +309,11 @@ class _DummyViserSceneDataProvider:
 
 @pytest.fixture
 def web_backend(monkeypatch):
-    model = SimpleNamespace(body_label=["/Object"], body_count=1, num_envs=4)
+    model = SimpleNamespace(body_label=["/Object"], body_count=1, world_count=4)
     backend = SimpleNamespace(model=model, state_0=SimpleNamespace(body_q=None), geometry_offsets={})
     sim = SimpleNamespace(
         cfg=SimpleNamespace(physics=object(), device="cpu"),
+        physics_manager=SimpleNamespace(),
         device="cpu",
         get_or_create_backend=Mock(return_value=backend),
     )
@@ -353,7 +354,9 @@ def test_viser_visualizer_reads_sdp_and_rebinds_native_resource(monkeypatch, web
     monkeypatch.setattr(viser_visualizer.ViserVisualizer, "_create_viewer", _fake_create_viewer)
     monkeypatch.setattr(viser_visualizer.ViserVisualizer, "_setup_isaaclab_sidebar", lambda self, server: None)
 
-    cfg = NewtonBackendCfg(physics_cfg=web_backend.cfg.physics, device=web_backend.device)
+    cfg = NewtonBackendCfg(
+        physics_cfg=web_backend.cfg.physics, device=web_backend.device, manager=web_backend.physics_manager
+    )
     visualizer = viser_visualizer.ViserVisualizer(ViserVisualizerCfg())
     visualizer.initialize(cast(Any, provider), cameras=[])
     visualizer.step(0.25)

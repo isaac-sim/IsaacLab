@@ -45,6 +45,8 @@ class JointAction(ActionTerm):
     desired command of the articulation's joints (e.g. position, velocity, etc.).
     """
 
+    supports_graph_capture = True
+
     cfg: actions_cfg.JointActionCfg
     """The configuration of the action term."""
     _asset: Articulation

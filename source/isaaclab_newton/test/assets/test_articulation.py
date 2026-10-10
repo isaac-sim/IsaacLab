@@ -449,15 +449,23 @@ def test_task_space_allocation_and_capture(monkeypatch, device, first_property):
     builder.end_world()
     model = builder.finalize(device=device)
     state, control = model.state(), model.control()
-    monkeypatch.setattr(SimulationManager, "get_model", lambda: model)
-    monkeypatch.setattr(SimulationManager, "get_state_0", lambda: state)
-    monkeypatch.setattr(SimulationManager, "get_control", lambda: control)
+    manager = SimulationManager()
+    manager.backend = SimpleNamespace(
+        model=model,
+        state_0=state,
+        control=control,
+        solver=None,
+        is_stepping=False,
+        transforms_may_change_on_graph_replay=False,
+        device=model.device,
+    )
+
     view = ArticulationView(model, "Robot", exclude_joint_types=[JointType.FIXED])
-    eager = ArticulationData(view, device)
+    eager = ArticulationData(view, device, physics_manager=manager)
     eager._apply_ordering_maps_after_resolve()
     newton.eval_fk(model, state.joint_q, state.joint_qd, state)
     getattr(eager, first_property)  # Compile kernels before first-use capture on a fresh container.
-    data = ArticulationData(view, device)
+    data = ArticulationData(view, device, physics_manager=manager)
     data._apply_ordering_maps_after_resolve()
     properties = ("body_com_jacobian_w", "body_link_jacobian_w", "mass_matrix", "gravity_compensation_forces")
     assert all(getattr(data, f"_{name}_ta") is None for name in properties)
@@ -494,11 +502,19 @@ def test_world_hinged_root_has_no_base_dofs(monkeypatch, device):
     builder.end_world()
     model = builder.finalize(device=device)
     state, control = model.state(), model.control()
-    monkeypatch.setattr(SimulationManager, "get_model", lambda: model)
-    monkeypatch.setattr(SimulationManager, "get_state_0", lambda: state)
-    monkeypatch.setattr(SimulationManager, "get_control", lambda: control)
+    manager = SimulationManager()
+    manager.backend = SimpleNamespace(
+        model=model,
+        state_0=state,
+        control=control,
+        solver=None,
+        is_stepping=False,
+        transforms_may_change_on_graph_replay=False,
+        device=model.device,
+    )
+
     root_view = ArticulationView(model, "Robot")
-    data = ArticulationData(root_view, device)
+    data = ArticulationData(root_view, device, physics_manager=manager)
     data._apply_ordering_maps_after_resolve()
 
     assert data.body_link_jacobian_w.torch.shape[-1] == data.mass_matrix.torch.shape[-1] == 1
@@ -568,13 +584,19 @@ def test_hard_reset_recreates_ordered_state_and_actuators(device: str) -> None:
     with build_simulation_context(sim_cfg=newton_sim_cfg(device, use_newton_actuators=False)) as sim:
         articulations = spawn_assets(cfgs)
         sim.reset()
-        callback_counts = (len(SimulationManager._callbacks), len(SimulationManager.backend.callbacks))
+        callback_counts = (
+            len(SimulationContext.instance().physics_manager._callbacks),
+            len(SimulationContext.instance().physics_manager.backend.callbacks),
+        )
         for reset_index in range(3):
             if reset_index:
                 old_data = [articulation.data for articulation in articulations.values()]
                 sim.reset()
                 assert all(a.data is not previous for a, previous in zip(articulations.values(), old_data, strict=True))
-                assert callback_counts == (len(SimulationManager._callbacks), len(SimulationManager.backend.callbacks))
+                assert callback_counts == (
+                    len(SimulationContext.instance().physics_manager._callbacks),
+                    len(SimulationContext.instance().physics_manager.backend.callbacks),
+                )
 
             positions = []
             for name, articulation in articulations.items():
@@ -628,7 +650,7 @@ def test_newton_ordered_state_publishes_inside_captured_cuda_graph(device: str) 
         sim.reset()
         # the first step captures the graph that later steps replay
         sim.step()
-        assert SimulationManager.backend.step_graph.captured
+        assert SimulationContext.instance().physics_manager.backend.step_graph.captured
         data = articulation.data
         joint_u2b = np.asarray(articulation.joint_ordering.user_to_backend_indices)
         body_u2b = np.asarray(articulation.body_ordering.user_to_backend_indices)
@@ -680,7 +702,9 @@ def scene(composite_scene: _Scene) -> _Scene:
 
 def _model_attribute(articulation: Articulation, name: str) -> torch.Tensor:
     """Read one live Newton model attribute through the articulation's view, in backend order."""
-    return wp.to_torch(articulation.root_view.get_attribute(name, SimulationManager.get_model()))[:, 0]
+    return wp.to_torch(
+        articulation.root_view.get_attribute(name, SimulationContext.instance().physics_manager.get_model())
+    )[:, 0]
 
 
 def test_articulation_initialization_and_partial_state(scene: _Scene) -> None:
@@ -860,13 +884,13 @@ def test_articulation_joint_and_body_properties_round_trip(scene: _Scene, monkey
     body_ids = torch.tensor([1], dtype=torch.int32, device=device)
     joint_ids = torch.tensor([0], dtype=torch.int32, device=device)
     notifications = []
-    add_model_change = SimulationManager.add_model_change
+    add_model_change = SimulationContext.instance().physics_manager.add_model_change
 
     def record_model_change(change: ModelFlags) -> None:
         notifications.append(change)
         add_model_change(change)
 
-    monkeypatch.setattr(SimulationManager, "add_model_change", staticmethod(record_model_change))
+    monkeypatch.setattr(articulation._physics_manager, "add_model_change", record_model_change)
     initial_friction = articulation.data.joint_friction_coeff.torch.clone()
     friction = torch.tensor([[0.3]], device=device)
     articulation.write_joint_friction_coefficient_to_sim_index(
@@ -1287,7 +1311,7 @@ def test_branching_fixture_physx_ordering_reorders_newton_to_bfs(scene: _Scene) 
         device=device,
     )
     assert backend_body_ids[0] != body_ids[0]
-    model = SimulationManager.get_model()
+    model = SimulationContext.instance().physics_manager.get_model()
     initial_masses = articulation.data.body_mass.torch.clone()
     initial_inertias = articulation.data.body_inertia.torch.clone()
 
@@ -1353,7 +1377,8 @@ def test_newton_ordered_state_publishes_in_step_and_refreshes_same_timestamp_wri
     articulation.write_root_link_pose_to_sim_index(root_pose=written_root_pose)
     assert data._sim_timestamp == sim_timestamp
     torch.testing.assert_close(data.root_link_pose_w.torch, written_root_pose)
-    SimulationManager.forward()  # Another consumer may resolve shared FK before this view reads.
+    # Another consumer may resolve shared FK before this view reads.
+    SimulationContext.instance().physics_manager.forward()
     refreshed_body_pose = data.body_link_pose_w.torch[:, root_body_idx]
     torch.testing.assert_close(refreshed_body_pose, written_root_pose)
     assert not torch.equal(refreshed_body_pose, cached_body_pose)
@@ -1481,7 +1506,7 @@ def test_set_material_properties(scene: _Scene) -> None:
     device = scene.device
 
     # Resolve this articulation's shapes per environment and body from the flat Newton model.
-    model = SimulationManager.get_model()
+    model = SimulationContext.instance().physics_manager.get_model()
     body_world = model.body_world.numpy()
     body_labels = list(model.body_label)
     shape_body = model.shape_body.numpy()
@@ -1562,7 +1587,7 @@ def test_set_material_properties(scene: _Scene) -> None:
     model.shape_material_restitution.assign(configured_restitution)
     model.shape_margin.assign(original_margin)
     model.shape_gap.assign(original_gap)
-    SimulationManager.add_model_change(ModelFlags.SHAPE_PROPERTIES)
+    SimulationContext.instance().physics_manager.add_model_change(ModelFlags.SHAPE_PROPERTIES)
 
 
 def test_hand_with_tendons_targets_only_given_envs_and_properties_reach_solver(scene: _Scene) -> None:
@@ -1609,7 +1634,7 @@ def test_hand_with_tendons_targets_only_given_envs_and_properties_reach_solver(s
     articulation.write_fixed_tendon_properties_to_sim_mask()
     scene.step("tendon")
 
-    solver_model = SimulationManager.get_solver().mjw_model
+    solver_model = SimulationContext.instance().physics_manager.get_solver().mjw_model
     np.testing.assert_allclose(solver_model.tendon_stiffness.numpy(), 12.0)
     np.testing.assert_allclose(solver_model.tendon_damping.numpy(), 3.0)
     np.testing.assert_allclose(solver_model.tendon_range.numpy(), limits.cpu().numpy(), rtol=1e-6)
@@ -1675,7 +1700,7 @@ def test_get_gravity_compensation_forces_matches_jacobian_gravity(scene: _Scene,
 
     # Sanity: the islands have different DoF counts, so a regression to model-wide sizing would manifest as wrong
     # shapes on the smaller views.
-    model = SimulationManager.get_model()
+    model = SimulationContext.instance().physics_manager.get_model()
     island_dofs = [other.num_joints + other.num_base_dofs for other in scene.articulations.values()]
     assert model.max_dofs_per_articulation == max(island_dofs) > min(island_dofs)
 
@@ -1788,7 +1813,7 @@ def test_get_gravity_compensation_forces_matches_jacobian_gravity(scene: _Scene,
     # Ground truth from Newton state. ``get_link_velocities`` returns shape
     # (num_instances, 1, num_bodies, 6) — per-articulation grouping with
     # one articulation per instance — so we squeeze the inner dim.
-    state = SimulationManager.get_state_0()
+    state = SimulationContext.instance().physics_manager.get_state_0()
     body_qd_view = wp.to_torch(articulation.root_view.get_link_velocities(state)).squeeze(1)
     body_v_com = body_qd_view[..., :3]
     body_omega = body_qd_view[..., 3:]
@@ -1910,7 +1935,7 @@ def test_gravity_vec_w_tracks_model_gravity(scene: _Scene) -> None:
     device = scene.device
 
     # GRAVITY_VEC_W must share storage with Newton's per-env gravity array.
-    model = SimulationManager.get_model()
+    model = SimulationContext.instance().physics_manager.get_model()
     model_gravity_arr = model.gravity[: model.world_count]
     global_gravity = wp.to_torch(model.gravity)[-1].clone()
     assert articulation.data.GRAVITY_VEC_W.warp.ptr == model_gravity_arr.ptr
@@ -1961,7 +1986,7 @@ def test_body_q_consistent_after_root_write(scene: _Scene) -> None:
     device = scene.device
     articulation = scene.articulations["floating"]
     scene.rest(articulation)
-    model = SimulationManager.get_model()
+    model = SimulationContext.instance().physics_manager.get_model()
     jc_starts = model.joint_coord_world_start.numpy()
     body_starts = model.body_world_start.numpy()
     # The floating island is authored first, so its root owns the first body and joint coordinates of each world.
@@ -1981,9 +2006,9 @@ def test_body_q_consistent_after_root_write(scene: _Scene) -> None:
     # Wrap the pipeline's collide to capture body_q as collide() sees it; the step graph binds collide when it is
     # built, so drop the built graph before stepping and after restoring the pipeline.
     captured = {}
-    backend = SimulationManager.backend
+    backend = SimulationContext.instance().physics_manager.backend
     pipeline = backend.collision_pipeline
-    assert pipeline is not None and backend.manager.uses_collision_pipeline(backend)
+    assert pipeline is not None and backend.solver_adapter.uses_collision_pipeline(backend)
     original_collide = pipeline.collide
 
     def _capturing_collide(state, contacts, *args, **kwargs):

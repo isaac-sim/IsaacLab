@@ -5,6 +5,7 @@
 
 """Spilled media falls to the ground and remains classified as spilled."""
 
+from isaaclab.sim import SimulationContext
 from isaaclab.test.utils import DeviceScope, launch_test_simulation, test_devices
 
 from isaaclab_tasks.contrib.franka_pour.pour_env_cfg import FrankaPourResetDatasetEnvCfg
@@ -18,7 +19,7 @@ import newton
 import pytest
 import torch
 import warp as wp
-from isaaclab_newton.physics import NewtonManager, NewtonMPMManager
+from isaaclab_newton.physics import MPMSolverAdapter
 from newton import ShapeFlags
 
 from isaaclab.utils import clone
@@ -36,7 +37,7 @@ def test_spilled_particles_land_on_ground_without_escaping_workspace(device):
     env = FrankaPourEnv(cfg)
     try:
         env.reset()
-        model = NewtonManager.get_model()
+        model = SimulationContext.instance().physics_manager.get_model()
         table_shapes = [index for index, label in enumerate(model.shape_label) if "/Table/" in label]
         assert table_shapes, "The stationary table must retain its collision geometry."
         assert (model.shape_body.numpy()[table_shapes] == -1).all()
@@ -51,8 +52,8 @@ def test_spilled_particles_land_on_ground_without_escaping_workspace(device):
         env._media.write_particle_velocity_to_sim_index(torch.zeros_like(points), env_ids=env_ids)
         world_mask = torch.ones(env.num_envs + 1, dtype=torch.bool, device=device)
         world_mask[-1] = False
-        NewtonMPMManager.reset_solver_state(
-            NewtonMPMManager.backend,
+        MPMSolverAdapter.reset_solver_state(
+            MPMSolverAdapter.backend,
             world_mask=wp.from_torch(world_mask, dtype=wp.bool),
             flags=newton.StateFlags.BODY | newton.StateFlags.PARTICLE,
         )

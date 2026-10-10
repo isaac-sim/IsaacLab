@@ -20,7 +20,6 @@ from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_ov import tensor_types as TT
 from isaaclab_ov.assets import kernels as shared_kernels
-from isaaclab_ov.physics import OvPhysxManager as SimulationManager
 from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView
 
 
@@ -63,6 +62,8 @@ class RigidObjectData(BaseRigidObjectData):
         view: OvPhysxView,
         device: str,
         check_shapes: bool = True,
+        *,
+        physics_manager,
     ):
         """Initializes the rigid object data.
 
@@ -77,6 +78,7 @@ class RigidObjectData(BaseRigidObjectData):
                 lazy reads. Defaults to ``True``; production callers thread this
                 from :attr:`~isaaclab.assets.AssetBaseCfg.disable_shape_checks`.
         """
+        self._physics_manager = physics_manager
         super().__init__(view, device)
         # The view owns the per-tensor-type bindings and the CPU/GPU device policy.
         self._view = view
@@ -88,8 +90,8 @@ class RigidObjectData(BaseRigidObjectData):
         self._num_instances = root_pose.count
         self._num_bodies = 1
 
-        if SimulationManager._sim is not None and hasattr(SimulationManager._sim, "cfg"):
-            gravity = SimulationManager._sim.cfg.gravity
+        if self._physics_manager._sim is not None and hasattr(self._physics_manager._sim, "cfg"):
+            gravity = self._physics_manager._sim.cfg.gravity
         else:
             gravity = (0.0, 0.0, -9.81)
 

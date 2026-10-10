@@ -20,8 +20,6 @@ from isaaclab.markers import VisualizationMarkers
 from isaaclab.sensors.pva import BasePva
 from isaaclab.sim.utils.queries import path_expr_to_glob
 
-from isaaclab_physx.physics import PhysxManager as SimulationManager
-
 from .kernels import pva_reset_kernel, pva_update_kernel
 from .pva_data import PvaData
 
@@ -153,7 +151,7 @@ class Pva(BasePva):
         # Initialize parent class
         super()._initialize_impl()
         # obtain global simulation view
-        self._physics_sim_view = SimulationManager.get_physics_sim_view()
+        self._physics_sim_view = self._physics_manager.get_physics_sim_view()
 
         self._rigid_parent_expr, fixed_pos_b, fixed_quat_b = self._resolve_rigid_body_ancestor_expr()
         # Create the rigid body view on the ancestor

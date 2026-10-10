@@ -48,7 +48,7 @@ from isaaclab_ov.assets import Articulation, kernels  # noqa: E402
 from isaaclab_ov.assets.articulation import actuator_control  # noqa: E402
 from isaaclab_ov.assets.articulation.actuator_control import OvPhysxActuatorControl  # noqa: E402
 from isaaclab_ov.assets.articulation.articulation_data import ArticulationData  # noqa: E402
-from isaaclab_ov.physics import OvPhysxCfg, OvPhysxManager  # noqa: E402
+from isaaclab_ov.physics import OvPhysxCfg  # noqa: E402
 from isaaclab_ov.test.fixtures.views import MockOvPhysxBindingSet  # noqa: E402
 from isaaclab_physx.sim.schemas import PhysxJointCfg  # noqa: E402
 
@@ -558,12 +558,12 @@ def test_process_tendons_scopes_to_articulation_root():
     """Tendon discovery should ignore joints that live outside the current articulation subtree."""
     articulation = _make_articulation_shell()
     stage_usda = _make_articulation_root_stage_usda()
-    old_stage_usda = OvPhysxManager._stage_usda
-    OvPhysxManager._stage_usda = stage_usda
+    old_stage_usda = SimulationContext.instance().physics_manager._stage_usda
+    SimulationContext.instance().physics_manager._stage_usda = stage_usda
     try:
         articulation._process_tendons()
     finally:
-        OvPhysxManager._stage_usda = old_stage_usda
+        SimulationContext.instance().physics_manager._stage_usda = old_stage_usda
 
     # the tendon is reported by its schema INSTANCE name, matching PhysX; scope leakage would
     # add the identically-named instance from /World/unrelated, giving two entries
@@ -1692,13 +1692,13 @@ def test_root_link_vel_w_refreshes_fk_before_body_com_vel_w_read(scene: _Articul
         articulation.write_joint_velocity_to_sim_index(velocity=joint_vel)
         articulation.write_joint_position_to_sim_index(position=articulation.data.joint_pos.torch.clone())
         with monkeypatch.context() as patch:
-            physx = Mock(wraps=OvPhysxManager.backend.physx)
-            patch.setattr(OvPhysxManager.backend, "physx", physx)
+            physx = Mock(wraps=SimulationContext.instance().physics_manager.backend.physx)
+            patch.setattr(SimulationContext.instance().physics_manager.backend, "physx", physx)
             if render_first:
-                OvPhysxManager.pre_render()
+                SimulationContext.instance().physics_manager.pre_render()
             articulation.data.root_link_vel_w
             body_com_vel_w = articulation.data.body_com_vel_w.torch
-            OvPhysxManager.pre_render()
+            SimulationContext.instance().physics_manager.pre_render()
             physx.update_articulations_kinematic.assert_called_once()
             assert torch.linalg.norm(body_com_vel_w[:, 1, :]) > 1e-3
 

@@ -17,7 +17,7 @@ stage through CPU-pinned buffers there.
 import math
 import warnings
 from operator import attrgetter
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import numpy as np
 import pytest
@@ -178,13 +178,13 @@ def test_commanding_a_tendon_target_schedules_the_write(monkeypatch, backend):
 @requires("newton")
 def test_newton_tendon_target_requires_a_tendon_actuator(monkeypatch):
     """Without a MuJoCo tendon actuator Newton cannot command targets, and an untransmitting solver says so."""
-    from isaaclab_newton.physics import NewtonManager
+    from isaaclab_newton.physics import NewtonSolver
 
     art, _ = _articulation("newton", "cpu", monkeypatch, num_fixed_tendons=2)
     with pytest.raises(RuntimeError, match="no MuJoCo tendon actuator"):
         art.set_fixed_tendon_position_target_index(target=torch.zeros((N, 2)))
     with pytest.raises(NotImplementedError, match="does not drive fixed tendons"):
-        NewtonManager.create_fixed_tendon_control(art, None)
+        NewtonSolver.create_fixed_tendon_control(art, None)
 
 
 # ---------------------------------------------------------------------------
@@ -1097,7 +1097,6 @@ def test_ordering_reorders_public_dynamics_quantities(monkeypatch, backend, is_f
         is_fixed_base=is_fixed_base,
         monkeypatch=monkeypatch,
     )
-    identity_manager = getattr(identity_art, "_test_simulation_manager", None)
     ordered_art, ordered_raw = get_articulation(
         backend,
         num_instances,
@@ -1133,11 +1132,6 @@ def test_ordering_reorders_public_dynamics_quantities(monkeypatch, backend, is_f
     joint_user_to_backend, body_user_to_backend = _install_cyclic_ordering(ordered_art)
     identity_art.data.update(dt=0.01)
     ordered_art.data.update(dt=0.01)
-    if backend == "newton":
-        # Both mocks patch the same Newton module; read the shared model through the identity manager.
-        import isaaclab_newton.assets.articulation.articulation_data as newton_data_module
-
-        monkeypatch.setattr(newton_data_module, "SimulationManager", identity_manager)
 
     dofs = np.concatenate((np.arange(num_base_dofs), num_base_dofs + joint_user_to_backend))
     bodies = body_user_to_backend if num_base_dofs else body_user_to_backend[body_user_to_backend != 0] - 1
@@ -1608,9 +1602,7 @@ def test_external_wrenches_are_written_in_backend_body_order(monkeypatch, backen
         composer.set_forces_and_torques_index(
             forces=wp.array(forces, dtype=wp.vec3f), torques=wp.array(torques, dtype=wp.vec3f), is_global=is_global
         )
-        with patch.object(composer, "compose_to_body_frame", wraps=composer.compose_to_body_frame) as compose:
-            art.write_data_to_sim()
-        assert compose.call_count == int(is_global and backend == "newton")
+        art.write_data_to_sim()
 
         expected_force, expected_torque = forces[:, backend_to_user], torques[:, backend_to_user]
         if backend == "physx":

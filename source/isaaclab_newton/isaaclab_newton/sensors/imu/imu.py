@@ -13,8 +13,6 @@ import warp as wp
 
 from isaaclab.sensors.imu import BaseImu
 
-from isaaclab_newton.physics import NewtonManager
-
 from .imu_data import ImuData
 from .kernels import imu_copy_kernel, imu_reset_kernel
 
@@ -56,8 +54,8 @@ class Imu(BaseImu):
         self._newton_sensor: NewtonSensorIMU | None = None
 
         offset_xform = wp.transform(cfg.offset.pos, cfg.offset.rot)
-        self._site_label: str = NewtonManager.register_site(cfg.prim_path, offset_xform)
-        NewtonManager.request_extended_state_attribute("body_qdd")
+        self._site_label: str = self._physics_manager.register_site(cfg.prim_path, offset_xform)
+        self._physics_manager.request_extended_state_attribute("body_qdd")
 
         logger.info(f"IMU '{cfg.prim_path}': site registered (label='{self._site_label}')")
 
@@ -111,7 +109,7 @@ class Imu(BaseImu):
         """PHYSICS_READY callback: resolves site indices and creates the native SensorIMU."""
         super()._initialize_impl()
 
-        site_map = NewtonManager.get_site_index_map()
+        site_map = self._physics_manager.get_site_index_map()
         num_envs = self._num_envs
 
         if self._site_label not in site_map:
@@ -139,7 +137,7 @@ class Imu(BaseImu):
                     )
                 site_indices.append(world_sites[0])
 
-        self._newton_sensor = NewtonManager.add_imu_sensor(site_indices)
+        self._newton_sensor = self._physics_manager.add_imu_sensor(site_indices)
 
         self._data.create_buffers(num_envs=num_envs, device=self._device)
 

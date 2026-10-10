@@ -14,7 +14,7 @@ quantities of shape ``(N, B)``. Bookkeeping runs on CPU; getters and writers run
 stages writes through pinned CPU buffers on CUDA.
 """
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import numpy as np
 import pytest
@@ -401,9 +401,7 @@ def test_rigid_object_external_wrench_frames(monkeypatch, backend):
     for is_global in (False, True):
         composer.reset()
         composer.set_forces_and_torques_index(forces=forces, torques=torques, is_global=is_global)
-        with patch.object(composer, "compose_to_body_frame", wraps=composer.compose_to_body_frame) as compose:
-            obj.write_data_to_sim()
-        assert compose.call_count == int(is_global and backend == "newton")
+        obj.write_data_to_sim()
 
         expected_force, expected_torque = forces, torques
         if backend == "physx":

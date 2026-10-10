@@ -33,7 +33,7 @@ pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 
 from isaaclab_ov import tensor_types as TT  # noqa: E402
 from isaaclab_ov.assets import RigidObject, RigidObjectCollection  # noqa: E402
-from isaaclab_ov.physics import OvPhysxCfg, OvPhysxManager  # noqa: E402
+from isaaclab_ov.physics import OvPhysxCfg  # noqa: E402
 
 import isaaclab.sim as sim_utils  # noqa: E402
 from isaaclab import cloner  # noqa: E402
@@ -188,8 +188,10 @@ def test_heterogeneous_clone_contacts_and_indexed_state(device, support_cloning,
         obj.write_root_pose_to_sim(pose, env_ids=selected)
         sim.step()
         scene.update(sim.get_physics_dt())
-        binding = OvPhysxManager.get_physx_instance().create_tensor_binding(
-            prim_paths=expected_paths, tensor_type=TT.RIGID_BODY_POSE
+        binding = (
+            SimulationContext.instance()
+            .physics_manager.get_physx_instance()
+            .create_tensor_binding(prim_paths=expected_paths, tensor_type=TT.RIGID_BODY_POSE)
         )
         try:
             actual = torch.empty(binding.shape, device=device)

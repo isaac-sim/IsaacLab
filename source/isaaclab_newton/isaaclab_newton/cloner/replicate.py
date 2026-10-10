@@ -9,7 +9,7 @@ import contextlib
 import copy
 from collections.abc import Callable, Iterator, Sequence
 from functools import partial
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import numpy as np
 import warp as wp
@@ -20,7 +20,6 @@ from pxr import Sdf, Usd, UsdGeom
 from isaaclab.assets import AssetBaseCfg
 from isaaclab.cloner import ClonePlan, PrototypeWorldTopology
 from isaaclab.cloner import path as cloner_path
-from isaaclab.physics import PhysicsManager
 from isaaclab.scene_data import SceneDataFormat
 from isaaclab.scene_data.deformable_discovery import (
     deformable_geometry_batches,
@@ -28,7 +27,7 @@ from isaaclab.scene_data.deformable_discovery import (
     expand_deformable_entries,
 )
 from isaaclab.sensors import SensorBaseCfg
-from isaaclab.sim import SpawnerCfg
+from isaaclab.sim import SimulationContext, SpawnerCfg
 
 from isaaclab_newton.cloner.newton_clone_utils import (
     add_deformable_from_usd,
@@ -36,14 +35,14 @@ from isaaclab_newton.cloner.newton_clone_utils import (
     build_source_builders,
     replicate_builder_mapping,
 )
-from isaaclab_newton.physics import NewtonBuilderCfg, NewtonCfg, NewtonCloneRecord, NewtonManager
+from isaaclab_newton.physics import NewtonBuilderCfg, NewtonCfg, NewtonCloneRecord, NewtonManager, NewtonSolver
+from isaaclab_newton.physics.newton_builder import inject_terrain_heightfields
 from isaaclab_newton.sim.spawners.mpm.mpm import _SIMULATION_POINTS_SUFFIX
 
-if TYPE_CHECKING:
-    from isaaclab.sim import SimulationContext
 
-
-def copy_newton_clone_source(source_path: str, xform: wp.transform | None = None) -> ModelBuilder:
+def copy_newton_clone_source(
+    source_path: str, xform: wp.transform | None = None, *, manager: NewtonManager | None = None
+) -> ModelBuilder:
     """Copy a retained clone-source builder without sharing mutable shape geometry.
 
     Args:
@@ -56,7 +55,8 @@ def copy_newton_clone_source(source_path: str, xform: wp.transform | None = None
     Raises:
         RuntimeError: If Newton replication did not retain the requested source.
     """
-    source = NewtonManager.get_clone_source_builders().get(source_path)
+    manager = SimulationContext.instance().physics_manager if manager is None else manager
+    source = manager.get_clone_source_builders().get(source_path)
     if source is None:
         raise RuntimeError(f"No retained Newton clone source for {source_path!r}.")
     builder = ModelBuilder(up_axis=source.up_axis)
@@ -70,6 +70,8 @@ def copy_newton_clone_source(source_path: str, xform: wp.transform | None = None
 @contextlib.contextmanager
 def newton_builder_world_hook(
     hook: Callable[[ModelBuilder, int, np.ndarray, np.ndarray], None],
+    *,
+    manager: NewtonManager | None = None,
 ) -> Iterator[None]:
     """Temporarily extend every world built by Newton replication.
 
@@ -86,7 +88,8 @@ def newton_builder_world_hook(
     Raises:
         RuntimeError: If the callback is already registered.
     """
-    hooks = NewtonManager.get_world_builder_hooks()
+    manager = SimulationContext.instance().physics_manager if manager is None else manager
+    hooks = manager.get_world_builder_hooks()
     if hook in hooks:
         raise RuntimeError("Newton world-builder hook is already registered.")
     hooks.append(hook)
@@ -134,14 +137,14 @@ def _replicate_newton(
         quaternions = np.zeros((len(env_ids), 4), dtype=np.float32)
         quaternions[:, 3] = 1.0
 
-    manager_cls = sim.physics_manager if simulation else NewtonManager
+    manager_cls = cfg.solver_cfg.class_type if simulation else NewtonSolver
     schema_resolvers = manager_cls.get_usd_import_schema_resolvers(cfg.solver_cfg if simulation else None)
     create_builder = partial(manager_cls.create_builder, physics_cfg=cfg) if simulation else ModelBuilder
     create_builder = partial(create_builder, up_axis=up_axis)
     load_visual_shapes = cfg.load_visual_shapes if simulation else True
     if load_visual_shapes is None:
         load_visual_shapes = sim.is_rendering or sim.can_render_rgb_array() or sim.visual_shapes_required
-    builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=cfg))
+    builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=cfg, manager=sim.physics_manager))
     builder.up_axis = Axis.from_string(up_axis)
     import_paths = (sim.cfg.physics_prim_path, *global_paths) if simulation else global_paths
     # A parent import owns its whole subtree; reject nested replacements before importing either source.
@@ -174,7 +177,7 @@ def _replicate_newton(
     # A parent source also owns deformables declared beneath it, even when the child has its own asset config.
     entries = deformable_prototypes(stage, plan, exclude_paths=exclude_paths)
     if simulation:
-        ignore_paths = manager_cls.inject_terrain_heightfields(stage, builder, root_paths=import_paths)
+        ignore_paths = inject_terrain_heightfields(stage, builder, root_paths=import_paths, device=sim.device)
         ignore_paths.extend((*exclude_paths, *(entry.root_path for entry in entries)))
     else:
         ignore_paths = [*exclude_paths, *(entry.root_path for entry in entries)]
@@ -212,7 +215,7 @@ def _replicate_newton(
                 continue
             cables[path] = [shapes[f"{path}_edge_capsule_{segment}"] for segment in range(len(bodies))]
     if simulation:
-        global_sites, source_sites, root_sites = NewtonManager.inject_sites(builder, source_builders)
+        global_sites, source_sites, root_sites = sim.physics_manager.inject_sites(builder, source_builders)
     else:
         # Clear imported filters before merging into a fresh, compact final filter store.
         for imported in source_builders.values():
@@ -240,7 +243,7 @@ def _replicate_newton(
                 visual_ranges[cloner_path.rebase(particle_visual_paths[path], source, destination)] = native_range
 
     options = dict(env_ids=env_ids, source_site_indices=source_sites, env_root_sites=root_sites)
-    options["per_world_builder_hooks"] = NewtonManager.get_world_builder_hooks() if simulation else ()
+    options["per_world_builder_hooks"] = sim.physics_manager.get_world_builder_hooks() if simulation else ()
     has_geometry = any(source_cables.values()) or any(result["path_particle_map"] for result in import_results.values())
     options["source_builder_added"] = record_geometry if has_geometry else None
     local_site_map, world_xforms = replicate_builder_mapping(
@@ -263,7 +266,7 @@ def _replicate_newton(
             cable_bindings=cable_bindings,
             geometry_batches=batches,
         )
-        NewtonManager.record_clone(record, site_index_map)
+        sim.physics_manager.record_clone(record, site_index_map)
     return builder, stage_info, site_index_map
 
 
@@ -328,5 +331,5 @@ def newton_physics_replicate(
     plan = ClonePlan(topology, asset_cfgs=assets, env_template=env_template, positions=positions)
     options = dict(plan=plan, asset_prototype_ids=range(len(assets)), positions=positions)
     options.update(up_axis=up_axis, quaternions=quaternions)
-    builder, stage_info, _ = _replicate_newton(stage, env_ids, PhysicsManager._sim, **options)
+    builder, stage_info, _ = _replicate_newton(stage, env_ids, SimulationContext.instance(), **options)
     return builder, stage_info

@@ -22,7 +22,7 @@ from isaaclab_newton.physics import (
 )
 from isaaclab_newton.physics.mpm_manager import implicit_mpm_solvers, mpm_supports_graph_capture
 from isaaclab_newton.physics.newton_backend import NewtonBackend
-from isaaclab_newton.physics.newton_manager import NewtonManager
+from isaaclab_newton.physics.newton_solver import NewtonSolver
 from newton import CollisionPipeline, Model, ModelBuilder, ShapeFlags, State
 from newton.solvers import SolverBase
 from newton.solvers.experimental.coupled import SolverCoupled, SolverCoupledADMM, SolverCoupledProxy
@@ -38,8 +38,8 @@ from .coupler_cfg import (
 )
 
 
-class NewtonCouplerManager(NewtonManager):
-    """:class:`NewtonManager` running named Newton solver entries coupled through proxy or ADMM interfaces."""
+class CouplerSolverAdapter(NewtonSolver):
+    """:class:`NewtonSolver` running named Newton solver entries coupled through proxy or ADMM interfaces."""
 
     supports_contact_sensors = False
 
@@ -185,7 +185,7 @@ class NewtonCouplerManager(NewtonManager):
             cls._validate_no_cross_entry_proxy_joints(model, {entry.config.name: entry for entry in entries})
 
     @staticmethod
-    def _entry_managers(solver_cfg: CouplerCfg) -> dict[type[NewtonManager], NewtonSolverCfg]:
+    def _entry_managers(solver_cfg: CouplerCfg) -> dict[type[NewtonSolver], NewtonSolverCfg]:
         """Return each distinct entry manager with an entry configuration it serves."""
         return {entry.solver_cfg.class_type: entry.solver_cfg for entry in solver_cfg.entries}
 

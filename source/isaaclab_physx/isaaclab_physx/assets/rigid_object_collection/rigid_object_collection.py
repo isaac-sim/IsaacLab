@@ -25,7 +25,6 @@ from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_physx.assets import kernels as shared_kernels
-from isaaclab_physx.physics import PhysxManager as SimulationManager
 
 from .kernels import resolve_view_ids_kernel
 from .rigid_object_collection_data import RigidObjectCollectionData
@@ -483,7 +482,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             self.reshape_data_to_view_2d(self.data._body_link_pose_w.data, device=self.device).view(wp.float32),
             indices=view_ids,
         )
-        SimulationManager.invalidate_transforms()
+        self._physics_manager.invalidate_transforms()
 
     def write_body_link_pose_to_sim_mask(
         self,
@@ -597,7 +596,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             self.reshape_data_to_view_2d(self.data._body_link_pose_w.data, device=self.device).view(wp.float32),
             indices=view_ids,
         )
-        SimulationManager.invalidate_transforms()
+        self._physics_manager.invalidate_transforms()
 
     def write_body_com_pose_to_sim_mask(
         self,
@@ -1383,7 +1382,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         # clear body names list to prevent double counting on re-initialization
         self._body_names_list.clear()
         # obtain global simulation view
-        self._physics_sim_view = SimulationManager.get_physics_sim_view()
+        self._physics_sim_view = self._physics_manager.get_physics_sim_view()
 
         def has_rigid_body_api(prim) -> bool:
             return bool(prim.HasAPI(UsdPhysics.RigidBodyAPI))
@@ -1408,7 +1407,9 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         logger.info(f"Body names: {self.body_names}")
 
         # container for data access
-        self._data = RigidObjectCollectionData(self.root_view, self.num_bodies, self.device)
+        self._data = RigidObjectCollectionData(
+            self.root_view, self.num_bodies, self.device, physics_manager=self._physics_manager
+        )
 
         # create buffers
         self._create_buffers()

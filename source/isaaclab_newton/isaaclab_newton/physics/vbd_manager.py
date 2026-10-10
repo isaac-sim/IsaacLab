@@ -12,15 +12,15 @@ from typing import TYPE_CHECKING
 from newton import ModelBuilder, State
 from newton.solvers import SolverVBD
 
-from .newton_manager import NewtonManager
+from .newton_solver import NewtonSolver
 from .vbd_manager_cfg import VBDSolverCfg
 
 if TYPE_CHECKING:
     from .newton_backend import NewtonBackend
 
 
-class NewtonVBDManager(NewtonManager):
-    """:class:`NewtonManager` running the VBD solver, which double-buffers state."""
+class VBDSolverAdapter(NewtonSolver):
+    """:class:`NewtonSolver` adapter for the VBD solver, which double-buffers state."""
 
     solver_class = SolverVBD
     supports_heterogeneous_worlds = True

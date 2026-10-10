@@ -41,6 +41,8 @@ class BinaryJointAction(ActionTerm):
     add such constraints to the gripper.
     """
 
+    supports_graph_capture = True
+
     apply_every_physics_step = False
 
     cfg: actions_cfg.BinaryJointActionCfg

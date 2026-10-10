@@ -18,8 +18,6 @@ import isaaclab.sim as sim_utils
 from isaaclab.sensors.ray_caster.base_ray_caster import BaseRayCaster
 from isaaclab.sensors.ray_caster.kernels import copy_mesh_transforms_to_table_kernel
 
-from isaaclab_physx.physics import PhysxManager
-
 if TYPE_CHECKING:
     from isaaclab.sensors.ray_caster.ray_caster_cfg import RayCasterCfg
 
@@ -68,7 +66,7 @@ class _PhysXRayCasterMixin:
         relative = sensor_path.MakeRelativePath(body_path).pathString
         body_expr = sensor_expr if sensor_path == body_path else sensor_expr[: -(len(relative) + 1)]
 
-        physics_sim_view = PhysxManager.get_physics_sim_view()
+        physics_sim_view = self._physics_manager.get_physics_sim_view()
         if physics_sim_view is None:
             raise RuntimeError("PhysX simulation view is not initialized.")
         self._physx_body_view = physics_sim_view.create_rigid_body_view(_physx_body_glob(body_expr))
@@ -130,7 +128,7 @@ class _PhysXRayCasterMixin:
             target_prim_paths = [target_prim_paths]
         if not target_prim_paths:
             raise RuntimeError(f"No tracked target bodies resolved from: {target_prim_paths}")
-        physics_sim_view = PhysxManager.get_physics_sim_view()
+        physics_sim_view = self._physics_manager.get_physics_sim_view()
         if physics_sim_view is None:
             raise RuntimeError("PhysX simulation view is not initialized.")
         return physics_sim_view.create_rigid_body_view([_physx_body_glob(path) for path in target_prim_paths])

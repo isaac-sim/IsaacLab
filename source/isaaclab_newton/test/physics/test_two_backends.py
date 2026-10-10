@@ -24,6 +24,7 @@ from isaaclab_newton.physics import (
     MJWarpSolverCfg,
     NewtonBackend,
     NewtonCfg,
+    NewtonManager,
     VBDSolverCfg,
     XPBDSolverCfg,
 )
@@ -46,7 +47,20 @@ def _pendulums(
     Each :func:`nb.step` advances ``steps`` physics steps, replayed from CUDA graphs when ``captured``.
     ``links_per_world`` gives each world its own chain length; by default every world holds one link.
     """
-    builder = physics_cfg.class_type.create_builder(physics_cfg=physics_cfg)
+    builder = _pendulum_builder(physics_cfg, num_worlds, links_per_world)
+    physics_cfg.solver_cfg.class_type.prepare_solver_builder(builder, physics_cfg.solver_cfg)
+    model = builder.finalize(device=DEVICE)
+    backend = NewtonBackend(model, physics_cfg, dt=DT)
+    nb.init_solver(backend)
+    backend.steps_per_call = steps
+    if not captured:
+        backend.capture = None
+    return backend
+
+
+def _pendulum_builder(physics_cfg, num_worlds=4, links_per_world=None):
+    """Construct the same pendulum worlds for standalone managers or the functional backend."""
+    builder = physics_cfg.solver_cfg.class_type.create_builder(physics_cfg=physics_cfg)
     for world, num_links in enumerate(links_per_world or [1] * num_worlds):
         builder.begin_world()
         parent, joints = -1, []
@@ -64,14 +78,7 @@ def _pendulums(
             parent = link
         builder.add_articulation(joints)
         builder.end_world()
-    physics_cfg.class_type.prepare_builder(builder, physics_cfg.solver_cfg)
-    model = builder.finalize(device=DEVICE)
-    backend = NewtonBackend(model, physics_cfg, dt=DT)
-    nb.init_solver(backend)
-    backend.steps_per_call = steps
-    if not captured:
-        backend.capture = None
-    return backend
+    return builder
 
 
 def _configs() -> tuple[tuple[NewtonCfg, int], tuple[NewtonCfg, int]]:
@@ -200,7 +207,7 @@ def test_heterogeneous_worlds_match_solver_capability(solver_cfg):
     """Solvers that declare heterogeneous-world support step worlds with different chains; the others refuse them."""
     cfg = NewtonCfg(solver_cfg=solver_cfg, num_substeps=4)
     links = [1, 2, 1, 3]
-    if not cfg.class_type.supports_heterogeneous_worlds:
+    if not cfg.solver_cfg.class_type.supports_heterogeneous_worlds:
         with pytest.raises(ValueError, match="homogeneous"):
             _pendulums(cfg, 1, links_per_world=links)
         return
@@ -222,3 +229,89 @@ def test_record_step_requires_a_prepared_graph():
     backend = _pendulums(cfg, steps)
     with pytest.raises(RuntimeError, match="Prepare the Newton step"):
         nb.record_step(backend)
+
+
+def test_independent_managers_and_custom_context_injection():
+    """Managers isolate construction, callbacks and solver state; a custom instance plugs into Isaac Lab."""
+    from isaaclab.sim import SimulationCfg, SimulationContext
+
+    class CustomManager(NewtonManager):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self.steps = 0
+
+        def step(self):
+            super().step()
+            self.steps += 1
+
+    cfg = NewtonCfg(solver_cfg=MJWarpSolverCfg(use_mujoco_contacts=True), class_type=CustomManager)
+    first = cfg.class_type(_pendulum_builder(cfg), cfg, dt=DT, device=DEVICE)
+    second = NewtonManager(_pendulum_builder(cfg), cfg, dt=DT, device=DEVICE)
+    for manager in (first, second):
+        manager.register_site(None, wp.transform_identity())
+        manager.reset()
+    try:
+        assert first.backend.model.shape_count == second.backend.model.shape_count == 1
+        initial = _angles(second.backend)
+        for _ in range(3):
+            first.step()
+        np.testing.assert_array_equal(_angles(second.backend), initial)
+        assert np.max(np.abs(_angles(first.backend) - initial)) > 1e-4
+        first.close()
+        second.step()
+        assert np.max(np.abs(_angles(second.backend) - initial)) > 1e-5
+    finally:
+        first.close()
+        second.close()
+
+    injected = CustomManager(_pendulum_builder(cfg))
+    sim = SimulationContext(SimulationCfg(physics=cfg, device=DEVICE, dt=DT), physics_manager=injected)
+    try:
+        sim.reset()
+        sim.step(render=False)
+        assert sim.physics_manager is injected
+        assert injected.steps == 1
+        assert isinstance(injected.backend.solver, newton.solvers.SolverMuJoCo)
+    finally:
+        SimulationContext.clear_instance()
+    assert injected.backend is None
+    assert injected._sim is None
+
+
+@wp.kernel
+def _count_refreshes(count: wp.array(dtype=wp.int32)):
+    count[0] += 1
+
+
+def test_masked_property_transaction_skips_empty_replays_and_combines_flags(monkeypatch):
+    """An empty replay skips solver constants; selected edits rebuild them once with all categories."""
+    backend = _pendulums(_configs()[0][0], 1)
+    mask = wp.zeros(4, dtype=wp.bool, device=DEVICE)
+    refreshes = wp.zeros(1, dtype=wp.int32, device=DEVICE)
+    flags_seen = []
+    original = backend.solver.notify_model_changed
+
+    def notify(flags):
+        flags_seen.append(flags)
+        wp.launch(_count_refreshes, 1, [refreshes], device=DEVICE)
+        original(flags)
+
+    monkeypatch.setattr(backend.solver, "notify_model_changed", notify)
+
+    def edits():
+        nb.mark_model_changed(backend, newton.ModelFlags.BODY_INERTIAL_PROPERTIES, mask)
+        nb.mark_model_changed(backend, newton.ModelFlags.JOINT_DOF_PROPERTIES, mask)
+        nb.notify_model_changes(backend)
+
+    graph = nb.capture_graph(DEVICE, edits)
+    replay = graph.launch
+    replay()
+    assert refreshes.numpy()[0] == 0
+    mask.assign(np.array([False, True, False, False]))
+    replay()
+    assert refreshes.numpy()[0] == 1
+    mask.zero_()
+    replay()
+    assert refreshes.numpy()[0] == 1
+    assert flags_seen == [newton.ModelFlags.BODY_INERTIAL_PROPERTIES | newton.ModelFlags.JOINT_DOF_PROPERTIES]
+    backend.close()

@@ -103,11 +103,13 @@ class SimulationContext:
         """
         cls._reset_callbacks.pop(name, None)
 
-    def __init__(self, cfg: SimulationCfg | None = None):
+    def __init__(self, cfg: SimulationCfg | None = None, *, physics_manager: PhysicsManager | None = None):
         """Initialize the simulation context.
 
         Args:
             cfg: Simulation configuration. Defaults to None (uses default config).
+            physics_manager: Manager to attach and own for this context's lifetime. Defaults to constructing
+                the manager selected by ``cfg.physics.class_type``. A manager may belong to only one context.
 
         Raises:
             RuntimeError: If a simulation context already exists.
@@ -117,6 +119,9 @@ class SimulationContext:
                 "A SimulationContext already exists. Use SimulationContext.instance() to retrieve it,"
                 " or call SimulationContext.clear_instance() before constructing a replacement."
             )
+
+        if physics_manager is not None and physics_manager._sim is not None:
+            raise ValueError("The physics manager is already attached to a simulation context.")
 
         from pxr import UsdUtils  # noqa: PLC0415
 
@@ -129,7 +134,8 @@ class SimulationContext:
         use_isaac_sim = has_kit()
         self._physics = _resolve_physics_cfg(self.cfg.physics, use_isaac_sim=use_isaac_sim)
         self.cfg.physics = self._physics
-        self._physics.class_type._prepare_stage_creation()
+        manager_type = self._physics.class_type if physics_manager is None else type(physics_manager)
+        manager_type._prepare_stage_creation()
 
         # Get or create stage based on config
         stage_cache = UsdUtils.StageCache.Get()
@@ -188,7 +194,7 @@ class SimulationContext:
             torch.cuda.set_device(self.cfg.device)
         wp.set_device(self.cfg.device)
 
-        self.physics_manager: type[PhysicsManager] = self._physics.class_type
+        self.physics_manager = self._physics.class_type() if physics_manager is None else physics_manager
         # Must be set before physics_manager.initialize() so that any render callbacks
         # registered during initialize() (e.g. PhysxManager's headless video pump) succeed.
         self._render_callbacks: dict[str, tuple[int, Callable[[Any], None]]] = {}

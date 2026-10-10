@@ -98,11 +98,19 @@ def test_joint_commands_preserve_coordinate_layout(monkeypatch, ball_joint):
     state, control = model.state(), model.control()
     assert model.joint_coord_count != model.joint_dof_count
     assert control.joint_target_q.shape == state.joint_q.shape
-    monkeypatch.setattr(NewtonManager, "get_model", lambda: model)
-    monkeypatch.setattr(NewtonManager, "get_state_0", lambda: state)
-    monkeypatch.setattr(NewtonManager, "get_control", lambda: control)
+    manager = NewtonManager()
+    manager.backend = SimpleNamespace(
+        model=model,
+        state_0=state,
+        control=control,
+        solver=None,
+        is_stepping=False,
+        transforms_may_change_on_graph_replay=False,
+        device=model.device,
+    )
+
     view = ArticulationView(model, "Robot", exclude_joint_types=[newton.JointType.FREE])
-    data = ArticulationData(view, "cpu")
+    data = ArticulationData(view, "cpu", physics_manager=manager)
     data._apply_ordering_maps_after_resolve()
     num_dofs = 4 if ball_joint else 2
     assert data.joint_pos.shape == (2, num_dofs)
@@ -120,7 +128,9 @@ def test_joint_commands_preserve_coordinate_layout(monkeypatch, ball_joint):
         _joint_vel_target_sim=wp.zeros((2, num_dofs), device="cpu"),
         _joint_effort_target_sim=wp.zeros((2, num_dofs), device="cpu"),
     )
-    articulation = SimpleNamespace(data=data, _ALL_ENV_MASK=wp.array([True, True], dtype=wp.bool, device="cpu"))
+    articulation = SimpleNamespace(
+        data=data, _physics_manager=manager, _ALL_ENV_MASK=wp.array([True, True], dtype=wp.bool, device="cpu")
+    )
     NewtonActuatorControl(articulation).submit_commands(collection)
     np.testing.assert_allclose(control.joint_target_q.numpy().reshape(2, -1), expected, atol=1e-6)
 

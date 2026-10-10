@@ -20,6 +20,25 @@ from isaaclab.renderers import RenderContext, RendererCfg
 from isaaclab.visualizers import VisualizerCfg
 
 
+class _LifecycleManager(PhysicsManager):
+    """Minimal manager exercising the shared lifecycle without a physics runtime."""
+
+    def initialize(self, sim_context):
+        super().initialize(sim_context)
+
+    def reset(self, soft=False):
+        pass
+
+    def forward(self):
+        pass
+
+    def get_scene_data_backend(self):
+        return None
+
+    def step(self):
+        pass
+
+
 def test_backend_registry_identity_and_lifecycle():
     """Share by type/cfg, construct once, and release only the selected resource after successful cleanup."""
     from isaaclab.sim import BackendCfg, SimulationContext
@@ -117,47 +136,40 @@ def test_backend_registry_identity_and_lifecycle():
     assert context.get_or_create_backend(data_cfg) is not data
 
 
-def test_physics_manager_close_only_clears_active_manager_binding(monkeypatch):
-    """Only the active physics manager can clear shared SimulationContext state."""
-
-    class _ActiveManager(PhysicsManager):
-        _callbacks = {}
-
-    class _InactiveManager(PhysicsManager):
-        pass
-
-    _ActiveManager.close()
-    assert PhysicsManager._sim is None
-
-    active_sim = SimpleNamespace(physics_manager=_ActiveManager)
-    monkeypatch.setattr(PhysicsManager, "_sim", active_sim, raising=False)
-    monkeypatch.setattr(PhysicsManager, "_cfg", "active-cfg", raising=False)
-    monkeypatch.setattr(PhysicsManager, "_sim_time", 1.25, raising=False)
-
-    monkeypatch.setattr(PhysicsManager, "_callbacks", {1: (None, lambda _: None, 0, "stale", None)}, raising=False)
-    _InactiveManager.close()
-    assert PhysicsManager._callbacks == {}
-    assert (PhysicsManager._sim, PhysicsManager._cfg, PhysicsManager._sim_time) == (active_sim, "active-cfg", 1.25)
-
-    _ActiveManager.close()
-    assert (PhysicsManager._sim, PhysicsManager._cfg, PhysicsManager._sim_time) == (None, None, 0.0)
+def test_physics_manager_close_only_clears_its_own_binding():
+    """Two instances of the same manager own independent lifecycle state."""
+    first, second = _LifecycleManager(), _LifecycleManager()
+    first._sim, second._sim = object(), object()
+    second._cfg, second._sim_time = "active-cfg", 1.25
+    events = []
+    first.register_callback(lambda _: events.append("first"), PhysicsEvent.STOP)
+    second.register_callback(lambda _: events.append("second"), PhysicsEvent.STOP)
+    first.close()
+    assert events == ["first"]
+    assert first._sim is first._cfg is None
+    assert second._sim is not None
+    assert (second._cfg, second._sim_time) == ("active-cfg", 1.25)
+    second.close()
+    assert events == ["first", "second"]
+    assert second._sim is second._cfg is None
 
 
 def test_close_runs_all_live_stop_listeners_and_aggregates_failures(monkeypatch):
     """STOP fan-out and shared-state cleanup survive an individual listener failure."""
 
-    class TestManager(PhysicsManager):
+    class TestManager(_LifecycleManager):
         pass
 
+    manager = TestManager()
     events = []
-    monkeypatch.setattr(TestManager, "_callbacks", {})
-    monkeypatch.setattr(TestManager, "_callback_id", 0)
-    monkeypatch.setattr(PhysicsManager, "_sim", SimpleNamespace(physics_manager=TestManager))
-    monkeypatch.setattr(PhysicsManager, "_cfg", object())
-    monkeypatch.setattr(PhysicsManager, "_sim_time", 1.0)
-    monkeypatch.setattr(PhysicsManager, "views", {(TestManager, "/World/Robot"): object()})
+    manager._callbacks = {}
+    manager._callback_id = 0
+    manager._sim = SimpleNamespace(physics_manager=manager)
+    manager._cfg = object()
+    manager._sim_time = 1.0
+    manager.views = {(TestManager, "/World/Robot"): object()}
 
-    TestManager.register_callback(
+    manager.register_callback(
         lambda _payload: events.append("first"),
         PhysicsEvent.STOP,
         order=0,
@@ -170,7 +182,7 @@ def test_close_runs_all_live_stop_listeners_and_aggregates_failures(monkeypatch)
 
     collected_listener = CollectedListener()
     listener_ref = weakref.ref(collected_listener)
-    TestManager.register_callback(collected_listener.callback, PhysicsEvent.STOP, order=1)
+    manager.register_callback(collected_listener.callback, PhysicsEvent.STOP, order=1)
     del collected_listener
     gc.collect()
     assert listener_ref() is None
@@ -179,13 +191,13 @@ def test_close_runs_all_live_stop_listeners_and_aggregates_failures(monkeypatch)
         events.append("failed")
         raise ReferenceError("listener failure")
 
-    TestManager.register_callback(
+    manager.register_callback(
         failing_listener,
         PhysicsEvent.STOP,
         order=2,
         wrap_weak_ref=False,
     )
-    TestManager.register_callback(
+    manager.register_callback(
         lambda _payload: events.append("last"),
         PhysicsEvent.STOP,
         order=3,
@@ -193,54 +205,53 @@ def test_close_runs_all_live_stop_listeners_and_aggregates_failures(monkeypatch)
     )
 
     with pytest.raises(RuntimeError, match=r"1 callback\(s\) failed") as exc_info:
-        TestManager.close()
+        manager.close()
 
     assert isinstance(exc_info.value.__cause__, ReferenceError)
     assert events == ["first", "failed", "last"]
-    assert TestManager._callbacks == {}
-    assert PhysicsManager._sim is None
-    assert PhysicsManager._cfg is None
-    assert PhysicsManager._sim_time == 0.0
-    assert PhysicsManager.views == {}
+    assert manager._callbacks == {}
+    assert manager._sim is None
+    assert manager._cfg is None
+    assert manager._sim_time == 0.0
+    assert manager.views == {}
 
 
 def test_close_surfaces_stop_errors_stored_by_safe_callback_invoke(monkeypatch):
     """STOP failures stored for an external event bus are drained during close."""
 
-    class TestManager(PhysicsManager):
+    class TestManager(_LifecycleManager):
         _callback_exception = None
 
-        @classmethod
-        def store_callback_exception(cls, exception):
-            cls._callback_exception = exception
+        def store_callback_exception(self, exception):
+            self._callback_exception = exception
 
-        @classmethod
-        def raise_callback_exception_if_any(cls):
-            if cls._callback_exception is not None:
-                exception = cls._callback_exception
-                cls._callback_exception = None
+        def raise_callback_exception_if_any(self):
+            if self._callback_exception is not None:
+                exception = self._callback_exception
+                self._callback_exception = None
                 raise exception
 
+    manager = TestManager()
     events = []
-    monkeypatch.setattr(TestManager, "_callbacks", {})
-    monkeypatch.setattr(TestManager, "_callback_id", 0)
-    monkeypatch.setattr(PhysicsManager, "_sim", SimpleNamespace(physics_manager=TestManager))
+    manager._callbacks = {}
+    manager._callback_id = 0
+    manager._sim = SimpleNamespace(physics_manager=manager)
 
     def fail_stop(_payload):
         events.append("failed")
         raise ValueError("stored STOP failure")
 
-    TestManager.register_callback(
+    manager.register_callback(
         lambda payload: PhysicsManager.safe_callback_invoke(
             fail_stop,
             payload,
-            physics_manager=TestManager,
+            physics_manager=manager,
         ),
         PhysicsEvent.STOP,
         order=0,
         wrap_weak_ref=False,
     )
-    TestManager.register_callback(
+    manager.register_callback(
         lambda _payload: events.append("last"),
         PhysicsEvent.STOP,
         order=1,
@@ -248,13 +259,13 @@ def test_close_surfaces_stop_errors_stored_by_safe_callback_invoke(monkeypatch):
     )
 
     with pytest.raises(RuntimeError, match=r"1 callback\(s\) failed") as exc_info:
-        TestManager.close()
+        manager.close()
 
     assert isinstance(exc_info.value.__cause__, ValueError)
     assert events == ["failed", "last"]
-    assert TestManager._callback_exception is None
-    assert TestManager._callbacks == {}
-    assert PhysicsManager._sim is None
+    assert manager._callback_exception is None
+    assert manager._callbacks == {}
+    assert manager._sim is None
 
 
 @pytest.mark.parametrize("renderer_first", [False, True])

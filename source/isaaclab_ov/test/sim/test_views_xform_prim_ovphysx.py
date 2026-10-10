@@ -10,6 +10,8 @@ Run via ``./scripts/run_ovphysx.sh -m pytest`` (kitless, no the Kit launcher).
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import numpy as np
 import pytest
 
@@ -17,7 +19,7 @@ import pytest
 # CI jobs that need OVPhysX coverage install it explicitly.
 pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 
-from isaaclab_ov.physics import OvPhysxCfg, OvPhysxManager  # noqa: E402
+from isaaclab_ov.physics import OvPhysxCfg  # noqa: E402
 
 import isaaclab.sim as sim_utils  # noqa: E402
 from isaaclab import cloner  # noqa: E402
@@ -115,7 +117,7 @@ def test_reinitialization_closes_previous_root_view(monkeypatch):
 
     frame_view._root_view = PreviousRootView()
     frame_view._pose_binding = object()
-    monkeypatch.setattr(OvPhysxManager, "get_physx_instance", lambda: physx)
+    frame_view._physics_manager = SimpleNamespace(get_physx_instance=lambda: physx)
 
     def initialize(value):
         assert frame_view._root_view is None

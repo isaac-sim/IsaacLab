@@ -359,7 +359,7 @@ def test_visualizer_step_renders_markers_and_closes_frame(monkeypatch, caplog, m
     """Markers use the current native state; overlay failures still close the frame."""
     calls, marker_calls = [], []
     state = SimpleNamespace(body_q=None)
-    backend = SimpleNamespace(model=SimpleNamespace(num_envs=4, body_count=0), state_0=state, geometry_offsets={})
+    backend = SimpleNamespace(model=SimpleNamespace(world_count=4, body_count=0), state_0=state, geometry_offsets={})
 
     class Viewer:
         _update_frequency = 1
@@ -394,9 +394,9 @@ def test_visualizer_step_renders_markers_and_closes_frame(monkeypatch, caplog, m
         get_contact_sensors=lambda: {},
     )
     monkeypatch.setattr(module, "render_newton_visualization_markers", render_markers)
-    monkeypatch.setattr(newton_visualizer.NewtonManager, "get_contacts", lambda: None)
     cfg = cfg_type()
     visualizer = instantiate(cfg)
+    visualizer._physics_manager = SimpleNamespace(get_contacts=lambda: None)
     visualizer.backend = backend
     visualizer._is_initialized = True
     visualizer._viewer = viewer = Viewer()

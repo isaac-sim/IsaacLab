@@ -11,8 +11,6 @@ from isaaclab.assets.deformable_object.base_deformable_object_data import BaseDe
 from isaaclab.utils.buffers import TimestampedBuffer
 from isaaclab.utils.warp import ProxyArray
 
-from isaaclab_newton.physics import NewtonManager as SimulationManager
-
 from .kernels import compute_mean_vec3f_over_vertices, compute_nodal_state_w, gather_particles, vec6f
 
 
@@ -26,7 +24,9 @@ class DeformableObjectData(BaseDeformableObjectData):
     The data is lazily updated, meaning that the data is only updated when it is accessed.
     """
 
-    def __init__(self, particle_offsets: wp.array, particles_per_body: int, num_instances: int, device: str):
+    def __init__(
+        self, particle_offsets: wp.array, particles_per_body: int, num_instances: int, device: str, *, physics_manager
+    ):
         """Initialize the Newton deformable object data.
 
         Args:
@@ -36,6 +36,7 @@ class DeformableObjectData(BaseDeformableObjectData):
             num_instances: Number of deformable body instances.
             device: The device used for processing.
         """
+        self._physics_manager = physics_manager
         super().__init__(device)
 
         # Store dimensions and indexing
@@ -78,7 +79,7 @@ class DeformableObjectData(BaseDeformableObjectData):
     def nodal_pos_w(self) -> ProxyArray:
         """Nodal positions in simulation world frame [m]. Shape is (num_instances, particles_per_body) vec3f."""
         if self._nodal_pos_w.timestamp < self._sim_timestamp:
-            state = SimulationManager.get_state_0()
+            state = self._physics_manager.get_state_0()
             wp.launch(
                 gather_particles,
                 dim=(self._num_instances, self._particles_per_body),
@@ -93,7 +94,7 @@ class DeformableObjectData(BaseDeformableObjectData):
     def nodal_vel_w(self) -> ProxyArray:
         """Nodal velocities in simulation world frame [m/s]. Shape is (num_instances, particles_per_body) vec3f."""
         if self._nodal_vel_w.timestamp < self._sim_timestamp:
-            state = SimulationManager.get_state_0()
+            state = self._physics_manager.get_state_0()
             wp.launch(
                 gather_particles,
                 dim=(self._num_instances, self._particles_per_body),

@@ -20,7 +20,6 @@ from isaaclab.managers import EventTermCfg, ManagerTermBase, SceneEntityCfg
 from isaaclab.utils import math as math_utils
 
 from ... import assets
-from ...physics.newton_manager import NewtonManager
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation, RigidObject
@@ -138,7 +137,7 @@ class randomize_rigid_body_material(ManagerTermBase):
             friction_view[:, shape_idx] = torch.where(env_rows, friction_samples, friction_view[:, shape_idx])
             restitution_view[:, shape_idx] = torch.where(env_rows, restitution_samples, restitution_view[:, shape_idx])
 
-        self._newton_manager.add_model_change(ModelFlags.SHAPE_PROPERTIES)
+        self._newton_manager.add_model_change(ModelFlags.SHAPE_PROPERTIES, env_mask=wp.from_torch(env_mask))
 
 
 class randomize_rigid_body_collider_offsets(ManagerTermBase):
@@ -225,7 +224,7 @@ class randomize_rigid_body_collider_offsets(ManagerTermBase):
             gap_view = wp.to_torch(self._sim_bind_shape_gap)
             gap_view[:] = torch.where(env_rows, gap, gap_view)
         if rest_offset_distribution_params is not None or contact_offset_distribution_params is not None:
-            self._newton_manager.add_model_change(ModelFlags.SHAPE_PROPERTIES)
+            self._newton_manager.add_model_change(ModelFlags.SHAPE_PROPERTIES, env_mask=wp.from_torch(env_mask))
 
 
 class randomize_physics_scene_gravity(_GravityRandomization):
@@ -269,7 +268,7 @@ class randomize_physics_scene_gravity(_GravityRandomization):
         gravity = wp.to_torch(model.gravity)[: env.num_envs]
         sampled = self._sample_gravity(gravity, gravity_distribution_params, operation)
         gravity[:] = torch.where(env_mask[:, None], sampled, gravity)
-        self._manager.add_model_change(ModelFlags.MODEL_PROPERTIES)
+        self._manager.add_model_change(ModelFlags.MODEL_PROPERTIES, env_mask=wp.from_torch(env_mask))
 
 
 class randomize_visual_shape(ManagerTermBase):
@@ -287,7 +286,7 @@ class randomize_visual_shape(ManagerTermBase):
         else:
             ids = asset_cfg.body_ids
         body_names = tuple(asset.body_names[index] for index in ids)
-        self._writer = NewtonManager.create_visual_shape_color_writer(asset, body_names)
+        self._writer = env.sim.physics_manager.create_visual_shape_color_writer(asset, body_names)
         self._sample = _compile_distribution(channels["color"], env.device)
         self._all_env_ids = torch.arange(env.num_envs, dtype=torch.int32, device=self._writer.device)
 
@@ -302,7 +301,7 @@ class randomize_visual_shape(ManagerTermBase):
         if env_ids is None:
             env_ids = slice(None)
         selected = self._all_env_ids[env_ids] if isinstance(env_ids, slice) else env_ids.to(dtype=torch.int32)
-        model = NewtonManager.get_model()
+        model = env.sim.physics_manager.get_model()
         if self._writer.model is not model:
             self._writer.rebind(model)
         self._writer(self._sample((len(selected), self._writer.body_count)), selected)

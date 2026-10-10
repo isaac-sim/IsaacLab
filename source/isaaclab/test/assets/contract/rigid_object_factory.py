@@ -25,9 +25,9 @@ from .backends import (
     finish_shell,
     indices,
     install_physx_recording_setters,
+    make_ovphysx_manager,
+    make_physx_manager,
     newton_manager,
-    patch_ovphysx_manager,
-    patch_physx_manager,
 )
 
 if "physx" in AVAILABLE:
@@ -36,9 +36,6 @@ if "physx" in AVAILABLE:
 
 if "newton" in AVAILABLE:
     import isaaclab_newton.assets as newton_assets
-    import isaaclab_newton.assets.rigid_object.rigid_object_data as newton_rigid_object_data
-    import isaaclab_newton.assets.rigid_object_collection.rigid_object_collection as newton_collection
-    import isaaclab_newton.assets.rigid_object_collection.rigid_object_collection_data as newton_collection_data
     from isaaclab_newton.test.fixtures.views import MockNewtonArticulationView, MockNewtonCollectionView
 
 if "ovphysx" in AVAILABLE:
@@ -55,7 +52,7 @@ _PHYSX_STORAGE = {
 
 
 def _physx_rigid_object(num_instances: int, device: str, monkeypatch: pytest.MonkeyPatch):
-    patch_physx_manager(monkeypatch)
+    manager = make_physx_manager()
     view = MockRigidBodyViewWarp(count=num_instances, device=device)
     view.set_random_mock_data()
     install_physx_recording_setters(view, _PHYSX_STORAGE)
@@ -64,7 +61,8 @@ def _physx_rigid_object(num_instances: int, device: str, monkeypatch: pytest.Mon
     obj.cfg = RigidObjectCfg(prim_path="/World/Object")
     obj._root_view = view
     obj._device = device
-    obj._data = physx_assets.RigidObjectData(view, device)
+    obj._physics_manager = manager
+    obj._data = physx_assets.RigidObjectData(view, device, physics_manager=manager)
     obj._data.body_names = ["body_0"]
     finish_shell(obj)
     obj._ALL_INDICES = indices(num_instances, device)
@@ -95,13 +93,14 @@ def _newton_rigid_object(num_instances: int, device: str, monkeypatch: pytest.Mo
         body_names=["body_0"],
     )
     view.set_random_mock_data()
-    monkeypatch.setattr(newton_rigid_object_data, "SimulationManager", newton_manager(num_instances, device))
+    manager = newton_manager(num_instances, device)
 
     obj = object.__new__(newton_assets.RigidObject)
     obj.cfg = RigidObjectCfg(prim_path="/World/Object")
     obj._root_view = view
     obj._device = device
-    obj._data = newton_assets.RigidObjectData(view, device)
+    obj._physics_manager = manager
+    obj._data = newton_assets.RigidObjectData(view, device, physics_manager=manager)
     finish_shell(obj, supports_world_at_com=False)
     obj._ALL_INDICES = indices(num_instances, device)
     obj._ALL_BODY_INDICES = indices(1, device)
@@ -111,7 +110,7 @@ def _newton_rigid_object(num_instances: int, device: str, monkeypatch: pytest.Mo
 
 
 def _ovphysx_rigid_object(num_instances: int, device: str, monkeypatch: pytest.MonkeyPatch):
-    patch_ovphysx_manager(monkeypatch)
+    manager = make_ovphysx_manager()
     bindings = MockOvPhysxBindingSet(
         num_instances=num_instances, num_joints=0, num_bodies=1, body_names=["body_0"], asset_kind="rigid_object"
     )
@@ -126,7 +125,8 @@ def _ovphysx_rigid_object(num_instances: int, device: str, monkeypatch: pytest.M
     obj._num_instances = num_instances
     obj._num_bodies = 1
     obj._body_names = ["body_0"]
-    obj._data = ovphysx_assets.RigidObjectData(bindings.view, device)
+    obj._physics_manager = manager
+    obj._data = ovphysx_assets.RigidObjectData(bindings.view, device, physics_manager=manager)
     obj._data.num_instances = num_instances
     obj._data.num_bodies = 1
     obj._data._is_primed = True
@@ -142,7 +142,7 @@ def _collection_cfg(body_names: list[str]) -> RigidObjectCollectionCfg:
 
 
 def _physx_collection(num_instances: int, num_bodies: int, device: str, monkeypatch: pytest.MonkeyPatch):
-    patch_physx_manager(monkeypatch)
+    manager = make_physx_manager()
     body_names = [f"object_{i}" for i in range(num_bodies)]
     # PhysX collection views are body-major: one view entry per (body, environment).
     num_view_ids = num_instances * num_bodies
@@ -157,7 +157,8 @@ def _physx_collection(num_instances: int, num_bodies: int, device: str, monkeypa
     collection._num_bodies = num_bodies
     collection._num_instances = num_instances
     collection._body_names_list = body_names
-    collection._data = physx_assets.RigidObjectCollectionData(view, num_bodies, device)
+    collection._physics_manager = manager
+    collection._data = physx_assets.RigidObjectCollectionData(view, num_bodies, device, physics_manager=manager)
     collection._data.body_names = body_names
     finish_shell(collection)
     collection._ALL_ENV_INDICES = indices(num_instances, device)
@@ -178,8 +179,6 @@ def _newton_collection(num_instances: int, num_bodies: int, device: str, monkeyp
     view = MockNewtonCollectionView(num_envs=num_instances, num_bodies=num_bodies, device=device, body_names=body_names)
     view.set_random_mock_data()
     manager = newton_manager(num_instances, device)
-    monkeypatch.setattr(newton_collection_data, "SimulationManager", manager)
-    monkeypatch.setattr(newton_collection, "SimulationManager", manager)
 
     collection = object.__new__(newton_assets.RigidObjectCollection)
     collection.cfg = _collection_cfg(body_names)
@@ -188,7 +187,8 @@ def _newton_collection(num_instances: int, num_bodies: int, device: str, monkeyp
     collection._num_bodies = num_bodies
     collection._num_instances = num_instances
     collection._body_names_list = body_names
-    collection._data = newton_assets.RigidObjectCollectionData(view, num_bodies, device)
+    collection._physics_manager = manager
+    collection._data = newton_assets.RigidObjectCollectionData(view, num_bodies, device, physics_manager=manager)
     collection._data.body_names = body_names
     finish_shell(collection, supports_world_at_com=False)
     collection._ALL_ENV_INDICES = indices(num_instances, device)
@@ -199,7 +199,7 @@ def _newton_collection(num_instances: int, num_bodies: int, device: str, monkeyp
 
 
 def _ovphysx_collection(num_instances: int, num_bodies: int, device: str, monkeypatch: pytest.MonkeyPatch):
-    patch_ovphysx_manager(monkeypatch)
+    manager = make_ovphysx_manager()
     body_names = [f"object_{i}" for i in range(num_bodies)]
     # Articulation-mode bindings without joints give the (N, B, ...) tensors of a collection.
     bindings = MockOvPhysxBindingSet(
@@ -220,7 +220,10 @@ def _ovphysx_collection(num_instances: int, num_bodies: int, device: str, monkey
     collection._num_instances = num_instances
     collection._num_bodies = num_bodies
     collection._body_names_list = body_names
-    collection._data = ovphysx_assets.RigidObjectCollectionData(bindings.view, num_bodies, device)
+    collection._physics_manager = manager
+    collection._data = ovphysx_assets.RigidObjectCollectionData(
+        bindings.view, num_bodies, device, physics_manager=manager
+    )
     collection._data.num_instances = num_instances
     collection._data.num_bodies = num_bodies
     collection._data._is_primed = True

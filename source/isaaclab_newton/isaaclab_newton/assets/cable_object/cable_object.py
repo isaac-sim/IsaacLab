@@ -19,8 +19,6 @@ from isaaclab.assets.cable_object.base_cable_object import BaseCableObject
 from isaaclab.sim.utils.queries import has_deformable_curve_api, path_expr_to_glob, resolve_matching_prims_from_source
 from isaaclab.utils.warp import ProxyArray
 
-from isaaclab_newton.physics import NewtonManager as SimulationManager
-
 from .cable_object_data import CableObjectData
 from .kernels import (
     set_segment_pose_to_sim_index,
@@ -70,6 +68,8 @@ class CableObject(BaseCableObject):
             env_mask: Boolean environment mask. Shape is (num_instances,). Defaults to None.
         """
         del env_ids, env_mask
+
+    supports_graph_capture = True
 
     def write_data_to_sim(self) -> None:
         """Write buffered commands to the simulation."""
@@ -184,14 +184,14 @@ class CableObject(BaseCableObject):
         curve_prim, curve_path_expr = resolve_matching_prims_from_source(self.cfg.prim_path, **resolve_kwargs)[0]
         num_segments = int(UsdGeom.BasisCurves(curve_prim).GetCurveVertexCountsAttr().Get()[0]) - 1
 
-        model = SimulationManager.get_model()
+        model = self._physics_manager.get_model()
         articulation_path_expr = f"{curve_path_expr}_articulation"
         self._root_view = ArticulationView(
             model,
             path_expr_to_glob(articulation_path_expr),
             verbose=False,
         )
-        self._row_worlds = SimulationManager.view_row_worlds(self._root_view.articulation_ids)
+        self._row_worlds = self._physics_manager.view_row_worlds(self._root_view.articulation_ids)
         topology_error = "CableObject requires one standalone, unwelded cable articulation per simulation world."
         joint_types = self.root_view.get_attribute("joint_type", model).numpy()
         valid_topology = (
@@ -207,7 +207,7 @@ class CableObject(BaseCableObject):
         self._ALL_INDICES = wp.array(list(range(self.num_instances)), dtype=wp.int32, device=self.device)
         self._ALL_ENV_MASK = wp.ones((self.num_instances,), dtype=wp.bool, device=self.device)
 
-        self._data = CableObjectData(self.root_view, self.device)
+        self._data = CableObjectData(self.root_view, self.device, physics_manager=self._physics_manager)
 
     def _resolve_env_ids(self, env_ids: Sequence[int] | torch.Tensor | wp.array(dtype=wp.int32) | None) -> wp.array(
         dtype=wp.int32
@@ -245,15 +245,15 @@ class CableObject(BaseCableObject):
                 device=self.device,
             )
         if use_mask:
-            SimulationManager.invalidate_body_state(env_mask=selector, row_worlds=self._row_worlds)
+            self._physics_manager.invalidate_body_state(env_mask=selector, row_worlds=self._row_worlds)
         else:
-            SimulationManager.invalidate_body_state(selector, row_worlds=self._row_worlds)
+            self._physics_manager.invalidate_body_state(selector, row_worlds=self._row_worlds)
         self.update(0.0)
 
     def _iter_states(self):
         """Yield active Newton states."""
-        state_0 = SimulationManager.get_state_0()
-        state_1 = SimulationManager.get_state_1()
+        state_0 = self._physics_manager.get_state_0()
+        state_1 = self._physics_manager.get_state_1()
         yield state_0
         if state_1 is not None and state_1 is not state_0:
             yield state_1

@@ -41,6 +41,8 @@ class JointPositionToLimitsAction(ActionTerm):
     The processed actions are then sent as position commands to the articulation's joints.
     """
 
+    supports_graph_capture = True
+
     apply_every_physics_step = False
 
     cfg: actions_cfg.JointPositionToLimitsActionCfg

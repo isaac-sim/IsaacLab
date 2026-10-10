@@ -26,7 +26,6 @@ from isaaclab.utils.wrench_composer import WrenchComposer
 from isaaclab_ov import tensor_types as TT
 from isaaclab_ov.assets import kernels as shared_kernels
 from isaaclab_ov.assets.kernels import _body_wrench_to_world, resolve_view_ids_kernel
-from isaaclab_ov.physics import OvPhysxManager
 from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView
 
 from .rigid_object_collection_data import RigidObjectCollectionData
@@ -415,7 +414,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             self.data._reset_pose()
         # set into simulation
         self._binding_write(TT.LINK_POSE, self.data._body_link_pose_w.data, env_ids=env_ids)
-        OvPhysxManager._scene_data_backend.transforms_timestamp += 1
+        self._physics_manager._scene_data_backend.transforms_timestamp += 1
 
     def write_body_link_pose_to_sim_mask(
         self,
@@ -463,7 +462,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             self.data._reset_pose()
         # set into simulation
         self._binding_write(TT.LINK_POSE, self.data._body_link_pose_w.data, env_ids=env_ids)
-        OvPhysxManager._scene_data_backend.transforms_timestamp += 1
+        self._physics_manager._scene_data_backend.transforms_timestamp += 1
 
     def write_body_com_pose_to_sim_index(
         self,
@@ -510,7 +509,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             self.data._reset_pose(from_link=False)
         # set into simulation (OVPhysX only exposes the link frame)
         self._binding_write(TT.LINK_POSE, self.data._body_link_pose_w.data, env_ids=env_ids)
-        OvPhysxManager._scene_data_backend.transforms_timestamp += 1
+        self._physics_manager._scene_data_backend.transforms_timestamp += 1
 
     def write_body_com_pose_to_sim_mask(
         self,
@@ -565,7 +564,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             self.data._reset_pose(from_link=False)
         # set into simulation (OVPhysX only exposes the link frame)
         self._binding_write(TT.LINK_POSE, self.data._body_link_pose_w.data, env_ids=env_ids)
-        OvPhysxManager._scene_data_backend.transforms_timestamp += 1
+        self._physics_manager._scene_data_backend.transforms_timestamp += 1
 
     def write_body_com_velocity_to_sim_index(
         self,
@@ -1086,11 +1085,11 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         Then creates the :class:`RigidObjectCollectionData` container and primes
         the asset-side buffers.
         """
-        physx_instance = OvPhysxManager.get_physx_instance()
+        physx_instance = self._physics_manager.get_physx_instance()
         if physx_instance is None:
             raise RuntimeError("OvPhysxManager has not been initialized yet.")
         self._ovphysx = physx_instance
-        self._device = OvPhysxManager.get_device()
+        self._device = self._physics_manager.get_device()
 
         self._prim_paths: list[str] = []
         self._body_names_list: list[str] = []
@@ -1155,6 +1154,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             root_view=self._root_view,
             num_bodies=self._num_bodies,
             device=self._device,
+            physics_manager=self._physics_manager,
         )
 
         self._create_buffers()

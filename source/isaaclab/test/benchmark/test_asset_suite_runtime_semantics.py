@@ -343,6 +343,7 @@ def test_ovphysx_factories_use_exported_binding_set_signature(
         monkeypatch.setitem(sys.modules, module_name, SimpleNamespace(**{class_name: object}))
         monkeypatch.setitem(sys.modules, f"{module_name}_data", SimpleNamespace(**{f"{class_name}Data": object}))
     monkeypatch.setattr(ovphysx_runtime, "MockOvPhysxBindingSet", StrictBindingSet, raising=False)
+    monkeypatch.setattr(ovphysx_runtime, "OvPhysxManager", lambda: None, raising=False)
     factory = getattr(ovphysx_runtime, factory_name)
 
     with pytest.raises(ConstructorAccepted):

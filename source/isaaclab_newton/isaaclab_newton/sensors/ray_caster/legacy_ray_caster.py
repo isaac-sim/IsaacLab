@@ -22,8 +22,6 @@ from isaaclab.sensors.ray_caster.base_ray_caster import BaseRayCaster
 from isaaclab.sensors.ray_caster.base_ray_caster_camera import BaseRayCasterCamera
 from isaaclab.sensors.ray_caster.kernels import copy_mesh_poses_to_table_kernel
 
-from isaaclab_newton.physics import NewtonManager
-
 from .newton_raycast_sensor import _newton_body_pattern, _NewtonRayCasterPoseMixin
 
 
@@ -72,7 +70,7 @@ class _LegacyNewtonRayCasterMixin(_NewtonRayCasterPoseMixin):
     def _register_target_sites_for_exprs(self, owner_exprs: list[str]) -> list[str]:
         """Register identity-pose Newton sites on target owner bodies."""
         identity = wp.transform(wp.vec3(0.0, 0.0, 0.0), wp.quat(0.0, 0.0, 0.0, 1.0))
-        labels = [NewtonManager.register_site(owner_expr, identity) for owner_expr in owner_exprs]
+        labels = [self._physics_manager.register_site(owner_expr, identity) for owner_expr in owner_exprs]
         return list(dict.fromkeys(labels))
 
     def _create_tracked_target_view(self: Any, target_prim_path: str | list[str]) -> wp.array:

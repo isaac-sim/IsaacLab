@@ -25,7 +25,7 @@ class MPMSolverCfg(NewtonSolverCfg):
     as colliders. It is not a rigid-body or articulation dynamics solver.
     """
 
-    class_type: type[NewtonManager] | str = "{DIR}.mpm_manager:NewtonMPMManager"
+    class_type: type[NewtonManager] | str = "{DIR}.mpm_manager:MPMSolverAdapter"
     """Manager class for the implicit MPM solver."""
 
     solver_type: str = "implicit_mpm"
@@ -125,7 +125,7 @@ class MPMSolverCfg(NewtonSolverCfg):
     project_outside_colliders: bool = False
     """Whether to hard-project particles out of collider interiors after each substep.
 
-    When ``True``, :class:`~isaaclab_newton.physics.NewtonMPMManager` calls
+    When ``True``, :class:`~isaaclab_newton.physics.MPMSolverAdapter` calls
     :meth:`SolverImplicitMPM.project_outside` immediately after every solver
     substep: it applies a Coulomb response and pushes particles that drifted into
     a collider back onto its surface. The implicit solve already resolves

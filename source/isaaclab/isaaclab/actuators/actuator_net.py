@@ -40,6 +40,8 @@ class ActuatorNetLSTM(DCMotor):
         Only the desired joint positions are used as inputs to the network.
     """
 
+    supports_graph_capture = False
+
     cfg: ActuatorNetLSTMCfg
     """The configuration of the actuator model."""
 
@@ -117,6 +119,8 @@ class ActuatorNetMLP(DCMotor):
         Only the desired joint positions are used as inputs to the network.
 
     """
+
+    supports_graph_capture = False
 
     cfg: ActuatorNetMLPCfg
     """The configuration of the actuator model."""

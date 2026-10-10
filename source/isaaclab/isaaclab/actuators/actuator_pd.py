@@ -43,6 +43,8 @@ class ImplicitActuator(ActuatorBase):
     solver does not expose the applied joint effort on every backend.
     """
 
+    supports_graph_capture = True
+
     cfg: ImplicitActuatorCfg
     """The configuration for the actuator model."""
 
@@ -272,6 +274,8 @@ class IdealPDActuator(ActuatorBase):
     N·m, depending on joint type].
     """
 
+    supports_graph_capture = True
+
     cfg: IdealPDActuatorCfg
     """The configuration for the actuator model."""
 
@@ -445,6 +449,8 @@ class DelayedPDActuator(IdealPDActuator):
     lag bounds at every reset. The minimum and maximum time lag values are set in the configuration instance passed
     to the class.
     """
+
+    supports_graph_capture = False
 
     cfg: DelayedPDActuatorCfg
     """The configuration for the actuator model."""

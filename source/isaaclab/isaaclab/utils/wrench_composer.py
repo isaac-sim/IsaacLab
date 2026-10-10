@@ -503,8 +503,6 @@ class WrenchComposer:
         Args:
             other: Another WrenchComposer whose input buffers will be added into this one.
         """
-        if not other._active:
-            return
         if __debug__:
             if other.num_envs != self.num_envs or other.num_bodies != self.num_bodies:
                 raise ValueError(
@@ -536,7 +534,7 @@ class WrenchComposer:
             device=self.device,
         )
 
-    def compose_to_body_frame(self):
+    def compose_to_body_frame(self) -> tuple[wp.array, wp.array]:
         """Compose the five input buffers into the two output buffers in body frame.
 
         This corrects world-frame torques for the body's CoM position, rotates global forces and torques into the
@@ -562,6 +560,7 @@ class WrenchComposer:
             device=self.device,
         )
         self._dirty = False
+        return self._out_force_b, self._out_torque_b
 
     def get_forces_and_torques(self) -> tuple[wp.array, wp.array, bool]:
         """Get the buffered forces and torques in a frame the consumer accepts.

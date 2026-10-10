@@ -15,7 +15,6 @@ from isaaclab.sensors.frame_transformer.base_frame_transformer import BaseFrameT
 from isaaclab.sim.utils.queries import split_path_expr
 from isaaclab.utils.version import has_kit
 
-from isaaclab_newton.physics import NewtonManager
 from isaaclab_newton.physics.newton_backend import capture_graph
 
 from .frame_transformer_data import FrameTransformerData
@@ -70,11 +69,11 @@ class FrameTransformer(BaseFrameTransformer):
         self._source_frame_body_name: str = split_path_expr(cfg.prim_path)[-1]
 
         # Register world-origin reference site
-        self._world_origin_label = NewtonManager.register_site(None, wp.transform())
+        self._world_origin_label = self._physics_manager.register_site(None, wp.transform())
 
         # Register source site
         source_offset = wp.transform(cfg.source_frame_offset.pos, cfg.source_frame_offset.rot)
-        self._source_label = NewtonManager.register_site(cfg.prim_path, source_offset)
+        self._source_label = self._physics_manager.register_site(cfg.prim_path, source_offset)
 
         # Register target sites
         self._target_labels: list[str] = []
@@ -83,7 +82,7 @@ class FrameTransformer(BaseFrameTransformer):
 
         for target_frame in cfg.target_frames:
             target_offset = wp.transform(target_frame.offset.pos, target_frame.offset.rot)
-            label = NewtonManager.register_site(target_frame.prim_path, target_offset)
+            label = self._physics_manager.register_site(target_frame.prim_path, target_offset)
 
             self._target_labels.append(label)
             body_name = split_path_expr(target_frame.prim_path)[-1]
@@ -128,7 +127,7 @@ class FrameTransformer(BaseFrameTransformer):
         super()._initialize_impl()
 
         num_envs = self._num_envs
-        site_map = NewtonManager.get_site_index_map()
+        site_map = self._physics_manager.get_site_index_map()
 
         # Resolve and validate per-env site indices
         assert self._world_origin_label in site_map
@@ -147,7 +146,7 @@ class FrameTransformer(BaseFrameTransformer):
             source_indices,
             target_per_world,
             self._target_frame_body_names,
-            NewtonManager.get_model().shape_label,
+            self._physics_manager.get_model().shape_label,
             world_origin_idx,
             num_envs,
         )
@@ -160,7 +159,7 @@ class FrameTransformer(BaseFrameTransformer):
 
         # Store the native sensor and its flat transforms array.
         self._newton_sensor = SensorFrameTransform(
-            NewtonManager.get_model(), shapes=shapes_list, reference_sites=references_list
+            self._physics_manager.get_model(), shapes=shapes_list, reference_sites=references_list
         )
         self._newton_transforms = self._newton_sensor.transforms
         self._stride = 1 + self._num_targets
@@ -309,14 +308,14 @@ class FrameTransformer(BaseFrameTransformer):
         """Samples current frame transforms into owned buffers."""
         if self._newton_transforms is None:
             raise RuntimeError(f"FrameTransformer '{self.cfg.prim_path}': sensor is not initialized")
-        state = NewtonManager.get_state_0()
+        state = self._physics_manager.get_state_0()
         device = state.body_q.device
         if device.is_cuda and not device.is_capturing:
             pointers = state.body_q.ptr, env_mask.ptr
             if self._update_graph is None or self._update_graph[0] != pointers:
                 graph = capture_graph(self._device, lambda: self._update_buffers_impl(env_mask), relaxed=has_kit())
                 self._update_graph = pointers, graph
-            wp.capture_launch(self._update_graph[1])
+            self._update_graph[1].launch()
             return
 
         self._newton_sensor.update(state)

@@ -16,7 +16,6 @@ import warp as wp
 from isaaclab.assets.deformable_object.base_deformable_object import BaseDeformableObject
 from isaaclab.utils.warp import ProxyArray
 
-from isaaclab_newton.physics import NewtonManager as SimulationManager
 from isaaclab_newton.sim.spawners.mpm.mpm import _SIMULATION_POINTS_SUFFIX
 
 from .kernels import (
@@ -79,6 +78,8 @@ class MPMObject(BaseDeformableObject):
             self.write_nodal_state_to_sim_mask(self.data.default_nodal_state_w.warp, env_mask=env_mask)
         else:
             self.write_nodal_state_to_sim_index(self.data.default_nodal_state_w.warp, env_ids=env_ids, full_data=True)
+
+    supports_graph_capture = True
 
     def write_data_to_sim(self):
         """No-op; MPM particle writes are applied immediately by write methods."""
@@ -222,7 +223,7 @@ class MPMObject(BaseDeformableObject):
         expression = re.compile(self.cfg.prim_path + _SIMULATION_POINTS_SUFFIX)
         ranges = [
             value
-            for path, value in SimulationManager.get_clone_record().particle_ranges.items()
+            for path, value in self._physics_manager.get_clone_record().particle_ranges.items()
             if expression.fullmatch(path)
         ]
         if not ranges:
@@ -241,6 +242,7 @@ class MPMObject(BaseDeformableObject):
 
         self._particle_offsets = wp.array(offsets, dtype=wp.int32, device=self.device)
         self._data = MPMObjectData(
+            physics_manager=self._physics_manager,
             particle_offsets=self._particle_offsets,
             particles_per_object=self._particles_per_object,
             num_instances=self._num_instances,
@@ -253,7 +255,7 @@ class MPMObject(BaseDeformableObject):
         self._ALL_INDICES = wp.array(np.arange(self._num_instances, dtype=np.int32), device=self.device)
         self._ALL_ENV_MASK = wp.ones((self._num_instances,), dtype=wp.bool, device=self.device)
 
-        state = SimulationManager.get_state_0()
+        state = self._physics_manager.get_state_0()
         if state is None or state.particle_q is None or state.particle_qd is None:
             raise RuntimeError("Cannot initialize MPMObject buffers before Newton particle state exists.")
 
@@ -306,8 +308,8 @@ class MPMObject(BaseDeformableObject):
 
     def _iter_particle_states(self):
         """Yield the Newton states whose particle arrays must receive writes."""
-        state_0 = SimulationManager.get_state_0()
-        state_1 = SimulationManager.get_state_1()
+        state_0 = self._physics_manager.get_state_0()
+        state_1 = self._physics_manager.get_state_1()
         yield state_0
         if state_1 is not None and state_1 is not state_0:
             yield state_1
@@ -321,7 +323,7 @@ class MPMObject(BaseDeformableObject):
             self._data._particle_vel_w.timestamp = -1.0
             self._data._root_vel_w.timestamp = -1.0
         self._data._particle_state_w.timestamp = -1.0
-        SimulationManager.mark_particles_dirty()
+        self._physics_manager.mark_particles_dirty()
 
     def _set_debug_vis_impl(self, debug_vis: bool):
         raise NotImplementedError("Debug visualization is not implemented for MPMObject.")

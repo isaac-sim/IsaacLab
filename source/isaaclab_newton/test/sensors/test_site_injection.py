@@ -38,16 +38,15 @@ def test_sites_bind_once_to_clone_sources_or_explicit_builder(monkeypatch, repli
     source = ModelBuilder() if replicated else main
     for leg in ("FL", "FR", "RL", "RR"):
         source.add_body(label=f"Robot/{leg}_foot")
-    monkeypatch.setattr(NewtonManager, "_site_requests", {})
-    monkeypatch.setattr(NewtonManager, "_site_index_map", {})
+    manager = NewtonManager()
     xform = wp.transform((1.0, 2.0, 3.0), wp.quat_identity())
-    global_label = NewtonManager.register_site(None, xform)
-    local_label = NewtonManager.register_site("Robot/.*_foot", xform)
-    world_label = NewtonManager.register_site(None, xform, per_world=True)
-    assert NewtonManager.register_site(None, xform, per_world=True) == world_label
+    global_label = manager.register_site(None, xform)
+    local_label = manager.register_site("Robot/.*_foot", xform)
+    world_label = manager.register_site(None, xform, per_world=True)
+    assert manager.register_site(None, xform, per_world=True) == world_label
 
     sources = {"Robot": source} if replicated else {}
-    global_sites, body_sites, world_sites = NewtonManager.inject_sites(main, sources)
+    global_sites, body_sites, world_sites = manager.inject_sites(main, sources)
     assert main.shape_body[global_sites[global_label]] == -1
     indices = body_sites[id(source)][local_label]
     assert [source.shape_body[index] for index in indices] == list(range(4))
@@ -55,17 +54,17 @@ def test_sites_bind_once_to_clone_sources_or_explicit_builder(monkeypatch, repli
     assert world_sites == {world_label: xform}
 
     # Requests persist across hard resets, but resolved sites are never added to the retained builder again.
-    NewtonManager._site_index_map.update((label, (index, None)) for label, index in global_sites.items())
-    NewtonManager._site_index_map[local_label] = (None, [indices])
-    NewtonManager._site_index_map[world_label] = (None, [[0]])
+    manager._site_index_map.update((label, (index, None)) for label, index in global_sites.items())
+    manager._site_index_map[local_label] = (None, [indices])
+    manager._site_index_map[world_label] = (None, [[0]])
     shape_count = main.shape_count
-    assert NewtonManager.inject_sites(main, sources) == ({}, {}, {})
+    assert manager.inject_sites(main, sources) == ({}, {}, {})
     assert main.shape_count == shape_count
-    assert NewtonManager.register_site("Robot/.*_foot", xform) == local_label
+    assert manager.register_site("Robot/.*_foot", xform) == local_label
 
-    NewtonManager.register_site("Robot/nonexistent", xform)
+    manager.register_site("Robot/nonexistent", xform)
     with pytest.raises(ValueError, match="matched no builder bodies"):
-        NewtonManager.inject_sites(main, sources)
+        manager.inject_sites(main, sources)
 
 
 # ---------------------------------------------------------------------------

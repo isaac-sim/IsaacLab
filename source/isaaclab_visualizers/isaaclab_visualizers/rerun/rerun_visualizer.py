@@ -298,7 +298,7 @@ class RerunVisualizer(BaseVisualizer):
         super().initialize(scene_data_provider, cameras=cameras, stage=stage)
         num_envs = scene_data_provider.num_envs
         sim = SimulationContext.instance()
-        self.newton_cfg = NewtonBackendCfg(physics_cfg=sim.cfg.physics, device=sim.device)
+        self.newton_cfg = NewtonBackendCfg(physics_cfg=sim.cfg.physics, device=sim.device, manager=sim.physics_manager)
         self.backend = sim.get_or_create_backend(self.newton_cfg)
         self._transform_mapping = scene_data_provider.create_mapping(list(self.backend.model.body_label))
 

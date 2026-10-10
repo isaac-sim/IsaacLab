@@ -20,7 +20,6 @@ from isaaclab.sensors.pva import BasePva
 from isaaclab.sim.utils.queries import path_expr_to_glob
 
 import isaaclab_ov.tensor_types as TT
-from isaaclab_ov.physics import OvPhysxManager as SimulationManager
 from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView
 
 from .kernels import pva_reset_kernel, pva_update_kernel
@@ -130,7 +129,7 @@ class Pva(BasePva):
         """
         super()._initialize_impl()
 
-        physx_instance = SimulationManager.get_physx_instance()
+        physx_instance = self._physics_manager.get_physx_instance()
         if physx_instance is None:
             raise RuntimeError("OvPhysxManager has not been initialized yet.")
 
@@ -186,7 +185,7 @@ class Pva(BasePva):
         re-filled in place rather than reallocated: consumers (and any recorded launch) hold
         the array pointer, and a fresh allocation would freeze the sensor on the old value.
         """
-        gravity = SimulationManager.get_gravity()
+        gravity = self._physics_manager.get_gravity()
         gravity = (float(gravity[0]), float(gravity[1]), float(gravity[2]))
         if gravity == self._gravity_w:
             return

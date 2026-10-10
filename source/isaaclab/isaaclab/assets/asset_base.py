@@ -78,6 +78,9 @@ class AssetBase(Asset, ABC):
     _check_shapes: bool = __debug__
     """Class-level default for shape validation. Overridden per-instance in ``__init__``."""
 
+    supports_graph_capture = False
+    """Whether write_data_to_sim can be recorded with fixed buffers and no host-dependent branches."""
+
     def __init__(self, cfg: AssetBaseCfg):
         """Initialize the asset base.
 
@@ -364,7 +367,7 @@ class AssetBase(Asset, ABC):
 
     def _register_callbacks(self):
         """Registers physics lifecycle callbacks via the current backend's physics manager."""
-        physics_mgr_cls = SimulationContext.instance().physics_manager
+        physics_mgr_cls = self._physics_manager = SimulationContext.instance().physics_manager
 
         # note: use weakref on callbacks to ensure that this object can be deleted when its destructor is called.
         obj_ref = weakref.proxy(self)
@@ -389,7 +392,7 @@ class AssetBase(Asset, ABC):
         )
         # Optional: prim deletion (only supported by Kit PhysX backend, not ovphysx)
         self._prim_deletion_handle = None
-        physics_backend = physics_mgr_cls.__name__.lower()
+        physics_backend = physics_mgr_cls.backend_name
         if physics_backend.startswith("physx"):
             from isaaclab_physx.physics import IsaacEvents
 

@@ -45,13 +45,13 @@ Basic Configuration Tests
 @pytest.mark.parametrize("device", test_devices())
 def test_init(device, monkeypatch):
     """Test the simulation context initialization."""
-    original_initialize = PhysxManager.initialize.__func__
+    original_initialize = PhysxManager.initialize
 
     def initialize(cls, sim_context):
         assert wp.get_device() == wp.get_device(device)
         return original_initialize(cls, sim_context)
 
-    monkeypatch.setattr(PhysxManager, "initialize", classmethod(initialize))
+    monkeypatch.setattr(PhysxManager, "initialize", initialize)
     cfg = SimulationCfg(
         device=device,
         dt=0.005,
@@ -221,8 +221,8 @@ def test_reset(monkeypatch):
     assert sim.is_playing()
 
     # forward delegates to the physics backend exactly once
-    physics_forward = Mock(wraps=PhysxManager.forward)
-    monkeypatch.setattr(PhysxManager, "forward", physics_forward)
+    physics_forward = Mock(wraps=SimulationContext.instance().physics_manager.forward)
+    monkeypatch.setattr(sim.physics_manager, "forward", physics_forward)
     sim.forward()
     physics_forward.assert_called_once()
 
@@ -346,7 +346,9 @@ def test_isaac_event_triggered_on_reset(event_type):
         callback_state["called"] = True
 
     # register callback for the event
-    callback_id = PhysxManager.register_callback(lambda event: on_event(event), event=event_type)
+    callback_id = SimulationContext.instance().physics_manager.register_callback(
+        lambda event: on_event(event), event=event_type
+    )
 
     try:
         # verify callback hasn't been called yet
@@ -361,7 +363,7 @@ def test_isaac_event_triggered_on_reset(event_type):
     finally:
         # cleanup callback
         if callback_id is not None:
-            PhysxManager.deregister_callback(callback_id)
+            SimulationContext.instance().physics_manager.deregister_callback(callback_id)
 
 
 @pytest.mark.isaacsim_ci
@@ -387,9 +389,15 @@ def test_multiple_isaac_event_callbacks():
         callback_counts["callback3"] += 1
 
     # register multiple callbacks for PHYSICS_READY event
-    id1 = PhysxManager.register_callback(lambda event: callback1(event), event=IsaacEvents.PHYSICS_READY)
-    id2 = PhysxManager.register_callback(lambda event: callback2(event), event=IsaacEvents.PHYSICS_READY)
-    id3 = PhysxManager.register_callback(lambda event: callback3(event), event=IsaacEvents.PHYSICS_READY)
+    id1 = SimulationContext.instance().physics_manager.register_callback(
+        lambda event: callback1(event), event=IsaacEvents.PHYSICS_READY
+    )
+    id2 = SimulationContext.instance().physics_manager.register_callback(
+        lambda event: callback2(event), event=IsaacEvents.PHYSICS_READY
+    )
+    id3 = SimulationContext.instance().physics_manager.register_callback(
+        lambda event: callback3(event), event=IsaacEvents.PHYSICS_READY
+    )
 
     try:
         # verify none have been called
@@ -406,11 +414,11 @@ def test_multiple_isaac_event_callbacks():
     finally:
         # cleanup all callbacks
         if id1 is not None:
-            PhysxManager.deregister_callback(id1)
+            SimulationContext.instance().physics_manager.deregister_callback(id1)
         if id2 is not None:
-            PhysxManager.deregister_callback(id2)
+            SimulationContext.instance().physics_manager.deregister_callback(id2)
         if id3 is not None:
-            PhysxManager.deregister_callback(id3)
+            SimulationContext.instance().physics_manager.deregister_callback(id3)
 
 
 """
@@ -431,16 +439,18 @@ def test_exception_in_callback_on_reset():
     test_error_message = "Test exception on reset"
 
     def failing_callback(event):
-        PhysxManager.store_callback_exception(RuntimeError(test_error_message))
+        SimulationContext.instance().physics_manager.store_callback_exception(RuntimeError(test_error_message))
 
-    handle = PhysxManager.register_callback(failing_callback, event=IsaacEvents.PHYSICS_READY)
+    handle = SimulationContext.instance().physics_manager.register_callback(
+        failing_callback, event=IsaacEvents.PHYSICS_READY
+    )
 
     try:
         with pytest.raises(RuntimeError, match=test_error_message):
             sim.reset()
     finally:
         if handle is not None:
-            PhysxManager.deregister_callback(handle)
+            SimulationContext.instance().physics_manager.deregister_callback(handle)
         SimulationContext.clear_instance()
 
 
@@ -460,16 +470,18 @@ def test_exception_in_callback_on_step():
     test_error_message = "Test exception on step"
 
     def failing_callback(event):
-        PhysxManager.store_callback_exception(RuntimeError(test_error_message))
+        SimulationContext.instance().physics_manager.store_callback_exception(RuntimeError(test_error_message))
 
-    handle = PhysxManager.register_callback(failing_callback, event=IsaacEvents.POST_PHYSICS_STEP)
+    handle = SimulationContext.instance().physics_manager.register_callback(
+        failing_callback, event=IsaacEvents.POST_PHYSICS_STEP
+    )
 
     try:
         with pytest.raises(RuntimeError, match=test_error_message):
             sim.step()
     finally:
         if handle is not None:
-            PhysxManager.deregister_callback(handle)
+            SimulationContext.instance().physics_manager.deregister_callback(handle)
         SimulationContext.clear_instance()
 
 

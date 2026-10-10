@@ -17,7 +17,7 @@ import gymnasium as gym
 import pytest
 import torch
 import warp as wp
-from isaaclab_newton.envs.mdp.actions.newton_task_space_actions import NewtonOperationalSpaceControllerAction
+from isaaclab_newton.physics import NewtonManager
 
 import isaaclab.sim as sim_utils
 
@@ -29,12 +29,18 @@ from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 _OSC_TASK = "IsaacContrib-NewtonStep-Reach-Franka-NewtonOSC"
 
 
-def _rollout_osc(num_steps: int) -> tuple[torch.Tensor, bool]:
+def _rollout_osc(num_steps: int, native: bool = True) -> tuple[torch.Tensor, bool]:
     """Step the Newton OSC reach task with fixed pose targets and return the arm trajectory and loop ownership."""
     sim_utils.create_new_stage()
     env_cfg = resolve_presets(load_cfg_from_registry(_OSC_TASK, "env_cfg_entry_point"), selected=("newton_mjwarp",))
     env_cfg.sim.device = "cuda:0"
     env_cfg.scene.num_envs = 4
+    env_cfg.sim.use_newton_actuators = native
+    if not native:
+        env_cfg.scene.robot.joint_ordering = [f"panda_joint{i}" for i in range(7, 0, -1)] + [
+            "panda_finger_joint1",
+            "panda_finger_joint2",
+        ]
     env_cfg.seed = 7
     env = gym.make(_OSC_TASK, cfg=env_cfg)
     try:
@@ -46,27 +52,37 @@ def _rollout_osc(num_steps: int) -> tuple[torch.Tensor, bool]:
         center = torch.tensor([0.45, 0.0, 0.35, 1.0, 0.0, 0.0, 0.0], device="cuda:0")
         trajectory = []
         with torch.inference_mode():
-            for _ in range(num_steps):
+            for step in range(num_steps):
+                # Start with no wrench, then change both inputs after graph capture.
+                force = torch.zeros((env.unwrapped.num_envs, robot.num_bodies, 3), device="cuda:0")
+                force[:, -1, 0] = 2.0 if step % 6 >= 3 else 0.0
+                robot.permanent_wrench_composer.set_forces_and_torques_index(forces=force, is_global=True)
+                if step % 5 == 3:
+                    robot.instantaneous_wrench_composer.set_forces_and_torques_index(forces=-force, is_global=False)
                 offset = 0.1 * (torch.rand(env.unwrapped.num_envs, 3, device="cuda:0", generator=generator) - 0.5)
                 actions = center.repeat(env.unwrapped.num_envs, 1)
                 actions[:, :3] += offset
                 env.step(actions)
                 trajectory.append(robot.data.joint_pos.torch.clone())
+        if env.unwrapped._physics_handles_actions:
+            graph = env.unwrapped.sim.physics_manager.backend.step_graph
+            assert graph.captured and graph.graphable
         return torch.stack(trajectory), env.unwrapped._physics_handles_decimation
     finally:
         env.close()
 
 
-def test_newton_osc_in_step_matches_host_controller(monkeypatch: pytest.MonkeyPatch):
+@pytest.mark.parametrize("native", [True, False], ids=["newton-actuators", "torch-actuators-reordered"])
+def test_newton_osc_in_step_matches_host_controller(monkeypatch: pytest.MonkeyPatch, native):
     """The captured, physics-step controller tracks targets exactly like the same controller run on the host.
 
     On the host the term must run before every physics step, so the environment drives the decimation loop; as a
     control callback, physics runs the whole loop in one call.
     """
-    in_step, physics_loop = _rollout_osc(num_steps=20)
+    in_step, physics_loop = _rollout_osc(num_steps=20, native=native)
     with monkeypatch.context() as patch:
-        patch.setattr(NewtonOperationalSpaceControllerAction, "_supports_control_callback", lambda self: False)
-        on_host, host_physics_loop = _rollout_osc(num_steps=20)
+        patch.setattr(NewtonManager, "bind_control", lambda *args: False)
+        on_host, host_physics_loop = _rollout_osc(num_steps=20, native=native)
 
     assert physics_loop and not host_physics_loop
     # The arm moves toward the targets, so the comparison is not between two resting trajectories.

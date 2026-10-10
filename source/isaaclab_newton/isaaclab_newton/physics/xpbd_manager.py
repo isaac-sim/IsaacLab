@@ -9,11 +9,11 @@ from __future__ import annotations
 
 from newton.solvers import SolverXPBD
 
-from .newton_manager import NewtonManager
+from .newton_solver import NewtonSolver
 
 
-class NewtonXPBDManager(NewtonManager):
-    """:class:`NewtonManager` running the XPBD solver, which double-buffers state."""
+class XPBDSolverAdapter(NewtonSolver):
+    """:class:`NewtonSolver` adapter for the XPBD solver, which double-buffers state."""
 
     solver_class = SolverXPBD
     supports_heterogeneous_worlds = True

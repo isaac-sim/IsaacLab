@@ -11,8 +11,6 @@ from newton.selection import ArticulationView
 from isaaclab.assets.cable_object.base_cable_object_data import BaseCableObjectData
 from isaaclab.utils.warp import ProxyArray
 
-from isaaclab_newton.physics import NewtonManager as SimulationManager
-
 
 class CableObjectData(BaseCableObjectData):
     """Data container for a Newton cable object."""
@@ -20,16 +18,17 @@ class CableObjectData(BaseCableObjectData):
     __backend_name__: str = "newton"
     """The name of the backend for the cable object data."""
 
-    def __init__(self, root_view: ArticulationView, device: str) -> None:
+    def __init__(self, root_view: ArticulationView, device: str, *, physics_manager) -> None:
         """Initialize the cable object data.
 
         Args:
             root_view: The cable articulation view.
             device: The device used for processing.
         """
+        self._physics_manager = physics_manager
         super().__init__(device)
-        model = SimulationManager.get_model()
-        state = SimulationManager.get_state_0()
+        model = self._physics_manager.get_model()
+        state = self._physics_manager.get_state_0()
         self._sim_bind_body_ids = root_view.get_attribute("joint_child", model)[:, 0].contiguous()
         self._sim_bind_link_pose_w = root_view.get_link_transforms(state)[:, 0]
         self._sim_bind_link_velocity_w = root_view.get_link_velocities(state)[:, 0]

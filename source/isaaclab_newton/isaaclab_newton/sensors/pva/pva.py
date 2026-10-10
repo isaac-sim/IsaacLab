@@ -18,8 +18,6 @@ import isaaclab.utils.math as math_utils
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.sensors.pva import BasePva
 
-from isaaclab_newton.physics import NewtonManager
-
 from .kernels import pva_reset_kernel, pva_update_kernel
 from .pva_data import PvaData
 
@@ -60,8 +58,8 @@ class Pva(BasePva):
         self._newton_model = None
 
         offset_xform = wp.transform(cfg.offset.pos, cfg.offset.rot)
-        self._site_label = NewtonManager.register_site(cfg.prim_path, offset_xform)
-        NewtonManager.request_extended_state_attribute("body_qdd")
+        self._site_label = self._physics_manager.register_site(cfg.prim_path, offset_xform)
+        self._physics_manager.request_extended_state_attribute("body_qdd")
 
         logger.info(f"Pva '{cfg.prim_path}': site registered (label='{self._site_label}')")
 
@@ -124,7 +122,7 @@ class Pva(BasePva):
         """PHYSICS_READY callback: resolves site indices and stores model reference."""
         super()._initialize_impl()
 
-        site_map = NewtonManager.get_site_index_map()
+        site_map = self._physics_manager.get_site_index_map()
         num_envs = self._num_envs
 
         if self._site_label not in site_map:
@@ -152,7 +150,7 @@ class Pva(BasePva):
                 site_indices.append(world_sites[0])
 
         self._site_indices = wp.array(site_indices, dtype=int, device=self._device)
-        self._newton_model = NewtonManager.get_model()
+        self._newton_model = self._physics_manager.get_model()
 
         self._data.create_buffers(num_envs=num_envs, device=self._device)
 
@@ -165,7 +163,7 @@ class Pva(BasePva):
                 f"Pva '{self.cfg.prim_path}': sensor not initialized. "
                 "Access sensor data only after sim.reset() has been called."
             )
-        state = NewtonManager.get_state_0()
+        state = self._physics_manager.get_state_0()
 
         wp.launch(
             pva_update_kernel,

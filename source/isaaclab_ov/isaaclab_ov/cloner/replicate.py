@@ -15,7 +15,6 @@ import numpy as np
 from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics
 
 from isaaclab import cloner
-from isaaclab.physics import PhysicsManager
 
 from isaaclab_ov._clone import CloneRecipe
 
@@ -190,7 +189,9 @@ def ovphysx_replicate(
     pairs = zip(sources, destinations, strict=True)
     copies = ((pair, np.flatnonzero(mapping[index])) for index, pair in enumerate(pairs))
     recipes = _clone_recipes(stage, copies, env_ids, positions, quaternions)
-    sim = PhysicsManager._sim
+    from isaaclab.sim import SimulationContext
+
+    sim = SimulationContext.instance()
     if sim is None:
         raise RuntimeError("OvPhysX replication requires an active SimulationContext.")
     sim.physics_manager._clone_recipes.extend(recipes)

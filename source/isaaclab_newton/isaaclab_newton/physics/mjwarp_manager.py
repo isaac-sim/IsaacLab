@@ -17,16 +17,18 @@ from newton.solvers import SolverMuJoCo
 
 from .mjwarp_manager_cfg import MJWarpSolverCfg
 from .mjwarp_tendon_control import MjWarpTendonControl
-from .newton_manager import _SENSORS_BY_STATE_ATTRIBUTE, NewtonManager
+from .newton_solver import NewtonSolver
 
 if TYPE_CHECKING:
     from .newton_backend import NewtonBackend
 
 logger = logging.getLogger(__name__)
 
+_SENSORS_BY_STATE_ATTRIBUTE = {"body_qdd": "the IMU or PVA sensor", "body_parent_f": "the joint-wrench sensor"}
 
-class NewtonMJWarpManager(NewtonManager):
-    """:class:`NewtonManager` running the MuJoCo Warp solver.
+
+class MJWarpSolverAdapter(NewtonSolver):
+    """:class:`NewtonSolver` adapter for the MuJoCo Warp solver.
 
     MuJoCo steps in place on one state. It runs its own collision detection unless
     :attr:`MJWarpSolverCfg.use_mujoco_contacts` is ``False``, in which case Newton's collision pipeline supplies
@@ -79,6 +81,10 @@ class NewtonMJWarpManager(NewtonManager):
                 " values would never be refreshed. Remove the sensors, or drop the determinism request"
                 f" (deterministic_mode={mode.name})."
             )
+
+    @classmethod
+    def supports_graph_capture(cls, backend: NewtonBackend) -> bool:
+        return not backend.cfg.solver_cfg.use_mujoco_cpu
 
     @classmethod
     def uses_collision_pipeline(cls, backend: NewtonBackend) -> bool:

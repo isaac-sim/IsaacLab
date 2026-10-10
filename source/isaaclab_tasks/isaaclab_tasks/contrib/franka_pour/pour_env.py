@@ -27,7 +27,7 @@ import newton
 import torch
 import warp as wp
 from isaaclab_newton.cloner import newton_builder_world_hook
-from isaaclab_newton.physics import NewtonMPMManager
+from isaaclab_newton.physics import MPMSolverAdapter
 
 from isaaclab.envs import ManagerBasedRLEnv
 from isaaclab.utils import index_fill_
@@ -661,8 +661,8 @@ class FrankaPourEnv(ManagerBasedRLEnv):
 
         # Public particle writers restore both Newton state buffers. This masked solver reset then
         # clears MPM stress/deformation and every private contact/collider history for the worlds.
-        NewtonMPMManager.reset_solver_state(
-            NewtonMPMManager.backend,
+        MPMSolverAdapter.reset_solver_state(
+            MPMSolverAdapter.backend,
             world_mask=wp.from_torch(world_mask, dtype=wp.bool),
             flags=newton.StateFlags.BODY | newton.StateFlags.PARTICLE,
         )

@@ -7,7 +7,8 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 import warp as wp
 
@@ -39,8 +40,8 @@ class MockNewtonModel:
 
 
 def create_mock_newton_manager(
-    patch_path: str,
     gravity: tuple[float, float, float] = (0.0, 0.0, -9.81),
+    device: str = "cpu",
     num_instances: int = 1,
     num_bodies: int = 1,
     num_joints: int = 0,
@@ -49,19 +50,19 @@ def create_mock_newton_manager(
     """Create a mock NewtonManager for testing.
 
     Args:
-        patch_path: The module path to patch
-            (e.g., "isaaclab_newton.assets.articulation.articulation_data.NewtonManager").
         gravity: Gravity vector to use for the mock model.
+        device: Device for mock buffers.
         num_instances: Number of articulation instances in the mock model.
         num_bodies: Number of bodies in each mock articulation.
         num_joints: Number of joint degrees of freedom in each mock articulation.
         is_fixed_base: Whether the mock articulation has a fixed base.
 
     Returns:
-        A context manager that patches the NewtonManager.
+        An independent mock manager with explicit model and state ownership.
     """
     mock_model = MockNewtonModel(
         gravity,
+        device=device,
         num_instances=num_instances,
         num_bodies=num_bodies,
         num_joints=num_joints,
@@ -70,11 +71,11 @@ def create_mock_newton_manager(
     mock_state = MagicMock()
     mock_control = MagicMock()
 
-    return patch(
-        patch_path,
-        **{
-            "get_model.return_value": mock_model,
-            "get_state_0.return_value": mock_state,
-            "get_control.return_value": mock_control,
-        },
+    manager = MagicMock()
+    manager.get_model.return_value = mock_model
+    manager.get_state_0.return_value = mock_state
+    manager.get_control.return_value = mock_control
+    manager.backend = SimpleNamespace(
+        is_stepping=False, transforms_may_change_on_graph_replay=False, device=wp.get_device(device)
     )
+    return manager

@@ -57,9 +57,9 @@ def test_initialize_pose_tracking_binds_body_glob_and_replicates_offset(monkeypa
 
     # No destination USD prims exist: resolution must go through the shared clone-plan resolver.
     monkeypatch.setattr(ray_caster_module.sim_utils, "find_matching_prims", lambda _path: [])
-    monkeypatch.setattr(ray_caster_module.OvPhysxManager, "get_physx_instance", staticmethod(lambda: fake_physx))
 
     sensor = _DummyRayCaster()
+    sensor._physics_manager = SimpleNamespace(get_physx_instance=lambda: fake_physx)
 
     sensor._initialize_pose_tracking()
 

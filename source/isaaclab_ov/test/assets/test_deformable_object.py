@@ -36,7 +36,7 @@ import isaaclab.utils.math as math_utils  # noqa: E402
 from isaaclab.assets import DeformableObject, DeformableObjectCfg, RigidObjectCfg  # noqa: E402
 from isaaclab.cloner import path, query
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg  # noqa: E402
-from isaaclab.sim import SimulationCfg, build_simulation_context  # noqa: E402
+from isaaclab.sim import SimulationCfg, SimulationContext, build_simulation_context  # noqa: E402
 from isaaclab.utils import configclass  # noqa: E402
 
 from ..deformable_utils import (  # noqa: E402
@@ -141,7 +141,6 @@ def _assert_rest_positions_match_authored(
 @pytest.fixture
 def host_shell(monkeypatch):
     """Run an asset shell on CPU with a scene-data backend, without a simulation."""
-    monkeypatch.setattr(OvPhysxManager, "_scene_data_backend", OvPhysxSceneDataBackend())
     with wp.ScopedDevice("cpu"):
         yield
 
@@ -228,6 +227,8 @@ def _make_asset_shell(
     num_vertices: int = 4,
 ) -> OvPhysxDeformableObject:
     asset = object.__new__(OvPhysxDeformableObject)
+    asset._physics_manager = OvPhysxManager()
+    asset._physics_manager._scene_data_backend = OvPhysxSceneDataBackend(asset._physics_manager)
     asset._device = "cpu"
     asset._check_shapes = True
     asset._DTYPE_TO_TORCH_TRAILING_DIMS = {**asset._DTYPE_TO_TORCH_TRAILING_DIMS, vec6f: (6,)}
@@ -748,7 +749,7 @@ def test_volume_deformable_reads_writes_targets_materials_and_steps():
         # A forced re-warm replaces the attached stage, so the deformable bindings are rebuilt.
         original_view = deformable.root_view
         original_binding = original_view.binding_for(TT.DEFORMABLE_SIM_NODAL_POSITION)
-        OvPhysxManager._warmup_done = False
+        SimulationContext.instance().physics_manager._warmup_done = False
         sim.reset()
 
         assert deformable.is_initialized
@@ -910,9 +911,9 @@ def test_heterogeneous_mixed_deformable_rigid_scene_materializes_missing_targets
         runtime_paths = shape.root_view.prim_paths
         assert set(runtime_paths) == expected_paths
         assert len(runtime_paths) == len(set(runtime_paths)) == num_envs
-        assert OvPhysxManager._stage_usda is not None
+        assert SimulationContext.instance().physics_manager._stage_usda is not None
         layer = Sdf.Layer.CreateAnonymous("materialized.usda")
-        assert layer.ImportFromString(OvPhysxManager._stage_usda)
+        assert layer.ImportFromString(SimulationContext.instance().physics_manager._stage_usda)
         materialized_stage = Usd.Stage.Open(layer)
         assert materialized_stage.GetPrimAtPath(camera_path).IsValid()
         assert all(materialized_stage.GetPrimAtPath(path).IsValid() for path in authored_deformable_paths)

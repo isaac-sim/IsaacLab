@@ -17,7 +17,7 @@ from pxr import Sdf, Usd, UsdGeom, UsdPhysics
 
 from isaaclab_contrib.custom_coupling.coupled_mjwarp_vbd_manager import (
     CoupledMJWarpVBDSolver,
-    NewtonCoupledMJWarpVBDManager,
+    CoupledMJWarpVBDSolverAdapter,
 )
 from isaaclab_contrib.custom_coupling.newton_manager_cfg import CoupledMJWarpVBDSolverCfg
 
@@ -34,7 +34,7 @@ def _create(
     """Construct the coupled solver over mocked sub-solvers."""
     solver_cfg = CoupledMJWarpVBDSolverCfg() if solver_cfg is None else solver_cfg
     _stub_subsolvers(monkeypatch, solver_cfg)
-    return NewtonCoupledMJWarpVBDManager.create_solver(MagicMock(), solver_cfg)
+    return CoupledMJWarpVBDSolverAdapter.create_solver(MagicMock(), solver_cfg)
 
 
 def test_registered_mujoco_solver_imports_mujoco_joint_properties() -> None:
@@ -55,10 +55,10 @@ def test_registered_mujoco_solver_imports_mujoco_joint_properties() -> None:
     joint.GetPrim().CreateAttribute("mjc:damping", Sdf.ValueTypeNames.Double, True).Set(0.23)
 
     builder = ModelBuilder()
-    NewtonCoupledMJWarpVBDManager.register_builder_attributes(builder, CoupledMJWarpVBDSolverCfg())
+    CoupledMJWarpVBDSolverAdapter.register_builder_attributes(builder, CoupledMJWarpVBDSolverCfg())
     builder.add_usd(
         stage,
-        schema_resolvers=NewtonCoupledMJWarpVBDManager.get_usd_import_schema_resolvers(CoupledMJWarpVBDSolverCfg()),
+        schema_resolvers=CoupledMJWarpVBDSolverAdapter.get_usd_import_schema_resolvers(CoupledMJWarpVBDSolverCfg()),
     )
     model = builder.finalize(device="cpu")
 
@@ -75,7 +75,7 @@ def test_reset_forwards_to_both_subsolvers(monkeypatch: pytest.MonkeyPatch) -> N
     state = object()
     world_mask = object()
 
-    NewtonCoupledMJWarpVBDManager.reset_solver(SimpleNamespace(solver=solver), state, world_mask)
+    CoupledMJWarpVBDSolverAdapter.reset_solver(SimpleNamespace(solver=solver), state, world_mask)
 
     rigid_solver.reset.assert_called_once_with(state, world_mask=world_mask, flags=0)
     soft_solver.reset.assert_called_once_with(state, world_mask=world_mask, flags=0)
@@ -112,11 +112,11 @@ def test_reset_skips_all_false_cpu_mask(monkeypatch: pytest.MonkeyPatch) -> None
 )
 def test_build_solver_rejects_invalid_configuration(solver_cfg: CoupledMJWarpVBDSolverCfg, match: str) -> None:
     with pytest.raises(ValueError, match=match):
-        NewtonCoupledMJWarpVBDManager.create_solver(MagicMock(), solver_cfg)
+        CoupledMJWarpVBDSolverAdapter.create_solver(MagicMock(), solver_cfg)
 
 
 def test_add_contact_sensor_rejects_coupled_solver() -> None:
-    backend = SimpleNamespace(manager=NewtonCoupledMJWarpVBDManager, contact_sensors={})
+    backend = SimpleNamespace(manager=CoupledMJWarpVBDSolverAdapter, contact_sensors={})
 
     with pytest.raises(NotImplementedError, match="contact sensors are not yet supported"):
         nb.add_contact_sensor(backend, body_names_expr="body")
@@ -127,7 +127,7 @@ def test_build_solver_sets_capabilities(monkeypatch: pytest.MonkeyPatch) -> None
     solver_cfg = CoupledMJWarpVBDSolverCfg()
     solver = _create(monkeypatch, solver_cfg)
     backend = SimpleNamespace(solver=solver)
-    manager = NewtonCoupledMJWarpVBDManager
+    manager = CoupledMJWarpVBDSolverAdapter
 
     assert solver.rigid_solver is solver_cfg.rigid_solver_cfg.class_type.create_solver.return_value
     assert solver.soft_solver is solver_cfg.soft_solver_cfg.class_type.create_solver.return_value
@@ -152,7 +152,7 @@ def test_step_preserves_input_forces(mode: str, monkeypatch: pytest.MonkeyPatch)
     rigid_solver = solver.rigid_solver
     soft_solver = solver.soft_solver
     backend = SimpleNamespace(solver=solver, contacts=contacts, collision_pipeline=collision_pipeline)
-    NewtonCoupledMJWarpVBDManager.prepare_contacts(backend)
+    CoupledMJWarpVBDSolverAdapter.prepare_contacts(backend)
     monkeypatch.setattr(solver, "_apply_reactions", reactions)
 
     solver.step(state_in, state_out, control, contacts, 0.01)

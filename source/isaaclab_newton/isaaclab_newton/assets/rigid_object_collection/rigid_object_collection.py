@@ -25,7 +25,6 @@ from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_newton.assets import kernels as shared_kernels
-from isaaclab_newton.physics import NewtonManager as SimulationManager
 
 from .rigid_object_collection_data import RigidObjectCollectionData
 
@@ -182,6 +181,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         self._instantaneous_wrench_composer.reset(env_ids, env_mask)
         self._permanent_wrench_composer.reset(env_ids, env_mask)
 
+    supports_graph_capture = True
+
     def write_data_to_sim(self) -> None:
         """Write external wrench to the simulation.
 
@@ -189,29 +190,24 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             We write external wrench to the simulation here since this function is called before the simulation step.
             This ensures that the external wrench is applied at every simulation step.
         """
-        # write external wrench
-        if self._instantaneous_wrench_composer.active or self._permanent_wrench_composer.active:
-            if self._instantaneous_wrench_composer.active:
-                composer = self._instantaneous_wrench_composer
-                composer.add_raw_buffers_from(self._permanent_wrench_composer)
-            else:
-                composer = self._permanent_wrench_composer
-            force_b, torque_b, _ = composer.get_forces_and_torques()
-            wp.launch(
-                shared_kernels.update_wrench_array_with_force_and_torque,
-                dim=(self.num_instances, self.num_bodies),
-                device=self.device,
-                inputs=[
-                    force_b,
-                    torque_b,
-                    self._data.body_link_pose_w.warp,
-                    self._wrench_buffer,
-                    self._ALL_ENV_MASK,
-                    self._ALL_BODY_MASK,
-                ],
-            )
-            # Write the wrench buffer directly to the Newton binding (already 2D)
-            wp.copy(self._data._sim_bind_body_external_wrench, self._wrench_buffer)
+        composer = self._instantaneous_wrench_composer
+        composer.add_raw_buffers_from(self._permanent_wrench_composer)
+        force_b, torque_b = composer.compose_to_body_frame()
+        wp.launch(
+            shared_kernels.update_wrench_array_with_force_and_torque,
+            dim=(self.num_instances, self.num_bodies),
+            device=self.device,
+            inputs=[
+                force_b,
+                torque_b,
+                self._data.body_link_pose_w.warp,
+                self._wrench_buffer,
+                self._ALL_ENV_MASK,
+                self._ALL_BODY_MASK,
+            ],
+        )
+        # Write the wrench buffer directly to the Newton binding (already 2D)
+        wp.copy(self._data._sim_bind_body_external_wrench, self._wrench_buffer)
         self._instantaneous_wrench_composer.reset()
 
     def update(self, dt: float) -> None:
@@ -902,7 +898,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         )
         # No copy-back needed — writes go directly to Newton's state via the 2D binding
         # Tell the physics engine that some of the body properties have been updated
-        SimulationManager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
+        self._physics_manager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
     def set_masses_mask(
         self,
@@ -952,7 +948,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         )
         # No copy-back needed — writes go directly to Newton's state via the 2D binding
         # Tell the physics engine that some of the body properties have been updated
-        SimulationManager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
+        self._physics_manager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES, env_mask=env_mask)
 
     def set_coms_index(
         self,
@@ -1003,7 +999,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         )
         self.data._reset_body_com_pose_b_dependents()
         # Tell the physics engine that some of the body properties have been updated
-        SimulationManager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
+        self._physics_manager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
     def set_coms_mask(
         self,
@@ -1055,7 +1051,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         )
         self.data._reset_body_com_pose_b_dependents()
         # Tell the physics engine that some of the body properties have been updated
-        SimulationManager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
+        self._physics_manager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES, env_mask=env_mask)
 
     def set_inertias_index(
         self,
@@ -1104,7 +1100,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         )
         # No copy-back needed — writes go directly to Newton's state via the 2D binding
         # Tell the physics engine that some of the body properties have been updated
-        SimulationManager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
+        self._physics_manager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
     def set_inertias_mask(
         self,
@@ -1154,7 +1150,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         )
         # No copy-back needed — writes go directly to Newton's state via the 2D binding
         # Tell the physics engine that some of the body properties have been updated
-        SimulationManager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
+        self._physics_manager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES, env_mask=env_mask)
 
     """
     Internal helper.
@@ -1211,7 +1207,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         # Create a single ArticulationView matching exactly the configured bodies.
         # The 2nd dimension (matches per world) corresponds to the body types.
         self._root_view = ArticulationView(
-            SimulationManager.get_model(),
+            self._physics_manager.get_model(),
             root_prim_path_exprs,
             verbose=False,
         )
@@ -1224,7 +1220,9 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             )
 
         # container for data access
-        self._data = RigidObjectCollectionData(self._root_view, self.num_bodies, self.device)
+        self._data = RigidObjectCollectionData(
+            self._root_view, self.num_bodies, self.device, physics_manager=self._physics_manager
+        )
 
         # create buffers
         self._create_buffers()

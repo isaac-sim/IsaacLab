@@ -24,7 +24,7 @@ from newton.solvers import SolverBase, SolverImplicitMPM
 from warp.fem import TemporaryStore
 
 from .mpm_manager_cfg import MPMSolverCfg
-from .newton_manager import NewtonManager
+from .newton_solver import NewtonSolver
 
 if TYPE_CHECKING:
     from .newton_backend import NewtonBackend
@@ -114,8 +114,8 @@ def mpm_supports_graph_capture(solver: SolverImplicitMPM) -> bool:
     )
 
 
-class NewtonMPMManager(NewtonManager):
-    """:class:`NewtonManager` running Newton's implicit MPM solver.
+class MPMSolverAdapter(NewtonSolver):
+    """:class:`NewtonSolver` adapter for Newton's implicit MPM solver.
 
     MPM advances particle materials in place on one state and treats rigid geometry as colliders, so it does not use
     Newton's collision pipeline or consume applied rigid-body forces.

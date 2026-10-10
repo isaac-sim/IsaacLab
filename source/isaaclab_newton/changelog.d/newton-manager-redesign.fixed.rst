@@ -4,8 +4,9 @@
   bind to.
 * Fixed authored-state invalidation of global articulations, which flagged world 0 for a solver reset.
 * Fixed particle forces applying only to the first solver substep; the step stages them like body forces.
-* Fixed articulations running Isaac Lab actuator models while the Newton manager ran the decimation loop; they now
-  require the environment to run the loop.
+* Fixed controller and explicit-actuator work being omitted from captured decimation. Capture-safe terms now run
+  in the graph; unsupported terms run eagerly at the same phase. Torch and Warp share a stream and graph allocation
+  lifetime. Solver capture capability is checked before recording any operations.
 * Fixed IMU, PVA, and frame-transformer sensors injecting duplicate sites into the retained builder on every hard
   reset. Site requests now persist until :meth:`~isaaclab_newton.physics.NewtonManager.close`, a resolved site is
   never injected again, and sensors no longer re-register on ``STOP``.

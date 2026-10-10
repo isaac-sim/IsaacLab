@@ -39,6 +39,9 @@ class ActionTerm(ManagerTermBase):
       responsible for applying the processed actions to the asset managed by the term.
     """
 
+    supports_graph_capture: ClassVar[bool] = False
+    """Whether apply_actions uses device operations with fixed shapes and no host-dependent state."""
+
     apply_every_physics_step: ClassVar[bool] = True
     """Whether :meth:`apply_actions` must run before every physics step.
 
@@ -56,6 +59,7 @@ class ActionTerm(ManagerTermBase):
         # call the base class constructor
         super().__init__(cfg, env)
         # parse config to obtain asset to which the term is applied
+        self._physics_manager = env.sim.physics_manager
         self._asset: AssetBase = self._env.scene[self.cfg.asset_name]
         self._IO_descriptor = GenericActionIODescriptor()
         self._export_IO_descriptor = True

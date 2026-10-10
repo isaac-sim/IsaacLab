@@ -42,7 +42,7 @@ elif sys.platform not in ("win32", "darwin"):
         del _pyglet_xlib
 
 import newton
-from isaaclab_newton.physics import NewtonBackendCfg, NewtonManager, StepPhase
+from isaaclab_newton.physics import NewtonBackendCfg, StepPhase
 from newton.viewer import ViewerGL, ViewerRTX
 from pyglet.math import Vec3 as PygletVec3
 
@@ -1088,11 +1088,12 @@ class NewtonVisualizer(BaseVisualizer):
         physics_manager = sim.physics_manager
         backend = physics_manager.backend if newton_backend_active else None
         picking_supported = (
-            backend is not None and backend.solver is not None and backend.manager.supports_body_forces(backend)
+            backend is not None and backend.solver is not None and backend.solver_adapter.supports_body_forces(backend)
         )
         num_envs = scene_data_provider.num_envs
         metadata = {"num_envs": num_envs}
-        self.newton_cfg = NewtonBackendCfg(physics_cfg=sim.cfg.physics, device=sim.device)
+        self._physics_manager = sim.physics_manager
+        self.newton_cfg = NewtonBackendCfg(physics_cfg=sim.cfg.physics, device=sim.device, manager=sim.physics_manager)
         self.backend = sim.get_or_create_backend(self.newton_cfg)
         self._transform_mapping = scene_data_provider.create_mapping(list(self.backend.model.body_label))
 
@@ -1167,7 +1168,7 @@ class NewtonVisualizer(BaseVisualizer):
         )
         if self._viewer is not None and self._picking_enabled:
             self._viewer_picking_binding.bind(self._viewer)
-            NewtonManager.register_step_callback(
+            self._physics_manager.register_step_callback(
                 self._viewer_picking_binding.apply, StepPhase.STATE_FORCE, name="viewer.picking"
             )
         if self._viewer is not None and self.cfg.enable_picking and not picking_supported:
@@ -1232,7 +1233,7 @@ class NewtonVisualizer(BaseVisualizer):
                         self._log_pending_meshes()
                         return
                     self._viewer.log_state(state)
-                    contacts = NewtonManager.get_contacts()
+                    contacts = self._physics_manager.get_contacts()
                     if contacts is not None:
                         self._viewer.log_contacts(contacts, state)
                     else:
@@ -1304,7 +1305,7 @@ class NewtonVisualizer(BaseVisualizer):
             if self._picking_enabled:
                 self._viewer_picking_binding.bind(self._viewer)
                 # A hard reset discards the Newton backend and its callbacks, so register picking with the new one.
-                NewtonManager.register_step_callback(
+                self._physics_manager.register_step_callback(
                     self._viewer_picking_binding.apply, StepPhase.STATE_FORCE, name="viewer.picking"
                 )
 

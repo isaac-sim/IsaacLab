@@ -15,7 +15,7 @@ from newton import Model, State, eval_fk
 from newton.solvers import SolverKamino
 
 from .kamino_manager_cfg import _KaminoSolverCfgBase
-from .newton_manager import NewtonManager
+from .newton_solver import NewtonSolver
 
 if TYPE_CHECKING:
     from .newton_backend import NewtonBackend
@@ -48,8 +48,8 @@ def _model_has_loop_closing_joints(model: Model) -> bool:
     return bool((articulation_start_np[1:] > articulation_end_np).any())
 
 
-class NewtonKaminoManager(NewtonManager):
-    """:class:`NewtonManager` running the Kamino solver.
+class KaminoSolverAdapter(NewtonSolver):
+    """:class:`NewtonSolver` adapter for the Kamino solver.
 
     Kamino treats body state as authoritative and double-buffers state. It uses Newton's collision pipeline unless
     ``use_collision_detector`` is ``True``, in which case Kamino's internal detector generates contacts.

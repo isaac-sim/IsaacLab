@@ -1,10 +1,11 @@
-* **Breaking:** Moved every model-bound object of :class:`~isaaclab_newton.physics.NewtonManager` (about 60 class
-  attributes) onto :class:`~isaaclab_newton.physics.NewtonBackend`. The manager keeps only the active
-  :attr:`~isaaclab_newton.physics.NewtonManager.backend`, site requests, replication outputs, and the decimation
-  setting. Code that read private manager attributes must use the backend or the manager accessors.
-* **Breaking:** Solver managers implement stateless classmethod hooks that take the backend explicitly
-  (``create_solver``, ``step_solver``, ``reset_solver``, ``eval_fk``, ``uses_collision_pipeline``, and similar)
-  instead of overriding private class hooks that wrote shared class state.
+* **Breaking:** Physics managers are instances. Read the active manager from ``sim.physics_manager`` instead of
+  calling runtime methods on ``NewtonManager`` or a solver-manager class. Each manager owns construction and
+  lifecycle state; ``NewtonBackend`` owns finalized simulation resources.
+* **Breaking:** Solver hooks now live in stateless ``NewtonSolver`` adapters, selected independently through
+  ``solver_cfg.class_type``. For example, use ``MJWarpSolverAdapter`` in place of ``NewtonMJWarpManager``;
+  ``NewtonCfg.class_type`` selects the integration manager. Apply the same ``*SolverAdapter`` rename for
+  Featherstone, XPBD, VBD, Kamino, and MPM. Backend and builder registry configurations now require their owning
+  ``manager`` explicitly.
 * **Breaking:** Replaced the separate full and physics-only stepping paths with one step graph. Newton actuators that
   are not CUDA-graph-safe run eagerly between captured segments instead of forcing the environment to own the
   decimation loop.
@@ -24,8 +25,8 @@
 * **Breaking:** Replaced the ``NewtonQueries`` static-method class with the module functions ``run_query`` and
   ``capture_graph`` in :mod:`isaaclab_newton.physics.newton_backend`.
 * **Breaking:** The Newton model no longer carries a patched ``num_envs`` attribute; use ``Model.world_count``.
-* **Breaking:** :meth:`~isaaclab_newton.physics.NewtonMPMManager.reset_solver_state` and
-  :meth:`~isaaclab_newton.physics.NewtonManager.create_fixed_tendon_control` take the backend or model explicitly
+* **Breaking:** :meth:`~isaaclab_newton.physics.MPMSolverAdapter.reset_solver_state` and
+  :meth:`~isaaclab_newton.physics.NewtonSolver.create_fixed_tendon_control` take the backend or model explicitly
   instead of reading the active one, and builder hooks receive the solver configuration. Solver hooks no longer read
   manager class state, so several backends can coexist.
 * The Kamino manager resolves an automatic ``use_fk_solver`` into the backend's configuration instead of writing it
@@ -41,6 +42,9 @@
   physics step.
 * Forces authored before a step are staged and re-applied per substep only for double-buffered solvers or when
   ``STATE_FORCE`` callbacks add forces; single-state solvers read them in place.
-* Fixed-base root pose writes notify the solver through
-  :meth:`~isaaclab_newton.physics.NewtonManager.add_model_change`. A model change authored while a caller records a
-  CUDA graph notifies the solver immediately, so every replay applies it.
+* Property edits queue model-change categories and a device-side dirty flag. ``forward`` or ``step`` commits the
+  combined categories once. Empty reset masks skip constant reconstruction without synchronizing the device.
+  Capture property-changing resets with ``newton_backend.capture_graph`` so conditional nodes retain their scratch
+  storage. The helper returns a ``CapturedGraph`` with a ``launch()`` method.
+* ``POST_STEP`` callbacks and native sensors update after every physics step, keeping feedback current within the
+  captured decimation loop. ``POST_ACTUATOR`` telemetry remains sampled on the last physics step.

@@ -19,7 +19,6 @@ Covers:
 
 from __future__ import annotations
 
-import contextlib
 import functools
 import logging
 from types import SimpleNamespace
@@ -33,29 +32,30 @@ from isaaclab_newton.assets.articulation import articulation as articulation_mod
 from isaaclab_newton.assets.rigid_object import rigid_object as rigid_object_module
 from isaaclab_newton.cloner import newton_physics_replicate
 from isaaclab_newton.physics import (
+    FeatherstoneSolverAdapter,
     FeatherstoneSolverCfg,
     KaminoDVICfg,
     KaminoDVISolverCfg,
     KaminoDynamicsCfg,
     KaminoPADMMCfg,
     KaminoPADMMSolverCfg,
+    KaminoSolverAdapter,
+    MJWarpSolverAdapter,
     MJWarpSolverCfg,
+    MPMSolverAdapter,
     MPMSolverCfg,
     NewtonBackend,
     NewtonBuilderCfg,
     NewtonCfg,
     NewtonCollisionPipelineCfg,
-    NewtonFeatherstoneManager,
-    NewtonKaminoManager,
     NewtonManager,
-    NewtonMJWarpManager,
-    NewtonMPMManager,
     NewtonShapeCfg,
-    NewtonVBDManager,
-    NewtonXPBDManager,
+    NewtonSolver,
     StepCallback,
     StepPhase,
+    VBDSolverAdapter,
     VBDSolverCfg,
+    XPBDSolverAdapter,
     XPBDSolverCfg,
 )
 from isaaclab_newton.physics import mjwarp_manager as mjwarp_manager_module
@@ -73,7 +73,7 @@ from newton.selection import ArticulationView
 from newton.solvers import SolverFeatherstone, SolverImplicitMPM, SolverKamino, SolverMuJoCo, SolverVBD, SolverXPBD
 
 from isaaclab.actuators import ImplicitActuatorCfg
-from isaaclab.physics import PhysicsEvent, PhysicsManager
+from isaaclab.physics import PhysicsEvent
 from isaaclab.scene_data import SceneDataFormat, SceneDataProvider
 from isaaclab.sim import SimulationCfg, SimulationContext, build_simulation_context
 from isaaclab.test.utils import DeviceScope, test_devices
@@ -87,7 +87,7 @@ from isaaclab.test.utils import DeviceScope, test_devices
 SOLVER_MATRIX = [
     pytest.param(
         lambda: MJWarpSolverCfg(use_mujoco_contacts=True),
-        NewtonMJWarpManager,
+        MJWarpSolverAdapter,
         SolverMuJoCo,
         True,
         False,
@@ -95,7 +95,7 @@ SOLVER_MATRIX = [
     ),
     pytest.param(
         lambda: MJWarpSolverCfg(use_mujoco_contacts=False),
-        NewtonMJWarpManager,
+        MJWarpSolverAdapter,
         SolverMuJoCo,
         True,
         True,
@@ -103,7 +103,7 @@ SOLVER_MATRIX = [
     ),
     pytest.param(
         lambda: XPBDSolverCfg(),
-        NewtonXPBDManager,
+        XPBDSolverAdapter,
         SolverXPBD,
         False,
         True,
@@ -111,7 +111,7 @@ SOLVER_MATRIX = [
     ),
     pytest.param(
         lambda: VBDSolverCfg(),
-        NewtonVBDManager,
+        VBDSolverAdapter,
         SolverVBD,
         False,
         True,
@@ -119,7 +119,7 @@ SOLVER_MATRIX = [
     ),
     pytest.param(
         lambda: FeatherstoneSolverCfg(),
-        NewtonFeatherstoneManager,
+        FeatherstoneSolverAdapter,
         SolverFeatherstone,
         False,
         True,
@@ -127,7 +127,7 @@ SOLVER_MATRIX = [
     ),
     pytest.param(
         lambda: KaminoPADMMSolverCfg(use_collision_detector=True),
-        NewtonKaminoManager,
+        KaminoSolverAdapter,
         SolverKamino,
         False,
         False,
@@ -135,7 +135,7 @@ SOLVER_MATRIX = [
     ),
     pytest.param(
         lambda: KaminoPADMMSolverCfg(use_collision_detector=False),
-        NewtonKaminoManager,
+        KaminoSolverAdapter,
         SolverKamino,
         False,
         True,
@@ -143,7 +143,7 @@ SOLVER_MATRIX = [
     ),
     pytest.param(
         lambda: MPMSolverCfg(max_iterations=2, voxel_size=0.05),
-        NewtonMPMManager,
+        MPMSolverAdapter,
         SolverImplicitMPM,
         True,
         False,
@@ -152,12 +152,12 @@ SOLVER_MATRIX = [
 ]
 
 RIGID_BODY_FORCE_INPUT_SUPPORT = {
-    NewtonMJWarpManager: True,
-    NewtonVBDManager: True,
-    NewtonXPBDManager: True,
-    NewtonFeatherstoneManager: True,
-    NewtonKaminoManager: True,
-    NewtonMPMManager: False,
+    MJWarpSolverAdapter: True,
+    VBDSolverAdapter: True,
+    XPBDSolverAdapter: True,
+    FeatherstoneSolverAdapter: True,
+    KaminoSolverAdapter: True,
+    MPMSolverAdapter: False,
 }
 
 
@@ -175,7 +175,8 @@ def test_newton_cfg_post_init_propagates_class_type(
 ):
     """``NewtonCfg.__post_init__`` lifts ``solver_cfg.class_type`` onto ``NewtonCfg.class_type``."""
     cfg = NewtonCfg(solver_cfg=solver_cfg_factory())
-    assert cfg.class_type.__name__ == expected_manager.__name__
+    assert cfg.class_type.__name__ == "NewtonManager"
+    assert cfg.solver_cfg.class_type.__name__ == expected_manager.__name__
 
 
 @pytest.mark.parametrize(
@@ -201,7 +202,7 @@ def test_newton_cfg_collision_decimation_warning(num_substeps, collision_decimat
 
 def test_solver_kwargs_include_newton_deterministic_mode() -> None:
     """Solver construction should receive the mode configured on the outer Newton config."""
-    kwargs = NewtonManager.solver_kwargs(SolverXPBD, XPBDSolverCfg(), wp.DeterministicMode.GPU_TO_GPU)
+    kwargs = NewtonSolver.solver_kwargs(SolverXPBD, XPBDSolverCfg(), wp.DeterministicMode.GPU_TO_GPU)
 
     assert kwargs["deterministic"] == wp.DeterministicMode.GPU_TO_GPU
 
@@ -220,7 +221,7 @@ def test_deterministic_mode_rejects_unsupported_solver_cfg(solver_cfg) -> None:
     """Unsupported solvers should not silently ignore a determinism guarantee."""
     backend = _validation_backend(solver_cfg, wp.DeterministicMode.GPU_TO_GPU)
     with pytest.raises(ValueError, match="not supported"):
-        backend.cfg.class_type.validate_cfg(backend)
+        backend.cfg.solver_cfg.class_type.validate_cfg(backend)
 
 
 @pytest.mark.parametrize("solver_cfg_cls", [FeatherstoneSolverCfg, MJWarpSolverCfg, XPBDSolverCfg])
@@ -231,7 +232,7 @@ def test_deterministic_mode_accepts_supported_solver_cfg_subclasses(solver_cfg_c
         pass
 
     backend = _validation_backend(CustomSolverCfg(), wp.DeterministicMode.GPU_TO_GPU)
-    backend.cfg.class_type.validate_cfg(backend)
+    backend.cfg.solver_cfg.class_type.validate_cfg(backend)
 
 
 def test_deterministic_collision_pipeline_matches_expanded_contact_capacity(
@@ -255,7 +256,7 @@ def test_deterministic_collision_pipeline_matches_expanded_contact_capacity(
         cfg=SimpleNamespace(collision_cfg=None),
         deterministic_mode=wp.DeterministicMode.GPU_TO_GPU,
         solver=SimpleNamespace(get_max_contact_count=lambda: 2),
-        manager=SimpleNamespace(uses_collision_pipeline=lambda backend: True, prepare_contacts=prepared.append),
+        solver_adapter=SimpleNamespace(uses_collision_pipeline=lambda backend: True, prepare_contacts=prepared.append),
         collision_pipeline=None,
     )
 
@@ -276,8 +277,10 @@ def test_queries_share_native_bvhs_and_read_only_through_sdp(monkeypatch, cloth,
     sim = object.__new__(SimulationContext)
     sim._backend_registry = []
     monkeypatch.setattr(SimulationContext, "instance", lambda: sim)
-    cfg = NewtonBackendCfg(physics_cfg=object(), device=device)
-    builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=cfg.physics_cfg))
+    sim.physics_manager = NewtonManager(device=device)
+    sim.physics_manager._sim = sim
+    cfg = NewtonBackendCfg(physics_cfg=object(), device=device, manager=sim.physics_manager)
+    builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=cfg.physics_cfg, manager=sim.physics_manager))
     builder.add_shape_sphere(builder.add_body(label="/Object"))
     for position in ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)):
         builder.add_particle(pos=wp.vec3(position), vel=wp.vec3(), mass=1.0)
@@ -560,9 +563,9 @@ def test_kamino_dvi_rejects_preconditioning():
 @pytest.mark.parametrize(
     ("manager", "active", "inactive"),
     [
-        (NewtonMJWarpManager, "mujoco:condim", ("kamino:max_solver_iterations", "mpm:young_modulus")),
-        (NewtonKaminoManager, "kamino:max_solver_iterations", ("mujoco:condim", "mpm:young_modulus")),
-        (NewtonMPMManager, "mpm:young_modulus", ("mujoco:condim", "kamino:max_solver_iterations")),
+        (MJWarpSolverAdapter, "mujoco:condim", ("kamino:max_solver_iterations", "mpm:young_modulus")),
+        (KaminoSolverAdapter, "kamino:max_solver_iterations", ("mujoco:condim", "mpm:young_modulus")),
+        (MPMSolverAdapter, "mpm:young_modulus", ("mujoco:condim", "kamino:max_solver_iterations")),
     ],
 )
 def test_solver_registers_only_its_builder_attributes(manager, active, inactive):
@@ -573,7 +576,7 @@ def test_solver_registers_only_its_builder_attributes(manager, active, inactive)
 
     assert builder.has_custom_attribute(active)
     assert all(not builder.has_custom_attribute(name) for name in inactive)
-    if manager is NewtonMJWarpManager:
+    if manager is MJWarpSolverAdapter:
         assert "mujoco:actuator" in builder.custom_frequencies
         assert "mujoco:tendon" in builder.custom_frequencies
 
@@ -607,7 +610,7 @@ def test_mpm_prepare_builder_makes_kinematic_bodies_massless():
         label="dynamic_body",
     )
 
-    NewtonMPMManager.prepare_solver_builder(builder, MPMSolverCfg())
+    MPMSolverAdapter.prepare_solver_builder(builder, MPMSolverCfg())
 
     assert builder.body_flags[kinematic_body] & int(newton.BodyFlags.KINEMATIC)
     assert builder.body_mass[kinematic_body] == 0.0
@@ -626,7 +629,7 @@ def test_mpm_prepare_builder_converts_convex_mesh_before_solver_construction():
     import newton
 
     builder = newton.ModelBuilder()
-    NewtonMPMManager.register_builder_attributes(builder, MPMSolverCfg())
+    MPMSolverAdapter.register_builder_attributes(builder, MPMSolverCfg())
     body = builder.add_body(label="convex_mesh_collider")
     mesh = newton.Mesh(
         vertices=[(-1.0, -1.0, 0.0), (1.0, -1.0, 0.0), (0.0, 1.0, 0.0)],
@@ -650,9 +653,9 @@ def test_mpm_prepare_builder_converts_convex_mesh_before_solver_construction():
         },
     )
 
-    NewtonMPMManager.prepare_solver_builder(builder, MPMSolverCfg())
+    MPMSolverAdapter.prepare_solver_builder(builder, MPMSolverCfg())
     model = builder.finalize(device="cuda:0")
-    solver = NewtonMPMManager.create_solver(model, MPMSolverCfg(max_iterations=2, voxel_size=0.05))
+    solver = MPMSolverAdapter.create_solver(model, MPMSolverCfg(max_iterations=2, voxel_size=0.05))
 
     assert builder.shape_type[shape] == newton.GeoType.MESH
     assert isinstance(solver, SolverImplicitMPM)
@@ -661,8 +664,8 @@ def test_mpm_prepare_builder_converts_convex_mesh_before_solver_construction():
 @pytest.mark.parametrize(
     ("manager_cls", "solver_cfg", "expected_friction", "expected_damping"),
     [
-        pytest.param(NewtonMJWarpManager, MJWarpSolverCfg(), 0.11, 0.23, id="mjwarp"),
-        pytest.param(NewtonFeatherstoneManager, FeatherstoneSolverCfg(), 0.0, 0.0, id="featherstone"),
+        pytest.param(MJWarpSolverAdapter, MJWarpSolverCfg(), 0.11, 0.23, id="mjwarp"),
+        pytest.param(FeatherstoneSolverAdapter, FeatherstoneSolverCfg(), 0.0, 0.0, id="featherstone"),
     ],
 )
 def test_production_imports_scope_mujoco_joint_properties(
@@ -699,22 +702,9 @@ def test_production_imports_scope_mujoco_joint_properties(
     physics_cfg = NewtonCfg(solver_cfg=solver_cfg, load_visual_shapes=False)
     sim = object.__new__(SimulationContext)
     sim.cfg = SimpleNamespace(physics=physics_cfg, physics_prim_path=physics_prim_path, device="cpu")
-    sim.physics_manager, sim._backend_registry = manager_cls, []
-    monkeypatch.setattr(PhysicsManager, "_sim", sim)
-    monkeypatch.setattr(PhysicsManager, "_cfg", physics_cfg)
-    monkeypatch.setattr(PhysicsManager, "_device", "cpu")
-    monkeypatch.setattr(
-        NewtonManager,
-        "_scene_data_backend",
-        newton_manager_module.NewtonSceneDataBackend(lambda: NewtonManager.backend),
-    )
-    for name, value in (
-        ("_site_requests", {}),
-        ("_site_index_map", {}),
-        ("_world_builder_hooks", []),
-        ("_clone", None),
-    ):
-        monkeypatch.setattr(NewtonManager, name, value)
+    sim.physics_manager, sim._backend_registry = NewtonManager(cfg=physics_cfg, device="cpu"), []
+    sim.physics_manager._sim = sim
+    monkeypatch.setattr(SimulationContext, "instance", lambda: sim)
 
     builder, _ = newton_physics_replicate(
         stage=stage,
@@ -734,8 +724,8 @@ def test_production_imports_scope_mujoco_joint_properties(
 @pytest.mark.parametrize(
     ("manager_cls", "imports_mujoco"),
     [
-        pytest.param(NewtonMJWarpManager, True, id="mjwarp"),
-        pytest.param(NewtonFeatherstoneManager, False, id="featherstone"),
+        pytest.param(MJWarpSolverAdapter, True, id="mjwarp"),
+        pytest.param(FeatherstoneSolverAdapter, False, id="featherstone"),
     ],
 )
 def test_schema_resolver_policy_and_precedence(manager_cls, imports_mujoco):
@@ -793,7 +783,7 @@ def test_mpm_project_outside_colliders_gates_projection(project_outside):
     )
 
     with build_simulation_context(sim_cfg=sim_cfg) as sim:
-        builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics))
+        builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics, manager=sim.physics_manager))
         # MPM custom attrs must exist on the builder before particles use them (the production path).
         assert builder.has_custom_attribute("mpm:young_modulus")
         builder.add_particles(
@@ -812,7 +802,7 @@ def test_mpm_project_outside_colliders_gates_projection(project_outside):
             },
         )
         sim.reset()
-        solver = NewtonManager.get_solver()
+        solver = sim.physics_manager.get_solver()
         assert isinstance(solver, SolverImplicitMPM)
 
         calls = {"n": 0}
@@ -870,8 +860,8 @@ def test_mpm_status_check_runs_only_after_graph_capture():
     solver.check_sparse_grid_rebuild_status = lambda: calls.append("check")
     backend = SimpleNamespace(solver=solver)
 
-    NewtonMPMManager.check_status(backend, captured=False)
-    NewtonMPMManager.check_status(backend, captured=True)
+    MPMSolverAdapter.check_status(backend, captured=False)
+    MPMSolverAdapter.check_status(backend, captured=True)
 
     assert calls == ["check"]
 
@@ -898,9 +888,10 @@ def test_step_captures_only_when_the_solver_supports_it(monkeypatch, supported):
     events = []
     backend = _recording_backend(events, single_state=True, num_substeps=1)
     replays = []
-    monkeypatch.setattr(wp, "capture_launch", lambda graph: (replays.append(graph), graph()))
     # init_solver resolves the capture function only for solvers that support capture.
-    backend.capture = (lambda segment: segment) if supported else None
+    backend.capture = (
+        (lambda segment: SimpleNamespace(launch=lambda: (replays.append(segment), segment()))) if supported else None
+    )
 
     for _ in range(2):
         nb.step(backend)
@@ -911,32 +902,24 @@ def test_step_captures_only_when_the_solver_supports_it(monkeypatch, supported):
     assert events.count(("step", "state_0", "state_0")) == 2
 
 
-def test_cuda_graph_capture_uses_simulation_device(monkeypatch):
-    """CUDA graph capture should use the simulation device instead of Warp's default device."""
+@pytest.mark.parametrize("relaxed", [False, True])
+def test_cuda_graph_records_torch_work_and_retains_temporary_tensors(relaxed):
+    """Both capture modes record Torch allocations and kernels without advancing during capture."""
+    import torch
 
-    captured_devices = []
-    captured_graph = object()
+    value = torch.zeros(4, device="cuda:0")
 
-    class FakeScopedCapture:
-        def __init__(self, stream=None, capture_mode=None):
-            captured_devices.append(stream.device)
-            self.graph = captured_graph
+    def controller():
+        value.copy_((value + 1.0).square())
 
-        def __enter__(self):
-            return self
-
-        def __exit__(self, exc_type, exc_value, traceback):
-            return False
-
-    stream = SimpleNamespace(device="cuda:1")
-    monkeypatch.setattr(wp, "get_stream", lambda device: stream if device == "cuda:1" else None)
-    monkeypatch.setattr(wp, "ScopedStream", lambda stream: contextlib.nullcontext())
-    monkeypatch.setattr(wp, "ScopedCapture", FakeScopedCapture)
-
-    graph = nb.capture_graph("cuda:1", lambda: None)
-
-    assert captured_devices == ["cuda:1"]
-    assert graph is captured_graph
+    controller()
+    torch.cuda.synchronize()
+    graph = nb.capture_graph("cuda:0", controller, relaxed=relaxed)
+    torch.testing.assert_close(value, torch.ones_like(value))
+    for _ in range(3):
+        graph.launch()
+    torch.cuda.synchronize()
+    torch.testing.assert_close(value, torch.full_like(value, 676.0))
 
 
 # ---------------------------------------------------------------------------
@@ -985,13 +968,16 @@ def test_fixed_root_pose_write_updates_solver(monkeypatch, asset_class, writer, 
     )
     solver = SolverMuJoCo(model)
     backend = SimpleNamespace(
-        manager=NewtonMJWarpManager,
+        solver_adapter=MJWarpSolverAdapter,
         solver=solver,
         device=wp.get_device("cpu"),
         model_changes=set(),
         warned_model_changes=set(),
+        model_refresh_graphs={},
     )
-    monkeypatch.setattr(NewtonManager, "backend", backend)
+    asset._physics_manager = NewtonManager(device="cpu")
+    asset._physics_manager.backend = backend
+    backend.model_dirty = wp.zeros(1, dtype=wp.int32, device="cpu")
     target = wp.array([[1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0]], dtype=wp.transform, device="cpu")
     selection = wp.array([0], dtype=wp.int32, device="cpu") if selector == "env_ids" else asset._ALL_ENV_MASK
 
@@ -1010,7 +996,7 @@ def _backend_with_masks(world_mask: wp.array, fk_mask: wp.array, manager) -> Sim
         kinematics_dirty=True,
         transforms_may_change_on_graph_replay=False,
         solver=object(),
-        manager=manager,
+        solver_adapter=manager,
     )
 
 
@@ -1026,10 +1012,12 @@ def test_forward_consumes_existing_reset_masks(monkeypatch):
             (worlds.numpy().tolist(), articulations.numpy().tolist())
         ),
     )
-    monkeypatch.setattr(NewtonManager, "backend", _backend_with_masks(world_mask, fk_mask, manager))
+    owner = NewtonManager(device="cpu")
+    owner.backend = _backend_with_masks(world_mask, fk_mask, manager)
+    owner.backend.model_changes = set()
 
-    NewtonManager.forward()
-    NewtonManager.forward()
+    owner.forward()
+    owner.forward()
 
     assert observed == [([False, True], [True, False])]
     assert solver_resets == [[False, True]]
@@ -1046,8 +1034,8 @@ def test_forward_keeps_implicit_mpm_history_on_automatic_resets(monkeypatch):
         def reset(self, state, world_mask=None, flags=0):
             raise AssertionError("automatic resets must not clear implicit-MPM history")
 
-    monkeypatch.setattr(NewtonMPMManager, "eval_fk", classmethod(lambda cls, *args: None))
-    backend = _backend_with_masks(world_mask, fk_mask, NewtonMPMManager)
+    monkeypatch.setattr(MPMSolverAdapter, "eval_fk", classmethod(lambda cls, *args: None))
+    backend = _backend_with_masks(world_mask, fk_mask, MPMSolverAdapter)
     backend.solver = _RejectingSolver()
 
     nb.forward(backend)
@@ -1082,31 +1070,29 @@ def test_invalidate_fk_maps_view_rows_to_worlds():
 # ---------------------------------------------------------------------------
 
 
-def test_clear_releases_backend_and_session_state_for_every_solver(monkeypatch):
-    """Teardown releases the backend and the session state shared by every solver manager."""
+def test_clear_releases_only_the_owning_managers_state():
+    """Closing one manager leaves the other manager's sites, callbacks, and backend alive."""
     closed = []
-    backend = object()
-    monkeypatch.setattr(SimulationContext, "instance", lambda: SimpleNamespace(close_backend=closed.append))
-    monkeypatch.setattr(NewtonManager, "backend", backend)
-    monkeypatch.setattr(NewtonManager, "_site_requests", {})
-    NewtonManager.register_site(None, wp.transform_identity())
+    first, second = NewtonManager(), NewtonManager()
+    first.backend = SimpleNamespace(close=lambda: closed.append("first"))
+    second.backend = SimpleNamespace(close=lambda: closed.append("second"))
+    first.register_site(None, wp.transform_identity())
+    second.register_site(None, wp.transform_identity())
+    events = []
+    first.register_callback(lambda _: events.append("first"), PhysicsEvent.STOP)
+    second.register_callback(lambda _: events.append("second"), PhysicsEvent.STOP)
 
-    NewtonManager.clear()
+    first.close()
 
-    assert closed == [backend]
-    assert NewtonManager.backend is None
-    assert NewtonManager._site_requests == {}
-    # Solver managers only override stateless hooks; they never shadow the shared state.
-    for manager in (
-        NewtonMJWarpManager,
-        NewtonXPBDManager,
-        NewtonVBDManager,
-        NewtonFeatherstoneManager,
-        NewtonKaminoManager,
-        NewtonMPMManager,
-    ):
-        assert manager.backend is None
-        assert {"backend", "_site_requests", "_clone"}.isdisjoint(vars(manager))
+    assert closed == ["first"]
+    assert events == ["first"]
+    assert first.backend is None
+    assert first._site_requests == {}
+    assert second.backend is not None
+    assert second._site_requests
+    second.close()
+    assert closed == ["first", "second"]
+    assert events == ["first", "second"]
 
 
 def test_articulation_target_modes_are_resolved_once_for_replicas(monkeypatch):
@@ -1137,7 +1123,11 @@ def test_articulation_target_modes_are_resolved_once_for_replicas(monkeypatch):
         return original(name_keys, names, *args, **kwargs)
 
     monkeypatch.setattr(articulation_module, "resolve_matching_names", count_actuator_resolutions)
-    sim = SimpleNamespace(cfg=SimpleNamespace(physics=object()), get_or_create_backend=lambda cfg: builder)
+    sim = SimpleNamespace(
+        cfg=SimpleNamespace(physics=object()),
+        physics_manager=NewtonManager(),
+        get_or_create_backend=lambda cfg: builder,
+    )
     monkeypatch.setattr(SimulationContext, "instance", lambda: sim)
     articulation_module.Articulation._configure_joint_target_modes(SimpleNamespace(cfg=cfg), None)
 
@@ -1159,24 +1149,27 @@ def test_reset_binds_consumers_before_constructing_the_solver(monkeypatch):
 
         def on_physics_ready(_):
             events.append("ready")
-            backend = sim.get_or_create_backend(NewtonBackendCfg(physics_cfg=sim.cfg.physics, device=sim.device))
-            assert backend is NewtonManager.backend
+            backend = sim.get_or_create_backend(
+                NewtonBackendCfg(physics_cfg=sim.cfg.physics, device=sim.device, manager=sim.physics_manager)
+            )
+            assert backend is sim.physics_manager.backend
             # Consumers author the model before solvers that copy it at construction exist.
             assert backend.solver is None
             allocations.append(backend)
             different = NewtonCfg(
                 solver_cfg=MJWarpSolverCfg(), load_visual_shapes=not sim.cfg.physics.load_visual_shapes
             )
-            assert sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=different)) is not builder
+            with pytest.raises(ValueError, match="owning manager"):
+                sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=different, manager=sim.physics_manager))
             sim.get_scene_data_provider().get_transforms(SceneDataFormat.Transform())
 
-        builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics))
+        builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics, manager=sim.physics_manager))
         body = builder.add_body(mass=1.0)
         builder.add_joint_revolute(parent=-1, child=body, axis=(0, 0, 1))
         sim.physics_manager.register_callback(on_physics_ready, PhysicsEvent.PHYSICS_READY, wrap_weak_ref=False)
 
         sim.reset()
-        assert isinstance(NewtonManager.get_solver(), SolverMuJoCo)
+        assert isinstance(sim.physics_manager.get_solver(), SolverMuJoCo)
         sim.reset()
 
     assert events == ["ready"] * 2
@@ -1205,7 +1198,7 @@ def test_reset_binds_solver_and_capabilities(
 
     Consumers read the solver through :class:`NewtonManager` (``get_solver()``,
     ``get_contacts()``) even though dispatch runs through a leaf subclass (e.g.
-    :class:`NewtonMJWarpManager`). This test is the regression guard for that
+    :class:`MJWarpSolverAdapter`). This test is the regression guard for that
     contract.
 
     The builder is pre-populated directly (instead of relying on a USD stage)
@@ -1234,10 +1227,11 @@ def test_reset_binds_solver_and_capabilities(
         resolved_manager = sim.physics_manager
         # ``physics_manager`` is a LazyType proxy — compare by ``__name__`` to
         # avoid forcing identity-by-id checks against the unresolved proxy.
-        assert resolved_manager.__name__ == expected_manager.__name__
-        assert resolved_manager.__name__.lower().startswith("newton")
+        assert isinstance(resolved_manager, NewtonManager)
+        assert sim.cfg.physics.solver_cfg.class_type.__name__ == expected_manager.__name__
+        assert type(resolved_manager).__name__.lower().startswith("newton")
 
-        builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics))
+        builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics, manager=sim.physics_manager))
         if expected_solver_cls is SolverImplicitMPM:
             assert builder.has_custom_attribute("mpm:young_modulus")
             builder.add_particle_grid(
@@ -1277,22 +1271,22 @@ def test_reset_binds_solver_and_capabilities(
         sim.reset()
 
         # The solver and its capabilities are reachable through the base class.
-        backend = NewtonManager.backend
-        manager = backend.manager
+        backend = sim.physics_manager.backend
+        manager = backend.solver_adapter
         assert manager.__name__ == expected_manager.__name__
-        assert isinstance(NewtonManager.get_solver(), expected_solver_cls)
+        assert isinstance(sim.physics_manager.get_solver(), expected_solver_cls)
         assert manager.single_state is expected_use_single_state
         assert manager.uses_collision_pipeline(backend) is expected_needs_collision_pipeline
         assert manager.supports_body_forces(backend) is RIGID_BODY_FORCE_INPUT_SUPPORT[expected_manager]
         # only Featherstone ignores inertial property changes after construction, and warns about it
         ignores_inertia = ModelFlags.BODY_INERTIAL_PROPERTIES in manager.ignored_model_changes
-        assert ignores_inertia is (expected_manager is NewtonFeatherstoneManager)
+        assert ignores_inertia is (expected_manager is FeatherstoneSolverAdapter)
 
         # Contacts are allocated whichever way contacts are handled
         # (MuJoCo internal buffer or Newton pipeline output).
         # Kamino with internal contacts and MPM do not report contacts.
         if expected_solver_cls not in (SolverKamino, SolverImplicitMPM):
-            assert NewtonManager.get_contacts() is not None
+            assert sim.physics_manager.get_contacts() is not None
 
         # One step should not raise — proves the dispatch wiring lines up
         # end-to-end.  (We do not assert physics; that's covered by the
@@ -1303,7 +1297,7 @@ def test_reset_binds_solver_and_capabilities(
 def test_mjwarp_internal_contacts_with_collision_cfg_raises():
     """Combining ``use_mujoco_contacts=True`` with a ``collision_cfg`` is rejected.
 
-    The check lives in :meth:`NewtonMJWarpManager.validate_cfg` because it
+    The check lives in :meth:`MJWarpSolverAdapter.validate_cfg` because it
     needs both the solver cfg subtype and the parent :class:`NewtonCfg`, so it
     fires when the solver is constructed on ``sim.reset()`` rather than at cfg
     construction time.
@@ -1320,7 +1314,7 @@ def test_mjwarp_internal_contacts_with_collision_cfg_raises():
     )
 
     with build_simulation_context(sim_cfg=sim_cfg) as sim:
-        builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics))
+        builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics, manager=sim.physics_manager))
         body = builder.add_body(mass=1.0)
         builder.add_joint_revolute(parent=-1, child=body, axis=(0, 0, 1))
 
@@ -1360,7 +1354,7 @@ def test_collision_decimation_invokes_mid_loop_collide(num_substeps, collision_d
     )
 
     with build_simulation_context(sim_cfg=sim_cfg) as sim:
-        builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics))
+        builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics, manager=sim.physics_manager))
         body = builder.add_body(mass=1.0)
         builder.add_joint_free(child=body)
         builder.add_shape_sphere(body=body, radius=0.05)
@@ -1374,7 +1368,7 @@ def test_collision_decimation_invokes_mid_loop_collide(num_substeps, collision_d
         # pipeline is allocated and before the first step builds the step graph,
         # and use_cuda_graph=False so the wrapped callable isn't bypassed by a captured graph.
         calls = {"n": 0}
-        pipeline = NewtonManager.backend.collision_pipeline
+        pipeline = sim.physics_manager.backend.collision_pipeline
         original_collide = pipeline.collide
 
         def counting_collide(state, contacts):
@@ -1391,11 +1385,15 @@ def test_collision_decimation_invokes_mid_loop_collide(num_substeps, collision_d
         assert calls["n"] == 1 + expected_mid_loop_collides
 
 
-def test_record_step_requires_a_prepared_graphable_step():
+@pytest.mark.parametrize("unsupported", ["callback", "solver"])
+def test_record_step_requires_a_prepared_graphable_step(unsupported):
     """Recording into an outer capture neither builds the step nor records operations that cannot be captured."""
     events = []
     eager = StepCallback(lambda: events.append("eager"), StepPhase.CONTROL, graphable=False)
-    backend = _recording_backend(events, single_state=True, num_substeps=1, callbacks=[eager])
+    backend = _recording_backend(
+        events, single_state=True, num_substeps=1, callbacks=[eager] if unsupported == "callback" else []
+    )
+    backend.solver_adapter.supports_graph_capture = lambda _: unsupported != "solver"
 
     with pytest.raises(RuntimeError, match="Prepare the Newton step"):
         nb.record_step(backend)
@@ -1446,7 +1444,7 @@ def _recording_backend(events, *, single_state, num_substeps, callbacks=()):
         eval_fk=lambda backend, state, worlds, articulations: events.append("fk"),
     )
     return SimpleNamespace(
-        manager=manager,
+        solver_adapter=manager,
         solver=object(),
         device="cpu",
         state_0=_State("state_0", events),
@@ -1514,7 +1512,7 @@ def test_step_graph_orders_callbacks_and_ends_each_physics_step_in_state_0():
     graph.launch()
 
     step = [("control",), ("step", "state_0", "state_1"), ("assign", "state_0", "state_1")]
-    assert events == step * 2 + [("post",), ("clear", "state_0")]
+    assert events == (step + [("post",)]) * 2 + [("clear", "state_0")]
     assert graph.steps == 2
 
 
@@ -1528,9 +1526,8 @@ def test_step_graph_captures_graphable_runs_and_keeps_other_callbacks_eager(monk
     backend = _recording_backend(events, single_state=True, num_substeps=1, callbacks=callbacks)
     graph = nb.build_step_graph(backend, steps=2)
     launched = []
-    monkeypatch.setattr(wp, "capture_launch", lambda graph: (launched.append(graph), graph()))
 
-    graph.capture(lambda segment: segment)
+    graph.capture(lambda segment: SimpleNamespace(launch=lambda: (launched.append(segment), segment())))
     events.clear()
     graph.launch()
 
@@ -1584,15 +1581,15 @@ def test_reset_lands_in_state_0_after_odd_kamino_steps_without_cuda_graph():
     )
 
     with build_simulation_context(sim_cfg=sim_cfg) as sim:
-        builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics))
+        builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics, manager=sim.physics_manager))
         body = builder.add_body(mass=1.0)
         builder.add_joint_revolute(parent=-1, child=body, axis=(0, 0, 1))
         sim.reset()
 
         # Kamino keeps separate input/output states; the bug only exists there.
-        assert NewtonManager.backend.manager.single_state is False
+        assert sim.physics_manager.backend.solver_adapter.single_state is False
         # The data layer binds its joint-state write target to _state_0 at setup.
-        reset_target = NewtonManager.get_state_0().joint_q
+        reset_target = sim.physics_manager.get_state_0().joint_q
         assert reset_target.shape[0] > 0  # guard against a vacuous assertion
 
         for _ in range(num_steps):
@@ -1603,7 +1600,7 @@ def test_reset_lands_in_state_0_after_odd_kamino_steps_without_cuda_graph():
 
         # The reset must be visible in the manager's canonical _state_0; if the
         # buffer flipped it landed in _state_1 instead.
-        canonical_joint_q = NewtonManager.get_state_0().joint_q.numpy()
+        canonical_joint_q = sim.physics_manager.get_state_0().joint_q.numpy()
         assert np.allclose(canonical_joint_q, sentinel), (
             f"reset write did not land in _state_0 after {num_steps} steps: {canonical_joint_q}"
         )
@@ -1635,26 +1632,26 @@ def test_graph_capture_preserves_first_step_and_recapture(
         physics=NewtonCfg(solver_cfg=solver_cfg, num_substeps=num_substeps, use_cuda_graph=True),
     )
     with build_simulation_context(sim_cfg=sim_cfg) as sim:
-        builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics))
+        builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics, manager=sim.physics_manager))
         builder.add_body(mass=1.0)
         builder.joint_q[-7:] = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
         sim.reset()
         if rtx_capture:
             monkeypatch.setattr(newton_manager_module, "has_kit", lambda: True)
             monkeypatch.setattr(sim, "_has_offscreen_render", True)
-        NewtonManager.activate_actuators()
+        sim.physics_manager.activate_actuators()
         counter = wp.zeros(1, dtype=wp.int32, device="cuda:0")
-        NewtonManager.register_step_callback(
+        sim.physics_manager.register_step_callback(
             lambda: wp.launch(_count_physics_steps, 1, inputs=[counter]), StepPhase.POST_STEP
         )
         wrench = wp.array([[0.0, 0.0, 9.81, 0.0, 0.0, 0.0]], dtype=wp.spatial_vector, device="cuda:0")
         for step in range(3):
             if step != 1:
-                NewtonManager.set_decimation(decimation)
-            NewtonManager.get_state_0().body_f.assign(wrench)
+                sim.physics_manager.set_decimation(decimation)
+            sim.physics_manager.get_state_0().body_f.assign(wrench)
             sim.step(render=False)
-            assert NewtonManager.backend.step_graph.captured
-            np.testing.assert_allclose(NewtonManager.get_state_0().joint_qd.numpy(), 0.0, atol=1e-6)
+            assert sim.physics_manager.backend.step_graph.captured
+            np.testing.assert_allclose(sim.physics_manager.get_state_0().joint_qd.numpy(), 0.0, atol=1e-6)
             assert counter.numpy()[0] == step + 1
 
 
@@ -1672,18 +1669,18 @@ def test_staged_body_force_acts_on_every_solver_substep(solver_cfg, num_substeps
         physics=NewtonCfg(solver_cfg=solver_cfg, num_substeps=num_substeps),
     )
     with build_simulation_context(sim_cfg=sim_cfg) as sim:
-        builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics))
+        builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics, manager=sim.physics_manager))
         builder.add_body(mass=1.0)
         sim.reset()
         if decimation > 1:
             # Newton runs the whole decimation loop inside one step() call.
-            NewtonManager.activate_actuators()
-            NewtonManager.set_decimation(decimation)
-        NewtonManager.get_state_0().body_f.assign(
+            sim.physics_manager.activate_actuators()
+            sim.physics_manager.set_decimation(decimation)
+        sim.physics_manager.get_state_0().body_f.assign(
             wp.array([[0.0, 0.0, 9.81, 0.0, 0.0, 0.0]], dtype=wp.spatial_vector, device="cuda:0")
         )
         sim.step(render=False)
-        np.testing.assert_allclose(NewtonManager.get_state_0().joint_qd.numpy(), 0.0, atol=1e-6)
+        np.testing.assert_allclose(sim.physics_manager.get_state_0().joint_qd.numpy(), 0.0, atol=1e-6)
 
 
 def test_stateful_actuator_graph_matches_eager_across_decimation_changes(monkeypatch):
@@ -1699,7 +1696,9 @@ def test_stateful_actuator_graph_matches_eager_across_decimation_changes(monkeyp
             ),
         )
         with build_simulation_context(sim_cfg=sim_cfg) as sim:
-            builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics))
+            builder = sim.get_or_create_backend(
+                NewtonBuilderCfg(physics_cfg=sim.cfg.physics, manager=sim.physics_manager)
+            )
             builder.begin_world()
             body = builder.add_link(mass=1.0)
             joint = builder.add_joint_prismatic(parent=-1, child=body, axis=(1.0, 0.0, 0.0))
@@ -1709,19 +1708,19 @@ def test_stateful_actuator_graph_matches_eager_across_decimation_changes(monkeyp
             sim.reset()
             monkeypatch.setattr(newton_manager_module, "has_kit", lambda: True)
             monkeypatch.setattr(sim, "_has_offscreen_render", True)
-            NewtonManager.activate_actuators()
+            sim.physics_manager.activate_actuators()
             samples = []
             for decimation in (1, 2, 3):
-                NewtonManager.set_decimation(decimation)
+                sim.physics_manager.set_decimation(decimation)
                 for target in (1.0, -2.0, 3.0, 0.0):
-                    NewtonManager.get_control().joint_target_q.fill_(target)
+                    sim.physics_manager.get_control().joint_target_q.fill_(target)
                     sim.step(render=False)
                     samples.append(
                         np.concatenate(
                             (
-                                NewtonManager.get_state_0().joint_q.numpy(),
-                                NewtonManager.get_state_0().joint_qd.numpy(),
-                                NewtonManager.get_control().joint_f.numpy(),
+                                sim.physics_manager.get_state_0().joint_q.numpy(),
+                                sim.physics_manager.get_state_0().joint_qd.numpy(),
+                                sim.physics_manager.get_control().joint_f.numpy(),
                             )
                         )
                     )
@@ -1750,7 +1749,9 @@ def test_actuators_follow_world_varying_dof_layouts():
             ),
         )
         with build_simulation_context(sim_cfg=sim_cfg) as sim:
-            builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics))
+            builder = sim.get_or_create_backend(
+                NewtonBuilderCfg(physics_cfg=sim.cfg.physics, manager=sim.physics_manager)
+            )
             for num_links in (1, 2):
                 builder.begin_world()
                 parent, joints = -1, []
@@ -1763,20 +1764,20 @@ def test_actuators_follow_world_varying_dof_layouts():
             for dof in range(3):
                 builder.add_actuator(DrivePID, index=dof, kp=1.0 + dof, kd=0.1, ki=0.5)
             sim.reset()
-            NewtonManager.activate_actuators()
-            NewtonManager.set_decimation(2)
-            assert NewtonManager.get_model().joint_dof_count == 3
+            sim.physics_manager.activate_actuators()
+            sim.physics_manager.set_decimation(2)
+            assert sim.physics_manager.get_model().joint_dof_count == 3
             targets = np.array([1.0, -2.0, 3.0], dtype=np.float32)
             samples = []
             for scale in (1.0, -0.5, 2.0):
-                NewtonManager.get_control().joint_target_q.assign(targets * scale)
+                sim.physics_manager.get_control().joint_target_q.assign(targets * scale)
                 sim.step(render=False)
-                computed = NewtonManager.backend.actuators.computed_effort.numpy()
-                applied = NewtonManager.get_control().joint_f.numpy()
+                computed = sim.physics_manager.backend.actuators.computed_effort.numpy()
+                applied = sim.physics_manager.get_control().joint_f.numpy()
                 # No clamping is configured, so each DOF's computed effort equals the effort applied to it.
                 np.testing.assert_allclose(computed, applied, atol=1e-6)
                 assert np.all(np.abs(applied) > 0.0)
-                samples.append(np.concatenate((NewtonManager.get_state_0().joint_q.numpy(), applied)))
+                samples.append(np.concatenate((sim.physics_manager.get_state_0().joint_q.numpy(), applied)))
             trajectories.append(np.asarray(samples))
     np.testing.assert_allclose(trajectories[1], trajectories[0], atol=1e-6, rtol=1e-5)
 
@@ -1788,7 +1789,6 @@ def test_independent_backends_step_without_manager_state(monkeypatch, device):
     One backend advances ten eager one-step graphs; the other advances one ten-step graph, captured after its first
     eager launch. Each only moves its own model, and both reach the same free-fall state.
     """
-    monkeypatch.setattr(NewtonManager, "backend", None)
     cfg = NewtonCfg(solver_cfg=XPBDSolverCfg())
     backends = []
     for _ in range(2):
@@ -1822,7 +1822,7 @@ def _build_collision_scene(sim, num_boxes=8):
     Uses ``MJWarpSolverCfg(use_mujoco_contacts=False)`` so the Newton collision
     pipeline / contacts are allocated on ``sim.reset()``.
     """
-    builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics))
+    builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics, manager=sim.physics_manager))
     for _ in range(num_boxes):
         body = builder.add_body(mass=1.0)
         builder.add_joint_free(child=body)
@@ -1888,13 +1888,13 @@ def test_hard_reset_then_step_runs(use_cuda_graph):
         _build_collision_scene(sim)
 
         sim.reset()
-        old_backend = NewtonManager.backend
-        assert old_backend.manager.uses_collision_pipeline(old_backend) is True
+        old_backend = sim.physics_manager.backend
+        assert old_backend.solver_adapter.uses_collision_pipeline(old_backend) is True
         old_model = old_backend.collision_pipeline.model
         sim.step(render=False)
 
         sim.reset()
-        assert NewtonManager.backend is not old_backend
+        assert sim.physics_manager.backend is not old_backend
         assert old_backend.model is old_backend.state_0 is old_backend.state_1 is old_backend.control is None
         assert sum(isinstance(cfg, NewtonBackendCfg) for cfg, _ in sim._backend_registry) == 1
 
@@ -1932,7 +1932,7 @@ def test_explicit_mode_on_mujoco_cpu_is_reported_not_enforced(mode, caplog) -> N
     backend = _validation_backend(cfg.solver_cfg, wp.DeterministicMode.NOT_GUARANTEED, deterministic_mode=mode)
 
     with caplog.at_level(logging.INFO, logger=mjwarp_manager_module.__name__):
-        NewtonMJWarpManager.validate_cfg(backend)
+        MJWarpSolverAdapter.validate_cfg(backend)
 
     assert any("already reproducible" in r.getMessage() for r in caplog.records)
 
@@ -1944,8 +1944,8 @@ def test_determinism_guarantee_disables_mjwarp_sensors(monkeypatch) -> None:
     monkeypatch.setattr(mjwarp_manager_module, "SolverMuJoCo", type("RecordingSolver", (), {"__init__": record}))
     solver_cfg = MJWarpSolverCfg()
 
-    NewtonMJWarpManager.create_solver(None, solver_cfg, wp.DeterministicMode.NOT_GUARANTEED)
-    NewtonMJWarpManager.create_solver(None, solver_cfg, wp.DeterministicMode.RUN_TO_RUN)
+    MJWarpSolverAdapter.create_solver(None, solver_cfg, wp.DeterministicMode.NOT_GUARANTEED)
+    MJWarpSolverAdapter.create_solver(None, solver_cfg, wp.DeterministicMode.RUN_TO_RUN)
 
     assert [kwargs["disable_sensors"] for kwargs in constructed] == [False, True]
     assert solver_cfg.disable_sensors is False
@@ -1963,11 +1963,11 @@ def test_deterministic_mode_rejects_sensors_that_need_the_sensor_stage(attr) -> 
     """Disabling MJWarp sensors starves IMU/PVA/joint-wrench, so the request is refused."""
     backend = _validation_backend(MJWarpSolverCfg(), wp.DeterministicMode.RUN_TO_RUN, {attr})
     with pytest.raises(ValueError, match="does not support deterministic physics"):
-        NewtonMJWarpManager.validate_cfg(backend)
+        MJWarpSolverAdapter.validate_cfg(backend)
 
 
 def test_deterministic_mode_allows_those_sensors_without_a_guarantee() -> None:
     """The sensors are only incompatible with the guarantee, not with MJWarp itself."""
-    NewtonMJWarpManager.validate_cfg(
+    MJWarpSolverAdapter.validate_cfg(
         _validation_backend(MJWarpSolverCfg(), wp.DeterministicMode.NOT_GUARANTEED, {"body_qdd"})
     )

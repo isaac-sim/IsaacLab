@@ -207,6 +207,7 @@ class ManagerBasedEnv:
         report_activity("Setting up managers")
         self.load_managers()
         report_activity(None)
+        self._physics_handles_actions = self.sim.physics_manager.bind_control(self.action_manager, self.scene)
         # let the physics backend run the whole decimation loop in one step() when no action term
         # has to be re-applied between physics steps
         self.sim.physics_manager.set_decimation(
@@ -558,8 +559,9 @@ class ManagerBasedEnv:
         steps_per_call = self.cfg.decimation if self._physics_handles_decimation else 1
         for _ in range(self.cfg.decimation // steps_per_call):
             self._sim_step_counter += steps_per_call
-            self.action_manager.apply_action()
-            self.scene.write_data_to_sim()
+            if not self._physics_handles_actions:
+                self.action_manager.apply_action()
+                self.scene.write_data_to_sim()
             self.sim.step(render=False)
             # render_enabled=False skips Kit (camera/GUI); standalone visualizers still update
             if self._sim_step_counter % self.cfg.sim.render_interval == 0 and is_rendering:

@@ -10,8 +10,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import warp as wp
-from isaaclab_newton.physics.newton_manager import NewtonManager
-from isaaclab_newton.physics.vbd_manager import NewtonVBDManager
+from isaaclab_newton.physics.newton_solver import NewtonSolver
+from isaaclab_newton.physics.vbd_manager import VBDSolverAdapter
 from newton import CollisionPipeline, Contacts, Control, Model, ModelBuilder, State
 from newton.solvers import SolverBase, SolverMuJoCo, SolverVBD
 
@@ -126,8 +126,8 @@ class CoupledMJWarpVBDSolver(SolverBase):
         )
 
 
-class NewtonCoupledMJWarpVBDManager(NewtonManager):
-    """:class:`NewtonManager` running custom MJWarp and VBD coupling (:class:`CoupledMJWarpVBDSolver`)."""
+class CoupledMJWarpVBDSolverAdapter(NewtonSolver):
+    """:class:`NewtonSolver` running custom MJWarp and VBD coupling (:class:`CoupledMJWarpVBDSolver`)."""
 
     builder_attribute_solvers = (SolverMuJoCo,)
     supports_contact_sensors = False
@@ -159,7 +159,7 @@ class NewtonCoupledMJWarpVBDManager(NewtonManager):
     @classmethod
     def prepare_solver_builder(cls, builder: ModelBuilder, solver_cfg: CoupledMJWarpVBDSolverCfg) -> None:
         """Color the completed builder for VBD before allocating the model."""
-        NewtonVBDManager.prepare_solver_builder(builder, solver_cfg.soft_solver_cfg)
+        VBDSolverAdapter.prepare_solver_builder(builder, solver_cfg.soft_solver_cfg)
 
     @classmethod
     def prepare_contacts(cls, backend: NewtonBackend) -> None:

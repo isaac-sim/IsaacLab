@@ -104,6 +104,9 @@ class ActuatorBase(ABC):
     To see how the class is used, check the :class:`isaaclab.assets.Articulation` class.
     """
 
+    supports_graph_capture: ClassVar[bool] = False
+    """Whether compute can replay without Python state updates or host synchronization."""
+
     is_implicit_model: ClassVar[bool] = False
     """Flag indicating if the actuator is an implicit or explicit actuator model.
 

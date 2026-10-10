@@ -16,7 +16,6 @@ from __future__ import annotations
 import math
 
 import warp as wp
-from isaaclab_newton.physics import NewtonManager
 
 from isaaclab.envs import ManagerBasedRLEnv
 
@@ -176,7 +175,7 @@ class CapturedCartpole:
 
         Prepares the Newton step first, so recording allocates nothing and never nests a capture.
         """
-        NewtonManager.prepare()
+        self.env.sim.physics_manager.prepare()
         with wp.ScopedCapture(device=self.env.device) as capture:
             self.step()
         self.graph = capture.graph

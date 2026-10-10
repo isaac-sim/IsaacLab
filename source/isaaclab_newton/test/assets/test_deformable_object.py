@@ -6,6 +6,7 @@
 # ignore private usage of variables warning
 # pyright: reportPrivateUsage=none
 
+from isaaclab.sim import SimulationContext
 from isaaclab.test.utils import launch_test_simulation
 
 launch_test_simulation()
@@ -15,7 +16,7 @@ import pytest
 import torch
 import warp as wp
 from flaky import flaky
-from isaaclab_newton.physics import NewtonBuilderCfg, NewtonCfg, NewtonManager, VBDSolverCfg
+from isaaclab_newton.physics import NewtonBuilderCfg, NewtonCfg, VBDSolverCfg
 from isaaclab_newton.sim.schemas import NewtonDeformableBodyPropertiesCfg
 from isaaclab_newton.sim.spawners.materials import (
     NewtonDeformableBodyMaterialCfg,
@@ -180,7 +181,7 @@ def test_initialization(sim):
     assert cube_object.is_initialized
     assert cube_object.num_instances == num_cubes
     assert cube_object.max_sim_vertices_per_body > 0
-    assert len(NewtonManager.get_model().particle_color_groups) > 0
+    assert len(SimulationContext.instance().physics_manager.get_model().particle_color_groups) > 0
 
     particles_per_body = cube_object.max_sim_vertices_per_body
 
@@ -229,12 +230,14 @@ def test_surface_initialization_and_freefall(sim):
     """Test initialization and stepping for surface deformable objects."""
     num_cloths = 2
     cloth_object = generate_cloth_scene(num_cloths=num_cloths, height=5.0)
-    builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics))
+    builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics, manager=sim.physics_manager))
     rest_angles = np.asarray(builder.edge_rest_angle, dtype=np.float32)
     assert np.any(np.abs(rest_angles) > 0.1)
 
     sim.reset()
-    np.testing.assert_array_equal(NewtonManager.get_model().edge_rest_angle.numpy(), rest_angles)
+    np.testing.assert_array_equal(
+        SimulationContext.instance().physics_manager.get_model().edge_rest_angle.numpy(), rest_angles
+    )
 
     assert cloth_object.is_initialized
     assert cloth_object.num_instances == num_cloths
@@ -480,12 +483,12 @@ def test_freefall_analytical(num_substeps, use_cuda_graph):
         cube_object.update(sim.cfg.dt)
         torch.testing.assert_close(cube_object.data.nodal_pos_w.torch, first_pos, rtol=1e-5, atol=1e-5)
 
-        callback_count = len(NewtonManager._callbacks)
+        callback_count = len(SimulationContext.instance().physics_manager._callbacks)
         for _ in range(2):
             old_data = cube_object.data
             sim.reset()
             assert cube_object.data is not old_data
-            assert len(NewtonManager._callbacks) == callback_count
+            assert len(SimulationContext.instance().physics_manager._callbacks) == callback_count
 
             second_pos = initial_pos + torch.tensor([0.0, -0.1, 0.2], device=sim.device)
             cube_object.write_nodal_pos_to_sim_index(second_pos)
@@ -574,7 +577,7 @@ def test_multiple_deformable_assets_do_not_alias(sim):
 
     torch.testing.assert_close(cuboid.data.nodal_pos_w.torch, cuboid_pos, rtol=1e-5, atol=1e-5)
     torch.testing.assert_close(cylinder.data.nodal_pos_w.torch, cylinder_default, rtol=1e-5, atol=1e-5)
-    model = NewtonManager.get_model()
+    model = SimulationContext.instance().physics_manager.get_model()
     default_inv_mass, default_flags = model.particle_inv_mass.numpy(), model.particle_flags.numpy()
     for asset in (cuboid, cylinder):
         shape = (asset.num_instances, asset.max_sim_vertices_per_body)

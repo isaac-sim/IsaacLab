@@ -440,7 +440,7 @@ class NewtonWarpRenderer(BaseRenderer):
         self._seg_mapper: NewtonSegmentationMapper | None = None
 
         sim = SimulationContext.instance()
-        self.newton_cfg = NewtonBackendCfg(physics_cfg=sim.cfg.physics, device=sim.device)
+        self.newton_cfg = NewtonBackendCfg(physics_cfg=sim.cfg.physics, device=sim.device, manager=sim.physics_manager)
         requires_stage, requires_model = REQUIRES_STAGE_AND_MODEL["newton_warp"]
         sim.requires_usd_stage |= requires_stage
         sim.requires_newton_model |= requires_model

@@ -138,7 +138,7 @@ class InteractiveScene:
         self.sim = SimulationContext.instance()
         self.stage = get_current_stage()
         self.stage_id = get_current_stage_id()
-        self.physics_backend = self.sim.physics_manager.__name__.lower()
+        self.physics_backend = self.sim.physics_manager.backend_name
         self._physics_scene_path = None
         clone_cfg = self.cloner_cfg = copy.deepcopy(self.cfg.clone_cfg)
         clone_cfg.replicate_physics = self.cfg.replicate_physics

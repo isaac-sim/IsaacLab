@@ -21,7 +21,7 @@ from isaaclab_newton.physics import NewtonCollisionPipelineCfg, NewtonSolverCfg
 from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
-    from isaaclab_newton.physics import NewtonManager
+    from isaaclab_newton.physics import NewtonSolver
     from newton import CollisionPipeline
     from newton.solvers.experimental.coupled import ModelView
 
@@ -136,7 +136,7 @@ class CouplerCfg(NewtonSolverCfg):
     concrete subclass to configure the coupling interfaces.
     """
 
-    class_type: type[NewtonManager] | str = "{DIR}.coupler:NewtonCouplerManager"
+    class_type: type[NewtonSolver] | str = "{DIR}.coupler:CouplerSolverAdapter"
     """Coupler implementation class."""
 
     entries: list[CouplerEntryCfg] = field(default_factory=list)

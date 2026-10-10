@@ -25,7 +25,6 @@ from isaaclab.sim.schemas.schemas_actuators import validate_newton_native_actuat
 from isaaclab.utils import index_fill_
 
 from isaaclab_newton.assets.articulation.joint_coordinates import scatter_joint_coordinates
-from isaaclab_newton.physics import NewtonManager as SimulationManager
 from isaaclab_newton.physics import StepPhase
 
 if TYPE_CHECKING:
@@ -60,6 +59,7 @@ class NewtonActuatorControl(ArticulationActuatorControl):
             articulation: Newton articulation that owns backend simulation handles.
         """
         super().__init__(articulation)
+        self._physics_manager = articulation._physics_manager
 
     def prepare_native_actuators(self, collection: ActuatorCollection, actuator_cfgs: dict) -> set[str]:
         articulation = self._articulation
@@ -68,9 +68,6 @@ class NewtonActuatorControl(ArticulationActuatorControl):
         articulation.newton_actuator_adapter = None
 
         if not getattr(articulation._sim_cfg, "use_newton_actuators", False):
-            # Isaac Lab actuator models compute efforts on the host before every physics step.
-            if any(not _is_implicit_actuator_cfg(actuator_cfg) for actuator_cfg in actuator_cfgs.values()):
-                SimulationManager.require_env_decimation()
             return set()
 
         validate_newton_native_actuator_cfgs(actuator_cfgs)
@@ -82,7 +79,7 @@ class NewtonActuatorControl(ArticulationActuatorControl):
 
         self._native_actuator_path_active = True
         articulation._has_newton_actuators = True
-        SimulationManager.activate_actuators()
+        self._physics_manager.activate_actuators()
 
         return native_group_names
 
@@ -91,7 +88,7 @@ class NewtonActuatorControl(ArticulationActuatorControl):
             return None
 
         articulation = self._articulation
-        adapter = SimulationManager.backend.actuators
+        adapter = self._physics_manager.backend.actuators
         if adapter is not None:
             # View the adapter's flat DOF buffers through this articulation's own layout, which stays correct
             # when worlds hold different robots.
@@ -150,7 +147,7 @@ class NewtonActuatorControl(ArticulationActuatorControl):
                 device=self.device,
             )
 
-        SimulationManager.register_step_callback(
+        self._physics_manager.register_step_callback(
             _post_actuator, StepPhase.POST_ACTUATOR, name="articulation.actuator_telemetry"
         )
 
@@ -230,7 +227,7 @@ class NewtonActuatorControl(ArticulationActuatorControl):
     def reset_native_actuators(
         self, env_ids: Sequence[int] | slice, env_mask: wp.array | torch.Tensor | None = None
     ) -> None:
-        adapter = SimulationManager.backend.actuators
+        adapter = self._physics_manager.backend.actuators
         if not self._native_actuator_path_active or adapter is None:
             return
         row_mask = self._reset_row_mask
