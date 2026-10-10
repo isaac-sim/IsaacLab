@@ -7,11 +7,14 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from pxr import Usd
+
+logger = logging.getLogger(__name__)
 
 
 def props_expr(prim_path: str, pattern: str) -> str:
@@ -109,6 +112,48 @@ def apply_schema_props(
         return
     for pattern, fragments in mapping.items():
         apply_func(props_expr(anchor_path, pattern), fragments, create_if_missing=True, stage=stage)
+
+
+def apply_mesh_collision_props(value, anchor_path: str, default_pattern: str, stage: Usd.Stage) -> None:
+    """Author the mesh-collision family from a spawner-configuration value onto colliders.
+
+    Mesh-collision settings describe how a collider is cooked, so the family targets the matched
+    prims that carry ``UsdPhysics.CollisionAPI``; other matches are ignored. Each collider receives
+    the fragments through :func:`~isaaclab.sim.schemas.apply_mesh_collision_properties`, or a
+    legacy configuration through :func:`~isaaclab.sim.schemas.define_mesh_collision_properties`.
+    Colliders inside instances cannot be authored on and are skipped. A pattern that matches no
+    writable collider logs a warning and authors nothing.
+
+    Args:
+        value: The value of the ``mesh_collision_props`` spawner-configuration field.
+        anchor_path: The absolute path of the prim the target patterns anchor on.
+        default_pattern: The target pattern for the bare fragment (or sequence) and legacy forms.
+        stage: The stage containing the prims.
+    """
+    from pxr import UsdPhysics  # noqa: PLC0415
+
+    from .. import schemas  # noqa: PLC0415
+    from ..utils import find_matching_prims  # noqa: PLC0415
+
+    mapping = fragment_mapping(value, default_pattern)
+    for pattern, fragments in ({default_pattern: value} if mapping is None else mapping).items():
+        if mapping is not None and not fragments:
+            continue
+        expr = props_expr(anchor_path, pattern)
+        colliders = [
+            prim
+            for prim in find_matching_prims(expr, stage)
+            if prim.HasAPI(UsdPhysics.CollisionAPI) and not (prim.IsInstance() or prim.IsInstanceProxy())
+        ]
+        if not colliders:
+            logger.warning("No mesh-collision targets (colliders) matched expression '%s'; nothing was authored.", expr)
+            continue
+        for collider in colliders:
+            collider_path = collider.GetPath().pathString
+            if mapping is None:
+                schemas.define_mesh_collision_properties(collider_path, fragments, stage=stage)
+            else:
+                schemas.apply_mesh_collision_properties(collider_path, fragments, stage=stage)
 
 
 def subtree_carries_api(prim_path: str, api_type, stage) -> bool:

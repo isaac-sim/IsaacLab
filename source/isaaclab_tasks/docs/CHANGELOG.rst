@@ -3,6 +3,37 @@ Changelog
 
 .. towncrier release notes start
 
+25.0.2 (2026-10-10)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the ``IsaacContrib-Factory-Franka`` asset configuration to author its Newton collision settings
+  through collision and mesh-collision schema fragments instead of the deprecated
+  ``CollisionPropertiesCfg`` / ``NewtonSDFCollisionPropertiesCfg`` cfgs. The authored USD is unchanged.
+* Migrated bundled task configurations off the deprecated ``RigidBodyMaterialCfg`` alias to
+  :class:`~isaaclab_physx.sim.spawners.materials.PhysxRigidBodyMaterialCfg` (configurations using
+  PhysX-only friction/restitution combine modes) or
+  :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialBaseCfg` (solver-common properties
+  only), so loading these tasks no longer emits a ``DeprecationWarning``. The authored USD material
+  attributes are unchanged.
+
+Fixed
+^^^^^
+
+* Fixed the ANYmal symmetry augmentation in :mod:`isaaclab_tasks.core.velocity.mdp.symmetry.anymal` mirroring
+  the wrong joints when the articulation's joint order is not the PhysX order, such as on the default Newton
+  backend. The left-right and front-back joint permutations are now resolved from the joint names.
+* Fixed missing RL configuration errors to suggest compatible ``--rl_library`` selections.
+* Fixed the Shadow Hand ``randomized`` preset setting the hand and cube restitution to 1.0, which bounced the cube off
+  the hand on PhysX and OvPhysX and slowed learning; it now keeps the unrandomized value of 0.0.
+* Removed GL-only particle options from the Franka pour and UR10 particle push RTX playback configs.
+  RTX used the particle appearance authored in the shared scene.
+* Kept playback camera defaults on their existing configuration instead of rebuilding an RTX configuration
+  from the same values. Removed the soft-body lift task's redundant window configuration subclass.
+
+
 25.0.1 (2026-10-06)
 ~~~~~~~~~~~~~~~~~~~
 

@@ -140,7 +140,11 @@ def main():
                     usd_dir=f"{args_cli.output}/{filename[:-4]}",
                     usd_file_name=f"{filename[:-4]}.usd",
                     make_instanceable=args_cli.make_instanceable,
-                    collision_approximation=args_cli.collision_approximation,
+                    mesh_collision_props=(
+                        schemas_cfg.UsdPhysicsMeshCollisionCfg(mesh_approximation_name=args_cli.collision_approximation)
+                        if args_cli.collision_approximation != "none"
+                        else None
+                    ),
                 )
                 # Create mesh converter and import the file
                 mesh_converter = MeshConverter(mesh_converter_cfg)

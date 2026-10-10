@@ -218,8 +218,9 @@ class MeshCollisionFragment(SchemaFragment):
     A mesh-collision concept is split across one *core* fragment carrying the standard
     ``physics:approximation`` token (:class:`UsdPhysicsMeshCollisionCfg`) and one cooking
     fragment per backend cooking schema (PhysX convex hull / decomposition / triangle mesh /
-    SDF, Newton mesh / SDF). Whichever cooking fragment is present implies the approximation
-    token written to ``physics:approximation`` -- see
+    SDF, Newton mesh / SDF). A PhysX cooking fragment implies the approximation token written to
+    ``physics:approximation`` through its default ``mesh_approximation_name``; the Newton cooking
+    fragments carry no token and leave it unchanged -- see
     :func:`~isaaclab.sim.schemas.apply_mesh_collision_properties`.
     """
 

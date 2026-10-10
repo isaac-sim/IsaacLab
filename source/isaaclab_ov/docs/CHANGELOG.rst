@@ -3,6 +3,57 @@ Changelog
 
 .. towncrier release notes start
 
+5.0.0 (2026-10-10)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``ArticulationData.body_joint_wrench`` in public body order,
+  using the child-side joint frame and joint anchor for force and torque.
+* Added simulation-owned OVStage resources for native Newton RTX viewers, reusing the renderer's
+  scene export and clone placement operations.
+* Made scene partition preparation reusable across hard simulation resets.
+* Added renderer-owned perspective cameras through an empty ``CameraRenderSpec.camera_prim_paths``.
+  Shared scene preparation and native resources with sensor products while allowing independent
+  resize, product settings, and cleanup. Perspective cameras saw all environment partitions;
+  sensor cameras retained per-environment isolation.
+* **Breaking:** Removed implicit ambient illumination from OVRTX products. Scenes without authored lights remained unlit;
+  add scene lights to illuminate their geometry.
+* **Breaking:** Removed implicit RGB output and unsupported-output skipping in OVRTX product authoring.
+  Request supported outputs explicitly through ``CameraCfg.data_types``; invalid requests now raised ``ValueError``.
+* Added :meth:`~isaaclab_ov.physics.OvPhysxManager.setup_deformable_body` so the
+  ``volume_deformable_props`` and ``surface_deformable_props`` spawner slots, and
+  :func:`~isaaclab.sim.schemas.apply_volume_deformable_properties` /
+  :func:`~isaaclab.sim.schemas.apply_surface_deformable_properties` with ``create_if_missing=True``,
+  create deformable bodies on the OvPhysX backend. They previously raised
+  ``NotImplementedError`` there. The OmniPhysics anchor schemas are authored exactly as on the Kit
+  PhysX backend.
+
+Changed
+^^^^^^^
+
+* Updated the optional OV dependencies to ``ovrtx==0.5.1.385782``, ``ovstage==0.2.1.385922``, and
+  ``ovphysx==0.6.4.72118723``. These versions form one compatibility set; upgrade them together with
+  ``uv sync --inexact --extra ov``.
+
+Fixed
+^^^^^
+
+* Fixed OVPhysX contact sensors to report total contact forces as normal plus friction,
+  including filtered forces and histories. Added aggregate friction reporting without
+  contact filters and removed the detailed-contact capacity requirement for friction forces.
+  Requires OVPhysX 0.6.4.
+* Fixed ``friction_forces_w`` to return the documented aggregate vectors with shape
+  ``(E, S, 3)``. Use ``friction_force_matrix_w`` for filtered forces with shape ``(E, S, F, 3)``.
+* Fixed OVRTX camera outputs freezing after 500 frames. The OVRTX render products now disable RTX
+  eco mode, because OVRTX does not detect transform updates read from GPU as scene changes.
+* Selected the simulation's CUDA device for OVRTX rendering in multi-GPU runs.
+* Fixed the air and contact times of :class:`~isaaclab_ov.sensors.ContactSensor` drifting with the age of the
+  sensor clock. Each refresh added the difference of two growing float32 timestamps, which was off by up to 8e-5 s
+  after 40 s of simulated time. It now adds the float64 time since the last refresh kept by the sensor base class.
+
+
 4.1.3 (2026-10-03)
 ~~~~~~~~~~~~~~~~~~
 
