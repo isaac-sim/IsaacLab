@@ -459,7 +459,7 @@ effort mode because Isaac Lab computes its effort directly.
 
 Joints without an Isaac Lab actuator configuration retain their imported USD settings.
 Consequently, an asset with zero-gain USD drives no longer needs
-:attr:`~isaaclab.sim.schemas.JointDrivePropertiesCfg.ensure_drives_exist` solely
+:attr:`~isaaclab.sim.spawners.from_files.FileCfg.ensure_drives_exist` solely
 to make configured joints actuate in Newton.
 
 The ``ensure_drives_exist`` option remains useful when a workflow needs to
