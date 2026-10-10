@@ -10,11 +10,14 @@ from __future__ import annotations
 import re
 from collections.abc import Iterator
 from contextlib import contextmanager
+from numbers import Integral
+from typing import Any
 
 import newton
 import numpy as np
 import warp as wp
 from physicsnemo_robotics.newton import NewtonModelSignature
+from physicsnemo_robotics.newton import spec as _spec
 
 SOLVER_ATTRIBUTE_NAMESPACES: tuple[str, ...] = ("mujoco:",)
 """Custom attribute namespaces that Isaac Lab solver managers register for their own solver.
@@ -106,6 +109,12 @@ def isaaclab_canonical_view(model: newton.Model) -> Iterator[None]:
     model.attribute_frequency = {
         key: value for key, value in frequencies.items() if not str(key).startswith(SOLVER_ATTRIBUTE_NAMESPACES)
     }
+    saved_canonicalizers = (_spec._canonical_labels, _spec._canonical_shape_pairs, _spec._world_ids)
+    _spec._canonical_labels, _spec._canonical_shape_pairs, _spec._world_ids = (
+        _canonical_labels,
+        _canonical_shape_pairs,
+        _world_ids,
+    )
     saved_arrays = {}
     for name in model.attribute_frequency:
         array = getattr(model, name, None) if ":" not in name else None
@@ -116,6 +125,7 @@ def isaaclab_canonical_view(model: newton.Model) -> Iterator[None]:
     try:
         yield
     finally:
+        _spec._canonical_labels, _spec._canonical_shape_pairs, _spec._world_ids = saved_canonicalizers
         for name, array in saved_arrays.items():
             setattr(model, name, array)
         model.attribute_frequency = frequencies
@@ -150,3 +160,112 @@ def _round_significant(values: np.ndarray) -> np.ndarray:
     scale = 10.0 ** (exponent - (SIGNATURE_SIGNIFICANT_DIGITS - 1))
     # Adding zero turns -0.0 into +0.0, which hash differently.
     return np.where(zero, 0.0, np.round(values / scale) * scale) + 0.0
+
+
+# PhysicsNeMo Robotics canonicalizes replicated worlds by scanning every entity once per world, which takes
+# hours for the tens of thousands of environments of locomotion training. The canonical view swaps in these
+# equivalents, which group entities by world in one pass and return the same values and errors.
+
+
+def _canonical_labels(model: Any, name: str, value: Any) -> tuple[str, ...]:
+    """Linear-time :func:`physicsnemo_robotics.newton.spec._canonical_labels`."""
+    labels = tuple(str(item) for item in value)
+    world_ids = _spec._world_ids(model, name.removesuffix("_label"))
+    normalized = tuple(_spec._WORLD_LABEL_PREFIX.sub("", label, count=1) for label in labels)
+    if world_ids is None or len(labels) != world_ids.shape[0]:
+        return normalized
+    owners = world_ids.tolist()
+    local: list[list[str]] = [[] for _ in range(int(getattr(model, "world_count", 0) or 1))]
+    for label, owner in zip(normalized, owners):
+        if owner >= 0:
+            local[owner].append(label)
+    if any(candidate != local[0] for candidate in local[1:]):
+        raise ValueError(f"Newton model field {name!r} differs across worlds")
+    return tuple(label for label, owner in zip(normalized, owners) if owner in (-1, 0))
+
+
+def _canonical_shape_pairs(model: Any, name: str, value: Any) -> tuple[tuple[int, int], ...]:
+    """Linear-time :func:`physicsnemo_robotics.newton.spec._canonical_shape_pairs`."""
+    if hasattr(value, "numpy"):
+        rows = _spec._numpy_value(value)
+        if rows.size == 0:
+            rows = np.zeros((0, 2), dtype=np.int64)
+        elif rows.ndim == 1 and rows.shape[0] == 2:
+            rows = rows.reshape(1, 2)
+        elif not (rows.ndim == 2 and rows.shape[1] == 2):
+            raise ValueError(f"Newton model field {name!r} is not a shape-pair array")
+        if rows.size and (rows.dtype == np.bool_ or not np.issubdtype(rows.dtype, np.integer)):
+            raise ValueError(f"Newton model field {name!r} must contain integer shape pairs")
+    else:
+        try:
+            items = tuple(value)
+        except TypeError as error:
+            raise ValueError(f"Newton model field {name!r} is not an iterable of shape pairs") from error
+        try:
+            pairs = [tuple(pair) for pair in items]
+        except TypeError as error:
+            raise ValueError(f"Newton model field {name!r} contains a non-pair value") from error
+        if any(
+            len(pair) != 2 or any(isinstance(end, bool) or not isinstance(end, Integral) for end in pair)
+            for pair in pairs
+        ):
+            raise ValueError(f"Newton model field {name!r} must contain integer shape pairs")
+        rows = np.array(pairs, dtype=np.int64).reshape(-1, 2)
+    rows = rows.astype(np.int64)
+    shape_count = int(getattr(model, "shape_count", 0) or 0)
+    world_ids = _spec._world_ids(model, "shape")
+    if world_ids is not None and world_ids.shape[0] != shape_count:
+        raise ValueError("model.shape_world length differs from model.shape_count")
+    if rows.size and (rows.min() < 0 or rows.max() >= shape_count):
+        raise ValueError(f"Newton model field {name!r} contains an invalid shape index")
+    shape_a, shape_b = rows[:, 0], rows[:, 1]
+    if world_ids is None:
+        return tuple(sorted(zip(np.minimum(shape_a, shape_b).tolist(), np.maximum(shape_a, shape_b).tolist())))
+
+    worlds = int(getattr(model, "world_count", 0) or 1)
+    is_global = world_ids == -1
+    globals_before = np.concatenate(([0], np.cumsum(is_global)[:-1]))
+    world_keys = np.sort(world_ids[~is_global] * shape_count + np.flatnonzero(~is_global))
+
+    def local_index(shapes: np.ndarray, world: np.ndarray) -> np.ndarray:
+        # Position of each shape among the global shapes and the shapes of ``world``, in model order.
+        own_before = np.searchsorted(world_keys, world * shape_count + shapes) - np.searchsorted(
+            world_keys, world * shape_count
+        )
+        return globals_before[shapes] + own_before
+
+    owner_a, owner_b = world_ids[shape_a], world_ids[shape_b]
+    shared = (owner_a == -1) & (owner_b == -1)
+    local = ~shared & ((owner_a == -1) | (owner_b == -1) | (owner_a == owner_b))
+    world = np.where(owner_a == -1, owner_b, owner_a)[local]
+    pair_worlds = [world, np.repeat(np.arange(worlds), np.count_nonzero(shared))]
+    pair_a = [shape_a[local], np.tile(shape_a[shared], worlds)]
+    pair_b = [shape_b[local], np.tile(shape_b[shared], worlds)]
+    world, first, second = (np.concatenate(parts) for parts in (pair_worlds, pair_a, pair_b))
+    first, second = local_index(first, world), local_index(second, world)
+    canonical = np.unique(np.stack((world, np.minimum(first, second), np.maximum(first, second)), axis=1), axis=0)
+    counts = np.bincount(canonical[:, 0], minlength=worlds)
+    if np.any(counts != counts[0]):
+        raise ValueError(f"Newton model field {name!r} differs across worlds")
+    per_world = canonical[:, 1:].reshape(worlds, int(counts[0]), 2)
+    if np.any(per_world != per_world[:1]):
+        raise ValueError(f"Newton model field {name!r} differs across worlds")
+    return tuple(map(tuple, per_world[0].tolist()))
+
+
+def _world_ids(model: Any, entity: str) -> np.ndarray | None:
+    """:func:`physicsnemo_robotics.newton.spec._world_ids` with one count over all worlds."""
+    value = getattr(model, f"{entity}_world", None)
+    if value is None:
+        return None
+    result = _spec._numpy_value(value).reshape(-1).astype(np.int64, copy=False)
+    world_count = int(getattr(model, "world_count", 0) or 1)
+    if np.any((result < -1) | (result >= world_count)):
+        raise ValueError(f"model.{entity}_world contains an invalid world id")
+    local_counts = np.bincount(result[result >= 0], minlength=world_count).tolist()
+    if world_count > 1 and len(set(local_counts)) != 1:
+        raise ValueError(f"Newton model has non-uniform {entity} counts per world: {local_counts}")
+    return result
+
+
+_ORIGINAL_CANONICAL_SHAPE_PAIRS = _spec._canonical_shape_pairs

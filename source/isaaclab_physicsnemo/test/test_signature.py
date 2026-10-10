@@ -80,3 +80,48 @@ def test_signature_leaves_the_live_model_unchanged():
     assert list(model.articulation_label) == labels
     assert model.attribute_frequency is frequencies
     assert model.joint_X_p is joint_parent_transforms
+
+
+def test_world_canonicalization_matches_physicsnemo_robotics():
+    """The linear-time canonicalizers return what PhysicsNeMo Robotics returns, errors included."""
+    import types
+
+    import numpy as np
+    from isaaclab_physicsnemo import signature
+    from physicsnemo_robotics.newton import spec
+
+    def outcome(function, model, name, value):
+        try:
+            return function(model, name, value)
+        except ValueError as error:
+            return f"ValueError: {error}"
+
+    rng = np.random.default_rng(0)
+    for case in range(200):
+        worlds, per_world, shared = int(rng.integers(1, 5)), int(rng.integers(0, 4)), int(rng.integers(0, 3))
+        owners = np.array([-1] * shared + [w for w in range(worlds) for _ in range(per_world)])
+        owners = owners[rng.permutation(owners.size)]
+        model = types.SimpleNamespace(shape_count=owners.size, world_count=worlds, shape_world=owners)
+        if owners.size == 0:
+            continue
+        # Replicate one world's pairs, then occasionally break the replication or add cross-world pairs.
+        pairs = []
+        local = [np.flatnonzero((owners == -1) | (owners == w)) for w in range(worlds)]
+        template = [tuple(rng.integers(0, local[0].size, 2)) for _ in range(int(rng.integers(0, 5)))]
+        for w in range(worlds):
+            pairs += [(local[w][i], local[w][j]) for i, j in template]
+        if case % 5 == 0:
+            pairs.append(tuple(rng.integers(0, owners.size, 2)))
+        rows = np.array(pairs, dtype=np.int64).reshape(-1, 2)
+        # Newton stores contact pairs as an array and collision filter pairs as a set of tuples.
+        for value in (types.SimpleNamespace(numpy=lambda rows=rows: rows), {tuple(map(int, row)) for row in rows}):
+            assert outcome(signature._canonical_shape_pairs, model, "shape_contact_pairs", value) == outcome(
+                signature._ORIGINAL_CANONICAL_SHAPE_PAIRS, model, "shape_contact_pairs", value
+            )
+        assert signature._world_ids(model, "shape").tolist() == spec._world_ids(model, "shape").tolist()
+        labels = [f"env_{max(owner, 0)}/shape_{index % max(per_world, 1)}" for index, owner in enumerate(owners)]
+        if case % 7 == 0:
+            labels[-1] = "renamed"
+        assert outcome(signature._canonical_labels, model, "shape_label", labels) == outcome(
+            spec._canonical_labels, model, "shape_label", labels
+        )
