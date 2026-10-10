@@ -9,8 +9,12 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+import numpy as np
+import warp as wp
 from isaaclab_visualizers.rerun import RerunVisualizer, RerunVisualizerCfg
+from isaaclab_visualizers.rerun.rerun_visualizer import NewtonViewerRerun
 from isaaclab_visualizers.viser import ViserVisualizer, ViserVisualizerCfg
+from newton.viewer import ViewerRerun
 
 
 def test_rerun_visualizer_set_camera_view():
@@ -26,6 +30,38 @@ def test_rerun_visualizer_set_camera_view():
     visualizer.set_camera_view([1, 2, 3], [4, 5, 6])
 
     assert visualizer._viewer._camera_pose == ((1.0, 2.0, 3.0), (4.0, 5.0, 6.0))
+
+
+def test_rerun_viewer_skips_unchanged_instance_appearance(monkeypatch):
+    viewer = NewtonViewerRerun.__new__(NewtonViewerRerun)
+    viewer._instances = {}
+    viewer._instance_appearance = {}
+    viewer._qualify = lambda name: name
+    calls = []
+
+    def _log_instances(_self, name, mesh, xforms, scales, colors, materials, hidden=False, opacities=None):
+        calls.append(SimpleNamespace(colors=colors, opacities=opacities))
+        if hidden:
+            viewer._instances.pop(name, None)
+        else:
+            viewer._instances[name] = {}
+
+    monkeypatch.setattr(ViewerRerun, "log_instances", _log_instances)
+    colors = wp.array([(0.2, 0.4, 0.6)], dtype=wp.vec3, device="cpu")
+    opacities = wp.array([0.8], dtype=wp.float32, device="cpu")
+
+    viewer.log_instances("/robot", "/mesh", None, None, colors, None, opacities=opacities)
+    viewer.log_instances("/robot", "/mesh", None, None, colors, None, opacities=opacities)
+
+    assert calls[0].colors is colors
+    assert calls[0].opacities is opacities
+    assert calls[1].colors is None
+    assert calls[1].opacities is None
+
+    changed_colors = wp.array([(0.7, 0.4, 0.6)], dtype=wp.vec3, device="cpu")
+    viewer.log_instances("/robot", "/mesh", None, None, changed_colors, None, opacities=opacities)
+    np.testing.assert_array_equal(calls[2].colors.numpy(), changed_colors.numpy())
+    assert calls[2].opacities is None
 
 
 def test_viser_visualizer_set_camera_view(monkeypatch):

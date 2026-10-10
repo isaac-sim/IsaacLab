@@ -17,8 +17,10 @@ from typing import TYPE_CHECKING
 from urllib.parse import quote
 
 import newton
+import numpy as np
 import rerun as rr
 import rerun.blueprint as rrb
+import warp as wp
 from isaaclab_newton.physics import NewtonBackendCfg
 from newton.viewer import ViewerRerun
 
@@ -114,6 +116,7 @@ class NewtonViewerRerun(ViewerRerun):
     def __init__(self, *args, open_browser: bool = False, streaming_view: bool = False, **kwargs):
         """Initialize viewer wrapper and Isaac Lab pause state."""
         self._live_plot_manager_names = []
+        self._instance_appearance: dict[str, tuple[np.ndarray | None, np.ndarray | None]] = {}
         self._camera_pose: tuple | None = None
         self._streaming_view_active = streaming_view
         if open_browser:
@@ -256,6 +259,47 @@ class NewtonViewerRerun(ViewerRerun):
             geo_src,
             hidden,
         )
+
+    def log_instances(
+        self,
+        name: str,
+        mesh: str,
+        xforms: wp.array[wp.transform] | None,
+        scales: wp.array[wp.vec3] | None,
+        colors: wp.array[wp.vec3] | None,
+        materials: wp.array[wp.vec4] | None,
+        hidden: bool = False,
+        opacities: wp.array[wp.float32] | None = None,
+    ):
+        """Avoid resending an instance mesh when its visible appearance did not change."""
+        qualified_name = self._qualify(name)
+        previous = self._instance_appearance.get(qualified_name) if qualified_name in self._instances else None
+        color = self._first_instance_value(colors)
+        opacity = self._first_instance_value(opacities)
+        if previous is not None:
+            if color is not None and np.array_equal(color, previous[0]):
+                colors = None
+            if opacity is not None and np.array_equal(opacity, previous[1]):
+                opacities = None
+
+        result = super().log_instances(name, mesh, xforms, scales, colors, materials, hidden, opacities)
+        if hidden:
+            self._instance_appearance.pop(qualified_name, None)
+        elif qualified_name in self._instances:
+            previous_color, previous_opacity = previous or (None, None)
+            self._instance_appearance[qualified_name] = (
+                previous_color if color is None else color,
+                previous_opacity if opacity is None else opacity,
+            )
+        return result
+
+    @staticmethod
+    def _first_instance_value(values: wp.array | np.ndarray | None) -> np.ndarray | None:
+        """Copy the first value that Rerun uses as the batch appearance."""
+        if values is None or len(values) == 0:
+            return None
+        values_np = values.numpy() if isinstance(values, wp.array) else np.asarray(values)
+        return np.asarray(values_np[0]).copy()
 
 
 class RerunVisualizer(BaseVisualizer):

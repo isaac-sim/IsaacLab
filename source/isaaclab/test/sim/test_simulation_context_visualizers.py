@@ -44,9 +44,17 @@ def test_web_visualizer_cfgs_do_not_open_browser_by_default():
 class _FakePhysicsManager:
     def __init__(self):
         self.forward_calls = 0
+        self.step_calls = 0
+        self.wait_for_playing_calls = 0
 
     def forward(self):
         self.forward_calls += 1
+
+    def step(self):
+        self.step_calls += 1
+
+    def wait_for_playing(self):
+        self.wait_for_playing_calls += 1
 
 
 class _FakeProvider:
@@ -144,6 +152,7 @@ def _make_context(visualizers, provider=None):
     ctx._visualizers = list(visualizers)
     ctx._visualizers_started = bool(visualizers)
     ctx._scene_data_provider = provider
+    ctx._physics_step_count = 0
     ctx.physics_manager = _FakePhysicsManager()
     ctx.vis_marker_registry = VisMarkerRegistry()
     return ctx
@@ -216,14 +225,26 @@ def test_update_visualizers_skips_zero_dt_for_paused_app_pumping_visualizer():
     assert paused_app_pumping_viz.step_calls == []
 
 
-def test_update_visualizers_handles_training_pause_loop():
+def test_update_visualizers_returns_after_one_training_pause_update():
     provider = _FakeProvider()
-    viz = _FakeVisualizer(training_paused_steps=1)
+    viz = _FakeVisualizer(training_paused_steps=2)
     ctx = _make_context([viz], provider=provider)
 
     ctx.update_visualizers(0.2)
 
-    assert viz.step_calls == [0.0, 0.2]
+    assert viz.step_calls == [0.0]
+
+
+def test_step_waits_for_visualizer_training_pause_before_physics():
+    viz = _FakeVisualizer(training_paused_steps=2)
+    ctx = _make_context([viz], provider=_FakeProvider())
+
+    ctx.step(render=False)
+
+    assert viz.step_calls == [0.0, 0.0]
+    assert ctx.physics_manager.wait_for_playing_calls == 1
+    assert ctx.physics_manager.step_calls == 1
+    assert ctx._physics_step_count == 1
 
 
 class _LivePlotVisualizer(_FakeVisualizer):
