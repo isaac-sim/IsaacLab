@@ -336,7 +336,8 @@ def test_newton_marker_backend_registers_and_updates_state_without_frame_capture
     translations = torch.arange(6, dtype=torch.float32, device=sim.device).reshape(2, 3)
     marker_indices = torch.tensor([0, 0], device=sim.device)
 
-    test_marker.visualize(translations=translations, marker_indices=marker_indices)
+    # Host inputs must use the configured simulation device, even on the first update.
+    test_marker.visualize(translations=translations.cpu().numpy(), marker_indices=[0, 0])
 
     newton_backend = test_marker._backends[0]
     assert isinstance(newton_backend, newton_markers.NewtonVisualizationMarkers)
@@ -344,6 +345,10 @@ def test_newton_marker_backend_registers_and_updates_state_without_frame_capture
     assert torch.equal(newton_backend.translations, translations)
     assert torch.equal(newton_backend.marker_indices, marker_indices.to(dtype=torch.int32))
     assert newton_backend.count == 2
+    assert newton_backend.translations.device == translations.device
+    test_marker.visualize(scales=torch.ones((2, 3)), marker_indices=[0, 0])
+    assert newton_backend.scales.device == newton_backend.marker_indices.device == translations.device
+    torch.testing.assert_close(newton_backend.translations, translations)
 
 
 @pytest.mark.parametrize(

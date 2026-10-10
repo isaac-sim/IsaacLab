@@ -533,7 +533,7 @@ class NewtonVisualizerBase(BaseVisualizer):
             return
         labels = [
             f"Perspective {i + 1}" if isinstance(camera, PerspectiveCameraCfg) else camera.cfg.prim_path
-            for i, camera in enumerate(self._camera_choices)
+            for i, camera in enumerate(self._cameras)
         ]
         changed, index = imgui.combo("Camera", self._camera_index, labels)
         if changed:
@@ -543,7 +543,7 @@ class NewtonVisualizerBase(BaseVisualizer):
 
     def _select_camera(self, index: int) -> None:
         """Bind the selected source; all scene cameras retain their normal lazy-data lifecycle."""
-        camera = self._camera_choices[index]
+        camera = self._cameras[index]
         self._camera_sensor = None if isinstance(camera, PerspectiveCameraCfg) else camera
         self._streaming_frame.timestamp = -1.0
         if isinstance(camera, PerspectiveCameraCfg):

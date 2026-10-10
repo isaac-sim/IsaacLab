@@ -50,7 +50,7 @@ def test_close_releases_owned_resources_even_on_failure(failure):
     visualizer = NewtonRTXVisualizer(NewtonRTXVisualizerCfg())
     viewer = visualizer._viewer = Mock()
     camera = visualizer._camera_sensor = Mock()
-    visualizer._camera_choices = [camera]
+    visualizer._cameras = [camera]
     visualizer._sim = Mock()
     if failure:
         viewer.close.side_effect = RuntimeError("release failed")
@@ -65,5 +65,5 @@ def test_close_releases_owned_resources_even_on_failure(failure):
     camera.close.assert_not_called()
     assert visualizer._viewer is visualizer.backend is None
     assert visualizer._sim is visualizer._camera_sensor is None
-    assert not visualizer._camera_choices
+    assert not visualizer._cameras
     assert visualizer._is_closed

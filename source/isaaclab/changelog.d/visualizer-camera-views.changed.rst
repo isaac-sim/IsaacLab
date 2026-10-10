@@ -8,3 +8,4 @@
   on ``VisualizerCfg.window``. Replaced Newton's simulation-frame ``update_frequency`` with
   ``WindowCfg.fps`` (30 by default); headless on-demand capture retained its independent cadence.
   Renamed the GPU array API to ``render_tiled_rgba_array()`` for consistency with ``render_tiled_rgb_array()``.
+* Merged window defaults per field without sharing mutable state between visualizers or the task template.

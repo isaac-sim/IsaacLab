@@ -629,13 +629,13 @@ class OVRTXRenderer(BaseRenderer):
     def _clone_sources(self):
         """Clone sources in OVRTX using the scene :class:`~isaaclab.cloner.ClonePlan`."""
         plan = self._clone_plan
-        num_envs = len(plan.topology.world_prototype_layout)
-        env_paths = [plan.env_template.format(world) for world in range(num_envs)]
         logger.info("Cloning sources in OVRTX...")
 
         if self._use_ovstage:
             ovstage_replicate(self.backend.stage, plan, ordinal=self._current_ordinal)
             return
+        num_envs = len(plan.topology.world_prototype_layout)
+        env_paths = [plan.env_template.format(world) for world in range(num_envs)]
         for source, targets in _iter_clone_batches(plan):
             self.backend.renderer.clone_usd(source, targets)
         xforms = np.tile(np.eye(4, dtype=np.float64), (num_envs, 1, 1))

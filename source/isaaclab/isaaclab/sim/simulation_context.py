@@ -10,6 +10,7 @@ import logging
 import traceback
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
+from copy import deepcopy
 from dataclasses import fields
 from typing import TYPE_CHECKING, Any, ClassVar
 
@@ -320,7 +321,9 @@ class SimulationContext:
 
     def has_active_visualizers(self) -> bool:
         """Return whether any visualizer path is active for rendering/camera control."""
-        return self._has_continuous_visualizers() or bool(self.get_setting("/isaaclab/video/auto_start_kit"))
+        return any(cfg.visualizer_type and not cfg.headless for cfg in self.cfg.visualizer_cfgs) or bool(
+            self.get_setting("/isaaclab/video/auto_start_kit")
+        )
 
     def is_running(self) -> bool:
         """Return whether the simulation should keep running.
@@ -362,7 +365,7 @@ class SimulationContext:
         return (
             self._has_gui
             or self.get_setting("/isaaclab/render/rtx_sensors")
-            or self._has_continuous_visualizers()
+            or any(cfg.visualizer_type and not cfg.headless for cfg in self.cfg.visualizer_cfgs)
             or self._xr_enabled
         )
 
@@ -395,24 +398,20 @@ class SimulationContext:
         default_cfg = self.cfg.default_visualizer_cfg
         if default_cfg is None:
             return
-        source_defaults, target_defaults = type(default_cfg)(), type(cfg)()
-        for field in fields(default_cfg):
-            if field.name in ("class_type", "visualizer_type") or not hasattr(cfg, field.name):
-                continue
-            default_val = getattr(default_cfg, field.name)
-            if default_val == getattr(source_defaults, field.name):
-                continue
-            if getattr(cfg, field.name) != getattr(target_defaults, field.name):
-                continue
-            setattr(cfg, field.name, default_val)
+        for source, target in ((default_cfg, cfg), (default_cfg.window, cfg.window)):
+            source_defaults, target_defaults = type(source)(), type(target)()
+            for field in fields(source):
+                if field.name in ("class_type", "visualizer_type", "window") or not hasattr(target, field.name):
+                    continue
+                default_val = getattr(source, field.name)
+                if default_val == getattr(source_defaults, field.name):
+                    continue
+                if getattr(target, field.name) == getattr(target_defaults, field.name):
+                    setattr(target, field.name, deepcopy(default_val))
 
     def resolve_visualizer_types(self) -> list[str]:
         """Return the types of the visualizers in :attr:`SimulationCfg.visualizer_cfgs`."""
         return [cfg.visualizer_type for cfg in self.cfg.visualizer_cfgs if cfg.visualizer_type]
-
-    def _has_continuous_visualizers(self) -> bool:
-        """Return whether the configured visualizers require per-step updates."""
-        return any(cfg.visualizer_type and not cfg.headless for cfg in self.cfg.visualizer_cfgs)
 
     def _resolve_visualizer_cfgs(self) -> list[Any]:
         """Return the configured visualizers with the shared defaults applied, plus a Kit visualizer for XR."""

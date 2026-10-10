@@ -784,7 +784,7 @@ def test_visualizer_construction_precedes_initialization_and_happens_once(monkey
         cfg.cameras, cfg.streaming_view = [source, perspective], True
         ctx.initialize_visualizers()
         ctx.initialize_visualizers()
-        assert visualizer._camera_choices == [camera, perspective]
+        assert visualizer._cameras == [camera, perspective]
         assert cfg.cameras == [source, perspective]
         assert source.prim_path == "{ENV_REGEX_NS}/Camera"
         assert not {"_clone_plan", "_scene_stage", "_get_backend"}.intersection(vars(visualizer))
@@ -849,16 +849,20 @@ def test_default_visualizer_cfg_applies_to_cli_created_configs():
     default_cfg = VisualizerCfg(
         background_color=(0.1, 0.2, 0.3),
         streaming_sensor_prim_path="/World/envs/*/Camera",
+        window=WindowCfg(size=(640, 480), fps=60),
     )
-    visualizer_cfgs = resolve_visualizer_cfgs([], ["newton_gl"])
+    visualizer_cfgs = resolve_visualizer_cfgs([], ["newton_gl", "newton_rtx"])
     ctx = _make_context_with_settings({}, visualizer_cfgs=visualizer_cfgs, default_visualizer_cfg=default_cfg)
 
     cfgs = ctx._resolve_visualizer_cfgs()
 
-    assert len(cfgs) == 1
+    assert len(cfgs) == 2
     assert isinstance(cfgs[0], NewtonVisualizerCfg)
     assert cfgs[0].background_color == (0.1, 0.2, 0.3)
     assert cfgs[0].streaming_sensor_prim_path == "/World/envs/*/Camera"
+    assert cfgs[0].window == cfgs[1].window == default_cfg.window
+    cfgs[0].window.fps = 20
+    assert cfgs[1].window.fps == default_cfg.window.fps == 60
 
 
 def test_cli_type_newton_rtx_resolves_to_newton_rtx_visualizer_cfg():
@@ -883,20 +887,26 @@ def test_default_visualizer_cfg_applies_to_explicit_visualizer_cfgs():
         eye=(8.0, 0.0, 5.0),
         lookat=(0.0, 0.0, 0.5),
         streaming_sensor_prim_path="/World/envs/*/Camera",
+        window=WindowCfg(size=(640, 480), fps=60),
     )
     # Explicit Newton cfg with only the window size customized; eye/lookat at class defaults.
     explicit_cfg = NewtonGLVisualizerCfg(window=WindowCfg(size=(320, 240)))
-    ctx = _make_context_with_settings(settings, visualizer_cfgs=[explicit_cfg], default_visualizer_cfg=default_cfg)
+    rtx_cfg = NewtonRTXVisualizerCfg(window=WindowCfg(fps=20))
+    ctx = _make_context_with_settings(
+        settings, visualizer_cfgs=[explicit_cfg, rtx_cfg], default_visualizer_cfg=default_cfg
+    )
 
     cfgs = ctx._resolve_visualizer_cfgs()
 
-    assert len(cfgs) == 1
+    assert len(cfgs) == 2
     # env-level hints applied (were at class defaults on explicit_cfg)
     assert cfgs[0].eye == (8.0, 0.0, 5.0)
     assert cfgs[0].lookat == (0.0, 0.0, 0.5)
     assert cfgs[0].streaming_sensor_prim_path == "/World/envs/*/Camera"
     # user-customized fields preserved
     assert cfgs[0].window.size == (320, 240)
+    assert cfgs[0].window.fps == 60
+    assert cfgs[1].window == WindowCfg(size=(640, 480), fps=20)
     assert cfgs[0].class_type.__name__ == "NewtonGLVisualizer"
     assert cfgs[0].visualizer_type == "newton_gl"
     assert cfgs[0].cloning_contexts == NewtonGLVisualizerCfg().cloning_contexts

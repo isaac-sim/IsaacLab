@@ -109,9 +109,10 @@ class VisualizationMarkers:
 
         self.cfg = cfg
         self.prim_path = cfg.prim_path
-        self._count = len(cfg.markers)
+        self._count: int | None = None
         self._is_visible = True
-        self._device: torch.device | None = None
+        sim = sim_utils.SimulationContext.instance()
+        self._device = torch.device(sim.device if sim is not None else "cpu")
         self._backends: list[object] = []
         self._ensure_backends_initialized()
 
@@ -133,7 +134,7 @@ class VisualizationMarkers:
     @property
     def count(self) -> int:
         """The total number of marker instances."""
-        return self._count
+        return self.num_prototypes if self._count is None else self._count
 
     def set_visibility(self, visible: bool):
         """Set marker visibility for all initialized backends."""
@@ -179,8 +180,8 @@ class VisualizationMarkers:
         indices ``[0, 1, 0, 1]``, the first and third markers use the first
         prototype and the second and fourth markers use the second prototype.
 
-        Inputs use the device of the first nonempty update. Later partial updates are moved to that
-        device so they can be combined with the retained marker state.
+        Inputs are normalized to tensors on the simulation's configured device. Standalone Kit
+        markers without a simulation context use CPU tensors.
 
         .. caution::
             This function updates all markers instanced from the prototypes. If
@@ -220,27 +221,19 @@ class VisualizationMarkers:
         norm_scales = self._to_tensor(scales, expected_width=3, name="scales")
         norm_marker_indices = self._to_index_tensor(marker_indices, name="marker_indices")
         norm_environment_ids = self._to_index_tensor(environment_ids, name="environment_ids")
-        values = (norm_translations, norm_orientations, norm_scales, norm_marker_indices, norm_environment_ids)
-        target_device = self._device or next(
-            (value.device for value in values if value is not None), torch.device("cpu")
-        )
-        norm_translations, norm_orientations, norm_scales, norm_marker_indices, norm_environment_ids = (
-            None if value is None else value.to(device=target_device) for value in values
-        )
-
         marker_values = (norm_translations, norm_orientations, norm_scales, norm_marker_indices)
         marker_counts = {value.shape[0] for value in marker_values if value is not None}
         if len(marker_counts) > 1:
             raise ValueError(f"Expected all marker inputs to have the same length. Received: {sorted(marker_counts)}.")
         num_markers = next(iter(marker_counts), 0)
 
-        if norm_marker_indices is None and num_markers != 0 and (self._device is None or num_markers != self._count):
-            norm_marker_indices = torch.zeros(num_markers, dtype=torch.int32, device=target_device)
+        if norm_marker_indices is None and num_markers != 0 and num_markers != self._count:
+            norm_marker_indices = torch.zeros(num_markers, dtype=torch.int32, device=self._device)
         elif norm_marker_indices is None and num_markers == 0:
             if all(value is None for value in marker_values):
                 if norm_environment_ids is None:
                     raise ValueError("Number of markers cannot be zero! Hint: The function was called with no inputs?")
-            num_markers = self._count
+            num_markers = self.count
 
         if norm_environment_ids is not None and norm_environment_ids.shape[0] != num_markers:
             raise ValueError(
@@ -255,7 +248,6 @@ class VisualizationMarkers:
 
         if num_markers != 0:
             self._count = num_markers
-            self._device = target_device
 
     def __del__(self):
         for backend in getattr(self, "_backends", []):
@@ -306,32 +298,23 @@ class VisualizationMarkers:
         if not any(isinstance(backend, NewtonVisualizationMarkers) for backend in self._backends):
             self._backends.append(NewtonVisualizationMarkers(self.cfg, visible=self._is_visible))
 
-    @staticmethod
     def _to_tensor(
+        self,
         value: np.ndarray | torch.Tensor | None,
         expected_width: int,
         name: str,
     ) -> torch.Tensor | None:
         if value is None:
             return None
-        if isinstance(value, np.ndarray):
-            tensor = torch.from_numpy(value)
-        else:
-            tensor = value.detach()
+        tensor = torch.as_tensor(value, dtype=torch.float32, device=self._device).detach()
         if tensor.ndim != 2 or tensor.shape[1] != expected_width:
             raise ValueError(f"Expected `{name}` to have shape (M, {expected_width}). Received: {tuple(tensor.shape)}.")
-        return tensor.to(dtype=torch.float32)
+        return tensor
 
-    @staticmethod
-    def _to_index_tensor(value: list[int] | np.ndarray | torch.Tensor | None, name: str) -> torch.Tensor | None:
+    def _to_index_tensor(self, value: list[int] | np.ndarray | torch.Tensor | None, name: str) -> torch.Tensor | None:
         if value is None:
             return None
-        if isinstance(value, list):
-            tensor = torch.tensor(value)
-        elif isinstance(value, np.ndarray):
-            tensor = torch.from_numpy(value)
-        else:
-            tensor = value.detach()
+        tensor = torch.as_tensor(value, dtype=torch.int32, device=self._device).detach()
         if tensor.ndim != 1:
             raise ValueError(f"Expected `{name}` to have shape (M,). Received: {tuple(tensor.shape)}.")
-        return tensor.to(dtype=torch.int32)
+        return tensor

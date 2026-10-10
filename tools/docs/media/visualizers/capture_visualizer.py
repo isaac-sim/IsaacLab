@@ -658,17 +658,13 @@ def _hero_make_newton_gl_visualizer_cfg() -> VisualizerCfg:
 
 
 def _hero_make_newton_rtx_visualizer_cfg() -> VisualizerCfg:
-    # No streaming_view: unusable for kitless RTX (see module docstring). Markers are
-    # unsupported on this backend regardless of enable_markers (hard-blocked for the kitless
-    # viewer).
+    # The perspective view uses the scene's authored lighting and native debug markers.
     return NewtonRTXVisualizerCfg(
         headless=_hero_headless(),
         window=WindowCfg(size=(_HERO_WINDOW_WIDTH, _HERO_WINDOW_HEIGHT)),
         eye=_HERO_RTX_FOLLOW_EYE_OFFSET,
         lookat=(0.0, 0.0, 0.0),
         focal_length=_HERO_NARROW_FOCAL_LENGTH,
-        sky_upper_color=_HERO_SKY_UPPER_COLOR,
-        sky_lower_color=_HERO_SKY_LOWER_COLOR,
     )
 
 

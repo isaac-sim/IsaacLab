@@ -54,7 +54,7 @@ class BaseVisualizer(ABC):
         validate(cfg)
         self.cfg = cfg
         self._sim: SimulationContext | None = None
-        self._camera_choices: list[PerspectiveCameraCfg | Camera] = []
+        self._cameras: list[PerspectiveCameraCfg | Camera] = []
         self._is_initialized = False
         self._is_closed = False
         self._env_ids: list[int] | None = None
@@ -95,7 +95,7 @@ class BaseVisualizer(ABC):
         if scene_data_provider is None:
             raise RuntimeError(f"{self.__class__.__name__} requires a scene_data_provider.")
         self._sim = sim
-        self._camera_choices = list(cameras)
+        self._cameras = list(cameras)
 
         cfg = self.cfg
         num_envs = scene_data_provider.num_envs
@@ -124,7 +124,7 @@ class BaseVisualizer(ABC):
             num_envs, self.cfg.streaming_envs, sample_from=visible_env_ids
         )
         self._camera_sensor = next(
-            (camera for camera in self._camera_choices if not isinstance(camera, PerspectiveCameraCfg)), None
+            (camera for camera in self._cameras if not isinstance(camera, PerspectiveCameraCfg)), None
         )
 
     def render_tiled_rgba_array(self) -> wp.array | None:
@@ -218,7 +218,7 @@ class BaseVisualizer(ABC):
         Subclasses must call ``super().close()`` when their resource teardown finishes, including on failure.
         """
         self._camera_sensor = None
-        self._camera_choices.clear()
+        self._cameras.clear()
         self._streaming_frame = TimestampedBuffer()
         self._streaming_host_frame = TimestampedBuffer()
         self._streaming_env_ids = self._streaming_depth_colors = None

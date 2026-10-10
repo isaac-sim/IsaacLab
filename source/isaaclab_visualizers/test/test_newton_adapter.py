@@ -841,8 +841,8 @@ def test_newton_scene_camera_controls_apply_uniformly_to_active_copies(monkeypat
             color_frame = color.frame.torch.clone()
             back_frame = back.frame.torch.clone()
             assert visualizer._camera_sensor is None
-            assert isinstance(visualizer._camera_choices[0], PerspectiveCameraCfg)
-            assert [camera.cfg.prim_path for camera in visualizer._camera_choices[1:]] == [
+            assert isinstance(visualizer._cameras[0], PerspectiveCameraCfg)
+            assert [camera.cfg.prim_path for camera in visualizer._cameras[1:]] == [
                 color.cfg.prim_path,
                 back.cfg.prim_path,
             ]
