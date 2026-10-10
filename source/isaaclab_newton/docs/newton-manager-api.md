@@ -171,6 +171,38 @@ keep their identities stable. The outer runner owns host time bookkeeping;
 recording does not update it. Rebuild the graph after replacing buffers, changing
 callbacks or changing the step count.
 
+### Compose two simulations in one graph
+
+Explicit backend arguments make composition straightforward. This helper accepts
+two initialized managers on the same CUDA device, such as `left` and `right` from
+the first example. Call it inside their `try` block, before closing either manager:
+
+```python
+from isaaclab_newton.physics import newton_backend as nb
+
+
+def capture_pair(left, right):
+    left.prepare()
+    right.prepare()
+
+    def advance_both():
+        nb.record_step(left.backend)
+        nb.record_step(right.backend)
+
+    return nb.capture_graph(left.backend.device, advance_both)
+
+
+# While both managers are initialized and alive:
+# graph = capture_pair(left, right)
+# graph.launch()
+```
+
+Each backend retains its own model, state and solver. The outer graph determines
+the execution order. A coupled application can insert graph-safe transfers between
+the two calls; this helper advances independent simulations and introduces no
+physical interaction by itself. The caller maintains host time bookkeeping and
+rebuilds the graph if either backend is replaced.
+
 ### Include resets when needed
 
 For a state reset, write the selected worlds' state, call

@@ -9,7 +9,8 @@ The design also supports applications that need more control. You can run two
 independent managers, add device work to the simulation step, or supply your own
 manager to Isaac Lab. All of these paths use the same simulation backend.
 
-Start with the [scene example](#start-with-a-scene), then follow the
+For the architectural direction, start with [data and operations](#explicit-data-and-operations).
+For everyday usage, start with the [scene example](#start-with-a-scene), then follow the
 [lifecycle](#what-happens-during-initialization) and
 [simulation step](#what-runs-inside-a-step). The companion
 [extension examples](newton-manager-api.md) cover custom managers and outer capture.
@@ -22,9 +23,11 @@ stage, coordinates rendering and cleanup, and delegates physics to its manager.
 ```mermaid
 flowchart LR
     Context[SimulationContext] --> Manager[NewtonManager]
-    Manager --> Backend[NewtonBackend]
-    Backend --> Solver[Newton solver]
-    Backend --> Graph[Captured step]
+    Manager -->|owns| Backend[NewtonBackend data]
+    Manager -->|calls| Functions[Backend functions]
+    Functions -->|read and update| Backend
+    Functions -->|solver behavior| Adapter[Stateless solver adapter]
+    Backend --> Resources[Model, state, control, solver, graphs]
 ```
 
 | Component | What you use it for |
@@ -38,6 +41,49 @@ flowchart LR
 The manager stays small by delegating numerical work and graph scheduling to the
 backend layer. Each manager owns its simulation state and callbacks. Assets and
 sensors retain their manager, so one manager's cleanup cannot clear another's data.
+
+## Explicit data and operations
+
+The architectural direction is to keep **simulation data, numerical operations and
+Isaac Lab integration** separately understandable:
+
+- **Data lives in `NewtonBackend`.** The model, state arrays, control inputs,
+  solver instance and captured graphs belong to one simulation. Buffers keep
+  stable identities between hard resets while their contents change during stepping.
+- **Operations take that backend explicitly.** Functions such as `init_solver`,
+  `forward`, `prepare` and `step` receive the simulation they operate on. They
+  mutate its data; they do not look up an active manager or context.
+- **The manager connects the lifecycle.** It handles construction, consumer
+  binding, time bookkeeping and cleanup, and calls the same backend functions
+  available to a custom runner.
+
+Controllers and solver steps operate on persistent arrays. The schedule binds
+those arrays when it is built and reuses them during execution.
+
+For example, given a compatible finalized Newton model, a runner can use the functional core
+directly. `physics_cfg` is a `NewtonCfg`; the caller supplies the model and timestep:
+
+```python
+from isaaclab_newton.physics import NewtonBackend
+from isaaclab_newton.physics import newton_backend as nb
+
+
+def run_physics(model, physics_cfg, dt):
+    backend = NewtonBackend(model, physics_cfg, dt=dt)
+    try:
+        nb.init_solver(backend)
+        nb.prepare(backend)
+        for _ in range(100):
+            nb.step(backend)
+    finally:
+        backend.close()
+```
+
+This is what *functional* means here: dependencies are explicit and mutable state
+has an owner. The numerical buffers remain mutable for efficient GPU execution.
+Solver adapters follow the same rule: their hooks receive a backend or model,
+while each backend owns its native solver instance. Adding a solver therefore
+does not require a new integration manager.
 
 ## Start with a scene
 
@@ -150,6 +196,43 @@ that can replay without Python decisions.
 Rendering, Python bookkeeping and the remaining RL computations keep their own
 lifecycle. To capture a larger device pipeline around physics, use the
 [outer-capture example](newton-manager-api.md#capture-a-larger-device-step).
+
+## What this architecture enables
+
+**Two managers can run independently.** Give each one its own populated builder;
+the builders can describe different scenes and use different solver settings.
+This function shows the full ownership boundary, using builders supplied by the
+application. The [pendulum example](newton-manager-api.md#run-two-independent-simulations)
+includes builder construction.
+
+```python
+from isaaclab_newton.physics import NewtonCfg, NewtonManager
+
+
+def run_pair(builder_a, builder_b):
+    left = NewtonManager(builder_a, NewtonCfg(), dt=0.01, device="cuda:0")
+    right = NewtonManager(builder_b, NewtonCfg(), dt=0.01, device="cuda:0")
+    try:
+        left.reset()
+        right.reset()
+        left.step()   # Advances only the left simulation.
+        right.step()
+    finally:
+        left.close()
+        right.close()
+```
+
+**The same physics can join a larger graph.** An outer runner can record several
+backends, controllers and other graph-safe device operations into one capture.
+The [composition example](newton-manager-api.md#compose-two-simulations-in-one-graph)
+shows this using the same managers.
+
+**Performance work has a clear home.** Model construction and consumer binding
+happen once per hard reset. The backend allocates scratch as needed and caches
+its schedule. Graph replay reduces repeated Python dispatch across controllers,
+actuators and solver substeps; property edits are combined before solver refresh.
+These mechanisms reduce startup and runtime overhead without adding separate
+controller implementations for captured execution.
 
 ## Resetting and closing
 
