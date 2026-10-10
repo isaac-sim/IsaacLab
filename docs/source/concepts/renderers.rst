@@ -560,5 +560,5 @@ Physics can therefore update its live arrays while the previous capture renders.
 See Also
 --------
 
-- :doc:`/source/developer-tools/scene_data_providers`: how scene data flows from physics backends to renderers
+- :doc:`/source/concepts/native-physics-api/scene_data_providers`: how scene data flows from physics backends to renderers
 - :doc:`/source/concepts/visualization` — lightweight visualizer backends for interactive feedback

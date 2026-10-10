@@ -20,6 +20,12 @@ focused programs for learning an API or tuning a feature in directories such as 
 Demo and example commands show the same Isaac Lab startup screen as task playback while
 their simulation initializes. Pass ``--info`` to keep startup messages visible.
 
+Unlike ``train`` and ``play``, demos and examples usually open a visualizer by default, since they
+are meant to be watched. Demos mostly default to Newton GL (``newton_gl``), with Kit for some such as
+``pick-and-place``. The ``h1-locomotion`` demo defaults to Kit with PhysX and Newton GL with Newton.
+Examples default to Kit or Newton GL depending on the program, and a few, such as ``ppisp-camera``
+and ``tacsl-sensor``, run without a visualizer. Pass ``--viz`` to pick a different one.
+
 In any packaged demo or example running with ``--viz newton_gl``, the **Isaac Lab Programs**
 panel shows the core showcases first, with focused examples in a separate collapsed section.
 Selecting one closes the current simulation and relaunches it with ``--viz newton_gl``.

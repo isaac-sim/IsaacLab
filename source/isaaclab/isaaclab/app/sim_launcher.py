@@ -455,7 +455,7 @@ def _validate_runtime(scan: Scan, kit_sources: tuple[str, ...]) -> None:
             "To fix this, pick one of the following supported combinations:\n"
             "  * Keep OvPhysX physics and switch to a kitless renderer/visualizer:\n"
             "      use `OvPhysxCfg` with `OVRTXRendererCfg`\n"
-            "    (and use `--visualizer newton`, `--visualizer rerun`, or `--visualizer viser`, or omit\n"
+            "    (and use `--visualizer newton_gl`, `--visualizer rerun`, or `--visualizer viser`, or omit\n"
             "    the visualizer argument for headless execution.)\n"
             "  * Keep Isaac Sim / Kit and switch to a Kit-compatible physics backend:\n"
             "      use `PhysxCfg` with `IsaacRtxRendererCfg`\n"

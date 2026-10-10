@@ -246,9 +246,27 @@ How-to Guides
 
       .. container:: guide-entry
 
+         :doc:`Streaming a camera view in a visualizer </source/how-to/visualizer_streaming_camera_view>`
+
+         Show tiled ground-truth camera feeds from many environments in a live visualizer panel.
+
+      .. container:: guide-entry
+
          :doc:`Capturing sensor frames during training </source/how-to/capture_sensor_frames>`
 
          Record selected sensor outputs from a running training job.
+
+      .. container:: guide-entry
+
+         :doc:`Recording video </source/how-to/record_video>`
+
+         Record mp4 clips from a visualizer or scene sensor, from the CLI or an environment config.
+
+      .. container:: guide-entry
+
+         :doc:`Creating visualization markers </source/how-to/create_visualization_markers>`
+
+         Draw frames, arrows, and custom shapes over the scene to debug per-environment state.
 
    .. container:: guide-group
 
