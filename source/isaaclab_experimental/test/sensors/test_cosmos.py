@@ -565,7 +565,7 @@ class Stream:
 
 
 class Model:
-    capabilities = {"device": "cuda:0", "max_episode_frames": 201}
+    capabilities = {"device": "cuda:0"}
 
     def warmup(self):
         pass
